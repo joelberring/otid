@@ -30,7 +30,10 @@ test("lånad bricka: den andra avläsningen skriver inte över den förstes resu
   await entry.selectOption(await entry.locator("option", { hasText: "Sen, Bo" }).getAttribute("value"));
   await reviewScreenshots(owner, "step31-borrowed-card");
   await unknownCards.getByRole("button", { name: "Granska koppling" }).click();
-  await unknownCards.getByRole("button", { name: "Bekräfta koppling och bedömning" }).click();
+  // Användartestet 2026-11-12: granskningen säger vem och att Bos egen bricka byts.
+  await expect(unknownCards.getByTestId("unknown-link-entry")).toContainText("Bo Sen · H21");
+  await expect(unknownCards.getByTestId("unknown-link-card")).toHaveText("! Bo Sen har bricka 7320002. Kopplingen byter till bricka 7320001.");
+  await unknownCards.getByRole("button", { name: "Byt bricka och koppla" }).click();
   await expect(unknownCards).toContainText("Det finns inga olösta okända avläsningar");
 
   await openStep(owner, "Anmälda");

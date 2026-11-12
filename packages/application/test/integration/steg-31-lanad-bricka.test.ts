@@ -91,7 +91,9 @@ describe("steg 31: samma bricka hos två löpare", () => {
     const resolved = await resolveUnknownReadoutAsAdmin(db, { ...admin, idempotencyKey: `unknown-readout-resolution:${requestId}`,
       request: { formatVersion: 1, requestId, target: "EXISTING_ENTRY", readoutId: listed.response.readouts[0]!.id, cardNumber: "12345",
         expectedEngineVersion: listed.response.engineVersion, entryId: ada, expectedEntryVersion: adaRow.entryVersion,
-        expectedClassId: adaRow.classId, expectedAssignment: adaRow.activeAssignment, expectedLatestResultRevision: adaRow.latestResultRevision } });
+        expectedClassId: adaRow.classId, expectedAssignment: adaRow.activeAssignment, expectedLatestResultRevision: adaRow.latestResultRevision,
+        // Användartestet 2026-11-12: Adas resultat ersätts, vilket kräver ett uttryckligt medgivande.
+        replaceExistingResult: true } });
     expect(resolved).toMatchObject({ status: "resolved", response: { entryId: ada } });
     expect(await row(raceId, "Ada")).toMatchObject({ elapsedMs: 3_000_000 });
     expect(await activeCard(ada)).toEqual(["12345"]);

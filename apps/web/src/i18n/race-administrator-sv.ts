@@ -218,6 +218,20 @@ export const raceAdministratorSv = {
   unknownReadoutLoadError: "Okända avläsningar kunde inte hämtas. Ingen ändring har gjorts.",
   unknownReadoutInvalid: "Välj en aktuell avläsning och fullständiga uppgifter för målgruppen.",
   unknownReadoutConflict: "Kopplingen gick inte: brickan eller deltagaren har ändrats under tiden. Läs in igen och försök på nytt.",
+  /** Användartestet 2026-11-12: kopplingen till en löpare som redan har resultat eller en annan bricka. */
+  unknownReadoutHasResult: (result: string) => `har resultat ${result}`,
+  unknownReadoutCurrentCard: "Nuvarande bricka",
+  unknownReadoutCurrentResult: "Nuvarande resultat",
+  unknownReadoutNoCard: "ingen",
+  unknownReadoutNoResult: "inget",
+  unknownReadoutReplaceWarning: (name: string, result: string, cardBefore: string | null, cardAfter: string) =>
+    `${name} har redan resultatet ${result}${cardBefore ? ` med bricka ${cardBefore}` : ""}. Kopplingen ersätter det med avläsningen från bricka ${cardAfter}.`,
+  unknownReadoutCardWarning: (name: string, cardBefore: string, cardAfter: string) =>
+    `${name} har bricka ${cardBefore}. Kopplingen byter till bricka ${cardAfter}.`,
+  unknownReadoutReplaceConsent: "Ja, ersätt resultatet med den här avläsningen",
+  unknownReadoutConfirmReplace: "Ersätt resultatet och koppla",
+  unknownReadoutConfirmCard: "Byt bricka och koppla",
+  unknownReadoutResultExists: "Kopplingen gick inte: löparen har redan ett resultat. Kryssa i att det ska ersättas och försök igen.",
   unknownReadoutSaved: "Brickan är kopplad och resultatet räknat. Avläsningen är sparad som den var.",
   unknownReadoutSavedLoadError: "Kopplingen är sparad, men listan kunde inte uppdateras. Ladda om sidan.",
   name: "Namn och klubb", raceClass: "Klass", rosterCard: "Bricka", rosterStart: "Start",

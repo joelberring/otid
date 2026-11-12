@@ -64,8 +64,4 @@ export type Operation = { generation: number; controller: AbortController; timer
 /** Löptid i arbetsytan: m:ss eller h:mm:ss, utan millisekunder. */
 export const resultDuration = formatDuration;
 
-export function unknownReadoutTargetLabel(value: UnknownReadoutResolutionAttempt): string {
-  return value.request.target === "NEW_ENTRY" ? `${value.request.familyName}, ${value.request.givenName}` : "Befintlig deltagare";
-}
-
 export { parseControlCodes } from "../../lib/form-validation";

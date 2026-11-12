@@ -8,6 +8,9 @@ export const participantCardSv = {
   decision: "Beslut",
   history: "Historik", historyEmpty: "Inga resultatändringar ännu.",
   historyLine: (time: string, what: string, status: string) => `${time} · ${what}: ${status}`,
+  /** Användartestet 2026-11-12: vad en kopplad okänd bricka ersatte. */
+  historyCard: (before: string | null, after: string) => before && before !== after ? `bricka ${before} → ${after}` : `bricka ${after}`,
+  historyReplaced: (result: string) => `ersatte ${result}`,
   historyCauses: {
     CARD_READOUT: "Avläst", CLASS_CHANGE_RECALCULATION: "Omräknat efter klassbyte", EXPLICIT_RECALCULATION: "Omräknat",
     UNKNOWN_READOUT_RESOLUTION: "Okänd bricka kopplad", MANUAL_DID_NOT_START: "Ej start registrerat",

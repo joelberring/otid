@@ -10,6 +10,7 @@ import { UUID_PATTERN as uuid } from "./serialization";
 import { applicableResultNotes, loadResultNotes } from "./result-notes";
 import { loadEntryCardPunches } from "./card-punches";
 import { loadControlCodesOutOfOrder } from "./snapshot";
+import { loadLinkDetails } from "./unknown-readout-link";
 
 export type AdministratorEffectiveResult =
   | { status: "unauthorized" | "forbidden" | "not-found" | "invalid-request" }
@@ -91,12 +92,21 @@ export async function getAdministratorEffectiveResult(db: Database,
       .where(and(eq(schema.classes.id, entry.classId), eq(schema.classes.raceId, race.id)));
     if (!event || !currentClass) throw new StoredResultRevisionConflict("Deltagarens lopprelation saknas");
     // Kort historik för deltagarkortet: de senaste publicerade resultatändringarna, nyaste först.
-    const history = (await tx.select({ revision: schema.resultRevisions.revision, cause: schema.resultRevisions.cause,
-      status: schema.resultRevisions.status, at: schema.resultRevisions.createdAt }).from(schema.resultRevisions)
+    const historyRows = await tx.select({ revision: schema.resultRevisions.revision, cause: schema.resultRevisions.cause,
+      status: schema.resultRevisions.status, at: schema.resultRevisions.createdAt, readoutId: schema.resultRevisions.readoutId })
+      .from(schema.resultRevisions)
       .where(and(eq(schema.resultRevisions.raceId, race.id), eq(schema.resultRevisions.entryId, entry.id),
         eq(schema.resultRevisions.published, true)))
-      .orderBy(desc(schema.resultRevisions.revision), desc(schema.resultRevisions.id)).limit(10))
-      .map(row => ({ ...row, at: row.at.toISOString() }));
+      .orderBy(desc(schema.resultRevisions.revision), desc(schema.resultRevisions.id)).limit(10);
+    // Användartestet 2026-11-12: en kopplad okänd bricka säger vad som ersattes (bricka före och efter, tidigare resultat).
+    const links = await loadLinkDetails(tx, race.id, entry.id, historyRows.flatMap(row => row.readoutId ? [row.readoutId] : []));
+    const linked = new Set<string>();
+    const history = historyRows.map(({ readoutId, ...row }) => {
+      const first = row.cause === "UNKNOWN_READOUT_RESOLUTION" || row.cause === "CARD_READOUT";
+      const link = readoutId && first && !linked.has(readoutId) ? links.get(readoutId) : undefined;
+      if (link && readoutId) linked.add(readoutId);
+      return { ...row, at: row.at.toISOString(), ...(link ? { link } : {}) };
+    });
     // PLAN.md steg 27: brickans alla stämplingar, även när bedömningen stannade vid "Start saknas".
     const cardPunches = await loadEntryCardPunches(tx, race.id, entry.id, event.timeZone);
     const common = { formatVersion: 1 as const, raceId: race.id, entryId: entry.id, history,

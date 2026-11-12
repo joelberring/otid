@@ -82,7 +82,10 @@ bricknummer, valfri start- och målstämpling och stämplingar.
 
 1. Aktiv brickkoppling saknas: `UNKNOWN_CARD`; inget tävlingsresultat skapas. Den lagrade avläsningen kan
    sedan kopplas uttryckligen (direktanmälan eller befintlig deltagare); kopplingen lägger till en revision
-   och ändrar aldrig råmeddelandet eller den första bedömningen.
+   och ändrar aldrig råmeddelandet eller den första bedömningen. Har deltagaren redan ett resultat från en avläsning
+   ersätter kopplingen det bara med `replaceExistingResult: true` i begäran, annars `RESULT_EXISTS` (användartestet
+   2026-11-12); ett beslut utan avläsning står kvar (steg 45). Bricka före och efter och det ersatta resultatet sparas i
+   auditposten `UNKNOWN_READOUT_LINK_DETAILS` och visas i deltagarkortets historik.
 2. Starttid väljs från startstämpling när klassens startsätt är `PUNCH`, annars från deltagarens fasta
    starttid. Saknar en löpare med fast start lottad tid används startstämplingen (notis "starttid från
    startstämpling"). En startstämpling mer än `START_PUNCH_TOLERANCE_MS` (60 s) före eller efter den lottade

@@ -235,6 +235,7 @@ export function resultFailure(status: string): Response {
     case "not-found": return failure(404, "NOT_FOUND");
     case "conflict": return failure(409, "CONFLICT");
     case "duplicate-name": return failure(409, "DUPLICATE_NAME");
+    case "result-exists": return failure(409, "RESULT_EXISTS");
     case "too-large": return resultExportFailure(413, "TOO_LARGE");
     case "too-many": return failure(409, "CONFLICT");
     default: return failure(500, "INTERNAL_ERROR");

@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import {
   unknownReadoutResolutionCandidateResponseSchema,
   unknownReadoutResolutionIdempotencyKeySchema,
@@ -20,8 +20,9 @@ import { relayTeamOfEntry } from "./relay-model";
 import { loadDecisionReviews } from "./decision-review";
 import { synchronizeRelayTeams } from "./relay-sync";
 import { appendResultRevision } from "./result-revisions";
-import { readoutsWithResults } from "./readout-lookup";
+import { latestResultReadAt, readoutsWithResults } from "./readout-lookup";
 import { directEntryStartTime } from "./start-draw-basis";
+import { currentEntryResult, entryResultOf, recordLinkDetails } from "./unknown-readout-link";
 import { cardAlreadyReadOutBy } from "./card-reuse";
 import { normalizedReadout } from "./result-revisions";
 import { loadTeamSprintRunners, storeTeamSprintReadoutAndRecalculate } from "./team-sprint-readout";
@@ -77,7 +78,8 @@ export async function listUnknownReadoutResolutionCandidatesAsAdmin(
       .orderBy(asc(schema.entries.familyName), asc(schema.entries.givenName), asc(schema.entries.id)).limit(10_001);
     if (entries.length > 10_000) throw new Error("För många deltagare");
     const revisions = entries.length === 0 ? [] : await tx.selectDistinctOn([schema.resultRevisions.entryId], {
-      id: schema.resultRevisions.id, entryId: schema.resultRevisions.entryId, revision: schema.resultRevisions.revision
+      id: schema.resultRevisions.id, entryId: schema.resultRevisions.entryId, revision: schema.resultRevisions.revision,
+      status: schema.resultRevisions.status, evaluation: schema.resultRevisions.evaluation
     }).from(schema.resultRevisions).where(and(eq(schema.resultRevisions.raceId, input.raceId),
       inArray(schema.resultRevisions.entryId, entries.map((row) => row.id))))
       .orderBy(asc(schema.resultRevisions.entryId), desc(schema.resultRevisions.revision));
@@ -94,6 +96,10 @@ export async function listUnknownReadoutResolutionCandidatesAsAdmin(
       rows.push(assignment); byEntry.set(assignment.entryId, rows);
     }
     const revisionByEntry = new Map(revisions.map((row) => [row.entryId, row]));
+    // Användartestet 2026-11-12: deltagare med ett resultat från en avläsning, som en koppling skulle ersätta.
+    const readOut = new Set(entries.length === 0 ? [] : (await tx.selectDistinct({ entryId: schema.resultRevisions.entryId })
+      .from(schema.resultRevisions).where(and(eq(schema.resultRevisions.raceId, input.raceId), isNotNull(schema.resultRevisions.readoutId))))
+      .map((row) => row.entryId));
     // Direktanmälan på avläsningssidan (PLAN.md steg 25) bedömer avläsningen utan resolutionsjournal.
     const withResults = await readoutsWithResults(tx, readoutRows.filter((row) => isUnknownOutcome(row.serverResult)).map((row) => row.id));
     const unknownRows = readoutRows.filter((row) => isUnknownOutcome(row.serverResult) && !resolvedIds.has(row.id) && !withResults.has(row.id));
@@ -122,14 +128,15 @@ export async function listUnknownReadoutResolutionCandidatesAsAdmin(
         const active = byEntry.get(entry.id) ?? [];
         const revision = revisionByEntry.get(entry.id);
         return { ...entry, activeAssignment: active.length === 1 ? { id: active[0]!.id, cardNumber: active[0]!.cardNumber } : null,
-          latestResultRevision: revision ? { id: revision.id, revision: revision.revision } : null };
+          latestResultRevision: revision ? { id: revision.id, revision: revision.revision } : null,
+          latestResult: revision ? entryResultOf(revision) : null, readOut: readOut.has(entry.id) };
       })
     }) };
   });
 }
 
 export type UnknownReadoutResolutionResult =
-  | { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" | "conflict" }
+  | { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" | "conflict" | "result-exists" }
   | { status: "resolved"; response: UnknownReadoutResolutionResponse };
 
 export async function resolveUnknownReadoutAsAdmin(
@@ -215,6 +222,7 @@ export async function resolveUnknownReadoutAsAdmin(
     let entry: typeof schema.entries.$inferSelect;
     let targetClassId: string;
     let previousAssignment: typeof schema.cardAssignments.$inferSelect | undefined;
+    let replacedResult: ReturnType<typeof entryResultOf> | null = null;
     if (intent.target === "EXISTING_ENTRY") {
       entry = lockedEntry!;
       if (entry.version !== intent.expectedEntryVersion || entry.classId !== intent.expectedClassId ||
@@ -228,6 +236,11 @@ export async function resolveUnknownReadoutAsAdmin(
           eq(schema.resultRevisions.entryId, entry.id))).orderBy(desc(schema.resultRevisions.revision)).limit(1);
       if ((latest?.id ?? null) !== (intent.expectedLatestResultRevision?.id ?? null) ||
         (latest?.revision ?? null) !== (intent.expectedLatestResultRevision?.revision ?? null)) return { status: "conflict" };
+      // Användartestet 2026-11-12: kopplingen ersätter löparens resultat bara med uttryckligt medgivande i begäran.
+      // Ett beslut utan avläsning (t.ex. brutit utan bricka) ersätts inte: det gäller fortfarande (steg 45).
+      const replaces = latest !== undefined && await latestResultReadAt(tx, entry.id) !== null;
+      if (replaces && intent.replaceExistingResult !== true) return { status: "result-exists" };
+      replacedResult = replaces ? await currentEntryResult(tx, input.raceId, entry.id) : null;
       previousAssignment = active[0];
       targetClassId = entry.classId;
     } else {
@@ -327,6 +340,13 @@ export async function resolveUnknownReadoutAsAdmin(
       entryId: entry.id, classId: targetClassId, assignmentId, createdResultRevisionId: result.id,
       createdResultRevision: revision, snapshotVersionAfter,
       request: intent, response, resolvedAt });
+    // Deltagarkortets historik: bricka före och efter och resultatet som ersattes.
+    const cardBefore = previousAssignment?.cardNumber ?? (sameRunner ? intent.cardNumber : null);
+    if (intent.target === "EXISTING_ENTRY" && (cardBefore !== intent.cardNumber || replacedResult)) {
+      await recordLinkDetails(tx, { raceId: input.raceId, readoutId: readout.readout.id, entryId: entry.id,
+        actorAccountId: auth.principal.accountId, requestId, createdAt: resolvedAt,
+        details: { cardBefore, cardAfter: intent.cardNumber, replacedResult } });
+    }
     await tx.insert(schema.auditEvents).values({ raceId: input.raceId, entityType: "card_readout",
       entityId: readout.readout.id, action: "UNKNOWN_READOUT_RESOLVED_BY_ADMIN",
       actorKind: "USER_ACCOUNT", actorId: auth.principal.accountId, requestId,

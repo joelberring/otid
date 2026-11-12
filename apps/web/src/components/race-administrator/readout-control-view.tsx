@@ -1,7 +1,7 @@
 "use client";
 
 import { publicResultEn, publicResultSv } from "../../i18n/public-en";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
 import { useTexts } from "../language-provider";
 import styles from "./readout-control.module.css";
@@ -10,7 +10,8 @@ import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import { formatClockTime } from "../../lib/clock-time";
 import { raceDayStarted } from "@o-tid/domain";
 import { awaitingStart, inForest, mispunchedEntries } from "../../lib/section-status";
-import { resultDuration, unknownReadoutTargetLabel } from "./types";
+import { resultDuration } from "./types";
+import { hasResult, linkReview, orderUnknownReadoutEntries, type EntryResult } from "./unknown-readout-choice";
 import type { Workspace } from "./workspace-state";
 import { RelayControl } from "./relay-panels";
 import { Button, Notice } from "../ui";
@@ -129,6 +130,13 @@ function LatestReadouts({ ws }: { ws: Workspace }) {
  */
 function UnknownCards({ ws }: { ws: Workspace }) {
   const text = useTexts(raceAdministratorSv, raceAdministratorEn);
+  const resultText = useTexts(publicResultSv, publicResultEn);
+  const resultLabel = (result: EntryResult) => [resultText.statusLabels[result.status],
+    result.elapsedMs !== undefined ? resultDuration(result.elapsedMs) : ""].filter(Boolean).join(" ");
+  // Användartestet 2026-11-12: att ersätta ett resultat kräver ett eget kryss, som nollställs för varje ny granskning.
+  const [replaceConsent, setReplaceConsent] = useState(false);
+  const attemptId = ws.unknownReadoutAttempt?.request.requestId;
+  useEffect(() => setReplaceConsent(false), [attemptId]);
   const { busy, data, functionary, inspectUnknownReadoutResolution, pending, raceId, sent, setUnknownReadoutAttempt,
     setUnknownReadoutClassId, setUnknownReadoutEntryId, setUnknownReadoutFamilyName, setUnknownReadoutGivenName,
     setUnknownReadoutId, setUnknownReadoutOrganisationName, setUnknownReadoutTarget, submitUnknownReadoutResolution,
@@ -137,6 +145,7 @@ function UnknownCards({ ws }: { ws: Workspace }) {
     unknownReadoutTarget } = ws;
   const timeZone = data?.timeZone ?? "UTC";
   const readoutTime = (value: string | null) => value ? formatClockTime(value, timeZone) : "–";
+  const review = unknownReadoutAttempt ? linkReview(unknownReadoutAttempt.candidate, unknownReadoutAttempt.request) : undefined;
   return <section className={styles.controlCard} id={`unknown-readout-${raceId}`} aria-labelledby={`control-unknown-${raceId}`}>
     <h3 id={`control-unknown-${raceId}`}>{text.controlUnknown}{" "}
       <strong className={styles.controlCount}>{unknownReadoutCandidate ? unknownReadoutCandidate.readouts.length : "–"}</strong></h3>
@@ -163,8 +172,9 @@ function UnknownCards({ ws }: { ws: Workspace }) {
         {unknownReadoutTarget === "EXISTING_ENTRY" && !functionary ? <label>{text.unknownReadoutEntry}<select value={unknownReadoutEntryId} disabled={busy}
           onChange={event => setUnknownReadoutEntryId(event.target.value)}>
           <option value="">{text.chooseParticipant}</option>
-          {unknownReadoutCandidate.entries.map(entry => <option key={entry.id} value={entry.id}>
+          {orderUnknownReadoutEntries(unknownReadoutCandidate.entries).map(entry => <option key={entry.id} value={entry.id}>
             {entry.familyName}, {entry.givenName} · {unknownReadoutCandidate.classes.find(raceClass => raceClass.id === entry.classId)?.name ?? ""}{entry.activeAssignment ? ` · ${text.rosterCard} ${entry.activeAssignment.cardNumber}` : ""}
+            {hasResult(entry) ? ` · ${text.unknownReadoutHasResult(entry.latestResult ? resultLabel(entry.latestResult) : "")}` : ""}
           </option>)}
         </select></label> : <>
           <label>{text.unknownReadoutNewClass}<select value={unknownReadoutClassId} disabled={busy}
@@ -188,10 +198,24 @@ function UnknownCards({ ws }: { ws: Workspace }) {
       <h4>{text.unknownReadoutReview}</h4>
       <p><strong>{text.rosterCard}:</strong> {unknownReadoutAttempt.request.cardNumber} · {readoutTime(unknownReadoutAttempt.candidate.readouts
         .find(row => row.id === unknownReadoutAttempt.request.readoutId)?.finishPunchedAt ?? null)}</p>
-      <p><strong>{text.unknownReadoutTarget}:</strong> {unknownReadoutTargetLabel(unknownReadoutAttempt)}</p>
+      {review ? <>
+        <p data-testid="unknown-link-entry"><strong>{text.unknownReadoutTarget}:</strong> {review.name} · {review.className}</p>
+        <p><strong>{text.unknownReadoutCurrentCard}:</strong> {review.cardBefore ?? text.unknownReadoutNoCard} · <strong>
+          {text.unknownReadoutCurrentResult}:</strong> {review.result ? resultLabel(review.result) : review.replacesResult ? "–" : text.unknownReadoutNoResult}</p>
+        {review.replacesResult ? <p className={workspaceStyles.warning} role="note" data-testid="unknown-link-replaces">
+          {"! "}{text.unknownReadoutReplaceWarning(review.name, review.result ? resultLabel(review.result) : "–", review.cardBefore, review.cardAfter)}</p>
+          : review.changesCard ? <p className={workspaceStyles.warning} role="note" data-testid="unknown-link-card">
+            {"! "}{text.unknownReadoutCardWarning(review.name, review.cardBefore!, review.cardAfter)}</p> : null}
+        {review.replacesResult && <label><input type="checkbox" checked={replaceConsent} disabled={busy}
+          onChange={event => setReplaceConsent(event.target.checked)} /> {text.unknownReadoutReplaceConsent}</label>}
+      </> : <p><strong>{text.unknownReadoutTarget}:</strong> {unknownReadoutAttempt.request.target === "NEW_ENTRY"
+        ? `${unknownReadoutAttempt.request.familyName}, ${unknownReadoutAttempt.request.givenName}` : text.unknownReadoutExisting}</p>}
       <p>{text.unknownReadoutConsequence}</p>
       <div className={workspaceStyles.actions}>
-        <Button disabled={busy} onClick={() => void submitUnknownReadoutResolution(unknownReadoutAttempt)}>{text.unknownReadoutConfirm}</Button>
+        <Button disabled={busy || (review?.replacesResult === true && !replaceConsent)}
+          onClick={() => void submitUnknownReadoutResolution(unknownReadoutAttempt, review?.replacesResult === true && replaceConsent)}>
+          {review?.replacesResult ? text.unknownReadoutConfirmReplace : review?.changesCard ? text.unknownReadoutConfirmCard
+            : text.unknownReadoutConfirm}</Button>
         <Button variant="secondary" disabled={busy} onClick={() => { pending.current = undefined; sent.current = false; setUnknownReadoutAttempt(undefined); }}>{text.unknownReadoutEdit}</Button>
       </div>
     </div>}

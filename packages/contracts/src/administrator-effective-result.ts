@@ -82,9 +82,21 @@ export const administratorResultHistoryCauses = ["CARD_READOUT", "CLASS_CHANGE_R
   "MANUAL_DID_NOT_START_WITHDRAWAL", "MANUAL_TIME", "MANUAL_TIME_WITHDRAWAL", "MANUAL_CONTROL_APPROVAL",
   "MANUAL_CONTROL_APPROVAL_WITHDRAWAL", "MANUAL_RESULT_REMOVED", "READOUT_REREAD", "MANUAL_MISPUNCH_CONFIRMATION",
   "MANUAL_MISPUNCH_CONFIRMATION_WITHDRAWAL"] as const;
+/**
+ * Användartestet 2026-11-12: vad en koppling av en okänd bricka ändrade för löparen – bricka före och efter och resultatet
+ * som ersattes. Sparas i auditposten för avläsningen och visas i deltagarkortets historik.
+ */
+export const unknownReadoutLinkDetailsSchema = z.object({
+  cardBefore: z.string().min(1).max(32).nullable(),
+  cardAfter: z.string().min(1).max(32),
+  replacedResult: z.object({ status: z.enum(["OK", "OVERTIME", "MP", "DSQ", "DNF", "OOC", "DNS", "NT"]),
+    elapsedMs: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional() }).strict().nullable()
+}).strict();
+export type UnknownReadoutLinkDetails = z.infer<typeof unknownReadoutLinkDetailsSchema>;
 export const administratorResultHistorySchema = z.array(z.object({
   revision: version, cause: z.enum(administratorResultHistoryCauses),
-  status: z.enum(["OK", "OVERTIME", "MP", "DSQ", "DNF", "OOC", "DNS", "NT"]), at: z.iso.datetime({ precision: 3 })
+  status: z.enum(["OK", "OVERTIME", "MP", "DSQ", "DNF", "OOC", "DNS", "NT"]), at: z.iso.datetime({ precision: 3 }),
+  link: unknownReadoutLinkDetailsSchema.optional()
 }).strict()).max(10);
 const common = { formatVersion: z.literal(1), raceId: uuid, entryId: uuid, history: administratorResultHistorySchema,
   entryVersion: version, currentClassId: uuid, snapshotVersion: version,

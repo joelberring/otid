@@ -147,7 +147,12 @@ function ResultHistory({ result, timeZone }: { result: AdministratorEffectiveRes
     <h3>{text.history}</h3>
     {result.history.length === 0 ? <p>{text.historyEmpty}</p> : <ul className={styles.changeList}>
       {result.history.map(row => <li key={row.revision}>{text.historyLine(formatClockTime(row.at, timeZone),
-        text.historyCauses[row.cause], resultText.statusLabels[row.status])}</li>)}
+        text.historyCauses[row.cause], resultText.statusLabels[row.status])}
+        {/* Användartestet 2026-11-12: en kopplad okänd bricka säger vad som ersattes. */}
+        {row.link && <span data-testid="history-link">{[` · ${text.historyCard(row.link.cardBefore, row.link.cardAfter)}`,
+          row.link.replacedResult ? text.historyReplaced([resultText.statusLabels[row.link.replacedResult.status],
+            row.link.replacedResult.elapsedMs !== undefined ? resultDuration(row.link.replacedResult.elapsedMs) : ""].filter(Boolean).join(" ")) : ""]
+          .filter(Boolean).join(", ")}</span>}</li>)}
     </ul>}
   </section>;
 }

@@ -21,6 +21,7 @@ import { checkinConflictReviewSv as reviewText } from "../../i18n/checkin-confli
 import { decisionReviewText } from "../../lib/decision-review";
 
 
+import { orderUnknownReadoutEntries, resolutionRequest } from "./unknown-readout-choice";
 import type { ConflictReviewAttempt, Operation, ReturnAttempt, StartCorrectionAttempt, UnknownReadoutResolutionAttempt } from "./types";
 import type { Base, WorkspaceState } from "./workspace-state";
 import type { RelayActions } from "./relay-actions";
@@ -240,7 +241,7 @@ export function createDuringRaceActions(ws: Base & RaceDataActions & Pick<RelayA
     const value = unknownReadoutResolutionCandidateResponseSchema.parse(await json(response, op));
     if (value.raceId !== raceId) throw new Error("Unknown readout candidate scope mismatch");
     setUnknownReadoutCandidate(value); setUnknownReadoutId(value.readouts[0]?.id ?? "");
-    setUnknownReadoutEntryId(value.entries[0]?.id ?? ""); setUnknownReadoutClassId(value.classes[0]?.id ?? "");
+    setUnknownReadoutEntryId(orderUnknownReadoutEntries(value.entries)[0]?.id ?? ""); setUnknownReadoutClassId(value.classes[0]?.id ?? "");
     setUnknownReadoutFetchedAt(new Date().toISOString()); setUnknownReadoutAttentionStale(false);
   }
   /** Senaste resultaten (de 25 senast registrerade resultatuppdateringarna) till kontrollvyn. */
@@ -301,14 +302,19 @@ export function createDuringRaceActions(ws: Base & RaceDataActions & Pick<RelayA
     const value: UnknownReadoutResolutionAttempt = { kind: "UNKNOWN_READOUT_RESOLUTION", candidate: unknownReadoutCandidate, request: parsed.data };
     pending.current = value; sent.current = false; setUnknownReadoutAttempt(value); setUnknownReadoutError("");
   }
-  async function submitUnknownReadoutResolution(value: UnknownReadoutResolutionAttempt) {
+  async function submitUnknownReadoutResolution(value: UnknownReadoutResolutionAttempt, replaceExistingResult = false) {
     if (writingRef.current || pending.current !== value || !requireSession()) return;
     const op = begin(), wasUnknown = sent.current; let committed = false;
     try {
       sent.current = true;
       const response = await request("/unknown-readout-resolution", op, { method: "POST",
         headers: { "content-type": "application/json", "x-otid-csrf": csrf(),
-          "idempotency-key": `unknown-readout-resolution:${value.request.requestId}` }, body: JSON.stringify(value.request) });
+          "idempotency-key": `unknown-readout-resolution:${value.request.requestId}` },
+        body: JSON.stringify(resolutionRequest(value.request, replaceExistingResult)) });
+      // Användartestet 2026-11-12: servern ersätter inget resultat utan medgivandet; granskningen står kvar.
+      if (response.status === 409 && (await response.clone().json() as { error?: unknown }).error === "RESULT_EXISTS") {
+        sent.current = false; setUnknownReadoutError(text.unknownReadoutResultExists); return;
+      }
       if ([400, 404, 409].includes(response.status)) {
         if (wasUnknown) { setUnknown(true); setUnknownReadoutError(text.unreachable); return; }
         pending.current = undefined; sent.current = false; setUnknownReadoutAttempt(undefined); setUnknownReadoutCandidate(undefined);

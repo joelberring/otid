@@ -6,6 +6,11 @@ import { prefixedUuidPattern, uuidSchema as uuid } from "./ids";
 const version = z.number().int().positive().max(2_147_483_647);
 const engineVersion = z.string().trim().min(1).max(64);
 const latestResultRevision = z.object({ id: uuid, revision: version }).strict();
+/** Ett resultat i korthet: status och löptid när den finns. */
+const entryResultSchema = z.object({
+  status: z.enum(["OK", "OVERTIME", "MP", "DSQ", "DNF", "OOC", "DNS", "NT"]),
+  elapsedMs: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional()
+}).strict();
 
 export const unknownReadoutResolutionCandidateResponseSchema = z.object({
   formatVersion: z.literal(1),
@@ -35,7 +40,11 @@ export const unknownReadoutResolutionCandidateResponseSchema = z.object({
     classId: uuid,
     entryVersion: version,
     activeAssignment: z.object({ id: uuid, cardNumber: newEntryCardNumberSchema }).strict().nullable(),
-    latestResultRevision: latestResultRevision.nullable()
+    latestResultRevision: latestResultRevision.nullable(),
+    /** Användartestet 2026-11-12: löparens nuvarande resultat, som kopplingen ersätter. */
+    latestResult: entryResultSchema.nullable().optional(),
+    /** Deltagaren har ett resultat från en avläsning: kopplingen ersätter det och kräver `replaceExistingResult`. */
+    readOut: z.boolean().optional()
   }).strict()).max(10_000)
 }).strict().superRefine((value, context) => {
   for (const [path, ids] of [
@@ -68,7 +77,12 @@ export const unknownReadoutResolutionRequestSchema = z.discriminatedUnion("targe
     expectedEntryVersion: version,
     expectedClassId: uuid,
     expectedAssignment: z.object({ id: uuid, cardNumber: newEntryCardNumberSchema }).strict().nullable(),
-    expectedLatestResultRevision: latestResultRevision.nullable()
+    expectedLatestResultRevision: latestResultRevision.nullable(),
+    /**
+     * Användartestet 2026-11-12: löparen har redan ett resultat från en avläsning och kopplingen ersätter det. Krävs av
+     * servern i det läget; utan det avvisas kopplingen (RESULT_EXISTS). Ett beslut utan avläsning ersätts inte (steg 45).
+     */
+    replaceExistingResult: z.literal(true).optional()
   }).strict(),
   z.object({
     ...common,

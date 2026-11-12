@@ -40,6 +40,8 @@ function runGeoWorker(origin: string): Promise<{ code: number | null; output: st
 test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-servern", async ({ browser, baseURL }) => {
   test.setTimeout(300_000);
   const owner = await registerAccount(browser, `laser.${unique()}@exempel.se`, "Lisa Laser");
+  // Sidan frågar innan kandidater som inte är införda byts mot andra (ägaren 2026-11-12); här byts de med flit.
+  owner.on("dialog", dialog => void dialog.accept());
   await warmRoute(owner, "/api/account/map-sources/lantmateriet");
   const saved = await owner.request.put("/api/account/map-sources/lantmateriet", { headers: { origin: baseURL!, "x-otid-csrf": await csrfOf(owner) },
     data: { formatVersion: 1, method: "BASIC", id: "geotorget-lisa", secret: "hemligt-laser-1" } });
@@ -110,6 +112,8 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   await depth.getByText("Fukt med reglage (blött och fuktigt)").click();
   await depth.getByTestId("map-project-depth-run").click();
   // Förvalet (0,3 m och flack mark, Högdalen som facit) ger lite i testrutan; en högre gräns och brantare mark ger blött.
+  // De enskilda gränserna ligger under Finjustera (skalan 1–10 står överst, ägaren 2026-11-12).
+  await depth.getByText("Finjustera").click();
   await depth.getByTestId("map-project-depth-slope").fill("15");
   await depth.getByTestId("map-project-depth-wet").fill("1.5");
   await expect(depth.getByTestId("map-project-depth-message")).toContainText("ha blött", { timeout: 20_000 });
@@ -167,6 +171,7 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   await cuts.getByText("Hyggen med reglage").click();
   await cuts.getByTestId("map-project-cuts-fetch").click();
   await expect(cuts.getByTestId("map-project-cuts-message")).toHaveText("1 färska, 0 med sly och 0 med ungskog av 3 hyggen i rutan.", { timeout: 20_000 });
+  await cuts.getByText("Finjustera").click();
   await cuts.getByTestId("map-project-cuts-fresh").fill("1");
   await expect(cuts.getByTestId("map-project-cuts-message")).toHaveText("0 färska, 1 med sly och 0 med ungskog av 3 hyggen i rutan.", { timeout: 20_000 });
   await laser.getByRole("button", { name: "Läs in lantmäteriets marktäcke som kandidater" }).click();

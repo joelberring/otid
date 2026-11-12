@@ -306,6 +306,7 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
             .map(([key, value]) => `${key} ${value}`).join(", "))}</span>}
           {job.layerId && <span className={styles.muted}> · {text.layerAdded}</span>}
           {job.moistureLayerId && <span className={styles.muted}> · {text.moistureAdded}</span>}
+          {job.skippedSteps.length > 0 && <span className={styles.muted} data-testid="map-project-laser-skipped"> · {text.skippedSteps(job.skippedSteps.map(step => text.stepNames[step] ?? step).join(", "))}</span>}
           {job.status === "DONE" && importer.canImport && <span className={styles.actions}>
             {job.kind === "PULLAUTIN" && baseMapOutputs(job.outputs.map(output => output.name)).length > 1 && <Button disabled={!!busy} data-testid="map-project-laser-base-map"
               onClick={() => void candidates(job, baseMapOutputs(job.outputs.map(output => output.name)), text.baseMap, true)}>{text.loadBaseMap}</Button>}

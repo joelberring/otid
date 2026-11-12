@@ -5,5 +5,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["./*.ts", "./lasttest/*.ts"]
+  "include": ["./*.ts", "./lasttest/*.ts", "./learn/*.ts"]
 }

@@ -107,6 +107,8 @@ export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
   wet: "Wet below",
   wetOption: (meters: number) => `${meters} m above the channel`,
   moistureAdded: "The moisture is added as a base layer.",
+  skippedSteps: (steps: string) => `Could not be computed for this area: ${steps}. The rest is done; try a smaller stage for what is missing.`,
+  stepNames: { ditches: "ditches", stones: "boulders", rock: "bare rock", knolls: "small knolls" } as Record<string, string>,
   vegetation: "Also make areas of the vegetation (open land, green and undergrowth from the laser returns)",
   minArea: "Smallest area",
   minAreaOption: (m2: number) => `${m2} m²`,

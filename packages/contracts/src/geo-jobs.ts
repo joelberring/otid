@@ -91,6 +91,8 @@ export interface GeoJobView {
   readonly progress: { readonly step: string; readonly done: number; readonly total: number } | null;
   readonly error: string | null; readonly layerId: string | null;
   /** K5c del 2: fuktighetens underlag, när jobbet räknade fuktighet. */
+  /** Steg som geo-arbetaren hoppade över (tidsgränsen eller ett fel i just det steget): ditches, stones, rock, knolls. */
+  readonly skippedSteps: readonly string[];
   readonly moistureLayerId: string | null; readonly moisture: { readonly channelHa: number; readonly wetMeters: number; readonly moistMeters: number } | null;
   /** K5c del 3: vegetationen som ytor, när jobbet räknade den. */
   readonly vegetation: { readonly minAreaM2: number } | null;
@@ -115,7 +117,7 @@ export const geoWorkerFinishSchema = z.discriminatedUnion("status", [
  * skickar den i `x-otid-geo-version`; en äldre arbetare får inga jobb, och en server som O-Tid startat raderas. Höjs när
  * `scripts/geo-worker.ts` får något som jobben räknar med (samma tal står där; ett test håller dem lika).
  */
-export const GEO_WORKER_VERSION = 16;
+export const GEO_WORKER_VERSION = 17;
 
 export const GEO_OUTPUT_NAME = /^[a-z0-9_.-]{1,60}$/;
 /** K6b: DWG-ritningen som geo-arbetaren läser (indata, sparad som jobbets fil; resultatet heter ritning.geojson). */

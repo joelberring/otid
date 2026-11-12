@@ -168,6 +168,8 @@ export const mapSourcesSv = {
     wet: "Blött under",
     wetOption: (meters: number) => `${String(meters).replace(".", ",")} m över stråket`,
     moistureAdded: "Fuktigheten är tillagd som underlag.",
+    skippedSteps: (steps: string) => `Kunde inte räknas för det här området: ${steps}. Resten är klart; prova en mindre etapp för det som saknas.`,
+    stepNames: { ditches: "diken", stones: "stenar", rock: "berg i dagen", knolls: "små kullar" } as Record<string, string>,
     vegetation: "Gör också ytor av vegetationen (öppen mark, grönt och undervegetation ur laserns returer)",
     minArea: "Minsta yta",
     minAreaOption: (m2: number) => `${m2} m²`,

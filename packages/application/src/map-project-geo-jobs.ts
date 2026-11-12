@@ -85,7 +85,7 @@ function toView(row: Awaited<ReturnType<typeof rows>>[number], viewer: string): 
   const dates = (request.tiles ?? []).map(tile => (tile as { datetime?: unknown }).datetime).filter((date): date is string => typeof date === "string" && /^\d{4}-\d{2}-\d{2}/.test(date));
   return { jobId: job.id, scannedAt: dates.length ? dates.map(date => date.slice(0, 10)).sort().at(-1)! : null, name: request.name ?? "Karttapullautin", kind: job.kind, status: job.status, tiles: request.tiles?.length ?? 0,
     settings: request.settings ?? {}, clip: request.clip ?? null, extras: (request.extras ?? []).map(extra => extra.kind), cliffs: request.cliffs ?? null, progress: job.status === "RUNNING" ? progress : null, error: job.error,
-    layerId: typeof job.result?.layerId === "string" ? job.result.layerId : null,
+    layerId: typeof job.result?.layerId === "string" ? job.result.layerId : null, skippedSteps: skippedSteps(job.result?.summary),
     moistureLayerId: typeof job.result?.moistureLayerId === "string" ? job.result.moistureLayerId : null, moisture: request.moisture ?? null,
     vegetation: request.vegetation ?? null, outputs: row.files.map(file => ({ name: file.name, mediaType: file.mediaType, byteSize: file.byteSize })),
     createdBy: { accountId: job.accountId, name: row.creator }, own: job.accountId === viewer, createdAt: job.createdAt.toISOString(),
@@ -166,6 +166,12 @@ export async function removeGeoJob(db: Database, input: ClubProof & { projectId:
     await tx.delete(jobs).where(eq(jobs.id, job.id));
     return { status: "deleted" } as const;
   });
+}
+
+/** Stegen som arbetaren hoppade över, ur sammanfattningens kommaseparerade lista. */
+function skippedSteps(summary: unknown): string[] {
+  const value = (summary as { skippedSteps?: unknown } | null | undefined)?.skippedSteps;
+  return typeof value === "string" ? value.split(",").filter(Boolean) : [];
 }
 
 /** En resultatfil för den som ser projektet (kurvorna läses in som kandidater i webbläsaren). */

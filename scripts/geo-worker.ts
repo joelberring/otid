@@ -30,9 +30,8 @@ import { cliffsFromTicks, DEFAULT_CLIFF_RULES, hillshade, mergeGroundGrids, read
 import { buildingLayer, featuresGeoJson, landCoverLayer, readGpkgFeatures, unzipFirst, type Geometry } from "./geo-gpkg.ts";
 import { dwgFeatures, dwgObjects } from "./geo-dwg.ts";
 import { moistureDxf, moistureFromHeightMaps, readHeightMap } from "./geo-moisture.ts";
-import { DEFAULT_DITCHES, ditchLines, localRelief, reliefImage } from "./geo-ditches.ts";
 import { groundShareAt, vegetationSignals, type VegetationSignals, mergePointStats, pointImages, readPointStats } from "./geo-points.ts";
-import { bareRock, boulders, knolls } from "./geo-rock.ts";
+import { maskOf, runStep, StepSkipped, type StepInput, type StepName } from "./geo-steps.ts";
 import { decodeGrayPng, readWorldFile, vegetationFromTiles, type VegetationTile } from "./geo-vegetation.ts";
 import { readWaterGrid, waterFromGrids } from "./geo-water.ts";
 
@@ -75,7 +74,7 @@ const VECTOR_OUTPUTS: readonly (readonly [string, string])[] = [
 class Stopped extends Error {}
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 /** Arbetarens version (samma som `GEO_WORKER_VERSION` i contracts; servern ger inga jobb till en äldre). */
-export const WORKER_VERSION = 16;
+export const WORKER_VERSION = 17;
 /** Serverns gräns för en resultatfil (GEO_OUTPUT_MAX_BYTES i @o-tid/contracts). */
 const OUTPUT_MAX_BYTES = 100 * 1024 * 1024;
 const headers = (extra: Record<string, string> = {}) => ({ authorization: `Bearer ${token}`, "x-otid-geo-worker": workerName,
@@ -140,6 +139,8 @@ async function runJob(job: Job): Promise<void> {
       body: JSON.stringify(progress) }).catch(() => undefined);
     const body = response?.ok ? await response.json().catch(() => undefined) as { action?: string } | undefined : undefined;
     if (body?.action === "stop") control.abort();
+    // Minnet i loggen vid varje livstecken, så att orsaken syns om arbetaren dör (docker logs på geoservern).
+    console.log(`${job.jobId.slice(0, 8)} ${progress.step} ${progress.done}/${progress.total} ${Math.round(process.memoryUsage().rss / 1e6)} MB`);
   };
   const timer = setInterval(() => void beat(), 60_000);
   const set = async (step: string, done: number, total: number) => { progress = { step, done, total }; await beat(); if (control.signal.aborted) throw new Stopped(); };
@@ -277,18 +278,31 @@ async function runJob(job: Job): Promise<void> {
     }
     // Ägaren 2026-11-11: diken ur terrängformen (geo-ditches.ts) och reliefen som underlag; de krokiga sänkorna behålls bara
     // där fuktigheten säger fuktigt.
+    // Stegen nedan körs i egna trådar med tidsgräns (geo-steps.ts): ett steg som går över hoppas över, resten blir klart.
+    const skippedSteps: string[] = [];
+    const step = async <K extends StepName>(name: K, label: string, input: StepInput) => {
+      await set(label, 0, 1);
+      try { return await runStep(name, input, control.signal); }
+      catch (error) {
+        if (control.signal.aborted) throw new Stopped();
+        if (!(error instanceof StepSkipped)) throw error;
+        console.error(`Steget hoppas över, ${error.message}`);
+        skippedSteps.push(name);
+        return undefined;
+      }
+    };
+    const waterData = water ? { grid: water.grid, mask: water.mask } : undefined;
     let ditchSummary: Record<string, number> = {};
     if (ground) {
-      await set("Letar diken i terrängformen", 0, 1);
-      const relief = localRelief(ground, DEFAULT_DITCHES.radius);
-      const image = reliefImage(ground, relief);
-      await writeFile(join(dir, "relief.png"), image.png);
-      await writeFile(join(dir, "relief.pgw"), image.world);
-      const lines = ditchLines(ground, relief, DEFAULT_DITCHES, wetAt, water?.at);
-      const of = (name: string) => lines.filter(line => line.name === name).map(line => line.points);
-      if (lines.length) await writeFile(join(dir, "diken.dxf"), moistureDxf([{ name: "dike", closed: false, parts: of("dike") },
-        { name: "fuktstrak_terrang", closed: false, parts: of("fuktstrak_terrang") }]));
-      ditchSummary = { ditches: of("dike").length, terrainChannels: of("fuktstrak_terrang").length };
+      const found = await step("ditches", "Letar diken i terrängformen", { ground, water: waterData, wet: wetAt ? maskOf(ground, wetAt) : undefined });
+      if (found) {
+        await writeFile(join(dir, "relief.png"), found.png);
+        await writeFile(join(dir, "relief.pgw"), found.world);
+        const of = (name: string) => found.lines.filter(line => line.name === name).map(line => line.points);
+        if (found.lines.length) await writeFile(join(dir, "diken.dxf"), moistureDxf([{ name: "dike", closed: false, parts: of("dike") },
+          { name: "fuktstrak_terrang", closed: false, parts: of("fuktstrak_terrang") }]));
+        ditchSummary = { ditches: of("dike").length, terrainChannels: of("fuktstrak_terrang").length };
+      }
     }
     // K5c del 3: vegetationen ur klassbilderna i ./out (<ruta>_vege_bit.png, _undergrowth_bit.png och världsfilen).
     let vegetationSummary: Record<string, number> = {};
@@ -319,19 +333,17 @@ async function runJob(job: Job): Promise<void> {
     // Stenar ur markrastret, och berg i dagen där vegetationen är öppen (geo-rock.ts).
     let rockSummary: Record<string, number> = {};
     if (ground) {
-      await set("Letar stenar", 0, 1);
-      // Egna steg i förloppet, så att det syns var ett stort område fastnar (Djurgården och Nåttarö 2026-11-11).
-      const stones = boulders(ground, undefined, water?.at);
-      await set("Letar berg i dagen", 0, 1);
-      const rock = openAt ? bareRock(ground, openAt, undefined, water?.at, forestAt) : [];
-      await set("Letar små kullar", 0, 1);
-      const hills = knolls(ground, stones, undefined, undefined, water?.at);
-      if (stones.length || rock.length) {
+      const stones = (await step("stones", "Letar stenar", { ground, water: waterData })) ?? { stones: [], capped: 0 };
+      const rock = openAt ? (await step("rock", "Letar berg i dagen", { ground, water: waterData, open: maskOf(ground, openAt),
+        forest: forestAt ? maskOf(ground, forestAt) : undefined }))?.rock ?? [] : [];
+      const hills = (await step("knolls", "Letar små kullar", { ground, water: waterData, stones: stones.stones })) ?? { knolls: [], capped: 0 };
+      if (stones.stones.length || rock.length || hills.knolls.length) {
         await writeFile(join(dir, "berg.dxf"), moistureDxf([{ name: "berg_i_dagen_laser", closed: true, parts: rock },
-          ...(["sten", "stort_block"] as const).map(name => ({ name, closed: false, points: stones.filter(stone => stone.name === name).map(stone => stone.at), parts: [] })),
-          { name: "dotknoll_laser", closed: false, points: hills, parts: [] }]));
+          ...(["sten", "stort_block"] as const).map(name => ({ name, closed: false, points: stones.stones.filter(stone => stone.name === name).map(stone => stone.at), parts: [] })),
+          { name: "dotknoll_laser", closed: false, points: hills.knolls, parts: [] }]));
       }
-      rockSummary = { boulders: stones.length, knolls: hills.length, bareRockAreas: rock.length };
+      rockSummary = { boulders: stones.stones.length, knolls: hills.knolls.length, bareRockAreas: rock.length,
+        ...(stones.capped + hills.capped ? { cappedPoints: stones.capped + hills.capped } : {}) };
     }
     const files = new Set(await readdir(dir));
     const uploads: (readonly [string, string, string])[] = [["karta.png", "merged.png", "image/png"], ["karta.pgw", "merged.pgw", "text/plain"],
@@ -365,7 +377,7 @@ async function runJob(job: Job): Promise<void> {
       done += 1;
     }
     const finished = await call(`/api/geo-worker/jobs/${job.jobId}/finish`, { method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ status: "DONE", summary: { worker: WORKER_VERSION, tiles: job.tiles.length, scale, memoryMb: Math.round(process.memoryUsage().rss / 1e6), serverMemoryMb: Math.round(totalmem() / 1e6), cores: cpus().length, ...(skippedOutputs.length ? { skippedOutputs: skippedOutputs.length } : {}), ...(water ? { waterHa: water.summary.waterHa } : {}), ...cliffSummary, ...extraSummary, ...moistureSummary, ...ditchSummary, ...vegetationSummary, ...rockSummary } }) });
+      body: JSON.stringify({ status: "DONE", summary: { worker: WORKER_VERSION, tiles: job.tiles.length, scale, memoryMb: Math.round(process.memoryUsage().rss / 1e6), serverMemoryMb: Math.round(totalmem() / 1e6), cores: cpus().length, ...(skippedOutputs.length ? { skippedOutputs: skippedOutputs.length } : {}), ...(skippedSteps.length ? { skippedSteps: skippedSteps.join(",") } : {}), ...(water ? { waterHa: water.summary.waterHa } : {}), ...cliffSummary, ...extraSummary, ...moistureSummary, ...ditchSummary, ...vegetationSummary, ...rockSummary } }) });
     console.log(`Geo-jobb ${job.jobId}: klart (${job.tiles.length} rutor, skala ${scale}, svar ${finished.status})`);
   } finally {
     clearInterval(timer);

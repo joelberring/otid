@@ -98,10 +98,47 @@ export async function createMapProjectProposal(db: Database, input: ClubProof & 
 }
 
 /** K2: ett förslag från AI-kopplingen (källan `AI`, alltid ett förslag, också när kontot är ägare). */
+/**
+ * AI-kopplingens förslag. Projektets AI-läge avgör (ägaren 2026-11-12): READ avvisar, PROPOSE lämnar förslaget öppet för en
+ * ägare, och AUTONOMOUS godkänner det direkt i samma transaktion. Ändringarna hamnar då i kartans historik som ett godkänt
+ * AI-förslag (godkänt av kontot bakom kopplingen), så de syns och går att ångra som andra ändringar.
+ */
 export async function createMapProjectProposalAsAi(db: Database, input: { accountId: string; projectId: string; request: unknown }, now = new Date())
-  : Promise<ClubFailure | { status: "created"; replayed: boolean; proposal: MapProjectProposalView }> {
-  return db.transaction(async tx => createProposal(tx, await requireMapProjectForAccount(tx, input.accountId, input.projectId, now, "propose", true),
-    input.request, now, "AI"));
+  : Promise<ClubFailure | { status: "created"; replayed: boolean; proposal: MapProjectProposalView; applied?: number; conflicts?: number }> {
+  return db.transaction(async tx => {
+    const access = await requireMapProjectForAccount(tx, input.accountId, input.projectId, now, "propose", true);
+    if (access.status === "ok" && access.project.aiMode === "READ") return { status: "forbidden" } as const;
+    const created = await createProposal(tx, access, input.request, now, "AI");
+    if (created.status !== "created" || created.replayed || access.status !== "ok" || access.project.aiMode !== "AUTONOMOUS") return created;
+    // Självständigt gäller bara ett konto som självt får rita i kartan; annars blir det ett vanligt förslag.
+    if (!mapProjectAllows(access.role, access.project, "edit")) return created;
+    if (access.project.status !== "OPEN") return { status: "conflict" } as const;
+    const where = and(eq(proposals.id, created.proposal.proposalId), eq(proposals.projectId, access.project.id));
+    const [proposal] = await tx.select().from(proposals).where(where).for("update");
+    const outcome = await acceptEdits(tx, access.project, proposal!, access.accountId, now);
+    const [next] = await tx.update(proposals).set({ status: "ACCEPTED", decidedBy: access.accountId, decidedAt: now, decisionNote: "AI-kopplingen arbetar självständigt i projektet." })
+      .where(where).returning();
+    await mapProjectJournal(tx, access.project, { action: "MAP_PROJECT_PROPOSAL_ACCEPTED", actorAccountId: access.accountId,
+      details: { projectId: access.project.id, proposalId: proposal!.id, ai: true }, now });
+    return { status: "created", replayed: false, proposal: (await views(tx, [next!]))[0]!, applied: outcome.applied, conflicts: outcome.conflicts } as const;
+  });
+}
+
+/** Lägger förslagets ändringar i kartan och märker var och en som införd eller krock. */
+async function acceptEdits(tx: DbExecutor, project: Parameters<typeof applyMapProjectEdits>[1]["project"], proposal: ProposalRow, acceptedBy: string, now: Date)
+  : Promise<{ seq: number; applied: number; conflicts: number }> {
+  const rows = await tx.select().from(proposalEdits).where(eq(proposalEdits.proposalId, proposal.id)).orderBy(asc(proposalEdits.position));
+  const edits: RevisionEdit[] = rows.map(row => ({ editId: row.editId, key: row.objectKey, ref: (row.ref ?? null) as RevisionEdit["ref"],
+    base: row.baseEditId, state: row.state as RevisionEdit["state"], kind: row.kind as RevisionEdit["kind"], at: row.editedAt.toISOString() }));
+  const applied = await applyMapProjectEdits(tx, { project, authorId: proposal.authorAccountId, clientId: PROPOSAL_CLIENT_ID, edits, now,
+    proposal: { proposalId: proposal.id, acceptedBy } });
+  const done = new Set(applied.results.filter(result => result.status === "APPLIED" || result.status === "DUPLICATE").map(result => result.editId));
+  for (const outcome of ["APPLIED", "CONFLICT"] as const) {
+    const ids = rows.map(row => row.editId).filter(id => done.has(id) === (outcome === "APPLIED"));
+    if (ids.length > 0) await tx.update(proposalEdits).set({ outcome })
+      .where(and(eq(proposalEdits.proposalId, proposal.id), inArray(proposalEdits.editId, ids)));
+  }
+  return { seq: applied.seq, applied: done.size, conflicts: rows.length - done.size };
 }
 
 async function createProposal(tx: DbExecutor, access: Awaited<ReturnType<typeof requireMapProjectForAccount>>, request: unknown, now: Date,
@@ -161,18 +198,7 @@ export async function decideMapProjectProposal(db: Database, input: ClubProof & 
     let seq = project.seq;
     if (action === "ACCEPT") {
       if (project.status !== "OPEN") return { status: "conflict" } as const;
-      const rows = await tx.select().from(proposalEdits).where(eq(proposalEdits.proposalId, proposal.id)).orderBy(asc(proposalEdits.position));
-      const edits: RevisionEdit[] = rows.map(row => ({ editId: row.editId, key: row.objectKey, ref: (row.ref ?? null) as RevisionEdit["ref"],
-        base: row.baseEditId, state: row.state as RevisionEdit["state"], kind: row.kind as RevisionEdit["kind"], at: row.editedAt.toISOString() }));
-      const applied = await applyMapProjectEdits(tx, { project, authorId: proposal.authorAccountId, clientId: PROPOSAL_CLIENT_ID, edits, now,
-        proposal: { proposalId: proposal.id, acceptedBy: accountId } });
-      seq = applied.seq;
-      const done = new Set(applied.results.filter(result => result.status === "APPLIED" || result.status === "DUPLICATE").map(result => result.editId));
-      for (const outcome of ["APPLIED", "CONFLICT"] as const) {
-        const ids = rows.map(row => row.editId).filter(id => done.has(id) === (outcome === "APPLIED"));
-        if (ids.length > 0) await tx.update(proposalEdits).set({ outcome })
-          .where(and(eq(proposalEdits.proposalId, proposal.id), inArray(proposalEdits.editId, ids)));
-      }
+      seq = (await acceptEdits(tx, project, proposal, accountId, now)).seq;
     }
     const [next] = await tx.update(proposals).set({ status: target, decidedBy: accountId, decidedAt: now, decisionNote: note || null })
       .where(where).returning();

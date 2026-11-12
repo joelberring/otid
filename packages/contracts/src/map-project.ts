@@ -75,6 +75,13 @@ export const mapProjectColorsSchema = z.array(z.object({ id: z.number().int().mi
   .refine(rows => new Set(rows.map(row => row.id)).size === rows.length);
 export type MapProjectColorChange = z.infer<typeof mapProjectColorsSchema>[number];
 
+/**
+ * Vad AI-kopplingen får göra i projektet (ägaren 2026-11-12): bara läsa, lämna förslag som en ägare godkänner (förval), eller
+ * arbeta självständigt, då AI:ns ändringar godkänns direkt och hamnar i kartans historik som godkända förslag.
+ */
+export const mapProjectAiModeSchema = z.enum(["READ", "PROPOSE", "AUTONOMOUS"]);
+export type MapProjectAiMode = z.infer<typeof mapProjectAiModeSchema>;
+
 /** Byt namn, avsluta (`CLOSED`) eller öppna igen (`OPEN`), eller byt arbetssätt (`mode`, K1). */
 export const mapProjectUpdateRequestSchema = z.object({
   formatVersion: z.literal(1), name: mapProjectNameSchema.optional(), status: z.enum(["OPEN", "CLOSED"]).optional(),
@@ -84,9 +91,11 @@ export const mapProjectUpdateRequestSchema = z.object({
   /** Topplistan (K3b): null = av. */
   leaderboard: mapProjectLeaderboardSchema.nullable().optional(),
   /** Färgtabellens ändringar; tom lista = filens egna färger. */
-  colors: mapProjectColorsSchema.optional()
+  colors: mapProjectColorsSchema.optional(),
+  /** AI-kopplingens läge i projektet. */
+  aiMode: mapProjectAiModeSchema.optional()
 }).strict().refine(value => value.name !== undefined || value.status !== undefined || value.mode !== undefined || value.recon !== undefined
-  || value.leaderboard !== undefined || value.colors !== undefined);
+  || value.leaderboard !== undefined || value.colors !== undefined || value.aiMode !== undefined);
 
 export const mapProjectInviteRequestSchema = z.object({
   formatVersion: z.literal(1), requestId: uuidSchema, email: accountEmailSchema, role: mapProjectRoleSchema
@@ -250,6 +259,8 @@ export interface MapProjectView extends MapProjectSummary {
   leaderboard: "FIRST" | "FULL" | "NONE" | null;
   /** Ändrade färger i kartans färgtabell (tom = filens egna). */
   colors: MapProjectColorChange[];
+  /** Vad AI-kopplingen får göra i projektet. */
+  aiMode: MapProjectAiMode;
   areas: MapProjectAreaView[];
   /** Antalet öppna förslag. */
   openProposals: number;

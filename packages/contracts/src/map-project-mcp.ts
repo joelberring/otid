@@ -26,6 +26,10 @@ export const mcpProposalOperationSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("delete"), key: keySchema })
 ]);
 
+/** Ny tom karta (ägaren 2026-11-12): en rektangel kring en mittpunkt i SWEREF 99 TM. */
+export const mcpCreateMapProjectSchema = z.object({ name: z.string().trim().min(1).max(120), center_e: z.number().finite(), center_n: z.number().finite(),
+  width_m: z.number().min(100).max(15000), height_m: z.number().min(100).max(15000), scale: z.union([z.literal(10000), z.literal(15000)]).optional() });
+
 export const mcpToolInputSchemas = {
   map_overview: z.object({ project_id: idSchema }),
   render_view: z.object({ project_id: idSchema, area: boxSchema.optional(), width_px: z.number().int().min(200).max(MCP_MAX_IMAGE_SIDE_PX).optional(),

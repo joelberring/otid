@@ -54,7 +54,9 @@ export const mapProjects = pgTable("map_project", {
   leaderboard: text("leaderboard").$type<"FIRST" | "FULL" | "NONE">(),
   /** Ändrade färger i kartans färgtabell (0112): färgens id i grundfilen och ny CMYK (0–1); null = filens egna. */
   colors: jsonb("colors").$type<{ id: number; cmyk: { c: number; m: number; y: number; k: number } }[]>(),
-  colorsChangedAt: timestamp("colors_changed_at", { withTimezone: true })
+  colorsChangedAt: timestamp("colors_changed_at", { withTimezone: true }),
+  /** Vad AI-kopplingen får göra (0116): READ, PROPOSE (förval) eller AUTONOMOUS. */
+  aiMode: text("ai_mode").$type<"READ" | "PROPOSE" | "AUTONOMOUS">().notNull().default("PROPOSE")
 });
 
 export const mapProjectMembers = pgTable("map_project_member", {

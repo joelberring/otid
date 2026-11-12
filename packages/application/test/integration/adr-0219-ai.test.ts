@@ -7,7 +7,7 @@ import { createMapJobCanvas } from "../../../../scripts/map-job-canvas";
 import { deleteAccountWithOwnedEvents } from "../../src/account-self-service";
 import { geodeticToGrid, transverseMercatorFor } from "@o-tid/map-file";
 import { claimMapJob, runMapJob } from "../../src/map-project-jobs";
-import { createMapProjectFromUpload, inviteMapProjectMember, readMapProject } from "../../src/map-projects";
+import { createMapProjectFromUpload, inviteMapProjectMember, readMapProject, updateMapProject } from "../../src/map-projects";
 import { listMapProjectProposals } from "../../src/map-project-proposals";
 import { handleMcpMessage } from "../../src/mcp";
 import {
@@ -143,7 +143,7 @@ describe("ADR-0219 K2: AI-kopplingen", () => {
     expect(init).toMatchObject({ result: { protocolVersion: "2025-06-18", serverInfo: { name: "O-Tid" } } });
     expect(await handleMcpMessage(db, owner.accountId, { jsonrpc: "2.0", method: "notifications/initialized" })).toBeNull();
     const tools = await handleMcpMessage(db, owner.accountId, { jsonrpc: "2.0", id: 2, method: "tools/list" });
-    expect((tools?.result as { tools: { name: string }[] }).tools.map(tool => tool.name)).toEqual(["list_map_projects", "map_overview", "render_view",
+    expect((tools?.result as { tools: { name: string }[] }).tools.map(tool => tool.name)).toEqual(["list_map_projects", "create_map_project", "map_overview", "render_view",
       "render_compare", "training_labels", "training_raster", "list_objects", "norm_check", "generalize", "propose_changes"]);
 
     const projects = textOf(await mcp(owner.accountId, call(3, "list_map_projects")));
@@ -206,6 +206,25 @@ describe("ADR-0219 K2: AI-kopplingen", () => {
     const stranger = await registerTestAccount(db);
     const strangerTry = await mcp(stranger.accountId, call(12, "map_overview", { project_id: projectId }));
     expect((strangerTry?.result as { isError?: boolean }).isError).toBe(true);
+
+    // AI-läget (ägaren 2026-11-12): bara läsa avvisar förslag; självständigt inför ändringarna direkt som ett godkänt AI-förslag.
+    expect(textOf(await mcp(owner.accountId, call(20, "map_overview", { project_id: projectId }))).aiMode).toBe("PROPOSE");
+    expect((await updateMapProject(db, { ...owner.proof, projectId, request: { formatVersion: 1, aiMode: "READ" } })).status).toBe("ok");
+    const readOnly = await mcp(owner.accountId, call(21, "propose_changes", { project_id: projectId, note: "x", operations: [{ op: "move", key: stone.key, dx: 1, dy: 0 }] }));
+    expect((readOnly?.result as { isError?: boolean }).isError).toBe(true);
+    expect((await updateMapProject(db, { ...owner.proof, projectId, request: { formatVersion: 1, aiMode: "AUTONOMOUS" } })).status).toBe("ok");
+    const direct = textOf(await mcp(owner.accountId, call(22, "propose_changes", { project_id: projectId, note: "En stig till",
+      operations: [{ op: "add", symbol: "505", points: [[60, 55], [65, 58]] }] })));
+    expect(direct).toMatchObject({ changes: 1, applied: 1, conflicts: 0 });
+    const after = await readMapProject(db, { ...owner.proof, projectId });
+    expect(after.status === "ok" && after.view.changedObjects).toBe(1);
+    expect(after.status === "ok" && after.view.aiMode).toBe("AUTONOMOUS");
+    const decidedList = await listMapProjectProposals(db, { ...owner.proof, projectId });
+    expect(decidedList.status === "ok" && decidedList.list.proposals.find(row => row.note === "En stig till")).toMatchObject({ source: "AI", status: "ACCEPTED" });
+    // Ny tom karta: kontot blir ägare, AI-läget är förslag.
+    const made = textOf(await mcp(owner.accountId, call(23, "create_map_project", { name: "Provblad", center_e: 674000, center_n: 6575000, width_m: 800, height_m: 600 })));
+    expect(typeof made.projectId).toBe("string");
+    expect(textOf(await mcp(owner.accountId, call(24, "map_overview", { project_id: made.projectId as string }))).aiMode).toBe("PROPOSE");
 
     // Kontot tas bort: kopplingarna och kartjobben följer med.
     await connect(stranger.proof);

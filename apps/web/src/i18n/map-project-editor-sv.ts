@@ -69,6 +69,13 @@ export const mapProjectEditorSv = {
       SHARED: "Alla med rollen Ändra ritar direkt, utom i någon annans delområde (där blir det förslag).",
       LEAD: "Ändra ritar direkt bara i sina egna delområden; allt annat blir förslag som en ägare godkänner."
     },
+    aiTitle: "AI-kopplingen",
+    aiModes: { READ: "Bara läsa", PROPOSE: "Förslag", AUTONOMOUS: "Självständigt" },
+    aiHelp: {
+      READ: "AI:n kan titta på kartan och mäta, men inte lämna förslag.",
+      PROPOSE: "AI:n lämnar förslag som en ägare godkänner eller avvisar.",
+      AUTONOMOUS: "AI:ns ändringar införs direkt i kartan. De står i historiken som godkända AI-förslag och går att ångra där. Grundfilen ändras aldrig."
+    },
     suggestHint: "Du har rollen Föreslå: det du ritar blir förslag som en ägare godkänner.",
     proposals: (count: number) => count === 0 ? "Förslag" : `Förslag (${plural(count, "öppet", "öppna")})`,
     noProposals: "Inga förslag.",

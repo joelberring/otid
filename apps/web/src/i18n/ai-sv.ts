@@ -28,7 +28,7 @@ export const aiSv = {
   },
   connections: {
     title: "AI-kopplingar",
-    help: "Claude (eller en annan AI-tjänst) som du kopplat med ditt eget konto där. Den ser dina kartprojekt och, om du godkände banläggningen, banorna där du får lägga banor. Den lämnar bara förslag och notiser. En koppling från före den 8 november ser bara kartprojekten; ta bort den och koppla igen för att ge banläggningen.",
+    help: "Claude (eller en annan AI-tjänst) som du kopplat med ditt eget konto där. Den ser dina kartprojekt och, om du godkände banläggningen, banorna där du får lägga banor. Den lämnar förslag och notiser; i ett kartprojekt kan ägaren välja att AI:n bara får läsa eller får arbeta självständigt (Samarbete → AI-kopplingen). En koppling från före den 8 november ser bara kartprojekten; ta bort den och koppla igen för att ge banläggningen.",
     none: "Inga AI-kopplingar. Lägg till O-Tid som anslutning i Claude med adressen ovan.",
     address: "Adress att lägga till i Claude",
     copy: "Kopiera adressen",
@@ -39,7 +39,7 @@ export const aiSv = {
       "Öppna Claude (claude.ai eller appen) → Inställningar → Anslutningar → Lägg till egen anslutning. Skriv namnet O-Tid och klistra in adressen. Ser du inte valet kan din plan eller organisation sakna det.",
       "Tryck Anslut. O-Tid öppnas: logga in om det behövs, läs vad kopplingen får göra och tryck Tillåt. Kopplingen syns sedan i listan här.",
       "I en chatt: slå på O-Tid bland verktygen (knappen för verktyg och anslutningar) och skriv till exempel ”Visa mina kartprojekt i O-Tid”.",
-      "Claude frågar om lov innan den använder O-Tid (”Tillåt en gång” eller ”Tillåt alltid”). Du måste godkänna det för att något ska hända, och du kan neka. Ändringar i kartan blir ändå bara förslag som du eller projektets ägare godkänner."
+      "Claude frågar om lov innan den använder O-Tid (”Tillåt en gång” eller ”Tillåt alltid”). Du måste godkänna det för att något ska hända, och du kan neka. Ändringar i kartan blir förslag som du eller projektets ägare godkänner, om inte ägaren har satt kartprojektet till självständigt AI-arbete."
     ] as readonly string[],
     /** Användartest 2026-11-12: olika adresser och "Kontona matchar inte". */
     accounts: "Claude-kontot och O-Tid-kontot får ha olika e-postadresser. Visar Claude ”Kontona matchar inte” är webbläsaren inloggad på claude.ai med ett annat konto än Claude-appen: logga in på claude.ai med samma konto som i appen och anslut igen, och logga sedan in i O-Tid med ditt vanliga O-Tid-konto (kontrollera namnet uppe till höger innan du trycker Tillåt).",

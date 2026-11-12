@@ -22,12 +22,26 @@ export type MapProjectNewFailure = ClubFailure | { status: "quota" } | { status:
  */
 export async function createMapProjectNew(db: Database, input: ClubProof & { request: unknown }, now = new Date())
   : Promise<MapProjectNewFailure | { status: "created"; replayed: boolean; projectId: string }> {
-  const parsed = mapProjectNewRequestSchema.safeParse(input.request);
   return db.transaction(async tx => {
     const auth = await authenticateUserAccountSessionForMutation(tx, { ...input, requireCsrf: true }, now);
     if (auth.status !== "authenticated") return auth;
+    return newProject(tx, auth.principal.accountId, input.request, now);
+  });
+}
+
+/**
+ * Samma för ett konto som redan är känt (AI-kopplingen, ägaren 2026-11-12: «få en annan tråd att skapa en ny karta via mcp»).
+ * Projektet får förvalet för AI-läget (förslag); självständigt arbete slår ägaren på själv.
+ */
+export async function createMapProjectNewForAccount(db: Database, input: { accountId: string; request: unknown }, now = new Date())
+  : Promise<MapProjectNewFailure | { status: "created"; replayed: boolean; projectId: string }> {
+  return db.transaction(tx => newProject(tx, input.accountId, input.request, now));
+}
+
+async function newProject(tx: Parameters<Parameters<Database["transaction"]>[0]>[0], accountId: string, raw: unknown, now: Date): Promise<MapProjectNewFailure | { status: "created"; replayed: boolean; projectId: string }> {
+  const parsed = mapProjectNewRequestSchema.safeParse(raw);
+  {
     if (!parsed.success) return { status: "invalid-request" } as const;
-    const accountId = auth.principal.accountId;
     const request = parsed.data;
     const [prior] = await tx.select().from(schema.mapProjects).where(eq(schema.mapProjects.requestId, request.requestId));
     if (prior) {
@@ -67,7 +81,7 @@ export async function createMapProjectNew(db: Database, input: ClubProof & { req
       readerVersion: MAP_READER_VERSION, status: "OPEN", seq: 0, createdBy: accountId, createdAt: now, requestId: request.requestId, area });
     await addMapProjectMember(tx, { projectId, accountId, role: "OWNER", addedBy: accountId, now });
     return { status: "created", replayed: false, projectId } as const;
-  });
+  }
 }
 
 /** Projektets namn som filnamn: tecken som inte får finnas i filnamn byts mot bindestreck. */

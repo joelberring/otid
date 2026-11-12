@@ -241,6 +241,13 @@ export const mapProjectEditorEn: Texts<typeof mapProjectEditorSv> = {
       SHARED: "Everyone with the role Edit draws directly, except in someone else's sub-area (there it becomes a suggestion).",
       LEAD: "Edit draws directly only in their own sub-areas; everything else becomes suggestions that an owner approves."
     },
+    aiTitle: "The AI connection",
+    aiModes: { READ: "Read only", PROPOSE: "Suggestions", AUTONOMOUS: "Independent" },
+    aiHelp: {
+      READ: "The AI can look at the map and measure, but not leave suggestions.",
+      PROPOSE: "The AI leaves suggestions that an owner approves or rejects.",
+      AUTONOMOUS: "The AI's changes go straight into the map. They are in the history as approved AI suggestions and can be undone there. The base file is never changed."
+    },
     suggestHint: "You have the role Suggest: what you draw becomes suggestions that an owner approves.",
     proposals: (n: number) => n === 0 ? "Suggestions" : `Suggestions (${n} open)`,
     noProposals: "No suggestions.",

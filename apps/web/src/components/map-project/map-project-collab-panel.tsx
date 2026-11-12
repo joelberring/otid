@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { mapProjectEditorEn } from "../../i18n/map-project-en";
 import { useTexts } from "../language-provider";
-import type { MapProjectAreaStatus, MapProjectMode, MapProjectProposalView, MapProjectView } from "@o-tid/contracts";
+import type { MapProjectAiMode, MapProjectAreaStatus, MapProjectMode, MapProjectProposalView, MapProjectView } from "@o-tid/contracts";
 import { mapProjectEditorSv } from "../../i18n/map-project-editor-sv";
 import { Button, Notice } from "../ui";
 import type { useMapProjectCollaboration } from "./use-map-project-collaboration";
@@ -13,6 +13,7 @@ import styles from "./map-project-editor.module.css";
 const STAGE_AGES: readonly StageAge[] = ["YEAR", "THREE", "SIX", "OLDER", "NEVER"];
 
 const MODES: readonly MapProjectMode[] = ["SHARED", "LEAD"];
+const AI_MODES: readonly MapProjectAiMode[] = ["READ", "PROPOSE", "AUTONOMOUS"];
 const STATUSES: readonly MapProjectAreaStatus[] = ["BASE", "DRAFTED", "SURVEYED", "DONE"];
 type Collaboration = ReturnType<typeof useMapProjectCollaboration>;
 
@@ -54,6 +55,16 @@ export function MapProjectCollabPanel({ view, collab, shownProposal, onShowPropo
       </div> : <p>{text.modes[collab.mode]}</p>}
       <p className={styles.muted}>{text.modeHelp[collab.mode]}</p>
     </section>
+
+    {viewer.canDecide && <section aria-labelledby="map-project-ai" className={styles.panel}>
+      <h2 id="map-project-ai">{text.aiTitle}</h2>
+      <div className={styles.actions} role="group" aria-labelledby="map-project-ai">
+        {AI_MODES.map(mode => <Button key={mode} variant={collab.aiMode === mode ? "primary" : "secondary"} aria-pressed={collab.aiMode === mode}
+          data-testid={`map-project-ai-${mode.toLowerCase()}`} disabled={collab.busy}
+          onClick={() => { if (collab.aiMode !== mode) void collab.setAiMode(mode); }}>{text.aiModes[mode]}</Button>)}
+      </div>
+      <p className={styles.muted}>{text.aiHelp[collab.aiMode]}</p>
+    </section>}
 
     <section aria-labelledby="map-project-proposals" className={styles.panel} data-testid="map-project-proposals">
       <h2 id="map-project-proposals">{text.proposals(open.length)}</h2>

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type {
-  MapProjectAreaList, MapProjectAreaStatus, MapProjectAreaView, MapProjectMode, MapProjectProposalList, MapProjectProposalView, MapProjectView
+  MapProjectAreaList, MapProjectAreaStatus, MapProjectAiMode, MapProjectAreaView, MapProjectMode, MapProjectProposalList, MapProjectProposalView, MapProjectView
 } from "@o-tid/contracts";
 import type { Point } from "@o-tid/map-file";
 import { clubRequest } from "../../lib/club-archive-client";
@@ -18,6 +18,7 @@ const PROPOSALS_POLL_MS = 30_000;
 export function useMapProjectCollaboration(view: MapProjectView) {
   const base = mapProjectBase(view.projectId);
   const [mode, setMode] = useState<MapProjectMode>(view.mode);
+  const [aiMode, setAiMode] = useState<MapProjectAiMode>(view.aiMode);
   const [areas, setAreas] = useState<readonly MapProjectAreaView[]>(view.areas);
   const [proposals, setProposals] = useState<readonly MapProjectProposalView[]>([]);
   const [problem, setProblem] = useState<string>();
@@ -54,7 +55,9 @@ export function useMapProjectCollaboration(view: MapProjectView) {
   }
 
   return {
-    mode, areas, proposals, problem, busy, setProblem, loadProposals, loadAreas,
+    mode, aiMode, areas, proposals, problem, busy, setProblem, loadProposals, loadAreas,
+    /** Ägaren 2026-11-12: vad AI-kopplingen får göra i projektet. */
+    setAiMode: (next: MapProjectAiMode) => run(() => clubRequest(base, "PUT", { formatVersion: 1, aiMode: next }), async () => { setAiMode(next); }),
     setMode: (next: MapProjectMode) => run(() => clubRequest(base, "PUT", { formatVersion: 1, mode: next }), async () => { setMode(next); }),
     /** Alla öppna förslag, i omgångar tills inget återstår (servern tar en omgång per anrop). Ger antalen, eller undefined vid fel. */
     decideAll: async (action: "ACCEPT" | "REJECT", onProgress: (done: number, left: number) => void) => {

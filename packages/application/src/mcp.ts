@@ -1,8 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { MCP_MAX_IMAGE_SIDE_PX, MCP_PROPOSAL_MAX_OPERATIONS, MCP_PROPOSAL_MAX_SIDE_M, MCP_TRAINING_RASTERS, mcpToolInputSchemas } from "@o-tid/contracts";
-import type { Database } from "@o-tid/database";
+import { eq } from "drizzle-orm";
+import { MCP_MAX_IMAGE_SIDE_PX, MCP_PROPOSAL_MAX_OPERATIONS, MCP_PROPOSAL_MAX_SIDE_M, MCP_TRAINING_RASTERS, mcpCreateMapProjectSchema, mcpToolInputSchemas } from "@o-tid/contracts";
+import { schema, type Database } from "@o-tid/database";
 import { requireMapProjectForAccount } from "./map-project-access";
 import { readGeoRaster } from "./map-project-geo-jobs";
+import { createMapProjectNewForAccount } from "./map-project-new";
 import { mapProjectAreaViews } from "./map-project-areas";
 import { runMapJobAndWait, type MapJobKind, type MapJobOutcome } from "./map-project-jobs";
 import { createMapProjectProposalAsAi, openProposalCount } from "./map-project-proposals";
@@ -32,6 +34,10 @@ const points = { type: "array", items: { type: "array", items: { type: "number" 
 export const MCP_TOOLS = [
   { name: "list_map_projects", title: "Mina kartprojekt", description: "Kartprojekten som kontot är medlem i: id, namn, roll, grundfil och antal ändringar.",
     inputSchema: { type: "object", properties: {} }, annotations: { readOnlyHint: true } },
+  { name: "create_map_project", title: "Ny tom karta", description: "Skapar ett nytt eget kartprojekt med en tom karta (ISOM 2017-2) över en rektangel: mittpunkt i SWEREF 99 TM (center_e, center_n), bredd och höjd i meter, skala 10000 (förval) eller 15000. Kontot blir ägare. Laserjobb och grundkarta startas av ägaren i O-Tid.",
+    inputSchema: { type: "object", properties: { name: { type: "string", maxLength: 120 }, center_e: { type: "number" }, center_n: { type: "number" },
+      width_m: { type: "number", minimum: 100, maximum: 15000 }, height_m: { type: "number", minimum: 100, maximum: 15000 }, scale: { type: "integer", enum: [10000, 15000] } },
+      required: ["name", "center_e", "center_n", "width_m", "height_m"] }, annotations: { readOnlyHint: false, destructiveHint: false } },
   { name: "map_overview", title: "Översikt över en karta", description: "Kartans skala, utbredning i mm och meter, georeferens, symbolerna som används (nummer, namn, antal), delområden och öppna förslag. Börja här.",
     inputSchema: { type: "object", properties: { ...projectId }, required: ["project_id"] }, annotations: { readOnlyHint: true } },
   { name: "render_view", title: "Bild av kartan", description: `En bild (PNG, högst ${MCP_MAX_IMAGE_SIDE_PX} px) av kartan med projektets ändringar, i kartans färger, med ett rutnät i kartans mm. Markera objekt med deras nycklar och dölj symboler för att se under dem.`,
@@ -57,7 +63,7 @@ export const MCP_TOOLS = [
     inputSchema: { type: "object", properties: { ...projectId, ...area, simplify_mm: { type: "number", minimum: 0, maximum: 0.5 },
       remove_small: { type: "boolean" }, join_lines: { type: "boolean" }, remove_inside: { type: "boolean" }, propose: { type: "boolean" },
       note: { type: "string", maxLength: 500 } }, required: ["project_id"] }, annotations: { readOnlyHint: false, destructiveHint: false } },
-  { name: "propose_changes", title: "Föreslå ändringar", description: `Lämnar ett förslag som en ägare i O-Tid godkänner eller avvisar; kartan ändras aldrig direkt. Högst ${MCP_PROPOSAL_MAX_OPERATIONS} operationer inom ${MCP_PROPOSAL_MAX_SIDE_M} × ${MCP_PROPOSAL_MAX_SIDE_M} m. Operationer: add (symbol och punkter; en punkt för punktsymboler, minst tre för ytor), move (key, dx, dy i mm), reshape (key och nya punkter, raka sträckor), change_symbol (key och symbol) och delete (key). Skriv en kort motivering i note.`,
+  { name: "propose_changes", title: "Föreslå ändringar", description: `Lämnar ett förslag som en ägare i O-Tid godkänner eller avvisar. Har ägaren satt projektet till självständigt AI-arbete (aiMode AUTONOMOUS i map_overview) införs ändringarna direkt. Högst ${MCP_PROPOSAL_MAX_OPERATIONS} operationer inom ${MCP_PROPOSAL_MAX_SIDE_M} × ${MCP_PROPOSAL_MAX_SIDE_M} m. Operationer: add (symbol och punkter; en punkt för punktsymboler, minst tre för ytor), move (key, dx, dy i mm), reshape (key och nya punkter, raka sträckor), change_symbol (key och symbol) och delete (key). Skriv en kort motivering i note.`,
     inputSchema: { type: "object", properties: { ...projectId, note: { type: "string", maxLength: 500, description: "Motivering som visas för den som granskar" },
       operations: { type: "array", minItems: 1, maxItems: MCP_PROPOSAL_MAX_OPERATIONS, items: { type: "object", properties: {
         op: { type: "string", enum: ["add", "move", "reshape", "change_symbol", "delete"] }, key: { type: "string" }, symbol: { type: "string" },
@@ -98,6 +104,17 @@ export async function callMcpTool(db: Database, accountId: string, name: string,
       status: project.status, club: project.club?.name ?? null, baseFile: project.base.fileName, format: project.base.format,
       changedObjects: project.changedObjects })) })] };
   }
+  if (name === "create_map_project") {
+    const parsed = mcpCreateMapProjectSchema.safeParse(args ?? {});
+    if (!parsed.success) return toolError(`Ogiltiga argument: ${parsed.error.issues.map(issue => `${issue.path.join(".") || "(argumenten)"}: ${issue.message}`).join("; ")}`);
+    const { name: title, center_e: e, center_n: n, width_m: w, height_m: h, scale } = parsed.data;
+    const ring = [[e - w / 2, n - h / 2], [e + w / 2, n - h / 2], [e + w / 2, n + h / 2], [e - w / 2, n + h / 2]];
+    const created = await createMapProjectNewForAccount(db, { accountId, request: { formatVersion: 1, requestId: randomUUID(), name: title,
+      symbolSet: "ISOM2017-2", scale: scale ?? 10000, area: { crs: "SWEREF99TM", rings: [ring] } } });
+    if (created.status !== "created") return toolError(created.status === "quota" ? "Kontots lagringsutrymme räcker inte för en ny karta."
+      : created.status === "area-too-large" ? "Området är för stort." : `Kartan skapades inte (${created.status}; mittpunkten ska ligga i Sverige, i SWEREF 99 TM).`);
+    return { content: [text({ projectId: created.projectId, message: "Ett nytt eget kartprojekt med en tom karta (ISOM 2017-2). Laserjobbet och grundkartan startas av ägaren i O-Tid; AI-läget är förslag tills ägaren ändrar det." })] };
+  }
   const schemaFor = inputs[name as keyof typeof inputs];
   if (!schemaFor) return toolError(`Okänt verktyg ${name}`);
   const parsed = schemaFor.safeParse(args ?? {});
@@ -110,7 +127,9 @@ export async function callMcpTool(db: Database, accountId: string, name: string,
       const outcome = await job(db, accountId, input.project_id, "OVERVIEW", {}, wait);
       if (outcome.status !== "done") return jobFailure(outcome);
       const extra = await db.transaction(async tx => ({ areas: (await mapProjectAreaViews(tx, input.project_id)).map(row => ({ name: row.name,
-        status: row.status, assignee: row.assignee?.name ?? null, revisedOn: row.revisedOn })), openProposals: await openProposalCount(tx, input.project_id) }));
+        status: row.status, assignee: row.assignee?.name ?? null, revisedOn: row.revisedOn })), openProposals: await openProposalCount(tx, input.project_id),
+        // Vad AI-kopplingen får göra här: READ (bara läsa), PROPOSE (förslag som en ägare godkänner) eller AUTONOMOUS (ändringarna införs direkt).
+        aiMode: (await tx.select({ aiMode: schema.mapProjects.aiMode }).from(schema.mapProjects).where(eq(schema.mapProjects.id, input.project_id)))[0]?.aiMode ?? "PROPOSE" }));
       return { content: [text({ ...(outcome.result as object), ...extra })] };
     }
     case "render_view":
@@ -150,9 +169,8 @@ export async function callMcpTool(db: Database, accountId: string, name: string,
       if (!input.propose || !result.edits || result.edits.length === 0) return { content: [text({ summary: result.summary, changes: result.changes })] };
       const created = await createMapProjectProposalAsAi(db, { accountId, projectId: input.project_id, request: { formatVersion: 1,
         requestId: randomUUID(), note: typeof input.note === "string" && input.note ? input.note.slice(0, 500) : "Generalisering (AI)", edits: result.edits } });
-      if (created.status !== "created") return toolError(`Förslaget lämnades inte (${created.status}).`);
-      return { content: [text({ summary: result.summary, proposalId: created.proposal.proposalId, changes: created.proposal.edits.length,
-        message: "Förslaget ligger i projektet och väntar på att en ägare godkänner eller avvisar det." })] };
+      if (created.status !== "created") return toolError(refusal(created.status));
+      return { content: [text({ summary: result.summary, proposalId: created.proposal.proposalId, changes: created.proposal.edits.length, ...outcomeOf(created) })] };
     }
     case "propose_changes": {
       const outcome = await job(db, accountId, input.project_id, "PROPOSE", { operations: input.operations }, wait);
@@ -161,12 +179,21 @@ export async function callMcpTool(db: Database, accountId: string, name: string,
       if (result.errors) return toolError(`Förslaget lämnades inte:\n- ${result.errors.join("\n- ")}`);
       const created = await createMapProjectProposalAsAi(db, { accountId, projectId: input.project_id, request: { formatVersion: 1,
         requestId: randomUUID(), note: typeof input.note === "string" ? input.note.slice(0, 500) : "", edits: result.edits } });
-      if (created.status !== "created") return toolError(`Förslaget lämnades inte (${created.status}).`);
-      return { content: [text({ proposalId: created.proposal.proposalId, changes: created.proposal.edits.length,
-        message: "Förslaget ligger i projektet och väntar på att en ägare godkänner eller avvisar det." })] };
+      if (created.status !== "created") return toolError(refusal(created.status));
+      return { content: [text({ proposalId: created.proposal.proposalId, changes: created.proposal.edits.length, ...outcomeOf(created) })] };
     }
     default: return toolError(`Okänt verktyg ${name}`);
   }
+}
+
+const refusal = (status: string) => status === "forbidden" ? "Ägaren har satt AI-kopplingen till att bara läsa i det här projektet (eller kontot får inte föreslå)."
+  : `Förslaget lämnades inte (${status}).`;
+
+/** Vad som hände med förslaget: infört direkt (självständigt läge) eller väntar på en ägare. */
+function outcomeOf(created: { applied?: number; conflicts?: number }): Record<string, unknown> {
+  if (created.applied === undefined) return { message: "Förslaget ligger i projektet och väntar på att en ägare godkänner eller avvisar det." };
+  return { applied: created.applied, conflicts: created.conflicts ?? 0,
+    message: "Projektet är satt till självständigt AI-arbete: ändringarna är införda i kartan och står i historiken som ett godkänt AI-förslag." };
 }
 
 function strip(value: Record<string, unknown>): Record<string, unknown> {
@@ -191,7 +218,7 @@ export async function handleMcpMessage(db: Database, accountId: string, message:
       const asked = typeof params?.protocolVersion === "string" ? params.protocolVersion : "";
       return ok({ protocolVersion: (MCP_PROTOCOL_VERSIONS as readonly string[]).includes(asked) ? asked : MCP_PROTOCOL_VERSIONS[0],
         capabilities: { tools: { listChanged: false } }, serverInfo: { name: "O-Tid", version: "1.1.0" },
-        instructions: [maps ? "Kartprojekt (orienteringskartor i Mapper-format): koordinater är kartans mm med y uppåt. Börja med list_map_projects och map_overview, titta med render_view, läs objekt med list_objects. Ändringar lämnas bara som förslag (propose_changes) som en människa godkänner." : "",
+        instructions: [maps ? "Kartprojekt (orienteringskartor i Mapper-format): koordinater är kartans mm med y uppåt. Börja med list_map_projects och map_overview, titta med render_view, läs objekt med list_objects. Ändringar lämnas med propose_changes; projektets ägare bestämmer AI-läget (aiMode i map_overview): PROPOSE = förslag som en människa godkänner (förval), AUTONOMOUS = ändringarna införs direkt och står i historiken, READ = bara läsa. create_map_project skapar en ny tom karta." : "",
           courses ? "Banläggning: list_course_settings och course_overview visar banorna med målnivå, kontroller och sträckor. Granska nivån sträcka för sträcka (svensk orienterings nivåtrappa Grön–Svart: vägval, avstånd mellan ledstänger, kontrollernas svårighet) och lämna bara notiser (add_course_note) som banläggaren tar ställning till. Rör aldrig resultat eller tävlingen." : ""]
           .filter(Boolean).join(" ") });
     }

@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { and, eq, gte, inArray, isNull, ne, or, sql } from "drizzle-orm";
-import type { GeoServerView } from "@o-tid/contracts";
+import { geoJobMemoryGb, type GeoServerView } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { releaseStaleGeoJobs } from "./map-project-geo-jobs";
 import type { ServerMessage } from "./server-status";
@@ -281,12 +281,30 @@ async function manageRound(db: Database, hetzner: Hetzner, settings: GeoServerSe
   }
 
   const types = await hetzner.types().catch(() => [] as HetznerType[]);
+  // Servern väljs efter det största väntande jobbet (ägaren 2026-11-12): en typ med för lite minne provas inte, eftersom
+  // jobbet då dör mitt i. Går typernas minne inte att läsa hos Hetzner provas alla, som förut.
+  const queued = await db.select({ request: schema.mapProjectGeoJobs.request }).from(schema.mapProjectGeoJobs).where(eq(schema.mapProjectGeoJobs.status, "QUEUED"));
+  const needGb = Math.max(4, ...queued.map(row => geoJobMemoryGb(row.request as Parameters<typeof geoJobMemoryGb>[0])));
+  const bigEnough = (type: string) => types.length === 0 || (types.find(row => row.name === type)?.memoryGb ?? 0) >= needGb;
+  const firstFit = settings.types.findIndex(bigEnough);
+  if (firstFit < 0) {
+    const detail = `Området behöver en geo-server med minst ${needGb} GB minne, och ingen sådan typ är inställd. Dela området i etapper.`;
+    await view({ state: "UNAVAILABLE", detail });
+    if (dueMail(state, "UNAVAILABLE", now)) {
+      await mail({ subject: "O-Tid: ingen geo-server är stor nog", text: `Ett geo-jobb i kön behöver minst ${needGb} GB minne, men ingen av typerna i `
+        + `OTID_GEO_SERVER_TYPES (${settings.types.join(", ")}) har det. Lägg till en större typ i .env och starta om web, eller be användaren dela området i etapper.` });
+      mailed.UNAVAILABLE = now.toISOString();
+      await writeState(db, { view: { state: "UNAVAILABLE", detail }, mailed, retired: stillRetired }, now);
+    }
+    return { action: "unavailable", detail: `inget med ${needGb} GB` };
+  }
   const cost = await geoServerMonthCost(db, now);
   // Översynen C2: ett okänt pris räknas högt, inte lågt, så att budgeten inte överskrids med en dyrare reservtyp.
   const prices = types.flatMap(type => [...type.hourly.values()]);
   const highestKnown = prices.length ? Math.max(...prices) : UNKNOWN_HOURLY_EUR;
   const tried: string[] = [];
   for (const [typeIndex, type] of settings.types.entries()) {
+    if (!bigEnough(type)) continue;
     for (const location of settings.locations) {
       const hourly = types.find(row => row.name === type)?.hourly.get(location) ?? highestKnown;
       if (cost + hourly > settings.budgetEur) {
@@ -316,9 +334,9 @@ async function manageRound(db: Database, hetzner: Hetzner, settings: GeoServerSe
       }
       await db.insert(servers).values({ id: randomUUID(), providerId: created.id, name, serverType: type, location, hourlyEur: hourly,
         tokenSha256: createHash("sha256").update(token).digest("hex"), status: "STARTING", createdAt: now });
-      if (typeIndex > 0 && dueMail(state, "FALLBACK", now)) {
+      if (typeIndex > firstFit && dueMail(state, "FALLBACK", now)) {
         await mail({ subject: "O-Tid: geo-servern startade med en reservtyp", text: `Geo-servern startade som ${type} i ${location}, eftersom `
-          + `${settings.types.slice(0, typeIndex).join(", ")} inte gick att skapa just nu. Allt fungerar, men lägg gärna till fler typer i `
+          + `${settings.types.slice(firstFit, typeIndex).filter(bigEnough).join(", ")} inte gick att skapa just nu. Allt fungerar, men lägg gärna till fler typer i `
           + `OTID_GEO_SERVER_TYPES innan även reserven tar slut.\n\nFörsök: ${tried.join("; ")}` });
         mailed.FALLBACK = now.toISOString();
       }

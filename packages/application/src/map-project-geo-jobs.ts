@@ -243,7 +243,7 @@ export interface ClaimedGeoJob {
  */
 export async function releaseStaleGeoJobs(db: DbExecutor, now: Date): Promise<void> {
   const stale = new Date(now.getTime() - STALE_MS);
-  await db.update(jobs).set({ status: "FAILED", finishedAt: now, error: "Geo-arbetaren slutade svara" })
+  await db.update(jobs).set({ status: "FAILED", finishedAt: now, error: "Geo-servern avbröt jobbet två gånger utan att svara, troligen för att minnet inte räckte för området. Dela området i etapper och kör igen." })
     .where(and(eq(jobs.status, "RUNNING"), lt(jobs.heartbeatAt, stale), sql`${jobs.attempts} >= ${MAX_ATTEMPTS}`));
   await db.update(jobs).set({ status: "QUEUED", worker: null }).where(and(eq(jobs.status, "RUNNING"), lt(jobs.heartbeatAt, stale)));
 }

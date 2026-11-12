@@ -72,9 +72,15 @@ const VECTOR_OUTPUTS: readonly (readonly [string, string])[] = [
 ];
 
 class Stopped extends Error {}
+
+/** Minnet (GB) som jobbet behöver efter områdets yta; samma regel som geoJobMemoryGb i packages/contracts (ett test håller dem lika). */
+export function jobMemoryGb(job: { readonly clip?: Job["clip"]; readonly tiles: readonly unknown[] }): number {
+  const areaKm2 = job.clip ? Math.max(0, job.clip.maxX - job.clip.minX) * Math.max(0, job.clip.maxY - job.clip.minY) / 1e6 : job.tiles.length * 6.25;
+  return areaKm2 <= 8 ? 4 : areaKm2 <= 45 ? 8 : 16;
+}
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 /** Arbetarens version (samma som `GEO_WORKER_VERSION` i contracts; servern ger inga jobb till en äldre). */
-export const WORKER_VERSION = 18;
+export const WORKER_VERSION = 19;
 /** Serverns gräns för en resultatfil (GEO_OUTPUT_MAX_BYTES i @o-tid/contracts). */
 const OUTPUT_MAX_BYTES = 100 * 1024 * 1024;
 const headers = (extra: Record<string, string> = {}) => ({ authorization: `Bearer ${token}`, "x-otid-geo-worker": workerName,
@@ -145,6 +151,13 @@ async function runJob(job: Job): Promise<void> {
   const timer = setInterval(() => void beat(), 60_000);
   const set = async (step: string, done: number, total: number) => { progress = { step, done, total }; await beat(); if (control.signal.aborted) throw new Stopped(); };
   try {
+    // Servern väljs efter jobbets storlek, men ett stort jobb kan köas medan en liten server redan är igång. Då sägs det
+    // direkt, i stället för att minnet tar slut mitt i jobbet (serverns minne är lite mindre än det nominella, därav 0,85).
+    const needGb = jobMemoryGb(job), haveGb = totalmem() / 2 ** 30;
+    if (haveGb < needGb * 0.85) {
+      throw new Error(`Området är för stort för geo-servern som är igång (${Math.round(haveGb)} GB minne, området behöver ${needGb} GB). `
+        + "Kör om jobbet om en halvtimme, när servern har stängts av, eller dela området i etapper.");
+    }
     await set("Hämtar laserdata", 0, job.tiles.length);
     for (const tile of job.tiles) {
       const response = await call(`/api/geo-worker/jobs/${job.jobId}/laser/${tile.index}`, { signal: AbortSignal.any([control.signal, AbortSignal.timeout(20 * 60_000)]) });

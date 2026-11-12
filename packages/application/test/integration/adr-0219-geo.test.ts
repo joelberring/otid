@@ -245,7 +245,7 @@ describe("ADR-0219 K5: geo-arbetaren", () => {
     const muchLater = new Date(NOW.getTime() + 22 * 60_000);
     expect(await claimGeoJob(db, "geo-3", muchLater)).toBeUndefined();
     const [row] = await db.select().from(schema.mapProjectGeoJobs).where(eq(schema.mapProjectGeoJobs.id, created.job.jobId));
-    expect(row).toMatchObject({ status: "FAILED", error: "Geo-arbetaren slutade svara" });
+    expect(row).toMatchObject({ status: "FAILED", error: expect.stringContaining("minnet inte räckte") as unknown });
   });
   it("K6b: en DWG-ritning blir ett jobb för geo-arbetaren, som hämtar ritningen och lämnar en DXF", async () => {
     const { owner, reader, projectId } = await project();

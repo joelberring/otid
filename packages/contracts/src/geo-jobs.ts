@@ -117,7 +117,19 @@ export const geoWorkerFinishSchema = z.discriminatedUnion("status", [
  * skickar den i `x-otid-geo-version`; en äldre arbetare får inga jobb, och en server som O-Tid startat raderas. Höjs när
  * `scripts/geo-worker.ts` får något som jobben räknar med (samma tal står där; ett test håller dem lika).
  */
-export const GEO_WORKER_VERSION = 18;
+export const GEO_WORKER_VERSION = 19;
+
+/**
+ * Minnet (GB) som geo-servern behöver för ett jobb, efter områdets yta (ägaren 2026-11-12: «vill inte att det ska dö för
+ * användarna»). Hela Djurgården (18 km²) och Nåttarö (20 km²) dog med 3,5 GB och går med 8 GB; utsnitt på 5 km² går med 4 GB.
+ * Gränserna däremellan är satta med marginal, inte uppmätta. Samma regel står i scripts/geo-worker.ts (ett test håller dem lika).
+ */
+export function geoJobMemoryGb(request: { readonly clip?: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number } | null | undefined;
+  readonly tiles?: readonly unknown[] | undefined }): number {
+  const areaKm2 = request.clip ? Math.max(0, request.clip.maxX - request.clip.minX) * Math.max(0, request.clip.maxY - request.clip.minY) / 1e6
+    : (request.tiles?.length ?? 0) * 6.25;
+  return areaKm2 <= 8 ? 4 : areaKm2 <= 45 ? 8 : 16;
+}
 
 export const GEO_OUTPUT_NAME = /^[a-z0-9_.-]{1,60}$/;
 /** K6b: DWG-ritningen som geo-arbetaren läser (indata, sparad som jobbets fil; resultatet heter ritning.geojson). */

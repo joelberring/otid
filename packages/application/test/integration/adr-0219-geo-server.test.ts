@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { createDatabase, migrate, schema } from "@o-tid/database";
 import { createMapProjectFromUpload } from "../../src/map-projects";
 import { lantmaterietRuntimeFromEnvironment } from "../../src/map-project-lantmateriet";
@@ -49,6 +49,7 @@ function fakeHetzner(available: (type: string, location: string) => boolean) {
   const extra: { id: number; name: string; created: string }[] = [];
   let next = 100;
   const types: HetznerType[] = [
+    { name: "cx33", memoryGb: 8, architecture: "x86", deprecated: false, hourly: new Map([["fsn1", 0.0128], ["hel1", 0.0128]]) },
     { name: "cx23", memoryGb: 4, architecture: "x86", deprecated: false, hourly: new Map([["fsn1", 0.0088], ["hel1", 0.0088]]) },
     { name: "cax11", memoryGb: 4, architecture: "arm", deprecated: false, hourly: new Map([["fsn1", 0.0096], ["hel1", 0.0096]]) },
     { name: "cpx22", memoryGb: 4, architecture: "x86", deprecated: false, hourly: new Map([["fsn1", 0.02]]) }
@@ -233,5 +234,27 @@ describe("ADR-0219 K5b: geo-servern hos Hetzner", () => {
     extra.push({ id: 999, name: "otid-geo-borta", created: NOW.toISOString() });
     await manageGeoServer(db, hetzner, settings, mail, at(200));
     expect(removed).toContain(999);
+  });
+
+  it("väljer server efter jobbets storlek och säger till när ingen är stor nog", async () => {
+    await clear();
+    const mails: ServerMessage[] = [];
+    const mail = async (message: ServerMessage) => { mails.push(message); };
+    const jobId = await waitingJob();
+    // Ett helt kartblad (20 km²) behöver 8 GB: typerna med 4 GB provas inte, fast de står först och går att skapa.
+    await db.update(schema.mapProjectGeoJobs).set({ request: sql`request || '{"clip":{"minX":0,"minY":0,"maxX":4000,"maxY":5000}}'::jsonb` })
+      .where(eq(schema.mapProjectGeoJobs.id, jobId));
+    const small = geoServerSettings({ ...environment, OTID_GEO_SERVER_TYPES: "cx23,cax11,cpx22" })!;
+    const first = fakeHetzner(() => true);
+    expect(await manageGeoServer(db, first.hetzner, small, mail, at(1))).toEqual({ action: "unavailable", detail: "inget med 8 GB" });
+    expect(first.created).toHaveLength(0);
+    expect(mails.map(message => message.subject)).toEqual(["O-Tid: ingen geo-server är stor nog"]);
+    expect((await geoServerView(db, environment, at(1))).detail).toContain("minst 8 GB");
+
+    const mixed = geoServerSettings({ ...environment, OTID_GEO_SERVER_TYPES: "cx23,cx33,cpx22" })!;
+    const second = fakeHetzner(() => true);
+    expect(await manageGeoServer(db, second.hetzner, mixed, mail, at(2))).toEqual({ action: "created", detail: "cx33 i fsn1" });
+    // Den första typen som är stor nog är inte en reserv: inget mejl om reservtyp.
+    expect(mails).toHaveLength(1);
   });
 });

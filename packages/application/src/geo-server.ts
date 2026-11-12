@@ -111,11 +111,15 @@ export function hetznerClient(token: string, fetcher: typeof fetch = fetch, base
 /** Koder som betyder att typen inte går att få på platsen just nu (nästa i listan provas). */
 const UNAVAILABLE = new Set(["resource_unavailable", "placement_error", "unavailable", "invalid_input", "not_found", "server_type_unavailable"]);
 
-/** Uppstarten (cloud-init): Docker och geo-arbetaren, som startar om sig själv om den stannar. */
+/**
+ * Uppstarten (cloud-init): Docker och geo-arbetaren, som startar om sig själv om den stannar. Behållarens minnestak är 85 % av
+ * serverns minne, räknat på servern. Förut stod 3500 MB fast (satt för den minsta servern): hela Djurgården och Nåttarö
+ * 2026-11-11–12 slog i taket, behållaren dödades och startades om, och jobbet stod kvar tills «Geo-arbetaren slutade svara».
+ */
 export function geoCloudInit(input: { image: string; origin: string; token: string; name: string }): string {
   const quote = (value: string) => `'${value.replace(/'/g, "'\\''")}'`;
   return ["#cloud-config", "package_update: true", "packages:", "  - docker.io", "runcmd:", "  - systemctl enable --now docker",
-    `  - docker run -d --restart unless-stopped --name otid-geo --memory 3500m -e OTID_GEO_ORIGIN=${quote(input.origin)} `
+    `  - docker run -d --restart unless-stopped --name otid-geo --memory $(awk '/MemTotal/ { print int($2 / 1024 * 0.85) }' /proc/meminfo)m -e OTID_GEO_ORIGIN=${quote(input.origin)} `
       + `-e OTID_GEO_WORKER_TOKEN=${quote(input.token)} -e OTID_GEO_WORKER_NAME=${quote(input.name)} ${quote(input.image)}`, ""].join("\n");
 }
 

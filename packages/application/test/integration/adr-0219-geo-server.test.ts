@@ -97,6 +97,9 @@ describe("ADR-0219 K5b: geo-servern hos Hetzner", () => {
     expect(init.startsWith("#cloud-config\n")).toBe(true);
     expect(init).toContain("-e OTID_GEO_WORKER_TOKEN='t'\\''x'");
     expect(init).toContain("'ghcr.io/joelberring/otid-geo:main'");
+    // Minnestaket följer serverns minne (2026-11-12: ett fast tak på 3500 MB dödade behållaren för stora områden).
+    expect(init).toContain("--memory $(awk '/MemTotal/ { print int($2 / 1024 * 0.85) }' /proc/meminfo)m ");
+    expect(init).not.toMatch(/--memory \d/);
   });
 
   it("startar med reservtypen, hörs av, raderas efter tomgång; mejl en gång per dygn", async () => {

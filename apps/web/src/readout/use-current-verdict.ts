@@ -4,7 +4,7 @@
  */
 import { useMemo } from "react";
 import type { ReadoutPackage } from "@o-tid/contracts";
-import { evaluateLocally, withLocalRegistrations } from "./evaluate";
+import { evaluateLocally, linkedVariants, withLocalRegistrations } from "./evaluate";
 import type { QueuedReadout, QueuedRegistration } from "./store";
 import type { Current } from "./verdict-panel";
 
@@ -18,8 +18,9 @@ export function useCurrentVerdict({ current, pkg, items, registrations }: { curr
     if (current?.phase !== "done") return undefined;
     if (!currentItem || !effectivePkg) return current.verdict;
     const earlier = items.filter((item) => item.localSequence < currentItem.localSequence).map((item) => item.payload);
-    return evaluateLocally(currentItem.payload, effectivePkg, earlier, currentItem.stationReceivedAt);
-  }, [current, currentItem, effectivePkg, items]);
+    return evaluateLocally(currentItem.payload, effectivePkg, earlier, currentItem.stationReceivedAt,
+      pkg ? linkedVariants(pkg, registrations) : undefined);
+  }, [current, currentItem, effectivePkg, items, pkg, registrations]);
   // Steg 31 (B4): brickan har redan lästs ut för någon annan. Serverns svar avgör: okänd = lånad bricka (den förstes
   // resultat skrivs inte över), ett resultat = samma avläsning igen. Utan svar räcker en tidigare annorlunda avläsning här.
   const registeredHere = current?.phase === "done" && registrations.some((row) => row.request.cardNumber === current.cardNumber &&

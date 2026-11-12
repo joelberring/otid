@@ -182,6 +182,8 @@ export function ParticipantList({ ws }: { ws: Workspace }) {
                   <span className={styles.rosterResultTime}>{resultDuration(entry.effectiveResult.result.elapsedMs)}</span>}
               </span>{entry.notes?.wrongMap && <span className={styles.rosterStale} data-testid="roster-wrong-map">
                 {variantText.wrongMapShort(entry.notes.wrongMap.fittingCodes)}</span>}
+              {entry.notes?.linkedVariant && <span className={styles.rosterStale} data-testid="roster-linked-variant">
+                {variantText.linkedVariantShort(entry.notes.linkedVariant.assignedCode, entry.notes.linkedVariant.fittingCode)}</span>}
               {entry.notes?.excludedVariant && <span className={styles.rosterStale} data-testid="roster-excluded-variant">
                 {variantText.excludedVariantShort(entry.notes.excludedVariant.codes)}</span>}
               {entry.resultFreshness === "OLDER_SNAPSHOT" &&

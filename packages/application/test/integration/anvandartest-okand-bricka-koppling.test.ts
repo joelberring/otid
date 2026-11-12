@@ -4,12 +4,17 @@ import { createDatabase, migrate } from "@o-tid/database";
 import { RESULT_ENGINE_VERSION } from "@o-tid/domain";
 import { listUnknownReadoutResolutionCandidatesAsAdmin, resolveUnknownReadoutAsAdmin } from "../../src/unknown-readout-resolution";
 import { getAdministratorEffectiveResult } from "../../src/administrator-effective-result";
+import { registerReadoutCard } from "../../src/readout-registration";
 import { entryIds, forkedRace, readout, type Proof } from "./anvandartest-block1-fixtures";
 
 /**
  * Användartestet 2026-11-12, fel B: en okänd bricka kopplas i kontrollvyn till en löpare som redan har ett resultat.
  * Servern litar inte på klienten: utan `replaceExistingResult: true` avvisas kopplingen och inget ändras. Med medgivandet
  * ersätts resultatet, och deltagarkortets historik säger vad som ersattes (bricka före och efter, tidigare resultat).
+ *
+ * Fel C: en okänd bricka med stämplingar för en annan variant än löparens tilldelade bedöms mot varianten den passar (i
+ * kontrollvyn och i avläsningsvyn, med och utan nät), och bytet syns i deltagarkortet och historikraden. En vanlig avläsning
+ * av en känd bricka byter aldrig variant: den bedöms mot den tilldelade och får beskedet "fel karta".
  */
 const base = process.env.TEST_DATABASE_URL;
 if (!base) throw new Error("Testet kräver TEST_DATABASE_URL till en PostgreSQL-roll med CREATEDB");
@@ -41,6 +46,23 @@ async function linkRequest(proof: Proof, cardNumber: string, entryId: string) {
     readoutId: unknown.id, cardNumber, expectedEngineVersion: RESULT_ENGINE_VERSION, target: "EXISTING_ENTRY" as const, entryId,
     expectedEntryVersion: entry.entryVersion, expectedClassId: entry.classId, expectedAssignment: entry.activeAssignment,
     expectedLatestResultRevision: entry.latestResultRevision } };
+}
+
+async function variant(entryId: string) {
+  return (await pool.query<{ course_variant_code: string | null }>("select course_variant_code from entry where id = $1", [entryId]))
+    .rows[0]!.course_variant_code;
+}
+
+async function effective(proof: Proof, entryId: string) {
+  const read = await getAdministratorEffectiveResult(db, { ...proof, entryId });
+  if (read.status !== "ok" || read.response.state !== "ACTIVE_RESULT") throw new Error("Resultatet saknas");
+  return { status: read.response.result.status, notes: read.response.notes, history: read.response.history };
+}
+
+function linkAtReadout(cardNumber: string, entryId: string, classId: string) {
+  const requestId = randomUUID();
+  return { idempotencyKey: `readout-registration:${requestId}`, request: { formatVersion: 1 as const, requestId, cardNumber,
+    target: "EXISTING_ENTRY" as const, entryId, expectedClassId: classId } };
 }
 
 async function activeCard(entryId: string) {
@@ -91,6 +113,62 @@ describe("användartestet 2026-11-12, fel B: koppla en okänd bricka till en lö
     const resolved = await resolveUnknownReadoutAsAdmin(db, { ...proof, idempotencyKey: linking.idempotencyKey, request: linking.request });
     expect(resolved.status).toBe("resolved");
     expect(await history(proof, ids.Fia!)).toEqual([expect.objectContaining({ cause: "UNKNOWN_READOUT_RESOLUTION",
-      link: { cardBefore: "8101006", cardAfter: "7505443", replacedResult: null } })]);
+      link: { cardBefore: "8101006", cardAfter: "7505443", replacedResult: null, variant: null } })]);
+  });
+});
+
+describe("användartestet 2026-11-12, fel C: okänd bricka med en annan variant än den tilldelade", () => {
+  it("kontrollvyn: bedöms mot varianten stämplingarna passar, och bytet syns i deltagarkortet och historikraden", async () => {
+    const { proof } = await forkedRace(db, pool);
+    const ids = await entryIds(pool, proof.raceId);
+    // Cia har tilldelad AD; den okända brickan har stämplingarna för BD.
+    await readout(db, pool, proof, "7505444", "BD");
+    const listed = await listUnknownReadoutResolutionCandidatesAsAdmin(db, proof);
+    if (listed.status !== "ok") throw new Error(listed.status);
+    // Listan ger varianten som stämplingarna passar och löparnas tilldelade varianter.
+    expect(listed.response.readouts.find(row => row.cardNumber === "7505444")!.fits)
+      .toEqual([{ classId: listed.response.entries.find(row => row.id === ids.Cia)!.classId, variantCode: "BD", ok: true }]);
+    expect(listed.response.entries.find(row => row.id === ids.Cia)).toMatchObject({ courseVariantCode: "AD" });
+    const linking = await linkRequest(proof, "7505444", ids.Cia!);
+    const resolved = await resolveUnknownReadoutAsAdmin(db, { ...proof, idempotencyKey: linking.idempotencyKey, request: linking.request });
+    expect(resolved).toMatchObject({ status: "resolved", response: { status: "OK" } });
+    expect(await variant(ids.Cia!)).toBe("BD");
+    const value = await effective(proof, ids.Cia!);
+    expect(value.notes?.linkedVariant).toEqual({ assignedCode: "AD", fittingCode: "BD" });
+    expect(value.history[0]).toMatchObject({ cause: "UNKNOWN_READOUT_RESOLUTION",
+      link: { cardBefore: "8101003", cardAfter: "7505444", replacedResult: null, variant: { assignedCode: "AD", fittingCode: "BD" } } });
+  });
+
+  it("avläsningsvyn med och utan nät: samma variant och samma historikrad", async () => {
+    const { proof, classes } = await forkedRace(db, pool);
+    const ids = await entryIds(pool, proof.raceId);
+    // Med nät: avläsningen kom först (okänd), sedan kopplas brickan till Dan (BC).
+    await readout(db, pool, proof, "7505445", "BD");
+    const online = await registerReadoutCard(db, { ...proof, ...linkAtReadout("7505445", ids.Dan!, classes.H21) });
+    expect(online).toMatchObject({ status: "registered", response: { outcome: "LINKED", linkedResult: { status: "OK" } } });
+    expect(await variant(ids.Dan!)).toBe("BD");
+    expect((await effective(proof, ids.Dan!)).history[0]).toMatchObject({ cause: "UNKNOWN_READOUT_RESOLUTION",
+      link: { cardBefore: "8101004", cardAfter: "7505445", variant: { assignedCode: "BC", fittingCode: "BD" } } });
+
+    // Utan nät: kopplingen till Eva (AC) kommer före avläsningen.
+    const offline = await registerReadoutCard(db, { ...proof, ...linkAtReadout("7505446", ids.Eva!, classes.H21) });
+    expect(offline).toMatchObject({ status: "registered", response: { outcome: "LINKED", linkedResult: null } });
+    expect(await readout(db, pool, proof, "7505446", "BD")).toMatchObject({ serverResult: { status: "OK" } });
+    expect(await variant(ids.Eva!)).toBe("BD");
+    const value = await effective(proof, ids.Eva!);
+    expect(value.notes?.linkedVariant).toEqual({ assignedCode: "AC", fittingCode: "BD" });
+    expect(value.history[0]).toMatchObject({ cause: "CARD_READOUT",
+      link: { cardBefore: "8101005", cardAfter: "7505446", variant: { assignedCode: "AC", fittingCode: "BD" } } });
+  });
+
+  it("en vanlig avläsning av en känd bricka byter inte variant: felstämplad mot den tilldelade, med beskedet fel karta", async () => {
+    const { proof } = await forkedRace(db, pool);
+    const ids = await entryIds(pool, proof.raceId);
+    expect(await readout(db, pool, proof, "8101006", "AC")).toMatchObject({ serverResult: { status: "MP" } });
+    expect(await variant(ids.Fia!)).toBe("BD");
+    const value = await effective(proof, ids.Fia!);
+    expect(value.notes).toMatchObject({ wrongMap: { assignedCode: "BD", fittingCodes: ["AC"] } });
+    expect(value.notes?.linkedVariant).toBeUndefined();
+    expect(value.history[0]).not.toHaveProperty("link");
   });
 });

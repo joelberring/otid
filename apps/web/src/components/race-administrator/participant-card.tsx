@@ -127,6 +127,9 @@ function CardResult({ ws, result, error }: { ws: Workspace; result: Administrato
             {result.notes.startPunch.kind === "FROM_PUNCH" ? "" : "! "}{startPunchText(result.notes.startPunch, result.timeZone, startRule)}</p>}
           {/* Steg 61: fel karta vid starten. Inget byts förrän arrangören väljer "Godkänn på …". */}
           {result.notes?.wrongMap && <WrongMap ws={ws} wrongMap={result.notes.wrongMap} />}
+          {/* Användartestet 2026-11-12: okänd bricka kopplad, stämplingarna passade en annan variant än den tilldelade. */}
+          {result.notes?.linkedVariant && <p className={styles.warning} role="note" data-testid="linked-variant">
+            {"! "}{variantText.linkedVariant(result.notes.linkedVariant.assignedCode, result.notes.linkedVariant.fittingCode)}</p>}
           {/* ADR-0198: stämplingarna passar en variant som banläggningen valt bort; inget byts. */}
           {result.notes?.excludedVariant && <p className={styles.warning} role="note" data-testid="excluded-variant">
             {variantText.excludedVariant(result.notes.excludedVariant.codes)}</p>}
@@ -142,6 +145,7 @@ function CardResult({ ws, result, error }: { ws: Workspace; result: Administrato
 /** Kort historik över resultatändringar, nyaste först, med klockslag i tävlingens tidszon. */
 function ResultHistory({ result, timeZone }: { result: AdministratorEffectiveResultResponse; timeZone: string }) {
   const resultText = useTexts(publicResultSv, publicResultEn);
+  const variantText = useTexts(courseVariantsSv, courseVariantsEn);
   const text = useTexts(participantCardSv, participantCardEn);
   return <section className={styles.workspace} aria-label={text.history}>
     <h3>{text.history}</h3>
@@ -151,7 +155,8 @@ function ResultHistory({ result, timeZone }: { result: AdministratorEffectiveRes
         {/* Användartestet 2026-11-12: en kopplad okänd bricka säger vad som ersattes. */}
         {row.link && <span data-testid="history-link">{[` · ${text.historyCard(row.link.cardBefore, row.link.cardAfter)}`,
           row.link.replacedResult ? text.historyReplaced([resultText.statusLabels[row.link.replacedResult.status],
-            row.link.replacedResult.elapsedMs !== undefined ? resultDuration(row.link.replacedResult.elapsedMs) : ""].filter(Boolean).join(" ")) : ""]
+            row.link.replacedResult.elapsedMs !== undefined ? resultDuration(row.link.replacedResult.elapsedMs) : ""].filter(Boolean).join(" ")) : "",
+          row.link.variant ? variantText.linkedVariantHistory(row.link.variant.assignedCode, row.link.variant.fittingCode) : ""]
           .filter(Boolean).join(", ")}</span>}</li>)}
     </ul>}
   </section>;

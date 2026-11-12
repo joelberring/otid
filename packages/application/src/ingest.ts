@@ -20,7 +20,8 @@ import { appendResultRevision, evaluateAndStore, normalizedReadout } from "./res
 import { relayTeamOfEntry } from "./relay-model";
 import { lockRelayClassOfEntry, synchronizeRelayTeams } from "./relay-sync";
 import { loadTeamSprintRunners, storeTeamSprintReadoutAndRecalculate } from "./team-sprint-readout";
-import { registeredAtReadout, useFittingVariant } from "./readout-link-variant";
+import { previousCardOf, registeredAtReadout, useFittingVariant } from "./readout-link-variant";
+import { recordLinkDetails } from "./unknown-readout-link";
 
 async function findPersistedServerResult(
   tx: DbExecutor,
@@ -127,8 +128,17 @@ export async function storeIngestedReadout(tx: IngestTransaction, raceId: string
   const alreadyReadOutBy = sprintRunner ? undefined : await cardAlreadyReadOutBy(tx, owner?.entryId, normalized);
   // Användartestet 2026-11-12: direktanmäld utan nät (anmälan kom före avläsningen) får varianten som stämplingarna
   // passar sparad, som när avläsningen kommer först.
-  const fitted = owner && !sprint && !alreadyReadOutBy && await registeredAtReadout(tx, raceId, owner.entryId, normalized.cardNumber)
-    ? await useFittingVariant(tx, snapshot, normalized, owner.entryId) : snapshot;
+  // Utan nät kopplad till en anmäld (LINKED): samma variant som med nät, och ett byte syns i historiken.
+  const registered = owner && !sprint && !alreadyReadOutBy ? await registeredAtReadout(tx, raceId, owner.entryId, normalized.cardNumber)
+    : undefined;
+  const fittedVariant = owner && registered ? await useFittingVariant(tx, snapshot, normalized, owner.entryId) : undefined;
+  const fitted = fittedVariant?.snapshot ?? snapshot;
+  if (owner && registered === "LINKED") {
+    const cardBefore = await previousCardOf(tx, raceId, owner.entryId, normalized.cardNumber);
+    if (cardBefore !== null || fittedVariant?.change) await recordLinkDetails(tx, { raceId, readoutId: readoutRow.id, entryId: owner.entryId,
+      actorAccountId: null, requestId: null, details: { cardBefore, cardAfter: normalized.cardNumber, replacedResult: null,
+        variant: fittedVariant?.change ?? null } });
+  }
   const stored = sprint ? (sprint.kind === "stored" ? { stored: true as const, evaluation: sprint.evaluation, revision: sprint.revisions.at(-1)! }
     : { stored: false as const, evaluation: unknown })
     : alreadyReadOutBy ? { stored: false as const, evaluation: unknown }

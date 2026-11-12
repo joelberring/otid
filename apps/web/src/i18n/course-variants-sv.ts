@@ -52,6 +52,11 @@ export const courseVariantsSv = {
   excludedVariant: (codes: readonly string[]) =>
     `Stämplingarna passar ${codes.join(" och ")}, som är bortvald i banläggningen. Fick löparen fel karta? Rätta status eller variant för hand.`,
   excludedVariantShort: (codes: readonly string[]) => `Bortvald variant? Passar ${codes.join(", ")}`,
+  // Användartestet 2026-11-12 (fel C): okänd bricka kopplad till en löpare med en annan tilldelad variant.
+  linkedVariant: (assigned: string, fitting: string) =>
+    `Tilldelad variant ${assigned} – stämplingarna passar ${fitting}. Resultatet bedöms mot ${fitting}. Tog löparen fel karta, eller är brickan någon annans?`,
+  linkedVariantShort: (assigned: string, fitting: string) => `Variant ${assigned} → ${fitting}`,
+  linkedVariantHistory: (assigned: string, fitting: string) => `tilldelad ${assigned}, stämplingarna passar ${fitting}`,
   readinessExcluded: (count: number) => `${plural(count, "variant", "varianter")} bortvald${count === 1 ? "" : "a"} i banläggningen`,
   approveOn: (code: string) => `Godkänn på ${code}`,
   approveOnHelp: "Byter löparens variant och räknar om resultatet. Orsaken sparas i historiken.",

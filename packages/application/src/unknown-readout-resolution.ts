@@ -9,12 +9,11 @@ import {
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import {
-  courseVariantForReadout, evaluateCardReadout, evaluateReadoutForEntry, RESULT_ENGINE_VERSION, withProposedEntryVariants, type EvaluationResult,
-  type NormalizedCardReadout
+  evaluateCardReadout, evaluateReadoutForEntry, rankClassesByCourseFit, RESULT_ENGINE_VERSION, type EvaluationResult, type LinkVariantChange, type NormalizedCardReadout
 } from "@o-tid/domain";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
-import { bumpReadoutPackageVersion, loadRaceSnapshot } from "./snapshot";
+import { bumpReadoutPackageVersion, loadRaceSnapshot, type DbExecutor } from "./snapshot";
 import { canAddClassEntry } from "./class-capacity-guard";
 import { relayTeamOfEntry } from "./relay-model";
 import { loadDecisionReviews } from "./decision-review";
@@ -23,6 +22,7 @@ import { appendResultRevision } from "./result-revisions";
 import { latestResultReadAt, readoutsWithResults } from "./readout-lookup";
 import { directEntryStartTime } from "./start-draw-basis";
 import { currentEntryResult, entryResultOf, recordLinkDetails } from "./unknown-readout-link";
+import { useFittingVariant } from "./readout-link-variant";
 import { cardAlreadyReadOutBy } from "./card-reuse";
 import { normalizedReadout } from "./result-revisions";
 import { loadTeamSprintRunners, storeTeamSprintReadoutAndRecalculate } from "./team-sprint-readout";
@@ -73,7 +73,8 @@ export async function listUnknownReadoutResolutionCandidatesAsAdmin(
     if (assignments.length > 20_000) throw new Error("För många aktiva brickkopplingar");
     const entries = await tx.select({ id: schema.entries.id, givenName: schema.entries.givenName,
       familyName: schema.entries.familyName, organisationName: schema.entries.organisationName,
-      classId: schema.entries.classId, entryVersion: schema.entries.version }).from(schema.entries)
+      classId: schema.entries.classId, entryVersion: schema.entries.version, courseVariantCode: schema.entries.courseVariantCode })
+      .from(schema.entries)
       .where(eq(schema.entries.raceId, input.raceId))
       .orderBy(asc(schema.entries.familyName), asc(schema.entries.givenName), asc(schema.entries.id)).limit(10_001);
     if (entries.length > 10_000) throw new Error("För många deltagare");
@@ -114,6 +115,8 @@ export async function listUnknownReadoutResolutionCandidatesAsAdmin(
       const owner = ownerId ? entryById.get(ownerId) : undefined;
       if (owner) alreadyReadOutBy.set(row.id, { entryId: owner.id, name: `${owner.givenName} ${owner.familyName}` });
     }
+    // Användartestet 2026-11-12: klasserna (och för gafflad bana varianten) som stämplingarna passar, som i avläsningsvyn.
+    const fits = await unknownReadoutFits(tx, input.raceId, unknownRows.map((row) => row.id));
     return { status: "ok", response: unknownReadoutResolutionCandidateResponseSchema.parse({
       formatVersion: 1, raceId: input.raceId, snapshotVersion: race.snapshotVersion,
       engineVersion: RESULT_ENGINE_VERSION,
@@ -121,7 +124,7 @@ export async function listUnknownReadoutResolutionCandidatesAsAdmin(
         .map((row) => ({
           id: row.id, cardNumber: row.cardNumber,
           readAt: row.readAt.toISOString(), finishPunchedAt: row.finishPunchedAt?.toISOString() ?? null,
-          alreadyReadOutBy: alreadyReadOutBy.get(row.id) ?? null
+          alreadyReadOutBy: alreadyReadOutBy.get(row.id) ?? null, fits: fits.get(row.id) ?? []
         })),
       classes,
       entries: entries.map((entry) => {
@@ -133,6 +136,21 @@ export async function listUnknownReadoutResolutionCandidatesAsAdmin(
       })
     }) };
   });
+}
+
+/** Klasserna som avläsningens stämplingar passar (alla godkända, annars den närmaste), med varianten för en gafflad bana. */
+async function unknownReadoutFits(tx: DbExecutor, raceId: string, readoutIds: readonly string[]) {
+  const fits = new Map<string, { classId: string; variantCode?: string; ok: boolean }[]>();
+  if (readoutIds.length === 0) return fits;
+  const snapshot = await loadRaceSnapshot(tx, raceId);
+  const rows = await tx.select({ id: schema.cardReadouts.id, punches: schema.cardReadouts.punches }).from(schema.cardReadouts)
+    .where(inArray(schema.cardReadouts.id, [...readoutIds]));
+  for (const row of rows) {
+    const ranked = rankClassesByCourseFit(row.punches, snapshot);
+    const chosen = ranked.some((fit) => fit.ok) ? ranked.filter((fit) => fit.ok) : ranked.slice(0, 1);
+    fits.set(row.id, chosen.map((fit) => ({ classId: fit.classId, ...(fit.variantCode ? { variantCode: fit.variantCode } : {}), ok: fit.ok })));
+  }
+  return fits;
 }
 
 export type UnknownReadoutResolutionResult =
@@ -285,12 +303,12 @@ export async function resolveUnknownReadoutAsAdmin(
       ...(readout.readout.checkPunchedAt ? { checkPunchedAt: readout.readout.checkPunchedAt.toISOString() } : {}),
       ...(readout.readout.clearPunchedAt ? { clearPunchedAt: readout.readout.clearPunchedAt.toISOString() } : {}),
       rawMessageId: readout.readout.rawMessageId, readAt: readout.readout.readAt.toISOString() };
-    // Direktanmäld i en gafflad klass har redan sprungit: den får varianten som stämplingarna passar.
-    const detected = intent.target === "EXISTING_ENTRY" ? undefined : courseVariantForReadout(normalized, snapshot);
-    if (detected && !detected.assigned) {
-      await tx.update(schema.entries).set({ courseVariantCode: detected.code }).where(and(eq(schema.entries.id, entry.id),
-        eq(schema.entries.raceId, input.raceId)));
-      snapshot = withProposedEntryVariants(snapshot, new Map([[entry.id, detected.code]]));
+    // Direktanmäld i en gafflad klass har redan sprungit: den får varianten som stämplingarna passar. Användartestet
+    // 2026-11-12: likadant när brickan kopplas till en anmäld löpare (som i avläsningsvyn); bytet syns i historiken.
+    let variantChange: LinkVariantChange | undefined;
+    if (!entry.teamId) {
+      const fitted = await useFittingVariant(tx, snapshot, normalized, entry.id);
+      snapshot = fitted.snapshot; variantChange = fitted.change;
     }
     const sprintRunner = teamSprintSame ? (await loadTeamSprintRunners(tx, input.raceId, sprintOwnerId))[0] : undefined;
     let evaluation: EvaluationResult;
@@ -342,10 +360,10 @@ export async function resolveUnknownReadoutAsAdmin(
       request: intent, response, resolvedAt });
     // Deltagarkortets historik: bricka före och efter och resultatet som ersattes.
     const cardBefore = previousAssignment?.cardNumber ?? (sameRunner ? intent.cardNumber : null);
-    if (intent.target === "EXISTING_ENTRY" && (cardBefore !== intent.cardNumber || replacedResult)) {
+    if (intent.target === "EXISTING_ENTRY" && (cardBefore !== intent.cardNumber || replacedResult || variantChange)) {
       await recordLinkDetails(tx, { raceId: input.raceId, readoutId: readout.readout.id, entryId: entry.id,
         actorAccountId: auth.principal.accountId, requestId, createdAt: resolvedAt,
-        details: { cardBefore, cardAfter: intent.cardNumber, replacedResult } });
+        details: { cardBefore, cardAfter: intent.cardNumber, replacedResult, variant: variantChange ?? null } });
     }
     await tx.insert(schema.auditEvents).values({ raceId: input.raceId, entityType: "card_readout",
       entityId: readout.readout.id, action: "UNKNOWN_READOUT_RESOLVED_BY_ADMIN",

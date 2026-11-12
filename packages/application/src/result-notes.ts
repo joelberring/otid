@@ -4,12 +4,14 @@ import { schema } from "@o-tid/database";
 import { startPunchNote } from "@o-tid/domain";
 import type { DbExecutor } from "./snapshot";
 import { loadWrongMaps } from "./wrong-map";
+import { linkKey, loadLinkDetails } from "./unknown-readout-link";
 
 /**
  * Arbetsytans anteckningar om löparnas resultat (PLAN.md steg 25): startstämplingen vid lottad start (sen eller tidig
  * start, eller starttid från stämplingen när lottad tid saknas) och diskens orsak. Reglerna finns i domänen
  * (`startPunchNote`); här läses bara fakta: löparens senaste avläsning, klassens startsätt och den lottade tiden.
- * Steg 61: fel karta (`loadWrongMaps`). Visas i avläsningens besked, deltagarkortet och arbetsytans resultatlista, aldrig på
+ * Steg 61: fel karta (`loadWrongMaps`). Användartestet 2026-11-12: variant bytt vid koppling av okänd bricka.
+ * Visas i avläsningens besked, deltagarkortet och arbetsytans resultatlista, aldrig på
  * publika sidor.
  */
 export async function loadResultNotes(tx: DbExecutor, raceId: string, entryIds?: readonly string[]): Promise<Map<string, ResultNotes>> {
@@ -18,7 +20,7 @@ export async function loadResultNotes(tx: DbExecutor, raceId: string, entryIds?:
   const scope = (column: typeof schema.resultRevisions.entryId | typeof schema.entries.id) =>
     entryIds === undefined ? undefined : inArray(column, [...entryIds]);
   const readouts = await tx.selectDistinctOn([schema.resultRevisions.entryId], { entryId: schema.resultRevisions.entryId,
-    startPunchedAt: schema.cardReadouts.startPunchedAt }).from(schema.resultRevisions)
+    readoutId: schema.cardReadouts.id, startPunchedAt: schema.cardReadouts.startPunchedAt }).from(schema.resultRevisions)
     .innerJoin(schema.cardReadouts, eq(schema.cardReadouts.id, schema.resultRevisions.readoutId))
     .where(and(eq(schema.resultRevisions.raceId, raceId), isNotNull(schema.resultRevisions.readoutId), scope(schema.resultRevisions.entryId)))
     .orderBy(asc(schema.resultRevisions.entryId), desc(schema.resultRevisions.revision));
@@ -51,6 +53,12 @@ export async function loadResultNotes(tx: DbExecutor, raceId: string, entryIds?:
   for (const [entryId, wrongMap] of found.wrongMaps) {
     notes.set(entryId, { ...notes.get(entryId), wrongMap: { assignedCode: wrongMap.assignedCode, fittingCodes: [...wrongMap.fittingCodes] } });
   }
+  // Användartestet 2026-11-12 (fel C): en kopplad okänd bricka vars stämplingar passade en annan variant än den tilldelade.
+  const links = await loadLinkDetails(tx, raceId, readouts.map((row) => ({ readoutId: row.readoutId, entryId: row.entryId })));
+  for (const row of readouts) {
+    const variant = links.get(linkKey(row.readoutId, row.entryId))?.variant;
+    if (variant) notes.set(row.entryId, { ...notes.get(row.entryId), linkedVariant: { ...variant } });
+  }
   // ADR-0198: stämplingarna passar en variant som banläggningen valt bort.
   for (const [entryId, codes] of found.excluded) notes.set(entryId, { ...notes.get(entryId), excludedVariant: { codes: [...codes] } });
   return notes;
@@ -63,6 +71,7 @@ export function applicableResultNotes(notes: ResultNotes | undefined, status: st
   const value: ResultNotes = { ...(timed && notes.startPunch ? { startPunch: notes.startPunch } : {}),
     ...(status === "DSQ" && notes.disqualificationReason ? { disqualificationReason: notes.disqualificationReason } : {}),
     ...(status === "MP" && notes.wrongMap ? { wrongMap: notes.wrongMap } : {}),
-    ...(status === "MP" && notes.excludedVariant ? { excludedVariant: notes.excludedVariant } : {}) };
-  return value.startPunch || value.disqualificationReason || value.wrongMap || value.excludedVariant ? value : undefined;
+    ...(status === "MP" && notes.excludedVariant ? { excludedVariant: notes.excludedVariant } : {}),
+    ...(timed && notes.linkedVariant ? { linkedVariant: notes.linkedVariant } : {}) };
+  return value.startPunch || value.disqualificationReason || value.wrongMap || value.excludedVariant || value.linkedVariant ? value : undefined;
 }

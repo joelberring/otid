@@ -31,6 +31,13 @@ export interface LinkReview {
   readonly replacesResult: boolean;
   /** Löparen har en annan bricka, som byts. */
   readonly changesCard: boolean;
+  /** Fel C: stämplingarna passar en annan variant än löparens tilldelade; avläsningen bedöms mot den de passar. */
+  readonly variantChange?: { readonly assignedCode: string; readonly fittingCode: string };
+}
+
+/** Varianten som avläsningens stämplingar passar på klassens bana (gafflad bana), enligt serverns förslag. */
+export function fittingVariant(candidate: Candidate, readoutId: string, classId: string): string | undefined {
+  return candidate.readouts.find((row) => row.id === readoutId)?.fits?.find((fit) => fit.classId === classId)?.variantCode;
 }
 
 export function linkReview(candidate: Candidate, request: UnknownReadoutResolutionRequest): LinkReview | undefined {
@@ -38,9 +45,12 @@ export function linkReview(candidate: Candidate, request: UnknownReadoutResoluti
   const entry = candidate.entries.find((row) => row.id === request.entryId);
   if (!entry) return undefined;
   const cardBefore = entry.activeAssignment?.cardNumber ?? null;
+  const fittingCode = fittingVariant(candidate, request.readoutId, entry.classId);
+  const assignedCode = entry.courseVariantCode ?? undefined;
   return { name: `${entry.givenName} ${entry.familyName}`, className: candidate.classes.find((row) => row.id === entry.classId)?.name ?? "",
     cardBefore, cardAfter: request.cardNumber, result: hasResult(entry) ? entry.latestResult ?? null : null,
-    replacesResult: readOut(entry), changesCard: cardBefore !== null && cardBefore !== request.cardNumber };
+    replacesResult: readOut(entry), changesCard: cardBefore !== null && cardBefore !== request.cardNumber,
+    ...(assignedCode && fittingCode && assignedCode !== fittingCode ? { variantChange: { assignedCode, fittingCode } } : {}) };
 }
 
 /** Begäran som skickas: med medgivandet att ersätta resultatet när arrangören kryssat i det. */

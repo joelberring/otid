@@ -111,7 +111,7 @@ export async function registerReadoutCard(db: Database, input: Authentication & 
     // (samma regel som Byt bricka och Ny deltagare, `card-assignment.ts`).
     const keepsFirst = borrowedFrom !== undefined && entry.id === borrowedFrom && !(sameRunner && intent.borrowedCard);
     const linked = keepsFirst ? null : await linkUnresolvedReadout(tx, { raceId, entryId: entry.id, cardNumber: intent.cardNumber,
-      actorAccountId: auth.principal.accountId, detectVariant: outcome !== "EXISTING", force: sameRunner });
+      actorAccountId: auth.principal.accountId, detectVariant: outcome !== "EXISTING", force: sameRunner, existingEntry: outcome === "LINKED" });
     const linkedResult = linked ? { status: linked.status, revision: linked.revision } : null;
     const [className] = outcome !== "CREATED" || !raceClass ? await tx.select({ name: schema.classes.name }).from(schema.classes)
       .where(eq(schema.classes.id, entry.classId)) : [raceClass];

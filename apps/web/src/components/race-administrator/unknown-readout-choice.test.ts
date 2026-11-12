@@ -7,10 +7,11 @@ const entry = (n: number, name: string, extra: Partial<UnknownReadoutResolutionC
   ({ id: id(n), givenName: name, familyName: "Al", organisationName: null, classId: id(90), entryVersion: 1, activeAssignment: null,
     latestResultRevision: null, latestResult: null, ...extra });
 const candidate: UnknownReadoutResolutionCandidateResponse = { formatVersion: 1, raceId: id(99), snapshotVersion: 3, engineVersion: "1",
-  readouts: [{ id: id(80), cardNumber: "7505442", readAt: "2026-12-09T08:40:00.000Z", finishPunchedAt: "2026-12-09T08:39:00.000Z" }],
+  readouts: [{ id: id(80), cardNumber: "7505442", readAt: "2026-12-09T08:40:00.000Z", finishPunchedAt: "2026-12-09T08:39:00.000Z",
+    fits: [{ classId: id(90), variantCode: "BE", ok: true }] }],
   classes: [{ id: id(90), name: "H21", courseVersionId: id(91), maxEntries: null, entryCount: 3 }],
   entries: [entry(1, "Bo", { activeAssignment: { id: id(70), cardNumber: "8571001" }, latestResultRevision: { id: id(60), revision: 1 },
-    latestResult: { status: "OK", elapsedMs: 1_800_000 }, readOut: true }), entry(2, "Cia"), entry(3, "Dan", { activeAssignment: { id: id(71), cardNumber: "8571003" } }),
+    latestResult: { status: "OK", elapsedMs: 1_800_000 }, readOut: true }), entry(2, "Cia"), entry(3, "Dan", { activeAssignment: { id: id(71), cardNumber: "8571003" }, courseVariantCode: "AD" }),
   // Brutit utan bricka (ett beslut utan avläsning): visas med status, men kopplingen ersätter inget (steg 45).
   entry(4, "Eva", { latestResultRevision: { id: id(61), revision: 1 }, latestResult: { status: "DNF" }, readOut: false })] };
 const request = (entryId: string): UnknownReadoutResolutionRequest => ({ formatVersion: 1, requestId: id(50), readoutId: id(80),
@@ -26,7 +27,9 @@ describe("kontrollvyns koppling av en okänd bricka (användartestet 2026-11-12)
     expect(linkReview(candidate, request(id(1)))).toEqual({ name: "Bo Al", className: "H21", cardBefore: "8571001", cardAfter: "7505442",
       result: { status: "OK", elapsedMs: 1_800_000 }, replacesResult: true, changesCard: true });
     expect(linkReview(candidate, request(id(2)))).toMatchObject({ cardBefore: null, result: null, replacesResult: false, changesCard: false });
-    expect(linkReview(candidate, request(id(3)))).toMatchObject({ replacesResult: false, changesCard: true });
+    expect(linkReview(candidate, request(id(3)))).toMatchObject({ replacesResult: false, changesCard: true,
+      variantChange: { assignedCode: "AD", fittingCode: "BE" } });
+    expect(linkReview(candidate, request(id(2)))).not.toHaveProperty("variantChange");
     expect(linkReview(candidate, request(id(4)))).toMatchObject({ result: { status: "DNF" }, replacesResult: false });
   });
 

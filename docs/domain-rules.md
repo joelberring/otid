@@ -162,6 +162,10 @@ funktion lokalt; dess besked är preliminärt och serverns revision är auktorit
   tryckantal) visas överst.
 - Fel karta (`wrongMapVariants`): felstämplad mot den tilldelade varianten men utan fel mot en annan variant av samma bana
   (samma matchning, kontroller ur funktion och tidsrättningar som bedömningen). Bara ett besked; inget byts automatiskt.
+- Okänd bricka kopplad till en löpare (kontrollvyn, avläsningsvyn med och utan nät, användartestet 2026-11-12): avläsningen
+  bedöms mot varianten som stämplingarna passar och den sparas på löparen. Skiljer den sig från den tilldelade
+  (`linkVariantChange`) visas bytet i beskedet, granskningen, deltagarkortet (`linkedVariant`), historikraden och som en liten
+  markering i arbetsytans deltagarlista; publikt ändras inget. En avläsning av en känd bricka byter aldrig variant (fel karta).
 - Kontrollen före tävlingen (`forkingReadiness`): varianter utan löpare (väntat när löparna är färre än varianterna), löpare utan
   variant, ojämn fördelning per gafflingspunkt (mer än en löpare i skillnad), högst 100 varianter och 26 bokstäver.
 - Layouter (ADR-0217): en grupp per bana, variant *och* klassens layout i banläggningen (`event.classLayouts`, klassnamn →

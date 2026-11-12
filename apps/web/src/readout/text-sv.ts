@@ -156,6 +156,8 @@ export const readoutText = {
   // Gafflad bana (ADR-0169 beslut 2).
   variant: (code: string) => `Variant ${code}`,
   variantGuessed: (code: string) => `Variant ${code} (efter stämplingarna)`,
+  // Användartestet 2026-11-12: brickan kopplad till en löpare med en annan tilldelad variant.
+  variantChange: (assigned: string, fitting: string) => `Tilldelad variant ${assigned} – stämplingarna passar ${fitting}. Bedöms mot ${fitting}.`,
   // Steg 61: fel karta vid starten.
   wrongMap: (assigned: string, fitting: readonly string[]) =>
     `Felstämplad mot ${assigned}, men stämplingarna passar ${fitting.join(" och ")}. Fick löparen fel karta?`,

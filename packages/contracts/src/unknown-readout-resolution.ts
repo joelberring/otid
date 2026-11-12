@@ -23,7 +23,13 @@ export const unknownReadoutResolutionCandidateResponseSchema = z.object({
     readAt: z.iso.datetime({ offset: true }),
     finishPunchedAt: z.iso.datetime({ offset: true }).nullable(),
     /** Steg 31 (B4): brickan har redan lästs ut för en annan deltagare med andra stämplingar (lånad bricka?). */
-    alreadyReadOutBy: z.object({ entryId: uuid, name: z.string().trim().min(1).max(321) }).strict().nullable().optional()
+    alreadyReadOutBy: z.object({ entryId: uuid, name: z.string().trim().min(1).max(321) }).strict().nullable().optional(),
+    /**
+     * Användartestet 2026-11-12: klasserna vars bana stämplingarna passar (alla godkända, annars den närmaste) och för en
+     * gafflad bana varianten de passar. Kontrollvyn visar varianten och ställer löpare med just den varianten först.
+     */
+    fits: z.array(z.object({ classId: uuid, variantCode: z.string().min(1).max(32).optional(), ok: z.boolean() }).strict())
+      .max(1_000).optional()
   }).strict()).max(10_000),
   classes: z.array(z.object({
     id: uuid,
@@ -44,7 +50,9 @@ export const unknownReadoutResolutionCandidateResponseSchema = z.object({
     /** Användartestet 2026-11-12: löparens nuvarande resultat, som kopplingen ersätter. */
     latestResult: entryResultSchema.nullable().optional(),
     /** Deltagaren har ett resultat från en avläsning: kopplingen ersätter det och kräver `replaceExistingResult`. */
-    readOut: z.boolean().optional()
+    readOut: z.boolean().optional(),
+    /** Löparens tilldelade variant (gafflad bana). */
+    courseVariantCode: z.string().min(1).max(32).nullable().optional()
   }).strict()).max(10_000)
 }).strict().superRefine((value, context) => {
   for (const [path, ids] of [

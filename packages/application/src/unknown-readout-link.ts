@@ -35,19 +35,26 @@ export async function recordLinkDetails(tx: DbExecutor, input: { raceId: string;
     ...(input.createdAt ? { createdAt: input.createdAt } : {}) });
 }
 
-/** Kopplingens detaljer per avläsning för löparen (senaste posten gäller). Poster som inte går att tolka hoppas över. */
-export async function loadLinkDetails(tx: DbExecutor, raceId: string, entryId: string, readoutIds: readonly string[]):
+/**
+ * Kopplingens detaljer per avläsning och löpare (nyckel `avläsning:löpare`, senaste posten gäller). Poster som inte går att
+ * tolka hoppas över.
+ */
+export async function loadLinkDetails(tx: DbExecutor, raceId: string, pairs: readonly { readoutId: string; entryId: string }[]):
   Promise<Map<string, UnknownReadoutLinkDetails>> {
   const found = new Map<string, UnknownReadoutLinkDetails>();
-  if (readoutIds.length === 0) return found;
+  if (pairs.length === 0) return found;
+  const wanted = new Set(pairs.map((pair) => linkKey(pair.readoutId, pair.entryId)));
   const rows = await tx.select({ readoutId: schema.auditEvents.entityId, after: schema.auditEvents.after }).from(schema.auditEvents)
     .where(and(eq(schema.auditEvents.raceId, raceId), eq(schema.auditEvents.entityType, "card_readout"),
-      eq(schema.auditEvents.action, ACTION), inArray(schema.auditEvents.entityId, [...readoutIds])))
+      eq(schema.auditEvents.action, ACTION), inArray(schema.auditEvents.entityId, [...new Set(pairs.map((pair) => pair.readoutId))])))
     .orderBy(desc(schema.auditEvents.createdAt), desc(schema.auditEvents.id));
   for (const row of rows) {
-    if (found.has(row.readoutId) || row.after?.entryId !== entryId) continue;
-    const parsed = unknownReadoutLinkDetailsSchema.safeParse(Object.fromEntries(Object.entries(row.after).filter(([key]) => key !== "entryId")));
-    if (parsed.success) found.set(row.readoutId, parsed.data);
+    const key = linkKey(row.readoutId, String(row.after?.entryId));
+    if (found.has(key) || !wanted.has(key) || !row.after) continue;
+    const parsed = unknownReadoutLinkDetailsSchema.safeParse(Object.fromEntries(Object.entries(row.after).filter(([name]) => name !== "entryId")));
+    if (parsed.success) found.set(key, parsed.data);
   }
   return found;
 }
+
+export const linkKey = (readoutId: string, entryId: string) => `${readoutId}:${entryId}`;

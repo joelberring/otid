@@ -15,6 +15,11 @@ export interface LocalVerdict {
   readonly className?: string;
   /** Gafflad bana: varianten som avläsningen bedömdes mot; `assigned` är falskt när den valts efter stämplingarna. */
   readonly variant?: { readonly code: string; readonly assigned: boolean };
+  /**
+   * Användartestet 2026-11-12 (fel C): brickan kopplades här till en anmäld löpare vars tilldelade variant inte är den som
+   * stämplingarna passar. Avläsningen bedöms mot `fittingCode`, som på servern.
+   */
+  readonly variantChange?: { readonly assignedCode: string; readonly fittingCode: string };
   /** Steg 61: felstämplad mot den tilldelade varianten, men stämplingarna passar en annan variant av samma bana ("fel karta?"). */
   readonly wrongMap?: { readonly assignedCode: string; readonly fittingCodes: readonly string[] };
   /** ADR-0198: stämplingarna passar en variant som banläggningen valt bort (bara ett besked). */
@@ -102,12 +107,29 @@ export function withLocalRegistrations(pkg: ReadoutPackage, registrations: reado
     classId: row.request.classId, givenName: row.request.givenName, familyName: row.request.familyName,
     ...(row.request.organisationName ? { organisationName: row.request.organisationName } : {}),
     ...(massStarts.has(row.request.classId) ? { fixedStartTime: massStarts.get(row.request.classId)! } : {}) }]);
+  // Användartestet 2026-11-12: en okänd bricka som kopplas till en anmäld bedöms mot varianten som stämplingarna passar,
+  // som på servern (`linkUnresolvedReadout`). Den tilldelade varianten visas med `linkedVariants`.
+  const unassigned = (entry: (typeof snapshot.entries)[number]) => {
+    if (!linkedEntries.has(entry.id) || entry.courseVariantCode === undefined) return entry;
+    const copy = { ...entry };
+    delete (copy as { courseVariantCode?: string }).courseVariantCode;
+    return copy;
+  };
   return { ...pkg, raceSnapshot: { ...snapshot,
-    entries: [...snapshot.entries, ...newEntries],
+    entries: [...snapshot.entries.map(unassigned), ...newEntries],
     cardAssignments: [...snapshot.cardAssignments.map((assignment) => assignment.active && (linkedEntries.has(assignment.entryId) ||
       added.has(assignment.cardNumber)) ? { ...assignment, active: false } : assignment),
     ...rows.map((row) => ({ id: row.requestId, raceId: snapshot.race.id, cardNumber: row.request.cardNumber, active: true,
       entryId: "target" in row.request ? row.request.entryId : row.requestId }))] } };
+}
+
+/** De anmälda som brickor kopplats till här, med deras tilldelade variant i paketet (för beskedet om ett variantbyte). */
+export function linkedVariants(pkg: ReadoutPackage, registrations: readonly QueuedRegistration[]): ReadonlyMap<string, string> {
+  const entries = new Map(pkg.raceSnapshot.entries.map((entry) => [entry.id, entry]));
+  return new Map(registrations.flatMap((row) => {
+    const code = row.status !== "rejected" && "target" in row.request ? entries.get(row.request.entryId)?.courseVariantCode : undefined;
+    return code && "target" in row.request ? [[row.request.entryId, code] as const] : [];
+  }));
 }
 
 /**
@@ -116,7 +138,7 @@ export function withLocalRegistrations(pkg: ReadoutPackage, registrations: reado
  * avläsningar i den här webbläsaren: en stafettsträckas start är föregående sträckas mål.
  */
 export function evaluateLocally(payload: SportidentReadoutPayload, pkg: ReadoutPackage,
-  local: readonly SportidentReadoutPayload[] = [], readAt?: string): LocalVerdict {
+  local: readonly SportidentReadoutPayload[] = [], readAt?: string, assignedVariants?: ReadonlyMap<string, string>): LocalVerdict {
   // Lästid (när avläsningen togs emot), check och clear: gamla stämplingar på en oröjd bricka räknas inte (PLAN.md steg 31),
   // som på servern.
   const readout = {
@@ -154,6 +176,8 @@ export function evaluateLocally(payload: SportidentReadoutPayload, pkg: ReadoutP
     : { status: "UNKNOWN_CARD", reason: "UNKNOWN_CARD", missingControls: [], extraPunches: [], splits: [] })
     : evaluateCardReadout(readout, snapshot);
   const variant = result.entryId ? courseVariantForReadout(readout, snapshot) : undefined;
+  const assignedCode = result.entryId ? assignedVariants?.get(result.entryId) : undefined;
+  const variantChange = assignedCode && variant && variant.code !== assignedCode ? { assignedCode, fittingCode: variant.code } : undefined;
   const wrongMap = result.status === "MP" && result.entryId && !sprintRouting ? wrongMapVariants(readout, snapshot, result.entryId) : undefined;
   const excludedVariant = result.status === "MP" && result.entryId && !sprintRouting ? excludedVariantsFitting(readout, snapshot, result.entryId) : undefined;
   const entry = result.entryId ? pkg.raceSnapshot.entries.find((candidate) => candidate.id === result.entryId) : undefined;
@@ -184,6 +208,7 @@ export function evaluateLocally(payload: SportidentReadoutPayload, pkg: ReadoutP
     ...(entry?.organisationName ? { club: entry.organisationName } : {}),
     ...(raceClass ? { className: raceClass.name } : {}),
     ...(variant ? { variant } : {}),
+    ...(variantChange ? { variantChange } : {}),
     ...(wrongMap ? { wrongMap } : {}),
     ...(excludedVariant ? { excludedVariant } : {}),
     ...(result.elapsedMs !== undefined ? { elapsedMs: result.elapsedMs } : {}),

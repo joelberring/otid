@@ -24,6 +24,7 @@ export * from "./raster-georeference";
 export * from "./course-edit";
 export * from "./class-edit";
 export * from "./course-variants";
+export * from "./link-variant";
 export * from "./course-forking";
 export * from "./relay";
 export * from "./relay-starts";

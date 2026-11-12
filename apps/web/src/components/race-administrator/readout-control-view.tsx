@@ -7,6 +7,8 @@ import { useTexts } from "../language-provider";
 import styles from "./readout-control.module.css";
 import workspaceStyles from "../race-administrator-workspace.module.css";
 import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
+import { courseVariantsSv } from "../../i18n/course-variants-sv";
+import { courseVariantsEn } from "../../i18n/workspace-tools-en";
 import { formatClockTime } from "../../lib/clock-time";
 import { raceDayStarted } from "@o-tid/domain";
 import { awaitingStart, inForest, mispunchedEntries } from "../../lib/section-status";
@@ -131,6 +133,7 @@ function LatestReadouts({ ws }: { ws: Workspace }) {
 function UnknownCards({ ws }: { ws: Workspace }) {
   const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const resultText = useTexts(publicResultSv, publicResultEn);
+  const variantText = useTexts(courseVariantsSv, courseVariantsEn);
   const resultLabel = (result: EntryResult) => [resultText.statusLabels[result.status],
     result.elapsedMs !== undefined ? resultDuration(result.elapsedMs) : ""].filter(Boolean).join(" ");
   // Användartestet 2026-11-12: att ersätta ett resultat kräver ett eget kryss, som nollställs för varje ny granskning.
@@ -206,6 +209,8 @@ function UnknownCards({ ws }: { ws: Workspace }) {
           {"! "}{text.unknownReadoutReplaceWarning(review.name, review.result ? resultLabel(review.result) : "–", review.cardBefore, review.cardAfter)}</p>
           : review.changesCard ? <p className={workspaceStyles.warning} role="note" data-testid="unknown-link-card">
             {"! "}{text.unknownReadoutCardWarning(review.name, review.cardBefore!, review.cardAfter)}</p> : null}
+        {review.variantChange && <p className={workspaceStyles.warning} role="note" data-testid="unknown-link-variant">
+          {"! "}{variantText.linkedVariant(review.variantChange.assignedCode, review.variantChange.fittingCode)}</p>}
         {review.replacesResult && <label><input type="checkbox" checked={replaceConsent} disabled={busy}
           onChange={event => setReplaceConsent(event.target.checked)} /> {text.unknownReadoutReplaceConsent}</label>}
       </> : <p><strong>{text.unknownReadoutTarget}:</strong> {unknownReadoutAttempt.request.target === "NEW_ENTRY"

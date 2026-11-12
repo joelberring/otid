@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { readoutPackageSchema, type DeviceBatch, type ReadoutRegistrationRequest, type SportidentReadoutPayload } from "@o-tid/contracts";
-import { evaluateLocally, withLocalRegistrations } from "./evaluate";
+import { evaluateLocally, linkedVariants, withLocalRegistrations } from "./evaluate";
 import { payloadHash } from "./payload";
 import { buildReceipt } from "./receipt";
 import { syncPending } from "./sync";
 import type { QueuedRegistration } from "./store";
-import { ids, MemoryReadoutStore, TEST_CARD, testPackage } from "./test-support";
+import { forkedTestPackage, ids, MemoryReadoutStore, TEST_CARD, testPackage } from "./test-support";
 
 /** PLAN.md steg 25: direktanmälan av okänd bricka på avläsningssidan, även offline. */
 const UNKNOWN = "7999001";
@@ -58,6 +58,22 @@ describe("direktanmälan på avläsningssidan", () => {
     const minute = readoutPackageSchema.parse({ ...pkg, massStarts: [] });
     expect(evaluateLocally(payload(UNKNOWN), withLocalRegistrations(minute, [registration()])))
       .toMatchObject({ elapsedMs: 30 * 60_000, startNote: { kind: "FROM_PUNCH" } });
+  });
+
+  it("en okänd bricka kopplad till en anmäld med annan variant bedöms mot varianten den passar och bytet syns (fel C)", () => {
+    const pkg = forkedTestPackage(); // Anna har variant BA
+    const link: QueuedRegistration = { raceId: ids.race, requestId: REQUEST_ID, localSequence: 1, createdAt: "2026-10-01T17:31:00.000Z",
+      status: "pending", request: { formatVersion: 1, requestId: REQUEST_ID, cardNumber: UNKNOWN, target: "EXISTING_ENTRY",
+        entryId: ids.entry, expectedClassId: ids.class } };
+    const punchedAb = { ...payload(UNKNOWN), punches: [31, 32, 34, 33].map((code, index) => ({ code,
+      punchedAt: `2026-10-01T17:${String(10 + index * 5)}:00.000Z` })) };
+    const verdict = evaluateLocally(punchedAb, withLocalRegistrations(pkg, [link]), [], undefined, linkedVariants(pkg, [link]));
+    expect(verdict).toMatchObject({ status: "OK", name: "Anna Berg", variant: { code: "AB", assigned: false },
+      variantChange: { assignedCode: "BA", fittingCode: "AB" } });
+    // Samma variant som den tilldelade: inget byte att visa.
+    const punchedBa = { ...punchedAb, punches: [31, 34, 32, 33].map((code, index) => ({ code, punchedAt: punchedAb.punches[index]!.punchedAt })) };
+    expect(evaluateLocally(punchedBa, withLocalRegistrations(pkg, [link]), [], undefined, linkedVariants(pkg, [link])))
+      .not.toHaveProperty("variantChange");
   });
 
   it("paketet gäller när det redan känner brickan, och en avvisad anmälan räknas inte", () => {

@@ -10,7 +10,7 @@ import { UUID_PATTERN as uuid } from "./serialization";
 import { applicableResultNotes, loadResultNotes } from "./result-notes";
 import { loadEntryCardPunches } from "./card-punches";
 import { loadControlCodesOutOfOrder } from "./snapshot";
-import { loadLinkDetails } from "./unknown-readout-link";
+import { linkKey, loadLinkDetails } from "./unknown-readout-link";
 
 export type AdministratorEffectiveResult =
   | { status: "unauthorized" | "forbidden" | "not-found" | "invalid-request" }
@@ -99,11 +99,11 @@ export async function getAdministratorEffectiveResult(db: Database,
         eq(schema.resultRevisions.published, true)))
       .orderBy(desc(schema.resultRevisions.revision), desc(schema.resultRevisions.id)).limit(10);
     // Användartestet 2026-11-12: en kopplad okänd bricka säger vad som ersattes (bricka före och efter, tidigare resultat).
-    const links = await loadLinkDetails(tx, race.id, entry.id, historyRows.flatMap(row => row.readoutId ? [row.readoutId] : []));
+    const links = await loadLinkDetails(tx, race.id, historyRows.flatMap(row => row.readoutId ? [{ readoutId: row.readoutId, entryId: entry.id }] : []));
     const linked = new Set<string>();
     const history = historyRows.map(({ readoutId, ...row }) => {
       const first = row.cause === "UNKNOWN_READOUT_RESOLUTION" || row.cause === "CARD_READOUT";
-      const link = readoutId && first && !linked.has(readoutId) ? links.get(readoutId) : undefined;
+      const link = readoutId && first && !linked.has(readoutId) ? links.get(linkKey(readoutId, entry.id)) : undefined;
       if (link && readoutId) linked.add(readoutId);
       return { ...row, at: row.at.toISOString(), ...(link ? { link } : {}) };
     });

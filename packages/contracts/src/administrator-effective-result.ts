@@ -20,7 +20,12 @@ export const resultNotesSchema = z.object({
   /** Steg 61: felstämplad mot sin variant men stämplingarna passar en annan variant av samma bana ("Fick löparen fel karta?"). */
   wrongMap: z.object({ assignedCode: z.string().min(1).max(32), fittingCodes: z.array(z.string().min(1).max(32)).min(1).max(100) }).strict().optional(),
   /** ADR-0198: stämplingarna passar en variant som banläggningen valt bort. Bara ett besked. */
-  excludedVariant: z.object({ codes: z.array(z.string().min(1).max(32)).min(1).max(100) }).strict().optional()
+  excludedVariant: z.object({ codes: z.array(z.string().min(1).max(32)).min(1).max(100) }).strict().optional(),
+  /**
+   * Användartestet 2026-11-12 (fel C): en okänd bricka kopplades till löparen och stämplingarna passade en annan variant än
+   * den tilldelade. Resultatet bedöms mot `fittingCode`, som nu är löparens variant. Bara i arbetsytan.
+   */
+  linkedVariant: z.object({ assignedCode: z.string().min(1).max(32), fittingCode: z.string().min(1).max(32) }).strict().optional()
 }).strict();
 export type ResultNotes = z.infer<typeof resultNotesSchema>;
 const selected = z.object({ id: uuid, revision: version }).strict();
@@ -90,7 +95,9 @@ export const unknownReadoutLinkDetailsSchema = z.object({
   cardBefore: z.string().min(1).max(32).nullable(),
   cardAfter: z.string().min(1).max(32),
   replacedResult: z.object({ status: z.enum(["OK", "OVERTIME", "MP", "DSQ", "DNF", "OOC", "DNS", "NT"]),
-    elapsedMs: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional() }).strict().nullable()
+    elapsedMs: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional() }).strict().nullable(),
+  /** Fel C: löparens tilldelade variant och den som stämplingarna passade (avläsningen bedömdes mot den). */
+  variant: z.object({ assignedCode: z.string().min(1).max(32), fittingCode: z.string().min(1).max(32) }).strict().nullable().optional()
 }).strict();
 export type UnknownReadoutLinkDetails = z.infer<typeof unknownReadoutLinkDetailsSchema>;
 export const administratorResultHistorySchema = z.array(z.object({

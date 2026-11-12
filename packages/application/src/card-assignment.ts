@@ -3,7 +3,8 @@ import { schema } from "@o-tid/database";
 import { loadRaceSnapshot, type DbExecutor } from "./snapshot";
 import { evaluateAndStore, normalizedReadout } from "./result-revisions";
 import { latestResultReadAt, latestUnresolvedReadout } from "./readout-lookup";
-import { useFittingVariant } from "./readout-link-variant";
+import { previousCardOf, useFittingVariant } from "./readout-link-variant";
+import { recordLinkDetails } from "./unknown-readout-link";
 
 /**
  * Regler för brickkopplingar (översynen 2026-11-02). Samlade här så att Byt bricka, Ny deltagare, direktanmälan vid
@@ -84,7 +85,7 @@ export interface LinkedReadout {
  * som stämplingarna passar. Stafettlöpare hoppas över (stafetten har egen koppling). Ger null om inget kopplades.
  */
 export async function linkUnresolvedReadout(tx: DbExecutor, input: { raceId: string; entryId: string; cardNumber: string;
-  actorAccountId: string | null; detectVariant?: boolean; force?: boolean }): Promise<LinkedReadout | null> {
+  actorAccountId: string | null; detectVariant?: boolean; force?: boolean; existingEntry?: boolean }): Promise<LinkedReadout | null> {
   const readout = await latestUnresolvedReadout(tx, input.raceId, input.cardNumber);
   if (!readout) return null;
   const [entry] = await tx.select({ teamId: schema.entries.teamId }).from(schema.entries)
@@ -98,7 +99,15 @@ export async function linkUnresolvedReadout(tx: DbExecutor, input: { raceId: str
   const normalized = normalizedReadout(readout);
   // Ny deltagare i en gafflad klass som redan har sprungit: den får varianten som stämplingarna passar, även om anmälan
   // redan gav den minst använda varianten.
-  const snapshot = input.detectVariant ? await useFittingVariant(tx, loaded, normalized, input.entryId) : loaded;
+  const fitted = input.detectVariant ? await useFittingVariant(tx, loaded, normalized, input.entryId) : { snapshot: loaded };
+  const snapshot = fitted.snapshot;
+  // Användartestet 2026-11-12: en anmäld löpare (`existingEntry`) som brickan kopplas till – bricka före och efter och en
+  // variant som byttes syns i deltagarkortets historik.
+  const cardBefore = input.existingEntry ? await previousCardOf(tx, input.raceId, input.entryId, input.cardNumber) : null;
+  if (input.existingEntry && (cardBefore !== null || fitted.change)) {
+    await recordLinkDetails(tx, { raceId: input.raceId, readoutId: readout.id, entryId: input.entryId, actorAccountId: input.actorAccountId,
+      requestId: null, details: { cardBefore, cardAfter: input.cardNumber, replacedResult: null, variant: fitted.change ?? null } });
+  }
   const stored = await evaluateAndStore(tx, snapshot, normalized, "UNKNOWN_READOUT_RESOLUTION",
     { entryId: input.entryId, actorAccountId: input.actorAccountId });
   if (!stored.stored || stored.evaluation.status === "UNKNOWN_CARD") return null;

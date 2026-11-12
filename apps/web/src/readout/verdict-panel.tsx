@@ -47,6 +47,9 @@ export function Verdict({ current, verdict, item, qr, registration, timeZone, on
       ? t.teamSprintAllRead : t.teamSprintEarlierFinish(verdict.teamSprintProblem.leg)}</p> : null}
     {verdict?.variant ? <p className="variant" data-testid="verdict-variant">{verdict.variant.assigned
       ? t.variant(verdict.variant.code) : t.variantGuessed(verdict.variant.code)}</p> : null}
+    {/* Användartestet 2026-11-12: brickan kopplad till en löpare med en annan tilldelad variant. */}
+    {verdict?.variantChange ? <p role="note" className="start-note" data-testid="verdict-variant-change">! {t.variantChange(
+      verdict.variantChange.assignedCode, verdict.variantChange.fittingCode)}</p> : null}
     {verdict?.wrongMap ? <p role="note" className="start-note" data-testid="verdict-wrong-map">! {t.wrongMap(verdict.wrongMap.assignedCode,
       verdict.wrongMap.fittingCodes)}</p> : null}
     {verdict?.excludedVariant ? <p role="note" className="start-note" data-testid="verdict-excluded-variant">! {t.excludedVariant(verdict.excludedVariant)}</p> : null}

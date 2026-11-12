@@ -3,7 +3,7 @@ import { partyTextEn, readoutTextEn } from "./text-en";
 import { useLanguage, useTexts } from "../components/language-provider";
 import { sportidentReadoutPayloadSchema, type ReadoutPackage } from "@o-tid/contracts";
 import { SiTimeError, type SiCardData } from "@o-tid/sportident";
-import { evaluateLocally, withLocalRegistrations } from "./evaluate";
+import { evaluateLocally, linkedVariants, withLocalRegistrations } from "./evaluate";
 import { exerciseAnchor, exerciseCard, exerciseRunners, exerciseWindow, teamSprintExerciseCard, type ExerciseVariant } from "./exercise";
 import type { FakeStationTransport } from "./fake-transport";
 import { buildReadoutPayload, payloadHash } from "./payload";
@@ -127,7 +127,7 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
     if (!valid) await storeRef.current.update({ ...stored, status: "rejected", rejectedReason: "LOCAL_INVALID" });
     // Beskedet bedöms mot de tidigare avläsningarna i den här webbläsaren (utan den nya).
     const verdict = known ? evaluateLocally(payload, withLocalRegistrations(known, registrationsRef.current),
-      itemsRef.current.map((item) => item.payload), now.toISOString()) : undefined;
+      itemsRef.current.map((item) => item.payload), now.toISOString(), linkedVariants(known, registrationsRef.current)) : undefined;
     // Steg 58: kön läses om innan beskedet visas, så att "väntar" räknar den nya avläsningen när beskedet syns. Tidigare
     // kunde beskedet stå bredvid ett gammalt "0 väntar" en stund; den som då lämnade sidan trodde att allt var skickat
     // (och e2e-testerna gick vidare innan den sista avläsningen hade skickats).

@@ -495,6 +495,10 @@ export const courseVariantsEn: Texts<typeof courseVariantsSv> = {
   excludedVariant: codes =>
     `The punches fit ${codes.join(" and ")}, which is excluded in course setting. Did the runner get the wrong map? Correct status or variant by hand.`,
   excludedVariantShort: codes => `Excluded variant? Fits ${codes.join(", ")}`,
+  linkedVariant: (assigned, fitting) =>
+    `Assigned variant ${assigned} – the punches fit ${fitting}. The result is assessed against ${fitting}. Did the runner take the wrong map, or is the card someone else's?`,
+  linkedVariantShort: (assigned, fitting) => `Variant ${assigned} → ${fitting}`,
+  linkedVariantHistory: (assigned, fitting) => `assigned ${assigned}, the punches fit ${fitting}`,
   readinessExcluded: count => `${plural(count, "variant", "variants")} excluded in course setting`,
   approveOn: code => `Approve on ${code}`,
   approveOnHelp: "Changes the runner's variant and recalculates the result. The reason is saved in the history.",

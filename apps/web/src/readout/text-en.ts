@@ -140,6 +140,7 @@ export const readoutTextEn: Texts<typeof readoutText> = {
   },
   variant: code => `Variant ${code}`,
   variantGuessed: code => `Variant ${code} (from the punches)`,
+  variantChange: (assigned, fitting) => `Assigned variant ${assigned} – the punches fit ${fitting}. Assessed against ${fitting}.`,
   wrongMap: (assigned, fitting) => `Mispunched against ${assigned}, but the punches fit ${fitting.join(" and ")}. Did the runner get the wrong map?`,
   excludedVariant: codes => `The punches fit ${codes.join(" and ")}, which is excluded in course setting. Did the runner get the wrong map? Correct it in the participant card.`,
   relayTeam: (number, name, leg, legCount) => `Team ${number} ${name} · Leg ${leg} of ${legCount}`,

@@ -80,7 +80,7 @@ export function jobMemoryGb(job: { readonly clip?: Job["clip"]; readonly tiles: 
 }
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 /** Arbetarens version (samma som `GEO_WORKER_VERSION` i contracts; servern ger inga jobb till en äldre). */
-export const WORKER_VERSION = 24;
+export const WORKER_VERSION = 25;
 /** Serverns gräns för en resultatfil (GEO_OUTPUT_MAX_BYTES i @o-tid/contracts). */
 const OUTPUT_MAX_BYTES = 100 * 1024 * 1024;
 const headers = (extra: Record<string, string> = {}) => ({ authorization: `Bearer ${token}`, "x-otid-geo-worker": workerName,
@@ -373,7 +373,13 @@ async function runJob(job: Job): Promise<void> {
       const rockMode = job.settings.rock ?? 1;
       const rock = openAt && rockMode > 0 ? (await step("rock", "Letar berg i dagen", { ground, water: waterData, open: maskOf(ground, openAt),
         forest: forestAt ? maskOf(ground, forestAt) : undefined }))?.rock ?? [] : [];
-      const hills = (await step("knolls", "Letar små kullar", { ground, water: waterData, stones: stones.stones, knollShare: job.settings.knollshare })) ?? { knolls: [], capped: 0 };
+      const hills = (await step("knolls", "Letar små kullar", { ground, water: waterData, stones: stones.stones, knollShare: job.settings.knollshare })) ?? { knolls: [], capped: 0, candidates: [] };
+      // Ägaren 2026-11-12: alla möjliga kullar med sina mått, så att reglagen i webbläsaren väljer utan ny körning.
+      if (hills.candidates.length) {
+        await writeFile(join(dir, "kullar.geojson"), JSON.stringify({ type: "FeatureCollection", crs: { type: "name", properties: { name: "EPSG:3006" } },
+          features: hills.candidates.map(knoll => ({ type: "Feature", geometry: { type: "Point", coordinates: [Math.round(knoll.at[0] * 10) / 10, Math.round(knoll.at[1] * 10) / 10] },
+            properties: { rise: Math.round(knoll.rise * 100) / 100, share: Math.round(knoll.share * 1000) / 1000, foot: Math.round(knoll.footM2) } })) }));
+      }
       if (stones.stones.length || rock.length || hills.knolls.length) {
         await writeFile(join(dir, "berg.dxf"), moistureDxf([{ name: rockMode >= 2 ? "berg_i_dagen" : "berg_i_dagen_laser", closed: true, parts: rock },
           ...(["sten", "stort_block"] as const).map(name => ({ name, closed: false, points: stones.stones.filter(stone => stone.name === name).map(stone => stone.at), parts: [] })),
@@ -396,7 +402,7 @@ async function runJob(job: Job): Promise<void> {
       ...(files.has("relief.png") ? [["relief.png", "relief.png", "image/png"], ["relief.pgw", "relief.pgw", "text/plain"]] as const : []),
       ...(files.has("diken.dxf") ? [["diken.dxf", "diken.dxf", "application/dxf"]] as const : []),
       ...(files.has("berg.dxf") ? [["berg.dxf", "berg.dxf", "application/dxf"]] as const : []),
-      ...["marktacke.geojson", "byggnader.geojson"].filter(name => files.has(name)).map(name => [name, name, "application/geo+json"] as const),
+      ...["marktacke.geojson", "byggnader.geojson", "kullar.geojson"].filter(name => files.has(name)).map(name => [name, name, "application/geo+json"] as const),
       ...(files.has("vatten.geojson") ? [["vatten.geojson", "vatten.geojson", "application/geo+json"]] as const : [])];
     let done = 0;
     // En fil över serverns gräns (Karttapullautins råa brantstreck för många rutor blir över 100 MB) hoppas över i stället för

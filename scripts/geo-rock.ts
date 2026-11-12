@@ -130,11 +130,35 @@ export const KNOLL_LOWER_SHARE = 0.8;
  */
 export function knolls(ground: GroundGrid, stones: readonly { at: readonly [number, number] }[], minRise = 1, maxFootM2 = 80,
   blockedAt?: (x: number, y: number) => boolean, lowerShare = KNOLL_LOWER_SHARE): [number, number][] {
+  return chooseKnolls(knollCandidates(ground, stones, blockedAt, Math.min(minRise, KNOLL_LOOSE.minRise), Math.min(lowerShare, KNOLL_LOOSE.lowerShare),
+    Math.max(maxFootM2, KNOLL_LOOSE.maxFootM2)), { minRise, lowerShare, maxFootM2, spacing: 10 });
+}
+
+/** En möjlig liten kulle med sina mått: höjden över omgivningen (m), andelen av ringen som ligger lägre och fotens yta (m²). */
+export interface KnollCandidate { readonly at: [number, number]; readonly rise: number; readonly share: number; readonly footM2: number }
+/**
+ * De lösa gränserna för `kullar.geojson` (ägaren 2026-11-12: «om man vill få färre punkthöjder … måste väl inte allt köras om»):
+ * jobbet sparar alla möjliga kullar med sina mått, och reglagen i webbläsaren väljer bland dem utan ny körning.
+ */
+export const KNOLL_LOOSE = { minRise: 0.5, lowerShare: 0.5, maxFootM2: 160 } as const;
+
+/** Valet bland kandidaterna: gränserna, och sedan de högsta först med minst `spacing` meter emellan. Samma regel i webbläsaren. */
+export function chooseKnolls(candidates: readonly KnollCandidate[], limits: { minRise: number; lowerShare: number; maxFootM2: number; spacing: number }): [number, number][] {
+  const found = candidates.filter(knoll => knoll.rise >= limits.minRise && knoll.share >= limits.lowerShare && knoll.footM2 <= limits.maxFootM2)
+    .sort((a, b) => b.rise - a.rise);
+  const kept: [number, number][] = [], near = nearIndex(limits.spacing);
+  for (const knoll of found) if (!near.has(...knoll.at)) { kept.push(knoll.at); near.add(...knoll.at); }
+  return kept;
+}
+
+/** Alla lokala toppar som klarar gränserna, med sina mått (inte utglesade). */
+export function knollCandidates(ground: GroundGrid, stones: readonly { at: readonly [number, number] }[], blockedAt?: (x: number, y: number) => boolean,
+  minRise: number = KNOLL_LOOSE.minRise, lowerShare: number = KNOLL_LOOSE.lowerShare, maxFootM2: number = KNOLL_LOOSE.maxFootM2): KnollCandidate[] {
   const { width, height, cell, z } = ground;
   const at = (x: number, y: number) => x < 0 || y < 0 || x >= width || y >= height ? Number.NaN : z[x * height + y]!;
   const top = Math.max(1, Math.round(3 / cell)), inner = Math.max(top + 1, Math.round(6 / cell)), outer = Math.max(inner + 1, Math.round(8 / cell));
   const maxFoot = maxFootM2 / (cell * cell);
-  const found: { at: [number, number]; rise: number }[] = [];
+  const found: KnollCandidate[] = [];
   const stoneNear = nearIndex(4);
   for (const stone of stones) stoneNear.add(stone.at[0], stone.at[1]);
   for (let x = outer; x < width - outer; x += 1) for (let y = outer; y < height - outer; y += 1) {
@@ -156,17 +180,15 @@ export function knolls(ground: GroundGrid, stones: readonly { at: readonly [numb
     if (rise < minRise) continue;
     // Det mesta av ringen ska ligga lägre: en udde på en sluttning har en sida som fortsätter uppåt, men kartritarens
     // punkthöjder ligger ofta på en näsa eller i en sluttning med lite högre mark åt ett håll.
-    const limit = here - rise / 3;
-    if (ring.filter(value => value <= limit).length < lowerShare * ring.length) continue;
+    const limit = here - rise / 3, lower = ring.filter(value => value <= limit).length;
+    if (lower < lowerShare * ring.length) continue;
     let foot = 0;
     for (let dx = -inner; dx <= inner; dx += 1) for (let dy = -inner; dy <= inner; dy += 1) if (at(x + dx, y + dy) > base + rise / 2) foot += 1;
     if (foot > maxFoot) continue;
     const point: [number, number] = [ground.minX + (x + 0.5) * cell, ground.minY + (y + 0.5) * cell];
     if (blockedAt?.(...point) || stoneNear.has(...point)) continue;
-    found.push({ at: point, rise });
+    // Andelen sparas som den minsta gräns kullen klarar (samma jämförelse som ovan), så att valet i efterhand blir lika.
+    found.push({ at: point, rise, share: lower / ring.length, footM2: foot * cell * cell });
   }
-  found.sort((a, b) => b.rise - a.rise);
-  const kept: [number, number][] = [], near = nearIndex(10);
-  for (const knoll of found) if (!near.has(...knoll.at)) { kept.push(knoll.at); near.add(...knoll.at); }
-  return kept;
+  return found;
 }

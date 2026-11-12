@@ -9,7 +9,7 @@
 import { isMainThread, parentPort, Worker, workerData } from "node:worker_threads";
 import type { GroundGrid } from "./geo-cliffs.ts";
 import { DEFAULT_DITCHES, ditchLines, localRelief, reliefImage } from "./geo-ditches.ts";
-import { bareRock, boulders, knolls } from "./geo-rock.ts";
+import { bareRock, boulders, chooseKnolls, KNOLL_LOWER_SHARE, knollCandidates } from "./geo-rock.ts";
 import { waterAt, type WaterGrid } from "./geo-water.ts";
 
 /** Tidsgränsen per steg. En ruta på 2 × 2 km tar sekunder; tio minuter är långt över det rimliga även för 5 × 5 km. */
@@ -68,8 +68,10 @@ export const STEPS = {
   },
   knolls(input: StepInput) {
     const water = input.water ? waterAt(input.water.grid, input.water.mask) : undefined;
-    const all = knolls(input.ground, input.stones ?? [], undefined, undefined, water, input.knollShare), cap = pointCap(input.ground);
-    return { knolls: all.slice(0, cap), capped: Math.max(0, all.length - cap) };
+    // Alla möjliga kullar med sina mått sparas (för reglagen i webbläsaren); jobbets egna kullar är valet med förvalen.
+    const candidates = knollCandidates(input.ground, input.stones ?? [], water).sort((a, b) => b.rise - a.rise);
+    const all = chooseKnolls(candidates, { minRise: 1, lowerShare: input.knollShare ?? KNOLL_LOWER_SHARE, maxFootM2: 80, spacing: 10 }), cap = pointCap(input.ground);
+    return { knolls: all.slice(0, cap), capped: Math.max(0, all.length - cap), candidates: candidates.slice(0, cap * 6) };
   },
 } as const;
 export type StepName = keyof typeof STEPS;

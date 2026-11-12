@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
-import { fillNewPassword, grantSuperadmin, logIn, password, publishRaceViaApi, registerAccount, resetLink, today, unique, warmRoute } from "./helpers";
+import {
+  fillNewPassword, grantSuperadmin, logIn, password, publishRaceViaApi, registerAccount, resetLink, today, unique, verificationLink, warmRoute
+} from "./helpers";
 
 /**
  * Steg 17 (ADR-0172 beslut 1–2): konton med e-post, glömt lösenord med länk via e-post (fångad av en falsk
@@ -160,6 +162,33 @@ test("superadmin döljer och tar bort en skräptävling och spärrar kontot", as
   await accounts.getByRole("button", { name: "Utför" }).click();
   await expect(accounts.getByText("Spärrat", { exact: true })).toBeVisible();
 
+  // Tillägg 2026-11-12: en obekräftad adress (mejlet kom aldrig fram) bekräftas i appen, med skäl, och syns i loggen.
+  const pendingEmail = `obekraftad.${suffix}@exempel.se`;
+  const pendingPage = await (await browser.newContext()).newPage();
+  await pendingPage.goto("/organizer");
+  await pendingPage.getByRole("button", { name: "Har du inget konto? Skapa ett" }).click();
+  await pendingPage.getByLabel("Ditt namn").fill("Petra Väntar");
+  await pendingPage.getByLabel("E-postadress").fill(pendingEmail);
+  await fillNewPassword(pendingPage, password);
+  await pendingPage.getByRole("button", { name: "Skapa konto" }).click();
+  await expect(pendingPage.getByText("Vi har skickat ett mejl till")).toBeVisible();
+  // Kontot skapas efter svaret (ADR-0186); mejlet har kommit när det finns.
+  await verificationLink(pendingEmail);
+  await accounts.getByLabel("Sök e-post eller namn").fill(pendingEmail);
+  await accounts.getByRole("button", { name: "Sök" }).click();
+  await expect(accounts.getByRole("rowheader", { name: pendingEmail })).toBeVisible();
+  await expect(accounts.getByText("Obekräftad adress")).toBeVisible();
+  await accounts.getByRole("button", { name: `Bekräfta adressen ${pendingEmail}` }).click();
+  await expect(accounts.getByRole("heading", { name: "Bekräfta kontots e-postadress" })).toBeVisible();
+  await accounts.getByLabel("Skäl (loggas)").fill("Mejlet kom aldrig fram");
+  await accounts.getByRole("button", { name: "Utför" }).click();
+  await expect(boss.getByText(`Klart: Bekräftade adress – ${pendingEmail}.`)).toBeVisible();
+  await expect(accounts.getByText("Obekräftad adress")).toHaveCount(0);
+  await expect(accounts.getByRole("button", { name: `Bekräfta adressen ${pendingEmail}` })).toHaveCount(0);
+  await logIn(pendingPage, pendingEmail);
+  await expect(pendingPage.getByRole("heading", { name: "Dina tävlingar" })).toBeVisible();
+  await pendingPage.context().close();
+
   const log = boss.getByRole("region", { name: "Logg" });
   // Loggen är gemensam för hela installationen; raderna för just det här testet hittas på mål och utförare.
   const blocked = log.getByRole("row").filter({ hasText: spamEmail });
@@ -168,6 +197,9 @@ test("superadmin döljer och tar bort en skräptävling och spärrar kontot", as
   await expect(log.getByRole("row").filter({ hasText: spamName })).toHaveCount(2);
   await expect(log.getByRole("row").filter({ hasText: spamName }).filter({ hasText: "Tog bort tävling" })).toContainText(bossEmail);
   await expect(log.getByRole("row").filter({ hasText: bossEmail }).filter({ hasText: "Gav superadmin" })).toContainText("Serverkommando");
+  const confirmed = log.getByRole("row").filter({ hasText: pendingEmail });
+  await expect(confirmed).toHaveCount(1);
+  for (const part of ["Bekräftade adress", bossEmail, "Mejlet kom aldrig fram"]) await expect(confirmed).toContainText(part);
 
   await spam.goto("/organizer");
   await expect(spam.getByRole("heading", { name: "Logga in" })).toBeVisible();

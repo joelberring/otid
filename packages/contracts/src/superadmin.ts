@@ -14,8 +14,16 @@ export const superadminActionKindSchema = z.enum([
   "GRANT_SUPERADMIN", "REVOKE_SUPERADMIN", "HIDE_RACE", "UNHIDE_RACE", "DELETE_EVENT",
   "BLOCK_ACCOUNT", "UNBLOCK_ACCOUNT", "DELETE_ACCOUNT", "CREATE_RESET_LINK",
   /** ADR-0172 tillägg 2026-11-12: bekräftade kontots e-postadress (i appen eller med serverkommandot). */
-  "VERIFY_EMAIL"
+  "VERIFY_EMAIL",
+  /** Ägaren 2026-11-13: satte kontots egna gränser för kartlagring och laserrutor (migration 0118). */
+  "SET_ACCOUNT_LIMITS"
 ]);
+
+/** Kontots egna gränser; null = installationens förval. */
+export const accountMapQuotaMbSchema = z.number().int().min(1).max(1_000_000).nullable();
+export const accountGeoTilesPerMonthSchema = z.number().int().min(0).max(100_000).nullable();
+/** Konton som använt minst så här stor andel av en gräns visas i listan "nära gränsen". */
+export const SUPERADMIN_NEAR_LIMIT_SHARE = 0.7;
 
 export const superadminAccountSchema = z.object({
   accountId: uuid,
@@ -27,7 +35,35 @@ export const superadminAccountSchema = z.object({
   blocked: z.boolean(),
   superadmin: z.boolean(),
   /** Användartest 2026-11-12: om adressen är bekräftad (ADR-0186 beslut 9). */
-  emailVerified: z.boolean()
+  emailVerified: z.boolean(),
+  /** Kontots egna gränser (null = förvalet), för att fylla i formuläret "Ändra gränser". */
+  mapQuotaMb: accountMapQuotaMbSchema,
+  geoTilesPerMonth: accountGeoTilesPerMonthSchema
+}).strict();
+
+/** Ett konto i listan över förbrukning: kartlagring och månadens laserrutor mot kontots gällande gränser. */
+export const superadminAccountUsageSchema = z.object({
+  accountId: uuid,
+  email: storedAccountEmailSchema,
+  displayName: z.string().trim().min(1).max(120),
+  mapUsedBytes: z.number().int().min(0),
+  /** Gällande gräns i byte (den egna eller förvalet); null = ingen gräns. */
+  mapLimitBytes: z.number().int().min(0).nullable(),
+  mapQuotaMb: accountMapQuotaMbSchema,
+  geoTilesUsed: z.number().int().min(0),
+  geoTilesLimit: z.number().int().min(0),
+  geoTilesPerMonth: accountGeoTilesPerMonthSchema
+}).strict();
+
+export const superadminLimitsSchema = z.object({
+  /** Installationens förval: lagring per konto i MB (null = ingen gräns) och laserrutor per månad. */
+  defaultMapQuotaMb: z.number().int().min(1).nullable(),
+  defaultGeoTilesPerMonth: z.number().int().min(0),
+  /** All kartlagring på installationen mot dess gräns (null = ingen gräns). */
+  totalUsedBytes: z.number().int().min(0),
+  totalLimitBytes: z.number().int().min(0).nullable(),
+  /** Konton nära en gräns eller med egna gränser, de som ligger närmast först. */
+  accounts: z.array(superadminAccountUsageSchema).max(SUPERADMIN_LIST_LIMIT)
 }).strict();
 
 export const superadminRaceSchema = z.object({
@@ -58,7 +94,8 @@ export const superadminOverviewSchema = z.object({
   accountTotal: z.number().int().min(0),
   races: z.array(superadminRaceSchema).max(SUPERADMIN_LIST_LIMIT),
   raceTotal: z.number().int().min(0),
-  log: z.array(superadminLogEntrySchema).max(SUPERADMIN_LIST_LIMIT)
+  log: z.array(superadminLogEntrySchema).max(SUPERADMIN_LIST_LIMIT),
+  limits: superadminLimitsSchema
 }).strict();
 
 export const superadminActionRequestSchema = z.discriminatedUnion("action", [
@@ -68,7 +105,9 @@ export const superadminActionRequestSchema = z.discriminatedUnion("action", [
   z.object({ formatVersion: z.literal(1), action: z.enum(["BLOCK_ACCOUNT", "UNBLOCK_ACCOUNT", "CREATE_RESET_LINK", "VERIFY_EMAIL"]),
     accountId: uuid, reason }).strict(),
   z.object({ formatVersion: z.literal(1), action: z.literal("DELETE_ACCOUNT"), accountId: uuid, reason,
-    confirmation: z.string().max(320) }).strict()
+    confirmation: z.string().max(320) }).strict(),
+  z.object({ formatVersion: z.literal(1), action: z.literal("SET_ACCOUNT_LIMITS"), accountId: uuid, reason,
+    mapQuotaMb: accountMapQuotaMbSchema, geoTilesPerMonth: accountGeoTilesPerMonthSchema }).strict()
 ]);
 
 export const superadminActionResponseSchema = z.object({

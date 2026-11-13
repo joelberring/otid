@@ -842,7 +842,7 @@ inte skickar vidare (markerade "ej i compose") gäller i drift först när de l�
 | `OTID_EVENTOR_API_KEY` | tom (en nyckel som ett klubbarkiv sparat) | Klubbens Eventor-nyckel för klubblistan, bara i `web` ([Eventor](#eventor)). |
 | `OTID_REGISTRATION_LIMIT_PER_HOUR` | 10 | Nya konton per IP-adress och timme. |
 | `OTID_RADIO_POLLER` | på (`off` i publikens instanser) | `off` = instansen hämtar inga radiostämplingar. |
-| `OTID_MAP_QUOTA_ACCOUNT_MB`, `OTID_MAP_QUOTA_TOTAL_MB` | 2048, 20480 | Kartornas kvot per konto och för servern; 0 = ingen gräns ([Kartornas lagring](#kartornas-lagring)). |
+| `OTID_MAP_QUOTA_ACCOUNT_MB`, `OTID_MAP_QUOTA_TOTAL_MB` | 2048, 20480 | Kartornas kvot per konto och för servern; 0 = ingen gräns. Enskilda konton höjs på superadminsidan under "Lagring och laserrutor" ([Kartornas lagring](#kartornas-lagring)). |
 | `OTID_RETENTION`, `OTID_RETENTION_MONTHS` | av, 24 | Gallring av gamla tävlingar (`anonymize` eller `delete`) ([Gallring](#gallring)). |
 | `OTID_PRINT_JOB_TIMEOUT_MS` | 600000 | Tidsgräns för ett utskriftsjobb. |
 | `OTID_PRINT_JOB_MEMORY_MB` | 256 (minst 64) | Minnestak för ett utskriftsjobbs barnprocess. Ej i compose. |

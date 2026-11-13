@@ -2,6 +2,7 @@ import { and, desc, eq, ilike, isNull, or, sql, type SQL } from "drizzle-orm";
 import {
   normalizeAccountEmail,
   SUPERADMIN_LIST_LIMIT,
+  SUPERADMIN_NEAR_LIMIT_SHARE,
   superadminActionRequestSchema,
   superadminOverviewSchema,
   type SuperadminActionKind,
@@ -15,6 +16,8 @@ import { createPasswordResetToken } from "./password-reset";
 import { markAccountEmailVerified } from "./email-verification";
 import { logAction, SERVER_COMMAND_ACTOR } from "./superadmin-log";
 import { purgeRows } from "./purge";
+import { mapStorageQuota, mapStorageUsage } from "./map-content";
+import { geoTilesPerMonth } from "./map-project-geo-jobs";
 import {
   authenticateUserAccountSessionForMutation,
   authenticateUserAccountSessionForProtectedRead,
@@ -51,7 +54,8 @@ export async function readSuperadminOverview(
   db: Database,
   proof: UserAccountSessionProof,
   query: { accounts?: string; races?: string },
-  now = new Date()
+  now = new Date(),
+  environment: Record<string, string | undefined> = process.env
 ): Promise<{ status: "unauthorized" | "forbidden" } | { status: "ok"; response: SuperadminOverview }> {
   return db.transaction(async (tx) => {
     const auth = await requireSuperadmin(tx, proof, now, "read");
@@ -81,13 +85,42 @@ export async function readSuperadminOverview(
     const log = await tx.select().from(schema.superadminActions)
       .orderBy(desc(schema.superadminActions.createdAt)).limit(SUPERADMIN_LIST_LIMIT);
 
+    // Förbrukning mot gränserna (ägaren 2026-11-13): kartlagring per uppladdare och månadens laserrutor, räknade som i
+    // storeMapContent och createGeoJob. Listan tar konton som nått SUPERADMIN_NEAR_LIMIT_SHARE av en gräns eller har egna gränser.
+    const quota = mapStorageQuota(environment);
+    const defaultTiles = geoTilesPerMonth(environment);
+    const month = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const MB = 1024 * 1024;
+    const usage = (await tx.execute<{ id: string; email: string; display_name: string; map_quota_mb: number | null;
+      geo_tiles_per_month: number | null; bytes: string; tiles: number }>(sql`
+      with u as (
+        select a.id, a.email, a.display_name, a.map_quota_mb, a.geo_tiles_per_month,
+          coalesce(m.bytes, 0) as bytes, coalesce(g.tiles, 0)::int as tiles,
+          coalesce(a.map_quota_mb::numeric * ${MB}, ${quota.accountBytes}::numeric) as map_limit,
+          coalesce(a.geo_tiles_per_month, ${defaultTiles}::int) as tile_limit
+        from user_account a
+        left join (select uploaded_by, sum(byte_length) as bytes from map_content where uploaded_by is not null group by uploaded_by) m
+          on m.uploaded_by = a.id
+        left join (select account_id, sum(jsonb_array_length(request->'tiles')) as tiles from map_project_geo_job
+          where created_at >= ${month.toISOString()}::timestamptz and (status = 'QUEUED' or started_at is not null) group by account_id) g
+          on g.account_id = a.id
+      ), s as (
+        select u.*, greatest(case when map_limit > 0 then bytes / map_limit else 0 end,
+          case when tile_limit > 0 then tiles::numeric / tile_limit when tiles > 0 then 1 else 0 end) as share from u
+      )
+      select id, email, display_name, map_quota_mb, geo_tiles_per_month, bytes::text as bytes, tiles from s
+      where share >= ${SUPERADMIN_NEAR_LIMIT_SHARE} or map_quota_mb is not null or geo_tiles_per_month is not null
+      order by share desc, email limit ${SUPERADMIN_LIST_LIMIT}`)).rows;
+    const total = await mapStorageUsage(tx, null);
+
     return { status: "ok", response: superadminOverviewSchema.parse({
       formatVersion: 1,
       accounts: accounts.map(({ account, eventCount: count }) => ({
         accountId: account.id, email: account.email, displayName: account.displayName,
         createdAt: account.createdAt.toISOString(), lastLoginAt: account.lastLoginAt?.toISOString() ?? null,
         eventCount: count, blocked: account.blockedAt !== null, superadmin: account.isSuperadmin,
-        emailVerified: account.emailVerifiedAt !== null
+        emailVerified: account.emailVerifiedAt !== null,
+        mapQuotaMb: account.mapQuotaMb, geoTilesPerMonth: account.geoTilesPerMonth
       })),
       accountTotal: accountTotal?.count ?? 0,
       races: races.map(({ race, eventName, ownerEmail: owner }) => ({
@@ -96,7 +129,17 @@ export async function readSuperadminOverview(
       })),
       raceTotal: raceTotal?.count ?? 0,
       log: log.map((entry) => ({ id: entry.id, createdAt: entry.createdAt.toISOString(), actorLabel: entry.actorLabel,
-        action: entry.action, targetType: entry.targetType, targetLabel: entry.targetLabel, reason: entry.reason }))
+        action: entry.action, targetType: entry.targetType, targetLabel: entry.targetLabel, reason: entry.reason })),
+      limits: {
+        defaultMapQuotaMb: quota.accountBytes === null ? null : Math.round(quota.accountBytes / MB),
+        defaultGeoTilesPerMonth: defaultTiles,
+        totalUsedBytes: total.totalBytes, totalLimitBytes: quota.totalBytes,
+        accounts: usage.map(row => ({
+          accountId: row.id, email: row.email, displayName: row.display_name, mapUsedBytes: Number(row.bytes),
+          mapLimitBytes: row.map_quota_mb != null ? row.map_quota_mb * MB : quota.accountBytes, mapQuotaMb: row.map_quota_mb,
+          geoTilesUsed: row.tiles, geoTilesLimit: row.geo_tiles_per_month ?? defaultTiles, geoTilesPerMonth: row.geo_tiles_per_month
+        }))
+      }
     }) } as const;
   });
 }
@@ -141,8 +184,9 @@ export async function performSuperadminAction(
 
     const [account] = await tx.select().from(schema.userAccounts).where(eq(schema.userAccounts.id, action.accountId)).for("update");
     if (!account) return { status: "not-found" };
-    // Det egna kontot spärras eller tas bort under Mitt konto, inte här.
-    if (account.id === auth.principal.accountId && action.action !== "CREATE_RESET_LINK" && action.action !== "VERIFY_EMAIL") {
+    // Det egna kontot spärras eller tas bort under Mitt konto, inte här. Gränserna får superadmin sätta också på sitt eget.
+    if (account.id === auth.principal.accountId && action.action !== "CREATE_RESET_LINK" && action.action !== "VERIFY_EMAIL"
+      && action.action !== "SET_ACCOUNT_LIMITS") {
       return { status: "invalid-request" };
     }
     const target = { targetType: "ACCOUNT" as const, targetId: account.id, targetLabel: account.email };
@@ -166,6 +210,15 @@ export async function performSuperadminAction(
         const reset = await createPasswordResetToken(tx, { accountId: account.id, bySuperadmin: true }, now);
         await logAction(tx, { ...actor, ...target, action: action.action }, now);
         return { status: "done", action: action.action, reset };
+      }
+      case "SET_ACCOUNT_LIMITS": {
+        // Ägaren 2026-11-13: egna gränser för kartlagring och laserrutor; null = installationens förval. Loggen säger från och till.
+        const shown = (value: number | null, unit: string) => value === null ? "förval" : `${value} ${unit}`;
+        await tx.update(schema.userAccounts).set({ mapQuotaMb: action.mapQuotaMb, geoTilesPerMonth: action.geoTilesPerMonth })
+          .where(eq(schema.userAccounts.id, account.id));
+        const change = `Lagring ${shown(account.mapQuotaMb, "MB")} → ${shown(action.mapQuotaMb, "MB")}, laserrutor ${shown(account.geoTilesPerMonth, "per månad")} → ${shown(action.geoTilesPerMonth, "per månad")}`;
+        await logAction(tx, { ...actor, ...target, action: action.action, reason: `${action.reason} (${change})`.slice(0, 500) }, now);
+        return { status: "done", action: action.action };
       }
       case "VERIFY_EMAIL":
         // Som serverkommandot (ADR-0186 beslut 9): superadmin intygar att personen har adressen. Lösenordet ändras inte.

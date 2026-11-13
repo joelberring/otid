@@ -4,13 +4,13 @@ import Link from "next/link";
 import { superadminEn } from "../../i18n/superadmin-en";
 import { useTexts, useLocale } from "../language-provider";
 import { useEffect, useState, type FormEvent } from "react";
-import { superadminActionResponseSchema, superadminOverviewSchema, type SuperadminOverview } from "@o-tid/contracts";
+import { SUPERADMIN_NEAR_LIMIT_SHARE, superadminActionResponseSchema, superadminOverviewSchema, type SuperadminOverview } from "@o-tid/contracts";
 import { superadminSv } from "../../i18n/superadmin-sv";
 import { accountSv } from "../../i18n/account-sv";
 import { raceTypeSv } from "../../i18n/race-type-sv";
 import { accountRequest } from "../../lib/account-client";
 import { Button, EmptyState, Field, Notice, numeric, Section, Table } from "../ui";
-import { actionRequest, ResetLink, SuperadminActionPanel, type PendingAction } from "./superadmin-action-panel";
+import { actionRequest, ResetLink, SuperadminActionPanel, type LimitValues, type PendingAction } from "./superadmin-action-panel";
 import styles from "../account-pages.module.css";
 import { raceTitle, shownRaceName } from "@o-tid/domain";
 
@@ -41,7 +41,7 @@ export function SuperadminPage() {
   const [pending, setPending] = useState<PendingAction>();
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string>();
-  const [done, setDone] = useState<{ section: "races" | "accounts"; text: string; reset?: { url: string; expiresAt: string } }>();
+  const [done, setDone] = useState<{ section: "races" | "accounts" | "limits"; text: string; reset?: { url: string; expiresAt: string } }>();
 
   async function load(next = query) {
     const params = new URLSearchParams({ konton: next.accounts, tavlingar: next.races });
@@ -69,12 +69,12 @@ export function SuperadminPage() {
     setDone(undefined);
   }
 
-  async function perform(reason: string, confirmation: string) {
+  async function perform(reason: string, confirmation: string, limits?: LimitValues) {
     if (!pending) return;
     setBusy(true);
     setActionError(undefined);
     try {
-      const response = await accountRequest("/api/superadmin/actions", { method: "POST", csrf: true, body: actionRequest(pending, reason, confirmation) });
+      const response = await accountRequest("/api/superadmin/actions", { method: "POST", csrf: true, body: actionRequest(pending, reason, confirmation, limits) });
       if (response.status === 409) {
         // Tillägg 2026-11-12: "Bekräfta adressen" på en adress som redan är bekräftad (CONFLICT); annars fel bekräftelse.
         if ((response.json as { error?: unknown } | undefined)?.error === "CONFLICT") { setActionError(text.alreadyVerified); await load(); }
@@ -82,10 +82,10 @@ export function SuperadminPage() {
         return;
       }
       if (response.status === 404) { setActionError(text.notFound); await load(); return; }
-      if (response.status === 400 && pending.kind !== "CREATE_RESET_LINK" && pending.kind !== "VERIFY_EMAIL") { setActionError(text.ownAccount); return; }
+      if (response.status === 400 && pending.kind !== "CREATE_RESET_LINK" && pending.kind !== "VERIFY_EMAIL" && pending.kind !== "SET_ACCOUNT_LIMITS") { setActionError(text.ownAccount); return; }
       const parsed = superadminActionResponseSchema.safeParse(response.json);
       if (response.status !== 200 || !parsed.success) { setActionError(accountSv.genericError(response.status)); return; }
-      setDone({ section: "raceId" in pending || "eventId" in pending ? "races" : "accounts",
+      setDone({ section: "raceId" in pending || "eventId" in pending ? "races" : pending.kind === "SET_ACCOUNT_LIMITS" ? "limits" : "accounts",
         text: text.done(`${text.logAction[pending.kind]} – ${pending.label}`),
         ...(parsed.data.resetUrl && parsed.data.resetExpiresAt ? { reset: { url: parsed.data.resetUrl, expiresAt: parsed.data.resetExpiresAt } } : {}) });
       setPending(undefined);
@@ -96,7 +96,12 @@ export function SuperadminPage() {
 
   const panel = (kinds: PendingAction["kind"][]) => pending && kinds.includes(pending.kind) &&
     <SuperadminActionPanel key={`${pending.kind}-${pending.label}`} action={pending} busy={busy} error={actionError}
-      onSubmit={(reason, confirmation) => void perform(reason, confirmation)} onCancel={() => setPending(undefined)} />;
+      onSubmit={(reason, confirmation, limits) => void perform(reason, confirmation, limits)} onCancel={() => setPending(undefined)} />;
+  const mb = (bytes: number) => Math.round(bytes / (1024 * 1024));
+  const limitsAction = (account: { accountId: string; email: string; mapQuotaMb: number | null; geoTilesPerMonth: number | null }): PendingAction => ({
+    kind: "SET_ACCOUNT_LIMITS", accountId: account.accountId, label: account.email, mapQuotaMb: account.mapQuotaMb,
+    geoTilesPerMonth: account.geoTilesPerMonth, defaultMapQuotaMb: overview?.limits.defaultMapQuotaMb ?? null,
+    defaultGeoTilesPerMonth: overview?.limits.defaultGeoTilesPerMonth ?? 0 });
 
   return <main className={styles.page}>
     <header className={styles.header}>
@@ -155,11 +160,41 @@ export function SuperadminPage() {
                 onClick={() => start({ kind: "CREATE_RESET_LINK", accountId: account.accountId, label: account.email })}>{text.action.CREATE_RESET_LINK}</Button>}
               {!account.emailVerified && <Button variant="secondary" disabled={busy} aria-label={`${text.action.VERIFY_EMAIL} ${account.email}`}
                 onClick={() => start({ kind: "VERIFY_EMAIL", accountId: account.accountId, label: account.email })}>{text.action.VERIFY_EMAIL}</Button>}
+              <Button variant="secondary" disabled={busy} aria-label={`${text.action.SET_ACCOUNT_LIMITS} ${account.email}`}
+                onClick={() => { start(limitsAction(account)); document.getElementById("superadmin-granser")?.scrollIntoView(); }}>{text.action.SET_ACCOUNT_LIMITS}</Button>
               <Button variant="secondary" disabled={busy} aria-label={`${text.action.DELETE_ACCOUNT} ${account.email}`}
                 onClick={() => start({ kind: "DELETE_ACCOUNT", accountId: account.accountId, label: account.email, confirm: account.email,
                   ownedEvents: account.eventCount })}>{text.action.DELETE_ACCOUNT}</Button>
             </div></td>
           </tr>)}</tbody>
+        </Table>}
+      </Section>
+
+      <Section id="superadmin-granser" title={text.limits} help={text.limitsHelp(mb(overview.limits.totalUsedBytes),
+        overview.limits.totalLimitBytes === null ? null : mb(overview.limits.totalLimitBytes), overview.limits.defaultMapQuotaMb, overview.limits.defaultGeoTilesPerMonth)}>
+        {panel(["SET_ACCOUNT_LIMITS"])}
+        {done?.section === "limits" && <Notice tone="ok" role="status">{done.text}</Notice>}
+        {overview.limits.accounts.length === 0 ? <EmptyState title={text.limitsEmpty} /> : <Table aria-label={text.limits}>
+          <thead><tr><th>{text.columns.email}</th><th>{text.columns.name}</th><th>{text.limitColumns.storage}</th><th>{text.limitColumns.tiles}</th>
+            <th>{text.limitColumns.own}</th><th>{text.columns.status}</th><th>{text.columns.actions}</th></tr></thead>
+          <tbody>{overview.limits.accounts.map(account => {
+            const storageShare = account.mapLimitBytes === null ? null : account.mapLimitBytes === 0 ? 1 : account.mapUsedBytes / account.mapLimitBytes;
+            const tileShare = account.geoTilesLimit === 0 ? (account.geoTilesUsed > 0 ? 1 : 0) : account.geoTilesUsed / account.geoTilesLimit;
+            const share = Math.max(storageShare ?? 0, tileShare);
+            return <tr key={account.accountId}>
+              <th scope="row">{account.email}</th><td>{account.displayName}</td>
+              <td className={styles.nowrap}>{text.storageUse(mb(account.mapUsedBytes), account.mapLimitBytes === null ? null : mb(account.mapLimitBytes),
+                storageShare === null ? null : Math.round(storageShare * 100))}</td>
+              <td className={styles.nowrap}>{text.tilesUse(account.geoTilesUsed, account.geoTilesLimit)}</td>
+              <td>{text.ownLimits(account.mapQuotaMb, account.geoTilesPerMonth)}</td>
+              <td>{share >= 1 ? <span className={styles.badge} data-tone="attention">{text.overLimit}</span>
+                : share >= SUPERADMIN_NEAR_LIMIT_SHARE ? <span className={styles.badge} data-tone="attention">{text.nearLimit}</span> : null}</td>
+              <td><div className={styles.rowActions}>
+                <Button variant="secondary" disabled={busy} aria-label={`${text.action.SET_ACCOUNT_LIMITS} ${account.email}`}
+                  onClick={() => start(limitsAction(account))}>{text.action.SET_ACCOUNT_LIMITS}</Button>
+              </div></td>
+            </tr>;
+          })}</tbody>
         </Table>}
       </Section>
 

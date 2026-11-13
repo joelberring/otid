@@ -27,6 +27,9 @@ export const userAccounts = pgTable("user_account", {
   email: text("email").notNull(),
   displayName: text("display_name").notNull(),
   isSuperadmin: boolean("is_superadmin").notNull().default(false),
+  /** Migration 0118: kontots egna gränser, satta av superadmin. NULL = installationens förval. */
+  mapQuotaMb: integer("map_quota_mb"),
+  geoTilesPerMonth: integer("geo_tiles_per_month"),
   blockedAt: timestamp("blocked_at", { withTimezone: true }),
   lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
   /** ADR-0186 (migration 0040): när adressen bekräftades. NULL = obekräftad; behörigheter från andra gäller då inte. */
@@ -38,7 +41,9 @@ export const userAccounts = pgTable("user_account", {
   uniqueIndex("user_account_email_uidx").on(table.email),
   index("user_account_guest_expires_idx").on(table.guestExpiresAt).where(sql`${table.guestExpiresAt} IS NOT NULL`),
   check("user_account_email_check", sql`${table.email} = lower(btrim(${table.email})) AND length(${table.email}) BETWEEN 3 AND 254 AND ${table.email} ~ '^[^@[:space:]]+@[^@[:space:]]+$'`),
-  check("user_account_display_name_check", sql`length(btrim(${table.displayName})) between 1 and 120`)
+  check("user_account_display_name_check", sql`length(btrim(${table.displayName})) between 1 and 120`),
+  check("user_account_map_quota_mb_check", sql`${table.mapQuotaMb} IS NULL OR ${table.mapQuotaMb} BETWEEN 1 AND 1000000`),
+  check("user_account_geo_tiles_per_month_check", sql`${table.geoTilesPerMonth} IS NULL OR ${table.geoTilesPerMonth} BETWEEN 0 AND 100000`)
 ]);
 
 /** Mutable MVCC marker only; immutable account/password/session journals remain authority. */
@@ -166,7 +171,7 @@ export const userAccountGoogleIdentities = pgTable("user_account_google_identity
  * (`superadminActionKindSchema`), och `logAction` i application vägrar andra värden.
  */
 export type SuperadminActionKind = "GRANT_SUPERADMIN" | "REVOKE_SUPERADMIN" | "HIDE_RACE" | "UNHIDE_RACE" |
-  "DELETE_EVENT" | "BLOCK_ACCOUNT" | "UNBLOCK_ACCOUNT" | "DELETE_ACCOUNT" | "CREATE_RESET_LINK" | "VERIFY_EMAIL";
+  "DELETE_EVENT" | "BLOCK_ACCOUNT" | "UNBLOCK_ACCOUNT" | "DELETE_ACCOUNT" | "CREATE_RESET_LINK" | "VERIFY_EMAIL" | "SET_ACCOUNT_LIMITS";
 
 /** Superadmins åtgärder (append-only, utan främmande nycklar så att loggen överlever borttagningar). */
 export const superadminActions = pgTable("superadmin_action", {

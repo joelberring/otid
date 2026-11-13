@@ -7,6 +7,7 @@ import { completePasswordReset, requestPasswordReset } from "../../src/password-
 import { deleteOwnAccount, readAccountProfile } from "../../src/account-self-service";
 import { createOrganizerEvent, listMyEvents } from "../../src/organizer-events";
 import { performSuperadminAction, readSuperadminOverview, setSuperadmin } from "../../src/superadmin";
+import { accountMapQuotaBytes, mapStorageQuota, storeMapContent } from "../../src/map-content";
 import { isRacePubliclyVisible } from "../../src/public-race-visibility";
 import { listPublicRaces } from "../../src/public-races";
 import { createClub } from "../../src/clubs";
@@ -153,6 +154,50 @@ describe("ADR-0172 konton", () => {
     expect(unverified.response.accounts[0]?.emailVerified).toBe(false);
     expect(overview.response.log[0]).toMatchObject({ action: "GRANT_SUPERADMIN", actorLabel: "Serverkommando", targetLabel: boss.email });
     expect(await setSuperadmin(db, { email: boss.email, superadmin: true })).toMatchObject({ status: "unchanged" });
+  });
+
+  it("sätter kontots egna gränser, som går före förvalet, och listar konton nära gränsen", async () => {
+    const boss = await superadmin();
+    const mapper = await registerTestAccount(db, `kartritare.${suffix()}`);
+    const MB = 1024 * 1024;
+    const quota = mapStorageQuota({ OTID_MAP_QUOTA_ACCOUNT_MB: "2", OTID_MAP_QUOTA_TOTAL_MB: "0" });
+    const limits = (mapQuotaMb: number | null, geoTilesPerMonth: number | null, accountId = mapper.accountId) =>
+      performSuperadminAction(db, boss.proof, { formatVersion: 1, action: "SET_ACCOUNT_LIMITS", accountId, reason: "Stort kartprojekt", mapQuotaMb, geoTilesPerMonth });
+
+    // Förvalet gäller tills kontot får en egen gräns; ogiltiga värden och andra än superadmin nekas.
+    expect(await accountMapQuotaBytes(db, mapper.accountId, quota)).toBe(2 * MB);
+    expect(await limits(0, null)).toEqual({ status: "invalid-request" });
+    expect(await performSuperadminAction(db, mapper.proof, { formatVersion: 1, action: "SET_ACCOUNT_LIMITS", accountId: mapper.accountId,
+      reason: "Själv", mapQuotaMb: 9000, geoTilesPerMonth: null })).toEqual({ status: "forbidden" });
+    expect(await limits(1, 5)).toEqual({ status: "done", action: "SET_ACCOUNT_LIMITS" });
+    expect(await accountMapQuotaBytes(db, mapper.accountId, quota)).toBe(MB);
+
+    // Den egna gränsen (1 MB) stoppar det som förvalet (2 MB) hade släppt igenom.
+    const store = (bytes: number) => db.transaction(tx => storeMapContent(tx, new Uint8Array(bytes).fill(suffix().charCodeAt(0)), mapper.accountId, new Date(), quota));
+    expect(await store(MB + 1)).toMatchObject({ status: "quota", quota: { scope: "ACCOUNT", limitBytes: MB } });
+    expect(await store(800 * 1024)).toMatchObject({ status: "stored" });
+
+    const overview = await readSuperadminOverview(db, boss.proof, { accounts: mapper.email }, new Date(),
+      { OTID_MAP_QUOTA_ACCOUNT_MB: "2", OTID_MAP_QUOTA_TOTAL_MB: "0", OTID_GEO_TILES_PER_MONTH: "200" });
+    if (overview.status !== "ok") throw new Error("Översikten saknas");
+    expect(overview.response.accounts[0]).toMatchObject({ email: mapper.email, mapQuotaMb: 1, geoTilesPerMonth: 5 });
+    expect(overview.response.limits).toMatchObject({ defaultMapQuotaMb: 2, defaultGeoTilesPerMonth: 200, totalLimitBytes: null });
+    expect(overview.response.limits.accounts.find(row => row.accountId === mapper.accountId)).toEqual({
+      accountId: mapper.accountId, email: mapper.email, displayName: mapper.login.response.displayName, mapUsedBytes: 800 * 1024, mapLimitBytes: MB,
+      mapQuotaMb: 1, geoTilesUsed: 0, geoTilesLimit: 5, geoTilesPerMonth: 5 });
+    // Ett konto utan egna gränser och långt från förvalet står inte i listan.
+    expect(overview.response.limits.accounts.some(row => row.accountId === boss.accountId)).toBe(false);
+    expect(overview.response.log[0]).toMatchObject({ action: "SET_ACCOUNT_LIMITS", targetLabel: mapper.email,
+      reason: "Stort kartprojekt (Lagring förval → 1 MB, laserrutor förval → 5 per månad)" });
+
+    // Tillbaka till förvalet; kontot ligger då under 70 % av 2 MB och faller ur listan. Superadmin får sätta sitt eget konto.
+    expect(await limits(null, null)).toEqual({ status: "done", action: "SET_ACCOUNT_LIMITS" });
+    expect(await accountMapQuotaBytes(db, mapper.accountId, quota)).toBe(2 * MB);
+    expect(await limits(4096, null, boss.accountId)).toEqual({ status: "done", action: "SET_ACCOUNT_LIMITS" });
+    const after = await readSuperadminOverview(db, boss.proof, {}, new Date(), { OTID_MAP_QUOTA_ACCOUNT_MB: "2", OTID_MAP_QUOTA_TOTAL_MB: "0" });
+    if (after.status !== "ok") throw new Error("Översikten saknas");
+    expect(after.response.limits.accounts.some(row => row.accountId === mapper.accountId)).toBe(false);
+    expect(after.response.limits.accounts.find(row => row.accountId === boss.accountId)).toMatchObject({ mapQuotaMb: 4096, mapLimitBytes: 4096 * MB });
   });
 
   it("spärrar och släpper ett konto: inloggning nekas och alla sessioner spärras", async () => {

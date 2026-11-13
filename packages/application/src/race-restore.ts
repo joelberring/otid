@@ -14,7 +14,7 @@ import { ZipError, ZipReader } from "./race-backup-zip";
 import { sha256Hex } from "./serialization";
 import { authenticateUserAccountSessionForMutation, type UserAccountSessionProof } from "./user-account";
 import type { DbExecutor } from "./snapshot";
-import { mapStorageQuota, mapStorageUsage, storeInlineMapContentForRace, type MapStorageQuota } from "./map-content";
+import { accountMapQuotaBytes, mapStorageQuota, mapStorageUsage, storeInlineMapContentForRace, type MapStorageQuota } from "./map-content";
 import { deliverPrepared, prepareIfMail, type InvitationMailer, type PreparedInvitationMail } from "./invitation-links";
 import type { RaceInvitationRole } from "@o-tid/contracts";
 
@@ -399,8 +399,9 @@ export async function restoreRaceBackup(db: Database,
       await storeInlineMapContentForRace(tx, raceId, accountId);
       const after = await mapStorageUsage(tx, accountId);
       const MB = 1024 * 1024;
-      if (after.accountBytes > before.accountBytes && quota.accountBytes !== null && after.accountBytes > quota.accountBytes) {
-        throw new BackupRejected(problem("STORAGE_QUOTA_EXCEEDED", `ditt konto: ${Math.ceil(after.accountBytes / MB)} av ${Math.floor(quota.accountBytes / MB)} MB`));
+      const accountLimit = await accountMapQuotaBytes(tx, accountId, quota);
+      if (after.accountBytes > before.accountBytes && accountLimit !== null && after.accountBytes > accountLimit) {
+        throw new BackupRejected(problem("STORAGE_QUOTA_EXCEEDED", `ditt konto: ${Math.ceil(after.accountBytes / MB)} av ${Math.floor(accountLimit / MB)} MB`));
       }
       if (after.totalBytes > before.totalBytes && quota.totalBytes !== null && after.totalBytes > quota.totalBytes) {
         throw new BackupRejected(problem("STORAGE_QUOTA_EXCEEDED", `servern: ${Math.ceil(after.totalBytes / MB)} av ${Math.floor(quota.totalBytes / MB)} MB`));

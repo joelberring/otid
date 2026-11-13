@@ -84,3 +84,11 @@ att gissa, och träningsgruppens medlemslista avslöjade om en adress hade ett k
 - Utrymmet i databasen frigörs först när PostgreSQL återanvänder det (eller med `VACUUM FULL`, docs/drift.md).
 - Spärrarnas räknare för inloggning börjar om (nyckeln har ändrats).
 - Brickans nummer i avläsningarna och en gammal grupps korta kod finns kvar; se beslut 5 och 8.
+
+## Tillägg 2026-11-13 – egna gränser per konto
+
+Ägaren: alla konton ska inte få stor lagring; superadmin ska kunna höja enskilda och se vilka som är nära gränsen. Kontot får
+två valfria egna gränser (migration 0118): `map_quota_mb` för kartfiler och `geo_tiles_per_month` för laserrutor. NULL betyder
+installationens förval (`OTID_MAP_QUOTA_ACCOUNT_MB`, `OTID_GEO_TILES_PER_MONTH`). Bara superadmin sätter dem
+(`SET_ACCOUNT_LIMITS`, loggas i `superadmin_action` med skäl och från/till). En sänkt gräns tar inte bort något; kontot kan bara
+inte spara mer. Installationens totala gräns (`OTID_MAP_QUOTA_TOTAL_MB`) gäller som förut över alla konton.

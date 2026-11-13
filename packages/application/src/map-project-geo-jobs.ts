@@ -178,7 +178,9 @@ async function createJob(db: Database, gate: MapProjectGate, body: unknown, runt
     const month = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
     const [{ tiles } = { tiles: 0 }] = await tx.select({ tiles: sql<number>`coalesce(sum(jsonb_array_length(${jobs.request}->'tiles')), 0)::int` }).from(jobs)
       .where(and(eq(jobs.accountId, access.accountId), gte(jobs.createdAt, month), sql`(${jobs.status} = 'QUEUED' or ${jobs.startedAt} is not null)`));
-    if (tiles + tileList.length > geoTilesPerMonth(runtime.environment)) return { status: "quota" } as const;
+    // Kontots egen gräns (superadmin, migration 0118) går före installationens förval.
+    const [limits] = await tx.select({ own: schema.userAccounts.geoTilesPerMonth }).from(schema.userAccounts).where(eq(schema.userAccounts.id, access.accountId));
+    if (tiles + tileList.length > (limits?.own ?? geoTilesPerMonth(runtime.environment))) return { status: "quota" } as const;
     const id = randomUUID();
     await tx.insert(jobs).values({ id, projectId: access.project.id, accountId: access.accountId, kind: "PULLAUTIN", status: "QUEUED",
       request: { name: request.name, tiles: tileList, settings: request.settings, ...(request.cliffs ? { cliffs: request.cliffs } : {}), ...(request.clip ? { clip: request.clip } : {}), ...(request.areaId ? { areaId: request.areaId } : {}), ...(request.extras?.length ? { extras: request.extras } : {}),

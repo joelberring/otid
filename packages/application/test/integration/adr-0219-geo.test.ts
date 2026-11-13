@@ -189,6 +189,14 @@ describe("ADR-0219 K5: geo-arbetaren", () => {
     expect((await storeGeoOutput(db, { jobId: second.job.jobId, worker: "geo-1", name: "karta.png", mediaType: "image/png", file: png(10, 10) }, NOW)).status)
       .toBe("not-found");
     expect((await createGeoJob(db, { ...owner.proof, projectId, request: { ...request(), tiles: [tile, tile] } }, runtime, NOW)).status).toBe("quota");
+    // Kontots egen gräns (superadmin, migration 0118) går före förvalet: höjd släpps körningen igenom, sänkt till noll nekas den.
+    await db.update(schema.userAccounts).set({ geoTilesPerMonth: 50 }).where(eq(schema.userAccounts.id, owner.accountId));
+    const raised = await createGeoJob(db, { ...owner.proof, projectId, request: { ...request(), tiles: [tile, tile] } }, runtime, NOW);
+    if (raised.status !== "created") throw new Error(`Höjd gräns: ${raised.status}`);
+    await removeGeoJob(db, { ...owner.proof, projectId, jobId: raised.job.jobId }, NOW);
+    await db.update(schema.userAccounts).set({ geoTilesPerMonth: 0 }).where(eq(schema.userAccounts.id, owner.accountId));
+    expect((await createGeoJob(db, { ...owner.proof, projectId, request: request() }, runtime, NOW)).status).toBe("quota");
+    await db.update(schema.userAccounts).set({ geoTilesPerMonth: null }).where(eq(schema.userAccounts.id, owner.accountId));
     await removeGeoJob(db, { ...owner.proof, projectId, jobId: third.job.jobId }, NOW);
 
     // Ett misslyckat jobb visar förklaringen; ett färdigt tas bort med sina filer (underlaget ligger kvar).

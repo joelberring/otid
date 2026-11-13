@@ -31,18 +31,19 @@ export const superadminEn: Texts<typeof superadminSv> = {
     unverified: "Unconfirmed address" },
   action: {
     HIDE_RACE: "Hide", UNHIDE_RACE: "Show", DELETE_EVENT: "Delete", BLOCK_ACCOUNT: "Block", UNBLOCK_ACCOUNT: "Unblock",
-    DELETE_ACCOUNT: "Delete", CREATE_RESET_LINK: "Reset link", VERIFY_EMAIL: "Confirm the address",
+    DELETE_ACCOUNT: "Delete", CREATE_RESET_LINK: "Reset link", VERIFY_EMAIL: "Confirm the address", SET_ACCOUNT_LIMITS: "Limits",
     GRANT_SUPERADMIN: "Granted superadmin", REVOKE_SUPERADMIN: "Removed superadmin"
   },
   logAction: {
     HIDE_RACE: "Hid event", UNHIDE_RACE: "Showed event", DELETE_EVENT: "Deleted event", BLOCK_ACCOUNT: "Blocked account",
     UNBLOCK_ACCOUNT: "Unblocked account", DELETE_ACCOUNT: "Deleted account", CREATE_RESET_LINK: "Created reset link",
-    VERIFY_EMAIL: "Confirmed address", GRANT_SUPERADMIN: "Granted superadmin", REVOKE_SUPERADMIN: "Removed superadmin"
+    VERIFY_EMAIL: "Confirmed address", SET_ACCOUNT_LIMITS: "Changed limits", GRANT_SUPERADMIN: "Granted superadmin", REVOKE_SUPERADMIN: "Removed superadmin"
   },
   confirmTitle: {
     HIDE_RACE: "Hide the event from the public pages", UNHIDE_RACE: "Show the event on the public pages again",
     DELETE_EVENT: "Delete the event with all data", BLOCK_ACCOUNT: "Block the account", UNBLOCK_ACCOUNT: "Unblock the account",
-    DELETE_ACCOUNT: "Delete the account", CREATE_RESET_LINK: "Create reset link", VERIFY_EMAIL: "Confirm the account's email address"
+    DELETE_ACCOUNT: "Delete the account", CREATE_RESET_LINK: "Create reset link", VERIFY_EMAIL: "Confirm the account's email address",
+    SET_ACCOUNT_LIMITS: "Change the account's limits"
   },
   confirmHelp: {
     HIDE_RACE: "Start lists, results and split times stop being shown to visitors. The organiser sees the event as usual.",
@@ -52,9 +53,24 @@ export const superadminEn: Texts<typeof superadminSv> = {
     UNBLOCK_ACCOUNT: "The account can sign in again. Old sign-ins no longer apply.",
     DELETE_ACCOUNT: "The account and the events it owns are deleted. It cannot be undone.",
     CREATE_RESET_LINK: "The link is shown once. Give it to the account's owner; it is valid for one hour and can be used once.",
-    VERIFY_EMAIL: "Only do this if you know the address belongs to the person and that they chose the account's password themselves (for example if the email never arrives). Permissions others have given the address then apply at once. The password is not changed; if you are unsure, create a reset link instead."
+    VERIFY_EMAIL: "Only do this if you know the address belongs to the person and that they chose the account's password themselves (for example if the email never arrives). Permissions others have given the address then apply at once. The password is not changed; if you are unsure, create a reset link instead.",
+    SET_ACCOUNT_LIMITS: "The limits apply to this account only. Leave a field empty for the account to follow the default. Lowering a limit deletes nothing; the account just cannot save more until it is below the limit."
   },
   ownedEvents: (count: number) => count === 1 ? "The account owns 1 event, which is also deleted." : `The account owns ${count} events, which are also deleted.`,
+  limits: "Storage and laser tiles",
+  limitsHelp: (usedMb: number, limitMb: number | null, defaultMb: number | null, defaultTiles: number) =>
+    `Map files on the server: ${usedMb} MB${limitMb === null ? "" : ` of ${limitMb} MB`}. Default per account: ${defaultMb === null ? "no limit" : `${defaultMb} MB`} of storage and ${defaultTiles} laser tiles a month. The list shows accounts that have used at least 70% of a limit and accounts with limits of their own, closest to the limit first.`,
+  limitsEmpty: "No account is near its limit and none has limits of its own.",
+  limitColumns: { storage: "Map storage", tiles: "Laser tiles this month", own: "Own limits" },
+  storageUse: (usedMb: number, limitMb: number | null, percent: number | null) =>
+    limitMb === null ? `${usedMb} MB (no limit)` : `${usedMb} of ${limitMb} MB (${percent}%)`,
+  tilesUse: (used: number, limit: number) => `${used} of ${limit}`,
+  ownLimits: (mapQuotaMb: number | null, tiles: number | null) =>
+    mapQuotaMb === null && tiles === null ? "Default" : [mapQuotaMb === null ? null : `${mapQuotaMb} MB`, tiles === null ? null : `${tiles} tiles`].filter(Boolean).join(", "),
+  nearLimit: "Near the limit",
+  overLimit: "Over the limit",
+  mapQuotaField: (defaultMb: number | null) => `Map storage in MB (empty = the default${defaultMb === null ? ", no limit" : ` ${defaultMb}`})`,
+  geoTilesField: (defaultTiles: number) => `Laser tiles per month (empty = the default ${defaultTiles})`,
   target: "Applies to",
   reason: "Reason (logged)",
   confirmName: (name: string) => `Type the event's name, ${name}, to confirm`,

@@ -137,6 +137,15 @@ export async function mapStorageUsage(tx: DbExecutor, accountId: string | null):
   return { accountBytes: Number(row?.account ?? 0), totalBytes: Number(row?.total ?? 0) };
 }
 
+/**
+ * Kontots gräns för kartfiler: den egna (`user_account.map_quota_mb`, satt av superadmin, migration 0118) eller annars
+ * installationens förval. Null = ingen gräns.
+ */
+export async function accountMapQuotaBytes(tx: DbExecutor, accountId: string, quota: MapStorageQuota = mapStorageQuota()): Promise<number | null> {
+  const [row] = (await tx.execute<{ map_quota_mb: number | null }>(sql`select map_quota_mb from user_account where id = ${accountId}::uuid`)).rows;
+  return row?.map_quota_mb != null ? row.map_quota_mb * MB : quota.accountBytes;
+}
+
 export type StoreResult = { status: "stored"; sha256: string } | { status: "quota"; quota: MapQuotaExceeded };
 
 /**
@@ -159,8 +168,9 @@ export async function storeMapContent(tx: DbExecutor, input: MapContentInput, ac
     return { status: "stored", sha256 };
   }
   const usage = await mapStorageUsage(tx, accountId);
-  if (accountId && quota.accountBytes !== null && usage.accountBytes + byteLength > quota.accountBytes) {
-    return { status: "quota", quota: { scope: "ACCOUNT", usedBytes: usage.accountBytes, limitBytes: quota.accountBytes, neededBytes: byteLength } };
+  const accountLimit = accountId ? await accountMapQuotaBytes(tx, accountId, quota) : null;
+  if (accountId && accountLimit !== null && usage.accountBytes + byteLength > accountLimit) {
+    return { status: "quota", quota: { scope: "ACCOUNT", usedBytes: usage.accountBytes, limitBytes: accountLimit, neededBytes: byteLength } };
   }
   if (quota.totalBytes !== null && usage.totalBytes + byteLength > quota.totalBytes) {
     return { status: "quota", quota: { scope: "INSTALLATION", usedBytes: usage.totalBytes, limitBytes: quota.totalBytes, neededBytes: byteLength } };

@@ -13,6 +13,17 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-13 – Egna gränser per konto och listan "nära gränsen" hos superadmin (migration 0118)
+- Ägaren 2026-11-13: alla ska inte få stora konton; superadmin höjer (eller sänker) enskilda. `user_account.map_quota_mb` och
+  `geo_tiles_per_month` (NULL = förvalen `OTID_MAP_QUOTA_ACCOUNT_MB` och `OTID_GEO_TILES_PER_MONTH`) går före förvalet i
+  `storeMapContent`, återställningen, kontosidans visning och `createGeoJob`.
+- Superadminsidan: avsnittet "Lagring och laserrutor" med serverns totala kartlagring, förvalen och konton som använt minst
+  70 % av en gräns eller har egna gränser (närmast gränsen först); "Gränser" på varje konto. Åtgärden `SET_ACCOUNT_LIMITS`
+  kräver skäl och loggas med från/till; superadmin får sätta sitt eget konto. ADR-0189 tillägg 2026-11-13.
+- Verifierat: lint, typecheck, test (contracts, database, web), integration `adr-0172-accounts` (nytt fall) och `adr-0219-geo`
+  (egen laserkvot) mot PostgreSQL 16. Inte provat i webbläsare eller med Playwright.
+- Kvar: larm till superadmin när ett konto når gränsen; lagring utanför databasen.
+
 ### 2026-11-12 – Användartestet 2026-11-12, tredje omgången: bokstäver, lösenord, arkivering (migration 0113–0115)
 - Gafflingar: bokstaven hör till alternativet (ADR-0175 tillägg b och c). Tas ett alternativ bort står de andra kvar (lucka
   tillåts), nytt alternativ får en oanvänd bokstav; bara den vars bokstav försvinner byter variant och står med namn, före

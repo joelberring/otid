@@ -5,6 +5,8 @@ import { mapProjectEditorEn } from "../../i18n/map-project-en";
 import { useTexts } from "../language-provider";
 import type { MapProjectAiMode, MapProjectAreaStatus, MapProjectMode, MapProjectProposalView, MapProjectView } from "@o-tid/contracts";
 import { mapProjectEditorSv } from "../../i18n/map-project-editor-sv";
+import { mapProjectSplitEn } from "../../i18n/map-project-split-en";
+import { mapProjectSplitSv } from "../../i18n/map-project-split-sv";
 import { Button, Notice } from "../ui";
 import type { useMapProjectCollaboration } from "./use-map-project-collaboration";
 import { STAGE_COLORS, type StageAge } from "../../lib/map-project-overlay";
@@ -23,7 +25,7 @@ type Collaboration = ReturnType<typeof useMapProjectCollaboration>;
  * den som fått området sätter läget).
  */
 export function MapProjectCollabPanel({ view, collab, shownProposal, onShowProposal, shownArea, onShowArea, onNewArea, newArea, onSaveArea, onCancelArea,
-  stages, onStages }: {
+  onSplitArea, splitting, stages, onStages }: {
   view: MapProjectView;
   /** Etapperna: delområdena färgade efter revideringsdatumet. */
   stages: boolean; onStages: (shown: boolean) => void;
@@ -32,12 +34,15 @@ export function MapProjectCollabPanel({ view, collab, shownProposal, onShowPropo
   shownArea: string | undefined; onShowArea: (areaId: string | undefined) => void;
   /** Starta verktyget Delområde (bara ägarna). */
   onNewArea: () => void;
+  /** Starta delningen med ett streck (bara ägarna); `splitting` = verktyget är valt. */
+  onSplitArea: () => void; splitting: boolean;
   /** Delområdet som just ritats och väntar på namn och kartritare. */
   newArea: boolean;
   onSaveArea: (name: string, assigneeAccountId: string | null) => void;
   onCancelArea: () => void;
 }) {
   const text = useTexts(mapProjectEditorSv.collab, mapProjectEditorEn.collab);
+  const splitText = useTexts(mapProjectSplitSv, mapProjectSplitEn);
   const viewer = view.viewer;
   const open = collab.proposals.filter(proposal => proposal.status === "OPEN");
   const decided = collab.proposals.filter(proposal => proposal.status !== "OPEN").slice(0, 5);
@@ -116,7 +121,12 @@ export function MapProjectCollabPanel({ view, collab, shownProposal, onShowPropo
           </li>;
         })}
       </ul>
-      {viewer.canDecide && !newArea && <Button variant="secondary" onClick={onNewArea}>{text.newArea}</Button>}
+      {viewer.canDecide && !newArea && <span className={styles.actions}>
+        <Button variant="secondary" onClick={onNewArea}>{text.newArea}</Button>
+        <Button variant={splitting ? "primary" : "secondary"} aria-pressed={splitting} title={splitText.buttonHelp} onClick={onSplitArea}
+          data-testid="map-project-split-area">{splitText.button}</Button>
+      </span>}
+      {splitting && <p className={styles.muted}>{splitText.buttonHelp}</p>}
       {collab.areas.length > 0 && <>
         <label className={styles.check}><input type="checkbox" checked={stages} onChange={() => onStages(!stages)} data-testid="map-project-stages" />
           {text.stages}</label>

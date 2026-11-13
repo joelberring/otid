@@ -29,6 +29,7 @@ import { useMapProjectGeneralize } from "./use-map-project-generalize";
 import { useMapProjectRectify } from "./use-map-project-rectify";
 import { MapProjectRectifyPanel } from "./map-project-rectify-panel";
 import { MapProjectNorthPanel } from "./map-project-north-panel";
+import { useMapProjectSplit } from "./use-map-project-split";
 import { mapProjectRectifySv } from "../../i18n/map-project-rectify-sv";
 import { useMapProjectNorm } from "./use-map-project-norm";
 import { mapProjectNotesSv } from "../../i18n/map-project-notes-sv";
@@ -81,8 +82,8 @@ import { mapProjectQuickSv } from "../../i18n/map-project-quick-sv";
 import { circleFor, shapeActions, withRecent } from "../../lib/map-project-shape-actions";
 import styles from "./map-project-editor.module.css";
 
-/** `area` = rita ett delområde (bara ägarna); `note` = tryck där en notis ska sitta (K3); `circle` = runda former (ägaren 2026-11-09). */
-type Tool = "select" | "draw" | "area" | "note" | "circle" | "rectangle" | "addPoint" | "removePoint" | "cut";
+/** `area` = rita ett delområde (bara ägarna); `split` = dela kartområdet eller en del med ett streck; `note` = tryck där en notis ska sitta (K3); `circle` = runda former (ägaren 2026-11-09). */
+type Tool = "select" | "draw" | "area" | "split" | "note" | "circle" | "rectangle" | "addPoint" | "removePoint" | "cut";
 interface Selected { readonly key: ObjectKey; readonly ref: ObjectRef | null; readonly object: MapObject }
 type Drag =
   | { readonly mode: "vertex"; readonly address: VertexAddress; readonly original: MapObject }
@@ -223,6 +224,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   useEffect(() => { if (drawingArea) setTab("review"); }, [drawingArea]);
   const [circleCenter, setCircleCenter] = useState<Point>();
   const [flash, setFlash] = useState<string>();
+  const split = useMapProjectSplit({ view, areas: collab.areas, bounds: editor.bounds ?? undefined, only: shownArea, reload: collab.loadAreas, say: setFlash, done: () => setTool("select") });
   const mapArea = useRef<HTMLDivElement>(null);
   const pointerAt = useRef<{ x: number; y: number }>(undefined);
   useEffect(() => {
@@ -272,17 +274,17 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   }, [commit]);
 
   const finishDraft = useCallback(() => {
-    if (tool === "area") {
+    if (tool === "area" || tool === "split") {
       const ring = draft.map(point => point.at);
       cancelDraft();
-      if (ring.length >= 3) { setNewArea(ring); setPanelOpen(true); }
+      if (tool === "split") void split.split(ring); else if (ring.length >= 3) { setNewArea(ring); setPanelOpen(true); }
       return;
     }
     if (!symbol || (symbol.kind !== "line" && symbol.kind !== "area")) return;
     const object = draftObject(symbol.kind, symbol.id, draft);
     cancelDraft();
     if (object) save(newKey(crypto.randomUUID()), null, object, "ADD");
-  }, [draft, symbol, save, tool]);
+  }, [draft, symbol, save, tool, split]);
 
   const removeSelected = useCallback(() => {
     if (!selected || !canEdit) return;
@@ -334,7 +336,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   }
 
   const handlers: MapPointerHandlers = {
-    unlifted: tool === "draw" || tool === "area" || tool === "circle" || !!work.drawing,
+    unlifted: tool === "draw" || tool === "area" || tool === "split" || tool === "circle" || !!work.drawing,
     onTap(point, tolerance, modifiers) {
       if (control.active) { control.click(point); return; }
       if (rectify.picking) { rectify.click(point); return; }
@@ -352,9 +354,9 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         const note = noteAt(notes.notes, point, tolerance, modifiers.pxPerMm);
         if (note) { setShownNote(note.noteId); setNoteDraft(undefined); return; }
       }
-      if (tool === "area") {
+      if (tool === "area" || tool === "split") {
         const first = draft[0];
-        if (double || (first && draft.length >= 3 && Math.hypot(first.at.x - point.x, first.at.y - point.y) <= tolerance)) { finishDraft(); return; }
+        if (double || (tool === "area" && first && draft.length >= 3 && Math.hypot(first.at.x - point.x, first.at.y - point.y) <= tolerance)) { finishDraft(); return; }
         setDraft(points => [...points, { at: point }]);
         return;
       }
@@ -411,7 +413,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       // Ägaren 2026-11-10: med fingret följer något markerat med först efter ett kort håll; ett snabbt drag flyttar kartan.
       const quickTouch = pointerType === "touch" && heldMs < TOUCH_HOLD_MS;
       if (work.drawing) return work.dragStart(point);
-      if (!canEdit || tool === "area") return false;
+      if (!canEdit || tool === "area" || tool === "split") return false;
       if (tool === "circle") {
         if (!symbol || (symbol.kind !== "line" && symbol.kind !== "area")) return false;
         drag.current = { mode: "circle", center: circleCenter ?? point };
@@ -571,9 +573,9 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     drawAreas(ctx, current, areaDrawings);
     drawProposed(ctx, current, proposedOpen.objects, proposedOpen.deleted, false);
     drawProposed(ctx, current, proposedShown.objects, proposedShown.deleted, true);
-    if (tool === "area" && draft.length) {
+    if ((tool === "area" || tool === "split") && draft.length) {
       const ring = cursor ? [...draft.map(point => point.at), cursor] : draft.map(point => point.at);
-      if (ring.length >= 2) drawAreas(ctx, current, [{ polygon: [ring], label: "", owner: "MINE" }]);
+      if (ring.length >= 2) drawAreas(ctx, current, [{ polygon: [ring], label: "", owner: "MINE", open: tool === "split" }]);
       drawDraftPoints(ctx, current, draft, cursor);
     }
     if (preview) drawPreview(ctx, current, preview, symbols.get(preview.symbol));
@@ -605,7 +607,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     control.active, control.markers, rectify.shown, rectify.markers, sketchLayers, work.dragging, work.drawingLayer, work.stroke,
     multi.moving, multi.shown, multi.box, multi.items.length, multi.marquee]);
 
-  const hint = toolHint({ canEdit, closed: view.status === "CLOSED", tool, multiCount: multi.items.length, rotating: multi.zone === "rotate", symbol,
+  const hint = tool === "split" ? split.hint : toolHint({ canEdit, closed: view.status === "CLOSED", tool, multiCount: multi.items.length, rotating: multi.zone === "rotate", symbol,
     text, notes: notesText, keys: keysText, quick });
   const selectedSymbol = selected ? symbols.get(selected.object.symbol) : undefined;
   const hintLine = control.active ? (control.pending ? layersText.control.hintMap : layersText.control.hintImage)
@@ -780,10 +782,8 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         <MapProjectCollabPanel view={view} collab={collab} shownProposal={shownProposal} onShowProposal={setShownProposal}
           shownArea={shownArea} onShowArea={setShownArea} newArea={!!newArea}
           onNewArea={() => { deselect(); cancelDraft(); setTool("area"); setPanelOpen(false); }}
-          onSaveArea={(name, assignee) => {
-            if (!newArea) return;
-            void collab.createArea(name, [newArea], assignee).then(ok => { if (ok) { setNewArea(undefined); setTool("select"); } });
-          }}
+          onSplitArea={() => { deselect(); cancelDraft(); setNewArea(undefined); setTool("split"); setPanelOpen(false); }} splitting={tool === "split"}
+          onSaveArea={(name, assignee) => { if (newArea) void collab.createArea(name, [newArea], assignee).then(ok => { if (ok) { setNewArea(undefined); setTool("select"); } }); }}
           onCancelArea={() => { setNewArea(undefined); setTool("select"); }} stages={stages} onStages={setStages} />
           <NotesPanel notes={notes.notes} problem={notes.problem} onShow={note => { setShownNote(note.noteId); setPanelOpen(false); mapHandle.current?.focus(note.at); }} />
           <MapProjectReconPanel view={view} recon={recon} hasGeoreference={!!georeference} />

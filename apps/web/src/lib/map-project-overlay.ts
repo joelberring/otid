@@ -167,6 +167,8 @@ export interface AreaDrawing {
   readonly selected?: boolean | undefined;
   /** Etapperna: ytan fylls med etappens färg (efter revideringsdatumet). */
   readonly fill?: string | undefined;
+  /** Ett streck (delningen med ett streck) i stället för en sluten ring. */
+  readonly open?: boolean | undefined;
 }
 
 /** Etappens färg efter hur länge sedan den reviderades: grön (inom ett år), gulgrön (3 år), orange (6 år), röd, grå (aldrig). */
@@ -189,7 +191,7 @@ export function drawAreas(ctx: Context, view: Viewport, areas: readonly AreaDraw
         const at = toScreen(view, point);
         if (index === 0) ctx.moveTo(at.x, at.y); else ctx.lineTo(at.x, at.y);
       });
-      ctx.closePath();
+      if (!area.open) ctx.closePath();
     }
     if (area.fill) { ctx.globalAlpha = 0.22; ctx.fillStyle = area.fill; ctx.fill("evenodd"); ctx.globalAlpha = 1; }
     ctx.strokeStyle = "#fff"; ctx.lineWidth = area.selected ? 7 : 5; ctx.setLineDash([]); ctx.stroke();

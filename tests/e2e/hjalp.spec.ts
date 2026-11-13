@@ -33,7 +33,10 @@ test("Om O-Tid och sidfoten utan inloggning", async ({ browser }) => {
   await expect(visitor.getByRole("heading", { name: "Hur stora tävlingar klarar O-Tid?" })).toBeVisible();
   await expect(visitor.getByText("3 000 löpare och 1 000 besökare samtidigt", { exact: false })).toBeVisible();
   await expect(visitor.getByText("Avläsningar går aldrig förlorade", { exact: false })).toBeVisible();
-  await expect(visitor.getByRole("main").getByRole("link", { name: contact })).toHaveAttribute("href", `mailto:${contact}`);
+  // Adressen står i «Stöd servern» (bidrag utanför Sverige) och under «Frågor och kontakt».
+  const mails = visitor.getByRole("main").getByRole("link", { name: contact });
+  await expect(mails).toHaveCount(2);
+  for (const mail of await mails.all()) await expect(mail).toHaveAttribute("href", `mailto:${contact}`);
   await expect(visitor.getByRole("link", { name: "Skapa konto eller logga in" })).toHaveAttribute("href", "/organizer");
   await visitor.setViewportSize({ width: 390, height: 844 });
   await expectNoHorizontalScroll(visitor);

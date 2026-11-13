@@ -26,6 +26,9 @@ export const mapProjectSv = {
     name: "Projektets namn",
     file: "Kartfil (.omap, .xmap eller .ocd)",
     button: "Starta projektet",
+    working: "Laddar upp och läser filen …",
+    missing: "Välj en kartfil och ge projektet ett namn.",
+    network: "Uppladdningen bröts. Kontrollera nätet och försök igen.",
     tooLarge: "Filen är för stor.",
     unsupported: "Filen är inte en kartfil från Mapper eller OCAD.",
     quota: "Kvoten för kartfiler är full."

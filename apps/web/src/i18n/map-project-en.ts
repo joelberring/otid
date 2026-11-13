@@ -31,6 +31,9 @@ export const mapProjectEn: Texts<typeof mapProjectSv> = {
     name: "The project's name",
     file: "Map file (.omap, .xmap or .ocd)",
     button: "Start the project",
+    working: "Uploading and reading the file …",
+    missing: "Choose a map file and give the project a name.",
+    network: "The upload was interrupted. Check the connection and try again.",
     tooLarge: "The file is too large.",
     unsupported: "The file is not a map file from Mapper or OCAD.",
     quota: "The quota for map files is full."

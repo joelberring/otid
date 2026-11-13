@@ -53,20 +53,26 @@ export function MyMapProjects() {
 function UploadProject() {
   const failure = useMapProjectFailure();
   const upload = useTexts(mapProjectSv.upload, mapProjectEn.upload);
-  const [name, setName] = useState("");
-  const [file, setFile] = useState<File>();
+  const [typedName, setName] = useState("");
+  const [chosenFile, setFile] = useState<File>();
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
   async function start(event: FormEvent) {
     event.preventDefault();
-    if (!file) return;
+    // Ägaren 2026-11-13 («det verkar inte gå att starta ett kartprojekt från fil»): webbläsaren kan fylla i formuläret själv
+    // (tillbaka-knappen, omladdning) utan att sidan får veta det, och då stod knappen grå med fil och namn ifyllda. Filen och
+    // namnet läses därför ur formuläret när det skickas.
+    const form = event.currentTarget as HTMLFormElement;
+    const file = chosenFile ?? form.querySelector<HTMLInputElement>("input[type=file]")?.files?.[0];
+    const name = (typedName.trim() || form.querySelector<HTMLInputElement>("input:not([type=file])")?.value.trim() || file?.name.replace(/\.[A-Za-z0-9]{2,5}$/, "") || "").slice(0, 120);
+    if (!file || !name) { setMessage(upload.missing); return; }
     setBusy(true); setMessage("");
     try {
       const response = await fetch(`${mapProjectsBase}/upload`, { method: "POST", credentials: "same-origin", body: file,
         headers: { "content-type": "application/octet-stream", "x-otid-csrf": csrf() ?? "", "x-otid-request-id": requestId,
-          "x-otid-name": encodeURIComponent(name.trim().slice(0, 120)), "x-otid-file-name": encodeURIComponent(file.name.slice(0, 200)) } });
+          "x-otid-name": encodeURIComponent(name), "x-otid-file-name": encodeURIComponent(file.name.slice(0, 200)) } });
       if (response.status === 200 || response.status === 201) {
         const body = await response.json() as { projectId: string };
         window.location.assign(`/organizer/map-projects/${encodeURIComponent(body.projectId)}`);
@@ -76,21 +82,22 @@ function UploadProject() {
       const error = response.status === 422 ? (await response.json().catch(() => ({})) as { error?: string }).error : undefined;
       setMessage(error === "MAP_FILE_TOO_LARGE" ? upload.tooLarge : error === "UNSUPPORTED_MAP_FILE" ? upload.unsupported
         : error === "STORAGE_QUOTA_EXCEEDED" ? upload.quota : failure(response.status));
-    } finally { setBusy(false); }
+    } catch { setMessage(upload.network); }
+    finally { setBusy(false); }
   }
 
   return <section aria-labelledby="map-project-upload">
     <h2 id="map-project-upload">{upload.title}</h2>
     <p className={styles.muted}>{upload.help}</p>
     <form className={styles.form} onSubmit={event => void start(event)} aria-label={upload.title}>
-      <Field label={upload.name}><input value={name} maxLength={120} required onChange={event => setName(event.target.value)} /></Field>
+      <Field label={upload.name}><input value={typedName} maxLength={120} required onChange={event => setName(event.target.value)} /></Field>
       <Field label={upload.file}><input type="file" accept=".omap,.xmap,.ocd" required
         onChange={event => {
           const chosen = event.target.files?.[0];
           setFile(chosen);
-          if (chosen && !name.trim()) setName(chosen.name.replace(/\.[A-Za-z0-9]{2,5}$/, "").slice(0, 120));
+          if (chosen && !typedName.trim()) setName(chosen.name.replace(/\.[A-Za-z0-9]{2,5}$/, "").slice(0, 120));
         }} /></Field>
-      <div className={styles.actions}><Button type="submit" disabled={busy || !file || !name.trim()} aria-busy={busy}>{upload.button}</Button></div>
+      <div className={styles.actions}><Button type="submit" disabled={busy} aria-busy={busy}>{busy ? upload.working : upload.button}</Button></div>
       {message && <Notice tone="error" role="alert">{message}</Notice>}
     </form>
   </section>;

@@ -94,7 +94,9 @@ export function readColors(strings: readonly ParameterString[]): MapColor[] {
 }
 
 /** OCAD:s egna nummer för koordinatsystem (fältet "i") som O-Tid känner igen, när EPSG-numret ("e") saknas. */
-const OCAD_GRIDS: Readonly<Record<number, number>> = { 13002: 3006 };
+// 2033 är OCAD:s UTM zon 33 N (WGS 84): samma projektion som SWEREF 99 TM och inom en halv meter från den i Sverige
+// (ägarens sprintkarta Bandhagen–Hagsätra 2026-11-13 låg i det rutnätet och fick annars okänt koordinatsystem).
+const OCAD_GRIDS: Readonly<Record<number, number>> = { 13002: 3006, 2033: 3006 };
 
 export function readGeoreference(strings: readonly ParameterString[], warnings: WarningCollector): { scale: number; georeference: MapGeoreference | null } {
   const entry = strings.find(item => item.type === 1039);

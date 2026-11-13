@@ -1,5 +1,5 @@
 import {
-  createMapProject, createMapProjectFromUpload, createMapProjectNew, discardStagedMapContent, exportMapProjectChanges, inviteMapProjectMember, listMapProjects,
+  createMapProject, createMapProjectFromUpload, createMapProjectNew, deleteMapProject, discardStagedMapContent, exportMapProjectChanges, inviteMapProjectMember, listMapProjects,
   readMapProject, readMapProjectOutput, readMapProjectSource, removeMapProjectMember, setMapProjectMemberRole, stageMapContent, streamMapContentParts,
   syncMapProject, updateMapProject, writeMapProjectVersion
 } from "@o-tid/application";
@@ -51,7 +51,7 @@ export async function mapProjectNewRoute(db: Database, request: Request, environ
   });
 }
 
-/** GET projektet, PUT byt namn, avsluta eller öppna igen. */
+/** GET projektet, PUT byt namn, avsluta eller öppna igen, DELETE radera projektet (ägaren; 422 `MAP_PROJECT_BUSY` vid pågående körningar). */
 export async function mapProjectRoute(db: Database, request: Request, projectId: string, environment: Environment = process.env): Promise<Response> {
   if (!validId(projectId)) return failure("not-found");
   if (request.method === "GET") {
@@ -60,6 +60,15 @@ export async function mapProjectRoute(db: Database, request: Request, projectId:
     return guarded(async () => {
       const result = await readMapProject(db, { ...input.proof, projectId });
       return result.status === "ok" ? privateJson({ ...result.view, mailEnabled: mailAvailable(environment) }) : failure(result.status);
+    });
+  }
+  if (request.method === "DELETE") {
+    const removal = await mutation(request, environment, "none");
+    if ("response" in removal) return removal.response;
+    return guarded(async () => {
+      const result = await deleteMapProject(db, { ...removal.proof, projectId });
+      if (result.status === "busy") return problem("MAP_PROJECT_BUSY");
+      return result.status === "deleted" ? privateJson({ formatVersion: 1, status: "deleted" }) : failure(result.status);
     });
   }
   const input = await mutation(request, environment);

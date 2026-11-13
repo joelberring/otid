@@ -239,6 +239,8 @@ export interface MapProjectSummary {
   club: { clubId: string; name: string } | null;
   base: MapProjectBase;
   createdAt: string; closedAt: string | null;
+  /** När projektet senast användes eller ändrades (senast öppnat, annars när det skapades eller avslutades); listan sorteras på den. */
+  lastActiveAt: string;
   /** Objekt som inte är som i grundfilen (nya som tagits bort igen räknas inte). */
   changedObjects: number;
   outputs: MapProjectOutputView[];

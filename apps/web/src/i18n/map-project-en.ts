@@ -16,7 +16,15 @@ export const mapProjectEn: Texts<typeof mapProjectSv> = {
     empty: "You are not in any map project yet.",
     own: "own",
     changed: (n: number) => count(n, "changed object", "changed objects"),
-    closed: "closed"
+    closed: "closed",
+    showClosed: (n: number) => `Show closed (${n})`,
+    hideClosed: "Show active only",
+    onlyActive: (hidden: number) => `${count(hidden, "closed project is hidden", "closed projects are hidden")}.`,
+    noActive: "No active map projects. Closed projects are shown with “Show closed”.",
+    search: "Search the map projects",
+    searchHelp: "Name, club or file name",
+    noMatch: "No map project matches the search.",
+    lastUsed: (date: string) => `last used ${date}`
   },
   roles: { OWNER: "Owner", EDIT: "Edit", SUGGEST: "Suggest", READ: "Read" } satisfies Record<MapProjectRole, string>,
   roleHelp: {
@@ -118,6 +126,24 @@ export const mapProjectEn: Texts<typeof mapProjectSv> = {
     outputLine: (fileName: string, changes: number, date: string) => `${fileName} · ${count(changes, "change", "changes")} · ${date}`,
     inArchive: "in the club archive",
     downloadOutput: (fileName: string) => `Download ${fileName}`
+  },
+  remove: {
+    title: "Delete the project",
+    help: "Removes the whole project for everyone. It cannot be undone and there is no recycle bin.",
+    start: "Delete the project …",
+    warning: (name: string) => `Delete “${name}” for good? This disappears:`,
+    items: [
+      "the map's changes, suggestions and areas",
+      "underlays (images and elevation data) and notes with photos and tracks",
+      "the laser runs and their files, and the base file in the project",
+      "the members and the invitations"
+    ],
+    stays: "This stays: course settings that used the project's map (they keep their copy, but can no longer take in the project's changes) and map versions written to the club archive.",
+    sure: "Yes, delete",
+    cancel: "Cancel",
+    working: "Deleting …",
+    busy: "The project has laser runs or map jobs in progress. Cancel them in the laser panel, wait until they have finished and try again.",
+    gone: (name: string) => `The project “${name}” has been deleted.`
   },
   version: {
     title: "New map version",

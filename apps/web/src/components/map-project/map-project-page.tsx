@@ -141,6 +141,8 @@ export function MapProjectPage({ projectId }: { projectId: string }) {
       <ProjectStatsSection base={base} canDecide={project.viewer.canDecide} />
 
       {manage && <ProjectSettings view={project} base={base} busy={busy} run={run} />}
+
+      {manage && <DeleteProject view={project} base={base} />}
     </div>
   </main>;
 }
@@ -243,6 +245,45 @@ function ProjectSettings({ view, base, busy, run }: { view: MapProjectView; base
         <Button variant="secondary" disabled={busy} onClick={toggle}>{view.status === "OPEN" ? text.page.close : text.page.reopen}</Button>
       </div>
     </form>
+  </section>;
+}
+
+/**
+ * Radera projektet (bara ägaren): ett andra steg i sidan som säger vad som försvinner, sedan «Ja, radera». Ingen dialogruta.
+ * Pågående körningar ger 422 `MAP_PROJECT_BUSY`. Efter raderingen går sidan till listan.
+ */
+function DeleteProject({ view, base }: { view: MapProjectView; base: string }) {
+  const failure = useMapProjectFailure();
+  const text = useTexts(mapProjectSv.remove, mapProjectEn.remove);
+  const [asking, setAsking] = useState(false);
+  const [working, setWorking] = useState(false);
+  const [problem, setProblem] = useState("");
+  async function remove() {
+    setWorking(true); setProblem("");
+    try {
+      const result = await clubRequest(base, "DELETE");
+      if (result.status === 200) { window.location.assign("/organizer/map-projects"); return; }
+      const error = (result.json as { error?: string } | undefined)?.error;
+      setProblem(result.status === 422 && error === "MAP_PROJECT_BUSY" ? text.busy : failure(result.status));
+      setAsking(false);
+    } finally { setWorking(false); }
+  }
+  return <section aria-labelledby="map-project-delete">
+    <h2 id="map-project-delete">{text.title}</h2>
+    <p className={styles.muted}>{text.help}</p>
+    {problem && <Notice tone="error" role="alert">{problem}</Notice>}
+    {!asking ? <div className={styles.actions}>
+      <Button variant="secondary" onClick={() => setAsking(true)} data-testid="map-project-delete-start">{text.start}</Button></div>
+      : <Notice tone="attention" role="alert">
+        <p>{text.warning(view.name)}</p>
+        <ul>{text.items.map(item => <li key={item}>{item}</li>)}</ul>
+        <p>{text.stays}</p>
+        <div className={styles.actions}>
+          <Button disabled={working} aria-busy={working} onClick={() => void remove()} data-testid="map-project-delete-confirm">
+            {working ? text.working : text.sure}</Button>
+          <Button variant="secondary" disabled={working} onClick={() => setAsking(false)}>{text.cancel}</Button>
+        </div>
+      </Notice>}
   </section>;
 }
 

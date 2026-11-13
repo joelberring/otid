@@ -196,6 +196,8 @@ export {
   createMapProject, createMapProjectFromUpload, inviteMapProjectMember, listMapProjects, readMapProject, readMapProjectSource, removeMapProjectMember, setMapProjectMemberRole,
   updateMapProject
 } from "./map-projects";
+export { deleteMapProject } from "./map-project-delete";
+export type { DeleteMapProjectResult } from "./map-project-delete";
 export { syncMapProject } from "./map-project-sync";
 export {
   acceptMapProjectJoinLink, addMapProjectClubMember, createMapProjectJoinLink, listMapProjectClubMembers, readMapProjectJoinLink, revokeMapProjectJoinLink

@@ -64,7 +64,8 @@ async function summaries(tx: DbExecutor, rows: readonly MapProjectRow[], roles: 
         format: row.baseFormat, versionDate: null, sha256: row.baseSha256 };
     return [{ projectId: row.id, name: row.name, status: row.status, role,
       club: row.clubId ? { clubId: row.clubId, name: clubs.get(row.clubId) ?? "" } : null, base,
-      createdAt: row.createdAt.toISOString(), closedAt: row.closedAt?.toISOString() ?? null, changedObjects: changed.get(row.id) ?? 0,
+      createdAt: row.createdAt.toISOString(), closedAt: row.closedAt?.toISOString() ?? null,
+      lastActiveAt: new Date(Math.max(row.createdAt.getTime(), row.closedAt?.getTime() ?? 0, row.lastOpenedAt?.getTime() ?? 0)).toISOString(), changedObjects: changed.get(row.id) ?? 0,
       outputs: outputs.filter(output => output.projectId === row.id).map(output => ({ outputId: output.id, versionId: output.versionId,
         fileName: output.fileName ?? output.versionFileName ?? "", changes: output.changes, createdAt: output.createdAt.toISOString() })) }];
   });
@@ -92,7 +93,8 @@ export async function listMapProjectsForAccount(tx: DbExecutor, accountId: strin
     const role = await mapProjectRoleOf(tx, accountId, project);
     if (role) roles.set(project.id, role);
   }
-  return { formatVersion: 1, projects: await summaries(tx, projects, roles) };
+  // Senast använda först (ägaren 2026-11-13: listan växer snabbt med prov- och testprojekt).
+  return { formatVersion: 1, projects: (await summaries(tx, projects, roles)).sort((a, b) => b.lastActiveAt.localeCompare(a.lastActiveAt)) };
 }
 
 /**

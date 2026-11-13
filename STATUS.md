@@ -83,6 +83,11 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
   etapper hämtas och räknas mot kvoten två gånger. Etapperna är delkörningar, inte delområden i lagret Etapper.
 - `test/print-layouts-golden.test.ts` faller här också utan den här ändringen; inte undersökt.
 
+### 2026-11-13 – Radera kartprojekt och visa bara aktiva (ingen migration)
+- Ägaren: «man behöver kunna radera kartprojekt och välja att bara visa aktiva». `DELETE /api/organizer/map-projects/[projectId]` (`deleteMapProject`, bara ägaren, samma `manage`-prövning som att avsluta): allt som hör till projektet tas bort i en transaktion med `purgeRows` (som när ett konto tas bort), filerna släpps direkt (`otid_map_content_release`, kvoten minskar), `race_map_project_link` försvinner och banläggningen behåller sin kartfil. Kartversioner i klubbarkivet rörs inte. Pågående laserkörningar/kartjobb (QUEUED/RUNNING) hindrar (422 `MAP_PROJECT_BUSY`); inget avbryts åt användaren. Vanlig radering, ingen papperskorg.
+- Listan: bara öppna som förval, «Visa avslutade (n)» (localStorage), sorterad på senast använt (`lastActiveAt`), sökruta över 10 projekt. Projektsidan: avsnittet «Radera projektet» med andra steget i sidan. Integritetstexten har en rad om kartprojekt.
+- Verifierat: integration `kartprojekt-radera` (4 fall). Inte provat i webbläsare eller med Playwright.
+
 ### 2026-11-13 – Steg L4: när ett kartprojekt senast användes (migration 0119)
 - `map_project.last_opened_at` sätts i `requireMapProjectForAccount`, som all åtkomst med behörighet går genom (webben,
   AI-kopplingen, export): högst en gång i timmen per projekt och bara om raden inte är låst (`skip locked`), så att en läsning

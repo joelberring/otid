@@ -1,7 +1,7 @@
 "use client";
 
 import { useMapProjectFailure } from "./use-map-project-failure";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { mapProjectEn } from "../../i18n/map-project-en";
 import { useTexts } from "../language-provider";
 import Link from "next/link";
@@ -16,6 +16,18 @@ import { NewMapProject } from "./new-map-project";
 import styles from "./map-project.module.css";
 
 
+const SHOW_CLOSED_KEY = "otid.mapProjects.showClosed";
+/** Sökrutan visas när listan har fler projekt än så här. */
+const SEARCH_FROM = 10;
+
+/** Valet «Visa avslutade» minns webbläsaren; ett fel i lagringen (privat läge, spärrad) ger bara förvalet. */
+function readShowClosed(): boolean {
+  try { return window.localStorage.getItem(SHOW_CLOSED_KEY) === "1"; } catch { return false; }
+}
+function writeShowClosed(value: boolean): void {
+  try { window.localStorage.setItem(SHOW_CLOSED_KEY, value ? "1" : "0"); } catch { /* valet gäller då bara tills sidan laddas om */ }
+}
+
 /** ADR-0219: kontots kartprojekt (som medlem, eller som administratör i projektets klubb), en ny karta och ett eget projekt från en fil. */
 export function MyMapProjects() {
   const failure = useMapProjectFailure();
@@ -23,6 +35,17 @@ export function MyMapProjects() {
   const text = useTexts(mapProjectSv.list, mapProjectEn.list);
   const [list, setList] = useState<MapProjectList>();
   const [problem, setProblem] = useState("");
+  const [showClosed, setShowClosed] = useState(false);
+  const [query, setQuery] = useState("");
+  useEffect(() => { setShowClosed(readShowClosed()); }, []);
+  const closedCount = list?.projects.filter(project => project.status === "CLOSED").length ?? 0;
+  // Listan kommer sorterad på senast använt; här filtreras bara på avslutade och sökningen.
+  const shown = useMemo(() => {
+    const needle = query.trim().toLocaleLowerCase("sv");
+    return (list?.projects ?? []).filter(project => (showClosed || project.status === "OPEN")
+      && (!needle || [project.name, project.club?.name ?? "", project.base.fileName].some(value => value.toLocaleLowerCase("sv").includes(needle))));
+  }, [list, showClosed, query]);
+  const toggleClosed = () => { setShowClosed(!showClosed); writeShowClosed(!showClosed); };
   useEffect(() => {
     void clubRequest(mapProjectsBase).then(result => {
       if (result.status === 200) setList(result.json as MapProjectList);
@@ -37,13 +60,23 @@ export function MyMapProjects() {
     <p className={styles.muted}>{text.hint}</p>
     {problem && <Notice tone="error" role="alert">{problem}</Notice>}
     {list && list.projects.length === 0 && <p className={styles.muted}>{text.empty}</p>}
-    {list && list.projects.length > 0 && <ul className={styles.list} data-testid="map-projects">
-      {list.projects.map(project => <li key={project.projectId}>
-        <div><Link href={`/organizer/map-projects/${project.projectId}`}>{project.name}</Link>
-          <span>{[project.club?.name ?? text.own, project.base.fileName, mapProjectText.roles[project.role], text.changed(project.changedObjects),
-            project.status === "CLOSED" ? text.closed : ""].filter(Boolean).join(" · ")}</span></div>
-      </li>)}
-    </ul>}
+    {list && list.projects.length > 0 && <>
+      <div className={styles.actions}>
+        {list.projects.length > SEARCH_FROM && <Field label={text.search} help={text.searchHelp}>
+          <input type="search" value={query} maxLength={120} onChange={event => setQuery(event.target.value)} data-testid="map-projects-search" /></Field>}
+        {(closedCount > 0 || showClosed) && <Button variant="secondary" aria-pressed={showClosed} onClick={toggleClosed} data-testid="map-projects-toggle-closed">
+          {showClosed ? text.hideClosed : text.showClosed(closedCount)}</Button>}
+      </div>
+      {!showClosed && closedCount > 0 && <p className={styles.muted}>{text.onlyActive(closedCount)}</p>}
+      {shown.length === 0 && <p className={styles.muted}>{query.trim() ? text.noMatch : text.noActive}</p>}
+      {shown.length > 0 && <ul className={styles.list} data-testid="map-projects">
+        {shown.map(project => <li key={project.projectId}>
+          <div><Link href={`/organizer/map-projects/${project.projectId}`}>{project.name}</Link>
+            <span>{[project.club?.name ?? text.own, project.base.fileName, mapProjectText.roles[project.role], text.changed(project.changedObjects),
+              text.lastUsed(project.lastActiveAt.slice(0, 10)), project.status === "CLOSED" ? text.closed : ""].filter(Boolean).join(" · ")}</span></div>
+        </li>)}
+      </ul>}
+    </>}
     {!problem && <div className={styles.sections}><MyMapStatsSection /><NewMapProject /><UploadProject /></div>}
   </main>;
 }

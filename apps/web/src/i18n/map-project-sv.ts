@@ -11,7 +11,15 @@ export const mapProjectSv = {
     empty: "Du är inte med i något kartprojekt än.",
     own: "eget",
     changed: (count: number) => plural(count, "ändrat objekt", "ändrade objekt"),
-    closed: "avslutat"
+    closed: "avslutat",
+    showClosed: (count: number) => `Visa avslutade (${count})`,
+    hideClosed: "Visa bara aktiva",
+    onlyActive: (hidden: number) => `${plural(hidden, "avslutat projekt är dolt", "avslutade projekt är dolda")}.`,
+    noActive: "Inga aktiva kartprojekt. Avslutade projekt visas med «Visa avslutade».",
+    search: "Sök bland kartprojekten",
+    searchHelp: "Namn, klubb eller filnamn",
+    noMatch: "Inget kartprojekt matchar sökningen.",
+    lastUsed: (date: string) => `senast använt ${date}`
   },
   roles: { OWNER: "Ägare", EDIT: "Ändra", SUGGEST: "Föreslå", READ: "Läsa" } satisfies Record<MapProjectRole, string>,
   roleHelp: {
@@ -113,6 +121,24 @@ export const mapProjectSv = {
     outputLine: (fileName: string, changes: number, date: string) => `${fileName} · ${plural(changes, "ändring", "ändringar")} · ${date}`,
     inArchive: "i klubbarkivet",
     downloadOutput: (fileName: string) => `Ladda ner ${fileName}`
+  },
+  remove: {
+    title: "Radera projektet",
+    help: "Tar bort hela projektet för alla. Det går inte att ångra och det finns ingen papperskorg.",
+    start: "Radera projektet …",
+    warning: (name: string) => `Radera «${name}» för gott? Det här försvinner:`,
+    items: [
+      "kartans ändringar, förslag och delområden",
+      "underlag (bilder och höjddata) och noteringar med foton och spår",
+      "laserkörningarna och deras filer, och grundfilen i projektet",
+      "medlemmarna och inbjudningarna"
+    ],
+    stays: "Det här står kvar: banläggningar som använt projektets karta (de behåller sin kopia, men kan inte längre ta in projektets ändringar) och kartversioner som skrivits till klubbarkivet.",
+    sure: "Ja, radera",
+    cancel: "Avbryt",
+    working: "Raderar …",
+    busy: "Projektet har pågående laserkörningar eller kartjobb. Avbryt dem i laserpanelen, vänta tills de är klara och försök igen.",
+    gone: (name: string) => `Projektet «${name}» är raderat.`
   },
   version: {
     title: "Ny kartversion",

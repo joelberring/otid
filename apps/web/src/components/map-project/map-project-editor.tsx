@@ -262,9 +262,9 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const panKey = useRef({ down: false, used: false });
   const lockedSymbols = symbolLayers.locked;
   useEffect(() => { if (selected && lockedSymbols.has(selected.object.symbol)) deselect(); }, [lockedSymbols, selected]);
-
   const deselect = () => { setSelected(undefined); setActiveVertex(undefined); setRotating(false); setMoveWhole(false); };
   const cancelDraft = () => { setDraft([]); setPreviewObject(undefined); setCircleCenter(undefined); };
+  const startSplit = (only?: string | null) => { deselect(); cancelDraft(); setNewArea(undefined); if (only !== undefined) setShownArea(only ?? undefined); setTool("split"); setPanelOpen(false); };
 
   const save = useCallback((key: ObjectKey, ref: ObjectRef | null, object: MapObject | undefined, kind: EditKind, point?: Point): boolean => {
     const ok = commit({ key, ref, kind, after: object ? { kind: "OBJECT", object } : { kind: "DELETED" }, point });
@@ -774,7 +774,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
           merging={symbolLayers.merging} message={symbolLayers.message} work={workGroups} views={symbolLayers}
           workPanel={<MapProjectWorkLayers work={work} catalog={catalog} state={symbolLayers.state} onState={symbolLayers.update} />} />
           {georeference && <MapProjectUnderlayPanels view={view} georeference={georeference} bounds={editor.bounds ?? undefined} areas={collab.areas}
-            layers={layers} control={control} importer={importer} symbols={symbols} work={work} />}
+            layers={layers} control={control} importer={importer} symbols={symbols} work={work} onSplit={view.viewer.canDecide ? area => startSplit(area ?? null) : undefined} />}
           {georeference && <MapProjectNorthPanel georeference={georeference} northLines={editor.northLines} />}
           <MapProjectColors colors={editor.colors} saved={editor.colorChanges} canChange={canDecide} ocad={view.base.format === "OCD"} onShow={editor.showColors} onSave={editor.saveColors} />
         </>}
@@ -782,7 +782,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         <MapProjectCollabPanel view={view} collab={collab} shownProposal={shownProposal} onShowProposal={setShownProposal}
           shownArea={shownArea} onShowArea={setShownArea} newArea={!!newArea}
           onNewArea={() => { deselect(); cancelDraft(); setTool("area"); setPanelOpen(false); }}
-          onSplitArea={() => { deselect(); cancelDraft(); setNewArea(undefined); setTool("split"); setPanelOpen(false); }} splitting={tool === "split"}
+          onSplitArea={() => startSplit()} splitting={tool === "split"}
           onSaveArea={(name, assignee) => { if (newArea) void collab.createArea(name, [newArea], assignee).then(ok => { if (ok) { setNewArea(undefined); setTool("select"); } }); }}
           onCancelArea={() => { setNewArea(undefined); setTool("select"); }} stages={stages} onStages={setStages} />
           <NotesPanel notes={notes.notes} problem={notes.problem} onShow={note => { setShownNote(note.noteId); setPanelOpen(false); mapHandle.current?.focus(note.at); }} />

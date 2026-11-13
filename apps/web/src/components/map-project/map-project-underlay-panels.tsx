@@ -6,6 +6,7 @@ import type { Bounds } from "../../lib/course-setting-viewport";
 import type { CatalogSymbol } from "../../lib/map-project-protocol";
 import { MapProjectDepthPanel, MapProjectGreenPanel } from "./map-project-slider-panels";
 import { MapProjectFolderIntake } from "./map-project-folder-intake";
+import { MapProjectGuide } from "./map-project-guide";
 import { MapProjectClearCutPanel, MapProjectForestImagePanel } from "./map-project-forest-panels";
 import { MapProjectImportPanel } from "./map-project-import-panel";
 import { MapProjectLaserPanel } from "./map-project-laser-panel";
@@ -20,6 +21,7 @@ import { MapProjectMoisturePanel } from "./map-project-moisture-panel";
 import { MapProjectOrthoPanel } from "./map-project-ortho-panel";
 import type { useMapProjectControlPoints } from "./use-map-project-control-points";
 import type { useMapProjectImport } from "./use-map-project-import";
+import { useMapProjectLaser } from "./use-map-project-laser";
 import type { useMapProjectLayers } from "./use-map-project-layers";
 import type { useMapProjectWorkLayers } from "./use-map-project-work-layers";
 
@@ -27,15 +29,20 @@ import type { useMapProjectWorkLayers } from "./use-map-project-work-layers";
  * Underlagen i editorns sidopanel (översynen 2026-11-10 G1: utbrutet ur `map-project-editor.tsx`): bilderna med passpunkter,
  * ortofoto, markfuktighet, laser, vektorimporten och mappen med äldre underlag. Bara när kartan har en georeferens.
  */
-export function MapProjectUnderlayPanels({ view, georeference, bounds, areas, layers, control, importer, symbols, work }: {
+export function MapProjectUnderlayPanels({ view, georeference, bounds, areas, layers, control, importer, symbols, work, onSplit }: {
   view: MapProjectView; georeference: MapGeoreference; bounds: Bounds | undefined;
   areas: readonly { areaId: string; name: string; polygon: readonly (readonly Point[])[] }[];
   layers: ReturnType<typeof useMapProjectLayers>; control: ReturnType<typeof useMapProjectControlPoints>;
   importer: ReturnType<typeof useMapProjectImport>; symbols: ReadonlyMap<string, CatalogSymbol>; work: ReturnType<typeof useMapProjectWorkLayers>;
+  /** Guiden: starta «Dela med ett streck» för en del eller hela kartområdet (bara för den som får dela). */
+  onSplit: ((areaId: string | undefined) => void) | undefined;
 }) {
   const steps = useTexts(mapUnderlayStepsSv, mapUnderlayStepsEn);
+  // Körningarna och uppgifterna läses en gång och delas av guiden och laserpanelen.
+  const laser = useMapProjectLaser({ view, layers, importer, georeference, bounds, areas });
   return <MapProjectLayersPanel layers={layers} mapEpsg={georeference.crs.kind === "EPSG" ? georeference.crs.code : undefined}
     control={control} scale={georeference.scale} area={bounds}
+    before={<MapProjectGuide view={view} laser={laser} importer={importer} areas={areas} onSplit={onSplit} />}
     after={<>
       {/* Ägaren 2026-11-12: i den ordning man arbetar – hämta underlag, kör lasern, justera med reglage, egna filer. */}
       <h3 className={styles.groupTitle}>{steps.sources}</h3>
@@ -45,7 +52,7 @@ export function MapProjectUnderlayPanels({ view, georeference, bounds, areas, la
       <MapProjectForestImagePanel view={view} layers={layers} georeference={georeference} bounds={bounds} areas={areas} importer={importer} />
       <h3 className={styles.groupTitle}>{steps.laser}</h3>
       <p className={styles.muted}>{steps.laserHelp}</p>
-      <MapProjectLaserPanel view={view} layers={layers} importer={importer} georeference={georeference} bounds={bounds} areas={areas} />
+      <MapProjectLaserPanel view={view} laser={laser} importer={importer} georeference={georeference} bounds={bounds} areas={areas} />
       <h3 className={styles.groupTitle}>{steps.adjust}</h3>
       <p className={styles.muted}>{steps.adjustHelp}</p>
       <MapProjectKnollPanel view={view} importer={importer} />

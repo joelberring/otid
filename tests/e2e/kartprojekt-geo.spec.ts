@@ -70,6 +70,9 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
 
   // K5: laserrutorna och jobbet.
   const laser = owner.getByTestId("map-project-laser");
+  // Guiden «Ny grundkarta» står överst och följer samma körningar: uppgifterna finns och området ryms, så nästa steg är att köra.
+  const guide = owner.getByTestId("map-project-guide");
+  await expect(guide).toHaveAttribute("data-step", "run");
   await laser.getByText("Laserdata och Karttapullautin").click();
   await laser.getByTestId("map-project-laser-search").click();
   await expect(laser.getByTestId("map-project-laser-items")).toContainText("2024-05-20 · 24E001_658_67_2550 · 123 MB", { timeout: 30_000 });
@@ -89,6 +92,7 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   // Grundkartan G1: laserdatan klipps till kartans område med 50 m marginal.
   await expect(laser.getByTestId("map-project-laser-job")).toContainText(/Klippt till området, \d+ × \d+ m/);
   await expect(laser.getByTestId("map-project-laser-job")).toContainText("cliff1 0.95, cliff2 1.7");
+  await expect(guide).toHaveAttribute("data-step", "wait");
 
   // Geo-arbetaren tar jobbet; inga uppgifter till Lantmäteriet följer med till den.
   const worker = await runGeoWorker(baseURL!);
@@ -98,6 +102,7 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
 
   await expect(laser.getByTestId("map-project-laser-job")).toContainText("Klart", { timeout: 30_000 });
   await expect(laser.getByTestId("map-project-laser-job")).toContainText("Bilden är tillagd som underlag.");
+  await expect(guide).toHaveAttribute("data-step", "review");
   await expect(laser.getByTestId("map-project-laser-job")).toContainText("Fuktigheten är tillagd som underlag.");
   // Terrängskuggningen, reliefen, fuktdjupet och vegetationsklasserna (för reglagen) ur laserns raster är också underlag.
   await expect(owner.getByTestId("map-project-layer")).toHaveCount(7, { timeout: 20_000 });

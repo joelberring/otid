@@ -26,7 +26,9 @@ function problemText(problem: LayerProblem, text: Texts<typeof mapProjectLayersS
  * ADR-0219 tillägget om underlagen (K4a): underlagen i sidopanelen. Varje underlag kan döljas (för en själv) och göras mer eller
  * mindre genomskinligt (för alla) och tas bort av den som lade till det och ägarna; ägarna ändrar ordningen. Nya läggs till med bild och kanske världsfil.
  */
-export function MapProjectLayersPanel({ layers, mapEpsg, after, control, scale, area }: { layers: Layers; mapEpsg: number | undefined;
+export function MapProjectLayersPanel({ layers, mapEpsg, before, after, control, scale, area }: { layers: Layers; mapEpsg: number | undefined;
+  /** Guiden «Ny grundkarta», överst under rubriken. */
+  before?: ReactNode;
   /** K4b: importen av vektorer, under underlagen. */
   after?: ReactNode;
   /** K6b: passpunkterna, kartans skala (för avvikelserna i meter) och området där en bild utan georeferens läggs. */
@@ -43,6 +45,7 @@ export function MapProjectLayersPanel({ layers, mapEpsg, after, control, scale, 
 
   return <section className={styles.panel} aria-labelledby="map-project-layers" data-testid="map-project-layers">
     <h2 id="map-project-layers">{text.heading}</h2>
+    {before}
     {layers.layers.length === 0 ? <p className={styles.muted}>{text.none}</p> : <ul className={styles.rows}>
       {layers.layers.map((layer, index) => <li key={layer.layerId} className={styles.layerRow} data-testid="map-project-layer">
         <label className={styles.check}><input type="checkbox" checked={!layers.hidden.has(layer.layerId)} aria-label={text.show(layer.name)}

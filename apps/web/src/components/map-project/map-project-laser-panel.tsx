@@ -1,30 +1,22 @@
 "use client";
 
 import { clipCenter, laserClip, sampleClip } from "../../lib/map-project-clip";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { mapSourcesEn } from "../../i18n/map-sources-en";
 import { useTexts } from "../language-provider";
-import { GEO_CLIP_MARGIN_M, GEO_JOB_DEFAULTS, GEO_JOB_MAX_TILES, newestLaserTiles, PULLAUTIN_SETTINGS, type GeoExtraKind, type GeoJobList, type GeoJobView, type MapProjectClearCutList, type MapProjectView, type MapSourceCredentialView } from "@o-tid/contracts";
+import { GEO_JOB_MAX_TILES, newestLaserTiles, PULLAUTIN_SETTINGS, type GeoExtraKind, type GeoJobView, type MapProjectView } from "@o-tid/contracts";
 import type { MapGeoreference } from "@o-tid/map-file";
-import { VectorParseError, type SourceData } from "@o-tid/map-revision";
-import { baseMapOutputs, clearCutFeatures, clipWgs84 } from "@o-tid/map-revision/base-map";
-import { choiceSettings, choicesOf, cliffChoicesOf, CLIFF_STYLES, DEFAULT_CHOICES, LASER_CHOICES, typedOf, type ChoiceLevel, type CliffStyle, type LaserChoices } from "../../lib/map-project-laser-choices";
+import { LASER_FORM_DEFAULTS, laserJobBody, type LaserExtra as ExtraItem, type LaserItem } from "../../lib/map-project-laser-request";
+import { choiceSettings, choicesOf, cliffChoicesOf, CLIFF_STYLES, LASER_CHOICES, typedOf, type ChoiceLevel, type CliffStyle, type LaserChoices } from "../../lib/map-project-laser-choices";
 import { mapSourcesSv } from "../../i18n/map-sources-sv";
-import { accountRequest } from "../../lib/account-client";
-import { clubRequest } from "../../lib/club-archive-client";
 import type { Bounds } from "../../lib/course-setting-viewport";
-import { areaBox, type BoxArea } from "../../lib/map-project-area-box";
-import { mapProjectBase } from "../../lib/map-project-client";
 import { Button } from "../ui";
 import type { useMapProjectImport } from "./use-map-project-import";
-import type { useMapProjectLayers } from "./use-map-project-layers";
+import { LaserCredentialHint, LaserServerStatus } from "./map-project-laser-shared";
+import { LASER_ACTIVE as ACTIVE, type LaserArea as Area, type useMapProjectLaser } from "./use-map-project-laser";
 import styles from "./map-project-editor.module.css";
 
-interface ExtraItem { kind: GeoExtraKind; id: string; href: string }
-interface LaserItem { id: string; datetime: string | null; href: string; bbox: [number, number, number, number] | null; bytes: number | null; epsg: number | null }
-type Area = BoxArea & { areaId: string };
 const INTERVALS = [2.5, 5] as const;
-const ACTIVE = new Set(["QUEUED", "RUNNING"]);
 /** Ägaren 2026-11-10: Karttapullautins övriga inställningar (kurvor, branter, grönt), utöver ekvidistansen och formlinjerna. */
 const MORE_SETTINGS = ["smoothing", "curviness", "knolls", "formlinesteepness", "cliff1", "cliff2", "cliffsteepfactor", "yellowheight", "greenground", "greenhigh",
   "topweight", "greenscale", "undergrowth"] as const satisfies readonly (keyof typeof PULLAUTIN_SETTINGS)[];
@@ -39,15 +31,14 @@ export function moreSettings(fields: Readonly<Record<string, string>>): Record<s
 /**
  * ADR-0219 K5: laserdata från Lantmäteriet och Karttapullautin på geo-servern. Rutorna söks för kartan eller en etapp; jobbet
  * körs på geo-servern och resultatet (bilden) blir ett underlag. Kurvor och de andra linjerna läses in som kandidater (K4b).
+ * Sökningen, starten, listan och inläsningen ligger i `useMapProjectLaser`, som delas med guiden «Ny grundkarta».
  */
-export function MapProjectLaserPanel({ view, layers, importer, georeference, bounds, areas }: { view: MapProjectView;
-  layers: ReturnType<typeof useMapProjectLayers>; importer: ReturnType<typeof useMapProjectImport>; georeference: MapGeoreference | undefined;
+export function MapProjectLaserPanel({ view, laser, importer, georeference, bounds, areas }: { view: MapProjectView;
+  laser: ReturnType<typeof useMapProjectLaser>; importer: ReturnType<typeof useMapProjectImport>; georeference: MapGeoreference | undefined;
   bounds: Bounds | undefined; areas: readonly Area[] }) {
   const mapSourcesText = useTexts(mapSourcesSv, mapSourcesEn);
   const text = useTexts(mapSourcesSv.laser, mapSourcesEn.laser);
-  const base = mapProjectBase(view.projectId);
-  const [credential, setCredential] = useState<MapSourceCredentialView>();
-  const [list, setList] = useState<GeoJobList>();
+  const { credential, list, ready } = laser, busy = laser.busy, message = laser.messageFor("panel");
   const [where, setWhere] = useState("");
   const [items, setItems] = useState<LaserItem[]>();
   // G8: Lantmäteriets Marktäcke och Byggnad för rutan (när kontot kommer åt dem), och vilka som ska läsas.
@@ -55,103 +46,56 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
   const [skippedExtras, setSkippedExtras] = useState<ReadonlySet<GeoExtraKind>>(new Set());
   const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set());
   const [name, setName] = useState("");
-  const [interval, setInterval_] = useState<number>(GEO_JOB_DEFAULTS.contourInterval);
-  const [formline, setFormline] = useState<number>(GEO_JOB_DEFAULTS.formline);
+  const [interval, setInterval_] = useState<number>(LASER_FORM_DEFAULTS.interval);
+  const [formline, setFormline] = useState<number>(LASER_FORM_DEFAULTS.formline);
   const [more, setMore] = useState<Readonly<Record<string, string>>>({});
-  const [choices, setChoices] = useState<LaserChoices>(DEFAULT_CHOICES);
-  const [cliffStyle, setCliffStyle] = useState<CliffStyle>("few");
-  const [cliffTags, setCliffTags] = useState(false);
+  const [choices, setChoices] = useState<LaserChoices>(LASER_FORM_DEFAULTS.choices);
+  const [cliffStyle, setCliffStyle] = useState<CliffStyle>(LASER_FORM_DEFAULTS.cliffStyle);
+  const [cliffTags, setCliffTags] = useState(LASER_FORM_DEFAULTS.cliffTags);
   // G6 (ägaren 2026-11-11: «itereringar av olika lager, t.ex. grönt, efter första körning»): ett klart jobb körs om med samma
   // rutor och område men nya inställningar, och resultaten jämförs innan något läggs in i kartan.
   const [rerun, setRerun] = useState<GeoJobView>();
   // Provrutan: «» hela området, «middle» mitten av jobbets område, annars en etapps mitt.
   const [sample, setSample] = useState("");
   // Ägaren 2026-11-11: fuktigheten och vegetationen är förvalda, så att kärr och grönt alltid kommer med i grundkartan.
-  const [moisture, setMoisture] = useState(true);
-  const [channelHa, setChannelHa] = useState<number>(GEO_JOB_DEFAULTS.channelHa);
-  const [wetMeters, setWetMeters] = useState<number>(GEO_JOB_DEFAULTS.wetMeters);
-  const [vegetation, setVegetation] = useState(true);
-  const [minAreaM2, setMinAreaM2] = useState<number>(GEO_JOB_DEFAULTS.minAreaM2);
-  const [busy, setBusy] = useState<string>();
-  const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
+  const [moisture, setMoisture] = useState(LASER_FORM_DEFAULTS.moisture);
+  const [channelHa, setChannelHa] = useState<number>(LASER_FORM_DEFAULTS.channelHa);
+  const [wetMeters, setWetMeters] = useState<number>(LASER_FORM_DEFAULTS.wetMeters);
+  const [vegetation, setVegetation] = useState(LASER_FORM_DEFAULTS.vegetation);
+  const [minAreaM2, setMinAreaM2] = useState<number>(LASER_FORM_DEFAULTS.minAreaM2);
   const area = areas.find(row => row.areaId === where);
-  const say = (error: string | number | undefined) => setMessage({ tone: "error", text: typeof error === "string" && error in text.problems
-    ? (text.problems as unknown as Record<string, string>)[error]! : text.problems.generic(error ?? 0) });
-
-  const load = useCallback(async () => {
-    const result = await clubRequest(`${base}/geo-jobs`, "GET").catch(() => undefined);
-    if (result?.status === 200) setList(result.json as GeoJobList);
-  }, [base]);
-  useEffect(() => {
-    void accountRequest("/api/account/map-sources/lantmateriet").then(result => {
-      if (result.status === 200) setCredential(result.json as MapSourceCredentialView);
-    }, () => undefined);
-    void load();
-  }, [load]);
-  // K6b: en DWG-ritning som just skickats från importen syns här som ett jobb.
-  const dwgSent = importer.dwgSent;
-  useEffect(() => { if (dwgSent) void load(); }, [dwgSent, load]);
-  // Medan ett jobb väntar eller pågår: läget var tionde sekund, och underlagen när det blivit klart.
-  const active = list?.jobs.some(job => ACTIVE.has(job.status)) ?? false;
-  useEffect(() => {
-    if (!active) return;
-    const timer = window.setInterval(() => void load(), 10_000);
-    return () => window.clearInterval(timer);
-  }, [active, load]);
-  const doneCount = list?.jobs.filter(job => job.status === "DONE").length ?? 0;
-  const reloadLayers = layers.reload;
-  useEffect(() => { if (doneCount > 0) void reloadLayers(); }, [doneCount, reloadLayers]);
   useEffect(() => { setItems(undefined); setExtras([]); setChosen(new Set()); setName(text.defaultName(area?.name)); }, [where, area?.name]);
 
   if (!view.viewer.canPropose || !georeference || !bounds) return null;
 
   async function search() {
-    setBusy(text.searching); setMessage(undefined);
-    try {
-      const result = await clubRequest(`${base}/sources/lantmateriet/laser`, "POST", { formatVersion: 1, box: areaBox(bounds!, georeference!, area).wgs84 })
-        .catch(() => ({ status: 0, json: undefined }));
-      const body = result.json as { items?: LaserItem[]; extras?: ExtraItem[]; error?: string } | undefined;
-      if (result.status !== 200 || !body?.items) { say(body?.error ?? result.status); return; }
-      setItems(body.items); setExtras(body.extras ?? []);
-      setChosen(new Set(newestLaserTiles(body.items).map(item => item.id)));
-    } finally { setBusy(undefined); }
+    const found = await laser.search(area, "panel");
+    if (!found) return;
+    setItems(found.items); setExtras(found.extras);
+    setChosen(new Set(newestLaserTiles(found.items).map(item => item.id)));
   }
 
-  // Ägaren 2026-11-11: utan etapp klipps laserdatan till kartans eget område (polygonen), inte till kartbladets ruta som är
-  // ungefär 1,5 gånger så stor per sida (drygt dubbla ytan att bearbeta).
-  const mapArea = !area && view.area?.[0] && view.area[0].length >= 3 ? { name: "", polygon: view.area } : undefined;
-  const clip = laserClip(bounds, georeference, GEO_CLIP_MARGIN_M, area ?? mapArea);
+  // Utan etapp klipps laserdatan till kartans eget område (polygonen), se `clipOf`.
+  const clip = laser.clipOf(area);
   const sampleArea = areas.find(row => row.areaId === sample);
   const sampleCenter = !rerun?.clip || !sample ? undefined : sample === "middle" ? clipCenter(rerun.clip)
     : sampleArea ? (box => box && clipCenter(box))(laserClip(bounds, georeference, 0, sampleArea)) : undefined;
   const sampled = rerun && sampleCenter ? sampleClip(sampleCenter, rerun.clip) : undefined;
   async function start() {
-    const tiles = (items ?? []).filter(item => chosen.has(item.id)).map(item => ({ id: item.id, href: item.href, bbox: item.bbox, epsg: item.epsg, datetime: item.datetime }));
-    const chosenSettings = choiceSettings(choices, moreSettings(more), cliffStyle, cliffTags);
-    setBusy(text.searching); setMessage(undefined);
-    try {
-      const result = await clubRequest(`${base}/geo-jobs`, "POST", { formatVersion: 1, requestId: crypto.randomUUID(), kind: "PULLAUTIN",
-        name: (name.trim() || text.defaultName(area?.name)).slice(0, sampled ? 68 : 80) + (sampled ? text.sampleSuffix : ""), settings: { contour_interval: interval, formline, ...chosenSettings.settings },
-        ...(chosenSettings.cliffs ? { cliffs: chosenSettings.cliffs } : {}),
-        // Kör om: rutorna, området och Lantmäteriets produkter tas från jobbet; annars de valda rutorna och kartans område.
-        ...(rerun ? { rerunOf: rerun.jobId, ...(sampled ? { clip: sampled } : {}) } : { tiles,
-          // Grundkartan G1: bara kartans område (eller etappen) med marginal bearbetas.
-          ...(clip ? { clip } : {}), ...(area ? { areaId: area.areaId } : {}),
-          ...(clip && extras.some(extra => !skippedExtras.has(extra.kind)) ? { extras: extras.filter(extra => !skippedExtras.has(extra.kind)) } : {}) }),
-        ...(moisture ? { moisture: { channelHa, wetMeters, moistMeters: wetMeters * 2 } } : {}),
-        ...(vegetation ? { vegetation: { minAreaM2 } } : {}) }).catch(() => ({ status: 0, json: undefined }));
-      const body = result.json as { error?: string } | undefined;
-      if (result.status !== 201 && result.status !== 200) { say(body?.error ?? result.status); return; }
-      setItems(undefined); setRerun(undefined); setSample(""); setMessage({ tone: "ok", text: text.started });
-      await load();
-    } finally { setBusy(undefined); }
+    const tiles = (items ?? []).filter(item => chosen.has(item.id));
+    const ok = await laser.start(laserJobBody({ name: (name.trim() || text.defaultName(area?.name)).slice(0, sampled ? 68 : 80) + (sampled ? text.sampleSuffix : ""),
+      interval, formline, chosen: choiceSettings(choices, moreSettings(more), cliffStyle, cliffTags),
+      // Kör om: rutorna, området och Lantmäteriets produkter tas från jobbet; annars de valda rutorna och kartans område.
+      target: rerun ? { rerunOf: rerun.jobId, clip: sampled } : { tiles, clip, areaId: area?.areaId, extras: extras.filter(extra => !skippedExtras.has(extra.kind)) },
+      moisture: moisture ? { channelHa, wetMeters } : undefined, vegetation: vegetation ? { minAreaM2 } : undefined }), "panel");
+    if (ok) { setItems(undefined); setRerun(undefined); setSample(""); }
   }
 
   /** Formuläret med jobbets inställningar, för att köra om det med andra. */
   function startRerun(job: GeoJobView) {
     const settings = job.settings;
     const picked = choicesOf(settings);
-    setRerun(job); setItems(undefined); setMessage(undefined);
+    setRerun(job); setItems(undefined); laser.clear();
     setName(text.rerunName(job.name));
     setInterval_(settings.contour_interval ?? 5); setFormline(settings.formline ?? 2);
     const cliffs = cliffChoicesOf(job.cliffs);
@@ -162,82 +106,18 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
     if (job.vegetation) setMinAreaM2(job.vegetation.minAreaM2);
   }
 
-  async function remove(job: GeoJobView) {
-    const result = await clubRequest(`${base}/geo-jobs/${job.jobId}`, "DELETE").catch(() => ({ status: 0, json: undefined }));
-    if (result.status !== 200) say((result.json as { error?: string } | undefined)?.error ?? result.status);
-    await load();
-  }
-
-  /** En resultatfil som text, eller statusen när den inte gick att hämta. */
-  async function read(job: GeoJobView, output: string): Promise<string | number> {
-    const response = await fetch(`${base}/geo-jobs/${job.jobId}/outputs/${output}`, { credentials: "same-origin" }).catch(() => undefined);
-    if (!response?.ok) return response?.status ?? 0;
-    return response.text();
-  }
-
-  /**
-   * En fil, eller hela grundkartan (jobbets delar och OpenStreetMap för samma ruta), som kandidater i importen. Ägaren
-   * 2026-11-12 («nu vet man inte om datorn hängt sig»): filerna tolkas och sätts ihop i kandidaternas Worker, och
-   * statusraden säger vilket steg som pågår.
-   */
-  async function candidates(job: GeoJobView, outputs: readonly string[], label: string, baseMap = false) {
-    setMessage(undefined);
-    const box = baseMap && job.clip ? clipWgs84(job.clip) : undefined;
-    const total = outputs.length + (box ? 2 : 0);
-    setBusy(text.steps.fetching(1, total));
-    try {
-      const parts: { name: string; body: string }[] = [];
-      for (const output of outputs) {
-        setBusy(text.steps.fetching(parts.length + 1, total));
-        const body = await read(job, output);
-        if (typeof body === "number") { say(body); return; }
-        parts.push({ name: output, body });
-      }
-      // G8: OpenStreetMap (stigar, vägar, hus, ledningar) för jobbets ruta följer med i grundkartan; går det inte sägs det.
-      let osm: SourceData | undefined, osmMissing = false;
-      if (box) {
-        setBusy(text.steps.fetching(outputs.length + 1, total));
-        const response = await clubRequest(`${base}/sources/osm`, "POST", { formatVersion: 1, box }).catch(() => ({ status: 0, json: undefined }));
-        osm = response.status === 200 ? (response.json as { data?: SourceData } | undefined)?.data : undefined;
-        osmMissing = !osm;
-      }
-      // Skogsstyrelsens hyggen (ägaren 2026-11-11) efter ålder i dag och jämfört med laserskanningen.
-      let cuts: ReturnType<typeof clearCutFeatures> | undefined;
-      if (box) {
-        setBusy(text.steps.fetching(total, total));
-        const response = await clubRequest(`${base}/sources/avverkningar`, "POST", { formatVersion: 1, box }).catch(() => ({ status: 0, json: undefined }));
-        const list = response.status === 200 ? response.json as MapProjectClearCutList | undefined : undefined;
-        if (list) cuts = clearCutFeatures(list.cuts, new Date().toISOString().slice(0, 10), job.scannedAt);
-      }
-      const data = await importer.readBaseMap({ parts, merge: baseMap, osm, scale: georeference?.scale,
-        cuts: cuts && { features: cuts.features, afterScan: cuts.afterScan } },
-        step => setBusy(step.step === "read" ? text.steps.reading(step.done, step.total) : text.steps.merging));
-      // Karttapullautins filer är i laserns SWEREF 99 TM; en DWG-ritnings koordinatsystem gissas eller anges i importen.
-      importer.openData(`${job.name} – ${label}`, job.kind === "DWG" ? data : { ...data, crs: data.crs ?? 3006 }, job.kind !== "DWG",
-        // Ägaren 2026-11-12: en etapps resultat klipps mot etappens gräns, så att grannetapperna inte får dubbla linjer.
-        areas.find(row => row.areaId === job.areaId)?.polygon);
-      const cutText = cuts ? ` ${text.clearCuts(cuts.counts.fresh, cuts.counts.scrub, cuts.counts.young, job.scannedAt)}` : "";
-      setMessage({ tone: "ok", text: `${osmMissing ? `${text.loaded(label)} ${text.osmMissing}` : text.loaded(label)}${cutText}` });
-    } catch (error) {
-      setMessage({ tone: "error", text: error instanceof VectorParseError ? error.message : text.problems.generic("DXF") });
-    } finally { setBusy(undefined); }
-  }
-
-  const ready = credential?.saved?.readable;
   const selected = (items ?? []).filter(item => chosen.has(item.id)).length;
   return <details className={styles.settings} data-testid="map-project-laser">
     <summary>{text.heading}</summary>
     <p className={styles.muted}>{text.help}</p>
-    {list && <p className={styles.muted} role="status" data-testid="map-project-laser-server">{text.server[list.server.state]}
-      {list.server.detail ? ` ${list.server.detail}` : ""}
-      {list.queue && list.queue.running + list.queue.waiting > 0 && <span data-testid="map-project-laser-queue"> {text.queue(list.queue.running, list.queue.waiting, list.queue.users)}</span>}</p>}
-    {credential && !ready ? <p className={styles.muted}>{mapSourcesText.ortho.noCredential} <a href="/konto#konto-lantmateriet">{mapSourcesText.ortho.account}</a></p> : <>
+    {list && <LaserServerStatus list={list} testId="map-project-laser" />}
+    {credential && !ready ? <LaserCredentialHint /> : <>
       <label>{mapSourcesText.ortho.where}<select value={where} onChange={event => setWhere(event.target.value)} data-testid="map-project-laser-area">
         <option value="">{mapSourcesText.ortho.whole}</option>
         {areas.map(row => <option key={row.areaId} value={row.areaId}>{row.name}</option>)}
       </select></label>
       <span className={styles.actions}>
-        <Button variant="secondary" disabled={!!busy} onClick={() => void search()} data-testid="map-project-laser-search">{text.search}</Button>
+        <Button variant="secondary" disabled={busy} onClick={() => void search()} data-testid="map-project-laser-search">{text.search}</Button>
       </span>
       {items && items.length === 0 && <p className={styles.muted}>{text.none}</p>}
       {((items && items.length > 0) || rerun) && <fieldset className={styles.importLayers} data-testid="map-project-laser-items">
@@ -305,13 +185,13 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
           {[100, 300, 600, 1000].map(value => <option key={value} value={value}>{text.minAreaOption(value)}</option>)}
         </select></label>}
         <span className={styles.actions}>
-          <Button disabled={!!busy || (!rerun && (selected === 0 || selected > GEO_JOB_MAX_TILES))} onClick={() => void start()} data-testid="map-project-laser-start">
+          <Button disabled={busy || (!rerun && (selected === 0 || selected > GEO_JOB_MAX_TILES))} onClick={() => void start()} data-testid="map-project-laser-start">
             {rerun ? text.rerunStart : text.start(selected)}</Button>
           {!rerun && selected > GEO_JOB_MAX_TILES && <span role="alert" className={styles.problem}>{text.tooManyTiles(selected, GEO_JOB_MAX_TILES)}</span>}
         </span>
       </fieldset>}
     </>}
-    {(busy || importer.computing) && <p role="status" className={styles.muted} data-testid="map-project-laser-status">{busy ?? text.steps.candidates}</p>}
+    {(laser.busyFor("panel") || importer.computing) && <p role="status" className={styles.muted} data-testid="map-project-laser-status">{laser.busyFor("panel") ?? text.steps.candidates}</p>}
     {message && <p role={message.tone === "ok" ? "status" : "alert"} className={message.tone === "ok" ? styles.muted : styles.problem}
       data-testid="map-project-laser-message">{message.text}</p>}
     {list && list.jobs.length > 0 && <div data-testid="map-project-laser-jobs">
@@ -330,16 +210,16 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
           {job.moistureLayerId && <span className={styles.muted}> · {text.moistureAdded}</span>}
           {job.skippedSteps.length > 0 && <span className={styles.muted} data-testid="map-project-laser-skipped"> · {text.skippedSteps(job.skippedSteps.map(step => text.stepNames[step] ?? step).join(", "))}</span>}
           {job.status === "DONE" && importer.canImport && <span className={styles.actions}>
-            {job.kind === "PULLAUTIN" && baseMapOutputs(job.outputs.map(output => output.name)).length > 1 && <Button disabled={!!busy} data-testid="map-project-laser-base-map"
-              onClick={() => void candidates(job, baseMapOutputs(job.outputs.map(output => output.name)), text.baseMap, true)}>{text.loadBaseMap}</Button>}
-            {job.outputs.filter(output => output.name in text.outputs).map(output => <Button key={output.name} variant="secondary" disabled={!!busy}
-              onClick={() => void candidates(job, [output.name], text.outputs[output.name]!)}>{text.load(text.outputs[output.name]!)}</Button>)}
+            {laser.baseMapFiles(job).length > 1 && <Button disabled={busy} data-testid="map-project-laser-base-map"
+              onClick={() => void laser.loadBaseMap(job, "panel")}>{text.loadBaseMap}</Button>}
+            {job.outputs.filter(output => output.name in text.outputs).map(output => <Button key={output.name} variant="secondary" disabled={busy}
+              onClick={() => void laser.candidates(job, [output.name], text.outputs[output.name]!, false, "panel")}>{text.load(text.outputs[output.name]!)}</Button>)}
           </span>}
           {job.kind === "PULLAUTIN" && !ACTIVE.has(job.status) && importer.canImport && ready && <span className={styles.actions}>
-            <Button variant="secondary" disabled={!!busy} onClick={() => startRerun(job)} data-testid="map-project-laser-rerun-start">{text.rerun}</Button>
+            <Button variant="secondary" disabled={busy} onClick={() => startRerun(job)} data-testid="map-project-laser-rerun-start">{text.rerun}</Button>
           </span>}
           {(job.own || view.viewer.canManage) && <span className={styles.actions}>
-            <Button variant="secondary" onClick={() => void remove(job)}>{ACTIVE.has(job.status) ? text.cancel : text.remove}</Button>
+            <Button variant="secondary" onClick={() => void laser.remove(job, "panel")}>{ACTIVE.has(job.status) ? text.cancel : text.remove}</Button>
           </span>}
         </li>)}
       </ul>

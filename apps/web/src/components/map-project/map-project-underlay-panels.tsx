@@ -4,7 +4,7 @@ import type { MapProjectView } from "@o-tid/contracts";
 import type { MapGeoreference, Point } from "@o-tid/map-file";
 import type { Bounds } from "../../lib/course-setting-viewport";
 import type { CatalogSymbol } from "../../lib/map-project-protocol";
-import { MapProjectDepthPanel, MapProjectGreenPanel } from "./map-project-slider-panels";
+import { MapProjectDepthPanel, MapProjectGreenPanel, MapProjectRockPanel } from "./map-project-slider-panels";
 import { MapProjectFolderIntake } from "./map-project-folder-intake";
 import { MapProjectGuide } from "./map-project-guide";
 import { MapProjectClearCutPanel, MapProjectForestImagePanel } from "./map-project-forest-panels";
@@ -63,6 +63,7 @@ export function MapProjectUnderlayPanels({ view, georeference, bounds, areas, la
       <MapProjectFlatPanel layers={layers} georeference={georeference} importer={importer} />
       <MapProjectGreenPanel layers={layers} georeference={georeference} importer={importer} />
       <MapProjectDepthPanel layers={layers} georeference={georeference} importer={importer} />
+      <MapProjectRockPanel layers={layers} georeference={georeference} importer={importer} />
       <MapProjectClearCutPanel view={view} layers={layers} georeference={georeference} bounds={bounds} areas={areas} importer={importer} />
       <MapProjectPhotoPanel layers={layers} georeference={georeference} importer={importer} />
       <h3 className={styles.groupTitle}>{steps.other}</h3>

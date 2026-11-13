@@ -84,7 +84,7 @@ export function jobMemoryGb(job: { readonly clip?: Job["clip"]; readonly tiles: 
 }
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 /** Arbetarens version (samma som `GEO_WORKER_VERSION` i contracts; servern ger inga jobb till en äldre). */
-export const WORKER_VERSION = 30;
+export const WORKER_VERSION = 31;
 
 /**
  * Ägarens sprintkörningar 2026-11-13 föll med «stup.dxf kunde inte skickas (422)»: kontots kvot för kartfiler var full.
@@ -402,6 +402,13 @@ async function runJob(job: Job): Promise<void> {
       const rockMode = job.settings.rock ?? 1;
       const rock = openAt && rockMode > 0 ? (await step("rock", "Letar berg i dagen", { ground, water: waterData, open: maskOf(ground, openAt),
         forest: forestAt ? maskOf(ground, forestAt) : undefined }))?.rock ?? [] : [];
+      // Ägaren 2026-11-13 («reglage att klassa fler/färre områden som berg»): bergbilden för reglaget i webbläsaren, även när
+      // berg.dxf lämnar berget utanför (inställningen `rock` 0). Utan vegetationen (som anger öppenheten) skrivs ingen bild.
+      const rockMap = openAt ? await step("rockmap", "Skriver bergbilden", { ground, water: waterData, open: maskOf(ground, openAt) }) : undefined;
+      if (rockMap) {
+        await writeFile(join(dir, "berg.png"), rockMap.png);
+        await writeFile(join(dir, "berg.pgw"), rockMap.world);
+      }
       const hills = (await step("knolls", "Letar små kullar", { ground, water: waterData, stones: stones.stones, knollShare: job.settings.knollshare,
         wet: wetAt ? maskOf(ground, wetAt) : undefined })) ?? { knolls: [], capped: 0, candidates: [] };
       // Ägaren 2026-11-12: alla möjliga kullar med sina mått, så att reglagen i webbläsaren väljer utan ny körning.
@@ -440,6 +447,7 @@ async function runJob(job: Job): Promise<void> {
       ...(files.has("relief.png") ? [["relief.png", "relief.png", "image/png"], ["relief.pgw", "relief.pgw", "text/plain"]] as const : []),
       ...(files.has("diken.dxf") ? [["diken.dxf", "diken.dxf", "application/dxf"]] as const : []),
       ...(files.has("berg.dxf") ? [["berg.dxf", "berg.dxf", "application/dxf"]] as const : []),
+      ...(files.has("berg.png") ? [["berg.png", "berg.png", "image/png"], ["berg.pgw", "berg.pgw", "text/plain"]] as const : []),
       ...(files.has("belagt.dxf") ? [["belagt.dxf", "belagt.dxf", "application/dxf"]] as const : []),
       ...["marktacke.geojson", "byggnader.geojson", "kullar.geojson", "brantlinjer.geojson"].filter(name => files.has(name)).map(name => [name, name, "application/geo+json"] as const),
       ...(files.has("vatten.geojson") ? [["vatten.geojson", "vatten.geojson", "application/geo+json"]] as const : [])];

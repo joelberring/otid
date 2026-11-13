@@ -9,7 +9,7 @@
 import { isMainThread, parentPort, Worker, workerData } from "node:worker_threads";
 import type { GroundGrid } from "./geo-cliffs.ts";
 import { DEFAULT_DITCHES, ditchLines, localRelief, reliefImage } from "./geo-ditches.ts";
-import { bareRock, boulders, chooseKnolls, KNOLL_LOWER_SHARE, knollCandidates } from "./geo-rock.ts";
+import { bareRock, boulders, chooseKnolls, KNOLL_LOWER_SHARE, knollCandidates, rockImage } from "./geo-rock.ts";
 import { waterAt, type WaterGrid } from "./geo-water.ts";
 
 /** Tidsgränsen per steg. En ruta på 2 × 2 km tar sekunder; tio minuter är långt över det rimliga även för 5 × 5 km. */
@@ -65,6 +65,11 @@ export const STEPS = {
     const { ground } = input, water = input.water ? waterAt(input.water.grid, input.water.mask) : undefined;
     const open = lookup(ground, input.open);
     return { rock: open ? bareRock(ground, open, undefined, water, lookup(ground, input.forest)) : [] };
+  },
+  /** Bergbilden (ojämnhet, öppenhet, höjd över omgivningen och avstånd till vatten) som reglaget «Berg i dagen med reglage» läser. */
+  rockmap(input: StepInput) {
+    const { ground } = input, water = input.water ? waterAt(input.water.grid, input.water.mask) : undefined;
+    return rockImage(ground, input.open, water ? maskOf(ground, water) : undefined);
   },
   knolls(input: StepInput) {
     const water = input.water ? waterAt(input.water.grid, input.water.mask) : undefined;

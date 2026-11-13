@@ -233,13 +233,14 @@ export async function runMapJob(db: Database, job: ClaimedMapJob, deps: { worker
       const base = (full?.request ?? request) as unknown as BaseMapJobRequest;
       const texts = new Map<string, string>();
       for (const sha256 of new Set([...base.files.map(file => file.sha256), ...(base.knolls ? [base.knolls.sha256] : []), ...(base.cliffs ? [base.cliffs.sha256] : []),
-        ...(base.depth ? [base.depth.world] : [])])) {
+        ...(base.depth ? [base.depth.world] : []), ...(base.rock ? [base.rock.world] : [])])) {
         const content = await readMapContent(db, sha256);
         if (content) texts.set(sha256, content.toString("utf8"));
       }
       // Fuktdjupets bild (lutningen, för de lugnade kurvorna); går den inte att läsa lämnas kurvorna som de är.
       const depthBytes = base.depth ? await readMapContent(db, base.depth.image) : undefined;
-      output = { result: runBaseMap(loaded, area, base, texts, now, depthBytes ? decodeRgbaPng(depthBytes) : undefined) };
+      const rockBytes = base.rock ? await readMapContent(db, base.rock.image) : undefined;
+      output = { result: runBaseMap(loaded, area, base, texts, now, depthBytes ? decodeRgbaPng(depthBytes) : undefined, rockBytes ? decodeRgbaPng(rockBytes) : undefined) };
       break;
     }
     default: output = { error: `Okänt jobb ${job.kind}` };

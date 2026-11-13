@@ -39,6 +39,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
   ny rolltyp, men en länk ger aldrig Ägare. En länk slutar gälla om den som skapade den inte längre är ägare. Integrationstest
   `kartprojekt-klubbmedlemmar-lank.test.ts`.
 
+### 2026-11-13 – Berg i dagen med reglage (geo-arbetaren 31)
+- Ägaren: «borde hitta berg i dagen, t.ex. ute vid havet i Järflotta … ett reglage att klassa fler/färre områden som berg … standardläget ganska restriktivt».
+  Geo-arbetaren 31 skriver bergbilden `berg.png` + `berg.pgw` (R ojämnhet i mm, G öppen = 128 + höjd över omgivningen i dm, B avstånd till vatten i m,
+  255 = inget) som ett underlag (« – berg»). Panelen «Berg i dagen med reglage (214)» under «3. Justera utan ny körning» väljer ytor med mängd 1–10 (förval 3)
+  i webbläsaren (`rock-choice.ts` i map-revision); «Läs in grundkartan» och `apply_base_map` använder regeln med förvalet i stället för berg.dxf:s berg
+  (stenar och kullar står kvar; äldre körningar utan bergbild som förut). `berg.dxf` skrivs som förut.
+- Inte provat mot riktig körning (Järflotta): reglagets gränser (ojämnhet 0,12 → 0,04 m, strand 0 → 40 m, höjd 1,5 → 0,3 m) är ägarens, inte inställda mot facit.
+
 ### 2026-11-13 – Om O-Tid och GitHub: vad som finns, stöd till servern
 
 - Ägaren: «appen är gratis att använda men jag tar gärna emot bidrag till servern». Om O-Tid (sv/en) har ett avsnitt

@@ -82,6 +82,9 @@ export const GEO_RELIEF_WORLD = "relief.pgw";
 /** Vegetationens klasser (ägaren 2026-11-11), som reglagen för grönt läser i webbläsaren. */
 export const GEO_GREEN_IMAGE = "vegetationsklasser.png";
 export const GEO_GREEN_WORLD = "vegetationsklasser.pgw";
+/** Bergbilden (ägaren 2026-11-13: reglaget «Berg i dagen med reglage»): ojämnhet, öppenhet, höjd över omgivningen och avstånd till vatten. */
+export const GEO_ROCK_IMAGE = "berg.png";
+export const GEO_ROCK_WORLD = "berg.pgw";
 /** Terrängskuggningen ur laserns markraster (ägaren 2026-11-10); blir ett underlag att tona. */
 export const GEO_SHADE_IMAGE = "skuggning.png";
 export const GEO_SHADE_WORLD = "skuggning.pgw";
@@ -360,6 +363,14 @@ export async function geoDepthOutputs(db: Database, jobId: string): Promise<{ im
   return image && world ? { image, world } : undefined;
 }
 
+/** Bergbildens bild och världsfil i ett jobb (innehållsnycklarna), för berg i dagen med förvalet när grundkartan läggs in. */
+export async function geoRockOutputs(db: Database, jobId: string): Promise<{ image: string; world: string } | undefined> {
+  const rows = await db.select({ name: outputs.name, sha256: outputs.contentSha256 }).from(outputs)
+    .where(and(eq(outputs.jobId, jobId), inArray(outputs.name, [GEO_ROCK_IMAGE, GEO_ROCK_WORLD])));
+  const image = rows.find(row => row.name === GEO_ROCK_IMAGE)?.sha256, world = rows.find(row => row.name === GEO_ROCK_WORLD)?.sha256;
+  return image && world ? { image, world } : undefined;
+}
+
 // ---------------------------------------------------------------------------------------------------------------------
 // Geo-arbetarens sida (nyckeln prövas av anropet; jobbet måste vara arbetarens och pågå).
 
@@ -521,9 +532,10 @@ export async function finishGeoJob(db: Database, jobId: string, worker: string, 
     const depthLayerId = await layerFrom(tx, job, files, GEO_DEPTH_IMAGE, GEO_DEPTH_WORLD, `${name.slice(0, 66)} – fuktdjup`, 0.5, randomUUID(), now);
     const greenLayerId = await layerFrom(tx, job, files, GEO_GREEN_IMAGE, GEO_GREEN_WORLD, `${name.slice(0, 60)} – vegetationsklasser`, 0.4, randomUUID(), now);
     const reliefLayerId = await layerFrom(tx, job, files, GEO_RELIEF_IMAGE, GEO_RELIEF_WORLD, `${name.slice(0, 66)} – relief`, 0.5, randomUUID(), now);
+    const rockLayerId = await layerFrom(tx, job, files, GEO_ROCK_IMAGE, GEO_ROCK_WORLD, `${name.slice(0, 70)} – berg`, 0.3, randomUUID(), now);
     await noteGeoServerJob(tx, worker, now);
     await tx.update(jobs).set({ status: "DONE", finishedAt: now, progress: null, error: null,
-      result: { layerId, moistureLayerId, shadeLayerId, depthLayerId, reliefLayerId, greenLayerId, ...(parsed.data.summary ? { summary: parsed.data.summary } : {}) } }).where(eq(jobs.id, job.id));
+      result: { layerId, moistureLayerId, shadeLayerId, depthLayerId, reliefLayerId, greenLayerId, rockLayerId, ...(parsed.data.summary ? { summary: parsed.data.summary } : {}) } }).where(eq(jobs.id, job.id));
     return { status: "ok", layerId } as const;
   });
 }

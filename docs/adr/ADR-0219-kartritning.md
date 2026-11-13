@@ -557,3 +557,13 @@ Importen städar redan (klipper mot kartan, tar bort dubbletter och korta stumpa
    blad läggs in en etapp i taget. Uppmätt med syntetiska filer (16 km², 37 MB: 9 s inom 512 MB; 52 MB: minnet tog slut),
    inte med ett riktigt laserjobb. Kartjobbets resultat rensas efter en timme; en inläggning som avbrutits längre än så
    kan inte fortsättas (delarna som hann in står kvar).
+
+### Tillägg 2026-11-13: berg i dagen med reglage
+
+Geo-arbetaren 31 skriver bergbilden `berg.png` + `berg.pgw` (markrastrets rutnät): R = ojämnheten i mm, G = 128 om vegetationen
+är öppen plus höjden över omgivningen i dm, B = avståndet till vatten i m (255 = inget). Valet av berg görs i webbläsaren
+(panelen «Berg i dagen med reglage», mängd 1–10, förval 3) och på servern med samma kod (`rockAreas`, `rock-choice.ts`):
+`berg.dxf` skrivs som förut, men när körningen har bergbilden ersätter regeln med förvalet laserns berg i dagen när
+grundkartan läses in och i `apply_base_map` (svarets `rock`); stenar och kullar står kvar. Äldre körningar utan bergbild
+behåller `berg.dxf`:s berg. Gränserna (ojämnhet 0,12 → 0,04 m, strand 0 → 40 m, minsta yta 200 → 50 m²) är ägarens första
+förslag och ännu inte inställda mot facit.

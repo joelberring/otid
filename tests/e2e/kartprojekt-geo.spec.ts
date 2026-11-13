@@ -104,14 +104,15 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   await expect(laser.getByTestId("map-project-laser-job")).toContainText("Bilden är tillagd som underlag.");
   await expect(guide).toHaveAttribute("data-step", "review");
   await expect(laser.getByTestId("map-project-laser-job")).toContainText("Fuktigheten är tillagd som underlag.");
-  // Terrängskuggningen, reliefen, fuktdjupet och vegetationsklasserna (för reglagen) ur laserns raster är också underlag.
-  await expect(owner.getByTestId("map-project-layer")).toHaveCount(7, { timeout: 20_000 });
+  // Terrängskuggningen, reliefen, fuktdjupet, vegetationsklasserna och bergbilden (för reglagen) ur laserns raster är också underlag.
+  await expect(owner.getByTestId("map-project-layer")).toHaveCount(8, { timeout: 20_000 });
   const layers = (await (await owner.request.get(`${api}/layers`)).json() as { layers: { name: string; crs: number; width: number }[] }).layers;
   expect(layers).toEqual(expect.arrayContaining([expect.objectContaining({ name: "Karttapullautin hela kartan", crs: 3006, width: 200 }),
     expect.objectContaining({ name: "Karttapullautin hela kartan – fuktighet", crs: 3006 }),
     expect.objectContaining({ name: "Karttapullautin hela kartan – terrängskuggning", crs: 3006 }),
     expect.objectContaining({ name: "Karttapullautin hela kartan – fuktdjup", crs: 3006 }),
-    expect.objectContaining({ name: "Karttapullautin hela kartan – relief", crs: 3006 })]));
+    expect.objectContaining({ name: "Karttapullautin hela kartan – relief", crs: 3006 }),
+    expect.objectContaining({ name: "Karttapullautin hela kartan – berg", crs: 3006 })]));
   // Fukt med reglage (ägaren 2026-11-11): fuktdjupet läses i webbläsaren och gränserna ger kandidaterna direkt.
   const depth = owner.getByTestId("map-project-depth");
   await depth.getByText("Fukt med reglage (blött och fuktigt)").click();

@@ -36,6 +36,12 @@ describe("geo-arbetarens steg i egna trådar", () => {
     expect(threaded.knolls).toEqual(direct);
     expect(threaded.capped).toBe(0);
   });
+  it("ger samma bergbild i tråden som direkt", async () => {
+    const ground = hilly(60), open = maskOf(ground, x => x < 1030), direct = STEPS.rockmap({ ground, open });
+    const threaded = await runStep("rockmap", { ground, open }, undefined, 60_000, file);
+    expect(Buffer.from(threaded.png).equals(direct.png)).toBe(true);
+    expect(threaded.world).toBe(direct.world);
+  });
   it("hoppar över ett steg som går över tiden i stället för att fälla jobbet", async () => {
     await expect(runStep("ditches", { ground: town(1500) }, undefined, 5, file)).rejects.toBeInstanceOf(StepSkipped);
   });
@@ -63,10 +69,12 @@ describe("geo-arbetarens steg i egna trådar", () => {
     const ditches = STEPS.ditches({ ground, wet: open });
     const stones = STEPS.stones({ ground });
     const rock = STEPS.rock({ ground, open });
+    const rockmap = STEPS.rockmap({ ground, open });
     const hills = STEPS.knolls({ ground, stones: stones.stones });
     expect(stones.stones.length).toBeLessThanOrEqual(pointCap(ground));
     expect(hills.knolls.length).toBeLessThanOrEqual(pointCap(ground));
     expect(ditches.lines.length + rock.rock.length).toBeGreaterThanOrEqual(0);
+    expect(rockmap.png.length).toBeGreaterThan(0);
     expect(Date.now() - started).toBeLessThan(120_000);
   }, 180_000);
 });

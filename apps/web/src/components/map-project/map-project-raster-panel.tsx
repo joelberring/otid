@@ -15,6 +15,8 @@ import styles from "./map-project-editor.module.css";
 export interface RasterPanelTexts {
   readonly heading: string; readonly help: string; readonly none: string; readonly layer: string; readonly run: string;
   readonly name: (layer: string) => string; readonly nothing: string; readonly failed: string;
+  /** Egen text för mängden (annars de gemensamma, där 5 är förvalet). */
+  readonly amount?: ((level: number) => string) | undefined; readonly amountHelp?: string | undefined;
 }
 
 /**
@@ -22,19 +24,21 @@ export interface RasterPanelTexts {
  * fuktdjupet eller vegetationens klasser) läses i webbläsaren och gränserna dras med reglage. Efter första «Visa som
  * kandidater» räknas kandidaterna om en kort stund efter att ett reglage flyttats. `compute` ger kandidaterna och ett besked.
  */
-export function MapProjectRasterPanel<S>({ layers, georeference, importer, match, own, text, testId, initial, controls, compute, atLevel }: {
+export function MapProjectRasterPanel<S>({ layers, georeference, importer, match, own, text, testId, initial, initialLevel = 5, controls, compute, atLevel }: {
   /** Inställningarna för en mängd på skalan 1–10 (5 = förvalen, ägaren 2026-11-12); `current` är det som är finjusterat. */
   atLevel: (level: number, current: S) => S;
   layers: ReturnType<typeof useMapProjectLayers>; georeference: MapGeoreference; importer: ReturnType<typeof useMapProjectImport>;
   /** Lagren som panelen ger: de byts i det som visas, resten står kvar. */
   match: RegExp; own: RegExp; text: RasterPanelTexts; testId: string; initial: S;
-  controls: (settings: S, change: (patch: Partial<S>) => void) => ReactNode;
+  /** Mängden som är vald från början (5 om inget annat anges) och finjusteringen (utelämnad = bara mängden). */
+  initialLevel?: number;
+  controls?: ((settings: S, change: (patch: Partial<S>) => void) => ReactNode) | undefined;
   compute: (pixels: PhotoPixels, settings: S, toSource: (column: number, row: number) => [number, number], crs: number, cellMeters: number)
     => { data: SourceData; message: string };
 }) {
   const [chosen, setChosen] = useState("");
   const [settings, setSettings] = useState<S>(initial);
-  const [level, setLevel] = useState(5);
+  const [level, setLevel] = useState(initialLevel);
   const shared = useTexts(mapSavedChoiceSv, mapSavedChoiceEn);
   const [live, setLive] = useState(false);
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
@@ -91,11 +95,11 @@ export function MapProjectRasterPanel<S>({ layers, georeference, importer, match
       <label>{text.layer}<select value={current.drawn.layerId} onChange={event => { setChosen(event.target.value); setLive(false); }}>
         {shown.map(row => <option key={row.drawn.layerId} value={row.drawn.layerId}>{row.name}</option>)}
       </select></label>
-      <label>{shared.amount(level)}
+      <label>{(text.amount ?? shared.amount)(level)}
         <input type="range" min={1} max={10} step={1} value={level} data-testid={`${testId}-amount`}
           onChange={event => { const next = Number(event.target.value); setLevel(next); setSettings(previous => atLevel(next, previous)); }} /></label>
-      <p className={styles.muted}>{shared.amountHelp}</p>
-      <details><summary>{shared.fine}</summary>{controls(settings, change)}</details>
+      <p className={styles.muted}>{text.amountHelp ?? shared.amountHelp}</p>
+      {controls && <details><summary>{shared.fine}</summary>{controls(settings, change)}</details>}
       <span className={styles.actions}><Button variant="secondary" onClick={() => { setLive(true); run(settings); }} data-testid={`${testId}-run`}>{text.run}</Button></span>
     </>}
     {message && <p role={message.tone === "error" ? "alert" : "status"} className={message.tone === "error" ? styles.problem : undefined}

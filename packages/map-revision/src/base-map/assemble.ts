@@ -7,6 +7,8 @@ import { calmFlatContours, flatLimitsAt, flatSlopeFrom, type PixelAffine, type S
 import { cliffFeatures, cliffLimitsAt, defaultCliffLimits, readCliffCandidates } from "./cliff-choice";
 import { chooseKnolls, knollFeatures, knollLimitsAt, readKnollCandidates } from "./knoll-choice";
 import { mergeBaseMap } from "./merge";
+import { DEFAULT_ROCK_LEVEL, rockAreasOfJob, withRockAreas } from "./rock-choice";
+import type { PhotoPixels } from "./photo-interpret";
 
 /**
  * Ägaren 2026-11-13 («AI:n lägger in grundkartan»): hela vägen från laserjobbets filer till objekten som läggs i kartan, i
@@ -59,6 +61,11 @@ export interface BaseMapAssemblyInput {
    * rutnätet ligger (`worldFileAffine`, SWEREF 99 TM). Utelämnat = jobbet har inget fuktdjup, och kurvorna lämnas som de är.
    */
   readonly flat?: { readonly level: number; readonly grid: SlopeGrid; readonly affine: PixelAffine } | undefined;
+  /**
+   * Berg i dagen (ägaren 2026-11-13): jobbets bergbild (`berg.png`, `rockAreasOfJob`) och var rutnätet ligger. Med den ersätter
+   * regeln med förvalets nivå laserns berg i dagen i `berg.dxf` (stenar och kullar står kvar). Utelämnat = jobbet har ingen bergbild.
+   */
+  readonly rock?: { readonly pixels: PhotoPixels; readonly affine: PixelAffine; readonly level?: number | undefined } | undefined;
   readonly georeference: MapGeoreference;
   readonly symbols: readonly CandidateSymbol[];
   readonly bounds: MapBox;
@@ -90,6 +97,8 @@ export interface BaseMapSummary {
   /** Valen bland kullar och branter (när en nivå angavs): så många valdes bland jobbets sparade. */
   readonly knolls?: { readonly level: number; readonly chosen: number; readonly candidates: number } | undefined;
   readonly cliffs?: { readonly level: number; readonly impassable: number; readonly passable: number; readonly candidates: number } | undefined;
+  /** Berg i dagen ur bergbilden (när jobbet har den): nivån, antal ytor och hektar. */
+  readonly rock?: { readonly level: number; readonly areas: number; readonly hectares: number } | undefined;
   /** Hjälpkurvor (meter) och små ringar som togs bort på flack mark (när jobbet har fuktdjupet). */
   readonly flatContours?: { readonly level: number; readonly formlineMeters: number; readonly rings: number } | undefined;
 }
@@ -107,6 +116,13 @@ export function assembleBaseMap(input: BaseMapAssemblyInput): { objects: MapObje
     cliffJson = input.cliffs ? JSON.parse(input.cliffs.body) : undefined;
   } catch (error) {
     return { problem: error instanceof VectorParseError ? error.message : "En av laserjobbets filer gick inte att läsa." };
+  }
+  // Berg i dagen ur bergbilden i stället för berg.dxf:s (som webben när grundkartan läses in).
+  let rock: BaseMapSummary["rock"];
+  if (input.rock) {
+    const found = rockAreasOfJob(input.rock.pixels, input.rock.affine, input.rock.level);
+    read = withRockAreas(read, found.data);
+    rock = { level: input.rock.level ?? DEFAULT_ROCK_LEVEL, areas: found.areas, hectares: found.hectares };
   }
   const cuts = input.cuts ? clearCutFeatures(input.cuts, input.today, input.scannedAt) : undefined;
   // Sprintkartor (ägaren 2026-11-13) får sprintnormens symboler och OpenStreetMaps vägar som belagda ytor.
@@ -152,7 +168,7 @@ export function assembleBaseMap(input: BaseMapAssemblyInput): { objects: MapObje
       outside: result.outside, duplicates: result.duplicates, short: result.short, mismatched: result.mismatched,
       inBuilt: result.builtMask?.removed ?? 0, belowNorm: result.generalized?.removed ?? 0 },
     clipped: result.clipped, joined: result.joined, simplified: result.generalized?.simplified ?? 0,
-    ...(cuts ? { clearCuts: cuts.counts } : {}), ...(knolls ? { knolls } : {}), ...(cliffs ? { cliffs } : {}),
+    ...(cuts ? { clearCuts: cuts.counts } : {}), ...(rock ? { rock } : {}), ...(knolls ? { knolls } : {}), ...(cliffs ? { cliffs } : {}),
     ...(flatContours ? { flatContours } : {})
   } };
 }

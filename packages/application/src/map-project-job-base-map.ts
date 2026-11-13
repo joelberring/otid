@@ -32,6 +32,8 @@ export interface BaseMapJobRequest {
   readonly scannedAt: string | null;
   /** Jobbets fuktdjup (bilden och världsfilen), för «Lugna kurvor på flack mark» med förvalet; saknas det lämnas kurvorna. */
   readonly depth?: { readonly image: string; readonly world: string } | undefined;
+  /** Jobbets bergbild (bilden och världsfilen): berg i dagen med förvalets nivå i stället för berg.dxf:s. */
+  readonly rock?: { readonly image: string; readonly world: string } | undefined;
   readonly stage?: Polygon | undefined;
   /** Det som inte gick att hämta (osm, clear_cuts), för svaret. */
   readonly missing: readonly string[];
@@ -42,10 +44,10 @@ export type BaseMapJobResult = { problem: string }
 
 /**
  * Grundkartans objekt som ändringar i omgångar. `texts` är filernas innehåll efter innehållsnyckel och `depth` fuktdjupets
- * bildpunkter (när jobbet har det och bilden gick att läsa).
+ * bildpunkter och `rock` bergbildens (när jobbet har dem och bilderna gick att läsa).
  */
 export function runBaseMap(loaded: LoadedProjectMap, area: Polygon | null, request: BaseMapJobRequest, texts: ReadonlyMap<string, string>, now: Date,
-  depth?: PhotoPixels): BaseMapJobResult {
+  depth?: PhotoPixels, rock?: PhotoPixels): BaseMapJobResult {
   const georeference = loaded.base.georeference;
   if (!georeference) return { problem: "Kartan saknar georeferens, så grundkartan kan inte läggas in i den." };
   const body = (sha256: string) => texts.get(sha256);
@@ -56,7 +58,9 @@ export function runBaseMap(loaded: LoadedProjectMap, area: Polygon | null, reque
     return { problem: "En av laserjobbets filer saknar innehåll." };
   }
   const affine = depth && request.depth ? worldFileAffine(texts.get(request.depth.world) ?? "") : undefined;
+  const rockAffine = rock && request.rock ? worldFileAffine(texts.get(request.rock.world) ?? "") : undefined;
   const assembled = assembleBaseMap({
+    ...(rock && rockAffine ? { rock: { pixels: rock, affine: rockAffine } } : {}),
     flat: depth && affine ? { level: DEFAULT_FLAT_LEVEL, grid: slopeGridOf(depth), affine } : undefined,
     parts: parts as { name: string; body: string }[], osm: request.osm, cuts: request.cuts, today: now.toISOString().slice(0, 10), scannedAt: request.scannedAt,
     knolls: knolls as { level: number; body: string } | undefined, cliffs: cliffs as { level: number; body: string } | undefined,

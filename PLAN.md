@@ -1390,6 +1390,7 @@ och `claude/plan-ritlage-hjul-och-mobil.md`.
   - [ ] Beståndsgränser utöver hyggena: ur Skogliga grunddata (medelhöjd, 12,5 m) eller laserns trädhöjd; åldersgränserna
     som inställning (tillväxten skiljer mellan norr och söder).
   - [ ] Stigar ur lasern: skjuts upp; markrastret (1 m) och klassbilderna (2 m) visar dem inte tillförlitligt.
+  - [x] Berg i dagen med reglage (2026-11-13): `berg.png` från geo-arbetaren 31 och mängd 1–10 i webbläsaren (se STATUS.md); prövas mot Järflotta.
   - [ ] Stenar och berg i dagen prövas mot Kungshatt v3 (provrutan gav inga stenar med förvalen).
   - [ ] Diken: prövas mot riktiga diken (Kungshatt-rutan har inga raka); inställningarna (djup 0,2 m, längd 15 m) som reglage.
   - Lager efter källa: ägaren 2026-11-11 valde att valet före Lägg in (kandidatraden) räcker; inget mer byggs. G5 Vegetationen generaliserad. G6 Provruta och jämförelse av

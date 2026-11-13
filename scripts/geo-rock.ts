@@ -14,7 +14,7 @@
  */
 import type { GroundGrid } from "./geo-cliffs.ts";
 import { localRelief } from "./geo-ditches.ts";
-import { cleanMask, maskRings, simplify } from "./geo-moisture.ts";
+import { cleanMask, encodePng, maskRings, simplify } from "./geo-moisture.ts";
 
 export interface RockSettings { readonly boulder: number; readonly largeBoulder: number; readonly maxFootCells: number; readonly roughness: number; readonly minAreaM2: number }
 // Markrastret är medelvärden i 1 m-celler, så stenen blir lägre och bredare än i verkligheten: 0,8 m räcker för en sten på 1 m.
@@ -90,18 +90,29 @@ export function boulders(ground: GroundGrid, settings: RockSettings = DEFAULT_RO
   return kept;
 }
 
+/** Ojämnheten per cell: medelavvikelsen (m) från utjämningen över 5 × 5 celler. NaN i kanten och där färre än 13 celler har data. */
+export function roughnessGrid(ground: GroundGrid, fine: Float32Array = localRelief(ground, ground.cell)): Float32Array {
+  const { width, height } = ground;
+  const out = new Float32Array(width * height).fill(Number.NaN);
+  for (let x = 2; x < width - 2; x += 1) for (let y = 2; y < height - 2; y += 1) {
+    let sum = 0, count = 0;
+    for (let dx = -2; dx <= 2; dx += 1) for (let dy = -2; dy <= 2; dy += 1) { const value = fine[(x + dx) * height + y + dy]!; if (Number.isFinite(value)) { sum += Math.abs(value); count += 1; } }
+    if (count >= 13) out[x * height + y] = sum / count;
+  }
+  return out;
+}
+
 /** Berg i dagen som ringar (meter). `openAt` säger om vegetationen är öppen i punkten. */
 export function bareRock(ground: GroundGrid, openAt: (x: number, y: number) => boolean, settings: RockSettings = DEFAULT_ROCK,
   blockedAt?: (x: number, y: number) => boolean, forestAt?: (x: number, y: number) => boolean): [number, number][][] {
   const { width, height, cell } = ground;
-  const fine = localRelief(ground, cell), broad = localRelief(ground, 8);
+  const rough = roughnessGrid(ground), broad = localRelief(ground, 8);
   const at = (values: Float32Array | Float64Array, x: number, y: number) => x < 0 || y < 0 || x >= width || y >= height ? Number.NaN : values[x * height + y]!;
   const slopeLimit = Math.tan(8 * Math.PI / 180);
   const mask = new Uint8Array(width * height);
   for (let x = 2; x < width - 2; x += 1) for (let y = 2; y < height - 2; y += 1) {
-    let sum = 0, count = 0;
-    for (let dx = -2; dx <= 2; dx += 1) for (let dy = -2; dy <= 2; dy += 1) { const value = at(fine, x + dx, y + dy); if (Number.isFinite(value)) { sum += Math.abs(value); count += 1; } }
-    if (count < 13 || sum / count < settings.roughness) continue;
+    const roughness = rough[x * height + y]!;
+    if (!(roughness >= settings.roughness)) continue;
     const slope = Math.hypot(at(ground.z, x + 1, y) - at(ground.z, x - 1, y), at(ground.z, x, y + 1) - at(ground.z, x, y - 1)) / (2 * cell);
     if (!(at(broad, x, y) > 0.15 || slope > slopeLimit)) continue;
     const point: [number, number] = [ground.minX + (x + 0.5) * cell, ground.minY + (y + 0.5) * cell];
@@ -109,7 +120,7 @@ export function bareRock(ground: GroundGrid, openAt: (x: number, y: number) => b
     // Öppet räcker med ojämnheten ovan; under vanlig skog krävs mer: ojämnare (×1,5) och tydligt upphöjt (0,3 m över omgivningen 8 m bort) (en häll på en kulle),
     // så att stenig skogsmark inte blir grå (ägaren 2026-11-11, Högdalen: hällarna ligger under tallarna).
     const open = openAt(...point);
-    if (!open && !(forestAt?.(...point) && sum / count >= settings.roughness * 1.5 && at(broad, x, y) > 0.3)) continue;
+    if (!open && !(forestAt?.(...point) && roughness >= settings.roughness * 1.5 && at(broad, x, y) > 0.3)) continue;
     mask[x * height + y] = 1;
   }
   const minCells = Math.max(4, Math.round(settings.minAreaM2 / (cell * cell)));
@@ -201,4 +212,54 @@ export function knollCandidates(ground: GroundGrid, stones: readonly { at: reado
     found.push({ at: point, rise, share: lower / ring.length, footM2: foot * cell * cell, ...(wetAt?.(...point) ? { wet: true } : {}) });
   }
   return found;
+}
+
+/** Avståndet (m) till närmaste markerade cell, rutavstånd med viktningen 3–4 (fel under 8 %); Infinity där ingen finns. Index x · höjd + y. */
+export function distanceToMask(mask: Uint8Array, width: number, height: number, cell: number): Float32Array {
+  const far = 1 << 28, d = new Int32Array(width * height);
+  for (let i = 0; i < d.length; i += 1) d[i] = mask[i] ? 0 : far;
+  const relax = (i: number, x: number, y: number, dx: number, dy: number, weight: number) => {
+    const nx = x + dx, ny = y + dy;
+    if (nx < 0 || ny < 0 || nx >= width || ny >= height) return;
+    const value = d[nx * height + ny]! + weight;
+    if (value < d[i]!) d[i] = value;
+  };
+  for (let x = 0; x < width; x += 1) for (let y = 0; y < height; y += 1) {
+    const i = x * height + y;
+    relax(i, x, y, -1, 0, 3); relax(i, x, y, 0, -1, 3); relax(i, x, y, -1, -1, 4); relax(i, x, y, -1, 1, 4);
+  }
+  for (let x = width - 1; x >= 0; x -= 1) for (let y = height - 1; y >= 0; y -= 1) {
+    const i = x * height + y;
+    relax(i, x, y, 1, 0, 3); relax(i, x, y, 0, 1, 3); relax(i, x, y, 1, 1, 4); relax(i, x, y, 1, -1, 4);
+  }
+  return Float32Array.from(d, value => value >= far ? Number.POSITIVE_INFINITY : value * cell / 3);
+}
+
+/**
+ * Ägaren 2026-11-13 («flera inställningar … ett reglage att klassa fler/färre områden som berg»): en cell i `berg.png` som tre
+ * kanaler, så att webbläsarens reglage kan välja bland cellerna utan ny körning (regeln finns i `rock-choice.ts` i map-revision).
+ * R = ojämnheten i mm (0–255), G = 128 om vegetationen är öppen plus höjden över omgivningen 8 m bort i dm (0–127),
+ * B = avståndet till vatten i m (0–254; 255 = inget vatten inom 254 m).
+ */
+export function encodeRockCell(roughness: number, open: boolean, rise: number, waterMeters: number): [number, number, number] {
+  return [Math.min(255, Math.max(0, Math.round(roughness * 1000))), (open ? 128 : 0) + Math.min(127, Math.max(0, Math.round(rise * 10))),
+    Number.isFinite(waterMeters) && waterMeters <= 254 ? Math.round(waterMeters) : 255];
+}
+
+/**
+ * Bergbilden `berg.png` med världsfil (samma form som `hojd.png`): en bildpunkt per markcell, genomskinligt där ojämnheten
+ * saknas (kanten, utan markdata) och i vatten. `open` och `water` är masker på markrastrets celler (index x · höjd + y).
+ */
+export function rockImage(ground: GroundGrid, open: Uint8Array | undefined, water: Uint8Array | undefined): { png: Buffer; world: string } {
+  const { width, height, cell } = ground;
+  const rough = roughnessGrid(ground), broad = localRelief(ground, 8);
+  const toWater = water ? distanceToMask(water, width, height, cell) : undefined;
+  const png = encodePng(width, height, (column, line) => {
+    const i = column * height + (height - 1 - line), roughness = rough[i]!;
+    if (!Number.isFinite(roughness) || water?.[i]) return [0, 0, 0, 0];
+    const rise = broad[i]!;
+    const [r, g, b] = encodeRockCell(roughness, open?.[i] === 1, Number.isFinite(rise) ? rise : 0, toWater?.[i] ?? Number.POSITIVE_INFINITY);
+    return [r, g, b, 255];
+  });
+  return { png, world: `${cell}\n0\n0\n${-cell}\n${ground.minX + cell / 2}\n${ground.minY + (height - 0.5) * cell}\n` };
 }

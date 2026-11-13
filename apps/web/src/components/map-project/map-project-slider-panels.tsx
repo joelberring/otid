@@ -8,6 +8,9 @@ import { DEFAULT_DEPTH, depthCandidates } from "../../lib/map-project-moisture-d
 import { DEFAULT_GREEN, greenCandidates, type BorderLevel } from "../../lib/map-project-green-classes";
 import { mapForestEn } from "../../i18n/map-forest-en";
 import { mapForestSv } from "../../i18n/map-forest-sv";
+import { mapRockEn } from "../../i18n/map-rock-en";
+import { mapRockSv } from "../../i18n/map-rock-sv";
+import { DEFAULT_ROCK_LEVEL, ROCK_LAYERS, rockAreas } from "@o-tid/map-revision/base-map";
 import { useTexts } from "../language-provider";
 import { MapProjectRasterPanel } from "./map-project-raster-panel";
 import type { useMapProjectImport } from "./use-map-project-import";
@@ -68,5 +71,19 @@ export function MapProjectGreenPanel(props: Props) {
       const result = greenCandidates(pixels, settings, toSource, crs, cell);
       return { data: result.data, message: text.done(decimal(result.hectares.gron_lattlopt ?? 0), decimal(result.hectares.gron_svarlopt ?? 0),
         decimal(result.hectares.gron_mycket_svarlopt ?? 0)) };
+    }} />;
+}
+
+/**
+ * Berg i dagen med reglage (ägaren 2026-11-13): ytorna ur körningens bergbild (underlaget som slutar på « – berg») för en mängd
+ * 1–10, med restriktivt förval. Regeln finns i `rockAreas` (`@o-tid/map-revision/base-map`). Bara mängden finns som reglage.
+ */
+export function MapProjectRockPanel(props: Props) {
+  const text = useTexts(mapRockSv, mapRockEn);
+  return <MapProjectRasterPanel {...props} match={/ – berg$/} own={ROCK_LAYERS} text={text} testId="map-project-rock" initial={{ level: DEFAULT_ROCK_LEVEL }}
+    initialLevel={DEFAULT_ROCK_LEVEL} atLevel={level => ({ level })}
+    compute={(pixels, settings, toSource, crs, cell) => {
+      const result = rockAreas(pixels, settings.level, cell, toSource, crs);
+      return { data: result.data, message: text.done(result.areas, decimal(result.hectares)) };
     }} />;
 }

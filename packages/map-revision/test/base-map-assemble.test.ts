@@ -1,6 +1,7 @@
 /** Grundkartan hela vägen till kartans objekt (AI-kopplingens apply_base_map): samma förval som importen i webben. */
 import { describe, expect, it } from "vitest";
 import { newMapFile, readMapFile, projectedToMapPoint } from "@o-tid/map-file";
+import { encodeRockCell } from "../../../scripts/geo-rock";
 import { areaBounds, assembleBaseMap, candidateSymbols, editorBounds } from "../src/base-map";
 
 const E = 674000, N = 6575000;
@@ -72,5 +73,21 @@ describe("grundkartan till kartans objekt", () => {
     expect(calmed.mm).toBeLessThan(22.5);
     expect(calmed.summary.symbols.find(row => row.symbol === "101")).toEqual(plain.summary.symbols.find(row => row.symbol === "101"));
     expect(lengthOf(assembleBaseMap({ ...input, parts, flat: { ...flat, level: 0 } })).mm).toBeCloseTo(40, 0);
+  });
+
+  it("berg i dagen ur jobbets bergbild ersätter laserfilens berg (förvalet), och stenarna står kvar", () => {
+    // 100 × 100 celler om 2 m med mycket ojämn öppen mark överallt.
+    const columns = 100, rows = 100, data = new Uint8Array(columns * rows * 4);
+    for (let p = 0; p < columns * rows; p += 1) data.set([...encodeRockCell(0.2, true, 0, 255), 255], p * 4);
+    const rock = { pixels: { width: columns, height: rows, data }, affine: [2, 0, E - 199, 0, -2, N + 199] as const };
+    const parts = [{ name: "kurvor.dxf", body: dxf("contour", [[-300, 0], [0, 40], [300, 0]]) }, { name: "berg.dxf", body: dxf("berg_i_dagen_laser", [[300, 300], [320, 300], [320, 320]]) }];
+    const plain = assembleBaseMap({ ...input, parts }), withRock = assembleBaseMap({ ...input, parts, rock });
+    if ("problem" in plain || "problem" in withRock) throw new Error("problem");
+    expect(plain.summary.layers.find(row => row.layer === "berg_i_dagen_laser")).toMatchObject({ symbol: null });
+    expect(withRock.summary.layers.find(row => row.layer === "berg_i_dagen_laser")).toBeUndefined();
+    expect(withRock.summary.layers.find(row => row.layer === "berg_i_dagen")).toMatchObject({ features: 1, symbol: "214" });
+    expect(withRock.summary.rock).toMatchObject({ level: 3, areas: 1 });
+    expect(withRock.summary.rock!.hectares).toBeGreaterThan(3);
+    expect(plain.summary.rock).toBeUndefined();
   });
 });

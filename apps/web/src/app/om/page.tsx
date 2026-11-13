@@ -7,15 +7,12 @@ import { PROGRAM_CONTACT_EMAIL } from "../../lib/contact";
 import { introFilmUrl } from "../../lib/intro-film";
 import styles from "../../components/account-pages.module.css";
 
-/** Ägaren 2026-11-13: «appen är gratis att använda men jag tar gärna emot bidrag till servern». Swish och GitHub Sponsors. */
-const SPONSORS_URL = "https://github.com/sponsors/joelberring";
-
 export async function generateMetadata(): Promise<Metadata> {
   const text = await currentLanguage() === "en" ? aboutEn : aboutSv;
   return { title: `${text.metaTitle} – O-Tid`, description: text.metaDescription };
 }
 
-/** Om O-Tid (PLAN.md steg 37): vad det är, beta, hur det är gjort, tekniska funktioner, hur stora tävlingar (steg 54), stöd till servern och kontakt. Utan inloggning. */
+/** Om O-Tid (PLAN.md steg 37): vad det är, beta, hur det är gjort, tekniska funktioner, hur stora tävlingar (steg 54), stöd till servern (Swish; GitHub Sponsors öppnas senare) och kontakt. Utan inloggning. */
 export default async function AboutPage() {
   const english = await currentLanguage() === "en";
   const text = english ? aboutEn : aboutSv;
@@ -37,7 +34,8 @@ export default async function AboutPage() {
       {text.capacity.map(paragraph => <p key={paragraph}>{paragraph}</p>)}
       <h2 id="stod">{text.supportTitle}</h2>
       <p>{text.support}</p>
-      <p>{text.supportSwish} <strong>{text.swishNumber}</strong>, <a href={SPONSORS_URL}>{text.supportGithub}</a>. {text.supportThanks}</p>
+      <p>{text.supportSwish} <strong>{text.swishNumber}</strong>. {text.supportThanks}</p>
+      <p>{text.supportAbroad} <a href={`mailto:${PROGRAM_CONTACT_EMAIL}`}>{PROGRAM_CONTACT_EMAIL}</a>.</p>
       <h2>{text.contactTitle}</h2>
       <p>{text.contact} <a href={`mailto:${PROGRAM_CONTACT_EMAIL}`}>{PROGRAM_CONTACT_EMAIL}</a>.</p>
       {english && <>

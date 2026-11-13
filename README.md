@@ -36,8 +36,8 @@ Se [PLAN.md](PLAN.md) för stegen och [STATUS.md](STATUS.md) för läget. Grundb
 ## Stöd servern
 
 O-Tid är gratis att använda. Servern, lagringen och kartberäkningarna kostar varje månad; använder du O-Tid och tycker att
-det fungerar tas ett bidrag gärna emot: Swish **076-122 73 87** eller [GitHub Sponsors](https://github.com/sponsors/joelberring).
-Se också [Om O-Tid](https://otid.berring.se/om#stod).
+det fungerar tas ett bidrag gärna emot via Swish **076-122 73 87**. GitHub Sponsors kommer att öppnas för den som vill bidra
+från utanför Sverige; mejla så länge via kontaktadressen på [Om O-Tid](https://otid.berring.se/om#stod).
 
 ## Kom igång lokalt
 

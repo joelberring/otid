@@ -51,8 +51,9 @@ export const aboutSv = {
   supportSwish: "Swish:",
   /** Visas som det står; skriv numret så att det går att läsa och skriva av. */
   swishNumber: "076-122 73 87",
-  supportGithub: "eller via GitHub Sponsors",
   supportThanks: "Tack!",
+  /** Ägaren 2026-11-13: GitHub Sponsors öppnas senare, för den som vill bidra utanför Sverige. */
+  supportAbroad: "Bor du utanför Sverige och vill bidra? GitHub Sponsors kommer att öppnas. Mejla så länge till",
   contactTitle: "Frågor och kontakt",
   contact: "Har du frågor om O-Tid, hittat ett fel eller saknar något? Skicka ett mejl till",
   clubTitle: "Vill du använda O-Tid på din klubb?",

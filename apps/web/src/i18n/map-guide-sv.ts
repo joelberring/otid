@@ -53,6 +53,8 @@ export const mapGuideSv = {
     cancelNo: "Nej, fortsätt"
   },
   review: {
+    stages: (count: number) => `Läs in alla ${count} etapper som en grundkarta`,
+    oneStage: "Bara den här etappen",
     load: (name: string) => `${name} är klar. Läs in grundkartan: den visas som kandidater ovanpå kartan och sparas inte förrän du lägger in dem.`,
     button: "Läs in grundkartan",
     candidates: (count: number) => `Grundkartan visas nu som kandidater${count ? ` (${count} objekt)` : ""}. Titta på kartan, och lägg in dem med knappen «Lägg in … objekt i kartan» i raden under kartan `

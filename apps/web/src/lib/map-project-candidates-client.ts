@@ -1,5 +1,5 @@
 import { VectorParseError, type SourceData, type SourceFeature } from "@o-tid/map-revision";
-import type { BaseMapCalm, BaseMapPart, BaseMapStep, CalmOutcome, CandidateInput, CandidateRequest, CandidateResponse, CandidateResult } from "./map-project-candidates";
+import type { BaseMapCalm, BaseMapPart, BaseMapStage, BaseMapStep, CalmOutcome, CandidateInput, CandidateRequest, CandidateResponse, CandidateResult } from "./map-project-candidates";
 
 /** Så många filers objekt hålls i Workern (den visade, den förra och en som just läses in). */
 const KEPT = 3;
@@ -53,7 +53,7 @@ export class CandidateSession {
    * Resultatfilerna tolkas (och sätts ihop till grundkartan med `merge`) i Workern; `onStep` får var den är. Ett fel i en fil
    * blir `VectorParseError` med filens meddelande. Med `calm` lugnas kurvorna på flack mark, och svaret säger vad som togs bort.
    */
-  baseMap(request: { parts: readonly BaseMapPart[]; merge: boolean; osm?: SourceData | undefined; scale?: number | undefined;
+  baseMap(request: { parts: readonly BaseMapPart[]; stages?: readonly BaseMapStage[] | undefined; merge: boolean; osm?: SourceData | undefined; scale?: number | undefined;
     cuts?: Extract<CandidateRequest, { type: "base-map" }>["cuts"]; norm?: Extract<CandidateRequest, { type: "base-map" }>["norm"]; calm?: BaseMapCalm | undefined },
     onStep: (step: BaseMapStep) => void): Promise<{ data: SourceData; calm?: CalmOutcome | undefined }> {
     const id = ++this.nextId, dataId = ++this.nextId;

@@ -22,6 +22,11 @@ export function MapProjectCandidateBar({ importer, symbols, onShowLayers }: { im
   const rows = importer.layers.filter(layer => importer.mapping.has(layer.name));
   return <section className={styles.bar} aria-label={text.barLabel} data-testid="map-project-candidate-bar">
     <strong className={styles.title}>{text.barTitle(importer.file.name)}</strong>
+    {importer.pendingReplace && <p role="alert" data-testid="map-project-candidate-replace">
+      {text.replaceQuestion(importer.file.name, importer.pendingReplace)}{" "}
+      <Button variant="secondary" onClick={importer.replaceAnyway} data-testid="map-project-candidate-replace-yes">{text.replaceYes}</Button>{" "}
+      <Button variant="quiet" onClick={importer.keepCurrent}>{text.replaceNo}</Button>
+    </p>}
     {/* Medan kandidaterna räknas om står den förra bilden kvar (ägaren 2026-11-12: fliken hängde på ett helt kartblad). */}
     {importer.computing && <small role="status" className={styles.muted} data-testid="map-project-candidate-computing">{text.barComputing}</small>}
     <span className={styles.layers}>

@@ -70,11 +70,13 @@ export function MapProjectGuide({ view, laser, importer, areas, onSplit }: { vie
   const [cancelling, setCancelling] = useState(false);
 
   const job = jobs ? latestAreaJob(jobs, area?.areaId ?? null, ignore) : undefined;
-  const shown = !!job && importer.file?.name === laser.baseMapName(job);
+  // En körning i etapper läses helst in som en grundkarta (ägaren 2026-11-13, Ornö södra).
+  const stages = job ? laser.stagesOf(job) : undefined;
+  const shown = !!job && (importer.file?.name === laser.baseMapName(job) || (!!stages && importer.file?.name === laser.stagesName(job)));
   // Kandidaterna som visades är inlagda eller lämnade som förslag: körningen är klar för guidens del.
   const shownJob = useRef<string | undefined>(undefined);
   const { file, accepted, sent } = importer;
-  const shownId = shown ? job.jobId : file && jobs?.find(row => laser.baseMapName(row) === file.name)?.jobId;
+  const shownId = shown ? job.jobId : file && jobs?.find(row => laser.baseMapName(row) === file.name || laser.stagesName(row) === file.name)?.jobId;
   useEffect(() => {
     if (file) { shownJob.current = shownId; return; }
     const jobId = shownJob.current;
@@ -167,7 +169,12 @@ export function MapProjectGuide({ view, laser, importer, areas, onSplit }: { vie
     </> : <>
       <p>{text.review.load(job.name)}</p>
       <span className={styles.actions}>
-        <Button disabled={laser.busy} onClick={() => void laser.loadBaseMap(job, "guide")} data-testid="map-project-guide-load">{text.review.button}</Button>
+        {stages ? <>
+          <Button disabled={laser.busy} onClick={() => void laser.loadStages(job, stages, "guide")} data-testid="map-project-guide-load-stages">
+            {text.review.stages(stages.length)}</Button>
+          <Button variant="secondary" disabled={laser.busy} onClick={() => void laser.loadBaseMap(job, "guide")} data-testid="map-project-guide-load">
+            {text.review.oneStage}</Button>
+        </> : <Button disabled={laser.busy} onClick={() => void laser.loadBaseMap(job, "guide")} data-testid="map-project-guide-load">{text.review.button}</Button>}
         {laser.ready && <Button variant="quiet" disabled={laser.busy} onClick={restart} data-testid="map-project-guide-rerun">{text.review.restart}</Button>}
       </span>
     </>

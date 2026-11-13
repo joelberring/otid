@@ -273,14 +273,18 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     if (symbolId) next.set(layer, symbolId); else next.delete(layer);
     return next;
   }), []);
-  const cancel = useCallback(() => { setFile(undefined); setLayers([]); setMapping(new Map()); setProblem(undefined); }, []);
+  const cancel = useCallback(() => { setFile(undefined); setLayers([]); setMapping(new Map()); setProblem(undefined); setPendingReplace(undefined); }, []);
 
+  /** Nya kandidater som väntar på svar: de som visas är inte införda (frågan i kandidaternas rad). */
+  const [pendingReplace, setPendingReplace] = useState<{ fileName: string; open: () => void }>();
   /** K5: geo-arbetarens kurvor (DXF) som kandidater. */
   const openData = useCallback((fileName: string, data: SourceData, general = false, within?: readonly (readonly { x: number; y: number }[])[], calmed?: CalmOutcome) => {
-    // Ägaren 2026-11-12 («försvinner kartan … om den inte är nersparad»): andra kandidater som inte är införda byts inte ut utan fråga.
-    if (file && file.name !== fileName && file.data.features.length > 0 && !window.confirm(text.replaceConfirm(file.name))) return;
-    setProblem(undefined); setSent(undefined); setAccepted(undefined); show(fileName, data, undefined, general, within); setCalm(calmed);
-  }, [show, file, text]);
+    const open = () => { setProblem(undefined); setSent(undefined); setAccepted(undefined); show(fileName, data, undefined, general, within); setCalm(calmed); };
+    // Ägaren 2026-11-12 («försvinner kartan … om den inte är nersparad»): andra kandidater som inte är införda byts inte ut utan
+    // fråga. Frågan står i kandidaternas rad under kartan (ingen dialogruta; ägaren 2026-11-13 fick den som webbläsarens ruta).
+    if (file && file.name !== fileName && file.data.features.length > 0) { setPendingReplace({ fileName, open }); return; }
+    setPendingReplace(undefined); open();
+  }, [show, file]);
   /** En panel med reglage byter sina egna lager (`own`) i det som visas; utan något som visas öppnas datan som vanligt. */
   const refine = useCallback((fileName: string, data: SourceData, own: RegExp) => {
     if (!file) { openData(fileName, data, true); return; }
@@ -304,7 +308,11 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     setFile({ name: file.name, data }); setLayers(importLayers(data)); setCalm(outcome);
     return outcome;
   }, [file, calm]);
-  return { file, calm, calmContours, sprint, layers, mapping, choose, crs, setCrs: (value: number | undefined) => { setCrs(value); setFit(undefined); }, result, computing, readBaseMap,
+  return { file, calm, calmContours,
+    /** Nya kandidater väntar på svar (de som visas är inte införda): läs in dem ändå, eller behåll de som visas. */
+    pendingReplace: pendingReplace?.fileName,
+    replaceAnyway: () => { const pending = pendingReplace; setPendingReplace(undefined); pending?.open(); },
+    keepCurrent: () => setPendingReplace(undefined), sprint, layers, mapping, choose, crs, setCrs: (value: number | undefined) => { setCrs(value); setFit(undefined); }, result, computing, readBaseMap,
     fit, fitToMap, clearFit: () => setFit(undefined), canFit: !!session,
     /** Meter i terrängen per mm på kartan (för att visa inpassningen i meter). */
     metersPerMm: georeference ? georeference.scale / 1000 : 1, problem, setProblem, progress, sent, dwgSent, open, openData, refine, fetchOsm, fetching, propose, cancel,

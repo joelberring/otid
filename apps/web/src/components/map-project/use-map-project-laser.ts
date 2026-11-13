@@ -16,6 +16,7 @@ import { baseMapOutputs, clearCutFeatures, clipWgs84 } from "@o-tid/map-revision
 import { mapProjectBase } from "../../lib/map-project-client";
 import { laserClip } from "../../lib/map-project-clip";
 import { jobSlope } from "../../lib/map-project-flat-contours";
+import { completeStages, stageOf } from "../../lib/map-project-stages";
 import type { laserJobBody, LaserExtra, LaserItem } from "../../lib/map-project-laser-request";
 import { useTexts } from "../language-provider";
 import type { useMapProjectImport } from "./use-map-project-import";
@@ -126,25 +127,40 @@ export function useMapProjectLaser({ view, layers, importer, georeference, bound
    * 2026-11-12 («nu vet man inte om datorn hängt sig»): filerna tolkas och sätts ihop i kandidaternas Worker, och
    * statusraden säger vilket steg som pågår.
    */
-  async function candidates(job: GeoJobView, outputs: readonly string[], label: string, baseMap: boolean, from: LaserAsker) {
+  async function candidates(job: GeoJobView, outputs: readonly string[], label: string, baseMap: boolean, from: LaserAsker,
+    /** Ägaren 2026-11-13 (Ornö södra): alla etapper i en delad körning läses in som en grundkarta, klippta kant i kant. */
+    stages?: readonly GeoJobView[]) {
     setMessage(undefined);
-    const box = baseMap && job.clip ? clipWgs84(job.clip) : undefined;
+    const jobsToRead = stages ?? [job];
+    const clips = jobsToRead.flatMap(row => row.clip ? [row.clip] : []);
+    const union = clips.length > 0 ? { minX: Math.min(...clips.map(c => c.minX)), minY: Math.min(...clips.map(c => c.minY)),
+      maxX: Math.max(...clips.map(c => c.maxX)), maxY: Math.max(...clips.map(c => c.maxY)) } : undefined;
+    const box = baseMap && union ? clipWgs84(union) : undefined;
     // Ägaren 2026-11-13 («Lugna kurvor på flack mark»): med grundkartan läses körningens fuktdjup, för lutningen.
-    const depth = baseMap && job.outputs.some(output => output.name === "fuktdjup.png");
-    const total = outputs.length + (depth ? 1 : 0) + (box ? 2 : 0);
+    const depths = jobsToRead.filter(row => baseMap && row.outputs.some(output => output.name === "fuktdjup.png"));
+    const filesOf = (row: GeoJobView) => stages ? baseMapFiles(row) : outputs;
+    const total = jobsToRead.reduce((sum, row) => sum + filesOf(row).length, 0) + depths.length + (box ? 2 : 0);
+    let fetched = 0;
     const step = (stepText: string) => setBusy({ from, text: stepText });
     step(text.steps.fetching(1, total));
     try {
-      const parts: { name: string; body: string }[] = [];
-      for (const output of outputs) {
-        step(text.steps.fetching(parts.length + 1, total));
-        const body = await read(job, output);
-        if (typeof body === "number") { say(from, body); return; }
-        parts.push({ name: output, body });
+      const read_: { job: GeoJobView; parts: { name: string; body: string }[] }[] = [];
+      for (const row of jobsToRead) {
+        const parts: { name: string; body: string }[] = [];
+        for (const output of filesOf(row)) {
+          step(text.steps.fetching(++fetched, total));
+          const body = await read(row, output);
+          if (typeof body === "number") { say(from, body); return; }
+          parts.push({ name: output, body });
+        }
+        read_.push({ job: row, parts });
       }
+      const parts = read_[0]!.parts;
       // Hjälpkurvor och små ringar på flack mark tas bort med förvalet när körningen har fuktdjupet; reglaget ändrar det sedan.
-      if (depth) step(text.steps.fetching(outputs.length + 1, total));
-      const slope = depth ? await jobSlope(base, job) : undefined;
+      const slopes = new Map<string, Awaited<ReturnType<typeof jobSlope>>>();
+      for (const row of depths) { step(text.steps.fetching(++fetched, total)); slopes.set(row.jobId, await jobSlope(base, row)); }
+      const found = [...slopes.values()].find(value => value && value !== "failed");
+      const slope = found ?? (slopes.size > 0 ? "failed" as const : undefined);
       // G8: OpenStreetMap (stigar, vägar, hus, ledningar) för jobbets ruta följer med i grundkartan; går det inte sägs det.
       let osm: SourceData | undefined, osmMissing = false;
       if (box) {
@@ -158,16 +174,20 @@ export function useMapProjectLaser({ view, layers, importer, georeference, bound
       if (box) {
         step(text.steps.fetching(total, total));
         const response = await clubRequest(`${base}/sources/avverkningar`, "POST", { formatVersion: 1, box }).catch(() => ({ status: 0, json: undefined }));
-        const found = response.status === 200 ? response.json as MapProjectClearCutList | undefined : undefined;
-        if (found) cuts = clearCutFeatures(found.cuts, new Date().toISOString().slice(0, 10), job.scannedAt);
+        const listed = response.status === 200 ? response.json as MapProjectClearCutList | undefined : undefined;
+        if (listed) cuts = clearCutFeatures(listed.cuts, new Date().toISOString().slice(0, 10), job.scannedAt);
       }
-      const { data, calm } = await importer.readBaseMap({ parts, merge: baseMap, osm, scale: georeference?.scale,
+      const stageParts = stages && read_.map(({ job: row, parts: rowParts }) => {
+        const own = slopes.get(row.jobId);
+        return { box: row.clip!, parts: rowParts, ...(own && own !== "failed" ? { slope: { grid: own.grid, affine: own.affine } } : {}) };
+      });
+      const { data, calm } = await importer.readBaseMap({ parts: stageParts ? [] : parts, stages: stageParts, merge: baseMap, osm, scale: georeference?.scale,
         cuts: cuts && { features: cuts.features, afterScan: cuts.afterScan }, calm: slope === "failed" ? undefined : slope },
         at => step(at.step === "read" ? text.steps.reading(at.done, at.total) : text.steps.merging));
       // Karttapullautins filer är i laserns SWEREF 99 TM; en DWG-ritnings koordinatsystem gissas eller anges i importen.
-      importer.openData(candidateName(job, label), job.kind === "DWG" ? data : { ...data, crs: data.crs ?? 3006 }, job.kind !== "DWG",
+      importer.openData(stages ? stagesName(job, label) : candidateName(job, label), job.kind === "DWG" ? data : { ...data, crs: data.crs ?? 3006 }, job.kind !== "DWG",
         // Ägaren 2026-11-12: en etapps resultat klipps mot etappens gräns, så att grannetapperna inte får dubbla linjer.
-        areas.find(row => row.areaId === job.areaId)?.polygon, calm);
+        stages ? undefined : areas.find(row => row.areaId === job.areaId)?.polygon, calm);
       const calmText = calm ? ` ${flatText.loaded(calm.level, calm.formlineMeters.toLocaleString("sv-SE"), calm.rings)}` : slope === "failed" ? ` ${flatText.failed}` : "";
       const cutText = cuts ? ` ${text.clearCuts(cuts.counts.fresh, cuts.counts.scrub, cuts.counts.young, job.scannedAt)}` : "";
       setMessage({ from, tone: "ok", text: `${osmMissing ? `${text.loaded(label)} ${text.osmMissing}` : text.loaded(label)}${cutText}${calmText}` });
@@ -176,6 +196,7 @@ export function useMapProjectLaser({ view, layers, importer, georeference, bound
     } finally { setBusy(undefined); }
   }
   const candidateName = (job: GeoJobView, label: string) => `${job.name} – ${label}`;
+  const stagesName = (job: GeoJobView, label: string) => `${stageOf(job.name)?.base ?? job.name} – ${text.allStages} – ${label}`;
   /** Grundkartans filer i jobbet; färre än två = jobbet har ingen grundkarta att läsa in. */
   const baseMapFiles = (job: GeoJobView) => job.kind === "PULLAUTIN" ? baseMapOutputs(job.outputs.map(output => output.name)) : [];
 
@@ -188,6 +209,14 @@ export function useMapProjectLaser({ view, layers, importer, georeference, bound
     clipOf, boxOf, search, start, remove, candidates, baseMapFiles,
     /** Hela grundkartan som kandidater (samma som laserpanelens «Läs in grundkartan»). */
     loadBaseMap: (job: GeoJobView, from: LaserAsker) => candidates(job, baseMapFiles(job), text.baseMap, true, from),
+    /** Alla etapper i jobbets omgång, när alla är klara och har grundkartans filer; annars `undefined`. */
+    stagesOf: (job: GeoJobView) => {
+      const all = list ? completeStages(job, list.jobs) : undefined;
+      return all && all.every(row => baseMapFiles(row).length > 1) ? all : undefined;
+    },
+    /** Grundkartan ur alla etapper på en gång (ägaren 2026-11-13: «så att alla remsor ses samtidigt»). */
+    loadStages: (job: GeoJobView, stages: readonly GeoJobView[], from: LaserAsker) => candidates(job, [], text.baseMap, true, from, stages),
+    stagesName: (job: GeoJobView) => stagesName(job, text.baseMap),
     /** Namnet kandidaterna får när jobbets grundkarta visas (så känns de igen i importen). */
     baseMapName: (job: GeoJobView) => candidateName(job, text.baseMap)
   };

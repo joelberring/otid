@@ -44,7 +44,9 @@ export const mapProjectGeneralizeEn: Texts<typeof mapProjectGeneralizeSv> = {
 };
 
 export const mapProjectImportEn: Texts<typeof mapProjectImportSv> = {
-  replaceConfirm: (name: string) => `The candidates from “${name}” have not been added to the map and will be lost if you load something else. Continue?`,
+  replaceQuestion: (name: string, next: string) => `The candidates from “${name}” have not been added to the map and will be lost if you load “${next}”.`,
+  replaceYes: "Load anyway",
+  replaceNo: "Keep these",
   heading: "Import vectors",
   help: "A base map or other vector file (GeoJSON, DXF or Shapefile, preferably as .zip) becomes candidates: choose a symbol per layer, see them on the map and leave them as suggestions "
     + "approved like other suggestions. Save DWG as DXF for now. Everything is read here in the browser. Some base maps are recognised "

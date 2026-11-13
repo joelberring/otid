@@ -22,7 +22,8 @@ function laser(patch: { jobs?: GeoJobView[]; ready?: boolean; credential?: boole
   return { credential: patch.credential === false ? undefined : {}, ready: patch.ready ?? true, busy: false, active: false,
     list: { formatVersion: 1, jobs: patch.jobs ?? [], server: { state: "READY", detail: null }, queue: patch.queue },
     busyFor: () => undefined, messageFor: () => patch.message, boxOf: () => patch.box ?? small, clipOf: () => patch.clip ?? clip,
-    baseMapFiles: (row: GeoJobView) => row.outputs.map(output => output.name), baseMapName: (row: GeoJobView) => `${row.name} – Grundkartan` } as unknown as Laser;
+    baseMapFiles: (row: GeoJobView) => row.outputs.map(output => output.name), baseMapName: (row: GeoJobView) => `${row.name} – Grundkartan`,
+    stagesOf: () => undefined, stagesName: (row: GeoJobView) => `${row.name} – alla etapper – Grundkartan` } as unknown as Laser;
 }
 const importer = (file?: string) => ({ file: file ? { name: file } : undefined, result: file ? { objects: [1, 2, 3] } : undefined, computing: false }) as unknown as ReturnType<typeof useMapProjectImport>;
 const render = (hook: Laser, options: { file?: string; canDecide?: boolean } = {}) => renderToStaticMarkup(<MapProjectGuide view={view(options.canDecide)} laser={hook}

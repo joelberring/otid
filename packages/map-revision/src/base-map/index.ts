@@ -20,3 +20,4 @@ export * from "./candidates";
 export * from "./assemble";
 export * from "./sprint-osm";
 export * from "./laser-paved";
+export * from "./stages";

@@ -197,6 +197,8 @@ export const mapSourcesSv = {
       "fukt.dxf": "Våtmarker och fuktstråk", "diken.dxf": "Diken ur terrängformen", "berg.dxf": "Stenar och berg i dagen", "belagt.dxf": "Belagd yta ur lasern", "vegetation.dxf": "Vegetationsytor", "vatten.geojson": "Sjöar och vatten", "brantlinjer.dxf": "Branter som linjer", "marktacke.geojson": "Lantmäteriets marktäcke", "byggnader.geojson": "Lantmäteriets byggnader", "ritning.geojson": "Ritningen"
     } as Record<string, string>,
     loadBaseMap: "Läs in grundkartan",
+    loadStages: (count: number) => `Läs in alla ${count} etapper som en grundkarta`,
+    allStages: "alla etapper",
     /** Statusraden medan kandidater läses in (ägaren 2026-11-12: «nu vet man inte om datorn hängt sig»). */
     steps: {
       fetching: (done: number, total: number) => `Hämtar filer ${done} av ${total} …`,

@@ -1,7 +1,7 @@
 import { parseDxf, parseGeoJson, VectorParseError, type MapNorm, type SourceData, type SourceFeature } from "@o-tid/map-revision";
 import {
-  calmFlatContours, computeCandidates, flatLimitsAt, flatSlopeFrom, mergeBaseMap, type CandidateInput, type CandidateResult, type clearCutFeatures,
-  type FlatContourResult, type PixelAffine, type SlopeGrid
+  calmFlatContours, computeCandidates, flatLimitsAt, flatSlopeFrom, joinStages, mergeBaseMap, type CandidateInput, type CandidateResult, type clearCutFeatures,
+  type FlatContourResult, type PixelAffine, type SlopeGrid, type StageBox
 } from "@o-tid/map-revision/base-map";
 
 /**
@@ -15,6 +15,8 @@ export type { CandidateInput, CandidateResult };
 
 /** En resultatfil som text (DXF eller GeoJSON efter namnet). */
 export interface BaseMapPart { readonly name: string; readonly body: string }
+/** En etapps filer, dess klippruta i SWEREF 99 TM och (för «Lugna kurvor på flack mark») dess lutning. */
+export interface BaseMapStage { readonly box: StageBox; readonly parts: readonly BaseMapPart[]; readonly slope?: Omit<BaseMapCalm, "level"> | undefined }
 type Cuts = Pick<ReturnType<typeof clearCutFeatures>, "features" | "afterScan">;
 
 /**
@@ -31,6 +33,8 @@ export type BaseMapStep = { readonly step: "read"; readonly done: number; readon
 export type CandidateRequest =
   /** Filerna tolkas; med `merge` sätts de ihop till grundkartan (med OpenStreetMap och hyggena), annars blir den första filen svaret. */
   | { readonly type: "base-map"; readonly id: number; readonly dataId: number; readonly parts: readonly BaseMapPart[]; readonly merge: boolean;
+      /** En körning i etapper (ägaren 2026-11-13): varje etapps filer klipps till etappens ruta och läses ihop; `parts` är då tom. */
+      readonly stages?: readonly BaseMapStage[] | undefined;
       readonly osm?: SourceData | undefined; readonly scale?: number | undefined; readonly cuts?: Cuts | undefined;
       /** Kartans norm (`mapNorm`): på en sprintkarta blir OpenStreetMaps belagda vägar ytor. */
       readonly norm?: MapNorm | undefined; readonly calm?: BaseMapCalm | undefined }
@@ -58,18 +62,26 @@ export function handleCandidateRequest(store: CandidateStore, request: Candidate
     post({ type: "computed", id: request.id, result: features ? computeCandidates(features, request.input) ?? null : null });
     return;
   }
-  const { id, parts } = request;
+  const { id } = request;
   try {
-    const read: { name: string; data: SourceData }[] = [];
-    for (const part of parts) {
-      post({ type: "progress", id, step: "read", done: read.length + 1, total: parts.length });
-      read.push({ name: part.name, data: part.name.endsWith(".geojson") ? parseGeoJson(part.body) : parseDxf(part.body) });
-    }
+    const stages = request.stages ?? [{ box: undefined, parts: request.parts }];
+    const total = stages.reduce((sum, stage) => sum + stage.parts.length, 0);
+    let done = 0;
+    const parsed = stages.map(stage => ({ box: stage.box, parts: stage.parts.map(part => {
+      post({ type: "progress", id, step: "read", done: ++done, total });
+      return { name: part.name, data: part.name.endsWith(".geojson") ? parseGeoJson(part.body) : parseDxf(part.body) };
+    }) }));
+    const read = request.stages ? joinStages(parsed.map(stage => ({ box: stage.box!, parts: stage.parts }))) : parsed[0]!.parts;
     if (request.merge) post({ type: "progress", id, step: "merge" });
     const merged: SourceData = request.merge ? mergeBaseMap(read, request.osm, request.scale, request.cuts, request.norm) : { ...read[0]!.data };
     // Hjälpkurvor och små ringar på flack mark tas bort direkt (förvalet), när körningen har fuktdjupet med lutningen.
     const calm = request.merge && request.calm ? request.calm : undefined;
-    const calmed = calm && calmFlatContours(merged.features, flatSlopeFrom(calm.grid, calm.affine), flatLimitsAt(calm.level));
+    // Med etapper: varje etapps lutning där den har en, annars den gemensamma.
+    const slopes = (request.stages ?? []).flatMap(stage => stage.slope ? [flatSlopeFrom(stage.slope.grid, stage.slope.affine)] : []);
+    const slopeAt = calm && (slopes.length > 0
+      ? (x: number, y: number) => { for (const at of slopes) { const value = at(x, y); if (value !== undefined) return value; } return undefined; }
+      : flatSlopeFrom(calm.grid, calm.affine));
+    const calmed = calm && slopeAt && calmFlatContours(merged.features, slopeAt, flatLimitsAt(calm.level));
     const data = calmed ? { ...merged, features: calmed.features } : merged;
     store.set(request.dataId, data.features);
     post({ type: "base-map", id, dataId: request.dataId, data,

@@ -135,6 +135,8 @@ export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
     "fukt.dxf": "Marshes and wet channels", "diken.dxf": "Ditches from the terrain shape", "berg.dxf": "Boulders and bare rock", "belagt.dxf": "Paved area from the laser data", "vegetation.dxf": "Vegetation areas", "vatten.geojson": "Lakes and water", "brantlinjer.dxf": "Cliffs as lines", "marktacke.geojson": "Land cover from Lantmäteriet", "byggnader.geojson": "Buildings from Lantmäteriet", "ritning.geojson": "The drawing"
   },
   loadBaseMap: "Load the base map",
+  loadStages: (count: number) => `Load all ${count} stages as one base map`,
+  allStages: "all stages",
   steps: {
     fetching: (done: number, total: number) => `Fetching files ${done} of ${total} …`,
     reading: (done: number, total: number) => `Reading files ${done} of ${total} …`,

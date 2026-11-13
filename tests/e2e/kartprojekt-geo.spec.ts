@@ -40,8 +40,8 @@ function runGeoWorker(origin: string): Promise<{ code: number | null; output: st
 test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-servern", async ({ browser, baseURL }) => {
   test.setTimeout(300_000);
   const owner = await registerAccount(browser, `laser.${unique()}@exempel.se`, "Lisa Laser");
-  // Sidan frågar innan kandidater som inte är införda byts mot andra (ägaren 2026-11-12); här byts de med flit.
-  owner.on("dialog", dialog => void dialog.accept());
+  // Sidan frågar (i kandidaternas rad) innan kandidater som inte är införda byts mot andra (ägaren 2026-11-12); här byts de med flit.
+  const replace = () => owner.getByTestId("map-project-candidate-replace-yes").click();
   await warmRoute(owner, "/api/account/map-sources/lantmateriet");
   const saved = await owner.request.put("/api/account/map-sources/lantmateriet", { headers: { origin: baseURL!, "x-otid-csrf": await csrfOf(owner) },
     data: { formatVersion: 1, method: "BASIC", id: "geotorget-lisa", secret: "hemligt-laser-1" } });
@@ -142,15 +142,18 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   await reviewScreenshots(owner, "kartprojekt-laser");
   // Våtmarkerna som kandidater (ersätter kurvorna i importen): sänkan blir blött och fuktigt.
   await laser.getByRole("button", { name: "Läs in våtmarker och fuktstråk som kandidater" }).click();
+  await replace();
   await expect(laser.getByTestId("map-project-laser-message")).toHaveText("Våtmarker och fuktstråk visas som kandidater nedan under Vektorfil.");
   await expect(importer.getByTestId("map-project-import-layer").first()).toContainText("blott");
   // Vegetationen: öppen mark i väster och mycket svårlöpt grönt i öster (alla tre gröna nivåerna).
   await laser.getByRole("button", { name: "Läs in vegetationsytor som kandidater" }).click();
+  await replace();
   await expect(laser.getByTestId("map-project-laser-message")).toHaveText("Vegetationsytor visas som kandidater nedan under Vektorfil.");
   await expect(importer.getByTestId("map-project-import-layer")).toHaveCount(4);
   await expect(importer.getByTestId("map-project-import-layer").first()).toContainText("oppen_mark");
   // Grundkartan: allt på en gång, med branten som en linje i stället för Karttapullautins streck.
   await laser.getByTestId("map-project-laser-base-map").click();
+  await replace();
   await expect(laser.getByTestId("map-project-laser-message")).toContainText("Grundkartan visas som kandidater nedan under Vektorfil.");
   // Skogsstyrelsens hyggen efter ålder (ägaren 2026-11-11): förra årets hygge är färskt, det gamla och det odaterade tas inte med.
   await expect(laser.getByTestId("map-project-laser-message")).toContainText("Hyggen från Skogsstyrelsen: 1 färska, 0 med sly och 0 med ungskog");
@@ -185,9 +188,11 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   await cuts.getByTestId("map-project-cuts-fresh").fill("1");
   await expect(cuts.getByTestId("map-project-cuts-message")).toHaveText("0 färska, 1 med sly och 0 med ungskog av 3 hyggen i rutan.", { timeout: 20_000 });
   await laser.getByRole("button", { name: "Läs in lantmäteriets marktäcke som kandidater" }).click();
+  await replace();
   await expect(importer.getByTestId("map-project-import-layer")).toHaveCount(2);
   // Vattnet ur laserns klasser: sjön blir en yta i lagret vatten.
   await laser.getByRole("button", { name: "Läs in sjöar och vatten som kandidater" }).click();
+  await replace();
   await expect(laser.getByTestId("map-project-laser-message")).toHaveText("Sjöar och vatten visas som kandidater nedan under Vektorfil.");
   await expect(importer.getByTestId("map-project-import-layer")).toHaveCount(1);
   await expect(importer.getByTestId("map-project-import-layer").first()).toContainText("vatten");

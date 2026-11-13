@@ -132,6 +132,18 @@ describe("kandidaternas Worker från sidan", () => {
     expect(result).toBeTruthy();
   });
 
+  it("läser en körning i etapper som en grundkarta: varje etapp klipps till sin ruta (ägaren 2026-11-13, Ornö södra)", async () => {
+    const session = new CandidateSession(() => fakeWorker().worker);
+    // Samma sten ligger i båda etappernas marginal; den ska komma med en gång, från etappen den ligger i.
+    const stones = (points: [number, number][]) => JSON.stringify({ type: "FeatureCollection",
+      features: points.map(coordinates => ({ type: "Feature", properties: { layer: "stenar" }, geometry: { type: "Point", coordinates } })) });
+    const { data } = await session.baseMap({ parts: [], merge: false, stages: [
+      { box: { minX: 0, minY: 0, maxX: 100, maxY: 100 }, parts: [{ name: "stenar.geojson", body: stones([[10, 10], [120, 10]]) }] },
+      { box: { minX: 100, minY: 0, maxX: 200, maxY: 100 }, parts: [{ name: "stenar.geojson", body: stones([[120, 10], [150, 10], [10, 10]]) }] }
+    ] }, () => undefined);
+    expect(data.features.map(feature => feature.geometry.kind === "point" ? feature.geometry.at[0] : undefined)).toEqual([10, 120, 150]);
+  });
+
   it("ger `VectorParseError` för en fil som inte går att tolka", async () => {
     const session = new CandidateSession(() => fakeWorker().worker);
     await expect(session.baseMap({ parts: [{ name: "kurvor.dxf", body: "x\ny" }], merge: false }, () => undefined)).rejects.toThrow(/DXF/);

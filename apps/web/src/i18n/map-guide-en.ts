@@ -53,6 +53,8 @@ export const mapGuideEn: Texts<typeof mapGuideSv> = {
     cancelNo: "No, continue"
   },
   review: {
+    stages: (count: number) => `Load all ${count} stages as one base map`,
+    oneStage: "Only this stage",
     load: (name: string) => `${name} is finished. Load the base map: it is shown as candidates on top of the map and is not saved until you add them.`,
     button: "Load the base map",
     candidates: (count: number) => `The base map is now shown as candidates${count ? ` (${count} objects)` : ""}. Look at the map, and add them with the button "Add … objects to the map" in the row below the map `

@@ -65,6 +65,7 @@ export function MapProjectLaserPanel({ view, laser, importer, georeference, boun
   const [vegetation, setVegetation] = useState(LASER_FORM_DEFAULTS.vegetation);
   const [minAreaM2, setMinAreaM2] = useState<number>(LASER_FORM_DEFAULTS.minAreaM2);
   const area = areas.find(row => row.areaId === where);
+  const stagesFor = (job: GeoJobView) => laser.stagesOf(job);
   useEffect(() => { setItems(undefined); setExtras([]); setChosen(new Set()); setName(text.defaultName(area?.name)); }, [where, area?.name]);
 
   if (!view.viewer.canPropose || !georeference || !bounds) return null;
@@ -211,7 +212,9 @@ export function MapProjectLaserPanel({ view, laser, importer, georeference, boun
           {job.moistureLayerId && <span className={styles.muted}> · {text.moistureAdded}</span>}
           {job.skippedSteps.length > 0 && <span className={styles.muted} data-testid="map-project-laser-skipped"> · {text.skippedSteps(job.skippedSteps.map(step => text.stepNames[step] ?? step).join(", "))}</span>}
           {job.status === "DONE" && importer.canImport && <span className={styles.actions}>
-            {laser.baseMapFiles(job).length > 1 && <Button disabled={busy} data-testid="map-project-laser-base-map"
+            {stagesFor(job) && <Button disabled={busy} data-testid="map-project-laser-stages"
+              onClick={() => void laser.loadStages(job, stagesFor(job)!, "panel")}>{text.loadStages(stagesFor(job)!.length)}</Button>}
+            {laser.baseMapFiles(job).length > 1 && <Button variant={stagesFor(job) ? "secondary" : "primary"} disabled={busy} data-testid="map-project-laser-base-map"
               onClick={() => void laser.loadBaseMap(job, "panel")}>{text.loadBaseMap}</Button>}
             {job.outputs.filter(output => output.name in text.outputs).map(output => <Button key={output.name} variant="secondary" disabled={busy}
               onClick={() => void laser.candidates(job, [output.name], text.outputs[output.name]!, false, "panel")}>{text.load(text.outputs[output.name]!)}</Button>)}

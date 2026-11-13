@@ -242,6 +242,22 @@ services:
       OTID_RETENTION: ${OTID_RETENTION:-}
       OTID_RETENTION_MONTHS: ${OTID_RETENTION_MONTHS:-}
       OTID_INSTANCE_ROLE: public
+      # AI-kopplingen (/api/mcp) går till web-public (Caddyfile). Verktygen som startar laserkörningar och lägger in
+      # grundkartan behöver därför samma uppgifter som web: nyckeln som öppnar kontots uppgifter till Lantmäteriet,
+      # Lantmäteriets adresser, kartkällorna och kvoten. Ägaren 2026-11-13: «servern saknar nyckeln som öppnar dem» via
+      # kopplingen, fast samma körning gick i webben. Hetzner-nyckeln och arbetarens nyckel ges INTE hit: geo-servern
+      # startas av web.
+      OTID_EVENTOR_MASTER_KEY: ${OTID_EVENTOR_MASTER_KEY:-}
+      OTID_EVENTOR_BASE_URL: ${OTID_EVENTOR_BASE_URL:-}
+      OTID_LM_STAC_BILD_URL: ${OTID_LM_STAC_BILD_URL:-}
+      OTID_LM_TOKEN_URL: ${OTID_LM_TOKEN_URL:-}
+      OTID_LM_STAC_HOJD_URL: ${OTID_LM_STAC_HOJD_URL:-}
+      OTID_LM_STAC_VEKTOR_URL: ${OTID_LM_STAC_VEKTOR_URL:-}
+      OTID_LM_LASER_COLLECTION: ${OTID_LM_LASER_COLLECTION:-}
+      OTID_OVERPASS_URL: ${OTID_OVERPASS_URL:-}
+      OTID_SKS_AVVERKNING_URL: ${OTID_SKS_AVVERKNING_URL:-}
+      OTID_GEO_TILES_PER_MONTH: ${OTID_GEO_TILES_PER_MONTH:-}
+      OTID_GEO_SPLIT_KM2: ${OTID_GEO_SPLIT_KM2:-}
       NODE_OPTIONS: --max-old-space-size=448
     command: ["node", "apps/web/server.js"]
     healthcheck: *web-healthcheck

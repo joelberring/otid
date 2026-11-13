@@ -164,6 +164,10 @@ långsammare. Servern skalas inte upp (CX23 räcker), utan tävlingen får gå f
   (färst pågående anrop; svarar den ena inte prövas den andra) för den som inte är inloggad. Allt annat, och allt för
   den som är inloggad (arrangörer och funktionärer, även speakern och de publika sidorna), går till `web`. Varje instans
   klarar alla sökvägar: lokalt och med `pnpm dev` finns bara en (`OTID_INSTANCE_ROLE` saknas, `all`).
+- **AI-kopplingen (`/api/mcp`) går till `web-public`.** Verktygen som startar laserkörningar och lägger in grundkartan
+  behöver därför samma kartuppgifter som `web`: `OTID_EVENTOR_MASTER_KEY` (öppnar kontots uppgifter till Lantmäteriet),
+  `OTID_LM_*`, `OTID_OVERPASS_URL`, `OTID_SKS_AVVERKNING_URL`, `OTID_GEO_TILES_PER_MONTH` och `OTID_GEO_SPLIT_KM2`. De ges i
+  `docker-compose.prod.yml`. Hetzner-nyckeln och arbetarens nyckel ges inte dit: geo-servern startas av `web`.
 - **Processortid:** `cpu_shares` i `docker-compose.prod.yml` är 1024 för `postgres`, `web` och Caddy, 256 för var och en av
   `web-public` och `web-public2`, 128 för backupen och 64 för utskriftsarbetaren (`print-worker`, steg 65, som dessutom
   kör med nice 19). Vikterna gäller bara när processorn inte räcker till alla: då går

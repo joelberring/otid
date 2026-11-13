@@ -25,8 +25,16 @@ export const laserIntervals = (sprint: boolean): readonly number[] => sprint ? [
 /** Förvald ekvidistans för kartan. */
 export const defaultLaserInterval = (sprint: boolean): number => sprint ? SPRINT_CONTOUR_INTERVAL : LASER_FORM_DEFAULTS.interval;
 
+/**
+ * Sprintkartor får belagd yta ur laserns intensitet (ägaren 2026-11-13, geo-arbetarens `belagt.dxf`): inställningen `paved`
+ * sätts som förval när kartans norm är en sprintnorm. En inställning som skrivits för hand går före.
+ */
+const pavedSetting = (sprint: boolean | undefined): { paved?: 1 } => sprint ? { paved: 1 } : {};
+
 export interface LaserJobInput {
   readonly name: string; readonly interval: number; readonly formline: number;
+  /** Kartan är en sprintkarta: belagd yta ur lasern tas med. */
+  readonly sprint?: boolean | undefined;
   /** Valen som värden (`choiceSettings`): inställningarna och branternas trösklar. */
   readonly chosen: ReturnType<typeof choiceSettings>;
   readonly moisture?: { readonly channelHa: number; readonly wetMeters: number } | undefined;
@@ -39,7 +47,7 @@ export interface LaserJobInput {
 /** Begäran som startar en körning (POST geo-jobs), utan `requestId`. Samma för laserpanelen och guiden. */
 export function laserJobBody(input: LaserJobInput) {
   const { target } = input;
-  return { formatVersion: 1, kind: "PULLAUTIN", name: input.name, settings: { contour_interval: input.interval, formline: input.formline, ...input.chosen.settings },
+  return { formatVersion: 1, kind: "PULLAUTIN", name: input.name, settings: { contour_interval: input.interval, formline: input.formline, ...pavedSetting(input.sprint), ...input.chosen.settings },
     ...(input.chosen.cliffs ? { cliffs: input.chosen.cliffs } : {}),
     ...("rerunOf" in target ? { rerunOf: target.rerunOf, ...(target.clip ? { clip: target.clip } : {}) } : {
       tiles: target.tiles.map(item => ({ id: item.id, href: item.href, bbox: item.bbox, epsg: item.epsg, datetime: item.datetime })),
@@ -50,10 +58,10 @@ export function laserJobBody(input: LaserJobInput) {
     ...(input.vegetation ? { vegetation: { minAreaM2: input.vegetation.minAreaM2 } } : {}) } as const;
 }
 
-/** Körningen med förvalen (guiden): alla hittade produkter, förvalda inställningar, fuktighet och vegetation; `sprint` ger sprintkartans ekvidistans. */
+/** Körningen med förvalen (guiden): alla hittade produkter, förvalda inställningar, fuktighet och vegetation; `sprint` ger sprintkartans ekvidistans och belagd yta ur lasern. */
 export function defaultLaserJob(name: string, target: Extract<LaserJobInput["target"], { tiles: unknown }>, sprint = false) {
   const d = LASER_FORM_DEFAULTS;
-  return laserJobBody({ name, interval: defaultLaserInterval(sprint), formline: d.formline, chosen: choiceSettings(d.choices, {}, d.cliffStyle, d.cliffTags),
+  return laserJobBody({ name, interval: defaultLaserInterval(sprint), formline: d.formline, sprint, chosen: choiceSettings(d.choices, {}, d.cliffStyle, d.cliffTags),
     moisture: d.moisture ? { channelHa: d.channelHa, wetMeters: d.wetMeters } : undefined,
     vegetation: d.vegetation ? { minAreaM2: d.minAreaM2 } : undefined, target });
 }

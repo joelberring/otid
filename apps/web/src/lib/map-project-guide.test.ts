@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { GeoJobView } from "@o-tid/contracts";
 import { estimateMinutes, guideDefaultArea, guideState, laserAreaSize, latestAreaJob, type GuideInput } from "./map-project-guide";
-import { defaultLaserInterval, defaultLaserJob, laserIntervals } from "./map-project-laser-request";
+import { defaultLaserInterval, defaultLaserJob, laserIntervals, laserJobBody } from "./map-project-laser-request";
 
 const STAGE = "11111111-1111-4111-8111-111111111111";
 function job(patch: Partial<GeoJobView>): GeoJobView {
@@ -125,8 +125,14 @@ describe("guidens körning med förvalen", () => {
       moisture: { channelHa: 1, wetMeters: 0.3, moistMeters: 0.6 }, vegetation: { minAreaM2: 300 } });
   });
 
-  it("en sprintkarta körs med ekvidistansen 2,5 m, och 2 m går att välja", () => {
-    expect(defaultLaserJob("Karttapullautin hela kartan", { tiles: [tile], clip, areaId: undefined, extras: [] }, true).settings).toEqual({ contour_interval: 2.5, formline: 2 });
+  it("en sprintkarta körs med ekvidistansen 2,5 m och belagd yta ur lasern, och 2 m går att välja", () => {
+    expect(defaultLaserJob("Karttapullautin hela kartan", { tiles: [tile], clip, areaId: undefined, extras: [] }, true).settings).toEqual({ contour_interval: 2.5, formline: 2, paved: 1 });
+    // Laserpanelen: en handskriven inställning går före förvalet, och en skogskarta får ingen belagd yta.
+    const panel = (sprint: boolean, typed: Record<string, number> = {}) => laserJobBody({ name: "Prov", interval: 2, formline: 2, sprint, chosen: { settings: typed, cliffs: undefined },
+      target: { tiles: [tile], clip, extras: [] } }).settings;
+    expect(panel(true)).toEqual({ contour_interval: 2, formline: 2, paved: 1 });
+    expect(panel(true, { paved: 0 })).toEqual({ contour_interval: 2, formline: 2, paved: 0 });
+    expect(panel(false)).toEqual({ contour_interval: 2, formline: 2 });
     expect(defaultLaserInterval(false)).toBe(5);
     expect(laserIntervals(true)).toEqual([2, 2.5, 5]);
     expect(laserIntervals(false)).toEqual([2.5, 5]);

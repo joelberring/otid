@@ -49,6 +49,13 @@ export function smoothMask(mask: Uint8Array, width: number, height: number, radi
   return a;
 }
 
+/** Masken öppnad med `cells` steg (krympt och sedan vuxen): det som är smalare än så försvinner, resten behåller sin form. */
+export function openMask(mask: Uint8Array, width: number, height: number, cells = 1): Uint8Array {
+  let a: Uint8Array = Uint8Array.from(mask), b: Uint8Array = new Uint8Array(mask.length);
+  for (const grow of [false, true]) [a, b] = morph(a, b, width, height, cells, grow);
+  return a;
+}
+
 /**
  * Små vita ytor: celler som varken är `open`, `green` eller `blocked` och som hänger ihop i färre än `minCells` celler ges
  * till den av gult och grönt som ligger närmast (bredden först, högst `reach` steg). Ändrar `open` och `green` på plats och

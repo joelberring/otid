@@ -51,9 +51,9 @@ describe("punktmolnets statistik (ägaren 2026-11-11)", () => {
 describe("reglagen för gult och grönt", () => {
   it("geo-arbetarens egna inställningar skrivs inte i pullauta.ini", async () => {
     const { iniWith } = await import("../../../scripts/geo-worker");
-    const ini = iniWith("knolls=0.6\ngreenshades=0.2|0.35|0.5\n", { knolls: 0.35, openshare: 0.35, denseshare: 0.12, knollshare: 0.7, rock: 2 });
+    const ini = iniWith("knolls=0.6\ngreenshades=0.2|0.35|0.5\n", { knolls: 0.35, openshare: 0.35, denseshare: 0.12, knollshare: 0.7, rock: 2, paved: 1 });
     expect(ini).toContain("knolls=0.35");
-    for (const key of ["openshare", "denseshare", "knollshare", "rock"]) expect(ini).not.toContain(key);
+    for (const key of ["openshare", "denseshare", "knollshare", "rock", "paved"]) expect(ini).not.toContain(key);
   });
 });
 

@@ -90,6 +90,8 @@ const KEYWORDS: readonly { readonly words: RegExp; readonly line?: string; reado
   { words: /^BESTANDSGRANS/, line: "416" },
   // G8: tomterna som räknats ur husen (ägaren 2026-11-11: «tomter kommer inte med»).
   { words: /^TOMTMARK/, area: "520" },
+  // Belagd yta ur laserns intensitet är ett underlag för sprintkartor (sprint-layers.ts); på en skogskarta inget förslag.
+  { words: /BELAGD_YTA_LASER/ },
   // Geo-arbetarens vegetation (K5c del 3): öppen mark, tre gröna och undervegetation.
   // Ägaren 2026-11-11 («gula ytor som inte består av träd men inte är rent berg saknas»): laserns öppna mark där marktäcket
   // redan har åkrar och gräsytor är oftast ödemark (403), och skog med många gläntor öppen mark med spridda träd (404).

@@ -1,6 +1,7 @@
 import { geodeticToGrid, gridToGeodetic, transverseMercatorFor } from "@o-tid/map-file";
 import { isSprintNorm, joinSeams, type MapBox, type MapNorm, type SourceData, type SourceFeature } from "../index";
 import { sprintOsm } from "./sprint-osm";
+import { LASER_PAVED_FILE, laserPavedAreas } from "./laser-paved";
 import { withoutCutVegetation, type clearCutFeatures } from "./clear-cuts";
 import { smallRingsToPoints } from "./small-rings";
 import { yardsOf } from "./yards";
@@ -24,9 +25,11 @@ import { linesOutsideWater } from "./water-clip";
  * - tomterna: OpenStreetMaps bostadsområden (`tomtmark_osm`), marktäckets låga bebyggelse (`tomtmark_marktacke`) och
  *   rektanglar kring hus utanför dem (`tomtmark_hus`, `yardsOf`), i var sitt lager så att kandidatraden kan välja,
  * - ur OpenStreetMap tas vägar, stigar, hus, ledningar, staket och liknande; vatten, sankmark, branter och markslag finns
- *   redan ur lasern och marktäcket, och husen tas inte med när Lantmäteriets byggnader finns.
+ *   redan ur lasern och marktäcket, och husen tas inte med när Lantmäteriets byggnader finns,
+ * - belagd yta ur lasern (`belagt.dxf`, sprintkartor) blir ytor med kvarteren som hål, och då får OpenStreetMaps gator och
+ *   gångvägar ingen yta med antagen bredd (lasern har den verkliga ytan); deras mittlinjer följer med utan förslag.
  */
-const BASE_MAP = ["kurvor.dxf", "formlinjer.dxf", "brantlinjer.dxf", "knollar.dxf", "vatten.geojson", "marktacke.geojson", "byggnader.geojson", "fukt.dxf", "diken.dxf", "berg.dxf", "vegetation.dxf"];
+const BASE_MAP = ["kurvor.dxf", "formlinjer.dxf", "brantlinjer.dxf", "knollar.dxf", "vatten.geojson", "marktacke.geojson", "byggnader.geojson", "fukt.dxf", "diken.dxf", "berg.dxf", "vegetation.dxf", LASER_PAVED_FILE];
 
 export function baseMapOutputs(names: readonly string[]): string[] {
   const has = new Set(names);
@@ -142,14 +145,15 @@ export function depressionTick(feature: SourceFeature): SourceFeature[] {
  */
 export function mergeBaseMap(parts: readonly { readonly name: string; readonly data: SourceData }[], rawOsm?: SourceData, scale?: number,
   cuts?: Pick<ReturnType<typeof clearCutFeatures>, "features" | "afterScan">, norm: MapNorm = "ISOM"): SourceData {
-  const osm = rawOsm && isSprintNorm(norm) ? sprintOsm(rawOsm) : rawOsm;
   const names = new Set(parts.map(part => part.name)), landCover = names.has("marktacke.geojson");
+  const osm = rawOsm && isSprintNorm(norm) ? sprintOsm(rawOsm, { laserPaved: names.has(LASER_PAVED_FILE) }) : rawOsm;
   const shortest = scale ? twoTagMeters(scale) : 0;
   const minCliff = scale ? MIN_CLIFF_MM * scale / 1000 : 0;
   // G3: kurvorna och formlinjerna fogas över laserrutornas skarvar.
   // Ägaren 2026-11-12: kurvorna och formlinjerna klipps mot vattnet (lasern har ingen mark där och drar dem rakt över).
   const contours = new Set<SourceFeature>();
   const joined = parts.map(part => {
+    if (part.name === LASER_PAVED_FILE) return { ...part, data: { ...part.data, features: laserPavedAreas(part.data.features) } };
     if (!/^(kurvor|formlinjer)\.dxf$/.test(part.name)) return part;
     const list = joinSeams(part.data.features);
     for (const feature of list) contours.add(feature);

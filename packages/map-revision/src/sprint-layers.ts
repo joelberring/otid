@@ -73,6 +73,10 @@ const SPRINT_RULES: readonly SprintRule[] = [
   { words: /BEBYGGELSE/ },
   // Tomtmark (laserjobbets tomter och OpenStreetMaps bostadsområden): område som inte får beträdas.
   { words: /TOMTMARK|TOMTYTA|OUT_?OF_?BOUNDS/, area: ["forbidden"] },
+  // Belagd yta ur laserns intensitet (geo-arbetarens `belagt.dxf`): 501, i den äldre normen 529. Bara som yta.
+  { words: /BELAGD_YTA_LASER/, area: ["paved"] },
+  // Mittlinjen i en belagd gata när ytan kommer ur lasern: ingen symbol (gatan är en yta på en sprintkarta).
+  { words: /BELAGD VAG, MITTLINJE/ },
   // Kanten på en belagd yta som vi själva räknat ur OpenStreetMaps vägar, före ytan med nästan samma namn.
   { words: /KANT BELAGD YTA/, line: ["pavedEdge"] },
   // Trappa och terrängtrappa, före byggnad («ByggnadsanlaggningTrappa»).

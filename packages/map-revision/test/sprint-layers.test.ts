@@ -163,6 +163,20 @@ describe("lager → symbol på sprintkartor", () => {
     expect(template2019("Reserverad trädplats", point)).toBeUndefined();
   });
 
+  it("belagd yta ur lasern: 501 på en sprintkarta, 529 i den äldre normen, inget förslag på en skogskarta", () => {
+    const shape = { closedLines: 12 };
+    expect(suggest(template("ISSPROM2019-2"), "ISSPROM")("belagd_yta_laser", shape)).toBe("area501");
+    expect(suggest(template("ISSPROM2019-2"), "ISSPROM")("belagd_yta_laser", area)).toBe("area501");
+    expect(suggest(OCAD_ISSPROM, "ISSPROM")("belagd_yta_laser", area)).toBe("area501.0");
+    expect(suggest(OCAD_ISSOM, "ISSOM")("belagd_yta_laser", area)).toBe("area529.0");
+    expect(suggest(template("ISOM2017-2"), "ISOM")("belagd_yta_laser", area)).toBeUndefined();
+    expect(suggestSymbol(layer("belagd_yta_laser", area), template("ISSPROM2019-2"))).toBeUndefined();
+    // Gatans mittlinje, när ytan kommer ur lasern, får inget förslag (inte heller en gångväg, som annars blir stig).
+    for (const name of ["OSM belagd väg, mittlinje (residential)", "OSM belagd väg, mittlinje (footway)", "OSM belagd väg, mittlinje (path)"]) {
+      expect(suggest(template("ISSPROM2019-2"), "ISSPROM")(name, line), name).toBeUndefined();
+    }
+  });
+
   it("OpenStreetMaps lager på en sprintkarta", () => {
     const sprint = suggest(template("ISSPROM2019-2"), "ISSPROM");
     expect(Object.fromEntries(([["OSM byggnad", area], ["OSM skärmtak (building=roof)", area], ["OSM staket", line], ["OSM mur", line], ["OSM stödmur", line],

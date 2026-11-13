@@ -85,7 +85,7 @@ export function MapProjectLaserPanel({ view, laser, importer, georeference, boun
   async function start() {
     const tiles = (items ?? []).filter(item => chosen.has(item.id));
     const ok = await laser.start(laserJobBody({ name: (name.trim() || text.defaultName(area?.name)).slice(0, sampled ? 68 : 80) + (sampled ? text.sampleSuffix : ""),
-      interval, formline, chosen: choiceSettings(choices, moreSettings(more), cliffStyle, cliffTags),
+      interval, formline, sprint: !!importer.sprint, chosen: choiceSettings(choices, moreSettings(more), cliffStyle, cliffTags),
       // Kör om: rutorna, området och Lantmäteriets produkter tas från jobbet; annars de valda rutorna och kartans område.
       target: rerun ? { rerunOf: rerun.jobId, clip: sampled } : { tiles, clip, areaId: area?.areaId, extras: extras.filter(extra => !skippedExtras.has(extra.kind)) },
       moisture: moisture ? { channelHa, wetMeters } : undefined, vegetation: vegetation ? { minAreaM2 } : undefined }), "panel");

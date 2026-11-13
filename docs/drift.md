@@ -942,6 +942,11 @@ Karttapullautin på laserdata körs av geo-arbetaren på en egen geo-server, ald
   ```
 
   En sådan server raderar du själv; den kostar per timme.
+- **Belagd yta för sprintkartor:** med inställningen `paved` (1 som förval när kartans norm är en sprintnorm, annars 0) skriver
+  geo-arbetaren `belagt.dxf` (lagret `belagd_yta_laser`, kandidater för 501): öppna 2 m-celler där markträffarnas intensitet
+  är mörk (asfalt), med en gräns som anpassas till skanningen (`scripts/geo-paved.ts`). Ytornas kanter generaliseras: raka
+  vägkanter, räta vinklar och rektanglar där ytan är sådan (`scripts/geo-paved-generalize.ts`). Jobbets sammanfattning har `pavedHa`
+  och `pavedLimit`. I grundkartan ersätter den OpenStreetMaps gator och gångvägar med antagen bredd.
 - **Minne:** Karttapullautin tar en ruta i taget (`processes=1`), så 4 GB räcker. Fler än fyra rutor slås ihop i halv
   upplösning, och bilden krymps tills den ryms som underlag (högst 40 MB och 30000 px).
 - **Gränser:** två jobb per konto åt gången, högst 16 rutor per jobb och `OTID_GEO_TILES_PER_MONTH` rutor per konto och

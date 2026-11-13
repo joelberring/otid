@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { SYMBOL_SETS } from "@o-tid/map-file";
 import { importLayers, LIMITS, osmToSourceData, suggestSymbol, type SourceData, type SourceFeature } from "../src";
-import { mergeBaseMap, osmMeters, SPRINT_PAVED_EDGE_LAYER, SPRINT_PAVED_LAYER, sprintOsm, sprintPaved, sprintRoadWidth } from "../src/base-map";
+import { baseMapOutputs, LASER_PAVED_LAYER, mergeBaseMap, osmMeters, SPRINT_PAVED_CENTRE_LAYER, SPRINT_PAVED_EDGE_LAYER, SPRINT_PAVED_LAYER, sprintOsm, sprintPaved, sprintRoadWidth } from "../src/base-map";
 
 const road = (highway: string, points: [number, number][], tags: Record<string, string> = {}, layer = `OSM väg (${highway})`): SourceFeature =>
   ({ layer, geometry: { kind: "line", points, closed: false }, properties: { highway, ...tags } });
@@ -43,7 +43,7 @@ describe("sprintkartans OpenStreetMap", () => {
       road("residential", [[0, 0], [100, 0]]),
       road("footway", [[50, 0], [50, 60]], {}, "OSM gångväg och cykelväg")
     ]));
-    expect(result.sprint).toEqual({ paved: 2, assumed: 2, unpaved: 0, tunnels: 0, surfaces: 1 });
+    expect(result.sprint).toEqual({ paved: 2, assumed: 2, unpaved: 0, tunnels: 0, surfaces: 1, centres: 0 });
     expect(layersOf(result)).toEqual({ [SPRINT_PAVED_LAYER]: 1, [SPRINT_PAVED_EDGE_LAYER]: 1 });
     const surface = result.features.find(feature => feature.layer === SPRINT_PAVED_LAYER)!;
     // Gatan 100 m × 6 m och gångvägen 57 m × 2,5 m utanför gatan, plus de avrundade ändarna.
@@ -144,5 +144,38 @@ describe("sprintkartans OpenStreetMap", () => {
       geometry: [{ lat: 59.3, lon: 18 }, { lat: 59.3, lon: 18.002 }] }] });
     expect(layersOf(mergeBaseMap([], osm, 10000))).toEqual({ "OSM väg (residential)": 1 });
     expect(layersOf(mergeBaseMap([], osm, 4000, undefined, "ISSPROM"))).toEqual({ [SPRINT_PAVED_LAYER]: 1, [SPRINT_PAVED_EDGE_LAYER]: 1 });
+  });
+
+  it("med belagd yta ur lasern får gator och gångvägar ingen antagen yta; mittlinjerna följer med utan förslag", () => {
+    const result = sprintOsm(metric([
+      road("residential", [[0, 0], [100, 0]]),
+      road("footway", [[50, 0], [50, 60]], {}, "OSM gångväg och cykelväg"),
+      road("footway", [[0, 20], [40, 20]], { surface: "gravel" }, "OSM gångväg och cykelväg"),
+      { layer: "OSM parkering", geometry: { kind: "area", rings: [[[0, 30], [20, 30], [20, 50], [0, 50]]] } }
+    ]), { laserPaved: true });
+    expect(result.sprint).toEqual({ paved: 0, assumed: 0, unpaved: 1, tunnels: 0, surfaces: 1, centres: 2 });
+    // Parkeringen är en yta i OpenStreetMap (ingen antagen bredd) och blir belagd yta som förut.
+    expect(layersOf(result)).toEqual({ "OSM belagd väg, mittlinje (residential)": 1, "OSM belagd väg, mittlinje (footway)": 1, "OSM obelagd väg (footway)": 1,
+      [SPRINT_PAVED_LAYER]: 1, [SPRINT_PAVED_EDGE_LAYER]: 1 });
+    expect(areaOf(result.features.find(feature => feature.layer === SPRINT_PAVED_LAYER)!)).toBeCloseTo(400, 0);
+    expect(result.features.find(feature => feature.layer === SPRINT_PAVED_CENTRE_LAYER("residential"))!.geometry).toEqual({ kind: "line", closed: false, points: [[0, 0], [100, 0]] });
+  });
+
+  it("grundkartan med belagt.dxf: laserns ringar blir ytor med kvarteren som hål, och OpenStreetMaps gata blir ingen yta", () => {
+    const osm = osmToSourceData({ elements: [{ type: "way", tags: { highway: "residential" },
+      geometry: [{ lat: 59.3, lon: 18 }, { lat: 59.3, lon: 18.002 }] }] });
+    const ring = (points: [number, number][], layer = LASER_PAVED_LAYER) => ({ layer, geometry: { kind: "line" as const, closed: true, points } });
+    // Ytterkanten moturs, kvarteret medurs (som geo-arbetaren skriver dem), en fristående plan och ett annat lager.
+    const laser = { name: "belagt.dxf", data: { skipped: 0, features: [
+      ring([[0, 0], [100, 0], [100, 100], [0, 100]]), ring([[20, 20], [20, 80], [80, 80], [80, 20]]),
+      ring([[200, 0], [220, 0], [220, 20], [200, 20]]), ring([[300, 0], [310, 0], [310, 10]], "annat")] } };
+    expect(baseMapOutputs(["kurvor.dxf", "belagt.dxf", "berg.dxf"])).toEqual(["kurvor.dxf", "berg.dxf", "belagt.dxf"]);
+    const merged = mergeBaseMap([laser], osm, 4000, undefined, "ISSPROM");
+    expect(layersOf(merged)).toEqual({ [LASER_PAVED_LAYER]: 2, annat: 1, "OSM belagd väg, mittlinje (residential)": 1 });
+    const areas = merged.features.filter(feature => feature.layer === LASER_PAVED_LAYER).map(feature => feature.geometry);
+    expect(areas.map(geometry => geometry.kind === "area" ? geometry.rings.length : 0)).toEqual([2, 1]);
+    expect(areas[0]).toEqual({ kind: "area", rings: [[[0, 0], [100, 0], [100, 100], [0, 100]], [[20, 20], [20, 80], [80, 80], [80, 20]]] });
+    // På en skogskarta läses filen på samma sätt, och gatan är en linje som förut.
+    expect(layersOf(mergeBaseMap([laser], osm, 10000))).toEqual({ [LASER_PAVED_LAYER]: 2, annat: 1, "OSM väg (residential)": 1 });
   });
 });

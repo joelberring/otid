@@ -16,9 +16,14 @@ import type { SourceData, SourceFeature } from "../index";
  * - Obelagda vägar och stigar förblir linjer (505–507) i egna lager; tunnlar och passager genom hus förblir linjer utan förslag.
  * - Träd med mått (kronans diameter minst 8 m, höjd minst 12 m eller stammens omkrets minst 2 m) hamnar i lagret
  *   «OSM träd (stort)» (417); övriga i «OSM träd» (418 på en sprintkarta).
+ * - Med belagd yta ur lasern (`belagt.dxf` i samma inläsning, `laserPaved`) får gator och gångvägar ingen antagen yta:
+ *   lasern har den verkliga. Deras mittlinjer följer med i egna lager utan förslag (`SPRINT_PAVED_CENTRE_LAYER`), så att
+ *   kartritaren ser var gatan går; gångytor och parkeringar som är ytor i OpenStreetMap blir belagda ytor som förut.
  */
 export const SPRINT_PAVED_LAYER = "OSM belagd yta (antagen bredd)";
 export const SPRINT_PAVED_EDGE_LAYER = "OSM kant belagd yta (antagen bredd)";
+/** Mittlinjen i en gata eller gångväg med hård beläggning, när ytan kommer ur lasern. */
+export const SPRINT_PAVED_CENTRE_LAYER = (highway: string) => `OSM belagd väg, mittlinje (${highway})`;
 const LARGE_TREE_LAYER = "OSM träd (stort)";
 const TUNNEL_LAYER = "OSM tunnel eller passage";
 
@@ -106,7 +111,7 @@ function unionAll(polygons: readonly Polygon[]): MultiPolygon {
 }
 
 /** Ringen utan upprepad slutpunkt och utan punkter som ligger på linjen mellan sina grannar (inom `tolerance` meter). */
-function tidyRing(ring: readonly Position[], tolerance = 0.05): [number, number][] {
+export function tidyRing(ring: readonly Position[], tolerance = 0.05): [number, number][] {
   const open = ring.length > 1 && ring[0]![0] === ring[ring.length - 1]![0] && ring[0]![1] === ring[ring.length - 1]![1] ? ring.slice(0, -1) : [...ring];
   const kept: [number, number][] = [];
   for (let index = 0; index < open.length; index += 1) {
@@ -124,7 +129,7 @@ function tidyRing(ring: readonly Position[], tolerance = 0.05): [number, number]
  * längsta sida) tills bitarna ryms. Skarvarna syns inte: bitarna har samma symbol och kanten ritas av kantlinjerna.
  */
 const MAX_HOLES = 40, MAX_POINTS = 4000;
-function splitLarge(polygon: Polygon, depth = 0): Polygon[] {
+export function splitLarge(polygon: Polygon, depth = 0): Polygon[] {
   const points = polygon.reduce((sum, ring) => sum + ring.length, 0);
   if ((polygon.length - 1 <= MAX_HOLES && points <= MAX_POINTS) || depth >= 12) return [polygon];
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -145,14 +150,16 @@ export interface SprintOsmSummary {
   readonly unpaved: number; readonly tunnels: number;
   /** Belagda ytor efter sammanslagningen (ett stort gatunät delas i flera objekt). */
   readonly surfaces: number;
+  /** Belagda vägar som förblev mittlinjer eftersom ytan kommer ur lasern (`laserPaved`). */
+  readonly centres: number;
 }
 
 /**
  * OpenStreetMaps objekt för en sprintkarta: vägarna med hård beläggning som sammanhängande belagda ytor
  * (`SPRINT_PAVED_LAYER`) med kanterna som slutna linjer (`SPRINT_PAVED_EDGE_LAYER`); resten som förut. Koordinaterna är som
- * i `data` (WGS 84 från hämtningen, eller ett plant system i meter).
+ * i `data` (WGS 84 från hämtningen, eller ett plant system i meter). Med `laserPaved` får vägarna ingen antagen yta.
  */
-export function sprintOsm(data: SourceData): SourceData & { readonly sprint: SprintOsmSummary } {
+export function sprintOsm(data: SourceData, options: { readonly laserPaved?: boolean } = {}): SourceData & { readonly sprint: SprintOsmSummary } {
   const geographic = data.crs === undefined || data.crs === 4326;
   // WGS 84 räknas om till meter kring områdets mitt (ekvirektangulärt; felet är millimeter över en sprintkarta).
   let lon0 = 0, lat0 = 0;
@@ -170,7 +177,7 @@ export function sprintOsm(data: SourceData): SourceData & { readonly sprint: Spr
     ? [Math.round((x / kx + lon0) * 1e8) / 1e8, Math.round((y / ky + lat0) * 1e8) / 1e8] : [cm(x), cm(y)];
 
   const rest: SourceFeature[] = [], pieces: Polygon[] = [];
-  let paved = 0, assumed = 0, unpaved = 0, tunnels = 0;
+  let paved = 0, assumed = 0, unpaved = 0, tunnels = 0, centres = 0;
   for (const feature of data.features) {
     const { geometry, layer } = feature;
     // Gångytor och parkeringar som ytor går in i samma belagda yta.
@@ -196,6 +203,7 @@ export function sprintOsm(data: SourceData): SourceData & { readonly sprint: Spr
       rest.push({ layer: UNPAVED_BY_DEFAULT.has(highway) ? layer : `OSM obelagd väg (${highway})`, geometry });
       continue;
     }
+    if (options.laserPaved) { centres += 1; rest.push({ layer: SPRINT_PAVED_CENTRE_LAYER(highway), geometry }); continue; }
     const width = sprintRoadWidth(highway, tags);
     const points: [number, number][] = [];
     for (const point of [...geometry.points, ...(geometry.closed && geometry.points[0] ? [geometry.points[0]] : [])]) {
@@ -217,5 +225,5 @@ export function sprintOsm(data: SourceData): SourceData & { readonly sprint: Spr
       if (placed.length) areas.push({ layer: SPRINT_PAVED_LAYER, geometry: { kind: "area", rings: placed } });
     }
   }
-  return { ...data, features: [...rest, ...areas, ...edges], sprint: { paved, assumed, unpaved, tunnels, surfaces: areas.length } };
+  return { ...data, features: [...rest, ...areas, ...edges], sprint: { paved, assumed, unpaved, tunnels, surfaces: areas.length, centres } };
 }

@@ -26,6 +26,8 @@ on:
       - scripts/geo-cliffs.ts
       - scripts/geo-ditches.ts
       - scripts/geo-rock.ts
+      - scripts/geo-paved.ts
+      - scripts/geo-paved-generalize.ts
       - scripts/geo-gpkg.ts
       - tools/lasclip/**
       - apps/web/next.config.ts

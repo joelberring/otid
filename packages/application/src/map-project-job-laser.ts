@@ -1,8 +1,9 @@
 import { GEO_CLIP_MARGIN_M, MCP_LASER_OUTPUT_MAX_OBJECTS, MCP_LASER_OUTPUT_MAX_POINTS, MCP_LASER_OUTPUT_MAX_POINTS_PER_OBJECT } from "@o-tid/contracts";
 import { isSupportedEpsg, type MapGeoreference, type Point } from "@o-tid/map-file";
 import {
-  areaBox, guessCrs, laserClip, objectBox, parseDxf, parseGeoJson, sourcePointToMap, VectorParseError, WGS84_EPSG, type SourceData, type SourceFeature
+  areaBox, guessCrs, isSprintNorm, laserClip, mapNorm, objectBox, parseDxf, parseGeoJson, sourcePointToMap, VectorParseError, WGS84_EPSG, type SourceData, type SourceFeature
 } from "@o-tid/map-revision";
+import { candidateSymbols } from "@o-tid/map-revision/base-map";
 import type { Box, LoadedProjectMap } from "./map-project-job-run";
 
 /**
@@ -35,7 +36,9 @@ export function runLaserArea(loaded: LoadedProjectMap, area: Polygon | null, sta
   const named = stage ? { name: "", polygon: stage } : undefined;
   const mapArea = !stage && area?.[0] && area[0].length >= 3 ? { name: "", polygon: area } : undefined;
   const clip = laserClip(bounds, georeference, GEO_CLIP_MARGIN_M, named ?? mapArea);
-  return { wgs84: areaBox(bounds, georeference, named).wgs84, clip: clip ?? null };
+  // Sprintkartor får belagd yta ur lasern som förval (`paved`), som i laserpanelen.
+  const sprint = isSprintNorm(mapNorm({ scale: loaded.base.scale, symbols: candidateSymbols(loaded.base).map(([, code, kind]) => ({ code, kind })) }));
+  return { wgs84: areaBox(bounds, georeference, named).wgs84, clip: clip ?? null, sprint };
 }
 
 export interface LaserOutputRequest { area?: Box | undefined; layers?: readonly string[] | undefined; limit?: number | undefined; offset?: number | undefined;

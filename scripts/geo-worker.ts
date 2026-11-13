@@ -31,7 +31,8 @@ import { cliffsFromTicks, DEFAULT_CLIFF_RULES, hillshade, mergeGroundGrids, read
 import { buildingLayer, featuresGeoJson, landCoverLayer, readGpkgFeatures, unzipFirst, type Geometry } from "./geo-gpkg.ts";
 import { dwgFeatures, dwgObjects } from "./geo-dwg.ts";
 import { moistureDxf, moistureFromHeightMaps, readHeightMap } from "./geo-moisture.ts";
-import { groundShareAt, vegetationSignals, type VegetationSignals, mergePointStats, pointImages, readPointStats } from "./geo-points.ts";
+import { pavedFromPoints } from "./geo-paved.ts";
+import { groundShareAt, vegetationSignals, type VegetationSignals, mergePointStats, pointImages, readPointStats, type PointStats } from "./geo-points.ts";
 import { maskOf, runStep, StepSkipped, STEP_TIMEOUT_MS, type StepInput, type StepName } from "./geo-steps.ts";
 import { decodeGrayPng, readWorldFile, vegetationFromTiles, type VegetationTile } from "./geo-vegetation.ts";
 import { readWaterGrid, waterFromGrids } from "./geo-water.ts";
@@ -83,7 +84,7 @@ export function jobMemoryGb(job: { readonly clip?: Job["clip"]; readonly tiles: 
 }
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 /** Arbetarens version (samma som `GEO_WORKER_VERSION` i contracts; servern ger inga jobb till en äldre). */
-export const WORKER_VERSION = 29;
+export const WORKER_VERSION = 30;
 
 /**
  * Ägarens sprintkörningar 2026-11-13 föll med «stup.dxf kunde inte skickas (422)»: kontots kvot för kartfiler var full.
@@ -119,8 +120,8 @@ export function parallelTiles(tiles: number, cores: number, memoryGb: number, at
 /** Grundinställningarna med jobbets ändringar och det som geo-arbetaren kräver (rutorna i `processes` samtidiga, filerna sparas). */
 export function iniWith(base: string, settings: Readonly<Record<string, number>>, keepTemp = false, vegetationClasses = false, processes = 1): string {
   // `greenscale` är O-Tids egen: en faktor på Karttapullautins gränser för grönt (`greenshades`), inte en rad i filen.
-  // Geo-arbetarens egna (gult, grönt, kullar, berg i dagen) skrivs inte heller i filen.
-  const OWN = new Set(["greenscale", "openshare", "denseshare", "knollshare", "rock"]);
+  // Geo-arbetarens egna (gult, grönt, kullar, berg i dagen, belagd yta) skrivs inte heller i filen.
+  const OWN = new Set(["greenscale", "openshare", "denseshare", "knollshare", "rock", "paved"]);
   const greenscale = settings.greenscale, pullautin = Object.fromEntries(Object.entries(settings).filter(([key]) => !OWN.has(key)));
   const shades = greenscale && greenscale !== 1 ? /^\s*greenshades\s*=\s*([^\r\n#]+)/m.exec(base)?.[1]?.split("|").map(Number) : undefined;
   const fixed: Record<string, string | number> = { ...pullautin, ...(shades?.every(Number.isFinite)
@@ -232,6 +233,7 @@ async function runJob(job: Job): Promise<void> {
     // (1 m) mäts fallet över varje linje, och det avgör om den är opasserbar, passerbar eller ingen brant.
     let cliffSummary: Record<string, number> = {};
     let groundShare: ((x: number, y: number) => number | undefined) | undefined, signals: VegetationSignals | undefined;
+    let pointStats: PointStats | undefined;
     const ticksOf = async (name: string) => readTicks(await readFile(join(dir, name), "utf8").catch(() => ""));
     const groundFiles = (await readdir(dir)).filter(name => /^mark\d+\.bin$/.test(name)).sort();
     const grounds = [];
@@ -260,6 +262,7 @@ async function runJob(job: Job): Promise<void> {
         const tiles = [];
         for (const name of pointFiles) tiles.push(readPointStats(new Uint8Array(await readFile(join(dir, name)))));
         const stats = mergePointStats(tiles);
+        pointStats = stats;
         groundShare = groundShareAt(stats); signals = vegetationSignals(stats, job.settings.openshare, job.settings.denseshare);
         const images = pointImages(stats);
         for (const [name, bytes] of [["lasveg", images.veg], ["lasmark", images.ground], ["laskron", images.canopy]] as const) {
@@ -415,6 +418,14 @@ async function runJob(job: Job): Promise<void> {
       rockSummary = { boulders: stones.stones.length, knolls: hills.knolls.length, bareRockAreas: rock.length,
         ...(stones.capped + hills.capped ? { cappedPoints: stones.capped + hills.capped } : {}) };
     }
+    // Sprintkartor (ägaren 2026-11-13, inställningen `paved`): belagd yta ur markträffarnas intensitet (geo-paved.ts).
+    let pavedSummary: Record<string, number> = {};
+    if (job.settings.paved === 1 && pointStats) {
+      await set("Letar belagd yta", 0, 1);
+      const paved = pavedFromPoints(pointStats, water?.at);
+      if (paved.rings.length) await writeFile(join(dir, "belagt.dxf"), moistureDxf([{ name: "belagd_yta_laser", closed: true, parts: paved.rings }]));
+      pavedSummary = { pavedHa: paved.pavedHa, ...(paved.limit !== undefined ? { pavedLimit: paved.limit } : {}) };
+    }
     const files = new Set(await readdir(dir));
     const uploads: (readonly [string, string, string])[] = [["karta.png", "merged.png", "image/png"], ["karta.pgw", "merged.pgw", "text/plain"],
       ...VECTOR_OUTPUTS.filter(([, source]) => files.has(source)).map(([name, source]) => [name, source, "application/dxf"] as const),
@@ -429,6 +440,7 @@ async function runJob(job: Job): Promise<void> {
       ...(files.has("relief.png") ? [["relief.png", "relief.png", "image/png"], ["relief.pgw", "relief.pgw", "text/plain"]] as const : []),
       ...(files.has("diken.dxf") ? [["diken.dxf", "diken.dxf", "application/dxf"]] as const : []),
       ...(files.has("berg.dxf") ? [["berg.dxf", "berg.dxf", "application/dxf"]] as const : []),
+      ...(files.has("belagt.dxf") ? [["belagt.dxf", "belagt.dxf", "application/dxf"]] as const : []),
       ...["marktacke.geojson", "byggnader.geojson", "kullar.geojson", "brantlinjer.geojson"].filter(name => files.has(name)).map(name => [name, name, "application/geo+json"] as const),
       ...(files.has("vatten.geojson") ? [["vatten.geojson", "vatten.geojson", "application/geo+json"]] as const : [])];
     let done = 0;
@@ -447,7 +459,7 @@ async function runJob(job: Job): Promise<void> {
       done += 1;
     }
     const finished = await call(`/api/geo-worker/jobs/${job.jobId}/finish`, { method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ status: "DONE", summary: { worker: WORKER_VERSION, tiles: job.tiles.length, scale, memoryMb: Math.round(process.memoryUsage().rss / 1e6), serverMemoryMb: Math.round(totalmem() / 1e6), cores: cpus().length, parallelTiles: together, ...(skippedOutputs.length ? { skippedOutputs: skippedOutputs.length } : {}), ...(skippedSteps.length ? { skippedSteps: skippedSteps.join(",") } : {}), ...(water ? { waterHa: water.summary.waterHa } : {}), ...cliffSummary, ...extraSummary, ...moistureSummary, ...ditchSummary, ...vegetationSummary, ...rockSummary } }) });
+      body: JSON.stringify({ status: "DONE", summary: { worker: WORKER_VERSION, tiles: job.tiles.length, scale, memoryMb: Math.round(process.memoryUsage().rss / 1e6), serverMemoryMb: Math.round(totalmem() / 1e6), cores: cpus().length, parallelTiles: together, ...(skippedOutputs.length ? { skippedOutputs: skippedOutputs.length } : {}), ...(skippedSteps.length ? { skippedSteps: skippedSteps.join(",") } : {}), ...(water ? { waterHa: water.summary.waterHa } : {}), ...cliffSummary, ...extraSummary, ...moistureSummary, ...ditchSummary, ...vegetationSummary, ...rockSummary, ...pavedSummary } }) });
     console.log(`Geo-jobb ${job.jobId}: klart (${job.tiles.length} rutor, skala ${scale}, svar ${finished.status})`);
   } finally {
     clearInterval(timer);

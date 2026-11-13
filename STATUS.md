@@ -13,6 +13,18 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-13 – Belagd yta ur laserns intensitet för sprintkartor (geo-arbetaren 30)
+- Geo-arbetaren skriver `belagt.dxf` (lagret `belagd_yta_laser`) när jobbet har `paved: 1`: öppna 2 m-celler med mörk
+  intensitet på markträffarna, gränsen anpassad till skanningen (`scripts/geo-paved.ts`). Mätt mot Bandhagen–Hagsätra:
+  precision 0,75, täckning 0,52. Sammanfattningen har `pavedHa` och `pavedLimit`.
+- Ytornas ringar generaliseras (`scripts/geo-paved-generalize.ts`): raka sträckor, räta vinklar kring en huvudriktning,
+  kompakta små ytor som rektanglar, med skydd för area, självkorsning och flytt.
+- Webben (guiden och laserpanelen) och AI-kopplingen sätter `paved: 1` som förval på sprintkartor.
+- Grundkartan: filen läses in som ytor med kvarteren som hål och föreslås som 501 (ISSOM 529), inget på skogskartor. Finns
+  filen får OpenStreetMaps gator och gångvägar ingen yta med antagen bredd; mittlinjerna följer med utan förslag.
+- Verifierat: enhetstester (regeln på konstgjort rutnät, lagerregeln, sammanslagningen), typecheck, lint, knip. Inte provat:
+  en riktig körning på geo-servern.
+
 ### 2026-11-13 – För stora laserkörningar delas i etapper
 - Ägaren 2026-11-13 (hela Järflotta, 30 km², dog två gånger; norra halvan, 15 km², gick på tre minuter): `createGeoJob` delar
   en klippruta över `OTID_GEO_SPLIT_KM2` (förval 16 km², 0 = aldrig) i lika remsor tvärs över den längre sidan, högst åtta.

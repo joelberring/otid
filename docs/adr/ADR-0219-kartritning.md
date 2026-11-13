@@ -500,3 +500,23 @@ Importen städar redan (klipper mot kartan, tar bort dubbletter och korta stumpa
    och ägarna ändrar och tar bort. Ett skisslager tas bort med sina skisser. Högst 50 lager och 5 000 skisser per projekt.
 4. Kvar: tabell för äldre normers nummer (ISOM 2000, ISSOM 2007) när ägaren har en.
 
+
+### Tillägg 2026-11-13: AI-kopplingen startar och läser laserkörningar (etapp 1 av «AI:n tar fram ett kartblad»)
+
+1. **Verktygen** (MCP, behörigheten `kartprojekt`): `list_laser_jobs`, `start_laser_job` och `read_laser_output`
+   (`packages/application/src/mcp-laser.ts`).
+2. **Samma väg som webben:** `start_laser_job` söker rutorna (`searchMapProjectLaserAsAi`) och lägger jobbet
+   (`createGeoJobAsAi`) med samma kod som laserpanelen: kontots egna uppgifter till Lantmäteriet, den nyaste skanningen per
+   ruta, klipprutan kring kartans område eller etappen (`areaBox` och `laserClip` ligger nu i map-revision), förvalen
+   (`GEO_JOB_DEFAULTS`), 30 sökningar i timmen, två körningar samtidigt, månadskvoten, högst 25 rutor och 12 km i sida.
+3. **AI-läget:** en körning ändrar inte kartan, den skapar bara underlag och drar av kontots kvot. Den tillåts därför i
+   lägena PROPOSE och AUTONOMOUS men inte i READ (`aiGate`), och kontot ska ha rollen Föreslå eller högre i ett öppet projekt
+   (som i webben). Att lista jobb och läsa filer kräver bara att kontot ser projektet, också i läget READ.
+4. **Kartans mm:** det som behöver georeferensen görs som kartjobb i utskriftsarbetaren (`LASER_AREA`, `LASER_OUTPUT`,
+   `map-project-job-laser.ts`). Webben har prövat behörigheten och skickar med etappens polygon och filens innehållsnyckel, så
+   utskriftsarbetarens roll behöver inga nya rättigheter. Filerna är i SWEREF 99 TM (5845 läses som 3006) och räknas om med
+   `sourcePointToMap`; GeoJSON-objektens egenskaper följer med (`parseGeoJson(text, { properties: true })`).
+5. **Gränser i svaren:** högst 500 objekt, 500 punkter per objekt och 5 000 punkter per svar; filer över 24 MB läses inte
+   (gränsen är satt efter arbetarens minne, inte uppmätt).
+6. Kvar (nästa etapp): ett verktyg som sätter ihop hela grundkartan på servern och lägger in den i projektet;
+   sammansättningen ligger i dag i webbläsaren (`apps/web/src/lib/map-project-base-map.ts`).

@@ -9,7 +9,7 @@ import { gridToGeodetic, transverseMercatorFor } from "@o-tid/map-file";
 import type { ClubFailure, ClubProof } from "./club-access";
 import { imageDimensions } from "./image-dimensions";
 import { contentHead, contentLength, mapStorageQuota, readMapContent, storeMapContent, type MapContentInput } from "./map-content";
-import { mapProjectAllows, requireMapProject } from "./map-project-access";
+import { aiGate, mapProjectAllows, requireMapProject, requireMapProjectForAccount, sessionGate, type MapProjectGate } from "./map-project-access";
 import { allowedLaserUrl, fetchLaserFile, type LaserRuntime } from "./map-project-laser";
 import type { LantmaterietFailure } from "./map-project-lantmateriet";
 import { openMapSourceCredential } from "./map-source-credentials";
@@ -112,12 +112,40 @@ export async function listGeoJobs(db: Database, input: ClubProof & { projectId: 
   });
 }
 
-/** Nytt jobb (Föreslå eller mer, projektet öppet, uppgifter till Lantmäteriet sparade). Idempotent på `requestId`. */
-export async function createGeoJob(db: Database, input: ClubProof & { projectId: string; request: unknown }, runtime: LaserRuntime, now = new Date())
-  : Promise<GeoJobFailure | { status: "created"; replayed: boolean; job: GeoJobView }> {
-  const parsed = geoJobCreateRequestSchema.safeParse(input.request);
+/** Projektets jobb för AI-kopplingen (kontot bakom den; att se jobben går också när AI-läget är bara läsa). */
+export async function listGeoJobsForAccount(db: Database, input: { accountId: string; projectId: string },
+  environment: Record<string, string | undefined> = process.env, now = new Date())
+  : Promise<ClubFailure | { status: "ok"; list: GeoJobList; workerVersions: ReadonlyMap<string, number> }> {
   return db.transaction(async tx => {
-    const access = await requireMapProject(tx, input, now, "propose", true);
+    const access = await requireMapProjectForAccount(tx, input.accountId, input.projectId, now, "view", false);
+    if (access.status !== "ok") return access;
+    const list = await rows(tx, access.project.id);
+    // Geo-arbetarens version står i jobbets sammanfattning (`summary.worker`) när jobbet är klart.
+    const workerVersions = new Map(list.flatMap(row => {
+      const version = (row.job.result?.summary as { worker?: unknown } | undefined)?.worker;
+      return typeof version === "number" ? [[row.job.id, version] as const] : [];
+    }));
+    return { status: "ok", list: { formatVersion: 1, jobs: list.map(row => toView(row, access.accountId)), server: await geoServerView(tx, environment, now) }, workerVersions } as const;
+  });
+}
+
+type GeoJobCreated = GeoJobFailure | { status: "created"; replayed: boolean; job: GeoJobView };
+/** Nytt jobb (Föreslå eller mer, projektet öppet, uppgifter till Lantmäteriet sparade). Idempotent på `requestId`. */
+export async function createGeoJob(db: Database, input: ClubProof & { projectId: string; request: unknown }, runtime: LaserRuntime, now = new Date()): Promise<GeoJobCreated> {
+  return createJob(db, sessionGate(input, now), input.request, runtime, now);
+}
+/**
+ * Samma jobb lagt av AI-kopplingen (kontot bakom den, med kontots uppgifter till Lantmäteriet och kontots kvot); inte när
+ * projektets AI-läge är bara läsa. En körning ändrar inte kartan, så lägena PROPOSE och AUTONOMOUS behandlas lika.
+ */
+export async function createGeoJobAsAi(db: Database, input: { accountId: string; projectId: string; request: unknown }, runtime: LaserRuntime, now = new Date()): Promise<GeoJobCreated> {
+  return createJob(db, aiGate(input.accountId, input.projectId, now), input.request, runtime, now);
+}
+
+async function createJob(db: Database, gate: MapProjectGate, body: unknown, runtime: LaserRuntime, now: Date): Promise<GeoJobCreated> {
+  const parsed = geoJobCreateRequestSchema.safeParse(body);
+  return db.transaction(async tx => {
+    const access = await gate(tx, "propose", true);
     if (access.status !== "ok") return access;
     if (!parsed.success) return { status: "invalid-request" } as const;
     let request = parsed.data;
@@ -217,6 +245,21 @@ export async function readGeoRaster(db: Database, projectId: string, name: strin
     const text = world ? await readMapContent(tx, world.sha) : undefined;
     return { jobId: row.jobId, png, world: text ? text.toString("utf8") : null };
   });
+}
+
+/**
+ * Vektorfilen som AI-kopplingens read_laser_output ska läsa: ur det utpekade jobbet, annars projektets senaste klara jobb som
+ * har filen. `file` är filens namn (kurvor.dxf) eller bara dess början (kurvor); finns båda formaten tas GeoJSON, som har
+ * egenskaperna. Behörigheten prövas av anroparen; innehållet läses av kartjobbet med nyckeln härifrån.
+ */
+export async function findGeoVectorOutput(db: Database, projectId: string, file: string, jobId?: string)
+  : Promise<{ jobId: string; name: string; sha256: string; byteSize: number; laser: boolean } | undefined> {
+  const names = /\.(dxf|geojson)$/.test(file) ? [file] : [`${file}.geojson`, `${file}.dxf`];
+  const [row] = await db.select({ jobId: jobs.id, kind: jobs.kind, name: outputs.name, sha256: outputs.contentSha256, byteSize: outputs.byteSize }).from(outputs)
+    .innerJoin(jobs, eq(jobs.id, outputs.jobId)).where(and(eq(jobs.projectId, projectId), eq(jobs.status, "DONE"), inArray(outputs.name, names),
+      inArray(outputs.mediaType, ["application/dxf", "application/geo+json"]), ...(jobId ? [eq(jobs.id, jobId)] : [])))
+    .orderBy(desc(jobs.createdAt), desc(outputs.name)).limit(1);
+  return row ? { jobId: row.jobId, name: row.name, sha256: row.sha256, byteSize: row.byteSize, laser: row.kind === "PULLAUTIN" } : undefined;
 }
 
 // ---------------------------------------------------------------------------------------------------------------------

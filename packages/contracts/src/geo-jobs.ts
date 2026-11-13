@@ -85,6 +85,24 @@ export const geoJobCreateRequestSchema = z.object({
   vegetation: z.object({ minAreaM2: z.number().int().min(50).max(5000) }).strict().optional()
 }).strict().refine(value => !!value.tiles !== !!value.rerunOf, "Rutorna eller jobbet att köra om, inte båda");
 
+/**
+ * Förvalen för en ny laserkörning: de som laserpanelen visar och som AI-kopplingens start_laser_job använder, så att en
+ * körning som AI:n startar blir densamma som den en människa får utan att röra reglagen. Fuktigheten och vegetationen är
+ * med (ägaren 2026-11-11), så att kärr och grönt alltid kommer med i grundkartan.
+ */
+export const GEO_JOB_DEFAULTS = { contourInterval: 5, formline: 2, channelHa: 1, wetMeters: 0.3, minAreaM2: 300 } as const;
+
+/** Förval: den nyaste skanningen för varje ruta (samma ruta kan finnas från flera år). */
+export function newestLaserTiles<T extends { readonly id: string; readonly bbox: readonly number[] | null; readonly datetime: string | null }>(items: readonly T[]): T[] {
+  const best = new Map<string, T>();
+  for (const item of items) {
+    const key = item.bbox ? item.bbox.map(value => value.toFixed(3)).join(",") : item.id;
+    const prior = best.get(key);
+    if (!prior || (item.datetime ?? "") > (prior.datetime ?? "")) best.set(key, item);
+  }
+  return [...best.values()];
+}
+
 export type GeoJobStatusView = "QUEUED" | "RUNNING" | "DONE" | "FAILED" | "CANCELLED";
 export interface GeoJobView {
   readonly jobId: string; readonly name: string; readonly kind: "PULLAUTIN" | "DWG"; readonly status: GeoJobStatusView;

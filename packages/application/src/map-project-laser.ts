@@ -3,7 +3,7 @@ import type { Database } from "@o-tid/database";
 import { validLaserBox } from "@o-tid/map-revision";
 import { consumeAccountRequestAllowance } from "./account-throttle";
 import type { ClubProof } from "./club-access";
-import { requireMapProject } from "./map-project-access";
+import { aiGate, sessionGate, type MapProjectGate } from "./map-project-access";
 import { allowedSourceUrl, lantmaterietAuthorization, type LantmaterietFailure, type LantmaterietRuntime } from "./map-project-lantmateriet";
 import { openMapSourceCredential, type MapSourceSecret } from "./map-source-credentials";
 
@@ -123,10 +123,20 @@ async function searchVectorExtras(auth: string, runtime: LaserRuntime, box: { we
 
 /** Söker laserrutor för rutan (den som får föreslå i ett öppet projekt, med sparade uppgifter). */
 export async function searchMapProjectLaser(db: Database, input: ClubProof & { projectId: string; request: unknown }, runtime: LaserRuntime,
-  now = new Date()): Promise<LantmaterietFailure | { status: "ok"; items: LaserItem[]; collection: string; extras: GeoExtraItem[] }> {
-  const parsed = mapProjectLaserSearchRequestSchema.safeParse(input.request);
+  now = new Date()): Promise<LaserSearchResult> {
+  return searchLaser(db, sessionGate(input, now), input.request, runtime, now);
+}
+/** Samma sökning för AI-kopplingen (kontot bakom den; inte när projektets AI-läge är bara läsa). */
+export async function searchMapProjectLaserAsAi(db: Database, input: { accountId: string; projectId: string; request: unknown }, runtime: LaserRuntime,
+  now = new Date()): Promise<LaserSearchResult> {
+  return searchLaser(db, aiGate(input.accountId, input.projectId, now), input.request, runtime, now);
+}
+type LaserSearchResult = LantmaterietFailure | { status: "ok"; items: LaserItem[]; collection: string; extras: GeoExtraItem[] };
+
+async function searchLaser(db: Database, gate: MapProjectGate, request: unknown, runtime: LaserRuntime, now: Date): Promise<LaserSearchResult> {
+  const parsed = mapProjectLaserSearchRequestSchema.safeParse(request);
   const allowed = await db.transaction(async tx => {
-    const access = await requireMapProject(tx, input, now, "propose", true);
+    const access = await gate(tx, "propose", true);
     if (access.status !== "ok") return access;
     if (!parsed.success) return { status: "invalid-request" } as const;
     if (!validLaserBox(parsed.data.box)) return { status: "too-large" } as const;

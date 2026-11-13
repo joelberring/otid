@@ -1,5 +1,6 @@
 import { runGeneralizeJob, runNormCheck, type GeneralizeJobRequest } from "./map-project-job-generalize";
 import { runLabels, type LabelsRequest } from "./map-project-job-labels";
+import { runLaserArea, runLaserOutput, type LaserOutputRequest } from "./map-project-job-laser";
 import type { Box } from "./map-project-job-run";
 import { randomUUID } from "node:crypto";
 import { and, eq, gt, inArray, lt, or, sql } from "drizzle-orm";
@@ -20,7 +21,7 @@ import {
  * utskriftsarbetaren (låg prioritet, barnprocess per jobb) tar jobben ett i taget och skriver resultatet. Resultaten är
  * tillfälliga (rensas efter en timme). `pg_notify('otid_map_job')` väcker arbetaren direkt.
  */
-export const MAP_JOB_KINDS = ["OVERVIEW", "RENDER", "COMPARE", "OBJECTS", "CHECK", "PROPOSE", "COURSE_RENDER", "COURSE_LEVEL", "GENERALIZE"] as const;
+export const MAP_JOB_KINDS = ["OVERVIEW", "RENDER", "COMPARE", "OBJECTS", "CHECK", "PROPOSE", "COURSE_RENDER", "COURSE_LEVEL", "GENERALIZE", "LASER_AREA", "LASER_OUTPUT"] as const;
 export type MapJobKind = typeof MAP_JOB_KINDS[number];
 export const MAP_JOB_CHANNEL = "otid_map_job";
 /** Högst så många jobb per konto och minut, och samtidigt. */
@@ -166,6 +167,17 @@ export async function runMapJob(db: Database, job: ClaimedMapJob, deps: { worker
     case "PROPOSE": {
       const proposed = runPropose(loaded, (request.operations ?? []) as ProposalOperation[], now);
       output = proposed.status === "ok" ? { result: { edits: proposed.edits } } : { result: { errors: proposed.errors } };
+      break;
+    }
+    // Ägaren 2026-11-13: AI-kopplingens laserkörningar. Rutorna för en ny körning och en resultatfil i kartans mm. Webben har
+    // prövat behörigheten och skickar med etappens polygon och filens innehållsnyckel, så att utskriftsarbetarens roll
+    // (otid_print) inte behöver läsa delområdena eller geo-jobben.
+    case "LASER_AREA": output = { result: runLaserArea(loaded, area, (request.stage ?? null) as Parameters<typeof runLaserArea>[2]) }; break;
+    case "LASER_OUTPUT": {
+      const file = request.file as { name: string; sha256: string; laser: boolean };
+      const content = await readMapContent(db, file.sha256);
+      output = { result: content ? runLaserOutput(loaded, { name: file.name, text: content.toString("utf8"), laser: file.laser }, request as LaserOutputRequest)
+        : { problem: "Filens innehåll saknas." } };
       break;
     }
     default: output = { error: `Okänt jobb ${job.kind}` };

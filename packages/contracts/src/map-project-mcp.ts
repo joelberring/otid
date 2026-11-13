@@ -10,6 +10,12 @@ export const MCP_PROPOSAL_MAX_SIDE_M = 500;
 /** Laserkörningens raster som kan hämtas som träningsdata (jobbets filer `<namn>.png` och `<namn>.pgw`). */
 export const MCP_TRAINING_RASTERS = ["hojd", "fuktdjup", "vegetationsklasser", "relief", "skuggning", "lasveg", "lasmark", "laskron"] as const;
 
+/** read_laser_output: högst så många objekt per svar, punkter per objekt och punkter i hela svaret, och så stor fil som läses. */
+export const MCP_LASER_OUTPUT_MAX_OBJECTS = 500;
+export const MCP_LASER_OUTPUT_MAX_POINTS_PER_OBJECT = 500;
+export const MCP_LASER_OUTPUT_MAX_POINTS = 5000;
+export const MCP_LASER_OUTPUT_MAX_BYTES = 24 * 1024 * 1024;
+
 const boxSchema = z.object({ min_x: z.number().finite(), min_y: z.number().finite(), max_x: z.number().finite(), max_y: z.number().finite() })
   .refine(box => box.max_x > box.min_x && box.max_y > box.min_y, "max ska vara större än min")
   .transform(box => ({ minX: box.min_x, minY: box.min_y, maxX: box.max_x, maxY: box.max_y }));
@@ -41,6 +47,13 @@ export const mcpToolInputSchemas = {
   training_raster: z.object({ project_id: idSchema, name: z.enum(MCP_TRAINING_RASTERS), job_id: idSchema.optional() }),
   list_objects: z.object({ project_id: idSchema, area: boxSchema.optional(), symbols: z.array(codeSchema).max(50).optional(),
     limit: z.number().int().min(1).max(500).optional(), offset: z.number().int().min(0).optional() }),
+  // Ägaren 2026-11-13: AI-kopplingen startar och läser laserkörningar (etapp 1 av «AI:n tar fram ett kartblad»).
+  list_laser_jobs: z.object({ project_id: idSchema }),
+  start_laser_job: z.object({ project_id: idSchema, area_id: idSchema.optional(), name: z.string().trim().min(1).max(80).optional(),
+    contour_interval: z.number().min(1).max(10).optional(), settings: z.record(z.string().max(40), z.number().finite()).optional() }),
+  read_laser_output: z.object({ project_id: idSchema, file: z.string().regex(/^[a-z0-9_.-]{1,60}$/), job_id: idSchema.optional(), area: boxSchema.optional(),
+    layers: z.array(z.string().min(1).max(120)).max(50).optional(), limit: z.number().int().min(1).max(MCP_LASER_OUTPUT_MAX_OBJECTS).optional(),
+    offset: z.number().int().min(0).optional(), max_points: z.number().int().min(2).max(MCP_LASER_OUTPUT_MAX_POINTS_PER_OBJECT).optional() }),
   norm_check: z.object({ project_id: idSchema, area: boxSchema.optional() }),
   // K6 del 2: generaliseringen (förenkla, ta bort det som är mindre än normen, foga ihop linjer, ytor inuti likadana ytor).
   generalize: z.object({ project_id: idSchema, area: boxSchema.optional(), simplify_mm: z.number().min(0).max(0.5).optional(),

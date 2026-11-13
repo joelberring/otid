@@ -116,6 +116,18 @@ export async function requireMapProjectForAccount(tx: MapProjectTransaction, acc
   return { status: "ok", accountId, role, project };
 }
 
+/** Projektet och rollen för den som frågar, eller felet: sessionen (webben) eller ett känt konto (AI-kopplingen). */
+export type MapProjectGate = (tx: MapProjectTransaction, need: MapProjectNeed, write: boolean) => ReturnType<typeof requireMapProjectForAccount>;
+export const sessionGate = (proof: ClubProof & { projectId: string }, now: Date): MapProjectGate => (tx, need, write) => requireMapProject(tx, proof, now, need, write);
+/**
+ * AI-kopplingens väg till det som skapar något i projektet (förslag, laserkörningar): som kontot, men aldrig när ägaren satt
+ * projektets AI-läge till bara läsa (`aiMode` READ).
+ */
+export const aiGate = (accountId: string, projectId: string, now: Date): MapProjectGate => async (tx, need, write) => {
+  const access = await requireMapProjectForAccount(tx, accountId, projectId, now, need, write);
+  return access.status === "ok" && access.project.aiMode === "READ" ? { status: "forbidden" } as const : access;
+};
+
 /** Kontot blir medlem direkt (projektets skapare). */
 export async function addMapProjectMember(tx: DbExecutor, input: { projectId: string; accountId: string; role: MapProjectRole; addedBy: string;
   now: Date }): Promise<void> {

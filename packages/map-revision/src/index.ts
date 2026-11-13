@@ -21,6 +21,7 @@ export * from "./seam-join";
 export * from "./vector-import";
 export * from "./polygon-clip";
 export * from "./osm";
+export * from "./laser-area";
 export * from "./vector-shape";
 export * from "./norm-check";
 export * from "./generalize";

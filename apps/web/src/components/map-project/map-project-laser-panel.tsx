@@ -4,7 +4,7 @@ import { clipCenter, laserClip, sampleClip } from "../../lib/map-project-clip";
 import { useCallback, useEffect, useState } from "react";
 import { mapSourcesEn } from "../../i18n/map-sources-en";
 import { useTexts } from "../language-provider";
-import { GEO_CLIP_MARGIN_M, GEO_JOB_MAX_TILES, PULLAUTIN_SETTINGS, type GeoExtraKind, type GeoJobList, type GeoJobView, type MapProjectClearCutList, type MapProjectView, type MapSourceCredentialView } from "@o-tid/contracts";
+import { GEO_CLIP_MARGIN_M, GEO_JOB_DEFAULTS, GEO_JOB_MAX_TILES, newestLaserTiles, PULLAUTIN_SETTINGS, type GeoExtraKind, type GeoJobList, type GeoJobView, type MapProjectClearCutList, type MapProjectView, type MapSourceCredentialView } from "@o-tid/contracts";
 import type { MapGeoreference } from "@o-tid/map-file";
 import { VectorParseError, type SourceData } from "@o-tid/map-revision";
 import { baseMapOutputs, clipWgs84 } from "../../lib/map-project-base-map";
@@ -56,8 +56,8 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
   const [skippedExtras, setSkippedExtras] = useState<ReadonlySet<GeoExtraKind>>(new Set());
   const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set());
   const [name, setName] = useState("");
-  const [interval, setInterval_] = useState<number>(5);
-  const [formline, setFormline] = useState(2);
+  const [interval, setInterval_] = useState<number>(GEO_JOB_DEFAULTS.contourInterval);
+  const [formline, setFormline] = useState<number>(GEO_JOB_DEFAULTS.formline);
   const [more, setMore] = useState<Readonly<Record<string, string>>>({});
   const [choices, setChoices] = useState<LaserChoices>(DEFAULT_CHOICES);
   const [cliffStyle, setCliffStyle] = useState<CliffStyle>("few");
@@ -69,10 +69,10 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
   const [sample, setSample] = useState("");
   // Ägaren 2026-11-11: fuktigheten och vegetationen är förvalda, så att kärr och grönt alltid kommer med i grundkartan.
   const [moisture, setMoisture] = useState(true);
-  const [channelHa, setChannelHa] = useState(1);
-  const [wetMeters, setWetMeters] = useState(0.3);
+  const [channelHa, setChannelHa] = useState<number>(GEO_JOB_DEFAULTS.channelHa);
+  const [wetMeters, setWetMeters] = useState<number>(GEO_JOB_DEFAULTS.wetMeters);
   const [vegetation, setVegetation] = useState(true);
-  const [minAreaM2, setMinAreaM2] = useState(300);
+  const [minAreaM2, setMinAreaM2] = useState<number>(GEO_JOB_DEFAULTS.minAreaM2);
   const [busy, setBusy] = useState<string>();
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
   const area = areas.find(row => row.areaId === where);
@@ -114,7 +114,7 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
       const body = result.json as { items?: LaserItem[]; extras?: ExtraItem[]; error?: string } | undefined;
       if (result.status !== 200 || !body?.items) { say(body?.error ?? result.status); return; }
       setItems(body.items); setExtras(body.extras ?? []);
-      setChosen(new Set(newestPerTile(body.items).map(item => item.id)));
+      setChosen(new Set(newestLaserTiles(body.items).map(item => item.id)));
     } finally { setBusy(undefined); }
   }
 
@@ -347,15 +347,4 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
       <p className={styles.muted}>{text.attribution}</p>
     </div>}
   </details>;
-}
-
-/** Förval: den nyaste skanningen för varje ruta (samma rutnamn kan finnas från flera år). */
-function newestPerTile(items: readonly LaserItem[]): LaserItem[] {
-  const best = new Map<string, LaserItem>();
-  for (const item of items) {
-    const key = item.bbox ? item.bbox.map(value => value.toFixed(3)).join(",") : item.id;
-    const prior = best.get(key);
-    if (!prior || (item.datetime ?? "") > (prior.datetime ?? "")) best.set(key, item);
-  }
-  return [...best.values()];
 }

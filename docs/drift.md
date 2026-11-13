@@ -885,9 +885,14 @@ O-Tid är inloggningsserver (OAuth 2.1) och MCP-server för Claude med personens
   Claude registrerar sig själv, personen loggar in i O-Tid och godkänner på `/oauth/authorize`. Kopplingen syns under Mitt
   konto → AI-kopplingar och kan tas bort där.
 - **Verktyg:** `list_map_projects`, `map_overview`, `render_view`, `render_compare`, `list_objects`, `norm_check`, `training_labels` och `training_raster` (träningsdata: kartan som klassraster och laserkörningens raster) och
-  `propose_changes` (bara förslag som en ägare godkänner).
-- **Var det körs:** webben (`web`) tar emot anropen och använder publikens databaspool; bilder, objektlistor och kontroller
-  görs som kartjobb av `print-worker` (lägsta prioritet, barnprocess per jobb, `OTID_MAP_JOB_TIMEOUT_MS` förval 60000,
+  `propose_changes` (bara förslag som en ägare godkänner). Laserkörningar: `list_laser_jobs` (jobben med status, förlopp,
+  geo-arbetarens version, etapp och filer), `start_laser_job` (köar en körning för kartan eller en etapp på samma väg som
+  laserpanelen: kontots uppgifter till Lantmäteriet, samma klippruta, förval, strypning och kvot; ändrar inte kartan och
+  tillåts i AI-lägena PROPOSE och AUTONOMOUS men inte READ, för rollen Föreslå eller högre) och `read_laser_output` (en
+  vektorfil ur en klar körning i kartans mm, med lager, egenskaper, utsnitt och sidindelning; filer över 24 MB läses inte).
+- **Var det körs:** webben (`web`) tar emot anropen och använder publikens databaspool; bilder, objektlistor, kontroller
+  och laserverktygens omräkning till kartans mm (kartjobben `LASER_AREA` och `LASER_OUTPUT`; webben skickar med etappens
+  polygon och filens innehållsnyckel, så `otid_print` behöver inga nya rättigheter) görs som kartjobb av `print-worker` (lägsta prioritet, barnprocess per jobb, `OTID_MAP_JOB_TIMEOUT_MS` förval 60000,
   `OTID_MAP_JOB_MEMORY_MB` förval 256). Resultaten rensas efter en timme.
 - **Gränser:** 30 kartjobb per minut och konto (två samtidigt), 20 registreringar och 300 token-anrop per IP och timme.
 - **Rollerna:** kör `sh deploy/db-roles.sh setup` efter migrering 0093 så att `otid_print` får kartjobben (migreringen ger

@@ -10,6 +10,7 @@ import { runMapJobAndWait, type MapJobKind, type MapJobOutcome } from "./map-pro
 import { createMapProjectProposalAsAi, openProposalCount } from "./map-project-proposals";
 import { listMapProjectsForAccount } from "./map-projects";
 import { callMcpCourseTool, MCP_COURSE_TOOL_NAMES, MCP_COURSE_TOOLS } from "./mcp-course-setting";
+import { callMcpLaserTool, MCP_LASER_TOOL_NAMES, MCP_LASER_TOOLS, type McpLaserOptions } from "./mcp-laser";
 import type { OauthScope } from "./oauth";
 
 /**
@@ -34,7 +35,7 @@ const points = { type: "array", items: { type: "array", items: { type: "number" 
 export const MCP_TOOLS = [
   { name: "list_map_projects", title: "Mina kartprojekt", description: "Kartprojekten som kontot är medlem i: id, namn, roll, grundfil och antal ändringar.",
     inputSchema: { type: "object", properties: {} }, annotations: { readOnlyHint: true } },
-  { name: "create_map_project", title: "Ny tom karta", description: "Skapar ett nytt eget kartprojekt med en tom karta (ISOM 2017-2) över en rektangel: mittpunkt i SWEREF 99 TM (center_e, center_n), bredd och höjd i meter, skala 10000 (förval) eller 15000. Kontot blir ägare. Laserjobb och grundkarta startas av ägaren i O-Tid.",
+  { name: "create_map_project", title: "Ny tom karta", description: "Skapar ett nytt eget kartprojekt med en tom karta (ISOM 2017-2) över en rektangel: mittpunkt i SWEREF 99 TM (center_e, center_n), bredd och höjd i meter, skala 10000 (förval) eller 15000. Kontot blir ägare. Laserkörningen startas med start_laser_job; grundkartan läggs in av ägaren i O-Tid.",
     inputSchema: { type: "object", properties: { name: { type: "string", maxLength: 120 }, center_e: { type: "number" }, center_n: { type: "number" },
       width_m: { type: "number", minimum: 100, maximum: 15000 }, height_m: { type: "number", minimum: 100, maximum: 15000 }, scale: { type: "integer", enum: [10000, 15000] } },
       required: ["name", "center_e", "center_n", "width_m", "height_m"] }, annotations: { readOnlyHint: false, destructiveHint: false } },
@@ -68,7 +69,8 @@ export const MCP_TOOLS = [
       operations: { type: "array", minItems: 1, maxItems: MCP_PROPOSAL_MAX_OPERATIONS, items: { type: "object", properties: {
         op: { type: "string", enum: ["add", "move", "reshape", "change_symbol", "delete"] }, key: { type: "string" }, symbol: { type: "string" },
         points, dx: { type: "number" }, dy: { type: "number" }, angle: { type: "number" } }, required: ["op"] } } },
-      required: ["project_id", "note", "operations"] }, annotations: { readOnlyHint: false, destructiveHint: false } }
+      required: ["project_id", "note", "operations"] }, annotations: { readOnlyHint: false, destructiveHint: false } },
+  ...MCP_LASER_TOOLS
 ] as const;
 
 const inputs = mcpToolInputSchemas;
@@ -97,7 +99,8 @@ async function job(db: Database, accountId: string, project: string, kind: MapJo
 export interface JobWait { timeoutMs?: number; pollMs?: number }
 
 /** Ett verktygsanrop för kontot. */
-export async function callMcpTool(db: Database, accountId: string, name: string, args: unknown, wait: JobWait = {}): Promise<ToolResult> {
+export async function callMcpTool(db: Database, accountId: string, name: string, args: unknown, wait: JobWait = {},
+  laser: Pick<McpLaserOptions, "runtime" | "now"> = {}): Promise<ToolResult> {
   if (name === "list_map_projects") {
     const list = await db.transaction(tx => listMapProjectsForAccount(tx, accountId));
     return { content: [text({ projects: list.projects.map(project => ({ projectId: project.projectId, name: project.name, role: project.role,
@@ -113,7 +116,7 @@ export async function callMcpTool(db: Database, accountId: string, name: string,
       symbolSet: "ISOM2017-2", scale: scale ?? 10000, area: { crs: "SWEREF99TM", rings: [ring] } } });
     if (created.status !== "created") return toolError(created.status === "quota" ? "Kontots lagringsutrymme räcker inte för en ny karta."
       : created.status === "area-too-large" ? "Området är för stort." : `Kartan skapades inte (${created.status}; mittpunkten ska ligga i Sverige, i SWEREF 99 TM).`);
-    return { content: [text({ projectId: created.projectId, message: "Ett nytt eget kartprojekt med en tom karta (ISOM 2017-2). Laserjobbet och grundkartan startas av ägaren i O-Tid; AI-läget är förslag tills ägaren ändrar det." })] };
+    return { content: [text({ projectId: created.projectId, message: "Ett nytt eget kartprojekt med en tom karta (ISOM 2017-2). Laserkörningen startas med start_laser_job (kontot behöver sparade uppgifter till Lantmäteriet); grundkartan läggs in av ägaren i O-Tid. AI-läget är förslag tills ägaren ändrar det." })] };
   }
   const schemaFor = inputs[name as keyof typeof inputs];
   if (!schemaFor) return toolError(`Okänt verktyg ${name}`);
@@ -122,6 +125,7 @@ export async function callMcpTool(db: Database, accountId: string, name: string,
   const input = parsed.data as { project_id: string } & Record<string, unknown>;
   const denied = await access(db, accountId, input.project_id, name === "propose_changes" || (name === "generalize" && input.propose === true) ? "propose" : "view");
   if (denied) return toolError(denied);
+  if (MCP_LASER_TOOL_NAMES.has(name)) return callMcpLaserTool(db, accountId, name, input, { ...laser, wait });
   switch (name) {
     case "map_overview": {
       const outcome = await job(db, accountId, input.project_id, "OVERVIEW", {}, wait);
@@ -204,7 +208,7 @@ function strip(value: Record<string, unknown>): Record<string, unknown> {
  * Ett JSON-RPC-meddelande från klienten. Notiser (utan id) ger null (HTTP 202). Okända metoder ger felet -32601.
  */
 export async function handleMcpMessage(db: Database, accountId: string, message: unknown, wait: JobWait = {},
-  scopes: readonly OauthScope[] = ["kartprojekt"]): Promise<McpResponse | null> {
+  scopes: readonly OauthScope[] = ["kartprojekt"], laser: Pick<McpLaserOptions, "runtime" | "now"> = {}): Promise<McpResponse | null> {
   const maps = scopes.includes("kartprojekt"), courses = scopes.includes("banlaggning");
   if (!message || typeof message !== "object" || Array.isArray(message)) {
     return { jsonrpc: "2.0", id: null, error: { code: -32600, message: "Ogiltig begäran (ett JSON-RPC-meddelande i taget)" } };
@@ -217,8 +221,8 @@ export async function handleMcpMessage(db: Database, accountId: string, message:
     case "initialize": {
       const asked = typeof params?.protocolVersion === "string" ? params.protocolVersion : "";
       return ok({ protocolVersion: (MCP_PROTOCOL_VERSIONS as readonly string[]).includes(asked) ? asked : MCP_PROTOCOL_VERSIONS[0],
-        capabilities: { tools: { listChanged: false } }, serverInfo: { name: "O-Tid", version: "1.1.0" },
-        instructions: [maps ? "Kartprojekt (orienteringskartor i Mapper-format): koordinater är kartans mm med y uppåt. Börja med list_map_projects och map_overview, titta med render_view, läs objekt med list_objects. Ändringar lämnas med propose_changes; projektets ägare bestämmer AI-läget (aiMode i map_overview): PROPOSE = förslag som en människa godkänner (förval), AUTONOMOUS = ändringarna införs direkt och står i historiken, READ = bara läsa. create_map_project skapar en ny tom karta." : "",
+        capabilities: { tools: { listChanged: false } }, serverInfo: { name: "O-Tid", version: "1.2.0" },
+        instructions: [maps ? "Kartprojekt (orienteringskartor i Mapper-format): koordinater är kartans mm med y uppåt. Börja med list_map_projects och map_overview, titta med render_view, läs objekt med list_objects. Ändringar lämnas med propose_changes; projektets ägare bestämmer AI-läget (aiMode i map_overview): PROPOSE = förslag som en människa godkänner (förval), AUTONOMOUS = ändringarna införs direkt och står i historiken, READ = bara läsa. create_map_project skapar en ny tom karta. Laserunderlag: start_laser_job köar en laserkörning för kartan eller en etapp (ändrar inte kartan; inte i läget READ), list_laser_jobs visar läget och filerna, och read_laser_output läser kurvor, branter, kullar, vatten och vegetation i kartans mm som underlag för propose_changes." : "",
           courses ? "Banläggning: list_course_settings och course_overview visar banorna med målnivå, kontroller och sträckor. Granska nivån sträcka för sträcka (svensk orienterings nivåtrappa Grön–Svart: vägval, avstånd mellan ledstänger, kontrollernas svårighet) och lämna bara notiser (add_course_note) som banläggaren tar ställning till. Rör aldrig resultat eller tävlingen." : ""]
           .filter(Boolean).join(" ") });
     }
@@ -231,7 +235,7 @@ export async function handleMcpMessage(db: Database, accountId: string, message:
           : { content: [{ type: "text", text: "Kopplingen har inte behörigheten banlaggning. Ta bort kopplingen under Mitt konto → AI-kopplingar och koppla igen." }], isError: true });
       }
       if (!maps) return ok({ content: [{ type: "text", text: "Kopplingen har inte behörigheten kartprojekt." }], isError: true });
-      return ok(await callMcpTool(db, accountId, name, params?.arguments, wait));
+      return ok(await callMcpTool(db, accountId, name, params?.arguments, wait, laser));
     }
     default: return { jsonrpc: "2.0", id, error: { code: -32601, message: `Okänd metod ${method}` } };
   }

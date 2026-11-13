@@ -8,7 +8,9 @@ export type SourceGeometry =
   | { readonly kind: "line"; readonly points: readonly (readonly [number, number])[]; readonly closed: boolean }
   | { readonly kind: "area"; readonly rings: readonly (readonly (readonly [number, number])[])[] };
 /** `elevation`: höjden i meter när filen anger den (DXF:s kod 38 eller z i första punkten), t.ex. för höjdkurvor. */
-export interface SourceFeature { readonly layer: string; readonly geometry: SourceGeometry; readonly elevation?: number | undefined }
+export interface SourceFeature { readonly layer: string; readonly geometry: SourceGeometry; readonly elevation?: number | undefined;
+  /** GeoJSON-objektets egenskaper, bara när läsningen ber om dem (`parseGeoJson(text, { properties: true })`). */
+  readonly properties?: Readonly<Record<string, unknown>> | undefined }
 export interface SourceData {
   readonly features: readonly SourceFeature[];
   /** EPSG-koden om filen anger den. */
@@ -47,15 +49,15 @@ export function layerOf(properties: unknown, fallback: string): string {
 }
 
 /** GeoJSON: en FeatureCollection, en Feature eller en geometri. Lagret ur egenskaper som `layer` eller `objekttyp`, annars typen. */
-export function parseGeoJson(text: string): SourceData {
+export function parseGeoJson(text: string, options: { readonly properties?: boolean } = {}): SourceData {
   let root: unknown;
   try { root = JSON.parse(text) as unknown; } catch { throw new VectorParseError("Filen är inte GeoJSON."); }
   const features: SourceFeature[] = [];
   let skipped = 0;
-  const add = (geometry: unknown, layer: string) => {
+  const add = (geometry: unknown, layer: string, properties?: Readonly<Record<string, unknown>>) => {
     const g = geometry as { type?: string; coordinates?: unknown; geometries?: unknown[] } | null;
     if (!g || typeof g !== "object") { skipped += 1; return; }
-    const push = (item: SourceGeometry) => features.push({ layer, geometry: item });
+    const push = (item: SourceGeometry) => features.push(properties ? { layer, geometry: item, properties } : { layer, geometry: item });
     switch (g.type) {
       case "Point": { const at = position(g.coordinates); if (at) push({ kind: "point", at }); else skipped += 1; return; }
       case "MultiPoint": for (const at of positions(g.coordinates)) push({ kind: "point", at }); return;
@@ -74,7 +76,7 @@ export function parseGeoJson(text: string): SourceData {
         }
         return;
       }
-      case "GeometryCollection": for (const part of g.geometries ?? []) add(part, layer); return;
+      case "GeometryCollection": for (const part of g.geometries ?? []) add(part, layer, properties); return;
       default: skipped += 1;
     }
   };
@@ -82,7 +84,8 @@ export function parseGeoJson(text: string): SourceData {
   const list = value?.type === "FeatureCollection" ? value.features ?? [] : value?.type === "Feature" ? [value] : [{ geometry: value, properties: {} }];
   for (const item of list) {
     const feature = item as { geometry?: { type?: string }; properties?: unknown } | null;
-    add(feature?.geometry, layerOf(feature?.properties, feature?.geometry?.type ?? "Okänd"));
+    add(feature?.geometry, layerOf(feature?.properties, feature?.geometry?.type ?? "Okänd"),
+      options.properties && feature?.properties && typeof feature.properties === "object" ? feature.properties as Record<string, unknown> : undefined);
   }
   // Den gamla `crs`-medlemmen (t.ex. "urn:ogc:def:crs:EPSG::3006"); utan den är GeoJSON WGS 84.
   const named = typeof value?.crs?.properties?.name === "string" ? /EPSG:{1,2}(\d{4,5})$/i.exec(value.crs.properties.name) : null;

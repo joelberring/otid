@@ -1,5 +1,5 @@
 import { VectorParseError, type SourceData, type SourceFeature } from "@o-tid/map-revision";
-import type { BaseMapPart, BaseMapStep, CandidateInput, CandidateRequest, CandidateResponse, CandidateResult } from "./map-project-candidates";
+import type { BaseMapCalm, BaseMapPart, BaseMapStep, CalmOutcome, CandidateInput, CandidateRequest, CandidateResponse, CandidateResult } from "./map-project-candidates";
 
 /** Så många filers objekt hålls i Workern (den visade, den förra och en som just läses in). */
 const KEPT = 3;
@@ -51,16 +51,17 @@ export class CandidateSession {
 
   /**
    * Resultatfilerna tolkas (och sätts ihop till grundkartan med `merge`) i Workern; `onStep` får var den är. Ett fel i en fil
-   * blir `VectorParseError` med filens meddelande.
+   * blir `VectorParseError` med filens meddelande. Med `calm` lugnas kurvorna på flack mark, och svaret säger vad som togs bort.
    */
   baseMap(request: { parts: readonly BaseMapPart[]; merge: boolean; osm?: SourceData | undefined; scale?: number | undefined;
-    cuts?: Extract<CandidateRequest, { type: "base-map" }>["cuts"]; norm?: Extract<CandidateRequest, { type: "base-map" }>["norm"] }, onStep: (step: BaseMapStep) => void): Promise<SourceData> {
+    cuts?: Extract<CandidateRequest, { type: "base-map" }>["cuts"]; norm?: Extract<CandidateRequest, { type: "base-map" }>["norm"]; calm?: BaseMapCalm | undefined },
+    onStep: (step: BaseMapStep) => void): Promise<{ data: SourceData; calm?: CalmOutcome | undefined }> {
     const id = ++this.nextId, dataId = ++this.nextId;
     return new Promise((resolve, reject) => {
       this.pending.set(id, response => {
         if (response.type === "progress") { onStep(response.step === "read" ? { step: "read", done: response.done, total: response.total } : { step: "merge" }); return; }
         this.pending.delete(id);
-        if (response.type === "base-map") { this.remember(response.data.features, response.dataId); resolve(response.data); }
+        if (response.type === "base-map") { this.remember(response.data.features, response.dataId); resolve({ data: response.data, calm: response.calm }); }
         else if (response.type === "error") reject(response.parse ? new VectorParseError(response.message) : new Error(response.message));
       });
       this.post({ type: "base-map", id, dataId, ...request });

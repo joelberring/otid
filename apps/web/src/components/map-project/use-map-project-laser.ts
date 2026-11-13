@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { GEO_CLIP_MARGIN_M, type GeoClip, type GeoJobList, type GeoJobView, type MapProjectClearCutList, type MapProjectView, type MapSourceCredentialView } from "@o-tid/contracts";
 import type { MapGeoreference } from "@o-tid/map-file";
 import { VectorParseError, type SourceData } from "@o-tid/map-revision";
+import { mapFlatContoursEn } from "../../i18n/map-knolls-en";
+import { mapFlatContoursSv } from "../../i18n/map-knolls-sv";
 import { mapSourcesEn } from "../../i18n/map-sources-en";
 import { mapSourcesSv } from "../../i18n/map-sources-sv";
 import { accountRequest } from "../../lib/account-client";
@@ -13,6 +15,7 @@ import { areaBox, type BoxArea } from "../../lib/map-project-area-box";
 import { baseMapOutputs, clearCutFeatures, clipWgs84 } from "@o-tid/map-revision/base-map";
 import { mapProjectBase } from "../../lib/map-project-client";
 import { laserClip } from "../../lib/map-project-clip";
+import { jobSlope } from "../../lib/map-project-flat-contours";
 import type { laserJobBody, LaserExtra, LaserItem } from "../../lib/map-project-laser-request";
 import { useTexts } from "../language-provider";
 import type { useMapProjectImport } from "./use-map-project-import";
@@ -33,6 +36,7 @@ export function useMapProjectLaser({ view, layers, importer, georeference, bound
   layers: ReturnType<typeof useMapProjectLayers>; importer: ReturnType<typeof useMapProjectImport>; georeference: MapGeoreference | undefined;
   bounds: Bounds | undefined; areas: readonly LaserArea[] }) {
   const text = useTexts(mapSourcesSv.laser, mapSourcesEn.laser);
+  const flatText = useTexts(mapFlatContoursSv, mapFlatContoursEn);
   const base = mapProjectBase(view.projectId);
   const [credential, setCredential] = useState<MapSourceCredentialView>();
   const [list, setList] = useState<GeoJobList>();
@@ -125,7 +129,9 @@ export function useMapProjectLaser({ view, layers, importer, georeference, bound
   async function candidates(job: GeoJobView, outputs: readonly string[], label: string, baseMap: boolean, from: LaserAsker) {
     setMessage(undefined);
     const box = baseMap && job.clip ? clipWgs84(job.clip) : undefined;
-    const total = outputs.length + (box ? 2 : 0);
+    // Ägaren 2026-11-13 («Lugna kurvor på flack mark»): med grundkartan läses körningens fuktdjup, för lutningen.
+    const depth = baseMap && job.outputs.some(output => output.name === "fuktdjup.png");
+    const total = outputs.length + (depth ? 1 : 0) + (box ? 2 : 0);
     const step = (stepText: string) => setBusy({ from, text: stepText });
     step(text.steps.fetching(1, total));
     try {
@@ -136,10 +142,13 @@ export function useMapProjectLaser({ view, layers, importer, georeference, bound
         if (typeof body === "number") { say(from, body); return; }
         parts.push({ name: output, body });
       }
+      // Hjälpkurvor och små ringar på flack mark tas bort med förvalet när körningen har fuktdjupet; reglaget ändrar det sedan.
+      if (depth) step(text.steps.fetching(outputs.length + 1, total));
+      const slope = depth ? await jobSlope(base, job) : undefined;
       // G8: OpenStreetMap (stigar, vägar, hus, ledningar) för jobbets ruta följer med i grundkartan; går det inte sägs det.
       let osm: SourceData | undefined, osmMissing = false;
       if (box) {
-        step(text.steps.fetching(outputs.length + 1, total));
+        step(text.steps.fetching(total - 1, total));
         const response = await clubRequest(`${base}/sources/osm`, "POST", { formatVersion: 1, box }).catch(() => ({ status: 0, json: undefined }));
         osm = response.status === 200 ? (response.json as { data?: SourceData } | undefined)?.data : undefined;
         osmMissing = !osm;
@@ -152,15 +161,16 @@ export function useMapProjectLaser({ view, layers, importer, georeference, bound
         const found = response.status === 200 ? response.json as MapProjectClearCutList | undefined : undefined;
         if (found) cuts = clearCutFeatures(found.cuts, new Date().toISOString().slice(0, 10), job.scannedAt);
       }
-      const data = await importer.readBaseMap({ parts, merge: baseMap, osm, scale: georeference?.scale,
-        cuts: cuts && { features: cuts.features, afterScan: cuts.afterScan } },
+      const { data, calm } = await importer.readBaseMap({ parts, merge: baseMap, osm, scale: georeference?.scale,
+        cuts: cuts && { features: cuts.features, afterScan: cuts.afterScan }, calm: slope === "failed" ? undefined : slope },
         at => step(at.step === "read" ? text.steps.reading(at.done, at.total) : text.steps.merging));
       // Karttapullautins filer är i laserns SWEREF 99 TM; en DWG-ritnings koordinatsystem gissas eller anges i importen.
       importer.openData(candidateName(job, label), job.kind === "DWG" ? data : { ...data, crs: data.crs ?? 3006 }, job.kind !== "DWG",
         // Ägaren 2026-11-12: en etapps resultat klipps mot etappens gräns, så att grannetapperna inte får dubbla linjer.
-        areas.find(row => row.areaId === job.areaId)?.polygon);
+        areas.find(row => row.areaId === job.areaId)?.polygon, calm);
+      const calmText = calm ? ` ${flatText.loaded(calm.level, calm.formlineMeters.toLocaleString("sv-SE"), calm.rings)}` : slope === "failed" ? ` ${flatText.failed}` : "";
       const cutText = cuts ? ` ${text.clearCuts(cuts.counts.fresh, cuts.counts.scrub, cuts.counts.young, job.scannedAt)}` : "";
-      setMessage({ from, tone: "ok", text: `${osmMissing ? `${text.loaded(label)} ${text.osmMissing}` : text.loaded(label)}${cutText}` });
+      setMessage({ from, tone: "ok", text: `${osmMissing ? `${text.loaded(label)} ${text.osmMissing}` : text.loaded(label)}${cutText}${calmText}` });
     } catch (error) {
       setMessage({ from, tone: "error", text: error instanceof VectorParseError ? error.message : text.problems.generic("DXF") });
     } finally { setBusy(undefined); }

@@ -13,10 +13,10 @@ import { clubRequest, csrf } from "../../lib/club-archive-client";
 import type { Bounds } from "../../lib/course-setting-viewport";
 import { areaBox, type BoxArea } from "../../lib/map-project-area-box";
 import { mapProjectBase } from "../../lib/map-project-client";
-import type { BaseMapStep, CandidateInput, CandidateResult } from "../../lib/map-project-candidates";
+import type { BaseMapStep, CalmOutcome, CandidateInput, CandidateResult } from "../../lib/map-project-candidates";
 import { CandidateSession } from "../../lib/map-project-candidates-client";
 import { controlledWorker } from "../../lib/course-setting-worker";
-import { mergeCandidates, sprintOsm, suggestedMapping } from "@o-tid/map-revision/base-map";
+import { calmFlatContours, flatLimitsAt, mergeCandidates, restoreFlatContours, sprintOsm, suggestedMapping } from "@o-tid/map-revision/base-map";
 import { readVectorFiles } from "../../lib/map-project-vector-files";
 import type { CatalogSymbol, MapProjectSession } from "../../lib/map-project-protocol";
 import type { ObjectChange } from "./use-map-project-editor";
@@ -87,8 +87,13 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
 
   /** Ägaren 2026-11-11: kandidaterna ur lasern och tolkningarna generaliseras efter normen (förval); andra filer inte. */
   const [normed, setNormed] = useState(false);
+  /**
+   * «Lugna kurvor på flack mark» (ägaren 2026-11-13): det som reglaget har tagit bort och satt dit i kandidaterna som visas,
+   * så att en annan nivå utgår från kurvorna som de var. Glöms när andra kandidater öppnas.
+   */
+  const [calm, setCalm] = useState<CalmOutcome>();
   const show = useCallback((fileName: string, data: SourceData, area?: Bounds, general = false, within?: readonly (readonly { x: number; y: number }[])[]) => {
-    setNormed(general); setStage(within);
+    setNormed(general); setStage(within); setCalm(undefined);
     const found = importLayers(data);
     const list = symbolList;
     setFile({ name: fileName, data });
@@ -271,10 +276,10 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   const cancel = useCallback(() => { setFile(undefined); setLayers([]); setMapping(new Map()); setProblem(undefined); }, []);
 
   /** K5: geo-arbetarens kurvor (DXF) som kandidater. */
-  const openData = useCallback((fileName: string, data: SourceData, general = false, within?: readonly (readonly { x: number; y: number }[])[]) => {
+  const openData = useCallback((fileName: string, data: SourceData, general = false, within?: readonly (readonly { x: number; y: number }[])[], calmed?: CalmOutcome) => {
     // Ägaren 2026-11-12 («försvinner kartan … om den inte är nersparad»): andra kandidater som inte är införda byts inte ut utan fråga.
     if (file && file.name !== fileName && file.data.features.length > 0 && !window.confirm(text.replaceConfirm(file.name))) return;
-    setProblem(undefined); setSent(undefined); setAccepted(undefined); show(fileName, data, undefined, general, within);
+    setProblem(undefined); setSent(undefined); setAccepted(undefined); show(fileName, data, undefined, general, within); setCalm(calmed);
   }, [show, file, text]);
   /** En panel med reglage byter sina egna lager (`own`) i det som visas; utan något som visas öppnas datan som vanligt. */
   const refine = useCallback((fileName: string, data: SourceData, own: RegExp) => {
@@ -287,7 +292,19 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     setMapping(current => new Map([...found.flatMap(layer => { const id = suggestSymbol(layer, symbolList, norm); return id ? [[layer.name, id] as const] : []; }),
       ...[...current].filter(([layer]) => found.some(row => row.name === layer))]));
   }, [file, openData, symbolList, norm]);
-  return { file, sprint, layers, mapping, choose, crs, setCrs: (value: number | undefined) => { setCrs(value); setFit(undefined); }, result, computing, readBaseMap,
+  /**
+   * Reglaget «Lugna kurvor på flack mark»: kurvorna och hjälpkurvorna i det som visas byts mot de lugnade (inga dubbletter),
+   * räknade från kurvorna som de var före förra nivån. `slopeAt` ger markens medellutning i kandidaternas koordinatsystem.
+   */
+  const calmContours = useCallback((level: number, slopeAt: (x: number, y: number) => number | undefined): CalmOutcome | undefined => {
+    if (!file) return undefined;
+    const result = calmFlatContours(calm ? restoreFlatContours(file.data.features, calm) : file.data.features, slopeAt, flatLimitsAt(level));
+    const outcome = { removed: result.removed, added: result.added, formlineMeters: result.formlineMeters, rings: result.rings, level };
+    const data = { ...file.data, features: result.features };
+    setFile({ name: file.name, data }); setLayers(importLayers(data)); setCalm(outcome);
+    return outcome;
+  }, [file, calm]);
+  return { file, calm, calmContours, sprint, layers, mapping, choose, crs, setCrs: (value: number | undefined) => { setCrs(value); setFit(undefined); }, result, computing, readBaseMap,
     fit, fitToMap, clearFit: () => setFit(undefined), canFit: !!session,
     /** Meter i terrängen per mm på kartan (för att visa inpassningen i meter). */
     metersPerMm: georeference ? georeference.scale / 1000 : 1, problem, setProblem, progress, sent, dwgSent, open, openData, refine, fetchOsm, fetching, propose, cancel,

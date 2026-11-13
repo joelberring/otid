@@ -352,6 +352,14 @@ export async function geoVectorOutputs(db: Database, jobId: string): Promise<{ n
     .where(and(eq(outputs.jobId, jobId), inArray(outputs.mediaType, ["application/dxf", "application/geo+json"]))).orderBy(asc(outputs.name));
 }
 
+/** Fuktdjupets bild och världsfil i ett jobb (innehållsnycklarna), för lutningen i «Lugna kurvor på flack mark». */
+export async function geoDepthOutputs(db: Database, jobId: string): Promise<{ image: string; world: string } | undefined> {
+  const rows = await db.select({ name: outputs.name, sha256: outputs.contentSha256 }).from(outputs)
+    .where(and(eq(outputs.jobId, jobId), inArray(outputs.name, [GEO_DEPTH_IMAGE, GEO_DEPTH_WORLD])));
+  const image = rows.find(row => row.name === GEO_DEPTH_IMAGE)?.sha256, world = rows.find(row => row.name === GEO_DEPTH_WORLD)?.sha256;
+  return image && world ? { image, world } : undefined;
+}
+
 // ---------------------------------------------------------------------------------------------------------------------
 // Geo-arbetarens sida (nyckeln prövas av anropet; jobbet måste vara arbetarens och pågå).
 

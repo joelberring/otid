@@ -22,7 +22,8 @@ const NEAR_METERS = 40;
 export const ISOM_RINGS = { knoll: [0.9, 0.6], depression: [1.1, 0.7], formline: [1.1, 0] } as const;
 type Ring = readonly (readonly [number, number])[];
 
-const areaOf = (ring: Ring) => Math.abs(ring.reduce((sum, [x, y], i) => { const [nx, ny] = ring[(i + 1) % ring.length]!; return sum + x * ny - nx * y; }, 0)) / 2;
+/** Ringens yta (i koordinaternas enhet i kvadrat). */
+export const ringArea = (ring: Ring) => Math.abs(ring.reduce((sum, [x, y], i) => { const [nx, ny] = ring[(i + 1) % ring.length]!; return sum + x * ny - nx * y; }, 0)) / 2;
 const centreOf = (ring: Ring): [number, number] => [ring.reduce((sum, p) => sum + p[0], 0) / ring.length, ring.reduce((sum, p) => sum + p[1], 0) / ring.length];
 function inside(ring: Ring, x: number, y: number): boolean {
   let hit = false;
@@ -50,7 +51,7 @@ export function smallRingsToPoints(features: readonly SourceFeature[], scale: nu
   const ringOf = (feature: SourceFeature) => (feature.geometry as { points: Ring }).points;
   const levelled = features.filter(feature => feature.geometry.kind === "line" && ANY.test(feature.layer) && feature.elevation !== undefined);
   const rings = levelled.filter(feature => feature.geometry.kind === "line" && feature.geometry.closed)
-    .map(feature => ({ feature, ring: ringOf(feature), area: areaOf(ringOf(feature)) }));
+    .map(feature => ({ feature, ring: ringOf(feature), area: ringArea(ringOf(feature)) }));
   const marks: (readonly [number, number])[] = features.filter(feature => feature.geometry.kind === "point" && /DOTKNOLL|DEPRESSION/i.test(feature.layer))
     .map(feature => (feature.geometry as { at: readonly [number, number] }).at);
   const replaced = new Map<SourceFeature, SourceFeature | undefined>(), added: SourceFeature[] = [];
@@ -60,7 +61,7 @@ export function smallRingsToPoints(features: readonly SourceFeature[], scale: nu
     if (/^depression/.test(feature.layer)) return false;
     const height = feature.elevation;
     if (height === undefined) return undefined;
-    const [cx, cy] = centreOf(ring), area = areaOf(ring);
+    const [cx, cy] = centreOf(ring), area = ringArea(ring);
     const around = rings.filter(other => other.area > area && other.feature.elevation !== height && inside(other.ring, cx, cy))
       .sort((a, b) => a.area - b.area)[0];
     let outside = around?.feature.elevation;
@@ -101,7 +102,7 @@ export function smallRingsToPoints(features: readonly SourceFeature[], scale: nu
   // Laserns egna små kullar (scripts/geo-rock.ts, `dotknoll_laser`) tas bort där Karttapullautin redan har en inom 6 m eller
   // där en kvarvarande liten höjdkurva (under 3 000 m²) redan visar toppen.
   const kept = features.flatMap(feature => !replaced.has(feature) ? [feature] : replaced.get(feature) ? [replaced.get(feature)!] : []);
-  const summits = kept.filter(feature => feature.geometry.kind === "line" && feature.geometry.closed && CONTOUR.test(feature.layer) && areaOf(ringOf(feature)) < 3000).map(ringOf);
+  const summits = kept.filter(feature => feature.geometry.kind === "line" && feature.geometry.closed && CONTOUR.test(feature.layer) && ringArea(ringOf(feature)) < 3000).map(ringOf);
   const others = [...kept, ...added].filter(feature => feature.geometry.kind === "point" && /DOTKNOLL/i.test(feature.layer) && feature.layer !== "dotknoll_laser")
     .map(feature => (feature.geometry as { at: readonly [number, number] }).at);
   return [...kept.filter(feature => {

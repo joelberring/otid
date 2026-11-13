@@ -1,5 +1,5 @@
 import { runGeneralizeJob, runNormCheck, type GeneralizeJobRequest } from "./map-project-job-generalize";
-import { runLabels, type LabelsRequest } from "./map-project-job-labels";
+import { decodeRgbaPng, runLabels, type LabelsRequest } from "./map-project-job-labels";
 import { runBaseMap, type BaseMapJobRequest } from "./map-project-job-base-map";
 import { runLaserArea, runLaserOutput, type LaserOutputRequest } from "./map-project-job-laser";
 import type { Box } from "./map-project-job-run";
@@ -232,11 +232,14 @@ export async function runMapJob(db: Database, job: ClaimedMapJob, deps: { worker
       const [full] = await db.select({ request: schema.mapProjectJobs.request }).from(schema.mapProjectJobs).where(eq(schema.mapProjectJobs.id, job.id));
       const base = (full?.request ?? request) as unknown as BaseMapJobRequest;
       const texts = new Map<string, string>();
-      for (const sha256 of new Set([...base.files.map(file => file.sha256), ...(base.knolls ? [base.knolls.sha256] : []), ...(base.cliffs ? [base.cliffs.sha256] : [])])) {
+      for (const sha256 of new Set([...base.files.map(file => file.sha256), ...(base.knolls ? [base.knolls.sha256] : []), ...(base.cliffs ? [base.cliffs.sha256] : []),
+        ...(base.depth ? [base.depth.world] : [])])) {
         const content = await readMapContent(db, sha256);
         if (content) texts.set(sha256, content.toString("utf8"));
       }
-      output = { result: runBaseMap(loaded, area, base, texts, now) };
+      // Fuktdjupets bild (lutningen, för de lugnade kurvorna); går den inte att läsa lämnas kurvorna som de är.
+      const depthBytes = base.depth ? await readMapContent(db, base.depth.image) : undefined;
+      output = { result: runBaseMap(loaded, area, base, texts, now, depthBytes ? decodeRgbaPng(depthBytes) : undefined) };
       break;
     }
     default: output = { error: `Okänt jobb ${job.kind}` };

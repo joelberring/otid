@@ -48,4 +48,29 @@ describe("grundkartan till kartans objekt", () => {
     expect(count(1)).toEqual([{ level: 1, chosen: 0, candidates: 5 }, undefined]);
     expect(assembleBaseMap({ ...input, parts, knolls: { level: 5, body: "{inte json" } })).toHaveProperty("problem");
   });
+
+  it("lugnar kurvorna på flack mark när jobbets fuktdjup följer med, och säger hur mycket som togs bort", () => {
+    // En hjälpkurva från väst till öst och lutningen 6° väster om mitten, 0,3° öster om (celler om 2 m, 500 × 400).
+    const columns = 500, rows = 400, steps = new Uint8Array(columns * rows);
+    for (let p = 0; p < steps.length; p += 1) steps[p] = p % columns < columns / 2 ? 60 : 3;
+    const flat = { level: 3, grid: { columns, rows, steps }, affine: [2, 0, E - 499, 0, -2, N + 399] as const };
+    const parts = [{ name: "kurvor.dxf", body: dxf("contour", [[-300, 100], [0, 140], [300, 100]]) }, { name: "formlinjer.dxf", body: dxf("formline", [[-200, 0], [200, 0]]) }];
+    const lengthOf = (result: ReturnType<typeof assembleBaseMap>) => {
+      if ("problem" in result) throw new Error(result.problem);
+      const id = candidateSymbols(map).find(([, code]) => code.replace(/\.0$/, "") === "103")?.[0];
+      const formline = result.objects.flatMap(object => object.kind === "line" && object.symbol === id ? [object.path] : [])[0];
+      return { summary: result.summary, mm: formline ? Math.abs(formline[formline.length - 1]!.x - formline[0]!.x) : 0 };
+    };
+    const plain = lengthOf(assembleBaseMap({ ...input, parts })), calmed = lengthOf(assembleBaseMap({ ...input, parts, flat }));
+    expect(plain.summary.flatContours).toBeUndefined();
+    expect(plain.mm).toBeCloseTo(40, 0);
+    // Den flacka östra halvan klipps bort, utom närmast sluttningen där fönstret (40 m) ännu har brant mark i sig; kurvan rörs inte.
+    expect(calmed.summary.flatContours).toMatchObject({ level: 3, rings: 0 });
+    expect(calmed.summary.flatContours!.formlineMeters).toBeGreaterThanOrEqual(175);
+    expect(calmed.summary.flatContours!.formlineMeters).toBeLessThan(200);
+    expect(calmed.mm).toBeGreaterThan(20);
+    expect(calmed.mm).toBeLessThan(22.5);
+    expect(calmed.summary.symbols.find(row => row.symbol === "101")).toEqual(plain.summary.symbols.find(row => row.symbol === "101"));
+    expect(lengthOf(assembleBaseMap({ ...input, parts, flat: { ...flat, level: 0 } })).mm).toBeCloseTo(40, 0);
+  });
 });

@@ -3,6 +3,7 @@ import { importLayers, mapNorm, parseDxf, parseGeoJson, symbolObjectKind, Vector
 import { mergeCandidates } from "./candidate-merge";
 import { computeCandidates, suggestedMapping, type CandidateSymbol } from "./candidates";
 import { clearCutFeatures, type ClearCut } from "./clear-cuts";
+import { calmFlatContours, flatLimitsAt, flatSlopeFrom, type PixelAffine, type SlopeGrid } from "./flat-contours";
 import { cliffFeatures, cliffLimitsAt, defaultCliffLimits, readCliffCandidates } from "./cliff-choice";
 import { chooseKnolls, knollFeatures, knollLimitsAt, readKnollCandidates } from "./knoll-choice";
 import { mergeBaseMap } from "./merge";
@@ -15,6 +16,7 @@ import { mergeBaseMap } from "./merge";
  * det bebyggda, generaliserade efter normen). Ren kod utan I/O.
  *
  * Skillnader mot webben: sparade lagerprofiler används inte (bara förslagen ur lagernamnen), och inget lager väljs bort.
+ * Kurvorna på flack mark lugnas med samma förval som i webben när jobbets fuktdjup följer med (`flat`).
  */
 type Ring = readonly Point[];
 
@@ -52,6 +54,11 @@ export interface BaseMapAssemblyInput {
   /** Mängden små kullar och branter på skalan 1–10 med jobbets `kullar.geojson` och `brantlinjer.geojson` (reglagen i webben). */
   readonly knolls?: { readonly level: number; readonly body: string } | undefined;
   readonly cliffs?: { readonly level: number; readonly body: string } | undefined;
+  /**
+   * «Lugna kurvor på flack mark» (ägaren 2026-11-13): nivån 0–10 med lutningen ur jobbets fuktdjup (`slopeGridOf`) och var
+   * rutnätet ligger (`worldFileAffine`, SWEREF 99 TM). Utelämnat = jobbet har inget fuktdjup, och kurvorna lämnas som de är.
+   */
+  readonly flat?: { readonly level: number; readonly grid: SlopeGrid; readonly affine: PixelAffine } | undefined;
   readonly georeference: MapGeoreference;
   readonly symbols: readonly CandidateSymbol[];
   readonly bounds: MapBox;
@@ -83,6 +90,8 @@ export interface BaseMapSummary {
   /** Valen bland kullar och branter (när en nivå angavs): så många valdes bland jobbets sparade. */
   readonly knolls?: { readonly level: number; readonly chosen: number; readonly candidates: number } | undefined;
   readonly cliffs?: { readonly level: number; readonly impassable: number; readonly passable: number; readonly candidates: number } | undefined;
+  /** Hjälpkurvor (meter) och små ringar som togs bort på flack mark (när jobbet har fuktdjupet). */
+  readonly flatContours?: { readonly level: number; readonly formlineMeters: number; readonly rings: number } | undefined;
 }
 
 const SWEREF99TM = 3006;
@@ -105,6 +114,13 @@ export function assembleBaseMap(input: BaseMapAssemblyInput): { objects: MapObje
   const norm = mapNorm({ scale, symbols });
   let data = mergeBaseMap(read, input.osm, scale, cuts && { features: cuts.features, afterScan: cuts.afterScan }, norm);
   read = [];
+  // Hjälpkurvor och små ringar på flack mark tas bort, som när grundkartan läses in i webben.
+  let flatContours: BaseMapSummary["flatContours"];
+  if (input.flat) {
+    const calmed = calmFlatContours(data.features, flatSlopeFrom(input.flat.grid, input.flat.affine), flatLimitsAt(input.flat.level));
+    data = { ...data, features: calmed.features };
+    flatContours = { level: input.flat.level, formlineMeters: calmed.formlineMeters, rings: calmed.rings };
+  }
   // Reglagen för punkthöjder och branter: bara de egna lagren byts, som i panelerna (ett val utan något objekt ändrar inget).
   let knolls: BaseMapSummary["knolls"], cliffs: BaseMapSummary["cliffs"];
   if (input.knolls) {
@@ -136,6 +152,7 @@ export function assembleBaseMap(input: BaseMapAssemblyInput): { objects: MapObje
       outside: result.outside, duplicates: result.duplicates, short: result.short, mismatched: result.mismatched,
       inBuilt: result.builtMask?.removed ?? 0, belowNorm: result.generalized?.removed ?? 0 },
     clipped: result.clipped, joined: result.joined, simplified: result.generalized?.simplified ?? 0,
-    ...(cuts ? { clearCuts: cuts.counts } : {}), ...(knolls ? { knolls } : {}), ...(cliffs ? { cliffs } : {})
+    ...(cuts ? { clearCuts: cuts.counts } : {}), ...(knolls ? { knolls } : {}), ...(cliffs ? { cliffs } : {}),
+    ...(flatContours ? { flatContours } : {})
   } };
 }

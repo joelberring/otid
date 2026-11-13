@@ -7,6 +7,7 @@
 export * from "./merge";
 export * from "./clear-cuts";
 export * from "./small-rings";
+export * from "./flat-contours";
 export * from "./yards";
 export * from "./marsh-merge";
 export * from "./water-clip";

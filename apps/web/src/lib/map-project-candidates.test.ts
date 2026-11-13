@@ -61,6 +61,32 @@ describe("kandidaterna i Workern", () => {
     expect(store.get(2)).toBe(done.data.features);
   });
 
+  it("lugnar kurvorna på flack mark när lutningen följer med, och svarar med det borttagna", () => {
+    const dxf = (layer: string, points: [number, number][]) => ["0", "SECTION", "2", "ENTITIES", "0", "LWPOLYLINE", "8", layer, "70", "0",
+      ...points.flatMap(([x, y]) => ["10", String(x), "20", String(y)]), "0", "ENDSEC", "0", "EOF", ""].join("\n");
+    const parts = [{ name: "kurvor.dxf", body: dxf("contour", [[0, 50], [300, 60]]) }, { name: "formlinjer.dxf", body: dxf("formline", [[0, 20], [300, 20]]) }];
+    // 200 × 100 celler om 2 m med nedre vänstra hörnet i origo: 5° i västra halvan, 0,2° i östra.
+    const columns = 200, rows = 100, steps = Uint8Array.from({ length: columns * rows }, (_, p) => p % columns < 100 ? 50 : 2);
+    const calm = { grid: { columns, rows, steps }, affine: [2, 0, 1, 0, -2, 199] as const, level: 3 };
+    const run = (request: Partial<Extract<CandidateRequest, { type: "base-map" }>>) => {
+      const sent: CandidateResponse[] = [];
+      handleCandidateRequest(new Map(), { type: "base-map", id: 1, dataId: 2, merge: true, scale: 10000, parts, ...request }, response => sent.push(response));
+      return sent.at(-1) as Extract<CandidateResponse, { type: "base-map" }>;
+    };
+    const plain = run({}), calmed = run({ calm });
+    expect(plain.calm).toBeUndefined();
+    expect(calmed.calm).toMatchObject({ level: 3, rings: 0 });
+    expect(calmed.calm!.formlineMeters).toBeGreaterThan(70);
+    expect(calmed.calm!.removed.map(feature => feature.layer)).toEqual(["formline"]);
+    // Resten av hjälpkurvan är samma objekt i svaret som i `added` (reglaget känner igen dem), och kurvan är orörd.
+    expect(calmed.calm!.added).toHaveLength(1);
+    expect(calmed.data.features).toContain(calmed.calm!.added[0]);
+    expect(calmed.data.features.filter(feature => feature.layer === "contour")).toEqual(plain.data.features.filter(feature => feature.layer === "contour"));
+    expect(calmed.data.features).toHaveLength(plain.data.features.length);
+    // Utan sammansättning (en enskild fil) lugnas ingenting.
+    expect(run({ merge: false, calm }).calm).toBeUndefined();
+  });
+
   it("säger till när en fil inte går att tolka, och ger inget för objekt som glömts", () => {
     const store: CandidateStore = new Map(), sent: CandidateResponse[] = [];
     handleCandidateRequest(store, { type: "base-map", id: 1, dataId: 2, merge: false, parts: [{ name: "kurvor.dxf", body: "inte\nDXF\nalls" }] }, response => sent.push(response));
@@ -99,7 +125,7 @@ describe("kandidaternas Worker från sidan", () => {
     const fake = fakeWorker(), session = new CandidateSession(() => fake.worker);
     const body = JSON.stringify({ type: "FeatureCollection", features: [{ type: "Feature", properties: { layer: "stenar" }, geometry: { type: "Point", coordinates: at(10, 10) } }] });
     const steps: string[] = [];
-    const data = await session.baseMap({ parts: [{ name: "vatten.geojson", body }], merge: false }, step => steps.push(step.step));
+    const { data } = await session.baseMap({ parts: [{ name: "vatten.geojson", body }], merge: false }, step => steps.push(step.step));
     expect(steps).toEqual(["read"]);
     const result = await new Promise(resolve => session.compute(data.features, input({ mapping: [["stenar", "s"]] }), resolve));
     expect(fake.requests.filter(request => request.type === "data")).toHaveLength(0);

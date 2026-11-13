@@ -2,7 +2,10 @@ import { randomUUID } from "node:crypto";
 import { MAP_PROJECT_SYNC_MAX_EDITS, MCP_BASE_MAP_MAX_OBJECTS } from "@o-tid/contracts";
 import type { Point } from "@o-tid/map-file";
 import { newKey, type RevisionEdit, type SourceData } from "@o-tid/map-revision";
-import { assembleBaseMap, builtPolygons, candidateSymbols, editorBounds, type BaseMapSummary, type ClearCut } from "@o-tid/map-revision/base-map";
+import {
+  assembleBaseMap, builtPolygons, candidateSymbols, DEFAULT_FLAT_LEVEL, editorBounds, slopeGridOf, worldFileAffine, type BaseMapSummary, type ClearCut,
+  type PhotoPixels
+} from "@o-tid/map-revision/base-map";
 import type { LoadedProjectMap } from "./map-project-job-run";
 
 /**
@@ -27,6 +30,8 @@ export interface BaseMapJobRequest {
   readonly osm?: SourceData | undefined;
   readonly cuts?: readonly ClearCut[] | undefined;
   readonly scannedAt: string | null;
+  /** Jobbets fuktdjup (bilden och världsfilen), för «Lugna kurvor på flack mark» med förvalet; saknas det lämnas kurvorna. */
+  readonly depth?: { readonly image: string; readonly world: string } | undefined;
   readonly stage?: Polygon | undefined;
   /** Det som inte gick att hämta (osm, clear_cuts), för svaret. */
   readonly missing: readonly string[];
@@ -35,8 +40,12 @@ export interface BaseMapJobRequest {
 export type BaseMapJobResult = { problem: string }
   | { summary: BaseMapSummary; missing: readonly string[]; parts: RevisionEdit[][] };
 
-/** Grundkartans objekt som ändringar i omgångar. `texts` är filernas innehåll efter innehållsnyckel. */
-export function runBaseMap(loaded: LoadedProjectMap, area: Polygon | null, request: BaseMapJobRequest, texts: ReadonlyMap<string, string>, now: Date): BaseMapJobResult {
+/**
+ * Grundkartans objekt som ändringar i omgångar. `texts` är filernas innehåll efter innehållsnyckel och `depth` fuktdjupets
+ * bildpunkter (när jobbet har det och bilden gick att läsa).
+ */
+export function runBaseMap(loaded: LoadedProjectMap, area: Polygon | null, request: BaseMapJobRequest, texts: ReadonlyMap<string, string>, now: Date,
+  depth?: PhotoPixels): BaseMapJobResult {
   const georeference = loaded.base.georeference;
   if (!georeference) return { problem: "Kartan saknar georeferens, så grundkartan kan inte läggas in i den." };
   const body = (sha256: string) => texts.get(sha256);
@@ -46,7 +55,9 @@ export function runBaseMap(loaded: LoadedProjectMap, area: Polygon | null, reque
   if (parts.some(part => part.body === undefined) || (knolls && knolls.body === undefined) || (cliffs && cliffs.body === undefined)) {
     return { problem: "En av laserjobbets filer saknar innehåll." };
   }
+  const affine = depth && request.depth ? worldFileAffine(texts.get(request.depth.world) ?? "") : undefined;
   const assembled = assembleBaseMap({
+    flat: depth && affine ? { level: DEFAULT_FLAT_LEVEL, grid: slopeGridOf(depth), affine } : undefined,
     parts: parts as { name: string; body: string }[], osm: request.osm, cuts: request.cuts, today: now.toISOString().slice(0, 10), scannedAt: request.scannedAt,
     knolls: knolls as { level: number; body: string } | undefined, cliffs: cliffs as { level: number; body: string } | undefined,
     georeference, symbols: candidateSymbols(loaded.base), bounds: editorBounds(loaded.base, area), area: area ?? undefined, stage: request.stage,

@@ -51,3 +51,20 @@ export const mapKnollsSv = {
     done: (impassable: number, passable: number, all: number) => `${impassable} opasserbara och ${passable} passerbara av ${all} möjliga.`
   }
 };
+
+/** «Lugna kurvor på flack mark» (ägaren 2026-11-13): hjälpkurvor och små ringar tas bort där marken är flack. */
+export const mapFlatContoursSv = {
+  heading: "Lugna kurvor på flack mark",
+  help: "På flack mark flyttar små höjdfel kurvorna många meter i sidled. Här tas hjälpkurvor och små ringar bort där marken lutar mindre än gränsen. Brantare terräng rörs inte.",
+  none: "Inget fuktdjup bland underlagen. Kör laserjobbet med fuktigheten först.",
+  noContours: "Inga kurvor bland kandidaterna. Läs in grundkartan först (steg 2).",
+  layer: "Underlag",
+  level: (level: number, degrees: string, squareMeters: string) => level === 0 ? "Av: ingenting tas bort"
+    : `Nivå ${level} av 10${level === 3 ? " (förval)" : ""}: mark som lutar mindre än ${degrees}°, ringar under ${squareMeters} m²`,
+  levelHelp: "0 är av, 1 tar bara det allra flackaste och 10 tar mest. Vanliga öppna kurvor rörs inte.",
+  run: "Visa som kandidater",
+  done: (meters: string, rings: number) => `${meters} m hjälpkurva och ${rings === 1 ? "1 liten ring" : `${rings} små ringar`} på flack mark tas bort.`,
+  untouched: "Ingenting tas bort: alla kurvor och hjälpkurvor visas.",
+  failed: "Fuktdjupet kunde inte läsas.",
+  loaded: (level: number, meters: string, rings: number) => `Lugna kurvor på flack mark (nivå ${level}): ${meters} m hjälpkurva och ${rings === 1 ? "1 liten ring" : `${rings} små ringar`} togs bort. Ändra under «3. Justera utan ny körning».`
+};

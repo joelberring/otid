@@ -1,4 +1,4 @@
-import { deflateSync } from "node:zlib";
+import { deflateSync, inflateSync } from "node:zlib";
 import { mapPointToProjected, type MapObject, type PathCommand, type Point } from "@o-tid/map-file";
 import { samplePath } from "@o-tid/map-revision";
 import type { LoadedProjectMap } from "./map-project-job-run";
@@ -62,6 +62,46 @@ export function rgbaPng(width: number, height: number, rgba: Uint8Array): Uint8A
   const header = Buffer.alloc(13);
   header.writeUInt32BE(width, 0); header.writeUInt32BE(height, 4); header[8] = 8; header[9] = 6;
   return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk("IHDR", header), chunk("IDAT", deflateSync(raw)), chunk("IEND", new Uint8Array(0))]);
+}
+
+/**
+ * En PNG (8 bitar, RGBA eller RGB, inte sammanflätad) som råa bildpunkter (RGBA) radvis uppifrån; inget för andra format
+ * eller en trasig fil. För laserkörningens fuktdjup (lutningen i blå kanal), som geo-arbetaren skriver så.
+ */
+export function decodeRgbaPng(bytes: Uint8Array): { width: number; height: number; data: Uint8Array } | undefined {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (bytes.byteLength < 33 || view.getUint32(0) !== 0x89504e47) return undefined;
+  let offset = 8, width = 0, height = 0, format = "";
+  const parts: Uint8Array[] = [];
+  while (offset + 12 <= bytes.byteLength) {
+    const length = view.getUint32(offset), type = String.fromCharCode(...bytes.subarray(offset + 4, offset + 8));
+    if (type === "IHDR") { width = view.getUint32(offset + 8); height = view.getUint32(offset + 12); format = [...bytes.subarray(offset + 16, offset + 21)].join(","); }
+    else if (type === "IDAT") parts.push(bytes.subarray(offset + 8, offset + 8 + length));
+    else if (type === "IEND") break;
+    offset += 12 + length;
+  }
+  const channels = format === "8,6,0,0,0" ? 4 : format === "8,2,0,0,0" ? 3 : 0, stride = width * channels;
+  if (!channels || width <= 0 || height <= 0 || width * height > 40_000_000) return undefined;
+  let raw: Buffer;
+  try { raw = inflateSync(Buffer.concat(parts)); } catch { return undefined; }
+  if (raw.byteLength < height * (stride + 1)) return undefined;
+  // Radernas filter (PNG 1.2, avsnitt 6) tas bort på plats.
+  const rows = new Uint8Array(height * stride);
+  for (let row = 0; row < height; row += 1) {
+    const filter = raw[row * (stride + 1)]!, source = row * (stride + 1) + 1, target = row * stride;
+    for (let i = 0; i < stride; i += 1) {
+      const left = i >= channels ? rows[target + i - channels]! : 0, up = row > 0 ? rows[target - stride + i]! : 0;
+      const corner = row > 0 && i >= channels ? rows[target - stride + i - channels]! : 0;
+      const guess = left + up - corner, toLeft = Math.abs(guess - left), toUp = Math.abs(guess - up), toCorner = Math.abs(guess - corner);
+      const predicted = filter === 1 ? left : filter === 2 ? up : filter === 3 ? (left + up) >> 1
+        : filter === 4 ? (toLeft <= toUp && toLeft <= toCorner ? left : toUp <= toCorner ? up : corner) : 0;
+      rows[target + i] = (raw[source + i]! + predicted) & 255;
+    }
+  }
+  if (channels === 4) return { width, height, data: rows };
+  const data = new Uint8Array(width * height * 4).fill(255);
+  for (let p = 0; p < width * height; p += 1) data.set(rows.subarray(p * 3, p * 3 + 3), p * 4);
+  return { width, height, data };
 }
 
 export function runLabels(loaded: LoadedProjectMap, request: LabelsRequest): { png: Uint8Array; meta: Record<string, unknown> } | { error: string } {

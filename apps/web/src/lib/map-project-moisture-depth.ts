@@ -1,5 +1,5 @@
 import type { SourceData, SourceFeature } from "@o-tid/map-revision";
-import { compactMask, maskOutlines, simplifyRing, type PhotoPixels } from "@o-tid/map-revision/base-map";
+import { compactMask, maskOutlines, simplifyRing, SLOPE_STEP_DEGREES, type PhotoPixels } from "@o-tid/map-revision/base-map";
 
 /**
  * Ägaren 2026-11-11 («bra att kunna dra i markfuktighetslagren»): geo-arbetarens bild `fuktdjup.png` har höjden över närmaste
@@ -16,9 +16,8 @@ export interface DepthSettings { readonly wetMeters: number; readonly moistMeter
 export const DEFAULT_DEPTH: DepthSettings = { wetMeters: 0.3, moistMeters: 0.6, minAreaM2: 400, wetSlopeDegrees: 3, openGroundShare: 0.8 };
 /**
  * Ägaren 2026-11-11 (Högdalen som facit): bara flack mark blir blöt (högst 3°) eller fuktig (högst 6°), som i geo-arbetaren.
- * Lutningen står i blå kanal i steg om 0,1°; 255 (äldre bilder) betyder okänd och ingen gräns.
+ * Lutningen står i blå kanal i steg om 0,1° (`SLOPE_STEP_DEGREES`); 255 (äldre bilder) betyder okänd och ingen gräns.
  */
-const SLOPE_STEP_DEGREES = 0.1;
 /**
  * Ägaren 2026-11-12 («opasserbara kärr missas … precis ute vid havet»): öppen blöt mark inom 30 m från vatten är strandkärr
  * och räknas trots regeln om öppen mark (som geo-arbetaren, `SHORE_MARSH_METERS`). Vattnet är bildens genomskinliga celler.

@@ -1,5 +1,5 @@
 import type { Texts } from "../lib/language";
-import type { mapKnollsSv, mapSavedChoiceSv, mapUnderlayStepsSv } from "./map-knolls-sv";
+import type { mapFlatContoursSv, mapKnollsSv, mapSavedChoiceSv, mapUnderlayStepsSv } from "./map-knolls-sv";
 
 /** English: the headings for the order of the base layers in the side panel. */
 export const mapUnderlayStepsEn: Texts<typeof mapUnderlayStepsSv> = {
@@ -49,4 +49,21 @@ export const mapKnollsEn: Texts<typeof mapKnollsSv> = {
     name: (job: string) => `${job} – cliffs`,
     done: (impassable: number, passable: number, all: number) => `${impassable} impassable and ${passable} passable of ${all} possible.`
   }
+};
+
+/** English: "Calm contours on flat ground": form lines and small rings are removed where the ground is flat. */
+export const mapFlatContoursEn: Texts<typeof mapFlatContoursSv> = {
+  heading: "Calm contours on flat ground",
+  help: "On flat ground small height errors move the contours many metres sideways. Here form lines and small rings are removed where the ground slopes less than the limit. Steeper terrain is left alone.",
+  none: "No moisture depth among the base layers. Run the laser job with moisture first.",
+  noContours: "No contours among the candidates. Load the base map first (step 2).",
+  layer: "Base layer",
+  level: (level: number, degrees: string, squareMeters: string) => level === 0 ? "Off: nothing is removed"
+    : `Level ${level} of 10${level === 3 ? " (default)" : ""}: ground sloping less than ${degrees}°, rings below ${squareMeters} m²`,
+  levelHelp: "0 is off, 1 takes only the very flattest and 10 takes the most. Ordinary open contours are left alone.",
+  run: "Show as candidates",
+  done: (meters: string, rings: number) => `${meters} m of form line and ${rings === 1 ? "1 small ring" : `${rings} small rings`} on flat ground are removed.`,
+  untouched: "Nothing is removed: all contours and form lines are shown.",
+  failed: "The moisture depth could not be read.",
+  loaded: (level: number, meters: string, rings: number) => `Calm contours on flat ground (level ${level}): ${meters} m of form line and ${rings === 1 ? "1 small ring" : `${rings} small rings`} were removed. Change it under "3. Adjust without a new run".`
 };

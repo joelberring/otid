@@ -22,7 +22,8 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
   kräver skäl och loggas med från/till; superadmin får sätta sitt eget konto. ADR-0189 tillägg 2026-11-13.
 - Verifierat: lint, typecheck, test (contracts, database, web), integration `adr-0172-accounts` (nytt fall) och `adr-0219-geo`
   (egen laserkvot) mot PostgreSQL 16. Inte provat i webbläsare eller med Playwright.
-- Kvar: larm till superadmin när ett konto når gränsen; lagring utanför databasen.
+- Kvar: larm till superadmin när ett konto når gränsen. Fortsättningen är PLAN.md steg L (L1 klar) och ADR-0224 (arkiv
+  för vilande kartinnehåll, beslutad av ägaren 2026-11-13, inte byggd).
 
 ### 2026-11-12 – Användartestet 2026-11-12, tredje omgången: bokstäver, lösenord, arkivering (migration 0113–0115)
 - Gafflingar: bokstaven hör till alternativet (ADR-0175 tillägg b och c). Tas ett alternativ bort står de andra kvar (lucka

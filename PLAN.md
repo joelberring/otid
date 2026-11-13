@@ -1399,6 +1399,23 @@ och `claude/plan-ritlage-hjul-och-mobil.md`.
   vinklar, fyll, duplicera och parallell kopia, följ kant.
 - [ ] R5 Nya symboler (duplicera, hämta ur en annan kartfil) och resten av verktygen efter vad piloten behöver.
 
+## [ ] Steg L – Lagring: gränser, städning och arkiv (ägaren 2026-11-13)
+
+Underlag: `claude/plan-lagring-och-backup-2026-11-13.md` och ADR-0224. Delas i leveranser i den här ordningen.
+
+- [x] L1 Egna gränser per konto (kartlagring och laserrutor) och superadmins lista över konton nära gränsen (migration 0118).
+- [ ] L2 Vad som tar plats: kontosidan visar använt utrymme per kartprojekt och slag (grundfil, laserkörningar, underlag),
+  störst först; superadmin ser samma uppdelning för ett konto.
+- [ ] L3 Rensning: "Ta bort äldre körningar" per projekt (den senaste klara behålls); resultatfiler från misslyckade och
+  avbrutna körningar tas bort automatiskt; en körning som föll på serverns fel (minne, lagring) räknas inte mot laserkvoten.
+- [ ] L4 Senaste öppning sparas per kartprojekt (förutsättning för "orört" i ADR-0224).
+- [ ] L5 Arkivet, första delen: laserkörningars äldre resultatfiler till objektlagring, först bara loggat, sedan påslaget;
+  återhämtning när projektet öppnas (ADR-0224 beslut 5–7 och 9).
+- [ ] L6 Arkivet, resten: underlag, hela vilande projekt, klubbarkivet och gamla tävlingars kartfiler; "Arkivera nu" och
+  "Håll aktivt"; kvoten för arkiverat innehåll efter ägarens besked.
+
+Backupen utanför servern (Storage Box med restic) är drift, inte kod: stegen står i docs/drift.md och i underlaget.
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

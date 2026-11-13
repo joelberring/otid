@@ -292,3 +292,8 @@ fieldset.row legend { width: 100%; padding: 0; font-weight: 600; }
 /* Nivåstödet är experimentellt (ägaren 2026-11-10). */
 .experimental { margin-left: .4rem; padding: 1px 8px; border: 1px solid var(--attention, #b45309); border-radius: 999px; color: var(--attention, #b45309);
   font-size: .75rem; font-weight: 600; vertical-align: middle; text-transform: uppercase; letter-spacing: .03em; }
+
+/* Banläggningens karta ur ett kartprojekt: listan att välja ur. */
+.mapProjects { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.mapProjects li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line); }
+.panel h3 { margin: 0; font-size: var(--text-md, 1rem); }

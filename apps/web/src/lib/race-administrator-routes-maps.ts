@@ -1,6 +1,6 @@
 import {
   adminRaceMapStateSchema, controlMapResponseSchema, runnerControlMapSchema, PARTICIPANT_ROUTE_CONTENT_TYPE, PARTICIPANT_ROUTE_MAX_BYTES, participantRouteUploadResponseSchema, RACE_MAP_MAX_BYTES,
-  RACE_MAP_MEDIA_TYPES, RACE_MAP_SOURCE_MAX_BYTES, RACE_MAP_SOURCE_PARTS, RACE_MAP_SOURCE_UPLOAD_MAX_BYTES, raceMapProblemSchema,
+  RACE_MAP_MEDIA_TYPES, raceMapProjectLinkStateSchema, RACE_MAP_SOURCE_MAX_BYTES, RACE_MAP_SOURCE_PARTS, RACE_MAP_SOURCE_UPLOAD_MAX_BYTES, raceMapProblemSchema,
   type RaceMapProblem
 } from "@o-tid/contracts";
 import { forEachMultipartPart, MultipartError, multipartBoundary, partBytes } from "./multipart";
@@ -142,6 +142,12 @@ export async function handleMapRoute(context: RaceAdministratorRouteContext): Pr
         return result.status === "ok" ? new Response(null, { status: 204, headers: privateHeaders }) : resultFailure(result.status);
       }
       return uploadMapSource(context);
+    }
+    // Ägarens plan 2026-11-13: kartprojektet som kartan kommer ur, den låsta versionen och ändringarna som väntar.
+    case "race-map-project": {
+      const result = await dependencies.raceMapProjectLink(db, input);
+      if (result.status !== "ok") return resultFailure(result.status);
+      return json(raceMapProjectLinkStateSchema.parse(result.response));
     }
     case "participant-route": {
       const entryId = request.headers.get("x-otid-entry-id") ?? "";

@@ -220,7 +220,7 @@ async function versionWithMap(tx: DbExecutor, clubId: string, versionId: string)
   return row;
 }
 
-const agreementOf = (map: typeof schema.clubMaps.$inferSelect): MapAgreement => ({ ownership: map.ownership, ownerKind: map.ownerKind,
+export const agreementOf = (map: typeof schema.clubMaps.$inferSelect): MapAgreement => ({ ownership: map.ownership, ownerKind: map.ownerKind,
   ownerName: map.ownerName, agreement: map.agreement, validUntil: map.validUntil, contact: map.contact, trainingOnly: map.trainingOnly,
   feePerPrint: map.feePerPrint, noPublicDisplay: map.noPublicDisplay });
 

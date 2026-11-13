@@ -341,7 +341,7 @@ class UploadRejected extends Error {
 }
 
 /** Bilden (strömmad till kartinnehållet) och metadata ur en multipart med två delar, som kartfilens uppladdning utan filen. */
-async function renderedMap(db: Database, request: Request): Promise<Response | { image: StagedMapContent; metadata: unknown }> {
+export async function renderedMap(db: Database, request: Request): Promise<Response | { image: StagedMapContent; metadata: unknown }> {
   const boundary = multipartBoundary(request.headers.get("content-type"));
   if (!boundary) return failure("invalid-request");
   if (!validDeclaredLength(request, RACE_MAP_MAX_BYTES + 512 * 1024)) return problem("IMAGE_TOO_LARGE");

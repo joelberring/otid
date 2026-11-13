@@ -92,6 +92,7 @@
     { "idx": 87, "version": "7", "when": 1807113600000, "tag": "0113_automatisk_arkivering", "breakpoints": true },
     { "idx": 88, "version": "7", "when": 1807200000000, "tag": "0114_personer_i_arkivet", "breakpoints": true },
     { "idx": 89, "version": "7", "when": 1807286400000, "tag": "0115_konto_bekraftelse", "breakpoints": true },
-    { "idx": 90, "version": "7", "when": 1807372800000, "tag": "0116_kartprojekt_ai_lage", "breakpoints": true }
+    { "idx": 90, "version": "7", "when": 1807372800000, "tag": "0116_kartprojekt_ai_lage", "breakpoints": true },
+    { "idx": 91, "version": "7", "when": 1807459200000, "tag": "0117_banlaggning_kartprojekt", "breakpoints": true }
   ]
 }

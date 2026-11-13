@@ -48,7 +48,7 @@ export function revisedFileName(fileName: string, date: string, format: "OCD" | 
 }
 
 /** Projektets ändringar ur databasen, i nyckelordning (samma lägen ger alltid samma lista). */
-async function savedChanges(tx: DbExecutor, project: MapProjectRow): Promise<{ changes: ObjectChange[]; authors: string[] }> {
+export async function savedChanges(tx: DbExecutor, project: MapProjectRow): Promise<{ changes: ObjectChange[]; authors: string[] }> {
   const rows = await tx.select().from(schema.mapProjectObjects).where(eq(schema.mapProjectObjects.projectId, project.id));
   const states: [ObjectKey, KeyedState][] = rows.flatMap(row => {
     const ref = row.ref === null ? null : parseObjectRef(row.ref);
@@ -59,9 +59,9 @@ async function savedChanges(tx: DbExecutor, project: MapProjectRow): Promise<{ c
   return { changes, authors: [...new Set(changes.map(change => change.author))] };
 }
 
-interface BaseFile { fileName: string; mapId: string | null; bytes: Uint8Array }
+export interface BaseFile { fileName: string; mapId: string | null; bytes: Uint8Array }
 
-async function baseFile(tx: DbExecutor, project: MapProjectRow): Promise<BaseFile | undefined> {
+export async function baseFile(tx: DbExecutor, project: MapProjectRow): Promise<BaseFile | undefined> {
   const [version] = project.baseVersionId ? await tx.select({ mapId: schema.clubMapVersions.mapId }).from(schema.clubMapVersions)
     .where(eq(schema.clubMapVersions.id, project.baseVersionId)) : [];
   const fileName = await mapProjectBaseFileName(tx, project);
@@ -70,7 +70,7 @@ async function baseFile(tx: DbExecutor, project: MapProjectRow): Promise<BaseFil
   return { fileName, mapId: version?.mapId ?? null, bytes: new Uint8Array(bytes) };
 }
 
-function readBase(bytes: Uint8Array, fileName: string): ParsedMap | undefined {
+export function readBase(bytes: Uint8Array, fileName: string): ParsedMap | undefined {
   try { return readMapFile(bytes, fileName, { sources: true }); }
   catch (error) {
     if (error instanceof MapFileError) return undefined;
@@ -116,7 +116,7 @@ async function prepare(tx: DbExecutor, access: { accountId: string; project: Map
  * ADR-0219 K7: OCAD-kartor (version 9+) skrivs bara med `OTID_OCAD_WRITE=1`, tills skrivningen är prövad i riktiga OCAD.
  * Utan flaggan vägras en ny version av en OCAD-karta med ett besked (ändringarna kan exporteras).
  */
-function ocadWriteEnabled(env: Partial<Record<string, string | undefined>> = process.env): boolean {
+export function ocadWriteEnabled(env: Partial<Record<string, string | undefined>> = process.env): boolean {
   return env.OTID_OCAD_WRITE?.trim() === "1";
 }
 

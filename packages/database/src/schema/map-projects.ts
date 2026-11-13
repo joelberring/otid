@@ -1,6 +1,7 @@
 import { bigint, date, doublePrecision, index, integer, jsonb, pgTable, primaryKey, real, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { userAccounts } from "./accounts";
 import { clubMapVersions, clubs } from "./clubs";
+import { races } from "./core";
 import { mapContents } from "./map-content";
 import { bytea } from "./types";
 
@@ -356,3 +357,18 @@ export const mapLayerProfiles = pgTable("map_layer_profile", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   requestId: uuid("request_id").notNull().unique()
 });
+
+/**
+ * Ägarens plan 2026-11-13, etapp 1 (migration 0117): banläggningens karta ur ett kartprojekt. Tävlingens kartfil
+ * (`race_map_source`) är en ögonblicksbild av projektet vid löpnumret `seq`; kopplingen gäller så länge `sha256` är tävlingens
+ * kartfil. `colorsChangedAt` = projektets färgändring som bilden har med (färger har inget löpnummer).
+ */
+export const raceMapProjectLinks = pgTable("race_map_project_link", {
+  raceId: uuid("race_id").primaryKey().references(() => races.id),
+  projectId: uuid("project_id").notNull().references(() => mapProjects.id),
+  seq: bigint("seq", { mode: "number" }).notNull(),
+  sha256: text("sha256").notNull(),
+  colorsChangedAt: timestamp("colors_changed_at", { withTimezone: true }),
+  linkedBy: uuid("linked_by").notNull(),
+  linkedAt: timestamp("linked_at", { withTimezone: true }).notNull()
+}, table => [index("race_map_project_link_project_idx").on(table.projectId)]);

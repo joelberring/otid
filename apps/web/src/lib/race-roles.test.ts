@@ -76,7 +76,8 @@ const COURSE_SETTING: Record<string, Record<string, CourseSettingRequirement>> =
   "admin/races/[raceId]/administrator/course-setting/paper-library": { GET: "EDIT", POST: "EDIT" },
   "admin/races/[raceId]/administrator/course-setting/paper-library/[templateId]": { DELETE: "EDIT" },
   "admin/races/[raceId]/administrator/map/source": { GET: "MAP" },
-  "admin/races/[raceId]/administrator/map/source/[sha256]": { GET: "MAP" }
+  "admin/races/[raceId]/administrator/map/source/[sha256]": { GET: "MAP" },
+  "admin/races/[raceId]/administrator/map/project": { GET: "COMMENT" }
 };
 /** Publika routes under api/races (startlistor) har ingen inloggning och ingår inte. */
 const PUBLIC = ["races/[raceId]/start-list", "races/[raceId]/start-list/iof"];

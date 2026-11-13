@@ -77,3 +77,28 @@ export const adminRaceMapSourceSchema = z.object({
 
 export type RaceMapSourceMetadata = z.infer<typeof raceMapSourceMetadataSchema>;
 export type AdminRaceMapSource = z.infer<typeof adminRaceMapSourceSchema>;
+
+/**
+ * Ägarens plan 2026-11-13, etapp 1: banläggningens karta ur ett kartprojekt. `link` är null när kartfilen är en vanlig
+ * uppladdad fil. `seq` = projektets löpnummer som kartan under banorna motsvarar (låst tills någon tar in ändringarna);
+ * `newerChanges` = ändringar i projektet sedan dess. `canUpdate` = den som frågar får ta in dem (administratör i tävlingen
+ * och med i projektet); `member` = den som frågar kan öppna projektet.
+ */
+export const raceMapProjectLinkStateSchema = z.object({
+  formatVersion: z.literal(1),
+  link: z.object({
+    projectId: z.string().uuid(),
+    projectName: z.string().max(200),
+    seq: z.number().int().nonnegative(),
+    linkedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+    newerChanges: z.number().int().nonnegative(),
+    member: z.boolean(),
+    canUpdate: z.boolean()
+  }).strict().nullable()
+}).strict();
+export type RaceMapProjectLinkState = z.infer<typeof raceMapProjectLinkStateSchema>;
+
+/** Rubrikerna när kartprojektets aktuella karta hämtas och sparas som tävlingens kartfil. */
+export const MAP_PROJECT_SNAPSHOT_HEADERS = { seq: "x-otid-map-seq", sha256: "x-otid-map-sha256", race: "x-otid-race-id",
+  /** Filens namn, URI-kodat (webbläsaren läser filen efter ändelsen). */
+  fileName: "x-otid-file-name" } as const;

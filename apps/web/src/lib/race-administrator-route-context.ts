@@ -29,7 +29,7 @@ import { loadStartDrawSetupAsAdmin, previewStartDrawAsAdmin, commitStartDrawAsAd
   previewRogainingChangeAsAdmin, changeRogainingAsAdmin,
   readRaceMapStateAsAdmin, readRaceMapImageAsAdmin, saveRaceMapAsAdmin, georeferenceRaceMapAsAdmin,
   removeRaceMapAsAdmin, saveParticipantRouteAsAdmin, removeParticipantRouteAsAdmin,
-  saveRaceMapSourceAsAdmin, readRaceMapSourceFileAsAdmin, removeRaceMapSourceAsAdmin, stageMapContent, discardStagedMapContent,
+  saveRaceMapSourceAsAdmin, readRaceMapSourceFileAsAdmin, readRaceMapProjectLink, removeRaceMapSourceAsAdmin, stageMapContent, discardStagedMapContent,
   readRouteChoiceAsAdmin, saveRouteChoiceSettingsAsAdmin, publishRouteChoiceAsAdmin, readRouteChoiceCalibrationAsAdmin,
   readCourseSettingAsAdmin, saveCourseSettingAsAdmin, importCourseSettingAsAdmin, listCourseSettingRevisionsAsAdmin,
   requireCourseSettingAccess, saveCourseSettingEditsAsAdmin, setCourseSettingModeAsAdmin, listCourseSettingNotesAsAdmin,
@@ -118,6 +118,8 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   raceMapGeoreference: georeferenceRaceMapAsAdmin, raceMapRemove: removeRaceMapAsAdmin,
   // Steg 59: kartfilen (OCAD eller Mapper).
   raceMapSourceSave: saveRaceMapSourceAsAdmin, raceMapSourceFile: readRaceMapSourceFileAsAdmin, raceMapSourceRemove: removeRaceMapSourceAsAdmin,
+  // Ägarens plan 2026-11-13: kartprojektet som banläggningens karta kommer ur.
+  raceMapProjectLink: readRaceMapProjectLink,
   // ADR-0189 beslut 2: kartfilen och bilden strömmas till databasen innan de sparas.
   mapContentStage: stageMapContent, mapContentDiscard: discardStagedMapContent,
   // Steg 60: vägvalsanalysen (inställningar, publicering och rutterna för kalibreringen).
@@ -204,7 +206,7 @@ export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: str
   { kind: "class-result-recalculation"; classId: string } | { kind: "effective-result"; entryId: string } | { kind: "speaker-board" } |
   { kind: "identity-candidates" } | { kind: "identity"; entryId: string } | { kind: "registration" } | { kind: "registration-candidates" } |
   { kind: "changes"; entryId: string } |
-  { kind: "race-map" } | { kind: "race-map-image" } | { kind: "race-map-georeference" } | { kind: "race-map-source"; sha256?: string } | { kind: "participant-route" } |
+  { kind: "race-map" } | { kind: "race-map-image" } | { kind: "race-map-georeference" } | { kind: "race-map-source"; sha256?: string } | { kind: "race-map-project" } | { kind: "participant-route" } |
   { kind: "route-choice" } | { kind: "route-choice-settings" } | { kind: "route-choice-published" } | { kind: "route-choice-calibration"; courseId: string } |
   { kind: "course-setting" } | { kind: "course-setting-import" } | { kind: "course-setting-revisions" } |
   { kind: "course-setting-revision"; version: number } | { kind: "course-setting-restore" } | { kind: "course-setting-original" } |

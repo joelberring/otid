@@ -78,6 +78,7 @@ import { useCourseSettingUx } from "./use-course-setting-ux";
 import { useCourseSettingHistory } from "./use-course-setting-history";
 import { rejectedNoteText, useCourseSettingNotes } from "./use-course-setting-notes";
 import { useCourseSettingMapFile } from "./use-course-setting-map-file";
+import { useCourseSettingMapProject } from "./course-setting-map-project";
 import { useCourseSettingOffline } from "./use-course-setting-offline";
 import { useRouteChoiceWorker } from "./use-route-choice-worker";
 import { useRouteHints } from "./use-route-hints";
@@ -471,6 +472,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
     await sync.flush();
     return !sync.dirty;
   }
+  const mapProject = useCourseSettingMapProject({ raceId, say, flush, onReload });
 
   async function onImport(file: ReadFile) {
     if (!window.confirm(text.file.replaceConfirm)) return;
@@ -657,6 +659,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
         <p className={styles.muted}>{copy.access[access.level]}</p>
         <p className={styles.muted}>{text.tools.keys}</p>
       </section>
+      {mapProject.panel}
       <OfflinePanel info={offline.mapInfo} mapSha256={state.mapFile?.sha256} mapBytes={mapBytes} busy={offline.busy} message={offline.panelMessage}
         waiting={offline.waiting} onSave={() => void offline.saveOffline()} onRemove={() => void offline.removeOffline()} onSend={offline.retry} />
       {!readOnly && moveShared.settings(document.event.mapScale)}

@@ -233,6 +233,7 @@ export {
 } from "./map-project-work-layers";
 export { createMapProjectProposal, decideAllMapProjectProposals, decideMapProjectProposal, listMapProjectProposals } from "./map-project-proposals";
 export { exportMapProjectChanges, readMapProjectOutput, writeMapProjectVersion, type MapProjectExportFormat } from "./map-project-output";
+export { readMapProjectCurrentFile, readRaceMapProjectLink, saveMapProjectSnapshotToRace } from "./race-map-project";
 export type { MapProjectUploadFailure } from "./map-projects";
 export { createMapProjectNew } from "./map-project-new";
 export type { MapProjectNewFailure } from "./map-project-new";

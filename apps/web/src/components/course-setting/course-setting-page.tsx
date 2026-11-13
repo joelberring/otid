@@ -21,6 +21,7 @@ import { usableRecord, type FieldRecord } from "../../lib/course-setting-offline
 import { fetchUntilReached } from "../../lib/retrying-fetch";
 import { MapFileUpload } from "../race-administrator/map-file-upload";
 import { ClubMapToRace } from "../club-archive/club-map-picker";
+import { MapProjectToRace } from "./course-setting-map-project";
 import type { Message } from "../race-administrator/source-sync-actions";
 import { Button, Notice } from "../ui";
 import { CourseSettingEditor } from "./course-setting-editor";
@@ -161,6 +162,8 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
       {state.access.admin ? <>
         {/* ADR-0210: kartan ur klubbarkivet i stället för att ladda upp kartfilen. */}
         <ClubMapToRace raceId={raceId} raceType={state.raceType} disabled={busy} onSaved={() => load()} onMessage={setMessage} />
+        {/* Ägarens plan 2026-11-13: kartan ur ett av kontots kartprojekt, låst vid versionen tills ändringarna tas in. */}
+        <MapProjectToRace raceId={raceId} disabled={busy} onSaved={() => load()} onMessage={setMessage} />
         <MapFileUpload disabled={busy} hasMap={false} upload={uploadMapFile} onMessage={setMessage} />
       </> : <p className={styles.muted}>{copy.waitForMap}</p>}
     </section>}

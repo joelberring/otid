@@ -113,6 +113,9 @@ export async function callMcpLaserTool(db: Database, accountId: string, name: st
       moisture: { channelHa: GEO_JOB_DEFAULTS.channelHa, wetMeters: GEO_JOB_DEFAULTS.wetMeters, moistMeters: GEO_JOB_DEFAULTS.wetMeters * 2 },
       vegetation: { minAreaM2: GEO_JOB_DEFAULTS.minAreaM2 } } }, runtime, now);
     if (created.status !== "created") return toolError(refusal(created));
+    if (created.split) {
+      return { content: [text({ ...jobView(created.job, null), stages: created.split.total, message: `Området är för stort för en körning och har delats i ${created.split.total} etapper, som ligger i kön och körs efter varandra (den här är den första). Följ dem med list_laser_jobs. Kartan ändras inte av körningarna.` })] };
+    }
     return { content: [text({ ...jobView(created.job, null), message: "Laserkörningen är köad. Geo-servern startas vid behov och en körning tar ofta 10–60 minuter; följ den med list_laser_jobs. Kartan ändras inte av körningen." })] };
   }
   if (name === "read_laser_output") {

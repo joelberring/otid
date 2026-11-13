@@ -86,7 +86,10 @@ export async function geoJobsRoute(db: Database, request: Request, projectId: st
   if ("response" in input) return input.response;
   return guarded(async () => {
     const result = await createGeoJob(db, { ...input.proof, projectId, request: input.body }, runtime);
-    return result.status === "created" ? privateJson({ formatVersion: 1, job: result.job }, result.replayed ? 200 : 201) : geoFailure(result);
+    // `split` säger att området var för stort för en körning och delades i etapper (ägaren 2026-11-13).
+    return result.status === "created"
+      ? privateJson({ formatVersion: 1, job: result.job, ...(result.split ? { split: result.split } : {}) }, result.replayed ? 200 : 201)
+      : geoFailure(result);
   });
 }
 

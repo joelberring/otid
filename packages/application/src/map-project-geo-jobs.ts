@@ -38,6 +38,31 @@ const DEFAULT_TILES_PER_MONTH = 200;
 export const GEO_JOB_COUNTS = sql.raw(`not (map_project_geo_job.status = 'FAILED' and coalesce(map_project_geo_job.result->>'fault', '') = 'SERVER')`);
 const SERVER_FAULT = /kunde inte skickas|fick inte plats|lagring för kartfiler|minnet inte räckte/i;
 const faultOf = (error: string): { fault: "SERVER" } | null => SERVER_FAULT.test(error) ? { fault: "SERVER" } : null;
+/**
+ * Ägaren 2026-11-13 (hela Järflotta, 30 km², dog två gånger; norra halvan, 15 km², gick på tre minuter): ett område som är
+ * större än servern klarar delas i etapper som körs efter varandra, i stället för att starta och misslyckas. Gränsen är
+ * klipprutans yta i km² (`OTID_GEO_SPLIT_KM2`, förval 16; 0 = dela aldrig).
+ */
+const DEFAULT_SPLIT_KM2 = 16;
+const MAX_SPLIT_PARTS = 8;
+export function geoSplitKm2(environment: Record<string, string | undefined> = process.env): number {
+  const value = environment.OTID_GEO_SPLIT_KM2?.trim();
+  return value && /^\d{1,4}$/.test(value) ? Number(value) : DEFAULT_SPLIT_KM2;
+}
+type Clip = { minX: number; minY: number; maxX: number; maxY: number };
+/**
+ * Klipprutan i lika breda remsor tvärs över den längre sidan, raka snitt som tårtbitar; en ruta inom gränsen ger sig själv.
+ * Remsorna överlappar inte: geo-arbetaren lägger själv sin marginal runt varje (G1), så kurvorna räknas förbi snittet.
+ */
+export function splitClip(clip: Clip, limitKm2: number): Clip[] {
+  const width = clip.maxX - clip.minX, height = clip.maxY - clip.minY;
+  const parts = limitKm2 > 0 ? Math.min(MAX_SPLIT_PARTS, Math.ceil(width * height / 1e6 / limitKm2)) : 1;
+  if (!(parts > 1)) return [clip];
+  return Array.from({ length: parts }, (_, index) => height >= width
+    ? { minX: clip.minX, maxX: clip.maxX, minY: Math.round(clip.minY + height * index / parts), maxY: Math.round(clip.minY + height * (index + 1) / parts) }
+    : { minY: clip.minY, maxY: clip.maxY, minX: Math.round(clip.minX + width * index / parts), maxX: Math.round(clip.minX + width * (index + 1) / parts) });
+}
+
 /** Resultatfilerna från en körning som misslyckats eller avbrutits tas bort (ADR-0224 beslut 8); indata står kvar. */
 const dropOutputs = (tx: DbExecutor, jobIds: string[]) => jobIds.length
   ? tx.delete(outputs).where(and(inArray(outputs.jobId, jobIds), sql`${outputs.name} not like 'indata.%'`)) : Promise.resolve();
@@ -139,7 +164,7 @@ export async function listGeoJobsForAccount(db: Database, input: { accountId: st
   });
 }
 
-type GeoJobCreated = GeoJobFailure | { status: "created"; replayed: boolean; job: GeoJobView };
+type GeoJobCreated = GeoJobFailure | { status: "created"; replayed: boolean; job: GeoJobView; /** Satt när området delades i etapper. */ split?: { total: number } | undefined };
 /** Nytt jobb (Föreslå eller mer, projektet öppet, uppgifter till Lantmäteriet sparade). Idempotent på `requestId`. */
 export async function createGeoJob(db: Database, input: ClubProof & { projectId: string; request: unknown }, runtime: LaserRuntime, now = new Date()): Promise<GeoJobCreated> {
   return createJob(db, sessionGate(input, now), input.request, runtime, now);
@@ -175,13 +200,16 @@ async function createJob(db: Database, gate: MapProjectGate, body: unknown, runt
     const [prior] = await tx.select().from(jobs).where(eq(jobs.requestId, request.requestId));
     if (prior) {
       if (prior.projectId !== access.project.id || prior.accountId !== access.accountId) return { status: "conflict" } as const;
-      return { status: "created", replayed: true, job: toView((await rows(tx, access.project.id, prior.id))[0]!, access.accountId) } as const;
+      const split = (prior.request as { split?: { total: number } }).split;
+      return { status: "created", replayed: true, job: toView((await rows(tx, access.project.id, prior.id))[0]!, access.accountId),
+        split: split ? { total: split.total } : undefined } as const;
     }
     const [credential] = await tx.select({ accountId: schema.mapSourceCredentials.accountId }).from(schema.mapSourceCredentials)
       .where(and(eq(schema.mapSourceCredentials.accountId, access.accountId), eq(schema.mapSourceCredentials.provider, "LANTMATERIET")));
     if (!credential) return { status: "no-credential" } as const;
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${"geo-job:" + access.accountId}, 0))`);
-    const [{ active } = { active: 0 }] = await tx.select({ active: sql<number>`count(*)::int` }).from(jobs)
+    // En delad körning (etapperna nedan) räknas som en.
+    const [{ active } = { active: 0 }] = await tx.select({ active: sql<number>`count(distinct coalesce(${jobs.request}->'split'->>'group', ${jobs.id}::text))::int` }).from(jobs)
       .where(and(eq(jobs.accountId, access.accountId), inArray(jobs.status, [...ACTIVE])));
     if (active >= ACTIVE_PER_ACCOUNT) return { status: "busy" } as const;
     // Kvoten räknar rutor i jobb som väntar eller har körts (även avbrutna och misslyckade efter start: servern har haft dem).
@@ -190,14 +218,27 @@ async function createJob(db: Database, gate: MapProjectGate, body: unknown, runt
       .where(and(eq(jobs.accountId, access.accountId), gte(jobs.createdAt, month), sql`(${jobs.status} = 'QUEUED' or ${jobs.startedAt} is not null)`, sql`${GEO_JOB_COUNTS}`));
     // Kontots egen gräns (superadmin, migration 0118) går före installationens förval.
     const [limits] = await tx.select({ own: schema.userAccounts.geoTilesPerMonth }).from(schema.userAccounts).where(eq(schema.userAccounts.id, access.accountId));
-    if (tiles + tileList.length > (limits?.own ?? geoTilesPerMonth(runtime.environment))) return { status: "quota" } as const;
-    const id = randomUUID();
-    await tx.insert(jobs).values({ id, projectId: access.project.id, accountId: access.accountId, kind: "PULLAUTIN", status: "QUEUED",
-      request: { name: request.name, tiles: tileList, settings: request.settings, ...(request.cliffs ? { cliffs: request.cliffs } : {}), ...(request.clip ? { clip: request.clip } : {}), ...(request.areaId ? { areaId: request.areaId } : {}), ...(request.extras?.length ? { extras: request.extras } : {}),
+    // Större än servern klarar: klipprutan delas i etapper, var och en med rutorna som når den. Etapperna körs i tur och ordning.
+    const clips = request.clip ? splitClip(request.clip, geoSplitKm2(runtime.environment)) : [undefined];
+    const group = randomUUID();
+    const partJobs = clips.map((clip, index) => {
+      const reaching = clip && clips.length > 1 ? tileList.filter(tile => reaches(tile.bbox, clip)) : tileList;
+      const suffix = clips.length > 1 ? ` – etapp ${index + 1} av ${clips.length}` : "";
+      return { id: randomUUID(), clip, tiles: reaching.length ? reaching : tileList, name: `${request.name.slice(0, 80 - suffix.length)}${suffix}`,
+        split: clips.length > 1 ? { group, index: index + 1, total: clips.length } : undefined, requestId: index === 0 ? request.requestId : randomUUID() };
+    });
+    const wanted = partJobs.reduce((sum, part) => sum + part.tiles.length, 0);
+    if (tiles + wanted > (limits?.own ?? geoTilesPerMonth(runtime.environment))) return { status: "quota" } as const;
+    for (const part of partJobs) {
+      await tx.insert(jobs).values({ id: part.id, projectId: access.project.id, accountId: access.accountId, kind: "PULLAUTIN", status: "QUEUED",
+        request: { name: part.name, tiles: part.tiles, settings: request.settings, ...(part.split ? { split: part.split } : {}), ...(request.cliffs ? { cliffs: request.cliffs } : {}), ...(part.clip ? { clip: part.clip } : {}), ...(request.areaId ? { areaId: request.areaId } : {}), ...(request.extras?.length ? { extras: request.extras } : {}),
         ...(request.moisture ? { moisture: request.moisture } : {}),
         ...(request.vegetation ? { vegetation: request.vegetation } : {}) },
-      createdAt: now, requestId: request.requestId });
-    return { status: "created", replayed: false, job: toView((await rows(tx, access.project.id, id))[0]!, access.accountId) } as const;
+      createdAt: new Date(now.getTime() + (part.split ? part.split.index - 1 : 0)), requestId: part.requestId });
+    }
+    const id = partJobs[0]!.id;
+    return { status: "created", replayed: false, job: toView((await rows(tx, access.project.id, id))[0]!, access.accountId),
+      split: clips.length > 1 ? { total: clips.length } : undefined } as const;
   });
 }
 
@@ -232,9 +273,13 @@ export async function pruneGeoJobs(db: Database, input: ClubProof & { projectId:
     const access = await requireMapProject(tx, input, now, "view", true);
     if (access.status !== "ok") return access;
     const all = await tx.select().from(jobs).where(eq(jobs.projectId, access.project.id)).orderBy(desc(jobs.finishedAt), asc(jobs.id)).for("update");
-    const keep = all.find(job => job.status === "DONE")?.id;
+    // Den senaste klara körningen behålls, och är den en etapp av en delad körning behålls alla dess etapper.
+    const latest = all.find(job => job.status === "DONE");
+    const groupOf = (job: typeof all[number]) => (job.request as { split?: { group?: string } }).split?.group;
+    const keepGroup = latest ? groupOf(latest) : undefined;
+    const kept = (job: typeof all[number]) => job.id === latest?.id || (keepGroup !== undefined && groupOf(job) === keepGroup);
     const manage = mapProjectAllows(access.role, access.project, "manage");
-    const remove = all.filter(job => job.id !== keep && (job.status === "DONE" || job.status === "FAILED" || job.status === "CANCELLED")
+    const remove = all.filter(job => !kept(job) && (job.status === "DONE" || job.status === "FAILED" || job.status === "CANCELLED")
       && (manage || job.accountId === access.accountId));
     if (remove.length === 0) return { status: "pruned", removedRuns: 0, removedLayers: 0 } as const;
     const layerIds = remove.flatMap(job => Object.entries(job.result ?? {})

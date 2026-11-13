@@ -24,9 +24,11 @@ export async function accountStorage(tx: DbExecutor, accountId: string): Promise
       union all select base_sha256, id, 4 from map_project
     ),
     pick as (select distinct on (r.sha) r.sha, r.pid, r.pri, m.byte_length from refs r join mine m on m.sha256 = r.sha order by r.sha, r.pri, r.pid),
-    latest as (select distinct on (project_id) project_id, id from map_project_geo_job where status = 'DONE' order by project_id, finished_at desc nulls last, id),
+    latest as (select distinct on (project_id) project_id, id, request->'split'->>'group' as split_group from map_project_geo_job
+      where status = 'DONE' order by project_id, finished_at desc nulls last, id),
     prunable as (select j.project_id, count(*)::int as runs from map_project_geo_job j left join latest l on l.project_id = j.project_id
-      where j.account_id = ${accountId}::uuid and j.status in ('DONE', 'FAILED', 'CANCELLED') and j.id is distinct from l.id group by j.project_id)
+      where j.account_id = ${accountId}::uuid and j.status in ('DONE', 'FAILED', 'CANCELLED') and j.id is distinct from l.id
+        and (l.split_group is null or j.request->'split'->>'group' is distinct from l.split_group) group by j.project_id)
     select p.id as project_id, p.name, p.last_opened_at,
       coalesce(sum(k.byte_length) filter (where k.pri = 1), 0)::text as geo, coalesce(sum(k.byte_length) filter (where k.pri = 2), 0)::text as layer,
       coalesce(sum(k.byte_length) filter (where k.pri = 3), 0)::text as output, coalesce(sum(k.byte_length) filter (where k.pri = 4), 0)::text as base,

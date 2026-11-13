@@ -97,7 +97,8 @@ export function useMapProjectLaser({ view, layers, importer, georeference, bound
     try {
       const result = await clubRequest(`${base}/geo-jobs`, "POST", { ...body, requestId: crypto.randomUUID() }).catch(() => ({ status: 0, json: undefined }));
       if (result.status !== 201 && result.status !== 200) { say(from, (result.json as { error?: string } | undefined)?.error ?? result.status); return false; }
-      setMessage({ from, tone: "ok", text: text.started });
+      const parts = (result.json as { split?: { total?: number } } | undefined)?.split?.total;
+      setMessage({ from, tone: "ok", text: typeof parts === "number" && parts > 1 ? text.startedSplit(parts) : text.started });
       await load();
       return true;
     } finally { setBusy(undefined); }

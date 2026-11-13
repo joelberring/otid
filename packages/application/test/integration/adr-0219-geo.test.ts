@@ -9,7 +9,7 @@ import { laserCollectionOf, laserRuntimeFromEnvironment, searchMapProjectLaser }
 import {
   authenticateGeoWorker, claimGeoJob, createGeoJob, finishGeoJob, geoTilesPerMonth, heartbeatGeoJob, listGeoJobs, openGeoJobLaser, readGeoOutput,
   removeGeoJob, storeGeoOutput
-, GEO_JOB_COUNTS, pruneGeoJobs } from "../../src/map-project-geo-jobs";
+, GEO_JOB_COUNTS, pruneGeoJobs , splitClip } from "../../src/map-project-geo-jobs";
 import { listMapProjectLayers } from "../../src/map-project-layers";
 import { fetchMapProjectMoisture, moistureRequestBox } from "../../src/map-project-moisture";
 import { saveMapSourceCredential } from "../../src/map-source-credentials";
@@ -284,6 +284,59 @@ describe("ADR-0219 K5: geo-arbetaren", () => {
     if (after.status !== "ok") throw new Error(after.status);
     expect(after.response.projects.find(row => row.projectId === projectId)).toMatchObject({ prunableRuns: 0 });
     expect(await pruneGeoJobs(db, { ...owner.proof, projectId }, later(8))).toEqual({ status: "pruned", removedRuns: 0, removedLayers: 0 });
+  });
+
+  it("ett område som är större än servern klarar delas i etapper som körs efter varandra", async () => {
+    // Hela Järflotta 2026-11-13: 4,5 × 6,8 km (30 km²) dog två gånger; gränsen 16 km² ger två remsor tvärs över den längre sidan.
+    const island = { minX: 665753, minY: 6521287, maxX: 670237, maxY: 6528073 };
+    expect(splitClip(island, 16)).toEqual([{ ...island, maxY: 6524680 }, { ...island, minY: 6524680 }]);
+    expect(splitClip(island, 0)).toEqual([island]);
+    expect(splitClip({ minX: 0, minY: 0, maxX: 9000, maxY: 3000 }, 10).map(part => [part.minX, part.maxX])).toEqual([[0, 3000], [3000, 6000], [6000, 9000]]);
+    expect(splitClip({ minX: 0, minY: 0, maxX: 4000, maxY: 4000 }, 16)).toHaveLength(1);
+
+    const { owner, projectId } = await project();
+    const { runtime } = fakeLantmateriet();
+    await saveMapSourceCredential(db, { ...owner.proof, request: { formatVersion: 1, method: "BASIC", id: "geotorget-anna", secret: "hemligt" } }, environment, NOW);
+    const south = { id: "20C029_65200_6650_25", href: LAZ, bbox: [17.86, 58.79, 17.95, 58.82] as [number, number, number, number], epsg: 3006 };
+    const north = { id: "20C029_65250_6650_25", href: LAZ.replace(".laz", "-n.laz"), bbox: [17.86, 58.84, 17.95, 58.87] as [number, number, number, number], epsg: 3006 };
+    const request = (name: string, clip?: typeof island) => ({ formatVersion: 1, requestId: randomUUID(), kind: "PULLAUTIN", name, tiles: [south, north], settings: {}, ...(clip ? { clip } : {}) });
+
+    const whole = request("Hela ön", island);
+    const created = await createGeoJob(db, { ...owner.proof, projectId, request: whole }, runtime, NOW);
+    if (created.status !== "created") throw new Error(created.status);
+    expect(created.split).toEqual({ total: 2 });
+    expect(created.job.name).toBe("Hela ön – etapp 1 av 2");
+    const queued = await db.select({ name: sql<string>`request->>'name'`, clip: sql<typeof island>`request->'clip'`, tiles: sql<number>`jsonb_array_length(request->'tiles')`,
+      tile: sql<string>`request->'tiles'->0->>'id'`, split: sql<{ index: number; total: number }>`request->'split'` })
+      .from(schema.mapProjectGeoJobs).where(eq(schema.mapProjectGeoJobs.projectId, projectId)).orderBy(schema.mapProjectGeoJobs.createdAt);
+    // Varje etapp får sin halva av klipprutan och bara rutorna som når den.
+    expect(queued).toMatchObject([
+      { name: "Hela ön – etapp 1 av 2", clip: { ...island, maxY: 6524680 }, tiles: 1, tile: south.id, split: { index: 1, total: 2 } },
+      { name: "Hela ön – etapp 2 av 2", clip: { ...island, minY: 6524680 }, tiles: 1, tile: north.id, split: { index: 2, total: 2 } }]);
+    // «Ta bort äldre körningar» ser etapperna som en körning: när båda är klara behålls båda.
+    for (let stage = 0; stage < queued.length; stage += 1) {
+      const claimed = await claimGeoJob(db, "geo-1", NOW);
+      await finishGeoJob(db, claimed!.jobId, "geo-1", { status: "DONE" }, new Date(NOW.getTime() + 60_000));
+    }
+    expect(await pruneGeoJobs(db, { ...owner.proof, projectId }, new Date(NOW.getTime() + 120_000))).toEqual({ status: "pruned", removedRuns: 0, removedLayers: 0 });
+    const storage = await readOwnAccountStorage(db, owner.proof, new Date(NOW.getTime() + 120_000));
+    if (storage.status !== "ok") throw new Error(storage.status);
+    expect(storage.response.projects.find(row => row.projectId === projectId)?.prunableRuns ?? 0).toBe(0);
+    // Samma begäran igen ger samma svar, och etapperna räknas som en körning mot gränsen för samtidiga körningar (två).
+    expect(await createGeoJob(db, { ...owner.proof, projectId, request: whole }, runtime, NOW)).toMatchObject({ status: "created", replayed: true, split: { total: 2 } });
+    // Utan klippruta, eller med delningen avstängd, blir det en körning som förut.
+    const plain = await createGeoJob(db, { ...owner.proof, projectId, request: request("Utan ruta") }, runtime, NOW);
+    expect(plain).toMatchObject({ status: "created", job: { name: "Utan ruta" } });
+    expect(plain.status === "created" && plain.split).toBeUndefined();
+    expect((await createGeoJob(db, { ...owner.proof, projectId, request: { ...request("Två"), tiles: [south] } }, runtime, NOW)).status).toBe("created");
+    expect((await createGeoJob(db, { ...owner.proof, projectId, request: request("En till") }, runtime, NOW)).status).toBe("busy");
+    for (const row of await db.select({ id: schema.mapProjectGeoJobs.id }).from(schema.mapProjectGeoJobs).where(eq(schema.mapProjectGeoJobs.projectId, projectId))) {
+      await removeGeoJob(db, { ...owner.proof, projectId, jobId: row.id }, NOW);
+    }
+    const off = { ...runtime, environment: { ...runtime.environment, OTID_GEO_SPLIT_KM2: "0" } };
+    const single = await createGeoJob(db, { ...owner.proof, projectId, request: request("Odelad", island) }, off, NOW);
+    expect(single).toMatchObject({ status: "created", job: { name: "Odelad" } });
+    expect(single.status === "created" && single.split).toBeUndefined();
   });
 
   it("K5c: SLU:s markfuktighet för rutan i SWEREF 99 TM, med världsfilen", async () => {

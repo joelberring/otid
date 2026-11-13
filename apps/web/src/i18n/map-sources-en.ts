@@ -118,6 +118,7 @@ export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
   minAreaOption: (m2: number) => `${m2} m²`,
   tooManyTiles: (n: number, most: number) => `${n} tiles are selected; one job takes at most ${most}. Choose a stage or untick tiles.`,
   start: (n: number) => n === 1 ? "Run Karttapullautin on 1 tile" : `Run Karttapullautin on ${n} tiles`,
+  startedSplit: (parts: number) => `The area is too large for one run and has been split into ${parts} stages. They are in the queue and run one after another.`,
   started: "The job is in the queue.",
   jobs: "The jobs",
   status: {

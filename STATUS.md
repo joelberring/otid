@@ -13,6 +13,18 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-13 – För stora laserkörningar delas i etapper
+- Ägaren 2026-11-13 (hela Järflotta, 30 km², dog två gånger; norra halvan, 15 km², gick på tre minuter): `createGeoJob` delar
+  en klippruta över `OTID_GEO_SPLIT_KM2` (förval 16 km², 0 = aldrig) i lika remsor tvärs över den längre sidan, högst åtta.
+  Varje etapp blir ett eget jobb ("… – etapp 1 av 2") med rutorna som når den och körs i tur och ordning; `request.split`
+  håller ihop dem. Etapperna räknas som en körning mot gränsen för samtidiga körningar, och "Ta bort äldre körningar" behåller
+  alla etapper av den senaste klara. Webben och AI-kopplingen säger att området delats.
+- Verifierat: lint, typecheck, integration `adr-0219-geo` (nytt fall), `adr-0219-ai-laser`, `adr-0219-geo-server`.
+- Inte verifierat: hur skarven mellan två etapper ser ut i en verklig körning (kurvor och vegetation räknas med geo-arbetarens
+  marginal, men resultatet är inte granskat), och att grundkartan läggs in utan dubbla linjer i skarven. En ruta som når två
+  etapper hämtas och räknas mot kvoten två gånger. Etapperna är delkörningar, inte delområden i lagret Etapper.
+- `test/print-layouts-golden.test.ts` faller här också utan den här ändringen; inte undersökt.
+
 ### 2026-11-13 – Steg L4: när ett kartprojekt senast användes (migration 0119)
 - `map_project.last_opened_at` sätts i `requireMapProjectForAccount`, som all åtkomst med behörighet går genom (webben,
   AI-kopplingen, export): högst en gång i timmen per projekt och bara om raden inte är låst (`skip locked`), så att en läsning

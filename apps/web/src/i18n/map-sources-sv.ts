@@ -181,6 +181,7 @@ export const mapSourcesSv = {
     tooManyTiles: (count: number, most: number) => `${count} rutor är valda; ett jobb tar högst ${most}. Välj en etapp eller bocka ur rutor.`,
     start: (count: number) => count === 1 ? "Kör Karttapullautin på 1 ruta" : `Kör Karttapullautin på ${count} rutor`,
     started: "Jobbet ligger i kön.",
+    startedSplit: (parts: number) => `Området är för stort för en körning och har delats i ${parts} etapper. De ligger i kön och körs efter varandra.`,
     jobs: "Jobben",
     status: {
       QUEUED: "Väntar på geo-servern", RUNNING: "Pågår", DONE: "Klart", FAILED: "Misslyckades", CANCELLED: "Avbrutet"

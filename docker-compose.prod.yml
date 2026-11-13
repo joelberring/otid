@@ -164,6 +164,7 @@ services:
       OTID_GUEST_DEMO_PER_HOUR: ${OTID_GUEST_DEMO_PER_HOUR:-}
       OTID_GEO_WORKER_TOKEN: ${OTID_GEO_WORKER_TOKEN:-}
       OTID_GEO_TILES_PER_MONTH: ${OTID_GEO_TILES_PER_MONTH:-}
+      OTID_GEO_SPLIT_KM2: ${OTID_GEO_SPLIT_KM2:-}
       # ADR-0219 K5b: geo-servern hos Hetzner (startas när geo-jobb väntar, raderas efter tomgång). Tom nyckel = ingen geo-server.
       OTID_HETZNER_TOKEN: ${OTID_HETZNER_TOKEN:-}
       OTID_GEO_SERVER_TYPES: ${OTID_GEO_SERVER_TYPES:-}

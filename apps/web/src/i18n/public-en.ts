@@ -54,10 +54,10 @@ export const raceTypeNamesEn: Readonly<Record<keyof typeof raceTypeSv.types, str
 export const aboutEn: Texts<typeof aboutSv> & { readonly internationalTitle: string; readonly international: readonly string[];
   readonly internationalSuggest: string } = {
   metaTitle: "About O-Tid",
-  metaDescription: "O-Tid is course setting and timing for orienteering in the browser, for club events and trainings.",
+  metaDescription: "O-Tid is timing, course setting and map making for orienteering in the browser, for club events and trainings.",
   kicker: "O-Tid",
   title: "About O-Tid",
-  intro: "O-Tid is course setting and timing for orienteering in the browser. It is made for club events and trainings.",
+  intro: "O-Tid is timing, course setting and map making for orienteering in the browser. It is made for club events and trainings.",
   introMore: "You add courses, classes and entries on the web. At the finish you read out the cards with a SPORTident station. "
     + "Runners see start lists and results on their phones without signing in.",
   film: "Watch the film (1 min)",
@@ -80,7 +80,11 @@ export const aboutEn: Texts<typeof aboutSv> & { readonly internationalTitle: str
     "Party with a bar: purchases with SPORTident cards, check-in and check-out at the bar and a public party page without amounts or names unless the organiser chooses to show them.",
     "Officials with their own accounts who reach readout, start, still in the forest and speaker.",
     "Emergencies during the event: adjust the time of a station, a broken control, manual times and reading again from saved raw data.",
-    "Event types Training, Small event, Event (also with forked courses), Relay and Rogaining."
+    "Event types Training, Small event, Event (also with forked courses), Relay and Rogaining.",
+    "Course setting in the browser: controls and courses on the map, forking, control descriptions and print-ready PDFs with individual backs.",
+    "Map making in the browser: map projects in OCAD and OpenOrienteering Mapper formats, drawing tools for ISOM, ISSprOM and the older sprint standard, and several people drawing in the same map.",
+    "Base map from the Swedish national laser data: contours, cliffs, vegetation and wetness with Karttapullautin, with sliders for how much to include, plus OpenStreetMap and clear-cuts from the Swedish Forest Agency.",
+    "AI connection (MCP) that can read map projects and courses, propose changes and review the difficulty of courses. It changes nothing without a person approving."
   ],
   capacityTitle: "How big events can O-Tid handle?",
   capacity: [
@@ -91,6 +95,13 @@ export const aboutEn: Texts<typeof aboutSv> & { readonly internationalTitle: str
     "Readouts are never lost. Each readout is first saved on the readout computer and removed there only when the server has received it. If the network is down or the server is busy it is sent later.",
     "If you expect more visitors than that O-Tid still works, but the lists are updated less often."
   ],
+  supportTitle: "Support the server",
+  support: "O-Tid is free to use. The server, storage and the processing for the maps cost money every month. "
+    + "If you use O-Tid and find that it works, a contribution to the server is very welcome.",
+  supportSwish: "Swish (Sweden):",
+  swishNumber: "076-122 73 87",
+  supportGithub: "or through GitHub Sponsors",
+  supportThanks: "Thank you!",
   contactTitle: "Questions and contact",
   contact: "Questions about O-Tid, found a bug or missing something? Send an email to",
   clubTitle: "Want to use O-Tid in your club?",

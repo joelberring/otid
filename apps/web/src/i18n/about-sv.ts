@@ -1,10 +1,10 @@
 /** Om O-Tid och sidfoten (PLAN.md steg 37). Bara avsnittet "Tekniska funktioner" får ha tekniska ord. */
 export const aboutSv = {
   metaTitle: "Om O-Tid",
-  metaDescription: "O-Tid är banläggning och tidtagning för orientering i webbläsaren, för klubbtävlingar och träningar.",
+  metaDescription: "O-Tid är tidtagning, banläggning och kartritning för orientering i webbläsaren, för klubbtävlingar och träningar.",
   kicker: "O-Tid",
   title: "Om O-Tid",
-  intro: "O-Tid är banläggning och tidtagning för orientering i webbläsaren. Det är gjort för klubbtävlingar och träningar.",
+  intro: "O-Tid är tidtagning, banläggning och kartritning för orientering i webbläsaren. Det är gjort för klubbtävlingar och träningar.",
   introMore: "Du lägger in banor, klasser och anmälda på webben. I mål läser du av brickorna med en SPORTident-station. " +
     "Löparna ser start- och resultatlistor på mobilen utan att logga in.",
   /** Bara när NEXT_PUBLIC_INTRO_FILM_URL är satt. */
@@ -29,7 +29,11 @@ export const aboutSv = {
     "Fest med bar: köp med SPORTident-brickor, in- och utcheckning i baren och en publik fest-sida utan belopp och utan namn om arrangören inte väljer det.",
     "Funktionärer med egna konton som når avläsning, start, Kvar i skogen och speaker.",
     "Nödlägen under tävlingen: justera tiden för en station, kontroll ur funktion, manuell tid och omläsning från sparade rådata.",
-    "Tävlingstyperna Träning, Liten tävling, Tävling (också med gafflade banor), Stafett och Rogaining."
+    "Tävlingstyperna Träning, Liten tävling, Tävling (också med gafflade banor), Stafett och Rogaining.",
+    "Banläggning i webbläsaren: kontroller och banor på kartan, gafflingar, kontrollbeskrivningar och tryckfärdiga PDF:er med individuella baksidor.",
+    "Kartritning i webbläsaren: kartprojekt i OCAD- och OpenOrienteering Mapper-format, ritverktyg för ISOM, ISSprOM och äldre sprintnorm, och flera som ritar i samma karta.",
+    "Grundkarta ur Lantmäteriets laserdata: kurvor, branter, vegetation och fukt med Karttapullautin, med reglage för hur mycket som tas med, plus OpenStreetMap och Skogsstyrelsens hyggen.",
+    "AI-koppling (MCP) som kan läsa kartprojekt och banor, föreslå ändringar och granska banornas nivå. Den ändrar inget utan att en människa godkänner."
   ],
   // Steg 54: uppmätt i docs/lasttest.md på en liten server (Hetzner CX23). Enkel svenska, inga tekniska ord.
   capacityTitle: "Hur stora tävlingar klarar O-Tid?",
@@ -41,6 +45,14 @@ export const aboutSv = {
     "Avläsningar går aldrig förlorade. Varje avläsning sparas först på avläsningsdatorn och tas bort därifrån först när servern har tagit emot den. Är nätet borta eller servern upptagen skickas den senare.",
     "Väntar ni fler besökare än så fungerar O-Tid ändå, men listorna uppdateras mer sällan."
   ],
+  supportTitle: "Stöd servern",
+  support: "O-Tid är gratis att använda. Servern, lagringen och beräkningarna för kartorna kostar pengar varje månad. " +
+    "Använder du O-Tid och tycker att det fungerar tar jag gärna emot ett bidrag till servern.",
+  supportSwish: "Swish:",
+  /** Visas som det står; skriv numret så att det går att läsa och skriva av. */
+  swishNumber: "076-122 73 87",
+  supportGithub: "eller via GitHub Sponsors",
+  supportThanks: "Tack!",
   contactTitle: "Frågor och kontakt",
   contact: "Har du frågor om O-Tid, hittat ett fel eller saknar något? Skicka ett mejl till",
   clubTitle: "Vill du använda O-Tid på din klubb?",

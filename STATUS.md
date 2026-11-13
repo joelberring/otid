@@ -13,6 +13,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-13 – Om O-Tid och GitHub: vad som finns, stöd till servern
+
+- Ägaren: «appen är gratis att använda men jag tar gärna emot bidrag till servern». Om O-Tid (sv/en) har ett avsnitt
+  «Stöd servern» (`/om#stod`) med Swish och GitHub Sponsors, och funktionslistan nämner banläggning, kartritning,
+  grundkarta ur laser och AI-kopplingen. `.github/FUNDING.yml` ger Sponsor-knappen på GitHub.
+- README börjar med vad som finns i appen nu och listar alla paket; repots beskrivning och ämnesord satta på GitHub.
+- Kvar för ägaren: aktivera GitHub Sponsors för kontot (länken leder annars inte till en sponsorsida).
+
 ### 2026-11-13 – Belagd yta ur laserns intensitet för sprintkartor (geo-arbetaren 30)
 - Geo-arbetaren skriver `belagt.dxf` (lagret `belagd_yta_laser`) när jobbet har `paved: 1`: öppna 2 m-celler med mörk
   intensitet på markträffarna, gränsen anpassad till skanningen (`scripts/geo-paved.ts`). Mätt mot Bandhagen–Hagsätra:

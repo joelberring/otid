@@ -1,11 +1,43 @@
 # O-Tid
 
-Webbaserat tidtagningssystem för orientering med direkt SPORTident-avläsning
-i webbläsaren.
+Tidtagning, banläggning och kartritning för orientering i webbläsaren, för klubbtävlingar och träningar.
+Används publikt på **[otid.berring.se](https://otid.berring.se)** – gratis, i beta.
 
-**Mål just nu:** en körbar klubbträning. Se [PLAN.md](PLAN.md) för steg och
-[STATUS.md](STATUS.md) för läget. Grundbesluten finns i
+## Vad som finns
+
+**Tidtagning**
+- SPORTident-avläsning direkt i webbläsaren (Web Serial i Chrome/Edge på dator, WebUSB på Android-platta), SI-Card 5–11
+  och SIAC, med lokal kö som gör att avläsningar aldrig går förlorade när nätet försvinner.
+- Tävlingstyperna Träning, Liten tävling, Tävling (med gafflade banor), Stafett och Rogaining; lottning med fri start,
+  minutstart och masstart; självregistrering på tävlingsdagen.
+- Start- och resultatlistor, Live, sträcktidsanalys, speakersida och Kvar i skogen, öppna utan inloggning.
+- Eventor (klasser, anmälda, löpardatabas), IOF XML 3.0 in och ut, radiokontroller via ROC eller OResults.
+- Funktionärer med egna konton, nödlägen (stationstid, kontroll ur funktion, manuell tid, omläsning från rådata) och fest med bar.
+
+**Banläggning**
+- Kontroller och banor på kartan, gafflingar, kontrollbeskrivningar och tryckfärdiga PDF:er (även individuella baksidor).
+- Klubbytor med träningsgrupper, terminsplanering och nivåer (Grön–Svart).
+
+**Kartritning**
+- Kartprojekt i OCAD- och OpenOrienteering Mapper-format med ritverktyg för ISOM, ISSprOM och äldre sprintnorm, i webbläsaren
+  och på mobil, där flera kan rita och föreslå ändringar i samma karta.
+- Grundkarta ur Lantmäteriets laserdata: en geo-arbetare kör Karttapullautin och egna steg (branter, vegetation, fukt,
+  berg i dagen, belagda ytor för sprint) och resultatet läses in som kandidater med reglage för hur mycket som tas med.
+- Underlag från OpenStreetMap, Skogsstyrelsen (hyggen), SLU:s markfuktighet och ortofoto.
+- Banläggningen kan peka på ett kartprojekt och ta in kartans ändringar.
+
+**AI-koppling**
+- En MCP-server (`/api/mcp`) som låter en AI läsa kartprojekt och banor, starta laserkörningar, föreslå ändringar och
+  granska banornas nivå. Ändringar blir förslag som en människa godkänner.
+
+Se [PLAN.md](PLAN.md) för stegen och [STATUS.md](STATUS.md) för läget. Grundbesluten finns i
 [ADR-0168](docs/adr/ADR-0168-omstart-mot-klubbtraning.md).
+
+## Stöd servern
+
+O-Tid är gratis att använda. Servern, lagringen och kartberäkningarna kostar varje månad; använder du O-Tid och tycker att
+det fungerar tas ett bidrag gärna emot: Swish **076-122 73 87** eller [GitHub Sponsors](https://github.com/sponsors/joelberring).
+Se också [Om O-Tid](https://otid.berring.se/om#stod).
 
 ## Kom igång lokalt
 
@@ -104,6 +136,13 @@ packages/database     Drizzle-schema och migrationer (baslinje från steg 23)
 packages/iof-xml      IOF XML 3.0 import/export och GPX-spår
 packages/eventor      Eventor-klient
 packages/roc          ROC/OResults-klient (radiokontroller)
+packages/course-setting  banläggning: banor, gafflingar, kontrollbeskrivningar, utskriftsark (ren, ingen I/O)
+packages/print-pdf    tryck-PDF med kartan som vektorer, dekorfärger och övertryck
+packages/map-file     läsning och ritning av kartfiler (OCAD, Mapper), koordinatsystem, magnetisk nord
+packages/map-revision kartritningen: ändringar, verktyg, grundkartan ur laser, sprintytor (ren, ingen I/O)
+packages/route-choice vägvalsanalys på kartan
+packages/club-archive import av klubbens kartarkiv
+scripts/geo-*.ts      geo-arbetaren: laserkörningar (Karttapullautin och egna steg) på en tillfällig server
 docs                  arkitektur, domänregler, drift, ADR:er, arkiv
 ```
 

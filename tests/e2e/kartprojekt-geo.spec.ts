@@ -134,6 +134,8 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
 
   // Kurvorna som kandidater.
   await laser.getByRole("button", { name: "Läs in kurvor som kandidater" }).click();
+  // Grönt med reglage visar redan sina ytor som kandidater; de byts mot kurvorna.
+  await replace();
   await expect(laser.getByTestId("map-project-laser-message")).toHaveText("Kurvor visas som kandidater nedan under Vektorfil.");
   const importer = owner.getByTestId("map-project-import");
   // Testkartans symbolset saknar kurvor, så inga förslag här (förslagen prövas i vector-import.test.ts); lagren syns med namnen.

@@ -25,7 +25,8 @@ test("Om O-Tid och sidfoten utan inloggning", async ({ browser }) => {
   await expect(visitor.getByRole("heading", { name: "Beta – fritt att använda" })).toBeVisible();
   await expect(visitor.getByText("utvecklat av Joel Berring med AI-stöd", { exact: false })).toBeVisible();
   const features = visitor.getByRole("heading", { name: "Tekniska funktioner" }).locator("xpath=following-sibling::ul[1]");
-  await expect(features.getByRole("listitem")).toHaveCount(13);
+  // Ägaren 2026-11-13: också banläggning, kartritning, grundkarta ur laser och AI-kopplingen.
+  await expect(features.getByRole("listitem")).toHaveCount(17);
   await expect(features).toContainText("WebUSB i Chrome på Android-platta");
   await expect(features).toContainText("ROC");
   // Steg 54: gränserna med uppmätta siffror, i enkel svenska.

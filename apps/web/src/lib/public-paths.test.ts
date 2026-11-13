@@ -42,10 +42,10 @@ function appRoutes(dir = appDir): { url: string; source: string }[] {
 }
 
 /** Översta delar under src/app som aldrig är publika: arbetsytan, admin, konto och inloggningens flöden (ADR-0177). */
-const NOT_PUBLIC_SECTIONS = ["admin", "organizer", "superadmin", "konto", "inbjudan", "recover", "verify", "oauth"];
+const NOT_PUBLIC_SECTIONS = ["admin", "organizer", "superadmin", "konto", "inbjudan", "kartlank", "recover", "verify", "oauth"];
 /** API:er som aldrig är publika; `/api/public/…` och startlistan är det. */
 /** Demoläget del 2: "Prova arbetsytan" skapar ett konto och loggar in, så det går till `web` (som inloggningen). */
-const NOT_PUBLIC_API = ["account", "admin", "club-import", "demo", "geo-worker", "health", "invitation", "map-link", "oauth", "organizer", "superadmin"];
+const NOT_PUBLIC_API = ["account", "admin", "club-import", "demo", "geo-worker", "health", "invitation", "map-link", "map-project-link", "oauth", "organizer", "superadmin"];
 /** ADR-0219 (K2): MCP med åtkomstnyckel och utan kakor går till de publika instanserna (AI tar aldrig tävlingens instans). */
 const PUBLIC_API = ["public", "mcp"];
 

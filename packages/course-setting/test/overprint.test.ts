@@ -153,6 +153,31 @@ describe("layoutOverprint", () => {
     expect(numberAt().get(controls[0]!)).toEqual(whole.get(controls[0]!));
   });
 
+  it("slinga: ett flyttat nummer gäller kontrollen i varje variant, vilken av dess förekomster som än flyttades", () => {
+    // Ägaren 2026-11-13: numret vid kontrollen där banan delar sig låg rätt i banläggningen men i ringen i variantens PDF.
+    const { b, course, controls } = lineCourse(3);
+    const at = b.cc(course, controls[1]!);
+    b.edit({ type: "ADD_SPLIT", course, at, kind: "LOOP", branches: 2 });
+    const [loopA, loopB] = b.document.courseControls[at]!.split!.branches;
+    b.insert(course, b.control("NORMAL", 30, 20), loopA);
+    b.insert(course, b.control("NORMAL", 30, -20), loopB);
+    const hub = controls[1]!;
+    const occurrences = Object.entries(b.document.courseControls).filter(([, cc]) => cc.control === hub).map(([id]) => id);
+    expect(occurrences.length).toBeGreaterThan(1);
+    const numbersOf = (variant?: string) => texts(layoutOverprint(b.document, { course, ...(variant ? { variant } : {}) }))
+      .filter(t => t.role === "NUMBER" && b.document.courseControls[t.ref!]!.control === hub).map(t => t.at);
+    const moved = { x: 77, y: 33 };
+    for (const occurrence of occurrences) {
+      b.edit({ type: "MOVE_NUMBER", course, courseControl: occurrence, at: moved });
+      for (const variant of ["AB", "BA"]) {
+        const places = numbersOf(variant);
+        expect(places.length, `${occurrence} ${variant}`).toBeGreaterThan(0);
+        expect(places.every(place => place.x === moved.x && place.y === moved.y), `${occurrence} ${variant}`).toBe(true);
+      }
+      b.edit({ type: "MOVE_NUMBER", course, courseControl: occurrence, at: null });
+    }
+  });
+
   it("alla kontroller med koder", () => {
     const { b } = lineCourse(2, { mapScale: 15000 });
     const p = layoutOverprint(b.document, { course: "ALL_CONTROLS" });

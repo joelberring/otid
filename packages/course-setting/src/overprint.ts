@@ -2,6 +2,7 @@
  * Banpåtrycket som figurer i kartans mm. Figurernas form och mått, sträckornas ändar vid ringarna och de automatiska
  * avbrotten följer Purple Pens CourseFormatter.cs och CourseObject.cs (BSD, Peter Golde); numrens läge räknas fram här.
  */
+import { courseControlIds } from "./print-layouts";
 import { routeHintKey, routeSegmentsNear } from "./route-hints";
 import type { Point } from "@o-tid/map-file";
 import { circleGapScale, appearanceOf, sizesFor, type Sizes } from "./appearance";
@@ -515,9 +516,18 @@ function layoutCourse(document: CourseSettingDocument, options: OverprintOptions
   // Poängbanan: numren i beskrivningens ordning, efter poäng och kod (CourseView.CreateScoreCourseView).
   const scoreNumbers = course.kind === "SCORE" ? scoreOrdinals(document, course) : undefined;
   const circles = points.map(object => ({ center: object.control.at, radius: apparentRadius(object.control.kind, sizes) }));
+  // Ägaren 2026-11-13 («texten i kontroll 20 ligger i ringen … borde flyttas utanför»): en kontroll där banan delar sig
+  // eller går i slinga finns flera gånger i banan, och bara en av förekomsterna ritas. Ett nummer som banläggaren själv
+  // flyttat gäller kontrollen, vilken förekomst som än flyttades och vilken som än ritas (hela banan, en variant, en del).
+  const movedNumbers = new Map<string, Point>();
+  for (const id of courseControlIds(document, course.id)) {
+    const item = document.courseControls[id];
+    if (item?.numberAt && !movedNumbers.has(item.control)) movedNumbers.set(item.control, item.numberAt);
+  }
   const labels = points.flatMap(object => {
     if (object.control.kind !== "NORMAL") return [];
-    const cc = document.courseControls[object.ref]!;
+    const own = document.courseControls[object.ref]!, elsewhere = own.numberAt ? undefined : movedNumbers.get(object.control.id);
+    const cc = elsewhere ? { ...own, numberAt: elsewhere } : own;
     const numbers = scoreNumbers ? scoreNumbers.get(object.control.id) : ordinals.get(object.control.id);
     const text = controlLabelText(course.labelKind, { ordinals: numbers, code: object.control.code, points: cc.points });
     return text ? [{ object, cc, text }] : [];

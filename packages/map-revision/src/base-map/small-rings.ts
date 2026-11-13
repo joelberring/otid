@@ -45,8 +45,63 @@ export function extentOf(ring: Ring): { length: number; width: number } {
   return { length, width };
 }
 
+/**
+ * Ägaren 2026-11-13 («små höjder sluts aldrig i form»): Karttapullautins formlinjer slutar där marken planar ut, så en liten kulle
+ * blir en krok som nästan når runt. En kort öppen formlinje (högst 8 mm på kartan) vars ändar ligger nära varandra (högst 1 mm
+ * och högst en tredjedel av längden) sluts.
+ */
+export function closeFormlineHooks(features: readonly SourceFeature[], scale: number): SourceFeature[] {
+  const mm = (value: number) => value * scale / 1000;
+  return features.map(feature => {
+    const geometry = feature.geometry;
+    if (!FORMLINE.test(feature.layer) || geometry.kind !== "line" || geometry.closed || geometry.points.length < 4) return feature;
+    const points = geometry.points, first = points[0]!, last = points[points.length - 1]!;
+    const length = points.reduce((sum, point, i) => i === 0 ? 0 : sum + Math.hypot(point[0] - points[i - 1]![0], point[1] - points[i - 1]![1]), 0);
+    const gap = Math.hypot(last[0] - first[0], last[1] - first[1]);
+    return length <= mm(8) && gap <= mm(1) && gap <= length / 3 ? { ...feature, geometry: { ...geometry, closed: true } } : feature;
+  });
+}
+
+const POINT_AT = (feature: SourceFeature) => (feature.geometry as { at: readonly [number, number] }).at;
+/** Punkthöjder (109) i grundkartan: Karttapullautins och laserns. */
+const KNOLL_POINT = /^dotknoll(_laser)?$/i;
+const STONE = /^(sten|stort_block)$/;
+
+/**
+ * Ägaren 2026-11-13: «punkthöjder hamnar ofta på små vanliga höjder … det vanliga ska bort om de redovisas som punkthöjd» och
+ * «sten och punkthöjd på varandra kan inte stämma, programmet måste välja».
+ * - En liten sluten kurva eller formlinje (högst 2,5 mm lång på kartan, utan någon annan kurva inuti) som har en punkthöjd i sig
+ *   tas bort: kullen visas med punkten.
+ * - En sten och en punkthöjd inom 0,4 mm på kartan är samma upphöjning. Laserns kulle (prövad mot markmodellen med fot och
+ *   höjd) vinner över stenen; stenen vinner över Karttapullautins knoll, som också tar små block.
+ */
+export function oneMarkPerKnoll(features: readonly SourceFeature[], scale: number): SourceFeature[] {
+  const mm = (value: number) => value * scale / 1000;
+  const knolls = features.filter(feature => feature.geometry.kind === "point" && KNOLL_POINT.test(feature.layer));
+  const stones = features.filter(feature => feature.geometry.kind === "point" && STONE.test(feature.layer));
+  const near = (a: SourceFeature, b: SourceFeature) => { const [ax, ay] = POINT_AT(a), [bx, by] = POINT_AT(b); return Math.hypot(ax - bx, ay - by) <= mm(0.4); };
+  const dropped = new Set<SourceFeature>();
+  for (const stone of stones) {
+    const hit = knolls.find(knoll => near(stone, knoll));
+    if (!hit) continue;
+    dropped.add(/_laser$/i.test(hit.layer) ? stone : hit);
+  }
+  const marks = knolls.filter(knoll => !dropped.has(knoll)).map(POINT_AT);
+  const rings = features.filter(feature => feature.geometry.kind === "line" && feature.geometry.closed && (CONTOUR.test(feature.layer) || FORMLINE.test(feature.layer)));
+  const ringOf = (feature: SourceFeature) => (feature.geometry as { points: Ring }).points;
+  for (const feature of rings) {
+    const ring = ringOf(feature);
+    if (extentOf(ring).length > mm(2.5) || !marks.some(([x, y]) => inside(ring, x, y))) continue;
+    // En ring med en annan ring inuti är en del av en större form, inte en enskild liten kulle.
+    if (rings.some(other => other !== feature && ringOf(other).every(([x, y]) => inside(ring, x, y)))) continue;
+    dropped.add(feature);
+  }
+  return features.filter(feature => !dropped.has(feature));
+}
+
 /** `scale` är kartans skala (t.ex. 10000); kurvorna i meter. */
-export function smallRingsToPoints(features: readonly SourceFeature[], scale: number, generalize = GENERALIZE): SourceFeature[] {
+export function smallRingsToPoints(input: readonly SourceFeature[], scale: number, generalize = GENERALIZE): SourceFeature[] {
+  const features = closeFormlineHooks(input, scale);
   const meters = (mm: number) => mm * generalize * scale / 1000;
   const ringOf = (feature: SourceFeature) => (feature.geometry as { points: Ring }).points;
   const levelled = features.filter(feature => feature.geometry.kind === "line" && ANY.test(feature.layer) && feature.elevation !== undefined);
@@ -105,9 +160,11 @@ export function smallRingsToPoints(features: readonly SourceFeature[], scale: nu
   const summits = kept.filter(feature => feature.geometry.kind === "line" && feature.geometry.closed && CONTOUR.test(feature.layer) && ringArea(ringOf(feature)) < 3000).map(ringOf);
   const others = [...kept, ...added].filter(feature => feature.geometry.kind === "point" && /DOTKNOLL/i.test(feature.layer) && feature.layer !== "dotknoll_laser")
     .map(feature => (feature.geometry as { at: readonly [number, number] }).at);
-  return [...kept.filter(feature => {
+  // Kvar: en liten kurva som har en punkthöjd i sig tas bort (punkten visar kullen), och sten eller punkthöjd väljs (`oneMarkPerKnoll`).
+  const small = (ring: Ring) => extentOf(ring).length <= scale * 2.5 / 1000;
+  return oneMarkPerKnoll([...kept.filter(feature => {
     if (feature.layer !== "dotknoll_laser" || feature.geometry.kind !== "point") return true;
     const [x, y] = feature.geometry.at;
-    return !others.some(([ox, oy]) => Math.hypot(ox - x, oy - y) < 6) && !summits.some(ring => inside(ring, x, y));
-  }), ...added];
+    return !others.some(([ox, oy]) => Math.hypot(ox - x, oy - y) < 6) && !summits.some(ring => !small(ring) && inside(ring, x, y));
+  }), ...added], scale);
 }

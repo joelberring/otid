@@ -97,7 +97,18 @@ export async function listGeoJobs(db: Database, input: ClubProof & { projectId: 
   return db.transaction(async tx => {
     const access = await requireMapProject(tx, input, now, "view", false);
     if (access.status !== "ok") return access;
-    return { status: "ok", list: { formatVersion: 1, jobs: (await rows(tx, access.project.id)).map(row => toView(row, access.accountId)), server } } as const;
+    // Kön över alla projekt: jobben körs ett i taget, äldst först.
+    const active = await tx.select({ id: jobs.id, projectId: jobs.projectId, status: jobs.status, accountId: jobs.accountId, createdAt: jobs.createdAt }).from(jobs)
+      .where(inArray(jobs.status, ["QUEUED", "RUNNING"])).orderBy(asc(jobs.createdAt));
+    const running = active.filter(job => job.status === "RUNNING").length, ahead: Record<string, number> = {};
+    let waiting = 0;
+    for (const job of active) {
+      if (job.status !== "QUEUED") continue;
+      if (job.projectId === access.project.id) ahead[job.id] = running + waiting;
+      waiting += 1;
+    }
+    const queue = { running, waiting, users: new Set(active.map(job => job.accountId)).size, ahead };
+    return { status: "ok", list: { formatVersion: 1, jobs: (await rows(tx, access.project.id)).map(row => toView(row, access.accountId)), server, queue } } as const;
   });
 }
 

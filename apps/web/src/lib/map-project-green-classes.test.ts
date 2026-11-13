@@ -32,4 +32,13 @@ describe("grönt med reglage", () => {
     expect(less.hectares.gron_mycket_svarlopt).toBe(0);
     expect(less.data.features.some(feature => feature.layer.startsWith("undervegetation"))).toBe(false);
   });
+  it("klassbilder från geo-arbetaren 28: buskskiktets gräns dras i webbläsaren", () => {
+    // Skog överallt (klass 2 i blå kanal); buskskiktets andel 5 % i väster och 15 % i öster. Röd kanal har arbetarens tillägg.
+    const width = 30, height = 30, data = new Uint8ClampedArray(width * height * 4);
+    for (let p = 0; p < width * height; p += 1) { const east = p % width >= 15; data[p * 4] = east ? 4 : 2; data[p * 4 + 1] = east ? 150 : 50; data[p * 4 + 2] = 2; data[p * 4 + 3] = 255; }
+    const green = (denseShare: number) => greenCandidates({ width, height, data }, { ...DEFAULT_GREEN, minAreaM2: 100, denseShare }, toSource, 3006).hectares.gron_lattlopt!;
+    expect(green(0.2)).toBe(0);
+    expect(green(0.08)).toBeGreaterThan(0.1);
+    expect(green(0.04)).toBeGreaterThan(green(0.08));
+  });
 });

@@ -53,6 +53,9 @@ export function MapProjectGreenPanel(props: Props) {
             : key === "difficult" ? { difficult: value, slow: Math.min(settings.slow, value), fight: Math.max(settings.fight, value) }
             : { fight: value, slow: Math.min(settings.slow, value), difficult: Math.min(settings.difficult, value) });
         }} /></label>)}
+      <label>{text.dense(Math.round((settings.denseShare ?? DEFAULT_GREEN.denseShare!) * 100))}
+        <input type="range" min={0.03} max={0.3} step={0.01} value={settings.denseShare ?? DEFAULT_GREEN.denseShare} data-testid="map-project-green-dense"
+          onChange={event => change({ denseShare: Number(event.target.value) })} /></label>
       <label>{text.minArea(settings.minAreaM2)}<input type="range" min={100} max={2000} step={50} value={settings.minAreaM2}
         onChange={event => change({ minAreaM2: Number(event.target.value) })} /></label>
       <label>{forest.borders.label}<select value={settings.borders ?? "none"} onChange={event => change({ borders: event.target.value as BorderLevel })}

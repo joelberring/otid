@@ -15,7 +15,9 @@ export function greenAt(level: number, current: GreenSettings = DEFAULT_GREEN): 
   const steps = blend({ slow: DEFAULT_GREEN.slow, difficult: DEFAULT_GREEN.difficult, fight: DEFAULT_GREEN.fight },
     level < 5 ? { slow: 6, difficult: 8, fight: 9 } : { slow: 0, difficult: 2, fight: 3 }, share(level));
   const slow = Math.round(steps.slow), difficult = Math.max(slow, Math.round(steps.difficult));
-  return { ...current, slow, difficult, fight: Math.max(difficult, Math.round(steps.fight)) };
+  // Buskskiktets gräns (klassbilder från geo-arbetaren 28) ger de fina stegen: 1 = en fjärdedel av träffarna, 10 = 4 %.
+  const dense = blend({ share: DEFAULT_GREEN.denseShare! }, { share: level < 5 ? 0.25 : 0.04 }, share(level)).share;
+  return { ...current, slow, difficult, fight: Math.max(difficult, Math.round(steps.fight)), denseShare: Math.round(dense * 1000) / 1000 };
 }
 
 /** Sankmark: hur högt över fuktstråket marken räknas som blöt och fuktig. 1 = bara det lägsta, 10 = långt upp på kanterna. */

@@ -230,7 +230,8 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
     <summary>{text.heading}</summary>
     <p className={styles.muted}>{text.help}</p>
     {list && <p className={styles.muted} role="status" data-testid="map-project-laser-server">{text.server[list.server.state]}
-      {list.server.detail ? ` ${list.server.detail}` : ""}</p>}
+      {list.server.detail ? ` ${list.server.detail}` : ""}
+      {list.queue && list.queue.running + list.queue.waiting > 0 && <span data-testid="map-project-laser-queue"> {text.queue(list.queue.running, list.queue.waiting, list.queue.users)}</span>}</p>}
     {credential && !ready ? <p className={styles.muted}>{mapSourcesText.ortho.noCredential} <a href="/konto#konto-lantmateriet">{mapSourcesText.ortho.account}</a></p> : <>
       <label>{mapSourcesText.ortho.where}<select value={where} onChange={event => setWhere(event.target.value)} data-testid="map-project-laser-area">
         <option value="">{mapSourcesText.ortho.whole}</option>
@@ -320,6 +321,7 @@ export function MapProjectLaserPanel({ view, layers, importer, georeference, bou
         {list.jobs.map(job => <li key={job.jobId} data-testid="map-project-laser-job">
           <strong>{job.name}</strong> · {job.kind === "DWG" ? text.dwgJob : text.tiles(job.tiles)} · {text.status[job.status]}
           {job.progress && <> · {text.progress(job.progress.step, job.progress.done, job.progress.total)}</>}
+          {job.status === "QUEUED" && list.queue?.ahead[job.jobId] !== undefined && <> · {text.ahead(list.queue.ahead[job.jobId]!)}</>}
           {job.error && <span className={styles.problem}> · {job.error}</span>}
           {job.kind === "PULLAUTIN" && <span className={styles.muted}> · {job.clip
             ? text.clipped(Math.round(job.clip.maxX - job.clip.minX), Math.round(job.clip.maxY - job.clip.minY)) : text.unclipped}</span>}

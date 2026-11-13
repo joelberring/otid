@@ -145,8 +145,11 @@ export function vegetationMosaic(tiles: readonly VegetationTile[], smallest = VE
 /** Ytorna per ISOM-symbol: kapslade (408 ligger inom 406 osv.), utan små öar och med hålen fyllda. */
 export function vegetationFromTiles(tiles: readonly VegetationTile[], settings: VegetationSettings = DEFAULT_VEGETATION,
   water?: (x: number, y: number) => boolean,
-  signals?: { readonly openAt: (x: number, y: number) => boolean | undefined; readonly denseAt: (x: number, y: number) => boolean | undefined }) {
+  signals?: { readonly openAt: (x: number, y: number) => boolean | undefined; readonly denseAt: (x: number, y: number) => boolean | undefined;
+    readonly denseShareAt?: (x: number, y: number) => number | undefined }) {
   const { grid, classes } = vegetationMosaic(tiles);
+  // Klassen före tillägget för tätt buskskikt, och buskskiktets andel i tusendelar (högst 250): se klassbilden nedan.
+  const before = signals?.denseShareAt ? new Uint8Array(classes) : undefined, shares = before ? new Uint8Array(classes.length) : undefined;
   // Egna beräkningar ur punktmolnet (geo-points.ts, lärt av Högdalenkartan 2026-11-11) går före Karttapullautins klass för
   // öppet, och lägger till grönt där buskskiktet är tätt. Klassbilden får samma värden, så att reglagen ser dem.
   if (signals) for (let column = 0; column < grid.width; column += 1) for (let row = 0; row < grid.height; row += 1) {
@@ -154,9 +157,10 @@ export function vegetationFromTiles(tiles: readonly VegetationTile[], settings: 
     const open = signals.openAt(x, y);
     if (open === undefined) continue;
     const value = classes[i]!, low = value & 15;
-    if (open) classes[i] = (value & 0xf0) | 1;
+    if (open) { classes[i] = (value & 0xf0) | 1; if (before) before[i] = classes[i]!; }
     else {
       const forest = low === 1 ? 2 : low;
+      if (before && shares) { before[i] = (value & 0xf0) | forest; shares[i] = Math.min(250, Math.round((signals.denseShareAt?.(x, y) ?? 0) * 1000)); }
       classes[i] = (value & 0xf0) | (signals.denseAt(x, y) && forest - 2 < GREEN_STEPS.slow ? GREEN_STEPS.slow + 2 : forest);
     }
   }
@@ -223,7 +227,9 @@ export function vegetationFromTiles(tiles: readonly VegetationTile[], settings: 
   // Röd kanal = klassen (låga fyra bitar Karttapullautins klass, höga undervegetationen); utan data eller i vatten genomskinligt.
   const classPng = encodePng(grid.width, grid.height, (column, line) => {
     const i = column * grid.height + (grid.height - 1 - line), value = classes[i]!;
-    return value === 0 || blocked?.[i] ? [0, 0, 0, 0] : [value, 160, value, 255];
+    // Ägaren 2026-11-13 («finare gröna nyanser»): med punktmolnets signaler är grön kanal buskskiktets andel i tusendelar och
+    // blå klassen före tillägget för tätt buskskikt, så att webbläsaren kan dra gränsen själv. Utan signaler: 160 och klassen.
+    return value === 0 || blocked?.[i] ? [0, 0, 0, 0] : before && shares ? [value, shares[i]!, before[i]!, 255] : [value, 160, value, 255];
   });
   return { dxf: moistureDxf(parts), summary, openAt, forestAt, classPng, world: worldFile(full) };
 }

@@ -124,6 +124,8 @@ export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
     QUEUED: "Waiting for the geo server", RUNNING: "Running", DONE: "Done", FAILED: "Failed", CANCELLED: "Cancelled"
   },
   progress: (step: string, done: number, total: number) => total > 1 ? `${step} (${done} of ${total})` : step,
+  queue: (running: number, waiting: number, users: number) => `Right now: ${running} ${running === 1 ? "run in progress" : "runs in progress"}, ${waiting} waiting (${users} ${users === 1 ? "user" : "users"}). Runs are taken one at a time.`,
+  ahead: (count: number) => count === 0 ? "next in line" : `${count} ahead in the queue`,
   dwgJob: "DWG drawing",
   tiles: (n: number) => n === 1 ? "1 tile" : `${n} tiles`,
   layerAdded: "The image is added as a base layer.",
@@ -206,6 +208,7 @@ export const mapSourcesEn: Texts<Sources> = {
     none: "No vegetation classes among the base layers. Run the laser job with vegetation first.",
     layer: "Base layer",
     step: (key: "slow" | "difficult" | "fight", value: number) => `${{ slow: "Slow running (406)", difficult: "Difficult to run (408)", fight: "Very difficult (410)" }[key]} from step ${value}`,
+    dense: (percent: number) => `Dense shrub layer turns green from ${percent}% of laser returns 1–3 m above ground (new runs)`,
     minArea: (square: number) => `Smallest area: ${square} m²`,
     undergrowth: "Undergrowth (407, 409)",
     run: "Show as candidates",

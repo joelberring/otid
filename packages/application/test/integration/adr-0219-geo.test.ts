@@ -149,7 +149,7 @@ describe("ADR-0219 K5: geo-arbetaren", () => {
     expect((await openGeoJobLaser(db, created.job.jobId, "geo-1", 0, runtime, true)).status).toBe("ok");
     expect((await openGeoJobLaser(db, created.job.jobId, "geo-1", 1, runtime, true)).status).toBe("not-found");
     expect((await listGeoJobs(db, { ...reader.proof, projectId }, server, NOW))).toMatchObject({ status: "ok",
-      list: { jobs: [{ status: "RUNNING", progress: { step: "Hämtar laserdata", done: 0, total: 1 }, own: false }] } });
+      list: { jobs: [{ status: "RUNNING", progress: { step: "Hämtar laserdata", done: 0, total: 1 }, own: false }], queue: { running: 1, waiting: 0, users: 1, ahead: {} } } });
 
     const world = "0.5\n0\n0\n-0.5\n675000.25\n6580499.75\n";
     for (const [name, mediaType, file] of [["karta.png", "image/png", png(1000, 1000)], ["karta.pgw", "text/plain", new TextEncoder().encode(world)],
@@ -167,7 +167,8 @@ describe("ADR-0219 K5: geo-arbetaren", () => {
     const listed = await listGeoJobs(db, { ...reader.proof, projectId }, server, NOW);
     expect(listed).toMatchObject({ status: "ok", list: { jobs: [{ status: "DONE", layerId: finished.layerId, progress: null,
       moistureLayerId: expect.any(String) as unknown,
-      outputs: [{ name: "fukt.pgw" }, { name: "fukt.png" }, { name: "karta.pgw" }, { name: "karta.png" }, { name: "kurvor.dxf", mediaType: "application/dxf" }] }] } });
+      outputs: [{ name: "fukt.pgw" }, { name: "fukt.png" }, { name: "karta.pgw" }, { name: "karta.png" }, { name: "kurvor.dxf", mediaType: "application/dxf" }] }],
+      queue: { running: 0, waiting: 0 } } });
     const dxf = await readGeoOutput(db, { ...reader.proof, projectId, jobId: created.job.jobId, name: "kurvor.dxf" }, NOW);
     expect(dxf).toMatchObject({ status: "ok", mediaType: "application/dxf" });
     // Klart jobb tar inte emot mer.

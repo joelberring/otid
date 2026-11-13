@@ -12,12 +12,18 @@ import { compactMask, maskOutlines, simplifyRing, type PhotoPixels } from "./map
 export type BorderLevel = "none" | "few" | "some" | "many";
 export interface GreenSettings { readonly slow: number; readonly difficult: number; readonly fight: number; readonly undergrowth: boolean; readonly minAreaM2: number;
   /** Beståndsgränser (416) ur lasern (ägaren 2026-11-11: «få/några/många beståndsgränser»). */
-  readonly borders?: BorderLevel | undefined }
+  readonly borders?: BorderLevel | undefined;
+  /**
+   * Tätt buskskikt: andelen laserträffar 1–3 m över marken från vilken skogen blir grön (406). Förvalet 0,08 är geo-arbetarens
+   * (`DENSE_MID_SHARE`); mätt mot Högdalen 2026-11-13 ger 0,08 mest träff (F 0,42, yta 0,6–1,1 × kartans), 0,10 ger 0,4–0,7 ×
+   * (F 0,38) och 0,12 ger 0,2–0,5 × (F 0,35). Gäller klassbilder från geo-arbetaren 28 och senare.
+   */
+  readonly denseShare?: number | undefined }
 /** Minsta bestånd (m²) och förenkling (celler) per nivå: färre gränser = större bestånd och rakare kanter. */
 const BORDER_LEVELS: Readonly<Record<Exclude<BorderLevel, "none">, { minAreaM2: number; simplify: number }>> = {
   few: { minAreaM2: 5000, simplify: 2 }, some: { minAreaM2: 2000, simplify: 1.25 }, many: { minAreaM2: 600, simplify: 0.75 } };
 /** Samma steg som geo-arbetarens förval (`GREEN_STEPS` i scripts/geo-vegetation.ts). */
-export const DEFAULT_GREEN: GreenSettings = { slow: 2, difficult: 3, fight: 4, undergrowth: true, minAreaM2: 300, borders: "none" };
+export const DEFAULT_GREEN: GreenSettings = { slow: 2, difficult: 3, fight: 4, undergrowth: true, minAreaM2: 300, borders: "none", denseShare: 0.08 };
 
 export function greenCandidates(pixels: PhotoPixels, settings: GreenSettings, toSource: (column: number, row: number) => [number, number], crs: number,
   cellMeters = 2): { data: SourceData; hectares: Readonly<Record<string, number>> } {
@@ -33,10 +39,20 @@ export function greenCandidates(pixels: PhotoPixels, settings: GreenSettings, to
       { name: "undervegetation_svarlopt", test: (value: number) => value >> 4 >= 2 }] : [])
   ];
   const values = new Uint8Array(columns * rows), known = new Uint8Array(columns * rows);
+  // Klassbilder från geo-arbetaren 28: grön kanal är buskskiktets andel (tusendelar) och blå klassen utan tillägget för tätt
+  // buskskikt. Äldre bilder har 160 i grön kanal överallt.
+  let shares = false;
+  for (let i = 0; i < data.length && !shares; i += 4) if (data[i + 3]! >= 128 && data[i + 1] !== 160) shares = true;
+  const dense = Math.round((settings.denseShare ?? DEFAULT_GREEN.denseShare!) * 1000);
   for (let column = 0; column < columns; column += 1) for (let row = 0; row < rows; row += 1) {
     const i = (row * columns + column) * 4;
     if (data[i + 3]! < 128) continue;
-    values[column * rows + row] = data[i]!; known[column * rows + row] = 1;
+    let value = data[i]!;
+    if (shares) {
+      value = data[i + 2]!;
+      if ((value & 15) !== 1 && data[i + 1]! >= dense && shade(value) < settings.slow) value = (value & 0xf0) | (settings.slow + 2);
+    }
+    values[column * rows + row] = value; known[column * rows + row] = 1;
   }
   const scattered = scatteredTrees(values, columns, rows, shade, settings.slow);
   const minCells = Math.max(2, Math.round(settings.minAreaM2 / (cellMeters * cellMeters)));

@@ -85,6 +85,7 @@ export const mapSourcesSv = {
     none: "Inga vegetationsklasser bland underlagen. Kör laserjobbet med vegetationen först.",
     layer: "Underlag",
     step: (key: "slow" | "difficult" | "fight", value: number) => `${{ slow: "Löphindrande (406)", difficult: "Svårlöpt (408)", fight: "Mycket svårlöpt (410)" }[key]} från steg ${value}`,
+    dense: (percent: number) => `Tätt buskskikt blir grönt från ${percent} % av laserträffarna 1–3 m över marken (nya körningar)`,
     minArea: (square: number) => `Minsta yta: ${square} m²`,
     undergrowth: "Undervegetation (407, 409)",
     run: "Visa som kandidater",
@@ -185,6 +186,8 @@ export const mapSourcesSv = {
       QUEUED: "Väntar på geo-servern", RUNNING: "Pågår", DONE: "Klart", FAILED: "Misslyckades", CANCELLED: "Avbrutet"
     } as Record<string, string>,
     progress: (step: string, done: number, total: number) => total > 1 ? `${step} (${done} av ${total})` : step,
+    queue: (running: number, waiting: number, users: number) => `Just nu: ${running} ${running === 1 ? "körning pågår" : "körningar pågår"}, ${waiting} väntar (${users} användare). Körningarna tas en i taget.`,
+    ahead: (count: number) => count === 0 ? "näst på tur" : `${count} före i kön`,
     dwgJob: "DWG-ritning",
     tiles: (count: number) => count === 1 ? "1 ruta" : `${count} rutor`,
     layerAdded: "Bilden är tillagd som underlag.",

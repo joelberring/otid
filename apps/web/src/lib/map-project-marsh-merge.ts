@@ -39,6 +39,18 @@ const touches = (a: Box, b: Box) => a.minX <= b.maxX && b.minX <= a.maxX && a.mi
 
 /** Grundkartans objekt med sankmarken utan överlapp. Annat än sankmarkens ytor lämnas orört och behåller sin ordning först. */
 export const singleMarsh = (features: readonly SourceFeature[]) => withoutOverlap(features, MARSH);
+/**
+ * Skött mark har inga kärr: laserns blöta och fuktiga mark klipps mot åker, fruktodling och tomtmark (marktäcket) och mot
+ * `managed` (OpenStreetMaps gräsytor, parker, idrottsplatser och odlingar). Mätt mot tio rutor ur fem kartor 2026-11-13 med
+ * kartornas egna ytor för odlat och öppen mark (401) som mask: träffen (F) för sankmark steg i medel från 0,62 till 0,65.
+ * Marktäckets egen sankmark rörs inte.
+ */
+const MANAGED = "\u0000skott_mark";
+const OFF_MANAGED = [MANAGED, "aker", "fruktodling", "tomtmark_marktacke", "tomtmark_osm", "blott", "fuktigt"] as const;
+export function marshOutsideManaged(features: readonly SourceFeature[], managed: readonly SourceFeature[] = []): SourceFeature[] {
+  const marked = managed.map(feature => ({ ...feature, layer: MANAGED }));
+  return withoutOverlap([...features, ...marked], OFF_MANAGED, 5).features.filter(feature => feature.layer !== MANAGED);
+}
 /** Grundkartans objekt med undervegetationen utanför det gröna och utan dubbla raster. */
 export const undergrowthOutsideGreen = (features: readonly SourceFeature[]) => withoutOverlap(features, UNDERGROWTH, 2);
 

@@ -1,8 +1,21 @@
-import { deflateSync } from "node:zlib";
+import { deflateSync, inflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { suggestSymbol } from "../src";
 import { parseDxf } from "../src/vector-parse";
 import { decodeGrayPng, readWorldFile, vegetationFromTiles, vegetationMosaic, type ClassImage } from "../../../scripts/geo-vegetation";
+
+/** Arbetarens egna PNG (8 bitar RGBA, filter 0 på varje rad) som bildpunkter. */
+function decodeRgbaPng(bytes: Uint8Array): { width: number; data: Uint8Array } {
+  const buffer = Buffer.from(bytes), width = buffer.readUInt32BE(16), parts: Buffer[] = [];
+  for (let at = 8; at < buffer.length;) {
+    const length = buffer.readUInt32BE(at);
+    if (buffer.toString("ascii", at + 4, at + 8) === "IDAT") parts.push(buffer.subarray(at + 8, at + 8 + length));
+    at += 12 + length;
+  }
+  const raw = inflateSync(Buffer.concat(parts)), stride = 1 + width * 4, data = new Uint8Array(raw.length / stride * width * 4);
+  for (let row = 0; row * stride < raw.length; row += 1) data.set(raw.subarray(row * stride + 1, (row + 1) * stride), row * width * 4);
+  return { width, data };
+}
 
 /** ADR-0219 K5c del 3: vegetationen ur Karttapullautins klassbilder i geo-arbetaren (scripts/geo-vegetation.ts). */
 function grayPng(image: ClassImage, filters: readonly number[] = [0]): Uint8Array {
@@ -81,6 +94,13 @@ describe("vegetationen ur klassbilderna", () => {
     expect(result.summary.ha401).toBeCloseTo(0.4, 1);
     expect(result.summary.ha406).toBeCloseTo(0.4, 1);
     expect(vegetationFromTiles([{ vege, world: world(675_000, 6_581_000) }], { minAreaM2: 100 }).summary).toMatchObject({ ha401: 0, ha406: 0 });
+    // Klassbilden bär buskskiktets andel (grön kanal, tusendelar) och klassen före tillägget (blå), så att gränsen kan dras om.
+    const shared = vegetationFromTiles([{ vege, world: world(675_000, 6_581_000) }], { minAreaM2: 100 }, undefined, { ...signals, denseShareAt: (x: number) => x >= 675_060 ? 0.12 : 0.02 });
+    const png = decodeRgbaPng(shared.classPng);
+    const middle = Math.floor(png.data.length / 4 / png.width / 2) * png.width;
+    const east = (middle + Math.floor(png.width * 0.9)) * 4, west = (middle + Math.floor(png.width * 0.5)) * 4;
+    expect([png.data[east], png.data[east + 1], png.data[east + 2]]).toEqual([4, 120, 2]);
+    expect([png.data[west], png.data[west + 1], png.data[west + 2]]).toEqual([2, 20, 2]);
   });
 
   it("föreslår ISOM-symbolerna för vegetationens lager", () => {

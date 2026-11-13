@@ -111,7 +111,12 @@ export interface GeoJobView {
   readonly createdBy: { readonly accountId: string; readonly name: string | null }; readonly own: boolean;
   readonly createdAt: string; readonly finishedAt: string | null;
 }
-export interface GeoJobList { readonly formatVersion: 1; readonly jobs: readonly GeoJobView[]; readonly server: GeoServerView }
+/**
+ * Ägaren 2026-11-13 («om andra använder programmet kan geoservern bli full … hur många användare/kö det är»): läget på
+ * geo-servern över alla kartprojekt, utan att säga vems jobben är. `ahead` är antalet jobb före i kön för projektets egna väntande.
+ */
+export interface GeoQueueView { readonly running: number; readonly waiting: number; readonly users: number; readonly ahead: Readonly<Record<string, number>> }
+export interface GeoJobList { readonly formatVersion: 1; readonly jobs: readonly GeoJobView[]; readonly server: GeoServerView; readonly queue?: GeoQueueView }
 /** Geo-serverns läge som det syns för användaren (K5b): igång, startar, saknas eller kan inte startas och varför. */
 export interface GeoServerView { readonly state: "READY" | "STARTING" | "OFF" | "UNAVAILABLE" | "BUDGET" | "NOT_CONFIGURED"; readonly detail: string | null }
 
@@ -128,7 +133,7 @@ export const geoWorkerFinishSchema = z.discriminatedUnion("status", [
  * skickar den i `x-otid-geo-version`; en äldre arbetare får inga jobb, och en server som O-Tid startat raderas. Höjs när
  * `scripts/geo-worker.ts` får något som jobben räknar med (samma tal står där; ett test håller dem lika).
  */
-export const GEO_WORKER_VERSION = 27;
+export const GEO_WORKER_VERSION = 28;
 
 /**
  * Minnet (GB) som geo-servern behöver för ett jobb, efter områdets yta (ägaren 2026-11-12: «vill inte att det ska dö för

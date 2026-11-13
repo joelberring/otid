@@ -77,7 +77,9 @@ export function groundShareAt(stats: PointStats, reach = 2): (x: number, y: numb
   };
 }
 
-export interface VegetationSignals { readonly openAt: (x: number, y: number) => boolean | undefined; readonly denseAt: (x: number, y: number) => boolean | undefined }
+export interface VegetationSignals { readonly openAt: (x: number, y: number) => boolean | undefined; readonly denseAt: (x: number, y: number) => boolean | undefined;
+  /** Andelen träffar 1–3 m över marken (medel inom 4 m), 0 där vegetationen är lägre än 2 m: sparas i klassbilden så att mängden grönt kan dras utan en ny körning. */
+  readonly denseShareAt?: (x: number, y: number) => number | undefined }
 /** Gränserna lärda av Högdalenkartan 2026-11-11 (tre rutor, mot kartritarens gula och gröna ytor). */
 export const OPEN_SHARE = 0.5, OPEN_HEIGHT_M = 1.5, DENSE_MID_SHARE = 0.08, DENSE_MIN_HEIGHT_M = 2;
 
@@ -113,6 +115,11 @@ export function vegetationSignals(stats: PointStats, openShare = OPEN_SHARE, den
       const at = cellOf(px, py); if (!at) return undefined;
       const n = sum(known, ...at, 2);
       return n > 0 ? sum(mid, ...at, 2) / n >= denseShare && sum(tall, ...at, 2) / n >= DENSE_MIN_HEIGHT_M : undefined;
+    },
+    denseShareAt: (px, py) => {
+      const at = cellOf(px, py); if (!at) return undefined;
+      const n = sum(known, ...at, 2);
+      return n > 0 ? (sum(tall, ...at, 2) / n >= DENSE_MIN_HEIGHT_M ? sum(mid, ...at, 2) / n : 0) : undefined;
     }
   };
 }

@@ -1,6 +1,6 @@
 import type { SourceFeature } from "@o-tid/map-revision";
 import { describe, expect, it } from "vitest";
-import { singleMarsh, undergrowthOutsideGreen } from "./map-project-marsh-merge";
+import { marshOutsideManaged, singleMarsh, undergrowthOutsideGreen } from "./map-project-marsh-merge";
 
 const square = (layer: string, x: number, y: number, size: number, area = false): SourceFeature => {
   const points: [number, number][] = [[x, y], [x + size, y], [x + size, y + size], [x, y + size]];
@@ -35,6 +35,17 @@ describe("grundkartans sankmark utan överlapp", () => {
   it("lämnar allt orört när bara ett slag finns", () => {
     const features = [square("fuktigt", 0, 0, 100), square("fuktigt", 50, 50, 100)];
     expect(singleMarsh(features).features).toEqual(features);
+  });
+});
+
+describe("inga kärr på skött mark", () => {
+  it("laserns blöta och fuktiga mark klipps mot åker och OpenStreetMaps gräsytor; marktäckets sankmark rörs inte", () => {
+    const features = [square("aker", 0, 0, 50), square("blott", 0, 0, 100), square("sankmark_vat", 0, 0, 40, true), square("fuktigt", 200, 0, 100)];
+    const result = marshOutsideManaged(features, [square("OSM fritid (park)", 200, 0, 100)]);
+    expect(result.map(feature => feature.layer).sort()).toEqual(["aker", "blott", "sankmark_vat"]);
+    const wet = result.find(feature => feature.layer === "blott")!;
+    expect(wet.geometry.kind === "area" && wet.geometry.rings[0]!.length).toBeGreaterThan(5);
+    expect(marshOutsideManaged([square("blott", 0, 0, 100)])).toHaveLength(1);
   });
 });
 

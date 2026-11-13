@@ -4,7 +4,7 @@ import { joinSeams, type SourceData, type SourceFeature } from "@o-tid/map-revis
 import { withoutCutVegetation, type clearCutFeatures } from "./map-project-clear-cuts";
 import { smallRingsToPoints } from "./map-project-small-rings";
 import { yardsOf } from "./map-project-yards";
-import { singleMarsh, undergrowthOutsideGreen } from "./map-project-marsh-merge";
+import { marshOutsideManaged, singleMarsh, undergrowthOutsideGreen } from "./map-project-marsh-merge";
 import { linesOutsideWater } from "./map-project-water-clip";
 
 /**
@@ -53,15 +53,21 @@ export function clipWgs84(clip: GeoClip): { south: number; west: number; north: 
 }
 
 /** OpenStreetMaps objekt (longitud, latitud) i SWEREF 99 TM, utan lagren som grundkartan redan har. */
-export function osmForBaseMap(osm: SourceData, hasBuildings: boolean): SourceFeature[] {
+const osmInSweref = (features: readonly SourceFeature[]): SourceFeature[] => {
   const projection = transverseMercatorFor(SWEREF99TM);
   if (!projection) return [];
   const at = ([lon, lat]: readonly [number, number]): [number, number] => { const point = geodeticToGrid(projection, lat, lon); return [point.easting, point.northing]; };
-  return osm.features.filter(feature => feature.layer === OSM_RESIDENTIAL || (!OSM_SKIPPED.test(feature.layer) && !(hasBuildings && OSM_BUILDING.test(feature.layer))))
-    .map(({ layer, geometry }) => ({ layer: layer === OSM_RESIDENTIAL ? "tomtmark_osm" : layer,
+  return features.map(({ layer, geometry }) => ({ layer,
     geometry: geometry.kind === "point" ? { kind: "point" as const, at: at(geometry.at) }
       : geometry.kind === "line" ? { kind: "line" as const, points: geometry.points.map(at), closed: geometry.closed } : { kind: "area" as const, rings: geometry.rings.map(ring => ring.map(at)) } }));
+};
+export function osmForBaseMap(osm: SourceData, hasBuildings: boolean): SourceFeature[] {
+  return osmInSweref(osm.features.filter(feature => feature.layer === OSM_RESIDENTIAL || (!OSM_SKIPPED.test(feature.layer) && !(hasBuildings && OSM_BUILDING.test(feature.layer)))))
+    .map(feature => feature.layer === OSM_RESIDENTIAL ? { ...feature, layer: "tomtmark_osm" } : feature);
 }
+/** OpenStreetMaps skötta mark (gräsytor, parker, idrottsplatser, odlingar): inga kärr där (`marshOutsideManaged`). */
+const OSM_MANAGED = /^OSM (markanvändning \((farmland|grass|recreation_ground|village_green|allotments|orchard|cemetery|farmyard)\)|fritid \((park|pitch|golf_course|garden|playground|sports_centre|stadium|track)\))$/;
+export const osmManaged = (osm: SourceData): SourceFeature[] => osmInSweref(osm.features.filter(feature => OSM_MANAGED.test(feature.layer) && feature.geometry.kind !== "point"));
 
 /** Normens kortaste brant (201, 202) i mm på kartan. */
 export const MIN_CLIFF_MM = 0.6;
@@ -166,7 +172,7 @@ export function mergeBaseMap(parts: readonly { readonly name: string; readonly d
   // Skogsstyrelsens hyggen efter ålder; laserns vegetation i ett hygge som är yngre än skanningen tas bort.
   const all = [...ticks, ...withoutCutVegetation(scale ? smallRingsToPoints(knolls, scale) : knolls, cuts?.afterScan ?? []), ...(cuts?.features ?? []), ...(osm ? osmForBaseMap(osm, names.has("byggnader.geojson")) : [])];
   // Ägaren 2026-11-12: en sankmark per plats (blött, fuktigt och marktäckets låg på varandra).
-  const single = undergrowthOutsideGreen(singleMarsh(all).features).features;
+  const single = undergrowthOutsideGreen(singleMarsh(marshOutsideManaged(all, osm ? osmManaged(osm) : [])).features).features;
   return { features: [...single, ...shoreLines(single), ...yardsOf(single)], skipped: parts.reduce((sum, part) => sum + part.data.skipped, 0) + (osm?.skipped ?? 0),
     crs: SWEREF99TM };
 }

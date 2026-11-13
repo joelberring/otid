@@ -12,7 +12,9 @@ describe("mängden på skalan 1–10 för grönt, sankmark och hyggen", () => {
   });
   it("ger minst på 1 och mest på 10, med stegen i ordning", () => {
     expect(greenAt(1)).toMatchObject({ slow: 6, difficult: 8, fight: 9 });
-    expect(greenAt(10)).toMatchObject({ slow: 0, difficult: 2, fight: 3 });
+    expect(greenAt(10)).toMatchObject({ slow: 0, difficult: 2, fight: 3, denseShare: 0.04 });
+    expect(greenAt(1).denseShare).toBe(0.25);
+    expect(greenAt(4).denseShare).toBeGreaterThan(greenAt(5).denseShare!);
     expect(depthAt(1)).toMatchObject({ wetMeters: 0.1, moistMeters: 0.25 });
     expect(depthAt(10)).toMatchObject({ wetMeters: 0.8, moistMeters: 1.5 });
     expect(clearCutAgesAt(1)).toEqual({ fresh: 1, scrub: 3, young: 6 });

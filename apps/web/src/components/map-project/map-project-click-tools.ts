@@ -4,6 +4,7 @@ import type { mapProjectKeysSv } from "../../i18n/map-project-keys-sv";
 import type { Texts } from "../../lib/language";
 import { translateObject } from "../../lib/map-project-draw";
 import { fillOrBorder, parallelLine } from "../../lib/map-project-shape-tools";
+import { cutMarks, type EndMark } from "../../lib/map-project-cut-marks";
 import { cutLineAt } from "../../lib/map-project-join";
 import { editPointAt } from "../../lib/map-project-point-edit";
 import type { MapProjectSession } from "../../lib/map-project-protocol";
@@ -30,6 +31,8 @@ export function clickTool(input: {
   save: (key: ObjectKey, ref: ObjectRef | null, object: MapObject | undefined, kind: EditKind) => boolean;
   text: Texts<typeof mapProjectKeysSv>; setFlash: (message: string) => void;
   onEdited: (target: Target, address: VertexAddress | undefined) => void;
+  /** Efter ett klipp: de två delarna (markeras som två objekt) och de nya ändarna. */
+  onCut?: ((parts: Target[], marks: EndMark[]) => void) | undefined;
   /** Rektangelns hörn hittills och den valda symbolen. */
   rectangle?: { readonly corners: Point[]; readonly symbol: { readonly id: string; readonly kind: string } | undefined } | undefined;
 }): boolean {
@@ -50,15 +53,20 @@ export function clickTool(input: {
     return true;
   }
   // Saxen: linjen under pekaren delas i två (den första delen behåller objektet, den andra blir ett nytt), ett steg att ångra.
+  // Ägaren 2026-11-13: båda delarna blir markerade och de nya ändarna får ringar, så att man ser att det blev två objekt.
   if (tool === "cut") {
     session?.hit(point, tolerance, hidden, hits => {
       const group = crypto.randomUUID();
-      const done = hits.some(hit => {
+      const added = newKey(crypto.randomUUID());
+      for (const hit of hits) {
         const parts = cutLineAt(hit.object, point, tolerance);
-        return !!parts && commit({ key: hit.key, ref: hit.ref, kind: "RESHAPE", after: { kind: "OBJECT", object: parts[0] }, group })
-          && commit({ key: newKey(crypto.randomUUID()), ref: null, kind: "ADD", after: { kind: "OBJECT", object: parts[1] }, group });
-      });
-      setFlash(done ? text.wasCut : text.noLineHere);
+        if (!parts || !commit({ key: hit.key, ref: hit.ref, kind: "RESHAPE", after: { kind: "OBJECT", object: parts[0] }, group })
+          || !commit({ key: added, ref: null, kind: "ADD", after: { kind: "OBJECT", object: parts[1] }, group })) continue;
+        input.onCut?.([{ key: hit.key, ref: hit.ref, object: parts[0] }, { key: added, ref: null, object: parts[1] }], cutMarks(parts));
+        setFlash(text.wasCut);
+        return;
+      }
+      setFlash(text.noLineHere);
     });
     return true;
   }

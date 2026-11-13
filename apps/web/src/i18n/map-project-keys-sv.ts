@@ -67,7 +67,7 @@ export const mapProjectKeysSv = {
   needLine: "Markera en eller flera linjer först.",
   cutHint: "Klipp isär: klicka på linjen där den ska delas.",
   noLineHere: "Ingen linje att klippa där (ändpunkterna går inte att klippa i).",
-  wasCut: "Linjen är delad i två.",
+  wasCut: "Linjen är klippt i två delar.",
   reversed: (count: number) => count === 1 ? "Linjen är vänd." : `${count} linjer är vända.`,
   picked: (code: string) => `Vald symbol: ${code}.`,
   joined: (count: number) => `${count} objekt blev ett.`,

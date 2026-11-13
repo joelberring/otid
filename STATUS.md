@@ -24,6 +24,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Följer med: i ritläget, i nya kartversioner och i banläggningens karta ur projektet (Mapper-filer, som färgtabellen;
   OCAD-filer skrivs inte än).
 
+### 2026-11-13 – Synliga klipp i ritläget
+- Ägaren: «när man klipper linjer så syns det inte på linjen att de blivit klippta». Efter «Klipp isär» (X) blir båda delarna
+  markerade (flermarkering, «Ta bort 2 objekt») och de nya ändarna får rosa ringar med en lucka mitt emellan; de ligger kvar
+  tills man klickar eller byter verktyg, och beskedet är «Linjen är klippt i två delar.». En markerad linje visar också sina
+  ändpunkter med rosa romber (även vid flermarkering, högst 30 objekt). Rena funktioner i `map-project-cut-marks.ts`.
+- E2E `kartprojekt-rita.spec.ts` uppdaterad (ny text, Escape efter klippet). Inte körd här.
+
 ### 2026-11-13 – Kartprojekt: bjud in utan e-post (klubbmedlemmar och länk)
 - Ägaren: «man borde kunna bjuda in klubbmedlemmar i kartprojekt utan mejl». Under Medlemmar finns nu tre sätt: e-postadress
   (som förut), «Klubbmedlemmar» (sök på namn, välj roll, Lägg till; bara konton i en klubb som ägaren är med i, bara namn, aldrig

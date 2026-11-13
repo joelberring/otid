@@ -2,7 +2,8 @@
 
 import type { MapObject, Point } from "@o-tid/map-file";
 import { simplifyShape, smoothShape, withSymbol, type Box, type ObjectKey, type ObjectRef } from "@o-tid/map-revision";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { EndMark } from "../../lib/map-project-cut-marks";
 import { translateObject } from "../../lib/map-project-draw";
 import { unionAreas } from "../../lib/map-project-area-union";
 import { joinLines, reverseLine } from "../../lib/map-project-join";
@@ -46,14 +47,19 @@ export function anchorOf(object: MapObject): Point | undefined {
  * runt rutans mitt. Varje objekt blir en egen ändring (som allt annat synkas och blir förslag), men stegen hör ihop och ångras
  * tillsammans.
  */
-export function useMapProjectMulti({ session, hidden, commit, setPreviewKeys }: {
+export function useMapProjectMulti({ session, hidden, commit, setPreviewKeys, tool }: {
   session: MapProjectSession | undefined; hidden: readonly string[]; commit: (change: ObjectChange) => boolean;
   /** Objekten som dras ritas av sidan under tiden (kartans egna bild av dem göms). */
   setPreviewKeys: (keys: ReadonlySet<ObjectKey>) => void;
+  /** Valt verktyg: de nya ändarna efter ett klipp visas tills man byter verktyg eller markerar något annat. */
+  tool?: string;
 }) {
   const [items, setItemsState] = useState<readonly MultiItem[]>([]);
   const itemsRef = useRef<readonly MultiItem[]>([]);
-  const setItems = useCallback((next: readonly MultiItem[]) => { itemsRef.current = next; setItemsState(next); }, []);
+  const [cuts, setCuts] = useState<readonly EndMark[]>([]);
+  // Varje ändring av markeringen tar bort klippets markörer; `showCut` sätter dem efter att markeringen satts.
+  const setItems = useCallback((next: readonly MultiItem[]) => { itemsRef.current = next; setItemsState(next); setCuts(current => current.length ? [] : current); }, []);
+  useEffect(() => { if (tool !== "cut") setCuts(current => current.length ? [] : current); }, [tool]);
   const [marquee, setMarquee] = useState<Box>();
   const marqueeRef = useRef<Box | undefined>(undefined);
   const [moved, setMovedState] = useState<readonly MapObject[]>();
@@ -78,9 +84,11 @@ export function useMapProjectMulti({ session, hidden, commit, setPreviewKeys }: 
   const end = () => { drag.current = undefined; setMoved(undefined); marqueeRef.current = undefined; setMarquee(undefined); setPreviewKeys(new Set()); };
 
   return {
-    items, box, marquee, shown, zone, moving: !!moved, dragging: () => !!drag.current, zoneAt,
+    items, box, marquee, shown, zone, cuts, moving: !!moved, dragging: () => !!drag.current, zoneAt,
     hover: (point: Point | undefined, tolerance: number) => { if (!drag.current) setZone(point ? zoneAt(point, tolerance) : undefined); },
     clear: () => { if (itemsRef.current.length) setItems([]); setZone(undefined); },
+    /** Efter ett klipp: båda delarna markerade (två objekt) och de nya ändarna utmärkta. */
+    showCut: (parts: readonly MultiItem[], marks: readonly EndMark[]) => { setItems(parts); setCuts(marks); },
     /** Skift+klick: objektet läggs till i markeringen, eller tas ur den om det redan är med. */
     toggle: (item: MultiItem, first?: MultiItem) => {
       const base = itemsRef.current.length || !first ? itemsRef.current : [first];

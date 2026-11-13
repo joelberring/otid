@@ -1,6 +1,7 @@
 import type { MapObject, Path, Point } from "@o-tid/map-file";
 import { vertices, type VertexAddress } from "@o-tid/map-revision";
 import { toScreen, type Viewport } from "./course-setting-viewport";
+import { lineEnds, type EndMark } from "./map-project-cut-marks";
 import type { CatalogSymbol } from "./map-project-protocol";
 
 /**
@@ -10,6 +11,8 @@ import type { CatalogSymbol } from "./map-project-protocol";
 type Context = CanvasRenderingContext2D;
 
 const SELECT = "#1a5fd0";
+/** Ändpunkter och klipp: en färg som inte finns bland kartans symboler eller markeringens blå. */
+const END_MARK = "#d6246e";
 
 function tracePath(ctx: Context, view: Viewport, path: Path) {
   for (const command of path) {
@@ -69,6 +72,44 @@ function handle(ctx: Context, at: { x: number; y: number }, curve: boolean, acti
   ctx.stroke();
 }
 
+/** Skärmpunkten för en ändpunkt och enhetsvektorn in i linjen (åt höger när linjen har noll längd). */
+function endOnScreen(view: Viewport, mark: EndMark) {
+  const from = toScreen(view, mark.at), to = toScreen(view, mark.toward);
+  const length = Math.hypot(to.x - from.x, to.y - from.y);
+  return { from, dx: length > 0 ? (to.x - from.x) / length : 1, dy: length > 0 ? (to.y - from.y) / length : 0 };
+}
+
+/** Ändpunkterna på en linje: en kontrastfärgad romb (annorlunda än brytpunkternas rutor), så att man ser var linjen börjar och slutar. */
+export function drawEndMarks(ctx: Context, view: Viewport, marks: readonly EndMark[], size = 8) {
+  ctx.save();
+  for (const mark of marks) {
+    const { from } = endOnScreen(view, mark);
+    ctx.beginPath();
+    ctx.moveTo(from.x, from.y - size); ctx.lineTo(from.x + size, from.y); ctx.lineTo(from.x, from.y + size); ctx.lineTo(from.x - size, from.y); ctx.closePath();
+    ctx.fillStyle = END_MARK; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = "#fff"; ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/**
+ * Efter ett klipp: en tydlig ring på varje nytt ände, förskjuten in i sin del så att de två ringarna sitter bredvid varandra med
+ * en lucka mitt emellan, och ett kort tvärstreck i klippet. Ritas med vit kant för att synas mot alla kartfärger.
+ */
+export function drawCutMarks(ctx: Context, view: Viewport, marks: readonly EndMark[]) {
+  ctx.save();
+  for (const mark of marks) {
+    const { from, dx, dy } = endOnScreen(view, mark);
+    const cx = from.x + dx * 8, cy = from.y + dy * 8;
+    for (const [width, color] of [[6, "#fff"], [3, END_MARK]] as const) {
+      ctx.lineWidth = width; ctx.strokeStyle = color;
+      ctx.beginPath(); ctx.arc(cx, cy, 7, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(from.x - dy * 11, from.y + dx * 11); ctx.lineTo(from.x + dy * 11, from.y - dx * 11); ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
 /** Markerat objekt: kontur och brytpunkter (fyrkant = hörn, ring = kurva), vald punkt ifylld. */
 export function drawSelection(ctx: Context, view: Viewport, object: MapObject, activeVertex: VertexAddress | undefined) {
   ctx.save();
@@ -88,6 +129,8 @@ export function drawSelection(ctx: Context, view: Viewport, object: MapObject, a
   for (const vertex of vertices(object)) {
     handle(ctx, toScreen(view, vertex.at), vertex.curve, !!activeVertex && activeVertex.part === vertex.part && activeVertex.index === vertex.index);
   }
+  // Ägaren 2026-11-13: ändpunkterna syns med en egen markör, så att en klippt linje går att se även senare.
+  drawEndMarks(ctx, view, lineEnds(object));
   ctx.restore();
 }
 
@@ -253,7 +296,8 @@ export function drawControlPoints(ctx: Context, view: Viewport, markers: readonl
  * Ägaren 2026-11-10: flera markerade objekt. Varje objekt får en tunn kontur, och runt allt ligger markeringens ruta med ett
  * handtag i varje hörn och en liten båge utanför (där man drar för att vrida).
  */
-export function drawMultiSelection(ctx: Context, view: Viewport, objects: readonly MapObject[], box: { minX: number; minY: number; maxX: number; maxY: number }) {
+export function drawMultiSelection(ctx: Context, view: Viewport, objects: readonly MapObject[], box: { minX: number; minY: number; maxX: number; maxY: number },
+  cuts: readonly EndMark[] = []) {
   ctx.save();
   ctx.strokeStyle = SELECT; ctx.lineWidth = 1.5;
   for (const object of objects) {
@@ -262,6 +306,9 @@ export function drawMultiSelection(ctx: Context, view: Viewport, objects: readon
       ctx.beginPath(); ctx.arc(at.x, at.y, Math.max(7, 0.9 * view.pxPerMm), 0, Math.PI * 2); ctx.stroke();
     } else { traceObject(ctx, view, object); ctx.stroke(); }
   }
+  // Ändpunkterna (som vid en enda markerad linje) när markeringen inte är stor, och klippet om markeringen kommer av ett klipp.
+  if (objects.length <= 30) for (const object of objects) drawEndMarks(ctx, view, lineEnds(object), 6);
+  if (cuts.length) drawCutMarks(ctx, view, cuts);
   const a = toScreen(view, { x: box.minX, y: box.maxY }), b = toScreen(view, { x: box.maxX, y: box.minY });
   const left = a.x - 4, top = a.y - 4, right = b.x + 4, bottom = b.y + 4;
   ctx.setLineDash([5, 4]); ctx.lineWidth = 1; ctx.strokeRect(left, top, right - left, bottom - top); ctx.setLineDash([]);

@@ -513,7 +513,11 @@ test("kartprojekt: förklaringar i verktygsspalten, slå ihop linjer och byt sym
   await expect(owner.getByTestId("map-project-cut")).toHaveAttribute("aria-pressed", "true");
   const cutAt = await screenOf(owner, { x: 40, y: 88 });
   await owner.mouse.click(cutAt.x, cutAt.y);
-  await expect(owner.getByTestId("map-project-hint")).toHaveText("Linjen är delad i två.");
+  await expect(owner.getByTestId("map-project-hint")).toHaveText("Linjen är klippt i två delar.");
+  // Båda delarna är markerade (två objekt), och markeringen släpps med Escape innan nästa steg.
+  await expect(owner.getByTestId("map-project-multi-remove")).toHaveText("Ta bort 2 objekt");
+  await owner.keyboard.press("Escape");
+  await expect(owner.getByTestId("map-project-multi-remove")).toHaveCount(0);
   await settled(owner);
   const ends = async () => (await own()).map(object => object.kind === "line" ? [Math.round(object.path[0]!.x), Math.round(object.path.at(-1)!.x)] : [])
     .sort((a, b) => a[0]! - b[0]! || a[1]! - b[1]!);

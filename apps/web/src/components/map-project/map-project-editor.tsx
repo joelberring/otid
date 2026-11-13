@@ -254,7 +254,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const hiddenSymbols = symbolLayers.hidden;
   const unselectable = useMemo(() => [...symbolLayers.hidden, ...symbolLayers.locked], [symbolLayers.hidden, symbolLayers.locked]);
   // Ägaren 2026-11-10: flera objekt markerade med en ruta (som i Illustrator). Mellanslag nedtryckt = dra kartan i stället.
-  const multi = useMapProjectMulti({ session, hidden: unselectable, commit, setPreviewKeys: setPreview });
+  const multi = useMapProjectMulti({ session, hidden: unselectable, commit, setPreviewKeys: setPreview, tool });
   const panKey = useRef({ down: false, used: false });
   const fill = useMapProjectFill({ session, active: tool === "bucket" && canEdit, symbol, hidden: hiddenSymbols, commit, say: setFlash, symbols, scale: editor.scale ?? georeference?.scale, commitMany: editor.commitMany });
   useEffect(() => { if (selected && symbolLayers.locked.has(selected.object.symbol)) deselect(); }, [symbolLayers.locked, selected]);
@@ -380,7 +380,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       multi.clear();
       // Saxen, Lägg till punkt, Ta bort punkt och Cmd/Ctrl+klick i Redigera (`map-project-click-tools.ts`).
       if (canEdit && clickTool({ tool, command: modifiers.command, point, tolerance, selected, session, hidden: unselectable, commit, save, text: keysText, setFlash,
-        rectangle: { corners: rectCorners.current, symbol },
+        rectangle: { corners: rectCorners.current, symbol }, onCut: multi.showCut,
         onEdited: (target, address) => { setSelected(target); setActiveVertex(address); setRotating(false); } })) return;
       // Redigera: dubbelklick på en punkt tar bort den, på en sträcka (rak eller kurva) ger det en ny punkt; annars markera (klick
       // igen på samma ställe tar nästa objekt under).
@@ -593,7 +593,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     if (rectify.markers.length) drawControlPoints(ctx, current, rectify.markers);
     if (noteDraft) drawNotes(ctx, current, [{ noteId: "", at: noteDraft.at, status: "OPEN", pending: true }], "");
     if (multi.moving) for (const object of multi.shown) drawPreview(ctx, current, object, symbols.get(object.symbol));
-    if (multi.box && multi.items.length) drawMultiSelection(ctx, current, multi.shown, multi.box);
+    if (multi.box && multi.items.length) drawMultiSelection(ctx, current, multi.shown, multi.box, multi.cuts);
     if (multi.marquee) drawMarquee(ctx, current, multi.marquee);
     fill.draw(ctx, current);
     if (shown && tool === "select" && selected) {
@@ -604,7 +604,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   }, [preview, selected, symbols, tool, symbol, draft, cursor, circleCenter, activeVertex, areaDrawings, proposedOpen, proposedShown, view.area, coverage, recon.layers,
     recon.trackLines, reconResult, walk, gapMm, notes.notes, shownNote, noteDraft, drawnLayers, candidates, normIssues, shownIssue,
     control.active, control.markers, rectify.shown, rectify.markers, sketchLayers, work.dragging, work.drawingLayer, work.stroke,
-    multi.moving, multi.shown, multi.box, multi.items.length, multi.marquee, fill.preview, fill.gaps, fill.proposals.candidates, fill.proposals.override]);
+    multi.moving, multi.shown, multi.box, multi.cuts, multi.items.length, multi.marquee, fill.preview, fill.gaps, fill.proposals.candidates, fill.proposals.override]);
 
   const hint = tool === "split" ? split.hint : tool === "bucket" && canEdit ? fill.hint : toolHint({ canEdit, closed: view.status === "CLOSED", tool, multiCount: multi.items.length, rotating: multi.zone === "rotate", symbol,
     text, notes: notesText, keys: keysText, quick });

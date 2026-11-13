@@ -47,7 +47,7 @@ export const mapProjectHelpArticlesEn: readonly HelpArticle[] = [
       "Most things can be done in three ways: with the icon on the left, with a key or in the wheel. The key is shown in the corner of the icon.",
       [
         "The keys are under the left hand: Q chooses ”Edit”, W ”Draw”, A ”Add point” and S ”Remove point”.",
-        "X chooses ”Cut apart”: click a line and it is split in two there.",
+        "X chooses ”Cut apart”: click a line and it is cut in two there. Both parts become selected and the new ends get pink rings until you click or change tool. A selected line shows its end points with pink diamonds.",
         "V reverses the direction of the selected line, so that the tags of a cliff change side. D takes the symbol from the selected object.",
         "Shift gives the variant: Shift+E ”Circle”, Shift+A ”Make smooth” and Shift+S ”Simplify”. C changes symbol and R marks checked.",
         "New point: choose ”Add point” and click the segment. Remove: choose ”Remove point” and click the point.",

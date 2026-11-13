@@ -270,7 +270,7 @@ export const mapProjectKeysEn: Texts<typeof mapProjectKeysSv> = {
   needLine: "Select one or more lines first.",
   cutHint: "Cut apart: click the line where it is to be split.",
   noLineHere: "No line to cut there (the end points cannot be cut).",
-  wasCut: "The line is split in two.",
+  wasCut: "The line is cut in two parts.",
   reversed: (n: number) => n === 1 ? "The line is reversed." : `${n} lines are reversed.`,
   picked: (code: string) => `Chosen symbol: ${code}.`,
   joined: (n: number) => `${n} objects became one.`,

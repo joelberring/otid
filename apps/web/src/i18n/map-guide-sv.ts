@@ -33,6 +33,9 @@ export const mapGuideSv = {
     starting: "Startar körningen …",
     failed: (error: string | null) => `Den förra körningen misslyckades${error ? `: ${error}` : "."} Kör igen; händer det en gång till, dela området i mindre delar (steg 1).`,
     unusable: "Den senaste körningen för området har inga filer till grundkartan (den är äldre eller blev inte hel). Kör en gång till.",
+    contours: "Kurvbild",
+    contourStyles: { detailed: "Detaljerad", normal: "Normal", generalized: "Generaliserad", veryGeneralized: "Mycket generaliserad" },
+    contoursHelp: "Hur mycket höjdmodellen jämnas ut innan kurvorna dras. Generaliserad passar flack terräng där småformerna mest är brus. Valet kommer ihåg för kartan.",
     noTiles: "Lantmäteriet har inga laserrutor för området. Kontrollera att kartan ligger rätt (i Sverige, rätt koordinatsystem), eller välj ett annat område i steg 1."
   },
   wait: {

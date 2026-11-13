@@ -127,6 +127,12 @@ describe("guidens körning med förvalen", () => {
 
   it("en sprintkarta körs med ekvidistansen 2,5 m och belagd yta ur lasern, och 2 m går att välja", () => {
     expect(defaultLaserJob("Karttapullautin hela kartan", { tiles: [tile], clip, areaId: undefined, extras: [] }, true).settings).toEqual({ contour_interval: 2.5, formline: 2, paved: 1 });
+    // Kurvbilden (ägaren 2026-11-13): fyra lägen före körningen; «normal» är Karttapullautins förval.
+    const target = { tiles: [tile], clip, areaId: undefined, extras: [] };
+    expect(defaultLaserJob("K", target, false, "normal").settings).toEqual({ contour_interval: 5, formline: 2 });
+    expect(defaultLaserJob("K", target, false, "detailed").settings).toMatchObject({ smoothing: 0.5, curviness: 1.3 });
+    expect(defaultLaserJob("K", target, false, "generalized").settings).toMatchObject({ smoothing: 1.2, curviness: 0.9 });
+    expect(defaultLaserJob("K", target, true, "veryGeneralized").settings).toEqual({ contour_interval: 2.5, formline: 2, paved: 1, smoothing: 2, curviness: 0.7, knolls: 0.85 });
     // Laserpanelen: en handskriven inställning går före förvalet, och en skogskarta får ingen belagd yta.
     const panel = (sprint: boolean, typed: Record<string, number> = {}) => laserJobBody({ name: "Prov", interval: 2, formline: 2, sprint, chosen: { settings: typed, cliffs: undefined },
       target: { tiles: [tile], clip, extras: [] } }).settings;

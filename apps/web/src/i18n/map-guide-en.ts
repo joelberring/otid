@@ -33,6 +33,9 @@ export const mapGuideEn: Texts<typeof mapGuideSv> = {
     starting: "Starting the run …",
     failed: (error: string | null) => `The previous run failed${error ? `: ${error}` : "."} Run again; if it happens once more, split the area into smaller parts (step 1).`,
     unusable: "The latest run for the area has no files for the base map (it is older or did not complete). Run once more.",
+    contours: "Contours",
+    contourStyles: { detailed: "Detailed", normal: "Normal", generalized: "Generalised", veryGeneralized: "Very generalised" },
+    contoursHelp: "How much the elevation model is smoothed before the contours are drawn. Generalised suits flat terrain where small forms are mostly noise. The choice is remembered for the map.",
     noTiles: "Lantmäteriet has no laser tiles for the area. Check that the map is in the right place (in Sweden, the right coordinate system), or choose another area in step 1."
   },
   wait: {

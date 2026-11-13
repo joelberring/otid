@@ -8,7 +8,7 @@ import { mapGuideSv } from "../../i18n/map-guide-sv";
 import { mapSourcesEn } from "../../i18n/map-sources-en";
 import { mapSourcesSv } from "../../i18n/map-sources-sv";
 import { estimateMinutes, GUIDE_STEPS, guideDefaultArea, guideState, laserAreaSize, latestAreaJob, type GuideStep } from "../../lib/map-project-guide";
-import { defaultLaserJob } from "../../lib/map-project-laser-request";
+import { CONTOUR_STYLES, defaultLaserJob, type ContourStyle } from "../../lib/map-project-laser-request";
 import { useTexts } from "../language-provider";
 import { Button } from "../ui";
 import { LaserCredentialHint, LaserServerStatus } from "./map-project-laser-shared";
@@ -26,6 +26,14 @@ function readPlaced(projectId: string): readonly string[] {
     const value = JSON.parse(localStorage.getItem(placedKey(projectId)) ?? "[]") as unknown;
     return Array.isArray(value) ? value.filter((row): row is string => typeof row === "string") : [];
   } catch { return []; }
+}
+/** Kurvbilden som valdes senast för kartan (ägaren: man ska inte behöva välja varje gång). */
+const contoursKey = (projectId: string) => `otid-map-guide-contours:${projectId}`;
+function readContours(projectId: string): ContourStyle {
+  try {
+    const value = localStorage.getItem(contoursKey(projectId));
+    return (CONTOUR_STYLES as readonly string[]).includes(value ?? "") ? value as ContourStyle : "normal";
+  } catch { return "normal"; }
 }
 
 /**
@@ -52,6 +60,12 @@ export function MapProjectGuide({ view, laser, importer, areas, onSplit }: { vie
   const [ignore, setIgnore] = useState<string>();
   const [placed, setPlaced] = useState<readonly string[]>([]);
   useEffect(() => { setPlaced(readPlaced(view.projectId)); }, [view.projectId]);
+  const [contours, setContours] = useState<ContourStyle>("normal");
+  useEffect(() => { setContours(readContours(view.projectId)); }, [view.projectId]);
+  const chooseContours = (style: ContourStyle) => {
+    setContours(style);
+    try { localStorage.setItem(contoursKey(view.projectId), style); } catch { /* utan lagring: bara den här sidan */ }
+  };
   const [openChoice, setOpenChoice] = useState<boolean>();
   const [cancelling, setCancelling] = useState(false);
 
@@ -93,7 +107,7 @@ export function MapProjectGuide({ view, laser, importer, areas, onSplit }: { vie
     const tiles = newestLaserTiles(found.items);
     if (tiles.length === 0) { laser.tell("guide", "error", text.run.noTiles); return; }
     if (tiles.length > GEO_JOB_MAX_TILES) { setCounted({ where, tiles: tiles.length }); return; }
-    await laser.start(defaultLaserJob(laserText.defaultName(area?.name), { tiles, clip: laser.clipOf(area), areaId: area?.areaId, extras: found.extras }, importer.sprint), "guide", text.run.starting);
+    await laser.start(defaultLaserJob(laserText.defaultName(area?.name), { tiles, clip: laser.clipOf(area), areaId: area?.areaId, extras: found.extras }, importer.sprint, contours), "guide", text.run.starting);
   }
   const restart = () => { if (job) setIgnore(job.jobId); setOpenChoice(true); laser.clear(); };
 
@@ -121,6 +135,11 @@ export function MapProjectGuide({ view, laser, importer, areas, onSplit }: { vie
         {state.detail === "unusable" && <p className={styles.problem}>{text.run.unusable}</p>}
         <p>{text.run.help(area?.name)}</p>
         <p className={styles.muted}>{text.run.automatic}</p>
+        <label>{text.run.contours}
+          <select value={contours} disabled={laser.busy} onChange={event => chooseContours(event.target.value as ContourStyle)} data-testid="map-project-guide-contours">
+            {CONTOUR_STYLES.map(style => <option key={style} value={style}>{text.run.contourStyles[style]}</option>)}
+          </select></label>
+        <p className={styles.muted}>{text.run.contoursHelp}</p>
         <span className={styles.actions}>
           <Button disabled={laser.busy} onClick={() => void run()} data-testid="map-project-guide-run">{state.detail === "ready" ? text.run.button : text.run.again}</Button>
         </span>

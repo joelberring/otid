@@ -58,10 +58,28 @@ export function laserJobBody(input: LaserJobInput) {
     ...(input.vegetation ? { vegetation: { minAreaM2: input.vegetation.minAreaM2 } } : {}) } as const;
 }
 
+/**
+ * Kurvbilden i guiden (ägaren 2026-11-13: «kurvbilden ser rätt bra ut på Järflotta men är ganska detaljerad … fyra lägen är
+ * bra och att man inte måste [välja] för varje»). Utjämningen görs på höjdmodellen i körningen, så valet görs före. Värdena är
+ * Karttapullautins `smoothing` (större = slätare) och `curviness` (större = mer överdrivna böjar); «normal» är dess förval.
+ * «Detaljerad» och «Generaliserad» är samma som laserpanelens «mer» och «mindre» för kurvorna.
+ */
+export const CONTOUR_STYLES = ["detailed", "normal", "generalized", "veryGeneralized"] as const;
+export type ContourStyle = typeof CONTOUR_STYLES[number];
+const CONTOUR_STYLE_SETTINGS: Readonly<Record<ContourStyle, Readonly<Record<string, number>>>> = {
+  detailed: { smoothing: 0.5, curviness: 1.3 },
+  normal: {},
+  generalized: { smoothing: 1.2, curviness: 0.9 },
+  // Också färre knollar: i flack terräng är de flesta små kullar brus.
+  veryGeneralized: { smoothing: 2, curviness: 0.7, knolls: 0.85 }
+};
+export const contourStyleSettings = (style: ContourStyle): Readonly<Record<string, number>> => CONTOUR_STYLE_SETTINGS[style];
+
 /** Körningen med förvalen (guiden): alla hittade produkter, förvalda inställningar, fuktighet och vegetation; `sprint` ger sprintkartans ekvidistans och belagd yta ur lasern. */
-export function defaultLaserJob(name: string, target: Extract<LaserJobInput["target"], { tiles: unknown }>, sprint = false) {
+export function defaultLaserJob(name: string, target: Extract<LaserJobInput["target"], { tiles: unknown }>, sprint = false, contours: ContourStyle = "normal") {
   const d = LASER_FORM_DEFAULTS;
-  return laserJobBody({ name, interval: defaultLaserInterval(sprint), formline: d.formline, sprint, chosen: choiceSettings(d.choices, {}, d.cliffStyle, d.cliffTags),
+  return laserJobBody({ name, interval: defaultLaserInterval(sprint), formline: d.formline, sprint,
+    chosen: choiceSettings(d.choices, contourStyleSettings(contours), d.cliffStyle, d.cliffTags),
     moisture: d.moisture ? { channelHa: d.channelHa, wetMeters: d.wetMeters } : undefined,
     vegetation: d.vegetation ? { minAreaM2: d.minAreaM2 } : undefined, target });
 }

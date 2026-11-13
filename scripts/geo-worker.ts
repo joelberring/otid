@@ -83,7 +83,18 @@ export function jobMemoryGb(job: { readonly clip?: Job["clip"]; readonly tiles: 
 }
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 /** Arbetarens version (samma som `GEO_WORKER_VERSION` i contracts; servern ger inga jobb till en äldre). */
-export const WORKER_VERSION = 28;
+export const WORKER_VERSION = 29;
+
+/**
+ * Ägarens sprintkörningar 2026-11-13 föll med «stup.dxf kunde inte skickas (422)»: kontots kvot för kartfiler var full.
+ * Beskedet säger nu varför och vad man gör.
+ */
+async function sendFailure(name: string, response: Response): Promise<string> {
+  const error = (await response.json().catch(() => undefined) as { error?: string } | undefined)?.error;
+  if (error === "STORAGE_QUOTA_EXCEEDED") return `${name} fick inte plats: kontots lagring för kartfiler är full. Ta bort äldre körningar eller höj OTID_MAP_QUOTA_ACCOUNT_MB på servern`;
+  if (error === "MAP_FILE_TOO_LARGE") return `${name} är för stor för att sparas`;
+  return `${name} kunde inte skickas (${response.status})`;
+}
 /** Serverns gräns för en resultatfil (GEO_OUTPUT_MAX_BYTES i @o-tid/contracts). */
 const OUTPUT_MAX_BYTES = 100 * 1024 * 1024;
 const headers = (extra: Record<string, string> = {}) => ({ authorization: `Bearer ${token}`, "x-otid-geo-worker": workerName,
@@ -432,7 +443,7 @@ async function runJob(job: Job): Promise<void> {
       const bytes = await readFile(join(dir, source));
       const response = await call(`/api/geo-worker/jobs/${job.jobId}/outputs/${name}`, { method: "PUT", body: new Uint8Array(bytes),
         headers: { "content-type": mediaType, "content-length": String(bytes.byteLength) }, signal: AbortSignal.any([control.signal, AbortSignal.timeout(10 * 60_000)]) });
-      if (!response.ok) throw new Error(`${name} kunde inte skickas (${response.status})`);
+      if (!response.ok) throw new Error(await sendFailure(name, response));
       done += 1;
     }
     const finished = await call(`/api/geo-worker/jobs/${job.jobId}/finish`, { method: "POST", headers: { "content-type": "application/json" },
@@ -472,7 +483,7 @@ async function runDwgJob(job: Job): Promise<void> {
     await beat("Skickar resultatet");
     const response = await call(`/api/geo-worker/jobs/${job.jobId}/outputs/ritning.geojson`, { method: "PUT", body: new Uint8Array(bytes),
       headers: { "content-type": "application/geo+json", "content-length": String(bytes.byteLength) }, signal: AbortSignal.any([control.signal, AbortSignal.timeout(10 * 60_000)]) });
-    if (!response.ok) throw new Error(`ritning.geojson kunde inte skickas (${response.status})`);
+    if (!response.ok) throw new Error(await sendFailure("ritning.geojson", response));
     const finished = await call(`/api/geo-worker/jobs/${job.jobId}/finish`, { method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ status: "DONE", summary: { features: read.features.length, skipped: read.skipped } }) });
     console.log(`Geo-jobb ${job.jobId}: DWG klart (svar ${finished.status})`);

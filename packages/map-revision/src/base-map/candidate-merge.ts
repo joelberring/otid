@@ -1,5 +1,5 @@
 import { projectedToWgs84, wgs84ToProjected } from "@o-tid/map-file";
-import type { SourceData, SourceFeature, SourceGeometry } from "@o-tid/map-revision";
+import type { SourceData, SourceFeature, SourceGeometry } from "../index";
 
 /**
  * Ägaren 2026-11-11 («när jag hämtar hyggen försvann allt annat»): en panel med reglage (hyggen, fukt, grönt) byter bara sina

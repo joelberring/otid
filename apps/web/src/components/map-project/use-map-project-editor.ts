@@ -7,6 +7,7 @@ import {
   acknowledge, addEdit, effectiveObjects, effectiveState, emptyHistory, keepOpenProposals, mergePulled, recordStep, recordSteps, redoStep, resolveConflict, undoStep,
   type EditKind, type EditResult, type KeyedState, type ObjectKey, type ObjectRef, type ObjectState, type RevisionHistory, type ServerObject
 } from "@o-tid/map-revision";
+import { areaBounds } from "@o-tid/map-revision/base-map";
 import { clubRequest } from "../../lib/club-archive-client";
 import type { Bounds } from "../../lib/course-setting-viewport";
 import { controlledWorker } from "../../lib/course-setting-worker";
@@ -296,13 +297,4 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
     /** Objekten som dras (ritas inte av Workern medan förhandsvisningen syns ovanpå). */
     setPreview
   };
-}
-
-/** Områdets omslutande rektangel med en tiondel marginal. */
-function areaBounds(area: readonly (readonly { x: number; y: number }[])[]): Bounds {
-  const points = area.flat();
-  const minX = Math.min(...points.map(point => point.x)), maxX = Math.max(...points.map(point => point.x));
-  const minY = Math.min(...points.map(point => point.y)), maxY = Math.max(...points.map(point => point.y));
-  const margin = Math.max(maxX - minX, maxY - minY) * 0.1;
-  return { minX: minX - margin, minY: minY - margin, maxX: maxX + margin, maxY: maxY + margin };
 }

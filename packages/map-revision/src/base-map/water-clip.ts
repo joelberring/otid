@@ -1,4 +1,4 @@
-import type { SourceFeature } from "@o-tid/map-revision";
+import type { SourceFeature } from "../index";
 
 /**
  * Ägaren 2026-11-12 («höjdkurvor åker ibland ut i vattnet»): lasern har ingen mark över vatten, så Karttapullautin drar

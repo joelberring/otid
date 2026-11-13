@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { SourceFeature } from "@o-tid/map-revision";
-import { clearCutFeatures, withoutCutVegetation } from "./map-project-clear-cuts";
+import type { SourceFeature } from "../src";
+import { clearCutFeatures, withoutCutVegetation } from "../src/base-map/clear-cuts";
 
 const square = (x: number): [number, number][] => [[x, 0], [x + 100, 0], [x + 100, 100], [x, 100], [x, 0]];
 const cut = (x: number, date: string | null) => ({ rings: [square(x)], date, kind: "Slutavverkning" });

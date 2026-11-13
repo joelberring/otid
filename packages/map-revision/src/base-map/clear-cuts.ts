@@ -1,5 +1,6 @@
-import type { MapProjectClearCut } from "@o-tid/contracts";
-import type { SourceFeature } from "@o-tid/map-revision";
+/** Ett hygge ur Skogsstyrelsens utförda avverkningar (`MapProjectClearCut` i kontrakten): ringar i SWEREF 99 TM och avverkningsdatum. */
+export interface ClearCut { readonly rings: readonly (readonly (readonly [number, number])[])[]; readonly date: string | null }
+import type { SourceFeature } from "../index";
 
 /**
  * Ägaren 2026-11-11 («gör beräkningar beroende på hur gamla fotona/underlaget är … om hyggen är helt färska eller hunnit växa
@@ -26,7 +27,7 @@ type Ring = readonly (readonly [number, number])[];
 
 const years = (from: string, to: string) => (Date.parse(to) - Date.parse(from)) / (365.25 * 86_400_000);
 
-export function clearCutFeatures(cuts: readonly MapProjectClearCut[], today: string, scannedAt: string | null, ages: ClearCutAges = DEFAULT_CLEAR_CUT_AGES, borders = true)
+export function clearCutFeatures(cuts: readonly ClearCut[], today: string, scannedAt: string | null, ages: ClearCutAges = DEFAULT_CLEAR_CUT_AGES, borders = true)
   : { features: SourceFeature[]; afterScan: Ring[]; counts: Readonly<Record<"fresh" | "scrub" | "young", number>> } {
   const features: SourceFeature[] = [], afterScan: Ring[] = [];
   const counts = { fresh: 0, scrub: 0, young: 0 };

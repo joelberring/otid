@@ -1,4 +1,4 @@
-import type { SourceData, SourceFeature } from "@o-tid/map-revision";
+import type { SourceData, SourceFeature } from "../index";
 
 /**
  * Grundkartan G8c (ägaren 2026-11-10: «flygbildstolkning för öppna ytor och berg i dagen»; Kungshatt-kedjans `s6_hall.py`):

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { clearCutAgesAt, depthAt, greenAt } from "./map-project-amount";
-import { DEFAULT_CLEAR_CUT_AGES } from "./map-project-clear-cuts";
+import { DEFAULT_CLEAR_CUT_AGES } from "@o-tid/map-revision/base-map";
 import { DEFAULT_GREEN } from "./map-project-green-classes";
 import { DEFAULT_DEPTH } from "./map-project-moisture-depth";
 

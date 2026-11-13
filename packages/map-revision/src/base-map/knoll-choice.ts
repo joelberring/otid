@@ -1,4 +1,4 @@
-import type { SourceFeature } from "@o-tid/map-revision";
+import type { SourceFeature } from "../index";
 
 /**
  * Ägaren 2026-11-12 («om man vill få färre punkthöjder verkar laserdatat hämtas igen … måste väl inte allt köras om»,

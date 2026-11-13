@@ -144,7 +144,7 @@ describe("ADR-0219 K2: AI-kopplingen", () => {
     expect(await handleMcpMessage(db, owner.accountId, { jsonrpc: "2.0", method: "notifications/initialized" })).toBeNull();
     const tools = await handleMcpMessage(db, owner.accountId, { jsonrpc: "2.0", id: 2, method: "tools/list" });
     expect((tools?.result as { tools: { name: string }[] }).tools.map(tool => tool.name)).toEqual(["list_map_projects", "create_map_project", "map_overview", "render_view",
-      "render_compare", "training_labels", "training_raster", "list_objects", "norm_check", "generalize", "propose_changes", "list_laser_jobs", "start_laser_job", "read_laser_output"]);
+      "render_compare", "training_labels", "training_raster", "list_objects", "norm_check", "generalize", "propose_changes", "list_laser_jobs", "start_laser_job", "read_laser_output", "apply_base_map"]);
 
     const projects = textOf(await mcp(owner.accountId, call(3, "list_map_projects")));
     expect(projects.projects).toMatchObject([{ projectId, name: "Skogen", role: "OWNER" }]);

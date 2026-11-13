@@ -5,7 +5,7 @@ import {
   type ObjectRef, type ReconObject
 } from "@o-tid/map-revision";
 import { MAX_RENDER_SIDE } from "./course-setting-map-protocol";
-import { builtPolygons } from "./map-project-built-mask";
+import { builtPolygons } from "@o-tid/map-revision/base-map";
 import { symbolGroup, type CatalogSymbol, type MapProjectRequest, type MapProjectResponse, type ProjectHit } from "./map-project-protocol";
 
 /**

@@ -1,6 +1,6 @@
-import { importLayers } from "@o-tid/map-revision";
+import { importLayers } from "../src";
 import { describe, expect, it } from "vitest";
-import { classifyPhoto, compactMask, interpretPhoto, maskOutlines, OPEN, ROCK, simplifyRing } from "./map-project-photo-interpret";
+import { classifyPhoto, compactMask, interpretPhoto, maskOutlines, OPEN, ROCK, simplifyRing } from "../src/base-map/photo-interpret";
 
 /** En bild 120 × 80 med skog (mörk, fläckig), en häll (grå), en äng (ljusgrön, jämn) och en liggande stam (smalt grått streck). */
 function photo() {

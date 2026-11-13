@@ -1,4 +1,4 @@
-import type { SourceFeature } from "@o-tid/map-revision";
+import type { SourceFeature } from "../index";
 
 /**
  * Grundkartan G3, små slutna kurvor (ägaren 2026-11-11: «många små höjder borde ritats som punkthöjder i stället, för att minska

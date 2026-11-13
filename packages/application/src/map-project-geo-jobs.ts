@@ -262,6 +262,12 @@ export async function findGeoVectorOutput(db: Database, projectId: string, file:
   return row ? { jobId: row.jobId, name: row.name, sha256: row.sha256, byteSize: row.byteSize, laser: row.kind === "PULLAUTIN" } : undefined;
 }
 
+/** Ett jobbs vektorfiler med innehållsnyckel och storlek (AI-kopplingens apply_base_map; behörigheten prövas av anroparen). */
+export async function geoVectorOutputs(db: Database, jobId: string): Promise<{ name: string; sha256: string; byteSize: number }[]> {
+  return db.select({ name: outputs.name, sha256: outputs.contentSha256, byteSize: outputs.byteSize }).from(outputs)
+    .where(and(eq(outputs.jobId, jobId), inArray(outputs.mediaType, ["application/dxf", "application/geo+json"]))).orderBy(asc(outputs.name));
+}
+
 // ---------------------------------------------------------------------------------------------------------------------
 // Geo-arbetarens sida (nyckeln prövas av anropet; jobbet måste vara arbetarens och pågå).
 

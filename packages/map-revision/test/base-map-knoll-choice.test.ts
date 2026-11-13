@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chooseKnolls, DEFAULT_KNOLL_LIMITS, knollFeatures, readKnollCandidates } from "./map-project-knoll-choice";
+import { chooseKnolls, DEFAULT_KNOLL_LIMITS, knollFeatures, readKnollCandidates } from "../src/base-map/knoll-choice";
 
 const json = { type: "FeatureCollection", features: [
   { type: "Feature", geometry: { type: "Point", coordinates: [100, 100] }, properties: { rise: 1.4, share: 0.9, foot: 40 } },
@@ -29,7 +29,7 @@ describe("punkthöjder med reglage", () => {
 
 describe("mängden på skalan 1–10", () => {
   it("ger förvalen på 5, bara de tydligaste på 1 och allt på 10", async () => {
-    const { knollLimitsAt } = await import("./map-project-knoll-choice");
+    const { knollLimitsAt } = await import("../src/base-map/knoll-choice");
     expect(knollLimitsAt(5)).toEqual(DEFAULT_KNOLL_LIMITS);
     expect(knollLimitsAt(1)).toEqual({ minRise: 2, lowerShare: 0.95, maxFootM2: 80, spacing: 40 });
     expect(knollLimitsAt(10)).toEqual({ minRise: 0.5, lowerShare: 0.5, maxFootM2: 160, spacing: 10 });

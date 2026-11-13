@@ -5,7 +5,7 @@ import type { SourceData } from "@o-tid/map-revision";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { mapSavedChoiceEn } from "../../i18n/map-knolls-en";
 import { mapSavedChoiceSv } from "../../i18n/map-knolls-sv";
-import type { PhotoPixels } from "../../lib/map-project-photo-interpret";
+import type { PhotoPixels } from "@o-tid/map-revision/base-map";
 import { useTexts } from "../language-provider";
 import { Button } from "../ui";
 import type { useMapProjectImport } from "./use-map-project-import";

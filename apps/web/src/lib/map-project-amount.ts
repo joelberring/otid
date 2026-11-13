@@ -1,6 +1,5 @@
-import { DEFAULT_CLEAR_CUT_AGES, type ClearCutAges } from "./map-project-clear-cuts";
+import { blend, DEFAULT_CLEAR_CUT_AGES, type ClearCutAges } from "@o-tid/map-revision/base-map";
 import { DEFAULT_GREEN, type GreenSettings } from "./map-project-green-classes";
-import { blend } from "./map-project-knoll-choice";
 import { DEFAULT_DEPTH, type DepthSettings } from "./map-project-moisture-depth";
 
 /**

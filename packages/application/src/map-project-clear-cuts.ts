@@ -4,7 +4,7 @@ import { geodeticToGrid, transverseMercatorFor } from "@o-tid/map-file";
 import { validLaserBox } from "@o-tid/map-revision";
 import { consumeAccountRequestAllowance } from "./account-throttle";
 import type { ClubProof } from "./club-access";
-import { requireMapProject } from "./map-project-access";
+import { aiGate, sessionGate, type MapProjectGate } from "./map-project-access";
 import type { MapSourceFailure } from "./map-project-sources";
 
 /**
@@ -48,10 +48,20 @@ export function clearCutsFromGeoJson(json: unknown): MapProjectClearCut[] {
 }
 
 export async function fetchMapProjectClearCuts(db: Database, input: ClubProof & { projectId: string; request: unknown }, runtime: ClearCutRuntime,
-  now = new Date()): Promise<MapSourceFailure | { status: "ok"; cuts: MapProjectClearCut[]; attribution: string }> {
-  const parsed = mapProjectOsmRequestSchema.safeParse(input.request);
+  now = new Date()): Promise<ClearCutResult> {
+  return fetchClearCuts(db, sessionGate(input, now), input.request, runtime, now);
+}
+/** Samma hämtning för AI-kopplingen (kontot bakom den; inte när projektets AI-läge är bara läsa). */
+export async function fetchMapProjectClearCutsAsAi(db: Database, input: { accountId: string; projectId: string; request: unknown }, runtime: ClearCutRuntime,
+  now = new Date()): Promise<ClearCutResult> {
+  return fetchClearCuts(db, aiGate(input.accountId, input.projectId, now), input.request, runtime, now);
+}
+type ClearCutResult = MapSourceFailure | { status: "ok"; cuts: MapProjectClearCut[]; attribution: string };
+
+async function fetchClearCuts(db: Database, gate: MapProjectGate, request: unknown, runtime: ClearCutRuntime, now: Date): Promise<ClearCutResult> {
+  const parsed = mapProjectOsmRequestSchema.safeParse(request);
   const allowed = await db.transaction(async tx => {
-    const access = await requireMapProject(tx, input, now, "propose", true);
+    const access = await gate(tx, "propose", true);
     if (access.status !== "ok") return access;
     if (!parsed.success) return { status: "invalid-request" } as const;
     if (!validLaserBox(parsed.data.box)) return { status: "too-large" } as const;

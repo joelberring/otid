@@ -1,6 +1,6 @@
-import type { SourceFeature } from "@o-tid/map-revision";
+import type { SourceFeature } from "../src";
 import { describe, expect, it } from "vitest";
-import { marshOutsideManaged, singleMarsh, undergrowthOutsideGreen } from "./map-project-marsh-merge";
+import { marshOutsideManaged, singleMarsh, undergrowthOutsideGreen } from "../src/base-map/marsh-merge";
 
 const square = (layer: string, x: number, y: number, size: number, area = false): SourceFeature => {
   const points: [number, number][] = [[x, y], [x + size, y], [x + size, y + size], [x, y + size]];

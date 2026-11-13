@@ -519,4 +519,33 @@ Importen städar redan (klipper mot kartan, tar bort dubbletter och korta stumpa
 5. **Gränser i svaren:** högst 500 objekt, 500 punkter per objekt och 5 000 punkter per svar; filer över 24 MB läses inte
    (gränsen är satt efter arbetarens minne, inte uppmätt).
 6. Kvar (nästa etapp): ett verktyg som sätter ihop hela grundkartan på servern och lägger in den i projektet;
-   sammansättningen ligger i dag i webbläsaren (`apps/web/src/lib/map-project-base-map.ts`).
+   sammansättningen ligger i dag i webbläsaren (`apps/web/src/lib/map-project-base-map.ts`). Gjort i tillägget nedan.
+
+### Tillägg 2026-11-13: AI-kopplingen lägger in grundkartan (`apply_base_map`, etapp 2 av «AI:n tar fram ett kartblad»)
+
+1. **Delad sammansättning:** `mergeBaseMap` och det den behöver (hyggen, små ringar, tomter, sankmark, vattenklippning,
+   masken för bebyggt, valen bland kullar och branter, `computeCandidates`) är flyttade från `apps/web/src/lib` till
+   `packages/map-revision/src/base-map` med en egen ingång, `@o-tid/map-revision/base-map` (den behöver
+   `polygon-clipping`, som resten av paketet klarar sig utan). Webbläsaren (kandidaternas Worker och panelerna) och servern
+   kör samma kod; `assembleBaseMap` är hela vägen från filerna till kartans objekt med importens förval.
+2. **Var det körs:** kartjobbet `BASE_MAP` i utskriftsarbetaren (`map-project-job-base-map.ts`), där grundfilen och
+   georeferensen ändå läses, med nivåmätningens gränser (5 minuter, 512 MB) i stället för 60 s och 256 MB. Inte i webben
+   (ett helt blad tar sekunder av ren CPU och hundratals MB) och inte i geo-arbetaren (symbolerna, området och det redan
+   ritade finns i kartprojektet, och OpenStreetMap och hyggena hämtas vid inläggningen). Webben prövar behörigheten,
+   hämtar OpenStreetMap och hyggena (`fetchMapProjectOsmAsAi`, `fetchMapProjectClearCutsAsAi`, kontots 20 hämtningar i
+   timmen) och skickar dem med jobbet tillsammans med filernas innehållsnycklar och etappens polygon; `otid_print`
+   behöver inga nya rättigheter. Huvudprocessen i arbetaren får inte underlagen (`claimMapJob` utelämnar dem).
+3. **Samma resultat som webben:** filerna i `baseMapOutputs` ordning, OpenStreetMap och hyggena för jobbets klippruta,
+   symbolerna ur lagernamnen (`suggestedMapping`), klippning mot kartans område och etappen (`areaId`), masken för det
+   bebyggda och normens generalisering. `knolls` och `cliffs` (1–10) är reglagen i panelerna (`kullar.geojson`,
+   `brantlinjer.geojson`); utelämnade används jobbets egna lager, som när man bara trycker «Hämta grundkartan». Sparade
+   lagerprofiler används inte.
+4. **Inläggningen:** objekten blir AI-förslag i omgångar om högst 200 ändringar och 3 MB (som importens «Lämna som
+   förslag»), genom `createMapProjectProposalAsAi`: öppna i läget PROPOSE (ägaren använder «Godkänn alla»), införda direkt
+   i AUTONOMOUS när kontot får ändra kartan, nekat i READ. Varje omgång har ett fast `requestId` ur kartjobbets id, så
+   ett upprepat anrop fortsätter där det förra slutade; ett anrop väntar högst 25 s på sammansättningen och lägger in i
+   högst 20 s. Ett laserjobb som redan lagts in (märket i förslagens anteckning) nekas utan `again: true`.
+5. **Gränser:** laserjobbets filer högst 32 MB tillsammans, högst 60 000 objekt och 48 MB ändringar per laserjobb; större
+   blad läggs in en etapp i taget. Uppmätt med syntetiska filer (16 km², 37 MB: 9 s inom 512 MB; 52 MB: minnet tog slut),
+   inte med ett riktigt laserjobb. Kartjobbets resultat rensas efter en timme; en inläggning som avbrutits längre än så
+   kan inte fortsättas (delarna som hann in står kvar).

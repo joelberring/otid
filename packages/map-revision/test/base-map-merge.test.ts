@@ -1,6 +1,6 @@
-import type { SourceData } from "@o-tid/map-revision";
+import type { SourceData } from "../src";
 import { describe, expect, it } from "vitest";
-import { baseMapOutputs, clipWgs84, mergeBaseMap } from "./map-project-base-map";
+import { baseMapOutputs, clipWgs84, mergeBaseMap } from "../src/base-map/merge";
 
 const data = (...layers: string[]): SourceData => ({ skipped: 0, features: layers.map(layer => ({ layer, geometry: { kind: "point" as const, at: [664900, 6576600] as [number, number] } })) });
 
@@ -65,7 +65,7 @@ describe("grundkartan", () => {
 
 describe("lutningsstreck på sänkor", () => {
   it("sätter ett streck mitt på den längsta sträckan, mot sänkans mitt", async () => {
-    const { depressionTick } = await import("./map-project-base-map");
+    const { depressionTick } = await import("../src/base-map/merge");
     const [tick] = depressionTick({ layer: "depression", geometry: { kind: "line", closed: true, points: [[0, 0], [40, 0], [40, 10], [0, 10]] } });
     expect(tick?.layer).toBe("lutningsstreck");
     expect(tick?.geometry).toEqual({ kind: "point", at: [20, 0], toward: [20, 5] });
@@ -75,7 +75,7 @@ describe("lutningsstreck på sänkor", () => {
 
 describe("strandlinjen", () => {
   it("ger en sluten linje för stranden och en för varje ö", async () => {
-    const { shoreLines } = await import("./map-project-base-map");
+    const { shoreLines } = await import("../src/base-map/merge");
     const lake = { layer: "vatten", geometry: { kind: "area" as const, rings: [[[0, 0], [100, 0], [100, 100], [0, 100], [0, 0]], [[40, 40], [60, 40], [60, 60], [40, 40]]] as [number, number][][] } };
     const around = [{ layer: "kurvor", geometry: { kind: "line" as const, closed: false, points: [[-50, -50], [200, 200]] as [number, number][] } }];
     const lines = shoreLines([lake, { layer: "aker", geometry: lake.geometry }, ...around]);
@@ -83,7 +83,7 @@ describe("strandlinjen", () => {
     expect(lines[0]!.geometry.kind === "line" && lines[0]!.geometry.closed).toBe(true);
   });
   it("körningens kant är ingen strand: vatten som skärs av kanten får en öppen linje", async () => {
-    const { shoreLines } = await import("./map-project-base-map");
+    const { shoreLines } = await import("../src/base-map/merge");
     // Underlaget når från x = 0 till 300; sjön är avskuren längs x = 0.
     const lake = { layer: "vatten", geometry: { kind: "area" as const, rings: [[[0, 0], [100, 0], [120, 50], [100, 100], [0, 100], [0, 0]]] as [number, number][][] } };
     const around = [{ layer: "kurvor", geometry: { kind: "line" as const, closed: false, points: [[0, -80], [300, 250]] as [number, number][] } }];

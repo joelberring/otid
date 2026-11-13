@@ -15,6 +15,13 @@ export const MCP_LASER_OUTPUT_MAX_OBJECTS = 500;
 export const MCP_LASER_OUTPUT_MAX_POINTS_PER_OBJECT = 500;
 export const MCP_LASER_OUTPUT_MAX_POINTS = 5000;
 export const MCP_LASER_OUTPUT_MAX_BYTES = 24 * 1024 * 1024;
+/**
+ * Ägaren 2026-11-13 (apply_base_map, AI:n lägger in grundkartan): laserjobbets filer får tillsammans vara högst så stora och
+ * grundkartan ge högst så många objekt per laserjobb; ett större blad läggs in en etapp i taget. Gränserna följer kartjobbets
+ * minne (512 MB i utskriftsarbetaren): ett syntetiskt blad om 16 km² med 37 MB filer gick på 9 s, 52 MB tog slut på minnet.
+ */
+export const MCP_BASE_MAP_MAX_BYTES = 32 * 1024 * 1024;
+export const MCP_BASE_MAP_MAX_OBJECTS = 60_000;
 
 const boxSchema = z.object({ min_x: z.number().finite(), min_y: z.number().finite(), max_x: z.number().finite(), max_y: z.number().finite() })
   .refine(box => box.max_x > box.min_x && box.max_y > box.min_y, "max ska vara större än min")
@@ -54,6 +61,8 @@ export const mcpToolInputSchemas = {
   read_laser_output: z.object({ project_id: idSchema, file: z.string().regex(/^[a-z0-9_.-]{1,60}$/), job_id: idSchema.optional(), area: boxSchema.optional(),
     layers: z.array(z.string().min(1).max(120)).max(50).optional(), limit: z.number().int().min(1).max(MCP_LASER_OUTPUT_MAX_OBJECTS).optional(),
     offset: z.number().int().min(0).optional(), max_points: z.number().int().min(2).max(MCP_LASER_OUTPUT_MAX_POINTS_PER_OBJECT).optional() }),
+  apply_base_map: z.object({ project_id: idSchema, job_id: idSchema.optional(), knolls: z.number().int().min(1).max(10).optional(),
+    cliffs: z.number().int().min(1).max(10).optional(), again: z.boolean().optional() }),
   norm_check: z.object({ project_id: idSchema, area: boxSchema.optional() }),
   // K6 del 2: generaliseringen (förenkla, ta bort det som är mindre än normen, foga ihop linjer, ytor inuti likadana ytor).
   generalize: z.object({ project_id: idSchema, area: boxSchema.optional(), simplify_mm: z.number().min(0).max(0.5).optional(),

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { SourceFeature } from "@o-tid/map-revision";
-import { smallRingsToPoints } from "./map-project-small-rings";
+import type { SourceFeature } from "../src";
+import { smallRingsToPoints } from "../src/base-map/small-rings";
 
 const ring = (cx: number, cy: number, r: number, elevation: number, layer = "contour"): SourceFeature => ({ layer, elevation,
   geometry: { kind: "line", closed: true, points: Array.from({ length: 12 }, (_, i) => [cx + r * Math.cos(i * Math.PI / 6), cy + r * Math.sin(i * Math.PI / 6)] as [number, number]) } });

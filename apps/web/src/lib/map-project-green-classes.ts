@@ -1,7 +1,7 @@
 import type { SourceData, SourceFeature } from "@o-tid/map-revision";
 import { smoothMask, SMOOTH_RADIUS_CELLS } from "./map-project-mask-smooth";
 import { scatteredTrees } from "./map-project-scattered-trees";
-import { compactMask, maskOutlines, simplifyRing, type PhotoPixels } from "./map-project-photo-interpret";
+import { compactMask, maskOutlines, simplifyRing, type PhotoPixels } from "@o-tid/map-revision/base-map";
 
 /**
  * Ägaren 2026-11-11 («göra itereringar av olika lager, t.ex. grönt, efter första körning»): geo-arbetarens bild

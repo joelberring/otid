@@ -1,82 +1,14 @@
-import type { MapGeoreference, MapObject } from "@o-tid/map-file";
-import {
-  applyFit, clipObjectsToPolygon, generalizeCandidates, importObjects, parseDxf, parseGeoJson, sourcePointToMap, VectorParseError,
-  type ImportResult, type SourceData, type SourceFeature, type TargetKind, type VectorFit
-} from "@o-tid/map-revision";
-import type { Bounds } from "./course-setting-viewport";
-import { maskBuilt } from "./map-project-built-mask";
-import { mergeBaseMap } from "./map-project-base-map";
-import type { clearCutFeatures } from "./map-project-clear-cuts";
+import { parseDxf, parseGeoJson, VectorParseError, type SourceData, type SourceFeature } from "@o-tid/map-revision";
+import { computeCandidates, mergeBaseMap, type CandidateInput, type CandidateResult, type clearCutFeatures } from "@o-tid/map-revision/base-map";
 
 /**
  * Ägaren 2026-11-12 («nu vet man inte om datorn hängt sig … varningar om att sidan inte svarar vid stora jobb»): det tunga när
- * kandidater läses in – grundkartans filer tolkas och sätts ihop (`mergeBaseMap`) och kandidaterna räknas ut (`importObjects`,
- * masken för bebyggt och normens generalisering) – görs i en egen Worker (`map-project-candidates-worker.ts`) i stället för
- * på sidans tråd. Här finns uträkningarna och meddelandena; Workern och sidan (`map-project-candidates-client.ts`) är skal.
+ * kandidater läses in – grundkartans filer tolkas och sätts ihop (`mergeBaseMap`) och kandidaterna räknas ut (`computeCandidates`:
+ * `importObjects`, masken för bebyggt och normens generalisering) – görs i en egen Worker (`map-project-candidates-worker.ts`)
+ * i stället för på sidans tråd. Uträkningarna finns i `@o-tid/map-revision/base-map` (delade med servern); här finns
+ * meddelandena, och Workern och sidan (`map-project-candidates-client.ts`) är skal.
  */
-
-/** Symbolen som uträkningen behöver: id, nummer och form (katalogens ikoner följer inte med till Workern). */
-export type CandidateSymbol = readonly [id: string, code: string, kind: MapObject["kind"]];
-type Ring = readonly { readonly x: number; readonly y: number }[];
-
-/** Allt utom filens objekt som avgör kandidaterna (det som förr låg i `useMemo` i importen). */
-export interface CandidateInput {
-  readonly georeference: MapGeoreference;
-  readonly crs: number;
-  /** Lager → symbolens id, i samma ordning som i importen. */
-  readonly mapping: readonly (readonly [string, string])[];
-  readonly skipped: readonly string[];
-  readonly symbols: readonly CandidateSymbol[];
-  readonly bounds: Bounds | undefined;
-  /** Etappens ruta (K4c); då klipper inte kartans område. */
-  readonly clip: Bounds | undefined;
-  /** Kartans område (polygonen i mm). */
-  readonly area: readonly Ring[] | undefined;
-  /** Etappens gräns för ett laserjobb för en etapp. */
-  readonly stage: readonly Ring[] | undefined;
-  readonly fit: VectorFit | undefined;
-  readonly normed: boolean;
-  /** Kartans bebyggda ytor och om kandidaterna ska hållas utanför dem. */
-  readonly built: readonly [number, number][][][];
-  readonly maskBuilt: boolean;
-}
-
-export type CandidateResult = ImportResult & {
-  readonly generalized: { readonly removed: number; readonly simplified: number } | undefined;
-  readonly builtMask: { readonly removed: number; readonly clipped: number } | undefined;
-};
-
-/** Kandidaterna ur filens objekt; `undefined` om uträkningen inte gick (som förr). */
-export function computeCandidates(features: readonly SourceFeature[], input: CandidateInput): CandidateResult | undefined {
-  const symbols = new Map(input.symbols.map(([id, code, kind]) => [id, { code, kind }] as const));
-  const skipped = new Set(input.skipped);
-  const targets = new Map<string, { symbol: string; kind: TargetKind }>();
-  for (const [layer, id] of input.mapping) {
-    if (skipped.has(layer)) continue;
-    const kind = symbols.get(id)?.kind;
-    if (kind === "point" || kind === "line" || kind === "area") targets.set(layer, { symbol: id, kind });
-  }
-  const { georeference, crs, fit, clip, stage } = input;
-  try {
-    // Trappan (532) byggs av baskartornas steglinjer.
-    const stairSymbols = new Set(input.symbols.filter(([, code]) => code.replace(/\.0+$/, "") === "532").map(([id]) => id));
-    const toMap = (x: number, y: number) => {
-      const at = sourcePointToMap(georeference, crs, x, y);
-      return fit ? applyFit(fit, at) : at;
-    };
-    const whole = importObjects(features, { mapping: targets, toMap, bounds: clip ?? input.bounds, stairSymbols,
-      // Kartans område (polygonen) klipper också, utom när en etapp valts (den har sin ruta).
-      polygon: clip ? undefined : input.area });
-    const imported = stage?.[0] && stage[0].length >= 3 ? { ...whole, objects: clipObjectsToPolygon(whole.objects, stage).objects } : whole;
-    // Ägaren 2026-11-12: inget av markens detaljer eller vegetationen i det som redan är ritat som tomtmark, asfalt eller hus.
-    const masked = input.maskBuilt && input.built.length ? maskBuilt(imported.objects, input.built, symbol => { const code = symbols.get(symbol)?.code; return code ? Number(code.split(".")[0]) : undefined; }) : undefined;
-    const kept = masked?.objects ?? imported.objects, builtMask = masked && masked.removed + masked.clipped > 0 ? { removed: masked.removed, clipped: masked.clipped } : undefined;
-    if (!input.normed) return { ...imported, objects: kept, generalized: undefined, builtMask };
-    // Ägaren 2026-11-11: kandidaterna generaliseras efter normen innan de läggs in (går att slå av i kandidatraden).
-    const general = generalizeCandidates(kept, symbol => symbols.get(symbol)?.code, georeference.scale);
-    return { ...imported, objects: general.objects, generalized: { removed: general.removed, simplified: general.simplified }, builtMask };
-  } catch { return undefined; }
-}
+export type { CandidateInput, CandidateResult };
 
 /** En resultatfil som text (DXF eller GeoJSON efter namnet). */
 export interface BaseMapPart { readonly name: string; readonly body: string }

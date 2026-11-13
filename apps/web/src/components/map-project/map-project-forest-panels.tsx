@@ -13,7 +13,7 @@ import { mapSourcesSv } from "../../i18n/map-sources-sv";
 import { clubRequest, csrf } from "../../lib/club-archive-client";
 import type { Bounds } from "../../lib/course-setting-viewport";
 import { areaBox, type BoxArea } from "../../lib/map-project-area-box";
-import { clearCutFeatures, DEFAULT_CLEAR_CUT_AGES, type ClearCutAges } from "../../lib/map-project-clear-cuts";
+import { clearCutFeatures, DEFAULT_CLEAR_CUT_AGES, type ClearCutAges } from "@o-tid/map-revision/base-map";
 import { mapProjectBase } from "../../lib/map-project-client";
 import { useTexts } from "../language-provider";
 import { Button } from "../ui";

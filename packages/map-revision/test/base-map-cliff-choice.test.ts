@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cliffFeatures, cliffLimitsAt, defaultCliffLimits, readCliffCandidates } from "./map-project-cliff-choice";
+import { cliffFeatures, cliffLimitsAt, defaultCliffLimits, readCliffCandidates } from "../src/base-map/cliff-choice";
 
 const DEFAULT_CLIFF_LIMITS = { ...defaultCliffLimits(10_000), minLength: 0 };
 

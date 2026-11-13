@@ -890,6 +890,10 @@ O-Tid är inloggningsserver (OAuth 2.1) och MCP-server för Claude med personens
   laserpanelen: kontots uppgifter till Lantmäteriet, samma klippruta, förval, strypning och kvot; ändrar inte kartan och
   tillåts i AI-lägena PROPOSE och AUTONOMOUS men inte READ, för rollen Föreslå eller högre) och `read_laser_output` (en
   vektorfil ur en klar körning i kartans mm, med lager, egenskaper, utsnitt och sidindelning; filer över 24 MB läses inte).
+  `apply_base_map` lägger in hela grundkartan ur en klar körning (samma sammansättning och förval som «Hämta grundkartan»
+  i webben, med OpenStreetMap och hyggen): AI-förslag i omgångar om 200 i läget PROPOSE, direkt i AUTONOMOUS, inte i READ.
+  Sammansättningen är kartjobbet `BASE_MAP` (minst 5 minuter och 512 MB, som nivåmätningen); filerna får vara högst 32 MB
+  tillsammans, annars en etapp i taget.
 - **Var det körs:** webben (`web`) tar emot anropen och använder publikens databaspool; bilder, objektlistor, kontroller
   och laserverktygens omräkning till kartans mm (kartjobben `LASER_AREA` och `LASER_OUTPUT`; webben skickar med etappens
   polygon och filens innehållsnyckel, så `otid_print` behöver inga nya rättigheter) görs som kartjobb av `print-worker` (lägsta prioritet, barnprocess per jobb, `OTID_MAP_JOB_TIMEOUT_MS` förval 60000,

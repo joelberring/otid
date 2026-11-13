@@ -1,5 +1,5 @@
 import type { SourceData, SourceFeature } from "@o-tid/map-revision";
-import { compactMask, maskOutlines, simplifyRing, type PhotoPixels } from "./map-project-photo-interpret";
+import { compactMask, maskOutlines, simplifyRing, type PhotoPixels } from "@o-tid/map-revision/base-map";
 
 /**
  * Ägaren 2026-11-11 («bra att kunna dra i markfuktighetslagren»): geo-arbetarens bild `fuktdjup.png` har höjden över närmaste

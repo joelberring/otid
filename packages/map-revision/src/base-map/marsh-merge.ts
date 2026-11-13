@@ -1,4 +1,4 @@
-import type { SourceFeature } from "@o-tid/map-revision";
+import type { SourceFeature } from "../index";
 import polygonClipping, { type Polygon } from "polygon-clipping";
 
 /**

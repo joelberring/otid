@@ -1,5 +1,5 @@
 import type { MapObject, PathCommand } from "@o-tid/map-file";
-import { samplePath } from "@o-tid/map-revision";
+import { samplePath } from "../index";
 import polygonClipping, { type MultiPolygon, type Polygon } from "polygon-clipping";
 
 /**

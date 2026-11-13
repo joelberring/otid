@@ -1,6 +1,6 @@
-import type { SourceFeature } from "@o-tid/map-revision";
+import type { SourceFeature } from "../src";
 import { describe, expect, it } from "vitest";
-import { linesOutsideWater } from "./map-project-water-clip";
+import { linesOutsideWater } from "../src/base-map/water-clip";
 
 const lake: SourceFeature = { layer: "vatten", geometry: { kind: "area", rings: [[[100, 0], [200, 0], [200, 100], [100, 100], [100, 0]]] } };
 const line = (layer: string, points: [number, number][]): SourceFeature => ({ layer, geometry: { kind: "line", points, closed: false } });

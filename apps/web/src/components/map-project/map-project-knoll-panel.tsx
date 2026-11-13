@@ -7,8 +7,10 @@ import { mapKnollsEn, mapSavedChoiceEn } from "../../i18n/map-knolls-en";
 import { mapKnollsSv, mapSavedChoiceSv } from "../../i18n/map-knolls-sv";
 import { clubRequest } from "../../lib/club-archive-client";
 import { mapProjectBase } from "../../lib/map-project-client";
-import { cliffFeatures, cliffLimitsAt, defaultCliffLimits, readCliffCandidates, type CliffLimits } from "../../lib/map-project-cliff-choice";
-import { chooseKnolls, DEFAULT_KNOLL_LIMITS, knollFeatures, knollLimitsAt, readKnollCandidates, type KnollLimits } from "../../lib/map-project-knoll-choice";
+import {
+  chooseKnolls, cliffFeatures, cliffLimitsAt, DEFAULT_KNOLL_LIMITS, defaultCliffLimits, knollFeatures, knollLimitsAt, readCliffCandidates, readKnollCandidates,
+  type CliffLimits, type KnollLimits
+} from "@o-tid/map-revision/base-map";
 import { useTexts } from "../language-provider";
 import { Button } from "../ui";
 import type { useMapProjectImport } from "./use-map-project-import";

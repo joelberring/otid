@@ -1,5 +1,5 @@
-import type { SourceFeature } from "@o-tid/map-revision";
-import { compactMask, maskOutlines, simplifyRing } from "./map-project-photo-interpret";
+import type { SourceFeature } from "../index";
+import { compactMask, maskOutlines, simplifyRing } from "./photo-interpret";
 
 /**
  * Grundkartan G8, tomter (ägaren 2026-11-11: «tomter kommer inte med»). Varken lasern, marktäcket eller OpenStreetMap har

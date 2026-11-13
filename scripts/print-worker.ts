@@ -100,7 +100,8 @@ export function mapJobLimits(environment: NodeJS.ProcessEnv = process.env): { ti
 
 /**
  * Nivåmätningen räknar vägval för varje sträcka på hela banan och tar längre tid än de korta kartjobben; den får minst fem
- * minuter och 512 MB (ägaren 2026-11-08).
+ * minuter och 512 MB (ägaren 2026-11-08). Samma gränser gäller grundkartan som AI-kopplingen lägger in (BASE_MAP, ägaren
+ * 2026-11-13): ett helt laserjobbs filer tolkas och sätts ihop.
  */
 export function levelJobLimits(limits: { timeoutMs: number; memoryMb: number }): { timeoutMs: number; memoryMb: number } {
   return { timeoutMs: Math.max(limits.timeoutMs, 5 * 60_000), memoryMb: Math.max(limits.memoryMb, 512) };
@@ -250,7 +251,7 @@ async function mapLoop(db: ReturnType<typeof createDatabase>["db"], pool: Return
       const heartbeat = setInterval(() => void heartbeatMapJob(db, claimed.id, worker).catch(() => undefined), HEARTBEAT_MS);
       try {
         const started = Date.now();
-        const jobLimit = claimed.kind === "COURSE_LEVEL" ? levelJobLimits(limits) : limits;
+        const jobLimit = claimed.kind === "COURSE_LEVEL" || claimed.kind === "BASE_MAP" ? levelJobLimits(limits) : limits;
         const result = await runInChild({ id: claimed.id, raceId: "", attempts: claimed.attempts }, worker, jobLimit,
           ["--map-job", claimed.id, "--worker", worker]);
         if (result.failure) {

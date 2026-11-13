@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { SourceFeature } from "@o-tid/map-revision";
-import { yardsOf } from "./map-project-yards";
+import type { SourceFeature } from "../src";
+import { yardsOf } from "../src/base-map/yards";
 
 const house = (x: number, y: number, side: number, layer = "byggnad"): SourceFeature => ({ layer, geometry: { kind: "area",
   rings: [[[x, y], [x + side, y], [x + side, y + side], [x, y + side]]] } });

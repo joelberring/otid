@@ -1,6 +1,6 @@
 import type { MapObject, PathCommand } from "@o-tid/map-file";
 import { describe, expect, it } from "vitest";
-import { builtPolygons, maskBuilt } from "./map-project-built-mask";
+import { builtPolygons, maskBuilt } from "../src/base-map/built-mask";
 
 const square = (x: number, y: number, side: number): PathCommand[] => [{ type: "M", x, y }, { type: "L", x: x + side, y }, { type: "L", x: x + side, y: y + side }, { type: "L", x, y: y + side }, { type: "L", x, y }];
 const area = (symbol: string, x: number, y: number, side: number): MapObject => ({ kind: "area", symbol, rings: [square(x, y, side)], angle: 0 });

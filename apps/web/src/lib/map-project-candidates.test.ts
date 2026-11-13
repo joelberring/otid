@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { MapGeoreference } from "@o-tid/map-file";
 import { generalizeCandidates, importObjects, parseGeoJson, sourcePointToMap, type SourceFeature } from "@o-tid/map-revision";
-import { computeCandidates, handleCandidateRequest, type CandidateInput, type CandidateRequest, type CandidateResponse, type CandidateStore } from "./map-project-candidates";
+import { handleCandidateRequest, type CandidateInput, type CandidateRequest, type CandidateResponse, type CandidateStore } from "./map-project-candidates";
 import { CandidateSession } from "./map-project-candidates-client";
-import { mergeBaseMap } from "./map-project-base-map";
+import { computeCandidates, mergeBaseMap } from "@o-tid/map-revision/base-map";
 
 const georeference: MapGeoreference = { scale: 10000, crs: { kind: "EPSG", code: 3006 }, refPoint: { easting: 675000, northing: 6580000 },
   mapRefPoint: { x: 0, y: 0 }, grivationDegrees: 0, combinedScaleFactor: 1 };

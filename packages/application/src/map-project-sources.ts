@@ -3,7 +3,7 @@ import type { Database } from "@o-tid/database";
 import { OSM_ATTRIBUTION, mergeOverpass, osmTiles, osmToSourceData, overpassQuery, validLaserBox, type SourceData } from "@o-tid/map-revision";
 import { consumeAccountRequestAllowance } from "./account-throttle";
 import type { ClubFailure, ClubProof } from "./club-access";
-import { requireMapProject } from "./map-project-access";
+import { aiGate, sessionGate, type MapProjectGate } from "./map-project-access";
 
 /**
  * ADR-0219 tillägget om hämtningen (K4c): underlag från öppna källor till kartprojektet. Servern hämtar åt webbläsaren (inga
@@ -45,10 +45,20 @@ async function readLimited(response: Response, max: number): Promise<string | un
 
 /** OpenStreetMap för rutan (den som får föreslå i ett öppet projekt). */
 export async function fetchMapProjectOsm(db: Database, input: ClubProof & { projectId: string; request: unknown }, runtime: MapSourceRuntime,
-  now = new Date()): Promise<MapSourceFailure | { status: "ok"; data: SourceData; attribution: string }> {
-  const parsed = mapProjectOsmRequestSchema.safeParse(input.request);
+  now = new Date()): Promise<OsmResult> {
+  return fetchOsm(db, sessionGate(input, now), input.request, runtime, now);
+}
+/** Samma hämtning för AI-kopplingen (kontot bakom den; inte när projektets AI-läge är bara läsa). */
+export async function fetchMapProjectOsmAsAi(db: Database, input: { accountId: string; projectId: string; request: unknown }, runtime: MapSourceRuntime,
+  now = new Date()): Promise<OsmResult> {
+  return fetchOsm(db, aiGate(input.accountId, input.projectId, now), input.request, runtime, now);
+}
+type OsmResult = MapSourceFailure | { status: "ok"; data: SourceData; attribution: string };
+
+async function fetchOsm(db: Database, gate: MapProjectGate, request: unknown, runtime: MapSourceRuntime, now: Date): Promise<OsmResult> {
+  const parsed = mapProjectOsmRequestSchema.safeParse(request);
   const allowed = await db.transaction(async tx => {
-    const access = await requireMapProject(tx, input, now, "propose", true);
+    const access = await gate(tx, "propose", true);
     if (access.status !== "ok") return access;
     if (!parsed.success) return { status: "invalid-request" } as const;
     if (!validLaserBox(parsed.data.box)) return { status: "too-large" } as const;

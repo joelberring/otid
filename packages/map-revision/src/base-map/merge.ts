@@ -1,11 +1,10 @@
-import type { GeoClip } from "@o-tid/contracts";
 import { geodeticToGrid, gridToGeodetic, transverseMercatorFor } from "@o-tid/map-file";
-import { joinSeams, type SourceData, type SourceFeature } from "@o-tid/map-revision";
-import { withoutCutVegetation, type clearCutFeatures } from "./map-project-clear-cuts";
-import { smallRingsToPoints } from "./map-project-small-rings";
-import { yardsOf } from "./map-project-yards";
-import { marshOutsideManaged, singleMarsh, undergrowthOutsideGreen } from "./map-project-marsh-merge";
-import { linesOutsideWater } from "./map-project-water-clip";
+import { joinSeams, type MapBox, type SourceData, type SourceFeature } from "../index";
+import { withoutCutVegetation, type clearCutFeatures } from "./clear-cuts";
+import { smallRingsToPoints } from "./small-rings";
+import { yardsOf } from "./yards";
+import { marshOutsideManaged, singleMarsh, undergrowthOutsideGreen } from "./marsh-merge";
+import { linesOutsideWater } from "./water-clip";
 
 /**
  * Grundkartan G2 och G8 (ägaren 2026-11-10: «ungefär som en halvfärdig karta», utan grundkartefil: lasern, Lantmäteriets
@@ -44,7 +43,7 @@ const OSM_RESIDENTIAL = "OSM markanvändning (residential)";
 const OSM_BUILDING = /^OSM (byggnad|skärmtak)/;
 
 /** Rutan (SWEREF 99 TM) som latitud och longitud, för hämtningen från OpenStreetMap. */
-export function clipWgs84(clip: GeoClip): { south: number; west: number; north: number; east: number } | undefined {
+export function clipWgs84(clip: MapBox): { south: number; west: number; north: number; east: number } | undefined {
   const projection = transverseMercatorFor(SWEREF99TM);
   if (!projection) return undefined;
   const corners = [[clip.minX, clip.minY], [clip.maxX, clip.minY], [clip.maxX, clip.maxY], [clip.minX, clip.maxY]].map(([x, y]) => gridToGeodetic(projection, x!, y!));

@@ -274,6 +274,9 @@ importers:
       '@o-tid/map-file':
         specifier: workspace:*
         version: link:../map-file
+      polygon-clipping:
+        specifier: 0.15.7
+        version: 0.15.7
 
   packages/print-pdf:
     dependencies:

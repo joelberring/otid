@@ -1,5 +1,5 @@
-import type { SourceFeature } from "@o-tid/map-revision";
-import { blend } from "./map-project-knoll-choice";
+import type { SourceFeature } from "../index";
+import { blend } from "./knoll-choice";
 
 /**
  * Ägaren 2026-11-12 (ändra utan ny körning): laserjobbet sparar alla branter från 0,8 m fall med sina mått

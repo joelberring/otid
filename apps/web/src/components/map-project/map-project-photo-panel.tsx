@@ -4,7 +4,7 @@ import { mapPointToProjected, type MapGeoreference } from "@o-tid/map-file";
 import { useState } from "react";
 import { mapSourcesEn } from "../../i18n/map-sources-en";
 import { mapSourcesSv } from "../../i18n/map-sources-sv";
-import { interpretPhoto } from "../../lib/map-project-photo-interpret";
+import { interpretPhoto } from "@o-tid/map-revision/base-map";
 import { useTexts } from "../language-provider";
 import { Button } from "../ui";
 import type { useMapProjectImport } from "./use-map-project-import";

@@ -16,7 +16,7 @@ import { mapProjectBase } from "../../lib/map-project-client";
 import type { BaseMapStep, CandidateInput, CandidateResult } from "../../lib/map-project-candidates";
 import { CandidateSession } from "../../lib/map-project-candidates-client";
 import { controlledWorker } from "../../lib/course-setting-worker";
-import { mergeCandidates } from "../../lib/map-project-candidate-merge";
+import { mergeCandidates, suggestedMapping } from "@o-tid/map-revision/base-map";
 import { readVectorFiles } from "../../lib/map-project-vector-files";
 import type { CatalogSymbol, MapProjectSession } from "../../lib/map-project-protocol";
 import type { ObjectChange } from "./use-map-project-editor";
@@ -90,7 +90,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     setFit(undefined);
     setClip(area);
     setLayers(found);
-    const suggested = new Map(found.flatMap(layer => { const id = suggestSymbol(layer, list); return id ? [[layer.name, id] as const] : []; }));
+    const suggested = suggestedMapping(found, list);
     // En profil vars lager täcker minst hälften av filens lager används; dess val går före förslagen ur namnen.
     const names = new Set(found.map(layer => layer.name));
     const best = profiles.map(row => ({ row, matched: row.rules.filter(rule => names.has(rule.layer)).length }))

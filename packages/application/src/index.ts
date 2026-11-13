@@ -14,6 +14,7 @@ export * from "./organizer-events";
 export * from "./race-people";
 export * from "./purge";
 export * from "./superadmin";
+export * from "./account-storage";
 export * from "./public-race-visibility";
 export * from "./public-races";
 export * from "./race-publication";
@@ -224,7 +225,7 @@ export { deleteMapLayerProfile, listMapLayerProfiles, saveMapLayerProfile } from
 export { laserRuntimeFromEnvironment, searchMapProjectLaser, type LaserItem, type LaserRuntime } from "./map-project-laser";
 export {
   authenticateGeoWorker, claimGeoJob, createGeoJob, finishGeoJob, geoServerView, heartbeatGeoJob, listGeoJobs, openGeoJobLaser, readGeoOutput,
-  removeGeoJob, storeGeoOutput, type ClaimedGeoJob
+  pruneGeoJobs, removeGeoJob, storeGeoOutput, type ClaimedGeoJob
 } from "./map-project-geo-jobs";
 export { createDwgJob, readGeoJobInput, type DwgJobResult } from "./map-project-geo-dwg";
 export { createMapProjectNote, deleteMapProjectNote, listMapProjectNotes, readMapProjectNotePhoto, updateMapProjectNote } from "./map-project-notes";

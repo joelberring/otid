@@ -2,18 +2,19 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase, migrate, schema } from "@o-tid/database";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { createMapProjectFromUpload, inviteMapProjectMember, readMapProject } from "../../src/map-projects";
 import { lantmaterietRuntimeFromEnvironment } from "../../src/map-project-lantmateriet";
 import { laserCollectionOf, laserRuntimeFromEnvironment, searchMapProjectLaser } from "../../src/map-project-laser";
 import {
   authenticateGeoWorker, claimGeoJob, createGeoJob, finishGeoJob, geoTilesPerMonth, heartbeatGeoJob, listGeoJobs, openGeoJobLaser, readGeoOutput,
   removeGeoJob, storeGeoOutput
-} from "../../src/map-project-geo-jobs";
+, GEO_JOB_COUNTS, pruneGeoJobs } from "../../src/map-project-geo-jobs";
 import { listMapProjectLayers } from "../../src/map-project-layers";
 import { fetchMapProjectMoisture, moistureRequestBox } from "../../src/map-project-moisture";
 import { saveMapSourceCredential } from "../../src/map-source-credentials";
 import { createDwgJob, readGeoJobInput } from "../../src/map-project-geo-dwg";
+import { readAccountStorageAsSuperadmin, readOwnAccountStorage } from "../../src/account-storage";
 import { registerTestAccount } from "./accounts";
 
 /**
@@ -211,6 +212,67 @@ describe("ADR-0219 K5: geo-arbetaren", () => {
     expect(await db.select().from(schema.mapProjectGeoOutputs).where(eq(schema.mapProjectGeoOutputs.jobId, created.job.jobId))).toEqual([]);
     expect((await listMapProjectLayers(db, { ...owner.proof, projectId }, NOW))).toMatchObject({ list: { layers: [{ layerId: finished.layerId },
       { name: "Laser norr – fuktighet" }] } });
+  });
+
+  it("L2–L3: lagringen per projekt, rensning av äldre körningar, misslyckade körningars filer och serverns fel utanför kvoten", async () => {
+    const { owner, reader, projectId } = await project();
+    const { runtime } = fakeLantmateriet();
+    const tile = { id: "24A001_65775_6575_25", href: LAZ, bbox: [18, 59.29, 18.04, 59.31] as [number, number, number, number], epsg: 3006 };
+    const request = (name: string) => ({ formatVersion: 1, requestId: randomUUID(), kind: "PULLAUTIN", name, tiles: [tile], settings: {} });
+    await saveMapSourceCredential(db, { ...owner.proof, request: { formatVersion: 1, method: "BASIC", id: "geotorget-anna", secret: "hemligt" } }, environment, NOW);
+    const later = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000);
+    // Varje körning får egna bildbyte, så att innehållet inte delas mellan körningarna.
+    const image = (seed: number) => { const bytes = png(100, 100); bytes[40] = seed; return bytes; };
+    const run = async (name: string, seed: number, at: Date, outcome: "DONE" | "FAILED", error = "Karttapullautin avslutades med kod 1") => {
+      const created = await createGeoJob(db, { ...owner.proof, projectId, request: request(name) }, runtime, at);
+      if (created.status !== "created") throw new Error(created.status);
+      await claimGeoJob(db, "geo-1", at);
+      for (const [file, mediaType, body] of [["karta.png", "image/png", image(seed)], ["karta.pgw", "text/plain", new TextEncoder().encode("1\n0\n0\n-1\n675000\n6580000\n")],
+        ["kurvor.dxf", "application/dxf", new TextEncoder().encode(`0\nEOF ${seed}\n`)]] as const) {
+        expect(await storeGeoOutput(db, { jobId: created.job.jobId, worker: "geo-1", name: file, mediaType, file: body }, at)).toEqual({ status: "stored" });
+      }
+      await finishGeoJob(db, created.job.jobId, "geo-1", outcome === "DONE" ? { status: "DONE" } : { status: "FAILED", error }, at);
+      return created.job.jobId;
+    };
+    const outputsOf = (jobId: string) => db.select({ name: schema.mapProjectGeoOutputs.name }).from(schema.mapProjectGeoOutputs)
+      .where(eq(schema.mapProjectGeoOutputs.jobId, jobId));
+
+    const first = await run("Första", 1, later(1), "DONE");
+    // En misslyckad körning lämnar inga resultatfiler; föll den på servern räknas dess rutor inte mot kvoten (5 i testets miljö).
+    const broken = await run("Trasig", 2, later(2), "FAILED");
+    const full = await run("Full lagring", 3, later(3), "FAILED", "karta.png kunde inte skickas (422)");
+    expect(await outputsOf(broken)).toEqual([]);
+    expect(await outputsOf(full)).toEqual([]);
+    const counted = async () => (await db.execute<{ tiles: number }>(sql`select coalesce(sum(jsonb_array_length(request->'tiles')), 0)::int as tiles
+      from map_project_geo_job where account_id = ${owner.accountId}::uuid and ${GEO_JOB_COUNTS}`)).rows[0]!.tiles;
+    expect(await counted()).toBe(2);
+    const second = await run("Andra", 4, later(4), "DONE");
+
+    // Uppdelningen: två klara körningars filer. En läsare har inget eget innehåll i projektet.
+    const before = await readOwnAccountStorage(db, owner.proof, later(5));
+    if (before.status !== "ok") throw new Error(before.status);
+    const mine = before.response.projects.find(row => row.projectId === projectId)!;
+    // Grundfilen är samma innehåll som ett tidigare test laddade upp, så den räknas till det kontot (innehåll sparas en gång).
+    expect(mine).toMatchObject({ name: "Laser", layerBytes: 0, outputBytes: 0, baseBytes: 0, prunableRuns: 3 });
+    expect(mine.geoBytes).toBeGreaterThan(2 * 64);
+    expect(mine.totalBytes).toBe(mine.geoBytes + mine.baseBytes);
+    expect(before.response.usedBytes).toBe(mine.totalBytes + before.response.otherBytes);
+    const readers = await readOwnAccountStorage(db, reader.proof, later(5));
+    expect(readers).toMatchObject({ status: "ok", response: { usedBytes: 0, projects: [], otherBytes: 0 } });
+    expect(await readAccountStorageAsSuperadmin(db, reader.proof, owner.accountId, later(5))).toEqual({ status: "forbidden" });
+
+    // Rensningen: läsaren har inga egna körningar att ta; ägaren tar allt utom den senaste klara, med de äldres underlag.
+    expect(await pruneGeoJobs(db, { ...reader.proof, projectId }, later(6))).toEqual({ status: "pruned", removedRuns: 0, removedLayers: 0 });
+    expect(await pruneGeoJobs(db, { ...owner.proof, projectId }, later(6))).toEqual({ status: "pruned", removedRuns: 3, removedLayers: 1 });
+    const left = await listGeoJobs(db, { ...owner.proof, projectId }, server, later(7));
+    if (left.status !== "ok") throw new Error(left.status);
+    expect(left.list.jobs.map(job => job.jobId)).toEqual([second]);
+    expect(left.list.jobs.some(job => job.jobId === first)).toBe(false);
+    expect((await listMapProjectLayers(db, { ...owner.proof, projectId }, later(7)))).toMatchObject({ list: { layers: [{ name: "Andra" }] } });
+    const after = await readOwnAccountStorage(db, owner.proof, later(7));
+    if (after.status !== "ok") throw new Error(after.status);
+    expect(after.response.projects.find(row => row.projectId === projectId)).toMatchObject({ prunableRuns: 0 });
+    expect(await pruneGeoJobs(db, { ...owner.proof, projectId }, later(8))).toEqual({ status: "pruned", removedRuns: 0, removedLayers: 0 });
   });
 
   it("K5c: SLU:s markfuktighet för rutan i SWEREF 99 TM, med världsfilen", async () => {

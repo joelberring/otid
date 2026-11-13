@@ -97,6 +97,8 @@ const ROUTES: Record<string, Partial<Record<Method, Rule>>> = {
   },
   "account/clubs/step": { POST: { allow: LOGGED_IN, body: { formatVersion: 1, organisationIds: [], freeText: null } } },
   // ADR-0219 (K2): kontots AI-kopplingar.
+  // PLAN.md steg L2: kontots kartlagring per kartprojekt.
+  "account/storage": { GET: { allow: LOGGED_IN } },
   "account/ai-connections": { GET: { allow: LOGGED_IN } },
   "account/ai-connections/[grantId]": { DELETE: { allow: LOGGED_IN, untested: "Kopplingen finns bara efter ett godkännande (integrationstestet adr-0219-ai)" } },
   // ADR-0219 (K3b): den egna kartstatistiken och "Visa mig i topplistorna".
@@ -236,6 +238,7 @@ const ROUTES: Record<string, Partial<Record<Method, Rule>>> = {
 
   // --- Superadmin (ADR-0172) ---------------------------------------------------------------------------------------------------
   "superadmin": { GET: { allow: ["SUPERADMIN"] } },
+  "superadmin/accounts/[accountId]/storage": { GET: { allow: ["SUPERADMIN"] } },
   "superadmin/actions": { POST: { allow: ["SUPERADMIN"], body: () => ({ formatVersion: 1, action: "HIDE_RACE", raceId: id(), reason: "Behörighetstest" }) } }
 };
 
@@ -365,7 +368,7 @@ describe.skipIf(!target)("behörighet per route för klubben, gruppen, kontot, i
     const value = (name: string) => fixed[name] ?? other;
     const url = path.replaceAll(/\[([a-zA-Z0-9]+)\]/g, (_, name: string) => value(name));
     const params = Promise.resolve(Object.fromEntries(["clubId", "groupId", "sha256", "entryId", "courseFileId", "tokenId", "invitationId", "versionId",
-      "mapId", "mergeId", "seriesId", "raceId", "termId", "sessionId", "taskId"].map(name => [name, value(name)])));
+      "mapId", "mergeId", "seriesId", "raceId", "termId", "sessionId", "taskId", "accountId"].map(name => [name, value(name)])));
     const body = invalidBody ? { formatVersion: 0 } : typeof rule.body === "function" ? (rule.body as () => unknown)() : rule.body;
     const headers: Record<string, string> = { origin, ...rule.headers };
     if (session) {

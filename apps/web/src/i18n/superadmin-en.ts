@@ -67,6 +67,8 @@ export const superadminEn: Texts<typeof superadminSv> = {
   tilesUse: (used: number, limit: number) => `${used} of ${limit}`,
   ownLimits: (mapQuotaMb: number | null, tiles: number | null) =>
     mapQuotaMb === null && tiles === null ? "Default" : [mapQuotaMb === null ? null : `${mapQuotaMb} MB`, tiles === null ? null : `${tiles} tiles`].filter(Boolean).join(", "),
+  showStorage: "Show storage",
+  storageOf: (email: string) => `Storage for ${email}`,
   nearLimit: "Near the limit",
   overLimit: "Over the limit",
   mapQuotaField: (defaultMb: number | null) => `Map storage in MB (empty = the default${defaultMb === null ? ", no limit" : ` ${defaultMb}`})`,

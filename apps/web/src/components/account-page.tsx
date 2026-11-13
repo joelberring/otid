@@ -14,6 +14,7 @@ import { AccountMenu } from "./account-menu";
 import { AccountGoogle, LogoutEverywhere } from "./account-google";
 import { AccountAi } from "./account-ai";
 import { AccountMapSources } from "./account-map-sources";
+import { AccountStorageSection } from "./account-storage";
 import styles from "./account-pages.module.css";
 
 type Message = { tone: "ok" | "error"; text: string } | undefined;
@@ -166,6 +167,8 @@ export function AccountPage({ googleEnabled = false }: { googleEnabled?: boolean
           {notice(passwordMessage)}
         </form>
       </Section>
+
+      <AccountStorageSection id="konto-lagring" url="/api/account/storage" canPrune />
 
       <LogoutEverywhere />
 

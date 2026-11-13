@@ -17,7 +17,7 @@ import { markAccountEmailVerified } from "./email-verification";
 import { logAction, SERVER_COMMAND_ACTOR } from "./superadmin-log";
 import { purgeRows } from "./purge";
 import { mapStorageQuota, mapStorageUsage } from "./map-content";
-import { geoTilesPerMonth } from "./map-project-geo-jobs";
+import { GEO_JOB_COUNTS, geoTilesPerMonth } from "./map-project-geo-jobs";
 import {
   authenticateUserAccountSessionForMutation,
   authenticateUserAccountSessionForProtectedRead,
@@ -102,7 +102,8 @@ export async function readSuperadminOverview(
         left join (select uploaded_by, sum(byte_length) as bytes from map_content where uploaded_by is not null group by uploaded_by) m
           on m.uploaded_by = a.id
         left join (select account_id, sum(jsonb_array_length(request->'tiles')) as tiles from map_project_geo_job
-          where created_at >= ${month.toISOString()}::timestamptz and (status = 'QUEUED' or started_at is not null) group by account_id) g
+          where created_at >= ${month.toISOString()}::timestamptz and (status = 'QUEUED' or started_at is not null) and ${GEO_JOB_COUNTS}
+          group by account_id) g
           on g.account_id = a.id
       ), s as (
         select u.*, greatest(case when map_limit > 0 then bytes / map_limit else 0 end,

@@ -31,6 +31,16 @@ const STALE_MS = 10 * 60_000;
 const MAX_ATTEMPTS = 2;
 const ACTIVE_PER_ACCOUNT = 2;
 const DEFAULT_TILES_PER_MONTH = 200;
+/**
+ * PLAN.md steg L3 (ägaren 2026-11-13): en körning som föll på serverns fel räknas inte mot kontots laserkvot. Felet märks i
+ * `result.fault` när jobbet misslyckas: geo-servern tystnade (minnet) eller resultatet gick inte att skicka eller spara.
+ */
+export const GEO_JOB_COUNTS = sql.raw(`not (map_project_geo_job.status = 'FAILED' and coalesce(map_project_geo_job.result->>'fault', '') = 'SERVER')`);
+const SERVER_FAULT = /kunde inte skickas|fick inte plats|lagring för kartfiler|minnet inte räckte/i;
+const faultOf = (error: string): { fault: "SERVER" } | null => SERVER_FAULT.test(error) ? { fault: "SERVER" } : null;
+/** Resultatfilerna från en körning som misslyckats eller avbrutits tas bort (ADR-0224 beslut 8); indata står kvar. */
+const dropOutputs = (tx: DbExecutor, jobIds: string[]) => jobIds.length
+  ? tx.delete(outputs).where(and(inArray(outputs.jobId, jobIds), sql`${outputs.name} not like 'indata.%'`)) : Promise.resolve();
 const MEDIA_TYPES: ReadonlySet<string> = new Set(["image/png", "text/plain", "application/dxf", "application/geo+json"]);
 /** Bilden och dess världsfil från arbetaren; blir ett underlag när jobbet är klart. */
 export const GEO_MAP_IMAGE = "karta.png";
@@ -177,7 +187,7 @@ async function createJob(db: Database, gate: MapProjectGate, body: unknown, runt
     // Kvoten räknar rutor i jobb som väntar eller har körts (även avbrutna och misslyckade efter start: servern har haft dem).
     const month = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
     const [{ tiles } = { tiles: 0 }] = await tx.select({ tiles: sql<number>`coalesce(sum(jsonb_array_length(${jobs.request}->'tiles')), 0)::int` }).from(jobs)
-      .where(and(eq(jobs.accountId, access.accountId), gte(jobs.createdAt, month), sql`(${jobs.status} = 'QUEUED' or ${jobs.startedAt} is not null)`));
+      .where(and(eq(jobs.accountId, access.accountId), gte(jobs.createdAt, month), sql`(${jobs.status} = 'QUEUED' or ${jobs.startedAt} is not null)`, sql`${GEO_JOB_COUNTS}`));
     // Kontots egen gräns (superadmin, migration 0118) går före installationens förval.
     const [limits] = await tx.select({ own: schema.userAccounts.geoTilesPerMonth }).from(schema.userAccounts).where(eq(schema.userAccounts.id, access.accountId));
     if (tiles + tileList.length > (limits?.own ?? geoTilesPerMonth(runtime.environment))) return { status: "quota" } as const;
@@ -203,10 +213,37 @@ export async function removeGeoJob(db: Database, input: ClubProof & { projectId:
     if (job.accountId !== access.accountId && !mapProjectAllows(access.role, access.project, "manage")) return { status: "forbidden" } as const;
     if (job.status === "QUEUED" || job.status === "RUNNING") {
       await tx.update(jobs).set({ status: "CANCELLED", finishedAt: now, error: "Avbrutet" }).where(eq(jobs.id, job.id));
+      await dropOutputs(tx, [job.id]);
       return { status: "cancelled" } as const;
     }
     await tx.delete(jobs).where(eq(jobs.id, job.id));
     return { status: "deleted" } as const;
+  });
+}
+
+/**
+ * PLAN.md steg L3: "Ta bort äldre körningar". Projektets avslutade körningar som kontot får ta bort (de egna, eller allas för
+ * den som förvaltar projektet) tas bort med sina filer och underlagsbilderna de gav, utom projektets senaste klara körning.
+ * Pågående och köade körningar rörs inte. Innehållet frigörs av den vanliga städningen (`sweepMapContent`).
+ */
+export async function pruneGeoJobs(db: Database, input: ClubProof & { projectId: string }, now = new Date())
+  : Promise<ClubFailure | { status: "pruned"; removedRuns: number; removedLayers: number }> {
+  return db.transaction(async tx => {
+    const access = await requireMapProject(tx, input, now, "view", true);
+    if (access.status !== "ok") return access;
+    const all = await tx.select().from(jobs).where(eq(jobs.projectId, access.project.id)).orderBy(desc(jobs.finishedAt), asc(jobs.id)).for("update");
+    const keep = all.find(job => job.status === "DONE")?.id;
+    const manage = mapProjectAllows(access.role, access.project, "manage");
+    const remove = all.filter(job => job.id !== keep && (job.status === "DONE" || job.status === "FAILED" || job.status === "CANCELLED")
+      && (manage || job.accountId === access.accountId));
+    if (remove.length === 0) return { status: "pruned", removedRuns: 0, removedLayers: 0 } as const;
+    const layerIds = remove.flatMap(job => Object.entries(job.result ?? {})
+      .filter(([key, value]) => /LayerId$|^layerId$/.test(key) && typeof value === "string" && UUID_PATTERN.test(value)).map(([, value]) => value as string));
+    const removedLayers = layerIds.length ? (await tx.delete(schema.mapProjectLayers)
+      .where(and(eq(schema.mapProjectLayers.projectId, access.project.id), inArray(schema.mapProjectLayers.id, layerIds)))
+      .returning({ id: schema.mapProjectLayers.id })).length : 0;
+    await tx.delete(jobs).where(inArray(jobs.id, remove.map(job => job.id)));
+    return { status: "pruned", removedRuns: remove.length, removedLayers } as const;
   });
 }
 
@@ -306,8 +343,10 @@ export interface ClaimedGeoJob {
  */
 export async function releaseStaleGeoJobs(db: DbExecutor, now: Date): Promise<void> {
   const stale = new Date(now.getTime() - STALE_MS);
-  await db.update(jobs).set({ status: "FAILED", finishedAt: now, error: "Geo-servern avbröt jobbet två gånger utan att svara, troligen för att minnet inte räckte för området. Dela området i etapper och kör igen." })
-    .where(and(eq(jobs.status, "RUNNING"), lt(jobs.heartbeatAt, stale), sql`${jobs.attempts} >= ${MAX_ATTEMPTS}`));
+  const failed = await db.update(jobs).set({ status: "FAILED", finishedAt: now, result: { fault: "SERVER" },
+    error: "Geo-servern avbröt jobbet två gånger utan att svara, troligen för att minnet inte räckte för området. Dela området i etapper och kör igen." })
+    .where(and(eq(jobs.status, "RUNNING"), lt(jobs.heartbeatAt, stale), sql`${jobs.attempts} >= ${MAX_ATTEMPTS}`)).returning({ id: jobs.id });
+  await dropOutputs(db, failed.map(row => row.id));
   await db.update(jobs).set({ status: "QUEUED", worker: null }).where(and(eq(jobs.status, "RUNNING"), lt(jobs.heartbeatAt, stale)));
 }
 
@@ -414,7 +453,9 @@ export async function finishGeoJob(db: Database, jobId: string, worker: string, 
     const job = await runningJob(tx, jobId, worker);
     if (!job || job.status !== "RUNNING") return { status: "not-found" } as const;
     if (parsed.data.status === "FAILED") {
-      await tx.update(jobs).set({ status: "FAILED", finishedAt: now, error: parsed.data.error, progress: null }).where(eq(jobs.id, job.id));
+      await tx.update(jobs).set({ status: "FAILED", finishedAt: now, error: parsed.data.error, progress: null, result: faultOf(parsed.data.error) })
+        .where(eq(jobs.id, job.id));
+      await dropOutputs(tx, [job.id]);
       await noteGeoServerJob(tx, worker, now);
       return { status: "ok", layerId: null } as const;
     }

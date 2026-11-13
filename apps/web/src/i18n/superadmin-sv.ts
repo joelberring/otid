@@ -65,6 +65,8 @@ export const superadminSv = {
   tilesUse: (used: number, limit: number) => `${used} av ${limit}`,
   ownLimits: (mapQuotaMb: number | null, tiles: number | null) =>
     mapQuotaMb === null && tiles === null ? "Förval" : [mapQuotaMb === null ? null : `${mapQuotaMb} MB`, tiles === null ? null : `${tiles} rutor`].filter(Boolean).join(", "),
+  showStorage: "Visa lagring",
+  storageOf: (email: string) => `Lagring för ${email}`,
   nearLimit: "Nära gränsen",
   overLimit: "Över gränsen",
   mapQuotaField: (defaultMb: number | null) => `Kartlagring i MB (tomt = förvalet${defaultMb === null ? ", ingen gräns" : ` ${defaultMb}`})`,

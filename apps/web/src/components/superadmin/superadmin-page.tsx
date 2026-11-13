@@ -11,6 +11,7 @@ import { raceTypeSv } from "../../i18n/race-type-sv";
 import { accountRequest } from "../../lib/account-client";
 import { Button, EmptyState, Field, Notice, numeric, Section, Table } from "../ui";
 import { actionRequest, ResetLink, SuperadminActionPanel, type LimitValues, type PendingAction } from "./superadmin-action-panel";
+import { AccountStorageSection } from "../account-storage";
 import styles from "../account-pages.module.css";
 import { raceTitle, shownRaceName } from "@o-tid/domain";
 
@@ -41,6 +42,8 @@ export function SuperadminPage() {
   const [pending, setPending] = useState<PendingAction>();
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string>();
+  /** Kontot vars lagring visas per kartprojekt under listan (PLAN.md steg L2). */
+  const [storageFor, setStorageFor] = useState<{ accountId: string; email: string }>();
   const [done, setDone] = useState<{ section: "races" | "accounts" | "limits"; text: string; reset?: { url: string; expiresAt: string } }>();
 
   async function load(next = query) {
@@ -161,7 +164,8 @@ export function SuperadminPage() {
               {!account.emailVerified && <Button variant="secondary" disabled={busy} aria-label={`${text.action.VERIFY_EMAIL} ${account.email}`}
                 onClick={() => start({ kind: "VERIFY_EMAIL", accountId: account.accountId, label: account.email })}>{text.action.VERIFY_EMAIL}</Button>}
               <Button variant="secondary" disabled={busy} aria-label={`${text.action.SET_ACCOUNT_LIMITS} ${account.email}`}
-                onClick={() => { start(limitsAction(account)); document.getElementById("superadmin-granser")?.scrollIntoView(); }}>{text.action.SET_ACCOUNT_LIMITS}</Button>
+                onClick={() => { start(limitsAction(account)); setStorageFor({ accountId: account.accountId, email: account.email });
+                  document.getElementById("superadmin-granser")?.scrollIntoView(); }}>{text.action.SET_ACCOUNT_LIMITS}</Button>
               <Button variant="secondary" disabled={busy} aria-label={`${text.action.DELETE_ACCOUNT} ${account.email}`}
                 onClick={() => start({ kind: "DELETE_ACCOUNT", accountId: account.accountId, label: account.email, confirm: account.email,
                   ownedEvents: account.eventCount })}>{text.action.DELETE_ACCOUNT}</Button>
@@ -192,11 +196,15 @@ export function SuperadminPage() {
               <td><div className={styles.rowActions}>
                 <Button variant="secondary" disabled={busy} aria-label={`${text.action.SET_ACCOUNT_LIMITS} ${account.email}`}
                   onClick={() => start(limitsAction(account))}>{text.action.SET_ACCOUNT_LIMITS}</Button>
+                <Button variant="secondary" aria-label={`${text.showStorage} ${account.email}`}
+                  onClick={() => setStorageFor({ accountId: account.accountId, email: account.email })}>{text.showStorage}</Button>
               </div></td>
             </tr>;
           })}</tbody>
         </Table>}
       </Section>
+      {storageFor && <AccountStorageSection id="superadmin-lagring" url={`/api/superadmin/accounts/${storageFor.accountId}/storage`}
+        canPrune={false} title={text.storageOf(storageFor.email)} />}
 
       <Section id="superadmin-logg" title={text.log} help={text.logHelp}>
         {overview.log.length === 0 ? <EmptyState title={text.logEmpty} /> : <Table aria-label={text.log}>

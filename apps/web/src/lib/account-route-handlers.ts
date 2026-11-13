@@ -6,10 +6,12 @@ import {
   deleteEventAsOwner,
   deleteOwnAccount,
   readAccountProfile,
+  readOwnAccountStorage,
   requestPasswordReset
 } from "@o-tid/application";
 import {
   accountProfileSchema,
+  accountStorageSchema,
   deletedResponseSchema,
   organizerAccountLoginResponseSchema,
   passwordResetAvailabilitySchema,
@@ -132,6 +134,18 @@ export async function accountProfileRoute(db: Database, request: Request, enviro
     if (result.status !== "ok") return failure(result.status);
     return privateJson(accountProfileSchema.parse(result.response));
   } catch (error) { logServerError("account", "accountProfileRoute", error); return accountFailure(500, "INTERNAL_ERROR"); }
+}
+
+/** PLAN.md steg L2: vad kontots kartlagring består av, per kartprojekt. */
+export async function accountStorageRoute(db: Database, request: Request, environment: Environment = process.env): Promise<Response> {
+  const configured = policy(environment);
+  if ("response" in configured) return configured.response;
+  if (!await hasNoRequestBody(request)) return accountFailure(400, "INVALID_REQUEST");
+  try {
+    const result = await readOwnAccountStorage(db, sessionProof(request, configured.value, false));
+    if (result.status !== "ok") return failure(result.status);
+    return privateJson(accountStorageSchema.parse(result.response));
+  } catch (error) { logServerError("account", "accountStorageRoute", error); return accountFailure(500, "INTERNAL_ERROR"); }
 }
 
 export async function accountDisplayNameRoute(db: Database, request: Request, environment: Environment = process.env): Promise<Response> {

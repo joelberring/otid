@@ -13,6 +13,21 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-13 – Steg L2–L3: vad som tar plats och rensning av körningar
+- L2: Mitt konto har avsnittet "Lagring för kartfiler" (`/api/account/storage`): använt mot gränsen och en rad per kartprojekt
+  med laserkörningar, underlag, resultat och grundfil, störst först, plus "Övrigt". Superadmin ser samma för ett konto ("Visa
+  lagring", `/api/superadmin/accounts/[accountId]/storage`). Ett innehåll räknas till den som laddade upp det och till ett
+  enda ställe (körningen före underlaget, resultatet och grundfilen), som kvoten.
+- L3: "Ta bort äldre körningar" på kontosidan (`POST …/geo-jobs/prune`): avslutade körningar som kontot får ta bort, med
+  filer och underlagsbilderna de gav, utom projektets senaste klara. Misslyckade och avbrutna körningar lämnar inga
+  resultatfiler (ADR-0224 beslut 8). En körning som föll på serverns fel (`result.fault = SERVER`: geo-servern tystnade,
+  resultatet gick inte att skicka eller spara) räknas inte mot laserkvoten.
+- Verifierat: lint, typecheck, test, integration `adr-0219-geo` (nytt fall) och nio andra filer som rör körningar, kopplingen
+  och superadmin, `organizer-roles` mot PostgreSQL 16. `adr-0189-anonymisering` föll en gång i den samlade körningen och gick
+  igenom ensam, med och utan ändringen. Inte provat i webbläsare eller med Playwright.
+- Kvar: serverfelet känns igen på felets text (arbetaren säger inte själv vems felet var); knappen finns bara på kontosidan,
+  inte i projektets laserpanel.
+
 ### 2026-11-13 – Egna gränser per konto och listan "nära gränsen" hos superadmin (migration 0118)
 - Ägaren 2026-11-13: alla ska inte få stora konton; superadmin höjer (eller sänker) enskilda. `user_account.map_quota_mb` och
   `geo_tiles_per_month` (NULL = förvalen `OTID_MAP_QUOTA_ACCOUNT_MB` och `OTID_GEO_TILES_PER_MONTH`) går före förvalet i

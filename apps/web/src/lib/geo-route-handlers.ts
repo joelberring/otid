@@ -2,10 +2,10 @@ import {
   retireGeoServer,
   authenticateGeoWorker, fetchMapProjectForestImage, fetchMapProjectMoisture, forestImageRuntimeFromEnvironment, moistureRuntimeFromEnvironment,
   type ForestImageRuntime, type MoistureRuntime, claimGeoJob, createGeoJob, discardStagedMapContent, finishGeoJob, geoServerView, heartbeatGeoJob, laserRuntimeFromEnvironment,
-  lantmaterietRuntimeFromEnvironment, listGeoJobs, openGeoJobLaser, readGeoOutput, removeGeoJob, searchMapProjectLaser, stageMapContent, storeGeoOutput,
+  lantmaterietRuntimeFromEnvironment, listGeoJobs, openGeoJobLaser, pruneGeoJobs, readGeoOutput, removeGeoJob, searchMapProjectLaser, stageMapContent, storeGeoOutput,
   type LaserRuntime
 } from "@o-tid/application";
-import { GEO_OUTPUT_MAX_BYTES, GEO_OUTPUT_NAME, GEO_WORKER_VERSION, UUID_PATTERN } from "@o-tid/contracts";
+import { GEO_OUTPUT_MAX_BYTES, GEO_OUTPUT_NAME, GEO_WORKER_VERSION, UUID_PATTERN, geoJobPruneResponseSchema } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
 import { failure, guarded, mutation, problem, readProof, streamChunks, type ClubEnvironment } from "./club-route-handlers";
 import { privateHeaders, privateJson, validDeclaredLength } from "./security-policy";
@@ -99,6 +99,19 @@ export async function geoJobRoute(db: Database, request: Request, projectId: str
   return guarded(async () => {
     const result = await removeGeoJob(db, { ...input.proof, projectId, jobId });
     return result.status === "cancelled" || result.status === "deleted" ? privateJson({ formatVersion: 1, status: result.status }) : failure(result.status);
+  });
+}
+
+/** POST "Ta bort äldre körningar" (PLAN.md steg L3): allt avslutat utom projektets senaste klara körning. */
+export async function geoJobsPruneRoute(db: Database, request: Request, projectId: string, environment: ClubEnvironment = process.env): Promise<Response> {
+  if (!UUID_PATTERN.test(projectId)) return failure("not-found");
+  const input = await mutation(request, environment, "none");
+  if ("response" in input) return input.response;
+  return guarded(async () => {
+    const result = await pruneGeoJobs(db, { ...input.proof, projectId });
+    return result.status === "pruned"
+      ? privateJson(geoJobPruneResponseSchema.parse({ formatVersion: 1, removedRuns: result.removedRuns, removedLayers: result.removedLayers }))
+      : failure(result.status);
   });
 }
 

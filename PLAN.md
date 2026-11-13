@@ -1404,9 +1404,9 @@ och `claude/plan-ritlage-hjul-och-mobil.md`.
 Underlag: `claude/plan-lagring-och-backup-2026-11-13.md` och ADR-0224. Delas i leveranser i den här ordningen.
 
 - [x] L1 Egna gränser per konto (kartlagring och laserrutor) och superadmins lista över konton nära gränsen (migration 0118).
-- [ ] L2 Vad som tar plats: kontosidan visar använt utrymme per kartprojekt och slag (grundfil, laserkörningar, underlag),
+- [x] L2 Vad som tar plats: kontosidan visar använt utrymme per kartprojekt och slag (grundfil, laserkörningar, underlag),
   störst först; superadmin ser samma uppdelning för ett konto.
-- [ ] L3 Rensning: "Ta bort äldre körningar" per projekt (den senaste klara behålls); resultatfiler från misslyckade och
+- [x] L3 Rensning: "Ta bort äldre körningar" per projekt (den senaste klara behålls); resultatfiler från misslyckade och
   avbrutna körningar tas bort automatiskt; en körning som föll på serverns fel (minne, lagring) räknas inte mot laserkvoten.
 - [ ] L4 Senaste öppning sparas per kartprojekt (förutsättning för "orört" i ADR-0224).
 - [ ] L5 Arkivet, första delen: laserkörningars äldre resultatfiler till objektlagring, först bara loggat, sedan påslaget;

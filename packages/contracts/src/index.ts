@@ -25,6 +25,7 @@ export * from "./event-creation";
 export * from "./account";
 export * from "./organizer-account";
 export * from "./superadmin";
+export * from "./account-storage";
 export * from "./race-people";
 export * from "./invitations";
 export * from "./race-publication";

@@ -1368,7 +1368,7 @@ och `claude/plan-ritlage-hjul-och-mobil.md`.
     Kungshatt-provet 1:10 000: 6 nya små kullar, 108 linjer blev 102.
   - [x] Tomter, fukt och diken (ägaren 2026-11-11: «använd de grå lagren för bebyggd yta från OSM», «dra i
     markfuktighetslagren», «terrängformstolkning … för diken»): tomtmark ur OpenStreetMaps bostadsområden (`tomtmark_osm`),
-    marktäckets låga bebyggelse (`tomtmark_marktacke`) och ringar kring hus utanför dem (`tomtmark_hus`), alla 520 i var sitt
+    marktäckets låga bebyggelse (`tomtmark_marktacke`) och rektanglar kring hus utanför dem, klippta mot väg och strand (`tomtmark_hus`), alla 520 i var sitt
     lager. Fuktdjupet (höjd över fuktstråk) blir ett underlag och panelen «Fukt med reglage» drar gränserna för blött och
     fuktigt i webbläsaren. Diken ur markrastret (`scripts/geo-ditches.ts`): smala sänkor med högre mark på båda sidor, raka →
     `dike` (305), krokiga och fuktiga → `fuktstrak_terrang` (306); reliefen blir ett underlag. Geo-arbetaren version 5.

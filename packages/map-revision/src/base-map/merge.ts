@@ -22,7 +22,7 @@ import { linesOutsideWater } from "./water-clip";
  * - slutna kurvor under ISOM:s minsta mått blir små kullar eller gropar (`smallRingsToPoints`),
  * - Skogsstyrelsens hyggen efter ålder och deras kanter (`clearCutFeatures`), utan laserns vegetation i nyare hyggen,
  * - tomterna: OpenStreetMaps bostadsområden (`tomtmark_osm`), marktäckets låga bebyggelse (`tomtmark_marktacke`) och
- *   ringar kring hus utanför dem (`tomtmark_hus`, `yardsOf`), i var sitt lager så att kandidatraden kan välja,
+ *   rektanglar kring hus utanför dem (`tomtmark_hus`, `yardsOf`), i var sitt lager så att kandidatraden kan välja,
  * - ur OpenStreetMap tas vägar, stigar, hus, ledningar, staket och liknande; vatten, sankmark, branter och markslag finns
  *   redan ur lasern och marktäcket, och husen tas inte med när Lantmäteriets byggnader finns.
  */

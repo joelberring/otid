@@ -1,16 +1,19 @@
 import type { SourceFeature } from "../index";
-import { compactMask, maskOutlines, simplifyRing } from "./photo-interpret";
+import { faceAt, facesFromLines } from "../faces";
 
 /**
  * Grundkartan G8, tomter (ägaren 2026-11-11: «tomter kommer inte med»). Varken lasern, marktäcket eller OpenStreetMap har
- * tomtgränser, så en första tomt räknas ur husen: allt inom `radius` meter från ett bostadsstort hus (högst `maxBuilding` m²)
- * blir lagret `tomtmark_hus` (förslag 520, område som inte får beträdas). Det är ett grovt förslag att rätta i terrängen: husen
- * räknas på ett rutnät, närliggande tomter flyter ihop och små öar tas bort. Fastighetsgränser används inte (personuppgifter).
+ * tomtgränser, så en första tomt räknas ur husen och blir lagret `tomtmark_hus` (förslag 520, område som inte får beträdas).
+ * Fastighetsgränser används inte (personuppgifter).
+ *
+ * Ägaren 2026-11-13 («gokartor gör fyrkanter som klippt mot vägar. jag tycker det ser snyggare ut än runda ytor»): tomten är
+ * en rektangel, inte en rundad ring. Bostadsstora hus (högst `maxBuilding` m²) som ligger högst `link` meter från varandra utan
+ * väg emellan hör till samma tomt; rektangeln är den minsta som rymmer husens hörn, vriden efter husen, och vidgad `radius`
+ * meter åt alla håll. Den klipps mot vägar och strand: bara delarna där husen står blir kvar. Ett grovt förslag att rätta på plats.
  */
-export interface YardSettings { readonly radius: number; readonly cell: number; readonly maxBuilding: number; readonly minArea: number }
-export const DEFAULT_YARDS: YardSettings = { radius: 20, cell: 2, maxBuilding: 400, minArea: 300 };
+export interface YardSettings { readonly radius: number; readonly link: number; readonly maxBuilding: number; readonly minArea: number }
+export const DEFAULT_YARDS: YardSettings = { radius: 15, link: 45, maxBuilding: 400, minArea: 300 };
 const BUILDING = /^(byggnad|OSM byggnad)$/;
-const MAX_CELLS = 4_000_000;
 type Ring = readonly (readonly [number, number])[];
 
 const ringArea = (ring: Ring) => Math.abs(ring.reduce((sum, [x, y], i) => { const [nx, ny] = ring[(i + 1) % ring.length]!; return sum + x * ny - nx * y; }, 0)) / 2;
@@ -25,47 +28,106 @@ function inside(ring: Ring, x: number, y: number): boolean {
 const outerRing = (feature: SourceFeature): Ring | undefined => feature.geometry.kind === "area" ? feature.geometry.rings[0]
   : feature.geometry.kind === "line" && feature.geometry.closed ? feature.geometry.points : undefined;
 
+/** Det som delar en tomt: vägar (inte stigar) och stranden. */
+const CUT = /^(OSM väg|OSM traktorväg|OSM järnväg|vatten$|strandlinje$)/;
+type Point = readonly [number, number];
+const centroid = (ring: Ring): Point => [ring.reduce((s, p) => s + p[0], 0) / ring.length, ring.reduce((s, p) => s + p[1], 0) / ring.length];
+const cross = (o: Point, a: Point, b: Point) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+/** Korsar sträckorna varandra (äkta korsning)? */
+const crosses = (a: Point, b: Point, c: Point, d: Point) => cross(a, b, c) * cross(a, b, d) < 0 && cross(c, d, a) * cross(c, d, b) < 0;
+
+function hull(points: readonly Point[]): Point[] {
+  const sorted = [...points].sort((a, b) => a[0] - b[0] || a[1] - b[1]), out: Point[] = [];
+  for (const pass of [sorted, [...sorted].reverse()]) {
+    const start = out.length;
+    for (const point of pass) {
+      while (out.length >= start + 2 && cross(out[out.length - 2]!, out[out.length - 1]!, point) <= 0) out.pop();
+      out.push(point);
+    }
+    out.pop();
+  }
+  return out;
+}
+
+/** Den minsta rektangeln kring punkterna (en sida längs någon av höljets kanter), vidgad `margin` åt alla håll. */
+export function yardRectangle(points: readonly Point[], margin: number): Point[] {
+  const shell = hull(points);
+  let best: { area: number; ux: number; uy: number; u0: number; u1: number; v0: number; v1: number } | undefined;
+  for (let i = 0; i < Math.max(1, shell.length); i += 1) {
+    const a = shell[i] ?? points[0]!, b = shell[(i + 1) % Math.max(1, shell.length)] ?? a, length = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const ux = length > 1e-9 ? (b[0] - a[0]) / length : 1, uy = length > 1e-9 ? (b[1] - a[1]) / length : 0;
+    let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
+    for (const [x, y] of points) { const u = x * ux + y * uy, v = -x * uy + y * ux; u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v); }
+    const area = (u1 - u0) * (v1 - v0);
+    if (!best || area < best.area - 1e-9) best = { area, ux, uy, u0, u1, v0, v1 };
+  }
+  const { ux, uy, u0, u1, v0, v1 } = best!;
+  const at = (u: number, v: number): Point => [u * ux - v * uy, u * uy + v * ux];
+  return [at(u0 - margin, v0 - margin), at(u1 + margin, v0 - margin), at(u1 + margin, v1 + margin), at(u0 - margin, v1 + margin)];
+}
+
 /** Tomterna kring husen i `features` (meter, SWEREF 99 TM eller annat metriskt system) som slutna linjer i lagret `tomtmark_hus`. */
 export function yardsOf(features: readonly SourceFeature[], settings: YardSettings = DEFAULT_YARDS): SourceFeature[] {
-  // Hus som redan ligger i en tomt (OpenStreetMaps bostadsområde, marktäckets låga bebyggelse) får ingen egen ring.
+  // Hus som redan ligger i en tomt (OpenStreetMaps bostadsområde, marktäckets låga bebyggelse) får ingen egen tomt.
   const yards = features.filter(feature => /^tomtmark_/.test(feature.layer)).map(outerRing).filter((ring): ring is Ring => !!ring && ring.length >= 3);
   const houses = features.filter(feature => BUILDING.test(feature.layer)).map(outerRing)
     .filter((ring): ring is Ring => !!ring && ring.length >= 3 && ringArea(ring) <= settings.maxBuilding)
-    .filter(ring => { const [x, y] = [ring.reduce((s, p) => s + p[0], 0) / ring.length, ring.reduce((s, p) => s + p[1], 0) / ring.length]; return !yards.some(yard => inside(yard, x, y)); });
+    .filter(ring => { const [x, y] = centroid(ring); return !yards.some(yard => inside(yard, x, y)); });
   if (!houses.length) return [];
-  const xs = houses.flatMap(ring => ring.map(point => point[0])), ys = houses.flatMap(ring => ring.map(point => point[1]));
-  const pad = settings.radius + settings.cell * 2;
-  const minX = Math.min(...xs) - pad, minY = Math.min(...ys) - pad, maxX = Math.max(...xs) + pad, maxY = Math.max(...ys) + pad;
-  const cell = Math.max(settings.cell, Math.sqrt((maxX - minX) * (maxY - minY) / MAX_CELLS));
-  const columns = Math.ceil((maxX - minX) / cell), rows = Math.ceil((maxY - minY) / cell);
-  // Avståndet (i rutor) till närmaste hus, med två svep (avfasat avstånd, 1 och √2).
-  const far = 1e9, distance = new Float32Array(columns * rows).fill(far);
-  for (const ring of houses) {
-    const rx = ring.map(point => point[0]), ry = ring.map(point => point[1]);
-    const c0 = Math.floor((Math.min(...rx) - minX) / cell), c1 = Math.ceil((Math.max(...rx) - minX) / cell);
-    const r0 = Math.floor((Math.min(...ry) - minY) / cell), r1 = Math.ceil((Math.max(...ry) - minY) / cell);
-    let any = false;
-    for (let row = r0; row <= r1; row += 1) for (let column = c0; column <= c1; column += 1) {
-      if (inside(ring, minX + (column + 0.5) * cell, minY + (row + 0.5) * cell)) { distance[row * columns + column] = 0; any = true; }
+  const cuts: { points: Point[]; closed: boolean; box: [number, number, number, number] }[] = [];
+  for (const feature of features) {
+    if (!CUT.test(feature.layer)) continue;
+    const parts: { points: readonly Point[]; closed: boolean }[] = feature.geometry.kind === "line" ? [{ points: feature.geometry.points, closed: !!feature.geometry.closed }]
+      : feature.geometry.kind === "area" ? feature.geometry.rings.map(ring => ({ points: ring, closed: true })) : [];
+    for (const part of parts) {
+      if (part.points.length < 2) continue;
+      const xs = part.points.map(p => p[0]), ys = part.points.map(p => p[1]);
+      cuts.push({ points: [...part.points], closed: part.closed, box: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] });
     }
-    // Ett hus mindre än en ruta får sin mittruta.
-    if (!any) distance[Math.floor((r0 + r1) / 2) * columns + Math.floor((c0 + c1) / 2)] = 0;
   }
-  const at = (column: number, row: number) => column < 0 || row < 0 || column >= columns || row >= rows ? far : distance[row * columns + column]!;
-  for (let row = 0; row < rows; row += 1) for (let column = 0; column < columns; column += 1) {
-    const index = row * columns + column;
-    distance[index] = Math.min(distance[index]!, at(column - 1, row) + 1, at(column, row - 1) + 1, at(column - 1, row - 1) + Math.SQRT2, at(column + 1, row - 1) + Math.SQRT2);
+  const segments = (cut: (typeof cuts)[number]) => cut.points.map((point, i) => [point, cut.points[(i + 1) % cut.points.length]!] as const).slice(0, cut.closed ? undefined : -1);
+  const separated = (a: Point, b: Point) => cuts.some(cut => cut.box[0] <= Math.max(a[0], b[0]) && cut.box[2] >= Math.min(a[0], b[0]) && cut.box[1] <= Math.max(a[1], b[1])
+    && cut.box[3] >= Math.min(a[1], b[1]) && segments(cut).some(([c, d]) => crosses(a, b, c, d)));
+  const centers = houses.map(centroid);
+  // Grannar utan väg emellan hör ihop (union–find; husen sorteras i x så att bara nära hus jämförs).
+  const cluster = (indices: readonly number[], link: number): number[][] => {
+    const order = [...indices].sort((a, b) => centers[a]![0] - centers[b]![0]);
+    const parent = new Map(order.map(i => [i, i])), find = (i: number): number => { const up = parent.get(i)!; if (up === i) return i; const root = find(up); parent.set(i, root); return root; };
+    for (let i = 0; i < order.length; i += 1) for (let j = i + 1; j < order.length; j += 1) {
+      const a = centers[order[i]!]!, b = centers[order[j]!]!;
+      if (b[0] - a[0] > link) break;
+      if (Math.hypot(b[0] - a[0], b[1] - a[1]) <= link && find(order[i]!) !== find(order[j]!) && !separated(a, b)) parent.set(find(order[i]!), find(order[j]!));
+    }
+    const groups = new Map<number, number[]>();
+    for (const i of order) groups.set(find(i), [...(groups.get(find(i)) ?? []), i]);
+    return [...groups.values()];
+  };
+  // En gles grupp (rektangeln mest tom mark, t.ex. hus i vinkel) delas i tätare grupper tills rektanglarna är fyllda.
+  const own = houses.map(ring => ringArea(yardRectangle(ring, settings.radius)));
+  const split = (members: number[], link: number): number[][] => {
+    if (members.length < 2) return [members];
+    const area = ringArea(yardRectangle(members.flatMap(i => houses[i]!), settings.radius));
+    if (area <= 1.3 * members.reduce((sum, i) => sum + own[i]!, 0)) return [members];
+    const parts = cluster(members, link * 0.6);
+    return parts.length > 1 || link > 2 ? parts.flatMap(part => split(part, link * 0.6)) : members.map(i => [i]);
+  };
+  const groups = cluster(houses.map((_, i) => i), settings.link).flatMap(members => split(members, settings.link));
+  const out: SourceFeature[] = [];
+  for (const members of groups) {
+    const rectangle = yardRectangle(members.flatMap(i => houses[i]!), settings.radius);
+    const xs = rectangle.map(p => p[0]), ys = rectangle.map(p => p[1]), box = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] as const;
+    const near = cuts.filter(cut => cut.box[0] <= box[2] && cut.box[2] >= box[0] && cut.box[1] <= box[3] && cut.box[3] >= box[1]);
+    let rings: Point[][] = [rectangle];
+    if (near.length) {
+      const { faces } = facesFromLines([{ id: "tomt", points: rectangle.map(([x, y]) => ({ x, y })), closed: true },
+        ...near.map((cut, i) => ({ id: `klipp${i}`, points: cut.points.map(([x, y]) => ({ x, y })), closed: cut.closed }))], { gapTolerance: 0 });
+      // Bara rutorna inom rektangeln där något av husen står; en väg som slutar inne på tomten delar den inte.
+      const kept = new Set(members.map(i => faceAt(faces, { x: centers[i]![0], y: centers[i]![1] })).filter(face => !!face));
+      if (kept.size) rings = [...kept].map(face => face.outer.map(point => [point.x, point.y] as const));
+    }
+    for (const ring of rings) {
+      if (ring.length >= 3 && ringArea(ring) >= settings.minArea) out.push({ layer: "tomtmark_hus", geometry: { kind: "line", closed: true, points: ring.map(([x, y]) => [x, y] as [number, number]) } });
+    }
   }
-  for (let row = rows - 1; row >= 0; row -= 1) for (let column = columns - 1; column >= 0; column -= 1) {
-    const index = row * columns + column;
-    distance[index] = Math.min(distance[index]!, at(column + 1, row) + 1, at(column, row + 1) + 1, at(column + 1, row + 1) + Math.SQRT2, at(column - 1, row + 1) + Math.SQRT2);
-  }
-  const reach = settings.radius / cell;
-  // Maskhjälparna vill ha kolumnvis ordning (kolumn × rader + rad).
-  const near = new Uint8Array(columns * rows);
-  for (let row = 0; row < rows; row += 1) for (let column = 0; column < columns; column += 1) near[column * rows + row] = distance[row * columns + column]! <= reach ? 1 : 0;
-  const mask = compactMask(near, columns, rows, Math.ceil(settings.minArea / (cell * cell)));
-  // Rutnätets rad 0 är söder; ytterkanterna räknas från rutornas hörn.
-  return maskOutlines(mask, columns, rows).map(ring => simplifyRing(ring, 0.75)).filter(ring => ring.length >= 4)
-    .map(ring => ({ layer: "tomtmark_hus", geometry: { kind: "line" as const, closed: true, points: ring.map(([column, row]) => [minX + column * cell, minY + row * cell] as [number, number]) } }));
+  return out;
 }

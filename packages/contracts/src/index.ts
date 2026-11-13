@@ -308,3 +308,4 @@ export * from "./training-moments";
 export * from "./map-project-recon";
 export * from "./map-project-work-layers";
 export * from "./geo-jobs";
+export * from "./map-project-wms";

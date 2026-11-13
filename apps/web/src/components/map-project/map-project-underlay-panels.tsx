@@ -20,6 +20,7 @@ import { MapProjectCliffPanel, MapProjectKnollPanel } from "./map-project-knoll-
 import { MapProjectFlatPanel } from "./map-project-flat-panel";
 import { MapProjectMoisturePanel } from "./map-project-moisture-panel";
 import { MapProjectOrthoPanel } from "./map-project-ortho-panel";
+import { MapProjectWmsPanel } from "./map-project-wms-panel";
 import type { useMapProjectControlPoints } from "./use-map-project-control-points";
 import type { useMapProjectImport } from "./use-map-project-import";
 import { useMapProjectLaser } from "./use-map-project-laser";
@@ -49,6 +50,7 @@ export function MapProjectUnderlayPanels({ view, georeference, bounds, areas, la
       <h3 className={styles.groupTitle}>{steps.sources}</h3>
       <p className={styles.muted}>{steps.sourcesHelp}</p>
       <MapProjectOrthoPanel view={view} layers={layers} georeference={georeference} bounds={bounds} areas={areas} />
+      <MapProjectWmsPanel view={view} layers={layers} georeference={georeference} bounds={bounds} areas={areas} />
       <MapProjectMoisturePanel view={view} layers={layers} georeference={georeference} bounds={bounds} areas={areas} />
       <MapProjectForestImagePanel view={view} layers={layers} georeference={georeference} bounds={bounds} areas={areas} importer={importer} />
       <h3 className={styles.groupTitle}>{steps.laser}</h3>

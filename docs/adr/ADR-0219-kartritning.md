@@ -328,6 +328,14 @@ båda 4 GB) och raderar efter tomgång, så att användarna inte installerar nå
    större områden får grövre upplösning. Lagret läses ur tjänstens GetCapabilities (eller `OTID_SLU_MOISTURE_LAYER`).
 2. **Webbläsartestet** kör geo-arbetaren (`scripts/geo-worker.ts`) mot webben med en falsk Karttapullautin och falska
    Lantmäteriet och SLU, så att hela kedjan (jobb, laser genom servern, resultat, underlag, kandidater) prövas i CI.
+3. **Ortofoto från valfri WMS** (2026-11-13, ingen migration; Lantmäteriets ortofoto är inte igång för ägarens konto): webbpanelen
+   «Ortofoto från WMS» under «1. Hämta underlag» läser lagren ur en WMS-adress som användaren anger (`map-project-wms.ts`,
+   GetCapabilities 1.3.0 med fallback 1.1.1) och hämtar kartans ruta eller en etapp i SWEREF 99 TM (0,25–2 m per pixel, förval
+   0,5; GetMap i 1.1.1, annars 1.3.0 med axlarna nord, öst), högst 4 000 pixel per ruta och 16 rutor; varje ruta blir ett underlag
+   med världsfil och kan tolkas med «Tolka flygbild». Förval: Göteborgs Stads öppna ortofoto (CC0). Tillskrivningen står i
+   underlagets namn. Servern hämtar en adress som användaren anger, så `public-fetch.ts` släpper bara publika https-adresser
+   (port 443, inga användaruppgifter, ingen omdirigering, alla uppslagna adresser publika, kontrollen i anslutningens egen
+   `lookup`). Samma kvot som markfuktigheten (`MAP_SOURCE_ACCOUNT`, 20 i timmen) och rollen «propose».
 
 ## Tillägg 2026-11-09: generaliseringen som förslag (K6, del 1, ingen migration)
 

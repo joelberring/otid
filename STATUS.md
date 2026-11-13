@@ -21,6 +21,17 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - README börjar med vad som finns i appen nu och listar alla paket; repots beskrivning och ämnesord satta på GitHub.
 - Kvar för ägaren: GitHub Sponsors, och repots beskrivning och ämnesord (inställningarna går inte att ändra härifrån).
 
+### 2026-11-13 – Ortofoto från valfri WMS (kartprojektet)
+- Panelen «Ortofoto från WMS» under «1. Hämta underlag»: adress (förval Göteborgs Stad, CC0), «Läs lagren», lager, upplösning
+  (0,25–2 m), hela kartan eller etapp, «Hämta». Servern (`map-project-wms.ts`, `wms-capabilities.ts`, API under `sources/wms`)
+  läser GetCapabilities (1.3.0, annars 1.1.1) och hämtar bildrutor (högst 4 000 pixel, högst 16 rutor, en per anrop) med
+  världsfil; varje ruta blir ett underlag som «Tolka flygbild» kan läsa. Tillskrivningen står i underlagets namn.
+- Skyddet mot interna adresser i `public-fetch.ts` (https, port 443, inga uppgifter, ingen omdirigering, alla adresser
+  publika kontrollerade i anslutningens `lookup`, node:https i stället för undici som inte finns som beroende). Kvot som
+  markfuktigheten. Ingen migration.
+- Verifierat: enhetstester (skyddet, GetCapabilities, rutindelning, felstatus), integration `adr-0219-wms`, typecheck, lint, knip.
+- Inte provat: mot den riktiga Göteborgs-tjänsten (inget nätverk i bygget). Servern ska stå utan utgående proxy för publika adresser.
+
 ### 2026-11-13 – Belagd yta ur laserns intensitet för sprintkartor (geo-arbetaren 30)
 - Geo-arbetaren skriver `belagt.dxf` (lagret `belagd_yta_laser`) när jobbet har `paved: 1`: öppna 2 m-celler med mörk
   intensitet på markträffarna, gränsen anpassad till skanningen (`scripts/geo-paved.ts`). Mätt mot Bandhagen–Hagsätra:

@@ -316,7 +316,7 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
   };
 
   const pages: ReturnType<PDFDocument["addPage"]>[] = [];
-  const pageTexts: { page: ReturnType<PDFDocument["addPage"]>; text: string; key: string }[] = [];
+  const pageTexts: { page: ReturnType<PDFDocument["addPage"]>; ref: PDFRef; text: string; key: string }[] = [];
   for (const sheet of input.sheets) {
     const W = sheet.paper.widthMm, H = sheet.paper.heightMm;
     const page = document.addPage([W * PT_PER_MM, H * PT_PER_MM]);
@@ -497,7 +497,11 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
       content.op(`${sheet.cutMarks.map(mark => `${num(mark.x1 * PT_PER_MM)} ${num((H - mark.y1) * PT_PER_MM)} m ${num(mark.x2 * PT_PER_MM)} ${num((H - mark.y2) * PT_PER_MM)} l`).join(" ")} S`);
     }
     overprintUsed ||= content.overprintUsed;
-    pageTexts.push({ page, text: content.text(), key: `${num(W)}x${num(H)}:${content.text()}` });
+    // Innehållet registreras här som förut (samma objektordning, så att en fil utan återkommande sidor är byte för byte
+    // densamma som tidigare); en sida som visar sig återkomma får sitt innehåll utbytt nedan.
+    const ref = document.context.register(document.context.flateStream(content.text()));
+    page.node.set(PDFName.of("Contents"), ref);
+    pageTexts.push({ page, ref, text: content.text(), key: `${num(W)}x${num(H)}:${content.text()}` });
   }
   // Ägaren 2026-11-13 («skrivaren verkar behöva hantera varje sida för sig i stället för att skriva ut samma flera gånger»):
   // med en baksida per löpare är framsidan densamma på många ark. En sida vars innehåll återkommer läggs en enda gång i filen
@@ -506,8 +510,8 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
   const repeats = new Map<string, number>();
   for (const { key } of pageTexts) repeats.set(key, (repeats.get(key) ?? 0) + 1);
   const pageForms = new Map<string, { name: string; ref: PDFRef; stream: ReturnType<typeof document.context.flateStream> }>();
-  for (const { page, text, key } of pageTexts) {
-    if ((repeats.get(key) ?? 0) < 2) { page.node.set(PDFName.of("Contents"), document.context.register(document.context.flateStream(text))); continue; }
+  for (const { page, ref, text, key } of pageTexts) {
+    if ((repeats.get(key) ?? 0) < 2) continue;
     let form = pageForms.get(key);
     if (!form) {
       const { width, height } = page.getSize();
@@ -515,7 +519,7 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
       form = { name: `Pg${pageForms.size + 1}`, ref: document.context.register(stream), stream };
       pageForms.set(key, form);
     }
-    page.node.set(PDFName.of("Contents"), document.context.register(document.context.flateStream(`/${form.name} Do`)));
+    document.context.assign(ref, document.context.flateStream(`/${form.name} Do`));
   }
 
   // Resurserna delas av alla sidor och utsnitt: färgrymderna, övertrycket, typsnitten och bilderna.

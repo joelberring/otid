@@ -153,7 +153,9 @@ function readGeoreference(node: XmlNode | undefined, warnings: WarningCollector)
       scale,
       crs,
       refPoint: { easting: num(refPoint, "x", 0), northing: num(refPoint, "y", 0) },
-      mapRefPoint: mapRef ? { x: num(mapRef, "x", 0) / 1000, y: (0 - num(mapRef, "y", 0)) / 1000 } : { x: 0, y: 0 },
+      // Mapper skriver referenspunkten på kartan i mm (objektens koordinater är däremot tusendels mm). Ägarens sprintkarta
+      // Östbergahöjden 2026-11-13 (x="662.08" y="-480.275", objekten 620–840 mm) hamnade 3 km fel när värdet delades med 1000.
+      mapRefPoint: mapRef ? { x: num(mapRef, "x", 0), y: 0 - num(mapRef, "y", 0) } : { x: 0, y: 0 },
       grivationDegrees: num(node, "grivation", 0),
       combinedScaleFactor: factor > 0 ? factor : 1
     }

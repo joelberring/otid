@@ -8,7 +8,7 @@ const encode = (text: string) => new TextEncoder().encode(text);
 const OMAP = `<?xml version="1.0" encoding="UTF-8"?>
 <map xmlns="http://openorienteering.org/apps/mapper/xml/v2" version="9">
 <georeferencing scale="10000" auxiliary_scale_factor="0.9999" grivation="2.5">
-  <ref_point x="1000" y="-2000"/>
+  <ref_point x="1" y="-2"/>
   <projected_crs id="EPSG"><spec language="PROJ.4">+init=epsg:3011</spec><parameter>3011</parameter><ref_point x="150000" y="6580000"/></projected_crs>
 </georeferencing>
 <colors count="4">

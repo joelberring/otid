@@ -9,21 +9,22 @@ import type { LoadedProjectMap } from "./map-project-job-run";
  * (scripts/learn). En cell per `cell` meter; kanalerna:
  *
  * - **R, marken** (senare målat går före): 1 ödemark 403, 2 ödemark med träd 404, 3 öppen mark 401, 4 öppen med träd 402,
- *   5 grönt 406, 6 grönt 408, 7 grönt 410/411, 8 berg i dagen 214, 9 odlat 412–414, 10 stenig mark och block 208–213 (ytor),
- *   11 tomtmark 520, 12 hårdgjort 501, 13 byggnad 521–522, 14 vatten 301–302.
+ *   5 grönt 406, 6 grönt 408, 7 grönt 410, 8 berg i dagen 214, 9 odlat 412–414, 10 stenig mark och block 208–213 (ytor),
+ *   11 tomtmark 520, 12 hårdgjort 501, 13 byggnad 521–522, 14 vatten 301–302, 15 opasserbar vegetation 411 (sprintnormen).
  * - **G, linjer och lager ovanpå:** låga fyra bitar 1 höjdkurva 101, 2 stödkurva 102, 3 hjälpkurva 103, 4 opasserbar brant
  *   201, 5 brant 202, 6 vattendrag och dike 304–306, 7 smal sankmark 309, 8 väg och stig 502–508, 9 jordbrant och vall
- *   104–108; bit 16 sankmark 307–308, bit 32 otydlig sankmark 310, bit 64 undervegetation 407, bit 128 undervegetation 409.
+ *   104–108, 10 passerbar mur och staket 513/516, 11 opasserbar mur och staket 515/518, 12 opasserbar häck 411 (linje);
+ *   bit 16 sankmark 307–308, bit 32 otydlig sankmark 310, bit 64 undervegetation 407, bit 128 undervegetation 409.
  * - **B, punkter:** 1 punkthöjd 109, 2 avlång punkthöjd 110, 3 grop 111–112, 4 sten 204, 5 stor sten 205–206, 6 stengrupp
  *   207, 7 stenig mark (punkt) 208–212, 8 liten sankmark 308, 9 träd och buske 417–418, 10 liten otydlig sankmark 310.
  */
 export interface LabelsRequest { minE: number; minN: number; maxE: number; maxN: number; cell?: number | undefined }
 export const LABELS_MAX_SIDE = 2000;
 
-const GROUND: readonly (readonly [number, readonly number[]])[] = [[1, [403]], [2, [404]], [3, [401]], [4, [402]], [5, [406]], [6, [408]], [7, [410, 411]],
-  [8, [214]], [9, [412, 413, 414]], [10, [208, 209, 210, 211, 212, 213]], [11, [520]], [12, [501]], [13, [521, 522]], [14, [301, 302]]];
+const GROUND: readonly (readonly [number, readonly number[]])[] = [[1, [403]], [2, [404]], [3, [401]], [4, [402]], [5, [406]], [6, [408]], [7, [410]],
+  [8, [214]], [9, [412, 413, 414]], [10, [208, 209, 210, 211, 212, 213]], [11, [520]], [12, [501]], [13, [521, 522]], [14, [301, 302]], [15, [411]]];
 const LINES: readonly (readonly [number, readonly number[]])[] = [[1, [101]], [2, [102]], [3, [103]], [4, [201]], [5, [202]], [6, [304, 305, 306]], [7, [309]],
-  [8, [502, 503, 504, 505, 506, 507, 508]], [9, [104, 105, 106, 107, 108]]];
+  [8, [502, 503, 504, 505, 506, 507, 508]], [9, [104, 105, 106, 107, 108]], [10, [513, 516]], [11, [515, 518]], [12, [411]]];
 const OVERLAY: readonly (readonly [number, readonly number[]])[] = [[16, [307, 308]], [32, [310]], [64, [407]], [128, [409]]];
 const POINTS: readonly (readonly [number, readonly number[]])[] = [[1, [109]], [2, [110]], [3, [111, 112]], [4, [204]], [5, [205, 206]], [6, [207]],
   [7, [208, 209, 210, 211, 212]], [8, [308]], [9, [417, 418]], [10, [310]]];
@@ -34,8 +35,11 @@ const POINTS: readonly (readonly [number, readonly number[]])[] = [[1, [109]], [
 const ISOM_2000: Readonly<Record<number, number>> = { 104: 0, 106: 104, 107: 105, 108: 106, 109: 107, 110: 108, 112: 109, 113: 110, 114: 111, 115: 111,
   116: 112, 117: 113, 118: 115, 202: 206, 203: 202, 204: 203, 205: 203, 206: 204, 207: 205, 208: 208, 209: 207, 211: 213, 212: 214,
   302: 301, 304: 301, 305: 304, 306: 305, 307: 306, 308: 309, 309: 307, 310: 308, 311: 310, 312: 311, 313: 312,
-  411: 406, 412: 413, 413: 414, 414: 415, 415: 412, 418: 417, 419: 418, 420: 419,
+  411: 406, 421: 411, 412: 413, 413: 414, 414: 415, 415: 412, 418: 417, 419: 418, 420: 419,
   501: 502, 503: 502, 504: 503, 505: 504, 506: 505, 507: 506, 508: 507, 509: 508, 515: 509, 516: 510, 517: 511,
+  // Murar och staket (ägarens sprintkartor 2026-11-13 i den äldre sprintnormen ISSOM 2007, som följer ISOM 2000:s nummer):
+  // 519 mur, 521 hög mur, 522 staket, 524 högt staket, 525 passage; 421 är sprintnormens opasserbara vegetation.
+  519: 513, 520: 514, 521: 515, 522: 516, 523: 517, 524: 518, 525: 519,
   526: 521, 527: 520, 528: 520, 529: 501 };
 export const isom2000To2017 = (main: number): number => ISOM_2000[main] ?? main;
 /** ISOM 2000 känns igen på ytor med 526 (byggnad), 527 (tomtmark) eller 529 (hårdgjort): i ISOM 2017-2 är de punkter och linjer. */

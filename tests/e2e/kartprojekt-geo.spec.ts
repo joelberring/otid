@@ -158,9 +158,14 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   // Kandidatlisten under kartan: lagren med antal, och de kan väljas bort innan de läggs in.
   const bar = owner.getByTestId("map-project-candidate-bar");
   await expect(bar).toBeVisible();
-  await expect(bar.getByRole("button", { name: "Lägg in 6 objekt i kartan" })).toBeVisible();
-  await bar.getByRole("checkbox", { name: "308.0 Sankmark (1)" }).last().uncheck();
-  await expect(bar.getByRole("button", { name: "Lägg in 5 objekt i kartan" })).toBeVisible();
+  // Antalet beror på hur laserns blöta mark klipps mot åkern (2026-11-13: inga kärr på skött mark), så det läses av.
+  const add = bar.getByRole("button", { name: /^Lägg in \d+ objekt i kartan$/ });
+  await expect(add).toBeVisible();
+  const countOf = async () => Number(/\d+/.exec(await add.textContent() ?? "")?.[0]);
+  const before = await countOf();
+  expect(before).toBeGreaterThanOrEqual(5);
+  await bar.getByRole("checkbox", { name: /^308\.0 Sankmark \(\d+\)$/ }).last().uncheck();
+  await expect.poll(countOf).toBeLessThan(before);
   // Skogsstyrelsen (ägaren 2026-11-11): kartbilderna som underlag att tända och släcka, och hyggena med reglage för åldern.
   const forest = owner.getByTestId("map-project-forest-images");
   await forest.getByText("Skogsstyrelsen (underlag)").click();

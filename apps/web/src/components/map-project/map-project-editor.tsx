@@ -1,13 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { mapProjectNotesEn } from "../../i18n/map-project-tools-en";
-import { mapProjectReconEn } from "../../i18n/map-project-more-en";
-import { mapProjectEditorEn } from "../../i18n/map-project-en";
-import { mapProjectQuickEn } from "../../i18n/map-project-tools-en";
-import { mapProjectLayersEn } from "../../i18n/map-project-en";
-import { mapProjectWorkLayersEn } from "../../i18n/map-project-more-en";
-import { mapProjectRectifyEn } from "../../i18n/map-project-more-en";
+import { mapProjectKeysEn, mapProjectNotesEn, mapProjectQuickEn } from "../../i18n/map-project-tools-en";
+import { mapProjectEditorEn, mapProjectLayersEn } from "../../i18n/map-project-en";
+import { mapProjectReconEn, mapProjectRectifyEn, mapProjectWorkLayersEn } from "../../i18n/map-project-more-en";
 import { useTexts, useLocale } from "../language-provider";
 import Link from "next/link";
 import type { MapProjectView } from "@o-tid/contracts";
@@ -30,6 +26,7 @@ import { useMapProjectRectify } from "./use-map-project-rectify";
 import { MapProjectRectifyPanel } from "./map-project-rectify-panel";
 import { MapProjectNorthPanel } from "./map-project-north-panel";
 import { useMapProjectSplit } from "./use-map-project-split";
+import { useMapProjectFill } from "./use-map-project-fill";
 import { mapProjectRectifySv } from "../../i18n/map-project-rectify-sv";
 import { useMapProjectNorm } from "./use-map-project-norm";
 import { mapProjectNotesSv } from "../../i18n/map-project-notes-sv";
@@ -70,7 +67,6 @@ import { MapProjectToolRail } from "./map-project-tool-rail";
 import { HelpButton } from "../help/help-panel";
 import { MapProjectKeysDialog, useMapProjectKeys } from "./map-project-keys-dialog";
 import { mapProjectKeysSv } from "../../i18n/map-project-keys-sv";
-import { mapProjectKeysEn } from "../../i18n/map-project-tools-en";
 import { keyLabel } from "../../lib/map-project-keys";
 import { editPointAt } from "../../lib/map-project-point-edit";
 import { anchorOf, ROTATE_CURSOR, useMapProjectMulti } from "./use-map-project-multi";
@@ -82,8 +78,8 @@ import { mapProjectQuickSv } from "../../i18n/map-project-quick-sv";
 import { circleFor, shapeActions, withRecent } from "../../lib/map-project-shape-actions";
 import styles from "./map-project-editor.module.css";
 
-/** `area` = rita ett delområde (bara ägarna); `split` = dela kartområdet eller en del med ett streck; `note` = tryck där en notis ska sitta (K3); `circle` = runda former (ägaren 2026-11-09). */
-type Tool = "select" | "draw" | "area" | "split" | "note" | "circle" | "rectangle" | "addPoint" | "removePoint" | "cut";
+/** `area` = rita ett delområde (bara ägarna); `split` = dela kartområdet eller en del med ett streck; `note` = tryck där en notis ska sitta (K3); `circle` = runda former (ägaren 2026-11-09); `bucket` = Fyll yta (rutan mellan linjerna, ägaren 2026-11-13). */
+type Tool = "select" | "draw" | "area" | "split" | "note" | "circle" | "rectangle" | "bucket" | "addPoint" | "removePoint" | "cut";
 interface Selected { readonly key: ObjectKey; readonly ref: ObjectRef | null; readonly object: MapObject }
 type Drag =
   | { readonly mode: "vertex"; readonly address: VertexAddress; readonly original: MapObject }
@@ -260,6 +256,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   // Ägaren 2026-11-10: flera objekt markerade med en ruta (som i Illustrator). Mellanslag nedtryckt = dra kartan i stället.
   const multi = useMapProjectMulti({ session, hidden: unselectable, commit, setPreviewKeys: setPreview });
   const panKey = useRef({ down: false, used: false });
+  const fill = useMapProjectFill({ session, active: tool === "bucket" && canEdit, symbol, hidden: hiddenSymbols, commit, say: setFlash });
   const lockedSymbols = symbolLayers.locked;
   useEffect(() => { if (selected && lockedSymbols.has(selected.object.symbol)) deselect(); }, [lockedSymbols, selected]);
   const deselect = () => { setSelected(undefined); setActiveVertex(undefined); setRotating(false); setMoveWhole(false); };
@@ -360,6 +357,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         setDraft(points => [...points, { at: point }]);
         return;
       }
+      if (tool === "bucket" && canEdit) { fill.tap(point); return; }
       if (tool === "circle" && canEdit) {
         if (!symbol || (symbol.kind !== "line" && symbol.kind !== "area")) { setFlash(quick.circleNeedsShape); return; }
         if (circleCenter) placeCircle(circleCenter, point); else setCircleCenter(point);
@@ -522,6 +520,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     onDragCancel() { multi.cancel(); drag.current = undefined; setPreviewObject(undefined); setPreview(new Set()); },
     onHover(point, modifiers) {
       if (tool === "select" && multi.items.length) multi.hover(point, 8 / modifiers.pxPerMm);
+      if (tool === "bucket") fill.hover(point);
       if (tool !== "select" && (draft.length || circleCenter)) setCursor(point);
       if (tool === "circle" && circleCenter && point && symbol) setPreviewObject(circleFor(symbol.kind, symbol.id, circleCenter, point));
     },
@@ -597,6 +596,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     if (multi.moving) for (const object of multi.shown) drawPreview(ctx, current, object, symbols.get(object.symbol));
     if (multi.box && multi.items.length) drawMultiSelection(ctx, current, multi.shown, multi.box);
     if (multi.marquee) drawMarquee(ctx, current, multi.marquee);
+    fill.draw(ctx, current);
     if (shown && tool === "select" && selected) {
       drawSelection(ctx, current, shown, activeVertex);
       const handles = activeVertex ? vertexHandles(shown, activeVertex) : undefined;
@@ -605,9 +605,9 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   }, [preview, selected, symbols, tool, symbol, draft, cursor, circleCenter, activeVertex, areaDrawings, proposedOpen, proposedShown, view.area, coverage, recon.layers,
     recon.trackLines, reconResult, walk, gapMm, notes.notes, shownNote, noteDraft, drawnLayers, candidates, normIssues, shownIssue,
     control.active, control.markers, rectify.shown, rectify.markers, sketchLayers, work.dragging, work.drawingLayer, work.stroke,
-    multi.moving, multi.shown, multi.box, multi.items.length, multi.marquee]);
+    multi.moving, multi.shown, multi.box, multi.items.length, multi.marquee, fill.preview, fill.gaps]);
 
-  const hint = tool === "split" ? split.hint : toolHint({ canEdit, closed: view.status === "CLOSED", tool, multiCount: multi.items.length, rotating: multi.zone === "rotate", symbol,
+  const hint = tool === "split" ? split.hint : tool === "bucket" && canEdit ? fill.hint : toolHint({ canEdit, closed: view.status === "CLOSED", tool, multiCount: multi.items.length, rotating: multi.zone === "rotate", symbol,
     text, notes: notesText, keys: keysText, quick });
   const selectedSymbol = selected ? symbols.get(selected.object.symbol) : undefined;
   const hintLine = control.active ? (control.pending ? layersText.control.hintMap : layersText.control.hintImage)
@@ -691,7 +691,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         {editor.mapStatus === "failed" && <Notice tone="error" role="alert">{text.failed}</Notice>}
         {/* Kartvyn visas när kartan är läst: då har rutan sin storlek och hela kartan passas in. */}
         {editor.bounds && <div className={styles.frame}><CourseSettingMap session={session} mapBounds={editor.bounds} primitives={[]} faded={[]} marks={NO_MARKS} analysis={undefined}
-          label={text.mapLabel} cursor={tool === "draw" || tool === "circle" || tool === "rectangle" || tool === "addPoint" || tool === "removePoint" || tool === "cut" ? "crosshair" : "default"} handlers={handlers} overlayExtra={overlay}
+          label={text.mapLabel} cursor={tool === "draw" || tool === "circle" || tool === "bucket" || tool === "rectangle" || tool === "addPoint" || tool === "removePoint" || tool === "cut" ? "crosshair" : "default"} handlers={handlers} overlayExtra={overlay}
           cursorAt={tool === "select" && multi.items.length ? (point, tolerance) => {
             const zone = multi.zoneAt(point, tolerance);
             return zone === "move" ? "move" : zone === "rotate" ? ROTATE_CURSOR : undefined;

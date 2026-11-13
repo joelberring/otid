@@ -18,7 +18,7 @@ export interface RailState {
   readonly canUndo: boolean; readonly canRedo: boolean;
   /** Något är markerat (ett objekt eller flera), och vad som går att göra med det. */
   readonly hasSelection: boolean; readonly canSwitch: boolean; readonly canJoin: boolean; readonly canReverse: boolean; readonly canPick: boolean; readonly canSmooth: boolean; readonly canSimplify: boolean;
-  readonly pick: (tool: "select" | "draw" | "circle" | "rectangle" | "addPoint" | "removePoint" | "cut" | "area" | "note") => void;
+  readonly pick: (tool: "select" | "draw" | "circle" | "rectangle" | "bucket" | "addPoint" | "removePoint" | "cut" | "area" | "note") => void;
   readonly act: (command: "switchSymbol" | "join" | "smooth" | "simplify" | "checked" | "reverse" | "pick" | "duplicate" | "fill" | "parallel") => void;
   readonly remove: () => void; readonly undo: () => void; readonly redo: () => void;
   readonly togglePanel: () => void; readonly toggleBare: () => void; readonly openWheel: () => void; readonly openKeys: () => void;
@@ -41,6 +41,8 @@ export function railTools(state: RailState): RailTool[] {
         onPick: () => state.pick("circle") },
       { id: "rectangle", label: text.commands.rectangle, icon: "rectangle", key: key("rectangle"), help: text.tips.rectangle, active: state.tool === "rectangle",
         testId: "map-project-rectangle-tool", onPick: () => state.pick("rectangle") },
+      { id: "bucket", label: text.commands.bucket, icon: "bucket", key: key("bucket"), help: text.tips.bucket, active: state.tool === "bucket",
+        testId: "map-project-bucket-tool", onPick: () => state.pick("bucket") },
       { id: "addPoint", label: text.commands.addPoint, icon: "addPoint", key: key("addPoint"), help: text.addPointHint, gap: true, active: state.tool === "addPoint",
         testId: "map-project-add-point", onPick: () => state.pick("addPoint") },
       { id: "removePoint", label: text.commands.removePoint, icon: "removePoint", key: key("removePoint"), help: text.removePointHint, active: state.tool === "removePoint",

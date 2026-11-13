@@ -6,7 +6,7 @@ export const mapProjectKeysSv = {
   title: "Tangenter i ritläget",
   help: "Tangenterna ligger under vänster hand, så att höger hand kan stanna på musen. Klicka på en tangent och tryck sedan den nya. Valet sparas i den här webbläsaren.",
   commands: {
-    select: "Redigera", draw: "Rita", circle: "Cirkel", rectangle: "Rektangel", duplicate: "Duplicera", fill: "Fyll yta eller gör kant", parallel: "Parallell linje", note: "Notis", addPoint: "Lägg till punkt", removePoint: "Ta bort punkt", cut: "Klipp isär", pick: "Ta symbolen från det markerade", reverse: "Vänd riktning",
+    select: "Redigera", draw: "Rita", circle: "Cirkel", rectangle: "Rektangel", bucket: "Fyll yta mellan linjer", duplicate: "Duplicera", fill: "Fyll yta eller gör kant", parallel: "Parallell linje", note: "Notis", addPoint: "Lägg till punkt", removePoint: "Ta bort punkt", cut: "Klipp isär", pick: "Ta symbolen från det markerade", reverse: "Vänd riktning",
     switchSymbol: "Byt symbol på det markerade", join: "Slå ihop linjer eller ytor", simplify: "Förenkla", smooth: "Gör mjuk", checked: "Markera kollad",
     undo: "Ångra", redo: "Gör om", wheel: "Verktygshjulet", bare: "Bara kartan"
   } satisfies Record<KeyCommand, string>,
@@ -45,6 +45,7 @@ export const mapProjectKeysSv = {
     join: "Markera med en ruta eller Skift+klick. Linjer med samma symbol vars ändar möts blir en linje; två markerade linjer binds alltid ihop. Ytor med samma symbol som överlappar blir en yta.",
     cut: "Klicka på en linje för att dela den i två där. På en brytpunkt delas den i punkten.",
     rectangle: "Klicka två hörn för en sida och ett tredje för bredden: en rektangel med räta vinklar i valfri riktning (hus, plattformar). Ritas med den valda linje- eller ytsymbolen.",
+    bucket: "Klicka i en ruta som är omgiven av linjer eller ytkanter: den fylls med den valda ytsymbolen, med hus och andra slutna ytor som hål. Glapp upp till 2 m sluts.",
     duplicate: "Gör en kopia av det markerade, en halv millimeter snett nedanför.",
     fill: "En markerad sluten linje fylls med den valda ytsymbolen; en markerad yta får en kant med den valda linjesymbolen.",
     parallel: "En linje parallellt med den markerade, en millimeter till höger (taggarnas sida). Byt riktning först för vänster sida.",

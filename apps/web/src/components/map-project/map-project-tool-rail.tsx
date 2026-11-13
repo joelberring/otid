@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import styles from "./map-project-tool-rail.module.css";
 
 export type RailIcon = "select" | "draw" | "circle" | "area" | "note" | "undo" | "redo" | "panel" | "addPoint" | "removePoint" | "keys"
-  | "cut" | "rectangle" | "duplicate" | "fill" | "parallel" | "pick" | "reverse" | "switchSymbol" | "join" | "smooth" | "simplify" | "checked" | "remove" | "wheel" | "bare";
+  | "cut" | "rectangle" | "bucket" | "duplicate" | "fill" | "parallel" | "pick" | "reverse" | "switchSymbol" | "join" | "smooth" | "simplify" | "checked" | "remove" | "wheel" | "bare";
 
 export interface RailTool {
   readonly id: string; readonly label: string; readonly icon: RailIcon;
@@ -45,6 +45,8 @@ const PATHS: Record<RailIcon, ReactNode> = {
   join: <><path d="M3 18l6-6M21 6l-6 6" /><circle cx="12" cy="12" r="2.6" /></>,
   // Saxen, pipetten och två pilar åt var sitt håll.
   rectangle: <path d="M4 7l13-3 3 13-13 3z" />,
+  // Färgburken: en lutad burk och en droppe.
+  bucket: <><path d="M4.5 12.5L12 5l7 7-7.5 7.5z" /><path d="M9 3.5l3 3" /><path d="M20 15.5c1 1.6 1.5 2.5 1.5 3.3a1.5 1.5 0 01-3 0c0-.8.5-1.7 1.5-3.3z" fill="currentColor" stroke="none" /></>,
   duplicate: <><rect x="4" y="4" width="11" height="11" rx="1.5" /><path d="M9 20h9.5a1.5 1.5 0 001.5-1.5V9" /></>,
   fill: <><path d="M5 6h14v12H5z" /><path d="M5 12l7-6M5 18l14-12M11 18l8-7" /></>,
   parallel: <path d="M4 15c4-6 8-6 16-2M4 20c4-6 8-6 16-2" />,

@@ -3,13 +3,13 @@
  * som den står på tangentbordet ("Q", "Space", "§"), med "Shift+" framför för varianten. Bokstäverna läses ur tangentens
  * plats (`event.code`), så att de är desamma oavsett tangentbordets språk. Cmd/Ctrl+Z och Cmd/Ctrl+Skift+Z gäller alltid.
  */
-export const KEY_COMMANDS = ["select", "draw", "circle", "rectangle", "note", "addPoint", "removePoint", "cut", "switchSymbol", "pick", "reverse", "join", "simplify", "smooth", "checked", "duplicate", "fill", "parallel",
+export const KEY_COMMANDS = ["select", "draw", "circle", "rectangle", "bucket", "note", "addPoint", "removePoint", "cut", "switchSymbol", "pick", "reverse", "join", "simplify", "smooth", "checked", "duplicate", "fill", "parallel",
   "undo", "redo", "wheel", "bare"] as const;
 export type KeyCommand = typeof KEY_COMMANDS[number];
 export type KeyMap = Readonly<Record<KeyCommand, string>>;
 
 export const DEFAULT_KEYS: KeyMap = {
-  select: "Q", draw: "W", circle: "Shift+E", rectangle: "Shift+W", note: "Shift+T", duplicate: "Shift+D", fill: "Shift+F", parallel: "Shift+V",
+  select: "Q", draw: "W", circle: "Shift+E", rectangle: "Shift+W", bucket: "G", note: "Shift+T", duplicate: "Shift+D", fill: "Shift+F", parallel: "Shift+V",
   addPoint: "A", removePoint: "S", cut: "X", pick: "D", reverse: "V", smooth: "Shift+A", simplify: "Shift+S",
   undo: "Z", redo: "Shift+Z", switchSymbol: "C", join: "F", checked: "R",
   wheel: "Space", bare: "§"

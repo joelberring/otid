@@ -32,7 +32,8 @@ describe("ritlägets tangenter", () => {
   it("hittar kommandot för en tangent", () => {
     expect(commandFor(DEFAULT_KEYS, "Q")).toBe("select");
     expect(commandFor(DEFAULT_KEYS, "Shift+S")).toBe("simplify");
-    expect(commandFor(DEFAULT_KEYS, "G")).toBeUndefined();
+    expect(commandFor(DEFAULT_KEYS, "G")).toBe("bucket");
+    expect(commandFor(DEFAULT_KEYS, "B")).toBeUndefined();
     expect(commandFor(DEFAULT_KEYS, undefined)).toBeUndefined();
   });
 

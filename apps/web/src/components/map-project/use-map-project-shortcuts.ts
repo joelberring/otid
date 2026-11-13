@@ -3,7 +3,7 @@
 import { useEffect, useRef, type RefObject } from "react";
 import { bindingOf, commandFor, type KeyMap } from "../../lib/map-project-keys";
 
-type ToolCommand = "select" | "draw" | "circle" | "rectangle" | "addPoint" | "removePoint" | "cut" | "note";
+type ToolCommand = "select" | "draw" | "circle" | "rectangle" | "bucket" | "addPoint" | "removePoint" | "cut" | "note";
 export type SelectedCommand = "simplify" | "smooth" | "switchSymbol" | "checked" | "join" | "reverse" | "pick" | "duplicate" | "fill" | "parallel";
 
 export interface ShortcutApi {
@@ -48,7 +48,7 @@ export function useMapProjectShortcuts(api: ShortcutApi) {
       else if (bound === "redo") { event.preventDefault(); now.redo(); }
       else if (bound === "bare") { event.preventDefault(); now.toggleBare(); }
       else if (bound === "select") now.pickTool("select");
-      else if (bound && now.canEdit && (bound === "draw" || bound === "circle" || bound === "rectangle" || bound === "addPoint" || bound === "removePoint" || bound === "cut")) now.pickTool(bound);
+      else if (bound && now.canEdit && (bound === "draw" || bound === "circle" || bound === "rectangle" || bound === "bucket" || bound === "addPoint" || bound === "removePoint" || bound === "cut")) now.pickTool(bound);
       else if (bound === "note" && now.canNote) now.pickTool("note");
       else if (bound && (now.hasSelection || now.multiCount > 0) && now.canEdit && now.tool === "select"
         && (bound === "simplify" || bound === "smooth" || bound === "switchSymbol" || bound === "checked" || bound === "join" || bound === "reverse" || bound === "pick" || bound === "duplicate" || bound === "fill" || bound === "parallel")) { event.preventDefault(); now.selectedAction(bound); }

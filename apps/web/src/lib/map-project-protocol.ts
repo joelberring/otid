@@ -4,6 +4,7 @@ import type {
 } from "@o-tid/map-revision";
 import type { MapRenderErrorCode, MapRenderRequest } from "./course-setting-map-protocol";
 import type { Bounds } from "./course-setting-viewport";
+import type { FillQuery, FillResult } from "./map-project-fill-area";
 
 /**
  * ADR-0219 (K1): kartprojektets karta ritas i en egen Worker (`map-project-worker.ts`). Den läser grundfilen en gång (med
@@ -62,7 +63,9 @@ export type MapProjectRequest =
   /** Ägaren 2026-11-10: "Passa in mot kartan" för ett vektorunderlag (punkterna i kartans mm, per sort). */
   | { readonly type: "fit"; readonly id: number; readonly source: readonly FitPoint[] }
   /** Ägaren 2026-11-12: kartans bebyggda ytor (tomtmark, hårdgjort, byggnader), som kandidater inte läses in i. */
-  | { readonly type: "built"; readonly id: number };
+  | { readonly type: "built"; readonly id: number }
+  /** Ägaren 2026-11-13: Fyll yta – rutan som kartans synliga linjer och ytkanter bildar kring punkten. */
+  | { readonly type: "fill"; readonly id: number; readonly query: FillQuery };
 
 export type MapProjectResponse =
   | { readonly type: "loaded"; readonly bounds: Bounds; readonly scale: number; readonly georeference: MapGeoreference | null;
@@ -80,6 +83,7 @@ export type MapProjectResponse =
   | { readonly type: "warp"; readonly id: number; readonly changes: readonly WarpChange<ObjectKey>[]; readonly refs: readonly (readonly [ObjectKey, ObjectRef])[] }
   | { readonly type: "fit"; readonly id: number; readonly fit: VectorFit | null }
   | { readonly type: "built"; readonly id: number; readonly polygons: readonly [number, number][][][] }
+  | { readonly type: "fill"; readonly id: number; readonly result: FillResult }
   | { readonly type: "error"; readonly code: MapRenderErrorCode };
 
 /** Ett objekt med sin nyckel och (för grundfilens objekt) sin referens. */
@@ -111,6 +115,8 @@ export class MapProjectSession {
   private latestFit = 0;
   private latestBuilt = 0;
   private onBuilt: ((polygons: readonly [number, number][][][]) => void) | undefined;
+  private latestFill = 0;
+  private onFill: ((result: FillResult) => void) | undefined;
   private onFit: ((fit: VectorFit | null) => void) | undefined;
   private onWarp: ((changes: readonly WarpChange<ObjectKey>[], refs: ReadonlyMap<ObjectKey, ObjectRef>) => void) | undefined;
 
@@ -130,6 +136,7 @@ export class MapProjectSession {
       else if (message.type === "bySymbol") { if (message.id === this.latestBySymbol) this.onBySymbol?.(message.objects); }
       else if (message.type === "warp") { if (message.id === this.latestWarp) this.onWarp?.(message.changes, new Map(message.refs)); }
       else if (message.type === "fit") { if (message.id === this.latestFit) this.onFit?.(message.fit); }
+      else if (message.type === "fill") { if (message.id === this.latestFill) this.onFill?.(message.result); }
       else if (message.type === "built") { if (message.id === this.latestBuilt) this.onBuilt?.(message.polygons); }
       else if (message.id === this.latest && this.onRendered) this.onRendered(message.id, message.bitmap);
       else message.bitmap.close();
@@ -210,6 +217,13 @@ export class MapProjectSession {
     this.post({ type: "built", id });
   }
 
+  /** Fyll yta: den slutna rutan kring punkten, eller varför den inte är sluten. Bara det senaste svaret används. */
+  fill(query: FillQuery, onFill: (result: FillResult) => void) {
+    const id = ++this.latestFill;
+    this.onFill = onFill;
+    this.post({ type: "fill", id, query });
+  }
+
   fit(source: readonly FitPoint[], onFit: (fit: VectorFit | null) => void) {
     const id = ++this.latestFit;
     this.onFit = onFit;
@@ -217,7 +231,7 @@ export class MapProjectSession {
   }
 
   close() {
-    this.onFit = undefined;
+    this.onFit = undefined; this.onFill = undefined;
     this.onGeneralize = undefined; this.onBySymbol = undefined; this.onWarp = undefined;
     this.onRendered = undefined; this.onHit = undefined; this.onCatalog = undefined; this.onRecon = undefined; this.onNorm = undefined;
     this.worker.terminate();

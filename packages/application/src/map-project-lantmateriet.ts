@@ -5,7 +5,7 @@ import { validOsmBox } from "@o-tid/map-revision";
 import { consumeAccountRequestAllowance } from "./account-throttle";
 import type { ClubFailure, ClubProof } from "./club-access";
 import { requireMapProject } from "./map-project-access";
-import { openMapSourceCredential, type MapSourceSecret } from "./map-source-credentials";
+import { missingMapSourceCredential, openMapSourceCredential, type MapSourceCredentialGap, type MapSourceSecret } from "./map-source-credentials";
 
 /**
  * ADR-0219 tillägget om hämtningen (K4c): ortofoton från Lantmäteriet med kontots egna uppgifter. Servern söker i STAC-tjänsten
@@ -69,7 +69,7 @@ export interface OrthoItem {
   /** Bildens adress (COG); läses genom `asset`-anropet. */
   readonly href: string; readonly title: string | null;
 }
-export type LantmaterietFailure = ClubFailure | { status: "no-credential" } | { status: "rejected" } | { status: "too-large" } | { status: "throttled" }
+export type LantmaterietFailure = ClubFailure | { status: "no-credential"; detail?: MapSourceCredentialGap } | { status: "rejected" } | { status: "too-large" } | { status: "throttled" }
   | { status: "unavailable"; detail: string };
 
 /** STAC-svaret som en lista med en bild per objekt (den första GeoTIFF:en), nyast först. */
@@ -106,7 +106,7 @@ export async function searchMapProjectOrtho(db: Database, input: ClubProof & { p
   });
   if (allowed.status !== "ok") return allowed;
   const secret = await openMapSourceCredential(db, allowed.accountId, runtime.environment);
-  if (!secret) return { status: "no-credential" };
+  if (!secret) return missingMapSourceCredential(db, allowed.accountId, runtime.environment, "ortofotosökning");
   const box = parsed.data!.box;
   let response: Response;
   try {
@@ -144,7 +144,7 @@ export async function readMapProjectOrthoAsset(db: Database, input: ClubProof & 
   let url = allowedSourceUrl(input.href, runtime);
   if (!url) return { status: "invalid-request" };
   const secret = await openMapSourceCredential(db, access.accountId, runtime.environment);
-  if (!secret) return { status: "no-credential" };
+  if (!secret) return missingMapSourceCredential(db, access.accountId, runtime.environment, "ortofotohämtning");
   try {
     const auth = await lantmaterietAuthorization(secret, runtime);
     if (!auth) return { status: "rejected" };

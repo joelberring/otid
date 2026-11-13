@@ -12,7 +12,7 @@ import { contentHead, contentLength, mapStorageQuota, readMapContent, storeMapCo
 import { aiGate, mapProjectAllows, requireMapProject, requireMapProjectForAccount, sessionGate, type MapProjectGate } from "./map-project-access";
 import { allowedLaserUrl, fetchLaserFile, type LaserRuntime } from "./map-project-laser";
 import type { LantmaterietFailure } from "./map-project-lantmateriet";
-import { openMapSourceCredential } from "./map-source-credentials";
+import { missingMapSourceCredential, openMapSourceCredential, type MapSourceCredentialGap } from "./map-source-credentials";
 import { geoServerForToken, geoServerSettings, geoServerStateView, noteGeoServerJob } from "./geo-server";
 import { UUID_PATTERN } from "./serialization";
 import type { DbExecutor } from "./snapshot";
@@ -61,7 +61,7 @@ function reaches(bbox: readonly [number, number, number, number] | null | undefi
   return bbox[0] <= east && bbox[2] >= west && bbox[1] <= north && bbox[3] >= south;
 }
 
-export type GeoJobFailure = ClubFailure | { status: "no-credential" } | { status: "busy" } | { status: "quota" };
+export type GeoJobFailure = ClubFailure | { status: "no-credential"; detail?: MapSourceCredentialGap } | { status: "busy" } | { status: "quota" };
 
 export function geoTilesPerMonth(environment: Record<string, string | undefined> = process.env): number {
   // En tom variabel (som compose skickar när den inte är satt) ger förvalet, inte noll.
@@ -351,7 +351,7 @@ export async function openGeoJobLaser(db: Database, jobId: string, worker: strin
   const tile = (extra ? request.extras : request.tiles)?.[index];
   if (!tile) return { status: "not-found" };
   const secret = await openMapSourceCredential(db, job.accountId, runtime.environment);
-  if (!secret) return { status: "no-credential" };
+  if (!secret) return missingMapSourceCredential(db, job.accountId, runtime.environment, "laserhämtning i geo-jobb");
   return fetchLaserFile(secret, tile.href, runtime);
 }
 

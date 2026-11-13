@@ -108,3 +108,20 @@ export async function openMapSourceCredential(db: Database, accountId: string, e
   const [row] = await db.select().from(credentials).where(and(eq(credentials.accountId, accountId), eq(credentials.provider, PROVIDER)));
   return row ? open(row, keys) : undefined;
 }
+
+/** Varför kontots uppgifter inte gick att öppna: inget sparat, servern saknar huvudnyckeln, nyckeln är bytt eller raden går inte att läsa. */
+export type MapSourceCredentialGap = "NOT_SAVED" | "NO_MASTER_KEY" | "KEY_CHANGED" | "UNREADABLE";
+
+/**
+ * Svaret när `openMapSourceCredential` gav undefined: samma status som förr (`no-credential`) men med orsaken i `detail`,
+ * och en rad i serverloggen (aldrig uppgifterna själva). De fyra fallen såg tidigare likadana ut utifrån.
+ */
+export async function missingMapSourceCredential(db: Database, accountId: string, environment: Record<string, string | undefined>, where: string)
+  : Promise<{ status: "no-credential"; detail: MapSourceCredentialGap }> {
+  const keys = master(environment);
+  const [row] = await db.select({ keyId: credentials.keyId }).from(credentials)
+    .where(and(eq(credentials.accountId, accountId), eq(credentials.provider, PROVIDER)));
+  const detail: MapSourceCredentialGap = !row ? "NOT_SAVED" : !keys ? "NO_MASTER_KEY" : row.keyId !== keys.keyId ? "KEY_CHANGED" : "UNREADABLE";
+  console.warn(`[kartkällor] ${where}: uppgifterna till Lantmäteriet gick inte att öppna (${detail}) för konto ${accountId}`);
+  return { status: "no-credential", detail };
+}

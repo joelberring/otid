@@ -55,7 +55,11 @@ function refusal(result: { status: string; detail?: string }): string {
   switch (result.status) {
     case "forbidden": return "Laserkörningen startades inte: ägaren har satt AI-kopplingen till att bara läsa i det här projektet (aiMode READ), eller så har kontot inte rollen Föreslå eller högre i ett öppet projekt.";
     case "not-found": return "Projektet finns inte eller kontot är inte medlem.";
-    case "no-credential": return "Kontot har inga sparade uppgifter till Lantmäteriet. Ägaren sparar dem i O-Tid under Mitt konto → Kartkällor.";
+    case "no-credential":
+      if (result.detail === "NO_MASTER_KEY") return "Kontots uppgifter till Lantmäteriet är sparade men servern saknar nyckeln som öppnar dem (OTID_EVENTOR_MASTER_KEY). Det rättas på servern, inte i kontot.";
+      if (result.detail === "KEY_CHANGED") return "Kontots uppgifter till Lantmäteriet är sparade med en äldre servernyckel och går inte att öppna. Spara dem igen i O-Tid under Mitt konto → Kartkällor.";
+      if (result.detail === "UNREADABLE") return "Kontots uppgifter till Lantmäteriet är sparade men gick inte att läsa (dekrypteringen misslyckades). Spara dem igen i O-Tid under Mitt konto → Kartkällor; se serverloggen om det återkommer.";
+      return "Kontot har inga sparade uppgifter till Lantmäteriet. Ägaren sparar dem i O-Tid under Mitt konto → Kartkällor.";
     case "rejected": return "Lantmäteriet godkände inte kontots uppgifter (eller kontot saknar laserdata i sin beställning).";
     case "too-large": return "Området är för stort för en laserkörning. Dela kartan i etapper och kör en etapp i taget (area_id).";
     case "throttled": return "För många sökningar hos Lantmäteriet (högst 30 i timmen per konto). Vänta en stund.";

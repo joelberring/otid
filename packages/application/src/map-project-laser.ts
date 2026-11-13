@@ -5,7 +5,7 @@ import { consumeAccountRequestAllowance } from "./account-throttle";
 import type { ClubProof } from "./club-access";
 import { aiGate, sessionGate, type MapProjectGate } from "./map-project-access";
 import { allowedSourceUrl, lantmaterietAuthorization, type LantmaterietFailure, type LantmaterietRuntime } from "./map-project-lantmateriet";
-import { openMapSourceCredential, type MapSourceSecret } from "./map-source-credentials";
+import { missingMapSourceCredential, openMapSourceCredential, type MapSourceSecret } from "./map-source-credentials";
 
 /**
  * ADR-0219 K5 (ägaren 2026-11-08): laserdata (Laserdata Nedladdning, skog) från Lantmäteriets `stac-hojd` med kontots egna
@@ -147,7 +147,7 @@ async function searchLaser(db: Database, gate: MapProjectGate, request: unknown,
   });
   if (allowed.status !== "ok") return allowed;
   const secret = await openMapSourceCredential(db, allowed.accountId, runtime.environment);
-  if (!secret) return { status: "no-credential" };
+  if (!secret) return missingMapSourceCredential(db, allowed.accountId, runtime.environment, "lasersökning");
   let auth: string | undefined;
   try { auth = await lantmaterietAuthorization(secret, runtime); } catch { return { status: "unavailable", detail: "network" }; }
   if (!auth) return { status: "rejected" };

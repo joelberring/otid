@@ -166,8 +166,15 @@ export function useMapProjectLayers(view: MapProjectView, georeference: MapGeore
     return next;
   }), []);
 
+  /** Visa eller dölj flera på en gång (en grupp av etapper, eller alla underlag). */
+  const setShown = useCallback((layerIds: readonly string[], shown: boolean) => setHidden(current => {
+    const next = new Set(current);
+    for (const layerId of layerIds) { if (shown) next.delete(layerId); else next.add(layerId); }
+    return next;
+  }), []);
+
   // Listan visas med det översta först.
   const listed = useMemo(() => [...layers].sort((a, b) => b.sort - a.sort || b.createdAt.localeCompare(a.createdAt)), [layers]);
-  return { layers: listed, hidden, toggle, drawn, loaded, upload, addRemote, placeLayer, reload: load, busy, problem, setProblem, setOpacity, remove, move,
+  return { layers: listed, hidden, toggle, setShown, drawn, loaded, upload, addRemote, placeLayer, reload: load, busy, problem, setProblem, setOpacity, remove, move,
     canAdd: view.viewer.canPropose, canReorder: view.viewer.canDecide, canManage: (layer: MapProjectLayerView) => layer.own || view.viewer.canDecide };
 }

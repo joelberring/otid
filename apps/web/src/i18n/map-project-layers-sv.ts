@@ -19,6 +19,14 @@ export const mapProjectLayersSv = {
   down: (name: string) => `Flytta ned ${name}`,
   removeConfirm: "Ta bort underlaget för alla i projektet?",
   by: (name: string | null, size: string) => `${name ?? "Okänd"} · ${size}`,
+  // Ägaren 2026-11-13: många underlag efter en körning i etapper; samma bild som en rad, och allt på en gång.
+  hideAll: "Släck alla",
+  showAll: "Tänd alla",
+  collapse: "Fäll ihop listan",
+  expand: (count: number) => `Visa listan (${count} underlag)`,
+  stages: (count: number) => `${count} etapper`,
+  showStages: "Visa etapperna",
+  hideStages: "Dölj etapperna",
   control: {
     start: "Passpunkter",
     startFor: (name: string) => `Passpunkter för ${name}`,

@@ -318,6 +318,13 @@ export const mapProjectLayersEn: Texts<typeof mapProjectLayersSv> = {
   down: (name: string) => `Move ${name} down`,
   removeConfirm: "Remove the base layer for everyone in the project?",
   by: (name: string | null, size: string) => `${name ?? "Unknown"} · ${size}`,
+  hideAll: "Hide all",
+  showAll: "Show all",
+  collapse: "Collapse the list",
+  expand: (count: number) => `Show the list (${count} base layers)`,
+  stages: (count: number) => `${count} stages`,
+  showStages: "Show the stages",
+  hideStages: "Hide the stages",
   control: {
     start: "Control points",
     startFor: (name: string) => `Control points for ${name}`,

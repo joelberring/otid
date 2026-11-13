@@ -1,4 +1,5 @@
 import { geodeticToGrid, gridToGeodetic, transverseMercatorFor } from "@o-tid/map-file";
+import { smoothWater } from "./water-smooth";
 import { isSprintNorm, joinSeams, type MapBox, type MapNorm, type SourceData, type SourceFeature } from "../index";
 import { sprintOsm } from "./sprint-osm";
 import { LASER_PAVED_FILE, laserPavedAreas } from "./laser-paved";
@@ -139,6 +140,18 @@ export function depressionTick(feature: SourceFeature): SourceFeature[] {
   return [{ layer: "lutningsstreck", geometry: { kind: "point", at: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], toward: center } }];
 }
 
+/** Yttersta rutan för objekten (körningens kant), eller undefined utan objekt. */
+function extentOf(features: readonly SourceFeature[]) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  const see = ([x, y]: readonly [number, number]) => { if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; };
+  for (const { geometry } of features) {
+    if (geometry.kind === "point") see(geometry.at);
+    else if (geometry.kind === "line") geometry.points.forEach(see);
+    else geometry.rings.forEach(ring => ring.forEach(see));
+  }
+  return Number.isFinite(minX) ? { minX, minY, maxX, maxY } : undefined;
+}
+
 /**
  * Jobbets filer (i `baseMapOutputs` ordning) och OpenStreetMap som en inläsning i SWEREF 99 TM; `scale` är kartans skala.
  * På en sprintkarta (`norm`) blir OpenStreetMaps belagda vägar ytor med antagen bredd (`sprintOsm`).
@@ -152,7 +165,10 @@ export function mergeBaseMap(parts: readonly { readonly name: string; readonly d
   // G3: kurvorna och formlinjerna fogas över laserrutornas skarvar.
   // Ägaren 2026-11-12: kurvorna och formlinjerna klipps mot vattnet (lasern har ingen mark där och drar dem rakt över).
   const contours = new Set<SourceFeature>();
+  // Ägaren 2026-11-13 («strandlinjer blir väldigt hackiga»): vattnets rasterkant jämnas ut innan stranden dras.
+  const extent = extentOf(parts.flatMap(part => part.data.features));
   const joined = parts.map(part => {
+    if (part.data.features.some(feature => feature.layer === "vatten")) part = { ...part, data: { ...part.data, features: smoothWater(part.data.features, extent) } };
     if (part.name === LASER_PAVED_FILE) return { ...part, data: { ...part.data, features: laserPavedAreas(part.data.features) } };
     if (!/^(kurvor|formlinjer)\.dxf$/.test(part.name)) return part;
     const list = joinSeams(part.data.features);

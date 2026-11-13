@@ -21,3 +21,4 @@ export * from "./assemble";
 export * from "./sprint-osm";
 export * from "./laser-paved";
 export * from "./stages";
+export * from "./water-smooth";

@@ -1,3 +1,4 @@
+import polygonClipping, { type Polygon } from "polygon-clipping";
 import type { SourceData, SourceFeature } from "../vector-parse";
 import { clipLine, clipRing } from "../vector-import";
 
@@ -51,5 +52,21 @@ export function joinStages(stages: readonly { readonly box: StageBox; readonly p
       byName.set(part.name, joined);
     }
   }
-  return [...byName].map(([name, joined]) => ({ name, data: { features: joined.features, skipped: joined.skipped, ...(joined.crs !== undefined ? { crs: joined.crs } : {}) } }));
+  return [...byName].map(([name, joined]) => ({ name, data: { features: unionWater(joined.features), skipped: joined.skipped, ...(joined.crs !== undefined ? { crs: joined.crs } : {}) } }));
+}
+
+/**
+ * Vattnet som går över en etappgräns är två ytor som möts längs gränsen; strandlinjen dras längs ytornas kanter och skulle
+ * då gå rakt över sjön. Vattenytorna slås därför ihop till hela sjöar.
+ */
+function unionWater(features: readonly SourceFeature[]): SourceFeature[] {
+  const water = features.filter(feature => feature.layer === "vatten" && feature.geometry.kind === "area");
+  if (water.length < 2) return [...features];
+  const polygons = water.map(feature => (feature.geometry as Extract<SourceFeature["geometry"], { kind: "area" }>).rings.map(ring => ring.map(([x, y]) => [x, y] as [number, number])) as Polygon);
+  let merged: [number, number][][][];
+  try { merged = polygonClipping.union(polygons[0]!, ...polygons.slice(1)); } catch { return [...features]; }
+  const template = water[0]!;
+  // polygon-clipping upprepar första punkten sist; ringarna i SourceFeature gör det inte.
+  const united = merged.map((rings): SourceFeature => ({ ...template, geometry: { kind: "area", rings: rings.map(ring => ring.slice(0, -1)) } }));
+  return [...features.filter(feature => !water.includes(feature)), ...united];
 }

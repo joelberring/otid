@@ -8,6 +8,7 @@ import {
 import { schema, type Database } from "@o-tid/database";
 import { MAP_READER_VERSION } from "@o-tid/map-file";
 import { requireClubRole, type ClubFailure, type ClubProof } from "./club-access";
+import { openMapProjectJoinLinks } from "./map-project-join";
 import { deliverPrepared, invitationSentTimes, prepareIfMail, replayedOutcome, type InvitationMailer } from "./invitation-links";
 import {
   addMapProjectMember, mapProjectAllows, mapProjectBaseFileName, mapProjectCanArchive, mapProjectJournal, mapProjectRoleOf, openMapProjectInvitations,
@@ -183,6 +184,7 @@ export async function readMapProject(db: Database, input: ClubProof & { projectI
     const canManage = mapProjectAllows(role, project, "manage");
     const open = canManage ? await openMapProjectInvitations(tx, project.id) : [];
     const sent = await invitationSentTimes(tx, "MAP_PROJECT", open.map(row => row.id));
+    const links = canManage ? await openMapProjectJoinLinks(tx, project.id, now) : [];
     return { status: "ok", view: { ...summary, formatVersion: 1,
       viewer: { accountId, canEdit: mapProjectAllows(role, project, "edit"), canManage, canWriteVersion: canManage,
         canArchive: canManage && await mapProjectCanArchive(tx, accountId, project), canPropose: mapProjectAllows(role, project, "propose"),
@@ -192,7 +194,7 @@ export async function readMapProject(db: Database, input: ClubProof & { projectI
       storage: await mapProjectStorage(tx, project.id),
       readerVersion: project.readerVersion, seq: project.seq, members: await members(tx, project),
       invitations: open.map(row => ({ invitationId: row.id, email: row.email, role: row.role, createdAt: row.createdAt.toISOString(),
-        sentAt: sent.get(row.id)?.toISOString() ?? null })) } } as const;
+        sentAt: sent.get(row.id)?.toISOString() ?? null })), joinLinks: links } } as const;
   });
 }
 

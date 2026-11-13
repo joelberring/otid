@@ -24,6 +24,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Följer med: i ritläget, i nya kartversioner och i banläggningens karta ur projektet (Mapper-filer, som färgtabellen;
   OCAD-filer skrivs inte än).
 
+### 2026-11-13 – Kartprojekt: bjud in utan e-post (klubbmedlemmar och länk)
+- Ägaren: «man borde kunna bjuda in klubbmedlemmar i kartprojekt utan mejl». Under Medlemmar finns nu tre sätt: e-postadress
+  (som förut), «Klubbmedlemmar» (sök på namn, välj roll, Lägg till; bara konton i en klubb som ägaren är med i, bara namn, aldrig
+  e-post) och «Skapa länk» (roll Ändra, Föreslå eller Läsa, 14 dagar, kan användas av flera, kan tas bort; sidan `/kartlank#token=…`).
+- Migration 0121 (`map_project_join_link`, bara hashen av nyckeln sparas). Samma behörighet som e-postinbjudan (ägarna); ingen
+  ny rolltyp, men en länk ger aldrig Ägare. En länk slutar gälla om den som skapade den inte längre är ägare. Integrationstest
+  `kartprojekt-klubbmedlemmar-lank.test.ts`.
+
 ### 2026-11-13 – Om O-Tid och GitHub: vad som finns, stöd till servern
 
 - Ägaren: «appen är gratis att använda men jag tar gärna emot bidrag till servern». Om O-Tid (sv/en) har ett avsnitt

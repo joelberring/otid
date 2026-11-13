@@ -132,7 +132,7 @@ export const mapProjectSv = {
   },
   members: {
     title: "Medlemmar",
-    help: "Bjud in med e-postadress. Inbjudan gäller när personen loggar in med adressen.",
+    help: "Bjud in med e-postadress (inbjudan gäller när personen loggar in med adressen), lägg till en klubbmedlem direkt eller skapa en länk som du skickar själv.",
     readerHelp: "Ägarna bjuder in och tar bort medlemmar.",
     you: "du",
     pending: "väntar på inloggning",

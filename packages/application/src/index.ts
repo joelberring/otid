@@ -197,6 +197,9 @@ export {
   updateMapProject
 } from "./map-projects";
 export { syncMapProject } from "./map-project-sync";
+export {
+  acceptMapProjectJoinLink, addMapProjectClubMember, createMapProjectJoinLink, listMapProjectClubMembers, readMapProjectJoinLink, revokeMapProjectJoinLink
+} from "./map-project-join";
 export { createMapProjectArea, deleteMapProjectArea, listMapProjectAreas, updateMapProjectArea } from "./map-project-areas";
 export {
   addMapProjectTrackPart, changeMapProjectChecks, createMapProjectTrack, deleteMapProjectTrack, listMapProjectChecks, listMapProjectTracks,

@@ -14,6 +14,7 @@ import { invitationMailNote } from "../../i18n/invitation-sv";
 import { clubRequest } from "../../lib/club-archive-client";
 import { mapProjectBase } from "../../lib/map-project-client";
 import { AccountMenu } from "../account-menu";
+import { ClubMemberPicker, JoinLinks } from "./map-project-join-panel";
 import { ProjectStatsSection } from "./map-stats-sections";
 import { InvitationActions, invitationSentText } from "../invitation-actions";
 import { Button, Field, Notice, Select } from "../ui";
@@ -216,6 +217,8 @@ function MembersSection({ view, base, busy, mailEnabled, run, onChanged, onMessa
       </div>
       <Button type="submit" disabled={busy || !email.trim()}>{copy.inviteButton}</Button>
     </form>}
+    {manage && <ClubMemberPicker base={base} busy={busy} onChanged={onChanged} onMessage={onMessage} />}
+    {manage && <JoinLinks base={base} links={view.joinLinks} busy={busy} onChanged={onChanged} onMessage={onMessage} />}
   </section>;
 }
 

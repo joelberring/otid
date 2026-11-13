@@ -137,7 +137,7 @@ export const mapProjectEn: Texts<typeof mapProjectSv> = {
   },
   members: {
     title: "Members",
-    help: "Invite by email address. The invitation applies when the person signs in with the address.",
+    help: "Invite by email address (the invitation applies when the person signs in with the address), add a club member directly, or create a link that you send yourself.",
     readerHelp: "The owners invite and remove members.",
     you: "you",
     pending: "waiting for sign-in",

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { accountEmailSchema } from "./account";
 import { uuidSchema } from "./ids";
+import type { MapProjectJoinLinkView } from "./map-project-join";
 import { mapProjectLeaderboardSchema, mapProjectReconSettingsSchema, type MapProjectReconSettings } from "./map-project-recon";
 
 /**
@@ -285,6 +286,8 @@ export interface MapProjectView extends MapProjectSummary {
   members: MapProjectMemberView[];
   /** Öppna inbjudningar (bara för den som får hantera medlemmarna). */
   invitations: MapProjectInvitationView[];
+  /** Öppna länkar för att gå med (bara för den som får hantera medlemmarna). */
+  joinLinks: MapProjectJoinLinkView[];
   /** ADR-0206: e-post finns på servern. Sätts av webben. */
   mailEnabled?: boolean;
 }

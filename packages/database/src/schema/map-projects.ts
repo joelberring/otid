@@ -1,4 +1,4 @@
-import { bigint, date, doublePrecision, index, integer, jsonb, pgTable, primaryKey, real, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { bigint, date, doublePrecision, index, integer, jsonb, pgTable, primaryKey, real, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { userAccounts } from "./accounts";
 import { clubMapVersions, clubs } from "./clubs";
 import { races } from "./core";
@@ -85,6 +85,25 @@ export const mapProjectInvitations = pgTable("map_project_invitation", {
   acceptedAccountId: uuid("accepted_account_id").references(() => userAccounts.id),
   revokedAt: timestamp("revoked_at", { withTimezone: true })
 });
+
+/**
+ * Migration 0121: länk för att gå med i ett kartprojekt utan e-postadress (ägaren 2026-11-13). Bara hashen av nyckeln sparas.
+ * Länken ger rollen `role` åt var och en som öppnar den inloggad, tills den går ut (`expiresAt`) eller tas bort (`revokedAt`).
+ * Avsändaren har ingen främmande nyckel (som `invitation_link.issued_by`).
+ */
+export const mapProjectJoinLinks = pgTable("map_project_join_link", {
+  id: uuid("id").primaryKey(),
+  projectId: uuid("project_id").notNull().references(() => mapProjects.id),
+  tokenHash: text("token_hash").notNull(),
+  role: text("role").$type<MapProjectRole>().notNull(),
+  issuedBy: uuid("issued_by").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  revokedAt: timestamp("revoked_at", { withTimezone: true })
+}, table => [
+  uniqueIndex("map_project_join_link_token_hash_key").on(table.tokenHash),
+  index("map_project_join_link_project_idx").on(table.projectId, table.createdAt)
+]);
 
 export const mapProjectObjects = pgTable("map_project_object", {
   projectId: uuid("project_id").notNull().references(() => mapProjects.id),

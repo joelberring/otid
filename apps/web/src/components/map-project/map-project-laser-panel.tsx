@@ -6,7 +6,7 @@ import { mapSourcesEn } from "../../i18n/map-sources-en";
 import { useTexts } from "../language-provider";
 import { GEO_JOB_MAX_TILES, newestLaserTiles, PULLAUTIN_SETTINGS, type GeoExtraKind, type GeoJobView, type MapProjectView } from "@o-tid/contracts";
 import type { MapGeoreference } from "@o-tid/map-file";
-import { LASER_FORM_DEFAULTS, laserJobBody, type LaserExtra as ExtraItem, type LaserItem } from "../../lib/map-project-laser-request";
+import { defaultLaserInterval, LASER_FORM_DEFAULTS, laserIntervals, laserJobBody, type LaserExtra as ExtraItem, type LaserItem } from "../../lib/map-project-laser-request";
 import { choiceSettings, choicesOf, cliffChoicesOf, CLIFF_STYLES, LASER_CHOICES, typedOf, type ChoiceLevel, type CliffStyle, type LaserChoices } from "../../lib/map-project-laser-choices";
 import { mapSourcesSv } from "../../i18n/map-sources-sv";
 import type { Bounds } from "../../lib/course-setting-viewport";
@@ -16,7 +16,6 @@ import { LaserCredentialHint, LaserServerStatus } from "./map-project-laser-shar
 import { LASER_ACTIVE as ACTIVE, type LaserArea as Area, type useMapProjectLaser } from "./use-map-project-laser";
 import styles from "./map-project-editor.module.css";
 
-const INTERVALS = [2.5, 5] as const;
 /** Ägaren 2026-11-10: Karttapullautins övriga inställningar (kurvor, branter, grönt), utöver ekvidistansen och formlinjerna. */
 const MORE_SETTINGS = ["smoothing", "curviness", "knolls", "formlinesteepness", "cliff1", "cliff2", "cliffsteepfactor", "yellowheight", "greenground", "greenhigh",
   "topweight", "greenscale", "undergrowth"] as const satisfies readonly (keyof typeof PULLAUTIN_SETTINGS)[];
@@ -46,7 +45,9 @@ export function MapProjectLaserPanel({ view, laser, importer, georeference, boun
   const [skippedExtras, setSkippedExtras] = useState<ReadonlySet<GeoExtraKind>>(new Set());
   const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set());
   const [name, setName] = useState("");
-  const [interval, setInterval_] = useState<number>(LASER_FORM_DEFAULTS.interval);
+  // Ekvidistansen följer kartans norm (sprint 2,5 m, skog 5 m) tills någon väljer en annan.
+  const [intervalChoice, setInterval_] = useState<number>();
+  const interval = intervalChoice ?? defaultLaserInterval(!!importer.sprint);
   const [formline, setFormline] = useState<number>(LASER_FORM_DEFAULTS.formline);
   const [more, setMore] = useState<Readonly<Record<string, string>>>({});
   const [choices, setChoices] = useState<LaserChoices>(LASER_FORM_DEFAULTS.choices);
@@ -142,7 +143,7 @@ export function MapProjectLaserPanel({ view, laser, importer, georeference, boun
           })} />{text.extras[kind]}</label>)}
         <label>{text.name}<input value={name} maxLength={80} onChange={event => setName(event.target.value)} data-testid="map-project-laser-name" /></label>
         <label>{text.interval}<select value={interval} onChange={event => setInterval_(Number(event.target.value))}>
-          {INTERVALS.map(value => <option key={value} value={value}>{text.intervalOption(value)}</option>)}
+          {laserIntervals(!!importer.sprint).map(value => <option key={value} value={value}>{text.intervalOption(value)}</option>)}
         </select></label>
         <label>{text.formlines}<select value={formline} onChange={event => setFormline(Number(event.target.value))}>
           {[0, 1, 2].map(value => <option key={value} value={value}>{text.formlineOptions[value]}</option>)}

@@ -174,6 +174,18 @@ export function joinRings(parts: readonly Position[][]): Position[][] {
   return rings;
 }
 
+/**
+ * Taggarna som följer med objektet som egenskaper, för sprintkartans steg (`sprintOsm` i base-map): vägens bredd och
+ * beläggning (vägar och gångvägar blir belagda ytor) och trädets storlek (stort träd 417 eller litet 418). Bara vägar och
+ * träd bär dem, och bara de taggar som finns.
+ */
+const WAY_TAGS = ["highway", "width", "est_width", "lanes", "surface", "tunnel", "service"] as const;
+const TREE_TAGS = ["height", "diameter_crown", "circumference"] as const;
+function keptTags(tags: Tags, keys: readonly string[]): { properties: Record<string, string> } | undefined {
+  const found = keys.filter(key => typeof tags[key] === "string").map(key => [key, tags[key]!] as const);
+  return found.length ? { properties: Object.fromEntries(found) } : undefined;
+}
+
 /** Overpass-svaret (`out geom`) som lager och objekt i WGS 84 (längd, bredd). Kastar om svaret inte är Overpass JSON. */
 export function osmToSourceData(json: unknown): SourceData {
   const elements = (json as { elements?: unknown } | null)?.elements;
@@ -183,10 +195,10 @@ export function osmToSourceData(json: unknown): SourceData {
   for (const element of elements as OverpassElement[]) {
     if (features.length >= OSM_LIMITS.maxFeatures) { skipped += 1; continue; }
     const tags = element.tags ?? {};
-    let geometry: SourceGeometry | undefined, layer: string | undefined;
+    let geometry: SourceGeometry | undefined, layer: string | undefined, kept: { properties: Record<string, string> } | undefined;
     if (element.type === "node") {
       if (tags.natural === "tree" && Number.isFinite(element.lat) && Number.isFinite(element.lon)) {
-        layer = "OSM träd"; geometry = { kind: "point", at: [element.lon!, element.lat!] };
+        layer = "OSM träd"; geometry = { kind: "point", at: [element.lon!, element.lat!] }; kept = keptTags(tags, TREE_TAGS);
       }
     } else if (element.type === "way") {
       const points = positionsOf(element.geometry);
@@ -197,6 +209,7 @@ export function osmToSourceData(json: unknown): SourceData {
           layer = kind.layer;
           const ring = closed ? points.slice(0, -1) : points;
           geometry = kind.area && closed ? { kind: "area", rings: [ring] } : { kind: "line", points: ring, closed };
+          if (tags.highway && geometry.kind === "line") kept = keptTags(tags, WAY_TAGS);
         }
       }
     } else if (element.type === "relation") {
@@ -213,7 +226,7 @@ export function osmToSourceData(json: unknown): SourceData {
         continue;
       }
     }
-    if (layer && geometry) features.push({ layer, geometry }); else skipped += 1;
+    if (layer && geometry) features.push({ layer, geometry, ...kept }); else skipped += 1;
   }
   return { features, crs: 4326, skipped };
 }

@@ -93,7 +93,7 @@ export function MapProjectGuide({ view, laser, importer, areas, onSplit }: { vie
     const tiles = newestLaserTiles(found.items);
     if (tiles.length === 0) { laser.tell("guide", "error", text.run.noTiles); return; }
     if (tiles.length > GEO_JOB_MAX_TILES) { setCounted({ where, tiles: tiles.length }); return; }
-    await laser.start(defaultLaserJob(laserText.defaultName(area?.name), { tiles, clip: laser.clipOf(area), areaId: area?.areaId, extras: found.extras }), "guide", text.run.starting);
+    await laser.start(defaultLaserJob(laserText.defaultName(area?.name), { tiles, clip: laser.clipOf(area), areaId: area?.areaId, extras: found.extras }, importer.sprint), "guide", text.run.starting);
   }
   const restart = () => { if (job) setIgnore(job.jobId); setOpenChoice(true); laser.clear(); };
 

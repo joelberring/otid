@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { GeoJobView } from "@o-tid/contracts";
 import { estimateMinutes, guideDefaultArea, guideState, laserAreaSize, latestAreaJob, type GuideInput } from "./map-project-guide";
-import { defaultLaserJob } from "./map-project-laser-request";
+import { defaultLaserInterval, defaultLaserJob, laserIntervals } from "./map-project-laser-request";
 
 const STAGE = "11111111-1111-4111-8111-111111111111";
 function job(patch: Partial<GeoJobView>): GeoJobView {
@@ -123,6 +123,13 @@ describe("guidens körning med förvalen", () => {
     expect(defaultLaserJob("Karttapullautin Del 2", { tiles: [tile], clip, areaId: STAGE, extras })).toEqual({ formatVersion: 1, kind: "PULLAUTIN", name: "Karttapullautin Del 2",
       settings: { contour_interval: 5, formline: 2 }, tiles: [{ id: tile.id, href: tile.href, bbox: null, epsg: 3006, datetime: tile.datetime }], clip, areaId: STAGE, extras,
       moisture: { channelHa: 1, wetMeters: 0.3, moistMeters: 0.6 }, vegetation: { minAreaM2: 300 } });
+  });
+
+  it("en sprintkarta körs med ekvidistansen 2,5 m, och 2 m går att välja", () => {
+    expect(defaultLaserJob("Karttapullautin hela kartan", { tiles: [tile], clip, areaId: undefined, extras: [] }, true).settings).toEqual({ contour_interval: 2.5, formline: 2 });
+    expect(defaultLaserInterval(false)).toBe(5);
+    expect(laserIntervals(true)).toEqual([2, 2.5, 5]);
+    expect(laserIntervals(false)).toEqual([2.5, 5]);
   });
 
   it("utelämnar etappen för hela kartan och produkterna när inga hittades", () => {

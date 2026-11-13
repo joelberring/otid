@@ -27,5 +27,6 @@ export * from "./norm-check";
 export * from "./generalize";
 export * from "./generalize-topology";
 export * from "./stockholm-layers";
+export * from "./map-norm";
 export * from "./warp";
 export * from "./vector-fit";

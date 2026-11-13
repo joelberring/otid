@@ -17,3 +17,4 @@ export * from "./candidate-merge";
 export * from "./photo-interpret";
 export * from "./candidates";
 export * from "./assemble";
+export * from "./sprint-osm";

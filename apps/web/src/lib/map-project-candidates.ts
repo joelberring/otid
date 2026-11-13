@@ -1,4 +1,4 @@
-import { parseDxf, parseGeoJson, VectorParseError, type SourceData, type SourceFeature } from "@o-tid/map-revision";
+import { parseDxf, parseGeoJson, VectorParseError, type MapNorm, type SourceData, type SourceFeature } from "@o-tid/map-revision";
 import { computeCandidates, mergeBaseMap, type CandidateInput, type CandidateResult, type clearCutFeatures } from "@o-tid/map-revision/base-map";
 
 /**
@@ -20,7 +20,9 @@ export type BaseMapStep = { readonly step: "read"; readonly done: number; readon
 export type CandidateRequest =
   /** Filerna tolkas; med `merge` sätts de ihop till grundkartan (med OpenStreetMap och hyggena), annars blir den första filen svaret. */
   | { readonly type: "base-map"; readonly id: number; readonly dataId: number; readonly parts: readonly BaseMapPart[]; readonly merge: boolean;
-      readonly osm?: SourceData | undefined; readonly scale?: number | undefined; readonly cuts?: Cuts | undefined }
+      readonly osm?: SourceData | undefined; readonly scale?: number | undefined; readonly cuts?: Cuts | undefined;
+      /** Kartans norm (`mapNorm`): på en sprintkarta blir OpenStreetMaps belagda vägar ytor. */
+      readonly norm?: MapNorm | undefined }
   /** Objekten för en fil som inte kom från Workern; sparas under `dataId`. */
   | { readonly type: "data"; readonly dataId: number; readonly features: readonly SourceFeature[] }
   | { readonly type: "forget"; readonly dataId: number }
@@ -53,7 +55,7 @@ export function handleCandidateRequest(store: CandidateStore, request: Candidate
       read.push({ name: part.name, data: part.name.endsWith(".geojson") ? parseGeoJson(part.body) : parseDxf(part.body) });
     }
     if (request.merge) post({ type: "progress", id, step: "merge" });
-    const data: SourceData = request.merge ? mergeBaseMap(read, request.osm, request.scale, request.cuts) : { ...read[0]!.data };
+    const data: SourceData = request.merge ? mergeBaseMap(read, request.osm, request.scale, request.cuts, request.norm) : { ...read[0]!.data };
     store.set(request.dataId, data.features);
     post({ type: "base-map", id, dataId: request.dataId, data });
   } catch (error) {

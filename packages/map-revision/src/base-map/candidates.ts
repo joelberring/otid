@@ -1,7 +1,7 @@
 import type { MapGeoreference, MapObject } from "@o-tid/map-file";
 import {
   applyFit, clipObjectsToPolygon, generalizeCandidates, importObjects, sourcePointToMap, suggestSymbol,
-  type ImportLayer, type ImportResult, type MapBox, type SourceFeature, type TargetKind, type VectorFit
+  type ImportLayer, type ImportResult, type MapBox, type MapNorm, type SourceFeature, type TargetKind, type VectorFit
 } from "../index";
 import { maskBuilt } from "./built-mask";
 
@@ -12,7 +12,7 @@ import { maskBuilt } from "./built-mask";
  */
 
 /** Symbolen som uträkningen behöver: id, nummer och form (katalogens ikoner följer inte med till Workern). */
-export type CandidateSymbol = readonly [id: string, code: string, kind: MapObject["kind"]];
+export type CandidateSymbol = readonly [id: string, code: string, kind: MapObject["kind"], name?: string | undefined];
 type Ring = readonly { readonly x: number; readonly y: number }[];
 
 /** Allt utom filens objekt som avgör kandidaterna (det som förr låg i `useMemo` i importen). */
@@ -76,8 +76,9 @@ export function computeCandidates(features: readonly SourceFeature[], input: Can
 
 /**
  * Förslagen på symbol för lagren ur deras namn (lager → symbolens id), som importen väljer innan någon ändrat något.
- * `symbols` är kartans symboler i palettens ordning.
+ * `symbols` är kartans symboler i palettens ordning; `norm` (`mapNorm`) ger sprintreglerna på en sprintkarta.
  */
-export function suggestedMapping(layers: readonly ImportLayer[], symbols: readonly { readonly id: string; readonly code: string; readonly kind: string }[]): Map<string, string> {
-  return new Map(layers.flatMap(layer => { const id = suggestSymbol(layer, symbols); return id ? [[layer.name, id] as const] : []; }));
+export function suggestedMapping(layers: readonly ImportLayer[], symbols: readonly { readonly id: string; readonly code: string; readonly kind: string;
+  readonly name?: string | undefined }[], norm: MapNorm = "ISOM"): Map<string, string> {
+  return new Map(layers.flatMap(layer => { const id = suggestSymbol(layer, symbols, norm); return id ? [[layer.name, id] as const] : []; }));
 }

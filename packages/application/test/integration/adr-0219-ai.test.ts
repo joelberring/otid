@@ -225,6 +225,10 @@ describe("ADR-0219 K2: AI-kopplingen", () => {
     const made = textOf(await mcp(owner.accountId, call(23, "create_map_project", { name: "Provblad", center_e: 674000, center_n: 6575000, width_m: 800, height_m: 600 })));
     expect(typeof made.projectId).toBe("string");
     expect(textOf(await mcp(owner.accountId, call(24, "map_overview", { project_id: made.projectId as string }))).aiMode).toBe("PROPOSE");
+    // Skalan 4000 ger en sprintkarta (ISSprOM 2019-2).
+    const sprint = textOf(await mcp(owner.accountId, call(25, "create_map_project", { name: "Sprintblad", center_e: 674000, center_n: 6575000, width_m: 400, height_m: 300, scale: 4000 })));
+    expect(sprint.message).toContain("ISSprOM 2019-2");
+    expect(textOf(await mcp(owner.accountId, call(26, "map_overview", { project_id: sprint.projectId as string }))).scale).toBe(4000);
 
     // Kontot tas bort: kopplingarna och kartjobben följer med.
     await connect(stranger.proof);

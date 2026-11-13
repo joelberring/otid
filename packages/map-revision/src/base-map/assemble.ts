@@ -1,5 +1,5 @@
 import type { MapGeoreference, MapObject, ParsedMap, Point } from "@o-tid/map-file";
-import { importLayers, parseDxf, parseGeoJson, symbolObjectKind, VectorParseError, type MapBox, type SourceData } from "../index";
+import { importLayers, mapNorm, parseDxf, parseGeoJson, symbolObjectKind, VectorParseError, type MapBox, type SourceData } from "../index";
 import { mergeCandidates } from "./candidate-merge";
 import { computeCandidates, suggestedMapping, type CandidateSymbol } from "./candidates";
 import { clearCutFeatures, type ClearCut } from "./clear-cuts";
@@ -35,7 +35,7 @@ export function editorBounds(base: Pick<ParsedMap, "bounds" | "objects">, area: 
 /** Kartans symboler som importen ser dem: de som inte är gömda, i palettens ordning (efter numret). */
 export function candidateSymbols(map: Pick<ParsedMap, "symbols">): CandidateSymbol[] {
   return [...map.symbols.values()].filter(symbol => !symbol.hidden)
-    .map(symbol => [symbol.id, symbol.code.text, symbolObjectKind(map, symbol)] as const)
+    .map(symbol => [symbol.id, symbol.code.text, symbolObjectKind(map, symbol), symbol.name] as const)
     .sort((a, b) => a[1].localeCompare(b[1], "sv", { numeric: true }));
 }
 
@@ -100,7 +100,10 @@ export function assembleBaseMap(input: BaseMapAssemblyInput): { objects: MapObje
     return { problem: error instanceof VectorParseError ? error.message : "En av laserjobbets filer gick inte att läsa." };
   }
   const cuts = input.cuts ? clearCutFeatures(input.cuts, input.today, input.scannedAt) : undefined;
-  let data = mergeBaseMap(read, input.osm, scale, cuts && { features: cuts.features, afterScan: cuts.afterScan });
+  // Sprintkartor (ägaren 2026-11-13) får sprintnormens symboler och OpenStreetMaps vägar som belagda ytor.
+  const symbols = input.symbols.map(([id, code, kind, name]) => ({ id, code, kind, name }));
+  const norm = mapNorm({ scale, symbols });
+  let data = mergeBaseMap(read, input.osm, scale, cuts && { features: cuts.features, afterScan: cuts.afterScan }, norm);
   read = [];
   // Reglagen för punkthöjder och branter: bara de egna lagren byts, som i panelerna (ett val utan något objekt ändrar inget).
   let knolls: BaseMapSummary["knolls"], cliffs: BaseMapSummary["cliffs"];
@@ -116,7 +119,7 @@ export function assembleBaseMap(input: BaseMapAssemblyInput): { objects: MapObje
     cliffs = { level: input.cliffs.level, impassable: chosen.impassable, passable: chosen.passable, candidates: candidates.length };
   }
   const layers = importLayers(data);
-  const mapping = suggestedMapping(layers, input.symbols.map(([id, code, kind]) => ({ id, code, kind })));
+  const mapping = suggestedMapping(layers, symbols, norm);
   const result = computeCandidates(data.features, { georeference: input.georeference, crs: data.crs ?? SWEREF99TM, mapping: [...mapping], skipped: [],
     symbols: input.symbols, bounds: input.bounds, clip: undefined, area: input.area, stage: input.stage, fit: undefined, normed: true,
     built: input.built, maskBuilt: true });

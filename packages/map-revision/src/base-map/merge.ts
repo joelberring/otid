@@ -1,5 +1,6 @@
 import { geodeticToGrid, gridToGeodetic, transverseMercatorFor } from "@o-tid/map-file";
-import { joinSeams, type MapBox, type SourceData, type SourceFeature } from "../index";
+import { isSprintNorm, joinSeams, type MapBox, type MapNorm, type SourceData, type SourceFeature } from "../index";
+import { sprintOsm } from "./sprint-osm";
 import { withoutCutVegetation, type clearCutFeatures } from "./clear-cuts";
 import { smallRingsToPoints } from "./small-rings";
 import { yardsOf } from "./yards";
@@ -135,9 +136,13 @@ export function depressionTick(feature: SourceFeature): SourceFeature[] {
   return [{ layer: "lutningsstreck", geometry: { kind: "point", at: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], toward: center } }];
 }
 
-/** Jobbets filer (i `baseMapOutputs` ordning) och OpenStreetMap som en inläsning i SWEREF 99 TM; `scale` är kartans skala. */
-export function mergeBaseMap(parts: readonly { readonly name: string; readonly data: SourceData }[], osm?: SourceData, scale?: number,
-  cuts?: Pick<ReturnType<typeof clearCutFeatures>, "features" | "afterScan">): SourceData {
+/**
+ * Jobbets filer (i `baseMapOutputs` ordning) och OpenStreetMap som en inläsning i SWEREF 99 TM; `scale` är kartans skala.
+ * På en sprintkarta (`norm`) blir OpenStreetMaps belagda vägar ytor med antagen bredd (`sprintOsm`).
+ */
+export function mergeBaseMap(parts: readonly { readonly name: string; readonly data: SourceData }[], rawOsm?: SourceData, scale?: number,
+  cuts?: Pick<ReturnType<typeof clearCutFeatures>, "features" | "afterScan">, norm: MapNorm = "ISOM"): SourceData {
+  const osm = rawOsm && isSprintNorm(norm) ? sprintOsm(rawOsm) : rawOsm;
   const names = new Set(parts.map(part => part.name)), landCover = names.has("marktacke.geojson");
   const shortest = scale ? twoTagMeters(scale) : 0;
   const minCliff = scale ? MIN_CLIFF_MM * scale / 1000 : 0;

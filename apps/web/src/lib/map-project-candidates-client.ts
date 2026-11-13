@@ -54,7 +54,7 @@ export class CandidateSession {
    * blir `VectorParseError` med filens meddelande.
    */
   baseMap(request: { parts: readonly BaseMapPart[]; merge: boolean; osm?: SourceData | undefined; scale?: number | undefined;
-    cuts?: Extract<CandidateRequest, { type: "base-map" }>["cuts"] }, onStep: (step: BaseMapStep) => void): Promise<SourceData> {
+    cuts?: Extract<CandidateRequest, { type: "base-map" }>["cuts"]; norm?: Extract<CandidateRequest, { type: "base-map" }>["norm"] }, onStep: (step: BaseMapStep) => void): Promise<SourceData> {
     const id = ++this.nextId, dataId = ++this.nextId;
     return new Promise((resolve, reject) => {
       this.pending.set(id, response => {

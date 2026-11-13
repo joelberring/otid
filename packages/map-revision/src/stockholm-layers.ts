@@ -39,15 +39,24 @@ const RULES: readonly (readonly [RegExp, LayerRule])[] = [
   [/trad/, {}]
 ];
 
+/**
+ * Överskottet i Stockholms lager, som aldrig blir kartobjekt vilken norm kartan än har: text, höjdkurvor, det skymda,
+ * fastighetsgränser och liknande, och byggnadernas linjer (`gl`), som ligger bredvid ytorna (`gy`) med samma namn.
+ */
+export function stockholmOverflow(name: string): boolean {
+  if (!isStockholmLayer(name)) return false;
+  const geometry = GEOMETRY.exec(name)?.[1];
+  const text = normalized(name);
+  return geometry === "t" || geometry === "glh" || /skymd/.test(text) || SKIP.test(text)
+    || (/byggnad/.test(text) && !/skarmtak/.test(text) && geometry === "gl");
+}
+
 /** Tolkningen av ett av Stockholms lagernamn, eller inget om namnet inte följer grammatiken. */
 export function stockholmLayer(name: string): StockholmLayer | undefined {
   if (!isStockholmLayer(name)) return undefined;
-  const geometry = GEOMETRY.exec(name)?.[1];
+  if (stockholmOverflow(name)) return { kind: "skip" };
   const text = normalized(name);
-  if (geometry === "t" || geometry === "glh" || /skymd/.test(text) || SKIP.test(text)) return { kind: "skip" };
   const found = RULES.find(([pattern]) => pattern.test(text));
   if (!found || Object.keys(found[1]).length === 0) return { kind: "skip" };
-  // Byggnadernas linjer (`gl`) ligger bredvid ytorna (`gy`) med samma namn: bara ytan tas.
-  if (/byggnad/.test(text) && !/skarmtak/.test(text) && geometry === "gl") return { kind: "skip" };
   return { kind: "symbol", rule: found[1] };
 }

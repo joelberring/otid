@@ -6,7 +6,7 @@ import { useTexts } from "../language-provider";
 import { MAP_PROJECT_SYNC_MAX_EDITS, type MapLayerProfileView, type MapProjectView } from "@o-tid/contracts";
 import { isSupportedEpsg, type MapGeoreference, type MapObject, type PathCommand } from "@o-tid/map-file";
 import {
-  fitClassOf, guessCrs, importLayers, newKey, samplePath, sourcePointToMap, suggestSymbol, VectorParseError, WGS84_EPSG,
+  fitClassOf, guessCrs, importLayers, isSprintNorm, mapNorm, newKey, samplePath, sourcePointToMap, suggestSymbol, VectorParseError, WGS84_EPSG,
   type FitPoint, type ImportLayer, type SourceData, type SourceFeature, type VectorFit
 } from "@o-tid/map-revision";
 import { clubRequest, csrf } from "../../lib/club-archive-client";
@@ -16,7 +16,7 @@ import { mapProjectBase } from "../../lib/map-project-client";
 import type { BaseMapStep, CandidateInput, CandidateResult } from "../../lib/map-project-candidates";
 import { CandidateSession } from "../../lib/map-project-candidates-client";
 import { controlledWorker } from "../../lib/course-setting-worker";
-import { mergeCandidates, suggestedMapping } from "@o-tid/map-revision/base-map";
+import { mergeCandidates, sprintOsm, suggestedMapping } from "@o-tid/map-revision/base-map";
 import { readVectorFiles } from "../../lib/map-project-vector-files";
 import type { CatalogSymbol, MapProjectSession } from "../../lib/map-project-protocol";
 import type { ObjectChange } from "./use-map-project-editor";
@@ -67,6 +67,13 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   /** K6b: DWG-ritningen som skickats till geo-servern. */
   const [dwgSent, setDwgSent] = useState<string>();
   const mapEpsg = georeference?.crs.kind === "EPSG" ? georeference.crs.code : undefined;
+  /**
+   * Ägaren 2026-11-13 (sprintnormen som egen variant): kartans norm ur skalan och symbolerna. På en sprintkarta följer
+   * förslagen lager → symbol sprintnormen, och OpenStreetMaps belagda vägar blir ytor med antagen bredd.
+   */
+  const symbolList = useMemo(() => [...symbols.values()].map(symbol => ({ id: symbol.id, code: symbol.code, kind: symbol.kind, name: symbol.name })), [symbols]);
+  const norm = useMemo(() => mapNorm({ scale: georeference?.scale, symbols: symbolList }), [georeference?.scale, symbolList]);
+  const sprint = isSprintNorm(norm);
 
   /** K6b: sparade lagermappningsprofiler (kontots och klubbens) och den som passade filen. */
   const [profiles, setProfiles] = useState<readonly MapLayerProfileView[]>([]);
@@ -83,14 +90,14 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   const show = useCallback((fileName: string, data: SourceData, area?: Bounds, general = false, within?: readonly (readonly { x: number; y: number }[])[]) => {
     setNormed(general); setStage(within);
     const found = importLayers(data);
-    const list = [...symbols.values()].map(symbol => ({ id: symbol.id, code: symbol.code, kind: symbol.kind }));
+    const list = symbolList;
     setFile({ name: fileName, data });
     setHideOnMap(false);
     setSkipped(new Set());
     setFit(undefined);
     setClip(area);
     setLayers(found);
-    const suggested = suggestedMapping(found, list);
+    const suggested = suggestedMapping(found, list, norm);
     // En profil vars lager täcker minst hälften av filens lager används; dess val går före förslagen ur namnen.
     const names = new Set(found.map(layer => layer.name));
     const best = profiles.map(row => ({ row, matched: row.rules.filter(rule => names.has(rule.layer)).length }))
@@ -105,7 +112,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     } else setProfile(undefined);
     setMapping(suggested);
     setCrs(data.crs ?? guessCrs(data, georeference) ?? mapEpsg);
-  }, [symbols, mapEpsg, profiles, georeference]);
+  }, [symbolList, norm, mapEpsg, profiles, georeference]);
 
   /** Spara lagrens val som en profil (ersätter samma namn); symbolerna sparas som nummer så att profilen gäller andra kartor. */
   const saveProfile = useCallback(async (name: string, shareWithClub: boolean): Promise<boolean> => {
@@ -160,9 +167,9 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
       const response = await clubRequest(`${base}/sources/osm`, "POST", request).catch(() => ({ status: 0, json: undefined }));
       const body = response.json as { data?: SourceData; error?: string } | undefined;
       if (response.status !== 200 || !body?.data) { setProblem(body?.error ?? response.status); return; }
-      show(area ? text.osmName(area.name) : text.osmName(), body.data, area ? box : undefined);
+      show(area ? text.osmName(area.name) : text.osmName(), sprint ? sprintOsm(body.data) : body.data, area ? box : undefined);
     } finally { setFetching(false); }
-  }, [georeference, bounds, base, show]);
+  }, [georeference, bounds, base, show, sprint]);
 
   /**
    * Ägaren 2026-11-12 («sidan svarar inte» på ett helt kartblad): kandidaterna räknas i en egen Worker
@@ -189,7 +196,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
 
   /** Grundkartans filer (text) tolkas och sätts ihop i samma Worker; `onStep` får var den är. */
   const readBaseMap = useCallback((request: Parameters<CandidateSession["baseMap"]>[0], onStep: (step: BaseMapStep) => void) =>
-    worker().baseMap(request, onStep), [worker]);
+    worker().baseMap({ ...request, norm }, onStep), [worker, norm]);
 
   // Ytorna hämtas på nytt för varje fil, så att det som ritats sedan sist är med.
   useEffect(() => { if (file && session) session.built(setBuilt); }, [file, session]);
@@ -274,14 +281,13 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     if (!file) { openData(fileName, data, true); return; }
     const merged = mergeCandidates(file.data, data, own);
     const found = importLayers(merged);
-    const list = [...symbols.values()].map(symbol => ({ id: symbol.id, code: symbol.code, kind: symbol.kind }));
     setFile({ name: file.name, data: merged });
     setLayers(found);
     // Nya lager får förslag ur namnen; de som redan hade en symbol behåller den.
-    setMapping(current => new Map([...found.flatMap(layer => { const id = suggestSymbol(layer, list); return id ? [[layer.name, id] as const] : []; }),
+    setMapping(current => new Map([...found.flatMap(layer => { const id = suggestSymbol(layer, symbolList, norm); return id ? [[layer.name, id] as const] : []; }),
       ...[...current].filter(([layer]) => found.some(row => row.name === layer))]));
-  }, [file, openData, symbols]);
-  return { file, layers, mapping, choose, crs, setCrs: (value: number | undefined) => { setCrs(value); setFit(undefined); }, result, computing, readBaseMap,
+  }, [file, openData, symbolList, norm]);
+  return { file, sprint, layers, mapping, choose, crs, setCrs: (value: number | undefined) => { setCrs(value); setFit(undefined); }, result, computing, readBaseMap,
     fit, fitToMap, clearFit: () => setFit(undefined), canFit: !!session,
     /** Meter i terrängen per mm på kartan (för att visa inpassningen i meter). */
     metersPerMm: georeference ? georeference.scale / 1000 : 1, problem, setProblem, progress, sent, dwgSent, open, openData, refine, fetchOsm, fetching, propose, cancel,

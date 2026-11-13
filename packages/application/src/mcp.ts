@@ -36,9 +36,9 @@ const points = { type: "array", items: { type: "array", items: { type: "number" 
 export const MCP_TOOLS = [
   { name: "list_map_projects", title: "Mina kartprojekt", description: "Kartprojekten som kontot är medlem i: id, namn, roll, grundfil och antal ändringar.",
     inputSchema: { type: "object", properties: {} }, annotations: { readOnlyHint: true } },
-  { name: "create_map_project", title: "Ny tom karta", description: "Skapar ett nytt eget kartprojekt med en tom karta (ISOM 2017-2) över en rektangel: mittpunkt i SWEREF 99 TM (center_e, center_n), bredd och höjd i meter, skala 10000 (förval) eller 15000. Kontot blir ägare. Laserkörningen startas med start_laser_job och grundkartan läggs in med apply_base_map.",
+  { name: "create_map_project", title: "Ny tom karta", description: "Skapar ett nytt eget kartprojekt med en tom karta över en rektangel: mittpunkt i SWEREF 99 TM (center_e, center_n), bredd och höjd i meter, skala 10000 (förval) eller 15000 för en skogskarta (ISOM 2017-2), 4000 eller 3000 för en sprintkarta (ISSprOM 2019-2; grundkartan får då sprintnormens symboler och OpenStreetMaps belagda vägar som ytor med antagen bredd). Kontot blir ägare. Laserkörningen startas med start_laser_job och grundkartan läggs in med apply_base_map.",
     inputSchema: { type: "object", properties: { name: { type: "string", maxLength: 120 }, center_e: { type: "number" }, center_n: { type: "number" },
-      width_m: { type: "number", minimum: 100, maximum: 15000 }, height_m: { type: "number", minimum: 100, maximum: 15000 }, scale: { type: "integer", enum: [10000, 15000] } },
+      width_m: { type: "number", minimum: 100, maximum: 15000 }, height_m: { type: "number", minimum: 100, maximum: 15000 }, scale: { type: "integer", enum: [10000, 15000, 4000, 3000] } },
       required: ["name", "center_e", "center_n", "width_m", "height_m"] }, annotations: { readOnlyHint: false, destructiveHint: false } },
   { name: "map_overview", title: "Översikt över en karta", description: "Kartans skala, utbredning i mm och meter, georeferens, symbolerna som används (nummer, namn, antal), delområden och öppna förslag. Börja här.",
     inputSchema: { type: "object", properties: { ...projectId }, required: ["project_id"] }, annotations: { readOnlyHint: true } },
@@ -117,11 +117,12 @@ export async function callMcpTool(db: Database, accountId: string, name: string,
     if (!parsed.success) return toolError(`Ogiltiga argument: ${parsed.error.issues.map(issue => `${issue.path.join(".") || "(argumenten)"}: ${issue.message}`).join("; ")}`);
     const { name: title, center_e: e, center_n: n, width_m: w, height_m: h, scale } = parsed.data;
     const ring = [[e - w / 2, n - h / 2], [e + w / 2, n - h / 2], [e + w / 2, n + h / 2], [e - w / 2, n + h / 2]];
+    const sprintScale = scale === 4000 || scale === 3000;
     const created = await createMapProjectNewForAccount(db, { accountId, request: { formatVersion: 1, requestId: randomUUID(), name: title,
-      symbolSet: "ISOM2017-2", scale: scale ?? 10000, area: { crs: "SWEREF99TM", rings: [ring] } } });
+      symbolSet: sprintScale ? "ISSPROM2019-2" : "ISOM2017-2", scale: scale ?? 10000, area: { crs: "SWEREF99TM", rings: [ring] } } });
     if (created.status !== "created") return toolError(created.status === "quota" ? "Kontots lagringsutrymme räcker inte för en ny karta."
       : created.status === "area-too-large" ? "Området är för stort." : `Kartan skapades inte (${created.status}; mittpunkten ska ligga i Sverige, i SWEREF 99 TM).`);
-    return { content: [text({ projectId: created.projectId, message: "Ett nytt eget kartprojekt med en tom karta (ISOM 2017-2). Laserkörningen startas med start_laser_job (kontot behöver sparade uppgifter till Lantmäteriet) och grundkartan läggs in med apply_base_map när körningen är klar. AI-läget är förslag tills ägaren ändrar det." })] };
+    return { content: [text({ projectId: created.projectId, message: `Ett nytt eget kartprojekt med en tom karta (${sprintScale ? "ISSprOM 2019-2" : "ISOM 2017-2"}). Laserkörningen startas med start_laser_job (kontot behöver sparade uppgifter till Lantmäteriet) och grundkartan läggs in med apply_base_map när körningen är klar. AI-läget är förslag tills ägaren ändrar det.` })] };
   }
   const schemaFor = inputs[name as keyof typeof inputs];
   if (!schemaFor) return toolError(`Okänt verktyg ${name}`);

@@ -15,6 +15,16 @@ export const LASER_FORM_DEFAULTS: { readonly interval: number; readonly formline
   moisture: true, channelHa: GEO_JOB_DEFAULTS.channelHa, wetMeters: GEO_JOB_DEFAULTS.wetMeters, vegetation: true, minAreaM2: GEO_JOB_DEFAULTS.minAreaM2
 };
 
+/**
+ * Sprintkartans ekvidistans (ägaren 2026-11-13): ISSprOM 2019-2 har 2 eller 2,5 m. Förvalet är 2,5 m, hälften av
+ * skogskartans 5 m, så att kurvorna stämmer med grannkartornas; 2 m går att välja i laserpanelen.
+ */
+const SPRINT_CONTOUR_INTERVAL = 2.5;
+/** Ekvidistanserna som laserpanelen erbjuder. */
+export const laserIntervals = (sprint: boolean): readonly number[] => sprint ? [2, 2.5, 5] : [2.5, 5];
+/** Förvald ekvidistans för kartan. */
+export const defaultLaserInterval = (sprint: boolean): number => sprint ? SPRINT_CONTOUR_INTERVAL : LASER_FORM_DEFAULTS.interval;
+
 export interface LaserJobInput {
   readonly name: string; readonly interval: number; readonly formline: number;
   /** Valen som värden (`choiceSettings`): inställningarna och branternas trösklar. */
@@ -40,10 +50,10 @@ export function laserJobBody(input: LaserJobInput) {
     ...(input.vegetation ? { vegetation: { minAreaM2: input.vegetation.minAreaM2 } } : {}) } as const;
 }
 
-/** Körningen med förvalen (guiden): alla hittade produkter, förvalda inställningar, fuktighet och vegetation. */
-export function defaultLaserJob(name: string, target: Extract<LaserJobInput["target"], { tiles: unknown }>) {
+/** Körningen med förvalen (guiden): alla hittade produkter, förvalda inställningar, fuktighet och vegetation; `sprint` ger sprintkartans ekvidistans. */
+export function defaultLaserJob(name: string, target: Extract<LaserJobInput["target"], { tiles: unknown }>, sprint = false) {
   const d = LASER_FORM_DEFAULTS;
-  return laserJobBody({ name, interval: d.interval, formline: d.formline, chosen: choiceSettings(d.choices, {}, d.cliffStyle, d.cliffTags),
+  return laserJobBody({ name, interval: defaultLaserInterval(sprint), formline: d.formline, chosen: choiceSettings(d.choices, {}, d.cliffStyle, d.cliffTags),
     moisture: d.moisture ? { channelHa: d.channelHa, wetMeters: d.wetMeters } : undefined,
     vegetation: d.vegetation ? { minAreaM2: d.minAreaM2 } : undefined, target });
 }

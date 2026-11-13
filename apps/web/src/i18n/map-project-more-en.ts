@@ -247,6 +247,5 @@ export const mapProjectSymbolColorsEn: Texts<typeof mapProjectSymbolColorsSv> = 
   save: "Save",
   saved: (n: number) => n === 0 ? "The symbols have the file's own colours." : n === 1 ? "1 colour change is saved." : `${n} colour changes are saved.`,
   failed: "The colours could not be saved. Try again.",
-  none: "The symbol has no colours to change.",
-  changedMark: "Changed colour"
+  none: "The symbol has no colours to change."
 };

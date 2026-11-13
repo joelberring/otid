@@ -21,6 +21,5 @@ export const mapProjectSymbolColorsSv = {
   save: "Spara",
   saved: (count: number) => count === 0 ? "Symbolerna har filens egna färger." : count === 1 ? "1 färgbyte är sparat." : `${count} färgbyten är sparade.`,
   failed: "Färgerna kunde inte sparas. Försök igen.",
-  none: "Symbolen har inga färger att byta.",
-  changedMark: "Ändrad färg"
+  none: "Symbolen har inga färger att byta."
 };

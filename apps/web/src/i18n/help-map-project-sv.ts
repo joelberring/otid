@@ -47,7 +47,7 @@ export const mapProjectHelpArticles: readonly HelpArticle[] = [
       "Det mesta går att göra på tre sätt: med ikonen till vänster, med en tangent eller i hjulet. Tangenten står i ikonens hörn.",
       [
         "Tangenterna ligger under vänster hand: Q väljer ”Redigera”, W ”Rita”, A ”Lägg till punkt” och S ”Ta bort punkt”.",
-        "X väljer ”Klipp isär”: klicka på en linje så klipps den i två där. Båda delarna blir markerade och de nya ändarna får rosa ringar tills du klickar eller byter verktyg. En markerad linje visar sina ändpunkter med rosa romber.",
+        "X väljer ”Klipp isär”: klicka på en linje så klipps den i två där. Båda delarna blir markerade och de nya ändarna får rosa ringar.",
         "V vänder den markerade linjens riktning, så att en brants taggar byter sida. D tar symbolen från det markerade objektet.",
         "Skift ger varianten: Skift+E ”Cirkel”, Skift+A ”Gör mjuk” och Skift+S ”Förenkla”. C byter symbol och R markerar kollad.",
         "Ny punkt: välj ”Lägg till punkt” och klicka på sträckan. Ta bort: välj ”Ta bort punkt” och klicka på punkten.",

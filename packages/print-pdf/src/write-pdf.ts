@@ -53,6 +53,8 @@ export interface WritePdfResult {
   readonly overprint: boolean;
   /** Utsnitt av kartan (Form XObject), en per unikt utsnitt. */
   readonly mapForms: number;
+  /** Sidor vars innehåll återkommer och därför ligger en gång i filen (framsidan för flera löpare). */
+  readonly sharedPages: number;
   /** Notiser till arrangören på svenska (förenklingar, avvikande dekorfärger, bilder som inte kunde skrivas). */
   readonly notes: readonly string[];
   /** Kartfärgerna (id) som ritas över banan när banan ligger i färgordningen (BL); tom = banan överst. */
@@ -314,6 +316,7 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
   };
 
   const pages: ReturnType<PDFDocument["addPage"]>[] = [];
+  const pageTexts: { page: ReturnType<PDFDocument["addPage"]>; text: string; key: string }[] = [];
   for (const sheet of input.sheets) {
     const W = sheet.paper.widthMm, H = sheet.paper.heightMm;
     const page = document.addPage([W * PT_PER_MM, H * PT_PER_MM]);
@@ -494,8 +497,25 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
       content.op(`${sheet.cutMarks.map(mark => `${num(mark.x1 * PT_PER_MM)} ${num((H - mark.y1) * PT_PER_MM)} m ${num(mark.x2 * PT_PER_MM)} ${num((H - mark.y2) * PT_PER_MM)} l`).join(" ")} S`);
     }
     overprintUsed ||= content.overprintUsed;
-    const stream = document.context.flateStream(content.text());
-    page.node.set(PDFName.of("Contents"), document.context.register(stream));
+    pageTexts.push({ page, text: content.text(), key: `${num(W)}x${num(H)}:${content.text()}` });
+  }
+  // Ägaren 2026-11-13 («skrivaren verkar behöva hantera varje sida för sig i stället för att skriva ut samma flera gånger»):
+  // med en baksida per löpare är framsidan densamma på många ark. En sida vars innehåll återkommer läggs en enda gång i filen
+  // som en Form XObject som alla de arken pekar på, så att en skrivare eller ett tryckerisystem som sparar återanvända block
+  // tolkar den en gång. Sidor som bara finns en gång (baksidorna) skrivs som förut.
+  const repeats = new Map<string, number>();
+  for (const { key } of pageTexts) repeats.set(key, (repeats.get(key) ?? 0) + 1);
+  const pageForms = new Map<string, { name: string; ref: PDFRef; stream: ReturnType<typeof document.context.flateStream> }>();
+  for (const { page, text, key } of pageTexts) {
+    if ((repeats.get(key) ?? 0) < 2) { page.node.set(PDFName.of("Contents"), document.context.register(document.context.flateStream(text))); continue; }
+    let form = pageForms.get(key);
+    if (!form) {
+      const { width, height } = page.getSize();
+      const stream = document.context.flateStream(text, { Type: "XObject", Subtype: "Form", BBox: [0, 0, width, height] });
+      form = { name: `Pg${pageForms.size + 1}`, ref: document.context.register(stream), stream };
+      pageForms.set(key, form);
+    }
+    page.node.set(PDFName.of("Contents"), document.context.register(document.context.flateStream(`/${form.name} Do`)));
   }
 
   // Resurserna delas av alla sidor och utsnitt: färgrymderna, övertrycket, typsnitten och bilderna.
@@ -524,7 +544,11 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
   for (const form of forms.values()) { form.stream.dict.set(PDFName.of("Resources"), formResources); xobjects[form.name] = form.ref; }
   for (const image of images.values()) if (image) xobjects[image.name] = image.ref;
   for (const image of paperImages.values()) if (image) xobjects[image.name] = image.ref;
-  const pageResources = context.register(context.obj({ ...shared, XObject: context.register(context.obj(xobjects)) }));
+  // De återanvända sidorna ritar kartutsnitt och bilder själva; sidorna som pekar på dem behöver bara sidblocket.
+  const contentResources = context.register(context.obj({ ...shared, XObject: context.register(context.obj(xobjects)) }));
+  for (const form of pageForms.values()) form.stream.dict.set(PDFName.of("Resources"), contentResources);
+  const pageResources = pageForms.size === 0 ? contentResources
+    : context.register(context.obj({ ...shared, XObject: context.register(context.obj({ ...xobjects, ...Object.fromEntries([...pageForms.values()].map(form => [form.name, form.ref])) })) }));
   for (const page of pages) page.node.set(PDFName.of("Resources"), pageResources);
 
   // Dubbelsidigt: utskriftsdialogens förslag på vändningskant (`duplexEdge`).
@@ -533,6 +557,6 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
 
   const bytes = await document.save({ useObjectStreams: false });
   if (multiplyUsed) notes.add("Kontorsskrivaren: kartans färger över banan är multiplicerade, så att lila syns genom dem som på tryck.");
-  return { bytes, pages: pages.length, plates: spaces.plates().filter(name => name !== "All"), overprint: overprintUsed, mapForms: forms.size,
+  return { bytes, pages: pages.length, plates: spaces.plates().filter(name => name !== "All"), overprint: overprintUsed, mapForms: forms.size, sharedPages: pageForms.size,
     notes: [...notes], overCourse: over ? [...over] : [] };
 }

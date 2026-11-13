@@ -154,9 +154,13 @@ describe("PDF för tryck (steg 65)", () => {
     expect(result.mapForms).toBe(1);
     pdf.pages.forEach((page, index) => {
       expect(page.size).toEqual(pdf.pages[0]!.size);
-      if (index % 2 === 0) expect(page.content).toMatch(/\/Fm0 Do/);
+      // Ägaren 2026-11-13: framsidan är densamma för de tre löparna och ligger en gång i filen (sidblocket Pg1), som varje
+      // framsida pekar på; baksidorna är olika och skrivs var för sig.
+      if (index % 2 === 0) expect(page.content).toBe("/Pg1 Do");
       else { expect(page.content).not.toMatch(/Do/); expect(page.content).toContain("Tj"); }
     });
+    expect(result.sharedPages).toBe(1);
+    expect(pdf.forms.get("Pg1")).toMatch(/\/Fm0 Do/);
     const preferences = pdf.document.catalog.lookup(PDFName.of("ViewerPreferences"), PDFDict);
     expect(preferences.get(PDFName.of("Duplex"))?.toString()).toBe("/DuplexFlipLongEdge");
   });

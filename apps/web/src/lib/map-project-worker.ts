@@ -6,6 +6,7 @@ import {
 } from "@o-tid/map-revision";
 import { MAX_RENDER_SIDE } from "./course-setting-map-protocol";
 import { builtPolygons } from "@o-tid/map-revision/base-map";
+import { proposeAreas } from "./map-project-area-proposals";
 import { fillFinder } from "./map-project-fill-area";
 import { symbolGroup, type CatalogSymbol, type MapProjectRequest, type MapProjectResponse, type ProjectHit } from "./map-project-protocol";
 
@@ -212,6 +213,12 @@ self.onmessage = (event: MessageEvent<MapProjectRequest>) => {
     post({ type: "fill", id: request.id, result: current
       ? findFill({ objects: current.map.objects, boxes: current.boxes, symbols: current.map.symbols, scale: current.map.scale }, request.query)
       : { status: "open", gaps: [] } });
+    return;
+  }
+  if (request.type === "proposeAreas") {
+    post({ type: "proposeAreas", id: request.id, result: current
+      ? proposeAreas({ objects: current.map.objects, boxes: current.boxes, symbols: current.map.symbols, scale: current.map.scale }, request.query)
+      : { status: "done", candidates: [], found: 0, filled: 0, small: 0 } });
     return;
   }
   if (request.type === "recon") {

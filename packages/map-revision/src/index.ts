@@ -28,5 +28,7 @@ export * from "./generalize";
 export * from "./generalize-topology";
 export * from "./stockholm-layers";
 export * from "./map-norm";
+export * from "./sprint-faces";
+export { sprintSymbolForCode, type SprintNorm } from "./sprint-layers";
 export * from "./warp";
 export * from "./vector-fit";

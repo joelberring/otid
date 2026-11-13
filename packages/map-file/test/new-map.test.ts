@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  applyMapRevision, newMapFile, NewMapError, readMapFile, sha256Hex, SYMBOL_SETS, wgs84ToProjected, type LineSymbol, type PointSymbol
+  applyMapRevision, newMapFile, NewMapError, readMapFile, sha256Hex, SYMBOL_SETS, wgs84ToProjected, type AreaSymbol, type LineSymbol, type PointSymbol
 } from "../src";
 import { gridConvergenceDegrees } from "../src/template/new-map";
 
@@ -55,6 +55,25 @@ describe("ADR-0219 K1: ny karta (.omap med O-Tids symbolset)", () => {
     const map = readMapFile(newMapFile({ symbolSet: "ISOM2017-2", scale: 15000, refPoint: KUNGSHATT }), "ny.omap");
     const boulder = [...map.symbols.values()].find(entry => entry.code.main === 204) as PointSymbol;
     expect(boulder.elements).toMatchObject([{ kind: "dot", diameter: 0.4 }]);
+  });
+
+  it("sprintmallen har opasserbar vegetation (411) som mörkgrön yta och som häcklinje i minsta bredd 0,4 mm", () => {
+    const map = readMapFile(newMapFile({ symbolSet: "ISSPROM2019-2", scale: 4000, refPoint: KUNGSHATT }), "ny.omap");
+    const symbols = [...map.symbols.values()].filter(symbol => symbol.code.main === 411);
+    expect(symbols.map(symbol => `${symbol.code.text} ${symbol.kind}`).sort()).toEqual(["411 AREA", "411.1 LINE"]);
+    const cmyk = (index: number | undefined) => { const color = map.colors.find(entry => entry.id === index)!.cmyk; return [color.c, color.m, color.y, color.k]; };
+    const rank = (id: number | undefined) => map.colors.find(entry => entry.id === id)!.rank;
+    const area = symbols.find(symbol => symbol.kind === "AREA") as AreaSymbol, line = symbols.find(symbol => symbol.kind === "LINE") as LineSymbol;
+    expect(cmyk(area.fill)).toEqual([1, 0, 0.8, 0.3]);
+    expect(area.hatches).toEqual([]);
+    expect(line.strokes[0]!.width).toBeCloseTo(0.4, 6);
+    expect(cmyk(line.strokes[0]!.color)).toEqual([1, 0, 0.8, 0.3]);
+    // Linjen ligger över tomtmarkens olivgröna och ytan under den (normens färgordning; lägre rang ritas överst).
+    const olive = (map.symbols.get([...map.symbols.values()].find(symbol => symbol.code.main === 520)!.id) as AreaSymbol).fill!;
+    expect(rank(line.strokes[0]!.color)).toBeLessThan(rank(olive));
+    expect(rank(area.fill)).toBeGreaterThan(rank(olive));
+    // Skogsmallen har kvar sin 411 (grön med svart raster) och inga nya färger.
+    expect(SYMBOL_SETS["ISOM2017-2"].colors.some(color => color.key.startsWith("darkgreen"))).toBe(false);
   });
 
   it("tar emot nya objekt via ändringssatsen (som kartprojektets synk)", () => {

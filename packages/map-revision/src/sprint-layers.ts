@@ -77,8 +77,8 @@ const SPRINT_RULES: readonly SprintRule[] = [
   { words: /KANT BELAGD YTA/, line: ["pavedEdge"] },
   // Trappa och terrängtrappa, före byggnad («ByggnadsanlaggningTrappa»).
   { words: /TRAPP|STAIR|STEPS/, line: ["stairs"] },
-  // Skärmtak, tak och carport, före byggnad och staket («TAK» som eget ord, inte i «STAKET»).
-  { words: new RegExp(`SKARMTAK|CARPORT|CANOPY|ROOF|${word("TAK")}`), area: ["canopy"] },
+  // Skärmtak, tak, carport och regnskydd (busskur), före byggnad och staket («TAK» som eget ord, inte i «STAKET»).
+  { words: new RegExp(`SKARMTAK|CARPORT|REGNSKYDD|CANOPY|ROOF|${word("TAK")}`), area: ["canopy"] },
   // Altan: ingen symbol. Den hör till huset eller tomten (520) och syns inte som eget föremål på en sprintkarta.
   { words: /ALTAN|VERANDA|UTEPLATS/ },
   // Bassäng och plaskdamm: vatten som inte får passeras (301), annars passerbart (302).
@@ -87,20 +87,23 @@ const SPRINT_RULES: readonly SprintRule[] = [
   { words: /PERRONG|PLATFORM/, area: ["paved"], line: ["pavedEdge"] },
   // Byggnadsanläggning utan känd undertyp: ingen symbol (det är inte ett hus).
   { words: /BYGGNADSANLAGGNING/ },
-  { words: new RegExp(`HUS|BYGG|FASAD|BUILDING|${word("BYG")}`), area: ["building"] },
+  // Byggnader, också de små som en export med bara undertypen som lagernamn ger (prov på Stockholms baskarta 2026-11-13).
+  { words: new RegExp(`HUS|BYGG|FASAD|BUILDING|TRANSFORMATOR|TEKNIKBOD|TOALETT|${word("BYG")}`), area: ["building"] },
   // Opasserbart: det som namnet säger är högt, och bullerskydd och plank, som alltid är det.
   { words: /BULLER|PLANK|HIGH_?FENCE|IMPASSABLE_?FENCE|(?=.*(STAKET|STANGSEL))(?=.*(OPASSERBAR|(?<![A-Z])HOGT?(?![A-Z])))/, line: ["highFence"] },
-  // Staket, stängsel och räcke: passerbart som förval, höjden avgörs på plats.
-  { words: new RegExp(`STAKET|STANGSEL|RACKE|FENCE|RAILING|${word("STK")}`), line: ["fence"] },
+  // Staket, stängsel, räcke och navföljare (vägräcke): passerbart som förval, höjden avgörs på plats.
+  { words: new RegExp(`STAKET|STANGSEL|RACKE|NAVFOLJARE|FENCE|RAILING|${word("STK")}`), line: ["fence"] },
   { words: /HIGH_?WALL|IMPASSABLE_?WALL|CITY_?WALL|(?=.*MUR)(?=.*(OPASSERBAR|(?<![A-Z])HOGT?(?![A-Z])))/, line: ["highWall"] },
   // Mur, stödmur och stenmur: passerbar som förval.
   { words: /STODMUR|RETAINING/, line: ["retainingWall", "wall"] },
   { words: /MUR|WALL/, line: ["wall"] },
   // Häck, plantering och buskage: som linje häcksymbolen, som yta opasserbar vegetation (i ISSOM 421), annars det tätaste
-  // gröna. Har kartan ingen grön linjesymbol (O-Tids mall) får häcklinjen inget förslag: ingen annan linje ligger nära.
+  // gröna. O-Tids mall har häcklinjen 411.1 (ytan i sin minsta bredd); har kartan ingen grön linjesymbol får häcklinjen inget
+  // förslag: ingen annan linje ligger nära.
   { words: /HACK|HEDGE|PLANTERING|BUSKAGE|RABATT/, line: ["hedge"], area: ["hedge"], firstKindOnly: true },
   // Kanter: vägkant, kantsten, infart och refug är linjer, aldrig ytor (en sluten kantlinje runt ett kvarter ska inte fyllas).
-  { words: new RegExp(`KANTST|CURB|KERB|VAGKANT|INFART|REFUG|BELAGGNINGSKANT|ASFALTKANT|KORBANEKANT|GANGBANEKANT|TROTTOARKANT|GC_?KANT|${word("VK|KS|KST")}`),
+  // «Vägavgränsning» är Stockholms objekttyp för infart och refug (lagrets namn när undertypen saknas).
+  { words: new RegExp(`KANTST|CURB|KERB|VAGKANT|VAGAVGRANSNING|INFART|REFUG|BELAGGNINGSKANT|ASFALTKANT|KORBANEKANT|GANGBANEKANT|TROTTOARKANT|GC_?KANT|${word("VK|KS|KST")}`),
     line: ["pavedEdge"] },
   // Belagda ytor: som yta 501, och deras linjer är kanten på ytan.
   { words: /VAGUTBREDNING|PARKVAG|VAGYTA|GANGYTA|GANGBANA|CYKELBANA|KORBANA|TROTTOAR|TORG|PARKERING|PARKING|ASFALT|PAVED|BELAGD YTA|BELAGGNING/,
@@ -113,6 +116,8 @@ const SPRINT_RULES: readonly SprintRule[] = [
   // Obelagda vägar och stigar förblir linjer: traktorväg och obelagd väg 505, stig 506.
   { words: /TRAKTORVAG|OBELAGD|GRUSVAG|\(TRACK\)/, line: ["path"] },
   { words: new RegExp(`OSM STIG|${word("STIG|PATH")}`), line: ["smallPath"] },
+  // En reserverad trädplats är inget träd: ingen symbol.
+  { words: /RESERVERAD/ },
   // Träd som punkter: stort träd 417 när namnet säger det, annars 418 (buske eller litet träd).
   { words: /(STOR\w*[_ ]?TRAD|TRAD\w*[_ (]*STOR|LARGE_?TREE|BIG_?TREE)/, point: ["largeTree"], pointsOnly: true },
   { words: /TRAD(?!BEVUX|GARD|RAD)|(?<![A-Z])TREE(?!_?ROW)/, point: ["smallTree"], pointsOnly: true }

@@ -107,8 +107,9 @@ const KEYWORDS: readonly { readonly words: RegExp; readonly line?: string; reado
   { words: /STODMUR|STENMUR|MUR|WALL/, line: "513" },
   { words: /TRAPP|STAIR|STEPS/, line: "532" },
   { words: /KANTST|CURB|KERB/, line: "501.1" },
-  { words: /JARNVAG|RAIL|SPARVAG/, line: "509" },
-  { words: /KRAFTLED|POWER/, line: "510" },
+  // Stockholms baskarta som objekttyp + undertyp («Spårnät SJ Normalspår», «Elnät Högspänningsledning»; prov 2026-11-13).
+  { words: /JARNVAG|RAIL|SPARVAG|SPARNAT|NORMALSPAR|SMALSPAR/, line: "509" },
+  { words: /KRAFTLED|POWER|HOGSPANNING/, line: "510" },
   { words: /GANGVAG|STIG|FOOTWAY|PATH/, line: "505" },
   { words: /PARKERING|ASFALT|PAVED|PARKING/, area: "501" },
   { words: /VAG|GATA|ROAD|STREET/, line: "503" },
@@ -127,8 +128,9 @@ const KEYWORDS: readonly { readonly words: RegExp; readonly line?: string; reado
   { words: /BLOTT|SANKMARK|MYR|MARSH/, area: "308" },
   { words: /FUKTIG/, area: "310" },
   // Diken ur terrängformen (scripts/geo-ditches.ts) är diken (306), inte bäckar (ägaren 2026-11-11, Högdalen som facit).
-  { words: /^DIKE$|DITCH/, line: "306" },
-  { words: /DIKE|BACK|STREAM/, line: "305" },
+  // Samma för grundkartans «Vattendrag Dike»; «Vattendrag» ensamt är linjer (bäckar och diken), inte en vattenyta.
+  { words: /^DIKE$|DITCH|VATTENDRAG\W?DIKE/, line: "306" },
+  { words: /DIKE|BACK|STREAM|VATTENDRAG/, line: "305" },
   // Grundkartans strandlinje (ägaren 2026-11-12: «sjöar och vatten begränsas av heldragen linje»): normens 301 har en svart kantlinje.
   { words: /STRANDLINJE/, line: "301.1" },
   { words: /VATTEN|SJO|LAKE|WATER/, area: "301" },

@@ -27,6 +27,7 @@ import { MapProjectRectifyPanel } from "./map-project-rectify-panel";
 import { MapProjectNorthPanel } from "./map-project-north-panel";
 import { useMapProjectSplit } from "./use-map-project-split";
 import { useMapProjectFill } from "./use-map-project-fill";
+import { MapProjectAreaProposalBar } from "./map-project-area-proposal-bar";
 import { mapProjectRectifySv } from "../../i18n/map-project-rectify-sv";
 import { useMapProjectNorm } from "./use-map-project-norm";
 import { mapProjectNotesSv } from "../../i18n/map-project-notes-sv";
@@ -238,8 +239,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const generalizer = useMapProjectGeneralize(view, session, editor.state, useCallback(() => { void loadProposals(); }, [loadProposals]));
   const rectify = useMapProjectRectify(view, session, editor.state, useCallback(() => { void loadProposals(); }, [loadProposals]));
   // Grundkartan G2b: kandidaterna ritas av Workern med sina symboler ovanpå kartan.
-  const candidates = importer.candidates, showCandidates = editor.showCandidates;
-  useEffect(() => { showCandidates(candidates); }, [candidates, showCandidates]);
+  const candidates = importer.candidates, showCandidates = editor.showCandidates; useEffect(() => { showCandidates(candidates); }, [candidates, showCandidates]);
   const symbol = symbolId ? symbols.get(symbolId) : undefined;
   // Ägaren 2026-11-09: lagren efter normen. Släckta och låsta lager går inte att markera; låsta kan visas nedtonade.
   const work = useMapProjectWorkLayers(view);
@@ -256,9 +256,8 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   // Ägaren 2026-11-10: flera objekt markerade med en ruta (som i Illustrator). Mellanslag nedtryckt = dra kartan i stället.
   const multi = useMapProjectMulti({ session, hidden: unselectable, commit, setPreviewKeys: setPreview });
   const panKey = useRef({ down: false, used: false });
-  const fill = useMapProjectFill({ session, active: tool === "bucket" && canEdit, symbol, hidden: hiddenSymbols, commit, say: setFlash });
-  const lockedSymbols = symbolLayers.locked;
-  useEffect(() => { if (selected && lockedSymbols.has(selected.object.symbol)) deselect(); }, [lockedSymbols, selected]);
+  const fill = useMapProjectFill({ session, active: tool === "bucket" && canEdit, symbol, hidden: hiddenSymbols, commit, say: setFlash, symbols, scale: editor.scale ?? georeference?.scale, commitMany: editor.commitMany });
+  useEffect(() => { if (selected && symbolLayers.locked.has(selected.object.symbol)) deselect(); }, [symbolLayers.locked, selected]);
   const deselect = () => { setSelected(undefined); setActiveVertex(undefined); setRotating(false); setMoveWhole(false); };
   const cancelDraft = () => { setDraft([]); setPreviewObject(undefined); setCircleCenter(undefined); };
   const startSplit = (only?: string | null) => { deselect(); cancelDraft(); setNewArea(undefined); if (only !== undefined) setShownArea(only ?? undefined); setTool("split"); setPanelOpen(false); };
@@ -605,7 +604,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   }, [preview, selected, symbols, tool, symbol, draft, cursor, circleCenter, activeVertex, areaDrawings, proposedOpen, proposedShown, view.area, coverage, recon.layers,
     recon.trackLines, reconResult, walk, gapMm, notes.notes, shownNote, noteDraft, drawnLayers, candidates, normIssues, shownIssue,
     control.active, control.markers, rectify.shown, rectify.markers, sketchLayers, work.dragging, work.drawingLayer, work.stroke,
-    multi.moving, multi.shown, multi.box, multi.items.length, multi.marquee, fill.preview, fill.gaps]);
+    multi.moving, multi.shown, multi.box, multi.items.length, multi.marquee, fill.preview, fill.gaps, fill.proposals.candidates, fill.proposals.override]);
 
   const hint = tool === "split" ? split.hint : tool === "bucket" && canEdit ? fill.hint : toolHint({ canEdit, closed: view.status === "CLOSED", tool, multiCount: multi.items.length, rotating: multi.zone === "rotate", symbol,
     text, notes: notesText, keys: keysText, quick });
@@ -728,6 +727,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       </div>
       <div className={styles.statusRow}>
         <MapProjectCandidateBar importer={importer} symbols={symbols} onShowLayers={() => { setTab("layers"); setPanelOpen(true); }} />
+        <MapProjectAreaProposalBar proposals={fill.proposals} />
         {canEdit && (work.drawingLayer || draft.length > 0 || (selected && tool === "select") || multi.items.length > 0) && <div className={styles.objectBar} role="group"
           aria-label={quick.actions} data-testid="map-project-object-bar">
           {multi.items.length > 0 && <Button variant="secondary" onClick={multi.remove} data-testid="map-project-multi-remove">

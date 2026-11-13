@@ -9,17 +9,21 @@ import { toScreen, type Viewport } from "../../lib/course-setting-viewport";
 import { FILL_GAP_M, FILL_WINDOW_M, fillObject } from "../../lib/map-project-fill-area";
 import type { CatalogSymbol, MapProjectSession } from "../../lib/map-project-protocol";
 import { useLocale, useTexts } from "../language-provider";
+import { useMapProjectAreaProposals } from "./use-map-project-area-proposals";
 import type { ObjectChange } from "./use-map-project-editor";
 
 /**
  * Ägaren 2026-11-13 («fylla ytor»; sprintkartans ytor): verktyget Fyll yta. Med en ytsymbol vald visar pekaren rutan som
  * kartans synliga linjer och ytkanter bildar under den (räknas i Workern, `map-project-fill-area.ts`), och ett klick eller
  * ett tryck med fingret lägger in den som en vanlig ändring (ett förslag för den som bara får föreslå; Ångra tar bort den).
- * Är rutan inte sluten sägs varför, och öppningarna som hittas ritas röda.
+ * Är rutan inte sluten sägs varför, och öppningarna som hittas ritas röda. På en sprintkarta hör Föreslå ytor hit
+ * (`use-map-project-area-proposals.ts`): ett klick i en kandidatyta lägger in den, annars fylls rutan under klicket som vanligt.
  */
 export function useMapProjectFill(input: { session: MapProjectSession | undefined; active: boolean; symbol: CatalogSymbol | undefined;
   /** Släckta symboler: de är inga gränser. */
-  hidden: readonly string[]; commit: (change: ObjectChange) => boolean; say: (message: string) => void }) {
+  hidden: readonly string[]; commit: (change: ObjectChange) => boolean; say: (message: string) => void;
+  /** Föreslå ytor: symbolerna, kartans skala (normen) och flera ändringar som en ångringsbar grupp. */
+  symbols: ReadonlyMap<string, CatalogSymbol>; scale: number | undefined; commitMany: (changes: readonly ObjectChange[]) => number }) {
   const text = useTexts(mapProjectFillSv, mapProjectFillEn);
   const locale = useLocale();
   const { session, active, symbol } = input;
@@ -29,6 +33,7 @@ export function useMapProjectFill(input: { session: MapProjectSession | undefine
   const hovering = useRef<{ waiting: boolean; next: Point | undefined }>({ waiting: false, next: undefined });
   /** Ett klick är på väg: pekaren frågar inte under tiden (bara det senaste svaret kommer fram). */
   const filling = useRef(false);
+  const proposals = useMapProjectAreaProposals(input);
   const usable = active && symbol?.kind === "area";
   useEffect(() => { if (!usable) { setPreview(undefined); setGaps([]); hovering.current.next = undefined; } }, [usable]);
 
@@ -46,12 +51,13 @@ export function useMapProjectFill(input: { session: MapProjectSession | undefine
   /** Pekaren över kartan (musen): rutan under den visas. */
   function hover(point: Point | undefined) {
     if (!usable || filling.current) return;
-    if (!point) { hovering.current.next = undefined; setPreview(undefined); return; }
+    if (!point || proposals.inCandidate(point)) { hovering.current.next = undefined; setPreview(undefined); return; }
     if (hovering.current.waiting) hovering.current.next = point; else ask(point);
   }
 
   /** Klicket eller trycket: rutan läggs in med den valda symbolen. */
   function tap(point: Point) {
+    if (proposals.tap(point)) return;
     if (!session || !symbol || symbol.kind !== "area") { input.say(text.needsArea); return; }
     if (filling.current) return;
     filling.current = true;
@@ -73,6 +79,7 @@ export function useMapProjectFill(input: { session: MapProjectSession | undefine
 
   /** Rutan under pekaren (i symbolens färg) och öppningarna (röda), ovanpå kartan. */
   function draw(ctx: CanvasRenderingContext2D, view: Viewport) {
+    proposals.draw(ctx, view);
     if (!active || (!preview && gaps.length === 0)) return;
     ctx.save();
     if (preview) {
@@ -96,5 +103,5 @@ export function useMapProjectFill(input: { session: MapProjectSession | undefine
     ctx.restore();
   }
 
-  return { hover, tap, draw, preview, gaps, hint: symbol?.kind === "area" ? text.hint(symbol.code, FILL_GAP_M) : text.needsArea };
+  return { hover, tap, draw, preview, gaps, proposals, hint: symbol?.kind === "area" ? text.hint(symbol.code, FILL_GAP_M) : text.needsArea };
 }

@@ -28,8 +28,9 @@
 .statusRow { grid-column: 2; grid-row: 2; display: flex; align-items: center; gap: .6rem; height: 38px; padding: 0 10px; overflow: hidden;
   border-top: 1px solid var(--line); }
 /* Ägaren 2026-11-11: med kandidater på kartan får raden plats för dem ovanför verktygens knappar. */
-.statusRow:has([data-testid="map-project-candidate-bar"]) { height: auto; flex-direction: column; align-items: stretch; padding: 0; gap: 0; }
-.statusRow:has([data-testid="map-project-candidate-bar"]) > :not([data-testid="map-project-candidate-bar"]) { padding: 4px 10px; }
+/* Ägaren 2026-11-13: samma för raden Föreslå ytor (sprintkartor, verktyget Fyll yta). */
+.statusRow:has([data-testid="map-project-candidate-bar"], [data-testid="map-project-area-proposals"]) { height: auto; flex-direction: column; align-items: stretch; padding: 0; gap: 0; }
+.statusRow:has([data-testid="map-project-candidate-bar"], [data-testid="map-project-area-proposals"]) > :not([data-testid="map-project-candidate-bar"], [data-testid="map-project-area-proposals"]) { padding: 4px 10px; }
 .objectBar { flex: none; max-width: 75%; display: flex; flex-wrap: nowrap; gap: .3rem; overflow-x: auto; scrollbar-width: none; }
 .objectBar > * { flex: none; }
 .objectBar button { min-height: 30px; padding-block: 0; }

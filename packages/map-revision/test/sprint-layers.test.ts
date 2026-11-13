@@ -117,8 +117,8 @@ describe("lager → symbol på sprintkartor", () => {
       ["Perrong", area, "area501"],
       ["Tomtmark", area, "area520"], ["tomtmark_osm", area, "area520"], ["tomtmark_hus", { closedLines: 3 }, "area520"],
       ["Träd", point, "point418"], ["Stora träd", point, "point417"], ["VegetationTradsBBefintl", point, "point418"],
-      // Mallen har ingen grön linjesymbol: häcklinjen får inget förslag (och blir inte en yta); häcken som yta blir det tätaste gröna.
-      ["HÄCK", line, undefined], ["Plantering", area, "area410"],
+      // Häck och plantering: opasserbar vegetation, som linje häcklinjen 411.1 och som yta 411.
+      ["HÄCK", line, "line411.1"], ["Plantering", area, "area411"], ["Vegetation Plantering", { lines: 40, closedLines: 21 }, "line411.1"],
       // Ingen symbol: slänt, altan, okänd byggnadsanläggning, marktäckets bebyggelse, text och det skymda.
       ["SLÄNT", line, undefined], ["MarkanlaggningSlantglBBefintl", line, undefined], ["ByggnadsanlaggningAltangyBBefintl", area, undefined],
       ["ByggnadsanlaggningOvriggyBBefintl", area, undefined], ["bebyggelse", area, undefined], ["BostadsbyggnadBostadsbyggnadglBBefintl", { closedLines: 5 }, undefined],
@@ -127,6 +127,40 @@ describe("lager → symbol på sprintkartor", () => {
       ["contour", line, "line101"], ["oppen_mark", area, "area401"], ["VattendragDikeglBBefintl", line, "line306"], ["vatten", area, "area301"]
     ];
     for (const [name, shape, symbol] of expected) expect(sprint(name, shape), name).toBe(symbol);
+  });
+
+  it("Stockholms baskarta som objekttyp + undertyp, hopslagen, med bara objekttypen och med bara undertypen (prov på Älvsjö–Solberga)", () => {
+    const expected: [string[], Parameters<typeof layer>[1], string | undefined, string | undefined][] = [
+      [["Vägavgränsning Infart", "VagavgransningInfart", "Vägavgränsning", "Infart"], line, "line501.1", "line501.100"],
+      [["Vägavgränsning Refug", "VagavgransningRefug", "Refug"], { lines: 165, closedLines: 125 }, "line501.1", "line501.100"],
+      [["Vägutbredning", "Vägutbredning Parkvägsutbredning", "VagutbredningParkvagsutbredning", "Parkvägsutbredning"], line, "line501.1", "line501.100"],
+      [["Markanläggning Staket", "MarkanlaggningStaket", "Staket"], line, "line516", "line516.0"],
+      [["Markanläggning Bullerskydd", "MarkanlaggningBullerskydd"], line, "line518", "line518.0"],
+      [["Trafikanläggning Navföljare", "TrafikanlaggningNavfoljare", "Navföljare"], line, "line516", "line516.0"],
+      [["Markanläggning Stödmur", "MarkanlaggningStodmur"], line, "line513", "line513.200"],
+      [["Markanläggning Stenmur", "MarkanlaggningStenmur"], line, "line513", "line513.100"],
+      [["Trafikanläggning Terrängtrappa", "TrafikanlaggningTerrangtrappa", "Byggnadsanläggning Trappa"], line, "line532", "line532.0"],
+      [["Byggnadsanläggning Skärmtak", "ByggnadsanlaggningSkarmtak", "Servicebyggnad Regnskydd", "Regnskydd"], area, "area522", "area522.0"],
+      [["Bostadsbyggnad Enbostadshus", "BostadsbyggnadEnbostadshus", "Bostadsbyggnad", "Ospecificerad byggnad Ospec. byggnad Oregistrerad", "Industribyggnad",
+        "Servicebyggnad Transformator", "Transformator", "Mobilteknikbod", "Offentlig toalett", "Verksamhetsbyggnad Parkeringshus"], area, "area521", "area521.0"],
+      [["Vegetation Plantering", "VegetationPlantering", "Plantering"], { lines: 40, closedLines: 21 }, "line411.1", "line411.1"],
+      [["Vattendrag Dike", "VattendragDike", "Dike"], line, "line306", "line306.0"],
+      [["Vattendrag Bäck", "VattendragBack", "Vattendrag"], line, "line305", undefined],
+      [["Spårnät SJ Normalspår", "SparnatSJNormalspar", "Spårnät"], line, "line509", "line509.100"],
+      [["Elnät Högspänningsledning", "ElnatHogspanningsledning"], { lines: 5, closedLines: 20 }, "line510", undefined],
+      [["Gatuträd", "Parkträd", "Övrigt träd", "OvrigtTrad"], point, "point418", "point418.0"],
+      [["VagYta"], area, "area501", "area501.0"],
+      // Ingen symbol: altan, slänt, den reserverade trädplatsen, och objekttyper som rymmer flera slag.
+      [["Byggnadsanläggning Altan", "Markanläggning Slänt", "MarkanlaggningSlant", "Reserverad trädplats", "ReserveradTradplats", "Markanläggning",
+        "Trafikanläggning", "Byggnadsanläggning", "Teknikanläggning Mobiltelemast"], line, undefined, undefined]
+    ];
+    const template2019 = suggest(template("ISSPROM2019-2"), "ISSPROM"), ocad = suggest(OCAD_ISSPROM, "ISSPROM");
+    for (const [names, shape, inTemplate, inOcad] of expected) for (const name of names) {
+      expect(template2019(name, shape), `mallen: ${name}`).toBe(inTemplate);
+      expect(ocad(name, shape), `OCAD: ${name}`).toBe(inOcad);
+    }
+    // Träden: en reserverad plats är en punkt men inget träd.
+    expect(template2019("Reserverad trädplats", point)).toBeUndefined();
   });
 
   it("OpenStreetMaps lager på en sprintkarta", () => {

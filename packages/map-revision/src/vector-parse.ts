@@ -35,14 +35,22 @@ function openRing(ring: Position[]): Position[] {
   return first && last && ring.length > 1 && first[0] === last[0] && first[1] === last[1] ? ring.slice(0, -1) : ring;
 }
 
-/** Egenskaperna som ger lagret, i den ordningen (stora och små bokstäver spelar ingen roll). */
+/**
+ * Egenskaperna som ger lagret, i den ordningen (stora och små bokstäver spelar ingen roll). Har objektet både `objekttyp` och
+ * `undertyp` (Stockholms baskarta som GeoJSON eller Shape: «Markanläggning» + «Staket») blir lagret båda, «Markanläggning
+ * Staket»: objekttypen ensam slår ihop staket, slänt och stödmur till ett lager som inte kan få en symbol (prov på
+ * Älvsjö–Solberga 2026-11-13).
+ */
 export const LAYER_PROPERTIES = ["layer", "lager", "objekttyp", "obkod", "detaljtyp", "type", "kind", "class"];
 export function layerOf(properties: unknown, fallback: string): string {
   if (properties && typeof properties === "object") {
     const byName = new Map(Object.entries(properties as Record<string, unknown>).map(([name, value]) => [name.toLowerCase(), value]));
     for (const name of LAYER_PROPERTIES) {
       const value = byName.get(name);
-      if ((typeof value === "string" && value.trim()) || typeof value === "number") return String(value).trim().slice(0, 120);
+      if (!((typeof value === "string" && value.trim()) || typeof value === "number")) continue;
+      const text = String(value).trim(), sub = name === "objekttyp" ? byName.get("undertyp") : undefined;
+      const detail = typeof sub === "string" ? sub.trim() : "";
+      return (detail && detail.toLowerCase() !== text.toLowerCase() ? `${text} ${detail}` : text).slice(0, 120);
     }
   }
   return fallback;

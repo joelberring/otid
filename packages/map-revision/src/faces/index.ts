@@ -33,6 +33,10 @@ export interface Face {
   readonly area: number;
   /** Källinjerna (`id`) som bildar gränsen. */
   readonly sources: string[];
+  /** Hur lång bit av gränsen (ytterkant och hål) varje källa i `sources` bildar. En sträcka med flera källor räknas till alla. */
+  readonly lengths: number[];
+  /** Hela gränsens längd (ytterkant och hål), slutna glapp medräknade. */
+  readonly perimeter: number;
   /** Glappen som slöts för att ytan skulle bli sluten. */
   readonly closures: FaceClosure[];
 }
@@ -75,17 +79,18 @@ export function facesFromLines(lines: readonly FaceLine[], options: FacesOptions
   const { xs, ys, edges } = graph;
   const ring = (cycle: Cycle): FacePoint[] => cycle.nodes.map(node => ({ x: xs[node]!, y: ys[node]! }));
   const faces = polygonize(graph).map(({ outer, holes }): Face => {
-    const sources = new Set<number>(), closures: FaceClosure[] = [];
+    const sources = new Map<number, number>(), closures: FaceClosure[] = [];
+    let perimeter = 0;
     for (const cycle of [outer, ...holes]) for (const index of cycle.edges) {
       const edge = edges[index]!;
-      for (const source of edge.sources) sources.add(source);
-      if (edge.closure) {
-        const a = { x: xs[edge.u]!, y: ys[edge.u]! }, b = { x: xs[edge.v]!, y: ys[edge.v]! };
-        closures.push({ a, b, length: Math.hypot(b.x - a.x, b.y - a.y) });
-      }
+      const length = Math.hypot(xs[edge.v]! - xs[edge.u]!, ys[edge.v]! - ys[edge.u]!);
+      perimeter += length;
+      for (const source of edge.sources) sources.set(source, (sources.get(source) ?? 0) + length);
+      if (edge.closure) closures.push({ a: { x: xs[edge.u]!, y: ys[edge.u]! }, b: { x: xs[edge.v]!, y: ys[edge.v]! }, length });
     }
+    const order = [...sources.keys()].sort((a, b) => a - b);
     return { outer: ring(outer), holes: holes.map(ring), area: outer.area + holes.reduce((sum, hole) => sum + hole.area, 0),
-      sources: [...sources].sort((a, b) => a - b).map(source => lines[source]!.id), closures };
+      sources: order.map(source => lines[source]!.id), lengths: order.map(source => sources.get(source)!), perimeter, closures };
   });
   return { faces, looseEnds: gaps.looseEnds, closedEnds: gaps.closures.length };
 }

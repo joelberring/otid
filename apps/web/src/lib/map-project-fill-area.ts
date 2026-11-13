@@ -13,7 +13,8 @@ export const FILL_GAP_M = FACE_GAP_M;
 export const FILL_WINDOW_M = 150;
 /** Flest sträckor i fönstret; blir det fler halveras fönstret. */
 const MAX_SEGMENTS = 40_000;
-const FRAME = "#fönster";
+/** Fönstrets ram som gränslinje: en ruta som har den i sin gräns når fönstrets kant och är inte sluten. */
+export const FILL_FRAME = "#fönster";
 
 export interface FillInput {
   readonly objects: readonly MapObject[]; readonly boxes: readonly Box[]; readonly symbols: ReadonlyMap<string, MapSymbol>;
@@ -88,25 +89,35 @@ function boundaryLines(input: FillInput, hidden: ReadonlySet<string>, box: Box):
 
 interface FillWindow { readonly box: Box; readonly faces: readonly Face[] }
 
+/**
+ * Alla ytor i en ruta (kartans mm): gränslinjerna klippta mot rutan, med rutans ram som egen gränslinje (`FILL_FRAME`).
+ * Källorna (`Face.sources`) är objektens nummer i `input.objects`. Undefined när rutan har fler sträckor än `maxSegments`.
+ */
+export function fillFaces(input: FillInput, hidden: ReadonlySet<string>, box: Box, tolerance: number, maxSegments = Infinity): Face[] | undefined {
+  const { lines, segments } = boundaryLines(input, hidden, box);
+  if (segments > maxSegments) return undefined;
+  lines.push({ id: FILL_FRAME, closed: true, points: [{ x: box.minX, y: box.minY }, { x: box.maxX, y: box.minY }, { x: box.maxX, y: box.maxY }, { x: box.minX, y: box.maxY }] });
+  return facesFromLines(lines, { gapTolerance: tolerance }).faces;
+}
+
 /** Alla ytor i ett fönster kring `center` (halva sidan `half`, tolerans `tolerance`, allt i kartans mm). */
 function fillWindow(input: FillInput, hidden: ReadonlySet<string>, center: Point, half: number, tolerance: number): FillWindow {
   for (let attempt = 0; ; attempt += 1) {
     const box = { minX: center.x - half, minY: center.y - half, maxX: center.x + half, maxY: center.y + half };
-    const { lines, segments } = boundaryLines(input, hidden, box);
-    if (segments > MAX_SEGMENTS && attempt < 3) { half /= 2; continue; }
-    lines.push({ id: FRAME, closed: true, points: [{ x: box.minX, y: box.minY }, { x: box.maxX, y: box.minY }, { x: box.maxX, y: box.maxY }, { x: box.minX, y: box.maxY }] });
-    return { box, faces: facesFromLines(lines, { gapTolerance: tolerance }).faces };
+    const faces = fillFaces(input, hidden, box, tolerance, attempt < 3 ? MAX_SEGMENTS : Infinity);
+    if (faces) return { box, faces };
+    half /= 2;
   }
 }
 
 /** Ytan under punkten om den är sluten (inte når fönstrets kant). */
 function closedFaceAt(window: FillWindow, point: Point): Face | undefined {
   const face = faceAt(window.faces, point);
-  return face && !face.sources.includes(FRAME) ? face : undefined;
+  return face && !face.sources.includes(FILL_FRAME) ? face : undefined;
 }
 
 /** Ringen utan punkter som ligger mitt på en rak sträcka (noderna där andra linjer ansluter). */
-function withoutStraightPoints(ring: readonly Point[]): Point[] {
+export function withoutStraightPoints(ring: readonly Point[]): Point[] {
   const out: Point[] = [];
   for (let index = 0; index < ring.length; index += 1) {
     const a = out[out.length - 1] ?? ring[ring.length - 1]!, b = ring[index]!, c = ring[(index + 1) % ring.length]!;

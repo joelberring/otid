@@ -31,6 +31,18 @@ describe("vektorunderlagen (K4b)", () => {
     expect(() => parseGeoJson("inte json")).toThrow(VectorParseError);
   });
 
+  it("lagret ur objekttyp och undertyp tillsammans (Stockholms baskarta), utan upprepning när de är lika", () => {
+    const at = { type: "Point", coordinates: [675005, 6580030] };
+    const data = parseGeoJson(JSON.stringify({ type: "FeatureCollection", features: [
+      { type: "Feature", properties: { objekttyp: "Markanläggning", undertyp: "Staket", mark: "På" }, geometry: at },
+      { type: "Feature", properties: { OBJEKTTYP: "Vägutbredning", Undertyp: "Vägutbredning" }, geometry: at },
+      { type: "Feature", properties: { objekttyp: "Byggnad", undertyp: null }, geometry: at },
+      { type: "Feature", properties: { layer: "Eget lager", objekttyp: "Markanläggning", undertyp: "Slänt" }, geometry: at },
+      { type: "Feature", properties: { undertyp: "Gatuträd" }, geometry: at }
+    ] }));
+    expect(data.features.map(feature => feature.layer)).toEqual(["Markanläggning Staket", "Vägutbredning", "Byggnad", "Eget lager", "Point"]);
+  });
+
   it("läser DXF: punkter, linjer, polylinjer (slutna) och hoppar över det okända", () => {
     const data = parseDxf(dxf([
       ["0", "POINT", "8", "TRAD", "10", "675001", "20", "6580001", "30", "0"],

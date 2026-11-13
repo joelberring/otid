@@ -19,6 +19,9 @@ describe("ytor ur linjer", () => {
     // Ytterkanten går moturs, och källorna är linjerna som bildar gränsen.
     expect(ringArea(faces[0]!.outer)).toBeGreaterThan(0);
     expect(faceAt(faces, { x: 2, y: 2 })!.sources).toEqual(["ram", "v", "h"]);
+    // Gränsens längd per källa (i samma ordning som källorna): två ramsidor om 5 och en bit av varje korslinje.
+    expect(faceAt(faces, { x: 2, y: 2 })!.lengths).toEqual([10, 5, 5]);
+    expect(faceAt(faces, { x: 2, y: 2 })!.perimeter).toBeCloseTo(20, 9);
   });
 
   it("T-korsning: en linje som slutar på en annan delar ytan", () => {
@@ -40,6 +43,10 @@ describe("ytor ur linjer", () => {
     const closed = facesFromLines(lines, { gapTolerance: 2 });
     expect(closed).toMatchObject({ looseEnds: 1, closedEnds: 1 });
     expect(closed.faces.map(face => face.area).sort((a, b) => a - b)).toEqual([40, 60]);
+    // Det slutna glappet räknas till gränsens längd men inte till någon källa.
+    const left = faceAt(closed.faces, { x: 2, y: 5 })!;
+    expect(left.perimeter).toBeCloseTo(28, 9);
+    expect(left.lengths.reduce((sum, length) => sum + length, 0)).toBeCloseTo(26.5, 9);
     for (const face of closed.faces) {
       expect(face.closures).toHaveLength(1);
       expect(face.closures[0]!.length).toBeCloseTo(1.5, 9);

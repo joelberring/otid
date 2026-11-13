@@ -78,7 +78,7 @@ RUN echo "Karttapullautin ${PULLAUTIN_TAG}, GPL-3. Källkoden: https://github.co
   && echo "LibreDWG ${LIBREDWG_VERSION}, GPL-3. Källkoden: https://github.com/LibreDWG/libredwg/releases/tag/${LIBREDWG_VERSION}" > /opt/libredwg/KALLA.txt \
   && mkdir -p /work /app && chown node:node /work
 # Geo-arbetaren och fuktigheten (K5c) körs direkt av Node (typerna tas bort); package.json gör dem till ES-moduler.
-COPY --chown=node:node scripts/geo-worker.ts scripts/geo-moisture.ts scripts/geo-vegetation.ts scripts/geo-water.ts scripts/geo-cliffs.ts scripts/geo-ditches.ts scripts/geo-rock.ts scripts/geo-steps.ts scripts/geo-cache.ts scripts/geo-generalize.ts scripts/geo-points.ts scripts/geo-paved.ts scripts/geo-paved-generalize.ts scripts/geo-gpkg.ts scripts/geo-dwg.ts /app/
+COPY --chown=node:node scripts/geo-worker.ts scripts/geo-moisture.ts scripts/geo-vegetation.ts scripts/geo-water.ts scripts/geo-cliffs.ts scripts/geo-ditches.ts scripts/geo-rock.ts scripts/geo-steps.ts scripts/geo-cache.ts scripts/geo-generalize.ts scripts/geo-points.ts scripts/geo-paved.ts scripts/geo-paved-generalize.ts scripts/geo-paved-contour.ts scripts/geo-gpkg.ts scripts/geo-dwg.ts /app/
 RUN echo '{ "type": "module", "private": true }' > /app/package.json
 USER node
 WORKDIR /app

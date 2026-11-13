@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { otsuThreshold, pavedFromPoints, pavedLimit } from "../../../scripts/geo-paved";
+import { otsuThreshold, PAVED_AREA_TOLERANCE, pavedFromPoints, pavedLimit, pavedRings } from "../../../scripts/geo-paved";
 import { POINT_BANDS, type PointStats } from "../../../scripts/geo-points";
 import { ringArea } from "../../../scripts/geo-moisture";
 
@@ -40,22 +40,49 @@ describe("belagd yta ur laserns intensitet (ägaren 2026-11-13)", () => {
     const at = (x: number, y: number) => result.mask[x * 80 + y];
     expect([at(12, 40), at(40, 40), at(35, 35)]).toEqual([1, 1, 1]);
     expect([at(62, 12), at(62, 32), at(62, 52), at(61, 61), at(20, 20)]).toEqual([0, 0, 0, 0, 0]);
-    // Två ytor utan hål, i SWEREF 99 TM, med cellernas kanter som gräns (inom en halv meter efter generaliseringen).
-    expect(result.rings).toHaveLength(2);
-    const areas = result.rings.map(ring => ringArea(ring)).sort((a, b) => a - b);
-    // Planen (1 584 m² i celler) och gatan, båda generaliserade till rektanglar med cellernas area.
-    expect(areas[0]).toBeCloseTo(1584, -1);
-    expect(areas[1]).toBeCloseTo(1600, -1);
+    // Två ytor utan hål, i SWEREF 99 TM: planen och gatan som rektanglar med ungefär cellernas area och lägen.
+    expect(result.source).toBe("generalized");
     expect(result.rings.map(ring => ring.length)).toEqual([4, 4]);
+    const areas = result.rings.map(ring => ringArea(ring)).sort((a, b) => a - b);
+    expect(Math.abs(areas[0]! - 1584)).toBeLessThan(1584 * 0.05);
+    expect(Math.abs(areas[1]! - 1600)).toBeLessThan(1600 * 0.05);
     const xs = result.rings.flat().map(point => point[0]);
-    expect(Math.abs(Math.min(...xs) - 674_020)).toBeLessThan(0.5);
-    expect(Math.abs(Math.max(...xs) - 674_100)).toBeLessThan(0.5);
+    expect(Math.abs(Math.min(...xs) - 674_020)).toBeLessThan(1);
+    expect(Math.abs(Math.max(...xs) - 674_100)).toBeLessThan(1);
   });
 
   it("ett kvarter mitt i den belagda ytan blir ett hål (medurs ring)", () => {
     const result = pavedFromPoints(stats(80, 80, (x, y) => within(x, y, 10, 10, 59, 59) && !within(x, y, 25, 25, 44, 44) ? ground(23) : grass(x, y)));
     expect(result.rings).toHaveLength(2);
     expect(result.rings.map(ring => Math.sign(ringArea(ring))).sort()).toEqual([-1, 1]);
+    // Ytterkanten minus hålet är maskens yta (50 × 50 celler utan 20 × 20, minus öppningens hörn).
+    expect(Math.abs(result.rings.reduce((sum, ring) => sum + ringArea(ring), 0) - result.pavedHa * 10_000)).toBeLessThan(result.pavedHa * 10_000 * 0.05);
+  });
+
+  it("skyddet på helheten: gator och kvarter ger ringar med maskens yta, och en mask som utjämningen inte klarar ges som rasterkant", () => {
+    // Ett gatunät: 8 m breda gator var 60:e meter åt båda håll, med kvarteren som hål.
+    const size = 120, grid = { minX: 1, minY: 1, cell: 2, width: size, height: size };
+    const streets = new Uint8Array(size * size);
+    for (let x = 0; x < size; x += 1) for (let y = 0; y < size; y += 1) if ((x % 30 >= 13 && x % 30 < 17) || (y % 30 >= 13 && y % 30 < 17)) streets[x * size + y] = 1;
+    const town = pavedRings(streets, grid);
+    expect(town.source).toBe("generalized");
+    expect(town.maskM2).toBe(streets.reduce((sum, value) => sum + value, 0) * 4);
+    const outer = town.rings.filter(ring => ringArea(ring) > 0), holes = town.rings.filter(ring => ringArea(ring) < 0);
+    expect(outer).toHaveLength(1);
+    // De nio kvarteren mitt i nätet är hål (kvarteren längs kanten är öppna utåt).
+    expect(holes).toHaveLength(9);
+    for (const hole of holes) expect(Math.abs(Math.abs(ringArea(hole)) - 52 * 52)).toBeLessThan(52 * 52 * 0.08);
+    const net = town.rings.reduce((sum, ring) => sum + ringArea(ring), 0);
+    expect(Math.abs(net - town.maskM2)).toBeLessThanOrEqual(PAVED_AREA_TOLERANCE * town.maskM2);
+    // Räknas hålen som ytor (omloppsriktningen struken) blir ytan mycket för stor: det är hålen som håller arean rätt.
+    expect(town.rings.reduce((sum, ring) => sum + Math.abs(ringArea(ring)), 0)).toBeGreaterThan(1.5 * town.maskM2);
+    // Smala remsor (två celler) försvinner i utjämningen: ringarnas yta stämmer inte med maskens, och rasterkanten gäller.
+    const strips = new Uint8Array(size * size);
+    for (let x = 10; x < 110; x += 1) for (let y = 10; y < 110; y += 1) if (y % 10 < 2) strips[x * size + y] = 1;
+    const narrow = pavedRings(strips, grid);
+    expect(narrow.source).toBe("raster");
+    expect(narrow.rings).toHaveLength(10);
+    expect(narrow.rings.reduce((sum, ring) => sum + ringArea(ring), 0)).toBe(narrow.maskM2);
   });
 
   it("en topp ger ingenting: bara gräs, eller för få öppna celler", () => {

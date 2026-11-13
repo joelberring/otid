@@ -17,8 +17,9 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Geo-arbetaren skriver `belagt.dxf` (lagret `belagd_yta_laser`) när jobbet har `paved: 1`: öppna 2 m-celler med mörk
   intensitet på markträffarna, gränsen anpassad till skanningen (`scripts/geo-paved.ts`). Mätt mot Bandhagen–Hagsätra:
   precision 0,75, täckning 0,52. Sammanfattningen har `pavedHa` och `pavedLimit`.
-- Ytornas ringar generaliseras (`scripts/geo-paved-generalize.ts`): raka sträckor, räta vinklar kring en huvudriktning,
-  kompakta små ytor som rektanglar, med skydd för area, självkorsning och flytt.
+- Jämna kanter: masken sluts, jämnas ut (gaussiskt, 1,5 celler) och konturen dras vid 0,5 mellan cellerna
+  (`scripts/geo-paved-contour.ts`); sedan räta vinklar kring en huvudriktning och rektanglar för kompakta små ytor
+  (`scripts/geo-paved-generalize.ts`), med skydd per ring och på helheten (ringarnas yta inom 10 % från maskens).
 - Webben (guiden och laserpanelen) och AI-kopplingen sätter `paved: 1` som förval på sprintkartor.
 - Grundkartan: filen läses in som ytor med kvarteren som hål och föreslås som 501 (ISSOM 529), inget på skogskartor. Finns
   filen får OpenStreetMaps gator och gångvägar ingen yta med antagen bredd; mittlinjerna följer med utan förslag.

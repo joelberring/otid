@@ -13,14 +13,14 @@
  *    över Otsu-gränsen och aldrig under 1,5 × toppen (Bandhagen: topp 23, Otsu 90, gräns 57). Utan tydliga två toppar (för
  *    få öppna celler, Otsu-gränsen under 1,5 × toppen eller för få mörka celler) ges ingen belagd yta alls.
  * 4. Belagd = öppen med filtrerad intensitet under gränsen; öppnas ett steg, hål under 20 m² fylls, ytor under 40 m² tas bort.
- * 5. Ytorna blir ringar (ytterkanter moturs, hål medurs) i SWEREF 99 TM, generaliserade till raka kanter och räta vinklar
- *    där ytan har det (geo-paved-generalize.ts).
+ * 5. Ytorna blir ringar (ytterkanter moturs, hål medurs) i SWEREF 99 TM med jämna kanter (`pavedRings`).
  *
  * Bara Nodes egna moduler (filen körs direkt av Node i avbildningen `otid-geo`).
  */
 import { openMask } from "./geo-generalize.ts";
-import { maskRings } from "./geo-moisture.ts";
-import { generalizePavedRing } from "./geo-paved-generalize.ts";
+import { maskRings, simplify } from "./geo-moisture.ts";
+import { smoothMaskRings } from "./geo-paved-contour.ts";
+import { generalizePavedRing, signedArea } from "./geo-paved-generalize.ts";
 import { POINT_BANDS, type PointStats } from "./geo-points.ts";
 
 export interface PavedSettings {
@@ -95,9 +95,38 @@ function components(mask: Uint8Array, width: number, height: number, value: numb
   }
 }
 
+export type PavedRingSource = "generalized" | "smoothed" | "raster";
+/** Ringarnas sammanlagda yta (ytterkanter minus hål) får avvika så här mycket från maskens. */
+export const PAVED_AREA_TOLERANCE = 0.1;
+const ringsArea = (rings: readonly (readonly (readonly [number, number])[])[]) => rings.reduce((sum, ring) => sum + signedArea(ring), 0);
+
+/**
+ * Maskens ytor som ringar i meter (ytterkanter moturs, hål medurs). Kanten jämnas ut och dras mellan cellerna
+ * (geo-paved-contour.ts), förenklas, och ringar under minsta ytan eller med färre än fyra punkter tas bort; sedan räta
+ * vinklar och rektanglar där ytan är sådan (geo-paved-generalize.ts). Skydd på helheten: avviker ringarnas sammanlagda yta
+ * mer än 10 % från maskens används ringarna utan räta vinklar och rektanglar («smoothed»), och avviker också de används
+ * rasterkanten («raster», som berg i dagen). `minX`, `minY` är mitten av cellen (0, 0).
+ */
+export function pavedRings(mask: Uint8Array, grid: { readonly minX: number; readonly minY: number; readonly cell: number; readonly width: number; readonly height: number },
+  settings: Pick<PavedSettings, "minAreaM2"> = DEFAULT_PAVED): { rings: [number, number][][]; source: PavedRingSource; maskM2: number } {
+  let cells = 0;
+  for (let i = 0; i < mask.length; i += 1) cells += mask[i]!;
+  const maskM2 = cells * grid.cell * grid.cell;
+  if (cells === 0) return { rings: [], source: "generalized", maskM2 };
+  const close = (rings: readonly (readonly (readonly [number, number])[])[]) => Math.abs(ringsArea(rings) - maskM2) <= PAVED_AREA_TOLERANCE * maskM2;
+  const smooth = smoothMaskRings(mask, grid);
+  for (const source of ["generalized", "smoothed"] as const) {
+    const rings = smooth.map(ring => generalizePavedRing(ring, undefined, source === "generalized"))
+      .filter(ring => ring.length >= 4 && Math.abs(signedArea(ring)) >= settings.minAreaM2);
+    if (close(rings)) return { rings, source, maskM2 };
+  }
+  const raster = maskRings(mask, { ...grid, z: new Float64Array(0) }).map(ring => simplify(ring, grid.cell * 0.75)).filter(ring => ring.length >= 4);
+  return { rings: raster, source: "raster", maskM2 };
+}
+
 export interface PavedResult {
-  /** Ringarna i meter (SWEREF 99 TM): ytterkanter moturs, hål medurs. */
-  readonly rings: [number, number][][];
+  /** Ringarna i meter (SWEREF 99 TM): ytterkanter moturs, hål medurs; och hur de togs fram (`pavedRings`). */
+  readonly rings: [number, number][][]; readonly source: PavedRingSource;
   /** Masken på statistikens celler (index x · höjd + y), för tester och summering. */
   readonly mask: Uint8Array;
   readonly pavedHa: number; readonly openCells: number;
@@ -134,7 +163,7 @@ export function pavedFromPoints(stats: PointStats, water?: (x: number, y: number
     filtered[i] = median; histogram[median] = histogram[median]! + 1; openCells += 1;
   }
   const chosen = pavedLimit(histogram, settings);
-  if (chosen.limit === undefined) return { rings: [], mask: new Uint8Array(size), pavedHa: 0, openCells, reason: chosen.reason };
+  if (chosen.limit === undefined) return { rings: [], source: "generalized", mask: new Uint8Array(size), pavedHa: 0, openCells, reason: chosen.reason };
   const raw = new Uint8Array(size);
   for (let i = 0; i < size; i += 1) if (open[i] && filtered[i]! <= chosen.limit) raw[i] = 1;
   // Ett steg öppning tar bort enstaka celler; sedan fylls små hål och små ytor tas bort.
@@ -147,9 +176,7 @@ export function pavedFromPoints(stats: PointStats, water?: (x: number, y: number
   });
   let cells = 0;
   for (let i = 0; i < size; i += 1) cells += mask[i]!;
-  // `maskRings` räknar med cellernas mitt i rutnätets origo; statistikens origo är cellens hörn.
-  const grid = { minX: stats.minX + cell / 2, minY: stats.minY + cell / 2, cell, width, height, z: new Float64Array(0) };
-  // Ringarna generaliseras: raka vägkanter, räta vinklar och rektanglar där ytan är sådan (geo-paved-generalize.ts).
-  const rings = maskRings(mask, grid).map(ring => generalizePavedRing(ring)).filter(ring => ring.length >= 3);
-  return { rings, mask, pavedHa: Math.round(cells * area / 100) / 100, openCells, limit: Math.round(chosen.limit * 10) / 10, darkPeak: chosen.darkPeak, otsu: chosen.otsu };
+  // Rutnätet med cellernas mitt i origo (statistikens origo är cellens hörn).
+  const { rings, source } = pavedRings(mask, { minX: stats.minX + cell / 2, minY: stats.minY + cell / 2, cell, width, height }, settings);
+  return { rings, source, mask, pavedHa: Math.round(cells * area / 100) / 100, openCells, limit: Math.round(chosen.limit * 10) / 10, darkPeak: chosen.darkPeak, otsu: chosen.otsu };
 }

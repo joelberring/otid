@@ -56,6 +56,14 @@ export function openMask(mask: Uint8Array, width: number, height: number, cells 
   return a;
 }
 
+/** Masken sluten ett steg med åtta grannar (3 × 3: vuxen och sedan krympt): hål och vikar på en cell fylls. */
+export function closeMask(mask: Uint8Array, width: number, height: number): Uint8Array {
+  const grown = new Uint8Array(mask.length), out = new Uint8Array(mask.length);
+  step(mask, grown, width, height, true, true);
+  step(grown, out, width, height, false, true);
+  return out;
+}
+
 /**
  * Små vita ytor: celler som varken är `open`, `green` eller `blocked` och som hänger ihop i färre än `minCells` celler ges
  * till den av gult och grönt som ligger närmast (bredden först, högst `reach` steg). Ändrar `open` och `green` på plats och

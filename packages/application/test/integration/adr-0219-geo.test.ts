@@ -260,6 +260,17 @@ describe("ADR-0219 K5: geo-arbetaren", () => {
     const readers = await readOwnAccountStorage(db, reader.proof, later(5));
     expect(readers).toMatchObject({ status: "ok", response: { usedBytes: 0, projects: [], otherBytes: 0 } });
     expect(await readAccountStorageAsSuperadmin(db, reader.proof, owner.accountId, later(5))).toEqual({ status: "forbidden" });
+    // L4: projektet märks som använt när någon med behörighet rör det, högst en gång i timmen. Att läsa kontots lagring räknas inte.
+    const opened = async () => (await db.select({ at: schema.mapProjects.lastOpenedAt }).from(schema.mapProjects).where(eq(schema.mapProjects.id, projectId)))[0]!.at;
+    const firstTouch = await opened();
+    expect(firstTouch).toBeInstanceOf(Date);
+    expect(mine.lastOpenedAt).toBe(firstTouch!.toISOString());
+    await listGeoJobs(db, { ...reader.proof, projectId }, server, new Date(firstTouch!.getTime() + 59 * 60_000));
+    expect(await opened()).toEqual(firstTouch);
+    await listGeoJobs(db, { ...reader.proof, projectId }, server, new Date(firstTouch!.getTime() + 61 * 60_000));
+    expect(await opened()).toEqual(new Date(firstTouch!.getTime() + 61 * 60_000));
+    expect((await listGeoJobs(db, { ...(await registerTestAccount(db, undefined, NOW)).proof, projectId }, server, new Date(firstTouch!.getTime() + 62 * 60_000))).status).toBe("not-found");
+    expect(await opened()).toEqual(new Date(firstTouch!.getTime() + 61 * 60_000));
 
     // Rensningen: läsaren har inga egna körningar att ta; ägaren tar allt utom den senaste klara, med de äldres underlag.
     expect(await pruneGeoJobs(db, { ...reader.proof, projectId }, later(6))).toEqual({ status: "pruned", removedRuns: 0, removedLayers: 0 });

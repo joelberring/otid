@@ -1408,7 +1408,7 @@ Underlag: `claude/plan-lagring-och-backup-2026-11-13.md` och ADR-0224. Delas i l
   störst först; superadmin ser samma uppdelning för ett konto.
 - [x] L3 Rensning: "Ta bort äldre körningar" per projekt (den senaste klara behålls); resultatfiler från misslyckade och
   avbrutna körningar tas bort automatiskt; en körning som föll på serverns fel (minne, lagring) räknas inte mot laserkvoten.
-- [ ] L4 Senaste öppning sparas per kartprojekt (förutsättning för "orört" i ADR-0224).
+- [x] L4 Senaste öppning sparas per kartprojekt (förutsättning för "orört" i ADR-0224; migration 0119).
 - [ ] L5 Arkivet, första delen: laserkörningars äldre resultatfiler till objektlagring, först bara loggat, sedan påslaget;
   återhämtning när projektet öppnas (ADR-0224 beslut 5–7 och 9).
 - [ ] L6 Arkivet, resten: underlag, hela vilande projekt, klubbarkivet och gamla tävlingars kartfiler; "Arkivera nu" och

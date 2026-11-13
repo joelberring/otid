@@ -15,7 +15,9 @@ export const accountStorageProjectSchema = z.object({
   baseBytes: bytes,
   totalBytes: bytes,
   /** Kontots avslutade körningar i projektet utom projektets senaste klara – det "Ta bort äldre körningar" tar. */
-  prunableRuns: z.number().int().min(0)
+  prunableRuns: z.number().int().min(0),
+  /** När projektet senast användes (PLAN.md steg L4); null = inte sedan tidpunkten började sparas. */
+  lastOpenedAt: z.iso.datetime({ offset: true }).nullable()
 }).strict();
 
 export const accountStorageSchema = z.object({

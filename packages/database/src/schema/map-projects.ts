@@ -57,7 +57,9 @@ export const mapProjects = pgTable("map_project", {
   colors: jsonb("colors").$type<{ id: number; cmyk: { c: number; m: number; y: number; k: number } }[]>(),
   colorsChangedAt: timestamp("colors_changed_at", { withTimezone: true }),
   /** Vad AI-kopplingen får göra (0116): READ, PROPOSE (förval) eller AUTONOMOUS. */
-  aiMode: text("ai_mode").$type<"READ" | "PROPOSE" | "AUTONOMOUS">().notNull().default("PROPOSE")
+  aiMode: text("ai_mode").$type<"READ" | "PROPOSE" | "AUTONOMOUS">().notNull().default("PROPOSE"),
+  /** När projektet senast användes av någon med behörighet (0119, högst en skrivning i timmen); null = inte sedan kolumnen kom till. */
+  lastOpenedAt: timestamp("last_opened_at", { withTimezone: true })
 });
 
 export const mapProjectMembers = pgTable("map_project_member", {

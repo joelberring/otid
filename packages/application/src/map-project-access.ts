@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import type { MapProjectRole } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { clubJournal, clubMembership, clubRoleAtLeast, type ClubFailure, type ClubProof } from "./club-access";
@@ -113,7 +113,23 @@ export async function requireMapProjectForAccount(tx: MapProjectTransaction, acc
   if (!role && await acceptMapProjectInvitations(tx, accountId, now, project.id) > 0) role = await mapProjectRoleOf(tx, accountId, project);
   if (!role) return { status: "not-found" };
   if (!mapProjectAllows(role, project, need)) return { status: "forbidden" };
+  await touchMapProject(tx, project.id, now);
   return { status: "ok", accountId, role, project };
+}
+
+/** Hur ofta `last_opened_at` skrivs som tätast. */
+const TOUCH_INTERVAL_MS = 60 * 60_000;
+
+/**
+ * PLAN.md steg L4 (ADR-0224 beslut 5): noterar att projektet används. All åtkomst med behörighet går genom
+ * `requireMapProjectForAccount` (webben, AI-kopplingen, export), så tidpunkten sätts här. Den skrivs högst en gång i timmen
+ * och bara om raden inte är låst av någon annan (`skip locked`), så att en läsning aldrig väntar på en pågående ändring.
+ */
+async function touchMapProject(tx: MapProjectTransaction, projectId: string, now: Date): Promise<void> {
+  const stale = new Date(now.getTime() - TOUCH_INTERVAL_MS);
+  await tx.execute(sql`update map_project set last_opened_at = ${now.toISOString()}::timestamptz where id in (
+    select id from map_project where id = ${projectId}::uuid and (last_opened_at is null or last_opened_at < ${stale.toISOString()}::timestamptz)
+    for update skip locked)`);
 }
 
 /** Projektet och rollen för den som frågar, eller felet: sessionen (webben) eller ett känt konto (AI-kopplingen). */

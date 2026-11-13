@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { accountStorageSchema, geoJobPruneResponseSchema, SUPERADMIN_NEAR_LIMIT_SHARE, type AccountStorage } from "@o-tid/contracts";
 import { accountStorageSv } from "../i18n/account-storage-sv";
 import { accountStorageEn } from "../i18n/account-storage-en";
-import { useTexts } from "./language-provider";
+import { useLocale, useTexts } from "./language-provider";
 import { accountRequest } from "../lib/account-client";
 import { Button, EmptyState, Notice, numeric, Section, Table } from "./ui";
 import styles from "./account-pages.module.css";
@@ -15,6 +15,7 @@ import styles from "./account-pages.module.css";
  */
 export function AccountStorageSection({ url, id, canPrune, title }: { url: string; id: string; canPrune: boolean; title?: string }) {
   const text = useTexts(accountStorageSv, accountStorageEn);
+  const locale = useLocale();
   const [storage, setStorage] = useState<AccountStorage>();
   const [failed, setFailed] = useState(false);
   const [confirming, setConfirming] = useState<string>();
@@ -57,13 +58,14 @@ export function AccountStorageSection({ url, id, canPrune, title }: { url: strin
       {message && <Notice tone={message.tone} role={message.tone === "error" ? "alert" : "status"}>{message.text}</Notice>}
       {storage.projects.length === 0 && storage.otherBytes === 0 ? <EmptyState title={text.empty} /> : <Table aria-label={title ?? text.title}>
         <thead><tr><th>{text.columns.project}</th><th>{text.columns.geo}</th><th>{text.columns.layers}</th><th>{text.columns.outputs}</th>
-          <th>{text.columns.base}</th><th>{text.columns.total}</th>{canPrune && <th>{text.columns.actions}</th>}</tr></thead>
+          <th>{text.columns.base}</th><th>{text.columns.total}</th><th>{text.columns.opened}</th>{canPrune && <th>{text.columns.actions}</th>}</tr></thead>
         <tbody>
           {storage.projects.map(project => <tr key={project.projectId}>
             <th scope="row">{project.name}</th>
             <td className={numeric}>{text.mb(project.geoBytes)}</td><td className={numeric}>{text.mb(project.layerBytes)}</td>
             <td className={numeric}>{text.mb(project.outputBytes)}</td><td className={numeric}>{text.mb(project.baseBytes)}</td>
             <td className={numeric}>{text.mb(project.totalBytes)}</td>
+            <td className={styles.nowrap}>{project.lastOpenedAt ? new Date(project.lastOpenedAt).toLocaleDateString(locale) : text.neverOpened}</td>
             {canPrune && <td>{project.prunableRuns > 0 && (confirming === project.projectId
               ? <div className={styles.prose}><p>{text.pruneConfirm}</p><div className={styles.rowActions}>
                   <Button className={styles.danger} disabled={busy} onClick={() => void prune(project.projectId)}>{busy ? text.working : text.pruneYes}</Button>
@@ -72,7 +74,7 @@ export function AccountStorageSection({ url, id, canPrune, title }: { url: strin
                   onClick={() => { setConfirming(project.projectId); setMessage(undefined); }}>{text.prune(project.prunableRuns)}</Button>)}</td>}
           </tr>)}
           {storage.otherBytes > 0 && <tr><th scope="row">{text.other}</th><td /><td /><td /><td />
-            <td className={numeric}>{text.mb(storage.otherBytes)}</td>{canPrune && <td />}</tr>}
+            <td className={numeric}>{text.mb(storage.otherBytes)}</td><td />{canPrune && <td />}</tr>}
         </tbody>
       </Table>}
     </>}

@@ -13,6 +13,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-13 – Steg L4: när ett kartprojekt senast användes (migration 0119)
+- `map_project.last_opened_at` sätts i `requireMapProjectForAccount`, som all åtkomst med behörighet går genom (webben,
+  AI-kopplingen, export): högst en gång i timmen per projekt och bara om raden inte är låst (`skip locked`), så att en läsning
+  aldrig väntar på en ändring. Den som nekas märker inte projektet. Kontots lagringsöversikt visar "Senast öppnat".
+- NULL = inte använt sedan kolumnen kom till; arkivet (L5) ska då räkna från projektets senaste ändring.
+- Verifierat: lint, typecheck, test, hela integrationssviten mot PostgreSQL 16 (nytt fall i `adr-0219-geo`).
+
 ### 2026-11-13 – Steg L2–L3: vad som tar plats och rensning av körningar
 - L2: Mitt konto har avsnittet "Lagring för kartfiler" (`/api/account/storage`): använt mot gränsen och en rad per kartprojekt
   med laserkörningar, underlag, resultat och grundfil, störst först, plus "Övrigt". Superadmin ser samma för ett konto ("Visa

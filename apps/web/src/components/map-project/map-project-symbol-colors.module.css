@@ -1,0 +1,11 @@
+/* Ägaren 2026-11-13: färgen på enskilda symboler (dialogen delar utseende med Kartans färger). */
+.slots { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; max-height: min(56dvh, 520px); overflow: auto; }
+.slots li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 4px 0; border-top: 1px solid var(--line, #eee); }
+.slots li[data-changed] .slotName { font-weight: 600; }
+.slotName { flex: 1 1 10rem; }
+.slotName small { display: block; color: var(--muted); font-size: .72rem; font-weight: 400; }
+.pick { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: .85rem; }
+.pick select { min-height: 30px; max-width: 14rem; padding: 2px 6px; border: 1px solid var(--line-strong, #999); border-radius: 4px; font: inherit; color: var(--ink, #222); background: var(--surface, #fff); }
+.pick select:disabled { background: var(--surface-2, #f3f3f3); color: var(--muted); }
+.pickedBar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 4px 0; }
+.pickBox { flex: none; margin: 0 4px 0 0; }

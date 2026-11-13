@@ -13,6 +13,17 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-13 – Färg per symbol från symbollistan (kartprojektet)
+- Ägaren: «byggnader är fortfarande gråa och jag skulle vilja kunna markera lager i listan och kunna justera färgen på dem».
+  Varje symbolrad under Lager har en färgknapp («Färg för 521 Byggnad») och en kryssruta (Skift-klick markerar ett spann);
+  dialogen har en rullista över kartans färger per färgplats (fyllning, kant …) och en ruta med färgen. Kartan ritas om direkt;
+  Spara lägger bytena i projektet, Återställ tar bort dem. Samma byte kan göras på flera markerade symboler (521 och 521.1).
+- Lagring: `map_project.symbol_colors` (migrering 0120, bara tillägg) = lista med symbolnummer, färg i filen (`from`) och kartfärg
+  (`to`); sparas med samma PUT och behörighet som färgtabellen (ägarna) och uppdaterar `colors_changed_at`. Logiken
+  (`withSymbolColorChanges`, `applyMapSymbolColors`) ligger i `packages/map-file/src/revision/symbol-colors.ts`.
+- Följer med: i ritläget, i nya kartversioner och i banläggningens karta ur projektet (Mapper-filer, som färgtabellen;
+  OCAD-filer skrivs inte än).
+
 ### 2026-11-13 – Om O-Tid och GitHub: vad som finns, stöd till servern
 
 - Ägaren: «appen är gratis att använda men jag tar gärna emot bidrag till servern». Om O-Tid (sv/en) har ett avsnitt

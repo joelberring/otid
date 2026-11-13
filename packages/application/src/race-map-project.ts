@@ -1,14 +1,14 @@
 import { eq } from "drizzle-orm";
 import { raceMapProjectLinkStateSchema, type RaceMapProblem, type RaceMapProjectLinkState } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { applyMapColors, applyMapRevision } from "@o-tid/map-file";
+import { applyMapRevision } from "@o-tid/map-file";
 import { toChangeSet, type ObjectChange } from "@o-tid/map-revision";
 import { type ClubFailure, type ClubProof } from "./club-access";
 import { agreementOf } from "./club-maps";
 import { courseSettingRead, loadMapFile, type ReadProof } from "./course-setting";
 import type { MapContentInput, MapQuotaExceeded } from "./map-content";
 import { mapProjectRoleOf, requireMapProject, type MapProjectRow } from "./map-project-access";
-import { baseFile, ocadWriteEnabled, readBase, savedChanges, type BaseFile } from "./map-project-output";
+import { applyProjectColors, baseFile, hasProjectColors, ocadWriteEnabled, readBase, savedChanges, type BaseFile } from "./map-project-output";
 import { mapFileFormatOf, saveRaceMapSourceAsAdmin } from "./race-map-source";
 import { sha256Hex, UUID_PATTERN } from "./serialization";
 import type { DbExecutor } from "./snapshot";
@@ -41,14 +41,14 @@ async function snapshotInputs(tx: DbExecutor, project: MapProjectRow): Promise<S
 /** Projektets aktuella karta som fil. Utan ändringar är det grundfilen orörd. Samma sparade läge ger alltid samma fil. */
 export function composeMapProjectSnapshot({ project, base, changes }: SnapshotInputs): MapProjectSnapshot {
   const refused = (code: string, message: string): MapProjectSnapshot => ({ status: "refused", refusals: [{ code, message }] });
-  if (changes.length === 0 && !project.colors?.length) return { status: "ok", bytes: base.bytes, sha256: sha256Hex(base.bytes) };
+  if (changes.length === 0 && !hasProjectColors(project)) return { status: "ok", bytes: base.bytes, sha256: sha256Hex(base.bytes) };
   const map = readBase(base.bytes, base.fileName);
   if (!map) return refused("UNSAFE_FILE", "Grundfilen går inte att läsa.");
   const written = applyMapRevision(base.bytes, toChangeSet(map, project.baseSha256, project.baseFormat, changes), { ocad: ocadWriteEnabled() });
   if (!written.ok) {
     return { status: "refused", refusals: written.refusals.slice(0, 50).map(refusal => ({ code: refusal.code, message: refusal.message })) };
   }
-  const colored = applyMapColors(written.bytes, project.colors ?? []);
+  const colored = applyProjectColors(written.bytes, project);
   if (!colored.ok) return refused("VERIFY_FAILED", colored.message);
   if (colored.bytes.byteLength === 0 || mapFileFormatOf(colored.bytes.subarray(0, 4096)) !== project.baseFormat) {
     return refused("VERIFY_FAILED", "Den skrivna filen är inte en kartfil i samma format som grundfilen.");

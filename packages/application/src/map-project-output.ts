@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { desc, eq, inArray } from "drizzle-orm";
 import { CLUB_ARCHIVE_MAP_MAX_BYTES, mapProjectOutputRequestSchema, type MapProjectOutputResponse } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { applyMapColors, applyMapRevision, MapFileError, readMapFile, type ParsedMap } from "@o-tid/map-file";
+import { applyMapColors, applyMapRevision, applyMapSymbolColors, MapFileError, readMapFile, type MapColorsResult, type ParsedMap } from "@o-tid/map-file";
 import {
   changeCounts, changeList, changesGeoJson, mapperChangesFile, parseObjectRef, toChangeSet, validState, type KeyedState, type ObjectChange,
   type ObjectKey
@@ -45,6 +45,17 @@ export function revisedFileName(fileName: string, date: string, format: "OCD" | 
   const stem = (match?.[1] || "karta").slice(0, 160);
   const extension = match?.[2] ?? (format === "OCD" ? ".ocd" : ".omap");
   return `${stem} reviderad ${date}${extension}`;
+}
+
+/** Projektet har ändrade färger (färgtabellen eller enskilda symboler). */
+export const hasProjectColors = (project: Pick<MapProjectRow, "colors" | "symbolColors">) => !!project.colors?.length || !!project.symbolColors?.length;
+
+/** Färgtabellens ändringar och därefter symbolernas färgbyten (ägaren 2026-11-13), som två kontrollerade steg efter objekten. */
+export function applyProjectColors(bytes: Uint8Array, project: Pick<MapProjectRow, "colors" | "symbolColors">): MapColorsResult {
+  const colored = applyMapColors(bytes, project.colors ?? []);
+  if (!colored.ok) return colored;
+  const symbols = applyMapSymbolColors(colored.bytes, project.symbolColors ?? []);
+  return symbols.ok ? { ...symbols, changed: colored.changed + symbols.changed } : symbols;
 }
 
 /** Projektets ändringar ur databasen, i nyckelordning (samma lägen ger alltid samma lista). */
@@ -104,7 +115,7 @@ async function prepare(tx: DbExecutor, access: { accountId: string; project: Map
   }
   const { changes, authors } = await savedChanges(tx, project);
   // Bara ändrade färger räcker för en ny version.
-  if (changes.length === 0 && !project.colors?.length) return { status: "ok", replayed: false, response: { formatVersion: 1, status: "empty" } };
+  if (changes.length === 0 && !hasProjectColors(project)) return { status: "ok", replayed: false, response: { formatVersion: 1, status: "empty" } };
   const file = await baseFile(tx, project);
   if (!file) return { status: "not-found" };
   const names = authors.length ? (await tx.select({ name: schema.userAccounts.displayName }).from(schema.userAccounts)
@@ -145,7 +156,7 @@ export async function writeMapProjectVersion(db: Database, input: ClubProof & { 
       refusals: written.refusals.slice(0, 50).map(refusal => ({ code: refusal.code, message: refusal.message })) } };
   }
   // Färgtabellens ändringar (ägaren 2026-11-10) skrivs som ett eget kontrollerat steg efter objekten.
-  const colored = applyMapColors(written.bytes, project.colors ?? []);
+  const colored = applyProjectColors(written.bytes, project);
   if (!colored.ok) return refused("VERIFY_FAILED", colored.message);
   const outputBytes = colored.bytes;
   if (outputBytes.byteLength === 0 || outputBytes.byteLength > CLUB_ARCHIVE_MAP_MAX_BYTES ||

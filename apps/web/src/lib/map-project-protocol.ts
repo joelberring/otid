@@ -1,4 +1,4 @@
-import type { MapColor, MapColorChange, MapGeoreference, MapObject, Point } from "@o-tid/map-file";
+import type { MapColor, MapColorChange, MapGeoreference, MapObject, MapSymbolColorChange, Point } from "@o-tid/map-file";
 import type {
   Coverage, FitPoint, GeneralizeOptions, GeneralizeResult, KeyedState, NormResult, ObjectKey, ObjectRef, ReconMarker, ReconSettings, TrackPoint, VectorFit, WarpChange, WarpOptions
 } from "@o-tid/map-revision";
@@ -27,6 +27,8 @@ export interface CatalogSymbol {
   readonly fill?: string | undefined;
   /** Liten bild av symbolen (PNG). */
   readonly icon?: Blob | undefined;
+  /** Färgerna symbolen har i filen (färgernas id), för att kunna byta dem. */
+  readonly colors: readonly number[];
   /** Hur många objekt i kartan som har symbolen. */
   readonly count: number;
 }
@@ -45,6 +47,7 @@ export type MapProjectRequest =
   /** Projektets objekt som inte är som i grundfilen (hela listan varje gång). */
   | { readonly type: "states"; readonly states: readonly (readonly [ObjectKey, KeyedState])[] }
   | { readonly type: "colors"; readonly changes: readonly MapColorChange[] }
+  | { readonly type: "symbolColors"; readonly changes: readonly MapSymbolColorChange[] }
   | { readonly type: "candidates"; readonly objects: readonly MapObject[] }
   | { readonly type: "hit"; readonly id: number; readonly point: Point; readonly tolerance: number; readonly hidden: readonly string[] }
   /** Ägaren 2026-11-10: objekten som en dragen ruta rör vid (kartans mm). */
@@ -167,6 +170,8 @@ export class MapProjectSession {
   candidates(objects: readonly MapObject[]) { this.post({ type: "candidates", objects }); }
   /** Projektets ändrade färger: kartan ritas med dem från nästa bild. */
   colors(changes: readonly MapColorChange[]) { this.post({ type: "colors", changes }); }
+  /** Symbolernas ändrade färger (ägaren 2026-11-13): kartan ritas med dem från nästa bild. */
+  symbolColors(changes: readonly MapSymbolColorChange[]) { this.post({ type: "symbolColors", changes }); }
 
   hit(point: Point, tolerance: number, hidden: readonly string[], onHit: (hits: readonly ProjectHit[]) => void) {
     const id = ++this.latestHit;

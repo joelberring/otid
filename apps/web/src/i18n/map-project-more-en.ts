@@ -2,6 +2,7 @@ import type { LayerId, Standard } from "../lib/map-project-layer-model";
 import type { Texts } from "../lib/language";
 import type { mapProjectReconSv } from "./map-project-recon-sv";
 import type { mapProjectRectifySv } from "./map-project-rectify-sv";
+import type { mapProjectSymbolColorsSv } from "./map-project-symbol-colors-sv";
 import type { mapProjectSymbolLayersSv } from "./map-project-symbol-layers-sv";
 import type { mapProjectWorkLayersSv } from "./map-project-work-layers-sv";
 import type { mapStatsSv } from "./map-stats-sv";
@@ -222,4 +223,30 @@ export const mapStatsEn: Texts<typeof mapStatsSv> = {
     changed: "Changed", proposalsAccepted: "Approved suggestions" },
   you: "You",
   anonymous: (index: number) => `Mapper ${index}`
+};
+
+export const mapProjectSymbolColorsEn: Texts<typeof mapProjectSymbolColorsSv> = {
+  pick: (symbol: string) => `Select ${symbol}`,
+  colorFor: (symbol: string) => `Colour for ${symbol}`,
+  picked: (n: number) => n === 1 ? "1 symbol selected" : `${n} symbols selected`,
+  colorPicked: "Colour for selected",
+  clearPicked: "Clear selection",
+  pickHelp: "Select several symbols (Shift-click selects a range) and change their colour together.",
+  title: (symbols: string) => `Colour for ${symbols}`,
+  help: "Choose which of the map's colours the symbol is drawn with. It applies to this symbol only; the colour in Map colours is not changed. The map is redrawn at once and the colours are written in the next map version.",
+  readOnly: "Only the owners of the project can change the colours of symbols.",
+  ocad: "The map is an OCAD file: the colours are shown here, but cannot be written in a new map version yet.",
+  slot: (color: string) => `The symbol's colour ${color}`,
+  usedBy: (symbols: string) => `in ${symbols}`,
+  drawnWith: "is drawn with",
+  asInFile: (name: string) => `${name} (as in the file)`,
+  now: (name: string) => `Now drawn with ${name}`,
+  reset: "Restore",
+  cancel: "Cancel",
+  close: "Close",
+  save: "Save",
+  saved: (n: number) => n === 0 ? "The symbols have the file's own colours." : n === 1 ? "1 colour change is saved." : `${n} colour changes are saved.`,
+  failed: "The colours could not be saved. Try again.",
+  none: "The symbol has no colours to change.",
+  changedMark: "Changed colour"
 };

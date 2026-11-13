@@ -56,6 +56,8 @@ export const mapProjects = pgTable("map_project", {
   /** Ändrade färger i kartans färgtabell (0112): färgens id i grundfilen och ny CMYK (0–1); null = filens egna. */
   colors: jsonb("colors").$type<{ id: number; cmyk: { c: number; m: number; y: number; k: number } }[]>(),
   colorsChangedAt: timestamp("colors_changed_at", { withTimezone: true }),
+  /** Symbolernas färger (0120): symbolens nummer i filen, färgen i grundfilen (`from`) och kartfärgen den ritas med (`to`); null = symbolernas egna. */
+  symbolColors: jsonb("symbol_colors").$type<{ symbol: string; from: number; to: number }[]>(),
   /** Vad AI-kopplingen får göra (0116): READ, PROPOSE (förval) eller AUTONOMOUS. */
   aiMode: text("ai_mode").$type<"READ" | "PROPOSE" | "AUTONOMOUS">().notNull().default("PROPOSE"),
   /** När projektet senast användes av någon med behörighet (0119, högst en skrivning i timmen); null = inte sedan kolumnen kom till. */

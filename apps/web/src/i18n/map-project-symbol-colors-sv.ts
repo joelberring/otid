@@ -1,0 +1,26 @@
+/** Ägaren 2026-11-13: ändra färgen på enskilda symboler från symbollistan under Lager. */
+export const mapProjectSymbolColorsSv = {
+  pick: (symbol: string) => `Markera ${symbol}`,
+  colorFor: (symbol: string) => `Färg för ${symbol}`,
+  picked: (count: number) => count === 1 ? "1 symbol markerad" : `${count} symboler markerade`,
+  colorPicked: "Färg för markerade",
+  clearPicked: "Avmarkera",
+  pickHelp: "Markera flera symboler (Skift-klick markerar ett spann) och byt färg på dem tillsammans.",
+  title: (symbols: string) => `Färg för ${symbols}`,
+  help: "Välj vilken av kartans färger symbolen ritas med. Det gäller bara den här symbolen; färgen i Kartans färger ändras inte. Kartan ritas om direkt och färgerna skrivs i nästa kartversion.",
+  readOnly: "Bara projektets ägare kan ändra symbolernas färger.",
+  ocad: "Kartan är en OCAD-fil: färgerna visas här, men kan inte skrivas i en ny kartversion än.",
+  slot: (color: string) => `Symbolens färg ${color}`,
+  usedBy: (symbols: string) => `i ${symbols}`,
+  drawnWith: "ritas med",
+  asInFile: (name: string) => `${name} (som i filen)`,
+  now: (name: string) => `Ritas nu med ${name}`,
+  reset: "Återställ",
+  cancel: "Avbryt",
+  close: "Stäng",
+  save: "Spara",
+  saved: (count: number) => count === 0 ? "Symbolerna har filens egna färger." : count === 1 ? "1 färgbyte är sparat." : `${count} färgbyten är sparade.`,
+  failed: "Färgerna kunde inte sparas. Försök igen.",
+  none: "Symbolen har inga färger att byta.",
+  changedMark: "Ändrad färg"
+};

@@ -5,7 +5,7 @@ import {
 import type { CatalogSymbol } from "./map-project-protocol";
 
 const symbol = (id: string, code: string, name: string, kind: CatalogSymbol["kind"], count: number): CatalogSymbol =>
-  ({ id, code, name, kind, count, group: code.startsWith("4") ? "VEGETATION" : code.startsWith("1") ? "LANDFORMS" : "OTHER", icon: undefined });
+  ({ id, code, name, kind, count, group: code.startsWith("4") ? "VEGETATION" : code.startsWith("1") ? "LANDFORMS" : "OTHER", icon: undefined, colors: [] });
 
 describe("lagren efter normen", () => {
   const isom = standardSymbols("ISOM");

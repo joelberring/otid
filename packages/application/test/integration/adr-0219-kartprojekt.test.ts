@@ -339,6 +339,45 @@ describe("ADR-0219 kartprojekt", () => {
     expect(await write(later(6))).toMatchObject({ status: "ok", response: { status: "empty" } });
   });
 
+  it("symbolernas färger: ägaren byter en symbols färg, den syns i projektet och skrivs i en ny kartversion; andra symboler med färgen står kvar", async () => {
+    const owner = await registerTestAccount(db, undefined, NOW);
+    const other = await registerTestAccount(db, undefined, NOW);
+    const created = await createMapProjectFromUpload(db, { ...owner.proof, metadata: { formatVersion: 1, requestId: randomUUID(), name: "Symbolfärger",
+      fileName: "Symbolfarger.omap" }, file: mapBytes }, NOW);
+    if (created.status !== "created") throw new Error(created.status);
+    const projectId = created.projectId;
+    const later = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000);
+    const area = [...parsed.symbols.values()].find((symbol): symbol is Extract<typeof symbol, { kind: "AREA" }> => symbol.kind === "AREA" && symbol.fill !== undefined)!;
+    const from = area.fill!, to = parsed.colors.find(color => color.id !== from)!.id;
+    const sameColor = [...parsed.symbols.values()].filter(symbol => symbol.kind === "AREA" && symbol.fill === from && symbol.code.text !== area.code.text);
+    const request = { formatVersion: 1, symbolColors: [{ symbol: area.code.text, from, to }] };
+    const write = (at: Date) => writeMapProjectVersion(db, { ...owner.proof, projectId, request: { formatVersion: 1, requestId: randomUUID() } }, at);
+    await inviteMapProjectMember(db, { ...owner.proof, projectId, request: { formatVersion: 1, requestId: randomUUID(), email: other.email, role: "EDIT" } }, NOW);
+    // Bara ägare ändrar; samma symbol och färg två gånger vägras.
+    expect((await updateMapProject(db, { ...other.proof, projectId, request }, later(2))).status).toBe("forbidden");
+    expect((await updateMapProject(db, { ...owner.proof, projectId, request: { formatVersion: 1, symbolColors: [...request.symbolColors, ...request.symbolColors] } }, later(2))).status)
+      .toBe("invalid-request");
+    expect((await updateMapProject(db, { ...owner.proof, projectId, request }, later(2))).status).toBe("ok");
+    const view = await readMapProject(db, { ...other.proof, projectId }, later(2));
+    expect(view.status === "ok" && view.view.symbolColors).toEqual(request.symbolColors);
+    expect(view.status === "ok" && view.view.colors).toEqual([]);
+    // En ny version med bara symbolens färg ändrad.
+    const first = await write(later(3));
+    if (first.status !== "ok" || first.response.status !== "created") throw new Error("ingen version");
+    expect(first.response.changes).toBe(0);
+    const output = await readMapProjectOutput(db, { ...owner.proof, projectId, outputId: first.response.outputId }, NOW);
+    if (output.status !== "ok") throw new Error(output.status);
+    const recolored = readMapFile(new Uint8Array((await readMapContent(db, output.sha256))!), output.fileName);
+    const after = recolored.symbols.get(area.id)!;
+    expect(after.kind === "AREA" && after.fill).toBe(to);
+    for (const symbol of sameColor) expect(recolored.symbols.get(symbol.id)).toEqual(symbol);
+    expect(recolored.colors).toEqual(parsed.colors);
+    expect(await write(later(4))).toMatchObject({ status: "ok", replayed: true, response: { outputId: first.response.outputId } });
+    // Tillbaka till symbolernas egna färger: ingenting att skriva längre.
+    expect((await updateMapProject(db, { ...owner.proof, projectId, request: { formatVersion: 1, symbolColors: [] } }, later(5))).status).toBe("ok");
+    expect(await write(later(6))).toMatchObject({ status: "ok", response: { status: "empty" } });
+  });
+
   it("K7: en ny version av en OCAD-karta skrivs bara med flaggan OTID_OCAD_WRITE", async () => {
     const ocd = new Uint8Array(await readFile(new URL("../../../../fixtures/maps/kartfil.ocd", import.meta.url)));
     const ocdSha = sha256Hex(ocd);

@@ -75,6 +75,12 @@ export const mapProjectColorsSchema = z.array(z.object({ id: z.number().int().mi
   .refine(rows => new Set(rows.map(row => row.id)).size === rows.length);
 export type MapProjectColorChange = z.infer<typeof mapProjectColorsSchema>[number];
 
+/** Symbolernas färger (ägaren 2026-11-13): symbolens nummer, färgen i grundfilen och kartfärgen den ritas med. En ändring per symbol och färgplats. */
+export const mapProjectSymbolColorsSchema = z.array(z.object({ symbol: z.string().min(1).max(40),
+  from: z.number().int().min(-1000).max(100_000), to: z.number().int().min(-1000).max(100_000) }).strict()).max(2000)
+  .refine(rows => new Set(rows.map(row => `${row.symbol}\n${row.from}`)).size === rows.length);
+export type MapProjectSymbolColorChange = z.infer<typeof mapProjectSymbolColorsSchema>[number];
+
 /**
  * Vad AI-kopplingen får göra i projektet (ägaren 2026-11-12): bara läsa, lämna förslag som en ägare godkänner (förval), eller
  * arbeta självständigt, då AI:ns ändringar godkänns direkt och hamnar i kartans historik som godkända förslag.
@@ -92,10 +98,12 @@ export const mapProjectUpdateRequestSchema = z.object({
   leaderboard: mapProjectLeaderboardSchema.nullable().optional(),
   /** Färgtabellens ändringar; tom lista = filens egna färger. */
   colors: mapProjectColorsSchema.optional(),
+  /** Symbolernas färger; tom lista = symbolernas egna färger. */
+  symbolColors: mapProjectSymbolColorsSchema.optional(),
   /** AI-kopplingens läge i projektet. */
   aiMode: mapProjectAiModeSchema.optional()
 }).strict().refine(value => value.name !== undefined || value.status !== undefined || value.mode !== undefined || value.recon !== undefined
-  || value.leaderboard !== undefined || value.colors !== undefined || value.aiMode !== undefined);
+  || value.leaderboard !== undefined || value.colors !== undefined || value.symbolColors !== undefined || value.aiMode !== undefined);
 
 export const mapProjectInviteRequestSchema = z.object({
   formatVersion: z.literal(1), requestId: uuidSchema, email: accountEmailSchema, role: mapProjectRoleSchema
@@ -259,6 +267,8 @@ export interface MapProjectView extends MapProjectSummary {
   leaderboard: "FIRST" | "FULL" | "NONE" | null;
   /** Ändrade färger i kartans färgtabell (tom = filens egna). */
   colors: MapProjectColorChange[];
+  /** Ändrade färger för enskilda symboler (tom = symbolernas egna). */
+  symbolColors: MapProjectSymbolColorChange[];
   /** Vad AI-kopplingen får göra i projektet. */
   aiMode: MapProjectAiMode;
   areas: MapProjectAreaView[];

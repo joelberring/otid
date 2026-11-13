@@ -4,6 +4,8 @@ import { useMemo, useState, type ReactNode } from "react";
 import { mapProjectSymbolLayersEn } from "../../i18n/map-project-more-en";
 import { useTexts } from "../language-provider";
 import { mapProjectSymbolLayersSv } from "../../i18n/map-project-symbol-layers-sv";
+import { mapProjectSymbolColorsSv } from "../../i18n/map-project-symbol-colors-sv";
+import { mapProjectSymbolColorsEn } from "../../i18n/map-project-more-en";
 import {
   GROUP_KEYS, LAYER_ORDER, layerRows, mergeSuggestions, normalCode, symbolFlags, withLayerFlag, withSymbolFlag, type LayerFlags, type LayerId, type LayerState, type Standard,
   type LayerView, type WorkLayer
@@ -11,6 +13,8 @@ import {
 import type { CatalogSymbol } from "../../lib/map-project-protocol";
 import { Button } from "../ui";
 import { SymbolIcon } from "./map-project-symbol-icon";
+import { SymbolColorsDialog, type SymbolColorsControl } from "./map-project-symbol-colors";
+import colorStyles from "./map-project-symbol-colors.module.css";
 import styles from "./map-project-editor.module.css";
 
 /**
@@ -18,7 +22,7 @@ import styles from "./map-project-editor.module.css";
  * lager fullt eller nedtonat. Symboler utanför normen (äldre norm, egna, sammanslagna kartor) slås ihop med en symbol i normen
  * med en tydlig förhandsvisning av vad som slås ihop.
  */
-export function MapProjectSymbolLayers({ catalog, standard, standardSymbols, state, onState, canEdit, onMerge, merging, message, work = [], workPanel, views }: {
+export function MapProjectSymbolLayers({ catalog, standard, standardSymbols, state, onState, canEdit, onMerge, merging, message, work = [], workPanel, views, symbolColors }: {
   catalog: readonly CatalogSymbol[]; standard: Standard; standardSymbols: ReadonlyMap<string, string>;
   state: LayerState; onState: (state: LayerState) => void; canEdit: boolean;
   /** Slå ihop: alla objekt med `from` får symbolen `to`. */
@@ -27,8 +31,21 @@ export function MapProjectSymbolLayers({ catalog, standard, standardSymbols, sta
   work?: readonly WorkLayer[]; workPanel?: ReactNode;
   /** R3: sparade vyer (lagrens val under ett namn). */
   views?: { readonly views: readonly LayerView[]; readonly saveView: (name: string) => void; readonly removeView: (name: string) => void } | undefined;
+  /** Ägaren 2026-11-13: byt färgen på symboler från listan (bara för den som får ändra färgerna). */
+  symbolColors?: SymbolColorsControl | undefined;
 }) {
   const text = useTexts(mapProjectSymbolLayersSv, mapProjectSymbolLayersEn);
+  const colorText = useTexts(mapProjectSymbolColorsSv, mapProjectSymbolColorsEn);
+  // Markerade symboler (id) för ett gemensamt färgbyte, och symbolerna som dialogen visas för.
+  const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
+  const [coloring, setColoring] = useState<readonly CatalogSymbol[]>();
+  const pickable = symbolColors?.canChange === true;
+  const pickSymbol = (row: (typeof rows)[number], index: number, on: boolean, shift: boolean) => {
+    const range = shift && last?.list === row.id ? row.symbols.slice(Math.min(last.index, index), Math.max(last.index, index) + 1) : [row.symbols[index]!];
+    setPicked(current => { const next = new Set(current); for (const symbol of range) { if (on) next.add(symbol.id); else next.delete(symbol.id); } return next; });
+    setLast({ list: row.id, index });
+  };
+  const colorTargets = (symbol: CatalogSymbol) => picked.has(symbol.id) && picked.size > 1 ? catalog.filter(entry => picked.has(entry.id)) : [symbol];
   const rows = useMemo(() => layerRows(catalog, standardSymbols, state), [catalog, standardSymbols, state]);
   const suggestions = useMemo(() => mergeSuggestions(catalog, standardSymbols), [catalog, standardSymbols]);
   const [from, setFrom] = useState("");
@@ -76,10 +93,14 @@ export function MapProjectSymbolLayers({ catalog, standard, standardSymbols, sta
             {row.symbols.map((symbol, index) => {
               const flags = symbolFlags(symbol, standardSymbols, state, work);
               return <li key={symbol.id} data-testid="map-project-layer-symbol" data-code={symbol.code}>
+                {pickable && <input type="checkbox" className={colorStyles.pickBox} checked={picked.has(symbol.id)} aria-label={colorText.pick(label(symbol))}
+                  onClick={event => pickSymbol(row, index, event.currentTarget.checked, event.shiftKey)} onChange={() => undefined}
+                  data-testid="map-project-layer-pick" />}
                 <SymbolIcon icon={symbol.icon} size={24} />
                 <span className={styles.layerSymbolName} title={label(symbol)}><strong>{symbol.code}</strong> {symbol.name}</span>
                 <small className={styles.muted}>{symbol.count}</small>
-                <Toggles flags={flags} onFlag={(flag, value, event) => symbolFlag(row, index, flag, value, event)} name={label(symbol)} />
+                <Toggles flags={flags} onFlag={(flag, value, event) => symbolFlag(row, index, flag, value, event)} name={label(symbol)}
+                  onColor={symbolColors && pickable ? () => setColoring(colorTargets(symbol)) : undefined} colorLabel={colorText.colorFor(label(symbol))} />
               </li>;
             })}
           </ul>
@@ -89,6 +110,13 @@ export function MapProjectSymbolLayers({ catalog, standard, standardSymbols, sta
       </li>)}
     </ul>
     <p className={styles.muted}>{text.multiHelp}</p>
+    {pickable && <div className={colorStyles.pickedBar} data-testid="map-project-symbol-picked">
+      {picked.size === 0 ? <small className={styles.muted}>{colorText.pickHelp}</small> : <>
+        <small>{colorText.picked(picked.size)}</small>
+        <Button variant="secondary" onClick={() => setColoring(catalog.filter(entry => picked.has(entry.id)))} data-testid="map-project-symbol-picked-color">{colorText.colorPicked}</Button>
+        <Button variant="quiet" onClick={() => setPicked(new Set())}>{colorText.clearPicked}</Button></>}
+    </div>}
+    {coloring && symbolColors && <SymbolColorsDialog symbols={coloring} control={symbolColors} onClose={() => setColoring(undefined)} />}
     {views && <details className={styles.settings} data-testid="map-project-layer-views">
       <summary>{text.viewsHeading}</summary>
       <p className={styles.muted}>{text.viewsHelp}</p>
@@ -144,12 +172,15 @@ const ICONS = {
   eyeOff: <path d="M3 3l18 18M10.6 6.1A10 10 0 0112 6c6.5 0 10 6 10 6a17 17 0 01-3 3.6M6.6 6.6A17 17 0 002 12s3.5 6 10 6a9.7 9.7 0 004.4-1" />,
   lock: <path d="M6 11h12v9H6zM8.5 11V8a3.5 3.5 0 017 0v3" />,
   open: <path d="M6 11h12v9H6zM8.5 11V8a3.5 3.5 0 016.8-1.2" />,
+  palette: <><path d="M12 3a9 9 0 100 18c1.4 0 2-1 1.5-2.2-.5-1.2.3-2.3 1.6-2.3H17a4 4 0 004-4c0-5-4-9.5-9-9.5z" /><circle cx="8" cy="11" r="1" /><circle cx="12" cy="7.5" r="1" /><circle cx="16" cy="11" r="1" /></>,
   dim: <><circle cx="12" cy="12" r="8" /><path d="M12 4v16a8 8 0 000-16z" fill="currentColor" /></>
 };
 export const LayerIcon = ({ name }: { name: keyof typeof ICONS }) => <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8"
   strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{ICONS[name]}</svg>;
 
-function Toggles({ flags, onFlag, name }: { flags: Required<LayerFlags>; name: string;
+function Toggles({ flags, onFlag, name, onColor, colorLabel }: { flags: Required<LayerFlags>; name: string;
+  /** Färgknappen (bara på symbolrader för den som får ändra färger). */
+  onColor?: (() => void) | undefined; colorLabel?: string;
   onFlag: (flag: keyof LayerFlags, value: boolean, event: { shiftKey: boolean; altKey: boolean }) => void }) {
   const text = useTexts(mapProjectSymbolLayersSv, mapProjectSymbolLayersEn);
   return <span className={styles.layerToggles}>
@@ -159,5 +190,6 @@ function Toggles({ flags, onFlag, name }: { flags: Required<LayerFlags>; name: s
       onClick={event => onFlag("locked", !flags.locked, event)} data-testid="map-project-layer-lock"><LayerIcon name={flags.locked ? "lock" : "open"} /></button>
     <button type="button" aria-pressed={flags.dimmed} disabled={!flags.locked || flags.hidden} title={text.dim(name)} aria-label={text.dim(name)}
       onClick={event => onFlag("dimmed", !flags.dimmed, event)} data-testid="map-project-layer-dim"><LayerIcon name="dim" /></button>
+    {onColor && <button type="button" title={colorLabel} aria-label={colorLabel} onClick={onColor} data-testid="map-project-layer-color"><LayerIcon name="palette" /></button>}
   </span>;
 }

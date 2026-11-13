@@ -159,6 +159,19 @@ describe("banläggningens karta ur ett kartprojekt", () => {
     expect((await saveMapProjectSnapshotToRace(db, { ...owner.proof, projectId, raceId, sha256: third.sha256, image, metadata }, later)).status).toBe("ok");
     expect(await link(owner.proof, raceId)).toMatchObject({ seq: 2, newerChanges: 0 });
 
+    // En symbols ändrade färg räknas också som en ändring och följer med i banläggningens karta.
+    const area = [...parsed.symbols.values()].find((symbol): symbol is Extract<typeof symbol, { kind: "AREA" }> => symbol.kind === "AREA" && symbol.fill !== undefined)!;
+    const swap = parsed.colors.find(color => color.id !== area.fill)!.id;
+    expect((await updateMapProject(db, { ...owner.proof, projectId, request: { formatVersion: 1, symbolColors: [{ symbol: area.code.text, from: area.fill!, to: swap }] } },
+      new Date(later.getTime() + 120_000))).status).toBe("ok");
+    expect(await link(owner.proof, raceId)).toMatchObject({ seq: 2, newerChanges: 1 });
+    const fourth = await current(owner.proof, projectId);
+    expect(fourth.sha256).not.toBe(third.sha256);
+    const swapped = readMapFile(fourth.bytes, "Skogen.omap").symbols.get(area.id)!;
+    expect(swapped.kind === "AREA" && swapped.fill).toBe(swap);
+    expect((await saveMapProjectSnapshotToRace(db, { ...owner.proof, projectId, raceId, sha256: fourth.sha256, image, metadata }, later)).status).toBe("ok");
+    expect(await link(owner.proof, raceId)).toMatchObject({ seq: 2, newerChanges: 0 });
+
     // En vanlig uppladdad kartfil ersätter kartan: kopplingen gäller inte längre.
     expect((await saveRaceMapSourceAsAdmin(db, { ...owner.proof, raceId, file: mapBytes, fileName: "egen.omap", image, metadata }, later)).status).toBe("ok");
     expect(await link(owner.proof, raceId)).toBeNull();

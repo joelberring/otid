@@ -771,7 +771,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         layers={<>
           <MapProjectSymbolLayers catalog={catalog} standard={symbolLayers.standard} standardSymbols={symbolLayers.standardSymbols}
           state={symbolLayers.state} onState={symbolLayers.update} canEdit={canEdit} onMerge={symbolLayers.merge}
-          merging={symbolLayers.merging} message={symbolLayers.message} work={workGroups} views={symbolLayers}
+          merging={symbolLayers.merging} message={symbolLayers.message} work={workGroups} views={symbolLayers} symbolColors={editor.symbolColors}
           workPanel={<MapProjectWorkLayers work={work} catalog={catalog} state={symbolLayers.state} onState={symbolLayers.update} />} />
           {georeference && <MapProjectUnderlayPanels view={view} georeference={georeference} bounds={editor.bounds ?? undefined} areas={collab.areas}
             layers={layers} control={control} importer={importer} symbols={symbols} work={work} onSplit={view.viewer.canDecide ? area => startSplit(area ?? null) : undefined} />}

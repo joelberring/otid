@@ -1,5 +1,5 @@
 /// <reference lib="webworker" />
-import { drawMap, MapFileError, northLineDegrees, readMapFile, withColorChanges, type MapObject, type MapSymbol, type ParsedMap } from "@o-tid/map-file";
+import { drawMap, MapFileError, northLineDegrees, readMapFile, symbolColorIds, withColorChanges, withSymbolColorChanges, type MapObject, type MapSymbol, type ParsedMap } from "@o-tid/map-file";
 import {
   baseKeys, checkNorm, coverageGrid, editedObjects, fitToMap, generalize, mapFitPoints, boxTest, hitTest, objectBox, objectRefFor, reconMarkers, symbolObjectKind, warpObjects, type Box, type KeyedState, type ObjectKey,
   type ObjectRef, type ReconObject
@@ -30,6 +30,8 @@ let drawing = false;
 
 /** Filens egna färger (innan projektets ändrade färger lagts på) och de senaste lägena, för att bygga om när färgerna byts. */
 let fileColors: ParsedMap["colors"] = [];
+/** Symbolerna som i filen och projektets färgbyten per symbol (ägaren 2026-11-13). */
+let fileSymbols: ParsedMap["symbols"] = new Map();
 let lastStates: ReadonlyMap<ObjectKey, KeyedState> = new Map();
 
 /** Grundkartan G2b: kandidaterna från en inläsning som en egen karta med samma symboler, ritad ovanpå kartan. */
@@ -152,7 +154,7 @@ async function catalog(map: ParsedMap): Promise<CatalogSymbol[]> {
       } catch { icon = undefined; }
     }
     out.push({ id: symbol.id, code: symbol.code.text, name: symbol.name, kind, group: symbolGroup(symbol.code.main), ...previewStyle(map, symbol), icon,
-      count: counts.get(symbol.id) ?? 0 });
+      count: counts.get(symbol.id) ?? 0, colors: symbolColorIds(fileSymbols, fileSymbols.get(symbol.id) ?? symbol) });
   }
   return out.sort((a, b) => a.code.localeCompare(b.code, "sv", { numeric: true }));
 }
@@ -168,6 +170,7 @@ self.onmessage = (event: MessageEvent<MapProjectRequest>) => {
       return;
     }
     fileColors = base.colors;
+    fileSymbols = base.symbols;
     sha256 = request.sha256;
     keys = baseKeys(base);
     refs.clear();
@@ -185,6 +188,10 @@ self.onmessage = (event: MessageEvent<MapProjectRequest>) => {
   if (request.type === "candidates") { candidateObjects = request.objects; refreshCandidates(); return; }
   // Projektets ändrade färger (ägaren 2026-11-10): färgtabellen byts och kartan byggs om med samma objekt.
   if (request.type === "colors") { if (base) { base = { ...base, colors: withColorChanges(fileColors, request.changes) }; rebuild(lastStates); } return; }
+  if (request.type === "symbolColors") {
+    if (base) { base = { ...base, symbols: withSymbolColorChanges(fileSymbols, fileColors, request.changes) }; rebuild(lastStates); }
+    return;
+  }
   if (request.type === "render") { queued = request; drain(); return; }
   if (request.type === "hit" || request.type === "box") {
     const hits: ProjectHit[] = [];

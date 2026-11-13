@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MAP_PROJECT_SYNC_MAX_EDITS, type MapProjectSyncResponse, type MapProjectView } from "@o-tid/contracts";
-import type { MapColor, MapColorChange, MapGeoreference, MapObject, Point } from "@o-tid/map-file";
+import { withColorChanges, type MapColor, type MapColorChange, type MapGeoreference, type MapObject, type MapSymbolColorChange, type Point } from "@o-tid/map-file";
+import type { SymbolColorsControl } from "./map-project-symbol-colors";
 import {
   acknowledge, addEdit, effectiveObjects, effectiveState, emptyHistory, keepOpenProposals, mergePulled, recordStep, recordSteps, redoStep, resolveConflict, undoStep,
   type EditKind, type EditResult, type KeyedState, type ObjectKey, type ObjectRef, type ObjectState, type RevisionHistory, type ServerObject
@@ -62,6 +63,7 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
   const [colors, setColors] = useState<readonly MapColor[]>([]);
   // Projektets ändrade färger (ägaren 2026-11-10): de sparade, och det som visas just nu (en förhandsvisning medan man ändrar).
   const [colorChanges, setColorChanges] = useState<readonly MapColorChange[]>(view.colors);
+  const [symbolColorChanges, setSymbolColorChanges] = useState<readonly MapSymbolColorChange[]>(view.symbolColors);
   const [georeference, setGeoreference] = useState<MapGeoreference | null>(null);
   const [northLines, setNorthLines] = useState<number>();
   /** Kartans skala (normen för lagren). */
@@ -89,7 +91,7 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
     const created = new MapProjectSession(createWorker, loaded => {
       if (closed) return;
       // En ny tom karta: kartvyn täcker området.
-      setBounds(loaded.objects === 0 && area ? areaBounds(area) : loaded.bounds); setColors(loaded.colors); if (view.colors.length) created.colors(view.colors); setGeoreference(loaded.georeference); setNorthLines(loaded.northLines); setScale(loaded.scale); setMapStatus("ready");
+      setBounds(loaded.objects === 0 && area ? areaBounds(area) : loaded.bounds); setColors(loaded.colors); if (view.colors.length) created.colors(view.colors); if (view.symbolColors.length) created.symbolColors(view.symbolColors); setGeoreference(loaded.georeference); setNorthLines(loaded.northLines); setScale(loaded.scale); setMapStatus("ready");
       created.catalog(symbols => { if (!closed) setCatalog(symbols); });
     }, () => { if (!closed) setMapStatus("failed"); });
     void (async () => {
@@ -290,8 +292,29 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
     return true;
   }, [base, showColors]);
 
+  /** Rita kartan med de här symbolfärgerna (utan att spara dem); symbolernas rutor i panelen ritas också om. */
+  const showSymbolColors = useCallback((changes: readonly MapSymbolColorChange[]) => {
+    if (!session) return;
+    session.symbolColors(changes);
+    session.catalog(setCatalog);
+    setRenderKey(value => value + 1);
+  }, [session]);
+  /** Spara symbolfärgerna i projektet (ägarna); kartan ritas med dem. Falskt när servern säger nej. */
+  const saveSymbolColors = useCallback(async (changes: readonly MapSymbolColorChange[]): Promise<boolean> => {
+    const result = await clubRequest(base, "PUT", { formatVersion: 1, symbolColors: changes }).catch(() => ({ status: 0 }));
+    if (result.status !== 200 && result.status !== 204) return false;
+    setSymbolColorChanges(changes);
+    showSymbolColors(changes);
+    return true;
+  }, [base, showSymbolColors]);
+
+  /** Symbollistans färgbyte (ägaren 2026-11-13): kartans färger med projektets ändringar, de sparade byten och vad som får ändras. */
+  const symbolColors = useMemo<SymbolColorsControl>(() => ({ colors: withColorChanges(colors, colorChanges), saved: symbolColorChanges,
+    canChange: view.viewer.canDecide, ocad: view.base.format === "OCD", onShow: showSymbolColors, onSave: saveSymbolColors }),
+  [colors, colorChanges, symbolColorChanges, view.viewer.canDecide, view.base.format, showSymbolColors, saveSymbolColors]);
+
   return {
-    colorChanges, showColors, saveColors, showCandidates,
+    colorChanges, showColors, saveColors, symbolColors, showCandidates,
     session, bounds, colors, georeference, northLines, scale, mapStatus, catalog, renderKey, sync, notice, setNotice,
     state: client?.state, history, commit, commitMany, undo: () => step("undo"), redo: () => step("redo"), resolve, syncNow,
     /** Objekten som dras (ritas inte av Workern medan förhandsvisningen syns ovanpå). */

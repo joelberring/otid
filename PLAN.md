@@ -1318,6 +1318,9 @@ och `claude/plan-ritlage-hjul-och-mobil.md`.
   - [x] F1 «Kartans färger» under Lager: färgtabellen i ritordning, CMYK i procent, kartan ritas om medan man ändrar; ägarna
     sparar ändringarna i projektet (`map_project.colors`, 0112) och de skrivs i nästa kartversion (Mapper) som ett eget
     kontrollerat steg (`applyMapColors`). Grundfilen ändras aldrig. Dekorfärger visas men ändras inte.
+  - [x] F1b Färg per symbol (ägaren 2026-11-13: «justera färgen» på byggnader): färgknapp och markering i symbollistan under Lager,
+    «symbolens färg X ritas med kartans färg Y» sparat i projektet (`map_project.symbol_colors`, 0120) och skrivet i nya kartversioner
+    och banläggningens karta (`applyMapSymbolColors`, Mapper).
   - [ ] F2 Färgerna också i OCAD-filer, i servern där kartan ritas (MCP-bilderna, jobben) och i banläggningen på en projektkarta.
   - [ ] F3 Färdiga uppsättningar (normens färger, tryckeriets tabell) att välja, byta ordning och lägga till färger.
 - [ ] Grundkartan ur laser (ägaren 2026-11-10: «körningen ska göras inom kartområdet och resultatet ska bli ungefär som en

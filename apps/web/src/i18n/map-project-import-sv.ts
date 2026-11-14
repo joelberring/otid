@@ -49,6 +49,7 @@ export const mapProjectImportSv = {
   barUnmapped: (count: number) => count === 1 ? "1 lager utan symbol" : `${count} lager utan symbol`,
   barBuilt: "Inget i tomtmark, asfalt och hus",
   barReplace: "Byt ut kartans objekt med samma symboler här",
+  ticksMoved: (moved: number, dropped: number) => ` ${plural(moved, "lutningsstreck", "lutningsstreck")} följde med till de nya kurvorna${dropped > 0 ? ` och ${dropped} utan kurva intill togs bort` : ""}.`,
   replaced: (count: number) => ` ${plural(count, "objekt", "objekt")} med samma symboler togs bort ur kartan i samma steg.`,
   barBuiltDone: (removed: number, clipped: number) => `${removed} borta, ${clipped} klippta`,
   barNormed: "Generalisera efter normen",

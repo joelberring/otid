@@ -21,9 +21,9 @@ import { mapProjectBase } from "../../lib/map-project-client";
 import type { BaseMapStep, CalmOutcome, ClearOutcome, CandidateInput, CandidateResult } from "../../lib/map-project-candidates";
 import { CandidateSession } from "../../lib/map-project-candidates-client";
 import { controlledWorker } from "../../lib/course-setting-worker";
-import { calmFlatContours, clearContours, flatLimitsAt, mergeCandidates, restoreFlatContours, sprintOsm, suggestedMapping, type ClearSettings, type HeightField } from "@o-tid/map-revision/base-map";
+import { calmFlatContours, clearContours, flatLimitsAt, mergeCandidates, restoreFlatContours, snapTicks, sprintOsm, suggestedMapping, type ClearSettings, type HeightField } from "@o-tid/map-revision/base-map";
 import { readVectorFiles } from "../../lib/map-project-vector-files";
-import type { CatalogSymbol, MapProjectSession } from "../../lib/map-project-protocol";
+import type { CatalogSymbol, MapProjectSession, SymbolObject } from "../../lib/map-project-protocol";
 import type { ObjectChange } from "./use-map-project-editor";
 import { mapProjectImportSv } from "../../i18n/map-project-import-sv";
 
@@ -37,6 +37,8 @@ type Problem = string | number;
  * ADR-0219 tillägget om vektorunderlagen (K4b): en vektorfil läses i webbläsaren, lagren får symboler (förslag ur namnen),
  * kandidaterna visas på kartan och lämnas som förslag med källan IMPORT (högst 200 ändringar per förslag).
  */
+/** Höjdkurvornas och hjälpkurvornas linjesymboler med sina lutningsstreck (punktsymboler), efter symbolnumret. */
+const TICK_GROUPS = [{ line: /^10[12](\.0+)?$/, tick: /^10[12]\.1$/ }, { line: /^103(\.0+)?$/, tick: /^103\.1$/ }] as const;
 /** Samma tomma lista varje gång, så att kartan inte ritas om i onödan när det inte finns några kandidater. */
 const NO_CANDIDATES: readonly MapObject[] = [];
 
@@ -108,7 +110,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   const [marked, setMarked] = useState<string>();
   const clearWith = useRef<{ settings: ClearSettings; field: HeightField } | undefined>(undefined);
   const show = useCallback((fileName: string, data: SourceData, area?: Bounds, general = false, within?: readonly (readonly { x: number; y: number }[])[]) => {
-    setNormed(general); setStage(within); setCalm(undefined); setClear(undefined); clearWith.current = undefined; setOrigin(undefined); setReplace(false); setReplaced(undefined);
+    setNormed(general); setStage(within); setCalm(undefined); setClear(undefined); clearWith.current = undefined; setOrigin(undefined); setReplace(false); setReplaced(undefined); setTicks(undefined);
     const found = importLayers(data);
     const list = symbolList;
     setFile({ name: fileName, data });
@@ -281,6 +283,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
    */
   const [replace, setReplace] = useState(false);
   const [replaced, setReplaced] = useState<number>();
+  const [ticks, setTicks] = useState<{ moved: number; dropped: number }>();
   const accept = useCallback(() => {
     if (!file || !result || result.objects.length === 0 || !commitMany || computing) return;
     setProblem(undefined); setSent(undefined);
@@ -293,22 +296,42 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     const finish = (removals: readonly ObjectChange[]) => {
       const count = commitMany([...removals, ...adds]);
       setMarked(marking?.paper); setReplaced(removals.length || undefined);
+      // Antalet nya objekt: allt som lades in utom borttagningarna (lutningsstrecken som följde med räknas med).
       setAccepted(Math.max(0, count - removals.length)); setFile(undefined); setLayers([]); setMapping(new Map()); setReplace(false);
     };
     if (!replace || !session) { finish([]); return; }
     // Kandidaternas område, och kartans objekt med kandidaternas symboler vars mitt ligger där (Workern svarar på en fråga i taget).
     const area = result.objects.map(objectBox).reduce((all, box) => ({ minX: Math.min(all.minX, box.minX), minY: Math.min(all.minY, box.minY),
       maxX: Math.max(all.maxX, box.maxX), maxY: Math.max(all.maxY, box.maxY) }));
-    const wanted = [...new Set(result.objects.map(object => object.symbol))], removals: ObjectChange[] = [];
+    const wanted = new Set(result.objects.map(object => object.symbol));
+    // Lutningsstrecken hör till kurvorna (ägaren 2026-11-14): byts höjdkurvorna eller hjälpkurvorna följer strecken med till de nya.
+    const groups = TICK_GROUPS.map(group => {
+      const lines = [...symbols.values()].filter(symbol => symbol.kind === "line" && group.line.test(symbol.code) && wanted.has(symbol.id)).map(symbol => symbol.id);
+      const ticks = lines.length ? [...symbols.values()].filter(symbol => symbol.kind === "point" && group.tick.test(symbol.code)).map(symbol => symbol.id) : [];
+      return { lines: new Set(lines), ticks: new Set(ticks) };
+    });
+    const asked = [...new Set([...wanted, ...groups.flatMap(group => [...group.ticks])])], found = new Map<string, SymbolObject[]>();
     const next = (index: number) => {
-      const symbol = wanted[index];
-      if (symbol === undefined) { finish(removals); return; }
-      session.bySymbol(symbol, objects => {
-        for (const row of objects) {
-          const box = objectBox(row.object), at = { x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 };
-          if (at.x < area.minX || at.x > area.maxX || at.y < area.minY || at.y > area.maxY) continue;
-          removals.push({ key: row.key, ref: row.ref, kind: "DELETE", after: { kind: "DELETED" }, point: at });
+      const symbol = asked[index];
+      if (symbol === undefined) {
+        const removals = [...found.values()].flat().map((row): ObjectChange => { const box = objectBox(row.object);
+          return { key: row.key, ref: row.ref, kind: "DELETE", after: { kind: "DELETED" }, point: { x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 } }; });
+        let moved = 0, dropped = 0;
+        for (const group of groups) {
+          if (group.ticks.size === 0) continue;
+          const pathsOf = (objects: readonly MapObject[]) => objects.flatMap(object => object.kind === "line" && group.lines.has(object.symbol) ? [object.path] : []);
+          const old = [...group.ticks].flatMap(id => found.get(id) ?? []).flatMap(row => row.object.kind === "point" ? [row.object] : []);
+          const snapped = snapTicks(old, pathsOf([...group.lines].flatMap(id => found.get(id) ?? []).map(row => row.object)), pathsOf(result.objects));
+          moved += snapped.ticks.length; dropped += snapped.dropped;
+          adds.push(...snapped.ticks.map((object): ObjectChange => ({ key: newKey(crypto.randomUUID()), ref: null, kind: "ADD", after: { kind: "OBJECT", object } })));
         }
+        setTicks(moved + dropped > 0 ? { moved, dropped } : undefined);
+        finish(removals);
+        return;
+      }
+      session.bySymbol(symbol, objects => {
+        found.set(symbol, objects.filter(row => { const box = objectBox(row.object), x = (box.minX + box.maxX) / 2, y = (box.minY + box.maxY) / 2;
+          return x >= area.minX && x <= area.maxX && y >= area.minY && y <= area.maxY; }));
         next(index + 1);
       });
     };
@@ -373,7 +396,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     setFile({ name: file.name, data }); setLayers(importLayers(data)); setClear(outcome);
     return outcome;
   }, [file, clear]);
-  return { file, calm, calmContours, clear, clearCurves, replace, setReplace, /** Så många av kartans objekt som byttes ut när kandidaterna lades in. */ replaced, /** Pappret som märkningens ram gjordes för när grundkartan lades in. */ marked, /** Höjden som «Tydligare kurvbild» senast räknades med. */ clearField: () => clearWith.current?.field,
+  return { file, calm, calmContours, clear, clearCurves, replace, setReplace, /** Så många av kartans objekt som byttes ut när kandidaterna lades in, och lutningsstrecken som följde med. */ replaced, ticks, /** Pappret som märkningens ram gjordes för när grundkartan lades in. */ marked, /** Höjden som «Tydligare kurvbild» senast räknades med. */ clearField: () => clearWith.current?.field,
     /** Nya kandidater väntar på svar (de som visas är inte införda): läs in dem ändå, eller behåll de som visas. */
     pendingReplace: pendingReplace?.fileName,
     replaceAnyway: () => { const pending = pendingReplace; setPendingReplace(undefined); pending?.open(); },

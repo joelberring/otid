@@ -30,6 +30,7 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - «Rätta kartan med passpunkter» har fått «Passpunkter ur lasern» (`terrainFitPlan`/`terrainNodeCost`/`terrainFitSolve`): kartans höjdkurvor passas in mot `hojd.png` del för del och noderna blir passpunkter för gummiduken. Den som får rita kan flytta objekten direkt i ett steg i stället för hundratals förslag.
 - Kandidaternas rad har «Byt ut kartans objekt med samma symboler här»: kurvor mot nya kurvor, grönt mot nytt, i samma steg.
 - «Tydligare kurvbild» väljer förval efter terrängen (`suggestedClear`: andelen kurvlängd på mark under 12 %): Arboga 0,47 ger hjälpkurvor 3, ringar 1, utjämning 4 (kartritaren där har 77 % av laserns hjälpkurvor mot 41–64 % i Stockholm).
+- Lutningsstrecken följer med när kurvorna byts (`snapTicks`): varje streck flyttas till närmaste punkt på en ny kurva (inom 1,2 mm) och vrids lika mycket som kurvan vridits där; streck utan kurva intill tas bort.
 - Verifierat: enhetstester, lint, typecheck; regeln för inpassningen körd på Arbogas riktiga data i webbläsaren (branter 0,22 → 0,31). Inte provat: panelerna i webbläsaren, och att skriva 30 000 flyttade objekt till en OCAD-fil (`OTID_OCAD_WRITE`).
 
 ### 2026-11-14 – Kartans märkning: ram, logga och ruta på kartor gjorda nya i O-Tid

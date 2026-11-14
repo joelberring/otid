@@ -91,6 +91,7 @@ export const mapProjectImportEn: Texts<typeof mapProjectImportSv> = {
   barUnmapped: (n: number) => n === 1 ? "1 layer without a symbol" : `${n} layers without a symbol`,
   barBuilt: "Nothing in private land, paving and buildings",
   barReplace: "Replace the map's objects with the same symbols here",
+  ticksMoved: (moved: number, dropped: number) => ` ${count(moved, "slope line", "slope lines")} followed to the new contours${dropped > 0 ? ` and ${dropped} with no contour nearby were removed` : ""}.`,
   replaced: (n: number) => ` ${count(n, "object", "objects")} with the same symbols were removed from the map in the same step.`,
   barBuiltDone: (removed: number, clipped: number) => `${removed} removed, ${clipped} clipped`,
   barNormed: "Generalise to the standard",

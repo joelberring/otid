@@ -10,10 +10,15 @@ import { faceAt, facesFromLines } from "../faces";
  * en rektangel, inte en rundad ring. Bostadsstora hus (högst `maxBuilding` m²) som ligger högst `link` meter från varandra utan
  * väg emellan hör till samma tomt; rektangeln är den minsta som rymmer husens hörn, vriden efter husen, och vidgad `radius`
  * meter åt alla håll. Den klipps mot vägar och strand: bara delarna där husen står blir kvar. Ett grovt förslag att rätta på plats.
+ *
+ * Ägaren 2026-11-14 («gör tomtmarken lite lite större men ta bort det för väldigt små byggnader»): 18 m i stället för 15, och en
+ * grupp där inget hus är större än `minBuilding` m² (bod, jordkällare, bastu för sig) får ingen tomt. Ett litet hus intill ett
+ * riktigt hör fortfarande till tomten.
  */
-export interface YardSettings { readonly radius: number; readonly link: number; readonly maxBuilding: number; readonly minArea: number }
-export const DEFAULT_YARDS: YardSettings = { radius: 15, link: 45, maxBuilding: 400, minArea: 300 };
+export interface YardSettings { readonly radius: number; readonly link: number; readonly maxBuilding: number; readonly minBuilding: number; readonly minArea: number }
+export const DEFAULT_YARDS: YardSettings = { radius: 18, link: 45, maxBuilding: 400, minBuilding: 20, minArea: 300 };
 const BUILDING = /^(byggnad|OSM byggnad)$/;
+const DENSITY_MARGIN = 15;
 type Ring = readonly (readonly [number, number])[];
 
 const ringArea = (ring: Ring) => Math.abs(ring.reduce((sum, [x, y], i) => { const [nx, ny] = ring[(i + 1) % ring.length]!; return sum + x * ny - nx * y; }, 0)) / 2;
@@ -103,17 +108,20 @@ export function yardsOf(features: readonly SourceFeature[], settings: YardSettin
     return [...groups.values()];
   };
   // En gles grupp (rektangeln mest tom mark, t.ex. hus i vinkel) delas i tätare grupper tills rektanglarna är fyllda.
-  const own = houses.map(ring => ringArea(yardRectangle(ring, settings.radius)));
+  // Tätheten mäts med en fast marginal, så att en större tomtmarginal inte gör glesa grupper täta.
+  const own = houses.map(ring => ringArea(yardRectangle(ring, DENSITY_MARGIN)));
   const split = (members: number[], link: number): number[][] => {
     if (members.length < 2) return [members];
-    const area = ringArea(yardRectangle(members.flatMap(i => houses[i]!), settings.radius));
+    const area = ringArea(yardRectangle(members.flatMap(i => houses[i]!), DENSITY_MARGIN));
     if (area <= 1.3 * members.reduce((sum, i) => sum + own[i]!, 0)) return [members];
     const parts = cluster(members, link * 0.6);
     return parts.length > 1 || link > 2 ? parts.flatMap(part => split(part, link * 0.6)) : members.map(i => [i]);
   };
   const groups = cluster(houses.map((_, i) => i), settings.link).flatMap(members => split(members, settings.link));
   const out: SourceFeature[] = [];
+  const size = houses.map(ringArea);
   for (const members of groups) {
+    if (!members.some(i => size[i]! >= settings.minBuilding)) continue;
     const rectangle = yardRectangle(members.flatMap(i => houses[i]!), settings.radius);
     const xs = rectangle.map(p => p[0]), ys = rectangle.map(p => p[1]), box = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] as const;
     const near = cuts.filter(cut => cut.box[0] <= box[2] && cut.box[2] >= box[0] && cut.box[1] <= box[3] && cut.box[3] >= box[1]);

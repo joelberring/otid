@@ -5,6 +5,7 @@ import {
 import type { Point } from "@o-tid/map-file";
 import { ALL_CONTROLS, bendInsertIndex, type HitTarget } from "./course-setting-hit";
 import { legOrientation } from "./course-setting-rotate";
+import { inLanguage } from "./in-language";
 
 /**
  * Steg 62 (ADR-0180): banläggningens editor utan React. Varje ändring ger ett nytt dokument via paketets `applyEdit`.
@@ -164,7 +165,7 @@ export const canUndo = (state: EditorState) => state.past.length > 0 && !state.d
 export const canRedo = (state: EditorState) => state.future.length > 0 && !state.dragBase;
 
 /** Ångra går inte när någon annan har ändrat samma sak (eller tagit bort det som steget bygger på). */
-export const UNDO_FAILED = "Det går inte att ångra: någon annan har ändrat samma sak.";
+export const UNDO_FAILED = inLanguage("Det går inte att ångra: någon annan har ändrat samma sak.", "Can't undo: someone else has changed the same thing.");
 
 /** Förslagsläget: dokumentet = förslagets grund med åtgärderna. */
 function replayLog(base: CourseSettingDocument, log: readonly LoggedEdit[]): CourseSettingDocument {

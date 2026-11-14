@@ -4,6 +4,7 @@ import { forgetMapProjectCopies } from "./map-project-offline";
 import { clearLocalTracks, pendingTrackCount } from "./map-project-track-store";
 import { readOrganizerCsrf } from "./organizer-client";
 import { FOLLOW_STORAGE_KEY } from "./follow-store";
+import { inLanguage } from "./in-language";
 
 /**
  * ADR-0205 tillägg: utloggningen från kontomenyn (alla inloggade sidor) och "Logga ut från alla enheter" under Mitt konto.
@@ -36,7 +37,7 @@ async function countPending(name: string, stores: readonly string[]): Promise<nu
   const db = await new Promise<IDBDatabase>((resolve, reject) => {
     const open = indexedDB.open(name);
     open.onsuccess = () => resolve(open.result);
-    open.onerror = () => reject(open.error ?? new Error("IndexedDB kunde inte öppnas"));
+    open.onerror = () => reject(open.error ?? new Error(inLanguage("IndexedDB kunde inte öppnas", "The browser's storage (IndexedDB) could not be opened")));
   });
   try {
     let total = 0;
@@ -44,7 +45,7 @@ async function countPending(name: string, stores: readonly string[]): Promise<nu
       const rows = await new Promise<unknown[]>((resolve, reject) => {
         const request = db.transaction(store).objectStore(store).getAll();
         request.onsuccess = () => resolve(request.result as unknown[]);
-        request.onerror = () => reject(request.error ?? new Error("IndexedDB-fel"));
+        request.onerror = () => reject(request.error ?? new Error(inLanguage("IndexedDB-fel", "Error in the browser's storage (IndexedDB)")));
       });
       total += rows.filter(row => (row as { status?: unknown }).status === "pending").length;
     }

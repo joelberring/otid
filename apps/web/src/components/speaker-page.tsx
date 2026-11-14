@@ -17,6 +17,7 @@ import { formatClockTime, formatDuration } from "../lib/clock-time";
 import { startPublicResultEventStream } from "../lib/public-result-event-stream-client";
 import { awaitingStartCount, classLeaders, forestByClass, isOnTheWay, latestFinishers, onTheWayKeys, radioLeaders, relayLegs, type Finisher } from "../lib/speaker";
 import styles from "./speaker-page.module.css";
+import { inLanguage } from "../lib/in-language";
 
 const REFRESH_MS = 10_000;
 
@@ -54,7 +55,7 @@ export function SpeakerPage({ raceId }: { raceId: string }) {
       };
       // Kontots session gäller speakern direkt (ADR-0173 beslut 4).
       const board: SpeakerBoardResponse = speakerBoardResponseSchema.parse(await get(`${base}/speaker-board`));
-      if (board.raceId !== raceId) throw new Error("Speakerunderlaget gäller en annan tävling");
+      if (board.raceId !== raceId) throw new Error(inLanguage("Speakerunderlaget gäller en annan tävling", "The speaker data belongs to a different race"));
       const [results, forest, relay, radio] = await Promise.all([
         get(`/api/public/races/${encodeURIComponent(raceId)}/results`).then(value => publicResultListResponseV7Schema.parse(value)),
         get(`${base}/forest-watch`).then(value => administratorForestWatchResponseSchema.parse(value)),

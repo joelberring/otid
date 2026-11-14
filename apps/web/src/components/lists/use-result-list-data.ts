@@ -5,6 +5,7 @@ import { publicRadioResponseSchema, publicRelayResultsSchema, publicResultListRe
 import { useState } from "react";
 import { anyStale, staleRetryMs, throwIfBusy } from "../../lib/public-stale";
 import { usePublicRaceData } from "../../lib/use-public-race-data";
+import { inLanguage } from "../../lib/in-language";
 
 /** Resultaten och (ADR-0172 beslut 5) mellantiderna vid radiokontrollerna. */
 export type ResultListData = { results: PublicResultListResponse; relay: PublicRelayResults; radio?: PublicRadioResponse | undefined };
@@ -26,7 +27,7 @@ export function createResultListReader(now: () => number = Date.now) {
       wantRelay ? fetch(`/api/public/races/${id}/relay-results`, { cache: "no-store" }) : undefined,
       wantRadio ? fetch(`/api/public/races/${id}/radio`, { cache: "no-store" }) : undefined]);
     throwIfBusy(results, relay, radio);
-    if (!results.ok || (relay && !relay.ok) || (radio && !radio.ok)) throw new Error("Resultaten kunde inte hämtas");
+    if (!results.ok || (relay && !relay.ok) || (radio && !radio.ok)) throw new Error(inLanguage("Resultaten kunde inte hämtas", "The results could not be loaded"));
     if (anyStale(results, relay, radio)) onStale(staleRetryMs(results, relay, radio));
     const next = { relay: relay ? publicRelayResultsSchema.parse(await relay.json()) : side!.relay,
       radio: radio ? publicRadioResponseSchema.parse(await radio.json()) : side!.radio };

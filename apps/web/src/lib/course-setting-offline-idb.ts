@@ -1,5 +1,6 @@
 import type { StoredHistory } from "./course-setting-history";
 import { joinRecord, splitRecord, type FieldRecord, type FieldStore, type QueuedItem, type StoredBase, type StoredLog, type StoredMapInfo } from "./course-setting-offline";
+import { inLanguage } from "./in-language";
 
 /**
  * Steg 67: banläggningens lager i telefonen (IndexedDB `otid-course-setting`, skilt från avläsningens `otid-readout`).
@@ -16,15 +17,15 @@ const STORES = ["record", "base", "queue", "mapInfo", "mapData", "history"];
 function request<T>(value: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     value.onsuccess = () => resolve(value.result);
-    value.onerror = () => reject(value.error ?? new Error("IndexedDB-fel"));
+    value.onerror = () => reject(value.error ?? new Error(inLanguage("IndexedDB-fel", "Error in the browser's storage (IndexedDB)")));
   });
 }
 
 function done(transaction: IDBTransaction): Promise<void> {
   return new Promise((resolve, reject) => {
     transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error ?? new Error("IndexedDB-fel"));
-    transaction.onabort = () => reject(transaction.error ?? new Error("IndexedDB avbröts"));
+    transaction.onerror = () => reject(transaction.error ?? new Error(inLanguage("IndexedDB-fel", "Error in the browser's storage (IndexedDB)")));
+    transaction.onabort = () => reject(transaction.error ?? new Error(inLanguage("IndexedDB avbröts", "The browser's storage (IndexedDB) was interrupted")));
   });
 }
 
@@ -46,8 +47,8 @@ function open(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains("history")) db.createObjectStore("history", { keyPath: "raceId" });
     };
     value.onsuccess = () => resolve(value.result);
-    value.onerror = () => reject(value.error ?? new Error("IndexedDB kunde inte öppnas"));
-    value.onblocked = () => reject(new Error("IndexedDB är blockerad av en annan flik"));
+    value.onerror = () => reject(value.error ?? new Error(inLanguage("IndexedDB kunde inte öppnas", "The browser's storage (IndexedDB) could not be opened")));
+    value.onblocked = () => reject(new Error(inLanguage("IndexedDB är blockerad av en annan flik", "The browser's storage (IndexedDB) is blocked by another tab")));
   }).catch(error => { opened = undefined; throw error; });
   return opened;
 }

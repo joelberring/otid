@@ -1,5 +1,6 @@
 import { MAP_PROJECT_TRACK_MAX_PARTS, MAP_PROJECT_TRACK_PART_POINTS } from "@o-tid/contracts";
 import { simplifyTrack, type RawPoint } from "./map-project-tracks";
+import { inLanguage } from "./in-language";
 
 /**
  * ADR-0219 tillägget om rekningen (K3): spåren i telefonen innan servern tagit emot dem (IndexedDB, per projekt och konto).
@@ -65,8 +66,8 @@ function open(): Promise<IDBDatabase> {
     const request = indexedDB.open(DB_NAME, 1);
     request.onupgradeneeded = () => { request.result.createObjectStore(STORE, { keyPath: "trackId" }); };
     request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error("IndexedDB kunde inte öppnas"));
-    request.onblocked = () => reject(new Error("IndexedDB är blockerad av en annan flik"));
+    request.onerror = () => reject(request.error ?? new Error(inLanguage("IndexedDB kunde inte öppnas", "The browser's storage (IndexedDB) could not be opened")));
+    request.onblocked = () => reject(new Error(inLanguage("IndexedDB är blockerad av en annan flik", "The browser's storage (IndexedDB) is blocked by another tab")));
   }).catch(error => { opened = undefined; throw error; });
   return opened;
 }
@@ -81,7 +82,7 @@ export async function localTracks(projectId: string, accountId: string): Promise
   const all = await new Promise<LocalTrack[]>((resolve, reject) => {
     const request = database.transaction(STORE).objectStore(STORE).getAll();
     request.onsuccess = () => resolve(request.result as LocalTrack[]);
-    request.onerror = () => reject(request.error ?? new Error("Spåren kunde inte läsas"));
+    request.onerror = () => reject(request.error ?? new Error(inLanguage("Spåren kunde inte läsas", "The tracks could not be read")));
   });
   return all.filter(mine).sort((a, b) => a.startedAt.localeCompare(b.startedAt));
 }
@@ -92,8 +93,8 @@ async function write(action: (store: IDBObjectStore) => IDBRequest): Promise<voi
     const transaction = database.transaction(STORE, "readwrite");
     action(transaction.objectStore(STORE));
     transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error ?? new Error("Spåret kunde inte sparas"));
-    transaction.onabort = () => reject(transaction.error ?? new Error("Spåret kunde inte sparas"));
+    transaction.onerror = () => reject(transaction.error ?? new Error(inLanguage("Spåret kunde inte sparas", "The track could not be saved")));
+    transaction.onabort = () => reject(transaction.error ?? new Error(inLanguage("Spåret kunde inte sparas", "The track could not be saved")));
   });
 }
 
@@ -116,7 +117,7 @@ export async function pendingTrackCount(): Promise<number> {
   return new Promise<number>((resolve, reject) => {
     const request = database.transaction(STORE).objectStore(STORE).count();
     request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error("Spåren kunde inte räknas"));
+    request.onerror = () => reject(request.error ?? new Error(inLanguage("Spåren kunde inte räknas", "The tracks could not be counted")));
   });
 }
 

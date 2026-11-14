@@ -1,6 +1,7 @@
 import type { MapProjectLayerView, MapProjectView } from "@o-tid/contracts";
 import { activeWorker, ask, pageResources, shellSupported } from "./course-setting-offline-shell";
 import { workerResources } from "./course-setting-worker";
+import { inLanguage } from "./in-language";
 
 /**
  * ADR-0219 tillägget om rekningen (K3): kartprojektets karta utan nät. Sidskalet sparas av service workern `/map-project-sw.js`
@@ -28,7 +29,7 @@ function open(): Promise<IDBDatabase> {
     const request = indexedDB.open(DB_NAME, 1);
     request.onupgradeneeded = () => { request.result.createObjectStore(STORE); };
     request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error("IndexedDB kunde inte öppnas"));
+    request.onerror = () => reject(request.error ?? new Error(inLanguage("IndexedDB kunde inte öppnas", "The browser's storage (IndexedDB) could not be opened")));
   }).catch(error => { opened = undefined; throw error; });
   return opened;
 }
@@ -41,7 +42,7 @@ export async function saveMapProjectView(view: MapProjectView): Promise<void> {
     const transaction = database.transaction(STORE, "readwrite");
     transaction.objectStore(STORE).put({ view, savedAt: new Date().toISOString() }, view.projectId);
     transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error ?? new Error("Projektet kunde inte sparas"));
+    transaction.onerror = () => reject(transaction.error ?? new Error(inLanguage("Projektet kunde inte sparas", "The project could not be saved")));
   });
 }
 
@@ -51,7 +52,7 @@ export async function savedMapProjectView(projectId: string): Promise<{ view: Ma
   return new Promise((resolve, reject) => {
     const request = database.transaction(STORE).objectStore(STORE).get(projectId);
     request.onsuccess = () => resolve(request.result as { view: MapProjectView; savedAt: string } | undefined);
-    request.onerror = () => reject(request.error ?? new Error("Projektet kunde inte läsas"));
+    request.onerror = () => reject(request.error ?? new Error(inLanguage("Projektet kunde inte läsas", "The project could not be read")));
   });
 }
 
@@ -64,7 +65,7 @@ export async function saveMapProjectLayers(projectId: string, layers: readonly M
     const transaction = database.transaction(STORE, "readwrite");
     transaction.objectStore(STORE).put(layers, layersKey(projectId));
     transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error ?? new Error("Underlagen kunde inte sparas"));
+    transaction.onerror = () => reject(transaction.error ?? new Error(inLanguage("Underlagen kunde inte sparas", "The base layers could not be saved")));
   });
 }
 
@@ -74,7 +75,7 @@ export async function savedMapProjectLayers(projectId: string): Promise<MapProje
   return new Promise((resolve, reject) => {
     const request = database.transaction(STORE).objectStore(STORE).get(layersKey(projectId));
     request.onsuccess = () => resolve(request.result as MapProjectLayerView[] | undefined);
-    request.onerror = () => reject(request.error ?? new Error("Underlagen kunde inte läsas"));
+    request.onerror = () => reject(request.error ?? new Error(inLanguage("Underlagen kunde inte läsas", "The base layers could not be read")));
   });
 }
 
@@ -87,7 +88,7 @@ export async function forgetMapProjectCopy(projectId: string): Promise<void> {
       transaction.objectStore(STORE).delete(projectId);
       transaction.objectStore(STORE).delete(layersKey(projectId));
       transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error ?? new Error("Projektet kunde inte tas bort"));
+      transaction.onerror = () => reject(transaction.error ?? new Error(inLanguage("Projektet kunde inte tas bort", "The project could not be removed")));
     });
   }
   if (!shellSupported()) return;
@@ -111,6 +112,6 @@ export async function forgetMapProjectCopies(): Promise<void> {
     const transaction = database.transaction(STORE, "readwrite");
     transaction.objectStore(STORE).clear();
     transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error ?? new Error("Projekten kunde inte tas bort"));
+    transaction.onerror = () => reject(transaction.error ?? new Error(inLanguage("Projekten kunde inte tas bort", "The projects could not be removed")));
   });
 }

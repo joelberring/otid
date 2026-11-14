@@ -2,6 +2,7 @@ import { deviceBatchAcknowledgementSchema, readoutRegistrationResponseSchema, sp
 import { CardDecodeError, decodeRecordedFrames, framesFromHex, SiTimeError } from "@o-tid/sportident";
 import { buildReadoutPayload, payloadHash } from "./payload";
 import type { QueuedReadout, ReadoutStore } from "./store";
+import { inLanguage } from "../lib/in-language";
 
 export type SyncOutcome =
   | { readonly kind: "idle" }
@@ -141,7 +142,7 @@ async function syncRegistrations(store: ReadoutStore, raceId: string, deps: Sync
     }
     if (!response.ok) return { kind: "failed", status: response.status };
     const receipt = readoutRegistrationResponseSchema.parse(await response.json());
-    if (receipt.requestId !== item.requestId || receipt.raceId !== raceId) throw new Error("Direktanmälans kvitto gäller en annan begäran");
+    if (receipt.requestId !== item.requestId || receipt.raceId !== raceId) throw new Error(inLanguage("Direktanmälans kvitto gäller en annan begäran", "The entry receipt belongs to a different request"));
     await store.updateRegistration({ ...item, status: "stored", response: receipt });
     count += 1;
   }

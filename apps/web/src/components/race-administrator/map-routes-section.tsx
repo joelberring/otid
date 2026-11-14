@@ -16,6 +16,7 @@ import styles from "./map-routes.module.css";
 import type { Workspace } from "./workspace-state";
 import { SWEDISH_TIME_ZONE } from "@o-tid/domain";
 import { routeCoversNothing, timeSpan } from "../../lib/route-coverage";
+import { inLanguage } from "../../lib/in-language";
 
 
 async function problemOf(response: Response): Promise<{ error: RaceMapProblem; quota?: RaceMapQuotaProblem | undefined } | undefined> {
@@ -45,7 +46,7 @@ export function MapRoutesSection({ ws }: { ws: Workspace }) {
     const op = beginRequest();
     try {
       const response = await request("/map", op);
-      if (!response.ok) throw new Error("Kartan kunde inte hämtas");
+      if (!response.ok) throw new Error(inLanguage("Kartan kunde inte hämtas", "The map could not be loaded"));
       const next = adminRaceMapStateSchema.parse(await json(response, op));
       // Ingen karta än är ett vanligt läge (map: null), inget fel. Bilden hämtas bara när kartan är ny eller utbytt;
       // finns den inte (404, t.ex. borttagen under tiden) visas tillståndet ändå, utan bild.
@@ -54,7 +55,7 @@ export function MapRoutesSection({ ws }: { ws: Workspace }) {
       if (version && version !== imageVersion.current) {
         const imageResponse = await request("/map/image", op);
         if (imageResponse.ok) blob = await imageResponse.blob();
-        else if (imageResponse.status !== 404) throw new Error("Kartbilden kunde inte hämtas");
+        else if (imageResponse.status !== 404) throw new Error(inLanguage("Kartbilden kunde inte hämtas", "The map image could not be loaded"));
       }
       if (!current(op)) return;
       if (blob || !version || version !== imageVersion.current) {
@@ -113,7 +114,7 @@ export function MapRoutesSection({ ws }: { ws: Workspace }) {
       if (problem) next = { tone: "error", text: problem.error === "MAP_FILE_TOO_LARGE" ? text.mapFile.tooLarge
         : problem.error === "IMAGE_TOO_LARGE" ? text.mapFile.errors.TOO_LARGE
         : problem.error === "STORAGE_QUOTA_EXCEEDED" ? text.quota(problem.quota) : text.mapFile.invalid };
-      else if (!response.ok) throw new Error("Kartfilen kunde inte sparas");
+      else if (!response.ok) throw new Error(inLanguage("Kartfilen kunde inte sparas", "The map file could not be saved"));
       else next = { tone: "ok", text: georeferenced ? text.mapFile.saved : text.mapFile.savedNeedsPoints };
     } catch { if (current(op)) next = { tone: "error", text: text.mapFile.failed }; } finally { finish(op); }
     if (next?.tone === "ok") await load(true);

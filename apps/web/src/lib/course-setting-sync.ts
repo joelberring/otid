@@ -5,6 +5,7 @@ import {
   documentChanges, editTouches, remapEdit, replayEdits, type CourseSettingDocument, type CourseSettingEdit, type IdMap
 } from "@o-tid/course-setting";
 import { stillThere, wireCreated, type EditorState, type HistoryStep, type LoggedEdit, type Selection } from "./course-setting-editor";
+import { inLanguage } from "./in-language";
 
 /**
  * Steg 66 (ADR-0181 beslut 4): samtidigt arbete i editorn. Editorns läge finns i en `EditorStore` (React läser den med
@@ -27,8 +28,8 @@ export const SAVE_BATCH_BYTES = 1024 * 1024;
 /** En åtgärd som är större än så (med kuvertet) går inte att spara alls. */
 export const SAVE_EDIT_MAX_BYTES = COURSE_SETTING_EDITS_MAX_BYTES - 8 * 1024;
 /** Beskeden när en enskild åtgärd inte går att spara. */
-export const EDIT_TOO_LARGE = "Ändringen är för stor för att sparas (högst 4 MB). Gör bilden mindre och försök igen.";
-export const EDIT_UNREADABLE = "Servern kunde inte läsa ändringen.";
+export const EDIT_TOO_LARGE = inLanguage("Ändringen är för stor för att sparas (högst 4 MB). Gör bilden mindre och försök igen.", "The change is too large to save (at most 4 MB). Make the image smaller and try again.");
+export const EDIT_UNREADABLE = inLanguage("Servern kunde inte läsa ändringen.", "The server could not read the change.");
 
 const sizes = new WeakMap<object, number>();
 const encoder = new TextEncoder();

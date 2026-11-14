@@ -78,6 +78,7 @@ import { useCourseSettingUx } from "./use-course-setting-ux";
 import { useCourseSettingHistory } from "./use-course-setting-history";
 import { rejectedNoteText, useCourseSettingNotes } from "./use-course-setting-notes";
 import { useCourseSettingMapFile } from "./use-course-setting-map-file";
+import { inLanguage } from "../../lib/in-language";
 import { useCourseSettingMapProject } from "./course-setting-map-project";
 import { useCourseSettingOffline } from "./use-course-setting-offline";
 import { useRouteChoiceWorker } from "./use-route-choice-worker";
@@ -163,7 +164,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
     saveEdits: request => saveCourseSettingEdits(raceId, request),
     fetchSetting: async () => {
       const fresh = await fetchCourseSetting(raceId);
-      if (!fresh.setting) throw new Error("Banläggningen finns inte längre");
+      if (!fresh.setting) throw new Error(inLanguage("Banläggningen finns inte längre", "The course setting no longer exists"));
       return { version: fresh.setting.version, document: fresh.setting.document as unknown as CourseSettingDocument };
     }
   }, {

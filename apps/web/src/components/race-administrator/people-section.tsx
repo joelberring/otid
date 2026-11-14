@@ -18,6 +18,7 @@ import { invitationEn, invitationMailNoteEn, invitationSummaryEn } from "../../i
 import { inviteAll, parseInvitationAddresses } from "../../lib/invitation-bulk";
 import { InvitationActions, invitationSentText } from "../invitation-actions";
 import { FromClubPicker } from "../club-affiliation/from-club-picker";
+import { inLanguage } from "../../lib/in-language";
 
 const GRANTABLE = ["ADMIN", "FUNCTIONARY", "COURSE_EDIT", "COURSE_SUGGEST", "COURSE_COMMENT", "COURSE_MAP"] as const;
 type Message = { tone: "ok" | "error"; text: string };
@@ -48,7 +49,7 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
       const response = await fetch(base, { credentials: "same-origin", cache: "no-store" });
       if (!response.ok) throw new Error(`Listan svarade ${response.status}`);
       const value = racePeopleResponseSchema.parse(await response.json());
-      if (value.raceId !== raceId) throw new Error("Listan gäller en annan tävling");
+      if (value.raceId !== raceId) throw new Error(inLanguage("Listan gäller en annan tävling", "The list belongs to a different race"));
       setData(value);
     } catch { setLoadFailed(true); }
   }, [base, raceId]);

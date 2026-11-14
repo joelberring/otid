@@ -3,6 +3,7 @@ import {
 } from "@o-tid/course-setting";
 import type { Point } from "@o-tid/map-file";
 import { applySteps, type Apply, type EditorState } from "./course-setting-editor";
+import { inLanguage } from "./in-language";
 
 /**
  * Steg 64: specialobjekten i editorn utan React. Verktyget SPECIAL skapar `specialKind`: punktobjekt, text och beskrivningen
@@ -66,7 +67,7 @@ export function clickSpecial(state: EditorState, at: Point, apply: Apply, closeM
   const kind = state.specialKind;
   if (!kind) return state;
   const points = [...(state.drawing ?? []), at];
-  if (kind === "image" && !state.specialImage) return { ...state, error: "Välj en bild först (Objekt → Bild)." };
+  if (kind === "image" && !state.specialImage) return { ...state, error: inLanguage("Välj en bild först (Objekt → Bild).", "Choose an image first (Objects → Image).") };
   const clicks = clicksFor(kind, state.specialImage);
   if (points.length >= clicks) return create(state, points, apply);
   const first = state.drawing?.[0];

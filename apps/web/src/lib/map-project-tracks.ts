@@ -1,6 +1,7 @@
 import { MAP_PROJECT_TRACK_MAX_PARTS, MAP_PROJECT_TRACK_PART_POINTS } from "@o-tid/contracts";
 import { wgs84ToMapPoint, type MapGeoreference } from "@o-tid/map-file";
 import type { TrackPoint } from "@o-tid/map-revision";
+import { inLanguage } from "./in-language";
 
 /**
  * ADR-0219 tillägget om rekningen (K3): spårens punkter i webbläsaren, ren logik. En punkt är [lat, lon, sekunder från spårets
@@ -28,7 +29,7 @@ const child = (body: string, name: string) => new RegExp(`<(?:\\w+:)?${name}[^>]
 
 /** GPX 1.0/1.1: spårets segment (`trkseg`, annars rutten) med tiden räknad från den första punkten. Kastar om filen inte är GPX. */
 export function parseGpx(text: string): ParsedGpx {
-  if (!/<gpx[\s>]/.test(text)) throw new Error("Filen är inte en GPX-fil");
+  if (!/<gpx[\s>]/.test(text)) throw new Error(inLanguage("Filen är inte en GPX-fil", "The file is not a GPX file"));
   // Spårets namn före filens (metadata).
   const head = text.replace(/<trkseg[\s\S]*$/, "");
   const name = child(/<trk[\s>][\s\S]*$/.exec(head)?.[0] ?? "", "name") ?? child(head, "name");

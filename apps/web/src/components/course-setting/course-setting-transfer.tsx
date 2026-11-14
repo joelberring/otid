@@ -17,6 +17,7 @@ import type { Message, SourceReview } from "../race-administrator/source-sync-ac
 import { Button, Notice } from "../ui";
 import styles from "./course-setting.module.css";
 import { adminFetch } from "../../lib/retrying-fetch";
+import { inLanguage } from "../../lib/in-language";
 
 
 /**
@@ -42,7 +43,7 @@ function useStandaloneReview(raceId: string, onApplied: () => void): SourceRevie
   async function consequenceFor(snapshotId: string, rows: string[]) {
     const response = await post("/source-sync/consequence", { formatVersion: 1, snapshotId, excludedRowIds: rows });
     if (response.status === 404 || response.status === 409) return undefined;
-    if (!response.ok) throw new Error("Beskedet kunde inte räknas");
+    if (!response.ok) throw new Error(inLanguage("Beskedet kunde inte räknas", "The result could not be calculated"));
     return syncConsequenceResponseSchema.parse(await response.json()).consequence;
   }
 
@@ -73,9 +74,9 @@ function useStandaloneReview(raceId: string, onApplied: () => void): SourceRevie
         return;
       }
       if (response.status === 400 || response.status === 404) { setAttempt(undefined); close(); setMessage({ tone: "error", text: review.stale }); return; }
-      if (!response.ok) throw new Error("Överföringen misslyckades");
+      if (!response.ok) throw new Error(inLanguage("Överföringen misslyckades", "The transfer failed"));
       const receipt = syncApplyResponseSchema.parse(await response.json());
-      if (receipt.requestId !== value.requestId || receipt.raceId !== raceId) throw new Error("Fel kvitto");
+      if (receipt.requestId !== value.requestId || receipt.raceId !== raceId) throw new Error(inLanguage("Fel kvitto", "Unexpected receipt"));
       close();
       setMessage({ tone: "ok", text: review.applied(receipt.appliedRows, receipt.recalculatedCount) });
       onApplied();

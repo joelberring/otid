@@ -12,6 +12,7 @@ import { layerToMap, safeLayerSize, type Affine } from "../../lib/map-project-la
 import { hiddenLayers, LAYER_FETCHES, loadOrder, savedLayerChoices, saveLayerChoices, withChoices, type LayerChoices } from "../../lib/map-project-layer-visibility";
 import { placeInBounds, worldFromMap } from "../../lib/map-project-control-points";
 import type { Bounds } from "../../lib/course-setting-viewport";
+import { inLanguage } from "../../lib/in-language";
 
 /** Ett underlag att rita: bilden och transformen från bildens pixlar till kartans mm. */
 export interface DrawnLayer { readonly layerId: string; readonly image: ImageBitmap; readonly toMap: Affine; readonly opacity: number; readonly size?: { readonly width: number; readonly height: number } | undefined }
@@ -66,7 +67,7 @@ export function useMapProjectLayers(view: MapProjectView, georeference: MapGeore
         try {
           const file = await cachedMapFile(layerImageCache, layer.sha256, async () => {
             const response = await fetch(`${base}/layers/${encodeURIComponent(layer.layerId)}/image`, { credentials: "same-origin" });
-            if (!response.ok) throw new Error(`Underlaget kunde inte hämtas (${response.status})`);
+            if (!response.ok) throw new Error(inLanguage(`Underlaget kunde inte hämtas (${response.status})`, `The base layer could not be loaded (${response.status})`));
             return { bytes: await response.arrayBuffer(), fileName: `${layer.layerId}.${layer.mediaType === "image/png" ? "png" : layer.mediaType === "image/webp" ? "webp" : "jpg"}` };
           });
           const blob = new Blob([file.bytes], { type: layer.mediaType });

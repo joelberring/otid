@@ -4,6 +4,7 @@ import {
   type SheetFrame, type SourceMapColor
 } from "@o-tid/course-setting";
 import { rgbFromCmyk, type ColorUsage, type MapColor } from "@o-tid/map-file";
+import { inLanguage } from "./in-language";
 
 /**
  * BL-profilerna (ADR-0183 beslut 7): förslaget som arrangören godkänner i förhandsvisningen. Allt här är rent: raderna med
@@ -105,7 +106,7 @@ export function decide(state: ProposalState, decisions: readonly ColorDecision[]
   if (action.kind === "UNDO") return (decisions ?? []).filter(decision => decision.ocadId !== color.ocadId);
   if (action.kind === "KEEP") return withDecision(decisions, color, null);
   if (action.kind === "CHOOSE") {
-    if (!referenceRow(state.table, action.row)?.cmyk) throw new Error(`Raden ${action.row} har inga värden`);
+    if (!referenceRow(state.table, action.row)?.cmyk) throw new Error(inLanguage(`Raden ${action.row} har inga värden`, `Row ${action.row} has no values`));
     return withDecision(decisions, color, action.row);
   }
   return withDecision(decisions, color, item.proposal.row);

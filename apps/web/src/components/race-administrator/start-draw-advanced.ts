@@ -8,6 +8,7 @@ import type { StartDrawLaterStart, StartDrawRules, StartDrawSetupResponse } from
 import { formatClockTime, normalizeClock, parseRaceClockNear } from "../../lib/clock-time";
 import { matchSeedRanking } from "../../lib/seed-ranking-csv";
 import type { DrawRow } from "./start-draw";
+import { inLanguage } from "../../lib/in-language";
 
 /**
  * "Avancerat" i Lottning (PLAN.md steg 26): regler för hela starten, startordning och senare start per klass,
@@ -189,7 +190,7 @@ export function createStartDrawAdvancedActions(ws: AdvancedState & {
     if (!file || !drawSetup) return;
     changed();
     try {
-      if (file.size > 2_000_000) throw new Error("För stor fil");
+      if (file.size > 2_000_000) throw new Error(inLanguage("För stor fil", "The file is too large"));
       const result = matchSeedRanking(await file.text(), drawSetup.entries);
       setDrawAdvanced(previous => ({ ...previous, seeds: { ...previous.seeds,
         ...Object.fromEntries([...result.ranks].map(([id, rank]) => [id, String(rank)])) } }));

@@ -8,6 +8,7 @@ import { useLanguage } from "../language-provider";
 import { PROGRAM_CONTACT_EMAIL } from "../../lib/contact";
 import { helpTextParts, listHelpArticles } from "../../lib/help-search";
 import styles from "./help-panel.module.css";
+import { inLanguage } from "../../lib/in-language";
 
 type Views = HelpView | readonly HelpView[];
 
@@ -52,7 +53,7 @@ export function HelpLink({ article, view, label: shownLabel }: { article: string
   const [open, setOpen] = useState(false);
   const { text, articles } = useHelp();
   const found = articles.find(row => row.id === article);
-  if (!found) throw new Error(`Hjälpartikeln ${article} finns inte`);
+  if (!found) throw new Error(inLanguage(`Hjälpartikeln ${article} finns inte`, `The help article ${article} does not exist`));
   const label = text.link(found.title);
   return <>
     {shownLabel

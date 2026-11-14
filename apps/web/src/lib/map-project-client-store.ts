@@ -1,4 +1,5 @@
 import { emptyClientState, type RevisionClientState } from "@o-tid/map-revision";
+import { inLanguage } from "./in-language";
 
 /**
  * ADR-0219 beslut 4 (K1): kartprojektets egna ändringar i webbläsaren (IndexedDB), per projekt och konto. Kön (`pending`) tas
@@ -20,8 +21,8 @@ function open(): Promise<IDBDatabase> {
     const value = indexedDB.open(DB_NAME, 1);
     value.onupgradeneeded = () => { value.result.createObjectStore(STORE); };
     value.onsuccess = () => resolve(value.result);
-    value.onerror = () => reject(value.error ?? new Error("IndexedDB kunde inte öppnas"));
-    value.onblocked = () => reject(new Error("IndexedDB är blockerad av en annan flik"));
+    value.onerror = () => reject(value.error ?? new Error(inLanguage("IndexedDB kunde inte öppnas", "The browser's storage (IndexedDB) could not be opened")));
+    value.onblocked = () => reject(new Error(inLanguage("IndexedDB är blockerad av en annan flik", "The browser's storage (IndexedDB) is blocked by another tab")));
   }).catch(error => { opened = undefined; throw error; });
   return opened;
 }
@@ -38,7 +39,7 @@ export async function loadClient(projectId: string, accountId: string): Promise<
   const stored = await new Promise<unknown>((resolve, reject) => {
     const request = database.transaction(STORE).objectStore(STORE).get(storeKey(projectId, accountId));
     request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error("IndexedDB-fel"));
+    request.onerror = () => reject(request.error ?? new Error(inLanguage("IndexedDB-fel", "Error in the browser's storage (IndexedDB)")));
   });
   const value = stored as Partial<StoredClient> | undefined;
   if (!value?.state || typeof value.clientId !== "string") return fresh();
@@ -53,7 +54,7 @@ export async function saveClient(projectId: string, accountId: string, client: S
     const transaction = database.transaction(STORE, "readwrite");
     transaction.objectStore(STORE).put(client, storeKey(projectId, accountId));
     transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error ?? new Error("IndexedDB-fel"));
-    transaction.onabort = () => reject(transaction.error ?? new Error("IndexedDB avbröts"));
+    transaction.onerror = () => reject(transaction.error ?? new Error(inLanguage("IndexedDB-fel", "Error in the browser's storage (IndexedDB)")));
+    transaction.onabort = () => reject(transaction.error ?? new Error(inLanguage("IndexedDB avbröts", "The browser's storage (IndexedDB) was interrupted")));
   });
 }

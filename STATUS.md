@@ -13,6 +13,11 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-14 – Engelska: felbeskeden i webbläsaren
+
+- De cirka 60 felbesked som skapas i webbläsarens kod utanför React (hämtningar, webbläsarens lager IndexedDB, kvitton, inloggningens kontroller, ångra, för stor ändring) följer nu sidans språk via `lib/in-language.ts` (läser `<html lang>`; svenska utan dokument, så servern och testerna är oförändrade).
+- Inga felbesked som koden jämför har ändrats (`"Bodyn är för stor"`, `"404"`, `"csrf"`, `"busy"` är kvar). Serverns `throw` och konsolens loggar är kvar på svenska. Kontrollerat: typecheck, eslint, knip, vitest (1250), bygget.
+
 ### 2026-11-14 – Engelska: svenska texter i den engelska versionen
 
 - Genomgång av koden och ca 70 sidor på en-GB (projektdokumentet `claude/oversattning-engelska-2026-11-14.md`). Rättat: avläsningskortets «Bricka» och sidtitel, remsan i Mina tävlingar (ny `my-places-en.ts`), sidfoten i arbetsytan, superadmins länkar och tävlingstyper, klubbsidans «Kontrollera alla kartor igen», inbjudan av flera adresser, gruppens publika sida, sidtitlar för opublicerade tävlingar, några felbesked, träningslägets Start/Mål/Passage och festens färgprov.

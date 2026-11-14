@@ -10,6 +10,7 @@
  * - Ett fel (ingen IndexedDB, full lagring, privat läge) gör bara att filen hämtas som förut; det skrivs i konsolen.
  * - Tas bort vid utloggning, med banläggningens övriga kopior (`forgetAllCourseSettingCopies`).
  */
+import { inLanguage } from "./in-language";
 export interface CachedMapFile { readonly bytes: ArrayBuffer; readonly fileName: string }
 export interface MapCacheMeta { readonly sha256: string; readonly byteLength: number; readonly usedAt: number }
 
@@ -139,15 +140,15 @@ const LAYER_DB_NAME = "otid-layer-cache";
 function request<T>(value: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     value.onsuccess = () => resolve(value.result);
-    value.onerror = () => reject(value.error ?? new Error("IndexedDB-fel"));
+    value.onerror = () => reject(value.error ?? new Error(inLanguage("IndexedDB-fel", "Error in the browser's storage (IndexedDB)")));
   });
 }
 
 function done(transaction: IDBTransaction): Promise<void> {
   return new Promise((resolve, reject) => {
     transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error ?? new Error("IndexedDB-fel"));
-    transaction.onabort = () => reject(transaction.error ?? new Error("IndexedDB avbröts"));
+    transaction.onerror = () => reject(transaction.error ?? new Error(inLanguage("IndexedDB-fel", "Error in the browser's storage (IndexedDB)")));
+    transaction.onabort = () => reject(transaction.error ?? new Error(inLanguage("IndexedDB avbröts", "The browser's storage (IndexedDB) was interrupted")));
   });
 }
 
@@ -163,8 +164,8 @@ function open(name: string): Promise<IDBDatabase> {
       value.result.createObjectStore("meta", { keyPath: "sha256" });
     };
     value.onsuccess = () => resolve(value.result);
-    value.onerror = () => reject(value.error ?? new Error("IndexedDB kunde inte öppnas"));
-    value.onblocked = () => reject(new Error("IndexedDB är blockerad av en annan flik"));
+    value.onerror = () => reject(value.error ?? new Error(inLanguage("IndexedDB kunde inte öppnas", "The browser's storage (IndexedDB) could not be opened")));
+    value.onblocked = () => reject(new Error(inLanguage("IndexedDB är blockerad av en annan flik", "The browser's storage (IndexedDB) is blocked by another tab")));
   }).catch(error => { openedByName.delete(name); throw error; });
   openedByName.set(name, opened);
   return opened;

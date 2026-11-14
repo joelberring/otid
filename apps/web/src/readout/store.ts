@@ -1,5 +1,6 @@
 import type { ReadoutPackage, ReadoutPlacement, ReadoutRegistrationRequest, ReadoutRegistrationResponse, ServerResultSummary,
   SportidentReadoutPayload } from "@o-tid/contracts";
+import { inLanguage } from "../lib/in-language";
 
 export type QueueStatus = "pending" | "stored" | "duplicate" | "rejected";
 
@@ -104,7 +105,7 @@ const DB_VERSION = 2;
 function request<T>(value: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     value.onsuccess = () => resolve(value.result);
-    value.onerror = () => reject(value.error ?? new Error("IndexedDB-fel"));
+    value.onerror = () => reject(value.error ?? new Error(inLanguage("IndexedDB-fel", "Error in the browser's storage (IndexedDB)")));
   });
 }
 
@@ -112,7 +113,7 @@ function done(transaction: IDBTransaction): Promise<void> {
   return new Promise((resolve, reject) => {
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => reject(transaction.error ?? new Error("IndexedDB-transaktionen misslyckades"));
-    transaction.onabort = () => reject(transaction.error ?? new Error("IndexedDB-transaktionen avbröts"));
+    transaction.onabort = () => reject(transaction.error ?? new Error(inLanguage("IndexedDB-transaktionen avbröts", "The browser's storage (IndexedDB) was interrupted")));
   });
 }
 
@@ -132,7 +133,7 @@ export class IdbReadoutStore implements ReadoutStore {
         if (!db.objectStoreNames.contains("registrations")) db.createObjectStore("registrations", { keyPath: ["raceId", "requestId"] });
       };
       open.onsuccess = () => resolve(open.result);
-      open.onerror = () => reject(open.error ?? new Error("IndexedDB kunde inte öppnas"));
+      open.onerror = () => reject(open.error ?? new Error(inLanguage("IndexedDB kunde inte öppnas", "The browser's storage (IndexedDB) could not be opened")));
     });
   }
 

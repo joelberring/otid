@@ -17,6 +17,7 @@ import { ControlMapSvg } from "./control-map-svg";
 import { RouteChoicePanel } from "./route-choice-panel";
 import { HelpButton } from "../help/help-panel";
 import styles from "./control-map.module.css";
+import { inLanguage } from "../../lib/in-language";
 
 /**
  * Steg 52 (ADR-0176): knappen "Kontrollkarta" i Banor och kartan i en egen dialog, så att den inte tar plats vid vanlig
@@ -49,7 +50,7 @@ function ControlMapDialog({ ws, onClose }: { ws: Workspace; onClose: () => void 
     const op = beginRequest();
     try {
       const response = await request("/control-map", op);
-      if (!response.ok) throw new Error("Kontrollkartan kunde inte hämtas");
+      if (!response.ok) throw new Error(inLanguage("Kontrollkartan kunde inte hämtas", "The control map could not be loaded"));
       const next = controlMapResponseSchema.parse(await json(response, op));
       // Steg 60: bilden även när den inte är georefererad (vägvalen ritas på kartfilens bild).
       let blob: Blob | undefined;

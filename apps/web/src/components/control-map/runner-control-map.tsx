@@ -9,6 +9,7 @@ import { controlMapView, typicalSpacing } from "../../lib/control-map";
 import { runnerDrawing, runnerMessages } from "./control-map-drawing";
 import { ControlMapSvg } from "./control-map-svg";
 import styles from "./control-map.module.css";
+import { inLanguage } from "../../lib/in-language";
 
 /**
  * Steg 52 (ADR-0176): löparens bana på kartan med stämplingarna (deltagarkortet och den publika deltagarsidan). En
@@ -57,7 +58,7 @@ export function ParticipantControlMap({ raceId, entryId, refreshKey }: { raceId:
       try {
         setFailed(false);
         const response = await fetch(`${base}/entries/${entryId}/control-map`, { cache: "no-store", signal: controller.signal });
-        if (!response.ok) throw new Error("Kartan kunde inte hämtas");
+        if (!response.ok) throw new Error(inLanguage("Kartan kunde inte hämtas", "The map could not be loaded"));
         const next = runnerControlMapSchema.parse(await response.json());
         if (next.map && !image) {
           const imageResponse = await fetch(`${base}/map/image`, { cache: "no-store", signal: controller.signal });
@@ -90,7 +91,7 @@ export function PublicRunnerControlMap({ raceId, publicResultId }: { raceId: str
     void (async () => {
       try {
         const response = await fetch(`/api/public/races/${raceId}/results/${publicResultId}/control-map`, { cache: "no-store" });
-        if (!response.ok) throw new Error("Kartan kunde inte hämtas");
+        if (!response.ok) throw new Error(inLanguage("Kartan kunde inte hämtas", "The map could not be loaded"));
         const parsed = runnerControlMapSchema.parse(await response.json());
         if (!disposed) setData(parsed);
       } catch { if (!disposed) setFailed(true); }

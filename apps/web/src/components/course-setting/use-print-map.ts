@@ -14,6 +14,7 @@ import { RenderQueue } from "../../lib/course-setting-bl-proposal";
 import { pressLayersFor, pressNormOf } from "../../lib/course-setting-press-layers";
 import type { RenderImage, RenderView } from "./course-setting-bl-compare";
 import { frameImageKey } from "./course-setting-sheet";
+import { inLanguage } from "../../lib/in-language";
 
 /**
  * Kartan och färgerna för arken, gemensamt för Utskrift och Layout (ADR-0217): kartfilen i en Worker, bilderna per utsnitt i
@@ -59,7 +60,7 @@ export function usePrintMap(raceId: string, map: boolean | string, onBounds: (bo
   const boundsRef = useRef(onBounds);
   boundsRef.current = onBounds;
   const renderImage = useCallback<RenderImage>((view, priority) => {
-    if (!session) return Promise.reject(new Error("Kartan är inte inläst"));
+    if (!session) return Promise.reject(new Error(inLanguage("Kartan är inte inläst", "The map is not loaded")));
     return queue.current.add(() => renderView(session, view), priority);
   }, [session]);
   useEffect(() => {

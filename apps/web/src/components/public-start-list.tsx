@@ -10,6 +10,7 @@ import { publicPagesEn } from "../i18n/public-en";
 import { useLanguage } from "./language-provider";
 import styles from "./lists/lists.module.css";
 import { raceDetails } from "@o-tid/domain";
+import { inLanguage } from "../lib/in-language";
 
 /**
  * Den publicerade startlistan (PLAN.md steg 13): samma tre vyer som i arbetsytan; bricka bara när tävlingen visar
@@ -38,7 +39,7 @@ export function PublicStartList({ raceId, initial }: { raceId: string; initial: 
         if (response.status === 404) { if (!stopped) { setData(null); setFailed(false); } return; }
         // Steg 54: många besökare (503) – listan som visas ligger kvar utan felbesked; nästa försök om fem sekunder.
         if (response.status === 503) return;
-        if (!response.ok) throw new Error("Startlistan kunde inte hämtas");
+        if (!response.ok) throw new Error(inLanguage("Startlistan kunde inte hämtas", "The start list could not be loaded"));
         const result = publicStartListResponseSchema.parse(await response.json());
         if (!stopped) {
           setFailed(false);

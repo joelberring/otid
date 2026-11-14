@@ -10,6 +10,7 @@ import { formatClockTime } from "../../lib/clock-time";
 import { Button, Field, Notice, Section } from "../ui";
 import { sourceTime } from "./eventor-section";
 import styles from "./radio-section.module.css";
+import { inLanguage } from "../../lib/in-language";
 
 type Message = { tone: "ok" | "error"; text: string };
 type Draft = { enabled: boolean; source: RadioSource; unitId: string; controls: Map<number, string> };
@@ -37,7 +38,7 @@ export function RadioSection({ raceId, disabled }: { raceId: string; disabled: b
   const [message, setMessage] = useState<Message>();
 
   const show = useCallback((value: RadioSettingsResponse) => {
-    if (value.raceId !== raceId) throw new Error("Inställningarna gäller en annan tävling");
+    if (value.raceId !== raceId) throw new Error(inLanguage("Inställningarna gäller en annan tävling", "The settings belong to a different race"));
     setSettings(value); setDraft(draftFrom(value));
   }, [raceId]);
 
@@ -45,7 +46,7 @@ export function RadioSection({ raceId, disabled }: { raceId: string; disabled: b
     setLoadFailed(false);
     try {
       const response = await fetch(base, { credentials: "same-origin", cache: "no-store" });
-      if (!response.ok) throw new Error(`Radioinställningarna svarade ${response.status}`);
+      if (!response.ok) throw new Error(inLanguage(`Radioinställningarna svarade ${response.status}`, `The radio settings replied ${response.status}`));
       show(radioSettingsResponseSchema.parse(await response.json()));
     } catch { setLoadFailed(true); }
   }, [base, show]);

@@ -1,5 +1,6 @@
 import { readoutPackageSchema, runnerSearchResponseSchema, type ReadoutPackage, type RunnerSearchRequest,
   type RunnerSearchResponse } from "@o-tid/contracts";
+import { inLanguage } from "../lib/in-language";
 
 const ORGANIZER_CSRF = { loopback: "otid_organizer_csrf", secure: "__Host-otid-organizer-csrf" } as const;
 
@@ -33,7 +34,7 @@ export async function fetchReadoutPackage(raceId: string): Promise<PackageOutcom
   if (response.status === 401 || response.status === 403) return { kind: "unauthorized" };
   if (!response.ok) return { kind: "failed", status: response.status };
   const value = readoutPackageSchema.parse(await response.json());
-  if (value.raceId !== raceId) throw new Error("Avläsningspaketet gäller ett annat lopp");
+  if (value.raceId !== raceId) throw new Error(inLanguage("Avläsningspaketet gäller ett annat lopp", "The read-out package belongs to a different race"));
   return { kind: "ok", value };
 }
 
@@ -55,6 +56,6 @@ export async function searchRunnerDatabase(raceId: string, request: RunnerSearch
   }
   if (!response.ok) return undefined;
   const value = runnerSearchResponseSchema.parse(await response.json());
-  if (value.raceId !== raceId) throw new Error("Sökningen gäller ett annat lopp");
+  if (value.raceId !== raceId) throw new Error(inLanguage("Sökningen gäller ett annat lopp", "The search belongs to a different race"));
   return value;
 }

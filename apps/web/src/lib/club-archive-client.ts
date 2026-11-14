@@ -6,6 +6,7 @@ import type { MapGeoreference } from "@o-tid/map-file";
 import { importCourseSetting, saveCourseSetting } from "./course-setting-api";
 import { renderMapFile, type MapFileRenderError, type MapFileRenderResult } from "./map-file-worker-protocol";
 import { readOrganizerCsrf } from "./organizer-client";
+import { inLanguage } from "./in-language";
 
 /**
  * ADR-0194: klubbarkivets anrop från webbläsaren. "Använd igen" går de befintliga vägarna: Ny tävling
@@ -49,19 +50,19 @@ export function clubFailure(status: number, errors: Texts<typeof clubArchiveSv.e
 export async function fetchMapVersion(clubId: string, versionId: string, signal?: AbortSignal): Promise<ArrayBuffer> {
   const response = await fetch(`${clubBase(clubId)}/map-versions/${versionId}`, { credentials: "same-origin", cache: "force-cache",
     ...(signal ? { signal } : {}) });
-  if (!response.ok) throw new Error(`Kartfilen kunde inte hämtas (${response.status})`);
+  if (!response.ok) throw new Error(inLanguage(`Kartfilen kunde inte hämtas (${response.status})`, `The map file could not be loaded (${response.status})`));
   return response.arrayBuffer();
 }
 
 export async function fetchCourseFileText(clubId: string, courseFileId: string): Promise<string> {
   const response = await fetch(`${clubBase(clubId)}/course-files/${courseFileId}`, { credentials: "same-origin", cache: "no-store" });
-  if (!response.ok) throw new Error(`Banfilen kunde inte hämtas (${response.status})`);
+  if (!response.ok) throw new Error(inLanguage(`Banfilen kunde inte hämtas (${response.status})`, `The course file could not be loaded (${response.status})`));
   return response.text();
 }
 
 export async function fetchCourseFileBytes(clubId: string, courseFileId: string): Promise<ArrayBuffer> {
   const response = await fetch(`${clubBase(clubId)}/course-files/${courseFileId}`, { credentials: "same-origin", cache: "no-store" });
-  if (!response.ok) throw new Error(`Banfilen kunde inte hämtas (${response.status})`);
+  if (!response.ok) throw new Error(inLanguage(`Banfilen kunde inte hämtas (${response.status})`, `The course file could not be loaded (${response.status})`));
   return response.arrayBuffer();
 }
 

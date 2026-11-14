@@ -3,6 +3,7 @@
  * tas bort ur telefonen först när servern har kvitterat den (AGENTS.md); samma notis två gånger blir en (id:t från telefonen).
  * Utloggningen räknar och tar bort dem (`account-logout.ts`). Saknas IndexedDB finns de bara i minnet.
  */
+import { inLanguage } from "./in-language";
 const DB_NAME = "otid-map-project-notes";
 const STORE = "notes";
 
@@ -29,8 +30,8 @@ function open(): Promise<IDBDatabase> {
     const request = indexedDB.open(DB_NAME, 1);
     request.onupgradeneeded = () => { request.result.createObjectStore(STORE, { keyPath: "noteId" }); };
     request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error("IndexedDB kunde inte öppnas"));
-    request.onblocked = () => reject(new Error("IndexedDB är blockerad av en annan flik"));
+    request.onerror = () => reject(request.error ?? new Error(inLanguage("IndexedDB kunde inte öppnas", "The browser's storage (IndexedDB) could not be opened")));
+    request.onblocked = () => reject(new Error(inLanguage("IndexedDB är blockerad av en annan flik", "The browser's storage (IndexedDB) is blocked by another tab")));
   }).catch(error => { opened = undefined; throw error; });
   return opened;
 }
@@ -41,8 +42,8 @@ async function write(action: (store: IDBObjectStore) => IDBRequest): Promise<voi
     const transaction = database.transaction(STORE, "readwrite");
     action(transaction.objectStore(STORE));
     transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error ?? new Error("Notisen kunde inte sparas"));
-    transaction.onabort = () => reject(transaction.error ?? new Error("Notisen kunde inte sparas"));
+    transaction.onerror = () => reject(transaction.error ?? new Error(inLanguage("Notisen kunde inte sparas", "The note could not be saved")));
+    transaction.onabort = () => reject(transaction.error ?? new Error(inLanguage("Notisen kunde inte sparas", "The note could not be saved")));
   });
 }
 
@@ -53,7 +54,7 @@ export async function localNotes(projectId: string, accountId: string): Promise<
   const all = await new Promise<LocalNote[]>((resolve, reject) => {
     const request = database.transaction(STORE).objectStore(STORE).getAll();
     request.onsuccess = () => resolve(request.result as LocalNote[]);
-    request.onerror = () => reject(request.error ?? new Error("Notiserna kunde inte läsas"));
+    request.onerror = () => reject(request.error ?? new Error(inLanguage("Notiserna kunde inte läsas", "The notes could not be read")));
   });
   return all.filter(mine).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
@@ -79,7 +80,7 @@ export async function pendingNoteCount(): Promise<number> {
   return new Promise<number>((resolve, reject) => {
     const request = database.transaction(STORE).objectStore(STORE).count();
     request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error("Notiserna kunde inte räknas"));
+    request.onerror = () => reject(request.error ?? new Error(inLanguage("Notiserna kunde inte räknas", "The notes could not be counted")));
   });
 }
 

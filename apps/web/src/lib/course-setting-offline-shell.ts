@@ -4,6 +4,7 @@
  * berörs inte. Registreras först när banläggaren väljer "Spara för offline", och tas bort med "Ta bort från telefonen".
  */
 import { workerResources } from "./course-setting-worker";
+import { inLanguage } from "./in-language";
 
 const scopeOf = (raceId: string) => `/admin/${encodeURIComponent(raceId)}/course-setting`;
 
@@ -27,7 +28,7 @@ export function pageResources(page: string, extra: readonly string[] = []): stri
 export function ask(worker: ServiceWorker, message: unknown, timeoutMs = 60_000): Promise<{ saved: number; failed: number }> {
   return new Promise((resolve, reject) => {
     const channel = new MessageChannel();
-    const timer = setTimeout(() => reject(new Error("Service workern svarade inte")), timeoutMs);
+    const timer = setTimeout(() => reject(new Error(inLanguage("Service workern svarade inte", "The service worker did not respond"))), timeoutMs);
     channel.port1.onmessage = event => { clearTimeout(timer); resolve(event.data as { saved: number; failed: number }); };
     worker.postMessage(message, [channel.port2]);
   });
@@ -47,7 +48,7 @@ export async function activeWorker(registration: ServiceWorkerRegistration): Pro
 
 /** Registrerar (eller uppdaterar) service workern och sparar sidan och filerna den laddat. */
 export async function saveShell(raceId: string): Promise<{ saved: number; failed: number }> {
-  if (!shellSupported()) throw new Error("Webbläsaren saknar service worker");
+  if (!shellSupported()) throw new Error(inLanguage("Webbläsaren saknar service worker", "The browser has no service worker"));
   const registration = await navigator.serviceWorker.register("/course-setting-sw.js", { scope: scopeOf(raceId), updateViaCache: "none" });
   return ask(await activeWorker(registration), { type: "cache", urls: loadedUrls(raceId) });
 }

@@ -11,6 +11,7 @@ import {
   type OrganizerMyEventsResponse
 } from "@o-tid/contracts";
 import { UUID_PATTERN } from "@o-tid/contracts";
+import { inLanguage } from "./in-language";
 
 const PENDING_ATTEMPT_KEY = "otid.organizer.pending-event-create.v1";
 
@@ -22,23 +23,23 @@ export interface OrganizerCreateAttempt {
 
 export function createOrganizerAttempt(value: unknown, accountId: string, randomUuid: () => string): OrganizerCreateAttempt {
   const request = organizerEventCreateRequestSchema.parse(value);
-  if (!UUID_PATTERN.test(accountId)) throw new Error("Kunde inte koppla försöket till kontot.");
+  if (!UUID_PATTERN.test(accountId)) throw new Error(inLanguage("Kunde inte koppla försöket till kontot.", "Could not link the attempt to the account."));
   const requestId = randomUuid();
-  if (!UUID_PATTERN.test(requestId)) throw new Error("Kunde inte skapa ett giltigt request-id.");
+  if (!UUID_PATTERN.test(requestId)) throw new Error(inLanguage("Kunde inte skapa ett giltigt request-id.", "Could not create a valid request id."));
   return { accountId, requestId, request };
 }
 
 export function parseOrganizerCreateResponse(value: unknown, attempt: OrganizerCreateAttempt): OrganizerEventCreateResponse {
   const parsed = organizerEventCreateResponseSchema.safeParse(value);
   if (!parsed.success || parsed.data.requestId !== attempt.requestId) {
-    throw new Error("Servern svarade med ett ogiltigt bekräftelsebesked.");
+    throw new Error(inLanguage("Servern svarade med ett ogiltigt bekräftelsebesked.", "The server replied with an invalid confirmation."));
   }
   return parsed.data;
 }
 
 export function parseOrganizerEvents(value: unknown): OrganizerMyEventsResponse {
   const parsed = organizerMyEventsResponseSchema.safeParse(value);
-  if (!parsed.success) throw new Error("Tävlingslistan hade ett ogiltigt format.");
+  if (!parsed.success) throw new Error(inLanguage("Tävlingslistan hade ett ogiltigt format.", "The race list had an invalid format."));
   return parsed.data;
 }
 
@@ -59,7 +60,7 @@ export function parseOrganizerSessionStatus(value: unknown) {
 /** Inloggning med e-post (ADR-0172). Ogiltig adress ger ett begripligt fel innan något skickas. */
 export function parseOrganizerLoginRequest(email: string, password: string): OrganizerAccountLoginRequest {
   const parsed = organizerAccountLoginRequestSchema.safeParse({ formatVersion: 1, email, password });
-  if (!parsed.success) throw new Error("Skriv en giltig e-postadress och ditt lösenord.");
+  if (!parsed.success) throw new Error(inLanguage("Skriv en giltig e-postadress och ditt lösenord.", "Enter a valid email address and your password."));
   return parsed.data;
 }
 
@@ -70,7 +71,7 @@ export function readOrganizerCsrf(cookieText: string, currentUrl: URL): string {
   for (const part of cookieText.split(";")) {
     const separator = part.indexOf("=");
     if (separator < 0 || part.slice(0, separator).trim() !== name) continue;
-    if (value !== undefined) throw new Error("CSRF-cookien är tvetydig. Ladda om sidan och försök igen.");
+    if (value !== undefined) throw new Error(inLanguage("CSRF-cookien är tvetydig. Ladda om sidan och försök igen.", "The security cookie is ambiguous. Reload the page and try again."));
     value = part.slice(separator + 1).trim();
   }
   if (!value || !/^[A-Za-z0-9_-]{43}$/.test(value)) {
@@ -88,7 +89,7 @@ export function restoreOrganizerAttempt(): OrganizerCreateAttempt | undefined {
   if (!raw) return undefined;
   try {
     const candidate: unknown = JSON.parse(raw);
-    if (!candidate || typeof candidate !== "object") throw new Error("Ogiltigt försök");
+    if (!candidate || typeof candidate !== "object") throw new Error(inLanguage("Ogiltigt försök", "Invalid attempt"));
     const record = candidate as { accountId?: unknown; requestId?: unknown; request?: unknown };
     if (typeof record.accountId !== "string" || !UUID_PATTERN.test(record.accountId)) throw new Error("Ogiltigt konto-id");
     if (typeof record.requestId !== "string" || !UUID_PATTERN.test(record.requestId)) throw new Error("Ogiltigt request-id");

@@ -2,6 +2,7 @@ import type { CourseSettingNote, CourseSettingSketchShape } from "@o-tid/contrac
 import type { CourseSettingDocument } from "@o-tid/course-setting";
 import { mapPointToProjected, type MapGeoreference, type Point } from "@o-tid/map-file";
 import { distanceToSketch, sketchBounds } from "./course-setting-sketch";
+import { inLanguage } from "./in-language";
 
 /**
  * ADR-0181 beslut 8: kartfelen till kartritaren. Kartritaren är inte alltid arrangör och kan tävla själv, så exporten får
@@ -26,7 +27,7 @@ export function mapErrorNotes(notes: readonly CourseSettingNote[]): CourseSettin
 export function mapErrorGeometry(note: CourseSettingNote): MapErrorGeometry {
   if (note.target.kind === "SKETCH") return { shapes: note.target.shapes };
   if (note.target.kind === "POINT") return { shapes: [], point: note.target.at };
-  throw new Error("Ett kartfel sitter på en punkt eller en ritning");
+  throw new Error(inLanguage("Ett kartfel sitter på en punkt eller en ritning", "A map error is placed on a point or a drawing"));
 }
 
 function geometryDistance(geometry: MapErrorGeometry, at: Point): number {

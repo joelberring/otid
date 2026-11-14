@@ -15,6 +15,7 @@ import { anyStale, staleRetryMs, throwIfBusy } from "../../lib/public-stale";
 import { usePublicRaceData } from "../../lib/use-public-race-data";
 import { FollowStar } from "../follow-star";
 import styles from "./public-live.module.css";
+import { inLanguage } from "../../lib/in-language";
 
 async function readLive(raceId: string, onStale: (retryMs?: number) => void): Promise<PublicLiveResponse> {
   const response = await fetch(`/api/public/races/${encodeURIComponent(raceId)}/live`, { cache: "no-store" });
@@ -22,7 +23,7 @@ async function readLive(raceId: string, onStale: (retryMs?: number) => void): Pr
   if (!response.ok) throw new Error(`Live svarade ${response.status}`);
   if (anyStale(response)) onStale(staleRetryMs(response));
   const live = publicLiveResponseSchema.parse(await response.json());
-  if (live.raceId !== raceId) throw new Error("Live gäller en annan tävling");
+  if (live.raceId !== raceId) throw new Error(inLanguage("Live gäller en annan tävling", "Live belongs to a different race"));
   return live;
 }
 

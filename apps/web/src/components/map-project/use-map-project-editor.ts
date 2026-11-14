@@ -16,6 +16,7 @@ import { cachedMapFile, mapFileCache } from "../../lib/map-file-cache";
 import { clientStoreAvailable, loadClient, saveClient, type StoredClient } from "../../lib/map-project-client-store";
 import { mapProjectBase } from "../../lib/map-project-client";
 import { MapProjectSession, type CatalogSymbol } from "../../lib/map-project-protocol";
+import { inLanguage } from "../../lib/in-language";
 
 // K3: styrd av service workern när kartsidan är sparad för offline (`controlledWorker`, som banläggningens).
 const createWorker = () => controlledWorker(() => new Worker(new URL("../../lib/map-project-worker.ts", import.meta.url), { type: "module" }));
@@ -98,7 +99,7 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
       try {
         const file = await cachedMapFile(mapFileCache, view.base.sha256, async () => {
           const response = await fetch(`${base}/source`, { credentials: "same-origin", signal: controller.signal });
-          if (!response.ok) throw new Error(`Grundfilen kunde inte hämtas (${response.status})`);
+          if (!response.ok) throw new Error(inLanguage(`Grundfilen kunde inte hämtas (${response.status})`, `The base file could not be loaded (${response.status})`));
           return { bytes: await response.arrayBuffer(), fileName: view.base.fileName };
         }, controller.signal);
         if (closed) return;

@@ -1,5 +1,6 @@
 import { uninterpretedReadoutReceiptSchema, type UninterpretedReadoutRequest } from "@o-tid/contracts";
 import type { SyncDependencies } from "./sync";
+import { inLanguage } from "../lib/in-language";
 
 /**
  * Steg 31: avläsningar vars tider inte gick att tolka ens med datorns klocka. De kan inte köas som vanliga avläsningar
@@ -89,7 +90,7 @@ export async function syncFailedReadouts(raceId: string, identity: { deviceId: s
     if (response.status === 401 || response.status === 403) return { kind: "unauthorized" };
     if (!response.ok) return { kind: "failed", status: response.status };
     const receipt = uninterpretedReadoutReceiptSchema.parse(await response.json());
-    if (receipt.requestId !== row.requestId || receipt.raceId !== raceId) throw new Error("Kvittot gäller en annan avläsning");
+    if (receipt.requestId !== row.requestId || receipt.raceId !== raceId) throw new Error(inLanguage("Kvittot gäller en annan avläsning", "The receipt belongs to a different read-out"));
     // Läs om listan: funktionären kan ha rensat den under tiden.
     const current = storage.load(raceId);
     storage.save(raceId, current.map((candidate) => candidate.requestId === row.requestId

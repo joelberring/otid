@@ -1,6 +1,7 @@
 import { partyDeskEventResponseSchema, partyStateResponseSchema, type PartyStateResponse } from "@o-tid/contracts";
 import type { PartyActionStore } from "./party-store";
 import type { SyncDependencies, SyncOutcome } from "./sync";
+import { inLanguage } from "../lib/in-language";
 
 /**
  * Skickar bardiskens väntande in-/utcheckningar och gästnamn (PLAN.md steg 40), i den ordning de gjordes. En post ändrar
@@ -31,7 +32,7 @@ export async function syncPartyActions(store: PartyActionStore, raceId: string, 
     if (item.action.kind === "desk") {
       const receipt = partyDeskEventResponseSchema.parse(await response.json());
       if (receipt.raceId !== raceId || receipt.deviceId !== item.action.request.deviceId ||
-          receipt.localSequence !== item.action.request.localSequence) throw new Error("Kvittot gäller en annan utcheckning");
+          receipt.localSequence !== item.action.request.localSequence) throw new Error(inLanguage("Kvittot gäller en annan utcheckning", "The receipt belongs to a different checkout"));
     }
     await store.update({ ...item, status: "stored" });
     count += 1;
@@ -55,6 +56,6 @@ export async function fetchPartyState(raceId: string, fetcher: typeof fetch = fe
   if (response.status === 401 || response.status === 403) return { kind: "unauthorized" };
   if (!response.ok) return { kind: "failed", status: response.status };
   const value = partyStateResponseSchema.parse(await response.json());
-  if (value.raceId !== raceId) throw new Error("Festens läge gäller en annan tävling");
+  if (value.raceId !== raceId) throw new Error(inLanguage("Festens läge gäller en annan tävling", "The party state belongs to a different event"));
   return { kind: "ok", value };
 }

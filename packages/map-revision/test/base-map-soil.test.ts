@@ -86,9 +86,9 @@ describe("ingen sankmark på sand och grus", () => {
     const result = marshOffDrySoil([green, far], [soil("dry", box(0, 0, 100, 100))]);
     expect(result.features).toEqual([green, far]);
   });
-  it("fuktreglagets lager kan begränsas", () => {
+  it("Lantmäteriets karterade sankmark rörs inte, bara laserns fuktsteg", () => {
     const other = marsh("sankmark_vat", box(0, 0, 100, 100));
-    const result = marshOffDrySoil([other], [soil("dry", box(-50, -50, 150, 150))], { layers: new Set(["blott", "fuktigt"]) });
+    const result = marshOffDrySoil([other], [soil("dry", box(-50, -50, 150, 150))]);
     expect(result.features).toEqual([other]);
   });
 });

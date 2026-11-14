@@ -8,10 +8,11 @@ type Ring = [number, number][];
 type Box = ReturnType<typeof boxOf>;
 
 /**
- * Sankmarkens lager i grundkartan (kandidaterna 308 och 310 ur fuktsteget och marktäckets): de som regeln minskar.
- * Fuktreglagets lager är `blott` och `fuktigt` (`SOIL_PANEL_LAYERS`).
+ * Sankmarkens lager som regeln minskar: bara laserns fuktsteg (`blott` 308 och `fuktigt` 310). Lantmäteriets marktäcke
+ * (`sankmark_vat`, `sankmark_fast`) är karterad sankmark ur flygbild och är säkrare än jordartskartans 25–200 m; den rörs inte.
+ * Fuktreglagets lager är desamma (`SOIL_PANEL_LAYERS`), så kryssrutan där styr samma sak som grundkartan.
  */
-export const SOIL_MARSH_LAYERS: ReadonlySet<string> = new Set(["blott", "fuktigt", "sankmark_vat", "sankmark_fast"]);
+export const SOIL_MARSH_LAYERS: ReadonlySet<string> = new Set(["blott", "fuktigt"]);
 export const SOIL_PANEL_LAYERS: ReadonlySet<string> = new Set(["blott", "fuktigt"]);
 /** Strandkärr inom så här långt från vatten (meter) blir kvar, som i `marsh-merge` och fuktreglaget. */
 export const SOIL_WATER_BUFFER_M = 30;

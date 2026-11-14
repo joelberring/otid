@@ -10,6 +10,8 @@ export * from "./small-rings";
 export * from "./flat-contours";
 export * from "./yards";
 export * from "./marsh-merge";
+export * from "./soil";
+export * from "./soil-marsh";
 export * from "./water-clip";
 export * from "./built-mask";
 export * from "./knoll-choice";

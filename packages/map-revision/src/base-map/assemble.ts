@@ -3,6 +3,7 @@ import { importLayers, mapNorm, parseDxf, parseGeoJson, symbolObjectKind, Vector
 import { mergeCandidates } from "./candidate-merge";
 import { computeCandidates, suggestedMapping, type CandidateSymbol } from "./candidates";
 import { clearCutFeatures, type ClearCut } from "./clear-cuts";
+import type { SoilArea } from "./soil";
 import { calmFlatContours, flatLimitsAt, flatSlopeFrom, type PixelAffine, type SlopeGrid } from "./flat-contours";
 import { cliffFeatures, cliffLimitsAt, defaultCliffLimits, readCliffCandidates } from "./cliff-choice";
 import { chooseKnolls, knollFeatures, knollLimitsAt, readKnollCandidates } from "./knoll-choice";
@@ -50,6 +51,8 @@ export interface BaseMapAssemblyInput {
   readonly osm?: SourceData | undefined;
   /** Skogsstyrelsens hyggen för rutan; utelämnat = gick inte att hämta. */
   readonly cuts?: readonly ClearCut[] | undefined;
+  /** SGU:s jordarter för rutan (ingen sankmark på sand och grus); utelämnat = gick inte att hämta. */
+  readonly soil?: readonly SoilArea[] | undefined;
   /** Dagens datum (ÅÅÅÅ-MM-DD) och laserskanningens, för hyggenas ålder. */
   readonly today: string;
   readonly scannedAt: string | null;
@@ -92,6 +95,8 @@ export interface BaseMapSummary {
     readonly inBuilt: number; readonly belowNorm: number;
   };
   readonly clipped: number; readonly joined: number; readonly simplified: number;
+  /** Sankmark som togs bort på sand och grus ur jordartskartan (när den gick att hämta), i hektar. */
+  readonly soil?: { readonly removedHa: number } | undefined;
   /** Hyggena efter ålder (när de gick att hämta). */
   readonly clearCuts?: { readonly fresh: number; readonly scrub: number; readonly young: number } | undefined;
   /** Valen bland kullar och branter (när en nivå angavs): så många valdes bland jobbets sparade. */
@@ -128,7 +133,9 @@ export function assembleBaseMap(input: BaseMapAssemblyInput): { objects: MapObje
   // Sprintkartor (ägaren 2026-11-13) får sprintnormens symboler och OpenStreetMaps vägar som belagda ytor.
   const symbols = input.symbols.map(([id, code, kind, name]) => ({ id, code, kind, name }));
   const norm = mapNorm({ scale, symbols });
-  let data = mergeBaseMap(read, input.osm, scale, cuts && { features: cuts.features, afterScan: cuts.afterScan }, norm);
+  let soil: BaseMapSummary["soil"];
+  let data = mergeBaseMap(read, input.osm, scale, cuts && { features: cuts.features, afterScan: cuts.afterScan }, norm,
+    input.soil && { areas: input.soil, report: outcome => { soil = outcome; } });
   read = [];
   // Hjälpkurvor och små ringar på flack mark tas bort, som när grundkartan läses in i webben.
   let flatContours: BaseMapSummary["flatContours"];
@@ -168,7 +175,7 @@ export function assembleBaseMap(input: BaseMapAssemblyInput): { objects: MapObje
       outside: result.outside, duplicates: result.duplicates, short: result.short, mismatched: result.mismatched,
       inBuilt: result.builtMask?.removed ?? 0, belowNorm: result.generalized?.removed ?? 0 },
     clipped: result.clipped, joined: result.joined, simplified: result.generalized?.simplified ?? 0,
-    ...(cuts ? { clearCuts: cuts.counts } : {}), ...(rock ? { rock } : {}), ...(knolls ? { knolls } : {}), ...(cliffs ? { cliffs } : {}),
+    ...(cuts ? { clearCuts: cuts.counts } : {}), ...(soil ? { soil } : {}), ...(rock ? { rock } : {}), ...(knolls ? { knolls } : {}), ...(cliffs ? { cliffs } : {}),
     ...(flatContours ? { flatContours } : {})
   } };
 }

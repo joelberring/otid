@@ -24,7 +24,7 @@ export interface RasterPanelTexts {
  * fuktdjupet eller vegetationens klasser) läses i webbläsaren och gränserna dras med reglage. Efter första «Visa som
  * kandidater» räknas kandidaterna om en kort stund efter att ett reglage flyttats. `compute` ger kandidaterna och ett besked.
  */
-export function MapProjectRasterPanel<S>({ layers, georeference, importer, match, own, text, testId, initial, initialLevel = 5, controls, compute, atLevel }: {
+export function MapProjectRasterPanel<S>({ layers, georeference, importer, match, own, text, testId, initial, initialLevel = 5, controls, compute, atLevel, extras, refreshKey }: {
   /** Inställningarna för en mängd på skalan 1–10 (5 = förvalen, ägaren 2026-11-12); `current` är det som är finjusterat. */
   atLevel: (level: number, current: S) => S;
   layers: ReturnType<typeof useMapProjectLayers>; georeference: MapGeoreference; importer: ReturnType<typeof useMapProjectImport>;
@@ -33,6 +33,8 @@ export function MapProjectRasterPanel<S>({ layers, georeference, importer, match
   /** Mängden som är vald från början (5 om inget annat anges) och finjusteringen (utelämnad = bara mängden). */
   initialLevel?: number;
   controls?: ((settings: S, change: (patch: Partial<S>) => void) => ReactNode) | undefined;
+  /** Egna rader efter mängdens hjälptext, och ett värde som räknar om ytorna (när det byts) efter första körningen. */
+  extras?: ReactNode; refreshKey?: unknown;
   compute: (pixels: PhotoPixels, settings: S, toSource: (column: number, row: number) => [number, number], crs: number, cellMeters: number)
     => { data: SourceData; message: string };
 }) {
@@ -50,9 +52,9 @@ export function MapProjectRasterPanel<S>({ layers, georeference, importer, match
 
   // De inställningar som senast räknats: att slå på omräkningen ska inte räkna samma sak en gång till (och då ersätta en
   // annan inläsning som gjorts under tiden).
-  const ran = useRef<S | undefined>(undefined);
+  const ran = useRef<S | undefined>(undefined), ranKey = useRef(refreshKey);
   function run(next: S) {
-    ran.current = next;
+    ran.current = next; ranKey.current = refreshKey;
     if (!current || crs === undefined) return;
     try {
       const { image, toMap } = current.drawn;
@@ -81,10 +83,10 @@ export function MapProjectRasterPanel<S>({ layers, georeference, importer, match
   const latest = useRef(run);
   latest.current = run;
   useEffect(() => {
-    if (!live || ran.current === settings) return;
+    if (!live || (ran.current === settings && ranKey.current === refreshKey)) return;
     const timer = setTimeout(() => latest.current(settings), 250);
     return () => clearTimeout(timer);
-  }, [live, settings]);
+  }, [live, settings, refreshKey]);
 
   if (!importer.canImport || crs === undefined) return null;
   const change = (patch: Partial<S>) => setSettings(previous => ({ ...previous, ...patch }));
@@ -99,6 +101,7 @@ export function MapProjectRasterPanel<S>({ layers, georeference, importer, match
         <input type="range" min={1} max={10} step={1} value={level} data-testid={`${testId}-amount`}
           onChange={event => { const next = Number(event.target.value); setLevel(next); setSettings(previous => atLevel(next, previous)); }} /></label>
       <p className={styles.muted}>{text.amountHelp ?? shared.amountHelp}</p>
+      {extras}
       {controls && <details><summary>{shared.fine}</summary>{controls(settings, change)}</details>}
       <span className={styles.actions}><Button variant="secondary" onClick={() => { setLive(true); run(settings); }} data-testid={`${testId}-run`}>{text.run}</Button></span>
     </>}

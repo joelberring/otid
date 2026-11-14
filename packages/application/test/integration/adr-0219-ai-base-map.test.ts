@@ -65,11 +65,17 @@ function sources(osmDown = false) {
       return osmDown ? new Response("upptagen", { status: 504 }) : Response.json({ elements: [{ type: "way", id: 1, tags: { highway: "path" },
         geometry: [wgs84(E - 300, N - 200), wgs84(E, N - 150), wgs84(E + 300, N - 200)] }] });
     }
+    // SGU:s jordartskarta: en sandyta över hela kartan.
+    if (target.includes("sgu.example")) {
+      const sand = [[E - W, N - H], [E + W, N - H], [E + W, N + H], [E - W, N + H], [E - W, N - H]];
+      return Response.json({ type: "FeatureCollection", features: [{ type: "Feature", geometry: { type: "Polygon", coordinates: [sand] }, properties: { jg2: 31, jg2_tx: "Postglacial sand" } }], links: [] });
+    }
     const ring = [[E + 100, N + 100], [E + 250, N + 100], [E + 250, N + 250], [E + 100, N + 250], [E + 100, N + 100]];
     return Response.json({ type: "FeatureCollection", features: [{ type: "Feature", geometry: { type: "Polygon", coordinates: [ring] },
       properties: { Avvdatum: Date.parse("2026-03-01"), Avverktyp: "Föryngringsavverkning" } }] });
   }) as typeof fetch;
-  return { calls, sources: { osm: { overpassUrl: "https://overpass.example/api", fetch: fetcher }, clearCuts: { url: "https://sks.example/MapServer/1", fetch: fetcher } } };
+  return { calls, sources: { osm: { overpassUrl: "https://overpass.example/api", fetch: fetcher }, clearCuts: { url: "https://sks.example/MapServer/1", fetch: fetcher },
+    soil: { url: "https://sgu.example/items", fetch: fetcher } } };
 }
 
 const call = (name: string, args: object = {}) => ({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } });

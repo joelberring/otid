@@ -8,6 +8,8 @@ import { smallRingsToPoints } from "./small-rings";
 import { yardsOf } from "./yards";
 import { marshOutsideManaged, singleMarsh, undergrowthOutsideGreen } from "./marsh-merge";
 import { linesOutsideWater } from "./water-clip";
+import { marshOffDrySoil } from "./soil-marsh";
+import type { SoilArea } from "./soil";
 
 /**
  * Grundkartan G2 och G8 (ägaren 2026-11-10: «ungefär som en halvfärdig karta», utan grundkartefil: lasern, Lantmäteriets
@@ -23,6 +25,7 @@ import { linesOutsideWater } from "./water-clip";
  * - laserns små kullar (`dotknoll_laser`) ersätter Karttapullautins knollar när de finns,
  * - slutna kurvor under ISOM:s minsta mått blir små kullar eller gropar (`smallRingsToPoints`),
  * - Skogsstyrelsens hyggen efter ålder och deras kanter (`clearCutFeatures`), utan laserns vegetation i nyare hyggen,
+ * - sankmarken minskas med sand och grus ur SGU:s jordartskarta (`marshOffDrySoil`, när den gick att hämta),
  * - tomterna: OpenStreetMaps bostadsområden (`tomtmark_osm`), marktäckets låga bebyggelse (`tomtmark_marktacke`) och
  *   rektanglar kring hus utanför dem (`tomtmark_hus`, `yardsOf`), i var sitt lager så att kandidatraden kan välja,
  * - ur OpenStreetMap tas vägar, stigar, hus, ledningar, staket och liknande; vatten, sankmark, branter och markslag finns
@@ -152,12 +155,16 @@ function extentOf(features: readonly SourceFeature[]) {
   return Number.isFinite(minX) ? { minX, minY, maxX, maxY } : undefined;
 }
 
+/** SGU:s jordarter för rutan; `report` får hur många hektar sankmark som togs bort på torr mark. */
+export interface BaseMapSoil { readonly areas: readonly SoilArea[]; readonly report?: ((outcome: SoilOutcome) => void) | undefined }
+export interface SoilOutcome { readonly removedHa: number }
+
 /**
  * Jobbets filer (i `baseMapOutputs` ordning) och OpenStreetMap som en inläsning i SWEREF 99 TM; `scale` är kartans skala.
  * På en sprintkarta (`norm`) blir OpenStreetMaps belagda vägar ytor med antagen bredd (`sprintOsm`).
  */
 export function mergeBaseMap(parts: readonly { readonly name: string; readonly data: SourceData }[], rawOsm?: SourceData, scale?: number,
-  cuts?: Pick<ReturnType<typeof clearCutFeatures>, "features" | "afterScan">, norm: MapNorm = "ISOM"): SourceData {
+  cuts?: Pick<ReturnType<typeof clearCutFeatures>, "features" | "afterScan">, norm: MapNorm = "ISOM", soil?: BaseMapSoil): SourceData {
   const names = new Set(parts.map(part => part.name)), landCover = names.has("marktacke.geojson");
   const osm = rawOsm && isSprintNorm(norm) ? sprintOsm(rawOsm, { laserPaved: names.has(LASER_PAVED_FILE) }) : rawOsm;
   const shortest = scale ? twoTagMeters(scale) : 0;
@@ -196,7 +203,11 @@ export function mergeBaseMap(parts: readonly { readonly name: string; readonly d
   // Skogsstyrelsens hyggen efter ålder; laserns vegetation i ett hygge som är yngre än skanningen tas bort.
   const all = [...ticks, ...withoutCutVegetation(scale ? smallRingsToPoints(knolls, scale) : knolls, cuts?.afterScan ?? []), ...(cuts?.features ?? []), ...(osm ? osmForBaseMap(osm, names.has("byggnader.geojson")) : [])];
   // Ägaren 2026-11-12: en sankmark per plats (blött, fuktigt och marktäckets låg på varandra).
-  const single = undergrowthOutsideGreen(singleMarsh(marshOutsideManaged(all, osm ? osmManaged(osm) : [])).features).features;
+  // Ägaren 2026-11-13: ingen sankmark på sand och grus enligt SGU:s jordartskartan (strandkärr inom 30 m från vatten blir kvar).
+  const marsh = singleMarsh(marshOutsideManaged(all, osm ? osmManaged(osm) : [])).features;
+  const dryless = soil ? marshOffDrySoil(marsh, soil.areas, { water: marsh }) : undefined;
+  if (soil && dryless) soil.report?.({ removedHa: dryless.removedHa });
+  const single = undergrowthOutsideGreen(dryless ? dryless.features : marsh).features;
   return { features: [...single, ...shoreLines(single), ...yardsOf(single)], skipped: parts.reduce((sum, part) => sum + part.data.skipped, 0) + (osm?.skipped ?? 0),
     crs: SWEREF99TM };
 }

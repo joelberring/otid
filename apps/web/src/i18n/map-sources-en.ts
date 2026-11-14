@@ -144,6 +144,7 @@ export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
     candidates: "Calculating candidates …"
   },
     osmMissing: "OpenStreetMap could not be fetched now, so paths, roads and houses are missing. Fetch them under Import vectors.",
+    soilRemoved: (hectares: string) => `Soil map (SGU): ${hectares} ha of marsh removed on sand and gravel. This can be turned off under Moisture with sliders.`,
     clearCuts: (fresh: number, scrub: number, young: number, scanned: string | null) => fresh + scrub + young === 0 ? "Skogsstyrelsen has no clear-cuts under 15 years in the area."
       : `Clear-cuts from Skogsstyrelsen: ${fresh} fresh, ${scrub} with scrub and ${young} with young forest${scanned ? ` (laser scanned ${scanned}; laser green is removed in newer clear-cuts)` : ""}.`,
     extras: { LAND_COVER: "Also read land cover from Lantmäteriet (water, open land, fields, marsh)", BUILDINGS: "Also read buildings from Lantmäteriet" },
@@ -201,7 +202,11 @@ export const mapSourcesEn: Texts<Sources> = {
     minArea: (square: number) => `Smallest area: ${square} m²`,
     run: "Show as candidates",
     name: (layer: string) => `${layer} – wet and moist`.slice(0, 120),
-    done: (wet: string, moist: string) => `${wet} ha wet and ${moist} ha moist. Change the limits and it is recalculated.`,
+    done: (wet: string, moist: string, removed?: string) => `${wet} ha wet and ${moist} ha moist${removed ? `, of which ${removed} ha removed on dry ground` : ""}. Change the limits and it is recalculated.`,
+    noDrySoil: "No marsh on sand and gravel (SGU soil map)",
+    noDrySoilHelp: "The soil map has 25–200 m positional accuracy; a small bog in a sandy area may disappear. Shore marsh within 30 m of water is kept.",
+    soilAttribution: "Soil types 1:25 000–1:100 000 © SGU.",
+    soilFailed: "The soil map could not be fetched now, so the slider works as before.",
     nothing: "No areas with these limits.",
     failed: "The moisture depth could not be read."
   },

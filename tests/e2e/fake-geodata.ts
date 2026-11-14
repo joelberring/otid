@@ -100,6 +100,11 @@ export function startFakeGeodata(port = FAKE_GEODATA_PORT): Promise<Server> {
         { type: "Feature", properties: { Avvdatum: null }, geometry: { type: "Polygon", coordinates: square(cx + 30, cy, 20) } }] }));
       return;
     }
+    // SGU:s jordartskarta (ägaren 2026-11-13): inga ytor, så att grundkartans sankmark är som förut.
+    if (url.pathname === "/sgu-jordarter") {
+      response.writeHead(200, { "content-type": "application/geo+json" }).end(JSON.stringify({ type: "FeatureCollection", features: [], links: [] }));
+      return;
+    }
     if (url.pathname === "/slu-wms") {
       if (url.searchParams.get("REQUEST") === "GetCapabilities") {
         response.writeHead(200, { "content-type": "application/xml" }).end("<WMT_MS_Capabilities><Capability><Layer><Title>SLU</Title>"

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { GEO_CLIP_MARGIN_M, type GeoClip, type GeoJobList, type GeoJobView, type MapProjectClearCutList, type MapProjectView, type MapSourceCredentialView } from "@o-tid/contracts";
+import { GEO_CLIP_MARGIN_M, type GeoClip, type GeoJobList, type GeoJobView, type MapProjectClearCutList, type MapProjectSoilArea, type MapProjectSoilList, type MapProjectView, type MapSourceCredentialView } from "@o-tid/contracts";
 import type { MapGeoreference } from "@o-tid/map-file";
 import { VectorParseError, type SourceData } from "@o-tid/map-revision";
 import { DEFAULT_ROCK_LEVEL } from "@o-tid/map-revision/base-map";
@@ -13,7 +13,7 @@ import { accountRequest } from "../../lib/account-client";
 import { clubRequest } from "../../lib/club-archive-client";
 import type { Bounds } from "../../lib/course-setting-viewport";
 import { areaBox, type BoxArea } from "../../lib/map-project-area-box";
-import { baseMapOutputs, clearCutFeatures, clipWgs84 } from "@o-tid/map-revision/base-map";
+import { baseMapOutputs, clearCutFeatures, clipWgs84, soilForMarsh } from "@o-tid/map-revision/base-map";
 import { mapProjectBase } from "../../lib/map-project-client";
 import { laserClip } from "../../lib/map-project-clip";
 import { jobSlope } from "../../lib/map-project-flat-contours";
@@ -187,14 +187,21 @@ export function useMapProjectLaser({ view, layers, importer, georeference, bound
         const listed = response.status === 200 ? response.json as MapProjectClearCutList | undefined : undefined;
         if (listed) cuts = clearCutFeatures(listed.cuts, new Date().toISOString().slice(0, 10), job.scannedAt);
       }
+      // SGU:s jordartskarta (ägaren 2026-11-13): ingen sankmark på sand och grus. Går hämtningen fel läses grundkartan in som förut.
+      let soil: MapProjectSoilArea[] | undefined;
+      if (box) {
+        const response = await clubRequest(`${base}/sources/jordarter`, "POST", { formatVersion: 1, box }).catch(() => ({ status: 0, json: undefined }));
+        const listed = response.status === 200 ? response.json as MapProjectSoilList | undefined : undefined;
+        if (listed && Array.isArray(listed.areas)) soil = soilForMarsh(listed.areas);
+      }
       const stageParts = stages && read_.map(({ job: row, parts: rowParts }) => {
         const own = slopes.get(row.jobId);
         const ownRock = rockImages.get(row.jobId);
         return { box: row.clip!, parts: rowParts, ...(own && own !== "failed" ? { slope: { grid: own.grid, affine: own.affine } } : {}),
           ...(ownRock && ownRock !== "failed" ? { rock: ownRock } : {}) };
       });
-      const { data, calm, rock: rocky } = await importer.readBaseMap({ parts: stageParts ? [] : parts, stages: stageParts, merge: baseMap, osm, scale: georeference?.scale,
-        cuts: cuts && { features: cuts.features, afterScan: cuts.afterScan }, calm: slope === "failed" ? undefined : slope,
+      const { data, calm, rock: rocky, soil: soiled } = await importer.readBaseMap({ parts: stageParts ? [] : parts, stages: stageParts, merge: baseMap, osm, scale: georeference?.scale,
+        cuts: cuts && { features: cuts.features, afterScan: cuts.afterScan }, soil, calm: slope === "failed" ? undefined : slope,
         rock: !stages && rock && rock !== "failed" ? { ...rock, level: DEFAULT_ROCK_LEVEL } : undefined },
         at => step(at.step === "read" ? text.steps.reading(at.done, at.total) : text.steps.merging));
       // Karttapullautins filer är i laserns SWEREF 99 TM; en DWG-ritnings koordinatsystem gissas eller anges i importen.
@@ -205,7 +212,8 @@ export function useMapProjectLaser({ view, layers, importer, georeference, bound
       const rockMessage = rocky ? ` ${rockText.loaded(rocky.level, rocky.areas, String(rocky.hectares).replace(".", ","))}`
         : [...rockImages.values()].includes("failed") ? ` ${rockText.loadFailed}` : "";
       const cutText = cuts ? ` ${text.clearCuts(cuts.counts.fresh, cuts.counts.scrub, cuts.counts.young, job.scannedAt)}` : "";
-      setMessage({ from, tone: "ok", text: `${osmMissing ? `${text.loaded(label)} ${text.osmMissing}` : text.loaded(label)}${cutText}${calmText}${rockMessage}` });
+      const soilMessage = soiled && soiled.removedHa > 0 ? ` ${text.soilRemoved(String(soiled.removedHa).replace(".", ","))}` : "";
+      setMessage({ from, tone: "ok", text: `${osmMissing ? `${text.loaded(label)} ${text.osmMissing}` : text.loaded(label)}${cutText}${soilMessage}${calmText}${rockMessage}` });
     } catch (error) {
       setMessage({ from, tone: "error", text: error instanceof VectorParseError ? error.message : text.problems.generic("DXF") });
     } finally { setBusy(undefined); }

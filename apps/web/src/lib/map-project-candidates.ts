@@ -1,7 +1,7 @@
 import { parseDxf, parseGeoJson, VectorParseError, type MapNorm, type SourceData, type SourceFeature } from "@o-tid/map-revision";
 import {
   calmFlatContours, computeCandidates, DEFAULT_ROCK_LEVEL, flatLimitsAt, flatSlopeFrom, joinStages, mergeBaseMap, rockAreasOfJob, withRockAreas,
-  type CandidateInput, type CandidateResult, type clearCutFeatures, type FlatContourResult, type PhotoPixels, type PixelAffine, type SlopeGrid, type StageBox
+  type CandidateInput, type CandidateResult, type clearCutFeatures, type FlatContourResult, type PhotoPixels, type PixelAffine, type SlopeGrid, type SoilArea, type SoilOutcome, type StageBox
 } from "@o-tid/map-revision/base-map";
 
 /**
@@ -47,7 +47,9 @@ export type CandidateRequest =
       /** Kartans norm (`mapNorm`): på en sprintkarta blir OpenStreetMaps belagda vägar ytor. */
       readonly norm?: MapNorm | undefined; readonly calm?: BaseMapCalm | undefined;
       /** Berg i dagen ur bergbilden i stället för berg.dxf:s (utan etapper; med etapper ligger den i varje etapp). */
-      readonly rock?: BaseMapRock | undefined }
+      readonly rock?: BaseMapRock | undefined;
+      /** SGU:s torra mark och vatten (`soilForMarsh`): ingen sankmark på sand och grus. */
+      readonly soil?: readonly SoilArea[] | undefined }
   /** Objekten för en fil som inte kom från Workern; sparas under `dataId`. */
   | { readonly type: "data"; readonly dataId: number; readonly features: readonly SourceFeature[] }
   | { readonly type: "forget"; readonly dataId: number }
@@ -56,7 +58,7 @@ export type CandidateRequest =
 export type CandidateResponse =
   | ({ readonly type: "progress"; readonly id: number } & BaseMapStep)
   | { readonly type: "base-map"; readonly id: number; readonly dataId: number; readonly data: SourceData; readonly calm?: CalmOutcome | undefined;
-      readonly rock?: RockOutcome | undefined }
+      readonly rock?: RockOutcome | undefined; readonly soil?: SoilOutcome | undefined }
   | { readonly type: "computed"; readonly id: number; readonly result: CandidateResult | null }
   /** `parse`: filen gick inte att tolka (meddelandet visas som det är). */
   | { readonly type: "error"; readonly id: number; readonly message: string; readonly parse: boolean };
@@ -94,7 +96,9 @@ export function handleCandidateRequest(store: CandidateStore, request: Candidate
     });
     const read = request.stages ? joinStages(parsed.map(stage => ({ box: stage.box!, parts: stage.parts }))) : parsed[0]!.parts;
     if (request.merge) post({ type: "progress", id, step: "merge" });
-    const merged: SourceData = request.merge ? mergeBaseMap(read, request.osm, request.scale, request.cuts, request.norm) : { ...read[0]!.data };
+    let soil: SoilOutcome | undefined;
+    const merged: SourceData = request.merge ? mergeBaseMap(read, request.osm, request.scale, request.cuts, request.norm,
+      request.soil && { areas: request.soil, report: outcome => { soil = outcome; } }) : { ...read[0]!.data };
     // Hjälpkurvor och små ringar på flack mark tas bort direkt (förvalet), när körningen har fuktdjupet med lutningen.
     const calm = request.merge && request.calm ? request.calm : undefined;
     // Med etapper: varje etapps lutning där den har en, annars den gemensamma.
@@ -105,7 +109,7 @@ export function handleCandidateRequest(store: CandidateStore, request: Candidate
     const calmed = calm && slopeAt && calmFlatContours(merged.features, slopeAt, flatLimitsAt(calm.level));
     const data = calmed ? { ...merged, features: calmed.features } : merged;
     store.set(request.dataId, data.features);
-    post({ type: "base-map", id, dataId: request.dataId, data, ...(rockUsed ? { rock } : {}),
+    post({ type: "base-map", id, dataId: request.dataId, data, ...(rockUsed ? { rock } : {}), ...(soil ? { soil } : {}),
       ...(calm && calmed ? { calm: { removed: calmed.removed, added: calmed.added, formlineMeters: calmed.formlineMeters, rings: calmed.rings, level: calm.level } } : {}) });
   } catch (error) {
     post({ type: "error", id, parse: error instanceof VectorParseError, message: error instanceof Error ? error.message : String(error) });

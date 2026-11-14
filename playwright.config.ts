@@ -74,6 +74,7 @@ export default defineConfig({
         OTID_OVERPASS_URL: `http://127.0.0.1:${geodataPort}/api/interpreter`, OTID_LM_STAC_BILD_URL: `http://127.0.0.1:${geodataPort}/stac-bild/v1`,
         OTID_LM_STAC_HOJD_URL: `http://127.0.0.1:${geodataPort}/stac-hojd/v1`, OTID_LM_STAC_VEKTOR_URL: `http://127.0.0.1:${geodataPort}/stac-vektor/v1`, OTID_SLU_MOISTURE_WMS_URL: `http://127.0.0.1:${geodataPort}/slu-wms`,
         OTID_SKS_AVVERKNING_URL: `http://127.0.0.1:${geodataPort}/sks-avverkning`, OTID_SKS_REST_URL: `http://127.0.0.1:${geodataPort}/sks-rest`,
+        OTID_SGU_JORDARTER_URL: `http://127.0.0.1:${geodataPort}/sgu-jordarter`,
         // Samma som E2E_GEO_WORKER_TOKEN i tests/e2e/fake-geodata.ts.
         OTID_GEO_WORKER_TOKEN: "e2e-geo-arbetare-0123456789abcdefghijklmnopqrstuv",
         OTID_GOOGLE_BASE_URL: `http://127.0.0.1:${googlePort}`, OTID_GOOGLE_AUTHORIZE_URL: `http://127.0.0.1:${googlePort}/auth` }

@@ -1,6 +1,12 @@
 "use client";
 
+import type { MapProjectSoilArea, MapProjectSoilList, MapProjectView } from "@o-tid/contracts";
 import type { MapGeoreference } from "@o-tid/map-file";
+import { useEffect, useRef, useState } from "react";
+import { clubRequest } from "../../lib/club-archive-client";
+import type { Bounds } from "../../lib/course-setting-viewport";
+import { areaBox } from "../../lib/map-project-area-box";
+import { mapProjectBase } from "../../lib/map-project-client";
 import { mapSourcesEn } from "../../i18n/map-sources-en";
 import { mapSourcesSv } from "../../i18n/map-sources-sv";
 import { depthAt, greenAt } from "../../lib/map-project-amount";
@@ -10,19 +16,47 @@ import { mapForestEn } from "../../i18n/map-forest-en";
 import { mapForestSv } from "../../i18n/map-forest-sv";
 import { mapRockEn } from "../../i18n/map-rock-en";
 import { mapRockSv } from "../../i18n/map-rock-sv";
-import { DEFAULT_ROCK_LEVEL, ROCK_LAYERS, rockAreas } from "@o-tid/map-revision/base-map";
+import { DEFAULT_ROCK_LEVEL, marshOffDrySoil, ROCK_LAYERS, rockAreas, SOIL_PANEL_LAYERS, soilForMarsh } from "@o-tid/map-revision/base-map";
 import { useTexts } from "../language-provider";
 import { MapProjectRasterPanel } from "./map-project-raster-panel";
 import type { useMapProjectImport } from "./use-map-project-import";
 import type { useMapProjectLayers } from "./use-map-project-layers";
+import styles from "./map-project-editor.module.css";
 
 const decimal = (value: number) => String(Math.round(value * 100) / 100).replace(".", ",");
 type Props = { layers: ReturnType<typeof useMapProjectLayers>; georeference: MapGeoreference; importer: ReturnType<typeof useMapProjectImport> };
 
-/** Fukt med reglage: gränserna för blött och fuktigt i laserkörningens fuktdjup (underlaget som slutar på «fuktdjup»). */
-export function MapProjectDepthPanel(props: Props) {
+/**
+ * Fukt med reglage: gränserna för blött och fuktigt i laserkörningens fuktdjup (underlaget som slutar på «fuktdjup»). Ägaren 2026-11-13
+ * («markfukten blir rätt hög … med flack mark, tror sandig»): SGU:s jordartskarta hämtas en gång för kartans ruta, och sand och grus
+ * tar bort blött och fuktigt (`marshOffDrySoil`); kryssrutan stänger av det. Går hämtningen fel fungerar reglaget som förut.
+ */
+export function MapProjectDepthPanel(props: Props & { view: MapProjectView; bounds: Bounds | undefined }) {
   const text = useTexts(mapSourcesSv.depth, mapSourcesEn.depth);
+  const { view, bounds, georeference, layers } = props;
+  const [noDrySoil, setNoDrySoil] = useState(true);
+  const [soil, setSoil] = useState<readonly MapProjectSoilArea[] | "failed" | undefined>();
+  const asked = useRef(false);
+  const crs = georeference.crs.kind === "EPSG" ? georeference.crs.code : undefined;
+  const hasDepth = layers.loaded.some(drawn => /fuktdjup$/.test(layers.layers.find(row => row.layerId === drawn.layerId)?.name ?? drawn.layerId));
+  // Jordarterna hämtas en gång per panel, när det finns ett fuktdjup och regeln är på (och kartan ligger i SWEREF 99 TM, som SGU).
+  useEffect(() => {
+    if (!noDrySoil || !hasDepth || asked.current || !bounds || crs !== 3006) return;
+    asked.current = true;
+    void clubRequest(`${mapProjectBase(view.projectId)}/sources/jordarter`, "POST", { formatVersion: 1, box: areaBox(bounds, georeference, undefined).wgs84 })
+      .catch(() => ({ status: 0, json: undefined })).then(response => {
+        const listed = response.status === 200 ? response.json as MapProjectSoilList | undefined : undefined;
+        setSoil(listed && Array.isArray(listed.areas) ? soilForMarsh(listed.areas) : "failed");
+      });
+  }, [noDrySoil, hasDepth, bounds, crs, georeference, view.projectId]);
+  const areas = noDrySoil && Array.isArray(soil) ? soil as readonly MapProjectSoilArea[] : undefined;
   return <MapProjectRasterPanel {...props} match={/fuktdjup$/} own={/^(blott|fuktigt)$/} text={text} testId="map-project-depth" initial={DEFAULT_DEPTH} atLevel={depthAt}
+    refreshKey={areas ?? noDrySoil}
+    extras={<>
+      <label className={styles.check}><input type="checkbox" checked={noDrySoil} onChange={() => setNoDrySoil(value => !value)} data-testid="map-project-depth-soil" /> {text.noDrySoil}</label>
+      <p className={styles.muted}>{text.noDrySoilHelp} {text.soilAttribution}</p>
+      {noDrySoil && soil === "failed" && <p role="status" className={styles.muted} data-testid="map-project-depth-soil-failed">{text.soilFailed}</p>}
+    </>}
     controls={(settings, change) => <>
       <label>{text.wet(decimal(settings.wetMeters))}<input type="range" min={0.1} max={2} step={0.05} value={settings.wetMeters}
         onChange={event => { const wet = Number(event.target.value); change({ wetMeters: wet, moistMeters: Math.max(settings.moistMeters, wet + 0.1) }); }}
@@ -36,9 +70,11 @@ export function MapProjectDepthPanel(props: Props) {
       <label>{text.minArea(settings.minAreaM2)}<input type="range" min={100} max={2000} step={50} value={settings.minAreaM2}
         onChange={event => change({ minAreaM2: Number(event.target.value) })} /></label>
     </>}
-    compute={(pixels, settings, toSource, crs, cell) => {
-      const result = depthCandidates(pixels, settings, toSource, crs, cell);
-      return { data: result.data, message: text.done(decimal(result.wetHa), decimal(result.moistHa)) };
+    compute={(pixels, settings, toSource, crsOf, cell) => {
+      const result = depthCandidates(pixels, settings, toSource, crsOf, cell);
+      const off = areas && crsOf === 3006 ? marshOffDrySoil(result.data.features, areas, { layers: SOIL_PANEL_LAYERS, minAreaM2: settings.minAreaM2 }) : undefined;
+      return { data: off ? { ...result.data, features: off.features } : result.data,
+        message: text.done(decimal(result.wetHa), decimal(result.moistHa), off && off.removedHa > 0 ? decimal(off.removedHa) : undefined) };
     }} />;
 }
 

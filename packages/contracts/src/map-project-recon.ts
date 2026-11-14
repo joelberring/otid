@@ -153,6 +153,19 @@ export interface MapProjectClearCut {
 }
 export interface MapProjectClearCutList { readonly formatVersion: 1; readonly crs: 3006; readonly cuts: readonly MapProjectClearCut[]; readonly attribution: string }
 
+/**
+ * Ägaren 2026-11-13 («synka mot jordartskartor för att få bort sankmarker på flacka sandhedar»): SGU:s jordarter för samma sorts
+ * ruta. `cls` är klassningen (`dry` sand och grus, `wet` torv och gyttja, `other` allt annat), `code` SGU:s jordartskod och `text` jordartens namn.
+ */
+export type MapProjectSoilClass = "dry" | "wet" | "other";
+export interface MapProjectSoilArea {
+  readonly rings: readonly (readonly (readonly [number, number])[])[];
+  readonly cls: MapProjectSoilClass;
+  readonly code: number | null;
+  readonly text: string;
+}
+export interface MapProjectSoilList { readonly formatVersion: 1; readonly crs: 3006; readonly areas: readonly MapProjectSoilArea[]; readonly attribution: string }
+
 /** Ägaren 2026-11-11 («tända/släcka bakgrundsinfo från Skogsstyrelsen»): Skogsstyrelsens kartbilder som underlag. */
 export const FOREST_IMAGE_PRODUCTS = ["CLEAR_CUTS", "NOTIFIED", "KEY_BIOTOPES"] as const;
 export type ForestImageProduct = typeof FOREST_IMAGE_PRODUCTS[number];

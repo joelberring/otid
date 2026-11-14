@@ -75,7 +75,11 @@ export const mapSourcesSv = {
     minArea: (square: number) => `Minsta yta: ${square} m²`,
     run: "Visa som kandidater",
     name: (layer: string) => `${layer} – blött och fuktigt`.slice(0, 120),
-    done: (wet: string, moist: string) => `${wet} ha blött och ${moist} ha fuktigt. Ändra gränserna så räknas det om.`,
+    done: (wet: string, moist: string, removed?: string) => `${wet} ha blött och ${moist} ha fuktigt${removed ? `, varav ${removed} ha borttaget på torr mark` : ""}. Ändra gränserna så räknas det om.`,
+    noDrySoil: "Ingen sankmark på sand och grus (SGU:s jordartskarta)",
+    noDrySoilHelp: "Jordartskartan har 25–200 m lägesnoggrannhet; en liten myr i ett sandområde kan försvinna. Strandkärr inom 30 m från vatten blir kvar.",
+    soilAttribution: "Jordarter 1:25 000–1:100 000 © SGU.",
+    soilFailed: "Jordartskartan gick inte att hämta nu, så reglaget räknar som förut.",
     nothing: "Inga ytor med de här gränserna.",
     failed: "Fuktdjupet kunde inte läsas."
   },
@@ -207,6 +211,7 @@ export const mapSourcesSv = {
       candidates: "Räknar kandidater …"
     },
     osmMissing: "OpenStreetMap gick inte att hämta nu, så stigar, vägar och hus saknas. Hämta dem under Importera vektorer.",
+    soilRemoved: (hectares: string) => `Jordartskartan (SGU): ${hectares} ha sankmark togs bort på sand och grus. Det kan stängas av under Fukt med reglage.`,
     clearCuts: (fresh: number, scrub: number, young: number, scanned: string | null) => fresh + scrub + young === 0 ? "Skogsstyrelsen har inga hyggen under 15 år i rutan."
       : `Hyggen från Skogsstyrelsen: ${fresh} färska, ${scrub} med sly och ${young} med ungskog${scanned ? ` (lasern skannades ${scanned}; laserns grönt tas bort i hyggen som är nyare)` : ""}.`,
     extras: { LAND_COVER: "Läs också Lantmäteriets marktäcke (vatten, öppen mark, åker, sankmark)", BUILDINGS: "Läs också Lantmäteriets byggnader" } as Record<string, string>,

@@ -166,7 +166,7 @@ långsammare. Servern skalas inte upp (CX23 räcker), utan tävlingen får gå f
   klarar alla sökvägar: lokalt och med `pnpm dev` finns bara en (`OTID_INSTANCE_ROLE` saknas, `all`).
 - **AI-kopplingen (`/api/mcp`) går till `web-public`.** Verktygen som startar laserkörningar och lägger in grundkartan
   behöver därför samma kartuppgifter som `web`: `OTID_EVENTOR_MASTER_KEY` (öppnar kontots uppgifter till Lantmäteriet),
-  `OTID_LM_*`, `OTID_OVERPASS_URL`, `OTID_SKS_AVVERKNING_URL`, `OTID_GEO_TILES_PER_MONTH` och `OTID_GEO_SPLIT_KM2`. De ges i
+  `OTID_LM_*`, `OTID_OVERPASS_URL`, `OTID_SKS_AVVERKNING_URL`, `OTID_SGU_JORDARTER_URL`, `OTID_GEO_TILES_PER_MONTH` och `OTID_GEO_SPLIT_KM2`. De ges i
   `docker-compose.prod.yml`. Hetzner-nyckeln och arbetarens nyckel ges inte dit: geo-servern startas av `web`.
 - **Processortid:** `cpu_shares` i `docker-compose.prod.yml` är 1024 för `postgres`, `web` och Caddy, 256 för var och en av
   `web-public` och `web-public2`, 128 för backupen och 64 för utskriftsarbetaren (`print-worker`, steg 65, som dessutom
@@ -862,6 +862,7 @@ inte skickar vidare (markerade "ej i compose") gäller i drift först när de l�
 | `OTID_GEO_WORKER_TOKEN`, `OTID_GEO_TILES_PER_MONTH` | tom, 200 | Geo-arbetarens nyckel och laserrutor per konto och månad ([Geo-arbetaren](#geo-arbetaren-adr-0219-k5)). |
 | `OTID_SLU_MOISTURE_WMS_URL`, `OTID_SLU_MOISTURE_LAYER` | tomma = Skogsstyrelsens öppna WMS för SLU:s markfuktighetskarta, första lagret | Markfuktigheten som underlag (K5c, provas). |
 | `OTID_SKS_AVVERKNING_URL`, `OTID_SKS_REST_URL` | tomma = Skogsstyrelsens öppna ArcGIS-tjänster | Hyggen efter ålder och Skogsstyrelsens kartbilder som underlag (provas). |
+| `OTID_SGU_JORDARTER_URL` | tom = SGU:s öppna OGC API Features, grundlagret i jordarter 1:25 000–1:100 000 | Jordartskartan som tar bort sankmark på sand och grus (ägaren 2026-11-13). |
 | `OTID_HETZNER_TOKEN`, `OTID_GEO_SERVER_TYPES`, `OTID_GEO_SERVER_LOCATIONS` | tom, `cx33,cx23,cax11,cpx32,cpx22`, `fsn1,nbg1,hel1` | Geo-servern hos Hetzner: nyckeln och typerna och platserna som provas i tur och ordning ([Geo-arbetaren](#geo-arbetaren-adr-0219-k5)). |
 | `OTID_GEO_IDLE_MINUTES`, `OTID_GEO_BUDGET_EUR_PER_MONTH`, `OTID_GEO_MAX_HOURS`, `OTID_GEO_IMAGE` | 60, 10, 8, `ghcr.io/joelberring/otid-geo:<OTID_TAG>` | Tomgång innan geo-servern raderas, månadens budget, längsta tid per server och avbildningen. |
 | `OTID_LM_STAC_BILD_URL`, `OTID_LM_TOKEN_URL` | tomma = `https://api.lantmateriet.se/stac-bild/v1` och `https://apimanager.lantmateriet.se/oauth2/token` | Ortofoton från Lantmäteriet med användarens egna uppgifter (K4c, provas). Uppgifterna krypteras med `OTID_EVENTOR_MASTER_KEY`; utan den kan de inte sparas. CI pekar på en falsk STAC. |

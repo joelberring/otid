@@ -157,6 +157,8 @@ services:
       OTID_SLU_MOISTURE_WMS_URL: ${OTID_SLU_MOISTURE_WMS_URL:-}
       # Skogsstyrelsens utförda avverkningar och kartbilder (ägaren 2026-11-11). Tomma = Skogsstyrelsens öppna tjänster; CI pekar på en falsk.
       OTID_SKS_AVVERKNING_URL: ${OTID_SKS_AVVERKNING_URL:-}
+      # SGU:s jordartskarta (ägaren 2026-11-13): ingen sankmark på sand och grus. Tom = SGU:s öppna tjänst; CI pekar på en falsk.
+      OTID_SGU_JORDARTER_URL: ${OTID_SGU_JORDARTER_URL:-}
       OTID_SKS_REST_URL: ${OTID_SKS_REST_URL:-}
       OTID_OCAD_WRITE: ${OTID_OCAD_WRITE:-}
       OTID_DEMO_RACE: ${OTID_DEMO_RACE:-}
@@ -256,6 +258,7 @@ services:
       OTID_LM_LASER_COLLECTION: ${OTID_LM_LASER_COLLECTION:-}
       OTID_OVERPASS_URL: ${OTID_OVERPASS_URL:-}
       OTID_SKS_AVVERKNING_URL: ${OTID_SKS_AVVERKNING_URL:-}
+      OTID_SGU_JORDARTER_URL: ${OTID_SGU_JORDARTER_URL:-}
       OTID_GEO_TILES_PER_MONTH: ${OTID_GEO_TILES_PER_MONTH:-}
       OTID_GEO_SPLIT_KM2: ${OTID_GEO_SPLIT_KM2:-}
       NODE_OPTIONS: --max-old-space-size=448

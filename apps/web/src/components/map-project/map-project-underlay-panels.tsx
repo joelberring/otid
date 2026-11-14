@@ -62,7 +62,7 @@ export function MapProjectUnderlayPanels({ view, georeference, bounds, areas, la
       <MapProjectCliffPanel view={view} importer={importer} scale={georeference.scale} />
       <MapProjectFlatPanel layers={layers} georeference={georeference} importer={importer} />
       <MapProjectGreenPanel layers={layers} georeference={georeference} importer={importer} />
-      <MapProjectDepthPanel layers={layers} georeference={georeference} importer={importer} />
+      <MapProjectDepthPanel view={view} bounds={bounds} layers={layers} georeference={georeference} importer={importer} />
       <MapProjectRockPanel layers={layers} georeference={georeference} importer={importer} />
       <MapProjectClearCutPanel view={view} layers={layers} georeference={georeference} bounds={bounds} areas={areas} importer={importer} />
       <MapProjectPhotoPanel layers={layers} georeference={georeference} importer={importer} />

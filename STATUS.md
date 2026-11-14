@@ -13,6 +13,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-14 – Ingen sankmark på sand och grus (SGU:s jordartskarta)
+- Ägaren: «markfukten blir rätt hög … med flack mark (tror sandig) … synka mot jordartskartor». SGU:s öppna jordartskarta hämtas
+  för rutan (`/sources/jordarter`, `OTID_SGU_JORDARTER_URL`) och sankmark på sand och grus (isälvssediment, svallsediment, klapper,
+  flygsand, postglacial sand) tas bort; strandkärr inom 30 m från vatten blir kvar. Berg räknas inte som torrt (myrar i bergsvackor).
+- Gäller i «Fukt med reglage» (kryssruta, förvald på), när grundkartan läses in (beskedet nämner hektaren) och i `apply_base_map`.
+- Verifierat: enhetstester (klassning, regel, tolkning) och integrationstest (behörighet, kvot, sidor). Inte provat mot riktiga SGU.
+- Ändringarna ligger i ADR-0219 (tillägg 2026-11-14).
+
 ### 2026-11-13 – Färg per symbol från symbollistan (kartprojektet)
 - Ägaren: «byggnader är fortfarande gråa och jag skulle vilja kunna markera lager i listan och kunna justera färgen på dem».
   Varje symbolrad under Lager har en färgknapp («Färg för 521 Byggnad») och en kryssruta (Skift-klick markerar ett spann);

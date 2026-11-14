@@ -37,6 +37,9 @@ const boxOf = (polygon: Polygon) => {
 type Box = ReturnType<typeof boxOf>;
 const touches = (a: Box, b: Box) => a.minX <= b.maxX && b.minX <= a.maxX && a.minY <= b.maxY && b.minY <= a.maxY;
 
+/** Ytornas hjälpfunktioner för `soil-marsh.ts` (samlade i ett objekt så att de inte krockar med andra filers namn i `index.ts`). */
+export const marshGeometry = { polygonOf, ringArea, boxOf, touches };
+
 /** Grundkartans objekt med sankmarken utan överlapp. Annat än sankmarkens ytor lämnas orört och behåller sin ordning först. */
 export const singleMarsh = (features: readonly SourceFeature[]) => withoutOverlap(features, MARSH);
 /**

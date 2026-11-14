@@ -2,10 +2,11 @@ import { createHash } from "node:crypto";
 import { and, eq, inArray, like } from "drizzle-orm";
 import { MCP_BASE_MAP_MAX_BYTES, MCP_BASE_MAP_MAX_OBJECTS, type GeoJobView } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { baseMapOutputs, clipWgs84, type BaseMapSummary } from "@o-tid/map-revision/base-map";
+import { baseMapOutputs, clipWgs84, soilForMarsh, type BaseMapSummary } from "@o-tid/map-revision/base-map";
 import { aiGate, mapProjectAllows } from "./map-project-access";
 import { mapProjectAreaViews } from "./map-project-areas";
 import { clearCutRuntimeFromEnvironment, fetchMapProjectClearCutsAsAi, type ClearCutRuntime } from "./map-project-clear-cuts";
+import { fetchMapProjectSoilAsAi, soilRuntimeFromEnvironment, type SoilRuntime } from "./map-project-soil";
 import { geoDepthOutputs, geoRockOutputs, geoVectorOutputs, listGeoJobsForAccount } from "./map-project-geo-jobs";
 import type { BaseMapJobRequest } from "./map-project-job-base-map";
 import { mapJobResultHead, mapJobResultPart, queueMapJob, reusableProjectJob, waitForMapJobState } from "./map-project-jobs";
@@ -34,7 +35,7 @@ const APPLY_BUDGET_MS = 20_000;
 const megabytes = (bytes: number) => Math.round(bytes / (1024 * 1024));
 
 export const MCP_BASE_MAP_TOOL = { name: "apply_base_map", title: "Lägg in grundkartan ur en laserkörning",
-  description: `Sätter ihop grundkartan ur en klar laserkörning (projektets senaste, eller job_id från list_laser_jobs) och lägger in den i kartan, på samma sätt och med samma förval som «Hämta grundkartan» och «Lägg in objekt i kartan» i O-Tid: kurvor och formlinjer (fogade över skarvarna, klippta mot vattnet), branter, små kullar och gropar, vatten med strandlinje, sankmark, vegetation, marktäcke, byggnader och tomtmark ur laserjobbets filer, vägar, stigar, ledningar och staket ur OpenStreetMap och Skogsstyrelsens hyggen efter ålder. Lagren får symbolerna som O-Tid föreslår ur lagernamnen; objekten klipps mot kartans område och, för en etapps laserjobb, mot etappen, hålls utanför det som redan är ritat som tomtmark, asfalt eller hus och generaliseras efter normen. knolls och cliffs (1–10, 5 = förvalen) väljer mängden små kullar och branter bland dem jobbet sparat (kullar.geojson, brantlinjer.geojson); utelämnade används jobbets egna. Har körningen bergbilden (berg.png) hittas berg i dagen (214) ur laserns ojämnhet, öppenheten och närheten till vatten med förvalet nivå 3 av 10 i stället för laserfilens berg (rock i svaret säger antal ytor och hektar); stenar och kullar står kvar. Har körningen fuktdjupet (körd med fuktigheten) tas hjälpkurvor och små slutna kurvor bort där marken är flack (under 1° medellutning; flatContours i svaret säger hur mycket), som förvalet för «Lugna kurvor på flack mark» i O-Tid. Objekten lämnas som AI-förslag i omgångar om högst 200: i läget PROPOSE väntar de på att en ägare godkänner dem (Godkänn alla i O-Tid), i AUTONOMOUS införs de direkt när kontot självt får ändra kartan, och i READ nekas anropet. Går OpenStreetMap eller hyggena inte att hämta läggs grundkartan in ändå och missing säger vad som saknas. Sammansättningen kan ta några minuter: svarar verktyget att arbetet pågår eller att omgångar återstår (remaining), anropa igen med samma argument tills remaining är 0; inget läggs in två gånger. Gränser: laserjobbets filer högst ${megabytes(MCP_BASE_MAP_MAX_BYTES)} MB tillsammans och högst ${MCP_BASE_MAP_MAX_OBJECTS} objekt per laserjobb (dela annars kartan i etapper och lägg in en etapp i taget). Ett laserjobb som redan lagts in läggs inte in igen utan again: true. Svaret räknar objekten per symbol och lager och säger vad som hoppades över.`,
+  description: `Sätter ihop grundkartan ur en klar laserkörning (projektets senaste, eller job_id från list_laser_jobs) och lägger in den i kartan, på samma sätt och med samma förval som «Hämta grundkartan» och «Lägg in objekt i kartan» i O-Tid: kurvor och formlinjer (fogade över skarvarna, klippta mot vattnet), branter, små kullar och gropar, vatten med strandlinje, sankmark, vegetation, marktäcke, byggnader och tomtmark ur laserjobbets filer, vägar, stigar, ledningar och staket ur OpenStreetMap och Skogsstyrelsens hyggen efter ålder; sankmark på sand och grus tas bort med SGU:s jordartskarta. Lagren får symbolerna som O-Tid föreslår ur lagernamnen; objekten klipps mot kartans område och, för en etapps laserjobb, mot etappen, hålls utanför det som redan är ritat som tomtmark, asfalt eller hus och generaliseras efter normen. knolls och cliffs (1–10, 5 = förvalen) väljer mängden små kullar och branter bland dem jobbet sparat (kullar.geojson, brantlinjer.geojson); utelämnade används jobbets egna. Har körningen bergbilden (berg.png) hittas berg i dagen (214) ur laserns ojämnhet, öppenheten och närheten till vatten med förvalet nivå 3 av 10 i stället för laserfilens berg (rock i svaret säger antal ytor och hektar); stenar och kullar står kvar. Har körningen fuktdjupet (körd med fuktigheten) tas hjälpkurvor och små slutna kurvor bort där marken är flack (under 1° medellutning; flatContours i svaret säger hur mycket), som förvalet för «Lugna kurvor på flack mark» i O-Tid. Objekten lämnas som AI-förslag i omgångar om högst 200: i läget PROPOSE väntar de på att en ägare godkänner dem (Godkänn alla i O-Tid), i AUTONOMOUS införs de direkt när kontot självt får ändra kartan, och i READ nekas anropet. Går OpenStreetMap eller hyggena inte att hämta läggs grundkartan in ändå och missing säger vad som saknas. Sammansättningen kan ta några minuter: svarar verktyget att arbetet pågår eller att omgångar återstår (remaining), anropa igen med samma argument tills remaining är 0; inget läggs in två gånger. Gränser: laserjobbets filer högst ${megabytes(MCP_BASE_MAP_MAX_BYTES)} MB tillsammans och högst ${MCP_BASE_MAP_MAX_OBJECTS} objekt per laserjobb (dela annars kartan i etapper och lägg in en etapp i taget). Ett laserjobb som redan lagts in läggs inte in igen utan again: true. Svaret räknar objekten per symbol och lager och säger vad som hoppades över.`,
   inputSchema: { type: "object", properties: { project_id: { type: "string", description: "Kartprojektets id (från list_map_projects)" },
     job_id: { type: "string", description: "Laserkörningens id; utelämnat = projektets senaste klara körning med en grundkarta" },
     knolls: { type: "integer", minimum: 1, maximum: 10, description: "Mängden små kullar (punkthöjder), 5 = förvalen" },
@@ -43,7 +44,7 @@ export const MCP_BASE_MAP_TOOL = { name: "apply_base_map", title: "Lägg in grun
     required: ["project_id"] }, annotations: { readOnlyHint: false, destructiveHint: false } } as const;
 
 export interface McpBaseMapOptions { wait?: { timeoutMs?: number; pollMs?: number } | undefined; now?: Date | undefined; budgetMs?: number | undefined;
-  sources?: { osm?: MapSourceRuntime | undefined; clearCuts?: ClearCutRuntime | undefined } | undefined }
+  sources?: { osm?: MapSourceRuntime | undefined; clearCuts?: ClearCutRuntime | undefined; soil?: SoilRuntime | undefined } | undefined }
 
 /** Ett fast UUID (version 4 till formen) ur en text: omgångens `requestId`, samma vid varje anrop. */
 function stableUuid(seed: string): string {
@@ -101,21 +102,24 @@ export async function callMcpBaseMapTool(db: Database, accountId: string, input:
     // OpenStreetMap och hyggena för jobbets ruta, som i webben; går en hämtning inte läggs grundkartan in utan den.
     const box = job.clip ? clipWgs84(job.clip) : undefined;
     const missing: string[] = [];
-    let osm: BaseMapJobRequest["osm"], cuts: BaseMapJobRequest["cuts"];
+    let osm: BaseMapJobRequest["osm"], cuts: BaseMapJobRequest["cuts"], soil: BaseMapJobRequest["soil"];
     if (box) {
       const request = { formatVersion: 1, box };
       const fetchedOsm = await fetchMapProjectOsmAsAi(db, { accountId, projectId, request }, options.sources?.osm ?? mapSourceRuntimeFromEnvironment(process.env), now);
       if (fetchedOsm.status === "ok") osm = fetchedOsm.data; else missing.push(`osm: ${sourceProblem(fetchedOsm)}`);
       const fetchedCuts = await fetchMapProjectClearCutsAsAi(db, { accountId, projectId, request }, options.sources?.clearCuts ?? clearCutRuntimeFromEnvironment(process.env), now);
       if (fetchedCuts.status === "ok") cuts = fetchedCuts.cuts.map(cut => ({ rings: cut.rings, date: cut.date })); else missing.push(`clear_cuts: ${sourceProblem(fetchedCuts)}`);
-    } else missing.push("osm: laserkörningen har ingen klippruta", "clear_cuts: laserkörningen har ingen klippruta");
+      // SGU:s jordartskarta: ingen sankmark på sand och grus (bara torr mark och vatten behövs i kartjobbet).
+      const fetchedSoil = await fetchMapProjectSoilAsAi(db, { accountId, projectId, request }, options.sources?.soil ?? soilRuntimeFromEnvironment(process.env), now);
+      if (fetchedSoil.status === "ok") soil = soilForMarsh(fetchedSoil.areas); else missing.push(`soil: ${sourceProblem(fetchedSoil)}`);
+    } else missing.push("osm: laserkörningen har ingen klippruta", "clear_cuts: laserkörningen har ingen klippruta", "soil: laserkörningen har ingen klippruta");
     // «Lugna kurvor på flack mark»: jobbets fuktdjup följer med när det finns, och förvalet gäller som i webben.
     const depth = await geoDepthOutputs(db, job.jobId);
     // Berg i dagen: har jobbet bergbilden används regeln med förvalet i stället för berg.dxf:s berg, som i webben.
     const rock = await geoRockOutputs(db, job.jobId);
     const request: BaseMapJobRequest = { hash, files: parts.map(file => ({ name: file.name, sha256: file.sha256 })),
       ...(knolls ? { knolls: { level: levels.knolls!, sha256: knolls.sha256 } } : {}), ...(cliffs ? { cliffs: { level: levels.cliffs!, sha256: cliffs.sha256 } } : {}),
-      ...(osm ? { osm } : {}), ...(cuts ? { cuts } : {}), scannedAt: job.scannedAt, ...(depth ? { depth } : {}), ...(rock ? { rock } : {}), ...(stage ? { stage } : {}), missing };
+      ...(osm ? { osm } : {}), ...(cuts ? { cuts } : {}), ...(soil ? { soil } : {}), scannedAt: job.scannedAt, ...(depth ? { depth } : {}), ...(rock ? { rock } : {}), ...(stage ? { stage } : {}), missing };
     mapJobId = await queueMapJob(db, { accountId, projectId, kind: "BASE_MAP", request: request as unknown as Record<string, unknown> }, now);
     if (!mapJobId) return toolError("För många anrop just nu (högst 30 kartjobb per minut och två samtidigt). Vänta en stund.");
   }
@@ -165,6 +169,6 @@ export async function callMcpBaseMapTool(db: Database, accountId: string, input:
   return { content: [text({ jobId: job.jobId, status: failure ? "INTERRUPTED" : remaining > 0 ? "APPLYING" : direct ? "APPLIED" : "PROPOSED",
     mode: direct ? "AUTONOMOUS" : "PROPOSE", parts: result.parts.length, done: done.size, remaining, ...(direct ? { appliedNow: applied, conflictsNow: conflicts } : {}),
     objects: summary.objects, symbols: summary.symbols, layers: summary.layers, skipped: summary.skipped, clipped: summary.clipped, joined: summary.joined,
-    simplified: summary.simplified, ...(summary.clearCuts ? { clearCuts: summary.clearCuts } : {}), ...(summary.knolls ? { knolls: summary.knolls } : {}),
+    simplified: summary.simplified, ...(summary.clearCuts ? { clearCuts: summary.clearCuts } : {}), ...(summary.soil ? { soil: summary.soil } : {}), ...(summary.knolls ? { knolls: summary.knolls } : {}),
     ...(summary.cliffs ? { cliffs: summary.cliffs } : {}), ...(summary.rock ? { rock: summary.rock } : {}), ...(summary.flatContours ? { flatContours: summary.flatContours } : {}), missing: result.missing, message })], ...(failure ? { isError: true } : {}) };
 }

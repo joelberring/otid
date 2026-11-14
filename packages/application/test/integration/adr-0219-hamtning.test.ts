@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { deleteAccountWithOwnedEvents } from "../../src/account-self-service";
 import { createMapProjectFromUpload, inviteMapProjectMember, readMapProject } from "../../src/map-projects";
 import { fetchMapProjectOsm } from "../../src/map-project-sources";
+import { fetchMapProjectSoil, fetchMapProjectSoilAsAi } from "../../src/map-project-soil";
 import { allowedSourceUrl, readMapProjectOrthoAsset, searchMapProjectOrtho, type LantmaterietRuntime } from "../../src/map-project-lantmateriet";
 import { deleteMapSourceCredential, openMapSourceCredential, readMapSourceCredential, saveMapSourceCredential } from "../../src/map-source-credentials";
 import { registerTestAccount } from "./accounts";
@@ -72,6 +73,44 @@ describe("ADR-0219 K4c: hämtning", () => {
     const wide = await fetchMapProjectOsm(db, { ...owner.proof, projectId, request: { formatVersion: 1, box: { south: 59.2, west: 18.0, north: 59.28, east: 18.18 } } }, tiled, NOW);
     expect(wide.status === "ok" && wide.data.features).toHaveLength(1);
     expect(tiles).toBeGreaterThan(1);
+  });
+
+  it("jordarter: sidor via next-länken, behörighet, ruta, kvot och fel från tjänsten", async () => {
+    const { owner, reader, projectId } = await project();
+    const ring = [[100, 100], [200, 100], [200, 200], [100, 100]];
+    const urls: string[] = [], inits: RequestInit[] = [];
+    const page = (jg2: number, jg2_tx: string, next?: string) => Response.json({ type: "FeatureCollection", features: [{ type: "Feature", geometry: { type: "Polygon", coordinates: [ring] },
+      properties: { jg2, jg2_tx } }], links: next ? [{ rel: "next", href: next }] : [] });
+    const runtime = { url: "http://sgu.test/items", fetch: (async (target: string, init: RequestInit) => {
+      urls.push(target); inits.push(init);
+      if (target.includes("offset=1")) return page(5, "Kärrtorv", "http://annan.test/items?offset=2");
+      return target.includes("offset=2") ? page(1, "Mossetorv") : page(31, "Postglacial sand", "http://sgu.test/items?offset=1");
+    }) as typeof fetch };
+    const result = await fetchMapProjectSoil(db, { ...owner.proof, projectId, request: { formatVersion: 1, box: BOX } }, runtime, NOW);
+    // Länken till en annan adress följs inte.
+    expect(result).toMatchObject({ status: "ok", attribution: "Jordarter 1:25 000–1:100 000 © SGU" });
+    expect(result.status === "ok" && result.areas.map(area => area.cls)).toEqual(["dry", "wet"]);
+    expect(urls).toHaveLength(2);
+    const first = new URL(urls[0]!);
+    expect(first.searchParams.get("bbox")).toBe("18,59.29,18.04,59.31");
+    expect(first.searchParams.get("crs")).toBe("http://www.opengis.net/def/crs/EPSG/0/3006");
+    expect(first.searchParams.get("limit")).toBe("1000");
+    expect(inits[0]).toMatchObject({ redirect: "error" });
+    // Läsare (ingen föreslagsrätt), för stor ruta och ogiltig begäran hämtar inget.
+    expect((await fetchMapProjectSoil(db, { ...reader.proof, projectId, request: { formatVersion: 1, box: BOX } }, runtime, NOW)).status).toBe("forbidden");
+    expect((await fetchMapProjectSoil(db, { ...owner.proof, projectId, request: { formatVersion: 1, box: { ...BOX, north: 60 } } }, runtime, NOW)).status).toBe("too-large");
+    expect((await fetchMapProjectSoil(db, { ...owner.proof, projectId, request: { nej: 1 } }, runtime, NOW)).status).toBe("invalid-request");
+    expect(urls).toHaveLength(2);
+    // Fel från tjänsten och ett svar som inte är GeoJSON.
+    const down = { url: "http://sgu.test/items", fetch: (async () => new Response("nej", { status: 503 })) as typeof fetch };
+    expect(await fetchMapProjectSoil(db, { ...owner.proof, projectId, request: { formatVersion: 1, box: BOX } }, down, NOW)).toEqual({ status: "unavailable", detail: "http-503" });
+    const odd = { url: "http://sgu.test/items", fetch: (async () => Response.json({ hej: 1 })) as typeof fetch };
+    expect(await fetchMapProjectSoil(db, { ...owner.proof, projectId, request: { formatVersion: 1, box: BOX } }, odd, NOW)).toEqual({ status: "unavailable", detail: "format" });
+    const broken = { url: "http://sgu.test/items", fetch: (async () => { throw new Error("nät"); }) as typeof fetch };
+    expect(await fetchMapProjectSoil(db, { ...owner.proof, projectId, request: { formatVersion: 1, box: BOX } }, broken, NOW)).toEqual({ status: "unavailable", detail: "network" });
+    // Kontots kvot (20 hämtningar i timmen, delad med de andra kartkällorna): fyra har gått åt, sexton till går, sedan stoppas det.
+    for (let i = 0; i < 16; i += 1) expect((await fetchMapProjectSoilAsAi(db, { accountId: owner.accountId, projectId, request: { formatVersion: 1, box: BOX } }, runtime, NOW)).status).toBe("ok");
+    expect((await fetchMapProjectSoilAsAi(db, { accountId: owner.accountId, projectId, request: { formatVersion: 1, box: BOX } }, runtime, NOW)).status).toBe("throttled");
   });
 
   it("uppgifterna: sparas krypterade, visas aldrig, ersätts och tas bort med kontot", async () => {

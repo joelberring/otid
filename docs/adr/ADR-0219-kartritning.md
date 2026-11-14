@@ -567,3 +567,19 @@ Geo-arbetaren 31 skriver bergbilden `berg.png` + `berg.pgw` (markrastrets rutnä
 grundkartan läses in och i `apply_base_map` (svarets `rock`); stenar och kullar står kvar. Äldre körningar utan bergbild
 behåller `berg.dxf`:s berg. Gränserna (ojämnhet 0,12 → 0,04 m, strand 0 → 40 m, minsta yta 200 → 50 m²) är ägarens första
 förslag och ännu inte inställda mot facit.
+
+### Tillägg 2026-11-14: ingen sankmark på sand och grus (SGU:s jordartskarta)
+
+Fuktsteget ser bara höjdmodellen, så på flack mark blir sand som dränerar lika blöt som torv (ägaren 2026-11-13). Servern hämtar
+SGU:s öppna jordartskarta (OGC API Features, `jordarter25k-100k`, grundlagret; `OTID_SGU_JORDARTER_URL`, tillskrivning
+«Jordarter 1:25 000–1:100 000 © SGU») för rutan på samma sätt som hyggena (`fetchMapProjectSoil`, `…AsAi`, POST
+`…/sources/jordarter`, behörigheten `propose`, kontots 20 hämtningar i timmen, högst 10 sidor à 1000 via next-länken som
+bara följs på tjänstens egen adress). Klassningen (`classifySoil`, `soil.ts`) är torr = isälvssediment, svallsediment, klapper,
+flygsand och postglacial sand/finsand, blöt = torv, gyttja och gyttjelera, annat = resten. Berg, blockmark, talus och
+vittringsjord är medvetet inte torra (små myrar i bergsvackor syns inte i kartan), och svämsediment och älvsediment är
+översvämningsmark. Regeln (`marshOffDrySoil`, `soil-marsh.ts`) är `difference(sankmark, torr − vattenbuffert)` med 30 m
+buffert runt vatten (kartans `vatten` och SGU:s kod 91) så att strandkärr blir kvar; rester under 400 m² tas bort och blöt jord
+ändrar inget. Kartans lägesnoggrannhet är 25–200 m, så en liten myr i ett sandområde kan försvinna. Regeln gäller i panelen
+«Fukt med reglage» (kryssruta, förvald på; blött och fuktigt), när grundkartan läses in (alla sankmarkens lager, med etapper
+för unionens ruta; beskedet säger hur många hektar) och i `apply_base_map` (svarets `soil`). Ett misslyckat anrop stoppar inget:
+grundkartan läses in och reglaget räknar som förut (`missing` har `soil`).

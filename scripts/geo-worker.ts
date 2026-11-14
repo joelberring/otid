@@ -494,12 +494,18 @@ async function runJob(job: Job): Promise<void> {
       if (!files.has(pngSource)) throw new Error(`Karttapullautin gav ingen ${pngSource}`);
       // Bilderna att titta på som WebP, utom i en etapp (sammanläggningen läser PNG och gör om dem sedan).
       const webp = !job.stage && WEBP_OUTPUTS.has(pngName) ? await toWebp(dir, pngSource, control.signal) : undefined;
-      const [name, source, mediaType] = webp ? [pngName.replace(/\.png$/, ".webp"), webp, "image/webp"] as const : [pngName, pngSource, pngType] as const;
-      const size = (await stat(join(dir, source))).size;
-      if (size > OUTPUT_MAX_BYTES && !name.startsWith("karta.")) { skippedOutputs.push(name); done += 1; continue; }
-      const bytes = await readFile(join(dir, source));
-      const response = await call(`/api/geo-worker/jobs/${job.jobId}/outputs/${name}`, { method: "PUT", body: new Uint8Array(bytes),
-        headers: { "content-type": mediaType, "content-length": String(bytes.byteLength) }, signal: AbortSignal.any([control.signal, AbortSignal.timeout(10 * 60_000)]) });
+      const put = async (name: string, source: string, mediaType: string): Promise<Response | "skipped"> => {
+        if ((await stat(join(dir, source))).size > OUTPUT_MAX_BYTES && !name.startsWith("karta.")) return "skipped";
+        const bytes = await readFile(join(dir, source));
+        return call(`/api/geo-worker/jobs/${job.jobId}/outputs/${name}`, { method: "PUT", body: new Uint8Array(bytes),
+          headers: { "content-type": mediaType, "content-length": String(bytes.byteLength) }, signal: AbortSignal.any([control.signal, AbortSignal.timeout(10 * 60_000)]) });
+      };
+      let name: string = pngName, response = webp ? await put(pngName.replace(/\.png$/, ".webp"), webp, "image/webp") : undefined;
+      // Ägarens körning 2026-11-14 föll med «karta.webp kunde inte skickas (400)»: webbservern var äldre än arbetaren och tog
+      // inte emot WebP. Då skickas PNG som förut.
+      if (response === undefined || (response !== "skipped" && response.status === 400)) response = await put(pngName, pngSource, pngType);
+      else name = pngName.replace(/\.png$/, ".webp");
+      if (response === "skipped") { skippedOutputs.push(name); done += 1; continue; }
       if (!response.ok) throw new Error(await sendFailure(name, response));
       done += 1;
     }
@@ -546,9 +552,10 @@ async function runMergeJob(job: Job): Promise<void> {
       if (!response.ok) throw new Error(`${name} kunde inte hämtas från etappen (${response.status})`);
       return Buffer.from(await response.arrayBuffer());
     };
+    const put = (name: string, bytes: Uint8Array, mediaType: string) => call(`/api/geo-worker/jobs/${job.jobId}/outputs/${name}`, { method: "PUT", body: new Uint8Array(bytes),
+      headers: { "content-type": mediaType, "content-length": String(bytes.byteLength) }, signal: AbortSignal.any([control.signal, AbortSignal.timeout(10 * 60_000)]) });
     const send = async (name: string, bytes: Uint8Array, mediaType: string) => {
-      const response = await call(`/api/geo-worker/jobs/${job.jobId}/outputs/${name}`, { method: "PUT", body: new Uint8Array(bytes),
-        headers: { "content-type": mediaType, "content-length": String(bytes.byteLength) }, signal: AbortSignal.any([control.signal, AbortSignal.timeout(10 * 60_000)]) });
+      const response = await put(name, bytes, mediaType);
       if (!response.ok) throw new Error(await sendFailure(name, response));
     };
     const skipped: string[] = [];
@@ -570,8 +577,10 @@ async function runMergeJob(job: Job): Promise<void> {
           await writeFile(join(dir, name), png);
           const webp = WEBP_OUTPUTS.has(name) ? await toWebp(dir, name, control.signal) : undefined;
           if (!webp && png.byteLength > OUTPUT_MAX_BYTES) { skipped.push(name); continue; }
-          if (webp) await send(name.replace(/\.png$/, ".webp"), await readFile(join(dir, webp)), "image/webp");
-          else await send(name, png, "image/png");
+          // En webbserver som är äldre än arbetaren tar inte emot WebP (400): då skickas PNG, om den får plats.
+          const sent = webp ? await put(name.replace(/\.png$/, ".webp"), await readFile(join(dir, webp)), "image/webp") : undefined;
+          if (sent && !sent.ok && sent.status !== 400) throw new Error(await sendFailure(name.replace(/\.png$/, ".webp"), sent));
+          if (!sent?.ok) { if (png.byteLength > OUTPUT_MAX_BYTES) { skipped.push(name); continue; } await send(name, png, "image/png"); }
           await rm(join(dir, name), { force: true });
           await send(world, Buffer.from(writeWorld(merged.world)), "text/plain");
         } else if (name.endsWith(".dxf")) {

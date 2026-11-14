@@ -13,6 +13,11 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-14 – Fel: «karta.webp kunde inte skickas (400)» (Arboga)
+
+- Geo-arbetarens avbildning byggs vid varje push och var nyare än webbservern, som inte tog emot WebP än; arbetaren fick då heller inte veta att jobbet var en etapp. Arbetaren skickar nu PNG när servern svarar 400 på en WebP-bild.
+- Verifierat: typecheck och lint. Inte provat mot en äldre server.
+
 ### 2026-11-14 – Rita nordlinjer (601)
 
 - Ägaren: «hur lägger man till meridianer?». Panelen «Magnetisk nord» har fått «Rita nordlinjer»: raka, parallella linjer över hela kartan som kandidater, i kartans egen riktning eller mot dagens magnetiska nord (WMM), 300 m emellan (sprint: 30 mm på kartan), en genom referenspunkten.

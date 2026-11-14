@@ -1,5 +1,5 @@
 import type { Texts } from "../lib/language";
-import type { mapFlatContoursSv, mapKnollsSv, mapSavedChoiceSv, mapUnderlayStepsSv } from "./map-knolls-sv";
+import type { mapClearContoursSv, mapFlatContoursSv, mapKnollsSv, mapSavedChoiceSv, mapUnderlayStepsSv } from "./map-knolls-sv";
 
 /** English: the headings for the order of the base layers in the side panel. */
 export const mapUnderlayStepsEn: Texts<typeof mapUnderlayStepsSv> = {
@@ -53,6 +53,24 @@ export const mapKnollsEn: Texts<typeof mapKnollsSv> = {
 };
 
 /** English: "Calm contours on flat ground": form lines and small rings are removed where the ground is flat. */
+export const mapClearContoursEn: Texts<typeof mapClearContoursSv> = {
+  heading: "Clearer contours",
+  help: "Laser contours follow the ground exactly and look cluttered. The sliders do what mappers do: smoother contours where it is flat, form lines only where they show a shape, and fewer small rings. Detail in steep and hilly terrain stays. The defaults are measured against three mappers' maps (Högdalen, Gömmaren, Djurgården).",
+  none: "No finished laser job has the ground height saved (hojd.png).",
+  noContours: "No contours among the candidates. Load the base map first (step 2).",
+  smooth: (level: number, meters: string, full: string, none: string) => level === 0 ? "Smoother contours on flat ground: off"
+    : `Smoother contours on flat ground: ${level} of 10${level === 5 ? " (default)" : ""} – smooths over ${meters} m where the ground slopes less than ${full}%, nothing above ${none}%`,
+  formlines: (level: number, convex: string, tight: string) => level === 0 ? "Fewer form lines: off"
+    : `Fewer form lines: ${level} of 10${level === 5 ? " (default)" : ""} – only where the ground is at least ${convex} m above its surroundings${tight === "0" ? "" : ` and no closer to a contour than ${tight} m`}`,
+  rings: (level: number, squareMeters: string) => level === 0 ? "Small form line rings: off"
+    : `Small form line rings: ${level} of 10${level === 5 ? " (default)" : ""} – removed below ${squareMeters} m²`,
+  levelHelp: "0 is off and 10 is the most. A contour is never moved to ground more than 1.25 m higher or lower (a quarter of the contour interval, as the standard allows).",
+  run: "Show as candidates",
+  done: (smoothed: string, formlines: string, rings: number) => `${smoothed} m of contour is smoothed, ${formlines} m of form line and ${rings === 1 ? "1 small ring" : `${rings} small rings`} are removed.`,
+  untouched: "Nothing changes.",
+  failed: "The ground height could not be read."
+};
+
 export const mapFlatContoursEn: Texts<typeof mapFlatContoursSv> = {
   heading: "Calm contours on flat ground",
   help: "On flat ground small height errors move the contours many metres sideways. Here form lines and small rings are removed where the ground slopes less than the limit. Steeper terrain is left alone.",

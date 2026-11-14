@@ -132,17 +132,23 @@ export function bareRock(ground: GroundGrid, openAt: (x: number, y: number) => b
  * Andelen av ringen som måste ligga lägre än kullen. Högdalenkartan 2026-11-11: med hela ringen (1) hittas 14–16 % av kartans
  * punkthöjder, med 0,8 hittas 36–48 % med ungefär samma träffsäkerhet; en lägre tröskel för höjden gav inget.
  */
-export const KNOLL_LOWER_SHARE = 0.8;
+export const KNOLL_LOWER_SHARE = 0.85;
+/**
+ * Ägaren 2026-11-14 («minska standardvärdet för punkthöjder, det verkar ha varit lite högt»): förvalet kräver 1,2 m över
+ * omgivningen (förut 1), 85 % av ringen lägre (förut 80) och 15 m mellan två (förut 10). Samma som webbläsarens förval
+ * (`DEFAULT_KNOLL_LIMITS`); alla möjliga kullar sparas som förut, så reglaget når de gamla värdena utan ny körning.
+ */
+export const KNOLL_MIN_RISE = 1.2, KNOLL_SPACING = 15;
 
 /**
  * Små kullar (109) ur markrastret (ägaren 2026-11-11: «punkthöjder i likvärdig terräng» som Högdalenkartan): den högsta
  * punkten inom 3 m som står minst `minRise` m över medianen i en ring 6–8 m bort, med en fot (celler över halva höjden inom
  * 6 m) som är för liten för en egen höjdkurva (högst `maxFootM2`), och inte en sten. Lagret `dotknoll_laser` föreslås som 109.
  */
-export function knolls(ground: GroundGrid, stones: readonly { at: readonly [number, number] }[], minRise = 1, maxFootM2 = 80,
+export function knolls(ground: GroundGrid, stones: readonly { at: readonly [number, number] }[], minRise = KNOLL_MIN_RISE, maxFootM2 = 80,
   blockedAt?: (x: number, y: number) => boolean, lowerShare = KNOLL_LOWER_SHARE): [number, number][] {
   return chooseKnolls(knollCandidates(ground, stones, blockedAt, Math.min(minRise, KNOLL_LOOSE.minRise), Math.min(lowerShare, KNOLL_LOOSE.lowerShare),
-    Math.max(maxFootM2, KNOLL_LOOSE.maxFootM2)), { minRise, lowerShare, maxFootM2, spacing: 10 });
+    Math.max(maxFootM2, KNOLL_LOOSE.maxFootM2)), { minRise, lowerShare, maxFootM2, spacing: KNOLL_SPACING });
 }
 
 /** En möjlig liten kulle med sina mått: höjden över omgivningen (m), andelen av ringen som ligger lägre och fotens yta (m²). */

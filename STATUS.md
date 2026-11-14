@@ -13,6 +13,15 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-14 – Tydligare kurvbild (tre reglage) och färre punkthöjder som förval (geo-arbetaren 34)
+
+- Mätt mot kartritarnas kartor över samma laser (Högdalen, Gömmaren, Djurgården): kartritarna svänger 12–27 % mindre på mark under 6 % lutning men lika mycket eller mer i brantare, har 41–64 % av laserns hjälpkurvor (helst där marken är en höjd i stort, få där kurvorna ligger tätt) och 49–453 slutna hjälpkurvor mot laserns 196–613.
+- Ny panel «Tydligare kurvbild» under «3. Justera utan ny körning» (`clearContours` i `@o-tid/map-revision/base-map`, höjden ur jobbets `hojd.png`): mjukare kurvor på flack mark (aldrig mer än 1,25 m i höjd, ISOM § 101), färre hjälpkurvor, små ringar av hjälpkurva bort. 0–10, förval 5; ligger ovanpå «Lugna kurvor».
+- Förvalen på de tre kartorna: svängarna på flack mark 43→37, 48→43 och 40→34° (kartritarna 33, 40, 34); hjälpkurvor 42→21, 108→60 och 62→37 km (kartritarna 17, 61, 40) med bättre träff (0,32→0,40, 0,47→0,56, 0,53→0,61); antalet punkter i kurvorna halveras.
+- Punkthöjdernas förval sänkt (ägaren: «lite högt»): 1,2 m över omgivningen, 85 % av ringen lägre, 15 m emellan (förut 1 m, 80 %, 10 m), i reglaget och i geo-arbetaren (34). Gamla körningar ändras bara via reglaget; det gamla förvalet ligger vid 6–7.
+- Verifierat: enhetstester (11 nya), lint, typecheck; regeln körd på de tre kartornas riktiga data i webbläsaren. Inte provat i panelen mot en riktig karta.
+- Återstår: reglagen körs inte av sig själva när grundkartan läses in; olika nivåer för olika delar av en karta (i dag styr lutningen och markformen, inte ett ritat område).
+
 ### 2026-11-14 – Bilderna att titta på som WebP (geo-arbetaren 33, migration 0122)
 - Ägaren: «om det gör det snabbare är det bra». Geo-arbetaren gör om kartbilden, terrängskuggningen och reliefen till WebP med
   `cwebp` (paketet `webp` i geo-avbildningen); mätt på Ornö södra blir terrängskuggningen 0,75 MB i stället för 4,1 MB.

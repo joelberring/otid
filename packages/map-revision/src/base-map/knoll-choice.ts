@@ -11,8 +11,11 @@ export interface KnollCandidate { readonly at: readonly [number, number]; readon
   readonly wet?: boolean | undefined }
 export const KNOLL_OBVIOUS_RISE = 1.5;
 export interface KnollLimits { readonly minRise: number; readonly lowerShare: number; readonly maxFootM2: number; readonly spacing: number }
-/** Geo-arbetarens förval (det som `knollar`-lagret i grundkartan är räknat med). */
-export const DEFAULT_KNOLL_LIMITS: KnollLimits = { minRise: 1, lowerShare: 0.8, maxFootM2: 80, spacing: 10 };
+/**
+ * Geo-arbetarens förval (det som `knollar`-lagret i grundkartan är räknat med, från version 34). Ägaren 2026-11-14 («minska
+ * standardvärdet för punkthöjder, det verkar ha varit lite högt»): förut 1 m, 80 % och 10 m emellan.
+ */
+export const DEFAULT_KNOLL_LIMITS: KnollLimits = { minRise: 1.2, lowerShare: 0.85, maxFootM2: 80, spacing: 15 };
 
 /**
  * Ägaren 2026-11-12 («en skala 1–10 med 5 i mitten som är förinställt»): ett enda reglage för mängden. 5 är förvalen, 1 ger

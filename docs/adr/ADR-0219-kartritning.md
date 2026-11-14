@@ -619,3 +619,20 @@ och laserns raster) förblir PNG, eftersom reglagen läser talen i dem.
 - Migration 0122 lättar `map_project_layer_media_check` från en lista till formen `image/…`; listan står i
   `MAP_PROJECT_LAYER_MEDIA_TYPES` med ett test. Inga rader ändras.
 - AI-kopplingens `training_raster` ger relief och skuggning som WebP från nya körningar.
+
+
+## Tillägg 2026-11-14: tydligare kurvbild och färre punkthöjder som förval
+
+Ägaren: «det finns en kritik mot autogenererade kartor att det är plottrigt och att läsbarheten tappas … jämföra mot bra
+kartritare för att kunna göra medvetna generaliseringar».
+
+- Generaliseringen av kurvbilden görs i webbläsaren på kandidaterna (`clearContours`), inte i geo-arbetaren: den går att
+  ändra utan ny körning och kartritaren ser vad som händer. Höjden läses ur jobbets `hojd.png`.
+- Tre regler med var sitt reglage 0–10 (förval 5, satta efter Högdalen, Gömmaren och Djurgården): utjämning längs kurvan
+  bara där marken är flack (full under 4 %, ingen över 12 %), hjälpkurvor bara där marken ligger över ringen 60 m bort och
+  inte närmare en höjdkurva än 5 m, och slutna hjälpkurvor under 150 m² bort.
+- En kurvpunkt flyttas aldrig till mark som ligger mer än 1,25 m i höjd från där den låg (25 % av ekvidistansen, ISOM
+  2017-2 § 101; hjälpkurvor hälften). Därmed kan två kurvor inte korsas av utjämningen.
+- Ingen form på marken skilde kartritarnas behållna små ringar från de andra; därför styr bara ytan, och kartritaren väljer.
+- Punkthöjdernas förval är 1,2 m, 85 % och 15 m (geo-arbetaren 34 och `DEFAULT_KNOLL_LIMITS`). Alla möjliga kullar sparas
+  som förut.

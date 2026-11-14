@@ -33,7 +33,9 @@ describe("mängden på skalan 1–10", () => {
     expect(knollLimitsAt(5)).toEqual(DEFAULT_KNOLL_LIMITS);
     expect(knollLimitsAt(1)).toEqual({ minRise: 2, lowerShare: 0.95, maxFootM2: 80, spacing: 40 });
     expect(knollLimitsAt(10)).toEqual({ minRise: 0.5, lowerShare: 0.5, maxFootM2: 160, spacing: 10 });
-    expect(knollLimitsAt(3).minRise).toBe(1.5);
+    expect(knollLimitsAt(3).minRise).toBe(1.6);
+    // Förvalet före 2026-11-14 (1 m, 80 %, 10 m) ligger mellan 6 och 7.
+    expect(DEFAULT_KNOLL_LIMITS).toEqual({ minRise: 1.2, lowerShare: 0.85, maxFootM2: 80, spacing: 15 });
   });
 });
 

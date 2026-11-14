@@ -13,10 +13,10 @@ import { clubRequest, csrf } from "../../lib/club-archive-client";
 import type { Bounds } from "../../lib/course-setting-viewport";
 import { areaBox, type BoxArea } from "../../lib/map-project-area-box";
 import { mapProjectBase } from "../../lib/map-project-client";
-import type { BaseMapStep, CalmOutcome, CandidateInput, CandidateResult } from "../../lib/map-project-candidates";
+import type { BaseMapStep, CalmOutcome, ClearOutcome, CandidateInput, CandidateResult } from "../../lib/map-project-candidates";
 import { CandidateSession } from "../../lib/map-project-candidates-client";
 import { controlledWorker } from "../../lib/course-setting-worker";
-import { calmFlatContours, flatLimitsAt, mergeCandidates, restoreFlatContours, sprintOsm, suggestedMapping } from "@o-tid/map-revision/base-map";
+import { calmFlatContours, clearContours, flatLimitsAt, mergeCandidates, restoreFlatContours, sprintOsm, suggestedMapping, type ClearSettings, type HeightField } from "@o-tid/map-revision/base-map";
 import { readVectorFiles } from "../../lib/map-project-vector-files";
 import type { CatalogSymbol, MapProjectSession } from "../../lib/map-project-protocol";
 import type { ObjectChange } from "./use-map-project-editor";
@@ -92,8 +92,14 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
    * så att en annan nivå utgår från kurvorna som de var. Glöms när andra kandidater öppnas.
    */
   const [calm, setCalm] = useState<CalmOutcome>();
+  /**
+   * «Tydligare kurvbild» (ägaren 2026-11-14): det reglagen har bytt ut, ovanpå de lugnade kurvorna. Inställningarna och höjden
+   * sparas så att de läggs på igen när «Lugna kurvor» ändras.
+   */
+  const [clear, setClear] = useState<ClearOutcome>();
+  const clearWith = useRef<{ settings: ClearSettings; field: HeightField } | undefined>(undefined);
   const show = useCallback((fileName: string, data: SourceData, area?: Bounds, general = false, within?: readonly (readonly { x: number; y: number }[])[]) => {
-    setNormed(general); setStage(within); setCalm(undefined);
+    setNormed(general); setStage(within); setCalm(undefined); setClear(undefined); clearWith.current = undefined;
     const found = importLayers(data);
     const list = symbolList;
     setFile({ name: fileName, data });
@@ -302,13 +308,27 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
    */
   const calmContours = useCallback((level: number, slopeAt: (x: number, y: number) => number | undefined): CalmOutcome | undefined => {
     if (!file) return undefined;
-    const result = calmFlatContours(calm ? restoreFlatContours(file.data.features, calm) : file.data.features, slopeAt, flatLimitsAt(level));
+    // «Tydligare kurvbild» ligger ovanpå: den tas bort först och läggs på igen efteråt.
+    const before = clear ? restoreFlatContours(file.data.features, clear) : file.data.features;
+    const result = calmFlatContours(calm ? restoreFlatContours(before, calm) : before, slopeAt, flatLimitsAt(level));
     const outcome = { removed: result.removed, added: result.added, formlineMeters: result.formlineMeters, rings: result.rings, level };
-    const data = { ...file.data, features: result.features };
+    const again = clear && clearWith.current ? clearContours(result.features, clearWith.current.field, clearWith.current.settings) : undefined;
+    const data = { ...file.data, features: again?.features ?? result.features };
     setFile({ name: file.name, data }); setLayers(importLayers(data)); setCalm(outcome);
+    setClear(again && clearWith.current ? { ...again, settings: clearWith.current.settings } : undefined);
     return outcome;
-  }, [file, calm]);
-  return { file, calm, calmContours,
+  }, [file, calm, clear]);
+  /** Reglagen «Tydligare kurvbild»: kurvorna i det som visas byts mot de utjämnade och gallrade, räknade från de lugnade. */
+  const clearCurves = useCallback((settings: ClearSettings, field: HeightField): ClearOutcome | undefined => {
+    if (!file) return undefined;
+    const result = clearContours(clear ? restoreFlatContours(file.data.features, clear) : file.data.features, field, settings);
+    const outcome = { ...result, settings };
+    const data = { ...file.data, features: result.features };
+    clearWith.current = { settings, field };
+    setFile({ name: file.name, data }); setLayers(importLayers(data)); setClear(outcome);
+    return outcome;
+  }, [file, clear]);
+  return { file, calm, calmContours, clear, clearCurves,
     /** Nya kandidater väntar på svar (de som visas är inte införda): läs in dem ändå, eller behåll de som visas. */
     pendingReplace: pendingReplace?.fileName,
     replaceAnyway: () => { const pending = pendingReplace; setPendingReplace(undefined); pending?.open(); },

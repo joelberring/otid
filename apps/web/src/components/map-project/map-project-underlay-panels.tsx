@@ -17,6 +17,7 @@ import { mapUnderlayStepsSv } from "../../i18n/map-knolls-sv";
 import { useTexts } from "../language-provider";
 import styles from "./map-project-editor.module.css";
 import { MapProjectCliffPanel, MapProjectKnollPanel } from "./map-project-knoll-panel";
+import { MapProjectClearPanel } from "./map-project-clear-panel";
 import { MapProjectFlatPanel } from "./map-project-flat-panel";
 import { MapProjectMoisturePanel } from "./map-project-moisture-panel";
 import { MapProjectOrthoPanel } from "./map-project-ortho-panel";
@@ -61,6 +62,7 @@ export function MapProjectUnderlayPanels({ view, georeference, bounds, areas, la
       <MapProjectKnollPanel view={view} importer={importer} />
       <MapProjectCliffPanel view={view} importer={importer} scale={georeference.scale} />
       <MapProjectFlatPanel layers={layers} georeference={georeference} importer={importer} />
+      <MapProjectClearPanel view={view} importer={importer} />
       <MapProjectGreenPanel layers={layers} georeference={georeference} importer={importer} />
       <MapProjectDepthPanel view={view} bounds={bounds} layers={layers} georeference={georeference} importer={importer} />
       <MapProjectRockPanel layers={layers} georeference={georeference} importer={importer} />

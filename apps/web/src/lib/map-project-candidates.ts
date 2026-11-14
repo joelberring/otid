@@ -1,7 +1,7 @@
 import { parseDxf, parseGeoJson, VectorParseError, type MapNorm, type SourceData, type SourceFeature } from "@o-tid/map-revision";
 import {
   calmFlatContours, computeCandidates, DEFAULT_ROCK_LEVEL, flatLimitsAt, flatSlopeFrom, joinStages, mergeBaseMap, unionWater, rockAreasOfJob, withRockAreas,
-  type CandidateInput, type CandidateResult, type clearCutFeatures, type FlatContourResult, type PhotoPixels, type PixelAffine, type SlopeGrid, type SoilArea, type SoilOutcome, type StageBox
+  type CandidateInput, type CandidateResult, type clearCutFeatures, type ClearResult, type ClearSettings, type FlatContourResult, type PhotoPixels, type PixelAffine, type SlopeGrid, type SoilArea, type SoilOutcome, type StageBox
 } from "@o-tid/map-revision/base-map";
 
 /**
@@ -33,6 +33,8 @@ type Cuts = Pick<ReturnType<typeof clearCutFeatures>, "features" | "afterScan">;
  */
 export interface BaseMapCalm { readonly grid: SlopeGrid; readonly affine: PixelAffine; readonly level: number }
 /** Det som lugnandet tog bort och satte dit (samma objekt som i svarets `data`), för reglaget efteråt. */
+/** Det «Tydligare kurvbild» har bytt ut i kandidaterna som visas, med inställningarna det räknades med. */
+export type ClearOutcome = ClearResult & { readonly settings: ClearSettings };
 export type CalmOutcome = Pick<FlatContourResult, "removed" | "added" | "formlineMeters" | "rings"> & { readonly level: number };
 
 /** Var inläsningen är: filerna tolkas en och en, sedan sätts grundkartan ihop. */

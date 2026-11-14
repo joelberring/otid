@@ -1,6 +1,6 @@
 import { parseDxf, parseGeoJson, VectorParseError, type MapNorm, type SourceData, type SourceFeature } from "@o-tid/map-revision";
 import {
-  calmFlatContours, computeCandidates, DEFAULT_ROCK_LEVEL, flatLimitsAt, flatSlopeFrom, joinStages, mergeBaseMap, rockAreasOfJob, withRockAreas,
+  calmFlatContours, computeCandidates, DEFAULT_ROCK_LEVEL, flatLimitsAt, flatSlopeFrom, joinStages, mergeBaseMap, unionWater, rockAreasOfJob, withRockAreas,
   type CandidateInput, type CandidateResult, type clearCutFeatures, type FlatContourResult, type PhotoPixels, type PixelAffine, type SlopeGrid, type SoilArea, type SoilOutcome, type StageBox
 } from "@o-tid/map-revision/base-map";
 
@@ -43,6 +43,8 @@ export type CandidateRequest =
   | { readonly type: "base-map"; readonly id: number; readonly dataId: number; readonly parts: readonly BaseMapPart[]; readonly merge: boolean;
       /** En körning i etapper (ägaren 2026-11-13): varje etapps filer klipps till etappens ruta och läses ihop; `parts` är då tom. */
       readonly stages?: readonly BaseMapStage[] | undefined;
+      /** Filerna är etapper som geo-servern lagt ihop (ägaren 2026-11-14): sjöar som klippts i snittet slås ihop igen. */
+      readonly joined?: boolean | undefined;
       readonly osm?: SourceData | undefined; readonly scale?: number | undefined; readonly cuts?: Cuts | undefined;
       /** Kartans norm (`mapNorm`): på en sprintkarta blir OpenStreetMaps belagda vägar ytor. */
       readonly norm?: MapNorm | undefined; readonly calm?: BaseMapCalm | undefined;
@@ -94,7 +96,8 @@ export function handleCandidateRequest(store: CandidateStore, request: Candidate
       rock.areas += found.areas; rock.hectares = Math.round((rock.hectares + found.hectares) * 100) / 100; rockUsed = true;
       return { box: stage.box, parts: withRockAreas(read, found.data) };
     });
-    const read = request.stages ? joinStages(parsed.map(stage => ({ box: stage.box!, parts: stage.parts }))) : parsed[0]!.parts;
+    const read = request.stages ? joinStages(parsed.map(stage => ({ box: stage.box!, parts: stage.parts })))
+      : request.joined ? parsed[0]!.parts.map(part => ({ ...part, data: { ...part.data, features: unionWater(part.data.features) } })) : parsed[0]!.parts;
     if (request.merge) post({ type: "progress", id, step: "merge" });
     let soil: SoilOutcome | undefined;
     const merged: SourceData = request.merge ? mergeBaseMap(read, request.osm, request.scale, request.cuts, request.norm,

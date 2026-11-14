@@ -203,6 +203,12 @@ export const mapSourcesSv = {
     loadBaseMap: "Läs in grundkartan",
     loadStages: (count: number) => `Läs in alla ${count} etapper som en grundkarta`,
     allStages: "alla etapper",
+    /** Ägaren 2026-11-14: etapperna läggs ihop till en körning på geo-servern. */
+    mergeStages: "Lägg ihop etapperna på servern",
+    mergeQueued: "Etapperna läggs ihop på geo-servern. Det tar några minuter; sedan finns en körning i stället för etapperna.",
+    mergeBusy: "Etapperna läggs redan ihop, eller är redan ihoplagda.",
+    mergedFrom: (count: number) => `Ihoplagd av ${count} etapper`,
+    mergingFrom: (count: number) => `Lägger ihop ${count} etapper`,
     /** Statusraden medan kandidater läses in (ägaren 2026-11-12: «nu vet man inte om datorn hängt sig»). */
     steps: {
       fetching: (done: number, total: number) => `Hämtar filer ${done} av ${total} …`,

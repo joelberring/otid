@@ -233,6 +233,7 @@ export {
   authenticateGeoWorker, claimGeoJob, createGeoJob, finishGeoJob, geoServerView, heartbeatGeoJob, listGeoJobs, openGeoJobLaser, readGeoOutput,
   pruneGeoJobs, removeGeoJob, storeGeoOutput, type ClaimedGeoJob
 } from "./map-project-geo-jobs";
+export { mergeGeoStages, readGeoStageOutput } from "./map-project-geo-merge";
 export { createDwgJob, readGeoJobInput, type DwgJobResult } from "./map-project-geo-dwg";
 export { createMapProjectNote, deleteMapProjectNote, listMapProjectNotes, readMapProjectNotePhoto, updateMapProjectNote } from "./map-project-notes";
 export {

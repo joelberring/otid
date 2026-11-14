@@ -13,6 +13,7 @@ import { aiGate, mapProjectAllows, requireMapProject, requireMapProjectForAccoun
 import { allowedLaserUrl, fetchLaserFile, type LaserRuntime } from "./map-project-laser";
 import type { LantmaterietFailure } from "./map-project-lantmateriet";
 import { missingMapSourceCredential, openMapSourceCredential, type MapSourceCredentialGap } from "./map-source-credentials";
+import { claimedStages, completeStageMerge, geoMergeOf, queueStageMerge } from "./map-project-geo-merge";
 import { geoServerForToken, geoServerSettings, geoServerStateView, noteGeoServerJob } from "./geo-server";
 import { UUID_PATTERN } from "./serialization";
 import type { DbExecutor } from "./snapshot";
@@ -127,7 +128,7 @@ function toView(row: Awaited<ReturnType<typeof rows>>[number], viewer: string): 
     moistureLayerId: typeof job.result?.moistureLayerId === "string" ? job.result.moistureLayerId : null, moisture: request.moisture ?? null,
     vegetation: request.vegetation ?? null, outputs: row.files.map(file => ({ name: file.name, mediaType: file.mediaType, byteSize: file.byteSize })),
     createdBy: { accountId: job.accountId, name: row.creator }, own: job.accountId === viewer, createdAt: job.createdAt.toISOString(),
-    finishedAt: job.finishedAt?.toISOString() ?? null };
+    finishedAt: job.finishedAt?.toISOString() ?? null, ...(geoMergeOf(job) ? { mergedStages: geoMergeOf(job)!.stages.length } : {}) };
 }
 
 export async function listGeoJobs(db: Database, input: ClubProof & { projectId: string }, server: GeoServerView, now = new Date())
@@ -213,7 +214,8 @@ async function createJob(db: Database, gate: MapProjectGate, body: unknown, runt
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${"geo-job:" + access.accountId}, 0))`);
     // En delad körning (etapperna nedan) räknas som en.
     const [{ active } = { active: 0 }] = await tx.select({ active: sql<number>`count(distinct coalesce(${jobs.request}->'split'->>'group', ${jobs.id}::text))::int` }).from(jobs)
-      .where(and(eq(jobs.accountId, access.accountId), inArray(jobs.status, [...ACTIVE])));
+      // Sammanläggningen av en delad körnings etapper (geo-servern köar den själv) räknas inte som en körning.
+      .where(and(eq(jobs.accountId, access.accountId), inArray(jobs.status, [...ACTIVE]), sql`${jobs.request}->'merge' is null`));
     if (active >= ACTIVE_PER_ACCOUNT) return { status: "busy" } as const;
     // Kvoten räknar rutor i jobb som väntar eller har körts (även avbrutna och misslyckade efter start: servern har haft dem).
     const month = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
@@ -399,6 +401,8 @@ export interface ClaimedGeoJob {
   readonly extras: readonly { readonly index: number; readonly kind: "LAND_COVER" | "BUILDINGS" }[];
   readonly moisture: { readonly channelHa: number; readonly wetMeters: number; readonly moistMeters: number } | null;
   readonly vegetation: { readonly minAreaM2: number } | null;
+  /** Etapperna som jobbet lägger ihop (ägaren 2026-11-14), med filernas namn; annars inget. */
+  readonly merge?: { readonly stages: readonly { readonly jobId: string; readonly clip: NonNullable<ClaimedGeoJob["clip"]>; readonly outputs: readonly string[] }[] } | undefined;
 }
 
 /**
@@ -427,7 +431,9 @@ export async function claimGeoJob(db: Database, worker: string, now = new Date()
   await noteGeoServerJob(db, worker, now);
   // Filer från ett tidigare försök tas bort, så att resultatet bara kommer från ett försök (indata står kvar).
   await db.delete(outputs).where(and(eq(outputs.jobId, row.id), sql`${outputs.name} not like 'indata.%'`));
-  return { jobId: row.id, kind: row.kind, attempt: row.attempts, settings: row.request.settings ?? {}, clip: row.request.clip ?? null,
+  const merge = geoMergeOf(row);
+  return { ...(merge ? { merge: { stages: await claimedStages(db, merge) } } : {}),
+    jobId: row.id, kind: row.kind, attempt: row.attempts, settings: row.request.settings ?? {}, clip: row.request.clip ?? null,
     extras: (row.request.extras ?? []).map((extra, index) => ({ index, kind: extra.kind })), cliffs: row.request.cliffs ?? null, moisture: row.request.moisture ?? null,
     vegetation: row.request.vegetation ?? null, tiles: (row.request.tiles ?? []).map((tile, index) => ({ index, id: tile.id, epsg: tile.epsg ?? null })) };
 }
@@ -524,6 +530,9 @@ export async function finishGeoJob(db: Database, jobId: string, worker: string, 
       return { status: "ok", layerId: null } as const;
     }
     const files = await tx.select().from(outputs).where(eq(outputs.jobId, job.id));
+    // En sammanläggning av etapper: rutorna (och koordinatsystemet) är etappernas.
+    const merge = geoMergeOf(job);
+    if (merge) job.request = { ...job.request, tiles: [...merge.tiles] };
     const request = job.request as { name?: string; tiles?: { epsg?: number | null }[] };
     const name = (request.name ?? "Karttapullautin").slice(0, 80);
     const layerId = await layerFrom(tx, job, files, GEO_MAP_IMAGE, GEO_MAP_WORLD, name, 0.6, job.id, now);
@@ -536,6 +545,9 @@ export async function finishGeoJob(db: Database, jobId: string, worker: string, 
     await noteGeoServerJob(tx, worker, now);
     await tx.update(jobs).set({ status: "DONE", finishedAt: now, progress: null, error: null,
       result: { layerId, moistureLayerId, shadeLayerId, depthLayerId, reliefLayerId, greenLayerId, rockLayerId, ...(parsed.data.summary ? { summary: parsed.data.summary } : {}) } }).where(eq(jobs.id, job.id));
+    // Sista etappen i en delad körning köar sammanläggningen; en klar sammanläggning tar bort etapperna.
+    if (merge) await completeStageMerge(tx, job, merge);
+    else await queueStageMerge(tx, job, now);
     return { status: "ok", layerId } as const;
   });
 }

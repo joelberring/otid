@@ -59,7 +59,7 @@ export function joinStages(stages: readonly { readonly box: StageBox; readonly p
  * Vattnet som går över en etappgräns är två ytor som möts längs gränsen; strandlinjen dras längs ytornas kanter och skulle
  * då gå rakt över sjön. Vattenytorna slås därför ihop till hela sjöar.
  */
-function unionWater(features: readonly SourceFeature[]): SourceFeature[] {
+export function unionWater(features: readonly SourceFeature[]): SourceFeature[] {
   const water = features.filter(feature => feature.layer === "vatten" && feature.geometry.kind === "area");
   if (water.length < 2) return [...features];
   const polygons = water.map(feature => (feature.geometry as Extract<SourceFeature["geometry"], { kind: "area" }>).rings.map(ring => ring.map(([x, y]) => [x, y] as [number, number])) as Polygon);

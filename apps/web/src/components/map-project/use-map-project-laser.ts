@@ -114,6 +114,16 @@ export function useMapProjectLaser({ view, layers, importer, georeference, bound
     } finally { setBusy(undefined); }
   }
 
+  /** Ägaren 2026-11-14: etapperna i jobbets omgång läggs ihop till en körning på geo-servern (för körningar som delades före det). */
+  async function mergeStages(job: GeoJobView, from: LaserAsker) {
+    setMessage(undefined);
+    const result = await clubRequest(`${base}/geo-jobs/${job.jobId}/merge`, "POST").catch(() => ({ status: 0, json: undefined }));
+    if (result.status === 201) setMessage({ from, tone: "ok", text: text.mergeQueued });
+    else if (result.status === 409) setMessage({ from, tone: "error", text: text.mergeBusy });
+    else say(from, (result.json as { error?: string } | undefined)?.error ?? result.status);
+    await load();
+  }
+
   async function remove(job: GeoJobView, from: LaserAsker) {
     const result = await clubRequest(`${base}/geo-jobs/${job.jobId}`, "DELETE").catch(() => ({ status: 0, json: undefined }));
     if (result.status !== 200) say(from, (result.json as { error?: string } | undefined)?.error ?? result.status);
@@ -200,7 +210,7 @@ export function useMapProjectLaser({ view, layers, importer, georeference, bound
         return { box: row.clip!, parts: rowParts, ...(own && own !== "failed" ? { slope: { grid: own.grid, affine: own.affine } } : {}),
           ...(ownRock && ownRock !== "failed" ? { rock: ownRock } : {}) };
       });
-      const { data, calm, rock: rocky, soil: soiled } = await importer.readBaseMap({ parts: stageParts ? [] : parts, stages: stageParts, merge: baseMap, osm, scale: georeference?.scale,
+      const { data, calm, rock: rocky, soil: soiled } = await importer.readBaseMap({ parts: stageParts ? [] : parts, stages: stageParts, joined: !stages && !!job.mergedStages, merge: baseMap, osm, scale: georeference?.scale,
         cuts: cuts && { features: cuts.features, afterScan: cuts.afterScan }, soil, calm: slope === "failed" ? undefined : slope,
         rock: !stages && rock && rock !== "failed" ? { ...rock, level: DEFAULT_ROCK_LEVEL } : undefined },
         at => step(at.step === "read" ? text.steps.reading(at.done, at.total) : text.steps.merging));
@@ -229,7 +239,7 @@ export function useMapProjectLaser({ view, layers, importer, georeference, bound
     busy: !!busy, busyFor: (from: LaserAsker) => busy?.from === from ? busy.text : undefined,
     messageFor: (from: LaserAsker) => message?.from === from ? message : undefined,
     tell: (from: LaserAsker, tone: "ok" | "error", told: string) => setMessage({ from, tone, text: told }), clear: () => setMessage(undefined),
-    clipOf, boxOf, search, start, remove, candidates, baseMapFiles,
+    clipOf, boxOf, search, start, remove, mergeStages, candidates, baseMapFiles,
     /** Hela grundkartan som kandidater (samma som laserpanelens «Läs in grundkartan»). */
     loadBaseMap: (job: GeoJobView, from: LaserAsker) => candidates(job, baseMapFiles(job), text.baseMap, true, from),
     /** Alla etapper i jobbets omgång, när alla är klara och har grundkartans filer; annars `undefined`. */

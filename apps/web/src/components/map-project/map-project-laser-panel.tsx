@@ -208,12 +208,15 @@ export function MapProjectLaserPanel({ view, laser, importer, georeference, boun
             ? text.clipped(Math.round(job.clip.maxX - job.clip.minX), Math.round(job.clip.maxY - job.clip.minY)) : text.unclipped}</span>}
           {Object.keys(job.settings).length > 0 && <span className={styles.muted}> · {text.settingsUsed(Object.entries(job.settings)
             .map(([key, value]) => `${key} ${value}`).join(", "))}</span>}
+          {job.mergedStages !== undefined && <span className={styles.muted} data-testid="map-project-laser-merged"> · {(job.status === "DONE" ? text.mergedFrom : text.mergingFrom)(job.mergedStages)}</span>}
           {job.layerId && <span className={styles.muted}> · {text.layerAdded}</span>}
           {job.moistureLayerId && <span className={styles.muted}> · {text.moistureAdded}</span>}
           {job.skippedSteps.length > 0 && <span className={styles.muted} data-testid="map-project-laser-skipped"> · {text.skippedSteps(job.skippedSteps.map(step => text.stepNames[step] ?? step).join(", "))}</span>}
           {job.status === "DONE" && importer.canImport && <span className={styles.actions}>
             {stagesFor(job) && <Button disabled={busy} data-testid="map-project-laser-stages"
               onClick={() => void laser.loadStages(job, stagesFor(job)!, "panel")}>{text.loadStages(stagesFor(job)!.length)}</Button>}
+            {stagesFor(job) && <Button variant="secondary" disabled={busy} data-testid="map-project-laser-merge"
+              onClick={() => void laser.mergeStages(job, "panel")}>{text.mergeStages}</Button>}
             {laser.baseMapFiles(job).length > 1 && <Button variant={stagesFor(job) ? "secondary" : "primary"} disabled={busy} data-testid="map-project-laser-base-map"
               onClick={() => void laser.loadBaseMap(job, "panel")}>{text.loadBaseMap}</Button>}
             {job.outputs.filter(output => output.name in text.outputs).map(output => <Button key={output.name} variant="secondary" disabled={busy}

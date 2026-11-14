@@ -54,7 +54,7 @@ export class CandidateSession {
    * Resultatfilerna tolkas (och sätts ihop till grundkartan med `merge`) i Workern; `onStep` får var den är. Ett fel i en fil
    * blir `VectorParseError` med filens meddelande. Med `calm` lugnas kurvorna på flack mark, och svaret säger vad som togs bort.
    */
-  baseMap(request: { parts: readonly BaseMapPart[]; stages?: readonly BaseMapStage[] | undefined; merge: boolean; osm?: SourceData | undefined; scale?: number | undefined;
+  baseMap(request: { parts: readonly BaseMapPart[]; stages?: readonly BaseMapStage[] | undefined; joined?: boolean | undefined; merge: boolean; osm?: SourceData | undefined; scale?: number | undefined;
     cuts?: Extract<CandidateRequest, { type: "base-map" }>["cuts"]; norm?: Extract<CandidateRequest, { type: "base-map" }>["norm"]; calm?: BaseMapCalm | undefined;
     rock?: BaseMapRock | undefined; soil?: Extract<CandidateRequest, { type: "base-map" }>["soil"] },
     onStep: (step: BaseMapStep) => void): Promise<{ data: SourceData; calm?: CalmOutcome | undefined; rock?: RockOutcome | undefined; soil?: SoilOutcome | undefined }> {

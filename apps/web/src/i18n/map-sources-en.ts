@@ -137,6 +137,11 @@ export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
   loadBaseMap: "Load the base map",
   loadStages: (count: number) => `Load all ${count} stages as one base map`,
   allStages: "all stages",
+  mergeStages: "Join the stages on the server",
+  mergeQueued: "The stages are being joined on the geo server. It takes a few minutes; then there is one run instead of the stages.",
+  mergeBusy: "The stages are already being joined, or have already been joined.",
+  mergedFrom: (count: number) => `Joined from ${count} stages`,
+  mergingFrom: (count: number) => `Joining ${count} stages`,
   steps: {
     fetching: (done: number, total: number) => `Fetching files ${done} of ${total} …`,
     reading: (done: number, total: number) => `Reading files ${done} of ${total} …`,

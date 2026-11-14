@@ -2,7 +2,7 @@ import {
   retireGeoServer,
   authenticateGeoWorker, fetchMapProjectForestImage, fetchMapProjectMoisture, forestImageRuntimeFromEnvironment, moistureRuntimeFromEnvironment,
   type ForestImageRuntime, type MoistureRuntime, claimGeoJob, createGeoJob, discardStagedMapContent, finishGeoJob, geoServerView, heartbeatGeoJob, laserRuntimeFromEnvironment,
-  lantmaterietRuntimeFromEnvironment, listGeoJobs, openGeoJobLaser, pruneGeoJobs, readGeoOutput, removeGeoJob, searchMapProjectLaser, stageMapContent, storeGeoOutput,
+  lantmaterietRuntimeFromEnvironment, listGeoJobs, mergeGeoStages, openGeoJobLaser, pruneGeoJobs, readGeoOutput, readGeoStageOutput, removeGeoJob, searchMapProjectLaser, stageMapContent, storeGeoOutput,
   type LaserRuntime
 } from "@o-tid/application";
 import { GEO_OUTPUT_MAX_BYTES, GEO_OUTPUT_NAME, GEO_WORKER_VERSION, UUID_PATTERN, geoJobPruneResponseSchema } from "@o-tid/contracts";
@@ -118,6 +118,17 @@ export async function geoJobsPruneRoute(db: Database, request: Request, projectI
   });
 }
 
+/** POST "Lägg ihop etapperna" (ägaren 2026-11-14): köar sammanläggningen på geo-servern för etappens omgång. */
+export async function geoJobMergeRoute(db: Database, request: Request, projectId: string, jobId: string, environment: ClubEnvironment = process.env): Promise<Response> {
+  if (!UUID_PATTERN.test(projectId) || !UUID_PATTERN.test(jobId)) return failure("not-found");
+  const input = await mutation(request, environment, "none");
+  if ("response" in input) return input.response;
+  return guarded(async () => {
+    const result = await mergeGeoStages(db, { ...input.proof, projectId, jobId });
+    return result.status === "queued" ? privateJson({ formatVersion: 1, jobId: result.jobId }, 201) : failure(result.status);
+  });
+}
+
 /** GET en resultatfil (kurvor m.m. som DXF, bilden, världsfilen). */
 export async function geoOutputRoute(db: Database, request: Request, projectId: string, jobId: string, name: string, environment: ClubEnvironment = process.env)
   : Promise<Response> {
@@ -188,6 +199,21 @@ export async function geoWorkerLaserRoute(db: Database, request: Request, jobId:
     const length = result.response.headers.get("content-length");
     if (length) headers.set("content-length", length);
     return new Response(result.response.body, { status: 200, headers });
+  });
+}
+
+/** GET /api/geo-worker/jobs/[jobId]/stages/[stageId]/[name]: en etapps resultatfil, för jobbet som lägger ihop etapperna. */
+export async function geoWorkerStageRoute(db: Database, request: Request, jobId: string, stageId: string, fileName: string,
+  environment: Record<string, string | undefined> = process.env): Promise<Response> {
+  const name = await worker(db, request, environment);
+  if (typeof name !== "string") return name;
+  return guarded(async () => {
+    const bytes = await readGeoStageOutput(db, jobId, name, stageId, fileName);
+    if (!bytes) return failure("not-found");
+    const headers = new Headers(privateHeaders);
+    headers.set("content-type", "application/octet-stream");
+    headers.set("content-length", String(bytes.byteLength));
+    return new Response(new Uint8Array(bytes), { status: 200, headers });
   });
 }
 

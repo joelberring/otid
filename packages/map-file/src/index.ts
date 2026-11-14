@@ -3,6 +3,7 @@ export * from "./render";
 export { readMapFile } from "./read";
 export { decimalYear, magneticDeclination, type Declination } from "./wmm";
 export { declinationAt, mapNorthFacts, northLineDegrees, type MapNorthFacts } from "./declination";
+export { northLineSegments, northLineSpacing } from "./north-lines";
 export { MAP_READER_VERSION } from "./version";
 export {
   crsFromEpsg, geodeticToGrid, gridToGeodetic, isSupportedEpsg, mapPointToProjected, mapPointToWgs84, projectedToMapPoint,

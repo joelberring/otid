@@ -13,6 +13,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-14 – Rita nordlinjer (601)
+
+- Ägaren: «hur lägger man till meridianer?». Panelen «Magnetisk nord» har fått «Rita nordlinjer»: raka, parallella linjer över hela kartan som kandidater, i kartans egen riktning eller mot dagens magnetiska nord (WMM), 300 m emellan (sprint: 30 mm på kartan), en genom referenspunkten.
+- `northLineSegments`/`northLineSpacing` i `@o-tid/map-file`; lagret «nordlinjer» föreslås symbol 601 (annars kartans första linjesymbol 601.x).
+- Verifierat: enhetstester, lint, typecheck. Inte provat i webbläsaren mot en riktig karta. Omriktningen av hela kartan återstår.
+
 ### 2026-11-14 – Tydligare kurvbild (tre reglage) och färre punkthöjder som förval (geo-arbetaren 34)
 
 - Mätt mot kartritarnas kartor över samma laser (Högdalen, Gömmaren, Djurgården): kartritarna svänger 12–27 % mindre på mark under 6 % lutning men lika mycket eller mer i brantare, har 41–64 % av laserns hjälpkurvor (helst där marken är en höjd i stort, få där kurvorna ligger tätt) och 49–453 slutna hjälpkurvor mot laserns 196–613.

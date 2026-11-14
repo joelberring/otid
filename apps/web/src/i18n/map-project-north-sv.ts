@@ -11,5 +11,18 @@ export const mapProjectNorthSv = {
     : `Skillnad ${degrees(Math.abs(value))} ${value > 0 ? "åt öster" : "åt väster"}: med kompassen pekar kartans nordlinjer så mycket fel.`,
   invalid: "Datumet ligger utanför World Magnetic Model 2025 (2025–2030); värdet är osäkrare.",
   noGeoreference: "Kartan har inget känt koordinatsystem, så missvisningen kan inte räknas.",
-  later: "Att rikta om kartan (vrida objekten och rita nya nordlinjer) är planerat men inte byggt än."
+  later: "Att rikta om kartan (vrida alla objekt mot dagens magnetiska nord) är planerat men inte byggt än.",
+  draw: {
+    heading: "Rita nordlinjer",
+    direction: "Riktning",
+    asMap: (value: number) => `Som kartan är ritad (missvisning ${degrees(value)})`,
+    today: (value: number) => `Dagens magnetiska nord (${degrees(value)})`,
+    spacing: (meters: number, mm: number) => `Avstånd mellan linjerna: ${meters} m (${mm.toLocaleString("sv-SE")} mm på kartan)`,
+    run: "Visa som kandidater",
+    name: "Nordlinjer",
+    done: (count: number, code: string) => `${count} nordlinjer (${code}) visas som kandidater över hela kartan. Lägg in dem i raden under kartan.`,
+    existing: "Kartan har redan nordlinjer; de nya läggs ovanpå. Ta bort de gamla först om de ska bytas.",
+    noSymbol: "Kartan har ingen linjesymbol för nordlinjer (601).",
+    noArea: "Kartan har ingen utbredning än."
+  }
 };

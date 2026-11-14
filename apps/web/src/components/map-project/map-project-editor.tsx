@@ -776,7 +776,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
           workPanel={<MapProjectWorkLayers work={work} catalog={catalog} state={symbolLayers.state} onState={symbolLayers.update} />} />
           {georeference && <MapProjectUnderlayPanels view={view} georeference={georeference} bounds={editor.bounds ?? undefined} areas={collab.areas}
             layers={layers} control={control} importer={importer} symbols={symbols} work={work} onSplit={view.viewer.canDecide ? area => startSplit(area ?? null) : undefined} />}
-          {georeference && <MapProjectNorthPanel georeference={georeference} northLines={editor.northLines} />}
+          {georeference && <MapProjectNorthPanel georeference={georeference} northLines={editor.northLines} bounds={editor.bounds ?? undefined} importer={importer} symbols={symbols} />}
           <MapProjectColors colors={editor.colors} saved={editor.colorChanges} canChange={canDecide} ocad={view.base.format === "OCD"} onShow={editor.showColors} onSave={editor.saveColors} />
         </>}
         review={<>

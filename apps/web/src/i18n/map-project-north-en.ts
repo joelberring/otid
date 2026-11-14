@@ -14,5 +14,18 @@ export const mapProjectNorthEn: Texts<typeof mapProjectNorthSv> = {
     : `Difference ${degrees(Math.abs(value))} ${value > 0 ? "to the east" : "to the west"}: with a compass the map's north lines are that much off.`,
   invalid: "The date is outside World Magnetic Model 2025 (2025–2030); the value is less certain.",
   noGeoreference: "The map has no known coordinate system, so the declination cannot be calculated.",
-  later: "Re-orienting the map (rotating the objects and drawing new north lines) is planned but not built yet."
+  later: "Re-orienting the map (rotating all objects to today's magnetic north) is planned but not built yet.",
+  draw: {
+    heading: "Draw north lines",
+    direction: "Direction",
+    asMap: (value: number) => `As the map is drawn (declination ${degrees(value)})`,
+    today: (value: number) => `Today's magnetic north (${degrees(value)})`,
+    spacing: (meters: number, mm: number) => `Distance between the lines: ${meters} m (${mm.toLocaleString("en-GB")} mm on the map)`,
+    run: "Show as candidates",
+    name: "North lines",
+    done: (count: number, code: string) => `${count} north lines (${code}) are shown as candidates across the whole map. Add them in the row below the map.`,
+    existing: "The map already has north lines; the new ones are added on top. Remove the old ones first if they are to be replaced.",
+    noSymbol: "The map has no line symbol for north lines (601).",
+    noArea: "The map has no extent yet."
+  }
 };

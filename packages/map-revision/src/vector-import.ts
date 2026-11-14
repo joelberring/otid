@@ -80,6 +80,8 @@ export function guessCrs(data: SourceData, georeference?: MapGeoreference): numb
 
 /** Ord i lagrets namn (versaler, utan å, ä och ö) → symbolens nummer, som i plandokumentet för baskartorna. Första träffen gäller. */
 const KEYWORDS: readonly { readonly words: RegExp; readonly line?: string; readonly area?: string; readonly point?: string }[] = [
+  // Nordlinjerna som O-Tid ritar (ägaren 2026-11-14).
+  { words: /^NORDLINJER$/, line: "601" },
   // G8: marktäckets bebyggelseyta får inget förslag (före reglerna nedan).
   { words: /BEBYGGELSE/ },
   // Skogsstyrelsens hyggen efter ålder och deras kant (ägaren 2026-11-11), före reglerna för öppen mark och grönt.

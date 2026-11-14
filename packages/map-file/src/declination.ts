@@ -14,6 +14,8 @@ export interface MapNorthFacts {
   readonly magnetic: Declination;
   /** Magnetisk i dag minus kartans (grader). */
   readonly difference: number;
+  /** Meridiankonvergensen i referenspunkten: sann nords riktning i nätet (grader medurs från nätets norr är −konvergensen). */
+  readonly convergence: number;
 }
 
 /**
@@ -31,7 +33,7 @@ export function mapNorthFacts(georef: MapGeoreference, date: string | Date, nort
   // Linjerna är ritade i kartan, som själv är vriden `grivationDegrees` mot nätet.
   const mapDeclination = georef.grivationDegrees + (northLines ?? 0) + convergence;
   const magnetic = magneticDeclination(here.latitude, here.longitude, decimalYear(date));
-  return { mapDeclination, magnetic, difference: magnetic.degrees - mapDeclination };
+  return { mapDeclination, magnetic, difference: magnetic.degrees - mapDeclination, convergence };
 }
 
 /** Missvisningen för en punkt i WGS 84 ett datum, avrundad till en tiondels grad (förvalet för en ny karta). */

@@ -13,6 +13,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-14 – Förenkla de gröna ytorna (reglage)
+- Ägaren: «ett reglage som generaliserar gröna ytor mer, så att en sån här form blir enklare redovisad». «Grönt med reglage» har
+  «Förenkla formerna» 0–10 direkt under mängden (0 = som förut). Högre sluter vikar (5 m per steg), tar bort armar (3 m per steg)
+  och små fläckar, fyller hål (250 m² per steg) och rätar kanten (`simplification`, `smoothMaskWide`, `fillHoles`). Gäller 406, 408
+  och 410, som ligger kvar inuti varandra; öppen mark och undervegetation rörs inte. Utan ny körning.
+- Verifierat: enhetstester (vik, arm, hål, fläck, stegen inuti varandra) och tid på en bild av Ornö södras storlek (cirka 10 s, som
+  förut). Inte sett på en riktig karta: stegens mått är satta med omdöme.
+
 ### 2026-11-14 – Etapperna läggs ihop på geo-servern, och kartan öppnas fortare
 - Ägaren: «det verkade som den andra tråden inte gjorde ihopläsningen på servern. jag skulle vilja att det var så». När den sista
   etappen i en delad körning är klar köar servern en sammanläggning (`map-project-geo-merge.ts`); geo-arbetaren 32 hämtar etappernas

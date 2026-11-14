@@ -1,5 +1,5 @@
 import type { SourceData, SourceFeature } from "@o-tid/map-revision";
-import { smoothMask, SMOOTH_RADIUS_CELLS } from "./map-project-mask-smooth";
+import { fillHoles, simplification, smoothMask, smoothMaskWide, SMOOTH_RADIUS_CELLS } from "./map-project-mask-smooth";
 import { scatteredTrees } from "./map-project-scattered-trees";
 import { compactMask, maskOutlines, simplifyRing, type PhotoPixels } from "@o-tid/map-revision/base-map";
 
@@ -18,7 +18,13 @@ export interface GreenSettings { readonly slow: number; readonly difficult: numb
    * (`DENSE_MID_SHARE`); mätt mot Högdalen 2026-11-13 ger 0,08 mest träff (F 0,42, yta 0,6–1,1 × kartans), 0,10 ger 0,4–0,7 ×
    * (F 0,38) och 0,12 ger 0,2–0,5 × (F 0,35). Gäller klassbilder från geo-arbetaren 28 och senare.
    */
-  readonly denseShare?: number | undefined }
+  readonly denseShare?: number | undefined;
+  /**
+   * Förenkla de gröna ytorna, 0–10 (ägaren 2026-11-14: «ett reglage som generaliserar gröna ytor mer»). 0 = som förut. Högre
+   * sluter smala vikar, tar bort tunna armar och små fläckar, fyller små hål och rätar kanten (`simplification`). Gäller 406,
+   * 408 och 410; stegen ligger kvar inuti varandra, eftersom alla tre förenklas lika.
+   */
+  readonly simplify?: number | undefined }
 /** Minsta bestånd (m²) och förenkling (celler) per nivå: färre gränser = större bestånd och rakare kanter. */
 const BORDER_LEVELS: Readonly<Record<Exclude<BorderLevel, "none">, { minAreaM2: number; simplify: number }>> = {
   few: { minAreaM2: 5000, simplify: 2 }, some: { minAreaM2: 2000, simplify: 1.25 }, many: { minAreaM2: 600, simplify: 0.75 } };
@@ -58,13 +64,17 @@ export function greenCandidates(pixels: PhotoPixels, settings: GreenSettings, to
   const minCells = Math.max(2, Math.round(settings.minAreaM2 / (cellMeters * cellMeters)));
   const features: SourceFeature[] = [];
   const hectares: Record<string, number> = {};
+  const simpler = (settings.simplify ?? 0) > 0 ? simplification(settings.simplify!, cellMeters) : undefined;
   for (const layer of layers) {
     // Ägaren 2026-11-12: ytorna jämnas ut som i geo-arbetaren (gult öppnas bara ett steg, så att smala gläntor finns kvar).
     const raw = values.map((value, i) => (known[i] || layer.name === "oppen_mark_spridda_trad") && layer.test(value, i) ? 1 : 0);
-    const mask = compactMask(smoothMask(raw, columns, rows, SMOOTH_RADIUS_CELLS, layer.name.startsWith("oppen_mark") ? 1 : SMOOTH_RADIUS_CELLS), columns, rows, minCells);
+    const green = simpler && layer.name.startsWith("gron_") ? simpler : undefined;
+    const smooth = green ? fillHoles(smoothMaskWide(raw, columns, rows, green.close, green.open), columns, rows, green.holeCells)
+      : smoothMask(raw, columns, rows, SMOOTH_RADIUS_CELLS, layer.name.startsWith("oppen_mark") ? 1 : SMOOTH_RADIUS_CELLS);
+    const mask = compactMask(smooth, columns, rows, Math.round(minCells * (green?.areaFactor ?? 1)));
     hectares[layer.name] = Math.round(mask.reduce((sum, cell) => sum + cell, 0) * cellMeters * cellMeters / 100) / 100;
     for (const ring of maskOutlines(mask, columns, rows)) {
-      const simple = simplifyRing(ring, 0.75);
+      const simple = simplifyRing(ring, green?.tolerance ?? 0.75);
       if (simple.length >= 4) features.push({ layer: layer.name, geometry: { kind: "line", closed: true, points: simple.map(([column, row]) => toSource(column, row)) } });
     }
   }

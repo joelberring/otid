@@ -224,6 +224,8 @@ export const mapSourcesEn: Texts<Sources> = {
     dense: (percent: number) => `Dense shrub layer turns green from ${percent}% of laser returns 1–3 m above ground (new runs)`,
     minArea: (square: number) => `Smallest area: ${square} m²`,
     undergrowth: "Undergrowth (407, 409)",
+    simplify: (level: number) => `Simplify the shapes: ${level === 0 ? "off" : level}`,
+    simplifyHelp: "Higher closes narrow bays, removes thin arms and small patches, fills small holes and straightens the edges. 0 leaves the areas as the laser data gives them.",
     run: "Show as candidates",
     name: (layer: string) => `${layer} – green`.slice(0, 120),
     done: (slow: string, difficult: string, fight: string) => `${slow} ha slow, ${difficult} ha difficult, ${fight} ha very difficult. Change the steps and it is recalculated.`,

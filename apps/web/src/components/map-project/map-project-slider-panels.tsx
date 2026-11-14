@@ -84,7 +84,15 @@ export function MapProjectDepthPanel(props: Props & { view: MapProjectView; boun
 export function MapProjectGreenPanel(props: Props) {
   const text = useTexts(mapSourcesSv.green, mapSourcesEn.green);
   const forest = useTexts(mapForestSv, mapForestEn);
-  return <MapProjectRasterPanel {...props} match={/vegetationsklasser$/} own={/^(oppen_mark|oppen_mark_laser|gron_|undervegetation_|bestandsgrans_laser$)/} text={text} testId="map-project-green" initial={DEFAULT_GREEN} atLevel={greenAt}
+  // Ägaren 2026-11-14: förenklingen står direkt under mängden (inte under Finjustera) och räknar om ytorna när den ändras.
+  const [simplify, setSimplify] = useState(0);
+  return <MapProjectRasterPanel {...props} refreshKey={simplify}
+    extras={<>
+      <label>{text.simplify(simplify)}<input type="range" min={0} max={10} step={1} value={simplify} data-testid="map-project-green-simplify"
+        onChange={event => setSimplify(Number(event.target.value))} /></label>
+      <p className={styles.muted}>{text.simplifyHelp}</p>
+    </>}
+    match={/vegetationsklasser$/} own={/^(oppen_mark|oppen_mark_laser|gron_|undervegetation_|bestandsgrans_laser$)/} text={text} testId="map-project-green" initial={DEFAULT_GREEN} atLevel={greenAt}
     controls={(settings, change) => <>
       {(["slow", "difficult", "fight"] as const).map(key => <label key={key}>{text.step(key, settings[key])}
         <input type="range" min={0} max={12} step={1} value={settings[key]} data-testid={`map-project-green-${key}`} onChange={event => {
@@ -106,7 +114,7 @@ export function MapProjectGreenPanel(props: Props) {
       <label><input type="checkbox" checked={settings.undergrowth} onChange={() => change({ undergrowth: !settings.undergrowth })} /> {text.undergrowth}</label>
     </>}
     compute={(pixels, settings, toSource, crs, cell) => {
-      const result = greenCandidates(pixels, settings, toSource, crs, cell);
+      const result = greenCandidates(pixels, { ...settings, simplify }, toSource, crs, cell);
       return { data: result.data, message: text.done(decimal(result.hectares.gron_lattlopt ?? 0), decimal(result.hectares.gron_svarlopt ?? 0),
         decimal(result.hectares.gron_mycket_svarlopt ?? 0)) };
     }} />;

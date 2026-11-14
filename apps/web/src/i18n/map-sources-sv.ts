@@ -92,6 +92,8 @@ export const mapSourcesSv = {
     dense: (percent: number) => `Tätt buskskikt blir grönt från ${percent} % av laserträffarna 1–3 m över marken (nya körningar)`,
     minArea: (square: number) => `Minsta yta: ${square} m²`,
     undergrowth: "Undervegetation (407, 409)",
+    simplify: (level: number) => `Förenkla formerna: ${level === 0 ? "av" : level}`,
+    simplifyHelp: "Högre sluter smala vikar, tar bort tunna armar och små fläckar, fyller små hål och rätar kanterna. 0 lämnar ytorna som lasern ger dem.",
     run: "Visa som kandidater",
     name: (layer: string) => `${layer} – grönt`.slice(0, 120),
     done: (slow: string, difficult: string, fight: string) => `${slow} ha löphindrande, ${difficult} ha svårlöpt, ${fight} ha mycket svårlöpt. Ändra stegen så räknas det om.`,

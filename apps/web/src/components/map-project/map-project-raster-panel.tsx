@@ -2,10 +2,12 @@
 
 import { mapPointToProjected, type MapGeoreference } from "@o-tid/map-file";
 import type { SourceData } from "@o-tid/map-revision";
+import type { Affine } from "../../lib/map-project-layers";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { mapSavedChoiceEn } from "../../i18n/map-knolls-en";
 import { mapSavedChoiceSv } from "../../i18n/map-knolls-sv";
 import type { PhotoPixels } from "@o-tid/map-revision/base-map";
+import { choicePixels, rasterChoices } from "../../lib/map-project-raster-mosaic";
 import { useTexts } from "../language-provider";
 import { Button } from "../ui";
 import type { useMapProjectImport } from "./use-map-project-import";
@@ -44,10 +46,11 @@ export function MapProjectRasterPanel<S>({ layers, georeference, importer, match
   const shared = useTexts(mapSavedChoiceSv, mapSavedChoiceEn);
   const [live, setLive] = useState(false);
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
-  const pixels = useRef<{ layerId: string; data: ImageData } | undefined>(undefined);
-  const shown = layers.loaded.map(drawn => ({ drawn, name: layers.layers.find(row => row.layerId === drawn.layerId)?.name ?? drawn.layerId }))
-    .filter(row => match.test(row.name));
-  const current = shown.find(row => row.drawn.layerId === chosen) ?? shown[0];
+  const pixels = useRef<{ key: string; data: ImageData; toMap: Affine } | undefined>(undefined);
+  // En körning i etapper visas som en helhet (förvald), så att reglagen räknar hela kartan på en gång.
+  const choices = rasterChoices(layers.loaded.map(drawn => ({ drawn, layerId: drawn.layerId, name: layers.layers.find(row => row.layerId === drawn.layerId)?.name ?? drawn.layerId }))
+    .filter(row => match.test(row.name)));
+  const current = choices.find(choice => choice.id === chosen) ?? choices[0];
   const crs = georeference.crs.kind === "EPSG" ? georeference.crs.code : undefined;
 
   // De inställningar som senast räknats: att slå på omräkningen ska inte räkna samma sak en gång till (och då ersätta en
@@ -57,15 +60,13 @@ export function MapProjectRasterPanel<S>({ layers, georeference, importer, match
     ran.current = next; ranKey.current = refreshKey;
     if (!current || crs === undefined) return;
     try {
-      const { image, toMap } = current.drawn;
-      if (pixels.current?.layerId !== current.drawn.layerId) {
-        const canvas = document.createElement("canvas");
-        canvas.width = image.width; canvas.height = image.height;
-        const context = canvas.getContext("2d", { willReadFrequently: true });
-        if (!context) { setMessage({ tone: "error", text: text.failed }); return; }
-        context.drawImage(image, 0, 0);
-        pixels.current = { layerId: current.drawn.layerId, data: context.getImageData(0, 0, image.width, image.height) };
+      const key = `${current.id}:${current.members.map(member => member.layerId).join(",")}`;
+      if (pixels.current?.key !== key) {
+        const read = choicePixels(current.members.map(member => member.drawn));
+        if (!read) { setMessage({ tone: "error", text: text.failed }); return; }
+        pixels.current = { key, ...read };
       }
+      const { toMap } = pixels.current;
       const cellMeters = Math.hypot(toMap.a, toMap.d) * georeference.scale / 1000;
       const result = compute(pixels.current.data, next, (column, row) => {
         const at = mapPointToProjected(georeference, { x: toMap.a * column + toMap.b * row + toMap.c, y: toMap.d * column + toMap.e * row + toMap.f });
@@ -94,8 +95,8 @@ export function MapProjectRasterPanel<S>({ layers, georeference, importer, match
     <summary>{text.heading}</summary>
     <p className={styles.muted}>{text.help}</p>
     {!current ? <p className={styles.muted}>{text.none}</p> : <>
-      <label>{text.layer}<select value={current.drawn.layerId} onChange={event => { setChosen(event.target.value); setLive(false); }}>
-        {shown.map(row => <option key={row.drawn.layerId} value={row.drawn.layerId}>{row.name}</option>)}
+      <label>{text.layer}<select value={current.id} onChange={event => { setChosen(event.target.value); setLive(false); }}>
+        {choices.map(choice => <option key={choice.id} value={choice.id}>{choice.members.length > 1 ? shared.allStages(choice.name, choice.members.length) : choice.name}</option>)}
       </select></label>
       <label>{(text.amount ?? shared.amount)(level)}
         <input type="range" min={1} max={10} step={1} value={level} data-testid={`${testId}-amount`}

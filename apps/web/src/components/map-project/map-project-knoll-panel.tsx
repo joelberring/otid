@@ -7,6 +7,7 @@ import { mapKnollsEn, mapSavedChoiceEn } from "../../i18n/map-knolls-en";
 import { mapKnollsSv, mapSavedChoiceSv } from "../../i18n/map-knolls-sv";
 import { clubRequest } from "../../lib/club-archive-client";
 import { mapProjectBase } from "../../lib/map-project-client";
+import { inClip, stageChoices } from "../../lib/map-project-stages";
 import {
   chooseKnolls, cliffFeatures, cliffLimitsAt, DEFAULT_KNOLL_LIMITS, defaultCliffLimits, knollFeatures, knollLimitsAt, readCliffCandidates, readKnollCandidates,
   type CliffLimits, type KnollLimits
@@ -24,7 +25,9 @@ type Slider<L> = (key: keyof L & string, label: string, min: number, max: number
  * sparat med sina mått (`file`), med reglage. Kandidaterna räknas om en kort stund efter att ett reglage flyttats, utan att
  * laserdatan hämtas eller körs igen. Bara panelens egna lager (`own`) byts i det som visas; grundkartan i övrigt står kvar.
  */
-function SavedChoicePanel<C, L extends object>({ view, importer, file, own, initial, read, choose, heading, help, name, controls, testId, atLevel }: {
+function SavedChoicePanel<C, L extends object>({ view, importer, file, own, initial, read, choose, heading, help, name, controls, testId, atLevel, position }: {
+  /** Var en kandidat ligger (kandidaternas koordinater): med alla etapper tas varje etapps kandidater bara inom dess klippruta. */
+  position: (candidate: C) => readonly [number, number];
   /** Gränserna för en mängd på skalan 1–10 (5 = förvalen); `current` är det som är finjusterat. */
   atLevel: (level: number, current: L) => L;
   view: MapProjectView; importer: Importer; file: string; own: RegExp; initial: L; read: (json: unknown) => C[];
@@ -34,7 +37,8 @@ function SavedChoicePanel<C, L extends object>({ view, importer, file, own, init
 }) {
   const text = useTexts(mapSavedChoiceSv, mapSavedChoiceEn);
   const base = mapProjectBase(view.projectId);
-  const [jobs, setJobs] = useState<readonly { jobId: string; name: string }[]>();
+  type Job = Pick<GeoJobList["jobs"][number], "jobId" | "name" | "status" | "createdAt" | "clip">;
+  const [jobs, setJobs] = useState<readonly Job[]>();
   const [chosen, setChosen] = useState("");
   const [loaded, setLoaded] = useState<{ jobId: string; name: string; candidates: readonly C[] }>();
   const [limits, setLimits] = useState<L>(initial);
@@ -46,18 +50,26 @@ function SavedChoicePanel<C, L extends object>({ view, importer, file, own, init
     if (jobs) return;
     const result = await clubRequest(`${base}/geo-jobs`).catch(() => ({ status: 0, json: undefined }));
     const list = result.status === 200 ? (result.json as GeoJobList).jobs : [];
-    setJobs(list.filter(job => job.status === "DONE" && job.outputs.some(output => output.name === file)).map(job => ({ jobId: job.jobId, name: job.name })));
+    setJobs(list.filter(job => job.status === "DONE" && job.outputs.some(output => output.name === file))
+      .map(job => ({ jobId: job.jobId, name: job.name, status: job.status, createdAt: job.createdAt, clip: job.clip })));
   }
-  const job = jobs?.find(row => row.jobId === chosen) ?? jobs?.[0];
+  // En körning i etapper är ett eget val (förvalt), så att reglagen räknar hela kartan och inte en remsa i taget.
+  const choices = jobs ? stageChoices(jobs) : undefined;
+  const job = choices?.find(row => row.id === chosen) ?? choices?.[0];
+  const label = (choice: NonNullable<typeof job>) => choice.stages ? text.allStages(choice.stages.base, choice.stages.total) : choice.jobs[0]!.name;
 
   async function load() {
     if (!job) return;
     setBusy(true); setMessage(undefined);
     try {
-      const response = await fetch(`${base}/geo-jobs/${job.jobId}/outputs/${file}`, { credentials: "same-origin" }).catch(() => undefined);
-      const candidates = response?.ok ? read(await response.json().catch(() => undefined)) : [];
-      if (candidates.length === 0) { setMessage({ tone: "error", text: text.failed }); return; }
-      setLoaded({ jobId: job.jobId, name: job.name, candidates });
+      const parts = await Promise.all(job.jobs.map(async row => {
+        const response = await fetch(`${base}/geo-jobs/${row.jobId}/outputs/${file}`, { credentials: "same-origin" }).catch(() => undefined);
+        const candidates = response?.ok ? read(await response.json().catch(() => undefined)) : [];
+        // Etapperna går omlott: varje etapp ger bara det som ligger i dess egen ruta.
+        return job.stages && row.clip ? candidates.filter(candidate => inClip(position(candidate), row.clip!)) : candidates;
+      }));
+      if (parts.some(part => part.length === 0)) { setMessage({ tone: "error", text: text.failed }); return; }
+      setLoaded({ jobId: job.id, name: job.stages?.base ?? job.jobs[0]!.name, candidates: parts.flat() });
     } finally { setBusy(false); }
   }
 
@@ -85,10 +97,10 @@ function SavedChoicePanel<C, L extends object>({ view, importer, file, own, init
     <p className={styles.muted}>{help}</p>
     {jobs && jobs.length === 0 && <p className={styles.muted}>{text.none}</p>}
     {job && <>
-      <label>{text.job}<select value={job.jobId} onChange={event => { setChosen(event.target.value); setLoaded(undefined); setMessage(undefined); }}>
-        {jobs!.map(row => <option key={row.jobId} value={row.jobId}>{row.name}</option>)}
+      <label>{text.job}<select value={job.id} onChange={event => { setChosen(event.target.value); setLoaded(undefined); setMessage(undefined); }}>
+        {choices!.map(row => <option key={row.id} value={row.id}>{label(row)}</option>)}
       </select></label>
-      {loaded?.jobId !== job.jobId ? <span className={styles.actions}>
+      {loaded?.jobId !== job.id ? <span className={styles.actions}>
         <Button variant="secondary" disabled={busy} onClick={() => void load()} data-testid={`${testId}-load`}>{busy ? text.loading : text.load}</Button>
       </span> : <>
         {/* Ägaren 2026-11-12: en skala 1–10 med förvalet i mitten; de enskilda gränserna finns under Finjustera. */}
@@ -109,7 +121,7 @@ function SavedChoicePanel<C, L extends object>({ view, importer, file, own, init
 export function MapProjectKnollPanel({ view, importer }: { view: MapProjectView; importer: Importer }) {
   const text = useTexts(mapKnollsSv, mapKnollsEn).knolls;
   return <SavedChoicePanel<Parameters<typeof chooseKnolls>[0][number], KnollLimits> view={view} importer={importer} file="kullar.geojson" own={/^dotknoll_laser$/}
-    initial={DEFAULT_KNOLL_LIMITS} atLevel={knollLimitsAt} read={readKnollCandidates} heading={text.heading} help={text.help} name={text.name} testId="map-project-knolls"
+    initial={DEFAULT_KNOLL_LIMITS} atLevel={knollLimitsAt} position={candidate => candidate.at} read={readKnollCandidates} heading={text.heading} help={text.help} name={text.name} testId="map-project-knolls"
     choose={(candidates, limits) => { const points = chooseKnolls(candidates, limits); return { features: knollFeatures(points), message: text.done(points.length, candidates.length) }; }}
     controls={(limits, slider) => <>
       {slider("minRise", text.minRise(limits.minRise.toLocaleString("sv-SE", { minimumFractionDigits: 1 })), 0.5, 3, 0.1)}
@@ -124,7 +136,7 @@ export function MapProjectCliffPanel({ view, importer, scale }: { view: MapProje
   const text = useTexts(mapKnollsSv, mapKnollsEn).cliffs;
   const meters = (value: number) => value.toLocaleString("sv-SE", { minimumFractionDigits: 1 });
   return <SavedChoicePanel<Parameters<typeof cliffFeatures>[0][number], CliffLimits> view={view} importer={importer} file="brantlinjer.geojson" own={/^brant_/}
-    initial={defaultCliffLimits(scale)} atLevel={(level, current) => cliffLimitsAt(level, current, scale)} read={readCliffCandidates} heading={text.heading} help={text.help} name={text.name} testId="map-project-cliffs"
+    initial={defaultCliffLimits(scale)} atLevel={(level, current) => cliffLimitsAt(level, current, scale)} position={candidate => candidate.line[Math.floor(candidate.line.length / 2)]!} read={readCliffCandidates} heading={text.heading} help={text.help} name={text.name} testId="map-project-cliffs"
     choose={(candidates, limits) => { const result = cliffFeatures(candidates, limits); return { features: result.features, message: text.done(result.impassable, result.passable, candidates.length) }; }}
     controls={(limits, slider, change) => <>
       {slider("minDrop", text.minDrop(meters(limits.minDrop)), 0.8, 6, 0.1)}

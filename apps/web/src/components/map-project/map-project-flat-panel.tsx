@@ -3,9 +3,10 @@
 import { mapPointToProjected, type MapGeoreference } from "@o-tid/map-file";
 import { DEFAULT_FLAT_LEVEL, flatLimitsAt, flatSlopeFrom, slopeGridOf } from "@o-tid/map-revision/base-map";
 import { useEffect, useRef, useState } from "react";
-import { mapFlatContoursEn } from "../../i18n/map-knolls-en";
-import { mapFlatContoursSv } from "../../i18n/map-knolls-sv";
-import { bitmapPixels, layerAffine } from "../../lib/map-project-flat-contours";
+import { mapFlatContoursEn, mapSavedChoiceEn } from "../../i18n/map-knolls-en";
+import { mapFlatContoursSv, mapSavedChoiceSv } from "../../i18n/map-knolls-sv";
+import { layerAffine } from "../../lib/map-project-flat-contours";
+import { choicePixels, rasterChoices } from "../../lib/map-project-raster-mosaic";
 import { useTexts } from "../language-provider";
 import { Button } from "../ui";
 import type { useMapProjectImport } from "./use-map-project-import";
@@ -24,15 +25,17 @@ const CONTOURS = /^(contour|depression|formline)$/i;
 export function MapProjectFlatPanel({ layers, georeference, importer }: { layers: ReturnType<typeof useMapProjectLayers>; georeference: MapGeoreference;
   importer: ReturnType<typeof useMapProjectImport> }) {
   const text = useTexts(mapFlatContoursSv, mapFlatContoursEn);
+  const shared = useTexts(mapSavedChoiceSv, mapSavedChoiceEn);
   const [chosen, setChosen] = useState("");
   // Grundkartan som just lästs in är redan lugnad med förvalet: reglaget börjar där den står.
   const [level, setLevel] = useState<number>();
   const [live, setLive] = useState(false);
   const [problem, setProblem] = useState<string>();
   const slope = useRef<{ layerId: string; crs: number; at: (x: number, y: number) => number | undefined } | undefined>(undefined);
-  const shown = layers.loaded.map(drawn => ({ drawn, name: layers.layers.find(row => row.layerId === drawn.layerId)?.name ?? drawn.layerId }))
-    .filter(row => /fuktdjup$/.test(row.name));
-  const current = shown.find(row => row.drawn.layerId === chosen) ?? shown[0];
+  // En körning i etapper är ett eget val (förvalt): lutningen läses ur alla etappers fuktdjup på en gång.
+  const choices = rasterChoices(layers.loaded.map(drawn => ({ drawn, layerId: drawn.layerId, name: layers.layers.find(row => row.layerId === drawn.layerId)?.name ?? drawn.layerId }))
+    .filter(row => /fuktdjup$/.test(row.name)));
+  const current = choices.find(choice => choice.id === chosen) ?? choices[0];
   const mapCrs = georeference.crs.kind === "EPSG" ? georeference.crs.code : undefined;
   const crs = importer.crs, calm = importer.calm;
   // En grundkarta som lästs in sedan reglaget senast användes står på sin egen nivå, inte på reglagets gamla.
@@ -46,15 +49,16 @@ export function MapProjectFlatPanel({ layers, georeference, importer }: { layers
     if (!current || mapCrs === undefined || crs === undefined) return;
     setProblem(undefined);
     try {
-      const { image, toMap } = current.drawn;
-      if (slope.current?.layerId !== current.drawn.layerId || slope.current.crs !== crs) {
-        const pixels = bitmapPixels(image);
-        if (!pixels) { setProblem(text.failed); return; }
+      const key = `${current.id}:${current.members.map(member => member.layerId).join(",")}`;
+      if (slope.current?.layerId !== key || slope.current.crs !== crs) {
+        const read = choicePixels(current.members.map(member => member.drawn));
+        if (!read) { setProblem(text.failed); return; }
+        const { data: pixels, toMap } = read;
         const affine = layerAffine((column, row) => {
           const at = mapPointToProjected(georeference, { x: toMap.a * column + toMap.b * row + toMap.c, y: toMap.d * column + toMap.e * row + toMap.f });
           return [at.easting, at.northing];
-        }, image.width, image.height, mapCrs, crs);
-        slope.current = { layerId: current.drawn.layerId, crs, at: flatSlopeFrom(slopeGridOf(pixels), affine) };
+        }, pixels.width, pixels.height, mapCrs, crs);
+        slope.current = { layerId: key, crs, at: flatSlopeFrom(slopeGridOf(pixels), affine) };
       }
       mine.current = importer.calmContours(next, slope.current.at);
     } catch (error) {
@@ -76,8 +80,8 @@ export function MapProjectFlatPanel({ layers, georeference, importer }: { layers
     <summary>{text.heading}</summary>
     <p className={styles.muted}>{text.help}</p>
     {!current ? <p className={styles.muted}>{text.none}</p> : !hasContours ? <p className={styles.muted}>{text.noContours}</p> : <>
-      <label>{text.layer}<select value={current.drawn.layerId} onChange={event => { setChosen(event.target.value); setLive(false); }}>
-        {shown.map(row => <option key={row.drawn.layerId} value={row.drawn.layerId}>{row.name}</option>)}
+      <label>{text.layer}<select value={current.id} onChange={event => { setChosen(event.target.value); setLive(false); }}>
+        {choices.map(choice => <option key={choice.id} value={choice.id}>{choice.members.length > 1 ? shared.allStages(choice.name, choice.members.length) : choice.name}</option>)}
       </select></label>
       <label>{text.level(value, number(limits?.slopeDegrees ?? 0), number(limits?.ringM2 ?? 0))}
         <input type="range" min={0} max={10} step={1} value={value} data-testid="map-project-flat-level" onChange={event => { mine.current = calm; setLevel(Number(event.target.value)); }} /></label>

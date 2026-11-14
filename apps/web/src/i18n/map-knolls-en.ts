@@ -23,7 +23,8 @@ export const mapSavedChoiceEn: Texts<typeof mapSavedChoiceSv> = {
   amount: (level: number) => `Amount: ${level} of 10${level === 5 ? " (default)" : ""}`,
   amountHelp: "1 gives few, 10 gives many.",
   fine: "Fine-tune",
-  nothing: "Nothing is left within those limits."
+  nothing: "Nothing is left within those limits.",
+  allStages: (name: string, count: number) => `${name} – all ${count} stages`
 };
 
 /** English: small knolls and cliffs with sliders, chosen among what the laser job has saved with its measurements. */

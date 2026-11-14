@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { completeStages, stageOf } from "./map-project-stages";
+import { completeStages, inClip, stageChoices, stageOf } from "./map-project-stages";
 
 const clip = { minX: 0, minY: 0, maxX: 100, maxY: 100 };
 const job = (jobId: string, name: string, createdAt: string, status = "DONE") => ({ jobId, name, status, createdAt, clip });
@@ -33,5 +33,14 @@ describe("etapperna i en delad körning", () => {
     const jobs = [job("a", "K – etapp 1 av 2", "2026-11-13T20:00:00Z", "FAILED"), job("a2", "K – etapp 1 av 2", "2026-11-13T20:05:00Z"),
       job("b", "K – etapp 2 av 2", "2026-11-13T20:00:01Z")];
     expect(completeStages(jobs[2]!, jobs)?.map(row => row.jobId)).toEqual(["a2", "b"]);
+  });
+  it("ger alla etapper som ett eget val, och klipprutan är halvöppen", () => {
+    const clip = { minX: 0, minY: 0, maxX: 10, maxY: 10 };
+    const row = (jobId: string, name: string) => ({ jobId, name, status: "DONE", createdAt: "2026-11-14T06:00:00Z", clip });
+    const choices = stageChoices([row("1", "Hela – etapp 1 av 2"), row("2", "Hela – etapp 2 av 2"), row("3", "Liten")]);
+    expect(choices.map(choice => choice.id)).toEqual(["etapper:1", "1", "2", "3"]);
+    expect(choices[0]!.stages).toEqual({ base: "Hela", total: 2 });
+    expect(inClip([0, 5], clip)).toBe(true);
+    expect(inClip([10, 5], clip)).toBe(false);
   });
 });

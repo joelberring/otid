@@ -34,3 +34,30 @@ export function completeStages<T extends StageJob>(job: T, jobs: readonly T[]): 
   }
   return ordered;
 }
+
+export interface StageChoice<T> {
+  /** `etapper:` och första etappens id för alla etapper, annars jobbets id. */
+  readonly id: string;
+  /** Alla etapper i ordning, eller bara jobbet. */
+  readonly jobs: readonly T[];
+  /** Namnet utan etapp när valet är alla etapper. */
+  readonly stages?: { readonly base: string; readonly total: number } | undefined;
+}
+
+/**
+ * Ägaren 2026-11-14 («när man sen finjusterar tex branter i en delen så försvinner de helt i andra»): valen bland laserjobben
+ * i en panel med reglage. En hel omgång etapper blir ett eget val före etapperna, så att reglagen räknar hela kartan.
+ */
+export function stageChoices<T extends StageJob>(jobs: readonly T[]): StageChoice<T>[] {
+  const out: StageChoice<T>[] = [];
+  for (const job of jobs) {
+    const stages = completeStages(job, jobs);
+    if (stages?.[0]?.jobId === job.jobId) out.push({ id: `etapper:${job.jobId}`, jobs: stages, stages: { base: stageOf(job.name)!.base, total: stages.length } });
+  }
+  return [...out, ...jobs.map(job => ({ id: job.jobId, jobs: [job] }))];
+}
+
+/** Ligger punkten i etappens klippruta? Halvöppen, så att en punkt på gränsen hör till en etapp. */
+export function inClip([x, y]: readonly [number, number], clip: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number }): boolean {
+  return x >= clip.minX && x < clip.maxX && y >= clip.minY && y < clip.maxY;
+}

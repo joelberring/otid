@@ -24,7 +24,8 @@ export const mapSavedChoiceSv = {
   amount: (level: number) => `Mängd: ${level} av 10${level === 5 ? " (förval)" : ""}`,
   amountHelp: "1 ger få, 10 ger många.",
   fine: "Finjustera",
-  nothing: "Inget blir kvar med de gränserna."
+  nothing: "Inget blir kvar med de gränserna.",
+  allStages: (name: string, count: number) => `${name} – alla ${count} etapper`
 };
 
 /** Punkthöjder och branter med reglage: valet bland det laserjobbet har sparat med sina mått. */

@@ -26,7 +26,7 @@ export interface RasterPanelTexts {
  * fuktdjupet eller vegetationens klasser) läses i webbläsaren och gränserna dras med reglage. Efter första «Visa som
  * kandidater» räknas kandidaterna om en kort stund efter att ett reglage flyttats. `compute` ger kandidaterna och ett besked.
  */
-export function MapProjectRasterPanel<S>({ layers, georeference, importer, match, own, text, testId, initial, initialLevel = 5, controls, compute, atLevel, extras, refreshKey }: {
+export function MapProjectRasterPanel<S>({ layers, georeference, importer, match, own, text, testId, initial, initialLevel = 5, controls, compute, atLevel, extras, refreshKey, onOpen }: {
   /** Inställningarna för en mängd på skalan 1–10 (5 = förvalen, ägaren 2026-11-12); `current` är det som är finjusterat. */
   atLevel: (level: number, current: S) => S;
   layers: ReturnType<typeof useMapProjectLayers>; georeference: MapGeoreference; importer: ReturnType<typeof useMapProjectImport>;
@@ -37,6 +37,8 @@ export function MapProjectRasterPanel<S>({ layers, georeference, importer, match
   controls?: ((settings: S, change: (patch: Partial<S>) => void) => ReactNode) | undefined;
   /** Egna rader efter mängdens hjälptext, och ett värde som räknar om ytorna (när det byts) efter första körningen. */
   extras?: ReactNode; refreshKey?: unknown;
+  /** Panelen fälls ut (ägaren 2026-11-14: det panelen behöver hämtas först då, inte när sidan öppnas). */
+  onOpen?: (() => void) | undefined;
   compute: (pixels: PhotoPixels, settings: S, toSource: (column: number, row: number) => [number, number], crs: number, cellMeters: number)
     => { data: SourceData; message: string };
 }) {
@@ -91,7 +93,7 @@ export function MapProjectRasterPanel<S>({ layers, georeference, importer, match
 
   if (!importer.canImport || crs === undefined) return null;
   const change = (patch: Partial<S>) => setSettings(previous => ({ ...previous, ...patch }));
-  return <details className={styles.settings} data-testid={testId}>
+  return <details className={styles.settings} data-testid={testId} onToggle={event => { if (event.currentTarget.open) onOpen?.(); }}>
     <summary>{text.heading}</summary>
     <p className={styles.muted}>{text.help}</p>
     {!current ? <p className={styles.muted}>{text.none}</p> : <>

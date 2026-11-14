@@ -1,14 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MapProjectLayerList, MapProjectLayerView, MapProjectView } from "@o-tid/contracts";
 import type { MapGeoreference } from "@o-tid/map-file";
 import { clubRequest, csrf } from "../../lib/club-archive-client";
-import { cachedMapFile, mapFileCache } from "../../lib/map-file-cache";
+import { cachedMapFile, layerImageCache } from "../../lib/map-file-cache";
 import { mapProjectBase } from "../../lib/map-project-client";
 import { savedMapProjectLayers, saveMapProjectLayers } from "../../lib/map-project-offline";
 import { LayerFileError, prepareLayer, prepareRemoteLayer, type LayerFileProblem, type Placement, type PreparedLayer } from "../../lib/map-project-layer-file";
 import { layerToMap, safeLayerSize, type Affine } from "../../lib/map-project-layers";
+import { hiddenLayers, LAYER_FETCHES, loadOrder, savedLayerChoices, saveLayerChoices, withChoices, type LayerChoices } from "../../lib/map-project-layer-visibility";
 import { placeInBounds, worldFromMap } from "../../lib/map-project-control-points";
 import type { Bounds } from "../../lib/course-setting-viewport";
 
@@ -17,13 +18,19 @@ export interface DrawnLayer { readonly layerId: string; readonly image: ImageBit
 export type LayerProblem = LayerFileProblem | "quota" | number;
 
 /**
- * ADR-0219 tillägget om underlagen (K4a): projektets egna underlag. Listan hämtas från servern; bilderna läses ur kartcachen
- * (per sha256, så att de finns kvar utan nät) eller hämtas. Vilka som syns väljer var och en själv; genomskinligheten är projektets.
+ * ADR-0219 tillägget om underlagen (K4a): projektets egna underlag. Listan hämtas från servern; bilderna läses ur underlagens
+ * lager i webbläsaren (per sha256, så att de finns kvar utan nät och inte hämtas igen) eller hämtas. Vilka som syns väljer var
+ * och en själv (sparat i webbläsaren, `map-project-layer-visibility.ts`); genomskinligheten är projektets.
+ *
+ * `start` (ägaren 2026-11-14): bilderna hämtas först när kartans objekt har kommit, så att kartan går att rita i medan
+ * underlagen kommer.
  */
-export function useMapProjectLayers(view: MapProjectView, georeference: MapGeoreference | undefined) {
+export function useMapProjectLayers(view: MapProjectView, georeference: MapGeoreference | undefined, start = true) {
   const base = mapProjectBase(view.projectId);
   const [layers, setLayers] = useState<readonly MapProjectLayerView[]>([]);
-  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
+  // Listan är tom tills den hämtats i webbläsaren, så valen ur webbläsarens lagring ändrar inget i serverns första bild.
+  const [choices, setChoices] = useState<LayerChoices>(() => typeof localStorage === "undefined" ? {} : savedLayerChoices(view.projectId));
+  const hidden = useMemo((): ReadonlySet<string> => hiddenLayers(layers, choices), [layers, choices]);
   const [images, setImages] = useState<ReadonlyMap<string, ImageBitmap>>(new Map());
   const [busy, setBusy] = useState<"preparing" | "uploading">();
   const [problem, setProblem] = useState<LayerProblem>();
@@ -44,14 +51,20 @@ export function useMapProjectLayers(view: MapProjectView, georeference: MapGeore
   }, [base, view.projectId]);
   useEffect(() => { void load(); }, [load]);
 
-  // Bilderna: en gång per underlag (sha256 ändras aldrig för ett underlag).
+  // Bilderna: en gång per underlag (sha256 ändras aldrig för ett underlag). De som visas hämtas först och bara några åt gången.
+  const asked = useRef(new Set<string>()), fetching = useRef(0), closedRef = useRef(false);
+  const [round, setRound] = useState(0);
+  useEffect(() => { closedRef.current = false; return () => { closedRef.current = true; }; }, []);
   useEffect(() => {
-    let closed = false;
-    for (const layer of layers) {
-      if (images.has(layer.layerId)) continue;
+    if (!start) return;
+    while (fetching.current < LAYER_FETCHES) {
+      const layer = loadOrder(layers, hidden).find(row => !asked.current.has(row.layerId));
+      if (!layer) return;
+      asked.current.add(layer.layerId);
+      fetching.current += 1;
       void (async () => {
         try {
-          const file = await cachedMapFile(mapFileCache, layer.sha256, async () => {
+          const file = await cachedMapFile(layerImageCache, layer.sha256, async () => {
             const response = await fetch(`${base}/layers/${encodeURIComponent(layer.layerId)}/image`, { credentials: "same-origin" });
             if (!response.ok) throw new Error(`Underlaget kunde inte hämtas (${response.status})`);
             return { bytes: await response.arrayBuffer(), fileName: `${layer.layerId}.${layer.mediaType === "image/png" ? "png" : "jpg"}` };
@@ -62,13 +75,17 @@ export function useMapProjectLayers(view: MapProjectView, georeference: MapGeore
             const size = safeLayerSize(layer.width, layer.height);
             return createImageBitmap(blob, { resizeWidth: size.width, resizeHeight: size.height, resizeQuality: "medium" });
           });
-          if (closed) { bitmap.close(); return; }
+          if (closedRef.current) { bitmap.close(); return; }
           setImages(current => current.has(layer.layerId) ? current : new Map(current).set(layer.layerId, bitmap));
         } catch { /* Visas inte; listan säger att det finns. */ }
+        finally {
+          fetching.current -= 1;
+          // Nästa i kön.
+          if (!closedRef.current) setRound(value => value + 1);
+        }
       })();
     }
-    return () => { closed = true; };
-  }, [layers, images, base]);
+  }, [layers, hidden, base, start, round]);
 
   /** Alla inlästa underlag, också de släckta (ägaren 2026-11-12: reglagen ska inte kräva att underlaget är tänt). */
   const loaded = useMemo((): DrawnLayer[] => {
@@ -157,21 +174,17 @@ export function useMapProjectLayers(view: MapProjectView, georeference: MapGeore
     if (response?.status === 200) {
       setLayers(current => current.filter(layer => layer.layerId !== layerId));
       setImages(current => { const next = new Map(current); next.get(layerId)?.close(); next.delete(layerId); return next; });
+      asked.current.delete(layerId);
     } else setProblem(response?.status ?? 0);
   }, [base]);
 
-  const toggle = useCallback((layerId: string) => setHidden(current => {
-    const next = new Set(current);
-    if (next.has(layerId)) next.delete(layerId); else next.add(layerId);
-    return next;
-  }), []);
-
-  /** Visa eller dölj flera på en gång (en grupp av etapper, eller alla underlag). */
-  const setShown = useCallback((layerIds: readonly string[], shown: boolean) => setHidden(current => {
-    const next = new Set(current);
-    for (const layerId of layerIds) { if (shown) next.delete(layerId); else next.add(layerId); }
-    return next;
-  }), []);
+  /** Visa eller dölj flera på en gång (ett underlag, en grupp av etapper, eller alla underlag); valet sparas i webbläsaren. */
+  const setShown = useCallback((layerIds: readonly string[], shown: boolean) => {
+    const next = withChoices(choices, layerIds, shown, layers.map(layer => layer.layerId));
+    setChoices(next);
+    saveLayerChoices(view.projectId, next);
+  }, [choices, layers, view.projectId]);
+  const toggle = useCallback((layerId: string) => setShown([layerId], hidden.has(layerId)), [setShown, hidden]);
 
   // Listan visas med det översta först.
   const listed = useMemo(() => [...layers].sort((a, b) => b.sort - a.sort || b.createdAt.localeCompare(a.createdAt)), [layers]);

@@ -37,21 +37,23 @@ export function MapProjectDepthPanel(props: Props & { view: MapProjectView; boun
   const [noDrySoil, setNoDrySoil] = useState(true);
   const [soil, setSoil] = useState<readonly MapProjectSoilArea[] | "failed" | undefined>();
   const asked = useRef(false);
+  // Ägaren 2026-11-14: jordarterna hämtades varje gång kartan öppnades (15 sekunder på Ornö södra); nu först när panelen fälls ut.
+  const [opened, setOpened] = useState(false);
   const crs = georeference.crs.kind === "EPSG" ? georeference.crs.code : undefined;
   const hasDepth = layers.loaded.some(drawn => /fuktdjup$/.test(layers.layers.find(row => row.layerId === drawn.layerId)?.name ?? drawn.layerId));
-  // Jordarterna hämtas en gång per panel, när det finns ett fuktdjup och regeln är på (och kartan ligger i SWEREF 99 TM, som SGU).
+  // Jordarterna hämtas en gång per panel, när den fällts ut, det finns ett fuktdjup och regeln är på (och kartan ligger i SWEREF 99 TM, som SGU).
   useEffect(() => {
-    if (!noDrySoil || !hasDepth || asked.current || !bounds || crs !== 3006) return;
+    if (!opened || !noDrySoil || !hasDepth || asked.current || !bounds || crs !== 3006) return;
     asked.current = true;
     void clubRequest(`${mapProjectBase(view.projectId)}/sources/jordarter`, "POST", { formatVersion: 1, box: areaBox(bounds, georeference, undefined).wgs84 })
       .catch(() => ({ status: 0, json: undefined })).then(response => {
         const listed = response.status === 200 ? response.json as MapProjectSoilList | undefined : undefined;
         setSoil(listed && Array.isArray(listed.areas) ? soilForMarsh(listed.areas) : "failed");
       });
-  }, [noDrySoil, hasDepth, bounds, crs, georeference, view.projectId]);
+  }, [opened, noDrySoil, hasDepth, bounds, crs, georeference, view.projectId]);
   const areas = noDrySoil && Array.isArray(soil) ? soil as readonly MapProjectSoilArea[] : undefined;
   return <MapProjectRasterPanel {...props} match={/fuktdjup$/} own={/^(blott|fuktigt)$/} text={text} testId="map-project-depth" initial={DEFAULT_DEPTH} atLevel={depthAt}
-    refreshKey={areas ?? noDrySoil}
+    refreshKey={areas ?? noDrySoil} onOpen={() => setOpened(true)}
     extras={<>
       <label className={styles.check}><input type="checkbox" checked={noDrySoil} onChange={() => setNoDrySoil(value => !value)} data-testid="map-project-depth-soil" /> {text.noDrySoil}</label>
       <p className={styles.muted}>{text.noDrySoilHelp} {text.soilAttribution}</p>

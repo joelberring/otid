@@ -147,7 +147,8 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const walkRef = useRef<readonly Point[] | undefined>(undefined);
   const georeference = editor.georeference;
   // K4a: egna underlag (ritas först, under allt annat ovanpå kartan).
-  const layers = useMapProjectLayers(view, georeference ?? undefined);
+  // Bilderna väntar tills den första synken är klar (eller inte gick), så att kartans objekt kommer först (ägaren 2026-11-14).
+  const layers = useMapProjectLayers(view, georeference ?? undefined, editor.sync.at !== undefined || editor.mapStatus === "failed");
   const control = useMapProjectControlPoints(layers);
   const drawnLayers = control.drawn;
   // Normkontrollen (av från början).

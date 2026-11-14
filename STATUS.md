@@ -13,6 +13,21 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-14 – Etapperna läggs ihop på geo-servern, och kartan öppnas fortare
+- Ägaren: «det verkade som den andra tråden inte gjorde ihopläsningen på servern. jag skulle vilja att det var så». När den sista
+  etappen i en delad körning är klar köar servern en sammanläggning (`map-project-geo-merge.ts`); geo-arbetaren 32 hämtar etappernas
+  filer, klipper dem kant i kant och lägger ihop bilderna (`scripts/geo-merge.ts`). Kvar blir en körning och ett underlag per bild;
+  etapperna tas bort och rutorna räknas på den sammanlagda. Går det fel står etapperna kvar. Äldre körningar: «Lägg ihop etapperna
+  på servern» i jobbraden. Sjöar som klippts i snittet slås ihop när grundkartan läses in.
+- Mätt i webbläsaren (Ornö södra): 17 underlagsbilder, 55 MB, hämtades om vid varje öppning (kartfilernas lager rymmer tre filer).
+  Underlagen har nu ett eget lager i webbläsaren (120 filer, 600 MB), hämtas tre åt gången efter den första synken, de som visas
+  först. Reglagens bilder (fuktdjup, vegetationsklasser, berg) är släckta från början; egna val sparas i webbläsaren per projekt.
+  Jordarterna hämtas först när «Fukt med reglage» fälls ut.
+- Verifierat: enhetstester (klippning, DXF, GeoJSON, PNG, ordning), integration `adr-0219-geo`, geo-arbetaren mot en falsk server.
+  Inte provat: en riktig sammanläggning på geo-servern, och sidan i webbläsaren efter ändringen.
+- Inte gjort: mindre bilder. WebP ger 5,4 gånger mindre terrängskuggning (mätt), men underlag kan bara vara PNG eller JPEG
+  (`map_project_layer_media_check`) och geo-avbildningen saknar kodare. Beskrivet i ADR-0219 (tillägg 2026-11-14).
+
 ### 2026-11-14 – Ingen sankmark på sand och grus (SGU:s jordartskarta)
 - Ägaren: «markfukten blir rätt hög … med flack mark (tror sandig) … synka mot jordartskartor». SGU:s öppna jordartskarta hämtas
   för rutan (`/sources/jordarter`, `OTID_SGU_JORDARTER_URL`) och sankmark på sand och grus (isälvssediment, svallsediment, klapper,

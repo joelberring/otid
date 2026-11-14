@@ -52,7 +52,8 @@ export async function queueStageMerge(tx: DbExecutor, job: Pick<Job, "projectId"
     const id = typeof tile.id === "string" ? tile.id : JSON.stringify(tile);
     return seen.has(id) ? false : (seen.add(id), true);
   });
-  const { split: _split, tiles: _tiles, clip: _clip, name, ...rest } = request;
+  // Allt i etappens begäran följer med (inställningarna, det jobbet räknade) utom det som är etappens eget.
+  const rest = Object.fromEntries(Object.entries(request).filter(([key]) => !["split", "tiles", "clip", "name"].includes(key))), name = request.name;
   const id = randomUUID();
   await tx.insert(jobs).values({ id, projectId: first.projectId, accountId: first.accountId, kind: "PULLAUTIN", status: "QUEUED", createdAt: now, requestId: randomUUID(),
     request: { ...rest, name: (name ?? "Karttapullautin").replace(/ – etapp \d+ av \d+$/, ""), tiles: [],

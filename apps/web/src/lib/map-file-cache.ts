@@ -25,6 +25,7 @@ export interface MapCacheBackend {
 
 const MAX_FILES = 3;
 const MAX_BYTES = 250 * 1024 * 1024;
+export interface MapCacheLimits { readonly maxFiles: number; readonly maxBytes: number }
 const SHA256 = /^[a-f0-9]{64}$/;
 
 async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
@@ -39,7 +40,8 @@ export class MapFileCache {
   /** Hämtningar som pågår, per sha256, med de som vill veta förloppet. */
   private readonly pending = new Map<string, { readonly file: Promise<CachedMapFile>; readonly listeners: Set<(fraction: number) => void> }>();
 
-  constructor(private readonly backend: () => MapCacheBackend | undefined, private readonly now: () => number = Date.now) {}
+  constructor(private readonly backend: () => MapCacheBackend | undefined, private readonly now: () => number = Date.now,
+    private readonly limits: MapCacheLimits = { maxFiles: MAX_FILES, maxBytes: MAX_BYTES }) {}
 
   /**
    * Hämtar filen en gång även när flera ber om samma sha256 samtidigt (editorn, vägvalen, en ny rendering av editorn). Var
@@ -89,7 +91,8 @@ export class MapFileCache {
   /** Sparar filen om den har denna sha256 och får plats; ger om den sparades. */
   async store(sha256: string, file: CachedMapFile): Promise<boolean> {
     const backend = this.backend();
-    if (!backend || !SHA256.test(sha256) || file.bytes.byteLength > MAX_BYTES) return false;
+    const { maxFiles, maxBytes } = this.limits;
+    if (!backend || !SHA256.test(sha256) || file.bytes.byteLength > maxBytes) return false;
     try {
       if (await sha256Hex(file.bytes) !== sha256) return false;
       const meta = { sha256, byteLength: file.bytes.byteLength, usedAt: this.now() };
@@ -98,7 +101,7 @@ export class MapFileCache {
       const remove: string[] = [];
       let bytes = meta.byteLength, files = 1;
       for (const item of kept) {
-        if (files + 1 > MAX_FILES || bytes + item.byteLength > MAX_BYTES) { remove.push(item.sha256); continue; }
+        if (files + 1 > maxFiles || bytes + item.byteLength > maxBytes) { remove.push(item.sha256); continue; }
         files += 1; bytes += item.byteLength;
       }
       if (remove.length > 0) await backend.remove(remove);
@@ -130,6 +133,8 @@ export async function cachedMapFile(cache: MapFileCache, sha256: string | undefi
 }
 
 const DB_NAME = "otid-map-cache";
+/** Underlagens bilder har ett eget lager, så att de inte tränger ut kartfilerna (och tvärtom). */
+const LAYER_DB_NAME = "otid-layer-cache";
 
 function request<T>(value: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -146,10 +151,12 @@ function done(transaction: IDBTransaction): Promise<void> {
   });
 }
 
-let opened: Promise<IDBDatabase> | undefined;
-function open(): Promise<IDBDatabase> {
-  opened ??= new Promise<IDBDatabase>((resolve, reject) => {
-    const value = indexedDB.open(DB_NAME, 1);
+const openedByName = new Map<string, Promise<IDBDatabase>>();
+function open(name: string): Promise<IDBDatabase> {
+  let opened = openedByName.get(name);
+  if (opened) return opened;
+  opened = new Promise<IDBDatabase>((resolve, reject) => {
+    const value = indexedDB.open(name, 1);
     value.onupgradeneeded = () => {
       // Filerna och uppgifterna om dem i var sin del, så att listan och "senast använd" inte läser filerna.
       value.result.createObjectStore("files");
@@ -158,32 +165,39 @@ function open(): Promise<IDBDatabase> {
     value.onsuccess = () => resolve(value.result);
     value.onerror = () => reject(value.error ?? new Error("IndexedDB kunde inte öppnas"));
     value.onblocked = () => reject(new Error("IndexedDB är blockerad av en annan flik"));
-  }).catch(error => { opened = undefined; throw error; });
+  }).catch(error => { openedByName.delete(name); throw error; });
+  openedByName.set(name, opened);
   return opened;
 }
 
-async function write(names: string[], change: (transaction: IDBTransaction) => void): Promise<void> {
-  const transaction = (await open()).transaction(names, "readwrite");
+async function write(name: string, names: string[], change: (transaction: IDBTransaction) => void): Promise<void> {
+  const transaction = (await open(name)).transaction(names, "readwrite");
   change(transaction);
   await done(transaction);
 }
 
-function indexedDbBackend(): MapCacheBackend | undefined {
+function indexedDbBackend(name = DB_NAME): MapCacheBackend | undefined {
   if (typeof indexedDB === "undefined") return undefined;
   return {
-    get: async sha256 => await request((await open()).transaction("files").objectStore("files").get(sha256)) as CachedMapFile | undefined,
-    put: (meta, file) => write(["files", "meta"], transaction => {
+    get: async sha256 => await request((await open(name)).transaction("files").objectStore("files").get(sha256)) as CachedMapFile | undefined,
+    put: (meta, file) => write(name, ["files", "meta"], transaction => {
       transaction.objectStore("files").put(file, meta.sha256);
       transaction.objectStore("meta").put(meta);
     }),
-    touch: meta => write(["meta"], transaction => { transaction.objectStore("meta").put(meta); }),
-    list: async () => await request((await open()).transaction("meta").objectStore("meta").getAll()) as MapCacheMeta[],
-    remove: sha256s => write(["files", "meta"], transaction => {
+    touch: meta => write(name, ["meta"], transaction => { transaction.objectStore("meta").put(meta); }),
+    list: async () => await request((await open(name)).transaction("meta").objectStore("meta").getAll()) as MapCacheMeta[],
+    remove: sha256s => write(name, ["files", "meta"], transaction => {
       for (const sha256 of sha256s) { transaction.objectStore("files").delete(sha256); transaction.objectStore("meta").delete(sha256); }
     }),
-    clear: () => write(["files", "meta"], transaction => { transaction.objectStore("files").clear(); transaction.objectStore("meta").clear(); })
+    clear: () => write(name, ["files", "meta"], transaction => { transaction.objectStore("files").clear(); transaction.objectStore("meta").clear(); })
   };
 }
 
 /** Webbläsarens cache för kartfiler (en för sidan). */
-export const mapFileCache = new MapFileCache(indexedDbBackend);
+export const mapFileCache = new MapFileCache(() => indexedDbBackend());
+/**
+ * Ägaren 2026-11-14 («upplever det lite långsamt att läsa in»): kartprojektets underlag (laserkörningens bilder, ortofoton) per
+ * sha256. Mätt på Ornö södra: 17 bilder, 55 MB, hämtades om vid varje öppning, eftersom kartfilernas lager bara rymmer tre
+ * filer. Här ryms ett par projekts underlag; de som använts längst tillbaka tas bort först.
+ */
+export const layerImageCache = new MapFileCache(() => indexedDbBackend(LAYER_DB_NAME), Date.now, { maxFiles: 120, maxBytes: 600 * 1024 * 1024 });

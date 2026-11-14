@@ -583,3 +583,28 @@ buffert runt vatten (kartans `vatten` och SGU:s kod 91) så att strandkärr blir
 «Fukt med reglage» (kryssruta, förvald på; blött och fuktigt), när grundkartan läses in (alla sankmarkens lager, med etapper
 för unionens ruta; beskedet säger hur många hektar) och i `apply_base_map` (svarets `soil`). Ett misslyckat anrop stoppar inget:
 grundkartan läses in och reglaget räknar som förut (`missing` har `soil`).
+
+## Tillägg 2026-11-14: etapperna läggs ihop på geo-servern
+
+Ägaren: «det verkade som den andra tråden inte gjorde ihopläsningen på servern. jag skulle vilja att det var så». En körning
+som delats i etapper (`split`) blir en körning igen:
+
+- När den sista etappen är klar köar `finishGeoJob` ett jobb med `merge` i begäran (omgången, etapperna med klipprutor, etappernas
+  rutor). Jobbet har inga egna rutor och räknas inte mot gränsen för samtidiga körningar. `mergeGeoStages` (POST
+  `…/geo-jobs/[jobId]/merge`) köar samma jobb för en äldre körning; den som startade körningen eller förvaltar projektet.
+- Geo-arbetaren (version 32, `runMergeJob`) hämtar etappernas filer med GET `/api/geo-worker/jobs/[jobId]/stages/[stageId]/[name]`
+  (bara för jobbets egna etapper och bara medan jobbet körs av den arbetaren) och lägger ihop dem (`scripts/geo-merge.ts`) med
+  samma regler som webbläsaren använde (`base-map/stages.ts`): objekten klipps till etappens ruta, punkter hör till en etapp,
+  slutna linjer i ytfilerna (vegetation, fukt, berg, belagt) klipps som ytor. Bilderna läggs ut hela och sedan etappens egen ruta
+  överst, så att skarven går i snittet och inte i marginalen; förskjutningen avrundas till hela bildpunkter. En fil som inte går
+  att lägga ihop eller blir över 100 MiB hoppas över (sammanfattningens `skippedOutputNames`), utom kartbilden.
+- När sammanläggningen är klar tar `completeStageMerge` bort etapperna och deras underlag och flyttar rutorna till det
+  sammanlagda jobbet, så att kvoten räknar dem en gång. Misslyckas den står etapperna kvar och kan läggas ihop igen.
+- Vattenytor som klippts i snittet slås ihop i webbläsaren när grundkartan läses in (`joined`, `unionWater`), eftersom
+  geo-arbetaren bara har Nodes egna moduler. Övriga ytor möts kant i kant i snittet.
+- Under sammanläggningen räknas både etappernas och de sammanlagda filerna mot kontots lagring.
+
+Inte gjort: mindre underlagsbilder. Terrängskuggningen för en etapp på Ornö södra är 4,1 MB som PNG, 3,2 MB som gråskala med
+radfilter och 0,75 MB som WebP (kvalitet 80). WebP kräver att underlag får vara WebP (`map_project_layer_media_check`,
+`imageDimensions`, kontraktet) och en kodare i geo-avbildningen. Reglagens bilder (fuktdjup, vegetationsklasser, berg) måste
+förbli förlustfria.

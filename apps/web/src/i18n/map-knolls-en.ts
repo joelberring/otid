@@ -68,7 +68,11 @@ export const mapClearContoursEn: Texts<typeof mapClearContoursSv> = {
   run: "Show as candidates",
   done: (smoothed: string, formlines: string, rings: number) => `${smoothed} m of contour is smoothed, ${formlines} m of form line and ${rings === 1 ? "1 small ring" : `${rings} small rings`} are removed.`,
   untouched: "Nothing changes.",
-  failed: "The ground height could not be read."
+  failed: "The ground height could not be read.",
+  showBefore: "Show the laser contours (before)",
+  showAfter: "Show the clearer ones (after)",
+  before: "The laser contours are shown as they were. The sliders keep their values.",
+  loaded: (smoothed: string, formlines: string, rings: number) => `Clearer contours (defaults): ${smoothed} m of contour was smoothed, ${formlines} m of form line and ${rings === 1 ? "1 small ring" : `${rings} small rings`} were removed. Change it or compare with before under "3. Adjust without a new run".`
 };
 
 export const mapFlatContoursEn: Texts<typeof mapFlatContoursSv> = {

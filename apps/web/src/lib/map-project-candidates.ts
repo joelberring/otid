@@ -1,7 +1,7 @@
 import { parseDxf, parseGeoJson, VectorParseError, type MapNorm, type SourceData, type SourceFeature } from "@o-tid/map-revision";
 import {
-  calmFlatContours, computeCandidates, DEFAULT_ROCK_LEVEL, flatLimitsAt, flatSlopeFrom, joinStages, mergeBaseMap, unionWater, rockAreasOfJob, withRockAreas,
-  type CandidateInput, type CandidateResult, type clearCutFeatures, type ClearResult, type ClearSettings, type FlatContourResult, type PhotoPixels, type PixelAffine, type SlopeGrid, type SoilArea, type SoilOutcome, type StageBox
+  calmFlatContours, clearContours, computeCandidates, DEFAULT_ROCK_LEVEL, flatLimitsAt, flatSlopeFrom, heightFieldFrom, joinStages, mergeBaseMap, unionWater, rockAreasOfJob, withRockAreas,
+  type CandidateInput, type CandidateResult, type clearCutFeatures, type ClearResult, type ClearSettings, type FlatContourResult, type HeightGrid, type PhotoPixels, type PixelAffine, type SlopeGrid, type SoilArea, type SoilOutcome, type StageBox
 } from "@o-tid/map-revision/base-map";
 
 /**
@@ -33,6 +33,8 @@ type Cuts = Pick<ReturnType<typeof clearCutFeatures>, "features" | "afterScan">;
  */
 export interface BaseMapCalm { readonly grid: SlopeGrid; readonly affine: PixelAffine; readonly level: number }
 /** Det som lugnandet tog bort och satte dit (samma objekt som i svarets `data`), för reglaget efteråt. */
+/** «Tydligare kurvbild» när grundkartan sätts ihop: höjden ur körningens (eller etappernas) `hojd.png` och nivåerna. */
+export interface BaseMapClear { readonly parts: readonly { readonly grid: HeightGrid; readonly affine: PixelAffine }[]; readonly settings: ClearSettings }
 /** Det «Tydligare kurvbild» har bytt ut i kandidaterna som visas, med inställningarna det räknades med. */
 export type ClearOutcome = ClearResult & { readonly settings: ClearSettings };
 export type CalmOutcome = Pick<FlatContourResult, "removed" | "added" | "formlineMeters" | "rings"> & { readonly level: number };
@@ -50,6 +52,8 @@ export type CandidateRequest =
       readonly osm?: SourceData | undefined; readonly scale?: number | undefined; readonly cuts?: Cuts | undefined;
       /** Kartans norm (`mapNorm`): på en sprintkarta blir OpenStreetMaps belagda vägar ytor. */
       readonly norm?: MapNorm | undefined; readonly calm?: BaseMapCalm | undefined;
+      /** «Tydligare kurvbild» med förvalen direkt (ägaren 2026-11-14): markens höjd (alla etapper) och reglagens nivåer. */
+      readonly clear?: BaseMapClear | undefined;
       /** Berg i dagen ur bergbilden i stället för berg.dxf:s (utan etapper; med etapper ligger den i varje etapp). */
       readonly rock?: BaseMapRock | undefined;
       /** SGU:s torra mark och vatten (`soilForMarsh`): ingen sankmark på sand och grus. */
@@ -62,7 +66,7 @@ export type CandidateRequest =
 export type CandidateResponse =
   | ({ readonly type: "progress"; readonly id: number } & BaseMapStep)
   | { readonly type: "base-map"; readonly id: number; readonly dataId: number; readonly data: SourceData; readonly calm?: CalmOutcome | undefined;
-      readonly rock?: RockOutcome | undefined; readonly soil?: SoilOutcome | undefined }
+      readonly clear?: ClearOutcome | undefined; readonly rock?: RockOutcome | undefined; readonly soil?: SoilOutcome | undefined }
   | { readonly type: "computed"; readonly id: number; readonly result: CandidateResult | null }
   /** `parse`: filen gick inte att tolka (meddelandet visas som det är). */
   | { readonly type: "error"; readonly id: number; readonly message: string; readonly parse: boolean };
@@ -112,9 +116,14 @@ export function handleCandidateRequest(store: CandidateStore, request: Candidate
       ? (x: number, y: number) => { for (const at of slopes) { const value = at(x, y); if (value !== undefined) return value; } return undefined; }
       : flatSlopeFrom(calm.grid, calm.affine));
     const calmed = calm && slopeAt && calmFlatContours(merged.features, slopeAt, flatLimitsAt(calm.level));
-    const data = calmed ? { ...merged, features: calmed.features } : merged;
+    const calmData = calmed ? { ...merged, features: calmed.features } : merged;
+    // «Tydligare kurvbild» med förvalen ovanpå de lugnade kurvorna, när körningen har markens höjd.
+    const clear = request.merge && request.clear && request.clear.parts.length > 0 ? request.clear : undefined;
+    const cleared = clear && clearContours(calmData.features, heightFieldFrom(clear.parts), clear.settings);
+    const data = cleared ? { ...calmData, features: cleared.features } : calmData;
     store.set(request.dataId, data.features);
     post({ type: "base-map", id, dataId: request.dataId, data, ...(rockUsed ? { rock } : {}), ...(soil ? { soil } : {}),
+      ...(clear && cleared ? { clear: { ...cleared, settings: clear.settings } } : {}),
       ...(calm && calmed ? { calm: { removed: calmed.removed, added: calmed.added, formlineMeters: calmed.formlineMeters, rings: calmed.rings, level: calm.level } } : {}) });
   } catch (error) {
     post({ type: "error", id, parse: error instanceof VectorParseError, message: error instanceof Error ? error.message : String(error) });

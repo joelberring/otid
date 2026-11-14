@@ -87,6 +87,28 @@ describe("kandidaterna i Workern", () => {
     expect(run({ merge: false, calm }).calm).toBeUndefined();
   });
 
+  it("lägger «Tydligare kurvbild» ovanpå när markens höjd följer med, och svarar med det utbytta", () => {
+    const dxf = (layer: string, points: [number, number][]) => ["0", "SECTION", "2", "ENTITIES", "0", "LWPOLYLINE", "8", layer, "70", "0",
+      ...points.flatMap(([x, y]) => ["10", String(x), "20", String(y)]), "0", "ENDSEC", "0", "EOF", ""].join("\n");
+    const parts = [{ name: "kurvor.dxf", body: dxf("contour", [[0, 150], [300, 150]]) }, { name: "formlinjer.dxf", body: dxf("formline", [[0, 100], [300, 100]]) }];
+    // 300 × 300 celler om 1 m: marken stiger 0,3 m per meter norrut, med en sänka (−3 m) öster om x = 150.
+    const size = 300, meters = Float32Array.from({ length: size * size }, (_, p) => (size - 1 - Math.floor(p / size)) * 0.3 - (p % size >= 150 ? 3 : 0));
+    const clear = { parts: [{ grid: { columns: size, rows: size, meters }, affine: [1, 0, 0.5, 0, -1, 299.5] as const }], settings: { smooth: 0, formlines: 5, rings: 0 } };
+    const run = (request: Partial<Extract<CandidateRequest, { type: "base-map" }>>) => {
+      const sent: CandidateResponse[] = [];
+      handleCandidateRequest(new Map(), { type: "base-map", id: 1, dataId: 2, merge: true, scale: 10000, parts, ...request }, response => sent.push(response));
+      return sent.at(-1) as Extract<CandidateResponse, { type: "base-map" }>;
+    };
+    const plain = run({}), cleared = run({ clear });
+    expect(plain.clear).toBeUndefined();
+    expect(cleared.clear!.settings).toEqual(clear.settings);
+    // Hjälpkurvan klipps kring kanten ner i sänkan, där marken ligger under omgivningen.
+    expect(cleared.clear!.formlineMeters).toBeGreaterThan(20);
+    expect(cleared.clear!.removed.map(feature => feature.layer)).toEqual(["formline"]);
+    for (const piece of cleared.clear!.added) expect(cleared.data.features).toContain(piece);
+    expect(run({ merge: false, clear }).clear).toBeUndefined();
+  });
+
   it("säger till när en fil inte går att tolka, och ger inget för objekt som glömts", () => {
     const store: CandidateStore = new Map(), sent: CandidateResponse[] = [];
     handleCandidateRequest(store, { type: "base-map", id: 1, dataId: 2, merge: false, parts: [{ name: "kurvor.dxf", body: "inte\nDXF\nalls" }] }, response => sent.push(response));

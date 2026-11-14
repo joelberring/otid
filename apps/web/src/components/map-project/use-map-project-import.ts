@@ -284,8 +284,12 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   /** Nya kandidater som väntar på svar: de som visas är inte införda (frågan i kandidaternas rad). */
   const [pendingReplace, setPendingReplace] = useState<{ fileName: string; open: () => void }>();
   /** K5: geo-arbetarens kurvor (DXF) som kandidater. */
-  const openData = useCallback((fileName: string, data: SourceData, general = false, within?: readonly (readonly { x: number; y: number }[])[], calmed?: CalmOutcome) => {
-    const open = () => { setProblem(undefined); setSent(undefined); setAccepted(undefined); show(fileName, data, undefined, general, within); setCalm(calmed); };
+  const openData = useCallback((fileName: string, data: SourceData, general = false, within?: readonly (readonly { x: number; y: number }[])[], calmed?: CalmOutcome,
+    cleared?: { outcome: ClearOutcome; field: HeightField }) => {
+    const open = () => {
+      setProblem(undefined); setSent(undefined); setAccepted(undefined); show(fileName, data, undefined, general, within); setCalm(calmed);
+      setClear(cleared?.outcome); clearWith.current = cleared && { settings: cleared.outcome.settings, field: cleared.field };
+    };
     // Ägaren 2026-11-12 («försvinner kartan … om den inte är nersparad»): andra kandidater som inte är införda byts inte ut utan
     // fråga. Frågan står i kandidaternas rad under kartan (ingen dialogruta; ägaren 2026-11-13 fick den som webbläsarens ruta).
     if (file && file.name !== fileName && file.data.features.length > 0) { setPendingReplace({ fileName, open }); return; }
@@ -328,7 +332,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     setFile({ name: file.name, data }); setLayers(importLayers(data)); setClear(outcome);
     return outcome;
   }, [file, clear]);
-  return { file, calm, calmContours, clear, clearCurves,
+  return { file, calm, calmContours, clear, clearCurves, /** Höjden som «Tydligare kurvbild» senast räknades med. */ clearField: () => clearWith.current?.field,
     /** Nya kandidater väntar på svar (de som visas är inte införda): läs in dem ändå, eller behåll de som visas. */
     pendingReplace: pendingReplace?.fileName,
     replaceAnyway: () => { const pending = pendingReplace; setPendingReplace(undefined); pending?.open(); },

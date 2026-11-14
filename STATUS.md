@@ -19,8 +19,10 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Ny panel «Tydligare kurvbild» under «3. Justera utan ny körning» (`clearContours` i `@o-tid/map-revision/base-map`, höjden ur jobbets `hojd.png`): mjukare kurvor på flack mark (aldrig mer än 1,25 m i höjd, ISOM § 101), färre hjälpkurvor, små ringar av hjälpkurva bort. 0–10, förval 5; ligger ovanpå «Lugna kurvor».
 - Förvalen på de tre kartorna: svängarna på flack mark 43→37, 48→43 och 40→34° (kartritarna 33, 40, 34); hjälpkurvor 42→21, 108→60 och 62→37 km (kartritarna 17, 61, 40) med bättre träff (0,32→0,40, 0,47→0,56, 0,53→0,61); antalet punkter i kurvorna halveras.
 - Punkthöjdernas förval sänkt (ägaren: «lite högt»): 1,2 m över omgivningen, 85 % av ringen lägre, 15 m emellan (förut 1 m, 80 %, 10 m), i reglaget och i geo-arbetaren (34). Gamla körningar ändras bara via reglaget; det gamla förvalet ligger vid 6–7.
-- Verifierat: enhetstester (11 nya), lint, typecheck; regeln körd på de tre kartornas riktiga data i webbläsaren. Inte provat i panelen mot en riktig karta.
-- Återstår: reglagen körs inte av sig själva när grundkartan läses in; olika nivåer för olika delar av en karta (i dag styr lutningen och markformen, inte ett ritat område).
+- Grundkartan läses in med förvalen redan pålagda (höjden hämtas med de andra filerna, räknas i Workern), och panelen har knappen före/efter som växlar mellan laserns kurvor och de tydligare.
+- Kontrollerat med appens egen läsning (`parseDxf` + `smallRingsToPoints`) på de tre kartornas filer: ringreglagets förval tar 94 av 156, 130 av 217 och 40 av 101 slutna hjälpkurvor (kvar 47, 71, 51; kartritarna 49, 453, 66).
+- Verifierat: enhetstester (12 nya), lint, typecheck; regeln körd på de tre kartornas riktiga data i webbläsaren. Inte provat i panelen mot en riktig karta.
+- Återstår: olika nivåer för olika delar av en karta (i dag styr lutningen och markformen, inte ett ritat område).
 
 ### 2026-11-14 – Bilderna att titta på som WebP (geo-arbetaren 33, migration 0122)
 - Ägaren: «om det gör det snabbare är det bra». Geo-arbetaren gör om kartbilden, terrängskuggningen och reliefen till WebP med

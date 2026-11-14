@@ -4,9 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import { GEO_CLIP_MARGIN_M, type GeoClip, type GeoJobList, type GeoJobView, type MapProjectClearCutList, type MapProjectSoilArea, type MapProjectSoilList, type MapProjectView, type MapSourceCredentialView } from "@o-tid/contracts";
 import type { MapGeoreference } from "@o-tid/map-file";
 import { VectorParseError, type SourceData } from "@o-tid/map-revision";
-import { DEFAULT_ROCK_LEVEL } from "@o-tid/map-revision/base-map";
-import { mapFlatContoursEn } from "../../i18n/map-knolls-en";
-import { mapFlatContoursSv } from "../../i18n/map-knolls-sv";
+import { DEFAULT_CLEAR, DEFAULT_ROCK_LEVEL, heightFieldFrom } from "@o-tid/map-revision/base-map";
+import { mapClearContoursEn, mapFlatContoursEn } from "../../i18n/map-knolls-en";
+import { mapClearContoursSv, mapFlatContoursSv } from "../../i18n/map-knolls-sv";
 import { mapSourcesEn } from "../../i18n/map-sources-en";
 import { mapSourcesSv } from "../../i18n/map-sources-sv";
 import { accountRequest } from "../../lib/account-client";
@@ -16,6 +16,7 @@ import { areaBox, type BoxArea } from "../../lib/map-project-area-box";
 import { baseMapOutputs, clearCutFeatures, clipWgs84, soilForMarsh } from "@o-tid/map-revision/base-map";
 import { mapProjectBase } from "../../lib/map-project-client";
 import { laserClip } from "../../lib/map-project-clip";
+import { HEIGHT_IMAGE, jobHeights, type HeightPart } from "../../lib/map-project-clear-contours";
 import { jobSlope } from "../../lib/map-project-flat-contours";
 import { jobRock } from "../../lib/map-project-rock";
 import { mapRockEn } from "../../i18n/map-rock-en";
@@ -42,6 +43,7 @@ export function useMapProjectLaser({ view, layers, importer, georeference, bound
   bounds: Bounds | undefined; areas: readonly LaserArea[] }) {
   const text = useTexts(mapSourcesSv.laser, mapSourcesEn.laser);
   const flatText = useTexts(mapFlatContoursSv, mapFlatContoursEn);
+  const clearText = useTexts(mapClearContoursSv, mapClearContoursEn);
   const rockText = useTexts(mapRockSv, mapRockEn);
   const base = mapProjectBase(view.projectId);
   const [credential, setCredential] = useState<MapSourceCredentialView>();
@@ -155,8 +157,10 @@ export function useMapProjectLaser({ view, layers, importer, georeference, bound
     const depths = jobsToRead.filter(row => baseMap && row.outputs.some(output => output.name === "fuktdjup.png"));
     // Ägaren 2026-11-13 («Berg i dagen med reglage»): med grundkartan läses körningens bergbild, för berg i dagen med förvalets nivå.
     const rocks = jobsToRead.filter(row => baseMap && row.outputs.some(output => output.name === "berg.png"));
+    // Ägaren 2026-11-14 («Tydligare kurvbild»): med grundkartan läses körningens höjd, och reglagens förval läggs på direkt.
+    const heights = jobsToRead.filter(row => baseMap && row.outputs.some(output => output.name === HEIGHT_IMAGE));
     const filesOf = (row: GeoJobView) => stages ? baseMapFiles(row) : outputs;
-    const total = jobsToRead.reduce((sum, row) => sum + filesOf(row).length, 0) + depths.length + rocks.length + (box ? 2 : 0);
+    const total = jobsToRead.reduce((sum, row) => sum + filesOf(row).length, 0) + depths.length + rocks.length + heights.length + (box ? 2 : 0);
     let fetched = 0;
     const step = (stepText: string) => setBusy({ from, text: stepText });
     step(text.steps.fetching(1, total));
@@ -178,6 +182,8 @@ export function useMapProjectLaser({ view, layers, importer, georeference, bound
       for (const row of depths) { step(text.steps.fetching(++fetched, total)); slopes.set(row.jobId, await jobSlope(base, row)); }
       const rockImages = new Map<string, Awaited<ReturnType<typeof jobRock>>>();
       for (const row of rocks) { step(text.steps.fetching(++fetched, total)); rockImages.set(row.jobId, await jobRock(base, row)); }
+      const heightParts: HeightPart[] = [];
+      for (const row of heights) { step(text.steps.fetching(++fetched, total)); const part = await jobHeights(base, row); if (part && part !== "failed") heightParts.push(part); }
       const rock = rockImages.get(job.jobId);
       const found = [...slopes.values()].find(value => value && value !== "failed");
       const slope = found ?? (slopes.size > 0 ? "failed" as const : undefined);
@@ -210,20 +216,23 @@ export function useMapProjectLaser({ view, layers, importer, georeference, bound
         return { box: row.clip!, parts: rowParts, ...(own && own !== "failed" ? { slope: { grid: own.grid, affine: own.affine } } : {}),
           ...(ownRock && ownRock !== "failed" ? { rock: ownRock } : {}) };
       });
-      const { data, calm, rock: rocky, soil: soiled } = await importer.readBaseMap({ parts: stageParts ? [] : parts, stages: stageParts, joined: !stages && !!job.mergedStages, merge: baseMap, osm, scale: georeference?.scale,
+      const { data, calm, clear, rock: rocky, soil: soiled } = await importer.readBaseMap({ parts: stageParts ? [] : parts, stages: stageParts, joined: !stages && !!job.mergedStages, merge: baseMap, osm, scale: georeference?.scale,
         cuts: cuts && { features: cuts.features, afterScan: cuts.afterScan }, soil, calm: slope === "failed" ? undefined : slope,
+        clear: heightParts.length > 0 ? { parts: heightParts, settings: DEFAULT_CLEAR } : undefined,
         rock: !stages && rock && rock !== "failed" ? { ...rock, level: DEFAULT_ROCK_LEVEL } : undefined },
         at => step(at.step === "read" ? text.steps.reading(at.done, at.total) : text.steps.merging));
       // Karttapullautins filer är i laserns SWEREF 99 TM; en DWG-ritnings koordinatsystem gissas eller anges i importen.
       importer.openData(stages ? stagesName(job, label) : candidateName(job, label), job.kind === "DWG" ? data : { ...data, crs: data.crs ?? 3006 }, job.kind !== "DWG",
         // Ägaren 2026-11-12: en etapps resultat klipps mot etappens gräns, så att grannetapperna inte får dubbla linjer.
-        stages ? undefined : areas.find(row => row.areaId === job.areaId)?.polygon, calm);
+        stages ? undefined : areas.find(row => row.areaId === job.areaId)?.polygon, calm,
+        clear && { outcome: clear, field: heightFieldFrom(heightParts) });
       const calmText = calm ? ` ${flatText.loaded(calm.level, calm.formlineMeters.toLocaleString("sv-SE"), calm.rings)}` : slope === "failed" ? ` ${flatText.failed}` : "";
+      const clearMessage = clear ? ` ${clearText.loaded(clear.smoothedMeters.toLocaleString("sv-SE"), clear.formlineMeters.toLocaleString("sv-SE"), clear.rings)}` : "";
       const rockMessage = rocky ? ` ${rockText.loaded(rocky.level, rocky.areas, String(rocky.hectares).replace(".", ","))}`
         : [...rockImages.values()].includes("failed") ? ` ${rockText.loadFailed}` : "";
       const cutText = cuts ? ` ${text.clearCuts(cuts.counts.fresh, cuts.counts.scrub, cuts.counts.young, job.scannedAt)}` : "";
       const soilMessage = soiled && soiled.removedHa > 0 ? ` ${text.soilRemoved(String(soiled.removedHa).replace(".", ","))}` : "";
-      setMessage({ from, tone: "ok", text: `${osmMissing ? `${text.loaded(label)} ${text.osmMissing}` : text.loaded(label)}${cutText}${soilMessage}${calmText}${rockMessage}` });
+      setMessage({ from, tone: "ok", text: `${osmMissing ? `${text.loaded(label)} ${text.osmMissing}` : text.loaded(label)}${cutText}${soilMessage}${calmText}${clearMessage}${rockMessage}` });
     } catch (error) {
       setMessage({ from, tone: "error", text: error instanceof VectorParseError ? error.message : text.problems.generic("DXF") });
     } finally { setBusy(undefined); }

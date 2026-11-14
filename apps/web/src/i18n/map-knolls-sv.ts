@@ -69,7 +69,11 @@ export const mapClearContoursSv = {
   run: "Visa som kandidater",
   done: (smoothed: string, formlines: string, rings: number) => `${smoothed} m kurva jämnas ut, ${formlines} m hjälpkurva och ${rings === 1 ? "1 liten ring" : `${rings} små ringar`} tas bort.`,
   untouched: "Ingenting ändras.",
-  failed: "Markens höjd kunde inte läsas."
+  failed: "Markens höjd kunde inte läsas.",
+  showBefore: "Visa laserns kurvor (före)",
+  showAfter: "Visa de tydligare (efter)",
+  before: "Nu visas laserns kurvor som de var. Reglagen står kvar.",
+  loaded: (smoothed: string, formlines: string, rings: number) => `Tydligare kurvbild (förvalen): ${smoothed} m kurva jämnades ut, ${formlines} m hjälpkurva och ${rings === 1 ? "1 liten ring" : `${rings} små ringar`} togs bort. Ändra eller jämför med före under «3. Justera utan ny körning».`
 };
 
 /** «Lugna kurvor på flack mark» (ägaren 2026-11-13): hjälpkurvor och små ringar tas bort där marken är flack. */

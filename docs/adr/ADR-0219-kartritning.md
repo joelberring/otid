@@ -636,3 +636,5 @@ kartritare för att kunna göra medvetna generaliseringar».
 - Ingen form på marken skilde kartritarnas behållna små ringar från de andra; därför styr bara ytan, och kartritaren väljer.
 - Punkthöjdernas förval är 1,2 m, 85 % och 15 m (geo-arbetaren 34 och `DEFAULT_KNOLL_LIMITS`). Alla möjliga kullar sparas
   som förut.
+- Förvalen läggs på direkt när grundkartan läses in (som «Lugna kurvor»), så att första bilden är den generaliserade; panelens
+  knapp före/efter visar laserns kurvor som de var. Höjden läses utan färgomräkning (värdet ligger i färgerna).

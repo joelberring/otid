@@ -92,3 +92,33 @@ describe("ingen sankmark på sand och grus", () => {
     expect(result.features).toEqual([other]);
   });
 });
+
+describe("fuktstråken på torr mark (ägaren 2026-11-14)", () => {
+  const line = (layer: string, points: [number, number][]): SourceFeature => ({ layer, geometry: { kind: "line", closed: false, points } });
+  // Ett slingrande stråk: sicksack med 6 m utslag var 8:e meter.
+  const wiggle = (x0: number, x1: number, y: number): [number, number][] => Array.from({ length: Math.floor((x1 - x0) / 8) + 1 }, (_, i) => [x0 + i * 8, y + (i % 2 ? 6 : 0)]);
+
+  it("tar bort ett slingrande stråk på sand men behåller det utanför", () => {
+    const stream = line("fuktstrak", wiggle(-200, 200, 50));
+    const { features } = marshOffDrySoil([stream], [soil("dry", box(0, 0, 300, 100))]);
+    expect(features.length).toBeGreaterThan(0);
+    for (const feature of features) {
+      expect(feature.layer).toBe("fuktstrak");
+      if (feature.geometry.kind === "line") for (const [x] of feature.geometry.points) expect(x).toBeLessThanOrEqual(4);
+    }
+  });
+
+  it("behåller ett rakt dike på sand och rör inte terrängens diken", () => {
+    const straight = line("fuktstrak_terrang", [[20, 10], [20, 90]]);
+    const ditch = line("dike", wiggle(10, 290, 50));
+    const { features } = marshOffDrySoil([straight, ditch], [soil("dry", box(0, 0, 300, 100))]);
+    expect(features).toContain(ditch);
+    const kept = features.find(feature => feature.layer === "fuktstrak_terrang");
+    expect(kept && kept.geometry.kind === "line" && Math.abs(kept.geometry.points[kept.geometry.points.length - 1]![1] - kept.geometry.points[0]![1])).toBeGreaterThan(70);
+  });
+
+  it("fuktreglaget kan låta stråken vara", () => {
+    const stream = line("fuktstrak", wiggle(10, 290, 50));
+    expect(marshOffDrySoil([stream], [soil("dry", box(0, 0, 300, 100))], { streams: false }).features).toEqual([stream]);
+  });
+});

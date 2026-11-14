@@ -13,6 +13,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-14 – Engelska: svenska texter i den engelska versionen
+
+- Genomgång av koden och ca 70 sidor på en-GB (projektdokumentet `claude/oversattning-engelska-2026-11-14.md`). Rättat: avläsningskortets «Bricka» och sidtitel, remsan i Mina tävlingar (ny `my-places-en.ts`), sidfoten i arbetsytan, superadmins länkar och tävlingstyper, klubbsidans «Kontrollera alla kartor igen», inbjudan av flera adresser, gruppens publika sida, sidtitlar för opublicerade tävlingar, några felbesked, träningslägets Start/Mål/Passage och festens färgprov.
+- Sparade namn ändras inte: färdiga arkmallar, läget «Från Purple Pen» och pappret visas på engelska i visningen (`lib/built-in-names.ts`, med test), och bara när namnet fortfarande är O-Tids eget. URL-parametern `klubb` och remsans platshållare (`{löpare}` m.fl.) är kod och rörs inte.
+- Kvar: ett trettiotal felbesked som kastas i webbläsaren (t.ex. «Kartan kunde inte hämtas») är bara svenska. Kontrollbeskrivningarna följer beskrivningarnas språk. Kontrollerat: typecheck, eslint, knip, alla vitest (1241).
+
 ### 2026-11-14 – Fel: «karta.webp kunde inte skickas (400)» (Arboga)
 
 - Geo-arbetarens avbildning byggs vid varje push och var nyare än webbservern, som inte tog emot WebP än; arbetaren fick då heller inte veta att jobbet var en etapp. Arbetaren skickar nu PNG när servern svarar 400 på en WebP-bild.

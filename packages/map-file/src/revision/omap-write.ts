@@ -178,7 +178,6 @@ function modifyElement(element: string, original: MapObject, change: ModifyChang
 function addElement(change: AddChange, index: number, map: ParsedMap): Built {
   const kind = symbolObjectKind(map.symbols, change.symbol);
   if (!kind) return refuse("INVALID_CHANGE", `symbolen ${change.symbol} finns inte i kartfilen.`, index);
-  if (change.geometry.kind === "text" || kind === "text") return refuse("INVALID_CHANGE", "nya textobjekt stöds inte än.", index);
   if (kind !== change.geometry.kind) return refuse("INVALID_CHANGE", `symbolen ${change.symbol} passar inte geometrins slag.`, index);
   if (change.angle !== undefined && !Number.isFinite(change.angle)) return refuse("INVALID_CHANGE", "vinkeln är inte ett tal.", index);
   const angle = normalizeAngle(change.angle ?? 0);
@@ -186,6 +185,15 @@ function addElement(change: AddChange, index: number, map: ParsedMap): Built {
   try {
     checkGeometry(change.geometry);
     const geometry = change.geometry;
+    if (geometry.kind === "text") {
+      // Ägaren 2026-11-14 (kartans märkning): en ny text med ankaret nere till vänster på första radens baslinje, som O-Tid ritar den.
+      const text = change.text ?? "";
+      if (!text.trim()) return refuse("INVALID_CHANGE", "en ny text får inte vara tom.", index);
+      const coords = xmlCoordsText([xmlUnitX(geometry.at.x), xmlUnitY(geometry.at.y), 0]);
+      const rotation = angle !== 0 ? ` rotation="${radiansText(change.angle!)}"` : "";
+      return { ok: true, text: `<object type="4" symbol="${symbol}"${rotation} h_align="0" v_align="0"><coords count="1">${coords}</coords><text>${escapeXml(text)}</text></object>`,
+        object: { kind: "text", symbol: change.symbol, at: geometry.at, angle, text } };
+    }
     if (geometry.kind === "point") {
       const at: Point = geometry.at;
       const coords = xmlCoordsText([xmlUnitX(at.x), xmlUnitY(at.y), 0]);

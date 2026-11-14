@@ -19,6 +19,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Sparade namn ändras inte: färdiga arkmallar, läget «Från Purple Pen» och pappret visas på engelska i visningen (`lib/built-in-names.ts`, med test), och bara när namnet fortfarande är O-Tids eget. URL-parametern `klubb` och remsans platshållare (`{löpare}` m.fl.) är kod och rörs inte.
 - Kvar: ett trettiotal felbesked som kastas i webbläsaren (t.ex. «Kartan kunde inte hämtas») är bara svenska. Kontrollbeskrivningarna följer beskrivningarnas språk. Kontrollerat: typecheck, eslint, knip, alla vitest (1241).
 
+### 2026-11-14 – Kartans märkning: ram, logga och ruta på kartor gjorda nya i O-Tid
+
+- Ägaren: nya kartor ska märkas – ram för minsta A-papper (stående/liggande) i loggans färg, loggan, och en ruta i liten stil om att kartan är gjord med O-Tid (datum, geo-arbetarens version, inställningar), källorna, att den inte är kontrollerad i terrängen, och villkoren (eget bruk fritt; arrangemang kräver samråd med markägare och jakträttsinnehavare enligt SOFT, och klubb med karta över området kontaktas först).
+- Nya symboler i O-Tids symbolset: 990 ram, 991 logga, 992/992.1 text; eget lager «O-Tid» som går att släcka. Märkningen läggs in med grundkartan («Lägg in»), en gång, i hörnet med minst innehåll; bara på kartor som har symbolerna (gjorda nya i O-Tid från och med nu).
+- Mapper-skrivningen kan nu lägga till nya textobjekt (`omap-write`); OCAD kan det fortfarande inte.
+- Verifierat: enhetstester (hela vägen till kartfilen och tillbaka), lint, typecheck. Inte provat i webbläsaren; loggan i kartan är ringen med «tid» i raka streck, inte loggans exakta bokstäver.
+
 ### 2026-11-14 – Fel: «karta.webp kunde inte skickas (400)» (Arboga)
 
 - Geo-arbetarens avbildning byggs vid varje push och var nyare än webbservern, som inte tog emot WebP än; arbetaren fick då heller inte veta att jobbet var en etapp. Arbetaren skickar nu PNG när servern svarar 400 på en WebP-bild.

@@ -225,7 +225,9 @@ export function useMapProjectLaser({ view, layers, importer, georeference, bound
       importer.openData(stages ? stagesName(job, label) : candidateName(job, label), job.kind === "DWG" ? data : { ...data, crs: data.crs ?? 3006 }, job.kind !== "DWG",
         // Ägaren 2026-11-12: en etapps resultat klipps mot etappens gräns, så att grannetapperna inte får dubbla linjer.
         stages ? undefined : areas.find(row => row.areaId === job.areaId)?.polygon, calm,
-        clear && { outcome: clear, field: heightFieldFrom(heightParts) });
+        clear && { outcome: clear, field: heightFieldFrom(heightParts) },
+        // Kartans märkning (ägaren 2026-11-14): laserjobbets inställningar följer med grundkartan till rutan i hörnet.
+        baseMap && job.kind !== "DWG" ? { scannedAt: job.scannedAt, settings: job.settings } : undefined);
       const calmText = calm ? ` ${flatText.loaded(calm.level, calm.formlineMeters.toLocaleString("sv-SE"), calm.rings)}` : slope === "failed" ? ` ${flatText.failed}` : "";
       const clearMessage = clear ? ` ${clearText.loaded(clear.smoothedMeters.toLocaleString("sv-SE"), clear.formlineMeters.toLocaleString("sv-SE"), clear.rings)}` : "";
       const rockMessage = rocky ? ` ${rockText.loaded(rocky.level, rocky.areas, String(rocky.hectares).replace(".", ","))}`

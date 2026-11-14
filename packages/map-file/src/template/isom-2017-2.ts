@@ -30,6 +30,29 @@ export const ISOM_COLORS: readonly ColorDef[] = [
 const tag = (color: string, width: number, length: number) => [stroke(color, width, [0, 0], [0, -length])];
 const tick = (color: string, width: number, length: number) => [stroke(color, width, [0, length / 2], [0, -length / 2])];
 
+/**
+ * Ägaren 2026-11-14 («om alla nya kartor som skapas ska märkas»): symbolerna för kartans märkning – ramen i loggans färg,
+ * loggan (ringen med «tid» i raka streck) och rutans text. Loggans violett är samma färg som banpåtryckets. Egna nummer
+ * (990–992) så att de ligger i ett eget lager som går att släcka.
+ */
+export const MARKING_CODES = { frame: "990", logo: "991", text: "992", heading: "992.1" } as const;
+/** Måtten i mm vid symbolsetets grundskala: textens teckenhöjd och loggans diameter. */
+export const MARKING_TEXT_SIZE = 1.2, MARKING_LOGO_SIZE = 8.8;
+const MARKING_SYMBOLS: readonly SymbolDef[] = [
+  { code: MARKING_CODES.frame, name: "O-Tid: ram", kind: "line", color: "purple", width: 0.6, join: "miter" },
+  { code: MARKING_CODES.logo, name: "O-Tid: logga", kind: "point", elements: [
+    ring("purple", MARKING_LOGO_SIZE, 1),
+    // t
+    stroke("purple", 0.5, [-1.9, 1.7], [-1.9, -1.5]), stroke("purple", 0.5, [-2.6, 0.6], [-1.2, 0.6]),
+    // i
+    stroke("purple", 0.5, [-0.3, 0.6], [-0.3, -1.5]), dot("purple", 0.6, [-0.3, 1.5]),
+    // d
+    ring("purple", 2.2, 0.5, [1.5, -0.4]), stroke("purple", 0.5, [2.35, 1.7], [2.35, -1.5])
+  ] },
+  { code: MARKING_CODES.text, name: "O-Tid: text", kind: "text", color: "black", size: MARKING_TEXT_SIZE },
+  { code: MARKING_CODES.heading, name: "O-Tid: rubrik", kind: "text", color: "black", size: MARKING_TEXT_SIZE, bold: true }
+];
+
 export const ISOM_SYMBOLS: readonly SymbolDef[] = [
   // Landformer (brunt).
   { code: "101", name: "Höjdkurva", kind: "line", color: "brown", width: 0.14, cap: "round", join: "round" },
@@ -151,7 +174,8 @@ export const ISOM_SYMBOLS: readonly SymbolDef[] = [
   { code: "602", name: "Passmärke", kind: "point", elements: [ring("black", 1.5, 0.1), ...cross("black", 2.2, 0.1)] },
   { code: "603", name: "Höjdpunkt", kind: "point", elements: [dot("black", 0.3)] },
   { code: "603.1", name: "Höjdsiffra", kind: "text", color: "black", size: 1.5 },
-  { code: "999", name: "Namn och text", kind: "text", color: "black", size: 2.0 }
+  { code: "999", name: "Namn och text", kind: "text", color: "black", size: 2.0 },
+  ...MARKING_SYMBOLS
 ];
 
 export const ISOM_2017_2: SymbolSetDef = {

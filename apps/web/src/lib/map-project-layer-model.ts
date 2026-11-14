@@ -8,8 +8,8 @@ import type { CatalogSymbol, SymbolGroup } from "./map-project-protocol";
  * "Utanför normen" och kan slås ihop med en symbol i normen. Ett lager kan tändas och släckas, låsas (det går inte att markera
  * eller ändra) och ett låst lager visas fullt eller nedtonat. Valen sparas i webbläsaren per projekt.
  */
-export type LayerId = SymbolGroup | "OUTSIDE";
-export const LAYER_ORDER: readonly LayerId[] = ["LANDFORMS", "ROCK", "WATER", "VEGETATION", "MANMADE", "TECHNICAL", "COURSE", "OTHER", "OUTSIDE"];
+export type LayerId = SymbolGroup | "OUTSIDE" | "MARKING";
+export const LAYER_ORDER: readonly LayerId[] = ["LANDFORMS", "ROCK", "WATER", "VEGETATION", "MANMADE", "TECHNICAL", "COURSE", "OTHER", "OUTSIDE", "MARKING"];
 export interface LayerFlags { readonly hidden?: boolean; readonly locked?: boolean; readonly dimmed?: boolean }
 export interface LayerState {
   readonly layers: Readonly<Partial<Record<LayerId, LayerFlags>>>;
@@ -32,11 +32,14 @@ export function standardSymbols(standard: Standard): ReadonlyMap<string, string>
   return new Map(set.symbols.map(symbol => [symbol.code, symbol.name]));
 }
 
+const MARKING_CODE = /^99[0-2](\.\d+)?$/;
 /** Symbolnumret utan ".0" (filernas "406.0" är normens "406"). */
 export const normalCode = (code: string) => code.replace(/\.0+$/, "").trim();
 
 /** Lagret för en symbol: utanför normen om numret inte finns i normen, annars normens grupp. */
 export function layerOf(symbol: Pick<CatalogSymbol, "code" | "group">, standard: ReadonlyMap<string, string>): LayerId {
+  // Kartans märkning (ramen, loggan och rutans text; ägaren 2026-11-14) är ett eget lager som går att släcka.
+  if (MARKING_CODE.test(normalCode(symbol.code)) && standard.has(normalCode(symbol.code))) return "MARKING";
   return standard.has(normalCode(symbol.code)) ? symbol.group : "OUTSIDE";
 }
 

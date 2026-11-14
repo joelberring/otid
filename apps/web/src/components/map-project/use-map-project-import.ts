@@ -1,5 +1,10 @@
 "use client";
 
+import { GEO_WORKER_VERSION } from "@o-tid/contracts";
+import { swedishToday } from "@o-tid/domain";
+import { mapMarkingEn } from "../../i18n/map-marking-en";
+import { mapMarkingSv } from "../../i18n/map-marking-sv";
+import { baseMapMarking, type BaseMapOrigin } from "../../lib/map-project-marking";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { mapProjectImportEn } from "../../i18n/map-project-tools-en";
 import { useTexts } from "../language-provider";
@@ -40,6 +45,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   /** Lägger många nya objekt direkt i kartan som ett steg (editorns `commitMany`); utan den går det bara att lämna förslag. */
   commitMany?: (changes: readonly ObjectChange[]) => number) {
   const text = useTexts(mapProjectImportSv, mapProjectImportEn);
+  const markingText = useTexts(mapMarkingSv, mapMarkingEn);
   const base = mapProjectBase(view.projectId);
   const [file, setFile] = useState<{ name: string; data: SourceData }>();
   /** K4c: hämtat för en etapp klipps mot etappens ruta i stället för kartans. */
@@ -97,9 +103,12 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
    * sparas så att de läggs på igen när «Lugna kurvor» ändras.
    */
   const [clear, setClear] = useState<ClearOutcome>();
+  /** Grundkartan ur ett laserjobb (ägaren 2026-11-14, kartans märkning): jobbets inställningar, till rutan i kartans hörn. */
+  const [origin, setOrigin] = useState<BaseMapOrigin>();
+  const [marked, setMarked] = useState<string>();
   const clearWith = useRef<{ settings: ClearSettings; field: HeightField } | undefined>(undefined);
   const show = useCallback((fileName: string, data: SourceData, area?: Bounds, general = false, within?: readonly (readonly { x: number; y: number }[])[]) => {
-    setNormed(general); setStage(within); setCalm(undefined); setClear(undefined); clearWith.current = undefined;
+    setNormed(general); setStage(within); setCalm(undefined); setClear(undefined); clearWith.current = undefined; setOrigin(undefined);
     const found = importLayers(data);
     const list = symbolList;
     setFile({ name: fileName, data });
@@ -269,10 +278,15 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   const accept = useCallback(() => {
     if (!file || !result || result.objects.length === 0 || !commitMany || computing) return;
     setProblem(undefined); setSent(undefined);
-    const count = commitMany(result.objects.map((object: MapObject) => ({ key: newKey(crypto.randomUUID()), ref: null, kind: "ADD" as const,
+    // En karta gjord ny i O-Tid (den har märkningens symboler) får ramen, loggan och rutan med grundkartan, en gång.
+    const marking = origin && georeference ? baseMapMarking({ symbols, objects: result.objects, bounds, scale: georeference.scale, text: markingText,
+      facts: { host: window.location.host, date: swedishToday(new Date()), worker: GEO_WORKER_VERSION, scale: georeference.scale, scannedAt: origin.scannedAt ?? undefined,
+        settings: Object.entries(origin.settings), calm: calm?.level, clear: clear && [clear.settings.smooth, clear.settings.formlines, clear.settings.rings] } }) : undefined;
+    const count = commitMany([...result.objects, ...(marking?.objects ?? [])].map((object: MapObject) => ({ key: newKey(crypto.randomUUID()), ref: null, kind: "ADD" as const,
       after: { kind: "OBJECT" as const, object } })));
+    setMarked(marking?.paper);
     setAccepted(count); setFile(undefined); setLayers([]); setMapping(new Map());
-  }, [file, result, computing, commitMany]);
+  }, [file, result, computing, commitMany, origin, georeference, symbols, bounds, markingText, calm, clear]);
 
   const choose = useCallback((layer: string, symbolId: string) => setMapping(current => {
     const next = new Map(current);
@@ -285,9 +299,9 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   const [pendingReplace, setPendingReplace] = useState<{ fileName: string; open: () => void }>();
   /** K5: geo-arbetarens kurvor (DXF) som kandidater. */
   const openData = useCallback((fileName: string, data: SourceData, general = false, within?: readonly (readonly { x: number; y: number }[])[], calmed?: CalmOutcome,
-    cleared?: { outcome: ClearOutcome; field: HeightField }) => {
+    cleared?: { outcome: ClearOutcome; field: HeightField }, from?: BaseMapOrigin) => {
     const open = () => {
-      setProblem(undefined); setSent(undefined); setAccepted(undefined); show(fileName, data, undefined, general, within); setCalm(calmed);
+      setProblem(undefined); setSent(undefined); setAccepted(undefined); show(fileName, data, undefined, general, within); setCalm(calmed); setOrigin(from);
       setClear(cleared?.outcome); clearWith.current = cleared && { settings: cleared.outcome.settings, field: cleared.field };
     };
     // Ägaren 2026-11-12 («försvinner kartan … om den inte är nersparad»): andra kandidater som inte är införda byts inte ut utan
@@ -332,7 +346,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     setFile({ name: file.name, data }); setLayers(importLayers(data)); setClear(outcome);
     return outcome;
   }, [file, clear]);
-  return { file, calm, calmContours, clear, clearCurves, /** Höjden som «Tydligare kurvbild» senast räknades med. */ clearField: () => clearWith.current?.field,
+  return { file, calm, calmContours, clear, clearCurves, /** Pappret som märkningens ram gjordes för när grundkartan lades in. */ marked, /** Höjden som «Tydligare kurvbild» senast räknades med. */ clearField: () => clearWith.current?.field,
     /** Nya kandidater väntar på svar (de som visas är inte införda): läs in dem ändå, eller behåll de som visas. */
     pendingReplace: pendingReplace?.fileName,
     replaceAnyway: () => { const pending = pendingReplace; setPendingReplace(undefined); pending?.open(); },

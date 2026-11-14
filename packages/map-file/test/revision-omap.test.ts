@@ -172,6 +172,13 @@ describe("Mapper: tillbakaskrivning", () => {
     expect(report.addedObjects.map(row => [row.id, row.locator.format === "OMAP" ? row.locator.ordinal : -1])).toEqual([["p", 5], ["l", 6], ["a", 7]]);
   });
 
+  it("lägger till en text med & och < och läser tillbaka den", () => {
+    const s = setup();
+    const { text, map } = ok(apply(s, [{ kind: "add", ...meta, id: "t", symbol: "4", geometry: { kind: "text", at: { x: 3, y: -4 } }, text: "Gjord med O-Tid & <fri>" }]));
+    expect(text).toContain(`<object type="4" symbol="4" h_align="0" v_align="0"><coords count="1">3000 4000;</coords><text>Gjord med O-Tid &amp; &lt;fri&gt;</text></object>\n</objects>`);
+    expect(plain(map.objects.at(-1)!)).toEqual({ kind: "text", symbol: "4", at: { x: 3, y: -4 }, angle: 0, text: "Gjord med O-Tid & <fri>" });
+  });
+
   it("lägger till i en tom kartdel (<objects count=\"0\"/>) och vägrar okänd kartdel", () => {
     const s = setup();
     const { text, map } = ok(apply(s, [{ kind: "add", ...meta, id: "x", part: 1, symbol: "2", geometry: { kind: "point", at: { x: 0, y: 0 } } }]));
@@ -246,8 +253,9 @@ describe("Mapper: tillbakaskrivning", () => {
       const point = { kind: "add" as const, ...meta, id: "a", symbol: "2", geometry: { kind: "point" as const, at: { x: 0, y: 0 } } };
       expect(codes(apply(s, [point, point]))).toEqual(["CONFLICT"]);
     });
-    it("nya textobjekt, fel geometri och tom geometri", () => {
+    it("nya textobjekt utan text eller med fel symbol, fel geometri och tom geometri", () => {
       expect(codes(apply(s, [{ kind: "add", ...meta, id: "t", symbol: "4", geometry: { kind: "text", at: { x: 0, y: 0 } } }]))).toEqual(["INVALID_CHANGE"]);
+      expect(codes(apply(s, [{ kind: "add", ...meta, id: "t", symbol: "2", geometry: { kind: "text", at: { x: 0, y: 0 } }, text: "Hej" }]))).toEqual(["INVALID_CHANGE"]);
       expect(codes(apply(s, [{ kind: "modify", ...meta, ref: s.ref(1), geometry: { kind: "line", path: [{ type: "M", x: 0, y: 0 }, { type: "L", x: 1, y: 1 }] } }]))).toEqual(["INVALID_CHANGE"]);
       expect(codes(apply(s, [{ kind: "add", ...meta, id: "l", symbol: "0", geometry: { kind: "line", path: [{ type: "M", x: 0, y: 0 }] } }]))).toEqual(["INVALID_CHANGE"]);
       expect(codes(apply(s, [{ kind: "add", ...meta, id: "l", symbol: "0", geometry: { kind: "point", at: { x: 0, y: 0 } } }]))).toEqual(["INVALID_CHANGE"]);

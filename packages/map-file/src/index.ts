@@ -21,4 +21,5 @@ export { applyMapColors, effectiveColorChanges, withColorChanges, type MapColorC
 export { applyMapSymbolColors, effectiveSymbolColorChanges, symbolColorIds, withSymbolColorChanges, type MapSymbolColorChange } from "./revision/symbol-colors";
 export { sha256Hex } from "./revision/sha256";
 export { newMapFile, NewMapError, SYMBOL_SETS } from "./template/new-map";
+export { MARKING_CODES, MARKING_LOGO_SIZE, MARKING_TEXT_SIZE } from "./template/isom-2017-2";
 export type { NewMapOptions, SymbolSetId } from "./template/new-map";

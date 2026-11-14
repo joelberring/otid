@@ -1,6 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { mapMarkingEn } from "../../i18n/map-marking-en";
+import { mapMarkingSv } from "../../i18n/map-marking-sv";
 import { mapProjectImportEn } from "../../i18n/map-project-tools-en";
 import { useLocale, useTexts } from "../language-provider";
 import type { Point } from "@o-tid/map-file";
@@ -19,6 +21,7 @@ type Import = ReturnType<typeof useMapProjectImport>;
 export function MapProjectImportPanel({ importer, symbols, areas }: { importer: Import; symbols: ReadonlyMap<string, CatalogSymbol>;
   areas: readonly { areaId: string; name: string; polygon: readonly (readonly Point[])[] }[] }) {
   const text = useTexts(mapProjectImportSv, mapProjectImportEn);
+  const marking = useTexts(mapMarkingSv, mapMarkingEn);
   const input = useRef<HTMLInputElement>(null);
   const [where, setWhere] = useState("");
   const { file, result, problem } = importer;
@@ -32,7 +35,7 @@ export function MapProjectImportPanel({ importer, symbols, areas }: { importer: 
     {problemText && <p role="alert" className={styles.problem}>{problemText}{" "}
       <Button variant="quiet" onClick={() => importer.setProblem(undefined)}>OK</Button></p>}
     {importer.sent !== undefined && <p role="status" data-testid="map-project-import-sent">{text.sent(importer.sent)}</p>}
-    {importer.accepted !== undefined && <p role="status" data-testid="map-project-import-accepted">{text.accepted(importer.accepted)}</p>}
+    {importer.accepted !== undefined && <p role="status" data-testid="map-project-import-accepted">{text.accepted(importer.accepted)}{importer.marked ? marking.added(importer.marked) : ""}</p>}
     {importer.dwgSent && <p role="status" data-testid="map-project-import-dwg">{text.dwgSent(importer.dwgSent)}</p>}
     {!file ? <>
       <span className={styles.actions}>

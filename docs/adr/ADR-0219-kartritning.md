@@ -638,3 +638,14 @@ kartritare för att kunna göra medvetna generaliseringar».
   som förut.
 - Förvalen läggs på direkt när grundkartan läses in (som «Lugna kurvor»), så att första bilden är den generaliserade; panelens
   knapp före/efter visar laserns kurvor som de var. Höjden läses utan färgomräkning (värdet ligger i färgerna).
+
+## Tillägg 2026-11-14: kartans märkning
+
+- En karta som görs ny i O-Tid märks när grundkartan läggs in: ram, logga och en ruta med ursprung, datum, inställningar,
+  källor och villkor. Märkningen är vanliga kartobjekt med egna symboler (990–992) i ett eget lager; den går att släcka
+  och ta bort och är en upplysning, inget skydd. Importerade kartor märks inte.
+- Villkoren följer SOFT:s tävlingsregler (samråd med markägare, jägare och andra berörda inför arrangemang) och Stockholms
+  Orienteringsförbunds riktlinjer (kartägaren först). Ingen rad om samråd inför kartritning: det samrådet finns för att
+  klubbar inte ska bekosta kartor som inte går att använda (ägaren).
+- Nya textobjekt skrivs till Mapper-filer (ankaret nere till vänster på baslinjen, en rad per objekt).
+

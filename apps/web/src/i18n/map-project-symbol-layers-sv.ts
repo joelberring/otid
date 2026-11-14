@@ -10,7 +10,7 @@ export const mapProjectSymbolLayersSv = {
   layers: {
     LANDFORMS: "Landformer (1xx)", ROCK: "Berg och stenar (2xx)", WATER: "Vatten och sankmark (3xx)", VEGETATION: "Vegetation (4xx)",
     MANMADE: "Anläggningar (5xx)", TECHNICAL: "Tekniska symboler (6xx)", COURSE: "Banpåtryck (7xx)", OTHER: "Övrigt i normen",
-    OUTSIDE: "Utanför normen"
+    OUTSIDE: "Utanför normen", MARKING: "O-Tid (ram, logga och ruta)"
   } satisfies Record<LayerId, string>,
   outsideHelp: (standard: Standard) => `Symboler som inte finns i ${STANDARD_NAMES[standard]}: en äldre norm, egna symboler eller en annan karta som `
     + "kombinerats in. Slå ihop dem med en symbol i normen nedan.",

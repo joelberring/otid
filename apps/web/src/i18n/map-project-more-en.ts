@@ -120,7 +120,7 @@ export const mapProjectSymbolLayersEn: Texts<typeof mapProjectSymbolLayersSv> = 
   layers: {
     LANDFORMS: "Landforms (1xx)", ROCK: "Rock and boulders (2xx)", WATER: "Water and marsh (3xx)", VEGETATION: "Vegetation (4xx)",
     MANMADE: "Man-made features (5xx)", TECHNICAL: "Technical symbols (6xx)", COURSE: "Course overprint (7xx)", OTHER: "Other in the norm",
-    OUTSIDE: "Outside the norm"
+    OUTSIDE: "Outside the norm", MARKING: "O-Tid (frame, logo and box)"
   } satisfies Record<LayerId, string>,
   outsideHelp: (standard: Standard) => `Symbols not in ${STANDARD_NAMES[standard]}: an older norm, own symbols or another map that `
     + "has been combined in. Merge them with a symbol in the norm below.",

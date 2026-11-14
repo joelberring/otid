@@ -7,7 +7,9 @@ import { useEffect, useState, type FormEvent } from "react";
 import { SUPERADMIN_NEAR_LIMIT_SHARE, superadminActionResponseSchema, superadminOverviewSchema, type SuperadminOverview } from "@o-tid/contracts";
 import { superadminSv } from "../../i18n/superadmin-sv";
 import { accountSv } from "../../i18n/account-sv";
+import { accountPageEn, type AccountPage } from "../../i18n/account-en";
 import { raceTypeSv } from "../../i18n/race-type-sv";
+import { raceTypeEn } from "../../i18n/workspace-en";
 import { accountRequest } from "../../lib/account-client";
 import { Button, EmptyState, Field, Notice, numeric, Section, Table } from "../ui";
 import { actionRequest, ResetLink, SuperadminActionPanel, type LimitValues, type PendingAction } from "./superadmin-action-panel";
@@ -36,6 +38,8 @@ export function SuperadminPage() {
   const dateTime = (value: string) => new Date(value).toLocaleString(locale, { dateStyle: "short", timeStyle: "short" });
   const date = (value: string) => new Date(value).toLocaleDateString(locale);
   const text = useTexts(superadminSv, superadminEn);
+  const account = useTexts<AccountPage>(accountSv, accountPageEn);
+  const raceTypeText = useTexts(raceTypeSv, raceTypeEn);
   const [overview, setOverview] = useState<SuperadminOverview>();
   const [problem, setProblem] = useState<string>();
   const [query, setQuery] = useState({ accounts: "", races: "" });
@@ -53,10 +57,10 @@ export function SuperadminPage() {
       if (response.status === 401) { setProblem(text.notLoggedIn); return; }
       if (response.status === 403) { setProblem(text.forbidden); return; }
       const parsed = superadminOverviewSchema.safeParse(response.json);
-      if (response.status !== 200 || !parsed.success) throw new Error(accountSv.genericError(response.status));
+      if (response.status !== 200 || !parsed.success) throw new Error(account.genericError(response.status));
       setProblem(undefined);
       setOverview(parsed.data);
-    } catch (error) { setProblem(error instanceof Error ? error.message : accountSv.networkError); }
+    } catch (error) { setProblem(error instanceof Error ? error.message : account.networkError); }
   }
   useEffect(() => { void load(); }, []);
 
@@ -87,13 +91,13 @@ export function SuperadminPage() {
       if (response.status === 404) { setActionError(text.notFound); await load(); return; }
       if (response.status === 400 && pending.kind !== "CREATE_RESET_LINK" && pending.kind !== "VERIFY_EMAIL" && pending.kind !== "SET_ACCOUNT_LIMITS") { setActionError(text.ownAccount); return; }
       const parsed = superadminActionResponseSchema.safeParse(response.json);
-      if (response.status !== 200 || !parsed.success) { setActionError(accountSv.genericError(response.status)); return; }
+      if (response.status !== 200 || !parsed.success) { setActionError(account.genericError(response.status)); return; }
       setDone({ section: "raceId" in pending || "eventId" in pending ? "races" : pending.kind === "SET_ACCOUNT_LIMITS" ? "limits" : "accounts",
         text: text.done(`${text.logAction[pending.kind]} – ${pending.label}`),
         ...(parsed.data.resetUrl && parsed.data.resetExpiresAt ? { reset: { url: parsed.data.resetUrl, expiresAt: parsed.data.resetExpiresAt } } : {}) });
       setPending(undefined);
       await load();
-    } catch { setActionError(accountSv.networkError); }
+    } catch { setActionError(account.networkError); }
     finally { setBusy(false); }
   }
 
@@ -109,10 +113,10 @@ export function SuperadminPage() {
   return <main className={styles.page}>
     <header className={styles.header}>
       <div><p className={styles.kicker}>{text.kicker}</p><h1>{text.title}</h1></div>
-      <nav aria-label={text.title}><Link href="/organizer">{accountSv.backToEvents}</Link><Link href="/konto">{accountSv.me.title}</Link></nav>
+      <nav aria-label={text.title}><Link href="/organizer">{account.backToEvents}</Link><Link href="/konto">{account.me.title}</Link></nav>
     </header>
     {!overview && !problem && <p role="status">{text.loading}</p>}
-    {problem && <Notice tone="error" role="alert">{problem} {problem === text.notLoggedIn && <Link href="/organizer">{accountSv.logIn}</Link>}</Notice>}
+    {problem && <Notice tone="error" role="alert">{problem} {problem === text.notLoggedIn && <Link href="/organizer">{account.logIn}</Link>}</Notice>}
     {overview && <>
       <p className={styles.lead}>{text.intro}</p>
 
@@ -126,7 +130,7 @@ export function SuperadminPage() {
           <tbody>{overview.races.map(race => <tr key={race.raceId}>
             <th scope="row">{race.eventName}{shownRaceName(race.eventName, race.raceName) && <span className={styles.muted}> – {shownRaceName(race.eventName, race.raceName)}</span>}</th>
             <td className={styles.nowrap}>{race.raceDate}</td><td>{race.ownerEmail ?? <span className={styles.muted}>{text.noOwner}</span>}</td>
-            <td>{raceTypeSv.types[race.raceType].name}</td><td className={styles.nowrap}>{date(race.createdAt)}</td>
+            <td>{raceTypeText.types[race.raceType].name}</td><td className={styles.nowrap}>{date(race.createdAt)}</td>
             <td>{race.hidden ? <span className={styles.badge} data-tone="attention">{text.status.hidden}</span> : text.status.visible}</td>
             <td><div className={styles.rowActions}>
               <Button variant="secondary" disabled={busy} aria-label={`${race.hidden ? text.action.UNHIDE_RACE : text.action.HIDE_RACE} ${race.eventName}`}

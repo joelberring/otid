@@ -5,7 +5,8 @@ import { runnerPrintEn } from "../../i18n/course-setting-print-more-en";
 import { printOutputEn } from "../../i18n/course-setting-print-en";
 import { coursePrintEn } from "../../i18n/course-setting-print-en";
 import { layoutEn } from "../../i18n/course-setting-layout-en";
-import { useTexts } from "../language-provider";
+import { useLanguage, useTexts } from "../language-provider";
+import { sheetLayoutName } from "../../lib/built-in-names";
 import {
   expandPartItems, layoutDocument, sheetLayoutOfLayout, MAIN_LAYOUT, paperAnchorOf, printAreaOf, printSheetGroups, runnerBackSheet, RUNNER_BACK,
   type CourseSettingDocument, type CourseSettingEdit, type SheetLayout, type MapRect, type PaperRect, type PaperTemplate, type Sheet,
@@ -55,6 +56,7 @@ export function LayoutSheets({ raceId, document, layout, focus, canEdit, save, m
   raceTitle?: string | undefined;
 }) {
   const runnerText = useTexts(runnerPrintSv, runnerPrintEn);
+  const language = useLanguage();
   const outputText = useTexts(printOutputSv, printOutputEn);
   const printText = useTexts(coursePrintSv, coursePrintEn);
   const text = useTexts(layoutSv, layoutEn);
@@ -139,7 +141,7 @@ export function LayoutSheets({ raceId, document, layout, focus, canEdit, save, m
   };
   const interaction = editing && frameEditing && target && canEdit ? { ...paperSpace.interaction, frame: { course: target.course, part: target.part }, onFrame }
     : paperSpace.interaction;
-  const cards = sheetCards(view, sheets, template?.name);
+  const cards = sheetCards(view, sheets, template ? sheetLayoutName(template, language) : undefined);
   const openCard = (card: SheetCard) => {
     setOpenKey(card.key);
     if (card.course && card.course !== ALL_CONTROLS) panel?.onCourse(card.course);

@@ -4,7 +4,7 @@ import { sectionFromSlug } from "../lib/race-sections";
 import { GroupBackLink } from "./race-administrator/group-back-link";
 import { useEffect } from "react";
 import { raceAdministratorEn } from "../i18n/workspace-admin-en";
-import { useTexts } from "./language-provider";
+import { useLanguage, useTexts } from "./language-provider";
 import Link from "next/link";
 import { flushSync } from "react-dom";
 import { raceAdministratorSv } from "../i18n/race-administrator-sv";
@@ -34,6 +34,7 @@ import { SiteFooter } from "./about/site-footer";
  */
 export function RaceAdministratorWorkspace({ raceId }: { raceId: string }) {
   const text = useTexts(raceAdministratorSv, raceAdministratorEn);
+  const language = useLanguage();
   const ws = useWorkspace(raceId);
   const { authenticated, message, expiresAt, navigationBlocked, navigationLocked, printTarget, deadline, begin, session,
     current, lock, finish, invalidate, loadRaceDayAttention, setPrintTarget } = ws;
@@ -79,7 +80,7 @@ export function RaceAdministratorWorkspace({ raceId }: { raceId: string }) {
       {status}
       <p>{text.accountLoginHelp} <Link href="/organizer" prefetch={false}>{text.accountLoginLink}</Link></p>
     </>}
-    <SiteFooter newTab className={styles.footer} />
+    <SiteFooter newTab className={styles.footer} language={language} />
   </div>;
   return <div className={`${styles.root} ${shell.shell}`} data-print-target={printTarget} data-authenticated="true">
     <TopBar ws={ws} />
@@ -109,7 +110,7 @@ export function RaceAdministratorWorkspace({ raceId }: { raceId: string }) {
           <SettingsPanel ws={ws} />
         </>}
         {/* PLAN.md steg 37: sidfoten, länkarna i en ny flik så att inget osparat lämnas. */}
-        <SiteFooter newTab className={styles.footer} />
+        <SiteFooter newTab className={styles.footer} language={language} />
       </div>
     </div>
   </div>;

@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { raceDeleteEn } from "../../i18n/workspace-last-en";
 import { useTexts } from "../language-provider";
 import { accountSv } from "../../i18n/account-sv";
+import { accountPageEn, type AccountPage } from "../../i18n/account-en";
 import { accountRequest } from "../../lib/account-client";
 import { Button, Field, Notice, Section } from "../ui";
 import styles from "../account-pages.module.css";
@@ -15,6 +16,7 @@ import styles from "../account-pages.module.css";
  */
 export function RaceDeleteSection({ raceId, eventName, disabled }: { raceId: string; eventName: string; disabled: boolean }) {
   const text = useTexts(accountSv.raceDelete, raceDeleteEn);
+  const account = useTexts<AccountPage>(accountSv, accountPageEn);
   const [confirmation, setConfirmation] = useState("");
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string>();
@@ -28,8 +30,8 @@ export function RaceDeleteSection({ raceId, eventName, disabled }: { raceId: str
         body: { formatVersion: 1, confirmation } });
       if (response.status === 200) { window.location.assign("/organizer"); return; }
       setProblem(response.status === 409 ? text.mismatch : response.status === 404 ? text.ownerOnly
-        : response.status === 401 ? accountSv.sessionExpired : accountSv.genericError(response.status));
-    } catch { setProblem(accountSv.networkError); }
+        : response.status === 401 ? account.sessionExpired : account.genericError(response.status));
+    } catch { setProblem(account.networkError); }
     finally { setBusy(false); }
   }
 

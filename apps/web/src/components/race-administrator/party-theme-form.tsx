@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { partyEn } from "../../i18n/workspace-more-en";
-import { useTexts } from "../language-provider";
+import { useLanguage, useTexts } from "../language-provider";
 import type { PartyChangeRequest, PartyStateResponse } from "@o-tid/contracts";
 import { contrastRatio } from "@o-tid/domain";
 import local from "./party.module.css";
@@ -19,6 +19,7 @@ export function PartyThemeForm({ state, busy, onChange, onLogo }: { state: Party
   onChange: (change: Extract<PartyChangeRequest["change"], { kind: "theme" }>) => Promise<boolean>;
   onLogo: (file: File | null) => Promise<boolean> }) {
   const text = useTexts(partySv, partyEn);
+  const onWhite = useLanguage() === "en" ? "on white" : "på vitt";
   const theme = state.theme;
   const [title, setTitle] = useState(theme?.title ?? "");
   const [primary, setPrimary] = useState(theme?.primary ?? "");
@@ -44,7 +45,7 @@ export function PartyThemeForm({ state, busy, onChange, onLogo }: { state: Party
     </div>
     <div className={local.themePreview} style={partyThemeStyle(shown)} aria-hidden="true">
       <span className={local.themeBand}>{title.trim() || text.themeTitle}</span>
-      <span className={local.themeAccentText}>✓ {text.themeAccent} {shown.accent ? `(${contrastRatio(shown.accent, "#ffffff").toFixed(1)}:1 på vitt)` : ""}</span>
+      <span className={local.themeAccentText}>✓ {text.themeAccent} {shown.accent ? `(${contrastRatio(shown.accent, "#ffffff").toFixed(1)}:1 ${onWhite})` : ""}</span>
     </div>
     <div className={styles.actions}>
       <Button variant="secondary" onClick={() => { setTitle(CENTRUM_PRESET.title); setPrimary(CENTRUM_PRESET.primary); setAccent(CENTRUM_PRESET.accent); }}>

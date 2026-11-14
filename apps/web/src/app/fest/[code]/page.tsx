@@ -1,3 +1,4 @@
+import { notPublishedEn } from "../../../i18n/workspace-last-en";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { sv } from "../../../i18n/sv";
@@ -18,7 +19,7 @@ const robots = { index: false, follow: false, noarchive: true, nosnippet: true, 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const hub = await loadRaceHub((await params).code);
   const text = await currentLanguage() === "en" ? partyPublicEn : partyPublicSv;
-  if (!hub) return { title: `${publicRaceSv.notPublished.title} – ${sv.appName}`, robots };
+  if (!hub) return { title: `${(await currentLanguage() === "en" ? notPublishedEn : publicRaceSv.notPublished).title} – ${sv.appName}`, robots };
   return { title: `${text.metaTitle(hub.eventName)} – ${sv.appName}`, robots };
 }
 

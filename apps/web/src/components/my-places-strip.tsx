@@ -7,7 +7,8 @@ import { mapProjectEn } from "../i18n/map-project-en";
 import { useTexts } from "./language-provider";
 import { useEffect, useState } from "react";
 import type { ClubSummary, GroupSummary, MapProjectSummary } from "@o-tid/contracts";
-import { myPlacesSv as text } from "../i18n/my-places-sv";
+import { myPlacesSv } from "../i18n/my-places-sv";
+import { myPlacesEn } from "../i18n/my-places-en";
 import { clubArchiveSv } from "../i18n/club-archive-sv";
 import { mapProjectSv } from "../i18n/map-project-sv";
 import { trainingGroupSv } from "../i18n/training-group-sv";
@@ -28,6 +29,7 @@ export function MyPlacesStrip({ onClubs, clubQuestionShown = false }: {
   onClubs?: (clubs: readonly ClubSummary[]) => void;
   /** Användartest 2026-11-12: "Välj din klubb under Mitt konto" visas inte när klubbfrågan står ovanför. */
   clubQuestionShown?: boolean } = {}) {
+  const text = useTexts(myPlacesSv, myPlacesEn);
   const trainingGroupText = useTexts(trainingGroupSv, trainingGroupEn);
   const clubArchiveText = useTexts(clubArchiveSv, clubArchiveEn);
   const mapProjectText = useTexts(mapProjectSv, mapProjectEn);

@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { partyTextEn, readoutTextEn } from "./text-en";
 import { useLanguage, useTexts } from "../components/language-provider";
 import { sportidentReadoutPayloadSchema, type ReadoutPackage } from "@o-tid/contracts";
@@ -72,7 +72,10 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
   partyStore?: PartyActionStore }) {
   const t = useTexts(readoutText, readoutTextEn);
   const partyT = useTexts(partyText, partyTextEn);
-  const englishPlacement = useLanguage() === "en";
+  const language = useLanguage();
+  const englishPlacement = language === "en";
+  // Skalet är statiskt med svensk <title> (scripts/build-shells.mjs); sidans språk sätter titeln och lang när appen startat.
+  useEffect(() => { document.title = t.title; document.documentElement.lang = language; }, [t.title, language]);
   const [raceId] = useState(raceIdFromHash);
   const { pkg, pkgRef, items, itemsRef, elsewhere, registrations, registrationsRef, online, loginNeeded, syncProblem, serverDown,
     failedReadouts, setFailedReadouts, persistent, storeRef, partyActions, reload, sync, addPartyAction } = useReadoutQueue(raceId, store, partyStore);

@@ -8,6 +8,7 @@ import { INVITATION_BULK_MAX, racePeopleResponseSchema, racePersonGrantResponseS
   type RacePeopleResponse, type RacePerson, type RacePersonGrantRequest, type RacePersonInvitation } from "@o-tid/contracts";
 import { raceTypeSv } from "../../i18n/race-type-sv";
 import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
+import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
 import { readAccountCsrfCookie } from "../../lib/organizer-account-cookies";
 import { Button, Field, Notice, Section } from "../ui";
 import styles from "./people-section.module.css";
@@ -126,7 +127,7 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
   return <Section id={`settings-${raceId}-people`} title={text.title} help={text.help}>
     {!data && !loadFailed && <p className={styles.muted} role="status">{text.loading}</p>}
     {loadFailed && <Notice tone="error" role="alert">{text.loadError}{" "}
-      <Button variant="quiet" onClick={() => void load()}>{raceAdministratorSv.retry}</Button></Notice>}
+      <Button variant="quiet" onClick={() => void load()}>{(en ? raceAdministratorEn : raceAdministratorSv).retry}</Button></Notice>}
     {data && <ul className={styles.people} aria-label={text.title}>
       {data.people.map(person => <li key={person.grantId}>
         <span className={styles.who}>

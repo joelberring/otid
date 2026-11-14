@@ -1,6 +1,6 @@
 "use client";
 
-import { invitationMailNoteEn, invitationSummaryEn } from "../../i18n/workspace-last-en";
+import { invitationEn, invitationMailNoteEn, invitationSummaryEn } from "../../i18n/workspace-last-en";
 import { useClubFailure } from "./use-club-failure";
 import { useState, type FormEvent } from "react";
 import { clubArchiveEn } from "../../i18n/club-archive-en";
@@ -30,6 +30,7 @@ export function ClubMembersPanel({ club, onChanged }: { club: ClubView; onChange
   const formText = useTexts(formErrorsSv, formErrorsEn);
   const mailNoteText = useTexts(invitationMailNote, invitationMailNoteEn);
   const summaryText = useTexts(invitationSummary, invitationSummaryEn);
+  const bulkText = useTexts(invitationSv.bulk, invitationEn.bulk);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<ClubRole>("READER");
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
@@ -53,8 +54,8 @@ export function ClubMembersPanel({ club, onChanged }: { club: ClubView; onChange
   async function invite(event: FormEvent) {
     event.preventDefault();
     const { addresses, invalid } = parseInvitationAddresses(email);
-    if (addresses.length === 0) { setMessage({ tone: "error", text: invalid.length ? formText.email : invitationSv.bulk.none }); return; }
-    if (addresses.length > INVITATION_BULK_MAX) { setMessage({ tone: "error", text: invitationSv.bulk.tooMany(INVITATION_BULK_MAX) }); return; }
+    if (addresses.length === 0) { setMessage({ tone: "error", text: invalid.length ? formText.email : bulkText.none }); return; }
+    if (addresses.length > INVITATION_BULK_MAX) { setMessage({ tone: "error", text: bulkText.tooMany(INVITATION_BULK_MAX) }); return; }
     const post = (address: string, id: string) => clubRequest(`${clubBase(club.clubId)}/members`, "POST", { formatVersion: 1, requestId: id,
       email: address, role });
     setBusy(true); setMessage(undefined);
@@ -122,7 +123,7 @@ export function ClubMembersPanel({ club, onChanged }: { club: ClubView; onChange
     </ul>
     {admin && <form className={styles.form} onSubmit={event => void invite(event)} aria-label={text.invite}>
       <div className={styles.inline}>
-        <Field label={text.email} help={invitationSv.bulk.help}><textarea rows={2} autoComplete="off" autoCapitalize="none" spellCheck={false}
+        <Field label={text.email} help={bulkText.help}><textarea rows={2} autoComplete="off" autoCapitalize="none" spellCheck={false}
           value={email} onChange={event => setEmail(event.target.value)} required /></Field>
         <Select label={text.role} value={role} onChange={event => setRole(event.target.value as ClubRole)}
           help={clubArchiveText.roleHelp[role]}>

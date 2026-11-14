@@ -7,6 +7,14 @@ import {
   type CourseTraining, type SectionForm, type TrainingSection
 } from "@o-tid/course-setting";
 import type { Point } from "@o-tid/map-file";
+import type { Language } from "./language";
+
+/** Orden för kontroller som inte har nummer i valen och rubrikerna (bara visning; valen känns igen på id). */
+export const CONTROL_WORDS = {
+  sv: { start: "Start", finish: "Mål", crossing: "Passage", mapExchange: "Kartbyte", mapIssue: "Kartutdelning" },
+  en: { start: "Start", finish: "Finish", crossing: "Crossing point", mapExchange: "Map exchange", mapIssue: "Map issue point" }
+} as const satisfies Record<Language, Record<string, string>>;
+type ControlWords = { readonly [K in keyof typeof CONTROL_WORDS.sv]: string };
 
 export function newTrainingId(): string {
   const bytes = new Uint8Array(6);
@@ -35,23 +43,23 @@ export function newSection(form: SectionForm, previous?: TrainingSection): Train
 }
 
 /** Kontrollerna i banans ordning (första varianten) som val i listorna: banans kontroll-id och etikett ("Start", "3 (33)", "Mål"). */
-export function courseControlChoices(document: CourseSettingDocument, course: string): { id: string; label: string; control: string }[] {
+export function courseControlChoices(document: CourseSettingDocument, course: string, words: ControlWords = CONTROL_WORDS.sv): { id: string; label: string; control: string }[] {
   const sequence = controlSequences(document, course, undefined)[0] ?? [];
   let ordinal = 0;
   return sequence.map(ccId => {
     const control = document.controls[document.courseControls[ccId]!.control]!;
-    const label = control.kind === "START" ? "Start" : control.kind === "FINISH" ? "Mål" : control.kind === "NORMAL"
-      ? `${++ordinal} (${control.code ?? "?"})` : control.kind === "CROSSING_POINT" ? "Passage" : control.kind === "MAP_EXCHANGE" ? "Kartbyte" : "Kartutdelning";
+    const label = control.kind === "START" ? words.start : control.kind === "FINISH" ? words.finish : control.kind === "NORMAL"
+      ? `${++ordinal} (${control.code ?? "?"})` : control.kind === "CROSSING_POINT" ? words.crossing : control.kind === "MAP_EXCHANGE" ? words.mapExchange : words.mapIssue;
     return { id: ccId, label, control: control.id };
   });
 }
 
 /** Avsnittets rubrik. */
-export function sectionLabel(document: CourseSettingDocument, course: string, section: TrainingSection): { from: string; to: string; marker: string } {
-  const choices = courseControlChoices(document, course);
+export function sectionLabel(document: CourseSettingDocument, course: string, section: TrainingSection, words: ControlWords = CONTROL_WORDS.sv): { from: string; to: string; marker: string } {
+  const choices = courseControlChoices(document, course, words);
   const name = (id: string | null, fallback: string) => id === null ? fallback : choices.find(row => row.id === id)?.label
     ?? choices.find(row => row.control === document.courseControls[id]?.control)?.label ?? "?";
-  return { from: name(section.from, "Start"), to: name(section.to, "Mål"), marker: sectionMarkerText(section) };
+  return { from: name(section.from, words.start), to: name(section.to, words.finish), marker: sectionMarkerText(section) };
 }
 
 /** Sträckorna på banan (alla grenar) som linjer, för att träffa en sträcka med ett klick. */

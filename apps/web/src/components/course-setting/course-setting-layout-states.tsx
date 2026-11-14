@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { layoutEn } from "../../i18n/course-setting-layout-en";
-import { useTexts, useLocale } from "../language-provider";
+import { useLanguage, useTexts, useLocale } from "../language-provider";
+import { layoutStateName } from "../../lib/built-in-names";
 import { compareLayoutState, MAIN_LAYOUT, type CourseSettingDocument, type CourseSettingEdit, type LayoutStateDifference } from "@o-tid/course-setting";
 import { layoutSv } from "../../i18n/course-setting-layout-sv";
 import { Button } from "../ui";
@@ -16,6 +17,7 @@ export function LayoutStates({ document, readOnly, save, layoutName, courseName 
   save: (edits: CourseSettingEdit[]) => Promise<boolean>; layoutName: (id: string) => string; courseName: (id: string) => string }) {
   const locale = useLocale();
   const text = useTexts(layoutSv, layoutEn);
+  const language = useLanguage();
   const [name, setName] = useState("");
   const [compared, setCompared] = useState<string>();
   const states = [...(document.event.layoutStates ?? [])].sort((a, b) => b.savedAt.localeCompare(a.savedAt));
@@ -41,10 +43,10 @@ export function LayoutStates({ document, readOnly, save, layoutName, courseName 
       const differences = compared === state.id ? compareLayoutState(document, state) : undefined;
       return <li key={state.id} data-testid="layout-state" data-state={state.name}>
         <div className={styles.row}>
-          <strong>{state.name}</strong><span className={styles.muted}>{when(state.savedAt)}{state.source === "PPEN" ? ` · ${text.states.ppen}` : ""}</span>
+          <strong>{layoutStateName(state, language)}</strong><span className={styles.muted}>{when(state.savedAt)}{state.source === "PPEN" ? ` · ${text.states.ppen}` : ""}</span>
           <Button variant="secondary" data-testid="layout-state-compare" onClick={() => setCompared(compared === state.id ? undefined : state.id)}>{text.states.compare}</Button>
           {!readOnly && <Button variant="secondary" data-testid="layout-state-restore"
-            onClick={() => { if (window.confirm(text.states.restoreConfirm(state.name))) void save([{ type: "RESTORE_LAYOUT_STATE", id: state.id }]); }}>{text.states.restore}</Button>}
+            onClick={() => { if (window.confirm(text.states.restoreConfirm(layoutStateName(state, language)))) void save([{ type: "RESTORE_LAYOUT_STATE", id: state.id }]); }}>{text.states.restore}</Button>}
           {!readOnly && <Button variant="quiet" onClick={() => void save([{ type: "DELETE_LAYOUT_STATE", id: state.id }])}>{text.states.remove}</Button>}
         </div>
         {differences && (differences.length === 0 ? <p className={styles.muted} data-testid="layout-state-differences">{text.states.same}</p>

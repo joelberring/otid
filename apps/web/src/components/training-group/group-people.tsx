@@ -26,6 +26,7 @@ export function GroupPeople({ view, onChanged }: { view: GroupLeaderView; onChan
   const text = useTexts(trainingGroupSv.leader, trainingGroupEn.leader);
   const formText = useTexts(formErrorsSv, formErrorsEn);
   const invitationText = useTexts(invitationSv.list, invitationEn.list);
+  const bulkText = useTexts(invitationSv.bulk, invitationEn.bulk);
   const mailNoteText = useTexts(invitationMailNote, invitationMailNoteEn);
   const summaryText = useTexts(invitationSummary, invitationSummaryEn);
   const [email, setEmail] = useState("");
@@ -42,8 +43,8 @@ export function GroupPeople({ view, onChanged }: { view: GroupLeaderView; onChan
     event.preventDefault();
     const { addresses, invalid } = parseInvitationAddresses(email);
     setProblem(""); setNotice("");
-    if (addresses.length === 0) { setProblem(invalid.length ? formText.email : invitationSv.bulk.none); return; }
-    if (addresses.length > INVITATION_BULK_MAX) { setProblem(invitationSv.bulk.tooMany(INVITATION_BULK_MAX)); return; }
+    if (addresses.length === 0) { setProblem(invalid.length ? formText.email : bulkText.none); return; }
+    if (addresses.length > INVITATION_BULK_MAX) { setProblem(bulkText.tooMany(INVITATION_BULK_MAX)); return; }
     const post = (address: string, id: string) => groupRequest(`/api/organizer/groups/${view.groupId}/members`, "POST", { formatVersion: 1,
       requestId: id, email: address, role });
     const mailOf = (json: unknown) => invitationMailOutcomeSchema.catch("off").parse((json as { mail?: unknown } | undefined)?.mail);
@@ -98,7 +99,7 @@ export function GroupPeople({ view, onChanged }: { view: GroupLeaderView; onChan
     </ul>
     <form className={styles.form} noValidate onSubmit={event => void add(event)}>
       <div className={styles.inline}>
-        <Field label={text.email} help={invitationSv.bulk.help}><textarea rows={2} autoCapitalize="none" spellCheck={false} value={email}
+        <Field label={text.email} help={bulkText.help}><textarea rows={2} autoCapitalize="none" spellCheck={false} value={email}
           disabled={busy} onChange={event => { setEmail(event.target.value); setRequestId(crypto.randomUUID()); }} /></Field>
         <Field label={text.personRole}><select value={role} disabled={busy}
           onChange={event => { setRole(event.target.value as "LEADER" | "MEMBER"); setRequestId(crypto.randomUUID()); }}>

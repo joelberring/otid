@@ -1,3 +1,4 @@
+import { notPublishedEn } from "../../../../i18n/workspace-last-en";
 import type { Metadata } from "next";
 import { NO_INDEX_ROBOTS } from "../../../../lib/no-index";
 import QRCode from "qrcode";
@@ -20,7 +21,7 @@ type Params = { params: Promise<{ code: string }> };
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const hub = await loadRaceHub((await params).code);
   const qrTitle = await currentLanguage() === "en" ? qrEn.title : publicRaceSv.qr.title;
-  return { title: hub ? `${qrTitle}: ${hub.eventName} – ${sv.appName}` : `${publicRaceSv.notPublished.title} – ${sv.appName}`,
+  return { title: hub ? `${qrTitle}: ${hub.eventName} – ${sv.appName}` : `${(await currentLanguage() === "en" ? notPublishedEn : publicRaceSv.notPublished).title} – ${sv.appName}`,
     robots: NO_INDEX_ROBOTS };
 }
 

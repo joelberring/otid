@@ -2,7 +2,8 @@
 
 import { useState, type ReactNode } from "react";
 import { printOverviewEn } from "../../i18n/course-setting-print-en";
-import { useTexts } from "../language-provider";
+import { useLanguage, useTexts } from "../language-provider";
+import { paperName } from "../../lib/built-in-names";
 import type { PaperTemplate } from "@o-tid/course-setting";
 import { printOverviewSv } from "../../i18n/course-setting-print-overview-sv";
 import type { SheetCard } from "../../lib/course-setting-print-overview";
@@ -24,6 +25,7 @@ export function PrintOverview({ cards, thumb, selected, onOpen, templates, readO
   onPrintMarked: (keys: readonly string[]) => void;
 }) {
   const text = useTexts(printOverviewSv, printOverviewEn);
+  const language = useLanguage();
   const [marked, setMarked] = useState<ReadonlySet<string>>(new Set());
   const [templateId, setTemplateId] = useState("");
   const template = templates.find(item => item.id === templateId) ?? templates[0];
@@ -55,7 +57,7 @@ export function PrintOverview({ cards, thumb, selected, onOpen, templates, readO
         <button type="button" className={styles.open} onClick={() => onOpen(card)} aria-label={text.open(card.label)} data-testid="print-card-open">
           <span className={styles.thumb} aria-hidden="true">{thumb(card)}</span>
           <span className={styles.title}>{card.label}</span>
-          <span className={styles.facts}>{[card.scale ? `1:${thousands(card.scale)}` : "", card.paper, card.sheetLayout ? text.layout(card.sheetLayout) : ""]
+          <span className={styles.facts}>{[card.scale ? `1:${thousands(card.scale)}` : "", card.paper ? paperName(card.paper, language) : "", card.sheetLayout ? text.layout(card.sheetLayout) : ""]
             .filter(Boolean).join(" · ")}</span>
           <span className={styles.badges}>
             {card.paperTemplate && <span className={styles.badge} data-testid="print-card-template">{text.follows(card.paperTemplate)}</span>}

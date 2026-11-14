@@ -183,7 +183,7 @@ function MapCard({ clubId, map, maps, admin, mapBank, groups, selected, onSelect
 function RecheckBox({ checks: run }: { checks: Checks }) {
   const clubArchiveChecksText = useTexts(clubArchiveChecksSv, clubArchiveChecksEn);
   const state = run.state;
-  const t = clubArchiveChecksSv;
+  const t = clubArchiveChecksText;
   return <div className={checks.recheck} data-testid="recheck">
     <p className={styles.small}>{t.recheckHelp}</p>
     <div className={checks.buttons}>

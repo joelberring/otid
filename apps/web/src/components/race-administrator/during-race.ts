@@ -15,7 +15,6 @@ import { administratorForestWatchResponseSchema, administratorReturnRequestSchem
   type UnknownReadoutResolutionCandidateResponse, type UnknownReadoutResolutionRequest } from "@o-tid/contracts";
 import { canRefreshForest } from "../../lib/forest-auto-refresh";
 import { awaitingStart, inForest } from "../../lib/section-status";
-import { checkinHistorySv } from "../../i18n/checkin-history-sv";
 import { checkinConflictReviewSv as reviewText } from "../../i18n/checkin-conflict-review-sv";
 
 import { decisionReviewText } from "../../lib/decision-review";
@@ -98,6 +97,7 @@ export function createDuringRaceActions(ws: Base & RaceDataActions & Pick<RelayA
   const relayText = ws.relayText;
   const forestText = ws.forestText;
   const text = ws.adminText;
+  const checkinHistoryText = ws.checkinHistoryText;
   const { raceId, entryId, functionary, reviewAttempt, reviewCandidate, reviewConfirmed, reviewReason, forestData, forestStale,
     targetStartState, unknownReadoutCandidate, unknownReadoutId, unknownReadoutTarget, unknownReadoutEntryId,
     unknownReadoutClassId, unknownReadoutGivenName, unknownReadoutFamilyName, unknownReadoutOrganisationName, writingRef, pending,
@@ -115,7 +115,7 @@ export function createDuringRaceActions(ws: Base & RaceDataActions & Pick<RelayA
       const value = checkinHistoryResponseSchema.parse(await json(response, op));
       if (value.raceId !== raceId || value.entryId !== selectedId) throw new Error("Checkin history scope mismatch");
       setCheckinHistory(value);
-    } catch { if (current(op)) setMessage(checkinHistorySv.error); }
+    } catch { if (current(op)) setMessage(checkinHistoryText.error); }
     finally { finish(op); }
   }
   async function loadConflictReview(selectedId = entryId) {

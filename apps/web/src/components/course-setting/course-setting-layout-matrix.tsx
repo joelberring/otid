@@ -2,7 +2,8 @@
 
 import type { LayoutEntry } from "@o-tid/course-setting";
 import { layoutEn } from "../../i18n/course-setting-layout-en";
-import { useTexts } from "../language-provider";
+import { useLanguage, useTexts } from "../language-provider";
+import { paperName } from "../../lib/built-in-names";
 import { layoutSv } from "../../i18n/course-setting-layout-sv";
 import { scaleText, type MatrixCell, type MatrixRow } from "../../lib/course-setting-layouts";
 import styles from "./course-setting-layout.module.css";
@@ -16,6 +17,7 @@ export function LayoutMatrix({ columns, rows, open, readOnly, onOpen, onAdd }: {
   onOpen: (course: string, layout: string) => void; onAdd: (course: string, layout: string) => void;
 }) {
   const text = useTexts(layoutSv, layoutEn);
+  const language = useLanguage();
   const nameOf = (id: string) => columns.find(column => column.id === id)?.name ?? id;
   const cell = (row: MatrixRow, item: MatrixCell, list = false) => item.exists
     ? <button type="button" className={styles.cell} aria-pressed={open?.course === row.course && open.layout === item.layout}
@@ -23,7 +25,7 @@ export function LayoutMatrix({ columns, rows, open, readOnly, onOpen, onAdd }: {
       data-testid={list ? "layout-cell-list" : "layout-cell"} data-course={row.course} data-layout={item.layout} data-status={item.status ?? ""}>
       <span className={styles.cellClasses}>{item.classes.length > 0 ? item.classes.join(", ") : text.overview.noClasses}</span>
       {item.classes.length > 0 && <span>{text.overview.maps(item.entered, item.reserves)}</span>}
-      <span className={styles.muted}>{[item.scale ? scaleText(item.scale) : "", item.paper ?? ""].filter(Boolean).join(" · ")}</span>
+      <span className={styles.muted}>{[item.scale ? scaleText(item.scale) : "", item.paper ? paperName(item.paper, language) : ""].filter(Boolean).join(" · ")}</span>
       {item.status && <span className={styles.badge} data-status={item.status}>{item.status === "PARTS" ? text.overview.parts(item.parts) : text.overview.status[item.status]}</span>}
       {item.adjustments > 0 && <span className={styles.badge} data-status="ADJUSTED">{text.overview.adjustments(item.adjustments)}</span>}
     </button>

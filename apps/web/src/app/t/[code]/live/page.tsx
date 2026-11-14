@@ -1,3 +1,4 @@
+import { notPublishedEn } from "../../../../i18n/workspace-last-en";
 import type { Metadata } from "next";
 import { NO_INDEX_ROBOTS } from "../../../../lib/no-index";
 import Link from "next/link";
@@ -20,7 +21,7 @@ type Params = { params: Promise<{ code: string }> };
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const hub = await loadRaceHub((await params).code);
-  if (!hub) return { title: `${publicRaceSv.notPublished.title} – ${sv.appName}`, robots: NO_INDEX_ROBOTS };
+  if (!hub) return { title: `${(await currentLanguage() === "en" ? notPublishedEn : publicRaceSv.notPublished).title} – ${sv.appName}`, robots: NO_INDEX_ROBOTS };
   const text = await currentLanguage() === "en" ? liveEn : liveSv;
   return { title: `${text.metaTitle(hub.eventName)} – ${sv.appName}`, robots: NO_INDEX_ROBOTS };
 }

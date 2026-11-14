@@ -2,13 +2,13 @@
 
 import { useState } from "react";
 import { trainingEn } from "../../i18n/course-setting-training-en";
-import { useTexts } from "../language-provider";
+import { useLanguage, useTexts } from "../language-provider";
 import {
   courseTrainingOf, DEFAULT_TINT, presetFilter, sectionLegs, sectionRange, controlSequences, type CourseSettingDocument, type CourseSettingEdit,
   type CourseTraining, type SectionForm, type SymbolCatalogEntry, type TrainingOutside, type TrainingSection
 } from "@o-tid/course-setting";
 import { trainingSv } from "../../i18n/course-setting-training-sv";
-import { courseControlChoices, putCourseTraining, sectionLabel } from "../../lib/course-setting-training";
+import { CONTROL_WORDS, courseControlChoices, putCourseTraining, sectionLabel } from "../../lib/course-setting-training";
 import { Button } from "../ui";
 import { SymbolFilterEditor } from "./course-setting-training-filter";
 import styles from "./course-setting-training.module.css";
@@ -58,8 +58,9 @@ export function SectionsBlock({ document, view, readOnly, symbols, onEdits }: {
   onEdits: (edits: readonly CourseSettingEdit[]) => void;
 }) {
   const text = useTexts(trainingSv, trainingEn);
+  const words = CONTROL_WORDS[useLanguage()];
   const training = courseTrainingOf(document, view);
-  const choices = courseControlChoices(document, view);
+  const choices = courseControlChoices(document, view, words);
   const put = (sections: readonly TrainingSection[]) => onEdits([putCourseTraining(view, { ...training, sections })]);
   const update = (index: number, section: TrainingSection) => put(training.sections.map((item, i) => i === index ? section : item));
   const move = (index: number, by: number) => {
@@ -72,7 +73,7 @@ export function SectionsBlock({ document, view, readOnly, symbols, onEdits }: {
     <h3 id="training-sections">{text.sections.heading}</h3>
     {training.sections.length === 0 && <p className={styles.muted}>{text.sections.none}</p>}
     {training.sections.map((section, index) => {
-      const label = sectionLabel(document, view, section);
+      const label = sectionLabel(document, view, section, words);
       const sequence = controlSequences(document, view, undefined)[0] ?? [];
       const range = sectionRange(document, sequence, section);
       const legs = range ? sectionLegs(document, sequence, range) : [];

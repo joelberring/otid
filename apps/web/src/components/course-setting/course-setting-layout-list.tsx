@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { layoutEn } from "../../i18n/course-setting-layout-en";
-import { useTexts } from "../language-provider";
+import { useLanguage, useTexts } from "../language-provider";
+import { sheetLayoutName } from "../../lib/built-in-names";
 import {
   BUILT_IN_SHEET_LAYOUTS, HUNDREDTH_INCH_MM, PAPER_SIZES, type CourseSettingDocument, type CourseSettingEdit, type LayoutEntry, type PaperName, type PrintPage
 } from "@o-tid/course-setting";
@@ -23,6 +24,7 @@ export function LayoutList({ document, entries, readOnly, save, sheetCount, onCr
   sheetCount: (layout: string) => number; onCreated?: ((id: string) => void) | undefined;
 }) {
   const text = useTexts(layoutSv, layoutEn);
+  const language = useLanguage();
   const templates = [...BUILT_IN_SHEET_LAYOUTS, ...(document.event.layoutTemplates ?? [])];
   const paperTemplates = document.event.paperTemplates ?? [];
   const add = async () => {
@@ -44,12 +46,12 @@ export function LayoutList({ document, entries, readOnly, save, sheetCount, onCr
           <select value={entry.paperTemplate ?? ""} data-testid="layout-paper-template"
             onChange={event => void save([{ type: "UPDATE_LAYOUT", layout: entry.id, changes: { paperTemplate: event.target.value || null } }])}>
             <option value="">{text.layouts.noTemplate}</option>
-            {paperTemplates.map(template => <option key={template.id} value={template.id}>{template.name}</option>)}</select></label>}
+            {paperTemplates.map(template => <option key={template.id} value={template.id}>{sheetLayoutName(template, language)}</option>)}</select></label>}
         <label className={styles.field}>{text.layouts.perSheet}
           <select value={entry.layoutTemplate ?? ""} data-testid="layout-per-sheet"
             onChange={event => void save([{ type: "UPDATE_LAYOUT", layout: entry.id, changes: { layoutTemplate: event.target.value || null } }])}>
             <option value="">{text.layouts.onePerSheet}</option>
-            {templates.map(template => <option key={template.id} value={template.id}>{template.name}</option>)}</select></label>
+            {templates.map(template => <option key={template.id} value={template.id}>{sheetLayoutName(template, language)}</option>)}</select></label>
       </div>
       {!entry.main && <div><Button variant="quiet" data-testid="layout-remove"
         onClick={() => { if (window.confirm(text.layouts.removeConfirm(entry.name))) void save([{ type: "DELETE_LAYOUT", layout: entry.id }]); }}>{text.layouts.remove}</Button></div>}

@@ -27,6 +27,8 @@ import { raceInfoSettingsEn, selfRegistrationSettingEn, type SelfRegistrationSet
 import { participantCardSv } from "../../i18n/participant-card-sv";
 import { classTableSv } from "../../i18n/class-table-sv";
 import { useTexts } from "../language-provider";
+import { checkinHistorySv } from "../../i18n/checkin-history-sv";
+import { checkinHistoryEn } from "../../i18n/workspace-small-en";
 import { useOperationState, useOperations, type Operations } from "./operations";
 import { createMobileNavigation, createWorkflowNavigation, deriveSections, useNavigationState } from "./navigation";
 import { createRaceDataActions, useRaceDataState } from "./race-data";
@@ -74,7 +76,8 @@ export function useWorkspaceState(raceId: string) {
   const selfRegistrationText = useTexts<SelfRegistrationSetting>(selfRegistrationSv, selfRegistrationSettingEn);
   const formErrorText = useTexts(formErrorsSv, formErrorsEn);
   const reviewText = useTexts(decisionReviewSv, decisionReviewEn);
-  return { raceId, adminText, cardText, classText, drawText, publicationText, forestText, settingsText, variantText, officialText, removalText, rogainingText, relayText, drawAdvancedText, relayFormText, forkingText, raceInfoText, selfRegistrationText, formErrorText, reviewText, ...useOperationState(), ...useNavigationState(), ...useRaceDataState(), ...useRosterState(),
+  const checkinHistoryText = useTexts(checkinHistorySv, checkinHistoryEn);
+  return { raceId, adminText, cardText, classText, drawText, publicationText, forestText, settingsText, variantText, officialText, removalText, rogainingText, relayText, drawAdvancedText, relayFormText, forkingText, raceInfoText, selfRegistrationText, formErrorText, reviewText, checkinHistoryText, ...useOperationState(), ...useNavigationState(), ...useRaceDataState(), ...useRosterState(),
     ...useEntryActionState(), ...useResultDecisionState(), ...useCoursePreparationState(), ...useCourseEditState(), ...useClassEditState(),
     ...useCourseDetailsState(), ...useRemainingRunnersState(),
     ...useRogainingState(),

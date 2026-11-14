@@ -42,7 +42,7 @@ export function Verdict({ current, verdict, item, qr, registration, timeZone, on
   const server = serverStatus(item, registration);
   return <div className="verdict-layout"><div className="verdict-body">
     <p className="big">{symbol} {borrowed ? t.borrowedStatus : verdict ? t.verdict[verdict.status] : t.verdict.NO_PACKAGE}</p>
-    <p className="card">Bricka {current.cardNumber}{!borrowed && verdict?.name ? ` · ${verdict.name}` : ""}{!borrowed && verdict?.className ? ` · ${verdict.className}` : ""}</p>
+    <p className="card">{t.receipt.card(String(current.cardNumber))}{!borrowed && verdict?.name ? ` · ${verdict.name}` : ""}{!borrowed && verdict?.className ? ` · ${verdict.className}` : ""}</p>
     {borrowed ? <p data-testid="verdict-borrowed">{t.borrowedReason(borrowed.name, borrowed.className)}</p> : null}
     {/* Hyrbricka (PLAN.md steg 25): en egen rad med ord och symbol, inte bara färg. */}
     {verdict?.rental ? <p className="rental" data-testid="verdict-rental">▲ {t.rental}</p> : null}

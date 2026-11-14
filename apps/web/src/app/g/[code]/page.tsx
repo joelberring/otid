@@ -113,8 +113,8 @@ export default async function GroupPage({ params }: Params) {
     {view.season && <section aria-labelledby="group-season">
       <h2 id="group-season">{text.season}</h2>
       <div style={{ overflowX: "auto" }}><table className={styles.table}>
-        <thead><tr><th>{text.name}</th><th className={styles.num}>{trainingGroupSv.leader.attended}</th>
-          {view.season.pointsMode !== "NONE" && <th className={styles.num}>{trainingGroupSv.leader.points}</th>}</tr></thead>
+        <thead><tr><th>{text.name}</th><th className={styles.num}>{text.attended}</th>
+          {view.season.pointsMode !== "NONE" && <th className={styles.num}>{text.points}</th>}</tr></thead>
         <tbody>{view.season.rows.map(row => <tr key={row.key}><td>{[row.givenName, row.familyName].filter(Boolean).join(" ")}</td>
           <td className={styles.num}>{row.attended}</td>{view.season?.pointsMode !== "NONE" && <td className={styles.num}>{row.points}</td>}</tr>)}</tbody>
       </table></div>

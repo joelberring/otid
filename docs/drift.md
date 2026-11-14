@@ -858,6 +858,7 @@ inte skickar vidare (markerade "ej i compose") gäller i drift först när de l�
 | `OTID_IMPORT_TOKEN` | tom (fråga) | Bara på datorn som kör `pnpm archive-import`: klubbarkivets importnyckel (annars `--nyckel-fil` eller en fråga). |
 | `OTID_EVENTOR_BASE_URL`, `OTID_ROC_BASE_URL`, `OTID_GOOGLE_BASE_URL`, `OTID_GOOGLE_AUTHORIZE_URL` | tomma = de riktiga tjänsterna | Endast test: CI pekar på falska tjänster. Lämna tomma i drift. |
 | `OTID_OVERPASS_URL` | tom = `https://overpass-api.de/api/interpreter` | Kartprojektets hämtning från OpenStreetMap (K4c). En egen Overpass går att ange; CI pekar på en falsk. |
+| `OTID_OVERPASS_FALLBACK_URLS` | tom = `overpass.private.coffee` och `overpass.kumi.systems` (ingen reserv när `OTID_OVERPASS_URL` är satt) | Reserver, kommaseparerade, som prövas i tur och ordning när den första svarar 429, 5xx, avbryter frågan eller inte svarar. |
 | `OTID_LM_STAC_HOJD_URL`, `OTID_LM_LASER_COLLECTION` | tomma = `https://api.lantmateriet.se/stac-hojd/v1` och samlingen vars namn nämner laser och skog | Laserdata från Lantmäteriet (K5, provas). |
 | `OTID_GEO_WORKER_TOKEN`, `OTID_GEO_TILES_PER_MONTH` | tom, 200 | Geo-arbetarens nyckel och laserrutor per konto och månad ([Geo-arbetaren](#geo-arbetaren-adr-0219-k5)). |
 | `OTID_SLU_MOISTURE_WMS_URL`, `OTID_SLU_MOISTURE_LAYER` | tomma = Skogsstyrelsens öppna WMS för SLU:s markfuktighetskarta, första lagret | Markfuktigheten som underlag (K5c, provas). |

@@ -13,12 +13,22 @@ import { aiGate, sessionGate, type MapProjectGate } from "./map-project-access";
 export interface MapSourceRuntime {
   /** Overpass-tjänsten; `OTID_OVERPASS_URL` i driften (t.ex. en egen eller en falsk i testerna). */
   readonly overpassUrl: string;
+  /**
+   * Andra Overpass-tjänster som prövas i tur och ordning när den första inte svarar, är upptagen eller svarar med ett
+   * serverfel (ägaren 2026-11-14: overpass-api.de svarade 502, och OpenStreetMap kom inte med i grundkartan).
+   */
+  readonly fallbackUrls?: readonly string[];
   readonly fetch?: typeof fetch;
   readonly timeoutMs?: number;
 }
 export const DEFAULT_OVERPASS_URL = "https://overpass-api.de/api/interpreter";
+/** Öppna Overpass-tjänster med samma data (https://wiki.openstreetmap.org/wiki/Overpass_API#Public_Overpass_API_instances). */
+export const DEFAULT_OVERPASS_FALLBACKS: readonly string[] = ["https://overpass.private.coffee/api/interpreter", "https://overpass.kumi.systems/api/interpreter"];
 export function mapSourceRuntimeFromEnvironment(environment: Record<string, string | undefined>): MapSourceRuntime {
-  return { overpassUrl: environment.OTID_OVERPASS_URL?.trim() || DEFAULT_OVERPASS_URL };
+  const own = environment.OTID_OVERPASS_URL?.trim();
+  const listed = environment.OTID_OVERPASS_FALLBACK_URLS?.split(",").map(url => url.trim()).filter(Boolean);
+  // En egen tjänst (`OTID_OVERPASS_URL`) prövas ensam, om inte reserverna också anges.
+  return { overpassUrl: own || DEFAULT_OVERPASS_URL, fallbackUrls: listed ?? (own ? [] : DEFAULT_OVERPASS_FALLBACKS) };
 }
 
 /** Högst så många hämtningar per konto och timme (Overpass är en delad tjänst). */
@@ -72,22 +82,36 @@ async function fetchOsm(db: Database, gate: MapProjectGate, request: unknown, ru
   // Ett stort område hämtas ruta för ruta, en i taget (Overpass är en delad tjänst).
   const answers: unknown[] = [];
   let bytes = 0;
+  const urls = [runtime.overpassUrl, ...(runtime.fallbackUrls ?? [])];
   for (const box of osmTiles(parsed.data!.box)) {
-    let response: Response;
-    try {
-      response = await fetcher(runtime.overpassUrl, {
-        method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json", "user-agent": "O-Tid kartprojekt" },
-        body: new URLSearchParams({ data: overpassQuery(box) }).toString(), signal: AbortSignal.timeout(runtime.timeoutMs ?? 120_000), redirect: "error"
-      });
-    } catch (error) {
-      return { status: "unavailable", detail: error instanceof Error && error.name === "TimeoutError" ? "timeout" : "network" };
+    let answer: unknown, failure: string | undefined;
+    for (const url of urls) {
+      let response: Response;
+      try {
+        response = await fetcher(url, {
+          method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json", "user-agent": "O-Tid kartprojekt" },
+          body: new URLSearchParams({ data: overpassQuery(box) }).toString(), signal: AbortSignal.timeout(runtime.timeoutMs ?? 120_000), redirect: "error"
+        });
+      } catch (error) {
+        failure = error instanceof Error && error.name === "TimeoutError" ? "timeout" : "network";
+        continue;
+      }
+      // Upptagen eller serverfel: nästa tjänst. Ett annat fel (frågan) blir likadant hos alla.
+      if (response.status === 429 || response.status >= 500) { failure = response.status === 429 || response.status === 504 ? "busy" : `http-${response.status}`; await response.body?.cancel(); continue; }
+      if (!response.ok) return { status: "unavailable", detail: `http-${response.status}` };
+      const text = await readLimited(response, MAX_RESPONSE_BYTES - bytes);
+      if (text === undefined) return { status: "too-large" };
+      try { answer = JSON.parse(text) as unknown; } catch { failure = "format"; continue; }
+      // Overpass svarar 200 med en «remark» när frågan avbröts av tjänsten (minne eller tid): pröva nästa.
+      if (typeof (answer as { remark?: unknown }).remark === "string" && /runtime error|timed out|out of memory/i.test((answer as { remark: string }).remark)) {
+        failure = "busy"; answer = undefined; continue;
+      }
+      bytes += text.length;
+      failure = undefined;
+      break;
     }
-    if (response.status === 429 || response.status === 504) return { status: "unavailable", detail: "busy" };
-    if (!response.ok) return { status: "unavailable", detail: `http-${response.status}` };
-    const text = await readLimited(response, MAX_RESPONSE_BYTES - bytes);
-    if (text === undefined) return { status: "too-large" };
-    bytes += text.length;
-    try { answers.push(JSON.parse(text) as unknown); } catch { return { status: "unavailable", detail: "format" }; }
+    if (answer === undefined) return { status: "unavailable", detail: failure ?? "network" };
+    answers.push(answer);
   }
   try {
     return { status: "ok", data: osmToSourceData(mergeOverpass(answers)), attribution: OSM_ATTRIBUTION };

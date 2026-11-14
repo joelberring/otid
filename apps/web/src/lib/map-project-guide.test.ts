@@ -84,6 +84,9 @@ describe("guiden Ny grundkarta: körningen för området", () => {
     expect(latestAreaJob(jobs, "22222222-2222-4222-8222-222222222222")).toBeUndefined();
     // En mycket liten karta utan större körning är ingen provruta.
     expect(latestAreaJob(jobs.filter(row => row.jobId === "sample"), null)?.jobId).toBe("sample");
+    const merge = job({ jobId: "merge", status: "FAILED", mergedStages: 2, createdAt: "2026-11-14T17:00:00.000Z", error: "Etappernas bilder har olika upplösning" });
+    expect(latestAreaJob([...jobs, merge], null)?.jobId).toBe("new");
+    expect(latestAreaJob([...jobs, { ...merge, status: "RUNNING" }], null)?.jobId).toBe("merge");
   });
 
   it("lämnar körningen bakom sig efter Ny körning, tills en nyare finns", () => {

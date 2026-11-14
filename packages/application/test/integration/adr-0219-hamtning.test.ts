@@ -73,6 +73,20 @@ describe("ADR-0219 K4c: hämtning", () => {
     const wide = await fetchMapProjectOsm(db, { ...owner.proof, projectId, request: { formatVersion: 1, box: { south: 59.2, west: 18.0, north: 59.28, east: 18.18 } } }, tiled, NOW);
     expect(wide.status === "ok" && wide.data.features).toHaveLength(1);
     expect(tiles).toBeGreaterThan(1);
+    // Ägaren 2026-11-14: den första tjänsten svarar 502 eller avbryter frågan; reserven tar över. Svarar ingen blir det «unavailable».
+    const tried: string[] = [];
+    const answer = Response.json({ elements: [{ type: "way", tags: { building: "yes" }, geometry: [{ lat: 59.3, lon: 18.01 }, { lat: 59.3, lon: 18.011 },
+      { lat: 59.301, lon: 18.011 }, { lat: 59.3, lon: 18.01 }] }] });
+    const shaky = { overpassUrl: "http://a.test/api", fallbackUrls: ["http://b.test/api", "http://c.test/api"], fetch: (async (url: string) => {
+      tried.push(url);
+      if (url.startsWith("http://a.")) return new Response("Bad gateway", { status: 502 });
+      if (url.startsWith("http://b.")) return Response.json({ elements: [], remark: "runtime error: Query timed out in \"query\"" });
+      return answer.clone();
+    }) as typeof fetch };
+    expect(await fetchMapProjectOsm(db, { ...owner.proof, projectId, request: { formatVersion: 1, box: BOX } }, shaky, NOW)).toMatchObject({ status: "ok" });
+    expect(tried).toEqual(["http://a.test/api", "http://b.test/api", "http://c.test/api"]);
+    const down = { ...shaky, fetch: (async () => new Response("", { status: 502 })) as typeof fetch };
+    expect(await fetchMapProjectOsm(db, { ...owner.proof, projectId, request: { formatVersion: 1, box: BOX } }, down, NOW)).toEqual({ status: "unavailable", detail: "http-502" });
   });
 
   it("jordarter: sidor via next-länken, behörighet, ruta, kvot och fel från tjänsten", async () => {

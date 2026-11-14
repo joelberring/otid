@@ -35,7 +35,13 @@ const ACTIVE: ReadonlySet<string> = new Set(["QUEUED", "RUNNING"]);
  */
 const isSample = (job: GeoJobView, jobs: readonly GeoJobView[]) => !!job.clip && job.clip.maxX - job.clip.minX <= SAMPLE_SIDE_M && job.clip.maxY - job.clip.minY <= SAMPLE_SIDE_M
   && jobs.some(other => other.kind === "PULLAUTIN" && other.areaId === job.areaId && jobKm2(other) > jobKm2(job));
-const newestFirst = (jobs: readonly GeoJobView[]) => jobs.filter(job => job.kind === "PULLAUTIN" && job.status !== "CANCELLED" && !isSample(job, jobs))
+/**
+ * En sammanslagning av etapper som misslyckats är ingen körning för guiden: etapperna är klara och läses in i webbläsaren
+ * («Läs in alla etapper som en grundkarta»). Att köra om lasern hjälper inte (ägaren 2026-11-14, «Etappernas bilder har
+ * olika upplösning»).
+ */
+const failedMerge = (job: GeoJobView) => !!job.mergedStages && job.status === "FAILED";
+const newestFirst = (jobs: readonly GeoJobView[]) => jobs.filter(job => job.kind === "PULLAUTIN" && job.status !== "CANCELLED" && !failedMerge(job) && !isSample(job, jobs))
   .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
 /** Den senaste körningen för området (`null` = hela kartan); avbrutna och provrutor räknas inte. `ignore` är körningen som «Ny körning» lämnar bakom sig. */

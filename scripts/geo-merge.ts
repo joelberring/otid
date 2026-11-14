@@ -327,6 +327,34 @@ export function toRgba(image: RawPng): RawPng {
   return { width: image.width, height: image.height, bitDepth: 8, colorType: 6, bpp: 4, data };
 }
 
+/**
+ * Bilden i en grövre upplösning (`factor` > 1 gånger större bildpunkter), med samma övre vänstra hörn. Vid ett helt tal
+ * blir varje ny bildpunkt medelvärdet av blocket under den (färgerna vägda med genomskinligheten); annars tas bildpunkten
+ * under den nya punktens mitt. Resultatet är RGBA med 8 bitar.
+ */
+export function coarserPng(source: RawPng, factor: number): RawPng {
+  if (!(factor > 1)) throw new Error("Bilden kan bara göras grövre");
+  const image = source.colorType === 6 && source.bitDepth === 8 ? source : toRgba(source);
+  const width = Math.max(1, Math.ceil(image.width / factor - 1e-9)), height = Math.max(1, Math.ceil(image.height / factor - 1e-9));
+  const data = new Uint8Array(width * height * 4), whole = Math.round(factor), integer = Math.abs(factor - whole) < 1e-6;
+  for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
+    const out = (y * width + x) * 4;
+    if (!integer) {
+      const sx = Math.min(image.width - 1, Math.floor((x + 0.5) * factor)), sy = Math.min(image.height - 1, Math.floor((y + 0.5) * factor));
+      data.set(image.data.subarray((sy * image.width + sx) * 4, (sy * image.width + sx) * 4 + 4), out);
+      continue;
+    }
+    let r = 0, g = 0, b = 0, a = 0, count = 0;
+    for (let sy = y * whole; sy < Math.min(image.height, (y + 1) * whole); sy += 1) for (let sx = x * whole; sx < Math.min(image.width, (x + 1) * whole); sx += 1) {
+      const at = (sy * image.width + sx) * 4, alpha = image.data[at + 3]!;
+      r += image.data[at]! * alpha; g += image.data[at + 1]! * alpha; b += image.data[at + 2]! * alpha; a += alpha; count += 1;
+    }
+    if (a > 0) { data[out] = Math.round(r / a); data[out + 1] = Math.round(g / a); data[out + 2] = Math.round(b / a); }
+    data[out + 3] = Math.round(a / count);
+  }
+  return { width, height, bitDepth: 8, colorType: 6, bpp: 4, data };
+}
+
 export interface World { readonly size: number; readonly left: number; readonly top: number }
 /** Världsfilen för en bild med norr uppåt: bildpunktens storlek och bildens vänstra och övre kant. */
 export function readWorld(text: string): World {
@@ -344,11 +372,14 @@ const sameBytes = (a: Uint8Array | undefined, b: Uint8Array | undefined) => a ==
  * sidor mot körningens ytterkant räknas som obegränsade, så att marginalen utanför körningen följer med från sin etapp.
  * Förskjutningen mellan bilderna avrundas till hela bildpunkter.
  */
-export function mosaicPng(parts: readonly { readonly image: RawPng; readonly world: World; readonly box: Box }[], union: Box): { image: RawPng; world: World } {
-  const first = parts[0];
-  if (!first) throw new Error("Inga bilder att lägga ihop");
-  const size = first.world.size;
-  if (parts.some(part => Math.abs(part.world.size - size) > 1e-6 * size)) throw new Error("Etappernas bilder har olika upplösning");
+export function mosaicPng(input: readonly { readonly image: RawPng; readonly world: World; readonly box: Box }[], union: Box): { image: RawPng; world: World } {
+  if (!input[0]) throw new Error("Inga bilder att lägga ihop");
+  // Etapperna kan ha olika upplösning (Karttapullautin skalar ner kartbilden för etapper med många rutor). Alla läggs
+  // på den grövsta, så att ingen etapp blir skarpare än de andra (ägaren 2026-11-14, «Etappernas bilder har olika upplösning»).
+  const size = Math.max(...input.map(part => part.world.size));
+  const parts = input.map(part => Math.abs(part.world.size - size) <= 1e-6 * size ? part
+    : { ...part, image: coarserPng(part.image, size / part.world.size), world: { ...part.world, size } });
+  const first = parts[0]!;
   const same = parts.every(part => part.image.colorType === first.image.colorType && part.image.bitDepth === first.image.bitDepth
     && sameBytes(part.image.palette, first.image.palette) && sameBytes(part.image.transparency, first.image.transparency));
   const images = same ? parts.map(part => part.image) : parts.map(part => toRgba(part.image));

@@ -13,6 +13,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-14 – Etapper: sammanläggningen och OpenStreetMap (geo-arbetaren 35)
+
+- «Etappernas bilder har olika upplösning» (Dammsjöhöjden Nora): Karttapullautins kartbild skalas ner per etapp efter antalet rutor och storleken, så etapperna kunde få olika upplösning och sammanläggningen stoppades. Bilderna läggs nu på den grövsta upplösningen (`coarserPng` i `scripts/geo-merge.ts`, medelvärde vägt med genomskinligheten). Geo-arbetaren och `GEO_WORKER_VERSION` 35.
+- Guiden: en misslyckad sammanläggning räknas inte som körningen för området; guiden visar «Läs in alla N etapper som en grundkarta» i stället för «Kör igen».
+- OpenStreetMap: overpass-api.de svarade 502 från driften. Hämtningen prövar nu reserver (`OTID_OVERPASS_FALLBACK_URLS`, förval overpass.private.coffee och overpass.kumi.systems) vid 429, 5xx, avbruten fråga eller inget svar.
+- Kontrollerat: typecheck, eslint, map-revision- och applikationstester, integrationstestet för hämtningen (Postgres).
+
 ### 2026-11-14 – Engelska: felbeskeden i webbläsaren
 
 - De cirka 60 felbesked som skapas i webbläsarens kod utanför React (hämtningar, webbläsarens lager IndexedDB, kvitton, inloggningens kontroller, ångra, för stor ändring) följer nu sidans språk via `lib/in-language.ts` (läser `<html lang>`; svenska utan dokument, så servern och testerna är oförändrade).

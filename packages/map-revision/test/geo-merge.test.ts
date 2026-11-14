@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clipDxfEntities, clipLine, clipRing, decodePng, dxfFrame, encodeRawPng, mergeGeoJson, mosaicPng, ownsPoint, readWorld, toRgba, writeWorld, type RawPng } from "../../../scripts/geo-merge.ts";
+import { clipDxfEntities, coarserPng, clipLine, clipRing, decodePng, dxfFrame, encodeRawPng, mergeGeoJson, mosaicPng, ownsPoint, readWorld, toRgba, writeWorld, type RawPng } from "../../../scripts/geo-merge.ts";
 import { parseDxf } from "../src/vector-parse";
 
 /** Ägaren 2026-11-14: etapperna i en delad laserkörning läggs ihop på geo-servern (scripts/geo-merge.ts). */
@@ -97,8 +97,24 @@ describe("bilderna ur etapperna som en bild", () => {
       { image: rgba, world: { size: 10, left: 10, top: 10 }, box: { minX: 10, minY: 0, maxX: 20, maxY: 10 } }], { minX: 0, minY: 0, maxX: 20, maxY: 10 });
     expect([merged.image.colorType, ...merged.image.data]).toEqual([6, 5, 5, 5, 255, 9, 8, 7, 255]);
   });
-  it("säger nej till bilder med olika upplösning och vridna världsfiler", () => {
-    expect(() => mosaicPng([{ image: gray(1, 1, 1), world: { size: 1, left: 0, top: 1 }, box: west }, { image: gray(1, 1, 1), world: { size: 2, left: 0, top: 1 }, box: east }], union)).toThrow();
+  it("lägger etapper med olika upplösning på den grövsta (ägaren 2026-11-14)", () => {
+    // Västra etappen har 1 m, östra 2 m: den västra blir 2 m (medelvärdet av 2 × 2) och hamnar bredvid den östra.
+    const fine = gray(4, 2, 0), data = fine.data.slice();
+    data.set([10, 30, 50, 70, 20, 40, 60, 80]); const west1 = { ...fine, data };
+    const merged = mosaicPng([{ image: west1, world: { size: 1, left: 0, top: 2 }, box: { minX: 0, minY: 0, maxX: 4, maxY: 2 } },
+      { image: gray(2, 1, 200), world: { size: 2, left: 4, top: 2 }, box: { minX: 4, minY: 0, maxX: 8, maxY: 2 } }], { minX: 0, minY: 0, maxX: 8, maxY: 2 });
+    expect(merged.world.size).toBe(2);
+    expect([merged.image.width, merged.image.height]).toEqual([4, 1]);
+    const reds = Array.from({ length: 4 }, (_, i) => merged.image.data[i * merged.image.bpp]);
+    expect(reds).toEqual([25, 65, 200, 200]);
+  });
+  it("gör en bild grövre: medelvärde vid helt tal, mittpunkten annars, genomskinligt väger inte in", () => {
+    const rgba: RawPng = { width: 2, height: 1, bitDepth: 8, colorType: 6, bpp: 4, data: Uint8Array.from([100, 0, 0, 255, 0, 0, 0, 0]) };
+    expect([...coarserPng(rgba, 2).data]).toEqual([100, 0, 0, 128]);
+    const odd = coarserPng(gray(3, 3, 7), 1.5);
+    expect([odd.width, odd.height, odd.data[0]]).toEqual([2, 2, 7]);
+  });
+  it("säger nej till vridna världsfiler", () => {
     expect(() => readWorld("1\n0.1\n0\n-1\n0\n0\n")).toThrow();
   });
 });

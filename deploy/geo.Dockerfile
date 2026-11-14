@@ -70,6 +70,8 @@ ARG PULLAUTIN_TAG
 ARG LIBREDWG_VERSION
 ENV NODE_ENV=production OTID_PULLAUTA=/opt/pullauta/pullauta OTID_PULLAUTA_INI=/opt/pullauta/pullauta.default.ini OTID_GEO_WORKDIR=/work \
   OTID_DWGREAD=/opt/libredwg/bin/dwgread OTID_LASCLIP=/opt/lasclip/lasclip
+# cwebp (libwebp, BSD) gör bilderna att titta på till WebP; saknas den skickar geo-arbetaren PNG.
+RUN apt-get update && apt-get install -y --no-install-recommends webp && rm -rf /var/lib/apt/lists/*
 COPY --from=pullautin /pullauta /opt/pullauta/pullauta
 COPY --from=pullautin /src/pullauta.default.ini /src/LICENSE /opt/pullauta/
 COPY --from=libredwg /opt/libredwg /opt/libredwg

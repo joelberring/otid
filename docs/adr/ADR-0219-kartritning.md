@@ -604,7 +604,18 @@ som delats i etapper (`split`) blir en körning igen:
   geo-arbetaren bara har Nodes egna moduler. Övriga ytor möts kant i kant i snittet.
 - Under sammanläggningen räknas både etappernas och de sammanlagda filerna mot kontots lagring.
 
-Inte gjort: mindre underlagsbilder. Terrängskuggningen för en etapp på Ornö södra är 4,1 MB som PNG, 3,2 MB som gråskala med
-radfilter och 0,75 MB som WebP (kvalitet 80). WebP kräver att underlag får vara WebP (`map_project_layer_media_check`,
-`imageDimensions`, kontraktet) och en kodare i geo-avbildningen. Reglagens bilder (fuktdjup, vegetationsklasser, berg) måste
-förbli förlustfria.
+### Bilderna att titta på som WebP (geo-arbetaren 33, migration 0122)
+
+Ägaren: «om det gör det snabbare är det bra». Terrängskuggningen för en etapp på Ornö södra är 4,1 MB som PNG, 3,2 MB som
+gråskala med radfilter och 0,75 MB som WebP (kvalitet 80). Geo-arbetaren gör därför om kartbilden, terrängskuggningen och
+reliefen till WebP med `cwebp` (libwebp, paketet `webp` i geo-avbildningen; kvalitet 80, alfa utan förlust) innan de skickas:
+`karta.webp`, `skuggning.webp`, `relief.webp`, med samma världsfiler. Mätvärdena (fuktdjup, vegetationsklasser, berg, höjd
+och laserns raster) förblir PNG, eftersom reglagen läser talen i dem.
+
+- Saknas `cwebp`, går den fel, är bilden större än 16 383 bildpunkter på en sida eller blir WebP inte mindre, skickas PNG som
+  förut. En etapp i en delad körning skickar PNG (jobbet har `stage`), och sammanläggningen gör om den sammanlagda bilden.
+- Servern tar emot `image/webp` som resultatfil, hittar bilden under endera namnet (`imageNamed`) och läser måtten med
+  `webpDimensions` (VP8, VP8L, VP8X). Uppladdade underlag prövas med `imageDimensions` som förut och är PNG eller JPEG.
+- Migration 0122 lättar `map_project_layer_media_check` från en lista till formen `image/…`; listan står i
+  `MAP_PROJECT_LAYER_MEDIA_TYPES` med ett test. Inga rader ändras.
+- AI-kopplingens `training_raster` ger relief och skuggning som WebP från nya körningar.

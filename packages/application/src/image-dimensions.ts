@@ -47,3 +47,25 @@ function jpeg(bytes: Uint8Array): ImageDimensions | undefined {
 export function imageDimensions(bytes: Uint8Array): ImageDimensions | undefined {
   return png(bytes) ?? jpeg(bytes);
 }
+
+/**
+ * WebP: måtten ur filhuvudet (VP8X för bilder med alfa, annars VP8 eller VP8L). Egen funktion, eftersom bara geo-arbetarens
+ * underlag får vara WebP (ägaren 2026-11-14); uppladdade bilder prövas med `imageDimensions` som förut.
+ */
+export function webpDimensions(bytes: Uint8Array): { mediaType: "image/webp"; width: number; height: number } | undefined {
+  const text = (from: number) => String.fromCharCode(...bytes.subarray(from, from + 4));
+  if (bytes.length < 30 || text(0) !== "RIFF" || text(8) !== "WEBP") return undefined;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength), kind = text(12);
+  let width = 0, height = 0;
+  if (kind === "VP8X") {
+    width = 1 + (view.getUint16(24, true) | bytes[26]! << 16); height = 1 + (view.getUint16(27, true) | bytes[29]! << 16);
+  } else if (kind === "VP8 ") {
+    if (bytes[23] !== 0x9d || bytes[24] !== 0x01 || bytes[25] !== 0x2a) return undefined;
+    width = view.getUint16(26, true) & 0x3fff; height = view.getUint16(28, true) & 0x3fff;
+  } else if (kind === "VP8L") {
+    if (bytes[20] !== 0x2f) return undefined;
+    const bits = view.getUint32(21, true);
+    width = 1 + (bits & 0x3fff); height = 1 + (bits >>> 14 & 0x3fff);
+  } else return undefined;
+  return width >= 1 && height >= 1 && width <= MAX_SIDE && height <= MAX_SIDE ? { mediaType: "image/webp", width, height } : undefined;
+}

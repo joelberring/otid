@@ -130,8 +130,14 @@ export const mapProjectLayerUpdateRequestSchema = z.object({
 }).strict().refine(value => Object.keys(value).length > 1).refine(value => (value.crs === undefined) === (value.transform === undefined),
   { message: "Koordinatsystem och transform ändras tillsammans" });
 
+/**
+ * Underlagens bildtyper (migration 0122: databasen kräver bara formen). Egna underlag är PNG eller JPEG; WebP skrivs av
+ * geo-arbetaren för laserkörningens bilder att titta på (ägaren 2026-11-14).
+ */
+export const MAP_PROJECT_LAYER_MEDIA_TYPES = ["image/png", "image/jpeg", "image/webp"] as const;
+export type MapProjectLayerMediaType = typeof MAP_PROJECT_LAYER_MEDIA_TYPES[number];
 export interface MapProjectLayerView {
-  layerId: string; name: string; mediaType: "image/png" | "image/jpeg"; width: number; height: number; crs: number;
+  layerId: string; name: string; mediaType: MapProjectLayerMediaType; width: number; height: number; crs: number;
   transform: { a: number; b: number; c: number; d: number; e: number; f: number }; opacity: number; sort: number; sha256: string; byteLength: number;
   createdBy: { accountId: string; name: string | null }; own: boolean; createdAt: string;
 }

@@ -97,6 +97,7 @@
     { "idx": 92, "version": "7", "when": 1807545600000, "tag": "0118_kontogranser", "breakpoints": true },
     { "idx": 93, "version": "7", "when": 1807632000000, "tag": "0119_kartprojekt_senast_oppnat", "breakpoints": true },
     { "idx": 94, "version": "7", "when": 1807718400000, "tag": "0120_kartprojekt_symbolfarger", "breakpoints": true },
-    { "idx": 95, "version": "7", "when": 1807804800000, "tag": "0121_kartprojekt_gamedlanker", "breakpoints": true }
+    { "idx": 95, "version": "7", "when": 1807804800000, "tag": "0121_kartprojekt_gamedlanker", "breakpoints": true },
+    { "idx": 96, "version": "7", "when": 1807891200000, "tag": "0122_kartprojekt_underlag_webp", "breakpoints": true }
   ]
 }

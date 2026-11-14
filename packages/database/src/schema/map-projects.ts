@@ -285,7 +285,7 @@ export const mapProjectLayers = pgTable("map_project_layer", {
   projectId: uuid("project_id").notNull().references(() => mapProjects.id),
   name: text("name").notNull(),
   contentSha256: text("content_sha256").notNull().references(() => mapContents.sha256),
-  mediaType: text("media_type").$type<"image/png" | "image/jpeg">().notNull(),
+  mediaType: text("media_type").$type<"image/png" | "image/jpeg" | "image/webp">().notNull(),
   width: integer("width").notNull(),
   height: integer("height").notNull(),
   crs: integer("crs").notNull(),

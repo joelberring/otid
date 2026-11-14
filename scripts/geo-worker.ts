@@ -14,6 +14,7 @@
  *   OTID_PULLAUTA_INI          grundinställningarna (förval /opt/pullauta/pullauta.default.ini)
  *   OTID_LASCLIP               klipper laserfiler till en ruta (tools/lasclip, förval /opt/lasclip/lasclip)
  *   OTID_DWGREAD               LibreDWG:s dwgread för DWG-jobben (förval /opt/libredwg/bin/dwgread)
+ *   OTID_CWEBP                 cwebp, som gör bilderna att titta på till WebP (förval cwebp; finns den inte skickas PNG)
  *   OTID_GEO_WORKDIR           arbetskatalogen (förval /tmp/otid-geo); rensas efter varje jobb
  *   OTID_GEO_ONCE=1            ett jobb (eller tom kö) och sedan slut (testerna)
  *   OTID_GEO_EXIT_IDLE_MIN     sluta efter så många minuter utan jobb (0 = aldrig)
@@ -52,6 +53,8 @@ interface Job {
   readonly moisture?: { readonly channelHa: number; readonly wetMeters: number; readonly moistMeters: number } | null;
   /** K5c del 3: vegetationen ur returerna som ytor (Karttapullautins klassbilder per ruta). */
   readonly vegetation?: { readonly minAreaM2: number } | null;
+  /** Jobbet är en etapp i en delad körning: bilderna skickas som PNG, så att sammanläggningen kan läsa dem. */
+  readonly stage?: boolean;
   /** Ägaren 2026-11-14: jobbet lägger ihop en delad körnings etapper (inga rutor körs); filerna hämtas från O-Tid. */
   readonly merge?: { readonly stages: readonly { readonly jobId: string; readonly clip: Box; readonly outputs: readonly string[] }[] } | null;
 }
@@ -66,6 +69,7 @@ const pullauta = env.OTID_PULLAUTA || "/opt/pullauta/pullauta";
 const defaultIni = env.OTID_PULLAUTA_INI || "/opt/pullauta/pullauta.default.ini";
 const lasclip = env.OTID_LASCLIP || "/opt/lasclip/lasclip";
 const dwgread = env.OTID_DWGREAD || "/opt/libredwg/bin/dwgread";
+const cwebp = env.OTID_CWEBP || "cwebp";
 const workdir = env.OTID_GEO_WORKDIR || "/tmp/otid-geo";
 const once = env.OTID_GEO_ONCE === "1";
 const exitIdleMs = Math.max(0, Number(env.OTID_GEO_EXIT_IDLE_MIN ?? 0)) * 60_000;
@@ -87,7 +91,7 @@ export function jobMemoryGb(job: { readonly clip?: Job["clip"]; readonly tiles: 
 }
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 /** Arbetarens version (samma som `GEO_WORKER_VERSION` i contracts; servern ger inga jobb till en äldre). */
-export const WORKER_VERSION = 32;
+export const WORKER_VERSION = 33;
 
 /**
  * Ägarens sprintkörningar 2026-11-13 föll med «stup.dxf kunde inte skickas (422)»: kontots kvot för kartfiler var full.
@@ -160,9 +164,36 @@ function run(args: readonly string[], cwd: string, signal: AbortSignal, program 
       signal.removeEventListener("abort", abort);
       if (signal.aborted) reject(new Stopped());
       else if (code === 0) resolve();
-      else reject(new Error(`${program === pullauta ? "Karttapullautin" : program === lasclip ? "lasclip" : "dwgread"} avslutades med kod ${code}: ${tail.trim().split("\n").slice(-3).join(" ")}`));
+      else reject(new Error(`${program === pullauta ? "Karttapullautin" : program === lasclip ? "lasclip" : program === cwebp ? "cwebp" : "dwgread"} avslutades med kod ${code}: ${tail.trim().split("\n").slice(-3).join(" ")}`));
     });
   });
+}
+
+/**
+ * Ägaren 2026-11-14 («om det gör det snabbare är det bra»): bilderna att titta på (kartbilden, terrängskuggningen och reliefen)
+ * skickas som WebP, som är ungefär fem gånger mindre än PNG (mätt på Ornö södra: 4,1 MB blev 0,75 MB). Mätvärdena (fuktdjup,
+ * vegetationsklasser, berg, höjd och laserns raster) förblir PNG, eftersom reglagen läser talen i dem.
+ */
+export const WEBP_OUTPUTS: ReadonlySet<string> = new Set(["karta.png", "skuggning.png", "relief.png"]);
+/** WebP rymmer högst så här många bildpunkter per sida. */
+const WEBP_MAX_SIDE = 16_383;
+
+/** PNG-filen som WebP bredvid sig, eller inget (för stor, cwebp saknas eller gick fel; då skickas PNG som förut). */
+async function toWebp(dir: string, source: string, signal: AbortSignal): Promise<string | undefined> {
+  const size = pngSize(await readFile(join(dir, source)).then(bytes => bytes.subarray(0, 24)));
+  if (!size || size.width > WEBP_MAX_SIDE || size.height > WEBP_MAX_SIDE) return undefined;
+  const target = source.replace(/\.png$/, ".webp");
+  try {
+    await run(["-quiet", "-q", "80", "-alpha_q", "100", "-m", "4", source, "-o", target], dir, AbortSignal.any([signal, AbortSignal.timeout(10 * 60_000)]), cwebp);
+    // Blir den inte mindre (en bild med få färger packas bäst som PNG) skickas PNG.
+    const bytes = (await stat(join(dir, target))).size;
+    return bytes > 0 && bytes < (await stat(join(dir, source))).size ? target : undefined;
+  } catch (error) {
+    // Avbrutet jobb stoppar; allt annat (också tidsgränsen) ger PNG som förut.
+    if (signal.aborted) throw new Stopped();
+    console.error(`${source} blev inte WebP: ${error instanceof Error ? error.message : String(error)}`);
+    return undefined;
+  }
 }
 
 async function runJob(job: Job): Promise<void> {
@@ -458,9 +489,12 @@ async function runJob(job: Job): Promise<void> {
     // En fil över serverns gräns (Karttapullautins råa brantstreck för många rutor blir över 100 MB) hoppas över i stället för
     // att hela jobbet faller; bara kartbilden måste med. Namnen står i jobbets sammanfattning.
     const skippedOutputs: string[] = [];
-    for (const [name, source, mediaType] of uploads) {
+    for (const [pngName, pngSource, pngType] of uploads) {
       await set("Skickar resultatet", done, uploads.length);
-      if (!files.has(source)) throw new Error(`Karttapullautin gav ingen ${source}`);
+      if (!files.has(pngSource)) throw new Error(`Karttapullautin gav ingen ${pngSource}`);
+      // Bilderna att titta på som WebP, utom i en etapp (sammanläggningen läser PNG och gör om dem sedan).
+      const webp = !job.stage && WEBP_OUTPUTS.has(pngName) ? await toWebp(dir, pngSource, control.signal) : undefined;
+      const [name, source, mediaType] = webp ? [pngName.replace(/\.png$/, ".webp"), webp, "image/webp"] as const : [pngName, pngSource, pngType] as const;
       const size = (await stat(join(dir, source))).size;
       if (size > OUTPUT_MAX_BYTES && !name.startsWith("karta.")) { skippedOutputs.push(name); done += 1; continue; }
       const bytes = await readFile(join(dir, source));
@@ -533,8 +567,12 @@ async function runMergeJob(job: Job): Promise<void> {
           }
           if (parts.length === 0) continue;
           const merged = mosaicPng(parts, union), png = encodeRawPng(merged.image);
-          if (png.byteLength > OUTPUT_MAX_BYTES) { skipped.push(name); continue; }
-          await send(name, png, "image/png");
+          await writeFile(join(dir, name), png);
+          const webp = WEBP_OUTPUTS.has(name) ? await toWebp(dir, name, control.signal) : undefined;
+          if (!webp && png.byteLength > OUTPUT_MAX_BYTES) { skipped.push(name); continue; }
+          if (webp) await send(name.replace(/\.png$/, ".webp"), await readFile(join(dir, webp)), "image/webp");
+          else await send(name, png, "image/png");
+          await rm(join(dir, name), { force: true });
           await send(world, Buffer.from(writeWorld(merged.world)), "text/plain");
         } else if (name.endsWith(".dxf")) {
           const target = join(dir, name);

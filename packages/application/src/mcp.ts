@@ -23,7 +23,7 @@ export const MCP_PROTOCOL_VERSIONS = ["2025-06-18", "2025-03-26", "2024-11-05"] 
 
 type JsonRpcId = string | number | null;
 export type McpResponse = { jsonrpc: "2.0"; id: JsonRpcId; result?: unknown; error?: { code: number; message: string } };
-type Content = { type: "text"; text: string } | { type: "image"; data: string; mimeType: "image/png" };
+type Content = { type: "text"; text: string } | { type: "image"; data: string; mimeType: "image/png" | "image/webp" };
 type ToolResult = { content: Content[]; isError?: boolean };
 
 const projectId = { project_id: { type: "string", description: "Kartprojektets id (från list_map_projects)" } };
@@ -53,7 +53,7 @@ export const MCP_TOOLS = [
   { name: "training_labels", title: "Kartan som klassraster", description: "Träningsdata: kartan som klassraster (PNG) i kartans plana koordinater (t.ex. SWEREF 99 TM), norr upp, en cell per `cell` meter (förval 2). R = marken (1 ödemark 403, 2 ödemark med träd 404, 3 öppen 401, 4 öppen med träd 402, 5–7 grönt 406/408/410, 8 berg i dagen 214, 9 odlat, 10 stenig mark, 11 tomtmark 520, 12 hårdgjort 501, 13 byggnad, 14 vatten, 15 opasserbar vegetation 411). G = linjer i låga fyra bitar (1–3 kurvor 101–103, 4 opasserbar brant, 5 brant, 6 vattendrag och dike, 7 smal sankmark, 8 väg och stig, 9 jordbrant, 10 passerbar mur och staket, 11 opasserbar mur och staket, 12 opasserbar häck) plus bit 16 sankmark 307–308, 32 otydlig sankmark 310, 64 och 128 undervegetation 407 och 409. B = punkter (1 punkthöjd, 2 avlång punkthöjd, 3 grop, 4 sten, 5 stor sten, 6 stengrupp, 7 stenig mark, 8 liten sankmark, 9 träd, 10 liten otydlig sankmark). Högst 2000 celler per sida.",
     inputSchema: { type: "object", properties: { ...projectId, min_e: { type: "number" }, min_n: { type: "number" }, max_e: { type: "number" }, max_n: { type: "number" },
       cell: { type: "number", minimum: 0.5, maximum: 10 } }, required: ["project_id", "min_e", "min_n", "max_e", "max_n"] }, annotations: { readOnlyHint: true } },
-  { name: "training_raster", title: "Laserkörningens raster", description: "Träningsdata: ett raster (PNG) ur projektets senaste klara laserkörning (eller job_id) med världsfilen som text. hojd = markens höjd i cm + 10 000 som 24 bitar (R·65536 + G·256 + B), fuktdjup = höjden över fuktstråket i steg om 2 cm (R) och lutningen i steg om 0,1° (B), vegetationsklasser = Karttapullautins klass (R), relief och skuggning = bilder. Ur punktmolnet (2 m): lasveg = vegetationens höjd i steg om 0,2 m (R), markträffarnas andel (G) och andelen 1–3 m (B); lasmark = andelen 0,3–1 m (R), markträffarnas intensitet / 64 (G) och spridning i cm (B); laskron = andelen över 3 m (R) och antal punkter (G).",
+  { name: "training_raster", title: "Laserkörningens raster", description: "Träningsdata: ett raster (PNG; relief och skuggning är WebP från nyare körningar) ur projektets senaste klara laserkörning (eller job_id) med världsfilen som text. hojd = markens höjd i cm + 10 000 som 24 bitar (R·65536 + G·256 + B), fuktdjup = höjden över fuktstråket i steg om 2 cm (R) och lutningen i steg om 0,1° (B), vegetationsklasser = Karttapullautins klass (R), relief och skuggning = bilder. Ur punktmolnet (2 m): lasveg = vegetationens höjd i steg om 0,2 m (R), markträffarnas andel (G) och andelen 1–3 m (B); lasmark = andelen 0,3–1 m (R), markträffarnas intensitet / 64 (G) och spridning i cm (B); laskron = andelen över 3 m (R) och antal punkter (G).",
     inputSchema: { type: "object", properties: { ...projectId, name: { type: "string", enum: [...MCP_TRAINING_RASTERS] }, job_id: { type: "string" } }, required: ["project_id", "name"] },
     annotations: { readOnlyHint: true } },
   { name: "list_objects", title: "Objekten i kartan", description: "Objekten (i ett område och/eller med vissa symbolnummer): nyckel, symbol, slag, omslutande ruta och förenklad geometri i kartans mm. Nyckeln används i propose_changes och render_view.",
@@ -161,7 +161,7 @@ export async function callMcpTool(db: Database, accountId: string, name: string,
     case "training_raster": {
       const raster = await readGeoRaster(db, input.project_id, String(input.name), typeof input.job_id === "string" ? input.job_id : undefined);
       if (!raster) return toolError("Projektet har ingen klar laserkörning med det rastret (hojd finns från geo-arbetarens version 11).");
-      return { content: [{ type: "image", data: raster.png.toString("base64"), mimeType: "image/png" }, text({ jobId: raster.jobId, name: input.name, worldFile: raster.world })] };
+      return { content: [{ type: "image", data: raster.png.toString("base64"), mimeType: raster.mediaType }, text({ jobId: raster.jobId, name: input.name, worldFile: raster.world })] };
     }
     case "list_objects": {
       const outcome = await job(db, accountId, input.project_id, "OBJECTS", strip({ area: input.area, symbols: input.symbols, limit: input.limit, offset: input.offset }), wait);

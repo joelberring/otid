@@ -13,6 +13,16 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-14 – Bilderna att titta på som WebP (geo-arbetaren 33, migration 0122)
+- Ägaren: «om det gör det snabbare är det bra». Geo-arbetaren gör om kartbilden, terrängskuggningen och reliefen till WebP med
+  `cwebp` (paketet `webp` i geo-avbildningen); mätt på Ornö södra blir terrängskuggningen 0,75 MB i stället för 4,1 MB.
+  Mätvärdena (fuktdjup, vegetationsklasser, berg, höjd) förblir PNG. Utan `cwebp`, eller om WebP inte blir mindre, skickas PNG.
+- Migration 0122 (bara lättnad): underlagets typ prövas på formen i stället för en lista. Servern läser WebP-bildens mått
+  (`webpDimensions`) bara för geo-arbetarens bilder; uppladdade underlag är PNG eller JPEG som förut.
+- Verifierat: enhetstester mot huvuden skrivna av cwebp 1.2.1, integration `adr-0219-geo` (underlag med `image/webp`),
+  geo-arbetaren mot en falsk server med riktig cwebp och utan. Inte provat: geo-avbildningens bygge med paketet, och en riktig körning.
+- Gäller nya körningar och nya sammanläggningar; befintliga underlag ändras inte. Kräver serveruppdatering (migrering).
+
 ### 2026-11-14 – Förenkla de gröna ytorna (reglage)
 - Ägaren: «ett reglage som generaliserar gröna ytor mer, så att en sån här form blir enklare redovisad». «Grönt med reglage» har
   «Förenkla formerna» 0–10 direkt under mängden (0 = som förut). Högre sluter vikar (5 m per steg), tar bort armar (3 m per steg)
@@ -33,8 +43,7 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
   Jordarterna hämtas först när «Fukt med reglage» fälls ut.
 - Verifierat: enhetstester (klippning, DXF, GeoJSON, PNG, ordning), integration `adr-0219-geo`, geo-arbetaren mot en falsk server.
   Inte provat: en riktig sammanläggning på geo-servern, och sidan i webbläsaren efter ändringen.
-- Inte gjort: mindre bilder. WebP ger 5,4 gånger mindre terrängskuggning (mätt), men underlag kan bara vara PNG eller JPEG
-  (`map_project_layer_media_check`) och geo-avbildningen saknar kodare. Beskrivet i ADR-0219 (tillägg 2026-11-14).
+- Mindre bilder: se «Bilderna att titta på som WebP» ovan.
 
 ### 2026-11-14 – Ingen sankmark på sand och grus (SGU:s jordartskarta)
 - Ägaren: «markfukten blir rätt hög … med flack mark (tror sandig) … synka mot jordartskartor». SGU:s öppna jordartskarta hämtas

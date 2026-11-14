@@ -7,7 +7,7 @@ import {
 import { schema, type Database } from "@o-tid/database";
 import { gridToGeodetic, transverseMercatorFor } from "@o-tid/map-file";
 import type { ClubFailure, ClubProof } from "./club-access";
-import { imageDimensions } from "./image-dimensions";
+import { imageDimensions, webpDimensions } from "./image-dimensions";
 import { contentHead, contentLength, mapStorageQuota, readMapContent, storeMapContent, type MapContentInput } from "./map-content";
 import { aiGate, mapProjectAllows, requireMapProject, requireMapProjectForAccount, sessionGate, type MapProjectGate } from "./map-project-access";
 import { allowedLaserUrl, fetchLaserFile, type LaserRuntime } from "./map-project-laser";
@@ -67,7 +67,9 @@ export function splitClip(clip: Clip, limitKm2: number): Clip[] {
 /** Resultatfilerna från en körning som misslyckats eller avbrutits tas bort (ADR-0224 beslut 8); indata står kvar. */
 const dropOutputs = (tx: DbExecutor, jobIds: string[]) => jobIds.length
   ? tx.delete(outputs).where(and(inArray(outputs.jobId, jobIds), sql`${outputs.name} not like 'indata.%'`)) : Promise.resolve();
-const MEDIA_TYPES: ReadonlySet<string> = new Set(["image/png", "text/plain", "application/dxf", "application/geo+json"]);
+const MEDIA_TYPES: ReadonlySet<string> = new Set(["image/png", "image/webp", "text/plain", "application/dxf", "application/geo+json"]);
+/** Bilden med det här namnet, som PNG eller som WebP (geo-arbetaren 33 skriver bilderna att titta på som WebP). */
+const imageNamed = <T extends { name: string }>(files: readonly T[], name: string) => files.find(file => file.name === name) ?? files.find(file => file.name === name.replace(/\.png$/, ".webp"));
 /** Bilden och dess världsfil från arbetaren; blir ett underlag när jobbet är klart. */
 export const GEO_MAP_IMAGE = "karta.png";
 export const GEO_MAP_WORLD = "karta.pgw";
@@ -322,17 +324,18 @@ export async function readGeoOutput(db: Database, input: ClubProof & { projectId
  * träningsdata (ägaren 2026-11-11). Behörigheten prövas av anroparen.
  */
 export async function readGeoRaster(db: Database, projectId: string, name: string, jobId?: string)
-  : Promise<{ jobId: string; png: Buffer; world: string | null } | undefined> {
+  : Promise<{ jobId: string; png: Buffer; mediaType: "image/png" | "image/webp"; world: string | null } | undefined> {
   return db.transaction(async tx => {
-    const rows = await tx.select({ jobId: jobs.id, sha: outputs.contentSha256 }).from(outputs).innerJoin(jobs, eq(jobs.id, outputs.jobId))
-      .where(and(eq(jobs.projectId, projectId), eq(jobs.status, "DONE"), eq(outputs.name, `${name}.png`), ...(jobId ? [eq(jobs.id, jobId)] : [])))
-      .orderBy(desc(jobs.createdAt)).limit(1);
+    // Bilderna att titta på (relief, skuggning) är WebP från geo-arbetaren 33; mätvärdena är alltid PNG.
+    const rows = await tx.select({ jobId: jobs.id, sha: outputs.contentSha256, name: outputs.name }).from(outputs).innerJoin(jobs, eq(jobs.id, outputs.jobId))
+      .where(and(eq(jobs.projectId, projectId), eq(jobs.status, "DONE"), inArray(outputs.name, [`${name}.png`, `${name}.webp`]), ...(jobId ? [eq(jobs.id, jobId)] : [])))
+      .orderBy(desc(jobs.createdAt), asc(outputs.name)).limit(1);
     const row = rows[0];
     const png = row ? await readMapContent(tx, row.sha) : undefined;
     if (!row || !png) return undefined;
     const [world] = await tx.select({ sha: outputs.contentSha256 }).from(outputs).where(and(eq(outputs.jobId, row.jobId), eq(outputs.name, `${name}.pgw`)));
     const text = world ? await readMapContent(tx, world.sha) : undefined;
-    return { jobId: row.jobId, png, world: text ? text.toString("utf8") : null };
+    return { jobId: row.jobId, png, mediaType: row.name.endsWith(".webp") ? "image/webp" : "image/png", world: text ? text.toString("utf8") : null };
   });
 }
 
@@ -401,6 +404,8 @@ export interface ClaimedGeoJob {
   readonly extras: readonly { readonly index: number; readonly kind: "LAND_COVER" | "BUILDINGS" }[];
   readonly moisture: { readonly channelHa: number; readonly wetMeters: number; readonly moistMeters: number } | null;
   readonly vegetation: { readonly minAreaM2: number } | null;
+  /** Jobbet är en etapp i en delad körning: bilderna lämnas som PNG, så att sammanläggningen kan läsa dem. */
+  readonly stage?: boolean | undefined;
   /** Etapperna som jobbet lägger ihop (ägaren 2026-11-14), med filernas namn; annars inget. */
   readonly merge?: { readonly stages: readonly { readonly jobId: string; readonly clip: NonNullable<ClaimedGeoJob["clip"]>; readonly outputs: readonly string[] }[] } | undefined;
 }
@@ -432,7 +437,7 @@ export async function claimGeoJob(db: Database, worker: string, now = new Date()
   // Filer från ett tidigare försök tas bort, så att resultatet bara kommer från ett försök (indata står kvar).
   await db.delete(outputs).where(and(eq(outputs.jobId, row.id), sql`${outputs.name} not like 'indata.%'`));
   const merge = geoMergeOf(row);
-  return { ...(merge ? { merge: { stages: await claimedStages(db, merge) } } : {}),
+  return { ...(merge ? { merge: { stages: await claimedStages(db, merge) } } : {}), ...((row.request as { split?: unknown }).split ? { stage: true } : {}),
     jobId: row.id, kind: row.kind, attempt: row.attempts, settings: row.request.settings ?? {}, clip: row.request.clip ?? null,
     extras: (row.request.extras ?? []).map((extra, index) => ({ index, kind: extra.kind })), cliffs: row.request.cliffs ?? null, moisture: row.request.moisture ?? null,
     vegetation: row.request.vegetation ?? null, tiles: (row.request.tiles ?? []).map((tile, index) => ({ index, id: tile.id, epsg: tile.epsg ?? null })) };
@@ -494,10 +499,11 @@ export function parseWorld(text: string): { a: number; b: number; c: number; d: 
 /** Ett underlag av en bild och dess världsfil bland jobbets filer (i rutornas koordinatsystem), eller inget. */
 async function layerFrom(tx: DbExecutor, job: typeof jobs.$inferSelect, files: (typeof outputs.$inferSelect)[], imageName: string, worldName: string,
   name: string, opacity: number, requestId: string, now: Date): Promise<string | null> {
-  const image = files.find(file => file.name === imageName), world = files.find(file => file.name === worldName);
+  const image = imageNamed(files, imageName), world = files.find(file => file.name === worldName);
   if (!image || !world || image.byteSize > MAP_PROJECT_LAYER_MAX_BYTES) return null;
   const [head, worldBytes] = await Promise.all([readMapContent(tx, image.contentSha256), readMapContent(tx, world.contentSha256)]);
-  const dimensions = head ? imageDimensions(contentHead(new Uint8Array(head))) : undefined;
+  const start = head ? contentHead(new Uint8Array(head)) : undefined;
+  const dimensions = start ? imageDimensions(start) ?? webpDimensions(start) : undefined;
   const transform = worldBytes ? parseWorld(worldBytes.toString("utf8")) : undefined;
   if (!dimensions || !transform || dimensions.width > 30_000 || dimensions.height > 30_000) return null;
   const request = job.request as { tiles?: { epsg?: number | null }[] };

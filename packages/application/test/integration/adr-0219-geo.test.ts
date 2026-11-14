@@ -357,7 +357,7 @@ describe("ADR-0219 K5: geo-arbetaren", () => {
     const stageIds: string[] = [];
     for (let stage = 0; stage < 2; stage += 1) {
       const claimed = await claimGeoJob(db, "geo-1", NOW);
-      expect(claimed?.merge).toBeUndefined();
+      expect([claimed?.merge, claimed?.stage]).toEqual([undefined, true]);
       stageIds.push(claimed!.jobId);
       for (const [name, mediaType, file] of [["karta.png", "image/png", png(100 + stage, 100)], ["karta.pgw", "text/plain", world],
         ["kurvor.dxf", "application/dxf", text(`0\nEOF\n${stage}`)]] as const) {
@@ -377,6 +377,7 @@ describe("ADR-0219 K5: geo-arbetaren", () => {
     expect((await mergeGeoStages(db, { ...reader.proof, projectId, jobId: stageIds[0]! }, later)).status).toBe("forbidden");
 
     const merging = await claimGeoJob(db, "geo-1", later);
+    expect(merging?.stage).toBeUndefined();
     expect(merging).toMatchObject({ tiles: [], clip: island, settings: { contour_interval: 5 }, merge: { stages: [
       { jobId: stageIds[0], clip: { ...island, maxY: 6524680 }, outputs: ["karta.pgw", "karta.png", "kurvor.dxf"] },
       { jobId: stageIds[1], clip: { ...island, minY: 6524680 }, outputs: ["karta.pgw", "karta.png", "kurvor.dxf"] }] } });
@@ -385,7 +386,12 @@ describe("ADR-0219 K5: geo-arbetaren", () => {
     expect(await readGeoStageOutput(db, merging!.jobId, "geo-2", stageIds[1]!, "kurvor.dxf")).toBeUndefined();
     expect(await readGeoStageOutput(db, merging!.jobId, "geo-1", merging!.jobId, "kurvor.dxf")).toBeUndefined();
     expect(await readGeoStageOutput(db, stageIds[0]!, "geo-1", stageIds[1]!, "kurvor.dxf")).toBeUndefined();
-    for (const [name, mediaType, file] of [["karta.png", "image/png", png(100, 200)], ["karta.pgw", "text/plain", world], ["kurvor.dxf", "application/dxf", text("0\nEOF\n")]] as const) {
+    // Geo-arbetaren 33 skickar kartbilden som WebP (migration 0122); underlaget får den typen.
+    const webp = new Uint8Array(40);
+    webp.set(new TextEncoder().encode("RIFF"), 0); webp.set(new TextEncoder().encode("WEBPVP8X"), 8);
+    new DataView(webp.buffer).setUint16(24, 99, true); new DataView(webp.buffer).setUint16(27, 199, true);
+    expect((await storeGeoOutput(db, { jobId: merging!.jobId, worker: "geo-1", name: "karta.webp", mediaType: "image/gif", file: webp }, later)).status).toBe("invalid-request");
+    for (const [name, mediaType, file] of [["karta.webp", "image/webp", webp], ["karta.pgw", "text/plain", world], ["kurvor.dxf", "application/dxf", text("0\nEOF\n")]] as const) {
       expect(await storeGeoOutput(db, { jobId: merging!.jobId, worker: "geo-1", name, mediaType, file }, later)).toEqual({ status: "stored" });
     }
     const finished = await finishGeoJob(db, merging!.jobId, "geo-1", { status: "DONE", summary: { worker: 32, mergedStages: 2 } }, later);
@@ -394,10 +400,10 @@ describe("ADR-0219 K5: geo-arbetaren", () => {
     const done = await listGeoJobs(db, { ...reader.proof, projectId }, server, later);
     if (done.status !== "ok") throw new Error(done.status);
     expect(done.list.jobs).toMatchObject([{ jobId: merging!.jobId, name: "Hela ön", status: "DONE", tiles: 2, mergedStages: 2, scannedAt: "2021-04-12", clip: island,
-      layerId: finished.layerId, moisture: { channelHa: 1 }, outputs: [{ name: "karta.pgw" }, { name: "karta.png" }, { name: "kurvor.dxf" }] }]);
+      layerId: finished.layerId, moisture: { channelHa: 1 }, outputs: [{ name: "karta.pgw" }, { name: "karta.webp", mediaType: "image/webp" }, { name: "kurvor.dxf" }] }]);
     expect(done.list.jobs).toHaveLength(1);
     const layers = await listMapProjectLayers(db, { ...reader.proof, projectId }, later);
-    expect(layers.status === "ok" && layers.list.layers.map(layer => [layer.name, layer.width, layer.height, layer.crs])).toEqual([["Hela ön", 100, 200, 3006]]);
+    expect(layers.status === "ok" && layers.list.layers.map(layer => [layer.name, layer.width, layer.height, layer.crs, layer.mediaType])).toEqual([["Hela ön", 100, 200, 3006, "image/webp"]]);
     expect(await mergeGeoStages(db, { ...owner.proof, projectId, jobId: merging!.jobId }, later)).toEqual({ status: "conflict" });
 
     // Går sammanläggningen fel står etapperna kvar som förut, och den kan köas igen.

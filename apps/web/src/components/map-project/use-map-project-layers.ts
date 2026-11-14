@@ -67,7 +67,7 @@ export function useMapProjectLayers(view: MapProjectView, georeference: MapGeore
           const file = await cachedMapFile(layerImageCache, layer.sha256, async () => {
             const response = await fetch(`${base}/layers/${encodeURIComponent(layer.layerId)}/image`, { credentials: "same-origin" });
             if (!response.ok) throw new Error(`Underlaget kunde inte hämtas (${response.status})`);
-            return { bytes: await response.arrayBuffer(), fileName: `${layer.layerId}.${layer.mediaType === "image/png" ? "png" : "jpg"}` };
+            return { bytes: await response.arrayBuffer(), fileName: `${layer.layerId}.${layer.mediaType === "image/png" ? "png" : layer.mediaType === "image/webp" ? "webp" : "jpg"}` };
           });
           const blob = new Blob([file.bytes], { type: layer.mediaType });
           // En bild som webbläsaren inte klarar i full storlek prövas nedskalad (ritas sedan i sin egen storlek).

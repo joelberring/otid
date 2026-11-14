@@ -6,6 +6,8 @@ import { useTexts } from "../language-provider";
 import type { WarpKind } from "@o-tid/map-revision";
 import type { BoxArea } from "../../lib/map-project-area-box";
 import { residualMeters } from "../../lib/map-project-control-points";
+import { mapSavedChoiceEn } from "../../i18n/map-knolls-en";
+import { mapSavedChoiceSv } from "../../i18n/map-knolls-sv";
 import { mapProjectRectifySv } from "../../i18n/map-project-rectify-sv";
 import { Button } from "../ui";
 import type { useMapProjectRectify } from "./use-map-project-rectify";
@@ -18,6 +20,8 @@ const KINDS: readonly WarpKind[] = ["similarity", "affine", "rubber"];
 export function MapProjectRectifyPanel({ rectify, areas, scale }: { rectify: ReturnType<typeof useMapProjectRectify>; areas: readonly Area[]; scale: number }) {
   const text = useTexts(mapProjectRectifySv, mapProjectRectifyEn);
   const [where, setWhere] = useState("");
+  const [laserJob, setLaserJob] = useState("");
+  const shared = useTexts(mapSavedChoiceSv, mapSavedChoiceEn);
   if (!rectify.canPropose) return null;
   const area = areas.find(row => row.areaId === where);
   const outline = area?.polygon[0];
@@ -26,9 +30,22 @@ export function MapProjectRectifyPanel({ rectify, areas, scale }: { rectify: Ret
   const fit = rectify.fit, result = rectify.result;
   const planned = result ? rectify.edits() : undefined;
   const moved = result?.changes.map(change => residualMeters(change.moved, scale)) ?? [];
-  return <details className={styles.settings} data-testid="map-project-rectify">
+  const choices = rectify.laserChoices;
+  return <details className={styles.settings} data-testid="map-project-rectify" onToggle={event => { if (event.currentTarget.open) void rectify.loadJobs(); }}>
     <summary>{text.heading}</summary>
     <p className={styles.muted}>{text.help}</p>
+    {/* Ägaren 2026-11-14: passpunkterna kan sökas ur lasern (kartans höjdkurvor mot markens höjd) i stället för att klickas. */}
+    {rectify.canLaser && <>
+      <h4>{text.laser.heading}</h4>
+      <p className={styles.muted}>{text.laser.help}</p>
+      {choices && choices.length === 0 ? <p className={styles.muted}>{text.laser.none}</p> : choices && <>
+        <label>{text.laser.job}<select value={laserJob || choices[0]!.id} onChange={event => setLaserJob(event.target.value)}>
+          {choices.map(row => <option key={row.id} value={row.id}>{row.stages ? shared.allStages(row.stages.base, row.stages.total) : row.jobs[0]!.name}</option>)}
+        </select></label>
+        <span className={styles.actions}><Button variant="secondary" disabled={!!rectify.busy} onClick={() => void rectify.fromLaser(laserJob || choices[0]!.id)}
+          data-testid="map-project-rectify-laser">{text.laser.run}</Button></span>
+      </>}
+    </>}
     <span className={styles.actions}>
       {rectify.picking ? <Button variant="secondary" onClick={rectify.stop}>{text.stop}</Button>
         : <Button variant="secondary" onClick={rectify.start} data-testid="map-project-rectify-start">{text.start}</Button>}
@@ -37,10 +54,11 @@ export function MapProjectRectifyPanel({ rectify, areas, scale }: { rectify: Ret
     </span>
     {rectify.picking && <p aria-live="polite" data-testid="map-project-rectify-hint">{rectify.pending ? text.hintTo : text.hintFrom}</p>}
     {rectify.pairs.length === 0 ? <p className={styles.muted}>{text.none}</p> : <ol className={styles.rows} data-testid="map-project-rectify-list">
-      {rectify.pairs.map((_, index) => <li key={index}>
+      {rectify.pairs.slice(0, 12).map((_, index) => <li key={index}>
         {text.point(index + 1, fit?.residuals[index] !== undefined ? text.residual(residualMeters(fit.residuals[index], scale)) : "–")}{" "}
         <Button variant="quiet" aria-label={text.removePoint(index + 1)} onClick={() => rectify.remove(index)}>×</Button>
       </li>)}
+      {rectify.pairs.length > 12 && <li className={styles.muted}>{text.morePoints(rectify.pairs.length - 12)}</li>}
     </ol>}
     <fieldset className={styles.fieldset}>
       <legend>{text.kind}</legend>
@@ -60,7 +78,8 @@ export function MapProjectRectifyPanel({ rectify, areas, scale }: { rectify: Ret
       <p>{text.summary(result.changes.length, moved.length ? moved.reduce((sum, value) => sum + value, 0) / moved.length : 0, Math.max(0, ...moved))}</p>
       {planned.skipped > 0 && <p className={styles.muted}>{text.skipped(planned.skipped)}</p>}
       {planned.edits.length > 0 && <span className={styles.actions}>
-        <Button disabled={!!rectify.busy} onClick={() => void rectify.propose()} data-testid="map-project-rectify-propose">{text.propose(planned.edits.length)}</Button>
+        {rectify.canApply && <Button disabled={!!rectify.busy} onClick={rectify.apply} data-testid="map-project-rectify-apply">{text.apply(result.changes.length)}</Button>}
+        <Button variant={rectify.canApply ? "secondary" : "primary"} disabled={!!rectify.busy} onClick={() => void rectify.propose()} data-testid="map-project-rectify-propose">{text.propose(planned.edits.length)}</Button>
       </span>}
     </div>}
     {rectify.busy && <p role="status" className={styles.muted}>{rectify.busy}</p>}

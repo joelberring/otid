@@ -38,5 +38,22 @@ export const mapProjectRectifySv = {
   sent: (count: number) => count === 1 ? "Förslaget är skickat. Ägaren ser det under Förslag." : `${count} förslag är skickade. Ägaren ser dem under Förslag.`,
   note: (kind: Kind, points: number, part: number, total: number) =>
     `Rättad med ${points} passpunkter (${kindName[kind]})` + (total > 1 ? ` (del ${part} av ${total})` : ""),
-  failed: (status: number | string) => `Förslaget kunde inte skickas (${status}).`
+  failed: (status: number | string) => `Förslaget kunde inte skickas (${status}).`,
+  morePoints: (count: number) => `… och ${count} till`,
+  apply: (count: number) => count === 1 ? "Flytta 1 objekt direkt" : `Flytta ${count} objekt direkt`,
+  applied: (count: number) => `${count} objekt är flyttade. Ångra tar tillbaka allt i ett steg.`,
+  laser: {
+    heading: "Passpunkter ur lasern",
+    help: "För en karta vars höjdkurvor inte ligger på laserns mark. O-Tid söker, del för del av kartan, den flytt som får kartans höjdkurvor att ligga på jämn höjd i laserns höjdmodell, och gör passpunkter av det. Gummiduken flyttar sedan alla objekt, så att stenar, stigar och annat följer med kurvorna de är ritade mot.",
+    none: "Inget klart laserjobb har markens höjd sparad (hojd.png). Kör lasern först.",
+    job: "Laserjobb",
+    run: "Sök passpunkter",
+    reading: "Läser kartans höjdkurvor och markens höjd …",
+    fitting: (done: number, total: number) => `Passar in del ${done} av ${total} …`,
+    noContours: "Kartan har inga höjdkurvor (101, 102) att passa in.",
+    noNodes: "För få höjdkurvor inom laserns område för att passa in kartan.",
+    failed: "Markens höjd kunde inte läsas.",
+    done: (points: number, before: string, after: string, median: string, max: string) =>
+      `${points} passpunkter. Kurvornas avvikelse från jämn höjd: ${before} → ${after} m. Flytten är ${median} m i median och ${max} m som mest. Välj «Räkna fram flytten» för att se resultatet.`
+  }
 } as const;

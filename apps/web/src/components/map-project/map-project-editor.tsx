@@ -238,7 +238,8 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     useCallback(() => { void loadProposals(); }, [loadProposals]), session, editor.commitMany);
   // K6: generaliseringen som förslag.
   const generalizer = useMapProjectGeneralize(view, session, editor.state, useCallback(() => { void loadProposals(); }, [loadProposals]));
-  const rectify = useMapProjectRectify(view, session, editor.state, useCallback(() => { void loadProposals(); }, [loadProposals]));
+  const rectify = useMapProjectRectify(view, session, editor.state, useCallback(() => { void loadProposals(); }, [loadProposals]),
+    georeference ?? undefined, symbols, editor.commitMany);
   // Grundkartan G2b: kandidaterna ritas av Workern med sina symboler ovanpå kartan.
   const candidates = importer.candidates, showCandidates = editor.showCandidates; useEffect(() => { showCandidates(candidates); }, [candidates, showCandidates]);
   const symbol = symbolId ? symbols.get(symbolId) : undefined;

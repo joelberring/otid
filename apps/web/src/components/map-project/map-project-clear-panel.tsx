@@ -42,6 +42,8 @@ export function MapProjectClearPanel({ view, importer }: { view: MapProjectView;
   const [problem, setProblem] = useState<string>();
   const heights = useRef<{ key: string; field: HeightField } | undefined>(undefined);
   const crs = importer.crs, clear = importer.clear;
+  // Förvalen: efter terrängen när grundkartan lästes in med dem (flack terräng behåller fler hjälpkurvor och ringar).
+  const defaults = clear?.suggested ?? DEFAULT_CLEAR;
   const hasContours = importer.layers.some(layer => CONTOURS.test(layer.name));
 
   async function open() {
@@ -93,6 +95,15 @@ export function MapProjectClearPanel({ view, importer }: { view: MapProjectView;
     return () => clearTimeout(timer);
   }, [live, wanted]);
 
+  // En grundkarta som just lästs in står på sina egna nivåer, inte på reglagens gamla.
+  const loaded = useRef(clear);
+  useEffect(() => {
+    if (!clear || clear === loaded.current) return;
+    loaded.current = clear;
+    if (before || clear.settings === ran.current) return;
+    ran.current = clear.settings; setSettings(clear.settings);
+  }, [clear, before]);
+
   if (!importer.canImport) return null;
   const smooth = smoothLimitsAt(settings.smooth), formlines = formlineLimitsAt(settings.formlines), ringM2 = ringLimitAt(settings.rings);
   const slider = (key: keyof ClearSettings, label: string) => <label key={key}>{label}
@@ -105,15 +116,15 @@ export function MapProjectClearPanel({ view, importer }: { view: MapProjectView;
       <label>{shared.job}<select value={job.id} onChange={event => { setChosen(event.target.value); setLive(false); }}>
         {choices!.map(row => <option key={row.id} value={row.id}>{row.stages ? shared.allStages(row.stages.base, row.stages.total) : row.jobs[0]!.name}</option>)}
       </select></label>
-      {slider("smooth", text.smooth(settings.smooth, number(smooth?.sigma ?? 0), number(Math.round((smooth?.fullSlope ?? 0) * 100)), number(Math.round((smooth?.noSlope ?? 0) * 100))))}
-      {slider("formlines", text.formlines(settings.formlines, number(formlines?.minConvex ?? 0), number(formlines?.tight ?? 0)))}
-      {slider("rings", text.rings(settings.rings, number(Math.round(ringM2 ?? 0))))}
+      {slider("smooth", text.smooth(settings.smooth, settings.smooth === defaults.smooth, number(smooth?.sigma ?? 0), number(Math.round((smooth?.fullSlope ?? 0) * 100)), number(Math.round((smooth?.noSlope ?? 0) * 100))))}
+      {slider("formlines", text.formlines(settings.formlines, settings.formlines === defaults.formlines, number(formlines?.minConvex ?? 0), number(formlines?.tight ?? 0)))}
+      {slider("rings", text.rings(settings.rings, settings.rings === defaults.rings, number(Math.round(ringM2 ?? 0))))}
       <p className={styles.muted}>{text.levelHelp}</p>
       <span className={styles.actions}>
         <Button variant="secondary" disabled={busy} onClick={() => { setBefore(false); setLive(true); void run(settings); }} data-testid="map-project-clear-run">{busy ? shared.loading : text.run}</Button>
         {/* Före och efter (ägaren 2026-11-14): växla mellan laserns kurvor och de tydligare, för att bedöma nivåerna. */}
         {clear && <Button variant="secondary" disabled={busy} onClick={() => { setLive(true); setBefore(current => !current); }} data-testid="map-project-clear-compare">{before ? text.showAfter : text.showBefore}</Button>}
-        <Button variant="secondary" disabled={busy} onClick={() => { setBefore(false); setSettings(DEFAULT_CLEAR); }}>{shared.reset}</Button>
+        <Button variant="secondary" disabled={busy} onClick={() => { setBefore(false); setLive(true); setSettings(defaults); }}>{shared.reset}</Button>
       </span>
     </>}
     {problem ? <p role="alert" className={styles.problem} data-testid="map-project-clear-message">{problem}</p>

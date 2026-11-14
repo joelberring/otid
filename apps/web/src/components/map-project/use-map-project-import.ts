@@ -11,7 +11,7 @@ import { useTexts } from "../language-provider";
 import { MAP_PROJECT_SYNC_MAX_EDITS, type MapLayerProfileView, type MapProjectView } from "@o-tid/contracts";
 import { isSupportedEpsg, type MapGeoreference, type MapObject, type PathCommand } from "@o-tid/map-file";
 import {
-  fitClassOf, guessCrs, importLayers, isSprintNorm, mapNorm, newKey, samplePath, sourcePointToMap, suggestSymbol, VectorParseError, WGS84_EPSG,
+  fitClassOf, guessCrs, importLayers, isSprintNorm, mapNorm, newKey, objectBox, samplePath, sourcePointToMap, suggestSymbol, VectorParseError, WGS84_EPSG,
   type FitPoint, type ImportLayer, type SourceData, type SourceFeature, type VectorFit
 } from "@o-tid/map-revision";
 import { clubRequest, csrf } from "../../lib/club-archive-client";
@@ -108,7 +108,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   const [marked, setMarked] = useState<string>();
   const clearWith = useRef<{ settings: ClearSettings; field: HeightField } | undefined>(undefined);
   const show = useCallback((fileName: string, data: SourceData, area?: Bounds, general = false, within?: readonly (readonly { x: number; y: number }[])[]) => {
-    setNormed(general); setStage(within); setCalm(undefined); setClear(undefined); clearWith.current = undefined; setOrigin(undefined);
+    setNormed(general); setStage(within); setCalm(undefined); setClear(undefined); clearWith.current = undefined; setOrigin(undefined); setReplace(false); setReplaced(undefined);
     const found = importLayers(data);
     const list = symbolList;
     setFile({ name: fileName, data });
@@ -275,6 +275,12 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
    * Ägaren 2026-11-10 («godkännas i ett svep»): alla kandidater läggs i kartan som egna ändringar i ett steg (Ångra tar bort
    * alla igen). Den som bara får föreslå får dem som förslag, som med allt annat den ritar.
    */
+  /**
+   * Ägaren 2026-11-14 («göra om kurvbilden på en befintlig karta … utan att det blir dubbelt»): kandidaterna byter ut kartans
+   * objekt med samma symboler inom kandidaternas område (kurvor mot nya kurvor, grönt mot nytt grönt) i samma steg som de läggs in.
+   */
+  const [replace, setReplace] = useState(false);
+  const [replaced, setReplaced] = useState<number>();
   const accept = useCallback(() => {
     if (!file || !result || result.objects.length === 0 || !commitMany || computing) return;
     setProblem(undefined); setSent(undefined);
@@ -282,11 +288,32 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     const marking = origin && georeference ? baseMapMarking({ symbols, objects: result.objects, bounds, scale: georeference.scale, text: markingText,
       facts: { host: window.location.host, date: swedishToday(new Date()), worker: GEO_WORKER_VERSION, scale: georeference.scale, scannedAt: origin.scannedAt ?? undefined,
         settings: Object.entries(origin.settings), calm: calm?.level, clear: clear && [clear.settings.smooth, clear.settings.formlines, clear.settings.rings] } }) : undefined;
-    const count = commitMany([...result.objects, ...(marking?.objects ?? [])].map((object: MapObject) => ({ key: newKey(crypto.randomUUID()), ref: null, kind: "ADD" as const,
-      after: { kind: "OBJECT" as const, object } })));
-    setMarked(marking?.paper);
-    setAccepted(count); setFile(undefined); setLayers([]); setMapping(new Map());
-  }, [file, result, computing, commitMany, origin, georeference, symbols, bounds, markingText, calm, clear]);
+    const adds = [...result.objects, ...(marking?.objects ?? [])].map((object: MapObject): ObjectChange => ({ key: newKey(crypto.randomUUID()), ref: null, kind: "ADD",
+      after: { kind: "OBJECT", object } }));
+    const finish = (removals: readonly ObjectChange[]) => {
+      const count = commitMany([...removals, ...adds]);
+      setMarked(marking?.paper); setReplaced(removals.length || undefined);
+      setAccepted(Math.max(0, count - removals.length)); setFile(undefined); setLayers([]); setMapping(new Map()); setReplace(false);
+    };
+    if (!replace || !session) { finish([]); return; }
+    // Kandidaternas område, och kartans objekt med kandidaternas symboler vars mitt ligger där (Workern svarar på en fråga i taget).
+    const area = result.objects.map(objectBox).reduce((all, box) => ({ minX: Math.min(all.minX, box.minX), minY: Math.min(all.minY, box.minY),
+      maxX: Math.max(all.maxX, box.maxX), maxY: Math.max(all.maxY, box.maxY) }));
+    const wanted = [...new Set(result.objects.map(object => object.symbol))], removals: ObjectChange[] = [];
+    const next = (index: number) => {
+      const symbol = wanted[index];
+      if (symbol === undefined) { finish(removals); return; }
+      session.bySymbol(symbol, objects => {
+        for (const row of objects) {
+          const box = objectBox(row.object), at = { x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 };
+          if (at.x < area.minX || at.x > area.maxX || at.y < area.minY || at.y > area.maxY) continue;
+          removals.push({ key: row.key, ref: row.ref, kind: "DELETE", after: { kind: "DELETED" }, point: at });
+        }
+        next(index + 1);
+      });
+    };
+    next(0);
+  }, [file, result, computing, commitMany, origin, georeference, symbols, bounds, markingText, calm, clear, replace, session]);
 
   const choose = useCallback((layer: string, symbolId: string) => setMapping(current => {
     const next = new Map(current);
@@ -333,20 +360,20 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     const again = clear && clearWith.current ? clearContours(result.features, clearWith.current.field, clearWith.current.settings) : undefined;
     const data = { ...file.data, features: again?.features ?? result.features };
     setFile({ name: file.name, data }); setLayers(importLayers(data)); setCalm(outcome);
-    setClear(again && clearWith.current ? { ...again, settings: clearWith.current.settings } : undefined);
+    setClear(again && clearWith.current ? { ...again, settings: clearWith.current.settings, suggested: clear?.suggested } : undefined);
     return outcome;
   }, [file, calm, clear]);
   /** Reglagen «Tydligare kurvbild»: kurvorna i det som visas byts mot de utjämnade och gallrade, räknade från de lugnade. */
   const clearCurves = useCallback((settings: ClearSettings, field: HeightField): ClearOutcome | undefined => {
     if (!file) return undefined;
     const result = clearContours(clear ? restoreFlatContours(file.data.features, clear) : file.data.features, field, settings);
-    const outcome = { ...result, settings };
+    const outcome = { ...result, settings, suggested: clear?.suggested };
     const data = { ...file.data, features: result.features };
     clearWith.current = { settings, field };
     setFile({ name: file.name, data }); setLayers(importLayers(data)); setClear(outcome);
     return outcome;
   }, [file, clear]);
-  return { file, calm, calmContours, clear, clearCurves, /** Pappret som märkningens ram gjordes för när grundkartan lades in. */ marked, /** Höjden som «Tydligare kurvbild» senast räknades med. */ clearField: () => clearWith.current?.field,
+  return { file, calm, calmContours, clear, clearCurves, replace, setReplace, /** Så många av kartans objekt som byttes ut när kandidaterna lades in. */ replaced, /** Pappret som märkningens ram gjordes för när grundkartan lades in. */ marked, /** Höjden som «Tydligare kurvbild» senast räknades med. */ clearField: () => clearWith.current?.field,
     /** Nya kandidater väntar på svar (de som visas är inte införda): läs in dem ändå, eller behåll de som visas. */
     pendingReplace: pendingReplace?.fileName,
     replaceAnyway: () => { const pending = pendingReplace; setPendingReplace(undefined); pending?.open(); },

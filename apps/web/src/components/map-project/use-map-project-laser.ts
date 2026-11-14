@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { GEO_CLIP_MARGIN_M, type GeoClip, type GeoJobList, type GeoJobView, type MapProjectClearCutList, type MapProjectSoilArea, type MapProjectSoilList, type MapProjectView, type MapSourceCredentialView } from "@o-tid/contracts";
 import type { MapGeoreference } from "@o-tid/map-file";
 import { VectorParseError, type SourceData } from "@o-tid/map-revision";
-import { DEFAULT_CLEAR, DEFAULT_ROCK_LEVEL, heightFieldFrom } from "@o-tid/map-revision/base-map";
+import { DEFAULT_ROCK_LEVEL, heightFieldFrom } from "@o-tid/map-revision/base-map";
 import { mapClearContoursEn, mapFlatContoursEn } from "../../i18n/map-knolls-en";
 import { mapClearContoursSv, mapFlatContoursSv } from "../../i18n/map-knolls-sv";
 import { mapSourcesEn } from "../../i18n/map-sources-en";
@@ -218,7 +218,7 @@ export function useMapProjectLaser({ view, layers, importer, georeference, bound
       });
       const { data, calm, clear, rock: rocky, soil: soiled } = await importer.readBaseMap({ parts: stageParts ? [] : parts, stages: stageParts, joined: !stages && !!job.mergedStages, merge: baseMap, osm, scale: georeference?.scale,
         cuts: cuts && { features: cuts.features, afterScan: cuts.afterScan }, soil, calm: slope === "failed" ? undefined : slope,
-        clear: heightParts.length > 0 ? { parts: heightParts, settings: DEFAULT_CLEAR } : undefined,
+        clear: heightParts.length > 0 ? { parts: heightParts } : undefined,
         rock: !stages && rock && rock !== "failed" ? { ...rock, level: DEFAULT_ROCK_LEVEL } : undefined },
         at => step(at.step === "read" ? text.steps.reading(at.done, at.total) : text.steps.merging));
       // Karttapullautins filer är i laserns SWEREF 99 TM; en DWG-ritnings koordinatsystem gissas eller anges i importen.

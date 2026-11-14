@@ -110,7 +110,24 @@ export const mapProjectRectifyEn: Texts<typeof mapProjectRectifySv> = {
   sent: (n: number) => n === 1 ? "The suggestion is sent. The owner sees it under Suggestions." : `${n} suggestions are sent. The owner sees them under Suggestions.`,
   note: (kind: Kind, points: number, part: number, total: number) =>
     `Corrected with ${points} control points (${kindName[kind]})` + (total > 1 ? ` (part ${part} of ${total})` : ""),
-  failed: (status: number | string) => `The suggestion could not be sent (${status}).`
+  failed: (status: number | string) => `The suggestion could not be sent (${status}).`,
+  morePoints: (count: number) => `… and ${count} more`,
+  apply: (count: number) => count === 1 ? "Move 1 object directly" : `Move ${count} objects directly`,
+  applied: (count: number) => `${count} objects have been moved. Undo takes it all back in one step.`,
+  laser: {
+    heading: "Control points from the laser",
+    help: "For a map whose contours do not lie on the laser ground. O-Tid searches, part by part of the map, for the shift that puts the map's contours on level height in the laser elevation model, and turns that into control points. The rubber sheet then moves all objects, so boulders, paths and the rest follow the contours they were drawn against.",
+    none: "No finished laser job has the ground height saved (hojd.png). Run the laser first.",
+    job: "Laser job",
+    run: "Find control points",
+    reading: "Reading the map's contours and the ground height …",
+    fitting: (done: number, total: number) => `Fitting part ${done} of ${total} …`,
+    noContours: "The map has no contours (101, 102) to fit.",
+    noNodes: "Too few contours inside the laser area to fit the map.",
+    failed: "The ground height could not be read.",
+    done: (points: number, before: string, after: string, median: string, max: string) =>
+      `${points} control points. The contours' deviation from level height: ${before} → ${after} m. The shift is ${median} m in median and ${max} m at most. Choose "Calculate the move" to see the result.`
+  }
 };
 
 export const mapProjectSymbolLayersEn: Texts<typeof mapProjectSymbolLayersSv> = {

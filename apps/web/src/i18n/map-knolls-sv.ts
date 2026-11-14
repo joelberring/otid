@@ -59,13 +59,13 @@ export const mapClearContoursSv = {
   help: "Laserns kurvor följer marken exakt och blir plottriga. Reglagen gör som kartritare gör: mjukare kurvor där det är flackt, hjälpkurvor bara där de visar en form, och färre små ringar. Detaljerna i brant och kuperad terräng står kvar. Förvalen är mätta mot tre kartritares kartor (Högdalen, Gömmaren, Djurgården).",
   none: "Inget klart laserjobb har markens höjd sparad (hojd.png).",
   noContours: "Inga kurvor bland kandidaterna. Läs in grundkartan först (steg 2).",
-  smooth: (level: number, meters: string, full: string, none: string) => level === 0 ? "Mjukare kurvor på flack mark: av"
-    : `Mjukare kurvor på flack mark: ${level} av 10${level === 5 ? " (förval)" : ""} – jämnar ut över ${meters} m där marken lutar under ${full} %, inget över ${none} %`,
-  formlines: (level: number, convex: string, tight: string) => level === 0 ? "Färre hjälpkurvor: av"
-    : `Färre hjälpkurvor: ${level} av 10${level === 5 ? " (förval)" : ""} – bara där marken ligger minst ${convex} m över omgivningen${tight === "0" ? "" : ` och inte närmare en höjdkurva än ${tight} m`}`,
-  rings: (level: number, squareMeters: string) => level === 0 ? "Små ringar av hjälpkurva: av"
-    : `Små ringar av hjälpkurva: ${level} av 10${level === 5 ? " (förval)" : ""} – tas bort under ${squareMeters} m²`,
-  levelHelp: "0 är av och 10 är mest. En kurva flyttas aldrig till mark som ligger mer än 1,25 m högre eller lägre (en fjärdedel av ekvidistansen, som normen tillåter).",
+  smooth: (level: number, isDefault: boolean, meters: string, full: string, none: string) => level === 0 ? "Mjukare kurvor på flack mark: av"
+    : `Mjukare kurvor på flack mark: ${level} av 10${isDefault ? " (förval)" : ""} – jämnar ut över ${meters} m där marken lutar under ${full} %, inget över ${none} %`,
+  formlines: (level: number, isDefault: boolean, convex: string, tight: string) => level === 0 ? "Färre hjälpkurvor: av"
+    : `Färre hjälpkurvor: ${level} av 10${isDefault ? " (förval)" : ""} – bara där marken ligger minst ${convex} m över omgivningen${tight === "0" ? "" : ` och inte närmare en höjdkurva än ${tight} m`}`,
+  rings: (level: number, isDefault: boolean, squareMeters: string) => level === 0 ? "Små ringar av hjälpkurva: av"
+    : `Små ringar av hjälpkurva: ${level} av 10${isDefault ? " (förval)" : ""} – tas bort under ${squareMeters} m²`,
+  levelHelp: "0 är av och 10 är mest. Förvalen följer terrängen: i flack terräng med små former får fler hjälpkurvor och ringar stå kvar. En kurva flyttas aldrig till mark som ligger mer än 1,25 m högre eller lägre (en fjärdedel av ekvidistansen, som normen tillåter).",
   run: "Visa som kandidater",
   done: (smoothed: string, formlines: string, rings: number) => `${smoothed} m kurva jämnas ut, ${formlines} m hjälpkurva och ${rings === 1 ? "1 liten ring" : `${rings} små ringar`} tas bort.`,
   untouched: "Ingenting ändras.",

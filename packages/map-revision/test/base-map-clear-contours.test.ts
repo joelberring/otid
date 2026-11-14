@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SourceFeature } from "../src";
-import { clearContours, DEFAULT_CLEAR, formlineLimitsAt, heightFieldFrom, heightGridOf, ringLimitAt, smoothLimitsAt, type HeightField } from "../src/base-map/clear-contours";
+import { clearContours, DEFAULT_CLEAR, flatTerrainShare, suggestedClear, formlineLimitsAt, heightFieldFrom, heightGridOf, ringLimitAt, smoothLimitsAt, type HeightField } from "../src/base-map/clear-contours";
 import { restoreFlatContours } from "../src/base-map/flat-contours";
 
 type Position = [number, number];
@@ -119,5 +119,24 @@ describe("tydligare kurvbild: höjden ur hojd.png", () => {
     expect(field.heightAt(900, 4900)).toBeUndefined(); expect(field.heightAt(1000, 4900)).toBeUndefined();
     // Nära kanten finns för lite av ringen.
     expect(field.convexAt(1010, 4990)).toBeUndefined();
+  });
+});
+
+describe("tydligare kurvbild: förvalen efter terrängen", () => {
+  const contours = (count: number) => Array.from({ length: count }, (_, i) => line([[0, i * 50], [2000, i * 50]]));
+  /** Marken lutar `steep` norr om y = `border` och 2 % söder om. */
+  const split = (border: number): HeightField => ({ heightAt: () => 0, slopeAt: (_x, y) => y >= border ? 0.3 : 0.02, convexAt: () => 0 });
+  it("mäter andelen av höjdkurvornas längd på mark under 12 % lutning", () => {
+    expect(flatTerrainShare(contours(10), split(250))).toBeCloseTo(0.5, 2);
+    expect(flatTerrainShare(contours(10), plane(0.3))).toBe(0);
+    expect(flatTerrainShare([line([[0, 0], [100, 0]], "formline")], plane(0.01))).toBeUndefined();
+  });
+  it("behåller förvalen i kuperad terräng och tar bort mindre i flack", () => {
+    expect(suggestedClear(contours(10), plane(0.3))).toEqual(DEFAULT_CLEAR);
+    expect(suggestedClear(contours(10), split(100))).toEqual(DEFAULT_CLEAR);
+    expect(suggestedClear(contours(10), plane(0.02))).toEqual({ smooth: 4, formlines: 3, rings: 1 });
+    // 30 % flackt: hjälpkurvorna en nivå ner, ringarna och utjämningen som förvalet.
+    expect(suggestedClear(contours(10), split(150))).toEqual({ smooth: 5, formlines: 4, rings: 5 });
+    expect(suggestedClear([], plane(0.02))).toEqual(DEFAULT_CLEAR);
   });
 });

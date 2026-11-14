@@ -19,6 +19,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Sparade namn ändras inte: färdiga arkmallar, läget «Från Purple Pen» och pappret visas på engelska i visningen (`lib/built-in-names.ts`, med test), och bara när namnet fortfarande är O-Tids eget. URL-parametern `klubb` och remsans platshållare (`{löpare}` m.fl.) är kod och rörs inte.
 - Kvar: ett trettiotal felbesked som kastas i webbläsaren (t.ex. «Kartan kunde inte hämtas») är bara svenska. Kontrollbeskrivningarna följer beskrivningarnas språk. Kontrollerat: typecheck, eslint, knip, alla vitest (1241).
 
+### 2026-11-14 – Arboga: passa in en äldre karta mot lasern, byta ut ett tema, förval efter terrängen
+
+- Arboga (klubbens OCAD-karta, 12,7 km² mätt): kurvorna är inte ritade på lasern och hela kartan är skev lokalt (12 m i median). Ett förskjutningsfält ur höjdkurvorna ensamma förbättrar föremål som inte var med: branter 0,22 → 0,33 i lutning, punkthöjder 15 → 27 % inom 5 m från en laserkulle, grönt och byggnader likaså. Stenar går inte att verifiera mot lasern där (träff som slumpen).
+- «Rätta kartan med passpunkter» har fått «Passpunkter ur lasern» (`terrainFitPlan`/`terrainNodeCost`/`terrainFitSolve`): kartans höjdkurvor passas in mot `hojd.png` del för del och noderna blir passpunkter för gummiduken. Den som får rita kan flytta objekten direkt i ett steg i stället för hundratals förslag.
+- Kandidaternas rad har «Byt ut kartans objekt med samma symboler här»: kurvor mot nya kurvor, grönt mot nytt, i samma steg.
+- «Tydligare kurvbild» väljer förval efter terrängen (`suggestedClear`: andelen kurvlängd på mark under 12 %): Arboga 0,47 ger hjälpkurvor 3, ringar 1, utjämning 4 (kartritaren där har 77 % av laserns hjälpkurvor mot 41–64 % i Stockholm).
+- Verifierat: enhetstester, lint, typecheck; regeln för inpassningen körd på Arbogas riktiga data i webbläsaren (branter 0,22 → 0,31). Inte provat: panelerna i webbläsaren, och att skriva 30 000 flyttade objekt till en OCAD-fil (`OTID_OCAD_WRITE`).
+
 ### 2026-11-14 – Kartans märkning: ram, logga och ruta på kartor gjorda nya i O-Tid
 
 - Ägaren: nya kartor ska märkas – ram för minsta A-papper (stående/liggande) i loggans färg, loggan, och en ruta i liten stil om att kartan är gjord med O-Tid (datum, geo-arbetarens version, inställningar), källorna, att den inte är kontrollerad i terrängen, och villkoren (eget bruk fritt; arrangemang kräver samråd med markägare och jakträttsinnehavare enligt SOFT, och klubb med karta över området kontaktas först).

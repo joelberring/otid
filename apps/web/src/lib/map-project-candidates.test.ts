@@ -106,6 +106,11 @@ describe("kandidaterna i Workern", () => {
     expect(cleared.clear!.formlineMeters).toBeGreaterThan(20);
     expect(cleared.clear!.removed.map(feature => feature.layer)).toEqual(["formline"]);
     for (const piece of cleared.clear!.added) expect(cleared.data.features).toContain(piece);
+    expect(cleared.clear!.suggested).toBeUndefined();
+    // Utan angivna nivåer väljs förvalen efter terrängen (här brant: de vanliga förvalen), och svaret säger vilka.
+    const auto = run({ clear: { parts: clear.parts } });
+    expect(auto.clear!.settings).toEqual({ smooth: 5, formlines: 5, rings: 5 });
+    expect(auto.clear!.suggested).toEqual(auto.clear!.settings);
     expect(run({ merge: false, clear }).clear).toBeUndefined();
   });
 

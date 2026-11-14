@@ -35,7 +35,7 @@ export function MapProjectImportPanel({ importer, symbols, areas }: { importer: 
     {problemText && <p role="alert" className={styles.problem}>{problemText}{" "}
       <Button variant="quiet" onClick={() => importer.setProblem(undefined)}>OK</Button></p>}
     {importer.sent !== undefined && <p role="status" data-testid="map-project-import-sent">{text.sent(importer.sent)}</p>}
-    {importer.accepted !== undefined && <p role="status" data-testid="map-project-import-accepted">{text.accepted(importer.accepted)}{importer.marked ? marking.added(importer.marked) : ""}</p>}
+    {importer.accepted !== undefined && <p role="status" data-testid="map-project-import-accepted">{text.accepted(importer.accepted)}{importer.replaced ? text.replaced(importer.replaced) : ""}{importer.marked ? marking.added(importer.marked) : ""}</p>}
     {importer.dwgSent && <p role="status" data-testid="map-project-import-dwg">{text.dwgSent(importer.dwgSent)}</p>}
     {!file ? <>
       <span className={styles.actions}>

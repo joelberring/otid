@@ -649,3 +649,14 @@ kartritare för att kunna göra medvetna generaliseringar».
   klubbar inte ska bekosta kartor som inte går att använda (ägaren).
 - Nya textobjekt skrivs till Mapper-filer (ankaret nere till vänster på baslinjen, en rad per objekt).
 
+## Tillägg 2026-11-14: en äldre karta passas in mot lasern
+
+- En äldre kartas objekt flyttas med ett mjukt fält, inte objekt för objekt: fältet söks ur kartans höjdkurvor mot laserns
+  höjd (en kurva ska ligga på jämn höjd), och föremålen följer då med kurvorna de är ritade mot. Arboga visade att samma
+  fält förbättrar branter, punkthöjder, grönt och byggnader, så en gemensam gummiduk räcker som första steg.
+- Fältet blir passpunkter i den befintliga rättningen (K6b), så att förhandsvisning, förslag och ångra är desamma. Noder
+  utan laserhöjd blir inga passpunkter.
+- Att göra om ett tema (kurvbild, grönt) görs i kandidaternas rad: kartans objekt med samma symboler inom kandidaternas
+  område tas bort i samma steg som de nya läggs in. Lutningsstreck och andra symboler rörs inte.
+- Förvalen för «Tydligare kurvbild» följer terrängen (andelen kurvlängd på flack mark).
+

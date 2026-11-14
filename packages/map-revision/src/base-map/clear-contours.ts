@@ -26,6 +26,34 @@ export interface ClearSettings { readonly smooth: number; readonly formlines: nu
 /** Förvalen på skalan 0–10 (0 = av): ungefär kartritarnas mått på de tre kartorna. */
 export const DEFAULT_CLEAR: ClearSettings = { smooth: 5, formlines: 5, rings: 5 };
 
+/**
+ * Förvalen efter terrängen (ägaren 2026-11-14, Arboga: «en annan typ av terräng»). I flack terräng med små former bär
+ * hjälpkurvorna mer av bilden: Arbogas kartritare har 77 % av laserns hjälpkurvor och 440 av 616 ringar, Stockholmskartornas
+ * 41–64 % och en fjärdedel av ringarna. Måttet är andelen av höjdkurvornas längd som går på mark under 12 % lutning
+ * (Högdalen och Gömmaren 0,16, Djurgården 0,29, Arboga 0,47): upp till 0,2 gäller `DEFAULT_CLEAR`, från 0,45 hjälpkurvor 3,
+ * ringar 1 och utjämning 4, rätlinjigt däremellan (ringarna först från 0,3).
+ */
+export const FLAT_TERRAIN_SLOPE = 0.12;
+export function flatTerrainShare(features: readonly SourceFeature[], field: HeightField): number | undefined {
+  let flat = 0, known = 0;
+  for (const feature of features) {
+    if (feature.geometry.kind !== "line" || feature.geometry.points.length < 2 || !/^contour(_index)?$/i.test(feature.layer)) continue;
+    for (const [x, y] of resample(feature.geometry.points, 20)) {
+      const slope = field.slopeAt(x, y);
+      if (slope === undefined) continue;
+      known += 1;
+      if (slope < FLAT_TERRAIN_SLOPE) flat += 1;
+    }
+  }
+  return known >= 50 ? flat / known : undefined;
+}
+export function suggestedClear(features: readonly SourceFeature[], field: HeightField): ClearSettings {
+  const share = flatTerrainShare(features, field);
+  if (share === undefined) return DEFAULT_CLEAR;
+  const ramp = (from: number, to: number, start: number, end: number) => Math.round(from + (to - from) * Math.min(1, Math.max(0, (share - start) / (end - start))));
+  return { smooth: ramp(5, 4, 0.3, 0.45), formlines: ramp(5, 3, 0.2, 0.45), rings: ramp(5, 1, 0.3, 0.45) };
+}
+
 export interface SmoothLimits { readonly sigma: number; readonly fullSlope: number; readonly noSlope: number }
 export interface FormlineLimits { readonly minConvex: number; readonly tight: number }
 const between = <L extends object>(level: number, low: L, mid: L, high: L): L | undefined =>

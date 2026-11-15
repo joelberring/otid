@@ -793,6 +793,52 @@ används. Ett ogiltigt värde skrivs som KONFIGURATIONSFEL i loggen och förvale
 
 Kolumnerna `image` och `file` tas bort i en senare migration när `map-content status` säger 0 rader kvar på servern.
 
+## Arkivet (objektlagring, ADR-0224)
+
+Laserkörningars resultatfiler (höjdbild, kurvor, vegetation …) är det som tar mest plats. När en körning vilar flyttas
+filerna till en bucket i S3-kompatibel objektlagring (Hetzner Object Storage) och tas bort från serverns disk. Kartprojektet,
+ändringarna och själva kartan ligger alltid kvar i databasen. När någon öppnar en arkiverad körning hämtas filerna tillbaka
+av sig själva (det tar några sekunder till någon minut för en stor körning) och ligger sedan kvar minst ett dygn.
+
+**Slå på:** skapa en bucket (privat) och S3-nycklar i Hetzner Cloud Console under Object Storage, och sätt i `.env`:
+
+```
+OTID_ARCHIVE_ENDPOINT=hel1.your-objectstorage.com    # platsen där bucketen skapades: fsn1, nbg1 eller hel1
+OTID_ARCHIVE_BUCKET=<bucketens namn>
+OTID_ARCHIVE_ACCESS_KEY=<access key>
+OTID_ARCHIVE_SECRET_KEY=<secret key>
+OTID_ARCHIVE_MODE=log
+```
+
+Med `log` skriver `logs web` en gång i timmen vad som skulle ha flyttats (`Arkivet (bara logg): …`) utan att röra något.
+När siffrorna ser rimliga ut: `OTID_ARCHIVE_MODE=on` och `docker compose -f docker-compose.prod.yml up -d web`. `off` (eller
+tomt) stänger av flytten; det som redan ligger i arkivet hämtas ändå tillbaka vid läsning så länge uppgifterna står kvar.
+
+**Reglerna** (alla går att ändra i `.env`; tomt = förvalet):
+
+| Variabel | Förval | Betyder |
+|---|---|---|
+| `OTID_ARCHIVE_MIN_AGE_HOURS` | 6 | En körning rörs aldrig förrän så länge efter att den blev klar. Pågående och köade aldrig. |
+| `OTID_ARCHIVE_SUPERSEDED_HOURS` | 24 | En körning som ersatts av en nyare klar körning (samma projekt och etapp) flyttas så länge efter den nya. |
+| `OTID_ARCHIVE_IDLE_DAYS` | 3 | Alla körningar i ett projekt som ingen öppnat på så många dygn flyttas. |
+| `OTID_ARCHIVE_ACCOUNT_HOT_MB` | 500 | Så mycket laserfiler får ett konto ha på serverns disk. Över det flyttas de som längst varit oöppnade direkt (0 = ingen gräns). |
+| `OTID_ARCHIVE_TOTAL_HOT_MB` | 10240 | Samma för alla konton tillsammans. |
+| `OTID_ARCHIVE_PRESSURE_IDLE_HOURS` | 3 | Utrymmesregeln rör inte ett projekt som öppnats de senaste så många timmarna. |
+| `OTID_ARCHIVE_GRACE_HOURS` | 24 | Så länge ligger filerna kvar på disken efter uppladdningen (inte under utrymmesregeln). |
+| `OTID_ARCHIVE_RESTORED_HOT_HOURS` | 24 | Det som hämtats tillbaka ligger kvar minst så länge. |
+| `OTID_ARCHIVE_ORPHAN_DAYS` | 35 | En borttagen körnings filer raderas i arkivet först efter så många dygn (backupens tid). |
+| `OTID_ARCHIVE_RUN_MB` | 2048 | Högst så mycket laddas upp per timme. |
+| `OTID_ARCHIVE_MIN_MB` | 1 | Mindre filer flyttas inte. |
+
+På en tävlingsdag gäller bara utrymmesregeln. Varje fil laddas upp, hämtas tillbaka och jämförs med sin sha256 innan den
+räknas som arkiverad, och storleken i arkivet kontrolleras en gång till innan delarna tas bort här.
+
+**Backupen** sparar inte det som ligger i arkivet (det räknas inte som saknat), och `restore` skriver hur många innehåll
+som ligger där. Efter ett haveri måste alltså både databasen (backupen) och bucketen finnas; `OTID_ARCHIVE_*` ska stå i
+`.env` innan `web` startas. Laserfilerna går annars att skapa igen genom att köra om laserkörningen. Arkiverat innehåll
+räknas tills vidare fullt mot kontots kartkvot. Utrymmet som frigörs i databasen återanvänds av nya filer; diskens siffra
+i `df` sjunker först efter `VACUUM (FULL) map_content_part` (låser tabellen en stund, kör en lugn dag).
+
 ## Gallring
 
 ADR-0189 beslut 6: av som förval. Sätt i `.env` och kör `docker compose -f docker-compose.prod.yml up -d`:

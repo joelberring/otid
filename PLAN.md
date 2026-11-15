@@ -1414,7 +1414,9 @@ Underlag: `claude/plan-lagring-och-backup-2026-11-13.md` och ADR-0224. Delas i l
   avbrutna körningar tas bort automatiskt; en körning som föll på serverns fel (minne, lagring) räknas inte mot laserkvoten.
 - [x] L4 Senaste öppning sparas per kartprojekt (förutsättning för "orört" i ADR-0224; migration 0119).
 - [ ] L5 Arkivet, första delen: laserkörningars äldre resultatfiler till objektlagring, först bara loggat, sedan påslaget;
-  återhämtning när projektet öppnas (ADR-0224 beslut 5–7 och 9).
+  återhämtning när projektet öppnas (ADR-0224 beslut 5–7 och 9). **Byggt 2026-11-15** (migration 0123, `OTID_ARCHIVE_*`,
+  skarpare regler och utrymmesregel enligt ADR-0224 tillägget). Kvar hos ägaren: bucket och nycklar, köra `log` några dagar,
+  sedan `on`; därefter bockas steget av.
 - [ ] L6 Arkivet, resten: underlag, hela vilande projekt, klubbarkivet och gamla tävlingars kartfiler; "Arkivera nu" och
   "Håll aktivt"; kvoten för arkiverat innehåll efter ägarens besked.
 

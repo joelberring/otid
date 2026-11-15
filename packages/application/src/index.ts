@@ -92,6 +92,10 @@ export {
   stageMapContent, sweepMapContent, MAP_CONTENT_PART_BYTES
 } from "./map-content";
 export type { MapContentInput, MapQuotaExceeded, MapStorageQuota, StagedMapContent, StageResult } from "./map-content";
+export { archiveConnection, archiveMode, archiveSettingsProblems, mapArchiveStore, memoryArchiveStore, s3ArchiveStore, setMapArchiveStore, signS3 } from "./map-archive-store";
+export type { ArchiveConnection, ArchiveMode, ArchiveStore } from "./map-archive-store";
+export { archiveNumberProblems, archiveSettings, planMapArchive, restoreMapContent, runMapArchive } from "./map-archive";
+export type { ArchiveCandidate, ArchiveRule, ArchiveRunResult, ArchiveSettings } from "./map-archive";
 export { ANONYMOUS_FAMILY_NAME, ANONYMOUS_GIVEN_NAME, anonymizeEntries } from "./anonymization";
 export {
   DEFAULT_RETENTION_MONTHS, anonymizeRace, retentionCutoff, retentionSettings, retentionSettingsProblems, runMaintenance, runRetention

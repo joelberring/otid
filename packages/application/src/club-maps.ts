@@ -1,3 +1,4 @@
+import { restoreMapContent } from "./map-archive";
 import { randomUUID } from "node:crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import {
@@ -194,11 +195,14 @@ export async function readClubMapVersionHead(db: Database, input: ClubProof & { 
   });
 }
 
-/** Innehållet del för del (1 MiB), en fråga per del, så att webben aldrig håller hela kartfilen. */
+/**
+ * Innehållet del för del (1 MiB), en fråga per del, så att webben aldrig håller hela kartfilen. Ligger innehållet i arkivet
+ * (ADR-0224) hämtas det tillbaka först.
+ */
 export async function* streamMapContentParts(db: DbExecutor, contentId: string): AsyncGenerator<Uint8Array> {
   for (let part = 0; ; part++) {
-    const rows = (await db.execute<{ data: Buffer }>(sql`select data from map_content_part where content_id = ${contentId} and part = ${part}`)).rows;
-    const data = rows[0]?.data;
+    const read = async () => (await db.execute<{ data: Buffer }>(sql`select data from map_content_part where content_id = ${contentId} and part = ${part}`)).rows[0]?.data;
+    const data = await read() ?? (part === 0 && await restoreMapContent(db, { contentId }) ? await read() : undefined);
     if (!data) return;
     yield new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
   }

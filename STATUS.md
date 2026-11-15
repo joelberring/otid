@@ -13,6 +13,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-15 – L5: arkivet för vilande laserfiler (objektlagring), byggt men avstängt
+
+- Laserkörningars resultatfiler flyttas till en S3-bucket (Hetzner Object Storage) och tas bort från disken; läsningen hämtar tillbaka dem av sig själv (`readMapContent`, `streamMapContentParts`). Bara innehåll som enbart laserkörningar pekar på.
+- Regler (ägaren: sju dagar är för generöst): ersatt körning efter 24 h, projekt oöppnat i 3 dygn, och en utrymmesregel (över 500 MB per konto eller 10 GB totalt flyttas det äldsta direkt). Aldrig pågående körningar eller körningar yngre än 6 h. ADR-0224 tillägg 2026-11-15.
+- Nytt: `map-archive-store.ts` (egen SigV4, inget beroende), `map-archive.ts` (plan, flytt, återhämtning, städning), `map-archive-runner.ts` (en gång i timmen), migration 0123 `map_content_archive`, `backup.sh` räknar inte arkiverat som saknat, docs/drift.md "Arkivet".
+- `OTID_ARCHIVE_MODE` är `off` som förval; `log` skriver bara vad som skulle ha flyttats. Kontrollerat: SigV4 mot AWS exempel, integrationstest med arkiv i minnet (regler, frist, återhämtning, trasig kopia, städning), schemadrift, typecheck, eslint.
+- Återstår: inte provat mot riktiga Hetzner Object Storage (ägaren skapar bucket och nycklar); `backup.sh` med arkiverat innehåll är inte provkört; kvoten för arkiverat innehåll och besked i gränssnittet medan en fil hämtas (L6).
+
 ### 2026-11-14 – Etapper: sammanläggningen och OpenStreetMap (geo-arbetaren 35)
 
 - «Etappernas bilder har olika upplösning» (Dammsjöhöjden Nora): Karttapullautins kartbild skalas ner per etapp efter antalet rutor och storleken, så etapperna kunde få olika upplösning och sammanläggningen stoppades. Bilderna läggs nu på den grövsta upplösningen (`coarserPng` i `scripts/geo-merge.ts`, medelvärde vägt med genomskinligheten). Geo-arbetaren och `GEO_WORKER_VERSION` 35.

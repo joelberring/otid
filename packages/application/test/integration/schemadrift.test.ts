@@ -34,6 +34,8 @@ const SQL_ONLY_TABLES: Record<string, string> = {
   // Lägg till `tabell: "skäl"` om en tabell medvetet bara finns i SQL.
   // Kartinnehållets delar (ADR-0189) skrivs och läses i delar om 1 MiB med rå SQL i application/src/map-content.ts.
   map_content_part: "kartinnehållets delar, rå SQL i map-content.ts",
+  // Arkivet för vilande kartinnehåll (ADR-0224, migration 0123) läses och skrivs med rå SQL i application/src/map-archive.ts.
+  map_content_archive: "arkivets rader, rå SQL i map-archive.ts",
   // Förkortad bana med klassbyte: ingen kod läser eller skriver tabellerna sedan omstarten; Drizzle-tabellerna togs bort i C1
   // (städrundan 2026-11-07). SQL-tabellerna står kvar tills en migration tar bort dem (tvåstegsregeln).
   shortened_course_class_transfer: "oanvänd sedan omstarten; tas bort med en senare migration",

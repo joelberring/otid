@@ -54,6 +54,23 @@ status() {
 
 uuid_ok() { printf '%s' "$1" | grep -Eq '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'; }
 
+# ADR-0224 (PLAN.md steg L5): kartinnehåll som ligger i arkivet (objektlagringen) har inga delar här. Det är väntat: det
+# sparas inte, räknas inte som saknat och hämtas ur arkivet när det läses. Tom lista om tabellen inte finns (äldre databas).
+cold_contents() {
+  [ "$(psql -X -Atq -c "select to_regclass('map_content_archive') is not null" 2>/dev/null)" = "t" ] || return 0
+  psql -X -Atq -c "select c.content_id from map_content c join map_content_archive a on a.sha256 = c.sha256 where a.cold_at is not null"
+}
+
+# Innehållen i databasen som har sina delar här (allt utom det som ligger i arkivet).
+warm_contents() {
+  cold="$dir/map-content/.cold.tmp"; all="$dir/map-content/.all.tmp"
+  if cold_contents > "$cold" && psql -X -Atq -v ON_ERROR_STOP=1 -c "select content_id from map_content" > "$all"; then
+    if [ -s "$cold" ]; then grep -vxFf "$cold" "$all"; else cat "$all"; fi
+    rm -f "$cold" "$all"; return 0
+  fi
+  rm -f "$cold" "$all"; return 1
+}
+
 # Sparar ett kartinnehåll (alla delar) en gång. Ger fel om innehållet inte finns (längre) eller är ofullständigt.
 save_content() {
   id="$1"; file="$dir/map-content/$id.copy"
@@ -92,7 +109,7 @@ save_missing() {
 # Tar bort kartinnehåll som varken databasen eller någon sparad dump pekar på.
 prune_contents() {
   keep="$dir/map-content/.keep.tmp"
-  { psql -X -Atq -c "select content_id from map_content" || return 1
+  { warm_contents || return 1
     find "$dir" -type f -name 'otid-*.dump.contents' -exec cat {} + 2>/dev/null; } | sort -u > "$keep" || return 1
   find "$dir/map-content" -maxdepth 1 -type f -name '*.copy' | while read -r file; do
     id=$(basename "$file" .copy)
@@ -103,17 +120,22 @@ prune_contents() {
 
 # ADR-0216: efter en pg_restore läses kartinnehållet in för varje innehåll i databasen som saknar sina delar.
 restore_map_content() {
-  loaded=0; missing=0
+  loaded=0; missing=0; archived=0
+  cold="$dir/map-content/.cold.tmp"
+  cold_contents > "$cold"
   for id in $(psql -X -Atq -v ON_ERROR_STOP=1 -c "select c.content_id from map_content c
       where not exists (select 1 from map_content_part p where p.content_id = c.content_id)"); do
     file="$dir/map-content/$id.copy"
+    # ADR-0224: innehåll i arkivet hämtas därifrån när det läses (en sparad kopia läses ändå in, den skadar inte).
+    if [ ! -s "$file" ] && grep -qxF "$id" "$cold"; then archived=$((archived + 1)); continue; fi
     if [ -s "$file" ] && psql -X -q -v ON_ERROR_STOP=1 -c "\\copy map_content_part (content_id, part, data, created_at) from '$file' with (format binary)"; then
       loaded=$((loaded + 1))
     else
       missing=$((missing + 1)); echo "Kartinnehåll saknas: $id" >&2
     fi
   done
-  echo "Kartinnehåll inläst: $loaded, saknas: $missing."
+  rm -f "$cold"
+  echo "Kartinnehåll inläst: $loaded, saknas: $missing, i arkivet: $archived."
   [ "$missing" -eq 0 ]
 }
 
@@ -164,7 +186,7 @@ dump() {
   [ -n "$label" ] && { target="$dir/$label"; mkdir -p "$target"; }
   partial="$target/.$name.partial"
   # ADR-0216: kartinnehållet som finns nu sparas före dumpen (resten, som skapas under dumpen, efter).
-  psql -X -Atq -c "select content_id from map_content" 2>/dev/null | save_missing >/dev/null
+  warm_contents 2>/dev/null | save_missing >/dev/null
   # Steg 65 och ADR-0216: utskriftsjobbens PDF:er, klubbarkivets miniatyrer och kartkontroller (kan skapas igen) och
   # kartinnehållets delar (sparas en gång i map-content/) tas inte med; tabellerna gör det.
   if ! pg_dump --format=custom --exclude-table-data=course_setting_print_job --exclude-table-data=club_archive_entry_thumbnail \
@@ -182,6 +204,11 @@ dump() {
     status fail "dumpens kartinnehåll kunde inte läsas"
     return 1
   fi
+  # ADR-0224: det som ligger i arkivet hör inte till dumpens kopior.
+  if cold_contents > "$partial.cold" && [ -s "$partial.cold" ]; then
+    grep -vxFf "$partial.cold" "$partial.contents" > "$partial.warm"; mv -f "$partial.warm" "$partial.contents"
+  fi
+  rm -f "$partial.cold"
   failed=$(save_missing < "$partial.contents")
   if [ "$failed" -gt 0 ]; then
     # Ett innehåll i dumpen fanns inte kvar att spara: ta om dumpen med kartinnehållet i (den går då att återställa ensam).

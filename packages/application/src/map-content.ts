@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import type { Database } from "@o-tid/database";
 import type { DbExecutor } from "./snapshot";
 import { sha256Hex } from "./serialization";
+import { restoreMapContent } from "./map-archive";
 
 /**
  * ADR-0189 beslut 1–3: kartbilder och kartfiler lagras en gång (`map_content`, adresserat med sha256) i delar om högst 1 MiB
@@ -190,14 +191,19 @@ export async function storeMapContent(tx: DbExecutor, input: MapContentInput, ac
   }
   await tx.execute(sql`insert into map_content (sha256, content_id, byte_length, uploaded_by, created_at)
     values (${sha256}, ${contentId}, ${byteLength}, ${accountId}, ${now})`);
+  // ADR-0224: samma innehåll kan ligga kvar i arkivet efter att det släpptes; nu finns delarna här igen.
+  await tx.execute(sql`update map_content_archive set cold_at = null, orphaned_at = null where sha256 = ${sha256}`);
   return { status: "stored", sha256 };
 }
 
-/** Hela innehållet i minnet, en del i taget ur databasen. Undefined när det inte finns. */
+/**
+ * Hela innehållet i minnet, en del i taget ur databasen. Undefined när det inte finns. Innehåll som ligger i arkivet
+ * (ADR-0224, PLAN.md steg L5) hämtas tillbaka därifrån först.
+ */
 export async function readMapContent(tx: DbExecutor, sha256: string): Promise<Buffer | undefined> {
   const rows = (await tx.execute<{ data: Buffer; byte_length: number }>(sql`select p.data, c.byte_length from map_content c
     join map_content_part p on p.content_id = c.content_id where c.sha256 = ${sha256} order by p.part`)).rows;
-  if (rows.length === 0) return undefined;
+  if (rows.length === 0) return restoreMapContent(tx, { sha256 });
   const bytes = Buffer.concat(rows.map(row => row.data));
   if (bytes.byteLength !== rows[0]!.byte_length) throw new Error("Kartinnehållet är ofullständigt");
   return bytes;

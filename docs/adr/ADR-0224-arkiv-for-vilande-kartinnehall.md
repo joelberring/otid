@@ -49,3 +49,23 @@ tillägg 2026-11-13), ha backupen utanför servern och på sikt billigare lagrin
 - Objektlagringen blir en ny beroendepunkt; återhämtningen måste tåla att ett anrop misslyckas.
 - Återställning efter haveri får ett steg till: databasen och arkivet måste stämma överens.
 - Tävlingsdagens flöden (avläsning, resultat, publika sidor) berörs inte: inget av deras innehåll flyttas.
+
+## Tillägg 2026-11-15: första delen byggd (PLAN.md steg L5), skarpare regler
+
+Ägaren: med många användare ryms nästan inga laserkörningar på serverns disk, och en väntetid i dagar är för generös för
+den som kör många körningar i följd. Därför, för laserkörningars resultatfiler (allt är inställningar, docs/drift.md "Arkivet"):
+
+1. Startvärdet 30 dagar i beslut 5 ersätts: en **ersatt** körning flyttas 24 timmar efter att den nyare blev klar, och
+   också den senaste körningen flyttas när projektet inte öppnats på 3 dygn.
+2. **Utrymmesregeln** är ny: har ett konto mer än 500 MB laserfiler på disken (eller alla konton tillsammans mer än 10 GB)
+   flyttas de som längst varit oöppnade direkt, tills det ryms. Den rör inte körningar yngre än 6 timmar eller projekt som
+   öppnats de senaste 3 timmarna.
+3. Fristen i beslut 7 (raden kvar 7 dagar) är 24 timmar, och ingen under utrymmesregeln: kopian hämtas tillbaka och jämförs
+   med sha256 direkt efter uppladdningen, och storleken kontrolleras igen innan delarna tas bort.
+4. Beslut 6 för det här steget: det enskilda innehållet hämtas tillbaka när det läses (inte hela projektet på en gång), och
+   ligger kvar minst 24 timmar i stället för 30 dagar. Det som hämtats räknas inte längre som ersatt.
+5. Beslut 4, tävlingsdag: de vanliga reglerna vilar, men utrymmesregeln gäller, eftersom en full disk är värre för tävlingen
+   än flytten.
+6. Arkivets rad (`map_content_archive`, migration 0123) har ingen främmande nyckel till innehållet, så att objektet kan
+   raderas först 35 dygn efter att innehållet släppts. Objektlagringen anropas med egen SigV4-signering (inget beroende).
+7. Arkiverat innehåll räknas tills vidare fullt mot kontots gräns (den öppna frågan står kvar till L6).

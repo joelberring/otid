@@ -23,9 +23,9 @@ export type TrainingTool = { readonly kind: "AREA" | "LINE" | "BINGO"; readonly 
  * ADR-0192 beslut 8: träningsläget i editorn. Kartans pass (före och efter med "Visa träningen"), symbolerna ur kartans
  * Worker, verktygen på kartan och panelen. Ändringarna går som `PUT_TRAINING` genom editorns vanliga väg (ångra, samarbete).
  */
-export function useCourseSettingTraining({ document, view, variant, session, mapReady, mapBounds, readOnly, onEdits, onView, say }: {
+export function useCourseSettingTraining({ document, view, variant, session, mapReady, mapBounds, readOnly, onEdits, onView, say, bingoPhone }: {
   document: CourseSettingDocument; view: string; variant: string | undefined; session: MapRenderSession | undefined; mapReady: boolean;
-  mapBounds: MapRect | undefined; onView: (course: string) => void;
+  mapBounds: MapRect | undefined; onView: (course: string) => void; bingoPhone?: ReactNode;
   readOnly: boolean; onEdits: (edits: readonly CourseSettingEdit[]) => void;
   say: (message: { tone: "ok" | "error" | "attention"; text: string }) => void;
 }) {
@@ -97,6 +97,7 @@ export function useCourseSettingTraining({ document, view, variant, session, map
   }, [tool]);
 
   const panel: ReactNode = <TrainingPanel document={document} view={view} readOnly={readOnly} symbols={symbols} show={show} onShow={setShow}
-    tool={tool} onTool={setTool} onFinish={finish} onEdits={onEdits} say={say} bingoArea={bingoArea} onView={onView} />;
+    tool={tool} onTool={setTool} onFinish={finish} onEdits={onEdits} say={say} bingoArea={bingoArea} onView={onView}
+    bingoPhone={bingoPhone} />;
   return { passes, overprint, tap, draw, panel, tool, drawing: tool !== undefined };
 }

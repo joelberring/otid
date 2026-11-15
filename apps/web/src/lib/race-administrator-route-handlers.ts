@@ -32,6 +32,7 @@ import { bumpRaceChangeGeneration, RESULT_WRITES } from "./race-change-generatio
 import { retryReadConflicts } from "./read-conflict";
 import { logServerError } from "./server-error-log";
 import { handlePartyRoute } from "./race-administrator-routes-party";
+import { handleBingoRoute } from "./race-administrator-routes-bingo";
 import { courseSettingRequirementFor, principalAllows, raceRoleFor } from "./race-roles";
 import { courseSettingAllows } from "@o-tid/application";
 import { UUID_PATTERN as uuid } from "@o-tid/contracts";
@@ -139,7 +140,7 @@ async function dispatchRaceAdministratorRoute(context: RaceAdministratorRouteCon
     await handleEntryRoute(context) ?? await handleVariantRoute(context) ?? await handleRelayRoute(context) ?? await handleSourceRoute(context) ??
     await handleMapRoute(context) ?? await handleRouteChoiceRoute(context) ?? await handleCourseSettingRoute(context) ?? await handlePeopleRoute(context) ?? await handlePublicationRoute(context) ?? await handleRadioRoute(context) ??
     await handleCompetitionRoute(context) ?? await handleRemovalRoute(context) ?? await handleCorrectionRoute(context) ??
-    await handlePartyRoute(context) ??
+    await handlePartyRoute(context) ?? await handleBingoRoute(context) ??
     (action.kind === "race-settings"
       ? await idempotentWrite(context, "race-settings", raceSettingsRequestSchema, raceSettingsResponseSchema, dependencies.raceSettings) : undefined) ??
     failure(500, "INTERNAL_ERROR");
@@ -184,7 +185,7 @@ const ROUTE_METHODS: Readonly<Partial<Record<Action["kind"], readonly string[]>>
   "relay-class-edit": ["POST"], "relay-team-edit": ["POST"], "relay-team-removal": ["POST"], "relay-team-dns": ["POST"],
   "relay-leg-variant": ["POST"], "race-settings": ["POST"], "readout-registrations": ["POST"], "course-details": ["POST"],
   "entry-removal": ["POST"], "class-removal": ["POST"], "course-removal": ["POST"], "race-corrections-preview": ["POST"],
-  "readout-reread": ["POST"], "readout-reread-preview": ["POST"]
+  "readout-reread": ["POST"], "readout-reread-preview": ["POST"], bingo: ["GET", "PUT"]
 };
 
 function allowedMethods(action: Action): string[] {

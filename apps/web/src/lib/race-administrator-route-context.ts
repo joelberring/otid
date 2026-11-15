@@ -1,3 +1,4 @@
+import { readBingoAsAdmin, setBingoAsAdmin } from "@o-tid/application";
 import { loadStartDrawSetupAsAdmin, previewStartDrawAsAdmin, commitStartDrawAsAdmin, previewRaceDateMoveAsAdmin,
   listResultFinalizationCandidatesAsAdmin, finalizeResultsAsAdmin,
   exportIofResultListAsAdmin, exportFrozenIofResultListAsAdmin, listFrozenRaceFinalizationsAsAdmin,
@@ -179,7 +180,9 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   // PLAN.md steg 40: fest med bardisk.
   party: readPartyAsAdmin, partyChange: changePartyAsAdmin, partyGuest: setPartyGuestAsAdmin, partyDeskEvent: registerPartyDeskEventAsAdmin, partyLogo: savePartyLogoAsAdmin,
   // PLAN.md steg 46: stryk självregistrerade som inte läst ut.
-  selfRegistrationCleanup: previewSelfRegistrationCleanupAsAdmin, strikeSelfRegistered: strikeSelfRegisteredAsAdmin };
+  selfRegistrationCleanup: previewSelfRegistrationCleanupAsAdmin, strikeSelfRegistered: strikeSelfRegisteredAsAdmin,
+  // ADR-0225: bingoorientering med telefonen.
+  bingo: readBingoAsAdmin, bingoSetting: setBingoAsAdmin };
 export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: string } | { kind: "review-conflicts" } | { kind: "checkin-history"; entryId: string } | { kind: "start-correction" } | { kind: "manual-return-withdrawal" } | { kind: "manual-return" } | { kind: "forest-watch" } | { kind: "publication-preview" } | { kind: "publication" } | { kind: "start-list-export" } | { kind: "draw-preview" } | { kind: "draw" } | { kind: "race-date-move-preview" } |
   { kind: "finalization-candidates" } | { kind: "finalize" } | { kind: "frozen-results" } | { kind: "frozen-result"; finalizationId: string } |
   { kind: "result-export" } | { kind: "session" } | { kind: "participants" } | { kind: "transfer-candidates" } |
@@ -227,7 +230,7 @@ export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: str
   { kind: "results-official" } | { kind: "race-export" } | { kind: "race-backup-status" } | { kind: "runner-database" } | { kind: "runner-search" } |
   { kind: "race-corrections" } | { kind: "race-corrections-preview" } | { kind: "readout-reread" } | { kind: "readout-reread-preview" } |
   { kind: "uninterpreted-readouts" } | { kind: "uninterpreted-readouts-reread" } |
-  { kind: "party" } | { kind: "party-guests" } | { kind: "party-desk-events" } | { kind: "party-logo" } | { kind: "self-registration-cleanup" };
+  { kind: "party" } | { kind: "party-guests" } | { kind: "party-desk-events" } | { kind: "party-logo" } | { kind: "self-registration-cleanup" } | { kind: "bingo" };
 
 export function resultFailure(status: string): Response {
   switch (status) {

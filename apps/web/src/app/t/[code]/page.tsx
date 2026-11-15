@@ -24,6 +24,8 @@ import { currentLanguage } from "../../../lib/language-server";
 import { LOCALE } from "../../../lib/language";
 import { raceGroupNameDisplay } from "@o-tid/application";
 import { db } from "../../../lib/db";
+import { bingoEn } from "../../../i18n/bingo-en";
+import { bingoSv } from "../../../i18n/bingo-sv";
 
 export const dynamic = "force-dynamic";
 type Params = { params: Promise<{ code: string }> };
@@ -50,6 +52,7 @@ export default async function RaceHubPage({ params }: Params) {
   if (hub.raceType === "PARTY") redirect(`/fest/${hub.shortCode}`);
   const language = await currentLanguage(), en = language === "en";
   const text = en ? hubEn : publicRaceSv.hub;
+  const bingoText = en ? bingoEn.runner : bingoSv.runner;
   const path = raceHubPath(hub.shortCode);
   const address = displayAddress(await publicOrigin(), path);
   const names = await raceGroupNameDisplay(db, hub.raceId);
@@ -66,6 +69,8 @@ export default async function RaceHubPage({ params }: Params) {
       <p>{details.join(" · ")}</p>
     </div>
     <RaceInfo info={hub.info} firstStartTime={hub.firstStartTime} language={language} />
+    {hub.bingo && <p><Link className={styles.hubLink} href={`${path}/bingo`} data-testid="hub-bingo">
+      <strong>{bingoText.hubTitle}</strong><span>{bingoText.hubHelp}</span></Link></p>}
     <SelfRegistrationForm raceId={hub.raceId} startList={hub.startListPublished} names={names} />
     <ul className={styles.hubLinks} aria-label={text.navigation}>
       {hub.startListPublished ? link(`/starts/${hub.raceId}`, text.startList, text.startListHelp)

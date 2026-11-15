@@ -286,6 +286,7 @@ export * from "./race-removal";
 export * from "./results-official";
 export * from "./party";
 export * from "./self-registration";
+export * from "./bingo";
 export * from "./self-registration-cleanup";
 export * from "./route-choice";
 export * from "./course-setting";

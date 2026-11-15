@@ -37,6 +37,9 @@ export async function publicStartListPublished(db: Database, raceId: string): Pr
   return race?.published === true;
 }
 
+/** ADR-0225: en bingoträning med telefonen syns på startsidan bara sin dag (Pågår nu), inte i Kommande eller Senaste. */
+const notBingo = sql`not exists (select 1 from ${schema.bingoRaces} where ${schema.bingoRaces.raceId} = ${schema.races.id})`;
+
 /** Tävlingens datum jämfört med dagens datum i tävlingens tidszon. */
 const localToday = (now: Date) => sql`(${now.toISOString()}::timestamptz at time zone ${schema.events.timeZone})::date`;
 
@@ -62,8 +65,8 @@ export async function listPublicRaces(db: Database, input: { search?: string | u
     .orderBy(...order).limit(limit);
   const [ongoing, upcoming, recent] = await Promise.all([
     select(eq(schema.races.raceDate, today), [asc(schema.events.name), asc(schema.races.name)], SECTION_LIMIT),
-    select(gt(schema.races.raceDate, today), [asc(schema.races.raceDate), asc(schema.events.name)], SECTION_LIMIT),
-    select(lt(schema.races.raceDate, today), [desc(schema.races.raceDate), asc(schema.events.name)], recentLimit + 1)
+    select(and(gt(schema.races.raceDate, today), notBingo)!, [asc(schema.races.raceDate), asc(schema.events.name)], SECTION_LIMIT),
+    select(and(lt(schema.races.raceDate, today), notBingo)!, [desc(schema.races.raceDate), asc(schema.events.name)], recentLimit + 1)
   ]);
   return { ongoing, upcoming, recent: recent.slice(0, recentLimit), moreRecent: recent.length > recentLimit };
 }
@@ -83,6 +86,8 @@ export type PublicRaceHub = {
   info: string | null; firstStartTime: string | null;
   /** Senaste ändringen som syns publikt: publiceringen, startlistan eller ett resultat. */
   lastUpdate: string | null;
+  /** ADR-0225: bingo med telefonen är påslagen. */
+  bingo: boolean;
 };
 
 /** Tävlingssidan. Anroparen har redan kontrollerat att tävlingen får visas (`publicRaceAccess`). */
@@ -91,7 +96,7 @@ export async function readPublicRaceHub(db: Database, raceId: string): Promise<P
     raceId: schema.races.id, shortCode: schema.races.shortCode, eventName: schema.events.name, raceName: schema.races.name,
     raceDate: schema.races.raceDate, raceType: schema.races.raceType, timeZone: schema.events.timeZone, startListPublished,
     info: schema.races.info, firstStartTime: schema.races.firstStartTime,
-    publishedAt: schema.races.publishedAt,
+    publishedAt: schema.races.publishedAt, bingo: sql<boolean>`not ${notBingo}`,
     lastResult: sql<string | null>`(select extract(epoch from max(${schema.resultRevisions.createdAt})) * 1000
       from ${schema.resultRevisions} where ${schema.resultRevisions.raceId} = ${schema.races.id} and ${schema.resultRevisions.published})`,
     lastStartList: sql<string | null>`(select extract(epoch from max(${schema.startListPublications.decidedAt})) * 1000

@@ -1,0 +1,69 @@
+/* Bingo med telefonen (ADR-0225): löparens sida (390 px först), fickläget och ledarens vy. */
+.page { display: grid; gap: 14px; max-width: 760px; margin: 0 auto; padding: 16px 14px 40px; box-sizing: border-box; }
+.page h1 { margin: 0; }
+.page h2 { margin: 6px 0 0; font-size: 1.15rem; }
+.kicker { margin: 0; color: var(--muted); font-weight: 600; }
+.muted { color: var(--muted); font-size: var(--text-sm, 0.9rem); font-weight: 400; }
+.signup { display: grid; gap: 14px; }
+.field { display: grid; gap: 4px; font-weight: 600; }
+.field input { min-height: 48px; font-size: 1.15rem; padding: 4px 10px; box-sizing: border-box; width: 100%; }
+.groups { display: grid; gap: 8px; margin: 0; padding: 0; border: 0; }
+.groups legend { font-weight: 600; margin-bottom: 6px; }
+.groups[disabled] { opacity: 0.55; }
+.groupChoice { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 12px; border: 1px solid var(--line-strong, #b9bfbb);
+  border-radius: 8px; }
+.groupChoice input { width: 22px; height: 22px; flex: none; }
+.groupChoice:has(input:checked) { border-color: var(--accent); border-width: 2px; }
+.rules ul { margin: 6px 0 0; padding-left: 20px; display: grid; gap: 6px; }
+.rules h2 { font-size: 1rem; }
+.start { min-height: 56px; font-size: 1.25rem; }
+
+/* Fickläget: nästan svart, stora siffror, inga vanliga knappar. */
+.pocket { position: fixed; inset: 0; overflow-y: auto; background: #000; color: #e8e8e8; display: grid; align-content: start; gap: 12px;
+  padding: 18px 12px 32px; box-sizing: border-box; z-index: 50; }
+.numbers { display: grid; grid-template-columns: 1fr; gap: 6px; text-align: center; }
+.numbers > div { display: grid; }
+.numbers > div > span:last-child { color: #9a9a9a; font-size: 0.95rem; }
+.big { font-size: 3.4rem; font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.big small { font-size: 1.6rem; color: #9a9a9a; }
+.status { margin: 0; text-align: center; color: #c8c8c8; }
+.gap { margin: 0; text-align: center; color: #ffd27a; }
+.holds { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.hold { position: relative; overflow: hidden; display: grid; gap: 2px; min-height: 64px; border: 2px solid #555; border-radius: 10px; background: #111;
+  color: #f0f0f0; font: inherit; font-size: 1.15rem; font-weight: 700; touch-action: none; user-select: none; -webkit-user-select: none;
+  -webkit-touch-callout: none; }
+.holdHelp { font-size: 0.8rem; font-weight: 400; color: #9a9a9a; }
+.holdBar { position: absolute; left: 0; bottom: 0; height: 6px; width: 0; background: #e8e8e8; }
+.hold[data-holding] .holdBar { width: 100%; transition: width 2s linear; }
+
+/* Brickan. */
+.card, .cardDark { display: grid; gap: 3px; }
+.card > span, .cardDark > span { display: grid; place-items: center; min-height: 34px; font-size: 0.8rem; font-weight: 600; border-radius: 4px;
+  font-variant-numeric: tabular-nums; }
+.card > span { border: 1px solid var(--line-strong, #b9bfbb); }
+.card > span[data-taken] { background: #d9f2dc; border-color: #2a7d2e; color: #134a17; }
+.cardDark > span { border: 1px solid #333; color: #8a8a8a; }
+.cardDark > span[data-taken] { background: #1f5f27; border-color: #4fbf5c; color: #fff; }
+
+/* Topplistan. */
+.board, .boardDark { display: grid; gap: 8px; }
+.board h2, .boardDark h2 { margin: 6px 0 0; font-size: 1.1rem; }
+.board h3 { margin: 4px 0; font-size: 1rem; }
+.boardGroup { overflow-x: auto; }
+.table { width: 100%; border-collapse: collapse; font-size: 0.95rem; font-variant-numeric: tabular-nums; }
+.table th, .table td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--line, #dce0dd); }
+.table tr[data-mine] td { font-weight: 700; }
+.boardDark .table th, .boardDark .table td { border-bottom-color: #2a2a2a; }
+.boardDark .muted { color: #8a8a8a; }
+
+.result { display: grid; gap: 4px; font-size: 1.2rem; }
+.result strong { font-size: 1.6rem; }
+.map { width: 100%; height: auto; max-height: 80vh; border: 1px solid var(--line, #dce0dd); background: #fff; }
+
+/* Ledarens vy. */
+.leader { display: grid; gap: 14px; max-width: 1200px; margin: 0 auto; padding: 16px; box-sizing: border-box; }
+.leaderGrid { display: grid; gap: 16px; }
+@media (min-width: 900px) { .leaderGrid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.swatch { display: inline-block; width: 12px; height: 12px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.linkButton { border: 0; padding: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; text-decoration: underline; }

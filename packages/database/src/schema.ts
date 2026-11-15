@@ -21,3 +21,4 @@ export * from "./schema/affiliations";
 export * from "./schema/invitations";
 export * from "./schema/server";
 export * from "./schema/oauth";
+export * from "./schema/bingo";

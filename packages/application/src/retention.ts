@@ -51,6 +51,8 @@ export async function anonymizeRace(tx: Parameters<Parameters<Database["transact
   // Festens gäster (inte anmälda) och alla GPS-rutter; brickans nummer hör till festens kassa och stannar.
   await tx.execute(sql`update party_guest set name = 'Anonym', display_name = null, club = null where race_id = ${raceId}`);
   await tx.execute(sql`delete from participant_route where race_id = ${raceId}`);
+  // Bingons löpare (ADR-0225): namnen och spåren tas bort.
+  await tx.execute(sql`delete from bingo_runner where race_id = ${raceId}`);
   await tx.execute(sql`update race set personal_data_removed_at = ${now} where id = ${raceId}`);
   await tx.insert(schema.auditEvents).values({ raceId, entityType: "race", entityId: raceId, action: "RACE_ANONYMIZED_BY_RETENTION",
     createdAt: now, after: { entries: result.entries, rows: result.rows } });

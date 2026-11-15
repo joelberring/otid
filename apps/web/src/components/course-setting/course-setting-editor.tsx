@@ -83,6 +83,7 @@ import { useCourseSettingMapProject } from "./course-setting-map-project";
 import { useCourseSettingOffline } from "./use-course-setting-offline";
 import { useRouteChoiceWorker } from "./use-route-choice-worker";
 import { useRouteHints } from "./use-route-hints";
+import { BingoPhone } from "../bingo/bingo-phone";
 import { useCourseSettingTraining } from "./use-course-setting-training";
 import { useMoveShared } from "./course-setting-move-shared";
 import { carryOnImport } from "../../lib/course-setting-import-carry";
@@ -236,7 +237,8 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
   const [suggestionHover, setSuggestionHover] = useState<Parameters<typeof drawSuggestionHighlight>[2]>();
   // ADR-0192: träningsläget (kartans pass, verktygen och fliken Träning).
   const training = useCourseSettingTraining({ document, view, variant, session: mapSession, mapReady: mapStatus === "ready", mapBounds, readOnly, say,
-    onEdits: edits => edit(current => applySteps(current, edits, applyEdit)), onView: course => apply(current => setView(current, course)) });
+    onEdits: edits => edit(current => applySteps(current, edits, applyEdit)), onView: course => apply(current => setView(current, course)),
+    bingoPhone: access.admin ? <BingoPhone raceId={raceId} georeferenced={state.mapFile?.georeferenced === true} /> : undefined });
   // Kartbyten (ADR-0203): vald del i fliken Utskrift (kartan visar delen med överlappet); en annan bana visar hela banan.
   const [partChoice, setPartChoice] = useState<{ view: string; part: number }>();
   const part = partChoice?.view === view ? partChoice.part : undefined;

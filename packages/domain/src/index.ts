@@ -65,3 +65,4 @@ export * from "./csv";
 export * from "./search-fold";
 export * from "./time-format";
 export * from "./club-name";
+export * from "./bingo";

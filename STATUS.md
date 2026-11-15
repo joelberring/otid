@@ -13,6 +13,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-16 – Virtuella kontroller (steg B6, ADR-0226, migration 0129)
+
+- Ägaren: ett tredje läge på bingons grund. Banorna ur banläggningen; telefonen stämplar inom radien (förval 25 m, position ≤ 20 m), automatiskt med tänd skärm eller med knappen «Stämpla». Vanlig bana i ordning, poängbana valfri ordning, duell eller lag med kort kod (först full poäng, tvåan 30 %).
+- Telefonen visar kontrollerna som ringar utan karta och position, notiser när någon annan i duellen tar en kontroll; efter Mål mellantider och kartan med spåret. Topplista per bana och duell; ledarsidan med stämplingar och spår.
+- Kontrollerat: enhetstester (radie, ordning, poängbana, duell), integrationstest mot PostgreSQL, webbens tester, lint, typecheck, knip, en körning i Chrome med simulerad GPS. Bingo och Sänka skepp är oförändrade. Inte provat i telefon; tidsgräns med avdrag är inte byggd.
+
 ### 2026-11-15 – Klubbens ledare administrerar klubbens träningar (tillägg i ADR-0209, migration 0128)
 
 - Ägaren: Ledare och uppåt i arrangörsklubbens klubbyta är ADMIN på klubbens träningar (bara tävlingstypen Träning), härlett i `activeEventAdministrationGrant` vid varje anrop; inga roller kopieras. Första skrivningen per inloggning ger auditposten `RACE_ADMIN_VIA_CLUB_LEADER` (delindex, migration 0128).

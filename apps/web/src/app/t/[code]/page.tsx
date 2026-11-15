@@ -73,7 +73,8 @@ export default async function RaceHubPage({ params }: Params) {
     </div>
     <RaceInfo info={hub.info} firstStartTime={hub.firstStartTime} language={language} />
     {hub.bingo && <p><Link className={styles.hubLink} href={`${path}/bingo`} data-testid="hub-bingo">
-      <strong>{bingoText.hubTitle}</strong><span>{bingoText.hubHelp}</span></Link></p>}
+      <strong>{hub.bingoMode === "SHIPS" ? bingoText.hubShipsTitle : bingoText.hubTitle}</strong>
+      <span>{hub.bingoMode === "SHIPS" ? bingoText.hubShipsHelp : bingoText.hubHelp}</span></Link></p>}
     {bingoBoard && <LiveBingoBoard raceId={hub.raceId} initial={bingoBoard} />}
     <SelfRegistrationForm raceId={hub.raceId} startList={hub.startListPublished} names={names} />
     <ul className={styles.hubLinks} aria-label={text.navigation}>

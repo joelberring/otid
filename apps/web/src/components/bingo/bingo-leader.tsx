@@ -51,7 +51,7 @@ export function BingoLeader({ raceId }: { raceId: string }) {
   const taken = new Set(shipsMode ? [] : shown.flatMap(row => row.taken.map(item => item.cell)));
   const one = runner === undefined ? undefined : runners.find(row => row.id === runner);
   return <main className={styles.leader} data-testid="bingo-leader">
-    <h1>{text.title}</h1>
+    <h1>{view.mode === "SHIPS" ? text.shipsTitle : text.title}</h1>
     <p className={styles.muted}>{text.help}</p>
     {failed && <Notice tone="error" role="alert">{text.failed}</Notice>}
     {!view.enabled && <Notice tone="error">{text.off}</Notice>}

@@ -108,7 +108,7 @@ const openToday = (race: BingoRaceFacts, staff: boolean, now: Date) =>
 
 export type BingoPublicRead =
   | { status: "not-found" }
-  | { status: "closed"; raceDate: string; eventName: string; raceName: string }
+  | { status: "closed"; raceDate: string; eventName: string; raceName: string; mode: BingoMode }
   | { status: "ok"; race: Omit<BingoRaceFacts, "enabled" | "published" | "timeZone">; setup: BingoSetup; leaderboard: BingoLeaderboard };
 
 /**
@@ -120,7 +120,7 @@ export async function readBingoPublic(db: Database, input: { raceId: string; sta
   return db.transaction(async tx => {
     const race = await raceFacts(tx, input.raceId);
     if (!race || !race.enabled) return { status: "not-found" as const };
-    if (!openToday(race, input.staff, now)) return { status: "closed" as const, raceDate: race.raceDate, eventName: race.eventName, raceName: race.raceName };
+    if (!openToday(race, input.staff, now)) return { status: "closed" as const, raceDate: race.raceDate, eventName: race.eventName, raceName: race.raceName, mode: race.mode };
     const setup = await loadBingoSetup(tx, race.raceId);
     const shown = { raceId: race.raceId, eventName: race.eventName, raceName: race.raceName, raceDate: race.raceDate, shortCode: race.shortCode,
       mode: race.mode };

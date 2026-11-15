@@ -46,6 +46,8 @@ export const bingoSv = {
     title: "Bingo",
     hubTitle: "Bingo: anmäl dig och starta",
     hubHelp: "Telefonen räknar rutorna med GPS och plingar för varje ruta.",
+    hubShipsTitle: "Sänka skepp: anmäl dig och starta",
+    hubShipsHelp: "Skjut på rutan du står i; telefonen tar en position vid varje skott.",
     intro: "Ta så många rutor du kan. Telefonen plingar när du har tagit en ruta.",
     name: "Ditt namn",
     nameHelp: "Visas i topplistan i dag.",
@@ -129,6 +131,7 @@ export const bingoSv = {
   },
   leader: {
     title: "Bingo – ledaren",
+    shipsTitle: "Sänka skepp – ledaren",
     help: "Uppdateras var tionde sekund. Spåren syns bara här.",
     off: "Bingon med telefonen är avstängd.",
     loading: "Hämtar …",

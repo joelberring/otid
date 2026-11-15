@@ -86,8 +86,9 @@ export type PublicRaceHub = {
   info: string | null; firstStartTime: string | null;
   /** Senaste ändringen som syns publikt: publiceringen, startlistan eller ett resultat. */
   lastUpdate: string | null;
-  /** ADR-0225: bingo med telefonen är påslagen. */
+  /** ADR-0225: bingo med telefonen är påslagen, och läget (Bingo eller Sänka skepp). */
   bingo: boolean;
+  bingoMode: "BINGO" | "SHIPS" | null;
 };
 
 /** Tävlingssidan. Anroparen har redan kontrollerat att tävlingen får visas (`publicRaceAccess`). */
@@ -97,6 +98,7 @@ export async function readPublicRaceHub(db: Database, raceId: string): Promise<P
     raceDate: schema.races.raceDate, raceType: schema.races.raceType, timeZone: schema.events.timeZone, startListPublished,
     info: schema.races.info, firstStartTime: schema.races.firstStartTime,
     publishedAt: schema.races.publishedAt, bingo: sql<boolean>`not ${notBingo}`,
+    bingoMode: sql<"BINGO" | "SHIPS" | null>`(select ${schema.bingoRaces.mode} from ${schema.bingoRaces} where ${schema.bingoRaces.raceId} = ${schema.races.id})`,
     lastResult: sql<string | null>`(select extract(epoch from max(${schema.resultRevisions.createdAt})) * 1000
       from ${schema.resultRevisions} where ${schema.resultRevisions.raceId} = ${schema.races.id} and ${schema.resultRevisions.published})`,
     lastStartList: sql<string | null>`(select extract(epoch from max(${schema.startListPublications.decidedAt})) * 1000

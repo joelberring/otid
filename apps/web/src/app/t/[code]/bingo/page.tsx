@@ -17,9 +17,13 @@ import { formatRaceDate } from "../../../../lib/public-race-format";
 export const dynamic = "force-dynamic";
 type Params = { params: Promise<{ code: string }> };
 
-export async function generateMetadata(): Promise<Metadata> {
-  const text = await currentLanguage() === "en" ? bingoEn.runner : bingoSv.runner;
-  return { title: `${text.title} – ${sv.appName}`, robots: NO_INDEX_ROBOTS };
+export async function generateMetadata({ params }: Params): Promise<Metadata> {
+  const en = await currentLanguage() === "en";
+  const raceId = await raceIdForShortCode(db, (await params).code);
+  const read = raceId ? await readBingoPublic(db, { raceId, staff: false }) : undefined;
+  const mode = read?.status === "ok" ? read.race.mode : read?.status === "closed" ? read.mode : "BINGO";
+  const title = mode === "SHIPS" ? (en ? bingoEn : bingoSv).ships.title : (en ? bingoEn : bingoSv).runner.title;
+  return { title: `${title} – ${sv.appName}`, robots: NO_INDEX_ROBOTS };
 }
 
 /**
@@ -35,7 +39,7 @@ export default async function BingoPage({ params }: Params) {
   const language = await currentLanguage();
   const text = language === "en" ? bingoEn.runner : bingoSv.runner;
   if (read.status === "closed") {
-    return <main className={styles.page}><h1>{text.title}</h1><p className={styles.kicker}>{raceTitle(read.eventName, read.raceName)}</p>
+    return <main className={styles.page}><h1>{read.mode === "SHIPS" ? (language === "en" ? bingoEn : bingoSv).ships.title : text.title}</h1><p className={styles.kicker}>{raceTitle(read.eventName, read.raceName)}</p>
       <p role="status">{text.closed(formatRaceDate(read.raceDate, undefined, LOCALE[language]))}</p></main>;
   }
   return <BingoRunner raceId={raceId} mode={read.race.mode} title={raceTitle(read.race.eventName, read.race.raceName)} groups={read.setup.groups}

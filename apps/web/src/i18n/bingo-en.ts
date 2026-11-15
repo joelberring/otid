@@ -49,6 +49,8 @@ export const bingoEn: Texts<typeof bingoSv> = {
     title: "Bingo",
     hubTitle: "Bingo: sign up and start",
     hubHelp: "The phone counts the squares with GPS and pings for each square.",
+    hubShipsTitle: "Battleships: sign up and start",
+    hubShipsHelp: "Fire at the square you are in; the phone takes a position for each shot.",
     intro: "Visit as many squares as you can. The phone pings when you have taken a square.",
     name: "Your name",
     nameHelp: "Shown in today's leaderboard.",
@@ -132,6 +134,7 @@ export const bingoEn: Texts<typeof bingoSv> = {
   },
   leader: {
     title: "Bingo – the leader",
+    shipsTitle: "Battleships – the leader",
     help: "Updated every ten seconds. The tracks are only shown here.",
     off: "Bingo with the phone is turned off.",
     loading: "Loading …",

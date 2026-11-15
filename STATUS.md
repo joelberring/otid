@@ -13,6 +13,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-15 – Tyresta som facit: öppen mark strängare (geo-arbetaren 36)
+
+- Ägaren: «trimma otid mot tyresta». Pär Svenssons karta Norra Tyresta & Södra Storskogen 2025 (OCAD-PDF med GeoPDF-hörn) lästes till klassraster i laserkörningens klipp (6,5 km²; se projektdokumentet tyresta-facit-2026-11-15).
+- Öppet ur punktmolnet kräver nu vegetation under 1 m (förut 1,5 m, `OPEN_HEIGHT_M`): Tyresta 150 → 130 ha mot kartritarens 82 (F 0,60 → 0,62), Högdalen A F 0,33 → 0,35, B oförändrat. Geo-arbetaren 36.
+- Inte ändrat: tätt buskskikt (Tyresta ville 10–12 %, Högdalen 8 %), 408 (ingen andel skiljer ut kartritarens 408), fukten (0,25/0,4 bäst över sju block).
+- Kontrollerat: geo-arbetarens tester, typecheck.
+
 ### 2026-11-15 – Bingoorientering och Sänka skepp (steg B, ADR-0225, migration 0125–0126)
 
 - Ägaren (ungdomarnas vinterträning tisdag): Träning-fliken i banläggningen har kortet «Bingo»: rita området (två hörn), lägg till grupper (namn, förslag Grön, Vit, Gul …, rutans sida 100/150/250 m, skala, valfritt eget område och skepp). Varje grupp är en bana utan kontroller; rutnätet och namnen (A1 …) ritas i banpåtrycket och skrivs ut som vanligt.

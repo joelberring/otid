@@ -80,8 +80,13 @@ export function groundShareAt(stats: PointStats, reach = 2): (x: number, y: numb
 export interface VegetationSignals { readonly openAt: (x: number, y: number) => boolean | undefined; readonly denseAt: (x: number, y: number) => boolean | undefined;
   /** Andelen träffar 1–3 m över marken (medel inom 4 m), 0 där vegetationen är lägre än 2 m: sparas i klassbilden så att mängden grönt kan dras utan en ny körning. */
   readonly denseShareAt?: (x: number, y: number) => number | undefined }
-/** Gränserna lärda av Högdalenkartan 2026-11-11 (tre rutor, mot kartritarens gula och gröna ytor). */
-export const OPEN_SHARE = 0.5, OPEN_HEIGHT_M = 1.5, DENSE_MID_SHARE = 0.08, DENSE_MIN_HEIGHT_M = 2;
+/**
+ * Gränserna lärda av Högdalenkartan 2026-11-11 (tre rutor, mot kartritarens gula och gröna ytor).
+ * Ägaren 2026-11-15 («trimma otid mot tyresta»): öppet kräver vegetation under 1 m (förut 1,5 m). Mot Tyresta (Pär Svensson
+ * 2025, 6,5 km²) blev det öppna 150 → 130 ha mot kartritarens 82 (F 0,60 → 0,62), i Högdalen A F 0,33 → 0,35 och B oförändrat.
+ * Tätt buskskikt (8 %) är oförändrat: Tyresta ville ha 10–12 %, Högdalen 8 %; i medel lika.
+ */
+export const OPEN_SHARE = 0.5, OPEN_HEIGHT_M = 1, DENSE_MID_SHARE = 0.08, DENSE_MIN_HEIGHT_M = 2;
 
 /**
  * Öppet och tätt ur punktmolnet (lärt av Högdalenkartan 2026-11-11):

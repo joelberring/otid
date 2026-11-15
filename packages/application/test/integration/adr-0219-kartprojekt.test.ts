@@ -211,6 +211,19 @@ describe("ADR-0219 kartprojekt", () => {
     expect(summary.status === "ok" && summary.view.changedObjects).toBe(4);
   });
 
+  it("en stor yta ur grundkartan (över 1 MB som jsonb) sparas (ägaren 2026-11-15: «Kunde inte spara (500)», migration 0124)", async () => {
+    const s = await setup();
+    // Normens största objekt (20 000 kommandon, LIMITS.commands) som kurvor med decimaler: över 1 MB som jsonb, under synkens 4 MB.
+    const at = (i: number, shift: number) => ({ x: Math.cos((i + shift) / 3183) * 300 + i * 0.0137, y: Math.sin((i + shift) / 3183) * 300 + i * 0.0071 });
+    const ring = Array.from({ length: 20_000 }, (_, i) => i === 0 ? { type: "M", ...at(0, 0) }
+      : { type: "C", x1: at(i, -0.6).x, y1: at(i, -0.6).y, x2: at(i, -0.3).x, y2: at(i, -0.3).y, ...at(i, 0), corner: true });
+    const large: ObjectState = { kind: "OBJECT", object: { kind: "area", symbol: pointObject.symbol, rings: [ring], angle: 0 } as unknown as MapObject };
+    const saved = await sync(s.owner.proof, s.projectId, [edit(newKey(randomUUID()), large, null, "ADD")]);
+    expect(saved.results.map(row => (row as { status: string }).status)).toEqual(["APPLIED"]);
+    const size = await pool.query<{ bytes: number }>("select max(pg_column_size(state))::int as bytes from map_project_object where project_id = $1", [s.projectId]);
+    expect(size.rows[0]!.bytes).toBeGreaterThan(1_048_576);
+  });
+
   it("skapar en ny kartversion med skrivaren, grundversionen orörd, och exporterar ändringarna", async () => {
     const s = await setup();
     expect(await writeMapProjectVersion(db, { ...s.owner.proof, projectId: s.projectId, request: { formatVersion: 1, requestId: randomUUID() } },

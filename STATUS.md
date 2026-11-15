@@ -13,6 +13,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-15 – «Kunde inte spara (500)»: stora objekt i kartprojekt (migration 0124)
+
+- Ägaren fick «Kunde inte spara (500). Försöker igen.» i ett kartprojekt. Serverloggen: `map_project_object_state_check` (23514), 97 gånger. En stor yta ur grundkartan var över 1 MB som jsonb. Normens gräns per objekt (20 000 kommandon) ryms inte i 1 MB när ytan har kurvor, så de två gränserna sade emot varandra.
+- Migration 0124 höjer gränsen till 8 MB på objektets läge, ändringsloggen och förslagens ändringar (bara en lättnad; synkens begäran får vara 4 MB). Webbläsaren har ändringen kvar och skickar den igen efter uppdateringen.
+- Kontrollerat: nytt integrationstest (20 000 kurvkommandon, över 1 MB) som utan migrationen ger samma fel; schemadrift och databasens tester mot PostgreSQL.
+- Kvar att tänka på (Idéer): ett fel på en ändring stoppar hela kön i webbläsaren, som försöker om utan slut.
+
 ### 2026-11-15 – Lägg på kantlinje i hjulet
 
 - Ägaren: «markera något och säga lägg på kantlinje». Funktionen fanns (Shift+F, «Fyll yta eller gör kant») men bara för en yta, med en linjesymbol vald i förväg och inte i hjulet.
@@ -1837,6 +1844,9 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 Loggen till och med 2026-10-19 ligger i `docs/archive/STATUS-logg-till-2026-10-19.md`.
 
 ## Idéer (inte i planen än)
+
+- 2026-11-15: när synken i ett kartprojekt svarar 500 på en ändring försöker webbläsaren om utan slut och allt efter den väntar.
+  Servern kunde svara per ändring (avvisad med skäl) och webbläsaren visa vilket objekt det gäller, så att resten sparas.
 
 - 2026-11-15: sökningen efter sänkor (`findPits`) tar cirka 10 s i webbläsaren på ett helt kartblad. Den kan flyttas till
   geo-arbetaren och sparas som `gropar.geojson`, som kullarna, så att grundkartan läses in lika fort som förut. En tätare

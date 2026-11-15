@@ -1,65 +1,42 @@
-"use client";
-
-import { useState } from "react";
-import { classTableEn } from "../../i18n/workspace-admin-en";
-import { useTexts } from "../language-provider";
 import { startDrawPreviewResponseSchema, startDrawResponseSchema, startDrawSetupResponseSchema, type StartDrawRequest } from "@o-tid/contracts";
 import { formatClockTime, parseRaceClock } from "@o-tid/domain";
-import styles from "../race-administrator-workspace.module.css";
-import { classTableSv } from "../../i18n/class-table-sv";
-import { Button, Field } from "../ui";
 import type { Workspace } from "./workspace-state";
 
+export type ClassMassStartOutcome = { kind: "SAVED"; clock: string } | { kind: "INVALID" | "CANCELLED" | "ERROR" | "BUSY" };
+
 /**
- * Masstart direkt på klassen (ägaren 2026-11-08): en lottning med masstart för bara den här klassen, samma väg som Start →
- * Lottning. Alla i klassen får tiden, och efteranmälda får den också (lottningens efteranmälan). Lottningen ger klassen fast
- * starttid, så fältet finns också för en klass med fri start (ägaren 2026-11-15: det ska inte krävas minutstart först).
- * `current` är klassens masstart i dag (klockslag), om den har en.
+ * Masstart direkt på klassen (ägaren 2026-11-08 och 2026-11-15: «lägga till masstart för en klass, lägga till tiden och se
+ * starttiden i deltagarlistan»): en lottning med masstart för bara den här klassen, samma väg som Start → Lottning. Alla i
+ * klassen får tiden, och efteranmälda får den också. Lottningen ger klassen fast starttid, så det går lika bra från fri start.
  */
-export function ClassMassStart({ ws, classId, current }: { ws: Workspace; classId: string; current: string | undefined }) {
-  const text = useTexts(classTableSv, classTableEn);
-  const [clock, setClock] = useState(current ?? "");
-  const [message, setMessage] = useState<{ ok: boolean; text: string }>();
-  const [busy, setBusy] = useState(false);
-
-  async function save() {
-    if (ws.writingRef.current || ws.pending.current || !ws.requireSession()) return;
-    setMessage(undefined); setBusy(true);
-    const op = ws.begin(true);
-    try {
-      const setupResponse = await ws.request("/draw", op);
-      if (!setupResponse.ok) throw new Error("Draw setup unavailable");
-      const setup = startDrawSetupResponseSchema.parse(await ws.json(setupResponse, op));
-      const firstStartTime = parseRaceClock(setup.raceDate, clock, setup.timeZone);
-      if (!firstStartTime || Date.parse(firstStartTime) % 60_000 !== 0) { setMessage({ ok: false, text: text.massStartInvalid }); return; }
-      const settings = { firstStartTime, clubSeparation: false,
-        classes: [{ classId, method: "MASS" as const, intervalMinutes: 1, vacancies: { kind: "COUNT" as const, value: 0 } }] };
-      const previewResponse = await ws.request("/draw-preview", op, { method: "POST",
-        headers: { "content-type": "application/json", "x-otid-csrf": ws.csrf() }, body: JSON.stringify({ formatVersion: 1, ...settings }) });
-      if (!previewResponse.ok) throw new Error("Draw preview unavailable");
-      const preview = startDrawPreviewResponseSchema.parse(await ws.json(previewResponse, op));
-      if (preview.requiresConfirmation && !window.confirm(text.massStartConfirm)) return;
-      const request: StartDrawRequest = { formatVersion: 1, requestId: crypto.randomUUID(), seed: preview.seed, ...settings,
-        confirmChanges: preview.requiresConfirmation };
-      const response = await ws.request("/draw", op, { method: "POST",
-        headers: { "content-type": "application/json", "x-otid-csrf": ws.csrf(), "idempotency-key": `start-draw:${request.requestId}` },
-        body: JSON.stringify(request) });
-      if (!response.ok) throw new Error("Draw not saved");
-      startDrawResponseSchema.parse(await ws.json(response, op));
-      setMessage({ ok: true, text: text.massStartSaved(formatClockTime(firstStartTime, setup.timeZone).slice(0, 5)) });
-      // Lottningen gav klassen fast starttid: formuläret ovanför ska inte spara tillbaka fri start.
-      ws.changeClassEdit({ startRule: "FIXED" });
-      // Klassens startsätt ändrades av lottningen: översikten läses om, annars avvisas nästa anmälan i klassen som inaktuell.
-      await ws.readCourses(op); await ws.load(op);
-    } catch { if (ws.current(op)) setMessage({ ok: false, text: text.massStartError }); }
-    finally { ws.finish(op); setBusy(false); }
-  }
-
-  return <div className={styles.fieldRow} data-testid="class-mass-start">
-    <Field label={text.massStart} help={text.massStartHelp} className={styles.narrowField}>
-      <input inputMode="numeric" placeholder="19:00" value={clock} maxLength={5} disabled={busy} data-testid="class-mass-start-time"
-        onChange={event => setClock(event.target.value)} /></Field>
-    <Button variant="secondary" disabled={busy || !clock.trim()} onClick={() => void save()} data-testid="class-mass-start-save">{text.massStartSave}</Button>
-    {message && <p role="status" className={styles.workflowHelp}>{message.text}</p>}
-  </div>;
+export async function saveClassMassStart(ws: Workspace, classId: string, clock: string, confirmText: string): Promise<ClassMassStartOutcome> {
+  if (ws.writingRef.current || ws.pending.current || !ws.requireSession()) return { kind: "BUSY" };
+  const op = ws.begin(true);
+  try {
+    const setupResponse = await ws.request("/draw", op);
+    if (!setupResponse.ok) throw new Error("Draw setup unavailable");
+    const setup = startDrawSetupResponseSchema.parse(await ws.json(setupResponse, op));
+    const firstStartTime = parseRaceClock(setup.raceDate, clock, setup.timeZone);
+    if (!firstStartTime || Date.parse(firstStartTime) % 60_000 !== 0) return { kind: "INVALID" };
+    const settings = { firstStartTime, clubSeparation: false,
+      classes: [{ classId, method: "MASS" as const, intervalMinutes: 1, vacancies: { kind: "COUNT" as const, value: 0 } }] };
+    const previewResponse = await ws.request("/draw-preview", op, { method: "POST",
+      headers: { "content-type": "application/json", "x-otid-csrf": ws.csrf() }, body: JSON.stringify({ formatVersion: 1, ...settings }) });
+    if (!previewResponse.ok) throw new Error("Draw preview unavailable");
+    const preview = startDrawPreviewResponseSchema.parse(await ws.json(previewResponse, op));
+    if (preview.requiresConfirmation && !window.confirm(confirmText)) return { kind: "CANCELLED" };
+    const request: StartDrawRequest = { formatVersion: 1, requestId: crypto.randomUUID(), seed: preview.seed, ...settings,
+      confirmChanges: preview.requiresConfirmation };
+    const response = await ws.request("/draw", op, { method: "POST",
+      headers: { "content-type": "application/json", "x-otid-csrf": ws.csrf(), "idempotency-key": `start-draw:${request.requestId}` },
+      body: JSON.stringify(request) });
+    if (!response.ok) throw new Error("Draw not saved");
+    startDrawResponseSchema.parse(await ws.json(response, op));
+    // Lottningen gav klassen fast starttid: formuläret ska inte spara tillbaka fri start, och översikten läses om så att
+    // nästa anmälan i klassen inte avvisas som inaktuell.
+    ws.changeClassEdit({ startRule: "FIXED" });
+    await ws.readCourses(op); await ws.load(op);
+    return { kind: "SAVED", clock: formatClockTime(firstStartTime, setup.timeZone).slice(0, 5) };
+  } catch { return ws.current(op) ? { kind: "ERROR" } : { kind: "BUSY" }; }
+  finally { ws.finish(op); }
 }

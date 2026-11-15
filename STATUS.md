@@ -17,7 +17,7 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 - Ägaren (SBN test, fem klasser med masstart): valen under Start såg ut att gälla («Inställningarna gäller nu 5 klasser») fast lottningen inte var sparad, klasstabellen skrev «Minutstart» för masstart, och masstart på klassen krävde att man först sparade Minutstart.
 - Klasslistan från servern har `massStartTime` (klassens gällande lottning är en masstart); klasstabellen skriver «Masstart 19:10». Lagringen är oförändrad (fast starttid + lottning), ingen migration.
-- «Masstart kl.» i klassraden finns också för en klass med fri start; lottningen ger klassen fast starttid och formuläret följer med.
+- Klassraden: Masstart är ett eget val i Startsätt (ägaren samma dag: «lägga till masstart för en klass, lägga till tiden och se starttiden i deltagarlistan»). Tiden skrivs i fältet under och sparas med «Spara ändringen»; den egna knappen «Sätt masstart» är borta. Går direkt från fri start.
 - Lottningen: en gul ruta under klasstabellen när startsättet i tabellen skiljer sig från det sparade («Inte sparat: …») med knappen Förhandsvisa, och texten efter «Använd för alla» säger att inget är sparat än.
 - Kontrollerat: typecheck, eslint, knip, enhetstester (web 1261, contracts 235), integrationstesterna för lottning, klass- och banredigering och masstart mot PostgreSQL. Playwright går inte att köra här: `lottning.spec.ts` och `ux-flode.spec.ts` är ändrade genom läsning och prövas av CI.
 - E2E-förväntningarna som höll CI röd sedan e8a6bfb och 221dc10 är rättade (c0b2ffd, CI grön, avbildningar byggda).

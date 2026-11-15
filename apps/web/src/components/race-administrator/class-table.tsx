@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { relayEn } from "../../i18n/workspace-relay-en";
 import { removalEn } from "../../i18n/workspace-tools-en";
 import { courseVariantsEn } from "../../i18n/workspace-tools-en";
@@ -19,7 +19,7 @@ import { Button, EmptyState, Field, Notice, Section, Table, numeric } from "../u
 import { RemovalReview } from "./removal-review";
 import { removalSv } from "../../i18n/removal-sv";
 import type { Workspace } from "./workspace-state";
-import { ClassMassStart } from "./class-mass-start";
+import { saveClassMassStart } from "./class-mass-start";
 
 type ClassRow = CourseEditListResponse["classes"][number];
 
@@ -131,8 +131,25 @@ function ClassEditor({ ws, row }: { ws: Workspace; row: ClassRow }) {
   const id = `class-edit-${raceId}`;
   const locked = busy || !!classEditAttempt;
   const startRuleChoice = ws.profile.features.startRuleChoice;
+  const relay = !!ws.data?.classes.some(raceClass => raceClass.id === row.classId && raceClass.relayLegCount);
+  // Masstart är ett eget val i startsättet (ägaren 2026-11-15): tiden skrivs direkt under och sparas med samma knapp.
+  const current = row.massStartTime ? formatClockTime(row.massStartTime, ws.data?.timeZone ?? "UTC").slice(0, 5) : "";
+  const [mass, setMass] = useState(current !== "");
+  const [clock, setClock] = useState(current);
+  const [massBusy, setMassBusy] = useState(false);
+  const [massMessage, setMassMessage] = useState<{ ok: boolean; text: string }>();
+  async function save() {
+    // Masstarten sparas när den är ny eller har en ny tid; annat i raden sparas som vanligt.
+    if (!mass || clock.trim() === current) { void saveClassEdit(); return; }
+    setMassMessage(undefined); setMassBusy(true);
+    const outcome = await saveClassMassStart(ws, row.classId, clock.trim(), text.massStartConfirm);
+    setMassBusy(false);
+    if (outcome.kind === "SAVED") { setClock(outcome.clock); setMassMessage({ ok: true, text: text.massStartSaved(outcome.clock) }); }
+    else if (outcome.kind === "INVALID") setMassMessage({ ok: false, text: text.massStartInvalid });
+    else if (outcome.kind === "ERROR") setMassMessage({ ok: false, text: text.massStartError });
+  }
   return <form className={styles.editor} aria-label={text.openLabel(row.name)} noValidate
-    onSubmit={event => { event.preventDefault(); void saveClassEdit(); }}>
+    onSubmit={event => { event.preventDefault(); void save(); }}>
     <div className={styles.fieldRow}>
       <label htmlFor={`${id}-name`}>{text.fieldName}<input id={`${id}-name`} value={classEditName} maxLength={160}
         disabled={locked || !row.renamable} onChange={event => changeClassEdit({ name: event.target.value })} /></label>
@@ -142,19 +159,24 @@ function ClassEditor({ ws, row }: { ws: Workspace; row: ClassRow }) {
           onChange={event => changeClassEdit({ courseId: event.target.value })}>
           {courseList?.courses.map(course => <option key={course.courseId} value={course.courseId}>{course.name}</option>)}
         </select></label>}
-      {startRuleChoice && <label htmlFor={`${id}-start`}>{text.fieldStartRule}<select id={`${id}-start`} value={classEditStartRule}
-        disabled={locked || !!ws.data?.classes.some(raceClass => raceClass.id === row.classId && raceClass.relayLegCount)}
-        onChange={event => changeClassEdit({ startRule: event.target.value === "FIXED" ? "FIXED" : "PUNCH" })}>
+      {startRuleChoice && <label htmlFor={`${id}-start`}>{text.fieldStartRule}<select id={`${id}-start`} value={mass ? "MASS" : classEditStartRule}
+        disabled={locked || massBusy || relay}
+        onChange={event => { const value = event.target.value; setMass(value === "MASS"); setMassMessage(undefined);
+          changeClassEdit({ startRule: value === "PUNCH" ? "PUNCH" : "FIXED" }); }}>
         <option value="PUNCH">{text.free}</option><option value="FIXED">{text.fixed}</option>
+        {!row.rogaining && !relay && <option value="MASS">{text.mass}</option>}
       </select></label>}
+      {startRuleChoice && mass && <Field label={text.massStart} help={text.massStartHelp} className={styles.narrowField}
+        error={massMessage && !massMessage.ok ? massMessage.text : undefined}>
+        <input inputMode="numeric" autoComplete="off" placeholder={text.massStartPlaceholder} value={clock} maxLength={5} disabled={locked || massBusy}
+          data-testid="class-mass-start-time" onChange={event => { setClock(event.target.value); setMassMessage(undefined); }} /></Field>}
       {/* Maxtid (PLAN.md steg 25); rogainingklassen har egen tidsgräns. */}
       {!row.rogaining && <Field label={text.fieldMaxTime} help={text.maxTimeHelp} error={classEditMaxTimeError || undefined}
         className={styles.narrowField}>
         <input id={`${id}-max-time`} inputMode="numeric" autoComplete="off" value={classEditMaxTime} maxLength={4} disabled={locked}
           onChange={event => changeClassEdit({ maxTime: event.target.value })} /></Field>}
     </div>
-    {startRuleChoice && !row.rogaining && !ws.data?.classes.some(raceClass => raceClass.id === row.classId && raceClass.relayLegCount) &&
-      <ClassMassStart ws={ws} classId={row.classId} current={row.massStartTime ? formatClockTime(row.massStartTime, ws.data?.timeZone ?? "UTC").slice(0, 5) : undefined} />}
+    {massMessage?.ok && <p role="status" className={styles.workflowHelp} data-testid="class-mass-start-saved">{massMessage.text}</p>}
     {row.sourceName && <p className={styles.workflowHelp}>{text.sourceName(row.sourceName)}{" "}
       <Button variant="quiet" disabled={locked} onClick={() => changeClassEdit({ name: row.sourceName! })}>{text.useSourceName}</Button></p>}
     {classEditPreview && <section className={styles.review} role="status" aria-live="polite">
@@ -175,7 +197,7 @@ function ClassEditor({ ws, row }: { ws: Workspace; row: ClassRow }) {
     {classEditError && <Notice tone="error" role="alert">{classEditError}</Notice>}
     <div className={styles.actions}>
       <Button variant="secondary" disabled={locked} onClick={() => void previewClassEdit()}>{text.preview}</Button>
-      <Button type="submit" disabled={busy}>{text.save}</Button>
+      <Button type="submit" disabled={busy || massBusy}>{text.save}</Button>
       {!classEditAttempt && <Button variant="quiet" disabled={busy} onClick={cancelClassEdit}>{text.cancel}</Button>}
     </div>
   </form>;

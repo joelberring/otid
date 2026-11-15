@@ -124,14 +124,14 @@ test("masstart direkt på klassen", async ({ browser }) => {
   await openStep(owner, "Klasser");
   const row = owner.getByRole("row", { name: /Natt lång/ });
   await row.getByRole("button", { name: "Redigera Natt lång" }).click();
-  await expect(owner.getByRole("form", { name: "Redigera Natt lång" })).toBeVisible();
-  // Ägaren 2026-11-15: masstarten sätts direkt, också när klassen har fri start (inget steg via minutstart).
+  const editor = owner.getByRole("form", { name: "Redigera Natt lång" });
+  // Ägaren 2026-11-15: masstart är ett eget val i startsättet, med tiden under och samma spara-knapp, också från fri start.
   const classRow = owner.getByRole("row", { name: /^Natt lång Natt/ });
   await expect(classRow).toContainText("Fri start");
-  const massStart = owner.getByTestId("class-mass-start");
-  await massStart.getByTestId("class-mass-start-time").fill("19:00");
-  await massStart.getByTestId("class-mass-start-save").click();
-  await expect(massStart.getByRole("status")).toHaveText("Masstart kl. 19:00 är satt för klassen.", { timeout: 20_000 });
+  await editor.getByLabel("Startsätt").selectOption({ label: "Masstart" });
+  await editor.getByTestId("class-mass-start-time").fill("19:00");
+  await editor.getByRole("button", { name: "Spara ändringen" }).click();
+  await expect(editor.getByTestId("class-mass-start-saved")).toContainText("Masstart kl. 19:00 är satt för klassen.", { timeout: 20_000 });
   // Klasstabellen säger masstart, inte minutstart.
   await expect(classRow).toContainText("Masstart 19:00", { timeout: 20_000 });
 

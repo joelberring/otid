@@ -13,6 +13,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-15 – Kärren följer kurvbilden
+
+- Ägaren: «kärrmarkeringar går upp över höjdkurvor och ibland över höjder». `marsh-floor.ts`: laserns kärr (`blott`, `fuktigt`) klipps där marken ligger mer än 0,6 m över det lägsta kärret inom 20 m, med mjuk ny kant; rester under 200 m² tas bort. Lantmäteriets sankmark rörs inte. Körs i grundkartan på servern (`assemble.ts`) och i webbens arbetare.
+- Mätt i Högdalen (två block, kartritaren som facit): F1 för kärren 0,42 → 0,51 och 0,49 → 0,55; kärren minskar med 30–45 %, 0,2 s per block. Av kartritarens kärr ligger 97–99 % högst 1 m över det lägsta kärret intill.
+- Kontrollerat: nya enhetstester, map-revision och webbens tester, typecheck, knip.
+
 ### 2026-11-15 – Avlånga punkthöjder (110)
 
 - Ägaren: «avlånga punkthöjder där höjden som generaliserats verkar ha en tydlig form/limpa». `elongated-knolls.ts`: en punkthöjd (Karttapullautins eller laserns) vars höjd i markmodellen är minst 1,7 gånger så lång som bred på halva höjden blir `dotknoll_avlang` (110), vriden efter höjden. En för liten sluten kurva som blir punkthöjd blir avlång på samma sätt (`smallRingsToPoints`).

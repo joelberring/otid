@@ -6,6 +6,7 @@ import { heightFieldFrom, type HeightGrid } from "./clear-contours";
 import { clearCutFeatures, type ClearCut } from "./clear-cuts";
 import { tickDepressions } from "./depressions";
 import { DEFAULT_HILL_LEVEL, findHills, hillLimitsAt, settleHills } from "./hill-search";
+import { marshOnFloor } from "./marsh-floor";
 import { choosePits, DEFAULT_PIT_LEVEL, findPits, PIT_LAYERS, pitFeatures, pitLimitsAt } from "./pit-search";
 import type { SoilArea } from "./soil";
 import { calmFlatContours, flatLimitsAt, flatSlopeFrom, type PixelAffine, type SlopeGrid } from "./flat-contours";
@@ -117,6 +118,8 @@ export interface BaseMapSummary {
   readonly rock?: { readonly level: number; readonly areas: number; readonly hectares: number } | undefined;
   /** Sänkorna ur höjdrastret (när jobbet har markens höjd): nivån, gropsymboler och ringar som valdes bland kandidaterna. */
   readonly pits?: { readonly level: number; readonly points: number; readonly rings: number; readonly candidates: number } | undefined;
+  /** Laserns kärr som klipptes där marken ligger över kärrets botten (antal kärr och hektar som togs bort). */
+  readonly marshFloor?: { readonly changed: number; readonly removedHa: number } | undefined;
   /** Små höjder som fick en ring efter formen: ringarna, hur många som är höjdkurvor och punkthöjderna de ersatte. */
   readonly hills?: { readonly level: number; readonly rings: number; readonly contours: number; readonly dots: number; readonly candidates: number } | undefined;
   /** Lutningsstrecken efter höjden: ringar med streck, och hur många av dem som bara höjden visade vara sänkor. */
@@ -176,8 +179,12 @@ export function assembleBaseMap(input: BaseMapAssemblyInput): { objects: MapObje
   }
   // Små höjder som ring efter formen, sedan negativ kurvbild: sänkorna som grundkartan inte redan visar, och lutningsstreck
   // på allt som är en sänka enligt höjden.
-  let pits: BaseMapSummary["pits"], slopeTicks: BaseMapSummary["slopeTicks"], hills: BaseMapSummary["hills"];
+  let pits: BaseMapSummary["pits"], slopeTicks: BaseMapSummary["slopeTicks"], hills: BaseMapSummary["hills"], marshFloor: BaseMapSummary["marshFloor"];
   if (input.height) {
+    // Kärren följer kurvbilden: laserns kärr klipps där marken ligger över kärrets botten (`marsh-floor.ts`).
+    const floored = marshOnFloor(data.features, [input.height]);
+    data = { ...data, features: floored.features };
+    marshFloor = { changed: floored.changed, removedHa: Math.round(floored.removedM2 / 1000) / 10 };
     const hillLevel = input.height.hills ?? DEFAULT_HILL_LEVEL, hillCandidates = findHills(input.height.grid, input.height.affine);
     const settled = settleHills(data.features, hillCandidates, hillLimitsAt(hillLevel), scale);
     data = { ...data, features: settled.features };
@@ -209,6 +216,6 @@ export function assembleBaseMap(input: BaseMapAssemblyInput): { objects: MapObje
       inBuilt: result.builtMask?.removed ?? 0, belowNorm: result.generalized?.removed ?? 0 },
     clipped: result.clipped, joined: result.joined, simplified: result.generalized?.simplified ?? 0,
     ...(cuts ? { clearCuts: cuts.counts } : {}), ...(soil ? { soil } : {}), ...(rock ? { rock } : {}), ...(knolls ? { knolls } : {}), ...(cliffs ? { cliffs } : {}),
-    ...(flatContours ? { flatContours } : {}), ...(hills ? { hills } : {}), ...(pits ? { pits } : {}), ...(slopeTicks ? { slopeTicks } : {})
+    ...(flatContours ? { flatContours } : {}), ...(hills ? { hills } : {}), ...(marshFloor ? { marshFloor } : {}), ...(pits ? { pits } : {}), ...(slopeTicks ? { slopeTicks } : {})
   } };
 }

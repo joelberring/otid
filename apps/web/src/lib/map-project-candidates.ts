@@ -1,6 +1,6 @@
 import { parseDxf, parseGeoJson, VectorParseError, type MapNorm, type SourceData, type SourceFeature } from "@o-tid/map-revision";
 import {
-  calmFlatContours, choosePits, clearContours, computeCandidates, suggestedClear, DEFAULT_HILL_LEVEL, DEFAULT_HILL_LIMITS, DEFAULT_PIT_LEVEL, DEFAULT_ROCK_LEVEL, findHills, findPits, flatLimitsAt, flatSlopeFrom, heightFieldFrom, joinStages, mergeBaseMap,
+  calmFlatContours, choosePits, clearContours, computeCandidates, suggestedClear, DEFAULT_HILL_LEVEL, DEFAULT_HILL_LIMITS, DEFAULT_PIT_LEVEL, DEFAULT_ROCK_LEVEL, findHills, findPits, flatLimitsAt, marshOnFloor, flatSlopeFrom, heightFieldFrom, joinStages, mergeBaseMap,
   pitFeatures, pitLimitsAt, settleHills, tickDepressions, unionWater, rockAreasOfJob, withRockAreas, type HillCandidate, type HillLimits, type PitCandidate, type PitLimits,
   type CandidateInput, type CandidateResult, type clearCutFeatures, type ClearResult, type ClearSettings, type FlatContourResult, type HeightGrid, type PhotoPixels, type PixelAffine, type SlopeGrid, type SoilArea, type SoilOutcome, type StageBox
 } from "@o-tid/map-revision/base-map";
@@ -148,9 +148,11 @@ export function handleCandidateRequest(store: CandidateStore, request: Candidate
     // Före dem får små höjder sin ring efter formen, så att punkthöjderna i ringarna försvinner.
     let pits: PitOutcome | undefined, hills: HillOutcome | undefined, data = clearData;
     if (clear && clearField && request.scale) {
+      // Kärren följer kurvbilden (ägaren 2026-11-15): laserns kärr klipps där marken ligger över kärrets botten.
+      const floored = marshOnFloor(clearData.features, clear.parts);
       let hillCandidates: HillCandidate[] = [];
       try { hillCandidates = clear.parts.flatMap(part => findHills(part.grid, part.affine)); } catch (error) { console.error("Höjderna kunde inte sökas ur markens höjd", error); }
-      const settled = settleHills(clearData.features, hillCandidates, DEFAULT_HILL_LIMITS, request.scale);
+      const settled = settleHills(floored.features, hillCandidates, DEFAULT_HILL_LIMITS, request.scale);
       hills = { candidates: hillCandidates, limits: DEFAULT_HILL_LIMITS, level: DEFAULT_HILL_LEVEL, scale: request.scale, rings: settled.rings, contours: settled.contours, hidden: settled.hidden };
       const limits = pitLimitsAt(DEFAULT_PIT_LEVEL);
       // Sökningen håller flera raster i minnet; räcker det inte läses grundkartan in ändå, utan de egna sänkorna.

@@ -76,6 +76,17 @@ function controlsBounds(document: CourseSettingDocument): MapRect {
 }
 
 /** Dokumentets banor som IOF XML 3.0 CourseData (UTF-8, indraget som Purple Pen). */
+/** Banan har start och mål och kommer därför med i IOF XML. */
+function exportable(document: CourseSettingDocument, courseId: string): boolean {
+  const kinds = new Set(enumerateCourseControls(document, courseId).map(id => document.controls[document.courseControls[id]?.control ?? ""]?.kind));
+  return kinds.has("START") && kinds.has("FINISH");
+}
+
+/** Minst en bana har start och mål. Utan det blir IOF XML utan banor, vilket inte är giltigt (t.ex. bingo utan start och mål). */
+export function hasIofCourses(document: CourseSettingDocument): boolean {
+  return document.courses.some(course => exportable(document, course.id));
+}
+
 export function writeIofCourseData(document: CourseSettingDocument, options: IofCourseDataOptions = {}): string {
   const w = new Writer();
   const createTime = (options.createTime ?? new Date()).toISOString();
@@ -115,9 +126,7 @@ export function writeIofCourseData(document: CourseSettingDocument, options: Iof
 
   const assignments: { className: string; courseName: string; family: string | undefined }[] = [];
   for (const course of sortedCourses(document.courses)) {
-    const kinds = new Set(enumerateCourseControls(document, course.id)
-      .map(id => document.controls[document.courseControls[id]?.control ?? ""]?.kind));
-    if (!kinds.has("START") || !kinds.has("FINISH")) continue;
+    if (!exportable(document, course.id)) continue;
     // ADR-0198: bortvalda varianter skrivs inte.
     const excluded = excludedVariantCodes(document, course.id);
     const all = course.kind === "SCORE" ? [] : variations(document, course.id).filter(variation => !excluded.has(variation.code));

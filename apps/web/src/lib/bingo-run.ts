@@ -75,6 +75,11 @@ export function bingoProgressRequest(run: StoredBingoRun): BingoProgressRequest 
       x: Math.round(shot.x * 100) / 100, y: Math.round(shot.y * 100) / 100, accuracyM: Math.round(shot.accuracyM * 10) / 10 })) } : {}) };
 }
 
+/** Skeppen som text: "C4–C5, F2" (första och sista rutan). */
+export function formatShips(ships: readonly (readonly string[])[]): string {
+  return ships.map(cells => cells.length > 1 ? `${cells[0]}–${cells[cells.length - 1]}` : cells[0] ?? "").filter(Boolean).join(", ");
+}
+
 /** Tiden som m:ss eller h:mm:ss. */
 export function formatBingoTime(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));

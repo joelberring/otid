@@ -122,6 +122,8 @@ export interface BingoTraining {
   readonly ships?: readonly number[] | undefined;
   /** Sänka skepp: de gemensamma skeppens längder (samma för alla i gruppen). */
   readonly sharedShips?: readonly number[] | undefined;
+  /** Sänka skepp: gruppens frö för de gemensamma skeppen efter «Slumpa om»; saknas = ur tävlingens och banans id. */
+  readonly sharedSeed?: number | undefined;
 }
 
 /** Ett ritat område med eget filter (t.ex. bara kurvbild här). */

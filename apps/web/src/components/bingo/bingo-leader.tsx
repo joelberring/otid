@@ -5,7 +5,7 @@ import Link from "next/link";
 import { bingoAdminViewSchema, type BingoAdminView } from "@o-tid/contracts";
 import { bingoEn } from "../../i18n/bingo-en";
 import { bingoSv } from "../../i18n/bingo-sv";
-import { formatBingoDistance, formatBingoTime } from "../../lib/bingo-run";
+import { formatBingoDistance, formatBingoTime, formatShips } from "../../lib/bingo-run";
 import { courseSettingBase } from "../../lib/course-setting-api";
 import { raceHubPath } from "../../lib/public-race-format";
 import { useTexts } from "../language-provider";
@@ -64,6 +64,8 @@ export function BingoLeader({ raceId }: { raceId: string }) {
     {group && <div className={styles.leaderGrid}>
       <section aria-label={group.name}>
         <h2>{group.name}</h2>
+        {shipsMode && <p data-testid="bingo-shared-ships"><span className={styles.swatch} style={{ background: "#0057b8" }} aria-hidden="true" />
+          {ships.sharedList(formatShips(group.sharedCells ?? []) || "–")}</p>}
         {runners.length === 0 ? <p>{text.none}</p> : <table className={styles.table} data-testid="bingo-leader-table">
           <thead><tr><th scope="col">{text.name}</th>{shipsMode ? <><th scope="col">{ships.points}</th><th scope="col">{ships.sunk}</th>
             <th scope="col">{ships.sharedColumn}</th><th scope="col">{ships.hitsColumn}</th><th scope="col">{ships.waterColumn}</th><th scope="col">{ships.wrongColumn}</th></> : <><th scope="col">{text.cells}</th>
@@ -72,7 +74,8 @@ export function BingoLeader({ raceId }: { raceId: string }) {
           <tbody>{runners.map(row => <tr key={row.id} data-mine={row.id === runner || undefined}>
             <td><button type="button" className={styles.linkButton} aria-pressed={row.id === runner}
               onClick={() => setRunner(current => current === row.id ? undefined : row.id)}>
-              <span className={styles.swatch} style={{ background: color(row.id) }} aria-hidden="true" />{row.name}</button></td>
+              <span className={styles.swatch} style={{ background: color(row.id) }} aria-hidden="true" />{row.name}</button>
+              {shipsMode && <div className={styles.muted}>{ships.ownList(formatShips(row.ships.slice(row.sharedShips)) || "–")}</div>}</td>
             {shipsMode ? <><td>{row.points}</td><td>{row.sunk}/{row.ships.length}</td><td>{row.sharedSunk}/{row.sharedShips}</td><td>{row.hits}</td><td>{row.water ?? row.shots.filter(shot => shot.result === "WATER").length}</td><td>{row.wrong}</td></>
               : <><td>{row.taken.length}/{group.cells.length}</td><td>{formatBingoDistance(row.distanceM)}</td></>}<td>{formatBingoTime(row.seconds)}</td>
             <td>{text.status[row.status]}{row.gaps.length > 0 && <span className={styles.muted}> · {text.gaps(row.gaps.length)}</span>}</td>
@@ -85,7 +88,7 @@ export function BingoLeader({ raceId }: { raceId: string }) {
         <BingoMap group={group} taken={taken} label={text.map}
           tracks={shown.map(row => ({ id: row.id, points: shipsMode ? row.shots.map(shot => [shot.x, shot.y, shot.at] as const) : row.track,
             color: color(row.id) }))}
-          ships={shipsMode && one ? one.ships : undefined}
+          ships={shipsMode && one ? one.ships.slice(one.sharedShips) : undefined} sharedShips={shipsMode ? group.sharedCells : undefined}
           shots={shipsMode ? shown.flatMap(row => row.shots.map(shot => ({ ...shot, ...(one ? {} : { color: color(row.id) }) }))) : undefined}
           image={view.image ? { ...view.image, href: `${courseSettingBase(raceId)}/map/image` } : undefined} />
       </section>

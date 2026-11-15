@@ -108,6 +108,9 @@ describe("bingo med telefonen (ADR-0225)", () => {
     const set = await setBingoAsAdmin(db, { ...admin, request: { formatVersion: 1, enabled: true, mode: "SHIPS" } }, NOW);
     expect(set.status === "ok" && set.response.mode).toBe("SHIPS");
     expect(set.status === "ok" && set.response.groups[0]).toMatchObject({ sharedShips: [4, 3], ships: [2, 2] });
+    // Ledaren ser gruppens gemensamma skepp innan någon har startat; de publika grupperna har inga skepp.
+    const sharedBefore = set.status === "ok" ? set.response.groups[0]!.sharedCells : undefined;
+    expect(sharedBefore?.map(cells => cells.length)).toEqual([4, 3]);
     const names = Array.from({ length: 80 }, (_, i) => `${String.fromCharCode(65 + (i % 10))}${Math.floor(i / 10) + 1}`);
     const ships = placeGroupShips(names, { shared: [4, 3], own: [2, 2] }, bingoGroupSeed(raceId, "1"), 77);
     // Rutornas mitt (1:10 000, 10 mm rutor, området 0–100 × 0–80 mm, A1 uppe till vänster).
@@ -134,6 +137,9 @@ describe("bingo med telefonen (ADR-0225)", () => {
     expect(samRow.ships).toEqual(ships.map(ship => ship.cells));
     expect(samRow.sharedShips).toBe(2);
     expect(kimRow.ships.slice(0, 2)).toEqual(samRow.ships.slice(0, 2));
+    expect(samRow.ships.slice(0, 2)).toEqual(sharedBefore);
+    const open = await readBingoPublic(db, { raceId, staff: false }, NOW);
+    expect(open.status === "ok" && open.setup.groups[0]!.sharedCells).toBeUndefined();
     expect(kimRow.ships.slice(2)).not.toEqual(samRow.ships.slice(2));
     expect(samRow.shots.map(item => item.result)).toEqual(["HIT", "WATER", "WRONG"]);
   });

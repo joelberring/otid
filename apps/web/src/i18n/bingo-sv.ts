@@ -112,6 +112,12 @@ export const bingoSv = {
     sharedColumn: "Gemensamma",
     others: (count: number) => count === 1 ? "1 annan har stått här och skjutit" : `${count} andra har stått här och skjutit`,
     heat: (group: string) => `${group}: där gruppen har varit (prickar = hur många som stått i rutan och skjutit)`,
+    sharedList: (ships: string) => `Gemensamma skepp (blå, streckade på kartan): ${ships}`,
+    ownList: (ships: string) => `Egna: ${ships}`,
+    showShips: "Visa skeppen (bara för dig)",
+    hideShips: "Dölj skeppen",
+    reroll: "Slumpa om gemensamma",
+    rerollStarted: "Någon i gruppen har redan startat.",
     hitsColumn: "Träffar", waterColumn: "Vatten", wrongColumn: "Fel", lastColumn: "Senaste skott",
     mapTitle: "Dina skott och skeppen"
   },

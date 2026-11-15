@@ -68,6 +68,10 @@ export const bingoGroupSchema = z.object({
   ships: z.array(z.number().int()),
   /** Sänka skepp: de gemensamma skeppens längder (samma för alla i gruppen; placeras ur tävlingens och banans id). */
   sharedShips: z.array(z.number().int()),
+  /** Fröet för de gemensamma skeppen (ur tävlingens och banans id, eller gruppens efter «Slumpa om»). */
+  sharedSeed: z.number().int().min(0),
+  /** Bara i ledarens vy: de gemensamma skeppen (rutornas namn). */
+  sharedCells: z.array(z.array(z.string())).optional(),
   cells: z.array(z.object({ name: z.string(), rect }))
 });
 export type BingoGroup = z.infer<typeof bingoGroupSchema>;

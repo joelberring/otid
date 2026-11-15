@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import type { BingoGroup } from "@o-tid/contracts";
-import { bingoCellPosition, bingoGroupSeed, judgeShots, placeGroupShips, scoreShots, type JudgedShot, type Shot, type ShotResult } from "@o-tid/domain";
+import { bingoCellPosition, judgeShots, placeGroupShips, scoreShots, type JudgedShot, type Shot, type ShotResult } from "@o-tid/domain";
 import { bingoEn } from "../../i18n/bingo-en";
 import { bingoSv } from "../../i18n/bingo-sv";
 import { useTexts } from "../language-provider";
@@ -11,13 +11,13 @@ import styles from "./bingo.module.css";
 const MARK: Readonly<Record<ShotResult, string>> = { SUNK: "✓", HIT: "●", WATER: "~", WRONG: "✗" };
 
 /** Löparens skepp och de bedömda skotten (samma regler som servern). */
-export function useShips(raceId: string, group: BingoGroup, seed: number | undefined, shots: readonly Shot[], metersPerMm: number) {
+export function useShips(group: BingoGroup, seed: number | undefined, shots: readonly Shot[], metersPerMm: number) {
   return useMemo(() => {
     const ships = seed === undefined ? [] : placeGroupShips(group.cells.map(cell => cell.name), { shared: group.sharedShips, own: group.ships },
-      bingoGroupSeed(raceId, group.course), seed);
+      group.sharedSeed, seed);
     const judged = judgeShots(shots, group.cells, ships, metersPerMm);
     return { ships, judged, score: scoreShots(judged) };
-  }, [raceId, group, seed, shots, metersPerMm]);
+  }, [group, seed, shots, metersPerMm]);
 }
 
 /** Rutans läge på skottbrädet: det senaste giltiga skottet, annars fel om löparen sköt fel där. */

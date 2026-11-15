@@ -7,7 +7,7 @@ import {
 import { bingoCells, type CourseSettingDocument } from "@o-tid/course-setting";
 import { schema, type Database } from "@o-tid/database";
 import {
-  bingoGroupSeed, bingoSeconds, judgeShots, mergeBingoProgress, mergeShots, normalizeSelfRegistrationName, placeGroupShips, rankBingo, rankShips, scoreShots,
+  bingoGroupSeed, bingoSeconds, judgeShots, mergeBingoProgress, mergeShots, normalizeSelfRegistrationName, placeGroupShips, placeShips, rankBingo, rankShips, scoreShots,
   selfRegistrationDay, shipSplitFor, shotCellCounts, type BingoProgress, type JudgedShot, type Ship, type ShipScore
 } from "@o-tid/domain";
 import type { MapGeoreference } from "@o-tid/map-file";
@@ -69,7 +69,8 @@ export async function loadBingoSetup(tx: DbExecutor, raceId: string): Promise<Bi
     if (!bingo) return [];
     const cells = bingoCells(bingo, mapScale).map(cell => ({ name: cell.name, rect: cell.rect }));
     const split = shipSplitFor(cells.length, bingo.sharedShips, bingo.ships);
-    return [{ course: course.id, name: course.name, cellMeters: bingo.cellMeters, ships: split.own, sharedShips: split.shared, cells }];
+    return [{ course: course.id, name: course.name, cellMeters: bingo.cellMeters, ships: split.own, sharedShips: split.shared,
+      sharedSeed: bingo.sharedSeed ?? bingoGroupSeed(raceId, course.id), cells }];
   });
   return { groups, mapScale, metersPerMm: metersPerMm(georeference, mapScale), georeference, image };
 }
@@ -82,7 +83,7 @@ const toProgress = (row: typeof schema.bingoRunners.$inferSelect): BingoProgress
 /** Löparens skepp och bedömda skott i Sänka skepp (tomt utan frö). */
 function shipsOf(row: typeof schema.bingoRunners.$inferSelect, group: BingoGroup | undefined, perMm: number): { ships: Ship[]; judged: JudgedShot[]; score: ShipScore } {
   const ships = group && row.seed !== null ? placeGroupShips(group.cells.map(cell => cell.name), { shared: group.sharedShips, own: group.ships },
-    bingoGroupSeed(row.raceId, group.course), row.seed) : [];
+    group.sharedSeed, row.seed) : [];
   const judged = group ? judgeShots(row.shots, group.cells, ships, perMm) : [];
   return { ships, judged, score: scoreShots(judged) };
 }
@@ -193,7 +194,10 @@ async function adminView(tx: DbExecutor, raceId: string): Promise<BingoAdminView
   const rows = await tx.select().from(schema.bingoRunners).where(eq(schema.bingoRunners.raceId, raceId)).orderBy(asc(schema.bingoRunners.createdAt));
   return bingoAdminViewSchema.parse({ formatVersion: 1, enabled: race.enabled, mode: race.mode, published: race.published, shortCode: race.shortCode,
     raceDate: race.raceDate,
-    mapScale: setup.mapScale, image: setup.image, groups: setup.groups,
+    mapScale: setup.mapScale, image: setup.image,
+    // Bara ledaren: gruppens gemensamma skepp, redan innan någon har startat.
+    groups: setup.groups.map(group => ({ ...group, sharedCells: placeShips(group.cells.map(cell => cell.name), group.sharedShips, group.sharedSeed)
+      .map(ship => [...ship.cells]) })),
     runners: rows.map(row => ({ id: row.id, name: row.name, course: row.groupCourse, groupName: row.groupName, status: row.status,
       startedAt: row.startedAt.getTime(), finishedAt: row.finishedAt?.getTime() ?? null, updatedAt: row.updatedAt.getTime(), distanceM: row.distanceM,
       seconds: bingoSeconds(toProgress(row)), taken: row.taken, track: row.track, gaps: row.gaps,

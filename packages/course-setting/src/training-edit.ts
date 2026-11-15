@@ -128,6 +128,7 @@ function cleanBingo(value: unknown): BingoTraining {
       .map(length => Math.round(number(length, "Skeppets längd", 1, BINGO_LIMITS.maxShipLength)));
     out = { ...out, sharedShips };
   }
+  if (b.sharedSeed !== undefined) out = { ...out, sharedSeed: Math.round(number(b.sharedSeed, "Gruppens frö", 0, 4_294_967_295)) };
   return out;
 }
 

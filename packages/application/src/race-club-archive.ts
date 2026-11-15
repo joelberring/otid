@@ -4,7 +4,7 @@ import {
   CLUB_ARCHIVE_COURSE_FILE_MAX_BYTES, raceClubArchiveAutoRequestSchema, raceClubArchiveLiftRequestSchema, raceOrganiserRequestSchema,
   type RaceClubArchiveView
 } from "@o-tid/contracts";
-import { writeIofCourseData, writePpen, type CourseSettingDocument } from "@o-tid/course-setting";
+import { hasIofCourses, writeIofCourseData, writePpen, type CourseSettingDocument } from "@o-tid/course-setting";
 import { schema, type Database } from "@o-tid/database";
 import { localRaceDate, raceFinishedForArchive, raceTitle } from "@o-tid/domain";
 import { clubJournal, clubMembership, clubRoleAtLeast } from "./club-access";
@@ -245,7 +245,8 @@ export async function liftInTransaction(tx: DbExecutor, input: { raceId: string;
   if (courseSetting) {
     const document = courseSetting.document as unknown as CourseSettingDocument;
     files.push({ kind: "PPEN", fileName: `${safeName(title)}.ppen`, bytes: Buffer.from(writePpen(document), "utf8") });
-    files.push({ kind: "COURSE_DATA", fileName: `${safeName(title)} IOF.xml`, bytes: Buffer.from(writeIofCourseData(document,
+    // Banor utan start och mål (t.ex. bingons grupper) ger ingen giltig IOF XML; då arkiveras bara .ppen (ägaren 2026-11-15).
+    if (hasIofCourses(document)) files.push({ kind: "COURSE_DATA", fileName: `${safeName(title)} IOF.xml`, bytes: Buffer.from(writeIofCourseData(document,
       { mapBounds: source?.bounds, createTime: now }), "utf8") });
   } else {
     const imported = await latestCourseFile(tx, raceId);

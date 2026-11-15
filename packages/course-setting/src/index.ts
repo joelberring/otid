@@ -84,7 +84,7 @@ export * from "./press-order";
 export * from "./number-obstacles";
 export * from "./sheet-layout";
 // ADR-0190: banorna som IOF XML 3.0 CourseData (som Purple Pens export).
-export { classNamesOfCourse, writeIofCourseData, type IofCourseDataOptions } from "./iof-export";
+export { classNamesOfCourse, hasIofCourses, writeIofCourseData, type IofCourseDataOptions } from "./iof-export";
 // Papperet per bana (ägaren 2026-11-03): kontrollbeskrivningen på kartan; senare fler element på arket.
 export * from "./paper-layout";
 export * from "./paper-items";

@@ -42,7 +42,7 @@ export function BingoRunner({ raceId, mode, title, groups, georeference, mapScal
   const run = bingo.run;
   const now = useNow(run?.status === "RUNNING");
   const group = bingo.group ?? groups[0];
-  const ships = useShips(raceId, group ?? { course: "", name: "", cellMeters: 0, ships: [], sharedShips: [], cells: [] }, run?.seed, run?.shots ?? [], bingo.metersPerMm);
+  const ships = useShips(group ?? { course: "", name: "", cellMeters: 0, ships: [], sharedShips: [], sharedSeed: 0, cells: [] }, run?.seed, run?.shots ?? [], bingo.metersPerMm);
   // Pling och vibration vid träff (inte för skott som fanns när sidan laddades).
   const judgedCount = ships.judged.length, lastResult = ships.judged[judgedCount - 1]?.result;
   const pinged = useRef<number | undefined>(undefined);
@@ -131,7 +131,8 @@ export function BingoRunner({ raceId, mode, title, groups, georeference, mapScal
     </div>}
     <p className={styles.muted} role="status">{unsent ? text.unsent : text.saved}</p>
     <h2>{shipsMode ? shipText.mapTitle : text.mapTitle}</h2>
-    {shipsMode ? <BingoMap group={group} taken={sunkCells} image={mapImage} label={shipText.mapTitle} ships={ships.ships.map(ship => ship.cells)}
+    {shipsMode ? <BingoMap group={group} taken={sunkCells} image={mapImage} label={shipText.mapTitle} ships={ships.ships.filter(ship => !ship.shared).map(ship => ship.cells)}
+      sharedShips={ships.ships.filter(ship => ship.shared).map(ship => ship.cells)}
       shots={ships.judged} tracks={[]} />
       : <BingoMap group={group} taken={taken} tracks={[{ id: run.runnerId, points: run.run.track, color: "#d0021b" }]} label={text.mapTitle} image={mapImage} />}
     {shipsMode ? <ShipBoard group={group} judged={ships.judged} sunkCells={sunkCells} selected={undefined} label={shipText.legend} />

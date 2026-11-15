@@ -115,6 +115,12 @@ export const bingoEn: Texts<typeof bingoSv> = {
     sharedColumn: "Shared",
     others: (count: number) => count === 1 ? "1 other has stood here and fired" : `${count} others have stood here and fired`,
     heat: (group: string) => `${group}: where the group has been (dots = how many stood in the square and fired)`,
+    sharedList: (ships: string) => `Shared ships (blue, dashed on the map): ${ships}`,
+    ownList: (ships: string) => `Own: ${ships}`,
+    showShips: "Show the ships (only for you)",
+    hideShips: "Hide the ships",
+    reroll: "Shuffle the shared ships",
+    rerollStarted: "Someone in the group has already started.",
     hitsColumn: "Hits", waterColumn: "Water", wrongColumn: "Wrong", lastColumn: "Last shot",
     mapTitle: "Your shots and the ships"
   },

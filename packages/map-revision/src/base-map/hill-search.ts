@@ -4,6 +4,7 @@ import { isRing } from "./depressions";
 import type { PixelAffine } from "./flat-contours";
 import { blend } from "./knoll-choice";
 import { elongateKnolls } from "./elongated-knolls";
+import { linesOf, nearLines, shareNear } from "./line-near";
 import { maskOutlines, simplifyRing } from "./photo-interpret";
 import { chaikin, smoothedHeights } from "./pit-search";
 import { ISOM_RINGS, ringArea } from "./small-rings";
@@ -206,6 +207,15 @@ export const CONTOUR_INTERVAL = 5, CONTOUR_SHIFT = 0.25;
 export const HILL_CONTOUR_LAYER = "contour_hojd", HILL_FORMLINE_LAYER = "formline_hojd";
 /** Höjdsökningens egna lager i grundkartan (reglagen byter bara dem). */
 export const HILL_LAYERS = /^(contour_hojd|formline_hojd)$/;
+/** Kurvor och hjälpkurvor (också höjdernas egna ringar) som en ring eller punkthöjd inte ska ligga på. */
+const LINE_LAYER = /^(contour|depression|formline)(_index|_hojd)?$/i;
+/** Hur nära (mm på kartan) en linje får ligga en annan, och andelen av en ring som får ligga så nära. */
+export const LINE_TOUCH_MM = 0.25, RING_ON_LINE_SHARE = 0.3;
+/**
+ * En punkthöjd (109, 0,75 mm) rör en kurva när kurvan går närmare mitten än så (mm). Kartritarna (Högdalen, Djurgården,
+ * Gömmaren, 223 punkthöjder) har 0–7 % av dem inom 4,2 m från en kurva, O-Tid 10–19 %; inom 6,3 m har de 12–40 %.
+ */
+export const KNOLL_TOUCH_MM = 0.28;
 const SHOWN_RING = /^(contour|depression)(_index)?$|^formline$/i, KNOLL_POINT = /^dotknoll(_laser|_avlang)?$/i;
 
 function inside(ring: readonly Position[], x: number, y: number): boolean {
@@ -233,6 +243,9 @@ export function chooseHills(candidates: readonly HillCandidate[], limits: HillLi
     for (const [x, y] of points) { if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; }
     return { points, area: ringArea(points), minX, minY, maxX, maxY };
   });
+  // Ägaren 2026-11-15 (Ornö: «stödkurvan och vanliga kurvan rakt på varandra … i princip samma ring»): en ring som till minst
+  // `RING_ON_LINE_SHARE` ligger inom `LINE_TOUCH_MM` från en kurva eller hjälpkurva som redan finns ritas inte.
+  const reach = LINE_TOUCH_MM * scale / 1000, near = nearLines(linesOf(shown, LINE_LAYER), reach);
   const rings: HillChoice["rings"][number][] = [];
   for (const hill of [...candidates].sort((p, q) => q.rise - p.rise)) {
     if (!hill.ring || hill.rise < limits.ringRise) continue;
@@ -243,6 +256,7 @@ export function chooseHills(candidates: readonly HillCandidate[], limits: HillLi
       && ((x >= ring.minX && x <= ring.maxX && y >= ring.minY && y <= ring.maxY && inside(ring.points, x, y)) || inside(hill.ring!, ring.points[0]![0], ring.points[0]![1])))) continue;
     // En höjd på en annan vald höjd (toppen inne i dess ring) eller som omsluter en redan vald ring ritas inte en gång till.
     if (rings.some(ring => inside(ring.points, x, y) || inside(hill.ring!, ring.points[0]![0], ring.points[0]![1]))) continue;
+    if (shareNear(hill.ring, near, reach / 2) >= RING_ON_LINE_SHARE) continue;
     const level = Math.ceil((hill.top - hill.rise) / interval + 1e-9) * interval;
     rings.push({ points: hill.ring, contour: level - hill.top <= CONTOUR_SHIFT * interval });
   }
@@ -267,10 +281,13 @@ export interface HillSettled {
  */
 export function settleHills(features: readonly SourceFeature[], candidates: readonly HillCandidate[], limits: HillLimits, scale: number): HillSettled {
   const choice = chooseHills(candidates, limits, scale, features), hidden: SourceFeature[] = [];
-  const kept = choice.rings.length === 0 ? [...features] : features.filter(feature => {
+  // Ägaren 2026-11-15 (Ornö: «punkthöjder som ligger på kurvor på konstigt sätt»): en punkthöjd som rör en kurva eller
+  // hjälpkurva (också höjdernas nya ringar) tas bort; kurvan visar redan formen.
+  const touching = nearLines([...linesOf(features, LINE_LAYER), ...choice.rings.map(ring => ring.points)], KNOLL_TOUCH_MM * scale / 1000);
+  const kept = features.filter(feature => {
     if (feature.geometry.kind !== "point" || !KNOLL_POINT.test(feature.layer)) return true;
     const [x, y] = feature.geometry.at;
-    if (!choice.rings.some(ring => inside(ring.points, x, y))) return true;
+    if (!choice.rings.some(ring => inside(ring.points, x, y)) && !touching(x, y)) return true;
     hidden.push(feature);
     return false;
   });

@@ -13,6 +13,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-15 – Inga ringar eller punkthöjder på kurvorna
+
+- Ägaren (Ornö, bilder): «stödkurvan och vanliga kurvan rakt på varandra … i princip samma ring» och «punkthöjder som ligger på kurvor på konstigt sätt». `chooseHills` ritar inte en höjds ring när minst 30 % av den ligger inom 0,25 mm från en kurva eller hjälpkurva som redan finns (`line-near.ts`), och `settleHills` tar bort punkthöjder vars mitt ligger inom 0,28 mm från en kurva, hjälpkurva eller ny ring (de kommer tillbaka med `unsettleHills`).
+- Avståndet är mätt: kartritarna (sex block, 223 punkthöjder) har 0–7 % av sina punkthöjder inom 4,2 m från en kurva, O-Tid 10–19 %. Ringregeln är inte mätt.
+- Kontrollerat: nya enhetstester, map-revision och webbens tester, typecheck, knip.
+
 ### 2026-11-15 – Fukten kalibrerad mot tre kartritare
 
 - Ägaren: «kalibrera fukten mellan kartorna så att grundvärdena stämmer bättre». Fuktrastren för Högdalen (2 block), Djurgården (2) och Gömmaren (2) mot kartritarnas 308/310, med klippningen mot kärrets botten: blött 0,25 m och fuktigt 0,4 m (förut 0,3 och 0,6) ger F1 0,56 → 0,61 och 6,6 ha blött mot kartritarnas 6,6 ha. Gäller fukt-panelen, laserpanelens och AI:ns körningar och geo-arbetaren (`DEFAULT_DEPTH`, `GEO_JOB_DEFAULTS`, `DEFAULT_MOISTURE`).

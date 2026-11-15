@@ -15,6 +15,7 @@ export * from "./hill-search";
 export * from "./elongated-knolls";
 export * from "./marsh-pits";
 export * from "./marsh-floor";
+export * from "./line-near";
 export * from "./marking";
 export * from "./terrain-fit";
 export * from "./ticks";

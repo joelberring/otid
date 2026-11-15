@@ -86,11 +86,16 @@ export function MapProjectGreenPanel(props: Props) {
   const forest = useTexts(mapForestSv, mapForestEn);
   // Ägaren 2026-11-14: förenklingen står direkt under mängden (inte under Finjustera) och räknar om ytorna när den ändras.
   const [simplify, setSimplify] = useState(0);
-  return <MapProjectRasterPanel {...props} refreshKey={simplify}
+  // Ägaren 2026-11-15: gläntorna (401) har ett eget reglage, också direkt under mängden.
+  const [clearings, setClearings] = useState(5);
+  return <MapProjectRasterPanel {...props} refreshKey={simplify * 100 + clearings}
     extras={<>
       <label>{text.simplify(simplify)}<input type="range" min={0} max={10} step={1} value={simplify} data-testid="map-project-green-simplify"
         onChange={event => setSimplify(Number(event.target.value))} /></label>
       <p className={styles.muted}>{text.simplifyHelp}</p>
+      <label>{text.clearings(clearings)}<input type="range" min={1} max={10} step={1} value={clearings} data-testid="map-project-green-clearings"
+        onChange={event => setClearings(Number(event.target.value))} /></label>
+      <p className={styles.muted}>{text.clearingsHelp}</p>
     </>}
     match={/vegetationsklasser$/} own={/^(oppen_mark|oppen_mark_laser|gron_|undervegetation_|bestandsgrans_laser$)/} text={text} testId="map-project-green" initial={DEFAULT_GREEN} atLevel={greenAt}
     controls={(settings, change) => <>
@@ -114,7 +119,7 @@ export function MapProjectGreenPanel(props: Props) {
       <label><input type="checkbox" checked={settings.undergrowth} onChange={() => change({ undergrowth: !settings.undergrowth })} /> {text.undergrowth}</label>
     </>}
     compute={(pixels, settings, toSource, crs, cell) => {
-      const result = greenCandidates(pixels, { ...settings, simplify }, toSource, crs, cell);
+      const result = greenCandidates(pixels, { ...settings, simplify, clearings }, toSource, crs, cell);
       return { data: result.data, message: text.done(decimal(result.hectares.gron_lattlopt ?? 0), decimal(result.hectares.gron_svarlopt ?? 0),
         decimal(result.hectares.gron_mycket_svarlopt ?? 0)) };
     }} />;

@@ -13,6 +13,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-15 – Reglage för gläntor
+
+- Ägaren: «finns inget reglage för gläntor, de borde både kunna hittas mer och göras större, mer mjuka». Grönt-panelen har reglaget «Gläntor» 1–10 direkt under förenklingen (`clearingShape`): 5 som körningen, högre tar med mindre öppna ytor (401, ner till 50 m²) och växer dem upp till 3 m in i vanlig skog (inte i grönt), lägre kräver större. Kanten rundas (Chaikin).
+- Mätt i Högdalen A (39 gläntor under 5 000 m² hos kartritaren): klassbildens öppna mark träffar 11 oavsett minsta yta; laserns kronandel (< 15–25 % över 3 m) hittar upp till 27 men med mycket öppet där kartritaren har skog (träff 5–15 %). Ingen ny regel i geo-arbetaren; reglaget är ett redskap för smak.
+- Kontrollerat: enhetstester, webbens tester, typecheck, knip.
+
 ### 2026-11-15 – Kärren följer kurvbilden
 
 - Ägaren: «kärrmarkeringar går upp över höjdkurvor och ibland över höjder». `marsh-floor.ts`: laserns kärr (`blott`, `fuktigt`) klipps där marken ligger mer än 0,6 m över det lägsta kärret inom 20 m, med mjuk ny kant; rester under 200 m² tas bort. Lantmäteriets sankmark rörs inte. Körs i grundkartan på servern (`assemble.ts`) och i webbens arbetare.

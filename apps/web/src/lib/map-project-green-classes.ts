@@ -1,7 +1,7 @@
 import type { SourceData, SourceFeature } from "@o-tid/map-revision";
 import { fillHoles, simplification, smoothMask, smoothMaskWide, SMOOTH_RADIUS_CELLS } from "./map-project-mask-smooth";
 import { scatteredTrees } from "./map-project-scattered-trees";
-import { compactMask, maskOutlines, simplifyRing, type PhotoPixels } from "@o-tid/map-revision/base-map";
+import { chaikin, compactMask, maskOutlines, simplifyRing, type PhotoPixels } from "@o-tid/map-revision/base-map";
 
 /**
  * Ägaren 2026-11-11 («göra itereringar av olika lager, t.ex. grönt, efter första körning»): geo-arbetarens bild
@@ -24,7 +24,40 @@ export interface GreenSettings { readonly slow: number; readonly difficult: numb
    * sluter smala vikar, tar bort tunna armar och små fläckar, fyller små hål och rätar kanten (`simplification`). Gäller 406,
    * 408 och 410; stegen ligger kvar inuti varandra, eftersom alla tre förenklas lika.
    */
-  readonly simplify?: number | undefined }
+  readonly simplify?: number | undefined;
+  /** Gläntor (401), 1–10 (`clearingShape`). Utelämnat = 5. */
+  readonly clearings?: number | undefined }
+
+/**
+ * Gläntorna (ägaren 2026-11-15: «finns inget reglage för gläntor, de borde både kunna hittas mer och göras större, mer mjuka»):
+ * öppen mark (401) med ett reglage 1–10. 5 är som förut (minsta yta ur `minAreaM2`). Högre tar med mindre gläntor (minsta ytan
+ * 0,7 gånger per steg, ner till 50 m²) och gör dem större (0,6 m utåt per steg, in i vanlig skog men inte i grönt); lägre kräver
+ * större ytor (1,5 gånger per steg). Kanten rundas alltid (Chaikin två varv) i stället för rasterns trappsteg.
+ *
+ * Mätt i Högdalen (kartritaren som facit, 39 gläntor under 5 000 m²): Karttapullautins öppna klass hittar 11 av dem, och
+ * minsta ytan ändrar det knappt; laserns gläntor är få och små där kartritaren ritar halvöppen skog. Reglaget är därför ett
+ * redskap för smak, inte en mätt förbättring.
+ */
+export function clearingShape(level: number, minAreaM2: number, cellMeters: number): { minCells: number; growCells: number } {
+  const step = Math.round(Math.min(10, Math.max(1, level))) - 5;
+  const area = step > 0 ? Math.max(50, minAreaM2 * 0.7 ** step) : minAreaM2 * 1.5 ** -step;
+  return { minCells: Math.max(2, Math.round(area / (cellMeters * cellMeters))), growCells: step > 0 ? Math.round(step * 0.6 / cellMeters) : 0 };
+}
+
+/** Öppen mark utvidgad `cells` steg (fyrgrannar) in i celler där `room` är 1. */
+function grow(mask: Uint8Array, room: Uint8Array, columns: number, rows: number, cells: number): Uint8Array {
+  let a = mask;
+  for (let k = 0; k < cells; k += 1) {
+    const b = Uint8Array.from(a);
+    for (let c = 0; c < columns; c += 1) for (let r = 0; r < rows; r += 1) {
+      const i = c * rows + r;
+      if (a[i] || !room[i]) continue;
+      if ((r > 0 && a[i - 1]) || (r + 1 < rows && a[i + 1]) || (c > 0 && a[i - rows]) || (c + 1 < columns && a[i + rows])) b[i] = 1;
+    }
+    a = b;
+  }
+  return a;
+}
 /** Minsta bestånd (m²) och förenkling (celler) per nivå: färre gränser = större bestånd och rakare kanter. */
 const BORDER_LEVELS: Readonly<Record<Exclude<BorderLevel, "none">, { minAreaM2: number; simplify: number }>> = {
   few: { minAreaM2: 5000, simplify: 2 }, some: { minAreaM2: 2000, simplify: 1.25 }, many: { minAreaM2: 600, simplify: 0.75 } };
@@ -71,10 +104,12 @@ export function greenCandidates(pixels: PhotoPixels, settings: GreenSettings, to
     const green = simpler && layer.name.startsWith("gron_") ? simpler : undefined;
     const smooth = green ? fillHoles(smoothMaskWide(raw, columns, rows, green.close, green.open), columns, rows, green.holeCells)
       : smoothMask(raw, columns, rows, SMOOTH_RADIUS_CELLS, layer.name.startsWith("oppen_mark") ? 1 : SMOOTH_RADIUS_CELLS);
-    const mask = compactMask(smooth, columns, rows, Math.round(minCells * (green?.areaFactor ?? 1)));
+    const clearing = layer.name === "oppen_mark" ? clearingShape(settings.clearings ?? 5, settings.minAreaM2, cellMeters) : undefined;
+    const compact = compactMask(smooth, columns, rows, clearing ? clearing.minCells : Math.round(minCells * (green?.areaFactor ?? 1)));
+    const mask = clearing?.growCells ? grow(compact, values.map((value, i) => known[i] && shade(value) < settings.slow ? 1 : 0), columns, rows, clearing.growCells) : compact;
     hectares[layer.name] = Math.round(mask.reduce((sum, cell) => sum + cell, 0) * cellMeters * cellMeters / 100) / 100;
     for (const ring of maskOutlines(mask, columns, rows)) {
-      const simple = simplifyRing(ring, green?.tolerance ?? 0.75);
+      const simple = clearing ? simplifyRing(chaikin(ring, 2), 0.4) : simplifyRing(ring, green?.tolerance ?? 0.75);
       if (simple.length >= 4) features.push({ layer: layer.name, geometry: { kind: "line", closed: true, points: simple.map(([column, row]) => toSource(column, row)) } });
     }
   }

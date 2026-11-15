@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { greenCandidates, DEFAULT_GREEN } from "./map-project-green-classes";
+import { clearingShape, greenCandidates, DEFAULT_GREEN } from "./map-project-green-classes";
+import type { PhotoPixels } from "@o-tid/map-revision/base-map";
 
 /** 30 × 30 celler: västra tredjedelen öppen (1), mitten steg 3 (klass 5), östra steg 5 (klass 7) med svår undervegetation. */
 function image() {
@@ -95,5 +96,31 @@ describe("förenkla de gröna ytorna", () => {
     for (const ring of after.rings("gron_svarlopt")) expect(ring.every(within)).toBe(true);
     expect(after.hectares.gron_mycket_svarlopt!).toBeLessThanOrEqual(after.hectares.gron_lattlopt!);
     expect(at(8).hectares.oppen_mark).toBe(at(0).hectares.oppen_mark);
+  });
+});
+
+describe("gläntor (ägaren 2026-11-15)", () => {
+  /** 40 × 40 celler skog (klass 2) med en glänta på 6 × 6 celler (144 m² med 2 m-celler) och en på 12 × 12. */
+  const forest = (): PhotoPixels => {
+    const width = 40, height = 40, data = new Uint8ClampedArray(width * height * 4);
+    for (let row = 0; row < height; row += 1) for (let column = 0; column < width; column += 1) {
+      const i = (row * width + column) * 4, small = column >= 5 && column < 11 && row >= 5 && row < 11, big = column >= 22 && column < 34 && row >= 22 && row < 34;
+      data[i] = small || big ? 1 : 2; data[i + 1] = 160; data[i + 2] = data[i]!; data[i + 3] = 255;
+    }
+    return { width, height, data };
+  };
+  const open = (clearings: number) => greenCandidates(forest(), { ...DEFAULT_GREEN, undergrowth: false, clearings }, (c, r) => [c * 2, -r * 2], 3006).hectares.oppen_mark ?? 0;
+  it("5 är som förut, högre tar med den lilla gläntan och gör dem större, lägre tar bort den", () => {
+    expect(open(5)).toBeGreaterThan(0.04); expect(open(5)).toBeLessThan(0.07);
+    expect(open(8)).toBeGreaterThan(open(5) + 0.01);
+    expect(open(1)).toBeLessThanOrEqual(open(5));
+    expect(clearingShape(5, 300, 2)).toEqual({ minCells: 75, growCells: 0 });
+    expect(clearingShape(10, 300, 2).minCells).toBeLessThan(20); expect(clearingShape(10, 300, 2).growCells).toBe(2);
+    expect(clearingShape(1, 300, 2).minCells).toBeGreaterThan(350);
+  });
+  it("gläntans kant rundas (fler hörn än rasterns fyra)", () => {
+    const result = greenCandidates(forest(), { ...DEFAULT_GREEN, undergrowth: false }, (c, r) => [c * 2, -r * 2], 3006);
+    const ring = result.data.features.find(feature => feature.layer === "oppen_mark")!.geometry as { readonly points: readonly unknown[] };
+    expect(ring.points.length).toBeGreaterThan(6);
   });
 });

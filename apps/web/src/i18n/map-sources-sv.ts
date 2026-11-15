@@ -93,6 +93,8 @@ export const mapSourcesSv = {
     minArea: (square: number) => `Minsta yta: ${square} m²`,
     undergrowth: "Undervegetation (407, 409)",
     simplify: (level: number) => `Förenkla formerna: ${level === 0 ? "av" : level}`,
+    clearings: (level: number) => `Gläntor: ${level}`,
+    clearingsHelp: "Öppen mark (401) i skogen. Högre tar med mindre gläntor och gör dem större; lägre tar bara de stora. 5 är som laserkörningen. Kanten rundas.",
     simplifyHelp: "Högre sluter smala vikar, tar bort tunna armar och små fläckar, fyller små hål och rätar kanterna. 0 lämnar ytorna som lasern ger dem.",
     run: "Visa som kandidater",
     name: (layer: string) => `${layer} – grönt`.slice(0, 120),

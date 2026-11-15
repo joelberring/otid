@@ -225,6 +225,8 @@ export const mapSourcesEn: Texts<Sources> = {
     minArea: (square: number) => `Smallest area: ${square} m²`,
     undergrowth: "Undergrowth (407, 409)",
     simplify: (level: number) => `Simplify the shapes: ${level === 0 ? "off" : level}`,
+    clearings: (level: number) => `Clearings: ${level}`,
+    clearingsHelp: "Open land (401) in the forest. Higher includes smaller clearings and makes them larger; lower keeps only the large ones. 5 matches the laser run. The edge is rounded.",
     simplifyHelp: "Higher closes narrow bays, removes thin arms and small patches, fills small holes and straightens the edges. 0 leaves the areas as the laser data gives them.",
     run: "Show as candidates",
     name: (layer: string) => `${layer} – green`.slice(0, 120),

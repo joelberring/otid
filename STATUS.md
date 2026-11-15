@@ -13,6 +13,11 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-15 – Raster och punktmönster förankras i kartan
+
+- Ägaren: «kärren ligger dubbelt i raster». `drawHatch` och punktmönstren i `map-file/src/render/draw-map.ts` lade nätet mitt i varje yta, så två kärrbitar bredvid varandra fick förskjutna ränder. Nätet förankras nu i kartans origo, som i OCAD och Mapper; gäller alla raster och punktmönster (kärr, stenig mark, odlad mark …) i webben och utskrifterna.
+- Kontrollerat: map-file-testerna med ett nytt test för ränder i två ytor; typecheck.
+
 ### 2026-11-15 – «Kunde inte spara (500)»: stora objekt i kartprojekt (migration 0124)
 
 - Ägaren fick «Kunde inte spara (500). Försöker igen.» i ett kartprojekt. Serverloggen: `map_project_object_state_check` (23514), 97 gånger. En stor yta ur grundkartan var över 1 MB som jsonb. Normens gräns per objekt (20 000 kommandon) ryms inte i 1 MB när ytan har kurvor, så de två gränserna sade emot varandra.

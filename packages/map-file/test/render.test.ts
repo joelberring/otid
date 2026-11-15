@@ -132,6 +132,23 @@ describe("drawMap", () => {
     expect(report.simplifications).toContain("Text ritas med standardtypsnitt och vänsterställd");
   });
 
+  it("rastret förankras i kartan: två ytor bredvid varandra får samma ränder (ägaren 2026-11-15: «kärren ligger dubbelt i raster»)", () => {
+    const symbols: MapSymbol[] = [
+      { id: "marsh", kind: "AREA", code: code("308"), name: "Sank mark", hidden: false, hatches: [{ color: 2, width: 0.1, spacing: 0.4, angle: 0 }] }];
+    const rows = (rings: MapObject[]) => {
+      const { ctx, calls } = fakeContext();
+      drawMap(ctx, map(symbols, rings), { pxPerMm: 8, origin: { x: 0, y: 30 } });
+      // Ränderna är linjerna efter klippningen (ytans egen kant ritas före).
+      const clip = calls.findIndex(call => call.op === "clip");
+      return calls.slice(clip).filter(call => call.op === "moveTo").map(call => call.args[1] as number);
+    };
+    // Ytor med olika höjd (mitten på olika ställen): ränderna ligger ändå på samma y, som multiplar av avståndet.
+    const low = rows([{ kind: "area", symbol: "marsh", rings: [square(0, 0.13, 3)], angle: 0 }]);
+    const high = rows([{ kind: "area", symbol: "marsh", rings: [square(3, 1.07, 5)], angle: 0 }]);
+    for (const y of [...low, ...high]) expect(Math.abs(y / 0.4 - Math.round(y / 0.4))).toBeLessThan(1e-6);
+    expect(low.length).toBeGreaterThan(5); expect(high.length).toBeGreaterThan(10);
+  });
+
   it("vrider punktmönstret med mönstrets vinkel plus objektets", () => {
     const symbols: MapSymbol[] = [{ id: "rocky", kind: "AREA", code: code("209"), name: "Stenig mark", hidden: false, hatches: [],
       pattern: { dx: 2, dy: 2, angle: 45, elements: [{ kind: "dot", color: 1, center: { x: 0, y: 0 }, diameter: 0.2 }] } }];

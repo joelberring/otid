@@ -290,22 +290,35 @@ function fillRings(ctx: MapCanvasContext, rings: readonly Path[], style: string)
   ctx.fill("evenodd");
 }
 
-/** Linjer med jämnt avstånd över ytans ruta i hatch-vinkeln (plus objektets vinkel), klippta till ytan. */
+/**
+ * Rutans hörn i ett nät som är vridet `angle` radianer runt kartans origo: minsta och största läge längs nätets två axlar.
+ * Mönster och raster förankras i kartans origo (som OCAD och Mapper), inte i varje ytas mitt: två ytor bredvid varandra får
+ * då samma ränder och samma prickar över gränsen (ägaren 2026-11-15: «kärren ligger dubbelt i raster»).
+ */
+function rotatedBox(box: { minX: number; minY: number; maxX: number; maxY: number }, angle: number) {
+  const cos = Math.cos(angle), sin = Math.sin(angle);
+  let minU = Infinity, maxU = -Infinity, minV = Infinity, maxV = -Infinity;
+  for (const [x, y] of [[box.minX, box.minY], [box.maxX, box.minY], [box.minX, box.maxY], [box.maxX, box.maxY]] as const) {
+    const u = x * cos + y * sin, v = -x * sin + y * cos;
+    minU = Math.min(minU, u); maxU = Math.max(maxU, u); minV = Math.min(minV, v); maxV = Math.max(maxV, v);
+  }
+  return { minU, maxU, minV, maxV };
+}
+
+/** Linjer med jämnt avstånd i hatch-vinkeln (plus objektets vinkel), förankrade i kartans origo och klippta till ytan. */
 function drawHatch(ctx: MapCanvasContext, rings: readonly Path[], hatch: HatchStyle, angleDegrees: number, color: MapColor) {
   const box = pathsBox(rings);
   if (!box) return;
   const angle = (hatch.angle + angleDegrees) * DEGREES;
-  const cx = (box.minX + box.maxX) / 2, cy = (box.minY + box.maxY) / 2;
-  const radius = Math.hypot(box.maxX - box.minX, box.maxY - box.minY) / 2 + hatch.width;
-  const count = Math.ceil(radius / hatch.spacing);
+  const { minU, maxU, minV, maxV } = rotatedBox(box, angle);
+  const first = Math.floor((minV - hatch.width) / hatch.spacing), last = Math.ceil((maxV + hatch.width) / hatch.spacing);
   ctx.save();
   clipTo(ctx, rings);
-  ctx.translate(cx, cy);
   ctx.rotate(angle);
   ctx.beginPath();
-  for (let index = -count; index <= count; index += 1) {
-    ctx.moveTo(-radius, index * hatch.spacing);
-    ctx.lineTo(radius, index * hatch.spacing);
+  for (let index = first; index <= last; index += 1) {
+    ctx.moveTo(minU - hatch.width, index * hatch.spacing);
+    ctx.lineTo(maxU + hatch.width, index * hatch.spacing);
   }
   ctx.strokeStyle = css(color); ctx.lineWidth = hatch.width; ctx.lineCap = "butt"; ctx.setLineDash([]);
   ctx.stroke();
@@ -336,9 +349,12 @@ function planArea(plan: Plan, symbol: AreaSymbol, rings: readonly Path[], angleD
   if (pattern && pattern.elements.length > 0 && pattern.dx > 0 && pattern.dy > 0) {
     const box = pathsBox(rings);
     if (box) {
-      const radius = Math.hypot(box.maxX - box.minX, box.maxY - box.minY) / 2;
-      const nx = Math.ceil(radius / pattern.dx), ny = Math.ceil(radius / pattern.dy);
-      const instances = (2 * nx + 1) * (2 * ny + 1);
+      // Rutnätets egen vinkel (symbolen) plus objektets vinkel; nätet förankras i kartans origo (`rotatedBox`).
+      const rotation = ((pattern.angle ?? 0) + angleDegrees) * DEGREES;
+      const { minU, maxU, minV, maxV } = rotatedBox(box, rotation);
+      const i0 = Math.floor(minU / pattern.dx) - 1, i1 = Math.ceil(maxU / pattern.dx) + 1;
+      const j0 = Math.floor(minV / pattern.dy) - 1, j1 = Math.ceil(maxV / pattern.dy) + 1;
+      const instances = (i1 - i0 + 1) * (j1 - j0 + 1);
       const groups = elementsByColor(pattern.elements);
       if (instances > maxInstances) {
         plan.simplifications.pattern(symbol.code.text);
@@ -347,16 +363,12 @@ function planArea(plan: Plan, symbol: AreaSymbol, rings: readonly Path[], angleD
           plan.add(colorId, (ctx, color) => fillRings(ctx, rings, css(color, alpha)));
         }
       } else {
-        const cx = (box.minX + box.maxX) / 2, cy = (box.minY + box.maxY) / 2;
         for (const [colorId, parts] of groups) {
           plan.add(colorId, (ctx, color) => {
             ctx.save();
             clipTo(ctx, rings);
-            ctx.translate(cx, cy);
-            // Rutnätets egen vinkel (symbolen) plus objektets vinkel.
-            const rotation = (pattern.angle ?? 0) + angleDegrees;
-            if (rotation !== 0) ctx.rotate(rotation * DEGREES);
-            for (let i = -nx; i <= nx; i += 1) for (let j = -ny; j <= ny; j += 1) {
+            if (rotation !== 0) ctx.rotate(rotation);
+            for (let i = i0; i <= i1; i += 1) for (let j = j0; j <= j1; j += 1) {
               placed(ctx, { x: i * pattern.dx, y: j * pattern.dy }, 0, () => { for (const part of parts) drawElement(ctx, part, color); });
             }
             ctx.restore();

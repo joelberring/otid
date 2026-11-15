@@ -185,7 +185,8 @@ export const mapProjectNotesEn: Texts<typeof mapProjectNotesSv> = {
 export const mapProjectQuickEn: Texts<typeof mapProjectQuickSv> = {
   wheel: "Tool wheel",
   sidebarWidth: "Column width: drag or use the arrow keys, double-click for the default",
-  tools: { select: "Edit", draw: "Draw", circle: "Circle", note: "Note" },
+  tools: { select: "Edit", draw: "Draw", circle: "Circle", cut: "Scissors", note: "Note" },
+  wheelHover: (label: string, key: string | undefined, help: string | undefined) => `Wheel: ${label}${key ? ` (${key})` : ""}${help ? ` – ${help}` : ""}`,
   recent: "Latest symbols",
   actions: "The object",
   simplify: "Simplify",

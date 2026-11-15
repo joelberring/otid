@@ -55,7 +55,8 @@ export const mapProjectHelpArticles: readonly HelpArticle[] = [
         "Ny punkt: välj ”Lägg till punkt” och klicka på sträckan. Ta bort: välj ”Ta bort punkt” och klicka på punkten.",
         "I ”Redigera” gör Cmd- eller Ctrl-klick samma sak: på en punkt tas den bort, på en sträcka blir det en ny.",
         "Rita: klicka för hörn, tryck och dra för kurva. Backsteg tar bort sista punkten, Enter avslutar och Esc avbryter.",
-        "Hjulet: högerklicka på kartan, håll fingret på den eller tryck mellanslag. Där finns verktygen och de senaste symbolerna.",
+        "Hjulet: högerklicka på kartan, håll fingret på den eller tryck mellanslag. Där finns verktygen, saxen och de senaste symbolerna.",
+        "Raden under kartan säger vad pekaren står på i hjulet, och annars vilket verktyg som är valt.",
         "Byt tangenter med ”Tangenter” längst ned i verktygsspalten. Valet sparas i webbläsaren.",
         "Z ångrar och Skift+Z gör om. Cmd eller Ctrl + Z fungerar också."
       ],

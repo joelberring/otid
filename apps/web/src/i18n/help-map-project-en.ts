@@ -55,7 +55,8 @@ export const mapProjectHelpArticlesEn: readonly HelpArticle[] = [
         "New point: choose ”Add point” and click the segment. Remove: choose ”Remove point” and click the point.",
         "In ”Edit”, Cmd-click or Ctrl-click does the same: on a point it is removed, on a segment there is a new one.",
         "Draw: click for corners, press and drag for a curve. Backspace removes the last point, Enter finishes and Esc cancels.",
-        "The wheel: right-click the map, hold a finger on it or press space. It has the tools and the latest symbols.",
+        "The wheel: right-click the map, hold a finger on it or press space. It has the tools, the scissors and the latest symbols.",
+        "The line below the map says what the pointer is on in the wheel, and otherwise which tool is chosen.",
         "Change keys with ”Keys” at the bottom of the tool column. The choice is saved in the browser.",
         "Z undoes and Shift+Z redoes. Cmd or Ctrl + Z also works."
       ],

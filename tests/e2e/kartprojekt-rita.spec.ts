@@ -260,7 +260,8 @@ test("kartprojekt: tangenter under vänster hand, lägg till och ta bort punkter
   // A: ett klick på sträckan ger en ny punkt. S: ett klick på en punkt tar bort den, och ett klick bredvid säger att inget fanns.
   await owner.keyboard.press("a");
   await expect(owner.getByTestId("map-project-add-point")).toHaveAttribute("aria-pressed", "true");
-  await expect(owner.getByTestId("map-project-hint")).toHaveText("Klicka på en linje eller en ytas kant för en ny punkt där.");
+  // Verktygets namn står först på raden (ägaren 2026-11-15).
+  await expect(owner.getByTestId("map-project-hint")).toHaveText("Lägg till punkt · Klicka på en linje eller en ytas kant för en ny punkt där.");
   await click({ x: 35, y: 85 });
   await settled(owner);
   expect((await pathOf()).map(command => Math.round(command.x))).toEqual([20, 35, 50, 80]);
@@ -357,8 +358,8 @@ test("kartprojekt: markera flera objekt med en ruta, flytta, vrid och ta bort de
   await owner.keyboard.press("Escape");
   await drag({ x: 12, y: 82 }, { x: 88, y: 93 });
   // Rutan tar också det i kartfilen som går genom den, så antalet läses ur tipset.
-  await expect(owner.getByTestId("map-project-hint")).toContainText(/^[2-9] objekt markerade/);
-  const count = Number((await owner.getByTestId("map-project-hint").textContent())!.split(" ")[0]);
+  await expect(owner.getByTestId("map-project-hint")).toContainText(/^Redigera · [2-9] objekt markerade/);
+  const count = Number((await owner.getByTestId("map-project-hint").textContent())!.split(" · ")[1]!.split(" ")[0]);
   if (process.env.E2E_SCREENSHOT_DIR) await owner.screenshot({ path: `${process.env.E2E_SCREENSHOT_DIR}/kartprojekt-markera-flera.png` });
   await expect(owner.getByTestId("map-project-multi-remove")).toHaveText(`Ta bort ${count} objekt`);
 
@@ -829,6 +830,9 @@ test("kartprojekt: verktygshjul, symbolrutor, förenkla, mjuk och cirkel", async
   const center = await screenOf(owner, { x: 60, y: 60 });
   await owner.mouse.move(center.x, center.y);
   await owner.keyboard.press(" ");
+  // Saxen finns i hjulet, och raden under kartan säger vad pekaren står på (ägaren 2026-11-15).
+  await owner.getByTestId("map-project-wheel-cut").hover();
+  await expect(owner.getByTestId("map-project-hint")).toContainText("Hjulet: Sax");
   await owner.getByTestId("map-project-wheel-circle").click();
   await expect(owner.getByTestId("map-project-hint")).toContainText("Cirkel med 505");
   const px = Number(await map.getAttribute("data-px-per-mm"));

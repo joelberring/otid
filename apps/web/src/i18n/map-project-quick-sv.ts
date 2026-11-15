@@ -2,7 +2,9 @@
 export const mapProjectQuickSv = {
   wheel: "Verktygshjul",
   sidebarWidth: "Spaltens bredd: dra eller använd piltangenterna, dubbelklicka för förvalet",
-  tools: { select: "Redigera", draw: "Rita", circle: "Cirkel", note: "Notis" },
+  tools: { select: "Redigera", draw: "Rita", circle: "Cirkel", cut: "Sax", note: "Notis" },
+  /** Raden under kartan när pekaren står på något i hjulet (ägaren 2026-11-15). */
+  wheelHover: (label: string, key: string | undefined, help: string | undefined) => `Hjulet: ${label}${key ? ` (${key})` : ""}${help ? ` – ${help}` : ""}`,
   recent: "Senaste symbolerna",
   actions: "Objektet",
   simplify: "Förenkla",

@@ -9,7 +9,9 @@ import { SymbolIcon } from "./map-project-symbol-icon";
 import { RailIconImage, type RailIcon } from "./map-project-tool-rail";
 import styles from "./map-project-tool-wheel.module.css";
 
-export interface WheelTool { readonly id: string; readonly label: string; readonly icon: RailIcon; readonly key: string; readonly active: boolean; readonly onPick: () => void }
+export interface WheelTool { readonly id: string; readonly label: string; readonly icon: RailIcon; readonly key: string; readonly active: boolean; readonly onPick: () => void;
+  /** Förklaringen på raden under kartan när pekaren står på verktyget. */
+  readonly help?: string | undefined }
 export interface WheelAction { readonly id: string; readonly label: string; readonly disabled?: boolean | undefined; readonly onPick: () => void }
 
 /** Ringens mittlinje, hjulets hela storlek och fältens storlek. Hålet i mitten är 2 × (RADIUS_PX − BAND_PX / 2) = 72 px. */
@@ -24,11 +26,13 @@ const SLOT_PX = 32;
  * Verktygen som ikoner och de senaste symbolerna ligger i ringen (ett klick väljer och stänger), mitten är ett hål där kartan
  * syns, och objektets åtgärder (förenkla, mjuk, byt symbol …) står i en lista bredvid. Escape eller ett klick utanför stänger.
  */
-export function MapProjectToolWheel({ at, bounds, tools, symbols, symbolId, onSymbol, actions, onClose }: {
+export function MapProjectToolWheel({ at, bounds, tools, symbols, symbolId, onSymbol, actions, onClose, onHover }: {
   /** Punkten i kartrutans pixlar och rutans storlek (hjulet hålls inne i rutan). */
   at: { readonly x: number; readonly y: number }; bounds: { readonly width: number; readonly height: number };
   tools: readonly WheelTool[]; symbols: readonly CatalogSymbol[]; symbolId: string | undefined; onSymbol: (id: string) => void;
   actions: readonly WheelAction[]; onClose: () => void;
+  /** Ägaren 2026-11-15: vad pekaren (eller tangentbordet) står på i hjulet, för raden under kartan; inget när den lämnar. */
+  onHover?: ((text: string | undefined) => void) | undefined;
 }) {
   const text = useTexts(mapProjectQuickSv, mapProjectQuickEn);
   const box = useRef<HTMLDivElement>(null);
@@ -45,6 +49,9 @@ export function MapProjectToolWheel({ at, bounds, tools, symbols, symbolId, onSy
   const top = Math.max(0, Math.min(bounds.height - SIZE_PX, at.y - half));
   const ring = [...tools.map(tool => ({ kind: "tool" as const, tool })), ...symbols.map((symbol, index) => ({ kind: "symbol" as const, symbol, index }))];
   const pick = (run: () => void) => () => { run(); onClose(); };
+  const hover = (label: string) => ({ onPointerEnter: () => onHover?.(label), onFocus: () => onHover?.(label),
+    onPointerLeave: () => onHover?.(undefined), onBlur: () => onHover?.(undefined) });
+  useEffect(() => () => onHover?.(undefined), [onHover]);
   // Listan hamnar på den sida där det finns plats.
   const listLeft = left + SIZE_PX + 220 <= bounds.width;
   return <div ref={box} className={styles.wheel} style={{ left, top, width: SIZE_PX, height: SIZE_PX }} role="menu" aria-label={text.wheel}
@@ -56,20 +63,20 @@ export function MapProjectToolWheel({ at, bounds, tools, symbols, symbolId, onSy
       if (entry.kind === "tool") {
         return <button key={entry.tool.id} type="button" role="menuitemradio" aria-checked={entry.tool.active} className={styles.slot} style={style}
           title={entry.tool.key ? `${entry.tool.label} (${entry.tool.key})` : entry.tool.label} data-testid={`map-project-wheel-${entry.tool.id}`}
-          aria-label={entry.tool.label} onClick={pick(entry.tool.onPick)}>
+          aria-label={entry.tool.label} onClick={pick(entry.tool.onPick)} {...hover(text.wheelHover(entry.tool.label, entry.tool.key || undefined, entry.tool.help))}>
           <RailIconImage icon={entry.tool.icon} size={18} />
         </button>;
       }
       const symbol = entry.symbol;
       return <button key={symbol.id} type="button" role="menuitemradio" aria-checked={symbol.id === symbolId} className={`${styles.slot} ${styles.symbol}`} style={style}
         title={`${entry.index + 1}: ${symbol.code} ${symbol.name}`} aria-label={`${symbol.code} ${symbol.name}`} data-testid="map-project-wheel-symbol" data-code={symbol.code}
-        onClick={pick(() => onSymbol(symbol.id))}>
+        onClick={pick(() => onSymbol(symbol.id))} {...hover(text.wheelHover(`${symbol.code} ${symbol.name}`, String(entry.index + 1), undefined))}>
         <SymbolIcon icon={symbol.icon} size={24} />
       </button>;
     })}
     {actions.length > 0 && <div className={styles.actions} style={listLeft ? { left: SIZE_PX + 8 } : { right: SIZE_PX + 8 }} role="group" aria-label={text.actions}>
       {actions.map(action => <button key={action.id} type="button" role="menuitem" disabled={action.disabled} data-testid={`map-project-wheel-action-${action.id}`}
-        onClick={pick(action.onPick)}>{action.label}</button>)}
+        onClick={pick(action.onPick)} {...hover(text.wheelHover(action.label, undefined, undefined))}>{action.label}</button>)}
     </div>}
   </div>;
 }

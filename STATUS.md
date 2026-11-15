@@ -13,6 +13,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-15 – Saxen i hjulet och verktyget på raden under kartan
+
+- Ägaren: «saxen i hjulet i kartritningsläget och att det står längst ner vilken funktion i hjulet man använder». Hjulet har saxen (Klipp isär) bredvid Redigera, Rita och Cirkel; den väljs som i spalten (det markerade släpps inte).
+- Raden under kartan visar «Hjulet: …» med namn, tangent och förklaring för det pekaren eller tangentbordet står på i hjulet, och annars det valda verktygets namn först («Sax · …», «Redigera · …»).
+- Kontrollerat: typecheck (web, e2e), eslint, knip, enhetstester i i18n och map-project. Playwright inte kört (rita-testet uppdaterat för raden och saxen).
+
 ### 2026-11-15 – Skisslager ur kartfilen, föra över underlag och generaliseringen i delar
 
 - Generaliseringen «Räknar …» för alltid (Alvsjo-Solberga-AI-15): en 501.5-yta med 86 646 punkter gav RangeError i `Math.min(...lista)` i Workern (gränsen är ~80 000 där, provat i webbläsaren), och felet gav inget svar. Nya `minOf`/`maxOf` i map-file ersätter spridningen på punktlistor (generalisering, normkontroll, grundkartan, OCAD-skrivning). Workern svarar nu med ett fel i stället för tystnad.

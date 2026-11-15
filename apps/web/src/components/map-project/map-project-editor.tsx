@@ -210,6 +210,8 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const lastTap = useRef<{ at: number; point: Point } | undefined>(undefined);
   // Ägaren 2026-11-09: verktygshjulet (högerklick, långt tryck, mellanslag), de senaste symbolerna och cirkelns mitt.
   const [wheel, setWheel] = useState<{ screen: { x: number; y: number }; bounds: { width: number; height: number } }>();
+  /** Det pekaren står på i hjulet (raden under kartan). */
+  const [wheelHover, setWheelHover] = useState<string>();
   const [recent, setRecent] = useState<readonly string[]>([]);
   // Ägaren 2026-11-10: panelens flik, och bara kartan (verktygsspalten och panelen gömda) med knappen överst eller §.
   const [tab, setTab] = useState<SidebarTab>("symbols");
@@ -611,14 +613,23 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const hint = tool === "split" ? split.hint : tool === "bucket" && canEdit ? fill.hint : toolHint({ canEdit, closed: view.status === "CLOSED", tool, multiCount: multi.items.length, rotating: multi.zone === "rotate", symbol,
     text, notes: notesText, keys: keysText, quick });
   const selectedSymbol = selected ? symbols.get(selected.object.symbol) : undefined;
+  const activeToolName: string | undefined = ({ select: quick.tools.select, draw: quick.tools.draw, circle: quick.tools.circle, cut: quick.tools.cut,
+    note: quick.tools.note, rectangle: keysText.commands.rectangle, bucket: keysText.commands.bucket, addPoint: keysText.commands.addPoint,
+    removePoint: keysText.commands.removePoint } as Partial<Record<Tool, string>>)[tool];
   const hintLine = control.active ? (control.pending ? layersText.control.hintMap : layersText.control.hintImage)
     : rectify.picking ? (rectify.pending ? rectifyText.hintTo : rectifyText.hintFrom)
-    : work.drawingLayer ? workText.hint(work.drawingLayer.name) : flash ?? `${selectedSymbol && tool === "select" ? selectionLabel(selectedSymbol, selected?.object, editor.scale ?? georeference?.scale, keysText) : ""}${hint}`;
+    : work.drawingLayer ? workText.hint(work.drawingLayer.name)
+    // Ägaren 2026-11-15 («att det står längst ner vilken funktion i hjulet man använder»): det pekaren står på i hjulet, annars
+    // det valda verktygets namn först på raden.
+    : wheel && wheelHover ? wheelHover
+    : flash ?? `${canEdit && activeToolName ? `${activeToolName} · ` : ""}${selectedSymbol && tool === "select" ? selectionLabel(selectedSymbol, selected?.object, editor.scale ?? georeference?.scale, keysText) : ""}${hint}`;
   const canSwitch = !!selected && !!symbol && symbol.id !== selected.object.symbol && symbol.kind === selected.object.kind && canEdit;
   // Ägaren 2026-11-09: formens åtgärder för det markerade objektet (i hjulet och i verktygsraden).
   const shapes = selected && tool === "select" && canEdit ? shapeActions(selected.object, quick) : [];
   const pickTool = (next: Tool) => () => { if (next !== "select") deselect(); cancelDraft(); rectCorners.current.length = 0; setTool(next); };
-  const wheelTools = wheelToolsOf(keys, keysText.space, quick.tools, tool, notes.canWrite, next => pickTool(next)());
+  // Saxen som i spalten: det markerade släpps inte (man klipper ofta linjen man just markerat).
+  const wheelTools = wheelToolsOf(keys, keysText.space, quick.tools, tool, notes.canWrite, next => { if (next === "cut") { cancelDraft(); setTool("cut"); } else pickTool(next)(); },
+    { select: text.hints.select, circle: keysText.tips.circle, cut: keysText.tips.cut, note: keysText.tips.note });
   const wheelActions = wheelActionsOf({ multi: multi.items.length && canEdit ? { count: multi.items.length, switchable: symbol ? multi.switchable(symbol) : 0,
     joinable: multi.joinable(JOIN_MM), smooth: multi.shapeable("smooth"), simplify: multi.shapeable("simplify"), remove: multi.remove } : undefined, single: selected && tool === "select" && canEdit ? { shapes, line: selected.object.kind === "line",
     switchTo: canSwitch ? symbol.code : undefined, remove: removeSelected, reshape } : undefined, symbolCode: symbol?.code, text: keysText, quick, act: keyAction.current });
@@ -685,7 +696,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         const rect = event.currentTarget.getBoundingClientRect();
         pointerAt.current = { x: event.clientX - rect.left, y: event.clientY - rect.top };
       }}>
-        {wheel && <MapProjectToolWheel at={wheel.screen} bounds={wheel.bounds} tools={wheelTools}
+        {wheel && <MapProjectToolWheel at={wheel.screen} bounds={wheel.bounds} tools={wheelTools} onHover={setWheelHover}
           symbols={recent.map(id => symbols.get(id)).filter((entry): entry is CatalogSymbol => entry !== undefined).slice(0, 6)}
           symbolId={symbolId} onSymbol={chooseSymbol} actions={wheelActions} onClose={() => setWheel(undefined)} />}
         {editor.mapStatus === "loading" && <p className={styles.loading}>{text.loading}</p>}

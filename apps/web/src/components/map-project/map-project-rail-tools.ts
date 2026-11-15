@@ -82,11 +82,12 @@ export function railTools(state: RailState): RailTool[] {
   ];
 }
 
-/** Hjulets verktyg: samma som spaltens första grupp. */
-export function wheelToolsOf(keys: KeyMap, space: string, labels: { readonly select: string; readonly draw: string; readonly circle: string; readonly note: string },
-  tool: string, canNote: boolean, pick: (tool: "select" | "draw" | "circle" | "note") => void): WheelTool[] {
-  return (["select", "draw", "circle", ...(canNote ? ["note" as const] : [])] as const).map(id =>
-    ({ id, label: labels[id], icon: id, key: keyLabel(keys[id], space), active: tool === id, onPick: () => pick(id) }));
+/** Hjulets verktyg: spaltens viktigaste (redigera, rita, cirkel, saxen och notisen), med förklaringen för raden under kartan. */
+export function wheelToolsOf(keys: KeyMap, space: string, labels: { readonly select: string; readonly draw: string; readonly circle: string; readonly cut: string; readonly note: string },
+  tool: string, canNote: boolean, pick: (tool: "select" | "draw" | "circle" | "cut" | "note") => void,
+  help: Partial<Record<"select" | "draw" | "circle" | "cut" | "note", string>> = {}): WheelTool[] {
+  return (["select", "draw", "circle", "cut", ...(canNote ? ["note" as const] : [])] as const).map(id =>
+    ({ id, label: labels[id], icon: id, key: keyLabel(keys[id], space), help: help[id], active: tool === id, onPick: () => pick(id) }));
 }
 
 /** Hjulets åtgärder för det markerade: flera objekt (byt symbol, slå ihop, ta bort) eller ett (formen, byt symbol, vänd, ta bort). */

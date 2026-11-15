@@ -297,7 +297,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     if (!file || !result || result.objects.length === 0 || !commitMany || computing) return;
     setProblem(undefined); setSent(undefined);
     // En karta gjord ny i O-Tid (den har märkningens symboler) får ramen, loggan och rutan med grundkartan, en gång.
-    const marking = origin && georeference ? baseMapMarking({ symbols, objects: result.objects, bounds, scale: georeference.scale, text: markingText,
+    const marking = origin && georeference ? baseMapMarking({ symbols, objects: result.objects, bounds, scale: georeference.scale, text: markingText, title: view.name,
       facts: { host: window.location.host, date: swedishToday(new Date()), worker: GEO_WORKER_VERSION, scale: georeference.scale, scannedAt: origin.scannedAt ?? undefined,
         settings: Object.entries(origin.settings), calm: calm?.level, clear: clear && [clear.settings.smooth, clear.settings.formlines, clear.settings.rings] } }) : undefined;
     const adds = [...result.objects, ...(marking?.objects ?? [])].map((object: MapObject): ObjectChange => ({ key: newKey(crypto.randomUUID()), ref: null, kind: "ADD",

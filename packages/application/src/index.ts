@@ -246,6 +246,8 @@ export {
 } from "./map-project-work-layers";
 export { createMapProjectProposal, decideAllMapProjectProposals, decideMapProjectProposal, listMapProjectProposals } from "./map-project-proposals";
 export { exportMapProjectChanges, readMapProjectOutput, writeMapProjectVersion, type MapProjectExportFormat } from "./map-project-output";
+export { readMapProjectPdf, startMapProjectPdf } from "./map-project-pdf";
+export { mapPdfPaper } from "./map-project-job-pdf";
 export { readMapProjectCurrentFile, readRaceMapProjectLink, saveMapProjectSnapshotToRace } from "./race-map-project";
 export type { MapProjectUploadFailure } from "./map-projects";
 export { createMapProjectNew } from "./map-project-new";

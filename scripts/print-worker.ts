@@ -85,7 +85,7 @@ async function runMapChild(url: string): Promise<void> {
   try {
     const job = await loadClaimedMapJob(db, id, worker);
     if (!job) { process.send?.({ outcome: "GONE" }); return; }
-    const outcome = await runMapJob(db, job, { worker, createCanvas: createMapJobCanvas });
+    const outcome = await runMapJob(db, job, { worker, createCanvas: createMapJobCanvas, fonts: loadFonts });
     process.send?.({ outcome });
   } finally { await pool.end(); }
 }

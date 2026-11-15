@@ -2,6 +2,8 @@ import { runGeneralizeJob, runNormCheck, type GeneralizeJobRequest } from "./map
 import { decodeRgbaPng, runLabels, type LabelsRequest } from "./map-project-job-labels";
 import { runBaseMap, type BaseMapJobRequest } from "./map-project-job-base-map";
 import { runLaserArea, runLaserOutput, type LaserOutputRequest } from "./map-project-job-laser";
+import { runMapPdf, type MapPdfRequest } from "./map-project-job-pdf";
+import type { FontFiles } from "@o-tid/print-pdf";
 import type { Box } from "./map-project-job-run";
 import { randomUUID } from "node:crypto";
 import { and, eq, gt, inArray, lt, or, sql } from "drizzle-orm";
@@ -22,7 +24,7 @@ import {
  * utskriftsarbetaren (låg prioritet, barnprocess per jobb) tar jobben ett i taget och skriver resultatet. Resultaten är
  * tillfälliga (rensas efter en timme). `pg_notify('otid_map_job')` väcker arbetaren direkt.
  */
-export const MAP_JOB_KINDS = ["OVERVIEW", "RENDER", "COMPARE", "OBJECTS", "CHECK", "PROPOSE", "COURSE_RENDER", "COURSE_LEVEL", "GENERALIZE", "LASER_AREA", "LASER_OUTPUT", "BASE_MAP"] as const;
+export const MAP_JOB_KINDS = ["OVERVIEW", "RENDER", "COMPARE", "OBJECTS", "CHECK", "PROPOSE", "COURSE_RENDER", "COURSE_LEVEL", "GENERALIZE", "LASER_AREA", "LASER_OUTPUT", "BASE_MAP", "MAP_PDF"] as const;
 export type MapJobKind = typeof MAP_JOB_KINDS[number];
 export const MAP_JOB_CHANNEL = "otid_map_job";
 /** Högst så många jobb per konto och minut, och samtidigt. */
@@ -184,7 +186,7 @@ export async function cleanupMapJobs(db: Database, now = new Date()): Promise<nu
 }
 
 /** Barnprocessen: läser grundfilen och projektets objekt, gör jobbet och skriver resultatet. */
-export async function runMapJob(db: Database, job: ClaimedMapJob, deps: { worker: string; createCanvas: CreateMapJobCanvas }, now = new Date())
+export async function runMapJob(db: Database, job: ClaimedMapJob, deps: { worker: string; createCanvas: CreateMapJobCanvas; fonts?: () => FontFiles }, now = new Date())
   : Promise<"DONE" | "FAILED"> {
   if (job.kind === "COURSE_RENDER" || job.kind === "COURSE_LEVEL") return runCourseRenderJob(db, job, deps, now);
   if (!job.projectId) { await failMapJob(db, job.id, deps.worker, "Jobbet saknar kartprojekt"); return "FAILED"; }
@@ -244,6 +246,13 @@ export async function runMapJob(db: Database, job: ClaimedMapJob, deps: { worker
       const heightBytes = base.height ? await readMapContent(db, base.height.image) : undefined;
       output = { result: runBaseMap(loaded, area, base, texts, now, depthBytes ? decodeRgbaPng(depthBytes) : undefined, rockBytes ? decodeRgbaPng(rockBytes) : undefined,
         heightBytes ? decodeRgbaPng(heightBytes) : undefined) };
+      break;
+    }
+    // Ägaren 2026-11-15: hela kartan som PDF (knappen i kartläget); PDF:en ligger i jobbets bild-kolumn.
+    case "MAP_PDF": {
+      if (!deps.fonts) { output = { error: "Arbetaren saknar typsnitt" }; break; }
+      const pdf = await runMapPdf(loaded, request as MapPdfRequest, deps.fonts(), now);
+      output = "error" in pdf ? pdf : { result: pdf.result, image: pdf.pdf };
       break;
     }
     default: output = { error: `Okänt jobb ${job.kind}` };

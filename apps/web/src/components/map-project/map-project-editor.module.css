@@ -196,3 +196,6 @@
 .layerKey { display: inline-block; min-width: 1.4em; margin-right: 0.35em; padding: 0 0.3em; border: 1px solid var(--border, #ccc); border-radius: 4px;
   font: inherit; font-size: 0.8em; text-align: center; color: var(--muted, #666); }
 .layerToggles button svg { display: block; }
+
+/* Ägaren 2026-11-15: «Skriv ut PDF» i kartlägets rubrikrad. */
+.printPdf { display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; }

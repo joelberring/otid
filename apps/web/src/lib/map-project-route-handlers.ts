@@ -1,6 +1,6 @@
 import {
   createMapProject, createMapProjectFromUpload, createMapProjectNew, deleteMapProject, discardStagedMapContent, exportMapProjectChanges, inviteMapProjectMember, listMapProjects,
-  readMapProject, readMapProjectOutput, readMapProjectSource, removeMapProjectMember, setMapProjectMemberRole, stageMapContent, streamMapContentParts,
+  readMapProject, readMapProjectOutput, readMapProjectPdf, readMapProjectSource, startMapProjectPdf, removeMapProjectMember, setMapProjectMemberRole, stageMapContent, streamMapContentParts,
   syncMapProject, updateMapProject, writeMapProjectVersion
 } from "@o-tid/application";
 import { CLUB_ARCHIVE_MAP_MAX_BYTES, MAP_PROJECT_SYNC_MAX_BYTES, UUID_PATTERN } from "@o-tid/contracts";
@@ -212,5 +212,35 @@ export async function mapProjectExportRoute(db: Database, request: Request, proj
     if (result.status !== "ok") return failure(result.status);
     return new Response(result.body, { headers: { ...privateHeaders, "content-type": `${result.contentType}; charset=utf-8`,
       "content-disposition": attachment(result.fileName, format === "omap" ? "andringar.xmap" : "andringar.geojson") } });
+  });
+}
+
+/**
+ * Ägaren 2026-11-15: hela kartan som PDF. POST lägger jobbet (202 med `jobId`, 429 när kontot har för många jobb);
+ * GET `?job=` svarar 202 medan det pågår, 422 när det misslyckats och PDF:en när den är klar.
+ */
+export async function mapProjectPdfRoute(db: Database, request: Request, projectId: string, environment: Environment = process.env): Promise<Response> {
+  if (!validId(projectId)) return failure("not-found");
+  if (request.method === "POST") {
+    const input = await mutation(request, environment, "none");
+    if ("response" in input) return input.response;
+    return guarded(async () => {
+      const result = await startMapProjectPdf(db, { ...input.proof, projectId });
+      if (result.status === "throttled") return privateJson({ formatVersion: 1, error: "throttled" }, 429);
+      return result.status === "ok" ? privateJson({ formatVersion: 1, jobId: result.jobId }, 202) : failure(result.status);
+    });
+  }
+  const jobId = new URL(request.url).searchParams.get("job") ?? "";
+  const input = await readProof(request, environment);
+  if ("response" in input) return input.response;
+  return guarded(async () => {
+    const result = await readMapProjectPdf(db, { ...input.proof, projectId, jobId });
+    if (result.status === "waiting") return privateJson({ formatVersion: 1, status: "waiting" }, 202);
+    if (result.status === "failed") return problem(result.error);
+    if (result.status !== "ok") return failure(result.status);
+    return new Response(Buffer.from(result.bytes), { headers: { ...privateHeaders, "content-type": "application/pdf",
+      "content-disposition": attachment(result.fileName, "karta.pdf").replace(/^attachment/, "inline"),
+      "x-otid-paper-size": result.result.size ?? "", "x-otid-paper-landscape": String(result.result.landscape),
+      "x-otid-paper-width": String(result.result.widthMm), "x-otid-paper-height": String(result.result.heightMm) } });
   });
 }

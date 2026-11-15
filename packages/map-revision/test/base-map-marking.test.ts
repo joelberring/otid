@@ -1,26 +1,34 @@
 import { describe, expect, it } from "vitest";
-import { mapMarking, markingFrame, wrapText } from "../src/base-map/marking";
+import { mapMarking, paperFor, wrapText } from "../src/base-map/marking";
 
 const symbols = { frame: "f", logo: "l", text: "t", heading: "h" };
 const input = (bounds: { minX: number; minY: number; maxX: number; maxY: number }) => ({ bounds, symbols, textSize: 1.2, logoSize: 8.8, heading: "Gjord med O-Tid",
   paragraphs: ["Kartan får användas fritt för eget bruk. ".repeat(6).trim(), "Inställningar: skala 1:15 000"] });
 
-describe("kartans märkning: ramen", () => {
-  it("väljer det minsta pappret som rymmer kartan, stående eller liggande, med ramen 10 mm från kanten", () => {
-    // 150 × 200 mm ryms på A4 stående (190 × 277 mm innanför marginalen).
-    const tall = markingFrame({ minX: 0, minY: 0, maxX: 150, maxY: 200 });
-    expect(tall.paper).toEqual({ size: "A4", landscape: false });
-    expect(tall.frame).toEqual({ minX: -20, minY: -38.5, maxX: 170, maxY: 238.5 });
-    expect(markingFrame({ minX: 0, minY: 0, maxX: 250, maxY: 150 }).paper).toEqual({ size: "A4", landscape: true });
-    // 200 mm brett går inte på A4 stående (190 − 6) men på A4 liggande; 280 mm kräver A3.
-    expect(markingFrame({ minX: 0, minY: 0, maxX: 200, maxY: 100 }).paper).toEqual({ size: "A4", landscape: true });
-    expect(markingFrame({ minX: 0, minY: 0, maxX: 280, maxY: 100 }).paper).toEqual({ size: "A3", landscape: true });
-    expect(markingFrame({ minX: 0, minY: 0, maxX: 366, maxY: 276 }).paper).toEqual({ size: "A2", landscape: true });
+describe("kartans märkning: ramen (ägaren 2026-11-15: närmare, alltid utanför kartan)", () => {
+  it("väljer det minsta pappret som rymmer ramen, stående eller liggande", () => {
+    expect(paperFor(150, 200)).toEqual({ size: "A4", landscape: false });
+    expect(paperFor(250, 150)).toEqual({ size: "A4", landscape: true });
+    expect(paperFor(280, 100)).toEqual({ size: "A3", landscape: true });
+    expect(paperFor(2000, 1500)).toBeUndefined();
   });
-  it("lägger ramen runt kartan med marginal när den är större än A0", () => {
-    const huge = markingFrame({ minX: 0, minY: 0, maxX: 2000, maxY: 1500 });
-    expect(huge.paper).toBeUndefined();
-    expect(huge.frame).toEqual({ minX: -13, minY: -13, maxX: 2013, maxY: 1513 });
+  it("lägger ramen 5 mm utanför kartan, namnet överst och rutan nederst, inget av det på kartan", () => {
+    const bounds = { minX: 0, minY: 0, maxX: 250, maxY: 150 };
+    const marking = mapMarking({ ...input(bounds), title: "Tyresta test", titleSize: 4 });
+    expect(marking.frame.minX).toBe(-5); expect(marking.frame.maxX).toBe(255);
+    expect(marking.frame.maxY).toBeCloseTo(150 + 5 + 6.4, 6);
+    expect(marking.box.maxY).toBeLessThan(bounds.minY - 4.9);
+    const title = marking.objects.find(object => object.kind === "text" && object.text === "Tyresta test") as { at: { x: number; y: number } } | undefined;
+    expect(title).toBeDefined();
+    expect(title!.at.y).toBeGreaterThan(bounds.maxY); expect(title!.at.y).toBeLessThan(marking.frame.maxY);
+    // Namnet står ungefär i mitten.
+    expect(Math.abs(title!.at.x + 12 * 4 * 0.52 * 1.1 / 2 - 125)).toBeLessThan(1);
+    expect(marking.paper).toEqual(paperFor(marking.frame.maxX - marking.frame.minX, marking.frame.maxY - marking.frame.minY));
+  });
+  it("utan namn ingen rad överst, och en smal karta får en ram som rymmer rutan", () => {
+    const narrow = mapMarking(input({ minX: 0, minY: 0, maxX: 20, maxY: 100 }));
+    expect(narrow.frame.maxY).toBe(105);
+    expect(narrow.frame.maxX - narrow.frame.minX).toBeGreaterThanOrEqual(narrow.box.maxX - narrow.box.minX + 6);
   });
 });
 
@@ -48,13 +56,5 @@ describe("kartans märkning: rutan", () => {
       expect(at.y).toBeGreaterThan(marking.box.minY); expect(at.y).toBeLessThan(marking.box.maxY);
     }
     expect(marking.box.minX).toBeGreaterThanOrEqual(marking.frame.minX); expect(marking.box.maxY).toBeLessThanOrEqual(marking.frame.maxY);
-  });
-  it("lägger rutan nere till höger när hörnen är lika tomma, annars i det tommaste", () => {
-    const bounds = { minX: 0, minY: 0, maxX: 250, maxY: 150 };
-    const free = mapMarking(input(bounds));
-    expect(free.box.maxX).toBeCloseTo(free.frame.maxX - 3, 6); expect(free.box.minY).toBeCloseTo(free.frame.minY + 3, 6);
-    // Allt utom övre vänstra hörnet är upptaget.
-    const crowded = mapMarking({ ...input(bounds), occupied: box => box.minX < 100 && box.maxY > 100 ? 0 : 5 });
-    expect(crowded.box.minX).toBeCloseTo(crowded.frame.minX + 3, 6); expect(crowded.box.maxY).toBeCloseTo(crowded.frame.maxY - 3, 6);
   });
 });

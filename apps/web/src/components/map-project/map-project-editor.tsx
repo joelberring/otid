@@ -78,6 +78,7 @@ import { useMapProjectEditor } from "./use-map-project-editor";
 import { MapProjectToolWheel } from "./map-project-tool-wheel";
 import { mapProjectQuickSv } from "../../i18n/map-project-quick-sv";
 import { circleFor, shapeActions, withRecent } from "../../lib/map-project-shape-actions";
+import { MapProjectPrintButton } from "./map-project-print-button";
 import styles from "./map-project-editor.module.css";
 
 /** `area` = rita ett delområde (bara ägarna); `split` = dela kartområdet eller en del med ett streck; `note` = tryck där en notis ska sitta (K3); `circle` = runda former (ägaren 2026-11-09); `bucket` = Fyll yta (rutan mellan linjerna, ägaren 2026-11-13). */
@@ -686,6 +687,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       <SyncBadge sync={editor.sync} pending={pending} />
       <button type="button" className={styles.bareToggle} aria-pressed={bare} title={keys.bare ? `${quick.bareHelp} (${keyLabel(keys.bare, keysText.space)})` : quick.bareHelp} data-testid="map-project-bare"
         onClick={() => setBare(value => !value)}>{bare ? quick.showPanels : quick.hidePanels}</button>
+      <MapProjectPrintButton projectId={view.projectId} pending={pending} />
       <HelpButton view="MAP_EDITOR" compact />
       <AccountMenu />
     </header>

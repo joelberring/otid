@@ -35,9 +35,11 @@ const tick = (color: string, width: number, length: number) => [stroke(color, wi
  * loggan (ringen med «tid» i raka streck) och rutans text. Loggans violett är samma färg som banpåtryckets. Egna nummer
  * (990–992) så att de ligger i ett eget lager som går att släcka.
  */
-export const MARKING_CODES = { frame: "990", logo: "991", text: "992", heading: "992.1" } as const;
+export const MARKING_CODES = { frame: "990", logo: "991", text: "992", heading: "992.1", title: "992.2" } as const;
 /** Måtten i mm vid symbolsetets grundskala: textens teckenhöjd och loggans diameter. */
 export const MARKING_TEXT_SIZE = 1.2, MARKING_LOGO_SIZE = 8.8;
+/** Kartans namn överst i ramen (ägaren 2026-11-15). */
+export const MARKING_TITLE_SIZE = 4;
 const MARKING_SYMBOLS: readonly SymbolDef[] = [
   { code: MARKING_CODES.frame, name: "O-Tid: ram", kind: "line", color: "purple", width: 0.6, join: "miter" },
   { code: MARKING_CODES.logo, name: "O-Tid: logga", kind: "point", elements: [
@@ -50,7 +52,8 @@ const MARKING_SYMBOLS: readonly SymbolDef[] = [
     ring("purple", 2.2, 0.5, [1.5, -0.4]), stroke("purple", 0.5, [2.35, 1.7], [2.35, -1.5])
   ] },
   { code: MARKING_CODES.text, name: "O-Tid: text", kind: "text", color: "black", size: MARKING_TEXT_SIZE },
-  { code: MARKING_CODES.heading, name: "O-Tid: rubrik", kind: "text", color: "black", size: MARKING_TEXT_SIZE, bold: true }
+  { code: MARKING_CODES.heading, name: "O-Tid: rubrik", kind: "text", color: "black", size: MARKING_TEXT_SIZE, bold: true },
+  { code: MARKING_CODES.title, name: "O-Tid: kartans namn", kind: "text", color: "purple", size: MARKING_TITLE_SIZE, bold: true }
 ];
 
 export const ISOM_SYMBOLS: readonly SymbolDef[] = [

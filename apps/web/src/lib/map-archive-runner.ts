@@ -1,4 +1,4 @@
-import { archiveMode, archiveNumberProblems, archiveSettings, archiveSettingsProblems, mapArchiveStore, runMapArchive } from "@o-tid/application";
+import { archiveMode, archiveNumberProblems, archiveSettings, archiveSettingsProblems, mapArchiveStore, probeArchiveStore, runMapArchive } from "@o-tid/application";
 import { db } from "./db";
 
 /**
@@ -45,6 +45,11 @@ export function startMapArchiveRunner(environment: Partial<Record<string, string
   const settings = archiveSettings(environment, mode);
   console.info(`Arkivet för kartinnehåll: ${mode === "log" ? "bara logg" : "på"}; ersatta körningar efter ${settings.supersededHours} h, vilande projekt efter ` +
     `${settings.idleDays} dygn, högst ${settings.accountHotBytes === null ? "obegränsat" : mb(settings.accountHotBytes)} laserfiler per konto på servern (ADR-0224)`);
+  // Anslutningen provas direkt, också i läget log, så att fel nycklar eller fel bucket syns innan något ska flyttas.
+  const store = mapArchiveStore(environment);
+  if (!store) console.warn("Arkivet: objektlagringens uppgifter (OTID_ARCHIVE_ENDPOINT, _BUCKET, _ACCESS_KEY, _SECRET_KEY) är inte fullständiga");
+  else void probeArchiveStore(store).then(() => console.info("Arkivet: anslutningen till objektlagringen fungerar (provobjekt uppladdat, hämtat och borttaget)"),
+    error => console.error(`Arkivet: anslutningen till objektlagringen fungerar INTE: ${error instanceof Error ? error.message : String(error)}`));
   setTimeout(() => {
     void tick(state, environment);
     setInterval(() => void tick(state, environment), HOUR).unref();

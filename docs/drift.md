@@ -813,7 +813,8 @@ OTID_ARCHIVE_SECRET_KEY=<secret key>
 OTID_ARCHIVE_MODE=log
 ```
 
-Med `log` skriver `logs web` en gång i timmen vad som skulle ha flyttats (`Arkivet (bara logg): …`) utan att röra något.
+Vid start provas anslutningen med ett litet provobjekt (`Arkivet: anslutningen till objektlagringen fungerar`, annars
+`fungerar INTE` med statuskoden: 403 = fel nycklar, 404 = fel bucket eller plats). Med `log` skriver `logs web` en gång i timmen vad som skulle ha flyttats (`Arkivet (bara logg): …`) utan att röra något.
 När siffrorna ser rimliga ut: `OTID_ARCHIVE_MODE=on` och `docker compose -f docker-compose.prod.yml up -d web`. `off` (eller
 tomt) stänger av flytten; det som redan ligger i arkivet hämtas ändå tillbaka vid läsning så länge uppgifterna står kvar.
 

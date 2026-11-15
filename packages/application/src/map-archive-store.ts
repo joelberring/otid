@@ -141,6 +141,19 @@ export function s3ArchiveStore(connection: ArchiveConnection, options: { fetch?:
   };
 }
 
+/**
+ * Provar anslutningen med ett litet provobjekt: ladda upp, hämta tillbaka, jämför och ta bort. Kastar med lagringens
+ * statuskod när något steg misslyckas (fel nycklar ger 403, fel bucket 404).
+ */
+export async function probeArchiveStore(store: ArchiveStore, now = new Date()): Promise<void> {
+  const bytes = Buffer.from(`O-Tid arkivprov ${now.toISOString()}`);
+  const sha256 = hex(bytes);
+  await store.put(sha256, bytes);
+  const back = await store.get(sha256);
+  await store.remove(sha256);
+  if (!back || !back.equals(bytes)) throw new Error("Arkivet: provobjektet kom inte tillbaka oförändrat");
+}
+
 /** Ett arkiv i minnet, för tester. */
 export function memoryArchiveStore(): ArchiveStore & { readonly objects: Map<string, Buffer> } {
   const objects = new Map<string, Buffer>();

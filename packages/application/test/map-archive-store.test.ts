@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { archiveConnection, archiveMode, archiveSettingsProblems, s3ArchiveStore, signS3 } from "../src/map-archive-store";
+import { archiveConnection, archiveMode, archiveSettingsProblems, memoryArchiveStore, probeArchiveStore, s3ArchiveStore, signS3 } from "../src/map-archive-store";
 import { archiveSettings } from "../src/map-archive";
 
 /** ADR-0224, PLAN.md steg L5: signeringen mot objektlagringen och inställningarna. */
@@ -38,5 +38,12 @@ describe("arkivets objektlagring", () => {
     expect(calls.map(call => call.method)).toEqual(["PUT", "GET", "HEAD", "DELETE"]);
     expect(calls[0]).toMatchObject({ url: `https://hel1.example.test/b/map-content/${sha}`, hash: sha });
     await expect(store.get("../x")).rejects.toThrow("Ogiltig");
+  });
+
+  it("provet av anslutningen lämnar inget kvar och säger ifrån när objektet inte kommer tillbaka", async () => {
+    const store = memoryArchiveStore();
+    await probeArchiveStore(store);
+    expect(store.objects.size).toBe(0);
+    await expect(probeArchiveStore({ ...store, get: async () => undefined })).rejects.toThrow("provobjektet");
   });
 });

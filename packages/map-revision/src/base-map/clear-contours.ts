@@ -19,6 +19,11 @@ import { ringArea } from "./small-rings";
  *   redan ligger tätt behålls få. Hjälpkurvan klipps där marken inte är en höjd (`minConvex`) eller en höjdkurva ligger
  *   närmare än `tight` m, minst `CLEAR_CUT_METERS` i sträck; rester under `CLEAR_KEEP_METERS` tas bort.
  *   En sluten hjälpkurva runt en sänka (`depressionRing`) klipps inte: den visar en form, inte en yta att fylla.
+ *   Över förvalet tas bitarna bort i ordning efter markens form mellan höjdkurvorna (`formBetweenContours`, ägaren
+ *   2026-11-15: hjälpkurvor ska visa «distinkta men inte så stora former», inte ligga i jämn lutning): först där marken är
+ *   flack nedtill och brant upptill, sedan i jämn lutning, och sist höjdformerna (avsatser och toppar). Tre kartritare
+ *   (Högdalen, Djurgården, Gömmaren) har ritat 32–39 % av kurvorna på 2,5 m-nivån där formen är under 0,2, 46 % mellan
+ *   0,2 och 0,5 och 57 % över 0,5. Förvalet ändras inte.
  * - **Små ringar av hjälpkurva** (`rings`): lasern ger 196–613 slutna hjälpkurvor där kartritarna har 49–453, och ingen form
  *   på marken skilde de behållna från de andra. De under `ringM2` tas bort.
  *
@@ -57,20 +62,33 @@ export function suggestedClear(features: readonly SourceFeature[], field: Height
 }
 
 export interface SmoothLimits { readonly sigma: number; readonly fullSlope: number; readonly noSlope: number }
-export interface FormlineLimits { readonly minConvex: number; readonly tight: number }
+export interface FormlineLimits {
+  readonly minConvex: number; readonly tight: number;
+  /** Minsta form mellan höjdkurvorna (`formBetweenContours`, −1 till 1) för att en bit ska stå kvar; −1 = formen prövas inte. */
+  readonly minForm: number;
+}
 const between = <L extends object>(level: number, low: L, mid: L, high: L): L | undefined =>
   !(level >= 1) ? undefined : level < 5 ? blend(low, mid, (level - 1) / 4) : blend(mid, high, (level - 5) / 5);
 /** Utjämningens längd (m) och lutningarna (andel, 0,04 = 4 %) där den är full och där den upphör. */
 export const smoothLimitsAt = (level: number): SmoothLimits | undefined =>
   between(level, { sigma: 6, fullSlope: 0.03, noSlope: 0.08 }, { sigma: 15, fullSlope: 0.04, noSlope: 0.12 }, { sigma: 25, fullSlope: 0.05, noSlope: 0.2 });
-/** Minsta höjd över omgivningen (m) för att en hjälpkurva ska stå kvar, och avståndet till en höjdkurva (m) där den tas bort. */
+/**
+ * Minsta höjd över omgivningen (m) för att en hjälpkurva ska stå kvar, avståndet till en höjdkurva (m) där den tas bort och,
+ * över förvalet, minsta form mellan höjdkurvorna: 6 tar bort den flackaste foten, 8 också svagt flack fot, 9 jämn lutning
+ * och 10 allt utom höjdformerna.
+ */
 export const formlineLimitsAt = (level: number): FormlineLimits | undefined =>
-  between(level, { minConvex: -1, tight: 0 }, { minConvex: 0, tight: 5 }, { minConvex: 1, tight: 7.5 });
+  between(level, { minConvex: -1, tight: 0, minForm: -1 }, { minConvex: 0, tight: 5, minForm: -1 }, { minConvex: 1, tight: 7.5, minForm: FORM_CLEAR });
 /** Ytan (m²) som en sluten hjälpkurva minst ska ha för att stå kvar. */
 export const ringLimitAt = (level: number): number | undefined =>
   between(level, { ringM2: 25 }, { ringM2: 150 }, { ringM2: 800 })?.ringM2;
 
 export const SMOOTH_MAX_RISE = 1.25, CLEAR_CUT_METERS = 20, CLEAR_KEEP_METERS = 30;
+/** Formen (se `formBetweenContours`) från vilken en bit är en höjdform: marken ligger en fjärdedel av ekvidistansen över jämn lutning. */
+export const FORM_CLEAR = 0.5;
+/** Så långt (m) söks höjdkurvan under och över, i steg om `FORM_STEP` m; lutningens riktning tas över `FORM_GRADIENT` m åt varje håll. */
+export const FORM_REACH = 60;
+const FORM_STEP = 1.5, FORM_GRADIENT = 4, FORM_INTERVAL = 5;
 /** Radien (m) på ringen som markens höjd jämförs med. */
 export const CONVEX_RADIUS = 60;
 const SMOOTH_STEP = 2.5, SAMPLE = 5, SLOPE_REACH = 3, TOLERANCE = 0.25;
@@ -123,6 +141,32 @@ export function heightFieldFrom(parts: readonly { readonly grid: HeightGrid; rea
       return count >= 12 ? z - sum / count : undefined;
     }
   };
+}
+
+/**
+ * Markens form mellan höjdkurvorna i en punkt, −1 till 1: avståndet uppför till nivån över (`up`) och nedför till nivån under
+ * (`down`), längs lutningens riktning, som (up − down) / (up + down). 0 är jämn lutning (punkten ligger mitt emellan), över 0
+ * en höjdform (brant nedtill och flackt upptill: en avsats, eller en topp där nivån över aldrig nås) och under 0 en flack fot.
+ * På en hjälpkurva mitt i ekvidistansen är 0,5 detsamma som att marken ligger en fjärdedel av ekvidistansen över vad
+ * höjdkurvorna säger. Mark utan data (vatten, hus, kant) avslutar sökningen där. Utan höjd i punkten: inget svar.
+ */
+export function formBetweenContours(field: HeightField, x: number, y: number): number | undefined {
+  const z = field.heightAt(x, y), east = field.heightAt(x + FORM_GRADIENT, y), west = field.heightAt(x - FORM_GRADIENT, y);
+  const north = field.heightAt(x, y + FORM_GRADIENT), south = field.heightAt(x, y - FORM_GRADIENT);
+  if (z === undefined || east === undefined || west === undefined || north === undefined || south === undefined) return undefined;
+  const dx = east - west, dy = north - south, steep = Math.hypot(dx, dy);
+  // Plan mark har ingen riktning: ingen form.
+  if (steep < 0.05) return 0;
+  const ux = dx / steep, uy = dy / steep, lower = Math.floor(z / FORM_INTERVAL) * FORM_INTERVAL, upper = lower + FORM_INTERVAL;
+  const reach = (sign: number, there: (height: number) => boolean) => {
+    for (let d = FORM_STEP; d < FORM_REACH; d += FORM_STEP) {
+      const height = field.heightAt(x + sign * ux * d, y + sign * uy * d);
+      if (height === undefined || there(height)) return d;
+    }
+    return FORM_REACH;
+  };
+  const up = reach(1, height => height >= upper), down = reach(-1, height => height <= lower);
+  return (up - down) / (up + down);
 }
 
 export interface ClearResult {
@@ -269,8 +313,11 @@ export function clearContours(features: readonly SourceFeature[], field: HeightF
   let smoothedMeters = 0, formlineMeters = 0, rings = 0;
   const near = formlines && formlines.tight > 0 ? contourDistance(features, Math.max(10, formlines.tight)) : undefined;
   const drop = formlines && ((x: number, y: number) => {
-    const convex = field.convexAt(x, y);
-    return (convex !== undefined && convex < formlines.minConvex) || (near !== undefined && near(x, y) < formlines.tight);
+    if (near !== undefined && near(x, y) < formlines.tight) return true;
+    const convex = field.convexAt(x, y), low = convex !== undefined && convex < formlines.minConvex;
+    // Över förvalet avgör formen mellan höjdkurvorna: en höjdform står kvar också i en svacka i stort.
+    const form = formlines.minForm > -1 ? formBetweenContours(field, x, y) : undefined;
+    return form === undefined ? low : form < formlines.minForm || (low && form < FORM_CLEAR);
   });
   const out = features.flatMap((feature): SourceFeature[] => {
     const geometry = feature.geometry;

@@ -117,7 +117,7 @@ export function MapProjectClearPanel({ view, importer }: { view: MapProjectView;
         {choices!.map(row => <option key={row.id} value={row.id}>{row.stages ? shared.allStages(row.stages.base, row.stages.total) : row.jobs[0]!.name}</option>)}
       </select></label>
       {slider("smooth", text.smooth(settings.smooth, settings.smooth === defaults.smooth, number(smooth?.sigma ?? 0), number(Math.round((smooth?.fullSlope ?? 0) * 100)), number(Math.round((smooth?.noSlope ?? 0) * 100))))}
-      {slider("formlines", text.formlines(settings.formlines, settings.formlines === defaults.formlines, number(formlines?.minConvex ?? 0), number(formlines?.tight ?? 0)))}
+      {slider("formlines", text.formlines(settings.formlines, settings.formlines === defaults.formlines, number(formlines?.minConvex ?? 0), number(formlines?.tight ?? 0), formlines?.minForm ?? -1))}
       {slider("rings", text.rings(settings.rings, settings.rings === defaults.rings, number(Math.round(ringM2 ?? 0))))}
       <p className={styles.muted}>{text.levelHelp}</p>
       <span className={styles.actions}>

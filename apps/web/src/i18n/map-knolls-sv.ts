@@ -83,11 +83,13 @@ export const mapClearContoursSv = {
   noContours: "Inga kurvor bland kandidaterna. Läs in grundkartan först (steg 2).",
   smooth: (level: number, isDefault: boolean, meters: string, full: string, none: string) => level === 0 ? "Mjukare kurvor på flack mark: av"
     : `Mjukare kurvor på flack mark: ${level} av 10${isDefault ? " (förval)" : ""} – jämnar ut över ${meters} m där marken lutar under ${full} %, inget över ${none} %`,
-  formlines: (level: number, isDefault: boolean, convex: string, tight: string) => level === 0 ? "Färre hjälpkurvor: av"
-    : `Färre hjälpkurvor: ${level} av 10${isDefault ? " (förval)" : ""} – bara där marken ligger minst ${convex} m över omgivningen${tight === "0" ? "" : ` och inte närmare en höjdkurva än ${tight} m`}`,
+  formlines: (level: number, isDefault: boolean, convex: string, tight: string, form: number) => level === 0 ? "Färre hjälpkurvor: av"
+    : `Färre hjälpkurvor: ${level} av 10${isDefault ? " (förval)" : ""} – bara där marken ligger minst ${convex} m över omgivningen${tight === "0" ? "" : ` och inte närmare en höjdkurva än ${tight} m`}${
+      form <= -1 ? "" : form >= 0.5 ? "; bara höjdformerna (avsatser och toppar mellan kurvorna) står kvar" : form > 0 ? "; bitar i jämn lutning tas bort, höjdformerna står kvar"
+        : "; bitar där marken är flack nedtill och brant upptill tas bort, höjdformerna står kvar"}`,
   rings: (level: number, isDefault: boolean, squareMeters: string) => level === 0 ? "Små ringar av hjälpkurva: av"
     : `Små ringar av hjälpkurva: ${level} av 10${isDefault ? " (förval)" : ""} – tas bort under ${squareMeters} m²`,
-  levelHelp: "0 är av och 10 är mest. Förvalen följer terrängen: i flack terräng med små former får fler hjälpkurvor och ringar stå kvar. En kurva flyttas aldrig till mark som ligger mer än 1,25 m högre eller lägre (en fjärdedel av ekvidistansen, som normen tillåter).",
+  levelHelp: "0 är av och 10 är mest. Förvalen följer terrängen: i flack terräng med små former får fler hjälpkurvor och ringar stå kvar. Över förvalet tas hjälpkurvorna bort i ordning efter markens form mellan höjdkurvorna: först där marken är flack nedtill, sedan i jämn lutning, och höjdformerna sist. En kurva flyttas aldrig till mark som ligger mer än 1,25 m högre eller lägre (en fjärdedel av ekvidistansen, som normen tillåter).",
   run: "Visa som kandidater",
   done: (smoothed: string, formlines: string, rings: number) => `${smoothed} m kurva jämnas ut, ${formlines} m hjälpkurva och ${rings === 1 ? "1 liten ring" : `${rings} små ringar`} tas bort.`,
   untouched: "Ingenting ändras.",

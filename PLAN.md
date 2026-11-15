@@ -1382,6 +1382,10 @@ och `claude/plan-ritlage-hjul-och-mobil.md`.
     ligger högst 1,25 m över toppen, annars hjälpkurva. Punkthöjder i ringen tas bort. Reglaget «Små höjder som ring».
     Högdalen: ringarnas F1 mot kartritaren 0,30 → 0,37 och 0,29 → 0,34. Hjälpkurvornas läge prövat med 0,5 m- och
     1 m-kurvor utan vinst (`claude/hjalpkurvor-och-sma-hojder-2026-11-15.md` i projektet): inget byggt där.
+  - [x] Hjälpkurvor i ordning efter formen (ägaren 2026-11-15: «gör så»): reglaget «Färre hjälpkurvor» tar över förvalet bort
+    bitarna efter markens form mellan höjdkurvorna (`formBetweenContours`): flack fot först, sedan jämn lutning, och
+    höjdformerna (avsatser och toppar) står kvar längst, också i en svacka i stort. Förvalet (5) är oförändrat. Mätt mot
+    tre kartritare (`claude/hjalpkurvor-fler-kartor-2026-11-15.md`).
   - [x] Tomter, fukt och diken (ägaren 2026-11-11: «använd de grå lagren för bebyggd yta från OSM», «dra i
     markfuktighetslagren», «terrängformstolkning … för diken»): tomtmark ur OpenStreetMaps bostadsområden (`tomtmark_osm`),
     marktäckets låga bebyggelse (`tomtmark_marktacke`) och rektanglar kring hus utanför dem, klippta mot väg och strand (`tomtmark_hus`), alla 520 i var sitt

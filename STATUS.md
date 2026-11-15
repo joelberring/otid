@@ -13,6 +13,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-15 – Färre hjälpkurvor i ordning efter formen (över förvalet)
+
+- Ägaren: «gör så» (höjdformerna ska stå kvar längst). `formBetweenContours` i `clear-contours.ts`: avståndet uppför till nivån över och nedför till nivån under längs lutningen, som ett tal −1 till 1 (0 = jämn lutning, över 0,5 = avsats eller topp, under 0 = flack fot).
+- `formlineLimitsAt` har `minForm`: −1 (prövas inte) till och med förvalet 5, sedan −0,7, −0,4, −0,1, 0,2 och 0,5 på nivå 6–10. En höjdform står kvar också där marken ligger under omgivningen i stort; avståndet till en höjdkurva gäller som förut. Reglagets text säger vad som tas bort.
+- Mätt på sex block hos tre kartritare (all kurva på 2,5 m-nivån, dagens regel efterbildad): andelen kvar går från cirka 55 % på nivå 5 till 8 % på nivå 10, och andelen av det kvarvarande som kartritaren ritat från 0,59 till 0,89 och 0,43 till 0,71 (Djurgården), 0,56 till 0,63 och 0,51 till 0,56 (Gömmaren), oförändrat i Högdalen (0,52 → 0,49, 0,38 → 0,40).
+- Kontrollerat: typecheck, eslint, knip, enhetstester (map-revision 416, web 1261). Inte provat i webbläsaren eller på riktiga hjälpkurvor ur Karttapullautin (mätningen gäller nivåkurvor ur höjdrastret).
+
 ### 2026-11-15 – Små höjder som ring efter formen; hjälpkurvornas läge prövat utan vinst
 
 - Ägaren: «färre punkthöjder och fler små höjder», och hjälpkurvorna «känns väldigt random placerade». Punkthöjdernas regel hoppar över kullar med stor fot i tron att en kurva visar dem, men det gör den bara om en nivå korsar.
@@ -1816,10 +1823,6 @@ Loggen till och med 2026-10-19 ligger i `docs/archive/STATUS-logg-till-2026-10-1
 
 ## Idéer (inte i planen än)
 
-- 2026-11-15: reglaget «Färre hjälpkurvor» kan ta bort i ordning: över förvalet försvinner bitarna i jämn lutning först, och
-  höjdformerna (toppar, och där marken ligger mer än en fjärdedel av ekvidistansen över vad 5 m-kurvorna säger) står kvar
-  längst. Ägarens princip; kartritarna på Djurgården och Gömmaren ritar höjdformerna oftare än jämn lutning, Högdalens inte.
-  Som enda regel tar den bort för mycket mot alla tre (F1 0,14–0,36), så förvalet ska inte ändras.
 - 2026-11-15: sökningen efter sänkor (`findPits`) tar cirka 10 s i webbläsaren på ett helt kartblad. Den kan flyttas till
   geo-arbetaren och sparas som `gropar.geojson`, som kullarna, så att grundkartan läses in lika fort som förut. En tätare
   höjdmodell ur punktmolnet (0,5 m) skulle visa fler av de minsta groparna än 1 m-rastret.

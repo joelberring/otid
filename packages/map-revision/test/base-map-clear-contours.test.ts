@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SourceFeature } from "../src";
-import { clearContours, DEFAULT_CLEAR, flatTerrainShare, suggestedClear, formlineLimitsAt, heightFieldFrom, heightGridOf, ringLimitAt, smoothLimitsAt, type HeightField } from "../src/base-map/clear-contours";
+import { clearContours, DEFAULT_CLEAR, flatTerrainShare, formBetweenContours, suggestedClear, formlineLimitsAt, heightFieldFrom, heightGridOf, ringLimitAt, smoothLimitsAt, type HeightField } from "../src/base-map/clear-contours";
 import { restoreFlatContours } from "../src/base-map/flat-contours";
 
 type Position = [number, number];
@@ -22,7 +22,10 @@ describe("tydligare kurvbild: nivåerna", () => {
     expect(smoothLimitsAt(0)).toBeUndefined(); expect(formlineLimitsAt(0)).toBeUndefined(); expect(ringLimitAt(0)).toBeUndefined();
     expect(DEFAULT_CLEAR).toEqual({ smooth: 5, formlines: 5, rings: 5 });
     expect(smoothLimitsAt(5)).toEqual({ sigma: 15, fullSlope: 0.04, noSlope: 0.12 });
-    expect(formlineLimitsAt(5)).toEqual({ minConvex: 0, tight: 5 });
+    expect(formlineLimitsAt(5)).toEqual({ minConvex: 0, tight: 5, minForm: -1 });
+    // Över förvalet prövas formen mellan höjdkurvorna: jämn lutning (0) tas bort från nivå 9, och på 10 står bara höjdformerna kvar.
+    expect(formlineLimitsAt(3)!.minForm).toBe(-1);
+    expect(formlineLimitsAt(8)!.minForm).toBeCloseTo(-0.1, 5); expect(formlineLimitsAt(9)!.minForm).toBeCloseTo(0.2, 5); expect(formlineLimitsAt(10)!.minForm).toBe(0.5);
     expect(ringLimitAt(5)).toBe(150); expect(ringLimitAt(10)).toBe(800);
   });
   it("allt av ändrar ingenting", () => {
@@ -85,6 +88,34 @@ describe("tydligare kurvbild: färre hjälpkurvor", () => {
     expect(clearContours([contour, formline], plane(0.3, 2), { ...off, formlines: 1 }).features).toEqual([contour, formline]);
     const far = line([[0, 9], [200, 9]]);
     expect(clearContours([far, formline], plane(0.3, 2), { ...off, formlines: 5 }).features).toEqual([far, formline]);
+  });
+  // Höjden beror bara på läget norrut; hjälpkurvan ligger på 42,5 m, mitt mellan nivåerna 40 och 45.
+  const profile = (height: (y: number) => number, convex = 2): HeightField => ({ heightAt: (_x, y) => height(y), slopeAt: () => 0.1, convexAt: () => convex });
+  const even = (y: number) => 42.5 + 0.1 * y, terrace = (y: number) => 42.5 + (y < 0 ? 0.25 : 0.05) * y, foot = (y: number) => 42.5 + (y < 0 ? 0.05 : 0.25) * y;
+  const top = (y: number) => y < 0 ? 42.5 + 0.25 * y : 43.5 - Math.abs(y - 10) * 0.1;
+  it("formen mellan höjdkurvorna: 0 i jämn lutning, över 0,5 på en avsats och en topp, under −0,5 på en flack fot", () => {
+    expect(formBetweenContours(profile(even), 50, 0)).toBeCloseTo(0, 1);
+    expect(formBetweenContours(profile(terrace), 50, 0)).toBeGreaterThan(0.6);
+    expect(formBetweenContours(profile(top), 50, 0)).toBeGreaterThan(0.6);
+    expect(formBetweenContours(profile(foot), 50, 0)).toBeLessThan(-0.6);
+    expect(formBetweenContours(profile(() => 42.5), 50, 0)).toBe(0);
+    expect(formBetweenContours({ heightAt: () => undefined, slopeAt: () => undefined, convexAt: () => undefined }, 50, 0)).toBeUndefined();
+    // Vatten (ingen höjd) 6 m nedanför avslutar sökningen där: stranden räknas som nivån under.
+    const shore = formBetweenContours({ heightAt: (_x, y) => y < -6 ? undefined : even(y), slopeAt: () => 0.1, convexAt: () => 2 }, 50, 0)!;
+    expect(shore).toBeGreaterThan(0.5);
+  });
+  it("över förvalet tas bitarna bort i ordning: flack fot först, sedan jämn lutning, och höjdformerna står kvar längst", () => {
+    const at = (height: (y: number) => number, level: number, convex = 2) => clearContours([formline], profile(height, convex), { ...off, formlines: level }).features;
+    // Förvalet prövar inte formen.
+    for (const height of [even, terrace, foot]) expect(at(height, 5)).toEqual([formline]);
+    expect(at(foot, 6)).toEqual([formline]); expect(at(foot, 7)).toEqual([]);
+    expect(at(even, 8)).toEqual([formline]); expect(at(even, 9)).toEqual([]);
+    expect(at(terrace, 10)).toEqual([formline]); expect(at(top, 10)).toEqual([formline]); expect(at(even, 10)).toEqual([]);
+    // En höjdform står kvar också i en svacka i stort; under förvalet avgör bara höjden över omgivningen som förut.
+    expect(at(terrace, 8, -1)).toEqual([formline]); expect(at(even, 8, -1)).toEqual([]); expect(at(terrace, 5, -1)).toEqual([]);
+    // En höjdkurva tätt intill tar fortfarande bort biten.
+    const contour = line([[0, 3], [200, 3]]);
+    expect(clearContours([contour, formline], profile(terrace), { ...off, formlines: 10 }).features).toEqual([contour]);
   });
   it("utan höjd rörs ingenting", () => {
     const none: HeightField = { heightAt: () => undefined, slopeAt: () => undefined, convexAt: () => undefined };

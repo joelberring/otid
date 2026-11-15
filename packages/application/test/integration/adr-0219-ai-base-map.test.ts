@@ -7,7 +7,7 @@ import { projectedToWgs84 } from "@o-tid/map-file";
 import { createMapJobCanvas } from "../../../../scripts/map-job-canvas";
 import { createMapProjectArea } from "../../src/map-project-areas";
 import { claimGeoJob, finishGeoJob, storeGeoOutput } from "../../src/map-project-geo-jobs";
-import { claimMapJob, runMapJob } from "../../src/map-project-jobs";
+import { claimMapJob, queueMapJob, runMapJob } from "../../src/map-project-jobs";
 import { lantmaterietRuntimeFromEnvironment } from "../../src/map-project-lantmateriet";
 import { laserRuntimeFromEnvironment } from "../../src/map-project-laser";
 import { listMapProjectProposals } from "../../src/map-project-proposals";
@@ -144,6 +144,17 @@ const objectCount = async (projectId: string) => (await db.select({ key: schema.
   .where(eq(schema.mapProjectObjects.projectId, projectId))).length;
 
 describe("ADR-0219: AI-kopplingen lägger in grundkartan (apply_base_map)", () => {
+  it("ett grundkartejobb med stor begäran (OpenStreetMap för ett stort område, Tyresta) köas (migration 0127)", async () => {
+    const { owner, projectId } = await project();
+    const osm = { elements: Array.from({ length: 6000 }, (_, i) => ({ type: "node", id: i, lat: 59.2 + i * 1e-6, lon: 18.1 + i * 1e-6, tags: { highway: "path" } })) };
+    expect(JSON.stringify(osm).length).toBeGreaterThan(300_000);
+    const jobId = await queueMapJob(db, { accountId: owner.accountId, projectId, kind: "BASE_MAP", request: { hash: "prov", osm } });
+    expect(jobId).toBeDefined();
+    const [row] = await db.select({ id: schema.mapProjectJobs.id }).from(schema.mapProjectJobs).where(eq(schema.mapProjectJobs.id, jobId!));
+    expect(row?.id).toBe(jobId);
+    await db.delete(schema.mapProjectJobs).where(eq(schema.mapProjectJobs.id, jobId!));
+  });
+
   it("verktyget finns i listan och arbetsgången nämner det", async () => {
     const owner = await registerTestAccount(db);
     const tools = await handleMcpMessage(db, owner.accountId, { jsonrpc: "2.0", id: 1, method: "tools/list" });

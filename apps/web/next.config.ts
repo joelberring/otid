@@ -40,7 +40,7 @@ const nextConfig: NextConfig = {
       ...NO_INDEX_HEADER_SOURCES.map((source) => ({ source, headers: [NO_INDEX_HEADER] })),
       // Festens API (namn på gäster) sparas inte heller i någon cache.
       { source: "/api/public/parties/:path*", headers: [{ key: "Cache-Control", value: "private, no-store" }] },
-      ...["", "/manage", "/readout", "/speaker", "/imports", "/party-labels", "/course-setting"].map((surface) => ({
+      ...["", "/manage", "/readout", "/speaker", "/imports", "/party-labels", "/course-setting", "/bingo"].map((surface) => ({
         source: `/admin/:raceId${surface}`, headers: [...privateAdminHeaders]
       })),
       // Banläggningens fältläge (ADR-0181 beslut 6–7): telefonens position på kartan. Gäller före regeln ovan.

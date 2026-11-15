@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { bingoAdminViewSchema, type BingoAdminView } from "@o-tid/contracts";
+import { bingoAdminViewSchema, type BingoAdminView, type BingoMode } from "@o-tid/contracts";
 import { bingoEn } from "../../i18n/bingo-en";
 import { bingoSv } from "../../i18n/bingo-sv";
 import { courseSettingBase } from "../../lib/course-setting-api";
@@ -28,11 +28,11 @@ export function BingoPhone({ raceId, georeferenced }: { raceId: string; georefer
       .catch((error: unknown) => console.warn("Bingons läge kunde inte hämtas", error));
     return () => { stopped = true; };
   }, [raceId]);
-  const change = async (enabled: boolean) => {
+  const change = async (enabled: boolean, mode?: BingoMode) => {
     setBusy(true); setFailed(false);
     try {
       const response = await adminFetch(`${courseSettingBase(raceId)}/bingo`, { method: "PUT", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ formatVersion: 1, enabled }) });
+        body: JSON.stringify({ formatVersion: 1, enabled, ...(mode ? { mode } : {}) }) });
       if (!response.ok) throw new Error(String(response.status));
       setView(bingoAdminViewSchema.parse(await response.json()));
     } catch (error) { console.warn("Bingon med telefonen kunde inte sparas", error); setFailed(true); }
@@ -43,6 +43,9 @@ export function BingoPhone({ raceId, georeferenced }: { raceId: string; georefer
     <p className={styles.muted}>{text.help}</p>
     <label className={styles.check}><input type="checkbox" checked={view?.enabled ?? false} disabled={busy || !view}
       onChange={event => void change(event.target.checked)} data-testid="bingo-phone-on" /><span>{text.on}</span></label>
+    {view?.enabled && <label className={styles.stack}>{text.mode}<select value={view.mode} disabled={busy}
+      onChange={event => void change(true, event.target.value as BingoMode)} data-testid="bingo-mode">
+      <option value="BINGO">{text.modes.BINGO}</option><option value="SHIPS">{text.modes.SHIPS}</option></select></label>}
     {failed && <Notice tone="error" role="alert">{text.failed}</Notice>}
     {view?.enabled && !view.published && <p className={styles.muted} role="status">{text.notPublished}</p>}
     {view?.enabled && !georeferenced && <p className={styles.muted} role="alert">{text.noGeoreference}</p>}

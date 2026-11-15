@@ -19,6 +19,7 @@ const COLORS = ["#d0021b", "#0057b8", "#1b8a2f", "#e07b00", "#7b2cbf", "#008b8b"
 /** Ledarens vy (ADR-0225), bara för administratören: ett läge per grupp och löpare, uppdateras var tionde sekund, och spåren. */
 export function BingoLeader({ raceId }: { raceId: string }) {
   const text = useTexts(bingoSv.leader, bingoEn.leader);
+  const ships = useTexts(bingoSv.ships, bingoEn.ships);
   const [view, setView] = useState<BingoAdminView>();
   const [failed, setFailed] = useState(false);
   const [course, setCourse] = useState<string>();
@@ -41,11 +42,14 @@ export function BingoLeader({ raceId }: { raceId: string }) {
   if (!view) return <main className={styles.leader}><h1>{text.title}</h1>{failed ? <Notice tone="error" role="alert">{text.failed}</Notice>
     : <p role="status">{text.loading}</p>}</main>;
   const group = view.groups.find(item => item.course === course) ?? view.groups[0];
+  const shipsMode = view.mode === "SHIPS";
   const runners = view.runners.filter(row => row.course === group?.course)
-    .sort((a, b) => Number(a.status === "ABANDONED") - Number(b.status === "ABANDONED") || b.taken.length - a.taken.length || a.seconds - b.seconds);
+    .sort((a, b) => Number(a.status === "ABANDONED") - Number(b.status === "ABANDONED") || (shipsMode ? b.points - a.points || b.sunk - a.sunk : 0)
+      || b.taken.length - a.taken.length || a.seconds - b.seconds);
   const color = (id: string) => COLORS[Math.max(0, runners.findIndex(row => row.id === id)) % COLORS.length]!;
   const shown = runners.filter(row => runner === undefined || row.id === runner);
-  const taken = new Set(shown.flatMap(row => row.taken.map(item => item.cell)));
+  const taken = new Set(shipsMode ? [] : shown.flatMap(row => row.taken.map(item => item.cell)));
+  const one = runner === undefined ? undefined : runners.find(row => row.id === runner);
   return <main className={styles.leader} data-testid="bingo-leader">
     <h1>{text.title}</h1>
     <p className={styles.muted}>{text.help}</p>
@@ -61,13 +65,16 @@ export function BingoLeader({ raceId }: { raceId: string }) {
       <section aria-label={group.name}>
         <h2>{group.name}</h2>
         {runners.length === 0 ? <p>{text.none}</p> : <table className={styles.table} data-testid="bingo-leader-table">
-          <thead><tr><th scope="col">{text.name}</th><th scope="col">{text.cells}</th><th scope="col">{text.distance}</th><th scope="col">{text.time}</th>
+          <thead><tr><th scope="col">{text.name}</th>{shipsMode ? <><th scope="col">{ships.points}</th><th scope="col">{ships.sunk}</th>
+            <th scope="col">{ships.hitsColumn}</th><th scope="col">{ships.wrongColumn}</th></> : <><th scope="col">{text.cells}</th>
+            <th scope="col">{text.distance}</th></>}<th scope="col">{text.time}</th>
             <th scope="col">{text.state}</th><th scope="col">{text.updated}</th></tr></thead>
           <tbody>{runners.map(row => <tr key={row.id} data-mine={row.id === runner || undefined}>
             <td><button type="button" className={styles.linkButton} aria-pressed={row.id === runner}
               onClick={() => setRunner(current => current === row.id ? undefined : row.id)}>
               <span className={styles.swatch} style={{ background: color(row.id) }} aria-hidden="true" />{row.name}</button></td>
-            <td>{row.taken.length}/{group.cells.length}</td><td>{formatBingoDistance(row.distanceM)}</td><td>{formatBingoTime(row.seconds)}</td>
+            {shipsMode ? <><td>{row.points}</td><td>{row.sunk}/{row.ships.length}</td><td>{row.hits}</td><td>{row.wrong}</td></>
+              : <><td>{row.taken.length}/{group.cells.length}</td><td>{formatBingoDistance(row.distanceM)}</td></>}<td>{formatBingoTime(row.seconds)}</td>
             <td>{text.status[row.status]}{row.gaps.length > 0 && <span className={styles.muted}> · {text.gaps(row.gaps.length)}</span>}</td>
             <td>{new Date(row.updatedAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</td>
           </tr>)}</tbody>
@@ -76,7 +83,10 @@ export function BingoLeader({ raceId }: { raceId: string }) {
       <section aria-label={text.map}>
         <h2>{text.map}{runner !== undefined && <> · <button type="button" className={styles.linkButton} onClick={() => setRunner(undefined)}>{text.all}</button></>}</h2>
         <BingoMap group={group} taken={taken} label={text.map}
-          tracks={shown.map(row => ({ id: row.id, points: row.track, color: color(row.id) }))}
+          tracks={shown.map(row => ({ id: row.id, points: shipsMode ? row.shots.map(shot => [shot.x, shot.y, shot.at] as const) : row.track,
+            color: color(row.id) }))}
+          ships={shipsMode && one ? one.ships : undefined}
+          shots={shipsMode ? shown.flatMap(row => row.shots.map(shot => ({ ...shot, ...(one ? {} : { color: color(row.id) }) }))) : undefined}
           image={view.image ? { ...view.image, href: `${courseSettingBase(raceId)}/map/image` } : undefined} />
       </section>
     </div>}

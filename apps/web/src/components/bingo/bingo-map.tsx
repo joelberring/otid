@@ -11,8 +11,11 @@ export interface BingoMapTrack { readonly id: string; readonly points: readonly 
  * Kartan efter målgången och i ledarens vy: kartbilden (om den får visas), rutnätet med de tagna rutorna och spåren. SVG i
  * kartans mm med y nedåt (y vänds), utsnittet runt gruppens rutor.
  */
-export function BingoMap({ group, taken, tracks, image, label }: { group: BingoGroup; taken: ReadonlySet<string>; tracks: readonly BingoMapTrack[];
-  image: BingoMapImage | undefined; label: string }) {
+export interface BingoMapShot { readonly x: number; readonly y: number; readonly result: "HIT" | "SUNK" | "WATER" | "WRONG"; readonly color?: string | undefined }
+const SHOT_COLORS = { HIT: "#1b8a2f", SUNK: "#0b5d17", WATER: "#0057b8", WRONG: "#d0021b" } as const;
+
+export function BingoMap({ group, taken, tracks, image, label, ships, shots }: { group: BingoGroup; taken: ReadonlySet<string>; tracks: readonly BingoMapTrack[];
+  image: BingoMapImage | undefined; label: string; ships?: readonly (readonly string[])[] | undefined; shots?: readonly BingoMapShot[] | undefined }) {
   if (group.cells.length === 0) return null;
   const minX = Math.min(...group.cells.map(cell => cell.rect.minX)), maxX = Math.max(...group.cells.map(cell => cell.rect.maxX));
   const minY = Math.min(...group.cells.map(cell => cell.rect.minY)), maxY = Math.max(...group.cells.map(cell => cell.rect.maxY));
@@ -28,6 +31,17 @@ export function BingoMap({ group, taken, tracks, image, label }: { group: BingoG
         fill={taken.has(cell.name) ? "rgba(40, 160, 60, 0.35)" : "none"} stroke="#a626ff" strokeWidth={0.25} />
       <text x={cell.rect.minX + font * 0.3} y={-cell.rect.maxY + font * 1.05} fontSize={font} fill="#a626ff" fontWeight="bold">{cell.name}</text>
     </g>)}
+    {(ships ?? []).map((ship, index) => {
+      const rects = ship.map(name => group.cells.find(cell => cell.name === name)?.rect).filter(rect => rect !== undefined);
+      if (rects.length === 0) return null;
+      const x0 = Math.min(...rects.map(r => r.minX)), x1 = Math.max(...rects.map(r => r.maxX));
+      const y0 = Math.min(...rects.map(r => r.minY)), y1 = Math.max(...rects.map(r => r.maxY));
+      const inset = side * 0.12;
+      return <rect key={`ship-${index}`} x={x0 + inset} y={-y1 + inset} width={x1 - x0 - 2 * inset} height={y1 - y0 - 2 * inset} rx={side * 0.3}
+        fill="none" stroke="#111" strokeWidth={0.6} />;
+    })}
+    {(shots ?? []).map((shot, index) => <circle key={`shot-${index}`} cx={shot.x} cy={-shot.y} r={Math.max(0.6, side * 0.06)}
+      fill={shot.color ?? SHOT_COLORS[shot.result]} stroke="#fff" strokeWidth={0.2} />)}
     {tracks.map(track => track.points.length > 1 && <polyline key={track.id} points={track.points.map(([x, y]) => `${x},${-y}`).join(" ")}
       fill="none" stroke={track.color} strokeWidth={0.5} strokeLinejoin="round" strokeLinecap="round" />)}
   </svg>;

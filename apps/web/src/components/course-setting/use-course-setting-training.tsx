@@ -12,12 +12,14 @@ import { ALL_CONTROLS } from "../../lib/course-setting-hit";
 import type { MapRenderSession } from "../../lib/course-setting-map-protocol";
 import { safely } from "../../lib/course-setting-safely";
 import { changeCourseTraining, legAt, newTrainingId } from "../../lib/course-setting-training";
-import { bingoAreaFrom, setBingoAreaEdits } from "../../lib/bingo-setup";
+import { bingoAreaFrom, bingoGroups, setBingoAreaEdits, setGroupAreaEdits } from "../../lib/bingo-setup";
 import { toScreen, type Viewport } from "../../lib/course-setting-viewport";
 import { TrainingPanel } from "./course-setting-training";
 
 /** Verktyget på kartan medan något ritas eller läggs (område, linje, sista säkra). */
-export type TrainingTool = { readonly kind: "AREA" | "LINE" | "BINGO"; readonly points: readonly Point[] } | { readonly kind: "ATTACK" };
+export type TrainingTool = { readonly kind: "AREA" | "LINE"; readonly points: readonly Point[] } | { readonly kind: "ATTACK" }
+  /** Bingons område: träningens, eller gruppens eget (`course`). */
+  | { readonly kind: "BINGO"; readonly points: readonly Point[]; readonly course?: string | undefined };
 
 /**
  * ADR-0192 beslut 8: träningsläget i editorn. Kartans pass (före och efter med "Visa träningen"), symbolerna ur kartans
@@ -55,7 +57,9 @@ export function useCourseSettingTraining({ document, view, variant, session, map
     }
     if (tool.kind === "BINGO") {
       const area = bingoAreaFrom(tool.points, mapBounds);
-      if (area) { setBingoArea(area); const edits = setBingoAreaEdits(document, area); if (edits.length > 0) onEdits(edits); }
+      const group = tool.course === undefined ? undefined : bingoGroups(document).find(row => row.course === tool.course);
+      if (area && group) onEdits(setGroupAreaEdits(document, group, area, true));
+      else if (area) { setBingoArea(area); const edits = setBingoAreaEdits(document, area); if (edits.length > 0) onEdits(edits); }
     }
     if (tool.kind === "LINE" && tool.points.length >= 2 && view !== ALL_CONTROLS) {
       onEdits([changeCourseTraining(document, view, current => ({ ...current, line: { points: tool.points } }))]);

@@ -17,6 +17,12 @@ export const bingoSv = {
     mapScale: (scale: string) => `Kartans (${scale})`,
     cells: (count: number) => count === 1 ? "1 ruta" : `${count} rutor`,
     tooMany: "För många rutor: välj större rutor eller ett mindre område.",
+    ownArea: "eget område",
+    drawOwn: "Eget område",
+    useTrainingArea: "Använd träningens område",
+    ships: "Skepp (Sänka skepp)",
+    shipsHelp: "Längderna i rutor, t.ex. 4, 3, 3, 2, 2. Tomt = efter rutnätets storlek.",
+    shipsInvalid: "Skriv högst 8 längder mellan 1 och 6, t.ex. 3, 2, 2.",
     add: "Lägg till grupp",
     open: "Visa",
     remove: "Ta bort",
@@ -26,6 +32,8 @@ export const bingoSv = {
   phone: {
     heading: "Med telefonen",
     help: "Löparna kan anmäla sig på plats och låta telefonen räkna rutorna med GPS. Slå på det här och publicera träningen; den syns på startsidan bara den dagen.",
+    mode: "Läge",
+    modes: { BINGO: "Bingo: ta så många rutor som möjligt", SHIPS: "Sänka skepp: skjut på rutan du står i" },
     on: "Bingo med telefonen",
     failed: "Det gick inte att spara. Bara tävlingens administratör kan slå på bingon med telefonen.",
     notPublished: "Träningen är inte publicerad än (Publicera i tävlingens arbetsyta).",
@@ -78,6 +86,29 @@ export const bingoSv = {
     againBlocked: "Vänta tills loppet är skickat (behöver nät).",
     storageFailed: "Telefonen kan inte spara loppet (privat läge?). Ladda inte om sidan under loppet.",
     resumed: "Loppet fortsätter efter omladdningen."
+  },
+  ships: {
+    title: "Sänka skepp",
+    intro: "Spring med kartan. När du tror att du står i en ruta: tryck på rutan och Skjut. Telefonen tar då en position.",
+    rules: [
+      "Du får egna skepp. Träff ger 1 poäng, ett sänkt skepp 2 poäng till. Fel ruta (du stod inte där) ger −1.",
+      "Varje ruta kan skjutas en gång. Telefonen får vara låst mellan skotten.",
+      "Mål och Avbryt: håll in knappen i 2 sekunder."
+    ],
+    points: "Poäng",
+    sunk: "Sänkta",
+    choose: "Tryck på rutan du står i.",
+    fire: (cell: string) => `Skjut på ${cell}`,
+    searching: (seconds: number) => `Söker position … ${seconds} s`,
+    noPosition: (meters: number | undefined) => meters === undefined ? "Ingen position. Försök igen." : `Ingen tillräckligt noggrann position (±${meters} m). Försök igen.`,
+    hit: (cell: string) => `Träff i ${cell}!`,
+    sunkShip: (cell: string) => `Träff i ${cell} – sänkt!`,
+    water: (cell: string) => `Vatten i ${cell}.`,
+    wrong: (cell: string) => `Du stod inte i ${cell} (−1).`,
+    shot: "redan skjuten",
+    legend: "✓ sänkt · ● träff · ~ vatten · ✗ fel",
+    hitsColumn: "Träffar", wrongColumn: "Fel", lastColumn: "Senaste skott",
+    mapTitle: "Dina skott och skeppen"
   },
   board: {
     heading: "Topplista",

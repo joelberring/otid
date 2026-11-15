@@ -3,7 +3,7 @@
  * servern och hjälp för brickan. Telefonen sparar hela loppet efter varje ändring och raderar det aldrig förrän servern har
  * kvitterat den senaste versionen (AGENTS.md).
  */
-import { EMPTY_BINGO_RUN, type BingoRunState } from "@o-tid/domain";
+import { EMPTY_BINGO_RUN, type BingoRunState, type Shot } from "@o-tid/domain";
 import type { BingoProgressRequest } from "@o-tid/contracts";
 
 export interface StoredBingoRun {
@@ -15,6 +15,9 @@ export interface StoredBingoRun {
   readonly startedAt: number;
   readonly finishedAt: number | null;
   readonly run: BingoRunState;
+  /** Sänka skepp: fröet för löparens skepp och skotten. */
+  readonly seed?: number | undefined;
+  readonly shots?: readonly Shot[] | undefined;
   /** Ökar vid varje ändring; `acked` är den version servern senast kvitterade. */
   readonly version: number;
   readonly acked: number;
@@ -23,8 +26,9 @@ export interface StoredBingoRun {
 export const bingoStorageKey = (raceId: string) => `otid-bingo:${raceId}`;
 const NAME_KEY = "otid-bingo-name";
 
-export function newBingoRun(name: string, group: string, now: number, runnerId: string): StoredBingoRun {
-  return { formatVersion: 1, runnerId, name, group, status: "RUNNING", startedAt: now, finishedAt: null, run: EMPTY_BINGO_RUN, version: 1, acked: 0 };
+export function newBingoRun(name: string, group: string, now: number, runnerId: string, seed?: number): StoredBingoRun {
+  return { formatVersion: 1, runnerId, name, group, status: "RUNNING", startedAt: now, finishedAt: null, run: EMPTY_BINGO_RUN, version: 1, acked: 0,
+    ...(seed !== undefined ? { seed, shots: [] } : {}) };
 }
 
 /** Loppet ur telefonen; undefined om inget finns eller om det har fel form. */
@@ -66,16 +70,9 @@ export function bingoProgressRequest(run: StoredBingoRun): BingoProgressRequest 
   return { formatVersion: 1, runnerId: run.runnerId, name: run.name, group: run.group, status: run.status, startedAt: run.startedAt,
     finishedAt: run.finishedAt, distanceM: Math.round(run.run.distanceM), taken: run.run.taken.map(row => ({ cell: row.cell, at: row.at })),
     track: run.run.track.map(([x, y, t]) => [Math.round(x * 100) / 100, Math.round(y * 100) / 100, t] as [number, number, number]),
-    gaps: run.run.gaps.map(([from, to]) => [from, to] as [number, number]) };
-}
-
-/** Rutans kolumn och rad ur namnet ("AB12" → kolumn 27, rad 11). */
-export function bingoCellPosition(name: string): { column: number; row: number } | undefined {
-  const match = /^([A-Z]+)(\d+)$/.exec(name);
-  if (!match) return undefined;
-  let column = 0;
-  for (const letter of match[1]!) column = column * 26 + (letter.charCodeAt(0) - 64);
-  return { column: column - 1, row: Number(match[2]) - 1 };
+    gaps: run.run.gaps.map(([from, to]) => [from, to] as [number, number]),
+    ...(run.seed !== undefined ? { seed: run.seed, shots: (run.shots ?? []).map(shot => ({ cell: shot.cell, at: shot.at,
+      x: Math.round(shot.x * 100) / 100, y: Math.round(shot.y * 100) / 100, accuracyM: Math.round(shot.accuracyM * 10) / 10 })) } : {}) };
 }
 
 /** Tiden som m:ss eller h:mm:ss. */

@@ -1,7 +1,7 @@
 "use client";
 
 import type { BingoGroup } from "@o-tid/contracts";
-import { bingoCellPosition } from "../../lib/bingo-run";
+import { bingoCellPosition } from "@o-tid/domain";
 import styles from "./bingo.module.css";
 
 /** Bingobrickan: gruppens rutor i rutnätet, de tagna ifyllda med en bock (inte bara färg). */

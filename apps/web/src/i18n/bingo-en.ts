@@ -20,6 +20,12 @@ export const bingoEn: Texts<typeof bingoSv> = {
     mapScale: (scale: string) => `The map's (${scale})`,
     cells: (count: number) => count === 1 ? "1 square" : `${count} squares`,
     tooMany: "Too many squares: choose larger squares or a smaller area.",
+    ownArea: "own area",
+    drawOwn: "Own area",
+    useTrainingArea: "Use the training's area",
+    ships: "Ships (Battleships)",
+    shipsHelp: "The lengths in squares, e.g. 4, 3, 3, 2, 2. Empty = by the size of the grid.",
+    shipsInvalid: "Write at most 8 lengths between 1 and 6, e.g. 3, 2, 2.",
     add: "Add group",
     open: "Show",
     remove: "Remove",
@@ -29,6 +35,8 @@ export const bingoEn: Texts<typeof bingoSv> = {
   phone: {
     heading: "With the phone",
     help: "Runners can sign up on the spot and let the phone count the squares with GPS. Turn this on and publish the training; it is shown on the home page only that day.",
+    mode: "Mode",
+    modes: { BINGO: "Bingo: take as many squares as possible", SHIPS: "Battleships: fire at the square you are in" },
     on: "Bingo with the phone",
     failed: "Could not save. Only the race's administrator can turn on bingo with the phone.",
     notPublished: "The training is not published yet (Publish in the race's workspace).",
@@ -81,6 +89,29 @@ export const bingoEn: Texts<typeof bingoSv> = {
     againBlocked: "Wait until the run is sent (needs network).",
     storageFailed: "The phone cannot save the run (private mode?). Do not reload the page during the run.",
     resumed: "The run continues after the reload."
+  },
+  ships: {
+    title: "Battleships",
+    intro: "Run with the map. When you think you are in a square: tap the square and Fire. The phone then takes a position.",
+    rules: [
+      "You get your own ships. A hit gives 1 point, a sunk ship 2 more. The wrong square (you were not there) gives −1.",
+      "Each square can be fired at once. The phone may be locked between the shots.",
+      "Finish and Cancel: hold the button for 2 seconds."
+    ],
+    points: "Points",
+    sunk: "Sunk",
+    choose: "Tap the square you are in.",
+    fire: (cell: string) => `Fire at ${cell}`,
+    searching: (seconds: number) => `Finding position … ${seconds} s`,
+    noPosition: (meters: number | undefined) => meters === undefined ? "No position. Try again." : `No accurate enough position (±${meters} m). Try again.`,
+    hit: (cell: string) => `Hit in ${cell}!`,
+    sunkShip: (cell: string) => `Hit in ${cell} – sunk!`,
+    water: (cell: string) => `Water in ${cell}.`,
+    wrong: (cell: string) => `You were not in ${cell} (−1).`,
+    shot: "already fired at",
+    legend: "✓ sunk · ● hit · ~ water · ✗ wrong",
+    hitsColumn: "Hits", wrongColumn: "Wrong", lastColumn: "Last shot",
+    mapTitle: "Your shots and the ships"
   },
   board: {
     heading: "Leaderboard",

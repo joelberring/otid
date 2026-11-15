@@ -52,8 +52,12 @@ describe("bingoorientering: rutnätet", () => {
     const course = b.course("Grön");
     expect(() => applyEdit(b.document, { type: "PUT_TRAINING", courses: { [course]: bingo({ minX: 10, minY: 0, maxX: 0, maxY: 10 }, 100) } })).toThrow(/ingen yta/);
     expect(() => applyEdit(b.document, { type: "PUT_TRAINING", courses: { [course]: bingo({ minX: 0, minY: 0, maxX: 10, maxY: 10 }, 5) } })).toThrow(/Rutans storlek/);
-    b.edit({ type: "PUT_TRAINING", courses: { [course]: bingo({ minX: 0, minY: 0, maxX: 10, maxY: 10 }, 150) } });
+    expect(() => applyEdit(b.document, { type: "PUT_TRAINING", courses: { [course]: { outside: { kind: "FULL" }, sections: [],
+      bingo: { area: { minX: 0, minY: 0, maxX: 10, maxY: 10 }, cellMeters: 100, ships: [9] } } } })).toThrow(/Skeppets längd/);
+    b.edit({ type: "PUT_TRAINING", courses: { [course]: { outside: { kind: "FULL" }, sections: [],
+      bingo: { area: { minX: 0, minY: 0, maxX: 10, maxY: 10 }, cellMeters: 150, ownArea: true, ships: [2, 2, 1] } } } });
     const read = readPpen(writePpen(b.document));
-    expect(read.document.training?.courses[course]?.bingo).toEqual({ area: { minX: 0, minY: 0, maxX: 10, maxY: 10 }, cellMeters: 150 });
+    expect(read.document.training?.courses[course]?.bingo).toEqual({ area: { minX: 0, minY: 0, maxX: 10, maxY: 10 }, cellMeters: 150, ownArea: true,
+      ships: [2, 2, 1] });
   });
 });

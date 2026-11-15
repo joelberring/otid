@@ -4,7 +4,11 @@ import { useState, type ReactNode } from "react";
 import { BINGO_CELL_SIZES, BINGO_LIMITS, COURSE_PRINT_SCALES, type CourseSettingDocument, type CourseSettingEdit, type MapRect } from "@o-tid/course-setting";
 import { bingoEn } from "../../i18n/bingo-en";
 import { bingoSv } from "../../i18n/bingo-sv";
-import { addBingoGroupEdits, bingoGroups, setBingoCellEdits } from "../../lib/bingo-setup";
+import { defaultShips } from "@o-tid/domain";
+import {
+  addBingoGroupEdits, BINGO_GROUP_NAMES, bingoGroups, parseShips, setBingoCellEdits, setGroupAreaEdits, setShipsEdits, suggestedGroupName,
+  trainingBingoArea
+} from "../../lib/bingo-setup";
 import { useTexts } from "../language-provider";
 import { Button } from "../ui";
 import type { TrainingTool } from "./use-course-setting-training";
@@ -24,16 +28,18 @@ export function BingoBlock({ document, view, readOnly, tool, onTool, pendingArea
 }) {
   const text = useTexts(bingoSv.setup, bingoEn.setup);
   const groups = bingoGroups(document);
-  const area = groups[0]?.bingo.area ?? pendingArea;
+  const area = trainingBingoArea(document, pendingArea);
+  const suggested = suggestedGroupName(document);
   const metersPerMm = document.event.mapScale / 1000;
   const [cell, setCell] = useState<number>(BINGO_CELL_SIZES[0]);
   const [name, setName] = useState("");
   const [scale, setScale] = useState<number | undefined>(undefined);
   const drawing = tool?.kind === "BINGO";
+  const [shipsProblem, setShipsProblem] = useState<string>();
   const scales = [...new Set([document.event.mapScale, ...COURSE_PRINT_SCALES.filter(value => value >= 4000 && value <= 15000)])].sort((a, b) => a - b);
   const add = () => {
     if (!area) return;
-    const { edits, courseId } = addBingoGroupEdits(document, name.trim() || text.suggestedName(cell), cell, area,
+    const { edits, courseId } = addBingoGroupEdits(document, name.trim() || suggested || text.suggestedName(cell), cell, area,
       scale === document.event.mapScale ? undefined : scale);
     onEdits(edits);
     setName("");
@@ -53,7 +59,8 @@ export function BingoBlock({ document, view, readOnly, tool, onTool, pendingArea
     {groups.length === 0 ? <p className={styles.muted}>{text.noGroups}</p> : <ul className={styles.bingoList}>
       {groups.map(group => <li key={group.course} className={styles.item} data-testid="bingo-group" data-selected={group.course === view || undefined}>
         <strong>{group.name}</strong>
-        <span className={styles.muted}>{text.cells(group.cells)} · {scaleText(group.printScale ?? document.event.mapScale)}</span>
+        <span className={styles.muted}>{text.cells(group.cells)} · {scaleText(group.printScale ?? document.event.mapScale)}
+          {group.bingo.ownArea && <> · {text.ownArea}</>}</span>
         {group.cells === 0 && <span className={styles.muted} role="alert">{text.tooMany}</span>}
         <div className={styles.row}>
           <label className={styles.stack}>{text.cell}<input type="number" min={BINGO_LIMITS.minCellMeters} max={BINGO_LIMITS.maxCellMeters} step={10}
@@ -69,16 +76,32 @@ export function BingoBlock({ document, view, readOnly, tool, onTool, pendingArea
             {[...new Set([...scales, group.printScale ?? document.event.mapScale])].sort((a, b) => a - b).map(value => <option key={value} value={value}>
               {value === document.event.mapScale ? text.mapScale(scaleText(value)) : scaleText(value)}</option>)}</select></label>
         </div>
+        <label className={styles.stack}>{text.ships}<input type="text" inputMode="numeric" disabled={readOnly} key={(group.bingo.ships ?? []).join(",")}
+          defaultValue={(group.bingo.ships ?? []).join(", ")} placeholder={defaultShips(group.cells).join(", ")}
+          onBlur={event => {
+            const ships = parseShips(event.target.value);
+            if (ships === undefined) { setShipsProblem(group.course); return; }
+            setShipsProblem(undefined);
+            if ((ships ?? []).join(",") !== (group.bingo.ships ?? []).join(",")) onEdits(setShipsEdits(document, group, ships));
+          }} /></label>
+        <span className={styles.muted} role={shipsProblem === group.course ? "alert" : undefined}>
+          {shipsProblem === group.course ? text.shipsInvalid : text.shipsHelp}</span>
         <div className={styles.row}>
           {group.course !== view && <Button variant="secondary" onClick={() => onView(group.course)}>{text.open}</Button>}
+          {!readOnly && !drawing && <Button variant="secondary" onClick={() => onTool({ kind: "BINGO", points: [], course: group.course })}>
+            {text.drawOwn}</Button>}
+          {!readOnly && group.bingo.ownArea && <Button variant="quiet" onClick={() => onEdits(setGroupAreaEdits(document, group,
+            pendingArea ?? groups.find(row => !row.bingo.ownArea)?.bingo.area ?? group.bingo.area, false))}>
+            {text.useTrainingArea}</Button>}
           {!readOnly && <Button variant="quiet" onClick={() => onEdits([{ type: "DELETE_COURSE", course: group.course }])}>{text.remove}</Button>}
         </div>
       </li>)}
     </ul>}
     {!readOnly && <div className={styles.item}>
       <div className={styles.row}>
-        <label className={styles.stack}>{text.name}<input type="text" maxLength={60} value={name} placeholder={text.suggestedName(cell)}
-          onChange={event => setName(event.target.value)} data-testid="bingo-name" /></label>
+        <label className={styles.stack}>{text.name}<input type="text" maxLength={60} value={name} placeholder={suggested ?? text.suggestedName(cell)}
+          list="bingo-group-names" onChange={event => setName(event.target.value)} data-testid="bingo-name" /></label>
+        <datalist id="bingo-group-names">{BINGO_GROUP_NAMES.map(item => <option key={item} value={item} />)}</datalist>
         <label className={styles.stack}>{text.cell}<select value={cell} onChange={event => setCell(Number(event.target.value))} data-testid="bingo-cell">
           {BINGO_CELL_SIZES.map(value => <option key={value} value={value}>{value}</option>)}</select></label>
         <label className={styles.stack}>{text.scale}<select value={scale ?? document.event.mapScale} onChange={event => setScale(Number(event.target.value))}>

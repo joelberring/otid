@@ -8,7 +8,7 @@ import type { Sizes } from "./appearance";
 import type { CourseSettingDocument, MapRect, OverprintPrimitive } from "./types";
 import type { BingoTraining } from "./training-types";
 
-export const BINGO_LIMITS = { minCellMeters: 20, maxCellMeters: 2000, maxCells: 900 } as const;
+export const BINGO_LIMITS = { minCellMeters: 20, maxCellMeters: 2000, maxCells: 900, maxShips: 8, maxShipLength: 6 } as const;
 /** Förslagen på rutstorlek i meter. */
 export const BINGO_CELL_SIZES = [100, 150, 250] as const;
 /** Den minsta andelen av en kantruta som ska ligga i området. */

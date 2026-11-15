@@ -67,3 +67,13 @@
 .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
 .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .linkButton { border: 0; padding: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; text-decoration: underline; }
+.shipCell { display: grid; place-items: center; min-height: 44px; padding: 0; font: inherit; font-size: 0.85rem; font-weight: 700; border-radius: 4px;
+  border: 1px solid #444; background: #111; color: #cfcfcf; font-variant-numeric: tabular-nums; }
+.card .shipCell { background: #fff; color: inherit; border-color: var(--line-strong, #b9bfbb); }
+.shipCell[aria-pressed="true"] { outline: 3px solid #ffd27a; outline-offset: -3px; }
+.shipCell[data-state="HIT"] { background: #2f8f3a; color: #fff; }
+.shipCell[data-state="SUNK"] { background: #145a1c; color: #fff; border-color: #6fdc7c; }
+.shipCell[data-state="WATER"] { background: #123a6b; color: #cfe3ff; }
+.shipCell[data-state="WRONG"] { color: #ff8a8a; border-color: #8a2a2a; }
+.shipCell:disabled { cursor: default; }
+.fire { min-height: 64px; border: 2px solid #ffd27a; border-radius: 10px; background: #3a2a00; color: #fff; font: inherit; font-size: 1.3rem; font-weight: 700; }

@@ -1,12 +1,17 @@
-import { integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { bigint, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { races } from "./core";
 
 /** Bingoorientering med telefonen (ADR-0225, migration 0125): påslagen för tävlingen. Rutnätet står i banläggningens dokument. */
 export const bingoRaces = pgTable("bingo_race", {
   raceId: uuid("race_id").primaryKey().references(() => races.id),
   enabledAt: timestamp("enabled_at", { withTimezone: true }).notNull(),
-  enabledBy: uuid("enabled_by").notNull()
+  enabledBy: uuid("enabled_by").notNull(),
+  /** Migration 0126: Bingo eller Sänka skepp. */
+  mode: text("mode").$type<"BINGO" | "SHIPS">().notNull().default("BINGO")
 });
+
+/** Ett skott i Sänka skepp: rutan löparen valde, tiden (ms), positionen i kartans mm och noggrannheten i meter. */
+export type BingoShotRow = { cell: string; at: number; x: number; y: number; accuracyM: number };
 
 /** Ruta tagen: rutans namn och tiden (ms sedan 1970). */
 export type BingoTakenRow = { cell: string; at: number };
@@ -29,6 +34,9 @@ export const bingoRunners = pgTable("bingo_runner", {
   taken: jsonb("taken").$type<BingoTakenRow[]>().notNull(),
   track: jsonb("track").$type<[number, number, number][]>().notNull(),
   gaps: jsonb("gaps").$type<[number, number][]>().notNull(),
+  /** Migration 0126, Sänka skepp: fröet för löparens skepp (sätts en gång) och skotten. */
+  seed: bigint("seed", { mode: "number" }),
+  shots: jsonb("shots").$type<BingoShotRow[]>().notNull().default([]),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull()
 }, table => [uniqueIndex("bingo_runner_client_uidx").on(table.raceId, table.clientId)]);

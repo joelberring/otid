@@ -38,6 +38,6 @@ export default async function BingoPage({ params }: Params) {
     return <main className={styles.page}><h1>{text.title}</h1><p className={styles.kicker}>{raceTitle(read.eventName, read.raceName)}</p>
       <p role="status">{text.closed(formatRaceDate(read.raceDate, undefined, LOCALE[language]))}</p></main>;
   }
-  return <BingoRunner raceId={raceId} title={raceTitle(read.race.eventName, read.race.raceName)} groups={read.setup.groups}
+  return <BingoRunner raceId={raceId} mode={read.race.mode} title={raceTitle(read.race.eventName, read.race.raceName)} groups={read.setup.groups}
     georeference={read.setup.georeference} mapScale={read.setup.mapScale} image={read.setup.image} initialBoard={read.leaderboard} />;
 }

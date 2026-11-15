@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase, migrate } from "@o-tid/database";
+import { placeShips } from "@o-tid/domain";
 import { listPublicRaces, readBingoAsAdmin, readBingoLeaderboard, readBingoPublic, receiveBingoProgress, setBingoAsAdmin } from "../../src";
 import { auth, NOW, RACE_DATE, seedRace } from "./steg-25-fixtures";
 
@@ -97,5 +98,31 @@ describe("bingo med telefonen (ADR-0225)", () => {
     expect(await listed(new Date(`2026-09-17T12:00:00Z`))).toEqual([false, false, false]);
     expect(await listed(new Date(`2026-09-21T12:00:00Z`))).toEqual([false, false, false]);
     expect(RACE_DATE).toBe("2026-09-19");
+  });
+
+  it("Sänka skepp: läget per träning, fröet behålls, skotten bedöms på servern och topplistan har poängen", async () => {
+    const { raceId, admin } = await bingoRace();
+    const set = await setBingoAsAdmin(db, { ...admin, request: { formatVersion: 1, enabled: true, mode: "SHIPS" } }, NOW);
+    expect(set.status === "ok" && set.response.mode).toBe("SHIPS");
+    const names = ["A1", "B1", "C1", "A2", "B2", "C2"];
+    const ships = placeShips(names, [2, 1], 77);
+    expect(ships.flatMap(ship => ship.cells)).toHaveLength(3);
+    // Rutornas mitt (1:10 000, 10 mm rutor, området 0–30 × 0–20 mm, A1 uppe till vänster).
+    const center = (name: string) => { const column = name.charCodeAt(0) - 65, row = Number(name.slice(1)) - 1; return { x: column * 10 + 5, y: 20 - row * 10 - 5 }; };
+    const hitCell = ships[0]!.cells[0]!;
+    const water = names.find(name => !ships.some(ship => ship.cells.includes(name)))!;
+    const shots = [{ cell: hitCell, at: start + 60_000, ...center(hitCell), accuracyM: 8 }, { cell: water, at: start + 120_000, ...center(water), accuracyM: 6 },
+      { cell: hitCell === "A1" ? "C2" : "A1", at: start + 180_000, ...center(hitCell), accuracyM: 6 }];
+    const runner = randomUUID();
+    expect(await send(raceId, progress(runner, { name: "Sam S", seed: 77, shots, taken: [] }))).toMatchObject({ status: "ok", response: { seed: 77 } });
+    // Ett annat frö senare ändrar inget.
+    expect(await send(raceId, progress(runner, { name: "Sam S", seed: 5, shots: shots.slice(0, 1), taken: [] }))).toMatchObject({ response: { seed: 77 } });
+    const board = await readBingoLeaderboard(db, { raceId, staff: false }, NOW);
+    expect(board?.mode).toBe("SHIPS");
+    expect(board?.groups[0]!.runners[0]).toMatchObject({ name: "Sam S", hits: 1, wrong: 1, points: 1 - 1 + (ships[0]!.cells.length === 1 ? 2 : 0) });
+    const view = await readBingoAsAdmin(db, admin, NOW);
+    const row = view.status === "ok" ? view.response.runners.find(item => item.name === "Sam S") : undefined;
+    expect(row?.ships).toEqual(ships.map(ship => ship.cells));
+    expect(row?.shots.map(item => item.result)).toEqual([ships[0]!.cells.length === 1 ? "SUNK" : "HIT", "WATER", "WRONG"]);
   });
 });

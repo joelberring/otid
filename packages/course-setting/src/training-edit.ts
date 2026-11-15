@@ -114,7 +114,16 @@ function cleanBingo(value: unknown): BingoTraining {
   const area = { minX: coordinate(a.minX, "Områdets vänstra kant"), minY: coordinate(a.minY, "Områdets nedre kant"),
     maxX: coordinate(a.maxX, "Områdets högra kant"), maxY: coordinate(a.maxY, "Områdets övre kant") };
   if (area.maxX <= area.minX || area.maxY <= area.minY) throw invalid("Bingons område har ingen yta");
-  return { area, cellMeters: number(b.cellMeters, "Rutans storlek", BINGO_LIMITS.minCellMeters, BINGO_LIMITS.maxCellMeters) };
+  let out: BingoTraining = { area, cellMeters: number(b.cellMeters, "Rutans storlek", BINGO_LIMITS.minCellMeters, BINGO_LIMITS.maxCellMeters) };
+  if (b.ownArea !== undefined) {
+    if (typeof b.ownArea !== "boolean") throw invalid("Eget område ska vara sant eller falskt");
+    if (b.ownArea) out = { ...out, ownArea: true };
+  }
+  if (b.ships !== undefined) {
+    const ships = array(b.ships, "Skeppen", BINGO_LIMITS.maxShips).map(length => Math.round(number(length, "Skeppets längd", 1, BINGO_LIMITS.maxShipLength)));
+    if (ships.length > 0) out = { ...out, ships };
+  }
+  return out;
 }
 
 export function cleanCourseTraining(value: unknown): CourseTraining {

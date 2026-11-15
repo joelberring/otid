@@ -101,6 +101,7 @@
     { "idx": 96, "version": "7", "when": 1807891200000, "tag": "0122_kartprojekt_underlag_webp", "breakpoints": true },
     { "idx": 97, "version": "7", "when": 1807977600000, "tag": "0123_kartinnehall_arkiv", "breakpoints": true },
     { "idx": 98, "version": "7", "when": 1808064000000, "tag": "0124_kartprojekt_storre_objekt", "breakpoints": true },
-    { "idx": 99, "version": "7", "when": 1808150400000, "tag": "0125_bingo", "breakpoints": true }
+    { "idx": 99, "version": "7", "when": 1808150400000, "tag": "0125_bingo", "breakpoints": true },
+    { "idx": 100, "version": "7", "when": 1808236800000, "tag": "0126_sanka_skepp", "breakpoints": true }
   ]
 }

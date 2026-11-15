@@ -57,13 +57,26 @@ export const bingoEn: Texts<typeof bingoSv> = {
     group: "Group",
     groupLine: (cells: number, meters: number) => `${cells} squares, ${meters} m`,
     start: "Start",
-    instructions: "How it works",
-    rules: [
-      "GPS only works while the screen is on and the page is open. Keep the phone unlocked in your pocket.",
-      "Do not lock the screen with the side button. Turn off auto-lock, or set it to the longest time, as a backup.",
-      "The phone pings when a square is taken. You do not see the map or your position until the finish.",
-      "Finish and Cancel: hold the button for 2 seconds."
-    ],
+    instructions: "How to play",
+    understood: "I understand – start",
+    help: "Help",
+    close: "Close",
+    back: "Back",
+    guide: {
+      BINGO: [
+        { icon: "🗺️", text: "Run with the map. Take as many squares as you can." },
+        { icon: "📱", text: "Keep the screen on. Do not lock the phone. Keep it in your pocket." },
+        { icon: "🔔", text: "It pings for every square you take." },
+        { icon: "🏁", text: "Finish: hold the button for 2 seconds." }
+      ],
+      SHIPS: [
+        { icon: "🗺️", text: "Run with the map. The phone shows no map." },
+        { icon: "👆", text: "When you are in a square: tap the square and then «Fire»." },
+        { icon: "🎯", text: "The right square always gives points: water +1, hit +3, sunk ship +3 more. Wrong square: −2." },
+        { icon: "🤝", text: "Some ships are shared by the whole group. The dots show where your friends have fired. Talk to each other!" },
+        { icon: "🔓", text: "The phone may be locked between shots. Unlock it a few steps before you get there, so the GPS can find you. Finish: hold the button for 2 seconds." }
+      ]
+    },
     noGeolocation: "The phone cannot give a position here.",
     insecure: "The position needs a secure connection (https).",
     denied: "Location is turned off for the page. Allow location for the browser and reload.",
@@ -96,22 +109,18 @@ export const bingoEn: Texts<typeof bingoSv> = {
   ships: {
     title: "Battleships",
     intro: "Run with the map. When you think you are in a square: tap the square and Fire. The phone then takes a position.",
-    rules: [
-      "The group has shared ships (the same for everyone) and you have your own. The dots in a square show how many others stood there and fired, not whether it was a hit: talk to each other.",
-      "A hit gives 1 point, a sunk ship 2 more. The wrong square (you were not there) gives −1.",
-      "Each square can be fired at once. The phone may be locked between the shots.",
-      "Finish and Cancel: hold the button for 2 seconds."
-    ],
     points: "Points",
     sunk: "Sunk",
     choose: "Tap the square you are in.",
     fire: (cell: string) => `Fire at ${cell}`,
     searching: (seconds: number) => `Finding position … ${seconds} s`,
     noPosition: (meters: number | undefined) => meters === undefined ? "No position. Try again." : `No accurate enough position (±${meters} m). Try again.`,
-    hit: (cell: string) => `Hit in ${cell}!`,
-    sunkShip: (cell: string) => `Hit in ${cell} – sunk!`,
-    water: (cell: string) => `Water in ${cell}.`,
-    wrong: (cell: string) => `You were not in ${cell} (−1).`,
+    hit: (cell: string, points: number) => `Hit in ${cell}! +${points}`,
+    sunkShip: (cell: string, points: number) => `Sunk in ${cell}! +${points}`,
+    water: (cell: string, points: number) => `Water in ${cell} · +${points}`,
+    wrong: (cell: string, points: number) => `You were not in ${cell} · −${Math.abs(points)}`,
+    gpsReady: (meters: number) => `GPS ±${meters} m · you can fire`,
+    gpsSearching: "Finding GPS …",
     shot: "already fired at",
     legend: "✓ sunk · ● hit · ~ water · ✗ wrong",
     sharedColumn: "Shared",

@@ -127,7 +127,7 @@ describe("bingo med telefonen (ADR-0225)", () => {
     await send(raceId, progress(kim, { name: "Kim K", seed: 78, shots: shots.slice(0, 1), taken: [] }));
     const board = await readBingoLeaderboard(db, { raceId, staff: false }, NOW);
     expect(board?.mode).toBe("SHIPS");
-    expect(board?.groups[0]!.runners.find(row => row.name === "Sam S")).toMatchObject({ hits: 1, wrong: 1, water: 1, points: 0, sharedSunk: 0 });
+    expect(board?.groups[0]!.runners.find(row => row.name === "Sam S")).toMatchObject({ hits: 1, wrong: 1, water: 1, points: 3 + 1 - 2, sharedSunk: 0 });
     // Prickarna: två har stått i träffrutan, en i vattenrutan; fel ruta räknas inte. Inga namn eller positioner.
     expect(board?.groups[0]!.shotCells).toEqual({ [hitCell]: 2, [water]: 1 });
     expect(JSON.stringify(board?.groups[0]!.shotCells)).not.toContain("Sam");

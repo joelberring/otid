@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { BingoGroup, BingoLeaderboard, BingoMode } from "@o-tid/contracts";
 import type { MapGeoreference } from "@o-tid/map-file";
-import type { JudgedShot } from "@o-tid/domain";
+import { shotPoints, type JudgedShot } from "@o-tid/domain";
 import { bingoEn } from "../../i18n/bingo-en";
 import { bingoSv } from "../../i18n/bingo-sv";
 import { forgetBingoRun, formatBingoDistance, formatBingoGap, formatBingoTime } from "../../lib/bingo-run";
@@ -15,6 +15,7 @@ import { HoldButton, useNow } from "./bingo-hold";
 import { BingoMap, type BingoMapImage } from "./bingo-map";
 import { ShipBoard, ShipFire, useShips } from "./bingo-ships";
 import { BingoSignup } from "./bingo-signup";
+import { BingoGuide } from "./bingo-guide";
 import { useBingoRun } from "./use-bingo-run";
 import styles from "./bingo.module.css";
 
@@ -38,6 +39,7 @@ export function BingoRunner({ raceId, mode, title, groups, georeference, mapScal
   const bingo = useBingoRun({ raceId, mode, groups, georeference, mapScale });
   const board = useBingoBoard(raceId, initialBoard, bingo.run?.acked);
   const [blocked, setBlocked] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
   const [message, setMessage] = useState<{ text: string; at: number }>();
   const run = bingo.run;
   const now = useNow(run?.status === "RUNNING");
@@ -73,12 +75,17 @@ export function BingoRunner({ raceId, mode, title, groups, georeference, mapScal
   };
   const last = ships.judged[ships.judged.length - 1];
   const verdict = last && message?.text === ""
-    ? last.result === "SUNK" ? shipText.sunkShip(last.cell) : last.result === "HIT" ? shipText.hit(last.cell)
-      : last.result === "WATER" ? shipText.water(last.cell) : shipText.wrong(last.cell) : message?.text;
+    ? (last.result === "SUNK" ? shipText.sunkShip : last.result === "HIT" ? shipText.hit : last.result === "WATER" ? shipText.water
+      : shipText.wrong)(last.cell, shotPoints(last.result)) : message?.text;
 
   if (run.status === "RUNNING") {
     const recent = bingo.lastTaken && now - bingo.lastTaken.at < 8000 ? bingo.lastTaken.cell : undefined;
+    if (guideOpen) return <main className={styles.pocket} data-testid="bingo-pocket">
+      <BingoGuide mode={shipsMode ? "SHIPS" : "BINGO"} dark action={<button type="button" className={styles.fire} onClick={() => setGuideOpen(false)}>
+        {text.close}</button>} />
+    </main>;
     return <main className={styles.pocket} data-testid="bingo-pocket">
+      <button type="button" className={styles.helpButton} aria-label={text.help} onClick={() => setGuideOpen(true)} data-testid="bingo-help">?</button>
       {shipsMode ? <div className={styles.numbers}>
         <div><span className={styles.big} data-testid="ship-points">{ships.score.points}</span><span>{shipText.points}</span></div>
         <div><span className={styles.big}>{ships.score.sunk}<small>/{ships.ships.length}</small></span><span>{shipText.sunk}</span></div>
@@ -91,6 +98,8 @@ export function BingoRunner({ raceId, mode, title, groups, georeference, mapScal
       {shipsMode ? <>
         {verdict && <p className={styles.gap} role="alert" data-testid="ship-verdict">{verdict}</p>}
         {problem && <p className={styles.gap} role="alert">{problem}</p>}
+        {!bingo.aiming && <p className={bingo.shipGps.ready ? styles.gpsOk : styles.status} role="status" data-testid="ship-gps">
+          {bingo.shipGps.ready && bingo.shipGps.accuracy !== undefined ? shipText.gpsReady(bingo.shipGps.accuracy) : shipText.gpsSearching}</p>}
         <ShipFire aiming={bingo.aiming} now={now} onFire={fire}>
           {(selected, select) => <ShipBoard group={group} judged={ships.judged} sunkCells={sunkCells} selected={selected} onSelect={select} dark
             others={othersOn(board.groups.find(item => item.course === group.course)?.shotCells, ships.judged)}

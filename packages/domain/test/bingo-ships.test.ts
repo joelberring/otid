@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  bingoGroupSeed, defaultShipSplit, placeGroupShips, shipSplitFor, shotCellCounts, defaultShips, judgeShots, mergeShots, placeShips, rankShips, scoreShots, bingoCellPosition, type BingoCellArea, type Shot
+  bingoGroupSeed, chooseShotFix, shotPoints, SHIP_POINTS, defaultShipSplit, placeGroupShips, shipSplitFor, shotCellCounts, defaultShips, judgeShots, mergeShots, placeShips, rankShips, scoreShots, bingoCellPosition, type BingoCellArea, type Shot
 } from "../src";
 
 // 1:10 000, rutor om 100 m (10 mm): 6 × 5 rutor, A1 uppe till vänster.
@@ -57,7 +57,7 @@ describe("sänka skepp: skotten och poängen", () => {
   it("träff, sänkt, vatten och fel ruta; en ruta skjuts en gång; fel ruta tar inte rutan", () => {
     const judged = judgeShots([shot("A1", 1), shot("C2", 2, "C3"), shot("C2", 3), shot("A1", 4), shot("B1", 5), shot("D3", 6)], cells, ships, M);
     expect(judged.map(item => [item.cell, item.result])).toEqual([["A1", "HIT"], ["C2", "WRONG"], ["C2", "WATER"], ["B1", "SUNK"], ["D3", "SUNK"]]);
-    expect(scoreShots(judged)).toEqual({ points: 3 + 4 - 1, hits: 3, sunk: 2, wrong: 1, water: 1, sharedSunk: 0, lastShotAt: 6 });
+    expect(scoreShots(judged)).toEqual({ points: 3 * 3 + 2 * 3 + 1 - 2, hits: 3, sunk: 2, wrong: 1, water: 1, sharedSunk: 0, lastShotAt: 6 });
   });
 
   it("marginalen utanför kanten: noggrannheten, minst 10 m, högst 25 m", () => {
@@ -115,5 +115,25 @@ describe("sänka skepp: gemensamma och egna skepp", () => {
     expect(scoreShots(judged)).toMatchObject({ sunk: 2, sharedSunk: 1 });
     const other = judgeShots([shot("A1", 1), shot("C2", 2, "C3"), shot("E5", 3)], cells, ships, M);
     expect(shotCellCounts([judged, other])).toEqual({ A1: 2, B1: 1, D3: 1, E5: 1 });
+  });
+});
+
+describe("sänka skepp: poängskalan och skottets position", () => {
+  it("vatten +1, träff +3, sänkt +3 till, fel −2", () => {
+    expect(SHIP_POINTS).toEqual({ water: 1, hit: 3, sunkBonus: 3, wrong: -2 });
+    expect(["WATER", "HIT", "SUNK", "WRONG"].map(result => shotPoints(result as "WATER"))).toEqual([1, 3, 6, -2]);
+  });
+
+  it("färsk, noggrann och inte för tidigt efter uppvärmningen; den senaste av två bra", () => {
+    const fix = (accuracyM: number, receivedAt: number) => ({ accuracyM, receivedAt });
+    // För tidig: kom 1 s efter att uppvärmningen började.
+    expect(chooseShotFix([fix(5, 1000)], 1500, 0)).toBeUndefined();
+    // Gammal: 3 s sedan.
+    expect(chooseShotFix([fix(5, 4000)], 7000, 0)).toBeUndefined();
+    // Onoggrann senast, men en bra strax före inom 2 s.
+    expect(chooseShotFix([fix(8, 5000), fix(30, 5500)], 6000, 0)).toEqual(fix(8, 5000));
+    // Två bra i rad: den senaste.
+    expect(chooseShotFix([fix(8, 5000), fix(12, 5800)], 6000, 0)).toEqual(fix(12, 5800));
+    expect(chooseShotFix([], 6000, 0)).toBeUndefined();
   });
 });

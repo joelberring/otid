@@ -80,3 +80,12 @@
 .shipCell, .heatCell { position: relative; }
 .dots { position: absolute; top: 1px; right: 3px; font-size: 0.7rem; line-height: 1; letter-spacing: -1px; color: #888; font-weight: 700; }
 .cardDark .dots { color: #e8e8e8; }
+.guide, .guideDark { display: grid; gap: 12px; padding: 14px; border-radius: 10px; border: 2px solid var(--accent, #8e2a80); background: var(--surface, #fff); }
+.guideDark { border-color: #555; background: #111; color: #f0f0f0; }
+.guide h2, .guideDark h2 { margin: 0; font-size: 1.3rem; }
+.guide ol, .guideDark ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; font-size: 1.15rem; line-height: 1.35; }
+.guide li, .guideDark li { display: grid; grid-template-columns: 2rem 1fr; gap: 8px; align-items: start; }
+.guide li > span:first-child, .guideDark li > span:first-child { font-size: 1.5rem; line-height: 1.1; }
+.helpButton { justify-self: end; min-width: 44px; min-height: 44px; border-radius: 22px; border: 2px solid #555; background: #111; color: #f0f0f0;
+  font: inherit; font-size: 1.2rem; font-weight: 700; }
+.gpsOk { margin: 0; text-align: center; color: #6fdc7c; font-weight: 700; }

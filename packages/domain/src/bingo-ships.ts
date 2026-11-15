@@ -182,14 +182,25 @@ export function judgeShots(shots: readonly Shot[], cells: readonly BingoCellArea
   return out;
 }
 
-/** Poängen: +1 per träff (också den som sänker), +2 per sänkt skepp, −1 per fel ruta. */
+/**
+ * Poängen (ägaren 2026-11-16, «tröstpoäng om man tagit vatten rätt»): rätt ruta ger alltid minst 1. Vatten +1, träff +3
+ * (också den som sänker), sänkt skepp +3 extra, fel ruta −2.
+ */
+export const SHIP_POINTS = { water: 1, hit: 3, sunkBonus: 3, wrong: -2 } as const;
+
+/** Poängen för ett bedömt skott (beskedet efter skottet). */
+export function shotPoints(result: ShotResult): number {
+  return result === "WATER" ? SHIP_POINTS.water : result === "HIT" ? SHIP_POINTS.hit : result === "SUNK" ? SHIP_POINTS.hit + SHIP_POINTS.sunkBonus : SHIP_POINTS.wrong;
+}
+
+/** Poängen för skotten, se `SHIP_POINTS`.*/
 export function scoreShots(judged: readonly JudgedShot[]): ShipScore {
   const hits = judged.filter(shot => shot.result === "HIT" || shot.result === "SUNK").length;
   const sunk = judged.filter(shot => shot.result === "SUNK").length;
   const wrong = judged.filter(shot => shot.result === "WRONG").length;
   const water = judged.filter(shot => shot.result === "WATER").length;
   const sharedSunk = judged.filter(shot => shot.result === "SUNK" && shot.shared).length;
-  return { points: hits + 2 * sunk - wrong, hits, sunk, wrong, water, sharedSunk, lastShotAt: judged.length > 0 ? Math.max(...judged.map(shot => shot.at)) : null };
+  return { points: water * SHIP_POINTS.water + hits * SHIP_POINTS.hit + sunk * SHIP_POINTS.sunkBonus + wrong * SHIP_POINTS.wrong, hits, sunk, wrong, water, sharedSunk, lastShotAt: judged.length > 0 ? Math.max(...judged.map(shot => shot.at)) : null };
 }
 
 /** Skotten från servern och telefonen ihop: samma ruta och tid är samma skott. */
@@ -217,4 +228,23 @@ export function shotCellCounts(judgedPerRunner: readonly (readonly JudgedShot[])
     for (const cell of new Set(judged.filter(shot => shot.result !== "WRONG").map(shot => shot.cell))) out[cell] = (out[cell] ?? 0) + 1;
   }
   return out;
+}
+
+/** En position som telefonen fått: noggrannheten i meter och när den kom (ms). */
+export interface ShotFix { readonly accuracyM: number; readonly receivedAt: number }
+
+export const SHOT_FIX_RULES = { maxAgeMs: 2000, warmupMs: 3000 } as const;
+
+/**
+ * Positionen för skottet (ägaren 2026-11-16): den senaste som är högst 2 s gammal och ≤ 20 m noggrann, och som kom minst 3 s
+ * efter att GPS:en började värmas upp (den första efter upplåsning kan vara gammal). Undefined = vänta.
+ */
+export function chooseShotFix<T extends ShotFix>(fixes: readonly T[], now: number, warmupStartedAt: number): T | undefined {
+  for (let i = fixes.length - 1; i >= 0; i--) {
+    const fix = fixes[i]!;
+    if (now - fix.receivedAt > SHOT_FIX_RULES.maxAgeMs) return undefined;
+    if (fix.receivedAt - warmupStartedAt < SHOT_FIX_RULES.warmupMs) return undefined;
+    if (fix.accuracyM <= SHIP_RULES.shotAccuracyM) return fix;
+  }
+  return undefined;
 }

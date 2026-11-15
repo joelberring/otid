@@ -67,3 +67,18 @@ GPS-följning, som ADR-0168 parkerade, och den första publika skrivningen av l�
 Banläggning → fliken Träning → Bingo: rita området, lägg till grupper; per grupp rutstorlek, skala, «Eget område»,
 «Gemensamma skepp» och «Egna skepp» (tomma = förval). Längst ned «Med telefonen»: bocka i och välj läget Sänka skepp.
 Publicera träningen. Löparna: tävlingssidan → «Bingo: anmäl dig och starta».
+
+## Tillägg 2026-11-16: poängen, instruktionen och skottets position
+
+- **Poängen** (`SHIP_POINTS`): rätt ruta ger alltid poäng: vatten +1, träff +3, sänkt skepp +3 extra, fel ruta −2. Servern
+  räknar om allt från skotten, så lopp som redan finns får den nya skalan. Rankningen är oförändrad (poäng först).
+- **Instruktionen**: efter namn och grupp visar Starta en ruta per läge med högst fem korta punkter och en liten bild, skriven
+  för ungdomar från cirka 9 år, och knappen «Jag förstår – starta». «?» i fickläget visar samma ruta. Beskeden efter ett
+  skott är korta («Vatten i C3 · +1», «Träff i C3! +3»).
+- **Skottets position** (`chooseShotFix`): GPS:en värms upp så fort sidan syns under loppet och stoppas när den döljs. Skjut
+  tar den senaste positionen som är högst 2 s gammal och ≤ 20 m noggrann och som kom minst 3 s efter att uppvärmningen
+  började; annars väntar telefonen upp till 20 s. Skottbrädet visar «GPS ±8 m · du kan skjuta» eller «Söker GPS …».
+- **Ledaren** ser gruppernas gemensamma skepp (lista och karta, innan någon har startat) och varje löpares egna skepp; i
+  banläggningen «Visa skeppen (bara för dig)» (ritas bara i editorn, aldrig i utskriften) och «Slumpa om gemensamma» (ett
+  sparat frö per grupp, bara innan någon i gruppen har startat; kontrolleras i webbläsaren). Den publika delen visar inga
+  skepp, men telefonen räknar skeppen själv ur gruppens frö för att kunna bedöma skott utan nät.

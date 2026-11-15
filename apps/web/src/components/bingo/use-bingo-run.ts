@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { bingoProgressResponseSchema, type BingoGroup, type BingoMode } from "@o-tid/contracts";
-import { bingoStep, SHIP_RULES, type BingoRunState } from "@o-tid/domain";
+import { bingoStep, chooseShotFix, SHIP_RULES, type BingoRunState } from "@o-tid/domain";
 import { wgs84ToMapPoint, type MapGeoreference } from "@o-tid/map-file";
 import { metersPerMm } from "../../lib/course-setting-geo";
 import { bingoProgressRequest, newBingoRun, readBingoRun, saveBingoRun, type StoredBingoRun } from "../../lib/bingo-run";
@@ -174,32 +174,66 @@ export function useBingoRun({ raceId, mode, groups, georeference, mapScale }: {
    * räckte. Skottet sparas (och skickas) bara med en tillräckligt noggrann position.
    */
   const [aiming, setAiming] = useState<{ cell: string; since: number }>();
+  // Sänka skepp: GPS:en värms upp så fort sidan syns under loppet och stoppas när den döljs (ägaren 2026-11-16).
+  const fixes = useRef<{ latitude: number; longitude: number; accuracyM: number; receivedAt: number }[]>([]);
+  const warmup = useRef(0);
+  const [shipGps, setShipGps] = useState<{ accuracy: number | undefined; ready: boolean }>({ accuracy: undefined, ready: false });
+  const aimingShips = running && mode === "SHIPS";
+  useEffect(() => {
+    if (!aimingShips || !("geolocation" in navigator) || !window.isSecureContext) return;
+    let id: number | undefined;
+    const stop = () => { if (id !== undefined) navigator.geolocation.clearWatch(id); id = undefined; fixes.current = []; };
+    const begin = () => {
+      if (id !== undefined) return;
+      warmup.current = Date.now();
+      fixes.current = [];
+      setShipGps({ accuracy: undefined, ready: false });
+      id = navigator.geolocation.watchPosition(position => {
+        const now = Date.now();
+        fixes.current = [...fixes.current.slice(-9), { latitude: position.coords.latitude, longitude: position.coords.longitude,
+          accuracyM: position.coords.accuracy, receivedAt: now }];
+        setShipGps({ accuracy: Math.round(position.coords.accuracy), ready: chooseShotFix(fixes.current, now, warmup.current) !== undefined });
+      }, failure => { if (failure.code === failure.PERMISSION_DENIED) setProblem("denied"); }, { enableHighAccuracy: true, maximumAge: 0 });
+    };
+    const visibility = () => { if (document.visibilityState === "visible") begin(); else stop(); };
+    visibility();
+    document.addEventListener("visibilitychange", visibility);
+    // Färskheten: «du kan skjuta» släcks när positionen blir äldre än 2 s.
+    const tick = window.setInterval(() => setShipGps(current => {
+      const ready = chooseShotFix(fixes.current, Date.now(), warmup.current) !== undefined;
+      return current.ready === ready ? current : { ...current, ready };
+    }), 1000);
+    return () => { document.removeEventListener("visibilitychange", visibility); window.clearInterval(tick); stop(); };
+  }, [aimingShips]);
+
+  /**
+   * Sänka skepp: positionen för skottet. En färsk (högst 2 s), noggrann (≤ 20 m) position som inte kom direkt efter
+   * upplåsningen (`chooseShotFix`); annars väntar telefonen upp till 20 s. Ger den bästa noggrannheten om ingen räckte.
+   */
   const shoot = useCallback(async (cell: string): Promise<{ ok: true } | { ok: false; accuracyM: number | undefined }> => {
     void sound.current.unlock();
     if (!georeference) { setProblem("noGeoreference"); return { ok: false, accuracyM: undefined }; }
     if (!window.isSecureContext) { setProblem("insecure"); return { ok: false, accuracyM: undefined }; }
     if (!("geolocation" in navigator)) { setProblem("noGeolocation"); return { ok: false, accuracyM: undefined }; }
-    setAiming({ cell, since: Date.now() });
-    const fix = await new Promise<GeolocationPosition | { best: number | undefined }>(resolve => {
-      let best: number | undefined;
-      const id = navigator.geolocation.watchPosition(position => {
-        best = best === undefined ? position.coords.accuracy : Math.min(best, position.coords.accuracy);
-        setAccuracy(Math.round(position.coords.accuracy));
-        if (position.coords.accuracy <= SHIP_RULES.shotAccuracyM) { finish(); resolve(position); }
-      }, failure => { if (failure.code === failure.PERMISSION_DENIED) { setProblem("denied"); finish(); resolve({ best }); } },
-      { enableHighAccuracy: true, maximumAge: 0, timeout: SHIP_RULES.shotWaitSeconds * 1000 });
-      const timer = window.setTimeout(() => { finish(); resolve({ best }); }, SHIP_RULES.shotWaitSeconds * 1000);
-      function finish() { navigator.geolocation.clearWatch(id); window.clearTimeout(timer); }
-    });
+    const pressed = Date.now();
+    setAiming({ cell, since: pressed });
+    let fix = chooseShotFix(fixes.current, Date.now(), warmup.current);
+    while (!fix && Date.now() - pressed < SHIP_RULES.shotWaitSeconds * 1000) {
+      await new Promise(resolve => window.setTimeout(resolve, 250));
+      fix = chooseShotFix(fixes.current, Date.now(), warmup.current);
+    }
     setAiming(undefined);
-    if (!("coords" in fix)) return { ok: false, accuracyM: fix.best === undefined ? undefined : Math.round(fix.best) };
+    if (!fix) {
+      const recent = fixes.current.filter(item => item.receivedAt >= pressed).map(item => item.accuracyM);
+      return { ok: false, accuracyM: recent.length > 0 ? Math.round(Math.min(...recent)) : undefined };
+    }
     let at;
-    try { at = wgs84ToMapPoint(georeference, { latitude: fix.coords.latitude, longitude: fix.coords.longitude }); }
+    try { at = wgs84ToMapPoint(georeference, { latitude: fix.latitude, longitude: fix.longitude }); }
     catch (error) { console.error("Positionen kunde inte räknas om till kartan", error); setProblem("noGeoreference"); return { ok: false, accuracyM: undefined }; }
     setProblem(undefined);
     const current = runRef.current;
     if (!current || current.status !== "RUNNING") return { ok: false, accuracyM: undefined };
-    const shot = { cell, at: Date.now(), x: at.x, y: at.y, accuracyM: fix.coords.accuracy };
+    const shot = { cell, at: Date.now(), x: at.x, y: at.y, accuracyM: fix.accuracyM };
     commit({ ...current, shots: [...(current.shots ?? []), shot], version: current.version + 1 }, true);
     void sync();
     return { ok: true };
@@ -213,6 +247,6 @@ export function useBingoRun({ raceId, mode, groups, georeference, mapScale }: {
 
   const reset = useCallback(() => { runRef.current = undefined; setRun(undefined); setLastTaken(undefined); setGapNotice(undefined); }, []);
 
-  return { run, group, resumed, storageFailed, problem, accuracy, lastTaken, gapNotice, wakeLockFailed, syncProblem, start, end, reset, sync, shoot, aiming,
+  return { shipGps, run, group, resumed, storageFailed, problem, accuracy, lastTaken, gapNotice, wakeLockFailed, syncProblem, start, end, reset, sync, shoot, aiming,
     ping, metersPerMm: georeference ? metersPerMm(georeference, mapScale) : mapScale / 1000 };
 }

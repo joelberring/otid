@@ -54,13 +54,26 @@ export const bingoSv = {
     group: "Grupp",
     groupLine: (cells: number, meters: number) => `${cells} rutor, ${meters} m`,
     start: "Starta",
-    instructions: "Så fungerar det",
-    rules: [
-      "GPS fungerar bara när skärmen är tänd och sidan är öppen. Ha telefonen olåst i fickan.",
-      "Lås inte skärmen med sidoknappen. Stäng gärna av automatisk låsning, eller sätt den till längsta tiden, som reserv.",
-      "Telefonen plingar när en ruta är tagen. Du ser inte kartan eller din position förrän i mål.",
-      "Mål och Avbryt: håll in knappen i 2 sekunder."
-    ],
+    instructions: "Så spelar du",
+    understood: "Jag förstår – starta",
+    help: "Hjälp",
+    close: "Stäng",
+    back: "Tillbaka",
+    guide: {
+      BINGO: [
+        { icon: "🗺️", text: "Spring med kartan. Ta så många rutor du kan." },
+        { icon: "📱", text: "Ha skärmen tänd. Lås inte telefonen. Ha den i fickan." },
+        { icon: "🔔", text: "Det plingar för varje ruta du tar." },
+        { icon: "🏁", text: "Mål: håll in knappen i 2 sekunder." }
+      ],
+      SHIPS: [
+        { icon: "🗺️", text: "Spring med kartan. Telefonen visar ingen karta." },
+        { icon: "👆", text: "När du står i en ruta: tryck på rutan och sedan «Skjut»." },
+        { icon: "🎯", text: "Rätt ruta ger alltid poäng: vatten +1, träff +3, sänkt skepp +3 till. Fel ruta: −2." },
+        { icon: "🤝", text: "Några skepp är gemensamma för hela gruppen. Prickarna visar var kompisarna har skjutit. Prata med varandra!" },
+        { icon: "🔓", text: "Telefonen får vara låst mellan skotten. Lås upp den några steg innan du är framme, så hinner GPS:en hitta dig. Mål: håll in knappen i 2 sekunder." }
+      ]
+    },
     noGeolocation: "Telefonen kan inte ge någon position här.",
     insecure: "Positionen kräver en säker anslutning (https).",
     denied: "Positionen är avstängd för sidan. Tillåt plats för webbläsaren och ladda om.",
@@ -93,22 +106,18 @@ export const bingoSv = {
   ships: {
     title: "Sänka skepp",
     intro: "Spring med kartan. När du tror att du står i en ruta: tryck på rutan och Skjut. Telefonen tar då en position.",
-    rules: [
-      "Gruppen har gemensamma skepp (samma för alla) och du har egna. Prickarna i en ruta visar hur många andra som stått där och skjutit, inte om det var träff: prata med varandra.",
-      "Träff ger 1 poäng, ett sänkt skepp 2 poäng till. Fel ruta (du stod inte där) ger −1.",
-      "Varje ruta kan skjutas en gång. Telefonen får vara låst mellan skotten.",
-      "Mål och Avbryt: håll in knappen i 2 sekunder."
-    ],
     points: "Poäng",
     sunk: "Sänkta",
     choose: "Tryck på rutan du står i.",
     fire: (cell: string) => `Skjut på ${cell}`,
     searching: (seconds: number) => `Söker position … ${seconds} s`,
     noPosition: (meters: number | undefined) => meters === undefined ? "Ingen position. Försök igen." : `Ingen tillräckligt noggrann position (±${meters} m). Försök igen.`,
-    hit: (cell: string) => `Träff i ${cell}!`,
-    sunkShip: (cell: string) => `Träff i ${cell} – sänkt!`,
-    water: (cell: string) => `Vatten i ${cell}.`,
-    wrong: (cell: string) => `Du stod inte i ${cell} (−1).`,
+    hit: (cell: string, points: number) => `Träff i ${cell}! +${points}`,
+    sunkShip: (cell: string, points: number) => `Sänkt i ${cell}! +${points}`,
+    water: (cell: string, points: number) => `Vatten i ${cell} · +${points}`,
+    wrong: (cell: string, points: number) => `Du stod inte i ${cell} · −${Math.abs(points)}`,
+    gpsReady: (meters: number) => `GPS ±${meters} m · du kan skjuta`,
+    gpsSearching: "Söker GPS …",
     shot: "redan skjuten",
     legend: "✓ sänkt · ● träff · ~ vatten · ✗ fel",
     sharedColumn: "Gemensamma",

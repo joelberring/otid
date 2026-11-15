@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, asc, eq } from "drizzle-orm";
 import {
   BINGO_NAME_MAX, bingoAdminViewSchema, bingoLeaderboardSchema, bingoProgressRequestSchema, bingoProgressResponseSchema, bingoSettingRequestSchema,
-  type BingoAdminView, type BingoGroup, type BingoLeaderboard, type BingoMode, type BingoProgressResponse
+  type BingoAdminView, type BingoGroup, type BingoLeaderboard, type BingoMode, type BingoProgressResponse, type VirtualCourseView, type VirtualSettings
 } from "@o-tid/contracts";
 import { bingoCells, type CourseSettingDocument } from "@o-tid/course-setting";
 import { schema, type Database } from "@o-tid/database";
@@ -12,6 +12,7 @@ import {
 } from "@o-tid/domain";
 import type { MapGeoreference } from "@o-tid/map-file";
 import { consumeAccountRequestAllowance } from "./account-throttle";
+import { virtualCourses, virtualLeaderboard, virtualRunner, virtualSettings } from "./bingo-virtual";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { UUID_PATTERN as uuid } from "./serialization";
 import type { DbExecutor } from "./snapshot";
@@ -29,30 +30,32 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 interface BingoRaceFacts {
   raceId: string; eventName: string; raceName: string; raceDate: string; timeZone: string; shortCode: string;
-  published: boolean; enabled: boolean; mode: BingoMode;
+  published: boolean; enabled: boolean; mode: BingoMode; settings: VirtualSettings;
 }
 
 async function raceFacts(tx: DbExecutor, raceId: string): Promise<BingoRaceFacts | undefined> {
   const [race] = await tx.select({ raceId: schema.races.id, eventName: schema.events.name, raceName: schema.races.name, raceDate: schema.races.raceDate,
     timeZone: schema.events.timeZone, shortCode: schema.races.shortCode, publishedAt: schema.races.publishedAt, hidden: schema.races.hiddenBySuperadmin,
-    enabledAt: schema.bingoRaces.enabledAt, mode: schema.bingoRaces.mode })
+    enabledAt: schema.bingoRaces.enabledAt, mode: schema.bingoRaces.mode, settings: schema.bingoRaces.settings })
     .from(schema.races).innerJoin(schema.events, eq(schema.events.id, schema.races.eventId))
     .leftJoin(schema.bingoRaces, eq(schema.bingoRaces.raceId, schema.races.id)).where(eq(schema.races.id, raceId));
   if (!race) return undefined;
-  const { publishedAt, hidden, enabledAt, mode, ...facts } = race;
-  return { ...facts, published: publishedAt !== null && !hidden, enabled: enabledAt !== null, mode: mode ?? "BINGO" };
+  const { publishedAt, hidden, enabledAt, mode, settings, ...facts } = race;
+  return { ...facts, published: publishedAt !== null && !hidden, enabled: enabledAt !== null, mode: mode ?? "BINGO", settings: virtualSettings(settings) };
 }
 
 /** Kartbilden i kartans mm (`render`: bildens övre vänstra hörn och pixlar per mm) för kartan efter målgången. */
 export interface BingoMapImage { originX: number; originY: number; pxPerMm: number; width: number; height: number }
 /** `metersPerMm`: kartans meter per mm (georeferensens skala, annars kartans), samma som telefonen räknar med. */
-export interface BingoSetup { groups: BingoGroup[]; mapScale: number; metersPerMm: number; georeference: MapGeoreference | null; image: BingoMapImage | null }
+export interface BingoSetup { groups: BingoGroup[]; mapScale: number; metersPerMm: number; georeference: MapGeoreference | null; image: BingoMapImage | null;
+  /** Virtuella kontroller (ADR-0226): banorna och träningens inställningar. */
+  courses: VirtualCourseView[]; settings: VirtualSettings }
 
 const metersPerMm = (georeference: MapGeoreference | null, mapScale: number) =>
   georeference ? (georeference.scale / 1000) * georeference.combinedScaleFactor : mapScale / 1000;
 
 /** Grupperna (banorna med rutnät) ur banläggningens dokument, rutorna och kartans georeferens. */
-export async function loadBingoSetup(tx: DbExecutor, raceId: string): Promise<BingoSetup> {
+export async function loadBingoSetup(tx: DbExecutor, raceId: string, settings: VirtualSettings = virtualSettings(undefined)): Promise<BingoSetup> {
   const [row] = await tx.select({ document: schema.courseSettings.document }).from(schema.courseSettings).where(eq(schema.courseSettings.raceId, raceId));
   const [map] = await tx.select({ georeference: schema.raceMapSources.georeference, render: schema.raceMapSources.render,
     width: schema.raceMaps.width, height: schema.raceMaps.height }).from(schema.raceMapSources)
@@ -60,7 +63,7 @@ export async function loadBingoSetup(tx: DbExecutor, raceId: string): Promise<Bi
   const georeference = (map?.georeference ?? null) as MapGeoreference | null;
   const image = map?.render && map.width && map.height ? { originX: map.render.originX, originY: map.render.originY, pxPerMm: map.render.pxPerMm,
     width: map.width, height: map.height } : null;
-  if (!row) return { groups: [], mapScale: 10_000, metersPerMm: metersPerMm(georeference, 10_000), georeference, image };
+  if (!row) return { groups: [], mapScale: 10_000, metersPerMm: metersPerMm(georeference, 10_000), georeference, image, courses: [], settings };
   const document = row.document as unknown as CourseSettingDocument;
   const mapScale = document.event?.mapScale ?? 10_000;
   const training = document.training?.courses ?? {};
@@ -72,13 +75,20 @@ export async function loadBingoSetup(tx: DbExecutor, raceId: string): Promise<Bi
     return [{ course: course.id, name: course.name, cellMeters: bingo.cellMeters, ships: split.own, sharedShips: split.shared,
       sharedSeed: bingo.sharedSeed ?? bingoGroupSeed(raceId, course.id), cells }];
   });
-  return { groups, mapScale, metersPerMm: metersPerMm(georeference, mapScale), georeference, image };
+  return { groups, mapScale, metersPerMm: metersPerMm(georeference, mapScale), georeference, image, courses: virtualCourses(document, settings), settings };
 }
 
 const toProgress = (row: typeof schema.bingoRunners.$inferSelect): BingoProgress => ({
   status: row.status, startedAt: row.startedAt.getTime(), finishedAt: row.finishedAt?.getTime() ?? null, distanceM: row.distanceM,
   taken: row.taken, track: row.track, gaps: row.gaps
 });
+
+/** Stämplingarna från servern och telefonen ihop: samma kontroll och tid är samma stämpling. */
+function mergePunches<T extends { control: string; at: number }>(current: readonly T[], incoming: readonly T[]): T[] {
+  const out = new Map<string, T>();
+  for (const punch of [...current, ...incoming]) out.set(`${punch.control}@${punch.at}`, punch);
+  return [...out.values()].sort((a, b) => a.at - b.at || a.control.localeCompare(b.control));
+}
 
 /** Löparens skepp och bedömda skott i Sänka skepp (tomt utan frö). */
 function shipsOf(row: typeof schema.bingoRunners.$inferSelect, group: BingoGroup | undefined, perMm: number): { ships: Ship[]; judged: JudgedShot[]; score: ShipScore } {
@@ -90,6 +100,7 @@ function shipsOf(row: typeof schema.bingoRunners.$inferSelect, group: BingoGroup
 
 async function leaderboard(tx: DbExecutor, raceId: string, mode: BingoMode, setup: BingoSetup): Promise<BingoLeaderboard> {
   const rows = await tx.select().from(schema.bingoRunners).where(eq(schema.bingoRunners.raceId, raceId)).orderBy(asc(schema.bingoRunners.createdAt));
+  if (mode === "CONTROLS") return bingoLeaderboardSchema.parse({ formatVersion: 1, mode, ...virtualLeaderboard(rows, setup.courses, setup.settings, setup.metersPerMm) });
   return bingoLeaderboardSchema.parse({ formatVersion: 1, mode, groups: setup.groups.map(group => {
     const members = rows.filter(row => row.groupCourse === group.course);
     const judged = mode === "SHIPS" ? members.map(row => shipsOf(row, group, setup.metersPerMm)) : [];
@@ -109,7 +120,7 @@ const openToday = (race: BingoRaceFacts, staff: boolean, now: Date) =>
 export type BingoPublicRead =
   | { status: "not-found" }
   | { status: "closed"; raceDate: string; eventName: string; raceName: string; mode: BingoMode }
-  | { status: "ok"; race: Omit<BingoRaceFacts, "enabled" | "published" | "timeZone">; setup: BingoSetup; leaderboard: BingoLeaderboard };
+  | { status: "ok"; race: Omit<BingoRaceFacts, "enabled" | "published" | "timeZone" | "settings">; setup: BingoSetup; leaderboard: BingoLeaderboard };
 
 /**
  * Löparens sida. Anroparen har redan släppt igenom tävlingen (`publicRaceAccess`: publicerad, eller förhandsvisning för
@@ -121,7 +132,7 @@ export async function readBingoPublic(db: Database, input: { raceId: string; sta
     const race = await raceFacts(tx, input.raceId);
     if (!race || !race.enabled) return { status: "not-found" as const };
     if (!openToday(race, input.staff, now)) return { status: "closed" as const, raceDate: race.raceDate, eventName: race.eventName, raceName: race.raceName, mode: race.mode };
-    const setup = await loadBingoSetup(tx, race.raceId);
+    const setup = await loadBingoSetup(tx, race.raceId, race.settings);
     const shown = { raceId: race.raceId, eventName: race.eventName, raceName: race.raceName, raceDate: race.raceDate, shortCode: race.shortCode,
       mode: race.mode };
     return { status: "ok" as const, race: shown, setup, leaderboard: await leaderboard(tx, race.raceId, race.mode, setup) };
@@ -159,9 +170,11 @@ export async function receiveBingoProgress(db: Database, input: { raceId: string
     if (!await consumeAccountRequestAllowance(tx, { scope: "BINGO_IP", key: input.clientKey, limit: BINGO_POSTS_PER_IP, windowMs: BINGO_IP_WINDOW_MS }, now)) {
       return { status: "rate-limited" as const };
     }
-    const setup = await loadBingoSetup(tx, race.raceId);
-    const group = setup.groups.find(item => item.course === request.group);
-    if (!group) return { status: "invalid-request" as const };
+    const setup = await loadBingoSetup(tx, race.raceId, race.settings);
+    const virtual = race.mode === "CONTROLS" ? setup.courses.find(item => item.course === request.group) : undefined;
+    const group = race.mode === "CONTROLS" ? undefined : setup.groups.find(item => item.course === request.group);
+    if (!group && !virtual) return { status: "invalid-request" as const };
+    const target = group ?? { course: virtual!.course, name: virtual!.name, cells: [] };
     const where = and(eq(schema.bingoRunners.raceId, race.raceId), eq(schema.bingoRunners.clientId, request.runnerId));
     const [current] = await tx.select().from(schema.bingoRunners).where(where).for("update");
     if (!current && !await consumeAccountRequestAllowance(tx, { scope: "BINGO_RACE", key: race.raceId, limit: BINGO_RUNNERS_PER_RACE_AND_DAY,
@@ -169,11 +182,16 @@ export async function receiveBingoProgress(db: Database, input: { raceId: string
     const incoming: BingoProgress = { status: request.status, startedAt: request.startedAt, finishedAt: request.finishedAt, distanceM: request.distanceM,
       taken: request.taken, track: request.track.map(([x, y, t]) => [Math.round(x * 100) / 100, Math.round(y * 100) / 100, t] as const),
       gaps: request.gaps };
-    const merged = mergeBingoProgress(current ? toProgress(current) : undefined, incoming, new Set(group.cells.map(cell => cell.name)));
-    const names = new Set(group.cells.map(cell => cell.name));
+    const merged = mergeBingoProgress(current ? toProgress(current) : undefined, incoming, new Set(target.cells.map(cell => cell.name)));
+    const names = new Set(target.cells.map(cell => cell.name));
+    // Virtuella kontroller: stämplingarna som union (samma kontroll och tid är samma), duellen och laget sätts en gång.
+    const controlIds = new Set((virtual?.controls ?? []).map(control => control.id));
+    const punches = mergePunches(current?.punches ?? [], (request.punches ?? []).filter(item => controlIds.has(item.control))).slice(0, 500);
+    const team = request.team?.trim() ? normalizeSelfRegistrationName(request.team, 60) ?? null : null;
     const shots = mergeShots(current?.shots ?? [], (request.shots ?? []).filter(item => names.has(item.cell))).slice(0, 2000);
     const seed = current?.seed ?? request.seed ?? null;
-    const values = { name, groupCourse: group.course, groupName: group.name.slice(0, 200), status: merged.status, startedAt: new Date(merged.startedAt),
+    const values = { name, groupCourse: target.course, groupName: target.name.slice(0, 200), punches, duel: current?.duel ?? request.duel ?? null,
+      team: current?.team ?? team, status: merged.status, startedAt: new Date(merged.startedAt),
       finishedAt: merged.finishedAt === null ? null : new Date(merged.finishedAt), distanceM: Math.round(merged.distanceM),
       taken: merged.taken.map(row => ({ ...row })), track: merged.track.map(point => [...point] as [number, number, number]),
       gaps: merged.gaps.map(gap => [...gap] as [number, number]), seed, shots: shots.map(item => ({ ...item })), updatedAt: now };
@@ -190,11 +208,11 @@ export type BingoAdminResult = Failure | { status: "ok"; response: BingoAdminVie
 async function adminView(tx: DbExecutor, raceId: string): Promise<BingoAdminView | undefined> {
   const race = await raceFacts(tx, raceId);
   if (!race) return undefined;
-  const setup = await loadBingoSetup(tx, raceId);
+  const setup = await loadBingoSetup(tx, raceId, race.settings);
   const rows = await tx.select().from(schema.bingoRunners).where(eq(schema.bingoRunners.raceId, raceId)).orderBy(asc(schema.bingoRunners.createdAt));
   return bingoAdminViewSchema.parse({ formatVersion: 1, enabled: race.enabled, mode: race.mode, published: race.published, shortCode: race.shortCode,
     raceDate: race.raceDate,
-    mapScale: setup.mapScale, image: setup.image,
+    mapScale: setup.mapScale, image: setup.image, courses: setup.courses, settings: setup.settings,
     // Bara ledaren: gruppens gemensamma skepp, redan innan någon har startat.
     groups: setup.groups.map(group => ({ ...group, sharedCells: placeShips(group.cells.map(cell => cell.name), group.sharedShips, group.sharedSeed)
       .map(ship => [...ship.cells]) })),
@@ -206,7 +224,11 @@ async function adminView(tx: DbExecutor, raceId: string): Promise<BingoAdminView
         return { ships: result.ships.map(ship => [...ship.cells]), sharedShips: result.ships.filter(ship => ship.shared).length,
           shots: result.judged, points: result.score.points, sunk: result.score.sunk,
           hits: result.score.hits, wrong: result.score.wrong, water: result.score.water, sharedSunk: result.score.sharedSunk };
-      })() })) });
+      })(),
+      ...(race.mode === "CONTROLS" ? (() => {
+        const result = virtualRunner(row, setup.courses.find(course => course.course === row.groupCourse), setup.settings, setup.metersPerMm);
+        return { punches: result.judged, duel: row.duel, team: row.team, controls: result.result.controls, seconds: result.seconds };
+      })() : {}) })) });
 }
 
 /** Ledarens vy: grupperna, alla löpare och spåren. Bara administratören. */
@@ -231,8 +253,9 @@ export async function setBingoAsAdmin(db: Database, input: RaceSessionProof & { 
     const raceId = auth.principal.raceId;
     if (parsed.data.enabled) {
       const mode = parsed.data.mode;
-      await tx.insert(schema.bingoRaces).values({ raceId, enabledAt: now, enabledBy: auth.principal.accountId, mode: mode ?? "BINGO" })
-        .onConflictDoUpdate({ target: schema.bingoRaces.raceId, set: mode ? { mode } : { raceId } });
+      const settings = parsed.data.settings;
+      await tx.insert(schema.bingoRaces).values({ raceId, enabledAt: now, enabledBy: auth.principal.accountId, mode: mode ?? "BINGO", ...(settings ? { settings } : {}) })
+        .onConflictDoUpdate({ target: schema.bingoRaces.raceId, set: { ...(mode ? { mode } : { raceId }), ...(settings ? { settings } : {}) } });
     } else {
       await tx.delete(schema.bingoRaces).where(eq(schema.bingoRaces.raceId, raceId));
     }

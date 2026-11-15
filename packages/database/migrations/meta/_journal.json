@@ -104,6 +104,7 @@
     { "idx": 99, "version": "7", "when": 1808150400000, "tag": "0125_bingo", "breakpoints": true },
     { "idx": 100, "version": "7", "when": 1808236800000, "tag": "0126_sanka_skepp", "breakpoints": true },
     { "idx": 101, "version": "7", "when": 1808323200000, "tag": "0127_ai_jobb_storre_begaran", "breakpoints": true },
-    { "idx": 102, "version": "7", "when": 1808409600000, "tag": "0128_klubbledare_audit", "breakpoints": true }
+    { "idx": 102, "version": "7", "when": 1808409600000, "tag": "0128_klubbledare_audit", "breakpoints": true },
+    { "idx": 103, "version": "7", "when": 1808496000000, "tag": "0129_virtuella_kontroller", "breakpoints": true }
   ]
 }

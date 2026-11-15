@@ -7,8 +7,16 @@ export const bingoRaces = pgTable("bingo_race", {
   enabledAt: timestamp("enabled_at", { withTimezone: true }).notNull(),
   enabledBy: uuid("enabled_by").notNull(),
   /** Migration 0126: Bingo eller Sänka skepp. */
-  mode: text("mode").$type<"BINGO" | "SHIPS">().notNull().default("BINGO")
+  mode: text("mode").$type<"BINGO" | "SHIPS" | "CONTROLS">().notNull().default("BINGO"),
+  /** Migration 0129, virtuella kontroller: radien, sättet att stämpla och poäng per kod. NULL = förvalen. */
+  settings: jsonb("settings").$type<BingoRaceSettings>()
 });
+
+/** Virtuella kontroller (ADR-0226): radien i meter, automatisk stämpling eller knapp, och duellens poäng per kod. */
+export type BingoRaceSettings = { radiusM?: number; punch?: "AUTO" | "BUTTON"; points?: Record<string, number> };
+
+/** En stämpling: banans kontroll-id, tiden (ms), positionen i kartans mm och noggrannheten. */
+export type BingoPunchRow = { control: string; at: number; x: number; y: number; accuracyM: number };
 
 /** Ett skott i Sänka skepp: rutan löparen valde, tiden (ms), positionen i kartans mm och noggrannheten i meter. */
 export type BingoShotRow = { cell: string; at: number; x: number; y: number; accuracyM: number };
@@ -37,6 +45,10 @@ export const bingoRunners = pgTable("bingo_runner", {
   /** Migration 0126, Sänka skepp: fröet för löparens skepp (sätts en gång) och skotten. */
   seed: bigint("seed", { mode: "number" }),
   shots: jsonb("shots").$type<BingoShotRow[]>().notNull().default([]),
+  /** Migration 0129, virtuella kontroller: duellens kod, laget och stämplingarna. */
+  duel: text("duel"),
+  team: text("team"),
+  punches: jsonb("punches").$type<BingoPunchRow[]>().notNull().default([]),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull()
 }, table => [uniqueIndex("bingo_runner_client_uidx").on(table.raceId, table.clientId)]);

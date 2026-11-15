@@ -37,7 +37,7 @@ export const bingoEn: Texts<typeof bingoSv> = {
     heading: "With the phone",
     help: "Runners can sign up on the spot and let the phone count the squares with GPS. Turn this on and publish the training; it is shown on the home page only that day.",
     mode: "Mode",
-    modes: { BINGO: "Bingo: take as many squares as possible", SHIPS: "Battleships: fire at the square you are in" },
+    modes: { BINGO: "Bingo: take as many squares as possible", SHIPS: "Battleships: fire at the square you are in", CONTROLS: "Virtual controls: the course from course setting, the phone punches" },
     on: "Bingo with the phone",
     failed: "Could not save. Only the race's administrator can turn on bingo with the phone.",
     notPublished: "The training is not published yet (Publish in the race's workspace).",
@@ -67,6 +67,13 @@ export const bingoEn: Texts<typeof bingoSv> = {
         { icon: "🗺️", text: "Run with the map. Take as many squares as you can." },
         { icon: "📱", text: "Keep the screen on. Do not lock the phone. Keep it in your pocket." },
         { icon: "🔔", text: "It pings for every square you take." },
+        { icon: "🏁", text: "Finish: hold the button for 2 seconds." }
+      ],
+      CONTROLS: [
+        { icon: "🗺️", text: "Run with the map. The phone only shows the controls as circles, not where you are." },
+        { icon: "📍", text: "The phone punches when you are close to the control. It pings and vibrates." },
+        { icon: "🔢", text: "Normal course: take the controls in order. Score course and duel: any order." },
+        { icon: "⚔️", text: "Duel: the first one at a control gets all the points, the second a few." },
         { icon: "🏁", text: "Finish: hold the button for 2 seconds." }
       ],
       SHIPS: [

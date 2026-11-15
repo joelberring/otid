@@ -34,7 +34,7 @@ export const bingoSv = {
     heading: "Med telefonen",
     help: "Löparna kan anmäla sig på plats och låta telefonen räkna rutorna med GPS. Slå på det här och publicera träningen; den syns på startsidan bara den dagen.",
     mode: "Läge",
-    modes: { BINGO: "Bingo: ta så många rutor som möjligt", SHIPS: "Sänka skepp: skjut på rutan du står i" },
+    modes: { BINGO: "Bingo: ta så många rutor som möjligt", SHIPS: "Sänka skepp: skjut på rutan du står i", CONTROLS: "Virtuella kontroller: banan ur banläggningen, telefonen stämplar" },
     on: "Bingo med telefonen",
     failed: "Det gick inte att spara. Bara tävlingens administratör kan slå på bingon med telefonen.",
     notPublished: "Träningen är inte publicerad än (Publicera i tävlingens arbetsyta).",
@@ -64,6 +64,13 @@ export const bingoSv = {
         { icon: "🗺️", text: "Spring med kartan. Ta så många rutor du kan." },
         { icon: "📱", text: "Ha skärmen tänd. Lås inte telefonen. Ha den i fickan." },
         { icon: "🔔", text: "Det plingar för varje ruta du tar." },
+        { icon: "🏁", text: "Mål: håll in knappen i 2 sekunder." }
+      ],
+      CONTROLS: [
+        { icon: "🗺️", text: "Spring med kartan. Telefonen visar bara kontrollerna som ringar, inte var du är." },
+        { icon: "📍", text: "Telefonen stämplar när du är nära kontrollen. Den plingar och vibrerar." },
+        { icon: "🔢", text: "Vanlig bana: ta kontrollerna i ordning. Poängbana och duell: valfri ordning." },
+        { icon: "⚔️", text: "Duell: den som kommer först till en kontroll får alla poäng, tvåan lite." },
         { icon: "🏁", text: "Mål: håll in knappen i 2 sekunder." }
       ],
       SHIPS: [

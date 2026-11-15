@@ -20,6 +20,7 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Workern, `assembleBaseMap` och apply_base_map (svaret har `hills`); panelen «Små höjder som ring (101, 103)» under «3. Justera utan ny körning».
 - Mätt mot kartritaren i Högdalen (två block): 11 och 3 nya ringar, hon har en ring på 7 och 3 av platserna; ringarnas F1 0,30 → 0,37 och 0,29 → 0,34; 9 punkthöjder ersattes, hon har 3 av dem. Hennes ringar ligger på halva höjden, inte vid foten, och hennes punkthöjder är mindre än 95 m² där (8 av 8).
 - Hjälpkurvorna (försök i Python, inget byggt): 2,5 m-nivån täcker 61 och 49 % av hennes hjälpkurvor inom 5 m, men hennes höjdkurvor följer 5 m-nivån bara till 74 och 56 %, så skillnaden är hennes frihet i stort. Inget mått på formen skilde bitarna hon ritat från andra, varken på 2,5 m eller på 0,5 m-kurvor (AUC 0,39–0,64). Ägarens princip (bara där marken avviker mer än 1/4 ekvidistans från 5 m-kurvorna) sänkte F1 från 0,51 till 0,25: hon ritar hjälpkurvor mest i jämna sluttningar.
+- Fler kartor (Djurgården, Gömmaren, två block var, bara höjdraster mot kartritarens karta): av 74 ringar ur regeln har kartritaren en ring på 43, en kurva längs ringen på 25, en punkthöjd på 3 och inget på 3. Förvalet står kvar. Hjälpkurvor: höjdformer mellan kurvorna ritas oftare än jämn lutning på Djurgården (0,82–0,93 mot 0,25–0,43) och Gömmaren (0,55–0,63 mot 0,41–0,45), inte i Högdalen; som enda regel räcker det inte (F1 0,14–0,36).
 - Kontrollerat: typecheck, eslint, knip, alla enhetstester (map-revision 414, web 1260), på riktiga höjdraster (Högdalen, Grövelsjön: cirka 1 s per 2,7 miljoner celler).
 - Inte gjort: inte provat i webbläsaren eller mot riktiga Karttapullautin-filer i hela kedjan; integrationstester och Playwright inte körda.
 
@@ -1815,9 +1816,10 @@ Loggen till och med 2026-10-19 ligger i `docs/archive/STATUS-logg-till-2026-10-1
 
 ## Idéer (inte i planen än)
 
-- 2026-11-15: ett eget val «hjälpkurvor bara där de visar en form» (står kvar runt toppar och där marken avviker mer än en
-  fjärdedel av ekvidistansen från vad 5 m-kurvorna säger). Det är ägarens princip men inte kartritarens i Högdalen (F1 0,51 →
-  0,25), så det får vara ett val, inte ett förval.
+- 2026-11-15: reglaget «Färre hjälpkurvor» kan ta bort i ordning: över förvalet försvinner bitarna i jämn lutning först, och
+  höjdformerna (toppar, och där marken ligger mer än en fjärdedel av ekvidistansen över vad 5 m-kurvorna säger) står kvar
+  längst. Ägarens princip; kartritarna på Djurgården och Gömmaren ritar höjdformerna oftare än jämn lutning, Högdalens inte.
+  Som enda regel tar den bort för mycket mot alla tre (F1 0,14–0,36), så förvalet ska inte ändras.
 - 2026-11-15: sökningen efter sänkor (`findPits`) tar cirka 10 s i webbläsaren på ett helt kartblad. Den kan flyttas till
   geo-arbetaren och sparas som `gropar.geojson`, som kullarna, så att grundkartan läses in lika fort som förut. En tätare
   höjdmodell ur punktmolnet (0,5 m) skulle visa fler av de minsta groparna än 1 m-rastret.

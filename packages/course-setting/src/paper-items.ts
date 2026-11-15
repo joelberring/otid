@@ -11,10 +11,11 @@ import { PAPER_CORNERS, type PaperAnchor, type PaperRect } from "./paper-anchor"
 import type { CourseSettingDocument, PartOverlap } from "./types";
 import { CourseSettingEditError } from "./types";
 import { validateShapeItem, validateWhiteAreas } from "./paper-shapes";
+import { validateQrItem, type PaperQrCode } from "./paper-qr";
 
 export type PaperAlign = "left" | "center" | "right";
 
-interface PaperItemBase {
+export interface PaperItemBase {
   /** Elementets id (unikt i banan och mallen; en banas element med en malls id ersätter mallens). */
   readonly id: string;
   readonly at: PaperAnchor;
@@ -113,7 +114,8 @@ export interface PaperLine extends PaperItemBase {
   readonly rising?: boolean | undefined;
 }
 
-export type PaperItem = PaperText | PaperImage | PaperScaleBar | PaperNorthArrow | PaperRectangle | PaperLine;
+/** QR-koden (ägaren 2026-11-16) står i `paper-qr.ts`. */
+export type PaperItem = PaperText | PaperImage | PaperScaleBar | PaperNorthArrow | PaperRectangle | PaperLine | PaperQrCode;
 export type PaperItemKind = PaperItem["kind"];
 
 /**
@@ -273,6 +275,7 @@ export function validatePaperItem(value: unknown): PaperItem {
       if (!within(item.sizeMm, PAPER_LIMITS.minArrowMm, PAPER_LIMITS.maxArrowMm)) throw invalid("nordpilens storlek");
       return { ...base, kind: "NORTH_ARROW", sizeMm: item.sizeMm };
     case "RECT": case "LINE": return validateShapeItem(item, base);
+    case "QR_CODE": return validateQrItem(item, base);
     default: throw invalid("okänt slags element");
   }
 }

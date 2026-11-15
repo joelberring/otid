@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTexts } from "../language-provider";
 import { layoutEn } from "../../i18n/course-setting-layout-en";
 import Link from "next/link";
-import type { CourseSettingEditsRequest, MapBundleResponse } from "@o-tid/contracts";
+import type { CourseSettingEditsRequest, CourseSettingState, MapBundleResponse } from "@o-tid/contracts";
 import {
   applyEdit, descriptionSymbols, layoutEntries, objectPatch, type CourseSettingDocument, type CourseSettingEdit, type DescriptionSymbol, type MapRect
 } from "@o-tid/course-setting";
@@ -49,6 +49,8 @@ export function CourseLayoutPage({ raceId }: { raceId: string }) {
   const [undoCount, setUndoCount] = useState(0);
   // Tävlingens namn: rubriken på kartorna som i Utskrift (användartestet 2026-11-12).
   const [raceTitle, setRaceTitle] = useState<string>();
+  // Papperets QR-koder (ägaren 2026-11-16): tävlingens publika adresser och om den är publicerad.
+  const [paperLinks, setPaperLinks] = useState<CourseSettingState["paperLinks"]>();
   const load = useCallback(async () => {
     setFailed(false);
     try {
@@ -58,6 +60,7 @@ export function CourseLayoutPage({ raceId }: { raceId: string }) {
       versionRef.current = state.setting?.version;
       setCanEdit(state.access.level === "EDIT");
       setRaceTitle(state.raceTitle);
+      setPaperLinks(state.paperLinks);
       setHasMap(state.mapFile !== null); setMapSha256(state.mapFile?.sha256);
       if (state.mapFile?.bounds) setMapBounds(state.mapFile.bounds);
     } catch { setFailed(true); }
@@ -142,7 +145,7 @@ export function CourseLayoutPage({ raceId }: { raceId: string }) {
     {map.mapState === "reading" && <p className={styles.muted} role="status">{text.readingMap}</p>}
     <LayoutMatrix columns={matrix.columns} rows={matrix.rows} open={shown} readOnly={!canEdit}
       onOpen={(course, layout) => setOpen({ course, layout })} onAdd={(course, layout) => void addSheet(course, layout)} />
-    {shown && <LayoutSheets key={shown.layout} raceId={raceId} document={document} layout={shown.layout} focus={shown.course} layoutName={layoutName(shown.layout)} raceTitle={raceTitle}
+    {shown && <LayoutSheets key={shown.layout} raceId={raceId} document={document} layout={shown.layout} focus={shown.course} layoutName={layoutName(shown.layout)} raceTitle={raceTitle} paperLinks={paperLinks}
       canEdit={canEdit} save={save} map={map} mapBounds={mapBounds} symbols={symbols} onClose={() => setOpen(undefined)} />}
     <div className={styles.columns}>
       <LayoutList document={document} entries={entries} readOnly={!canEdit} save={save}

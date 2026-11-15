@@ -200,7 +200,7 @@ export type PpenPaperFrame = PaperFrame & { readonly page?: PaperRect | undefine
  * motsvarande ställe i kartan (`frameOf` ger banans första sida, som Purple Pen skriver ut den), och en bana med
  * beskrivningen avslagen tas bort ur filens objekt. Papperets texter blir Purple Pens textobjekt (variablerna som makron)
  * och bilderna bildobjekt (när `images` har bildens data) för banan. En bana med automatisk plats och utan beskrivning i filen
- * får också ett `descriptions`-objekt där O-Tid lägger den (`withoutAutomaticDescriptions` känner igen det vid inläsning). Skalstock, nordpil, täckning och klippning har ingen
+ * får också ett `descriptions`-objekt där O-Tid lägger den (`withoutAutomaticDescriptions` känner igen det vid inläsning). Skalstock, nordpil, QR-kod, täckning och klippning har ingen
  * motsvarighet och stannar i O-Tid. Banor utan egen inställning behåller filens objekt orört.
  */
 export function ppenWithPaperLayout(document: CourseSettingDocument, frameOf: (course: string) => PpenPaperFrame | undefined,

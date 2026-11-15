@@ -4,7 +4,7 @@ export const paperSpaceSv = {
   help: "Texter, bilder och ramar på papperet syns i utskriften men aldrig i banläggningen.",
   course: "Bana",
   readOnly: "Du kan se papperet men inte ändra det.",
-  add: { TEXT: "+ Text", IMAGE: "+ Bild …", SCALE_BAR: "+ Skalstock", NORTH_ARROW: "+ Nordpil", RECT: "+ Ram", LINE: "+ Linje" },
+  add: { TEXT: "+ Text", IMAGE: "+ Bild …", SCALE_BAR: "+ Skalstock", NORTH_ARROW: "+ Nordpil", RECT: "+ Ram", LINE: "+ Linje", QR_CODE: "Lägg till QR-kod" },
   imageHelp: "PNG, JPG eller SVG, högst 2 MB (SVG görs om till PNG).",
   imageTooLarge: "Bilden är större än 2 MB.",
   imageInvalid: "Bilden måste vara PNG, JPG eller SVG.",
@@ -12,7 +12,7 @@ export const paperSpaceSv = {
   items: "På papperet",
   none: "Inga texter eller bilder på banans papper än.",
   source: { OWN: "Banans", TEMPLATE: "Ur mallen", OVERRIDE: "Ändrad för banan" } as Record<string, string>,
-  kinds: { TEXT: "Text", IMAGE: "Bild", SCALE_BAR: "Skalstock", NORTH_ARROW: "Nordpil", RECT: "Ram", LINE: "Linje" } as Record<string, string>,
+  kinds: { TEXT: "Text", IMAGE: "Bild", SCALE_BAR: "Skalstock", NORTH_ARROW: "Nordpil", RECT: "Ram", LINE: "Linje", QR_CODE: "QR-kod" } as Record<string, string>,
   /** ADR-0211 tillägg: kartramen flyttas och ändrar storlek på arket. */
   frame: { move: "Kartramen: dra för att flytta den över kartan", resize: "Kartramens storlek" },
   /** ADR-0211 beslut 8: redigeringen direkt på arket. */

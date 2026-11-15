@@ -73,6 +73,9 @@ function Part({ part, imageUrl }: { part: PaperPart; imageUrl: (sha256: string) 
       style={{ whiteSpace: "pre" }} data-font={part.font ?? "ROBOTO"}>{part.text}</text>;
     case "image": return <image href={imageUrl(part.image) || undefined} x={part.x} y={part.y} width={part.width} height={part.height} preserveAspectRatio="none"
       opacity={part.opacity < 1 ? part.opacity : undefined} data-testid="paper-image" />;
+    // QR-kodens moduler som en väg (vektor, skarp i alla storlekar); crispEdges så att rutorna inte får glipor på skärmen.
+    case "cells": return <path d={part.rects.map(r => `M${r.x} ${r.y}h${r.width}v${r.height}h${-r.width}z`).join("")} fill="#000" shapeRendering="crispEdges"
+      data-testid="paper-qr-cells" data-modules={part.modules} />;
   }
 }
 

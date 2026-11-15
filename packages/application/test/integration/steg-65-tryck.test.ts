@@ -112,6 +112,24 @@ async function readout(proof: Proof, cardNumber: string): Promise<number> {
 const status = async (id: string) => (await pool.query<{ status: string }>("select status from course_setting_print_job where id = $1", [id])).rows[0]?.status;
 
 describe("steg 65: PDF för tryck på servern", { timeout: 240_000 }, () => {
+  it("papperets QR-kod: adresserna ur den publika adressen sparas med jobbet; läget säger om tävlingen är publicerad", async () => {
+    const owner = await race();
+    const doc = await document(owner);
+    const course = doc.courses[0]!.id;
+    const imported = await readCourseSettingAsAdmin(db, owner);
+    if (imported.status !== "ok" || !imported.response.setting) throw new Error("ingen banläggning");
+    const origin = "https://otid.example.se";
+    const { rows: [facts] } = await pool.query<{ short_code: string; published: boolean }>("select short_code, published_at is not null as published from race where id = $1", [owner.raceId]);
+    const state = await readCourseSettingAsAdmin(db, { ...owner, origin });
+    expect(state.status === "ok" && state.response.paperLinks).toEqual({ site: origin, race: `${origin}/t/${facts!.short_code}`, published: facts!.published });
+    expect(imported.response.paperLinks).toBeUndefined();
+    const created = await createPrintJobAsAdmin(db, { ...owner, origin, request: request([course]) });
+    if (created.status !== "ok") throw new Error("inget jobb");
+    const { rows: [stored] } = await pool.query<{ request: { paperLinks?: unknown } }>("select request from course_setting_print_job where id = $1", [created.job.id]);
+    expect(stored!.request.paperLinks).toEqual({ site: origin, race: `${origin}/t/${facts!.short_code}` });
+    await deletePrintJobAsAdmin(db, { ...owner, jobId: created.job.id });
+  });
+
   it("kön: admin skapar och listar, samma requestId ger samma jobb, högst tre aktiva, PDF/X stoppas, andra får inte", async () => {
     const owner = await race();
     const doc = await document(owner);

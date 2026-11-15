@@ -92,7 +92,13 @@ export const courseSettingStateSchema = z.object({
   /** Tävlingens typ: rogaining (poängbanor) och fest (inga banor i tävlingen) förklaras i editorn. Saknas i äldre svar. */
   raceType: raceTypeSchema.optional(),
   /** Tävlingens namn i O-Tid (`raceTitle`): rubriken på kartorna i utskriften (användartestet 2026-11-12). Saknas i äldre svar. */
-  raceTitle: z.string().max(500).optional()
+  raceTitle: z.string().max(500).optional(),
+  /**
+   * Papperets QR-koder (ägaren 2026-11-16): O-Tids, tävlingens och (när bingon med telefonen är på) bingons publika adress ur
+   * serverns publika adress, och om tävlingen är publicerad. Saknas i äldre svar.
+   */
+  paperLinks: z.object({ site: z.string().url().max(300), race: z.string().url().max(300).optional(), bingo: z.string().url().max(300).optional(),
+    published: z.boolean() }).strict().optional()
 }).strict();
 export type CourseSettingState = z.infer<typeof courseSettingStateSchema>;
 

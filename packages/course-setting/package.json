@@ -14,9 +14,11 @@
   },
   "dependencies": {
     "@o-tid/map-file": "workspace:*",
-    "polygon-clipping": "0.15.7"
+    "polygon-clipping": "0.15.7",
+    "qrcode": "1.5.4"
   },
   "devDependencies": {
-    "@o-tid/iof-xml": "workspace:*"
+    "@o-tid/iof-xml": "workspace:*",
+    "@types/qrcode": "1.5.6"
   }
 }

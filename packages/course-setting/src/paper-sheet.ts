@@ -6,6 +6,7 @@ import type { CourseSettingDocument, MapRect } from "./types";
 import { shapeParts, shapeSize } from "./paper-shapes";
 import { effectivePaper, ownPartLayout, type PaperAlign, type PaperClip, type PaperItem, type PaperFont, type PaperItemKind, type PaperSource } from "./paper-items";
 import { expandPaperText, type PaperTextFrame } from "./paper-text";
+import { qrParts, qrSize, type PaperLinks } from "./paper-qr";
 
 /** Delarna som förhandsvisningen (SVG) och PDF:en ritar, i papperets mm (y nedåt). Svart och vitt; bilden med täckning. */
 export type PaperPart =
@@ -23,7 +24,10 @@ export type PaperPart =
       /** #rrggbb; saknas = svart. */
       readonly color?: string | undefined }
   | { readonly kind: "image"; readonly x: number; readonly y: number; readonly width: number; readonly height: number; readonly image: string;
-      readonly mediaType: string; readonly opacity: number };
+      readonly mediaType: string; readonly opacity: number }
+  /** QR-kodens svarta moduler (sammanslagna per rad) som en enda fylld väg; `modules` = kodens sida i moduler. */
+  | { readonly kind: "cells"; readonly rects: readonly { readonly x: number; readonly y: number; readonly width: number; readonly height: number }[];
+      readonly modules: number };
 
 /** Ett element på arket: var det står, varifrån det kommer och delarna. */
 export interface SheetPaperItem {
@@ -56,7 +60,7 @@ export function scaleBarLength(maxMm: number, printScale: number): { meters: num
 const metersText = (meters: number) => meters >= 1000 ? `${String(meters / 1000).replace(".", ",")} km` : `${meters} m`;
 
 /** Elementets storlek på papperet (mm). */
-export function paperItemSize(item: PaperItem, text?: string): { width: number; height: number } {
+export function paperItemSize(item: PaperItem, text?: string, links?: PaperLinks): { width: number; height: number } {
   switch (item.kind) {
     case "TEXT": {
       const lines = Math.max(1, (text ?? item.text).split("\n").length);
@@ -67,12 +71,13 @@ export function paperItemSize(item: PaperItem, text?: string): { width: number; 
       height: SCALE_BAR.label * PAPER_TEXT_LINE + SCALE_BAR.gap + SCALE_BAR.bar + (item.background ? 2 * SCALE_BAR.pad : 0) };
     case "NORTH_ARROW": return { width: item.sizeMm * 0.6, height: item.sizeMm };
     case "RECT": case "LINE": return shapeSize(item);
+    case "QR_CODE": return qrSize(item, links);
   }
 }
 
 /** Delarna för ett element med övre vänstra hörnet i `at`. */
-export function paperItemParts(item: PaperItem, at: { x: number; y: number }, context: { text?: string; printScale: number }): PaperPart[] {
-  const size = paperItemSize(item, context.text);
+export function paperItemParts(item: PaperItem, at: { x: number; y: number }, context: { text?: string; printScale: number; links?: PaperLinks | undefined }): PaperPart[] {
+  const size = paperItemSize(item, context.text, context.links);
   switch (item.kind) {
     case "TEXT": {
       const parts: PaperPart[] = item.background ? [{ kind: "rect", x: at.x, y: at.y, width: size.width, height: size.height, fill: "WHITE" }] : [];
@@ -113,6 +118,7 @@ export function paperItemParts(item: PaperItem, at: { x: number; y: number }, co
       ];
     }
     case "RECT": case "LINE": return shapeParts(item, at);
+    case "QR_CODE": return qrParts(item, at, context.links);
   }
 }
 
@@ -129,6 +135,8 @@ export function sheetPaperItems(document: CourseSettingDocument, frame: PaperFra
   options: { readonly page: PaperRect; readonly date?: string | undefined; readonly pageItems?: boolean | undefined;
     /** ADR-0213: löparens variabler som platshållare när ramen inte har någon löpare. */
     readonly runnerPlaceholders?: boolean | undefined;
+    /** Tävlingens publika adresser för QR-koderna. */
+    readonly links?: PaperLinks | undefined;
     /** false = en senare sida av en bana på flera sidor: bara elementen med `pages: "ALL"`. */
     readonly firstPage?: boolean | undefined }): SheetPaperItem[] {
   const out: SheetPaperItem[] = [];
@@ -150,16 +158,17 @@ export function sheetPaperItems(document: CourseSettingDocument, frame: PaperFra
  * `course` på resultatet säger vems element det är (banans id, eller baksidans, ADR-0213).
  */
 export function placePaperItem(document: CourseSettingDocument, item: PaperItem, source: PaperSource, frame: PaperFrameRef, frameIndex: number,
-  options: { readonly page: PaperRect; readonly date?: string | undefined; readonly runnerPlaceholders?: boolean | undefined; readonly course?: string | undefined })
+  options: { readonly page: PaperRect; readonly date?: string | undefined; readonly runnerPlaceholders?: boolean | undefined; readonly course?: string | undefined;
+    readonly links?: PaperLinks | undefined })
   : SheetPaperItem | undefined {
   const onPage = item.relativeTo === "PAGE";
   const text = item.kind === "TEXT" ? expandPaperText(item.text, document, options.runnerPlaceholders ? { ...frame, runnerPlaceholders: true } : frame, options.date) : undefined;
   if (item.kind === "TEXT" && text === "") return undefined;
-  const size = paperItemSize(item, text);
+  const size = paperItemSize(item, text, options.links);
   const at = anchorToPaper(item.at, size, onPage ? options.page : frame.clip);
   return { id: item.id, kind: item.kind, course: options.course ?? frame.course, frame: frameIndex, rect: { ...at, ...size }, source, relativeTo: onPage ? "PAGE" : "FRAME",
     ...(item.locked ? { locked: true } : {}),
-    parts: paperItemParts(item, at, { ...(text !== undefined ? { text } : {}), printScale: frame.printScale }) };
+    parts: paperItemParts(item, at, { ...(text !== undefined ? { text } : {}), printScale: frame.printScale, links: options.links }) };
 }
 
 // ── Klippningen ─────────────────────────────────────────────────────────────────────────────────────────────────────────

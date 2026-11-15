@@ -12,7 +12,7 @@ import { useTexts } from "../language-provider";
 import { layoutEn } from "../../i18n/course-setting-layout-en";
 import { AccountMenu } from "../account-menu";
 import Link from "next/link";
-import type { CourseSettingEditsRequest, MapBundleResponse } from "@o-tid/contracts";
+import type { CourseSettingEditsRequest, CourseSettingState, MapBundleResponse } from "@o-tid/contracts";
 import {
   exchangeAfterPart, expandPartItems, expandTrainingItems, isFlip, BUILT_IN_PRINT_PROFILES, BUILT_IN_SHEET_LAYOUTS, descriptionSymbols, printSheetGroups, layoutEntries,
   sheetLayoutOfLayout, MAIN_LAYOUT, type CourseSettingDocument, type CourseSettingEdit, type DescriptionSymbol, type MapRect, type Sheet, type SheetItem
@@ -93,6 +93,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
   const [canEdit, setCanEdit] = useState(false);
   // Tävlingens namn: rubriken på kartorna (användartestet 2026-11-12), inte .ppen-filens titel.
   const [raceTitle, setRaceTitle] = useState<string>();
+  const [paperLinks, setPaperLinks] = useState<CourseSettingState["paperLinks"]>();
   /** Ägaren 2026-11-10: läser om de sparade utskrifterna när ett tryckjobb sparats i träningen. */
   const [savedPrints, setSavedPrints] = useState(0);
   const [mapBounds, setMapBounds] = useState<MapRect>();
@@ -130,6 +131,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
       versionRef.current = state.setting?.version;
       setCanEdit(state.access.level === "EDIT");
       setRaceTitle(state.raceTitle);
+      setPaperLinks(state.paperLinks);
       setHasMap(state.mapFile !== null); setMapSha256(state.mapFile?.sha256);
       if (state.mapFile?.bounds) setMapBounds(state.mapFile.bounds);
       if (next && first) {
@@ -265,7 +267,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
         : { kind: "COURSE" as const, header, duplex: partsDuplex };
     // ADR-0213: banornas förhandsvisning visar löparens variabler som platshållare ({namn} …).
     const groups = printSheetGroups(document, layout, items, { mapBounds, ...(bundles ? { date: bundles.raceDate } : {}), ...mapAids, runnerPlaceholders: !runnerMode, raceTitle,
-      onError: ({ item, error }) => {
+      ...(paperLinks ? { paperLinks } : {}), onError: ({ item, error }) => {
         console.error("Utskriftslayouten misslyckades", error);
         const row = item === undefined ? undefined : items[item];
         bad.push(!row ? template?.name ?? "" : runnerMode ? row.runner?.name ?? row.course : nameOf(row.course));
@@ -286,7 +288,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
       });
     }
     return { sheets: out, errors: bad, perItem };
-  }, [document, courses, courseItems, variantErrors, header, mapBounds, mode, template, fill, runners, chosenRunners, duplex, bundles, pieces, partsDuplex, mapAids, raceTitle]);
+  }, [document, courses, courseItems, variantErrors, header, mapBounds, mode, template, fill, runners, chosenRunners, duplex, bundles, pieces, partsDuplex, mapAids, raceTitle, paperLinks]);
 
   const images = useSheetImages(map, sheets, printColors);
   // Löparens ark ur kontrolltabellen (ADR-0213): markerat bland arken.

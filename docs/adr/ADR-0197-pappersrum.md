@@ -92,6 +92,15 @@ Steg 1 (hittbarhet) flyttade kontrollbeskrivningen dit; det här är steg 2.
     flera, fästning med hjälplinjer, justera, lager, skriv i texten på arket, ram, linje och "Vitt på utskriften"), och
     mallarna (beslut 7) bär papperets storlek, riktning, marginal och de vita ytorna (ADR-0211 beslut 9).
 
+13. **Tillägg 2026-11-16 (ägaren: QR-kod och länk till otid.berring.se i layouten).** Ett nytt element `QR_CODE`
+    (`paper-qr.ts`): sidan i mm med tyst zon (15–100, förval 25), vart den leder (tävlingens sida `/t/<kod>` som förval,
+    bingons anmälan `/t/<kod>/bingo` när bingon med telefonen är på, O-Tid, eller en egen https-adress) och texten under
+    (förval adressen kort, egen text eller ingen). Bara den egna adressen sparas i elementet; de övriga byggs när arket läggs
+    ut ur serverns publika adress (`O_TID_PUBLIC_ORIGIN`) och tävlingens korta kod (`PaperLinks`), så att mallar och kopior
+    får rätt kod. Editorns läge har `paperLinks` (med om tävlingen är publicerad) och utskriftsjobbet sparar adresserna med
+    förfrågan, som tävlingens namn. Koden ritas som svarta rutor (felkorrigering M, en fylld väg) på vit botten, i processvart
+    och aldrig som rasterbild; utan känd adress ritas en ram med "QR-kod". Purple Pen har ingen motsvarighet: koden stannar i O-Tid.
+
 ## Följder
 
 - Steg 1:s `PaperDescriptions` och förankringen flyttade till `paper-items.ts` och `paper-anchor.ts`; `paper-layout.ts`

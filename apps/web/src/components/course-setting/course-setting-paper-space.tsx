@@ -5,14 +5,15 @@ import { runnerPrintEn } from "../../i18n/course-setting-print-more-en";
 import { paperSpaceEn } from "../../i18n/course-setting-paper-en";
 import { useTexts } from "../language-provider";
 import {
-  effectivePaper, PAPER_FONT_INFO, PAPER_FONTS, paperClipPoints, paperLayoutOf, reanchor, resetPaperItem, PAPER_CORNERS, RUNNER_BACK, RUNNER_PAPER_VARIABLES,
+  effectivePaper, PAPER_FONT_INFO, PAPER_FONTS, paperClipPoints, paperItemSize, paperLayoutOf, reanchor, resetPaperItem, PAPER_CORNERS, RUNNER_BACK, RUNNER_PAPER_VARIABLES,
   type CourseSettingDocument, type CourseSettingEdit, type PaperAlign, type PaperClip, type PaperCorner, type PaperItem, type PaperItemKind,
   type PaperFont, type PaperRect, type PaperShape, type Sheet, type SheetPaperItem
 } from "@o-tid/course-setting";
 import { paperSpaceSv } from "../../i18n/course-setting-paper-sv";
 import {
-  anchorIn, anchorRect, newItemIdFor, newPaperItem, paperFontFamily, paperItemEdit, paperItemLabel, paperItemsOf, paperLayoutEdit
+  anchorIn, anchorRect, newItemIdFor, newPaperItem, paperFontFamily, paperItemEdit, paperItemLabel, paperItemsOf, paperLayoutEdit, qrPlacement, type QrSheetSpace
 } from "../../lib/course-setting-paper";
+import { QrFields, QrNotice, type PaperLinkState } from "./course-setting-paper-qr";
 import { VariableOptions } from "./course-setting-paper-variables";
 import { runnerPrintSv } from "../../i18n/course-setting-runner-print-sv";
 import { uploadPaperImage } from "../../lib/course-setting-paper-api";
@@ -34,7 +35,7 @@ export interface PlacedPaper { readonly sheet: Sheet; readonly item: SheetPaperI
  * mallarna. Arket ritar och drar elementen (`course-setting-paper-items.tsx`).
  */
 export function PaperSpacePanel({ raceId, document, courses, course, onCourse, selected, onSelect, placed, frameOf, readOnly, onSave, onUndo, canUndo,
-  onRedo, canRedo, marked = [], onMoveMany, snap, onSnap }: {
+  onRedo, canRedo, marked = [], onMoveMany, snap, onSnap, paperLinks, spaceOf }: {
   raceId: string; document: CourseSettingDocument; courses: readonly { id: string; name: string }[];
   course: string | undefined; onCourse: (course: string) => void;
   selected: PaperSelection; onSelect: (selection: PaperSelection) => void;
@@ -48,6 +49,8 @@ export function PaperSpacePanel({ raceId, document, courses, course, onCourse, s
   marked?: readonly PlacedPaper[] | undefined;
   onMoveMany?: ((sheet: Sheet, moves: readonly { placed: SheetPaperItem; dx: number; dy: number }[]) => void) | undefined;
   snap?: { enabled: boolean; gridMm: number } | undefined; onSnap?: ((snap: { enabled: boolean; gridMm: number }) => void) | undefined;
+  /** Papperets QR-koder (ägaren 2026-11-16): tävlingens publika adresser, och var på banans ark en ny kod får plats. */
+  paperLinks?: PaperLinkState | undefined; spaceOf?: ((course: string) => QrSheetSpace | undefined) | undefined;
 }) {
   const text = useTexts(paperSpaceSv, paperSpaceEn);
   const [message, setMessage] = useState<{ ok: boolean; text: string }>();
@@ -67,7 +70,12 @@ export function PaperSpacePanel({ raceId, document, courses, course, onCourse, s
   async function add(kind: PaperItemKind) {
     if (kind === "IMAGE") { file.current?.click(); return; }
     const id = newItemIdFor(document, course!);
-    if (await putItem(id, newPaperItem(kind, id))) onSelect({ course: course!, id });
+    let next = newPaperItem(kind, id);
+    if (next.kind === "QR_CODE") {
+      const size = paperItemSize(next, undefined, paperLinks);
+      next = { ...next, ...qrPlacement(spaceOf?.(course!), size.width, size.height) };
+    }
+    if (await putItem(id, next)) onSelect({ course: course!, id });
   }
   async function upload(chosen: File | undefined) {
     if (!chosen) return;
@@ -98,7 +106,7 @@ export function PaperSpacePanel({ raceId, document, courses, course, onCourse, s
     </div>}
     {!readOnly && marked.length > 0 && onMoveMany && <AlignBar marked={marked} onMoveMany={onMoveMany} />}
     {!readOnly && <div className={styles.row} data-testid="paper-add">
-      {(["TEXT", "IMAGE", "SCALE_BAR", "NORTH_ARROW", "RECT", "LINE"] as const).map(kind => <Button key={kind} variant="secondary" disabled={busy}
+      {(["TEXT", "IMAGE", "SCALE_BAR", "NORTH_ARROW", "RECT", "LINE", "QR_CODE"] as const).map(kind => <Button key={kind} variant="secondary" disabled={busy}
         title={kind === "IMAGE" ? text.imageHelp : kind === "TEXT" ? text.editor.inPlaceHelp : undefined} onClick={() => void add(kind)} data-testid={`paper-add-${kind}`}>{text.add[kind]}</Button>)}
       <input ref={file} type="file" accept="image/png,image/jpeg,image/svg+xml,.svg" hidden onChange={event => void upload(event.target.files?.[0])}
         data-testid="paper-image-file" aria-label={text.add.IMAGE} />
@@ -123,7 +131,8 @@ export function PaperSpacePanel({ raceId, document, courses, course, onCourse, s
         </span>}
       </li>)}
     </ul></>}
-    {item && <Inspector key={`${course}:${item.item.id}`} item={item.item} source={item.source} placed={placed} readOnly={readOnly}
+    {!item && <QrNotice items={effective.items.map(row => row.item)} links={paperLinks} />}
+    {item && <Inspector key={`${course}:${item.item.id}`} item={item.item} source={item.source} placed={placed} readOnly={readOnly} links={paperLinks}
       onChange={next => void putItem(item.item.id, next)} onRemove={() => { onSelect(undefined); void putItem(item.item.id, null); }}
       onReset={() => void save([paperLayoutEdit(course, resetPaperItem(document, course, item.item.id))])} onClose={() => onSelect(undefined)} />}
     {!readOnly && !back && (marked.length > 1 || item) && <PaperCopy document={document} course={course} courses={courses} onSave={save}
@@ -155,8 +164,8 @@ function NumberField({ label, value, min, max, step = 0.5, disabled, onCommit, t
     onChange={event => setDraft(event.target.value)} onBlur={commit} onKeyDown={event => { if (event.key === "Enter") commit(); }} data-testid={testId} /></Field>;
 }
 
-function Inspector({ item, source, placed, readOnly, onChange, onRemove, onReset, onClose }: {
-  item: PaperItem; source: string; placed: PlacedPaper | undefined; readOnly: boolean;
+function Inspector({ item, source, placed, readOnly, links, onChange, onRemove, onReset, onClose }: {
+  item: PaperItem; source: string; placed: PlacedPaper | undefined; readOnly: boolean; links: PaperLinkState | undefined;
   onChange: (item: PaperItem) => void; onRemove: () => void; onReset: () => void; onClose: () => void;
 }) {
   const runnerText = useTexts(runnerPrintSv, runnerPrintEn);
@@ -233,6 +242,7 @@ function Inspector({ item, source, placed, readOnly, onChange, onRemove, onReset
         <label className={styles.check}><input type="checkbox" checked={item.background === true} onChange={event => onChange({ ...item, background: event.target.checked })} />
           {text.background}</label>
       </div>}
+      {item.kind === "QR_CODE" && <QrFields item={item} links={links} readOnly={readOnly} onChange={onChange} />}
       {item.kind === "NORTH_ARROW" && <NumberField label={text.height} value={item.sizeMm} min={5} max={100} step={1} disabled={readOnly}
         onCommit={sizeMm => onChange({ ...item, sizeMm })} testId="paper-arrow-size" />}
       {(item.kind === "RECT" || item.kind === "LINE") && <div className={styles.row}>

@@ -7,7 +7,7 @@ export const paperSpaceEn: Texts<typeof paperSpaceSv> = {
   help: "Texts, images and frames on the paper show in print but never in course setting.",
   course: "Course",
   readOnly: "You can see the paper but not change it.",
-  add: { TEXT: "+ Text", IMAGE: "+ Image …", SCALE_BAR: "+ Scale bar", NORTH_ARROW: "+ North arrow", RECT: "+ Frame", LINE: "+ Line" },
+  add: { TEXT: "+ Text", IMAGE: "+ Image …", SCALE_BAR: "+ Scale bar", NORTH_ARROW: "+ North arrow", RECT: "+ Frame", LINE: "+ Line", QR_CODE: "Add QR code" },
   imageHelp: "PNG, JPG or SVG, at most 2 MB (SVG is converted to PNG).",
   imageTooLarge: "The image is larger than 2 MB.",
   imageInvalid: "The image must be PNG, JPG or SVG.",
@@ -15,7 +15,7 @@ export const paperSpaceEn: Texts<typeof paperSpaceSv> = {
   items: "On the paper",
   none: "No texts or images on the course's paper yet.",
   source: { OWN: "The course's", TEMPLATE: "From the template", OVERRIDE: "Changed for the course" },
-  kinds: { TEXT: "Text", IMAGE: "Image", SCALE_BAR: "Scale bar", NORTH_ARROW: "North arrow", RECT: "Frame", LINE: "Line" },
+  kinds: { TEXT: "Text", IMAGE: "Image", SCALE_BAR: "Scale bar", NORTH_ARROW: "North arrow", RECT: "Frame", LINE: "Line", QR_CODE: "QR code" },
   frame: { move: "The map frame: drag to move it over the map", resize: "The map frame's size" },
   editor: {
     snap: "Snap to edges and centre lines",

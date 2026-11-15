@@ -220,10 +220,16 @@ importers:
       polygon-clipping:
         specifier: 0.15.7
         version: 0.15.7
+      qrcode:
+        specifier: 1.5.4
+        version: 1.5.4
     devDependencies:
       '@o-tid/iof-xml':
         specifier: workspace:*
         version: link:../iof-xml
+      '@types/qrcode':
+        specifier: 1.5.6
+        version: 1.5.6
 
   packages/database:
     dependencies:

@@ -1,7 +1,7 @@
 import type { PrintJobRequest } from "@o-tid/contracts";
 import {
   BUILT_IN_PRINT_PROFILES, BUILT_IN_SHEET_LAYOUTS, colorPreflight, excludedVariantCodes, layoutScaleOf, printDetailGaps, printNumberObstacles, printSheetGroups, sourceMapColors, validateSheetLayout,
-  validatePrintProfile, type CourseSettingDocument, type SheetLayout, type MapRect, type PrintProfile, type Sheet, type SheetItem
+  validatePrintProfile, type CourseSettingDocument, type PaperLinks, type SheetLayout, type MapRect, type PrintProfile, type Sheet, type SheetItem
 } from "@o-tid/course-setting";
 import { colorUsage, readMapFile } from "@o-tid/map-file";
 import { PDF_CAPABILITIES, writeSheetsPdf, type FontFiles, type WritePdfResult } from "@o-tid/print-pdf";
@@ -53,7 +53,7 @@ export function printableItems(document: CourseSettingDocument, items: readonly 
 
 /** Arken i samma ordning som förhandsvisningen (`printSheetGroups` i paketet, samma val för båda). */
 export function printJobSheets(document: CourseSettingDocument, request: PrintJobRequest, mapBounds: MapRect | undefined,
-  detailGaps?: ReturnType<typeof printDetailGaps>, numberObstacles?: ReturnType<typeof printNumberObstacles>, raceTitle?: string): Sheet[] {
+  detailGaps?: ReturnType<typeof printDetailGaps>, numberObstacles?: ReturnType<typeof printNumberObstacles>, raceTitle?: string, paperLinks?: PaperLinks): Sheet[] {
   const { items } = printableItems(document, request.items as readonly SheetItem[]);
   if (items.length === 0) return [];
   const layout = request.layout.kind === "TEMPLATE"
@@ -61,7 +61,7 @@ export function printJobSheets(document: CourseSettingDocument, request: PrintJo
       fill: request.layout.fill, ...(request.layout.ownPage ? { ownPage: true } : {}) }
     : request.layout.kind === "PIECES" ? { kind: "PIECES" as const } : { kind: "COURSE" as const, header: request.layout.header, duplex: request.duplex };
   return printSheetGroups(document, layout, items, { mapBounds, ...(request.date ? { date: request.date } : {}), ...(detailGaps ? { detailGaps } : {}), ...(numberObstacles ? { numberObstacles } : {}),
-    ...(raceTitle ? { raceTitle } : {}) })
+    ...(raceTitle ? { raceTitle } : {}), ...(paperLinks ? { paperLinks } : {}) })
     .flatMap(group => group.sheets);
 }
 
@@ -75,6 +75,8 @@ export interface RenderPrintJobInput {
   readonly title: string;
   /** Tävlingens namn i O-Tid: rubriken på kartorna, som i förhandsvisningen (`printedTitle`). */
   readonly raceTitle?: string | undefined;
+  /** Tävlingens publika adresser för papperets QR-koder, sparade med jobbet. */
+  readonly paperLinks?: PaperLinks | undefined;
   readonly now?: Date | undefined;
   /** Papperets bilder (ADR-0197) per sha256. */
   readonly paperImages?: ReadonlyMap<string, { readonly mediaType: string; readonly bytes: Uint8Array }> | undefined;
@@ -100,7 +102,7 @@ export async function renderPrintJob(input: RenderPrintJobInput): Promise<WriteP
   const ownScales = [...new Set(request.items.flatMap(item => item.printScale ? [item.printScale]
     : item.layout ? [layoutScaleOf(document, item.layout, item.course)] : []))];
   const sheets = printJobSheets(document, request, input.map?.bounds ?? map?.bounds ?? undefined, map ? printDetailGaps(document, map, ownScales) : undefined,
-    map ? printNumberObstacles(document, map) : undefined, input.raceTitle);
+    map ? printNumberObstacles(document, map) : undefined, input.raceTitle, input.paperLinks);
   const { skipped } = printableItems(document, request.items as readonly SheetItem[]);
   if (skipped.length > 0) preflight.push(`Bortvalda varianter skrivs inte ut: ${skipped.slice(0, 20).join(", ")}${skipped.length > 20 ? " …" : ""}.`);
   if (sheets.length === 0) throw new PrintJobError(skipped.length > 0 ? "Inget att skriva ut: alla valda varianter är bortvalda." : "Inget att skriva ut.");

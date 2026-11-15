@@ -92,6 +92,7 @@ export * from "./paper-text";
 export * from "./paper-sheet";
 export * from "./runner-back";
 export * from "./paper-shapes";
+export * from "./paper-qr";
 export * from "./paper-white";
 export { expandPartItems, printSheetGroups, type SheetGroup, type SheetGroupOptions, type PrintSheetsLayout } from "./print-sheets";
 export * from "./print-layouts";

@@ -1,5 +1,5 @@
 import {
-  applyPaperTemplate, effectivePaper, paperPartKey, newPaperItemId, runnerBackOf, withPaperItem, RUNNER_BACK, type PaperSource, paperAnchorOf, paperLayoutOf, PAPER_LIMITS, PAPER_SHAPE_DEFAULTS, PAPER_SHAPE_LIMITS, printAreaOf, type PaperTemplate, type CourseSettingDocument, type CourseSettingEdit, type PaperAnchor, type PaperCorner, type PaperItem,
+  applyPaperTemplate, effectivePaper, paperPartKey, newPaperItemId, runnerBackOf, withPaperItem, RUNNER_BACK, type PaperSource, paperAnchorOf, paperLayoutOf, PAPER_LIMITS, PAPER_QR_LIMITS, PAPER_SHAPE_DEFAULTS, PAPER_SHAPE_LIMITS, printAreaOf, type PaperTemplate, type CourseSettingDocument, type CourseSettingEdit, type PaperAnchor, type PaperCorner, type PaperItem,
   type PaperItemKind, type PaperRect, PAPER_FONT_INFO, type PaperFont,
   type Sheet, type SheetPaperItem
 } from "@o-tid/course-setting";
@@ -20,7 +20,35 @@ export function newPaperItem(kind: PaperItemKind, id: string, image?: { sha256: 
     // ADR-0211 beslut 8: en ram längs kartramen (förankrad i arket) och en kort linje.
     case "RECT": return { id, kind, at: { corner: "TOP_LEFT", x: 10, y: 10 }, relativeTo: "PAGE", widthMm: 60, heightMm: 25, ...PAPER_SHAPE_DEFAULTS };
     case "LINE": return { id, kind, at: { corner: "TOP_LEFT", x: 10, y: 40 }, relativeTo: "PAGE", widthMm: 60, heightMm: 0, ...PAPER_SHAPE_DEFAULTS };
+    // Ägaren 2026-11-16: QR-kod till tävlingens sida, nere till höger i kartramen (`qrPlacement` letar först efter ett fritt hörn).
+    case "QR_CODE": return { id, kind, at: { corner: "BOTTOM_RIGHT", x: 3, y: 3 }, sizeMm: PAPER_QR_LIMITS.defaultMm, target: "RACE" };
   }
+}
+
+/** Det som står på arket när en QR-kod läggs till: papperet, kartramen och elementen (mm, y nedåt). */
+export interface QrSheetSpace {
+  readonly paper: { readonly widthMm: number; readonly heightMm: number; readonly marginMm?: number | undefined };
+  readonly frame: PaperRect;
+  readonly taken: readonly PaperRect[];
+}
+
+/**
+ * Var en ny QR-kod står: i ett hörn av papperet som är fritt från kartramen och andra element (nere till höger först),
+ * annars nere till höger i kartramen. `height` = kodens höjd med texten.
+ */
+export function qrPlacement(space: QrSheetSpace | undefined, width: number, height: number): Pick<PaperItem, "at" | "relativeTo"> {
+  const fallback = { at: { corner: "BOTTOM_RIGHT" as const, x: 3, y: 3 } };
+  if (!space) return fallback;
+  const inset = Math.max(3, space.paper.marginMm ?? 0);
+  const overlaps = (a: PaperRect, b: PaperRect) => a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+  for (const corner of ["BOTTOM_RIGHT", "BOTTOM_LEFT", "TOP_RIGHT", "TOP_LEFT"] as const) {
+    const right = corner.endsWith("RIGHT"), bottom = corner.startsWith("BOTTOM");
+    const box = { x: right ? space.paper.widthMm - inset - width : inset, y: bottom ? space.paper.heightMm - inset - height : inset, width, height };
+    if (box.x < 0 || box.y < 0) continue;
+    if (overlaps(box, space.frame) || space.taken.some(rect => overlaps(box, rect))) continue;
+    return { at: { corner, x: inset, y: inset }, relativeTo: "PAGE" };
+  }
+  return fallback;
 }
 
 /**
@@ -67,6 +95,12 @@ export function resizedPaperItem(item: PaperItem, placed: SheetPaperItem, refere
     case "NORTH_ARROW": next = { ...item, sizeMm: clamp(height, PAPER_LIMITS.minArrowMm, PAPER_LIMITS.maxArrowMm) }; break;
     case "RECT": case "LINE": next = { ...item, widthMm: clamp(width, PAPER_SHAPE_LIMITS.minMm, PAPER_SHAPE_LIMITS.maxMm),
       heightMm: clamp(height, PAPER_SHAPE_LIMITS.minMm, PAPER_SHAPE_LIMITS.maxMm) }; break;
+    // Kvadraten följer den större av bredden och höjden (utan texten under).
+    case "QR_CODE": next = { ...item, sizeMm: clamp(Math.max(width, height - (placed.rect.height - item.sizeMm)), PAPER_QR_LIMITS.minMm, PAPER_QR_LIMITS.maxMm) }; break;
+  }
+  if (next.kind === "QR_CODE") {
+    const grown = next.sizeMm - (item.kind === "QR_CODE" ? item.sizeMm : 0);
+    return { ...next, at: paperAnchorOf({ x: placed.rect.x, y: placed.rect.y, width: next.sizeMm, height: placed.rect.height + grown }, reference) };
   }
   const size = next.kind === "RECT" || next.kind === "LINE" ? { width: next.widthMm, height: next.heightMm }
     : next.kind === "IMAGE" ? { width: next.widthMm, height: next.widthMm / next.aspect } : next.kind === "NORTH_ARROW"
@@ -140,6 +174,7 @@ export function paperItemLabel(item: PaperItem): string {
     case "NORTH_ARROW": return "Nordpil";
     case "RECT": return "Ram";
     case "LINE": return "Linje";
+    case "QR_CODE": return "QR-kod";
   }
 }
 

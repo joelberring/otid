@@ -465,6 +465,13 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
           content.op(ops);
           break;
         }
+        // QR-kodens moduler (ägaren 2026-11-16): en enda fylld väg av rutor i svart, aldrig en rasterbild.
+        case "cells": {
+          if (part.rects.length === 0) break;
+          content.fill(BLACK);
+          content.op(`${part.rects.map(r => rect(r.x, r.y, r.width, r.height)).join(" ")} f`);
+          break;
+        }
         case "image": {
           const embedded = paperImages.get(part.image);
           if (!embedded) break;

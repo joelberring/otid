@@ -6,7 +6,7 @@ import {
   type CourseSettingDocumentDto, type CourseSettingRevision, type CourseSettingRevisions, type CourseSettingSaved, type CourseSettingState,
   type CourseSettingTransferProblem, type SyncPreviewResponse
 } from "@o-tid/contracts";
-import { writePpen, type CourseSettingDocument } from "@o-tid/course-setting";
+import { paperLinksFor, writePpen, type CourseSettingDocument, type PaperLinks } from "@o-tid/course-setting";
 import { raceTitle } from "@o-tid/domain";
 import { schema, type Database } from "@o-tid/database";
 import { courseSettingProjection } from "./course-setting-transfer";
@@ -144,8 +144,22 @@ export async function loadRaceTitle(tx: Pick<Database, "select">, raceId: string
   return row ? raceTitle(row.eventName, row.raceName) || undefined : undefined;
 }
 
+/**
+ * Tävlingens publika adresser för papperets QR-koder (ägaren 2026-11-16) ur serverns publika adress (`origin`, från webben):
+ * tävlingens sida på den korta koden, bingons när bingon med telefonen är på, och om tävlingen är publicerad.
+ */
+export async function loadPaperLinks(tx: Pick<Database, "select">, raceId: string, origin: string | undefined)
+  : Promise<(PaperLinks & { published: boolean }) | undefined> {
+  if (!origin) return undefined;
+  const [row] = await tx.select({ shortCode: schema.races.shortCode, publishedAt: schema.races.publishedAt, hidden: schema.races.hiddenBySuperadmin,
+    bingo: schema.bingoRaces.enabledAt }).from(schema.races).leftJoin(schema.bingoRaces, eq(schema.bingoRaces.raceId, schema.races.id))
+    .where(eq(schema.races.id, raceId));
+  if (!row) return undefined;
+  return { ...paperLinksFor(origin, row.shortCode, row.bingo !== null), published: row.publishedAt !== null && !row.hidden };
+}
+
 /** Editorns läge: dokumentet (null = inget än), den inlästa .ppen-filen, kartfilen som editorn ritar och behörigheten. */
-export async function readCourseSettingAsAdmin(db: Database, input: ReadProof, now = new Date())
+export async function readCourseSettingAsAdmin(db: Database, input: ReadProof & { readonly origin?: string | undefined }, now = new Date())
   : Promise<Failure | { status: "ok"; response: CourseSettingState }> {
   return courseSettingRead(db, input, now, async (tx, raceId, principal) => {
     const row = await loadRow(tx, raceId);
@@ -153,13 +167,15 @@ export async function readCourseSettingAsAdmin(db: Database, input: ReadProof, n
     const [race] = await tx.select({ raceType: schema.races.raceType }).from(schema.races).where(eq(schema.races.id, raceId));
     const names = await actors(tx, row ? [row.updatedBy] : []);
     const title = await loadRaceTitle(tx, raceId);
+    const paperLinks = await loadPaperLinks(tx, raceId, input.origin);
     return { status: "ok" as const, response: courseSettingStateSchema.parse({ formatVersion: 1, raceId,
       access: { accountId: principal.accountId, displayName: principal.displayName || null, level: principal.level, admin: principal.admin },
       setting: row ? { version: row.version, updatedAt: row.updatedAt.toISOString(), updatedBy: actor(names, row.updatedBy), mode: row.mode,
         document: row.document } : null,
       original: row?.originalFileName && row.originalImportedAt ? { fileName: row.originalFileName, importedAt: row.originalImportedAt.toISOString() } : null,
       mapFile: map ? { sha256: map.sha256, fileName: map.fileName, scale: map.scale, bounds: map.bounds, georeferenced: map.georeference !== null } : null,
-      ...(race ? { raceType: race.raceType } : {}), ...(title ? { raceTitle: title.slice(0, 500) } : {}) }) };
+      ...(race ? { raceType: race.raceType } : {}), ...(title ? { raceTitle: title.slice(0, 500) } : {}),
+      ...(paperLinks ? { paperLinks } : {}) }) };
   });
 }
 

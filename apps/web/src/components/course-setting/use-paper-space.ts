@@ -8,7 +8,7 @@ import {
   applyEdit, effectivePaper, paperClipPoints, paperLayoutOf, shapePoints, withPaperItem, type CourseSettingDocument, type CourseSettingEdit, type PaperRect,
   type Sheet, type SheetPaperItem
 } from "@o-tid/course-setting";
-import { anchorRect, movedPaperItem, paperItemEdit, paperItemsOf, paperLayoutEdit, paperUndoFor, resizedPaperItem } from "../../lib/course-setting-paper";
+import { anchorRect, movedPaperItem, paperItemEdit, paperItemsOf, paperLayoutEdit, paperUndoFor, resizedPaperItem, type QrSheetSpace } from "../../lib/course-setting-paper";
 import { paperImageUrl } from "../../lib/course-setting-paper-api";
 import { CLIP_SELECTION, type PaperInteraction, type PaperSelection } from "./course-setting-paper-items";
 import { paperCourses } from "./course-setting-paper-panel";
@@ -211,8 +211,19 @@ export function usePaperSpace({ raceId, document, save, canEdit, chosen, extra: 
       for (const { sheet } of sheets) { const frame = sheet.frames.find(row => row.course === courseId); if (frame) return frame.clip; }
       return undefined;
     };
+    // Papperets QR-kod (ägaren 2026-11-16): banans första ark, med kartramen, elementen och beskrivningen som redan står där.
+    const spaceOf = (courseId: string): QrSheetSpace | undefined => {
+      for (const { sheet } of sheets) {
+        const frame = sheet.frames.find(row => row.course === courseId);
+        if (!frame) continue;
+        const taken = [...(sheet.paperItems ?? []).map(row => row.rect),
+          ...sheet.descriptions.map(row => ({ x: row.x, y: row.y, width: row.layout.widthMm, height: row.layout.heightMm }))];
+        return { paper: { widthMm: sheet.paper.widthMm, heightMm: sheet.paper.heightMm, marginMm: sheet.paper.marginMm }, frame: frame.clip, taken };
+      }
+      return undefined;
+    };
     const placedAll = selection.flatMap(target => { const found = placedOf(target); return found ? [found] : []; });
-    return { courses, course: paperCourse, onCourse: (id: string) => setCourse(id), selected, onSelect: select, placed: placedOf(selected), frameOf,
+    return { courses, course: paperCourse, onCourse: (id: string) => setCourse(id), selected, onSelect: select, placed: placedOf(selected), frameOf, spaceOf,
       onSave: (edits: CourseSettingEdit[]) => savePaper(edits), onUndo, canUndo: undoCount > 0, onRedo, canRedo: redoCount > 0,
       // ADR-0211 beslut 8: de markerade på arket (justera, fördela), fästningen och rutnätet.
       marked: placedAll, onMoveMany: moveMany, snap, onSnap: setSnap };

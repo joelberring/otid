@@ -13,6 +13,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-16 – QR-kod och länk i layouten (tillägg 13 i ADR-0197)
+
+- Ägaren: «Lägg till QR-kod» bland papperets element i Layout. Leder till tävlingens sida (förval), bingons anmälan när bingon med telefonen är på, O-Tid eller en egen https-adress; storlek 15–100 mm (förval 25), adressen kort under (kan ändras eller tas bort). Placeras i ett hörn av papperet som är fritt från kartan, annars nere till höger i kartramen; flyttas och ändrar storlek som andra element.
+- Adresserna byggs ur `O_TID_PUBLIC_ORIGIN` och tävlingens korta kod, i editorn och i utskriftsjobbet (sparade med jobbet). Diskret varning när tävlingen inte är publicerad.
+- Koden ritas som vektorrutor i svart (processvart, även i tryck med dekorfärger) på vit botten med tyst zon, felkorrigering M.
+- Kontrollerat: enhetstester (läsa och skriva, ogiltig adress, platsen, storleken), PDF-test som läser tillbaka modulerna ur PDF:en och jämför med koden (kontor och tryck), integrationstest för adresserna i läget och jobbet, lint, typecheck, knip, alla enhetstester. Inte provat i webbläsaren eller med en telefon mot en utskrift.
+
 ### 2026-11-16 – Virtuella kontroller (steg B6, ADR-0226, migration 0129)
 
 - Ägaren: ett tredje läge på bingons grund. Banorna ur banläggningen; telefonen stämplar inom radien (förval 25 m, position ≤ 20 m), automatiskt med tänd skärm eller med knappen «Stämpla». Vanlig bana i ordning, poängbana valfri ordning, duell eller lag med kort kod (först full poäng, tvåan 30 %).

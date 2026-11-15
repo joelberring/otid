@@ -3,9 +3,9 @@ import { and, asc, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import {
   printJobRequestSchema, printJobSchema, printJobsSchema, type PrintJob, type PrintJobProblem, type PrintJobRequest, type PrintJobs
 } from "@o-tid/contracts";
-import { paperImageHashes, printedTitle, type CourseSettingDocument } from "@o-tid/course-setting";
+import { paperImageHashes, printedTitle, validPaperLinks, type CourseSettingDocument } from "@o-tid/course-setting";
 import { schema, type Database } from "@o-tid/database";
-import { courseSettingRead, courseSettingWrite, loadRaceTitle, loadRow, type Failure, type ReadProof } from "./course-setting";
+import { courseSettingRead, courseSettingWrite, loadPaperLinks, loadRaceTitle, loadRow, type Failure, type ReadProof } from "./course-setting";
 import { sheetLayoutFor, PrintJobError, printProfileFor, renderPrintJob } from "./course-setting-print-render";
 import type { RaceSessionProof } from "./race-session";
 import { sha256Hex } from "./serialization";
@@ -89,7 +89,7 @@ export async function listPrintJobsAsAdmin(db: Database, input: ReadProof, now =
  * Nytt jobb från förhandsvisningen. Kontrollerar förfrågan, mallen och profilen (lätt) och att profilens krav går att
  * uppfylla (PDF/X och ICC kan PDF:en inte, då stoppar förhandskontrollen). Samma `requestId` två gånger ger samma jobb.
  */
-export async function createPrintJobAsAdmin(db: Database, input: RaceSessionProof & { request: unknown }, now = new Date())
+export async function createPrintJobAsAdmin(db: Database, input: RaceSessionProof & { request: unknown; readonly origin?: string | undefined }, now = new Date())
   : Promise<Failure | Problem | { status: "ok"; job: PrintJob; created: boolean }> {
   const parsed = printJobRequestSchema.safeParse(input.request);
   if (!parsed.success) return { status: "invalid-request" };
@@ -117,8 +117,11 @@ export async function createPrintJobAsAdmin(db: Database, input: RaceSessionProo
     const id = randomUUID();
     // Tävlingens namn sparas med jobbet: utskriftsarbetarens roll läser inte evenemanget (deploy/db-roles.sh).
     const raceTitle = await loadRaceTitle(tx, raceId);
+    // Papperets QR-koder (ägaren 2026-11-16): adresserna sparas med jobbet, utskriftsrollen läser inte tävlingens kod eller bingon.
+    const links = await loadPaperLinks(tx, raceId, input.origin);
+    const paperLinks = links ? { site: links.site, ...(links.race ? { race: links.race } : {}), ...(links.bingo ? { bingo: links.bingo } : {}) } : undefined;
     const [created] = await tx.insert(schema.courseSettingPrintJobs).values({ id, raceId, requestId: request.requestId, kind: request.kind, status: "QUEUED",
-      label: labelFor(document, request), request: { ...request, ...(raceTitle ? { raceTitle } : {}) } as unknown as Record<string, unknown>, document: row.document as unknown as Record<string, unknown>,
+      label: labelFor(document, request), request: { ...request, ...(raceTitle ? { raceTitle } : {}), ...(paperLinks ? { paperLinks } : {}) } as unknown as Record<string, unknown>, document: row.document as unknown as Record<string, unknown>,
       documentVersion: row.version, createdAt: now, createdBy: actorId }).returning(listColumns);
     await tx.insert(schema.auditEvents).values({ raceId, entityType: "course_setting", entityId: raceId, action: "COURSE_SETTING_PRINT_JOB_CREATED",
       actorKind: "USER_ACCOUNT", actorId, after: { job: id, kind: request.kind, items: request.items.length, version: row.version } });
@@ -225,11 +228,12 @@ export async function runPrintJob(db: Database, job: ClaimedPrintJob, options: P
     return updated.length > 0;
   };
   try {
-    const request = printJobRequestSchema.parse(Object.fromEntries(Object.entries(row.request).filter(([key]) => key !== "raceTitle")));
+    const request = printJobRequestSchema.parse(Object.fromEntries(Object.entries(row.request).filter(([key]) => key !== "raceTitle" && key !== "paperLinks")));
+    const paperLinks = validPaperLinks((row.request as { paperLinks?: unknown }).paperLinks);
     const document = row.document as unknown as CourseSettingDocument;
     const paperImages = await paperImagesFor(db, paperImageHashes(document));
     // Kartornas rubrik är tävlingens namn om inte filens titel valts (`printedTitle`, användartestet 2026-11-12).
-    const result = await renderPrintJob({ paperImages, document, request, fonts: options.fonts, maxPages: PRINT_JOB_LIMITS.maxPages, raceTitle: race,
+    const result = await renderPrintJob({ paperImages, document, request, fonts: options.fonts, maxPages: PRINT_JOB_LIMITS.maxPages, raceTitle: race, paperLinks,
       title: printedTitle(document, race).replace(/\|/g, " ").trim() || "O-Tid banor", now: clock(),
       map: map ? { bytes: new Uint8Array(map.file), fileName: map.fileName, bounds: map.bounds } : null });
     const maxBytes = options.maxBytes ?? PRINT_JOB_LIMITS.maxBytes;

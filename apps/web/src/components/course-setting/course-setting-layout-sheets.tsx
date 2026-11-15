@@ -1,5 +1,6 @@
 "use client";
 
+import type { CourseSettingState } from "@o-tid/contracts";
 import { useEffect, useMemo, useState } from "react";
 import { runnerPrintEn } from "../../i18n/course-setting-print-more-en";
 import { printOutputEn } from "../../i18n/course-setting-print-en";
@@ -48,12 +49,14 @@ interface Shown { readonly key: string; readonly sheet: Sheet; readonly label: s
  * på dokumentet som utskriften ser det för layouten (`layoutDocument`) och sparas på arket (`sheetEdits`); huvudlayouten är
  * banornas egna fält som förut.
  */
-export function LayoutSheets({ raceId, document, layout, focus, canEdit, save, map, mapBounds, symbols, onClose, layoutName, raceTitle }: {
+export function LayoutSheets({ raceId, document, layout, focus, canEdit, save, map, mapBounds, symbols, onClose, layoutName, raceTitle, paperLinks }: {
   raceId: string; document: CourseSettingDocument; layout: string; focus: string; canEdit: boolean;
   save: (edits: CourseSettingEdit[]) => Promise<boolean>; map: PrintMap; mapBounds: MapRect | undefined; symbols: SymbolLookup; onClose: () => void;
   layoutName: string;
   /** Tävlingens namn: rubriken på kartorna som i Utskrift (`printedTitle`). */
   raceTitle?: string | undefined;
+  /** Papperets QR-koder (ägaren 2026-11-16): tävlingens publika adresser och om den är publicerad. */
+  paperLinks?: CourseSettingState["paperLinks"] | undefined;
 }) {
   const runnerText = useTexts(runnerPrintSv, runnerPrintEn);
   const language = useLanguage();
@@ -79,7 +82,7 @@ export function LayoutSheets({ raceId, document, layout, focus, canEdit, save, m
       .filter(id => chosen.includes(id)).map(course => ({ course }))), () => []);
     const out: Shown[] = [];
     const groups = printSheetGroups(view, template ? { kind: "TEMPLATE", template, fill: "FILL" } : { kind: "COURSE" }, items,
-      { mapBounds, ...aids, runnerPlaceholders: true, raceTitle, onError: ({ error }) => console.error("Arket kunde inte läggas ut", error) });
+      { mapBounds, ...aids, runnerPlaceholders: true, raceTitle, ...(paperLinks ? { paperLinks } : {}), onError: ({ error }) => console.error("Arket kunde inte läggas ut", error) });
     for (const group of groups) {
       const row = group.item === undefined ? undefined : items[group.item];
       group.sheets.forEach((sheet, index) => {
@@ -89,10 +92,10 @@ export function LayoutSheets({ raceId, document, layout, focus, canEdit, save, m
       });
     }
     const first = out[0]?.sheet;
-    if (back && first?.frames[0]) out.push({ key: "back", sheet: { ...runnerBackSheet(view, first.paper, first.frames[0], { runnerPlaceholders: true }), back: true },
+    if (back && first?.frames[0]) out.push({ key: "back", sheet: { ...runnerBackSheet(view, first.paper, first.frames[0], { runnerPlaceholders: true, links: paperLinks }), back: true },
       label: runnerText.backCourse });
     return out;
-  }, [view, courses, chosen, template, mapBounds, aids, back, raceTitle]);
+  }, [view, courses, chosen, template, mapBounds, aids, back, raceTitle, paperLinks]);
   const images = useSheetImages(map, sheets, colors);
 
   const [openKey, setOpenKey] = useState<string>();
@@ -196,7 +199,7 @@ export function LayoutSheets({ raceId, document, layout, focus, canEdit, save, m
         <SheetLayoutPanel saved={document.event.layoutTemplates ?? []} selectedId={sheetLayoutId(document, layout)} readOnly={!canEdit}
           onSelect={id => { setDraft(undefined); void save([{ type: "UPDATE_LAYOUT", layout, changes: { layoutTemplate: id === "NONE" ? null : id } }]); }}
           onDraft={setDraft} onSave={save} />
-        {panel && <PaperSpacePanel raceId={raceId} document={view} readOnly={!canEdit} {...panel} onCourse={choosePaperCourse} />}
+        {panel && <PaperSpacePanel raceId={raceId} document={view} readOnly={!canEdit} {...panel} onCourse={choosePaperCourse} paperLinks={paperLinks} />}
         <PaperDescriptionsPanel document={view} courses={paperCourses(view, chosen, printText.print.allControls)} placed={placed} readOnly={!canEdit} onSave={paperSave} />
       </div>
     </div>

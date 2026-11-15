@@ -66,6 +66,8 @@ describe("administratörsroutes: banläggningen", () => {
     const read = await raceAdministratorRoute(db, get(), id, { kind: "course-setting" }, services, environment);
     expect(read.status).toBe(200);
     expect(read.headers.get("cache-control")).toBe("private, no-store");
+    // Papperets QR-koder: serverns publika adress följer med till läsningen.
+    expect(courseSetting.mock.calls[0]![1]).toHaveProperty("origin");
     const body = JSON.stringify({ formatVersion: 1, expectedVersion: 2, document });
     const ok = await raceAdministratorRoute(db, request("PUT", body), id, { kind: "course-setting" }, services, environment);
     expect(ok.status).toBe(200);

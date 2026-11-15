@@ -6,6 +6,7 @@
  */
 import { validatePaperItem, PAPER_LIMITS, type PaperItem } from "./paper-items";
 import { placePaperItem, type SheetPaperItem } from "./paper-sheet";
+import type { PaperLinks } from "./paper-qr";
 import type { RunnerInfo, Sheet } from "./sheet-layout";
 import { CourseSettingEditError, type CourseSettingDocument, type RunnerBackLayout } from "./types";
 
@@ -50,7 +51,7 @@ export function runnerBackOf(document: CourseSettingDocument, relay = false): Ru
  */
 export function runnerBackSheet(document: CourseSettingDocument, paper: Sheet["paper"],
   front: { readonly course: string; readonly variant?: string | undefined; readonly printScale: number; readonly runner?: RunnerInfo | undefined },
-  options: { readonly date?: string | undefined; readonly runnerPlaceholders?: boolean | undefined } = {}): Sheet {
+  options: { readonly date?: string | undefined; readonly runnerPlaceholders?: boolean | undefined; readonly links?: PaperLinks | undefined } = {}): Sheet {
   const page = { x: 0, y: 0, width: paper.widthMm, height: paper.heightMm };
   const frame = { course: front.course, ...(front.variant ? { variant: front.variant } : {}), printScale: front.printScale,
     ...(front.runner ? { runner: front.runner } : {}), clip: page };
@@ -58,7 +59,7 @@ export function runnerBackSheet(document: CourseSettingDocument, paper: Sheet["p
   for (const item of runnerBackOf(document, front.runner?.team !== undefined).items) {
     if (item.hide) continue;
     const placed = placePaperItem(document, item, document.event.runnerBack ? "OWN" : "TEMPLATE", frame, 0,
-      { page, date: options.date, runnerPlaceholders: options.runnerPlaceholders, course: RUNNER_BACK });
+      { page, date: options.date, runnerPlaceholders: options.runnerPlaceholders, course: RUNNER_BACK, links: options.links });
     if (placed) paperItems.push(placed);
   }
   return { paper, frames: [], texts: [], images: [], descriptions: [], boxes: [], cutMarks: [], back: true,

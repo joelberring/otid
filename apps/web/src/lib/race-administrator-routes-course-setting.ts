@@ -9,6 +9,7 @@ import { createCourseSettingEventStream, publishCourseSettingEvent } from "./cou
 import { RACE_PRINT_FILE_LIMITS } from "@o-tid/application";
 import { adminFailure as failure, privateHeaders, privateJson as json, readBoundedBytes, readJsonBody, RequestBodyError, validDeclaredLength } from "./security-policy";
 import { resultFailure, type RaceAdministratorRouteContext } from "./race-administrator-route-context";
+import { requestPublicOrigin } from "./public-origin-request";
 
 /**
  * Steg 62 (ADR-0180): banläggningens routes. Läget (GET) och sparandet med versionskontroll (PUT), inläst .ppen (POST),
@@ -67,7 +68,7 @@ export async function handleCourseSettingRoute(context: RaceAdministratorRouteCo
   switch (action.kind) {
     case "course-setting": {
       if (request.method === "GET") {
-        const result = await dependencies.courseSetting(db, input);
+        const result = await dependencies.courseSetting(db, { ...input, origin: requestPublicOrigin(request) });
         if (result.status !== "ok") return resultFailure(result.status);
         const response = courseSettingStateSchema.parse(result.response);
         return response.raceId === raceId ? json(response) : failure(500, "INTERNAL_ERROR");
@@ -248,7 +249,7 @@ export async function handleCourseSettingRoute(context: RaceAdministratorRouteCo
       }
       const value = await body(request, PRINT_JOB_REQUEST_MAX_BYTES);
       if (value === undefined) return failure(400, "INVALID_REQUEST");
-      const result = await dependencies.printJobCreate(db, { ...input, request: value });
+      const result = await dependencies.printJobCreate(db, { ...input, request: value, origin: requestPublicOrigin(request) });
       if (result.status === "problem") return json(printJobProblemSchema.parse(result.problem), 422);
       if (result.status !== "ok") return resultFailure(result.status);
       return json(printJobSchema.parse(result.job), result.created ? 201 : 200);

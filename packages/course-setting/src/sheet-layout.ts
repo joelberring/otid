@@ -8,6 +8,7 @@ import type { OverprintTraining, TrainingMapPass } from "./training-types";
 import { placeDescription, type SheetDescription } from "./paper-layout";
 import { paperLayoutOf } from "./paper-items";
 import { sheetPaperItems, type MarkingClip, type SheetPaperItem } from "./paper-sheet";
+import type { PaperLinks } from "./paper-qr";
 import { expandPaperText } from "./paper-text";
 import { runnerBackSheet } from "./runner-back";
 import { countCourseParts } from "./course-parts";
@@ -221,6 +222,8 @@ export interface SheetOptions {
   readonly duplexBacks?: boolean | undefined;
   /** ADR-0213: löparens variabler som platshållare i ramar utan löpare (förhandsvisningen). */
   readonly runnerPlaceholders?: boolean | undefined;
+  /** Tävlingens publika adresser för papperets QR-koder. */
+  readonly paperLinks?: PaperLinks | undefined;
 }
 
 /** Platshållarna i mallens texter för en ram (okända lämnas kvar); samma variabler som papperets texter (`expandPaperText`). */
@@ -320,13 +323,14 @@ export function sheetLayoutSheets(document: CourseSettingDocument, template: She
     // Papperets element per ram; de som står i arkets hörn bara för första ramen.
     const page = { x: 0, y: 0, width: paper.widthMm, height: paper.heightMm };
     const items = frames.flatMap((frame, index) => group[index]?.training?.section ? []
-      : sheetPaperItems(document, frame, index, { page, date: options.date, pageItems: index === 0, runnerPlaceholders: options.runnerPlaceholders }));
+      : sheetPaperItems(document, frame, index, { page, date: options.date, pageItems: index === 0, runnerPlaceholders: options.runnerPlaceholders,
+        links: options.paperLinks }));
     const sheet: Sheet = { paper, frames, texts, images: template.images.map(image => ({ ...image })), descriptions, boxes,
       cutMarks: template.cutMarks ? cutMarksFor(paper, rects, margin) : [], ...(items.length > 0 ? { paperItems: items } : {}) };
     sheets.push(sheet);
     const runner = frames[0]?.runner;
     // ADR-0213: baksidan är ett eget ark med papperets element (förvalet som Kartor till startens baksida).
-    if (options.duplexBacks && runner) sheets.push(runnerBackSheet(document, paper, frames[0]!, { date: options.date }));
+    if (options.duplexBacks && runner) sheets.push(runnerBackSheet(document, paper, frames[0]!, { date: options.date, links: options.paperLinks }));
   }
   return sheets;
 }

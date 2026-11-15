@@ -16,6 +16,7 @@ import { clipMapPasses, clipMarkings, paperClipRing } from "./paper-sheet";
 import { whiteAreasOnFrame } from "./paper-white";
 import { trainingPieceSheets } from "./training-print";
 import { withPrintedTitle } from "./print-title";
+import type { PaperLinks } from "./paper-qr";
 import { findPrintLayout, layoutDocument, sheetLayoutOfLayout, MAIN_LAYOUT, singleMapTemplate } from "./print-layouts";
 
 export type PrintSheetsLayout =
@@ -58,6 +59,8 @@ export interface SheetGroupOptions {
    * om inte banläggaren valt filens (`printedTitle`, användartestet 2026-11-12). Saknas = filens titel.
    */
   readonly raceTitle?: string | undefined;
+  /** Tävlingens publika adresser för papperets QR-koder (ägaren 2026-11-16); saknas = koderna ritas som platshållare. */
+  readonly paperLinks?: PaperLinks | undefined;
 }
 
 export function printSheetGroups(source: Parameters<typeof layoutCoursePage>[0], layout: PrintSheetsLayout, items: readonly SheetItem[],
@@ -151,7 +154,7 @@ function sheetGroups(document: Parameters<typeof layoutCoursePage>[0], layout: P
   };
   const gaps = { ...(options.detailGaps ? { detailGaps: options.detailGaps } : {}), ...(options.numberObstacles ? { numberObstacles: options.numberObstacles } : {}) };
   const common = { mapBounds: options.mapBounds, ...(options.date ? { date: options.date } : {}), ...gaps,
-    ...(options.runnerPlaceholders ? { runnerPlaceholders: true } : {}) };
+    ...(options.runnerPlaceholders ? { runnerPlaceholders: true } : {}), ...(options.paperLinks ? { paperLinks: options.paperLinks } : {}) };
   if (layout.kind === "PIECES") {
     items.forEach((item, index) => attempt(index, () => ({ item: index, sheets: trainingPieceSheets(document, item, { mapBounds: options.mapBounds }) })));
     return groups;
@@ -170,7 +173,7 @@ function sheetGroups(document: Parameters<typeof layoutCoursePage>[0], layout: P
     const pages = layoutCoursePage(document, { course: item.course, ...(item.variant ? { variant: item.variant } : {}), ...(item.part !== undefined ? { part: item.part } : {}),
       ...(item.printScale ? { printScale: item.printScale } : {}), ...(item.printArea ? { printArea: item.printArea } : {}),
       mapBounds: options.mapBounds, header: layout.header, ...gaps, ...(item.training ? { training: item.training } : {}), ...(options.date ? { date: options.date } : {}),
-      ...(options.runnerPlaceholders ? { runnerPlaceholders: true } : {}) });
+      ...(options.runnerPlaceholders ? { runnerPlaceholders: true } : {}), ...(options.paperLinks ? { paperLinks: options.paperLinks } : {}) });
     return { item: index, sheets: pages.map(sheetOfPage), pages };
   }));
   return layout.duplex ? duplexParts(groups, items) : groups;

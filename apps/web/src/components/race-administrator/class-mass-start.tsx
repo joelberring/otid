@@ -49,7 +49,8 @@ export function ClassMassStart({ ws, classId, current }: { ws: Workspace; classI
       setMessage({ ok: true, text: text.massStartSaved(formatClockTime(firstStartTime, setup.timeZone).slice(0, 5)) });
       // Lottningen gav klassen fast starttid: formuläret ovanför ska inte spara tillbaka fri start.
       ws.changeClassEdit({ startRule: "FIXED" });
-      await ws.readCourses(op);
+      // Klassens startsätt ändrades av lottningen: översikten läses om, annars avvisas nästa anmälan i klassen som inaktuell.
+      await ws.readCourses(op); await ws.load(op);
     } catch { if (ws.current(op)) setMessage({ ok: false, text: text.massStartError }); }
     finally { ws.finish(op); setBusy(false); }
   }

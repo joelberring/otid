@@ -54,9 +54,10 @@ describe("gamla dokument utan layouter (ADR-0217 beslut 9)", () => {
     expect(sheetsHash("kartbyte.ppen")).toBe("d52d82f0c756eadf3c64c407c963e945cf07f4454d5d759c35cba1e9ffaba026");
   });
 
+  // 2026-11-15: ny hash när randningen förankrades i kartans nät (1c4a682); layouterna ändrar fortfarande ingenting.
   it("PDF:en är byte för byte densamma som före layouterna", async () => {
-    expect(await pdfHash("kartfil.ppen")).toBe("8a33ae3e9739bbc7121178577203396a09c65b5f2da30ad04c3ce94d9eb7285c");
-    expect(await pdfHash("kartbyte.ppen")).toBe("de1c501c368d050e569efc1c7fbce902fb5a49e3b6464522c7c31502c8e005ec");
+    expect(await pdfHash("kartfil.ppen")).toBe("72f2932a029733d4ba2f76e061dfa25c7548c46658b51fb19e1afe9f1a0d071f");
+    expect(await pdfHash("kartbyte.ppen")).toBe("c69d3f976be3621cb34bf670ffd4459da3dd26fb88b5103ca8a0e717ee9fa0c6");
   });
 });
 

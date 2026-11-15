@@ -1376,6 +1376,12 @@ och `claude/plan-ritlage-hjul-och-mobil.md`.
     (3) egen sökning efter sänkor ur höjdrastret (`pit-search.ts`): små blir gropsymboler, större en ring av hjälpkurva
     efter formen med streck, med reglaget «Gropar och sänkor» (förvalet ställt mot kartan över Grövelsjön). I webben när
     grundkartan läses in och i apply_base_map (höjdbilder upp till 16 miljoner celler).
+  - [x] G3 små höjder som ring (ägaren 2026-11-15: «färre punkthöjder och fler små höjder»): varje höjd med egen topp söks
+    ur markens höjd (`hill-search.ts`, också de mellan nivåerna och på sidan av en större höjd). En höjd på minst 1 m vars
+    ring på halva höjden rymmer normens minsta höjd (95 m² i terrängen) får en ring efter formen: höjdkurva när nästa nivå
+    ligger högst 1,25 m över toppen, annars hjälpkurva. Punkthöjder i ringen tas bort. Reglaget «Små höjder som ring».
+    Högdalen: ringarnas F1 mot kartritaren 0,30 → 0,37 och 0,29 → 0,34. Hjälpkurvornas läge prövat med 0,5 m- och
+    1 m-kurvor utan vinst (`claude/hjalpkurvor-och-sma-hojder-2026-11-15.md` i projektet): inget byggt där.
   - [x] Tomter, fukt och diken (ägaren 2026-11-11: «använd de grå lagren för bebyggd yta från OSM», «dra i
     markfuktighetslagren», «terrängformstolkning … för diken»): tomtmark ur OpenStreetMaps bostadsområden (`tomtmark_osm`),
     marktäckets låga bebyggelse (`tomtmark_marktacke`) och rektanglar kring hus utanför dem, klippta mot väg och strand (`tomtmark_hus`), alla 520 i var sitt

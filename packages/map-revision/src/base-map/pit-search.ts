@@ -32,7 +32,7 @@ export const PIT_LABEL_DEPTH = 0.2, PIT_MIN_DEPTH = 0.3;
 const RING_FROM_DEPTH = 0.6, RING_MIN_M2 = 40, RING_MAX_M2 = 6000;
 
 /** Rastret lätt utjämnat (1–2–1 i båda led, två gånger); celler utan höjd står kvar utan höjd och väger inte in. */
-function smoothed(grid: HeightGrid): Float32Array {
+export function smoothedHeights(grid: HeightGrid): Float32Array {
   const { columns, rows } = grid, first = new Float32Array(grid.meters.length), second = new Float32Array(grid.meters.length);
   /** En led: `count` celler per rad med `stride` emellan, `lines` rader med `lineStride` emellan. */
   const pass = (from: Float32Array, to: Float32Array, stride: number, count: number, lines: number, lineStride: number) => {
@@ -116,7 +116,7 @@ function fillDepressions(z: Float32Array, columns: number, rows: number): Float3
 }
 
 /** Ringen jämnad med hörnklippning (Chaikin), `rounds` gånger. */
-function chaikin(ring: readonly Position[], rounds: number): [number, number][] {
+export function chaikin(ring: readonly Position[], rounds: number): [number, number][] {
   let current = ring.map(([x, y]) => [x, y] as [number, number]);
   for (let round = 0; round < rounds; round += 1) {
     const next: [number, number][] = [];
@@ -136,7 +136,7 @@ function chaikin(ring: readonly Position[], rounds: number): [number, number][] 
 export function findPits(grid: HeightGrid, affine: PixelAffine): PitCandidate[] {
   const { columns, rows } = grid;
   if (columns < 3 || rows < 3) return [];
-  const z = smoothed(grid), filled = fillDepressions(z, columns, rows);
+  const z = smoothedHeights(grid), filled = fillDepressions(z, columns, rows);
   const [a, b, c, d, e, f] = affine, cellM2 = Math.abs(a * e - b * d), cellM = Math.sqrt(cellM2);
   const toSource = (column: number, row: number): [number, number] => [a * column + b * row + c, d * column + e * row + f];
   const depthAt = (cell: number) => filled[cell]! - z[cell]!;

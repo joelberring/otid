@@ -1,5 +1,5 @@
 import type { Texts } from "../lib/language";
-import type { mapClearContoursSv, mapFlatContoursSv, mapKnollsSv, mapPitsSv, mapSavedChoiceSv, mapUnderlayStepsSv } from "./map-knolls-sv";
+import type { mapClearContoursSv, mapFlatContoursSv, mapHillsSv, mapKnollsSv, mapPitsSv, mapSavedChoiceSv, mapUnderlayStepsSv } from "./map-knolls-sv";
 
 /** English: the headings for the order of the base layers in the side panel. */
 export const mapUnderlayStepsEn: Texts<typeof mapUnderlayStepsSv> = {
@@ -62,6 +62,16 @@ export const mapPitsEn: Texts<typeof mapPitsSv> = {
   spacing: (meters: number) => `Minimum distance between two pit symbols: ${meters} m`,
   done: (points: number, rings: number, all: number) => `${points} pit symbols and ${rings === 1 ? "1 ring" : `${rings} rings`} of ${all} possible depressions.`,
   loaded: (points: number, rings: number, byHeight: number) => `Depressions from the ground height: ${points} pit symbols and ${rings === 1 ? "1 ring" : `${rings} rings`}; ${byHeight} closed contours and form lines got a slope tick from the height. Change it under "3. Adjust without a new run".`
+};
+
+/** English: small hills as a ring that follows the shape, instead of a dot knoll. */
+export const mapHillsEn: Texts<typeof mapHillsSv> = {
+  heading: "Small hills as a ring (101, 103)",
+  help: "When the base map is read, every hill with its own top is found in the ground height, also those that lie between the contour levels. A hill that is high enough and holds the standard's smallest knoll gets a ring at half its height: a contour when the next level lies just above the top, otherwise a form line. Dot knolls inside the ring are removed. Hills that the contours already show are left out. The default (1 m) is measured against a mapper's map of Högdalen.",
+  none: "No hills have been searched for among the candidates. Read the base map from a laser job that has the ground height saved (hojd.png).",
+  ringRise: (meters: string) => `Ring from: ${meters} m high (lower hills become dot knolls or are left out)`,
+  done: (rings: number, contours: number, dots: number, all: number) => `${rings === 1 ? "1 ring" : `${rings} rings`} (${contours} contours, ${rings - contours} form lines) of ${all} possible hills; ${dots === 1 ? "1 dot knoll was" : `${dots} dot knolls were`} replaced by a ring.`,
+  loaded: (rings: number, dots: number) => `Small hills: ${rings === 1 ? "1 got a ring" : `${rings} got a ring`} that follows the shape (${dots === 1 ? "1 dot knoll" : `${dots} dot knolls`} replaced).`
 };
 
 /** English: "Calm contours on flat ground": form lines and small rings are removed where the ground is flat. */

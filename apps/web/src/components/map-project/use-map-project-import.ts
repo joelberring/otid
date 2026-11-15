@@ -18,12 +18,12 @@ import { clubRequest, csrf } from "../../lib/club-archive-client";
 import type { Bounds } from "../../lib/course-setting-viewport";
 import { areaBox, type BoxArea } from "../../lib/map-project-area-box";
 import { mapProjectBase } from "../../lib/map-project-client";
-import type { BaseMapStep, CalmOutcome, ClearOutcome, CandidateInput, CandidateResult, PitOutcome } from "../../lib/map-project-candidates";
+import type { BaseMapStep, CalmOutcome, ClearOutcome, CandidateInput, CandidateResult, HillOutcome, PitOutcome } from "../../lib/map-project-candidates";
 import { CandidateSession } from "../../lib/map-project-candidates-client";
 import { controlledWorker } from "../../lib/course-setting-worker";
 import {
-  calmFlatContours, choosePits, clearContours, flatLimitsAt, mergeCandidates, PIT_LAYERS, pitFeatures, restoreFlatContours, snapTicks, sprintOsm, suggestedMapping, tickDepressions,
-  type ClearSettings, type HeightField, type PitLimits
+  calmFlatContours, choosePits, clearContours, flatLimitsAt, mergeCandidates, PIT_LAYERS, pitFeatures, restoreFlatContours, settleHills, snapTicks, sprintOsm, suggestedMapping, tickDepressions, unsettleHills,
+  type ClearSettings, type HeightField, type HillLimits, type PitLimits
 } from "@o-tid/map-revision/base-map";
 import { readVectorFiles } from "../../lib/map-project-vector-files";
 import type { CatalogSymbol, MapProjectSession, SymbolObject } from "../../lib/map-project-protocol";
@@ -115,8 +115,11 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   /** Sänkorna som söktes ur markens höjd när grundkartan lästes in (ägaren 2026-11-15), och det senaste valet bland dem. */
   const [pits, setPits] = useState<PitOutcome>();
   const pitsWith = useRef<PitOutcome | undefined>(undefined);
+  /** Små höjder som ring (ägaren 2026-11-15): höjderna som söktes, valet bland dem och punkthöjderna som ringarna ersatte. */
+  const [hills, setHills] = useState<HillOutcome>();
+  const hillsWith = useRef<HillOutcome | undefined>(undefined);
   const show = useCallback((fileName: string, data: SourceData, area?: Bounds, general = false, within?: readonly (readonly { x: number; y: number }[])[]) => {
-    setNormed(general); setStage(within); setCalm(undefined); setClear(undefined); clearWith.current = undefined; setPits(undefined); pitsWith.current = undefined; setOrigin(undefined); setReplace(false); setReplaced(undefined); setTicks(undefined);
+    setNormed(general); setStage(within); setCalm(undefined); setClear(undefined); clearWith.current = undefined; setPits(undefined); pitsWith.current = undefined; setHills(undefined); hillsWith.current = undefined; setOrigin(undefined); setReplace(false); setReplaced(undefined); setTicks(undefined);
     const found = importLayers(data);
     const list = symbolList;
     setFile({ name: fileName, data });
@@ -355,11 +358,11 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   const [pendingReplace, setPendingReplace] = useState<{ fileName: string; open: () => void }>();
   /** K5: geo-arbetarens kurvor (DXF) som kandidater. */
   const openData = useCallback((fileName: string, data: SourceData, general = false, within?: readonly (readonly { x: number; y: number }[])[], calmed?: CalmOutcome,
-    cleared?: { outcome: ClearOutcome; field: HeightField }, from?: BaseMapOrigin, pitted?: PitOutcome) => {
+    cleared?: { outcome: ClearOutcome; field: HeightField }, from?: BaseMapOrigin, pitted?: PitOutcome, hilled?: HillOutcome) => {
     const open = () => {
       setProblem(undefined); setSent(undefined); setAccepted(undefined); show(fileName, data, undefined, general, within); setCalm(calmed); setOrigin(from);
       setClear(cleared?.outcome); clearWith.current = cleared && { settings: cleared.outcome.settings, field: cleared.field };
-      setPits(pitted); pitsWith.current = pitted;
+      setPits(pitted); pitsWith.current = pitted; setHills(hilled); hillsWith.current = hilled;
     };
     // Ägaren 2026-11-12 («försvinner kartan … om den inte är nersparad»): andra kandidater som inte är införda byts inte ut utan
     // fråga. Frågan står i kandidaternas rad under kartan (ingen dialogruta; ägaren 2026-11-13 fick den som webbläsarens ruta).
@@ -369,22 +372,40 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   /** En panel med reglage byter sina egna lager (`own`) i det som visas; utan något som visas öppnas datan som vanligt. */
   const refine = useCallback((fileName: string, data: SourceData, own: RegExp) => {
     if (!file) { openData(fileName, data, true); return; }
-    const merged = mergeCandidates(file.data, data, own);
-    const found = importLayers(merged);
+    // Höjdernas ringar väljs om mot de nya objekten: en punkthöjd som en ring ersatte hör till det gamla valet i sitt lager.
+    const found = hillsWith.current, bare = found ? { ...file.data, features: unsettleHills(file.data.features, found.hidden.filter(feature => !own.test(feature.layer))) } : file.data;
+    const swapped = mergeCandidates(bare, data, own), settled = found && settleHills(swapped.features, found.candidates, found.limits, found.scale);
+    const merged = settled ? { ...swapped, features: settled.features } : swapped;
+    if (found && settled) { hillsWith.current = { ...found, rings: settled.rings, contours: settled.contours, hidden: settled.hidden }; setHills(hillsWith.current); }
+    const layersNow = importLayers(merged);
     setFile({ name: file.name, data: merged });
-    setLayers(found);
+    setLayers(layersNow);
     // Nya lager får förslag ur namnen; de som redan hade en symbol behåller den.
-    setMapping(current => new Map([...found.flatMap(layer => { const id = suggestSymbol(layer, symbolList, norm); return id ? [[layer.name, id] as const] : []; }),
-      ...[...current].filter(([layer]) => found.some(row => row.name === layer))]));
+    setMapping(current => new Map([...layersNow.flatMap(layer => { const id = suggestSymbol(layer, symbolList, norm); return id ? [[layer.name, id] as const] : []; }),
+      ...[...current].filter(([layer]) => layersNow.some(row => row.name === layer))]));
   }, [file, openData, symbolList, norm]);
+  /** Det som visas utan höjdernas ringar och med punkthöjderna de ersatte, inför en omräkning av kurvorna. */
+  const withoutHills = useCallback((features: readonly SourceFeature[]): readonly SourceFeature[] => {
+    const found = hillsWith.current;
+    if (!found) return features;
+    hillsWith.current = { ...found, rings: 0, contours: 0, hidden: [] };
+    return unsettleHills(features, found.hidden);
+  }, []);
   /**
    * Negativ kurvbild (ägaren 2026-11-15) efter att kurvorna räknats om: sänkorna väljs på nytt mot kurvorna som de blev (en
    * sänka som en ring visade förut kan behöva sin egen symbol nu), och lutningsstrecken sätts efter höjden. Utan markens höjd
-   * eller utan sökta sänkor lämnas objekten som de är.
+   * eller utan sökta sänkor lämnas objekten som de är. Före sänkorna får små höjder sin ring (`features` ska vara utan dem,
+   * `withoutHills`).
    */
-  const withPits = useCallback((features: readonly SourceFeature[], field: HeightField | undefined, limits?: PitLimits) => {
-    const found = pitsWith.current;
+  const withPits = useCallback((features: readonly SourceFeature[], field: HeightField | undefined, limits?: PitLimits, hillLimits?: { limits: HillLimits; level: number }) => {
+    const found = pitsWith.current, high = hillsWith.current;
     let next = features, chosen: { points: number; rings: number } | undefined;
+    if (high) {
+      const settled = settleHills(next, high.candidates, hillLimits?.limits ?? high.limits, high.scale);
+      next = settled.features;
+      hillsWith.current = { ...high, ...hillLimits, rings: settled.rings, contours: settled.contours, hidden: settled.hidden };
+      setHills(hillsWith.current);
+    }
     if (found) {
       const rest = features.filter(feature => !PIT_LAYERS.test(feature.layer)), choice = choosePits(found.candidates, limits ?? found.limits, found.scale, rest);
       next = [...rest, ...pitFeatures(choice)]; chosen = { points: choice.points.length, rings: choice.rings.length };
@@ -399,7 +420,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   const calmContours = useCallback((level: number, slopeAt: (x: number, y: number) => number | undefined): CalmOutcome | undefined => {
     if (!file) return undefined;
     // «Tydligare kurvbild» ligger ovanpå: den tas bort först och läggs på igen efteråt.
-    const before = clear ? restoreFlatContours(file.data.features, clear) : file.data.features;
+    const shown = withoutHills(file.data.features), before = clear ? restoreFlatContours(shown, clear) : shown;
     const result = calmFlatContours(calm ? restoreFlatContours(before, calm) : before, slopeAt, flatLimitsAt(level));
     const outcome = { removed: result.removed, added: result.added, formlineMeters: result.formlineMeters, rings: result.rings, level };
     const again = clear && clearWith.current ? clearContours(result.features, clearWith.current.field, clearWith.current.settings) : undefined;
@@ -409,11 +430,12 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     setClear(again && clearWith.current ? { ...again, settings: clearWith.current.settings, suggested: clear?.suggested } : undefined);
     if (pitsWith.current && settled.chosen) { pitsWith.current = { ...pitsWith.current, ...settled.chosen, ...settled.ticks }; setPits(pitsWith.current); }
     return outcome;
-  }, [file, calm, clear, withPits]);
+  }, [file, calm, clear, withPits, withoutHills]);
   /** Reglagen «Tydligare kurvbild»: kurvorna i det som visas byts mot de utjämnade och gallrade, räknade från de lugnade. */
   const clearCurves = useCallback((settings: ClearSettings, field: HeightField): ClearOutcome | undefined => {
     if (!file) return undefined;
-    const result = clearContours(clear ? restoreFlatContours(file.data.features, clear) : file.data.features, field, settings);
+    const shown = withoutHills(file.data.features);
+    const result = clearContours(clear ? restoreFlatContours(shown, clear) : shown, field, settings);
     const outcome = { ...result, settings, suggested: clear?.suggested };
     const settled = withPits(result.features, field);
     const data = { ...file.data, features: settled.features };
@@ -421,22 +443,33 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     setFile({ name: file.name, data }); setLayers(importLayers(data)); setClear(outcome);
     if (pitsWith.current && settled.chosen) { pitsWith.current = { ...pitsWith.current, ...settled.chosen, ...settled.ticks }; setPits(pitsWith.current); }
     return outcome;
-  }, [file, clear, withPits]);
+  }, [file, clear, withPits, withoutHills]);
+  /** Det som visas efter ett nytt val: nya lager (förvalet gav kanske inga) får förslag ur namnen, de andra behåller sina symboler. */
+  const showSettled = useCallback((shown: { name: string; data: SourceData }, features: SourceFeature[]) => {
+    const data = { ...shown.data, features }, layersNow = importLayers(data);
+    setFile({ name: shown.name, data }); setLayers(layersNow);
+    setMapping(current => new Map([...layersNow.flatMap(layer => { const id = suggestSymbol(layer, symbolList, norm); return id ? [[layer.name, id] as const] : []; }),
+      ...[...current].filter(([layer]) => layersNow.some(row => row.name === layer))]));
+  }, [symbolList, norm]);
   /** Reglaget «Gropar och sänkor»: sänkornas egna lager i det som visas byts mot valet med de nya gränserna (`level` är mängden 1–10). */
   const choosePitLimits = useCallback((limits: PitLimits, level: number): PitOutcome | undefined => {
     const found = pitsWith.current;
     if (!file || !found) return undefined;
-    const settled = withPits(file.data.features, clearWith.current?.field, limits);
-    const data = { ...file.data, features: settled.features }, layersNow = importLayers(data);
+    const settled = withPits(withoutHills(file.data.features), clearWith.current?.field, limits);
     const outcome: PitOutcome = { ...found, limits, level, ...settled.chosen, ...settled.ticks };
     pitsWith.current = outcome;
-    setFile({ name: file.name, data }); setLayers(layersNow); setPits(outcome);
-    // Sänkornas lager kan vara nya (förvalet gav inga): de får förslag ur namnen, de andra behåller sina symboler.
-    setMapping(current => new Map([...layersNow.flatMap(layer => { const id = suggestSymbol(layer, symbolList, norm); return id ? [[layer.name, id] as const] : []; }),
-      ...[...current].filter(([layer]) => layersNow.some(row => row.name === layer))]));
+    setPits(outcome); showSettled(file, settled.features);
     return outcome;
-  }, [file, withPits, symbolList, norm]);
-  return { file, calm, calmContours, clear, clearCurves, /** Sänkorna som söktes när grundkartan lästes in, och reglagets val bland dem. */ pits, choosePitLimits, replace, setReplace, /** Så många av kartans objekt som byttes ut när kandidaterna lades in, och lutningsstrecken som följde med. */ replaced, ticks, /** Pappret som märkningens ram gjordes för när grundkartan lades in. */ marked, /** Höjden som «Tydligare kurvbild» senast räknades med. */ clearField: () => clearWith.current?.field,
+  }, [file, withPits, withoutHills, showSettled]);
+  /** Reglaget «Små höjder som ring»: höjdernas ringar i det som visas byts mot valet med den nya gränsen, och punkthöjderna följer med. */
+  const chooseHillLimits = useCallback((limits: HillLimits, level: number): HillOutcome | undefined => {
+    if (!file || !hillsWith.current) return undefined;
+    const settled = withPits(withoutHills(file.data.features), clearWith.current?.field, undefined, { limits, level });
+    if (pitsWith.current && settled.chosen) { pitsWith.current = { ...pitsWith.current, ...settled.chosen, ...settled.ticks }; setPits(pitsWith.current); }
+    showSettled(file, settled.features);
+    return hillsWith.current;
+  }, [file, withPits, withoutHills, showSettled]);
+  return { file, calm, calmContours, clear, clearCurves, /** Sänkorna som söktes när grundkartan lästes in, och reglagets val bland dem. */ pits, choosePitLimits, /** Små höjder som fick en ring när grundkartan lästes in, och reglagets val bland dem. */ hills, chooseHillLimits, replace, setReplace, /** Så många av kartans objekt som byttes ut när kandidaterna lades in, och lutningsstrecken som följde med. */ replaced, ticks, /** Pappret som märkningens ram gjordes för när grundkartan lades in. */ marked, /** Höjden som «Tydligare kurvbild» senast räknades med. */ clearField: () => clearWith.current?.field,
     /** Nya kandidater väntar på svar (de som visas är inte införda): läs in dem ändå, eller behåll de som visas. */
     pendingReplace: pendingReplace?.fileName,
     replaceAnyway: () => { const pending = pendingReplace; setPendingReplace(undefined); pending?.open(); },

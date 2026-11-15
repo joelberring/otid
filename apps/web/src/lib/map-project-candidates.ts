@@ -1,7 +1,7 @@
 import { parseDxf, parseGeoJson, VectorParseError, type MapNorm, type SourceData, type SourceFeature } from "@o-tid/map-revision";
 import {
-  calmFlatContours, choosePits, clearContours, computeCandidates, suggestedClear, DEFAULT_PIT_LEVEL, DEFAULT_ROCK_LEVEL, findPits, flatLimitsAt, flatSlopeFrom, heightFieldFrom, joinStages, mergeBaseMap,
-  pitFeatures, pitLimitsAt, tickDepressions, unionWater, rockAreasOfJob, withRockAreas, type PitCandidate, type PitLimits,
+  calmFlatContours, choosePits, clearContours, computeCandidates, suggestedClear, DEFAULT_HILL_LEVEL, DEFAULT_HILL_LIMITS, DEFAULT_PIT_LEVEL, DEFAULT_ROCK_LEVEL, findHills, findPits, flatLimitsAt, flatSlopeFrom, heightFieldFrom, joinStages, mergeBaseMap,
+  pitFeatures, pitLimitsAt, settleHills, tickDepressions, unionWater, rockAreasOfJob, withRockAreas, type HillCandidate, type HillLimits, type PitCandidate, type PitLimits,
   type CandidateInput, type CandidateResult, type clearCutFeatures, type ClearResult, type ClearSettings, type FlatContourResult, type HeightGrid, type PhotoPixels, type PixelAffine, type SlopeGrid, type SoilArea, type SoilOutcome, type StageBox
 } from "@o-tid/map-revision/base-map";
 
@@ -50,6 +50,12 @@ export interface PitOutcome { readonly candidates: readonly PitCandidate[]; read
   readonly points: number; readonly rings: number;
   /** Ringar som fick lutningsstreck, och hur många av dem som bara höjden visade vara sänkor. */
   readonly ticks: number; readonly byHeight: number }
+/**
+ * Små höjder som ring (ägaren 2026-11-15: «färre punkthöjder och fler små höjder»): höjderna som söktes ur markens höjd, valet
+ * bland dem och punkthöjderna som ringarna ersatte (`hidden`), så att reglaget väljer om utan en ny sökning.
+ */
+export interface HillOutcome { readonly candidates: readonly HillCandidate[]; readonly limits: HillLimits; readonly level: number; readonly scale: number;
+  readonly rings: number; readonly contours: number; readonly hidden: readonly SourceFeature[] }
 export type CalmOutcome = Pick<FlatContourResult, "removed" | "added" | "formlineMeters" | "rings"> & { readonly level: number };
 
 /** Var inläsningen är: filerna tolkas en och en, sedan sätts grundkartan ihop. */
@@ -80,7 +86,7 @@ export type CandidateResponse =
   | ({ readonly type: "progress"; readonly id: number } & BaseMapStep)
   | { readonly type: "base-map"; readonly id: number; readonly dataId: number; readonly data: SourceData; readonly calm?: CalmOutcome | undefined;
       readonly clear?: ClearOutcome | undefined; readonly rock?: RockOutcome | undefined; readonly soil?: SoilOutcome | undefined;
-      readonly pits?: PitOutcome | undefined }
+      readonly pits?: PitOutcome | undefined; readonly hills?: HillOutcome | undefined }
   | { readonly type: "computed"; readonly id: number; readonly result: CandidateResult | null }
   /** `parse`: filen gick inte att tolka (meddelandet visas som det är). */
   | { readonly type: "error"; readonly id: number; readonly message: string; readonly parse: boolean };
@@ -139,19 +145,24 @@ export function handleCandidateRequest(store: CandidateStore, request: Candidate
     const clearData = cleared ? { ...calmData, features: cleared.features } : calmData;
     // Negativ kurvbild (ägaren 2026-11-15), sist så att strecken sitter på kurvorna som de blev: sänkorna som grundkartan inte
     // redan visar söks ur markens höjd, och varje sluten kurva eller hjälpkurva som är en sänka får sitt lutningsstreck.
-    let pits: PitOutcome | undefined, data = clearData;
+    // Före dem får små höjder sin ring efter formen, så att punkthöjderna i ringarna försvinner.
+    let pits: PitOutcome | undefined, hills: HillOutcome | undefined, data = clearData;
     if (clear && clearField && request.scale) {
+      let hillCandidates: HillCandidate[] = [];
+      try { hillCandidates = clear.parts.flatMap(part => findHills(part.grid, part.affine)); } catch (error) { console.error("Höjderna kunde inte sökas ur markens höjd", error); }
+      const settled = settleHills(clearData.features, hillCandidates, DEFAULT_HILL_LIMITS, request.scale);
+      hills = { candidates: hillCandidates, limits: DEFAULT_HILL_LIMITS, level: DEFAULT_HILL_LEVEL, scale: request.scale, rings: settled.rings, contours: settled.contours, hidden: settled.hidden };
       const limits = pitLimitsAt(DEFAULT_PIT_LEVEL);
       // Sökningen håller flera raster i minnet; räcker det inte läses grundkartan in ändå, utan de egna sänkorna.
       let candidates: PitCandidate[] = [];
       try { candidates = clear.parts.flatMap(part => findPits(part.grid, part.affine)); } catch (error) { console.error("Sänkorna kunde inte sökas ur markens höjd", error); }
-      const choice = choosePits(candidates, limits, request.scale, clearData.features);
-      const ticked = tickDepressions([...clearData.features, ...pitFeatures(choice)], clearField);
+      const choice = choosePits(candidates, limits, request.scale, settled.features);
+      const ticked = tickDepressions([...settled.features, ...pitFeatures(choice)], clearField);
       data = { ...clearData, features: ticked.features };
       pits = { candidates, limits, level: DEFAULT_PIT_LEVEL, scale: request.scale, points: choice.points.length, rings: choice.rings.length, ticks: ticked.ticks, byHeight: ticked.byHeight };
     }
     store.set(request.dataId, data.features);
-    post({ type: "base-map", id, dataId: request.dataId, data, ...(rockUsed ? { rock } : {}), ...(soil ? { soil } : {}), ...(pits ? { pits } : {}),
+    post({ type: "base-map", id, dataId: request.dataId, data, ...(rockUsed ? { rock } : {}), ...(soil ? { soil } : {}), ...(pits ? { pits } : {}), ...(hills ? { hills } : {}),
       ...(cleared && clearSettings ? { clear: { ...cleared, settings: clearSettings, ...(clear?.settings ? {} : { suggested: clearSettings }) } } : {}),
       ...(calm && calmed ? { calm: { removed: calmed.removed, added: calmed.added, formlineMeters: calmed.formlineMeters, rings: calmed.rings, level: calm.level } } : {}) });
   } catch (error) {

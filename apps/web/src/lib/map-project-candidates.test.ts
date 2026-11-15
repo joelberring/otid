@@ -145,6 +145,28 @@ describe("kandidaterna i Workern", () => {
     expect(run([contour], { merge: false }).pits).toBeUndefined();
   });
 
+  it("små höjder som ring: en höjd mellan nivåerna får en ring på halva höjden och punkthöjden i den tas bort (ägaren 2026-11-15)", () => {
+    const entity = (rows: string[]) => ["0", "SECTION", "2", "ENTITIES", ...rows, "0", "ENDSEC", "0", "EOF", ""].join("\n");
+    // 300 × 300 celler om 1 m: en svag sluttning med en 2 m hög kulle (radie 12 m) vid (150, 150) och en knöl (0,7 m) vid (60, 60).
+    const size = 300, bumps = [[150, 149, 12, 2], [60, 239, 5, 0.7]] as const;
+    const meters = Float32Array.from({ length: size * size }, (_, p) => {
+      const column = p % size, row = Math.floor(p / size);
+      return 51 + column * 0.005 + bumps.reduce((sum, [c, r, radius, rise]) => { const d = Math.hypot(column - c, row - r); return sum + (d < radius ? rise * (1 - (d / radius) ** 2) : 0); }, 0);
+    });
+    const clear = { parts: [{ grid: { columns: size, rows: size, meters }, affine: [1, 0, 0.5, 0, -1, 299.5] as const }], settings: { smooth: 0, formlines: 0, rings: 0 } };
+    const parts = [{ name: "kurvor.dxf", body: entity(["0", "LWPOLYLINE", "8", "contour", "70", "0", "10", "0", "20", "20", "10", "300", "20", "20"]) },
+      { name: "knollar.dxf", body: entity(["0", "POINT", "8", "dotknoll", "10", "151", "20", "151", "0", "POINT", "8", "dotknoll", "10", "60.5", "20", "60.5"]) }];
+    const sent: CandidateResponse[] = [];
+    handleCandidateRequest(new Map(), { type: "base-map", id: 1, dataId: 2, merge: true, scale: 10000, parts, clear }, response => sent.push(response));
+    const found = sent.at(-1) as Extract<CandidateResponse, { type: "base-map" }>;
+    expect(found.hills).toMatchObject({ level: 5, rings: 1, contours: 0, scale: 10000 });
+    expect(found.hills!.hidden.map(feature => feature.layer)).toEqual(["dotknoll"]);
+    // Kullens topp ligger på 53,7 m: nivån 55 är för långt över, så ringen är en hjälpkurva. Knölens punkthöjd står kvar.
+    expect(found.data.features.map(feature => feature.layer).sort()).toEqual(["contour", "dotknoll", "formline_hojd"]);
+    const kept = found.data.features.find(feature => feature.layer === "dotknoll")!.geometry as { readonly at: readonly [number, number] };
+    expect(kept.at[0]).toBeCloseTo(60.5, 1);
+  });
+
   it("säger till när en fil inte går att tolka, och ger inget för objekt som glömts", () => {
     const store: CandidateStore = new Map(), sent: CandidateResponse[] = [];
     handleCandidateRequest(store, { type: "base-map", id: 1, dataId: 2, merge: false, parts: [{ name: "kurvor.dxf", body: "inte\nDXF\nalls" }] }, response => sent.push(response));

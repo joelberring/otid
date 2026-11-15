@@ -5,8 +5,8 @@ import { GEO_CLIP_MARGIN_M, type GeoClip, type GeoJobList, type GeoJobView, type
 import type { MapGeoreference } from "@o-tid/map-file";
 import { VectorParseError, type SourceData } from "@o-tid/map-revision";
 import { DEFAULT_ROCK_LEVEL, heightFieldFrom } from "@o-tid/map-revision/base-map";
-import { mapClearContoursEn, mapFlatContoursEn, mapPitsEn } from "../../i18n/map-knolls-en";
-import { mapClearContoursSv, mapFlatContoursSv, mapPitsSv } from "../../i18n/map-knolls-sv";
+import { mapClearContoursEn, mapFlatContoursEn, mapHillsEn, mapPitsEn } from "../../i18n/map-knolls-en";
+import { mapClearContoursSv, mapFlatContoursSv, mapHillsSv, mapPitsSv } from "../../i18n/map-knolls-sv";
 import { mapSourcesEn } from "../../i18n/map-sources-en";
 import { mapSourcesSv } from "../../i18n/map-sources-sv";
 import { accountRequest } from "../../lib/account-client";
@@ -45,6 +45,7 @@ export function useMapProjectLaser({ view, layers, importer, georeference, bound
   const flatText = useTexts(mapFlatContoursSv, mapFlatContoursEn);
   const clearText = useTexts(mapClearContoursSv, mapClearContoursEn);
   const pitText = useTexts(mapPitsSv, mapPitsEn);
+  const hillText = useTexts(mapHillsSv, mapHillsEn);
   const rockText = useTexts(mapRockSv, mapRockEn);
   const base = mapProjectBase(view.projectId);
   const [credential, setCredential] = useState<MapSourceCredentialView>();
@@ -217,7 +218,7 @@ export function useMapProjectLaser({ view, layers, importer, georeference, bound
         return { box: row.clip!, parts: rowParts, ...(own && own !== "failed" ? { slope: { grid: own.grid, affine: own.affine } } : {}),
           ...(ownRock && ownRock !== "failed" ? { rock: ownRock } : {}) };
       });
-      const { data, calm, clear, rock: rocky, soil: soiled, pits } = await importer.readBaseMap({ parts: stageParts ? [] : parts, stages: stageParts, joined: !stages && !!job.mergedStages, merge: baseMap, osm, scale: georeference?.scale,
+      const { data, calm, clear, rock: rocky, soil: soiled, pits, hills } = await importer.readBaseMap({ parts: stageParts ? [] : parts, stages: stageParts, joined: !stages && !!job.mergedStages, merge: baseMap, osm, scale: georeference?.scale,
         cuts: cuts && { features: cuts.features, afterScan: cuts.afterScan }, soil, calm: slope === "failed" ? undefined : slope,
         clear: heightParts.length > 0 ? { parts: heightParts } : undefined,
         rock: !stages && rock && rock !== "failed" ? { ...rock, level: DEFAULT_ROCK_LEVEL } : undefined },
@@ -228,15 +229,16 @@ export function useMapProjectLaser({ view, layers, importer, georeference, bound
         stages ? undefined : areas.find(row => row.areaId === job.areaId)?.polygon, calm,
         clear && { outcome: clear, field: heightFieldFrom(heightParts) },
         // Kartans märkning (ägaren 2026-11-14): laserjobbets inställningar följer med grundkartan till rutan i hörnet.
-        baseMap && job.kind !== "DWG" ? { scannedAt: job.scannedAt, settings: job.settings } : undefined, pits);
+        baseMap && job.kind !== "DWG" ? { scannedAt: job.scannedAt, settings: job.settings } : undefined, pits, hills);
       const calmText = calm ? ` ${flatText.loaded(calm.level, calm.formlineMeters.toLocaleString("sv-SE"), calm.rings)}` : slope === "failed" ? ` ${flatText.failed}` : "";
       const clearMessage = clear ? ` ${clearText.loaded(clear.smoothedMeters.toLocaleString("sv-SE"), clear.formlineMeters.toLocaleString("sv-SE"), clear.rings)}` : "";
       const rockMessage = rocky ? ` ${rockText.loaded(rocky.level, rocky.areas, String(rocky.hectares).replace(".", ","))}`
         : [...rockImages.values()].includes("failed") ? ` ${rockText.loadFailed}` : "";
       const pitMessage = pits && pits.points + pits.rings + pits.byHeight > 0 ? ` ${pitText.loaded(pits.points, pits.rings, pits.byHeight)}` : "";
+      const hillMessage = hills && hills.rings > 0 ? ` ${hillText.loaded(hills.rings, hills.hidden.length)}` : "";
       const cutText = cuts ? ` ${text.clearCuts(cuts.counts.fresh, cuts.counts.scrub, cuts.counts.young, job.scannedAt)}` : "";
       const soilMessage = soiled && soiled.removedHa > 0 ? ` ${text.soilRemoved(String(soiled.removedHa).replace(".", ","))}` : "";
-      setMessage({ from, tone: "ok", text: `${osmMissing ? `${text.loaded(label)} ${text.osmMissing}` : text.loaded(label)}${cutText}${soilMessage}${calmText}${clearMessage}${pitMessage}${rockMessage}` });
+      setMessage({ from, tone: "ok", text: `${osmMissing ? `${text.loaded(label)} ${text.osmMissing}` : text.loaded(label)}${cutText}${soilMessage}${calmText}${clearMessage}${hillMessage}${pitMessage}${rockMessage}` });
     } catch (error) {
       setMessage({ from, tone: "error", text: error instanceof VectorParseError ? error.message : text.problems.generic("DXF") });
     } finally { setBusy(undefined); }

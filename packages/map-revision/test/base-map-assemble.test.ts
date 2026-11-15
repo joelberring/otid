@@ -123,4 +123,26 @@ describe("grundkartan till kartans objekt", () => {
     if ("problem" in blind) throw new Error(blind.problem);
     expect(count(blind, "101.1")).toBeUndefined(); expect(blind.summary.pits).toBeUndefined();
   });
+  it("små höjder som ring: en höjd mellan nivåerna får en ring efter formen i stället för en punkthöjd (ägaren 2026-11-15)", () => {
+    // 400 × 300 m i celler om 1 m: en svag sluttning med en 2 m hög kulle (radie 12 m) och en knöl på 0,7 m.
+    const columns = 400, rows = 300, meters = new Float32Array(columns * rows);
+    const bumps = [[280, 130, 12, 2], [100, 150, 5, 0.7]] as const;
+    for (let row = 0; row < rows; row += 1) for (let column = 0; column < columns; column += 1) {
+      let z = 51 + column * 0.005;
+      for (const [c, r, radius, rise] of bumps) { const d = Math.hypot(column - c, row - r); if (d < radius) z += rise * (1 - (d / radius) ** 2); }
+      meters[row * columns + column] = z;
+    }
+    const height = { grid: { columns, rows, meters }, affine: [1, 0, E - 199.5, 0, -1, N + 149.5] as const };
+    const contour = { name: "kurvor.dxf", body: dxf("contour", [[-190, -100], [0, -90], [190, -100]]) };
+    const found = assembleBaseMap({ ...input, parts: [contour], height });
+    if ("problem" in found) throw new Error(found.problem);
+    // Toppen ligger på 54,4 m: nivån 55 ligger inom en fjärdedel av ekvidistansen, så ringen ritas som höjdkurva.
+    expect(found.summary.hills).toEqual({ level: 5, rings: 1, contours: 1, dots: 0, candidates: 2 });
+    expect(found.summary.layers.find(row => row.layer === "contour_hojd")).toMatchObject({ features: 1, symbol: "101" });
+    // Nivå 1 kräver 2,5 m: ingen ring.
+    const few = assembleBaseMap({ ...input, parts: [contour], height: { ...height, hills: 1 } });
+    if ("problem" in few) throw new Error(few.problem);
+    expect(few.summary.hills).toEqual({ level: 1, rings: 0, contours: 0, dots: 0, candidates: 2 });
+    expect(few.summary.layers.find(row => row.layer === "contour_hojd")).toBeUndefined();
+  });
 });

@@ -5,6 +5,7 @@ import { computeCandidates, suggestedMapping, type CandidateSymbol } from "./can
 import { heightFieldFrom, type HeightGrid } from "./clear-contours";
 import { clearCutFeatures, type ClearCut } from "./clear-cuts";
 import { tickDepressions } from "./depressions";
+import { DEFAULT_HILL_LEVEL, findHills, hillLimitsAt, settleHills } from "./hill-search";
 import { choosePits, DEFAULT_PIT_LEVEL, findPits, PIT_LAYERS, pitFeatures, pitLimitsAt } from "./pit-search";
 import type { SoilArea } from "./soil";
 import { calmFlatContours, flatLimitsAt, flatSlopeFrom, type PixelAffine, type SlopeGrid } from "./flat-contours";
@@ -76,7 +77,9 @@ export interface BaseMapAssemblyInput {
    * Negativ kurvbild (ägaren 2026-11-15): markens höjd ur jobbets `hojd.png` och var rutnätet ligger. Med den söks sänkorna
    * (`findPits`, nivån 1–10 med förvalet 5) och lutningsstrecken sätts efter höjden. Utelämnat = strecken sätts efter lagrets namn.
    */
-  readonly height?: { readonly grid: HeightGrid; readonly affine: PixelAffine; readonly pits?: number | undefined } | undefined;
+  readonly height?: { readonly grid: HeightGrid; readonly affine: PixelAffine; readonly pits?: number | undefined;
+    /** Små höjder som ring (`findHills`), nivån 1–10 med förvalet 5. */
+    readonly hills?: number | undefined } | undefined;
   readonly georeference: MapGeoreference;
   readonly symbols: readonly CandidateSymbol[];
   readonly bounds: MapBox;
@@ -114,6 +117,8 @@ export interface BaseMapSummary {
   readonly rock?: { readonly level: number; readonly areas: number; readonly hectares: number } | undefined;
   /** Sänkorna ur höjdrastret (när jobbet har markens höjd): nivån, gropsymboler och ringar som valdes bland kandidaterna. */
   readonly pits?: { readonly level: number; readonly points: number; readonly rings: number; readonly candidates: number } | undefined;
+  /** Små höjder som fick en ring efter formen: ringarna, hur många som är höjdkurvor och punkthöjderna de ersatte. */
+  readonly hills?: { readonly level: number; readonly rings: number; readonly contours: number; readonly dots: number; readonly candidates: number } | undefined;
   /** Lutningsstrecken efter höjden: ringar med streck, och hur många av dem som bara höjden visade vara sänkor. */
   readonly slopeTicks?: { readonly ticks: number; readonly byHeight: number } | undefined;
   /** Hjälpkurvor (meter) och små ringar som togs bort på flack mark (när jobbet har fuktdjupet). */
@@ -169,9 +174,14 @@ export function assembleBaseMap(input: BaseMapAssemblyInput): { objects: MapObje
     if (chosen.features.length > 0) data = mergeCandidates(data, { features: chosen.features, skipped: 0, crs: SWEREF99TM }, /^brant_/);
     cliffs = { level: input.cliffs.level, impassable: chosen.impassable, passable: chosen.passable, candidates: candidates.length };
   }
-  // Negativ kurvbild: sänkorna som grundkartan inte redan visar, och lutningsstreck på allt som är en sänka enligt höjden.
-  let pits: BaseMapSummary["pits"], slopeTicks: BaseMapSummary["slopeTicks"];
+  // Små höjder som ring efter formen, sedan negativ kurvbild: sänkorna som grundkartan inte redan visar, och lutningsstreck
+  // på allt som är en sänka enligt höjden.
+  let pits: BaseMapSummary["pits"], slopeTicks: BaseMapSummary["slopeTicks"], hills: BaseMapSummary["hills"];
   if (input.height) {
+    const hillLevel = input.height.hills ?? DEFAULT_HILL_LEVEL, hillCandidates = findHills(input.height.grid, input.height.affine);
+    const settled = settleHills(data.features, hillCandidates, hillLimitsAt(hillLevel), scale);
+    data = { ...data, features: settled.features };
+    hills = { level: hillLevel, rings: settled.rings, contours: settled.contours, dots: settled.hidden.length, candidates: hillCandidates.length };
     const level = input.height.pits ?? DEFAULT_PIT_LEVEL, candidates = findPits(input.height.grid, input.height.affine);
     const choice = choosePits(candidates, pitLimitsAt(level), scale, data.features);
     if (choice.points.length + choice.rings.length > 0) data = mergeCandidates(data, { features: pitFeatures(choice), skipped: 0, crs: SWEREF99TM }, PIT_LAYERS);
@@ -199,6 +209,6 @@ export function assembleBaseMap(input: BaseMapAssemblyInput): { objects: MapObje
       inBuilt: result.builtMask?.removed ?? 0, belowNorm: result.generalized?.removed ?? 0 },
     clipped: result.clipped, joined: result.joined, simplified: result.generalized?.simplified ?? 0,
     ...(cuts ? { clearCuts: cuts.counts } : {}), ...(soil ? { soil } : {}), ...(rock ? { rock } : {}), ...(knolls ? { knolls } : {}), ...(cliffs ? { cliffs } : {}),
-    ...(flatContours ? { flatContours } : {}), ...(pits ? { pits } : {}), ...(slopeTicks ? { slopeTicks } : {})
+    ...(flatContours ? { flatContours } : {}), ...(hills ? { hills } : {}), ...(pits ? { pits } : {}), ...(slopeTicks ? { slopeTicks } : {})
   } };
 }

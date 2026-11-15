@@ -12,7 +12,7 @@ import { ALL_CONTROLS } from "../../lib/course-setting-hit";
 import type { MapRenderSession } from "../../lib/course-setting-map-protocol";
 import { safely } from "../../lib/course-setting-safely";
 import { changeCourseTraining, legAt, newTrainingId } from "../../lib/course-setting-training";
-import { bingoAreaFrom, bingoGroups, setBingoAreaEdits, setGroupAreaEdits } from "../../lib/bingo-setup";
+import { bingoAreaFrom, bingoGroups, setBingoAreaEdits, setGroupAreaEdits, sharedShipRects } from "../../lib/bingo-setup";
 import { toScreen, type Viewport } from "../../lib/course-setting-viewport";
 import { TrainingPanel } from "./course-setting-training";
 
@@ -25,9 +25,11 @@ export type TrainingTool = { readonly kind: "AREA" | "LINE"; readonly points: re
  * ADR-0192 beslut 8: träningsläget i editorn. Kartans pass (före och efter med "Visa träningen"), symbolerna ur kartans
  * Worker, verktygen på kartan och panelen. Ändringarna går som `PUT_TRAINING` genom editorns vanliga väg (ångra, samarbete).
  */
-export function useCourseSettingTraining({ document, view, variant, session, mapReady, mapBounds, readOnly, onEdits, onView, say, bingoPhone }: {
+export function useCourseSettingTraining({ document, view, variant, session, mapReady, mapBounds, readOnly, onEdits, onView, say, bingoPhone, bingoRaceId }: {
   document: CourseSettingDocument; view: string; variant: string | undefined; session: MapRenderSession | undefined; mapReady: boolean;
   mapBounds: MapRect | undefined; onView: (course: string) => void; bingoPhone?: ReactNode;
+  /** Tävlingens id när den inloggade är admin: ledaren kan se gruppernas gemensamma skepp (Sänka skepp). */
+  bingoRaceId?: string | undefined;
   readOnly: boolean; onEdits: (edits: readonly CourseSettingEdit[]) => void;
   say: (message: { tone: "ok" | "error" | "attention"; text: string }) => void;
 }) {
@@ -81,7 +83,21 @@ export function useCourseSettingTraining({ document, view, variant, session, map
     return true;
   };
 
+  // Sänka skepp: gruppens gemensamma skepp på kartan, bara i editorn för ledaren (aldrig i banpåtrycket eller utskriften).
+  const [shownShips, setShownShips] = useState<string>();
+  const shipRects = useMemo(() => bingoRaceId && shownShips ? sharedShipRects(document, bingoRaceId, shownShips) : [],
+    [bingoRaceId, shownShips, document]);
   const draw = useCallback((ctx: CanvasRenderingContext2D, mapView: Viewport) => {
+    if (shipRects.length > 0) {
+      ctx.save();
+      ctx.strokeStyle = "#0057b8"; ctx.fillStyle = "rgba(0, 87, 184, 0.25)"; ctx.lineWidth = 3;
+      for (const ship of shipRects) {
+        const a = toScreen(mapView, { x: Math.min(...ship.map(r => r.minX)), y: Math.max(...ship.map(r => r.maxY)) });
+        const b = toScreen(mapView, { x: Math.max(...ship.map(r => r.maxX)), y: Math.min(...ship.map(r => r.minY)) });
+        ctx.fillRect(a.x, a.y, b.x - a.x, b.y - a.y); ctx.strokeRect(a.x, a.y, b.x - a.x, b.y - a.y);
+      }
+      ctx.restore();
+    }
     if (!tool || tool.kind === "ATTACK" || tool.points.length === 0) return;
     const corners = tool.kind === "BINGO" && tool.points.length >= 2 ? bingoAreaFrom(tool.points, undefined) : undefined;
     const points = (corners ? [{ x: corners.minX, y: corners.minY }, { x: corners.maxX, y: corners.minY }, { x: corners.maxX, y: corners.maxY },
@@ -98,10 +114,10 @@ export function useCourseSettingTraining({ document, view, variant, session, map
     ctx.setLineDash([]);
     for (const p of points) { ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI * 2); ctx.fillStyle = "#a626ff"; ctx.fill(); }
     ctx.restore();
-  }, [tool]);
+  }, [tool, shipRects]);
 
   const panel: ReactNode = <TrainingPanel document={document} view={view} readOnly={readOnly} symbols={symbols} show={show} onShow={setShow}
     tool={tool} onTool={setTool} onFinish={finish} onEdits={onEdits} say={say} bingoArea={bingoArea} onView={onView}
-    bingoPhone={bingoPhone} />;
+    bingoPhone={bingoPhone} bingoLeader={bingoRaceId ? { raceId: bingoRaceId, shown: shownShips, onShow: setShownShips } : undefined} />;
   return { passes, overprint, tap, draw, panel, tool, drawing: tool !== undefined };
 }

@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { bingoAdminViewSchema } from "@o-tid/contracts";
+import { courseSettingBase } from "../../lib/course-setting-api";
 import { BINGO_CELL_SIZES, BINGO_LIMITS, COURSE_PRINT_SCALES, type CourseSettingDocument, type CourseSettingEdit, type MapRect } from "@o-tid/course-setting";
 import { bingoEn } from "../../i18n/bingo-en";
 import { bingoSv } from "../../i18n/bingo-sv";
 import { shipSplitFor } from "@o-tid/domain";
 import {
-  addBingoGroupEdits, BINGO_GROUP_NAMES, bingoGroups, parseShips, setBingoCellEdits, setGroupAreaEdits, setShipsEdits, suggestedGroupName,
+  addBingoGroupEdits, BINGO_GROUP_NAMES, rerollSharedEdits, bingoGroups, parseShips, setBingoCellEdits, setGroupAreaEdits, setShipsEdits, suggestedGroupName,
   trainingBingoArea
 } from "../../lib/bingo-setup";
 import { useTexts } from "../language-provider";
@@ -22,10 +24,29 @@ const scaleText = (scale: number) => `1:${scale.toLocaleString("sv-SE")}`;
  * utskriften. En grupp är en bana utan kontroller; rutnätet ritas i banpåtrycket. `phone` är delen om telefonen (anmälan på
  * plats och GPS), som bara finns i en tävling.
  */
-export function BingoBlock({ document, view, readOnly, tool, onTool, pendingArea, onEdits, onView, phone }: {
+/** Ledarens verktyg (admin): visa gruppens gemensamma skepp på kartan och slumpa om dem innan någon har startat. */
+export interface BingoLeaderTools { readonly raceId: string; readonly shown: string | undefined; readonly onShow: (course: string | undefined) => void }
+
+/** Grupperna där någon har startat (ur ledarens vy); undefined medan den hämtas eller om den inte går att läsa. */
+function useStartedGroups(raceId: string | undefined): ReadonlySet<string> | undefined {
+  const [started, setStarted] = useState<ReadonlySet<string>>();
+  useEffect(() => {
+    if (!raceId) return;
+    let stopped = false;
+    void fetch(`${courseSettingBase(raceId)}/bingo`, { credentials: "same-origin", cache: "no-store" })
+      .then(async response => { if (response.ok && !stopped) setStarted(new Set(bingoAdminViewSchema.parse(await response.json()).runners.map(row => row.course))); })
+      .catch((error: unknown) => console.warn("Bingons löpare kunde inte hämtas", error));
+    return () => { stopped = true; };
+  }, [raceId]);
+  return started;
+}
+
+export function BingoBlock({ document, view, readOnly, tool, onTool, pendingArea, onEdits, onView, phone, leader }: {
   document: CourseSettingDocument; view: string; readOnly: boolean; tool: TrainingTool | undefined; onTool: (tool: TrainingTool | undefined) => void;
-  pendingArea: MapRect | undefined; onEdits: Edits; onView: (course: string) => void; phone?: ReactNode;
+  pendingArea: MapRect | undefined; onEdits: Edits; onView: (course: string) => void; phone?: ReactNode; leader?: BingoLeaderTools | undefined;
 }) {
+  const ships = useTexts(bingoSv.ships, bingoEn.ships);
+  const started = useStartedGroups(leader?.raceId);
   const text = useTexts(bingoSv.setup, bingoEn.setup);
   const groups = bingoGroups(document);
   const area = trainingBingoArea(document, pendingArea);
@@ -95,6 +116,12 @@ export function BingoBlock({ document, view, readOnly, tool, onTool, pendingArea
           {shipsProblem === group.course ? text.shipsInvalid : text.shipsHelp}</span>
         <div className={styles.row}>
           {group.course !== view && <Button variant="secondary" onClick={() => onView(group.course)}>{text.open}</Button>}
+          {leader && <Button variant="secondary" aria-pressed={leader.shown === group.course} data-testid="bingo-show-ships"
+            onClick={() => { leader.onShow(leader.shown === group.course ? undefined : group.course); if (group.course !== view) onView(group.course); }}>
+            {leader.shown === group.course ? ships.hideShips : ships.showShips}</Button>}
+          {leader && !readOnly && <Button variant="quiet" disabled={!started || started.has(group.course)}
+            title={started?.has(group.course) ? ships.rerollStarted : undefined}
+            onClick={() => onEdits(rerollSharedEdits(document, group, globalThis.crypto.getRandomValues(new Uint32Array(1))[0]!))}>{ships.reroll}</Button>}
           {!readOnly && !drawing && <Button variant="secondary" onClick={() => onTool({ kind: "BINGO", points: [], course: group.course })}>
             {text.drawOwn}</Button>}
           {!readOnly && group.bingo.ownArea && <Button variant="quiet" onClick={() => onEdits(setGroupAreaEdits(document, group,

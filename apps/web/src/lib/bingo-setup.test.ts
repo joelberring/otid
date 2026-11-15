@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyEdit, type CourseSettingDocument, type CourseSettingEdit } from "@o-tid/course-setting";
-import { addBingoGroupEdits, bingoAreaFrom, bingoGroups, setBingoAreaEdits, setBingoCellEdits, setShipsEdits } from "./bingo-setup";
+import { addBingoGroupEdits, bingoAreaFrom, bingoGroups, rerollSharedEdits, setBingoAreaEdits, setBingoCellEdits, setGroupAreaEdits, setShipsEdits, sharedShipRects } from "./bingo-setup";
 import { testDocument } from "./course-setting-test-document";
 
 const run = (document: CourseSettingDocument, edits: readonly CourseSettingEdit[]) => edits.reduce((doc, edit) => applyEdit(doc, edit).document, document);
@@ -39,5 +39,18 @@ describe("bingo i banläggningen", () => {
     document = run(document, setShipsEdits(document, group(), "shared", null));
     expect(group().bingo.sharedShips).toBeUndefined();
     expect(group().bingo.ships).toBeUndefined();
+  });
+
+  it("ledarens gemensamma skepp i editorn följer gruppens frö; «Slumpa om» byter fröet och behålls när annat ändras", () => {
+    let document = testDocument();
+    document = run(document, addBingoGroupEdits(document, "Gröna", 100, { minX: 0, minY: 0, maxX: 100, maxY: 80 }, undefined).edits);
+    const raceId = "10000000-0000-4000-8000-000000000001";
+    const before = sharedShipRects(document, raceId, bingoGroups(document)[0]!.course);
+    expect(before.map(ship => ship.length)).toEqual([4, 3]);
+    document = run(document, rerollSharedEdits(document, bingoGroups(document)[0]!, 12345));
+    document = run(document, setShipsEdits(document, bingoGroups(document)[0]!, "own", [2]));
+    document = run(document, setGroupAreaEdits(document, bingoGroups(document)[0]!, { minX: 0, minY: 0, maxX: 100, maxY: 80 }, true));
+    expect(bingoGroups(document)[0]!.bingo).toMatchObject({ sharedSeed: 12345, ships: [2], sharedShips: [4, 3] });
+    expect(sharedShipRects(document, raceId, bingoGroups(document)[0]!.course)).not.toEqual(before);
   });
 });

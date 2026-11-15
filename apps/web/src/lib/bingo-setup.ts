@@ -3,7 +3,7 @@
  * (`CourseTraining.bingo`). Rena hjälpfunktioner för panelen: grupperna, området och ändringarna.
  */
 import { bingoCells, courseTrainingOf, type BingoTraining, type CourseSettingDocument, type CourseSettingEdit, type MapRect } from "@o-tid/course-setting";
-import { defaultShipSplit } from "@o-tid/domain";
+import { bingoGroupSeed, defaultShipSplit, placeShips, shipSplitFor } from "@o-tid/domain";
 import type { Point } from "@o-tid/map-file";
 
 export interface BingoGroupRow {
@@ -70,7 +70,8 @@ export function addBingoGroupEdits(document: CourseSettingDocument, name: string
 /** Gruppens eget område (`area`), eller tillbaka till träningens (`area` = träningens, utan flaggan). */
 export function setGroupAreaEdits(document: CourseSettingDocument, group: BingoGroupRow, area: MapRect, own: boolean): CourseSettingEdit[] {
   const bingo: BingoTraining = { area, cellMeters: group.bingo.cellMeters, ...(own ? { ownArea: true } : {}),
-    ...(group.bingo.ships ? { ships: group.bingo.ships } : {}) };
+    ...(group.bingo.ships ? { ships: group.bingo.ships } : {}), ...(group.bingo.sharedShips ? { sharedShips: group.bingo.sharedShips } : {}),
+    ...(group.bingo.sharedSeed !== undefined ? { sharedSeed: group.bingo.sharedSeed } : {}) };
   return [{ type: "PUT_TRAINING", courses: { [group.course]: { ...courseTrainingOf(document, group.course), bingo } } }];
 }
 
@@ -93,8 +94,25 @@ export function setShipsEdits(document: CourseSettingDocument, group: BingoGroup
   const shared = filled(kind === "shared" ? value : group.bingo.sharedShips ?? (untouched ? fallback.shared : null));
   const own = filled(kind === "own" ? value : group.bingo.ships ?? (untouched ? fallback.own : null));
   const bingo: BingoTraining = { area: group.bingo.area, cellMeters: group.bingo.cellMeters, ...(group.bingo.ownArea ? { ownArea: true } : {}),
-    ...(shared === null && own === null ? {} : { sharedShips: shared ?? [], ships: own ?? [] }) };
+    ...(shared === null && own === null ? {} : { sharedShips: shared ?? [], ships: own ?? [] }),
+    ...(group.bingo.sharedSeed !== undefined ? { sharedSeed: group.bingo.sharedSeed } : {}) };
   return [{ type: "PUT_TRAINING", courses: { [group.course]: { ...courseTrainingOf(document, group.course), bingo } } }];
+}
+
+/** Gruppens gemensamma skepp (bara för ledaren i editorn): rutorna med sina rektanglar i kartans mm. */
+export function sharedShipRects(document: CourseSettingDocument, raceId: string, course: string): MapRect[][] {
+  const bingo = document.training?.courses[course]?.bingo;
+  if (!bingo) return [];
+  const cells = bingoCells(bingo, document.event.mapScale);
+  const split = shipSplitFor(cells.length, bingo.sharedShips, bingo.ships);
+  const byName = new Map(cells.map(cell => [cell.name, cell.rect]));
+  return placeShips(cells.map(cell => cell.name), split.shared, bingo.sharedSeed ?? bingoGroupSeed(raceId, course))
+    .map(ship => ship.cells.map(name => byName.get(name)!));
+}
+
+/** «Slumpa om gemensamma»: ett nytt frö för gruppen. */
+export function rerollSharedEdits(document: CourseSettingDocument, group: BingoGroupRow, seed: number): CourseSettingEdit[] {
+  return [{ type: "PUT_TRAINING", courses: { [group.course]: { ...courseTrainingOf(document, group.course), bingo: { ...group.bingo, sharedSeed: seed } } } }];
 }
 
 /** Ny rutstorlek för gruppen (och rubrikens rad). */

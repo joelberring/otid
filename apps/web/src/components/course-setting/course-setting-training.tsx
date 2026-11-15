@@ -15,7 +15,7 @@ import { SymbolFilterEditor } from "./course-setting-training-filter";
 import { OutsideBlock, SectionsBlock } from "./course-setting-training-sections";
 import { AttackBlock, LineBlock, MirrorBlock, PairsBlock, PiecesBlock, StarBlock } from "./course-setting-training-extras";
 import type { TrainingTool } from "./use-course-setting-training";
-import { BingoBlock } from "./course-setting-bingo";
+import { BingoBlock, type BingoLeaderTools } from "./course-setting-bingo";
 import { bingoSv } from "../../i18n/bingo-sv";
 import { bingoEn } from "../../i18n/bingo-en";
 import { bingoGroups } from "../../lib/bingo-setup";
@@ -61,11 +61,11 @@ export function FormIcon({ form }: { form: string }): ReactNode {
  * ADR-0192 beslut 8: fliken Träning. Formerna som kort med bild och en rad, kartan för hela banan (grundfiltret), avsnitten i
  * banans ordning, ritade områden och de andra formerna. Allt kombineras på samma bana.
  */
-export function TrainingPanel({ document, view, readOnly, symbols, show, onShow, tool, onTool, onFinish, onEdits, say, bingoArea, onView, bingoPhone }: {
+export function TrainingPanel({ document, view, readOnly, symbols, show, onShow, tool, onTool, onFinish, onEdits, say, bingoArea, onView, bingoPhone, bingoLeader }: {
   document: CourseSettingDocument; view: string; readOnly: boolean; symbols: readonly SymbolCatalogEntry[]; show: boolean; onShow: (show: boolean) => void;
   tool: TrainingTool | undefined; onTool: (tool: TrainingTool | undefined) => void; onFinish: () => void;
   onEdits: (edits: readonly CourseSettingEdit[]) => void; say: (message: { tone: "ok" | "error" | "attention"; text: string }) => void;
-  bingoArea: MapRect | undefined; onView: (course: string) => void; bingoPhone?: ReactNode;
+  bingoArea: MapRect | undefined; onView: (course: string) => void; bingoPhone?: ReactNode; bingoLeader?: BingoLeaderTools | undefined;
 }) {
   const text = useTexts(trainingSv, trainingEn);
   const bingoText = useTexts(bingoSv.setup, bingoEn.setup);
@@ -138,7 +138,7 @@ export function TrainingPanel({ document, view, readOnly, symbols, show, onShow,
     {training && shown("PIECES") && <div id="training-block-PIECES"><PiecesBlock document={document} view={view} readOnly={readOnly} onEdits={onEdits} /></div>}
     {training && shown("MIRROR") && <div id="training-block-MIRROR"><MirrorBlock document={document} view={view} readOnly={readOnly} onEdits={onEdits} /></div>}
     {shown("BINGO") && <div id="training-block-BINGO">{tool?.kind === "BINGO" && toolBar}<BingoBlock document={document} view={view} readOnly={readOnly} tool={tool} onTool={onTool}
-      pendingArea={bingoArea} onEdits={onEdits} onView={onView} phone={bingoPhone} /></div>}
+      pendingArea={bingoArea} onEdits={onEdits} onView={onView} phone={bingoPhone} leader={bingoLeader} /></div>}
     {inCourse && !readOnly && document.training?.courses[view] && <Button variant="quiet" onClick={() => onEdits([putCourseTraining(view, null)])}
       data-testid="training-remove">{text.removeCourse}</Button>}
   </section>;

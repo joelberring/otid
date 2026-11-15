@@ -111,7 +111,7 @@ export async function callMcpLaserTool(db: Database, accountId: string, name: st
         ...(boxes.sprint ? { paved: 1 } : {}), ...(input.settings as Record<string, number> | undefined) },
       tiles, ...(boxes.clip ? { clip: boxes.clip } : {}), ...(stage ? { areaId: stage.areaId } : {}),
       ...(boxes.clip && found.extras.length ? { extras: found.extras } : {}),
-      moisture: { channelHa: GEO_JOB_DEFAULTS.channelHa, wetMeters: GEO_JOB_DEFAULTS.wetMeters, moistMeters: GEO_JOB_DEFAULTS.wetMeters * 2 },
+      moisture: { channelHa: GEO_JOB_DEFAULTS.channelHa, wetMeters: GEO_JOB_DEFAULTS.wetMeters, moistMeters: Math.round(GEO_JOB_DEFAULTS.wetMeters * 160) / 100 },
       vegetation: { minAreaM2: GEO_JOB_DEFAULTS.minAreaM2 } } }, runtime, now);
     if (created.status !== "created") return toolError(refusal(created));
     if (created.split) {

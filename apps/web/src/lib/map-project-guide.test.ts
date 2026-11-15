@@ -125,7 +125,7 @@ describe("guidens körning med förvalen", () => {
     const extras = [{ kind: "LAND_COVER" as const, id: "m", href: "https://exempel.se/m.zip" }, { kind: "BUILDINGS" as const, id: "b", href: "https://exempel.se/b.zip" }];
     expect(defaultLaserJob("Karttapullautin Del 2", { tiles: [tile], clip, areaId: STAGE, extras })).toEqual({ formatVersion: 1, kind: "PULLAUTIN", name: "Karttapullautin Del 2",
       settings: { contour_interval: 5, formline: 2 }, tiles: [{ id: tile.id, href: tile.href, bbox: null, epsg: 3006, datetime: tile.datetime }], clip, areaId: STAGE, extras,
-      moisture: { channelHa: 1, wetMeters: 0.3, moistMeters: 0.6 }, vegetation: { minAreaM2: 300 } });
+      moisture: { channelHa: 1, wetMeters: 0.25, moistMeters: 0.4 }, vegetation: { minAreaM2: 300 } });
   });
 
   it("en sprintkarta körs med ekvidistansen 2,5 m och belagd yta ur lasern, och 2 m går att välja", () => {

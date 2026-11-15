@@ -13,7 +13,13 @@ export interface DepthSettings { readonly wetMeters: number; readonly moistMeter
   readonly wetSlopeDegrees?: number | undefined;
   /** Inga kärr där minst så stor andel (0–1) av laserträffarna når marken (öppen, ofta utdikad mark); 1 = ingen gräns. */
   readonly openGroundShare?: number | undefined }
-export const DEFAULT_DEPTH: DepthSettings = { wetMeters: 0.3, moistMeters: 0.6, minAreaM2: 400, wetSlopeDegrees: 3, openGroundShare: 0.8 };
+/**
+ * Ägaren 2026-11-15 («kalibrera fukten mellan kartorna så att grundvärdena stämmer bättre»): mätt mot tre kartritare (Högdalen,
+ * Djurgården, Gömmaren, sex block, med klippningen mot kärrets botten) ger blött till 0,25 m och fuktigt till 0,4 m kärr på
+ * samma ställen som kartritarna (F1 0,56 → 0,61) och lika mycket blött (6,6 ha mot deras 6,6). Fuktigt (310) går inte att hitta
+ * ur höjden över fuktstråket: ingen gräns gav F1 över 0,13, så det fuktiga blir ett smalt band runt det blöta.
+ */
+export const DEFAULT_DEPTH: DepthSettings = { wetMeters: 0.25, moistMeters: 0.4, minAreaM2: 400, wetSlopeDegrees: 3, openGroundShare: 0.8 };
 /**
  * Ägaren 2026-11-11 (Högdalen som facit): bara flack mark blir blöt (högst 3°) eller fuktig (högst 6°), som i geo-arbetaren.
  * Lutningen står i blå kanal i steg om 0,1° (`SLOPE_STEP_DEGREES`); 255 (äldre bilder) betyder okänd och ingen gräns.

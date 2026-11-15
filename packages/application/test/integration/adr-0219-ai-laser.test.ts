@@ -140,7 +140,7 @@ describe("ADR-0219: AI-kopplingens laserverktyg", () => {
       settings: { contour_interval: 5, formline: 2, smoothing: 1.2 } });
     const [row] = await geoJobs();
     expect(row).toMatchObject({ accountId: owner.accountId, kind: "PULLAUTIN", status: "QUEUED" });
-    expect(row!.request).toMatchObject({ tiles: [{ id: "ruta_2024", href: LAZ, epsg: 5845 }], clip, moisture: { channelHa: 1, wetMeters: 0.3, moistMeters: 0.6 },
+    expect(row!.request).toMatchObject({ tiles: [{ id: "ruta_2024", href: LAZ, epsg: 5845 }], clip, moisture: { channelHa: 1, wetMeters: 0.25, moistMeters: 0.4 },
       vegetation: { minAreaM2: 300 } });
     const search = JSON.parse(calls.find(entry => entry.url.endsWith("/search"))!.body!) as { bbox: number[] };
     expect(search.bbox[0]).toBeLessThan(search.bbox[2]!);

@@ -20,7 +20,8 @@ export interface MoistureSettings { readonly channelHa: number; readonly wetMete
 export const DEPTH_STEP_METERS = 0.02;
 // Ägaren 2026-11-11 (Högdalen som facit: «sankmark i hela dalar»): blött under 0,3 m och fuktigt under 0,6 m över stråket,
 // och bara på flack mark (`WET_SLOPE_DEGREES`, `MOIST_SLOPE_DEGREES`). Fuktstråken ritas som linjer först från 5 ha tillrinning.
-export const DEFAULT_MOISTURE: MoistureSettings = { channelHa: 1, wetMeters: 0.3, moistMeters: 0.6 };
+// Ägaren 2026-11-15: kalibrerat mot tre kartritare (som `DEFAULT_DEPTH` i webben, map-project-moisture-depth.ts).
+export const DEFAULT_MOISTURE: MoistureSettings = { channelHa: 1, wetMeters: 0.25, moistMeters: 0.4 };
 export const WET_SLOPE_DEGREES = 3;
 export const MOIST_SLOPE_DEGREES = 6;
 export const CHANNEL_LINE_HA = 5;

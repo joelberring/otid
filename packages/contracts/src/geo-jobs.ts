@@ -92,7 +92,8 @@ export const geoJobCreateRequestSchema = z.object({
  * körning som AI:n startar blir densamma som den en människa får utan att röra reglagen. Fuktigheten och vegetationen är
  * med (ägaren 2026-11-11), så att kärr och grönt alltid kommer med i grundkartan.
  */
-export const GEO_JOB_DEFAULTS = { contourInterval: 5, formline: 2, channelHa: 1, wetMeters: 0.3, minAreaM2: 300 } as const;
+// Ägaren 2026-11-15: fukten kalibrerad mot tre kartritare (fuktigt = 1,6 × blött, se map-project-laser-request.ts).
+export const GEO_JOB_DEFAULTS = { contourInterval: 5, formline: 2, channelHa: 1, wetMeters: 0.25, minAreaM2: 300 } as const;
 
 /** Förval: den nyaste skanningen för varje ruta (samma ruta kan finnas från flera år). */
 export function newestLaserTiles<T extends { readonly id: string; readonly bbox: readonly number[] | null; readonly datetime: string | null }>(items: readonly T[]): T[] {

@@ -17,7 +17,7 @@ describe("mängden på skalan 1–10 för grönt, sankmark och hyggen", () => {
     expect(greenAt(4).denseShare).toBeGreaterThan(greenAt(5).denseShare!);
     expect(depthAt(1)).toMatchObject({ wetMeters: 0.02, moistMeters: 0.04, wetSlopeDegrees: 1 });
     // Under 5 faller mängden brant: redan 4 är hälften av förvalet.
-    expect(depthAt(4).wetMeters).toBeCloseTo(0.16); expect(depthAt(4).moistMeters).toBeCloseTo(0.32);
+    expect(depthAt(4).wetMeters).toBeCloseTo(0.14); expect(depthAt(4).moistMeters).toBeCloseTo(0.22);
     expect(depthAt(10)).toMatchObject({ wetMeters: 0.8, moistMeters: 1.5 });
     expect(clearCutAgesAt(1)).toEqual({ fresh: 1, scrub: 3, young: 6 });
     expect(clearCutAgesAt(10)).toEqual({ fresh: 6, scrub: 16, young: 30 });

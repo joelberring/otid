@@ -13,6 +13,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-15 – Fukten kalibrerad mot tre kartritare
+
+- Ägaren: «kalibrera fukten mellan kartorna så att grundvärdena stämmer bättre». Fuktrastren för Högdalen (2 block), Djurgården (2) och Gömmaren (2) mot kartritarnas 308/310, med klippningen mot kärrets botten: blött 0,25 m och fuktigt 0,4 m (förut 0,3 och 0,6) ger F1 0,56 → 0,61 och 6,6 ha blött mot kartritarnas 6,6 ha. Gäller fukt-panelen, laserpanelens och AI:ns körningar och geo-arbetaren (`DEFAULT_DEPTH`, `GEO_JOB_DEFAULTS`, `DEFAULT_MOISTURE`).
+- 310 går inte att hitta ur höjden över fuktstråket (ingen gräns över F1 0,13); det fuktiga blir ett smalt band runt det blöta.
+- Kontrollerat: webbens och map-revisions tester, integrationstestet för AI:ns laserkörning, typecheck, knip.
+
 ### 2026-11-15 – Kärren i sorter, utan dubbla raster
 
 - Ägaren: «kärren ligger också dubbelt i raster … skilja på olika typer av kärr, från otydlig till öppen och misstänkt oöverkomlig». Fukt-panelen (`depthCandidates`) lade fuktigt (310) över blött (308); nu är fuktigt bara det som inte är blött, och ytorna kommer som ytor med hål.

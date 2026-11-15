@@ -54,7 +54,7 @@ export function laserJobBody(input: LaserJobInput) {
       // Grundkartan G1: bara kartans område (eller etappen) med marginal bearbetas.
       ...(target.clip ? { clip: target.clip } : {}), ...(target.areaId ? { areaId: target.areaId } : {}),
       ...(target.clip && target.extras.length > 0 ? { extras: target.extras } : {}) }),
-    ...(input.moisture ? { moisture: { channelHa: input.moisture.channelHa, wetMeters: input.moisture.wetMeters, moistMeters: input.moisture.wetMeters * 2 } } : {}),
+    ...(input.moisture ? { moisture: { channelHa: input.moisture.channelHa, wetMeters: input.moisture.wetMeters, moistMeters: Math.round(input.moisture.wetMeters * 160) / 100 } } : {}),
     ...(input.vegetation ? { vegetation: { minAreaM2: input.vegetation.minAreaM2 } } : {}) } as const;
 }
 

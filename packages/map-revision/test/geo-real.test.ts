@@ -81,7 +81,7 @@ describe("Karttapullautins riktiga resultat för testrutan", () => {
     expect(grid).toMatchObject({ minX: 664_780, minY: 6_576_500, cell: 2, width: 151, height: 151 });
     const moisture = moistureFromHeightMaps([grid]);
     // Ägaren 2026-11-11 (Högdalen som facit): bara flack mark nära stråket, och stråket som linje först från 5 ha.
-    expect(moisture.summary).toEqual({ wetHa: 0.48, moistHa: 0.73, wetAreas: 1, moistAreas: 2, channels: 0 });
+    expect(moisture.summary).toEqual({ wetHa: 0.47, moistHa: 0.6, wetAreas: 1, moistAreas: 1, channels: 0 });
     const data = parseDxf(moisture.dxf);
     expect(suggested(data)).toEqual({ blott: "s308", fuktigt: "s310" });
     expect(within(data)).toBe(true);

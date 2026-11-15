@@ -503,7 +503,9 @@ AWS_SECRET_ACCESS_KEY=<hemlighet>
 
 # eller Hetzner Storage Box över SFTP (port 23). Lägg en egen SSH-nyckel utan lösenfras i deploy/backup-ssh/
 # (id_ed25519 och en known_hosts-rad för boxen) och lägg den publika nyckeln i Storage Boxens inställningar:
-RESTIC_REPOSITORY=sftp:u123456@u123456.your-storagebox.de:23/otid
+# Skriv adressen med sftp:// – formen sftp:användare@värd:23/otid läser "23/otid" som en katalog och ansluter på port 22,
+# och då stämmer inte known_hosts ("Host key verification failed").
+RESTIC_REPOSITORY=sftp://u123456@u123456.your-storagebox.de:23/otid
 ```
 
 För Storage Box: `mkdir -p deploy/backup-ssh && ssh-keygen -t ed25519 -N '' -f deploy/backup-ssh/id_ed25519` och

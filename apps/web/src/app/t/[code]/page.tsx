@@ -22,7 +22,8 @@ import { raceDetails, shownRaceName } from "@o-tid/domain";
 import { hubEn, hubMoreEn, raceTypeNamesEn } from "../../../i18n/public-en";
 import { currentLanguage } from "../../../lib/language-server";
 import { LOCALE } from "../../../lib/language";
-import { raceGroupNameDisplay } from "@o-tid/application";
+import { raceGroupNameDisplay, readBingoLeaderboard } from "@o-tid/application";
+import { LiveBingoBoard } from "../../../components/bingo/bingo-board";
 import { db } from "../../../lib/db";
 import { bingoEn } from "../../../i18n/bingo-en";
 import { bingoSv } from "../../../i18n/bingo-sv";
@@ -56,6 +57,8 @@ export default async function RaceHubPage({ params }: Params) {
   const path = raceHubPath(hub.shortCode);
   const address = displayAddress(await publicOrigin(), path);
   const names = await raceGroupNameDisplay(db, hub.raceId);
+  // ADR-0225: bingons topplista (bara på träningsdagen).
+  const bingoBoard = hub.bingo ? await readBingoLeaderboard(db, { raceId: hub.raceId, staff: false }) : undefined;
   const hasStartSection = raceTypeProfile(hub.raceType).course.some(section => section.id === "START");
   const details = [shownRaceName(hub.eventName, hub.raceName), formatRaceDate(hub.raceDate, undefined, LOCALE[language]),
     en ? raceTypeNamesEn[hub.raceType] : raceTypeSv.types[hub.raceType].name]
@@ -71,6 +74,7 @@ export default async function RaceHubPage({ params }: Params) {
     <RaceInfo info={hub.info} firstStartTime={hub.firstStartTime} language={language} />
     {hub.bingo && <p><Link className={styles.hubLink} href={`${path}/bingo`} data-testid="hub-bingo">
       <strong>{bingoText.hubTitle}</strong><span>{bingoText.hubHelp}</span></Link></p>}
+    {bingoBoard && <LiveBingoBoard raceId={hub.raceId} initial={bingoBoard} />}
     <SelfRegistrationForm raceId={hub.raceId} startList={hub.startListPublished} names={names} />
     <ul className={styles.hubLinks} aria-label={text.navigation}>
       {hub.startListPublished ? link(`/starts/${hub.raceId}`, text.startList, text.startListHelp)

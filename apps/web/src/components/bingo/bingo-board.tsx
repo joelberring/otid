@@ -61,3 +61,8 @@ export function BingoBoard({ board, only, dark, mine }: { board: BingoLeaderboar
     </div>)}
   </section>;
 }
+
+/** Topplistan på tävlingssidan, uppdateras som på löparens sida. */
+export function LiveBingoBoard({ raceId, initial }: { raceId: string; initial: BingoLeaderboard }) {
+  return <BingoBoard board={useBingoBoard(raceId, initial)} />;
+}

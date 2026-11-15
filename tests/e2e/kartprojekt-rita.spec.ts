@@ -820,7 +820,9 @@ test("kartprojekt: verktygshjul, symbolrutor, förenkla, mjuk och cirkel", async
   await settled(owner);
   expect((await lines())[0]!.path).toHaveLength(2);
   await owner.mouse.click(on.x, on.y, { button: "right" });
-  await expect(owner.getByTestId("map-project-hint")).toContainText("505");
+  // Hjulet är öppet på stigen igen. Raden under kartan säger nu vad som står i fokus i hjulet (ägaren 2026-11-15), så objektets
+  // symbol läses ur hjulet.
+  await expect(wheel.getByTestId("map-project-wheel-symbol")).toHaveAttribute("data-code", "505.0");
   await owner.getByTestId("map-project-wheel-action-smooth").click();
   await expect(owner.getByTestId("map-project-hint")).toHaveText("Linjen går nu i mjuka kurvor genom samma punkter.");
   await settled(owner);
@@ -866,7 +868,7 @@ test("kartprojekt: lager efter normen, lås, nedtonat och slå ihop symboler", a
   await expect(map).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
 
   const layers = owner.getByTestId("map-project-symbol-layers");
-  await expect(layers).toContainText("Lagren följer ISOM 2017-2");
+  await expect(layers).toContainText("lagren följer ISOM 2017-2");
   await owner.getByTestId("map-project-tab-layers").click();
   await expect(layers.getByTestId("map-project-layer-row")).toHaveCount(5);
   const rock = layers.locator("[data-layer=ROCK]");

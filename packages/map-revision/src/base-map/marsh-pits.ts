@@ -9,7 +9,7 @@ import { marshGeometry } from "./marsh-merge";
  */
 const { polygonOf, boxOf } = marshGeometry;
 /** Sankmarkens lager (laserns fuktsteg och Lantmäteriets marktäcke), som i `marsh-merge.ts`. */
-export const MARSH_LAYERS = /^(blott|fuktigt|sankmark_vat|sankmark_fast)$/;
+export const MARSH_LAYERS = /^(blott|fuktigt|sankmark_vat|sankmark_fast|sankmark_misstankt_ooverkomlig)$/;
 /** En grop ur den egna sökningen som är så här djup (meter) står kvar också i sankmark. */
 export const MARSH_PIT_KEEP_DEPTH = 1;
 const PIT_POINT = /^(ugly)?udepression/i;

@@ -13,6 +13,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-15 – Kärren i sorter, utan dubbla raster
+
+- Ägaren: «kärren ligger också dubbelt i raster … skilja på olika typer av kärr, från otydlig till öppen och misstänkt oöverkomlig». Fukt-panelen (`depthCandidates`) lade fuktigt (310) över blött (308); nu är fuktigt bara det som inte är blött, och ytorna kommer som ytor med hål.
+- Ny sort: öppen blöt mark inom 30 m från vatten som ligger högst 0,1 m över fuktstråket blir `sankmark_misstankt_ooverkomlig` (307), som kandidat att pröva i fält. Inte mätt: träningsetiketterna skiljer inte 307 från 308.
+- Gäller panelen; grundkartan på servern slår redan ihop kärren (`singleMarsh`) och får ingen 307.
+- Kontrollerat: enhetstester, map-revision och webbens tester, typecheck, knip.
+
 ### 2026-11-15 – Reglage för gläntor
 
 - Ägaren: «finns inget reglage för gläntor, de borde både kunna hittas mer och göras större, mer mjuka». Grönt-panelen har reglaget «Gläntor» 1–10 direkt under förenklingen (`clearingShape`): 5 som körningen, högre tar med mindre öppna ytor (401, ner till 50 m²) och växer dem upp till 3 m in i vanlig skog (inte i grönt), lägre kräver större. Kanten rundas (Chaikin).

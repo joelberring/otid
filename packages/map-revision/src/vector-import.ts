@@ -125,6 +125,8 @@ const KEYWORDS: readonly { readonly words: RegExp; readonly line?: string; reado
   { words: /BERG_I_DAGEN|BERGHALL|BARE_ROCK/, area: "214" },
   // Lantmäteriets Marktäcke (G8): fast sankmark är otydlig sankmark, åker och fruktodling.
   { words: /SANKMARK_FAST/, area: "310" },
+  // Misstänkt oöverkomlig sankmark (öppen blöt mark vid vatten, ägaren 2026-11-15).
+  { words: /OOVERKOMLIG/, area: "307" },
   { words: /FRUKTODLING|ORCHARD/, area: "413" },
   { words: /^AKER$|ODLINGSMARK|FARMLAND/, area: "412" },
   // Geo-arbetarens fuktighet (K5c): fuktstråk, blött och fuktigt.

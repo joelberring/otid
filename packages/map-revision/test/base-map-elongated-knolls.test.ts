@@ -35,6 +35,11 @@ describe("avlånga punkthöjder (ägaren 2026-11-15)", () => {
     const layer = (name: string) => ({ name, count: 1, points: 1, lines: 0, closedLines: 0, areas: 0 });
     expect(suggestSymbol(layer(ELONGATED_KNOLL_LAYER), symbols)).toBe("s110");
     expect(suggestSymbol(layer("dotknoll"), symbols)).toBe("s109");
+    // Kärrens sorter (ägaren 2026-11-15).
+    const marsh = [{ id: "s307", code: "307", kind: "area" }, { id: "s308", code: "308", kind: "area" }, { id: "s310", code: "310", kind: "area" }];
+    const area = (name: string) => ({ name, count: 1, points: 0, lines: 0, closedLines: 0, areas: 1 });
+    expect(suggestSymbol(area("sankmark_misstankt_ooverkomlig"), marsh)).toBe("s307");
+    expect(suggestSymbol(area("blott"), marsh)).toBe("s308"); expect(suggestSymbol(area("fuktigt"), marsh)).toBe("s310");
   });
   it("höjdsökningen ger formen också för en liten höjd (0,6 m)", () => {
     const columns = 80, rows = 60, meters = new Float32Array(columns * rows);

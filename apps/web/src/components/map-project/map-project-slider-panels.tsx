@@ -52,7 +52,7 @@ export function MapProjectDepthPanel(props: Props & { view: MapProjectView; boun
       });
   }, [opened, noDrySoil, hasDepth, bounds, crs, georeference, view.projectId]);
   const areas = noDrySoil && Array.isArray(soil) ? soil as readonly MapProjectSoilArea[] : undefined;
-  return <MapProjectRasterPanel {...props} match={/fuktdjup$/} own={/^(blott|fuktigt)$/} text={text} testId="map-project-depth" initial={DEFAULT_DEPTH} atLevel={depthAt}
+  return <MapProjectRasterPanel {...props} match={/fuktdjup$/} own={/^(blott|fuktigt|sankmark_misstankt_ooverkomlig)$/} text={text} testId="map-project-depth" initial={DEFAULT_DEPTH} atLevel={depthAt}
     refreshKey={areas ?? noDrySoil} onOpen={() => setOpened(true)}
     extras={<>
       <label className={styles.check}><input type="checkbox" checked={noDrySoil} onChange={() => setNoDrySoil(value => !value)} data-testid="map-project-depth-soil" /> {text.noDrySoil}</label>
@@ -76,7 +76,7 @@ export function MapProjectDepthPanel(props: Props & { view: MapProjectView; boun
       const result = depthCandidates(pixels, settings, toSource, crsOf, cell);
       const off = areas && crsOf === 3006 ? marshOffDrySoil(result.data.features, areas, { layers: SOIL_PANEL_LAYERS, minAreaM2: settings.minAreaM2 }) : undefined;
       return { data: off ? { ...result.data, features: off.features } : result.data,
-        message: text.done(decimal(result.wetHa), decimal(result.moistHa), off && off.removedHa > 0 ? decimal(off.removedHa) : undefined) };
+        message: text.done(decimal(result.wetHa + result.soddenHa), decimal(result.moistHa), off && off.removedHa > 0 ? decimal(off.removedHa) : undefined) };
     }} />;
 }
 

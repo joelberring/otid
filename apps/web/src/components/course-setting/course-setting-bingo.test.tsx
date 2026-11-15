@@ -7,6 +7,7 @@ import { testDocument } from "../../lib/course-setting-test-document";
 import { BingoBlock } from "./course-setting-bingo";
 import { FormIcon } from "./course-setting-training";
 import { ShotHeatGrid } from "../bingo/bingo-ships";
+import { BingoFleet } from "../bingo/bingo-fleet";
 
 // Komponenterna använder JSX utan att importera React (Next); testet ger dem React (vitest kompilerar klassiskt).
 (globalThis as { React?: typeof React }).React = React;
@@ -38,5 +39,13 @@ describe("bingo i fliken Träning", () => {
     expect(html).toContain("•••");
     expect(html).toMatch(/B1<span[^>]*>7</);
     expect(html).not.toMatch(/A2<span/);
+  });
+
+  it("flottlistan: text och rutor per skepp, ifyllda när skeppet är sänkt", () => {
+    const html = renderToStaticMarkup(<BingoFleet shared={[{ length: 4, sunk: true }, { length: 3, sunk: false }]}
+      own={[{ length: 2, sunk: false }, { length: 2, sunk: false }, { length: 1, sunk: false }]} />);
+    expect(html).toContain("5 skepp: 2 gemensamma (4 och 3 rutor), 3 egna (2, 2 och 1 ruta)");
+    expect(html.match(/data-sunk="true"/g)).toHaveLength(1);
+    expect(html.match(/data-testid="fleet-own"/g)).toHaveLength(3);
   });
 });

@@ -129,6 +129,19 @@ export const bingoSv = {
     hideShips: "Dölj skeppen",
     reroll: "Slumpa om gemensamma",
     rerollStarted: "Någon i gruppen har redan startat.",
+    fleet: "Flottan",
+    fleetShared: "Gemensamma (hela gruppen):",
+    fleetOwn: "Dina egna:",
+    fleetSunk: (length: number) => `Sänkt skepp, ${length} ${length === 1 ? "ruta" : "rutor"}`,
+    fleetAfloat: (length: number) => `Skepp, ${length} ${length === 1 ? "ruta" : "rutor"}`,
+    fleetText: (shared: readonly number[], own: readonly number[]) => {
+      const list = (lengths: readonly number[]) => lengths.length <= 1 ? String(lengths[0] ?? "")
+        : `${lengths.slice(0, -1).join(", ")} och ${lengths[lengths.length - 1]}`;
+      const cells = (lengths: readonly number[]) => `${list(lengths)} ${lengths[lengths.length - 1] === 1 ? "ruta" : "rutor"}`;
+      const parts = [shared.length > 0 ? `${shared.length} ${shared.length === 1 ? "gemensamt" : "gemensamma"} (${cells(shared)})` : "",
+        own.length > 0 ? `${own.length} ${own.length === 1 ? "eget" : "egna"} (${cells(own)})` : ""].filter(Boolean);
+      return `${shared.length + own.length} skepp: ${parts.join(", ")}`;
+    },
     hitsColumn: "Träffar", waterColumn: "Vatten", wrongColumn: "Fel", lastColumn: "Senaste skott",
     mapTitle: "Dina skott och skeppen"
   },

@@ -89,3 +89,12 @@
 .helpButton { justify-self: end; min-width: 44px; min-height: 44px; border-radius: 22px; border: 2px solid #555; background: #111; color: #f0f0f0;
   font: inherit; font-size: 1.2rem; font-weight: 700; }
 .gpsOk { margin: 0; text-align: center; color: #6fdc7c; font-weight: 700; }
+.fleet, .fleetDark { display: grid; gap: 6px; font-size: 1rem; }
+.fleet p, .fleetDark p { margin: 0; }
+.fleetDark { color: #e8e8e8; }
+.fleetRow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.fleetRow > span:first-child { min-width: 9rem; font-weight: 700; }
+.fleetShips { display: flex; flex-wrap: wrap; gap: 10px; }
+.fleetShip { display: inline-flex; gap: 2px; }
+.fleetShip > span { width: 14px; height: 14px; border: 2px solid currentColor; box-sizing: border-box; }
+.fleetShip[data-sunk] > span { background: currentColor; }

@@ -9,6 +9,7 @@ import { useTexts } from "../language-provider";
 import { Button, Notice } from "../ui";
 import { BingoBoard } from "./bingo-board";
 import { BingoGuide } from "./bingo-guide";
+import { BingoFleet } from "./bingo-fleet";
 import styles from "./bingo.module.css";
 
 /** Anmälan på plats (ADR-0225): namnet först, sedan gruppen och Starta; instruktionen och topplistan under. */
@@ -22,6 +23,7 @@ export function BingoSignup({ mode, title, groups, georeferenced, board, onStart
   const trimmed = name.trim();
   const ready = groups.length > 0 && georeferenced;
   const [guide, setGuide] = useState(false);
+  const chosen = groups.find(group => group.course === course);
   return <main className={styles.page} data-testid="bingo-signup">
     <h1>{mode === "SHIPS" ? ships.title : text.title}</h1>
     <p className={styles.kicker}>{title}</p>
@@ -29,7 +31,8 @@ export function BingoSignup({ mode, title, groups, georeferenced, board, onStart
     {!georeferenced && <Notice tone="error" role="alert">{text.noGeoreference}</Notice>}
     {groups.length === 0 && <Notice tone="error" role="alert">{text.noGroups}</Notice>}
     {guide && trimmed && course ? <>
-      <BingoGuide mode={mode} action={<Button className={styles.start} onClick={() => onStart(trimmed.slice(0, 60), course)} data-testid="bingo-understood">
+      <BingoGuide mode={mode} extra={mode === "SHIPS" && chosen ? <BingoFleet shared={chosen.sharedShips.map(length => ({ length, sunk: false }))}
+        own={chosen.ships.map(length => ({ length, sunk: false }))} /> : undefined} action={<Button className={styles.start} onClick={() => onStart(trimmed.slice(0, 60), course)} data-testid="bingo-understood">
         {text.understood}</Button>} />
       <Button variant="quiet" onClick={() => setGuide(false)}>{text.back}</Button>
     </> : <form className={styles.signup} onSubmit={event => {

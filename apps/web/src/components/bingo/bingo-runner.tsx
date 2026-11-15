@@ -16,6 +16,7 @@ import { BingoMap, type BingoMapImage } from "./bingo-map";
 import { ShipBoard, ShipFire, useShips } from "./bingo-ships";
 import { BingoSignup } from "./bingo-signup";
 import { BingoGuide } from "./bingo-guide";
+import { BingoFleet } from "./bingo-fleet";
 import { useBingoRun } from "./use-bingo-run";
 import styles from "./bingo.module.css";
 
@@ -67,6 +68,11 @@ export function BingoRunner({ raceId, mode, title, groups, georeference, mapScal
   const sunkCells = new Set(ships.ships.filter(ship => ship.cells.every(cell => ships.judged.some(shot => shot.cell === cell && shot.result !== "WRONG")))
     .flatMap(ship => ship.cells));
 
+  // Flottlistan: gemensamma och egna skepp; fyllda när löparen själv har sänkt dem (säger inget om läget).
+  const fleetOf = (shared: boolean) => ships.ships.filter(ship => Boolean(ship.shared) === shared)
+    .map(ship => ({ length: ship.cells.length, sunk: ship.cells.every(cell => sunkCells.has(cell)) }));
+  const fleet = shipsMode ? <BingoFleet shared={fleetOf(true)} own={fleetOf(false)} dark={run.status === "RUNNING"} /> : undefined;
+
   const fire = async (cell: string) => {
     const result = await bingo.shoot(cell);
     if (!result.ok) { setMessage({ text: shipText.noPosition(result.accuracyM), at: Date.now() }); return; }
@@ -81,7 +87,7 @@ export function BingoRunner({ raceId, mode, title, groups, georeference, mapScal
   if (run.status === "RUNNING") {
     const recent = bingo.lastTaken && now - bingo.lastTaken.at < 8000 ? bingo.lastTaken.cell : undefined;
     if (guideOpen) return <main className={styles.pocket} data-testid="bingo-pocket">
-      <BingoGuide mode={shipsMode ? "SHIPS" : "BINGO"} dark action={<button type="button" className={styles.fire} onClick={() => setGuideOpen(false)}>
+      <BingoGuide mode={shipsMode ? "SHIPS" : "BINGO"} dark extra={shipsMode ? fleet : undefined} action={<button type="button" className={styles.fire} onClick={() => setGuideOpen(false)}>
         {text.close}</button>} />
     </main>;
     return <main className={styles.pocket} data-testid="bingo-pocket">
@@ -105,6 +111,7 @@ export function BingoRunner({ raceId, mode, title, groups, georeference, mapScal
             others={othersOn(board.groups.find(item => item.course === group.course)?.shotCells, ships.judged)}
             label={shipText.legend} />}
         </ShipFire>
+        {fleet}
         <p className={styles.status}>{shipText.legend} · {unsent ? text.unsent : text.saved}</p>
       </> : <>
         <p className={styles.status} role="status">

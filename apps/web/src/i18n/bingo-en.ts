@@ -132,6 +132,19 @@ export const bingoEn: Texts<typeof bingoSv> = {
     hideShips: "Hide the ships",
     reroll: "Shuffle the shared ships",
     rerollStarted: "Someone in the group has already started.",
+    fleet: "The fleet",
+    fleetShared: "Shared (whole group):",
+    fleetOwn: "Your own:",
+    fleetSunk: (length: number) => `Sunk ship, ${length} ${length === 1 ? "square" : "squares"}`,
+    fleetAfloat: (length: number) => `Ship, ${length} ${length === 1 ? "square" : "squares"}`,
+    fleetText: (shared: readonly number[], own: readonly number[]) => {
+      const list = (lengths: readonly number[]) => lengths.length <= 1 ? String(lengths[0] ?? "")
+        : `${lengths.slice(0, -1).join(", ")} and ${lengths[lengths.length - 1]}`;
+      const cells = (lengths: readonly number[]) => `${list(lengths)} ${lengths[lengths.length - 1] === 1 ? "square" : "squares"}`;
+      const parts = [shared.length > 0 ? `${shared.length} shared (${cells(shared)})` : "", own.length > 0 ? `${own.length} your own (${cells(own)})` : ""]
+        .filter(Boolean);
+      return `${shared.length + own.length} ${shared.length + own.length === 1 ? "ship" : "ships"}: ${parts.join(", ")}`;
+    },
     hitsColumn: "Hits", waterColumn: "Water", wrongColumn: "Wrong", lastColumn: "Last shot",
     mapTitle: "Your shots and the ships"
   },

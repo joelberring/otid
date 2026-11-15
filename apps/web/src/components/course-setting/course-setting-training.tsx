@@ -98,6 +98,13 @@ export function TrainingPanel({ document, view, readOnly, symbols, show, onShow,
     if (form === "MIRROR" && !training.mirror) put({ ...training, mirror: true });
     open(form);
   };
+  // Verktygsraden med Klar och Avbryt; för bingoområdet står den i Bingo-rutan, där ledaren ritar (ägaren 2026-11-15).
+  const toolBar = tool && tool.kind !== "ATTACK" ? <div className={styles.toolBar} role="status">
+      <span>{tool.kind === "AREA" ? text.areas.drawing(tool.points.length) : tool.kind === "BINGO" ? bingoText.drawing(tool.points.length)
+        : text.line.drawing(tool.points.length)}</span>
+      <Button onClick={onFinish} disabled={tool.points.length < (tool.kind === "AREA" ? 3 : 2)} data-testid="training-tool-finish">{text.areas.finish}</Button>
+      <Button variant="secondary" onClick={() => onTool(undefined)}>{text.areas.cancel}</Button>
+    </div> : null;
   const cards: FormCard[] = ["CORRIDOR", "ATTACK", "BAND", "WINDOW", "AREA", "STAR", "LINE", "PAIRS", "PIECES", "NO_MAP", "MIRROR", "BINGO"];
   return <section className={styles.panel} aria-labelledby="course-setting-training" data-testid="course-setting-training">
     <h2 id="course-setting-training">{text.heading}</h2>
@@ -105,12 +112,7 @@ export function TrainingPanel({ document, view, readOnly, symbols, show, onShow,
     <label className={styles.check}><input type="checkbox" checked={show} onChange={event => onShow(event.target.checked)} data-testid="training-show" />
       <span>{text.show}<br /><span className={styles.muted}>{text.showHelp}</span></span></label>
     {readOnly && <p className={styles.muted}>{text.readOnly}</p>}
-    {tool && tool.kind !== "ATTACK" && <div className={styles.toolBar} role="status">
-      <span>{tool.kind === "AREA" ? text.areas.drawing(tool.points.length) : tool.kind === "BINGO" ? bingoText.drawing(tool.points.length)
-        : text.line.drawing(tool.points.length)}</span>
-      <Button onClick={onFinish} disabled={tool.points.length < (tool.kind === "AREA" ? 3 : 2)} data-testid="training-tool-finish">{text.areas.finish}</Button>
-      <Button variant="secondary" onClick={() => onTool(undefined)}>{text.areas.cancel}</Button>
-    </div>}
+    {tool && tool.kind !== "ATTACK" && tool.kind !== "BINGO" && toolBar}
     {!readOnly && <div className={styles.cards} role="group" aria-label={text.forms.heading}>
       {cards.map(form => <button key={form} type="button" className={styles.card} onClick={() => add(form)} data-testid={`training-add-${form}`}
         disabled={!inCourse && form !== "AREA" && form !== "BINGO"}>
@@ -135,7 +137,7 @@ export function TrainingPanel({ document, view, readOnly, symbols, show, onShow,
     {training && shown("PAIRS") && <div id="training-block-PAIRS"><PairsBlock document={document} view={view} readOnly={readOnly} onEdits={onEdits} /></div>}
     {training && shown("PIECES") && <div id="training-block-PIECES"><PiecesBlock document={document} view={view} readOnly={readOnly} onEdits={onEdits} /></div>}
     {training && shown("MIRROR") && <div id="training-block-MIRROR"><MirrorBlock document={document} view={view} readOnly={readOnly} onEdits={onEdits} /></div>}
-    {shown("BINGO") && <div id="training-block-BINGO"><BingoBlock document={document} view={view} readOnly={readOnly} tool={tool} onTool={onTool}
+    {shown("BINGO") && <div id="training-block-BINGO">{tool?.kind === "BINGO" && toolBar}<BingoBlock document={document} view={view} readOnly={readOnly} tool={tool} onTool={onTool}
       pendingArea={bingoArea} onEdits={onEdits} onView={onView} phone={bingoPhone} /></div>}
     {inCourse && !readOnly && document.training?.courses[view] && <Button variant="quiet" onClick={() => onEdits([putCourseTraining(view, null)])}
       data-testid="training-remove">{text.removeCourse}</Button>}

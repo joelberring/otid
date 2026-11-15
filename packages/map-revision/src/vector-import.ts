@@ -155,6 +155,8 @@ const KEYWORDS: readonly { readonly words: RegExp; readonly line?: string; reado
   // Stenar ur laserns markraster (scripts/geo-rock.ts).
   { words: /^STORT_BLOCK$|LARGE_BOULDER/, point: "205" },
   { words: /^STEN$|^BOULDER$/, point: "204" },
+  // Avlånga punkthöjder (ägaren 2026-11-15) före de runda.
+  { words: /DOTKNOLL_AVLANG/, point: "110" },
   { words: /DOTKNOLL/, point: "109" },
   { words: /UDEPRESSION|PUNKTGROP/, point: "111" },
   // Grundkartans lutningsstreck på sänkornas kurvor (ägaren 2026-11-12: «negativ kurvbild … ser inga såna»).

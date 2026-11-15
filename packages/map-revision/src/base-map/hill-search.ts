@@ -3,6 +3,7 @@ import type { HeightGrid } from "./clear-contours";
 import { isRing } from "./depressions";
 import type { PixelAffine } from "./flat-contours";
 import { blend } from "./knoll-choice";
+import { elongateKnolls } from "./elongated-knolls";
 import { maskOutlines, simplifyRing } from "./photo-interpret";
 import { chaikin, smoothedHeights } from "./pit-search";
 import { ISOM_RINGS, ringArea } from "./small-rings";
@@ -30,9 +31,12 @@ export interface HillCandidate {
   /** Höjdens ring på halva höjden (minst 0,25 m över sadeln), för de höjder som kan bli en ring. */
   readonly ring?: readonly (readonly [number, number])[] | undefined;
 }
-/** Lägre höjder än så sparas inte; en kant sparas från `RING_FROM_RISE` när foten ligger mellan gränserna (m²). */
+/**
+ * Lägre höjder än så sparas inte; en kant sparas för alla höjder vars fot ligger mellan gränserna (m²): den visar formen också
+ * för en liten höjd (avlånga punkthöjder, `elongated-knolls.ts`). Ringarna börjar vid `RING_FROM_RISE`.
+ */
 export const HILL_MIN_RISE = 0.4;
-const RING_FROM_RISE = 0.6, RING_MIN_M2 = 40, RING_MAX_M2 = 6000;
+const RING_FROM_RISE = 0.6, RING_MIN_M2 = 12, RING_MAX_M2 = 6000;
 /** Rutans kärna och marginalen runt den (celler); en höjd med fot upp till `RING_MAX_M2` ryms i marginalen. */
 const TILE_CORE = 1536, TILE_MARGIN = 128;
 
@@ -142,7 +146,7 @@ export function findHills(grid: HeightGrid, affine: PixelAffine): HillCandidate[
       const areaM2 = hill.cells * cellM2;
       if (rise < HILL_MIN_RISE || areaM2 < 4) continue;
       let ring: [number, number][] | undefined;
-      if (rise >= RING_FROM_RISE && areaM2 >= RING_MIN_M2) {
+      if (areaM2 >= RING_MIN_M2) {
         // Ringen: cellerna som hänger ihop med toppen och ligger minst halva stigningen (minst 0,25 m) över sadeln.
         const limit = hill.saddle + Math.max(0.25, rise / 2), reach = Math.ceil(Math.sqrt(maxCells)) + 2;
         const minC = Math.max(0, topColumn - reach), minR = Math.max(0, topRow - reach), maxC = Math.min(columns - 1, topColumn + reach), maxR = Math.min(rows - 1, topRow + reach);
@@ -202,7 +206,7 @@ export const CONTOUR_INTERVAL = 5, CONTOUR_SHIFT = 0.25;
 export const HILL_CONTOUR_LAYER = "contour_hojd", HILL_FORMLINE_LAYER = "formline_hojd";
 /** Höjdsökningens egna lager i grundkartan (reglagen byter bara dem). */
 export const HILL_LAYERS = /^(contour_hojd|formline_hojd)$/;
-const SHOWN_RING = /^(contour|depression)(_index)?$|^formline$/i, KNOLL_POINT = /^dotknoll(_laser)?$/i;
+const SHOWN_RING = /^(contour|depression)(_index)?$|^formline$/i, KNOLL_POINT = /^dotknoll(_laser|_avlang)?$/i;
 
 function inside(ring: readonly Position[], x: number, y: number): boolean {
   let hit = false;
@@ -270,7 +274,9 @@ export function settleHills(features: readonly SourceFeature[], candidates: read
     hidden.push(feature);
     return false;
   });
-  return { features: [...kept, ...hillFeatures(choice)], hidden, rings: choice.rings.length, contours: choice.rings.filter(ring => ring.contour).length };
+  // Punkthöjder med en avlång höjd bakom sig blir avlånga (110).
+  return { features: [...elongateKnolls(kept, candidates), ...hillFeatures(choice)], hidden, rings: choice.rings.length,
+    contours: choice.rings.filter(ring => ring.contour).length };
 }
 
 /** Grundkartan som den var före `settleHills`: utan höjdernas ringar och med de borttagna punkthöjderna tillbaka. */

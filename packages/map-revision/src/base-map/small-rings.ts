@@ -1,3 +1,4 @@
+import { elongatedAngle, elongatedKnoll } from "./elongated-knolls";
 import { maxOf, minOf } from "@o-tid/map-file";
 import type { SourceFeature } from "../index";
 
@@ -153,7 +154,9 @@ export function smallRingsToPoints(input: readonly SourceFeature[], scale: numbe
     if (marks.some(([x, y]) => inside(ring, x, y))) continue;
     const centre = centreOf(ring);
     marks.push(centre);
-    added.push({ layer: knoll ? "dotknoll" : "udepression", geometry: { kind: "point", at: centre } });
+    // En avlång liten kulle blir en avlång punkthöjd (110), vriden efter kurvan (ägaren 2026-11-15).
+    const long = knoll ? elongatedAngle(ring) : undefined;
+    added.push(long !== undefined ? elongatedKnoll(centre, long) : { layer: knoll ? "dotknoll" : "udepression", geometry: { kind: "point", at: centre } });
   }
   // Laserns egna små kullar (scripts/geo-rock.ts, `dotknoll_laser`) tas bort där Karttapullautin redan har en inom 6 m eller
   // där en kvarvarande liten höjdkurva (under 3 000 m²) redan visar toppen.

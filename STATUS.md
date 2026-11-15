@@ -13,6 +13,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-15 – Avlånga punkthöjder (110)
+
+- Ägaren: «avlånga punkthöjder där höjden som generaliserats verkar ha en tydlig form/limpa». `elongated-knolls.ts`: en punkthöjd (Karttapullautins eller laserns) vars höjd i markmodellen är minst 1,7 gånger så lång som bred på halva höjden blir `dotknoll_avlang` (110), vriden efter höjden. En för liten sluten kurva som blir punkthöjd blir avlång på samma sätt (`smallRingsToPoints`).
+- `findHills` sparar nu formen för alla höjder från 0,4 m (ringarna börjar som förut vid förvalen); körs i `settleHills`, alltså i webben, i grundkartan på servern och när reglagen ändras.
+- Mätt mot tre kartritare (sex block): av deras punkthöjder med en höjd med form intill blir 20 av 45 avlånga avlånga och 11 av 70 runda; två av tre rätt. Höjdsökningen tar 0,8–1,9 s per block.
+- Kontrollerat: nya enhetstester, map-revision och webbens tester, typecheck, knip.
+
 ### 2026-11-15 – Inga gropar mitt i kärr
 
 - Ägaren (bild på en grop mitt i ett kärr): `marsh-pits.ts` tar bort Karttapullautins gropar (`udepression`, `uglyudepression`) i sankmark (blött, fuktigt, marktäckets sankmark) när grundkartan sätts ihop, och den egna sökningen (`choosePits`) hoppar över gropar i sankmark som är grundare än 1 m.

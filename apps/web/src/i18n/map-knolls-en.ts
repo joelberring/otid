@@ -1,5 +1,5 @@
 import type { Texts } from "../lib/language";
-import type { mapClearContoursSv, mapFlatContoursSv, mapKnollsSv, mapSavedChoiceSv, mapUnderlayStepsSv } from "./map-knolls-sv";
+import type { mapClearContoursSv, mapFlatContoursSv, mapKnollsSv, mapPitsSv, mapSavedChoiceSv, mapUnderlayStepsSv } from "./map-knolls-sv";
 
 /** English: the headings for the order of the base layers in the side panel. */
 export const mapUnderlayStepsEn: Texts<typeof mapUnderlayStepsSv> = {
@@ -50,6 +50,18 @@ export const mapKnollsEn: Texts<typeof mapKnollsSv> = {
     name: (job: string) => `${job} – cliffs`,
     done: (impassable: number, passable: number, all: number) => `${impassable} impassable and ${passable} passable of ${all} possible.`
   }
+};
+
+/** English: pits and depressions, chosen among the closed depressions found in the ground height when the base map was read. */
+export const mapPitsEn: Texts<typeof mapPitsSv> = {
+  heading: "Pits and depressions with sliders (111, 103)",
+  help: "When the base map is read, every closed depression is found in the ground height, also those that lie between the contour levels. A small depression becomes a pit symbol and a larger one a form-line ring that follows its shape, with a slope tick. Depressions that the contours or Karttapullautin's pits already show are left out. Drag the limits: the candidates are recalculated at once, without a new run.",
+  none: "No depressions have been searched for among the candidates. Read the base map from a laser job that has the ground height saved (hojd.png).",
+  minDepth: (meters: string) => `Pit symbol from: ${meters} m deep`,
+  ringDepth: (meters: string) => `Form-line ring from: ${meters} m deep (when the depression holds the standard's smallest depression)`,
+  spacing: (meters: number) => `Minimum distance between two pit symbols: ${meters} m`,
+  done: (points: number, rings: number, all: number) => `${points} pit symbols and ${rings === 1 ? "1 ring" : `${rings} rings`} of ${all} possible depressions.`,
+  loaded: (points: number, rings: number, byHeight: number) => `Depressions from the ground height: ${points} pit symbols and ${rings === 1 ? "1 ring" : `${rings} rings`}; ${byHeight} closed contours and form lines got a slope tick from the height. Change it under "3. Adjust without a new run".`
 };
 
 /** English: "Calm contours on flat ground": form lines and small rings are removed where the ground is flat. */

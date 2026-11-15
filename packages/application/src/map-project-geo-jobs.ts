@@ -86,6 +86,9 @@ export const GEO_RELIEF_WORLD = "relief.pgw";
 export const GEO_GREEN_IMAGE = "vegetationsklasser.png";
 export const GEO_GREEN_WORLD = "vegetationsklasser.pgw";
 /** Bergbilden (ägaren 2026-11-13: reglaget «Berg i dagen med reglage»): ojämnhet, öppenhet, höjd över omgivningen och avstånd till vatten. */
+/** Markens höjd (cm som 24 bitar), för sänkorna och lutningsstrecken när grundkartan läggs in. */
+export const GEO_HEIGHT_IMAGE = "hojd.png";
+export const GEO_HEIGHT_WORLD = "hojd.pgw";
 export const GEO_ROCK_IMAGE = "berg.png";
 export const GEO_ROCK_WORLD = "berg.pgw";
 /** Terrängskuggningen ur laserns markraster (ägaren 2026-11-10); blir ett underlag att tona. */
@@ -365,6 +368,14 @@ export async function geoDepthOutputs(db: Database, jobId: string): Promise<{ im
   const rows = await db.select({ name: outputs.name, sha256: outputs.contentSha256 }).from(outputs)
     .where(and(eq(outputs.jobId, jobId), inArray(outputs.name, [GEO_DEPTH_IMAGE, GEO_DEPTH_WORLD])));
   const image = rows.find(row => row.name === GEO_DEPTH_IMAGE)?.sha256, world = rows.find(row => row.name === GEO_DEPTH_WORLD)?.sha256;
+  return image && world ? { image, world } : undefined;
+}
+
+/** Höjdbildens bild och världsfil i ett jobb (innehållsnycklarna), för sänkorna och lutningsstrecken när grundkartan läggs in. */
+export async function geoHeightOutputs(db: Database, jobId: string): Promise<{ image: string; world: string } | undefined> {
+  const rows = await db.select({ name: outputs.name, sha256: outputs.contentSha256 }).from(outputs)
+    .where(and(eq(outputs.jobId, jobId), inArray(outputs.name, [GEO_HEIGHT_IMAGE, GEO_HEIGHT_WORLD])));
+  const image = rows.find(row => row.name === GEO_HEIGHT_IMAGE)?.sha256, world = rows.find(row => row.name === GEO_HEIGHT_WORLD)?.sha256;
   return image && world ? { image, world } : undefined;
 }
 

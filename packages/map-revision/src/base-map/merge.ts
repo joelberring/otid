@@ -5,6 +5,7 @@ import { sprintOsm } from "./sprint-osm";
 import { LASER_PAVED_FILE, laserPavedAreas } from "./laser-paved";
 import { withoutCutVegetation, type clearCutFeatures } from "./clear-cuts";
 import { smallRingsToPoints } from "./small-rings";
+import { isRing, ringTick, smallDepressionPoints } from "./depressions";
 import { yardsOf } from "./yards";
 import { marshOutsideManaged, singleMarsh, undergrowthOutsideGreen } from "./marsh-merge";
 import { linesOutsideWater } from "./water-clip";
@@ -127,20 +128,11 @@ export function shoreLines(features: readonly SourceFeature[]): SourceFeature[] 
   });
 }
 
-/** Lutningsstrecket för en sluten sänkkurva: mitt på den längsta sträckan, pekande mot kurvans mitt. */
+/** Lutningsstrecket för en sluten sänkkurva (Karttapullautins lager «depression»): mitt på den längsta sträckan, pekande inåt. */
 export function depressionTick(feature: SourceFeature): SourceFeature[] {
   const geometry = feature.geometry;
-  if (geometry.kind !== "line" || !/^depression(_index)?$/i.test(feature.layer) || geometry.points.length < 4) return [];
-  const points = geometry.points, first = points[0]!, last = points[points.length - 1]!;
-  if (!geometry.closed && Math.hypot(first[0] - last[0], first[1] - last[1]) > 1) return [];
-  const center: [number, number] = [points.reduce((sum, point) => sum + point[0], 0) / points.length, points.reduce((sum, point) => sum + point[1], 0) / points.length];
-  let best = 0, longest = -1;
-  for (let i = 0; i < points.length; i += 1) {
-    const next = points[(i + 1) % points.length]!, span = Math.hypot(next[0] - points[i]![0], next[1] - points[i]![1]);
-    if (span > longest) { longest = span; best = i; }
-  }
-  const a = points[best]!, b = points[(best + 1) % points.length]!;
-  return [{ layer: "lutningsstreck", geometry: { kind: "point", at: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], toward: center } }];
+  if (geometry.kind !== "line" || !/^depression(_index)?$/i.test(feature.layer) || !isRing(feature)) return [];
+  return ringTick(geometry.points);
 }
 
 /** Yttersta rutan för objekten (körningens kant), eller undefined utan objekt. */
@@ -178,8 +170,9 @@ export function mergeBaseMap(parts: readonly { readonly name: string; readonly d
     if (part.data.features.some(feature => feature.layer === "vatten")) part = { ...part, data: { ...part.data, features: smoothWater(part.data.features, extent) } };
     if (part.name === LASER_PAVED_FILE) return { ...part, data: { ...part.data, features: laserPavedAreas(part.data.features) } };
     if (!/^(kurvor|formlinjer)\.dxf$/.test(part.name)) return part;
-    const list = joinSeams(part.data.features);
-    for (const feature of list) contours.add(feature);
+    // Ägaren 2026-11-15 (Grövelsjön): Karttapullautins små gropar (bågar i `small_depression`) blir gropsymboler (111).
+    const list = joinSeams(smallDepressionPoints(part.data.features, parts.flatMap(other => other === part ? [] : other.data.features.filter(feature => feature.geometry.kind === "point"))));
+    for (const feature of list) if (feature.geometry.kind === "line") contours.add(feature);
     return { ...part, data: { ...part.data, features: list } };
   });
   // Sänkornas kurvor (Karttapullautins lager «depression») får ett lutningsstreck inåt, annars läses de som höjder.

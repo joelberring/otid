@@ -1,6 +1,7 @@
 import { parseDxf, parseGeoJson, VectorParseError, type MapNorm, type SourceData, type SourceFeature } from "@o-tid/map-revision";
 import {
-  calmFlatContours, clearContours, computeCandidates, suggestedClear, DEFAULT_ROCK_LEVEL, flatLimitsAt, flatSlopeFrom, heightFieldFrom, joinStages, mergeBaseMap, unionWater, rockAreasOfJob, withRockAreas,
+  calmFlatContours, choosePits, clearContours, computeCandidates, suggestedClear, DEFAULT_PIT_LEVEL, DEFAULT_ROCK_LEVEL, findPits, flatLimitsAt, flatSlopeFrom, heightFieldFrom, joinStages, mergeBaseMap,
+  pitFeatures, pitLimitsAt, tickDepressions, unionWater, rockAreasOfJob, withRockAreas, type PitCandidate, type PitLimits,
   type CandidateInput, type CandidateResult, type clearCutFeatures, type ClearResult, type ClearSettings, type FlatContourResult, type HeightGrid, type PhotoPixels, type PixelAffine, type SlopeGrid, type SoilArea, type SoilOutcome, type StageBox
 } from "@o-tid/map-revision/base-map";
 
@@ -41,6 +42,14 @@ export interface BaseMapClear { readonly parts: readonly { readonly grid: Height
 export type ClearOutcome = ClearResult & { readonly settings: ClearSettings;
   /** Förvalen efter terrängen, när grundkartan lästes in med dem (reglagens «förval»). */
   readonly suggested?: ClearSettings | undefined };
+/**
+ * Negativ kurvbild (ägaren 2026-11-15): sänkorna som söktes ur markens höjd när grundkartan sattes ihop. Kandidaterna följer
+ * med till sidan, så att reglaget «Gropar och sänkor» väljer bland dem utan en ny sökning.
+ */
+export interface PitOutcome { readonly candidates: readonly PitCandidate[]; readonly limits: PitLimits; readonly level: number; readonly scale: number;
+  readonly points: number; readonly rings: number;
+  /** Ringar som fick lutningsstreck, och hur många av dem som bara höjden visade vara sänkor. */
+  readonly ticks: number; readonly byHeight: number }
 export type CalmOutcome = Pick<FlatContourResult, "removed" | "added" | "formlineMeters" | "rings"> & { readonly level: number };
 
 /** Var inläsningen är: filerna tolkas en och en, sedan sätts grundkartan ihop. */
@@ -70,7 +79,8 @@ export type CandidateRequest =
 export type CandidateResponse =
   | ({ readonly type: "progress"; readonly id: number } & BaseMapStep)
   | { readonly type: "base-map"; readonly id: number; readonly dataId: number; readonly data: SourceData; readonly calm?: CalmOutcome | undefined;
-      readonly clear?: ClearOutcome | undefined; readonly rock?: RockOutcome | undefined; readonly soil?: SoilOutcome | undefined }
+      readonly clear?: ClearOutcome | undefined; readonly rock?: RockOutcome | undefined; readonly soil?: SoilOutcome | undefined;
+      readonly pits?: PitOutcome | undefined }
   | { readonly type: "computed"; readonly id: number; readonly result: CandidateResult | null }
   /** `parse`: filen gick inte att tolka (meddelandet visas som det är). */
   | { readonly type: "error"; readonly id: number; readonly message: string; readonly parse: boolean };
@@ -126,9 +136,22 @@ export function handleCandidateRequest(store: CandidateStore, request: Candidate
     const clearField = clear && heightFieldFrom(clear.parts);
     const clearSettings = clear && clearField && (clear.settings ?? suggestedClear(calmData.features, clearField));
     const cleared = clearField && clearSettings && clearContours(calmData.features, clearField, clearSettings);
-    const data = cleared ? { ...calmData, features: cleared.features } : calmData;
+    const clearData = cleared ? { ...calmData, features: cleared.features } : calmData;
+    // Negativ kurvbild (ägaren 2026-11-15), sist så att strecken sitter på kurvorna som de blev: sänkorna som grundkartan inte
+    // redan visar söks ur markens höjd, och varje sluten kurva eller hjälpkurva som är en sänka får sitt lutningsstreck.
+    let pits: PitOutcome | undefined, data = clearData;
+    if (clear && clearField && request.scale) {
+      const limits = pitLimitsAt(DEFAULT_PIT_LEVEL);
+      // Sökningen håller flera raster i minnet; räcker det inte läses grundkartan in ändå, utan de egna sänkorna.
+      let candidates: PitCandidate[] = [];
+      try { candidates = clear.parts.flatMap(part => findPits(part.grid, part.affine)); } catch (error) { console.error("Sänkorna kunde inte sökas ur markens höjd", error); }
+      const choice = choosePits(candidates, limits, request.scale, clearData.features);
+      const ticked = tickDepressions([...clearData.features, ...pitFeatures(choice)], clearField);
+      data = { ...clearData, features: ticked.features };
+      pits = { candidates, limits, level: DEFAULT_PIT_LEVEL, scale: request.scale, points: choice.points.length, rings: choice.rings.length, ticks: ticked.ticks, byHeight: ticked.byHeight };
+    }
     store.set(request.dataId, data.features);
-    post({ type: "base-map", id, dataId: request.dataId, data, ...(rockUsed ? { rock } : {}), ...(soil ? { soil } : {}),
+    post({ type: "base-map", id, dataId: request.dataId, data, ...(rockUsed ? { rock } : {}), ...(soil ? { soil } : {}), ...(pits ? { pits } : {}),
       ...(cleared && clearSettings ? { clear: { ...cleared, settings: clearSettings, ...(clear?.settings ? {} : { suggested: clearSettings }) } } : {}),
       ...(calm && calmed ? { calm: { removed: calmed.removed, added: calmed.added, formlineMeters: calmed.formlineMeters, rings: calmed.rings, level: calm.level } } : {}) });
   } catch (error) {

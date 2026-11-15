@@ -1369,6 +1369,13 @@ och `claude/plan-ritlage-hjul-och-mobil.md`.
     kulle 0,9 × 0,6 mm och grop 1,1 × 0,7 mm, annars liten kulle (109) eller liten grop (111) efter omgivningens höjd, utan
     dubblett där Karttapullautins knoll ligger; formlinjering under 1,1 mm tas bort; liten stödkurvering blir vanlig kurva.
     Kungshatt-provet 1:10 000: 6 nya små kullar, 108 linjer blev 102.
+  - [x] G3 negativ kurvbild (ägaren 2026-11-15, Grövelsjön: «mycket negativ kurvbild och den verkar inte alls klara detta»):
+    (1) Karttapullautins små gropar (bågar i `small_depression`) blir gropsymboler (111) i stället för bitar av höjdkurva;
+    (2) lutningsstrecken sätts efter markens höjd (`hojd.png`) på varje sluten kurva och hjälpkurva där marken innanför
+    ligger lägre, inte efter lagrets namn, och en sluten hjälpkurva runt en sänka klipps inte av «Tydligare kurvbild»;
+    (3) egen sökning efter sänkor ur höjdrastret (`pit-search.ts`): små blir gropsymboler, större en ring av hjälpkurva
+    efter formen med streck, med reglaget «Gropar och sänkor» (förvalet ställt mot kartan över Grövelsjön). I webben när
+    grundkartan läses in och i apply_base_map (höjdbilder upp till 16 miljoner celler).
   - [x] Tomter, fukt och diken (ägaren 2026-11-11: «använd de grå lagren för bebyggd yta från OSM», «dra i
     markfuktighetslagren», «terrängformstolkning … för diken»): tomtmark ur OpenStreetMaps bostadsområden (`tomtmark_osm`),
     marktäckets låga bebyggelse (`tomtmark_marktacke`) och rektanglar kring hus utanför dem, klippta mot väg och strand (`tomtmark_hus`), alla 520 i var sitt

@@ -1,5 +1,6 @@
 import type { SourceFeature } from "../index";
 import type { PixelAffine } from "./flat-contours";
+import { depressionRing } from "./depressions";
 import { blend } from "./knoll-choice";
 import type { PhotoPixels } from "./photo-interpret";
 import { ringArea } from "./small-rings";
@@ -17,6 +18,7 @@ import { ringArea } from "./small-rings";
  *   är att marken är en höjd i stort (höjden över medelhöjden på en ring 60 m bort, AUC 0,61–0,65), och i brant där kurvorna
  *   redan ligger tätt behålls få. Hjälpkurvan klipps där marken inte är en höjd (`minConvex`) eller en höjdkurva ligger
  *   närmare än `tight` m, minst `CLEAR_CUT_METERS` i sträck; rester under `CLEAR_KEEP_METERS` tas bort.
+ *   En sluten hjälpkurva runt en sänka (`depressionRing`) klipps inte: den visar en form, inte en yta att fylla.
  * - **Små ringar av hjälpkurva** (`rings`): lasern ger 196–613 slutna hjälpkurvor där kartritarna har 49–453, och ingen form
  *   på marken skilde de behållna från de andra. De under `ringM2` tas bort.
  *
@@ -276,7 +278,9 @@ export function clearContours(features: readonly SourceFeature[], field: HeightF
     const formline = FORMLINE.test(feature.layer), closed = isClosed(geometry.points, geometry.closed);
     let pieces: { points: readonly Position[]; closed: boolean }[] = [{ points: geometry.points, closed }], changed = false;
     if (formline && closed && ringM2 !== undefined && ringArea(geometry.points) < ringM2) { rings += 1; removed.push(feature); return []; }
-    if (formline && drop) {
+    // Ägaren 2026-11-15 (Grövelsjön, negativ kurvbild): en sluten hjälpkurva runt en sänka visar en form och klipps inte för
+    // att marken där ligger lägre än omgivningen. Små ringar tas fortfarande bort av reglaget ovan.
+    if (formline && drop && !(closed && depressionRing(geometry.points, field) === true)) {
       const kept = keptPieces(geometry.closed ? [...geometry.points, geometry.points[0]!] : geometry.points, drop);
       if (kept) {
         formlineMeters += lengthOf(geometry.points) - kept.reduce((sum, piece) => sum + lengthOf(piece), 0);

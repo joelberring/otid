@@ -53,6 +53,18 @@ export const mapKnollsSv = {
   }
 };
 
+/** Gropar och sänkor (ägaren 2026-11-15, negativ kurvbild): valet bland sänkorna som söktes ur markens höjd när grundkartan lästes in. */
+export const mapPitsSv = {
+  heading: "Gropar och sänkor med reglage (111, 103)",
+  help: "När grundkartan läses in söks alla slutna sänkor ur markens höjd, också de som ligger mellan nivåerna. En liten sänka blir en gropsymbol och en större en ring av hjälpkurva efter formen, med lutningsstreck. Sänkor som kurvorna eller Karttapullautins gropar redan visar tas inte med. Dra i gränserna: kandidaterna räknas om direkt, utan ny körning.",
+  none: "Inga sökta sänkor bland kandidaterna. Läs in grundkartan från ett laserjobb som har markens höjd sparad (hojd.png).",
+  minDepth: (meters: string) => `Gropsymbol från: ${meters} m djup`,
+  ringDepth: (meters: string) => `Ring av hjälpkurva från: ${meters} m djup (när sänkan rymmer normens minsta grop)`,
+  spacing: (meters: number) => `Minsta avstånd mellan två gropsymboler: ${meters} m`,
+  done: (points: number, rings: number, all: number) => `${points} gropsymboler och ${rings === 1 ? "1 ring" : `${rings} ringar`} av ${all} möjliga sänkor.`,
+  loaded: (points: number, rings: number, byHeight: number) => `Sänkor ur markens höjd: ${points} gropsymboler och ${rings === 1 ? "1 ring" : `${rings} ringar`}; ${byHeight} slutna kurvor och hjälpkurvor fick lutningsstreck efter höjden. Ändra under «3. Justera utan ny körning».`
+};
+
 /** «Tydligare kurvbild» (ägaren 2026-11-14): tre reglage mätta mot kartritares kartor över samma laser. */
 export const mapClearContoursSv = {
   heading: "Tydligare kurvbild",

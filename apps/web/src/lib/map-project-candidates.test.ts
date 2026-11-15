@@ -114,6 +114,37 @@ describe("kandidaterna i Workern", () => {
     expect(run({ merge: false, clear }).clear).toBeUndefined();
   });
 
+  it("negativ kurvbild: söker sänkorna ur markens höjd och sätter lutningsstreck efter höjden (ägaren 2026-11-15)", () => {
+    const dxf = (layer: string, points: [number, number][], closed = false) => ["0", "SECTION", "2", "ENTITIES", "0", "LWPOLYLINE", "8", layer, "70", closed ? "1" : "0",
+      ...points.flatMap(([x, y]) => ["10", String(x), "20", String(y)]), "0", "ENDSEC", "0", "EOF", ""].join("\n");
+    // 300 × 300 celler om 1 m: en svag sluttning med en liten grop (0,8 m) vid (80, 200) och en stor sänka (1,6 m) vid (200, 100).
+    const size = 300, holes = [[80, 99, 5, 0.8], [200, 199, 16, 1.6]] as const;
+    const meters = Float32Array.from({ length: size * size }, (_, p) => {
+      const column = p % size, row = Math.floor(p / size);
+      return 50 + column * 0.01 - holes.reduce((sum, [c, r, radius, depth]) => { const d = Math.hypot(column - c, row - r); return sum + (d < radius ? depth * (1 - (d / radius) ** 2) : 0); }, 0);
+    });
+    const clear = { parts: [{ grid: { columns: size, rows: size, meters }, affine: [1, 0, 0.5, 0, -1, 299.5] as const }], settings: { smooth: 0, formlines: 0, rings: 0 } };
+    const ring = Array.from({ length: 24 }, (_, i) => [200.5 + 11 * Math.cos(i * Math.PI / 12), 100.5 + 11 * Math.sin(i * Math.PI / 12)] as [number, number]);
+    const run = (parts: { name: string; body: string }[], more: Partial<Extract<CandidateRequest, { type: "base-map" }>> = {}) => {
+      const sent: CandidateResponse[] = [];
+      handleCandidateRequest(new Map(), { type: "base-map", id: 1, dataId: 2, merge: true, scale: 10000, parts, clear, ...more }, response => sent.push(response));
+      return sent.at(-1) as Extract<CandidateResponse, { type: "base-map" }>;
+    };
+    const contour = { name: "kurvor.dxf", body: dxf("contour", [[0, 20], [300, 20]]) };
+    const layersOf = (response: ReturnType<typeof run>) => response.data.features.map(feature => feature.layer).sort();
+    const found = run([contour]);
+    expect(found.pits).toMatchObject({ level: 5, points: 1, rings: 1, scale: 10000 });
+    expect(found.pits!.candidates).toHaveLength(2);
+    expect(layersOf(found)).toEqual(["contour", "formline_grop", "lutningsstreck_grop", "udepression_laser"]);
+    // En sluten hjälpkurva ur lasern runt den stora sänkan visar den redan: ingen egen ring, men ett lutningsstreck efter höjden.
+    const shown = run([contour, { name: "formlinjer.dxf", body: dxf("formline", ring, true) }]);
+    expect(shown.pits).toMatchObject({ points: 1, rings: 0, ticks: 1, byHeight: 1 });
+    expect(layersOf(shown)).toEqual(["contour", "formline", "lutningsstreck", "udepression_laser"]);
+    // Utan markens höjd, eller utan att grundkartan sätts ihop, söks ingenting.
+    expect(run([contour], { clear: undefined }).pits).toBeUndefined();
+    expect(run([contour], { merge: false }).pits).toBeUndefined();
+  });
+
   it("säger till när en fil inte går att tolka, och ger inget för objekt som glömts", () => {
     const store: CandidateStore = new Map(), sent: CandidateResponse[] = [];
     handleCandidateRequest(store, { type: "base-map", id: 1, dataId: 2, merge: false, parts: [{ name: "kurvor.dxf", body: "inte\nDXF\nalls" }] }, response => sent.push(response));

@@ -13,6 +13,16 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-15 – Negativ kurvbild: gropar, lutningsstreck efter höjden och egen sökning efter sänkor
+
+- Ägaren (Grövelsjön, dödisterräng): «mycket negativ kurvbild och den verkar inte alls klara detta». Mätt på 2,3 km²: 101 slutna sänkor på minst 1 m i lasern, 23 korsar en 5 m-nivå; 86 av Karttapullautins små gropar (`small_depression`) blev bitar av höjdkurva.
+- `depressions.ts`: `small_depression` → `udepression` (111) i bågens mitt (98 % låg i en lasersänka); `tickDepressions` sätter lutningsstreck på slutna kurvor och hjälpkurvor där marken strax innanför ligger lägre än strax utanför (höjden går före lagrets namn; utan höjd som förut). «Tydligare kurvbild» klipper inte en sluten hjälpkurva runt en sänka.
+- `pit-search.ts`: sänkorna fylls i höjdrastret (Priority-Flood; sjöar och mark utan data är utlopp), varje sänka blir en kandidat med djup, yta, form och kant. `choosePits`: gropsymbol (lagret `udepression_laser`) från 0,4 m, ring av hjälpkurva (`formline_grop`, med `lutningsstreck_grop`) från 1 m när kanten rymmer normens minsta grop; det grundkartan redan visar tas inte med. Reglaget «Gropar och sänkor med reglage» under «3. Justera utan ny körning»; valet räknas om när kurvreglagen flyttas.
+- Samma i apply_base_map: kartjobbet läser jobbets `hojd.png` (högst 16 miljoner celler, annars står `pits` i `missing`); svaret har `pits` och `slopeTicks`.
+- Förvalet mot kartbilden över Grövelsjön: 133 gropsymboler per km² (kartritarens 133, hittade i bilden), var fjärde inom 10 m från en av hennes (slumpen 4 %). Strecken på riktiga data: 111 av 116 sänkringar fick streck, inga på höjder.
+- Kontrollerat: typecheck, eslint, knip, alla enhetstester (map-revision 402, web 1256), nya tester för reglerna, Workern, sammansättningen och panelen. Sökningen tar cirka 1 s på 2,7 miljoner celler och cirka 10 s på ett helt blad (24 miljoner), i Workern.
+- Inte gjort: inte provat i webbläsaren eller mot riktiga Karttapullautin-filer (bara höjdrastret och nivåringar ur det); integrationstester och Playwright inte körda; ringarnas förval är inte mätt mot kartan (hjälpkurvor går inte att skilja ut i en PNG).
+
 ### 2026-11-15 – Saxen i hjulet och verktyget på raden under kartan
 
 - Ägaren: «saxen i hjulet i kartritningsläget och att det står längst ner vilken funktion i hjulet man använder». Hjulet har saxen (Klipp isär) bredvid Redigera, Rita och Cirkel; den väljs som i spalten (det markerade släpps inte).
@@ -1795,6 +1805,9 @@ Loggen till och med 2026-10-19 ligger i `docs/archive/STATUS-logg-till-2026-10-1
 
 ## Idéer (inte i planen än)
 
+- 2026-11-15: sökningen efter sänkor (`findPits`) tar cirka 10 s i webbläsaren på ett helt kartblad. Den kan flyttas till
+  geo-arbetaren och sparas som `gropar.geojson`, som kullarna, så att grundkartan läses in lika fort som förut. En tätare
+  höjdmodell ur punktmolnet (0,5 m) skulle visa fler av de minsta groparna än 1 m-rastret.
 - Ägaren 2026-11-08: **engelska** i hela appen (språkval från början; texterna finns till stor del i `i18n/*-sv.ts`, men svensk
   text ligger också direkt i komponenterna). Den engelska guiden ska säga att verifierade klubbar bara finns via svenska
   Eventor, att fler länder kan gå att lösa och att förslag mejlas till O-Tid (`OTID_CONTACT_EMAIL`, förval otid@berring.se).

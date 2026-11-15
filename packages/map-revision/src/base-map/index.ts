@@ -9,6 +9,8 @@ export * from "./clear-cuts";
 export * from "./small-rings";
 export * from "./flat-contours";
 export * from "./clear-contours";
+export * from "./depressions";
+export * from "./pit-search";
 export * from "./marking";
 export * from "./terrain-fit";
 export * from "./ticks";

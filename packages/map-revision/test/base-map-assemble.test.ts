@@ -90,4 +90,37 @@ describe("grundkartan till kartans objekt", () => {
     expect(withRock.summary.rock!.hectares).toBeGreaterThan(3);
     expect(plain.summary.rock).toBeUndefined();
   });
+  it("negativ kurvbild: med markens höjd söks sänkorna, och lutningsstrecken sätts efter höjden (ägaren 2026-11-15)", () => {
+    // 400 × 300 m i celler om 1 m: en svag sluttning med en liten grop (0,8 m) och en stor sänka (1,6 m djup, 32 m bred).
+    const columns = 400, rows = 300, meters = new Float32Array(columns * rows);
+    const holes = [[100, 150, 5, 0.8], [280, 130, 16, 1.6]] as const;
+    for (let row = 0; row < rows; row += 1) for (let column = 0; column < columns; column += 1) {
+      let z = 50 + column * 0.01;
+      for (const [c, r, radius, depth] of holes) { const d = Math.hypot(column - c, row - r); if (d < radius) z -= depth * (1 - (d / radius) ** 2); }
+      meters[row * columns + column] = z;
+    }
+    const height = { grid: { columns, rows, meters }, affine: [1, 0, E - 199.5, 0, -1, N + 149.5] as const };
+    const contour = { name: "kurvor.dxf", body: dxf("contour", [[-190, -100], [0, -90], [190, -100]]) };
+    const found = assembleBaseMap({ ...input, parts: [contour], height });
+    if ("problem" in found) throw new Error(found.problem);
+    expect(found.summary.pits).toEqual({ level: 5, points: 1, rings: 1, candidates: 2 });
+    const count = (result: typeof found, symbol: string) => result.summary.symbols.find(row => row.symbol === symbol)?.objects;
+    expect([count(found, "111"), count(found, "103"), count(found, "101.1")]).toEqual([1, 1, 1]);
+    // Nivå 1 kräver 1,2 m för en gropsymbol och 2 m för en ring: ingenting väljs.
+    const few = assembleBaseMap({ ...input, parts: [contour], height: { ...height, pits: 1 } });
+    if ("problem" in few) throw new Error(few.problem);
+    expect(few.summary.pits).toEqual({ level: 1, points: 0, rings: 0, candidates: 2 });
+    // En sluten hjälpkurva från lasern runt den stora sänkan: den visar redan sänkan, och får sitt streck av höjden.
+    const ring = Array.from({ length: 24 }, (_, i) => [80.5 + 11 * Math.cos(i * Math.PI / 12), 19.5 + 11 * Math.sin(i * Math.PI / 12)] as [number, number]);
+    const closed = dxf("formline", ring).replace("\n70\n0\n", "\n70\n1\n");
+    const shown = assembleBaseMap({ ...input, parts: [contour, { name: "formlinjer.dxf", body: closed }], height });
+    if ("problem" in shown) throw new Error(shown.problem);
+    expect(shown.summary.pits).toEqual({ level: 5, points: 1, rings: 0, candidates: 2 });
+    expect(shown.summary.slopeTicks).toEqual({ ticks: 1, byHeight: 1 });
+    expect([count(shown, "111"), count(shown, "103"), count(shown, "101.1")]).toEqual([1, 1, 1]);
+    // Utan höjden får hjälpkurveringen inget streck (lagrets namn säger inget om sänkan).
+    const blind = assembleBaseMap({ ...input, parts: [contour, { name: "formlinjer.dxf", body: closed }] });
+    if ("problem" in blind) throw new Error(blind.problem);
+    expect(count(blind, "101.1")).toBeUndefined(); expect(blind.summary.pits).toBeUndefined();
+  });
 });

@@ -3,14 +3,14 @@
 import type { GeoJobList, MapProjectView } from "@o-tid/contracts";
 import type { SourceFeature } from "@o-tid/map-revision";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { mapKnollsEn, mapSavedChoiceEn } from "../../i18n/map-knolls-en";
-import { mapKnollsSv, mapSavedChoiceSv } from "../../i18n/map-knolls-sv";
+import { mapKnollsEn, mapPitsEn, mapSavedChoiceEn } from "../../i18n/map-knolls-en";
+import { mapKnollsSv, mapPitsSv, mapSavedChoiceSv } from "../../i18n/map-knolls-sv";
 import { clubRequest } from "../../lib/club-archive-client";
 import { mapProjectBase } from "../../lib/map-project-client";
 import { inClip, stageChoices } from "../../lib/map-project-stages";
 import {
-  chooseKnolls, cliffFeatures, cliffLimitsAt, DEFAULT_KNOLL_LIMITS, defaultCliffLimits, knollFeatures, knollLimitsAt, readCliffCandidates, readKnollCandidates,
-  type CliffLimits, type KnollLimits
+  chooseKnolls, cliffFeatures, cliffLimitsAt, DEFAULT_KNOLL_LIMITS, DEFAULT_PIT_LEVEL, DEFAULT_PIT_LIMITS, defaultCliffLimits, knollFeatures, knollLimitsAt, pitLimitsAt, readCliffCandidates,
+  readKnollCandidates, type CliffLimits, type KnollLimits, type PitLimits
 } from "@o-tid/map-revision/base-map";
 import { useTexts } from "../language-provider";
 import { Button } from "../ui";
@@ -146,4 +146,55 @@ export function MapProjectCliffPanel({ view, importer, scale }: { view: MapProje
       <label className={styles.check}><input type="checkbox" checked={limits.tags} data-testid="map-project-cliffs-tags"
         onChange={event => change({ tags: event.target.checked })} /> {text.tags}</label>
     </>} />;
+}
+
+/**
+ * Gropar och sänkor (ägaren 2026-11-15, Grövelsjön: «mycket negativ kurvbild»): valet bland sänkorna som söktes ur markens höjd
+ * när grundkartan lästes in (`importer.pits`). Reglaget byter bara sänkornas egna lager i det som visas och räknar om en kort
+ * stund efter att det flyttats; ingen laserdata hämtas eller körs igen.
+ */
+export function MapProjectPitPanel({ importer }: { importer: Importer }) {
+  const text = useTexts(mapPitsSv, mapPitsEn);
+  const shared = useTexts(mapSavedChoiceSv, mapSavedChoiceEn);
+  const pits = importer.pits;
+  const [limits, setLimits] = useState<PitLimits>(pits?.limits ?? DEFAULT_PIT_LIMITS);
+  const [level, setLevel] = useState(pits?.level ?? DEFAULT_PIT_LEVEL);
+  /** Gränserna som senast räknades, och sökningen de hör till (en ny grundkarta står på sina egna förval). */
+  const ran = useRef(pits?.limits), loaded = useRef(pits?.candidates);
+  useEffect(() => {
+    if (!pits || pits.candidates === loaded.current) return;
+    loaded.current = pits.candidates; ran.current = pits.limits;
+    setLimits(pits.limits); setLevel(pits.level);
+  }, [pits]);
+  const choose = useRef(importer.choosePitLimits);
+  choose.current = importer.choosePitLimits;
+  const searched = pits?.candidates;
+  useEffect(() => {
+    if (!searched || searched !== loaded.current || ran.current === limits) return;
+    const timer = setTimeout(() => { ran.current = limits; choose.current(limits, level); }, 200);
+    return () => clearTimeout(timer);
+  }, [searched, limits, level]);
+
+  if (!importer.canImport) return null;
+  const meters = (value: number) => value.toLocaleString("sv-SE", { minimumFractionDigits: 1 });
+  const slider = (key: keyof PitLimits, label: string, min: number, max: number, step: number) => <label key={key}>{label}
+    <input type="range" min={min} max={max} step={step} value={limits[key]} data-testid={`map-project-pits-${key}`}
+      onChange={event => setLimits(current => ({ ...current, [key]: Number(event.target.value) }))} /></label>;
+  return <details className={styles.settings} data-testid="map-project-pits">
+    <summary>{text.heading}</summary>
+    <p className={styles.muted}>{text.help}</p>
+    {!pits ? <p className={styles.muted}>{text.none}</p> : <>
+      <label>{shared.amount(level)}
+        <input type="range" min={1} max={10} step={1} value={level} data-testid="map-project-pits-amount"
+          onChange={event => { const next = Number(event.target.value); setLevel(next); setLimits(pitLimitsAt(next)); }} /></label>
+      <p className={styles.muted}>{shared.amountHelp}</p>
+      <details><summary>{shared.fine}</summary>
+        {slider("minDepth", text.minDepth(meters(limits.minDepth)), 0.3, 2, 0.1)}
+        {slider("ringDepth", text.ringDepth(meters(limits.ringDepth)), 0.6, 3, 0.1)}
+        {slider("spacing", text.spacing(limits.spacing), 10, 60, 5)}
+      </details>
+      <span className={styles.actions}><Button variant="quiet" onClick={() => { setLevel(DEFAULT_PIT_LEVEL); setLimits(DEFAULT_PIT_LIMITS); }}>{shared.reset}</Button></span>
+      <p role="status" data-testid="map-project-pits-message">{text.done(pits.points, pits.rings, pits.candidates.length)}</p>
+    </>}
+  </details>;
 }

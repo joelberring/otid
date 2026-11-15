@@ -3,7 +3,7 @@ import { MAP_PROJECT_SYNC_MAX_EDITS, MCP_BASE_MAP_MAX_OBJECTS } from "@o-tid/con
 import type { Point } from "@o-tid/map-file";
 import { newKey, type RevisionEdit, type SourceData } from "@o-tid/map-revision";
 import {
-  assembleBaseMap, builtPolygons, candidateSymbols, DEFAULT_FLAT_LEVEL, editorBounds, slopeGridOf, worldFileAffine, type BaseMapSummary, type ClearCut, type SoilArea,
+  assembleBaseMap, builtPolygons, candidateSymbols, DEFAULT_FLAT_LEVEL, editorBounds, heightGridOf, slopeGridOf, worldFileAffine, type BaseMapSummary, type ClearCut, type SoilArea,
   type PhotoPixels
 } from "@o-tid/map-revision/base-map";
 import type { LoadedProjectMap } from "./map-project-job-run";
@@ -20,6 +20,8 @@ type Polygon = readonly (readonly Point[])[];
 const MAX_PART_BYTES = 3 * 1024 * 1024;
 /** Resultatet sparas på kartjobbets rad; större än så ska delas i etapper. */
 const MAX_RESULT_BYTES = 48 * 1024 * 1024;
+/** Höjdbilder större än så (celler, cirka 4 × 4 km) läses inte i utskriftsarbetaren: sökningen efter sänkor håller flera raster i minnet. */
+const MAX_HEIGHT_CELLS = 16_000_000;
 
 export interface BaseMapJobRequest {
   /** Laserjobbet och valen, för att hitta kartjobbet igen (`reusableProjectJob`). */
@@ -36,6 +38,8 @@ export interface BaseMapJobRequest {
   readonly depth?: { readonly image: string; readonly world: string } | undefined;
   /** Jobbets bergbild (bilden och världsfilen): berg i dagen med förvalets nivå i stället för berg.dxf:s. */
   readonly rock?: { readonly image: string; readonly world: string } | undefined;
+  /** Jobbets höjdbild (bilden och världsfilen): sänkorna söks ur den och lutningsstrecken sätts efter höjden (ägaren 2026-11-15). */
+  readonly height?: { readonly image: string; readonly world: string } | undefined;
   readonly stage?: Polygon | undefined;
   /** Det som inte gick att hämta (osm, clear_cuts, soil), för svaret. */
   readonly missing: readonly string[];
@@ -46,10 +50,10 @@ export type BaseMapJobResult = { problem: string }
 
 /**
  * Grundkartans objekt som ändringar i omgångar. `texts` är filernas innehåll efter innehållsnyckel och `depth` fuktdjupets
- * bildpunkter och `rock` bergbildens (när jobbet har dem och bilderna gick att läsa).
+ * bildpunkter, `rock` bergbildens och `height` höjdbildens (när jobbet har dem och bilderna gick att läsa).
  */
 export function runBaseMap(loaded: LoadedProjectMap, area: Polygon | null, request: BaseMapJobRequest, texts: ReadonlyMap<string, string>, now: Date,
-  depth?: PhotoPixels, rock?: PhotoPixels): BaseMapJobResult {
+  depth?: PhotoPixels, rock?: PhotoPixels, height?: PhotoPixels): BaseMapJobResult {
   const georeference = loaded.base.georeference;
   if (!georeference) return { problem: "Kartan saknar georeferens, så grundkartan kan inte läggas in i den." };
   const body = (sha256: string) => texts.get(sha256);
@@ -61,8 +65,11 @@ export function runBaseMap(loaded: LoadedProjectMap, area: Polygon | null, reque
   }
   const affine = depth && request.depth ? worldFileAffine(texts.get(request.depth.world) ?? "") : undefined;
   const rockAffine = rock && request.rock ? worldFileAffine(texts.get(request.rock.world) ?? "") : undefined;
+  const heightFits = !!height && height.width * height.height <= MAX_HEIGHT_CELLS;
+  const heightAffine = height && heightFits && request.height ? worldFileAffine(texts.get(request.height.world) ?? "") : undefined;
   const assembled = assembleBaseMap({
     ...(rock && rockAffine ? { rock: { pixels: rock, affine: rockAffine } } : {}),
+    ...(height && heightAffine ? { height: { grid: heightGridOf(height), affine: heightAffine } } : {}),
     flat: depth && affine ? { level: DEFAULT_FLAT_LEVEL, grid: slopeGridOf(depth), affine } : undefined,
     parts: parts as { name: string; body: string }[], osm: request.osm, cuts: request.cuts, soil: request.soil, today: now.toISOString().slice(0, 10), scannedAt: request.scannedAt,
     knolls: knolls as { level: number; body: string } | undefined, cliffs: cliffs as { level: number; body: string } | undefined,
@@ -85,5 +92,7 @@ export function runBaseMap(loaded: LoadedProjectMap, area: Polygon | null, reque
     if (total > MAX_RESULT_BYTES) return { problem: "Grundkartan är för stor att lägga in i ett anrop. Dela kartan i etapper och kör laserjobbet och apply_base_map en etapp i taget." };
   }
   if (current.length) out.push(current);
-  return { summary: assembled.summary, missing: request.missing, parts: out };
+  // En för stor höjdbild sägs i svaret, så att den som anropar vet att sänkorna inte söktes.
+  const missing = height && !heightFits ? [...request.missing, "pits: höjdbilden är för stor (dela kartan i etapper och kör en etapp i taget)"] : request.missing;
+  return { summary: assembled.summary, missing, parts: out };
 }

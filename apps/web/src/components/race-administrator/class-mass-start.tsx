@@ -12,14 +12,15 @@ import type { Workspace } from "./workspace-state";
 
 /**
  * Masstart direkt på klassen (ägaren 2026-11-08): en lottning med masstart för bara den här klassen, samma väg som Start →
- * Lottning. Alla i klassen får tiden, och efteranmälda får den också (lottningens efteranmälan). Klassen ska ha minutstart.
+ * Lottning. Alla i klassen får tiden, och efteranmälda får den också (lottningens efteranmälan). Lottningen ger klassen fast
+ * starttid, så fältet finns också för en klass med fri start (ägaren 2026-11-15: det ska inte krävas minutstart först).
+ * `current` är klassens masstart i dag (klockslag), om den har en.
  */
-export function ClassMassStart({ ws, classId, startRule }: { ws: Workspace; classId: string; startRule: "PUNCH" | "FIXED" }) {
+export function ClassMassStart({ ws, classId, current }: { ws: Workspace; classId: string; current: string | undefined }) {
   const text = useTexts(classTableSv, classTableEn);
-  const [clock, setClock] = useState("");
+  const [clock, setClock] = useState(current ?? "");
   const [message, setMessage] = useState<{ ok: boolean; text: string }>();
   const [busy, setBusy] = useState(false);
-  if (startRule !== "FIXED") return <p className={styles.workflowHelp}>{text.massStartNeedsFixed}</p>;
 
   async function save() {
     if (ws.writingRef.current || ws.pending.current || !ws.requireSession()) return;
@@ -46,6 +47,8 @@ export function ClassMassStart({ ws, classId, startRule }: { ws: Workspace; clas
       if (!response.ok) throw new Error("Draw not saved");
       startDrawResponseSchema.parse(await ws.json(response, op));
       setMessage({ ok: true, text: text.massStartSaved(formatClockTime(firstStartTime, setup.timeZone).slice(0, 5)) });
+      // Lottningen gav klassen fast starttid: formuläret ovanför ska inte spara tillbaka fri start.
+      ws.changeClassEdit({ startRule: "FIXED" });
       await ws.readCourses(op);
     } catch { if (ws.current(op)) setMessage({ ok: false, text: text.massStartError }); }
     finally { ws.finish(op); setBusy(false); }

@@ -37,6 +37,8 @@ export function StartDrawPanel({ ws, visible, number }: { ws: Workspace; visible
     if (visible && authenticated && data && !busy && !operation.current && !pending.current && stale && !drawError) void loadDrawSetup();
   }, [visible, authenticated, data, busy, stale, drawError]);
   const locked = disabled || !!drawPreview;
+  /** Klasser där startsättet i tabellen skiljer sig från det sparade: valen gäller inte förrän lottningen sparas. */
+  const unsaved = drawSetup ? drawSetup.classes.filter(raceClass => drawRows[raceClass.id] && drawRows[raceClass.id]!.method !== raceClass.method).length : 0;
   return <Section id={`start-draw-${raceId}`} title={text.title} number={number} help={text.help}>
     {drawSaved && <Notice tone="ok" role="status">{drawSaved}</Notice>}
     {drawError && <Notice tone="error" role="alert"><p>{drawError}</p>
@@ -83,6 +85,8 @@ export function StartDrawPanel({ ws, visible, number }: { ws: Workspace; visible
           </tr>;
         })}</tbody>
       </Table>
+      {!drawPreview && unsaved > 0 && <Notice tone="attention"><p>{text.unsaved(unsaved)}</p>
+        <div><Button type="submit" disabled={disabled} data-testid="start-draw-preview-top">{text.unsavedAction}</Button></div></Notice>}
       <StartDrawAdvanced ws={ws} locked={locked} />
       {!drawPreview && <div className={styles.actions}><Button type="submit" disabled={disabled}>{text.preview}</Button></div>}
     </form>}

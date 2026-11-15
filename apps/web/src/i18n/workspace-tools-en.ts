@@ -32,7 +32,7 @@ export const startDrawEn: Texts<typeof startDrawSv> = {
     laterStartHelp: "Clock time if the classes should start later than the event's first start. Empty = as before.",
     applyAll: "Use for all",
     applySelected: count => `Use for chosen (${count})`,
-    applied: count => count === 1 ? "The settings now apply to 1 class." : `The settings now apply to ${count} classes.`,
+    applied: count => `${count === 1 ? "The settings are filled in for 1 class" : `The settings are filled in for ${count} classes`}. Nothing is saved yet: press Show draw and then Save the draw.`,
     noneSelected: "Tick the classes first, or use for all."
   },
   selectAll: "Draw all classes",
@@ -44,6 +44,8 @@ export const startDrawEn: Texts<typeof startDrawSv> = {
   vacancyKind: "Vacancies as",
   hasTimes: "Has start times",
   drawClass: className => `Draw ${className}`,
+  unsaved: count => `Not saved: ${count === 1 ? "1 class has" : `${count} classes have`} another start type here than the one in force. The runners get the start type and the times only when you press Show draw and then Save the draw.`,
+  unsavedAction: "Preview",
   preview: "Show draw", save: "Save the draw", replaceAndSave: "Replace the start times and save", cancel: "Change the settings",
   noneSelected: "Tick at least one class to draw.",
   invalid: "Write the first start as a clock time (for example 10:00), interval 1–60 minutes and vacancies as a whole number (at most 100 %).",

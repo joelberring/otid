@@ -25,9 +25,10 @@ export const classTableSv = {
   sourceNameShort: (name: string) => `Importerad som ${name}`,
   useSourceName: "Använd importens namn",
   massStart: "Masstart kl.",
-  massStartHelp: "Alla i klassen startar samtidigt, också de som anmäler sig sent.",
+  massStartHelp: "Alla i klassen startar samtidigt, också de som anmäler sig sent. Tiden räknas från masstarten. Gäller direkt när du trycker Sätt masstart, också för en klass med fri start.",
+  /** Klasstabellens startsätt när klassen har masstart. */
+  massStartAt: (clock: string) => `Masstart ${clock}`,
   massStartSave: "Sätt masstart",
-  massStartNeedsFixed: "Masstart: välj startsättet Minutstart och spara, sedan kan klassen få en gemensam starttid här.",
   massStartInvalid: "Skriv en hel minut, till exempel 19:00.",
   massStartConfirm: "Klassen har redan starttider eller avlästa löpare. Ersätta dem med masstarten?",
   massStartSaved: (clock: string) => `Masstart kl. ${clock} är satt för klassen.`,

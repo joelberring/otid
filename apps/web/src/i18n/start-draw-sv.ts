@@ -19,7 +19,7 @@ export const startDrawSv = {
     laterStartHelp: "Klockslag om klasserna ska börja senare än tävlingens första start. Tomt = som förut.",
     applyAll: "Använd för alla",
     applySelected: (count: number) => `Använd för valda (${count})`,
-    applied: (count: number) => count === 1 ? "Inställningarna gäller nu 1 klass." : `Inställningarna gäller nu ${count} klasser.`,
+    applied: (count: number) => `${count === 1 ? "Inställningarna är ifyllda för 1 klass" : `Inställningarna är ifyllda för ${count} klasser`}. Inget är sparat än: tryck Visa lottning och sedan Spara lottningen.`,
     noneSelected: "Kryssa i klasserna först, eller använd för alla."
   },
   selectAll: "Lotta alla klasser",
@@ -31,6 +31,9 @@ export const startDrawSv = {
   vacancyKind: "Vakanser som",
   hasTimes: "Har starttider",
   drawClass: (className: string) => `Lotta ${className}`,
+  /** Ägaren 2026-11-15: valen i tabellen såg ut att gälla fast lottningen inte var sparad. */
+  unsaved: (count: number) => `Inte sparat: ${count === 1 ? "1 klass har" : `${count} klasser har`} ett annat startsätt här än det som gäller nu. Löparna får startsättet och tiderna först när du trycker Visa lottning och sedan Spara lottningen.`,
+  unsavedAction: "Förhandsvisa",
   preview: "Visa lottning", save: "Spara lottningen", replaceAndSave: "Ersätt starttiderna och spara", cancel: "Ändra inställningarna",
   noneSelected: "Kryssa i minst en klass att lotta.",
   invalid: "Skriv första start som klockslag (till exempel 10:00), intervall 1–60 minuter och vakanser som ett heltal (högst 100 %).",

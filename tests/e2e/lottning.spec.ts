@@ -109,7 +109,7 @@ test("lotta tre klasser, publicera startlistan och placera en efteranmäld på v
 });
 
 /**
- * Ägaren 2026-11-08: masstart direkt på klassen (nattcup). Klassen får minutstart, sedan masstart kl. 19:00 i klassens rad: alla
+ * Ägaren 2026-11-08: masstart direkt på klassen (nattcup). Klassen får masstart kl. 19:00 i klassens rad: alla
  * anmälda får tiden, och en efteranmäld får samma tid.
  */
 test("masstart direkt på klassen", async ({ browser }) => {
@@ -124,23 +124,16 @@ test("masstart direkt på klassen", async ({ browser }) => {
   await openStep(owner, "Klasser");
   const row = owner.getByRole("row", { name: /Natt lång/ });
   await row.getByRole("button", { name: "Redigera Natt lång" }).click();
-  const editor = owner.getByRole("form", { name: "Redigera Natt lång" });
-  await expect(editor.getByTestId("class-mass-start")).toHaveCount(0);
-  await editor.getByLabel("Startsätt").selectOption({ label: "Minutstart" });
+  await expect(owner.getByRole("form", { name: "Redigera Natt lång" })).toBeVisible();
+  // Ägaren 2026-11-15: masstarten sätts direkt, också när klassen har fri start (inget steg via minutstart).
   const classRow = owner.getByRole("row", { name: /^Natt lång Natt/ });
-  // Ett nytt startsätt kan först visa vad som händer; då sparar nästa tryck.
-  await expect.poll(async () => {
-    if ((await classRow.textContent())?.includes("Minutstart")) return true;
-    const save = editor.getByRole("button", { name: "Spara ändringen" });
-    if (await save.isVisible()) await save.click({ timeout: 2_000 }).catch(() => undefined);
-    return false;
-  }, { timeout: 30_000, intervals: [1_000] }).toBe(true);
-
-  await classRow.getByRole("button", { name: "Redigera Natt lång" }).click();
+  await expect(classRow).toContainText("Fri start");
   const massStart = owner.getByTestId("class-mass-start");
   await massStart.getByTestId("class-mass-start-time").fill("19:00");
   await massStart.getByTestId("class-mass-start-save").click();
   await expect(massStart.getByRole("status")).toHaveText("Masstart kl. 19:00 är satt för klassen.", { timeout: 20_000 });
+  // Klasstabellen säger masstart, inte minutstart.
+  await expect(classRow).toContainText("Masstart 19:00", { timeout: 20_000 });
 
   // Alla anmälda och en efteranmäld har 19:00.
   await addEntry(owner, { className: "Natt lång", givenName: "Cia", familyName: "Natt", club: "OK Ek", card: "8300003" });

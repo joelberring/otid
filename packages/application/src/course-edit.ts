@@ -24,6 +24,7 @@ import { courseForkingView, loadCourseVersionForking, planForkingSave, type Fork
 import { loadCoursePositions, withPositionLengths } from "./course-positions";
 import { PLACEHOLDER_COURSE } from "./source-sync-model";
 import { loadRogainingSetup } from "./rogaining";
+import { loadDrawPlans } from "./start-draw-basis";
 import { UUID_PATTERN as uuid } from "./serialization";
 
 /**
@@ -299,13 +300,16 @@ export async function listCoursesForEditAsAdmin(db: Database, input: Authenticat
     const resultEntries = new Set((await tx.selectDistinct({ entryId: schema.resultRevisions.entryId }).from(schema.resultRevisions)
       .where(and(eq(schema.resultRevisions.raceId, raceId), eq(schema.resultRevisions.published, true)))).map(row => row.entryId));
     const classRows = await tx.select({ id: schema.classes.id, name: schema.classes.name, startRule: schema.classes.startRule,
-      courseId: schema.courseVersions.courseId, courseVersionId: schema.classes.courseVersionId,
+      courseId: schema.courseVersions.courseId, courseVersionId: schema.classes.courseVersionId, startDrawId: schema.classes.startDrawId,
       externalSource: schema.classes.externalSource, externalId: schema.classes.externalId, maxTimeMinutes: schema.classes.maxTimeMinutes,
       rogainingTimeLimitSeconds: schema.classes.rogainingTimeLimitSeconds, sourceName: schema.classes.sourceName })
       .from(schema.classes).innerJoin(schema.courseVersions, eq(schema.courseVersions.id, schema.classes.courseVersionId))
       .where(eq(schema.classes.raceId, raceId)).orderBy(asc(schema.classes.name), asc(schema.classes.id));
     const classVariants = await loadCourseVersionVariants(tx, classRows.map(row => row.courseVersionId));
+    // Masstart är en lottning där alla får samma tid; klassen lagras som fast starttid men ska heta masstart (ägaren 2026-11-15).
+    const drawPlans = await loadDrawPlans(tx, classRows);
     const classes = classRows.map(row => {
+      const plan = row.startRule === "FIXED" ? drawPlans.get(row.id) : undefined;
       const classEntries = entries.filter(entry => entry.classId === row.id);
       const codes = (classVariants.get(row.courseVersionId) ?? []).map(variant => variant.code);
       return { classId: row.id, name: row.name, courseId: row.courseId, startRule: row.startRule, entryCount: classEntries.length,
@@ -316,6 +320,7 @@ export async function listCoursesForEditAsAdmin(db: Database, input: Authenticat
         // Alla klasser får döpas om; en importerad visar källans namn när det egna skiljer sig (migration 0099).
         renamable: true, sourceName: row.externalSource !== null || row.externalId !== null ? row.sourceName : null, variantCount: codes.length,
         maxTimeMinutes: row.maxTimeMinutes, rogaining: row.rogainingTimeLimitSeconds !== null,
+        massStartTime: plan?.method === "MASS" ? plan.firstStartTime.toISOString() : null,
         missingVariantCount: codes.length === 0 ? 0 : classEntries.filter(entry => {
           const code = entryVariants.get(entry.id);
           return code === null || code === undefined || !codes.includes(code);

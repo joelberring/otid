@@ -60,7 +60,9 @@ export const courseEditListResponseSchema = z.object({
     // Gafflad klass: antal varianter och löpare utan variant ("Fördela gafflingar").
     variantCount: count, missingVariantCount: count,
     /** Maxtid i minuter (PLAN.md steg 25); null = ingen. Rogainingklasser har egen tidsgräns och ingen maxtid. */
-    maxTimeMinutes: z.number().int().min(1).max(1440).nullable().optional(), rogaining: z.boolean().optional()
+    maxTimeMinutes: z.number().int().min(1).max(1440).nullable().optional(), rogaining: z.boolean().optional(),
+    /** Klassens masstart (ägaren 2026-11-15: masstart ska heta masstart, inte minutstart): tiden när klassens lottning är en masstart, annars null. */
+    massStartTime: z.iso.datetime({ offset: true }).nullable().optional()
   }).strict()).max(1000),
   // ADR-0170 beslut 5: kontrollernas poäng och klassernas rogainingregler ("Kontroller & poäng").
   rogaining: rogainingSetupSchema

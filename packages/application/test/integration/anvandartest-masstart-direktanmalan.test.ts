@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase, migrate } from "@o-tid/database";
 import { RESULT_ENGINE_VERSION } from "@o-tid/domain";
+import { listCoursesForEditAsAdmin } from "../../src/course-edit";
 import { registerReadoutCard } from "../../src/readout-registration";
 import { readReadoutPackageAsAdmin } from "../../src/readout-station";
 import { listUnknownReadoutResolutionCandidatesAsAdmin, resolveUnknownReadoutAsAdmin } from "../../src/unknown-readout-resolution";
@@ -71,6 +72,10 @@ describe("användartestet 2026-11-12, fel A: direktanmäld i en klass med massta
     const pkg = await readReadoutPackageAsAdmin(db, proof);
     if (pkg.status !== "ok") throw new Error("Paketet saknas");
     expect(pkg.response.massStarts).toEqual([{ classId: classes.H21, startTime: MASS_START }]);
+    // Klasstabellen får masstartens tid, så att klassen heter masstart och inte minutstart (ägaren 2026-11-15).
+    const listed = await listCoursesForEditAsAdmin(db, proof);
+    if (listed.status !== "ok") throw new Error("Klasslistan saknas");
+    expect(listed.response.classes.find(row => row.classId === classes.H21)).toMatchObject({ startRule: "FIXED", massStartTime: MASS_START });
     const registered = await registerReadoutCard(db, { ...proof, ...registration(classes.H21, "7505002", "Offline") });
     if (registered.status !== "registered") throw new Error(registered.status);
     expect(registered.response).toMatchObject({ outcome: "CREATED", linkedResult: null });

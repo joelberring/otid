@@ -102,7 +102,7 @@ test("lotta tio klasser med gemensamma inställningar och en kompakt förhandsvi
   await common.getByLabel("Intervall (min) för klasserna").fill("2");
   await common.getByLabel("Vakanser för klasserna", { exact: true }).fill("2");
   await common.getByRole("button", { name: "Använd för alla" }).click();
-  await expect(common.getByRole("status")).toHaveText("Inställningarna gäller nu 10 klasser.");
+  await expect(common.getByRole("status")).toHaveText("Inställningarna är ifyllda för 10 klasser. Inget är sparat än: tryck Visa lottning och sedan Spara lottningen.");
   await expect(draw.getByLabel("Lotta alla klasser")).toBeChecked();
   for (const name of CLASSES) {
     await expect(draw.getByLabel(`Startsätt ${name}`)).toHaveValue("MINUTE");

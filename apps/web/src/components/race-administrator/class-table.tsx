@@ -8,6 +8,7 @@ import { classTableEn } from "../../i18n/workspace-admin-en";
 import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
 import { useTexts } from "../language-provider";
 import type { CourseEditListResponse } from "@o-tid/contracts";
+import { formatClockTime } from "@o-tid/domain";
 import styles from "../race-administrator-workspace.module.css";
 import { classTableSv } from "../../i18n/class-table-sv";
 import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
@@ -87,7 +88,7 @@ export function ClassTable({ ws, visible }: { ws: Workspace; visible: boolean })
                 {variantText.distribute}</Button>
             </>}</td>
           {startRuleChoice && <td data-label={text.startRule}>{relayLegs.get(row.classId) ? relayText.relayStartRule(relayLegs.get(row.classId)!)
-            : row.startRule === "PUNCH" ? text.free : text.fixed}</td>}
+            : row.startRule === "PUNCH" ? text.free : row.massStartTime ? text.massStartAt(formatClockTime(row.massStartTime, ws.data?.timeZone ?? "UTC").slice(0, 5)) : text.fixed}</td>}
           <td className={numeric} data-label={text.entries}>{row.entryCount}</td>
           <td data-label={text.readOut}>{text.readOutValue(row.readOutCount, row.resultCount)}</td>
           <td data-label={text.status}><ClassStatus row={row} disabled={workflowLocked} onMissingStartTimes={() => openMissingFixedStart(row.classId)} /></td>
@@ -153,7 +154,7 @@ function ClassEditor({ ws, row }: { ws: Workspace; row: ClassRow }) {
           onChange={event => changeClassEdit({ maxTime: event.target.value })} /></Field>}
     </div>
     {startRuleChoice && !row.rogaining && !ws.data?.classes.some(raceClass => raceClass.id === row.classId && raceClass.relayLegCount) &&
-      <ClassMassStart ws={ws} classId={row.classId} startRule={row.startRule} />}
+      <ClassMassStart ws={ws} classId={row.classId} current={row.massStartTime ? formatClockTime(row.massStartTime, ws.data?.timeZone ?? "UTC").slice(0, 5) : undefined} />}
     {row.sourceName && <p className={styles.workflowHelp}>{text.sourceName(row.sourceName)}{" "}
       <Button variant="quiet" disabled={locked} onClick={() => changeClassEdit({ name: row.sourceName! })}>{text.useSourceName}</Button></p>}
     {classEditPreview && <section className={styles.review} role="status" aria-live="polite">

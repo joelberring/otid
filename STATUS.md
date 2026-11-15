@@ -13,6 +13,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-15 – Bingoorientering och Sänka skepp (steg B, ADR-0225, migration 0125–0126)
+
+- Ägaren (ungdomarnas vinterträning tisdag): Träning-fliken i banläggningen har kortet «Bingo»: rita området (två hörn), lägg till grupper (namn, förslag Grön, Vit, Gul …, rutans sida 100/150/250 m, skala, valfritt eget område och skepp). Varje grupp är en bana utan kontroller; rutnätet och namnen (A1 …) ritas i banpåtrycket och skrivs ut som vanligt.
+- «Med telefonen» (bara admin): läge Bingo eller Sänka skepp. Startsidan visar träningen bara under Pågår nu på dagen; `/t/<kod>/bingo` har anmälan utan konto (namn, grupp, Starta), fickläget och topplistan; `/admin/<tävling>/bingo` ledarens tabell med spår eller skott.
+- Reglerna (rutor, sträcka, glapp, skepp, skott, poäng) är rena funktioner i `packages/domain` med enhetstester; servern bedömer skotten på nytt. Telefonen sparar loppet lokalt och tar bort det först efter kvittens.
+- Kontrollerat: lint, typecheck, enhetstester (domain, course-setting, web), integrationstester mot PostgreSQL 16 (bingo, schemadrift, återställning, publika tävlingar), PDF-prov med fixturkartan, knip. Inte provat i en riktig telefon eller i skogen; ingen Playwright.
+- iPhone: ingen position med låst skärm eller dold sida, ingen vibration; ljudet tystas av ljudlöst-knappen före Safari 17.
 ### 2026-11-15 – Inga ringar eller punkthöjder på kurvorna
 
 - Ägaren (Ornö, bilder): «stödkurvan och vanliga kurvan rakt på varandra … i princip samma ring» och «punkthöjder som ligger på kurvor på konstigt sätt». `chooseHills` ritar inte en höjds ring när minst 30 % av den ligger inom 0,25 mm från en kurva eller hjälpkurva som redan finns (`line-near.ts`), och `settleHills` tar bort punkthöjder vars mitt ligger inom 0,28 mm från en kurva, hjälpkurva eller ny ring (de kommer tillbaka med `unsettleHills`).

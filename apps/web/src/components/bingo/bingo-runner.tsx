@@ -29,7 +29,7 @@ export function BingoRunner({ raceId, mode, title, groups, georeference, mapScal
   const text = useTexts(bingoSv.runner, bingoEn.runner);
   const shipText = useTexts(bingoSv.ships, bingoEn.ships);
   const bingo = useBingoRun({ raceId, mode, groups, georeference, mapScale });
-  const board = useBingoBoard(raceId, initialBoard);
+  const board = useBingoBoard(raceId, initialBoard, bingo.run?.acked);
   const [blocked, setBlocked] = useState(false);
   const [message, setMessage] = useState<{ text: string; at: number }>();
   const run = bingo.run;

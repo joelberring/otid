@@ -1439,6 +1439,16 @@ Underlag: `claude/plan-lagring-och-backup-2026-11-13.md` och ADR-0224. Delas i l
 
 Backupen utanför servern (Storage Box med restic) är drift, inte kod: stegen står i docs/drift.md och i underlaget.
 
+## [ ] Steg B – Bingoorientering och Sänka skepp (ägaren 2026-11-15)
+
+Ungdomarnas vinterträning tisdag 2026-11-17. ADR-0225.
+
+- [x] B1 Rutnät per grupp i banläggningens träning (område, rutstorlek, eget område) och utskrift med rutornas namn.
+- [x] B2 Telefonen per tävling (Bingo eller Sänka skepp), synlig på startsidan bara den dagen, anmälan på plats utan konto.
+- [x] B3 Bingo med GPS: rutor, sträcka, glapp, pling, fickläge, kö mot servern, topplista och ledarens tabell och spår.
+- [x] B4 Sänka skepp: egna skepp per löpare, skott med en position, poäng, topplista och ledarens skott på kartan.
+- [ ] B5 Provat i skogen med Android och iPhone (ägaren, tisdag 2026-11-17).
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

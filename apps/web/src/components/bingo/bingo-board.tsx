@@ -10,8 +10,11 @@ import styles from "./bingo.module.css";
 
 const REFRESH_MS = 15_000;
 
-/** Topplistan hämtas var 15:e sekund (ADR-0225). Ett misslyckat hämtande behåller den förra listan. */
-export function useBingoBoard(raceId: string, initial: BingoLeaderboard): BingoLeaderboard {
+/**
+ * Topplistan hämtas var 15:e sekund och direkt när `fresh` ändras (telefonens läge är kvitterat) (ADR-0225). Ett
+ * misslyckat hämtande behåller den förra listan.
+ */
+export function useBingoBoard(raceId: string, initial: BingoLeaderboard, fresh?: number): BingoLeaderboard {
   const [board, setBoard] = useState(initial);
   useEffect(() => {
     let stopped = false;
@@ -23,9 +26,10 @@ export function useBingoBoard(raceId: string, initial: BingoLeaderboard): BingoL
         if (!stopped) setBoard(next);
       } catch (error) { console.warn("Topplistan kunde inte hämtas", error); }
     };
+    if (fresh) void load();
     const timer = window.setInterval(() => { if (document.visibilityState === "visible") void load(); }, REFRESH_MS);
     return () => { stopped = true; window.clearInterval(timer); };
-  }, [raceId]);
+  }, [raceId, fresh]);
   return board;
 }
 

@@ -39,6 +39,7 @@ export function BingoBoard({ board, only, dark, mine }: { board: BingoLeaderboar
   const text = useTexts(bingoSv.board, bingoEn.board);
   const ships = useTexts(bingoSv.ships, bingoEn.ships);
   const groups = board.groups.filter(group => only === undefined || group.course === only);
+  if (board.mode === "CONTROLS") return <VirtualBoard board={board} groups={groups} only={only} dark={dark} mine={mine} />;
   return <section className={dark ? styles.boardDark : styles.board} aria-labelledby="bingo-board">
     <h2 id="bingo-board">{text.heading}</h2>
     {groups.map(group => <div key={group.course} className={styles.boardGroup}>
@@ -69,4 +70,34 @@ export function BingoBoard({ board, only, dark, mine }: { board: BingoLeaderboar
 /** Topplistan på tävlingssidan, uppdateras som på löparens sida. */
 export function LiveBingoBoard({ raceId, initial }: { raceId: string; initial: BingoLeaderboard }) {
   return <BingoBoard board={useBingoBoard(raceId, initial)} />;
+}
+
+/** Topplistan med virtuella kontroller (ADR-0226): per bana kontroller, poäng och tid; dueller med lagens poäng. */
+function VirtualBoard({ board, groups, only, dark, mine }: { board: BingoLeaderboard; groups: BingoLeaderboard["groups"]; only?: string | undefined;
+  dark?: boolean | undefined; mine?: string | undefined }) {
+  const text = useTexts(bingoSv.board, bingoEn.board);
+  const vk = useTexts(bingoSv.virtual, bingoEn.virtual);
+  const duels = (board.duels ?? []).filter(duel => only === undefined || duel.course === only);
+  return <section className={dark ? styles.boardDark : styles.board} aria-labelledby="bingo-board">
+    <h2 id="bingo-board">{text.heading}</h2>
+    {duels.map(duel => <div key={duel.code} className={styles.boardGroup}>
+      <h3>{vk.duelHeading(duel.code)}</h3>
+      <table className={styles.table} data-testid="virtual-duel-board"><thead><tr><th scope="col">#</th><th scope="col">{vk.teams}</th>
+        <th scope="col">{vk.points}</th></tr></thead>
+        <tbody>{duel.teams.map((team, index) => <tr key={team.team} data-mine={team.runners.includes(mine ?? "") || undefined}>
+          <td>{index + 1}</td><td>{team.team}{team.runners.length > 1 || team.runners[0] !== team.team ? <span className={styles.muted}> ({team.runners.join(", ")})</span> : null}</td>
+          <td>{team.points}</td></tr>)}</tbody></table>
+    </div>)}
+    {groups.map(group => <div key={group.course} className={styles.boardGroup}>
+      {only === undefined && <h3>{group.name}</h3>}
+      {group.runners.length === 0 ? <p className={styles.muted}>{text.none}</p> : <table className={styles.table} data-testid="bingo-board">
+        <thead><tr><th scope="col">#</th><th scope="col">{text.name}</th><th scope="col">{vk.controls}</th><th scope="col">{vk.points}</th>
+          <th scope="col">{text.time}</th></tr></thead>
+        <tbody>{group.runners.map((row, index) => <tr key={`${row.name}-${index}`} data-mine={row.name === mine || undefined}>
+          <td>{index + 1}</td><td>{row.name} <span className={styles.muted}>{text.status[row.status]}{row.duel ? ` · ${row.duel}` : ""}</span></td>
+          <td>{row.controls ?? 0}/{group.cells}</td><td>{row.points ?? 0}</td><td>{formatBingoTime(row.seconds)}</td>
+        </tr>)}</tbody>
+      </table>}
+    </div>)}
+  </section>;
 }

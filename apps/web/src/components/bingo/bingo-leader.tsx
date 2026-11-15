@@ -11,6 +11,7 @@ import { raceHubPath } from "../../lib/public-race-format";
 import { useTexts } from "../language-provider";
 import { Notice } from "../ui";
 import { BingoMap } from "./bingo-map";
+import { VirtualLeader } from "./virtual-leader";
 import styles from "./bingo.module.css";
 
 const REFRESH_MS = 10_000;
@@ -41,6 +42,7 @@ export function BingoLeader({ raceId }: { raceId: string }) {
 
   if (!view) return <main className={styles.leader}><h1>{text.title}</h1>{failed ? <Notice tone="error" role="alert">{text.failed}</Notice>
     : <p role="status">{text.loading}</p>}</main>;
+  if (view.mode === "CONTROLS") return <VirtualLeader raceId={raceId} view={view} failed={failed} />;
   const group = view.groups.find(item => item.course === course) ?? view.groups[0];
   const shipsMode = view.mode === "SHIPS";
   const runners = view.runners.filter(row => row.course === group?.course)

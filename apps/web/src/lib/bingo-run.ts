@@ -3,7 +3,7 @@
  * servern och hjälp för brickan. Telefonen sparar hela loppet efter varje ändring och raderar det aldrig förrän servern har
  * kvitterat den senaste versionen (AGENTS.md).
  */
-import { EMPTY_BINGO_RUN, type BingoRunState, type Shot } from "@o-tid/domain";
+import { EMPTY_BINGO_RUN, type BingoRunState, type Shot, type VirtualPunch } from "@o-tid/domain";
 import type { BingoProgressRequest } from "@o-tid/contracts";
 
 export interface StoredBingoRun {
@@ -18,6 +18,10 @@ export interface StoredBingoRun {
   /** Sänka skepp: fröet för löparens skepp och skotten. */
   readonly seed?: number | undefined;
   readonly shots?: readonly Shot[] | undefined;
+  /** Virtuella kontroller (ADR-0226): stämplingarna, duellens kod och laget. */
+  readonly punches?: readonly VirtualPunch[] | undefined;
+  readonly duel?: string | undefined;
+  readonly team?: string | undefined;
   /** Ökar vid varje ändring; `acked` är den version servern senast kvitterade. */
   readonly version: number;
   readonly acked: number;
@@ -72,7 +76,10 @@ export function bingoProgressRequest(run: StoredBingoRun): BingoProgressRequest 
     track: run.run.track.map(([x, y, t]) => [Math.round(x * 100) / 100, Math.round(y * 100) / 100, t] as [number, number, number]),
     gaps: run.run.gaps.map(([from, to]) => [from, to] as [number, number]),
     ...(run.seed !== undefined ? { seed: run.seed, shots: (run.shots ?? []).map(shot => ({ cell: shot.cell, at: shot.at,
-      x: Math.round(shot.x * 100) / 100, y: Math.round(shot.y * 100) / 100, accuracyM: Math.round(shot.accuracyM * 10) / 10 })) } : {}) };
+      x: Math.round(shot.x * 100) / 100, y: Math.round(shot.y * 100) / 100, accuracyM: Math.round(shot.accuracyM * 10) / 10 })) } : {}),
+    ...(run.punches ? { punches: run.punches.map(punch => ({ control: punch.control, at: punch.at, x: Math.round(punch.x * 100) / 100,
+      y: Math.round(punch.y * 100) / 100, accuracyM: Math.round(punch.accuracyM * 10) / 10 })) } : {}),
+    ...(run.duel ? { duel: run.duel } : {}), ...(run.team ? { team: run.team } : {}) };
 }
 
 /** Skeppen som text: "C4–C5, F2" (första och sista rutan). */

@@ -98,3 +98,7 @@
 .fleetShip { display: inline-flex; gap: 2px; }
 .fleetShip > span { width: 14px; height: 14px; border: 2px solid currentColor; box-sizing: border-box; }
 .fleetShip[data-sunk] > span { background: currentColor; }
+.controls, .controlsDark { display: block; width: 100%; height: auto; max-height: 60vh; overflow: hidden; }
+.controls { border: 1px solid var(--line, #dce0dd); background: #fff; }
+.controlsDark { background: #000; }
+.notice { margin: 0; text-align: center; color: #ffd27a; font-weight: 700; }

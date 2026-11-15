@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { raceIdForShortCode, readBingoPublic } from "@o-tid/application";
 import { raceTitle } from "@o-tid/domain";
 import { BingoRunner } from "../../../../components/bingo/bingo-runner";
+import { VirtualRunner } from "../../../../components/bingo/virtual-runner";
 import styles from "../../../../components/bingo/bingo.module.css";
 import { bingoEn } from "../../../../i18n/bingo-en";
 import { bingoSv } from "../../../../i18n/bingo-sv";
@@ -22,7 +23,8 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const raceId = await raceIdForShortCode(db, (await params).code);
   const read = raceId ? await readBingoPublic(db, { raceId, staff: false }) : undefined;
   const mode = read?.status === "ok" ? read.race.mode : read?.status === "closed" ? read.mode : "BINGO";
-  const title = mode === "SHIPS" ? (en ? bingoEn : bingoSv).ships.title : (en ? bingoEn : bingoSv).runner.title;
+  const title = mode === "SHIPS" ? (en ? bingoEn : bingoSv).ships.title : mode === "CONTROLS" ? (en ? bingoEn : bingoSv).virtual.title
+    : (en ? bingoEn : bingoSv).runner.title;
   return { title: `${title} – ${sv.appName}`, robots: NO_INDEX_ROBOTS };
 }
 
@@ -39,9 +41,14 @@ export default async function BingoPage({ params }: Params) {
   const language = await currentLanguage();
   const text = language === "en" ? bingoEn.runner : bingoSv.runner;
   if (read.status === "closed") {
-    return <main className={styles.page}><h1>{read.mode === "SHIPS" ? (language === "en" ? bingoEn : bingoSv).ships.title : text.title}</h1><p className={styles.kicker}>{raceTitle(read.eventName, read.raceName)}</p>
+    return <main className={styles.page}><h1>{read.mode === "SHIPS" ? (language === "en" ? bingoEn : bingoSv).ships.title
+      : read.mode === "CONTROLS" ? (language === "en" ? bingoEn : bingoSv).virtual.title : text.title}</h1><p className={styles.kicker}>{raceTitle(read.eventName, read.raceName)}</p>
       <p role="status">{text.closed(formatRaceDate(read.raceDate, undefined, LOCALE[language]))}</p></main>;
   }
+  // ADR-0226: virtuella kontroller har en egen löparsida; Bingo och Sänka skepp är oförändrade.
+  if (read.race.mode === "CONTROLS") return <VirtualRunner raceId={raceId} title={raceTitle(read.race.eventName, read.race.raceName)}
+    courses={read.setup.courses} settings={read.setup.settings} georeference={read.setup.georeference} mapScale={read.setup.mapScale}
+    image={read.setup.image} initialBoard={read.leaderboard} />;
   return <BingoRunner raceId={raceId} mode={read.race.mode} title={raceTitle(read.race.eventName, read.race.raceName)} groups={read.setup.groups}
     georeference={read.setup.georeference} mapScale={read.setup.mapScale} image={read.setup.image} initialBoard={read.leaderboard} />;
 }

@@ -20,6 +20,11 @@ describe("grundkartan", () => {
     expect(mergeBaseMap([knolls, { name: "berg.dxf", data: data("dotknoll_laser") }]).features.map(feature => feature.layer)).toEqual(["udepression", "dotknoll_laser"]);
   });
 
+  it("laserns stenar läggs inte i grundkartan (ägaren 2026-11-15: de låg nästan aldrig där kartritarna har stenar)", () => {
+    const rock = { name: "berg.dxf", data: data("sten", "stort_block", "dotknoll_laser") };
+    expect(mergeBaseMap([rock]).features.map(feature => feature.layer)).toEqual(["dotknoll_laser"]);
+  });
+
   it("väljer delarna i ordning: brantlinjer före strecken, marktäckets sankmark före den uträknade fuktigheten", () => {
     const all = ["karta.png", "karta.pgw", "kurvor.dxf", "formlinjer.dxf", "branter.dxf", "stup.dxf", "knollar.dxf", "fukt.png", "fukt.dxf", "vegetation.dxf",
       "brantlinjer.dxf", "vatten.geojson"];

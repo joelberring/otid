@@ -109,7 +109,7 @@ describe("kandidaterna i Workern", () => {
     expect(cleared.clear!.suggested).toBeUndefined();
     // Utan angivna nivåer väljs förvalen efter terrängen (här brant: de vanliga förvalen), och svaret säger vilka.
     const auto = run({ clear: { parts: clear.parts } });
-    expect(auto.clear!.settings).toEqual({ smooth: 5, formlines: 5, rings: 5 });
+    expect(auto.clear!.settings).toEqual({ smooth: 5, formlines: 4, rings: 5 });
     expect(auto.clear!.suggested).toEqual(auto.clear!.settings);
     expect(run({ merge: false, clear }).clear).toBeUndefined();
   });

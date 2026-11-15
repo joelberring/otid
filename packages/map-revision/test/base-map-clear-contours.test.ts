@@ -20,7 +20,7 @@ const turning = (feature: SourceFeature) => pointsOf(feature).reduce((sum, point
 describe("tydligare kurvbild: nivåerna", () => {
   it("0 är av och 5 är förvalet", () => {
     expect(smoothLimitsAt(0)).toBeUndefined(); expect(formlineLimitsAt(0)).toBeUndefined(); expect(ringLimitAt(0)).toBeUndefined();
-    expect(DEFAULT_CLEAR).toEqual({ smooth: 5, formlines: 5, rings: 5 });
+    expect(DEFAULT_CLEAR).toEqual({ smooth: 5, formlines: 4, rings: 5 });
     expect(smoothLimitsAt(5)).toEqual({ sigma: 15, fullSlope: 0.04, noSlope: 0.12 });
     expect(formlineLimitsAt(5)).toEqual({ minConvex: 0, tight: 5, minForm: -1 });
     // Över förvalet prövas formen mellan höjdkurvorna: jämn lutning (0) tas bort från nivå 9, och på 10 står bara höjdformerna kvar.
@@ -165,9 +165,9 @@ describe("tydligare kurvbild: förvalen efter terrängen", () => {
   it("behåller förvalen i kuperad terräng och tar bort mindre i flack", () => {
     expect(suggestedClear(contours(10), plane(0.3))).toEqual(DEFAULT_CLEAR);
     expect(suggestedClear(contours(10), split(100))).toEqual(DEFAULT_CLEAR);
-    expect(suggestedClear(contours(10), plane(0.02))).toEqual({ smooth: 4, formlines: 3, rings: 1 });
+    expect(suggestedClear(contours(10), plane(0.02))).toEqual({ smooth: 4, formlines: 2, rings: 1 });
     // 30 % flackt: hjälpkurvorna en nivå ner, ringarna och utjämningen som förvalet.
-    expect(suggestedClear(contours(10), split(150))).toEqual({ smooth: 5, formlines: 4, rings: 5 });
+    expect(suggestedClear(contours(10), split(150))).toEqual({ smooth: 5, formlines: 3, rings: 5 });
     expect(suggestedClear([], plane(0.02))).toEqual(DEFAULT_CLEAR);
   });
 });

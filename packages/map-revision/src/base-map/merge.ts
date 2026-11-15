@@ -70,6 +70,9 @@ const osmInSweref = (features: readonly SourceFeature[]): SourceFeature[] => {
     geometry: geometry.kind === "point" ? { kind: "point" as const, at: at(geometry.at) }
       : geometry.kind === "line" ? { kind: "line" as const, points: geometry.points.map(at), closed: geometry.closed } : { kind: "area" as const, rings: geometry.rings.map(ring => ring.map(at)) } }));
 };
+/** Laserns stenar (204, 205), som inte läggs i grundkartan. */
+const STONE_LAYER = /^(sten|stort_block)$/;
+
 export function osmForBaseMap(osm: SourceData, hasBuildings: boolean): SourceFeature[] {
   return osmInSweref(osm.features.filter(feature => feature.layer === OSM_RESIDENTIAL || (!OSM_SKIPPED.test(feature.layer) && !(hasBuildings && OSM_BUILDING.test(feature.layer)))))
     .map(feature => feature.layer === OSM_RESIDENTIAL ? { ...feature, layer: "tomtmark_osm" } : feature);
@@ -193,7 +196,10 @@ export function mergeBaseMap(parts: readonly { readonly name: string; readonly d
   // Ägaren 2026-11-11 (Högdalen som facit: 282 punkthöjder mot kartritarens 153, många i sluttningar): finns laserns egna
   // små kullar (berg.dxf, prövade mot markmodellen) ersätter de Karttapullautins knollar; groparna behålls.
   const laserKnolls = features.some(feature => feature.layer === "dotknoll_laser");
-  const knolls = laserKnolls ? features.filter(feature => !(feature.layer === "dotknoll" && feature.geometry.kind === "point")) : features;
+  // Ägaren 2026-11-15 («ta bort stenar om de är så fel»): laserns stenar (geo-rock.ts) låg nästan aldrig där kartritarna har
+  // en sten: 0 av 126 i Tyresta och 2 av 35 i Högdalen inom 6 m. De läggs inte i grundkartan.
+  const knolls = features.filter(feature => !(feature.geometry.kind === "point" && (STONE_LAYER.test(feature.layer)
+    || (laserKnolls && feature.layer === "dotknoll"))));
   // Skogsstyrelsens hyggen efter ålder; laserns vegetation i ett hygge som är yngre än skanningen tas bort.
   const all = [...ticks, ...withoutCutVegetation(scale ? smallRingsToPoints(knolls, scale) : knolls, cuts?.afterScan ?? []), ...(cuts?.features ?? []), ...(osm ? osmForBaseMap(osm, names.has("byggnader.geojson")) : [])];
   // Ägaren 2026-11-12: en sankmark per plats (blött, fuktigt och marktäckets låg på varandra).

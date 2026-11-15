@@ -19,6 +19,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Skottbrädet visar neutrala prickar för hur många andra i gruppen som stått i rutan och skjutit; tävlingssidan visar samma prickar som ett rutnät per grupp. Servern lämnar bara antal per ruta. Sänkta gemensamma står för sig i topplistan och ledarens tabell.
 - Kontrollerat: enhetstester (placering, förval, prickar), integrationstest (två löpare har samma gemensamma och olika egna skepp; prickarna), webbens tester, lint, typecheck, knip. Inte provat i telefon.
 
+### 2026-11-15 – Inga laserstenar i grundkartan, fler hjälpkurvor som förval
+
+- Ägaren: «ta bort stenar om de är så fel». Laserns stenar (`sten`, `stort_block`) låg nästan aldrig där kartritarna har sten (Tyresta 0 av 126, Högdalen 2 av 35 inom 6 m); `mergeBaseMap` lägger inte in dem.
+- Ägaren: «kalibrera otid mot mer hjälpkurvor, inte riktigt som Pärs». «Färre hjälpkurvor» har förvalet 4 (förut 5), och i flack terräng 2 (förut 3). Nivå 5 låg på Högdalen/Gömmaren/Djurgården (21/60/37 km mot 17/61/40); Arboga ville 2–3 och Tyresta har 129 km mot O-Tids 52. Inte mätt på nivå 4.
+- Kontrollerat: enhetstester, map-revision och webbens tester, typecheck, knip.
+
 ### 2026-11-15 – Inga raka streck när OpenStreetMaps stigar fogas ihop
 
 - Ägaren: «en del stigar sluts och får raka streck över kartan» (också en «jätterak stig» i Tyresta). `joinLines` (vector-import) mindes ändar som en hopslagen linje inte längre hade; där tre stigar möttes fogades den tredje på en mittpunkt och linjen hoppade rakt till den andra linjens ände. Nu fogas bara en linje vars nuvarande ände ligger på platsen.

@@ -30,14 +30,19 @@ import { ringArea } from "./small-rings";
  * Bara borttagning och utjämning: inget ritas dit. Ren kod utan I/O (webbläsaren och servern). Koordinater i meter.
  */
 export interface ClearSettings { readonly smooth: number; readonly formlines: number; readonly rings: number }
-/** Förvalen på skalan 0–10 (0 = av): ungefär kartritarnas mått på de tre kartorna. */
-export const DEFAULT_CLEAR: ClearSettings = { smooth: 5, formlines: 5, rings: 5 };
+/**
+ * Förvalen på skalan 0–10 (0 = av): ungefär kartritarnas mått på de tre kartorna. Ägaren 2026-11-15 («kalibrera otid mot mer
+ * hjälpkurvor, inte riktigt som Pärs dock»): hjälpkurvorna ett steg ner till 4. Nivå 5 gav 21/60/37 km mot kartritarnas
+ * 17/61/40 (Högdalen, Gömmaren, Djurgården), men Arboga ville ha 2–3 och Tyresta (Pär Svensson) ritar nästan varje halvkurva:
+ * 129 km mot O-Tids 52.
+ */
+export const DEFAULT_CLEAR: ClearSettings = { smooth: 5, formlines: 4, rings: 5 };
 
 /**
  * Förvalen efter terrängen (ägaren 2026-11-14, Arboga: «en annan typ av terräng»). I flack terräng med små former bär
  * hjälpkurvorna mer av bilden: Arbogas kartritare har 77 % av laserns hjälpkurvor och 440 av 616 ringar, Stockholmskartornas
  * 41–64 % och en fjärdedel av ringarna. Måttet är andelen av höjdkurvornas längd som går på mark under 12 % lutning
- * (Högdalen och Gömmaren 0,16, Djurgården 0,29, Arboga 0,47): upp till 0,2 gäller `DEFAULT_CLEAR`, från 0,45 hjälpkurvor 3,
+ * (Högdalen och Gömmaren 0,16, Djurgården 0,29, Arboga 0,47): upp till 0,2 gäller `DEFAULT_CLEAR`, från 0,45 hjälpkurvor 2,
  * ringar 1 och utjämning 4, rätlinjigt däremellan (ringarna först från 0,3).
  */
 export const FLAT_TERRAIN_SLOPE = 0.12;
@@ -58,7 +63,7 @@ export function suggestedClear(features: readonly SourceFeature[], field: Height
   const share = flatTerrainShare(features, field);
   if (share === undefined) return DEFAULT_CLEAR;
   const ramp = (from: number, to: number, start: number, end: number) => Math.round(from + (to - from) * Math.min(1, Math.max(0, (share - start) / (end - start))));
-  return { smooth: ramp(5, 4, 0.3, 0.45), formlines: ramp(5, 3, 0.2, 0.45), rings: ramp(5, 1, 0.3, 0.45) };
+  return { smooth: ramp(5, 4, 0.3, 0.45), formlines: ramp(4, 2, 0.2, 0.45), rings: ramp(5, 1, 0.3, 0.45) };
 }
 
 export interface SmoothLimits { readonly sigma: number; readonly fullSlope: number; readonly noSlope: number }

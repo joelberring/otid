@@ -4,6 +4,7 @@ import { isRing, ringTick } from "./depressions";
 import type { PixelAffine } from "./flat-contours";
 import { blend } from "./knoll-choice";
 import { maskOutlines, simplifyRing } from "./photo-interpret";
+import { MARSH_PIT_KEEP_DEPTH, marshTest } from "./marsh-pits";
 import { extentOf, GENERALIZE, ISOM_RINGS, ringArea } from "./small-rings";
 
 /**
@@ -250,12 +251,15 @@ export function choosePits(candidates: readonly PitCandidate[], limits: PitLimit
     const key = `${Math.floor(x / reach)},${Math.floor(y / reach)}`, row = list.get(key);
     if (row) row.push([x, y]); else list.set(key, [[x, y]]);
   };
+  // Ägaren 2026-11-15: inga grunda gropar i sankmark (`marsh-pits.ts`).
+  const inMarsh = marshTest(shown);
   const karttapullautin = new Map<string, Position[]>();
   for (const [x, y] of shownPits) remember(x, y, karttapullautin);
   const points: [number, number][] = [], rings: (readonly (readonly [number, number])[])[] = [];
   for (const pit of [...candidates].sort((p, q) => q.depth - p.depth)) {
     const [x, y] = pit.at;
     if (pit.depth < Math.min(limits.minDepth, limits.ringDepth)) continue;
+    if (pit.depth < MARSH_PIT_KEEP_DEPTH && inMarsh(x, y)) continue;
     // Redan visad: en sluten kurva runt botten som inte är mycket större än sänkan, eller Karttapullautins grop intill.
     if (shownRings.some(ring => x >= ring.minX && x <= ring.maxX && y >= ring.minY && y <= ring.maxY && ring.area <= 3 * Math.max(pit.areaM2, 100) && inside(ring.points, x, y))) continue;
     if (near(x, y, karttapullautin, Math.min(reach, 8))) continue;

@@ -13,6 +13,11 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-15 – Inga gropar mitt i kärr
+
+- Ägaren (bild på en grop mitt i ett kärr): `marsh-pits.ts` tar bort Karttapullautins gropar (`udepression`, `uglyudepression`) i sankmark (blött, fuktigt, marktäckets sankmark) när grundkartan sätts ihop, och den egna sökningen (`choosePits`) hoppar över gropar i sankmark som är grundare än 1 m.
+- Kontrollerat: nya enhetstester, alla map-revision-tester, typecheck, knip. Inte mätt mot kartritarnas kartor.
+
 ### 2026-11-15 – Raster och punktmönster förankras i kartan
 
 - Ägaren: «kärren ligger dubbelt i raster». `drawHatch` och punktmönstren i `map-file/src/render/draw-map.ts` lade nätet mitt i varje yta, så två kärrbitar bredvid varandra fick förskjutna ränder. Nätet förankras nu i kartans origo, som i OCAD och Mapper; gäller alla raster och punktmönster (kärr, stenig mark, odlad mark …) i webben och utskrifterna.

@@ -6,6 +6,7 @@ import { LASER_PAVED_FILE, laserPavedAreas } from "./laser-paved";
 import { withoutCutVegetation, type clearCutFeatures } from "./clear-cuts";
 import { smallRingsToPoints } from "./small-rings";
 import { isRing, ringTick, smallDepressionPoints } from "./depressions";
+import { withoutMarshPits } from "./marsh-pits";
 import { yardsOf } from "./yards";
 import { marshOutsideManaged, singleMarsh, undergrowthOutsideGreen } from "./marsh-merge";
 import { linesOutsideWater } from "./water-clip";
@@ -200,7 +201,8 @@ export function mergeBaseMap(parts: readonly { readonly name: string; readonly d
   const marsh = singleMarsh(marshOutsideManaged(all, osm ? osmManaged(osm) : [])).features;
   const dryless = soil ? marshOffDrySoil(marsh, soil.areas, { water: marsh }) : undefined;
   if (soil && dryless) soil.report?.({ removedHa: dryless.removedHa });
-  const single = undergrowthOutsideGreen(dryless ? dryless.features : marsh).features;
+  // Ägaren 2026-11-15: inga gropar mitt i sankmark (`marsh-pits.ts`).
+  const single = withoutMarshPits(undergrowthOutsideGreen(dryless ? dryless.features : marsh).features).features;
   return { features: [...single, ...shoreLines(single), ...yardsOf(single)], skipped: parts.reduce((sum, part) => sum + part.data.skipped, 0) + (osm?.skipped ?? 0),
     crs: SWEREF99TM };
 }

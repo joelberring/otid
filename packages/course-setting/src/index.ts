@@ -202,6 +202,7 @@ export {
 } from "./training-regions";
 export { TRAINING_LIMITS, cleanCourseTraining, cleanFilter } from "./training-edit";
 export { TRAINING_ELEMENT, TRAINING_NAMESPACE } from "./training-ppen";
+export { BINGO_CELL_SIZES, BINGO_LIMITS, bingoCellMm, bingoCells, bingoColumnName, type BingoCell } from "./bingo-grid";
 export { SECTION_MARKER_TEXT, dashedGaps, pairLabels, sectionMarkerText } from "./training-overprint";
 export { DEFAULT_PIECES, expandTrainingItems, starSpokes, trainingPieceSheets } from "./training-print";
 export { mirrorFigures, mirrorPoint } from "./training-mirror";

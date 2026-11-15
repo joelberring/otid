@@ -23,7 +23,8 @@ export const trainingEn: Texts<typeof trainingSv> = {
     LINE: { title: "Line", line: "Follow a drawn line and find the controls along it." },
     PAIRS: { title: "Cap", line: "Pairs with 1a and 1b: one puts out the cap, the other brings it in." },
     PIECES: { title: "Map pieces", line: "Memory and puzzle: each leg on its own small map." },
-    MIRROR: { title: "Mirror", line: "The map and the course mirrored in print." }
+    MIRROR: { title: "Mirror", line: "The map and the course mirrored in print." },
+    BINGO: { title: "Bingo", line: "A grid over the forest: visit as many squares as you can." }
   },
   base: {
     heading: "The map for the whole course",

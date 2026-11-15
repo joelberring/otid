@@ -5,7 +5,7 @@ import { trainingEn } from "../../i18n/course-setting-training-en";
 import { useTexts } from "../language-provider";
 import {
   courseTrainingOf, isFullFilter, presetFilter, trainingOf, type CourseSettingDocument, type CourseSettingEdit, type CourseTraining, type SymbolCatalogEntry,
-  type TrainingArea
+  type MapRect, type TrainingArea
 } from "@o-tid/course-setting";
 import { trainingSv } from "../../i18n/course-setting-training-sv";
 import { ALL_CONTROLS } from "../../lib/course-setting-hit";
@@ -15,6 +15,10 @@ import { SymbolFilterEditor } from "./course-setting-training-filter";
 import { OutsideBlock, SectionsBlock } from "./course-setting-training-sections";
 import { AttackBlock, LineBlock, MirrorBlock, PairsBlock, PiecesBlock, StarBlock } from "./course-setting-training-extras";
 import type { TrainingTool } from "./use-course-setting-training";
+import { BingoBlock } from "./course-setting-bingo";
+import { bingoSv } from "../../i18n/bingo-sv";
+import { bingoEn } from "../../i18n/bingo-en";
+import { bingoGroups } from "../../lib/bingo-setup";
 import styles from "./course-setting-training.module.css";
 
 export type FormCard = Exclude<keyof typeof trainingSv.forms, "heading">;
@@ -46,6 +50,9 @@ export function FormIcon({ form }: { form: string }): ReactNode {
       <path d="M5 13 L13 5 M20 6 L28 12 M35 12 L43 5" stroke={course} strokeWidth="1.2" /></svg>;
     case "MIRROR": return <svg {...common}><path d="M24 2 L24 34" stroke="#888" strokeWidth="1" strokeDasharray="2 2" />
       <path d="M4 28 L12 10 L20 22" stroke={course} strokeWidth="1.5" fill="none" /><path d="M44 28 L36 10 L28 22" stroke={course} strokeWidth="1.5" fill="none" strokeOpacity="0.55" /></svg>;
+    case "BINGO": return <svg {...common}><path d="M4 4 H44 V32 H4 Z M17.3 4 V32 M30.6 4 V32 M4 18 H44" stroke={course} strokeWidth="1.3" fill="none" />
+      <text x="6" y="12" fontSize="6" fill={course}>A1</text><text x="19.5" y="12" fontSize="6" fill={course}>B1</text>
+      <path d="M8 26 L12 29 L15 22" stroke="#2a7d2e" strokeWidth="1.8" fill="none" /></svg>;
     default: return null;
   }
 }
@@ -54,12 +61,14 @@ export function FormIcon({ form }: { form: string }): ReactNode {
  * ADR-0192 beslut 8: fliken Träning. Formerna som kort med bild och en rad, kartan för hela banan (grundfiltret), avsnitten i
  * banans ordning, ritade områden och de andra formerna. Allt kombineras på samma bana.
  */
-export function TrainingPanel({ document, view, readOnly, symbols, show, onShow, tool, onTool, onFinish, onEdits, say }: {
+export function TrainingPanel({ document, view, readOnly, symbols, show, onShow, tool, onTool, onFinish, onEdits, say, bingoArea, onView }: {
   document: CourseSettingDocument; view: string; readOnly: boolean; symbols: readonly SymbolCatalogEntry[]; show: boolean; onShow: (show: boolean) => void;
   tool: TrainingTool | undefined; onTool: (tool: TrainingTool | undefined) => void; onFinish: () => void;
   onEdits: (edits: readonly CourseSettingEdit[]) => void; say: (message: { tone: "ok" | "error" | "attention"; text: string }) => void;
+  bingoArea: MapRect | undefined; onView: (course: string) => void;
 }) {
   const text = useTexts(trainingSv, trainingEn);
+  const bingoText = useTexts(bingoSv.setup, bingoEn.setup);
   const inCourse = view !== ALL_CONTROLS && document.courses.some(course => course.id === view);
   const training = inCourse ? courseTrainingOf(document, view) : undefined;
   const put = (next: CourseTraining) => onEdits([putCourseTraining(view, next)]);
@@ -72,9 +81,10 @@ export function TrainingPanel({ document, view, readOnly, symbols, show, onShow,
   const attacksHere = Object.values(trainingOf(document).attackPoints).length > 0;
   const shown = (form: FormCard) => opened.has(form) || (form === "ATTACK" && attacksHere) || (form === "STAR" && Boolean(training?.star))
     || (form === "LINE" && Boolean(training?.line)) || (form === "PAIRS" && Boolean(training?.pairs)) || (form === "PIECES" && Boolean(training?.pieces))
-    || (form === "MIRROR" && training?.mirror === true);
+    || (form === "MIRROR" && training?.mirror === true) || (form === "BINGO" && bingoGroups(document).length > 0);
   const add = (form: FormCard) => {
     if (form === "AREA") { onTool({ kind: "AREA", points: [] }); return; }
+    if (form === "BINGO") { open(form); return; }
     if (!training) return;
     if (form === "CORRIDOR" || form === "BAND" || form === "WINDOW" || form === "NO_MAP") {
       const section = newSection(form, training.sections[training.sections.length - 1]);
@@ -88,7 +98,7 @@ export function TrainingPanel({ document, view, readOnly, symbols, show, onShow,
     if (form === "MIRROR" && !training.mirror) put({ ...training, mirror: true });
     open(form);
   };
-  const cards: FormCard[] = ["CORRIDOR", "ATTACK", "BAND", "WINDOW", "AREA", "STAR", "LINE", "PAIRS", "PIECES", "NO_MAP", "MIRROR"];
+  const cards: FormCard[] = ["CORRIDOR", "ATTACK", "BAND", "WINDOW", "AREA", "STAR", "LINE", "PAIRS", "PIECES", "NO_MAP", "MIRROR", "BINGO"];
   return <section className={styles.panel} aria-labelledby="course-setting-training" data-testid="course-setting-training">
     <h2 id="course-setting-training">{text.heading}</h2>
     <p className={styles.muted}>{inCourse ? text.help : text.chooseCourse}</p>
@@ -96,13 +106,14 @@ export function TrainingPanel({ document, view, readOnly, symbols, show, onShow,
       <span>{text.show}<br /><span className={styles.muted}>{text.showHelp}</span></span></label>
     {readOnly && <p className={styles.muted}>{text.readOnly}</p>}
     {tool && tool.kind !== "ATTACK" && <div className={styles.toolBar} role="status">
-      <span>{tool.kind === "AREA" ? text.areas.drawing(tool.points.length) : text.line.drawing(tool.points.length)}</span>
+      <span>{tool.kind === "AREA" ? text.areas.drawing(tool.points.length) : tool.kind === "BINGO" ? bingoText.drawing(tool.points.length)
+        : text.line.drawing(tool.points.length)}</span>
       <Button onClick={onFinish} disabled={tool.points.length < (tool.kind === "AREA" ? 3 : 2)} data-testid="training-tool-finish">{text.areas.finish}</Button>
       <Button variant="secondary" onClick={() => onTool(undefined)}>{text.areas.cancel}</Button>
     </div>}
     {!readOnly && <div className={styles.cards} role="group" aria-label={text.forms.heading}>
       {cards.map(form => <button key={form} type="button" className={styles.card} onClick={() => add(form)} data-testid={`training-add-${form}`}
-        disabled={!inCourse && form !== "AREA"}>
+        disabled={!inCourse && form !== "AREA" && form !== "BINGO"}>
         <FormIcon form={form} /><span className={styles.cardTitle}>{text.forms[form].title}</span><span className={styles.cardLine}>{text.forms[form].line}</span>
       </button>)}
     </div>}
@@ -124,6 +135,8 @@ export function TrainingPanel({ document, view, readOnly, symbols, show, onShow,
     {training && shown("PAIRS") && <div id="training-block-PAIRS"><PairsBlock document={document} view={view} readOnly={readOnly} onEdits={onEdits} /></div>}
     {training && shown("PIECES") && <div id="training-block-PIECES"><PiecesBlock document={document} view={view} readOnly={readOnly} onEdits={onEdits} /></div>}
     {training && shown("MIRROR") && <div id="training-block-MIRROR"><MirrorBlock document={document} view={view} readOnly={readOnly} onEdits={onEdits} /></div>}
+    {shown("BINGO") && <div id="training-block-BINGO"><BingoBlock document={document} view={view} readOnly={readOnly} tool={tool} onTool={onTool}
+      pendingArea={bingoArea} onEdits={onEdits} onView={onView} /></div>}
     {inCourse && !readOnly && document.training?.courses[view] && <Button variant="quiet" onClick={() => onEdits([putCourseTraining(view, null)])}
       data-testid="training-remove">{text.removeCourse}</Button>}
   </section>;

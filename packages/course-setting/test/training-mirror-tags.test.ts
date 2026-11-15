@@ -37,7 +37,7 @@ describe("spegelvänd karta (ADR-0192 beslut 12)", () => {
 
 describe("träningsformernas taggar (ADR-0192 beslut 13)", () => {
   it("namnen är svenska och stabila (samma ord som klubbarkivet föreslår)", () => {
-    expect(Object.values(TRAINING_TAGS)).toEqual(["Korridor", "Kurvbild", "Fönster", "Utan karta", "Sista säkra", "Stjärna", "Linje", "Keps", "Minnes", "Spegel"]);
+    expect(Object.values(TRAINING_TAGS)).toEqual(["Korridor", "Kurvbild", "Fönster", "Utan karta", "Sista säkra", "Stjärna", "Linje", "Keps", "Minnes", "Spegel", "Bingo"]);
   });
 
   it("banans taggar i fast ordning ur avsnitten, filtren och formerna", () => {

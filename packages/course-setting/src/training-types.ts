@@ -105,6 +105,17 @@ export interface CourseTraining {
   readonly pieces?: PieceTraining | undefined;
   /** Spegelorientering: kartan och banan spegelvända i utskriften (texterna vänds inte). Editorn ritar kartan som vanligt. */
   readonly mirror?: boolean | undefined;
+  /** Bingoorientering (ägaren 2026-11-15): banan är en grupp med ett rutnät över området. */
+  readonly bingo?: BingoTraining | undefined;
+}
+
+/**
+ * Bingoorientering: ett rutnät över ett rektangulärt område i kartans mm (y uppåt), rutans sida i meter i terrängen.
+ * Rutnätet följer kartans papper (kartans norr), rutorna heter kolumnens bokstav och radens siffra (A1 uppe till vänster).
+ */
+export interface BingoTraining {
+  readonly area: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number };
+  readonly cellMeters: number;
 }
 
 /** Ett ritat område med eget filter (t.ex. bara kurvbild här). */

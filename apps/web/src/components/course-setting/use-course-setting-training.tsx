@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import { trainingEn } from "../../i18n/course-setting-training-en";
 import { useTexts } from "../language-provider";
 import {
-  trainingMapPasses, type CourseSettingDocument, type CourseSettingEdit, type OverprintTraining, type SymbolCatalogEntry, type TrainingMapPass
+  trainingMapPasses, type CourseSettingDocument, type MapRect, type CourseSettingEdit, type OverprintTraining, type SymbolCatalogEntry, type TrainingMapPass
 } from "@o-tid/course-setting";
 import type { Point } from "@o-tid/map-file";
 import { trainingSv } from "../../i18n/course-setting-training-sv";
@@ -12,24 +12,28 @@ import { ALL_CONTROLS } from "../../lib/course-setting-hit";
 import type { MapRenderSession } from "../../lib/course-setting-map-protocol";
 import { safely } from "../../lib/course-setting-safely";
 import { changeCourseTraining, legAt, newTrainingId } from "../../lib/course-setting-training";
+import { bingoAreaFrom, setBingoAreaEdits } from "../../lib/bingo-setup";
 import { toScreen, type Viewport } from "../../lib/course-setting-viewport";
 import { TrainingPanel } from "./course-setting-training";
 
 /** Verktyget på kartan medan något ritas eller läggs (område, linje, sista säkra). */
-export type TrainingTool = { readonly kind: "AREA" | "LINE"; readonly points: readonly Point[] } | { readonly kind: "ATTACK" };
+export type TrainingTool = { readonly kind: "AREA" | "LINE" | "BINGO"; readonly points: readonly Point[] } | { readonly kind: "ATTACK" };
 
 /**
  * ADR-0192 beslut 8: träningsläget i editorn. Kartans pass (före och efter med "Visa träningen"), symbolerna ur kartans
  * Worker, verktygen på kartan och panelen. Ändringarna går som `PUT_TRAINING` genom editorns vanliga väg (ångra, samarbete).
  */
-export function useCourseSettingTraining({ document, view, variant, session, mapReady, readOnly, onEdits, say }: {
+export function useCourseSettingTraining({ document, view, variant, session, mapReady, mapBounds, readOnly, onEdits, onView, say }: {
   document: CourseSettingDocument; view: string; variant: string | undefined; session: MapRenderSession | undefined; mapReady: boolean;
+  mapBounds: MapRect | undefined; onView: (course: string) => void;
   readOnly: boolean; onEdits: (edits: readonly CourseSettingEdit[]) => void;
   say: (message: { tone: "ok" | "error" | "attention"; text: string }) => void;
 }) {
   const text = useTexts(trainingSv, trainingEn);
   const [show, setShow] = useState(true);
   const [tool, setTool] = useState<TrainingTool>();
+  // Bingons område innan det finns en grupp (sedan står det i gruppernas träning).
+  const [bingoArea, setBingoArea] = useState<MapRect>();
   const [symbols, setSymbols] = useState<readonly SymbolCatalogEntry[]>([]);
   useEffect(() => { if (session && mapReady) session.symbols(setSymbols); }, [session, mapReady]);
   useEffect(() => { setTool(undefined); }, [view]);
@@ -48,6 +52,10 @@ export function useCourseSettingTraining({ document, view, variant, session, map
       const id = newTrainingId();
       onEdits([{ type: "PUT_TRAINING", areas: { [id]: { id, polygon: tool.points, filter: { preset: "CONTOURS", groups: ["LANDFORM", "TECHNICAL", "FORBIDDEN"], hide: [], show: [] },
         courses: view === ALL_CONTROLS ? [] : [view] } } }]);
+    }
+    if (tool.kind === "BINGO") {
+      const area = bingoAreaFrom(tool.points, mapBounds);
+      if (area) { setBingoArea(area); const edits = setBingoAreaEdits(document, area); if (edits.length > 0) onEdits(edits); }
     }
     if (tool.kind === "LINE" && tool.points.length >= 2 && view !== ALL_CONTROLS) {
       onEdits([changeCourseTraining(document, view, current => ({ ...current, line: { points: tool.points } }))]);
@@ -71,7 +79,9 @@ export function useCourseSettingTraining({ document, view, variant, session, map
 
   const draw = useCallback((ctx: CanvasRenderingContext2D, mapView: Viewport) => {
     if (!tool || tool.kind === "ATTACK" || tool.points.length === 0) return;
-    const points = tool.points.map(point => toScreen(mapView, point));
+    const corners = tool.kind === "BINGO" && tool.points.length >= 2 ? bingoAreaFrom(tool.points, undefined) : undefined;
+    const points = (corners ? [{ x: corners.minX, y: corners.minY }, { x: corners.maxX, y: corners.minY }, { x: corners.maxX, y: corners.maxY },
+      { x: corners.minX, y: corners.maxY }] : tool.points).map(point => toScreen(mapView, point));
     ctx.save();
     ctx.strokeStyle = "#a626ff";
     ctx.fillStyle = "rgba(166, 38, 255, 0.12)";
@@ -79,7 +89,7 @@ export function useCourseSettingTraining({ document, view, variant, session, map
     ctx.setLineDash([6, 4]);
     ctx.beginPath();
     points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
-    if (tool.kind === "AREA") { ctx.closePath(); ctx.fill(); }
+    if (tool.kind === "AREA" || corners) { ctx.closePath(); ctx.fill(); }
     ctx.stroke();
     ctx.setLineDash([]);
     for (const p of points) { ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI * 2); ctx.fillStyle = "#a626ff"; ctx.fill(); }
@@ -87,6 +97,6 @@ export function useCourseSettingTraining({ document, view, variant, session, map
   }, [tool]);
 
   const panel: ReactNode = <TrainingPanel document={document} view={view} readOnly={readOnly} symbols={symbols} show={show} onShow={setShow}
-    tool={tool} onTool={setTool} onFinish={finish} onEdits={onEdits} say={say} />;
+    tool={tool} onTool={setTool} onFinish={finish} onEdits={onEdits} say={say} bingoArea={bingoArea} onView={onView} />;
   return { passes, overprint, tap, draw, panel, tool, drawing: tool !== undefined };
 }

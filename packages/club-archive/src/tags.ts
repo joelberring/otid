@@ -16,6 +16,7 @@ export const TAG_RULES: readonly { readonly tag: string; readonly pattern: RegEx
   { tag: "Utan karta", pattern: /relä|kompass|utan karta/ },
   { tag: "Sista säkra", pattern: /sista säkra|attackpunkt/ },
   { tag: "Spegel", pattern: /spegel/ },
+  { tag: "Bingo", pattern: /bingo/ },
   { tag: "Natt", pattern: /natt/ },
   { tag: "Stafett", pattern: /stafett/ },
   { tag: "Intervall", pattern: /intervall/ },

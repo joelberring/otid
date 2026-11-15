@@ -45,3 +45,5 @@
 /* Sidans knappar blir svarta vid hovring; valen här behåller sin text. */
 .chip:hover:not(:disabled):not([aria-pressed="true"]), .segmented button:hover:not(:disabled):not([aria-pressed="true"]) {
   background: var(--surface-strong, rgba(0, 0, 0, .06)); color: inherit; }
+.bingoList { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.bingoList > li[data-selected] { border-color: var(--training-course, #a626ff); }

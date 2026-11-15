@@ -9,6 +9,7 @@ import type { CourseSettingDocument, OverprintOptions, OverprintPrimitive } from
 import type { CourseTraining, SectionForm, TrainingSection } from "./training-types";
 import { controlSequences, sectionRange } from "./training-regions";
 import { trainingOf } from "./training-passes";
+import { bingoFigures } from "./bingo-grid";
 
 const POINT_ROLES = new Set(["START", "CONTROL", "FINISH", "CROSSING_POINT", "MAP_EXCHANGE", "NUMBER"]);
 const LEG_ROLES = new Set(["LEG", "FLAGGING"]);
@@ -97,6 +98,7 @@ export function withTraining(document: CourseSettingDocument, options: Overprint
     out.push({ kind: "polyline", role: "TRAINING", color: "COURSE", points: ct.line.points, width: sizes.line, cap: "round", ref: "line" });
   }
   out.push(...attackFigures(document, sequences, sizes, keepLegs));
+  if (ct?.bingo && !view?.section) out.push(...bingoFigures(document, ct.bingo, sizes));
   if (ct && !view?.section) out.push(...markerFigures(document, ct, sequences, sizes));
   if (takeIn && pairing) {
     // Förklaringen på kartan: vem kartan är för och vad ringarna betyder (ADR-0192 beslut 6). Den står under hela banan

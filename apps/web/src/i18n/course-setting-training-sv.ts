@@ -20,7 +20,8 @@ export const trainingSv = {
     LINE: { title: "Linje", line: "Följ en inritad linje och hitta kontrollerna längs den." },
     PAIRS: { title: "Keps", line: "Par med 1a och 1b: en hänger ut kepsen, den andra tar in den." },
     PIECES: { title: "Kartbitar", line: "Minne och pussel: varje sträcka på en egen liten karta." },
-    MIRROR: { title: "Spegel", line: "Kartan och banan spegelvända i utskriften." }
+    MIRROR: { title: "Spegel", line: "Kartan och banan spegelvända i utskriften." },
+    BINGO: { title: "Bingo", line: "Rutnät över skogen: ta så många rutor som möjligt." }
   },
   base: {
     heading: "Kartan för hela banan",

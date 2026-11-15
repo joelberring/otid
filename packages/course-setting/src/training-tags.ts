@@ -18,7 +18,8 @@ export const TRAINING_TAGS = {
   LINE: "Linje",
   PAIRS: "Keps",
   PIECES: "Minnes",
-  MIRROR: "Spegel"
+  MIRROR: "Spegel",
+  BINGO: "Bingo"
 } as const;
 
 export type TrainingTag = (typeof TRAINING_TAGS)[keyof typeof TRAINING_TAGS];
@@ -43,6 +44,7 @@ export function trainingTags(document: CourseSettingDocument, course: string): T
     if (ct.pairs) found.add(TRAINING_TAGS.PAIRS);
     if (ct.pieces) found.add(TRAINING_TAGS.PIECES);
     if (ct.mirror) found.add(TRAINING_TAGS.MIRROR);
+    if (ct.bingo) found.add(TRAINING_TAGS.BINGO);
   }
   if (areasFor(document, course).some(area => contours(area.filter))) found.add(TRAINING_TAGS.CONTOURS);
   // Sista säkra: på en av banans sträckor (någon variant).

@@ -6,11 +6,12 @@ import type { Point } from "@o-tid/map-file";
 import type { CourseSettingDocument } from "./types";
 import { CourseSettingEditError } from "./types";
 import type {
-  AttackPoint, AttackStyle, CourseTraining, FilterPreset, PairTraining, PieceTraining, SectionMarker, SymbolFilter, SymbolGroup, TrainingArea,
+  AttackPoint, AttackStyle, BingoTraining, CourseTraining, FilterPreset, PairTraining, PieceTraining, SectionMarker, SymbolFilter, SymbolGroup, TrainingArea,
   TrainingOutside, TrainingPatch, TrainingSection, TrainingSettings
 } from "./training-types";
 import { SYMBOL_GROUPS } from "./training-symbols";
 import { EMPTY_TRAINING } from "./training-passes";
+import { BINGO_LIMITS } from "./bingo-grid";
 
 export const TRAINING_LIMITS = { sections: 64, areas: 50, attackPoints: 500, polygonPoints: 2000, linePoints: 2000, pairs: 200, symbols: 2000 } as const;
 
@@ -106,6 +107,16 @@ function cleanPieces(value: unknown): PieceTraining {
     marginMeters: number(p.marginMeters, "Marginalen", 0, 2000), order: oneOf(p.order, "Ordningen", ["COURSE", "SHUFFLED"] as const) };
 }
 
+function cleanBingo(value: unknown): BingoTraining {
+  const b = object(value, "Bingon");
+  const a = object(b.area, "Bingons område");
+  const coordinate = (v: unknown, what: string) => number(v, what, -1_000_000, 1_000_000);
+  const area = { minX: coordinate(a.minX, "Områdets vänstra kant"), minY: coordinate(a.minY, "Områdets nedre kant"),
+    maxX: coordinate(a.maxX, "Områdets högra kant"), maxY: coordinate(a.maxY, "Områdets övre kant") };
+  if (area.maxX <= area.minX || area.maxY <= area.minY) throw invalid("Bingons område har ingen yta");
+  return { area, cellMeters: number(b.cellMeters, "Rutans storlek", BINGO_LIMITS.minCellMeters, BINGO_LIMITS.maxCellMeters) };
+}
+
 export function cleanCourseTraining(value: unknown): CourseTraining {
   const c = object(value, "Banans träning");
   const sections = array(c.sections, "Avsnitten", TRAINING_LIMITS.sections).map(cleanSection);
@@ -126,6 +137,7 @@ export function cleanCourseTraining(value: unknown): CourseTraining {
     if (typeof c.mirror !== "boolean") throw invalid("Spegelvänd karta ska vara sant eller falskt");
     if (c.mirror) out = { ...out, mirror: true };
   }
+  if (c.bingo !== undefined) out = { ...out, bingo: cleanBingo(c.bingo) };
   return out;
 }
 

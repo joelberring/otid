@@ -235,8 +235,8 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
   const suggestions = useDescriptionSuggestions(mapSession, document, view, variant, selection?.kind === "control" ? selection.control : undefined);
   const [suggestionHover, setSuggestionHover] = useState<Parameters<typeof drawSuggestionHighlight>[2]>();
   // ADR-0192: träningsläget (kartans pass, verktygen och fliken Träning).
-  const training = useCourseSettingTraining({ document, view, variant, session: mapSession, mapReady: mapStatus === "ready", readOnly, say,
-    onEdits: edits => edit(current => applySteps(current, edits, applyEdit)) });
+  const training = useCourseSettingTraining({ document, view, variant, session: mapSession, mapReady: mapStatus === "ready", mapBounds, readOnly, say,
+    onEdits: edits => edit(current => applySteps(current, edits, applyEdit)), onView: course => apply(current => setView(current, course)) });
   // Kartbyten (ADR-0203): vald del i fliken Utskrift (kartan visar delen med överlappet); en annan bana visar hela banan.
   const [partChoice, setPartChoice] = useState<{ view: string; part: number }>();
   const part = partChoice?.view === view ? partChoice.part : undefined;

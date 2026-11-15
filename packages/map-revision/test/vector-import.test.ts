@@ -180,3 +180,18 @@ describe("vektorunderlagen (K4b)", () => {
     expect(found.rest).toEqual([[p(0, 5), p(9, 5)]]);
   });
 });
+
+describe("joinLines vid korsningar (ägaren 2026-11-15: raka streck ur OpenStreetMap)", () => {
+  it("fogar bara på linjens nuvarande ände: tre stigar som möts blir två linjer utan hopp", () => {
+    const p = (x: number, y: number) => ({ x, y });
+    const a = [p(0, 0), p(10, 0)], b = [p(10, 0), p(20, 0)], c = [p(10, 50), p(10, 0)];
+    const result = joinLines([a, b, c]);
+    expect(result.lines).toHaveLength(2);
+    // Ingen sträcka längre än den längsta i indata (50).
+    for (const line of result.lines) for (let i = 1; i < line.length; i += 1) {
+      expect(Math.hypot(line[i]!.x - line[i - 1]!.x, line[i]!.y - line[i - 1]!.y)).toBeLessThanOrEqual(50);
+    }
+    const points = result.lines.flat().map(point => `${point.x},${point.y}`);
+    expect(points).toContain("0,0"); expect(points).toContain("20,0"); expect(points).toContain("10,50");
+  });
+});

@@ -250,7 +250,11 @@ export function joinLines(lines: readonly Point[][]): { lines: Point[][]; joined
       const line = pending[at]!;
       for (const atStart of [false, true]) {
         const end = atStart ? line[0]! : line[line.length - 1]!;
-        const other = (byEnd.get(keyOf(end)) ?? []).find(candidate => candidate !== at && alive[candidate]);
+        // Ägaren 2026-11-15 («stigar sluts och får raka streck över kartan»): uppslaget minns också ändar som en hopslagen linje
+        // inte längre har. Bara en linje vars nuvarande ände ligger här får fogas på, annars hoppar linjen rakt till dess ände.
+        const key = keyOf(end);
+        const other = (byEnd.get(key) ?? []).find(candidate => candidate !== at && alive[candidate]
+          && (keyOf(pending[candidate]![0]!) === key || keyOf(pending[candidate]![pending[candidate]!.length - 1]!) === key));
         if (other === undefined) continue;
         const next = pending[other]!;
         const forward = keyOf(next[0]!) === keyOf(end);

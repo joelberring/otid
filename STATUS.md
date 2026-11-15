@@ -19,6 +19,11 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Skottbrädet visar neutrala prickar för hur många andra i gruppen som stått i rutan och skjutit; tävlingssidan visar samma prickar som ett rutnät per grupp. Servern lämnar bara antal per ruta. Sänkta gemensamma står för sig i topplistan och ledarens tabell.
 - Kontrollerat: enhetstester (placering, förval, prickar), integrationstest (två löpare har samma gemensamma och olika egna skepp; prickarna), webbens tester, lint, typecheck, knip. Inte provat i telefon.
 
+### 2026-11-15 – Inga raka streck när OpenStreetMaps stigar fogas ihop
+
+- Ägaren: «en del stigar sluts och får raka streck över kartan» (också en «jätterak stig» i Tyresta). `joinLines` (vector-import) mindes ändar som en hopslagen linje inte längre hade; där tre stigar möttes fogades den tredje på en mittpunkt och linjen hoppade rakt till den andra linjens ände. Nu fogas bara en linje vars nuvarande ände ligger på platsen.
+- Kontrollerat: nytt enhetstest (tre stigar i en korsning blir två linjer utan hopp; utan rättningen en), map-revision och webbens tester, typecheck.
+
 ### 2026-11-15 – AI-kopplingens grundkarta för stora områden (migration 0127)
 
 - AI:ns apply_base_map svarade Bad Gateway i Tyresta. Serverloggen: `map_project_job_request_check`. Jobbets begäran bär OpenStreetMap, hyggena och jordarterna och blev större än 256 kB. Migration 0127 höjer gränsen till 16 MB (bara en lättnad).

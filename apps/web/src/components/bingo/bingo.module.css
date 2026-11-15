@@ -77,3 +77,6 @@
 .shipCell[data-state="WRONG"] { color: #ff8a8a; border-color: #8a2a2a; }
 .shipCell:disabled { cursor: default; }
 .fire { min-height: 64px; border: 2px solid #ffd27a; border-radius: 10px; background: #3a2a00; color: #fff; font: inherit; font-size: 1.3rem; font-weight: 700; }
+.shipCell, .heatCell { position: relative; }
+.dots { position: absolute; top: 1px; right: 3px; font-size: 0.7rem; line-height: 1; letter-spacing: -1px; color: #888; font-weight: 700; }
+.cardDark .dots { color: #e8e8e8; }

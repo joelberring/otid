@@ -7,8 +7,8 @@ import {
 import { bingoCells, type CourseSettingDocument } from "@o-tid/course-setting";
 import { schema, type Database } from "@o-tid/database";
 import {
-  bingoSeconds, defaultShips, judgeShots, mergeBingoProgress, mergeShots, normalizeSelfRegistrationName, placeShips, rankBingo, rankShips, scoreShots,
-  selfRegistrationDay, type BingoProgress, type JudgedShot, type Ship, type ShipScore
+  bingoGroupSeed, bingoSeconds, judgeShots, mergeBingoProgress, mergeShots, normalizeSelfRegistrationName, placeGroupShips, rankBingo, rankShips, scoreShots,
+  selfRegistrationDay, shipSplitFor, shotCellCounts, type BingoProgress, type JudgedShot, type Ship, type ShipScore
 } from "@o-tid/domain";
 import type { MapGeoreference } from "@o-tid/map-file";
 import { consumeAccountRequestAllowance } from "./account-throttle";
@@ -68,7 +68,8 @@ export async function loadBingoSetup(tx: DbExecutor, raceId: string): Promise<Bi
     const bingo = training[course.id]?.bingo;
     if (!bingo) return [];
     const cells = bingoCells(bingo, mapScale).map(cell => ({ name: cell.name, rect: cell.rect }));
-    return [{ course: course.id, name: course.name, cellMeters: bingo.cellMeters, ships: [...(bingo.ships ?? defaultShips(cells.length))], cells }];
+    const split = shipSplitFor(cells.length, bingo.sharedShips, bingo.ships);
+    return [{ course: course.id, name: course.name, cellMeters: bingo.cellMeters, ships: split.own, sharedShips: split.shared, cells }];
   });
   return { groups, mapScale, metersPerMm: metersPerMm(georeference, mapScale), georeference, image };
 }
@@ -80,7 +81,8 @@ const toProgress = (row: typeof schema.bingoRunners.$inferSelect): BingoProgress
 
 /** Löparens skepp och bedömda skott i Sänka skepp (tomt utan frö). */
 function shipsOf(row: typeof schema.bingoRunners.$inferSelect, group: BingoGroup | undefined, perMm: number): { ships: Ship[]; judged: JudgedShot[]; score: ShipScore } {
-  const ships = group && row.seed !== null ? placeShips(group.cells.map(cell => cell.name), group.ships, row.seed) : [];
+  const ships = group && row.seed !== null ? placeGroupShips(group.cells.map(cell => cell.name), { shared: group.sharedShips, own: group.ships },
+    bingoGroupSeed(row.raceId, group.course), row.seed) : [];
   const judged = group ? judgeShots(row.shots, group.cells, ships, perMm) : [];
   return { ships, judged, score: scoreShots(judged) };
 }
@@ -88,11 +90,14 @@ function shipsOf(row: typeof schema.bingoRunners.$inferSelect, group: BingoGroup
 async function leaderboard(tx: DbExecutor, raceId: string, mode: BingoMode, setup: BingoSetup): Promise<BingoLeaderboard> {
   const rows = await tx.select().from(schema.bingoRunners).where(eq(schema.bingoRunners.raceId, raceId)).orderBy(asc(schema.bingoRunners.createdAt));
   return bingoLeaderboardSchema.parse({ formatVersion: 1, mode, groups: setup.groups.map(group => {
-    const standings = rows.filter(row => row.groupCourse === group.course).map(row => ({ name: row.name, cells: row.taken.length, status: row.status,
-      seconds: bingoSeconds(toProgress(row)), distanceM: Math.round(row.distanceM),
-      ...(mode === "SHIPS" ? shipsOf(row, group, setup.metersPerMm).score : {}) }));
-    return { course: group.course, name: group.name, cells: group.cells.length,
-      runners: mode === "SHIPS" ? rankShips(standings.map(row => ({ points: 0, hits: 0, sunk: 0, wrong: 0, water: 0, lastShotAt: null, ...row }))) : rankBingo(standings) };
+    const members = rows.filter(row => row.groupCourse === group.course);
+    const judged = mode === "SHIPS" ? members.map(row => shipsOf(row, group, setup.metersPerMm)) : [];
+    const standings = members.map((row, index) => ({ name: row.name, cells: row.taken.length, status: row.status,
+      seconds: bingoSeconds(toProgress(row)), distanceM: Math.round(row.distanceM), ...(judged[index]?.score ?? {}) }));
+    if (mode !== "SHIPS") return { course: group.course, name: group.name, cells: group.cells.length, runners: rankBingo(standings) };
+    // Prickarna: bara antalet löpare per ruta som stått i den, inga namn och inga positioner.
+    return { course: group.course, name: group.name, cells: group.cells.length, shotCells: shotCellCounts(judged.map(item => item.judged)), cellNames: group.cells.map(cell => cell.name),
+      runners: rankShips(standings.map(row => ({ points: 0, hits: 0, sunk: 0, wrong: 0, water: 0, sharedSunk: 0, lastShotAt: null, ...row }))) };
   }) });
 }
 
@@ -194,8 +199,9 @@ async function adminView(tx: DbExecutor, raceId: string): Promise<BingoAdminView
       seconds: bingoSeconds(toProgress(row)), taken: row.taken, track: row.track, gaps: row.gaps,
       ...(() => {
         const result = shipsOf(row, setup.groups.find(group => group.course === row.groupCourse), setup.metersPerMm);
-        return { ships: result.ships.map(ship => [...ship.cells]), shots: result.judged, points: result.score.points, sunk: result.score.sunk,
-          hits: result.score.hits, wrong: result.score.wrong, water: result.score.water };
+        return { ships: result.ships.map(ship => [...ship.cells]), sharedShips: result.ships.filter(ship => ship.shared).length,
+          shots: result.judged, points: result.score.points, sunk: result.score.sunk,
+          hits: result.score.hits, wrong: result.score.wrong, water: result.score.water, sharedSunk: result.score.sharedSunk };
       })() })) });
 }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  defaultShips, judgeShots, mergeShots, placeShips, rankShips, scoreShots, bingoCellPosition, type BingoCellArea, type Shot
+  bingoGroupSeed, defaultShipSplit, placeGroupShips, shipSplitFor, shotCellCounts, defaultShips, judgeShots, mergeShots, placeShips, rankShips, scoreShots, bingoCellPosition, type BingoCellArea, type Shot
 } from "../src";
 
 // 1:10 000, rutor om 100 m (10 mm): 6 × 5 rutor, A1 uppe till vänster.
@@ -57,7 +57,7 @@ describe("sänka skepp: skotten och poängen", () => {
   it("träff, sänkt, vatten och fel ruta; en ruta skjuts en gång; fel ruta tar inte rutan", () => {
     const judged = judgeShots([shot("A1", 1), shot("C2", 2, "C3"), shot("C2", 3), shot("A1", 4), shot("B1", 5), shot("D3", 6)], cells, ships, M);
     expect(judged.map(item => [item.cell, item.result])).toEqual([["A1", "HIT"], ["C2", "WRONG"], ["C2", "WATER"], ["B1", "SUNK"], ["D3", "SUNK"]]);
-    expect(scoreShots(judged)).toEqual({ points: 3 + 4 - 1, hits: 3, sunk: 2, wrong: 1, water: 1, lastShotAt: 6 });
+    expect(scoreShots(judged)).toEqual({ points: 3 + 4 - 1, hits: 3, sunk: 2, wrong: 1, water: 1, sharedSunk: 0, lastShotAt: 6 });
   });
 
   it("marginalen utanför kanten: noggrannheten, minst 10 m, högst 25 m", () => {
@@ -72,8 +72,48 @@ describe("sänka skepp: skotten och poängen", () => {
   it("serverns och telefonens skott ihop, och topplistan", () => {
     expect(mergeShots([shot("A1", 1)], [shot("A1", 1), shot("B1", 2)]).map(item => item.cell)).toEqual(["A1", "B1"]);
     const row = (name: string, points: number, sunk: number, status: "RUNNING" | "FINISHED" | "ABANDONED" = "RUNNING") =>
-      ({ name, points, sunk, hits: points, wrong: 0, water: 0, lastShotAt: 1, status });
+      ({ name, points, sunk, hits: points, wrong: 0, water: 0, sharedSunk: 0, lastShotAt: 1, status });
     expect(rankShips([row("Bo", 3, 0), row("Ali", 5, 1), row("Cia", 9, 2, "ABANDONED"), row("Dan", 5, 2)]).map(item => item.name))
       .toEqual(["Dan", "Ali", "Bo", "Cia"]);
+  });
+});
+
+describe("sänka skepp: gemensamma och egna skepp", () => {
+  it("förval efter rutnätets storlek och fälten som de står", () => {
+    expect(defaultShipSplit(16)).toEqual({ shared: [2], own: [1, 1] });
+    expect(defaultShipSplit(80)).toEqual({ shared: [4, 3], own: [2, 2] });
+    expect(shipSplitFor(80, undefined, undefined)).toEqual({ shared: [4, 3], own: [2, 2] });
+    // Det äldre fältet «Skepp» är bara egna.
+    expect(shipSplitFor(80, undefined, [3, 2])).toEqual({ shared: [], own: [3, 2] });
+    expect(shipSplitFor(80, [4], undefined)).toEqual({ shared: [4], own: [] });
+  });
+
+  it("gemensamma lika för alla i gruppen, egna olika och aldrig på eller intill de gemensamma", () => {
+    const big = grid(10, 8).map(cell => cell.name);
+    const seed = bingoGroupSeed("10000000-0000-4000-8000-000000000001", "3");
+    expect(seed).toBe(bingoGroupSeed("10000000-0000-4000-8000-000000000001", "3"));
+    expect(seed).not.toBe(bingoGroupSeed("10000000-0000-4000-8000-000000000001", "4"));
+    const split = { shared: [4, 3], own: [2, 2] };
+    const a = placeGroupShips(big, split, seed, 11), b = placeGroupShips(big, split, seed, 12);
+    const shared = (ships: typeof a) => ships.filter(ship => ship.shared).map(ship => ship.cells);
+    expect(shared(a)).toEqual(shared(b));
+    expect(shared(a).map(cells => cells.length)).toEqual([4, 3]);
+    expect(a.filter(ship => !ship.shared).map(ship => ship.cells)).not.toEqual(b.filter(ship => !ship.shared).map(ship => ship.cells));
+    for (const ships of [a, b]) {
+      const near = new Set(shared(ships).flat().flatMap(name => { const p = bingoCellPosition(name)!;
+        return [-1, 0, 1].flatMap(dc => [-1, 0, 1].map(dr => `${p.column + dc},${p.row + dr}`)); }));
+      for (const name of ships.filter(ship => !ship.shared).flatMap(ship => ship.cells)) {
+        const p = bingoCellPosition(name)!;
+        expect(near.has(`${p.column},${p.row}`)).toBe(false);
+      }
+    }
+  });
+
+  it("sänkta gemensamma räknas för sig; prickarna räknar löpare som stått i rutan, inte fel ruta", () => {
+    const ships = [{ cells: ["A1", "B1"], shared: true as const }, { cells: ["D3"] }];
+    const judged = judgeShots([shot("A1", 1), shot("B1", 2), shot("D3", 3)], cells, ships, M);
+    expect(scoreShots(judged)).toMatchObject({ sunk: 2, sharedSunk: 1 });
+    const other = judgeShots([shot("A1", 1), shot("C2", 2, "C3"), shot("E5", 3)], cells, ships, M);
+    expect(shotCellCounts([judged, other])).toEqual({ A1: 2, B1: 1, D3: 1, E5: 1 });
   });
 });

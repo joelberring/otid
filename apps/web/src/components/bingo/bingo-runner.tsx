@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { BingoGroup, BingoLeaderboard, BingoMode } from "@o-tid/contracts";
 import type { MapGeoreference } from "@o-tid/map-file";
+import type { JudgedShot } from "@o-tid/domain";
 import { bingoEn } from "../../i18n/bingo-en";
 import { bingoSv } from "../../i18n/bingo-sv";
 import { forgetBingoRun, formatBingoDistance, formatBingoGap, formatBingoTime } from "../../lib/bingo-run";
@@ -16,6 +17,12 @@ import { ShipBoard, ShipFire, useShips } from "./bingo-ships";
 import { BingoSignup } from "./bingo-signup";
 import { useBingoRun } from "./use-bingo-run";
 import styles from "./bingo.module.css";
+
+/** De andras prickar: gruppens antal per ruta utan löparen själv (om hen har stått i rutan och skjutit). */
+function othersOn(counts: Readonly<Record<string, number>> | undefined, mine: readonly JudgedShot[]): Record<string, number> {
+  const own = new Set(mine.filter(shot => shot.result !== "WRONG").map(shot => shot.cell));
+  return Object.fromEntries(Object.entries(counts ?? {}).map(([cell, count]) => [cell, Math.max(0, count - (own.has(cell) ? 1 : 0))]));
+}
 
 /**
  * Löparens sida (ADR-0225), Bingo eller Sänka skepp: anmälan (namn, grupp, Starta); under loppet fickläget (nästan svart,
@@ -35,7 +42,7 @@ export function BingoRunner({ raceId, mode, title, groups, georeference, mapScal
   const run = bingo.run;
   const now = useNow(run?.status === "RUNNING");
   const group = bingo.group ?? groups[0];
-  const ships = useShips(group ?? { course: "", name: "", cellMeters: 0, ships: [], cells: [] }, run?.seed, run?.shots ?? [], bingo.metersPerMm);
+  const ships = useShips(raceId, group ?? { course: "", name: "", cellMeters: 0, ships: [], sharedShips: [], cells: [] }, run?.seed, run?.shots ?? [], bingo.metersPerMm);
   // Pling och vibration vid träff (inte för skott som fanns när sidan laddades).
   const judgedCount = ships.judged.length, lastResult = ships.judged[judgedCount - 1]?.result;
   const pinged = useRef<number | undefined>(undefined);
@@ -86,6 +93,7 @@ export function BingoRunner({ raceId, mode, title, groups, georeference, mapScal
         {problem && <p className={styles.gap} role="alert">{problem}</p>}
         <ShipFire aiming={bingo.aiming} now={now} onFire={fire}>
           {(selected, select) => <ShipBoard group={group} judged={ships.judged} sunkCells={sunkCells} selected={selected} onSelect={select} dark
+            others={othersOn(board.groups.find(item => item.course === group.course)?.shotCells, ships.judged)}
             label={shipText.legend} />}
         </ShipFire>
         <p className={styles.status}>{shipText.legend} · {unsent ? text.unsent : text.saved}</p>

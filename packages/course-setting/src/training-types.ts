@@ -118,8 +118,10 @@ export interface BingoTraining {
   readonly cellMeters: number;
   /** Gruppens eget område (annars träningens, som ändras för alla grupper utan eget). */
   readonly ownArea?: boolean | undefined;
-  /** Sänka skepp: skeppens längder i rutor; saknas = efter rutnätets storlek. */
+  /** Sänka skepp: de egna skeppens längder (per löpare); saknas tillsammans med `sharedShips` = efter rutnätets storlek. */
   readonly ships?: readonly number[] | undefined;
+  /** Sänka skepp: de gemensamma skeppens längder (samma för alla i gruppen). */
+  readonly sharedShips?: readonly number[] | undefined;
 }
 
 /** Ett ritat område med eget filter (t.ex. bara kurvbild här). */

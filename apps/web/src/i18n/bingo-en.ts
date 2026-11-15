@@ -23,8 +23,9 @@ export const bingoEn: Texts<typeof bingoSv> = {
     ownArea: "own area",
     drawOwn: "Own area",
     useTrainingArea: "Use the training's area",
-    ships: "Ships (Battleships)",
-    shipsHelp: "The lengths in squares, e.g. 4, 3, 3, 2, 2. Empty = by the size of the grid.",
+    sharedShips: "Shared ships",
+    ownShips: "Own ships",
+    shipsHelp: "Battleships: the lengths in squares. Shared ships are the same for everyone in the group (e.g. 4, 3), own ships are random per runner (e.g. 2, 2). Both empty = by the size of the grid.",
     shipsInvalid: "Write at most 8 lengths between 1 and 6, e.g. 3, 2, 2.",
     add: "Add group",
     open: "Show",
@@ -94,7 +95,8 @@ export const bingoEn: Texts<typeof bingoSv> = {
     title: "Battleships",
     intro: "Run with the map. When you think you are in a square: tap the square and Fire. The phone then takes a position.",
     rules: [
-      "You get your own ships. A hit gives 1 point, a sunk ship 2 more. The wrong square (you were not there) gives −1.",
+      "The group has shared ships (the same for everyone) and you have your own. The dots in a square show how many others stood there and fired, not whether it was a hit: talk to each other.",
+      "A hit gives 1 point, a sunk ship 2 more. The wrong square (you were not there) gives −1.",
       "Each square can be fired at once. The phone may be locked between the shots.",
       "Finish and Cancel: hold the button for 2 seconds."
     ],
@@ -110,6 +112,9 @@ export const bingoEn: Texts<typeof bingoSv> = {
     wrong: (cell: string) => `You were not in ${cell} (−1).`,
     shot: "already fired at",
     legend: "✓ sunk · ● hit · ~ water · ✗ wrong",
+    sharedColumn: "Shared",
+    others: (count: number) => count === 1 ? "1 other has stood here and fired" : `${count} others have stood here and fired`,
+    heat: (group: string) => `${group}: where the group has been (dots = how many stood in the square and fired)`,
     hitsColumn: "Hits", waterColumn: "Water", wrongColumn: "Wrong", lastColumn: "Last shot",
     mapTitle: "Your shots and the ships"
   },

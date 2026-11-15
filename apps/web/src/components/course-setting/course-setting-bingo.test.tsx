@@ -6,6 +6,7 @@ import { addBingoGroupEdits } from "../../lib/bingo-setup";
 import { testDocument } from "../../lib/course-setting-test-document";
 import { BingoBlock } from "./course-setting-bingo";
 import { FormIcon } from "./course-setting-training";
+import { ShotHeatGrid } from "../bingo/bingo-ships";
 
 // Komponenterna använder JSX utan att importera React (Next); testet ger dem React (vitest kompilerar klassiskt).
 (globalThis as { React?: typeof React }).React = React;
@@ -23,10 +24,19 @@ describe("bingo i fliken Träning", () => {
       onEdits={none} onView={none} />);
     expect(html).toContain("Grön");
     expect(html).toContain("6 rutor");
-    expect(html).toContain("placeholder=\"2, 1\"");
+    // Sänka skepp: förvalet för 6 rutor är gemensamt 2 och eget 1.
+    expect(html).toMatch(/placeholder="2"[^>]*data-testid="bingo-ships-shared"/);
+    expect(html).toMatch(/placeholder="1"[^>]*data-testid="bingo-ships-own"/);
     expect(html).toContain("Eget område");
     // Nästa förslag på namn är nästa färg.
     expect(html).toContain("placeholder=\"Vit\"");
     expect(renderToStaticMarkup(<FormIcon form="BINGO" />)).toContain("A1");
+  });
+
+  it("tävlingssidans rutnät: prickar per person upp till fyra, sedan en siffra", () => {
+    const html = renderToStaticMarkup(<ShotHeatGrid cellNames={["A1", "B1", "A2"]} counts={{ A1: 3, B1: 7 }} label="Gröna" />);
+    expect(html).toContain("•••");
+    expect(html).toMatch(/B1<span[^>]*>7</);
+    expect(html).not.toMatch(/A2<span/);
   });
 });

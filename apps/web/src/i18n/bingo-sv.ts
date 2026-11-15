@@ -20,8 +20,9 @@ export const bingoSv = {
     ownArea: "eget område",
     drawOwn: "Eget område",
     useTrainingArea: "Använd träningens område",
-    ships: "Skepp (Sänka skepp)",
-    shipsHelp: "Längderna i rutor, t.ex. 4, 3, 3, 2, 2. Tomt = efter rutnätets storlek.",
+    sharedShips: "Gemensamma skepp",
+    ownShips: "Egna skepp",
+    shipsHelp: "Sänka skepp: längderna i rutor. Gemensamma är samma för alla i gruppen (t.ex. 4, 3), egna slumpas per löpare (t.ex. 2, 2). Båda tomma = efter rutnätets storlek.",
     shipsInvalid: "Skriv högst 8 längder mellan 1 och 6, t.ex. 3, 2, 2.",
     add: "Lägg till grupp",
     open: "Visa",
@@ -91,7 +92,8 @@ export const bingoSv = {
     title: "Sänka skepp",
     intro: "Spring med kartan. När du tror att du står i en ruta: tryck på rutan och Skjut. Telefonen tar då en position.",
     rules: [
-      "Du får egna skepp. Träff ger 1 poäng, ett sänkt skepp 2 poäng till. Fel ruta (du stod inte där) ger −1.",
+      "Gruppen har gemensamma skepp (samma för alla) och du har egna. Prickarna i en ruta visar hur många andra som stått där och skjutit, inte om det var träff: prata med varandra.",
+      "Träff ger 1 poäng, ett sänkt skepp 2 poäng till. Fel ruta (du stod inte där) ger −1.",
       "Varje ruta kan skjutas en gång. Telefonen får vara låst mellan skotten.",
       "Mål och Avbryt: håll in knappen i 2 sekunder."
     ],
@@ -107,6 +109,9 @@ export const bingoSv = {
     wrong: (cell: string) => `Du stod inte i ${cell} (−1).`,
     shot: "redan skjuten",
     legend: "✓ sänkt · ● träff · ~ vatten · ✗ fel",
+    sharedColumn: "Gemensamma",
+    others: (count: number) => count === 1 ? "1 annan har stått här och skjutit" : `${count} andra har stått här och skjutit`,
+    heat: (group: string) => `${group}: där gruppen har varit (prickar = hur många som stått i rutan och skjutit)`,
     hitsColumn: "Träffar", waterColumn: "Vatten", wrongColumn: "Fel", lastColumn: "Senaste skott",
     mapTitle: "Dina skott och skeppen"
   },

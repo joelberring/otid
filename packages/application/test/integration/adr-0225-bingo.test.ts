@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase, migrate } from "@o-tid/database";
-import { placeShips } from "@o-tid/domain";
+import { bingoGroupSeed, placeGroupShips } from "@o-tid/domain";
 import { listPublicRaces, readBingoAsAdmin, readBingoLeaderboard, readBingoPublic, receiveBingoProgress, setBingoAsAdmin } from "../../src";
 import { auth, NOW, RACE_DATE, seedRace } from "./steg-25-fixtures";
 
@@ -100,29 +100,41 @@ describe("bingo med telefonen (ADR-0225)", () => {
     expect(RACE_DATE).toBe("2026-09-19");
   });
 
-  it("Sänka skepp: läget per träning, fröet behålls, skotten bedöms på servern och topplistan har poängen", async () => {
+  it("Sänka skepp: gemensamma skepp lika för gruppen, egna per löpare; skotten bedöms på servern; topplistan har poängen och prickarna", async () => {
     const { raceId, admin } = await bingoRace();
+    // Gruppen Gröna får ett stort rutnät (10 × 8 rutor): förval gemensamma 4, 3 och egna 2, 2.
+    await pool.query(`UPDATE course_setting SET document = jsonb_set(document, '{training,courses,1,bingo,area}', '{"minX":0,"minY":0,"maxX":100,"maxY":80}')
+      WHERE race_id=$1`, [raceId]);
     const set = await setBingoAsAdmin(db, { ...admin, request: { formatVersion: 1, enabled: true, mode: "SHIPS" } }, NOW);
     expect(set.status === "ok" && set.response.mode).toBe("SHIPS");
-    const names = ["A1", "B1", "C1", "A2", "B2", "C2"];
-    const ships = placeShips(names, [2, 1], 77);
-    expect(ships.flatMap(ship => ship.cells)).toHaveLength(3);
-    // Rutornas mitt (1:10 000, 10 mm rutor, området 0–30 × 0–20 mm, A1 uppe till vänster).
-    const center = (name: string) => { const column = name.charCodeAt(0) - 65, row = Number(name.slice(1)) - 1; return { x: column * 10 + 5, y: 20 - row * 10 - 5 }; };
+    expect(set.status === "ok" && set.response.groups[0]).toMatchObject({ sharedShips: [4, 3], ships: [2, 2] });
+    const names = Array.from({ length: 80 }, (_, i) => `${String.fromCharCode(65 + (i % 10))}${Math.floor(i / 10) + 1}`);
+    const ships = placeGroupShips(names, { shared: [4, 3], own: [2, 2] }, bingoGroupSeed(raceId, "1"), 77);
+    // Rutornas mitt (1:10 000, 10 mm rutor, området 0–100 × 0–80 mm, A1 uppe till vänster).
+    const center = (name: string) => { const column = name.charCodeAt(0) - 65, row = Number(name.slice(1)) - 1; return { x: column * 10 + 5, y: 80 - row * 10 - 5 }; };
     const hitCell = ships[0]!.cells[0]!;
     const water = names.find(name => !ships.some(ship => ship.cells.includes(name)))!;
+    const wrongCell = names.find(name => name !== hitCell && name !== water && !ships.some(ship => ship.cells.includes(name)))!;
     const shots = [{ cell: hitCell, at: start + 60_000, ...center(hitCell), accuracyM: 8 }, { cell: water, at: start + 120_000, ...center(water), accuracyM: 6 },
-      { cell: hitCell === "A1" ? "C2" : "A1", at: start + 180_000, ...center(hitCell), accuracyM: 6 }];
-    const runner = randomUUID();
-    expect(await send(raceId, progress(runner, { name: "Sam S", seed: 77, shots, taken: [] }))).toMatchObject({ status: "ok", response: { seed: 77 } });
+      { cell: wrongCell, at: start + 180_000, ...center(hitCell), accuracyM: 6 }];
+    const sam = randomUUID(), kim = randomUUID();
+    expect(await send(raceId, progress(sam, { name: "Sam S", seed: 77, shots, taken: [] }))).toMatchObject({ status: "ok", response: { seed: 77 } });
     // Ett annat frö senare ändrar inget.
-    expect(await send(raceId, progress(runner, { name: "Sam S", seed: 5, shots: shots.slice(0, 1), taken: [] }))).toMatchObject({ response: { seed: 77 } });
+    expect(await send(raceId, progress(sam, { name: "Sam S", seed: 5, shots: shots.slice(0, 1), taken: [] }))).toMatchObject({ response: { seed: 77 } });
+    await send(raceId, progress(kim, { name: "Kim K", seed: 78, shots: shots.slice(0, 1), taken: [] }));
     const board = await readBingoLeaderboard(db, { raceId, staff: false }, NOW);
     expect(board?.mode).toBe("SHIPS");
-    expect(board?.groups[0]!.runners[0]).toMatchObject({ name: "Sam S", hits: 1, wrong: 1, points: 1 - 1 + (ships[0]!.cells.length === 1 ? 2 : 0) });
+    expect(board?.groups[0]!.runners.find(row => row.name === "Sam S")).toMatchObject({ hits: 1, wrong: 1, water: 1, points: 0, sharedSunk: 0 });
+    // Prickarna: två har stått i träffrutan, en i vattenrutan; fel ruta räknas inte. Inga namn eller positioner.
+    expect(board?.groups[0]!.shotCells).toEqual({ [hitCell]: 2, [water]: 1 });
+    expect(JSON.stringify(board?.groups[0]!.shotCells)).not.toContain("Sam");
     const view = await readBingoAsAdmin(db, admin, NOW);
-    const row = view.status === "ok" ? view.response.runners.find(item => item.name === "Sam S") : undefined;
-    expect(row?.ships).toEqual(ships.map(ship => ship.cells));
-    expect(row?.shots.map(item => item.result)).toEqual([ships[0]!.cells.length === 1 ? "SUNK" : "HIT", "WATER", "WRONG"]);
+    const rows = view.status === "ok" ? view.response.runners : [];
+    const samRow = rows.find(item => item.name === "Sam S")!, kimRow = rows.find(item => item.name === "Kim K")!;
+    expect(samRow.ships).toEqual(ships.map(ship => ship.cells));
+    expect(samRow.sharedShips).toBe(2);
+    expect(kimRow.ships.slice(0, 2)).toEqual(samRow.ships.slice(0, 2));
+    expect(kimRow.ships.slice(2)).not.toEqual(samRow.ships.slice(2));
+    expect(samRow.shots.map(item => item.result)).toEqual(["HIT", "WATER", "WRONG"]);
   });
 });

@@ -26,8 +26,43 @@ export function defaultShips(cellCount: number): number[] {
   return [4, 3, 3, 2, 2];
 }
 
-/** Ett skepp: rutornas namn i ordning. */
-export interface Ship { readonly cells: readonly string[] }
+/** Ett skepp: rutornas namn i ordning; `shared` = gruppens gemensamma skepp (samma för alla i gruppen). */
+export interface Ship { readonly cells: readonly string[]; readonly shared?: true | undefined }
+
+/**
+ * Lagspelet (ägaren 2026-11-16): gemensamma skepp (de längre, samma för alla i gruppen) och egna (de korta, per löpare) efter
+ * rutnätets storlek. Litet rutnät: gemensamt 2 och egna 1, 1; stort: gemensamma 4, 3 och egna 2, 2.
+ */
+export function defaultShipSplit(cellCount: number): { shared: number[]; own: number[] } {
+  if (cellCount < 12) return { shared: [2], own: [1] };
+  if (cellCount <= 20) return { shared: [2], own: [1, 1] };
+  if (cellCount <= 35) return { shared: [3], own: [2, 1] };
+  if (cellCount <= 60) return { shared: [3], own: [2, 2] };
+  return { shared: [4, 3], own: [2, 2] };
+}
+
+/**
+ * Gruppens uppsättning: båda fälten tomma ger förvalet (`defaultShipSplit`); annars gäller fälten som de står, och ett tomt
+ * fält är inga skepp (det äldre fältet «Skepp» är egna skepp utan gemensamma).
+ */
+export function shipSplitFor(cellCount: number, shared: readonly number[] | undefined, own: readonly number[] | undefined): { shared: number[]; own: number[] } {
+  if (shared === undefined && own === undefined) return defaultShipSplit(cellCount);
+  return { shared: [...(shared ?? [])], own: [...(own ?? [])] };
+}
+
+/** Gruppens frö för de gemensamma skeppen: FNV-1a av tävlingens id och banans id (samma i telefonen och på servern). */
+export function bingoGroupSeed(raceId: string, course: string): number {
+  let hash = 0x811c9dc5;
+  for (const ch of `${raceId}:${course}`) { hash ^= ch.charCodeAt(0); hash = Math.imul(hash, 0x01000193) >>> 0; }
+  return hash >>> 0;
+}
+
+/** Gemensamma skepp ur gruppens frö, sedan löparens egna utanför dem och deras grannrutor. */
+export function placeGroupShips(cellNames: readonly string[], split: { shared: readonly number[]; own: readonly number[] }, groupSeed: number,
+  runnerSeed: number): Ship[] {
+  const shared = placeShips(cellNames, split.shared, groupSeed).map(ship => ({ ...ship, shared: true as const }));
+  return [...shared, ...placeShips(cellNames, split.own, runnerSeed, shared)];
+}
 
 /** Rutans kolumn och rad ur namnet ("AB12" → kolumn 27, rad 11). */
 export function bingoCellPosition(name: string): { column: number; row: number } | undefined {
@@ -54,7 +89,7 @@ function random(seed: number): () => number {
  * Skeppen för fröet: raka (vågräta eller lodräta), bara på rutor som finns och inte intill varandra (inte heller snett).
  * Längsta skeppet först. Går en uppsättning inte att lägga efter många försök tas det minsta skeppet bort och det prövas igen.
  */
-export function placeShips(cellNames: readonly string[], lengths: readonly number[], seed: number): Ship[] {
+export function placeShips(cellNames: readonly string[], lengths: readonly number[], seed: number, avoid: readonly Ship[] = []): Ship[] {
   const cells = new Map<string, string>();
   for (const name of cellNames) { const at = bingoCellPosition(name); if (at) cells.set(`${at.column},${at.row}`, name); }
   const columns = Math.max(0, ...[...cells.keys()].map(key => Number(key.split(",")[0]) + 1));
@@ -63,7 +98,8 @@ export function placeShips(cellNames: readonly string[], lengths: readonly numbe
   while (wanted.length > 0) {
     const next = random(seed);
     for (let attempt = 0; attempt < 200; attempt++) {
-      const used = new Set<string>();
+      // Skepp som redan ligger (de gemensamma) och deras grannrutor är upptagna.
+      const used = new Set<string>(avoid.flatMap(ship => ship.cells).flatMap(name => { const at = bingoCellPosition(name); return at ? [`${at.column},${at.row}`] : []; }));
       const ships: Ship[] = [];
       let ok = true;
       for (const length of wanted) {
@@ -110,7 +146,7 @@ export function shotInCell(cell: BingoCellArea, shot: Pick<Shot, "x" | "y" | "ac
   return shot.x >= r.minX - margin && shot.x <= r.maxX + margin && shot.y >= r.minY - margin && shot.y <= r.maxY + margin;
 }
 
-export interface JudgedShot extends Shot { readonly result: ShotResult }
+export interface JudgedShot extends Shot { readonly result: ShotResult; readonly shared?: true | undefined }
 
 export interface ShipScore {
   readonly points: number;
@@ -119,6 +155,8 @@ export interface ShipScore {
   readonly wrong: number;
   /** Skott i rätt ruta utan skepp. */
   readonly water: number;
+  /** Gemensamma skepp som löparen sänkt. */
+  readonly sharedSunk: number;
   readonly lastShotAt: number | null;
 }
 
@@ -139,7 +177,7 @@ export function judgeShots(shots: readonly Shot[], cells: readonly BingoCellArea
     if (!shotInCell(cell, shot, metersPerMm)) { out.push({ ...shot, result: "WRONG" }); continue; }
     fired.add(shot.cell);
     const ship = shipOf.get(shot.cell);
-    out.push({ ...shot, result: !ship ? "WATER" : ship.cells.every(name => fired.has(name)) ? "SUNK" : "HIT" });
+    out.push({ ...shot, result: !ship ? "WATER" : ship.cells.every(name => fired.has(name)) ? "SUNK" : "HIT", ...(ship?.shared ? { shared: true as const } : {}) });
   }
   return out;
 }
@@ -150,7 +188,8 @@ export function scoreShots(judged: readonly JudgedShot[]): ShipScore {
   const sunk = judged.filter(shot => shot.result === "SUNK").length;
   const wrong = judged.filter(shot => shot.result === "WRONG").length;
   const water = judged.filter(shot => shot.result === "WATER").length;
-  return { points: hits + 2 * sunk - wrong, hits, sunk, wrong, water, lastShotAt: judged.length > 0 ? Math.max(...judged.map(shot => shot.at)) : null };
+  const sharedSunk = judged.filter(shot => shot.result === "SUNK" && shot.shared).length;
+  return { points: hits + 2 * sunk - wrong, hits, sunk, wrong, water, sharedSunk, lastShotAt: judged.length > 0 ? Math.max(...judged.map(shot => shot.at)) : null };
 }
 
 /** Skotten från servern och telefonen ihop: samma ruta och tid är samma skott. */
@@ -166,4 +205,16 @@ export interface ShipStanding extends ShipScore { readonly name: string; readonl
 export function rankShips<T extends ShipStanding>(rows: readonly T[]): T[] {
   return [...rows].sort((a, b) => Number(a.status === "ABANDONED") - Number(b.status === "ABANDONED") || b.points - a.points || b.sunk - a.sunk
     || b.hits - a.hits || a.wrong - b.wrong || (a.lastShotAt ?? Infinity) - (b.lastShotAt ?? Infinity) || a.name.localeCompare(b.name, "sv"));
+}
+
+/**
+ * Prickarna på skottbrädet: hur många löpare i gruppen som skjutit på rutan och stått i den (vatten, träff eller sänkt, inte
+ * fel ruta). Visar inte om det var en träff. `judgedPerRunner` = varje löpares bedömda skott.
+ */
+export function shotCellCounts(judgedPerRunner: readonly (readonly JudgedShot[])[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const judged of judgedPerRunner) {
+    for (const cell of new Set(judged.filter(shot => shot.result !== "WRONG").map(shot => shot.cell))) out[cell] = (out[cell] ?? 0) + 1;
+  }
+  return out;
 }

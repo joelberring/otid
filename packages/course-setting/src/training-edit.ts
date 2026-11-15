@@ -121,7 +121,12 @@ function cleanBingo(value: unknown): BingoTraining {
   }
   if (b.ships !== undefined) {
     const ships = array(b.ships, "Skeppen", BINGO_LIMITS.maxShips).map(length => Math.round(number(length, "Skeppets längd", 1, BINGO_LIMITS.maxShipLength)));
-    if (ships.length > 0) out = { ...out, ships };
+    out = { ...out, ships };
+  }
+  if (b.sharedShips !== undefined) {
+    const sharedShips = array(b.sharedShips, "De gemensamma skeppen", BINGO_LIMITS.maxShips)
+      .map(length => Math.round(number(length, "Skeppets längd", 1, BINGO_LIMITS.maxShipLength)));
+    out = { ...out, sharedShips };
   }
   return out;
 }

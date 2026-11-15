@@ -3,6 +3,7 @@
  * (`CourseTraining.bingo`). Rena hjälpfunktioner för panelen: grupperna, området och ändringarna.
  */
 import { bingoCells, courseTrainingOf, type BingoTraining, type CourseSettingDocument, type CourseSettingEdit, type MapRect } from "@o-tid/course-setting";
+import { defaultShipSplit } from "@o-tid/domain";
 import type { Point } from "@o-tid/map-file";
 
 export interface BingoGroupRow {
@@ -81,9 +82,18 @@ export function parseShips(text: string): number[] | null | undefined {
   return lengths.length <= 8 && lengths.every(length => Number.isInteger(length) && length >= 1 && length <= 6) ? lengths : undefined;
 }
 
-export function setShipsEdits(document: CourseSettingDocument, group: BingoGroupRow, ships: readonly number[] | null): CourseSettingEdit[] {
+/**
+ * Gruppens gemensamma eller egna skepp (Sänka skepp). `null` = tomt fält. Båda tomma = förvalet efter rutnätets storlek; när
+ * ett fält ändras medan båda var förval får det andra förvalets värde, så att det inte försvinner.
+ */
+export function setShipsEdits(document: CourseSettingDocument, group: BingoGroupRow, kind: "shared" | "own", value: readonly number[] | null): CourseSettingEdit[] {
+  const fallback = defaultShipSplit(group.cells);
+  const untouched = group.bingo.sharedShips === undefined && group.bingo.ships === undefined;
+  const filled = (list: readonly number[] | null | undefined) => list && list.length > 0 ? list : null;
+  const shared = filled(kind === "shared" ? value : group.bingo.sharedShips ?? (untouched ? fallback.shared : null));
+  const own = filled(kind === "own" ? value : group.bingo.ships ?? (untouched ? fallback.own : null));
   const bingo: BingoTraining = { area: group.bingo.area, cellMeters: group.bingo.cellMeters, ...(group.bingo.ownArea ? { ownArea: true } : {}),
-    ...(ships ? { ships } : {}) };
+    ...(shared === null && own === null ? {} : { sharedShips: shared ?? [], ships: own ?? [] }) };
   return [{ type: "PUT_TRAINING", courses: { [group.course]: { ...courseTrainingOf(document, group.course), bingo } } }];
 }
 

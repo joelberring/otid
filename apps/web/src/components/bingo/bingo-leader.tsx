@@ -66,14 +66,14 @@ export function BingoLeader({ raceId }: { raceId: string }) {
         <h2>{group.name}</h2>
         {runners.length === 0 ? <p>{text.none}</p> : <table className={styles.table} data-testid="bingo-leader-table">
           <thead><tr><th scope="col">{text.name}</th>{shipsMode ? <><th scope="col">{ships.points}</th><th scope="col">{ships.sunk}</th>
-            <th scope="col">{ships.hitsColumn}</th><th scope="col">{ships.waterColumn}</th><th scope="col">{ships.wrongColumn}</th></> : <><th scope="col">{text.cells}</th>
+            <th scope="col">{ships.sharedColumn}</th><th scope="col">{ships.hitsColumn}</th><th scope="col">{ships.waterColumn}</th><th scope="col">{ships.wrongColumn}</th></> : <><th scope="col">{text.cells}</th>
             <th scope="col">{text.distance}</th></>}<th scope="col">{text.time}</th>
             <th scope="col">{text.state}</th><th scope="col">{text.updated}</th></tr></thead>
           <tbody>{runners.map(row => <tr key={row.id} data-mine={row.id === runner || undefined}>
             <td><button type="button" className={styles.linkButton} aria-pressed={row.id === runner}
               onClick={() => setRunner(current => current === row.id ? undefined : row.id)}>
               <span className={styles.swatch} style={{ background: color(row.id) }} aria-hidden="true" />{row.name}</button></td>
-            {shipsMode ? <><td>{row.points}</td><td>{row.sunk}/{row.ships.length}</td><td>{row.hits}</td><td>{row.water ?? row.shots.filter(shot => shot.result === "WATER").length}</td><td>{row.wrong}</td></>
+            {shipsMode ? <><td>{row.points}</td><td>{row.sunk}/{row.ships.length}</td><td>{row.sharedSunk}/{row.sharedShips}</td><td>{row.hits}</td><td>{row.water ?? row.shots.filter(shot => shot.result === "WATER").length}</td><td>{row.wrong}</td></>
               : <><td>{row.taken.length}/{group.cells.length}</td><td>{formatBingoDistance(row.distanceM)}</td></>}<td>{formatBingoTime(row.seconds)}</td>
             <td>{text.status[row.status]}{row.gaps.length > 0 && <span className={styles.muted}> · {text.gaps(row.gaps.length)}</span>}</td>
             <td>{new Date(row.updatedAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</td>

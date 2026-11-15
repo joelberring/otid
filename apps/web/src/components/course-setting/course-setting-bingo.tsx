@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import { BINGO_CELL_SIZES, BINGO_LIMITS, COURSE_PRINT_SCALES, type CourseSettingDocument, type CourseSettingEdit, type MapRect } from "@o-tid/course-setting";
 import { bingoEn } from "../../i18n/bingo-en";
 import { bingoSv } from "../../i18n/bingo-sv";
-import { defaultShips } from "@o-tid/domain";
+import { shipSplitFor } from "@o-tid/domain";
 import {
   addBingoGroupEdits, BINGO_GROUP_NAMES, bingoGroups, parseShips, setBingoCellEdits, setGroupAreaEdits, setShipsEdits, suggestedGroupName,
   trainingBingoArea
@@ -76,14 +76,21 @@ export function BingoBlock({ document, view, readOnly, tool, onTool, pendingArea
             {[...new Set([...scales, group.printScale ?? document.event.mapScale])].sort((a, b) => a - b).map(value => <option key={value} value={value}>
               {value === document.event.mapScale ? text.mapScale(scaleText(value)) : scaleText(value)}</option>)}</select></label>
         </div>
-        <label className={styles.stack}>{text.ships}<input type="text" inputMode="numeric" disabled={readOnly} key={(group.bingo.ships ?? []).join(",")}
-          defaultValue={(group.bingo.ships ?? []).join(", ")} placeholder={defaultShips(group.cells).join(", ")}
-          onBlur={event => {
-            const ships = parseShips(event.target.value);
-            if (ships === undefined) { setShipsProblem(group.course); return; }
-            setShipsProblem(undefined);
-            if ((ships ?? []).join(",") !== (group.bingo.ships ?? []).join(",")) onEdits(setShipsEdits(document, group, ships));
-          }} /></label>
+        <div className={styles.row}>
+          {(["shared", "own"] as const).map(kind => {
+            const current = kind === "shared" ? group.bingo.sharedShips : group.bingo.ships;
+            const fallback = shipSplitFor(group.cells, group.bingo.sharedShips, group.bingo.ships)[kind];
+            return <label key={kind} className={styles.stack}>{kind === "shared" ? text.sharedShips : text.ownShips}
+              <input type="text" inputMode="numeric" disabled={readOnly} key={(current ?? []).join(",")} defaultValue={(current ?? []).join(", ")}
+                placeholder={fallback.join(", ") || "–"} data-testid={`bingo-ships-${kind}`}
+                onBlur={event => {
+                  const ships = parseShips(event.target.value);
+                  if (ships === undefined) { setShipsProblem(group.course); return; }
+                  setShipsProblem(undefined);
+                  if ((ships ?? []).join(",") !== (current ?? []).join(",")) onEdits(setShipsEdits(document, group, kind, ships));
+                }} /></label>;
+          })}
+        </div>
         <span className={styles.muted} role={shipsProblem === group.course ? "alert" : undefined}>
           {shipsProblem === group.course ? text.shipsInvalid : text.shipsHelp}</span>
         <div className={styles.row}>

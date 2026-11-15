@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyEdit, type CourseSettingDocument, type CourseSettingEdit } from "@o-tid/course-setting";
-import { addBingoGroupEdits, bingoAreaFrom, bingoGroups, setBingoAreaEdits, setBingoCellEdits } from "./bingo-setup";
+import { addBingoGroupEdits, bingoAreaFrom, bingoGroups, setBingoAreaEdits, setBingoCellEdits, setShipsEdits } from "./bingo-setup";
 import { testDocument } from "./course-setting-test-document";
 
 const run = (document: CourseSettingDocument, edits: readonly CourseSettingEdit[]) => edits.reduce((doc, edit) => applyEdit(doc, edit).document, document);
@@ -26,5 +26,18 @@ describe("bingo i banläggningen", () => {
     expect(bingoGroups(document).map(group => group.cells)).toEqual([25, 4]);
     document = run(document, setBingoCellEdits(document, bingoGroups(document)[1]!, 500));
     expect(bingoGroups(document)[1]).toMatchObject({ cells: 1, bingo: { cellMeters: 500 } });
+  });
+
+  it("gemensamma och egna skepp: ett ändrat fält behåller det andra förvalet; båda tomma blir förval igen", () => {
+    let document = testDocument();
+    document = run(document, addBingoGroupEdits(document, "Gröna", 100, { minX: 0, minY: 0, maxX: 100, maxY: 80 }, undefined).edits);
+    const group = () => bingoGroups(document)[0]!;
+    document = run(document, setShipsEdits(document, group(), "shared", [4]));
+    expect(group().bingo).toMatchObject({ sharedShips: [4], ships: [2, 2] });
+    document = run(document, setShipsEdits(document, group(), "own", null));
+    expect(group().bingo).toMatchObject({ sharedShips: [4], ships: [] });
+    document = run(document, setShipsEdits(document, group(), "shared", null));
+    expect(group().bingo.sharedShips).toBeUndefined();
+    expect(group().bingo.ships).toBeUndefined();
   });
 });

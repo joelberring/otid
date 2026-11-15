@@ -92,7 +92,7 @@ async function leaderboard(tx: DbExecutor, raceId: string, mode: BingoMode, setu
       seconds: bingoSeconds(toProgress(row)), distanceM: Math.round(row.distanceM),
       ...(mode === "SHIPS" ? shipsOf(row, group, setup.metersPerMm).score : {}) }));
     return { course: group.course, name: group.name, cells: group.cells.length,
-      runners: mode === "SHIPS" ? rankShips(standings.map(row => ({ points: 0, hits: 0, sunk: 0, wrong: 0, lastShotAt: null, ...row }))) : rankBingo(standings) };
+      runners: mode === "SHIPS" ? rankShips(standings.map(row => ({ points: 0, hits: 0, sunk: 0, wrong: 0, water: 0, lastShotAt: null, ...row }))) : rankBingo(standings) };
   }) });
 }
 
@@ -195,7 +195,7 @@ async function adminView(tx: DbExecutor, raceId: string): Promise<BingoAdminView
       ...(() => {
         const result = shipsOf(row, setup.groups.find(group => group.course === row.groupCourse), setup.metersPerMm);
         return { ships: result.ships.map(ship => [...ship.cells]), shots: result.judged, points: result.score.points, sunk: result.score.sunk,
-          hits: result.score.hits, wrong: result.score.wrong };
+          hits: result.score.hits, wrong: result.score.wrong, water: result.score.water };
       })() })) });
 }
 

@@ -44,10 +44,10 @@ export function BingoBoard({ board, only, dark, mine }: { board: BingoLeaderboar
       {only === undefined && <h3>{group.name}</h3>}
       {group.runners.length === 0 ? <p className={styles.muted}>{text.none}</p> : board.mode === "SHIPS" ? <table className={styles.table} data-testid="bingo-board">
         <thead><tr><th scope="col">#</th><th scope="col">{text.name}</th><th scope="col">{ships.points}</th><th scope="col">{ships.sunk}</th>
-          <th scope="col">{ships.hitsColumn}</th><th scope="col">{ships.wrongColumn}</th><th scope="col">{ships.lastColumn}</th></tr></thead>
+          <th scope="col">{ships.hitsColumn}</th><th scope="col">{ships.waterColumn}</th><th scope="col">{ships.wrongColumn}</th><th scope="col">{ships.lastColumn}</th></tr></thead>
         <tbody>{group.runners.map((row, index) => <tr key={`${row.name}-${index}`} data-mine={row.name === mine || undefined}>
           <td>{index + 1}</td><td>{row.name} <span className={styles.muted}>{text.status[row.status]}</span></td>
-          <td>{row.points ?? 0}</td><td>{row.sunk ?? 0}</td><td>{row.hits ?? 0}</td><td>{row.wrong ?? 0}</td>
+          <td>{row.points ?? 0}</td><td>{row.sunk ?? 0}</td><td>{row.hits ?? 0}</td><td>{row.water ?? 0}</td><td>{row.wrong ?? 0}</td>
           <td>{row.lastShotAt ? new Date(row.lastShotAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" }) : "–"}</td>
         </tr>)}</tbody>
       </table> : <table className={styles.table} data-testid="bingo-board">

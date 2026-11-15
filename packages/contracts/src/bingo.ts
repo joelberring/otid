@@ -48,7 +48,7 @@ export const bingoStandingSchema = z.object({
   name: z.string(), cells: z.number().int().min(0), status: bingoStatusSchema, seconds: z.number().int().min(0), distanceM: z.number().int().min(0),
   /** Sänka skepp: poäng, sänkta skepp, träffar, fel ruta och senaste skottet (ms). */
   points: z.number().int().optional(), sunk: z.number().int().min(0).optional(), hits: z.number().int().min(0).optional(),
-  wrong: z.number().int().min(0).optional(), lastShotAt: z.number().nullable().optional()
+  wrong: z.number().int().min(0).optional(), water: z.number().int().min(0).optional(), lastShotAt: z.number().nullable().optional()
 });
 export const bingoLeaderboardSchema = z.object({
   formatVersion: z.literal(1),
@@ -87,7 +87,7 @@ export const bingoAdminViewSchema = z.object({
     /** Sänka skepp: skeppen (rutornas namn), skotten med bedömningen och poängen. */
     ships: z.array(z.array(z.string())),
     shots: z.array(shot.extend({ result: z.enum(["HIT", "SUNK", "WATER", "WRONG"]) })),
-    points: z.number().int(), sunk: z.number().int(), hits: z.number().int(), wrong: z.number().int()
+    points: z.number().int(), sunk: z.number().int(), hits: z.number().int(), wrong: z.number().int(), water: z.number().int().min(0).optional()
   }))
 });
 export type BingoAdminView = z.infer<typeof bingoAdminViewSchema>;

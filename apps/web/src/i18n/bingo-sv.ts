@@ -107,7 +107,7 @@ export const bingoSv = {
     wrong: (cell: string) => `Du stod inte i ${cell} (−1).`,
     shot: "redan skjuten",
     legend: "✓ sänkt · ● träff · ~ vatten · ✗ fel",
-    hitsColumn: "Träffar", wrongColumn: "Fel", lastColumn: "Senaste skott",
+    hitsColumn: "Träffar", waterColumn: "Vatten", wrongColumn: "Fel", lastColumn: "Senaste skott",
     mapTitle: "Dina skott och skeppen"
   },
   board: {

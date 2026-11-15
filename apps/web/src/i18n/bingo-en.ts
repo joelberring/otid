@@ -110,7 +110,7 @@ export const bingoEn: Texts<typeof bingoSv> = {
     wrong: (cell: string) => `You were not in ${cell} (−1).`,
     shot: "already fired at",
     legend: "✓ sunk · ● hit · ~ water · ✗ wrong",
-    hitsColumn: "Hits", wrongColumn: "Wrong", lastColumn: "Last shot",
+    hitsColumn: "Hits", waterColumn: "Water", wrongColumn: "Wrong", lastColumn: "Last shot",
     mapTitle: "Your shots and the ships"
   },
   board: {

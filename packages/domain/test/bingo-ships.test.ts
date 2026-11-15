@@ -57,7 +57,7 @@ describe("sänka skepp: skotten och poängen", () => {
   it("träff, sänkt, vatten och fel ruta; en ruta skjuts en gång; fel ruta tar inte rutan", () => {
     const judged = judgeShots([shot("A1", 1), shot("C2", 2, "C3"), shot("C2", 3), shot("A1", 4), shot("B1", 5), shot("D3", 6)], cells, ships, M);
     expect(judged.map(item => [item.cell, item.result])).toEqual([["A1", "HIT"], ["C2", "WRONG"], ["C2", "WATER"], ["B1", "SUNK"], ["D3", "SUNK"]]);
-    expect(scoreShots(judged)).toEqual({ points: 3 + 4 - 1, hits: 3, sunk: 2, wrong: 1, lastShotAt: 6 });
+    expect(scoreShots(judged)).toEqual({ points: 3 + 4 - 1, hits: 3, sunk: 2, wrong: 1, water: 1, lastShotAt: 6 });
   });
 
   it("marginalen utanför kanten: noggrannheten, minst 10 m, högst 25 m", () => {
@@ -72,7 +72,7 @@ describe("sänka skepp: skotten och poängen", () => {
   it("serverns och telefonens skott ihop, och topplistan", () => {
     expect(mergeShots([shot("A1", 1)], [shot("A1", 1), shot("B1", 2)]).map(item => item.cell)).toEqual(["A1", "B1"]);
     const row = (name: string, points: number, sunk: number, status: "RUNNING" | "FINISHED" | "ABANDONED" = "RUNNING") =>
-      ({ name, points, sunk, hits: points, wrong: 0, lastShotAt: 1, status });
+      ({ name, points, sunk, hits: points, wrong: 0, water: 0, lastShotAt: 1, status });
     expect(rankShips([row("Bo", 3, 0), row("Ali", 5, 1), row("Cia", 9, 2, "ABANDONED"), row("Dan", 5, 2)]).map(item => item.name))
       .toEqual(["Dan", "Ali", "Bo", "Cia"]);
   });

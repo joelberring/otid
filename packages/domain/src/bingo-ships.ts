@@ -117,6 +117,8 @@ export interface ShipScore {
   readonly hits: number;
   readonly sunk: number;
   readonly wrong: number;
+  /** Skott i rätt ruta utan skepp. */
+  readonly water: number;
   readonly lastShotAt: number | null;
 }
 
@@ -147,7 +149,8 @@ export function scoreShots(judged: readonly JudgedShot[]): ShipScore {
   const hits = judged.filter(shot => shot.result === "HIT" || shot.result === "SUNK").length;
   const sunk = judged.filter(shot => shot.result === "SUNK").length;
   const wrong = judged.filter(shot => shot.result === "WRONG").length;
-  return { points: hits + 2 * sunk - wrong, hits, sunk, wrong, lastShotAt: judged.length > 0 ? Math.max(...judged.map(shot => shot.at)) : null };
+  const water = judged.filter(shot => shot.result === "WATER").length;
+  return { points: hits + 2 * sunk - wrong, hits, sunk, wrong, water, lastShotAt: judged.length > 0 ? Math.max(...judged.map(shot => shot.at)) : null };
 }
 
 /** Skotten från servern och telefonen ihop: samma ruta och tid är samma skott. */

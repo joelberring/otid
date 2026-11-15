@@ -4,6 +4,7 @@ import type { mapProjectKeysSv } from "../../i18n/map-project-keys-sv";
 import type { Texts } from "../../lib/language";
 import { translateObject } from "../../lib/map-project-draw";
 import { fillOrBorder, parallelLine } from "../../lib/map-project-shape-tools";
+import type { EdgePlan } from "../../lib/map-project-edge";
 import { cutMarks, type EndMark } from "../../lib/map-project-cut-marks";
 import { cutLineAt } from "../../lib/map-project-join";
 import { editPointAt } from "../../lib/map-project-point-edit";
@@ -90,6 +91,13 @@ export function duplicateObjects(items: readonly { readonly object: MapObject }[
   const group = crypto.randomUUID();
   return items.filter(item => commit({ key: newKey(crypto.randomUUID()), ref: null, kind: "ADD",
     after: { kind: "OBJECT", object: translateObject(item.object, { x: 0.5, y: -0.5 }) }, group })).length;
+}
+
+/** Lägg på kantlinje (hjulet): kantlinjerna för de markerade ytorna som ett steg att ångra. Ger beskedet. */
+export function addEdges(plan: EdgePlan, commit: (change: ObjectChange) => boolean, text: Texts<typeof mapProjectKeysSv>): string {
+  const group = crypto.randomUUID();
+  const count = plan.made.filter(item => commit({ key: newKey(crypto.randomUUID()), ref: null, kind: "ADD", after: { kind: "OBJECT", object: item }, group })).length;
+  return count ? text.edged(plan.areas, plan.codes.join(", ")) : text.edgeNeedsSymbol;
 }
 
 /** Fyll yta eller gör kant (G) och parallell linje (P) för det markerade, ett steg att ångra. Ger beskedet. */

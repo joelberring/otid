@@ -97,19 +97,25 @@ export function wheelActionsOf(input: {
     reshape: (result: never, message: string) => void } | undefined;
   symbolCode: string | undefined; text: Texts<typeof mapProjectKeysSv>; quick: { switchTo: (code: string) => string; remove: string };
   act: (command: "switchSymbol" | "join" | "reverse" | "smooth" | "simplify") => void;
+  /** Ägaren 2026-11-15: kantlinje på de markerade ytorna; `codes` tomt = ingen kantsymbol finns (välj en linjesymbol). */
+  edge?: { areas: number; codes: readonly string[]; onPick: () => void } | undefined;
 }): WheelAction[] {
   const { multi, single, text } = input;
+  const edge: WheelAction[] = input.edge ? [{ id: "edge", label: input.edge.codes.length ? text.edge(input.edge.areas, input.edge.codes.join(", ")) : text.edgeNeedsSymbol,
+    disabled: input.edge.codes.length === 0, onPick: input.edge.onPick }] : [];
   if (multi) return [
     ...(input.symbolCode && multi.switchable ? [{ id: "switch", label: text.multiSwitch(multi.switchable, input.symbolCode), onPick: () => input.act("switchSymbol") }] : []),
     ...(multi.joinable ? [{ id: "join", label: text.commands.join, onPick: () => input.act("join") }] : []),
     ...(multi.smooth ? [{ id: "smooth", label: text.multiSmooth(multi.smooth), onPick: () => input.act("smooth") }] : []),
     ...(multi.simplify ? [{ id: "simplify", label: text.multiSimplify(multi.simplify), onPick: () => input.act("simplify") }] : []),
+    ...edge,
     { id: "remove", label: text.multiRemove(multi.count), onPick: multi.remove }];
   if (!single) return [];
   return [
     ...single.shapes.map(action => ({ id: action.id, label: action.label, disabled: !action.result, onPick: () => single.reshape(action.result as never, action.message) })),
     ...(single.switchTo ? [{ id: "switch", label: input.quick.switchTo(single.switchTo), onPick: () => input.act("switchSymbol") }] : []),
     ...(single.line ? [{ id: "reverse", label: text.commands.reverse, onPick: () => input.act("reverse") }] : []),
+    ...edge,
     { id: "remove", label: input.quick.remove, onPick: single.remove }];
 }
 

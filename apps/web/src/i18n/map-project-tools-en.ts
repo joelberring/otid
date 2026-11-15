@@ -234,6 +234,9 @@ export const mapProjectKeysEn: Texts<typeof mapProjectKeysSv> = {
   rectangleHint: (corners: number) => corners === 0 ? "Click the first corner." : corners === 1 ? "Click the second corner (one side of the rectangle)." : "Click for the width.",
   rectangleNeedsShape: "Choose a line or area symbol for the rectangle.",
   filled: (count: number) => count === 1 ? "Done: a new object with the chosen symbol." : `Done: ${count} new objects with the chosen symbol.`,
+  edge: (areas, codes) => areas === 1 ? `Add an edge line (${codes})` : `Add edge lines to ${areas} areas (${codes})`,
+  edgeNeedsSymbol: "Edge line: choose a line symbol first",
+  edged: (areas, codes) => areas === 1 ? `The area has got an edge line with ${codes}.` : `${areas} areas have got an edge line with ${codes}.`,
   notFillable: "Select a closed line and choose an area symbol, or select an area and choose a line symbol.",
   paralleled: "The parallel line lies one millimetre to the right.",
   measured: (value: { meters: number } | { squareMeters: number }) => "meters" in value ? `${Math.round(value.meters)} m`

@@ -13,6 +13,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-15 – Lägg på kantlinje i hjulet
+
+- Ägaren: «markera något och säga lägg på kantlinje». Funktionen fanns (Shift+F, «Fyll yta eller gör kant») men bara för en yta, med en linjesymbol vald i förväg och inte i hjulet.
+- Hjulet på en eller flera markerade ytor har «Lägg på kantlinje (501.1)». Kantsymbolen är linjesymbolen med ytans nummer i kartans symboler (`lib/map-project-edge.ts`), annars den valda linjesymbolen; saknas båda är åtgärden grå med «välj en linjesymbol först». En linje per ring, ett steg att ångra.
+- Kontrollerat: typecheck, eslint, knip, enhetstester. Inte provat i webbläsaren. `map-project-editor.tsx` är 817 rader (över gränsen sedan tidigare).
+
 ### 2026-11-15 – Masstart heter masstart, sätts direkt på klassen, och lottningen säger när den inte är sparad
 
 - Ägaren (SBN test, fem klasser med masstart): valen under Start såg ut att gälla («Inställningarna gäller nu 5 klasser») fast lottningen inte var sparad, klasstabellen skrev «Minutstart» för masstart, och masstart på klassen krävde att man först sparade Minutstart.

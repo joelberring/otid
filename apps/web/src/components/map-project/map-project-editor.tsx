@@ -61,7 +61,8 @@ import { noticeText, SyncBadge } from "./map-project-sync-badge";
 import { MapProjectUnderlayPanels } from "./map-project-underlay-panels";
 import { reverseLine } from "../../lib/map-project-join";
 import { MapProjectCandidateBar } from "./map-project-candidate-bar";
-import { clickTool, duplicateObjects, shapeCommand } from "./map-project-click-tools";
+import { clickTool, duplicateObjects, addEdges, shapeCommand } from "./map-project-click-tools";
+import { edgePlan } from "../../lib/map-project-edge";
 import { MapProjectColors } from "./map-project-colors";
 import { railTools, selectionLabel, toolHint, wheelActionsOf, wheelToolsOf } from "./map-project-rail-tools";
 import { MapProjectToolRail } from "./map-project-tool-rail";
@@ -630,7 +631,10 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   // Saxen som i spalten: det markerade släpps inte (man klipper ofta linjen man just markerat).
   const wheelTools = wheelToolsOf(keys, keysText.space, quick.tools, tool, notes.canWrite, next => { if (next === "cut") { cancelDraft(); setTool("cut"); } else pickTool(next)(); },
     { select: text.hints.select, circle: keysText.tips.circle, cut: keysText.tips.cut, note: keysText.tips.note });
-  const wheelActions = wheelActionsOf({ multi: multi.items.length && canEdit ? { count: multi.items.length, switchable: symbol ? multi.switchable(symbol) : 0,
+  // Ägaren 2026-11-15: kantlinje på de markerade ytorna, med kantsymbolen ur kartans symboler.
+  const edgeOf = multi.items.length ? multi.items.map(item => item.object) : selected && tool === "select" ? [selected.object] : [];
+  const edges = canEdit && edgeOf.some(object => object.kind === "area") ? edgePlan(edgeOf, symbols, catalog, symbol) : undefined;
+  const wheelActions = wheelActionsOf({ edge: edges && { areas: edges.areas, codes: edges.codes, onPick: () => setFlash(addEdges(edges, commit, keysText)) }, multi: multi.items.length && canEdit ? { count: multi.items.length, switchable: symbol ? multi.switchable(symbol) : 0,
     joinable: multi.joinable(JOIN_MM), smooth: multi.shapeable("smooth"), simplify: multi.shapeable("simplify"), remove: multi.remove } : undefined, single: selected && tool === "select" && canEdit ? { shapes, line: selected.object.kind === "line",
     switchTo: canSwitch ? symbol.code : undefined, remove: removeSelected, reshape } : undefined, symbolCode: symbol?.code, text: keysText, quick, act: keyAction.current });
   const pending = editor.state?.pending.length ?? 0;

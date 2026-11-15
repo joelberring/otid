@@ -24,6 +24,10 @@ export const mapProjectKeysSv = {
   rectangleHint: (corners: number) => corners === 0 ? "Klicka första hörnet." : corners === 1 ? "Klicka andra hörnet (rektangelns ena sida)." : "Klicka för bredden.",
   rectangleNeedsShape: "Välj en linje- eller ytsymbol för rektangeln.",
   filled: (count: number) => count === 1 ? "Klart: ett nytt objekt med den valda symbolen." : `Klart: ${count} nya objekt med den valda symbolen.`,
+  /** Hjulets åtgärd på markerade ytor och beskedet efteråt. */
+  edge: (areas: number, codes: string) => areas === 1 ? `Lägg på kantlinje (${codes})` : `Lägg på kantlinje på ${areas} ytor (${codes})`,
+  edgeNeedsSymbol: "Kantlinje: välj en linjesymbol först",
+  edged: (areas: number, codes: string) => areas === 1 ? `Ytan har fått en kantlinje med ${codes}.` : `${areas} ytor har fått kantlinje med ${codes}.`,
   notFillable: "Markera en sluten linje och välj en ytsymbol, eller markera en yta och välj en linjesymbol.",
   paralleled: "Den parallella linjen ligger en millimeter till höger.",
   measured: (value: { meters: number } | { squareMeters: number }) => "meters" in value ? `${Math.round(value.meters)} m`

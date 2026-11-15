@@ -49,3 +49,21 @@ GPS-följning, som ADR-0168 parkerade, och den första publika skrivningen av l�
 - iPhone: Safari ger ingen position när skärmen är låst eller sidan dold, och vibration finns inte. Ljudet följer ljudlöst-
   knappen utom i Safari 17+ (`navigator.audioSession`). Instruktionen säger att skärmen inte ska låsas.
 - ADR-0168 beslut 5 (GPS-följning parkerad) gäller fortfarande tävlingar; det här gäller bara bingo och Sänka skepp.
+
+## Tillägg 2026-11-16: Sänka skepp som lagspel
+
+- **Gemensamma och egna skepp.** Gruppen har två fält: «Gemensamma skepp» (samma för alla i gruppen, placeras ur gruppens frö
+  `bingoGroupSeed` = FNV-1a av tävlingens och banans id, ingen migration) och «Egna skepp» (ur löparens frö, utanför de
+  gemensamma och deras grannrutor, `placeGroupShips`). Båda tomma ger förvalet efter rutnätets storlek (`defaultShipSplit`:
+  litet gemensamt 2 och egna 1, 1; stort gemensamma 4, 3 och egna 2, 2). Det äldre fältet «Skepp» (`ships`) är egna skepp
+  utan gemensamma. Poängen är oförändrade; topplistan och ledarens tabell visar sänkta gemensamma för sig.
+- **Prickar för andras skott.** Topplistans svar har per grupp antalet löpare som stått i rutan och skjutit (vatten, träff
+  eller sänkt, inte fel ruta; `shotCellCounts`), utan namn och positioner. Löparens skottbräde visar de andras prickar
+  (utan löparen själv) i rutans hörn, en per person upp till fyra, sedan en siffra, neutrala så att de inte säger om det var
+  träff. Tävlingssidan visar samma prickar som ett rutnät per grupp («där gruppen har varit»). Hämtas var 15:e sekund.
+
+### Handledning (ledaren)
+
+Banläggning → fliken Träning → Bingo: rita området, lägg till grupper; per grupp rutstorlek, skala, «Eget område»,
+«Gemensamma skepp» och «Egna skepp» (tomma = förval). Längst ned «Med telefonen»: bocka i och välj läget Sänka skepp.
+Publicera träningen. Löparna: tävlingssidan → «Bingo: anmäl dig och starta».

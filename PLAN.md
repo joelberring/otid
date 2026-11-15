@@ -1447,6 +1447,7 @@ Ungdomarnas vinterträning tisdag 2026-11-17. ADR-0225.
 - [x] B2 Telefonen per tävling (Bingo eller Sänka skepp), synlig på startsidan bara den dagen, anmälan på plats utan konto.
 - [x] B3 Bingo med GPS: rutor, sträcka, glapp, pling, fickläge, kö mot servern, topplista och ledarens tabell och spår.
 - [x] B4 Sänka skepp: egna skepp per löpare, skott med en position, poäng, topplista och ledarens skott på kartan.
+- [x] B4b Sänka skepp som lagspel: gemensamma och egna skepp per grupp, prickar för andras skott (tillägg i ADR-0225).
 - [ ] B5 Provat i skogen med Android och iPhone (ägaren, tisdag 2026-11-17).
 
 ## Efter målet (inte nu)

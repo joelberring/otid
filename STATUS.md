@@ -13,6 +13,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-16 – Sänka skepp som lagspel (steg B4b, tillägg i ADR-0225)
+
+- Ägaren: gruppen har «Gemensamma skepp» (samma för alla, ur tävlingens och banans id, ingen migration) och «Egna skepp» (per löpare, utanför de gemensamma och deras grannar). Båda tomma = förval efter rutnätets storlek; det gamla fältet är egna skepp.
+- Skottbrädet visar neutrala prickar för hur många andra i gruppen som stått i rutan och skjutit; tävlingssidan visar samma prickar som ett rutnät per grupp. Servern lämnar bara antal per ruta. Sänkta gemensamma står för sig i topplistan och ledarens tabell.
+- Kontrollerat: enhetstester (placering, förval, prickar), integrationstest (två löpare har samma gemensamma och olika egna skepp; prickarna), webbens tester, lint, typecheck, knip. Inte provat i telefon.
+
 ### 2026-11-15 – Säkerhetskopians larm först vid andra misslyckandet i rad
 
 - `backup.sh` skriver antalet misslyckade körningar i rad i `.backup-status`; `serverProblems` larmar när det är minst två (ADR-0216 tillägg 2026-11-15). Kontrollerat: enhetstest, `status()` provkörd i sh. Gäller när både backup- och webbavbildningen är uppdaterade.

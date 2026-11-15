@@ -64,7 +64,7 @@ describe("virtuella kontroller (ADR-0226)", () => {
     expect(board?.mode).toBe("CONTROLS");
     const duel = board?.duels?.[0];
     // 31: Blå först (90 s) 10 p, Röda tvåa 3 p. 32 (ledaren satte 20): Röda först (200 s) 20 p, Blå tvåa 6 p.
-    expect(duel?.teams).toEqual([{ team: "Röda", points: 23, runners: ["Sara S", "Kim K"] }, { team: "Blå", points: 16, runners: ["Bo B"] }]);
+    expect(duel?.teams).toEqual([{ team: "Röda", points: 23, runners: ["Kim K", "Sara S"] }, { team: "Blå", points: 16, runners: ["Bo B"] }]);
     expect(duel?.taken.map(item => [item.code, item.team, item.runner, item.points])).toEqual([["31", "Blå", "Bo B", 10], ["31", "Röda", "Sara S", 3],
       ["32", "Röda", "Sara S", 20], ["32", "Blå", "Bo B", 6]]);
     expect(JSON.stringify(board)).not.toContain("\"x\"");

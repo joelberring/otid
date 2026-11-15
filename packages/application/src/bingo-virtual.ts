@@ -65,7 +65,7 @@ export function virtualLeaderboard(rows: readonly RunnerRow[], courses: readonly
     const scored = duelScores(entries, control => byId.get(control)?.points ?? VIRTUAL_RULES.defaultPoints);
     duelPointsOf.set(code, scored.teams);
     return { code, course: course?.course ?? "",
-      teams: Object.entries(scored.teams).map(([team, points]) => ({ team, points, runners: entries.filter(entry => entry.team === team).map(entry => entry.runner) }))
+      teams: Object.entries(scored.teams).map(([team, points]) => ({ team, points, runners: entries.filter(entry => entry.team === team).map(entry => entry.runner).sort((a, b) => a.localeCompare(b, "sv")) }))
         .sort((a, b) => b.points - a.points || a.team.localeCompare(b.team, "sv")),
       taken: scored.controls.map(item => ({ ...item, code: byId.get(item.control)?.code ?? "?" })).sort((a, b) => a.at - b.at) };
   });

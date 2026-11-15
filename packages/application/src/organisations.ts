@@ -137,3 +137,28 @@ export async function searchOrganisationsForAccount(db: Database, proof: UserAcc
     return { status: "ok", response: { formatVersion: 1, organisations, directoryEmpty } } as const;
   });
 }
+
+/**
+ * Ägaren 2026-11-15: kontots egna klubbar i listan, för arrangörsklubben när en tävling skapas. Bekräftade klubbar under Mina
+ * klubbar och klubbytor där kontot är med som har kopplats till en klubb i Eventor, utan dubbletter och utan borttagna. Med
+ * exakt en är den förvald; annars väljer man (också ingen).
+ */
+export async function ownOrganisationsForAccount(db: Database, proof: UserAccountSessionProof, now = new Date())
+  : Promise<{ status: "unauthorized" } | { status: "ok"; response: OrganisationSearchResponse }> {
+  return db.transaction(async tx => {
+    const auth = await authenticateUserAccountSessionForProtectedRead(tx, proof, now);
+    if (auth.status !== "authenticated") return { status: "unauthorized" } as const;
+    const accountId = auth.principal.accountId;
+    const rows = (await tx.execute<{ id: string }>(sql`
+      select organisation_id as id from account_club_membership
+        where account_id = ${accountId} and status = 'CONFIRMED' and organisation_id is not null
+      union
+      select s.organisation_id as id from club_member m join club_setting s on s.club_id = m.club_id
+        where m.account_id = ${accountId} and s.organisation_id is not null`)).rows;
+    const ids = rows.map(row => row.id).slice(0, ORGANISATION_SEARCH_MAX);
+    const found = ids.length === 0 ? [] : await tx.select().from(schema.organisations)
+      .where(and(inArray(schema.organisations.id, ids), isNull(schema.organisations.removedAt)));
+    const organisations = found.sort((a, b) => a.name.localeCompare(b.name, "sv")).map(organisationSummary);
+    return { status: "ok", response: { formatVersion: 1, organisations, directoryEmpty: false } } as const;
+  });
+}

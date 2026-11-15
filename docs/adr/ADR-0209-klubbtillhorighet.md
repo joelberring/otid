@@ -117,3 +117,23 @@ transaktion, i en sparpunkt så att ett fel aldrig stoppar avläsningen) och av 
 tävlingar (högst 20 per varv). Varje inlyft (också för hand) sätter `archived_at`; därefter görs ingen automatisk arkivering,
 också efter Ta ur. Migrationen ger spärren åt tävlingar som redan har `RACE_ADDED_TO_CLUB_ARCHIVE` i journalen. Inlyftet sparar
 också planens ansvarige och uppgifter (`club_archive_entry_person`, ADR-0221 tillägg samma dag); de visas inte i arkivet.
+
+Tillägg 2026-11-15 (ägarens beslut, migration 0128; behörighet): **arrangörsklubbens ledare administrerar klubbens träningar.**
+(Beslut 5 och 8, ADR-0172 beslut 3.) Ett inloggat konto med bekräftad adress som är Ledare, Administratör eller Ägare i den
+klubbyta som är kopplad till tävlingens arrangörsklubb (`club_setting.organisation_id` = `race_organiser.organisation_id`) är
+ADMIN på tävlingen, men bara när evenemangets alla lopp har tävlingstypen Träning; övriga typer kräver fortsatt en uttrycklig
+roll. Det avgörs på ett ställe, `activeEventAdministrationGrant` (`organiserLeaderGrant` i `training-group-access`, efter gruppens
+och terminsplanens ledare), så att `requireRaceRole`, banläggningen, förhandsvisningen, bingons ledarsida och alla adminvägar följer
+samma regel. Inga roller kopieras: rätten härleds vid varje anrop och försvinner när någon slutar som ledare, när arrangörsklubben
+byts eller tas bort och när tävlingstypen ändras. Medlemmar (läsare) och härledda medlemskap (bekräftade utan rad) får ingenting.
+Första skrivningen per inloggning med den rätten ger auditposten `RACE_ADMIN_VIA_CLUB_LEADER` på tävlingen (sessionen och
+klubbmedlemskapet i `after`); uppslaget går på delindexet `audit_event_club_leader_idx` (migration 0128, CONCURRENTLY, bara tillägg).
+Arrangörsklubben sätts av tävlingens administratörer, så en arrangör kan ge en klubbs ledare rätt men ingen kan ge sig själv rätt.
+Tävlingen syns inte i ledarens Mina tävlingar (den listar uttryckliga roller); ledaren når den från tävlingssidan:
+**snabblänken** «Till adminläget» (och för en bingoträning «Ledarens tabell») visas på `/t/<kod>` och undersidorna för ett inloggat
+konto med adminbehörighet. Länken hämtas i webbläsaren (`GET /api/organizer/race-shortcut?code=`, privat, utan cache, bara när
+CSRF-kakan finns), så att sidorna är desamma för alla; svaret är `admin: null` för alla utan rätt och för okända koder.
+**Ny tävling** har fältet Arrangörsklubb: förvald när kontot har exakt en klubb (bekräftad under Mina klubbar eller en klubbyta
+kopplad till Eventor, `GET /api/organizer/organisations?mine=1`), annars ett val bland dem, sökningen eller Ingen; valet sparas
+efter skapandet med samma anrop som Inställningar (PUT `…/club-archive`). Terminsplanens Skapa träningen och Använd igen sätter
+klubbens organisation som förut.

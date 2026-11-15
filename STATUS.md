@@ -13,6 +13,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-15 – Klubbens ledare administrerar klubbens träningar (tillägg i ADR-0209, migration 0128)
+
+- Ägaren: Ledare och uppåt i arrangörsklubbens klubbyta är ADMIN på klubbens träningar (bara tävlingstypen Träning), härlett i `activeEventAdministrationGrant` vid varje anrop; inga roller kopieras. Första skrivningen per inloggning ger auditposten `RACE_ADMIN_VIA_CLUB_LEADER` (delindex, migration 0128).
+- Tävlingssidan och undersidorna: «Till adminläget» (och «Ledarens tabell» för bingo) för den som är admin, hämtat i webbläsaren så att sidorna cachas som förut.
+- Ny tävling: fältet Arrangörsklubb (förvalt med kontots enda klubb, annars val, sökning eller Ingen), sparat med Inställningarnas anrop.
+- Kontrollerat: integrationstester (LEADER ja, READER nej, vanlig tävling nej, annan klubb nej, slutar som ledare, audit en gång, snabblänken), lint, typecheck, knip, enhetstester. Inte provat i webbläsaren.
+
 ### 2026-11-16 – Sänka skepp som lagspel (steg B4b, tillägg i ADR-0225)
 
 - Ägaren: gruppen har «Gemensamma skepp» (samma för alla, ur tävlingens och banans id, ingen migration) och «Egna skepp» (per löpare, utanför de gemensamma och deras grannar). Båda tomma = förval efter rutnätets storlek; det gamla fältet är egna skepp.

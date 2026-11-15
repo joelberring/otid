@@ -134,3 +134,8 @@ a.hubLink:hover strong { text-decoration: underline; }
   .sheet[data-size="A5"] { padding-top: 4mm; }
   .sheet[data-size="A5"] img { width: 80mm; }
 }
+
+/* Ägaren 2026-11-15: snabblänken till adminläget för den som är administratör (hämtas i webbläsaren). */
+.adminShortcut { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0 18px; font-size: var(--text-sm, 0.9rem); }
+.adminShortcut a { display: inline-flex; align-items: center; min-height: 40px; font-weight: 600; }
+@media print { .adminShortcut { display: none !important; } }

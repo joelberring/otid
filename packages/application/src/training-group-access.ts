@@ -68,3 +68,24 @@ export async function planLeaderGrant(tx: DbExecutor, input: { accountId: string
   }
   return undefined;
 }
+
+/**
+ * Ägaren 2026-11-15 (ADR-0209 tillägg 2026-11-15): en träning med en arrangörsklubb har ledarna (och administratörerna och
+ * ägarna) i den klubbyta som är kopplad till arrangörsklubben i Eventor (`club_setting.organisation_id`) som administratörer,
+ * utan egen rad på evenemanget. Bara när evenemangets alla lopp är träningar (tävlingstypen TRAINING); en vanlig tävling kräver
+ * fortsatt en uttrycklig roll. Rätten härleds vid varje anrop ur klubbrollen och arrangörsklubben, så den försvinner när någon
+ * slutar som ledare eller när arrangörsklubben byts. Svarar med klubbmedlemskapets id.
+ */
+export async function organiserLeaderGrant(tx: DbExecutor, input: { accountId: string; eventId: string },
+  lock: "none" | "share" | "update"): Promise<{ id: string; clubId: string } | undefined> {
+  const rows = await tx.select({ raceType: schema.races.raceType, clubId: schema.clubSettings.clubId }).from(schema.races)
+    .leftJoin(schema.raceOrganisers, eq(schema.raceOrganisers.raceId, schema.races.id))
+    .leftJoin(schema.clubSettings, eq(schema.clubSettings.organisationId, schema.raceOrganisers.organisationId))
+    .where(eq(schema.races.eventId, input.eventId));
+  if (rows.length === 0 || rows.some(row => row.raceType !== "TRAINING")) return undefined;
+  for (const clubId of new Set(rows.flatMap(row => row.clubId ? [row.clubId] : []))) {
+    const member = await clubMembership(tx, { accountId: input.accountId, clubId }, lock);
+    if (member && !member.derived && clubRoleAtLeast(member.role, "LEADER")) return { id: member.id, clubId };
+  }
+  return undefined;
+}

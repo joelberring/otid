@@ -1,6 +1,6 @@
 import {
   addAccountClub, answerAccountClubStep, inviteFromClub, readClubPicker, decideClubAffiliation, eventorConfigurationFromEnvironment, linkClubToEventor, liftRaceToClubArchive, setRaceClubArchiveAutoAsAdmin,
-  readAccountClubs, readClubAffiliation, readRaceClubArchiveAsAdmin, removeAccountClub, removeRaceFromClubArchive, searchOrganisationsForAccount,
+  readAccountClubs, readClubAffiliation, readRaceClubArchiveAsAdmin, removeAccountClub, removeRaceFromClubArchive, searchOrganisationsForAccount, ownOrganisationsForAccount,
   renameClubToEventor, setRaceOrganiserAsAdmin, syncClubEventorMembersAsAdmin, unlinkClubFromEventor
 } from "@o-tid/application";
 import { clubEventorLinkRequestSchema, clubInviteContextSchema, UUID_PATTERN } from "@o-tid/contracts";
@@ -26,9 +26,12 @@ function problem(code: string, status = 409): Response {
 export async function organisationSearchRoute(db: Database, request: Request, environment: Environment = process.env): Promise<Response> {
   const input = await readProof(request, environment);
   if ("response" in input) return input.response;
-  const query = new URL(request.url).searchParams.get("q") ?? "";
+  const params = new URL(request.url).searchParams;
+  const query = params.get("q") ?? "";
   return guarded(async () => {
-    const result = await searchOrganisationsForAccount(db, input.proof, query);
+    // Ägaren 2026-11-15: `?mine=1` ger kontots egna klubbar (förvalet för arrangörsklubben när en tävling skapas).
+    const result = params.get("mine") === "1" ? await ownOrganisationsForAccount(db, input.proof)
+      : await searchOrganisationsForAccount(db, input.proof, query);
     return result.status === "ok" ? privateJson(result.response) : failure(result.status);
   });
 }

@@ -1,9 +1,9 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { acceptInvitationsForRace } from "./account-arrival";
 import { schema } from "@o-tid/database";
 import type { DbExecutor } from "./snapshot";
 import { authorizeUserAccountSession } from "./user-account";
-import { groupLeaderGrant, planLeaderGrant } from "./training-group-access";
+import { groupLeaderGrant, organiserLeaderGrant, planLeaderGrant } from "./training-group-access";
 import { accountEmailVerified } from "./email-verification";
 
 /**
@@ -73,7 +73,7 @@ export async function activeEventAdministrationGrant(
     /** Steg 68: bara evenemangets egna behörigheter, inte ledarskapet i gruppen. */
     explicitOnly?: boolean },
   lock: RaceRoleLock
-): Promise<{ id: string; role: EventGrantRole } | undefined> {
+): Promise<{ id: string; role: EventGrantRole; via?: "CLUB_LEADER" } | undefined> {
   const grantQuery = tx.select({ id: schema.eventAdministrationGrants.id, role: schema.eventAdministrationGrants.role })
     .from(schema.eventAdministrationGrants)
     .where(and(eq(schema.eventAdministrationGrants.accountId, input.accountId),
@@ -98,6 +98,9 @@ export async function activeEventAdministrationGrant(
     // Ägaren 2026-11-10: en träning i klubbens terminsplan har klubbens ledare som administratörer.
     const planLeader = await planLeaderGrant(tx, { accountId: input.accountId, eventId: input.eventId }, lock);
     if (planLeader) return { id: planLeader.id, role: "ADMIN" };
+    // Ägaren 2026-11-15: en träning har arrangörsklubbens ledare som administratörer.
+    const organiserLeader = await organiserLeaderGrant(tx, { accountId: input.accountId, eventId: input.eventId }, lock);
+    if (organiserLeader) return { id: organiserLeader.id, role: "ADMIN", via: "CLUB_LEADER" };
   }
   return explicit;
 }
@@ -139,11 +142,30 @@ async function authorize(tx: DbExecutor, request: RaceRoleRequest, now: Date, lo
   }
   const role: RaceRole = grant.role === "FUNCTIONARY" ? "FUNCTIONARY" : "ADMIN";
   if (request.role === "ADMIN" && role !== "ADMIN") return { status: "forbidden" };
+  if (grant.via === "CLUB_LEADER" && lock === "update") {
+    await auditClubLeaderWrite(tx, { raceId: race.id, accountId: account.principal.accountId, sessionId: account.principal.sessionId,
+      clubMemberId: grant.id, now });
+  }
   return { status: "authenticated", principal: {
     accountId: account.principal.accountId, sessionId: account.principal.sessionId, raceId: race.id, eventId: race.eventId,
     grantId: grant.id, grantRole: grant.role, role, expiresAt: account.principal.expiresAt,
     ...(account.principal.guestExpiresAt !== undefined ? { guest: true as const } : {})
   } };
+}
+
+const CLUB_LEADER_ADMIN_AUDIT = "RACE_ADMIN_VIA_CLUB_LEADER";
+
+/**
+ * Ägaren 2026-11-15: en klubbledare som är administratör via arrangörsklubben (inte via en egen rad) och ändrar något får en
+ * auditpost på tävlingen, en gång per inloggning (sessionen), så att journalen visar varifrån rätten kom. Själva ändringen har
+ * sin egen post som förut. Uppslaget går på ett delindex (migration 0128), därför står åtgärden som konstant i frågan.
+ */
+async function auditClubLeaderWrite(tx: DbExecutor, input: { raceId: string; accountId: string; sessionId: string; clubMemberId: string; now: Date }) {
+  const seen = await tx.execute(sql`select 1 from audit_event where action = ${sql.raw(`'${CLUB_LEADER_ADMIN_AUDIT}'`)} and race_id = ${input.raceId}
+    and actor_id = ${input.accountId} and after->>'sessionId' = ${input.sessionId} limit 1`);
+  if (seen.rows.length > 0) return;
+  await tx.insert(schema.auditEvents).values({ raceId: input.raceId, entityType: "race", entityId: input.raceId, action: CLUB_LEADER_ADMIN_AUDIT,
+    actorKind: "USER_ACCOUNT", actorId: input.accountId, after: { sessionId: input.sessionId, clubMemberId: input.clubMemberId }, createdAt: input.now });
 }
 
 /** Den enda rollkontrollen för en tävling. Routes och tjänster anropar den innan något annat görs. */

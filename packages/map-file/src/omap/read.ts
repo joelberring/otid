@@ -40,7 +40,8 @@ export function readOmap(textContent: string, options: ReadOptions = {}): Parsed
   const colors = readColors(child(map, "colors"));
   const barrier = child(map, "barrier") ?? map;
   const { symbols, isArea } = readOmapSymbols(asArray(child(barrier, "symbols")?.symbol), warnings);
-  const objects = partsStart < 0 ? [] : readObjects(textContent, partsStart, partsEnd, symbols, isArea, warnings, options.sources === true);
+  const layers: (string | undefined)[] | undefined = options.layerTags ? [] : undefined;
+  const objects = partsStart < 0 ? [] : readObjects(textContent, partsStart, partsEnd, symbols, isArea, warnings, options.sources === true, layers);
   const { scale, georeference } = readGeoreference(child(map, "georeferencing"), warnings);
   return {
     format: "OMAP",
@@ -51,7 +52,8 @@ export function readOmap(textContent: string, options: ReadOptions = {}): Parsed
     scale,
     georeference,
     bounds: boundsOf(objects),
-    warnings: warnings.list()
+    warnings: warnings.list(),
+    ...(layers && layers.some(layer => layer !== undefined) ? { objectLayers: layers } : {})
   };
 }
 
@@ -184,7 +186,7 @@ function describeCrs(projected: XmlNode): string {
  */
 function readObjects(
   content: string, start: number, end: number, symbols: ReadonlyMap<string, MapSymbol>,
-  isArea: (id: string) => boolean, warnings: WarningCollector, sources: boolean
+  isArea: (id: string) => boolean, warnings: WarningCollector, sources: boolean, layers?: (string | undefined)[]
 ): MapObject[] {
   const objects: MapObject[] = [];
   let position = start;
@@ -208,11 +210,24 @@ function readObjects(
     const object = readObject(content, tagEnd + 1, selfClosing ? tagEnd + 1 : close, attributes, symbols, isArea, warnings);
     const index = ordinal++;
     if (!object) continue;
+    if (layers) layers.push(selfClosing ? undefined : layerTag(content, tagEnd + 1, close));
     if (!sources) { objects.push(object); continue; }
     const locator = { format: "OMAP" as const, part: Math.max(part, 0), ordinal: index, start: open, end: position };
     objects.push({ ...object, source: { locator, objectHash: sha256OfText(content, open, position) } });
   }
   return objects;
+}
+
+const LAYER_TAG = '<t k="Layer">';
+/** Objektets tagg `Layer` (lagret i en DWG/DXF som Mapper läst in), om den finns. */
+function layerTag(content: string, from: number, to: number): string | undefined {
+  const tags = content.indexOf("<tags", from);
+  if (tags < 0 || tags >= to) return undefined;
+  const open = content.indexOf(LAYER_TAG, tags);
+  if (open < 0 || open >= to) return undefined;
+  const close = content.indexOf("</t>", open);
+  if (close < 0 || close > to) return undefined;
+  return decodeEntities(content.slice(open + LAYER_TAG.length, close)).trim() || undefined;
 }
 
 function readObject(

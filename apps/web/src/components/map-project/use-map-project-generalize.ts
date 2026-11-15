@@ -27,7 +27,11 @@ export function useMapProjectGeneralize(view: MapProjectView, session: MapProjec
   const preview = useCallback((options: GeneralizeOptions) => {
     if (!session) return;
     setBusy(text.computing); setMessage(undefined); setResult(undefined);
-    session.generalize(options, (value, refs) => { setResult({ value, refs, options }); setBusy(undefined); });
+    session.generalize(options, (value, refs, failed) => {
+      setBusy(undefined);
+      if (failed) { setMessage({ tone: "error", text: text.computeFailed }); return; }
+      setResult({ value, refs, options });
+    }, (done, total) => setBusy(text.computingPart(done, total)));
   }, [session]);
 
   /**

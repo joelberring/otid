@@ -247,8 +247,8 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const work = useMapProjectWorkLayers(view);
   const workGroups = useMemo(() => work.layers.filter(layer => layer.kind === "SYMBOLS").map(layer => ({ layerId: layer.layerId, codes: layer.codes })),
     [work.layers]);
-  const symbolLayers = useMapProjectSymbolLayers({ projectId: view.projectId, catalog, scale: editor.scale ?? georeference?.scale, session, commit,
-    work: workGroups });
+  const symbolLayers = useMapProjectSymbolLayers({ projectId: view.projectId, catalog, scale: editor.scale ?? georeference?.scale, session,
+    commitMany: editor.commitMany, work: workGroups });
   // Skisslagren som syns (och om de är tonade).
   const sketchLayers = useMemo(() => work.layers.filter(layer => layer.kind === "SKETCH" && !symbolLayers.state.work?.[layer.layerId]?.hidden)
     .map(layer => ({ color: layer.color, dimmed: symbolLayers.state.work?.[layer.layerId]?.dimmed === true,
@@ -697,7 +697,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
             const zone = multi.zoneAt(point, tolerance);
             return zone === "move" ? "move" : zone === "rotate" ? ROTATE_CURSOR : undefined;
           } : undefined}
-          renderKey={editor.renderKey} hiddenSymbols={hiddenSymbols} dimmedSymbols={symbolLayers.dimmed}
+          renderKey={editor.renderKey} hiddenSymbols={hiddenSymbols} dimmedSymbols={symbolLayers.dimmed} shownSymbols={symbolLayers.shown}
           position={position.position && positionMode !== "off" ? { position: position.position, follow: positionMode === "follow" } : undefined}
           onPan={() => setPositionMode(mode => mode === "follow" ? "on" : mode)} handle={mapHandle} /></div>}
         {editor.mapStatus === "ready" && georeference && <MapProjectFieldControls mode={positionMode} onMode={setPositionMode} problem={position.problem}

@@ -216,3 +216,31 @@ describe("formatigenkänning", () => {
     expect(() => readMapFile(new Uint8Array(), "tom.ocd")).toThrow(expect.objectContaining({ code: "NOT_A_MAP_FILE" }) as Error);
   });
 });
+
+describe("Mapper: lagernamn från en DWG-import och dolda symboler (skisslager, ägaren 2026-11-15)", () => {
+  const file = (objects: string) => encode(`<?xml version="1.0" encoding="UTF-8"?>
+<map xmlns="http://openorienteering.org/apps/mapper/xml/v2" version="9">
+<georeferencing scale="4000"/>
+<colors count="1"><color priority="0" name="Svart" c="0" m="0" y="0" k="1" opacity="1"><cmyk method="custom"/><rgb method="cmyk" r="0" g="0" b="0"/></color></colors>
+<barrier version="6" required="0.6.0">
+<symbols count="2" id="ISSprOM 2019">
+<symbol type="2" id="0" code="501.1" name="Kant"><line_symbol color="0" line_width="140"/></symbol>
+<symbol type="2" id="1" code="990.501.1" name="GRUNDKARTA (CAD, dold): Kant" is_hidden="true"><line_symbol color="0" line_width="140"/></symbol>
+</symbols>
+<parts count="1" current="0"><part name="del"><objects count="3">${objects}</objects></part></parts>
+</barrier>
+</map>`);
+  const objects = `<object type="1" symbol="1"><tags><t k="Layer">Vagavgransning&amp;Infart</t><t k="SubClasses">AcDbPolyline</t></tags><coords count="2">0 0;1000 0;</coords></object>
+<object type="1" symbol="0"><coords count="2">0 0;1000 0;</coords></object>
+<object type="1" symbol="1"><tags><t k="Layer">Refug</t></tags><coords count="2">0 0;1000 0;</coords></object>`;
+
+  it("läser taggen Layer i objektens ordning bara när den efterfrågas", () => {
+    expect(readMapFile(file(objects), "a.xmap", { layerTags: true }).objectLayers).toEqual(["Vagavgransning&Infart", undefined, "Refug"]);
+    expect(readMapFile(file(objects), "a.xmap").objectLayers).toBeUndefined();
+  });
+
+  it("markerar symboler som är dolda i filen", () => {
+    const map = readMapFile(file(objects), "a.xmap");
+    expect([...map.symbols.values()].map(symbol => [symbol.code.text, symbol.hidden])).toEqual([["501.1", false], ["990.501.1", true]]);
+  });
+});

@@ -6,8 +6,10 @@ import { useTexts } from "../language-provider";
 import { mapProjectSymbolLayersSv } from "../../i18n/map-project-symbol-layers-sv";
 import { mapProjectSymbolColorsSv } from "../../i18n/map-project-symbol-colors-sv";
 import { mapProjectSymbolColorsEn } from "../../i18n/map-project-more-en";
+import { sprintLayerSymbol } from "@o-tid/map-revision";
+import type { MergeFilter } from "./use-map-project-symbol-layers";
 import {
-  GROUP_KEYS, LAYER_ORDER, layerRows, mergeSuggestions, normalCode, symbolFlags, withLayerFlag, withSymbolFlag, type LayerFlags, type LayerId, type LayerState, type Standard,
+  GROUP_KEYS, LAYER_ORDER, layerRows, layerSuggestions, mergeSuggestions, normalCode, symbolFlags, withLayerFlag, withSymbolFlag, type LayerFlags, type LayerId, type LayerState, type Standard,
   type LayerView, type WorkLayer
 } from "../../lib/map-project-layer-model";
 import type { CatalogSymbol } from "../../lib/map-project-protocol";
@@ -25,8 +27,8 @@ import styles from "./map-project-editor.module.css";
 export function MapProjectSymbolLayers({ catalog, standard, standardSymbols, state, onState, canEdit, onMerge, merging, message, work = [], workPanel, views, symbolColors }: {
   catalog: readonly CatalogSymbol[]; standard: Standard; standardSymbols: ReadonlyMap<string, string>;
   state: LayerState; onState: (state: LayerState) => void; canEdit: boolean;
-  /** Slå ihop: alla objekt med `from` får symbolen `to`. */
-  onMerge: (from: CatalogSymbol, to: CatalogSymbol) => void; merging: string | undefined; message: string | undefined;
+  /** Slå ihop eller för över: objekten med `from` (eventuellt bara ett lager, utan det som redan är ritat) får symbolen `to`. */
+  onMerge: (from: CatalogSymbol, to: CatalogSymbol, filter?: MergeFilter) => void; merging: string | undefined; message: string | undefined;
   /** Lagren fas 2: arbetslagren (för symbolernas val) och panelen för arbets- och skisslagren. */
   work?: readonly WorkLayer[]; workPanel?: ReactNode;
   /** R3: sparade vyer (lagrens val under ett namn). */
@@ -47,12 +49,23 @@ export function MapProjectSymbolLayers({ catalog, standard, standardSymbols, sta
   };
   const colorTargets = (symbol: CatalogSymbol) => picked.has(symbol.id) && picked.size > 1 ? catalog.filter(entry => picked.has(entry.id)) : [symbol];
   const rows = useMemo(() => layerRows(catalog, standardSymbols, state), [catalog, standardSymbols, state]);
-  const suggestions = useMemo(() => mergeSuggestions(catalog, standardSymbols), [catalog, standardSymbols]);
+  const suggestions = useMemo(() => {
+    // Skisslagren efter lagernamnen ur DWG-importen (sprintreglerna, bara för sprintkartor).
+    const drawable = catalog.filter(symbol => !symbol.fileHidden).map(symbol => ({ id: symbol.id, code: symbol.code, kind: symbol.kind, name: symbol.name }));
+    const byLayer = standard === "ISSPROM" ? layerSuggestions(catalog, (layer, kind) => kind === "text" ? undefined
+      : sprintLayerSymbol(layer, [kind], drawable, "ISSPROM")?.symbol) : [];
+    return [...mergeSuggestions(catalog, standardSymbols), ...byLayer];
+  }, [catalog, standardSymbols, standard]);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [layer, setLayer] = useState("");
+  const [skipCovered, setSkipCovered] = useState(true);
   const source = catalog.find(symbol => symbol.id === from);
-  const targets = catalog.filter(symbol => source && symbol.id !== source.id && symbol.kind === source.kind);
+  const targets = catalog.filter(symbol => source && symbol.id !== source.id && symbol.kind === source.kind && !symbol.fileHidden);
   const target = targets.find(symbol => symbol.id === to);
+  const sourceCount = source ? source.layers?.find(row => row.name === layer)?.count ?? source.count : 0;
+  /** Ett underlag (skisslager eller utanför normen) förs över; annat slås ihop som förut. */
+  const isUnderlay = (symbol: CatalogSymbol) => symbol.fileHidden === true || !standardSymbols.has(normalCode(symbol.code));
   // R3 «flera rader på en gång»: Skift+klick sätter samma val på alla rader mellan den senast klickade och den här; Alt+klick på
   // ögat visar bara den raden.
   const [last, setLast] = useState<{ list: string; index: number }>();
@@ -89,6 +102,7 @@ export function MapProjectSymbolLayers({ catalog, standard, standardSymbols, sta
             <span className={styles.layerName}>{text.layers[row.id]}</span> <small className={styles.muted}>{text.count(row.count)}</small>
           </summary>
           {row.id === "OUTSIDE" && <p className={styles.muted}>{text.outsideHelp(standard)}</p>}
+          {row.id === "FILE" && <p className={styles.muted}>{text.fileHelp}</p>}
           <ul className={styles.layerSymbols}>
             {row.symbols.map((symbol, index) => {
               const flags = symbolFlags(symbol, standardSymbols, state, work);
@@ -137,27 +151,39 @@ export function MapProjectSymbolLayers({ catalog, standard, standardSymbols, sta
       <summary>{text.mergeHeading}</summary>
       <p className={styles.muted}>{text.mergeHelp}</p>
       {suggestions.length > 0 && <ul className={styles.rows}>
-        {suggestions.map(suggestion => <li key={suggestion.from.id} data-testid="map-project-merge-suggestion">
-          <span>{text.suggestion(label(suggestion.from), suggestion.from.count, label(suggestion.to), suggestion.reason)}</span>
-          <Button variant="secondary" disabled={!!merging} onClick={() => onMerge(suggestion.from, suggestion.to)}>{text.merge(suggestion.from.count)}</Button>
+        {suggestions.map(suggestion => <li key={`${suggestion.from.id}:${suggestion.layer ?? ""}`} data-testid="map-project-merge-suggestion"
+          data-reason={suggestion.reason}>
+          <span>{text.suggestion(label(suggestion.from), suggestion.count, label(suggestion.to), suggestion.reason, suggestion.layer)}</span>
+          {isUnderlay(suggestion.from)
+            ? <Button variant="secondary" disabled={!!merging} onClick={() => onMerge(suggestion.from, suggestion.to, { layer: suggestion.layer, skipCovered: true })}>
+              {text.transfer(suggestion.count)}</Button>
+            : <Button variant="secondary" disabled={!!merging} onClick={() => onMerge(suggestion.from, suggestion.to)}>{text.merge(suggestion.count)}</Button>}
         </li>)}
       </ul>}
-      <label>{text.from}<select value={from} onChange={event => { setFrom(event.target.value); setTo(""); }} data-testid="map-project-merge-from">
+      <label>{text.from}<select value={from} onChange={event => { setFrom(event.target.value); setTo(""); setLayer("");
+        const next = catalog.find(symbol => symbol.id === event.target.value); setSkipCovered(next ? isUnderlay(next) : true); }} data-testid="map-project-merge-from">
         <option value="">{text.choose}</option>
         {catalog.filter(symbol => symbol.kind !== "text" && symbol.count > 0).map(symbol => <option key={symbol.id} value={symbol.id}>
-          {label(symbol)} ({symbol.count}){standardSymbols.has(normalCode(symbol.code)) ? "" : ` – ${text.outsideShort}`}</option>)}
+          {label(symbol)} ({symbol.count}){symbol.fileHidden ? ` – ${text.fileShort}` : standardSymbols.has(normalCode(symbol.code)) ? "" : ` – ${text.outsideShort}`}</option>)}
       </select></label>
+      {source?.layers && source.layers.length > 0 && <label>{text.layer}<select value={layer} onChange={event => setLayer(event.target.value)}
+        data-testid="map-project-merge-layer">
+        <option value="">{text.allLayers} ({source.count})</option>
+        {source.layers.map(row => <option key={row.name} value={row.name}>{row.name} ({row.count})</option>)}
+      </select></label>}
       {source && <label>{text.to}<select value={to} onChange={event => setTo(event.target.value)} data-testid="map-project-merge-to">
         <option value="">{text.choose}</option>
         {targets.map(symbol => <option key={symbol.id} value={symbol.id}>{label(symbol)}{standardSymbols.has(normalCode(symbol.code)) ? "" : ` – ${text.outsideShort}`}</option>)}
       </select></label>}
       {source && target && <div role="status" data-testid="map-project-merge-preview">
-        <p>{text.preview(source.count, label(source), label(target))}</p>
+        <p>{text.preview(sourceCount, layer ? `${label(source)} (${layer})` : label(source), label(target))}</p>
+        <label className={styles.check}><input type="checkbox" checked={skipCovered} onChange={event => setSkipCovered(event.target.checked)}
+          data-testid="map-project-merge-skip-covered" />{text.skipCovered}</label>
         {standardSymbols.has(normalCode(source.code)) && standardSymbols.has(normalCode(target.code)) && normalCode(source.code) !== normalCode(target.code)
           && <p className={styles.problem}>{text.bothStandard(standardSymbols.get(normalCode(source.code))!, standardSymbols.get(normalCode(target.code))!)}</p>}
         <span className={styles.actions}>
-          <Button disabled={!!merging} onClick={() => { onMerge(source, target); setFrom(""); setTo(""); }} data-testid="map-project-merge-run">
-            {text.merge(source.count)}</Button>
+          <Button disabled={!!merging} onClick={() => { onMerge(source, target, { layer: layer || undefined, skipCovered }); setFrom(""); setTo(""); setLayer(""); }}
+            data-testid="map-project-merge-run">{skipCovered || layer ? text.transfer(sourceCount) : text.merge(sourceCount)}</Button>
         </span>
       </div>}
       {merging && <p role="status" className={styles.muted}>{merging}</p>}

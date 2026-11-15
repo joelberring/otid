@@ -13,6 +13,15 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-15 – Skisslager ur kartfilen, föra över underlag och generaliseringen i delar
+
+- Generaliseringen «Räknar …» för alltid (Alvsjo-Solberga-AI-15): en 501.5-yta med 86 646 punkter gav RangeError i `Math.min(...lista)` i Workern (gränsen är ~80 000 där, provat i webbläsaren), och felet gav inget svar. Nya `minOf`/`maxOf` i map-file ersätter spridningen på punktlistor (generalisering, normkontroll, grundkartan, OCAD-skrivning). Workern svarar nu med ett fel i stället för tystnad.
+- Generaliseringen räknas ruta för ruta (60 mm, `generalize-parts.ts`) med «Räknar del N av M», linjerna fogas ihop för hela kartan först; samma ändringar som i ett svep (Solberga: 4 899 mot 4 897, inga dubbletter).
+- Skisslager: symboler som är dolda i filen (40 350 av 48 463 objekt i AI-15: CAD-grundkartan 990.x och kontrollunderlaget 900.x) är lagret «Skisslager ur kartfilen», släckt och låst som förval och ritat med filens utseende när det tänds (`showHiddenSymbols` i `drawMap`). Mapper-läsaren läser objektens tagg `Layer` (`layerTags`).
+- «Slå ihop och för över»: förslag efter nummer med prefix (990.501.1 → 501.1), namn efter kolon, samma utseende och DWG-lagrets namn (sprintreglerna), filter på lager och «hoppa över det som redan är ritat» (inom 1,5 m, `coveredObjects`); allt som en ändring (`commitMany`).
+- Lagerpanelen säger om kartan räknas som sprint- eller skogskarta (efter skalan). Ingen manuell växling: normen avgörs av skalan överallt.
+- Kontrollerat: typecheck, eslint, knip, enhetstester (map-file, map-revision, web). Inte provat i webbläsaren efter ändringen.
+
 ### 2026-11-15 – L5: arkivet för vilande laserfiler (objektlagring), byggt men avstängt
 
 - Laserkörningars resultatfiler flyttas till en S3-bucket (Hetzner Object Storage) och tas bort från disken; läsningen hämtar tillbaka dem av sig själv (`readMapContent`, `streamMapContentParts`). Bara innehåll som enbart laserkörningar pekar på.

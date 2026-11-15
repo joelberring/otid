@@ -8,8 +8,15 @@ import type { CatalogSymbol, SymbolGroup } from "./map-project-protocol";
  * "Utanför normen" och kan slås ihop med en symbol i normen. Ett lager kan tändas och släckas, låsas (det går inte att markera
  * eller ändra) och ett låst lager visas fullt eller nedtonat. Valen sparas i webbläsaren per projekt.
  */
-export type LayerId = SymbolGroup | "OUTSIDE" | "MARKING";
-export const LAYER_ORDER: readonly LayerId[] = ["LANDFORMS", "ROCK", "WATER", "VEGETATION", "MANMADE", "TECHNICAL", "COURSE", "OTHER", "OUTSIDE", "MARKING"];
+export type LayerId = SymbolGroup | "OUTSIDE" | "FILE" | "MARKING";
+export const LAYER_ORDER: readonly LayerId[] = ["LANDFORMS", "ROCK", "WATER", "VEGETATION", "MANMADE", "TECHNICAL", "COURSE", "OTHER", "OUTSIDE", "FILE", "MARKING"];
+/**
+ * Skisslagren ur kartfilen (ägaren 2026-11-15): symboler som är dolda i filen (t.ex. en grundkarta från CAD som Mapper läst in
+ * och dolt) är ett eget lager, släckt och låst tills man tänder det. De ritas med filens egna utseende och kan föras över till
+ * en symbol i normen (Slå ihop och för över).
+ */
+export const FILE_LAYER_DEFAULTS: Required<LayerFlags> = { hidden: true, locked: true, dimmed: false };
+const layerFlagsOf = (state: LayerState, id: LayerId): LayerFlags => id === "FILE" ? { ...FILE_LAYER_DEFAULTS, ...state.layers.FILE } : state.layers[id] ?? {};
 export interface LayerFlags { readonly hidden?: boolean; readonly locked?: boolean; readonly dimmed?: boolean }
 export interface LayerState {
   readonly layers: Readonly<Partial<Record<LayerId, LayerFlags>>>;
@@ -37,7 +44,8 @@ const MARKING_CODE = /^99[0-2](\.\d+)?$/;
 export const normalCode = (code: string) => code.replace(/\.0+$/, "").trim();
 
 /** Lagret för en symbol: utanför normen om numret inte finns i normen, annars normens grupp. */
-export function layerOf(symbol: Pick<CatalogSymbol, "code" | "group">, standard: ReadonlyMap<string, string>): LayerId {
+export function layerOf(symbol: Pick<CatalogSymbol, "code" | "group" | "fileHidden">, standard: ReadonlyMap<string, string>): LayerId {
+  if (symbol.fileHidden) return "FILE";
   // Kartans märkning (ramen, loggan och rutans text; ägaren 2026-11-14) är ett eget lager som går att släcka.
   if (MARKING_CODE.test(normalCode(symbol.code)) && standard.has(normalCode(symbol.code))) return "MARKING";
   return standard.has(normalCode(symbol.code)) ? symbol.group : "OUTSIDE";
@@ -49,7 +57,7 @@ export interface LayerRow { readonly id: LayerId; readonly symbols: readonly Cat
 export function layerRows(catalog: readonly CatalogSymbol[], standard: ReadonlyMap<string, string>, state: LayerState): LayerRow[] {
   return LAYER_ORDER.flatMap(id => {
     const symbols = catalog.filter(symbol => symbol.kind !== "text" && layerOf(symbol, standard) === id);
-    return symbols.length ? [{ id, symbols, count: symbols.reduce((sum, symbol) => sum + symbol.count, 0), flags: state.layers[id] ?? {} }] : [];
+    return symbols.length ? [{ id, symbols, count: symbols.reduce((sum, symbol) => sum + symbol.count, 0), flags: layerFlagsOf(state, id) }] : [];
   });
 }
 
@@ -59,7 +67,7 @@ export function layerRows(catalog: readonly CatalogSymbol[], standard: ReadonlyM
  */
 export function symbolFlags(symbol: CatalogSymbol, standard: ReadonlyMap<string, string>, state: LayerState,
   work: readonly WorkLayer[] = []): Required<LayerFlags> {
-  const layer = state.layers[layerOf(symbol, standard)] ?? {}, own = state.symbols[symbol.id] ?? {};
+  const layer = layerFlagsOf(state, layerOf(symbol, standard)), own = state.symbols[symbol.id] ?? {};
   const code = normalCode(symbol.code);
   const groups = work.filter(row => row.codes.includes(code)).map(row => state.work?.[row.layerId] ?? {});
   const grouped = (flag: keyof LayerFlags) => groups.some(flags => flags[flag] === true) ? true : undefined;
@@ -72,15 +80,18 @@ export function withWorkFlag(state: LayerState, layerId: string, flag: keyof Lay
   return { ...state, work: { ...state.work, [layerId]: { ...state.work?.[layerId], [flag]: value } } };
 }
 
-/** Symbolerna (id) som är släckta, låsta och låsta och nedtonade. */
+/** Symbolerna (id) som är släckta, låsta och låsta och nedtonade, och skisslagrens symboler som ska ritas (`shown`). */
 export function layerSymbols(catalog: readonly CatalogSymbol[], standard: ReadonlyMap<string, string>, state: LayerState, work: readonly WorkLayer[] = []) {
-  const hidden: string[] = [], locked: string[] = [], dimmed: string[] = [];
+  const hidden: string[] = [], locked: string[] = [], dimmed: string[] = [], shown: string[] = [];
   for (const symbol of catalog) {
     const flags = symbolFlags(symbol, standard, state, work);
     if (flags.hidden) hidden.push(symbol.id);
-    else if (flags.locked) { locked.push(symbol.id); if (flags.dimmed) dimmed.push(symbol.id); }
+    else {
+      if (symbol.fileHidden) shown.push(symbol.id);
+      if (flags.locked) { locked.push(symbol.id); if (flags.dimmed) dimmed.push(symbol.id); }
+    }
   }
-  return { hidden, locked, dimmed };
+  return { hidden, locked, dimmed, shown };
 }
 
 /** Ett val för ett lager (underlagren följer lagret: deras egna val för samma sak tas bort). */
@@ -95,7 +106,7 @@ export function withLayerFlag(state: LayerState, catalog: readonly CatalogSymbol
       if (Object.keys(rest).length) symbols[key] = rest;
     } else symbols[key] = flags;
   }
-  return { layers: { ...state.layers, [id]: { ...state.layers[id], [flag]: value } }, symbols };
+  return { ...state, layers: { ...state.layers, [id]: { ...state.layers[id], [flag]: value } }, symbols };
 }
 
 export function withSymbolFlag(state: LayerState, id: string, flag: keyof LayerFlags, value: boolean): LayerState {
@@ -108,7 +119,8 @@ export function withSymbolFlag(state: LayerState, id: string, flag: keyof LayerF
  */
 export const GROUP_KEYS: readonly LayerId[] = LAYER_ORDER.slice(0, 6);
 export function withGroupKey(state: LayerState, catalog: readonly CatalogSymbol[], standard: ReadonlyMap<string, string>, digit: number, solo: boolean): LayerState {
-  if (digit === 0) return LAYER_ORDER.reduce((next, id) => withLayerFlag(next, catalog, standard, id, "hidden", false), state);
+  // 0 tänder kartans lager men inte skisslagren ur filen (de kan vara tiotusentals objekt underlag).
+  if (digit === 0) return LAYER_ORDER.filter(id => id !== "FILE").reduce((next, id) => withLayerFlag(next, catalog, standard, id, "hidden", false), state);
   const target = GROUP_KEYS[digit - 1];
   if (!target) return state;
   if (solo) return LAYER_ORDER.reduce((next, id) => withLayerFlag(next, catalog, standard, id, "hidden", id !== target), state);
@@ -130,18 +142,35 @@ export function saveLayerViews(projectId: string, views: readonly LayerView[]): 
 
 export interface MergeSuggestion {
   readonly from: CatalogSymbol; readonly to: CatalogSymbol;
-  readonly reason: "SAME_CODE" | "SAME_NAME";
+  /**
+   * SAME_CODE/SAME_NAME: samma nummer eller namn. Skisslagren (ägaren 2026-11-15: «kopiera över egenskaperna … till O-Tid»,
+   * «en del begränsningslinjer ligger på ett annat lager men ser ut så på den gamla kartan»): CODE_SUFFIX = numret med ett
+   * prefix (990.501.1 är 501.1), NAME_CORE = namnet efter kolon («GRUNDKARTA (CAD, dold): Building»), SAME_LOOK = samma färg och
+   * bredd, LAYER = lagernamnet ur DWG-importen enligt sprintreglerna (`layer` säger vilket).
+   */
+  readonly reason: "SAME_CODE" | "SAME_NAME" | "CODE_SUFFIX" | "NAME_CORE" | "SAME_LOOK" | "LAYER";
+  readonly layer?: string | undefined;
+  /** Objekten som förs över (hela symbolen eller lagret). */
+  readonly count: number;
 }
 
 const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase() && a.trim() !== "";
+/** Numret utan ett prefix 9xx (990.501.1 → 501.1), eller inget. */
+const prefixedCode = (code: string) => /^9\d\d\.(\d+(?:\.\d+)?)$/.exec(normalCode(code))?.[1];
+/** Namnet efter sista kolon («GRUNDKARTA (CAD, dold): Building» → «Building»), eller inget. */
+const nameCore = (name: string) => name.includes(":") ? name.slice(name.lastIndexOf(":") + 1).trim() : undefined;
+const sameLook = (a: CatalogSymbol, b: CatalogSymbol) => a.kind === b.kind && (a.kind === "line"
+  ? !!a.stroke && a.stroke === b.stroke && a.width !== undefined && b.width !== undefined && Math.abs(a.width - b.width) < 0.01
+  : a.kind === "area" ? !!a.fill && a.fill === b.fill && a.stroke === b.stroke : false);
 
 /**
  * Förslag på symboler att slå ihop: samma nummer (t.ex. två kartor med var sin 406) eller samma namn, med samma slag
- * (linje, yta, punkt). Den som följer normen och har flest objekt behålls; den andra går upp i den.
+ * (linje, yta, punkt). Den som följer normen och har flest objekt behålls; den andra går upp i den. En symbol som är dold i
+ * filen (skisslager) blir aldrig mål.
  */
 export function mergeSuggestions(catalog: readonly CatalogSymbol[], standard: ReadonlyMap<string, string>): MergeSuggestion[] {
   const usable = catalog.filter(symbol => symbol.kind !== "text");
-  const rank = (symbol: CatalogSymbol) => (standard.has(normalCode(symbol.code)) ? 1_000_000 : 0) + symbol.count;
+  const rank = (symbol: CatalogSymbol) => (symbol.fileHidden ? -1_000_000 : 0) + (standard.has(normalCode(symbol.code)) ? 1_000_000 : 0) + symbol.count;
   const out: MergeSuggestion[] = [], used = new Set<string>();
   for (const a of usable) {
     for (const b of usable) {
@@ -149,12 +178,52 @@ export function mergeSuggestions(catalog: readonly CatalogSymbol[], standard: Re
       const reason = normalCode(a.code) === normalCode(b.code) && normalCode(a.code) !== "" ? "SAME_CODE" : sameName(a.name, b.name) ? "SAME_NAME" : undefined;
       if (!reason || (a.count === 0 && b.count === 0)) continue;
       const [to, from] = rank(a) >= rank(b) ? [a, b] : [b, a];
-      if (from.count === 0) continue;
+      if (from.count === 0 || to.fileHidden) continue;
       used.add(from.id);
-      out.push({ from, to, reason });
+      out.push({ from, to, reason, count: from.count });
+    }
+  }
+  // Skisslager och symboler utanför normen: numret med prefix, namnet efter kolon eller samma utseende som en symbol i normen.
+  const targets = usable.filter(symbol => !symbol.fileHidden && standard.has(normalCode(symbol.code)));
+  for (const from of usable) {
+    if (used.has(from.id) || from.count === 0 || (!from.fileHidden && standard.has(normalCode(from.code)))) continue;
+    const suffix = prefixedCode(from.code), core = nameCore(from.name);
+    // Målet med flest objekt bland symbolerna i normen som uppfyller villkoret.
+    const best = (pick: (to: CatalogSymbol) => boolean) => targets.filter(to => to.kind === from.kind && pick(to)).sort((x, y) => y.count - x.count)[0];
+    const rules: readonly [MergeSuggestion["reason"], ((to: CatalogSymbol) => boolean) | undefined][] = [
+      ["CODE_SUFFIX", suffix ? to => normalCode(to.code) === suffix : undefined],
+      ["NAME_CORE", core ? to => sameName(to.name, core) : undefined],
+      ["SAME_LOOK", to => sameLook(from, to)]
+    ];
+    for (const [reason, pick] of rules) {
+      const to = pick ? best(pick) : undefined;
+      if (!to) continue;
+      used.add(from.id);
+      out.push({ from, to, reason, count: from.count });
+      break;
     }
   }
   return out;
+}
+
+/**
+ * Skisslagren efter lagernamnen ur DWG-importen (Stockholms baskarta: «VagavgransningInfart…» → kant belagd yta,
+ * «MarkanlaggningStaket…» → staket …), med sprintreglerna; `symbolFor` ger målsymbolens id för ett lagernamn och ett slag,
+ * eller inget. De största lagren först.
+ */
+export function layerSuggestions(catalog: readonly CatalogSymbol[], symbolFor: (layer: string, kind: CatalogSymbol["kind"]) => string | undefined,
+  max = 40): MergeSuggestion[] {
+  const byId = new Map(catalog.map(symbol => [symbol.id, symbol]));
+  const out: MergeSuggestion[] = [];
+  for (const from of catalog) {
+    if (from.kind === "text" || !from.layers?.length) continue;
+    for (const layer of from.layers) {
+      const to = byId.get(symbolFor(layer.name, from.kind) ?? "");
+      if (!to || to.id === from.id || to.fileHidden || to.kind !== from.kind) continue;
+      out.push({ from, to, reason: "LAYER", layer: layer.name, count: layer.count });
+    }
+  }
+  return out.sort((a, b) => b.count - a.count).slice(0, max);
 }
 
 const storageKey = (projectId: string) => `otid-map-layers:${projectId}`;

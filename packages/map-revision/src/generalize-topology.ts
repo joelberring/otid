@@ -1,4 +1,4 @@
-import type { MapObject, Path, PathCommand, Point } from "@o-tid/map-file";
+import { maxOf, minOf, type MapObject, type Path, type PathCommand, type Point } from "@o-tid/map-file";
 import type { NormObject } from "./norm-check";
 import type { ObjectKey } from "./state";
 
@@ -127,7 +127,7 @@ export function areasInsideSameSymbol(objects: readonly NormObject[], taken: Rea
     const outer = ringPoints(area.rings[0] ?? []);
     const xs = outer.map(point => point.x), ys = outer.map(point => point.y);
     return { row, outer, holes: area.rings.slice(1).map(ringPoints), size: ringArea(outer),
-      box: { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) } };
+      box: { minX: minOf(xs), minY: minOf(ys), maxX: maxOf(xs), maxY: maxOf(ys) } };
   }).filter(entry => entry.outer.length >= 3);
   const out: InsideChange[] = [];
   const removed = new Set<ObjectKey>();

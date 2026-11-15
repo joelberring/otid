@@ -221,6 +221,11 @@ export interface ParsedMap {
   /** Ytan som objekten täcker, i mm. */
   readonly bounds: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number } | null;
   readonly warnings: readonly MapFileWarning[];
+  /**
+   * Med `layerTags` (bara Mapper): varje objekts lagernamn från en DWG/DXF-import (Mappers tagg `Layer`), i samma ordning
+   * som `objects`; saknas för objekt utan taggen.
+   */
+  readonly objectLayers?: readonly (string | undefined)[] | undefined;
 }
 
 /** Val för `readMapFile`. */
@@ -230,6 +235,8 @@ export interface ReadOptions {
    * kostar en hash per objekt och behövs inte för att rita.
    */
   readonly sources?: boolean | undefined;
+  /** Kartprojektets skisslager (ägaren 2026-11-15): läs objektens lagernamn (`objectLayers`). */
+  readonly layerTags?: boolean | undefined;
 }
 
 /** Läsfel som gör filen oanvändbar (inte en orienteringskarta, för gammal version, trunkerad). */

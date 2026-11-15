@@ -13,7 +13,7 @@
  * tillbaka som det som beställdes, och allt utanför de ändrade intervallen ska vara byte för byte som i originalet.
  * Objekt med objektsträngar (databasattribut, version 12+), krypterade objekt och version 8 vägras.
  */
-import { normalizeAngle, openRing } from "../geometry";
+import { maxOf, minOf, normalizeAngle, openRing } from "../geometry";
 import { MapFileError, type MapObject, type ParsedMap, type PathCommand } from "../model";
 import { Bytes, indexBlocks } from "../ocd/bytes";
 import { HEADER, OBJECT_TYPE, STATUS_NORMAL, variantFor, type OcdVariant } from "../ocd/layout";
@@ -124,8 +124,8 @@ function record(variant: OcdVariant, header: Uint8Array | undefined, symbol: num
 function rect(points: readonly Raw[]): Uint8Array {
   const out = new Out(new Uint8Array(16));
   const xs = points.map(point => point.x), ys = points.map(point => point.y);
-  out.view.setInt32(0, Math.min(...xs) << 8, true); out.view.setInt32(4, Math.min(...ys) << 8, true);
-  out.view.setInt32(8, Math.max(...xs) << 8, true); out.view.setInt32(12, Math.max(...ys) << 8, true);
+  out.view.setInt32(0, minOf(xs) << 8, true); out.view.setInt32(4, minOf(ys) << 8, true);
+  out.view.setInt32(8, maxOf(xs) << 8, true); out.view.setInt32(12, maxOf(ys) << 8, true);
   return out.bytes;
 }
 

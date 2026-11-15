@@ -1,4 +1,4 @@
-import type { LayerId, Standard } from "../lib/map-project-layer-model";
+import type { LayerId, MergeSuggestion, Standard } from "../lib/map-project-layer-model";
 import type { Texts } from "../lib/language";
 import type { mapProjectReconSv } from "./map-project-recon-sv";
 import type { mapProjectRectifySv } from "./map-project-rectify-sv";
@@ -130,18 +130,24 @@ export const mapProjectRectifyEn: Texts<typeof mapProjectRectifySv> = {
   }
 };
 
+const REASONS_EN: Record<MergeSuggestion["reason"], string> = { SAME_CODE: "same number", SAME_NAME: "same name", CODE_SUFFIX: "same number after the prefix",
+  NAME_CORE: "same name after the colon", SAME_LOOK: "same look", LAYER: "the layer's name" };
 export const mapProjectSymbolLayersEn: Texts<typeof mapProjectSymbolLayersSv> = {
   title: "Layers",
-  help: (standard: Standard) => `The layers follow ${STANDARD_NAMES[standard]} (the map's scale). Turn off a layer to see what lies below, `
+  help: (standard: Standard) => `The map counts as a ${standard === "ISSPROM" ? "sprint" : "forest"} map from its scale (1:5,000 and larger is sprint), `
+    + `and the layers follow ${STANDARD_NAMES[standard]}. Turn off a layer to see what lies below, `
     + "lock it so you do not change it by mistake (a locked layer can be shown faded). Open a layer for its symbols.",
   layers: {
     LANDFORMS: "Landforms (1xx)", ROCK: "Rock and boulders (2xx)", WATER: "Water and marsh (3xx)", VEGETATION: "Vegetation (4xx)",
     MANMADE: "Man-made features (5xx)", TECHNICAL: "Technical symbols (6xx)", COURSE: "Course overprint (7xx)", OTHER: "Other in the norm",
-    OUTSIDE: "Outside the norm", MARKING: "O-Tid (frame, logo and box)"
+    OUTSIDE: "Outside the norm", FILE: "Sketch layers from the map file", MARKING: "O-Tid (frame, logo and box)"
   } satisfies Record<LayerId, string>,
   outsideHelp: (standard: Standard) => `Symbols not in ${STANDARD_NAMES[standard]}: an older norm, own symbols or another map that `
     + "has been combined in. Merge them with a symbol in the norm below.",
   outsideShort: "outside the norm",
+  fileHelp: "Symbols hidden in the map file (Mapper's “hide symbol”), e.g. a base map from CAD. They are drawn with the file's own look "
+    + "when the layer is on, are left out of the norm check and the generalisation and cannot be selected. Transfer them to a symbol in the norm below.",
+  fileShort: "sketch layer",
   count: (n: number) => count(n, "object", "objects"),
   groupKey: (digit: number) => `The key ${digit} shows and hides the group, Shift+${digit} shows only it, 0 shows everything.`,
   multiHelp: "Shift+click an eye or lock sets the same choice on all rows in between; Alt+click on the eye shows only that row. 1–6 show and hide the standard's groups.",
@@ -156,11 +162,14 @@ export const mapProjectSymbolLayersEn: Texts<typeof mapProjectSymbolLayersSv> = 
   lock: (name: string) => `Lock ${name}`,
   unlock: (name: string) => `Unlock ${name}`,
   dim: (name: string) => `Show ${name} faded when it is locked`,
-  mergeHeading: "Merge symbols",
+  mergeHeading: "Merge and transfer symbols",
   mergeHelp: "The objects with one symbol get another symbol (e.g. an older norm's symbol that becomes the norm's, or two maps' identical "
     + "symbols). Each object becomes a change that can be undone; in a project with suggestions they become suggestions.",
-  suggestion: (from: string, n: number, to: string, reason: "SAME_CODE" | "SAME_NAME") =>
-    `${from} (${count(n, "object", "objects")}) → ${to} · ${reason === "SAME_CODE" ? "same number" : "same name"}`,
+  suggestion: (from: string, n: number, to: string, reason: MergeSuggestion["reason"], layer?: string) =>
+    `${from}${layer ? ` · layer ${layer}` : ""} (${count(n, "object", "objects")}) → ${to} · ${REASONS_EN[reason]}`,
+  layer: "Only the layer (from the DWG file)",
+  allLayers: "All layers",
+  skipCovered: "Skip what is already drawn with the target symbol (within 1.5 m)",
   from: "From the symbol",
   to: "To the symbol",
   choose: "Choose …",
@@ -168,6 +177,7 @@ export const mapProjectSymbolLayersEn: Texts<typeof mapProjectSymbolLayersSv> = 
     + `${from} remains in the map file but has no objects afterwards.`,
   bothStandard: (from: string, to: string) => `Note: both are in the norm (${from} and ${to}) and mean different things. Only merge if the objects are drawn wrongly.`,
   merge: (n: number) => `Merge ${count(n, "object", "objects")}`,
+  transfer: (n: number) => `Transfer up to ${count(n, "object", "objects")}`,
   merging: (done: number, total: number) => `Merging ${done} of ${total} …`,
   merged: (n: number, from: string, to: string) => `${count(n, "object", "objects")} with ${from} now ${n === 1 ? "has" : "have"} the symbol ${to}.`,
   locked: "The layer is locked. Unlock it under Layers to change it."

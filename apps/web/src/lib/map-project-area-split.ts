@@ -1,4 +1,4 @@
-import type { Point } from "@o-tid/map-file";
+import { maxOf, minOf, type Point } from "@o-tid/map-file";
 
 /**
  * Ägaren 2026-11-13: dela kartområdet (eller en del) som man skär tårtbitar – med ETT streck. Polygonen (första ringen
@@ -232,7 +232,7 @@ function reachOf(polygon: SplitPolygon): number {
   const outer = polygon[0] ?? [];
   if (outer.length === 0) return 0;
   const xs = outer.map(point => point.x), ys = outer.map(point => point.y);
-  return REACH_SHARE * Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+  return REACH_SHARE * Math.hypot(maxOf(xs) - minOf(xs), maxOf(ys) - minOf(ys));
 }
 
 /**

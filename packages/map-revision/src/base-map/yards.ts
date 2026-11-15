@@ -1,3 +1,4 @@
+import { maxOf, minOf } from "@o-tid/map-file";
 import type { SourceFeature } from "../index";
 import { faceAt, facesFromLines } from "../faces";
 
@@ -87,7 +88,7 @@ export function yardsOf(features: readonly SourceFeature[], settings: YardSettin
     for (const part of parts) {
       if (part.points.length < 2) continue;
       const xs = part.points.map(p => p[0]), ys = part.points.map(p => p[1]);
-      cuts.push({ points: [...part.points], closed: part.closed, box: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] });
+      cuts.push({ points: [...part.points], closed: part.closed, box: [minOf(xs), minOf(ys), maxOf(xs), maxOf(ys)] });
     }
   }
   const segments = (cut: (typeof cuts)[number]) => cut.points.map((point, i) => [point, cut.points[(i + 1) % cut.points.length]!] as const).slice(0, cut.closed ? undefined : -1);

@@ -17,6 +17,8 @@ export const mapProjectGeneralizeSv = {
   inside: (count: number) => count === 0 ? "Inga ytor inuti en likadan yta." : `${count} ${count === 1 ? "yta" : "ytor"} inuti en likadan yta tas bort.`,
   preview: "Räkna fram ändringarna",
   computing: "Räknar …",
+  computingPart: (done: number, total: number) => `Räknar del ${done} av ${total} …`,
+  computeFailed: "Generaliseringen kunde inte räknas klart. Välj ett mindre område och försök igen.",
   summary: (simplified: number, before: number, after: number) => simplified === 0 ? "Inga linjer eller ytor att förenkla."
     : `${simplified} ${simplified === 1 ? "objekt förenklas" : "objekt förenklas"}: ${before} punkter blir ${after}.`,
   removed: (area: number, line: number, closed: number) => area + line + closed === 0 ? "Inget är mindre än normen."

@@ -1,4 +1,4 @@
-import { flattenPath, type MapObject, type Point } from "@o-tid/map-file";
+import { flattenPath, maxOf, minOf, type MapObject, type Point } from "@o-tid/map-file";
 import type { ObjectKey } from "./state";
 
 /**
@@ -226,9 +226,10 @@ export function checkNorm(objects: readonly NormObject[], scale: number): NormRe
     const first = line[0]!, last = line[line.length - 1]!;
     if (Math.hypot(first.x - last.x, first.y - last.y) > 0.01) return;
     const xs = line.map(point => point.x), ys = line.map(point => point.y);
-    const sides = [Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)].sort((a, b) => b - a) as [number, number];
+    const [minX, maxX, minY, maxY] = [minOf(xs), maxOf(xs), minOf(ys), maxOf(ys)];
+    const sides = [maxX - minX, maxY - minY].sort((a, b) => b - a) as [number, number];
     const width = item.lineWidth ?? CONTOUR_WIDTH[main]! * factor;
-    const center = { x: (Math.max(...xs) + Math.min(...xs)) / 2, y: (Math.max(...ys) + Math.min(...ys)) / 2 };
+    const center = { x: (maxX + minX) / 2, y: (maxY + minY) / 2 };
     if (main === 103 ? sides[0] + width < 1.1 * factor : sides[0] < 0.9 * factor || sides[1] < 0.6 * factor) {
       add({ rule: "SMALL_CLOSED", key: item.key, code: item.code, at: center, value: sides[0], limit: (main === 103 ? 1.1 : 0.9) * factor });
     }

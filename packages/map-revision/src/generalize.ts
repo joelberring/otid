@@ -1,4 +1,4 @@
-import type { MapObject, Path, PathCommand, Point } from "@o-tid/map-file";
+import { maxOf, minOf, type MapObject, type Path, type PathCommand, type Point } from "@o-tid/map-file";
 import type { RevisionClientState } from "./client-log";
 import { areasInsideSameSymbol, joinTouchingLines } from "./generalize-topology";
 import { checkNorm, type NormObject, type NormRule } from "./norm-check";
@@ -37,6 +37,8 @@ export interface GeneralizeOptions {
   readonly smoothSimplifyMm?: number | undefined;
   /** Bara objekt inom rutan (kartans mm), t.ex. en etapp. */
   readonly within?: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number } | undefined;
+  /** Objekt som redan har en ändring (från en tidigare del, `generalizeParts`) och lämnas orörda. */
+  readonly skip?: ReadonlySet<ObjectKey> | undefined;
 }
 export interface GeneralizeChange {
   readonly key: ObjectKey; readonly code: string; readonly reason: GeneralizeReason;
@@ -134,13 +136,14 @@ function centerOf(object: MapObject): Point {
   if (object.kind === "point" || object.kind === "text") return object.at;
   const points = (object.kind === "area" ? object.rings.flat() : object.path).map(command => ({ x: command.x, y: command.y }));
   const xs = points.map(point => point.x), ys = points.map(point => point.y);
-  return { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2 };
+  return { x: (minOf(xs) + maxOf(xs)) / 2, y: (minOf(ys) + maxOf(ys)) / 2 };
 }
 
 const inside = (at: Point, box: GeneralizeOptions["within"]) => !box || (at.x >= box.minX && at.x <= box.maxX && at.y >= box.minY && at.y <= box.maxY);
 
 /** Ändringarna för kartans objekt (skalan avgör normens mått). Ett objekt får högst en ändring; borttagning går före. */
-export function generalize(objects: readonly NormObject[], scale: number, options: GeneralizeOptions): GeneralizeResult {
+export function generalize(all: readonly NormObject[], scale: number, options: GeneralizeOptions): GeneralizeResult {
+  const objects = options.skip?.size ? all.filter(row => !options.skip!.has(row.key)) : all;
   const changes: GeneralizeChange[] = [];
   const removed = { SMALL_AREA: 0, SHORT_LINE: 0, SMALL_CLOSED: 0 };
   const taken = new Set<ObjectKey>();

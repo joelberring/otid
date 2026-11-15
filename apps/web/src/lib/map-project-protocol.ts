@@ -31,6 +31,13 @@ export interface CatalogSymbol {
   readonly colors: readonly number[];
   /** Hur många objekt i kartan som har symbolen. */
   readonly count: number;
+  /**
+   * Skisslager (ägaren 2026-11-15): symbolen är dold i kartfilen (Mappers «dölj symbol», t.ex. en inläst grundkarta från
+   * CAD). Den ritas bara när skisslagret är tänt och kan föras över till en symbol i normen.
+   */
+  readonly fileHidden?: boolean | undefined;
+  /** Lagernamnen från en DWG/DXF-import (Mappers tagg `Layer`) med antalet objekt, flest först (högst 60). */
+  readonly layers?: readonly { readonly name: string; readonly count: number }[] | undefined;
 }
 
 export interface ProjectHit {
@@ -61,7 +68,11 @@ export type MapProjectRequest =
   /** K6: generaliseringens ändringar (förenkla, ta bort det normen inte tillåter) för kartan med ändringarna. */
   | { readonly type: "generalize"; readonly id: number; readonly options: GeneralizeOptions }
   /** Lagren (ägaren 2026-11-09): objekten med en symbol, för att slå ihop symbolen med en annan. */
-  | { readonly type: "bySymbol"; readonly id: number; readonly symbol: string }
+  | { readonly type: "bySymbol"; readonly id: number; readonly symbol: string;
+      /** Bara objekten med det här lagernamnet från DWG/DXF-importen (skisslagren). */
+      readonly layer?: string | undefined;
+      /** Hoppa över objekten som redan täcks av symbolen `symbol` (inom `toleranceMm`), så att inget dubbleras. */
+      readonly skipCoveredBy?: { readonly symbol: string; readonly toleranceMm: number } | undefined }
   /** K6b: kartan rättad med passpunkter (likformig, affin eller gummiduk). */
   | { readonly type: "warp"; readonly id: number; readonly options: WarpOptions }
   /** Ägaren 2026-11-10: "Passa in mot kartan" för ett vektorunderlag (punkterna i kartans mm, per sort). */
@@ -84,7 +95,11 @@ export type MapProjectResponse =
   | { readonly type: "catalog"; readonly id: number; readonly symbols: readonly CatalogSymbol[] }
   | { readonly type: "recon"; readonly id: number; readonly result: ReconResult }
   | { readonly type: "norm"; readonly id: number; readonly result: NormResult }
-  | { readonly type: "generalize"; readonly id: number; readonly result: GeneralizeResult; readonly refs: readonly (readonly [ObjectKey, ObjectRef])[] }
+  /** `failed`: räkningen gick fel (resultatet är tomt). */
+  | { readonly type: "generalize"; readonly id: number; readonly result: GeneralizeResult; readonly refs: readonly (readonly [ObjectKey, ObjectRef])[];
+      readonly failed?: boolean | undefined }
+  /** Generaliseringen ruta för ruta: hur många rutor som är klara. */
+  | { readonly type: "generalizeProgress"; readonly id: number; readonly done: number; readonly total: number }
   | { readonly type: "bySymbol"; readonly id: number; readonly objects: readonly SymbolObject[] }
   | { readonly type: "warp"; readonly id: number; readonly changes: readonly WarpChange<ObjectKey>[]; readonly refs: readonly (readonly [ObjectKey, ObjectRef])[] }
   | { readonly type: "fit"; readonly id: number; readonly fit: VectorFit | null }
@@ -115,7 +130,8 @@ export class MapProjectSession {
   private latestNorm = 0;
   private onNorm: ((result: NormResult) => void) | undefined;
   private latestGeneralize = 0;
-  private onGeneralize: ((result: GeneralizeResult, refs: ReadonlyMap<ObjectKey, ObjectRef>) => void) | undefined;
+  private onGeneralize: ((result: GeneralizeResult, refs: ReadonlyMap<ObjectKey, ObjectRef>, failed: boolean) => void) | undefined;
+  private onGeneralizeProgress: ((done: number, total: number) => void) | undefined;
   private latestBySymbol = 0;
   private onBySymbol: ((objects: readonly SymbolObject[]) => void) | undefined;
   private latestWarp = 0;
@@ -141,7 +157,8 @@ export class MapProjectSession {
       else if (message.type === "catalog") { if (message.id === this.latestCatalog) this.onCatalog?.(message.symbols); }
       else if (message.type === "recon") { if (message.id === this.latestRecon) this.onRecon?.(message.result); }
       else if (message.type === "norm") { if (message.id === this.latestNorm) this.onNorm?.(message.result); }
-      else if (message.type === "generalize") { if (message.id === this.latestGeneralize) this.onGeneralize?.(message.result, new Map(message.refs)); }
+      else if (message.type === "generalize") { if (message.id === this.latestGeneralize) this.onGeneralize?.(message.result, new Map(message.refs), message.failed === true); }
+      else if (message.type === "generalizeProgress") { if (message.id === this.latestGeneralize) this.onGeneralizeProgress?.(message.done, message.total); }
       else if (message.type === "bySymbol") { if (message.id === this.latestBySymbol) this.onBySymbol?.(message.objects); }
       else if (message.type === "warp") { if (message.id === this.latestWarp) this.onWarp?.(message.changes, new Map(message.refs)); }
       else if (message.type === "fit") { if (message.id === this.latestFit) this.onFit?.(message.fit); }
@@ -204,16 +221,20 @@ export class MapProjectSession {
     this.post({ type: "norm", id });
   }
 
-  generalize(options: GeneralizeOptions, onGeneralize: (result: GeneralizeResult, refs: ReadonlyMap<ObjectKey, ObjectRef>) => void) {
+  /** Generaliseringen räknas ruta för ruta; `onProgress` efter varje ruta, `onGeneralize` till sist (`failed` vid fel). */
+  generalize(options: GeneralizeOptions, onGeneralize: (result: GeneralizeResult, refs: ReadonlyMap<ObjectKey, ObjectRef>, failed: boolean) => void,
+    onProgress?: (done: number, total: number) => void) {
     const id = ++this.latestGeneralize;
     this.onGeneralize = onGeneralize;
+    this.onGeneralizeProgress = onProgress;
     this.post({ type: "generalize", id, options });
   }
 
-  bySymbol(symbol: string, onObjects: (objects: readonly SymbolObject[]) => void) {
+  bySymbol(symbol: string, onObjects: (objects: readonly SymbolObject[]) => void,
+    filter: { layer?: string | undefined; skipCoveredBy?: { symbol: string; toleranceMm: number } | undefined } = {}) {
     const id = ++this.latestBySymbol;
     this.onBySymbol = onObjects;
-    this.post({ type: "bySymbol", id, symbol });
+    this.post({ type: "bySymbol", id, symbol, ...(filter.layer ? { layer: filter.layer } : {}), ...(filter.skipCoveredBy ? { skipCoveredBy: filter.skipCoveredBy } : {}) });
   }
 
   warp(options: WarpOptions, onWarp: (changes: readonly WarpChange<ObjectKey>[], refs: ReadonlyMap<ObjectKey, ObjectRef>) => void) {

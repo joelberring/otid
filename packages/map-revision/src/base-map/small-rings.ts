@@ -1,3 +1,4 @@
+import { maxOf, minOf } from "@o-tid/map-file";
 import type { SourceFeature } from "../index";
 
 /**
@@ -39,7 +40,7 @@ export function extentOf(ring: Ring): { length: number; width: number } {
   for (let degree = 0; degree < 180; degree += 5) {
     const [c, s] = [Math.cos(degree * Math.PI / 180), Math.sin(degree * Math.PI / 180)];
     const along = ring.map(([x, y]) => x * c + y * s);
-    const span = Math.max(...along) - Math.min(...along);
+    const span = maxOf(along) - minOf(along);
     length = Math.max(length, span); width = Math.min(width, span);
   }
   return { length, width };

@@ -12,14 +12,19 @@ import {
 } from "../../lib/map-project-layer-model";
 import type { CatalogSymbol, MapProjectSession } from "../../lib/map-project-protocol";
 
-type Commit = (change: { key: ObjectKey; ref: ObjectRef | null; kind: EditKind; after: { kind: "OBJECT"; object: MapObject } }) => boolean;
+type Change = { key: ObjectKey; ref: ObjectRef | null; kind: EditKind; after: { kind: "OBJECT"; object: MapObject } };
+type CommitMany = (changes: readonly Change[]) => number;
+/** Föra över: bara ett lagernamn ur DWG/DXF-importen, och hoppa över det som redan är ritat med målsymbolen. */
+export interface MergeFilter { readonly layer?: string | undefined; readonly skipCovered?: boolean | undefined }
+/** Avståndet i terrängen inom vilket ett underlag räknas som redan ritat med målsymbolen (grundkartan och kartan skiljer ofta 1–2 m). */
+export const COVERED_TOLERANCE_M = 1.5;
 
 /**
  * Ägaren 2026-11-09: lagren efter normen för editorn: valen (sparade i webbläsaren per projekt), symbolerna som är släckta,
  * låsta och nedtonade, och sammanslagningen (varje objekt blir en ändring av symbolen).
  */
-export function useMapProjectSymbolLayers({ projectId, catalog, scale, session, commit, work }: {
-  projectId: string; catalog: readonly CatalogSymbol[]; scale: number | undefined; session: MapProjectSession | undefined; commit: Commit;
+export function useMapProjectSymbolLayers({ projectId, catalog, scale, session, commitMany, work }: {
+  projectId: string; catalog: readonly CatalogSymbol[]; scale: number | undefined; session: MapProjectSession | undefined; commitMany: CommitMany;
   /** Lagren fas 2: projektets arbetslager. */
   work: readonly WorkLayer[];
 }) {
@@ -34,16 +39,20 @@ export function useMapProjectSymbolLayers({ projectId, catalog, scale, session, 
   const [merging, setMerging] = useState<string>();
   const [message, setMessage] = useState<string>();
 
-  const merge = useCallback((from: CatalogSymbol, to: CatalogSymbol) => {
+  /**
+   * Slå ihop eller för över: objekten med `from` (eventuellt bara ett lager ur DWG-importen, och utan det som redan är ritat
+   * med `to`) får symbolen `to`, som en ändring som Ångra tar bort på en gång.
+   */
+  const merge = useCallback((from: CatalogSymbol, to: CatalogSymbol, filter: MergeFilter = {}) => {
     if (!session || from.kind !== to.kind) return;
     setMerging(text.merging(0, from.count)); setMessage(undefined);
     session.bySymbol(from.id, objects => {
-      let done = 0;
-      for (const row of objects) if (commit({ key: row.key, ref: row.ref, kind: "SYMBOL", after: { kind: "OBJECT", object: withSymbol(row.object, to.id) } })) done += 1;
+      const done = commitMany(objects.map(row => ({ key: row.key, ref: row.ref, kind: "SYMBOL" as const,
+        after: { kind: "OBJECT" as const, object: withSymbol(row.object, to.id) } })));
       setMerging(undefined);
-      setMessage(text.merged(done, `${from.code} ${from.name}`, `${to.code} ${to.name}`));
-    });
-  }, [session, commit]);
+      setMessage(text.merged(done, `${from.code} ${from.name}${filter.layer ? ` (${filter.layer})` : ""}`, `${to.code} ${to.name}`));
+    }, { layer: filter.layer, ...(filter.skipCovered ? { skipCoveredBy: { symbol: to.id, toleranceMm: COVERED_TOLERANCE_M * 1000 / (scale || 4000) } } : {}) });
+  }, [session, commitMany, scale]);
 
   const groupKey = useCallback((digit: number, solo: boolean) => setState(current => {
     const next = withGroupKey(current, catalog, symbols, digit, solo);
@@ -64,5 +73,6 @@ export function useMapProjectSymbolLayers({ projectId, catalog, scale, session, 
     return next;
   }), [projectId]);
 
-  return { state, update, groupKey, views, saveView, removeView, standard, standardSymbols: symbols, hidden: sets.hidden, locked: lockedSet, dimmed: sets.dimmed, merge, merging, message };
+  return { state, update, groupKey, views, saveView, removeView, standard, standardSymbols: symbols, hidden: sets.hidden, locked: lockedSet, dimmed: sets.dimmed,
+    shown: sets.shown, merge, merging, message };
 }

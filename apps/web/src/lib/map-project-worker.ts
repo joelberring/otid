@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 import { drawMap, MapFileError, northLineDegrees, readMapFile, symbolColorIds, withColorChanges, withSymbolColorChanges, type MapObject, type MapSymbol, type ParsedMap } from "@o-tid/map-file";
 import {
-  baseKeys, checkNorm, coverageGrid, editedObjects, fitToMap, generalize, mapFitPoints, boxTest, hitTest, objectBox, objectRefFor, reconMarkers, symbolObjectKind, warpObjects, type Box, type KeyedState, type ObjectKey,
+  baseKeys, checkNorm, combineGeneralize, coveredObjects, coverageGrid, generalizeJoins, generalizePart, generalizeParts, editedObjects, fitToMap, mapFitPoints, boxTest, hitTest, objectBox, objectRefFor, reconMarkers, symbolObjectKind, warpObjects, type Box, type GeneralizeResult, type KeyedState, type NormObject, type ObjectKey,
   type ObjectRef, type ReconObject
 } from "@o-tid/map-revision";
 import { MAX_RENDER_SIDE } from "./course-setting-map-protocol";
@@ -33,6 +33,10 @@ let fileColors: ParsedMap["colors"] = [];
 /** Symbolerna som i filen och projektets färgbyten per symbol (ägaren 2026-11-13). */
 let fileSymbols: ParsedMap["symbols"] = new Map();
 let lastStates: ReadonlyMap<ObjectKey, KeyedState> = new Map();
+/** Skisslagren: objektens lagernamn från en DWG/DXF-import i Mapper (taggen `Layer`), per nyckel. */
+const layerByKey = new Map<ObjectKey, string>();
+/** Högst så många lagernamn per symbol i listan. */
+const MAX_LAYERS = 60;
 
 /** Grundkartan G2b: kandidaterna från en inläsning som en egen karta med samma symboler, ritad ovanpå kartan. */
 let candidateObjects: readonly MapObject[] = [];
@@ -62,13 +66,15 @@ function render(request: Extract<MapProjectRequest, { type: "render" }>) {
   if (!context) { post({ type: "error", code: "NO_CANVAS" }); return; }
   const hidden = new Set(request.hiddenSymbols ?? []);
   const dimmed = new Set((request.dimmedSymbols ?? []).filter(id => !hidden.has(id)));
+  // Skisslagren: symboler som är dolda i kartfilen ritas bara när lagren säger det.
+  const shown = request.shownSymbols?.length ? { showHiddenSymbols: new Set(request.shownSymbols) } : {};
   if (dimmed.size === 0) {
-    drawMap(context, current.map, { pxPerMm: request.pxPerMm, origin: request.origin, cull: true, ...(hidden.size ? { hiddenSymbols: hidden } : {}) });
+    drawMap(context, current.map, { pxPerMm: request.pxPerMm, origin: request.origin, cull: true, ...(hidden.size ? { hiddenSymbols: hidden } : {}), ...shown });
   } else {
     // Låsta lager nedtonade: först de nedtonade symbolerna (tonade, med papperet), sedan resten ovanpå utan papper.
     const others = new Set([...current.map.symbols.keys()].filter(id => !dimmed.has(id)));
-    drawMap(context, current.map, { pxPerMm: request.pxPerMm, origin: request.origin, cull: true, hiddenSymbols: others, tint: DIMMED_TINT });
-    drawMap(context, current.map, { pxPerMm: request.pxPerMm, origin: request.origin, cull: true, background: false, hiddenSymbols: new Set([...hidden, ...dimmed]) });
+    drawMap(context, current.map, { pxPerMm: request.pxPerMm, origin: request.origin, cull: true, hiddenSymbols: others, tint: DIMMED_TINT, ...shown });
+    drawMap(context, current.map, { pxPerMm: request.pxPerMm, origin: request.origin, cull: true, background: false, hiddenSymbols: new Set([...hidden, ...dimmed]), ...shown });
   }
   // Kandidaterna med sina symboler, utan papper, ovanpå kartan (släckta symboler ritas inte).
   if (candidateMap) drawMap(context, candidateMap, { pxPerMm: request.pxPerMm, origin: request.origin, cull: true, background: false, ...(hidden.size ? { hiddenSymbols: hidden } : {}) });
@@ -136,10 +142,21 @@ function sample(kind: MapObject["kind"], symbol: string): MapObject | undefined 
 
 async function catalog(map: ParsedMap): Promise<CatalogSymbol[]> {
   const counts = new Map<string, number>();
-  for (const object of current?.map.objects ?? map.objects) counts.set(object.symbol, (counts.get(object.symbol) ?? 0) + 1);
+  const layerCounts = new Map<string, Map<string, number>>();
+  const objects = current?.map.objects ?? map.objects, objectKeys = current?.keys ?? keys;
+  objects.forEach((object, index) => {
+    counts.set(object.symbol, (counts.get(object.symbol) ?? 0) + 1);
+    const layer = layerByKey.get(objectKeys[index]!);
+    if (!layer) return;
+    const perSymbol = layerCounts.get(object.symbol) ?? new Map<string, number>();
+    perSymbol.set(layer, (perSymbol.get(layer) ?? 0) + 1);
+    layerCounts.set(object.symbol, perSymbol);
+  });
   const out: CatalogSymbol[] = [];
   for (const symbol of map.symbols.values()) {
-    if (symbol.hidden) continue;
+    // Symboler som är dolda i filen och inte används är bara rester; de som används blir skisslager.
+    if (symbol.hidden && !counts.get(symbol.id)) continue;
+    const layers = [...(layerCounts.get(symbol.id) ?? [])].sort((a, b) => b[1] - a[1]).slice(0, MAX_LAYERS).map(([name, count]) => ({ name, count }));
     const kind = symbolObjectKind(map, symbol);
     let icon: Blob | undefined;
     const object = sample(kind, symbol.id);
@@ -148,22 +165,72 @@ async function catalog(map: ParsedMap): Promise<CatalogSymbol[]> {
         const canvas = new OffscreenCanvas(ICON_PX, ICON_PX);
         const context = canvas.getContext("2d");
         if (context) {
-          drawMap(context, { ...map, objects: [object] }, { pxPerMm: ICON_PX / ICON_MM, origin: { x: -ICON_MM / 2, y: ICON_MM / 2 }, background: false });
+          drawMap(context, { ...map, objects: [object] }, { pxPerMm: ICON_PX / ICON_MM, origin: { x: -ICON_MM / 2, y: ICON_MM / 2 }, background: false,
+            ...(symbol.hidden ? { showHiddenSymbols: new Set([symbol.id]) } : {}) });
           icon = await canvas.convertToBlob({ type: "image/png" });
         }
       } catch { icon = undefined; }
     }
     out.push({ id: symbol.id, code: symbol.code.text, name: symbol.name, kind, group: symbolGroup(symbol.code.main), ...previewStyle(map, symbol), icon,
-      count: counts.get(symbol.id) ?? 0, colors: symbolColorIds(fileSymbols, fileSymbols.get(symbol.id) ?? symbol) });
+      count: counts.get(symbol.id) ?? 0, colors: symbolColorIds(fileSymbols, fileSymbols.get(symbol.id) ?? symbol),
+      ...(symbol.hidden ? { fileHidden: true } : {}), ...(layers.length ? { layers } : {}) });
   }
   return out.sort((a, b) => a.code.localeCompare(b.code, "sv", { numeric: true }));
+}
+
+/** Normkontrollens och generaliseringens objekt: synliga symboler med linjebredden. */
+function normRows(map: ParsedMap, keys: readonly ObjectKey[]): NormObject[] {
+  const rows: NormObject[] = [];
+  map.objects.forEach((object, index) => {
+    const symbol = map.symbols.get(object.symbol);
+    if (!symbol || symbol.hidden) return;
+    const width = symbol.kind === "LINE" ? Math.max(0, ...symbol.strokes.map(stroke => stroke.width)) : 0;
+    rows.push({ key: keys[index]!, code: symbol.code.text, object, ...(width > 0 ? { lineWidth: width } : {}) });
+  });
+  return rows;
+}
+
+/** Den senaste generaliseringen som begärts; en äldre som fortfarande räknas avbryts. */
+let latestGeneralize = 0;
+const pause = () => new Promise<void>(resolve => setTimeout(resolve, 0));
+
+/**
+ * K6 (ägaren 2026-11-15: «den verkar hänga sig … går den att dela upp i delar»): generaliseringen ruta för ruta
+ * (`generalizeParts`), med förloppet efter varje ruta och en paus så att kartbilden kan ritas emellan. Ett fel ger ett svar
+ * med felet i stället för tystnad (förut stod «Räknar …» kvar för alltid).
+ */
+async function runGeneralize(request: Extract<MapProjectRequest, { type: "generalize" }>) {
+  const empty: GeneralizeResult = { changes: [], simplified: 0, pointsBefore: 0, pointsAfter: 0, removed: { SMALL_AREA: 0, SHORT_LINE: 0, SMALL_CLOSED: 0 } };
+  if (!current) { post({ type: "generalize", id: request.id, result: empty, refs: [] }); return; }
+  try {
+    const map = current.map;
+    const rows = normRows(map, current.keys);
+    const parts = generalizeParts(rows, request.options);
+    const taken = new Set<ObjectKey>();
+    const results: GeneralizeResult[] = request.options.joinLines ? [generalizeJoins(rows, map.scale, request.options, taken)] : [];
+    for (const [index, part] of parts.entries()) {
+      if (request.id !== latestGeneralize) return;
+      results.push(generalizePart(part, map.scale, request.options, taken));
+      post({ type: "generalizeProgress", id: request.id, done: index + 1, total: parts.length });
+      await pause();
+    }
+    if (request.id !== latestGeneralize) return;
+    const result = combineGeneralize(results);
+    post({ type: "generalize", id: request.id, result, refs: result.changes.flatMap(change => {
+      const ref = refs.get(change.key);
+      return ref ? [[change.key, ref] as const] : [];
+    }) });
+  } catch (error) {
+    console.error("Generaliseringen kunde inte räknas", error);
+    post({ type: "generalize", id: request.id, result: empty, refs: [], failed: true });
+  }
 }
 
 self.onmessage = (event: MessageEvent<MapProjectRequest>) => {
   const request = event.data;
   if (request.type === "load") {
     try {
-      base = readMapFile(new Uint8Array(request.bytes), request.fileName, { sources: true });
+      base = readMapFile(new Uint8Array(request.bytes), request.fileName, { sources: true, layerTags: true });
     } catch (error) {
       if (error instanceof MapFileError) post({ type: "error", code: error.code });
       else { console.error("Kartfilen kunde inte läsas", error); post({ type: "error", code: "FAILED" }); }
@@ -173,6 +240,8 @@ self.onmessage = (event: MessageEvent<MapProjectRequest>) => {
     fileSymbols = base.symbols;
     sha256 = request.sha256;
     keys = baseKeys(base);
+    layerByKey.clear();
+    base.objectLayers?.forEach((layer, index) => { if (layer) layerByKey.set(keys[index]!, layer); });
     refs.clear();
     base.objects.forEach((object, index) => {
       const ref = objectRefFor(sha256, object);
@@ -252,11 +321,18 @@ self.onmessage = (event: MessageEvent<MapProjectRequest>) => {
     return;
   }
   if (request.type === "bySymbol") {
-    const objects = current ? current.map.objects.flatMap((object, index) => {
+    let objects = current ? current.map.objects.flatMap((object, index) => {
       if (object.symbol !== request.symbol) return [];
       const key = current!.keys[index]!;
+      if (request.layer !== undefined && layerByKey.get(key) !== request.layer) return [];
       return [{ key, ref: refs.get(key) ?? null, object }];
     }) : [];
+    // Skisslagren: det som redan är ritat med målsymbolen förs inte över en gång till.
+    if (current && request.skipCoveredBy && objects.length) {
+      const target = request.skipCoveredBy.symbol;
+      const covered = coveredObjects(objects.map(row => row.object), current.map.objects.filter(object => object.symbol === target), request.skipCoveredBy.toleranceMm);
+      objects = objects.filter((_, index) => !covered.has(index));
+    }
     post({ type: "bySymbol", id: request.id, objects });
     return;
   }
@@ -281,30 +357,12 @@ self.onmessage = (event: MessageEvent<MapProjectRequest>) => {
     }) });
     return;
   }
-  if (request.type === "norm" || request.type === "generalize") {
-    if (!current) {
-      if (request.type === "norm") post({ type: "norm", id: request.id, result: { standard: "ISOM", factor: 1, issues: [], truncated: false } });
-      else post({ type: "generalize", id: request.id, result: { changes: [], simplified: 0, pointsBefore: 0, pointsAfter: 0,
-        removed: { SMALL_AREA: 0, SHORT_LINE: 0, SMALL_CLOSED: 0 } }, refs: [] });
-      return;
-    }
-    const map = current.map;
-    const objects: { key: ObjectKey; code: string; object: MapObject; lineWidth?: number }[] = [];
-    map.objects.forEach((object, index) => {
-      const symbol = map.symbols.get(object.symbol);
-      if (!symbol || symbol.hidden) return;
-      const width = symbol.kind === "LINE" ? Math.max(0, ...symbol.strokes.map(stroke => stroke.width)) : 0;
-      objects.push({ key: current!.keys[index]!, code: symbol.code.text, object, ...(width > 0 ? { lineWidth: width } : {}) });
-    });
-    if (request.type === "norm") { post({ type: "norm", id: request.id, result: checkNorm(objects, map.scale) }); return; }
-    // K6: generaliseringen; grundfilens referenser följer med för förslagets ändringar.
-    const result = generalize(objects, map.scale, request.options);
-    post({ type: "generalize", id: request.id, result, refs: result.changes.flatMap(change => {
-      const ref = refs.get(change.key);
-      return ref ? [[change.key, ref] as const] : [];
-    }) });
+  if (request.type === "norm") {
+    if (!current) { post({ type: "norm", id: request.id, result: { standard: "ISOM", factor: 1, issues: [], truncated: false } }); return; }
+    post({ type: "norm", id: request.id, result: checkNorm(normRows(current.map, current.keys), current.map.scale) });
     return;
   }
+  if (request.type === "generalize") { latestGeneralize = request.id; void runGeneralize(request); return; }
   if (request.type === "catalog") {
     if (!base) { post({ type: "catalog", id: request.id, symbols: [] }); return; }
     catalog(base).then(symbols => post({ type: "catalog", id: request.id, symbols }), error => {

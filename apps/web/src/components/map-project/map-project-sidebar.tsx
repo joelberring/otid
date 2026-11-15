@@ -59,7 +59,8 @@ export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, recent, s
   const groups = useMemo(() => {
     const needle = query.trim().toLowerCase();
     const match = (entry: CatalogSymbol) => !needle || entry.code.toLowerCase().startsWith(needle) || entry.name.toLowerCase().includes(needle);
-    return layerRows(catalog, standardSymbols, layerState).map(row => ({ id: row.id, symbols: row.symbols.filter(match) })).filter(row => row.symbols.length > 0);
+    // Skisslagren ur kartfilen ritar man inte med (de förs över under Lager).
+    return layerRows(catalog, standardSymbols, layerState).filter(row => row.id !== "FILE").map(row => ({ id: row.id, symbols: row.symbols.filter(match) })).filter(row => row.symbols.length > 0);
   }, [catalog, standardSymbols, layerState, query]);
   const chosen = symbolId ? symbols.get(symbolId) : undefined;
   const tabs: readonly SidebarTab[] = canEdit ? ["symbols", "layers", "review", "process"] : ["layers", "review"];

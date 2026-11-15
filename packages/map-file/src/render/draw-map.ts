@@ -77,6 +77,11 @@ export interface DrawMapOptions {
   /** Träningsläget: objekt med dessa symboler (id) ritas inte. */
   readonly hiddenSymbols?: ReadonlySet<string> | undefined;
   /**
+   * Kartprojektets skisslager (ägaren 2026-11-15): symboler som är dolda i filen (Mappers «dölj symbol») men ändå ska ritas.
+   * `hiddenSymbols` går före.
+   */
+  readonly showHiddenSymbols?: ReadonlySet<string> | undefined;
+  /**
    * Träningsläget (tonad karta): andel av färgen (0–1). Skärmen ritar färgen genomskinlig över papperet; PDF:en får färgen
    * utan tonen i `beforeColor` och skriver samma dekorfärg med lägre andel.
    */
@@ -390,19 +395,19 @@ function fontFamily(name: string): string {
 }
 
 /** Delarna i en kombinerad symbol (Mapper), utan cirklar och med ett tak för djupet. */
-function resolveSymbols(symbols: ParsedMap["symbols"], id: string, depth = 0, seen = new Set<string>()): MapSymbol[] {
+function resolveSymbols(symbols: ParsedMap["symbols"], id: string, depth = 0, seen = new Set<string>(), showHidden = false): MapSymbol[] {
   const symbol = symbols.get(id);
-  if (!symbol || symbol.hidden || depth > 8 || seen.has(id)) return [];
+  if (!symbol || (symbol.hidden && !showHidden) || depth > 8 || seen.has(id)) return [];
   if (symbol.kind !== "COMBINED") return [symbol];
   const next = new Set(seen).add(id);
-  return symbol.parts.flatMap(part => resolveSymbols(symbols, part, depth + 1, next));
+  return symbol.parts.flatMap(part => resolveSymbols(symbols, part, depth + 1, next, showHidden));
 }
 
 function planObject(plan: Plan, map: ParsedMap, object: MapObject, options: DrawMapOptions): number {
   let parts = 0;
   if (options.hiddenSymbols?.has(object.symbol)) return 0;
   const maxInstances = options.maxPatternInstances ?? MAX_PATTERN_INSTANCES;
-  for (const symbol of resolveSymbols(map.symbols, object.symbol)) {
+  for (const symbol of resolveSymbols(map.symbols, object.symbol, 0, new Set(), options.showHiddenSymbols?.has(object.symbol) === true)) {
     switch (object.kind) {
       case "point":
         if (symbol.kind === "POINT") { planPoint(plan, symbol.elements, object.at, object.angle); parts += 1; }

@@ -10,7 +10,7 @@ export {
   projectedToWgs84, transverseMercatorFor, wgs84ToMapPoint, wgs84ToProjected
 } from "./georef";
 export type { ProjectedPoint, TransverseMercator, Wgs84Point } from "./georef";
-export { ocdSymbolCode, parseSymbolCode } from "./geometry";
+export { maxOf, minOf, ocdSymbolCode, parseSymbolCode } from "./geometry";
 export { distance, distanceToSegment, nearestOnSegment, polylineLength } from "./plane";
 export { colorUsage } from "./usage";
 export type { ColorUsage, ColorUseKind } from "./usage";

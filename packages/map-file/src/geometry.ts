@@ -84,3 +84,18 @@ export function boundsOf(objects: readonly MapObject[]): Bounds | null {
   }
   return minX <= maxX ? { minX, minY, maxX, maxY } : null;
 }
+
+/**
+ * Minsta och största värdet utan `Math.min(...lista)`: spridningen läggs på anropsstacken och ger RangeError för långa
+ * listor (redan vid cirka 80 000 punkter i en Worker i Chrome, t.ex. en yta från QGIS med 86 646 punkter).
+ */
+export function minOf(values: readonly number[]): number {
+  let min = Infinity;
+  for (const value of values) if (value < min) min = value;
+  return min;
+}
+export function maxOf(values: readonly number[]): number {
+  let max = -Infinity;
+  for (const value of values) if (value > max) max = value;
+  return max;
+}

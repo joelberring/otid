@@ -34,7 +34,9 @@ export const mapProjectHelpArticlesEn: readonly HelpArticle[] = [
         "A single symbol: open the group. Every symbol has the same three buttons.",
         "Your own groups: ”New work layer” collects symbols you choose, for example all paths. They are turned off and locked as one group.",
         "Sketches that do not belong to the map: ”New sketch layer”. They are never written to the map file.",
-        "New symbols cannot be created here yet. Objects with a symbol outside the norm are moved with ”Merge symbols”."
+        "Symbols hidden in the map file, for example a base map from CAD, are in ”Sketch layers from the map file”. Turn the layer on to see them.",
+        "New symbols cannot be created here yet. Objects outside the norm and the sketch layers are moved with ”Merge and transfer symbols”.",
+        "The suggestions there go by number, name, look and the layer in the DWG file. What is already drawn can be skipped."
       ],
       "The base layers (aerial photo, laser, older maps) are further down in the same tab."
     ]

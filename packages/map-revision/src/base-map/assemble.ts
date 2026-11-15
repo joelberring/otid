@@ -1,4 +1,4 @@
-import type { MapGeoreference, MapObject, ParsedMap, Point } from "@o-tid/map-file";
+import { maxOf, minOf, type MapGeoreference, type MapObject, type ParsedMap, type Point } from "@o-tid/map-file";
 import { importLayers, mapNorm, parseDxf, parseGeoJson, symbolObjectKind, VectorParseError, type MapBox, type SourceData } from "../index";
 import { mergeCandidates } from "./candidate-merge";
 import { computeCandidates, suggestedMapping, type CandidateSymbol } from "./candidates";
@@ -26,8 +26,8 @@ type Ring = readonly Point[];
 /** Områdets omslutande rektangel med en tiondel marginal (kartvyn för en ny tom karta). */
 export function areaBounds(area: readonly Ring[]): MapBox {
   const points = area.flat();
-  const minX = Math.min(...points.map(point => point.x)), maxX = Math.max(...points.map(point => point.x));
-  const minY = Math.min(...points.map(point => point.y)), maxY = Math.max(...points.map(point => point.y));
+  const xs = points.map(point => point.x), ys = points.map(point => point.y);
+  const minX = minOf(xs), maxX = maxOf(xs), minY = minOf(ys), maxY = maxOf(ys);
   const margin = Math.max(maxX - minX, maxY - minY) * 0.1;
   return { minX: minX - margin, minY: minY - margin, maxX: maxX + margin, maxY: maxY + margin };
 }

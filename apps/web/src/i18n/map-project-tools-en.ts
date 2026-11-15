@@ -29,6 +29,8 @@ export const mapProjectGeneralizeEn: Texts<typeof mapProjectGeneralizeSv> = {
   inside: (n: number) => n === 0 ? "No areas inside an identical area." : `${count(n, "area", "areas")} inside an identical area ${n === 1 ? "is" : "are"} removed.`,
   preview: "Work out the changes",
   computing: "Calculating …",
+  computingPart: (done: number, total: number) => `Calculating part ${done} of ${total} …`,
+  computeFailed: "The generalisation could not be completed. Choose a smaller area and try again.",
   summary: (simplified: number, before: number, after: number) => simplified === 0 ? "No lines or areas to simplify."
     : `${count(simplified, "object is", "objects are")} simplified: ${before} points become ${after}.`,
   removed: (area: number, line: number, closed: number) => area + line + closed === 0 ? "Nothing is smaller than the norm."

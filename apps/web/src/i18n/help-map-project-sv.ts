@@ -34,7 +34,9 @@ export const mapProjectHelpArticles: readonly HelpArticle[] = [
         "En enda symbol: öppna gruppen. Varje symbol har samma tre knappar.",
         "Egna grupper: ”Nytt arbetslager” samlar symboler du väljer, till exempel alla stigar. De släcks och låses som en grupp.",
         "Skisser som inte hör till kartan: ”Nytt skisslager”. De skrivs aldrig till kartfilen.",
-        "Nya symboler går inte att skapa här än. Objekt med en symbol utanför normen flyttas med ”Slå ihop symboler”."
+        "Symboler som är dolda i kartfilen, till exempel en grundkarta från CAD, ligger i ”Skisslager ur kartfilen”. Tänd lagret för att se dem.",
+        "Nya symboler går inte att skapa här än. Objekt utanför normen och skisslagren flyttas med ”Slå ihop och för över symboler”.",
+        "Förslagen där går efter nummer, namn, utseende och lagret i DWG-filen. Det som redan är ritat kan hoppas över."
       ],
       "Flygbilder, laserbilder och äldre kartor som du lagt under kartan ligger längre ned i samma flik."
     ]

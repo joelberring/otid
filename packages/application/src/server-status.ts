@@ -132,13 +132,17 @@ export async function readBackups(dir: string): Promise<ServerSnapshot["backups"
     status: await readBackupStatus(join(dir, ".backup-status")) };
 }
 
-/** `deploy/backup.sh` skriver en rad efter varje körning: `<epok>\t<ok|fail>\t<text>`. */
+/**
+ * `deploy/backup.sh` skriver en rad efter varje körning: `<epok>\t<ok|fail>\t<text>\t<misslyckade i rad>`. Det sista fältet
+ * saknas i rader från en äldre backupavbildning; ett misslyckande räknas då som det första.
+ */
 export async function readBackupStatus(path: string): Promise<BackupStatus | null> {
   try {
-    const [epoch, result, ...text] = (await readFile(path, "utf8")).trim().split("\t");
+    const [epoch, result, text = "", count] = (await readFile(path, "utf8")).trim().split("\t");
     const at = Number(epoch);
     if (!Number.isFinite(at) || (result !== "ok" && result !== "fail")) return null;
-    return { at: new Date(at * 1000), ok: result === "ok", detail: text.join(" ").slice(0, 300) };
+    const failures = result === "ok" ? 0 : count !== undefined && /^\d+$/.test(count) ? Math.max(1, Number(count)) : 1;
+    return { at: new Date(at * 1000), ok: result === "ok", detail: text.slice(0, 300), failures };
   } catch { return null; }
 }
 

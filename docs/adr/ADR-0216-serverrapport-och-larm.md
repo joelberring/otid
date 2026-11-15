@@ -47,3 +47,10 @@ kartfiler varje timme (48 timdumpar och 14 dagliga), så säkerhetskopiorna väx
 - Första dumpen efter uppdateringen (`backup-before-migrate`) sparar allt kartinnehåll en gång, två korta `psql` per innehåll;
   med några hundra kartor tar uppdateringen upp till någon minut längre den gången.
 - Den gamla återställningen utan `restore-map-content` ger kartor utan bild och fil tills steget körs.
+
+## Tillägg 2026-11-15: säkerhetskopian larmar vid andra misslyckandet i rad
+
+Ägaren: ett larm kom när en serveruppdatering avbröt en pågående kopia, som sedan gick igenom vid nästa start. `backup.sh`
+skriver därför antalet misslyckade körningar i rad sist i `.backup-status`, och bevakningen larmar först vid den andra
+(med timvisa körningar: efter högst två timmar). En rad utan fältet (äldre backupavbildning) räknas som det första
+misslyckandet. Larmet för en för gammal kopia (`backupMaxAgeHours`) är oförändrat.

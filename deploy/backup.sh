@@ -25,7 +25,7 @@
 # inte databasen pekar på den. Saknas en fil för något innehåll i dumpen (det skapades och togs bort under dumpen) tas dumpen om
 # med kartinnehållet i, så varje dump går alltid att återställa. Data som går att skapa igen tas inte med: utskriftsjobbens PDF:er
 # (steg 65) och klubbarkivets miniatyrer och kartkontroller (ADR-0196; ritas om i administratörens webbläsare när de saknas).
-# Efter varje körning skrivs `<epok>\t<ok|fail>\t<text>` i $BACKUP_DIR/.backup-status (webbens serverbevakning läser den).
+# Efter varje körning skrivs `<epok>\t<ok|fail>\t<text>\t<misslyckade i rad>` i $BACKUP_DIR/.backup-status (webbens serverbevakning läser den).
 set -u
 dir="${BACKUP_DIR:-/backups}"
 keep_hourly="${BACKUP_KEEP_HOURLY:-24}"
@@ -46,9 +46,15 @@ prune() {
   done
 }
 
-# Webbens serverbevakning (ADR-0216): resultatet av senaste körningen.
+# Webbens serverbevakning (ADR-0216): resultatet av senaste körningen, och sist hur många körningar i rad som har
+# misslyckats (bevakningen larmar först vid den andra, så att en kopia som avbröts av en uppdatering inte ger larm).
 status() {
-  printf '%s\t%s\t%s\n' "$(date +%s)" "$1" "$(printf '%s' "${2:-}" | tr '\t\n' '  ')" > "$dir/.backup-status.tmp" \
+  failures=0
+  if [ "$1" = "fail" ]; then
+    failures=$(awk -F '\t' 'NR == 1 && $2 == "fail" { print ($4 ~ /^[0-9]+$/ ? $4 : 1) }' "$dir/.backup-status" 2>/dev/null)
+    failures=$(( ${failures:-0} + 1 ))
+  fi
+  printf '%s\t%s\t%s\t%s\n' "$(date +%s)" "$1" "$(printf '%s' "${2:-}" | tr '\t\n' '  ')" "$failures" > "$dir/.backup-status.tmp" \
     && mv -f "$dir/.backup-status.tmp" "$dir/.backup-status"
 }
 

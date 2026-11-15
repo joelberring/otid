@@ -13,6 +13,10 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-15 – Säkerhetskopians larm först vid andra misslyckandet i rad
+
+- `backup.sh` skriver antalet misslyckade körningar i rad i `.backup-status`; `serverProblems` larmar när det är minst två (ADR-0216 tillägg 2026-11-15). Kontrollerat: enhetstest, `status()` provkörd i sh. Gäller när både backup- och webbavbildningen är uppdaterade.
+
 ### 2026-11-15 – Tyresta som facit: öppen mark strängare (geo-arbetaren 36)
 
 - Ägaren: «trimma otid mot tyresta». Pär Svenssons karta Norra Tyresta & Södra Storskogen 2025 (OCAD-PDF med GeoPDF-hörn) lästes till klassraster i laserkörningens klipp (6,5 km²; se projektdokumentet tyresta-facit-2026-11-15).

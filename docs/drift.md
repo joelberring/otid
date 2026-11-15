@@ -459,7 +459,8 @@ webben tar `backup-before-migrate` dessutom en dump (`./backups/fore-migrering/`
 - Inte med i dumparna (går att skapa igen): utskriftsjobbens PDF:er (steg 65) och klubbarkivets miniatyrer och kartkontroller
   (`club_archive_entry_thumbnail`, `club_map_version_check`; ADR-0196 – de ritas om i en administratörs webbläsare när
   klubbarkivet öppnas, högst sex kartversioner per besök).
-- `./backups/.backup-status`: resultatet av senaste körningen (läses av serverns bevakning).
+- `./backups/.backup-status`: resultatet av senaste körningen och antalet misslyckade i rad (läses av serverns bevakning,
+  som larmar först när två körningar i rad har misslyckats).
 - En dump skrivs först till en dold fil (`.….partial`) och byter namn när `pg_dump` är klar, så en avbruten dump ser
   aldrig ut som en hel.
 - Ett misslyckat försök loggas som `BACKUP MISSLYCKADES` i `docker compose -f docker-compose.prod.yml logs backup` och

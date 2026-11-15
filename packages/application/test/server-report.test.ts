@@ -21,7 +21,7 @@ function snapshot(overrides: Partial<ServerSnapshot> = {}): ServerSnapshot {
     database: { totalBytes: 3 * GB, mapBytes: 2 * GB, imageBytes: 100 * MB, printBytes: 200 * MB },
     maps: { storedBytes: 2 * GB, quotaBytes: 20 * GB },
     backups: { totalBytes: 6 * GB, dumpBytes: 4 * GB, mapContentBytes: 2 * GB, dumps: 34, newestAt: new Date(now.getTime() - 5 * 60_000),
-      status: { at: new Date(now.getTime() - 5 * 60_000), ok: true, detail: "" } },
+      status: { at: new Date(now.getTime() - 5 * 60_000), ok: true, detail: "", failures: 0 } },
     monitor: [{ at: new Date(now.getTime() - 10 * 60_000), ok: true, codes: [], text: "" }],
     counts: { accounts: 85, accountsNew: 3, clubs: 12, events: 120, races: 140, upcomingRaces: 6, upcomingPublished: 4, upcomingEntries: 900,
       upcomingMaxEntries: 320 },
@@ -60,12 +60,15 @@ describe("problemen", () => {
     expect(problems.get("HEALTH")).toContain("3 gånger i rad");
   });
 
-  it("en misslyckad backup efter den senaste dumpen larmar; hälsokontrollens disk- och backupfel har egna larm", () => {
-    const problems = serverProblems(snapshot({
+  it("en backup som misslyckats två gånger i rad larmar, en enstaka inte; hälsokontrollens disk- och backupfel har egna larm", () => {
+    const failed = (failures: number) => serverProblems(snapshot({
       backups: { totalBytes: 1, dumpBytes: 1, mapContentBytes: 0, dumps: 1, newestAt: new Date(now.getTime() - HOUR),
-        status: { at: new Date(now.getTime() - 60_000), ok: false, detail: "pg_dump misslyckades" } },
+        status: { at: new Date(now.getTime() - 60_000), ok: false, detail: "pg_dump misslyckades", failures } },
       monitor: [1, 2, 3].map(index => ({ at: new Date(now.getTime() - index * 60_000), ok: false, codes: ["disk"], text: "disken" }))
     }), settings);
+    // En kopia som avbröts av en uppdatering går igenom nästa timme: inget larm för den första.
+    expect(failed(1).has("BACKUP")).toBe(false);
+    const problems = failed(2);
     expect(problems.get("BACKUP")).toContain("misslyckades");
     expect(problems.has("HEALTH")).toBe(false);
   });

@@ -13,6 +13,8 @@ const HOUR = 60 * 60_000;
 const DAY = 24 * HOUR;
 /** Larm per sort: högst ett per dygn (också påminnelsen när problemet står kvar). */
 export const ALERT_REPEAT_MS = DAY;
+/** Säkerhetskopian larmar först när så många körningar i rad har misslyckats: en kopia som avbröts av en uppdatering går igenom nästa timme. */
+const BACKUP_ALARM_FAILURES = 2;
 
 type Env = Partial<Record<string, string | undefined>>;
 
@@ -84,7 +86,8 @@ export function serverWatchSettingsProblems(env: Env): string[] {
 // ---- Mätningen
 
 export interface MonitorCheck { readonly at: Date; readonly ok: boolean; readonly codes: readonly string[]; readonly text: string }
-export interface BackupStatus { readonly at: Date; readonly ok: boolean; readonly detail: string }
+/** `failures`: körningar i rad som har misslyckats (0 när den senaste lyckades). */
+export interface BackupStatus { readonly at: Date; readonly ok: boolean; readonly detail: string; readonly failures: number }
 
 export interface DatabaseSizes {
   readonly totalBytes: number;
@@ -153,7 +156,7 @@ export function serverProblems(snapshot: ServerSnapshot, settings: ServerWatchSe
   const backups = snapshot.backups;
   if (backups) {
     const maxAge = settings.backupMaxAgeHours * HOUR;
-    if (backups.status && !backups.status.ok && (!backups.newestAt || backups.status.at.getTime() > backups.newestAt.getTime())) {
+    if (backups.status && !backups.status.ok && backups.status.failures >= BACKUP_ALARM_FAILURES && (!backups.newestAt || backups.status.at.getTime() > backups.newestAt.getTime())) {
       problems.set("BACKUP", `Senaste säkerhetskopian misslyckades ${dateTime(backups.status.at)}: ${backups.status.detail}`.slice(0, 400));
     } else if (!backups.newestAt) {
       problems.set("BACKUP", "Det finns ingen säkerhetskopia i backups/hourly.");

@@ -19,6 +19,8 @@ export const ISOM_COLORS: readonly ColorDef[] = [
   { key: "white", name: "Vit", cmyk: [0, 0, 0, 0] },
   // Ägaren 2026-11-11 («tomtmarken ska ta över och ligga ovanför tät skog»): olivgrönt (520) över grönskan.
   { key: "olive", name: "Olivgrön", cmyk: [0.35, 0, 1, 0.5] },
+  // Ägaren 2026-11-16: de vita prickarna i 402 och 404 under olivgrönt (tomten), annars syns de på tomterna.
+  { key: "white-dots", name: "Vit (prickar)", cmyk: [0, 0, 0, 0] },
   { key: "green", name: "Grön", cmyk: [0.76, 0, 0.91, 0] },
   { key: "green60", name: "Grön 60 %", cmyk: [0.46, 0, 0.55, 0] },
   { key: "green30", name: "Grön 30 %", cmyk: [0.23, 0, 0.27, 0] },
@@ -115,9 +117,9 @@ export const ISOM_SYMBOLS: readonly SymbolDef[] = [
 
   // Vegetation (gult och grönt).
   { code: "401", name: "Öppen mark", kind: "area", fill: "yellow" },
-  { code: "402", name: "Öppen mark med spridda träd", kind: "area", fill: "yellow", dots: { elements: [dot("white", 0.55)], dx: 1.5, dy: 1.5, staggered: true } },
+  { code: "402", name: "Öppen mark med spridda träd", kind: "area", fill: "yellow", dots: { elements: [dot("white-dots", 0.55)], dx: 1.5, dy: 1.5, staggered: true } },
   { code: "403", name: "Ödemark (öppen mark, ej löpvänlig)", kind: "area", fill: "yellow50" },
-  { code: "404", name: "Ödemark med spridda träd", kind: "area", fill: "yellow50", dots: { elements: [dot("white", 0.55)], dx: 1.5, dy: 1.5, staggered: true } },
+  { code: "404", name: "Ödemark med spridda träd", kind: "area", fill: "yellow50", dots: { elements: [dot("white-dots", 0.55)], dx: 1.5, dy: 1.5, staggered: true } },
   { code: "405", name: "Skog, lättlöpt", kind: "area", fill: "white-bg" },
   { code: "406", name: "Skog, löphindrande", kind: "area", fill: "green30" },
   { code: "407", name: "Undervegetation, löphindrande", kind: "area", hatches: [{ color: "green", width: 0.12, spacing: 0.84, angle: 90 }] },

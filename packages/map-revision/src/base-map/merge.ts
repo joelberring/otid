@@ -8,7 +8,7 @@ import { smallRingsToPoints } from "./small-rings";
 import { isRing, ringTick, smallDepressionPoints } from "./depressions";
 import { withoutMarshPits } from "./marsh-pits";
 import { parcelYards, yardsOf } from "./yards";
-import { marshOutsideManaged, singleMarsh, undergrowthOutsideGreen } from "./marsh-merge";
+import { marshOutsideManaged, semiOpenOutsideYards, singleMarsh, undergrowthOutsideGreen } from "./marsh-merge";
 import { linesOutsideWater } from "./water-clip";
 import { marshOffDrySoil } from "./soil-marsh";
 import type { SoilArea } from "./soil";
@@ -210,6 +210,7 @@ export function mergeBaseMap(parts: readonly { readonly name: string; readonly d
   if (soil && dryless) soil.report?.({ removedHa: dryless.removedHa });
   // Ägaren 2026-11-15: inga gropar mitt i sankmark (`marsh-pits.ts`).
   const single = withoutMarshPits(undergrowthOutsideGreen(dryless ? dryless.features : marsh).features).features;
-  return { features: [...single, ...shoreLines(single), ...yardsOf(single)], skipped: parts.reduce((sum, part) => sum + part.data.skipped, 0) + (osm?.skipped ?? 0),
+  const yarded = semiOpenOutsideYards([...single, ...yardsOf(single)]);
+  return { features: [...yarded, ...shoreLines(single)], skipped: parts.reduce((sum, part) => sum + part.data.skipped, 0) + (osm?.skipped ?? 0),
     crs: SWEREF99TM };
 }

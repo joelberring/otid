@@ -54,6 +54,12 @@ export function marshOutsideManaged(features: readonly SourceFeature[], managed:
   const marked = managed.map(feature => ({ ...feature, layer: MANAGED }));
   return withoutOverlap([...features, ...marked], OFF_MANAGED, 5).features.filter(feature => feature.layer !== MANAGED);
 }
+/**
+ * Ägaren 2026-11-16 («halvöppen mark hamnar ovanför tomtmark»): 404:s vita prickar ritas över olivgrönt, så den halvöppna
+ * marken klipps mot tomterna.
+ */
+const OFF_YARDS = ["tomtmark_marktacke", "tomtmark_osm", "tomtmark_fastighet", "tomtmark_hus", "oppen_mark_spridda_trad"] as const;
+export const semiOpenOutsideYards = (features: readonly SourceFeature[]) => withoutOverlap(features, OFF_YARDS, 4).features;
 /** Grundkartans objekt med undervegetationen utanför det gröna och utan dubbla raster. */
 export const undergrowthOutsideGreen = (features: readonly SourceFeature[]) => withoutOverlap(features, UNDERGROWTH, 2);
 

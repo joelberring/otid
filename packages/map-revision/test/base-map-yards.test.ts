@@ -72,3 +72,17 @@ describe("tomter ur fastighetsindelningen (ägaren 2026-11-16)", () => {
     expect(parcelYards([house(0, 0, 10)])).toHaveLength(1);
   });
 });
+
+describe("halvöppen mark utanför tomterna (ägaren 2026-11-16)", () => {
+  it("404 klipps mot tomten", async () => {
+    const { semiOpenOutsideYards } = await import("../src/base-map/marsh-merge");
+    const square = (x: number, side: number, layer: string): SourceFeature => ({ layer, geometry: { kind: "line", closed: true,
+      points: [[x, 0], [x + side, 0], [x + side, side], [x, side]] } });
+    const out = semiOpenOutsideYards([square(0, 100, "oppen_mark_spridda_trad"), square(50, 100, "tomtmark_hus")]);
+    const semi = out.filter(feature => feature.layer === "oppen_mark_spridda_trad");
+    const xs = semi.flatMap(feature => feature.geometry.kind === "area" ? feature.geometry.rings.flat().map(p => p[0])
+      : feature.geometry.kind === "line" ? feature.geometry.points.map(p => p[0]) : []);
+    expect(Math.max(...xs)).toBeLessThanOrEqual(50.01);
+    expect(out.some(feature => feature.layer === "tomtmark_hus")).toBe(true);
+  });
+});

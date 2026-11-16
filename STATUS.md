@@ -47,6 +47,10 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Skottbrädet visar neutrala prickar för hur många andra i gruppen som stått i rutan och skjutit; tävlingssidan visar samma prickar som ett rutnät per grupp. Servern lämnar bara antal per ruta. Sänkta gemensamma står för sig i topplistan och ledarens tabell.
 - Kontrollerat: enhetstester (placering, förval, prickar), integrationstest (två löpare har samma gemensamma och olika egna skepp; prickarna), webbens tester, lint, typecheck, knip. Inte provat i telefon.
 
+### 2026-11-16 Halvöppen mark under tomterna
+- 404:s vita prickar låg över tomternas olivgröna: grundkartan klipper nu 404 mot tomterna, och nya kartor har prickarna i en egen vit färg under olivgrönt (befintliga kartor har sin färgtabell kvar).
+- Verifierat: typkontroll, lint, enhetstester (map-file, map-revision, print-pdf).
+
 ### 2026-11-16 Tomter ur Lantmäteriets fastighetsindelning
 - Laserkörningen hämtar också Fastighetsindelning (STAC-vektor, kontots beställning på Geotorget; zip eller GeoPackage, upp till sex rutor) till `fastigheter.geojson`; bara fastighetsområdenas ytor, inga beteckningar.
 - Grundkartan: en fastighet under 3 500 m² med ett hus blir tomt (520, `tomtmark_fastighet`) med fastighetens form; husen där får ingen rektangel, och ingen sankmark läggs på tomten. Utan fastighetsindelning som förut.

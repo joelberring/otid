@@ -1285,6 +1285,17 @@ Senare enligt planen: K5 Karttapullautin och fuktighet, K6
 generalisering och resten av normkontrollen, K6b aktualisering och rättning av hela kartor (ny laser eller flygbild, handritade äldre
 kartor; försök som jämförs, förslag med motivering), K7 begränsad revidering av OCAD. Idé (STATUS): inomhusorientering.
 
+Underlag för frihandsritning (ägaren 2026-11-16, efter mejl från Högdalens kartritare; projektdokumentet
+`claude/plan-underlag-frihandsritning-2026-11-16.md`). Panelen «Underlag för frihandsritning» under Laserdata, allt i webbläsaren
+ur laserjobbets filer:
+
+- [x] U3 valda lager som en DXF (R12) med ISOM-numret i lagrens namn, i SWEREF 99 TM.
+- [x] U1 täta kurvor (0,25–5 m) ur `hojd.png`, lätt utjämning, klasser för hela och femte metrar.
+- [x] U2 GeoTIFF: terrängskuggning från fyra håll, vegetationens höjd (`lasveg.png`), markens småformer.
+- [x] Släntkanter (vägkanter, banvallar, dikeskanter) ur markhöjden; provat på Högdalen A, inte mätt mot kartan.
+- [x] U4 fältutskrift: PDF i blad med överlapp och rutnät, 1:4 000–1:10 000, A4/A3.
+- [ ] Kvar: prova i webbläsaren och i OCAD med kartritaren; mäta släntkanterna och dikena mot Högdalen; visa underlagen i kartan.
+
 ## [ ] Steg K8 – Ritlägets gränssnitt (ägaren 2026-11-10)
 
 Kartan ska få platsen, och det ska gå fort att rita. Hela förslaget står i projektdokumenten `claude/plan-ritlage-granssnitt.md`

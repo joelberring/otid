@@ -1,0 +1,48 @@
+/**
+ * Underlag för frihandsritning (ägaren 2026-11-16, efter mejl från Högdalens kartritare): det laserkörningen sparat, att ladda
+ * ner till OCAD och skriva ut på plast.
+ */
+export const mapDrawingBasisSv = {
+  heading: "Underlag för frihandsritning",
+  help: "För dig som ritar själv i OCAD eller på plast: ladda ner det laserkörningen har räknat fram, utan att läsa in något i kartan. Allt är i SWEREF 99 TM.",
+  none: "Inget klart laserjobb har markens höjd sparad (hojd.png). Kör lasern först.",
+  job: "Laserjobb",
+  allStages: (name: string, count: number) => `${name} – alla ${count} etapper`,
+  dxfHeading: "Valda lager som DXF",
+  dxfHelp: "En fil med ett lager per symbol och ISOM-numret i lagrets namn (t.ex. 305_Dike), så att lagren kan kopplas till symboler när filen läses in i OCAD.",
+  contours: "Täta kurvor",
+  noContours: "Inga",
+  interval: (meters: string) => `${meters} m`,
+  smooth: "Jämna ut laserns brus lätt",
+  smoothHelp: "Tar bort brus på 0,1–0,2 m utan att flytta formerna. Utan utjämning blir 0,25 m-kurvorna taggiga.",
+  banks: "Släntkanter (vägkanter, banvallar, dikeskanter)",
+  banksHelp: "Branta band på 0,3–4 m mellan flackare mark, minst 12 m långa. Ger banvallar och vägbankar men också en del korta berg- och jordkanter. Nytt och inte mätt mot en riktig karta än.",
+  files: {
+    "diken.dxf": "Diken", "knollar.dxf": "Knollar (Karttapullautin)", "kullar.geojson": "Små kullar", "formlinjer.dxf": "Formlinjer",
+    "kurvor.dxf": "Kurvor från körningen", "brantlinjer.dxf": "Branter", "stup.dxf": "Stup (råa streck)", "fukt.dxf": "Våtmarker och fuktstråk",
+    "berg.dxf": "Stenar och berg i dagen", "vatten.geojson": "Sjöar och vatten", "byggnader.geojson": "Byggnader (Lantmäteriet)",
+    "vegetation.dxf": "Vegetationsytor", "belagt.dxf": "Belagd yta"
+  } as Record<string, string>,
+  downloadDxf: "Ladda ner DXF",
+  working: "Räknar …",
+  dxfDone: (layers: string) => `Klart: ${layers}.`,
+  imagesHeading: "Bakgrundsbilder som GeoTIFF",
+  imagesHelp: "Läses in som bakgrundskarta i OCAD och OCAD-appen med rätt läge.",
+  shade: "Terrängskuggning (ljus från fyra håll)",
+  vegetation: "Vegetationens höjd (gult 0,5–2 m, grönt 2–5 m, ljusare ju högre)",
+  relief: "Markens småformer (brunt upphöjt, blått nedsänkt)",
+  noVegetation: "Körningen har inte vegetationens höjd sparad.",
+  printHeading: "Fältutskrift för plast",
+  printHelp: "Ljusa sidor att rita ovanpå, delade i blad med 10 mm överlapp och rutnät med koordinater.",
+  scale: "Skala",
+  paper: "Papper",
+  landscape: "Liggande",
+  printInterval: "Ekvidistans",
+  printLayers: "Med på utskriften",
+  printLayersHelp: "Lagren som är valda för DXF:en ovan kommer också med.",
+  downloadPdf: "Skapa PDF",
+  tooManyPages: (pages: number, max: number) => `Det blir ${pages} blad (högst ${max}). Välj en mindre skala eller större papper.`,
+  printTitle: "Underlag för frihandsritning",
+  printFooter: (page: number, pages: number, scale: string, interval: string, date: string) => `blad ${page} av ${pages} · 1:${scale} · ekvidistans ${interval} m · ${date} · O-Tid`,
+  failed: "Det gick inte. Försök igen; om det händer igen är området kanske för stort för webbläsaren."
+};

@@ -13,6 +13,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-16 – Underlag för frihandsritning (DXF, GeoTIFF, fältutskrift)
+- Ägaren 2026-11-16 efter mejl från Högdalens kartritare: kurvor i hög upplösning, objekt- och vegetationshöjd, export av bara valda symboler (diken, vägkanter, låga former), utskrift för plast med 1 m ekvidistans.
+- Ny panel under Laserdata. `map-revision/base-map/drawing-basis.ts` (täta kurvor, småformer, släntkanter, skuggning, etapper ihop, ISOM-lagernamn) och `dxf-write.ts`; webben `map-project-drawing-basis.ts`, `map-project-field-print.ts`, `pdf-jpeg-pages.ts`.
+- Provat på Högdalen A:s riktiga markhöjd och vegetation (2,6 km²) i Chrome: DXF med 0,25 m-kurvor och släntkanter 36 MB på 2,4 s, fältutskrift 1:5 000 (4 blad A4) på 1,9 s; vegetationens färger gjorda ljusare efter utskriften.
+- Verifierat: enhetstester (drawing-basis, field-print, pdf, GeoTIFF läses tillbaka med rätt läge), typkontroll, lint, knip. Panelen själv och nedladdningen är inte provade i appen, och filerna är inte inlästa i riktiga OCAD.
+
 ### 2026-11-16 – AI-kopplingen: större ändringar och snålare svar (tillägg i ADR-0219)
 - Ägaren 2026-11-16: «stärka ai-kopplingen så att du får göra större ändringar», «se över så att det inte drar för mycket».
 - `propose_changes`: 3 × 3 km i läget AUTONOMOUS (500 m för förslag), ytor med hål (`rings`) och `subtract` (klipp en yta mot andra ytor utan koordinater).

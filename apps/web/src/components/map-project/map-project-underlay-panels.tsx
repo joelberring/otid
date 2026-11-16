@@ -20,6 +20,7 @@ import { MapProjectHillPanel } from "./map-project-hill-panel";
 import { MapProjectCliffPanel, MapProjectKnollPanel, MapProjectPitPanel } from "./map-project-knoll-panel";
 import { MapProjectClearPanel } from "./map-project-clear-panel";
 import { MapProjectFlatPanel } from "./map-project-flat-panel";
+import { MapProjectDrawingBasisPanel } from "./map-project-drawing-basis-panel";
 import { MapProjectMoisturePanel } from "./map-project-moisture-panel";
 import { MapProjectOrthoPanel } from "./map-project-ortho-panel";
 import { MapProjectWmsPanel } from "./map-project-wms-panel";
@@ -58,6 +59,8 @@ export function MapProjectUnderlayPanels({ view, georeference, bounds, areas, la
       <h3 className={styles.groupTitle}>{steps.laser}</h3>
       <p className={styles.muted}>{steps.laserHelp}</p>
       <MapProjectLaserPanel view={view} laser={laser} importer={importer} georeference={georeference} bounds={bounds} areas={areas} />
+      {/* Ägaren 2026-11-16: för den som ritar själv – ladda ner underlaget i stället för att läsa in kandidater. */}
+      {importer.canImport && <MapProjectDrawingBasisPanel view={view} />}
       <h3 className={styles.groupTitle}>{steps.adjust}</h3>
       <p className={styles.muted}>{steps.adjustHelp}</p>
       <MapProjectKnollPanel view={view} importer={importer} />

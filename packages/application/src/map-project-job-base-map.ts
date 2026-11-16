@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { MAP_PROJECT_SYNC_MAX_EDITS, MCP_BASE_MAP_MAX_OBJECTS } from "@o-tid/contracts";
 import type { Point } from "@o-tid/map-file";
-import { newKey, type RevisionEdit, type SourceData } from "@o-tid/map-revision";
+import { baseKeys, newKey, objectBox, objectRefFor, type RevisionEdit, type SourceData } from "@o-tid/map-revision";
 import {
   assembleBaseMap, builtPolygons, candidateSymbols, DEFAULT_FLAT_LEVEL, editorBounds, heightGridOf, slopeGridOf, worldFileAffine, type BaseMapSummary, type ClearCut, type SoilArea,
   type PhotoPixels
 } from "@o-tid/map-revision/base-map";
-import type { LoadedProjectMap } from "./map-project-job-run";
+import { symbolCode, type LoadedProjectMap } from "./map-project-job-run";
 
 /**
  * Ägaren 2026-11-13 («AI:n lägger in grundkartan», apply_base_map): kartjobbet BASE_MAP i utskriftsarbetaren. Laserjobbets
@@ -41,6 +41,13 @@ export interface BaseMapJobRequest {
   /** Jobbets höjdbild (bilden och världsfilen): sänkorna söks ur den och lutningsstrecken sätts efter höjden (ägaren 2026-11-15). */
   readonly height?: { readonly image: string; readonly world: string } | undefined;
   readonly stage?: Polygon | undefined;
+  /**
+   * Ägaren 2026-11-16 («fylla det hav som saknas»): bara objekten med de här symbolnumren läggs in (t.ex. 301 och 301.1), och
+   * med `replace` tas kartans objekt med samma symboler bort i samma steg, som «Byt ut kartans objekt med samma symboler här».
+   * För en etapps laserjobb byts bara det som ligger i etappen.
+   */
+  readonly only?: readonly string[] | undefined;
+  readonly replace?: boolean | undefined;
   /** Det som inte gick att hämta (osm, clear_cuts, soil), för svaret. */
   readonly missing: readonly string[];
 }
@@ -82,10 +89,34 @@ export function runBaseMap(loaded: LoadedProjectMap, area: Polygon | null, reque
     return { problem: `Grundkartan ger ${assembled.objects.length} objekt; högst ${MCP_BASE_MAP_MAX_OBJECTS} läggs in per anrop. Dela kartan i etapper och kör laserjobbet och apply_base_map en etapp i taget.` };
   }
   const at = now.toISOString();
+  // Bara vissa symboler: grundkartan sätts ihop hel (kurvor klipps mot vattnet o.s.v.) och sedan väljs objekten.
+  const codeOf = (symbol: string) => { const found = loaded.base.symbols.get(symbol); return found ? symbolCode(found) : ""; };
+  const only = request.only?.length ? new Set(request.only) : undefined;
+  const objects = only ? assembled.objects.filter(object => only.has(codeOf(object.symbol))) : assembled.objects;
+  if (only && objects.length === 0) return { problem: `Grundkartan har inga objekt med symbolerna ${[...only].join(", ")} inom kartan.` };
+  const edits: RevisionEdit[] = [];
+  let replaced = 0;
+  if (only && request.replace) {
+    // Kartans objekt med samma symboler tas bort först; för en etapp bara de som ligger i etappens ruta.
+    const stageBox = request.stage?.[0]?.length ? request.stage[0].reduce((box, point) => ({ minX: Math.min(box.minX, point.x), minY: Math.min(box.minY, point.y),
+      maxX: Math.max(box.maxX, point.x), maxY: Math.max(box.maxY, point.y) }), { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }) : undefined;
+    const baseIndex = new Map(baseKeys(loaded.base).map((key, position) => [key, position]));
+    loaded.objects.forEach((object, index) => {
+      if (!only.has(codeOf(object.symbol))) return;
+      const box = objectBox(object), center = { x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 };
+      if (stageBox && !(center.x >= stageBox.minX && center.x <= stageBox.maxX && center.y >= stageBox.minY && center.y <= stageBox.maxY)) return;
+      const key = loaded.keys[index]!, stored = loaded.states.get(key), basePosition = baseIndex.get(key);
+      const ref = stored?.ref ?? (basePosition !== undefined ? objectRefFor(loaded.baseSha256, loaded.base.objects[basePosition]!) : null);
+      if (key.startsWith("b:") && !ref) return;
+      edits.push({ editId: randomUUID(), key, ref: key.startsWith("b:") ? ref : null, base: stored?.lastEditId ?? null, kind: "DELETE", state: { kind: "DELETED" },
+        point: Number.isFinite(center.x) ? center : { x: 0, y: 0 }, at });
+      replaced += 1;
+    });
+  }
+  for (const object of objects) edits.push({ editId: randomUUID(), key: newKey(randomUUID()), ref: null, base: null, kind: "ADD", state: { kind: "OBJECT", object }, at });
   const out: RevisionEdit[][] = [];
   let current: RevisionEdit[] = [], size = 0, total = 0;
-  for (const object of assembled.objects) {
-    const edit: RevisionEdit = { editId: randomUUID(), key: newKey(randomUUID()), ref: null, base: null, kind: "ADD", state: { kind: "OBJECT", object }, at };
+  for (const edit of edits) {
     const bytes = JSON.stringify(edit).length;
     if (current.length && (current.length >= MAP_PROJECT_SYNC_MAX_EDITS || size + bytes > MAX_PART_BYTES)) { out.push(current); current = []; size = 0; }
     current.push(edit); size += bytes; total += bytes;
@@ -94,5 +125,9 @@ export function runBaseMap(loaded: LoadedProjectMap, area: Polygon | null, reque
   if (current.length) out.push(current);
   // En för stor höjdbild sägs i svaret, så att den som anropar vet att sänkorna inte söktes.
   const missing = height && !heightFits ? [...request.missing, "pits: höjdbilden är för stor (dela kartan i etapper och kör en etapp i taget)"] : request.missing;
-  return { summary: assembled.summary, missing, parts: out };
+  if (!only) return { summary: assembled.summary, missing, parts: out };
+  // Sammanfattningen säger vad som faktiskt läggs in: de valda symbolerna, och hur många av kartans objekt som byts ut.
+  const summary: BaseMapSummary = { ...assembled.summary, objects: objects.length, symbols: assembled.summary.symbols.filter(row => only.has(row.symbol)),
+    ...(request.replace ? { replaced } : {}) };
+  return { summary, missing, parts: out };
 }

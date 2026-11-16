@@ -144,7 +144,7 @@ describe("ADR-0219 K2: AI-kopplingen", () => {
     expect(await handleMcpMessage(db, owner.accountId, { jsonrpc: "2.0", method: "notifications/initialized" })).toBeNull();
     const tools = await handleMcpMessage(db, owner.accountId, { jsonrpc: "2.0", id: 2, method: "tools/list" });
     expect((tools?.result as { tools: { name: string }[] }).tools.map(tool => tool.name)).toEqual(["list_map_projects", "create_map_project", "map_overview", "render_view",
-      "render_compare", "training_labels", "training_raster", "list_objects", "norm_check", "generalize", "propose_changes", "list_laser_jobs", "start_laser_job", "read_laser_output", "apply_base_map"]);
+      "render_compare", "training_labels", "training_raster", "list_objects", "norm_check", "generalize", "clear_built", "propose_changes", "list_laser_jobs", "start_laser_job", "read_laser_output", "apply_base_map"]);
 
     const projects = textOf(await mcp(owner.accountId, call(3, "list_map_projects")));
     expect(projects.projects).toMatchObject([{ projectId, name: "Skogen", role: "OWNER" }]);
@@ -186,6 +186,12 @@ describe("ADR-0219 K2: AI-kopplingen", () => {
     expect(general.proposalId).toBeUndefined();
     const readerGeneralize = await mcp(reader.accountId, call(82, "generalize", { project_id: projectId, propose: true }));
     expect((readerGeneralize?.result as { isError?: boolean }).isError).toBe(true);
+    // Ägaren 2026-11-16: städningen av det bebyggda räknas fram utan förslag; den som bara läser får inte lämna den som förslag.
+    const cleared = textOf(await mcp(owner.accountId, call(83, "clear_built", { project_id: projectId })));
+    expect(cleared.summary).toMatchObject({ builtAreas: expect.any(Number) as unknown, removed: expect.any(Number) as unknown, clipped: expect.any(Number) as unknown });
+    expect(cleared.proposalId).toBeUndefined();
+    const readerClear = await mcp(reader.accountId, call(84, "clear_built", { project_id: projectId, propose: true }));
+    expect((readerClear?.result as { isError?: boolean }).isError).toBe(true);
 
     // Förslag: flytta stenen och lägg till en stig. Kartan ändras inte; förslaget har källan AI.
     const proposedRaw = await mcp(owner.accountId, call(9, "propose_changes", { project_id: projectId, note: "Stenen ligger 2 m fel enligt lasern",

@@ -65,6 +65,9 @@ export const MCP_TOOLS = [
     inputSchema: { type: "object", properties: { ...projectId, ...area, simplify_mm: { type: "number", minimum: 0, maximum: 0.5 },
       remove_small: { type: "boolean" }, join_lines: { type: "boolean" }, remove_inside: { type: "boolean" }, propose: { type: "boolean" },
       note: { type: "string", maxLength: 500 } }, required: ["project_id"] }, annotations: { readOnlyHint: false, destructiveHint: false } },
+  { name: "clear_built", title: "Städa tomtmark och annat bebyggt", description: `Städar det som redan ligger i kartan ur tomtmark (520), hårdgjord yta (501), byggnader (521) och skärmtak (522), med samma regel som när grundkartan läses in: punkthöjder, gropar, sten, berghäll, sankmark, diken och vegetation tas bort där, och ytor klipps mot kanten (en yta kan bli flera); kurvor, branter, vatten, vägar, stigar och hus står kvar. Behövs när tomter ritats eller hämtats efter att grundkartan lades in: berghäll, sankmark och prickraster ritas annars över olivgrönt. Utan propose räknas bara ändringarna fram (summary och de 300 första). Med propose: true lämnas de som ett förslag (högst ${MCP_PROPOSAL_MAX_OPERATIONS} ändringar; välj annars ett mindre område med area) som en ägare godkänner, eller införs direkt i läget AUTONOMOUS.`,
+    inputSchema: { type: "object", properties: { ...projectId, ...area, propose: { type: "boolean" }, note: { type: "string", maxLength: 500 } }, required: ["project_id"] },
+    annotations: { readOnlyHint: false, destructiveHint: false } },
   { name: "propose_changes", title: "Föreslå ändringar", description: `Lämnar ett förslag som en ägare i O-Tid godkänner eller avvisar. Har ägaren satt projektet till självständigt AI-arbete (aiMode AUTONOMOUS i map_overview) införs ändringarna direkt. Högst ${MCP_PROPOSAL_MAX_OPERATIONS} operationer inom ${MCP_PROPOSAL_MAX_SIDE_M} × ${MCP_PROPOSAL_MAX_SIDE_M} m. Operationer: add (symbol och punkter; en punkt för punktsymboler, minst tre för ytor), move (key, dx, dy i mm), reshape (key och nya punkter, raka sträckor), change_symbol (key och symbol) och delete (key). Skriv en kort motivering i note.`,
     inputSchema: { type: "object", properties: { ...projectId, note: { type: "string", maxLength: 500, description: "Motivering som visas för den som granskar" },
       operations: { type: "array", minItems: 1, maxItems: MCP_PROPOSAL_MAX_OPERATIONS, items: { type: "object", properties: {
@@ -129,7 +132,7 @@ export async function callMcpTool(db: Database, accountId: string, name: string,
   const parsed = schemaFor.safeParse(args ?? {});
   if (!parsed.success) return toolError(`Ogiltiga argument: ${parsed.error.issues.map(issue => `${issue.path.join(".") || "(argumenten)"}: ${issue.message}`).join("; ")}`);
   const input = parsed.data as { project_id: string } & Record<string, unknown>;
-  const denied = await access(db, accountId, input.project_id, name === "propose_changes" || (name === "generalize" && input.propose === true) ? "propose" : "view");
+  const denied = await access(db, accountId, input.project_id, name === "propose_changes" || ((name === "generalize" || name === "clear_built") && input.propose === true) ? "propose" : "view");
   if (denied) return toolError(denied);
   if (MCP_LASER_TOOL_NAMES.has(name)) return callMcpLaserTool(db, accountId, name, input, { runtime: laser.runtime, now: laser.now, wait });
   if (name === MCP_BASE_MAP_TOOL.name) return callMcpBaseMapTool(db, accountId, input, { now: laser.now, sources: laser.sources, budgetMs: laser.budgetMs, wait });
@@ -180,6 +183,17 @@ export async function callMcpTool(db: Database, accountId: string, name: string,
       if (!input.propose || !result.edits || result.edits.length === 0) return { content: [text({ summary: result.summary, changes: result.changes })] };
       const created = await createMapProjectProposalAsAi(db, { accountId, projectId: input.project_id, request: { formatVersion: 1,
         requestId: randomUUID(), note: typeof input.note === "string" && input.note ? input.note.slice(0, 500) : "Generalisering (AI)", edits: result.edits } });
+      if (created.status !== "created") return toolError(refusal(created.status));
+      return { content: [text({ summary: result.summary, proposalId: created.proposal.proposalId, changes: created.proposal.edits.length, ...outcomeOf(created) })] };
+    }
+    case "clear_built": {
+      const outcome = await job(db, accountId, input.project_id, "GENERALIZE", strip({ area: input.area, propose: input.propose, clearBuilt: true }), wait);
+      if (outcome.status !== "done") return jobFailure(outcome);
+      const result = outcome.result as { summary: unknown; changes: unknown[]; edits?: unknown[]; errors?: string[] };
+      if (result.errors) return toolError(`Förslaget lämnades inte:\n- ${result.errors.join("\n- ")}`);
+      if (!input.propose || !result.edits || result.edits.length === 0) return { content: [text({ summary: result.summary, changes: result.changes })] };
+      const created = await createMapProjectProposalAsAi(db, { accountId, projectId: input.project_id, request: { formatVersion: 1,
+        requestId: randomUUID(), note: typeof input.note === "string" && input.note ? input.note.slice(0, 500) : "Städat i tomtmark och annat bebyggt (AI)", edits: result.edits } });
       if (created.status !== "created") return toolError(refusal(created.status));
       return { content: [text({ summary: result.summary, proposalId: created.proposal.proposalId, changes: created.proposal.edits.length, ...outcomeOf(created) })] };
     }

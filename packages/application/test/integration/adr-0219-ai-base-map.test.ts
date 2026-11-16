@@ -283,5 +283,18 @@ describe("ADR-0219: AI-kopplingen lägger in grundkartan (apply_base_map)", () =
     expect(listed.every(proposal => proposal.source === "AI" && proposal.status === "ACCEPTED")).toBe(true);
     expect(jsonOf(await mcp(owner.accountId, call("apply_base_map", { project_id: projectId, knolls: 5 }), options))).toMatchObject({ status: "APPLIED", remaining: 0 });
     expect(await objectCount(projectId)).toBe(objects);
+
+    // Ägaren 2026-11-16: bara vissa symboler, och kartans objekt med dem byts ut i stället för att ligga dubbelt.
+    const live = async () => (await db.select({ state: schema.mapProjectObjects.state }).from(schema.mapProjectObjects).where(eq(schema.mapProjectObjects.projectId, projectId)))
+      .filter(row => (row.state as { kind?: string }).kind === "OBJECT").length;
+    expect(await live()).toBe(objects);
+    expect(textOf(await mcp(owner.accountId, call("apply_base_map", { project_id: projectId, knolls: 5, replace: true }), options))).toContain("symbols");
+    expect(textOf(await mcp(owner.accountId, call("apply_base_map", { project_id: projectId, knolls: 5, symbols: ["999"], replace: true }), options))).toContain("inga objekt");
+    let swapped = jsonOf(await mcp(owner.accountId, call("apply_base_map", { project_id: projectId, knolls: 5, symbols: ["109"], replace: true }), options));
+    for (let round = 0; round < 20 && swapped.remaining !== 0; round += 1) {
+      swapped = jsonOf(await mcp(owner.accountId, call("apply_base_map", { project_id: projectId, knolls: 5, symbols: ["109"], replace: true }), options));
+    }
+    expect(swapped).toMatchObject({ status: "APPLIED", remaining: 0, objects: points, replaced: points, symbols: [{ symbol: "109", objects: points }] });
+    expect(await live()).toBe(objects);
   }, 120_000);
 });

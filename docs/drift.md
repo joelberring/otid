@@ -959,7 +959,9 @@ O-Tid är inloggningsserver (OAuth 2.1) och MCP-server för Claude med personens
   `apply_base_map` lägger in hela grundkartan ur en klar körning (samma sammansättning och förval som «Hämta grundkartan»
   i webben, med OpenStreetMap och hyggen): AI-förslag i omgångar om 200 i läget PROPOSE, direkt i AUTONOMOUS, inte i READ.
   Sammansättningen är kartjobbet `BASE_MAP` (minst 5 minuter och 512 MB, som nivåmätningen); filerna får vara högst 32 MB
-  tillsammans, annars en etapp i taget.
+  tillsammans, annars en etapp i taget. Med `symbols` läggs bara de symbolnumren in och med `replace` tas kartans objekt med
+  samma symbolnummer bort i samma steg (t.ex. vatten och strandlinje när kartans område vuxit). `clear_built` städar det som
+  redan ligger i kartan ur tomtmark, hårdgjord yta, hus och skärmtak (regeln som gäller när grundkartan läses in).
 - **Var det körs:** webben (`web`) tar emot anropen och använder publikens databaspool; bilder, objektlistor, kontroller
   och laserverktygens omräkning till kartans mm (kartjobben `LASER_AREA` och `LASER_OUTPUT`; webben skickar med etappens
   polygon och filens innehållsnyckel, så `otid_print` behöver inga nya rättigheter) görs som kartjobb av `print-worker` (lägsta prioritet, barnprocess per jobb, `OTID_MAP_JOB_TIMEOUT_MS` förval 60000,

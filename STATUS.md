@@ -13,6 +13,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-16 – AI-kopplingen: byt ut ett tema ur grundkartan och städa det bebyggda (tillägg i ADR-0219)
+- Ägaren 2026-11-16 (Järflotta): «fylla det hav som saknas på västra delen» och «det som lyser över fel på tomtmark».
+- `apply_base_map` har `symbols` (bara de symbolnumren läggs in) och `replace` (kartans objekt med samma symbolnummer tas bort i samma steg; då behövs inte `again`). Svaret har `replaced`.
+- Nytt verktyg `clear_built`: punkthöjder, sten, berghäll, sankmark, diken och vegetation tas bort eller klipps i tomtmark, hårdgjord yta, hus och skärmtak (samma regel som `maskBuilt`); utan `propose` räknas ändringarna bara fram.
+- Verifierat: enhetstester (`map-project-job-clear-built.test.ts`), integrationstester (adr-0219-ai, adr-0219-ai-base-map), typkontroll, lint. Inte provat mot en riktig karta före serveruppdateringen.
+
 ### 2026-11-16 – Filmerna på sidan: två filmer, svenska och engelska
 - Ägaren 2026-11-16: en film om banläggning, tävling och klubbyta och en om kartritning, båda på svenska och engelska, ska upp på sidan.
 - `NEXT_PUBLIC_MAP_FILM_URL` är filmen om kartritningen, och `_EN` efter namnet ger den engelska versionen av respektive film (utan den visas den svenska). Länkarna står på startsidan, Om O-Tid och i Hjälp; texterna säger inte längre «1 min».

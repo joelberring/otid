@@ -107,6 +107,8 @@ export interface BaseMapSummary {
     readonly inBuilt: number; readonly belowNorm: number;
   };
   readonly clipped: number; readonly joined: number; readonly simplified: number;
+  /** Kartans objekt som byttes ut (apply_base_map med symbols och replace). */
+  readonly replaced?: number | undefined;
   /** Sankmark som togs bort på sand och grus ur jordartskartan (när den gick att hämta), i hektar. */
   readonly soil?: { readonly removedHa: number } | undefined;
   /** Hyggena efter ålder (när de gick att hämta). */

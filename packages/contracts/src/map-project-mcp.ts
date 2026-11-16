@@ -62,12 +62,16 @@ export const mcpToolInputSchemas = {
     layers: z.array(z.string().min(1).max(120)).max(50).optional(), limit: z.number().int().min(1).max(MCP_LASER_OUTPUT_MAX_OBJECTS).optional(),
     offset: z.number().int().min(0).optional(), max_points: z.number().int().min(2).max(MCP_LASER_OUTPUT_MAX_POINTS_PER_OBJECT).optional() }),
   apply_base_map: z.object({ project_id: idSchema, job_id: idSchema.optional(), knolls: z.number().int().min(1).max(10).optional(),
-    cliffs: z.number().int().min(1).max(10).optional(), again: z.boolean().optional() }),
+    cliffs: z.number().int().min(1).max(10).optional(), again: z.boolean().optional(),
+    // Ägaren 2026-11-16 («fylla det hav som saknas»): bara vissa symboler ur grundkartan, och kartans objekt med dem byts ut.
+    symbols: z.array(z.string().regex(/^\d{3}(\.\d{1,2})?$/)).min(1).max(50).optional(), replace: z.boolean().optional() }),
   norm_check: z.object({ project_id: idSchema, area: boxSchema.optional() }),
   // K6 del 2: generaliseringen (förenkla, ta bort det som är mindre än normen, foga ihop linjer, ytor inuti likadana ytor).
   generalize: z.object({ project_id: idSchema, area: boxSchema.optional(), simplify_mm: z.number().min(0).max(0.5).optional(),
     remove_small: z.boolean().optional(), join_lines: z.boolean().optional(), remove_inside: z.boolean().optional(), propose: z.boolean().optional(),
     note: z.string().trim().max(500).optional() }),
+  // Ägaren 2026-11-16 («det som lyser över fel på tomtmark»): markens detaljer och vegetationen bort ur det bebyggda.
+  clear_built: z.object({ project_id: idSchema, area: boxSchema.optional(), propose: z.boolean().optional(), note: z.string().trim().max(500).optional() }),
   propose_changes: z.object({ project_id: idSchema, note: z.string().trim().max(500),
     operations: z.array(mcpProposalOperationSchema).min(1).max(MCP_PROPOSAL_MAX_OPERATIONS) })
 } as const;

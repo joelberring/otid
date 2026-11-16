@@ -660,3 +660,14 @@ kartritare för att kunna göra medvetna generaliseringar».
   område tas bort i samma steg som de nya läggs in. Lutningsstreck och andra symboler rörs inte.
 - Förvalen för «Tydligare kurvbild» följer terrängen (andelen kurvlängd på flack mark).
 
+## Tillägg 2026-11-16: AI-kopplingen byter ut ett tema och städar det bebyggda
+
+- `apply_base_map` tar `symbols` (bara objekten med de symbolnumren läggs in; grundkartan sätts ihop hel först) och `replace`
+  (kartans objekt med samma symbolnummer tas bort i samma steg, för en etapps laserjobb bara i etappen). Det är kandidatradens
+  «Byt ut kartans objekt med samma symboler här» för AI-kopplingen. Anledningen var Järflotta: kartans område hade vuxit, havet
+  var klippt mot det gamla området, och genom `read_laser_output` och `propose_changes` (500 punkter per objekt, 500 × 500 m
+  per förslag) går en kust inte att lägga in rätt.
+- `clear_built` städar det som redan ligger i kartan ur tomtmark, hårdgjord yta, byggnader och skärmtak med regeln som gäller
+  när grundkartan läses in (`maskBuilt`): tomter som kommit till efteråt, t.ex. ur fastighetsindelningen, fick annars behålla
+  berghäll, sankmark och punkthöjder, som ritas över olivgrönt. Kartjobbet är GENERALIZE med `clearBuilt`, så ingen ny jobbtyp.
+

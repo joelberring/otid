@@ -4,6 +4,7 @@ import { schema, type Database } from "@o-tid/database";
 import { consumeAccountRequestAllowance } from "./account-throttle";
 import { deleteAccountWithOwnedEvents } from "./account-self-service";
 import { seedDemoRace, type DemoRaceTexts } from "./demo-race";
+import { seedTemplateDemoRace } from "./demo-template-race";
 import { issueUserAccountSession, scryptVerifier } from "./user-account";
 
 /**
@@ -21,7 +22,9 @@ export type GuestDemoResult =
   | { status: "created"; raceId: string; sessionToken: string; csrfToken: string; expiresAt: Date; sessionExpiresAt: string };
 
 export async function startGuestDemo(db: Database, options: { clientKey: string; guestsPerHour?: number; now?: Date;
-  displayName?: string; texts?: DemoRaceTexts }): Promise<GuestDemoResult> {
+  displayName?: string; texts?: DemoRaceTexts;
+  /** Tävlingen som gästens tävling kopieras ur (`OTID_GUEST_DEMO_TEMPLATE`); utan den, eller om den saknas, övningstävlingen. */
+  templateRaceId?: string }): Promise<GuestDemoResult> {
   const now = options.now ?? new Date();
   const allowed = await db.transaction(tx => consumeAccountRequestAllowance(tx, {
     scope: "GUEST_DEMO_IP", key: options.clientKey, limit: options.guestsPerHour ?? DEFAULT_GUESTS_PER_HOUR }, now));
@@ -39,8 +42,16 @@ export async function startGuestDemo(db: Database, options: { clientKey: string;
       saltHex: salt.toString("hex"), verifierHex: verifier.toString("hex"), createdAt: now });
     return issueUserAccountSession(tx, account, 1, now);
   });
-  const seeded = await seedDemoRace(db, { sessionToken: session.sessionToken, csrfToken: session.csrfToken, guest: true },
-    { now, ...(options.texts ? { texts: options.texts } : {}) });
+  const owner = { sessionToken: session.sessionToken, csrfCookie: session.csrfToken, csrfHeader: session.csrfToken };
+  const fromTemplate = options.templateRaceId
+    ? await seedTemplateDemoRace(db, { accountId, templateRaceId: options.templateRaceId, owner, now }) : { status: "no-template" as const };
+  if (fromTemplate.status === "failed") {
+    await db.transaction(tx => deleteAccountWithOwnedEvents(tx, accountId, now));
+    return { status: "failed" };
+  }
+  const seeded = fromTemplate.status === "created" ? fromTemplate
+    : await seedDemoRace(db, { sessionToken: session.sessionToken, csrfToken: session.csrfToken, guest: true },
+      { now, ...(options.texts ? { texts: options.texts } : {}) });
   if (seeded.status !== "created") {
     await db.transaction(tx => deleteAccountWithOwnedEvents(tx, accountId, now));
     return { status: "failed" };

@@ -24,3 +24,17 @@ andra rolltyper" genom en tillfällig kontosort; tävlingsrollerna är oföränd
 
 **Följder.** En ny kontosida behöver inget särskilt för gäster. En ny tävlingsfunktion som når utanför tävlingen (publicering,
 delningslänkar, mejl) behöver ta ställning till `principal.guest`.
+
+**Tillägg 2026-11-16 (ägaren: Järflotta demotävling bredvid demofilmerna, "prova men inte spara eller skriva ut").**
+6. **Mall.** Med `OTID_GUEST_DEMO_TEMPLATE` (ett tävlings-id) kopieras gästens tävling ur mallen i stället för att byggas från
+   grunden: kontroller, banor, karta och banläggning (`copyRaceContent` utan personer), med dagens datum och gästen som ägare.
+   Klasserna H21, D21, H45 och D45 kopplas till mallens banor Lång, Mellan och Kort på namn, och 16 påhittade löpare läggs in
+   som av en administratör med avläsningar räknade från nu (6 godkända, en felstämplad, en bruten, resten kvar i skogen;
+   `demo-template-race.ts`, efter ägarens `demo-startdata-jarflotta.json`). Mallen ändras aldrig. Saknas mallen blir det
+   övningstävlingen som förut.
+7. **Ingen utskrift eller nedladdning.** Gästen nekas (403) det som lämnar tävlingen som fil (säkerhetskopia, resultat- och
+   startlisteexport, kartutskrift, banläggningens PDF och utskriftsfiler, den inlästa banfilen), det som tar in filer
+   (banfil, kartbild, kartfil, papper, logga) och det som når utanför O-Tid (Eventor, löpardatabasen, radiokontrollerna).
+   Listan står i `apps/web/src/lib/guest-demo-limits.ts` och prövas efter rollen, både på tävlingen och i banläggningen
+   (`CourseSettingPrincipal.guest`). Kartbilden och kartfilen som banläggningen visar går att läsa, eftersom webbläsaren
+   ritar kartan ur dem.

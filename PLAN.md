@@ -1451,6 +1451,19 @@ Ungdomarnas vinterträning tisdag 2026-11-17. ADR-0225.
 - [x] B6 Virtuella kontroller (ADR-0226): vanlig bana, poängbana och duell eller lag; stämpling automatiskt eller med knapp.
 - [ ] B5 Provat i skogen med Android och iPhone (ägaren, tisdag 2026-11-17).
 
+## [ ] Steg A – O-Tid som app: GPS med låst skärm och livebevakning (ägaren 2026-11-16)
+
+Plan: projektets dokument `claude/plan-app-och-livebevakning-2026-11-16.md`. Appram runt befintliga sidor med bakgrunds-GPS.
+Deltagaren ser som förval varken karta eller egen position, men tid ute och "kontakta ledaren". Arrangören väljer per
+aktivitet om andra deltagare syns, med eller utan karta. Barns positioner syns bara för ledare och arrangör, med
+vårdnadshavarens samtycke och automatisk radering. Kräver en ADR före A1.
+
+- [ ] A1 Appen och bakgrunds-GPS (Bingo, Sänka skepp och virtuella kontroller med låst skärm; lokal kö med kvittens).
+- [ ] A2 Ledarens karta, kvar i skogen med senaste position, larm, "kontakta ledaren" och "jag behöver hjälp"; samtycke och radering.
+- [ ] A3 Arrangörens val för deltagarvyn (karta, egen position, andra deltagare med eller utan karta).
+- [ ] A4 Live på tävling med fördröjning för publik och speaker, per klass.
+- [ ] A5 (senare) Garmin Connect IQ och Apple Watch.
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import type { DeviceBatch, SportidentReadoutPayload } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { normalizeCard, readSimulatedCard, simulatedRun } from "@o-tid/sportident";
+import { normalizeCard, readSimulatedCard, simulatedRun, type SimulatedCard } from "@o-tid/sportident";
 import { createManualCourseClassAsAdmin } from "./manual-course-class";
 import { createOrganizerEvent } from "./organizer-events";
 import { registerEntryAsAdmin } from "./entry-registration";
@@ -30,6 +30,8 @@ export interface DemoRaceOwner {
   /** Gästkontot (demoläget del 2) skapar sin övningstävling själv; annars vägras gäster på kontots sidor. */
   readonly guest?: boolean;
 }
+
+export interface DemoRaceAdmin { readonly sessionToken: string; readonly csrfCookie: string; readonly csrfHeader: string; readonly raceId: string }
 
 export interface DemoRaceTexts { readonly eventName: string; readonly raceName: string; readonly organisation: string }
 
@@ -79,24 +81,37 @@ export async function seedDemoRace(db: Database, owner: DemoRaceOwner, options: 
     const startAt = new Date(now.getTime() - (75 - index * 3) * 60_000);
     const finishAt = new Date(now.getTime() - (35 - index * 4) * 60_000);
     const controls = index === 3 ? runner.controls.filter((code) => code !== 33) : runner.controls;
-    const read = readSimulatedCard(simulatedRun(runner.cardNumber, { startAt, finishAt, controlCodes: controls, timeZone: DEMO_TIME_ZONE }));
-    const readAt = new Date(finishAt.getTime() + 60_000);
-    const card = normalizeCard(read.card, { reference: readAt, timeZone: DEMO_TIME_ZONE });
-    const payload: SportidentReadoutPayload = {
-      cardNumber: card.cardNumber, cardType: card.cardType,
-      ...(card.startPunchedAt ? { startPunchedAt: card.startPunchedAt } : {}),
-      ...(card.finishPunchedAt ? { finishPunchedAt: card.finishPunchedAt } : {}),
-      punches: card.punches.map((punch) => ({ code: punch.code, punchedAt: punch.punchedAt })),
-      untimedPunchCodes: [...card.untimedPunchCodes],
-      frames: read.frames.map((frame) => Buffer.from(frame).toString("hex")),
-      stationSerial: 999_001, simulated: true
-    };
-    return { localSequence: index + 1, stationReceivedAt: readAt.toISOString(), transport: "sportident",
-      payload, contentHash: createHash("sha256").update(JSON.stringify(payload)).digest("hex") };
+    return demoReadoutEvent(simulatedRun(runner.cardNumber, { startAt, finishAt, controlCodes: controls, timeZone: DEMO_TIME_ZONE }),
+      new Date(finishAt.getTime() + 60_000), index + 1);
   });
+  return ingestDemoReadouts(db, admin, events, now);
+}
+
+/** En simulerad bricka läst genom samma protokollkod som en riktig station, som en händelse i en avläsningsbatch. */
+export function demoReadoutEvent(simulated: SimulatedCard, readAt: Date, localSequence: number): DeviceBatch["events"][number] {
+  const read = readSimulatedCard(simulated);
+  const card = normalizeCard(read.card, { reference: readAt, timeZone: DEMO_TIME_ZONE });
+  const payload: SportidentReadoutPayload = {
+    cardNumber: card.cardNumber, cardType: card.cardType,
+    ...(card.startPunchedAt ? { startPunchedAt: card.startPunchedAt } : {}),
+    ...(card.finishPunchedAt ? { finishPunchedAt: card.finishPunchedAt } : {}),
+    punches: card.punches.map((punch) => ({ code: punch.code, punchedAt: punch.punchedAt })),
+    untimedPunchCodes: [...card.untimedPunchCodes],
+    frames: read.frames.map((frame) => Buffer.from(frame).toString("hex")),
+    stationSerial: 999_001, simulated: true
+  };
+  return { localSequence, stationReceivedAt: readAt.toISOString(), transport: "sportident",
+    payload, contentHash: createHash("sha256").update(JSON.stringify(payload)).digest("hex") };
+}
+
+/** Avläsningarna till tävlingen som en batch från en påhittad enhet. */
+export async function ingestDemoReadouts(db: Database, admin: DemoRaceAdmin, events: DeviceBatch["events"], now: Date)
+  : Promise<DemoRaceResult> {
+  const raceId = admin.raceId;
   const [race] = await db.select({ snapshotVersion: schema.races.snapshotVersion, eventId: schema.races.eventId })
     .from(schema.races).where(eq(schema.races.id, raceId));
   if (!race) return { status: "failed", step: "tävlingen (saknas)" };
+  if (events.length === 0) return { status: "created", raceId, eventId: race.eventId };
   const batch: DeviceBatch = { deviceId: randomUUID(), sessionId: randomUUID(), packageVersion: race.snapshotVersion,
     firstSequence: 1, lastSequence: events.length, events };
   const ingested = await ingestReadoutsAsAdmin(db, { ...admin, batch }, now);

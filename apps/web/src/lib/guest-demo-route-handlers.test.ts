@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Database } from "@o-tid/database";
-import { guestDemoEnabled, guestDemoRoute, guestsPerHour } from "./guest-demo-route-handlers";
+import type { startGuestDemo } from "@o-tid/application";
+import { guestDemoEnabled, guestDemoRoute, guestDemoTemplate, guestsPerHour } from "./guest-demo-route-handlers";
 
 /** Demoläget del 2: formuläret "Prova arbetsytan" (POST /api/demo/guest). */
 const db = {} as Database;
@@ -31,6 +32,18 @@ describe("demoläget: Prova arbetsytan", () => {
     expect(response.headers.get("location")).toBe(`/admin/${created.raceId}/manage`);
     expect(response.headers.getSetCookie().join("\n")).toContain(sessionToken);
     expect(start).toHaveBeenCalledWith(db, expect.objectContaining({ displayName: "Gäst" }));
+  });
+
+  it("mallen (OTID_GUEST_DEMO_TEMPLATE) skickas med när den är ett tävlings-id", async () => {
+    const template = "c053a159-893a-48a6-8d02-51ddb494eb64";
+    expect(guestDemoTemplate({ OTID_GUEST_DEMO_TEMPLATE: ` ${template.toUpperCase()} ` })).toBe(template);
+    expect(guestDemoTemplate({ OTID_GUEST_DEMO_TEMPLATE: "jarflotta" })).toBeUndefined();
+    const start = vi.fn(async () => created);
+    await guestDemoRoute(db, request(), { ...environment, OTID_GUEST_DEMO_TEMPLATE: template }, start, nobody);
+    expect(start).toHaveBeenCalledWith(db, expect.objectContaining({ templateRaceId: template }));
+    const without = vi.fn<typeof startGuestDemo>(async () => created);
+    await guestDemoRoute(db, request(), environment, without, nobody);
+    expect(without.mock.calls[0]?.[1]).not.toHaveProperty("templateRaceId");
   });
 
   it("spärren och fel ger startsidan med ett besked; ett eget konto loggas inte ut", async () => {

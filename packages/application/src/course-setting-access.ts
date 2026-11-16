@@ -24,6 +24,8 @@ export interface CourseSettingPrincipal {
   eventId: string;
   level: CourseSettingLevel;
   admin: boolean;
+  /** Demoläget: gästkontot får lägga banor men inte skriva ut eller ladda ner (ADR-0220, tillägg 2026-11-16). */
+  guest?: true;
 }
 
 export type CourseSettingAccessResult = { status: "unauthorized" } | { status: "forbidden" }
@@ -45,7 +47,9 @@ async function authorize(tx: DbExecutor, request: RaceSessionProof & { required:
     allowGuest: true
   }, now, lock);
   if (account.status !== "authenticated") return account;
-  return principalFor(tx, account.principal.accountId, request.raceId, request.required, now, lock, accepted);
+  const result = await principalFor(tx, account.principal.accountId, request.raceId, request.required, now, lock, accepted);
+  return result.status === "authenticated" && account.principal.guestExpiresAt !== undefined
+    ? { status: "authenticated", principal: { ...result.principal, guest: true } } : result;
 }
 
 /** Kontots behörighet i banläggningen (sessionen eller AI-kopplingen är redan prövad). */

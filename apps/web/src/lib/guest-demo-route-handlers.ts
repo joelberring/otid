@@ -19,6 +19,12 @@ export function guestsPerHour(environment: Environment): number | undefined {
   return value && /^[1-9]\d{0,3}$/.test(value) ? Number(value) : undefined;
 }
 
+/** Demoläget med en mall (ägaren 2026-11-16): tävlingen som gästens tävling kopieras ur (`OTID_GUEST_DEMO_TEMPLATE`, ett tävlings-id). */
+export function guestDemoTemplate(environment: Environment): string | undefined {
+  const value = environment.OTID_GUEST_DEMO_TEMPLATE?.trim().toLowerCase();
+  return value && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value) ? value : undefined;
+}
+
 function redirect(path: string): Response {
   return new Response(null, { status: 303, headers: { ...privateHeaders, location: path } });
 }
@@ -44,7 +50,9 @@ export async function guestDemoRoute(db: Database, request: Request, environment
     if (current.status === "authenticated" && !current.principal.guestExpiresAt) return redirect("/organizer");
     const english = languageOfRequest(request) === "en";
     const limit = guestsPerHour(environment);
+    const template = guestDemoTemplate(environment);
     const result = await start(db, { clientKey: clientAddress(request), ...(limit ? { guestsPerHour: limit } : {}),
+      ...(template ? { templateRaceId: template } : {}),
       ...(english ? { displayName: guestDemoRaceEn.displayName, texts: guestDemoRaceEn.race }
         : { displayName: guestDemoRaceSv.displayName, texts: guestDemoRaceSv.race }) });
     if (result.status === "rate-limited") return redirect("/?demo=upptaget");

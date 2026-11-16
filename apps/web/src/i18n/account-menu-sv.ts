@@ -22,7 +22,7 @@ export const accountMenuSv = {
   network: "Utloggningen kunde inte bekräftas. Kontrollera nätet och försök igen.",
   /** Demoläget del 2: gästkontot på sin övningstävling. */
   guestBadge: "Gästläge",
-  guestNote: (until: Date) => `Det här är en övningstävling med påhittade löpare. Ingenting syns utåt, och allt tas bort ${
+  guestNote: (until: Date) => `Det här är en övningstävling med påhittade löpare. Ingenting syns utåt, utskrift och nedladdning är avstängda, och allt tas bort ${
     until.toLocaleString("sv-SE", { weekday: "long", hour: "2-digit", minute: "2-digit" })}.`,
   createAccount: "Skapa ett eget konto",
   endGuest: "Avsluta provet"

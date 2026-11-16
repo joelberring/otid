@@ -36,6 +36,7 @@ import { handleBingoRoute } from "./race-administrator-routes-bingo";
 import { courseSettingRequirementFor, principalAllows, raceRoleFor } from "./race-roles";
 import { courseSettingAllows } from "@o-tid/application";
 import { UUID_PATTERN as uuid } from "@o-tid/contracts";
+import { guestMayUse } from "./guest-demo-limits";
 
 type Environment = Partial<Pick<NodeJS.ProcessEnv, "NODE_ENV" | "O_TID_PUBLIC_ORIGIN">>;
 
@@ -93,6 +94,7 @@ export async function raceAdministratorRoute(db: Database, request: Request, rac
       const access = await dependencies.authenticateCourseSetting(db, { ...proof, raceId, required: courseRequirement, requireCsrf: write });
       if (access.status !== "authenticated") return resultFailure(access.status);
       if (access.principal.raceId !== raceId || !courseSettingAllows(access.principal, courseRequirement)) return failure(403, "FORBIDDEN");
+      if (access.principal.guest && !guestMayUse(action.kind, request.method)) return failure(403, "FORBIDDEN");
       const context: RaceAdministratorRouteContext = { db, request, raceId, action, dependencies, proof, cursor, beforeVersion,
         courseSetting: access.principal };
       if (!write) return await retryReadConflicts(() => dispatchRaceAdministratorRoute(context));
@@ -115,6 +117,8 @@ export async function raceAdministratorRoute(db: Database, request: Request, rac
     }
     if (auth.status !== "authenticated") return resultFailure(auth.status);
     if (!principalAllows(auth.principal, raceId, role)) return failure(403, "FORBIDDEN");
+    // Demoläget: gästen provar men skriver inte ut, laddar inte ner och når inte tjänster utanför O-Tid (guest-demo-limits.ts).
+    if (auth.principal.guest && !guestMayUse(action.kind, request.method)) return failure(403, "FORBIDDEN");
     if (action.kind === "session") {
       const courseSetting = auth.principal.role === "ADMIN" ? "EDIT" as const : await courseLevel();
       return json(raceSessionResponseSchema.parse({ formatVersion: 1, raceId, role: auth.principal.role, expiresAt: auth.principal.expiresAt,

@@ -22,6 +22,15 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - PNG med palett (`png-indexed.ts`, CompressionStream): Högdalen A 0,25 m blir 2,4 MB i stället för canvasens 19 MB. Upplösning 0,5 m, grövre för stora områden (`contourLayerResolution`), med råd att välja en etapp.
 - Verifierat: enhetstester, typkontroll, lint; bilden ritad i Chrome på Högdalen A:s riktiga markhöjd (4,3 s). Själva uppladdningen och visningen i appen är inte provade.
 
+### 2026-11-16 – Demoläget del 3: Järflotta som mall, ingen utskrift för gäster (ADR-0220 tillägg)
+- `OTID_GUEST_DEMO_TEMPLATE=<tävlings-id>`: "Prova arbetsytan" kopierar mallens banor, karta och banläggning till gästens
+  tävling och lägger in klasser och 16 påhittade löpare med resultat räknade från nu (`demo-template-race.ts`). Utan mall
+  som förut.
+- Gästen nekas utskrift, export, nedladdning av banfil, uppladdningar, Eventor och radiokontroller (`guest-demo-limits.ts`).
+- Verifierat: typecheck, lint, knip, enhetstester, integration `demolage-mall` och `demolage-gast` (PostgreSQL 16 lokalt).
+- Kvar: knapparna visas inte grå för gäster (servern svarar 403); demokartan (kartprojektet) för gäster är inte byggd.
+- Ägaren: sätt `OTID_GUEST_DEMO_TEMPLATE=c053a159-893a-48a6-8d02-51ddb494eb64` i `.env`. Ingen migration.
+
 ### 2026-11-16 – Underlag för frihandsritning (DXF, GeoTIFF, fältutskrift)
 - Ägaren 2026-11-16 efter mejl från Högdalens kartritare: kurvor i hög upplösning, objekt- och vegetationshöjd, export av bara valda symboler (diken, vägkanter, låga former), utskrift för plast med 1 m ekvidistans.
 - Ny panel under Laserdata. `map-revision/base-map/drawing-basis.ts` (täta kurvor, småformer, släntkanter, skuggning, etapper ihop, ISOM-lagernamn) och `dxf-write.ts`; webben `map-project-drawing-basis.ts`, `map-project-field-print.ts`, `pdf-jpeg-pages.ts`.

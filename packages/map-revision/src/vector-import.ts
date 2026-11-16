@@ -2,6 +2,7 @@ import {
   projectedToMapPoint, projectedToWgs84, wgs84ToMapPoint, type MapGeoreference, type MapObject, type PathCommand, type Point
 } from "@o-tid/map-file";
 import { clipObjectsToPolygon } from "./polygon-clip";
+import { nestRings } from "./ring-nesting";
 import { isSprintNorm, type MapNorm } from "./map-norm";
 import { sprintLayerSymbol, sprintSymbolForCode, type SprintNorm } from "./sprint-layers";
 import { LIMITS } from "./state";
@@ -330,6 +331,7 @@ export function importObjects(features: readonly SourceFeature[], options: Impor
   const objects: MapObject[] = [];
   const openLines = new Map<string, Point[][]>();
   const openAreas = new Map<string, Point[][]>();
+  const closedRings = new Map<string, Point[][]>();
   for (const { layer, geometry } of features) {
     const target = options.mapping.get(layer);
     if (!target) continue;
@@ -341,6 +343,9 @@ export function importObjects(features: readonly SourceFeature[], options: Impor
       // Symbolens streck går mot (0, −1) i sin egen ruta; vinkeln vrider det mot punkten det ska peka på.
       const toward = converted.toward, angle = toward ? Math.atan2(toward.x - converted.at.x, -(toward.y - converted.at.y)) * 180 / Math.PI : 0;
       objects.push({ kind: "point", symbol: target.symbol, at: converted.at, angle: (angle + 360) % 360 });
+    } else if (converted.kind === "area" && geometry.kind === "line") {
+      // En sluten linje i ett ytlager (DXF): ringarna läggs i varandra nedan, så att hål blir hål.
+      closedRings.set(target.symbol, [...(closedRings.get(target.symbol) ?? []), converted.rings[0]!]);
     } else if (converted.kind === "area") {
       const rings = bounds ? converted.rings.map(ring => clipRing(ring, bounds)) : converted.rings;
       if ((rings[0]?.length ?? 0) < 3) { outside += 1; continue; }
@@ -364,6 +369,12 @@ export function importObjects(features: readonly SourceFeature[], options: Impor
     objects.push({ kind: "area", symbol, rings: [pathOf(kept)], angle: 0 });
     return true;
   };
+  for (const [symbol, rings] of closedRings) for (const nested of nestRings(rings)) {
+    const cut = bounds ? nested.map(ring => clipRing(ring, bounds)) : nested;
+    if (cut[0]!.length < 3) { outside += 1; continue; }
+    if (cut.some((ring, index) => !same(ring, nested[index]!))) clipped += 1;
+    objects.push({ kind: "area", symbol, rings: [cut[0]!, ...cut.slice(1).filter(ring => ring.length >= 3)].map(pathOf), angle: 0 });
+  }
   for (const [symbol, lines] of openAreas) {
     const result = joinLines(lines);
     joined += result.joined;

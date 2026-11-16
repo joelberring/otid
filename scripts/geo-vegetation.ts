@@ -11,7 +11,7 @@
  */
 import { inflateSync } from "node:zlib";
 import { fillSmallForest, smoothMask, SMOOTH_RADIUS_CELLS } from "./geo-generalize.ts";
-import { blockedCells, cleanMask, encodePng, type Grid, maskRings, moistureDxf, ringArea, simplify, worldFile } from "./geo-moisture.ts";
+import { blockedCells, cleanMask, encodePng, type Grid, maskRings, moistureDxf, simplify, worldFile } from "./geo-moisture.ts";
 
 /** `smoothCells`: ytornas utjämning i celler (förval 3 = 6 m, 0 = ingen). */
 export interface VegetationSettings { readonly minAreaM2: number; readonly smoothCells?: number | undefined }
@@ -146,17 +146,21 @@ export function vegetationMosaic(tiles: readonly VegetationTile[], smallest = VE
 export function vegetationFromTiles(tiles: readonly VegetationTile[], settings: VegetationSettings = DEFAULT_VEGETATION,
   water?: (x: number, y: number) => boolean,
   signals?: { readonly openAt: (x: number, y: number) => boolean | undefined; readonly denseAt: (x: number, y: number) => boolean | undefined;
-    readonly denseShareAt?: (x: number, y: number) => number | undefined }) {
+    readonly denseShareAt?: (x: number, y: number) => number | undefined; readonly semiAt?: (x: number, y: number) => boolean | undefined }) {
   const { grid, classes } = vegetationMosaic(tiles);
   // Klassen före tillägget för tätt buskskikt, och buskskiktets andel i tusendelar (högst 250): se klassbilden nedan.
   const before = signals?.denseShareAt ? new Uint8Array(classes) : undefined, shares = before ? new Uint8Array(classes.length) : undefined;
   // Egna beräkningar ur punktmolnet (geo-points.ts, lärt av Högdalenkartan 2026-11-11) går före Karttapullautins klass för
   // öppet, och lägger till grönt där buskskiktet är tätt. Klassbilden får samma värden, så att reglagen ser dem.
+  // Halvöppet ur punktmolnet (ägaren 2026-11-16): cellen blir öppen och märks, och märkningen blir 404 nedan.
+  const semi = new Uint8Array(classes.length);
   if (signals) for (let column = 0; column < grid.width; column += 1) for (let row = 0; row < grid.height; row += 1) {
     const x = grid.minX + column * grid.cell, y = grid.minY + row * grid.cell, i = column * grid.height + row;
-    const open = signals.openAt(x, y);
+    const half = signals.semiAt?.(x, y) === true;
+    const open = half || signals.openAt(x, y);
     if (open === undefined) continue;
     const value = classes[i]!, low = value & 15;
+    if (half) semi[i] = 1;
     if (open) { classes[i] = (value & 0xf0) | 1; if (before) before[i] = classes[i]!; }
     else {
       const forest = low === 1 ? 2 : low;
@@ -175,6 +179,7 @@ export function vegetationFromTiles(tiles: readonly VegetationTile[], settings: 
   // Blandningen av gläntor och träd (404) letas i de råa klasserna, före utjämningen som annars suddar ut den, och jämnas
   // sedan ut till hela ytor: ett halvöppet område blir en yta, inte en mosaik av små gula och vita fläckar.
   const mixed = scatteredTrees(classes, grid.width, grid.height, shade, GREEN_STEPS.slow);
+  for (let i = 0; i < mixed.length; i += 1) if (semi[i]) mixed[i] = 1;
   const scattered = radius > 0 ? smoothMask(mixed, grid.width, grid.height, radius) : mixed;
   if (radius > 0) {
     const known = classes.map(value => value === 0 ? 0 : 1);
@@ -207,7 +212,9 @@ export function vegetationFromTiles(tiles: readonly VegetationTile[], settings: 
     const raw = dry(classes.map((value, i) => layer.test(value, i) ? 1 : 0));
     const even = radius > 0 && !/^(oppen_mark|gron_lattlopt)/.test(layer.name) ? dry(smoothMask(raw, grid.width, grid.height, radius)) : raw;
     const mask = dry(cleanMask(even, grid.width, grid.height, minCells));
-    const rings = maskRings(mask, full).filter(ring => !blocked || ringArea(ring) > 0).map(ring => simplify(ring, grid.cell * 0.75)).filter(ring => ring.length >= 4);
+    // Hålen (skog inne i öppen mark, vatten inne i en yta) skrivs som egna slutna linjer; importen lägger dem i ytan
+    // (ring-nesting.ts, ägaren 2026-11-16). Förut togs de bort när kartan hade vatten, och skogen blev öppen mark.
+    const rings = maskRings(mask, full).map(ring => simplify(ring, grid.cell * 0.75)).filter(ring => ring.length >= 4);
     summary[`ha${layer.code}`] = Math.round(mask.reduce((sum, value) => sum + value, 0) * area / 100) / 100;
     return { name: layer.name, closed: true, parts: rings };
   });
@@ -229,7 +236,9 @@ export function vegetationFromTiles(tiles: readonly VegetationTile[], settings: 
     const i = column * grid.height + (grid.height - 1 - line), value = classes[i]!;
     // Ägaren 2026-11-13 («finare gröna nyanser»): med punktmolnets signaler är grön kanal buskskiktets andel i tusendelar och
     // blå klassen före tillägget för tätt buskskikt, så att webbläsaren kan dra gränsen själv. Utan signaler: 160 och klassen.
-    return value === 0 || blocked?.[i] ? [0, 0, 0, 0] : before && shares ? [value, shares[i]!, before[i]!, 255] : [value, 160, value, 255];
+    // Ägaren 2026-11-16: halvöppna celler har alfa 200 (äldre webbläsarkod ser bara «känd cell»), så att reglagen ser dem.
+    const alpha = semi[i] ? SEMI_ALPHA : 255;
+    return value === 0 || blocked?.[i] ? [0, 0, 0, 0] : before && shares ? [value, shares[i]!, before[i]!, alpha] : [value, 160, value, alpha];
   });
   return { dxf: moistureDxf(parts), summary, openAt, forestAt, classPng, world: worldFile(full) };
 }
@@ -240,6 +249,9 @@ export function vegetationFromTiles(tiles: readonly VegetationTile[], settings: 
  * mellan öppet och träd, nästan inget grönt; en rak skogskant räknas inte), är öppen mark med spridda träd (404). Öppna celler
  * i en sådan blandning räknas inte som öppen mark. Samma regel i webbläsaren (map-project-green-classes.ts).
  */
+/** Klassbildens alfa för halvöppna celler (ur punktmolnet); webbläsaren läser samma värde (map-project-green-classes.ts). */
+export const SEMI_ALPHA = 200;
+
 export function scatteredTrees(classes: Uint8Array, width: number, height: number, shade: (value: number) => number, slow: number): Uint8Array {
   // Summerade tabeller: öppna celler, gröna celler och gränser mellan öppet och inte öppet (åt höger och uppåt).
   const stride = height + 1, open = new Int32Array((width + 1) * stride), green = new Int32Array(open.length), edges = new Int32Array(open.length);

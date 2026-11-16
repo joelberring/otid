@@ -39,6 +39,11 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Skottbrädet visar neutrala prickar för hur många andra i gruppen som stått i rutan och skjutit; tävlingssidan visar samma prickar som ett rutnät per grupp. Servern lämnar bara antal per ruta. Sänkta gemensamma står för sig i topplistan och ledarens tabell.
 - Kontrollerat: enhetstester (placering, förval, prickar), integrationstest (två löpare har samma gemensamma och olika egna skepp; prickarna), webbens tester, lint, typecheck, knip. Inte provat i telefon.
 
+### 2026-11-16 Skog i öppen mark och halvöppen mark (Väddö)
+- Fel: geo-arbetarens hål (skog inne i öppen mark) skrevs som egna slutna linjer eller togs bort när kartan hade vatten, och importen gjorde varje linje till en yta; skogen blev 403. Nu läggs ringarna i varandra vid importen (ring-nesting.ts) och hålen behålls.
+- Halvöppet ur punktmolnet (geo-arbetaren 37): minst 40 % lågt och 25–60 % träd över 3 m inom 8 m blir 404; klassbilden märker cellerna (alfa 200) så att reglagen behåller dem. Mätt mot sex facitrutor: halvöppet F 0 → 0,37, allt gult F 0,58 → 0,60.
+- Verifierat: typkontroll, lint, enhetstester (map-revision, webbens kartlib). Kräver ny laserkörning för Väddö.
+
 ### 2026-11-16 Ram, kartans namn och «Skriv ut PDF»
 - Märkningen: ramen ligger 5 mm utanför kartans innehåll (aldrig på kartan), kartans namn (ny symbol 992.2, lila) centrerat överst, rutan med loggan nederst innanför ramen. Gäller kartor som får grundkartan efter detta.
 - Kartläget: knappen «Skriv ut PDF» lägger kartjobbet MAP_PDF; arbetaren skriver hela kartan med sparade ändringar i kartans skala på minsta A-pappret (eget papper över A0). Fungerar på alla kartor; utan ram blir det bara kartan.

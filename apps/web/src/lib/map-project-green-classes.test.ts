@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clearingShape, greenCandidates, DEFAULT_GREEN } from "./map-project-green-classes";
+import { clearingShape, greenCandidates, DEFAULT_GREEN, SEMI_ALPHA } from "./map-project-green-classes";
 import type { PhotoPixels } from "@o-tid/map-revision/base-map";
 
 /** 30 × 30 celler: västra tredjedelen öppen (1), mitten steg 3 (klass 5), östra steg 5 (klass 7) med svår undervegetation. */
@@ -19,6 +19,14 @@ describe("grönt med reglage", () => {
     expect([...new Set(result.data.features.map(feature => feature.layer))].sort()).toEqual(
       ["gron_lattlopt", "gron_mycket_svarlopt", "gron_svarlopt", "oppen_mark", "undervegetation_lattlopt", "undervegetation_svarlopt"]);
     expect(result.hectares.gron_mycket_svarlopt!).toBeLessThan(result.hectares.gron_lattlopt!);
+  });
+  it("halvöppna celler från geo-arbetaren 37 (alfa 200) blir öppen mark med spridda träd (ägaren 2026-11-16)", () => {
+    const pixels = image();
+    for (let row = 0; row < 30; row += 1) for (let column = 0; column < 10; column += 1) pixels.data[(row * 30 + column) * 4 + 3] = SEMI_ALPHA;
+    const result = greenCandidates(pixels, DEFAULT_GREEN, toSource, 3006);
+    expect(result.hectares.oppen_mark_spridda_trad!).toBeGreaterThan(0.1);
+    expect(result.hectares.oppen_mark).toBe(0);
+    expect(greenCandidates(image(), DEFAULT_GREEN, toSource, 3006).hectares.oppen_mark_spridda_trad).toBe(0);
   });
   it("beståndsgränser: färre med större minsta bestånd, inga som förval", () => {
     const count = (borders: "none" | "few" | "many") => greenCandidates(image(), { ...DEFAULT_GREEN, borders }, toSource, 3006).data.features

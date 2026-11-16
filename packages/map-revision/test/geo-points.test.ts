@@ -46,6 +46,16 @@ describe("punktmolnets statistik (ägaren 2026-11-11)", () => {
     expect(forest.openAt(1001, 2001)).toBe(false);
     expect(forest.denseAt(1001, 2001)).toBe(false);
   });
+  it("halvöppet: lågt med spridda träd (ägaren 2026-11-16)", () => {
+    // Hälften lågt, hälften 12 m träd: öppet och halvöppet. Bara träd eller bara lågt: inte halvöppet.
+    const mixed = vegetationSignals(readPointStats(file([[0.4, 10, 9, 0, 0, 0, 3000, 0.02], [12, 10, 2, 0, 3, 5, 3000, 0.02], empty, empty])));
+    expect(mixed.semiAt?.(1001, 2001)).toBe(true);
+    const forest = vegetationSignals(readPointStats(file([[14, 10, 2, 0, 0, 8, 3000, 0.02], [12, 10, 2, 0, 0, 8, 3000, 0.02], empty, empty])));
+    expect(forest.semiAt?.(1001, 2001)).toBe(false);
+    const open = vegetationSignals(readPointStats(file([[0.4, 10, 9, 0, 0, 0, 3000, 0.02], [0.2, 10, 9, 0, 0, 0, 3000, 0.02], empty, empty])));
+    expect(open.semiAt?.(1001, 2001)).toBe(false);
+    expect(open.semiAt?.(900, 2001)).toBeUndefined();
+  });
 });
 
 describe("reglagen för gult och grönt", () => {

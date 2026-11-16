@@ -139,6 +139,15 @@ describe("vektorunderlagen (K4b)", () => {
     expect(fence?.kind === "line" && fence.path[0]!.x).toBeCloseTo(0, 6);
   });
 
+  it("slutna linjer i ett ytlager: en ring inuti en annan blir hål, och en ö i hålet en egen yta (ägaren 2026-11-16)", () => {
+    const square = (x: number, y: number, size: number): [number, number][] => [[x, y], [x + size, y], [x + size, y + size], [x, y + size]];
+    const ring = (x: number, y: number, size: number) => ({ layer: "OPPEN", geometry: { kind: "line" as const, points: square(675000 + x, 6580000 + y, size), closed: true } });
+    const result = importObjects([ring(0, 0, 100), ring(20, 20, 50), ring(30, 30, 10), ring(200, 0, 30)], { toMap,
+      mapping: new Map([["OPPEN", { symbol: "s521", kind: "area" as const }]]) });
+    const areas = result.objects.filter(object => object.kind === "area");
+    expect(areas.map(area => area.kind === "area" ? area.rings.length : 0).sort()).toEqual([1, 1, 2]);
+  });
+
   it("slår ihop i båda ändarna och åt båda hållen", () => {
     const p = (x: number) => ({ x, y: 0 });
     const result = joinLines([[p(1), p(2)], [p(0), p(1)], [p(3), p(2)], [p(5), p(6)]]);

@@ -78,6 +78,8 @@ export function groundShareAt(stats: PointStats, reach = 2): (x: number, y: numb
 }
 
 export interface VegetationSignals { readonly openAt: (x: number, y: number) => boolean | undefined; readonly denseAt: (x: number, y: number) => boolean | undefined;
+  /** Halvöppet (404): lågt med spridda träd, se `SEMI_TREE_SHARE`. */
+  readonly semiAt?: (x: number, y: number) => boolean | undefined;
   /** Andelen träffar 1–3 m över marken (medel inom 4 m), 0 där vegetationen är lägre än 2 m: sparas i klassbilden så att mängden grönt kan dras utan en ny körning. */
   readonly denseShareAt?: (x: number, y: number) => number | undefined }
 /**
@@ -87,6 +89,13 @@ export interface VegetationSignals { readonly openAt: (x: number, y: number) => 
  * Tätt buskskikt (8 %) är oförändrat: Tyresta ville ha 10–12 %, Högdalen 8 %; i medel lika.
  */
 export const OPEN_SHARE = 0.5, OPEN_HEIGHT_M = 1, DENSE_MID_SHARE = 0.08, DENSE_MIN_HEIGHT_M = 2;
+/**
+ * Ägaren 2026-11-16 (Väddö: hagmark och lövskog skannad lövfritt blev 403, «nyttja halvöppen mark mer», också halvtäta
+ * frötallar): inom 8 m (9 × 9 celler) är minst 40 % lågt (under 1 m) och 25–60 % träd (högsta träff över 3 m), eller det är
+ * öppet och minst 25 % träd. Mätt mot sex facitrutor (Högdalen, Djurgården, Gömmaren; kartritarnas 402 och 404, 9 ha): det
+ * halvöppna gick från inget till F 0,37 (15 ha), det öppna F 0,39 → 0,37 och allt gult F 0,58 → 0,60.
+ */
+export const SEMI_LOW_SHARE = 0.4, SEMI_TREE_SHARE = 0.25, SEMI_TREE_MAX = 0.6, TREE_HEIGHT_M = 3;
 
 /**
  * Öppet och tätt ur punktmolnet (lärt av Högdalenkartan 2026-11-11):
@@ -99,12 +108,13 @@ export const OPEN_SHARE = 0.5, OPEN_HEIGHT_M = 1, DENSE_MID_SHARE = 0.08, DENSE_
 export function vegetationSignals(stats: PointStats, openShare = OPEN_SHARE, denseShare = DENSE_MID_SHARE): VegetationSignals {
   const { width, height, cell, values } = stats, stride = height + 1;
   const table = () => new Float64Array((width + 1) * stride);
-  const known = table(), low = table(), mid = table(), tall = table();
+  const known = table(), low = table(), mid = table(), tall = table(), trees = table();
   for (let x = 0; x < width; x += 1) for (let y = 0; y < height; y += 1) {
     const o = (x * height + y) * POINT_BANDS, n = values[o + 1]!, top = Number.isFinite(values[o]!) ? values[o]! : 0;
     const i = (x + 1) * stride + y + 1, left = x * stride + y + 1, below = (x + 1) * stride + y, corner = x * stride + y;
     const add = (t: Float64Array, value: number) => { t[i] = value + t[left]! + t[below]! - t[corner]!; };
     add(known, n > 0 ? 1 : 0); add(low, n > 0 && top < OPEN_HEIGHT_M ? 1 : 0); add(mid, n > 0 ? values[o + 4]! / n : 0); add(tall, n > 0 ? top : 0);
+    add(trees, n > 0 && top > TREE_HEIGHT_M ? 1 : 0);
   }
   const sum = (t: Float64Array, x: number, y: number, reach: number) => {
     const x0 = Math.max(0, x - reach), x1 = Math.min(width, x + reach + 1), y0 = Math.max(0, y - reach), y1 = Math.min(height, y + reach + 1);
@@ -116,6 +126,14 @@ export function vegetationSignals(stats: PointStats, openShare = OPEN_SHARE, den
   };
   return {
     openAt: (px, py) => { const at = cellOf(px, py); if (!at) return undefined; const n = sum(known, ...at, 3); return n > 0 ? sum(low, ...at, 3) / n >= openShare : undefined; },
+    semiAt: (px, py) => {
+      const at = cellOf(px, py); if (!at) return undefined;
+      const n = sum(known, ...at, 4), near = sum(known, ...at, 3);
+      if (n <= 0 || near <= 0) return undefined;
+      const treeShare = sum(trees, ...at, 4) / n;
+      if (treeShare < SEMI_TREE_SHARE) return false;
+      return sum(low, ...at, 3) / near >= openShare || (sum(low, ...at, 4) / n >= SEMI_LOW_SHARE && treeShare < SEMI_TREE_MAX);
+    },
     denseAt: (px, py) => {
       const at = cellOf(px, py); if (!at) return undefined;
       const n = sum(known, ...at, 2);

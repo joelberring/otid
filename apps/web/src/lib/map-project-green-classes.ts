@@ -62,6 +62,8 @@ function grow(mask: Uint8Array, room: Uint8Array, columns: number, rows: number,
 const BORDER_LEVELS: Readonly<Record<Exclude<BorderLevel, "none">, { minAreaM2: number; simplify: number }>> = {
   few: { minAreaM2: 5000, simplify: 2 }, some: { minAreaM2: 2000, simplify: 1.25 }, many: { minAreaM2: 600, simplify: 0.75 } };
 /** Samma steg som geo-arbetarens förval (`GREEN_STEPS` i scripts/geo-vegetation.ts). */
+/** Klassbildens alfa för halvöppna celler (samma som `SEMI_ALPHA` i scripts/geo-vegetation.ts). */
+export const SEMI_ALPHA = 200;
 export const DEFAULT_GREEN: GreenSettings = { slow: 2, difficult: 3, fight: 4, undergrowth: true, minAreaM2: 300, borders: "none", denseShare: 0.08 };
 
 export function greenCandidates(pixels: PhotoPixels, settings: GreenSettings, toSource: (column: number, row: number) => [number, number], crs: number,
@@ -77,7 +79,7 @@ export function greenCandidates(pixels: PhotoPixels, settings: GreenSettings, to
     ...(settings.undergrowth ? [{ name: "undervegetation_lattlopt", test: (value: number) => value >> 4 >= 1 },
       { name: "undervegetation_svarlopt", test: (value: number) => value >> 4 >= 2 }] : [])
   ];
-  const values = new Uint8Array(columns * rows), known = new Uint8Array(columns * rows);
+  const values = new Uint8Array(columns * rows), known = new Uint8Array(columns * rows), semi = new Uint8Array(columns * rows);
   // Klassbilder från geo-arbetaren 28: grön kanal är buskskiktets andel (tusendelar) och blå klassen utan tillägget för tätt
   // buskskikt. Äldre bilder har 160 i grön kanal överallt.
   let shares = false;
@@ -92,8 +94,11 @@ export function greenCandidates(pixels: PhotoPixels, settings: GreenSettings, to
       if ((value & 15) !== 1 && data[i + 1]! >= dense && shade(value) < settings.slow) value = (value & 0xf0) | (settings.slow + 2);
     }
     values[column * rows + row] = value; known[column * rows + row] = 1;
+    // Ägaren 2026-11-16: geo-arbetaren 37 märker halvöppna celler ur punktmolnet med alfa 200 (`SEMI_ALPHA`); de blir 404.
+    if (Math.abs(data[i + 3]! - SEMI_ALPHA) <= 20) semi[column * rows + row] = 1;
   }
   const scattered = scatteredTrees(values, columns, rows, shade, settings.slow);
+  for (let i = 0; i < scattered.length; i += 1) if (semi[i]) scattered[i] = 1;
   const minCells = Math.max(2, Math.round(settings.minAreaM2 / (cellMeters * cellMeters)));
   const features: SourceFeature[] = [];
   const hectares: Record<string, number> = {};

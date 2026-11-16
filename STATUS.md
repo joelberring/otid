@@ -13,6 +13,11 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-16 – Filmerna på sidan: två filmer, svenska och engelska
+- Ägaren 2026-11-16: en film om banläggning, tävling och klubbyta och en om kartritning, båda på svenska och engelska, ska upp på sidan.
+- `NEXT_PUBLIC_MAP_FILM_URL` är filmen om kartritningen, och `_EN` efter namnet ger den engelska versionen av respektive film (utan den visas den svenska). Länkarna står på startsidan, Om O-Tid och i Hjälp; texterna säger inte längre «1 min».
+- Verifierat: enhetstester (intro-film, hjälptexterna), typkontroll, lint. Filerna läggs i `media/` på servern (docs/drift.md).
+
 ### 2026-11-16 – O-Tid som app, första bygget (steg A1, ADR-0227)
 
 - Ägaren: en riktig app så att GPS:en går med låst skärm. Beslut: skal runt webben som laddas från servern, personligt utvecklarkonto, inget sms, deltagaren väljer delning (A2–A3), maxtid för spårningen.

@@ -7,7 +7,7 @@ import { LanguageSwitch } from "../components/language-switch";
 import { siteEn } from "../i18n/public-en";
 import { currentLanguage } from "../lib/language-server";
 import { Logo } from "../components/brand/logo";
-import { introFilmUrl } from "../lib/intro-film";
+import { introFilmUrl, mapFilmUrl } from "../lib/intro-film";
 import "../components/ui/tokens.css";
 import "./globals.css";
 
@@ -21,8 +21,8 @@ export const metadata: Metadata = { title: sv.appName, applicationName: sv.appNa
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   await connection();
   const language = await currentLanguage();
-  // Hjälppanelen (en klientkomponent) visar "Se filmen (1 min)" när adressen finns; den läses här vid förfrågan.
-  return <html lang={language}><body data-intro-film={introFilmUrl()}>
+  // Hjälppanelen (en klientkomponent) visar länkarna till filmerna när adresserna finns; de läses här vid förfrågan.
+  return <html lang={language}><body data-intro-film={introFilmUrl(process.env, language)} data-map-film={mapFilmUrl(process.env, language)}>
     <header className="site-header">
       <Link href="/"><Logo size={28} className="site-header-logo" />{sv.appName}</Link>
       <span className="site-header-tagline"><span aria-hidden="true">·</span> {language === "en" ? siteEn.tagline : sv.tagline}</span>

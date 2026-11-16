@@ -54,7 +54,8 @@ export const helpSv = {
   hits: (count: number) => count === 0 ? "Inga träffar." : plural(count, "träff", "träffar"),
   noHits: "Pröva ett annat ord. Hittar du inte svaret: skicka ett mejl.",
   about: "Om O-Tid",
-  film: "Se filmen (1 min)",
+  film: "Se filmen om O-Tid",
+  mapFilm: "Se filmen om kartritningen",
   contact: "Frågor om O-Tid:",
   newTab: "öppnas i ny flik",
   /** Den lilla "?" vid en knapp eller ruta. */

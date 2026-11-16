@@ -76,7 +76,7 @@ test("opublicerad tävling syns inte, publicerad syns under rätt rubrik, kort a
   // Sidhuvudet: loggan, namnet och "Banläggning och tidtagning för orientering". Filmlänken bara med NEXT_PUBLIC_INTRO_FILM_URL.
   await expect(visitor.locator("[data-site-head] a[href='/']")).toHaveText("O-TidBanläggning och tidtagning för orientering");
   await expect(visitor.locator("[data-site-head] svg[aria-hidden='true']")).toBeVisible();
-  await expect(visitor.getByRole("link", { name: "Se vad O-Tid kan (film, 1 min)" })).toHaveCount(0);
+  await expect(visitor.getByRole("link", { name: "Se vad O-Tid kan (film)" })).toHaveCount(0);
   await expect(visitor.getByText(todayName)).toHaveCount(0);
   for (const path of [`/results/${raceId}`, hubPath!, `${hubPath!}/qr`, `${hubPath!}/live`]) {
     const response = await visitor.goto(path);

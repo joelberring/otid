@@ -46,7 +46,7 @@ inloggning:
   commit-sha:n), `<kort sha>` (7 tecken) och `main` (den senaste gröna på `main`). Bara linux/amd64 (servern är x86).
 - De finns omkring **25 minuter** efter en push till `main`: CI tar 17–19 minuter och bygget av avbildningarna några till.
   Se Actions → Avbildningar, eller `docker manifest inspect ghcr.io/joelberring/otid-web:<kort sha>` på servern.
-- Inget serverspecifikt byggs in: domänen, lösenorden och `NEXT_PUBLIC_INTRO_FILM_URL` läses från `.env` när tjänsterna
+- Inget serverspecifikt byggs in: domänen, lösenorden och filmernas adresser (`NEXT_PUBLIC_INTRO_FILM_URL` m.fl.) läses från `.env` när tjänsterna
   startar, så samma avbildning fungerar på alla servrar.
 - Paketen ska vara publika. Ett nytt paket på ghcr.io är privat; efter den första publiceringen ändrar repots ägare det en
   gång för vart och ett av `otid-web`, `otid-backup` och `otid-geo` (ADR-0219 K5): GitHub → profilen → Packages → paketet → Package settings → Change
@@ -355,13 +355,22 @@ förut och listan har "Kopiera länken", så att administratören kan skicka lä
 
 `OTID_CONTACT_EMAIL` (valfri, förval otid@berring.se) visas på sidan om personuppgifter (`/integritet`) och på "Glömt lösenordet".
 Adressen för frågor om programmet (sidfoten, Om O-Tid och Hjälp) är fast i `apps/web/src/lib/contact.ts`.
-`NEXT_PUBLIC_INTRO_FILM_URL` (valfri) är adressen till en kort film om O-Tid. När den är satt visar startsidan länken
-"Se vad O-Tid kan (film, 1 min)" längst ned; tom eller osatt = ingen länk. Bara `https://`/`http://`-adresser eller en sökväg
-på samma värd (`/…`) godtas, annars visas ingen länk. Värdet läses när sidan visas (inte när avbildningen byggs), så det räcker
-att ändra `.env` och köra `docker compose -f docker-compose.prod.yml up -d`; `web` och `web-public` får det båda.
-Filmen kan ligga på servern: lägg filen i mappen `media/` bredvid `docker-compose.prod.yml` (`mkdir -p media`, sedan t.ex.
-`scp otid-intro.mp4 root@servern:/root/otid/media/`) och sätt `NEXT_PUBLIC_INTRO_FILM_URL=/media/otid-intro.mp4`. Caddy visar
-`media/` skrivskyddat under `/media/` (med spolning). Mappen är inte med i git eller i säkerhetskopian; den första gången behövs
+Filmerna (valfria): `NEXT_PUBLIC_INTRO_FILM_URL` är adressen till filmen om banläggning, tävling och klubbyta och
+`NEXT_PUBLIC_MAP_FILM_URL` till filmen om kartritningen. Med `_EN` efter namnet anges den engelska versionen; saknas den visas
+den svenska också för den som valt engelska. När en adress är satt visas länken längst ned på startsidan («Se vad O-Tid kan
+(film)», «Så fungerar kartritningen (film)»), på Om O-Tid och i Hjälp; tom eller osatt = ingen länk. Bara
+`https://`/`http://`-adresser eller en sökväg på samma värd (`/…`) godtas. Värdena läses när sidan visas (inte när avbildningen
+byggs), så det räcker att ändra `.env` och köra `docker compose -f docker-compose.prod.yml up -d`; `web` och `web-public` får dem.
+Filmerna kan ligga på servern: lägg filerna i mappen `media/` bredvid `docker-compose.prod.yml` (`mkdir -p media`, sedan t.ex.
+`scp otid-intro-sv.mp4 otid-intro-en.mp4 otid-kartritning-sv.mp4 otid-kartritning-en.mp4 root@servern:/root/otid/media/`) och sätt
+```
+NEXT_PUBLIC_INTRO_FILM_URL=/media/otid-intro-sv.mp4
+NEXT_PUBLIC_INTRO_FILM_URL_EN=/media/otid-intro-en.mp4
+NEXT_PUBLIC_MAP_FILM_URL=/media/otid-kartritning-sv.mp4
+NEXT_PUBLIC_MAP_FILM_URL_EN=/media/otid-kartritning-en.mp4
+```
+Caddy visar `media/` skrivskyddat under `/media/` (med spolning) och låter webbläsaren spara filerna ett dygn, så en film som
+byts ut bör få ett nytt filnamn. Mappen är inte med i git eller i säkerhetskopian; den första gången behövs
 `docker compose -f docker-compose.prod.yml up -d caddy` så att mappen monteras.
 `OTID_REGISTRATION_LIMIT_PER_HOUR` (valfri, förval 10) är hur många konton som får skapas per IP-adress och timme.
 

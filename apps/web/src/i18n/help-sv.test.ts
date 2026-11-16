@@ -119,7 +119,8 @@ describe("hjälpartiklarna", () => {
 
   it("panelens egna texter finns", () => {
     expect(helpSv.button).toBe("Hjälp");
-    expect(helpSv.film).toBe("Se filmen (1 min)");
+    expect(helpSv.film).toBe("Se filmen om O-Tid");
+    expect(helpSv.mapFilm).toBe("Se filmen om kartritningen");
     expect(helpSv.link("Gaffling och slinga")).toBe("Hjälp: Gaffling och slinga");
   });
 });

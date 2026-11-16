@@ -5,7 +5,7 @@ import { authenticateUserAccountSession, listMapProjects, listMyClubs, listMyGro
 import { db } from "../lib/db";
 import { accountSessionToken } from "../lib/public-race-gate";
 import { todayIn } from "../lib/public-race-format";
-import { demoRacePath, introFilmUrl } from "../lib/intro-film";
+import { demoRacePath, introFilmUrl, mapFilmUrl } from "../lib/intro-film";
 import { guestDemoEnabled } from "../lib/guest-demo-route-handlers";
 import { currentLanguage } from "../lib/language-server";
 import { publicHomeEn, siteEn } from "../i18n/public-en";
@@ -31,7 +31,8 @@ type Query = { q?: string | string[]; fler?: string | string[]; demo?: string | 
 /**
  * Startsidan för besökare (ADR-0172 beslut 4): sök, Pågår nu (tävlingsdagen i tävlingens tidszon), Kommande och
  * Senaste med "Visa fler". Bara publicerade tävlingar och inga adminlänkar; den inloggade får en länk till Mina tävlingar.
- * Längst ned en länk till introduktionsfilmen, bara när `NEXT_PUBLIC_INTRO_FILM_URL` är satt (docs/drift.md).
+ * Längst ned länkar till filmerna (introduktionen och kartritningen), bara när `NEXT_PUBLIC_INTRO_FILM_URL` respektive
+ * `NEXT_PUBLIC_MAP_FILM_URL` är satt (docs/drift.md); på engelska den engelska filmen när den finns.
  * Veckans målning (ägarens önskemål 2026-11-12) står bredvid rubriken och sökrutan, och texten om den i startsidans egen sidfot.
  * Sidan renderas vid varje förfrågan (`force-dynamic`), så målningen byts när veckan byts.
  */
@@ -47,7 +48,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Que
     token ? authenticateUserAccountSession(db, { sessionToken: token }) : undefined]);
   const signedIn = account?.status === "authenticated";
   const personal = signedIn && token ? await personalFor(token) : undefined;
-  const film = introFilmUrl();
+  const film = introFilmUrl(process.env, language), mapFilm = mapFilmUrl(process.env, language);
   const today = todayIn("Europe/Stockholm");
   const painting = paintingOfTheWeek(new Date());
   const total = listing.ongoing.length + listing.upcoming.length + listing.recent.length;
@@ -95,7 +96,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<Que
       {section("pagar", text.ongoing, listing.ongoing, "ONGOING", text.noneOngoing)}
       {section("kommande", text.upcoming, listing.upcoming, "UPCOMING", text.noneUpcoming)}
       {section("senaste", text.recent, listing.recent, "RECENT", text.noneRecent, listing.moreRecent)}
-      {film && <p className={styles.introFilm}><a href={film}>{text.introFilm}</a></p>}
+      {(film || mapFilm) && <p className={styles.introFilm}>
+        {film && <a href={film}>{text.introFilm}</a>}
+        {mapFilm && <a href={mapFilm}>{text.mapFilm}</a>}
+      </p>}
       {!search && <HomeAbout language={language} demo={demoRacePath()}
         guest={guestDemoEnabled() && !signedIn ? { message: query.demo === "upptaget" ? "busy" : query.demo === "fel" ? "failed" : undefined }
           : undefined} />}

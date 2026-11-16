@@ -4,7 +4,7 @@ import { aboutSv } from "../../i18n/about-sv";
 import { aboutEn } from "../../i18n/public-en";
 import { currentLanguage } from "../../lib/language-server";
 import { PROGRAM_CONTACT_EMAIL } from "../../lib/contact";
-import { introFilmUrl } from "../../lib/intro-film";
+import { introFilmUrl, mapFilmUrl } from "../../lib/intro-film";
 import styles from "../../components/account-pages.module.css";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -16,14 +16,16 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function AboutPage() {
   const english = await currentLanguage() === "en";
   const text = english ? aboutEn : aboutSv;
-  // Introfilmen bara när NEXT_PUBLIC_INTRO_FILM_URL är satt (läses vid förfrågan, docs/drift.md).
-  const film = introFilmUrl();
+  // Filmerna bara när NEXT_PUBLIC_INTRO_FILM_URL och NEXT_PUBLIC_MAP_FILM_URL är satta (läses vid förfrågan, docs/drift.md).
+  const language = english ? "en" : "sv";
+  const film = introFilmUrl(process.env, language), mapFilm = mapFilmUrl(process.env, language);
   return <main className={`${styles.page} ${styles.narrow}`}>
     <header className={styles.header}><div><p className={styles.kicker}>{text.kicker}</p><h1>{text.title}</h1></div></header>
     <div className={styles.prose}>
       <p>{text.intro}</p>
       <p>{text.introMore}</p>
       {film && <p><a href={film}>{text.film}</a></p>}
+      {mapFilm && <p><a href={mapFilm}>{text.mapFilm}</a></p>}
       <h2>{text.betaTitle}</h2>
       <p>{text.beta}</p>
       <h2>{text.madeTitle}</h2>

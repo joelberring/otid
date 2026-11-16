@@ -23,7 +23,8 @@ export const helpEn: Texts<typeof helpSv> = {
   hits: (count: number) => count === 0 ? "No matches." : `${count} ${count === 1 ? "match" : "matches"}`,
   noHits: "Try another word. If you cannot find the answer: send an email.",
   about: "About O-Tid",
-  film: "Watch the film (1 min)",
+  film: "Watch the film about O-Tid",
+  mapFilm: "Watch the film about map making",
   contact: "Questions about O-Tid:",
   newTab: "opens in a new tab",
   link: (title: string) => `Help: ${title}`

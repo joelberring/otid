@@ -74,12 +74,14 @@ function HelpDialog({ views, first: initialFirst, onClose }: { views: Views; fir
   // Artikeln som står först och är utfälld; räknaren gör att samma länk fäller ut artikeln igen.
   const [target, setTarget] = useState<{ id: string; count: number } | undefined>(initialFirst ? { id: initialFirst, count: 1 } : undefined);
   const [film, setFilm] = useState<string>();
+  const [mapFilm, setMapFilm] = useState<string>();
   const titleId = useId();
   useEffect(() => {
     const element = dialog.current;
     if (element && !element.open) element.showModal();
-    // Introfilmen: layouten sätter adressen på body när NEXT_PUBLIC_INTRO_FILM_URL finns (läses vid förfrågan, inte bygget).
+    // Filmerna: layouten sätter adresserna på body när variablerna finns (läses vid förfrågan, inte bygget).
     setFilm(document.body.dataset.introFilm || undefined);
+    setMapFilm(document.body.dataset.mapFilm || undefined);
     // Sökfältet först (showModal ger annars fokus till Stäng); från ett "?" artikeln som efterfrågades.
     if (initialFirst) list.current?.querySelector<HTMLElement>(`[data-help-article='${initialFirst}'] > summary`)?.focus();
     else input.current?.focus();
@@ -126,6 +128,7 @@ function HelpDialog({ views, first: initialFirst, onClose }: { views: Views; fir
         <span className={styles.footLinks}>
           <a href="/om" target="_blank" rel="noopener">{text.about}<span className={styles.hidden}> ({text.newTab})</span></a>
           {film && <a href={film} target="_blank" rel="noopener">{text.film}<span className={styles.hidden}> ({text.newTab})</span></a>}
+          {mapFilm && <a href={mapFilm} target="_blank" rel="noopener">{text.mapFilm}<span className={styles.hidden}> ({text.newTab})</span></a>}
         </span>
         <span>{text.contact} <a href={`mailto:${PROGRAM_CONTACT_EMAIL}`}>{PROGRAM_CONTACT_EMAIL}</a></span>
       </footer>

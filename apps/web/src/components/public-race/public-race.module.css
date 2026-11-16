@@ -41,7 +41,7 @@
 .search button { flex: 0 0 auto; }
 .searchMeta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; }
 .searchMeta a { display: inline-flex; align-items: center; min-height: 40px; }
-.introFilm { font-size: var(--text-xs); }
+.introFilm { font-size: var(--text-xs); display: flex; flex-wrap: wrap; gap: 0 1.25rem; }
 .introFilm a { display: inline-flex; align-items: center; min-height: 40px; }
 
 .raceSection { display: grid; gap: 6px; min-width: 0; }

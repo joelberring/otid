@@ -39,7 +39,7 @@
 		max_size 210MB
 	}
 
-	# Statiska mediefiler som inte hör till appen, t.ex. introduktionsfilmen (NEXT_PUBLIC_INTRO_FILM_URL=/media/otid-intro.mp4).
+	# Statiska mediefiler som inte hör till appen, t.ex. filmerna (NEXT_PUBLIC_INTRO_FILM_URL=/media/otid-intro-sv.mp4, docs/drift.md).
 	# Filerna läggs i ./media på servern (aldrig i git) och visas skrivskyddat; Range-anrop fungerar, så filmen kan spolas.
 	handle_path /media/* {
 		header Cache-Control "public, max-age=86400"

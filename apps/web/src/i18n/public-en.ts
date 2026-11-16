@@ -41,7 +41,8 @@ export const publicHomeEn: Texts<typeof publicRaceSv.home> = {
   myRaces: "My events",
   organizerLogin: "Organisers: sign in",
   accountNavigation: "Account",
-  introFilm: "See what O-Tid can do (film, 1 min)",
+  introFilm: "See what O-Tid can do (film)",
+  mapFilm: "How map making works (film)",
   paintingAlt: title => `Painting of the week: ${title} by Emm Berring`
 };
 
@@ -60,7 +61,8 @@ export const aboutEn: Texts<typeof aboutSv> & { readonly internationalTitle: str
   intro: "O-Tid is timing, course setting and map making for orienteering in the browser. It is made for club events and trainings.",
   introMore: "You add courses, classes and entries on the web. At the finish you read out the cards with a SPORTident station. "
     + "Runners see start lists and results on their phones without signing in.",
-  film: "Watch the film (1 min)",
+  film: "Watch the film about O-Tid",
+  mapFilm: "Watch the film about map making",
   betaTitle: "Beta – free to use",
   beta: "O-Tid is in beta. It is open and free to use. It works, but there may be bugs. Please get in touch if something goes wrong.",
   madeTitle: "How it is made",

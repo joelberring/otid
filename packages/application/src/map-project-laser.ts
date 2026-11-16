@@ -85,7 +85,10 @@ async function getJson(url: string, auth: string, runtime: LaserRuntime, body?: 
 }
 
 /** Vilken vektorprodukt en samling är, ur dess id och titel. */
-const EXTRA_WORDS: readonly (readonly [GeoExtraItem["kind"], RegExp])[] = [["LAND_COVER", /markt[aä]cke/i], ["BUILDINGS", /byggnad/i]];
+const EXTRA_WORDS: readonly (readonly [GeoExtraItem["kind"], RegExp])[] = [["LAND_COVER", /markt[aä]cke/i], ["BUILDINGS", /byggnad/i],
+  ["PARCELS", /fastighetsindelning|cadastral/i]];
+/** Fastighetsindelningen levereras i rutor om 5 × 5 km: en karta kan behöva fler än marktäckets kommunfiler. */
+const EXTRA_LIMIT: Readonly<Record<GeoExtraItem["kind"], number>> = { LAND_COVER: 3, BUILDINGS: 3, PARCELS: 6 };
 
 /** Zip-filerna (GeoPackage per kommun) i ett STAC-svar, som jobbets extra hämtningar. */
 export function vectorExtras(json: unknown, kind: GeoExtraItem["kind"], runtime: LaserRuntime): GeoExtraItem[] {
@@ -97,7 +100,7 @@ export function vectorExtras(json: unknown, kind: GeoExtraItem["kind"], runtime:
       && (/\.zip($|\?)/i.test(entry.href) || (typeof entry.type === "string" && /zip|geopackage/i.test(entry.type))));
     if (asset && typeof feature.id === "string" && allowedLaserUrl(String(asset.href), runtime)) out.push({ kind, id: feature.id.slice(0, 200), href: String(asset.href) });
   }
-  return out.slice(0, 3);
+  return out.slice(0, EXTRA_LIMIT[kind]);
 }
 
 /**
@@ -115,7 +118,7 @@ async function searchVectorExtras(auth: string, runtime: LaserRuntime, box: { we
     const collection = collections.find(entry => typeof entry.id === "string" && words.test(`${entry.id} ${typeof entry.title === "string" ? entry.title : ""}`)
       && !/inspire|visning|direkt/i.test(`${entry.id} ${typeof entry.title === "string" ? entry.title : ""}`));
     if (typeof collection?.id !== "string") continue;
-    const found = await getJson(`${runtime.vektorUrl}/search`, auth, runtime, { bbox: [box.west, box.south, box.east, box.north], collections: [collection.id], limit: 10 });
+    const found = await getJson(`${runtime.vektorUrl}/search`, auth, runtime, { bbox: [box.west, box.south, box.east, box.north], collections: [collection.id], limit: 20 });
     if ("ok" in found) out.push(...vectorExtras(found.json, kind, runtime));
   }
   return out;

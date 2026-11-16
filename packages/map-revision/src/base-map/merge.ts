@@ -7,7 +7,7 @@ import { withoutCutVegetation, type clearCutFeatures } from "./clear-cuts";
 import { smallRingsToPoints } from "./small-rings";
 import { isRing, ringTick, smallDepressionPoints } from "./depressions";
 import { withoutMarshPits } from "./marsh-pits";
-import { yardsOf } from "./yards";
+import { parcelYards, yardsOf } from "./yards";
 import { marshOutsideManaged, singleMarsh, undergrowthOutsideGreen } from "./marsh-merge";
 import { linesOutsideWater } from "./water-clip";
 import { marshOffDrySoil } from "./soil-marsh";
@@ -35,7 +35,7 @@ import type { SoilArea } from "./soil";
  * - belagd yta ur lasern (`belagt.dxf`, sprintkartor) blir ytor med kvarteren som hål, och då får OpenStreetMaps gator och
  *   gångvägar ingen yta med antagen bredd (lasern har den verkliga ytan); deras mittlinjer följer med utan förslag.
  */
-const BASE_MAP = ["kurvor.dxf", "formlinjer.dxf", "brantlinjer.dxf", "knollar.dxf", "vatten.geojson", "marktacke.geojson", "byggnader.geojson", "fukt.dxf", "diken.dxf", "berg.dxf", "vegetation.dxf", LASER_PAVED_FILE];
+const BASE_MAP = ["kurvor.dxf", "formlinjer.dxf", "brantlinjer.dxf", "knollar.dxf", "vatten.geojson", "marktacke.geojson", "byggnader.geojson", "fastigheter.geojson", "fukt.dxf", "diken.dxf", "berg.dxf", "vegetation.dxf", LASER_PAVED_FILE];
 
 export function baseMapOutputs(names: readonly string[]): string[] {
   const has = new Set(names);
@@ -201,7 +201,8 @@ export function mergeBaseMap(parts: readonly { readonly name: string; readonly d
   const knolls = features.filter(feature => !(feature.geometry.kind === "point" && (STONE_LAYER.test(feature.layer)
     || (laserKnolls && feature.layer === "dotknoll"))));
   // Skogsstyrelsens hyggen efter ålder; laserns vegetation i ett hygge som är yngre än skanningen tas bort.
-  const all = [...ticks, ...withoutCutVegetation(scale ? smallRingsToPoints(knolls, scale) : knolls, cuts?.afterScan ?? []), ...(cuts?.features ?? []), ...(osm ? osmForBaseMap(osm, names.has("byggnader.geojson")) : [])];
+  // Ägaren 2026-11-16: små fastigheter med hus blir tomter (`parcelYards`), före sankmarken som inte ska ligga på tomter.
+  const all = parcelYards([...ticks, ...withoutCutVegetation(scale ? smallRingsToPoints(knolls, scale) : knolls, cuts?.afterScan ?? []), ...(cuts?.features ?? []), ...(osm ? osmForBaseMap(osm, names.has("byggnader.geojson")) : [])]);
   // Ägaren 2026-11-12: en sankmark per plats (blött, fuktigt och marktäckets låg på varandra).
   // Ägaren 2026-11-13: ingen sankmark på sand och grus enligt SGU:s jordartskartan (strandkärr inom 30 m från vatten blir kvar).
   const marsh = singleMarsh(marshOutsideManaged(all, osm ? osmManaged(osm) : [])).features;

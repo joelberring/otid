@@ -123,6 +123,20 @@ export function landCoverLayer(feature: GpkgFeature): string | undefined {
   return undefined;
 }
 export const buildingLayer = (feature: GpkgFeature): string | undefined => feature.geometry.kind === "area" ? "byggnad" : undefined;
+/**
+ * Fastighetsindelning (ägaren 2026-11-16, för tomterna): ytskiktet med fastighetsområden (2025.02 `registerenhetsomradesyta`,
+ * 2021.10 `registerenhet_yta`) → `fastighet`. Samfälligheter, linjer och punkter tas inte med, och bara geometrin följer med.
+ */
+export function parcelLayer(feature: GpkgFeature): string | undefined {
+  if (feature.geometry.kind !== "area" || !/registerenhet.*yta/i.test(feature.table)) return undefined;
+  const type = plain(feature.type);
+  return type && !type.includes("fastighet") ? undefined : type.includes("samf") ? undefined : "fastighet";
+}
+/** Zip-arkivets GeoPackage, eller filen själv när den redan är en GeoPackage (SQLite). */
+export function gpkgBytes(bytes: Uint8Array): Uint8Array | undefined {
+  if (new TextDecoder().decode(bytes.subarray(0, 15)) === "SQLite format 3") return bytes;
+  return unzipFirst(bytes, /\.gpkg$/i)?.bytes;
+}
 
 /** GeoJSON (SWEREF 99 TM som i filen) med lagernamnet i `layer`, och antalet per lager. */
 export function featuresGeoJson(features: readonly GpkgFeature[], layerOf: (feature: GpkgFeature) => string | undefined, keep: (layer: string, geometry: Geometry) => boolean = () => true) {

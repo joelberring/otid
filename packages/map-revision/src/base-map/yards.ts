@@ -5,7 +5,8 @@ import { faceAt, facesFromLines } from "../faces";
 /**
  * Grundkartan G8, tomter (ägaren 2026-11-11: «tomter kommer inte med»). Varken lasern, marktäcket eller OpenStreetMap har
  * tomtgränser, så en första tomt räknas ur husen och blir lagret `tomtmark_hus` (förslag 520, område som inte får beträdas).
- * Fastighetsgränser används inte (personuppgifter).
+ * Ägaren 2026-11-16: med Lantmäteriets fastighetsindelning (lagret `fastighet`, bara geometrin) blir en fastighet under
+ * `PARCEL_MAX_M2` med ett hus i hela tomten (`tomtmark_fastighet`, `parcelYards`); husen där får ingen rektangel.
  *
  * Ägaren 2026-11-13 («gokartor gör fyrkanter som klippt mot vägar. jag tycker det ser snyggare ut än runda ytor»): tomten är
  * en rektangel, inte en rundad ring. Bostadsstora hus (högst `maxBuilding` m²) som ligger högst `link` meter från varandra utan
@@ -139,4 +140,25 @@ export function yardsOf(features: readonly SourceFeature[], settings: YardSettin
     }
   }
   return out;
+}
+
+/** Ägaren 2026-11-16: «små ganska rektangulära ytor under 3–4000 kvadrat är tomter, över det skogs- och lantbruksfastigheter». */
+export const PARCEL_MAX_M2 = 3500;
+/**
+ * Fastighetsytorna (`fastighet`) under `PARCEL_MAX_M2` där minst ett hus (minst `minBuilding` m²) står blir `tomtmark_fastighet`;
+ * övriga fastigheter tas bort (de är ingen kartsymbol). Utan fastighetsindelning är listan oförändrad.
+ */
+export function parcelYards(features: readonly SourceFeature[], settings: YardSettings = DEFAULT_YARDS): SourceFeature[] {
+  if (!features.some(feature => feature.layer === "fastighet")) return [...features];
+  const centers = features.filter(feature => BUILDING.test(feature.layer)).map(outerRing)
+    .filter((ring): ring is Ring => !!ring && ring.length >= 3 && ringArea(ring) >= settings.minBuilding).map(centroid);
+  return features.flatMap(feature => {
+    if (feature.layer !== "fastighet") return [feature];
+    const ring = outerRing(feature);
+    if (!ring || ring.length < 3 || ringArea(ring) > PARCEL_MAX_M2) return [];
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const [x, y] of ring) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
+    const built = centers.some(([x, y]) => x >= minX && x <= maxX && y >= minY && y <= maxY && inside(ring, x, y));
+    return built ? [{ ...feature, layer: "tomtmark_fastighet" }] : [];
+  });
 }

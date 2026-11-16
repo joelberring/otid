@@ -412,7 +412,7 @@ export interface ClaimedGeoJob {
   readonly clip: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number } | null;
   readonly cliffs: { readonly minDrop: number; readonly impassableDrop: number; readonly impassableLength?: number | undefined; readonly tags?: boolean | undefined } | null;
   /** G8: Lantmäteriets vektorprodukter att läsa (hämtas med `/laser/x<index>`). */
-  readonly extras: readonly { readonly index: number; readonly kind: "LAND_COVER" | "BUILDINGS" }[];
+  readonly extras: readonly { readonly index: number; readonly kind: "LAND_COVER" | "BUILDINGS" | "PARCELS" }[];
   readonly moisture: { readonly channelHa: number; readonly wetMeters: number; readonly moistMeters: number } | null;
   readonly vegetation: { readonly minAreaM2: number } | null;
   /** Jobbet är en etapp i en delad körning: bilderna lämnas som PNG, så att sammanläggningen kan läsa dem. */
@@ -437,7 +437,7 @@ export async function releaseStaleGeoJobs(db: DbExecutor, now: Date): Promise<vo
 export async function claimGeoJob(db: Database, worker: string, now = new Date()): Promise<ClaimedGeoJob | undefined> {
   await releaseStaleGeoJobs(db, now);
   const result = await db.execute<{ id: string; kind: "PULLAUTIN" | "DWG"; request: { tiles?: { id: string; epsg: number | null }[]; settings?: Record<string, number>;
-    clip?: ClaimedGeoJob["clip"]; extras?: { kind: "LAND_COVER" | "BUILDINGS" }[]; cliffs?: ClaimedGeoJob["cliffs"]; moisture?: ClaimedGeoJob["moisture"]; vegetation?: ClaimedGeoJob["vegetation"] }; attempts: number }>(sql`
+    clip?: ClaimedGeoJob["clip"]; extras?: { kind: "LAND_COVER" | "BUILDINGS" | "PARCELS" }[]; cliffs?: ClaimedGeoJob["cliffs"]; moisture?: ClaimedGeoJob["moisture"]; vegetation?: ClaimedGeoJob["vegetation"] }; attempts: number }>(sql`
     update map_project_geo_job set status = 'RUNNING', started_at = ${now}, heartbeat_at = ${now}, attempts = attempts + 1, worker = ${worker},
       progress = null
     where id = (select id from map_project_geo_job where status = 'QUEUED' order by created_at, id for update skip locked limit 1)

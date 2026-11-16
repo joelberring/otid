@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SourceFeature } from "../src";
-import { yardsOf } from "../src/base-map/yards";
+import { parcelYards, yardsOf } from "../src/base-map/yards";
 
 const house = (x: number, y: number, side: number, layer = "byggnad"): SourceFeature => ({ layer, geometry: { kind: "area",
   rings: [[[x, y], [x + side, y], [x + side, y + side], [x, y + side]]] } });
@@ -57,5 +57,18 @@ describe("tomter ur husen", () => {
     expect(yardsOf([house(0, 0, 3), house(200, 0, 4)])).toHaveLength(0);
     const [yard] = yardsOf([house(0, 0, 10), house(16, 0, 3)]);
     expect(bounds(yard!).maxX).toBeCloseTo(37);
+  });
+});
+
+describe("tomter ur fastighetsindelningen (ägaren 2026-11-16)", () => {
+  it("en liten fastighet med hus blir tomt, en stor eller tom tas bort, och husen där får ingen rektangel", () => {
+    const parcel = (x: number, y: number, side: number) => house(x, y, side, "fastighet");
+    const features = [parcel(0, 0, 50), house(10, 10, 12), parcel(100, 0, 50), parcel(300, 0, 100), house(320, 20, 12), house(1000, 1000, 12)];
+    const out = parcelYards(features);
+    expect(out.filter(feature => feature.layer === "tomtmark_fastighet")).toHaveLength(1);
+    expect(out.some(feature => feature.layer === "fastighet")).toBe(false);
+    // Huset i den lilla fastigheten får ingen rektangel; huset i den stora och huset utan fastighet får.
+    expect(yardsOf(out)).toHaveLength(2);
+    expect(parcelYards([house(0, 0, 10)])).toHaveLength(1);
   });
 });

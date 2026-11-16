@@ -53,7 +53,8 @@ export type GeoClip = z.infer<typeof clipSchema>;
  * Grundkartan G8 (ägaren 2026-11-10): Lantmäteriets kommunvisa vektorprodukter som geo-arbetaren läser till kandidater:
  * Marktäcke (vatten, öppen mark, åker, sankmark) och Byggnad. `href` är zip-filen hos Lantmäteriet.
  */
-export const GEO_EXTRA_KINDS = ["LAND_COVER", "BUILDINGS"] as const;
+// Ägaren 2026-11-16: Fastighetsindelning (fastighetsytorna) för tomterna; bara geometrin används, inga beteckningar.
+export const GEO_EXTRA_KINDS = ["LAND_COVER", "BUILDINGS", "PARCELS"] as const;
 export type GeoExtraKind = typeof GEO_EXTRA_KINDS[number];
 const extraSchema = z.object({ kind: z.enum(GEO_EXTRA_KINDS), id: z.string().min(1).max(200), href: z.string().url().max(2000) }).strict();
 export interface GeoExtraItem { readonly kind: GeoExtraKind; readonly id: string; readonly href: string }
@@ -68,7 +69,7 @@ export const geoJobCreateRequestSchema = z.object({
   clip: clipSchema.optional(),
   /** Etappen (delområdet) som jobbet gäller: resultatet klipps mot dess gräns när det läses in (ägaren 2026-11-12). */
   areaId: z.string().uuid().optional(),
-  extras: z.array(extraSchema).max(6).optional(),
+  extras: z.array(extraSchema).max(12).optional(),
   /**
    * Branternas trösklar när fallet mäts i markrastret (G4, ägaren 2026-11-11: «mer/mindre branter»): minsta fall för en brant
    * och för en opasserbar brant, i meter över ±3 m (förval 1,3 och 4,5). Ägaren 2026-11-12 («lägg in som val för kartritaren

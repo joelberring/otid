@@ -152,7 +152,7 @@ export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
     soilRemoved: (hectares: string) => `Soil map (SGU): ${hectares} ha of marsh removed on sand and gravel. This can be turned off under Moisture with sliders.`,
     clearCuts: (fresh: number, scrub: number, young: number, scanned: string | null) => fresh + scrub + young === 0 ? "Skogsstyrelsen has no clear-cuts under 15 years in the area."
       : `Clear-cuts from Skogsstyrelsen: ${fresh} fresh, ${scrub} with scrub and ${young} with young forest${scanned ? ` (laser scanned ${scanned}; laser green is removed in newer clear-cuts)` : ""}.`,
-    extras: { LAND_COVER: "Also read land cover from Lantmäteriet (water, open land, fields, marsh)", BUILDINGS: "Also read buildings from Lantmäteriet" },
+    extras: { LAND_COVER: "Also read land cover from Lantmäteriet (water, open land, fields, marsh)", BUILDINGS: "Also read buildings from Lantmäteriet", PARCELS: "Also read property boundaries from Lantmäteriet (small properties with houses become gardens)" },
     baseMap: "The base map",
     load: (label: string) => `Load ${label.toLowerCase()} as candidates`,
   loaded: (label: string) => `${label} are shown as candidates below under Vector file.`,

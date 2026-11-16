@@ -29,7 +29,7 @@ import { pipeline } from "node:stream/promises";
 import { createReadStream } from "node:fs";
 import { fromCache, toCache } from "./geo-cache.ts";
 import { cliffsFromTicks, DEFAULT_CLIFF_RULES, hillshade, mergeGroundGrids, readGroundGrid, readTicks, steepAt, heightPng } from "./geo-cliffs.ts";
-import { buildingLayer, featuresGeoJson, landCoverLayer, readGpkgFeatures, unzipFirst, type Geometry } from "./geo-gpkg.ts";
+import { buildingLayer, featuresGeoJson, gpkgBytes, landCoverLayer, parcelLayer, readGpkgFeatures, type Geometry } from "./geo-gpkg.ts";
 import { dwgFeatures, dwgObjects } from "./geo-dwg.ts";
 import { AREA_DXF, clipDxfEntities, decodePng, dxfFrame, encodeRawPng, mergeGeoJson, mosaicPng, readWorld, writeWorld, type Box } from "./geo-merge.ts";
 import { moistureDxf, moistureFromHeightMaps, readHeightMap } from "./geo-moisture.ts";
@@ -46,7 +46,7 @@ interface Job {
   /** Grundkartan G1: laserdatan klipps till rutan (SWEREF 99 TM, med marginal) innan Karttapullautin körs. */
   readonly clip?: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number } | null;
   /** G8: Lantmäteriets vektorprodukter (Marktäcke, Byggnad) att läsa till kandidater. */
-  readonly extras?: readonly { readonly index: number; readonly kind: "LAND_COVER" | "BUILDINGS" }[];
+  readonly extras?: readonly { readonly index: number; readonly kind: "LAND_COVER" | "BUILDINGS" | "PARCELS" }[];
   /** G4: branternas trösklar (null = Kungshatt-kedjans förval). */
   readonly cliffs?: { readonly minDrop: number; readonly impassableDrop: number; readonly impassableLength?: number; readonly tags?: boolean } | null;
   /** K5c del 2: fuktigheten ur markmodellen (Karttapullautins höjdraster per ruta). */
@@ -196,6 +196,14 @@ async function toWebp(dir: string, source: string, signal: AbortSignal): Promise
   }
 }
 
+/** GeoJSON-objekten i `text` läggs till filen (fastighetsindelningens rutor blir en fil). */
+async function appendGeoJson(path: string, text: string): Promise<void> {
+  const before = await readFile(path, "utf8").then(old => JSON.parse(old) as { features: unknown[] }).catch(() => undefined);
+  if (!before) { await writeFile(path, text); return; }
+  const added = JSON.parse(text) as { features: unknown[] };
+  await writeFile(path, JSON.stringify({ type: "FeatureCollection", features: [...before.features, ...added.features] }));
+}
+
 async function runJob(job: Job): Promise<void> {
   const dir = join(workdir, job.jobId);
   await rm(dir, { recursive: true, force: true });
@@ -326,8 +334,8 @@ async function runJob(job: Job): Promise<void> {
     // En produkt som kontot inte kommer åt hoppas över (jobbet går vidare) och sägs i sammanfattningen.
     const extraSummary: Record<string, number | string> = {};
     for (const extra of job.clip ? job.extras ?? [] : []) {
-      const land = extra.kind === "LAND_COVER", label = land ? "marktacke" : "byggnader";
-      await set(land ? "Läser marktäcket" : "Läser byggnaderna", 0, 1);
+      const land = extra.kind === "LAND_COVER", label = land ? "marktacke" : extra.kind === "PARCELS" ? "fastigheter" : "byggnader";
+      await set(land ? "Läser marktäcket" : extra.kind === "PARCELS" ? "Läser fastighetsindelningen" : "Läser byggnaderna", 0, 1);
       const response = await call(`/api/geo-worker/jobs/${job.jobId}/laser/x${extra.index}`, { signal: AbortSignal.any([control.signal, AbortSignal.timeout(20 * 60_000)]) });
       if (!response.ok) {
         const detail = await response.json().catch(() => undefined) as { error?: string } | undefined;
@@ -335,10 +343,11 @@ async function runJob(job: Job): Promise<void> {
         continue;
       }
       try {
-        const found = unzipFirst(new Uint8Array(await response.arrayBuffer()), /\.gpkg$/i);
+        const found = gpkgBytes(new Uint8Array(await response.arrayBuffer()));
         if (!found) { extraSummary[label] = "ingen GeoPackage"; continue; }
-        const path = join(dir, `${label}.gpkg`);
-        await writeFile(path, found.bytes);
+        // Fastighetsindelningen kommer i flera rutor: var fil får ett eget namn och lagren läggs ihop nedan.
+        const path = join(dir, `${label}-${extra.index}.gpkg`);
+        await writeFile(path, found);
         const features = await readGpkgFeatures(path, job.clip!);
         await rm(path, { force: true });
         // Sjön och havet finns redan ur lasern (skarpare strand); av marktäckets vatten tas bara det lasern inte har (gölar).
@@ -347,9 +356,10 @@ async function runJob(job: Job): Promise<void> {
           const ring = geometry.rings[0] ?? [];
           return ring.length > 0 && ring.filter(([x, y]) => [[0, 0], [4, 0], [-4, 0], [0, 4], [0, -4]].some(([ax, ay]) => water.at(x + ax!, y + ay!))).length * 2 > ring.length;
         };
-        const result = featuresGeoJson(features, land ? landCoverLayer : buildingLayer, (layer, geometry) => !(layer === "vatten" && inLaserWater(geometry)));
-        if (result.total > 0) await writeFile(join(dir, `${label}.geojson`), result.geojson);
-        extraSummary[label] = result.total;
+        const result = featuresGeoJson(features, land ? landCoverLayer : extra.kind === "PARCELS" ? parcelLayer : buildingLayer,
+          (layer, geometry) => !(layer === "vatten" && inLaserWater(geometry)));
+        if (result.total > 0) await appendGeoJson(join(dir, `${label}.geojson`), result.geojson);
+        extraSummary[label] = Number(extraSummary[label] ?? 0) + result.total;
       } catch (error) { extraSummary[label] = (error instanceof Error ? error.message : "fel").slice(0, 60); }
     }
     // K5c del 2: fuktigheten ur rutornas höjdraster (Karttapullautin sparar dem i temp_<ruta>_dir med savetempfolders).
@@ -483,7 +493,7 @@ async function runJob(job: Job): Promise<void> {
       ...(files.has("berg.dxf") ? [["berg.dxf", "berg.dxf", "application/dxf"]] as const : []),
       ...(files.has("berg.png") ? [["berg.png", "berg.png", "image/png"], ["berg.pgw", "berg.pgw", "text/plain"]] as const : []),
       ...(files.has("belagt.dxf") ? [["belagt.dxf", "belagt.dxf", "application/dxf"]] as const : []),
-      ...["marktacke.geojson", "byggnader.geojson", "kullar.geojson", "brantlinjer.geojson"].filter(name => files.has(name)).map(name => [name, name, "application/geo+json"] as const),
+      ...["marktacke.geojson", "byggnader.geojson", "fastigheter.geojson", "kullar.geojson", "brantlinjer.geojson"].filter(name => files.has(name)).map(name => [name, name, "application/geo+json"] as const),
       ...(files.has("vatten.geojson") ? [["vatten.geojson", "vatten.geojson", "application/geo+json"]] as const : [])];
     let done = 0;
     // En fil över serverns gräns (Karttapullautins råa brantstreck för många rutor blir över 100 MB) hoppas över i stället för

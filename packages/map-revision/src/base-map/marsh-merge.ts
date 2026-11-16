@@ -49,7 +49,7 @@ export const singleMarsh = (features: readonly SourceFeature[]) => withoutOverla
  * Marktäckets egen sankmark rörs inte.
  */
 const MANAGED = "\u0000skott_mark";
-const OFF_MANAGED = [MANAGED, "aker", "fruktodling", "tomtmark_marktacke", "tomtmark_osm", "blott", "fuktigt"] as const;
+const OFF_MANAGED = [MANAGED, "aker", "fruktodling", "tomtmark_marktacke", "tomtmark_osm", "tomtmark_fastighet", "blott", "fuktigt"] as const;
 export function marshOutsideManaged(features: readonly SourceFeature[], managed: readonly SourceFeature[] = []): SourceFeature[] {
   const marked = managed.map(feature => ({ ...feature, layer: MANAGED }));
   return withoutOverlap([...features, ...marked], OFF_MANAGED, 5).features.filter(feature => feature.layer !== MANAGED);

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { deflateRawSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
-import { buildingLayer, featuresGeoJson, landCoverLayer, readGpkgFeatures, readGpkgGeometry, unzipFirst } from "../../../scripts/geo-gpkg";
+import { buildingLayer, featuresGeoJson, gpkgBytes, landCoverLayer, parcelLayer, readGpkgFeatures, readGpkgGeometry, unzipFirst } from "../../../scripts/geo-gpkg";
 import { fakeGpkg, zipOf } from "../../../tests/e2e/fake-gpkg";
 import { importLayers, suggestSymbol } from "../src/vector-import";
 import { parseGeoJson } from "../src/vector-parse";
@@ -68,3 +68,20 @@ describe("Lantmäteriets marktäcke ur GeoPackage", () => {
     expect(readGpkgGeometry(new Uint8Array(Buffer.from("GP\0\0\0\0\0\0\0\0\0\0\x63", "latin1")))).toEqual([]);
   });
 });
+
+describe("fastighetsindelningen (ägaren 2026-11-16)", () => {
+  it("bara fastighetsområdenas ytor, inte samfälligheter eller linjer", () => {
+    const area = { kind: "area" as const, rings: [[[0, 0], [10, 0], [10, 10]] as [number, number][]] };
+    expect(parcelLayer({ table: "registerenhetsomradesyta", type: "fastighetsområde", geometry: area })).toBe("fastighet");
+    expect(parcelLayer({ table: "registerenhet_yta", type: "FASTIGHET", geometry: area })).toBe("fastighet");
+    expect(parcelLayer({ table: "registerenhetsomradesyta", type: "samfällighetsområde", geometry: area })).toBeUndefined();
+    expect(parcelLayer({ table: "registerenhetsomradeslinje", type: "fastighetsområde", geometry: area })).toBeUndefined();
+    expect(parcelLayer({ table: "registerenhetsomradesyta", type: "fastighetsområde", geometry: { kind: "line", points: [[0, 0], [1, 1]] } })).toBeUndefined();
+  });
+  it("tar en GeoPackage direkt eller ur ett zip-arkiv", () => {
+    const sqlite = new TextEncoder().encode("SQLite format 3\u0000rest");
+    expect(gpkgBytes(sqlite)).toBe(sqlite);
+    expect(Buffer.from(gpkgBytes(new Uint8Array(zipOf("a.gpkg", Buffer.from(sqlite))))!)).toEqual(Buffer.from(sqlite));
+  });
+});
+

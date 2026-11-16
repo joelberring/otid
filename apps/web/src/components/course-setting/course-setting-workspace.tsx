@@ -32,10 +32,12 @@ export type TopBarProps = {
   tabs?: ReactNode;
   /** Hjälpens vyer: fältläget, den öppna fliken och banläggningen i stort (`courseSettingHelpViews`). */
   help: readonly HelpView[];
+  /** Ägaren 2026-11-16: «Överför banor till tävling» som egen knapp överst (finns också under Fil). */
+  onTransfer?: (() => void) | undefined;
 };
 
 export function TopBar({ raceId, document, summaries, view, variant, onView, status, access, presence, canUndo, canRedo, onUndo, onRedo, menu, admin,
-  help, tabs }: TopBarProps) {
+  help, tabs, onTransfer }: TopBarProps) {
   const copy = useTexts(collaborationSv, collaborationEn);
   const text = useTexts(courseSettingSv, courseSettingEn);
   const [open, setOpen] = useState(false);
@@ -75,6 +77,9 @@ export function TopBar({ raceId, document, summaries, view, variant, onView, sta
     <span className={`${styles.access} ${styles.wide}`}>{access}</span>
     {presence && <span className={`${styles.presence} ${styles.wide}`} data-testid="course-setting-presence">{presence}</span>}
     <span className={styles.spacer} />
+    {onTransfer && <Button onClick={onTransfer} data-testid="course-setting-transfer-button" title={copy.topbar.transfer}>
+      <span aria-hidden="true">⇪<span className={styles.wide}> {copy.topbar.transferButton}</span></span>
+      <span className={styles.srOnly}>{copy.topbar.transferButton}</span></Button>}
     <Button variant="secondary" onClick={onUndo} disabled={!canUndo} title={text.tools.withKey(text.tools.undo, "Ctrl+Z")} aria-label={text.tools.undo}>
       <span aria-hidden="true">↶<span className={styles.wide}> {text.tools.undo}</span></span></Button>
     <Button variant="secondary" onClick={onRedo} disabled={!canRedo} title={text.tools.withKey(text.tools.redo, "Ctrl+Shift+Z")} aria-label={text.tools.redo}>

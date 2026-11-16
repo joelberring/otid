@@ -151,8 +151,8 @@ test("banläggning-egenskaper: stigning, fast längd, poängbana, ordning, ångr
     await owner.getByTestId("course-setting-climb").fill("120");
     await owner.getByRole("button", { name: "Spara egenskaperna" }).click();
     await saved(owner);
-    await owner.getByRole("button", { name: /^Fil/ }).click();
-    await owner.getByRole("menuitem", { name: "Överför till tävlingen …" }).click();
+    // Ägaren 2026-11-16: knappen överst gör samma sak som Fil → Överför till tävlingen.
+    await owner.getByTestId("course-setting-transfer-button").click();
     await owner.getByRole("dialog").getByRole("button", { name: "Överför till tävlingen" }).click();
     review = owner.getByRole("region", { name: /Banläggningen, version \d+/ });
     await expect(review.getByText("Stigning")).toBeVisible();

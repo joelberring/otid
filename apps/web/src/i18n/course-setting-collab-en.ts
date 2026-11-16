@@ -46,6 +46,7 @@ export const collaborationEn: Texts<typeof collaborationSv> = {
     file: "File",
     fileMenu: "File and versions …",
     transfer: "Transfer to the event …",
+    transferButton: "Transfer courses to event",
     settings: "Way of working …",
     fullscreen: "Full screen",
     exitFullscreen: "Exit full screen",

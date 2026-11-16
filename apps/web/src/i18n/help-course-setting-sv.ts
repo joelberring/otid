@@ -410,7 +410,7 @@ export const courseSettingHelpArticles: readonly HelpArticle[] = [
     views: ["COURSE_SETTING", "COURSES"],
     body: [
       "Banläggningen och tävlingens banor är två saker. Avläsningen och resultaten använder tävlingens banor.",
-      "”Fil” → ”Överför till tävlingen …” → ”Överför till tävlingen”: banorna, kontrollerna och varianterna blir tävlingens. Du ser skillnaderna innan något sparas.",
+      "Knappen ”Överför banor till tävling” överst (eller ”Fil” → ”Överför till tävlingen …”) → ”Överför till tävlingen”: banorna, kontrollerna och varianterna blir tävlingens. Du ser skillnaderna innan något sparas.",
       [
         "Varje bana behöver start och mål, och kontrollerna koder 1–999 999.",
         "Klasserna i banans fält ”Klasser (som i Purple Pen, t.ex. H21, D21)” skapas med fri start om de inte finns.",

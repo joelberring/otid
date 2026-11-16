@@ -169,6 +169,7 @@ test("Banläggning i rogaining och fest: syns i arbetsytan och Mina tävlingar, 
       await owner.getByRole("button", { name: /^Fil/ }).click();
       await expect(owner.getByRole("menuitem", { name: "Fil och versioner …" })).toBeVisible();
       await expect(owner.getByRole("menuitem", { name: /Överför till tävlingen/ })).toHaveCount(0);
+      await expect(owner.getByTestId("course-setting-transfer-button")).toHaveCount(0);
       await owner.keyboard.press("Escape");
     }
     await reviewScreenshots(owner, `banlaggning-${type.toLowerCase()}`);

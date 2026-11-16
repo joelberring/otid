@@ -407,7 +407,7 @@ export const courseSettingHelpArticlesEn: readonly HelpArticle[] = [
     views: ["COURSE_SETTING", "COURSES"],
     body: [
       "The course setting and the event's courses are two things. The readout and the results use the event's courses.",
-      "”File” → ”Transfer to the event …” → ”Transfer to the event”: the courses, controls and variants become the event's. You see the differences first.",
+      "The ”Transfer courses to event” button at the top (or ”File” → ”Transfer to the event …”) → ”Transfer to the event”: the courses, controls and variants become the event's. You see the differences first.",
       [
         "Each course needs a start and a finish, and the controls codes 1–999 999.",
         "The classes in the course's field ”Classes (as in Purple Pen, e.g. M21, W21)” are created with free start if they do not exist.",

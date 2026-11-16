@@ -58,6 +58,10 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 - Skottbrädet visar neutrala prickar för hur många andra i gruppen som stått i rutan och skjutit; tävlingssidan visar samma prickar som ett rutnät per grupp. Servern lämnar bara antal per ruta. Sänkta gemensamma står för sig i topplistan och ledarens tabell.
 - Kontrollerat: enhetstester (placering, förval, prickar), integrationstest (två löpare har samma gemensamma och olika egna skepp; prickarna), webbens tester, lint, typecheck, knip. Inte provat i telefon.
 
+### 2026-11-16 Knappen «Överför banor till tävling» överst i banläggningen
+- Ägaren: knappen ska synas tydligare. Den ligger nu i banläggningens rubrikrad (bara pilen på telefon) och öppnar samma ruta som Fil → Överför till tävlingen …; bara för administratörer och inte för fester.
+- Verifierat: typkontroll, lint, webbens enhetstester; e2e-testerna för banläggningen använder knappen (körs i CI).
+
 ### 2026-11-16 Halvöppen mark under tomterna
 - 404:s vita prickar låg över tomternas olivgröna: grundkartan klipper nu 404 mot tomterna, och nya kartor har prickarna i en egen vit färg under olivgrönt. Äldre kartor ur O-Tids mall får samma färgordning när de läses (template-upgrade.ts; skärm och O-Tids utskrifter, filen skrivs inte om).
 - Verifierat: typkontroll, lint, enhetstester (map-file, map-revision, print-pdf).

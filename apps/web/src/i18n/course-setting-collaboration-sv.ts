@@ -33,6 +33,8 @@ export const collaborationSv = {
     file: "Fil",
     fileMenu: "Fil och versioner …",
     transfer: "Överför till tävlingen …",
+    /** Ägaren 2026-11-16: knappen överst («ska vara mer tydlig längst upp»). */
+    transferButton: "Överför banor till tävling",
     settings: "Arbetssätt …",
     fullscreen: "Helskärm",
     exitFullscreen: "Lämna helskärm",

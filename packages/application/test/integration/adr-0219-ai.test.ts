@@ -227,6 +227,20 @@ describe("ADR-0219 K2: AI-kopplingen", () => {
     expect(after.status === "ok" && after.view.aiMode).toBe("AUTONOMOUS");
     const decidedList = await listMapProjectProposals(db, { ...owner.proof, projectId });
     expect(decidedList.status === "ok" && decidedList.list.proposals.find(row => row.note === "En stig till")).toMatchObject({ source: "AI", status: "ACCEPTED" });
+    // Ägaren 2026-11-16 (starkare AI-koppling): i läget självständigt får ett anrop täcka mer än 500 m (här 1 000 m), en yta
+    // kan ha hål, och list_objects ger utpekade objekt kort och med hela geometrin.
+    const wide = textOf(await mcp(owner.accountId, call(221, "propose_changes", { project_id: projectId, note: "En lång stig och en sjö med en ö",
+      operations: [{ op: "add", symbol: "505", points: [[0, 0], [100, 0]] },
+        { op: "add", symbol: "301", rings: [[[10, 10], [20, 10], [20, 20], [10, 20]], [[13, 13], [16, 13], [16, 16], [13, 16]]] }] })));
+    expect(wide).toMatchObject({ changes: 2, applied: 2, conflicts: 0 });
+    const lakes = textOf(await mcp(owner.accountId, call(222, "list_objects", { project_id: projectId, symbols: ["301"], area: { min_x: 9, min_y: 9, max_x: 21, max_y: 21 }, max_points: 2000, brief: true })));
+    const lake = (lakes.objects as { key: string; rings: number[][][]; boxMm?: unknown }[]).find(object => object.rings.length === 2)!;
+    expect(lake.rings.map(ring => ring.length)).toEqual([4, 4]);
+    expect(lake.boxMm).toBeUndefined();
+    expect(textOf(await mcp(owner.accountId, call(223, "list_objects", { project_id: projectId, keys: [lake.key] })))).toMatchObject({ total: 1, returned: 1 });
+    // Svaret är kompakt: en ring står på en rad.
+    const raw = ((await mcp(owner.accountId, call(224, "list_objects", { project_id: projectId, keys: [lake.key], brief: true })))?.result as { content: { text: string }[] }).content[0]!.text;
+    expect(raw).toContain("[[10,10],[20,10],[20,20],[10,20]]");
     // Ny tom karta: kontot blir ägare, AI-läget är förslag.
     const made = textOf(await mcp(owner.accountId, call(23, "create_map_project", { name: "Provblad", center_e: 674000, center_n: 6575000, width_m: 800, height_m: 600 })));
     expect(typeof made.projectId).toBe("string");

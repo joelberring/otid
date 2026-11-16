@@ -91,3 +91,17 @@ export function maskBuilt(candidates: readonly MapObject[], built: readonly Poly
   }
   return { objects, removed, clipped };
 }
+
+/**
+ * Ägaren 2026-11-16 (AI-kopplingens `subtract`): en yta utan det som täcks av andra ytor. Delarna som blir kvar (skärvor under
+ * `MIN_PIECE_MM2` räknas inte); ingen del = ytan täcks helt. Går klippningen inte att räkna lämnas `undefined`.
+ */
+export function areaMinus(object: Area, cutters: readonly Area[]): Area[] | undefined {
+  const polygon = polygonOf(object), others = cutters.map(polygonOf).filter(other => other.length > 0);
+  if (polygon.length === 0) return undefined;
+  if (others.length === 0) return [object];
+  let pieces: MultiPolygon;
+  try { pieces = polygonClipping.difference(polygon, ...others); } catch { return undefined; }
+  return pieces.filter(piece => piece[0] && ringArea(piece[0]) >= MIN_PIECE_MM2)
+    .map(piece => ({ ...object, rings: piece.map(ring => ring.map(([x, y], i) => ({ type: i === 0 ? "M" as const : "L" as const, x, y }))) }));
+}

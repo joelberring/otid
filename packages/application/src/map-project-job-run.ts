@@ -1,5 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { MCP_MAX_IMAGE_SIDE_PX, MCP_PROPOSAL_MAX_OPERATIONS, MCP_PROPOSAL_MAX_SIDE_M } from "@o-tid/contracts";
+import {
+  MCP_MAX_IMAGE_SIDE_PX, MCP_OBJECTS_DEFAULT_POINTS, MCP_OBJECTS_MAX_POINTS, MCP_OBJECTS_MAX_POINTS_PER_OBJECT, MCP_PROPOSAL_MAX_OPERATIONS, MCP_PROPOSAL_MAX_SIDE_M,
+  MCP_PROPOSAL_MAX_SIDE_M_AUTONOMOUS
+} from "@o-tid/contracts";
+import { areaMinus } from "@o-tid/map-revision/base-map";
 import {
   drawMap, mapPointToWgs84, readMapFile, type MapDrawingContext, type MapObject, type MapSymbol, type ParsedMap, type Path, type PathCommand,
   type Point
@@ -206,36 +210,54 @@ export function runCompare(loaded: LoadedProjectMap, request: RenderRequest, are
     pxPerMm: round(view.pxPerMm, 3), widthPx: view.width * 2 + gap, heightPx: view.height } };
 }
 
-export interface ObjectsRequest { area?: Box | undefined; symbols?: readonly string[] | undefined; limit?: number | undefined; offset?: number | undefined }
+export interface ObjectsRequest { area?: Box | undefined; symbols?: readonly string[] | undefined; limit?: number | undefined; offset?: number | undefined;
+  /** Bara de här objekten (nycklar), punkter per objekt (förval 40) och ett kortare svar utan namn, ruta och ändrad-märke. */
+  keys?: readonly string[] | undefined; maxPoints?: number | undefined; brief?: boolean | undefined }
 
 /** Objekten (i området, med symbolerna): nyckel, symbol, slag, ruta och förenklad geometri (högst 40 punkter). */
 export function runObjects(loaded: LoadedProjectMap, request: ObjectsRequest) {
   const codes = request.symbols && request.symbols.length > 0 ? new Set(request.symbols) : undefined;
+  const wanted = request.keys && request.keys.length > 0 ? new Set(request.keys) : undefined;
   const limit = Math.min(500, Math.max(1, request.limit ?? 200)), offset = Math.max(0, request.offset ?? 0);
+  const maxPoints = Math.min(MCP_OBJECTS_MAX_POINTS_PER_OBJECT, Math.max(2, request.maxPoints ?? MCP_OBJECTS_DEFAULT_POINTS));
   const matches: { key: string; object: MapObject; symbol: MapSymbol | undefined; box: Box }[] = [];
   loaded.objects.forEach((object, index) => {
+    const key = loaded.keys[index]!;
+    if (wanted && !wanted.has(key)) return;
     const symbol = loaded.base.symbols.get(object.symbol);
     if (codes && (!symbol || !codes.has(symbolCode(symbol)))) return;
     const box = objectBox(object);
     if (request.area && !intersects(box, request.area)) return;
-    matches.push({ key: loaded.keys[index]!, object, symbol, box });
+    matches.push({ key, object, symbol, box });
   });
-  return {
-    total: matches.length, offset, returned: Math.min(limit, Math.max(0, matches.length - offset)),
-    objects: matches.slice(offset, offset + limit).map(({ key, object, symbol, box }) => ({
-      key, symbol: symbol ? symbolCode(symbol) : null, symbolName: symbol?.name ?? null, kind: object.kind,
-      changed: loaded.states.has(key), boxMm: roundBox(box), ...geometrySummary(object)
-    }))
-  };
+  // Svaret hålls nere (ägaren 2026-11-16): hela geometrin kommer bara på begäran, och när punkterna tar slut säger svaret var
+  // nästa anrop ska fortsätta. Minst ett objekt per svar, så att upprepade anrop alltid kommer framåt.
+  const objects: Record<string, unknown>[] = [];
+  let points = 0, next: number | undefined;
+  for (let at = offset; at < matches.length && objects.length < limit; at += 1) {
+    const { key, object, symbol, box } = matches[at]!;
+    const geometry = geometrySummary(object, maxPoints), count = pointCount(geometry);
+    if (objects.length > 0 && points + count > MCP_OBJECTS_MAX_POINTS) { next = at; break; }
+    points += count;
+    objects.push(request.brief ? { key, symbol: symbol ? symbolCode(symbol) : null, kind: object.kind, ...geometry }
+      : { key, symbol: symbol ? symbolCode(symbol) : null, symbolName: symbol?.name ?? null, kind: object.kind,
+        changed: loaded.states.has(key), boxMm: roundBox(box), ...geometry });
+  }
+  if (next === undefined && offset + objects.length < matches.length) next = offset + objects.length;
+  return { total: matches.length, offset, returned: objects.length, ...(next !== undefined ? { truncated: true, nextOffset: next } : {}), objects };
 }
 
-function geometrySummary(object: MapObject) {
+const pointCount = (geometry: Record<string, unknown>) => Array.isArray(geometry.points) ? geometry.points.length
+  : Array.isArray(geometry.rings) ? (geometry.rings as unknown[][]).reduce((sum, ring) => sum + ring.length, 0) : 1;
+
+/** Geometrin i kartans mm, glesad jämnt till högst `maxPoints` punkter per objekt (`vertices` säger hur många den har). */
+function geometrySummary(object: MapObject, maxPoints: number = MCP_OBJECTS_DEFAULT_POINTS): Record<string, unknown> {
   if (object.kind === "point") return { at: [round(object.at.x), round(object.at.y)], angle: round(object.angle, 1) };
   if (object.kind === "text") return { at: [round(object.at.x), round(object.at.y)], text: object.text.slice(0, 80) };
   const paths = object.kind === "line" ? [object.path] : object.rings;
   const points = paths.map(path => path.map(command => [round(command.x), round(command.y)]));
   const total = points.reduce((sum, path) => sum + path.length, 0);
-  const step = Math.max(1, Math.ceil(total / 40));
+  const step = Math.max(1, Math.ceil(total / maxPoints));
   return { [object.kind === "line" ? "points" : "rings"]: object.kind === "line" ? points[0]!.filter((_, index) => index % step === 0)
     : points.map(ring => ring.filter((_, index) => index % step === 0)), vertices: total, curved: paths.some(path => path.some(command => command.type === "C")) };
 }
@@ -297,10 +319,12 @@ export function runCheck(loaded: LoadedProjectMap, request: { area?: Box | undef
     findings: findings.slice(0, 300), total: findings.length };
 }
 
+type Pair = readonly [number, number];
 export type ProposalOperation =
-  | { op: "add"; symbol: string; points: readonly (readonly [number, number])[]; angle?: number | undefined }
+  | { op: "add"; symbol: string; points?: readonly Pair[] | undefined; rings?: readonly (readonly Pair[])[] | undefined; angle?: number | undefined }
   | { op: "move"; key: string; dx: number; dy: number }
-  | { op: "reshape"; key: string; points: readonly (readonly [number, number])[] }
+  | { op: "reshape"; key: string; points?: readonly Pair[] | undefined; rings?: readonly (readonly Pair[])[] | undefined }
+  | { op: "subtract"; key: string; by: readonly string[] }
   | { op: "change_symbol"; key: string; symbol: string }
   | { op: "delete"; key: string };
 
@@ -314,9 +338,11 @@ function translate(object: MapObject, dx: number, dy: number): MapObject {
 
 /**
  * Förslagets ändringar ur operationerna (`propose_changes`): varje operation blir en ändring med objektets källa och den
- * senaste ändringen den bygger på, som synken vill ha. Alla punkter (före och efter) ska rymmas inom 500 × 500 m.
+ * senaste ändringen den bygger på, som synken vill ha. Alla punkter (före och efter) ska rymmas inom `maxSideM` (500 × 500 m
+ * för förslag; mer i läget självständigt, högst MCP_PROPOSAL_MAX_SIDE_M_AUTONOMOUS). En yta kan ha hål (`rings`: yttre ringen
+ * först), och `subtract` klipper en yta mot andra ytor i kartan utan att några koordinater skickas.
  */
-export function runPropose(loaded: LoadedProjectMap, operations: readonly ProposalOperation[], now: Date)
+export function runPropose(loaded: LoadedProjectMap, operations: readonly ProposalOperation[], now: Date, maxSideM: number = PROPOSAL_MAX_SIDE_M)
   : { status: "ok"; edits: RevisionEdit[] } | { status: "invalid"; errors: string[] } {
   const errors: string[] = [];
   if (operations.length === 0 || operations.length > PROPOSAL_MAX_OPERATIONS) {
@@ -328,6 +354,21 @@ export function runPropose(loaded: LoadedProjectMap, operations: readonly Propos
   const edits: RevisionEdit[] = [];
   const touched: MapObject[] = [];
   const used = new Set<string>();
+  // Objektets form ur operationen: `points` (en ring för ytor), eller `rings` för en yta med hål.
+  const shaped = (kind: "point" | "line" | "area", symbol: string, operation: { points?: readonly Pair[] | undefined; rings?: readonly (readonly Pair[])[] | undefined },
+    where: string): MapObject | undefined => {
+    if (operation.points && operation.rings) { errors.push(`${where}: ange points eller rings, inte båda`); return undefined; }
+    if (operation.rings) {
+      if (kind !== "area") { errors.push(`${where}: rings gäller bara ytor`); return undefined; }
+      const rings = operation.rings.map(ring => newObject("area", symbol, ring.map(([x, y]) => ({ x, y }))));
+      const first = rings[0];
+      if (!first || first.kind !== "area" || rings.some(ring => !ring)) { errors.push(`${where}: för få punkter i en ring`); return undefined; }
+      return { ...first, rings: rings.flatMap(ring => ring && ring.kind === "area" ? ring.rings : []) };
+    }
+    const object = operation.points ? newObject(kind, symbol, operation.points.map(([x, y]) => ({ x, y }))) : undefined;
+    if (!object) errors.push(`${where}: för få punkter för en ${kind === "area" ? "yta" : kind === "line" ? "linje" : "punkt"}`);
+    return object;
+  };
   operations.forEach((operation, number) => {
     const where = `Operation ${number + 1} (${operation.op})`;
     if (operation.op === "add") {
@@ -335,8 +376,8 @@ export function runPropose(loaded: LoadedProjectMap, operations: readonly Propos
       if (!symbol) { errors.push(`${where}: symbolen ${operation.symbol} finns inte i kartan`); return; }
       const kind = symbolObjectKind(loaded.base, symbol);
       if (kind === "text") { errors.push(`${where}: texter kan inte föreslås än`); return; }
-      const object = newObject(kind, symbol.id, operation.points.map(([x, y]) => ({ x, y })));
-      if (!object) { errors.push(`${where}: för få punkter för en ${kind === "area" ? "yta" : kind === "line" ? "linje" : "punkt"}`); return; }
+      const object = shaped(kind, symbol.id, operation, where);
+      if (!object) return;
       const placed = object.kind === "point" && operation.angle ? { ...object, angle: operation.angle } : object;
       touched.push(placed);
       edits.push({ editId: randomUUID(), key: newKey(randomUUID()), ref: null, base: null, kind: "ADD", state: { kind: "OBJECT", object: placed }, at });
@@ -359,6 +400,28 @@ export function runPropose(loaded: LoadedProjectMap, operations: readonly Propos
       edits.push({ ...common, kind: "DELETE", state: { kind: "DELETED" }, point: { x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 } });
       return;
     }
+    if (operation.op === "subtract") {
+      if (current.kind !== "area") { errors.push(`${where}: bara ytor kan klippas`); return; }
+      const cutters: Extract<MapObject, { kind: "area" }>[] = [];
+      for (const key of operation.by) {
+        const other = key === operation.key ? undefined : loaded.objects[index.get(key) ?? -1];
+        if (!other || other.kind !== "area") { errors.push(`${where}: ${key} finns inte eller är ingen yta`); return; }
+        cutters.push(other);
+        touched.push(other);
+      }
+      const pieces = areaMinus(current, cutters);
+      if (!pieces) { errors.push(`${where}: klippningen gick inte att räkna`); return; }
+      if (pieces.length === 0) {
+        const box = objectBox(current);
+        edits.push({ ...common, kind: "DELETE", state: { kind: "DELETED" }, point: { x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 } });
+        return;
+      }
+      edits.push({ ...common, kind: "RESHAPE", state: { kind: "OBJECT", object: pieces[0]! } });
+      for (const piece of pieces.slice(1)) {
+        edits.push({ editId: randomUUID(), key: newKey(randomUUID()), ref: null, base: null, kind: "ADD", state: { kind: "OBJECT", object: piece }, at });
+      }
+      return;
+    }
     if (operation.op === "move") next = translate(current, operation.dx, operation.dy);
     else if (operation.op === "change_symbol") {
       const symbol = loaded.symbolsByCode.get(operation.symbol);
@@ -367,17 +430,18 @@ export function runPropose(loaded: LoadedProjectMap, operations: readonly Propos
       next = withSymbol(current, symbol.id);
     } else {
       if (current.kind === "text") { errors.push(`${where}: texter kan inte formas om`); return; }
-      next = newObject(current.kind, current.symbol, operation.points.map(([x, y]) => ({ x, y })));
+      next = shaped(current.kind, current.symbol, operation, where);
       if (next && current.kind === "point" && next.kind === "point") next = { ...next, angle: current.angle };
-      if (!next) { errors.push(`${where}: för få punkter`); return; }
+      if (!next) return;
     }
     touched.push(next);
     edits.push({ ...common, kind: operation.op === "move" ? "MOVE" : operation.op === "change_symbol" ? "SYMBOL" : "RESHAPE", state: { kind: "OBJECT", object: next } });
   });
   const box = objectsBox(touched);
-  const limitMm = PROPOSAL_MAX_SIDE_M / metersPerMm(loaded.base);
+  const sideM = Math.min(MCP_PROPOSAL_MAX_SIDE_M_AUTONOMOUS, Math.max(PROPOSAL_MAX_SIDE_M, maxSideM));
+  const limitMm = sideM / metersPerMm(loaded.base);
   if (box && (box.maxX - box.minX > limitMm || box.maxY - box.minY > limitMm)) {
-    errors.push(`Förslaget täcker mer än ${PROPOSAL_MAX_SIDE_M} × ${PROPOSAL_MAX_SIDE_M} m; dela upp det`);
+    errors.push(`Förslaget täcker mer än ${sideM} × ${sideM} m; dela upp det`);
   }
   return errors.length > 0 ? { status: "invalid", errors } : { status: "ok", edits };
 }

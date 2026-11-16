@@ -12,6 +12,7 @@ import type { BaseMapJobRequest } from "./map-project-job-base-map";
 import { mapJobResultHead, mapJobResultPart, queueMapJob, reusableProjectJob, waitForMapJobState } from "./map-project-jobs";
 import { createMapProjectProposalAsAi } from "./map-project-proposals";
 import { fetchMapProjectOsmAsAi, mapSourceRuntimeFromEnvironment, type MapSourceRuntime } from "./map-project-sources";
+import { mcpText } from "./mcp-text";
 
 /**
  * Ägaren 2026-11-13 (etapp 2 av «AI:n tar fram ett kartblad själv»): AI-kopplingens verktyg apply_base_map lägger in
@@ -27,7 +28,7 @@ import { fetchMapProjectOsmAsAi, mapSourceRuntimeFromEnvironment, type MapSource
  */
 type Content = { type: "text"; text: string };
 type ToolResult = { content: Content[]; isError?: boolean };
-const text = (value: unknown): Content => ({ type: "text", text: typeof value === "string" ? value : JSON.stringify(value, null, 1) });
+const text = (value: unknown): Content => ({ type: "text", text: mcpText(value) });
 const toolError = (message: string): ToolResult => ({ content: [text(message)], isError: true });
 
 /** Så länge lägger ett anrop in omgångar; resten tas i nästa anrop. */

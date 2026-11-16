@@ -1,8 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { MCP_MAX_IMAGE_SIDE_PX, MCP_PROPOSAL_MAX_OPERATIONS, MCP_PROPOSAL_MAX_SIDE_M, MCP_TRAINING_RASTERS, mcpCreateMapProjectSchema, mcpToolInputSchemas } from "@o-tid/contracts";
+import {
+  MCP_MAX_IMAGE_SIDE_PX, MCP_OBJECTS_DEFAULT_POINTS, MCP_OBJECTS_MAX_POINTS, MCP_OBJECTS_MAX_POINTS_PER_OBJECT, MCP_PROPOSAL_MAX_OPERATIONS, MCP_PROPOSAL_MAX_SIDE_M,
+  MCP_PROPOSAL_MAX_SIDE_M_AUTONOMOUS, MCP_TRAINING_RASTERS, mcpCreateMapProjectSchema, mcpToolInputSchemas
+} from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { requireMapProjectForAccount } from "./map-project-access";
+import { aiGate, mapProjectAllows, requireMapProjectForAccount } from "./map-project-access";
 import { readGeoRaster } from "./map-project-geo-jobs";
 import { createMapProjectNewForAccount } from "./map-project-new";
 import { mapProjectAreaViews } from "./map-project-areas";
@@ -13,6 +16,7 @@ import { callMcpBaseMapTool, MCP_BASE_MAP_TOOL, type McpBaseMapOptions } from ".
 import { callMcpCourseTool, MCP_COURSE_TOOL_NAMES, MCP_COURSE_TOOLS } from "./mcp-course-setting";
 import { callMcpLaserTool, MCP_LASER_TOOL_NAMES, MCP_LASER_TOOLS, type McpLaserOptions } from "./mcp-laser";
 import type { OauthScope } from "./oauth";
+import { mcpText } from "./mcp-text";
 
 /**
  * ADR-0219 (K2): MCP-servern (Streamable HTTP utan sessioner; svaren är JSON). Verktygen ser och läser kartprojekten som
@@ -56,8 +60,11 @@ export const MCP_TOOLS = [
   { name: "training_raster", title: "Laserkörningens raster", description: "Träningsdata: ett raster (PNG; relief och skuggning är WebP från nyare körningar) ur projektets senaste klara laserkörning (eller job_id) med världsfilen som text. hojd = markens höjd i cm + 10 000 som 24 bitar (R·65536 + G·256 + B), fuktdjup = höjden över fuktstråket i steg om 2 cm (R) och lutningen i steg om 0,1° (B), vegetationsklasser = Karttapullautins klass (R), relief och skuggning = bilder. Ur punktmolnet (2 m): lasveg = vegetationens höjd i steg om 0,2 m (R), markträffarnas andel (G) och andelen 1–3 m (B); lasmark = andelen 0,3–1 m (R), markträffarnas intensitet / 64 (G) och spridning i cm (B); laskron = andelen över 3 m (R) och antal punkter (G).",
     inputSchema: { type: "object", properties: { ...projectId, name: { type: "string", enum: [...MCP_TRAINING_RASTERS] }, job_id: { type: "string" } }, required: ["project_id", "name"] },
     annotations: { readOnlyHint: true } },
-  { name: "list_objects", title: "Objekten i kartan", description: "Objekten (i ett område och/eller med vissa symbolnummer): nyckel, symbol, slag, omslutande ruta och förenklad geometri i kartans mm. Nyckeln används i propose_changes och render_view.",
+  { name: "list_objects", title: "Objekten i kartan", description: `Objekten (i ett område, med vissa symbolnummer och/eller vissa nycklar): nyckel, symbol, slag, omslutande ruta och geometri i kartans mm. Geometrin är glesad till högst ${MCP_OBJECTS_DEFAULT_POINTS} punkter per objekt (vertices säger hur många den har); be om hela med max_points (högst ${MCP_OBJECTS_MAX_POINTS_PER_OBJECT}) bara för de objekt som ska formas om, helst utpekade med keys. Ett svar har högst ${MCP_OBJECTS_MAX_POINTS} punkter; truncated och nextOffset säger att mer finns. brief: true utelämnar namn, ruta och ändrad-märke. För att klippa en yta mot andra ytor behövs ingen geometri alls: använd subtract i propose_changes. Nyckeln används i propose_changes och render_view.`,
     inputSchema: { type: "object", properties: { ...projectId, ...area, symbols: { type: "array", items: { type: "string" }, maxItems: 50 },
+      keys: { type: "array", items: { type: "string" }, maxItems: 100, description: "Bara de här objekten (nycklar ur ett tidigare svar)" },
+      max_points: { type: "integer", minimum: 2, maximum: MCP_OBJECTS_MAX_POINTS_PER_OBJECT, description: `Punkter per objekt (förval ${MCP_OBJECTS_DEFAULT_POINTS})` },
+      brief: { type: "boolean", description: "Kortare svar: bara nyckel, symbol, slag och geometri" },
       limit: { type: "integer", minimum: 1, maximum: 500 }, offset: { type: "integer", minimum: 0 } }, required: ["project_id"] }, annotations: { readOnlyHint: true } },
   { name: "norm_check", title: "Normkontroll", description: "Den grundläggande kontrollen (tomma objekt, dubbletter, okända symboler) och normkontrollen efter ISOM 2017-2 eller ISSprOM 2019-2 (kartans skala): kurvavstånd, korta linjer, små och tunna ytor, små knollar, passager och öppningar, med regel, mått, gräns och plats i kartans mm.",
     inputSchema: { type: "object", properties: { ...projectId, ...area }, required: ["project_id"] }, annotations: { readOnlyHint: true } },
@@ -68,11 +75,13 @@ export const MCP_TOOLS = [
   { name: "clear_built", title: "Städa tomtmark och annat bebyggt", description: `Städar det som redan ligger i kartan ur tomtmark (520), hårdgjord yta (501), byggnader (521) och skärmtak (522), med samma regel som när grundkartan läses in: punkthöjder, gropar, sten, berghäll, sankmark, diken och vegetation tas bort där, och ytor klipps mot kanten (en yta kan bli flera); kurvor, branter, vatten, vägar, stigar och hus står kvar. Behövs när tomter ritats eller hämtats efter att grundkartan lades in: berghäll, sankmark och prickraster ritas annars över olivgrönt. Utan propose räknas bara ändringarna fram (summary och de 300 första). Med propose: true lämnas de som ett förslag (högst ${MCP_PROPOSAL_MAX_OPERATIONS} ändringar; välj annars ett mindre område med area) som en ägare godkänner, eller införs direkt i läget AUTONOMOUS.`,
     inputSchema: { type: "object", properties: { ...projectId, ...area, propose: { type: "boolean" }, note: { type: "string", maxLength: 500 } }, required: ["project_id"] },
     annotations: { readOnlyHint: false, destructiveHint: false } },
-  { name: "propose_changes", title: "Föreslå ändringar", description: `Lämnar ett förslag som en ägare i O-Tid godkänner eller avvisar. Har ägaren satt projektet till självständigt AI-arbete (aiMode AUTONOMOUS i map_overview) införs ändringarna direkt. Högst ${MCP_PROPOSAL_MAX_OPERATIONS} operationer inom ${MCP_PROPOSAL_MAX_SIDE_M} × ${MCP_PROPOSAL_MAX_SIDE_M} m. Operationer: add (symbol och punkter; en punkt för punktsymboler, minst tre för ytor), move (key, dx, dy i mm), reshape (key och nya punkter, raka sträckor), change_symbol (key och symbol) och delete (key). Skriv en kort motivering i note.`,
+  { name: "propose_changes", title: "Föreslå ändringar", description: `Lämnar ett förslag som en ägare i O-Tid godkänner eller avvisar. Har ägaren satt projektet till självständigt AI-arbete (aiMode AUTONOMOUS i map_overview) införs ändringarna direkt. Högst ${MCP_PROPOSAL_MAX_OPERATIONS} operationer inom ${MCP_PROPOSAL_MAX_SIDE_M} × ${MCP_PROPOSAL_MAX_SIDE_M} m; i läget AUTONOMOUS, när kontot självt får ändra kartan, inom ${MCP_PROPOSAL_MAX_SIDE_M_AUTONOMOUS} × ${MCP_PROPOSAL_MAX_SIDE_M_AUTONOMOUS} m. Operationer: add (symbol och points; en punkt för punktsymboler, minst tre för ytor; en yta med hål anges med rings, yttre ringen först), move (key, dx, dy i mm), reshape (key och nya points eller rings, raka sträckor), change_symbol (key och symbol), delete (key) och subtract (key och by: nycklar till andra ytor; ytan klipps mot dem på servern utan att koordinater skickas, flera delar blir flera objekt och en helt täckt yta tas bort). Välj subtract, move, change_symbol och delete före reshape när det går: de kräver ingen geometri. Skriv en kort motivering i note.`,
     inputSchema: { type: "object", properties: { ...projectId, note: { type: "string", maxLength: 500, description: "Motivering som visas för den som granskar" },
       operations: { type: "array", minItems: 1, maxItems: MCP_PROPOSAL_MAX_OPERATIONS, items: { type: "object", properties: {
-        op: { type: "string", enum: ["add", "move", "reshape", "change_symbol", "delete"] }, key: { type: "string" }, symbol: { type: "string" },
-        points, dx: { type: "number" }, dy: { type: "number" }, angle: { type: "number" } }, required: ["op"] } } },
+        op: { type: "string", enum: ["add", "move", "reshape", "change_symbol", "delete", "subtract"] }, key: { type: "string" }, symbol: { type: "string" },
+        points, rings: { type: "array", items: points, description: "En yta med hål: yttre ringen först, sedan hålen" },
+        by: { type: "array", items: { type: "string" }, maxItems: 50, description: "subtract: nycklar till ytorna som klipper" },
+        dx: { type: "number" }, dy: { type: "number" }, angle: { type: "number" } }, required: ["op"] } } },
       required: ["project_id", "note", "operations"] }, annotations: { readOnlyHint: false, destructiveHint: false } },
   ...MCP_LASER_TOOLS,
   MCP_BASE_MAP_TOOL
@@ -80,7 +89,7 @@ export const MCP_TOOLS = [
 
 const inputs = mcpToolInputSchemas;
 
-const text = (value: unknown): Content => ({ type: "text", text: typeof value === "string" ? value : JSON.stringify(value, null, 1) });
+const text = (value: unknown): Content => ({ type: "text", text: mcpText(value) });
 const toolError = (message: string): ToolResult => ({ content: [text(message)], isError: true });
 
 function jobFailure(outcome: Exclude<MapJobOutcome, { status: "done" }>): ToolResult {
@@ -167,7 +176,8 @@ export async function callMcpTool(db: Database, accountId: string, name: string,
       return { content: [{ type: "image", data: raster.png.toString("base64"), mimeType: raster.mediaType }, text({ jobId: raster.jobId, name: input.name, worldFile: raster.world })] };
     }
     case "list_objects": {
-      const outcome = await job(db, accountId, input.project_id, "OBJECTS", strip({ area: input.area, symbols: input.symbols, limit: input.limit, offset: input.offset }), wait);
+      const outcome = await job(db, accountId, input.project_id, "OBJECTS", strip({ area: input.area, symbols: input.symbols, limit: input.limit, offset: input.offset,
+        keys: input.keys, maxPoints: input.max_points, brief: input.brief }), wait);
       return outcome.status === "done" ? { content: [text(outcome.result)] } : jobFailure(outcome);
     }
     case "norm_check": {
@@ -198,7 +208,11 @@ export async function callMcpTool(db: Database, accountId: string, name: string,
       return { content: [text({ summary: result.summary, proposalId: created.proposal.proposalId, changes: created.proposal.edits.length, ...outcomeOf(created) })] };
     }
     case "propose_changes": {
-      const outcome = await job(db, accountId, input.project_id, "PROPOSE", { operations: input.operations }, wait);
+      // I läget självständigt, när kontot självt får ändra kartan, får ett anrop täcka mer (ägaren 2026-11-16).
+      const gate = await db.transaction(tx => aiGate(accountId, input.project_id, new Date())(tx, "propose", false));
+      const direct = gate.status === "ok" && gate.project.aiMode === "AUTONOMOUS" && mapProjectAllows(gate.role, gate.project, "edit");
+      const outcome = await job(db, accountId, input.project_id, "PROPOSE", { operations: input.operations,
+        maxSideM: direct ? MCP_PROPOSAL_MAX_SIDE_M_AUTONOMOUS : MCP_PROPOSAL_MAX_SIDE_M }, wait);
       if (outcome.status !== "done") return jobFailure(outcome);
       const result = outcome.result as { edits?: unknown[]; errors?: string[] };
       if (result.errors) return toolError(`Förslaget lämnades inte:\n- ${result.errors.join("\n- ")}`);

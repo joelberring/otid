@@ -10,6 +10,7 @@ import { createGeoJobAsAi, findGeoVectorOutput, listGeoJobsForAccount } from "./
 import { runMapJobAndWait, type MapJobOutcome } from "./map-project-jobs";
 import { lantmaterietRuntimeFromEnvironment } from "./map-project-lantmateriet";
 import { laserRuntimeFromEnvironment, searchMapProjectLaserAsAi, type LaserRuntime } from "./map-project-laser";
+import { mcpText } from "./mcp-text";
 
 /**
  * Ägaren 2026-11-13 (etapp 1 av «AI:n tar fram ett kartblad själv»): AI-kopplingens verktyg för laserkörningar. Jobben
@@ -19,7 +20,7 @@ import { laserRuntimeFromEnvironment, searchMapProjectLaserAsAi, type LaserRunti
  */
 type Content = { type: "text"; text: string };
 type ToolResult = { content: Content[]; isError?: boolean };
-const text = (value: unknown): Content => ({ type: "text", text: typeof value === "string" ? value : JSON.stringify(value, null, 1) });
+const text = (value: unknown): Content => ({ type: "text", text: mcpText(value) });
 const toolError = (message: string): ToolResult => ({ content: [text(message)], isError: true });
 
 const projectId = { project_id: { type: "string", description: "Kartprojektets id (från list_map_projects)" } };

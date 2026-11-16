@@ -13,6 +13,13 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-16 – AI-kopplingen: större ändringar och snålare svar (tillägg i ADR-0219)
+- Ägaren 2026-11-16: «stärka ai-kopplingen så att du får göra större ändringar», «se över så att det inte drar för mycket».
+- `propose_changes`: 3 × 3 km i läget AUTONOMOUS (500 m för förslag), ytor med hål (`rings`) och `subtract` (klipp en yta mot andra ytor utan koordinater).
+- `list_objects`: `keys`, `max_points` (hela geometrin på begäran, högst 2 000 per objekt och 6 000 per svar) och `brief`.
+- Alla verktygssvar skrivs med koordinater på en rad (`mcp-text.ts`): ett svar med geometri blir mindre än hälften så långt.
+- Verifierat: enhetstester (`mcp-larger-changes.test.ts`), integrationstester (adr-0219-ai, adr-0219-ai-base-map), typkontroll, lint.
+
 ### 2026-11-16 – AI-kopplingen: byt ut ett tema ur grundkartan och städa det bebyggda (tillägg i ADR-0219)
 - Ägaren 2026-11-16 (Järflotta): «fylla det hav som saknas på västra delen» och «det som lyser över fel på tomtmark».
 - `apply_base_map` har `symbols` (bara de symbolnumren läggs in) och `replace` (kartans objekt med samma symbolnummer tas bort i samma steg; då behövs inte `again`). Svaret har `replaced`.

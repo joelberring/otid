@@ -214,7 +214,7 @@ export async function runMapJob(db: Database, job: ClaimedMapJob, deps: { worker
     case "CHECK": output = { result: { ...runCheck(loaded, request), norm: runNormCheck(loaded, request.area as Box | undefined) } }; break;
     case "GENERALIZE": output = { result: runGeneralizeJob(loaded, request as GeneralizeJobRequest, now) }; break;
     case "PROPOSE": {
-      const proposed = runPropose(loaded, (request.operations ?? []) as ProposalOperation[], now);
+      const proposed = runPropose(loaded, (request.operations ?? []) as ProposalOperation[], now, typeof request.maxSideM === "number" ? request.maxSideM : undefined);
       output = proposed.status === "ok" ? { result: { edits: proposed.edits } } : { result: { errors: proposed.errors } };
       break;
     }

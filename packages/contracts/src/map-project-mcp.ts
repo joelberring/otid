@@ -7,6 +7,16 @@ import { z } from "zod";
 export const MCP_MAX_IMAGE_SIDE_PX = 1600;
 export const MCP_PROPOSAL_MAX_OPERATIONS = 200;
 export const MCP_PROPOSAL_MAX_SIDE_M = 500;
+/**
+ * Ägaren 2026-11-16 («stärka AI-kopplingen så att du får göra större ändringar», «se över så att det inte drar för mycket»):
+ * i läget självständigt (AUTONOMOUS, när kontot självt får ändra kartan) får ett anrop täcka så mycket; förslag som en människa
+ * ska granska håller sig inom 500 m. list_objects ger hela geometrin först på begäran (max_points), högst så många punkter
+ * per objekt och i hela svaret, så att ett svar inte blir större än det som frågades efter.
+ */
+export const MCP_PROPOSAL_MAX_SIDE_M_AUTONOMOUS = 3000;
+export const MCP_OBJECTS_DEFAULT_POINTS = 40;
+export const MCP_OBJECTS_MAX_POINTS_PER_OBJECT = 2000;
+export const MCP_OBJECTS_MAX_POINTS = 6000;
 /** Laserkörningens raster som kan hämtas som träningsdata (jobbets filer `<namn>.png` och `<namn>.pgw`). */
 export const MCP_TRAINING_RASTERS = ["hojd", "fuktdjup", "vegetationsklasser", "relief", "skuggning", "lasveg", "lasmark", "laskron"] as const;
 
@@ -30,11 +40,15 @@ const idSchema = z.string().uuid();
 const keySchema = z.string().min(3).max(300);
 const codeSchema = z.string().min(1).max(12);
 const pointsSchema = z.array(z.tuple([z.number().finite(), z.number().finite()])).min(1).max(2000);
+/** En yta med hål: yttre ringen först, sedan hålen. */
+const ringsSchema = z.array(z.array(z.tuple([z.number().finite(), z.number().finite()])).min(3).max(2000)).min(1).max(200);
 
 export const mcpProposalOperationSchema = z.discriminatedUnion("op", [
-  z.object({ op: z.literal("add"), symbol: codeSchema, points: pointsSchema, angle: z.number().finite().optional() }),
+  z.object({ op: z.literal("add"), symbol: codeSchema, points: pointsSchema.optional(), rings: ringsSchema.optional(), angle: z.number().finite().optional() }),
   z.object({ op: z.literal("move"), key: keySchema, dx: z.number().finite(), dy: z.number().finite() }),
-  z.object({ op: z.literal("reshape"), key: keySchema, points: pointsSchema }),
+  z.object({ op: z.literal("reshape"), key: keySchema, points: pointsSchema.optional(), rings: ringsSchema.optional() }),
+  // Klipp en yta mot andra ytor i kartan utan att skicka några koordinater (delarna som blir kvar; flera delar blir flera objekt).
+  z.object({ op: z.literal("subtract"), key: keySchema, by: z.array(keySchema).min(1).max(50) }),
   z.object({ op: z.literal("change_symbol"), key: keySchema, symbol: codeSchema }),
   z.object({ op: z.literal("delete"), key: keySchema })
 ]);
@@ -53,7 +67,9 @@ export const mcpToolInputSchemas = {
     cell: z.number().min(0.5).max(10).optional() }).refine(box => box.max_e > box.min_e && box.max_n > box.min_n, "max ska vara större än min"),
   training_raster: z.object({ project_id: idSchema, name: z.enum(MCP_TRAINING_RASTERS), job_id: idSchema.optional() }),
   list_objects: z.object({ project_id: idSchema, area: boxSchema.optional(), symbols: z.array(codeSchema).max(50).optional(),
-    limit: z.number().int().min(1).max(500).optional(), offset: z.number().int().min(0).optional() }),
+    limit: z.number().int().min(1).max(500).optional(), offset: z.number().int().min(0).optional(),
+    keys: z.array(keySchema).min(1).max(100).optional(), max_points: z.number().int().min(2).max(MCP_OBJECTS_MAX_POINTS_PER_OBJECT).optional(),
+    brief: z.boolean().optional() }),
   // Ägaren 2026-11-13: AI-kopplingen startar och läser laserkörningar (etapp 1 av «AI:n tar fram ett kartblad»).
   list_laser_jobs: z.object({ project_id: idSchema }),
   start_laser_job: z.object({ project_id: idSchema, area_id: idSchema.optional(), name: z.string().trim().min(1).max(80).optional(),

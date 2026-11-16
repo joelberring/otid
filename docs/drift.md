@@ -962,6 +962,8 @@ O-Tid är inloggningsserver (OAuth 2.1) och MCP-server för Claude med personens
   tillsammans, annars en etapp i taget. Med `symbols` läggs bara de symbolnumren in och med `replace` tas kartans objekt med
   samma symbolnummer bort i samma steg (t.ex. vatten och strandlinje när kartans område vuxit). `clear_built` städar det som
   redan ligger i kartan ur tomtmark, hårdgjord yta, hus och skärmtak (regeln som gäller när grundkartan läses in).
+  `propose_changes` får i läget AUTONOMOUS täcka 3 × 3 km (annars 500 × 500 m), tar ytor med hål (`rings`) och kan klippa en
+  yta mot andra (`subtract`); `list_objects` ger hela geometrin först med `max_points`. Svaren skrivs med koordinater på en rad.
 - **Var det körs:** webben (`web`) tar emot anropen och använder publikens databaspool; bilder, objektlistor, kontroller
   och laserverktygens omräkning till kartans mm (kartjobben `LASER_AREA` och `LASER_OUTPUT`; webben skickar med etappens
   polygon och filens innehållsnyckel, så `otid_print` behöver inga nya rättigheter) görs som kartjobb av `print-worker` (lägsta prioritet, barnprocess per jobb, `OTID_MAP_JOB_TIMEOUT_MS` förval 60000,

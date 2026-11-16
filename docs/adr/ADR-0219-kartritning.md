@@ -671,3 +671,19 @@ kartritare för att kunna göra medvetna generaliseringar».
   när grundkartan läses in (`maskBuilt`): tomter som kommit till efteråt, t.ex. ur fastighetsindelningen, fick annars behålla
   berghäll, sankmark och punkthöjder, som ritas över olivgrönt. Kartjobbet är GENERALIZE med `clearBuilt`, så ingen ny jobbtyp.
 
+## Tillägg 2026-11-16: större ändringar genom AI-kopplingen, utan att den drar mer än den behöver
+
+Ägaren: «ska vi stärka ai-kopplingen så att du får göra större ändringar» och «se över så att det inte drar för mycket».
+
+- **Större ändringar bara i läget självständigt.** `propose_changes` får täcka 3 × 3 km när projektet är satt till AUTONOMOUS
+  och kontot självt får ändra kartan; förslag som en människa ska granska håller sig inom 500 × 500 m. Allt står i historiken
+  som godkända AI-förslag och går att ångra som förut.
+- **Ytor med hål** (`rings`, yttre ringen först) i `add` och `reshape`.
+- **Hellre peka än skicka koordinater.** `subtract` klipper en yta mot andra ytor på servern; `clear_built` och
+  `apply_base_map` med `symbols` och `replace` gör hela teman. Verktygens beskrivningar säger att de ska väljas före `reshape`.
+- **Geometri på begäran.** `list_objects` glesar som förut till 40 punkter per objekt; `max_points` (högst 2 000) ger hela
+  geometrin, `keys` pekar ut objekten och `brief` utelämnar namn, ruta och ändrad-märke. Ett svar har högst 6 000 punkter och
+  säger var nästa anrop fortsätter.
+- **Kompakta svar.** Verktygens JSON skrivs med tal och koordinatpar på en rad (`mcp-text.ts`). Med vanlig indragning tog
+  varje koordinat tre–fyra rader; ett svar med geometri blir nu mindre än hälften så långt.
+

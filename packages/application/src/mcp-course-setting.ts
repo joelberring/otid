@@ -8,6 +8,7 @@ import { schema, type Database } from "@o-tid/database";
 import { requireCourseSettingForAccount, type CourseSettingRequirement } from "./course-setting-access";
 import { insertCourseSettingNote } from "./course-setting-notes";
 import { reusableRaceJob, runMapJobAndWait, waitForMapJob } from "./map-project-jobs";
+import { mcpText } from "./mcp-text";
 type JobWaitOptions = { timeoutMs?: number; pollMs?: number };
 
 /**
@@ -18,7 +19,7 @@ type JobWaitOptions = { timeoutMs?: number; pollMs?: number };
  */
 type Content = { type: "text"; text: string } | { type: "image"; data: string; mimeType: "image/png" };
 type ToolResult = { content: Content[]; isError?: boolean };
-const text = (value: unknown): Content => ({ type: "text", text: typeof value === "string" ? value : JSON.stringify(value, null, 1) });
+const text = (value: unknown): Content => ({ type: "text", text: mcpText(value) });
 const toolError = (message: string): ToolResult => ({ content: [text(message)], isError: true });
 const round = (value: number, digits = 0) => Math.round(value * 10 ** digits) / 10 ** digits;
 /** Notisens text börjar med det här, så att banläggaren ser att den kommer från AI-kopplingen. */

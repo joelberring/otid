@@ -27,9 +27,7 @@ const config: CapacitorConfig = {
     errorPath: "index.html",
     // Okrypterat bara för provkörning mot en lokal server.
     cleartext: serverUrl.protocol === "http:"
-  },
-  // Sidan börjar under klockan och kameran i stället för bakom dem (webben har ingen egen marginal för det).
-  ios: { contentInset: "always" }
+  }
 };
 
 export default config;

@@ -120,6 +120,7 @@ export function BingoRunner({ raceId, mode, title, groups, georeference, mapScal
         </p>
         {bingo.gapNotice && <p className={styles.gap} role="alert">{text.gap(formatBingoGap(bingo.gapNotice, run.startedAt))}</p>}
         {bingo.wakeLockFailed && <p className={styles.gap}>{text.wakeLockFailed}</p>}
+        {bingo.restartGps && <button type="button" className={styles.fire} onClick={bingo.restartGps} data-testid="bingo-restart-gps">{text.restartGps}</button>}
         <BingoCard group={group} taken={taken} dark label={text.result(taken.size, group.cells.length)} />
       </>}
       {bingo.resumed && <p className={styles.gap}>{text.resumed}</p>}

@@ -124,11 +124,12 @@ export function VirtualRunner({ raceId, title, courses, settings, georeference, 
       </div>
       {message && <p className={styles.notice} role="alert" data-testid="virtual-message">{message}</p>}
       {virtual.problem && <p className={styles.gap} role="alert">{text[virtual.problem]}</p>}
+      {virtual.restartGps && <button type="button" className={styles.fire} onClick={virtual.restartGps} data-testid="bingo-restart-gps">{text.restartGps}</button>}
       <VirtualControlsView course={view} states={states} dark label={vk.legend} />
       <p className={styles.status}>{vk.legend}</p>
       {settings.punch === "BUTTON" ? virtual.stamping ? <p className={styles.status} role="status">{vk.stamping}</p>
         : <button type="button" className={styles.fire} onClick={() => void virtual.stamp()} data-testid="virtual-stamp">{vk.stamp}</button>
-        : <p className={styles.status}>{vk.auto}</p>}
+        : <p className={styles.status}>{virtual.inApp ? vk.autoApp : vk.auto}</p>}
       <p className={virtual.gps.ready ? styles.gpsOk : styles.status} role="status">
         {virtual.gps.accuracy !== undefined ? text.gps(virtual.gps.accuracy) : text.waitingGps} · {unsent ? text.unsent : text.saved}</p>
       {virtual.storageFailed && <p className={styles.gap} role="alert">{text.storageFailed}</p>}

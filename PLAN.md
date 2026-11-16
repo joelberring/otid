@@ -1459,6 +1459,10 @@ aktivitet om andra deltagare syns, med eller utan karta. Barns positioner syns b
 vårdnadshavarens samtycke och automatisk radering. Kräver en ADR före A1.
 
 - [ ] A1 Appen och bakgrunds-GPS (Bingo, Sänka skepp och virtuella kontroller med låst skärm; lokal kö med kvittens).
+  ADR-0227 och ägarens beslut i `claude/plan-app-beslut-2026-11-16.md`. Skrivet 2026-11-16: `apps/mobile` (Capacitor, modulen
+  `OTidTracking` för Android och iOS) och webbens väg genom appen i Bingo och virtuella kontroller. Kvar: bygga på ägarens
+  dator och prova på telefoner enligt `docs/app.md`, deltagarvyn sparad i telefonen (start utan nät), sluttid på
+  arrangemanget för maxtiden, Googles stängda test.
 - [ ] A2 Ledarens karta, kvar i skogen med senaste position, larm, "kontakta ledaren" och "jag behöver hjälp"; samtycke och radering.
 - [ ] A3 Arrangörens val för deltagarvyn (karta, egen position, andra deltagare med eller utan karta).
 - [ ] A4 Live på tävling med fördröjning för publik och speaker, per klass.

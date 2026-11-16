@@ -13,6 +13,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-16 – O-Tid som app, första bygget (steg A1, ADR-0227)
+
+- Ägaren: en riktig app så att GPS:en går med låst skärm. Beslut: skal runt webben som laddas från servern, personligt utvecklarkonto, inget sms, deltagaren väljer delning (A2–A3), maxtid för spårningen.
+- `apps/mobile`: Capacitor 8.6.2 för iOS och Android och den inbyggda modulen `OTidTracking` (förgrundstjänst på Android, «När appen används» på iOS, journal på disk, automatiskt stopp, `post`, `signal`). Bygge och provlista i `docs/app.md`.
+- Webben: positionskälla med två vägar (`lib/position-source.ts`, `lib/otid-tracking.ts`, `use-app-tracking.ts`). I appen räknas Bingo och virtuella kontroller ur appens journal, läget skickas med appens `post` och plinget går genom appen. I webbläsaren samma anrop som förut.
+- Kontrollerat: enhetstester för uppspelningen ur journalen och bryggan, alla enhetstester, lint, typecheck, knip. **Inte byggt och inte provat:** Kotlin och Swift är aldrig kompilerade, inget är kört på en telefon, och webbläsarens väg är inte provad i en webbläsare efter ändringen. Stödet är `untested`.
+- Återstår i A1: bygga och prova på telefoner, deltagarvyn sparad i telefonen, sluttid på arrangemanget (maxtiden är nu fyra timmar efter start), texten «Lås inte telefonen» i appen. Idé: stäng av spårningen mellan stämplingarna i appen när stämplingen sker med knapp.
+
 ### 2026-11-16 – QR-kod och länk i layouten (tillägg 13 i ADR-0197)
 
 - Ägaren: «Lägg till QR-kod» bland papperets element i Layout. Leder till tävlingens sida (förval), bingons anmälan när bingon med telefonen är på, O-Tid eller en egen https-adress; storlek 15–100 mm (förval 25), adressen kort under (kan ändras eller tas bort). Placeras i ett hörn av papperet som är fritt från kartan, annars nere till höger i kartramen; flyttas och ändrar storlek som andra element.

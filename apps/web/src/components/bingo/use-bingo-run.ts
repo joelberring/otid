@@ -4,14 +4,20 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { bingoProgressResponseSchema, type BingoGroup, type BingoMode } from "@o-tid/contracts";
 import { bingoStep, chooseShotFix, SHIP_RULES, type BingoRunState } from "@o-tid/domain";
 import { wgs84ToMapPoint, type MapGeoreference } from "@o-tid/map-file";
+import { bingoEn } from "../../i18n/bingo-en";
+import { bingoSv } from "../../i18n/bingo-sv";
 import { metersPerMm } from "../../lib/course-setting-geo";
 import { bingoProgressRequest, newBingoRun, readBingoRun, saveBingoRun, type StoredBingoRun } from "../../lib/bingo-run";
+import { postThroughApp, trackingBridge } from "../../lib/otid-tracking";
+import { browserPositionSource, type PositionFix, type PositionProblem } from "../../lib/position-source";
 import { ReadoutSound } from "../../readout/sound";
+import { useTexts } from "../language-provider";
+import { pingOk, useAppTracking } from "./use-app-tracking";
 
 const SYNC_MS = 10_000;
 const GAP_MS = 30_000;
 
-export type GpsProblem = "insecure" | "noGeolocation" | "denied" | "positionFailed" | "noGeoreference";
+export type GpsProblem = "insecure" | "noGeolocation" | "noGeoreference" | PositionProblem;
 
 type WakeLockSentinelLike = { release: () => Promise<void>; released?: boolean };
 type WakeLockNavigator = Navigator & { wakeLock?: { request: (type: "screen") => Promise<WakeLockSentinelLike> } };
@@ -23,6 +29,10 @@ const changed = (a: BingoRunState, b: BingoRunState) => a.taken !== b.taken || a
  * Loppet i telefonen (ADR-0225): anmälan, GPS (`watchPosition` med hög noggrannhet), reglerna i `bingoStep`, plinget, Wake
  * Lock och kön mot servern. Loppet sparas i localStorage vid varje ändring och skickas helt var tionde sekund tills servern
  * kvitterat den senaste versionen. Positionerna räknas bara medan sidan syns; ett uppehåll blir ett glapp.
+ *
+ * I O-Tids app (ADR-0227, läget Bingo) kommer positionerna från appens journal i stället: ingen Wake Lock, punkterna räknas
+ * även när sidan inte syns (uppspelade när den syns igen), positionens tid är punktens `t`, läget skickas med appens `post`
+ * och plinget går genom appen. I webbläsaren är allt som förut.
  */
 export function useBingoRun({ raceId, mode, groups, georeference, mapScale }: {
   raceId: string; mode: BingoMode; groups: readonly BingoGroup[]; georeference: MapGeoreference | null; mapScale: number;
@@ -41,6 +51,8 @@ export function useBingoRun({ raceId, mode, groups, georeference, mapScale }: {
   const wakeLock = useRef<WakeLockSentinelLike | undefined>(undefined);
   const hiddenAt = useRef<number | undefined>(undefined);
   const sending = useRef(false);
+  const lastSent = useRef(0);
+  const appNotice = useTexts(bingoSv.runner, bingoEn.runner).appNotice.BINGO;
 
   const commit = useCallback((next: StoredBingoRun, persist: boolean) => {
     runRef.current = next;
@@ -56,6 +68,8 @@ export function useBingoRun({ raceId, mode, groups, georeference, mapScale }: {
   // Sänka skepp: ingen kontinuerlig GPS och ingen Wake Lock (telefonen får vara låst mellan skotten).
   const tracking = running && mode === "BINGO";
   const group = run ? groups.find(item => item.course === run.group) : undefined;
+  const app = useAppTracking(run, mode === "BINGO", appNotice);
+  const { watch: watchApp, attempt: appAttempt } = app;
 
   // Skärmen tänd (Wake Lock) medan loppet pågår; tas igen när sidan syns på nytt.
   const lockScreen = useCallback(async () => {
@@ -69,6 +83,8 @@ export function useBingoRun({ raceId, mode, groups, georeference, mapScale }: {
   }, []);
   useEffect(() => {
     if (!tracking) { void wakeLock.current?.release().catch(() => undefined); wakeLock.current = undefined; return; }
+    // I appen räknas positionerna med låst skärm: ingen Wake Lock och inget glapp för en dold sida.
+    if (trackingBridge()) return;
     void lockScreen();
     const visibility = () => {
       if (document.visibilityState === "hidden") { hiddenAt.current = Date.now(); return; }
@@ -82,47 +98,26 @@ export function useBingoRun({ raceId, mode, groups, georeference, mapScale }: {
     return () => document.removeEventListener("visibilitychange", visibility);
   }, [tracking, lockScreen]);
 
-  // GPS medan loppet pågår.
-  useEffect(() => {
-    if (!tracking || !group) return;
-    if (!georeference) { setProblem("noGeoreference"); return; }
-    if (!window.isSecureContext) { setProblem("insecure"); return; }
-    if (!("geolocation" in navigator)) { setProblem("noGeolocation"); return; }
-    const perMm = metersPerMm(georeference, mapScale);
-    const id = navigator.geolocation.watchPosition(position => {
-      const current = runRef.current;
-      if (!current || current.status !== "RUNNING") return;
-      let at;
-      try { at = wgs84ToMapPoint(georeference, { latitude: position.coords.latitude, longitude: position.coords.longitude }); }
-      catch (error) { console.error("Positionen kunde inte räknas om till kartan", error); setProblem("noGeoreference"); return; }
-      setProblem(undefined);
-      setAccuracy(Math.round(position.coords.accuracy));
-      const step = bingoStep(current.run, { x: at.x, y: at.y, accuracyM: position.coords.accuracy, t: position.timestamp || Date.now() },
-        group.cells, perMm);
-      const persist = changed(current.run, step.state);
-      commit({ ...current, run: step.state, version: persist ? current.version + 1 : current.version }, persist);
-      if (step.newlyTaken.length > 0) {
-        sound.current.play("ok");
-        try { navigator.vibrate?.([120, 60, 120]); } catch { /* vibration finns inte i alla webbläsare (iPhone) */ }
-        setLastTaken({ cell: step.newlyTaken[step.newlyTaken.length - 1]!, at: Date.now() });
-      }
-    }, failure => setProblem(failure.code === failure.PERMISSION_DENIED ? "denied" : "positionFailed"),
-    { enableHighAccuracy: true, maximumAge: 0, timeout: 30_000 });
-    return () => navigator.geolocation.clearWatch(id);
-  }, [tracking, group, georeference, mapScale, commit]);
-
   // Kön mot servern: hela läget tills den senaste versionen är kvitterad.
   const sync = useCallback(async () => {
     const current = runRef.current;
     if (!current || current.acked >= current.version || sending.current) return;
     sending.current = true;
+    lastSent.current = Date.now();
     const version = current.version;
     try {
-      const controller = new AbortController();
-      const timer = window.setTimeout(() => controller.abort(), 15_000);
-      const response = await fetch(`/api/public/races/${encodeURIComponent(raceId)}/bingo`, { method: "POST", credentials: "same-origin",
-        headers: { "content-type": "application/json" }, body: JSON.stringify(bingoProgressRequest(current)), signal: controller.signal })
-        .finally(() => window.clearTimeout(timer));
+      const path = `/api/public/races/${encodeURIComponent(raceId)}/bingo`;
+      const post = trackingBridge()?.post;
+      let response: Response;
+      // I appen genom `post` (Android stryper webbvyns egna nätanrop i bakgrunden); samma adress, body och kvitto.
+      if (post) response = await postThroughApp(post, path, JSON.stringify(bingoProgressRequest(current)), 15_000);
+      else {
+        const controller = new AbortController();
+        const timer = window.setTimeout(() => controller.abort(), 15_000);
+        response = await fetch(path, { method: "POST", credentials: "same-origin",
+          headers: { "content-type": "application/json" }, body: JSON.stringify(bingoProgressRequest(current)), signal: controller.signal })
+          .finally(() => window.clearTimeout(timer));
+      }
       if (!response.ok) { console.warn("Bingons läge togs inte emot", response.status); setSyncProblem(true); return; }
       const receipt = bingoProgressResponseSchema.parse(await response.json());
       const latest = runRef.current;
@@ -137,6 +132,48 @@ export function useBingoRun({ raceId, mode, groups, georeference, mapScale }: {
       setSyncProblem(true);
     } finally { sending.current = false; }
   }, [raceId, commit]);
+  /** Pling och vibration (en tagen ruta, träff i Sänka skepp). */
+  const ping = useCallback(() => pingOk(sound.current), []);
+
+  // GPS medan loppet pågår: appens journal i appen, annars webbläsarens `watchPosition` (som förut).
+  useEffect(() => {
+    if (!tracking || !group) return;
+    if (!georeference) { setProblem("noGeoreference"); return; }
+    const perMm = metersPerMm(georeference, mapScale);
+    const count = (fixes: readonly PositionFix[]) => {
+      const current = runRef.current;
+      const last = fixes[fixes.length - 1];
+      if (!current || current.status !== "RUNNING" || !last) return;
+      let state = current.run;
+      const newlyTaken: string[] = [];
+      for (const fix of fixes) {
+        let at;
+        try { at = wgs84ToMapPoint(georeference, { latitude: fix.latitude, longitude: fix.longitude }); }
+        catch (error) { console.error("Positionen kunde inte räknas om till kartan", error); setProblem("noGeoreference"); return; }
+        const step = bingoStep(state, { x: at.x, y: at.y, accuracyM: fix.accuracyM, t: fix.t }, group.cells, perMm);
+        state = step.state;
+        newlyTaken.push(...step.newlyTaken);
+      }
+      setProblem(undefined);
+      setAccuracy(Math.round(last.accuracyM));
+      const persist = changed(current.run, state);
+      commit({ ...current, run: state, version: persist ? current.version + 1 : current.version, ...(last.seq !== undefined ? { lastSeq: last.seq } : {}) },
+        persist);
+      if (newlyTaken.length > 0) {
+        ping();
+        setLastTaken({ cell: newlyTaken[newlyTaken.length - 1]!, at: Date.now() });
+      }
+      // I appen stryps timers i bakgrunden: punkterna driver också sändningen (högst var tionde sekund).
+      if (last.seq !== undefined && Date.now() - lastSent.current >= SYNC_MS) void sync();
+    };
+    const stopApp = runRef.current ? watchApp(runRef.current, { onFixes: count }) : undefined;
+    if (stopApp) return stopApp;
+    if (!window.isSecureContext) { setProblem("insecure"); return; }
+    if (!("geolocation" in navigator)) { setProblem("noGeolocation"); return; }
+    const watch = browserPositionSource({ enableHighAccuracy: true, maximumAge: 0, timeout: 30_000 }).watch({ onFixes: count, onProblem: setProblem });
+    return () => watch.stop();
+  }, [tracking, group, georeference, mapScale, commit, ping, sync, watchApp, appAttempt]);
+
   useEffect(() => {
     if (!run || run.acked >= run.version) return;
     const timer = window.setInterval(() => void sync(), SYNC_MS);
@@ -154,7 +191,7 @@ export function useBingoRun({ raceId, mode, groups, georeference, mapScale }: {
     // iPhone (Safari 17+): spela också när telefonen står på ljudlöst.
     if (audioSession) { try { audioSession.type = "playback"; } catch { /* finns inte i alla versioner */ } }
     void sound.current.unlock();
-    if (mode === "BINGO") void lockScreen();
+    if (mode === "BINGO" && !trackingBridge()) void lockScreen();
     const seed = mode === "SHIPS" ? globalThis.crypto.getRandomValues(new Uint32Array(1))[0]! : undefined;
     const next = newBingoRun(name, course, Date.now(), globalThis.crypto.randomUUID(), seed);
     commit(next, true);
@@ -162,12 +199,16 @@ export function useBingoRun({ raceId, mode, groups, georeference, mapScale }: {
     void sync();
   }, [commit, lockScreen, sync, mode]);
 
-  const end = useCallback((status: "FINISHED" | "ABANDONED") => {
+  const { catchUp } = app;
+  const end = useCallback(async (status: "FINISHED" | "ABANDONED") => {
+    const finishedAt = Date.now();
+    // I appen: punkterna fram till nu ur journalen först (spårningen stoppas när loppet är slut, `useAppTracking`).
+    if (mode === "BINGO" && trackingBridge()) await catchUp();
     const current = runRef.current;
     if (!current || current.status !== "RUNNING") return;
-    commit({ ...current, status, finishedAt: Date.now(), version: current.version + 1 }, true);
+    commit({ ...current, status, finishedAt, version: current.version + 1 }, true);
     void sync();
-  }, [commit, sync]);
+  }, [commit, sync, catchUp, mode]);
 
   /**
    * Sänka skepp: en position för skottet. Väntar upp till 20 s på noggrannhet ≤ 20 m; ger den bästa noggrannheten om ingen
@@ -239,14 +280,8 @@ export function useBingoRun({ raceId, mode, groups, georeference, mapScale }: {
     return { ok: true };
   }, [georeference, commit, sync]);
 
-  /** Pling och vibration (träff i Sänka skepp). */
-  const ping = useCallback(() => {
-    sound.current.play("ok");
-    try { navigator.vibrate?.([120, 60, 120]); } catch { /* vibration finns inte i alla webbläsare (iPhone) */ }
-  }, []);
-
   const reset = useCallback(() => { runRef.current = undefined; setRun(undefined); setLastTaken(undefined); setGapNotice(undefined); }, []);
 
-  return { shipGps, run, group, resumed, storageFailed, problem, accuracy, lastTaken, gapNotice, wakeLockFailed, syncProblem, start, end, reset, sync, shoot, aiming,
-    ping, metersPerMm: georeference ? metersPerMm(georeference, mapScale) : mapScale / 1000 };
+  return { shipGps, run, group, resumed, storageFailed, problem: app.problem ?? problem, accuracy, lastTaken, gapNotice, wakeLockFailed, syncProblem, start, end,
+    reset, sync, shoot, aiming, ping, restartGps: app.canRestart ? app.restart : undefined, inApp: app.inApp, metersPerMm: georeference ? metersPerMm(georeference, mapScale) : mapScale / 1000 };
 }

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">O-Tid</string>
+    <string name="title_activity_main">O-Tid</string>
+    <string name="package_name">se.berring.otid</string>
+    <string name="custom_url_scheme">se.berring.otid</string>
+</resources>

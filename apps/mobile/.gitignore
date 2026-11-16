@@ -1,0 +1,12 @@
+# Skrivs av `pnpm sync`.
+www/server-url.js
+# Byggresultat och lokala inställningar (nativeprojekten har egna .gitignore för resten).
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+android/.idea/
+android/app/release/
+ios/App/build/
+ios/DerivedData/
+*.xcuserstate

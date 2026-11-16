@@ -18,6 +18,14 @@ describe("bingo i telefonen", () => {
     expect(bingoProgressRequest(newBingoRun("Lisa", "1", start, runner))).not.toHaveProperty("seed");
   });
 
+  it("appens senast räknade punkt sparas i loppet; äldre lopp utan den läses som förut och en trasig tas bort", () => {
+    const run = { ...newBingoRun("Lisa", "1", start, runner), lastSeq: 42 };
+    expect(parseStoredBingoRun(JSON.stringify(run))).toEqual(run);
+    expect(parseStoredBingoRun(JSON.stringify(newBingoRun("Lisa", "1", start, runner)))).not.toHaveProperty("lastSeq");
+    expect(parseStoredBingoRun(JSON.stringify({ ...run, lastSeq: "42" }))?.lastSeq).toBeUndefined();
+    expect(bingoProgressRequest(run)).not.toHaveProperty("lastSeq");
+  });
+
   it("tid, sträcka, glapp och skeppens längder som text", () => {
     expect(formatBingoTime(65)).toBe("1:05");
     expect(formatBingoTime(3725)).toBe("1:02:05");

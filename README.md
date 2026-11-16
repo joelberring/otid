@@ -121,12 +121,14 @@ och `cu.debug-console` är inte stationen. Steg för steg i `docs/sportident.md`
 bygger efter grön CI på `main`, ADR-0195; att bygga på servern finns kvar som reserv), med PostgreSQL, webb (två instanser),
 Caddy (HTTPS) och backup varje timme. Se [docs/drift.md](docs/drift.md). Hur stora tävlingar en liten server klarar och hur
 lasttestet körs om (`pnpm lasttest:seed`, `pnpm lasttest:load`): [docs/lasttest.md](docs/lasttest.md).
+Appen för iOS och Android byggs och provas på en Mac (`pnpm --filter @o-tid/mobile sync`): [docs/app.md](docs/app.md).
 
 ## Struktur
 
 ```text
 apps/web              Next.js: webb, API, adminarbetsyta, avläsning (src/readout), publika sidor
 apps/si-tools         CLI för portlista, rå capture och replay
+apps/mobile           appen för iOS och Android (Capacitor-skal och spårning med låst skärm, ADR-0227)
 packages/domain       ren resultatmotor (ingen I/O)
 packages/sportident   SPORTident-protokoll och brickavkodning
 packages/device-transport  bytetransport (Web Serial, falsk station), capture, replay

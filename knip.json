@@ -20,6 +20,9 @@
       ]
     },
     "apps/si-tools": { "project": ["src/**/*.ts"] },
+    // Knips Capacitor-plugin räknar med capacitor.config.ts, core och android men inte ios, som läses av Xcode-projektet.
+    // I android/ och ios/ ligger bara kopior av www som `cap sync` skriver.
+    "apps/mobile": { "ignore": ["android/**", "ios/**"], "ignoreDependencies": ["@capacitor/ios"] },
     "packages/*": { "project": ["src/**/*.ts"] },
     // Integrationstestet för tryckjobbet startar skriptet med `--import tsx`.
     "packages/application": { "project": ["src/**/*.ts"], "ignoreDependencies": ["tsx"] }

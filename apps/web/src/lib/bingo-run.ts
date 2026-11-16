@@ -22,6 +22,8 @@ export interface StoredBingoRun {
   readonly punches?: readonly VirtualPunch[] | undefined;
   readonly duel?: string | undefined;
   readonly team?: string | undefined;
+  /** I appen (ADR-0227): den senaste punkten ur journalen som loppet har räknat (`seq`). Saknas i webbläsaren. */
+  readonly lastSeq?: number | undefined;
   /** Ökar vid varje ändring; `acked` är den version servern senast kvitterade. */
   readonly version: number;
   readonly acked: number;
@@ -43,6 +45,9 @@ export function parseStoredBingoRun(text: string | null): StoredBingoRun | undef
     if (value.formatVersion !== 1 || typeof value.runnerId !== "string" || typeof value.name !== "string" || typeof value.group !== "string"
       || typeof value.startedAt !== "number" || typeof value.version !== "number" || typeof value.acked !== "number" || !value.run
       || !Array.isArray(value.run.taken) || !Array.isArray(value.run.track) || !Array.isArray(value.run.gaps)) return undefined;
+    // En trasig `seq` kastar inte loppet; uppspelningen börjar då från journalens början, och redan räknade punkter ger
+    // ingen ny sträcka (deras tid är inte senare än loppets senaste punkt).
+    if (value.lastSeq !== undefined && !(Number.isInteger(value.lastSeq) && value.lastSeq >= 0)) return { ...value, lastSeq: undefined } as StoredBingoRun;
     return value as StoredBingoRun;
   } catch { return undefined; }
 }

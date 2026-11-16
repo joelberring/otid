@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { contourLayer, geoTiff } from "./map-project-drawing-basis";
+import { contourLayer, contourStyle, geoTiff } from "./map-project-drawing-basis";
 
 describe("underlag för frihandsritning", () => {
   it("GeoTIFF:en har rätt läge i SWEREF 99 TM", async () => {
@@ -16,5 +16,7 @@ describe("underlag för frihandsritning", () => {
     expect(contourLayer(0.25, 0.25)).toBe("hojdkurva_025");
     expect(contourLayer(1, 0.25)).toBe("hojdkurva_1m");
     expect(contourLayer(5, 0.25)).toBe("hojdkurva_5m");
+    // Olika färg per lager: ljust lila, lila, brunt.
+    expect(new Set([0.25, 1, 5].map(major => contourStyle(major, 0.25).aci)).size).toBe(3);
   });
 });

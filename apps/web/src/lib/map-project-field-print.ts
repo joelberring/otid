@@ -1,5 +1,5 @@
 import { cellMeters, type GridPart } from "@o-tid/map-revision/base-map";
-import { banksOf, basisVectors, contoursOf, imageOf, type BasisFile, type BasisJob, type ContourLine } from "./map-project-drawing-basis";
+import { banksOf, basisVectors, contoursOf, contourStyle, imageOf, type BasisFile, type BasisJob, type ContourLine } from "./map-project-drawing-basis";
 import { jpegPagesPdf, type JpegPage } from "./pdf-jpeg-pages";
 
 /**
@@ -81,6 +81,7 @@ export async function fieldPrintPdf(base: string, jobs: readonly BasisJob[], gro
     .filter(([kind]) => choice[kind])
     .flatMap(([kind, alpha]) => { const image = imageOf(kind, ground, vegetation); return image ? [{ canvas: rasterCanvas(image.rgb, image.part), part: image.part, alpha }] : []; });
   const contours = contoursOf(ground, choice.interval, choice.smooth).map(line => ({ line, box: boxOf(line.points) }));
+  const classes = [...new Set(contours.map(({ line }) => line.major))].sort((a, b) => a - b);
   const vectors: { color: string; lines: (readonly (readonly [number, number])[])[]; points: (readonly [number, number])[] }[] = [];
   for (const file of choice.files) {
     for (const [name, content] of await basisVectors(base, jobs, file)) vectors.push({ color: LAYER_COLORS[name[0] ?? ""] ?? "rgb(90,90,90)", lines: content.lines.map(line => line.points), points: content.points });
@@ -104,12 +105,13 @@ export async function fieldPrintPdf(base: string, jobs: readonly BasisJob[], gro
     }
     context.globalAlpha = 1;
     context.lineJoin = "round"; context.lineCap = "round";
-    context.strokeStyle = "rgb(175,95,35)";
     const visible = (box: Box) => box.maxX >= page.minX && box.minX <= page.maxX && box.maxY >= page.minY && box.minY <= page.maxY;
-    for (const major of [false, true]) {
-      context.lineWidth = (major ? 0.25 : 0.12) * pxPerMm;
+    // En färg per kurvklass (som i DXF:en), de grövre ovanpå.
+    for (const major of classes) {
+      const style = contourStyle(major, choice.interval);
+      context.strokeStyle = style.css; context.lineWidth = style.width * pxPerMm;
       context.beginPath();
-      for (const { line, box } of contours) if ((line.major !== choice.interval) === major && visible(box)) path(context, line, px, py);
+      for (const { line, box } of contours) if (line.major === major && visible(box)) path(context, line, px, py);
       context.stroke();
     }
     for (const layer of vectors) {

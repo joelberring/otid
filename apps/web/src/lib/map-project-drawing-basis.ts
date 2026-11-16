@@ -84,6 +84,16 @@ export function contourLayer(major: number, interval: number): string {
 }
 export const BANK_LAYER = "slantkant_vagkant";
 
+/**
+ * Kurvklassernas färger (ägaren 2026-11-16: kartritaren har olika färg på kurvlagren för att skilja dem åt; i hans exempel
+ * tunna lila kurvor var 0,25 m och bruna grövre): ekvidistansen ljust lila, hela metrar mörkare lila, var femte (och 25:e)
+ * meter brun. `aci` är AutoCAD-färgen i DXF:en (syns när filen är bakgrundskarta), `css` och `width` (mm) gäller utskriften.
+ */
+export function contourStyle(major: number, interval: number): { readonly aci: number; readonly css: string; readonly width: number } {
+  if (major === interval) return interval < 1 ? { aci: 191, css: "rgb(196,160,222)", width: 0.1 } : { aci: 190, css: "rgb(150,95,190)", width: 0.12 };
+  return major === 1 ? { aci: 190, css: "rgb(150,95,190)", width: 0.14 } : { aci: 32, css: "rgb(165,82,20)", width: 0.25 };
+}
+
 export interface BasisChoice {
   readonly files: readonly BasisFile[];
   /** Täta kurvor med den här ekvidistansen, eller inga. */
@@ -135,7 +145,7 @@ export async function basisDxf(base: string, jobs: readonly BasisJob[], choice: 
   }
   if (ground && choice.interval !== undefined) {
     for (const line of contoursOf(ground, choice.interval, choice.smooth)) {
-      layerOf(contourLayer(line.major, choice.interval), line.major === choice.interval ? 33 : 32).lines.push({ points: line.points, closed: line.closed, z: line.level });
+      layerOf(contourLayer(line.major, choice.interval), contourStyle(line.major, choice.interval).aci).lines.push({ points: line.points, closed: line.closed, z: line.level });
     }
   }
   if (ground && choice.banks) for (const points of banksOf(ground)) layerOf(BANK_LAYER, 1).lines.push({ points, closed: false });

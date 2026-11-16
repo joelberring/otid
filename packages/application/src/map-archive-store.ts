@@ -110,9 +110,11 @@ export function s3ArchiveStore(connection: ArchiveConnection, options: { fetch?:
     return send(url, { method, headers, ...(body ? { body: body as unknown as BodyInit } : {}),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
   };
+  // Lagringens egen felkod (t.ex. SignatureDoesNotMatch, InvalidAccessKeyId, AccessDenied, NoSuchBucket) skiljer fel
+  // nycklar från fel bucket; den innehåller aldrig den hemliga nyckeln.
   const failed = async (what: string, response: Response) => {
-    await response.arrayBuffer();
-    return new Error(`Arkivet: ${what} misslyckades (${response.status})`);
+    const code = /<Code>([A-Za-z0-9]{1,60})<\/Code>/.exec((await response.text()).slice(0, 2000))?.[1];
+    return new Error(`Arkivet: ${what} misslyckades (${response.status}${code ? ` ${code}` : ""})`);
   };
   return {
     async put(sha256, bytes) {

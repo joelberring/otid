@@ -38,6 +38,9 @@ describe("arkivets objektlagring", () => {
     expect(calls.map(call => call.method)).toEqual(["PUT", "GET", "HEAD", "DELETE"]);
     expect(calls[0]).toMatchObject({ url: `https://hel1.example.test/b/map-content/${sha}`, hash: sha });
     await expect(store.get("../x")).rejects.toThrow("Ogiltig");
+    const denied = s3ArchiveStore({ endpoint: "https://hel1.example.test", bucket: "b", region: "hel1", accessKey: "a", secretKey: "s" }, {
+      fetch: (async () => new Response("<Error><Code>SignatureDoesNotMatch</Code></Error>", { status: 403 })) as unknown as typeof fetch });
+    await expect(denied.put(sha, new Uint8Array([1]))).rejects.toThrow("(403 SignatureDoesNotMatch)");
   });
 
   it("provet av anslutningen lämnar inget kvar och säger ifrån när objektet inte kommer tillbaka", async () => {

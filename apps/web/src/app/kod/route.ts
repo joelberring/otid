@@ -1,5 +1,5 @@
 import { resolveJoinCode } from "@o-tid/application";
-import { db } from "../../lib/db";
+import { publicDb } from "../../lib/db";
 import { joinCodeLocation } from "../../lib/join-code";
 import { accountSessionToken } from "../../lib/public-race-gate";
 import { clientAddressFrom } from "../../lib/security-policy";
@@ -11,7 +11,7 @@ import { clientAddressFrom } from "../../lib/security-policy";
  */
 export async function GET(request: Request): Promise<Response> {
   const code = new URL(request.url).searchParams.get("kod") ?? "";
-  const result = code.trim() ? await resolveJoinCode(db, { code, sessionToken: await accountSessionToken(), clientKey: clientAddressFrom(request.headers) })
+  const result = code.trim() ? await resolveJoinCode(publicDb, { code, sessionToken: await accountSessionToken(), clientKey: clientAddressFrom(request.headers) })
     : undefined;
   return new Response(null, { status: 303, headers: { location: joinCodeLocation(result), "cache-control": "private, no-store" } });
 }

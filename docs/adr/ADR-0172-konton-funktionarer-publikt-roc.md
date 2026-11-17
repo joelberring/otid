@@ -106,8 +106,8 @@ beslut 9). Listan visade redan "Obekräftad adress".
   (`RACE_SHORT_CODE_PATTERN`, samma som databasens villkor), gruppens `GROUP_CODE_PATTERN`.
 - **Inget mer avslöjas än de publika sidorna:** en tävling räknas bara när `publicRaceGate` ger PUBLIC eller PREVIEW, så en
   opublicerad eller dold tävling svarar som en okänd kod. Missar delar gruppsidans spärr (`GROUP_CODE_IP`, 30 i timmen per
-  IP-adress, ADR-0189 beslut 8); därefter svarar också en riktig kod "för många försök". `/kod` står inte i `PUBLIC_PATHS`
-  och går därför till `web`, inte publikens instanser (ändras det måste Caddyfilen ändras samtidigt).
+  IP-adress, ADR-0189 beslut 8); därefter svarar också en riktig kod "för många försök". `/kod` står i `PUBLIC_PATHS` och i Caddyfilens `@public` (publikens
+  pool, `publicDb`); Caddy behöver `dc restart caddy` på servern för att ta den nya raden (docs/drift.md), till dess går `/kod` till `web`.
 - **Arrangörens väg:** raden "Kom igång som arrangör" (till `/organizer`) under sökningen för den som inte är inloggad. Rutorna
   under "Mer än tidtagning" är länkar (demotävlingen, filmen om kartritningen, Om O-Tid eller `/organizer`). Texten om hur O-Tid
   är byggt finns redan på Om O-Tid; länken till koden flyttades dit.

@@ -8,7 +8,7 @@ import {
   restart, resultOf, settingsProblems, standings, type CardGame, type CardPunch, type Code, type GameSettings, type SavedState, type Score
 } from "./game";
 import { StandingsTable, useElapsed } from "./standings-view";
-import { hasSerial, hasUsb, useGameStation, type CardEvent } from "./station";
+import { hasSerial, hasBluetooth, hasUsb, useGameStation, type CardEvent } from "./station";
 import { mastermindText, mastermindTextEn, type MastermindTexts } from "./texts";
 
 const STORAGE_KEY = "otid.mastermind.v1";
@@ -307,6 +307,7 @@ export function MastermindApp({ language }: { language: Language }) {
         <div className="mm-actions">
           {!connected && hasSerial && <button type="button" className="mm-button mm-primary" onClick={unlockThen(station.connectSerial)}>{t.connect}</button>}
           {!connected && hasUsb && <button type="button" className="mm-button" onClick={unlockThen(station.connectUsb)}>{t.connectUsb}</button>}
+          {!connected && hasBluetooth && <button type="button" className="mm-button" onClick={unlockThen(station.connectBluetooth)}>{t.connectBluetooth}</button>}
           {!connected && <button type="button" className="mm-button" onClick={unlockThen(station.connectPractice)}>{t.practice}</button>}
           {connected && <button type="button" className="mm-button" onClick={() => void station.disconnect()}>{t.disconnect}</button>}
         </div>

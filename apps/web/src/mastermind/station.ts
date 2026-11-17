@@ -1,20 +1,23 @@
 /**
  * Stationen för spelet: samma `StationController` som avläsningen, över Web Serial (dator), WebUSB (Android) eller
- * övningsstationen. Spelet behöver bara den utlästa brickan; inga avläsningar sparas eller skickas.
+ * övningsstationen, eller Reader BT över Bluetooth (`ReaderBtController`). Spelet behöver bara den utlästa brickan; inga avläsningar sparas eller skickas.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CP210X_USB_FILTERS, WebSerialTransport, WebUsbCp210xPort, type WebSerialPortLike } from "@o-tid/device-transport";
 import type { SiCardData } from "@o-tid/sportident";
 import { FakeStationTransport } from "../readout/fake-transport";
-import { StationController, type StationFacts, type StationStatus } from "../readout/station";
+import { READER_BT_REQUEST, ReaderBtController, type BluetoothLike } from "../readout/reader-bt";
+import { StationController, type StationFacts, type StationLink, type StationStatus } from "../readout/station";
 import type { SerialApi, UsbApi, UsbStation } from "../readout/station-auto";
 
 type SerialNavigator = Navigator & { serial?: SerialApi };
 type UsbNavigator = Navigator & { usb?: UsbApi };
+type BluetoothNavigator = Navigator & { bluetooth?: BluetoothLike };
 const BAUD_RATES = [38_400, 4_800];
 
 export const hasSerial = typeof navigator !== "undefined" && !!(navigator as SerialNavigator).serial;
 export const hasUsb = typeof navigator !== "undefined" && !!(navigator as UsbNavigator).usb;
+export const hasBluetooth = typeof navigator !== "undefined" && !!(navigator as BluetoothNavigator).bluetooth;
 
 export type CardEvent =
   | { readonly kind: "inserted"; readonly cardNumber: number }
@@ -23,10 +26,12 @@ export type CardEvent =
   | { readonly kind: "failed"; readonly cardNumber: number }
   | { readonly kind: "unsupported"; readonly cardNumber: number };
 
-export function useGameStation(onCard: (event: CardEvent) => void, messages: { serialFailed: string; serialUnsupported: string; usbUnsupported: string }) {
+export function useGameStation(onCard: (event: CardEvent) => void, messages: {
+  serialFailed: string; serialUnsupported: string; usbUnsupported: string; bluetoothFailed: string; bluetoothLost: string
+}) {
   const [status, setStatus] = useState<StationStatus>({ kind: "disconnected" });
   const [practice, setPractice] = useState<FakeStationTransport | undefined>(undefined);
-  const controllerRef = useRef<StationController | undefined>(undefined);
+  const controllerRef = useRef<StationLink | undefined>(undefined);
   const onCardRef = useRef(onCard);
   useEffect(() => { onCardRef.current = onCard; }, [onCard]);
 
@@ -39,7 +44,7 @@ export function useGameStation(onCard: (event: CardEvent) => void, messages: { s
     onUnsupportedCard: (cardNumber: number) => onCardRef.current({ kind: "unsupported", cardNumber })
   };
 
-  const attach = useCallback(async (controller: StationController): Promise<boolean> => {
+  const attach = useCallback(async (controller: StationLink): Promise<boolean> => {
     await controllerRef.current?.stop();
     controllerRef.current = controller;
     return controller.start();
@@ -71,6 +76,20 @@ export function useGameStation(onCard: (event: CardEvent) => void, messages: { s
     await connectPort(new WebUsbCp210xPort(device, usb));
   }
 
+  /** Reader BT: webbläsaren frågar efter stationen varje gång (ingen automatisk anslutning). */
+  async function connectBluetooth() {
+    const bluetooth = (navigator as BluetoothNavigator).bluetooth;
+    if (!bluetooth) { setStatus({ kind: "error", message: messages.serialUnsupported }); return; }
+    let device;
+    try { device = await bluetooth.requestDevice(READER_BT_REQUEST); }
+    catch { setStatus({ kind: "disconnected" }); return; }
+    setPractice(undefined);
+    if (!(await attach(new ReaderBtController(device, callbacks, { lostMessage: messages.bluetoothLost })))) {
+      controllerRef.current = undefined;
+      setStatus({ kind: "error", message: messages.bluetoothFailed });
+    }
+  }
+
   async function connectPractice() {
     const transport = new FakeStationTransport();
     setPractice(transport);
@@ -85,5 +104,5 @@ export function useGameStation(onCard: (event: CardEvent) => void, messages: { s
 
   useEffect(() => () => { void controllerRef.current?.stop(); }, []);
 
-  return { status, practice, connectSerial, connectUsb, connectPractice, disconnect };
+  return { status, practice, connectSerial, connectUsb, connectBluetooth, connectPractice, disconnect };
 }

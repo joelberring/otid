@@ -8,6 +8,7 @@ export const mastermindText = {
   station: "Station",
   connect: "Anslut station",
   connectUsb: "Anslut station (USB)",
+  connectBluetooth: "Anslut Reader BT (Bluetooth)",
   practice: "Övningsstation",
   disconnect: "Koppla från",
   status: {
@@ -21,6 +22,8 @@ export const mastermindText = {
   serialUnsupported: "Webbläsaren kan inte nå stationen. Använd Chrome eller Edge.",
   usbUnsupported: "Webbläsaren saknar WebUSB.",
   serialFailed: "Stationen svarade varken på 38 400 eller 4 800 baud.",
+  bluetoothFailed: "Reader BT gick inte att ansluta. Är den på, och inte ansluten till en annan enhet?",
+  bluetoothLost: "Förbindelsen med Reader BT bröts. Anslut igen.",
   reading: (card: number) => `Läser bricka ${card} …`,
   readFailed: (card: number) => `Bricka ${card} kunde inte läsas. Sätt i den igen.`,
   unsupported: (card: number) => `Bricka ${card} stöds inte.`,
@@ -87,6 +90,7 @@ export const mastermindTextEn: MastermindTexts = {
   station: "Station",
   connect: "Connect station",
   connectUsb: "Connect station (USB)",
+  connectBluetooth: "Connect Reader BT (Bluetooth)",
   practice: "Practice station",
   disconnect: "Disconnect",
   status: {
@@ -100,6 +104,8 @@ export const mastermindTextEn: MastermindTexts = {
   serialUnsupported: "This browser cannot reach the station. Use Chrome or Edge.",
   usbUnsupported: "This browser has no WebUSB.",
   serialFailed: "The station did not answer at 38,400 or 4,800 baud.",
+  bluetoothFailed: "Reader BT could not be connected. Is it on, and not connected to another device?",
+  bluetoothLost: "The connection to Reader BT was lost. Connect again.",
   reading: (card: number) => `Reading card ${card} …`,
   readFailed: (card: number) => `Card ${card} could not be read. Insert it again.`,
   unsupported: (card: number) => `Card ${card} is not supported.`,

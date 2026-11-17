@@ -113,7 +113,6 @@
   .course > li::before { left: 0; right: 0; top: 50%; bottom: auto; width: auto; height: 1px; }
   .course > li.start::before { left: 50%; top: 50%; }
   .course > li.finish::before { right: 50%; bottom: auto; }
-  .start span { display: none; }
   .start, .finish { padding-left: 0; min-height: 44px; }
   .start svg, .finish svg { margin-inline: 2px; }
   .sidebar button, .sidebar .navLink { display: flex; gap: 7px; width: auto; min-height: 44px; padding: 6px 9px; background: var(--surface); white-space: nowrap; }

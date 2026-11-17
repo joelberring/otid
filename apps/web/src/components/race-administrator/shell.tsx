@@ -156,8 +156,8 @@ export function Sidebar({ ws, exercise }: { ws: Workspace; exercise?: MobileExer
   return <nav className={styles.sidebar} aria-label={typeText.navigation}>
     <ScrollRow rowClassName={styles.track} active={active.id}>
     <ol className={styles.course}>
-      <li className={styles.start} aria-hidden="true"><svg viewBox="0 0 20 18" width="20" height="18"><path d="M10 1.5 18.5 16.5H1.5Z" /></svg>
-        <span>{typeText.start}</span></li>
+      {/* Översynen 2026-11-17: starttriangeln är dekor, utan text; "Start" är bara steget med startlistan. */}
+      <li className={styles.start} aria-hidden="true"><svg viewBox="0 0 20 18" width="20" height="18"><path d="M10 1.5 18.5 16.5H1.5Z" /></svg></li>
       {profile.course.map(section => item(section))}
       <li className={styles.finish} aria-hidden="true"><svg viewBox="0 0 22 22" width="22" height="22">
         <circle cx="11" cy="11" r="9.5" /><circle cx="11" cy="11" r="5.5" /></svg></li>

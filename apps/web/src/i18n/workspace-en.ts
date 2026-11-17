@@ -24,7 +24,6 @@ export const raceTypeEn: Texts<typeof raceTypeSv> = {
     READOUT: "Readout", RESULTS: "Results", PARTY: "Party", PEOPLE: "People", SETTINGS: "Settings"
   },
   navigation: "Parts of the event",
-  start: "Start",
   speaker: "Speaker",
   openSpeaker: "Open speaker",
   openReadout: "Open readout",

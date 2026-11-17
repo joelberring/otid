@@ -20,7 +20,6 @@ export const raceTypeSv = {
     READOUT: "Avläsning", RESULTS: "Resultat", PARTY: "Fest", PEOPLE: "Personer", SETTINGS: "Inställningar"
   } satisfies Record<SectionLabel, string>,
   navigation: "Tävlingens delar",
-  start: "Start",
   speaker: "Speaker",
   openSpeaker: "Öppna speaker",
   openReadout: "Öppna avläsningen",

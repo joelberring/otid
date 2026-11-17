@@ -1,7 +1,8 @@
 import type { SourceData, SourceFeature } from "@o-tid/map-revision";
-import { fillHoles, simplification, smoothMask, smoothMaskWide, SMOOTH_RADIUS_CELLS } from "./map-project-mask-smooth";
+import { smoothMask, SMOOTH_RADIUS_CELLS } from "./map-project-mask-smooth";
 import { scatteredTrees } from "./map-project-scattered-trees";
-import { chaikin, compactMask, maskOutlines, simplifyRing, type PhotoPixels } from "@o-tid/map-revision/base-map";
+import { chaikin, compactMask, DEFAULT_VEGETATION_LEVEL, generalizeVegetation, maskOutlines, simplifyRing, VEG_DIFFICULT, VEG_FIGHT, VEG_FOREST, VEG_OPEN,
+  VEG_SEMI, VEG_SLOW, vegetationLayerMask, vegetationRing, vegetationShapeSteps, type PhotoPixels, type VegetationShapeOptions } from "@o-tid/map-revision/base-map";
 
 /**
  * Ägaren 2026-11-11 («göra itereringar av olika lager, t.ex. grönt, efter första körning»): geo-arbetarens bild
@@ -20,9 +21,10 @@ export interface GreenSettings { readonly slow: number; readonly difficult: numb
    */
   readonly denseShare?: number | undefined;
   /**
-   * Förenkla de gröna ytorna, 0–10 (ägaren 2026-11-14: «ett reglage som generaliserar gröna ytor mer»). 0 = som förut. Högre
-   * sluter smala vikar, tar bort tunna armar och små fläckar, fyller små hål och rätar kanten (`simplification`). Gäller 406,
-   * 408 och 410; stegen ligger kvar inuti varandra, eftersom alla tre förenklas lika.
+   * Generaliseringen 0–10 (ägaren 2026-11-14 «ett reglage som generaliserar gröna ytor mer», 2026-11-17 «gränserna mellan olika
+   * grönt, skog och öppen mark blir fula … smala mellanzoner»). 1–10 generaliserar öppet, halvöppet och de tre gröna som en
+   * indelning (`generalizeVegetation` i @o-tid/map-revision/base-map); utelämnat = `DEFAULT_VEGETATION_LEVEL`. 0 ger de gamla
+   * reglerna (varje lager utjämnat för sig).
    */
   readonly simplify?: number | undefined;
   /** Gläntor (401), 1–10 (`clearingShape`). Utelämnat = 5. */
@@ -67,7 +69,7 @@ export const SEMI_ALPHA = 200;
 export const DEFAULT_GREEN: GreenSettings = { slow: 2, difficult: 3, fight: 4, undergrowth: true, minAreaM2: 300, borders: "none", denseShare: 0.08 };
 
 export function greenCandidates(pixels: PhotoPixels, settings: GreenSettings, toSource: (column: number, row: number) => [number, number], crs: number,
-  cellMeters = 2): { data: SourceData; hectares: Readonly<Record<string, number>> } {
+  cellMeters = 2, scale = 15_000): { data: SourceData; hectares: Readonly<Record<string, number>> } {
   const { width: columns, height: rows, data } = pixels;
   const shade = (value: number) => (value & 15) >= 2 ? (value & 15) - 2 : -1;
   const layers: { name: string; test: (value: number, i: number) => boolean }[] = [
@@ -102,19 +104,33 @@ export function greenCandidates(pixels: PhotoPixels, settings: GreenSettings, to
   const minCells = Math.max(2, Math.round(settings.minAreaM2 / (cellMeters * cellMeters)));
   const features: SourceFeature[] = [];
   const hectares: Record<string, number> = {};
-  const simpler = (settings.simplify ?? 0) > 0 ? simplification(settings.simplify!, cellMeters) : undefined;
+  const shapeLevel = settings.simplify ?? DEFAULT_VEGETATION_LEVEL;
+  // Ägaren 2026-11-17: öppet, halvöppet och grönt generaliseras tillsammans, så att gränserna delas och inga mellanzoner blir kvar.
+  const shaped = shapeLevel > 0 ? shapedLayers(values, known, scattered, settings, columns, rows, { cellMeters, scale, level: shapeLevel,
+    openAreaFactor: clearingShape(settings.clearings ?? 5, settings.minAreaM2, cellMeters).minCells / clearingShape(5, settings.minAreaM2, cellMeters).minCells }) : undefined;
   for (const layer of layers) {
+    const own = shaped?.get(layer.name);
+    if (shaped && own) {
+      const clearing = layer.name === "oppen_mark" ? clearingShape(settings.clearings ?? 5, settings.minAreaM2, cellMeters) : undefined;
+      // Gläntorna: lägre läge kräver större gläntor, högre gör dem större (in i vanlig skog), som förut.
+      const kept = clearing && (settings.clearings ?? 5) < 5 ? compactMask(own.mask, columns, rows, clearing.minCells) : own.mask;
+      const mask = clearing?.growCells ? grow(kept, values.map((value, i) => !known[i] || shade(value) < settings.slow ? 1 : 0), columns, rows, clearing.growCells) : kept;
+      hectares[layer.name] = Math.round(mask.reduce((sum, cell) => sum + cell, 0) * cellMeters * cellMeters / 100) / 100;
+      for (const ring of maskOutlines(mask, columns, rows)) {
+        const smooth = vegetationRing(ring, own.tolerance, own.rounds);
+        if (smooth.length >= 3) features.push({ layer: layer.name, geometry: { kind: "line", closed: true, points: [...smooth, smooth[0]!].map(([column, row]) => toSource(column, row)) } });
+      }
+      continue;
+    }
     // Ägaren 2026-11-12: ytorna jämnas ut som i geo-arbetaren (gult öppnas bara ett steg, så att smala gläntor finns kvar).
     const raw = values.map((value, i) => (known[i] || layer.name === "oppen_mark_spridda_trad") && layer.test(value, i) ? 1 : 0);
-    const green = simpler && layer.name.startsWith("gron_") ? simpler : undefined;
-    const smooth = green ? fillHoles(smoothMaskWide(raw, columns, rows, green.close, green.open), columns, rows, green.holeCells)
-      : smoothMask(raw, columns, rows, SMOOTH_RADIUS_CELLS, layer.name.startsWith("oppen_mark") ? 1 : SMOOTH_RADIUS_CELLS);
+    const smooth = smoothMask(raw, columns, rows, SMOOTH_RADIUS_CELLS, layer.name.startsWith("oppen_mark") ? 1 : SMOOTH_RADIUS_CELLS);
     const clearing = layer.name === "oppen_mark" ? clearingShape(settings.clearings ?? 5, settings.minAreaM2, cellMeters) : undefined;
-    const compact = compactMask(smooth, columns, rows, clearing ? clearing.minCells : Math.round(minCells * (green?.areaFactor ?? 1)));
+    const compact = compactMask(smooth, columns, rows, clearing ? clearing.minCells : minCells);
     const mask = clearing?.growCells ? grow(compact, values.map((value, i) => known[i] && shade(value) < settings.slow ? 1 : 0), columns, rows, clearing.growCells) : compact;
     hectares[layer.name] = Math.round(mask.reduce((sum, cell) => sum + cell, 0) * cellMeters * cellMeters / 100) / 100;
     for (const ring of maskOutlines(mask, columns, rows)) {
-      const simple = clearing ? simplifyRing(chaikin(ring, 2), 0.4) : simplifyRing(ring, green?.tolerance ?? 0.75);
+      const simple = clearing ? simplifyRing(chaikin(ring, 2), 0.4) : simplifyRing(ring, 0.75);
       if (simple.length >= 4) features.push({ layer: layer.name, geometry: { kind: "line", closed: true, points: simple.map(([column, row]) => toSource(column, row)) } });
     }
   }
@@ -131,4 +147,24 @@ export function greenCandidates(pixels: PhotoPixels, settings: GreenSettings, to
     }
   }
   return { data: { features, skipped: 0, crs }, hectares };
+}
+
+/**
+ * Öppet (401), halvöppet (404) och de tre gröna som en generaliserad indelning (ägaren 2026-11-17). Okända celler är vanlig
+ * skog (Karttapullautins klass 0 sparas genomskinlig); vatten skiljs inte från skog här, men har inget grönt att sprida.
+ */
+function shapedLayers(values: Uint8Array, known: Uint8Array, scattered: Uint8Array, settings: GreenSettings, columns: number, rows: number,
+  options: VegetationShapeOptions): Map<string, { mask: Uint8Array; tolerance: number; rounds: number }> {
+  const shade = (value: number) => (value & 15) >= 2 ? (value & 15) - 2 : -1;
+  const labels = new Uint8Array(values.length);
+  for (let i = 0; i < values.length; i += 1) {
+    const value = values[i]!, step = shade(value);
+    labels[i] = scattered[i] ? VEG_SEMI : !known[i] ? VEG_FOREST : (value & 15) === 1 ? VEG_OPEN
+      : step >= settings.fight ? VEG_FIGHT : step >= settings.difficult ? VEG_DIFFICULT : step >= settings.slow ? VEG_SLOW : VEG_FOREST;
+  }
+  const general = generalizeVegetation(labels, columns, rows, options), steps = vegetationShapeSteps(options);
+  const out = new Map<string, { mask: Uint8Array; tolerance: number; rounds: number }>();
+  for (const [name, layer] of [["oppen_mark", VEG_OPEN], ["oppen_mark_spridda_trad", VEG_SEMI], ["gron_lattlopt", VEG_SLOW], ["gron_svarlopt", VEG_DIFFICULT],
+    ["gron_mycket_svarlopt", VEG_FIGHT]] as const) out.set(name, { mask: vegetationLayerMask(general, columns, rows, layer), tolerance: steps.tolerance, rounds: steps.rounds });
+  return out;
 }

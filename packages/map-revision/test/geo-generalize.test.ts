@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fillSmallForest, smoothMask } from "../../../scripts/geo-generalize.ts";
+import { smoothMask } from "../../../scripts/geo-generalize.ts";
 import { smoothMask as browserSmooth } from "../../../apps/web/src/lib/map-project-mask-smooth";
 
 const mask = (width: number, height: number, test: (x: number, y: number) => boolean) => {
@@ -31,15 +31,6 @@ describe("vegetationens generalisering", () => {
   it("räknar likadant i webbläsaren", () => {
     const shape = mask(50, 40, (x, y) => (x * 7 + y * 13) % 5 < 2 || (x > 10 && x < 30 && y > 8 && y < 30));
     expect([...browserSmooth(shape, 50, 40, 3, 1)]).toEqual([...smoothMask(shape, 50, 40, 3, undefined, 1)]);
-  });
-  it("ger en liten vit yta till grannen där färgen dominerar, men inte i en vit mosaik", () => {
-    // Grönt överallt utom en vit lucka 4 × 4: luckan fylls.
-    const green = mask(40, 40, (x, y) => !(x >= 18 && x < 22 && y >= 18 && y < 22)), open = new Uint8Array(1600);
-    expect(fillSmallForest(open, green, undefined, 40, 40, 75)).toBe(16);
-    expect(count(green)).toBe(1600);
-    // Smala gröna ränder i mest vitt: de små vita rutorna mellan dem lämnas.
-    const lace = mask(40, 40, (x, y) => x % 8 === 0 || y % 8 === 0), none = new Uint8Array(1600);
-    expect(fillSmallForest(none, lace, undefined, 40, 40, 75)).toBe(0);
   });
 });
 

@@ -92,11 +92,13 @@ describe("Karttapullautins riktiga resultat för testrutan", () => {
     const tiles = [{ vege: read("ruta00_vege_bit.png"), undergrowth: read("ruta00_undergrowth_bit.png"),
       world: readWorldFile(readFileSync(join(dir, "kungshatt-300m/ruta00_vege_bit.pgw"), "utf8")) }];
     const vegetation = vegetationFromTiles(tiles);
-    // Efter generaliseringen (2026-11-12: utjämnade ytor, små vita ytor fyllda där färgen dominerar).
-    expect(vegetation.summary).toEqual({ ha401: 0.34, ha404: 0.22, ha406: 1.8, ha408: 0.75, ha410: 0.06, ha407: 0.04, ha409: 0.04 });
+    // Efter generaliseringen som en indelning (2026-11-17): smala band av 406 runt 408 och små fläckar går till grannen, så att
+    // det gröna blir mindre (förut 406 1,8 ha, 408 0,75 ha). Mätt på Gömmaren och Lida ligger 406 då nära kartritarens mängd.
+    expect(vegetation.summary).toEqual({ ha401: 0.33, ha404: 0.28, ha406: 0.53, ha408: 0.53, ha410: 0, ha407: 0.04, ha409: 0.04 });
     const data = parseDxf(vegetation.dxf);
-    expect(suggested(data)).toEqual({ oppen_mark: "s401", gron_lattlopt: "s406", gron_svarlopt: "s408", gron_mycket_svarlopt: "s410", undervegetation_lattlopt: "s407",
-      undervegetation_svarlopt: "s409" });
+    // 404 finns inte i testets symbolset; 410 blir inget här (de små fläckarna går till 408).
+    expect(suggested(data)).toEqual({ oppen_mark: "s401", oppen_mark_spridda_trad: undefined, gron_lattlopt: "s406", gron_svarlopt: "s408",
+      undervegetation_lattlopt: "s407", undervegetation_svarlopt: "s409" });
     expect(within(data)).toBe(true);
     // Allt blir slutna ytor.
     expect(importLayers(data).every(layer => layer.closedLines === layer.count)).toBe(true);

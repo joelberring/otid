@@ -13,6 +13,8 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+- 2026-11-17: Grönt, öppet och halvöppet ur lasern generaliseras som en indelning (`packages/map-revision/src/base-map/vegetation-shapes.ts`, ägaren: «för detaljerade eller blobbiga», «små smala mellanzoner»): kapslade nivåer med gemensam mjuk majoritet, smala delar och mellanband (406 runt 408, halvöppet runt öppet) till grannen, små ytor till grannen, kurvaturflöde, kanter som Douglas–Peucker + Chaikin; öppet ligger en cell under grönt (ingen vit strimma). Samma kod i reglagen (läge 1–10, förval 4, «Generalisering») och i geo-arbetaren (v38, filen kopieras in i avbildningen). Mätt mot Gömmaren och Lida: kant 160–200 m/ha (kartritaren 200–270, förut ~400), grönt 8–10 % (kartritaren 6,5–7 %, förut ~20 %), oförändrad träff. Verifierat: map-revision (alla), webbens lib-tester, typkontroll, lint. Kvar: provas i webbläsaren och på servern (kräver serveruppdatering); ca 12 s för reglagen på 35 km² (huvudtråden); ortofotot används inte än.
+
 - 2026-11-17: Klubbarkivet visar vem som lade in varje träning (namn, datum, från tävling/import/arkivet) och varje kartversion; filtret "Inlagd av" och sökning på namnet (ADR-0194 tillägg 2026-11-17). Verifierat: typecheck, lint, enhetstester för filtret, integrationstester för arkivet och klubbtillhörigheten.
 
 - 2026-11-17: Arrangörsklubben väljs alltid aktivt i Ny tävling (inget förval, "Ingen klubb (eget)" som eget val, fältfel annars); servern gissar aldrig klubben (ADR-0209 tillägg 2026-11-17). Verifierat: typecheck, lint, integrationstesterna för klubbtillhörighet, ledarflödet och klubb/grupp/plan. E2E-testerna uppdaterade men inte körda här.

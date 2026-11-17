@@ -16,7 +16,7 @@ import { mapForestEn } from "../../i18n/map-forest-en";
 import { mapForestSv } from "../../i18n/map-forest-sv";
 import { mapRockEn } from "../../i18n/map-rock-en";
 import { mapRockSv } from "../../i18n/map-rock-sv";
-import { DEFAULT_ROCK_LEVEL, marshOffDrySoil, ROCK_LAYERS, rockAreas, SOIL_PANEL_LAYERS, soilForMarsh } from "@o-tid/map-revision/base-map";
+import { DEFAULT_ROCK_LEVEL, DEFAULT_VEGETATION_LEVEL, marshOffDrySoil, ROCK_LAYERS, rockAreas, SOIL_PANEL_LAYERS, soilForMarsh } from "@o-tid/map-revision/base-map";
 import { useTexts } from "../language-provider";
 import { MapProjectRasterPanel } from "./map-project-raster-panel";
 import type { useMapProjectImport } from "./use-map-project-import";
@@ -85,7 +85,8 @@ export function MapProjectGreenPanel(props: Props) {
   const text = useTexts(mapSourcesSv.green, mapSourcesEn.green);
   const forest = useTexts(mapForestSv, mapForestEn);
   // Ägaren 2026-11-14: förenklingen står direkt under mängden (inte under Finjustera) och räknar om ytorna när den ändras.
-  const [simplify, setSimplify] = useState(0);
+  // Ägaren 2026-11-17: den är generaliseringen av öppet, halvöppet och grönt som en indelning, förvalt läge 4.
+  const [simplify, setSimplify] = useState(DEFAULT_VEGETATION_LEVEL);
   // Ägaren 2026-11-15: gläntorna (401) har ett eget reglage, också direkt under mängden.
   const [clearings, setClearings] = useState(5);
   return <MapProjectRasterPanel {...props} refreshKey={simplify * 100 + clearings}
@@ -119,7 +120,7 @@ export function MapProjectGreenPanel(props: Props) {
       <label><input type="checkbox" checked={settings.undergrowth} onChange={() => change({ undergrowth: !settings.undergrowth })} /> {text.undergrowth}</label>
     </>}
     compute={(pixels, settings, toSource, crs, cell) => {
-      const result = greenCandidates(pixels, { ...settings, simplify, clearings }, toSource, crs, cell);
+      const result = greenCandidates(pixels, { ...settings, simplify, clearings }, toSource, crs, cell, props.georeference.scale || 15_000);
       return { data: result.data, message: text.done(decimal(result.hectares.gron_lattlopt ?? 0), decimal(result.hectares.gron_svarlopt ?? 0),
         decimal(result.hectares.gron_mycket_svarlopt ?? 0)) };
     }} />;

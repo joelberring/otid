@@ -81,7 +81,10 @@ RUN echo "Karttapullautin ${PULLAUTIN_TAG}, GPL-3. Källkoden: https://github.co
   && mkdir -p /work /app && chown node:node /work
 # Geo-arbetaren och fuktigheten (K5c) körs direkt av Node (typerna tas bort); package.json gör dem till ES-moduler.
 COPY --chown=node:node scripts/geo-worker.ts scripts/geo-moisture.ts scripts/geo-vegetation.ts scripts/geo-water.ts scripts/geo-cliffs.ts scripts/geo-ditches.ts scripts/geo-rock.ts scripts/geo-steps.ts scripts/geo-cache.ts scripts/geo-generalize.ts scripts/geo-points.ts scripts/geo-paved.ts scripts/geo-paved-generalize.ts scripts/geo-paved-contour.ts scripts/geo-gpkg.ts scripts/geo-dwg.ts scripts/geo-merge.ts /app/
-RUN echo '{ "type": "module", "private": true }' > /app/package.json
+# Ägaren 2026-11-17: vegetationens generalisering delas med webbläsaren och ligger i map-revision; geo-vegetation.ts importerar
+# den med den relativa sökvägen ../packages/…, som från /app blir /packages/….
+COPY --chown=node:node packages/map-revision/src/base-map/vegetation-shapes.ts /packages/map-revision/src/base-map/
+RUN echo '{ "type": "module", "private": true }' > /app/package.json && echo '{ "type": "module", "private": true }' > /packages/package.json
 USER node
 WORKDIR /app
 # Nodes eget tak för minnet är en fjärdedel av serverns (2 GB på 8 GB); stora områden behöver mer. Taket sätts till halva

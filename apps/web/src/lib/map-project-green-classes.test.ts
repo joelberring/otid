@@ -52,15 +52,18 @@ describe("grönt med reglage", () => {
   });
 });
 
-/** Ägaren 2026-11-14: «ett reglage som generaliserar gröna ytor mer, så att en sån här form blir enklare redovisad». */
-describe("förenkla de gröna ytorna", () => {
-  /** 120 × 120 celler om 2 m: en grön klump med en smal vik, en tunn arm, ett litet hål och en liten fläck bredvid; tätare kärna. */
+/**
+ * Ägaren 2026-11-14 («ett reglage som generaliserar gröna ytor mer») och 2026-11-17 («för detaljerade eller blobbiga … små smala
+ * mellanzoner»): generaliseringen som en indelning (`generalizeVegetation`), läge 1–10, 0 = de gamla reglerna.
+ */
+describe("generalisera ytorna", () => {
+  /** 120 × 120 celler om 2 m (1:15 000): en grön klump med en smal vik (6 m), en tunn arm (6 m), ett litet hål och en liten fläck; tätare kärna. */
   function ragged() {
     const width = 120, height = 120, data = new Uint8ClampedArray(width * height * 4);
     const green = (column: number, row: number) => {
       const body = column >= 30 && column < 80 && row >= 30 && row < 80;
-      const bay = column >= 48 && column < 62 && row >= 30 && row < 56, hole = column >= 62 && column < 74 && row >= 62 && row < 74;
-      const arm = column >= 80 && column < 112 && row >= 40 && row < 50, speck = column >= 2 && column < 16 && row >= 104 && row < 118;
+      const bay = column >= 54 && column < 57 && row >= 30 && row < 56, hole = column >= 66 && column < 71 && row >= 66 && row < 71;
+      const arm = column >= 80 && column < 112 && row >= 44 && row < 47, speck = column >= 6 && column < 12 && row >= 108 && row < 114;
       return (body && !bay && !hole) || arm || speck;
     };
     for (let row = 0; row < height; row += 1) for (let column = 0; column < width; column += 1) {
@@ -82,19 +85,19 @@ describe("förenkla de gröna ytorna", () => {
     }
     return hit;
   };
-  it("0 ändrar inget", () => {
+  it("utan läge gäller förvalet 4; 0 ger de gamla reglerna", () => {
     const plain = greenCandidates(ragged(), { ...DEFAULT_GREEN, undergrowth: false }, toSource, 3006);
-    expect(greenCandidates(ragged(), { ...DEFAULT_GREEN, undergrowth: false, simplify: 0 }, toSource, 3006)).toEqual(plain);
+    expect(greenCandidates(ragged(), { ...DEFAULT_GREEN, undergrowth: false, simplify: 4 }, toSource, 3006)).toEqual(plain);
+    expect(greenCandidates(ragged(), { ...DEFAULT_GREEN, undergrowth: false, simplify: 0 }, toSource, 3006)).not.toEqual(plain);
   });
-  it("sluter viken, tar bort armen, fläcken och hålet, och ger färre brytpunkter", () => {
-    const before = at(0), after = at(6);
+  it("sluter den smala viken, tar bort den tunna armen, fläcken och hålet", () => {
     // Viken (kolumn 55, rad 40), hålet (68, 68), armen (100, 45) och fläcken (9, 111); en punkt är grön om den ligger i ett udda antal ringar.
     const green = (rings: readonly (readonly (readonly [number, number])[])[]) => [[55, 40], [68, 68], [100, 45], [9, 111]]
       .map(([column, row]) => rings.filter(ring => inside(ring, toSource(column!, row!))).length % 2 === 1);
-    expect(green(before.rings("gron_lattlopt"))).toEqual([false, false, true, true]);
-    expect(after.rings("gron_lattlopt")).toHaveLength(1);
-    expect(green(after.rings("gron_lattlopt"))).toEqual([true, true, false, false]);
-    expect(after.points("gron_lattlopt")).toBeLessThan(before.points("gron_lattlopt"));
+    for (const level of [2, 4, 6]) {
+      expect(at(level).rings("gron_lattlopt")).toHaveLength(1);
+      expect(green(at(level).rings("gron_lattlopt"))).toEqual([true, true, false, false]);
+    }
   });
   it("behåller de tätare stegen inuti de glesare, och öppen mark rörs inte", () => {
     const after = at(4), outer = after.rings("gron_lattlopt");
@@ -118,8 +121,8 @@ describe("gläntor (ägaren 2026-11-15)", () => {
     return { width, height, data };
   };
   const open = (clearings: number) => greenCandidates(forest(), { ...DEFAULT_GREEN, undergrowth: false, clearings }, (c, r) => [c * 2, -r * 2], 3006).hectares.oppen_mark ?? 0;
-  it("5 är som förut, högre tar med den lilla gläntan och gör dem större, lägre tar bort den", () => {
-    expect(open(5)).toBeGreaterThan(0.04); expect(open(5)).toBeLessThan(0.07);
+  it("5 är förvalet, högre tar med den lilla gläntan och gör dem större, lägre tar bort den", () => {
+    expect(open(5)).toBeGreaterThan(0.03); expect(open(5)).toBeLessThan(0.07);
     expect(open(8)).toBeGreaterThan(open(5) + 0.01);
     expect(open(1)).toBeLessThanOrEqual(open(5));
     expect(clearingShape(5, 300, 2)).toEqual({ minCells: 75, growCells: 0 });

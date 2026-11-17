@@ -726,3 +726,25 @@ kartritare för att kunna göra medvetna generaliseringar».
 - **Kompakta svar.** Verktygens JSON skrivs med tal och koordinatpar på en rad (`mcp-text.ts`). Med vanlig indragning tog
   varje koordinat tre–fyra rader; ett svar med geometri blir nu mindre än hälften så långt.
 
+
+## Tillägg 2026-11-17: arbetsstegen i kartprojektet (översynen av kartstegen, ingen migration)
+
+Ägaren: «arbetsstegen för att göra en karta kan vara förvirrande med många oklara namn och undermenyer av samma storlek». Bara
+gränssnittets texter, ordning och utseende; beräkningarna och ritverktygen är orörda.
+
+- **Ordningen uppifrån och ned.** Under fliken Lager heter delen «Underlag och grundkarta» och har tre numrerade huvudsteg (h3
+  med en siffra i en ring och en rad om vad steget ger): 1 Hämta underlag, 2 Ta fram grundkartan (guiden, sedan «Andra sätt»:
+  laserkörningarna, vektorfil/OpenStreetMap, underlag för frihandsritning), 3 Gå igenom utkastet (reglagen). Valen inom ett steg
+  står indragna i mindre stil; en rad sist pekar vidare till Symboler, Granska › Normkontroll och projektsidans Exportera.
+  Guidens egna steg heter delsteg (h4), så att de inte krockar med huvudstegen.
+- **Ett ord per sak.** «Kandidater» heter utkast (det som visas på kartan men inte är inlagt); förslag är fortfarande det som en
+  ägare godkänner. Delområde används överallt där man väljer område (inte «etapp», som bara är en laserkörning delad i delar).
+  Hänvisningarna till den rubrik som inte fanns («Vektorfil») pekar på raden under kartan. Rubriker: «Laserkörningar
+  (avancerat)», «Läs in vektorfil eller OpenStreetMap», «Ortofoto från annan karttjänst (WMS)», «Skogsstyrelsens kartor
+  (hyggen, nyckelbiotoper)», «Lägg till en egen bild», «Generalisera kartan», «Färga delområdena efter revidering».
+- **Granska i arbetsordning:** Förslag, Normkontroll, Notiser, Rekning, Delområden; arbetssättet och AI-kopplingen (sällan ändrade)
+  i en utfällning sist.
+- **Projektsidan:** «Nästa steg» får steget Kontrollera och exportera (klart när projektet har en ny kartversion). «Grundversion»
+  heter Kartan och exporten står på ett ställe, «Exportera» (ny kartversion, bara ändringarna, versionerna). «Byt namn» heter
+  Namn och status.
+- Större omflyttningar (en egen flik för stegen, laserpanelen ihop med guiden m.m.) är förslag till ägaren, inte gjorda.

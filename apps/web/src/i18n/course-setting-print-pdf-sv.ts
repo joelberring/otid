@@ -12,7 +12,7 @@ export const printPdfSv = {
   mapColors: "Kartans färger i PDF:en för tryck",
   mapSpots: "Dekorfärger som i kartfilen",
   mapProcess: "CMYK (kartfärgernas egna värden)",
-  press: "Skapa PDF för tryck",
+  press: "Skapa PDF för tryckeriet",
   office: "Skapa PDF för kontorsskrivare",
   overprintViewer: "Övertrycket syns i Acrobat med ”Simulera övertryck”; Förhandsvisning på Mac visar lila heltäckande.",
   preflight: "Förhandskontroll för PDF:en",

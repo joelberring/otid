@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { blProposalEn } from "../../i18n/course-setting-look-en";
 import { useTexts } from "../language-provider";
 import type { ColorDecision, CourseSettingEdit, PressNorm, PrintProfile, SheetFrame } from "@o-tid/course-setting";
-import type { ColorUsage, MapColor } from "@o-tid/map-file";
+import { usageSymbolsText, type ColorUsage, type MapColor } from "@o-tid/map-file";
 import { blProposalSv } from "../../i18n/course-setting-bl-proposal-sv";
 import {
   activeChoice, approvalEdits, approvedProfile, cmykText, cssOfCmyk, decide, isolateAdjust, proposalState, sideOf, thumbnailView, type Action, type ProposalRow,
@@ -154,15 +154,18 @@ function ProposalItem({ row, state, colors, render, readOnly, busy, act, flash, 
   const { proposal } = row;
   const color = proposal.color;
   const [choosing, setChoosing] = useState(false);
+  // Beslutade färger visas kompakt (färgrutor, namn och knappar); kartbiten, skälen och talen finns under "Detaljer".
+  const [details, setDetails] = useState(false);
+  const compact = row.status !== "PENDING" && !details;
   const [thumb, setThumb] = useState<string>();
   const sample = color.usage?.sample;
   useEffect(() => {
-    if (!sample) return;
+    if (!sample || compact) return;
     let live = true;
     void render({ ...thumbnailView(sample), colorAdjust: isolateAdjust(colors, color.ocadId) }, 2)
       .then(url => { if (live) setThumb(url); }, error => console.error("Kartbiten kunde inte ritas", error));
     return () => { live = false; };
-  }, [sample, colors, color.ocadId, render]);
+  }, [sample, compact, colors, color.ocadId, render]);
   const target = row.row;
   const side = target ? sideOf(state.table, target) : undefined;
   // "Passar bäst": förslagets rader (högst fem); resten av tabellen under en egen rubrik.
@@ -174,15 +177,15 @@ function ProposalItem({ row, state, colors, render, readOnly, busy, act, flash, 
   const name = color.name;
   const choice = activeChoice(row);
   return <li className={styles.row} data-testid="bl-row" data-color={color.ocadId} data-confidence={proposal.confidence} data-status={row.status}
-    data-row={target?.id ?? ""}>
-    {thumb ? <img className={styles.thumb} src={thumb} alt={text.thumbAlt(name)} /> : <span className={styles.thumbEmpty} aria-hidden="true" />}
+    data-row={target?.id ?? ""} data-compact={compact ? "yes" : "no"}>
+    {compact ? null : thumb ? <img className={styles.thumb} src={thumb} alt={text.thumbAlt(name)} /> : <span className={styles.thumbEmpty} aria-hidden="true" />}
     <div>
       <div className={styles.pair}>
         <span className={styles.big} style={{ background: row.before }} title={text.before} data-testid="bl-before" />
         <span className={styles.arrow} aria-hidden="true">→</span>
         <span className={styles.big} style={{ background: row.after }} title={text.after} data-testid="bl-after" />
       </div>
-      <div className={styles.pairLabels}><span>{text.before}</span><span>{text.after}</span></div>
+      {!compact && <div className={styles.pairLabels}><span>{text.before}</span><span>{text.after}</span></div>}
     </div>
     <div className={styles.body}>
       <div className={styles.names}>
@@ -193,12 +196,12 @@ function ProposalItem({ row, state, colors, render, readOnly, busy, act, flash, 
           <span aria-hidden="true">{STATUS_ICON[row.status]} </span>{text.status[row.status]}</span>
         {row.byHand && <span className={styles.state} data-testid="bl-by-hand">{text.byHand}</span>}
       </div>
-      <ul className={styles.reasons}>{proposal.reasons.slice(0, 3).map(reason => <li key={reason}>{reason}</li>)}
+      {!compact && <><ul className={styles.reasons}>{proposal.reasons.slice(0, 3).map(reason => <li key={reason}>{reason}</li>)}
         {wrongSide && <li data-testid="bl-wrong-side">{text.doubtSide}</li>}</ul>
       <div className={styles.numbers}>{text.numbers(cmykText(color.cmyk), target?.cmyk ? cmykText(target.cmyk) : undefined, color.ocadId)}
-        {color.usage ? ` · ${text.used(color.usage.codes.slice(0, 5).join(", ") + (color.usage.codes.length > 5 ? " …" : ""))}` : ""}
+        {color.usage ? ` · ${text.used(usageSymbolsText(color.usage))}` : ""}
         {target?.emptyCells ? ` · ${text.emptyCells(target.emptyCells.join(", ").toUpperCase())}` : ""}
-        {side ? ` · ${side === "OVER" ? text.sideOver : side === "UNDER" ? text.sideUnder : text.sideCourse}` : ""}</div>
+        {side ? ` · ${side === "OVER" ? text.sideOver : side === "UNDER" ? text.sideUnder : text.sideCourse}` : ""}</div></>}
     </div>
     {!readOnly && <div className={styles.actions} role="group" aria-label={text.actionsLabel(name)}>
       {/* Valet som gäller visas nedtryckt (aria-pressed) med en bock; ett klick på det igen säger att det redan gäller. */}
@@ -211,6 +214,8 @@ function ProposalItem({ row, state, colors, render, readOnly, busy, act, flash, 
         aria-expanded={choosing} data-testid="bl-choose">{choosing ? text.chooseCancel : choice === "CHOOSE" ? `✓ ${text.chosen}` : text.choose}</Button>
       {row.status !== "PENDING" && <Button variant="quiet" disabled={busy} onClick={() => act({ kind: "UNDO", ocadId: color.ocadId })}
         data-testid="bl-undo">{text.undo}</Button>}
+      {row.status !== "PENDING" && <Button variant="quiet" aria-expanded={details} onClick={() => setDetails(open => !open)} data-testid="bl-details">
+        {details ? text.detailsHide : text.detailsShow}</Button>}
       <span role="status" aria-live="polite" className={styles.flash} data-tone={flash?.tone} data-testid="bl-flash">
         {flash ? `${flash.tone === "ok" ? "✓ " : ""}${flash.text}` : ""}</span>
     </div>}

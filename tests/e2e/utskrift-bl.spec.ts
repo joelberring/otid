@@ -130,6 +130,14 @@ test("utskrift-bl: BL skog, förslaget godkänns visuellt och PDF:en får BL:s v
   await proposal.getByTestId("bl-accept-safe").click();
   await expect(proposal.getByTestId("bl-progress")).toHaveText("3 av 5 färger godkända", { timeout: 30_000 });
   await expect(proposal.locator("[data-testid=bl-row][data-status=ACCEPTED]")).toHaveCount(3);
+  // Beslutade färger visas kompakt; "Detaljer" visar kartbiten, skälen och talen igen. BL trycker i CMYK: inget fält för dekorfärg.
+  const decided = proposal.locator("[data-testid=bl-row][data-status=ACCEPTED]").first();
+  await expect(decided).toHaveAttribute("data-compact", "yes");
+  await decided.getByTestId("bl-details").click();
+  await expect(decided).toHaveAttribute("data-compact", "no");
+  await expect(decided).toContainText("används för");
+  await decided.getByTestId("bl-details").click();
+  await expect(owner.getByTestId("print-profile-process")).toBeVisible();
   // Den tvetydiga gröna: välj BL-rad i listan med färgrutor.
   await green.getByTestId("bl-choose").click();
   const choices = green.getByTestId("bl-choices");

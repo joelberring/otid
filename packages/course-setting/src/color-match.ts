@@ -8,7 +8,7 @@
  * Rader med samma CMYK på samma sida av banan (Svart och Väg sidlinje) ger samma tryck och räknas som en; därför blir de
  * aldrig tvetydiga sinsemellan.
  */
-import type { ColorUsage } from "@o-tid/map-file";
+import { usageSymbolsText, type ColorUsage } from "@o-tid/map-file";
 import { referenceRow, referenceSide, type ReferenceColor, type ReferenceTable } from "./print-reference";
 import type { Cmyk100, SourceMapColor } from "./print-profile";
 
@@ -121,7 +121,7 @@ function scoreRow(item: ReferenceColor, color: MatchColor): Scored | undefined {
     const codes = item.hints?.codes;
     if (codes && codes.length > 0) {
       const hits = usage.mains.filter(main => codes.includes(main));
-      if (hits.length > 0) { score += 25 + Math.min(15, 5 * hits.length); signals += 1; reasons.push(`Används för ${usage.codes.filter(code => hits.includes(Number.parseInt(code, 10))).slice(0, 6).join(", ")}`); }
+      if (hits.length > 0) { score += 25 + Math.min(15, 5 * hits.length); signals += 1; reasons.push(`Används för ${usageSymbolsText(usage, 4, code => hits.includes(Number.parseInt(code, 10)))}`); }
       else if (usage.mains.length > 0) score -= 15;
     }
     const kinds = item.hints?.kinds;

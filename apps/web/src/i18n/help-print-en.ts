@@ -211,7 +211,7 @@ export const fieldPrintHelpArticlesEn: readonly HelpArticle[] = [
     body: [
       "”Create PDF for the printer” under ”Print” on the print page creates the PDF on the server. It has the map as vectors and the course in its own spot colour with overprint.",
       [
-        "”Create PDF for print”: for the printer. ”The map's colours in the PDF for print”: spot colours as in the map file or CMYK.",
+        "”Create PDF for the printer”: for the printer. ”The map's colours in the PDF for print”: spot colours as in the map file or CMYK.",
         "”Create PDF for office printer”: CMYK without spot colours, with the same colour order as the print.",
         "In it the purple shows through the map's colours above the course, so it looks like the print in all programs.",
         "The PDF for print has real overprint. It shows in Acrobat with Simulate overprint; Preview on Mac shows purple solid.",

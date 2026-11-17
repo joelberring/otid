@@ -11,7 +11,7 @@ import { Button } from "./ui";
 /**
  * Ägaren 2026-11-10: träningens sparade utskrifter (PDF). I banläggningens utskrift och på veckan i terminsplanen. Den som
  * får ändra laddar upp och tar bort; alla som ser banläggningen laddar ner. `reloadKey` läser om listan (t.ex. efter
- * "Spara i träningen" på ett tryckjobb).
+ * "Spara utskriften" på ett tryckjobb).
  */
 export function RacePrintFiles({ raceId, canEdit, reloadKey = 0, compact = false, onCount }: {
   raceId: string; canEdit: boolean; reloadKey?: number; compact?: boolean; onCount?: (count: number) => void;

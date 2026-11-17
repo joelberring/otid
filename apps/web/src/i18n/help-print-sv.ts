@@ -214,7 +214,7 @@ export const fieldPrintHelpArticles: readonly HelpArticle[] = [
     body: [
       "”Skapa PDF för tryckeriet” under ”Skriv ut” på utskriftssidan skapar PDF:en på servern. Den har kartan som vektorer och banan i egen dekorfärg med övertryck.",
       [
-        "”Skapa PDF för tryck”: till tryckeriet. ”Kartans färger i PDF:en för tryck”: dekorfärger som i kartfilen eller CMYK.",
+        "”Skapa PDF för tryckeriet”: till tryckeriet. ”Kartans färger i PDF:en för tryck”: dekorfärger som i kartfilen eller CMYK.",
         "”Skapa PDF för kontorsskrivare”: CMYK utan dekorfärger, med samma färgordning som trycket.",
         "I den syns lila genom kartans färger över banan, så den ser ut som trycket i alla program.",
         "PDF:en för tryck har äkta övertryck. Det syns i Acrobat med Simulera övertryck; Förhandsvisning på Mac visar lila heltäckande.",

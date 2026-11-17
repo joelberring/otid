@@ -42,6 +42,8 @@ export const blProposalSv = {
   chooseProposed: "förslaget",
   numbers: (file: string, target: string | undefined, ocad: number) => `Fil ${file}${target ? ` → BL ${target}` : ""} · OCAD ${ocad}`,
   used: (codes: string) => `används för ${codes}`,
+  detailsShow: "Detaljer",
+  detailsHide: "Dölj detaljer",
   emptyCells: (cells: string) => `tom ${cells} i BL:s tabell (läst som 0)`,
   sideOver: "över banan i BL:s tabell",
   sideUnder: "under banan i BL:s tabell",

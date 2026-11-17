@@ -12,7 +12,7 @@ export {
 export type { ProjectedPoint, TransverseMercator, Wgs84Point } from "./georef";
 export { maxOf, minOf, ocdSymbolCode, parseSymbolCode } from "./geometry";
 export { distance, distanceToSegment, nearestOnSegment, polylineLength } from "./plane";
-export { colorUsage } from "./usage";
+export { colorUsage, usageSymbolsText } from "./usage";
 export type { ColorUsage, ColorUseKind } from "./usage";
 export { rgbFromCmyk } from "./color";
 export * from "./revision/change-set";

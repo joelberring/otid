@@ -13,6 +13,8 @@ export interface ColorUsage {
   readonly kinds: readonly ColorUseKind[];
   /** Symbolnumren som de står i filen ("101", "406.1"), sorterade. */
   readonly codes: readonly string[];
+  /** Symbolernas namn i filen, i samma ordning som `codes` ("" när symbolen saknar namn). Saknas i äldre data. */
+  readonly names?: readonly string[] | undefined;
   /** Huvudnumren (101, 406 …), sorterade. */
   readonly mains: readonly number[];
   /** Där färgen syns tätast, i kartans mm. */
@@ -70,10 +72,19 @@ function objectCenter(object: MapObject): { x: number; y: number } | undefined {
   return pathCenter(object.kind === "line" ? [object.path] : object.rings.slice(0, 1));
 }
 
+/**
+ * Symbolerna som text för människor: "Stup (206.0), Stig (505.0)"; utan namn bara numret. `only` väljer ut vissa nummer,
+ * `max` är hur många som nämns innan " …".
+ */
+export function usageSymbolsText(usage: Pick<ColorUsage, "codes" | "names">, max = 5, only?: (code: string) => boolean): string {
+  const items = usage.codes.map((code, index) => ({ code, name: usage.names?.[index] ?? "" })).filter(item => !only || only(item.code));
+  return items.slice(0, max).map(item => item.name ? `${item.name} (${item.code})` : item.code).join(", ") + (items.length > max ? " …" : "");
+}
+
 /** Användningen per färgens id; färger som inget synligt objekt använder saknas. */
 export function colorUsage(map: Pick<ParsedMap, "symbols" | "objects">): Map<number, ColorUsage> {
   const bySymbol = new Map<string, Map<number, Set<ColorUseKind>>>();
-  const collected = new Map<number, { objects: number; kinds: Set<ColorUseKind>; codes: Set<string>; mains: Set<number>; cells: Map<string, { count: number; x: number; y: number }> }>();
+  const collected = new Map<number, { objects: number; kinds: Set<ColorUseKind>; codes: Map<string, string>; mains: Set<number>; cells: Map<string, { count: number; x: number; y: number }> }>();
   for (const object of map.objects) {
     const symbol = map.symbols.get(object.symbol);
     if (!symbol || symbol.hidden) continue;
@@ -82,10 +93,10 @@ export function colorUsage(map: Pick<ParsedMap, "symbols" | "objects">): Map<num
     const center = objectCenter(object);
     const cell = center ? `${Math.floor(center.x / SAMPLE_CELL_MM)},${Math.floor(center.y / SAMPLE_CELL_MM)}` : undefined;
     for (const [color, kinds] of colors) {
-      const entry = collected.get(color) ?? { objects: 0, kinds: new Set<ColorUseKind>(), codes: new Set<string>(), mains: new Set<number>(), cells: new Map<string, { count: number; x: number; y: number }>() };
+      const entry = collected.get(color) ?? { objects: 0, kinds: new Set<ColorUseKind>(), codes: new Map<string, string>(), mains: new Set<number>(), cells: new Map<string, { count: number; x: number; y: number }>() };
       entry.objects += 1;
       for (const kind of kinds) entry.kinds.add(kind);
-      entry.codes.add(symbol.code.text);
+      if (!entry.codes.get(symbol.code.text)) entry.codes.set(symbol.code.text, symbol.name.trim());
       entry.mains.add(symbol.code.main);
       if (cell && center) {
         const known = entry.cells.get(cell) ?? { count: 0, x: 0, y: 0 };
@@ -101,10 +112,12 @@ export function colorUsage(map: Pick<ParsedMap, "symbols" | "objects">): Map<num
     // Medelpunkten av objektens mitt i rutan (ligger oftare på färgen än rutans mitt).
     const sample = best ? { x: best.x / best.count, y: best.y / best.count } : undefined;
     const order: ColorUseKind[] = ["AREA", "LINE", "POINT", "TEXT"];
+    const codes = [...entry.codes].sort(([a], [b]) => a.localeCompare(b, "sv-SE", { numeric: true })).slice(0, MAX_CODES);
     out.set(color, {
       objects: entry.objects,
       kinds: order.filter(kind => entry.kinds.has(kind)),
-      codes: [...entry.codes].sort((a, b) => a.localeCompare(b, "sv-SE", { numeric: true })).slice(0, MAX_CODES),
+      codes: codes.map(([code]) => code),
+      names: codes.map(([, name]) => name),
       mains: [...entry.mains].sort((a, b) => a - b),
       ...(sample ? { sample } : {})
     });

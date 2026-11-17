@@ -4,7 +4,7 @@ import { useMemo, useRef, useState, type ReactNode } from "react";
 import { printColorsEn } from "../../i18n/course-setting-print-more-en";
 import { useTexts } from "../language-provider";
 import {
-  BUILT_IN_PRINT_PROFILES, colorPreflight, decisionFor, MAP_OWN_PRINT_PROFILE_ID, mapColorAdjust, parsePrintProfile, referenceRow, sourceMapColors,
+  BUILT_IN_PRINT_PROFILES, colorPreflight, PDF_PRINT_CAPABILITIES, UNCONFIRMED_RULE, decisionFor, MAP_OWN_PRINT_PROFILE_ID, mapColorAdjust, parsePrintProfile, referenceRow, sourceMapColors,
   SUPERSEDED_PRINT_PROFILES, type Cmyk100, type CourseSettingEdit, type PressNorm, type PrintProfile
 } from "@o-tid/course-setting";
 import type { ColorUsage, MapColor } from "@o-tid/map-file";
@@ -62,7 +62,8 @@ export function PrintColors({ saved, profile, colors, usage, norm, detectedNorm,
   const [shown, setShown] = useState(false);
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
   const file = useRef<HTMLInputElement>(null);
-  const report = useMemo(() => colors.length > 0 ? colorPreflight(profile, sourceMapColors(colors, usage)) : undefined, [profile, colors, usage]);
+  const report = useMemo(() => colors.length > 0 ? colorPreflight(profile, sourceMapColors(colors, usage), PDF_PRINT_CAPABILITIES) : undefined, [profile, colors, usage]);
+  const colorFindings = report?.findings.filter(finding => finding.rule !== UNCONFIRMED_RULE) ?? [];
 
   /** Sparar en ändring av profilen (i en kopia om den är färdig) och väljer den för tävlingen. */
   const change = async (next: (current: PrintProfile) => PrintProfile) => {
@@ -129,11 +130,11 @@ export function PrintColors({ saved, profile, colors, usage, norm, detectedNorm,
               const cmyk = parseCmyk(event.target.value);
               if (cmyk && cmykText(cmyk) !== cmykText(profile.course.cmyk)) void change(current => ({ ...current, course: { ...current.course, cmyk } }));
             }} /></label>
-          <label className={styles.field}>{text.spotName}<input defaultValue={profile.course.spotName} key={`${profile.id}-spot`} onBlur={event => {
+          {profile.processColors ? <span className={styles.muted} data-testid="print-profile-process">{text.courseProcess}</span> : <><label className={styles.field}>{text.spotName}<input defaultValue={profile.course.spotName} key={`${profile.id}-spot`} onBlur={event => {
             const spotName = event.target.value.trim(); if (spotName && spotName !== profile.course.spotName) void change(current => ({ ...current, course: { ...current.course, spotName } }));
           }} /></label>
           <label className={styles.check}><input type="checkbox" checked={profile.course.overprint}
-            onChange={event => void change(current => ({ ...current, course: { ...current.course, overprint: event.target.checked } }))} />{text.overprint}</label>
+            onChange={event => void change(current => ({ ...current, course: { ...current.course, overprint: event.target.checked } }))} />{text.overprint}</label></>}
         </fieldset>
         <fieldset className={styles.row} disabled={readOnly} data-testid="print-colors-order">
           <legend>{text.orderHeading}</legend>
@@ -157,9 +158,9 @@ export function PrintColors({ saved, profile, colors, usage, norm, detectedNorm,
         {colors.length === 0 ? <p className={styles.muted}>{text.noColors}</p>
           : <ColorTable profile={profile} colors={colors} readOnly={readOnly} onChange={next => void change(next)} />}
         {report && <div className={styles.stack} data-testid="print-preflight">
-          <h3>{text.preflight} {report.canPrint ? text.preflightOk : text.preflightBlocked}</h3>
-          {report.findings.length === 0 ? <p className={styles.muted}>{text.noFindings}</p>
-            : <ul className={styles.findings}>{report.findings.map((finding, index) => <li key={index} data-severity={finding.severity}>
+          {/* Beskedet om PDF:en kan skrivas står vid "Skapa PDF"; här bara det som rör färgerna (obekräftade färger står redan i statusraden). */}
+          {colorFindings.length === 0 ? report.findings.length === 0 && <p className={styles.muted}>{text.noFindings}</p>
+            : <ul className={styles.findings}>{colorFindings.map((finding, index) => <li key={index} data-severity={finding.severity}>
               <strong>{text.severity[finding.severity]}</strong> {finding.text}</li>)}</ul>}
         </div>}
         <details data-testid="print-colors-more">

@@ -110,6 +110,8 @@ export const blProposalEn: Texts<typeof blProposalSv> = {
   chooseProposed: "the proposal",
   numbers: (file: string, target: string | undefined, ocad: number) => `File ${file}${target ? ` → BL ${target}` : ""} · OCAD ${ocad}`,
   used: (codes: string) => `used for ${codes}`,
+  detailsShow: "Details",
+  detailsHide: "Hide details",
   emptyCells: (cells: string) => `empty ${cells} in BL's table (read as 0)`,
   sideOver: "above the course in BL's table",
   sideUnder: "below the course in BL's table",

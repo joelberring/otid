@@ -26,8 +26,8 @@ export const printOutputSv = {
   what: "Vad som skrivs ut",
   printer: "Skriv ut på skrivare",
   printerHelp: "Ett snabbt utkast på din egen skrivare; färgerna är inte tryckkvalitet.",
-  pdf: "Skapa PDF för tryckeriet",
-  pdfHelp: "Servern skriver en PDF med kartan som vektorer, i färgerna enligt ”Färger för tryck” ovan.",
+  pdf: "Skapa PDF",
+  pdfHelp: "Servern skriver en PDF med kartan som vektorer. För tryckeriet: färgerna enligt ”Färger för tryck” ovan. För kontorsskrivare: vanlig CMYK som ser ut som trycket.",
   editor: "Redigera arket",
   /** ADR-0217 fas 3: arken som skrivs ut (papperet redigeras i Layout). */
   preview: "Arken som skrivs ut",

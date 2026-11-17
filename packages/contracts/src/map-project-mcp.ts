@@ -60,7 +60,9 @@ export const mcpCreateMapProjectSchema = z.object({ name: z.string().trim().min(
 export const mcpToolInputSchemas = {
   map_overview: z.object({ project_id: idSchema }),
   render_view: z.object({ project_id: idSchema, area: boxSchema.optional(), width_px: z.number().int().min(200).max(MCP_MAX_IMAGE_SIDE_PX).optional(),
-    grid: z.boolean().optional(), highlight: z.array(keySchema).max(200).optional(), hide_symbols: z.array(codeSchema).max(100).optional() }),
+    grid: z.boolean().optional(), highlight: z.array(keySchema).max(200).optional(), hide_symbols: z.array(codeSchema).max(100).optional(),
+    // Ägaren 2026-11-17: underlagen (ortofoto, IR, skuggning) under kartan, utpekade med en del av namnet.
+    underlays: z.array(z.string().min(1).max(80)).max(4).optional(), map_opacity: z.number().min(0).max(1).optional() }),
   render_compare: z.object({ project_id: idSchema, area: boxSchema.optional(), width_px: z.number().int().min(200).max(MCP_MAX_IMAGE_SIDE_PX / 2).optional() }),
   // Ägaren 2026-11-11: träningsdata för att lära geo-arbetarens regler av en väl ritad karta.
   training_labels: z.object({ project_id: idSchema, min_e: z.number().finite(), min_n: z.number().finite(), max_e: z.number().finite(), max_n: z.number().finite(),

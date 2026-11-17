@@ -10,6 +10,7 @@ import { readGeoRaster } from "./map-project-geo-jobs";
 import { createMapProjectNewForAccount } from "./map-project-new";
 import { mapProjectAreaViews } from "./map-project-areas";
 import { runMapJobAndWait, type MapJobKind, type MapJobOutcome } from "./map-project-jobs";
+import type { RenderUnderlaySource } from "./map-project-job-run";
 import { createMapProjectProposalAsAi, openProposalCount } from "./map-project-proposals";
 import { listMapProjectsForAccount } from "./map-projects";
 import { callMcpBaseMapTool, MCP_BASE_MAP_TOOL, type McpBaseMapOptions } from "./mcp-base-map";
@@ -49,7 +50,9 @@ export const MCP_TOOLS = [
   { name: "render_view", title: "Bild av kartan", description: `En bild (PNG, högst ${MCP_MAX_IMAGE_SIDE_PX} px) av kartan med projektets ändringar, i kartans färger, med ett rutnät i kartans mm. Markera objekt med deras nycklar och dölj symboler för att se under dem.`,
     inputSchema: { type: "object", properties: { ...projectId, ...area, width_px: { type: "integer", minimum: 200, maximum: MCP_MAX_IMAGE_SIDE_PX },
       grid: { type: "boolean", description: "Rutnätet (förval ja)" }, highlight: { type: "array", items: { type: "string" }, maxItems: 200, description: "Objektnycklar att markera" },
-      hide_symbols: { type: "array", items: { type: "string" }, maxItems: 100, description: "Symbolnummer att dölja, t.ex. 406" } }, required: ["project_id"] },
+      hide_symbols: { type: "array", items: { type: "string" }, maxItems: 100, description: "Symbolnummer att dölja, t.ex. 406" },
+      underlays: { type: "array", items: { type: "string" }, maxItems: 4, description: "Underlag att rita under kartan, med en del av namnet (t.ex. «ortofoto», «– IR», «skuggning»); svaret och ett fel listar projektets underlag. Det sista ritas överst." },
+      map_opacity: { type: "number", minimum: 0, maximum: 1, description: "Kartans täckning över underlagen (förval 0,5; 0 = bara underlagen)" } }, required: ["project_id"] },
     annotations: { readOnlyHint: true } },
   { name: "render_compare", title: "Jämför grundfilen och ändringarna", description: "Grundfilen (vänster) och kartan med projektets ändringar (höger) i samma skala och med samma rutnät. Ortofoto kommer med underlagen senare.",
     inputSchema: { type: "object", properties: { ...projectId, ...area, width_px: { type: "integer", minimum: 200, maximum: MCP_MAX_IMAGE_SIDE_PX / 2 } }, required: ["project_id"] },
@@ -157,7 +160,24 @@ export async function callMcpTool(db: Database, accountId: string, name: string,
     }
     case "render_view":
     case "render_compare": {
-      const request = { area: input.area, widthPx: input.width_px, grid: input.grid, highlight: input.highlight, hideSymbols: input.hide_symbols };
+      // Ägaren 2026-11-17: underlagen pekas ut med en del av namnet; kartjobbet läser bilderna med innehållsnyckeln.
+      let underlays: RenderUnderlaySource[] | undefined;
+      if (name === "render_view" && Array.isArray(input.underlays) && input.underlays.length) {
+        const rows = await db.select({ name: schema.mapProjectLayers.name, sha256: schema.mapProjectLayers.contentSha256, width: schema.mapProjectLayers.width,
+          height: schema.mapProjectLayers.height, crs: schema.mapProjectLayers.crs, transform: schema.mapProjectLayers.transform, sort: schema.mapProjectLayers.sort,
+          createdAt: schema.mapProjectLayers.createdAt }).from(schema.mapProjectLayers).where(eq(schema.mapProjectLayers.projectId, input.project_id));
+        rows.sort((a, b) => a.sort - b.sort || a.createdAt.getTime() - b.createdAt.getTime());
+        underlays = [];
+        for (const wanted of input.underlays as string[]) {
+          // Det senast tillagda underlaget som namnet passar, utan dubbletter.
+          const hit = [...rows].reverse().find(row => row.name.toLowerCase().includes(wanted.toLowerCase()) && !underlays!.some(found => found.sha256 === row.sha256));
+          if (hit) underlays.push({ name: hit.name, sha256: hit.sha256, width: hit.width, height: hit.height, crs: hit.crs, transform: hit.transform });
+        }
+        if (!underlays.length) return toolError(rows.length ? `Inget underlag passar. Projektets underlag: ${rows.map(row => `«${row.name}»`).join(", ")}.`
+          : "Projektet har inga underlag. Ortofoton hämtas i O-Tid under Underlag (Ortofoto från Lantmäteriet); laserkörningens bilder läggs till där också.");
+      }
+      const request = { area: input.area, widthPx: input.width_px, grid: input.grid, highlight: input.highlight, hideSymbols: input.hide_symbols,
+        ...(underlays ? { underlays, mapOpacity: input.map_opacity } : {}) };
       const outcome = await job(db, accountId, input.project_id, name === "render_view" ? "RENDER" : "COMPARE", strip(request), wait);
       if (outcome.status !== "done") return jobFailure(outcome);
       if (!outcome.image) return toolError("Bilden saknas");

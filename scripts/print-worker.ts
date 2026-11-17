@@ -24,7 +24,7 @@ import { claimPrintJob, cleanupPrintJobs, failPrintJob, heartbeatPrintJob, runPr
 import {
   claimMapJob, cleanupMapJobs, failMapJob, heartbeatMapJob, loadClaimedMapJob, MAP_JOB_CHANNEL, runMapJob
 } from "../packages/application/src/map-project-jobs.ts";
-import { createMapJobCanvas } from "./map-job-canvas.ts";
+import { createMapJobCanvas, loadMapJobImage } from "./map-job-canvas.ts";
 import { FONT_FILE_NAMES, FONT_VARIANTS, type FontFiles } from "../packages/print-pdf/src/index.ts";
 
 const CLEANUP_MS = 10 * 60_000;
@@ -85,7 +85,7 @@ async function runMapChild(url: string): Promise<void> {
   try {
     const job = await loadClaimedMapJob(db, id, worker);
     if (!job) { process.send?.({ outcome: "GONE" }); return; }
-    const outcome = await runMapJob(db, job, { worker, createCanvas: createMapJobCanvas, fonts: loadFonts });
+    const outcome = await runMapJob(db, job, { worker, createCanvas: createMapJobCanvas, fonts: loadFonts, loadImage: loadMapJobImage });
     process.send?.({ outcome });
   } finally { await pool.end(); }
 }

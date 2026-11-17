@@ -4,6 +4,7 @@ import {
   MCP_PROPOSAL_MAX_SIDE_M_AUTONOMOUS
 } from "@o-tid/contracts";
 import { areaMinus } from "@o-tid/map-revision/base-map";
+import { sourcePointToMap } from "@o-tid/map-revision";
 import {
   drawMap, mapPointToWgs84, readMapFile, type MapDrawingContext, type MapObject, type MapSymbol, type ParsedMap, type Path, type PathCommand,
   type Point
@@ -19,7 +20,9 @@ import {
  * eller förslagets ändringar. Ren kod utan I/O; canvasen kommer utifrån (`@napi-rs/canvas` i arbetaren, en falsk i testerna).
  */
 export interface MapJobCanvas {
-  readonly context: MapDrawingContext & { strokeRect(x: number, y: number, w: number, h: number): void; globalAlpha: number };
+  readonly context: MapDrawingContext & { strokeRect(x: number, y: number, w: number, h: number): void; globalAlpha: number;
+    /** Underlagen (ortofoton, terrängskuggning) som bilder ur `loadImage`. */
+    drawImage(image: unknown, x: number, y: number): void };
   png(): Uint8Array;
 }
 export type CreateMapJobCanvas = (width: number, height: number) => MapJobCanvas;
@@ -101,7 +104,31 @@ const round = (value: number, decimals = 2) => Math.round(value * 10 ** decimals
 const roundBox = (box: Box): Box => ({ minX: round(box.minX), minY: round(box.minY), maxX: round(box.maxX), maxY: round(box.maxY) });
 
 export interface RenderRequest { area?: Box | undefined; widthPx?: number | undefined; grid?: boolean | undefined; highlight?: readonly string[] | undefined;
-  hideSymbols?: readonly string[] | undefined }
+  hideSymbols?: readonly string[] | undefined;
+  /** Kartans genomskinlighet över underlagen, 0–1 (0 = bara underlagen). */
+  mapOpacity?: number | undefined;
+  /** Underlagen att rita under kartan (ägaren 2026-11-17), utpekade av AI-kopplingen; bilderna läses av kartjobbet. */
+  underlays?: readonly RenderUnderlaySource[] | undefined }
+
+/** Ett underlag som kartjobbet ritar: bildens innehållsnyckel, storlek och georeferens (pixelns mitt → koordinater i `crs`). */
+export interface RenderUnderlaySource {
+  readonly name: string; readonly sha256: string; readonly width: number; readonly height: number; readonly crs: number;
+  readonly transform: { readonly a: number; readonly b: number; readonly c: number; readonly d: number; readonly e: number; readonly f: number };
+}
+/** Ett inläst underlag: bilden och bildens pixlar (mitten) → kartans mm. */
+export interface RenderUnderlay { readonly image: unknown; readonly toMap: { a: number; b: number; c: number; d: number; e: number; f: number } }
+
+/**
+ * Bildens pixlar → kartans mm ur tre hörn (som webbens `layerToMap`), så att små skillnader mellan koordinatsystemen fördelas.
+ * Lantmäteriets 5845 är 3006 i planet. Kastar om systemet inte stöds.
+ */
+export function underlayToMap(layer: Pick<RenderUnderlaySource, "width" | "height" | "crs" | "transform">, georeference: NonNullable<ParsedMap["georeference"]>) {
+  const crs = layer.crs === 5845 ? 3006 : layer.crs, t = layer.transform;
+  const at = (column: number, row: number) => sourcePointToMap(georeference, crs, t.a * column + t.b * row + t.c, t.d * column + t.e * row + t.f);
+  const w = Math.max(1, layer.width - 1), h = Math.max(1, layer.height - 1);
+  const p0 = at(0, 0), p1 = at(w, 0), p2 = at(0, h);
+  return { a: (p1.x - p0.x) / w, b: (p2.x - p0.x) / h, c: p0.x, d: (p1.y - p0.y) / w, e: (p2.y - p0.y) / h, f: p0.y };
+}
 
 /** Bildens område: begärt, annars hela kartan; med en liten marginal och inom gränserna för bildens storlek. */
 function viewOf(loaded: LoadedProjectMap, request: RenderRequest, area: readonly (readonly Point[])[] | null) {
@@ -115,8 +142,22 @@ function viewOf(loaded: LoadedProjectMap, request: RenderRequest, area: readonly
     origin: { x: extent.minX, y: extent.maxY } };
 }
 
-function drawInto(canvas: MapJobCanvas, map: ParsedMap, view: ReturnType<typeof viewOf>, hidden: ReadonlySet<string>) {
-  drawMap(canvas.context, map, { pxPerMm: view.pxPerMm, origin: view.origin, cull: true, hiddenSymbols: hidden });
+function drawInto(canvas: MapJobCanvas, map: ParsedMap, view: ReturnType<typeof viewOf>, hidden: ReadonlySet<string>, background = true) {
+  drawMap(canvas.context, map, { pxPerMm: view.pxPerMm, origin: view.origin, cull: true, hiddenSymbols: hidden, background });
+}
+
+/** Underlagen på vit botten, i ordning, med bildens pixlar → kartans mm → bildens pixlar (y nedåt). */
+function drawUnderlays(canvas: MapJobCanvas, view: ReturnType<typeof viewOf>, underlays: readonly RenderUnderlay[]) {
+  const ctx = canvas.context, s = view.pxPerMm;
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, view.width, view.height);
+  for (const { image, toMap: t } of underlays) {
+    ctx.setTransform(s * t.a, -s * t.d, s * t.b, -s * t.e, s * (t.c - view.origin.x), s * (view.origin.y - t.f));
+    ctx.drawImage(image, -0.5, -0.5);
+  }
+  ctx.restore();
 }
 
 /** Rutnät var 10:e mm på kartan (fint var 5:e när det får plats) med mm-tal i kanten, så att Claude kan ange platser. */
@@ -150,10 +191,20 @@ function hiddenIds(loaded: LoadedProjectMap, codes: readonly string[] | undefine
   return hidden;
 }
 
-export function runRender(loaded: LoadedProjectMap, request: RenderRequest, area: readonly (readonly Point[])[] | null, createCanvas: CreateMapJobCanvas) {
+export function runRender(loaded: LoadedProjectMap, request: RenderRequest, area: readonly (readonly Point[])[] | null, createCanvas: CreateMapJobCanvas,
+  underlays: readonly RenderUnderlay[] = []) {
   const view = viewOf(loaded, request, area);
   const canvas = createCanvas(view.width, view.height);
-  drawInto(canvas, { ...loaded.base, objects: [...loaded.objects] }, view, hiddenIds(loaded, request.hideSymbols));
+  if (underlays.length) {
+    // Ägaren 2026-11-17: underlagen (ortofoto, IR, skuggning) under kartan, som kartan ritas genomskinlig över.
+    drawUnderlays(canvas, view, underlays);
+    const opacity = Math.min(1, Math.max(0, request.mapOpacity ?? 0.5));
+    if (opacity > 0) {
+      canvas.context.globalAlpha = opacity;
+      drawInto(canvas, { ...loaded.base, objects: [...loaded.objects] }, view, hiddenIds(loaded, request.hideSymbols), false);
+      canvas.context.globalAlpha = 1;
+    }
+  } else drawInto(canvas, { ...loaded.base, objects: [...loaded.objects] }, view, hiddenIds(loaded, request.hideSymbols));
   const highlighted = new Set(request.highlight ?? []);
   if (highlighted.size > 0) {
     const ctx = canvas.context;

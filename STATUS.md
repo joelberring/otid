@@ -13,6 +13,8 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+- 2026-11-17: AI-kopplingens `render_view` ritar projektets underlag (ortofoto, «– IR», laserns skuggning) under kartan: `underlays` pekar ut dem med en del av namnet (högst fyra, det sista överst), `map_opacity` är kartans täckning (förval 0,5). Webben slår upp underlagen och kartjobbet läser bilderna med innehållsnyckeln (`loadImage` i utskriftsarbetaren, @napi-rs/canvas). Verifierat: enhetstest med riktig canvas (läge och färg), typkontroll, lint. Kräver serveruppdatering (webben och utskriftsarbetaren).
+
 - 2026-11-17: Ortofoton med nära infrarött (Lantmäteriets `rgbi`, fyra band; ägaren): det fjärde bandet läses och blir ett eget underlag i falskfärg (IR, rött, grönt; namnet slutar på «– IR»), både för hämtade och egna GeoTIFF. «Tolka flygbild» använder IR-bilden när den finns: NDVI skiljer häll från torrt gräs. Gränserna är inte prövade mot riktiga bilder. Verifierat: enhetstester (band, falskfärg, tolkningen), typkontroll, lint.
 
 - 2026-11-17: NMD (Naturvårdsverkets marktäckedata, 10 m) som källa i grundkartan: servern läser visningstjänstens bild tillbaka till klasser med färgkartan (`map-project-land-cover.ts`, `…/sources/marktacke-nmd`), öppen våtmark blir `sankmark_oppen_nmd` (308) i webben och `apply_base_map`; mätt F 0,67 på Gömmarens öppna kärr (lasern 0,06), 0,27 på Lida. Hyggen som laserskanningen är nyare än tas inte med, och hyggenas hackiga kant generaliseras (`cutRing`). `decodeRgbaPng` läser PNG med palett. Verifierat: map-revision (alla), applikationens enhetstester, webbens lib-tester, typkontroll, lint; integrationstestet för `apply_base_map` har en falsk NMD men är inte kört här. Kvar: provas mot riktiga tjänsten från servern.

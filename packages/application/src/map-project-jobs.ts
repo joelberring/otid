@@ -16,7 +16,8 @@ import { measureCourseLevels } from "./course-level";
 import { renderCourse, type CourseRenderRequest } from "./course-render";
 import { readMapContent, rowContent } from "./map-content";
 import {
-  loadProjectMap, runCheck, runCompare, runObjects, runOverview, runPropose, runRender, type CreateMapJobCanvas, type ProposalOperation
+  loadProjectMap, runCheck, runCompare, runObjects, runOverview, runPropose, runRender, underlayToMap, type CreateMapJobCanvas, type ProposalOperation,
+  type RenderUnderlay, type RenderUnderlaySource
 } from "./map-project-job-run";
 
 /**
@@ -186,7 +187,9 @@ export async function cleanupMapJobs(db: Database, now = new Date()): Promise<nu
 }
 
 /** Barnprocessen: läser grundfilen och projektets objekt, gör jobbet och skriver resultatet. */
-export async function runMapJob(db: Database, job: ClaimedMapJob, deps: { worker: string; createCanvas: CreateMapJobCanvas; fonts?: () => FontFiles }, now = new Date())
+export async function runMapJob(db: Database, job: ClaimedMapJob, deps: { worker: string; createCanvas: CreateMapJobCanvas; fonts?: () => FontFiles;
+  /** Underlagens bilder (JPEG, PNG, WebP) för render_view (ägaren 2026-11-17); utan den ritas inga underlag. */
+  loadImage?: ((bytes: Uint8Array) => Promise<unknown>) | undefined }, now = new Date())
   : Promise<"DONE" | "FAILED"> {
   if (job.kind === "COURSE_RENDER" || job.kind === "COURSE_LEVEL") return runCourseRenderJob(db, job, deps, now);
   if (!job.projectId) { await failMapJob(db, job.id, deps.worker, "Jobbet saknar kartprojekt"); return "FAILED"; }
@@ -206,7 +209,18 @@ export async function runMapJob(db: Database, job: ClaimedMapJob, deps: { worker
     case "RENDER": {
       // Klassrastret för att lära av en karta (map-project-job-labels.ts) är en bild utan canvas.
       if (request.labels) { const labels = runLabels(loaded, request.labels as LabelsRequest); output = "error" in labels ? labels : { result: labels.meta, image: labels.png }; break; }
-      const rendered = runRender(loaded, request, area, deps.createCanvas); output = { result: rendered.meta, image: rendered.png }; break;
+      const underlays: RenderUnderlay[] = [], used: string[] = [];
+      for (const source of ((request.underlays ?? []) as RenderUnderlaySource[])) {
+        if (!deps.loadImage || !loaded.base.georeference) break;
+        const content = await readMapContent(db, source.sha256);
+        if (!content) continue;
+        try {
+          underlays.push({ image: await deps.loadImage(new Uint8Array(content)), toMap: underlayToMap(source, loaded.base.georeference) });
+          used.push(source.name);
+        } catch { /* En bild som inte går att läsa eller ett okänt koordinatsystem hoppas över. */ }
+      }
+      const rendered = runRender(loaded, request, area, deps.createCanvas, underlays);
+      output = { result: { ...rendered.meta, ...(used.length ? { underlays: used } : {}) }, image: rendered.png }; break;
     }
     case "COMPARE": { const rendered = runCompare(loaded, request, area, deps.createCanvas); output = { result: rendered.meta, image: rendered.png }; break; }
     case "OBJECTS": output = { result: runObjects(loaded, request) }; break;

@@ -163,6 +163,7 @@ export * from "./training-groups";
 export * from "./training-group-maps";
 export * from "./training-group-sessions";
 export * from "./training-group-public";
+export * from "./join-code";
 export {
   acceptClubInvitations, clubMembership, requireClubArea, requireClubRole, setClubAccessSettings, type ClubFailure, type ClubRole
 } from "./club-access";

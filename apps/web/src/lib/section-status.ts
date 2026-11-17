@@ -130,6 +130,7 @@ export function sectionStatus(section: Pick<Section, "id" | "label">, facts: Sec
       if (facts.mispunched > 0) return { tone: "ATTENTION", text: text.mispunched(facts.mispunched) };
       return facts.results === 0 ? { tone: "OPEN", text: text.noResults } : { tone: "DONE", text: text.results(facts.results) };
     case "PARTY": return { tone: "OPEN", text: text.party };
+    case "PEOPLE": return { tone: "DONE", text: text.people };
     case "SETTINGS": return { tone: "DONE", text: pickTexts(language, raceTypeSv, raceTypeEn).types[raceType].name };
   }
 }

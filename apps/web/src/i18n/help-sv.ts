@@ -122,7 +122,7 @@ const raceDayHelpArticles: readonly HelpArticle[] = [
         "Banläggningen, Fil: ”Ladda ned IOF XML (banor)” ger en banfil som från Purple Pen. MeOS och OLA läser den.",
         "OCAD: inget eget format från O-Tid. OCAD:s banläggning kan läsa samma IOF XML-fil. Till Purple Pen: ”Ladda ned .ppen”."
       ],
-      "Vill du lägga banorna på kartan i O-Tid: se [Banläggningen: öppna den och läs in kartan](#banlaggning-start)."
+      "Utan banor står tre val: ”Lägg banor på kartan” (se [Banläggningen: öppna den och läs in kartan](#banlaggning-start)), ”Ny bana” och ”Läs in banfil”."
     ]
   },
   {
@@ -140,7 +140,8 @@ const raceDayHelpArticles: readonly HelpArticle[] = [
         "”Sista säkra”: en mindre ring på sträckan. Den är inte en kontroll och syns inte i beskrivningen, längden eller avläsningen.",
         "”Område”: rita ett område med eget filter. Det kan gälla ”Den här banan” eller ”Alla banor”.",
         "”Stjärna”, ”Linje”, ”Keps” och ”Kartbitar”: stjärnbana, linjeorientering, kepsorientering i par och en liten karta per sträcka.",
-        "”Spegel”: kartan och banan spegelvända i utskriften. Siffrorna går att läsa som vanligt; i banläggningen ritas kartan som vanligt."
+        "”Spegel”: kartan och banan spegelvända i utskriften. Siffrorna går att läsa som vanligt; i banläggningen ritas kartan som vanligt.",
+        "”Med telefonen”: här slås Bingo, Sänka skepp och virtuella kontroller på. ”Övning i mobilen” i arbetsytan leder hit, eller till ledarens sida när en är på."
       ],
       "”Visa träningen på kartan” visar före och efter. Utskriften och PDF:en har samma maskning i kartans färger; se [Utskrift och förhandsvisning](#utskrift).",
       "Träningen följer med i .ppen-filen men försvinner om filen sparas i Purple Pen. ”Ta bort träningen för banan” gör banan vanlig igen."
@@ -274,13 +275,27 @@ const raceDayHelpArticles: readonly HelpArticle[] = [
     ]
   },
   {
+    id: "arbetsytan-telefon",
+    title: "Arbetsytan i telefonen",
+    views: ["COURSES", "ENTRIES", "START", "PUBLISH", "READOUT", "RESULTS", "PEOPLE", "SETTINGS"],
+    body: [
+      "I telefonen blir sidopanelen en rad överst som rullar i sidled.",
+      [
+        "Pilen i radens kant visar att det finns fler delar. Tryck på den eller dra raden.",
+        "Delen du står i rullas alltid fram.",
+        "”Meny” har alla delar med sitt läge och raderna ”Banläggning”, ”Övning i mobilen”, ”Personer” och ”Inställningar”."
+      ],
+      "Klubbytans flikar rullar på samma sätt."
+    ]
+  },
+  {
     id: "funktionarer",
     title: "Funktionärer",
-    views: ["SETTINGS", "EVENTS"],
+    views: ["PEOPLE", "SETTINGS", "EVENTS"],
     body: [
       "En funktionär läser av, direktanmäler, följer kvar i skogen, sköter starten och ser speakersidan. Inget annat.",
       "Funktionären ser deltagarnas och gästernas fulla namn, klubb och bricka och kan ladda ner festens köp (”Ladda ner summering (CSV)”), så ge behörigheten bara till personer du litar på.",
-      "Gå till ”Inställningar” → ”Personer med behörighet”.",
+      "Gå till ”Personer” i arbetsytans sidopanel (i telefonen också under ”Meny”).",
       "Skriv en eller flera e-postadresser under ”Lägg till person”, välj ”Funktionär” och tryck på ”Lägg till”.",
       "Personen får ett mejl med en länk och hamnar på tävlingen efter inloggningen (se [Inbjudningar med e-post](#inbjudningar)).",
       "”Ta bort” tar bort behörigheten direkt."
@@ -289,7 +304,7 @@ const raceDayHelpArticles: readonly HelpArticle[] = [
   {
     id: "inbjudningar",
     title: "Inbjudningar med e-post",
-    views: ["SETTINGS", "EVENTS", "ARCHIVE_MEMBERS"],
+    views: ["PEOPLE", "SETTINGS", "EVENTS", "ARCHIVE_MEMBERS"],
     body: [
       "När du bjuder in någon till en tävling, ett klubbarkiv eller en träningsgrupp sparas behörigheten för e-postadressen, och med e-post på servern får personen ett mejl med vem som bjöd in, till vad, rollen och en länk.",
       "Länken öppnar en sida med ”Skapa konto” (adressen ifylld och låst) och ”Logga in”.",

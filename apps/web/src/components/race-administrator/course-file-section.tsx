@@ -15,7 +15,7 @@ import type { Workspace } from "./workspace-state";
 import { CourseDataOffer } from "./course-data-offer";
 
 
-/** "eller läs in banfil" i Banors tomläge flyttar hit (PLAN.md steg 24). */
+/** "Läs in banfil" i Banors tomläge flyttar hit (PLAN.md steg 24, översynen 2026-11-17). */
 export function focusCourseFile(raceId: string) {
   const input = document.getElementById(`course-file-${raceId}`);
   input?.scrollIntoView({ block: "center" });

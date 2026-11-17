@@ -87,6 +87,7 @@ import { useCourseSettingOffline } from "./use-course-setting-offline";
 import { useRouteChoiceWorker } from "./use-route-choice-worker";
 import { useRouteHints } from "./use-route-hints";
 import { BingoPhone } from "../bingo/bingo-phone";
+import { linkedCourseSettingTab } from "../../lib/course-setting-tab";
 import { useCourseSettingTraining } from "./use-course-setting-training";
 import { useMoveShared } from "./course-setting-move-shared";
 import { carryOnImport } from "../../lib/course-setting-import-carry";
@@ -158,7 +159,16 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
   }, []);
   const [busy, setBusy] = useState(false);
   const [dialog, setDialog] = useState<"file" | "transfer" | "map">();
-  const [tab, setTab] = useState<DrawerTab>("courses");
+  // Översynen 2026-11-17: `?flik=traning` öppnar fliken Träning (bingo-ledarens sida och arbetsytans "Övning i mobilen").
+  const [linkedTab] = useState(() => typeof window === "undefined" ? undefined : linkedCourseSettingTab(window.location.search));
+  const [tab, setTab] = useState<DrawerTab>(linkedTab ?? "courses");
+  useEffect(() => {
+    // Fliken öppnas en gång; en ny laddning av redigeraren ska inte hoppa tillbaka till den.
+    if (!linkedTab) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("flik");
+    window.history.replaceState(window.history.state, "", url);
+  }, []);
   const [version, setVersion] = useState(state.setting.version);
 
   const lostText = (lost: readonly LostEdit[], document: CourseSettingDocument) =>
@@ -355,7 +365,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
     offline.queue.flatMap(item => item.kind === "inspection" ? [item.request] : []), me), [collaboration.inspections, offline.queue]);
   const inspectionList = useMemo(() => inspectionRows(document, controlsInView, inspections), [document, controlsInView, inspections]);
   const inspectedMarks = useMemo(() => inspectedPoints(document, controlsInView, inspections), [document, controlsInView, inspections]);
-  const [reveal, setReveal] = useState(0);
+  const [reveal, setReveal] = useState(linkedTab ? 1 : 0);
   const [offlineDialog, setOfflineDialog] = useState(false);
 
   // Förslag (ADR-0181 beslut 3): granskas ovanpå banan, godkänns helt eller delvis eller avböjs.

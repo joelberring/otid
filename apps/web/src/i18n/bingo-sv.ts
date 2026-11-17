@@ -44,6 +44,9 @@ export const bingoSv = {
   },
   runner: {
     title: "Bingo",
+    /** Översynen 2026-11-17: tävlingen syns för den som frågar, men ingen övning är påslagen. */
+    notRunning: "Bingon är inte igång för den här träningen.",
+    racePage: "Till tävlingssidan",
     hubTitle: "Bingo: anmäl dig och starta",
     hubHelp: "Telefonen räknar rutorna med GPS och plingar för varje ruta.",
     hubShipsTitle: "Sänka skepp: anmäl dig och starta",
@@ -207,7 +210,13 @@ export const bingoSv = {
     title: "Bingo – ledaren",
     shipsTitle: "Sänka skepp – ledaren",
     help: "Uppdateras var tionde sekund. Spåren syns bara här.",
-    off: "Bingon med telefonen är avstängd.",
+    /** Översynen 2026-11-17: ett lugnt besked med vägen dit övningen slås på, och vägen tillbaka till tävlingen. */
+    back: "Tillbaka till tävlingen",
+    offHeading: "Övning i mobilen",
+    offTitle: "Ingen övning i mobilen är påslagen för den här träningen.",
+    offWhere: "Bingo, Sänka skepp och virtuella kontroller slås på i banläggningen: fliken Träning, rutan ”Med telefonen”. Sedan visas ledarens tabell här.",
+    offOpen: "Öppna fliken Träning i banläggningen",
+    change: "Ändra i banläggningen",
     loading: "Hämtar …",
     failed: "Det gick inte att hämta. Är du inloggad som administratör?",
     name: "Namn", cells: "Rutor", distance: "Sträcka", time: "Tid", state: "Läge", updated: "Senast",

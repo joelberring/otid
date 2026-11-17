@@ -33,7 +33,8 @@ export function PreparationCourses({ ws }: { ws: Workspace }) {
     <CourseClassForm ws={ws} />
     {visible && <CourseFileSection ws={ws} />}
     {/* Steg 62: banläggningen i webben (i rogaining poängbanor; poängen i resultatet sätts ovan under Kontroller & poäng). */}
-    {visible && !ws.functionary && <p className={styles.workflowHelp}>
+    {/* Utan banor står banläggningen som ett av tomlägets tre val (översynen 2026-11-17). */}
+    {visible && !ws.functionary && ws.courseList?.courses.length !== 0 && <p className={styles.workflowHelp}>
       <Link href={`/admin/${ws.raceId}/course-setting`}>{linkText.link}</Link> – {linkText.linkHelp}</p>}
   </section>;
 }

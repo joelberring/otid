@@ -6,15 +6,18 @@ import { normalizeRaceType, type RaceType } from "@o-tid/contracts";
  * gemensamma kärnan, bara synligheten skiljer.
  */
 
-/** Delarna i sidopanelen, i banans ordning. Inställningar ligger alltid sist, utanför banan. */
-export type SectionId = "COURSES" | "CLASSES" | "ENTRIES" | "START" | "PUBLISH" | "READOUT" | "RESULTS" | "PARTY" | "SETTINGS";
+/**
+ * Delarna i sidopanelen, i banans ordning. Personer och Inställningar ligger alltid sist, utanför banan (översynen 2026-11-17:
+ * Personer med behörighet är en egen del i stället för ett avsnitt mitt i Inställningar).
+ */
+export type SectionId = "COURSES" | "CLASSES" | "ENTRIES" | "START" | "PUBLISH" | "READOUT" | "RESULTS" | "PARTY" | "PEOPLE" | "SETTINGS";
 
 /** Det innehåll som en del visar. En del kan visa flera (Träning: banor och klasser på samma ställe). */
-export type Panel = "COURSES" | "CLASSES" | "ROGAINING" | "ENTRIES" | "START" | "PUBLISH" | "READOUT" | "RESULTS" | "PARTY" | "SETTINGS";
+export type Panel = "COURSES" | "CLASSES" | "ROGAINING" | "ENTRIES" | "START" | "PUBLISH" | "READOUT" | "RESULTS" | "PARTY" | "PEOPLE" | "SETTINGS";
 
 /** Delens namn; texterna finns i i18n (`raceTypeSv.sections`). */
 export type SectionLabel = "COURSES" | "COURSES_CLASSES" | "CONTROLS_POINTS" | "CLASSES" | "CLASSES_LEGS" | "ENTRIES" |
-  "PARTICIPANTS" | "TEAMS" | "START" | "PUBLISH" | "READOUT" | "RESULTS" | "PARTY" | "SETTINGS";
+  "PARTICIPANTS" | "TEAMS" | "START" | "PUBLISH" | "READOUT" | "RESULTS" | "PARTY" | "PEOPLE" | "SETTINGS";
 
 export type Section = { id: SectionId; label: SectionLabel; panels: readonly Panel[] };
 
@@ -42,6 +45,8 @@ export type RaceTypeProfile = {
   type: RaceType;
   /** Delarna längs banan, från start till mål (Resultat). */
   course: readonly Section[];
+  /** Personer med behörighet. Saknas för funktionären (ADR-0172 beslut 3). */
+  people?: Section | undefined;
   /** Saknas för funktionären (ADR-0172 beslut 3). */
   settings?: Section | undefined;
   features: RaceTypeFeatures;
@@ -59,6 +64,7 @@ const start = section("START", "START");
 const publish = section("PUBLISH", "PUBLISH");
 const readout = section("READOUT", "READOUT");
 const results = section("RESULTS", "RESULTS");
+const people = section("PEOPLE", "PEOPLE");
 const settings = section("SETTINGS", "SETTINGS");
 
 const none: RaceTypeFeatures = { draw: false, speaker: false, import: false, eventor: false, eventorRunners: false, finalization: false, relay: false, variants: false,
@@ -66,7 +72,7 @@ const none: RaceTypeFeatures = { draw: false, speaker: false, import: false, eve
 const competition: RaceTypeFeatures = { ...none, draw: true, speaker: true, import: true, eventor: true, finalization: true, startRuleChoice: true,
   radio: true, variants: true, variantsProminent: true };
 
-const profiles: Record<Exclude<RaceType, "FORKED">, Omit<RaceTypeProfile, "type" | "settings">> = {
+const profiles: Record<Exclude<RaceType, "FORKED">, Omit<RaceTypeProfile, "type" | "people" | "settings">> = {
   TRAINING: {
     course: [section("COURSES", "COURSES_CLASSES", ["COURSES", "CLASSES"]), section("ENTRIES", "PARTICIPANTS"), publish, readout, results],
     features: none
@@ -98,7 +104,7 @@ const profiles: Record<Exclude<RaceType, "FORKED">, Omit<RaceTypeProfile, "type"
 /** ADR-0188 beslut 5: FORKED (äldre tävlingar) visas som Tävling. */
 export function raceTypeProfile(type: RaceType): RaceTypeProfile {
   const normalized = normalizeRaceType(type);
-  return { type: normalized, settings, ...profiles[normalized] };
+  return { type: normalized, people, settings, ...profiles[normalized] };
 }
 
 /**
@@ -110,13 +116,13 @@ const FUNCTIONARY_SECTIONS: readonly SectionId[] = ["START", "READOUT", "PARTY"]
 
 export function profileForRole(profile: RaceTypeProfile, role: WorkspaceRole): RaceTypeProfile {
   if (role === "ADMIN") return profile;
-  return { ...profile, settings: undefined,
+  return { ...profile, people: undefined, settings: undefined,
     course: profile.course.filter(row => FUNCTIONARY_SECTIONS.includes(row.id)).map(row => ({ ...row, panels: [row.id as Panel] })) };
 }
 
-/** Alla delar som typen visar: banans delar och Inställningar. */
+/** Alla delar som typen visar: banans delar, Personer och Inställningar. */
 export function visibleSections(profile: RaceTypeProfile): readonly Section[] {
-  return profile.settings ? [...profile.course, profile.settings] : profile.course;
+  return [...profile.course, ...(profile.people ? [profile.people] : []), ...(profile.settings ? [profile.settings] : [])];
 }
 
 /** Delen med ett visst id, eller undefined om typen inte visar den. */
@@ -139,7 +145,8 @@ export function activeSection(profile: RaceTypeProfile, id: SectionId, fallback?
  * "Tillbaka"-länkar använder dem. En del som typen inte har (Klasser i Träning) visar delen där innehållet ligger.
  */
 export const SECTION_SLUGS: Record<SectionId, string> = { COURSES: "banor", CLASSES: "klasser", ENTRIES: "anmalda", START: "start",
-  PUBLISH: "publicera", READOUT: "avlasning", RESULTS: "resultat", PARTY: "fest", SETTINGS: "installningar" };
+  PUBLISH: "publicera", READOUT: "avlasning", RESULTS: "resultat", PARTY: "fest", PEOPLE: "personer",
+  SETTINGS: "installningar" };
 
 /** Delen för ett `del`-värde (också med å, ä, ö och versaler), eller undefined. */
 export function sectionFromSlug(value: string | null | undefined): SectionId | undefined {

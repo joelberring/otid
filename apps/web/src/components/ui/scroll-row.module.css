@@ -1,0 +1,16 @@
+/*
+ * Översynen 2026-11-17: en rad som rullar i sidled visar att den fortsätter – en toning mot sidans bakgrund och en pil i
+ * kanten där det finns mer. Ingen färg, ingen animation; pilen är 44 px bred och lika hög som raden.
+ */
+.wrap { position: relative; min-width: 0; }
+.hint { position: absolute; top: 0; bottom: 0; z-index: 2; display: flex; align-items: center; width: 44px; min-height: 0; padding: 0;
+  border: 0; border-radius: 0; color: var(--ink); font-size: 1.6rem; font-weight: 600; line-height: 1; cursor: pointer; }
+.hint:hover:not(:disabled) { color: var(--ink); }
+.hint:focus-visible { outline: none; }
+.forward { right: 0; justify-content: flex-end; padding-right: 6px;
+  background: linear-gradient(to right, transparent, var(--scroll-row-fade, var(--surface)) 55%); }
+.back { left: 0; justify-content: flex-start; padding-left: 6px;
+  background: linear-gradient(to left, transparent, var(--scroll-row-fade, var(--surface)) 55%); }
+.forward:hover:not(:disabled) { background: linear-gradient(to right, transparent, var(--scroll-row-fade, var(--surface)) 55%); }
+.back:hover:not(:disabled) { background: linear-gradient(to left, transparent, var(--scroll-row-fade, var(--surface)) 55%); }
+@media print { .hint { display: none; } }

@@ -16,7 +16,6 @@ import { formatClockTime, zonedDate } from "../../lib/clock-time";
 import { EventorSection } from "./eventor-section";
 import { RaceDeleteSection } from "./race-delete-section";
 import { RaceExportSection } from "./race-export-section";
-import { PeopleSection } from "./people-section";
 import { ClubArchiveSection } from "./club-archive-section";
 import { RadioSection } from "./radio-section";
 import { SelfRegistrationSetting } from "./self-registration-setting";
@@ -55,7 +54,7 @@ function DateMoveReview({ ws }: { ws: Workspace }) {
 
 /**
  * Inställningar (ADR-0170 beslut 1): namn, datum och tävlingstyp. Att byta typ ändrar bara vilka delar som
- * syns; inget tas bort. Här finns också en länk till steget Publicera, personer med behörighet (ADR-0172), Eventor (typer som använder Eventor), radiokontroller
+ * syns; inget tas bort. Här finns också länkar till stegen Publicera och Personer (ADR-0172), Eventor (typer som använder Eventor), radiokontroller
  * (typer med tävlingsmoment), hänvisningen till importen under Anmälda (ADR-0191), "Ny tävling som den här" (PLAN.md steg 21), "Exportera tävlingen" (steg 27) och
  * (för ägaren) att ta bort tävlingen.
  */
@@ -63,7 +62,7 @@ export function SettingsPanel({ ws }: { ws: Workspace }) {
   const raceCopyText = useTexts(raceCopySv, raceCopyEn);
   const raceTypeText = useTexts(raceTypeSv, raceTypeEn);
   const text = useTexts(raceTypeSv.settings, raceTypeEn.settings);
-  const { changeSettings, data, navigateStep, profile, raceId, saveSettings, saving, setPeoplePending, settingsAttempt, settingsErrors, settingsForm,
+  const { changeSettings, data, navigateStep, profile, raceId, saveSettings, saving, settingsAttempt, settingsErrors, settingsForm,
     settingsMessage, shows, workflowLocked } = ws;
   const [copySource, setCopySource] = useState<CopySource>();
   if (!shows("SETTINGS") || !data) return null;
@@ -76,6 +75,7 @@ export function SettingsPanel({ ws }: { ws: Workspace }) {
   const locked = saving || workflowLocked;
   const id = `settings-${raceId}`;
   const publish = sectionForPanel(profile, "PUBLISH");
+  const people = sectionForPanel(profile, "PEOPLE");
   const entries = sectionForPanel(profile, "ENTRIES");
   const drawStart = profile.features.draw ? sectionForPanel(profile, "START") : undefined;
   return <div className={styles.workflowGroup}>
@@ -129,7 +129,10 @@ export function SettingsPanel({ ws }: { ws: Workspace }) {
     {publish && <Section id={`${id}-publish`} title={raceTypeText.sections.PUBLISH} help={text.publishLink}>
       <div><Button variant="secondary" onClick={() => navigateStep(publish.id)}>{text.publishOpen}</Button></div>
     </Section>}
-    <PeopleSection raceId={raceId} disabled={locked} onPendingChange={setPeoplePending} />
+    {/* Översynen 2026-11-17: Personer med behörighet är en egen del; här bara vägen dit. */}
+    {people && <Section id={`${id}-people`} title={raceTypeText.sections.PEOPLE} help={text.peopleLink}>
+      <div><Button variant="secondary" onClick={() => navigateStep(people.id)}>{text.peopleOpen}</Button></div>
+    </Section>}
     <ClubArchiveSection raceId={raceId} disabled={locked} />
     {(profile.features.eventor || profile.features.eventorRunners) && <EventorSection ws={ws} runnersOnly={!profile.features.eventor} />}
     {profile.features.radio && <RadioSection raceId={raceId} disabled={locked} />}

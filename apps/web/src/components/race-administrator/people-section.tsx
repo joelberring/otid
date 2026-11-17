@@ -12,6 +12,8 @@ import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
 import { readAccountCsrfCookie } from "../../lib/organizer-account-cookies";
 import { Button, Field, Notice, Section } from "../ui";
 import styles from "./people-section.module.css";
+import workspaceStyles from "../race-administrator-workspace.module.css";
+import type { Workspace } from "./workspace-state";
 import { formErrorsSv } from "../../i18n/form-errors-sv";
 import { invitationMailNote, invitationSummary, invitationSv } from "../../i18n/invitation-sv";
 import { invitationEn, invitationMailNoteEn, invitationSummaryEn } from "../../i18n/workspace-last-en";
@@ -24,11 +26,18 @@ const GRANTABLE = ["FUNCTIONARY", "ADMIN", "COURSE_EDIT", "COURSE_SUGGEST", "COU
 type Message = { tone: "ok" | "error"; text: string };
 
 /**
- * Inställningar → Personer med behörighet (ADR-0172 beslut 3): ägaren, administratörer och funktionärer i en lista.
+ * Personer → Personer med behörighet (ADR-0172 beslut 3; egen del sedan översynen 2026-11-17, `PeoplePanel`): ägaren, administratörer och funktionärer i en lista.
  * En administratör lägger till en e-postadress som funktionär; ägaren kan också lägga till och ta bort administratörer.
  * ADR-0188 beslut 6: svaret är detsamma oavsett om adressen har ett konto; behörigheten väntar i listan tills personen
  * loggar in med adressen. Servern kontrollerar allt; vyn visar bara det som den inloggade får göra.
  */
+export function PeoplePanel({ ws }: { ws: Workspace }) {
+  if (!ws.shows("PEOPLE")) return null;
+  return <div className={workspaceStyles.workflowGroup}>
+    <PeopleSection raceId={ws.raceId} disabled={ws.saving || ws.workflowLocked} onPendingChange={ws.setPeoplePending} />
+  </div>;
+}
+
 export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: string; disabled: boolean;
   onPendingChange: (pending: boolean) => void }) {
   const formText = useTexts(formErrorsSv, formErrorsEn);

@@ -13,6 +13,7 @@ import { Notice } from "../ui";
 import { BingoBoard, useBingoBoard } from "./bingo-board";
 import { VirtualControlsView, type ControlState } from "./virtual-controls-view";
 import styles from "./bingo.module.css";
+import { LeaderBack, LeaderChange } from "./leader-frame";
 
 /**
  * Ledarens vy för virtuella kontroller (ADR-0226): per bana löparna med kontroller, tid, duell och lag, mellantiderna och den
@@ -30,12 +31,13 @@ export function VirtualLeader({ raceId, view, failed }: { raceId: string; view: 
   const one = runners.find(row => row.id === runner) ?? runners[0];
   const states = new Map<string, ControlState>((one?.punches ?? []).map(punch => [punch.control, "MINE"]));
   return <main className={styles.leader} data-testid="bingo-leader">
+    <LeaderBack raceId={raceId} />
     <h1>{vk.leaderTitle}</h1>
     <p className={styles.muted}>{text.help}</p>
     {failed && <Notice tone="error" role="alert">{text.failed}</Notice>}
-    {!view.enabled && <Notice tone="error">{text.off}</Notice>}
     <div className={styles.row}>
       <Link href={`${raceHubPath(view.shortCode)}/bingo`}>{text.runnerPage}</Link>
+      <LeaderChange raceId={raceId} />
       {courses.length > 1 && <select value={current?.course} onChange={event => { setCourse(event.target.value); setRunner(undefined); }} aria-label={vk.course}>
         {courses.map(item => <option key={item.course} value={item.course}>{item.name}</option>)}</select>}
     </div>

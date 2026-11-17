@@ -85,7 +85,7 @@ const raceDayHelpArticlesEn: readonly HelpArticle[] = [
         "Course setting, File: ”Download IOF XML (courses)” gives a course file like the one from Purple Pen. MeOS and OLA read it.",
         "OCAD: O-Tid has no format of its own for it. OCAD's course setting can read the same IOF XML file. For Purple Pen: ”Download .ppen”."
       ],
-      "To put the courses on the map in O-Tid: see [Course setting: open it and load the map](#banlaggning-start)."
+      "Without courses there are three choices: ”Put courses on the map” (see [Course setting: open it and load the map](#banlaggning-start)), ”New course” and ”Import course file”."
     ]
   },
   {
@@ -103,7 +103,8 @@ const raceDayHelpArticlesEn: readonly HelpArticle[] = [
         "”Last safe point”: a smaller circle on the leg. It is not a control and does not show in the description, the length or the readout.",
         "”Area”: draw an area with its own filter. It can apply to ”This course” or ”All courses”.",
         "”Star”, ”Line”, ”Cap” and ”Map pieces”: star course, line orienteering, cap orienteering in pairs and a small map per leg.",
-        "”Mirror”: the map and the course mirrored in print. The numbers read as usual; in course setting the map is drawn as usual."
+        "”Mirror”: the map and the course mirrored in print. The numbers read as usual; in course setting the map is drawn as usual.",
+        "”With the phone”: switch on Bingo, Battleships or virtual controls. ”Phone exercise” in the workspace leads here, or to the leader's page when one is on."
       ],
       "”Show the training on the map” shows before and after. The print and the PDF have the same masking in the map's colours; see [Print and preview](#utskrift).",
       "The training follows along in the .ppen file but disappears if the file is saved in Purple Pen. ”Remove the training for the course” makes the course ordinary again."
@@ -237,13 +238,27 @@ const raceDayHelpArticlesEn: readonly HelpArticle[] = [
     ]
   },
   {
+    id: "arbetsytan-telefon",
+    title: "The workspace on the phone",
+    views: ["COURSES", "ENTRIES", "START", "PUBLISH", "READOUT", "RESULTS", "PEOPLE", "SETTINGS"],
+    body: [
+      "On the phone the sidebar becomes a row at the top that scrolls sideways.",
+      [
+        "The arrow at the edge of the row shows that there are more parts. Tap it or drag the row.",
+        "The part you are in is always scrolled into view.",
+        "”Menu” has all parts with their state and the rows ”Course setting”, ”Phone exercise”, ”People” and ”Settings”."
+      ],
+      "The club space's tabs scroll the same way."
+    ]
+  },
+  {
     id: "funktionarer",
     title: "Officials",
-    views: ["SETTINGS", "EVENTS"],
+    views: ["PEOPLE", "SETTINGS", "EVENTS"],
     body: [
       "An official reads out, makes direct entries, follows those still out, runs the start and sees the speaker page. Nothing else.",
       "The official sees the full names, clubs and cards of participants and guests and can download the party's purchases (”Download summary (CSV)”), so only give access to people you trust.",
-      "Go to ”Settings” → ”People with access”.",
+      "Go to ”People” in the workspace sidebar (on the phone also under ”Menu”).",
       "Write one or more email addresses under ”Add a person”, choose ”Official” and press ”Add”.",
       "The person gets an email with a link and lands on the event after signing in (see [Invitations by email](#inbjudningar)).",
       "”Remove” removes the access at once."
@@ -252,7 +267,7 @@ const raceDayHelpArticlesEn: readonly HelpArticle[] = [
   {
     id: "inbjudningar",
     title: "Invitations by email",
-    views: ["SETTINGS", "EVENTS", "ARCHIVE_MEMBERS"],
+    views: ["PEOPLE", "SETTINGS", "EVENTS", "ARCHIVE_MEMBERS"],
     body: [
       "When you invite someone to an event, a club archive or a training group, the access is saved for the email address, and with email on the server the person gets an email saying who invited them, to what, the role and a link.",
       "The link opens a page with ”Create account” (the address filled in and locked) and ”Sign in”.",

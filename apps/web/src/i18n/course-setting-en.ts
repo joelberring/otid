@@ -20,7 +20,7 @@ export const courseSettingEn: Texts<typeof courseSettingSv> = {
   loading: "Fetching the course setting …",
   loadFailed: "The course setting could not be fetched.",
   noRole: "Your role in the event does not include the course setting. Officials do not see the courses (course secrecy), and mappers see only the map and the map errors.",
-  noRoleHelp: "Are you helping with the courses? Ask an administrator to give you a course-setting role under Settings → People with access.",
+  noRoleHelp: "Are you helping with the courses? Ask an administrator to give you a course-setting role under People in the event workspace.",
   noRoleBack: "To the event",
   retry: "Try again",
   noMapFile: "The course setting is drawn on the map file (OCAD or Mapper). Upload the map file first.",

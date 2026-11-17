@@ -23,6 +23,8 @@
 .step[data-done="true"] .stepBody h3 { color: var(--muted); }
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 4px; }
 .actions > button, .actions > a { min-height: 44px; }
+/* Översynen 2026-11-17: en lång knapptext radbryts i stället för att sticka ut till höger i telefonen. */
+.actions > button { max-width: 100%; white-space: normal; text-align: left; line-height: 1.25; padding-block: 6px; }
 .buttonLink { display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; border: 1px solid var(--line-strong);
   border-radius: var(--radius); background: var(--surface); color: var(--ink); text-decoration: none; font-weight: 600; }
 .buttonLink:hover { border-color: var(--ink); }

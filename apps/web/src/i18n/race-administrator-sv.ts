@@ -103,16 +103,20 @@ export const raceAdministratorSv = {
   checking: "Kontrollerar behörighet…", denied: "Behörighet saknas.",
   /** Ägaren 2026-11-17: funktionären får veta varför banor, deltagare och inställningar inte syns. */
   functionaryTitle: "Varför ser jag inte banorna och deltagarna?",
-  functionaryNote: "Du är funktionär på den här tävlingen: du når start, avläsning, kvar i skogen och speaker. Banor, klasser, anmälningar och inställningar är bara för administratörerna, och banorna är hemliga före start. Behöver du mer? Be ägaren eller en administratör ändra din roll under Inställningar → Personer med behörighet.",
+  functionaryNote: "Du är funktionär på den här tävlingen: du når start, avläsning, kvar i skogen och speaker. Banor, klasser, anmälningar och inställningar är bara för administratörerna, och banorna är hemliga före start. Behöver du mer? Be ägaren eller en administratör ändra din roll under Personer.",
   error: "Tävlingen kunde inte läsas in. Försök igen när anslutningen fungerar.",
   participants: "Deltagare",
   shown: "Visar", of: "av",
   courseClassTitle: "Ny bana",
   courseClassOpen: "Ny bana",
   courseClassClose: "Stäng",
-  courseClassFileAlternative: "eller läs in banfil",
+  /** Översynen 2026-11-17: tomläget i Banor har tre jämbördiga val, med en rad om när man väljer vart och ett. */
+  courseEmptyChoices: {
+    map: "Lägg banor på kartan", mapHelp: "Har du kartfilen: rita banorna på kartan i O-Tids banläggning och skriv ut dem därifrån.",
+    writeHelp: "Utan karta i O-Tid: skriv kontrollerna i ordning. Banan går att lägga på kartan senare.",
+    file: "Läs in banfil", fileHelp: "Banorna finns redan i Purple Pen, OCAD eller Condes: läs in deras IOF XML-fil."
+  },
   courseClassHelp: "Skriv kontrollerna i ordning. Fyll i ett klassnamn om du vill skapa en klass som springer banan direkt.",
-  courseEmptyHelp: "Lägg till den första banan med kontrollerna i ordning, eller läs in en banfil från banläggningsprogrammet.",
   courseName: "Bannamn", courseClassName: "Klassnamn (valfritt)", courseStartRule: rule.label,
   // Träning: banan får alltid en klass (användartest 2026-11-12).
   courseClassNameTraining: "Klassnamn", courseClassNameTrainingHelp: "Tomt = klassen får banans namn.",

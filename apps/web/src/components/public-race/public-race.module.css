@@ -143,6 +143,9 @@ a.hubLink:hover strong { text-decoration: underline; }
 }
 
 /* Ägaren 2026-11-15: snabblänken till adminläget för den som är administratör (hämtas i webbläsaren). */
-.adminShortcut { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0 18px; font-size: var(--text-sm, 0.9rem); }
+/* Översynen 2026-11-17: samma bredd och kant som sidans innehåll (main), så att länken inte klipps mot högerkanten. */
+.adminShortcut { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0 18px; box-sizing: border-box; max-width: 1120px;
+  margin: 0 auto; padding: 0 16px; font-size: var(--text-sm, 0.9rem); }
+@media (max-width: 640px) { .adminShortcut { padding: 0 0.75rem; } }
 .adminShortcut a { display: inline-flex; align-items: center; min-height: 40px; font-weight: 600; }
 @media print { .adminShortcut { display: none !important; } }

@@ -139,7 +139,7 @@ test("klubbtillhörighet: välj klubb, koppla till Eventor, bekräfta, bjud in f
   await files.getByRole("button", { name: "Läs in banfil" }).click();
   await files.getByRole("region", { name: "Skillnader mot course-file-1.xml" }).getByRole("button", { name: /^Godkänn \d+ ändringar$/ }).click();
   await expect(files.getByText(/ändringar har sparats/)).toBeVisible();
-  await openStep(admin, "Inställningar");
+  await openStep(admin, "Personer");
   const fromClub = admin.getByTestId("from-club");
   await fromClub.locator("summary").click();
   await fromClub.getByRole("checkbox", { name: new RegExp(`Maja Medlem ${suffix}`) }).check();

@@ -232,6 +232,13 @@ function clubsCommand(args: readonly string[], input?: Buffer): void {
   execFileSync("pnpm", ["-s", "account:superadmin", "clubs", ...args], { ...options, env: { ...process.env, DATABASE_URL: database } });
 }
 
+/** Ägaren 2026-11-17: arrangörsklubben väljs aktivt i "Skapa tävling" – en av kontots klubbar, annars Ingen klubb. */
+export async function chooseOrganiser(owner: Page, club?: RegExp): Promise<void> {
+  const field = owner.getByTestId("create-organiser");
+  if (club) await field.getByRole("button", { name: club }).click();
+  else await field.getByRole("button", { name: "Ingen klubb (eget)" }).click();
+}
+
 /** Tävlingstyperna i "Skapa tävling" (ADR-0170 beslut 1). */
 /** ADR-0188 beslut 5: "Tävling med gafflade banor" är en del av Tävling (gaffling följer av banorna). */
 export type RaceTypeName = "Träning" | "Liten tävling" | "Tävling" | "Stafett" | "Rogaining" | "Fest";
@@ -241,11 +248,12 @@ export type RaceTypeName = "Träning" | "Liten tävling" | "Tävling" | "Stafett
  * tävlingens arbetsyta (PLAN.md steg 24). Returnerar loppets id.
  */
 export async function createRace(owner: Page, eventName: string, date = today(), type: RaceTypeName = "Tävling",
-  timeZone = TIME_ZONE): Promise<string> {
+  timeZone = TIME_ZONE, club?: RegExp): Promise<string> {
   await owner.getByLabel("Tävlingens namn").fill(eventName);
   await owner.getByLabel("Etapp/lopp (valfritt)").fill("Torsdag");
   await owner.getByLabel("Datum").fill(date);
   await owner.getByRole("radio", { name: type, exact: true }).check();
+  await chooseOrganiser(owner, club);
   if (timeZone !== TIME_ZONE) {
     const form = owner.locator("form").filter({ has: owner.getByRole("button", { name: "Skapa tävling" }) });
     await form.locator("summary", { hasText: /^Mer$/ }).click();

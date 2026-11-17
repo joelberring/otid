@@ -150,7 +150,7 @@ export async function reuseTraining(input: ReuseInput, onStage: (stage: ReuseSta
   }
   const notes: string[] = [];
   if (input.organisationId) {
-    // Träningen hör till klubben vars arkiv den kommer ur (annars skaparens klubb, eller ingen).
+    // Träningen hör till klubben vars arkiv den kommer ur (annars ingen; servern gissar inte).
     const organiser = await clubRequest(`/api/organizer/races/${encodeURIComponent(raceId)}/club-archive`, "PUT",
       { formatVersion: 1, organisationId: input.organisationId });
     notes.push(organiser.status === 200 ? text.reuse.notes.organiser(input.clubName) : text.reuse.notes.organiserFailed);

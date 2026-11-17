@@ -49,16 +49,6 @@ async function ownerConfirmedOrganisation(tx: DbExecutor, eventId: string): Prom
   return rows[0]?.organisation_id;
 }
 
-/** Förvalet när tävlingen skapas: skaparens bekräftade klubb, om hen har precis en. */
-export async function defaultRaceOrganiser(tx: DbExecutor, input: { raceId: string; accountId: string; now: Date }): Promise<void> {
-  const rows = await tx.select({ organisationId: schema.accountClubMemberships.organisationId }).from(schema.accountClubMemberships)
-    .where(and(eq(schema.accountClubMemberships.accountId, input.accountId), eq(schema.accountClubMemberships.status, "CONFIRMED"),
-      sql`${schema.accountClubMemberships.organisationId} is not null`)).limit(2);
-  if (rows.length !== 1) return;
-  await tx.insert(schema.raceOrganisers).values({ raceId: input.raceId, organisationId: rows[0]!.organisationId!, setBy: input.accountId,
-    setAt: input.now }).onConflictDoNothing();
-}
-
 /** Klubbarkivet som är kopplat till arrangörsklubben och den inloggades roll där (undefined = inget, eller inte medlem). */
 async function organiserSpace(tx: DbExecutor, raceId: string, accountId: string) {
   const [organiser] = await tx.select().from(schema.raceOrganisers).where(eq(schema.raceOrganisers.raceId, raceId));

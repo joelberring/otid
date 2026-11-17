@@ -1,6 +1,6 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { acceptAllInvitations } from "./account-arrival";
-import { defaultRaceOrganiser } from "./race-club-archive";
+import { organisationById } from "./organisations";
 import { sql } from "drizzle-orm";
 import {
   organizerEventCreateIdempotencyKeySchema,
@@ -80,6 +80,7 @@ export async function createOrganizerEvent(
   try { body = await input.readBody(); } catch { return { status: "invalid-request" }; }
   const request = organizerEventCreateRequestSchema.safeParse(body);
   if (!request.success) return { status: "invalid-request" };
+  const organisationId = request.data.organisationId ?? null;
   const requestId = idempotencyKey.data.slice("organizer-event-create:".length);
 
   return db.transaction(async (tx) => {
@@ -102,8 +103,12 @@ export async function createOrganizerEvent(
       // ADR-0188 beslut 5: FORKED är ett alias för Tävling; begäran sparas som den kom (omsändning jämförs med den).
       raceType: normalizeRaceType(request.data.raceType), firstStartTime: null, trainingGroupId: null,
       ownerAccountId: auth.principal.accountId, now: createdAt });
-    // ADR-0209 beslut 4: arrangörsklubben förvald från skaparens bekräftade klubb.
-    await defaultRaceOrganiser(tx, { raceId: race.id, accountId: auth.principal.accountId, now: createdAt });
+    // Ägaren 2026-11-17 (ADR-0209 tillägg): arrangörsklubben är den som valdes i formuläret, annars ingen. Inget förval på servern.
+    if (organisationId) {
+      const organisation = await organisationById(tx, organisationId);
+      if (!organisation || organisation.removedAt) return { status: "invalid-request" } as const;
+      await tx.insert(schema.raceOrganisers).values({ raceId: race.id, organisationId, setBy: auth.principal.accountId, setAt: createdAt });
+    }
     const [journal] = await tx.insert(schema.userAccountEventCreationRequests).values({
       requestId, actorAccountId: auth.principal.accountId,
       eventName: request.data.eventName, raceName: request.data.raceName,

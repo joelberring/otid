@@ -13,6 +13,8 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+- 2026-11-17: Arrangörsklubben väljs alltid aktivt i Ny tävling (inget förval, "Ingen klubb (eget)" som eget val, fältfel annars); servern gissar aldrig klubben (ADR-0209 tillägg 2026-11-17). Verifierat: typecheck, lint, integrationstesterna för klubbtillhörighet, ledarflödet och klubb/grupp/plan. E2E-testerna uppdaterade men inte körda här.
+
 ### 2026-11-17 – Utskriftssidan: sex förtydliganden (ägaren: "fixa alla sex")
 - Symbolernas namn i stället för bara nummer i BL-förslaget («Används för Stup (206.0)»; `ColorUsage.names`, `usageSymbolsText`). Beslutade färger visas kompakt, med «Detaljer» för kartbiten, skälen och talen.
 - En förhandskontroll: beskedet om utskriften står bara vid «Skapa PDF»; färgdelen visar bara anmärkningar om färgerna. Rutan heter «Skapa PDF» med knapparna «Skapa PDF för tryckeriet» och «Skapa PDF för kontorsskrivare».

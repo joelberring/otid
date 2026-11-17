@@ -5,13 +5,14 @@
 export const clubLeadersSv = {
   organiser: {
     legend: "Arrangörsklubb",
-    none: "Ingen arrangörsklubb",
+    none: "Ingen klubb (eget)",
+    notChosen: "Inte vald",
     pickMine: (club: string) => `Välj ${club}`,
-    choose: "Välj arrangörsklubb, eller ingen.",
+    choose: "Välj klubb, eller Ingen klubb för en egen tävling eller träning. Valet styr bland annat om den hamnar i klubbens arkiv.",
+    required: "Välj arrangörsklubb, eller Ingen klubb.",
     search: "Sök en annan klubb",
-    clear: "Ingen",
-    help: "För en träning blir ledarna i klubbens klubbyta administratörer, så att de når adminläget från tävlingssidan.",
-    saveFailed: "Tävlingen skapades, men arrangörsklubben sparades inte. Välj den under Inställningar → Klubben och klubbarkivet."
+    clear: "Ingen klubb (eget)",
+    help: "För en träning blir ledarna i klubbens klubbyta administratörer, så att de når adminläget från tävlingssidan."
   },
   shortcut: {
     label: "Arrangörens genvägar",

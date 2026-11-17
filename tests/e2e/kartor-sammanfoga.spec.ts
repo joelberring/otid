@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import { buildOcd, concat, element, ocdCoord, symbolBody } from "../../packages/map-file/test/ocd-builder";
-import { registerAccount, reviewScreenshots, unique, warmRoute } from "./helpers";
+import { chooseOrganiser, registerAccount, reviewScreenshots, unique, warmRoute } from "./helpers";
 
 /**
  * ADR-0210: dubbletter och versioner av klubbarkivets kartor. Klubben har importerat tre filer av samma påhittade karta under
@@ -151,6 +151,7 @@ test("dubbletter i kartarkivet: förslaget, slå ihop med år, kopiera till alla
   await reviewScreenshots(owner, "dubbletter-valj-karta");
   await choice.getByRole("button", { name: "Använd kartan Skogsbacken rev 2021" }).click();
   await expect(owner.getByTestId("club-map-chosen")).toContainText("Vald karta: Skogsbacken rev 2021 (2021)");
+  await chooseOrganiser(owner);
   await owner.getByRole("button", { name: "Skapa tävling" }).last().click();
   await owner.waitForURL(/\/admin\/[0-9a-f-]+\/course-setting$/, { timeout: 120_000 });
   await expect(owner.getByRole("button", { name: "Börja med en tom banläggning" })).toBeVisible({ timeout: 60_000 });

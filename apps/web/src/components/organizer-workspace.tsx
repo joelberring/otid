@@ -48,7 +48,6 @@ import { MyPlanTasks } from "./club-planning/my-plan-tasks";
 import { AccountMenu } from "./account-menu";
 import { applyClubMap, ClubMapChoiceField, type ClubMapChoice } from "./club-archive/club-map-picker";
 import { OrganiserChoiceField } from "./club-affiliation/organiser-choice-field";
-import { saveRaceOrganiser } from "../lib/club-affiliation-client";
 import { clubLeadersSv } from "../i18n/club-leaders-sv";
 import { clubLeadersEn } from "../i18n/club-leaders-en";
 import { clubMapDuplicatesSv } from "../i18n/club-map-duplicates-sv";
@@ -142,6 +141,7 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
   const [clubMap, setClubMap] = useState<ClubMapChoice>();
   /** Ägaren 2026-11-15: arrangörsklubben som väljs när tävlingen skapas (null = ingen, undefined = serverns förval). */
   const [organiser, setOrganiser] = useState<OrganisationSummary | null>();
+  const [organiserError, setOrganiserError] = useState<string>();
   const organiserText = useTexts(clubLeadersSv.organiser, clubLeadersEn.organiser);
   const [message, setMessage] = useState("");
   const createHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -323,15 +323,12 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
       const result = parseOrganizerCreateResponse(await responseJson(copy, response), current);
       clearOrganizerAttempt();
       setAttempt(undefined);
-      // Ägaren 2026-11-15: arrangörsklubben som valdes i formuläret (ett fel stoppar inte resten; beskedet visas innan arbetsytan öppnas).
-      const organiserProblem = organiser !== undefined && !await saveRaceOrganiser(result.raceId, organiser?.organisationId ?? null)
-        ? organiserText.saveFailed : undefined;
       // ADR-0210: kartan ur klubbarkivet blir tävlingens kartfil, och banläggningen öppnas med den.
       const problem = clubMap ? await applyClubMap(clubMap, result.raceId, stage => setMessage(clubMapDuplicatesText.picker.working[stage]),
         clubMapDuplicatesText.picker, raceMapText.mapFile.errors) : undefined;
       const page = clubMap ? "course-setting" : "manage";
       if (clubMap) setClubMap(undefined);
-      const shown = [problem, organiserProblem].filter(Boolean).join(" ");
+      const shown = problem ?? "";
       if (shown) {
         setMessage(shown);
         window.setTimeout(() => enterRace(result.raceId, page), 2500);
@@ -356,7 +353,10 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
     // Egna fältfel i stället för webbläsarens (PLAN.md steg 24).
     const errors = validateCreateRace(input, formErrorText);
     setCreateErrors(errors);
+    // Ägaren 2026-11-17: klubben väljs aktivt (eller Ingen klubb); inget förval.
+    setOrganiserError(organiser === undefined ? organiserText.required : undefined);
     if (hasErrors(errors)) { focusFirstError(element); return; }
+    if (organiser === undefined) { element.querySelector<HTMLElement>("[data-testid=create-organiser] button")?.focus(); return; }
     try {
       const request = organizerEventCreateRequestSchema.parse({
         formatVersion: 1,
@@ -364,7 +364,8 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
         raceName: input.stageName.trim(),
         raceDate: input.raceDate,
         timeZone: input.timeZone.trim(),
-        raceType: form.get("raceType")
+        raceType: form.get("raceType"),
+        organisationId: organiser?.organisationId ?? null
       });
       if (!session) throw new Error(copy.sessionExpired);
       const current = createOrganizerAttempt(request, session.accountId, () => crypto.randomUUID());
@@ -536,7 +537,8 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
               disabled={busy} onChange={() => createErrors.raceDate && setCreateErrors({ ...createErrors, raceDate: undefined })} /></Field>
             {/* Användartest 2026-11-12: Träning förvald, det är vad en ny användare oftast gör. */}
             <RaceTypeChoice name="raceType" defaultValue="TRAINING" disabled={busy} />
-            <OrganiserChoiceField value={organiser} onChange={setOrganiser} disabled={busy} />
+            <OrganiserChoiceField value={organiser} disabled={busy} error={organiserError}
+              onChange={value => { setOrganiser(value); setOrganiserError(undefined); }} />
             {/* Tidszonen behövs nästan aldrig: förvald Europe/Stockholm och ändras under "Mer". */}
             <details className={styles.more} open={createErrors.timeZone ? true : undefined}>
               <summary>{copy.more}</summary>

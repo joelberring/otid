@@ -93,7 +93,12 @@ export const organizerEventCreateIdempotencyKeySchema = z.string().regex(
 // established event-creation contract; authorization and idempotency scope differ.
 // ADR-0170: arrangören väljer tävlingstyp när tävlingen skapas. Saknas typen blir det Tävling.
 export const organizerEventCreateRequestSchema = eventCreationRequestSchema.extend({
-  raceType: raceTypeSchema.default("STANDARD")
+  raceType: raceTypeSchema.default("STANDARD"),
+  /**
+   * Ägaren 2026-11-17: arrangörsklubben väljs aktivt när tävlingen skapas (null = ingen klubb). Utelämnad = ingen; servern
+   * gissar aldrig klubben (tidigare förval från skaparens enda klubb har tagits bort).
+   */
+  organisationId: uuid.nullable().optional()
 });
 export const organizerEventCreateResponseSchema = eventCreationResponseSchema;
 

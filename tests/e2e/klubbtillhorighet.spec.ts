@@ -128,10 +128,10 @@ test("klubbtillhörighet: välj klubb, koppla till Eventor, bekräfta, bjud in f
   // Kom igång är bara för ägare och administratörer.
   await expect(member.getByTestId("club-start")).toHaveCount(0);
 
-  // 4. Administratören skapar en tävling i går (arrangörsklubben är förvald) och bjuder in medlemmen "Från klubben".
+  // 4. Administratören skapar en tävling i går (väljer arrangörsklubben aktivt) och bjuder in medlemmen "Från klubben".
   await admin.goto("/organizer");
   await warmRoute(admin, `/api/admin/races/${none}/administrator/session`);
-  const raceId = await createRace(admin, `Klubbkvällen ${suffix}`, daysFromToday(-1), "Tävling");
+  const raceId = await createRace(admin, `Klubbkvällen ${suffix}`, daysFromToday(-1), "Tävling", undefined, /^Välj .*Älvsjö/);
   // Banorna ur en banfil (Banor → Läs in banfil).
   const files = admin.getByRole("region", { name: "Banfil" });
   await files.getByLabel("Banfil (IOF XML)").setInputFiles(fixture("course-file-1.xml"));

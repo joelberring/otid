@@ -5,7 +5,6 @@ import { schema, type Database } from "@o-tid/database";
 import { clubMembership, clubRoleAtLeast, requireClubRole, type ClubFailure, type ClubProof, type ClubTransaction as Transaction } from "./club-access";
 import { confirmedMembersOf } from "./club-affiliations";
 import { deliverPlanMail, preparePlanMail, type PlanTaskMailer } from "./club-plan-mail";
-import { defaultRaceOrganiser } from "./race-club-archive";
 import { insertEventWithRace } from "./organizer-events";
 import { fillPlannedGroupRace } from "./training-group-sessions";
 import { activeEventAdministrationGrant } from "./race-session";
@@ -266,7 +265,8 @@ export async function createPlannedRace(db: Database, input: ClubProof & { clubI
     if (setting?.organisationId) {
       await tx.insert(schema.raceOrganisers).values({ raceId: race.id, organisationId: setting.organisationId, setBy: access.accountId, setAt: now })
         .onConflictDoNothing();
-    } else await defaultRaceOrganiser(tx, { raceId: race.id, accountId: access.accountId, now });
+    }
+    // Ägaren 2026-11-17: ingen gissning när klubbytan saknar Eventor-koppling (tidigare skaparens egen klubb, som kunde vara en annan).
     await attachRace(tx, { session, raceId: race.id, eventId: event.id, actorId: access.accountId, now });
     await tx.insert(schema.auditEvents).values({ raceId: race.id, entityType: "race", entityId: race.id, action: "CLUB_PLAN_RACE_CREATED",
       actorKind: "USER_ACCOUNT", actorId: access.accountId, requestId: null,

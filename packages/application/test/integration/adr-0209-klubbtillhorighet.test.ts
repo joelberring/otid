@@ -390,22 +390,27 @@ describe("ADR-0209: Vem ser vad", { timeout: 60_000 }, () => {
 });
 
 describe("ADR-0209: tävlingen i klubbarkivet", { timeout: 60_000 }, () => {
-  async function race(proof: { sessionToken: string; csrfCookie: string; csrfHeader: string }, raceDate: string) {
+  async function race(proof: { sessionToken: string; csrfCookie: string; csrfHeader: string }, raceDate: string, organisationId?: string | null) {
     const created = await createOrganizerEvent(db, { ...proof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
-      readBody: async () => ({ formatVersion: 1, eventName: "Höstsprinten", raceName: "Final", raceDate, timeZone: "Europe/Stockholm", raceType: "STANDARD" }) }, NOW);
+      readBody: async () => ({ formatVersion: 1, eventName: "Höstsprinten", raceName: "Final", raceDate, timeZone: "Europe/Stockholm", raceType: "STANDARD",
+        ...(organisationId === undefined ? {} : { organisationId }) }) }, NOW);
     if (created.status !== "created") throw new Error(created.status);
     return created.response.raceId;
   }
 
   it("bara den som är administratör i båda lägger in och tar ur; inga personuppgifter; banhemligheten kräver bekräftelse", async () => {
     const { owner, clubId, unlink } = await linkedSpace({ emails: [] });
-    // Ägaren av arkivet är bekräftad medlem: tävlingen får arrangörsklubben förvald.
+    // Ägaren av arkivet är bekräftad medlem. Ägaren 2026-11-17: klubben förväljs ändå inte; den väljs aktivt när tävlingen skapas.
     const ownerMembership = await addAccountClub(db, { ...owner.proof, request: { formatVersion: 1, organisationId: (await okao()).id, freeText: null } }, NOW);
     const view = await readClubAffiliation(db, { ...owner.proof, clubId }, NOW);
     if (view.status !== "ok" || ownerMembership.status !== "added") throw new Error("ingen tillhörighet");
     await decideClubAffiliation(db, { ...owner.proof, clubId, request: { formatVersion: 1, membershipId: view.view.pending[0]!.membershipId,
       decision: "CONFIRM" } }, NOW);
-    const raceId = await race(owner.proof, "2026-11-10");
+    const unchosen = await race(owner.proof, "2026-11-10");
+    expect(await readRaceClubArchiveAsAdmin(db, { ...owner.proof, raceId: unchosen }, NOW)).toMatchObject({ status: "ok", view: { organiser: null } });
+    const none = await race(owner.proof, "2026-11-10", null);
+    expect(await readRaceClubArchiveAsAdmin(db, { ...owner.proof, raceId: none }, NOW)).toMatchObject({ status: "ok", view: { organiser: null } });
+    const raceId = await race(owner.proof, "2026-11-10", (await okao()).id);
     const raceProof = { ...owner.proof, raceId };
     expect(await readRaceClubArchiveAsAdmin(db, raceProof, NOW)).toMatchObject({ status: "ok", view: { organiser: { name: "OK Älvsjö-Örby" },
       space: "ADMIN", finished: false, lifted: null } });

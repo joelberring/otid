@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { openStep, registerAccount, sectionButton, today, unique, warmRoute } from "./helpers";
+import { chooseOrganiser, openStep, registerAccount, sectionButton, today, unique, warmRoute } from "./helpers";
 
 /**
  * Steg 24 (PLAN.md): enklare arbetsyta. "Skapa tävling" leder direkt in, tomlägen har en primär knapp,
@@ -49,6 +49,9 @@ test("ny tävling: direkt in, tomlägen med åtgärd, svenska fältfel och tre d
   await expect(create.getByText("Skriv tävlingens datum som ÅÅÅÅ-MM-DD", { exact: false })).toBeVisible();
   await expect(create.getByLabel("Tävlingens namn")).toHaveAttribute("aria-invalid", "true");
   await expect(create.getByLabel("Tävlingens namn")).toBeFocused();
+  // Ägaren 2026-11-17: arrangörsklubben har inget förval; den (eller Ingen klubb) måste väljas.
+  await expect(create.getByTestId("create-organiser-chosen")).toHaveText("Inte vald");
+  await expect(create.getByTestId("create-organiser-error")).toHaveText("Välj arrangörsklubb, eller Ingen klubb.");
   await expect(owner).toHaveURL(/\/organizer$/);
 
   // Etappen är valfri. "Skapa tävling" leder direkt in i arbetsytan.
@@ -57,6 +60,8 @@ test("ny tävling: direkt in, tomlägen med åtgärd, svenska fältfel och tre d
   // Användartest 2026-11-12: Träning är förvald; det här flödet gäller Tävling (Banor, Klasser och startsätt).
   await expect(create.getByRole("radio", { name: "Träning", exact: true })).toBeChecked();
   await create.getByRole("radio", { name: "Tävling", exact: true }).check();
+  await chooseOrganiser(owner);
+  await expect(create.getByTestId("create-organiser-error")).toHaveCount(0);
   await create.getByRole("button", { name: "Skapa tävling" }).click();
   await owner.waitForURL(/\/admin\/[0-9a-f-]+\/manage$/);
   const raceId = owner.url().split("/").at(-2)!;
@@ -225,6 +230,7 @@ test("rogaining och stafett: ett tomläge och en väg vidare", async ({ browser 
     await owner.getByLabel("Tävlingens namn").fill(name);
     await owner.getByLabel("Datum").fill(today());
     await owner.getByRole("radio", { name: type, exact: true }).check();
+    await chooseOrganiser(owner);
     await owner.getByRole("button", { name: "Skapa tävling" }).click();
     await owner.waitForURL(/\/admin\/[0-9a-f-]+\/manage$/);
   };

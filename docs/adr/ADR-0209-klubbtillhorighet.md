@@ -137,3 +137,13 @@ CSRF-kakan finns), så att sidorna är desamma för alla; svaret är `admin: nul
 kopplad till Eventor, `GET /api/organizer/organisations?mine=1`), annars ett val bland dem, sökningen eller Ingen; valet sparas
 efter skapandet med samma anrop som Inställningar (PUT `…/club-archive`). Terminsplanens Skapa träningen och Använd igen sätter
 klubbens organisation som förut.
+
+### Tillägg 2026-11-17: arrangörsklubben väljs alltid aktivt
+
+Ägaren upptäckte att testträningar hade kopplats till OK Älvsjö-Örby utan att han förstod det (förvalet), så att en karta ur
+ett eget kartprojekt arkiverades till klubben. Därför: **Ny tävling** har inget förval längre. Fältet visar "Inte vald" tills
+man väljer en av kontots klubbar, söker en annan eller väljer "Ingen klubb (eget)", och formuläret stoppar med ett fältfel annars.
+Valet skickas med i skapandet (`organisationId`, null = ingen) och sparas i samma transaktion. Servern gissar aldrig:
+`defaultRaceOrganiser` (skaparens enda bekräftade klubb) är borttagen, också som reserv i terminsplanens Skapa träningen när
+klubbytan saknar Eventor-koppling. En träningsgrupps klubb gissas inte längre ur gruppens kartbibliotek; gruppens egen klubb
+eller klubbens terminsplan gäller som förut.

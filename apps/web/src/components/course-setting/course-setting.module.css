@@ -4,6 +4,7 @@
 .head h1 { margin: 0; font-size: var(--text-xl, 1.5rem); }
 .head p { margin: 0; color: var(--muted); }
 .back { color: var(--muted); font-size: var(--text-sm); white-space: nowrap; }
+@media (pointer: coarse) { .back { display: inline-flex; align-items: center; min-height: 44px; } }
 .status { margin: 0; padding: 3px 10px; border: 1px solid var(--line-strong); border-radius: 999px; font-size: var(--text-sm); white-space: nowrap; }
 .status[data-status="too-large"], .status[data-status="stopped"] { border-color: var(--danger, #b00020); color: var(--danger, #b00020); font-weight: 700; }
 .status[data-status="failed"] { border-color: var(--attention); }

@@ -88,7 +88,9 @@ export const syncConsequenceSchema = z.object({
    */
   variantChanges: z.array(z.object({ entryId: uuid, displayName: z.string().min(1).max(400), className: z.string().min(1).max(160),
     leg: z.number().int().min(1).max(100).optional(), code: z.string().min(1).max(32),
-    beforeControls: z.array(z.number().int().positive()).max(1000), afterControls: z.array(z.number().int().positive()).max(1000).nullable() }).strict())
+    beforeControls: z.array(z.number().int().positive()).max(1000), afterControls: z.array(z.number().int().positive()).max(1000).nullable(),
+    /** Ägaren 2026-11-17: koden försvinner och löparen (som inte läst ut) får den minst använda av klassens varianter. */
+    reassigned: z.literal(true).optional() }).strict())
     .max(10_000).optional(),
   requiresConfirmation: z.boolean()
 }).strict();

@@ -144,9 +144,11 @@ export const sourcesSv = {
     // ADR-0175, tillägg 2026-11-12 (c): tilldelade löpare vars variant ändras av banfilen (namn, kod, före → efter).
     variantChangesTitle: (count: number) => count === 1 ? "1 löpare med tilldelad variant får andra kontroller. Kartan kan behöva bytas:"
       : `${count} löpare med tilldelad variant får andra kontroller. Kartorna kan behöva bytas:`,
-    variantChange: (name: string, className: string, leg: number | undefined, code: string, before: readonly number[], after: readonly number[] | null) =>
+    variantChange: (name: string, className: string, leg: number | undefined, code: string, before: readonly number[], after: readonly number[] | null,
+      reassigned = false) =>
       `${name} · ${className}${leg === undefined ? "" : ` · sträcka ${leg}`}: ${code} ${before.join(" ")} → ` +
-      (after === null ? "koden finns inte längre (ge en ny variant)" : after.join(" ")),
+      (after !== null ? after.join(" ") : reassigned ? "koden finns inte längre; får en ny variant (den minst använda i klassen)"
+        : "koden finns inte längre (ge en ny variant)"),
     cardsKept: (count: number) => count === 1 ? "1 löpare har läst ut och får ny bricka. Resultatet behålls." : `${count} löpare har läst ut och får ny bricka. Resultaten behålls.`,
     apply: (count: number) => count === 1 ? "Godkänn 1 ändring" : `Godkänn ${count} ändringar`,
     applyAndRecalculate: (count: number) => count === 1 ? "Godkänn 1 ändring och räkna om" : `Godkänn ${count} ändringar och räkna om`,

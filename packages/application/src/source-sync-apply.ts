@@ -10,7 +10,7 @@ import {
 import { storeControlMapPositions, storeControlPositions, storeCourseEnds } from "./course-positions";
 import { insertCourseVersionControls, leastUsedVariantForClass, variantAfterClassChange } from "./course-variants";
 import { applyEntryDecision } from "./entry-status";
-import { courseFileVariantChanges, type CourseFileVariantChange } from "./course-file-variant-changes";
+import { courseFileVariantChanges, reassignVanishedVariants, type CourseFileVariantChange } from "./course-file-variant-changes";
 import { importLegCourses, importPersonCourseAssignments, importTeamCourseAssignments } from "./import-iof";
 import { loadRelayClassConfigs } from "./relay-model";
 import { planNewRelayTeamVariants } from "./relay-variants";
@@ -409,6 +409,9 @@ export async function applyCourseFile(tx: Transaction, input: ApplyInput, projec
   await importLegCourses(tx, raceId, { legAssignments: projection.data.legAssignments ?? [] });
   await importPersonCourseAssignments(tx, raceId, projection.data, keep);
   await importTeamCourseAssignments(tx, raceId, projection.data, keep);
+  // Ägaren 2026-11-17: den vars variant försvann (och inte läst ut) får en ny; giltiga koder behålls.
+  await reassignVanishedVariants(tx, raceId, state,
+    new Set(rows.flatMap(({ action }) => action.type === "CHANGE_COURSE" ? [action.courseId] : [])));
   await bumpReadoutPackageVersion(tx, raceId);
   return recalculate(tx, raceId, assessment, input.snapshotVersionAfter);
 }

@@ -138,3 +138,16 @@ Kartorna trycks ur banläggningen. Med Purple Pens ordning döptes grenarna om n
   inte på en egen karta i arbetsytan.
 - En gaffling inuti en fjäril (eller tvärtom) kan inte byggas i appen; en sådan banfil visas med härledd struktur och
   redigeras per variant.
+
+## Tillägg 2026-11-17 (ägaren: «hanteringen av gafflingar vid banläggning behöver ses över»)
+
+1. **Ändra en gaffling i banläggningen** (`fork-edit.ts`): `ADD_BRANCH` ger en tom gren till (eller ett varv till i en
+   slinga), en gren tas bort med knappen i grenträdet (`REMOVE_COURSE_CONTROL` på grenens gaffelkontroll; med två grenar blir
+   den andra kvar utan gaffling) och `MOVE_SPLIT` flyttar början eller ihopgången en kontroll framåt eller bakåt. Senare början
+   kräver att alla grenar börjar med samma kontroll, tidigare ihopgång att alla slutar med samma. Grenarnas banans kontroller
+   behåller sina id, så bokstäverna står kvar. Gaffling-verktyget gafflar också en vald sträcka, och «Lägg in» på en vald
+   sträcka lägger in i den gren där sträckan finns.
+2. **Kombinationerna i tävlingen**: vid «Överför till tävlingen» (och en ny banfil) får en individuell löpare vars kod inte
+   längre finns, som inte läst ut och inte har något resultat, den minst använda av klassens varianter
+   (`reassignVanishedVariants`). Giltiga koder behålls (de står på kartan), stafetten fördelas som förut och beskedet säger
+   vilka som får en ny variant. Ägaren svarade inte på frågan om hur; antagandet «behåll giltiga, fördela resten» kan ändras.

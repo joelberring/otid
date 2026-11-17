@@ -13,6 +13,10 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-17 – Gafflingar i banläggningen: gren till, ta bort gren, flytta början och ihopgång, kombinationerna
+- Ägaren 2026-11-17 (alla tre delarna): `ADD_BRANCH`, `MOVE_SPLIT` (`fork-edit.ts`), knappar i grenträdet (+ gren, Ta bort gren X, Flytta gafflingen), Gaffling-verktyget på vald sträcka (`splitPlace`). Överföringen ger löpare vars variant försvann (inte avlästa, inte stafett) den minst använda varianten (`reassignVanishedVariants`), och beskedet säger det. ADR-0175 tillägg 2026-11-17.
+- Verifierat: course-setting 597 test (nya `fork-edit.test.ts`), webbens editor- och trädtester, hela integrationssviten mot PostgreSQL 16 (168 av 169 filer; `administrator-return` kräver en databas som heter otid_*), typkontroll, lint, knip. Inte provat i webbläsaren.
+
 ### 2026-11-17 – PDF:ens färger: övertrycket gäller bara lilan (ADR-0211 beslut 14)
 - Ägaren 2026-11-17: gå igenom utskriftsläget så att färgerna blir rätt enligt BL och PDF:erna ser korrekta ut. Fel funnet: kartans färger över banan (blå linjer, brunt, svart) trycktes över kartans ytor, så en blå bäck på gult blev grön och kurvor fick ytans färg, i tryck-PDF:en, kontors-PDF:en och förhandsvisningen.
 - Nu ritas hela kartan som i filen, sedan undre lila och kartans färger över banan en gång till med övertryck (kontor: `/BM /Darken`, skärm: `darken`). BL:s tabeller kontrollerade mot BL:s sidor samma dag: lika rad för rad.

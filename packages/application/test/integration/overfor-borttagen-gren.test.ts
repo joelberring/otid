@@ -158,8 +158,9 @@ describe("Överför till tävlingen efter en borttagen gren (tillägg 2026-11-12
     await save(proof, removed, 1);
     const transfer = await preview(proof, 2);
     expect(transfer.consequence.requiresConfirmation).toBe(true);
-    expect(transfer.consequence.variantChanges!.map(row => [row.displayName, row.className, row.leg ?? null, row.code, row.beforeControls, row.afterControls]))
-      .toEqual([["Bo Natt", "Natt lång", null, "AD", [31, 41, 50, 63, 70], null], ["Lag1 Löpare", "Nattstafett", 1, "BD", [31, 42, 50, 63, 70], null]]);
+    expect(transfer.consequence.variantChanges!.map(row => [row.displayName, row.className, row.leg ?? null, row.code, row.beforeControls, row.afterControls,
+      row.reassigned ?? false]))
+      .toEqual([["Bo Natt", "Natt lång", null, "AD", [31, 41, 50, 63, 70], null, true], ["Lag1 Löpare", "Nattstafett", 1, "BD", [31, 42, 50, 63, 70], null, false]]);
     // Utan bekräftelse sparas inget; med bekräftelse får tävlingen banläggningens koder och Cia (AE) samma kontroller som förut.
     expect((await apply(proof, transfer.snapshotId, false)).status).toBe("confirmation-required");
     expect(await raceVariants(proof.raceId)).toEqual(["AC", "AD", "AE", "BC", "BD", "BE"]);
@@ -172,5 +173,9 @@ describe("Överför till tävlingen efter en borttagen gren (tillägg 2026-11-12
     [proof.raceId])).rows[0]!;
     expect(cia.codes).toEqual([31, 41, 50, 64, 70]);
     expect(await entryCodes(proof.raceId)).toMatchObject({ Ada: "AC", Cia: "AE", Lag2: "BE" });
+    // Ägaren 2026-11-17: Bo (AD finns inte längre, inte avläst) får den minst använda varianten; stafetten fördelas som förut.
+    const after = await entryCodes(proof.raceId);
+    expect(["BC", "BE"]).toContain(after.Bo);
+    expect(after.Lag1).toBe("BD");
   }, 180_000);
 });

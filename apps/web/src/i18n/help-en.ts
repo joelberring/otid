@@ -85,7 +85,7 @@ const raceDayHelpArticlesEn: readonly HelpArticle[] = [
         "Course setting, File: ”Download IOF XML (courses)” gives a course file like the one from Purple Pen. MeOS and OLA read it.",
         "OCAD: O-Tid has no format of its own for it. OCAD's course setting can read the same IOF XML file. For Purple Pen: ”Download .ppen”."
       ],
-      "To put the courses on the map in O-Tid: see [Course setting: open it and load the map](#banlaggning-start)."
+      "Without courses there are three choices: ”Put courses on the map” (see [Course setting: open it and load the map](#banlaggning-start)), ”New course” and ”Import course file”."
     ]
   },
   {

@@ -110,9 +110,13 @@ export const raceAdministratorSv = {
   courseClassTitle: "Ny bana",
   courseClassOpen: "Ny bana",
   courseClassClose: "Stäng",
-  courseClassFileAlternative: "eller läs in banfil",
+  /** Översynen 2026-11-17: tomläget i Banor har tre jämbördiga val, med en rad om när man väljer vart och ett. */
+  courseEmptyChoices: {
+    map: "Lägg banor på kartan", mapHelp: "Har du kartfilen: rita banorna på kartan i O-Tids banläggning och skriv ut dem därifrån.",
+    writeHelp: "Utan karta i O-Tid: skriv kontrollerna i ordning. Banan går att lägga på kartan senare.",
+    file: "Läs in banfil", fileHelp: "Banorna finns redan i Purple Pen, OCAD eller Condes: läs in deras IOF XML-fil."
+  },
   courseClassHelp: "Skriv kontrollerna i ordning. Fyll i ett klassnamn om du vill skapa en klass som springer banan direkt.",
-  courseEmptyHelp: "Lägg till den första banan med kontrollerna i ordning, eller läs in en banfil från banläggningsprogrammet.",
   courseName: "Bannamn", courseClassName: "Klassnamn (valfritt)", courseStartRule: rule.label,
   // Träning: banan får alltid en klass (användartest 2026-11-12).
   courseClassNameTraining: "Klassnamn", courseClassNameTrainingHelp: "Tomt = klassen får banans namn.",

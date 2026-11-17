@@ -352,3 +352,14 @@ summary.drawSummaryRow:hover { background: var(--subtle); }
 .forkingRow:hover > * { background: transparent !important; }
 /* På smal skärm rullar tabellen i sidled; gafflingarna står kvar i synfältet med skärmens bredd. */
 .forkingDetail { position: sticky; left: 0; max-width: min(100%, calc(100vw - 48px)); min-width: 0; }
+
+/* Översynen 2026-11-17: Banors tomläge med tre jämbördiga val och en rad om när man väljer vart och ett. */
+.emptyChoices { display: grid; gap: 10px; padding: 12px 0; }
+.emptyChoices ul { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 10px 16px; margin: 0; padding: 0; list-style: none; }
+.emptyChoices li { display: grid; align-content: start; justify-items: start; gap: 6px; min-width: 0; padding: 12px; border: 1px solid var(--line);
+  border-radius: var(--radius); }
+.emptyChoices li p { color: var(--muted); font-size: var(--text-sm); }
+.emptyChoices li > button { min-height: 44px; white-space: normal; text-align: left; }
+.choicePrimary { display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; border: 1px solid var(--ink); border-radius: var(--radius);
+  background: var(--ink); color: var(--surface); font-weight: 600; text-decoration: none; }
+.choicePrimary:hover { background: #000; color: var(--surface); }

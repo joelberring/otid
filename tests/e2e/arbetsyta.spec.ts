@@ -68,10 +68,15 @@ test("ny tävling: direkt in, tomlägen med åtgärd, svenska fältfel och tre d
   await warmRoute(owner, `/api/admin/races/${raceId}/administrator/registration`, "POST");
   await warmRoute(owner, `/api/admin/races/${raceId}/administrator/registration-candidates`, "POST");
 
-  // Banor utan banor: en primär "Ny bana" som öppnar formuläret direkt; banfilen är andra vägen.
+  // Banor utan banor (översynen 2026-11-17): tre jämbördiga val med en rad var – banläggningen, "Ny bana" och banfilen.
   await expect(sectionButton(owner, "Banor")).toHaveAttribute("aria-current", "step");
-  await expect(owner.getByText("Det finns inga banor ännu.")).toBeVisible();
-  await expect(owner.getByRole("button", { name: "eller läs in banfil" })).toBeVisible();
+  const empty = owner.getByTestId("courses-empty");
+  await expect(empty.getByText("Det finns inga banor ännu.")).toBeVisible();
+  await expect(empty.getByRole("link", { name: "Lägg banor på kartan" })).toHaveAttribute("href", `/admin/${raceId}/course-setting`);
+  await expect(empty.getByRole("button", { name: "Ny bana" })).toBeVisible();
+  await expect(empty.getByRole("button", { name: "Läs in banfil" })).toBeVisible();
+  await expect(empty.getByRole("listitem")).toHaveCount(3);
+  await expect(empty).toContainText("Purple Pen, OCAD eller Condes");
   await screenshots(owner, "tom-arbetsyta");
   await owner.getByRole("button", { name: "Ny bana" }).click();
   const courseForm = owner.locator("form").filter({ has: owner.getByRole("button", { name: /^Spara bana( och klass)?$/ }) });

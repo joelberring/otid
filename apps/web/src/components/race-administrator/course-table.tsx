@@ -1,7 +1,7 @@
 "use client";
 
 import type { Texts } from "../../lib/language";
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import { removalEn } from "../../i18n/workspace-tools-en";
 import { courseVariantsEn } from "../../i18n/workspace-tools-en";
 import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
@@ -10,11 +10,12 @@ import styles from "../race-administrator-workspace.module.css";
 import type { CourseEditListResponse } from "@o-tid/contracts";
 import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import { courseVariantsSv } from "../../i18n/course-variants-sv";
-import { Button, EmptyState, Field, Notice, Section, Table, numeric } from "../ui";
+import { Button, Field, Notice, Section, Table, numeric } from "../ui";
 import { RemovalReview } from "./removal-review";
 import { removalSv } from "../../i18n/removal-sv";
 import { courseMeasures } from "../../lib/lists/result-list-model";
 import { focusCourseFile } from "./course-file-section";
+import { courseSettingLink } from "./shell";
 import type { Workspace } from "./workspace-state";
 import { forkingLetters } from "@o-tid/domain";
 import type { forkingSv } from "../../i18n/forking-sv";
@@ -23,6 +24,24 @@ import { ForkingEditor } from "./forking-editor";
 import { ControlMapButton } from "../control-map/control-map-dialog";
 
 type CourseRow = CourseEditListResponse["courses"][number];
+
+/**
+ * Översynen 2026-11-17: tomläget har tre jämbördiga val – banläggningen (banorna på kartan), "Ny bana" (skriv kontrollerna)
+ * och banfilen – med en rad om när man väljer vart och ett.
+ */
+function EmptyCourses({ ws, newCourse }: { ws: Workspace; newCourse: ReactNode }) {
+  const all = useTexts(raceAdministratorSv, raceAdministratorEn), text = all.courseEmptyChoices;
+  const courseSetting = ws.functionary ? undefined : courseSettingLink(ws);
+  return <div className={styles.emptyChoices} data-testid="courses-empty">
+    <p><strong>{all.courseEditNoCourses}</strong></p>
+    <ul>
+      {courseSetting && <li><a className={styles.choicePrimary} href={courseSetting.href} data-testid="courses-empty-map"
+        onClick={event => { if (!ws.mayLeave()) event.preventDefault(); }}>{text.map}</a><p>{text.mapHelp}</p></li>}
+      <li>{newCourse}<p>{text.writeHelp}</p></li>
+      <li><Button variant="secondary" onClick={() => focusCourseFile(ws.raceId)}>{text.file}</Button><p>{text.fileHelp}</p></li>
+    </ul>
+  </div>;
+}
 
 /** Banor som tabell med "Redigera bana" i raden (ADR-0169 beslut 4). */
 export function CourseTable({ ws, visible }: { ws: Workspace; visible: boolean }) {
@@ -37,6 +56,7 @@ export function CourseTable({ ws, visible }: { ws: Workspace; visible: boolean }
   }, [visible, authenticated, data, busy, stale, courseListError]);
   // ADR-0170: varianter och gafflingskontroll bara i typerna som har gafflingar.
   const variants = profile.features.variants;
+  const courseSetting = ws.functionary ? undefined : courseSettingLink(ws);
   const empty = courseList?.courses.length === 0;
   // Rogaining: kontrollerna med poäng står först och har sitt eget tomläge; banorna visas först när de finns.
   if (empty && profile.features.rogaining) return null;
@@ -51,9 +71,7 @@ export function CourseTable({ ws, visible }: { ws: Workspace; visible: boolean }
     {courseListError && <Notice tone="error" role="alert"><p>{courseListError}</p>
       <div><Button variant="secondary" disabled={saving} onClick={() => void loadCourses()}>{text.courseEditRetryList}</Button></div></Notice>}
     {!courseList && !courseListError && <p role="status" className={styles.workflowHelp}>{text.courseEditLoading}</p>}
-    {empty && !courseFormOpen && <EmptyState title={text.courseEditNoCourses} action={<>{newCourse(true)}
-      <Button variant="quiet" onClick={() => focusCourseFile(raceId)}>{text.courseClassFileAlternative}</Button></>}>
-      {text.courseEmptyHelp}</EmptyState>}
+    {empty && !courseFormOpen && <EmptyCourses ws={ws} newCourse={newCourse(!courseSetting)} />}
     {ws.removalMessage?.kind === "COURSE" && !courseList?.courses.some(row => row.courseId === ws.removalMessage?.id) &&
       <RemovalReview ws={ws} kind="COURSE" id={ws.removalMessage.id} />}
     {courseList && courseList.courses.length > 0 && <Table className={`${styles.courseTable} ${styles.cardTable}`}>

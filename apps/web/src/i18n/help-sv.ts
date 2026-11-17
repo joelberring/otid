@@ -122,7 +122,7 @@ const raceDayHelpArticles: readonly HelpArticle[] = [
         "Banläggningen, Fil: ”Ladda ned IOF XML (banor)” ger en banfil som från Purple Pen. MeOS och OLA läser den.",
         "OCAD: inget eget format från O-Tid. OCAD:s banläggning kan läsa samma IOF XML-fil. Till Purple Pen: ”Ladda ned .ppen”."
       ],
-      "Vill du lägga banorna på kartan i O-Tid: se [Banläggningen: öppna den och läs in kartan](#banlaggning-start)."
+      "Utan banor står tre val: ”Lägg banor på kartan” (se [Banläggningen: öppna den och läs in kartan](#banlaggning-start)), ”Ny bana” och ”Läs in banfil”."
     ]
   },
   {

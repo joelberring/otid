@@ -141,9 +141,12 @@ export const raceAdministratorEn: AdminTexts = {
   courseClassTitle: "New course",
   courseClassOpen: "New course",
   courseClassClose: "Close",
-  courseClassFileAlternative: "or import a course file",
+  courseEmptyChoices: {
+    map: "Put courses on the map", mapHelp: "You have the map file: draw the courses on the map in O-Tid's course setting and print them from there.",
+    writeHelp: "Without a map in O-Tid: write the controls in order. The course can be put on the map later.",
+    file: "Import course file", fileHelp: "The courses are already in Purple Pen, OCAD or Condes: import their IOF XML file."
+  },
   courseClassHelp: "Write the controls in order. Fill in a class name if you want to create a class that runs the course straight away.",
-  courseEmptyHelp: "Add the first course with the controls in order, or import a course file from the course setting program.",
   courseName: "Course name", courseClassName: "Class name (optional)", courseStartRule: rule.label,
   courseClassNameTraining: "Class name", courseClassNameTrainingHelp: "Empty = the class gets the course name.",
   courseClassHelpTraining: "Write the controls in order. The course gets a class that runners choose when they sign up.",

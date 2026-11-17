@@ -47,6 +47,8 @@ export const bingoEn: Texts<typeof bingoSv> = {
   },
   runner: {
     title: "Bingo",
+    notRunning: "The bingo is not running for this training.",
+    racePage: "To the event page",
     hubTitle: "Bingo: sign up and start",
     hubHelp: "The phone counts the squares with GPS and pings for each square.",
     hubShipsTitle: "Battleships: sign up and start",

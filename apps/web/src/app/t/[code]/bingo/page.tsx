@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { raceIdForShortCode, readBingoPublic } from "@o-tid/application";
 import { raceTitle } from "@o-tid/domain";
@@ -13,7 +14,7 @@ import { LOCALE } from "../../../../lib/language";
 import { currentLanguage } from "../../../../lib/language-server";
 import { NO_INDEX_ROBOTS } from "../../../../lib/no-index";
 import { raceStaff, requirePublicRace } from "../../../../lib/public-race-gate";
-import { formatRaceDate } from "../../../../lib/public-race-format";
+import { formatRaceDate, raceHubPath } from "../../../../lib/public-race-format";
 
 export const dynamic = "force-dynamic";
 type Params = { params: Promise<{ code: string }> };
@@ -37,9 +38,13 @@ export default async function BingoPage({ params }: Params) {
   if (!raceId) notFound();
   await requirePublicRace(raceId);
   const read = await readBingoPublic(db, { raceId, staff: await raceStaff(raceId) });
-  if (read.status === "not-found") notFound();
   const language = await currentLanguage();
   const text = language === "en" ? bingoEn.runner : bingoSv.runner;
+  // Översynen 2026-11-17: tävlingen syns för den som frågar (grinden ovan), men ingen övning är påslagen. Säg det i stället för
+  // "Tävlingen är inte publicerad"; den som inte får se tävlingen har redan fått 404 av grinden.
+  if (read.status === "not-found") return <main className={styles.page} data-testid="bingo-not-running"><h1>{text.title}</h1>
+    <p role="status">{text.notRunning}</p>
+    <p><Link href={raceHubPath((await params).code)}>{text.racePage}</Link></p></main>;
   if (read.status === "closed") {
     return <main className={styles.page}><h1>{read.mode === "SHIPS" ? (language === "en" ? bingoEn : bingoSv).ships.title
       : read.mode === "CONTROLS" ? (language === "en" ? bingoEn : bingoSv).virtual.title : text.title}</h1><p className={styles.kicker}>{raceTitle(read.eventName, read.raceName)}</p>

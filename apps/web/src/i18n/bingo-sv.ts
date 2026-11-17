@@ -44,6 +44,9 @@ export const bingoSv = {
   },
   runner: {
     title: "Bingo",
+    /** Översynen 2026-11-17: tävlingen syns för den som frågar, men ingen övning är påslagen. */
+    notRunning: "Bingon är inte igång för den här träningen.",
+    racePage: "Till tävlingssidan",
     hubTitle: "Bingo: anmäl dig och starta",
     hubHelp: "Telefonen räknar rutorna med GPS och plingar för varje ruta.",
     hubShipsTitle: "Sänka skepp: anmäl dig och starta",

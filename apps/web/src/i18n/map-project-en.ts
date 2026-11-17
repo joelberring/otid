@@ -37,13 +37,18 @@ export const mapProjectEn: Texts<typeof mapProjectSv> = {
     later: "Then",
     openMap: "Open the map",
     base: {
-      title: "Fetch underlays and a base map",
-      help: "Open the map and choose New base map under Layers: laser data, roads, water and clear-cuts become a base map to draw on.",
-      existing: (file: string) => `The map started from ${file}, which is the underlay.`
+      title: "Fetch base layers and make the base map",
+      help: "Open the map, tab Layers › Base layers and base map: fetch base layers, make the base map and review the draft.",
+      existing: (file: string) => `The map started from ${file}, which is the base layer.`
     },
     draw: {
-      title: "Draw and edit the map",
+      title: "Finish drawing",
       help: "Draw in the map, on the computer or on the phone in the forest. More people can draw: invite them under Members."
+    },
+    export: {
+      title: "Check and export",
+      help: "Check in the map under Review › Norm check. Then create a new map version under Export below.",
+      action: "To Export"
     },
     courses: {
       title: "Put courses on the map",
@@ -126,7 +131,8 @@ export const mapProjectEn: Texts<typeof mapProjectSv> = {
     ownProject: "Own project (no club)",
     newMap: "new map from O-Tid",
     loading: "Fetching the map project …",
-    base: "Base version",
+    map: "The map",
+    base: "Base file",
     club: "Club",
     changes: "Changes",
     changed: (n: number) => count(n, "changed object", "changed objects"),
@@ -138,8 +144,9 @@ export const mapProjectEn: Texts<typeof mapProjectSv> = {
     downloadShort: "Download",
     exportMapper: "Export the changes (Mapper)",
     exportGeojson: "Export the changes (GeoJSON)",
+    exportChanges: "Only the changes",
     exportHelp: "A small file of its own with only the changed and new objects, to put into the map by hand.",
-    rename: "Rename",
+    settings: "Name and status",
     name: "The project's name",
     save: "Save",
     close: "Close the project",
@@ -171,8 +178,10 @@ export const mapProjectEn: Texts<typeof mapProjectSv> = {
     gone: (name: string) => `The project “${name}” has been deleted.`
   },
   version: {
-    title: "New map version",
-    help: "Writes the changes into a copy of the base file. Only the changed objects are rewritten, and the file is checked afterwards. The base file never changes; the new version is saved in the project.",
+    title: "Export",
+    help: "Take out the map with the changes: as a new map version, or only the changes as a small file.",
+    newVersion: "New map version",
+    newVersionHelp: "Writes the changes into a copy of the base file. Only the changed objects are rewritten, and the file is checked afterwards. The base file never changes; the new version is saved in the project.",
     archive: "Also put the new version in the club archive",
     archiveHelp: "As a new version of the same map, next to the base version.",
     button: "Create new map version",
@@ -289,6 +298,7 @@ export const mapProjectEditorEn: Texts<typeof mapProjectEditorSv> = {
     proposed: "The change became a suggestion that an owner approves (Lead mapper, someone else's sub-area or the role Suggest)."
   },
   collab: {
+    settings: "Way of working and the AI connection",
     mode: "Way of working",
     modes: { SHARED: "Shared", LEAD: "Lead mapper" },
     modeHelp: {
@@ -331,8 +341,8 @@ export const mapProjectEditorEn: Texts<typeof mapProjectEditorSv> = {
     assignee: "Mapper",
     nobody: "Not assigned",
     areaStatus: "Stage",
-    stages: "Show stages",
-    stagesHelp: "The stages only show here, never in print. The colour shows how long since the sub-area was revised.",
+    stages: "Colour the sub-areas by when they were revised",
+    stagesHelp: "The colour shows how long since the sub-area was revised. It only shows here, never in print.",
     stageAges: { YEAR: "within a year", THREE: "1–3 years", SIX: "3–6 years", OLDER: "older", NEVER: "not revised" },
     revisedOn: "Revised",
     stageLabel: (name: string, revisedOn: string | null) => `${name} · ${revisedOn ?? "not revised"}`,
@@ -350,7 +360,7 @@ export const mapProjectEditorEn: Texts<typeof mapProjectEditorSv> = {
 };
 
 export const mapProjectLayersEn: Texts<typeof mapProjectLayersSv> = {
-  heading: "Base layers",
+  heading: "Base layers and base map",
   help: "Add a base layer of your own: orthophoto, laser data, hillshade or a scanned map as GeoTIFF, or PNG/JPEG with a world file (.pgw, .jgw, .wld). "
     + "An image without a world file is put in the middle of the map and corrected with control points. The image is prepared here on the phone or computer and shared with the project.",
   none: "No base layers yet.",
@@ -360,6 +370,7 @@ export const mapProjectLayersEn: Texts<typeof mapProjectLayersSv> = {
   crs: "Coordinate system (EPSG) if the file does not give it",
   crsHelp: "E.g. 3006 for SWEREF 99 TM, 3021 for RT 90, 32633 for UTM 33N, 4326 for WGS 84.",
   upload: "Add",
+  uploadHeading: "Add an image of your own",
   preparing: "Preparing the image …",
   uploading: "Sending …",
   show: (name: string) => `Show ${name}`,

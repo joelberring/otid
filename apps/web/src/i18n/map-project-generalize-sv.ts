@@ -1,6 +1,6 @@
 /** ADR-0219 K6 (del 1): generaliseringen som förslag. */
 export const mapProjectGeneralizeSv = {
-  heading: "Generalisering",
+  heading: "Generalisera kartan",
   help: "Förenklar linjer och ytor med täta punkter (t.ex. kurvor från Karttapullautin), fogar ihop delade linjer och tar bort det som är mindre än normen tillåter. "
     + "Inget ändras direkt: ändringarna lämnas som förslag som ägaren godkänner eller avvisar. Kurvor (bågar) lämnas orörda.",
   where: "Område",

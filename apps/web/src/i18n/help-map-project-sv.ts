@@ -17,8 +17,25 @@ export const mapProjectHelpArticles: readonly HelpArticle[] = [
         "”Bara kartan” gömmer verktygen och panelen. Tangenten § gör samma sak.",
         "Pricken överst visar sparandet: fylld när allt är sparat, en tom ring när ändringar väntar. En varning i text visas bara när något är fel."
       ],
-      "Flikarna delar upp det som förut var en lång lista. ”Lager” är allt som går att släcka och låsa: läs [Släcka, tona och låsa lager](#ritlaget-lager). ”Granska” är förslag, delområden, notiser, rekning och normkontroll, och ”Bearbeta” är generalisering och rättning av hela kartan.",
+      "Flikarna delar upp det som förut var en lång lista. ”Lager” är allt som går att släcka och låsa, och stegen fram till grundkartan: läs [Från laserdata till färdig karta](#ritlaget-arbetsgang). ”Granska” är förslag, normkontroll, notiser, rekning och delområden, och ”Bearbeta” är generalisering och rättning av hela kartan.",
       "Tangenterna och hjulet står i [Punkter, tangenter och hjulet](#ritlaget-punkter-tangenter)."
+    ]
+  },
+  {
+    id: "ritlaget-arbetsgang",
+    title: "Från laserdata till färdig karta",
+    views: ["MAP_EDITOR"],
+    body: [
+      "En ny karta görs i samma ordning varje gång. De tre första stegen står numrerade under fliken ”Lager”, efter lagren. Det som står indraget under ett steg är val inom steget.",
+      [
+        "Steg 1: hämta ortofoto, markfuktighet och Skogsstyrelsens kartor att rita efter. De syns bara som bakgrund.",
+        "”Ta fram grundkartan”: guiden kör laserdatan och lägger till OpenStreetMap och hyggen. Resultatet är ett utkast.",
+        "”Gå igenom utkastet”: reglagen ändrar utkastet direkt. Lägg in det med raden under kartan, eller lämna det som förslag.",
+        "Rita färdigt med symbolerna under ”Symboler”.",
+        "Kontrollera under ”Granska” › ”Normkontroll”.",
+        "Exportera på kartprojektets sida, under ”Exportera”: en ny kartversion eller bara ändringarna."
+      ],
+      "Ett utkast sparas inte i kartan förrän du lägger in det. Förslag är något annat: ändringar som en ägare godkänner under ”Granska”."
     ]
   },
   {

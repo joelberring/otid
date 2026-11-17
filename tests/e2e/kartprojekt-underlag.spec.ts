@@ -59,7 +59,7 @@ test("kartprojekt: eget underlag med världsfil", async ({ browser, baseURL }) =
   const panel = owner.getByTestId("map-project-layers");
   await expect(panel).toContainText("Inga underlag ännu.");
   await owner.getByTestId("map-project-tab-layers").click();
-  await panel.getByText("Lägg till", { exact: true }).first().click();
+  await panel.getByText("Lägg till en egen bild", { exact: true }).click();
   await panel.getByTestId("map-project-layer-file").setInputFiles([
     { name: "flygfoto.png", mimeType: "image/png", buffer: png },
     { name: "flygfoto.pgw", mimeType: "text/plain", buffer: Buffer.from(world) }]);
@@ -96,7 +96,7 @@ test("kartprojekt: eget underlag med världsfil", async ({ browser, baseURL }) =
     PhotometricInterpretation: 2, ModelPixelScale: [(bottomRight.easting - topLeft.easting) / tw, (topLeft.northing - bottomRight.northing) / th, 0],
     ModelTiepoint: [0, 0, 0, topLeft.easting, topLeft.northing, 0], ProjectedCSTypeGeoKey: georef.crs.kind === "EPSG" ? georef.crs.code : 3006,
     GTModelTypeGeoKey: 1, GTRasterTypeGeoKey: 1 }) as ArrayBuffer;
-  await panel.getByText("Lägg till", { exact: true }).first().click();
+  await panel.getByText("Lägg till en egen bild", { exact: true }).click();
   await panel.getByTestId("map-project-layer-file").setInputFiles([{ name: "ortofoto.tif", mimeType: "image/tiff", buffer: Buffer.from(tiff) }]);
   await panel.getByTestId("map-project-layer-upload").click();
   await expect(panel.getByTestId("map-project-layer")).toContainText("ortofoto", { timeout: 30_000 });
@@ -150,7 +150,7 @@ test("kartprojekt: skannad bild utan världsfil rättas med passpunkter", async 
 
   const panel = owner.getByTestId("map-project-layers");
   await owner.getByTestId("map-project-tab-layers").click();
-  await panel.getByText("Lägg till", { exact: true }).first().click();
+  await panel.getByText("Lägg till en egen bild", { exact: true }).click();
   await panel.getByTestId("map-project-layer-file").setInputFiles([{ name: "skannad.png", mimeType: "image/png", buffer: png }]);
   await panel.getByTestId("map-project-layer-upload").click();
   await expect(panel.getByTestId("map-project-layer")).toContainText("skannad", { timeout: 30_000 });
@@ -214,20 +214,20 @@ test("kartprojekt: importera en DXF-baskarta som kandidater", async ({ browser, 
   await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
   const importer = owner.getByTestId("map-project-import");
   await owner.getByTestId("map-project-tab-layers").click();
-  await importer.getByText("Importera vektorer").click();
+  await importer.getByText("Läs in vektorfil eller OpenStreetMap").click();
   await importer.getByTestId("map-project-import-file").setInputFiles({ name: "baskarta.dxf", mimeType: "application/dxf", buffer: Buffer.from(dxf) });
   await expect(importer.getByTestId("map-project-import-crs")).toHaveValue("3006");
   await expect(importer.getByRole("combobox", { name: "Symbol för STIG" })).toHaveValue(/.+/);
   await expect(importer.getByRole("combobox", { name: "Symbol för STIG" }).locator("option:checked")).toContainText("505.0");
   await expect(importer.getByRole("combobox", { name: "Symbol för SJO" }).locator("option:checked")).toContainText("301.0");
   await expect(importer.getByRole("combobox", { name: "Symbol för 0153" })).toHaveValue("");
-  await expect(importer.getByTestId("map-project-import-result")).toHaveText("2 kandidater · 1 hopslagna");
+  await expect(importer.getByTestId("map-project-import-result")).toHaveText("2 objekt i utkastet · 1 hopslagna");
   await reviewScreenshots(owner, "kartprojekt-import");
   // Ägaren 2026-11-10: Passa in mot kartan räknar i kartans Worker och ger ett besked (den lilla testkartan har för lite att passa mot).
   const fit = importer.getByTestId("map-project-import-fit");
   await fit.getByRole("button", { name: "Passa in mot kartan" }).click();
   await expect(fit.getByRole("status")).toHaveText(/^(Inpassat|Det gick inte att passa in)/, { timeout: 30_000 });
-  await expect(importer.getByTestId("map-project-import-result")).toHaveText("2 kandidater · 1 hopslagna");
+  await expect(importer.getByTestId("map-project-import-result")).toHaveText("2 objekt i utkastet · 1 hopslagna");
   // Grundkartan G2b (ägaren 2026-11-10): kandidaterna läggs i kartan i ett svep, och Ångra tar bort alla igen i ett steg.
   const added = async () => {
     const response = await owner.request.post(`${api}/sync`, { headers: { origin: baseURL!, "x-otid-csrf": await csrfOf(owner), "content-type": "application/json" },
@@ -251,7 +251,7 @@ test("kartprojekt: importera en DXF-baskarta som kandidater", async ({ browser, 
   await idle();
   expect(await added()).toBe(0);
   await importer.getByTestId("map-project-import-file").setInputFiles({ name: "baskarta.dxf", mimeType: "application/dxf", buffer: Buffer.from(dxf) });
-  await expect(importer.getByTestId("map-project-import-result")).toHaveText("2 kandidater · 1 hopslagna");
+  await expect(importer.getByTestId("map-project-import-result")).toHaveText("2 objekt i utkastet · 1 hopslagna");
   // K6b: valen sparas som en profil; samma fil igen får profilens symbol för lagret 0153 (som namnet inte ger något förslag för).
   await warmRoute(owner, `${api}/layer-profiles`);
   const zero = importer.getByRole("combobox", { name: "Symbol för 0153" });
@@ -265,7 +265,7 @@ test("kartprojekt: importera en DXF-baskarta som kandidater", async ({ browser, 
   await expect(importer.getByTestId("map-project-import-profile")).toHaveText("Symbolerna från profilen ”Kommunens baskarta” (3 av 3 lager).");
   await expect(importer.getByRole("combobox", { name: "Symbol för 0153" })).toHaveValue(chosen);
   await importer.getByRole("combobox", { name: "Symbol för 0153" }).selectOption("");
-  await expect(importer.getByTestId("map-project-import-result")).toHaveText("2 kandidater · 1 hopslagna");
+  await expect(importer.getByTestId("map-project-import-result")).toHaveText("2 objekt i utkastet · 1 hopslagna");
   await importer.getByTestId("map-project-import-propose").click();
   await expect(importer.getByTestId("map-project-import-sent")).toContainText("1 förslag lämnade", { timeout: 20_000 });
 
@@ -379,14 +379,14 @@ test("kartprojekt: hämta OpenStreetMap för en etapp", async ({ browser, baseUR
   await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
   const importer = owner.getByTestId("map-project-import");
   await owner.getByTestId("map-project-tab-layers").click();
-  await importer.getByText("Importera vektorer").click();
+  await importer.getByText("Läs in vektorfil eller OpenStreetMap").click();
   const osm = importer.getByTestId("map-project-osm");
   await osm.getByTestId("map-project-osm-area").selectOption({ label: "Etapp 1" });
   await osm.getByTestId("map-project-osm-fetch").click();
   await expect(importer.getByTestId("map-project-import-crs")).toHaveValue("4326", { timeout: 30_000 });
   await expect(importer.getByRole("combobox", { name: "Symbol för OSM gångväg och cykelväg" }).locator("option:checked")).toContainText("505.0");
   await expect(importer.getByRole("combobox", { name: "Symbol för OSM byggnad" })).toHaveValue("");
-  await expect(importer.getByTestId("map-project-import-result")).toHaveText("1 kandidat");
+  await expect(importer.getByTestId("map-project-import-result")).toHaveText("1 objekt i utkastet");
   await importer.getByTestId("map-project-import-propose").click();
   await expect(importer.getByTestId("map-project-import-sent")).toContainText("1 förslag lämnade", { timeout: 20_000 });
   const proposals = owner.getByTestId("map-project-proposals");
@@ -469,9 +469,9 @@ test("kartprojekt: generalisering som förslag", async ({ browser, baseURL }) =>
   await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
   const importer = owner.getByTestId("map-project-import");
   await owner.getByTestId("map-project-tab-layers").click();
-  await importer.getByText("Importera vektorer").click();
+  await importer.getByText("Läs in vektorfil eller OpenStreetMap").click();
   await importer.getByTestId("map-project-import-file").setInputFiles({ name: "tat.dxf", mimeType: "application/dxf", buffer: Buffer.from(dxf) });
-  await expect(importer.getByTestId("map-project-import-result")).toContainText("2 kandidater");
+  await expect(importer.getByTestId("map-project-import-result")).toContainText("2 objekt i utkastet");
   await importer.getByTestId("map-project-import-propose").click();
   const proposals = owner.getByTestId("map-project-proposals");
   await expect(proposals).toContainText("Förslag (1 öppet)", { timeout: 20_000 });
@@ -481,7 +481,7 @@ test("kartprojekt: generalisering som förslag", async ({ browser, baseURL }) =>
 
   const general = owner.getByTestId("map-project-generalize");
   await owner.getByTestId("map-project-tab-process").click();
-  await general.getByText("Generalisering").first().click();
+  await general.getByText("Generalisera kartan").first().click();
   await general.getByTestId("map-project-generalize-tolerance").selectOption("0.1");
   await expect(async () => {
     await general.getByTestId("map-project-generalize-preview").click();

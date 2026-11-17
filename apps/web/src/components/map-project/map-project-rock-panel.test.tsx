@@ -23,13 +23,13 @@ describe("panelen Berg i dagen med reglage", () => {
     expect(html).toContain("Ingen bergbild bland underlagen. Kör laserjobbet igen för att få den.");
     expect(html).not.toContain('data-testid="map-project-rock-run"');
   });
-  it("visar reglaget Mängd 1–10 med det restriktiva förvalet 3 och knappen för kandidater", () => {
+  it("visar reglaget Mängd 1–10 med det restriktiva förvalet 3 och knappen för utkastet", () => {
     const html = render(["Karttapullautin hela kartan – berg"]);
     expect(html).toMatch(/<input type="range" min="1" max="10" step="1"[^>]*value="3"/);
     expect(html).toContain("Mängd: 3 av 10 (förval)");
     expect(html).toContain("1 ger få, 10 ger många.");
     expect(html).toContain('data-testid="map-project-rock-run"');
-    expect(html).toContain("Visa som kandidater");
+    expect(html).toContain("Visa som utkast");
   });
   it("visas inte för den som inte får föreslå", () => {
     expect(render(["Karttapullautin – berg"], false)).toBe("");

@@ -11,7 +11,7 @@ import start from "../club-archive/club-start.module.css";
 import styles from "./map-project.module.css";
 
 /**
- * Översynen 2026-11-17: «Nästa steg» på kartprojektets sida – underlaget, ritandet och banorna – i klubbytans «Kom igång»-form
+ * Översynen 2026-11-17: «Nästa steg» på kartprojektets sida – underlaget, ritandet, kontroll och export, och banorna – i klubbytans «Kom igång»-form
  * (samma lista och bockar, utan kortets ram). Bara nästa steg har en knapp, så att sidan förblir lugn.
  */
 export function MapProjectNextSteps({ view }: { view: MapProjectView }) {
@@ -21,11 +21,13 @@ export function MapProjectNextSteps({ view }: { view: MapProjectView }) {
   const help: Record<MapProjectStep, string> = {
     base: view.base.source === "NEW" ? text.base.help : text.base.existing(view.base.fileName),
     draw: text.draw.help,
+    export: text.export.help,
     courses: text.courses.help
   };
   const action: Record<MapProjectStep, ReactNode> = {
     base: <Link className={styles.primaryLink} href={mapHref}>{text.openMap}</Link>,
     draw: <Link className={styles.primaryLink} href={mapHref}>{text.openMap}</Link>,
+    export: <a className={styles.primaryLink} href="#exportera">{text.export.action}</a>,
     courses: <Link className={styles.primaryLink} href="/organizer">{text.courses.action}</Link>
   };
   return <section aria-labelledby="map-project-next" data-testid="map-project-next">

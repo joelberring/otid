@@ -75,15 +75,15 @@ describe("guiden Ny grundkarta på sidan", () => {
     expect(running).toContain("Körningen pågår. Steg i körningen: Karttapullautin (2 av 5).");
   });
 
-  it("erbjuder Läs in grundkartan när körningen är klar, och pekar på kandidatlisten och reglagen när den är inläst", () => {
+  it("erbjuder Läs in grundkartan när körningen är klar, och pekar på utkastet och reglagen när den är inläst", () => {
     const done = laser({ jobs: [job({ outputs })] });
     const html = render(done);
     expect(html).toContain('data-step="review"');
     expect(html).toContain('data-testid="map-project-guide-load"');
     const shown = render(done, { file: "Karttapullautin hela kartan – Grundkartan" });
     expect(shown).not.toContain('data-testid="map-project-guide-load"');
-    expect(shown).toContain("Grundkartan visas nu som kandidater (3 objekt)");
-    expect(shown).toContain("3. Justera utan ny körning");
+    expect(shown).toContain("Grundkartan visas nu som ett utkast (3 objekt)");
+    expect(shown).toContain("3. Gå igenom utkastet");
   });
 
   it("säger vad man gör härnäst efter ett fel", () => {

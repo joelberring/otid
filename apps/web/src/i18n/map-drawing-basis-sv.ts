@@ -38,7 +38,7 @@ export const mapDrawingBasisSv = {
   addLayer: "Lägg in som underlag",
   layerName: (meters: string, job: string) => `Täta kurvor ${meters} m – ${job}`,
   layerDone: (name: string) => `Klart: «${name}» finns under Lager. Tona ner det till lagom svagt med reglaget.`,
-  layerCoarse: (meters: string) => `Området är stort, så kurvorna ritas med en punkt per ${meters} m och blir grova. Välj en etapp för skarpare kurvor.`,
+  layerCoarse: (meters: string) => `Området är stort, så kurvorna ritas med en punkt per ${meters} m och blir grova. Välj ett delområde för skarpare kurvor.`,
   layerFailed: "Underlaget kunde inte läggas in.",
   printHeading: "Fältutskrift för plast",
   printHelp: "Ljusa sidor att rita ovanpå, delade i blad med 10 mm överlapp och rutnät med koordinater.",

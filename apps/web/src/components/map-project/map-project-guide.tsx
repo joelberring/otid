@@ -38,7 +38,7 @@ function readContours(projectId: string): ContourStyle {
 
 /**
  * Ägaren 2026-11-13 («rörigt», 27 paneler; förstod inte ordningen och fick «Området är för stort» utan att veta vad han
- * skulle göra): guiden «Ny grundkarta» överst i Underlag. Fyra steg – område, hämta och kör, vänta, granska och lägg in –
+ * skulle göra): guiden (nu «Guiden: från laserdata till grundkarta» under steg 2, Ta fram grundkartan). Fyra steg – område, hämta och kör, vänta, granska och lägg in –
  * med en huvudknapp i taget. Den gör samma sak som laserpanelen (samma hook, `useMapProjectLaser`) med förvalen, och läget
  * härleds ur det som finns (`guideState`), så att den står rätt efter en omladdning.
  */
@@ -182,7 +182,7 @@ export function MapProjectGuide({ view, laser, importer, areas, onSplit }: { vie
 
   return <section className={styles.guide} aria-labelledby="map-project-guide-heading" data-testid="map-project-guide" data-step={state.finished ? "finished" : state.step}>
     <div className={styles.head}>
-      <h3 id="map-project-guide-heading">{text.heading}</h3>
+      <h4 id="map-project-guide-heading">{text.heading}</h4>
       <Button variant="quiet" aria-expanded={open} aria-controls="map-project-guide-steps" onClick={() => setOpenChoice(!open)} data-testid="map-project-guide-toggle">
         {open ? text.hide : text.show}</Button>
     </div>

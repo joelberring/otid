@@ -799,15 +799,18 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
           <MapProjectColors colors={editor.colors} saved={editor.colorChanges} canChange={canDecide} ocad={view.base.format === "OCD"} onShow={editor.showColors} onSave={editor.saveColors} />
         </>}
         review={<>
-        <MapProjectCollabPanel view={view} collab={collab} shownProposal={shownProposal} onShowProposal={setShownProposal}
-          shownArea={shownArea} onShowArea={setShownArea} newArea={!!newArea}
-          onNewArea={() => { deselect(); cancelDraft(); setTool("area"); setPanelOpen(false); }}
-          onSplitArea={() => startSplit()} splitting={tool === "split"}
-          onSaveArea={(name, assignee) => { if (newArea) void collab.createArea(name, [newArea], assignee).then(ok => { if (ok) { setNewArea(undefined); setTool("select"); } }); }}
-          onCancelArea={() => { setNewArea(undefined); setTool("select"); }} stages={stages} onStages={setStages} />
-          <NotesPanel notes={notes.notes} problem={notes.problem} onShow={note => { setShownNote(note.noteId); setPanelOpen(false); mapHandle.current?.focus(note.at); }} />
-          <MapProjectReconPanel view={view} recon={recon} hasGeoreference={!!georeference} />
-          <MapProjectNormPanel norm={norm} onShow={issue => { setShownIssue(issue.at); setPanelOpen(false); mapHandle.current?.focus(issue.at); }} />
+          {/* Översynen av kartstegen 2026-11-17: i arbetsordning – förslagen, normkontrollen, notiserna och rekningen, delområdena,
+              och arbetssättet och AI-kopplingen (sällan ändrade) i en utfällning sist. */}
+          {(["proposals", "norm", "notes", "recon", "areas", "settings"] as const).map(part => part === "norm"
+            ? <MapProjectNormPanel key={part} norm={norm} onShow={issue => { setShownIssue(issue.at); setPanelOpen(false); mapHandle.current?.focus(issue.at); }} />
+            : part === "notes" ? <NotesPanel key={part} notes={notes.notes} problem={notes.problem} onShow={note => { setShownNote(note.noteId); setPanelOpen(false); mapHandle.current?.focus(note.at); }} />
+            : part === "recon" ? <MapProjectReconPanel key={part} view={view} recon={recon} hasGeoreference={!!georeference} />
+            : <MapProjectCollabPanel key={part} part={part} view={view} collab={collab} shownProposal={shownProposal} onShowProposal={setShownProposal}
+              shownArea={shownArea} onShowArea={setShownArea} newArea={!!newArea}
+              onNewArea={() => { deselect(); cancelDraft(); setTool("area"); setPanelOpen(false); }}
+              onSplitArea={() => startSplit()} splitting={tool === "split"}
+              onSaveArea={(name, assignee) => { if (newArea) void collab.createArea(name, [newArea], assignee).then(ok => { if (ok) { setNewArea(undefined); setTool("select"); } }); }}
+              onCancelArea={() => { setNewArea(undefined); setTool("select"); }} stages={stages} onStages={setStages} />)}
         </>}
         process={<>
           <MapProjectGeneralizePanel generalize={generalizer} areas={collab.areas} />

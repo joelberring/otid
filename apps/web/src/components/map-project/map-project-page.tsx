@@ -97,8 +97,10 @@ export function MapProjectPage({ projectId }: { projectId: string }) {
       {message.refusals && <ul className={styles.refusals}>{message.refusals.map((line, index) => <li key={index}>{line}</li>)}</ul>}</Notice>}
     <div className={styles.sections}>
       {project.status === "OPEN" && (project.viewer.canEdit || project.viewer.canPropose) && <MapProjectNextSteps view={project} />}
+      {/* Översynen av kartstegen 2026-11-17: «Kartan» (fakta, öppna, grundfilen) och «Exportera» (ny kartversion och bara
+          ändringarna), i stället för exporten under «Grundversion» och en egen «Ny kartversion». */}
       <section aria-labelledby="map-project-base">
-        <h2 id="map-project-base">{text.page.base}</h2>
+        <h2 id="map-project-base">{text.page.map}</h2>
         <dl className={styles.facts}>
           <dt>{text.page.club}</dt><dd>{project.club?.name ?? text.page.ownProject}</dd>
           <dt>{text.page.base}</dt><dd>{project.base.mapName} · {project.base.fileName}{project.base.versionDate ? ` · ${project.base.versionDate}` : ""}
@@ -113,15 +115,14 @@ export function MapProjectPage({ projectId }: { projectId: string }) {
         {project.base.format === "OCD" && <p className={styles.muted}>{text.page.ocadLater}</p>}
         <div className={styles.actions}>
           <a className={styles.buttonLink} href={`${base}/source`} download>{text.page.download}</a>
-          {project.base.format === "OMAP" && <a className={styles.buttonLink} href={`${base}/export?format=omap`} download>{text.page.exportMapper}</a>}
-          <a className={styles.buttonLink} href={`${base}/export?format=geojson`} download>{text.page.exportGeojson}</a>
         </div>
-        <p className={styles.muted}>{text.page.exportHelp}</p>
       </section>
 
-      <section aria-labelledby="map-project-version">
+      <section aria-labelledby="map-project-version" id="exportera">
         <h2 id="map-project-version">{text.version.title}</h2>
         <p className={styles.muted}>{text.version.help}</p>
+        <h3>{text.version.newVersion}</h3>
+        <p className={styles.muted}>{text.version.newVersionHelp}</p>
         {project.viewer.canWriteVersion ? <>
           {project.viewer.canArchive && <label className={styles.check}>
             <input type="checkbox" checked={archive} disabled={busy} onChange={event => setArchive(event.target.checked)} />
@@ -130,6 +131,12 @@ export function MapProjectPage({ projectId }: { projectId: string }) {
           <Button disabled={busy || project.base.format !== "OMAP"} onClick={() => void writeVersion(project.viewer.canArchive && archive)}>
             {text.version.button}</Button>
         </> : <p className={styles.muted}>{text.version.notOwner}</p>}
+        <h3>{text.page.exportChanges}</h3>
+        <p className={styles.muted}>{text.page.exportHelp}</p>
+        <div className={styles.actions}>
+          {project.base.format === "OMAP" && <a className={styles.buttonLink} href={`${base}/export?format=omap`} download>{text.page.exportMapper}</a>}
+          <a className={styles.buttonLink} href={`${base}/export?format=geojson`} download>{text.page.exportGeojson}</a>
+        </div>
         <h3>{text.page.outputs}</h3>
         {project.outputs.length === 0 ? <p className={styles.muted}>{text.page.noOutputs}</p>
           : <ul className={styles.list} data-testid="map-project-outputs">{project.outputs.map(output => <li key={output.outputId}>
@@ -239,7 +246,7 @@ function ProjectSettings({ view, base, busy, run }: { view: MapProjectView; base
     void run(() => clubRequest(base, "PUT", { formatVersion: 1, status: closing ? "CLOSED" : "OPEN" }), text.page.saved);
   };
   return <section aria-labelledby="map-project-settings">
-    <h2 id="map-project-settings">{text.page.rename}</h2>
+    <h2 id="map-project-settings">{text.page.settings}</h2>
     <form className={styles.form} onSubmit={save}>
       <Field label={text.page.name}><input value={name} maxLength={120} onChange={event => setName(event.target.value)} required /></Field>
       <div className={styles.actions}>

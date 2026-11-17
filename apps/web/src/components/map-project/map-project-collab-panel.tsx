@@ -25,8 +25,10 @@ type Collaboration = ReturnType<typeof useMapProjectCollaboration>;
  * den som fått området sätter läget).
  */
 export function MapProjectCollabPanel({ view, collab, shownProposal, onShowProposal, shownArea, onShowArea, onNewArea, newArea, onSaveArea, onCancelArea,
-  onSplitArea, splitting, stages, onStages }: {
+  onSplitArea, splitting, stages, onStages, part }: {
   view: MapProjectView;
+  /** Vilken del: förslagen, delområdena eller inställningarna (arbetssätt och AI) i en utfällning. */
+  part: "proposals" | "areas" | "settings";
   /** Etapperna: delområdena färgade efter revideringsdatumet. */
   stages: boolean; onStages: (shown: boolean) => void;
   collab: Collaboration;
@@ -48,12 +50,12 @@ export function MapProjectCollabPanel({ view, collab, shownProposal, onShowPropo
   const decided = collab.proposals.filter(proposal => proposal.status !== "OPEN").slice(0, 5);
   const editors = view.members.filter(member => member.role !== "READ");
 
-  return <>
-    {collab.problem && <Notice tone="error" role="alert">{collab.problem}</Notice>}
-    {viewer.canPropose && !viewer.canEdit && <p className={styles.muted}>{text.suggestHint}</p>}
-
-    <section aria-labelledby="map-project-mode" className={styles.panel}>
-      <h2 id="map-project-mode">{text.mode}</h2>
+  // Översynen av kartstegen 2026-11-17: Granska i arbetsordning – förslagen först, delområdena efter kontrollen, och arbetssättet
+  // och AI:n (som sällan ändras) i en utfällning sist. Samma komponent, en del i taget.
+  if (part === "settings") return <details className={`${styles.settings} ${styles.panel}`} data-testid="map-project-collab-settings">
+    <summary>{text.settings}</summary>
+    <section aria-labelledby="map-project-mode">
+      <h3 id="map-project-mode">{text.mode}</h3>
       {viewer.canDecide ? <div className={styles.actions} role="group" aria-labelledby="map-project-mode">
         {MODES.map(mode => <Button key={mode} variant={collab.mode === mode ? "primary" : "secondary"} aria-pressed={collab.mode === mode}
           disabled={collab.busy} onClick={() => { if (collab.mode !== mode) void collab.setMode(mode); }}>{text.modes[mode]}</Button>)}
@@ -61,8 +63,8 @@ export function MapProjectCollabPanel({ view, collab, shownProposal, onShowPropo
       <p className={styles.muted}>{text.modeHelp[collab.mode]}</p>
     </section>
 
-    {viewer.canDecide && <section aria-labelledby="map-project-ai" className={styles.panel}>
-      <h2 id="map-project-ai">{text.aiTitle}</h2>
+    {viewer.canDecide && <section aria-labelledby="map-project-ai">
+      <h3 id="map-project-ai">{text.aiTitle}</h3>
       <div className={styles.actions} role="group" aria-labelledby="map-project-ai">
         {AI_MODES.map(mode => <Button key={mode} variant={collab.aiMode === mode ? "primary" : "secondary"} aria-pressed={collab.aiMode === mode}
           data-testid={`map-project-ai-${mode.toLowerCase()}`} disabled={collab.busy}
@@ -70,7 +72,11 @@ export function MapProjectCollabPanel({ view, collab, shownProposal, onShowPropo
       </div>
       <p className={styles.muted}>{text.aiHelp[collab.aiMode]}</p>
     </section>}
+  </details>;
 
+  if (part === "proposals") return <>
+    {collab.problem && <Notice tone="error" role="alert">{collab.problem}</Notice>}
+    {viewer.canPropose && !viewer.canEdit && <p className={styles.muted}>{text.suggestHint}</p>}
     <section aria-labelledby="map-project-proposals" className={styles.panel} data-testid="map-project-proposals">
       <h2 id="map-project-proposals">{text.proposals(open.length)}</h2>
       {open.length === 0 && <p className={styles.muted}>{text.noProposals}</p>}
@@ -82,7 +88,9 @@ export function MapProjectCollabPanel({ view, collab, shownProposal, onShowPropo
           onShow={() => onShowProposal(shownProposal === proposal.proposalId ? undefined : proposal.proposalId)} />)}
       </ul>
     </section>
+  </>;
 
+  return <>
     <section aria-labelledby="map-project-areas" className={styles.panel} data-testid="map-project-areas">
       <h2 id="map-project-areas">{text.areas}</h2>
       {newArea && <NewAreaForm defaultName={text.areaNameDefault(collab.areas.length + 1)} editors={editors} busy={collab.busy}

@@ -23,7 +23,7 @@ export const mapSourcesSv = {
   },
   ortho: {
     heading: "Ortofoto från Lantmäteriet",
-    help: "Sök flygbilder för hela kartan eller en etapp med dina egna uppgifter till Lantmäteriet; de valda läggs till som underlag (en per bildruta). © Lantmäteriet.",
+    help: "Sök flygbilder för hela kartan eller ett delområde med dina egna uppgifter till Lantmäteriet; de valda läggs till som underlag (en per bildruta). © Lantmäteriet.",
     noCredential: "Lägg in dina uppgifter till Lantmäteriet under Mitt konto först.",
     account: "Mitt konto",
     where: "Område",
@@ -34,15 +34,15 @@ export const mapSourcesSv = {
     item: (when: string | null, collection: string | null, id: string) => [when?.slice(0, 10), collection, id].filter(Boolean).join(" · "),
     add: (count: number) => count === 1 ? "Lägg till 1 bild som underlag" : `Lägg till ${count} bilder som underlag`,
     adding: (done: number, total: number) => `Hämtar bild ${done} av ${total} …`,
-    added: (count: number) => count === 1 ? "1 underlag tillagt. Det ligger under Underlag här ovanför, där det tänds, släcks och görs genomskinligt."
-      : `${count} underlag tillagda. De ligger under Underlag här ovanför, där de tänds, släcks och görs genomskinliga.`,
-    failed: (count: number) => count === 1 ? "1 bild kunde inte läggas till. Orsaken står under Underlag här ovanför."
-      : `${count} bilder kunde inte läggas till. Orsaken står under Underlag här ovanför.`,
+    added: (count: number) => count === 1 ? "1 underlag tillagt. Det ligger i listan överst i steget, där det tänds, släcks och görs genomskinligt."
+      : `${count} underlag tillagda. De ligger i listan överst i steget, där de tänds, släcks och görs genomskinliga.`,
+    failed: (count: number) => count === 1 ? "1 bild kunde inte läggas till. Orsaken står i listan överst i steget."
+      : `${count} bilder kunde inte läggas till. Orsaken står i listan överst i steget.`,
     name: (collection: string | null, id: string) => `Ortofoto ${collection ?? ""} ${id}`.replace(/\s+/g, " ").trim().slice(0, 80),
     problems: {
       SOURCE_NO_CREDENTIAL: "Lägg in dina uppgifter till Lantmäteriet under Mitt konto först.",
       SOURCE_REJECTED: "Lantmäteriet godtog inte uppgifterna, eller produkten är inte beställd på Geotorget.",
-      SOURCE_AREA_TOO_LARGE: "Området är för stort för en sökning. Välj en etapp.",
+      SOURCE_AREA_TOO_LARGE: "Området är för stort för en sökning. Välj ett delområde.",
       SOURCE_THROTTLED: "För många sökningar den senaste timmen. Försök igen senare.",
       SOURCE_UNAVAILABLE: "Lantmäteriet svarade inte just nu. Försök igen om en stund.",
       OUTSIDE: "Bilden täcker inte området.",
@@ -59,13 +59,13 @@ export const mapSourcesSv = {
     layer: "Underlag",
     run: "Tolka flygbilden",
     name: (layer: string) => `${layer} – flygbildstolkning`.slice(0, 120),
-    done: (rock: number, open: number) => `${String(rock).replace(".", ",")} ha berg i dagen och ${String(open).replace(".", ",")} ha öppen mark visas som kandidater nedan under Vektorfil.`,
+    done: (rock: number, open: number) => `${String(rock).replace(".", ",")} ha berg i dagen och ${String(open).replace(".", ",")} ha öppen mark visas som utkast på kartan. Lägg in det i raden under kartan.`,
     nothing: "Inga breda grå eller ljusgröna ytor hittades i bilden.",
     failed: "Flygbilden kunde inte tolkas."
   },
   depth: {
     heading: "Fukt med reglage (blött och fuktigt)",
-    help: "Laserkörningens fuktdjup (höjden över närmaste fuktstråk) läses här. Dra i gränserna: ytorna visas direkt som kandidater på kartan, "
+    help: "Laserkörningens fuktdjup (höjden över närmaste fuktstråk) läses här. Dra i gränserna: ytorna visas direkt som utkast på kartan, "
       + "utan en ny körning. Blött blir sankmark (308) och fuktigt otydlig sankmark (310).",
     none: "Inget fuktdjup bland underlagen. Kör laserjobbet med fuktigheten först.",
     layer: "Underlag",
@@ -74,7 +74,7 @@ export const mapSourcesSv = {
     openGround: (percent: number) => percent >= 100 ? "Öppen mark: ingen gräns" : `Inte på öppen mark: där minst ${percent} % av lasern når marken`,
     slope: (degrees: string) => `Flack mark: blött högst ${degrees}° lutning, fuktigt dubbelt så brant`,
     minArea: (square: number) => `Minsta yta: ${square} m²`,
-    run: "Visa som kandidater",
+    run: "Visa som utkast",
     name: (layer: string) => `${layer} – blött och fuktigt`.slice(0, 120),
     done: (wet: string, moist: string, removed?: string) => `${wet} ha blött och ${moist} ha fuktigt${removed ? `, varav ${removed} ha borttaget på torr mark` : ""}. Ändra gränserna så räknas det om.`,
     noDrySoil: "Ingen sankmark på sand och grus (SGU:s jordartskarta)",
@@ -86,7 +86,7 @@ export const mapSourcesSv = {
   },
   green: {
     heading: "Grönt med reglage (406, 408, 410)",
-    help: "Laserkörningens vegetationsklasser läses här. Ett högre steg ger mindre grönt; ytorna visas direkt som kandidater på kartan, utan en ny körning.",
+    help: "Laserkörningens vegetationsklasser läses här. Ett högre steg ger mindre grönt; ytorna visas direkt som utkast på kartan, utan en ny körning.",
     none: "Inga vegetationsklasser bland underlagen. Kör laserjobbet med vegetationen först.",
     layer: "Underlag",
     step: (key: "slow" | "difficult" | "fight", value: number) => `${{ slow: "Löphindrande (406)", difficult: "Svårlöpt (408)", fight: "Mycket svårlöpt (410)" }[key]} från steg ${value}`,
@@ -97,7 +97,7 @@ export const mapSourcesSv = {
     clearings: (level: number) => `Gläntor: ${level}`,
     clearingsHelp: "Öppen mark (401) i skogen. Högre tar med mindre gläntor och gör dem större; lägre tar bara de stora. 5 är som laserkörningen. Kanten rundas.",
     simplifyHelp: "Öppet, halvöppet och grönt formas tillsammans, som en kartritare: smala mellanzoner och strimlor försvinner, små fläckar går till grannen och kanterna blir lugna kurvor. Högre ger enklare former. 4 är förvalet; 0 jämnar bara varje lager för sig, som förut.",
-    run: "Visa som kandidater",
+    run: "Visa som utkast",
     name: (layer: string) => `${layer} – grönt`.slice(0, 120),
     done: (slow: string, difficult: string, fight: string) => `${slow} ha löphindrande, ${difficult} ha svårlöpt, ${fight} ha mycket svårlöpt. Ändra stegen så räknas det om.`,
     nothing: "Inga ytor med de här stegen.",
@@ -105,7 +105,7 @@ export const mapSourcesSv = {
   },
   moisture: {
     heading: "Markfuktighet (SLU)",
-    help: "SLU:s markfuktighetskarta (2 m, öppen data från Skogsstyrelsen) för hela kartan eller en etapp, som underlag. Blått är blött: "
+    help: "SLU:s markfuktighetskarta (2 m, öppen data från Skogsstyrelsen) för hela kartan eller ett delområde, som underlag. Blått är blött: "
       + "använd den för att hitta våtmarker, fuktstråk och diken att rekognosera.",
     fetch: "Hämta markfuktighet",
     fetching: "Hämtar markfuktighet …",
@@ -115,10 +115,10 @@ export const mapSourcesSv = {
   },
   /** K5: laserdata och Karttapullautin på geo-servern. */
   laser: {
-    heading: "Laserdata och Karttapullautin",
-    help: "Sök laserrutor (2,5 × 2,5 km) för hela kartan eller en etapp med dina egna uppgifter till Lantmäteriet. Geo-servern kör "
-      + "Karttapullautin: bilden läggs till som underlag, och kurvor, formlinjer, branter och knollar kan läsas in som kandidater. "
-      + "Laserdatan klipps till kartans område (eller etappen) med 50 m marginal innan den bearbetas.",
+    heading: "Laserkörningar (avancerat)",
+    help: "Sök laserrutor (2,5 × 2,5 km) för hela kartan eller ett delområde med dina egna uppgifter till Lantmäteriet. Geo-servern kör "
+      + "Karttapullautin: bilden läggs till som underlag, och kurvor, formlinjer, branter och knollar kan läsas in som utkast. "
+      + "Laserdatan klipps till kartans område (eller delområdet) med 50 m marginal innan den bearbetas.",
     attribution: "Laserdata Nedladdning, skog © Lantmäteriet, CC BY 4.0 (bearbetad med Karttapullautin, GPL-3).",
     search: "Sök laserrutor",
     searching: "Söker …",
@@ -142,7 +142,7 @@ export const mapSourcesSv = {
       undergrowth: { less: "Mindre", default: "Som förval", more: "Mer" },
       open: { less: "Mindre", default: "Som förval", more: "Mer" }, rock: { less: "Ta inte med", default: "Utan förslag", more: "Föreslå som berg i dagen" }
     } as Record<string, Record<"less" | "default" | "more", string>>,
-    choicesHelp: "Grönt mäts av Karttapullautin som andelen laserträffar 1–2,65 m över marken (buskskiktet) mot träffarna på marken, och väger in trädkronorna. Prova på en etapp först, eller kör om ett klart jobb och jämför.",
+    choicesHelp: "Grönt mäts av Karttapullautin som andelen laserträffar 1–2,65 m över marken (buskskiktet) mot träffarna på marken, och väger in trädkronorna. Prova på ett delområde först, eller kör om ett klart jobb och jämför.",
     rerun: "Kör om med andra inställningar",
     rerunHeading: (name: string) => `Kör om ${name} med samma rutor och område:`,
     rerunName: (name: string) => `${name} (ny)`.slice(0, 80),
@@ -154,7 +154,7 @@ export const mapSourcesSv = {
     sampleSuffix: " (provruta)",
     more: "Avancerat: värden i Karttapullautin",
     moreHelp: "Värdena skrivs i Karttapullautins pullauta.ini (namnet står inom parentes). Lämna ett fält tomt för Karttapullautins förval. "
-      + "Prova på en liten etapp först och jämför bilderna.",
+      + "Prova på ett litet delområde först och jämför bilderna.",
     settingLabels: {
       smoothing: "Kurvornas utjämning", curviness: "Kurvornas formrikedom", knolls: "Knollar", formlinesteepness: "Formlinjer efter lutning",
       cliff1: "Branter, tröskel 1", cliff2: "Branter, tröskel 2", cliffsteepfactor: "Branter, lutningsfaktor",
@@ -182,12 +182,12 @@ export const mapSourcesSv = {
     wet: "Blött under",
     wetOption: (meters: number) => `${String(meters).replace(".", ",")} m över stråket`,
     moistureAdded: "Fuktigheten är tillagd som underlag.",
-    skippedSteps: (steps: string) => `Kunde inte räknas för det här området: ${steps}. Resten är klart; prova en mindre etapp för det som saknas.`,
+    skippedSteps: (steps: string) => `Kunde inte räknas för det här området: ${steps}. Resten är klart; prova ett mindre delområde för det som saknas.`,
     stepNames: { ditches: "diken", stones: "stenar", rock: "berg i dagen", knolls: "små kullar" } as Record<string, string>,
     vegetation: "Gör också ytor av vegetationen (öppen mark, grönt och undervegetation ur laserns returer)",
     minArea: "Minsta yta",
     minAreaOption: (m2: number) => `${m2} m²`,
-    tooManyTiles: (count: number, most: number) => `${count} rutor är valda; ett jobb tar högst ${most}. Välj en etapp eller bocka ur rutor.`,
+    tooManyTiles: (count: number, most: number) => `${count} rutor är valda; ett jobb tar högst ${most}. Välj ett delområde eller bocka ur rutor.`,
     start: (count: number) => count === 1 ? "Kör Karttapullautin på 1 ruta" : `Kör Karttapullautin på ${count} rutor`,
     started: "Jobbet ligger i kön.",
     startedSplit: (parts: number) => `Området är för stort för en körning och har delats i ${parts} etapper. De ligger i kön och körs efter varandra.`,
@@ -223,16 +223,16 @@ export const mapSourcesSv = {
       fetching: (done: number, total: number) => `Hämtar filer ${done} av ${total} …`,
       reading: (done: number, total: number) => `Läser filer ${done} av ${total} …`,
       merging: "Sätter ihop grundkartan …",
-      candidates: "Räknar kandidater …"
+      candidates: "Räknar fram utkastet …"
     },
-    osmMissing: "OpenStreetMap gick inte att hämta nu, så stigar, vägar och hus saknas. Hämta dem under Importera vektorer.",
+    osmMissing: "OpenStreetMap gick inte att hämta nu, så stigar, vägar och hus saknas. Hämta dem under Läs in vektorfil eller OpenStreetMap.",
     soilRemoved: (hectares: string) => `Jordartskartan (SGU): ${hectares} ha sankmark togs bort på sand och grus. Det kan stängas av under Fukt med reglage.`,
     clearCuts: (fresh: number, scrub: number, young: number, scanned: string | null) => fresh + scrub + young === 0 ? "Skogsstyrelsen har inga hyggen under 15 år i rutan."
       : `Hyggen från Skogsstyrelsen: ${fresh} färska, ${scrub} med sly och ${young} med ungskog${scanned ? ` (lasern skannades ${scanned}; laserns grönt tas bort i hyggen som är nyare)` : ""}.`,
     extras: { LAND_COVER: "Läs också Lantmäteriets marktäcke (vatten, öppen mark, åker, sankmark)", BUILDINGS: "Läs också Lantmäteriets byggnader", PARCELS: "Läs också Lantmäteriets fastighetsindelning (små fastigheter med hus blir tomter)" } as Record<string, string>,
     baseMap: "Grundkartan",
-    load: (label: string) => `Läs in ${label.toLowerCase()} som kandidater`,
-    loaded: (label: string) => `${label} visas som kandidater nedan under Vektorfil.`,
+    load: (label: string) => `Läs in ${label.toLowerCase()} som utkast`,
+    loaded: (label: string) => `${label} visas som utkast på kartan. Lägg in det i raden under kartan.`,
     cancel: "Avbryt",
     remove: "Ta bort",
     server: {
@@ -246,7 +246,7 @@ export const mapSourcesSv = {
     problems: {
       SOURCE_NO_CREDENTIAL: "Lägg in dina uppgifter till Lantmäteriet under Mitt konto först.",
       SOURCE_REJECTED: "Lantmäteriet godtog inte uppgifterna, eller Laserdata Nedladdning skog är inte beställd på Geotorget.",
-      SOURCE_AREA_TOO_LARGE: "Området är för stort för en sökning. Välj en etapp.",
+      SOURCE_AREA_TOO_LARGE: "Området är för stort för en sökning. Välj ett delområde.",
       SOURCE_THROTTLED: "För många sökningar den senaste timmen. Försök igen senare.",
       SOURCE_UNAVAILABLE: "Lantmäteriet svarade inte just nu. Försök igen om en stund.",
       GEO_JOB_BUSY: "Du har redan två jobb som väntar eller pågår. Vänta tills något är klart.",

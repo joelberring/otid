@@ -1,17 +1,17 @@
 import { plural } from "./plural";
 
-/** ADR-0219 tillägget om vektorunderlagen (K4b): importera en vektorfil som kandidater. */
+/** ADR-0219 tillägget om vektorunderlagen (K4b): läs in en vektorfil som utkast. */
 export const mapProjectImportSv = {
-  heading: "Importera vektorer",
-  replaceQuestion: (name: string, next: string) => `Kandidaterna från ”${name}” är inte införda i kartan och försvinner om du läser in ”${next}”.`,
+  heading: "Läs in vektorfil eller OpenStreetMap",
+  replaceQuestion: (name: string, next: string) => `Utkastet från ”${name}” är inte inlagt i kartan och försvinner om du läser in ”${next}”.`,
   replaceYes: "Läs in ändå",
   replaceNo: "Behåll de här",
-  help: "En baskarta eller annan vektorfil (GeoJSON, DXF eller Shapefile, gärna som .zip) blir kandidater: välj symbol per lager, se dem på kartan och lämna dem som förslag "
+  help: "En baskarta eller annan vektorfil (GeoJSON, DXF eller Shapefile, gärna som .zip) blir ett utkast: välj symbol per lager, se det på kartan och lämna det som förslag "
     + "som godkänns som andra förslag. DWG sparas som DXF tills vidare. Allt läses här i webbläsaren. Vissa baskartor känns igen "
     + "på lagernamnen, men inte alla. Valen kan sparas som en profil till nästa fil.",
   choose: "Välj fil",
   osmHeading: "Hämta från OpenStreetMap",
-  osmHelp: "Byggnader, vägar, stigar, staket, murar, vatten och markanvändning för hela kartan eller en etapp. Servern hämtar dem; de blir kandidater som en fil. Data © OpenStreetMap-bidragsgivare (ODbL).",
+  osmHelp: "Byggnader, vägar, stigar, staket, murar, vatten och markanvändning för hela kartan eller ett delområde. Servern hämtar dem; de blir ett utkast som en fil. Data © OpenStreetMap-bidragsgivare (ODbL).",
   osmWhere: "Område",
   osmWhole: "Hela kartan",
   osmFetch: "Hämta",
@@ -35,17 +35,17 @@ export const mapProjectImportSv = {
   symbolFor: (layer: string) => `Symbol för ${layer}`,
   result: (objects: number, joined: number, duplicates: number, short: number, outside: number, mismatched: number, clipped: number,
     closedAreas: number, stairs: number, steps: number) =>
-    `${plural(objects, "kandidat", "kandidater")}`
+    `${plural(objects, "objekt", "objekt")} i utkastet`
     + [joined && `${joined} hopslagna`, closedAreas && `${plural(closedAreas, "yta", "ytor")} av slutna linjer`,
       stairs && `${plural(stairs, "trappa", "trappor")} av ${steps} steg`, clipped && `${clipped} klippta vid kanten`, duplicates && `${duplicates} dubbletter borta`, short && `${short} korta stumpar borta`,
       outside && `${outside} utanför kartan`, mismatched && `${mismatched} med fel form`].filter(Boolean).map(part => ` · ${part}`).join(""),
-  propose: (count: number) => `Lämna ${plural(count, "kandidat", "kandidater")} som förslag`,
+  propose: (count: number) => `Lämna ${plural(count, "objekt", "objekt")} som förslag`,
   accept: (count: number) => `Lägg in ${plural(count, "objekt", "objekt")} i kartan`,
   accepted: (count: number) => `${plural(count, "objekt", "objekt")} ligger nu i kartan. Ångra tar bort alla igen i ett steg.`,
-  acceptHelp: "Kandidaterna visas på kartan med sina symboler. Lägg in dem direkt, eller lämna dem som förslag att granska.",
-  shownHelp: "Kandidaterna visas på kartan med sina symboler.",
-  barLabel: "Kandidater på kartan",
-  barTitle: (file: string) => `Kandidater: ${file}`,
+  acceptHelp: "Utkastet visas på kartan med sina symboler. Lägg in det direkt, eller lämna det som förslag att granska.",
+  shownHelp: "Utkastet visas på kartan med sina symboler.",
+  barLabel: "Utkast på kartan",
+  barTitle: (file: string) => `Utkast: ${file}`,
   barUnmapped: (count: number) => count === 1 ? "1 lager utan symbol" : `${count} lager utan symbol`,
   barBuilt: "Inget i tomtmark, asfalt och hus",
   barReplace: "Byt ut kartans objekt med samma symboler här",
@@ -59,7 +59,7 @@ export const mapProjectImportSv = {
   hideOnMap: "Dölj på kartan",
   showOnMap: "Visa på kartan",
   sending: (done: number, total: number) => `Skickar ${done} av ${total} …`,
-  dwgSent: (file: string) => `${file} läses på geo-servern. Läs in ritningen under Laserdata och Karttapullautin → Jobben när den är klar.`,
+  dwgSent: (file: string) => `${file} läses på geo-servern. Läs in ritningen under Laserkörningar (avancerat) → Jobben när den är klar.`,
   sent: (count: number) => `${plural(count, "förslag", "förslag")} lämnade. Godkänn eller avvisa dem under Förslag.`,
   note: (file: string, part: number, parts: number) => `Import ${file}${parts > 1 ? `, del ${part} av ${parts}` : ""}`.slice(0, 500),
   cancel: "Avbryt",
@@ -77,7 +77,7 @@ export const mapProjectImportSv = {
     STORAGE_QUOTA_EXCEEDED: "Lagringsutrymmet räcker inte för ritningen.",
     crs: "Koordinatsystemet stöds inte (SWEREF 99, RT 90, UTM eller WGS 84).",
     generic: (status: number) => `Det gick inte (${status}).`,
-    SOURCE_AREA_TOO_LARGE: "Området är för stort för en hämtning (högst omkring 100 km²). Välj en etapp.",
+    SOURCE_AREA_TOO_LARGE: "Området är för stort för en hämtning (högst omkring 100 km²). Välj ett delområde.",
     SOURCE_THROTTLED: "För många hämtningar den senaste timmen. Försök igen senare.",
     SOURCE_UNAVAILABLE: "OpenStreetMap svarade inte just nu. Försök igen om en stund."
   }

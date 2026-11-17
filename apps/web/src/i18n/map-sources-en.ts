@@ -7,7 +7,7 @@ type Sources = typeof mapSourcesSv;
 
 export const mapSourcesOrthoEn: Texts<Sources["ortho"]> = {
   heading: "Orthophoto from Lantmäteriet",
-  help: "Search aerial photos for the whole map or a stage with your own credentials for Lantmäteriet; the chosen ones are added as base layers (one per image tile). © Lantmäteriet.",
+  help: "Search aerial photos for the whole map or a sub-area with your own credentials for Lantmäteriet; the chosen ones are added as base layers (one per image tile). © Lantmäteriet.",
   noCredential: "Add your credentials for Lantmäteriet under My account first.",
   account: "My account",
   where: "Area",
@@ -18,14 +18,14 @@ export const mapSourcesOrthoEn: Texts<Sources["ortho"]> = {
   item: (when: string | null, collection: string | null, id: string) => [when?.slice(0, 10), collection, id].filter(Boolean).join(" · "),
   add: (n: number) => n === 1 ? "Add 1 image as a base layer" : `Add ${n} images as base layers`,
   adding: (done: number, total: number) => `Fetching image ${done} of ${total} …`,
-  added: (n: number) => n === 1 ? "1 base layer added. It is under Base layers above, where it is shown, hidden and made transparent."
-    : `${n} base layers added. They are under Base layers above, where they are shown, hidden and made transparent.`,
-  failed: (n: number) => n === 1 ? "1 image could not be added. The reason is under Base layers above." : `${n} images could not be added. The reason is under Base layers above.`,
+  added: (n: number) => n === 1 ? "1 base layer added. It is in the list at the top of the step, where it is shown, hidden and made transparent."
+    : `${n} base layers added. They are in the list at the top of the step, where they are shown, hidden and made transparent.`,
+  failed: (n: number) => n === 1 ? "1 image could not be added. The reason is in the list at the top of the step." : `${n} images could not be added. The reason is in the list at the top of the step.`,
   name: (collection: string | null, id: string) => `Orthophoto ${collection ?? ""} ${id}`.replace(/\s+/g, " ").trim().slice(0, 80),
   problems: {
     SOURCE_NO_CREDENTIAL: "Add your credentials for Lantmäteriet under My account first.",
     SOURCE_REJECTED: "Lantmäteriet did not accept the credentials, or the product is not ordered on Geotorget.",
-    SOURCE_AREA_TOO_LARGE: "The area is too large for one search. Choose a stage.",
+    SOURCE_AREA_TOO_LARGE: "The area is too large for one search. Choose a sub-area.",
     SOURCE_THROTTLED: "Too many searches in the last hour. Try again later.",
     SOURCE_UNAVAILABLE: "Lantmäteriet did not answer right now. Try again in a while.",
     OUTSIDE: "The image does not cover the area.",
@@ -35,7 +35,7 @@ export const mapSourcesOrthoEn: Texts<Sources["ortho"]> = {
 
 export const mapSourcesMoistureEn: Texts<Sources["moisture"]> = {
   heading: "Soil moisture (SLU)",
-  help: "SLU's soil moisture map (2 m, open data from the Swedish Forest Agency) for the whole map or a stage, as a base layer. Blue is wet: "
+  help: "SLU's soil moisture map (2 m, open data from the Swedish Forest Agency) for the whole map or a sub-area, as a base layer. Blue is wet: "
     + "use it to find marshes, wet channels and ditches to survey.",
   fetch: "Fetch soil moisture",
   fetching: "Fetching soil moisture …",
@@ -45,10 +45,10 @@ export const mapSourcesMoistureEn: Texts<Sources["moisture"]> = {
 };
 
 export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
-  heading: "Laser data and Karttapullautin",
-  help: "Search laser tiles (2.5 × 2.5 km) for the whole map or a stage with your own credentials for Lantmäteriet. The geo server runs "
-    + "Karttapullautin: the image is added as a base layer, and contours, form lines, cliffs and knolls can be loaded as candidates. "
-    + "The laser data is clipped to the map's area (or the stage) with a 50 m margin before it is processed.",
+  heading: "Laser runs (advanced)",
+  help: "Search laser tiles (2.5 × 2.5 km) for the whole map or a sub-area with your own credentials for Lantmäteriet. The geo server runs "
+    + "Karttapullautin: the image is added as a base layer, and contours, form lines, cliffs and knolls can be loaded as a draft. "
+    + "The laser data is clipped to the map's area (or the sub-area) with a 50 m margin before it is processed.",
   attribution: "Laserdata Nedladdning, skog © Lantmäteriet, CC BY 4.0 (processed with Karttapullautin, GPL-3).",
   search: "Search laser tiles",
   searching: "Searching …",
@@ -84,7 +84,7 @@ export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
     sampleSuffix: " (sample)",
     more: "Advanced: values in Karttapullautin",
     moreHelp: "The values are written to Karttapullautin's pullauta.ini (the name is in brackets). Leave a field empty for Karttapullautin's default. "
-      + "Try a small stage first and compare the images.",
+      + "Try a small sub-area first and compare the images.",
     settingLabels: {
       smoothing: "Contour smoothing", curviness: "Contour curviness", knolls: "Knolls", formlinesteepness: "Form lines by steepness",
       cliff1: "Cliffs, threshold 1", cliff2: "Cliffs, threshold 2", cliffsteepfactor: "Cliffs, steepness factor",
@@ -111,12 +111,12 @@ export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
   wet: "Wet below",
   wetOption: (meters: number) => `${meters} m above the channel`,
   moistureAdded: "The moisture is added as a base layer.",
-  skippedSteps: (steps: string) => `Could not be computed for this area: ${steps}. The rest is done; try a smaller stage for what is missing.`,
+  skippedSteps: (steps: string) => `Could not be computed for this area: ${steps}. The rest is done; try a smaller sub-area for what is missing.`,
   stepNames: { ditches: "ditches", stones: "boulders", rock: "bare rock", knolls: "small knolls" } as Record<string, string>,
   vegetation: "Also make areas of the vegetation (open land, green and undergrowth from the laser returns)",
   minArea: "Smallest area",
   minAreaOption: (m2: number) => `${m2} m²`,
-  tooManyTiles: (n: number, most: number) => `${n} tiles are selected; one job takes at most ${most}. Choose a stage or untick tiles.`,
+  tooManyTiles: (n: number, most: number) => `${n} tiles are selected; one job takes at most ${most}. Choose a sub-area or untick tiles.`,
   start: (n: number) => n === 1 ? "Run Karttapullautin on 1 tile" : `Run Karttapullautin on ${n} tiles`,
   startedSplit: (parts: number) => `The area is too large for one run and has been split into ${parts} stages. They are in the queue and run one after another.`,
   started: "The job is in the queue.",
@@ -149,16 +149,16 @@ export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
     fetching: (done: number, total: number) => `Fetching files ${done} of ${total} …`,
     reading: (done: number, total: number) => `Reading files ${done} of ${total} …`,
     merging: "Putting the base map together …",
-    candidates: "Calculating candidates …"
+    candidates: "Calculating the draft …"
   },
-    osmMissing: "OpenStreetMap could not be fetched now, so paths, roads and houses are missing. Fetch them under Import vectors.",
+    osmMissing: "OpenStreetMap could not be fetched now, so paths, roads and houses are missing. Fetch them under Load a vector file or OpenStreetMap.",
     soilRemoved: (hectares: string) => `Soil map (SGU): ${hectares} ha of marsh removed on sand and gravel. This can be turned off under Moisture with sliders.`,
     clearCuts: (fresh: number, scrub: number, young: number, scanned: string | null) => fresh + scrub + young === 0 ? "Skogsstyrelsen has no clear-cuts under 15 years in the area."
       : `Clear-cuts from Skogsstyrelsen: ${fresh} fresh, ${scrub} with scrub and ${young} with young forest${scanned ? ` (laser scanned ${scanned}; laser green is removed in newer clear-cuts)` : ""}.`,
     extras: { LAND_COVER: "Also read land cover from Lantmäteriet (water, open land, fields, marsh)", BUILDINGS: "Also read buildings from Lantmäteriet", PARCELS: "Also read property boundaries from Lantmäteriet (small properties with houses become gardens)" },
     baseMap: "The base map",
-    load: (label: string) => `Load ${label.toLowerCase()} as candidates`,
-  loaded: (label: string) => `${label} are shown as candidates below under Vector file.`,
+    load: (label: string) => `Load ${label.toLowerCase()} as a draft`,
+  loaded: (label: string) => `${label} are shown as a draft on the map. Add it in the row below the map.`,
   cancel: "Cancel",
   remove: "Remove",
   server: {
@@ -172,7 +172,7 @@ export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
   problems: {
     SOURCE_NO_CREDENTIAL: "Add your credentials for Lantmäteriet under My account first.",
     SOURCE_REJECTED: "Lantmäteriet did not accept the credentials, or Laserdata Nedladdning skog is not ordered on Geotorget.",
-    SOURCE_AREA_TOO_LARGE: "The area is too large for one search. Choose a stage.",
+    SOURCE_AREA_TOO_LARGE: "The area is too large for one search. Choose a sub-area.",
     SOURCE_THROTTLED: "Too many searches in the last hour. Try again later.",
     SOURCE_UNAVAILABLE: "Lantmäteriet did not answer right now. Try again in a while.",
     GEO_JOB_BUSY: "You already have two jobs waiting or running. Wait until one is done.",
@@ -194,13 +194,13 @@ export const mapSourcesEn: Texts<Sources> = {
     layer: "Base layer",
     run: "Interpret the photo",
     name: (layer: string) => `${layer} – photo interpretation`.slice(0, 120),
-    done: (rock: number, open: number) => `${rock} ha bare rock and ${open} ha open land are shown as candidates below under Vector file.`,
+    done: (rock: number, open: number) => `${rock} ha bare rock and ${open} ha open land are shown as a draft on the map. Add it in the row below the map.`,
     nothing: "No broad grey or light green areas were found in the photo.",
     failed: "The photo could not be interpreted."
   },
   depth: {
     heading: "Moisture with sliders (wet and moist)",
-    help: "The laser run's moisture depth (height above the nearest moisture channel) is read here. Drag the limits: the areas show at once as candidates on the map, "
+    help: "The laser run's moisture depth (height above the nearest moisture channel) is read here. Drag the limits: the areas show at once as a draft on the map, "
       + "without a new run. Wet becomes marsh (308) and moist indistinct marsh (310).",
     none: "No moisture depth among the base layers. Run the laser job with moisture first.",
     layer: "Base layer",
@@ -209,7 +209,7 @@ export const mapSourcesEn: Texts<Sources> = {
     openGround: (percent: number) => percent >= 100 ? "Open ground: no limit" : `Not on open ground: where at least ${percent} % of the laser reaches the ground`,
     slope: (degrees: string) => `Flat ground: wet at most ${degrees}° slope, moist twice as steep`,
     minArea: (square: number) => `Smallest area: ${square} m²`,
-    run: "Show as candidates",
+    run: "Show as draft",
     name: (layer: string) => `${layer} – wet and moist`.slice(0, 120),
     done: (wet: string, moist: string, removed?: string) => `${wet} ha wet and ${moist} ha moist${removed ? `, of which ${removed} ha removed on dry ground` : ""}. Change the limits and it is recalculated.`,
     noDrySoil: "No marsh on sand and gravel (SGU soil map)",
@@ -221,7 +221,7 @@ export const mapSourcesEn: Texts<Sources> = {
   },
   green: {
     heading: "Green with sliders (406, 408, 410)",
-    help: "The laser run's vegetation classes are read here. A higher step gives less green; the areas show at once as candidates on the map, without a new run.",
+    help: "The laser run's vegetation classes are read here. A higher step gives less green; the areas show at once as a draft on the map, without a new run.",
     none: "No vegetation classes among the base layers. Run the laser job with vegetation first.",
     layer: "Base layer",
     step: (key: "slow" | "difficult" | "fight", value: number) => `${{ slow: "Slow running (406)", difficult: "Difficult to run (408)", fight: "Very difficult (410)" }[key]} from step ${value}`,
@@ -232,7 +232,7 @@ export const mapSourcesEn: Texts<Sources> = {
     clearings: (level: number) => `Clearings: ${level}`,
     clearingsHelp: "Open land (401) in the forest. Higher includes smaller clearings and makes them larger; lower keeps only the large ones. 5 matches the laser run. The edge is rounded.",
     simplifyHelp: "Open land, semi-open land and green are shaped together, as a mapper would: narrow in-between zones and slivers disappear, small patches go to their neighbour and edges become calm curves. Higher gives simpler shapes. 4 is the default; 0 only smooths each layer on its own, as before.",
-    run: "Show as candidates",
+    run: "Show as draft",
     name: (layer: string) => `${layer} – green`.slice(0, 120),
     done: (slow: string, difficult: string, fight: string) => `${slow} ha slow, ${difficult} ha difficult, ${fight} ha very difficult. Change the steps and it is recalculated.`,
     nothing: "No areas with these steps.",

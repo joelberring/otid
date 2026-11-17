@@ -2,7 +2,7 @@
 export const GOTHENBURG_WMS = "https://opengeodata.goteborg.se/services/ortofoto/wms/v1";
 
 export const mapWmsSv = {
-  heading: "Ortofoto från WMS",
+  heading: "Ortofoto från annan karttjänst (WMS)",
   help: "Hämta flygbild från en öppen WMS-tjänst, t.ex. din kommuns ortofoto. Kontrollera att tjänstens villkor tillåter att bilden används som underlag för kartritning.",
   responsibility: "Du ansvarar själv för att tjänstens villkor tillåter användningen.",
   presetAttribution: "Göteborgs Stad (CC0)",
@@ -36,8 +36,8 @@ export const mapWmsSv = {
     WMS_NOT_WMS: "Adressen svarar inte som en WMS-tjänst. Kontrollera adressen.",
     WMS_NO_LAYER: "Lagret finns inte längre i tjänsten. Läs lagren igen.",
     WMS_NO_SWEREF: "Inget lager i tjänsten kan hämtas i SWEREF 99 TM (EPSG:3006) eller kartans koordinatsystem.",
-    WMS_IMAGE_TOO_LARGE: "Bilden är för stor. Välj grövre upplösning eller en etapp.",
-    WMS_TOO_MANY_TILES: "Området blir för många bildrutor (högst 16). Välj grövre upplösning eller en etapp.",
+    WMS_IMAGE_TOO_LARGE: "Bilden är för stor. Välj grövre upplösning eller ett delområde.",
+    WMS_TOO_MANY_TILES: "Området blir för många bildrutor (högst 16). Välj grövre upplösning eller ett delområde.",
     WMS_NO_FORMAT: "Tjänsten kan inte leverera JPEG eller PNG.",
     WMS_NOT_IMAGE: "Tjänsten svarade inte med en bild för området. Kontrollera att lagret täcker kartan, eller välj grövre upplösning.",
     SOURCE_THROTTLED: "För många hämtningar den senaste timmen. Försök igen senare.",

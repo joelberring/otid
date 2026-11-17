@@ -92,3 +92,27 @@ beslut 9). Listan visade redan "Obekräftad adress".
 - Tester: `adr-0172-accounts.test.ts` (superadmin kan, vanlig administratör, utloggad och saknad CSRF nekas, redan bekräftad,
   okänt konto, loggen och kommandots loggrad, formvillkoret).
 
+
+## Tillägg 2026-11-17: "Har du en kod?" på startsidan (grenen `oversyn-startsidan`)
+
+Översynen av användbarheten (ägaren): det gick inte att gå med med kod, startsidan talade bara till publiken och i appen
+(ADR-0227) kom målningen och listorna före det deltagaren behöver.
+
+- **Kodfältet** står överst, före sökningen. Formuläret skickas med GET till `/kod` (route handler, fungerar utan JavaScript),
+  som slår upp koden på servern (`resolveJoinCode`) och svarar 303 till `/t/<kod>`, `/fest/<kod>` eller `/g/<kod>`, annars till
+  `/?kodfel=saknas#kod` ("Koden hittades inte …") eller `/?kodfel=forsok#kod`. Koden står aldrig i adressen tillbaka.
+- **Tolkningen** (`normalizeJoinCode` i domain): gemener, inga blanksteg, telefonens tankstreck blir bindestreck, och ur en hel
+  adress tas koden efter /t/, /fest/ eller /g/ (värden används aldrig). Tävlingens kod är sex tecken `[2-9a-hjkmnp-z]`
+  (`RACE_SHORT_CODE_PATTERN`, samma som databasens villkor), gruppens `GROUP_CODE_PATTERN`.
+- **Inget mer avslöjas än de publika sidorna:** en tävling räknas bara när `publicRaceGate` ger PUBLIC eller PREVIEW, så en
+  opublicerad eller dold tävling svarar som en okänd kod. Missar delar gruppsidans spärr (`GROUP_CODE_IP`, 30 i timmen per
+  IP-adress, ADR-0189 beslut 8); därefter svarar också en riktig kod "för många försök". `/kod` står inte i `PUBLIC_PATHS`
+  och går därför till `web`, inte publikens instanser (ändras det måste Caddyfilen ändras samtidigt).
+- **Arrangörens väg:** raden "Kom igång som arrangör" (till `/organizer`) under sökningen för den som inte är inloggad. Rutorna
+  under "Mer än tidtagning" är länkar (demotävlingen, filmen om kartritningen, Om O-Tid eller `/organizer`). Texten om hur O-Tid
+  är byggt finns redan på Om O-Tid; länken till koden flyttades dit.
+- **Ordningen:** på smal skärm står målningen (hel, oförändrad) efter Pågår nu; på datorn bredvid rubriken som förut.
+- **I appen:** ett litet skript med sidans nonce märker startsidan med `data-otid-app` när bryggan finns, före första ritningen;
+  kodfältet blir då större med accentkant, och arrangörens rad döljs. Inget ändras i `apps/mobile`.
+- Tester: `packages/domain/test/join-code.test.ts`, `packages/application/test/integration/startsidan-kod.test.ts`,
+  `apps/web/src/lib/join-code.test.ts` och `tests/e2e/startsidan-kod.spec.ts`.

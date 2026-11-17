@@ -3,8 +3,8 @@ import { expect, test, type Page } from "@playwright/test";
 import { registerAccount, unique, warmRoute } from "./helpers";
 
 /**
- * Idéerna 2026-11-08: den nya startsidan. Besökaren ser tävlingarna först och sedan vad O-Tid gör utöver tidtagning, hur det
- * är byggt och länken till koden. Den inloggade ser också sina kartprojekt (och klubbar och grupper) överst. Veckans målning syns
+ * Idéerna 2026-11-08: den nya startsidan. Besökaren ser tävlingarna först och sedan vad O-Tid gör utöver tidtagning (hur det
+ * är byggt och länken till koden står sedan översynen 2026-11-17 på Om O-Tid, startsidan-kod.spec.ts). Den inloggade ser också sina kartprojekt (och klubbar och grupper) överst. Veckans målning syns
  * bara på startsidan, utloggad och inloggad.
  */
 const mapBytes = new Uint8Array(readFileSync(new URL("../../fixtures/maps/kartfil.omap", import.meta.url)));
@@ -17,7 +17,6 @@ test("startsidan: mer än tidtagning, koden, veckans målning och den inloggades
   const features = visitor.getByTestId("home-features");
   await expect(features.getByRole("heading", { name: "Mer än tidtagning" })).toBeVisible();
   await expect(features.locator("li")).toHaveCount(6);
-  await expect(visitor.getByRole("link", { name: "O-Tid på GitHub" })).toHaveAttribute("href", "https://github.com/joelberring/otid");
   await expect(visitor.getByTestId("home-personal")).toHaveCount(0);
 
   // Veckans målning (ägarens önskemål 2026-11-12): hel bild från samma värd och texten i startsidans sidfot, inte på andra sidor.
@@ -32,7 +31,7 @@ test("startsidan: mer än tidtagning, koden, veckans målning och den inloggades
   await expect(footer).toHaveCount(1);
   await expect(footer.getByTestId("home-painting-credit")).toHaveText(/^Veckans målning: .+ av Emm Berring, (olja|akryl och olja) på duk, \d+ × \d+ cm, \d{4}\.$/);
   await expect(footer.getByRole("link", { name: "Emm Berrings portfolio" })).toHaveAttribute("href", "https://berring.se/emm/");
-  // Datorbredd: till höger om rubriken, högst cirka 400 × 300 px. Mobil: kant i kant mellan sökrutan och listorna, utan sidled.
+  // Datorbredd: till höger om rubriken, högst cirka 400 × 300 px. Mobil: kant i kant efter sökrutan (och Pågår nu), utan sidled.
   await visitor.setViewportSize({ width: 1280, height: 900 });
   const [wide, heading] = [await painting.boundingBox(), await visitor.getByRole("heading", { level: 1 }).boundingBox()];
   expect(wide!.x).toBeGreaterThan(heading!.x + heading!.width);

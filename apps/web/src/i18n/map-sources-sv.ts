@@ -205,6 +205,10 @@ export const mapSourcesSv = {
       "fukt.dxf": "Våtmarker och fuktstråk", "diken.dxf": "Diken ur terrängformen", "berg.dxf": "Stenar och berg i dagen", "belagt.dxf": "Belagd yta ur lasern", "vegetation.dxf": "Vegetationsytor", "vatten.geojson": "Sjöar och vatten", "brantlinjer.dxf": "Branter som linjer", "marktacke.geojson": "Lantmäteriets marktäcke", "byggnader.geojson": "Lantmäteriets byggnader", "ritning.geojson": "Ritningen"
     } as Record<string, string>,
     loadBaseMap: "Läs in grundkartan",
+    /** Ägaren 2026-11-17: körningens filer som en zip. */
+    download: (size: string) => `Ladda ner filerna (zip, ${size} MB)`,
+    downloading: (done: number, total: number) => `Hämtar fil ${Math.min(done + 1, total)} av ${total} …`,
+    downloadFailed: (name: string) => `${name} gick inte att hämta. Försök igen.`,
     loadStages: (count: number) => `Läs in alla ${count} etapper som en grundkarta`,
     allStages: "alla etapper",
     /** Ägaren 2026-11-14: etapperna läggs ihop till en körning på geo-servern. */

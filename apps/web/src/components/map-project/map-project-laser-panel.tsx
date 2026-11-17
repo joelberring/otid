@@ -12,6 +12,7 @@ import { mapSourcesSv } from "../../i18n/map-sources-sv";
 import type { Bounds } from "../../lib/course-setting-viewport";
 import { Button } from "../ui";
 import type { useMapProjectImport } from "./use-map-project-import";
+import { MapProjectLaserDownload } from "./map-project-laser-download";
 import { LaserCredentialHint, LaserServerStatus } from "./map-project-laser-shared";
 import { LASER_ACTIVE as ACTIVE, type LaserArea as Area, type useMapProjectLaser } from "./use-map-project-laser";
 import styles from "./map-project-editor.module.css";
@@ -222,6 +223,7 @@ export function MapProjectLaserPanel({ view, laser, importer, georeference, boun
             {job.outputs.filter(output => output.name in text.outputs).map(output => <Button key={output.name} variant="secondary" disabled={busy}
               onClick={() => void laser.candidates(job, [output.name], text.outputs[output.name]!, false, "panel")}>{text.load(text.outputs[output.name]!)}</Button>)}
           </span>}
+          {job.status === "DONE" && job.outputs.length > 0 && <MapProjectLaserDownload projectId={view.projectId} job={job} />}
           {job.kind === "PULLAUTIN" && !ACTIVE.has(job.status) && importer.canImport && ready && <span className={styles.actions}>
             <Button variant="secondary" disabled={busy} onClick={() => startRerun(job)} data-testid="map-project-laser-rerun-start">{text.rerun}</Button>
           </span>}

@@ -310,3 +310,15 @@ fieldset.row legend { width: 100%; padding: 0; font-weight: 600; }
   .topbar .backLabel { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .topbar { gap: 2px; }
 }
+/*
+ * Pekskärm (översynen 2026-11-17, C3): handtaget på bladet tar emot tryck på 44 px uppåt, över kartans kant, utan att bladet
+ * blir högre; flikraden (44 px) ryms i det stängda bladet, och kartans verktyg och yta flyttas upp lika mycket.
+ */
+@media (pointer: coarse) and (max-width: 900px) {
+  .sheetHandle { position: relative; z-index: 1; margin-top: -26px; }
+  .drawer:not([data-sheet-open]) { max-height: 66px; }
+  .toolbar { bottom: 78px; }
+}
+@media (pointer: coarse) and (max-width: 699px) {
+  .mapArea { padding-bottom: 66px; }
+}

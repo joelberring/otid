@@ -7,7 +7,7 @@ import { CP210X_USB_FILTERS, WebSerialTransport, WebUsbCp210xPort, type WebSeria
 import type { SiCardData } from "@o-tid/sportident";
 import { FakeStationTransport } from "../readout/fake-transport";
 import { READER_BT_REQUEST, ReaderBtController, type BluetoothLike } from "../readout/reader-bt";
-import { StationController, type StationFacts, type StationLink, type StationStatus } from "../readout/station";
+import { StationController, type StationLink, type StationStatus } from "../readout/station";
 import type { SerialApi, UsbApi, UsbStation } from "../readout/station-auto";
 
 type SerialNavigator = Navigator & { serial?: SerialApi };
@@ -21,8 +21,7 @@ export const hasBluetooth = typeof navigator !== "undefined" && !!(navigator as 
 
 export type CardEvent =
   | { readonly kind: "inserted"; readonly cardNumber: number }
-  /** `clockOffsetMs`: avläsningsstationens klocka minus datorns, när stationen har svarat med sin klocka. */
-  | { readonly kind: "read"; readonly card: SiCardData; readonly clockOffsetMs: number | undefined }
+  | { readonly kind: "read"; readonly card: SiCardData }
   | { readonly kind: "failed"; readonly cardNumber: number }
   | { readonly kind: "unsupported"; readonly cardNumber: number };
 
@@ -38,8 +37,7 @@ export function useGameStation(onCard: (event: CardEvent) => void, messages: {
   const callbacks = {
     onStatus: setStatus,
     onCardInserted: (cardNumber: number) => onCardRef.current({ kind: "inserted", cardNumber }),
-    onCardRead: (card: SiCardData, _frames: readonly Uint8Array[], station: StationFacts) =>
-      onCardRef.current({ kind: "read", card, clockOffsetMs: station.clock?.clockOffsetMs }),
+    onCardRead: (card: SiCardData) => onCardRef.current({ kind: "read", card }),
     onReadFailed: (cardNumber: number) => onCardRef.current({ kind: "failed", cardNumber }),
     onUnsupportedCard: (cardNumber: number) => onCardRef.current({ kind: "unsupported", cardNumber })
   };

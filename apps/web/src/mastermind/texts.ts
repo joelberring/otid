@@ -4,7 +4,7 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 
 export const mastermindText = {
   title: "Mastermind med kontroller",
-  intro: "Varje färg är en kontroll. Stämpla färgerna i den ordning du gissar och läs ut brickan. Stämplar du fler gäller de sista. Klockan startar vid första stämplingen. Svart pigg: rätt färg på rätt plats. Vit pigg: rätt färg på fel plats.",
+  intro: "Varje färg är en kontroll. Börja med att läsa ut brickan: då startar spelet och klockan går från 0 (det som redan finns på brickan räknas inte). Stämpla sedan färgerna i den ordning du gissar och läs ut brickan. Klockan stannar när du läser ut gissningen som knäcker mönstret. Stämplar du fler gäller de sista. Svart pigg: rätt färg på rätt plats. Vit pigg: rätt färg på fel plats.",
   station: "Station",
   connect: "Anslut station",
   connectUsb: "Anslut station (USB)",
@@ -33,6 +33,7 @@ export const mastermindText = {
   won: (guesses: number) => `Knäckt på ${plural(guesses, "gissning", "gissningar")}!`,
   lost: "Slut på gissningar. Så här såg mönstret ut:",
   newGameStarted: "Nytt spel! ",
+  started: "Spelet har startat och klockan går. Stämpla din gissning och läs ut.",
   rejected: {
     empty: "Inga nya färgkontroller på brickan. Stämpla din gissning och läs ut igen.",
     "too-few": (got: number, want: number) => `Bara ${plural(got, "färg", "färger")} stämplad${got === 1 ? "" : "e"}; gissningen ska ha ${want}. Det kostade ingen gissning; stämpla en ny gissning.`,
@@ -42,7 +43,7 @@ export const mastermindText = {
   secret: "Hemligt mönster",
   newGame: "Nytt spel för brickan",
   results: "Resultat",
-  resultsNote: "Tiden går från lagets första stämpling till sista stämplingen i gissningen som knäckte mönstret. Snabbast först; vid lika tid vinner färre gissningar.",
+  resultsNote: "Tiden går från lagets första utläsning till utläsningen av gissningen som knäckte mönstret. Snabbast först; vid lika tid vinner färre gissningar.",
   place: "Plac.",
   team: "Lag",
   guessesColumn: "Gissningar",
@@ -51,7 +52,6 @@ export const mastermindText = {
   teamName: "Lagnamn",
   teamNamePlaceholder: "Valfritt",
   wonTime: (time: string) => `Tid ${time}.`,
-  clockNotStarted: "startar vid första stämplingen",
   noPlayers: "Ingen har spelat än.",
   playing: "spelar",
   wonShort: "klar",
@@ -86,7 +86,7 @@ export type MastermindTexts = Texts<typeof mastermindText>;
 
 export const mastermindTextEn: MastermindTexts = {
   title: "Mastermind with controls",
-  intro: "Each colour is a control. Punch the colours in the order you guess and read out your card. If you punch more, the last ones count. The clock starts at your first punch. Black peg: right colour in the right place. White peg: right colour in the wrong place.",
+  intro: "Each colour is a control. Start by reading out your card: the game starts and the clock runs from 0 (what is already on the card does not count). Then punch the colours in the order you guess and read out your card. The clock stops when you read out the guess that cracks the pattern. If you punch more, the last ones count. Black peg: right colour in the right place. White peg: right colour in the wrong place.",
   station: "Station",
   connect: "Connect station",
   connectUsb: "Connect station (USB)",
@@ -115,6 +115,7 @@ export const mastermindTextEn: MastermindTexts = {
   won: (guesses: number) => `Cracked in ${plural(guesses, "guess", "guesses")}!`,
   lost: "Out of guesses. This was the pattern:",
   newGameStarted: "New game! ",
+  started: "The game has started and the clock is running. Punch your guess and read out.",
   rejected: {
     empty: "No new colour controls on the card. Punch your guess and read out again.",
     "too-few": (got: number, want: number) => `Only ${plural(got, "colour", "colours")} punched; a guess has ${want}. It did not cost a guess; punch a new one.`,
@@ -124,7 +125,7 @@ export const mastermindTextEn: MastermindTexts = {
   secret: "Secret pattern",
   newGame: "New game for this card",
   results: "Results",
-  resultsNote: "The time runs from the team's first punch to the last punch of the guess that cracked the pattern. Fastest first; on equal time, fewer guesses wins.",
+  resultsNote: "The time runs from the team's first readout to the readout of the guess that cracked the pattern. Fastest first; on equal time, fewer guesses wins.",
   place: "Place",
   team: "Team",
   guessesColumn: "Guesses",
@@ -133,7 +134,6 @@ export const mastermindTextEn: MastermindTexts = {
   teamName: "Team name",
   teamNamePlaceholder: "Optional",
   wonTime: (time: string) => `Time ${time}.`,
-  clockNotStarted: "starts at the first punch",
   noPlayers: "Nobody has played yet.",
   playing: "playing",
   wonShort: "solved",

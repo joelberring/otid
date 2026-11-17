@@ -81,18 +81,30 @@ describe("punchesSince", () => {
 });
 
 describe("applyReadout", () => {
+  it("starts the game at the first readout without reading the punches", () => {
+    const first = applyReadout(undefined, 7_000_001, punches([31, 32, 33, 34]), DEFAULT_SETTINGS, at, sequence());
+    expect(first).toMatchObject({ kind: "started", afterGame: false });
+    expect(first.game).toMatchObject({ startedAt: at.toISOString(), guesses: [], marker: { count: 4, code: 34, time: "3" } });
+  });
+
   it("plays a whole game on one card without clearing it", () => {
     const random = sequence();
     const secret = randomSecret(DEFAULT_SETTINGS, sequence());
     const codes = secret.map((color) => DEFAULT_SETTINGS.codes[color]!);
     const wrong = [...codes].reverse();
 
-    const first = applyReadout(undefined, 7_000_001, punches(wrong), DEFAULT_SETTINGS, at, random);
-    expect(first.kind).toBe("guessed");
-    expect(first.newGame).toBe(true);
-    expect(first.game.secret).toEqual(secret);
+    // Första utläsningen startar spelet; det som redan finns på brickan räknas inte.
+    const old = punches([50, 31, 32]);
+    const start = applyReadout(undefined, 7_000_001, old, DEFAULT_SETTINGS, at, random);
+    expect(start.kind).toBe("started");
+    expect(start.game.secret).toEqual(secret);
 
-    const card = [...punches(wrong), ...punches(codes, 10)];
+    const card1 = [...old, ...punches(wrong, 10)];
+    const first = applyReadout(start.game, 7_000_001, card1, DEFAULT_SETTINGS, at, random);
+    expect(first.kind).toBe("guessed");
+    expect(first.game.guesses[0]!.colors).toEqual([...secret].reverse());
+
+    const card = [...card1, ...punches(codes, 20)];
     const second = applyReadout(first.game, 7_000_001, card, DEFAULT_SETTINGS, at, random);
     expect(second.kind).toBe("guessed");
     if (second.kind !== "guessed") return;
@@ -100,15 +112,10 @@ describe("applyReadout", () => {
     expect(second.status).toBe("won");
     expect(second.game.guesses).toHaveLength(2);
 
-    // Samma bricka igen utan nya stämplingar: det vunna spelet ligger kvar.
-    const again = applyReadout(second.game, 7_000_001, card, DEFAULT_SETTINGS, at, random);
-    expect(again).toMatchObject({ kind: "rejected", newGame: false, reading: { kind: "empty" } });
-    expect(again.game.guesses).toHaveLength(2);
-
-    // Nya färgstämplingar efter vinsten: nästa spel börjar och gissningen räknas där.
-    const next = applyReadout(again.game, 7_000_001, [...card, ...punches([31, 32, 33, 34], 20)], DEFAULT_SETTINGS, at, random);
-    expect(next).toMatchObject({ kind: "guessed", newGame: true });
-    expect(next.game.guesses).toHaveLength(1);
+    // Nästa utläsning efter vinsten startar ett nytt spel; stämplingarna på brickan räknas inte heller då.
+    const next = applyReadout(second.game, 7_000_001, [...card, ...punches([31, 32, 33, 34], 30)], DEFAULT_SETTINGS, at, random);
+    expect(next).toMatchObject({ kind: "started", afterGame: true });
+    expect(next.game.guesses).toHaveLength(0);
   });
 
   it("does not spend a guess on an invalid punch sequence", () => {
@@ -144,32 +151,20 @@ describe("settings and saved state", () => {
   });
 });
 
-/** Stämplingar med absolut tid: sekund n efter 20:00:00. */
-const timed = (codes: number[], from: number): CardPunch[] => codes.map((code, index) =>
-  ({ code, time: `${from + index}`, at: new Date(at.getTime() + (from + index) * 1000).toISOString() }));
+const later = (seconds: number) => new Date(at.getTime() + seconds * 1000);
 
 describe("timer", () => {
-  it("runs from the first punch to the last punch of the winning guess", () => {
-    const game = { ...newGame(1, DEFAULT_SETTINGS, at), secret: [0, 1, 2, 3] };
-    // Första gissningen börjar med en startkontroll (50) och har fel antal färger: klockan startar ändå.
-    const card1 = timed([50, 31, 32], 10);
-    const first = applyReadout(game, 1, card1, DEFAULT_SETTINGS, at);
-    expect(first.kind).toBe("rejected");
-    expect(first.game.firstPunchAt).toBe(card1[0]!.at);
-    const card2 = [...card1, ...timed([32, 31, 33, 34], 100)];
-    const second = applyReadout(first.game, 1, card2, DEFAULT_SETTINGS, at);
-    expect(second.game.finishedAt).toBeUndefined();
-    const card3 = [...card2, ...timed([31, 32, 33, 34], 250)];
-    const third = applyReadout(second.game, 1, card3, DEFAULT_SETTINGS, at);
-    expect(third.kind === "guessed" && third.status).toBe("won");
-    expect(gameDuration(third.game)).toBe((253 - 10) * 1000);
-    expect(resultOf(third.game)).toMatchObject({ status: "won", guesses: 2 });
-  });
-
-  it("has no time without punch times", () => {
-    const game = { ...newGame(1, DEFAULT_SETTINGS, at), secret: [0, 1, 2, 3] };
-    const result = applyReadout(game, 1, punches([31, 32, 33, 34]), DEFAULT_SETTINGS, at);
-    expect(gameDuration(result.game)).toBeUndefined();
+  it("runs from the first readout to the readout of the winning guess", () => {
+    const start = applyReadout(undefined, 1, [], DEFAULT_SETTINGS, at);
+    const game: CardGame = { ...start.game, secret: [0, 1, 2, 3] };
+    const card1 = punches([32, 31, 33, 34]);
+    const first = applyReadout(game, 1, card1, DEFAULT_SETTINGS, later(90));
+    expect(first.game.finishedAt).toBeUndefined();
+    expect(gameDuration(first.game)).toBeUndefined();
+    const second = applyReadout(first.game, 1, [...card1, ...punches([31, 32, 33, 34], 10)], DEFAULT_SETTINGS, later(243));
+    expect(second.kind === "guessed" && second.status).toBe("won");
+    expect(gameDuration(second.game)).toBe(243_000);
+    expect(resultOf(second.game)).toMatchObject({ status: "won", guesses: 2, finishedAt: later(243).toISOString() });
   });
 
   it("formats durations", () => {
@@ -181,11 +176,11 @@ describe("timer", () => {
 describe("standings", () => {
   const result = (cardNumber: number, status: GameResult["status"], guesses: number, seconds?: number): GameResult => ({
     cardNumber, startedAt: at.toISOString(), status, guesses,
-    ...(seconds === undefined ? {} : { firstPunchAt: at.toISOString(), finishedAt: new Date(at.getTime() + seconds * 1000).toISOString() })
+    ...(seconds === undefined ? {} : { finishedAt: new Date(at.getTime() + seconds * 1000).toISOString() })
   });
 
   it("ranks solved games by time, then playing, then lost", () => {
-    const playing: CardGame = { ...newGame(9, DEFAULT_SETTINGS, at), firstPunchAt: at.toISOString() };
+    const playing = newGame(9, DEFAULT_SETTINGS, at);
     const rows = standings([result(1, "won", 5, 300), result(2, "lost", 10, 900), result(3, "won", 3, 200), result(4, "won", 4),
       result(5, "won", 2, 300)], [playing]);
     expect(rows.map((r) => [r.cardNumber, r.place])).toEqual([[3, 1], [5, 2], [1, 3], [4, 4], [9, undefined], [2, undefined]]);

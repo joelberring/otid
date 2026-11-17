@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CARD_LAYOUTS, resolveSiTime, stationClock, type SiCardData, type SimulatedCard } from "@o-tid/sportident";
+import { CARD_LAYOUTS, stationClock, type SiCardData, type SimulatedCard } from "@o-tid/sportident";
 import { ReadoutSound } from "../readout/sound";
 import type { StationStatus } from "../readout/station";
 import { languageHref, type Language } from "../lib/language";
@@ -36,29 +36,20 @@ function statusText(t: MastermindTexts, status: StationStatus): string {
   }
 }
 
-/**
- * Brickans stämplingar med absolut tid. Tiderna placeras mot avläsningsstationens klocka när den är känd (kontrollerna är
- * normalt ställda mot samma klocka), annars datorns. En tid som inte går att placera blir utan tid i stället för ett fel.
- */
-function cardPunches(card: SiCardData, clockOffsetMs: number | undefined): CardPunch[] {
-  const options = { reference: new Date(Date.now() + (clockOffsetMs ?? 0)), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone };
-  return card.punches.map((p) => {
-    if (!p.time) return { code: p.code };
-    let at: string | undefined;
-    try { at = resolveSiTime(p.time, options).toISOString(); }
-    catch (error) { console.warn(`Stämplingen på kontroll ${p.code} har en tid som inte går att placera`, error); }
-    return { code: p.code, time: JSON.stringify(p.time), ...(at ? { at } : {}) };
-  });
+/** Brickans stämplingar: kod och tid som jämförbar text (markören känner igen redan utlästa stämplingar). */
+function cardPunches(card: SiCardData): CardPunch[] {
+  return card.punches.map((p) => p.time ? { code: p.code, time: JSON.stringify(p.time) } : { code: p.code });
 }
 
-function GameClock({ game, clockOffsetMs, t }: { game: CardGame; clockOffsetMs: number; t: MastermindTexts }) {
+/** Spelets klocka: från starten (första utläsningen) till utläsningen av den avgörande gissningen, datorns tid. */
+function GameClock({ game, t }: { game: CardGame; t: MastermindTexts }) {
   const playing = gameStatus(game) === "playing";
-  const elapsed = useElapsed(playing ? game.firstPunchAt : undefined, clockOffsetMs);
+  const elapsed = useElapsed(playing ? game.startedAt : undefined);
   const duration = playing ? elapsed : gameDuration(game);
   return (
     <p className="mm-clock" aria-label={t.time}>
       <span className="mm-muted">{t.time}</span>{" "}
-      <strong>{duration === undefined ? (playing && !game.firstPunchAt ? t.clockNotStarted : "–") : formatDuration(duration)}</strong>
+      <strong>{duration === undefined ? "–" : formatDuration(duration)}</strong>
     </p>
   );
 }
@@ -222,8 +213,6 @@ export function MastermindApp({ language }: { language: Language }) {
   const [message, setMessage] = useState<{ tone: Tone; text: string } | undefined>(undefined);
   const sound = useRef(new ReadoutSound());
   const stateRef = useRef(state);
-  /** Avläsningsstationens klocka minus datorns (från senaste avläsningen), för den löpande tiden. */
-  const [clockOffsetMs, setClockOffsetMs] = useState(0);
 
   const commit = useCallback((next: SavedState) => { stateRef.current = next; setState(next); saveState(next); }, []);
 
@@ -232,25 +221,22 @@ export function MastermindApp({ language }: { language: Language }) {
     if (event.kind === "inserted") { setViewing(event.cardNumber); setMessage({ tone: "info", text: t.reading(event.cardNumber) }); return; }
     if (event.kind === "failed") { setMessage({ tone: "fail", text: t.readFailed(event.cardNumber) }); sound.current.play("fail"); return; }
     if (event.kind === "unsupported") { setMessage({ tone: "fail", text: t.unsupported(event.cardNumber) }); sound.current.play("fail"); return; }
-    if (event.clockOffsetMs !== undefined) setClockOffsetMs(event.clockOffsetMs);
-    readCard(event.card, event.clockOffsetMs);
+    readCard(event.card);
   };
 
-  function readCard(card: SiCardData, stationOffsetMs: number | undefined) {
+  function readCard(card: SiCardData) {
     const current = stateRef.current;
     const existing = current.games.find((game) => game.cardNumber === card.cardNumber);
-    const outcome = applyReadout(existing, card.cardNumber, cardPunches(card, stationOffsetMs), current.settings, new Date());
+    const outcome = applyReadout(existing, card.cardNumber, cardPunches(card), current.settings, new Date());
     const games = [...current.games.filter((game) => game.cardNumber !== card.cardNumber), outcome.game];
-    // Ett spel som just tog slut går in i statistiken (en gång: ett avslutat spel som läses igen ger "rejected").
+    // Ett spel som just tog slut går in i statistiken (en gång: nästa utläsning startar ett nytt spel).
     const result = outcome.kind === "guessed" ? resultOf(outcome.game) : undefined;
     commit({ ...current, games, results: result ? [...current.results, result] : current.results });
     setViewing(card.cardNumber);
-    const prefix = outcome.newGame ? t.newGameStarted : "";
     const full = card.punches.length + outcome.game.settings.positions > CARD_LAYOUTS[card.cardType].maxPunches ? ` ${t.cardFull}` : "";
-    const finished = gameStatus(outcome.game);
-    if (outcome.kind === "rejected" && finished !== "playing") {
-      // Ett avslutat spel som läses ut igen utan nya färger: visa hur det gick.
-      setMessage(finished === "won" ? { tone: "ok", text: wonText(outcome.game) } : { tone: "fail", text: t.lost });
+    if (outcome.kind === "started") {
+      // Första utläsningen: spelet startar, klockan står på 0 och stämplingarna på brickan räknas inte.
+      setMessage({ tone: "info", text: (outcome.afterGame ? t.newGameStarted : "") + t.started + full });
       sound.current.play("neutral");
       return;
     }
@@ -258,7 +244,7 @@ export function MastermindApp({ language }: { language: Language }) {
       const reading = outcome.reading;
       const text = reading.kind === "too-few" ? t.rejected["too-few"](reading.colors.length, outcome.game.settings.positions)
         : t.rejected[reading.kind];
-      setMessage({ tone: reading.kind === "empty" ? "info" : "fail", text: prefix + text + full });
+      setMessage({ tone: reading.kind === "empty" ? "info" : "fail", text: text + full });
       sound.current.play(reading.kind === "empty" ? "neutral" : "fail");
       return;
     }
@@ -266,7 +252,7 @@ export function MastermindApp({ language }: { language: Language }) {
     if (outcome.status === "won") { setMessage({ tone: "ok", text: wonText(outcome.game) }); sound.current.play("ok"); return; }
     if (outcome.status === "lost") { setMessage({ tone: "fail", text: t.lost }); sound.current.play("fail"); return; }
     const left = outcome.game.settings.maxGuesses - outcome.game.guesses.length;
-    setMessage({ tone: "info", text: `${prefix}${t.scoreLabel(exact, colorOnly)} · ${t.guessesLeft(left)}${full}` });
+    setMessage({ tone: "info", text: `${t.scoreLabel(exact, colorOnly)} · ${t.guessesLeft(left)}${full}` });
     sound.current.play("neutral");
   }
 
@@ -339,7 +325,7 @@ export function MastermindApp({ language }: { language: Language }) {
                 setMessage(undefined);
               }}>{t.newGame}</button>
             </div>
-            <GameClock game={game} clockOffsetMs={clockOffsetMs} t={t} />
+            <GameClock game={game} t={t} />
             {message && <p className={`mm-message mm-message-${message.tone}`}>{message.text}</p>}
             <Board game={game} t={t} language={language} />
           </> : <>{message && <p className={`mm-message mm-message-${message.tone}`}>{message.text}</p>}<p className="mm-muted">{t.noPlayers}</p></>}
@@ -355,7 +341,7 @@ export function MastermindApp({ language }: { language: Language }) {
       <section className="mm-panel" aria-labelledby="mm-results-title">
         <h2 id="mm-results-title">{t.results}</h2>
         <p className="mm-muted">{t.resultsNote}</p>
-        <StandingsTable rows={rows} names={state.names} viewing={viewing} clockOffsetMs={clockOffsetMs} t={t}
+        <StandingsTable rows={rows} names={state.names} viewing={viewing} t={t}
           onSelect={(cardNumber) => setViewing(cardNumber)} />
         {rows.length > 0 && <button type="button" className="mm-button mm-small" onClick={() => {
           if (window.confirm(t.forgetConfirm)) { commit({ ...stateRef.current, games: [], results: [] }); setViewing(undefined); setMessage(undefined); }

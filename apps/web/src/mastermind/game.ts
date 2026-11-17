@@ -1,6 +1,7 @@
 /**
- * Mastermind med kontroller: varje färg är en kontrollkod. En gissning är färgkontrollerna som brickan har stämplat,
- * i ordning, sedan den lästes ut senast. Varje bricka har sitt eget hemliga mönster, så flera kan spela samtidigt.
+ * Mastermind med kontroller: varje färg är en kontrollkod. Brickans första utläsning startar spelet (klockan på 0,
+ * stämplingarna på brickan räknas inte). En gissning är färgkontrollerna som brickan har stämplat, i ordning, sedan den
+ * lästes ut senast. Klockan stannar när den vinnande gissningen läses ut; start och mål är datorns tid. Varje bricka har sitt eget hemliga mönster, så flera kan spela samtidigt.
  * Ren TypeScript utan I/O; sidan (`app.tsx`) läser stationen och sparar i webbläsaren.
  */
 
@@ -45,22 +46,18 @@ export interface CardGame {
   readonly cardNumber: number;
   readonly secret: Code;
   readonly guesses: readonly Guess[];
+  /** När spelet startade (brickans första utläsning, datorns tid). Klockan räknar från den. */
   readonly startedAt: string;
   readonly settings: GameSettings;
   readonly marker?: PunchMarker;
-  /** Spelets första stämpling (vilken kontroll som helst), med brickans tid. Startar klockan. */
-  readonly firstPunchAt?: string;
-  /** Sista stämplingen i den avgörande gissningen. Stoppar klockan. */
+  /** När den avgörande gissningen lästes ut (datorns tid). Stoppar klockan. */
   readonly finishedAt?: string;
 }
 
 export type GameStatus = "playing" | "won" | "lost";
 
-/**
- * En stämpling som avläsningen ger den: koden, tiden som jämförbar text (för markören) och tiden som absolut tidpunkt
- * (ISO, för klockan). SI5:s sista stämplingar saknar tid.
- */
-export interface CardPunch { readonly code: number; readonly time?: string; readonly at?: string }
+/** En stämpling som avläsningen ger den: koden och tiden som jämförbar text (för markören). SI5:s sista stämplingar saknar tid. */
+export interface CardPunch { readonly code: number; readonly time?: string }
 
 export function settingsProblems(settings: GameSettings): string[] {
   const problems: string[] = [];
@@ -153,48 +150,44 @@ export function readGuess(punches: readonly CardPunch[], settings: GameSettings)
   return { kind: "guess", colors: last };
 }
 
+/** `started`: utläsningen startade ett spel (`afterGame`: brickans förra spel var slut). */
 export type ReadoutOutcome =
-  | { readonly kind: "guessed"; readonly game: CardGame; readonly guess: Guess; readonly status: GameStatus; readonly newGame: boolean }
-  | { readonly kind: "rejected"; readonly game: CardGame; readonly reading: Exclude<GuessReading, { kind: "guess" }>; readonly newGame: boolean };
+  | { readonly kind: "started"; readonly game: CardGame; readonly afterGame: boolean }
+  | { readonly kind: "guessed"; readonly game: CardGame; readonly guess: Guess; readonly status: GameStatus }
+  | { readonly kind: "rejected"; readonly game: CardGame; readonly reading: Exclude<GuessReading, { kind: "guess" }> };
 
 /**
- * En utläst bricka. Har brickan inget spel, eller är det slut, börjar ett nytt med de aktuella inställningarna. En giltig
- * gissning räknas; en ogiltig kostar ingen gissning. Markören flyttas alltid fram, så att samma stämplingar inte räknas igen.
+ * En utläst bricka. Har brickan inget spel, eller är det slut, startar utläsningen ett nytt med de aktuella
+ * inställningarna: klockan står på 0 och stämplingarna på brickan räknas inte. Annars är de nya stämplingarna en
+ * gissning; en giltig räknas, en ogiltig kostar ingen gissning. Markören flyttas alltid fram, så att samma stämplingar
+ * inte räknas igen.
  */
 export function applyReadout(existing: CardGame | undefined, cardNumber: number, punches: readonly CardPunch[], settings: GameSettings,
   now: Date, random?: () => number): ReadoutOutcome {
   const marker = markerFor(punches);
-  // Ett avslutat spel ligger kvar (och visas) tills brickan har nya färgstämplingar; först då börjar nästa spel.
-  if (existing && gameStatus(existing) !== "playing") {
-    const next = readGuess(punchesSince(punches, existing.marker), settings);
-    if (next.kind === "empty") return { kind: "rejected", game: { ...existing, ...(marker ? { marker } : {}) }, reading: next, newGame: false };
+  if (!existing || gameStatus(existing) !== "playing") {
+    return { kind: "started", game: newGame(cardNumber, settings, now, random, marker), afterGame: existing !== undefined };
   }
-  const fresh = !existing || gameStatus(existing) !== "playing";
-  const base = fresh ? newGame(cardNumber, settings, now, random, existing?.marker) : existing;
-  const newPunches = punchesSince(punches, base.marker);
-  const reading = readGuess(newPunches, base.settings);
-  // Klockan startar vid spelets första stämpling, vilken kontroll det än är (också i en gissning som inte räknades).
-  const firstPunchAt = base.firstPunchAt ?? newPunches.find((p) => p.at)?.at;
-  const moved: CardGame = { ...base, ...(marker ? { marker } : {}), ...(firstPunchAt ? { firstPunchAt } : {}) };
-  if (reading.kind !== "guess") return { kind: "rejected", game: moved, reading, newGame: fresh };
-  const guess: Guess = { colors: reading.colors, score: scoreGuess(base.secret, reading.colors), at: now.toISOString() };
+  const reading = readGuess(punchesSince(punches, existing.marker), existing.settings);
+  const moved: CardGame = { ...existing, ...(marker ? { marker } : {}) };
+  if (reading.kind !== "guess") return { kind: "rejected", game: moved, reading };
+  const guess: Guess = { colors: reading.colors, score: scoreGuess(existing.secret, reading.colors), at: now.toISOString() };
   const guessed: CardGame = { ...moved, guesses: [...moved.guesses, guess] };
   const status = gameStatus(guessed);
-  // Klockan stannar vid den sista stämplingen i den avgörande gissningen.
-  const finishedAt = status === "playing" ? undefined : [...newPunches].reverse().find((p) => p.at)?.at;
-  const game: CardGame = finishedAt ? { ...guessed, finishedAt } : guessed;
-  return { kind: "guessed", game, guess, status, newGame: fresh };
+  // Klockan stannar när den avgörande gissningen läses ut.
+  const game: CardGame = status === "playing" ? guessed : { ...guessed, finishedAt: now.toISOString() };
+  return { kind: "guessed", game, guess, status };
 }
 
-/** Börjar om med ett nytt mönster men behåller markören (de redan utlästa stämplingarna räknas inte). */
+/** Börjar om med ett nytt mönster nu (klockan på 0) men behåller markören (de redan utlästa stämplingarna räknas inte). */
 export function restart(game: CardGame, settings: GameSettings, now: Date, random?: () => number): CardGame {
   return newGame(game.cardNumber, settings, now, random, game.marker);
 }
 
-/** Speltiden i ms, från första stämplingen till den sista i den avgörande gissningen. Saknas när en tid saknas. */
-export function gameDuration(game: { readonly firstPunchAt?: string; readonly finishedAt?: string }): number | undefined {
-  if (!game.firstPunchAt || !game.finishedAt) return undefined;
-  const ms = Date.parse(game.finishedAt) - Date.parse(game.firstPunchAt);
+/** Speltiden i ms, från starten till utläsningen av den avgörande gissningen. Saknas för spel som pågår. */
+export function gameDuration(game: { readonly startedAt: string; readonly finishedAt?: string }): number | undefined {
+  if (!game.finishedAt) return undefined;
+  const ms = Date.parse(game.finishedAt) - Date.parse(game.startedAt);
   return Number.isFinite(ms) && ms >= 0 ? ms : undefined;
 }
 
@@ -212,7 +205,6 @@ export interface GameResult {
   readonly startedAt: string;
   readonly status: Exclude<GameStatus, "playing">;
   readonly guesses: number;
-  readonly firstPunchAt?: string;
   readonly finishedAt?: string;
 }
 
@@ -220,7 +212,7 @@ export function resultOf(game: CardGame): GameResult | undefined {
   const status = gameStatus(game);
   if (status === "playing") return undefined;
   return { cardNumber: game.cardNumber, startedAt: game.startedAt, status, guesses: game.guesses.length,
-    ...(game.firstPunchAt ? { firstPunchAt: game.firstPunchAt } : {}), ...(game.finishedAt ? { finishedAt: game.finishedAt } : {}) };
+    ...(game.finishedAt ? { finishedAt: game.finishedAt } : {}) };
 }
 
 /** En rad i statistiken: ett avslutat spel eller ett som pågår. */
@@ -228,7 +220,8 @@ export interface StandingRow {
   readonly cardNumber: number;
   readonly status: GameStatus;
   readonly guesses: number;
-  readonly firstPunchAt?: string;
+  /** Pågående spel: när det startade (den löpande tiden räknar från det). */
+  readonly startedAt?: string;
   /** Speltiden för avslutade spel. */
   readonly durationMs?: number;
   /** Plats bland lösta spel: snabbast först, vid lika tid färre gissningar. */
@@ -242,8 +235,7 @@ export interface StandingRow {
 export function standings(results: readonly GameResult[], games: readonly CardGame[]): StandingRow[] {
   const finished: StandingRow[] = results.map((r) => {
     const durationMs = gameDuration(r);
-    return { cardNumber: r.cardNumber, status: r.status, guesses: r.guesses, ...(r.firstPunchAt ? { firstPunchAt: r.firstPunchAt } : {}),
-      ...(durationMs === undefined ? {} : { durationMs }) };
+    return { cardNumber: r.cardNumber, status: r.status, guesses: r.guesses, ...(durationMs === undefined ? {} : { durationMs }) };
   });
   const won = finished.filter((r) => r.status === "won").sort((a, b) =>
     (a.durationMs ?? Infinity) - (b.durationMs ?? Infinity) || a.guesses - b.guesses);
@@ -254,9 +246,8 @@ export function standings(results: readonly GameResult[], games: readonly CardGa
     return { ...row, place };
   });
   const playing: StandingRow[] = games.filter((g) => gameStatus(g) === "playing")
-    .map((g) => ({ cardNumber: g.cardNumber, status: "playing" as const, guesses: g.guesses.length,
-      ...(g.firstPunchAt ? { firstPunchAt: g.firstPunchAt } : {}) }))
-    .sort((a, b) => (a.firstPunchAt ?? "~").localeCompare(b.firstPunchAt ?? "~"));
+    .map((g) => ({ cardNumber: g.cardNumber, status: "playing" as const, guesses: g.guesses.length, startedAt: g.startedAt }))
+    .sort((a, b) => a.startedAt.localeCompare(b.startedAt));
   return [...ranked, ...playing, ...finished.filter((r) => r.status === "lost")];
 }
 

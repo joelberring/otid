@@ -9,16 +9,15 @@ import { collaborationEn } from "../../i18n/course-setting-collab-en";
 import { courseSettingEn } from "../../i18n/course-setting-en";
 import { useTexts } from "../language-provider";
 import Link from "next/link";
-import { raceMapProblemSchema, type CourseSettingState } from "@o-tid/contracts";
+import type { CourseSettingState } from "@o-tid/contracts";
 import { emptyDocument, withPpenState } from "@o-tid/course-setting";
 import { courseSettingSv } from "../../i18n/course-setting-sv";
 import { collaborationSv } from "../../i18n/course-setting-collaboration-sv";
 import { offlineSv } from "../../i18n/course-setting-offline-sv";
 import { raceMapSv } from "../../i18n/race-map-sv";
-import { courseSettingBase, fetchCourseSetting, HttpError, importCourseSetting, saveCourseSetting } from "../../lib/course-setting-api";
-import { readAccountCsrfCookie } from "../../lib/organizer-account-cookies";
+import { fetchCourseSetting, HttpError, importCourseSetting, saveCourseSetting } from "../../lib/course-setting-api";
 import { usableRecord, type FieldRecord } from "../../lib/course-setting-offline";
-import { fetchUntilReached } from "../../lib/retrying-fetch";
+import { uploadCourseSettingMap } from "../../lib/course-setting-map-upload";
 import { MapFileUpload } from "../race-administrator/map-file-upload";
 import { ClubMapToRace } from "../club-archive/club-map-picker";
 import { MapProjectToRace } from "./course-setting-map-project";
@@ -95,26 +94,10 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
   }, [load]);
 
   async function uploadMapFile(form: FormData): Promise<Message | undefined> {
-    const csrf = readAccountCsrfCookie(document.cookie, new URL(window.location.href));
-    if (!csrf) return { tone: "error", text: raceMapText.mapFile.failed };
-    try {
-      const response = await fetchUntilReached(`${courseSettingBase(raceId)}/map/source`, { method: "POST", credentials: "same-origin",
-        headers: { "x-otid-csrf": csrf }, body: form });
-      // Samma besked som i Karta och vägval: 422 säger vad som är fel med filen, annat är ett fel vid sparandet.
-      if (response.status === 422) {
-        const parsed = raceMapProblemSchema.safeParse(await response.json()).data;
-        const problem = parsed?.error;
-        return { tone: "error", text: problem === "MAP_FILE_TOO_LARGE" ? raceMapText.mapFile.tooLarge
-          : problem === "IMAGE_TOO_LARGE" ? raceMapText.mapFile.errors.TOO_LARGE
-          : problem === "STORAGE_QUOTA_EXCEEDED" ? raceMapText.quota(parsed?.quota) : raceMapText.mapFile.invalid };
-      }
-      if (!response.ok) {
-        console.error("Kartfilen sparades inte", response.status, response.headers.get("content-type"));
-        return { tone: "error", text: raceMapText.mapFile.failed };
-      }
-      await load();
-      return { tone: "ok", text: text.mapSaved };
-    } catch { return { tone: "error", text: raceMapText.mapFile.failed }; }
+    const result = await uploadCourseSettingMap(raceId, form, raceMapText);
+    if (result?.tone !== "ok") return result;
+    await load();
+    return { tone: "ok", text: text.mapSaved };
   }
 
   async function first(file: ReadFile) {
@@ -153,7 +136,7 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
   if (state.mapFile && setting) return <CourseSettingEditor key={`${generation}-${setting.version}`} raceId={raceId} state={{ ...state, setting }}
     notice={notice ?? (resume?.fromPhone ? offlineText.openedFromPhone(resume.record.savedAt) : undefined)}
     noticeStays={notice !== undefined && notice === pending?.text && pending.stays} resume={resume?.record}
-    onReload={() => { setNotice(undefined); void load(); }} />;
+    onReload={next => { setNotice(next); void load(); }} />;
   return <main className={styles.page}>
     <header className={styles.head}>{back}<h1>{text.title}</h1><HelpButton view={["CS_START", "COURSE_SETTING"]} /><AccountMenu />{state.mapFile && <p>{state.mapFile.fileName} · 1:{state.mapFile.scale}</p>}</header>
     {!state.mapFile && <section className={styles.panel} aria-labelledby="course-setting-map-file">

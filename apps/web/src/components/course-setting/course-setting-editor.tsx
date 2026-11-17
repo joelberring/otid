@@ -54,6 +54,9 @@ import { AppearancePanel, LabelPanel } from "./course-setting-appearance";
 import { CircleCuttingPanel, useDetailGaps } from "./course-setting-circle-cutting";
 import { useFieldMode, useLockedPage } from "./course-setting-field";
 import { FilePanel, type ReadFile } from "./course-setting-file";
+import { MapReplacePanel } from "./course-setting-map-replace";
+import { mapReplaceSv } from "../../i18n/course-setting-map-replace-sv";
+import { mapReplaceEn } from "../../i18n/course-setting-map-replace-en";
 import { importedImageHashes } from "../../lib/course-setting-paper-api";
 import { DescriptionPanel } from "./course-setting-description";
 import { FieldSuggestionLine, useDescriptionSuggestions } from "./course-setting-suggest";
@@ -119,11 +122,12 @@ const statusTexts = (text: CourseSettingTexts): Record<SyncStatus, string> => ({
 export function CourseSettingEditor({ raceId, state, notice, noticeStays, onReload, resume }: {
   raceId: string; state: CourseSettingState & { setting: NonNullable<CourseSettingState["setting"]> };
   /** Beskedet står kvar tills det stängs (varianter ur banfilen som blev egna banor). */
-  notice?: string | undefined; noticeStays?: boolean | undefined; onReload: () => void; resume?: FieldRecord | undefined;
+  notice?: string | undefined; noticeStays?: boolean | undefined; onReload: (notice?: string) => void; resume?: FieldRecord | undefined;
 }) {
   const layoutTabsSv = useTexts(courseSettingTabsSv, courseSettingTabsEn);
   const offlineText = useTexts(offlineSv, offlineEn);
   const copy = useTexts(collaborationSv, collaborationEn);
+  const mapReplaceText = useTexts(mapReplaceSv, mapReplaceEn);
   const describeEdit = useDescribeEdit();
   const levelText = useTexts(courseSettingLevelSv, courseSettingLevelEn);
   const notesText = useTexts(notesSv, notesEn);
@@ -153,7 +157,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
     return () => clearTimeout(timer);
   }, []);
   const [busy, setBusy] = useState(false);
-  const [dialog, setDialog] = useState<"file" | "transfer">();
+  const [dialog, setDialog] = useState<"file" | "transfer" | "map">();
   const [tab, setTab] = useState<DrawerTab>("courses");
   const [version, setVersion] = useState(state.setting.version);
 
@@ -681,6 +685,8 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
     onFork={readOnly ? undefined : fork} help={text.tools.help[editor.tool] ?? ""} onTraining={() => { setTab("training"); setReveal(value => value + 1); }} trainingOpen={tab === "training"} />;
 
   const menu = [{ label: copy.topbar.fileMenu, onClick: () => setDialog("file") },
+    // Ägaren 2026-11-17: byt kartfil här i banläggningen, inte bara under Resultat → Karta och vägval.
+    ...(access.admin ? [{ label: mapReplaceText.menu, onClick: () => setDialog("map") }] : []),
     ...(access.admin && canTransfer(state.raceType) ? [{ label: copy.topbar.transfer, onClick: () => setDialog("transfer") }] : []),
     { label: copy.topbar.settings, onClick: () => setTab("settings") },
     // Utskriftens sidor direkt från Fil (ägaren 2026-11-03), efter att det osparade skickats.
@@ -754,6 +760,9 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
       <FilePanel raceId={raceId} document={document} original={state.original} busy={busy || access.level !== "EDIT"} onImport={onImport}
         onRestore={onRestore} mapBounds={mapBounds} georeference={georeference} />
     </Dialog>}
+    {dialog === "map" && access.admin && <Dialog title={mapReplaceText.heading} onClose={() => setDialog(undefined)}>
+      <MapReplacePanel raceId={raceId} mapFile={state.mapFile} document={document} flush={flush} onReplaced={next => { setDialog(undefined); onReload(next); }} />
+    </Dialog>}
     {dialog === "transfer" && access.admin && <Dialog title={text.transfer.heading} onClose={() => setDialog(undefined)}>
       <TransferPanel raceId={raceId} ready={!busy} flush={flush} version={() => sync.version} />
     </Dialog>}
@@ -768,6 +777,6 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
       ? offlineText.loggedOut(offline.waiting) : text.status.stopped}</p>
       <div className={styles.row}><a className={styles.back} href="/konto" target="_blank" rel="noopener">{offlineText.login}</a>
         <Button variant="secondary" onClick={offline.retry}>{offlineText.panel.sendNow}</Button>
-        <Button variant="quiet" onClick={onReload}>{text.status.reload}</Button></div></Notice></div>}
+        <Button variant="quiet" onClick={() => onReload()}>{text.status.reload}</Button></div></Notice></div>}
   </main>;
 }

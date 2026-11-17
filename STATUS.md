@@ -13,6 +13,10 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-17 – Byt kartfil i banläggningen
+- Ägaren 2026-11-17: att byta karta hör hemma i banläggningen, inte bara under Resultat → Karta och vägval. Menyn i banläggningen har «Byt kartfil …» (admin): det osparade skickas först, kartfilen sparas med samma anrop som förut (`course-setting-map-upload.ts`, nu också använt av första uppladdningen), banläggningen läses om och beskedet säger hur många kontroller som hamnat utanför den nya kartan.
+- Verifierat: enhetstest (`controlsOutside`), typkontroll, lint, knip. Inte provat i webbläsaren.
+
 ### 2026-11-17 – Täta kurvor som underlag i kartan
 - Ägaren 2026-11-17: kunna tända den täta kurvbilden svagt i skogen på mobilen och jämföra mot kartans kurvor. Panelen «Underlag för frihandsritning» har «Lägg in som underlag»: kurvorna (lila, ekvidistans valfri) ritas på en genomskinlig PNG i SWEREF 99 TM och läggs upp som ett vanligt underlag (tänds, tonas och sparas i telefonen som de andra).
 - PNG med palett (`png-indexed.ts`, CompressionStream): Högdalen A 0,25 m blir 2,4 MB i stället för canvasens 19 MB. Upplösning 0,5 m, grövre för stora områden (`contourLayerResolution`), med råd att välja en etapp.

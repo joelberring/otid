@@ -188,7 +188,8 @@ export const mapSourcesEn: Texts<Sources> = {
   photo: {
     heading: "Interpret aerial photo (bare rock, open land)",
     help: "A first attempt: an orthophoto that is a base layer is interpreted here in the browser. Grey and light areas become bare rock (214), light green and even areas open land (401). "
-      + "Only broad areas count. Dry grass, gravel and roofs can become bare rock, so go through the suggestions before you put them in.",
+      + "Only broad areas count. Dry grass, gravel and roofs can become bare rock, so go through the suggestions before you put them in. "
+      + "If the orthophoto has near infrared (newer images from Lantmäteriet) there is also a base layer ending in \u00ab– IR\u00bb; it is interpreted instead, and rock is told from dry grass by how much living vegetation the surface has.",
     none: "No visible base layer. Fetch an orthophoto above and keep it shown.",
     layer: "Base layer",
     run: "Interpret the photo",

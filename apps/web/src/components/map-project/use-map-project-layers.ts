@@ -7,7 +7,7 @@ import { clubRequest, csrf } from "../../lib/club-archive-client";
 import { cachedMapFile, layerImageCache } from "../../lib/map-file-cache";
 import { mapProjectBase } from "../../lib/map-project-client";
 import { savedMapProjectLayers, saveMapProjectLayers } from "../../lib/map-project-offline";
-import { LayerFileError, prepareLayer, prepareRemoteLayer, type LayerFileProblem, type Placement, type PreparedLayer } from "../../lib/map-project-layer-file";
+import { IR_LAYER_SUFFIX, LayerFileError, prepareLayer, prepareRemoteLayer, type LayerFileProblem, type Placement, type PreparedLayer } from "../../lib/map-project-layer-file";
 import { layerToMap, safeLayerSize, type Affine } from "../../lib/map-project-layers";
 import { hiddenLayers, LAYER_FETCHES, loadOrder, savedLayerChoices, saveLayerChoices, withChoices, type LayerChoices } from "../../lib/map-project-layer-visibility";
 import { placeInBounds, worldFromMap } from "../../lib/map-project-control-points";
@@ -111,10 +111,16 @@ export function useMapProjectLayers(view: MapProjectView, georeference: MapGeore
       setBusy("uploading");
       const token = csrf();
       if (!token) { setProblem(401); return false; }
-      const response = await fetch(`${base}/layers`, { method: "POST", credentials: "same-origin", cache: "no-store", body: prepared.bytes,
+      const send = (bytes: Blob, title: string) => fetch(`${base}/layers`, { method: "POST", credentials: "same-origin", cache: "no-store", body: bytes,
         headers: { "content-type": "application/octet-stream", "x-otid-csrf": token, "x-otid-request-id": crypto.randomUUID(),
-          "x-otid-name": encodeURIComponent((name.trim() || prepared.name).slice(0, 80)),
+          "x-otid-name": encodeURIComponent(title.slice(0, 80)),
           "x-otid-layer": encodeURIComponent(JSON.stringify({ crs: prepared.crs, transform: prepared.transform })) } });
+      const title = name.trim() || prepared.name;
+      const response = await send(prepared.bytes, title);
+      // Ägaren 2026-11-17: ett ortofoto med nära infrarött får också sin falskfärgsbild som eget underlag (samma läge).
+      if ((response.status === 200 || response.status === 201) && prepared.infrared) {
+        await send(prepared.infrared.bytes, `${title.slice(0, 80 - IR_LAYER_SUFFIX.length)}${IR_LAYER_SUFFIX}`).catch(() => undefined);
+      }
       if (response.status === 200 || response.status === 201) { if (reload) await load(); return true; }
       const body = await response.json().catch(() => undefined) as { error?: string } | undefined;
       setProblem(body?.error === "STORAGE_QUOTA_EXCEEDED" ? "quota" : body?.error === "MAP_FILE_TOO_LARGE" ? "TOO_LARGE"

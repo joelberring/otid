@@ -12,6 +12,34 @@ export interface PreparedLayer {
   readonly bytes: Blob; readonly crs: number; readonly transform: Affine; readonly width: number; readonly height: number;
   /** Ett förslag på namn (filens namn utan ändelse). */
   readonly name: string;
+  /**
+   * Ägaren 2026-11-17 («en del ortofoton är fyrkanaliga»): Lantmäteriets nyare ortofoton (`spektraltyp: rgbi`) har nära infrarött
+   * som fjärde band. Då blir det också en falskfärgsbild (IR, rött, grönt som rött, grönt, blått): levande växtlighet är röd,
+   * häll, grus och vägar gråblå, vatten och blöt mark mörk. Den läggs upp som ett eget underlag (`IR_LAYER_SUFFIX`).
+   */
+  readonly infrared?: { readonly bytes: Blob } | undefined;
+}
+/** Namnets slut för falskfärgsbilden; «Tolka flygbild» känner igen den på namnet. */
+export const IR_LAYER_SUFFIX = " – IR";
+
+/**
+ * Bandet med nära infrarött, eller undefined: ett fjärde band som inte är alfa (TIFF:s ExtraSamples 1 och 2 är alfa, 0 eller
+ * utelämnat är ospecificerat, som i Lantmäteriets rgbi-bilder).
+ */
+export function infraredBand(image: { getSamplesPerPixel(): number; fileDirectory?: { ExtraSamples?: ArrayLike<number> | number } }): number | undefined {
+  if (image.getSamplesPerPixel() < 4) return undefined;
+  const extra = image.fileDirectory?.ExtraSamples;
+  const first = typeof extra === "number" ? extra : extra?.[0];
+  return first === 1 || first === 2 ? undefined : 3;
+}
+
+/** Falskfärg ur interfolierade (R, G, B, IR)-värden: IR, rött, grönt som rött, grönt, blått, skalat till 8 bitar. */
+export function falseColor(bands: ArrayLike<number>, pixels: number, shift: number): Uint8ClampedArray<ArrayBuffer> {
+  const out = new Uint8ClampedArray(pixels * 4);
+  for (let p = 0; p < pixels; p += 1) {
+    out[p * 4] = bands[p * 4 + 3]! / shift; out[p * 4 + 1] = bands[p * 4]! / shift; out[p * 4 + 2] = bands[p * 4 + 1]! / shift; out[p * 4 + 3] = 255;
+  }
+  return out;
 }
 export type LayerFileProblem = "NO_IMAGE" | "NO_GEOREFERENCE" | "UNSUPPORTED_CRS" | "UNREADABLE" | "TOO_LARGE" | "OUTSIDE" | "REJECTED" | "UNAVAILABLE";
 export class LayerFileError extends Error {
@@ -131,8 +159,11 @@ async function fromTiff(file: File, world: Affine | undefined, fallbackCrs: numb
   }
   const { canvas, ctx } = surface(size.width, size.height);
   ctx.putImageData(new ImageData(pixels, size.width, size.height), 0, 0);
+  const band = infraredBand(image);
+  const infrared = band === undefined ? undefined : await infraredImage(() => image.readRasters({ interleave: true, width: size.width, height: size.height,
+    resampleMethod: "bilinear", samples: [0, 1, 2, band] }), size.width, size.height, shift);
   return { bytes: await encode(canvas, "image/jpeg"), crs, transform: size.factor === 1 ? transform : scaledAffine(transform, size.width / width),
-    width: size.width, height: size.height, name: stem(file.name) };
+    width: size.width, height: size.height, name: stem(file.name), ...(infrared ? { infrared } : {}) };
 }
 
 /** Största sidan på ett hämtat ortofoto (en bildruta för en karta eller etapp; mindre än en egen fil för att gå fort). */
@@ -206,5 +237,20 @@ export async function prepareRemoteLayer(url: string, area: { readonly minX: num
   const transform = affineFromOrigin(origin, [t.a * (x1 - x0) / outWidth, t.e * (y1 - y0) / outHeight]);
   const bytes = await encode(canvas, "image/jpeg");
   if (bytes.size > MAP_PROJECT_LAYER_MAX_BYTES) throw new LayerFileError("TOO_LARGE");
-  return { bytes, crs, transform, width: outWidth, height: outHeight, name };
+  const band = infraredBand(full);
+  const infrared = band === undefined ? undefined : await infraredImage(() => image.readRasters({ window, interleave: true, width: outWidth, height: outHeight,
+    resampleMethod: "bilinear", samples: [0, 1, 2, band] }), outWidth, outHeight, shift);
+  return { bytes, crs, transform, width: outWidth, height: outHeight, name, ...(infrared ? { infrared } : {}) };
+}
+
+/** Falskfärgsbilden som JPEG, eller undefined om banden inte gick att läsa (färgbilden läggs upp ändå). */
+async function infraredImage(read: () => Promise<unknown>, width: number, height: number, shift: number): Promise<{ bytes: Blob } | undefined> {
+  try {
+    const bands = await read() as ArrayLike<number>;
+    if (bands.length < width * height * 4) return undefined;
+    const { canvas, ctx } = surface(width, height);
+    ctx.putImageData(new ImageData(falseColor(bands, width * height, shift), width, height), 0, 0);
+    const bytes = await encode(canvas, "image/jpeg");
+    return bytes.size > MAP_PROJECT_LAYER_MAX_BYTES ? undefined : { bytes };
+  } catch { return undefined; }
 }

@@ -17,7 +17,15 @@ export interface PhotoSettings {
   readonly cellPixels: number;
   /** Minsta yta i celler. */
   readonly minCells: number;
+  /**
+   * Bilden är en falskfärgsbild (IR, rött, grönt i bildens röda, gröna och blå kanal; ägaren 2026-11-17, Lantmäteriets rgbi).
+   * Då avgör växtlighetens index NDVI = (IR − rött) / (IR + rött): berg i dagen har nästan ingen levande växtlighet och är ljust,
+   * öppen mark har mycket och är jämn (skogen är fläckig av skuggor). Gränserna är inte prövade mot riktiga bilder.
+   */
+  readonly infrared?: boolean | undefined;
 }
+/** NDVI under detta och ljust: berg i dagen. Över `OPEN_NDVI` och jämnt: öppen mark (falskfärgsbilden). */
+export const ROCK_NDVI = 0.12, OPEN_NDVI = 0.35;
 export const ROCK = 1, OPEN = 2;
 
 /** Cellernas klass (0 = annat, 1 = berg i dagen, 2 = öppen mark); index kolumn · rader + rad, rad 0 överst. */
@@ -35,6 +43,13 @@ export function classifyPhoto(pixels: PhotoPixels, settings: PhotoSettings): { c
       }
       if (count < size * size / 2) continue;
       r /= count; g /= count; b /= count;
+      if (settings.infrared) {
+        // r = IR, g = rött, b = grönt. Vatten och skugga är mörka i IR och räknas inte.
+        const ndvi = (r - g) / (r + g + 1e-6), light = (g + b) / 2, spread = Math.sqrt(Math.max(0, squares / count - (sum / count) ** 2));
+        if (ndvi < ROCK_NDVI && light > 0.3 && r > 0.25) classes[column * rows + row] = ROCK;
+        else if (ndvi > OPEN_NDVI && r > 0.45 && spread < 0.06) classes[column * rows + row] = OPEN;
+        continue;
+      }
       const light = sum / count, spread = Math.sqrt(Math.max(0, squares / count - light * light));
       const high = Math.max(r, g, b), saturation = high === 0 ? 0 : (high - Math.min(r, g, b)) / high;
       if (saturation < 0.14 && light > 0.42 && light < 0.93 && g <= Math.max(r, b) * 1.04) classes[column * rows + row] = ROCK;

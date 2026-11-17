@@ -53,7 +53,8 @@ export const mapSourcesSv = {
   photo: {
     heading: "Tolka flygbild (berg i dagen, öppen mark)",
     help: "Ett första försök: ett ortofoto som ligger som underlag tolkas här i webbläsaren. Grå och ljusa ytor blir berg i dagen (214), ljusgröna och jämna ytor öppen mark (401). "
-      + "Bara breda ytor räknas. Torrt gräs, grus och tak kan bli berg i dagen, så gå igenom förslagen innan du lägger in dem.",
+      + "Bara breda ytor räknas. Torrt gräs, grus och tak kan bli berg i dagen, så gå igenom förslagen innan du lägger in dem. "
+      + "Har ortofotot nära infrarött (nyare bilder från Lantmäteriet) finns också ett underlag som slutar på «– IR»; då tolkas det i stället, och berg skiljs från torrt gräs med hur mycket levande växtlighet ytan har.",
     none: "Inget synligt underlag. Hämta ett ortofoto ovan och låt det vara tänt.",
     layer: "Underlag",
     run: "Tolka flygbilden",

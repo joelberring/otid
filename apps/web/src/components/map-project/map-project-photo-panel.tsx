@@ -6,6 +6,7 @@ import { mapSourcesEn } from "../../i18n/map-sources-en";
 import { mapSourcesSv } from "../../i18n/map-sources-sv";
 import { interpretPhoto } from "@o-tid/map-revision/base-map";
 import { useTexts } from "../language-provider";
+import { IR_LAYER_SUFFIX } from "../../lib/map-project-layer-file";
 import { Button } from "../ui";
 import type { useMapProjectImport } from "./use-map-project-import";
 import type { useMapProjectLayers } from "./use-map-project-layers";
@@ -27,7 +28,10 @@ export function MapProjectPhotoPanel({ layers, georeference, importer }: { layer
   const shown = layers.drawn.map(drawn => ({ drawn, name: layers.layers.find(row => row.layerId === drawn.layerId)?.name ?? drawn.layerId }));
   if (!importer.canImport || georeference.crs.kind !== "EPSG") return null;
   const crs = georeference.crs.code;
-  const current = shown.find(row => row.drawn.layerId === chosen) ?? shown[0];
+  const picked = shown.find(row => row.drawn.layerId === chosen) ?? shown[0];
+  // Ägaren 2026-11-17: finns ortofotots falskfärgsbild (nära infrarött) tolkas den i stället för färgbilden.
+  const current = picked && !picked.name.endsWith(IR_LAYER_SUFFIX) ? shown.find(row => row.name === `${picked.name}${IR_LAYER_SUFFIX}`) ?? picked : picked;
+  const infrared = !!current?.name.endsWith(IR_LAYER_SUFFIX);
 
   function interpret() {
     if (!current) return;
@@ -45,7 +49,7 @@ export function MapProjectPhotoPanel({ layers, georeference, importer }: { layer
       context.drawImage(image, 0, 0, width, height);
       const cellMeters = meters / factor, cellPixels = Math.max(1, Math.round(CELL_METERS / cellMeters));
       const cellArea = (cellPixels * cellMeters) ** 2;
-      const result = interpretPhoto(context.getImageData(0, 0, width, height), { cellPixels, minCells: Math.max(4, Math.round(MIN_AREA_M2 / cellArea)) },
+      const result = interpretPhoto(context.getImageData(0, 0, width, height), { cellPixels, minCells: Math.max(4, Math.round(MIN_AREA_M2 / cellArea)), infrared },
         (column, row) => {
           const x = column / factor, y = row / factor;
           const at = mapPointToProjected(georeference, { x: toMap.a * x + toMap.b * y + toMap.c, y: toMap.d * x + toMap.e * y + toMap.f });

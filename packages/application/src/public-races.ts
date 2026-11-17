@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, gt, ilike, isNull, lt, or, sql, type SQL } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
 import type { RaceType } from "@o-tid/contracts";
+import { RACE_SHORT_CODE_PATTERN } from "@o-tid/domain";
 import { publicRaceCondition } from "./public-race-visibility";
 
 /**
@@ -21,7 +22,6 @@ const SECTION_LIMIT = 50;
 export const PUBLIC_RECENT_STEP = 10;
 export const PUBLIC_RECENT_MAX = 200;
 const SEARCH_MAX = 100;
-const SHORT_CODE = /^[2-9a-hjkmnp-z]{6}$/;
 
 /** Senaste beslutet om startlistan är "publicera" (samma regel som den publika startlistan). */
 const startListPublished = sql<boolean>`coalesce((select ${schema.startListPublications.action} = 'PUBLISH'
@@ -74,7 +74,7 @@ export async function listPublicRaces(db: Database, input: { search?: string | u
 /** Loppet bakom en kort adress (versaler godtas), oavsett publicering. Behörigheten avgörs av `publicRaceAccess`. */
 export async function raceIdForShortCode(db: Database, code: string): Promise<string | undefined> {
   const shortCode = code.trim().toLowerCase();
-  if (!SHORT_CODE.test(shortCode)) return undefined;
+  if (!RACE_SHORT_CODE_PATTERN.test(shortCode)) return undefined;
   const [race] = await db.select({ id: schema.races.id }).from(schema.races).where(eq(schema.races.shortCode, shortCode)).limit(1);
   return race?.id;
 }

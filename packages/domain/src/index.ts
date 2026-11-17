@@ -58,6 +58,7 @@ export * from "./forking-readiness";
 export * from "./variant-pruning";
 export * from "./race-title";
 export * from "./training-group";
+export * from "./join-code";
 export * from "./club-affiliation";
 export * from "./club-planning";
 export * from "./map-link";

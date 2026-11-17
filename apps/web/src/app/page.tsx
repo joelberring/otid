@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { authenticateUserAccountSession, listMapProjects, listMyClubs, listMyGroups, listPublicRaces, PUBLIC_RECENT_MAX, PUBLIC_RECENT_STEP
 } from "@o-tid/application";
 import { db } from "../lib/db";
@@ -15,7 +16,9 @@ import { Logo } from "../components/brand/logo";
 import { LanguageSwitch } from "../components/language-switch";
 import { SiteFooter } from "../components/about/site-footer";
 import { paintingOfTheWeek } from "../lib/weekly-painting";
-import { HomeAbout, HomePersonal, type Personal } from "../components/home/home-sections";
+import { HomeAbout, HomePersonal, JoinCode, OrganizerStart, type Personal } from "../components/home/home-sections";
+import { AppMark } from "../components/home/app-mark";
+import { joinCodeProblem } from "../lib/join-code";
 import { RaceList, type RaceListTiming } from "../components/public-race/race-list";
 import styles from "../components/public-race/public-race.module.css";
 
@@ -26,14 +29,16 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: `${sv.appName} – ${tagline}`, description: `${tagline}. ${(english ? publicHomeEn : publicRaceSv.home).intro}` };
 }
 
-type Query = { q?: string | string[]; fler?: string | string[]; demo?: string | string[] };
+type Query = { q?: string | string[]; fler?: string | string[]; demo?: string | string[]; kodfel?: string | string[] };
 
 /**
- * Startsidan för besökare (ADR-0172 beslut 4): sök, Pågår nu (tävlingsdagen i tävlingens tidszon), Kommande och
+ * Startsidan för besökare (ADR-0172 beslut 4): "Har du en kod?" (översynen 2026-11-17, `/kod`), sök, Pågår nu (tävlingsdagen i tävlingens tidszon), Kommande och
  * Senaste med "Visa fler". Bara publicerade tävlingar och inga adminlänkar; den inloggade får en länk till Mina tävlingar.
  * Längst ned länkar till filmerna (introduktionen och kartritningen), bara när `NEXT_PUBLIC_INTRO_FILM_URL` respektive
  * `NEXT_PUBLIC_MAP_FILM_URL` är satt (docs/drift.md); på engelska den engelska filmen när den finns.
- * Veckans målning (ägarens önskemål 2026-11-12) står bredvid rubriken och sökrutan, och texten om den i startsidans egen sidfot.
+ * Veckans målning (ägarens önskemål 2026-11-12) står bredvid rubriken och sökrutan på datorn och efter Pågår nu på smal skärm
+ * (översynen 2026-11-17: kodfältet syns utan att rulla), och texten om den i startsidans egen sidfot. Den som inte är inloggad
+ * får raden "Kom igång som arrangör" under sökningen; i appen (AppMark) är kodfältet tydligare och den raden borta.
  * Sidan renderas vid varje förfrågan (`force-dynamic`), så målningen byts när veckan byts.
  */
 export default async function Home({ searchParams }: { searchParams: Promise<Query> }) {
@@ -72,21 +77,20 @@ export default async function Home({ searchParams }: { searchParams: Promise<Que
         </nav>
       </div>
     </header>
-    <main className={styles.home}>
-      <div className={styles.homeTop}>
-        <div className={styles.homeLead}>
-          <div className={styles.homeIntro}>
-            <h1>{text.title}</h1>
-            <p>{text.intro}</p>
-          </div>
-          <form className={styles.search} role="search" action="/" method="get">
-            <label>{text.searchLabel}<input type="search" name="q" defaultValue={search} placeholder={text.searchPlaceholder} maxLength={100}
-              autoComplete="off" /></label>
-            <button type="submit">{text.search}</button>
-          </form>
+    <main className={styles.home} suppressHydrationWarning>
+      <AppMark nonce={(await headers()).get("x-nonce") ?? undefined} />
+      <div className={styles.homeLead}>
+        <div className={styles.homeIntro}>
+          <h1>{text.title}</h1>
+          <p>{text.intro}</p>
         </div>
-        <img className={styles.homePainting} src={painting.src} width={painting.width} height={painting.height}
-          alt={text.paintingAlt(painting.title)} loading="eager" decoding="async" data-testid="home-painting" />
+        <JoinCode language={language} problem={joinCodeProblem(query.kodfel)} />
+        <form className={styles.search} role="search" action="/" method="get">
+          <label>{text.searchLabel}<input type="search" name="q" defaultValue={search} placeholder={text.searchPlaceholder} maxLength={100}
+            autoComplete="off" /></label>
+          <button type="submit">{text.search}</button>
+        </form>
+        {!signedIn && <OrganizerStart language={language} />}
       </div>
       {search && <div className={styles.searchMeta}>
         <p role="status">{total === 0 ? text.noMatch(search) : text.searchHeading(search)}</p>
@@ -94,13 +98,15 @@ export default async function Home({ searchParams }: { searchParams: Promise<Que
       </div>}
       {personal && !search && <HomePersonal personal={personal} language={language} />}
       {section("pagar", text.ongoing, listing.ongoing, "ONGOING", text.noneOngoing)}
+      <img className={styles.homePainting} src={painting.src} width={painting.width} height={painting.height}
+        alt={text.paintingAlt(painting.title)} loading="eager" decoding="async" data-testid="home-painting" />
       {section("kommande", text.upcoming, listing.upcoming, "UPCOMING", text.noneUpcoming)}
       {section("senaste", text.recent, listing.recent, "RECENT", text.noneRecent, listing.moreRecent)}
       {(film || mapFilm) && <p className={styles.introFilm}>
         {film && <a href={film}>{text.introFilm}</a>}
         {mapFilm && <a href={mapFilm}>{text.mapFilm}</a>}
       </p>}
-      {!search && <HomeAbout language={language} demo={demoRacePath()}
+      {!search && <HomeAbout language={language} demo={demoRacePath()} mapFilm={mapFilm}
         guest={guestDemoEnabled() && !signedIn ? { message: query.demo === "upptaget" ? "busy" : query.demo === "fel" ? "failed" : undefined }
           : undefined} />}
     </main>

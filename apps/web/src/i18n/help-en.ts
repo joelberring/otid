@@ -68,7 +68,7 @@ const raceDayHelpArticlesEn: readonly HelpArticle[] = [
     body: [
       "A new event is only visible to you and others with access. Go to the step ”Publish” and press ”Publish the event”.",
       "Then the event page is visible to everyone, and the event is listed on the home page. Results appear as runners read out.",
-      "With ”Preview the event page” you see the page before it is published. ”Print QR code” gives a sign to put up at the start and finish.",
+      "With ”Preview the event page” you see the page before it is published. ”Print QR code” gives a sign to put up at the start and finish; the code at the end of the address can also be typed in ”Have a code?” on the home page.",
       "The start list is published separately under ”Start”. ”Stop publishing” hides the event again."
     ]
   },

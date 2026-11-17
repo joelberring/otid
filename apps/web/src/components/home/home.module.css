@@ -10,16 +10,31 @@
 .features { display: grid; gap: 10px; }
 .features > h2 { font-size: var(--text-md); }
 .featureGrid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin: 0; padding: 0; list-style: none; }
-.featureGrid li { display: grid; gap: 4px; align-content: start; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
-.featureGrid strong { font-size: var(--text-md); }
+.featureGrid li { display: grid; }
+/* Översynen 2026-11-17: hela rutan är länken; rubriken är understruken som andra länkar, texten inte. */
+.featureGrid a { display: grid; gap: 4px; align-content: start; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--surface); color: inherit; text-decoration: none; }
+.featureGrid a:hover { border-color: var(--line-strong); }
+.featureGrid strong { font-size: var(--text-md); text-decoration: underline; text-underline-offset: 3px; }
 .featureGrid span { color: var(--muted); font-size: var(--text-sm); }
-.built { display: grid; gap: 6px; border-top: 1px solid var(--line); padding-top: 16px; }
-.built h2 { font-size: var(--text-md); }
-.built p { color: var(--muted); max-width: 70ch; }
-.built a { display: inline-flex; align-items: center; min-height: 40px; }
-.builtLinks { display: flex; flex-wrap: wrap; gap: 4px 20px; }
 .demo { display: grid; gap: 2px; padding: 12px 14px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); }
 .demo a { font-weight: 600; display: inline-flex; align-items: center; min-height: 32px; }
 .demo span { color: var(--muted); font-size: var(--text-sm); }
 .demo button { justify-self: start; }
 .demoProblem { margin: 0 0 6px; font-weight: 600; }
+/* Översynen av startsidan 2026-11-17: "Har du en kod?" och arrangörens rad. Tryckytor minst 44 px. */
+.join { display: grid; gap: 6px; max-width: 36rem; padding: 12px 14px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); scroll-margin-top: 16px; }
+.join h2 { font-size: var(--text-md); }
+.join > p { color: var(--muted); font-size: var(--text-sm); }
+.joinForm { display: flex; gap: 8px; align-items: end; }
+.joinForm label { flex: 1 1 auto; min-width: 0; }
+.joinForm input, .joinForm button { min-height: 44px; }
+.joinForm button { flex: 0 0 auto; }
+.join > .joinProblem { margin: 0; font-weight: 600; color: var(--ink); font-size: var(--text-sm); }
+.organizer { display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; color: var(--muted); font-size: var(--text-sm); }
+.organizer a { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; }
+/* I appen (ADR-0227, `data-otid-app` sätts av AppMark): kodfältet tydligare, och arrangörens rad behövs inte (appen är deltagarens). */
+:global([data-otid-app]) .join { border: 2px solid var(--accent); padding: 14px 16px; }
+:global([data-otid-app]) .join h2 { font-size: var(--text-lg); }
+:global([data-otid-app]) .joinForm input, :global([data-otid-app]) .joinForm button { min-height: 52px; font-size: var(--text-md); }
+:global([data-otid-app]) .organizer { display: none; }

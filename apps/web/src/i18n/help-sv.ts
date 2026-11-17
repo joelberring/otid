@@ -105,7 +105,7 @@ const raceDayHelpArticles: readonly HelpArticle[] = [
     body: [
       "En ny tävling syns bara för dig och andra med behörighet. Gå till steget ”Publicera” och tryck på ”Publicera tävlingen”.",
       "Då syns tävlingssidan för alla, och tävlingen finns på startsidan. Resultaten syns när löparna läser av.",
-      "Med ”Förhandsvisa tävlingssidan” ser du sidan innan den är publicerad. ”Skriv ut QR-kod” ger en lapp att sätta upp vid start och mål.",
+      "Med ”Förhandsvisa tävlingssidan” ser du sidan innan den är publicerad. ”Skriv ut QR-kod” ger en lapp att sätta upp vid start och mål; koden sist i adressen kan också skrivas i ”Har du en kod?” på startsidan.",
       "Startlistan publiceras för sig under ”Start”. ”Sluta publicera” döljer tävlingen igen."
     ]
   },

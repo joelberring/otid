@@ -16,6 +16,9 @@ export const aboutSv = {
   madeTitle: "Så är det gjort",
   made: "O-Tid är utvecklat av Joel Berring med AI-stöd. Det är en webbapp i Next.js och TypeScript med en " +
     "PostgreSQL-databas, och den körs på en egen server. Avläsningen sker direkt i webbläsaren, utan något program att installera.",
+  /** Översynen av startsidan 2026-11-17: länken till koden flyttades hit från startsidan. */
+  code: "Källkoden är fri (MIT-licens) och finns på GitHub.",
+  codeLink: "O-Tid på GitHub",
   featuresTitle: "Tekniska funktioner",
   features: [
     "SPORTident-avläsning direkt i webbläsaren: Web Serial i Chrome eller Edge på dator, WebUSB i Chrome på Android-platta. iPhone och iPad går inte.",

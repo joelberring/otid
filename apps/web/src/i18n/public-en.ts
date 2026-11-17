@@ -68,6 +68,8 @@ export const aboutEn: Texts<typeof aboutSv> & { readonly internationalTitle: str
   madeTitle: "How it is made",
   made: "O-Tid is developed by Joel Berring with AI support. It is a web app in Next.js and TypeScript with a PostgreSQL database, "
     + "running on its own server. Card readout happens directly in the browser, with nothing to install.",
+  code: "The source code is free (MIT licence) and available on GitHub.",
+  codeLink: "O-Tid on GitHub",
   featuresTitle: "Technical features",
   features: [
     "SPORTident readout directly in the browser: Web Serial in Chrome or Edge on a computer, WebUSB in Chrome on an Android tablet. iPhone and iPad do not work.",
@@ -333,6 +335,15 @@ export const selfRegistrationEn: Texts<SelfRegistrationForm> = {
 
 /** Den nya startsidan. */
 export const homeEn: Texts<typeof homeSv> = {
+  joinTitle: "Have a code?",
+  joinHelp: "The code is on the QR sheet or at the end of the link you were given. You can also paste the whole link.",
+  joinLabel: "Code or link",
+  joinPlaceholder: "e.g. k7m2pq",
+  join: "Join",
+  joinMissing: "The code was not found. Check that you typed it correctly.",
+  joinBusy: "Too many attempts. Wait a while and try again.",
+  organizerQuestion: "Do you organise events or trainings?",
+  organizerStart: "Get started as an organiser",
   personalTitle: "Your O-Tid",
   myRaces: "My events",
   clubs: "Clubs",
@@ -349,12 +360,6 @@ export const homeEn: Texts<typeof homeSv> = {
     { title: "AI connection", text: "Connect your own Claude account. The AI reads courses and maps and only leaves proposals that you approve." },
     { title: "Clubs and groups", text: "Verified clubs via Eventor, training groups with on-the-spot entry and officials with their own accounts." }
   ],
-  builtTitle: "How O-Tid is built",
-  built: "A web app in Next.js and TypeScript with a PostgreSQL database, on its own server. Readout happens in the browser (Web Serial "
-    + "and WebUSB). Lidar and drawings run on a separate geo server with Karttapullautin and LibreDWG, as separate programs.",
-  code: "The source code is free (MIT licence) and available on GitHub.",
-  codeLink: "O-Tid on GitHub",
-  about: "More about O-Tid",
   demo: "Try it: see a demo event",
   demoHelp: "Start list, results, Live and split times from a real training, without signing in."
 };

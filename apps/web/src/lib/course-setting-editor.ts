@@ -270,8 +270,33 @@ export const toolControlKind = (tool: Tool) => KIND_OF_TOOL[tool];
  */
 function insertAfter(state: EditorState, kind: ControlKind): string | null | undefined {
   if (kind === "START" || kind === "FINISH") return undefined;
+  // Ägaren 2026-11-17: med en vald sträcka läggs kontrollen in på den sträckan, också i en gren av en gaffling (förut hamnade
+  // den före målet, så en befintlig kontroll gick inte att lägga in i grenen).
+  if (state.selection?.kind === "leg") return legCourseControl(state.document, state.view, state.selection, state.branch);
   const selected = state.selection?.kind === "control" ? state.selection.courseControl : undefined;
   return selected && state.document.courseControls[selected] ? selected : undefined;
+}
+
+/**
+ * Banans kontroll där sträckan `from`–`to` börjar, i alla grenar. Har flera grenar samma sträcka (en ny gaffling) väljs den
+ * som `branch` (grenen man arbetar i) börjar, annars den första. `fromCourseControl` används när den finns.
+ */
+export function legCourseControl(document: CourseSettingDocument, courseId: string,
+  leg: { readonly from: string; readonly to: string; readonly fromCourseControl?: string | undefined }, branch?: string): string | undefined {
+  if (leg.fromCourseControl && document.courseControls[leg.fromCourseControl]) return leg.fromCourseControl;
+  const course = document.courses.find(row => row.id === courseId);
+  const seen = new Set<string>(), queue = course?.first ? [course.first] : [], found: string[] = [];
+  while (queue.length) {
+    const id = queue.shift()!;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const item = document.courseControls[id];
+    if (!item) continue;
+    if (item.control === leg.from && item.next && document.courseControls[item.next]?.control === leg.to) found.push(id);
+    if (item.split) queue.push(...item.split.branches);
+    if (item.next) queue.push(item.next);
+  }
+  return found.find(id => id === branch) ?? found[0];
 }
 
 /**

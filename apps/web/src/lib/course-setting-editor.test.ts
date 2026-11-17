@@ -131,6 +131,24 @@ describe("editorn", () => {
       .toEqual({ x: -5, y: 0 });
   });
 
+  it("lägger in en befintlig kontroll på vald sträcka, också i en gren av en gaffling (ägaren 2026-11-17)", () => {
+    const base = testDocument();
+    const document = { ...base, controls: { ...base.controls, x: { id: "x", kind: "NORMAL" as const, code: "56", at: { x: 15, y: 5 }, descriptions: [] } } };
+    let state = applySteps(setView(createEditor(document), "k"), [{ type: "ADD_SPLIT", course: "k", at: "c2", kind: "FORK", branches: 2 }], apply);
+    const branches = state.document.courseControls.c2!.split!.branches;
+    // Den andra grenen: sträckan a–b i den grenen.
+    state = { ...select(state, { kind: "leg", from: "a", to: "b" }), branch: branches[1] };
+    state = insertExisting(state, "x", apply);
+    const after = (id: string) => state.document.courseControls[state.document.courseControls[id]!.next!]!.control;
+    expect(after(branches[1]!)).toBe("x");
+    expect(after(branches[0]!)).toBe("b");
+    // Målet är kvar sist; kontrollen hamnade inte före målet.
+    expect(courseChain(state.document, "k").map(id => state.document.courseControls[id]!.control)).toEqual(["s", "a", "b", "f"]);
+    // Utan vald gren: den första grenen som har sträckan.
+    state = insertExisting(select({ ...state, branch: undefined }, { kind: "leg", from: "a", to: "b" }), "x", apply);
+    expect(after(branches[0]!)).toBe("x");
+  });
+
   it("lägger in en befintlig kontroll, tar bort från banan med Delete och ger begripligt fel när en ändring inte går", () => {
     let state = select(setView(createEditor(testDocument()), "k"), { kind: "control", control: "b", courseControl: "c3" });
     state = insertExisting(state, "a", apply);

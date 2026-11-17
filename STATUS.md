@@ -13,6 +13,10 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-17 – Lägg in på vald sträcka, också i en gaffling
+- Ägaren 2026-11-17 (A, gaffling C/D vid 36): en befintlig kontroll gick inte att lägga in i en gren; med en sträcka vald hamnade den före målet. Nu läggs en ny eller befintlig kontroll in på den valda sträckan, i den gren där sträckan finns (`legCourseControl`; har flera grenar samma sträcka väljs grenen man arbetar i, annars den första).
+- Verifierat: enhetstest (gaffling med två grenar), typkontroll, lint.
+
 ### 2026-11-17 – Kontrollbeskrivningen: stega mellan kontrollerna, kartan följer med
 - Ägaren 2026-11-17: knappen för att godta symbolförslaget var svår att hitta, och kartan borde gå till kontrollen när man går igenom alla för hand.
 - Beskrivningsfliken har överst en rad som ligger kvar när beskrivningen rullas: ◀ ▶ (tangent , och .) stegar genom vyns vanliga kontroller i beskrivningens ordning (`stepOrder`/`stepFrom`), och förslaget för vald kontroll står direkt under med «Godta» och «Godta och nästa ▶»; står förslaget redan i beskrivningen visas det i stället. Andra tolkningar fälls ut.

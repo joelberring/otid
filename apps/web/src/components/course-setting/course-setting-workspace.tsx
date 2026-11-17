@@ -127,8 +127,8 @@ export function ToolBar({ tool, tools, onTool, onFork, inCourse, help, onTrainin
   const why = (label: string) => text.tools.needsCourse(label);
   return <div className={styles.toolbar} role="toolbar" aria-label={text.tools.heading} title={help} data-map-overlay="">
     {tools.map(item => <button key={item} type="button" className={styles.tool} aria-pressed={tool === item} aria-label={text.tools[item]}
-      title={blocked(item) ? why(text.tools[item] as string) : text.tools.withKey(text.tools.title[item] ?? text.tools[item], text.tools.shortcut[item] ?? "")}
-      aria-disabled={blocked(item) || undefined} onClick={() => { if (blocked(item)) onBlocked?.(why(text.tools[item] as string)); else onTool(item); }}>
+      title={blocked(item) ? why(text.tools[item]) : text.tools.withKey(text.tools.title[item] ?? text.tools[item], text.tools.shortcut[item] ?? "")}
+      aria-disabled={blocked(item) || undefined} onClick={() => { if (blocked(item)) onBlocked?.(why(text.tools[item])); else onTool(item); }}>
       <span aria-hidden="true" className={styles.toolIcon}>{TOOL_ICON[item]}</span><span aria-hidden="true">{text.tools.short[item]}</span>
       <kbd aria-hidden="true" className={styles.key}>{text.tools.shortcut[item]}</kbd>
     </button>)}

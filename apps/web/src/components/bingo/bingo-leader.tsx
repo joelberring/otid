@@ -12,6 +12,7 @@ import { useTexts } from "../language-provider";
 import { Notice } from "../ui";
 import { BingoMap } from "./bingo-map";
 import { VirtualLeader } from "./virtual-leader";
+import { LeaderBack, LeaderChange, LeaderOff } from "./leader-frame";
 import styles from "./bingo.module.css";
 
 const REFRESH_MS = 10_000;
@@ -40,8 +41,10 @@ export function BingoLeader({ raceId }: { raceId: string }) {
     return () => { stopped = true; window.clearInterval(timer); };
   }, [raceId]);
 
-  if (!view) return <main className={styles.leader}><h1>{text.title}</h1>{failed ? <Notice tone="error" role="alert">{text.failed}</Notice>
+  if (!view) return <main className={styles.leader}><LeaderBack raceId={raceId} /><h1>{text.title}</h1>{failed ? <Notice tone="error" role="alert">{text.failed}</Notice>
     : <p role="status">{text.loading}</p>}</main>;
+  // Översynen 2026-11-17: ingen återvändsgränd när övningen inte är påslagen.
+  if (!view.enabled) return <LeaderOff raceId={raceId} />;
   if (view.mode === "CONTROLS") return <VirtualLeader raceId={raceId} view={view} failed={failed} />;
   const group = view.groups.find(item => item.course === course) ?? view.groups[0];
   const shipsMode = view.mode === "SHIPS";
@@ -53,12 +56,13 @@ export function BingoLeader({ raceId }: { raceId: string }) {
   const taken = new Set(shipsMode ? [] : shown.flatMap(row => row.taken.map(item => item.cell)));
   const one = runner === undefined ? undefined : runners.find(row => row.id === runner);
   return <main className={styles.leader} data-testid="bingo-leader">
+    <LeaderBack raceId={raceId} />
     <h1>{view.mode === "SHIPS" ? text.shipsTitle : text.title}</h1>
     <p className={styles.muted}>{text.help}</p>
     {failed && <Notice tone="error" role="alert">{text.failed}</Notice>}
-    {!view.enabled && <Notice tone="error">{text.off}</Notice>}
     <div className={styles.row}>
       <Link href={`${raceHubPath(view.shortCode)}/bingo`}>{text.runnerPage}</Link>
+      <LeaderChange raceId={raceId} />
       {view.groups.length > 1 && <select value={group?.course} onChange={event => { setCourse(event.target.value); setRunner(undefined); }}
         aria-label={text.all}>
         {view.groups.map(item => <option key={item.course} value={item.course}>{item.name}</option>)}</select>}

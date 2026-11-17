@@ -19,7 +19,32 @@ export const mapProjectSv = {
     search: "Sök bland kartprojekten",
     searchHelp: "Namn, klubb eller filnamn",
     noMatch: "Inget kartprojekt matchar sökningen.",
-    lastUsed: (date: string) => `senast använt ${date}`
+    lastUsed: (date: string) => `senast använt ${date}`,
+    open: "Öppna",
+    openLabel: (name: string) => `Öppna ${name}`,
+    newProject: "Nytt kartprojekt"
+  },
+  nextSteps: {
+    title: "Nästa steg",
+    done: "Klart",
+    started: "Påbörjat",
+    next: "Nästa steg",
+    later: "Sedan",
+    openMap: "Öppna kartan",
+    base: {
+      title: "Hämta underlag och grundkarta",
+      help: "Öppna kartan och välj Ny grundkarta under Lager: laserdata, vägar, vatten och hyggen blir en grundkarta att rita på.",
+      existing: (file: string) => `Kartan startade från ${file}, som är underlaget.`
+    },
+    draw: {
+      title: "Rita och redigera kartan",
+      help: "Rita i kartan, i datorn eller i mobilen i skogen. Fler kan rita med: bjud in dem under Medlemmar."
+    },
+    courses: {
+      title: "Lägg banor på kartan",
+      help: "Välj Lägg banor i Mitt O-Tid. I banläggningen väljer du sedan Välj kartprojekt och det här projektet.",
+      action: "Till Mitt O-Tid"
+    }
   },
   roles: { OWNER: "Ägare", EDIT: "Ändra", SUGGEST: "Föreslå", READ: "Läsa" } satisfies Record<MapProjectRole, string>,
   roleHelp: {

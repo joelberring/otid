@@ -130,7 +130,7 @@ const raceDayHelpArticles: readonly HelpArticle[] = [
     title: "Träningsformer i banläggningen",
     views: ["CS_TRAINING", "COURSES"],
     body: [
-      "Fliken ”Träning” (eller knappen ”Träning” bland verktygen) gör vald bana till en träning. Välj banan överst först.",
+      "Fliken ”Träningsformer” (eller knappen ”Träningsformer” bland verktygen) gör vald bana till en träning. Välj banan överst först.",
       "Formerna gäller avsnitt av banan och kan läggas efter varandra, till exempel korridor till 4, bara kurvbild till 8 och fönster till mål.",
       [
         "”Korridor”: bara en remsa längs sträckorna syns, kantig eller mjuk. Bredden kan ändras per sträcka.",

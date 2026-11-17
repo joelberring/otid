@@ -6,7 +6,7 @@ import type { printOutputSv, printOverviewSv, sheetPaperSv } from "./course-sett
 const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 export const coursePrintEn: Texts<typeof coursePrintSv> = {
-  tabs: { objects: "Objects", print: "Print" },
+  tabs: { objects: "Objects", print: "Print area" },
   kinds: {
     "out-of-bounds": "Out-of-bounds area", "white-out": "White background", "optional-crossing-point": "Optional crossing point",
     descriptions: "Descriptions on the map", text: "Text", "forbidden-route": "Forbidden route", "dangerous-area": "Dangerous area",
@@ -39,8 +39,8 @@ export const coursePrintEn: Texts<typeof coursePrintSv> = {
     custom: "Custom colour (CMYK)"
   },
   print: {
-    heading: "Print",
-    help: "Paper, orientation, margin and map frame are set on the sheet in the Layout tab; a fixed frame can also be dragged here on the map.",
+    heading: "Print area",
+    help: "Which part of the map is printed, and at what scale. Paper, orientation, margin and map frame are set on the sheet in the Layout tab; a fixed frame can also be dragged here on the map.",
     scale: "Print scale",
     mapScale: (scale: string) => `The map's (1:${scale})`,
     scaleChange: "Change in the course's properties",

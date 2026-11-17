@@ -68,7 +68,7 @@ test("översynen: Personer, Övning i mobilen, ledarens och deltagarens besked o
   await owner.goto(`/admin/${raceId}/bingo`);
   const off = owner.getByTestId("bingo-leader-off");
   await expect(off.getByText("Ingen övning i mobilen är påslagen för den här träningen.")).toBeVisible({ timeout: 30_000 });
-  await expect(off.getByRole("link", { name: "Öppna fliken Träning i banläggningen" }))
+  await expect(off.getByRole("link", { name: "Öppna fliken Träningsformer i banläggningen" }))
     .toHaveAttribute("href", `/admin/${raceId}/course-setting?flik=traning`);
   // Inget felbesked (Nexts egen route-announcer har också rollen alert, så rutorna räknas i stället).
   await expect(owner.locator('[data-tone="error"]')).toHaveCount(0);

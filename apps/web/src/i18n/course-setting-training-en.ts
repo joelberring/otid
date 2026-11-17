@@ -3,8 +3,8 @@ import type { trainingSv } from "./course-setting-training-sv";
 
 /** Engelska del 30: träningsläget i banläggningen (ADR-0192). */
 export const trainingEn: Texts<typeof trainingSv> = {
-  tab: "Training",
-  heading: "Training",
+  tab: "Training forms",
+  heading: "Training forms",
   help: "Turn the course into a training: corridor, last safe point, contours only, windows and more. The forms apply to sections of the course and can follow each other on the same map.",
   chooseCourse: "Choose a course at the top to turn it into a training. Drawn areas with filters can apply to all courses.",
   show: "Show the training on the map",

@@ -52,8 +52,8 @@ test("banläggning-kartbyte: delar, egen tryckyta, överlapp och dubbelsidigt", 
   await owner.getByTestId("course-setting-course").filter({ hasText: "Lång" }).click();
   await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-center", /,/, { timeout: 60_000 });
 
-  // 1. Fliken Utskrift: delväljaren visar delen på kartan; papperet och ramen ställs in på arket i utskriften (ADR-0211 tillägg).
-  await owner.getByRole("tab", { name: "Utskrift" }).click();
+  // 1. Fliken Utsnitt: delväljaren visar delen på kartan; papperet och ramen ställs in på arket i utskriften (ADR-0211 tillägg).
+  await owner.getByRole("tab", { name: "Utsnitt" }).click();
   const print = owner.getByTestId("course-setting-print");
   const parts = print.getByTestId("course-setting-parts");
   await expect(parts).toBeVisible();

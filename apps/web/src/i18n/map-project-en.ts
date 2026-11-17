@@ -24,7 +24,32 @@ export const mapProjectEn: Texts<typeof mapProjectSv> = {
     search: "Search the map projects",
     searchHelp: "Name, club or file name",
     noMatch: "No map project matches the search.",
-    lastUsed: (date: string) => `last used ${date}`
+    lastUsed: (date: string) => `last used ${date}`,
+    open: "Open",
+    openLabel: (name: string) => `Open ${name}`,
+    newProject: "New map project"
+  },
+  nextSteps: {
+    title: "Next steps",
+    done: "Done",
+    started: "Started",
+    next: "Next step",
+    later: "Then",
+    openMap: "Open the map",
+    base: {
+      title: "Fetch underlays and a base map",
+      help: "Open the map and choose New base map under Layers: laser data, roads, water and clear-cuts become a base map to draw on.",
+      existing: (file: string) => `The map started from ${file}, which is the underlay.`
+    },
+    draw: {
+      title: "Draw and edit the map",
+      help: "Draw in the map, on the computer or on the phone in the forest. More people can draw: invite them under Members."
+    },
+    courses: {
+      title: "Put courses on the map",
+      help: "Choose Set courses in My O-Tid. In the course setting, then choose Choose map project and this project.",
+      action: "To My O-Tid"
+    }
   },
   roles: { OWNER: "Owner", EDIT: "Edit", SUGGEST: "Suggest", READ: "Read" } satisfies Record<MapProjectRole, string>,
   roleHelp: {
@@ -208,7 +233,7 @@ export const mapProjectEditorEn: Texts<typeof mapProjectEditorSv> = {
   offline: (when: string) => `No network: the project as it was ${when}. Changes and tracks are sent when the network is back.`,
   openMap: "Open the map",
   openMapHelp: "The map with all changes. With the role Edit you draw directly in it.",
-  back: "To the project",
+  back: "To the map project",
   loading: "Fetching the map …",
   failed: "The map could not be read.",
   mapLabel: "The map project's map",

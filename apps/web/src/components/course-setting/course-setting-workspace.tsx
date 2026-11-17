@@ -81,9 +81,9 @@ export function TopBar({ raceId, document, summaries, view, variant, onView, sta
       <span aria-hidden="true">⇪<span className={styles.wide}> {copy.topbar.transferButton}</span></span>
       <span className={styles.srOnly}>{copy.topbar.transferButton}</span></Button>}
     <Button variant="secondary" onClick={onUndo} disabled={!canUndo} title={text.tools.withKey(text.tools.undo, "Ctrl+Z")} aria-label={text.tools.undo}>
-      <span aria-hidden="true">↶<span className={styles.wide}> {text.tools.undo}</span></span></Button>
+      <span aria-hidden="true">↶<span className={`${styles.wide} ${styles.roomy}`}> {text.tools.undo}</span></span></Button>
     <Button variant="secondary" onClick={onRedo} disabled={!canRedo} title={text.tools.withKey(text.tools.redo, "Ctrl+Shift+Z")} aria-label={text.tools.redo}>
-      <span aria-hidden="true">↷<span className={styles.wide}> {text.tools.redo}</span></span></Button>
+      <span aria-hidden="true">↷<span className={`${styles.wide} ${styles.roomy}`}> {text.tools.redo}</span></span></Button>
     <div className={styles.menu} ref={menuRef}>
       <Button variant="secondary" aria-haspopup="menu" aria-expanded={open} onClick={event => {
         const rect = event.currentTarget.getBoundingClientRect();
@@ -112,26 +112,34 @@ const TOOL_ICON: Record<string, string> = { SELECT: "↖", ADD_CONTROL: "○", A
   ADD_BEND: "⌒", NOTE: "✎", FORK: "⑂", SPECIAL: "◇" };
 
 /** Verktygen ovanpå kartan: ikon och kort etikett, tangenten i tooltip, valt läge tydligt markerat. */
-export function ToolBar({ tool, tools, onTool, onFork, inCourse, help, onTraining, trainingOpen }: { tool: Tool; tools: readonly Tool[]; onTool: (tool: Tool) => void;
-  onFork?: (() => void) | undefined; inCourse: boolean; help: string;
+export function ToolBar({ tool, tools, onTool, onFork, inCourse, help, onTraining, trainingOpen, onBlocked }: { tool: Tool; tools: readonly Tool[];
+  onTool: (tool: Tool) => void; onFork?: (() => void) | undefined; inCourse: boolean; help: string;
+  /**
+   * Översynen 2026-11-17: verktygen som kräver en bana (Lägg in, Brytpunkt, Gaffling) är gråa i Alla kontroller men går att
+   * trycka på (`aria-disabled`), och ett tryck säger varför (`onBlocked`, ett besked överst på kartan). Inget tar plats annars.
+   */
+  onBlocked?: ((why: string) => void) | undefined;
   /** ADR-0192: ingången till träningsläget (fliken Träning). */
   onTraining?: (() => void) | undefined; trainingOpen?: boolean | undefined }) {
   const copy = useTexts(collaborationSv, collaborationEn);
   const text = useTexts(courseSettingSv, courseSettingEn);
+  const blocked = (item: string) => !inCourse && (item === "INSERT_EXISTING" || item === "ADD_BEND" || item === "FORK");
+  const why = (label: string) => text.tools.needsCourse(label);
   return <div className={styles.toolbar} role="toolbar" aria-label={text.tools.heading} title={help} data-map-overlay="">
     {tools.map(item => <button key={item} type="button" className={styles.tool} aria-pressed={tool === item} aria-label={text.tools[item]}
-      title={text.tools.withKey(text.tools.title[item] ?? text.tools[item], text.tools.shortcut[item] ?? "")}
-      disabled={(item === "INSERT_EXISTING" || item === "ADD_BEND") && !inCourse} onClick={() => onTool(item)}>
+      title={blocked(item) ? why(text.tools[item]) : text.tools.withKey(text.tools.title[item] ?? text.tools[item], text.tools.shortcut[item] ?? "")}
+      aria-disabled={blocked(item) || undefined} onClick={() => { if (blocked(item)) onBlocked?.(why(text.tools[item])); else onTool(item); }}>
       <span aria-hidden="true" className={styles.toolIcon}>{TOOL_ICON[item]}</span><span aria-hidden="true">{text.tools.short[item]}</span>
       <kbd aria-hidden="true" className={styles.key}>{text.tools.shortcut[item]}</kbd>
     </button>)}
-    {onFork && <button type="button" className={styles.tool} aria-label={text.tools.forkTool} disabled={!inCourse}
-      title={text.tools.withKey(text.tools.forkTool, text.tools.shortcut.FORK!)} onClick={onFork}>
+    {onFork && <button type="button" className={styles.tool} aria-label={text.tools.forkTool} aria-disabled={blocked("FORK") || undefined}
+      title={blocked("FORK") ? why(text.tools.forkTool) : text.tools.withKey(text.tools.forkTool, text.tools.shortcut.FORK!)}
+      onClick={() => { if (blocked("FORK")) onBlocked?.(why(text.tools.forkTool)); else onFork(); }}>
       <span aria-hidden="true" className={styles.toolIcon}>{TOOL_ICON.FORK}</span><span aria-hidden="true">{text.tools.short.FORK}</span>
       <kbd aria-hidden="true" className={styles.key}>{text.tools.shortcut.FORK}</kbd></button>}
     {onTraining && <button type="button" className={styles.tool} aria-label={copy.drawer.tabs.training} aria-pressed={trainingOpen === true}
       title={copy.drawer.tabs.training} onClick={onTraining} data-testid="course-setting-training-tool">
-      <span aria-hidden="true" className={styles.toolIcon}>{TAB_ICON.training}</span><span aria-hidden="true">{copy.drawer.tabs.training}</span></button>}
+      <span aria-hidden="true" className={styles.toolIcon}>{TAB_ICON.training}</span><span aria-hidden="true" className={styles.toolLabel}>{copy.drawer.trainingShort}</span></button>}
   </div>;
 }
 

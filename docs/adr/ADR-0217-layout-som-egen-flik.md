@@ -55,3 +55,15 @@ delarnas papper) tills arket ändras; har layouten en mall gäller mallen som f�
 
 - Dokumentet växer med layouter och lägen; högst 20 layouter och 20 sparade lägen.
 - Huvudlayoutens ark ändras i banans fält som förut, så .ppen och Purple Pen ser samma sak som i dag.
+
+## Tillägg 2026-11-17 (översynen av användbarheten): namnen
+
+- Ordet **Utskrift** betyder bara fliken Utskrift (sidan där banorna skrivs ut). Panelfliken i banläggningen som hette
+  Utskrift (vald banas utskriftsskala, delar och tryckytans ram, länkarna till förhandsvisningen och Layout) heter nu
+  **Utsnitt** (en. *Print area*).
+- Panelfliken och verktygsknappen **Träning** (ADR-0192) heter **Träningsformer** (en. *Training forms*), så att ordet
+  Träning bara betyder tävlingstypen.
+- **Lägen** (beslut 8) heter i gränssnittet **Sparade kopior av layouten** (en. *Saved copies of the layout*); datat
+  (`event.layoutStates`) är oförändrat.
+- Verktygen som kräver en bana (Lägg in, Brytpunkt, Gaffling) är gråa i Alla kontroller men går att trycka på; ett tryck
+  säger varför.

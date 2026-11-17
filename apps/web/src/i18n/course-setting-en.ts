@@ -81,6 +81,7 @@ export const courseSettingEn: Texts<typeof courseSettingSv> = {
       NOTE: "N", FORK: "G", SPECIAL: "O" },
     forkTool: "Fork here (at the selected control or leg)",
     forkNeedsSelection: "Select a control or leg on the course first.",
+    needsCourse: (tool: string) => `${tool}: choose a course first. The tool works on a course, not All controls.`,
     withKey: (label: string, key: string) => `${label} (${key})`,
     help: {
       SELECT: "Click to select. Drag a control, a number or a bend point to move it. Drag the map to pan.",

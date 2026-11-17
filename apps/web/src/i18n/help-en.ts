@@ -93,7 +93,7 @@ const raceDayHelpArticlesEn: readonly HelpArticle[] = [
     title: "Training forms in course setting",
     views: ["CS_TRAINING", "COURSES"],
     body: [
-      "The tab ”Training” (or the button ”Training” among the tools) turns the selected course into a training. Choose the course at the top first.",
+      "The tab ”Training forms” (or the button ”Training forms” among the tools) turns the selected course into a training. Choose the course at the top first.",
       "The forms apply to sections of the course and can follow each other, for example corridor to 4, contours only to 8 and window to the finish.",
       [
         "”Corridor”: only a strip along the legs shows, angular or smooth. The width can be changed per leg.",

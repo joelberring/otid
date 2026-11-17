@@ -11,7 +11,7 @@ import styles from "./course-setting.module.css";
 const thousands = (value: number) => Math.round(value).toLocaleString("sv-SE").replace(/\s/g, " ");
 
 /**
- * Steg 64, ADR-0211 tillägg: fliken Utskrift för vald bana (eller Alla kontroller) länkar till utskriften, där papper,
+ * Steg 64, ADR-0211 tillägg: fliken Utsnitt (förr Utskrift) för vald bana (eller Alla kontroller) länkar till utskriften, där papper,
  * riktning, marginal och kartramen ställs in på arket. Här finns bara det som styr kartan i editorn: kartbytets del (kartan
  * visar delen och dess ram) och skalan (den hör till banan, ADR-0211 beslut 5). En fast ram dras på kartan som förut.
  */

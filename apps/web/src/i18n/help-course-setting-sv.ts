@@ -19,7 +19,7 @@ export const gettingStartedHelpArticles: readonly HelpArticle[] = [
         "Ladda upp kartfilen i banläggningen, eller ta den med ”Välj karta från klubbarkivet”. Se [Banläggningen och kartfilen](#banlaggning-start).",
         "Tryck på ”Börja med en tom banläggning” (eller ”Läs in .ppen” om banan finns i Purple Pen).",
         "Tryck på ”Ny bana” och välj ”Skala för banan” i banans egenskaper. Klicka ut kontrollerna, start och mål. Se [Kontroller och banor](#kontroller-banor).",
-        "Korridor, kurvbild eller annan form: fliken ”Träning”. Se [Träningsformer](#traning).",
+        "Korridor, kurvbild eller annan form: fliken ”Träningsformer”. Se [Träningsformer](#traning).",
         "”Fil” → ”Utskrift av banor …” → ”Skriv ut på skrivare”. Se [Utskrift och förhandsvisning](#utskrift).",
         "Skriv klassen i banans fält ”Klasser (som i Purple Pen, t.ex. H21, D21)”.",
         "”Fil” → ”Överför till tävlingen …”. Sedan kan ni läsa av. Se [Överför banorna](#overfor) och [Avläsning](#avlasning)."

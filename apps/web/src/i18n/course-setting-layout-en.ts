@@ -13,6 +13,8 @@ export const courseSettingTabsEn: Texts<typeof courseSettingTabsSv> = {
 
 export const layoutEn: Texts<typeof layoutSv> = {
   title: "Layout",
+  back: "The event",
+  backLabel: "Back to the event",
   intro: "The paper: layouts (paper and scale), the sheets for each course and which layout each class gets. The courses are set in Course setting.",
   loading: "Reading the course setting …",
   failed: "The course setting could not be read.",
@@ -92,20 +94,20 @@ export const layoutEn: Texts<typeof layoutSv> = {
     marked: (n: number) => `${n} marked`
   },
   states: {
-    heading: "Saved states",
-    help: "A saved state keeps the layouts, the sheets, the adjustments, the classes' choices and the colour profile (not the courses).",
-    name: "Name of the state",
-    save: "Save state",
+    heading: "Saved copies of the layout",
+    help: "A saved copy keeps the layouts, the sheets, the adjustments, the classes' choices and the colour profile (not the courses).",
+    name: "Name of the copy",
+    save: "Save a copy",
     restore: "Restore",
-    restoreConfirm: (name: string) => `Restore the state ”${name}”? It can be undone with Undo.`,
+    restoreConfirm: (name: string) => `Restore the copy ”${name}”? It can be undone with Undo.`,
     compare: "Compare",
     remove: "Remove",
-    none: "No saved states.",
+    none: "No saved copies.",
     same: "No differences from now.",
     ppen: "automatically on import",
     undo: "Undo",
     differences: {
-      LAYOUT: (name: string, change: string) => `The layout ${name}: ${change === "ADDED" ? "new since the state" : change === "REMOVED" ? "removed since the state" : "changed"}`,
+      LAYOUT: (name: string, change: string) => `The layout ${name}: ${change === "ADDED" ? "new since the copy" : change === "REMOVED" ? "removed since the copy" : "changed"}`,
       SHEET: (course: string, layout: string) => `The sheet ${course} in ${layout}`,
       CLASS: (name: string, from: string, to: string) => `${name}: ${from} → ${to}`,
       TEMPLATES: "Paper template and Maps per sheet",

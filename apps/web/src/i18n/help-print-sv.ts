@@ -54,8 +54,8 @@ export const fieldPrintHelpArticles: readonly HelpArticle[] = [
     title: "Utskrift och förhandsvisning",
     views: ["CS_PRINT", "CS_PRINT_PAGE"],
     body: [
-      "Skalan hör till banan: ”Skala för banan” under fliken ”Banor” i banans egenskaper. Välj den tidigt, för ringarnas storlek och numren följer den. Fliken ”Utskrift” visar den och har ”Ändra i banans egenskaper”.",
-      "Fliken ”Utskrift” i banläggningen har ”Förhandsvisning och utskrift”, som öppnar utskriftssidan, och ”Papperet i Layout”. Utskriftssidan har bara vad som skrivs ut, hur många, färgerna och PDF eller skrivare, uppifrån:",
+      "Skalan hör till banan: ”Skala för banan” under fliken ”Banor” i banans egenskaper. Välj den tidigt, för ringarnas storlek och numren följer den. Fliken ”Utsnitt” visar den och har ”Ändra i banans egenskaper”.",
+      "Fliken ”Utsnitt” i banläggningen har ”Förhandsvisning och utskrift”, som öppnar utskriftssidan, och ”Papperet i Layout”. Utskriftssidan har bara vad som skrivs ut, hur många, färgerna och PDF eller skrivare, uppifrån:",
       [
         "”Färger för tryck”: en rad om färgerna med ”Visa”, och ”Kartans egna färger” eller ”Tryck hos BL”. Se [Färger för tryck](#bl-farger).",
         "”Skriv ut”: välj ”Banor”, ”En karta per löpare (i samma ordning som Kartor till starten)”, ”Klasser” eller ”Provark (ett av varje)”, och vilka banor.",
@@ -92,7 +92,7 @@ export const fieldPrintHelpArticles: readonly HelpArticle[] = [
         "”Flytta ramen på arket”: dra inne i ramen för att flytta den över kartan, och handtaget nere till höger för att göra ramen mindre. Ramen står mitt på papperet.",
         "”Automatisk igen” tar bort banans egen tryckyta. För en del av en bana med kartbyte: ”Som banans igen”.",
         "Kartbyten: varje del har ett eget kort. ”Visa överlapp” väljer hur mycket av föregående del som syns.",
-        "En fast ram kan också dras på kartan i banläggningen, med fliken ”Utskrift” öppen."
+        "En fast ram kan också dras på kartan i banläggningen, med fliken ”Utsnitt” öppen."
       ],
       "I en annan layout än huvudlayouten visar den layoutens skala, med ”Ändra i layouten”.",
       "Använder utskriften ”Kartor per ark” bestämmer Kartor per ark papperet i stället."
@@ -223,7 +223,7 @@ export const fieldPrintHelpArticles: readonly HelpArticle[] = [
         "Klara PDF:er sparas några dagar och syns bara för tävlingens administratörer."
       ],
       "Gör alltid ett provtryck hos tryckeriet innan PDF:en används skarpt.",
-      "Spegelvänd karta: fliken ”Träning” → ”Spegel” → ”Spegelvänd kartan och banan i utskriften”. Utskriften och PDF:en vänds, men inte kartan i banläggningen."
+      "Spegelvänd karta: fliken ”Träningsformer” → ”Spegel” → ”Spegelvänd kartan och banan i utskriften”. Utskriften och PDF:en vänds, men inte kartan i banläggningen."
     ]
   },
   {
@@ -251,7 +251,7 @@ export const fieldPrintHelpArticles: readonly HelpArticle[] = [
     body: [
       "En bana med kartbyte delas i delar som i Purple Pen. Del 2 börjar vid kartbytet, som ritas som en start, och numren fortsätter.",
       [
-        "”Del” under ”Kartbyten” i fliken ”Utskrift”: ”Hela banan” eller en av delarna (Del 1, Del 2 …). Kartan i banläggningen visar den delen.",
+        "”Del” under ”Kartbyten” i fliken ”Utsnitt”: ”Hela banan” eller en av delarna (Del 1, Del 2 …). Kartan i banläggningen visar den delen.",
         "Varje del får en egen tryckyta när du ändrar delens ark under ”Papper och kartram” i fliken ”Layout”. ”Som banans igen” tar bort delens egen.",
         "”Visa överlapp” under ”Papper och kartram”: ”Ingen”, ”Sista sträckan” eller ”Hela föregående del”, tonat och utan nummer.",
         "I förhandsvisningen står varje del på ett eget ark med delens kontrollbeskrivning.",

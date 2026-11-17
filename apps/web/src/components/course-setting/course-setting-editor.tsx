@@ -254,7 +254,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
     onEdits: edits => edit(current => applySteps(current, edits, applyEdit)), onView: course => apply(current => setView(current, course)),
     bingoRaceId: access.admin ? raceId : undefined,
     bingoPhone: access.admin ? <BingoPhone raceId={raceId} georeferenced={state.mapFile?.georeferenced === true} /> : undefined });
-  // Kartbyten (ADR-0203): vald del i fliken Utskrift (kartan visar delen med överlappet); en annan bana visar hela banan.
+  // Kartbyten (ADR-0203): vald del i fliken Utsnitt (kartan visar delen med överlappet); en annan bana visar hela banan.
   const [partChoice, setPartChoice] = useState<{ view: string; part: number }>();
   const part = partChoice?.view === view ? partChoice.part : undefined;
   const partRef = useRef(part);
@@ -277,7 +277,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
     numberObstacles: cutting.obstacles, levelChecks: levelStore.checks, levelText: levelStore.checkText });
   const checks = forbidden.checks, checked = forbidden.checked;
   const [flagged, setFlagged] = useState<CheckRow>();
-  // Steg 64: sidan för vald bana (tryckytans ram på kartan i fliken Utskrift).
+  // Steg 64: sidan för vald bana (tryckytans ram på kartan i fliken Utsnitt).
   const printPage = useMemo(() => {
     if (tab !== "print") return undefined;
     const page = safely("Utskriftslayouten", () => layoutCoursePage(document, { course: view, ...(variant ? { variant } : {}), ...(part !== undefined ? { part } : {}), mapBounds })[0],
@@ -405,7 +405,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
         const index = nearestBend(current.document.legs[`${selected.from}-${selected.to}`]?.bends ?? [], point, tolerance);
         if (index !== undefined) { drag.current = { kind: "bend", from: selected.from, to: selected.to, index }; store.update(beginDrag); return true; }
       }
-      // Steg 64: hörnen på valt specialobjekt, sedan objektet självt och tryckytans ram (fliken Utskrift).
+      // Steg 64: hörnen på valt specialobjekt, sedan objektet självt och tryckytans ram (fliken Utsnitt).
       const special = selected?.kind === "special" ? current.document.specialObjects.find(item => item.id === selected.special) : undefined;
       const handle = special ? nearestHandle(special, point, tolerance) : undefined;
       if (special && handle !== undefined) { drag.current = { kind: "special", special: special.id, start: point, index: handle }; store.update(beginDrag); return true; }
@@ -694,7 +694,8 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
     if (tool === "SPECIAL") ux.setPalette(open => !open);
     else { ux.setPalette(false); apply(current => setTool(current, tool)); }
   }}
-    onFork={readOnly ? undefined : fork} help={text.tools.help[editor.tool] ?? ""} onTraining={() => { setTab("training"); setReveal(value => value + 1); }} trainingOpen={tab === "training"} />;
+    onFork={readOnly ? undefined : fork} help={text.tools.help[editor.tool] ?? ""} onTraining={() => { setTab("training"); setReveal(value => value + 1); }} trainingOpen={tab === "training"}
+    onBlocked={why => say({ tone: "attention", text: why })} />;
 
   const menu = [{ label: copy.topbar.fileMenu, onClick: () => setDialog("file") },
     // Ägaren 2026-11-17: byt kartfil här i banläggningen, inte bara under Resultat → Karta och vägval.

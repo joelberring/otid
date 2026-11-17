@@ -10,7 +10,7 @@ import { Button } from "../ui";
 import styles from "./course-setting-layout.module.css";
 
 /**
- * ADR-0217 beslut 8: sparade lägen. "Spara läge" (namn), och per läge "Jämför" (vad som skiljer mot nu), "Återställ" (kan
+ * ADR-0217 beslut 8: sparade lägen (översynen 2026-11-17: «Sparade kopior av layouten»). "Spara en kopia" (namn), och per kopia "Jämför" (vad som skiljer mot nu), "Återställ" (kan
  * ångras) och "Ta bort". "Från Purple Pen" görs automatiskt när en .ppen läses in.
  */
 export function LayoutStates({ document, readOnly, save, layoutName, courseName }: { document: CourseSettingDocument; readOnly: boolean;

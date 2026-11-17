@@ -52,8 +52,8 @@ test("hjälp i banläggningen, i Layout och i klubbarkivet", async ({ browser })
   await owner.getByRole("button", { name: "Läs in .ppen" }).click();
   await expect(owner.getByTestId("course-setting-course").first()).toBeVisible({ timeout: 60_000 });
 
-  // Fliken Utskrift: utskriftens artiklar först, sedan det som gäller hela banläggningen.
-  await owner.getByRole("tab", { name: "Utskrift" }).click();
+  // Fliken Utsnitt: utskriftens artiklar först, sedan det som gäller hela banläggningen.
+  await owner.getByRole("tab", { name: "Utsnitt" }).click();
   const help = owner.getByRole("button", { name: "Hjälp", exact: true });
   await help.click();
   const panel = owner.getByRole("dialog", { name: "Hjälp" });

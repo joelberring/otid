@@ -3,10 +3,13 @@ import { expect, test, type Page } from "@playwright/test";
 import { publishRaceViaApi, registerAccount, TIME_ZONE, today, unique, warmRoute } from "./helpers";
 
 /**
- * Översynen av startsidan 2026-11-17: "Har du en kod?" överst. Deltagaren skriver koden (eller klistrar in hela adressen)
- * och hamnar på tävlingssidan; en okänd kod ger ett besked på startsidan. Arrangören har en egen väg, och rutorna under
- * "Mer än tidtagning" är länkar. Allt även på 390 px, där kodfältet syns utan att rulla.
+ * Översynen av startsidan 2026-11-17: "Har du en kod?" överst, men bara i appen (bryggan `OTidTracking` finns, ADR-0227); i
+ * en vanlig webbläsare syns fältet bara med beskedet efter en okänd kod. Deltagaren skriver koden (eller klistrar in hela
+ * adressen) och hamnar på tävlingssidan. Arrangören har en egen väg, och rutorna under "Mer än tidtagning" är länkar. Allt även
+ * på 390 px, där kodfältet i appen syns utan att rulla.
  */
+const APP_BRIDGE = () => { (window as unknown as { Capacitor: unknown }).Capacitor = { Plugins: { OTidTracking: {} } }; };
+
 async function createPublishedRace(page: Page, eventName: string): Promise<void> {
   const origin = new URL(page.url()).origin;
   const csrf = (await page.context().cookies()).find(cookie => /otid[-_]organizer[-_]csrf$/.test(cookie.name))?.value ?? "";
@@ -30,13 +33,23 @@ test("startsidan: gå med med kod eller adress, okänd kod, arrangörens väg oc
   for (const path of ["/", "/kod", "/t/aaaaaa"]) await warmRoute(owner, path);
   await createPublishedRace(owner, name);
 
+  // Webben: inget kodfält, men sökningen och arrangörens rad.
+  const web = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
+  await web.goto("/");
+  await expect(web.getByRole("search")).toBeVisible();
+  await expect(web.getByTestId("home-join")).toBeHidden();
+  await expect(web.getByRole("heading", { name: "Har du en kod?" })).toHaveCount(0);
+  await expect(web.getByTestId("home-organizer")).toBeVisible();
+
+  // Appen: bryggan finns innan sidan läses in.
   const visitor = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
+  await visitor.addInitScript(APP_BRIDGE);
   await visitor.goto(`/?q=${encodeURIComponent(name)}`);
   const hubPath = await visitor.getByRole("link", { name }).getAttribute("href");
   expect(hubPath).toMatch(/^\/t\/[2-9a-hjkmnp-z]{6}$/);
   const code = hubPath!.slice(3);
 
-  // Mobil: kodfältet syns utan att rulla, med rätt tangentbord och stora tryckytor, före sökningen och målningen.
+  // Appen: kodfältet syns utan att rulla, med rätt tangentbord och tryckytor på minst 44 px, före sökningen och målningen.
   await visitor.goto("/");
   const field = visitor.getByLabel("Kod eller länk");
   await expect(visitor.getByRole("heading", { name: "Har du en kod?" })).toBeInViewport();
@@ -47,6 +60,7 @@ test("startsidan: gå med med kod eller adress, okänd kod, arrangörens väg oc
   const [fieldBox, buttonBox] = [await field.boundingBox(), await visitor.getByRole("button", { name: "Gå med" }).boundingBox()];
   expect(fieldBox!.height).toBeGreaterThanOrEqual(44);
   expect(buttonBox!.height).toBeGreaterThanOrEqual(44);
+  await expect(visitor.getByTestId("home-organizer")).toBeHidden();
   expect(buttonBox!.y + buttonBox!.height).toBeLessThanOrEqual(844);
   expect((await visitor.getByRole("search").boundingBox())!.y).toBeGreaterThan(fieldBox!.y);
   expect((await visitor.getByTestId("home-painting").boundingBox())!.y).toBeGreaterThan((await visitor.locator("#pagar").boundingBox())!.y);
@@ -63,13 +77,6 @@ test("startsidan: gå med med kod eller adress, okänd kod, arrangörens väg oc
   await visitor.waitForURL(new RegExp(`/t/${code}$`));
   await expect(visitor.getByRole("heading", { name, level: 1 })).toBeVisible();
 
-  // En okänd kod: tillbaka till startsidan med beskedet, utan koden i adressen.
-  await visitor.goto("/");
-  await join(visitor, "zzzzzz");
-  await visitor.waitForURL(/\/\?kodfel=saknas#kod$/);
-  await expect(visitor.getByTestId("home-join").getByRole("alert")).toHaveText("Koden hittades inte. Kontrollera att du skrivit rätt.");
-  expect(visitor.url()).not.toContain("zzzzzz");
-
   // Datorbredd: samma väg med Enter.
   await visitor.setViewportSize({ width: 1280, height: 900 });
   await visitor.goto("/");
@@ -77,19 +84,29 @@ test("startsidan: gå med med kod eller adress, okänd kod, arrangörens väg oc
   await visitor.getByLabel("Kod eller länk").press("Enter");
   await visitor.waitForURL(new RegExp(`/t/${code}$`));
 
+  // En okänd kod via /kod i en vanlig webbläsare: startsidan visar beskedet och fältet, utan koden i adressen.
+  const browserVisitor = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
+  await browserVisitor.goto("/kod?kod=zzzzzz");
+  await browserVisitor.waitForURL(/\/\?kodfel=saknas#kod$/);
+  await expect(browserVisitor.getByTestId("home-join").getByRole("alert")).toHaveText("Koden hittades inte. Kontrollera att du skrivit rätt.");
+  await expect(browserVisitor.getByLabel("Kod eller länk")).toBeVisible();
+  expect(browserVisitor.url()).not.toContain("zzzzzz");
+  await browserVisitor.context().close();
+
   // Arrangörens väg och rutorna under "Mer än tidtagning".
-  await visitor.goto("/");
-  await expect(visitor.getByTestId("home-organizer").getByRole("link", { name: "Kom igång som arrangör" })).toHaveAttribute("href", "/organizer");
-  const features = visitor.getByTestId("home-features");
+  await web.setViewportSize({ width: 1280, height: 900 });
+  await web.goto("/");
+  await expect(web.getByTestId("home-organizer").getByRole("link", { name: "Kom igång som arrangör" })).toHaveAttribute("href", "/organizer");
+  const features = web.getByTestId("home-features");
   await expect(features.getByRole("link")).toHaveCount(6);
   await expect(features.getByRole("link", { name: /^AI-koppling/ })).toHaveAttribute("href", "/om");
   await expect(features.getByRole("link", { name: /^Klubbar och grupper/ })).toHaveAttribute("href", "/organizer");
-  await expect(visitor.getByRole("heading", { name: "Så är O-Tid byggt" })).toHaveCount(0);
-  await visitor.goto("/om");
-  await expect(visitor.getByRole("link", { name: "O-Tid på GitHub" })).toHaveAttribute("href", "https://github.com/joelberring/otid");
+  await expect(web.getByRole("heading", { name: "Så är O-Tid byggt" })).toHaveCount(0);
+  await web.goto("/om");
+  await expect(web.getByRole("link", { name: "O-Tid på GitHub" })).toHaveAttribute("href", "https://github.com/joelberring/otid");
 
-  // Den inloggade har Mina tävlingar och behöver inte arrangörens rad.
+  // Den inloggade har Mina tävlingar och behöver inte arrangörens rad; kodfältet bara i appen.
   await owner.goto("/");
-  await expect(owner.getByTestId("home-join")).toBeVisible();
+  await expect(owner.getByTestId("home-join")).toBeHidden();
   await expect(owner.getByTestId("home-organizer")).toHaveCount(0);
 });

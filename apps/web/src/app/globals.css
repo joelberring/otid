@@ -15,7 +15,9 @@ a:hover { text-decoration-color: currentcolor; }
 button, input, select, textarea { font: inherit; color: inherit; }
 button { min-height: var(--control); padding: 0 14px; border: 1px solid var(--ink); border-radius: var(--radius); background: var(--ink);
   color: var(--surface); font-weight: 600; cursor: pointer; }
-button:hover:not(:disabled) { background: #000; }
+/* :where håller regeln lika svag som «button» ovan, så att en knapp med egen bakgrund (vald bana, valt verktyg, kort i layouten)
+   behåller den vid hovring i stället för att bli svart med mörk text. */
+button:where(:hover:not(:disabled)) { background: #000; }
 button.secondary { border-color: var(--line-strong); background: var(--surface); color: var(--ink); }
 button.secondary:hover:not(:disabled) { border-color: var(--ink); background: var(--surface); }
 button:disabled { opacity: .5; cursor: default; }

@@ -6,7 +6,8 @@
 .tool { position: relative; flex: none; display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 1px solid transparent;
   border-radius: 6px; background: none; color: var(--ink, #222); cursor: pointer; }
 .tool:hover:not(:disabled), .tool:focus-visible { background: var(--surface-2, #f3f3f3); border-color: var(--line, #ccc); }
-.tool[aria-pressed="true"] { background: var(--ink, #111); border-color: var(--ink, #111); color: #fff; }
+/* Också vid hovring och fokus: annars vinner regeln ovan och det valda verktyget blir ljust med vit ikon. */
+.tool[aria-pressed="true"], .tool[aria-pressed="true"]:hover:not(:disabled), .tool[aria-pressed="true"]:focus-visible { background: var(--ink, #111); border-color: var(--ink, #111); color: #fff; }
 .tool[aria-disabled="true"] { color: var(--muted, #999); opacity: .45; cursor: default; }
 .tool[aria-disabled="true"]:hover { background: none; border-color: transparent; }
 .tip { position: fixed; z-index: 30; transform: translateY(-50%); display: grid; grid-template-columns: auto auto; gap: 2px 8px; align-items: baseline; justify-content: start;

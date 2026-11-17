@@ -36,7 +36,7 @@ describe("bingo i fliken Träning", () => {
 
   it("tävlingssidans rutnät: prickar per person upp till fyra, sedan en siffra", () => {
     const html = renderToStaticMarkup(<ShotHeatGrid cellNames={["A1", "B1", "A2"]} counts={{ A1: 3, B1: 7 }} label="Gröna" />);
-    expect(html).toContain("•••");
+    expect(html.match(/<i aria-hidden="true"><\/i>/g)).toHaveLength(3);
     expect(html).toMatch(/B1<span[^>]*>7</);
     expect(html).not.toMatch(/A2<span/);
   });

@@ -51,6 +51,10 @@ export const bingoSv = {
     hubHelp: "Telefonen räknar rutorna med GPS och plingar för varje ruta.",
     hubShipsTitle: "Sänka skepp: anmäl dig och starta",
     hubShipsHelp: "Skjut på rutan du står i; telefonen tar en position vid varje skott.",
+    /** Ägaren 2026-11-17: tävlingssidan för en bingoträning – stor knapp, sedan reglerna och topplistan. */
+    hubCta: { BINGO: "Anmäl dig och starta bingon", SHIPS: "Anmäl dig och starta Sänka skepp", CONTROLS: "Anmäl dig och starta" },
+    hubCtaHelp: "Skriv ditt namn, välj grupp och tryck Starta.",
+    hubRules: "Regler",
     intro: "Ta så många rutor du kan. Telefonen plingar när du har tagit en ruta.",
     name: "Ditt namn",
     nameHelp: "Visas i topplistan i dag.",

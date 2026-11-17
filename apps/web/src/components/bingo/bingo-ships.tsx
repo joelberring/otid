@@ -57,7 +57,8 @@ export function ShipBoard({ group, judged, sunkCells, selected, onSelect, dark, 
 /** Prickarna i rutans hörn: en per person upp till 4, sedan en siffra. Neutrala: säger inte om det var träff. */
 function ShotDots({ count, label }: { count: number; label: (count: number) => string }) {
   if (count <= 0) return null;
-  return <span className={styles.dots} aria-label={label(count)} title={label(count)}>{count > 4 ? count : "•".repeat(count)}</span>;
+  return <span className={styles.dots} aria-label={label(count)} title={label(count)}>
+    {count > 4 ? count : Array.from({ length: count }, (_, i) => <i key={i} aria-hidden="true" />)}</span>;
 }
 
 /**
@@ -79,11 +80,15 @@ export function ShipFire({ onFire, aiming, now, children }: { onFire: (cell: str
   now: number; children: (selected: string | undefined, select: (cell: string) => void) => ReactNode }) {
   const text = useTexts(bingoSv.ships, bingoEn.ships);
   const [selected, setSelected] = useState<string>();
+  // Ägaren 2026-11-17: Skjut både ovanför och under brädet, så att knappen syns i små telefoner var man än har scrollat.
+  const action = (where: "top" | "bottom") => aiming
+    ? <p className={styles.status} role={where === "top" ? "status" : undefined}>{text.searching(Math.max(0, Math.round((now - aiming.since) / 1000)))}</p>
+    : selected ? <button type="button" className={styles.fire} data-testid={where === "top" ? "ship-fire" : "ship-fire-bottom"}
+      onClick={() => { const cell = selected; setSelected(undefined); void onFire(cell); }}>{text.fire(selected)}</button>
+      : <p className={styles.status}>{text.choose}</p>;
   return <>
+    {action("top")}
     {children(selected, cell => setSelected(current => current === cell ? undefined : cell))}
-    {aiming ? <p className={styles.status} role="status">{text.searching(Math.max(0, Math.round((now - aiming.since) / 1000)))}</p>
-      : selected ? <button type="button" className={styles.fire} data-testid="ship-fire"
-        onClick={() => { const cell = selected; setSelected(undefined); void onFire(cell); }}>{text.fire(selected)}</button>
-        : <p className={styles.status}>{text.choose}</p>}
+    {action("bottom")}
   </>;
 }

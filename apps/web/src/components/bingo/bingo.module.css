@@ -21,11 +21,12 @@
 /* Fickläget: nästan svart, stora siffror, inga vanliga knappar. */
 .pocket { position: fixed; inset: 0; overflow-y: auto; background: #000; color: #e8e8e8; display: grid; align-content: start; gap: 12px;
   padding: 18px 12px 32px; box-sizing: border-box; z-index: 50; }
-.numbers { display: grid; grid-template-columns: 1fr; gap: 6px; text-align: center; }
+/* Ägaren 2026-11-17: siffrorna på en rad, så att brädet och Skjut får plats i barnens telefoner. */
+.numbers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; text-align: center; }
 .numbers > div { display: grid; }
 .numbers > div > span:last-child { color: #9a9a9a; font-size: 0.95rem; }
-.big { font-size: 3.4rem; font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; }
-.big small { font-size: 1.6rem; color: #9a9a9a; }
+.big { font-size: 2.4rem; font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.big small { font-size: 1.2rem; color: #9a9a9a; }
 .status { margin: 0; text-align: center; color: #c8c8c8; }
 .gap { margin: 0; text-align: center; color: #ffd27a; }
 .holds { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -78,15 +79,19 @@
   border: 1px solid #444; background: #111; color: #cfcfcf; font-variant-numeric: tabular-nums; }
 .card .shipCell { background: #fff; color: inherit; border-color: var(--line-strong, #b9bfbb); }
 .shipCell[aria-pressed="true"] { outline: 3px solid #ffd27a; outline-offset: -3px; }
-.shipCell[data-state="HIT"] { background: #2f8f3a; color: #fff; }
-.shipCell[data-state="SUNK"] { background: #145a1c; color: #fff; border-color: #6fdc7c; }
-.shipCell[data-state="WATER"] { background: #123a6b; color: #cfe3ff; }
-.shipCell[data-state="WRONG"] { color: #ff8a8a; border-color: #8a2a2a; }
+/* Ägaren 2026-11-17: starkare färger för träff, sänkt och vatten (de var bleka i skogen). */
+.shipCell[data-state="HIT"] { background: #1fbf3a; color: #fff; border-color: #8dffa0; }
+.shipCell[data-state="SUNK"] { background: #0a8a1f; color: #fff; border: 3px solid #b6ffc1; }
+.shipCell[data-state="WATER"] { background: #1a6ff0; color: #fff; border-color: #9cc4ff; }
+.shipCell[data-state="WRONG"] { color: #ff6b6b; border-color: #ff6b6b; }
 .shipCell:disabled { cursor: default; }
 .fire { min-height: 64px; border: 2px solid #ffd27a; border-radius: 10px; background: #3a2a00; color: #fff; font: inherit; font-size: 1.3rem; font-weight: 700; }
 .shipCell, .heatCell { position: relative; }
-.dots { position: absolute; top: 1px; right: 3px; font-size: 0.7rem; line-height: 1; letter-spacing: -1px; color: #888; font-weight: 700; }
-.cardDark .dots { color: #e8e8e8; }
+/* Ägaren 2026-11-17: prickarna för kompisarna större och tydligare. */
+.dots { position: absolute; top: 2px; right: 3px; display: flex; gap: 2px; align-items: center; font-size: 0.8rem; line-height: 1; color: #555;
+  font-weight: 800; }
+.dots > i { display: block; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.cardDark .dots { color: #ffd27a; }
 .guide, .guideDark { display: grid; gap: 12px; padding: 14px; border-radius: 10px; border: 2px solid var(--accent, #8e2a80); background: var(--surface, #fff); }
 .guideDark { border-color: #555; background: #111; color: #f0f0f0; }
 .guide h2, .guideDark h2 { margin: 0; font-size: 1.3rem; }

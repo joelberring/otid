@@ -54,7 +54,6 @@ export default async function RaceHubPage({ params }: Params) {
   const language = await currentLanguage(), en = language === "en";
   const text = en ? hubEn : publicRaceSv.hub;
   const bingoText = en ? bingoEn.runner : bingoSv.runner;
-  const virtualText = en ? bingoEn.virtual : bingoSv.virtual;
   const path = raceHubPath(hub.shortCode);
   const address = displayAddress(await publicOrigin(), path);
   const names = await raceGroupNameDisplay(db, hub.raceId);
@@ -73,14 +72,20 @@ export default async function RaceHubPage({ params }: Params) {
       <p>{details.join(" · ")}</p>
     </div>
     <RaceInfo info={hub.info} firstStartTime={hub.firstStartTime} language={language} />
-    {hub.bingo && <p><Link className={styles.hubLink} href={`${path}/bingo`} data-testid="hub-bingo">
-      <strong>{hub.bingoMode === "SHIPS" ? bingoText.hubShipsTitle : hub.bingoMode === "CONTROLS" ? virtualText.hubTitle : bingoText.hubTitle}</strong>
-      <span>{hub.bingoMode === "SHIPS" ? bingoText.hubShipsHelp : hub.bingoMode === "CONTROLS" ? virtualText.hubHelp : bingoText.hubHelp}</span></Link></p>}
+    {hub.bingo && <section className={styles.bingoStart} aria-label={bingoText.hubCta[hub.bingoMode ?? "BINGO"]}>
+      {/* Ägaren 2026-11-17: supertydligt var man anmäler sig – en stor färgad knapp, sedan reglerna och topplistan. */}
+      <Link className={styles.bingoCta} href={`${path}/bingo`} data-testid="hub-bingo">
+        <strong>{bingoText.hubCta[hub.bingoMode ?? "BINGO"]}</strong><span>{bingoText.hubCtaHelp}</span></Link>
+      <h2>{bingoText.hubRules}</h2>
+      <ol className={styles.bingoRules}>{bingoText.guide[hub.bingoMode ?? "BINGO"].map(item => <li key={item.text}><span aria-hidden="true">{item.icon}</span>
+        <span>{item.text}</span></li>)}</ol>
+    </section>}
     {bingoBoard && <LiveBingoBoard raceId={hub.raceId} initial={bingoBoard} />}
-    <SelfRegistrationForm raceId={hub.raceId} startList={hub.startListPublished} names={names} />
+    {/* En bingoträning har sin egen anmälan på löparsidan; den vanliga anmälan här skulle bara förvirra. */}
+    {!hub.bingo && <SelfRegistrationForm raceId={hub.raceId} startList={hub.startListPublished} names={names} />}
     <ul className={styles.hubLinks} aria-label={text.navigation}>
       {hub.startListPublished ? link(`/starts/${hub.raceId}`, text.startList, text.startListHelp)
-        : hasStartSection && <li><div className={styles.hubPending}><strong>{text.startList}</strong><span>{text.startListPending}</span></div></li>}
+        : hasStartSection && !hub.bingo && <li><div className={styles.hubPending}><strong>{text.startList}</strong><span>{text.startListPending}</span></div></li>}
       {link(`/results/${hub.raceId}`, text.results, hub.hasResults ? text.resultsHelp : text.resultsPending)}
       {link(`${path}/live`, en ? hubMoreEn.liveTitle : liveSv.hubTitle, en ? hubMoreEn.liveHelp : liveSv.hubHelp)}
       {hub.radio && link(`/results/${hub.raceId}`, en ? hubMoreEn.radioTitle : radioSv.hub.title, en ? hubMoreEn.radioHelp : radioSv.hub.help)}

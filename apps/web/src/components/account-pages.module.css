@@ -12,6 +12,9 @@
 .form > button, .form > div > button { justify-self: start; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .list { display: grid; gap: 4px; margin: 0; padding-left: 1.2rem; }
+/* En länk på egen rad (i en lista eller ett eget stycke): 44 px hög på pekskärm. */
+.list > li > a, .linkLine > a { min-height: var(--tap); }
+@media (pointer: coarse) { .list > li > a, .linkLine > a { display: inline-flex; align-items: center; } }
 .facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 16px; margin: 0; }
 .facts dt { color: var(--muted); }
 .facts dd { margin: 0; overflow-wrap: anywhere; }

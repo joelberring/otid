@@ -66,4 +66,15 @@
   font: inherit; text-align: left; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .textLink:hover { color: var(--ink); }
 .textLink:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/*
+ * Pekskärm (översynen 2026-11-17, C3): "?" och textlänken tar emot tryck på 44 px utan att raden blir högre – ytan är
+ * genomskinlig och tar tillbaka sin höjd med negativ marginal; ringen ritas av det inre tecknet.
+ */
+@media (pointer: coarse) {
+  .inline { width: 44px; height: 44px; margin: -11px -11px -11px -7px; border: 0; background: transparent; }
+  .inline:hover:not(:disabled) { background: transparent; }
+  .inline > span { display: inline-grid; place-items: center; width: 22px; height: 22px; border: 1px solid var(--line-strong);
+    border-radius: 50%; background: var(--surface); }
+  .textLink { display: inline-block; padding-block: 11px; margin-block: -11px; }
+}
 @media print { .dialog, .inline, .textLink { display: none; } }

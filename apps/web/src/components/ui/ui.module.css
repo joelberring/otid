@@ -17,6 +17,8 @@
 
 /* Verktygsrad */
 .toolbarEnd { margin-inline-start: auto; display: flex; flex-wrap: wrap; gap: 8px; }
+/* En länk bland åtgärderna är en knapp i texten: 44 px hög på pekskärm. */
+.toolbarEnd > a { display: inline-flex; align-items: center; min-height: var(--tap); }
 
 /* Avsnitt: rubrik, kort hjälptext, åtgärder till höger. Avskiljs med luft och en linje. */
 .section { display: grid; gap: 12px; min-width: 0; padding-block: 20px; border-top: 1px solid var(--line); }

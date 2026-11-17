@@ -30,6 +30,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 input[type="checkbox"], input[type="radio"] { width: 18px; height: 18px; min-height: 0; margin: 0; padding: 0; accent-color: var(--ink); }
 label { display: grid; gap: 4px; font-size: var(--text-xs); font-weight: 500; color: var(--ink); }
 summary { cursor: pointer; }
+/* En kryssruta utan synlig etikett (t.ex. i en tabell): etiketten runt den är 44 × 44 px på pekskärm (översynen 2026-11-17). */
+.tap-check { display: inline-grid; place-items: center; min-width: var(--tap); min-height: var(--tap); }
 /* Sidhuvud och sidfot linjerar med sidans innehåll (main: högst 1120 px och 16 px kant), PLAN.md steg 24. */
 body > header { background: var(--surface); color: var(--ink); border-bottom: 1px solid var(--line); padding: 10px max(16px, calc((100vw - 1120px) / 2 + 16px));
   font-size: var(--text-xs); color: var(--muted); }
@@ -41,6 +43,25 @@ body > header a { color: var(--ink); font-weight: 600; text-decoration: none; }
 @media (max-width: 419px) { .site-header-tagline { display: none; } }
 .site-header-language { margin-left: auto; padding-inline: 8px; min-height: 28px; display: inline-flex; align-items: center; }
 main { max-width: 1120px; margin: 0 auto; padding: 16px; }
+/*
+ * Översynen 2026-11-17 (C3): på pekskärm är allt man trycker på minst 44 × 44 px. Knappar, val, fält, utfällbara rubriker
+ * och flikar får det här, före vyernas egna (tätare) mått; länkar som fungerar som knappar får det där de står. Med mus
+ * (datorn) gäller vyernas mått som förut. En kryssruta eller ett alternativ når 44 px genom sin etikett.
+ */
+@media (pointer: coarse) {
+  :is(button, select, summary, [role="button"], [role="tab"], [role="menuitem"], [role="switch"]):not(.visually-hidden) {
+    min-height: 44px !important; }
+  :is(button, [role="button"], [role="tab"]):not(.visually-hidden) { min-width: 44px !important; }
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="hidden"], .visually-hidden) {
+    min-height: 44px !important; }
+  /* En vanlig utfällbar rubrik: texten mitt i ytan. */
+  summary:not([class]) { padding-block: calc((44px - 1lh) / 2); }
+  label:has(> input:is([type="checkbox"], [type="radio"])) { min-height: 44px; align-items: center; }
+  .site-header { padding-block: 0; }
+  .site-header-language { justify-content: center; min-width: 44px; }
+  .site-header > a, .site-header-language { min-height: 44px; }
+  .site-footer a { display: inline-flex; align-items: center; min-height: 44px; }
+}
 body > .site-footer { padding: 16px max(16px, calc((100vw - 1120px) / 2 + 16px)) 24px; border-top: 1px solid var(--line); font-size: var(--text-xs); }
 body:has(> main.speaker-page) > .site-footer, body:has(.race-admin-manage-page) > .site-footer { display: none; }
 @media print { body > .site-footer { display: none; } }
@@ -170,7 +191,8 @@ button.danger { border-color: #81291e; color: #81291e; }
   .public-result-detail-page { --result-border: var(--line); --result-muted: var(--muted); color: var(--ink); gap: .65rem; font-size: .94rem; }
   .public-result-detail-page a { color: var(--ink); font-weight: 650; text-underline-offset: .16em; }
   .public-result-detail-page > .nav { margin: 0; font-size: .88rem; }
-  .public-result-detail-page > .nav a, .public-result-detail-page .public-result-detail-heading a { display: inline-flex; align-items: center; min-height: 44px; }
+  .public-result-detail-page > .nav a, .public-result-detail-page .public-result-detail-heading a { display: inline-flex; align-items: center; min-height: 44px;
+    min-width: var(--tap); }
   .public-result-detail-page .public-result-detail-heading { display: grid; gap: .15rem; padding-bottom: .55rem; border-bottom: 1px solid var(--result-border); }
   .public-result-detail-page .public-result-detail-heading h1 { margin: 0; font-size: 1.45rem; line-height: 1.2; }
   .public-result-detail-page .public-result-detail-heading p { margin: 0; color: var(--result-muted); }
@@ -218,11 +240,12 @@ button.danger { border-color: #81291e; color: #81291e; }
 /* PLAN.md steg 13: publika start- och resultatlistor. Rubrik, länkar och listan; listans egna stilar i components/lists. */
 .public-list-page { gap: 10px; }
 .public-list-page > .nav { margin: 0; gap: 4px 18px; font-size: var(--text-sm); }
-.public-list-page > .nav a { display: inline-flex; align-items: center; min-height: 40px; }
+.public-list-page > .nav a { display: inline-flex; align-items: center; justify-content: center; min-height: max(40px, var(--tap)); min-width: var(--tap); }
 .public-list-heading { display: grid; gap: 2px; }
 .public-list-heading p { color: var(--muted); }
 .public-list-heading .public-list-links { display: flex; flex-wrap: wrap; gap: 0 18px; color: var(--ink); }
-.public-list-heading .public-list-links a { display: inline-flex; align-items: center; min-height: 40px; }
+.public-list-heading .public-list-links a { display: inline-flex; align-items: center; justify-content: center; min-height: max(40px, var(--tap));
+  min-width: var(--tap); }
 .public-list-heading .public-list-help { font-size: var(--text-xs); }
 @media (max-width: 640px) {
   .public-list-page { padding-inline: 16px; }

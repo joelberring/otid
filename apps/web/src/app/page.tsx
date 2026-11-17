@@ -32,13 +32,14 @@ export async function generateMetadata(): Promise<Metadata> {
 type Query = { q?: string | string[]; fler?: string | string[]; demo?: string | string[]; kodfel?: string | string[] };
 
 /**
- * Startsidan för besökare (ADR-0172 beslut 4): "Har du en kod?" (översynen 2026-11-17, `/kod`), sök, Pågår nu (tävlingsdagen i tävlingens tidszon), Kommande och
+ * Startsidan för besökare (ADR-0172 beslut 4): "Har du en kod?" (översynen 2026-11-17, `/kod`; bara i appen och vid ett besked), sök, Pågår nu (tävlingsdagen i tävlingens tidszon), Kommande och
  * Senaste med "Visa fler". Bara publicerade tävlingar och inga adminlänkar; den inloggade får en länk till Mina tävlingar.
  * Längst ned länkar till filmerna (introduktionen och kartritningen), bara när `NEXT_PUBLIC_INTRO_FILM_URL` respektive
  * `NEXT_PUBLIC_MAP_FILM_URL` är satt (docs/drift.md); på engelska den engelska filmen när den finns.
  * Veckans målning (ägarens önskemål 2026-11-12) står bredvid rubriken och sökrutan på datorn och efter Pågår nu på smal skärm
- * (översynen 2026-11-17: kodfältet syns utan att rulla), och texten om den i startsidans egen sidfot. Den som inte är inloggad
- * får raden "Kom igång som arrangör" under sökningen; i appen (AppMark) är kodfältet tydligare och den raden borta.
+ * (översynen 2026-11-17: sökningen och dagens tävlingar, och i appen kodfältet, syns utan att rulla), och texten om den i startsidans
+ * egen sidfot. Den som inte är inloggad får raden "Kom igång som arrangör" under sökningen; i appen (AppMark) syns kodfältet och
+ * den raden är borta.
  * Sidan renderas vid varje förfrågan (`force-dynamic`), så målningen byts när veckan byts.
  */
 export default async function Home({ searchParams }: { searchParams: Promise<Query> }) {

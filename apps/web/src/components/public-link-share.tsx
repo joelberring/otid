@@ -37,3 +37,14 @@ export function PublicLinkShare({ path, title }: { path: string; title: string }
     {message !== undefined && <p role="status" aria-live="polite">{message}</p>}
   </section>;
 }
+
+/**
+ * Översynen 2026-11-17 (ADR-0172): koden i den korta adressen (/t/, /fest/, /g/) i klartext, för den som har appen och skriver
+ * den under "Har du en kod?". En liten, dämpad rad bredvid länken eller QR-koden; den ska inte konkurrera med dem.
+ */
+export function AppCode({ code, className }: { code: string; className?: string | undefined }) {
+  const text = useTexts(publicLinkShareSv, publicLinkShareEn);
+  return <p className={className ? `app-code ${className}` : "app-code"} data-testid="app-code">
+    {text.appCode}: <span translate="no">{code}</span>
+  </p>;
+}

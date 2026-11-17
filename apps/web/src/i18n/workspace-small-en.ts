@@ -134,7 +134,8 @@ export const publicLinkShareEn: Texts<typeof publicLinkShareSv> = {
   shared: "The link has been opened for sharing.",
   shareCancelled: "The sharing was cancelled. You can copy the link instead.",
   copied: "The link is copied.",
-  copyUnavailable: "The link could not be copied. Copy the address from the browser."
+  copyUnavailable: "The link could not be copied. Copy the address from the browser.",
+  appCode: "Code for the app"
 };
 
 export const manualResultEn: Texts<typeof manualResultSv> = {

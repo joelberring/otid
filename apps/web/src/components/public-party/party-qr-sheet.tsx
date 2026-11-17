@@ -7,14 +7,17 @@ import { partyPublicSv } from "../../i18n/party-public-sv";
 import { partyPublicEn } from "../../i18n/public-en";
 import { useTexts } from "../language-provider";
 import { Button } from "../ui";
+import { AppCode } from "../public-link-share";
 import styles from "./party-qr.module.css";
 
 /**
  * QR-skylten för festen (PLAN.md steg 42): A4 stående, festens utseende (Centrum OK 20 år: Poppins och centrumröd).
  * Verktygsraden syns bara på skärmen; utskriften är bara skylten, i 100 % skala.
  */
-export function PartyQrSheet({ partyPath, title, eventName, theme, url, address, qrImage }: {
+export function PartyQrSheet({ partyPath, title, eventName, theme, url, address, qrImage, code }: {
   partyPath: string; title: string; eventName: string; theme: PartyTheme; url: string; address: string; qrImage: string;
+  /** Koden för appen (översynen 2026-11-17): liten under adressen. */
+  code: string;
 }) {
   const text = useTexts(partyPublicSv, partyPublicEn);
   return <div className={styles.page} style={partyThemeStyle(theme)} data-look={partyLook(theme)}>
@@ -35,6 +38,7 @@ export function PartyQrSheet({ partyPath, title, eventName, theme, url, address,
       <img className={styles.code} src={qrImage} alt={text.qr.image(eventName)} />
       <p className={styles.scan}>{text.qr.scan}</p>
       <p className={styles.address}>{address}</p>
+      <AppCode code={code} className={styles.appCode} />
       <ol className={styles.howTo} aria-label={text.howToLabel}>{text.howTo.map(row => <li key={row}>{row}</li>)}</ol>
     </article>
   </div>;

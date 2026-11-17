@@ -16,7 +16,7 @@ import { clientAddressFrom } from "../../../lib/security-policy";
 import { publicOrigin } from "../../../lib/public-origin";
 import { displayAddress, formatRaceDate, raceHubPath } from "../../../lib/public-race-format";
 import { formatDuration } from "../../../lib/clock-time";
-import { PublicLinkShare } from "../../../components/public-link-share";
+import { AppCode, PublicLinkShare } from "../../../components/public-link-share";
 import { SelfRegistrationForm } from "../../../components/self-registration/self-registration-form";
 import styles from "../../../components/training-group/training-group.module.css";
 
@@ -130,6 +130,7 @@ export default async function GroupPage({ params }: Params) {
 
     <footer className={styles.publicFoot}>
       <span>{text.address}: <code>{address}</code></span>
+      <AppCode code={view.code} />
       <div className={styles.rowActions}><Link href={`${path}/qr`}>{text.qr}</Link><PublicLinkShare path={path} title={view.name} /></div>
     </footer>
   </main>;

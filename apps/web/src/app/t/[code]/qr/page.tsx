@@ -40,7 +40,7 @@ export default async function RaceQrPage({ params }: Params) {
     language === "en" ? raceTypeNamesEn[hub.raceType] : raceTypeSv.types[hub.raceType].name]);
   return <main className="stack">
     <PreviewBanner access={hub.access} language={language} />
-    <QrSheet hubPath={path} eventName={hub.eventName} details={details} address={displayAddress(origin, path)}
+    <QrSheet hubPath={path} eventName={hub.eventName} details={details} address={displayAddress(origin, path)} code={hub.shortCode}
       qrImage={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`} />
   </main>;
 }

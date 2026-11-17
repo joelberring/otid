@@ -6,6 +6,7 @@ import { publicRaceSv } from "../../i18n/public-race-sv";
 import { hubEn, qrEn } from "../../i18n/public-en";
 import { useLanguage } from "../language-provider";
 import { Button } from "../ui";
+import { AppCode } from "../public-link-share";
 import styles from "./public-race.module.css";
 
 type Size = "A4" | "A5";
@@ -14,8 +15,10 @@ type Size = "A4" | "A5";
  * Arket med QR-koden (ADR-0172 beslut 4). Verktygsraden (tillbaka, storlek, skriv ut) syns bara på skärmen;
  * utskriften är bara arket. Hel sida skrivs på A4, halv sida på A5.
  */
-export function QrSheet({ hubPath, eventName, details, qrImage, address }: {
+export function QrSheet({ hubPath, eventName, details, qrImage, address, code }: {
   hubPath: string; eventName: string; details: string; qrImage: string; address: string;
+  /** Koden för appen (översynen 2026-11-17): liten under adressen. */
+  code: string;
 }) {
   const en = useLanguage() === "en";
   const text = en ? qrEn : publicRaceSv.qr, back = en ? hubEn.back : publicRaceSv.hub.back;
@@ -41,6 +44,7 @@ export function QrSheet({ hubPath, eventName, details, qrImage, address }: {
       <img src={qrImage} alt={text.image(eventName)} />
       <p className={styles.sheetScan}>{text.scan}</p>
       <p className={styles.sheetAddress}>{address}</p>
+      <AppCode code={code} className={styles.sheetCode} />
     </article>
   </div>;
 }

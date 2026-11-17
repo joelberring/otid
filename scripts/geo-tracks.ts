@@ -3,14 +3,19 @@
  * släpstigar … andra former än släpstigar också … om släpstigarna syns men har hål en liten bit kanske man får gissa att de
  * fortsätter mellan»). Prövat i Python på Järvsö östra (claude/slapstigar-prov-2026-11-17.md), här i TypeScript:
  *
- * 1. Den lokala reliefen (höjden minus medelhöjden inom 4 m, geo-ditches.ts) läggs på ett rutnät om 2 m.
- * 2. Ett linjefilter i 16 riktningar: en fåra är lägre än marken 4 m åt båda sidor, längs en 40 m lång sträcka. Svaret är
- *    medelvärdet av (sidornas medel − mitten) längs sträckan, och riktningen med störst svar vinner.
- * 3. Hysteres: celler över 95:e percentilen (och minst 6 cm) startar, celler över 88:e (och minst 3 cm) fyller ut; masken
- *    tunnas till mittlinjer.
+ * 1. Den lokala reliefen (höjden minus medelhöjden inom 4 m, geo-ditches.ts) i 1 m.
+ * 2. Ett linjefilter i 16 riktningar: en fåra är lägre än marken både 1,5 m och 4 m åt båda sidor (den lägsta av de fyra
+ *    punkterna räknas, så en slänts fot, en hällkant eller en bred dalbotten ger inget), längs en sträcka på 25 m. Svaret är
+ *    medelvärdet längs sträckan, och riktningen med störst svar vinner.
+ * 3. Hysteres: celler över 95:e percentilen (och minst 3 cm) startar, celler över 88:e (och minst 1,5 cm) fyller ut. Masken
+ *    stängs med 1 m (två hjulspår blir en fåra) och tunnas till mittlinjer.
  * 4. Mittlinjerna delas i skarpa krökar; bara raka bitar (rakhet ≥ 0,8, minst 24 m) är spår.
  * 5. Glapp: två ändar som pekar mot varandra (högst 25° fel) och ligger högst 50 m isär binds ihop, närmaste paret först.
  * 6. Kedjor kortare än 80 m tas bort (enstaka fåror är oftast stenrader, sprickor eller rotvältor).
+ *
+ * Mätt 2026-11-17 mot kartritarnas stigar och vägar (träff inom 6 m): Lida P 0,48 / R 0,24, Högdalen P 0,47 / R 0,26. Det
+ * första provet (2 m, sidornas medel på 4 m, 40 m långt) gav Lida 0,36 / 0,31 och Högdalen 0,25 / 0,15, med många linjer
+ * längs hällarnas fot. Järvsö östra (38 km²) tar knappt 3 minuter.
  *
  * Det som till mer än hälften ligger i fuktig mark är diken (dikessteget tar dem) och tas inte med; vatten likaså.
  * Linjerna blir lagret `spar_laser` (förslag till kartans stig 507 och underlag för att flytta OpenStreetMaps stigar).
@@ -23,6 +28,8 @@ import { simplify } from "./geo-moisture.ts";
 export interface TrackSettings {
   /** Rutnätets cell i m. */ readonly cell: number;
   /** Sidornas avstånd från mitten, m. */ readonly side: number;
+  /** En inre sida (m; 0 = ingen): fåran måste vara smal. */ readonly inner: number;
+  /** Fåror närmare varandra än två gånger så här (m) blir en (hjulspåren i en släpstig). */ readonly join: number;
   /** Filtrets halva längd, m. */ readonly reach: number;
   readonly strong: number; readonly weak: number;
   /** Minsta svar (m) för att starta och fylla ut, oavsett percentilen: på jämn mark är även den 95:e percentilen brus. */
@@ -32,7 +39,7 @@ export interface TrackSettings {
   /** Största vinkelfel för ett glapp, grader. */ readonly maxAngle: number;
   /** Minsta kedja, m. */ readonly minChain: number;
 }
-export const DEFAULT_TRACKS: TrackSettings = { cell: 2, side: 4, reach: 20, strong: 0.95, weak: 0.88, minStrong: 0.06, minWeak: 0.03, minPiece: 24, maxGap: 50, maxAngle: 25, minChain: 80 };
+export const DEFAULT_TRACKS: TrackSettings = { cell: 1, side: 4, inner: 1.5, join: 1, reach: 12, strong: 0.95, weak: 0.88, minStrong: 0.03, minWeak: 0.015, minPiece: 24, maxGap: 50, maxAngle: 25, minChain: 80 };
 const DIRECTIONS = 16;
 const MAX_TRACKS = 20_000;
 
@@ -54,16 +61,20 @@ function coarse(relief: Float32Array, width: number, height: number, factor: num
 }
 
 /** Linjefiltrets svar (störst över riktningarna) per cell; 0 vid kanten och där marken saknas. */
-export function trackResponse(grid: Float32Array, w: number, h: number, sideCells: number, reachCells: number): Float32Array {
+export function trackResponse(grid: Float32Array, w: number, h: number, sideCells: readonly number[], reachCells: number): Float32Array {
   const best = new Float32Array(w * h), profile = new Float32Array(w * h);
   for (let d = 0; d < DIRECTIONS; d += 1) {
     const angle = Math.PI * d / DIRECTIONS, ux = Math.cos(angle), uy = Math.sin(angle);
-    const nx = Math.round(-uy * sideCells), ny = Math.round(ux * sideCells);
-    // Tvärprofilen: sidornas medel minus mitten (positivt i en fåra).
+    const normals = sideCells.map(side => [Math.round(-uy * side), Math.round(ux * side)] as const);
+    const far = Math.max(...normals.map(([nx, ny]) => Math.max(Math.abs(nx), Math.abs(ny))));
+    // Tvärprofilen: den lägsta sidopunkten minus mitten (positivt i en fåra). Båda sidorna måste ligga högre (en kant eller
+    // en slänts fot ger inget), och med en inre sida också nära mitten (en bred dalbotten mellan hällar ger inget).
     for (let x = 0; x < w; x += 1) for (let y = 0; y < h; y += 1) {
-      const i = x * h + y, ax = x + nx, ay = y + ny, bx = x - nx, by = y - ny;
-      if (ax < 0 || ay < 0 || bx < 0 || by < 0 || ax >= w || ay >= h || bx >= w || by >= h) { profile[i] = 0; continue; }
-      const value = (grid[ax * h + ay]! + grid[bx * h + by]!) / 2 - grid[i]!;
+      const i = x * h + y;
+      if (x < far || y < far || x >= w - far || y >= h - far) { profile[i] = 0; continue; }
+      let low = Number.POSITIVE_INFINITY;
+      for (const [nx, ny] of normals) low = Math.min(low, grid[(x + nx) * h + y + ny]!, grid[(x - nx) * h + y - ny]!);
+      const value = low - grid[i]!;
       profile[i] = Number.isFinite(value) ? value : 0;
     }
     // Medel längs riktningen.
@@ -101,7 +112,8 @@ export function trackLines(ground: GroundGrid, relief: Float32Array, settings: T
   const factor = Math.max(1, Math.round(settings.cell / ground.cell)), cell = ground.cell * factor;
   const { grid, w, h } = coarse(relief, ground.width, ground.height, factor);
   if (w < 8 || h < 8) return [];
-  const response = trackResponse(grid, w, h, Math.max(1, Math.round(settings.side / cell)), Math.max(2, Math.round(settings.reach / cell)));
+  const sides = [settings.side, ...(settings.inner > 0 ? [settings.inner] : [])].map(side => Math.max(1, Math.round(side / cell)));
+  const response = trackResponse(grid, w, h, [...new Set(sides)], Math.max(2, Math.round(settings.reach / cell)));
   const strong = Math.max(settings.minStrong, quantile(response, settings.strong)), weak = Math.max(settings.minWeak, quantile(response, settings.weak));
   // Hysteres: de svaga cellerna som hänger ihop med en stark.
   const mask = new Uint8Array(w * h), queue = new Int32Array(w * h);
@@ -118,7 +130,7 @@ export function trackLines(ground: GroundGrid, relief: Float32Array, settings: T
   }
   const centre = (i: number): Pair => { const x = Math.floor(i / h), y = i - x * h; return [ground.minX + (x + 0.5) * cell, ground.minY + (y + 0.5) * cell]; };
   const pieces: Pair[][] = [];
-  for (const path of paths(thin(mask, w, h), w, h, Math.max(3, Math.round(settings.minPiece / cell / Math.SQRT2)))) {
+  for (const path of paths(thin(closeMask(mask, w, h, Math.round(settings.join / cell)), w, h), w, h, Math.max(3, Math.round(settings.minPiece / cell / Math.SQRT2)))) {
     for (const piece of straightPieces(simplify(path.map(centre), cell * 0.75), settings.minPiece)) {
       if (blockedAt && piece.some(point => blockedAt(...point))) continue;
       if (wetAt && densify(piece, cell).filter(point => wetAt(...point)).length * 2 > densify(piece, cell).length) continue;
@@ -126,6 +138,27 @@ export function trackLines(ground: GroundGrid, relief: Float32Array, settings: T
     }
   }
   return linkTracks(pieces, settings).map(line => simplify(line, cell * 0.5)).slice(0, MAX_TRACKS);
+}
+
+/** Masken stängd (växt och krympt `reach` celler, åtta grannar): två hjulspår bredvid varandra blir en fåra. */
+function closeMask(mask: Uint8Array, w: number, h: number, reach: number): Uint8Array {
+  if (reach < 1) return mask;
+  const step = (source: Uint8Array, grow: boolean) => {
+    const out = new Uint8Array(source.length);
+    for (let x = 0; x < w; x += 1) for (let y = 0; y < h; y += 1) {
+      let any = false, all = true;
+      for (let ax = -1; ax <= 1; ax += 1) for (let ay = -1; ay <= 1; ay += 1) {
+        const nx = x + ax, ny = y + ay, value = nx >= 0 && ny >= 0 && nx < w && ny < h ? source[nx * h + ny]! : 0;
+        if (value) any = true; else all = false;
+      }
+      out[x * h + y] = (grow ? any : all) ? 1 : 0;
+    }
+    return out;
+  };
+  let out = mask;
+  for (let k = 0; k < reach; k += 1) out = step(out, true);
+  for (let k = 0; k < reach; k += 1) out = step(out, false);
+  return out;
 }
 
 /** Punkter längs linjen med högst `step` m mellanrum. */

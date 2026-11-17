@@ -5,7 +5,7 @@ import { linkTracks, straightPieces, trackLines } from "../../../scripts/geo-tra
 
 /** Ägaren 2026-11-17: släpstigar ur terrängformen, med hål som gissas igen. */
 function ground(): GroundGrid {
-  // 400 × 300 m skogsmark med lite brus; ett spår (två hjulspår 0,2 m djupa) diagonalt med ett hål på 30 m.
+  // 400 × 300 m skogsmark med lite brus; ett spår (två hjulspår 0,8 m breda, 2,6 m isär, 0,2 m djupa) diagonalt med ett hål på 30 m.
   const width = 400, height = 300, z = new Float32Array(width * height);
   let seed = 7;
   const noise = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647 - 0.5; };
@@ -13,7 +13,7 @@ function ground(): GroundGrid {
     let value = 50 + x * 0.01 + 0.03 * noise();
     // Spåret: y = 0,4·x + 50, från x = 30 till 370, hål mellan x = 190 och 220.
     const across = (y - 0.4 * x - 50) / Math.hypot(1, 0.4);
-    if (x > 30 && x < 370 && !(x > 190 && x < 220) && (Math.abs(across - 1) < 0.6 || Math.abs(across + 1) < 0.6)) value -= 0.2;
+    if (x > 30 && x < 370 && !(x > 190 && x < 220) && (Math.abs(across - 1.3) < 0.4 || Math.abs(across + 1.3) < 0.4)) value -= 0.2;
     z[x * height + y] = value;
   }
   return { minX: 0, minY: 0, cell: 1, width, height, z };

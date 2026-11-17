@@ -590,12 +590,14 @@ grundkartan läses in och reglaget räknar som förut (`missing` har `soil`).
 de fortsätter mellan», «Jag tror att stigarna från OpenStreetMap ligger fel och kan behöva flyttas. Gäller även andra stigar» –
 «Ofta».
 
-- **Spår ur reliefen** (geo-arbetaren v39, `scripts/geo-tracks.ts`, steget `tracks`): reliefen (höjden minus medel inom 4 m) på
-  ett rutnät om 2 m, ett linjefilter i 16 riktningar (fåra lägre än marken 4 m åt sidorna, längs 40 m), hysteres (95:e/88:e
-  percentilen, minst 6/3 cm), mittlinjer, raka bitar (minst 24 m, rakhet 0,8), glapp upp till 50 m där ändarna pekar mot
-  varandra (högst 25° fel) binds ihop, kedjor under 80 m tas bort. Fuktigt till mer än hälften är diken och tas inte med.
-  Filen `spar.dxf`, lagret `spar_laser`, föreslås som otydlig stig (507). Järvsö östra (38 km²): 20 s, 184 km före rensningen
-  mot vägar (vägdikena följer vägarna).
+- **Spår ur reliefen** (geo-arbetaren v39, `scripts/geo-tracks.ts`, steget `tracks`): reliefen (höjden minus medel inom 4 m) i
+  1 m, ett linjefilter i 16 riktningar (fåran lägre än marken både 1,5 m och 4 m åt båda sidor, den lägsta punkten räknas,
+  längs 25 m), hysteres (95:e/88:e percentilen, minst 3/1,5 cm), masken stängd med 1 m (hjulspåren blir en fåra), mittlinjer,
+  raka bitar (minst 24 m, rakhet 0,8), glapp upp till 50 m där ändarna pekar mot varandra (högst 25° fel) binds ihop, kedjor
+  under 80 m tas bort. Fuktigt till mer än hälften är diken och tas inte med. Filen `spar.dxf`, lagret `spar_laser`, föreslås
+  som otydlig stig (507). Mätt mot kartritarnas stigar och vägar (inom 6 m): Lida P 0,48 / R 0,24, Högdalen P 0,47 / R 0,26;
+  ett första prov med sidornas medel på 4 m och 2 m-celler gav många linjer längs hällarnas fot (Högdalen P 0,25). Järvsö
+  östra (38 km²) knappt 3 minuter.
 - **OpenStreetMaps stigar flyttas** (`snapPathsToTracks`, `base-map/path-snap.ts`) i grundkartan: stigar, traktorvägar och
   gång- och cykelvägar flyttas till en fåra som löper parallellt (högst 25°) inom 15 m längs minst 30 m. Flyttningen jämnas ut
   (10 m) och tonas av mot noll inom 20 m där matchningen slutar och vid punkter som delas med andra vägar och stigar, så att

@@ -56,6 +56,11 @@ test("admin lägger till funktionär som läser av från två enheter men inte n
   const staffRow = people.getByRole("listitem").filter({ hasText: staffEmail });
   await expect(staffRow).toContainText("Funktionär");
   await expect(people.getByRole("listitem").filter({ hasText: `agare.${suffix}@exempel.se` })).toContainText("Ägare");
+  // Ägaren 2026-11-17: rollen byts i listan, utan att ta bort och lägga till igen.
+  await staffRow.getByTestId("person-role").selectOption({ label: "Banläggning: läsa och kommentera" });
+  await expect(people.getByRole("status")).toContainText("har nu rollen Banläggning: läsa och kommentera", { timeout: 30_000 });
+  await people.getByRole("listitem").filter({ hasText: staffEmail }).getByTestId("person-role").selectOption({ label: "Funktionär" });
+  await expect(people.getByRole("status")).toContainText("har nu rollen Funktionär", { timeout: 30_000 });
 
   // Mina tävlingar visar tävlingen med rollen Funktionär; arbetsytan har bara Start och Avläsning.
   await staff.reload();

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { formErrorsEn } from "../../i18n/workspace-small-en";
 import { raceTypeEn } from "../../i18n/workspace-en";
 import { useLanguage, useTexts } from "../language-provider";
-import { INVITATION_BULK_MAX, racePeopleResponseSchema, racePersonGrantResponseSchema, racePersonRevokeResponseSchema,
+import { INVITATION_BULK_MAX, racePeopleResponseSchema, racePersonGrantResponseSchema, racePersonRevokeResponseSchema, racePersonRoleResponseSchema,
   type RacePeopleResponse, type RacePerson, type RacePersonGrantRequest, type RacePersonInvitation } from "@o-tid/contracts";
 import { raceTypeSv } from "../../i18n/race-type-sv";
 import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
@@ -20,7 +20,7 @@ import { InvitationActions, invitationSentText } from "../invitation-actions";
 import { FromClubPicker } from "../club-affiliation/from-club-picker";
 import { inLanguage } from "../../lib/in-language";
 
-const GRANTABLE = ["ADMIN", "FUNCTIONARY", "COURSE_EDIT", "COURSE_SUGGEST", "COURSE_COMMENT", "COURSE_MAP"] as const;
+const GRANTABLE = ["FUNCTIONARY", "ADMIN", "COURSE_EDIT", "COURSE_SUGGEST", "COURSE_COMMENT", "COURSE_MAP"] as const;
 type Message = { tone: "ok" | "error"; text: string };
 
 /**
@@ -55,7 +55,7 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
   }, [base, raceId]);
   useEffect(() => { void load(); }, [load]);
 
-  async function send(method: "POST" | "DELETE", body: Record<string, unknown>, key: string) {
+  async function send(method: "POST" | "PATCH" | "DELETE", body: Record<string, unknown>, key: string) {
     const csrf = readAccountCsrfCookie(document.cookie, new URL(window.location.href));
     if (!csrf) return { status: 401, value: undefined as unknown };
     const response = await fetch(base, { method, credentials: "same-origin", cache: "no-store", body: JSON.stringify(body),
@@ -118,6 +118,20 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
     finally { setBusy(false); onPendingChange(false); }
   }
 
+  /** Ägaren 2026-11-17: byter roll på raden (en person eller en väntande inbjudan). */
+  async function changeRole(row: { grantId: string; displayName: string }, next: RacePersonGrantRequest["role"]) {
+    if (busy) return;
+    const requestId = crypto.randomUUID();
+    setBusy(true); onPendingChange(true); setMessage(undefined);
+    try {
+      const result = await send("PATCH", { formatVersion: 1, requestId, grantId: row.grantId, role: next }, `race-person-role:${requestId}`);
+      if (result.status !== 200) { setMessage({ tone: "error", text: result.status === 409 ? text.roleConflict : failure(result.status) }); return; }
+      racePersonRoleResponseSchema.parse(result.value);
+      setMessage({ tone: "ok", text: text.roleChanged(row.displayName, text.roles[next]) });
+    } catch { setMessage({ tone: "error", text: text.failed }); }
+    finally { await load(); setBusy(false); onPendingChange(false); }
+  }
+
   const owner = data?.viewer.role === "OWNER";
   const mailEnabled = data?.mailEnabled ?? false;
   // Steg 66: banläggningens behörigheter tas bort av alla administratörer, som funktionärer.
@@ -125,6 +139,13 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
     (person.role === "FUNCTIONARY" || person.role.startsWith("COURSE_") || (person.role === "ADMIN" && owner));
   const invitationRemovable = (invitation: RacePersonInvitation) => invitation.role !== "ADMIN" || owner;
   const locked = busy || disabled;
+  /** Rollen som en rullista där den inloggade får byta den; annars som text. */
+  const roleCell = (row: { grantId: string; displayName: string }, current: RacePerson["role"], changeable: boolean) => changeable && current !== "OWNER"
+    ? <span className={styles.role} data-role={current}><select value={current} disabled={locked} aria-label={text.roleLabel(row.displayName)}
+        data-testid="person-role" onChange={event => { const next = GRANTABLE.find(value => value === event.target.value); if (next && next !== current) void changeRole(row, next); }}>
+        {GRANTABLE.filter(value => value !== "ADMIN" || owner).map(value => <option key={value} value={value}>{text.roles[value]}</option>)}
+      </select></span>
+    : <span className={styles.role} data-role={current}>{text.roles[current]}</span>;
   return <Section id={`settings-${raceId}-people`} title={text.title} help={text.help}>
     {!data && !loadFailed && <p className={styles.muted} role="status">{text.loading}</p>}
     {loadFailed && <Notice tone="error" role="alert">{text.loadError}{" "}
@@ -136,7 +157,7 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
           {person.email && <span className={styles.email}>{person.email}</span>}
           {person.pendingVerification && <span className={styles.muted} data-testid="person-pending-verification">{text.pendingVerification}</span>}
         </span>
-        <span className={styles.role} data-role={person.role}>{text.roles[person.role]}</span>
+        {roleCell(person, person.role, removable(person))}
         <span className={styles.action}>{removable(person) &&
           <Button variant="secondary" disabled={locked} aria-label={text.removeLabel(person.displayName)}
             onClick={() => void remove(person)}>{text.remove}</Button>}</span>
@@ -146,7 +167,7 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
           <strong>{invitation.displayName ?? invitation.email}</strong>
           <span className={styles.muted}>{[text.waitingForLogin, invitationSentText(invitation.sentAt, mailEnabled, inviteText.list)].filter(Boolean).join(" · ")}</span>
         </span>
-        <span className={styles.role} data-role={invitation.role}>{text.roles[invitation.role]}</span>
+        {roleCell({ grantId: invitation.invitationId, displayName: invitation.displayName ?? invitation.email }, invitation.role, invitationRemovable(invitation))}
         <span className={styles.action}>{invitationRemovable(invitation) && <>
           <InvitationActions name={invitation.displayName ?? invitation.email} fromClub={invitation.displayName !== undefined}
             mailEnabled={mailEnabled} disabled={locked} onSent={load}

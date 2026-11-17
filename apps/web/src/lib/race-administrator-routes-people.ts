@@ -1,4 +1,4 @@
-import { racePeopleResponseSchema, racePersonGrantResponseSchema, racePersonRevokeResponseSchema, UUID_PATTERN } from "@o-tid/contracts";
+import { racePeopleResponseSchema, racePersonGrantResponseSchema, racePersonRevokeResponseSchema, racePersonRoleResponseSchema, UUID_PATTERN } from "@o-tid/contracts";
 import {
   adminFailure as failure,
   hasNoRequestBody,
@@ -10,7 +10,7 @@ import { resultFailure, type RaceAdministratorRouteContext } from "./race-admini
 
 /**
  * Personer med behörighet (ADR-0172 beslut 3): GET listar ägaren, administratörer och funktionärer, POST lägger till
- * ett befintligt konto med e-post och roll, DELETE tar bort en behörighet. Bara administratörer når hit.
+ * ett befintligt konto med e-post och roll, PATCH byter roll på en rad, DELETE tar bort en behörighet. Bara administratörer når hit.
  * ADR-0206: POST …/people/invitations/{id} skickar inbjudan igen eller ger en länk att kopiera. Ger undefined för åtgärder
  * som inte hör till gruppen.
  */
@@ -39,6 +39,11 @@ export async function handlePeopleRoute(context: RaceAdministratorRouteContext):
     const result = await dependencies.grantPerson(db, input, new Date(), routeMailer(context.environment, request));
     if (result.status !== "granted") return resultFailure(result.status);
     return json(racePersonGrantResponseSchema.parse(result.response));
+  }
+  if (request.method === "PATCH") {
+    const result = await dependencies.changePersonRole(db, input);
+    if (result.status !== "changed") return resultFailure(result.status);
+    return json(racePersonRoleResponseSchema.parse(result.response));
   }
   const result = await dependencies.revokePerson(db, input);
   if (result.status !== "revoked") return resultFailure(result.status);

@@ -84,6 +84,9 @@ export const raceTypeEn: Texts<typeof raceTypeSv> = {
       removeLabel: name => `Remove the access for ${name}`,
       confirmRemove: name => `Remove ${name}'s access? The person loses access immediately.`,
       removed: name => `${name} no longer has access.`,
+      roleLabel: name => `Role for ${name}`,
+      roleChanged: (name, role) => `${name} now has the role ${role}.`,
+      roleConflict: "The person already has another access of that kind to the event. Remove this row instead.",
       addTitle: "Add a person",
       addEmail: "Email address",
       addEmailHelp: "The same address the person signs in with.",
@@ -92,7 +95,7 @@ export const raceTypeEn: Texts<typeof raceTypeSv> = {
       invited: (email, role) => `The access is saved for ${email} as ${role.toLowerCase()}. It applies when the person signs in with the address.`,
       waitingForLogin: "waiting for the person to sign in with the address",
       already: "The person already has access to the event.",
-      ownerOnly: "Only the owner can add and remove administrators.",
+      ownerOnly: "Only the owner can add, change and remove administrators.",
       failed: "The change could not be saved. Try again.",
       sessionExpired: "The session has expired. Reload the page and try again."
     },

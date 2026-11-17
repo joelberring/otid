@@ -13,6 +13,7 @@ export { seedDemoRace, DEMO_RACE_SV, type DemoRaceTexts } from "./demo-race";
 export { seedTemplateDemoRace, demoRun, DEMO_TEMPLATE_RUNNERS, DEMO_TEMPLATE_CLASSES } from "./demo-template-race";
 export * from "./organizer-events";
 export * from "./race-people";
+export { changeRacePersonRoleAsAdmin, type RacePersonRoleResult } from "./race-person-role";
 export * from "./purge";
 export * from "./superadmin";
 export * from "./account-storage";

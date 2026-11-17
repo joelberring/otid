@@ -7,6 +7,7 @@ import { courseDataEn } from "../../i18n/course-setting-link-en";
 import { offlineEn } from "../../i18n/course-setting-collab-en";
 import { collaborationEn } from "../../i18n/course-setting-collab-en";
 import { courseSettingEn } from "../../i18n/course-setting-en";
+import { AccessNotice } from "../race-administrator/access-notice";
 import { useTexts } from "../language-provider";
 import Link from "next/link";
 import type { CourseSettingState } from "@o-tid/contracts";
@@ -53,7 +54,7 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
   const copy = useTexts(collaborationSv, collaborationEn);
   const text = useTexts(courseSettingSv, courseSettingEn);
   const [state, setState] = useState<CourseSettingState>();
-  const [failed, setFailed] = useState<"login" | "other">();
+  const [failed, setFailed] = useState<"login" | "role" | "other">();
   const [message, setMessage] = useState<Message>();
   // Använd igen med en banfil (IOF XML) säger i editorn vad som kom med och vad som inte gick (läst innan editorn monteras).
   const [pending] = useState(() => typeof window === "undefined" ? undefined : pendingCourseSettingNotice(raceId));
@@ -81,7 +82,8 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
       if (error instanceof HttpError && error.status === 403) {
         await forgetCourseSettingCopy(raceId).catch(problem => console.error("Kopian i telefonen kunde inte tas bort", problem));
       }
-      setFailed(error instanceof HttpError && (error.status === 401 || error.status === 403) ? "login" : "other");
+      // Ägaren 2026-11-17: beskedet säger varför. 401 = utloggad eller utan roll på tävlingen, 403 = en roll utan banläggning.
+      setFailed(error instanceof HttpError && error.status === 401 ? "login" : error instanceof HttpError && error.status === 403 ? "role" : "other");
     }
   }, [raceId]);
   useEffect(() => { forgetCourseSettingNotice(raceId); }, [raceId]);
@@ -128,8 +130,11 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
   // Admin tillbaka till arbetsytan; den som bara har banläggningen till Mina tävlingar (arbetsytan är inte deras).
   const back = <Link className={styles.back} href={state && !state.access.admin ? "/organizer" : workspacePath(raceId, "COURSES")}>
     ← {state && !state.access.admin ? text.backToEvents : text.back}</Link>;
+  if (failed === "login") return <main className={styles.page}>{back}<Notice tone="attention"><AccessNotice /></Notice></main>;
+  if (failed === "role") return <main className={styles.page}>{back}<Notice tone="attention" role="status"><div data-testid="course-setting-no-role">
+    <p>{text.noRole}</p><p>{text.noRoleHelp} <Link href={workspacePath(raceId, "READOUT")} prefetch={false}>{text.noRoleBack}</Link></p></div></Notice></main>;
   if (failed) return <main className={styles.page}>{back}<Notice tone="error" role="alert"><p>{text.loadFailed}</p>
-    {failed === "other" && <div><Button variant="secondary" onClick={() => void load()}>{text.retry}</Button></div>}</Notice></main>;
+    <div><Button variant="secondary" onClick={() => void load()}>{text.retry}</Button></div></Notice></main>;
   if (!state) return <main className={styles.page}>{back}<p role="status">{text.loading}</p></main>;
   const setting = state.setting;
   // Steg 66: editorn fyller fönstret (egen rad överst med bakåtlänken).

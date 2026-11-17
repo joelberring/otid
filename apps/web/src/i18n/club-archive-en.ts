@@ -111,7 +111,8 @@ export const clubArchiveEn: Texts<typeof clubArchiveSv> = {
     previewNoMap: "The course file has no map in the archive.",
     allControls: "All controls",
     rights: "The map's rights",
-    problem: "The file could not be read completely:"
+    problem: "The file could not be read completely:",
+    fileWithoutCourses: "The file has no courses with a start and a finish, so there is no course to show. The training may be a grid (bingo or Battleships), which has no course."
   },
   rights: {
     CLUB: "The club's own map",
@@ -265,8 +266,8 @@ export const clubArchiveEn: Texts<typeof clubArchiveSv> = {
   errors: {
     session: "You are no longer signed in. Sign in again.",
     invalid: "Something in the form is wrong.",
-    notFound: "Does not exist, or you do not have access.",
-    forbidden: "Your role in the club is not enough for that.",
+    notFound: "This does not exist, or the account you are signed in with is not a member of the club. Ask the club's owner or an administrator to add you.",
+    forbidden: "Your role in the club is not enough for that. The club's owner or an administrator can give you a higher role under Members.",
     conflict: "That did not work: something has changed or already exists.",
     generic: (status: number) => `That did not work (error ${status}). Try again.`
   }

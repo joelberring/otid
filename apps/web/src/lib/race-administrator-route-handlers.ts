@@ -155,7 +155,7 @@ async function dispatchRaceAdministratorRoute(context: RaceAdministratorRouteCon
  * (`entryId`) eller klassens kapacitet, annars GET.
  */
 const ROUTE_METHODS: Readonly<Partial<Record<Action["kind"], readonly string[]>>> = {
-  people: ["GET", "POST", "DELETE"], "people-invitation": ["POST"], "uninterpreted-readouts": ["GET", "POST"],
+  people: ["GET", "POST", "PATCH", "DELETE"], "people-invitation": ["POST"], "uninterpreted-readouts": ["GET", "POST"],
   "uninterpreted-readouts-reread": ["POST"], party: ["GET", "POST"], "party-logo": ["PUT", "DELETE"], "party-guests": ["POST"],
   "party-desk-events": ["POST"], radio: ["GET", "PUT"], "radio-fetch": ["POST"], "race-publication": ["PUT", "DELETE"],
   "course-secrecy": ["PUT", "DELETE", "PATCH"], "race-map": ["GET", "PUT", "DELETE"], "race-map-image": ["GET"],

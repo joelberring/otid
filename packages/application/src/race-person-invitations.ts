@@ -10,9 +10,9 @@ import type { DbExecutor } from "./snapshot";
  * bekräftad e-post (ADR-0186) loggar in, bekräftar adressen, öppnar Mina tävlingar eller tävlingen. Ett spärrat konto får
  * inget. Två samtidiga anrop tar inbjudan bara en gång (raden markeras först, med villkoret att den är öppen).
  */
-const COURSE_LEVELS = { COURSE_EDIT: "EDIT", COURSE_SUGGEST: "SUGGEST", COURSE_COMMENT: "COMMENT", COURSE_MAP: "MAP" } as const;
+export const COURSE_LEVELS = { COURSE_EDIT: "EDIT", COURSE_SUGGEST: "SUGGEST", COURSE_COMMENT: "COMMENT", COURSE_MAP: "MAP" } as const;
 type CourseRole = keyof typeof COURSE_LEVELS;
-const isCourseRole = (role: string): role is CourseRole => role in COURSE_LEVELS;
+export const isCourseRole = (role: string): role is CourseRole => role in COURSE_LEVELS;
 
 const invitations = schema.racePersonInvitations;
 const open = and(isNull(invitations.acceptedAt), isNull(invitations.revokedAt));

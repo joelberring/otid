@@ -176,7 +176,7 @@ export function ArchiveEntryPage({ clubId, entryId }: { clubId: string; entryId:
       </section>
       <section aria-labelledby="entry-courses">
         <h2 id="entry-courses">{text.courses}</h2>
-        {view.courseFiles.length === 0 && <p className={styles.muted}>{text.noCourses}</p>}
+        {view.courseFiles.length === 0 && <p className={styles.muted}>{text.fileWithoutCourses}</p>}
         {view.courseFiles.map(courseFile => <div key={courseFile.courseFileId} className={styles.fileCard} data-testid="course-file">
           <div className={styles.fileHead}>
             <h3>{courseFile.fileName}</h3>
@@ -186,7 +186,9 @@ export function ArchiveEntryPage({ clubId, entryId }: { clubId: string; entryId:
           </div>
           <p className={styles.small}>{courseFile.courses.map(course => [course.name, text.controls(course.controls),
             course.lengthM ? text.length(course.lengthM) : ""].filter(Boolean).join(" ")).join(" · ") || "–"}</p>
-          {courseFile.problem && <p className={styles.warning}>{text.problem} {courseFile.problem}</p>}
+          {/* En banfil utan banor (t.ex. Sänka skepp, som bara har ett rutnät) är inget fel: säg vad som gäller i stället. */}
+          {courseFile.problem && (/Course saknas/.test(courseFile.problem) ? <p className={styles.muted}>{text.fileWithoutCourses}</p>
+            : <p className={styles.warning}>{text.problem} {courseFile.problem}</p>)}
           <p className={styles.small}>{text.madeWith}: {courseFile.mapVersion
             ? `${courseFile.mapVersion.mapName} (${courseFile.mapVersion.versionDate ?? "–"}, ${courseFile.mapVersion.latest ? text.latest : text.olderVersion})`
             : "–"} · {view.sourceRace && courseFile.resolution === "FOLDER"

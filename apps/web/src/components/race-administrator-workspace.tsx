@@ -88,6 +88,8 @@ export function RaceAdministratorWorkspace({ raceId }: { raceId: string }) {
       <Sidebar ws={ws} />
       <div className={`${shell.content} ${styles.content}`}>
         {status}
+        {ws.functionary && <details className={styles.disclosure} data-testid="functionary-note"><summary>{text.functionaryTitle}</summary>
+          <p className={styles.muted}>{text.functionaryNote}</p></details>}
         {!ws.functionary && <GroupBackLink raceId={raceId} />}
         {/* Bara när användaren försökte lämna steget med något som inte är sparat (PLAN.md steg 24). */}
         {navigationBlocked && navigationLocked && <Notice tone="attention" role="alert">{text.workflowHelp}</Notice>}

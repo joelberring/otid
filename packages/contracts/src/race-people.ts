@@ -70,6 +70,28 @@ export const racePersonRevokeIdempotencyKeySchema = z.string().regex(
   "Idempotency-Key måste vara race-person-revoke:<kanoniskt request-uuid>"
 );
 
+/** Ägaren 2026-11-17: byta roll på en person eller en väntande inbjudan i listan, utan att ta bort och lägga till igen. */
+export const racePersonRoleIdempotencyKeySchema = z.string().regex(
+  new RegExp(`^race-person-role:${canonicalUuidPattern}$`),
+  "Idempotency-Key måste vara race-person-role:<kanoniskt request-uuid>"
+);
+export const racePersonRoleRequestSchema = z.object({
+  formatVersion: z.literal(1),
+  requestId: canonicalUuidSchema,
+  /** Behörighetens eller den väntande inbjudans id, som i listan. */
+  grantId: canonicalUuidSchema,
+  role: racePersonGrantableRoleSchema
+}).strict();
+export const racePersonRoleResponseSchema = z.object({
+  formatVersion: z.literal(1),
+  replayed: z.boolean(),
+  requestId: canonicalUuidSchema,
+  /** Radens id efter bytet (en ny behörighet får ett nytt id; en inbjudan och en nivå i banläggningen behåller sitt). */
+  grantId: canonicalUuidSchema,
+  role: racePersonGrantableRoleSchema,
+  changedAt: instantSchema
+}).strict();
+
 export const racePersonGrantRequestSchema = z.object({
   formatVersion: z.literal(1),
   requestId: canonicalUuidSchema,
@@ -106,4 +128,5 @@ export type RacePeopleResponse = z.infer<typeof racePeopleResponseSchema>;
 export type RacePersonGrantRequest = z.infer<typeof racePersonGrantRequestSchema>;
 export type RacePersonGrantResponse = z.infer<typeof racePersonGrantResponseSchema>;
 export type RacePersonRevokeResponse = z.infer<typeof racePersonRevokeResponseSchema>;
+export type RacePersonRoleResponse = z.infer<typeof racePersonRoleResponseSchema>;
 export type RacePersonInvitation = z.infer<typeof racePersonInvitationSchema>;

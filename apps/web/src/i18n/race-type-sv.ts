@@ -82,6 +82,10 @@ export const raceTypeSv = {
       removeLabel: (name: string) => `Ta bort behörigheten för ${name}`,
       confirmRemove: (name: string) => `Ta bort ${name}s behörighet? Personen förlorar åtkomsten direkt.`,
       removed: (name: string) => `${name} har inte längre behörighet.`,
+      /** Ägaren 2026-11-17: rollen byts i listan. */
+      roleLabel: (name: string) => `Roll för ${name}`,
+      roleChanged: (name: string, role: string) => `${name} har nu rollen ${role}.`,
+      roleConflict: "Personen har redan en annan behörighet av det slaget på tävlingen. Ta bort den här raden i stället.",
       addTitle: "Lägg till person",
       addEmail: "E-postadress",
       addEmailHelp: "Samma adress som personen loggar in med.",
@@ -91,7 +95,7 @@ export const raceTypeSv = {
       invited: (email: string, role: string) => `Behörigheten är sparad för ${email} som ${role.toLowerCase()}. Den gäller när personen loggar in med adressen.`,
       waitingForLogin: "väntar på att personen loggar in med adressen",
       already: "Personen har redan behörighet på tävlingen.",
-      ownerOnly: "Bara ägaren kan lägga till och ta bort administratörer.",
+      ownerOnly: "Bara ägaren kan lägga till, ändra och ta bort administratörer.",
       failed: "Ändringen kunde inte sparas. Försök igen.",
       sessionExpired: "Sessionen har gått ut. Ladda om sidan och försök igen."
     },

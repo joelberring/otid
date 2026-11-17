@@ -10,6 +10,9 @@ export async function GET(request: Request, { params }: Context) {
 export async function POST(request: Request, { params }: Context) {
   return raceAdministratorRoute(db, request, (await params).raceId, { kind: "people" });
 }
+export async function PATCH(request: Request, { params }: Context) {
+  return raceAdministratorRoute(db, request, (await params).raceId, { kind: "people" });
+}
 export async function DELETE(request: Request, { params }: Context) {
   return raceAdministratorRoute(db, request, (await params).raceId, { kind: "people" });
 }

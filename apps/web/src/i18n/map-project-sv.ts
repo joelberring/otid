@@ -190,8 +190,8 @@ export const mapProjectSv = {
   errors: {
     session: "Du är utloggad. Logga in igen.",
     invalid: "Uppgifterna stämmer inte.",
-    forbidden: "Du har inte behörighet till det.",
-    notFound: "Kartprojektet finns inte, eller så är du inte med i det.",
+    forbidden: "Din roll i kartprojektet räcker inte till det. Projektets ägare kan ändra din roll under Medlemmar på projektets sida.",
+    notFound: "Kartprojektet finns inte, eller så är kontot du är inloggad med inte med i det. Be projektets ägare bjuda in dig med den adressen.",
     conflict: "Det gick inte: någon annan har ändrat under tiden.",
     generic: (status: number) => `Något gick fel (${status}). Försök igen.`
   }

@@ -195,8 +195,8 @@ export const mapProjectEn: Texts<typeof mapProjectSv> = {
   errors: {
     session: "You are signed out. Sign in again.",
     invalid: "The details are not right.",
-    forbidden: "You do not have access to that.",
-    notFound: "The map project does not exist, or you are not a member of it.",
+    forbidden: "Your role in the map project is not enough for that. The project's owner can change your role under Members on the project page.",
+    notFound: "The map project does not exist, or the account you are signed in with is not a member of it. Ask the project's owner to invite you with that address.",
     conflict: "That did not work: someone else has made changes in the meantime.",
     generic: (status: number) => `Something went wrong (${status}). Try again.`
   }

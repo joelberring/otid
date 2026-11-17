@@ -28,7 +28,7 @@ import { alreadyGranted, hasOpenInvitation, invitationKind, lockInvitationEmail,
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 type Authentication = RaceSessionProof;
 type Failure = { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" | "conflict" };
-type Actor = { accountId: string; grantId: string; role: RacePrincipal["grantRole"]; raceId: string };
+export type Actor = { accountId: string; grantId: string; role: RacePrincipal["grantRole"]; raceId: string };
 
 const REVOKE_REASON = "Borttagen under Inställningar";
 
@@ -36,12 +36,12 @@ export type RacePeopleResult = Failure | { status: "ok"; response: RacePeopleRes
 export type RacePersonGrantResult = Failure | { status: "granted"; response: RacePersonGrantResponse };
 export type RacePersonRevokeResult = Failure | { status: "revoked"; response: RacePersonRevokeResponse };
 
-function actorOf(principal: RacePrincipal): Actor | undefined {
+export function actorOf(principal: RacePrincipal): Actor | undefined {
   if (principal.role !== "ADMIN") return undefined;
   return { accountId: principal.accountId, grantId: principal.grantId, role: principal.grantRole, raceId: principal.raceId };
 }
 
-async function eventOf(tx: Transaction, raceId: string, lock: "share" | "update") {
+export async function eventOf(tx: Transaction, raceId: string, lock: "share" | "update") {
   const [race] = await tx.select({ eventId: schema.races.eventId }).from(schema.races).where(eq(schema.races.id, raceId));
   if (!race) return undefined;
   const query = tx.select({ id: schema.events.id }).from(schema.events).where(eq(schema.events.id, race.eventId));
@@ -102,7 +102,7 @@ export async function listRacePeopleAsAdmin(db: Database, input: Authentication,
   });
 }
 
-async function readBody(read: () => Promise<unknown>): Promise<unknown> {
+export async function readBody(read: () => Promise<unknown>): Promise<unknown> {
   try { return await read(); } catch { return undefined; }
 }
 

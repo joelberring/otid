@@ -17,6 +17,10 @@ export const courseSettingSv = {
   linkHelp: "Lägg banorna på kartfilen i webbläsaren, eller läs in en .ppen från Purple Pen.",
   loading: "Hämtar banläggningen …",
   loadFailed: "Banläggningen kunde inte hämtas.",
+  /** Ägaren 2026-11-17: den som har en roll på tävlingen men inte i banläggningen får veta varför. */
+  noRole: "Din roll på tävlingen ger inte tillgång till banläggningen. Funktionärer ser inte banorna (banhemligheten), och kartritare ser bara kartan och kartfelen.",
+  noRoleHelp: "Ska du hjälpa till med banorna? Be en administratör ge dig en roll i banläggningen under Inställningar → Personer med behörighet.",
+  noRoleBack: "Till tävlingen",
   retry: "Försök igen",
   noMapFile: "Banläggningen ritas på kartfilen (OCAD eller Mapper). Ladda upp kartfilen först.",
   readingMap: "Läser kartfilen …",

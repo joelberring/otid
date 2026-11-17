@@ -110,7 +110,8 @@ export const clubArchiveSv = {
     previewNoMap: "Banfilen har ingen karta i arkivet.",
     allControls: "Alla kontroller",
     rights: "Kartans rättigheter",
-    problem: "Filen kunde inte läsas helt:"
+    problem: "Filen kunde inte läsas helt:",
+    fileWithoutCourses: "Filen har inga banor med start och mål, så det finns ingen bana att visa. Träningen kan vara ett rutnät (bingo eller Sänka skepp), som inte har någon bana."
   },
   rights: {
     CLUB: "Klubbens egen karta",
@@ -267,8 +268,8 @@ export const clubArchiveSv = {
   errors: {
     session: "Du är inte inloggad längre. Logga in igen.",
     invalid: "Något i formuläret är fel.",
-    notFound: "Finns inte, eller så har du inte behörighet.",
-    forbidden: "Din roll i klubben räcker inte till det.",
+    notFound: "Det här finns inte, eller så är kontot du är inloggad med inte medlem i klubben. Be klubbens ägare eller en administratör lägga till dig.",
+    forbidden: "Din roll i klubben räcker inte till det. Klubbens ägare eller en administratör kan ge dig en högre roll under Medlemmar.",
     conflict: "Det gick inte: något har ändrats eller finns redan.",
     generic: (status: number) => `Det gick inte (fel ${status}). Försök igen.`
   }

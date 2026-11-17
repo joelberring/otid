@@ -13,6 +13,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+- **2026-11-17 – Behörigheter: byta roll och tydligare besked (ägaren).** Rollen byts i listan under Personer med behörighet (rullista per
+  rad, `PATCH …/administrator/people`, `changeRacePersonRoleAsAdmin`): samma regler som Lägg till och Ta bort; en behörighet på eventet
+  återkallas och en ny skapas (raderna är oföränderliga), banläggningens nivå ändras på sin rad, en väntande inbjudan får den nya rollen
+  utan nytt mejl; journalen får `RACE_PERSON_ROLE_CHANGED`. Besked: banläggningen säger varför den inte öppnas (utloggad/utan roll, eller
+  en roll utan banläggning), funktionärens arbetsyta förklarar vad rollen ger, klubbarkivets och kartprojektens fel säger vem som kan
+  ge tillgång, och en arkiverad banfil utan banor (bingo, Sänka skepp) visas inte som ett fel. Test: integration
+  `behorighet-byta-roll.test.ts`, e2e `funktionarer.spec.ts`.
+
 ### 2026-11-17 – Gafflingar i banläggningen: gren till, ta bort gren, flytta början och ihopgång, kombinationerna
 - Ägaren 2026-11-17 (alla tre delarna): `ADD_BRANCH`, `MOVE_SPLIT` (`fork-edit.ts`), knappar i grenträdet (+ gren, Ta bort gren X, Flytta gafflingen), Gaffling-verktyget på vald sträcka (`splitPlace`). Överföringen ger löpare vars variant försvann (inte avlästa, inte stafett) den minst använda varianten (`reassignVanishedVariants`), och beskedet säger det. ADR-0175 tillägg 2026-11-17.
 - Verifierat: course-setting 597 test (nya `fork-edit.test.ts`), webbens editor- och trädtester, hela integrationssviten mot PostgreSQL 16 (168 av 169 filer; `administrator-return` kräver en databas som heter otid_*), typkontroll, lint, knip. Inte provat i webbläsaren.

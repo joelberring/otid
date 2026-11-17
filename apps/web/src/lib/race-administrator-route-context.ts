@@ -43,7 +43,7 @@ import { loadStartDrawSetupAsAdmin, previewStartDrawAsAdmin, commitStartDrawAsAd
   uploadPaperImageAsAdmin, readPaperImageAsAdmin, listPaperLibraryAsAdmin, savePaperLibraryAsAdmin, deletePaperLibraryAsAdmin,
   listCourseSettingSuggestionsAsAdmin, createCourseSettingSuggestionAsAdmin, decideCourseSettingSuggestionAsAdmin, type CourseSettingPrincipal,
   readCourseSettingRevisionAsAdmin, restoreCourseSettingRevisionAsAdmin, labelCourseSettingRevisionAsAdmin, readCourseSettingOriginalAsAdmin, previewCourseSettingTransferAsAdmin,
-  listRacePeopleAsAdmin, grantRacePersonAsAdmin, revokeRacePersonAsAdmin, resendRacePersonInvitation,
+  listRacePeopleAsAdmin, grantRacePersonAsAdmin, revokeRacePersonAsAdmin, changeRacePersonRoleAsAdmin, resendRacePersonInvitation,
   setRacePublicationAsAdmin, setCoursesPublicAsAdmin, setPublicTimingAsAdmin, readControlMapAsAdmin, readEntryControlMapAsAdmin, getRadioSettingsAsAdmin, saveRadioSettingsAsAdmin,
   fetchRadioNowAsAdmin, registerReadoutCard, previewRemainingRunnersAsAdmin, markRemainingDidNotStartAsAdmin,
   saveCourseDetailsAsAdmin, removeEntryAsAdmin, removeClassAsAdmin, removeCourseAsAdmin, readResultsOfficialAsAdmin,
@@ -153,6 +153,7 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   paperLibrarySave: savePaperLibraryAsAdmin, paperLibraryDelete: deletePaperLibraryAsAdmin,
   participantRouteSave: saveParticipantRouteAsAdmin, participantRouteRemove: removeParticipantRouteAsAdmin,
   people: listRacePeopleAsAdmin, grantPerson: grantRacePersonAsAdmin, revokePerson: revokeRacePersonAsAdmin,
+  changePersonRole: changeRacePersonRoleAsAdmin,
   // ADR-0206: Skicka igen och Kopiera länken.
   resendPersonInvitation: resendRacePersonInvitation,
   racePublication: setRacePublicationAsAdmin, courseSecrecy: setCoursesPublicAsAdmin,

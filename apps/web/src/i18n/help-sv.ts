@@ -275,6 +275,20 @@ const raceDayHelpArticles: readonly HelpArticle[] = [
     ]
   },
   {
+    id: "arbetsytan-telefon",
+    title: "Arbetsytan i telefonen",
+    views: ["COURSES", "ENTRIES", "START", "PUBLISH", "READOUT", "RESULTS", "PEOPLE", "SETTINGS"],
+    body: [
+      "I telefonen blir sidopanelen en rad överst som rullar i sidled.",
+      [
+        "Pilen i radens kant visar att det finns fler delar. Tryck på den eller dra raden.",
+        "Delen du står i rullas alltid fram.",
+        "”Meny” har alla delar med sitt läge och raderna ”Banläggning”, ”Övning i mobilen”, ”Personer” och ”Inställningar”."
+      ],
+      "Klubbytans flikar rullar på samma sätt."
+    ]
+  },
+  {
     id: "funktionarer",
     title: "Funktionärer",
     views: ["PEOPLE", "SETTINGS", "EVENTS"],

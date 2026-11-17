@@ -16,6 +16,7 @@ import { ClubMapsPanel } from "./club-maps-panel";
 import { ClubDevicesPanel } from "./club-devices-panel";
 import { PlanningPanel } from "../club-planning/planning-panel";
 import { ClubMembersPanel } from "./club-members-panel";
+import { ScrollRow } from "../ui/scroll-row";
 import { useArchiveChecks } from "./use-archive-checks";
 import { ClubSpacePanel, type ClubSpaceFocus } from "../club-affiliation/club-space-panel";
 import { ClubStartCard, type ClubStartTarget } from "./club-start-card";
@@ -108,9 +109,12 @@ export function ClubArchivePage({ clubId }: { clubId: string }) {
       </div>
     </header>
     <ClubStartCard club={club} clubName={list.clubName} onGo={go} />
-    <div ref={tabs} className={styles.tabs} role="tablist" aria-label={text.title}>
-      {TABS.filter(name => (admin || name !== "club") && (leader || name !== "planning")).map(name => <button key={name} type="button" role="tab" id={`tab-${name}`} aria-selected={tab === name} aria-controls={`panel-${name}`}
-        onClick={() => { setFocus(undefined); choose(name); }}>{text.tabs[name]}</button>)}
+    {/* Översynen 2026-11-17: flikarna rullar i telefonen och visar med toning och pil att raden fortsätter (som arbetsytans steg). */}
+    <div ref={tabs} className={styles.tabsWrap}>
+      <ScrollRow rowClassName={styles.tabs} role="tablist" aria-label={text.title} active={tab}>
+        {TABS.filter(name => (admin || name !== "club") && (leader || name !== "planning")).map(name => <button key={name} type="button" role="tab" id={`tab-${name}`} aria-selected={tab === name} aria-controls={`panel-${name}`}
+          onClick={() => { setFocus(undefined); choose(name); }}>{text.tabs[name]}</button>)}
+      </ScrollRow>
     </div>
     <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
       {tab === "trainings" && (list.viewer.access.archive ? <ArchiveList clubId={clubId} list={list} admin={admin} />

@@ -16,6 +16,7 @@ import { HelpButton } from "../help/help-panel";
 import { AccountMenu } from "../account-menu";
 import { shownRaceName } from "@o-tid/domain";
 import type { MobileExercise } from "../../lib/mobile-exercise";
+import { ScrollRow } from "../ui/scroll-row";
 
 /**
  * Banläggningen som eget mål (ägaren 2026-11-03: "lite gömd"): för den som har banläggningens behörighet på tävlingen, i alla
@@ -55,15 +56,36 @@ export function TopBar({ ws, exercise }: { ws: Workspace; exercise?: MobileExerc
   const typeText = useTexts(raceTypeSv, raceTypeEn);
   const navigationText = useTexts(raceWorkspaceNavigationSv, raceWorkspaceNavigationEn);
   const text = useTexts({ refreshOverview: raceAdministratorSv.refreshOverview }, shellEn);
-  const { data, functionary, mayLeave, profile, raceId, refresh, saving, section } = ws;
+  const language = useLanguage();
+  const { data, functionary, mayLeave, navigateStep, profile, raceId, refresh, saving, section } = ws;
   const current = facts(ws);
   const courseSetting = courseSettingLink(ws, navigationText);
+  const menuRef = useRef<HTMLDetailsElement>(null);
+  const close = () => { if (menuRef.current) menuRef.current.open = false; };
+  /**
+   * Översynen 2026-11-17: i telefonen är Meny en fullständig väg – alla delar med sitt läge (som i sidopanelen) och raderna under
+   * banan. Delarna och Personer/Inställningar syns bara när sidopanelen är en remsa (CSS); Banläggning och Övning i mobilen alltid.
+   */
+  const step = (row: Section) => {
+    if (!current || !data) return null;
+    const status = sectionStatus(row, current, data.raceType, language);
+    return <button key={row.id} type="button" className={`${styles.menuStep} ${styles.menuMobile}`} data-testid={`menu-step-${row.id}`}
+      aria-current={row.id === section.id ? "step" : undefined} onClick={() => { close(); navigateStep(row.id); }}>
+      <span>{typeText.sections[row.label]}</span>
+      <small>{status.tone === "ATTENTION" && <span className={styles.mark} aria-hidden="true">!</span>}{status.text}</small>
+    </button>;
+  };
   const shortcuts = (menu: boolean) => <>
+    {menu && profile.course.map(step)}
     {/* På smal skärm: banläggningen också i menyn (sidopanelens remsa kan vara utrullad åt sidan). */}
-    {menu && courseSetting && <a href={courseSetting.href} data-testid="menu-course-setting"
-      onClick={event => { if (!mayLeave()) event.preventDefault(); }}>{courseSetting.label}</a>}
-    {menu && exercise && <a href={exercise.href} data-testid="menu-mobile-exercise"
-      onClick={event => { if (!mayLeave()) event.preventDefault(); }}>{navigationText.mobileExercise}</a>}
+    {menu && courseSetting && <a href={courseSetting.href} data-testid="menu-course-setting" className={styles.menuStep}
+      onClick={event => { if (!mayLeave()) event.preventDefault(); }}><span>{courseSetting.label}</span><small>{courseSetting.status}</small></a>}
+    {menu && exercise && <a href={exercise.href} data-testid="menu-mobile-exercise" className={styles.menuStep}
+      onClick={event => { if (!mayLeave()) event.preventDefault(); }}><span>{navigationText.mobileExercise}</span>
+      <small>{exerciseStatus(exercise, navigationText)}</small></a>}
+    {menu && profile.people && step(profile.people)}
+    {menu && profile.settings && step(profile.settings)}
+    {menu && <hr className={styles.menuRule} />}
     <a href={`/admin/${raceId}/readout`} target="_blank" rel="noopener">{data?.raceType === "PARTY" ? typeText.openPartyDesk : typeText.openReadout}
       <span className={styles.hidden}> ({typeText.newTab})</span></a>
     {profile.features.speaker && <a href={`/admin/${raceId}/speaker`} target="_blank" rel="noopener">{typeText.openSpeaker}
@@ -86,7 +108,7 @@ export function TopBar({ ws, exercise }: { ws: Workspace; exercise?: MobileExerc
         <strong>{current.unknownCards}</strong> {typeText.live.unknown(current.unknownCards)}</span>}
     </p>}
     <nav className={styles.actions} aria-label={typeText.shortcuts}>{shortcuts(false)}</nav>
-    <details className={styles.menu}>
+    <details ref={menuRef} className={styles.menu}>
       <summary>{typeText.menu}</summary>
       <nav className={styles.menuItems} aria-label={typeText.shortcuts}>{shortcuts(true)}</nav>
     </details>
@@ -110,8 +132,10 @@ export function Sidebar({ ws, exercise }: { ws: Workspace; exercise?: MobileExer
   const courseSetting = courseSettingLink(ws, navigationText);
   const current = facts(ws);
   const activeButton = useRef<HTMLButtonElement | null>(null);
-  // Mobil: remsan rullar så att den valda delen syns.
-  useEffect(() => { activeButton.current?.scrollIntoView({ block: "nearest", inline: "nearest" }); }, [active.id]);
+  // Datorn: en låg sidopanel rullar till den valda delen. I telefonen gör remsan (ScrollRow) det i sidled.
+  useEffect(() => {
+    if (!window.matchMedia("(max-width: 760px)").matches) activeButton.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [active.id]);
   if (!data || !current) return null;
   const item = (section: Section, settings = false) => {
     const status = sectionStatus(section, current, data.raceType, language);
@@ -130,6 +154,7 @@ export function Sidebar({ ws, exercise }: { ws: Workspace; exercise?: MobileExer
     </li>;
   };
   return <nav className={styles.sidebar} aria-label={typeText.navigation}>
+    <ScrollRow rowClassName={styles.track} active={active.id}>
     <ol className={styles.course}>
       <li className={styles.start} aria-hidden="true"><svg viewBox="0 0 20 18" width="20" height="18"><path d="M10 1.5 18.5 16.5H1.5Z" /></svg>
         <span>{typeText.start}</span></li>
@@ -156,5 +181,6 @@ export function Sidebar({ ws, exercise }: { ws: Workspace; exercise?: MobileExer
       {profile.people && item(profile.people, true)}
       {profile.settings && item(profile.settings, true)}
     </ol>}
+    </ScrollRow>
   </nav>;
 }

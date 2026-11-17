@@ -24,7 +24,9 @@
 .headSide { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
 .kicker { margin: 0 0 2px; color: var(--muted); font-size: var(--text-xs); }
 .kicker a { color: inherit; }
-.tabs { display: flex; gap: 0; margin: 12px 0 16px; overflow-x: auto; border-bottom: 1px solid var(--line); scrollbar-width: none; }
+.tabsWrap { margin: 12px 0 16px; --scroll-row-fade: var(--canvas); }
+.tabs { display: flex; gap: 0; overflow-x: auto; border-bottom: 1px solid var(--line); scrollbar-width: none; scroll-padding-inline: 48px; }
+.tabs::-webkit-scrollbar { display: none; }
 .tabs button { min-height: 44px; padding: 0 14px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none;
   color: var(--muted); font-weight: 600; white-space: nowrap; cursor: pointer; }
 .tabs button[aria-selected="true"] { border-bottom-color: var(--ink); color: var(--ink); }

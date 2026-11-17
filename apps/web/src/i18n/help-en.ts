@@ -238,6 +238,20 @@ const raceDayHelpArticlesEn: readonly HelpArticle[] = [
     ]
   },
   {
+    id: "arbetsytan-telefon",
+    title: "The workspace on the phone",
+    views: ["COURSES", "ENTRIES", "START", "PUBLISH", "READOUT", "RESULTS", "PEOPLE", "SETTINGS"],
+    body: [
+      "On the phone the sidebar becomes a row at the top that scrolls sideways.",
+      [
+        "The arrow at the edge of the row shows that there are more parts. Tap it or drag the row.",
+        "The part you are in is always scrolled into view.",
+        "”Menu” has all parts with their state and the rows ”Course setting”, ”Phone exercise”, ”People” and ”Settings”."
+      ],
+      "The club space's tabs scroll the same way."
+    ]
+  },
+  {
     id: "funktionarer",
     title: "Officials",
     views: ["PEOPLE", "SETTINGS", "EVENTS"],

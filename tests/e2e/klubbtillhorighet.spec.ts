@@ -131,7 +131,8 @@ test("klubbtillhörighet: välj klubb, koppla till Eventor, bekräfta, bjud in f
   // 4. Administratören skapar en tävling i går (väljer arrangörsklubben aktivt) och bjuder in medlemmen "Från klubben".
   await admin.goto("/organizer");
   await warmRoute(admin, `/api/admin/races/${none}/administrator/session`);
-  const raceId = await createRace(admin, `Klubbkvällen ${suffix}`, daysFromToday(-1), "Tävling", undefined, /^Välj .*Älvsjö/);
+  // Kopplad till Eventor har klubben kortnamnet OKÄÖ (fake-eventor.ts), och knappen visar kortnamnet.
+  const raceId = await createRace(admin, `Klubbkvällen ${suffix}`, daysFromToday(-1), "Tävling", undefined, /^Välj (OKÄÖ|.*Älvsjö)/);
   // Banorna ur en banfil (Banor → Läs in banfil).
   const files = admin.getByRole("region", { name: "Banfil" });
   await files.getByLabel("Banfil (IOF XML)").setInputFiles(fixture("course-file-1.xml"));

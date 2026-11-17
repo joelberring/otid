@@ -1,3 +1,4 @@
+import type { ClubAddedBy } from "@o-tid/contracts";
 import { nameList, plural } from "./plural";
 
 /** ADR-0194: klubben och klubbarkivet. */
@@ -45,11 +46,19 @@ export const clubArchiveSv = {
     map: "Karta",
     tag: "Egna ord",
     leader: "Ledare",
+    addedBy: "Inlagd av",
     status: "Visa",
     all: "Alla",
     clear: "Rensa",
     count: (shown: number, total: number) => shown === total ? `${total} träningar` : `${shown} av ${total} träningar`,
     none: "Inga träningar matchar."
+  },
+  /** Ägaren 2026-11-17: vem som lade in träningen och hur. */
+  added: {
+    label: "Inlagd",
+    line: (added: ClubAddedBy) => `Inlagd av ${added.name || "borttaget konto"}`,
+    full: (added: ClubAddedBy) => `${added.at.slice(0, 10)} av ${added.name || "borttaget konto"}${added.via === "RACE"
+      ? ", från en tävling eller träning" : added.via === "IMPORT" ? ", genom import" : ""}`
   },
   status: {
     COMPLETE: "Karta och banor",

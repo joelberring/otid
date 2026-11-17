@@ -8,10 +8,10 @@ const check = (patch: Partial<ClubMapCheckView> = {}): ClubMapCheckView => ({ st
 
 const version = (versionId: string, versionCheck: ClubMapCheckView | null): ClubMapVersionView => ({ versionId, mapId: "m1", fileName: `${versionId}.ocd`,
   format: "OCD", byteLength: 10, versionDate: null, note: null, uploadedAt: "2026-11-03T10:00:00.000Z", sourcePath: null, contentSha256: "a".repeat(64),
-  trainings: 0, check: versionCheck, year: 2026, yearSource: "UPLOAD", maker: null });
+  trainings: 0, check: versionCheck, year: 2026, yearSource: "UPLOAD", maker: null, uploadedBy: "Ada" });
 
 const entry = (entryId: string, patch: Partial<ClubArchiveListItem>): ClubArchiveListItem => ({ entryId, trainingDate: null, year: 2020, place: "", title: entryId,
-  leader: null, tags: [], moments: [], levels: [], courseNames: [], courseFiles: 0, maps: [], status: "COMPLETE", thumbnail: null, thumbnailSource: null, ...patch });
+  leader: null, tags: [], moments: [], levels: [], courseNames: [], courseFiles: 0, maps: [], status: "COMPLETE", thumbnail: null, thumbnailSource: null, added: { name: "Ada", at: "2026-01-01T00:00:00.000Z", via: "ARCHIVE" as const }, ...patch });
 
 const list = (versions: ClubMapVersionView[], entries: ClubArchiveListItem[]): ClubArchiveList => ({ formatVersion: 1, clubId: "c", clubName: "Klubben",
   viewer: { role: "OWNER", access: { archive: true, mapBank: true } }, entries, maps: [{ mapId: "m1", name: "Älvsjöskogen", versions, latestVersionId: versions[0]?.versionId ?? null, trainings: 0,

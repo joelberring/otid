@@ -33,6 +33,14 @@ export async function clubMapViews(tx: DbExecutor, clubId: string, mapIds?: read
   return (await clubMapViewsByClub(tx, [clubId], mapIds, options)).get(clubId) ?? [];
 }
 
+/** Ägaren 2026-11-17: kontonas visningsnamn för "Inlagd av" ("" för ett borttaget konto). Inga adresser. */
+async function accountNames(tx: DbExecutor, ids: Iterable<string>): Promise<Map<string, string>> {
+  const unique = [...new Set(ids)];
+  if (unique.length === 0) return new Map();
+  return new Map((await tx.select({ id: schema.userAccounts.id, name: schema.userAccounts.displayName }).from(schema.userAccounts)
+    .where(inArray(schema.userAccounts.id, unique))).map(row => [row.id, row.name]));
+}
+
 /** Högst så många kartor per klubb. */
 const MAX_CLUB_MAPS = 2000;
 
@@ -62,6 +70,7 @@ export async function clubMapViewsByClub(tx: DbExecutor, clubIds: readonly strin
       union all select map_version_id, entry_id from club_archive_course_file where club_id in (${clubs}) and map_version_id is not null) u
     group by version_id`)).rows.map(row => [row.version_id, Number(row.trainings)]));
   const checks = await mapChecks(tx, versions.map(version => version.id));
+  const names = await accountNames(tx, versions.map(version => version.uploadedBy));
   const versionsOf = new Map<string, VersionRow[]>();
   for (const version of versions) {
     const list = versionsOf.get(version.mapId);
@@ -72,18 +81,19 @@ export async function clubMapViewsByClub(tx: DbExecutor, clubIds: readonly strin
       : await mapMergeHistory(tx, clubId, clubMaps, clubMaps.flatMap(map => versionsOf.get(map.id) ?? []));
     // Svensk ordning (Å, Ä, Ö sist) oberoende av databasens sortering.
     result.set(clubId, [...clubMaps].sort((a, b) => a.name.localeCompare(b.name, "sv"))
-      .map(map => mapView(map, [...versionsOf.get(map.id) ?? []].sort(versionOrder), uses, checks, merges.get(map.id) ?? [])));
+      .map(map => mapView(map, [...versionsOf.get(map.id) ?? []].sort(versionOrder), uses, checks, merges.get(map.id) ?? [], names)));
   }
   return result;
 }
 
 function mapView(map: MapRow, versions: VersionRow[], uses: Map<string, number>, checks: Map<string, ClubMapVersionView["check"] & object>,
-  merges: ClubMapView["merges"]): ClubMapView {
+  merges: ClubMapView["merges"], names: Map<string, string>): ClubMapView {
   const views: ClubMapVersionView[] = versions.map(version => {
     const year = versionYearOf(version);
     return { versionId: version.id, mapId: version.mapId, fileName: version.fileName,
       format: version.format, byteLength: version.byteLength, versionDate: version.versionDate, note: version.note,
-      uploadedAt: version.uploadedAt.toISOString(), sourcePath: version.sourcePath, contentSha256: version.contentSha256,
+      uploadedAt: version.uploadedAt.toISOString(), uploadedBy: names.get(version.uploadedBy) ?? "", sourcePath: version.sourcePath,
+      contentSha256: version.contentSha256,
       trainings: uses.get(version.id) ?? 0, check: checks.get(version.id) ?? null, year: year.year, yearSource: year.source, maker: version.maker };
   });
   return { mapId: map.id, name: map.name, ownership: map.ownership, ownerKind: map.ownerKind, ownerName: map.ownerName, agreement: map.agreement,
@@ -145,6 +155,9 @@ async function listItems(tx: DbExecutor, clubId: string, entryIds?: readonly str
     return [entry.id, versionId ? { versionId, fileName: versionOf.get(versionId)!.fileName, courseFileId: withMap?.id ?? null } : null] as const;
   }));
   const thumbnails = await entryThumbnails(tx, new Map([...sources].map(([entryId, source]) => [entryId, source?.versionId ?? null])));
+  const names = await accountNames(tx, entries.map(entry => entry.createdBy));
+  const fromRace = new Set((await tx.select({ entryId: schema.raceClubArchives.entryId }).from(schema.raceClubArchives)
+    .where(inArray(schema.raceClubArchives.entryId, ids))).map(row => row.entryId));
   return entries.map(entry => {
     const own = files.filter(file => file.entryId === entry.id);
     const folderMaps = folder.filter(row => row.entryId === entry.id);
@@ -156,7 +169,9 @@ async function listItems(tx: DbExecutor, clubId: string, entryIds?: readonly str
     return { entryId: entry.id, trainingDate: entry.trainingDate, year: entry.year, place: entry.place, title: entry.title, leader: entry.leader,
       tags: entry.tags, moments: orderedMoments(entry.moments), levels: orderedLevels(entry.levels), courseNames: [...new Set(own.flatMap(file => file.summary.courses.map(course => course.name)))].slice(0, 40), courseFiles: own.length,
       maps: [...maps.values()], status: statusOf(own, folderMaps.length), thumbnail: thumbnails.get(entry.id) ?? null,
-      thumbnailSource: sources.get(entry.id) ?? null };
+      thumbnailSource: sources.get(entry.id) ?? null,
+      added: { name: names.get(entry.createdBy) ?? "", at: entry.createdAt.toISOString(),
+        via: fromRace.has(entry.id) ? "RACE" : entry.importKey ? "IMPORT" : "ARCHIVE" } };
   });
 }
 

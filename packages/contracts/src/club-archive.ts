@@ -161,6 +161,12 @@ export interface ClubView {
 
 export type ClubArchiveEntryStatus = "COMPLETE" | "COURSES_ONLY" | "MAP_MISSING" | "MAP_ONLY";
 
+/**
+ * Ägaren 2026-11-17: vem som lade in träningen och hur – från en tävling (för hand eller automatiskt när träningen var klar),
+ * ur en import eller direkt i arkivet. `name` är kontots visningsnamn ("" för ett borttaget konto); ingen adress.
+ */
+export interface ClubAddedBy { name: string; at: string; via: "RACE" | "IMPORT" | "ARCHIVE" }
+
 export interface ClubArchiveListItem {
   entryId: string; trainingDate: string | null; year: number | null; place: string; title: string; leader: string | null; tags: string[];
   /** ADR-0222: momentens koder och nivåerna, i listornas ordning. */
@@ -168,11 +174,14 @@ export interface ClubArchiveListItem {
   courseNames: string[]; courseFiles: number; maps: { mapId: string; name: string }[]; status: ClubArchiveEntryStatus;
   /** ADR-0196: träningens bild (null = inte ritad än) och vad den ritas av (null = ingen karta). */
   thumbnail: ClubEntryThumbnailView | null; thumbnailSource: ClubEntryThumbnailSource | null;
+  added: ClubAddedBy;
 }
 
 export interface ClubMapVersionView {
   versionId: string; mapId: string; fileName: string; format: "OCD" | "OMAP"; byteLength: number; versionDate: string | null; note: string | null;
   uploadedAt: string; sourcePath: string | null; contentSha256: string; trainings: number;
+  /** Ägaren 2026-11-17: kontots visningsnamn för den som lade in versionen ("" för ett borttaget konto). */
+  uploadedBy: string;
   /** ADR-0196: senaste kontrollen (null = inte kontrollerad än). */
   check: ClubMapCheckView | null;
   /** ADR-0210: versionens år (inskrivet eller gissat, och varifrån) och kartritare. */

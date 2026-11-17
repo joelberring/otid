@@ -1,3 +1,4 @@
+import type { ClubAddedBy } from "@o-tid/contracts";
 import { nameList } from "./plural";
 import type { Texts } from "../lib/language";
 import type { clubArchiveSv } from "./club-archive-sv";
@@ -47,11 +48,18 @@ export const clubArchiveEn: Texts<typeof clubArchiveSv> = {
     map: "Map",
     tag: "Own words",
     leader: "Leader",
+    addedBy: "Added by",
     status: "Show",
     all: "All",
     clear: "Clear",
     count: (shown: number, total: number) => shown === total ? count(total, "training", "trainings") : `${shown} of ${total} trainings`,
     none: "No trainings match."
+  },
+  added: {
+    label: "Added",
+    line: (added: ClubAddedBy) => `Added by ${added.name || "deleted account"}`,
+    full: (added: ClubAddedBy) => `${added.at.slice(0, 10)} by ${added.name || "deleted account"}${added.via === "RACE"
+      ? ", from an event or training" : added.via === "IMPORT" ? ", by import" : ""}`
   },
   status: {
     COMPLETE: "Map and courses",

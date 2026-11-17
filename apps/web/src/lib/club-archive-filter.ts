@@ -6,7 +6,8 @@ import { TRAINING_LEVELS, TRAINING_MOMENTS, type ClubArchiveEntryStatus, type Cl
  * ADR-0194: arkivets sökning och filter i webbläsaren (hela arkivet hämtas på en gång; några hundra träningar). Sökningen
  * gäller plats, rubrik, ledare, taggar, banornas namn och kartornas namn, utan hänsyn till versaler och accenter (ä = a är
  * inte samma bokstav, men "alvsjo" hittar "Älvsjö"). ADR-0222: flera moment och egna ord samtidigt (alla måste finnas) och
- * nivåer (någon av dem); sökningen gäller också momentens namn på besökarens språk.
+ * nivåer (någon av dem); sökningen gäller också momentens namn på besökarens språk. Ägaren 2026-11-17: också vem som lade in
+ * träningen (sökningen och filtret "Inlagd av").
  */
 export interface ArchiveFilter {
   readonly text: string;
@@ -16,10 +17,11 @@ export interface ArchiveFilter {
   readonly tags: readonly string[];
   readonly levels: readonly TrainingLevel[];
   readonly leader: string;
+  readonly addedBy: string;
   readonly status: "" | ClubArchiveEntryStatus;
 }
 
-export const EMPTY_FILTER: ArchiveFilter = { text: "", year: "", mapId: "", moments: [], tags: [], levels: [], leader: "", status: "" };
+export const EMPTY_FILTER: ArchiveFilter = { text: "", year: "", mapId: "", moments: [], tags: [], levels: [], leader: "", addedBy: "", status: "" };
 
 /** Ett sparat filter (äldre versioner hade en enda tagg) med bara de kända fälten. */
 export function savedFilter(saved: Partial<ArchiveFilter> & { tag?: string } | null): ArchiveFilter {
@@ -27,7 +29,7 @@ export function savedFilter(saved: Partial<ArchiveFilter> & { tag?: string } | n
   const list = <T,>(value: unknown, valid?: readonly T[]) => Array.isArray(value)
     ? value.filter((item): item is T => typeof item === "string" && (!valid || valid.includes(item as T))) : [];
   const text = (value: unknown) => typeof value === "string" ? value : "";
-  return { text: text(saved.text), year: text(saved.year), mapId: text(saved.mapId), leader: text(saved.leader),
+  return { text: text(saved.text), year: text(saved.year), mapId: text(saved.mapId), leader: text(saved.leader), addedBy: text(saved.addedBy),
     status: text(saved.status) as ArchiveFilter["status"], moments: list<TrainingMoment>(saved.moments, TRAINING_MOMENTS),
     tags: [...list<string>(saved.tags), ...(saved.tag ? [saved.tag] : [])], levels: list<TrainingLevel>(saved.levels, TRAINING_LEVELS) };
 }
@@ -44,10 +46,11 @@ export function filterArchive(entries: readonly ClubArchiveListItem[], filter: A
     if (!filter.tags.every(tag => entry.tags.includes(tag))) return false;
     if (filter.levels.length > 0 && !filter.levels.some(level => entry.levels.includes(level))) return false;
     if (filter.leader && entry.leader !== filter.leader) return false;
+    if (filter.addedBy && entry.added.name !== filter.addedBy) return false;
     if (filter.status && entry.status !== filter.status) return false;
     if (words.length === 0) return true;
     const haystack = foldForSearch([entry.place, entry.title, entry.leader ?? "", ...entry.tags, ...entry.moments.map(momentName), ...entry.courseNames, ...entry.maps.map(map => map.name),
-      entry.trainingDate ?? ""].join(" "));
+      entry.trainingDate ?? "", entry.added.name].join(" "));
     return words.every(word => haystack.includes(word));
   });
 }
@@ -59,7 +62,8 @@ export function archiveFacets(entries: readonly ClubArchiveListItem[]) {
     years: [...new Set(entries.map(yearOf).filter(Boolean))].sort().reverse(),
     tags: sorted(entries.flatMap(entry => entry.tags)),
     moments: TRAINING_MOMENTS.filter(moment => entries.some(entry => entry.moments.includes(moment))),
-    leaders: sorted(entries.flatMap(entry => entry.leader ? [entry.leader] : []))
+    leaders: sorted(entries.flatMap(entry => entry.leader ? [entry.leader] : [])),
+    addedBy: sorted(entries.map(entry => entry.added.name))
   };
 }
 

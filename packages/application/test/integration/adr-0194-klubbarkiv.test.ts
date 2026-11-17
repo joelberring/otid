@@ -243,6 +243,8 @@ describe("ADR-0194: klubbarkivet", { timeout: 120_000 }, () => {
     let list = await readClubArchive(db, { ...owner.proof, clubId }, NOW);
     if (list.status !== "ok") throw new Error("Inget arkiv");
     expect(list.list.maps.map(map => [map.name, map.versions.map(version => version.versionDate)])).toEqual([["Älvsjöskogen", ["2024-05-01", "2018-08-12"]]]);
+    // Ägaren 2026-11-17: vem som lade in varje version (visningsnamnet).
+    expect(list.list.maps[0]!.versions.map(version => version.uploadedBy)).toEqual([`Arrangör ${owner.email.split("@")[0]}`, `Arrangör ${owner.email.split("@")[0]}`]);
     // Dela ut versionen igen till en ny karta.
     const moved = await moveClubMapVersion(db, { ...owner.proof, clubId, versionId: second.versionId, request: { formatVersion: 1, targetMapId: null,
       newMapName: "Vinterviken" } }, NOW);

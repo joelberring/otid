@@ -51,6 +51,9 @@ export function ArchiveList({ clubId, list, admin }: { clubId: string; list: Clu
         <option value="">{f.all}</option>{list.maps.map(map => <option key={map.mapId} value={map.mapId}>{map.name}</option>)}</select></label>
       <label>{f.leader}<select value={filter.leader} onChange={event => update({ leader: event.target.value })}>
         <option value="">{f.all}</option>{facets.leaders.map(leader => <option key={leader}>{leader}</option>)}</select></label>
+      {facets.addedBy.length > 0 && <label>{f.addedBy}<select value={filter.addedBy} data-testid="archive-filter-added-by"
+        onChange={event => update({ addedBy: event.target.value })}>
+        <option value="">{f.all}</option>{facets.addedBy.map(name => <option key={name}>{name}</option>)}</select></label>}
       <label>{f.status}<select value={filter.status} onChange={event => update({ status: event.target.value as ArchiveFilter["status"] })}>
         <option value="">{f.all}</option>{STATUSES.map(status => <option key={status} value={status}>{text.status[status]}</option>)}</select></label>
     </div>
@@ -80,6 +83,7 @@ export function ArchiveList({ clubId, list, admin }: { clubId: string; list: Clu
               {" "}{momentText.levelNames[level]}</span>)}
             {entry.moments.map(moment => <span key={moment} className={styles.tag}>{momentText.momentNames[moment]}</span>)}
             {entry.tags.map(tag => <span key={tag} className={styles.tag}>{tag}</span>)}
+            <span data-testid="archive-entry-added">{text.added.line(entry.added)}</span>
           </span>
         </Link>
       </li>)}

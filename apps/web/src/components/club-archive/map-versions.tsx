@@ -96,6 +96,7 @@ export function VersionDetails({ clubId, map, version, admin, onChanged, onMessa
     <span className={styles.versionYear} data-testid="version-year">{version.year}</span>{" "}
     <span className={styles.yearSource}>({text.yearSource[version.yearSource]})</span>
     {version.maker && <span className={styles.yearSource}> · {text.makerLabel(version.maker)}</span>}
+    <span className={styles.yearSource} data-testid="version-uploaded-by"> · {text.uploadedBy(version.uploadedBy, version.uploadedAt.slice(0, 10))}</span>
     {admin && !editing && !copy && <div className={styles.buttons}>
       <Button variant="quiet" aria-label={text.editTitle(version.fileName)} onClick={() => {
         setYear(version.yearSource === "MANUAL" ? String(version.year) : ""); setMaker(version.maker ?? ""); setNote(version.note ?? ""); setEditing(true);

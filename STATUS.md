@@ -13,6 +13,8 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+- 2026-11-17: Klubbarkivet visar vem som lade in varje träning (namn, datum, från tävling/import/arkivet) och varje kartversion; filtret "Inlagd av" och sökning på namnet (ADR-0194 tillägg 2026-11-17). Verifierat: typecheck, lint, enhetstester för filtret, integrationstester för arkivet och klubbtillhörigheten.
+
 - 2026-11-17: Arrangörsklubben väljs alltid aktivt i Ny tävling (inget förval, "Ingen klubb (eget)" som eget val, fältfel annars); servern gissar aldrig klubben (ADR-0209 tillägg 2026-11-17). Verifierat: typecheck, lint, integrationstesterna för klubbtillhörighet, ledarflödet och klubb/grupp/plan. E2E-testerna uppdaterade men inte körda här.
 
 ### 2026-11-17 – Utskriftssidan: sex förtydliganden (ägaren: "fixa alla sex")

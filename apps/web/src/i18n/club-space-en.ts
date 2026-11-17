@@ -158,7 +158,8 @@ export const clubMapDuplicatesEn: Texts<typeof clubMapDuplicatesSv> = {
     nothing: "Nothing changes: the versions already have the same details.",
     confirm: "Copy",
     copied: (n: number) => n === 1 ? "1 version is changed." : `${n} versions are changed.`,
-    makerLabel: (maker: string) => `Mapper: ${maker}`
+    makerLabel: (maker: string) => `Mapper: ${maker}`,
+    uploadedBy: (name: string, date: string) => `added by ${name || "deleted account"} ${date}`
   },
   mapInfo: {
     title: "Name and description",

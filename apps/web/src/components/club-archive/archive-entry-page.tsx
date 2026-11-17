@@ -169,6 +169,7 @@ export function ArchiveEntryPage({ clubId, entryId }: { clubId: string; entryId:
         {entry.notes && <p>{entry.notes}</p>}
         {!mapBank && <p className={styles.muted} data-testid="map-bank-closed">{text.mapBankClosed}</p>}
         <dl className={styles.facts}>
+          <dt>{clubArchiveText.added.label}</dt><dd data-testid="entry-added">{clubArchiveText.added.full(entry.added)}</dd>
           {entry.sourcePath && <><dt>{text.source}</dt><dd>{entry.sourcePath}</dd></>}
           {view.sourceRace && <><dt>{text.fromRace}</dt><dd data-testid="entry-source-race">{view.sourceRace.publicPath
             ? <Link href={view.sourceRace.publicPath}>{view.sourceRace.name}</Link> : view.sourceRace.name} ({view.sourceRace.date})</dd></>}

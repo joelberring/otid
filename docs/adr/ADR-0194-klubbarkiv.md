@@ -94,3 +94,10 @@ och `thumbnail`) sparas av alla medlemmar som får se dem, inte bara administrat
 kontrollen av alla som ser arkivet eller kartbanken ("Vem ser vad", ADR-0209). Det är medlemmarnas webbläsare som ritar dem
 (den som ser arkivet och får hämta kartfilerna); servern prövar innehållet som förut (PNG, storlek, att versionen och träningen
 hör till klubben). "Kontrollera alla kartor igen" är kvar hos administratörerna.
+
+### Tillägg 2026-11-17: vem som lade in träningar och kartversioner
+
+Ägaren vill att det ska vara tydligt och sökbart vem som lagt in vad i arkivet. Varje träning visar "Inlagd av" (kontots
+visningsnamn, aldrig adressen) med datum och hur den kom dit: från en tävling eller träning (`race_club_archive`), genom import
+(`import_key`) eller direkt i arkivet. Listan har filtret "Inlagd av" och sökningen träffar namnet. Varje kartversion visar
+"inlagd av … datum" ur `uploaded_by`. Ett borttaget konto visas som "borttaget konto". Inga nya kolumner: uppgifterna fanns redan.

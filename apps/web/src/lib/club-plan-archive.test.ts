@@ -4,7 +4,7 @@ import { archiveSuggestions, sameWeeksEarlierYears } from "./club-plan-archive";
 
 const entry = (title: string, trainingDate: string | null, year: number | null = trainingDate ? Number(trainingDate.slice(0, 4)) : null) =>
   ({ entryId: title, title, trainingDate, year, place: "", leader: null, tags: [], moments: [], levels: [], courseNames: [], courseFiles: 0, maps: [],
-    status: "COMPLETE", thumbnail: null, thumbnailSource: null }) as ClubArchiveListItem;
+    status: "COMPLETE", thumbnail: null, thumbnailSource: null, added: { name: "Ada", at: "2026-01-01T00:00:00.000Z", via: "ARCHIVE" as const } }) as ClubArchiveListItem;
 
 describe("Hämta ur arkivet: ordningen", () => {
   it("samma vecka ± 1 i tidigare år först, sedan de senaste, utan datum sist", () => {

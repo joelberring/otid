@@ -72,7 +72,8 @@ export const clubMapDuplicatesSv = {
     nothing: "Inget ändras: versionerna har redan samma uppgifter.",
     confirm: "Kopiera",
     copied: (count: number) => count === 1 ? "1 version är ändrad." : `${count} versioner är ändrade.`,
-    makerLabel: (maker: string) => `Kartritare: ${maker}`
+    makerLabel: (maker: string) => `Kartritare: ${maker}`,
+    uploadedBy: (name: string, date: string) => `inlagd av ${name || "borttaget konto"} ${date}`
   },
   mapInfo: {
     title: "Namn och beskrivning",

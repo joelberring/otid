@@ -438,6 +438,12 @@ describe("ADR-0209: tävlingen i klubbarkivet", { timeout: 60_000 }, () => {
     if (entry.status !== "ok") throw new Error(entry.status);
     expect(entry.view.entry).toMatchObject({ title: "Höstsprinten · Final", trainingDate: "2026-11-10", leader: null });
     expect(entry.view.sourceRace).toMatchObject({ raceId, name: "Höstsprinten · Final", exists: true });
+    // Ägaren 2026-11-17: vem som lade in träningen (namnet, aldrig adressen) och att den kom från en tävling.
+    const ownerName = `Arrangör ${owner.email.split("@")[0]}`;
+    expect(entry.view.entry.added).toEqual({ name: ownerName, at: after.toISOString(), via: "RACE" });
+    const listed = await readClubArchive(db, { ...owner.proof, clubId }, after);
+    if (listed.status !== "ok") throw new Error(listed.status);
+    expect(listed.list.entries.find(item => item.entryId === entryId)?.added.name).toBe(ownerName);
     expect(entry.view.courseFiles.map(file => file.kind).sort()).toEqual(["COURSE_DATA", "PPEN"]);
     const contents = (await db.select({ content: schema.clubArchiveCourseFiles.content }).from(schema.clubArchiveCourseFiles)
       .where(eq(schema.clubArchiveCourseFiles.entryId, entryId))).map(row => row.content.toString("utf8")).join("\n");

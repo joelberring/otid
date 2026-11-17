@@ -107,7 +107,7 @@ export { mapFileFormatOf, readRaceMapSourceFileAsAdmin, removeRaceMapSourceAsAdm
 export { courseLegKeys, publishRouteChoiceAsAdmin, readRouteChoiceAsAdmin, readRouteChoiceCalibrationAsAdmin, saveRouteChoiceSettingsAsAdmin }
   from "./route-choice";
 export {
-  importCourseSettingAsAdmin, listCourseSettingRevisionsAsAdmin, previewCourseSettingTransferAsAdmin, readCourseSettingAsAdmin,
+  importCourseSettingAsAdmin, labelCourseSettingRevisionAsAdmin, listCourseSettingRevisionsAsAdmin, previewCourseSettingTransferAsAdmin, readCourseSettingAsAdmin,
   readCourseSettingOriginalAsAdmin, readCourseSettingRevisionAsAdmin, restoreCourseSettingRevisionAsAdmin, saveCourseSettingAsAdmin,
   type CourseSettingTransferResult
 } from "./course-setting";

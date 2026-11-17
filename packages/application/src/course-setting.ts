@@ -1,6 +1,7 @@
-import { and, desc, eq, notInArray, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
 import {
-  COURSE_SETTING_DOCUMENT_MAX_BYTES, COURSE_SETTING_REVISIONS_KEPT, courseSettingDocumentSchema, courseSettingImportRequestSchema,
+  COURSE_SETTING_DOCUMENT_MAX_BYTES, COURSE_SETTING_NAMED_REVISIONS_MAX, COURSE_SETTING_REVISIONS_KEPT, courseSettingDocumentSchema, courseSettingImportRequestSchema,
+  courseSettingRevisionLabeledSchema, courseSettingRevisionLabelRequestSchema, type CourseSettingRevisionLabeled,
   courseSettingRestoreRequestSchema, courseSettingRevisionSchema, courseSettingRevisionsSchema, courseSettingSaveRequestSchema,
   courseSettingSavedSchema, courseSettingStateSchema, courseSettingTransferRequestSchema, type CourseSettingConflict,
   type CourseSettingDocumentDto, type CourseSettingRevision, type CourseSettingRevisions, type CourseSettingSaved, type CourseSettingState,
@@ -112,11 +113,12 @@ export async function store(tx: Transaction, input: { raceId: string; actorId: s
     if (keep) {
       await tx.insert(schema.courseSettingRevisions).values({ raceId, version: current.version, kind, document: current.document,
         createdAt: current.updatedAt, createdBy: current.updatedBy }).onConflictDoNothing();
+      // De 50 senaste utan namn behålls; namngivna (ägaren 2026-11-17) rensas aldrig här.
       const kept = tx.select({ version: schema.courseSettingRevisions.version }).from(schema.courseSettingRevisions)
-        .where(eq(schema.courseSettingRevisions.raceId, raceId)).orderBy(desc(schema.courseSettingRevisions.version))
-        .limit(COURSE_SETTING_REVISIONS_KEPT);
+        .where(and(eq(schema.courseSettingRevisions.raceId, raceId), isNull(schema.courseSettingRevisions.label)))
+        .orderBy(desc(schema.courseSettingRevisions.version)).limit(COURSE_SETTING_REVISIONS_KEPT);
       await tx.delete(schema.courseSettingRevisions).where(and(eq(schema.courseSettingRevisions.raceId, raceId),
-        notInArray(schema.courseSettingRevisions.version, kept)));
+        isNull(schema.courseSettingRevisions.label), notInArray(schema.courseSettingRevisions.version, kept)));
     }
   }
   const original = input.original ? { originalPpen: input.original.ppen, originalFileName: input.original.fileName, originalImportedAt: now } : {};
@@ -216,14 +218,17 @@ export async function listCourseSettingRevisionsAsAdmin(db: Database, input: Rea
   : Promise<Failure | { status: "ok"; response: CourseSettingRevisions }> {
   return courseSettingRead(db, input, now, async (tx, raceId) => {
     const table = schema.courseSettingRevisions;
-    const rows = await tx.select({ version: table.version, kind: table.kind, createdAt: table.createdAt, createdBy: table.createdBy,
+    const columns = { version: table.version, kind: table.kind, createdAt: table.createdAt, createdBy: table.createdBy, label: table.label,
       courses: sql<number>`jsonb_array_length(${table.document}->'courses')`,
-      controls: sql<number>`(select count(*) from jsonb_object_keys(${table.document}->'controls'))::int` })
-      .from(table).where(eq(table.raceId, raceId)).orderBy(desc(table.version)).limit(COURSE_SETTING_REVISIONS_KEPT);
+      controls: sql<number>`(select count(*) from jsonb_object_keys(${table.document}->'controls'))::int` };
+    const [unnamed, named] = await Promise.all([
+      tx.select(columns).from(table).where(and(eq(table.raceId, raceId), isNull(table.label))).orderBy(desc(table.version)).limit(COURSE_SETTING_REVISIONS_KEPT),
+      tx.select(columns).from(table).where(and(eq(table.raceId, raceId), isNotNull(table.label))).orderBy(desc(table.version)).limit(COURSE_SETTING_NAMED_REVISIONS_MAX)]);
+    const rows = [...unnamed, ...named].sort((a, b) => b.version - a.version);
     const names = await actors(tx, rows.map(row => row.createdBy));
     return { status: "ok" as const, response: courseSettingRevisionsSchema.parse({ formatVersion: 1, raceId,
       revisions: rows.map(row => ({ version: row.version, kind: row.kind, createdAt: row.createdAt.toISOString(), createdBy: actor(names, row.createdBy),
-        courses: Number(row.courses), controls: Number(row.controls) })) }) };
+        courses: Number(row.courses), controls: Number(row.controls), label: row.label })) }) };
   });
 }
 
@@ -259,6 +264,37 @@ export async function restoreCourseSettingRevisionAsAdmin(db: Database, input: R
 }
 
 /** Den senast inlästa .ppen-filen orörd (för nedladdning). */
+/**
+ * Ägaren 2026-11-17 («spara en äldre version med tidpunkt»): ge en tidigare version ett namn, eller spara den nuvarande som en
+ * namngiven version (utan `version`). Tidpunkten är versionens egen. Namngivna versioner rensas inte bort; `null` tar bort namnet.
+ */
+export async function labelCourseSettingRevisionAsAdmin(db: Database, input: RaceSessionProof & { request: unknown }, now = new Date())
+  : Promise<Failure | { status: "conflict" } | { status: "ok"; response: CourseSettingRevisionLabeled }> {
+  const parsed = courseSettingRevisionLabelRequestSchema.safeParse(input.request);
+  if (!parsed.success) return { status: "invalid-request" };
+  return courseSettingWrite(db, input, now, "EDIT", async (tx, raceId, actorId) => {
+    const table = schema.courseSettingRevisions;
+    const { label } = parsed.data;
+    if (label !== null) {
+      const [count] = await tx.select({ value: sql<number>`count(*)::int` }).from(table).where(and(eq(table.raceId, raceId), isNotNull(table.label)));
+      if (Number(count?.value ?? 0) >= COURSE_SETTING_NAMED_REVISIONS_MAX) return { status: "conflict" as const };
+    }
+    let version = parsed.data.version;
+    if (version === undefined) {
+      const current = await loadRow(tx, raceId);
+      if (!current) return { status: "not-found" as const };
+      version = current.version;
+      await tx.insert(table).values({ raceId, version, kind: "SAVE", document: current.document, createdAt: current.updatedAt,
+        createdBy: current.updatedBy, label }).onConflictDoUpdate({ target: [table.raceId, table.version], set: { label } });
+    } else {
+      const updated = await tx.update(table).set({ label }).where(and(eq(table.raceId, raceId), eq(table.version, version))).returning({ version: table.version });
+      if (updated.length === 0) return { status: "not-found" as const };
+    }
+    await audit(tx, raceId, actorId, "COURSE_SETTING_REVISION_LABELED", { version, label });
+    return { status: "ok" as const, response: courseSettingRevisionLabeledSchema.parse({ formatVersion: 1, raceId, version }) };
+  });
+}
+
 export async function readCourseSettingOriginalAsAdmin(db: Database, input: ReadProof, now = new Date())
   : Promise<Failure | { status: "ok"; fileName: string; ppen: string }> {
   return courseSettingRead(db, input, now, async (tx, raceId) => {

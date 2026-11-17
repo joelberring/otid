@@ -13,7 +13,7 @@ import type { MapGeoreference } from "@o-tid/map-file";
 import { courseSettingSv } from "../../i18n/course-setting-sv";
 import { coursePropertiesSv } from "../../i18n/course-setting-properties-sv";
 import { iofCourseFile } from "../../lib/course-setting-iof";
-import { courseSettingBase, downloadText, fetchCourseSettingRevisions } from "../../lib/course-setting-api";
+import { courseSettingBase, downloadText, fetchCourseSettingRevisions, labelCourseSettingRevision } from "../../lib/course-setting-api";
 import { paperImageBase64 } from "../../lib/course-setting-paper-api";
 import { Button, Notice } from "../ui";
 import styles from "./course-setting.module.css";
@@ -64,8 +64,10 @@ export function PpenImport({ onRead, busy, label: chosenLabel }: { onRead: (file
 }
 
 /** Fil: läs in, ladda ned som .ppen (writePpen), den inlästa filen orörd och tidigare versioner. */
-export function FilePanel({ raceId, document, original, busy, onImport, onRestore, mapBounds, georeference }: {
+export function FilePanel({ raceId, document, original, busy, onImport, onRestore, mapBounds, georeference, flush }: {
   raceId: string; document: CourseSettingDocument; original: { fileName: string } | null; busy: boolean;
+  /** Skickar det osparade innan den nuvarande versionen sparas med namn. */
+  flush?: (() => Promise<boolean>) | undefined;
   onImport: (file: ReadFile) => Promise<void>; onRestore: (version: number) => Promise<boolean>;
   /** ADR-0190: kartfilens yta och georeferens för IOF-exporten. */
   mapBounds?: { minX: number; minY: number; maxX: number; maxY: number } | undefined; georeference?: MapGeoreference | null | undefined;
@@ -77,6 +79,23 @@ export function FilePanel({ raceId, document, original, busy, onImport, onRestor
   const [message, setMessage] = useState<{ tone: "ok" | "error" | "attention"; text: string }>();
   async function showRevisions() {
     try { setRevisions((await fetchCourseSettingRevisions(raceId)).revisions); } catch { setMessage({ tone: "error", text: text.loadFailed }); }
+  }
+  // Ägaren 2026-11-17: spara en version med namn och tidpunkt (den nuvarande, eller ge en tidigare ett namn).
+  async function name(version?: number) {
+    const time = new Date().toLocaleString(locale, { dateStyle: "short", timeStyle: "short" });
+    const label = window.prompt(text.revisions.namePrompt, version === undefined ? text.revisions.defaultName(time) : "")?.trim().slice(0, 80);
+    if (!label) return;
+    if (version === undefined && flush && !await flush()) { setMessage({ tone: "error", text: text.revisions.unsaved }); return; }
+    const outcome = await labelCourseSettingRevision(raceId, label, version).catch(() => "failed" as const);
+    setMessage(outcome === "ok" ? { tone: "ok", text: text.revisions.named(label) }
+      : { tone: "error", text: outcome === "full" ? text.revisions.full : text.revisions.nameFailed });
+    if (outcome === "ok") await showRevisions();
+  }
+  async function unname(version: number, label: string) {
+    if (!window.confirm(text.revisions.unnameConfirm(label))) return;
+    const outcome = await labelCourseSettingRevision(raceId, null, version).catch(() => "failed" as const);
+    setMessage(outcome === "ok" ? { tone: "ok", text: text.revisions.unnamed } : { tone: "error", text: text.revisions.nameFailed });
+    if (outcome === "ok") await showRevisions();
   }
   async function download() {
     const title = document.event.title.trim().replace(/[^\p{L}\p{N} ._-]/gu, "_") || "banlaggning";
@@ -119,12 +138,16 @@ export function FilePanel({ raceId, document, original, busy, onImport, onRestor
     </div>
     <p className={styles.muted}>{propsText.iof.help}</p>
     <p className={styles.muted}>{propsText.iof.ocad}</p>
-    {!revisions && <div className={styles.row}><Button variant="quiet" onClick={() => void showRevisions()}>{text.revisions.show}</Button></div>}
+    <div className={styles.row}>
+      <Button variant="secondary" disabled={busy} onClick={() => void name()} data-testid="course-setting-save-named">{text.revisions.saveNamed}</Button>
+      {!revisions && <Button variant="quiet" onClick={() => void showRevisions()}>{text.revisions.show}</Button>}
+    </div>
+    <p className={styles.muted}>{text.revisions.saveNamedHelp}</p>
     {revisions && <>
       <h3 className={styles.muted}>{text.revisions.heading}</h3>
       {revisions.length === 0 ? <p className={styles.muted}>{text.revisions.none}</p> : <ul className={styles.revisions}>
         {revisions.map(revision => <li key={revision.version}>
-          <span>{text.revisions.kind[revision.kind]}: {text.revisions.row(revision.version, new Date(revision.createdAt).toLocaleString(locale,
+          <span>{revision.label ? <strong>{revision.label}: </strong> : `${text.revisions.kind[revision.kind]}: `}{text.revisions.row(revision.version, new Date(revision.createdAt).toLocaleString(locale,
             { dateStyle: "short", timeStyle: "short" }), revision.createdBy.displayName, revision.courses, revision.controls)}</span>
           <Button variant="quiet" disabled={busy} onClick={() => void (async () => {
             if (!window.confirm(text.revisions.restoreConfirm(revision.version))) return;
@@ -132,6 +155,9 @@ export function FilePanel({ raceId, document, original, busy, onImport, onRestor
             setMessage(ok ? { tone: "ok", text: text.revisions.restored(revision.version) } : { tone: "error", text: text.revisions.failed });
             if (ok) await showRevisions();
           })()}>{text.revisions.restore}</Button>
+          {revision.label
+            ? <Button variant="quiet" disabled={busy} onClick={() => void unname(revision.version, revision.label!)}>{text.revisions.unname}</Button>
+            : <Button variant="quiet" disabled={busy} onClick={() => void name(revision.version)}>{text.revisions.name}</Button>}
         </li>)}
       </ul>}
     </>}

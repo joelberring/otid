@@ -148,11 +148,13 @@ export const courseSettingInspections = pgTable("course_setting_inspection", {
   atY: doublePrecision("at_y")
 }, (table) => [primaryKey({ columns: [table.raceId, table.controlId] })]);
 
-/** Steg 62: tidigare versioner av banläggningen (de senaste 50). */
+/** Steg 62: tidigare versioner av banläggningen (de senaste 50, och de namngivna utöver dem, migration 0130). */
 export const courseSettingRevisions = pgTable("course_setting_revision", {
   raceId: uuid("race_id").notNull().references(() => races.id),
   version: integer("version").notNull(),
   kind: text("kind").$type<"SAVE" | "IMPORT" | "RESTORE">().notNull(),
+  /** Ägaren 2026-11-17: namnet som någon gav versionen; namngivna rensas inte bort. */
+  label: text("label"),
   document: jsonb("document").$type<Record<string, unknown> & { version: 1 }>().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   createdBy: uuid("created_by").notNull()

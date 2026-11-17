@@ -758,7 +758,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
     </div>
     {dialog === "file" && <Dialog title={text.file.heading} onClose={() => setDialog(undefined)}>
       <FilePanel raceId={raceId} document={document} original={state.original} busy={busy || access.level !== "EDIT"} onImport={onImport}
-        onRestore={onRestore} mapBounds={mapBounds} georeference={georeference} />
+        onRestore={onRestore} mapBounds={mapBounds} georeference={georeference} flush={flush} />
     </Dialog>}
     {dialog === "map" && access.admin && <Dialog title={mapReplaceText.heading} onClose={() => setDialog(undefined)}>
       <MapReplacePanel raceId={raceId} mapFile={state.mapFile} document={document} flush={flush} onReplaced={next => { setDialog(undefined); onReload(next); }} />

@@ -1,7 +1,7 @@
 import {
   COURSE_SETTING_EDITS_MAX, COURSE_SETTING_EDITS_MAX_BYTES, COURSE_SETTING_IMPORT_MAX_BYTES, COURSE_SETTING_NOTE_MAX_BYTES, COURSE_SETTING_SAVE_MAX_BYTES,
   courseSettingConflictSchema, courseSettingEditsSavedSchema, courseSettingInspectionsSchema, courseSettingModeRequestSchema, courseSettingNoteSchema, courseSettingNotesSchema,
-  courseSettingRevisionSchema, courseSettingRevisionsSchema, courseSettingSavedSchema, courseSettingStateSchema, courseSettingSuggestionDecidedSchema,
+  courseSettingRevisionLabeledSchema, courseSettingRevisionSchema, courseSettingRevisionsSchema, courseSettingSavedSchema, courseSettingStateSchema, courseSettingSuggestionDecidedSchema,
   courseSettingSuggestionSchema, courseSettingSuggestionsSchema, mapLinkCreatedSchema, mapLinkStateSchema, courseSettingTransferProblemSchema, PRINT_JOB_REQUEST_MAX_BYTES, printJobProblemSchema,
   printJobSchema, printJobsSchema, syncPreviewResponseSchema, PAPER_IMAGE_MAX_BYTES, PAPER_TEMPLATE_MAX_BYTES, paperImageSchema, paperLibrarySchema
 } from "@o-tid/contracts";
@@ -88,6 +88,16 @@ export async function handleCourseSettingRoute(context: RaceAdministratorRouteCo
       return saved(await dependencies.courseSettingRestore(db, { ...input, request: value }), raceId, by);
     }
     case "course-setting-revisions": {
+      // Ägaren 2026-11-17: POST ger en version ett namn (eller sparar den nuvarande som namngiven version).
+      if (request.method === "POST") {
+        const value = await body(request, 4096);
+        if (value === undefined) return failure(400, "INVALID_REQUEST");
+        const labeled = await dependencies.courseSettingRevisionLabel(db, { ...input, request: value });
+        if (labeled.status === "conflict") return failure(409, "CONFLICT");
+        if (labeled.status !== "ok") return resultFailure(labeled.status);
+        const response = courseSettingRevisionLabeledSchema.parse(labeled.response);
+        return response.raceId === raceId ? json(response) : failure(500, "INTERNAL_ERROR");
+      }
       const result = await dependencies.courseSettingRevisions(db, input);
       if (result.status !== "ok") return resultFailure(result.status);
       const response = courseSettingRevisionsSchema.parse(result.response);

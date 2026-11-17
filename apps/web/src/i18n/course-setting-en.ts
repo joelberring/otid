@@ -233,7 +233,19 @@ export const courseSettingEn: Texts<typeof courseSettingSv> = {
     restore: "Restore",
     restoreConfirm: (version: number) => `Restore version ${version}? The current one is saved as an earlier version.`,
     restored: (version: number) => `Version ${version} is restored.`,
-    failed: "The version could not be restored."
+    failed: "The version could not be restored.",
+    saveNamed: "Save current version …",
+    saveNamedHelp: "Give the version a name, e.g. \"Before course check\". Named versions are kept with their time and never cleaned away.",
+    namePrompt: "Name of the version",
+    defaultName: (time: string) => `Saved ${time}`,
+    name: "Name …",
+    unname: "Remove the name",
+    unnameConfirm: (label: string) => `Remove the name "${label}"? The version may then be cleaned away among the older ones.`,
+    named: (label: string) => `The version is saved as "${label}".`,
+    unnamed: "The name is removed.",
+    full: "There are already 100 named versions. Remove the name of one first.",
+    nameFailed: "The name could not be saved.",
+    unsaved: "The unsaved changes could not be sent. Wait until they are saved and try again."
   },
   transfer: {
     heading: "Transfer to the event",

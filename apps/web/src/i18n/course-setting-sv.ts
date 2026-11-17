@@ -240,7 +240,20 @@ export const courseSettingSv = {
     restore: "Återställ",
     restoreConfirm: (version: number) => `Återställa version ${version}? Den nuvarande sparas som en tidigare version.`,
     restored: (version: number) => `Version ${version} är återställd.`,
-    failed: "Versionen kunde inte återställas."
+    failed: "Versionen kunde inte återställas.",
+    // Ägaren 2026-11-17: namngivna versioner med tidpunkt.
+    saveNamed: "Spara nuvarande version …",
+    saveNamedHelp: "Ge versionen ett namn, t.ex. «Inför bankontroll». Namngivna versioner sparas med sin tidpunkt och rensas aldrig bort.",
+    namePrompt: "Namn på versionen",
+    defaultName: (time: string) => `Sparad ${time}`,
+    name: "Ge namn …",
+    unname: "Ta bort namnet",
+    unnameConfirm: (label: string) => `Ta bort namnet «${label}»? Versionen kan då rensas bort bland de äldre.`,
+    named: (label: string) => `Versionen är sparad som «${label}».`,
+    unnamed: "Namnet är borttaget.",
+    full: "Det finns redan 100 namngivna versioner. Ta bort namnet på någon först.",
+    nameFailed: "Namnet kunde inte sparas.",
+    unsaved: "Det osparade kunde inte skickas. Vänta tills det är sparat och försök igen."
   },
   transfer: {
     heading: "Överför till tävlingen",

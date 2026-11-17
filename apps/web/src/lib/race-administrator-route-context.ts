@@ -42,7 +42,7 @@ import { loadStartDrawSetupAsAdmin, previewStartDrawAsAdmin, commitStartDrawAsAd
   listRacePrintFiles, readRacePrintFile, removeRacePrintFile, saveRacePrintFile,
   uploadPaperImageAsAdmin, readPaperImageAsAdmin, listPaperLibraryAsAdmin, savePaperLibraryAsAdmin, deletePaperLibraryAsAdmin,
   listCourseSettingSuggestionsAsAdmin, createCourseSettingSuggestionAsAdmin, decideCourseSettingSuggestionAsAdmin, type CourseSettingPrincipal,
-  readCourseSettingRevisionAsAdmin, restoreCourseSettingRevisionAsAdmin, readCourseSettingOriginalAsAdmin, previewCourseSettingTransferAsAdmin,
+  readCourseSettingRevisionAsAdmin, restoreCourseSettingRevisionAsAdmin, labelCourseSettingRevisionAsAdmin, readCourseSettingOriginalAsAdmin, previewCourseSettingTransferAsAdmin,
   listRacePeopleAsAdmin, grantRacePersonAsAdmin, revokeRacePersonAsAdmin, resendRacePersonInvitation,
   setRacePublicationAsAdmin, setCoursesPublicAsAdmin, setPublicTimingAsAdmin, readControlMapAsAdmin, readEntryControlMapAsAdmin, getRadioSettingsAsAdmin, saveRadioSettingsAsAdmin,
   fetchRadioNowAsAdmin, registerReadoutCard, previewRemainingRunnersAsAdmin, markRemainingDidNotStartAsAdmin,
@@ -130,6 +130,7 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   courseSetting: readCourseSettingAsAdmin, courseSettingSave: saveCourseSettingAsAdmin, courseSettingImport: importCourseSettingAsAdmin,
   courseSettingRevisions: listCourseSettingRevisionsAsAdmin, courseSettingRevision: readCourseSettingRevisionAsAdmin,
   courseSettingRestore: restoreCourseSettingRevisionAsAdmin, courseSettingOriginal: readCourseSettingOriginalAsAdmin,
+  courseSettingRevisionLabel: labelCourseSettingRevisionAsAdmin,
   courseSettingTransfer: previewCourseSettingTransferAsAdmin,
   // Steg 66: samarbetet (behörigheten, åtgärder, arbetssätt, notiser och förslag).
   authenticateCourseSetting: requireCourseSettingAccess, courseSettingEdits: saveCourseSettingEditsAsAdmin,

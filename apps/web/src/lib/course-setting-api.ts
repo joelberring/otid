@@ -68,6 +68,12 @@ export async function fetchCourseSettingRevisions(raceId: string): Promise<Cours
   return courseSettingRevisionsSchema.parse(await response.json());
 }
 
+/** Ägaren 2026-11-17: ge en tidigare version ett namn (`version`), spara den nuvarande med namn (utan), eller ta bort namnet (`null`). */
+export async function labelCourseSettingRevision(raceId: string, label: string | null, version?: number): Promise<"ok" | "full" | "failed"> {
+  const response = await write(raceId, "/course-setting/revisions", "POST", { formatVersion: 1, ...(version !== undefined ? { version } : {}), label });
+  return response.ok ? "ok" : response.status === 409 ? "full" : "failed";
+}
+
 export async function fetchCourseSettingRevision(raceId: string, version: number): Promise<CourseSettingRevision> {
   const response = await fetchWithRetry(`${base(raceId)}/course-setting/revisions/${version}`, { credentials: "same-origin", cache: "no-store" });
   if (!response.ok) throw new HttpError(response.status);

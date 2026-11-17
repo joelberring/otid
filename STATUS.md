@@ -13,6 +13,11 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-17 – Namngivna versioner av banläggningen (migration 0130)
+- Ägaren 2026-11-17: spara en version med namn och tidpunkt. Fil och versioner har «Spara nuvarande version …» (det osparade skickas först) och «Ge namn …»/«Ta bort namnet» per tidigare version. Namngivna versioner (högst 100) rensas aldrig bort bland de 50 senaste; tidpunkten är versionens egen.
+- Migration 0130 (kolumnen `label`, bara tillägg). POST `course-setting/revisions` (`labelCourseSettingRevisionAsAdmin`, rollen EDIT, auditerad).
+- Verifierat: integrationstestet steg 62 mot PostgreSQL 16 (5/5), routetesterna, journaltestet, typkontroll, lint, knip. UI:t inte provat i webbläsaren.
+
 ### 2026-11-17 – Byt kartfil i banläggningen
 - Ägaren 2026-11-17: att byta karta hör hemma i banläggningen, inte bara under Resultat → Karta och vägval. Menyn i banläggningen har «Byt kartfil …» (admin): det osparade skickas först, kartfilen sparas med samma anrop som förut (`course-setting-map-upload.ts`, nu också använt av första uppladdningen), banläggningen läses om och beskedet säger hur många kontroller som hamnat utanför den nya kartan.
 - Verifierat: enhetstest (`controlsOutside`), typkontroll, lint, knip. Inte provat i webbläsaren.

@@ -10,7 +10,7 @@ import { registerUserAccount } from "../../src/user-account";
 import { applySyncAsAdmin } from "../../src/source-sync";
 import { saveRaceMapSourceAsAdmin } from "../../src/race-map-source";
 import {
-  importCourseSettingAsAdmin, listCourseSettingRevisionsAsAdmin, previewCourseSettingTransferAsAdmin, readCourseSettingAsAdmin,
+  importCourseSettingAsAdmin, labelCourseSettingRevisionAsAdmin, listCourseSettingRevisionsAsAdmin, previewCourseSettingTransferAsAdmin, readCourseSettingAsAdmin,
   readCourseSettingOriginalAsAdmin, readCourseSettingRevisionAsAdmin, restoreCourseSettingRevisionAsAdmin, saveCourseSettingAsAdmin
 } from "../../src/course-setting";
 import { copyRaceAsAdmin } from "../../src/race-copy";
@@ -164,6 +164,41 @@ describe("steg 62: banläggningen", { timeout: 120_000 }, () => {
     expect(revisions.response.revisions[0]!.version).toBe(version - 1);
     const stored = await pool.query<{ count: string }>("select count(*)::text as count from course_setting_revision where race_id = $1", [proof.raceId]);
     expect(stored.rows[0]!.count).toBe("50");
+  });
+
+  it("namngivna versioner (ägaren 2026-11-17): sparas med tidpunkt och rensas aldrig bort bland de 50", async () => {
+    const proof = await race();
+    expect(await save(proof, empty(), 0)).toMatchObject({ status: "ok", response: { version: 1 } });
+    const ppen = await ppenText();
+    const { document } = readPpen(ppen);
+    const label = (request: Record<string, unknown>) => labelCourseSettingRevisionAsAdmin(db, { ...proof, request: { formatVersion: 1, ...request } });
+    // Den nuvarande (version 1, tom) sparas med namn innan den ersätts.
+    expect(await label({ label: "Före inläsning" })).toMatchObject({ status: "ok", response: { version: 1 } });
+    let version = 1;
+    for (let index = 0; index < 55; index += 1) {
+      const next = await importCourseSettingAsAdmin(db, { ...proof, request: { formatVersion: 1, expectedVersion: version, document, fileName: "kartfil.ppen", ppen } });
+      if (next.status !== "ok") throw new Error(next.status);
+      version = next.response.version;
+    }
+    let revisions = await listCourseSettingRevisionsAsAdmin(db, proof);
+    if (revisions.status !== "ok") throw new Error("Versionerna saknas");
+    // 50 utan namn och den namngivna version 1, som har sin egen tidpunkt och är tom.
+    expect(revisions.response.revisions).toHaveLength(51);
+    expect(revisions.response.revisions.at(-1)).toMatchObject({ version: 1, label: "Före inläsning", courses: 0 });
+    // En tidigare version får namn, och namnet går att ta bort.
+    expect(await label({ version: version - 1, label: "Efter bankontroll" })).toMatchObject({ status: "ok" });
+    expect(await label({ version: 999, label: "Finns inte" })).toEqual({ status: "not-found" });
+    expect((await label({ label: "" })).status).toBe("invalid-request");
+    revisions = await listCourseSettingRevisionsAsAdmin(db, proof);
+    if (revisions.status !== "ok") throw new Error("Versionerna saknas");
+    expect(revisions.response.revisions.filter(row => row.label).map(row => [row.version, row.label]))
+      .toEqual([[version - 1, "Efter bankontroll"], [1, "Före inläsning"]]);
+    expect(await label({ version: 1, label: null })).toMatchObject({ status: "ok" });
+    // Utan namn rensas den vid nästa sparande, som de andra äldre.
+    const next = await importCourseSettingAsAdmin(db, { ...proof, request: { formatVersion: 1, expectedVersion: version, document, fileName: "kartfil.ppen", ppen } });
+    expect(next.status).toBe("ok");
+    const stored = await pool.query<{ version: number }>("select version from course_setting_revision where race_id = $1 and version = 1", [proof.raceId]);
+    expect(stored.rows).toHaveLength(0);
   });
 
   it("för över till tävlingen som en banfil: banor, varianter som Purple Pen, kontroller med lägen och klasser", async () => {

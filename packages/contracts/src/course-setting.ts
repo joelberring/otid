@@ -131,11 +131,21 @@ export const courseSettingConflictSchema = z.object({
 export type CourseSettingConflict = z.infer<typeof courseSettingConflictSchema>;
 
 export const courseSettingRevisionKindSchema = z.enum(["SAVE", "IMPORT", "RESTORE"]);
+/** Ägaren 2026-11-17: namngivna versioner (högst så här många per tävling) rensas inte bort bland de 50 senaste. */
+export const COURSE_SETTING_NAMED_REVISIONS_MAX = 100;
+const revisionLabel = z.string().trim().min(1).max(80);
 export const courseSettingRevisionsSchema = z.object({
   formatVersion: z.literal(1), raceId: uuid,
   revisions: z.array(z.object({ version, kind: courseSettingRevisionKindSchema, createdAt: instant, createdBy: actor,
-    courses: z.number().int().nonnegative(), controls: z.number().int().nonnegative() }).strict()).max(COURSE_SETTING_REVISIONS_KEPT)
+    courses: z.number().int().nonnegative(), controls: z.number().int().nonnegative(), label: revisionLabel.nullable().optional() }).strict())
+    .max(COURSE_SETTING_REVISIONS_KEPT + COURSE_SETTING_NAMED_REVISIONS_MAX)
 }).strict();
+/** Ge en version namn (utan `version`: den nuvarande, som då sparas som en tidigare version), eller ta bort namnet (`null`). */
+export const courseSettingRevisionLabelRequestSchema = z.object({
+  formatVersion: z.literal(1), version: version.optional(), label: revisionLabel.nullable()
+}).strict();
+export const courseSettingRevisionLabeledSchema = z.object({ formatVersion: z.literal(1), raceId: uuid, version }).strict();
+export type CourseSettingRevisionLabeled = z.infer<typeof courseSettingRevisionLabeledSchema>;
 export type CourseSettingRevisions = z.infer<typeof courseSettingRevisionsSchema>;
 
 export const courseSettingRevisionSchema = z.object({

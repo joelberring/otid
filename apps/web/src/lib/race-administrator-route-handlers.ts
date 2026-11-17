@@ -161,7 +161,7 @@ const ROUTE_METHODS: Readonly<Partial<Record<Action["kind"], readonly string[]>>
   "course-secrecy": ["PUT", "DELETE", "PATCH"], "race-map": ["GET", "PUT", "DELETE"], "race-map-image": ["GET"],
   "race-map-georeference": ["POST"], "race-map-source": ["GET", "POST", "DELETE"], "route-choice": ["GET"],
   "route-choice-calibration": ["GET"], "route-choice-settings": ["POST"], "route-choice-published": ["POST"],
-  "course-setting": ["GET", "PUT"], "course-setting-revisions": ["GET"], "course-setting-revision": ["GET"],
+  "course-setting": ["GET", "PUT"], "course-setting-revisions": ["GET", "POST"], "course-setting-revision": ["GET"],
   "course-setting-original": ["GET"], "course-setting-import": ["POST"], "course-setting-restore": ["POST"],
   "course-setting-transfer": ["POST"], "course-setting-notes": ["GET", "POST"], "course-setting-suggestions": ["GET", "POST"],
   "course-setting-edits": ["POST"], "course-setting-note-reply": ["POST"], "course-setting-suggestion-decision": ["POST"],

@@ -6,3 +6,9 @@ export async function GET(request: Request, context: { params: Promise<{ raceId:
   const { raceId } = await context.params;
   return raceAdministratorRoute(db, request, raceId, { kind: "course-setting-revisions" });
 }
+
+/** Ägaren 2026-11-17: ge en version ett namn, eller spara den nuvarande som namngiven version. */
+export async function POST(request: Request, context: { params: Promise<{ raceId: string }> }) {
+  const { raceId } = await context.params;
+  return raceAdministratorRoute(db, request, raceId, { kind: "course-setting-revisions" });
+}

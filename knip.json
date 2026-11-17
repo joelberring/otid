@@ -10,6 +10,7 @@
     },
     "apps/web": {
       "entry": ["src/proxy.ts", "scripts/*.mjs", "src/readout/main.tsx", "src/readout/service-worker.ts",
+        "src/mastermind/main.tsx", "src/mastermind/service-worker.ts",
         "src/course-setting-offline/service-worker.ts", "src/lib/*-worker.ts"],
       "project": ["src/**/*.{ts,tsx}", "scripts/**/*.mjs"],
       "ignoreDependencies": [

@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 
 /**
- * Bygger det statiska appskal som ska fungera utan nät: /readout/.
+ * Bygger de statiska appskal som ska fungera utan nät: /readout/ och spelet /mastermind/ (Mastermind med kontroller).
  * Skalet får hashade filer (även typsnitten, ADR-0170),
  * index.html och en service worker med manifest över exakt de filerna.
  *
@@ -18,7 +18,9 @@ const web = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const shells = [
   { name: "readout", define: "READOUT_SHELL", title: "O-Tid – avläsning",
-    noscript: "JavaScript behövs för avläsningen." }
+    noscript: "JavaScript behövs för avläsningen." },
+  { name: "mastermind", define: "MASTERMIND_SHELL", title: "O-Tid – Mastermind med kontroller",
+    noscript: "JavaScript behövs för spelet." }
 ];
 
 async function buildShell(shell) {

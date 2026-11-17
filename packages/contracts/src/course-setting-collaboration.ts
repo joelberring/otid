@@ -79,6 +79,8 @@ export const courseSettingEditSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("REMOVE_COURSE_CONTROL"), course: id, courseControl: id }).strict(),
   z.object({ type: z.literal("ADD_SPLIT"), course: id, at: id, kind: z.enum(["FORK", "LOOP"]), branches: z.number().int().min(1).max(20) }).strict(),
   z.object({ type: z.literal("REMOVE_SPLIT"), course: id, at: id }).strict(),
+  z.object({ type: z.literal("ADD_BRANCH"), course: id, at: id }).strict(),
+  z.object({ type: z.literal("MOVE_SPLIT"), course: id, at: id, edge: z.enum(["START", "END"]), direction: z.enum(["FORWARD", "BACK"]) }).strict(),
   // ADR-0217: `printLayout` = ett ark i en annan layout än huvudlayouten.
   z.object({ type: z.literal("MOVE_NUMBER"), course: id, courseControl: id, at: point.nullable(), printLayout: id.optional() }).strict(),
   z.object({ type: z.literal("SET_LEG_BENDS"), from: id, to: id, bends: z.array(point).max(1000) }).strict(),

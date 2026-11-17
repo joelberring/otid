@@ -4,6 +4,7 @@
  * AddVariation, AddStartOrMapIssueToCourse, AddFinishToCourse, DeleteCourse, CreateCourse; BSD, Peter Golde).
  */
 import { keepForkLetters } from "./fork-letters";
+import { addBranch, moveSplit } from "./fork-edit";
 import type { Point } from "@o-tid/map-file";
 import { setAppearance } from "./appearance-edit";
 import { LEG_CIRCLE_GAP_LIMITS } from "./appearance";
@@ -510,6 +511,16 @@ function applyDocumentEditOnly(document: CourseSettingDocument, edit: CourseSett
     case "INSERT_COURSE_CONTROL": created = insertCourseControl(draft, edit.course, edit.control, edit.after); break;
     case "REMOVE_COURSE_CONTROL": removeCourseControl(draft, edit.course, edit.courseControl); break;
     case "ADD_SPLIT": addSplit(draft, edit.course, edit.at, edit.kind, edit.branches); created = edit.at; break;
+    case "ADD_BRANCH": {
+      const result = addBranch(asDocument(draft), edit.course, edit.at);
+      draft.courseControls = result.courseControls; draft.courses = result.courses; created = result.created;
+      break;
+    }
+    case "MOVE_SPLIT": {
+      const result = moveSplit(asDocument(draft), edit.course, edit.at, edit.edge, edit.direction);
+      draft.courseControls = result.courseControls; draft.courses = result.courses; created = edit.at;
+      break;
+    }
     case "REMOVE_SPLIT":
       if (!ordered(draft, edit.course).includes(edit.at)) throw notFound(`Banans kontroll ${edit.at} på banan`);
       removeSplit(draft, edit.course, edit.at);

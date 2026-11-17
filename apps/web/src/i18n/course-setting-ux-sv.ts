@@ -102,6 +102,19 @@ export const courseSettingUxSv = {
     work: (letter: string) => `Arbeta i gren ${letter}`,
     variants: "Varianter",
     allVariants: "Alla grenar",
-    variant: (controls: number, length: string) => `${plural(controls, "kontroll", "kontroller")} · ${length}`
+    variant: (controls: number, length: string) => `${plural(controls, "kontroll", "kontroller")} · ${length}`,
+    // Ägaren 2026-11-17: ändra en gaffling som finns.
+    addBranch: "+ gren",
+    addLoop: "+ slinga",
+    removeBranch: (letter: string) => `Ta bort gren ${letter}`,
+    removeBranchConfirm: (letter: string, count: number) => count > 0
+      ? `Ta bort gren ${letter} med ${plural(count, "kontroll", "kontroller")}? Kontrollerna finns kvar under Alla kontroller.`
+      : `Ta bort gren ${letter}?`,
+    move: "Flytta gafflingen",
+    startBack: "Börja en kontroll tidigare",
+    startForward: "Börja en kontroll senare",
+    endBack: "Gå ihop en kontroll tidigare",
+    endForward: "Gå ihop en kontroll senare",
+    moveHelp: "Senare början kräver att alla grenar börjar med samma kontroll (lägg in den först i grenarna); tidigare ihopgång att alla slutar med samma."
   }
 };

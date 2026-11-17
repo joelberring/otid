@@ -46,6 +46,14 @@
 .branch[data-active] .branchHead { background: rgb(0, 110, 220); }
 .join { padding-left: 10px; color: var(--muted); font-size: 0.75rem; }
 .empty { color: var(--muted); font-size: 0.75rem; text-align: center; }
+/* Ägaren 2026-11-17: ändra en gaffling (gren till, ta bort gren, flytta början och ihopgång). */
+.forkTools { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px; padding-left: 10px; }
+.forkTool { padding: 2px 6px; border: 1px solid var(--line); border-radius: 4px; background: none; color: inherit; font: inherit;
+  font-size: 0.75rem; cursor: pointer; }
+.forkTool:hover { border-color: var(--ink); }
+.forkMove { font-size: 0.75rem; }
+.forkMove summary { cursor: pointer; color: var(--muted); }
+.forkMove[open] { display: grid; gap: 4px; }
 
 /* Varianterna med en liten bild av vägen. */
 .variants { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }

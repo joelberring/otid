@@ -99,6 +99,8 @@ export const editTextsSv: EditTexts = {
     REMOVE_COURSE_CONTROL: (edit, ctx) => `Ta bort ${ctx.onCourse(edit.courseControl)} från ${ctx.course(edit.course)}`,
     ADD_SPLIT: (edit, ctx) => `${edit.kind === "FORK" ? "Gaffling" : "Slinga"} vid ${ctx.onCourse(edit.at)} på ${ctx.course(edit.course)}`,
     REMOVE_SPLIT: (edit, ctx) => `Ta bort gafflingen vid ${ctx.onCourse(edit.at)}`,
+    ADD_BRANCH: (edit, ctx) => `En gren till i gafflingen vid ${ctx.onCourse(edit.at)}`,
+    MOVE_SPLIT: (edit, ctx) => `Flytta gafflingens ${edit.edge === "START" ? "början" : "slut"} ${edit.direction === "FORWARD" ? "framåt" : "bakåt"} (vid ${ctx.onCourse(edit.at)})`,
     MOVE_NUMBER: (edit, ctx) => `Flytta numret för ${ctx.onCourse(edit.courseControl)}`,
     SET_LEG_BENDS: (edit, ctx) => `Brytpunkter på sträckan ${ctx.label(edit.from)}–${ctx.label(edit.to)}`,
     SET_LEG_GAPS: (edit, ctx) => `Avbrott på sträckan ${ctx.label(edit.from)}–${ctx.label(edit.to)}`,

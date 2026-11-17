@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { circleArcs, layoutOverprint, type OverprintPrimitive } from "@o-tid/course-setting";
 import {
-  addBend, addPoint, applySteps, beginDrag, canRedo, canUndo, cancelTool, courseChain, createEditor, dragTo, endDrag, insertExisting, redo,
+  addBend, addPoint, applySteps, splitPlace, beginDrag, canRedo, canUndo, cancelTool, courseChain, createEditor, dragTo, endDrag, insertExisting, redo,
   removeSelected, select, setView, undo
 } from "./course-setting-editor";
 import { ALL_CONTROLS, bendInsertIndex, hitTest, nearestBend, primitiveDistance } from "./course-setting-hit";
@@ -144,6 +144,8 @@ describe("editorn", () => {
     expect(after(branches[0]!)).toBe("b");
     // Målet är kvar sist; kontrollen hamnade inte före målet.
     expect(courseChain(state.document, "k").map(id => state.document.courseControls[id]!.control)).toEqual(["s", "a", "b", "f"]);
+    // Gaffla vald sträcka (ägaren 2026-11-17): gafflingen börjar där sträckan börjar.
+    expect(splitPlace(select({ ...state, branch: undefined }, { kind: "leg", from: "s", to: "a" }))).toBe("c1");
     // Utan vald gren: den första grenen som har sträckan.
     state = insertExisting(select({ ...state, branch: undefined }, { kind: "leg", from: "a", to: "b" }), "x", apply);
     expect(after(branches[0]!)).toBe("x");

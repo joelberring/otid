@@ -273,7 +273,7 @@ function editRefs(edit: CourseSettingEdit): [Kind, string][] {
     case "REMOVE_COURSE_CONTROL": return [["courses", edit.course], ["courseControls", edit.courseControl]];
     case "NEW_CONTROL_IN_COURSE": return [["courses", edit.course], ["controls", edit.control],
       ...edit.courseControls.map((id): [Kind, string] => ["courseControls", id])];
-    case "ADD_SPLIT": case "REMOVE_SPLIT": return [["courses", edit.course], ["courseControls", edit.at]];
+    case "ADD_SPLIT": case "REMOVE_SPLIT": case "ADD_BRANCH": case "MOVE_SPLIT": return [["courses", edit.course], ["courseControls", edit.at]];
     case "MOVE_NUMBER": case "SET_POINTS": return [["courses", edit.course], ["courseControls", edit.courseControl]];
     case "SET_LEG_BENDS": case "SET_LEG_GAPS": return [["controls", edit.from], ["controls", edit.to]];
     case "SET_EVENT": case "SET_APPEARANCE": return [];
@@ -363,7 +363,7 @@ function remapWith(edit: CourseSettingEdit, map: Lookup): CourseSettingEdit {
       ...(typeof edit.after === "string" ? { after: cc(edit.after) } : {}) };
     case "REMOVE_COURSE_CONTROL": return { ...edit, course: co(edit.course), courseControl: cc(edit.courseControl) };
     case "NEW_CONTROL_IN_COURSE": return { ...edit, course: co(edit.course), control: c(edit.control), courseControls: edit.courseControls.map(cc) };
-    case "ADD_SPLIT": case "REMOVE_SPLIT": return { ...edit, course: co(edit.course), at: cc(edit.at) };
+    case "ADD_SPLIT": case "REMOVE_SPLIT": case "ADD_BRANCH": case "MOVE_SPLIT": return { ...edit, course: co(edit.course), at: cc(edit.at) };
     case "MOVE_NUMBER": case "SET_POINTS": return { ...edit, course: co(edit.course), courseControl: cc(edit.courseControl) };
     case "SET_LEG_BENDS": case "SET_LEG_GAPS": return { ...edit, from: c(edit.from), to: c(edit.to) };
     case "PUT_OBJECTS": return remapPut(edit, map);

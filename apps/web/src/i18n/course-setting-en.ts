@@ -76,8 +76,8 @@ export const courseSettingEn: Texts<typeof courseSettingSv> = {
       INSERT_EXISTING: "Insert", ADD_BEND: "Bend", NOTE: "Note", FORK: "Fork", SPECIAL: "Objects" },
     shortcut: { SELECT: "V", ADD_CONTROL: "K", ADD_START: "S", ADD_FINISH: "M", ADD_CROSSING: "P", INSERT_EXISTING: "L", ADD_BEND: "B",
       NOTE: "N", FORK: "G", SPECIAL: "O" },
-    forkTool: "Fork here (at the selected control)",
-    forkNeedsSelection: "Select a control on the course first.",
+    forkTool: "Fork here (at the selected control or leg)",
+    forkNeedsSelection: "Select a control or leg on the course first.",
     withKey: (label: string, key: string) => `${label} (${key})`,
     help: {
       SELECT: "Click to select. Drag a control, a number or a bend point to move it. Drag the map to pan.",

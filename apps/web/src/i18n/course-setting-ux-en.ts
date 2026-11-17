@@ -103,6 +103,18 @@ export const courseSettingUxEn: Texts<typeof courseSettingUxSv> = {
     work: (letter: string) => `Work in branch ${letter}`,
     variants: "Variants",
     allVariants: "All branches",
-    variant: (controls: number, length: string) => `${count(controls, "control", "controls")} · ${length}`
+    variant: (controls: number, length: string) => `${count(controls, "control", "controls")} · ${length}`,
+    addBranch: "+ branch",
+    addLoop: "+ loop",
+    removeBranch: (letter: string) => `Remove branch ${letter}`,
+    removeBranchConfirm: (letter: string, count: number) => count > 0
+      ? `Remove branch ${letter} with ${count === 1 ? "1 control" : `${count} controls`}? The controls remain under All controls.`
+      : `Remove branch ${letter}?`,
+    move: "Move the fork",
+    startBack: "Start one control earlier",
+    startForward: "Start one control later",
+    endBack: "Join one control earlier",
+    endForward: "Join one control later",
+    moveHelp: "A later start needs every branch to begin with the same control (insert it in the branches first); an earlier join needs every branch to end with the same."
   }
 };

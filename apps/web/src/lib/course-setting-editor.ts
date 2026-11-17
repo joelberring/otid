@@ -355,12 +355,22 @@ export function removeSelected(state: EditorState, apply: Apply, everywhere = st
  * nästa kontroll läggs in där (gaffling: efter gaffelkontrollen, slinga: i första slingan).
  */
 export function addSplit(state: EditorState, kind: "FORK" | "LOOP", branches: number, apply: Apply): EditorState {
-  const at = state.selection?.kind === "control" ? state.selection.courseControl : undefined;
+  const at = splitPlace(state);
   if (!at || state.view === ALL_CONTROLS) return { ...state, error: undefined };
   const next = applySteps(state, [{ type: "ADD_SPLIT", course: state.view, at, kind, branches }], apply);
   const split = next.document.courseControls[at]?.split;
   if (next.error || !split) return next;
   return workInBranch(next, kind === "LOOP" ? split.branches[1] : split.branches[0]);
+}
+
+/**
+ * Var en gaffling börjar: vald kontroll på banan, eller (ägaren 2026-11-17, «gafflingar på delsträckor») början av vald sträcka
+ * i den gren där sträckan finns, så att sträckan gafflas.
+ */
+export function splitPlace(state: EditorState): string | undefined {
+  if (state.view === ALL_CONTROLS) return undefined;
+  if (state.selection?.kind === "leg") return legCourseControl(state.document, state.view, state.selection, state.branch);
+  return state.selection?.kind === "control" ? state.selection.courseControl : undefined;
 }
 
 export function removeSplit(state: EditorState, apply: Apply): EditorState {

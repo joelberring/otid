@@ -23,6 +23,11 @@ import styles from "./course-setting-ux.module.css";
  * kontroll väljer den. Under trädet varianterna med kod, antal kontroller, längd och en liten bild. I Alla kontroller:
  * alla kontroller, filtret "Bara oanvända" och "Ta bort alla oanvända".
  */
+/** Kontrollerna i en gren (också i grenar i grenen). */
+function countControls(rows: readonly TreeRow[]): number {
+  return rows.reduce((sum, row) => sum + (row.kind === "control" ? 1 : row.branches.reduce((inner, branch) => inner + countControls(branch.rows), 0)), 0);
+}
+
 export function ControlList({ document, summaries, view, variant, branch, selected, unused, readOnly, onSelect, onBranch, onVariant, onRemoveUnused, onEdits }: {
   document: CourseSettingDocument; summaries: readonly CourseSummary[]; view: string; variant: string | undefined; branch: string | undefined;
   /** Vald banans kontroll (i en bana) eller kontroll (Alla kontroller). */
@@ -76,10 +81,28 @@ function CourseControls({ document, summary, name, view, variant, branch, select
             <button type="button" className={styles.branchHead} aria-pressed={branch === item.start} title={ux.forks.work(item.letter)}
               aria-label={ux.forks.work(item.letter)} onClick={() => onBranch(item)}>{item.letter}</button>
             {item.rows.length === 0 ? <p className={styles.empty}>{ux.forks.emptyBranch}</p> : <ul className={styles.tree}>{renderRows(item.rows)}</ul>}
+            {/* Ägaren 2026-11-17: ta bort en gren (med två grenar blir den andra kvar utan gaffling). */}
+            {!readOnly && <button type="button" className={styles.forkTool} data-testid="course-setting-remove-branch" onClick={() => {
+              if (window.confirm(ux.forks.removeBranchConfirm(item.letter, countControls(item.rows)))) {
+                onEdits([{ type: "REMOVE_COURSE_CONTROL", course: view, courseControl: item.start }]);
+              }
+            }}>{ux.forks.removeBranch(item.letter)}</button>}
           </div>;
         })}
       </div>
       <p className={styles.join}>{row.split === "LOOP" ? ux.forks.loopJoin(row.joinLabel) : ux.forks.join(row.joinLabel)}</p>
+      {!readOnly && <div className={styles.forkTools} data-testid="course-setting-fork-tools">
+        <button type="button" className={styles.forkTool} onClick={() => onEdits([{ type: "ADD_BRANCH", course: view, at: row.at }])}>
+          {row.split === "LOOP" ? ux.forks.addLoop : ux.forks.addBranch}</button>
+        {row.split === "FORK" && <details className={styles.forkMove}>
+          <summary>{ux.forks.move}</summary>
+          {([["START", "BACK", ux.forks.startBack], ["START", "FORWARD", ux.forks.startForward], ["END", "BACK", ux.forks.endBack],
+            ["END", "FORWARD", ux.forks.endForward]] as const).map(([edge, direction, label]) =>
+            <button key={`${edge}-${direction}`} type="button" className={styles.forkTool} data-testid={`course-setting-fork-${edge}-${direction}`}
+              onClick={() => onEdits([{ type: "MOVE_SPLIT", course: view, at: row.at, edge, direction }])}>{label}</button>)}
+          <p className={styles.empty}>{ux.forks.moveHelp}</p>
+        </details>}
+      </div>}
     </li>;
   });
   return <section className={styles.group} aria-labelledby="course-setting-control-list" data-testid="course-setting-control-list">

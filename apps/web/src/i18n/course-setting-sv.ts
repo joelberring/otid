@@ -78,8 +78,8 @@ export const courseSettingSv = {
       INSERT_EXISTING: "Lägg in", ADD_BEND: "Brytpunkt", NOTE: "Notis", FORK: "Gaffling", SPECIAL: "Objekt" } as Record<string, string>,
     shortcut: { SELECT: "V", ADD_CONTROL: "K", ADD_START: "S", ADD_FINISH: "M", ADD_CROSSING: "P", INSERT_EXISTING: "L", ADD_BEND: "B",
       NOTE: "N", FORK: "G", SPECIAL: "O" } as Record<string, string>,
-    forkTool: "Gaffla här (vid vald kontroll)",
-    forkNeedsSelection: "Välj en kontroll på banan först.",
+    forkTool: "Gaffla här (vid vald kontroll eller sträcka)",
+    forkNeedsSelection: "Välj en kontroll eller sträcka på banan först.",
     withKey: (label: string, key: string) => `${label} (${key})`,
     help: {
       SELECT: "Klicka för att välja. Dra en kontroll, ett nummer eller en brytpunkt för att flytta. Dra kartan för att panorera.",

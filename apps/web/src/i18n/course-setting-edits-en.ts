@@ -62,6 +62,8 @@ export const editTextsEn: EditTexts = {
     REMOVE_COURSE_CONTROL: (edit, ctx) => `Remove ${ctx.onCourse(edit.courseControl)} from ${ctx.course(edit.course)}`,
     ADD_SPLIT: (edit, ctx) => `${edit.kind === "FORK" ? "Fork" : "Loop"} at ${ctx.onCourse(edit.at)} on ${ctx.course(edit.course)}`,
     REMOVE_SPLIT: (edit, ctx) => `Remove the fork at ${ctx.onCourse(edit.at)}`,
+    ADD_BRANCH: (edit, ctx) => `Another branch in the fork at ${ctx.onCourse(edit.at)}`,
+    MOVE_SPLIT: (edit, ctx) => `Move the fork's ${edit.edge === "START" ? "start" : "end"} ${edit.direction === "FORWARD" ? "forward" : "back"} (at ${ctx.onCourse(edit.at)})`,
     MOVE_NUMBER: (edit, ctx) => `Move the number for ${ctx.onCourse(edit.courseControl)}`,
     SET_LEG_BENDS: (edit, ctx) => `Bend points on the leg ${ctx.label(edit.from)}–${ctx.label(edit.to)}`,
     SET_LEG_GAPS: (edit, ctx) => `Gaps on the leg ${ctx.label(edit.from)}–${ctx.label(edit.to)}`,

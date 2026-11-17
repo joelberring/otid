@@ -11,7 +11,7 @@ import type { Point } from "@o-tid/map-file";
 import { courseSettingSv } from "../../i18n/course-setting-sv";
 import { courseSettingUxSv } from "../../i18n/course-setting-ux-sv";
 import {
-  addPoint, addSplit, applySteps, beginDrag, dragTo, insertExisting, setTool, setView, toolControlKind, workInBranch, type EditorState, type Tool
+  addPoint, addSplit, applySteps, beginDrag, dragTo, insertExisting, setTool, setView, splitPlace, toolControlKind, workInBranch, type EditorState, type Tool
 } from "../../lib/course-setting-editor";
 import { drawBranchLabels, drawRotateHandle, drawSnapHint, drawUnused } from "../../lib/course-setting-draw-ux";
 import { allBranches, branchLabels, branchOf, branchVariant, courseTree, forkOfBranch, type TreeBranch } from "../../lib/course-setting-forks";
@@ -159,8 +159,8 @@ export function useCourseSettingUx({ editor, store, apply, edit, readOnly, radiu
     setTab("courses");
   }
   const openForkPicker = () => {
-    const at = store.state.selection?.kind === "control" ? store.state.selection.courseControl : undefined;
-    if (!at || store.state.view === ALL_CONTROLS) { say({ tone: "attention", text: text.tools.forkNeedsSelection }); return; }
+    const at = splitPlace(store.state);
+    if (!at) { say({ tone: "attention", text: text.tools.forkNeedsSelection }); return; }
     setForkPicker(true);
   };
   const workIn = (branch: TreeBranch) => apply(current => workInBranch(current, branch.start, branch.last));

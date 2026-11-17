@@ -13,6 +13,11 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-17 – Täta kurvor som underlag i kartan
+- Ägaren 2026-11-17: kunna tända den täta kurvbilden svagt i skogen på mobilen och jämföra mot kartans kurvor. Panelen «Underlag för frihandsritning» har «Lägg in som underlag»: kurvorna (lila, ekvidistans valfri) ritas på en genomskinlig PNG i SWEREF 99 TM och läggs upp som ett vanligt underlag (tänds, tonas och sparas i telefonen som de andra).
+- PNG med palett (`png-indexed.ts`, CompressionStream): Högdalen A 0,25 m blir 2,4 MB i stället för canvasens 19 MB. Upplösning 0,5 m, grövre för stora områden (`contourLayerResolution`), med råd att välja en etapp.
+- Verifierat: enhetstester, typkontroll, lint; bilden ritad i Chrome på Högdalen A:s riktiga markhöjd (4,3 s). Själva uppladdningen och visningen i appen är inte provade.
+
 ### 2026-11-16 – Underlag för frihandsritning (DXF, GeoTIFF, fältutskrift)
 - Ägaren 2026-11-16 efter mejl från Högdalens kartritare: kurvor i hög upplösning, objekt- och vegetationshöjd, export av bara valda symboler (diken, vägkanter, låga former), utskrift för plast med 1 m ekvidistans.
 - Ny panel under Laserdata. `map-revision/base-map/drawing-basis.ts` (täta kurvor, småformer, släntkanter, skuggning, etapper ihop, ISOM-lagernamn) och `dxf-write.ts`; webben `map-project-drawing-basis.ts`, `map-project-field-print.ts`, `pdf-jpeg-pages.ts`.

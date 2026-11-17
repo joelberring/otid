@@ -10,11 +10,13 @@ import {
   BASIS_INTERVALS, basisDxf, filesOf, geoTiff, hasHeights, hasVegetation, imageOf, loadGround, loadVegetation,
   type BasisFile, type BasisImage, type BasisJob
 } from "../../lib/map-project-drawing-basis";
+import { contourLayer, contourLayerResolution } from "../../lib/map-project-contour-layer";
 import { FIELD_PRINT_MAX_PAGES, fieldPrintPdf } from "../../lib/map-project-field-print";
 import { mapProjectBase } from "../../lib/map-project-client";
 import { stageChoices } from "../../lib/map-project-stages";
 import { useTexts } from "../language-provider";
 import { Button } from "../ui";
+import type { useMapProjectLayers } from "./use-map-project-layers";
 import styles from "./map-project-editor.module.css";
 
 const decimal = (value: number) => value.toLocaleString("sv-SE");
@@ -34,7 +36,7 @@ function save(name: string, parts: BlobPart[], type: string) {
  * skogskartor … vill kunna se kurvning i hög upplösning och objekt-/vegetationshöjd … exportera ut enbart valda symboler»).
  * Läser det klara laserjobbet (alla etapper) och lämnar ut DXF, GeoTIFF och en fältutskrift. Inget läses in i kartan.
  */
-export function MapProjectDrawingBasisPanel({ view }: { view: MapProjectView }) {
+export function MapProjectDrawingBasisPanel({ view, layers }: { view: MapProjectView; layers: ReturnType<typeof useMapProjectLayers> }) {
   const text = useTexts(mapDrawingBasisSv, mapDrawingBasisEn);
   const base = mapProjectBase(view.projectId);
   type Job = Pick<GeoJobList["jobs"][number], "jobId" | "name" | "status" | "createdAt" | "clip" | "outputs">;
@@ -45,6 +47,7 @@ export function MapProjectDrawingBasisPanel({ view }: { view: MapProjectView }) 
   const [smooth, setSmooth] = useState(true);
   const [banks, setBanks] = useState(true);
   const [print, setPrint] = useState({ scale: 5000, paper: "A4" as "A4" | "A3", landscape: false, interval: 1, shade: true, vegetation: false, relief: false });
+  const [layerInterval, setLayerInterval] = useState(0.25);
   const [busy, setBusy] = useState<string>();
   const [message, setMessage] = useState<{ text: string; problem: boolean }>();
   const cache = useRef<{ key: string; ground?: GridPart | undefined; vegetation?: GridPart | undefined }>({ key: "" });
@@ -80,7 +83,7 @@ export function MapProjectDrawingBasisPanel({ view }: { view: MapProjectView }) 
     catch (error) {
       const pages = error instanceof Error && /^pages:(\d+)$/.exec(error.message);
       if (!pages) console.error("Underlaget kunde inte göras", error);
-      setMessage({ text: pages ? text.tooManyPages(Number(pages[1]), FIELD_PRINT_MAX_PAGES) : text.failed, problem: true });
+      setMessage({ text: pages ? text.tooManyPages(Number(pages[1]), FIELD_PRINT_MAX_PAGES) : key === "layer" ? text.layerFailed : text.failed, problem: true });
     } finally { setBusy(undefined); }
   }
   const usedFiles = files.filter(file => available.includes(file));
@@ -107,6 +110,18 @@ export function MapProjectDrawingBasisPanel({ view }: { view: MapProjectView }) 
     return undefined;
   });
 
+  // Ägaren 2026-11-17: de täta kurvorna som underlag i kartan, att tända svagt i skogen.
+  const addLayer = () => work("layer", async () => {
+    const heights = await ground();
+    if (!heights) throw new Error("ground");
+    const job = (choice?.jobs[0]?.name ?? "").replace(/ – etapp \d+ av \d+$/, "");
+    const name = text.layerName(decimal(layerInterval), job).slice(0, 80);
+    const ok = await layers.addPrepared(() => contourLayer(heights, layerInterval, smooth, name), name);
+    if (!ok) throw new Error("layer");
+    const cell = Math.hypot(heights.affine[0], heights.affine[3]);
+    const px = contourLayerResolution(heights.grid.columns * cell, heights.grid.rows * cell);
+    return px > 0.5 ? `${text.layerDone(name)} ${text.layerCoarse(decimal(px))}` : text.layerDone(name);
+  });
   const check = (checked: boolean, onChange: (value: boolean) => void, label: string, testId?: string) =>
     <label key={label}><input type="checkbox" checked={checked} data-testid={testId} onChange={event => onChange(event.target.checked)} /> {label}</label>;
   return <details className={styles.settings} data-testid="map-project-drawing-basis" onToggle={event => { if (event.currentTarget.open) void open(); }}>
@@ -132,6 +147,17 @@ export function MapProjectDrawingBasisPanel({ view }: { view: MapProjectView }) 
       <span className={styles.actions}>
         <Button variant="secondary" disabled={!!busy} onClick={() => void downloadDxf()} data-testid="map-project-basis-dxf">{busy === "dxf" ? text.working : text.downloadDxf}</Button>
       </span>
+
+      {layers.canAdd && <>
+        <h4>{text.layerHeading}</h4>
+        <p className={styles.muted}>{text.layerHelp}</p>
+        <label>{text.layerInterval}<select value={layerInterval} onChange={event => setLayerInterval(Number(event.target.value))}>
+          {BASIS_INTERVALS.map(value => <option key={value} value={value}>{text.interval(decimal(value))}</option>)}
+        </select></label>
+        <span className={styles.actions}>
+          <Button variant="secondary" disabled={!!busy} onClick={() => void addLayer()} data-testid="map-project-basis-layer">{busy === "layer" ? text.working : text.addLayer}</Button>
+        </span>
+      </>}
 
       <h4>{text.imagesHeading}</h4>
       <p className={styles.muted}>{text.imagesHelp}</p>

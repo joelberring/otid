@@ -189,6 +189,6 @@ export function useMapProjectLayers(view: MapProjectView, georeference: MapGeore
 
   // Listan visas med det översta först.
   const listed = useMemo(() => [...layers].sort((a, b) => b.sort - a.sort || b.createdAt.localeCompare(a.createdAt)), [layers]);
-  return { layers: listed, hidden, toggle, setShown, drawn, loaded, upload, addRemote, placeLayer, reload: load, busy, problem, setProblem, setOpacity, remove, move,
+  return { layers: listed, hidden, toggle, setShown, drawn, loaded, upload, addRemote, addPrepared: add, placeLayer, reload: load, busy, problem, setProblem, setOpacity, remove, move,
     canAdd: view.viewer.canPropose, canReorder: view.viewer.canDecide, canManage: (layer: MapProjectLayerView) => layer.own || view.viewer.canDecide };
 }

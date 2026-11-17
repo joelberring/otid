@@ -60,7 +60,7 @@ export function MapProjectUnderlayPanels({ view, georeference, bounds, areas, la
       <p className={styles.muted}>{steps.laserHelp}</p>
       <MapProjectLaserPanel view={view} laser={laser} importer={importer} georeference={georeference} bounds={bounds} areas={areas} />
       {/* Ägaren 2026-11-16: för den som ritar själv – ladda ner underlaget i stället för att läsa in kandidater. */}
-      {importer.canImport && <MapProjectDrawingBasisPanel view={view} />}
+      {importer.canImport && <MapProjectDrawingBasisPanel view={view} layers={layers} />}
       <h3 className={styles.groupTitle}>{steps.adjust}</h3>
       <p className={styles.muted}>{steps.adjustHelp}</p>
       <MapProjectKnollPanel view={view} importer={importer} />

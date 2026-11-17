@@ -9,7 +9,8 @@
 .choices { display: grid; gap: 8px; margin: 10px 0; }
 .choice { display: grid; gap: 2px; width: 100%; min-height: 52px; padding: 8px 12px; border: 1px solid var(--line-strong); border-radius: var(--radius);
   background: var(--surface); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
-.choice:hover { border-color: var(--ink); }
+/* Den allmänna knappregeln gör bakgrunden svart vid hovring; här ska valet förbli läsbart. */
+.choice:hover:not(:disabled) { border-color: var(--ink); background: var(--surface); }
 .choice strong { font-size: var(--text-sm); }
 .choice span { color: var(--muted); font-size: 0.8rem; font-weight: 400; }
 .quiet { border-style: dashed; }

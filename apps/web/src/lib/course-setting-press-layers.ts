@@ -5,16 +5,16 @@ import type { ColorUsage, MapColor } from "@o-tid/map-file";
 
 /**
  * Normens färgordning i förhandsvisningen (ADR-0211 beslut 3), samma som PDF:en (`colorsOverCourse` i print-pdf): kartans
- * färger under banan, banans undre lila, kartans färger över banan (ritade med multiplicering, som övertryck på tryck; vitt
+ * färger under banan, banans undre lila, kartans färger över banan (ritade en gång till med Darken över hela kartan, som övertryck på tryck; vitt
  * slår ut) och banans övre lila (markeringar, i sprint och med "Kontrollnummer och texter överst" också numren) överst. `undefined` = banan överst (Purple Pens sätt).
  */
 export interface PressLayers {
   readonly norm: PressNorm;
   readonly numbersOnTop: boolean;
   readonly over: readonly number[];
-  /** Vitt över banan (äkta övre vitt): slår ut som i PDF:en, ritas därför utan multiplicering under de andra färgerna över banan. */
+  /** Vitt över banan (äkta övre vitt): slår ut som i PDF:en, ritas därför utan blandning under de andra färgerna över banan. */
   readonly overWhite: readonly number[];
-  /** Färgerna över banan utom vitt (multiplicerade). */
+  /** Färgerna över banan utom vitt (ritas med Darken). */
   readonly overInk: readonly number[];
   readonly under: readonly number[];
 }

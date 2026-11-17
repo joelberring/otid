@@ -51,7 +51,8 @@ export function BlCompare({ frame: sheetFrame, profile, state, colors, symbols, 
   useEffect(() => {
     let live = true;
     void (async () => {
-      const under = await render({ ...view, colorAdjust: after.adjust, ...(after.under ? { onlyColors: after.under } : {}) }, COMPARE_PRIORITY);
+      // Hela kartan underst (som PDF:en, ADR-0211 beslut 14): färgerna över banan blandas då bara med lilan.
+      const under = await render({ ...view, colorAdjust: after.adjust }, COMPARE_PRIORITY);
       const over = after.over && after.over.length > 0 ? await render({ ...view, colorAdjust: after.adjust, onlyColors: after.over, background: false }, COMPARE_PRIORITY) : undefined;
       const overWhite = after.overWhite && after.overWhite.length > 0
         ? await render({ ...view, colorAdjust: after.adjust, onlyColors: after.overWhite, background: false }, COMPARE_PRIORITY) : undefined;
@@ -79,9 +80,9 @@ export function BlCompare({ frame: sheetFrame, profile, state, colors, symbols, 
       {images && <div className={styles.after} style={{ clipPath: `inset(0 0 0 ${split}%)` }} data-testid="bl-compare-after">
         <img src={images.under} alt="" />
         {courseSvg(profile.course.cmyk)}
-        {/* Färgerna över banan med multiplicering: så ser övertrycket ut på tryck (ADR-0211 beslut 3). */}
+        {/* Färgerna över banan en gång till med Darken: så ser övertrycket ut på tryck (ADR-0211 beslut 3 och 14). */}
         {images.overWhite && <img src={images.overWhite} alt="" />}
-        {images.over && <img src={images.over} alt="" style={{ mixBlendMode: "multiply" }} />}
+        {images.over && <img src={images.over} alt="" style={{ mixBlendMode: "darken" }} />}
       </div>}
       {images && <span className={styles.divider} style={{ left: `${split}%` }} title={text.compareDivider} aria-hidden="true" />}
     </div>

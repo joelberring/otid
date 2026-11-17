@@ -216,7 +216,7 @@ export const fieldPrintHelpArticles: readonly HelpArticle[] = [
       [
         "”Skapa PDF för tryck”: till tryckeriet. ”Kartans färger i PDF:en för tryck”: dekorfärger som i kartfilen eller CMYK.",
         "”Skapa PDF för kontorsskrivare”: CMYK utan dekorfärger, med samma färgordning som trycket.",
-        "I den är kartans färger över banan multiplicerade, så den ser ut som trycket i alla program.",
+        "I den syns lila genom kartans färger över banan, så den ser ut som trycket i alla program.",
         "PDF:en för tryck har äkta övertryck. Det syns i Acrobat med Simulera övertryck; Förhandsvisning på Mac visar lila heltäckande.",
         "”Förhandskontroll för PDF:en” visar det som stoppar eller bör ses över. Läs varningarna först.",
         "Jobbet läggs i en kö. PDF:en står i listan när den är klar: ”Ladda ned”.",

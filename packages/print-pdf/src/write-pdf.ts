@@ -188,7 +188,7 @@ function tintFunction(document: PDFDocument, alternates: readonly Cmyk[]): PDFRe
 }
 
 /** Papperets färg (#rrggbb) som CMYK utan övertryck. */
-/** Vitt (alla plåtar 0): ska aldrig tryckas med övertryck eller multipliceras, då syns det inte. */
+/** Vitt (alla plåtar 0): ska aldrig tryckas med övertryck eller blandas, då syns det inte. */
 function isWhitePaint(paint: Paint): boolean {
   return paint.ink.kind === "CMYK" ? Math.max(paint.ink.cmyk.c, paint.ink.cmyk.m, paint.ink.cmyk.y, paint.ink.cmyk.k) <= 0.02
     : paint.ink.tints.every(tint => tint <= 0.02);
@@ -268,28 +268,33 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
   const spaces = new ColorSpaces();
   const symbols = new Map(descriptionSymbols(input.descriptionStandard ?? "2018").map(symbol => [symbol.id, symbol]));
   let overprintUsed = false;
-  let multiplyUsed = false;
+  let blendUsed = false;
 
   // Kartans utsnitt som Form XObject (koordinater: punkter från ramens nedre vänstra hörn).
   const forms = new Map<string, { name: string; stream: PDFRawStream; ref: PDFRef }>();
-  // Banan i färgordningen: kartan i två utsnitt per ram, färgerna under banan (med papperets vitt) och färgerna över.
+  // Banan i färgordningen: kartan i två utsnitt per ram, hela kartan under banan (med papperets vitt) och en gång till
+  // färgerna över banan.
   const over = input.map ? colorsOverCourse(input.map, input.profile) : undefined;
   const norm: PressNorm = input.map ? pressNormFor(input.map, input.profile) : "ISOM";
   const numbersOnTop = input.profile.numbersOnTop ?? false;
   if (input.map && over) {
     const names = input.map.colors.filter(color => over.has(color.id)).sort((a, b) => a.rank - b.rank).map(color => color.name);
-    notes.add(`Banan ligger i färgordningen enligt ${norm === "ISSPROM" ? "ISSprOM 2019-2" : "ISOM 2017-2"}: undre lila under ${names.length} kartfärger (${names.slice(0, 5).join(", ")}${names.length > 5 ? " m.fl." : ""}) ${mode === "OFFICE" ? "multiplicerade (som övertryck)" : "med övertryck"}, ${norm === "ISSPROM" || numbersOnTop ? "nummer och markeringar överst" : "numren i undre lila, markeringar överst"}.`);
+    notes.add(`Banan ligger i färgordningen enligt ${norm === "ISSPROM" ? "ISSprOM 2019-2" : "ISOM 2017-2"}: undre lila under ${names.length} kartfärger (${names.slice(0, 5).join(", ")}${names.length > 5 ? " m.fl." : ""}) ${mode === "OFFICE" ? "(lila syns genom dem, som övertryck)" : "med övertryck"}, ${norm === "ISSPROM" || numbersOnTop ? "nummer och markeringar överst" : "numren i undre lila, markeringar överst"}.`);
   }
-  const mapForm = (frame: SheetFrame, part: "ALL" | "UNDER" | "OVER" = "ALL") => {
+  const mapForm = (frame: SheetFrame, part: "ALL" | "OVER" = "ALL") => {
     const key = `${frameKey(frame)}|${part}`;
     const known = forms.get(key);
     if (known || !input.map) return known;
     const content = new Content(spaces);
     const w = frame.clip.width, h = frame.clip.height;
     // Färgerna över banans lila trycks med övertryck (ADR-0211 beslut 3): lila syns genom dem som i normens tryck; utan
-    // övertryck slog de ut lila under sig. Kontorsskrivaren kan inte övertryck: där ritas de multiplicerade (GOP är då
-    // /BM /Multiply), så att PDF:en ser ut som trycket i alla visare. Vitt slår alltid ut: vitt med övertryck eller
-    // multiplicering syns inte alls (ett känt fel i tryckfiler), och ett vitt över banan är en mask.
+    // övertryck slog de ut lila under sig. Övertrycket ska bara gälla lilan, inte kartan (ADR-0211 beslut 14): hela kartan
+    // ritas därför först som i filen (ALL, färgerna slår ut varandra), sedan banan, och sist färgerna över banan en gång
+    // till (OVER). Där ingen bana ligger trycks en färg då över sig själv och ingenting ändras; förut trycktes den över
+    // gult och grönt, så att en blå bäck blev grön på öppen mark. Kontorsskrivaren kan inte övertryck: där ritas de med
+    // /BM /Darken (GOP), som ger samma färg över sig själv och det mörkaste per kanal över lilan, i alla visare. Vitt slår
+    // alltid ut: vitt med övertryck eller blandning syns inte alls (ett känt fel i tryckfiler), och ett vitt över banan
+    // är en mask.
     const overprintOver = part === "OVER";
     const canvas = new PdfCanvas({ device: [PT_PER_MM, 0, 0, -PT_PER_MM, 0, h * PT_PER_MM], width: w, height: h, content, fonts,
       paintFor: (color: MapColor) => {
@@ -297,7 +302,7 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
         return paint && overprintOver && !isWhitePaint(paint) ? { ...paint, overprint: true } : paint;
       } });
     const onlyColors = part === "ALL" || !over ? undefined
-      : new Set(input.map.colors.filter(color => (part === "OVER") === over.has(color.id)).map(color => color.id));
+      : new Set(input.map.colors.filter(color => over.has(color.id)).map(color => color.id));
     // Träningsläget (ADR-0192 beslut 9): kartan i pass med klippning och filter, i båda delarna när banan ligger i färgordningen.
     const report = drawTrainingMap(canvas, cullMap(input.map, frame.mapArea), { pxPerMm: frame.transform.scale, origin: { x: frame.mapArea.minX, y: frame.mapArea.maxY },
       beforeColor: canvas.beforeColor, maxPatternInstances: input.maxPatternInstances ?? PDF_MAX_PATTERN_INSTANCES,
@@ -307,7 +312,7 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
       notes.add(`Kartan: ${text}.`);
     }
     if (input.map.objects.some(object => object.kind === "text")) notes.add("Kartans texter skrivs med Roboto (inbäddat), vänsterställda som på skärmen.");
-    if (mode === "OFFICE") multiplyUsed ||= content.overprintUsed;
+    if (mode === "OFFICE") blendUsed ||= content.overprintUsed;
     else overprintUsed ||= content.overprintUsed;
     const stream = document.context.flateStream(content.text(), { Type: "XObject", Subtype: "Form", BBox: [0, 0, w * PT_PER_MM, h * PT_PER_MM] });
     const created = { name: `Fm${forms.size}`, stream, ref: document.context.register(stream) };
@@ -392,13 +397,14 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
         content.restore();
       };
       if (over) {
-        // Normens ordning (ADR-0211 beslut 3): kartans färger under banan, vita specialobjekt och bilder (`beneathCourse`), undre
-        // lila, kartans färger över banan (inte i de vita ytorna och bilderna: de ligger över hela kartan), sist övre lila.
+        // Normens ordning (ADR-0211 beslut 3 och 14): hela kartan, vita specialobjekt och bilder (`beneathCourse`), undre lila,
+        // kartans färger över banan en gång till med övertryck (inte i de vita ytorna och bilderna: de ligger över hela
+        // kartan), sist övre lila.
         const layer = (figure: OverprintPrimitive) => courseLayerOf(figure, norm, numbersOnTop);
         const beneath = frame.figures.filter(figure => layer(figure) === "BENEATH");
         const frameRect = rect(clip.x, clip.y, clip.width, clip.height);
         const covers = beneath.map(figure => ({ ref: figure.ref, path: coverPath(figure, mapMatrix) })).filter(cover => cover.path !== "");
-        place(mapForm(frame, "UNDER"));
+        place(mapForm(frame, "ALL"));
         paintWhite();
         figures(beneath);
         figures(frame.figures.filter(figure => layer(figure) === "LOWER"));
@@ -540,8 +546,8 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
     colorSpaces[entry.name] = context.register(value);
   }
   const extGState = {
-    // Kontorsskrivaren: "övertrycket" är multiplicering (syns i alla visare och skrivare); tryck: äkta övertryck, ingen genomskinlighet.
-    [GS_OVERPRINT]: context.register(mode === "OFFICE" ? context.obj({ Type: "ExtGState", BM: PDFName.of("Multiply") })
+    // Kontorsskrivaren: "övertrycket" är blandningen Darken (syns i alla visare och skrivare); tryck: äkta övertryck, ingen genomskinlighet.
+    [GS_OVERPRINT]: context.register(mode === "OFFICE" ? context.obj({ Type: "ExtGState", BM: PDFName.of("Darken") })
       : context.obj({ Type: "ExtGState", OP: true, op: true, OPM: 1 })),
     [GS_KNOCKOUT]: context.register(mode === "OFFICE" ? context.obj({ Type: "ExtGState", BM: PDFName.of("Normal") })
       : context.obj({ Type: "ExtGState", OP: false, op: false, OPM: 1 })),
@@ -567,7 +573,7 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
   if (edge) document.catalog.getOrCreateViewerPreferences().setDuplex(edge === "LONG" ? Duplex.DuplexFlipLongEdge : Duplex.DuplexFlipShortEdge);
 
   const bytes = await document.save({ useObjectStreams: false });
-  if (multiplyUsed) notes.add("Kontorsskrivaren: kartans färger över banan är multiplicerade, så att lila syns genom dem som på tryck.");
+  if (blendUsed) notes.add("Kontorsskrivaren: kartans färger över banan ritas så att lila syns genom dem som på tryck.");
   return { bytes, pages: pages.length, plates: spaces.plates().filter(name => name !== "All"), overprint: overprintUsed, mapForms: forms.size, sharedPages: pageForms.size,
     notes: [...notes], overCourse: over ? [...over] : [] };
 }

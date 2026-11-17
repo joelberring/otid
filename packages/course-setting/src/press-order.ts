@@ -170,7 +170,7 @@ export function courseLayerOf(figure: OverprintPrimitive, norm: PressNorm, numbe
 /**
  * Profilen för "Skapa PDF för kontorsskrivare": kontorsskrivarens färger (ljusare grönt och gult) med tävlingsprofilens
  * färgordning (normen, banan i färgordningen och numren), så att kontors-PDF:en har samma lager som förhandsvisningen och
- * trycket. Övertrycket blir multiplicering i PDF:en (ADR-0211 beslut 11).
+ * trycket. Övertrycket blir blandningen Darken i kontorsskrivarens PDF (ADR-0211 beslut 11 och 14).
  */
 export function officePrintProfile(from: Pick<PrintProfile, "courseLayer" | "pressNorm" | "numbersOnTop">): PrintProfile {
   const office = BUILT_IN_PRINT_PROFILES.find(item => item.id === "office")!;

@@ -108,12 +108,12 @@ function FrameView({ id, frame, symbols, image, overImage, overWhiteImage, layer
       {/* Vita specialobjekt och bilder under banan (ligger över hela kartan: kartans bild över banan maskas bort i dem). */}
       {covers.length > 0 && <g clipPath={`url(#${id})`} data-testid="print-overprint-beneath" data-layer="beneath">{draw(index => layer[index] === "BENEATH")}</g>}
       <g clipPath={`url(#${id})`} data-testid="print-overprint" data-layer="lower">{draw(index => layer[index] === "LOWER")}</g>
-      {/* Kartans färger över banan multipliceras, som övertryck på tryck: lila syns genom dem. Vitt över banan slår ut. */}
+      {/* Kartans färger över banan en gång till med Darken över hela kartan: lila syns genom dem som på tryck, kartan ändras inte. Vitt över banan slår ut. */}
       <g mask={covers.length > 0 ? `url(#${id}c)` : undefined} data-testid="print-map-over-layer">
         {overWhiteImage && <g clipPath={white.length > 0 ? `url(#${id}w)` : undefined}><image href={overWhiteImage} x={clip.x} y={clip.y} width={clip.width}
           height={clip.height} preserveAspectRatio="none" data-testid="print-map-over-white" transform={mirror} /></g>}
         {overImage && <g clipPath={white.length > 0 ? `url(#${id}w)` : undefined}><image href={overImage} x={clip.x} y={clip.y} width={clip.width} height={clip.height}
-          preserveAspectRatio="none" data-testid="print-map-over" style={{ mixBlendMode: "multiply" }} transform={mirror} /></g>}
+          preserveAspectRatio="none" data-testid="print-map-over" style={{ mixBlendMode: "darken" }} transform={mirror} /></g>}
       </g>
       <g clipPath={`url(#${id})`} data-testid="print-overprint-upper" data-layer="upper">{draw(index => layer[index] === "UPPER")}</g>
     </> : <g clipPath={`url(#${id})`} data-testid="print-overprint">{draw(() => true)}</g>}

@@ -181,6 +181,26 @@ ställen och papperet redigerades i en ruta bredvid arket.
     `print-scale` (kartans), så att Purple Pen får exakt samma `<options>`. En annan skala än kartans sparas som förut. Väljer
     banläggaren kartans skala i egenskaperna sparas den uttryckligen tills filen läses in igen.
 
+14. **Ändrat 2026-11-17 (ägaren bad om en genomgång av färgerna i PDF:en; ändrar beslut 3 och 11): övertrycket gäller bara
+    lilan.** *Felet:* kartans färger över banan ritades i ett eget utsnitt med övertryck över *allt* under sig, också över
+    kartans färger under banan. I CMYK-läget (BL, /OPM 1) och med dekorfärger lades då bläcket ihop med ytan under: en blå
+    bäck 100/0/0/0 på gul öppen mark 0/27/94/0 trycktes som 100/27/94/0 (grön), bruna kurvor fick ytans gula och gröna, blå
+    linjer på grönt blev mörkgröna. Kontorsskrivarens multiplicering gav samma fel, liksom förhandsvisningen. Svart syntes
+    det inte på, därför upptäcktes det inte på provtrycket. Kartfilen slår ut de färgerna (OCAD och Mapper trycker dem inte
+    över ytorna), så PDF:en visade inte kartans färger.
+    *Nu:* hela kartan ritas först som i filen (ett utsnitt, alla färger, filens egna övertryck), sedan vita specialobjekt,
+    undre lila, och sist kartans färger över banan *en gång till* med övertryck, och övre lila. Där ingen bana ligger trycks
+    en färg över sig själv och ingenting ändras; där banan ligger syns lila genom som förut. Kontorsskrivaren använder
+    `/BM /Darken` i stället för `/Multiply` (samma färg över sig själv, det mörkaste per kanal över lilan) och
+    förhandsvisningen och BL-jämförelsen `mix-blend-mode: darken` över hela kartans bild. `mapForm` har delarna ALL och OVER
+    (UNDER är borta).
+    *Verifierat:* BL:s tabeller (skog 27 rader, sprint 30 rader) lästa på BL:s sidor 2026-11-17 och lika med
+    `print-reference.ts` rad för rad. Testkartan renderad med poppler med övertrycket simulerat: bäcken på gult var
+    85/38/100/0 före och är 80/4/25/0 efter (kantutjämning mot gult), BL:s violett 35/95/0/0, brunt 0/75/100/33 och svart
+    oförändrade, lila syns genom kurvan och stigen i ringen. Nytt Ghostscript-test (bäcken blå på gult; hoppas över utan gs).
+    *Inte verifierat:* ägarens riktiga kartor, e2e i webbläsaren, riktigt tryck. PDF:en har fortfarande ingen ICC-profil
+    eller PDF/X (ADR-0184 beslut 9); BL anger bara CMYK-tal.
+
 ## Inte gjort (för senare)
 
 - Vridning av texter och bilder. Ramen kan inte flyttas bort från papperets mitt (Purple Pens tryckyta har ingen plats för det).

@@ -86,7 +86,7 @@ export function usePrintColors(document: CourseSettingDocument | null | undefine
   const profile = [...BUILT_IN_PRINT_PROFILES, ...savedProfiles].find(item => item.id === activeProfileId)
     ?? BUILT_IN_PRINT_PROFILES.find(item => item.id === MAP_OWN_PRINT_PROFILE_ID)!;
   const adjust = useMemo<Readonly<Record<number, MapColorAdjust>>>(() => mapColorAdjust(profile, map.colors), [profile, map.colors]);
-  // Normens färgordning (ADR-0211 beslut 3): kartan under banan, banans undre lila, kartan över (multiplicerad), övre lila.
+  // Normens färgordning (ADR-0211 beslut 3): hela kartan, banans undre lila, kartans färger över banan en gång till (Darken), övre lila.
   const pressLayers = useMemo(() => pressLayersFor(profile, map.colors, map.usage, map.mapScale), [profile, map.colors, map.usage, map.mapScale]);
   const pressNorm = pressNormOf(profile, map.mapScale, map.usage);
   const colorsKey = useMemo(() => JSON.stringify(adjust) + (pressLayers ? `|${pressLayers.over.join(",")}` : ""), [adjust, pressLayers]);
@@ -111,10 +111,11 @@ export function useSheetImages(map: PrintMap, sheets: readonly { readonly sheet:
         started.current.add(key);
         try {
           const request = { ...mapRenderRequest(frame), ...(Object.keys(adjust).length > 0 ? { colorAdjust: adjust } : {}) };
-          // Normens ordning: två bilder, färgerna under banan och färgerna över (utan vit bakgrund).
-          const url = await renderImage(pressLayers ? { ...request, onlyColors: pressLayers.under } : request, 0);
+          // Normens ordning: två bilder, hela kartan som i filen och färgerna över banan en gång till (utan vit bakgrund).
+          // Hela kartan ligger underst så att färgerna över banan bara blandas med lilan, inte med gult och grönt (beslut 14).
+          const url = await renderImage(request, 0);
           const over = pressLayers ? await renderImage({ ...request, onlyColors: pressLayers.overInk, background: false }, 0) : undefined;
-          // Vitt över banan slår ut (som i PDF:en): en egen bild utan multiplicering.
+          // Vitt över banan slår ut (som i PDF:en): en egen bild utan blandning.
           const overWhite = pressLayers && pressLayers.overWhite.length > 0
             ? await renderImage({ ...request, onlyColors: pressLayers.overWhite, background: false }, 0) : undefined;
           urls.current.push(url, ...(over ? [over] : []), ...(overWhite ? [overWhite] : []));

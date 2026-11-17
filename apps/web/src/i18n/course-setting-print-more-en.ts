@@ -83,7 +83,7 @@ export const printColorsEn: Texts<typeof printColorsSv> = {
 
 export const printPdfEn: Texts<typeof printPdfSv> = {
   heading: "PDF for print",
-  help: "The PDF is written on the server when the event does not need the computer (low priority) and has the map as vectors, the map's spot colours and the course in its own spot colour with overprint. The office printer gets CMYK without spot colours, and the map's colours above the course are multiplied so it looks like the print.",
+  help: "The PDF is written on the server when the event does not need the computer (low priority) and has the map as vectors, the map's spot colours and the course in its own spot colour with overprint. The office printer gets CMYK without spot colours, and the purple shows through the map's colours above the course so it looks like the print.",
   honesty: "PDF/X and ICC profiles are not supported yet (they are not verified). Always make a test print at the printer before the PDF is used for real.",
   mapColors: "The map's colours in the PDF for print",
   mapSpots: "Spot colours as in the map file",

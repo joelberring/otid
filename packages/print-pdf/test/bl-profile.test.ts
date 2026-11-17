@@ -65,10 +65,12 @@ describe("PDF med BL-profilen", () => {
     expect(ring).toBeGreaterThan(under);
     expect(over).toBeGreaterThan(ring);
     const forms = [...pdf.forms.values()];
-    // Under: BL:s gul 100 % (0/27/94/0) och blå 50 %; över: BL:s brun (0/75/100/33), svart och blå linje 100/0/0/0.
+    // Under: hela kartan som i filen (ADR-0211 beslut 14), BL:s gul 100 % (0/27/94/0), blå 50 % och även brunt, svart och blå
+    // linje utan övertryck; över: BL:s brun (0/75/100/33), svart och blå linje 100/0/0/0 en gång till med övertryck.
     expect(forms[0]).toContain("0 0.27 0.94 0 k");
     expect(forms[0]).toContain("0.5 0 0 0 k");
-    expect(forms[0]).not.toContain("0 0.75 1 0.33 K");
+    expect(forms[0]).toContain("0 0.75 1 0.33 K");
+    expect(forms[0]).toContain("1 0 0 0 K");
     expect(forms[1]).toContain("0 0.75 1 0.33 K");
     expect(forms[1]).toContain("1 0 0 0 K");
     expect(forms[1]).not.toContain("0 0.27 0.94 0 k");
@@ -112,6 +114,18 @@ describe("PDF med BL-profilen", () => {
     expect(top.c).toBeGreaterThan(0.3);
     expect(top.m).toBeGreaterThan(0.9);
     expect(top.y).toBeLessThan(0.05);
+  });
+
+  // ADR-0211 beslut 14: färgerna över banan får bara övertrycka lilan. Bäcken (BL:s blå 100/0/0/0) över den gula ytan
+  // (0/27/94/0) ska vara blå; när den trycktes över det gula blev den grön (100/27/94/0). I kartan (10; 18,5), långt från banan.
+  it.skipIf(!hasGhostscript())("Ghostscript: bäcken är blå på den gula ytan, inte grön (övertrycket gäller bara lilan)", async () => {
+    const { sheets: list } = sheets();
+    const at = toPage(list[0]!.frames[0]!, { x: 10, y: 18.5 });
+    const result = await writeSheetsPdf({ sheets: list, map, profile: approved(), mode: "PRESS", fonts, title: "BL" });
+    const stream = cmykAt(result.bytes, list[0]!.paper.widthMm, at);
+    expect(stream.c).toBeGreaterThan(0.9);
+    expect(stream.m).toBeLessThan(0.05);
+    expect(stream.y).toBeLessThan(0.05);
   });
 });
 

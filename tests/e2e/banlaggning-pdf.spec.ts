@@ -7,7 +7,7 @@ import { createRace, registerAccount, reviewScreenshots, today, unique, warmCour
  * förhandskontrollen och raden om att PDF/X och ICC inte stöds och att provtryck behövs. "Skapa PDF för tryck" lägger
  * jobbet i serverns kö; utskriftsarbetaren skriver PDF:en och listan visar "Klar". PDF:en laddas ned och har en sida per
  * bana, kartan som vektorer och banan i dekorfärgen Purple med övertryck. Kontorsskrivarens PDF har inga dekorfärger; med
- * normens färgordning är kartans färger över banan multiplicerade i den (ADR-0211 beslut 11).
+ * normens färgordning är kartans färger över banan ritade med Darken i den (ADR-0211 beslut 11 och 14).
  */
 const fixture = (path: string) => fileURLToPath(new URL(`../../fixtures/${path}`, import.meta.url));
 
@@ -79,7 +79,7 @@ test("banläggning-pdf: PDF för tryck och för kontorsskrivare ur förhandsvisn
   expect(pdf).toMatch(/\/Subtype \/Form/);
   expect(pdf).toMatch(/\/FontFile2/);
   // Tryck-PDF:en har äkta övertryck och ingen genomskinlighet; raden bredvid säger var övertrycket syns (ADR-0211 beslut 11).
-  expect(pdf).not.toMatch(/\/BM \/Multiply/);
+  expect(pdf).not.toMatch(/\/BM \/Darken/);
   await expect(panel.getByTestId("print-pdf-overprint-viewer")).toHaveText("Övertrycket syns i Acrobat med ”Simulera övertryck”; Förhandsvisning på Mac visar lila heltäckande.");
 
   // Kontorsskrivaren: CMYK utan dekorfärger.
@@ -93,7 +93,7 @@ test("banläggning-pdf: PDF för tryck och för kontorsskrivare ur förhandsvisn
   expect(officePdf).not.toMatch(/\/Separation/);
 
   // Normens färgordning (ADR-0211 beslut 3 och 11, förval enligt ADR-0215): numren i undre lila i skog; förhandsvisningen
-  // multiplicerar kartans färger över banan och kontorsskrivarens PDF gör likadant (/BM /Multiply), så att den ser ut som trycket.
+  // blandar kartans färger över banan med lilan (Darken) och kontorsskrivarens PDF gör likadant (/BM /Darken), så att den ser ut som trycket.
   // Under Avancerat står ordningen ikryssad utan att någon gjort något, och inget har sparats i tävlingen.
   await colors.getByTestId("print-colors-edit").click();
   await expect(colors).toHaveAttribute("data-open", "yes");
@@ -105,7 +105,7 @@ test("banläggning-pdf: PDF för tryck och för kontorsskrivare ur förhandsvisn
   expect(saved.printProfileId).toBeUndefined();
   expect(saved.printProfiles ?? []).toEqual([]);
   await expect(sheet.first()).toHaveAttribute("data-map", "ready", { timeout: 60_000 });
-  await expect(sheet.first().getByTestId("print-map-over").first()).toHaveCSS("mix-blend-mode", "multiply");
+  await expect(sheet.first().getByTestId("print-map-over").first()).toHaveCSS("mix-blend-mode", "darken");
   const officeRequest = owner.waitForRequest(request => request.method() === "POST" && /\/print-jobs$/.test(request.url()));
   await panel.getByTestId("print-pdf-office").click();
   expect((await officeRequest).postDataJSON()).toMatchObject({ kind: "OFFICE", profileId: "office", profile: { id: "office", courseLayer: "REFERENCE" } });
@@ -113,7 +113,7 @@ test("banläggning-pdf: PDF för tryck och för kontorsskrivare ur förhandsvisn
   const layered = panel.locator("[data-testid=print-job][data-kind=OFFICE]").first();
   await expect(layered).toHaveAttribute("data-status", "DONE", { timeout: 180_000 });
   const layeredPdf = Buffer.from(await (await owner.request.get((await layered.getByTestId("print-job-download").getAttribute("href"))!)).body()).toString("latin1");
-  expect(layeredPdf).toMatch(/\/BM \/Multiply/);
+  expect(layeredPdf).toMatch(/\/BM \/Darken/);
   expect(layeredPdf).not.toMatch(/\/OP true/);
 
   // PDF:erna är aldrig publika: utan inloggning nekas nedladdningen.

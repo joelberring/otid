@@ -213,7 +213,7 @@ export const fieldPrintHelpArticlesEn: readonly HelpArticle[] = [
       [
         "”Create PDF for print”: for the printer. ”The map's colours in the PDF for print”: spot colours as in the map file or CMYK.",
         "”Create PDF for office printer”: CMYK without spot colours, with the same colour order as the print.",
-        "In it the map's colours above the course are multiplied, so it looks like the print in all programs.",
+        "In it the purple shows through the map's colours above the course, so it looks like the print in all programs.",
         "The PDF for print has real overprint. It shows in Acrobat with Simulate overprint; Preview on Mac shows purple solid.",
         "”Preflight for the PDF” shows what stops it or should be checked. Read the warnings first.",
         "The job is put in a queue. The PDF is in the list when it is ready: ”Download”.",

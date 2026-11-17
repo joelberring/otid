@@ -54,8 +54,11 @@ describe("kartfilens ordning inom varje sida av banan (ägarens provtryck)", () 
   it("den gröna ringen ritas efter sin vita gloria, båda under banan", async () => {
     const { under, over } = await write();
     expect(under).toContain(GREEN_RING);
-    expect(under.lastIndexOf(WHITE_FILL)).toBeGreaterThan(-1);
-    expect(under.lastIndexOf(WHITE_FILL)).toBeLessThan(under.indexOf(GREEN_RING));
+    // Hela kartan ligger under banan (beslut 14), så det övre vitet (vitt för rött) kommer senare i samma utsnitt; glorian
+    // är det vita närmast före ringen.
+    const halo = under.lastIndexOf(WHITE_FILL, under.indexOf(GREEN_RING));
+    expect(halo).toBeGreaterThan(-1);
+    expect(under.indexOf("0 0 0 1 K")).toBeLessThan(halo);
     expect(over).not.toContain(GREEN_RING);
   });
 
@@ -92,13 +95,13 @@ describe("kartfilens ordning inom varje sida av banan (ägarens provtryck)", () 
     expect(sprint.content.lastIndexOf(number)).toBeGreaterThan(sprint.content.indexOf("/Fm1 Do"));
   });
 
-  it("kontorsskrivaren: samma lager, kartans färger över banan multiplicerade (inget övertryck i filen), vitt slår ut", async () => {
+  it("kontorsskrivaren: samma lager, kartans färger över banan med Darken (inget övertryck i filen), vitt slår ut", async () => {
     const { pdf, over, result } = await write({ mode: "OFFICE", profile: officePrintProfile(profile) });
-    expect(pdf.extGStates.get("GOP")).toMatchObject({ BM: "/Multiply" });
+    expect(pdf.extGStates.get("GOP")).toMatchObject({ BM: "/Darken" });
     expect(pdf.extGStates.get("GOP")).not.toHaveProperty("OP");
     expect(over).toMatch(/\/GOP gs/);
     expect(result.overprint).toBe(false);
-    expect(result.notes.some(note => /multiplicerade/.test(note))).toBe(true);
+    expect(result.notes.some(note => /lila syns genom dem/.test(note))).toBe(true);
     const white = over.indexOf(WHITE_FILL);
     const multiply = over.lastIndexOf("/GOP gs", white);
     expect(multiply === -1 || over.lastIndexOf("/GKO gs", white) > multiply).toBe(true);

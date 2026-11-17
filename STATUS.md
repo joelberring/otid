@@ -13,6 +13,11 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-17 – PDF:ens färger: övertrycket gäller bara lilan (ADR-0211 beslut 14)
+- Ägaren 2026-11-17: gå igenom utskriftsläget så att färgerna blir rätt enligt BL och PDF:erna ser korrekta ut. Fel funnet: kartans färger över banan (blå linjer, brunt, svart) trycktes över kartans ytor, så en blå bäck på gult blev grön och kurvor fick ytans färg, i tryck-PDF:en, kontors-PDF:en och förhandsvisningen.
+- Nu ritas hela kartan som i filen, sedan undre lila och kartans färger över banan en gång till med övertryck (kontor: `/BM /Darken`, skärm: `darken`). BL:s tabeller kontrollerade mot BL:s sidor samma dag: lika rad för rad.
+- Verifierat: print-pdf-testerna, typkontroll, lint, rendering med poppler (övertryck simulerat). Inte kört: e2e (`banlaggning-pdf` ändrad till Darken), Ghostscript-testerna (gs saknas här), ägarens kartor.
+
 ### 2026-11-17 – Lägg in på vald sträcka, också i en gaffling
 - Ägaren 2026-11-17 (A, gaffling C/D vid 36): en befintlig kontroll gick inte att lägga in i en gren; med en sträcka vald hamnade den före målet. Nu läggs en ny eller befintlig kontroll in på den valda sträckan, i den gren där sträckan finns (`legCourseControl`; har flera grenar samma sträcka väljs grenen man arbetar i, annars den första).
 - Verifierat: enhetstest (gaffling med två grenar), typkontroll, lint.

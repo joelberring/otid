@@ -183,7 +183,7 @@ export function afterViews(profile: PrintProfile, state: ProposalState, colors: 
   const order = pressOrder(state.colors, norm);
   const above = order.over;
   if (above.size === 0) return { adjust, over: undefined, overWhite: undefined, under: undefined };
-  // Vitt över banan slår ut (som i PDF:en) och ritas utan multiplicering; de andra färgerna över banan multipliceras.
+  // Vitt över banan slår ut (som i PDF:en) och ritas utan blandning; de andra färgerna över banan ritas en gång till med Darken över hela kartan.
   const white = new Set(order.classes.filter(item => item.kind === "WHITE").map(item => item.ocadId));
   const ids = colors.map(color => color.id);
   return { adjust, over: ids.filter(id => above.has(id) && !white.has(id)), overWhite: ids.filter(id => above.has(id) && white.has(id)),

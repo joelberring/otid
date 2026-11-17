@@ -55,7 +55,8 @@
 .tool[aria-pressed="true"], .tool[aria-pressed="true"]:hover:not(:disabled) { border-color: var(--ink); background: var(--ink); color: var(--surface); font-weight: 700; }
 .tool:disabled, .tool[aria-disabled="true"] { opacity: .4; cursor: default; }
 .toolIcon { font-size: 1.1rem; line-height: 1.2; }
-.toolLabel { max-width: 4.6rem; text-align: center; line-height: 1.15; hyphens: manual; }
+/* Etiketten tar ingen egen bredd (spalten följer de andra verktygen) och radbryts vid det mjuka bindestrecket. */
+.toolLabel { width: 0; min-width: 100%; text-align: center; line-height: 1.15; hyphens: manual; }
 .key { position: absolute; top: 2px; right: 3px; font: inherit; font-size: 0.6rem; line-height: 1; opacity: .65; }
 /* Skärmlagret (krysset i vald kontrolls mitt) följer aldrig med vid utskrift. */
 @media print { .screenOnly { display: none; } }
@@ -248,6 +249,7 @@ fieldset.row legend { width: 100%; padding: 0; font-weight: 600; }
   .toolbar { top: auto; bottom: 62px; left: 6px; right: 6px; flex-direction: row; max-width: none; max-height: none; overflow-x: auto;
     overflow-y: hidden; scrollbar-width: none; }
   .tool { min-width: 48px; flex: 0 0 auto; }
+  .toolLabel { width: auto; min-width: 0; }
   .key { display: none; }
   .fieldTools { top: 8px; left: 8px; max-width: calc(100% - 60px); }
   .zoom { bottom: 136px; right: 8px; }

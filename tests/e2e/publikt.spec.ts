@@ -122,7 +122,7 @@ test("opublicerad tävling syns inte, publicerad syns under rätt rubrik, kort a
 
   // Inloggad: länk till Mina tävlingar i sidhuvudet.
   await owner.goto("/");
-  await expect(owner.getByRole("navigation", { name: "Konto" }).getByRole("link", { name: "Mina tävlingar" })).toHaveAttribute("href", "/organizer");
+  await expect(owner.getByRole("navigation", { name: "Konto" }).getByRole("link", { name: "Mitt O-Tid" })).toHaveAttribute("href", "/organizer");
 
   // Sök på namn (utan hänsyn till versaler).
   await visitor.getByLabel("Sök tävling").fill(`HÖSTSPRINTEN ${suffix}`);

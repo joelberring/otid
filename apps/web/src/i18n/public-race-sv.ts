@@ -16,7 +16,7 @@ export const publicRaceSv = {
     noneUpcoming: "Inga kommande tävlingar publicerade.",
     noneRecent: "Inga tidigare tävlingar.",
     noMatch: (query: string) => `Ingen publicerad tävling matchar ”${query}”.`,
-    myRaces: "Mina tävlingar",
+    myRaces: "Mitt O-Tid",
     organizerLogin: "För arrangörer: logga in",
     accountNavigation: "Konto",
     introFilm: "Se vad O-Tid kan (film)",

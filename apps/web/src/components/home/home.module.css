@@ -22,8 +22,10 @@
 .demo span { color: var(--muted); font-size: var(--text-sm); }
 .demo button { justify-self: start; }
 .demoProblem { margin: 0 0 6px; font-weight: 600; }
-/* Översynen av startsidan 2026-11-17: "Har du en kod?" och arrangörens rad. Tryckytor minst 44 px. */
-.join { display: grid; gap: 6px; max-width: 36rem; padding: 12px 14px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); scroll-margin-top: 16px; }
+/* Översynen av startsidan 2026-11-17: "Har du en kod?" och arrangörens rad. Tryckytor minst 44 px. Kodfältet syns bara i appen
+   (`data-otid-app`, AppMark), med ett besked (`?kodfel=`, joinShown) och när adressen pekar på det (`/#kod`); på webben kommer
+   man via länken eller QR-koden (ADR-0172, tillägget 2026-11-17, senare). */
+.join { display: none; gap: 6px; max-width: 36rem; padding: 12px 14px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); scroll-margin-top: 16px; }
 .join h2 { font-size: var(--text-md); }
 .join > p { color: var(--muted); font-size: var(--text-sm); }
 .joinForm { display: flex; gap: 8px; align-items: end; }
@@ -33,8 +35,6 @@
 .join > .joinProblem { margin: 0; font-weight: 600; color: var(--ink); font-size: var(--text-sm); }
 .organizer { display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; color: var(--muted); font-size: var(--text-sm); }
 .organizer a { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; }
-/* I appen (ADR-0227, `data-otid-app` sätts av AppMark): kodfältet tydligare, och arrangörens rad behövs inte (appen är deltagarens). */
-:global([data-otid-app]) .join { border: 2px solid var(--accent); padding: 14px 16px; }
-:global([data-otid-app]) .join h2 { font-size: var(--text-lg); }
-:global([data-otid-app]) .joinForm input, :global([data-otid-app]) .joinForm button { min-height: 52px; font-size: var(--text-md); }
+.join.joinShown, .join:target, :global([data-otid-app]) .join { display: grid; }
+/* I appen (ADR-0227) behövs inte arrangörens rad (appen är deltagarens); kodfältet har samma storlek som andra fält. */
 :global([data-otid-app]) .organizer { display: none; }

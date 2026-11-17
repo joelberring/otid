@@ -50,7 +50,7 @@ export const courseSettingHelpArticlesEn: readonly HelpArticle[] = [
     views: ["CS_START", "COURSE_SETTING", "COURSES"],
     body: [
       "Course setting opens with ”Course setting” in the workspace's side panel, under ”Menu” on a phone or with the button ”Course setting” on ”My events”.",
-      "Someone who only sets courses is added under ”Settings” → ”People with access” with one of the roles:",
+      "Someone who only sets courses is added under ”People” in the workspace with one of the roles:",
       [
         "”Course setting: edit”: changes the courses directly.",
         "”Course setting: suggest”: the changes become a suggestion that someone approves.",

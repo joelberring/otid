@@ -132,8 +132,11 @@ test("språk: arbetsytans skal på engelska", async ({ browser }) => {
   await expect(owner.getByRole("button", { name: "New course" }).first()).toBeVisible();
   await owner.getByRole("button", { name: "New course" }).first().click();
   await expect(owner.getByLabel("Course name")).toBeVisible();
-  await parts.getByRole("button", { name: "Settings" }).click();
+  // Översynen 2026-11-17: People with access är en egen del; Settings hänvisar dit.
+  await parts.getByRole("button", { name: "People" }).click();
   await expect(owner.getByRole("heading", { name: "People with access" })).toBeVisible();
+  await parts.getByRole("button", { name: "Settings" }).click();
+  await expect(owner.getByRole("button", { name: "Go to People" })).toBeVisible();
   await expect(owner.getByRole("group", { name: "Type of event" })).toContainText("Training");
   // Del 25: informationen till löparna, självregistreringen och Publicera.
   await expect(owner.getByText("Information for the runners")).toBeVisible();

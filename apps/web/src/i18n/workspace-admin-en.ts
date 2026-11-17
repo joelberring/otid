@@ -134,7 +134,7 @@ export const raceAdministratorEn: AdminTexts = {
   accountLoginLink: "Go to My events",
   checking: "Checking access…", denied: "Access is missing.",
   functionaryTitle: "Why can't I see the courses and the participants?",
-  functionaryNote: "You are an official at this event: you reach start, readout, still out and speaker. Courses, classes, entries and settings are for the administrators only, and the courses are secret before the start. Need more? Ask the owner or an administrator to change your role under Settings → People with access.",
+  functionaryNote: "You are an official at this event: you reach start, readout, still out and speaker. Courses, classes, entries and settings are for the administrators only, and the courses are secret before the start. Need more? Ask the owner or an administrator to change your role under People.",
   error: "The event could not be loaded. Try again when the connection works.",
   participants: "Participants",
   shown: "Showing", of: "of",

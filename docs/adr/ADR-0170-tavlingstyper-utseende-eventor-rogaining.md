@@ -36,6 +36,11 @@ finns kvar i en gemensam kärna – typen är en vy, inte en egen kodväg.
   konsekventa komponenter.
 - Speakern är en egen sida som kan öppnas i ett eget fönster eller på en
   skärm och uppdateras av sig själv.
+- Ändrat 2026-11-17 (översynen av användbarheten): under banan står Banläggning, "Övning i mobilen" (för administratören:
+  alltid i Träning, i andra typer utom fest när en övning är på; leder till ledarens sida eller till banläggningens flik
+  Träning), Personer (personer med behörighet, egen del i stället för ett avsnitt i Inställningar, `?del=personer`) och
+  Inställningar. Mobilens remsa visar med toning och pil att den fortsätter, och Meny har alla delar med status och raderna
+  under banan. Behörigheterna på servern är oförändrade.
 
 ### 3. Listor
 Start och resultat får en verktygsrad med vy (startlista per klass, per

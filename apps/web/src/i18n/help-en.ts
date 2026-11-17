@@ -240,11 +240,11 @@ const raceDayHelpArticlesEn: readonly HelpArticle[] = [
   {
     id: "funktionarer",
     title: "Officials",
-    views: ["SETTINGS", "EVENTS"],
+    views: ["PEOPLE", "SETTINGS", "EVENTS"],
     body: [
       "An official reads out, makes direct entries, follows those still out, runs the start and sees the speaker page. Nothing else.",
       "The official sees the full names, clubs and cards of participants and guests and can download the party's purchases (”Download summary (CSV)”), so only give access to people you trust.",
-      "Go to ”Settings” → ”People with access”.",
+      "Go to ”People” in the workspace sidebar (on the phone also under ”Menu”).",
       "Write one or more email addresses under ”Add a person”, choose ”Official” and press ”Add”.",
       "The person gets an email with a link and lands on the event after signing in (see [Invitations by email](#inbjudningar)).",
       "”Remove” removes the access at once."
@@ -253,7 +253,7 @@ const raceDayHelpArticlesEn: readonly HelpArticle[] = [
   {
     id: "inbjudningar",
     title: "Invitations by email",
-    views: ["SETTINGS", "EVENTS", "ARCHIVE_MEMBERS"],
+    views: ["PEOPLE", "SETTINGS", "EVENTS", "ARCHIVE_MEMBERS"],
     body: [
       "When you invite someone to an event, a club archive or a training group, the access is saved for the email address, and with email on the server the person gets an email saying who invited them, to what, the role and a link.",
       "The link opens a page with ”Create account” (the address filled in and locked) and ”Sign in”.",

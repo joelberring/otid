@@ -4,7 +4,7 @@ import { addCourseAndClass, addEntry, addPerson, createRace, logIn, openStep, re
 
 /**
  * Steg 18 (ADR-0172 beslut 3): funktionärer. Ägaren lägger till ett befintligt konto som funktionär under
- * Inställningar → Personer med behörighet. Funktionären ser tävlingen i Mina tävlingar, får en arbetsyta med bara
+ * Personer → Personer med behörighet. Funktionären ser tävlingen i Mina tävlingar, får en arbetsyta med bara
  * Start och Avläsning, läser av med övningsstationen, direktanmäler en okänd bricka och ser kvar i skogen och
  * speakern, men når inte Banor eller resultatändring (inte i sidopanelen; servern svarar 403). Samma konto läser
  * av från en andra enhet samtidigt.
@@ -44,7 +44,7 @@ test("admin lägger till funktionär som läser av från två enheter men inte n
   await expect(staff.getByText("Inga tävlingar ännu")).toBeVisible();
 
   // ADR-0188 beslut 6: en adress utan konto får samma svar som en med konto; behörigheten väntar på inloggning.
-  await openStep(owner, "Inställningar");
+  await openStep(owner, "Personer");
   const people = owner.getByRole("region", { name: "Personer med behörighet" });
   await people.getByRole("form", { name: "Lägg till person" }).getByLabel("E-postadress").fill(`ingen.${suffix}@exempel.se`);
   await people.getByRole("button", { name: "Lägg till" }).click();
@@ -72,7 +72,7 @@ test("admin lägger till funktionär som läser av från två enheter men inte n
   await staff.waitForURL(/manage$/);
   await expect(sectionButton(staff, "Avläsning")).toHaveAttribute("aria-current", "step");
   await expect(sectionButton(staff, "Start")).toBeVisible();
-  for (const hidden of ["Banor", "Klasser", "Anmälda", "Resultat", "Inställningar"] as const) {
+  for (const hidden of ["Banor", "Klasser", "Anmälda", "Resultat", "Personer", "Inställningar"] as const) {
     await expect(sectionButton(staff, hidden)).toHaveCount(0);
   }
   await expect(staff.locator("header").getByText("Funktionär", { exact: true })).toBeVisible();
@@ -144,7 +144,7 @@ test("admin lägger till funktionär som läser av från två enheter men inte n
 
   // Ägaren tar bort funktionären: åtkomsten upphör direkt på båda enheterna.
   await owner.reload();
-  await openStep(owner, "Inställningar");
+  await openStep(owner, "Personer");
   await expect(staffRow).toBeVisible();
   owner.once("dialog", dialog => void dialog.accept());
   await staffRow.getByRole("button", { name: "Ta bort behörigheten för Frida Funktionär" }).click();

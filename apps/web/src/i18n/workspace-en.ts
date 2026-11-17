@@ -21,7 +21,7 @@ export const raceTypeEn: Texts<typeof raceTypeSv> = {
   sections: {
     COURSES: "Courses", COURSES_CLASSES: "Courses & classes", CONTROLS_POINTS: "Controls & points", CLASSES: "Classes",
     CLASSES_LEGS: "Classes & legs", ENTRIES: "Entries", PARTICIPANTS: "Participants", TEAMS: "Teams", START: "Start", PUBLISH: "Publish",
-    READOUT: "Readout", RESULTS: "Results", PARTY: "Party", SETTINGS: "Settings"
+    READOUT: "Readout", RESULTS: "Results", PARTY: "Party", PEOPLE: "People", SETTINGS: "Settings"
   },
   navigation: "Parts of the event",
   start: "Start",
@@ -101,6 +101,8 @@ export const raceTypeEn: Texts<typeof raceTypeSv> = {
     },
     publishLink: "Publishing and the event page's address are in the Publish step.",
     publishOpen: "Go to Publish",
+    peopleLink: "You invite officials, administrators and the course-setting roles under People.",
+    peopleOpen: "Go to People",
     import: "Import",
     importHelp: "Entries and start lists (IOF XML) are imported under Entries. Course files are imported under Courses, and Eventor here under Eventor.",
     importOpen: "Go to Entries"
@@ -171,7 +173,8 @@ export const sectionStatusEn: Texts<typeof sectionStatusSv> = {
   mispunched: count => `${plural(count, "mispunch", "mispunches")} to look at`,
   noResults: "No results yet",
   results: count => plural(count, "result", "results"),
-  party: "Items, purchases and export"
+  party: "Items, purchases and export",
+  people: "Officials and access"
 };
 
 /** Toppbalkens knappar (ur `raceAdministratorSv`). */

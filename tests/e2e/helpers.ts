@@ -369,7 +369,7 @@ export async function courseSettingInPhone(page: Page, raceId: string): Promise<
 
 /** Delarna i sidopanelen; vilka som finns avgörs av tävlingstypen (ADR-0170). */
 export type SectionName = "Banor" | "Banor & klasser" | "Kontroller & poäng" | "Klasser" | "Klasser & sträckor" | "Anmälda" | "Deltagare" |
-  "Lag" | "Start" | "Publicera" | "Avläsning" | "Resultat" | "Fest" | "Inställningar";
+  "Lag" | "Start" | "Publicera" | "Avläsning" | "Resultat" | "Fest" | "Personer" | "Inställningar";
 
 /** En del i sidopanelen "Tävlingens delar". Delens status är knappens beskrivning. */
 export function sectionButton(page: Page, name: SectionName) {
@@ -445,12 +445,12 @@ export async function addEntry(owner: Page, entry: { className: string; givenNam
 }
 
 /**
- * Inställningar → Personer med behörighet (ADR-0172 beslut 3): lägger till ett befintligt konto med e-post och roll.
+ * Personer → Personer med behörighet (ADR-0172 beslut 3; egen del sedan översynen 2026-11-17): lägger till ett befintligt konto med e-post och roll.
  * Arbetsytan måste vara öppen som administratör.
  */
 export async function addPerson(owner: Page, email: string, role: "Funktionär" | "Administratör" | "Banläggning: ändra" | "Banläggning: föreslå"
   | "Banläggning: läsa och kommentera" | "Kartritare: bara kartan och kartfelen"): Promise<void> {
-  await openStep(owner, "Inställningar");
+  await openStep(owner, "Personer");
   const people = owner.getByRole("region", { name: "Personer med behörighet" });
   const form = people.getByRole("form", { name: "Lägg till person" });
   await form.getByLabel("E-postadress").fill(email);

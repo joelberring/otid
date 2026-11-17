@@ -53,7 +53,7 @@ export const courseSettingHelpArticles: readonly HelpArticle[] = [
     views: ["CS_START", "COURSE_SETTING", "COURSES"],
     body: [
       "Banläggningen öppnas med ”Banläggning” i arbetsytans sidopanel, under ”Meny” på telefonen eller med knappen ”Banläggning” på ”Mina tävlingar”.",
-      "Den som bara ska lägga banor läggs till under ”Inställningar” → ”Personer med behörighet” med en av rollerna:",
+      "Den som bara ska lägga banor läggs till under ”Personer” i arbetsytan med en av rollerna:",
       [
         "”Banläggning: ändra”: ändrar banorna direkt.",
         "”Banläggning: föreslå”: ändringarna blir ett förslag som någon godkänner.",

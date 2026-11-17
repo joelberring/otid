@@ -103,7 +103,7 @@ export const raceAdministratorSv = {
   checking: "Kontrollerar behörighet…", denied: "Behörighet saknas.",
   /** Ägaren 2026-11-17: funktionären får veta varför banor, deltagare och inställningar inte syns. */
   functionaryTitle: "Varför ser jag inte banorna och deltagarna?",
-  functionaryNote: "Du är funktionär på den här tävlingen: du når start, avläsning, kvar i skogen och speaker. Banor, klasser, anmälningar och inställningar är bara för administratörerna, och banorna är hemliga före start. Behöver du mer? Be ägaren eller en administratör ändra din roll under Inställningar → Personer med behörighet.",
+  functionaryNote: "Du är funktionär på den här tävlingen: du når start, avläsning, kvar i skogen och speaker. Banor, klasser, anmälningar och inställningar är bara för administratörerna, och banorna är hemliga före start. Behöver du mer? Be ägaren eller en administratör ändra din roll under Personer.",
   error: "Tävlingen kunde inte läsas in. Försök igen när anslutningen fungerar.",
   participants: "Deltagare",
   shown: "Visar", of: "av",

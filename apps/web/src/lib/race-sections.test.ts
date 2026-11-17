@@ -1,20 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { raceTypes, type RaceType } from "@o-tid/contracts";
 import { raceTypeSv } from "../i18n/race-type-sv";
-import { activeSection, raceTypeProfile, SECTION_SLUGS, sectionForPanel, sectionFromSlug, visibleSections, workspacePath,
+import { activeSection, profileForRole, raceTypeProfile, SECTION_SLUGS, sectionForPanel, sectionFromSlug, visibleSections, workspacePath,
   type SectionId } from "./race-sections";
 
 const names = (type: RaceType) => visibleSections(raceTypeProfile(type)).map(section => raceTypeSv.sections[section.label]);
 
 describe("tävlingstypen styr arbetsytans delar (ADR-0170 beslut 1)", () => {
-  it("visar rätt delar per typ, med Inställningar sist", () => {
-    expect(names("TRAINING")).toEqual(["Banor & klasser", "Deltagare", "Publicera", "Avläsning", "Resultat", "Inställningar"]);
-    expect(names("SMALL")).toEqual(["Banor", "Klasser", "Anmälda", "Start", "Publicera", "Avläsning", "Resultat", "Inställningar"]);
-    expect(names("STANDARD")).toEqual(["Banor", "Klasser", "Anmälda", "Start", "Publicera", "Avläsning", "Resultat", "Inställningar"]);
-    expect(names("FORKED")).toEqual(["Banor", "Klasser", "Anmälda", "Start", "Publicera", "Avläsning", "Resultat", "Inställningar"]);
-    expect(names("RELAY")).toEqual(["Banor", "Klasser & sträckor", "Lag", "Start", "Publicera", "Avläsning", "Resultat", "Inställningar"]);
-    expect(names("ROGAINING")).toEqual(["Kontroller & poäng", "Deltagare", "Publicera", "Avläsning", "Resultat", "Inställningar"]);
-    expect(names("PARTY")).toEqual(["Fest", "Publicera", "Inställningar"]);
+  it("visar rätt delar per typ, med Personer och Inställningar sist", () => {
+    expect(names("TRAINING")).toEqual(["Banor & klasser", "Deltagare", "Publicera", "Avläsning", "Resultat", "Personer", "Inställningar"]);
+    expect(names("SMALL")).toEqual(["Banor", "Klasser", "Anmälda", "Start", "Publicera", "Avläsning", "Resultat", "Personer", "Inställningar"]);
+    expect(names("STANDARD")).toEqual(["Banor", "Klasser", "Anmälda", "Start", "Publicera", "Avläsning", "Resultat", "Personer", "Inställningar"]);
+    expect(names("FORKED")).toEqual(["Banor", "Klasser", "Anmälda", "Start", "Publicera", "Avläsning", "Resultat", "Personer", "Inställningar"]);
+    expect(names("RELAY")).toEqual(["Banor", "Klasser & sträckor", "Lag", "Start", "Publicera", "Avläsning", "Resultat", "Personer", "Inställningar"]);
+    expect(names("ROGAINING")).toEqual(["Kontroller & poäng", "Deltagare", "Publicera", "Avläsning", "Resultat", "Personer", "Inställningar"]);
+    expect(names("PARTY")).toEqual(["Fest", "Publicera", "Personer", "Inställningar"]);
   });
 
   it("styr funktioner och förval", () => {
@@ -47,6 +47,12 @@ describe("tävlingstypen styr arbetsytans delar (ADR-0170 beslut 1)", () => {
     expect(sectionForPanel(raceTypeProfile("STANDARD"), "CLASSES")?.id).toBe("CLASSES");
   });
 
+  it("funktionären ser varken Personer eller Inställningar (ADR-0172 beslut 3)", () => {
+    const official = profileForRole(raceTypeProfile("STANDARD"), "FUNCTIONARY");
+    expect(visibleSections(official).map(section => section.id)).toEqual(["START", "READOUT"]);
+    expect(activeSection(official, "PEOPLE", "READOUT").id).toBe("READOUT");
+  });
+
   it("visar första delen när den valda delen saknas i typen", () => {
     expect(activeSection(raceTypeProfile("TRAINING"), "START").id).toBe("COURSES");
     expect(activeSection(raceTypeProfile("TRAINING"), "SETTINGS").id).toBe("SETTINGS");
@@ -58,6 +64,9 @@ describe("djuplänken ?del= (användartest 2026-11-12)", () => {
   it("varje del har ett värde som leder tillbaka till delen", () => {
     for (const id of Object.keys(SECTION_SLUGS) as SectionId[]) expect(sectionFromSlug(SECTION_SLUGS[id])).toBe(id);
     expect(sectionFromSlug("installningar")).toBe("SETTINGS");
+    // Översynen 2026-11-17: Personer med behörighet som egen del.
+    expect(sectionFromSlug("personer")).toBe("PEOPLE");
+    expect(workspacePath("r1", "PEOPLE")).toBe("/admin/r1/manage?del=personer");
     expect(sectionFromSlug("Inställningar")).toBe("SETTINGS");
     expect(sectionFromSlug("avläsning")).toBe("READOUT");
     expect(sectionFromSlug("okänd")).toBeUndefined();

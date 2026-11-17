@@ -137,7 +137,7 @@ export function Sidebar({ ws, exercise }: { ws: Workspace; exercise?: MobileExer
       <li className={styles.finish} aria-hidden="true"><svg viewBox="0 0 22 22" width="22" height="22">
         <circle cx="11" cy="11" r="9.5" /><circle cx="11" cy="11" r="5.5" /></svg></li>
     </ol>
-    {(courseSetting || exercise || profile.settings) && <ol className={styles.after}>
+    {(courseSetting || exercise || profile.people || profile.settings) && <ol className={styles.after}>
       {courseSetting && <li className={styles.settingsItem}>
         <a className={styles.navLink} href={courseSetting.href} data-testid="nav-course-setting" aria-describedby={`section-${raceId}-course-setting`}
           onClick={event => { if (!mayLeave()) event.preventDefault(); }}>
@@ -153,6 +153,7 @@ export function Sidebar({ ws, exercise }: { ws: Workspace; exercise?: MobileExer
           <span className={styles.name}>{navigationText.mobileExercise}</span>
           <span className={styles.status} id={`section-${raceId}-mobile-exercise`}>{exerciseStatus(exercise, navigationText)}</span>
         </a></li>}
+      {profile.people && item(profile.people, true)}
       {profile.settings && item(profile.settings, true)}
     </ol>}
   </nav>;

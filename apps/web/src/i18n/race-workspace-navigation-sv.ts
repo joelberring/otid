@@ -68,5 +68,7 @@ export const sectionStatusSv = {
   mispunched: (count: number) => `${plural(count, "felstämplad", "felstämplade")} att titta på`,
   noResults: "Inga resultat ännu",
   results: (count: number) => plural(count, "resultat", "resultat"),
-  party: "Varor, köp och export"
+  party: "Varor, köp och export",
+  /** Översynen 2026-11-17: Personer som egen del. */
+  people: "Funktionärer och behörigheter"
 } as const;

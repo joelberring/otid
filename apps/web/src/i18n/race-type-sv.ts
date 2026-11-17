@@ -17,7 +17,7 @@ export const raceTypeSv = {
   sections: {
     COURSES: "Banor", COURSES_CLASSES: "Banor & klasser", CONTROLS_POINTS: "Kontroller & poäng", CLASSES: "Klasser",
     CLASSES_LEGS: "Klasser & sträckor", ENTRIES: "Anmälda", PARTICIPANTS: "Deltagare", TEAMS: "Lag", START: "Start", PUBLISH: "Publicera",
-    READOUT: "Avläsning", RESULTS: "Resultat", PARTY: "Fest", SETTINGS: "Inställningar"
+    READOUT: "Avläsning", RESULTS: "Resultat", PARTY: "Fest", PEOPLE: "Personer", SETTINGS: "Inställningar"
   } satisfies Record<SectionLabel, string>,
   navigation: "Tävlingens delar",
   start: "Start",
@@ -101,6 +101,9 @@ export const raceTypeSv = {
     },
     publishLink: "Publiceringen och tävlingssidans adress finns i steget Publicera.",
     publishOpen: "Gå till Publicera",
+    /** Översynen 2026-11-17: Personer med behörighet är en egen del. */
+    peopleLink: "Funktionärer, administratörer och banläggningens roller bjuder du in under Personer.",
+    peopleOpen: "Gå till Personer",
     import: "Import",
     /** ADR-0191 beslut 3: importen av anmälda finns under Anmälda; här bara en hänvisning. */
     importHelp: "Anmälda och startlistor (IOF XML) läses in under Anmälda. Banfiler läses in under Banor och Eventor här under Eventor.",

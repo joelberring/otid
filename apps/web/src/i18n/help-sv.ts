@@ -277,11 +277,11 @@ const raceDayHelpArticles: readonly HelpArticle[] = [
   {
     id: "funktionarer",
     title: "Funktionärer",
-    views: ["SETTINGS", "EVENTS"],
+    views: ["PEOPLE", "SETTINGS", "EVENTS"],
     body: [
       "En funktionär läser av, direktanmäler, följer kvar i skogen, sköter starten och ser speakersidan. Inget annat.",
       "Funktionären ser deltagarnas och gästernas fulla namn, klubb och bricka och kan ladda ner festens köp (”Ladda ner summering (CSV)”), så ge behörigheten bara till personer du litar på.",
-      "Gå till ”Inställningar” → ”Personer med behörighet”.",
+      "Gå till ”Personer” i arbetsytans sidopanel (i telefonen också under ”Meny”).",
       "Skriv en eller flera e-postadresser under ”Lägg till person”, välj ”Funktionär” och tryck på ”Lägg till”.",
       "Personen får ett mejl med en länk och hamnar på tävlingen efter inloggningen (se [Inbjudningar med e-post](#inbjudningar)).",
       "”Ta bort” tar bort behörigheten direkt."
@@ -290,7 +290,7 @@ const raceDayHelpArticles: readonly HelpArticle[] = [
   {
     id: "inbjudningar",
     title: "Inbjudningar med e-post",
-    views: ["SETTINGS", "EVENTS", "ARCHIVE_MEMBERS"],
+    views: ["PEOPLE", "SETTINGS", "EVENTS", "ARCHIVE_MEMBERS"],
     body: [
       "När du bjuder in någon till en tävling, ett klubbarkiv eller en träningsgrupp sparas behörigheten för e-postadressen, och med e-post på servern får personen ett mejl med vem som bjöd in, till vad, rollen och en länk.",
       "Länken öppnar en sida med ”Skapa konto” (adressen ifylld och låst) och ”Logga in”.",

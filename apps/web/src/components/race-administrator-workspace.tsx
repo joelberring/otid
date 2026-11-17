@@ -20,6 +20,7 @@ import { AfterRacePanel } from "./race-administrator/after-race-panel";
 import { DuringRaceFollowUp, DuringRaceOverview } from "./race-administrator/during-race-panel";
 import { ParticipantsPanel, RentalPrint } from "./race-administrator/participants-panel";
 import { SettingsPanel } from "./race-administrator/settings-panel";
+import { PeoplePanel } from "./race-administrator/people-section";
 import { RogainingPanel } from "./race-administrator/rogaining-panel";
 import { PublishPanel } from "./race-administrator/race-publication-section";
 import { PartyPanel } from "./race-administrator/party-panel";
@@ -111,6 +112,7 @@ export function RaceAdministratorWorkspace({ raceId }: { raceId: string }) {
         <DuringRaceFollowUp ws={ws} />
         {!ws.functionary && <>
           <AfterRacePanel ws={ws} />
+          <PeoplePanel ws={ws} />
           <SettingsPanel ws={ws} />
         </>}
         {/* PLAN.md steg 37: sidfoten, länkarna i en ny flik så att inget osparat lämnas. */}

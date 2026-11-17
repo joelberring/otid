@@ -76,7 +76,7 @@ describe("status per del i sidopanelen", () => {
   it("skriver antalet med delens namn för typen", () => {
     const facts = checklistFacts(data, {});
     const texts = (type: "TRAINING" | "RELAY") => visibleSections(raceTypeProfile(type)).map(section => sectionStatus(section, facts, type).text);
-    expect(texts("TRAINING")).toEqual(["2 banor · 2 klasser", "5 deltagare", "Inte publicerad", "2 avlästa · 2 kvar", "1 felstämplad att titta på", "Träning"]);
+    expect(texts("TRAINING")).toEqual(["2 banor · 2 klasser", "5 deltagare", "Inte publicerad", "2 avlästa · 2 kvar", "1 felstämplad att titta på", "Funktionärer och behörigheter", "Träning"]);
     expect(texts("RELAY")[2]).toBe("Inga lag ännu");
   });
 });

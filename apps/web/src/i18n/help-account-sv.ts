@@ -76,7 +76,7 @@ export const accountHelpArticles: readonly HelpArticle[] = [
     body: [
       "Menyn med ditt namn (initialerna på telefonen) finns överst på varje sida när du är inloggad.",
       [
-        "Där finns ”Mina tävlingar”, ”Mina klubbar”, ”Mina grupper”, ”Mitt konto” och ”Logga ut”.",
+        "Där finns ”Mitt O-Tid”, ”Mina klubbar”, ”Mina grupper”, ”Mitt konto” och ”Logga ut”.",
         "”Logga ut” tar också bort det webbläsaren sparat om tävlingar och personer, som fältlägets kopia.",
         "Väntar ändringar på nät frågar menyn först. Avläsningar som inte har skickats ligger kvar tills de kommit fram.",
         "”Kom ihåg mig på den här datorn” gäller i 30 dagar. Utan den gäller inloggningen tolv timmar.",

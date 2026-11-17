@@ -25,7 +25,7 @@ export const trainingGroupSv = {
     backToGroup: (name: string) => `Till gruppen ${name}`,
     /** Första träningen i en ny grupp: inget att utgå från. */
     firstSession: "Gruppen har inget tidigare tillfälle. Träningen skapas tom; lägg banor och klasser i arbetsytan.",
-    back: "Mina tävlingar",
+    back: "Mitt O-Tid",
     loading: "Läser gruppen …",
     notFound: "Gruppen finns inte, eller så är du inte ledare i den.",
     publicLink: "Gruppens sida",

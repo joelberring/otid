@@ -6,7 +6,7 @@ export const accountMenuSv = {
   myClubs: "Mina klubbar",
   myGroups: "Mina grupper",
   myMapProjects: "Mina kartprojekt",
-  myEvents: "Mina tävlingar",
+  myEvents: "Mitt O-Tid",
   myAccount: "Mitt konto",
   logout: "Logga ut",
   loggingOut: "Loggar ut …",

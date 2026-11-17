@@ -10,6 +10,7 @@ import { affiliationRequest as clubRequest } from "../../lib/club-affiliation-cl
 import { Button, Field, Notice } from "../ui";
 import { MembershipList } from "./membership-list";
 import { OrganisationPicker } from "./organisation-picker";
+import { clubStepSeen, markClubStepSeen } from "../../lib/hub-start";
 import styles from "./club-affiliation.module.css";
 
 
@@ -26,7 +27,8 @@ export function ChosenClubs({ chosen, onRemove }: { chosen: readonly Organisatio
 /**
  * ADR-0209 beslut 2 och E: steget efter registreringen i Mina tävlingar, "Vilken klubb tillhör du?" (valfritt). Visas tills det är
  * besvarat eller överhoppat. Efter sparandet syns läget direkt: "Du är med i …" när adressen finns i klubbens medlemslista i
- * Eventor, annars väntar det, och saknar klubben klubbyta kan man starta den.
+ * Eventor, annars väntar det, och saknar klubben klubbyta kan man starta den. Översynen 2026-11-17: bara första gången som ett
+ * block; vid senare besök (sparat i webbläsaren) en enda rad med "Välj klubb" och "Hoppa över".
  */
 export function ClubStep({ skip = false, onShown }: {
   /** Användartest 2026-11-12: den som redan är med i en klubbyta får inte frågan (undefined-läget väljer föräldern). */
@@ -40,6 +42,9 @@ export function ClubStep({ skip = false, onShown }: {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const [result, setResult] = useState<AccountClubsResponse>();
+  /** Översynen 2026-11-17: efter första besöket en rad ("Välj klubb" fäller ut frågan). Läses före första markeringen. */
+  const [line, setLine] = useState<boolean>();
+  useEffect(() => { setLine(clubStepSeen()); }, []);
 
   useEffect(() => {
     let active = true;
@@ -47,8 +52,9 @@ export function ClubStep({ skip = false, onShown }: {
     return () => { active = false; };
   }, []);
 
-  const shown = !!state && !state.promptAnswered && !skip && !result;
+  const shown = !!state && !state.promptAnswered && !skip && !result && line !== undefined;
   useEffect(() => { onShown?.(shown); }, [shown, onShown]);
+  useEffect(() => { if (shown) markClubStepSeen(); }, [shown]);
 
   async function answer(skip: boolean, event?: FormEvent) {
     event?.preventDefault();
@@ -69,6 +75,14 @@ export function ClubStep({ skip = false, onShown }: {
     <div className={styles.actions}><Button variant="secondary" onClick={() => setResult(undefined)}>OK</Button></div>
   </section>;
   if (!shown) return null;
+  if (line) return <section className={styles.line} aria-label={text.step.title} data-testid="club-step" data-variant="line">
+    <p>{text.step.line}</p>
+    <div className={styles.actions}>
+      <Button variant="secondary" disabled={busy} onClick={() => setLine(false)}>{text.step.answer}</Button>
+      <Button variant="quiet" disabled={busy} onClick={() => void answer(true)}>{text.step.skip}</Button>
+    </div>
+    {failed && <Notice tone="error" role="alert">{text.step.failed}</Notice>}
+  </section>;
   return <section className={styles.panel} aria-labelledby="club-step-title" data-testid="club-step">
     <h2 id="club-step-title">{text.step.title}</h2>
     <p className={styles.muted}>{text.step.intro}</p>

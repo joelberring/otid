@@ -9,7 +9,7 @@ export const importEn: Texts<typeof importSv> = {
   securityHeading: "Who can import?",
   securityBoundary: "The race administrators. Entry lists (EntryList), start lists (StartList) and courses (CourseData) in IOF XML 3.0 can be read in.",
   loginHeading: "Sign in to import",
-  loginViaAdministrator: "You need to be signed in as an administrator of the race. Open the race from My races.",
+  loginViaAdministrator: "You need to be signed in as an administrator of the race. Open the race from My O-Tid.",
   openAdministrator: "Open the race administration",
   checkingSession: "Checking the sign-in …",
   loginRequired: "You need to sign in as an administrator of the race.",

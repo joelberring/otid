@@ -60,7 +60,7 @@ export const organizerSv = {
   logout: "Logga ut",
   myAccount: "Mitt konto",
   superadmin: "Superadmin",
-  yourEvents: "Mina tävlingar",
+  yourEvents: "Mitt O-Tid",
   kicker: "O-Tid · Arrangör",
   eventsSection: "Dina tävlingar",
   eventsHint: "Tävlingar som hör till ditt konto.",
@@ -76,11 +76,14 @@ export const organizerSv = {
   loadingEvents: "Hämtar tävlingar …",
   noEvents: "Inga tävlingar ännu",
   noEventsHint: "Skapa en ny tävling här, eller be den som har en tävling lägga till ditt konto som administratör eller funktionär.",
-  noEventsCreateLink: "Gå till Skapa tävling",
-  createJump: "Till Skapa tävling",
+  noEventsCreateLink: "Gå till Skapa träning eller tävling",
+  createJump: "Till Skapa träning eller tävling",
   opening: "Öppnar …",
   openRace: "Öppna arbetsytan",
-  createEvent: "Skapa tävling",
+  createEvent: "Skapa träning eller tävling",
+  /** Översynen 2026-11-17: knappen följer vald typ. */
+  createSubmit: { TRAINING: "Skapa träning", SMALL: "Skapa tävling", STANDARD: "Skapa tävling", RELAY: "Skapa stafett",
+    ROGAINING: "Skapa rogaining", PARTY: "Skapa fest" },
   createHint: "Skapa ett event med dess första lopp.",
   eventName: "Tävlingens namn",
   raceName: "Etapp/lopp (valfritt)",
@@ -100,4 +103,45 @@ export const organizerSv = {
   savedAttemptOtherAccountTitle: "Sparat försök från ett annat konto",
   abandonSavedAttempt: "Överge sparat försök",
   created: "Tävlingen är skapad. Öppnar arbetsytan …",
+  /** Översynen 2026-11-17: navet Mitt O-Tid med fyra val överst. */
+  hub: {
+    label: "Vad vill du göra?",
+    map: { title: "Ta fram en karta", help: "Rita en ny orienteringskarta, eller fortsätt på en du har påbörjat." },
+    course: { title: "Lägg banor", help: "Börja lägga banor direkt. En träning skapas åt dig." },
+    create: { title: "Skapa träning eller tävling", help: "Namn, datum och typ: träning, tävling, stafett och mer." },
+    club: { title: "Min klubb", help: "Klubbytan med arkiv och kartor, eller gå med i din klubb." },
+    newHere: "Ny här?",
+    gettingStarted: "Kom igång: lägga en träning på 10 minuter",
+    more: "Mer"
+  },
+  /** "Lägg banor": en träning i bakgrunden, eller en befintlig. Arrangörsklubben väljs aktivt (ADR-0209 tillägg 2026-11-17). */
+  quick: {
+    title: "Lägg banor",
+    existing: "Fortsätt i en befintlig",
+    newTitle: "Ny banläggning",
+    name: "Namn",
+    defaultName: (date: string) => `Banläggning ${date}`,
+    nameHelp: "Blir en träning med dagens datum. Namn, datum och typ kan ändras under Inställningar.",
+    nameError: "Skriv ett namn (minst 2 tecken).",
+    organiserLegend: "Arrangörsklubb",
+    organiserHelp: "Välj klubb, eller Ingen klubb för en egen träning. Valet styr bland annat om den hamnar i klubbens arkiv.",
+    organiserError: "Välj arrangörsklubb, eller Ingen klubb.",
+    start: "Starta banläggningen",
+    starting: "Skapar träningen och öppnar banläggningen …",
+    close: "Stäng"
+  },
+  /** Kom igång för den som inte har någon tävling än (samma mönster som klubbytans Kom igång). */
+  start: {
+    title: "Kom igång",
+    progress: (done: number, total: number) => `${done} av ${total} klara`,
+    done: "Klart",
+    todo: "Att göra",
+    next: "Nästa steg",
+    hide: "Dölj",
+    hideLabel: "Dölj Kom igång",
+    account: { title: "Skapa ett konto", help: "Klart. Du är inloggad." },
+    course: { title: "Lägg din första bana", help: "Banläggningen öppnas med en ny träning. Ladda upp kartfilen där, eller ta en karta ur klubbarkivet." },
+    guide: { title: "Följ guiden", help: "Från tom träning till utskrivna kartor och avläsning, steg för steg." },
+    club: { title: "Välj din klubb", help: "Valfritt. Då kan klubbens ledare bjuda in dig, och du ser klubbens arkiv.", action: "Välj din klubb" }
+  }
 } as const;

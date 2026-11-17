@@ -11,7 +11,7 @@ export const mapProjectEn: Texts<typeof mapProjectSv> = {
   title: "Map projects",
   list: {
     title: "My map projects",
-    back: "My events",
+    back: "My O-Tid",
     hint: "Map projects where several people draw on the same map. Start one of your own from a map file here, or from a map version in the club archive's Maps.",
     empty: "You are not in any map project yet.",
     own: "own",

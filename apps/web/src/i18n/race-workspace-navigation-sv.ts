@@ -1,7 +1,7 @@
 import { plural } from "./plural";
 
 export const raceWorkspaceNavigationSv = {
-  backToEvents: "Mina tävlingar",
+  backToEvents: "Mitt O-Tid",
   /** Ägaren 2026-11-03: banläggningen som eget mål i arbetsytan (sidopanelen och Meny). */
   courseSetting: "Banläggning",
   mapErrors: "Kartfel",

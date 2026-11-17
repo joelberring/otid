@@ -10,9 +10,9 @@ const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : 
 export const courseSettingEn: Texts<typeof courseSettingSv> = {
   title: "Course setting",
   back: "Back to the event",
-  backToEvents: "Back to My events",
+  backToEvents: "Back to My O-Tid",
   backShort: "The event",
-  backShortEvents: "My events",
+  backShortEvents: "My O-Tid",
   printMenu: "Print courses …",
   descriptionsMenu: "Control descriptions …",
   link: "Course setting",

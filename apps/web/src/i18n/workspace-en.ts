@@ -109,7 +109,7 @@ export const raceTypeEn: Texts<typeof raceTypeSv> = {
 };
 
 export const raceWorkspaceNavigationEn: Texts<typeof raceWorkspaceNavigationSv> = {
-  backToEvents: "My events",
+  backToEvents: "My O-Tid",
   courseSetting: "Course setting",
   mapErrors: "Map errors",
   courseSettingStatus: { EDIT: "The map, courses and printing", SUGGEST: "You suggest changes", COMMENT: "Read and comment", MAP: "The map errors" },

@@ -9,7 +9,7 @@ export const importSv = {
   securityHeading: "Vem kan importera?",
   securityBoundary: "Tävlingens administratörer. Anmälningar (EntryList), startlistor (StartList) och banor (CourseData) i IOF XML 3.0 kan läsas in.",
   loginHeading: "Logga in för att importera",
-  loginViaAdministrator: "Du behöver vara inloggad som administratör för tävlingen. Öppna tävlingen från Mina tävlingar.",
+  loginViaAdministrator: "Du behöver vara inloggad som administratör för tävlingen. Öppna tävlingen från Mitt O-Tid.",
   openAdministrator: "Öppna tävlingsadministrationen",
   checkingSession: "Kontrollerar inloggningen …",
   loginRequired: "Du behöver logga in som administratör för tävlingen.",

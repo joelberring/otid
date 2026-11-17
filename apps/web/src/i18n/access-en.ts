@@ -8,7 +8,7 @@ export const accessEn: Texts<typeof accessSv> = {
   noAccess: (email: string) => `You are signed in as ${email} but do not have access to this event.`,
   noAccessHelp: "Ask the event's administrator to invite you with that address, or sign out and sign in with another account.",
   unverified: (email: string) => `You are signed in as ${email}, but the address is not confirmed. If you have been invited: confirm your email address for the access to apply.`,
-  myRaces: "Go to My events",
+  myRaces: "Go to My O-Tid",
   confirmHeading: "Confirm your email address",
   confirmInvitation: (email: string) => `You are signed in as ${email}, but the address is not confirmed, so the invitation does not apply yet. Confirm your email address for the access to apply.`,
   confirmHow: "You will get an email with a link. Open the link and choose a password; then the address is confirmed and the access applies.",

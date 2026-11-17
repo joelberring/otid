@@ -1,6 +1,6 @@
 /** Konton (ADR-0172): glömt lösenord, Mitt konto, ta bort tävling och personuppgifter. */
 export const accountSv = {
-  backToEvents: "Mina tävlingar",
+  backToEvents: "Mitt O-Tid",
   genericError: (status: number) => `Något gick fel (${status}). Försök igen.`,
   networkError: "Kunde inte nå servern. Kontrollera anslutningen och försök igen.",
   sessionExpired: "Du är inte inloggad.",
@@ -23,7 +23,7 @@ export const accountSv = {
     password: "Nytt lösenord",
     save: "Spara och logga in",
     saving: "Sparar …",
-    saved: "Lösenordet är bytt och du är inloggad. Öppnar Mina tävlingar …",
+    saved: "Lösenordet är bytt och du är inloggad. Öppnar Mitt O-Tid …",
     invalidLink: "Länken är ogiltig, redan använd eller har gått ut. Be om en ny länk.",
     newLink: "Be om en ny länk",
     backToLogin: "Tillbaka till inloggningen"

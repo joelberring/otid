@@ -233,5 +233,5 @@ function continueToPage(path: string, title: string, link: string): Response {
 function continuePage(): string {
   return "<!doctype html><html lang=\"sv\"><head><meta charset=\"utf-8\"><meta name=\"robots\" content=\"noindex\">"
     + "<meta http-equiv=\"refresh\" content=\"0;url=/organizer\"><title>Inloggad – O-Tid</title></head>"
-    + "<body><p>Du är inloggad. <a href=\"/organizer\">Fortsätt till Mina tävlingar</a></p></body></html>";
+    + "<body><p>Du är inloggad. <a href=\"/organizer\">Fortsätt till Mitt O-Tid</a></p></body></html>";
 }

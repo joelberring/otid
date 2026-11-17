@@ -119,7 +119,7 @@ export const clubHelpArticlesEn: readonly HelpArticle[] = [
     views: ["ARCHIVE_TRAININGS", "ARCHIVE_ENTRY", "EVENTS"],
     body: [
       "The club archive keeps the club's maps and courses from earlier trainings, so they can be used again. It is never public; only those invited see it.",
-      "Create it at the top of ”My events” → ”My clubs” → ”New club space”. Whoever creates the club becomes its owner.",
+      "Create it at the top of ”My O-Tid” → ”My clubs” → ”New club space”. Whoever creates the club becomes its owner.",
       [
         "”Trainings”: search for place, exercise or course and filter by year, map, leader, elements, level and own words.",
         "”Maps”: the maps with all versions. See [Maps, versions and rights](#arkiv-kartor).",
@@ -137,7 +137,7 @@ export const clubHelpArticlesEn: readonly HelpArticle[] = [
       "Open a training in the archive and press ”Use again”. The archive never changes; you get a new training with the map and the courses.",
       [
         "”Name” and ”Date” for the new training.",
-        "”Where”: ”New training (My events)” or in a training group.",
+        "”Where”: ”New training (My O-Tid)” or in a training group.",
         "”Course file” if the files have different courses. The same courses in .ppen and IOF XML (from an event) give the .ppen without asking.",
         "”Map version” (the latest version is preselected).",
         "Press ”Create the training”. Course setting opens with a copy to change.",
@@ -255,7 +255,7 @@ export const clubHelpArticlesEn: readonly HelpArticle[] = [
         "If the address has no account, the email says that an account must be created with exactly that address.",
         "In the current week today's date is suggested. Link a training first shows the trainings within two weeks of the week.",
         "”Change” on a task changes the title or the person. The new person gets an email and the read access moves along.",
-        "The person only sees their own tasks under ”My tasks” on My events, with time, place and the responsible person, and can tick them off.",
+        "The person only sees their own tasks under ”My tasks” on My O-Tid, with time, place and the responsible person, and can tick them off.",
         "When the training exists the person gets read access to the course setting of that training: the courses, control map, descriptions and printing.",
         "If the task is removed, the read access goes too. Many emails to the same person in a short time are blocked; the task is then saved without an email."
       ],

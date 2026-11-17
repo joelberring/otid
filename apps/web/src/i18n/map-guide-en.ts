@@ -4,7 +4,7 @@ import type { mapGuideSv } from "./map-guide-sv";
 /** English: the guide under step 2, Make the base map. Four steps, one button at a time. */
 export const mapGuideEn: Texts<typeof mapGuideSv> = {
   heading: "The guide: from laser data to base map",
-  intro: "Four sub-steps from laser data to a draft on the map. The guide does the same as Laser runs (advanced) below, with the defaults.",
+  intro: "Four sub-steps from laser data to a draft on the map. The guide does the same as Laser runs (advanced) at the end of the guide, with the defaults.",
   show: "Show the steps",
   hide: "Hide the steps",
   stepNames: { area: "Area", run: "Fetch and run", wait: "Wait", review: "Review and add" },
@@ -16,15 +16,15 @@ export const mapGuideEn: Texts<typeof mapGuideSv> = {
     size: (tiles: number, km2: number | undefined, most: number) => `${km2 === undefined ? "" : `About ${formatKm2(km2)} km², `}${tiles === 1 ? "1 laser tile" : `${tiles} laser tiles`} (one run takes at most ${most}).`,
     tooLargeSearch: (name: string | undefined, maxKm2: number) => `${name ?? "The whole map"} is too large for one run: a search for laser data takes at most ${maxKm2} km², and at most about 28 km in either direction.`,
     tooLargeTiles: (name: string | undefined, tiles: number, most: number) => `${name ?? "The whole map"} is too large for one run: the area covers ${tiles} laser tiles and one run takes at most ${most}.`,
-    splitNext: "Split the area into smaller parts with a line and run one part at a time. Press the button, draw the line across the area on the map and double-click. Then come back here (the Layers tab) and choose one of the parts.",
+    splitNext: "Split the area into smaller parts with a line and run one part at a time. Press the button, draw the line across the area on the map and double-click. Then come back here (the Base map tab) and choose one of the parts.",
     splitByOwner: "Ask an owner of the map to split the area: the Review tab › Sub-areas › Split with a line. Then choose one of the parts here.",
     pickSmaller: "There are parts already: choose a smaller part in the list above.",
-    manual: "If you would rather choose laser tiles yourself, do it under Laser runs (advanced) below."
+    manual: "If you would rather choose laser tiles yourself, do it under Laser runs (advanced) at the end of the guide.",
+    areas: "To Sub-areas"
   },
   split: "Split with a line",
   run: {
     checking: "Checking your credentials for Lantmäteriet …",
-    credential: "The laser data is fetched with your own credentials for Lantmäteriet (Geotorget). Enter them once; then reload this page and the guide continues here.",
     help: (name: string | undefined) => `Searches Lantmäteriet for laser tiles for ${name ?? "the whole map"} and starts the run on the geo server with the defaults: contours, cliffs, moisture (marshes), `
       + "vegetation, and Lantmäteriet's land cover and buildings when your account has them.",
     automatic: "You do not need to fetch OpenStreetMap (paths, roads, buildings) or the Swedish Forest Agency's clear-cuts yourself: they are fetched automatically when the base map is loaded in sub-step 4.",
@@ -65,6 +65,9 @@ export const mapGuideEn: Texts<typeof mapGuideSv> = {
   },
   finished: (name: string | undefined) => `The base map for ${name ?? "the whole map"} has been added.`,
   finishedNext: "Undo removes it again. For another part, or a new run of the same area, press New run.",
+  draw: "Next step: Finish drawing. Choose a symbol under Symbols and draw; change an object with Edit.",
+  drawButton: "Finish drawing",
+  advanced: "Choose tiles and settings yourself",
   restart: "New run",
   problems: {
     SOURCE_NO_CREDENTIAL: "The credentials for Lantmäteriet are missing. Enter them under My account, reload the page and press the button again.",
@@ -73,10 +76,10 @@ export const mapGuideEn: Texts<typeof mapGuideSv> = {
     SOURCE_AREA_TOO_LARGE: "The area is too large for one search. Split it into smaller parts (sub-step 1) and run one part at a time.",
     SOURCE_THROTTLED: "Too many searches in the last hour. Wait a while (at most an hour) and press the button again.",
     SOURCE_UNAVAILABLE: "Lantmäteriet did not answer just now. Wait a few minutes and press the button again.",
-    GEO_JOB_BUSY: "You already have two runs waiting or in progress. Wait until one is finished, or cancel one under 2. Laser data › Jobs, then press the button again.",
+    GEO_JOB_BUSY: "You already have two runs waiting or in progress. Wait until one is finished, or cancel one under Laser runs (advanced) › Jobs, then press the button again.",
     GEO_JOB_QUOTA: "This month's quota of laser tiles is used up for your account. Run a smaller part, or wait until next month."
   },
-  retry: "Try again in a while. If it still does not work, the steps can be done by hand under 2. Laser data further down."
+  retry: "Try again in a while. If it still does not work, the steps can be done by hand under Laser runs (advanced) at the end of the guide."
 };
 
 function formatKm2(km2: number): string { return (km2 < 10 ? Math.round(km2 * 10) / 10 : Math.round(km2)).toString(); }

@@ -45,8 +45,11 @@
 .sidebarGrip { grid-column: 3; grid-row: 1 / span 2; justify-self: start; width: 7px; margin-left: -4px; z-index: 2; cursor: col-resize; touch-action: none; }
 .sidebarGrip:hover, .sidebarGrip:focus-visible { background: var(--accent, #3b6ea5); opacity: .5; outline: none; }
 .workspace[data-bare="true"] > .sidebarGrip { display: none; }
-.tabs { position: sticky; top: 0; z-index: 1; display: flex; margin: 0 -10px; padding: 0 4px; background: var(--surface); border-bottom: 1px solid var(--line); }
-.tabs button { flex: 1; min-height: 36px; padding: 0 4px; border: 0; border-bottom: 3px solid transparent; background: none; font: inherit;
+/* Översynen av första kartan: fem flikar; raden rullar i sidled (ScrollRow) när panelen är smal i stället för att klippa. */
+.sidebar > .tabsWrap { position: sticky; top: 0; z-index: 1; margin: 0 -10px; background: var(--surface); }
+.tabs { display: flex; padding: 0 4px; background: var(--surface); border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs button { flex: 1 0 auto; min-height: 36px; padding: 0 4px; border: 0; border-bottom: 3px solid transparent; background: none; font: inherit;
   font-size: var(--text-sm, .9rem); font-weight: 600; color: var(--muted); cursor: pointer; white-space: nowrap; }
 .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); }
 .tabCount { display: inline-block; min-width: 1.2em; padding: 0 4px; border-radius: 999px; background: #d4570b; color: #fff; font-size: .7rem; }
@@ -217,3 +220,5 @@
 
 /* Ägaren 2026-11-15: «Skriv ut PDF» i kartlägets rubrikrad. */
 .printPdf { display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; }
+.exportLink { display: inline-flex; align-items: center; min-height: 40px; padding: 0 14px; border: 1px solid var(--line-strong);
+  border-radius: var(--radius); color: inherit; text-decoration: none; font-weight: 600; }

@@ -21,3 +21,5 @@
 .actions { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; margin: .3rem 0; }
 .actions button { min-height: 40px; }
 .srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.advanced { margin-top: .5rem; padding-top: .4rem; border-top: 1px solid var(--line, #d8dcd9); }
+.advanced > p { margin: 0; }

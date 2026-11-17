@@ -3,6 +3,12 @@ import { expect, test, type Page } from "@playwright/test";
 import { mapPointToWgs84, readMapFile, type MapObject } from "../../packages/map-file/src";
 import { registerAccount, reviewScreenshots, unique, warmRoute } from "./helpers";
 
+/** Översynen av första kartan (K6): magnetisk nord och färgerna ligger i en stängd utfällning sist under Lager. */
+async function openMapSettings(page: Page): Promise<void> {
+  const settings = page.getByTestId("map-project-map-settings");
+  if (await settings.getAttribute("open") === null) await settings.locator("summary").first().click();
+}
+
 /**
  * ADR-0219 (K1): rita i kartprojektet. Ett eget projekt från Mapper-fixturen; på kartan ritar ägaren en stig (505) med tre
  * klick och Enter, ångrar och gör om, markerar stenen (206) och drar den, och tar bort den. Varje ändring sparas i kön och
@@ -586,6 +592,7 @@ test("kartprojekt: kartans färgtabell, ändra en färg, spara och återställ",
   const saved = async () => (await (await owner.request.get(`/api/organizer/map-projects/${projectId}`)).json() as { colors: { id: number; cmyk: { c: number } }[] }).colors;
 
   await owner.getByTestId("map-project-tab-layers").click();
+  await openMapSettings(owner);
   await expect(owner.getByTestId("map-project-colors-summary")).toHaveText("Filens egna färger");
   await owner.getByTestId("map-project-colors-open").click();
   const dialog = owner.getByTestId("map-project-colors");
@@ -608,6 +615,7 @@ test("kartprojekt: kartans färgtabell, ändra en färg, spara och återställ",
   await owner.reload();
   await expect(map).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
   await owner.getByTestId("map-project-tab-layers").click();
+  await openMapSettings(owner);
   await expect(owner.getByTestId("map-project-colors-summary")).toHaveText("1 ändrad färg");
   await owner.getByTestId("map-project-colors-open").click();
   await expect(row.getByLabel(`${name}, C i procent`)).toHaveValue(before === "12,5" ? "40" : "12,5");
@@ -744,6 +752,9 @@ test("kartprojekt: ny karta från en polygon, rita i den tomma kartan", async ({
   await expect(map).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
   // Området (ca 1,7 × 1,4 km vid 1:10 000 ≈ 170 × 140 mm) fyller vyn.
   expect(Number(await map.getAttribute("data-px-per-mm"))).toBeGreaterThan(3);
+  // Översynen av första kartan: en ny tom karta börjar i fliken Grundkarta; ritandet sker under Symboler.
+  await expect(owner.getByTestId("map-project-tab-basemap")).toHaveAttribute("aria-selected", "true");
+  await owner.getByTestId("map-project-tab-symbols").click();
   const palette = owner.getByTestId("map-project-symbols");
   for (const code of ["101", "204", "301", "406", "505", "521"]) await expect(palette.locator(`[data-code='${code}']`)).toBeVisible();
 
@@ -764,6 +775,7 @@ test("kartprojekt: ny karta från en polygon, rita i den tomma kartan", async ({
   // ADR-0223: kartans nordlinjer (6,5°) mot dagens missvisning.
   const north = owner.getByTestId("map-project-north");
   await owner.getByTestId("map-project-tab-layers").click();
+  await openMapSettings(owner);
   await north.locator("summary").click();
   await expect(north).toContainText("ritade för missvisningen 6,5°");
   await expect(north).toContainText(/Skillnad [01],\d° åt öster/);
@@ -998,6 +1010,7 @@ test("kartprojekt: arbetslager och skisslager", async ({ browser, baseURL }) => 
   const old = { type: "FeatureCollection", features: [{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [wgs(10, 10), wgs(30, 20)] } },
     { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: wgs(25, 25) } }] };
   const intake = owner.getByTestId("map-project-intake");
+  await owner.getByTestId("map-project-tab-basemap").click();
   await intake.locator("summary").click();
   await intake.getByTestId("map-project-intake-files").setInputFiles([
     { name: "gamla-stigar.geojson", mimeType: "application/geo+json", buffer: Buffer.from(JSON.stringify(old)) },

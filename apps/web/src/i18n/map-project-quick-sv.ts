@@ -23,7 +23,7 @@ export const mapProjectQuickSv = {
   list: "Lista",
   view: "Visa symbolerna som",
   tabsLabel: "Panelens flikar",
-  tabs: { symbols: "Symboler", layers: "Lager", review: "Granska", process: "Bearbeta" },
+  tabs: { basemap: "Grundkarta", symbols: "Symboler", layers: "Lager", review: "Granska", process: "Bearbeta" },
   hidePanels: "Bara kartan",
   showPanels: "Visa panelerna",
   bareHelp: "Göm eller visa verktygsspalten och panelen"

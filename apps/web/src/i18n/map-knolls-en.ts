@@ -3,15 +3,21 @@ import type { mapClearContoursSv, mapFlatContoursSv, mapHillsSv, mapKnollsSv, ma
 
 /** English: the headings for the order of the base layers in the side panel. */
 export const mapUnderlayStepsEn: Texts<typeof mapUnderlayStepsSv> = {
-  intro: "Three steps from top to bottom. The number shows the order; what is indented under each step are choices within it.",
+  heading: "Base map",
+  intro: "How to make a new map, from top to bottom: steps 2 and 3 are needed, step 1 is optional. What is indented under a step are choices within it. If the map already has content, draw under Symbols.",
   sources: "Fetch base layers",
-  sourcesHelp: "Images to draw from, such as orthophotos and soil moisture; OpenStreetMap and clear-cuts come with the base map in step 2.",
+  sourcesHelp: "Optional: images to draw from, such as orthophotos and soil moisture. OpenStreetMap and clear-cuts come with the base map in step 2.",
+  sourcesWhere: "What you fetch is put under Layers › Base layers, where it is shown, hidden and faded. You also add an image of your own there.",
   baseMap: "Make the base map",
   baseMapHelp: "Laser data, OpenStreetMap and clear-cuts become a draft of the map, which you review in step 3.",
   baseMapOther: "Other ways",
   adjust: "Review the draft",
   adjustHelp: "The sliders recalculate the draft at once, without a new run. Then add it with the row below the map.",
-  then: "Then: finish drawing under Symbols, check under Review › Norm check and export on the map project's page.",
+  then: "Then: Finish drawing – choose a symbol under Symbols and draw; change an object with Edit. Check under Review › Norm check and export with To Export last in Review.",
+  settings: "Map settings",
+  settingsHelp: "Magnetic north and the map's colours. They are rarely changed and are not needed to make the map.",
+  toExport: "To Export",
+  toExportHelp: "The map becomes a file on the map project's page, under Export: a new map version or only the changes.",
   step: (number: number) => `Step ${number}`
 };
 

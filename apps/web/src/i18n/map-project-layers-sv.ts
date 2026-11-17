@@ -1,6 +1,6 @@
 /** ADR-0219 tillägget om underlagen (K4a): egna underlag i kartprojektets editor. */
 export const mapProjectLayersSv = {
-  heading: "Underlag och grundkarta",
+  heading: "Underlag",
   help: "Lägg upp ett eget underlag: ortofoto, laserdata, skuggning eller en skannad karta som GeoTIFF, eller PNG/JPEG med världsfil (.pgw, .jgw, .wld). "
     + "En bild utan världsfil läggs mitt på kartan och rättas med passpunkter. Bilden görs klar här i telefonen eller datorn och delas med projektet.",
   none: "Inga underlag ännu.",

@@ -37,17 +37,17 @@ export const mapProjectEn: Texts<typeof mapProjectSv> = {
     later: "Then",
     openMap: "Open the map",
     base: {
-      title: "Fetch base layers and make the base map",
-      help: "Open the map, tab Layers › Base layers and base map: fetch base layers, make the base map and review the draft.",
+      title: "Make the base map",
+      help: "Open the map, tab Base map: make the base map with the guide and add the draft. Base layers to draw from are optional.",
       existing: (file: string) => `The map started from ${file}, which is the base layer.`
     },
     draw: {
       title: "Finish drawing",
-      help: "Draw in the map, on the computer or on the phone in the forest. More people can draw: invite them under Members."
+      help: "Choose a symbol under Symbols and draw; change an object with Edit. It works on the computer or on the phone in the forest. More people can draw: invite them under Members."
     },
     export: {
       title: "Check and export",
-      help: "Check in the map under Review › Norm check. Then create a new map version under Export below.",
+      help: "Check in the map under Review › Norm check. Then create a new map version under Export below, or with To Export last in Review.",
       action: "To Export"
     },
     courses: {
@@ -360,7 +360,7 @@ export const mapProjectEditorEn: Texts<typeof mapProjectEditorSv> = {
 };
 
 export const mapProjectLayersEn: Texts<typeof mapProjectLayersSv> = {
-  heading: "Base layers and base map",
+  heading: "Base layers",
   help: "Add a base layer of your own: orthophoto, laser data, hillshade or a scanned map as GeoTIFF, or PNG/JPEG with a world file (.pgw, .jgw, .wld). "
     + "An image without a world file is put in the middle of the map and corrected with control points. The image is prepared here on the phone or computer and shared with the project.",
   none: "No base layers yet.",

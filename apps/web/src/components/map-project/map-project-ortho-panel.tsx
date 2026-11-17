@@ -11,6 +11,8 @@ import { clubRequest } from "../../lib/club-archive-client";
 import type { Bounds } from "../../lib/course-setting-viewport";
 import { areaBox, type BoxArea } from "../../lib/map-project-area-box";
 import { mapProjectBase } from "../../lib/map-project-client";
+import { lantmaterietGap, lantmaterietProblem } from "../../lib/lantmateriet-status";
+import { LantmaterietNotice } from "../lantmateriet-connection";
 import { Button } from "../ui";
 import type { useMapProjectLayers } from "./use-map-project-layers";
 import styles from "./map-project-editor.module.css";
@@ -31,7 +33,7 @@ export function MapProjectOrthoPanel({ view, layers, georeference, bounds, areas
   const [items, setItems] = useState<OrthoItem[]>();
   const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set());
   const [busy, setBusy] = useState<string>();
-  const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
+  const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string; code?: string | undefined }>();
   const area = areas.find(row => row.areaId === where);
 
   useEffect(() => {
@@ -43,7 +45,7 @@ export function MapProjectOrthoPanel({ view, layers, georeference, bounds, areas
   useEffect(() => { setItems(undefined); setChosen(new Set()); }, [where]);
 
   if (!layers.canAdd || !georeference || !bounds) return null;
-  const say = (error: string | number | undefined) => setMessage({ tone: "error", text: typeof error === "string" && error in text.problems
+  const say = (error: string | number | undefined) => setMessage({ tone: "error", code: typeof error === "string" ? error : undefined, text: typeof error === "string" && error in text.problems
     ? (text.problems as unknown as Record<string, string>)[error]! : text.problems.generic(error ?? 0) });
 
   async function search() {
@@ -78,10 +80,11 @@ export function MapProjectOrthoPanel({ view, layers, georeference, bounds, areas
   }
 
   const ready = credential?.saved?.readable;
+  const connection = message?.tone === "error" ? lantmaterietProblem(message.code, credential) : undefined;
   return <details className={styles.settings} data-testid="map-project-ortho">
     <summary>{text.heading}</summary>
     <p className={styles.muted}>{text.help}</p>
-    {credential && !ready ? <p className={styles.muted}>{text.noCredential} <a href="/konto#konto-lantmateriet">{text.account}</a></p> : <>
+    {credential && !ready ? <LantmaterietNotice problem={lantmaterietGap(credential) ?? "missing"} product="ortho" /> : <>
       <label>{text.where}<select value={where} onChange={event => setWhere(event.target.value)} data-testid="map-project-ortho-area">
         <option value="">{text.whole}</option>
         {areas.map(row => <option key={row.areaId} value={row.areaId}>{row.name}</option>)}
@@ -103,7 +106,10 @@ export function MapProjectOrthoPanel({ view, layers, georeference, bounds, areas
       </fieldset>}
     </>}
     {busy && <p role="status" className={styles.muted}>{busy}</p>}
-    {message && <p role={message.tone === "ok" ? "status" : "alert"} className={message.tone === "ok" ? styles.muted : styles.problem}
-      data-testid="map-project-ortho-message">{message.text}</p>}
+    {connection ? <LantmaterietNotice problem={connection} product="ortho" />
+      : message && <p role={message.tone === "ok" ? "status" : "alert"} className={message.tone === "ok" ? styles.muted : styles.problem}
+        data-testid="map-project-ortho-message">{message.text}</p>}
+    {/* En bild som Lantmäteriet nekade (oftast en produkt som inte är beställd, t.ex. historiska ortofoton). */}
+    {!connection && layers.problem === "REJECTED" && <LantmaterietNotice problem="rejected" product="ortho" />}
   </details>;
 }

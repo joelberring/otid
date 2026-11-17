@@ -17,6 +17,7 @@ import { AccountMenu } from "../account-menu";
 import { ClubMemberPicker, JoinLinks } from "./map-project-join-panel";
 import { ProjectStatsSection } from "./map-stats-sections";
 import { MapProjectNextSteps } from "./map-project-next-steps";
+import { mapProjectSteps } from "../../lib/map-project-next-steps";
 import { InvitationActions, invitationSentText } from "../invitation-actions";
 import { Button, Field, Notice, Select } from "../ui";
 import styles from "./map-project.module.css";
@@ -84,6 +85,8 @@ export function MapProjectPage({ projectId }: { projectId: string }) {
   const project = view;
   const manage = project.viewer.canManage;
   const mailEnabled = project.mailEnabled ?? false;
+  const showNextSteps = project.status === "OPEN" && (project.viewer.canEdit || project.viewer.canPropose);
+  const openInNextSteps = showNextSteps && ["base", "draw"].includes(mapProjectSteps(project).next);
   return <main className={styles.page}>
     <header className={styles.header}>
       <div>
@@ -96,7 +99,7 @@ export function MapProjectPage({ projectId }: { projectId: string }) {
     {message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}
       {message.refusals && <ul className={styles.refusals}>{message.refusals.map((line, index) => <li key={index}>{line}</li>)}</ul>}</Notice>}
     <div className={styles.sections}>
-      {project.status === "OPEN" && (project.viewer.canEdit || project.viewer.canPropose) && <MapProjectNextSteps view={project} />}
+      {showNextSteps && <MapProjectNextSteps view={project} />}
       {/* Översynen av kartstegen 2026-11-17: «Kartan» (fakta, öppna, grundfilen) och «Exportera» (ny kartversion och bara
           ändringarna), i stället för exporten under «Grundversion» och en egen «Ny kartversion». */}
       <section aria-labelledby="map-project-base">
@@ -109,9 +112,10 @@ export function MapProjectPage({ projectId }: { projectId: string }) {
           <dt>{text.page.size}</dt><dd data-testid="map-project-size">{text.page.sizes(byteSize(project.storage.mapFileBytes, locale),
             byteSize(project.storage.totalBytes, locale))}</dd>
         </dl>
-        <div className={styles.actions}><Link className={styles.buttonLink} href={`/organizer/map-projects/${encodeURIComponent(projectId)}/map`}
+        {/* K7 (översynen av första kartan): en «Öppna kartan»; när Nästa steg visar den står den bara där. */}
+        {!openInNextSteps && <><div className={styles.actions}><Link className={styles.buttonLink} href={`/organizer/map-projects/${encodeURIComponent(projectId)}/map`}
           data-testid="map-project-open-map">{mapProjectEditorText.openMap}</Link></div>
-        <p className={styles.muted}>{mapProjectEditorText.openMapHelp}</p>
+        <p className={styles.muted}>{mapProjectEditorText.openMapHelp}</p></>}
         {project.base.format === "OCD" && <p className={styles.muted}>{text.page.ocadLater}</p>}
         <div className={styles.actions}>
           <a className={styles.buttonLink} href={`${base}/source`} download>{text.page.download}</a>

@@ -8,6 +8,7 @@ import { useLanguage, useTexts } from "./language-provider";
 import { accountRequest } from "../lib/account-client";
 import { clubRequest } from "../lib/club-archive-client";
 import { Button, Field, Notice, Section } from "./ui";
+import { LantmaterietProducts } from "./lantmateriet-connection";
 import styles from "./account-pages.module.css";
 
 const PATH = "/api/account/map-sources/lantmateriet";
@@ -47,6 +48,8 @@ export function AccountMapSources() {
       ? <>{text.saved(saved.method, saved.hint, new Date(saved.updatedAt).toLocaleDateString(locale))}{!saved.readable && ` ${text.unreadable}`}</>
       : text.none}</p>
     {state && !state.available && <Notice tone="error" role="alert">{text.notConfigured}</Notice>}
+    {/* Översynen av första kartan: vad som ska beställas på Geotorget, bredvid fälten där uppgifterna läggs in. */}
+    <LantmaterietProducts />
     <form className={styles.form} onSubmit={save} noValidate>
       <Field label={text.method}>
         <select value={method} disabled={busy} onChange={event => setMethod(event.target.value === "OAUTH2" ? "OAUTH2" : "BASIC")}>

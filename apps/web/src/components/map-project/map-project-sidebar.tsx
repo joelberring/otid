@@ -14,18 +14,20 @@ import { mapProjectEditorSv } from "../../i18n/map-project-editor-sv";
 import { layerRows, type LayerState } from "../../lib/map-project-layer-model";
 import type { CatalogSymbol } from "../../lib/map-project-protocol";
 import { Button } from "../ui";
+import { ScrollRow } from "../ui/scroll-row";
 import styles from "./map-project-editor.module.css";
 
 const GRID_KEY = "otid-map-symbol-grid";
-export type SidebarTab = "symbols" | "layers" | "review" | "process";
+export type SidebarTab = "basemap" | "symbols" | "layers" | "review" | "process";
 
 /**
  * ADR-0219 (K1): editorns panel till höger. Ägaren 2026-11-10: fyra flikar i stället för en lång rullista. Symboler (rutnätet
  * efter normens grupper, de senaste överst, sökbart på nummer och namn), Lager (symbollagren, arbets- och skisslagren och
  * underlagen), Granska (krockar, förslag, delområden, notiser, rekning, normkontroll) och Bearbeta (generalisera, rätta).
  * Flikarnas innehåll står kvar när man byter flik, så att en påbörjad uppladdning eller ett formulär inte går förlorat.
+ * Översynen av första kartan 2026-11-17 (K1): Grundkarta först, med arbetsgången för en ny karta, så att Lager bara är lager.
  */
-export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, recent, standardSymbols, layerState, layers, review, process, conflicts, symbols,
+export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, recent, standardSymbols, layerState, basemap, layers, review, process, conflicts, symbols,
   onResolve, canEdit, tab, onTab }: {
   /** Telefonen: panelen visas bara när den är öppnad (på större skärmar alltid, om den inte är gömd). */
   open: boolean;
@@ -33,7 +35,9 @@ export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, recent, s
   /** De senast använda symbolerna (också i verktygshjulet). */
   recent: readonly CatalogSymbol[];
   standardSymbols: ReadonlyMap<string, string>; layerState: LayerState;
-  /** Fliken Lager: symbollagren, arbetslagren och underlagen. */
+  /** Fliken Grundkarta: stegen för en ny karta (bara när kartan har en georeferens). */
+  basemap: ReactNode | undefined;
+  /** Fliken Lager: symbollagren, arbetslagren, underlagen och kartans inställningar. */
   layers: ReactNode;
   /** Fliken Granska, efter krockarna: samarbetet, notiserna, rekningen och normkontrollen. */
   review: ReactNode;
@@ -63,7 +67,7 @@ export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, recent, s
     return layerRows(catalog, standardSymbols, layerState).filter(row => row.id !== "FILE").map(row => ({ id: row.id, symbols: row.symbols.filter(match) })).filter(row => row.symbols.length > 0);
   }, [catalog, standardSymbols, layerState, query]);
   const chosen = symbolId ? symbols.get(symbolId) : undefined;
-  const tabs: readonly SidebarTab[] = canEdit ? ["symbols", "layers", "review", "process"] : ["layers", "review"];
+  const tabs: readonly SidebarTab[] = canEdit ? [...(basemap ? ["basemap" as const] : []), "symbols", "layers", "review", "process"] : ["layers", "review"];
   const current = tabs.includes(tab) ? tab : tabs[0]!;
   const tile = (entry: CatalogSymbol, index?: number) => <button type="button" className={grid || index !== undefined ? styles.tile : styles.symbol}
     aria-pressed={entry.id === symbolId} onClick={() => onSymbol(entry.id)} data-code={entry.code} data-kind={entry.kind}
@@ -76,12 +80,17 @@ export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, recent, s
   </button>;
 
   return <><MapProjectSidebarGrip label={quick.sidebarWidth} /><aside id="map-project-sidebar" className={styles.sidebar} data-open={open}>
-    <div className={styles.tabs} role="tablist" aria-label={quick.tabsLabel}>
+    <ScrollRow className={styles.tabsWrap} rowClassName={styles.tabs} role="tablist" aria-label={quick.tabsLabel} active={current}>
       {tabs.map(id => <button key={id} type="button" role="tab" id={`map-project-tab-${id}`} aria-selected={id === current}
         aria-controls={`map-project-tabpanel-${id}`} data-testid={`map-project-tab-${id}`} onClick={() => onTab(id)}>
         {quick.tabs[id]}{id === "review" && conflicts.length > 0 && <span className={styles.tabCount}> {conflicts.length}</span>}
       </button>)}
-    </div>
+    </ScrollRow>
+
+    {canEdit && basemap && <div role="tabpanel" id="map-project-tabpanel-basemap" aria-labelledby="map-project-tab-basemap" hidden={current !== "basemap"}
+      className={styles.tabPanel}>
+      {basemap}
+    </div>}
 
     {canEdit && <div role="tabpanel" id="map-project-tabpanel-symbols" aria-labelledby="map-project-tab-symbols" hidden={current !== "symbols"}
       className={styles.tabPanel}>

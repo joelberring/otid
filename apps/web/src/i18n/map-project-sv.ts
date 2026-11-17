@@ -32,17 +32,17 @@ export const mapProjectSv = {
     later: "Sedan",
     openMap: "Öppna kartan",
     base: {
-      title: "Hämta underlag och ta fram grundkartan",
-      help: "Öppna kartan, fliken Lager › Underlag och grundkarta: hämta underlag, ta fram grundkartan och gå igenom utkastet.",
+      title: "Ta fram grundkartan",
+      help: "Öppna kartan, fliken Grundkarta: ta fram grundkartan med guiden och lägg in utkastet. Underlag att rita efter är valfria.",
       existing: (file: string) => `Kartan startade från ${file}, som är underlaget.`
     },
     draw: {
       title: "Rita färdigt",
-      help: "Rita i kartan, i datorn eller i mobilen i skogen. Fler kan rita med: bjud in dem under Medlemmar."
+      help: "Välj en symbol under Symboler och rita; ändra ett objekt med Redigera. Det går i datorn eller i mobilen i skogen. Fler kan rita med: bjud in dem under Medlemmar."
     },
     export: {
       title: "Kontrollera och exportera",
-      help: "Kontrollera i kartan under Granska › Normkontroll. Skapa sedan en ny kartversion under Exportera här nedanför.",
+      help: "Kontrollera i kartan under Granska › Normkontroll. Skapa sedan en ny kartversion under Exportera här nedanför, eller med Till Exportera sist i Granska.",
       action: "Till Exportera"
     },
     courses: {

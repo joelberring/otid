@@ -213,7 +213,7 @@ test("kartprojekt: importera en DXF-baskarta som kandidater", async ({ browser, 
   await owner.goto(`/organizer/map-projects/${projectId}/map`);
   await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
   const importer = owner.getByTestId("map-project-import");
-  await owner.getByTestId("map-project-tab-layers").click();
+  await owner.getByTestId("map-project-tab-basemap").click();
   await importer.getByText("Läs in vektorfil eller OpenStreetMap").click();
   await importer.getByTestId("map-project-import-file").setInputFiles({ name: "baskarta.dxf", mimeType: "application/dxf", buffer: Buffer.from(dxf) });
   await expect(importer.getByTestId("map-project-import-crs")).toHaveValue("3006");
@@ -378,7 +378,7 @@ test("kartprojekt: hämta OpenStreetMap för en etapp", async ({ browser, baseUR
   await owner.goto(`/organizer/map-projects/${projectId}/map`);
   await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
   const importer = owner.getByTestId("map-project-import");
-  await owner.getByTestId("map-project-tab-layers").click();
+  await owner.getByTestId("map-project-tab-basemap").click();
   await importer.getByText("Läs in vektorfil eller OpenStreetMap").click();
   const osm = importer.getByTestId("map-project-osm");
   await osm.getByTestId("map-project-osm-area").selectOption({ label: "Etapp 1" });
@@ -428,7 +428,7 @@ test("kartprojekt: ortofoto från Lantmäteriet med egna uppgifter", async ({ br
   await owner.goto(`/organizer/map-projects/${projectId}/map`);
   await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
   const ortho = owner.getByTestId("map-project-ortho");
-  await owner.getByTestId("map-project-tab-layers").click();
+  await owner.getByTestId("map-project-tab-basemap").click();
   await ortho.getByText("Ortofoto från Lantmäteriet").click();
   await ortho.getByTestId("map-project-ortho-search").click();
   const items = ortho.getByTestId("map-project-ortho-items");
@@ -468,7 +468,7 @@ test("kartprojekt: generalisering som förslag", async ({ browser, baseURL }) =>
   await owner.goto(`/organizer/map-projects/${projectId}/map`);
   await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
   const importer = owner.getByTestId("map-project-import");
-  await owner.getByTestId("map-project-tab-layers").click();
+  await owner.getByTestId("map-project-tab-basemap").click();
   await importer.getByText("Läs in vektorfil eller OpenStreetMap").click();
   await importer.getByTestId("map-project-import-file").setInputFiles({ name: "tat.dxf", mimeType: "application/dxf", buffer: Buffer.from(dxf) });
   await expect(importer.getByTestId("map-project-import-result")).toContainText("2 objekt i utkastet");

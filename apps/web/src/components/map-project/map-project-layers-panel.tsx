@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import { mapProjectLayersEn } from "../../i18n/map-project-en";
 import { useTexts, useLocale } from "../language-provider";
 import type { Texts } from "../../lib/language";
@@ -24,18 +24,11 @@ function problemText(problem: LayerProblem, text: Texts<typeof mapProjectLayersS
 }
 
 /**
- * ADR-0219 tillägget om underlagen (K4a): underlagen i sidopanelen. Varje underlag kan döljas (för en själv) och göras mer eller
+ * ADR-0219 tillägget om underlagen (K4a): underlagen i fliken Lager (översynen av första kartan 2026-11-17: hämtningarna står i
+ * fliken Grundkarta, steg 1; här finns listan, passpunkterna och «Lägg till en egen bild»). Varje underlag kan döljas (för en själv) och göras mer eller
  * mindre genomskinligt (för alla) och tas bort av den som lade till det och ägarna; ägarna ändrar ordningen. Nya läggs till med bild och kanske världsfil.
  */
-export function MapProjectLayersPanel({ layers, mapEpsg, intro, step, sources, after, control, scale, area }: { layers: Layers; mapEpsg: number | undefined;
-  /** En rad under rubriken om ordningen. */
-  intro?: string;
-  /** Översynen av kartstegen 2026-11-17: steg 1 «Hämta underlag» runt listan; utan det står listan direkt under rubriken. */
-  step?: (body: ReactNode) => ReactNode;
-  /** Hämtningarna i steg 1, under listan och «Lägg till en egen bild». */
-  sources?: ReactNode;
-  /** Steg 2 och 3. */
-  after?: ReactNode;
+export function MapProjectLayersPanel({ layers, mapEpsg, control, scale, area }: { layers: Layers; mapEpsg: number | undefined;
   /** K6b: passpunkterna, kartans skala (för avvikelserna i meter) och området där en bild utan georeferens läggs. */
   control: Control; scale: number; area: Bounds | undefined }) {
   const text = useTexts(mapProjectLayersSv, mapProjectLayersEn);
@@ -67,7 +60,6 @@ export function MapProjectLayersPanel({ layers, mapEpsg, intro, step, sources, a
     </>}
     {problem !== undefined && <p role="alert" className={styles.problem}>{problemText(problem, text)}{" "}
       <Button variant="quiet" onClick={() => layers.setProblem(undefined)}>OK</Button></p>}
-    {sources}
     {layers.canAdd && <details className={styles.settings} open={adding} onToggle={event => setAdding(event.currentTarget.open)}>
       <summary>{text.uploadHeading}</summary>
       <p className={styles.muted}>{text.help}</p>
@@ -95,9 +87,7 @@ export function MapProjectLayersPanel({ layers, mapEpsg, intro, step, sources, a
   </>;
   return <section className={styles.panel} aria-labelledby="map-project-layers" data-testid="map-project-layers">
     <h2 id="map-project-layers">{text.heading}</h2>
-    {intro && <p className={styles.muted}>{intro}</p>}
-    {step ? step(body) : body}
-    {after}
+    {body}
   </section>;
 }
 

@@ -4,7 +4,7 @@
  */
 export const mapGuideSv = {
   heading: "Guiden: från laserdata till grundkarta",
-  intro: "Fyra delsteg från laserdata till ett utkast på kartan. Guiden gör samma sak som Laserkörningar (avancerat) nedanför, med förvalen.",
+  intro: "Fyra delsteg från laserdata till ett utkast på kartan. Guiden gör samma sak som Laserkörningar (avancerat) sist i guiden, med förvalen.",
   show: "Visa stegen",
   hide: "Dölj stegen",
   stepNames: { area: "Område", run: "Hämta och kör", wait: "Vänta", review: "Granska och lägg in" },
@@ -16,15 +16,15 @@ export const mapGuideSv = {
     size: (tiles: number, km2: number | undefined, most: number) => `${km2 === undefined ? "" : `Ungefär ${formatKm2(km2)} km², `}${tiles === 1 ? "1 laserruta" : `${tiles} laserrutor`} (en körning tar högst ${most}).`,
     tooLargeSearch: (name: string | undefined, maxKm2: number) => `${name ?? "Hela kartan"} är för stort för en körning: en sökning efter laserdata tar högst ${maxKm2} km², och högst omkring 28 km i någon ledd.`,
     tooLargeTiles: (name: string | undefined, tiles: number, most: number) => `${name ?? "Hela kartan"} är för stort för en körning: området täcker ${tiles} laserrutor och en körning tar högst ${most}.`,
-    splitNext: "Dela området i mindre delar med ett streck och kör en del i taget. Tryck på knappen, dra strecket tvärs över området på kartan och dubbelklicka. Kom sedan tillbaka hit (fliken Lager) och välj en av delarna.",
+    splitNext: "Dela området i mindre delar med ett streck och kör en del i taget. Tryck på knappen, dra strecket tvärs över området på kartan och dubbelklicka. Kom sedan tillbaka hit (fliken Grundkarta) och välj en av delarna.",
     splitByOwner: "Be en ägare av kartan att dela området: fliken Granska › Delområden › Dela med ett streck. Välj sedan en av delarna här.",
     pickSmaller: "Det finns redan delar: välj en mindre del i listan ovan.",
-    manual: "Vill du hellre välja laserrutor själv går det under Laserkörningar (avancerat) nedanför."
+    manual: "Vill du hellre välja laserrutor själv går det under Laserkörningar (avancerat) sist i guiden.",
+    areas: "Till Delområden"
   },
   split: "Dela med ett streck",
   run: {
     checking: "Kontrollerar dina uppgifter till Lantmäteriet …",
-    credential: "Laserdatan hämtas med dina egna uppgifter till Lantmäteriet (Geotorget). Lägg in dem en gång; ladda sedan om den här sidan så fortsätter guiden här.",
     help: (name: string | undefined) => `Söker laserrutor för ${name ?? "hela kartan"} hos Lantmäteriet och startar körningen på geo-servern med förvalen: kurvor, branter, fuktighet (kärr), `
       + "vegetation, och Lantmäteriets marktäcke och byggnader när ditt konto har dem.",
     automatic: "OpenStreetMap (stigar, vägar, hus) och Skogsstyrelsens hyggen behöver du inte hämta själv: de hämtas automatiskt när grundkartan läses in i delsteg 4.",
@@ -65,6 +65,11 @@ export const mapGuideSv = {
   },
   finished: (name: string | undefined) => `Grundkartan för ${name ?? "hela kartan"} är inlagd.`,
   finishedNext: "Ångra tar bort den igen. För en annan del, eller en ny körning av samma område, tryck på Ny körning.",
+  /** Efter första kartan: samma ord som Nästa steg och hjälpen. */
+  draw: "Nästa steg: Rita färdigt. Välj en symbol under Symboler och rita; ändra ett objekt med Redigera.",
+  drawButton: "Rita färdigt",
+  /** K2: laserkörningarna som en utfällning sist i guiden. */
+  advanced: "Välj rutor och inställningar själv",
   restart: "Ny körning",
   /** Felkoderna från servern, med vad man gör härnäst. */
   problems: {
@@ -74,11 +79,11 @@ export const mapGuideSv = {
     SOURCE_AREA_TOO_LARGE: "Området är för stort för en sökning. Dela det i mindre delar (delsteg 1) och kör en del i taget.",
     SOURCE_THROTTLED: "För många sökningar den senaste timmen. Vänta en stund (högst en timme) och tryck på knappen igen.",
     SOURCE_UNAVAILABLE: "Lantmäteriet svarade inte just nu. Vänta några minuter och tryck på knappen igen.",
-    GEO_JOB_BUSY: "Du har redan två körningar som väntar eller pågår. Vänta tills en är klar, eller avbryt en under 2. Laserdata › Jobben, och tryck sedan på knappen igen.",
+    GEO_JOB_BUSY: "Du har redan två körningar som väntar eller pågår. Vänta tills en är klar, eller avbryt en under Laserkörningar (avancerat) › Jobben, och tryck sedan på knappen igen.",
     GEO_JOB_QUOTA: "Månadens kvot av laserrutor är slut för ditt konto. Kör en mindre del, eller vänta till nästa månad."
   } as Record<string, string>,
   /** Efter ett fel utan egen text (t.ex. nätet): vad man gör härnäst. */
-  retry: "Försök igen om en stund. Går det fortfarande inte kan stegen göras för hand under 2. Laserdata längre ner."
+  retry: "Försök igen om en stund. Går det fortfarande inte kan stegen göras för hand under Laserkörningar (avancerat) sist i guiden."
 };
 
 function formatKm2(km2: number): string { return (km2 < 10 ? Math.round(km2 * 10) / 10 : Math.round(km2)).toString().replace(".", ","); }

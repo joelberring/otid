@@ -4,15 +4,21 @@
  * ordning … svårt att förstå vilken ordning man kan göra saker»).
  */
 export const mapUnderlayStepsSv = {
-  intro: "Tre steg uppifrån och ned. Numret visar ordningen; det indragna under varje steg är val inom steget.",
+  heading: "Grundkarta",
+  intro: "Så tar du fram en ny karta, uppifrån och ned: steg 2 och 3 behövs, steg 1 är valfritt. Det indragna under ett steg är val inom steget. Har kartan redan innehåll ritar du under Symboler.",
   sources: "Hämta underlag",
-  sourcesHelp: "Bilder att rita efter, som ortofoto och markfuktighet; OpenStreetMap och hyggen följer med grundkartan i steg 2.",
+  sourcesHelp: "Valfritt: bilder att rita efter, som ortofoto och markfuktighet. OpenStreetMap och hyggen följer med grundkartan i steg 2.",
+  sourcesWhere: "Det du hämtar läggs under Lager › Underlag, där det tänds, släcks och tonas. Där lägger du också till en egen bild.",
   baseMap: "Ta fram grundkartan",
   baseMapHelp: "Laserdata, OpenStreetMap och hyggen blir ett utkast till kartan, som du går igenom i steg 3.",
   baseMapOther: "Andra sätt",
   adjust: "Gå igenom utkastet",
   adjustHelp: "Reglagen räknar om utkastet direkt, utan ny körning. Lägg sedan in det med raden under kartan.",
-  then: "Sedan: rita färdigt under Symboler, kontrollera under Granska › Normkontroll och exportera på kartprojektets sida.",
+  then: "Sedan: Rita färdigt – välj en symbol under Symboler och rita; ändra ett objekt med Redigera. Kontrollera under Granska › Normkontroll och exportera med Till Exportera sist i Granska.",
+  settings: "Kartans inställningar",
+  settingsHelp: "Magnetisk nord och kartans färger. De ändras sällan och behövs inte för att ta fram kartan.",
+  toExport: "Till Exportera",
+  toExportHelp: "Kartan blir en fil på kartprojektets sida, under Exportera: en ny kartversion eller bara ändringarna.",
   step: (number: number) => `Steg ${number}`
 };
 

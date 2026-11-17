@@ -27,7 +27,7 @@ export const printOutputSv = {
   printer: "Skriv ut på skrivare",
   printerHelp: "Ett snabbt utkast på din egen skrivare; färgerna är inte tryckkvalitet.",
   pdf: "Skapa PDF för tryckeriet",
-  pdfHelp: "Servern skriver en PDF med kartan som vektorer, dekorfärger och övertryck.",
+  pdfHelp: "Servern skriver en PDF med kartan som vektorer, i färgerna enligt ”Färger för tryck” ovan.",
   editor: "Redigera arket",
   /** ADR-0217 fas 3: arken som skrivs ut (papperet redigeras i Layout). */
   preview: "Arken som skrivs ut",

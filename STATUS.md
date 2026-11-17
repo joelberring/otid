@@ -13,6 +13,10 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-17 – Utskriftssidan: tydligare färger och PDF-ruta
+- Ägaren 2026-11-17: är allt logiskt och tydligt för användaren? Genomgång på skärmbilder av BL-flödet (1280 px). Rättat: banans lila i förhandsvisningen och färgrutorna räknades om med en annan formel än kartan och BL-förslaget (blåviolett i stället för tryckets rödvioletta) – nu samma omräkning överallt (`cssOfCmyk`; `cmykToCss` borttagen).
+- Profilens namn stod under «Banans färg» som «Namn»: nu «Profilens namn» bredvid profilvalet. PDF-jobbet hette «Tryckeri (dekorfärger)» också när det var CMYK: nu «Tryckeri» (raden under säger dekorfärger eller CMYK). Hjälpraden lovar inte dekorfärger. Varningen om obekräftade färger står en gång, med färgernas namn (`UNCONFIRMED_RULE`).
+- Verifierat: enhetstester (course-setting, application, webbens i18n och utskriftskomponenter), typkontroll, lint, knip. E2e för utskriften kördes när detta skrevs; se nästa rad i loggen eller CI.
 - **2026-11-17 – Behörigheter: byta roll och tydligare besked (ägaren).** Rollen byts i listan under Personer med behörighet (rullista per
   rad, `PATCH …/administrator/people`, `changeRacePersonRoleAsAdmin`): samma regler som Lägg till och Ta bort; en behörighet på eventet
   återkallas och en ny skapas (raderna är oföränderliga), banläggningens nivå ändras på sin rad, en väntande inbjudan får den nya rollen

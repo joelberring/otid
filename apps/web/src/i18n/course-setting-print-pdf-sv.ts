@@ -1,5 +1,9 @@
 import { plural } from "./plural";
 
+/** Högst sex namn, sedan "och N till". */
+export const nameList = (names: readonly string[], more = (count: number) => `och ${count} till`) => names.length === 0 ? ""
+  : `: ${names.length <= 6 ? names.join(", ") : `${names.slice(0, 6).join(", ")} ${more(names.length - 6)}`}`;
+
 /** Steg 65 (ADR-0184): PDF för tryck i förhandsvisningen. */
 export const printPdfSv = {
   heading: "PDF för tryck",
@@ -18,7 +22,7 @@ export const printPdfSv = {
   noColors: "Kartfilen är inte läst: förhandskontrollen görs i servern.",
   confirm: "Bekräfta",
   processOnly: (name: string) => `${name} vill ha CMYK: kartan och banan skrivs som processfärger (inga dekorfärger).`,
-  unconfirmed: (count: number) => `${plural(count, "färg är inte bekräftad", "färger är inte bekräftade")} i förslaget och skrivs som i kartfilen.`,
+  unconfirmed: (count: number, names: readonly string[] = []) => `${plural(count, "färg är inte bekräftad", "färger är inte bekräftade")} i förslaget och skrivs som i kartfilen${nameList(names)}.`,
   allConfirmed: "Alla kartans färger är godkända i förslaget.",
   toProposal: "Till förslaget",
   confirmWarnings: "Jag har läst varningarna och vill skapa PDF:en ändå",

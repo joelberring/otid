@@ -413,10 +413,3 @@ export function colorPreflight(profile: PrintProfile, colors: readonly SourceMap
   }
   return { profile: profile.id, results, findings, canPrint: !findings.some(finding => finding.severity === "BLOCKING") };
 }
-
-/** CMYK i procent som skärmfärg (förhandsvisningen; tryckets färger står i PDF:en). */
-export function cmykToCss(cmyk: Cmyk100): string {
-  const k = 1 - cmyk.k / 100;
-  const channel = (value: number) => Math.round(255 * (1 - value / 100) * k);
-  return `rgb(${channel(cmyk.c)}, ${channel(cmyk.m)}, ${channel(cmyk.y)})`;
-}

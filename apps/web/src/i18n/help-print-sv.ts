@@ -60,7 +60,7 @@ export const fieldPrintHelpArticles: readonly HelpArticle[] = [
         "”Färger för tryck”: en rad om färgerna med ”Visa”, och ”Kartans egna färger” eller ”Tryck hos BL”. Se [Färger för tryck](#bl-farger).",
         "”Skriv ut”: välj ”Banor”, ”En karta per löpare (i samma ordning som Kartor till starten)”, ”Klasser” eller ”Provark (ett av varje)”, och vilka banor.",
         "”Skriv ut på skrivare”: ett snabbt utkast på din egen skrivare; färgerna är inte tryckkvalitet.",
-        "”Skapa PDF för tryckeriet”, bredvid: PDF:en med dekorfärger och övertryck.",
+        "”Skapa PDF för tryckeriet”, bredvid: PDF:en med kartan som vektorer, i färgerna enligt ”Färger för tryck”.",
         "Under dem står arken som de skrivs ut. De går inte att ändra här."
       ],
       "Papperet redigeras i fliken ”Layout”, där en ruta i ”Överblick” öppnar arken för banan i den layouten:",

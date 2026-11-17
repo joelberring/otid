@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  BUILT_IN_PRINT_PROFILES, cmykToCss, mapColorAdjust, MAP_OWN_PRINT_PROFILE_ID, type CourseSettingDocument, type MapColorAdjust, type MapRect, type Sheet
+  BUILT_IN_PRINT_PROFILES, mapColorAdjust, MAP_OWN_PRINT_PROFILE_ID, type CourseSettingDocument, type MapColorAdjust, type MapRect, type Sheet
 } from "@o-tid/course-setting";
 import type { ColorUsage, MapColor } from "@o-tid/map-file";
 import { MapRenderSession } from "../../lib/course-setting-map-protocol";
@@ -10,7 +10,7 @@ import { mapRenderRequest } from "../../lib/course-setting-print";
 import { controlledWorker } from "../../lib/course-setting-worker";
 import { fetchMapSource } from "../../lib/route-choice-api";
 import { cachedMapFile, mapFileCache } from "../../lib/map-file-cache";
-import { RenderQueue } from "../../lib/course-setting-bl-proposal";
+import { cssOfCmyk, RenderQueue } from "../../lib/course-setting-bl-proposal";
 import { pressLayersFor, pressNormOf } from "../../lib/course-setting-press-layers";
 import type { RenderImage, RenderView } from "./course-setting-bl-compare";
 import { frameImageKey } from "./course-setting-sheet";
@@ -90,7 +90,7 @@ export function usePrintColors(document: CourseSettingDocument | null | undefine
   const pressLayers = useMemo(() => pressLayersFor(profile, map.colors, map.usage, map.mapScale), [profile, map.colors, map.usage, map.mapScale]);
   const pressNorm = pressNormOf(profile, map.mapScale, map.usage);
   const colorsKey = useMemo(() => JSON.stringify(adjust) + (pressLayers ? `|${pressLayers.over.join(",")}` : ""), [adjust, pressLayers]);
-  return { savedProfiles, profile, adjust, pressLayers, pressNorm, colorsKey, courseColor: cmykToCss(profile.course.cmyk) };
+  return { savedProfiles, profile, adjust, pressLayers, pressNorm, colorsKey, courseColor: cssOfCmyk(profile.course.cmyk) };
 }
 
 /** Kartbilderna per utsnitt och färger (samma utsnitt, skala och profil ritas en gång). */

@@ -57,7 +57,7 @@ export const fieldPrintHelpArticlesEn: readonly HelpArticle[] = [
         "”Colours for print”: a row about the colours with ”Show”, and ”The map's own colours” or ”Printing at BL”. See [Colours for print](#bl-farger).",
         "”Print”: choose ”Courses”, ”One map per runner (in the same order as Maps for the start)”, ”Classes” or ”Proof sheets (one of each)”, and which courses.",
         "”Print on a printer”: a quick draft on your own printer; the colours are not print quality.",
-        "”Create PDF for the printer”, beside it: the PDF with spot colours and overprint.",
+        "”Create PDF for the printer”, beside it: the PDF with the map as vectors, in the colours set under ”Colours for print”.",
         "Below them are the sheets as they are printed. They cannot be changed here."
       ],
       "The paper is edited in the tab ”Layout”, where a cell in ”Overview” opens the sheets for the course in that layout:",

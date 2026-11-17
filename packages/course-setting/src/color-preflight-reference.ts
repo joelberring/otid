@@ -10,6 +10,9 @@ import { coursePlacement, decisionFor, pendingProposals, proposeColorMatches, st
 import { referenceRow, type ReferenceTable } from "./print-reference";
 import type { PreflightFinding, PrintProfile, SourceMapColor } from "./print-profile";
 
+/** Fyndet om färger som inte är godkända i förslaget; sidan visar det på en egen rad och upprepar det inte i listan. */
+export const UNCONFIRMED_RULE = "unconfirmed-colors";
+
 const cmykText = (cmyk: { c: number; m: number; y: number; k: number }) => `${cmyk.c}/${cmyk.m}/${cmyk.y}/${cmyk.k}`;
 const listText = (names: readonly string[]) => names.length <= 6 ? names.join(", ") : `${names.slice(0, 6).join(", ")} och ${names.length - 6} till`;
 
@@ -22,9 +25,9 @@ export function referencePreflight(profile: PrintProfile, table: ReferenceTable,
   const pending = known ? pendingProposals(proposals, decisions) : proposals.filter(proposal => !decisionFor(decisions, proposal.color));
   const unconfirmed = pending.map(proposal => proposal.color.name);
   if (decisions.length === 0) {
-    findings.push({ severity: "WARNING", text: `Förslaget för ${table.title} är inte godkänt: kartans färger skrivs som i filen. Godkänn förslaget under Utskriftsprofil.` });
+    findings.push({ severity: "WARNING", rule: UNCONFIRMED_RULE, text: `Förslaget för ${table.title} är inte godkänt: kartans färger skrivs som i filen. Godkänn förslaget under Färger för tryck.` });
   } else if (pending.length > 0) {
-    findings.push({ severity: "WARNING", text: `${pending.length} ${pending.length === 1 ? "färg är inte bekräftad" : "färger är inte bekräftade"} och skrivs som i filen: ${listText(unconfirmed)}.` });
+    findings.push({ severity: "WARNING", rule: UNCONFIRMED_RULE, text: `${pending.length} ${pending.length === 1 ? "färg är inte bekräftad" : "färger är inte bekräftade"} och skrivs som i filen: ${listText(unconfirmed)}.` });
   }
   const stale = staleDecisions(decisions, colors);
   if (stale.length > 0) findings.push({ severity: "WARNING", text: `Kartfilen har ändrats sedan godkännandet; ${stale.length} beslut gäller inte längre (${listText(stale.map(item => item.name))}).` });

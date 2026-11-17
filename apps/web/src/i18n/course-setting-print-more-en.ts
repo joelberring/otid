@@ -1,7 +1,7 @@
 import type { CheckColumn, CheckWarning } from "../lib/course-setting-runner-select";
 import type { Texts } from "../lib/language";
 import type { printColorsSv } from "./course-setting-print-colors-sv";
-import type { printPdfSv } from "./course-setting-print-pdf-sv";
+import { nameList, type printPdfSv } from "./course-setting-print-pdf-sv";
 import type { sheetLayoutSv } from "./course-setting-print-profile-sv";
 import type { runnerPrintSv } from "./course-setting-runner-print-sv";
 
@@ -40,7 +40,7 @@ export const printColorsEn: Texts<typeof printColorsSv> = {
   chipPlain: "As the profile says",
   newProfile: "New profile",
   newName: "New profile",
-  name: "Name",
+  name: "Profile name",
   courseHeading: "The course's colour",
   courseCmyk: "CMYK",
   spotName: "Spot colour",
@@ -98,7 +98,7 @@ export const printPdfEn: Texts<typeof printPdfSv> = {
   noColors: "The map file is not read: the preflight is done on the server.",
   confirm: "Confirm",
   processOnly: (name: string) => `${name} wants CMYK: the map and the course are written as process colours (no spot colours).`,
-  unconfirmed: (n: number) => `${count(n, "colour is", "colours are")} not confirmed in the proposal and ${n === 1 ? "is" : "are"} written as in the map file.`,
+  unconfirmed: (n: number, names: readonly string[] = []) => `${count(n, "colour is", "colours are")} not confirmed in the proposal and ${n === 1 ? "is" : "are"} written as in the map file${nameList(names, more => `and ${more} more`)}.`,
   allConfirmed: "All the map's colours are approved in the proposal.",
   toProposal: "To the proposal",
   confirmWarnings: "I have read the warnings and want to create the PDF anyway",

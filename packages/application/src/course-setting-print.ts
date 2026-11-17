@@ -62,7 +62,7 @@ function dto(row: ListRow, position: number | null): PrintJob {
     notes: row.report?.notes ?? [], position });
 }
 
-const KIND_LABEL = { PRESS: "Tryckeri (dekorfärger)", PROCESS: "Tryckeri (kartan i CMYK)", OFFICE: "Kontorsskrivare" } as const;
+const KIND_LABEL = { PRESS: "Tryckeri", PROCESS: "Tryckeri (kartan i CMYK)", OFFICE: "Kontorsskrivare" } as const;
 
 function labelFor(document: CourseSettingDocument, request: PrintJobRequest): string {
   const names = new Map(document.courses.map(course => [course.id, course.name]));

@@ -4,13 +4,13 @@ import { useMemo, useRef, useState, type ReactNode } from "react";
 import { printColorsEn } from "../../i18n/course-setting-print-more-en";
 import { useTexts } from "../language-provider";
 import {
-  BUILT_IN_PRINT_PROFILES, cmykToCss, colorPreflight, decisionFor, MAP_OWN_PRINT_PROFILE_ID, mapColorAdjust, parsePrintProfile, referenceRow, sourceMapColors,
+  BUILT_IN_PRINT_PROFILES, colorPreflight, decisionFor, MAP_OWN_PRINT_PROFILE_ID, mapColorAdjust, parsePrintProfile, referenceRow, sourceMapColors,
   SUPERSEDED_PRINT_PROFILES, type Cmyk100, type CourseSettingEdit, type PressNorm, type PrintProfile
 } from "@o-tid/course-setting";
 import type { ColorUsage, MapColor } from "@o-tid/map-file";
 import { printColorsSv } from "../../i18n/course-setting-print-colors-sv";
 import { downloadText } from "../../lib/course-setting-api";
-import { approvalEdits, proposalState } from "../../lib/course-setting-bl-proposal";
+import { approvalEdits, cssOfCmyk, proposalState } from "../../lib/course-setting-bl-proposal";
 import { blProfileIdFor, colorModeOf, colorSummary, usedColors } from "../../lib/course-setting-print-colors-mode";
 import { parseCmyk, rowFor, withColorRow } from "../../lib/course-setting-print-settings";
 import type { PressLayers } from "../../lib/course-setting-press-layers";
@@ -111,6 +111,10 @@ export function PrintColors({ saved, profile, colors, usage, norm, detectedNorm,
             <select value={profile.id} onChange={event => select(event.target.value)} data-testid="print-profile-select">
               {listed.map(item => <option key={item.id} value={item.id}>{item.name}{SUPERSEDED_PRINT_PROFILES[item.id] ? ` (${text.superseded})` : ""}</option>)}
             </select></label>
+          {!readOnly && <label className={styles.field}>{text.name}
+            <input defaultValue={profile.name} key={`${profile.id}-name`} data-testid="print-profile-name" onBlur={event => {
+              const name = event.target.value.trim(); if (name && name !== profile.name) void change(current => ({ ...current, name }));
+            }} /></label>}
           <span className={styles.statusChip} data-status={status.kind} data-testid="print-profile-chip">{chip}</span>
           {!readOnly && <Button variant="quiet" data-testid="print-colors-new"
             onClick={() => void change(current => ({ ...current, id: `egen-${Date.now()}`, name: text.newName, basedOn: profile.basedOn ?? profile.id }))}>
@@ -119,11 +123,7 @@ export function PrintColors({ saved, profile, colors, usage, norm, detectedNorm,
         {/* 1. Profilen, normen och banans färg. */}
         <fieldset className={styles.row} disabled={readOnly}>
           <legend>{text.courseHeading}</legend>
-          {!readOnly && <label className={styles.field}>{text.name}
-            <input defaultValue={profile.name} key={`${profile.id}-name`} onBlur={event => {
-              const name = event.target.value.trim(); if (name && name !== profile.name) void change(current => ({ ...current, name }));
-            }} /></label>}
-          <span className={styles.swatch} style={{ background: cmykToCss(profile.course.cmyk) }} aria-hidden="true" />
+          <span className={styles.swatch} style={{ background: cssOfCmyk(profile.course.cmyk) }} aria-hidden="true" />
           <label className={styles.field}>{text.courseCmyk}<input defaultValue={cmykText(profile.course.cmyk)} key={`${profile.id}-course-${cmykText(profile.course.cmyk)}`}
             data-testid="print-profile-course-cmyk" onBlur={event => {
               const cmyk = parseCmyk(event.target.value);
@@ -191,7 +191,7 @@ function ColorDetails({ profile, colors, usage, layers, norm }: {
         aria-hidden="true" />{color.name}</li>)}</ul>;
   return <div id="print-colors-details" className={styles.stack} data-testid="print-colors-details">
     <p className={styles.muted}>{profile.courseLayer === "REFERENCE" ? `${text.detailsNorm(text.norms[norm])} ${text.orderHelp[norm]}` : text.detailsTop}</p>
-    <p className={styles.muted}><span className={styles.swatch} style={{ background: cmykToCss(profile.course.cmyk) }} aria-hidden="true" />
+    <p className={styles.muted}><span className={styles.swatch} style={{ background: cssOfCmyk(profile.course.cmyk) }} aria-hidden="true" />
       {text.detailsCourse(cmykText(profile.course.cmyk), profile.course.spotName)}</p>
     {layers && used.length > 0 && <div className={styles.colorColumns}>
       <section><h3>{text.detailsOver}</h3>{list(used.filter(color => over.has(color.id)), "print-colors-over")}</section>

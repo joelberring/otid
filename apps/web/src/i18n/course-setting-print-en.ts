@@ -153,7 +153,7 @@ export const printOutputEn: Texts<typeof printOutputSv> = {
   printer: "Print on a printer",
   printerHelp: "A quick draft on your own printer; the colours are not print quality.",
   pdf: "Create PDF for the printer",
-  pdfHelp: "The server writes a PDF with the map as vectors, spot colours and overprint.",
+  pdfHelp: "The server writes a PDF with the map as vectors, in the colours set under “Colours for print” above.",
   editor: "Edit the sheet",
   preview: "The sheets that are printed",
   editorHelp: "Select, drag and change directly on the sheet; the fields are beside it (below the sheet on a phone)."

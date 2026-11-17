@@ -5,7 +5,7 @@ import { printColorsEn } from "../../i18n/course-setting-print-more-en";
 import { printPdfEn } from "../../i18n/course-setting-print-more-en";
 import { useTexts } from "../language-provider";
 import type { PrintJob, PrintJobKind, PrintJobs } from "@o-tid/contracts";
-import { officePrintProfile, type PrintProfile } from "@o-tid/course-setting";
+import { officePrintProfile, UNCONFIRMED_RULE, type PrintProfile } from "@o-tid/course-setting";
 import type { ColorUsage, MapColor } from "@o-tid/map-file";
 import { printPdfSv } from "../../i18n/course-setting-print-pdf-sv";
 import { printColorsSv } from "../../i18n/course-setting-print-colors-sv";
@@ -79,6 +79,8 @@ export function PdfPanel({ raceId, selection, profile, colors, usage, disabled, 
 
   const allowed = pdfAllowed(report, warningsConfirmed);
   const warnings = report?.findings.some(finding => finding.severity === "WARNING") ?? false;
+  // Varningen om obekräftade färger står redan på raden ovanför listan (med färgernas namn): visa den inte två gånger.
+  const listed = report?.findings.filter(finding => finding.rule !== UNCONFIRMED_RULE) ?? [];
   return <section className={styles.panel} aria-labelledby="print-pdf" data-testid="print-pdf">
     <h3 id="print-pdf">{heading ?? text.heading}</h3>
     <p className={styles.muted}>{help ?? text.help}</p>
@@ -88,9 +90,9 @@ export function PdfPanel({ raceId, selection, profile, colors, usage, disabled, 
       data-unconfirmed={report.unconfirmed?.length ?? ""}>
       <h3>{text.preflight}: {report.canPrint ? text.preflightOk : text.preflightBlocked}</h3>
       {report.unconfirmed !== undefined && <p data-testid="print-pdf-unconfirmed"><strong>{report.unconfirmed.length === 0 ? text.allConfirmed
-        : text.unconfirmed(report.unconfirmed.length)}</strong>{report.unconfirmed.length > 0 && <> <a href="#bl-proposal">{text.toProposal}</a></>}</p>}
+        : text.unconfirmed(report.unconfirmed.length, report.unconfirmed)}</strong>{report.unconfirmed.length > 0 && <> <a href="#bl-proposal">{text.toProposal}</a></>}</p>}
       {report.findings.length === 0 ? <p className={styles.muted}>{text.noFindings}</p>
-        : <ul className={styles.findings}>{report.findings.map((finding, index) => <li key={index} data-severity={finding.severity}>
+        : listed.length > 0 && <ul className={styles.findings}>{listed.map((finding, index) => <li key={index} data-severity={finding.severity}>
           <strong>{colorsText.severity[finding.severity]}</strong> {finding.text}
           {finding.severity === "BLOCKING" && finding.rule && report.results.find(result => result.rule === finding.rule)?.status === "NEEDS_CONFIRMATION" &&
             <Button variant="quiet" onClick={() => setConfirmed(current => new Set([...current, finding.rule!]))}>{text.confirm}</Button>}

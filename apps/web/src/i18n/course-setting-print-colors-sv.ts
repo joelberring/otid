@@ -34,7 +34,7 @@ export const printColorsSv = {
   chipPlain: "Som profilen anger",
   newProfile: "Ny profil",
   newName: "Ny profil",
-  name: "Namn",
+  name: "Profilens namn",
   courseHeading: "Banans färg",
   courseCmyk: "CMYK",
   spotName: "Dekorfärg",

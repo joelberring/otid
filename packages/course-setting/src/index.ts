@@ -80,6 +80,7 @@ export {
 export * from "./print-profile";
 export * from "./print-reference";
 export * from "./color-match";
+export { UNCONFIRMED_RULE } from "./color-preflight-reference";
 export * from "./press-order";
 export * from "./number-obstacles";
 export * from "./sheet-layout";

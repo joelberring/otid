@@ -72,7 +72,7 @@ export const accountHelpArticlesEn: readonly HelpArticle[] = [
     body: [
       "The menu with your name (the initials on a phone) is at the top of every page when you are signed in.",
       [
-        "It has ”My events”, ”My clubs”, ”My groups”, ”My account” and ”Sign out”.",
+        "It has ”My O-Tid”, ”My clubs”, ”My groups”, ”My account” and ”Sign out”.",
         "”Sign out” also removes what the browser has saved about events and people, such as the field mode's copy.",
         "If changes are waiting for the network, the menu asks first. Readouts that have not been sent stay until they arrive.",
         "”Remember me on this computer” lasts 30 days. Without it the sign-in lasts twelve hours.",

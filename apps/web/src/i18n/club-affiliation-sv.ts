@@ -32,7 +32,10 @@ export const clubAffiliationSv = {
     save: "Spara klubbarna",
     skip: "Hoppa över",
     later: "Du kan ändra det senare under Mitt konto → Mina klubbar.",
-    failed: "Klubbarna kunde inte sparas. Försök igen."
+    failed: "Klubbarna kunde inte sparas. Försök igen.",
+    /** Översynen 2026-11-17: efter första besöket står frågan på en rad i navet. */
+    line: "Vilken klubb tillhör du? Valfritt.",
+    answer: "Välj klubb"
   },
   onboarding: {
     member: (club: string) => `Du är med i ${club}`,

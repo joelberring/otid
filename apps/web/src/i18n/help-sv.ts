@@ -85,7 +85,7 @@ const raceDayHelpArticles: readonly HelpArticle[] = [
     title: "Skapa en tävling och välj typ",
     views: ["EVENTS", "SETTINGS"],
     body: [
-      "Gå till ”Mina tävlingar”. Skriv ”Tävlingens namn” och ”Datum” under ”Skapa tävling”. ”Etapp/lopp (valfritt)” kan stå tomt.",
+      "Gå till ”Mitt O-Tid” → ”Skapa träning eller tävling”. Skriv ”Tävlingens namn” och ”Datum”. ”Etapp/lopp (valfritt)” kan stå tomt.",
       "Välj ”Typ av tävling”. Typen styr vilka steg som syns i arbetsytan:",
       [
         "”Träning”: fri start, banor och klasser på samma ställe.",
@@ -94,8 +94,8 @@ const raceDayHelpArticles: readonly HelpArticle[] = [
         "”Stafett”: lag och sträckor.",
         "”Rogaining”: kontroller med poäng och tidsgräns."
       ],
-      "Tryck på ”Skapa tävling”, så öppnas arbetsytan. Typen kan bytas under ”Inställningar” utan att något tas bort.",
-      "Har klubben ett klubbarkiv kan du ta kartan med ”Välj karta från klubbarkivet” innan du trycker på ”Skapa tävling”; då öppnas banläggningen med kartan."
+      "Tryck på knappen, som följer typen (”Skapa träning”, ”Skapa tävling” …), så öppnas arbetsytan. Typen kan bytas under ”Inställningar”.",
+      "Har klubben ett klubbarkiv kan du ta kartan med ”Välj karta från klubbarkivet” innan du skapar tävlingen; då öppnas banläggningen med kartan."
     ]
   },
   {
@@ -105,7 +105,7 @@ const raceDayHelpArticles: readonly HelpArticle[] = [
     body: [
       "En ny tävling syns bara för dig och andra med behörighet. Gå till steget ”Publicera” och tryck på ”Publicera tävlingen”.",
       "Då syns tävlingssidan för alla, och tävlingen finns på startsidan. Resultaten syns när löparna läser av.",
-      "Med ”Förhandsvisa tävlingssidan” ser du sidan innan den är publicerad. ”Skriv ut QR-kod” ger en lapp att sätta upp vid start och mål; koden sist i adressen kan också skrivas i ”Har du en kod?” på startsidan.",
+      "Med ”Förhandsvisa tävlingssidan” ser du sidan innan den är publicerad. ”Skriv ut QR-kod” ger en lapp att sätta upp vid start och mål; under länken står också ”Kod för appen”, som skrivs i ”Har du en kod?” i O-Tid-appen.",
       "Startlistan publiceras för sig under ”Start”. ”Sluta publicera” döljer tävlingen igen."
     ]
   },
@@ -270,7 +270,7 @@ const raceDayHelpArticles: readonly HelpArticle[] = [
         "”Ladda ner IOF-fil för Eventor”: filen att ladda upp i Eventor.",
         "”Gör resultaten preliminära igen”: ångrar.",
         "”Ladda ner säkerhetskopia” under ”Inställningar”: hela tävlingen i en fil. Ta den efter lottningen, före start och efter sista målgång.",
-        "”Återställ tävling från säkerhetskopia” på Mina tävlingar: filen blir en ny tävling, också på en annan server."
+        "”Återställ tävling från säkerhetskopia” under ”Mer” på Mitt O-Tid: filen blir en ny tävling, också på en annan server."
       ]
     ]
   },

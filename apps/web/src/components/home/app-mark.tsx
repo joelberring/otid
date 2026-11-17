@@ -9,7 +9,7 @@ const MARK = "var p=document.currentScript&&document.currentScript.parentElement
 
 /**
  * Översynen av startsidan 2026-11-17: i appen (ADR-0227, bryggan finns) märks föräldern med `data-otid-app`, så att
- * startsidans CSS kan lyfta fram kodfältet. Skriptet körs medan HTML:en läses, före första ritningen (inget flimmer; Nexts
+ * startsidans CSS kan visa kodfältet (det syns bara i appen). Skriptet körs medan HTML:en läses, före första ritningen (inget flimmer; Nexts
  * guide "Preventing flash before hydration"); vid en navigering i webbläsaren körs inte skriptet, och då märker effekten.
  * Föräldern ska ha `suppressHydrationWarning`, eftersom attributet inte finns i serverns svar.
  */

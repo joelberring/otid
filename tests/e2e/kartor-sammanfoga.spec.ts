@@ -152,7 +152,7 @@ test("dubbletter i kartarkivet: förslaget, slå ihop med år, kopiera till alla
   await choice.getByRole("button", { name: "Använd kartan Skogsbacken rev 2021" }).click();
   await expect(owner.getByTestId("club-map-chosen")).toContainText("Vald karta: Skogsbacken rev 2021 (2021)");
   await chooseOrganiser(owner);
-  await owner.getByRole("button", { name: "Skapa tävling" }).last().click();
+  await owner.getByTestId("create-race-submit").click();
   await owner.waitForURL(/\/admin\/[0-9a-f-]+\/course-setting$/, { timeout: 120_000 });
   await expect(owner.getByRole("button", { name: "Börja med en tom banläggning" })).toBeVisible({ timeout: 60_000 });
   await expect(owner.getByText("Skogsbacken rev 2021.ocd · 1:10000")).toBeVisible();

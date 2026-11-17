@@ -132,7 +132,7 @@ export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
   layerAdded: "The image is added as a base layer.",
   outputs: {
     "kurvor.dxf": "Contours", "formlinjer.dxf": "Form lines", "branter.dxf": "Cliffs", "stup.dxf": "Steep cliffs", "knollar.dxf": "Knolls",
-    "fukt.dxf": "Marshes and wet channels", "diken.dxf": "Ditches from the terrain shape", "berg.dxf": "Boulders and bare rock", "belagt.dxf": "Paved area from the laser data", "vegetation.dxf": "Vegetation areas", "vatten.geojson": "Lakes and water", "brantlinjer.dxf": "Cliffs as lines", "marktacke.geojson": "Land cover from Lantmäteriet", "byggnader.geojson": "Buildings from Lantmäteriet", "ritning.geojson": "The drawing"
+    "fukt.dxf": "Marshes and wet channels", "diken.dxf": "Ditches from the terrain shape", "spar.dxf": "Skid trails and tracks from the terrain shape", "berg.dxf": "Boulders and bare rock", "belagt.dxf": "Paved area from the laser data", "vegetation.dxf": "Vegetation areas", "vatten.geojson": "Lakes and water", "brantlinjer.dxf": "Cliffs as lines", "marktacke.geojson": "Land cover from Lantmäteriet", "byggnader.geojson": "Buildings from Lantmäteriet", "ritning.geojson": "The drawing"
   },
   loadBaseMap: "Load the base map",
   download: (size: string) => `Download the files (zip, ${size} MB)`,

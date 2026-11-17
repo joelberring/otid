@@ -61,6 +61,8 @@ test("träningsgrupp: ledare, upprepning, gruppsidan med förnamn och kartans av
   const upcoming = leader.getByRole("list", { name: "Kommande" });
   await expect(upcoming.getByRole("listitem")).toHaveCount(3);
   await expect(leader.getByRole("list", { name: "Upprepningar" })).toContainText("18:00");
+  // Översynen 2026-11-17: koden för appen står bredvid gruppens länk.
+  await expect(leader.getByTestId("app-code")).toHaveText(`Kod för appen: ${code}`);
   await reviewScreenshots(leader, "traningsgrupp-ledare");
 
   // Dagens tillfälle: en bana, en löpare med resultat och en kartbild.

@@ -33,7 +33,7 @@ export const clubArchiveSv = {
     READER: "ser det som klubben låter medlemmar se under Vem ser vad"
   } as const,
   tabs: { trainings: "Träningar", planning: "Planering", maps: "Kartor", members: "Medlemmar", devices: "Enheter", club: "Klubben", import: "Import" },
-  back: "Mina tävlingar",
+  back: "Mitt O-Tid",
   backToArchive: "Klubbarkivet",
   loading: "Hämtar arkivet …",
   loadFailed: "Arkivet kunde inte hämtas. Är du inloggad och med i klubben?",
@@ -141,7 +141,7 @@ export const clubArchiveSv = {
     eventName: "Namn",
     date: "Datum",
     target: "Var",
-    own: "Ny träning (Mina tävlingar)",
+    own: "Ny träning (Mitt O-Tid)",
     plan: "Till terminsplanen",
     planHelp: "Välj en kommande vecka utan träning: kopian kopplas dit och får veckans rubrik, datum och grupp.",
     planNone: "Ingen (bara en ny träning)",

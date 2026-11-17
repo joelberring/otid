@@ -48,7 +48,7 @@ const raceDayHelpArticlesEn: readonly HelpArticle[] = [
     title: "Create an event and choose its type",
     views: ["EVENTS", "SETTINGS"],
     body: [
-      "Go to ”My events”. Write ”Event name” and ”Date” under ”Create event”. ”Stage/race (optional)” can be left empty.",
+      "Go to ”My O-Tid” → ”Create training or event”. Write ”Event name” and ”Date”. ”Stage/race (optional)” can be left empty.",
       "Choose ”Type of event”. The type decides which steps are shown in the workspace:",
       [
         "”Training”: free start, courses and classes in the same place.",
@@ -57,8 +57,8 @@ const raceDayHelpArticlesEn: readonly HelpArticle[] = [
         "”Relay”: teams and legs.",
         "”Rogaining”: controls with points and a time limit."
       ],
-      "Press ”Create event” and the workspace opens. The type can be changed under ”Settings” without anything being removed.",
-      "If the club has a club archive you can take the map with ”Choose map from the club archive” before pressing ”Create event”; course setting then opens with the map."
+      "Press the button, which follows the type (”Create training”, ”Create event” …), and the workspace opens. The type can be changed under ”Settings”.",
+      "If the club has a club archive you can take the map with ”Choose map from the club archive” before creating the event; course setting then opens with the map."
     ]
   },
   {
@@ -68,7 +68,7 @@ const raceDayHelpArticlesEn: readonly HelpArticle[] = [
     body: [
       "A new event is only visible to you and others with access. Go to the step ”Publish” and press ”Publish the event”.",
       "Then the event page is visible to everyone, and the event is listed on the home page. Results appear as runners read out.",
-      "With ”Preview the event page” you see the page before it is published. ”Print QR code” gives a sign to put up at the start and finish; the code at the end of the address can also be typed in ”Have a code?” on the home page.",
+      "With ”Preview the event page” you see the page before it is published. ”Print QR code” gives a sign to put up at the start and finish; under the link there is also ”Code for the app”, typed in ”Have a code?” in the O-Tid app.",
       "The start list is published separately under ”Start”. ”Stop publishing” hides the event again."
     ]
   },
@@ -233,7 +233,7 @@ const raceDayHelpArticlesEn: readonly HelpArticle[] = [
         "”Download IOF file for Eventor”: the file to upload to Eventor.",
         "”Make the results preliminary again”: undoes it.",
         "”Download backup” under ”Settings”: the whole event in one file. Take it after the draw, before the start and after the last finisher.",
-        "”Restore event from backup” on My events: the file becomes a new event, also on another server."
+        "”Restore event from backup” under ”More” on My O-Tid: the file becomes a new event, also on another server."
       ]
     ]
   },

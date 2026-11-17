@@ -41,10 +41,11 @@ test("ny tävling: direkt in, tomlägen med åtgärd, svenska fältfel och tre d
   const owner = await registerAccount(browser, `arbetsyta.${suffix}@exempel.se`, "Ada Arbetsyta");
 
   // Skapa tävling: tomt formulär ger svenska fel vid fälten, ingen webbläsarruta, och tidszonen ligger under "Mer".
-  const create = owner.locator("form").filter({ has: owner.getByRole("button", { name: "Skapa tävling" }) });
+  const create = owner.locator("form").filter({ has: owner.getByTestId("create-race-submit") });
   await expect(create).toHaveAttribute("novalidate", "");
   await expect(create.getByLabel("Tidszon")).toBeHidden();
-  await create.getByRole("button", { name: "Skapa tävling" }).click();
+  // Översynen 2026-11-17: Träning är förvald, så knappen heter "Skapa träning".
+  await create.getByRole("button", { name: "Skapa träning", exact: true }).click();
   await expect(create.getByText("Skriv tävlingens namn (minst 2 tecken).")).toBeVisible();
   await expect(create.getByText("Skriv tävlingens datum som ÅÅÅÅ-MM-DD", { exact: false })).toBeVisible();
   await expect(create.getByLabel("Tävlingens namn")).toHaveAttribute("aria-invalid", "true");
@@ -62,7 +63,7 @@ test("ny tävling: direkt in, tomlägen med åtgärd, svenska fältfel och tre d
   await create.getByRole("radio", { name: "Tävling", exact: true }).check();
   await chooseOrganiser(owner);
   await expect(create.getByTestId("create-organiser-error")).toHaveCount(0);
-  await create.getByRole("button", { name: "Skapa tävling" }).click();
+  await create.getByRole("button", { name: "Skapa tävling", exact: true }).click();
   await owner.waitForURL(/\/admin\/[0-9a-f-]+\/manage$/);
   const raceId = owner.url().split("/").at(-2)!;
   await expect(owner.getByRole("heading", { name: `Arbetsyta ${suffix}` })).toBeVisible();
@@ -200,7 +201,7 @@ test("ny tävling: direkt in, tomlägen med åtgärd, svenska fältfel och tre d
 
   // Mobil: tillbakalänken, räknarna och en meny för genvägarna; inget sidled.
   await owner.setViewportSize({ width: 390, height: 800 });
-  await expect(owner.getByRole("link", { name: "‹ Mina tävlingar" })).toBeVisible();
+  await expect(owner.getByRole("link", { name: "‹ Mitt O-Tid" })).toBeVisible();
   await expect(owner.getByLabel("Läget just nu")).toBeVisible();
   await expect(owner.getByRole("link", { name: /Öppna avläsningen/ })).toBeHidden();
   await owner.getByText("Meny").click();
@@ -236,7 +237,7 @@ test("rogaining och stafett: ett tomläge och en väg vidare", async ({ browser 
     await owner.getByLabel("Datum").fill(today());
     await owner.getByRole("radio", { name: type, exact: true }).check();
     await chooseOrganiser(owner);
-    await owner.getByRole("button", { name: "Skapa tävling" }).click();
+    await owner.getByTestId("create-race-submit").click();
     await owner.waitForURL(/\/admin\/[0-9a-f-]+\/manage$/);
   };
 

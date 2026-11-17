@@ -106,7 +106,7 @@ export const archiveHelpArticles: readonly HelpArticle[] = [
     views: ["ARCHIVE_TRAININGS", "ARCHIVE_ENTRY", "EVENTS"],
     body: [
       "Klubbarkivet sparar klubbens kartor och banor från tidigare träningar, så att de kan användas igen. Det är aldrig publikt; bara inbjudna ser det.",
-      "Skapa det överst på ”Mina tävlingar” → ”Mina klubbar” → ”Ny klubbyta”. Den som skapar klubben blir ägare.",
+      "Skapa det överst på ”Mitt O-Tid” → ”Mina klubbar” → ”Ny klubbyta”. Den som skapar klubben blir ägare.",
       [
         "”Träningar”: sök på plats, övning eller bana och filtrera på år, karta, ledare, moment, nivå och egna ord.",
         "”Kartor”: kartorna med alla versioner. Se [Kartor, versioner och rättigheter](#arkiv-kartor).",
@@ -124,7 +124,7 @@ export const archiveHelpArticles: readonly HelpArticle[] = [
       "Öppna en träning i arkivet och tryck på ”Använd igen”. Arkivet ändras aldrig; du får en ny träning med kartan och banorna.",
       [
         "”Namn” och ”Datum” för den nya träningen.",
-        "”Var”: ”Ny träning (Mina tävlingar)” eller i en träningsgrupp.",
+        "”Var”: ”Ny träning (Mitt O-Tid)” eller i en träningsgrupp.",
         "”Banfil” om filerna har olika banor. Samma banor i .ppen och IOF XML (från en tävling) ger .ppen utan fråga.",
         "”Kartversion” (senaste versionen är förvald).",
         "Tryck på ”Skapa träningen”. Banläggningen öppnas med en kopia att ändra.",

@@ -7,9 +7,9 @@ export const courseSettingSv = {
   title: "Banläggning",
   back: "Tillbaka till tävlingen",
   /** Den som bara har banläggningen (ingen roll på tävlingen) går tillbaka till Mina tävlingar. */
-  backToEvents: "Tillbaka till Mina tävlingar",
+  backToEvents: "Tillbaka till Mitt O-Tid",
   backShort: "Tävlingen",
-  backShortEvents: "Mina tävlingar",
+  backShortEvents: "Mitt O-Tid",
   /** Fil-menyn: utskriftens sidor (ägaren 2026-11-03). */
   printMenu: "Utskrift av banor …",
   descriptionsMenu: "Kontrollbeskrivningar …",

@@ -10,7 +10,7 @@ import type { GroupLeaderView as View, GroupSession } from "@o-tid/contracts";
 import { trainingGroupSv } from "../../i18n/training-group-sv";
 import { raceTypeSv } from "../../i18n/race-type-sv";
 import { groupFailure, groupRequest } from "../../lib/training-group-client";
-import { PublicLinkShare } from "../public-link-share";
+import { AppCode, PublicLinkShare } from "../public-link-share";
 import { Button, Notice } from "../ui";
 import { GroupAttachRace } from "./group-attach-race";
 import { GroupMaps } from "./group-maps";
@@ -97,6 +97,7 @@ export function GroupLeaderView({ groupId }: { groupId: string }) {
       </div>
       <div className={styles.rowActions}>
         <Link href={`/g/${view.settings.code}`}>{text.publicLink}: /g/{view.settings.code}</Link>
+        <AppCode code={view.settings.code} />
         <Link href={`/g/${view.settings.code}/qr`}>{text.qr}</Link>
         <PublicLinkShare path={`/g/${view.settings.code}`} title={view.settings.name} />
         <AccountMenu />

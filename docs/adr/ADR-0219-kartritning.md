@@ -584,6 +584,28 @@ buffert runt vatten (kartans `vatten` och SGU:s kod 91) så att strandkärr blir
 för unionens ruta; beskedet säger hur många hektar) och i `apply_base_map` (svarets `soil`). Ett misslyckat anrop stoppar inget:
 grundkartan läses in och reglaget räknar som förut (`missing` har `soil`).
 
+### Tillägg 2026-11-17: släpstigar och spår ur lasern, OpenStreetMaps stigar flyttas, etapperna med marginal
+
+Ägaren: «släpstigar … andra former än släpstigar också», «om släpstigarna syns men har hål en liten bit kanske man får gissa att
+de fortsätter mellan», «Jag tror att stigarna från OpenStreetMap ligger fel och kan behöva flyttas. Gäller även andra stigar» –
+«Ofta».
+
+- **Spår ur reliefen** (geo-arbetaren v39, `scripts/geo-tracks.ts`, steget `tracks`): reliefen (höjden minus medel inom 4 m) på
+  ett rutnät om 2 m, ett linjefilter i 16 riktningar (fåra lägre än marken 4 m åt sidorna, längs 40 m), hysteres (95:e/88:e
+  percentilen, minst 6/3 cm), mittlinjer, raka bitar (minst 24 m, rakhet 0,8), glapp upp till 50 m där ändarna pekar mot
+  varandra (högst 25° fel) binds ihop, kedjor under 80 m tas bort. Fuktigt till mer än hälften är diken och tas inte med.
+  Filen `spar.dxf`, lagret `spar_laser`, föreslås som otydlig stig (507). Järvsö östra (38 km²): 20 s, 184 km före rensningen
+  mot vägar (vägdikena följer vägarna).
+- **OpenStreetMaps stigar flyttas** (`snapPathsToTracks`, `base-map/path-snap.ts`) i grundkartan: stigar, traktorvägar och
+  gång- och cykelvägar flyttas till en fåra som löper parallellt (högst 25°) inom 15 m längs minst 30 m. Flyttningen jämnas ut
+  (10 m) och tonas av mot noll inom 20 m där matchningen slutar och vid punkter som delas med andra vägar och stigar, så att
+  nätet hänger ihop. Fåror inom 10 m från och parallella med en stig, väg eller järnväg tas bort efteråt; resten är spår som
+  OpenStreetMap saknar.
+- **Etapperna räknas med marginal.** Reliefen i Järvsö östra hade raka skarvar mellan etapperna: en etapp klipptes exakt till
+  sin remsa, så allt som räknas med ett grannskap (reliefen, kurvorna, fuktigheten) saknade halva grannskapet vid snittet.
+  En etapp har nu `reach`, remsan med 50 m (`GEO_CLIP_MARGIN_M`) åt grannetapperna, inom hela klipprutan; lasern klipps till
+  `reach` och etappen äger fortfarande bara `clip` (sammanläggningen och webbläsarens `joinStages` klipper till `clip`).
+
 ### Tillägg 2026-11-17: Naturvårdsverkets marktäckedata (NMD) och hyggenas kanter
 
 Lasern skiljer inte öppen blöt mark från öppen torr (ägaren 2026-11-17: «kör NMD»). Servern hämtar NMD2023 v2.x (10 m, CC0,

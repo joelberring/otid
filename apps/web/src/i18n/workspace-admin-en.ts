@@ -131,7 +131,7 @@ export const raceAdministratorEn: AdminTexts = {
   workflowParticipantsHelp: "Search participants and handle entry, card and result.",
   introduction: "This page is for the event's administrators.",
   accountLoginHelp: "Sign in with your account. You must have created the event or be invited as an administrator.",
-  accountLoginLink: "Go to My events",
+  accountLoginLink: "Go to My O-Tid",
   checking: "Checking access…", denied: "Access is missing.",
   functionaryTitle: "Why can't I see the courses and the participants?",
   functionaryNote: "You are an official at this event: you reach start, readout, still out and speaker. Courses, classes, entries and settings are for the administrators only, and the courses are secret before the start. Need more? Ask the owner or an administrator to change your role under People.",

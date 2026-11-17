@@ -37,4 +37,8 @@ describe("hyggen efter ålder", () => {
     expect(inside(95, 5)).toBe(true);
     expect(smooth.length).toBeLessThan(ring.length * 3);
   });
+  it("ett litet hygge (40 × 40 m) försvinner inte i generaliseringen", () => {
+    const square: [number, number][] = [[0, 0], [40, 0], [40, 40], [0, 40], [0, 0]];
+    expect(cutRing(square)!.length).toBeGreaterThanOrEqual(4);
+  });
 });

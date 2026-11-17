@@ -116,3 +116,18 @@ beslut 9). Listan visade redan "Obekräftad adress".
   kodfältet blir då större med accentkant, och arrangörens rad döljs. Inget ändras i `apps/mobile`.
 - Tester: `packages/domain/test/join-code.test.ts`, `packages/application/test/integration/startsidan-kod.test.ts`,
   `apps/web/src/lib/join-code.test.ts` och `tests/e2e/startsidan-kod.spec.ts`.
+
+## Tillägg 2026-11-17, senare: koden syns för arrangören, och fältet bara i appen (grenen `oversyn-kod`)
+
+Ägaren förstod inte vad "kod" var: ordet användes ingen annanstans, och arrangören såg bara en länk och en QR-kod.
+
+- **Koden i klartext** (`AppCode` i `public-link-share.tsx`, texten "Kod för appen" / "Code for the app"): en liten, dämpad rad
+  utan ram eller rubrik där länken eller QR-koden delas – Publicera i arbetsytan, festens panel, träningsgruppens ledarvy,
+  tävlingssidans och gruppsidans sidfot, och under adressen på QR-arken (`/t/<kod>/qr`, `/g/<kod>/qr`, `/fest/<kod>/qr`), där
+  den är tydligt underordnad QR-koden och adressen. Hjälpen (Publicera) säger att koden skrivs i "Har du en kod?" i appen.
+- **Kodfältet syns bara i appen** (`data-otid-app`), i samma storlek som andra fält (den extra framhävningen är borttagen). I en
+  vanlig webbläsare döljs det med CSS, utom med beskedet (`?kodfel=…`) och när adressen pekar på det (`/#kod`, `:target`), så
+  att `/kod` aldrig landar på en sida utan förklaring. `/kod` är oförändrad. På smal skärm står målningen kvar efter Pågår nu
+  (sökningen och dagens tävlingar syns utan att rulla; målningen är hel).
+- Tester: `tests/e2e/startsidan-kod.spec.ts` (webb, app via bryggan, beskedet), och koden hos arrangören i `publikt.spec.ts`,
+  `fest.spec.ts` och `traningsgrupp.spec.ts`.

@@ -45,6 +45,8 @@ interface Job {
   readonly settings: Readonly<Record<string, number>>;
   /** Grundkartan G1: laserdatan klipps till rutan (SWEREF 99 TM, med marginal) innan Karttapullautin körs. */
   readonly clip?: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number } | null;
+  /** En etapp räknas på sin klippruta med marginal mot grannetapperna (ägaren 2026-11-17, skarvar i reliefen); den äger bara klipprutan. */
+  readonly reach?: Job["clip"];
   /** G8: Lantmäteriets vektorprodukter (Marktäcke, Byggnad) att läsa till kandidater. */
   readonly extras?: readonly { readonly index: number; readonly kind: "LAND_COVER" | "BUILDINGS" | "PARCELS" }[];
   /** G4: branternas trösklar (null = Kungshatt-kedjans förval). */
@@ -60,6 +62,8 @@ interface Job {
 }
 
 const env = process.env;
+/** Rutan som laserdatan klipps till: etappens ruta med marginal, annars klipprutan. */
+const reachOf = (job: Job) => job.reach ?? job.clip;
 /** Laserrutornas förråd på serverns disk (lever så länge behållaren lever). */
 const CACHE_DIR = env.OTID_GEO_CACHE_DIR ?? "/tmp/otid-laserrutor";
 const origin = (env.OTID_GEO_ORIGIN ?? "").replace(/\/$/, "");
@@ -91,7 +95,7 @@ export function jobMemoryGb(job: { readonly clip?: Job["clip"]; readonly tiles: 
 }
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 /** Arbetarens version (samma som `GEO_WORKER_VERSION` i contracts; servern ger inga jobb till en äldre). */
-export const WORKER_VERSION = 38;
+export const WORKER_VERSION = 39;
 
 /**
  * Ägarens sprintkörningar 2026-11-13 föll med «stup.dxf kunde inte skickas (422)»: kontots kvot för kartfiler var full.
@@ -246,7 +250,7 @@ async function runJob(job: Job): Promise<void> {
       }
       // Grundkartan G1: rutan klipps till kartans område direkt efter hämtningen; en ruta helt utanför ger ingen fil.
       if (job.clip) {
-        await run([file, join("in", file), ...[job.clip.minX, job.clip.minY, job.clip.maxX, job.clip.maxY].map(String), `vatten${tile.index}.bin`, `mark${tile.index}.bin`, `punkter${tile.index}.bin`], dir,
+        await run([file, join("in", file), ...[reachOf(job)!.minX, reachOf(job)!.minY, reachOf(job)!.maxX, reachOf(job)!.maxY].map(String), `vatten${tile.index}.bin`, `mark${tile.index}.bin`, `punkter${tile.index}.bin`], dir,
           AbortSignal.any([control.signal, AbortSignal.timeout(20 * 60_000)]), lasclip);
         await rm(join(dir, file), { force: true });
       }
@@ -348,7 +352,7 @@ async function runJob(job: Job): Promise<void> {
         // Fastighetsindelningen kommer i flera rutor: var fil får ett eget namn och lagren läggs ihop nedan.
         const path = join(dir, `${label}-${extra.index}.gpkg`);
         await writeFile(path, found);
-        const features = await readGpkgFeatures(path, job.clip!);
+        const features = await readGpkgFeatures(path, reachOf(job)!);
         await rm(path, { force: true });
         // Sjön och havet finns redan ur lasern (skarpare strand); av marktäckets vatten tas bara det lasern inte har (gölar).
         const inLaserWater = (geometry: Geometry) => {
@@ -410,6 +414,12 @@ async function runJob(job: Job): Promise<void> {
         if (found.lines.length) await writeFile(join(dir, "diken.dxf"), moistureDxf([{ name: "dike", closed: false, parts: of("dike") },
           { name: "fuktstrak_terrang", closed: false, parts: of("fuktstrak_terrang") }]));
         ditchSummary = { ditches: of("dike").length, terrainChannels: of("fuktstrak_terrang").length };
+      }
+      // Ägaren 2026-11-17: släpstigar och spår ur reliefen (geo-tracks.ts), som OpenStreetMaps stigar flyttas till i grundkartan.
+      const tracks = await step("tracks", "Letar släpstigar och spår", { ground, water: waterData, wet: wetAt ? maskOf(ground, wetAt) : undefined });
+      if (tracks?.lines.length) {
+        await writeFile(join(dir, "spar.dxf"), moistureDxf([{ name: "spar_laser", closed: false, parts: tracks.lines }]));
+        ditchSummary = { ...ditchSummary, tracks: tracks.lines.length };
       }
     }
     // K5c del 3: vegetationen ur klassbilderna i ./out (<ruta>_vege_bit.png, _undergrowth_bit.png och världsfilen).
@@ -490,6 +500,7 @@ async function runJob(job: Job): Promise<void> {
       ...(files.has("brantlinjer.dxf") ? [["brantlinjer.dxf", "brantlinjer.dxf", "application/dxf"]] as const : []),
       ...(files.has("relief.png") ? [["relief.png", "relief.png", "image/png"], ["relief.pgw", "relief.pgw", "text/plain"]] as const : []),
       ...(files.has("diken.dxf") ? [["diken.dxf", "diken.dxf", "application/dxf"]] as const : []),
+      ...(files.has("spar.dxf") ? [["spar.dxf", "spar.dxf", "application/dxf"]] as const : []),
       ...(files.has("berg.dxf") ? [["berg.dxf", "berg.dxf", "application/dxf"]] as const : []),
       ...(files.has("berg.png") ? [["berg.png", "berg.png", "image/png"], ["berg.pgw", "berg.pgw", "text/plain"]] as const : []),
       ...(files.has("belagt.dxf") ? [["belagt.dxf", "belagt.dxf", "application/dxf"]] as const : []),

@@ -99,7 +99,7 @@ export const raceAdministratorSv = {
   workflowParticipantsHelp: "Sök deltagare och hantera anmälan, bricka och resultat.",
   introduction: "Den här sidan är för tävlingens administratörer.",
   accountLoginHelp: "Logga in med ditt konto. Du måste ha skapat tävlingen eller vara inbjuden som administratör.",
-  accountLoginLink: "Gå till Mina tävlingar",
+  accountLoginLink: "Gå till Mitt O-Tid",
   checking: "Kontrollerar behörighet…", denied: "Behörighet saknas.",
   /** Ägaren 2026-11-17: funktionären får veta varför banor, deltagare och inställningar inte syns. */
   functionaryTitle: "Varför ser jag inte banorna och deltagarna?",

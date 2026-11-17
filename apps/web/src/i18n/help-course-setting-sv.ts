@@ -13,10 +13,10 @@ export const gettingStartedHelpArticles: readonly HelpArticle[] = [
     title: "Kom igång: lägga en träning på 10 minuter",
     views: ["CS_START", "EVENTS", "COURSE_SETTING", "COURSES"],
     body: [
-      "Från tom tävling till utskrivna kartor och avläsning. Klubbytorna och träningsgrupperna finns överst på ”Mina tävlingar” (”Mina klubbar”, ”Mina grupper”) och i menyn med ditt namn.",
+      "Från tom tävling till utskrivna kartor och avläsning. Klubbytorna och träningsgrupperna finns överst på ”Mitt O-Tid” (”Mina klubbar”, ”Mina grupper”) och i menyn med ditt namn.",
       { steps: [
-        "Skriv namn och datum på ”Mina tävlingar”, välj ”Träning” och tryck på ”Skapa tävling”. Se [Skapa en tävling](#skapa-tavling).",
-        "Öppna ”Banläggning” och ladda upp kartfilen, eller ta den med ”Välj karta från klubbarkivet”. Se [Banläggningen och kartfilen](#banlaggning-start).",
+        "Tryck på ”Lägg banor” på ”Mitt O-Tid”: en träning skapas och banläggningen öppnas. Se [Skapa en tävling](#skapa-tavling).",
+        "Ladda upp kartfilen i banläggningen, eller ta den med ”Välj karta från klubbarkivet”. Se [Banläggningen och kartfilen](#banlaggning-start).",
         "Tryck på ”Börja med en tom banläggning” (eller ”Läs in .ppen” om banan finns i Purple Pen).",
         "Tryck på ”Ny bana” och välj ”Skala för banan” i banans egenskaper. Klicka ut kontrollerna, start och mål. Se [Kontroller och banor](#kontroller-banor).",
         "Korridor, kurvbild eller annan form: fliken ”Träningsformer”. Se [Träningsformer](#traning).",
@@ -33,7 +33,7 @@ export const gettingStartedHelpArticles: readonly HelpArticle[] = [
     body: [
       "Banorna är lagda i Purple Pen och ska bli en tävling med kartor från tryckeriet:",
       { steps: [
-        "Skapa en tävling av typen ”Tävling” på ”Mina tävlingar”.",
+        "Skapa en tävling av typen ”Tävling” på ”Mitt O-Tid”.",
         "Öppna ”Banläggning” och ladda upp samma kartfil som i Purple Pen. Se [Banläggningen och kartfilen](#banlaggning-start).",
         "Tryck på ”Läs in .ppen”. Bara IOF XML: ”Banor” → ”Läs in banfil”. Se [Purple Pen, OCAD och IOF XML](#purple-pen).",
         "Gå igenom fliken ”Varningar” och fliken ”Beskrivning”. Se [Varningar](#varningar).",
@@ -52,7 +52,7 @@ export const courseSettingHelpArticles: readonly HelpArticle[] = [
     title: "Banläggningen: öppna den och läs in kartan",
     views: ["CS_START", "COURSE_SETTING", "COURSES"],
     body: [
-      "Banläggningen öppnas med ”Banläggning” i arbetsytans sidopanel, under ”Meny” på telefonen eller med knappen ”Banläggning” på ”Mina tävlingar”.",
+      "Banläggningen öppnas med ”Banläggning” i arbetsytans sidopanel, under ”Meny” på telefonen eller med knappen ”Banläggning” på ”Mitt O-Tid”.",
       "Den som bara ska lägga banor läggs till under ”Personer” i arbetsytan med en av rollerna:",
       [
         "”Banläggning: ändra”: ändrar banorna direkt.",

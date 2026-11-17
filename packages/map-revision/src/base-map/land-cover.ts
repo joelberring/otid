@@ -85,7 +85,8 @@ function withoutSmall(mask: Uint8Array, columns: number, rows: number, minCells:
 export function landCoverCodesFromBase64(text: string, cells: number): Uint16Array | undefined {
   let bytes: Uint8Array;
   try {
-    bytes = typeof Buffer !== "undefined" ? new Uint8Array(Buffer.from(text, "base64")) : Uint8Array.from(atob(text), char => char.charCodeAt(0));
+    // atob finns i webbläsaren och i Node (16+); paketet byggs utan Nodes typer.
+    bytes = Uint8Array.from(atob(text), char => char.charCodeAt(0));
   } catch { return undefined; }
   if (bytes.length !== cells * 2) return undefined;
   const codes = new Uint16Array(cells), view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);

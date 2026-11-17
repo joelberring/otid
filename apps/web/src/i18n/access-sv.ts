@@ -9,7 +9,7 @@ export const accessSv = {
   noAccess: (email: string) => `Du är inloggad som ${email} men har inte behörighet till den här tävlingen.`,
   noAccessHelp: "Be tävlingens administratör att bjuda in dig med den adressen, eller logga ut och logga in med ett annat konto.",
   unverified: (email: string) => `Du är inloggad som ${email}, men adressen är inte bekräftad. Har du bjudits in: bekräfta din e-postadress för att behörigheten ska gälla.`,
-  myRaces: "Gå till Mina tävlingar",
+  myRaces: "Gå till Mitt O-Tid",
   confirmHeading: "Bekräfta din e-postadress",
   confirmInvitation: (email: string) => `Du är inloggad som ${email}, men adressen är inte bekräftad, så inbjudan gäller inte än. Bekräfta din e-postadress för att behörigheten ska gälla.`,
   confirmHow: "Du får ett mejl med en länk. Öppna länken och välj lösenord; då är adressen bekräftad och behörigheten gäller.",

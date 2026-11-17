@@ -35,7 +35,7 @@ export const clubArchiveEn: Texts<typeof clubArchiveSv> = {
     READER: "sees what the club lets members see under Who sees what"
   },
   tabs: { trainings: "Trainings", planning: "Planning", maps: "Maps", members: "Members", devices: "Units", club: "The club", import: "Import" },
-  back: "My events",
+  back: "My O-Tid",
   backToArchive: "The club archive",
   loading: "Fetching the archive …",
   loadFailed: "The archive could not be fetched. Are you signed in and a member of the club?",
@@ -141,7 +141,7 @@ export const clubArchiveEn: Texts<typeof clubArchiveSv> = {
     eventName: "Name",
     date: "Date",
     target: "Where",
-    own: "New training (My events)",
+    own: "New training (My O-Tid)",
     plan: "To the term plan",
     planHelp: "Choose an upcoming week without a training: the copy is linked there and gets the week's title, date and group.",
     planNone: "None (just a new training)",

@@ -14,7 +14,7 @@ export const homeSv = {
   organizerQuestion: "Ordnar du tävlingar eller träningar?",
   organizerStart: "Kom igång som arrangör",
   personalTitle: "Ditt O-Tid",
-  myRaces: "Mina tävlingar",
+  myRaces: "Mitt O-Tid",
   clubs: "Klubbar",
   groups: "Träningsgrupper",
   projects: "Kartprojekt",

@@ -147,3 +147,13 @@ Valet skickas med i skapandet (`organisationId`, null = ingen) och sparas i samm
 `defaultRaceOrganiser` (skaparens enda bekräftade klubb) är borttagen, också som reserv i terminsplanens Skapa träningen när
 klubbytan saknar Eventor-koppling. En träningsgrupps klubb gissas inte längre ur gruppens kartbibliotek; gruppens egen klubb
 eller klubbens terminsplan gäller som förut.
+
+### Tillägg 2026-11-17 (översynen av navet): "Lägg banor" och klubbfrågan i Mitt O-Tid
+
+Navet `/organizer` heter **Mitt O-Tid** och har fyra val överst. **Lägg banor** skapar en Träning i dag (Stockholms tid) med
+namnet "Banläggning <datum>" (går att byta i panelen) med samma anrop och samma sparade försök som formuläret, och öppnar
+banläggningen; har kontot kommande lopp där det får lägga banor erbjuds de först. Arrangörsklubben följer tillägget ovan: har
+kontot klubbar (`organisations?mine=1`), eller kunde de inte läsas, måste en av dem eller "Ingen klubb (eget)" väljas i panelen,
+utan förval; har kontot inga klubbar skickas `organisationId: null` (det finns inget att gissa). **Klubbfrågan** (beslut 2) är ett
+block bara första gången i webbläsaren; därefter en rad med "Välj klubb" (fäller ut frågan) och "Hoppa över". Markeringen sparas i
+webbläsaren (`otid.hub.clubStepSeen`), inte på servern; utan lagring visas blocket som för en ny besökare.

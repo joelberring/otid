@@ -115,6 +115,8 @@ const KEYWORDS: readonly { readonly words: RegExp; readonly line?: string; reado
   // Stockholms baskarta som objekttyp + undertyp («Spårnät SJ Normalspår», «Elnät Högspänningsledning»; prov 2026-11-13).
   { words: /JARNVAG|RAIL|SPARVAG|SPARNAT|NORMALSPAR|SMALSPAR/, line: "509" },
   { words: /KRAFTLED|POWER|HOGSPANNING/, line: "510" },
+  // Släpstigar och spår ur terrängformen (scripts/geo-tracks.ts, ägaren 2026-11-17): otydlig stig.
+  { words: /^SPAR_LASER$/, line: "507" },
   { words: /GANGVAG|STIG|FOOTWAY|PATH/, line: "505" },
   { words: /PARKERING|ASFALT|PAVED|PARKING/, area: "501" },
   { words: /VAG|GATA|ROAD|STREET/, line: "503" },

@@ -183,6 +183,7 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
   const publicPath = await owner.getByRole("link", { name: "Visa den publika sidan" }).getAttribute("href");
   expect(publicPath).toMatch(/^\/fest\/[2-9a-hjkmnp-z]{6}$/);
   const code = publicPath!.split("/").at(-1)!;
+  await expect(owner.getByTestId("app-code")).toHaveText(`Kod för appen: ${code}`);
   const visitor = await (await browser.newContext()).newPage();
   const hub = await visitor.request.get(`/t/${code}`, { maxRedirects: 0 });
   expect(hub.status()).toBe(307);
@@ -261,6 +262,7 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
   await expect(qr.getByRole("img", { name: /QR-kod till fest-sidan/ })).toBeVisible();
   await expect(qr).toContainText(publicPath!);
   await expect(qr).toContainText("Checka in");
+  await expect(qr.getByTestId("app-code")).toHaveText(`Kod för appen: ${code}`);
   expect(await qr.locator("h1").evaluate(element => getComputedStyle(element).fontFamily)).toContain("Poppins");
   await reviewScreenshots(visitor, "fest-qr");
 

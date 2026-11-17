@@ -9,7 +9,7 @@ import { laserCollectionOf, laserRuntimeFromEnvironment, searchMapProjectLaser }
 import {
   authenticateGeoWorker, claimGeoJob, createGeoJob, finishGeoJob, geoTilesPerMonth, heartbeatGeoJob, listGeoJobs, openGeoJobLaser, readGeoOutput,
   removeGeoJob, storeGeoOutput
-, GEO_JOB_COUNTS, pruneGeoJobs , splitClip } from "../../src/map-project-geo-jobs";
+, GEO_JOB_COUNTS, pruneGeoJobs , splitClip, stageReach } from "../../src/map-project-geo-jobs";
 import { mergeGeoStages, readGeoStageOutput } from "../../src/map-project-geo-merge";
 import { listMapProjectLayers } from "../../src/map-project-layers";
 import { fetchMapProjectMoisture, moistureRequestBox } from "../../src/map-project-moisture";
@@ -294,6 +294,9 @@ describe("ADR-0219 K5: geo-arbetaren", () => {
     expect(splitClip(island, 0)).toEqual([island]);
     expect(splitClip({ minX: 0, minY: 0, maxX: 9000, maxY: 3000 }, 10).map(part => [part.minX, part.maxX])).toEqual([[0, 3000], [3000, 6000], [6000, 9000]]);
     expect(splitClip({ minX: 0, minY: 0, maxX: 4000, maxY: 4000 }, 16)).toHaveLength(1);
+    // Ägaren 2026-11-17 (skarvar i reliefen): etappen räknas med 50 m marginal mot grannen, inte utanför hela rutan.
+    expect(stageReach({ ...island, maxY: 6524680 }, island)).toEqual({ ...island, maxY: 6524730 });
+    expect(stageReach({ ...island, minY: 6524680 }, island)).toEqual({ ...island, minY: 6524630 });
 
     const { owner, projectId } = await project();
     const { runtime } = fakeLantmateriet();
@@ -308,12 +311,12 @@ describe("ADR-0219 K5: geo-arbetaren", () => {
     expect(created.split).toEqual({ total: 2 });
     expect(created.job.name).toBe("Hela ön – etapp 1 av 2");
     const queued = await db.select({ name: sql<string>`request->>'name'`, clip: sql<typeof island>`request->'clip'`, tiles: sql<number>`jsonb_array_length(request->'tiles')`,
-      tile: sql<string>`request->'tiles'->0->>'id'`, split: sql<{ index: number; total: number }>`request->'split'` })
+      tile: sql<string>`request->'tiles'->0->>'id'`, reach: sql<typeof island>`request->'reach'`, split: sql<{ index: number; total: number }>`request->'split'` })
       .from(schema.mapProjectGeoJobs).where(eq(schema.mapProjectGeoJobs.projectId, projectId)).orderBy(schema.mapProjectGeoJobs.createdAt);
     // Varje etapp får sin halva av klipprutan och bara rutorna som når den.
     expect(queued).toMatchObject([
-      { name: "Hela ön – etapp 1 av 2", clip: { ...island, maxY: 6524680 }, tiles: 1, tile: south.id, split: { index: 1, total: 2 } },
-      { name: "Hela ön – etapp 2 av 2", clip: { ...island, minY: 6524680 }, tiles: 1, tile: north.id, split: { index: 2, total: 2 } }]);
+      { name: "Hela ön – etapp 1 av 2", clip: { ...island, maxY: 6524680 }, reach: { ...island, maxY: 6524730 }, tiles: 1, tile: south.id, split: { index: 1, total: 2 } },
+      { name: "Hela ön – etapp 2 av 2", clip: { ...island, minY: 6524680 }, reach: { ...island, minY: 6524630 }, tiles: 1, tile: north.id, split: { index: 2, total: 2 } }]);
     // «Ta bort äldre körningar» ser etapperna som en körning: när båda är klara behålls båda.
     for (let stage = 0; stage < queued.length; stage += 1) {
       const claimed = await claimGeoJob(db, "geo-1", NOW);

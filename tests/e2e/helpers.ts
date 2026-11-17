@@ -239,7 +239,7 @@ export async function chooseOrganiser(owner: Page, club?: RegExp): Promise<void>
   else await field.getByRole("button", { name: "Ingen klubb (eget)" }).click();
 }
 
-/** Tävlingstyperna i "Skapa tävling" (ADR-0170 beslut 1). */
+/** Tävlingstyperna i "Skapa träning eller tävling" (ADR-0170 beslut 1). */
 /** ADR-0188 beslut 5: "Tävling med gafflade banor" är en del av Tävling (gaffling följer av banorna). */
 export type RaceTypeName = "Träning" | "Liten tävling" | "Tävling" | "Stafett" | "Rogaining" | "Fest";
 
@@ -255,11 +255,12 @@ export async function createRace(owner: Page, eventName: string, date = today(),
   await owner.getByRole("radio", { name: type, exact: true }).check();
   await chooseOrganiser(owner, club);
   if (timeZone !== TIME_ZONE) {
-    const form = owner.locator("form").filter({ has: owner.getByRole("button", { name: "Skapa tävling" }) });
+    const form = owner.locator("form").filter({ has: owner.getByTestId("create-race-submit") });
     await form.locator("summary", { hasText: /^Mer$/ }).click();
     await form.getByLabel("Tidszon").fill(timeZone);
   }
-  await owner.getByRole("button", { name: "Skapa tävling" }).last().click();
+  // Översynen 2026-11-17: knappen heter efter typen ("Skapa träning", "Skapa tävling" …).
+  await owner.getByTestId("create-race-submit").click();
   await owner.waitForURL(/\/admin\/[0-9a-f-]+\/manage$/);
   await expect(owner.getByRole("heading", { name: eventName })).toBeVisible();
   return owner.url().split("/").at(-2)!;

@@ -64,9 +64,11 @@ test("ladda ner säkerhetskopia och återställ den som en ny tävling med samma
   await section.scrollIntoViewIfNeeded();
   await reviewScreenshots(owner, "aterstallning-nedladdning");
 
-  // Ett annat konto (som på en ny server) återställer från Mina tävlingar.
+  // Ett annat konto (som på en ny server) återställer från Mitt O-Tid (översynen 2026-11-17: under Mer längst ned).
   const restorer = await registerAccount(browser, `ny.${suffix}@exempel.se`, "Nils Ny");
   await restorer.goto("/organizer");
+  await expect(restorer.getByRole("button", { name: "Återställ tävling från säkerhetskopia" })).toBeHidden();
+  await restorer.getByTestId("hub-more").locator("summary").click();
   await restorer.getByRole("button", { name: "Återställ tävling från säkerhetskopia" }).click();
   const dialog = restorer.getByRole("dialog", { name: "Återställ tävling från säkerhetskopia" });
   // Fel fil först: ett begripligt besked.

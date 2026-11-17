@@ -30,3 +30,8 @@
 .checklist { display: grid; gap: .2rem; max-height: 20rem; overflow: auto; margin: 0; padding: 0; list-style: none; }
 .checklist label { display: flex; gap: .6rem; align-items: center; min-height: 44px; overflow-wrap: anywhere; }
 .checklist small { color: var(--muted); }
+
+/* Översynen 2026-11-17: klubbfrågan på en rad i navet efter första besöket. */
+.line { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .35rem 1rem; margin: 0 0 12px;
+  padding: 4px 0 8px; border-bottom: 1px solid var(--line); min-width: 0; }
+.line > p { margin: 0; min-width: 0; overflow-wrap: anywhere; }

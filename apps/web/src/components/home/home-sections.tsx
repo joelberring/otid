@@ -45,13 +45,15 @@ export function HomePersonal({ personal, language }: { personal: Personal; langu
 }
 
 /**
- * Översynen av startsidan 2026-11-17: "Har du en kod?" överst. Formuläret skickas till `/kod` (GET, fungerar utan
+ * Översynen av startsidan 2026-11-17: "Har du en kod?" överst, men bara i appen (CSS:en, `data-otid-app`) och med ett besked
+ * (`problem`) eller `/#kod` också på webben. Formuläret skickas till `/kod` (GET, fungerar utan
  * JavaScript), som leder till tävlingen, festen eller gruppen eller tillbaka hit med beskedet (`problem`). Tangentbordet i
  * mobilen: inga versaler eller rättningar, vanliga tecken (koderna är a–z, 0–9 och bindestreck, och en länk ska gå att klistra in).
  */
 export function JoinCode({ language, problem }: { language: Language; problem?: JoinCodeProblem | undefined }) {
   const text = texts(language);
-  return <section className={styles.join} id="kod" aria-labelledby="kod-rubrik" data-testid="home-join">
+  return <section className={problem ? `${styles.join} ${styles.joinShown}` : styles.join} id="kod" aria-labelledby="kod-rubrik"
+    data-testid="home-join">
     <h2 id="kod-rubrik">{text.joinTitle}</h2>
     <p id="kod-hjalp">{text.joinHelp}</p>
     <form action="/kod" method="get" className={styles.joinForm}>

@@ -91,7 +91,9 @@ export function cutRing(ring: Ring): [number, number][] | undefined {
     for (let i = 0; i < smooth.length; i += 1) { const [ax, ay] = smooth[i]!, [bx, by] = smooth[(i + 1) % smooth.length]!; area += ax * by - bx * ay; }
     if (Math.abs(area) > bestArea) { bestArea = Math.abs(area); best = smooth; }
   }
-  return best && [...best, best[0]!].map(([column, row]) => [left + column * CUT_CELL, top - row * CUT_CELL]);
+  // Ett litet hygge (under generaliseringens minsta yta) är fortfarande ett hygge: det behåller sin egen kant.
+  if (!best) return ring.map(([x, y]) => [x, y]);
+  return [...best, best[0]!].map(([column, row]) => [left + column * CUT_CELL, top - row * CUT_CELL]);
 }
 
 function inside(ring: Ring, x: number, y: number): boolean {

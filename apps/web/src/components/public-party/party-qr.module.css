@@ -19,6 +19,8 @@
 .code { display: block; width: 120mm; max-width: 80%; height: auto; image-rendering: pixelated; }
 .scan { margin: 0; font-size: 13pt; color: #444; }
 .address { margin: -4mm 0 0; padding: 0 10mm; font-family: var(--font-dense); font-size: 22pt; font-weight: 700; overflow-wrap: anywhere; }
+/* Översynen 2026-11-17: koden för appen, liten och underordnad adressen. */
+.appCode { margin: -5mm 0 0; padding: 0 10mm; font-size: 11pt; color: #444; }
 .howTo { display: grid; gap: 2mm; margin: 0; padding: 5mm 8mm; width: calc(100% - 24mm); box-sizing: border-box; list-style: none;
   border-top: 2mm solid var(--party-accent); background: #f2f2f2; font-size: 13pt; line-height: 1.3; text-align: left; }
 

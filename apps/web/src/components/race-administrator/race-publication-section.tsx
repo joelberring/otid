@@ -8,7 +8,7 @@ import { courseSecrecyResponseSchema, publicTimingResponseSchema, racePublicatio
 import { publicRaceSv } from "../../i18n/public-race-sv";
 import { courseSecrecySv } from "../../i18n/course-secrecy-sv";
 import { displayAddress, formatRaceInstant, raceHubPath, raceQrPath } from "../../lib/public-race-format";
-import { PublicLinkShare } from "../public-link-share";
+import { AppCode, PublicLinkShare } from "../public-link-share";
 import { Button, Notice, Section } from "../ui";
 import styles from "../race-administrator-workspace.module.css";
 import type { Workspace } from "./workspace-state";
@@ -61,6 +61,7 @@ function RacePublicationSection({ ws, id }: { ws: Workspace; id: string }) {
       <p><span className={styles.muted}>{text.page}: </span>
         <a href={hub} target="_blank" rel="noopener">{origin ? displayAddress(origin, hub) : hub}
           <span className="visually-hidden"> ({text.newTab})</span></a></p>
+      <AppCode code={publication.shortCode} />
       <div className={styles.actions}>
         <a href={hub} target="_blank" rel="noopener">{published ? text.openPage : text.previewPage}</a>
         <a href={raceQrPath(publication.shortCode)} target="_blank" rel="noopener">{text.printQr}

@@ -109,6 +109,8 @@ a.hubLink:hover strong { text-decoration: underline; }
 .sheet img { display: block; width: min(120mm, 70vw); height: auto; image-rendering: pixelated; }
 .sheet .sheetScan { font-size: 12pt; color: #333; }
 .sheet .sheetAddress { font-family: var(--font-dense); font-size: 22pt; font-weight: 600; overflow-wrap: anywhere; }
+/* Översynen 2026-11-17: koden för appen, liten och underordnad adressen. */
+.sheet .sheetCode { margin-top: -4mm; font-size: 11pt; color: #444; }
 .sheet[data-size="A5"] { max-width: 128mm; padding: 8mm 6mm; gap: 4mm; }
 .sheet[data-size="A5"] h1 { font-size: 22pt; }
 .sheet[data-size="A5"] .sheetLine { font-size: 15pt; }

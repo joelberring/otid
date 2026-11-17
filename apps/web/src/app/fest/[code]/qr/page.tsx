@@ -45,6 +45,6 @@ export default async function PartyQrPage({ params }: Params) {
   return <main className="stack">
     <PreviewBanner access={hub.access} />
     <PartyQrSheet partyPath={path} title={theme.title ?? hub.eventName} eventName={hub.eventName} theme={theme} url={url}
-      address={displayAddress(origin, path)} qrImage={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`} />
+      address={displayAddress(origin, path)} code={hub.shortCode} qrImage={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`} />
   </main>;
 }

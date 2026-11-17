@@ -29,7 +29,7 @@ export default async function GroupQrPage({ params }: Params) {
   const svg = await QRCode.toString(new URL(path, origin).toString(), { type: "svg", errorCorrectionLevel: "M", margin: 2,
     color: { dark: "#000000", light: "#ffffff" } });
   return <main className="stack">
-    <QrSheet hubPath={path} eventName={read.view.name} details={await currentLanguage() === "en" ? groupPublicEn.kicker : trainingGroupSv.public.kicker} address={displayAddress(origin, path)}
+    <QrSheet hubPath={path} eventName={read.view.name} details={await currentLanguage() === "en" ? groupPublicEn.kicker : trainingGroupSv.public.kicker} address={displayAddress(origin, path)} code={read.view.code}
       qrImage={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`} />
   </main>;
 }

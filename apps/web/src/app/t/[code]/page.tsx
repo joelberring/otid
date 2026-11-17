@@ -14,7 +14,7 @@ import { displayAddress, formatRaceDate, formatRaceInstant, raceHubPath } from "
 import { raceTypeProfile } from "../../../lib/race-sections";
 import { PreviewBanner } from "../../../components/public-race/preview-banner";
 import { hasSplitAnalysis } from "../../../components/public-race/race-list";
-import { PublicLinkShare } from "../../../components/public-link-share";
+import { AppCode, PublicLinkShare } from "../../../components/public-link-share";
 import { RaceInfo } from "../../../components/race-info";
 import { SelfRegistrationForm } from "../../../components/self-registration/self-registration-form";
 import styles from "../../../components/public-race/public-race.module.css";
@@ -91,6 +91,7 @@ export default async function RaceHubPage({ params }: Params) {
       {hub.lastUpdate && <p>{text.lastUpdate} <time dateTime={hub.lastUpdate}>{formatRaceInstant(hub.lastUpdate, hub.timeZone)}</time></p>}
       <div className={styles.hubAddress}>
         <span>{text.address}: <code>{address}</code></span>
+        <AppCode code={hub.shortCode} />
         <PublicLinkShare path={path} title={hub.eventName} />
       </div>
     </div>

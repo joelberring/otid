@@ -155,6 +155,8 @@ test("opublicerad tävling syns inte, publicerad syns under rätt rubrik, kort a
   await owner.goto(`/admin/${raceId}/manage`);
   await openStep(owner, "Publicera");
   await expect(owner.getByRole("link", { name: /^Skriv ut QR-kod/ })).toHaveAttribute("href", `${hubPath!}/qr`);
+  // Översynen 2026-11-17: koden för appen står i klartext under länken, och på QR-arket under adressen.
+  await expect(owner.getByTestId("app-code")).toHaveText(`Kod för appen: ${hubPath!.slice(3)}`);
   // Utvecklingsservern och webbläsarna delar ett minnestak: besökarens sida återanvänds.
   const qr = visitor;
   await qr.goto(`${hubPath!}/qr`);
@@ -163,6 +165,7 @@ test("opublicerad tävling syns inte, publicerad syns under rätt rubrik, kort a
   await expect(sheet.getByRole("img", { name: `QR-kod till tävlingssidan för ${todayName}` })).toBeVisible();
   await expect(sheet.getByText(/\/t\/[2-9a-hjkmnp-z]{6}$/)).toBeVisible();
   await expect(sheet.getByText("Resultat och sträcktider")).toBeVisible();
+  await expect(sheet.getByTestId("app-code")).toHaveText(`Kod för appen: ${hubPath!.slice(3)}`);
   await qr.emulateMedia({ media: "print" });
   await expect(sheet).toBeVisible();
   await expect(qr.getByRole("button", { name: "Skriv ut" })).toBeHidden();

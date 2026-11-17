@@ -15,6 +15,7 @@ import { PartyThemeForm } from "./party-theme-form";
 import { CENTRUM_PRESET } from "../../lib/party-theme-style";
 import { SelfRegistrationSetting } from "./self-registration-setting";
 import { partyStartFields } from "../../lib/party-start-fields";
+import { AppCode } from "../public-link-share";
 
 /**
  * Fest (PLAN.md steg 40): festens start, varorna (kod, namn, pris), köpen i kväll med summa per person, in- och
@@ -128,6 +129,7 @@ function PartyWorkspace({ raceId, admin, ws }: { raceId: string; admin: boolean;
       actions={<a className={local.open} href={`/admin/${raceId}/readout`} target="_blank" rel="noopener">{text.openDesk}</a>}>
       <p className={styles.workflowHelp}>{text.openDeskHelp}</p>
       <p className={styles.workflowHelp}>{text.publicHelp} <a href={state.publicPath} target="_blank" rel="noopener">{text.publicLink}</a></p>
+      <AppCode code={state.publicPath.slice("/fest/".length)} />
       <div className={styles.actions}>
         <a className={local.secondaryLink} href={`${state.publicPath}/qr`} target="_blank" rel="noopener">{text.qrSign}</a>
       </div>

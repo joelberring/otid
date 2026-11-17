@@ -53,6 +53,13 @@ import { clubLeadersEn } from "../i18n/club-leaders-en";
 import { clubMapDuplicatesSv } from "../i18n/club-map-duplicates-sv";
 import { readInvitationHandoff, takeInvitationNext } from "../lib/invitation-handoff";
 import { NewPasswordFields, PasswordInput, passwordsReady } from "./password-field";
+import { HubChoices } from "./organizer-hub/hub-choices";
+import { HubStartCard } from "./organizer-hub/hub-start-card";
+import { QuickCourse } from "./organizer-hub/quick-course";
+import { createSubmitLabel, myClubHref } from "../lib/hub-start";
+import { todayIn } from "../lib/my-events-order";
+import type { ClubSummary, RaceType } from "@o-tid/contracts";
+import hubStyles from "./organizer-hub/organizer-hub.module.css";
 import styles from "./organizer-workspace.module.css";
 
 type Session = { accountId: string; email: string; displayName: string; superadmin: boolean; expiresAt: string; emailVerified?: boolean | undefined };
@@ -113,10 +120,13 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
   const formErrorText = useTexts(formErrorsSv, formErrorsEn);
   const copy = useTexts(organizerSv, organizerEn);
   const [session, setSession] = useState<Session>();
-  /** Antal klubbytor kontot är med i (undefined tills remsan har läst dem) och om klubbfrågan visas. */
-  const [clubSpaces, setClubSpaces] = useState<number>();
+  /** Klubbytorna kontot är med i (undefined tills remsan har läst dem) och om klubbfrågan visas. */
+  const [clubSpaces, setClubSpaces] = useState<readonly ClubSummary[]>();
   const [clubQuestionShown, setClubQuestionShown] = useState(false);
-  const onClubs = (clubs: readonly unknown[]) => setClubSpaces(clubs.length);
+  const onClubs = (clubs: readonly ClubSummary[]) => setClubSpaces(clubs);
+  /** Översynen 2026-11-17: panelen Lägg banor och vald typ i formuläret (knappens namn). */
+  const [quickOpen, setQuickOpen] = useState(false);
+  const [createType, setCreateType] = useState<RaceType>("TRAINING");
   const [sessionChecked, setSessionChecked] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -291,9 +301,10 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
     }
   }
 
-  async function submitCreate(current: OrganizerCreateAttempt) {
+  /** `quick`: Lägg banor – ingen karta ur klubbarkivet från formuläret, och banläggningen öppnas. */
+  async function submitCreate(current: OrganizerCreateAttempt, quick = false) {
     setBusy(true);
-    setMessage(copy.creatingEvent);
+    setMessage(quick ? copy.quick.starting : copy.creatingEvent);
     try {
       if (!session || session.accountId !== current.accountId) {
         throw new Error(copy.attemptBelongsToOtherAccount);
@@ -324,10 +335,11 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
       clearOrganizerAttempt();
       setAttempt(undefined);
       // ADR-0210: kartan ur klubbarkivet blir tävlingens kartfil, och banläggningen öppnas med den.
-      const problem = clubMap ? await applyClubMap(clubMap, result.raceId, stage => setMessage(clubMapDuplicatesText.picker.working[stage]),
+      const map = quick ? undefined : clubMap;
+      const problem = map ? await applyClubMap(map, result.raceId, stage => setMessage(clubMapDuplicatesText.picker.working[stage]),
         clubMapDuplicatesText.picker, raceMapText.mapFile.errors) : undefined;
-      const page = clubMap ? "course-setting" : "manage";
-      if (clubMap) setClubMap(undefined);
+      const page = map || quick ? "course-setting" : "manage";
+      if (map) setClubMap(undefined);
       const shown = problem ?? "";
       if (shown) {
         setMessage(shown);
@@ -335,7 +347,7 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
         return;
       }
       // PLAN.md steg 24: direkt in i den nya tävlingens arbetsyta.
-      if (!clubMap) setMessage(copy.created);
+      if (!map && !quick) setMessage(copy.created);
       enterRace(result.raceId, page);
     } catch (error) {
       setMessage(errorMessage(copy, error));
@@ -372,6 +384,24 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
       saveOrganizerAttempt(current);
       setAttempt(current);
       await submitCreate(current);
+    } catch (error) {
+      setMessage(errorMessage(copy, error));
+    }
+  }
+
+  /**
+   * Översynen 2026-11-17, "Lägg banor": en Träning i dag (Stockholms tid) med namnet ur panelen, skapad med samma anrop och
+   * samma sparade försök som formuläret. Arrangörsklubben är panelens aktiva val (null = ingen), aldrig en gissning.
+   */
+  async function createQuick(eventName: string, organisationId: string | null) {
+    try {
+      if (!session) throw new Error(copy.sessionExpired);
+      const request = organizerEventCreateRequestSchema.parse({ formatVersion: 1, eventName, raceName: "",
+        raceDate: todayIn("Europe/Stockholm", new Date()), timeZone: "Europe/Stockholm", raceType: "TRAINING", organisationId });
+      const current = createOrganizerAttempt(request, session.accountId, () => crypto.randomUUID());
+      saveOrganizerAttempt(current);
+      setAttempt(current);
+      await submitCreate(current, true);
     } catch (error) {
       setMessage(errorMessage(copy, error));
     }
@@ -414,9 +444,7 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
               return <li key={race.raceId}>
               <div><strong>{name ?? race.raceDate}</strong><span>{name ? `${race.raceDate} · ` : ""}{raceTypeText.types[race.raceType].name}</span></div>
               <div className={styles.raceActions}>
-                {(event.role === "OWNER" || event.role === "ADMIN") && <button type="button" className={styles.secondary} disabled={busy || enteringRaceId !== undefined}
-                  aria-label={raceCopyText.actionLabel(name ?? event.eventName)} onClick={() => setCopySource({ raceId: race.raceId, eventName: event.eventName,
-                    raceName: race.raceName, raceDate: race.raceDate })}>{raceCopyText.action}</button>}
+                {/* Översynen 2026-11-17: Öppna arbetsytan, Banläggning, Kopiera. */}
                 {event.role !== "COURSE_SETTER" && <button type="button" className={styles.secondary} disabled={busy || enteringRaceId !== undefined}
                   aria-busy={enteringRaceId === race.raceId} onClick={() => enterRace(race.raceId)}>
                   {enteringRaceId === race.raceId ? copy.opening : copy.openRace}</button>}
@@ -426,6 +454,9 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
                   <button type="button" className={styles.secondary} disabled={busy || enteringRaceId !== undefined} data-testid="open-course-setting"
                   onClick={() => enterRace(race.raceId, race.courseSetting === "MAP" ? "course-setting/map-errors" : "course-setting")}>
                   {race.courseSetting === "MAP" ? copy.openMapErrors : copy.openCourseSetting}</button>}
+                {(event.role === "OWNER" || event.role === "ADMIN") && <button type="button" className={styles.secondary} disabled={busy || enteringRaceId !== undefined}
+                  aria-label={raceCopyText.actionLabel(name ?? event.eventName)} onClick={() => setCopySource({ raceId: race.raceId, eventName: event.eventName,
+                    raceName: race.raceName, raceDate: race.raceDate })}>{raceCopyText.action}</button>}
               </div>
             </li>;
             })}</ul>
@@ -494,7 +525,13 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
 
     {/* ADR-0209: "Vilken klubb tillhör du?" efter registreringen (valfritt, tills det är besvarat). */}
     {/* Användartest 2026-11-12: klubbfrågan bara för den som inte redan är med i en klubbyta, och remsan upprepar den inte. */}
-    {session && <ClubStep skip={clubSpaces === undefined || clubSpaces > 0} onShown={setClubQuestionShown} />}
+    {/* Översynen 2026-11-17: fyra val överst; Lägg banor öppnar panelen under valen. */}
+    {session && <HubChoices clubHref={myClubHref(clubSpaces)} courseOpen={quickOpen} onCourse={() => setQuickOpen(open => !open)}
+      onCreate={() => createHeadingRef.current?.focus({ preventScroll: true })} />}
+    {session && quickOpen && !attempt && <QuickCourse events={events} busy={busy || enteringRaceId !== undefined}
+      onOpen={raceId => enterRace(raceId, "course-setting")} onCreate={(name, organisationId) => void createQuick(name, organisationId)}
+      onClose={() => setQuickOpen(false)} />}
+    {session && <ClubStep skip={clubSpaces === undefined || clubSpaces.length > 0} onShown={setClubQuestionShown} />}
     {session && <MyPlacesStrip onClubs={onClubs} clubQuestionShown={clubQuestionShown} />}
     {session && <MyPlanTasks />}
     {session && <div className={styles.columns}>
@@ -505,6 +542,9 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
         {!eventsLoaded && <p aria-live="polite">{copy.loadingEvents}</p>}
         {eventsLoaded && eventsError && <p role="alert">{eventsError}</p>}
         {eventsLoaded && !eventsError && events.length === 0 && <div className={styles.empty}><strong>{copy.noEvents}</strong><p>{copy.noEventsHint}</p><a href="#organizer-create-event">{copy.noEventsCreateLink}</a></div>}
+        {/* Översynen 2026-11-17: Kom igång (samma mönster som klubbytans) för den som inte har någon tävling än. */}
+        {eventsLoaded && !eventsError && events.length === 0 && <HubStartCard hasClub={(clubSpaces?.length ?? 0) > 0}
+          onCourse={() => { setQuickOpen(true); window.scrollTo({ top: 0 }); }} />}
         {eventsLoaded && !eventsError && events.length > 0 && <div className={styles.eventFinder}>
           <label htmlFor="organizer-event-search">{copy.eventSearchLabel}</label>
           <div className={styles.eventFinderControls}>
@@ -536,7 +576,7 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
             <Field label={copy.date} error={createErrors.raceDate} className={styles.createDate}><DateInput name="raceDate"
               disabled={busy} onChange={() => createErrors.raceDate && setCreateErrors({ ...createErrors, raceDate: undefined })} /></Field>
             {/* Användartest 2026-11-12: Träning förvald, det är vad en ny användare oftast gör. */}
-            <RaceTypeChoice name="raceType" defaultValue="TRAINING" disabled={busy} />
+            <RaceTypeChoice name="raceType" defaultValue="TRAINING" disabled={busy} onChange={setCreateType} />
             <OrganiserChoiceField value={organiser} disabled={busy} error={organiserError}
               onChange={value => { setOrganiser(value); setOrganiserError(undefined); }} />
             {/* Tidszonen behövs nästan aldrig: förvald Europe/Stockholm och ändras under "Mer". */}
@@ -546,13 +586,8 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
                 defaultValue="Europe/Stockholm" maxLength={100} disabled={busy} /></Field>
             </details>
             <ClubMapChoiceField value={clubMap} disabled={busy} onChange={setClubMap} />
-            <button type="submit" disabled={busy} aria-busy={busy}>{copy.createEvent}</button>
-          </form>
-          {/* ADR-0187: en säkerhetskopia blir en ny tävling (t.ex. på en ny server när den gamla har gått sönder). */}
-          <div className={styles.restore}>
-            <p className={styles.muted}>{backupText.restore.openHint}</p>
-            <button type="button" className={styles.secondary} disabled={busy} onClick={() => setRestoreOpen(true)}>{backupText.restore.open}</button>
-          </div></>}
+            <button type="submit" disabled={busy} aria-busy={busy} data-testid="create-race-submit">{createSubmitLabel(createType, copy.createSubmit)}</button>
+          </form></>}
         {attempt && <div className={styles.uncertain} role="alert">
           <h3>{attemptMatchesSession ? copy.createUnconfirmed : copy.savedAttemptOtherAccountTitle}</h3>
           <p>{attemptBelongsToOtherAccount ? copy.attemptBelongsToOtherAccount : copy.createUnconfirmedHint}</p>
@@ -570,6 +605,12 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
     </div>}
 
     {session && <p className={styles.message} role="status" aria-live="polite">{message}</p>}
+    {/* ADR-0187: en säkerhetskopia blir en ny tävling. Översynen 2026-11-17: sällan använd, så under Mer längst ned. */}
+    {session && <details className={hubStyles.more} data-testid="hub-more">
+      <summary>{copy.hub.more}</summary>
+      <div><p>{backupText.restore.openHint}</p>
+        <button type="button" className={styles.secondary} disabled={busy} onClick={() => setRestoreOpen(true)}>{backupText.restore.open}</button></div>
+    </details>}
     <RestoreRaceDialog open={restoreOpen} onClose={() => setRestoreOpen(false)}
       onRestored={() => void loadEvents().catch((error) => setMessage(errorMessage(copy, error)))} />
     <CopyRaceDialog source={copySource} onClose={() => setCopySource(undefined)}

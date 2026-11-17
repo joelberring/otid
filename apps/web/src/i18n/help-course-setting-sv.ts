@@ -15,8 +15,8 @@ export const gettingStartedHelpArticles: readonly HelpArticle[] = [
     body: [
       "Från tom tävling till utskrivna kartor och avläsning. Klubbytorna och träningsgrupperna finns överst på ”Mitt O-Tid” (”Mina klubbar”, ”Mina grupper”) och i menyn med ditt namn.",
       { steps: [
-        "Skriv namn och datum på ”Mitt O-Tid”, välj ”Träning” och tryck på ”Skapa tävling”. Se [Skapa en tävling](#skapa-tavling).",
-        "Öppna ”Banläggning” och ladda upp kartfilen, eller ta den med ”Välj karta från klubbarkivet”. Se [Banläggningen och kartfilen](#banlaggning-start).",
+        "Tryck på ”Lägg banor” på ”Mitt O-Tid”: en träning skapas och banläggningen öppnas. Se [Skapa en tävling](#skapa-tavling).",
+        "Ladda upp kartfilen i banläggningen, eller ta den med ”Välj karta från klubbarkivet”. Se [Banläggningen och kartfilen](#banlaggning-start).",
         "Tryck på ”Börja med en tom banläggning” (eller ”Läs in .ppen” om banan finns i Purple Pen).",
         "Tryck på ”Ny bana” och välj ”Skala för banan” i banans egenskaper. Klicka ut kontrollerna, start och mål. Se [Kontroller och banor](#kontroller-banor).",
         "Korridor, kurvbild eller annan form: fliken ”Träning”. Se [Träningsformer](#traning).",

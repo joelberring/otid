@@ -131,6 +131,17 @@ test("klubbtillhörighet: välj klubb, koppla till Eventor, bekräfta, bjud in f
   // 4. Administratören skapar en tävling i går (väljer arrangörsklubben aktivt) och bjuder in medlemmen "Från klubben".
   await admin.goto("/organizer");
   await warmRoute(admin, `/api/admin/races/${none}/administrator/session`);
+  // Översynen 2026-11-17: "Lägg banor" gissar inte heller klubben; den som har en klubb väljer den eller Ingen klubb.
+  await admin.getByTestId("hub-choices").getByRole("button", { name: "Lägg banor" }).click();
+  const quick = admin.getByTestId("quick-course");
+  const quickOrganiser = quick.getByTestId("quick-course-organiser");
+  await expect(quickOrganiser.getByRole("radio", { name: /Älvsjö-Örby/ })).not.toBeChecked();
+  await expect(quickOrganiser.getByRole("radio", { name: "Ingen klubb (eget)" })).not.toBeChecked();
+  await quick.getByRole("button", { name: "Starta banläggningen" }).click();
+  await expect(quick.getByTestId("quick-course-organiser-error")).toHaveText("Välj arrangörsklubb, eller Ingen klubb.");
+  await expect(admin).toHaveURL(/\/organizer$/);
+  await quick.getByRole("button", { name: "Stäng" }).click();
+  await expect(quick).toHaveCount(0);
   const raceId = await createRace(admin, `Klubbkvällen ${suffix}`, daysFromToday(-1), "Tävling", undefined, /^Välj .*Älvsjö/);
   // Banorna ur en banfil (Banor → Läs in banfil).
   const files = admin.getByRole("region", { name: "Banfil" });

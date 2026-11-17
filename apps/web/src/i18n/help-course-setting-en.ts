@@ -12,8 +12,8 @@ export const gettingStartedHelpArticlesEn: readonly HelpArticle[] = [
     body: [
       "From an empty event to printed maps and readout. The club spaces and training groups are at the top of ”My O-Tid” (”My clubs”, ”My groups”) and in the menu with your name.",
       { steps: [
-        "Write the name and date on ”My O-Tid”, choose ”Training” and press ”Create event”. See [Create an event](#skapa-tavling).",
-        "Open ”Course setting” and upload the map file, or take it with ”Choose map from the club archive”. See [Course setting and the map file](#banlaggning-start).",
+        "Press ”Set courses” on ”My O-Tid”: a training is created and course setting opens. See [Create an event](#skapa-tavling).",
+        "Upload the map file in course setting, or take it with ”Choose map from the club archive”. See [Course setting and the map file](#banlaggning-start).",
         "Press ”Start with an empty course setting” (or ”Import .ppen” if the course is in Purple Pen).",
         "Press ”New course” and choose ”Scale for the course” in the course's properties. Click out the controls, start and finish. See [Controls and courses](#kontroller-banor).",
         "Corridor, contours or another form: the tab ”Training”. See [Training forms](#traning).",

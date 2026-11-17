@@ -241,7 +241,9 @@ export const clubAffiliationAccountEn: Texts<ClubAffiliationAccount> = {
     save: "Save the clubs",
     skip: "Skip",
     later: "You can change it later under My account → My clubs.",
-    failed: "The clubs could not be saved. Try again."
+    failed: "The clubs could not be saved. Try again.",
+    line: "Which club do you belong to? Optional.",
+    answer: "Choose club"
   },
   onboarding: {
     member: club => `You are a member of ${club}`,

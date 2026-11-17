@@ -85,7 +85,7 @@ const raceDayHelpArticles: readonly HelpArticle[] = [
     title: "Skapa en tävling och välj typ",
     views: ["EVENTS", "SETTINGS"],
     body: [
-      "Gå till ”Mitt O-Tid”. Skriv ”Tävlingens namn” och ”Datum” under ”Skapa tävling”. ”Etapp/lopp (valfritt)” kan stå tomt.",
+      "Gå till ”Mitt O-Tid” → ”Skapa träning eller tävling”. Skriv ”Tävlingens namn” och ”Datum”. ”Etapp/lopp (valfritt)” kan stå tomt.",
       "Välj ”Typ av tävling”. Typen styr vilka steg som syns i arbetsytan:",
       [
         "”Träning”: fri start, banor och klasser på samma ställe.",
@@ -94,8 +94,8 @@ const raceDayHelpArticles: readonly HelpArticle[] = [
         "”Stafett”: lag och sträckor.",
         "”Rogaining”: kontroller med poäng och tidsgräns."
       ],
-      "Tryck på ”Skapa tävling”, så öppnas arbetsytan. Typen kan bytas under ”Inställningar” utan att något tas bort.",
-      "Har klubben ett klubbarkiv kan du ta kartan med ”Välj karta från klubbarkivet” innan du trycker på ”Skapa tävling”; då öppnas banläggningen med kartan."
+      "Tryck på knappen, som följer typen (”Skapa träning”, ”Skapa tävling” …), så öppnas arbetsytan. Typen kan bytas under ”Inställningar”.",
+      "Har klubben ett klubbarkiv kan du ta kartan med ”Välj karta från klubbarkivet” innan du skapar tävlingen; då öppnas banläggningen med kartan."
     ]
   },
   {
@@ -269,7 +269,7 @@ const raceDayHelpArticles: readonly HelpArticle[] = [
         "”Ladda ner IOF-fil för Eventor”: filen att ladda upp i Eventor.",
         "”Gör resultaten preliminära igen”: ångrar.",
         "”Ladda ner säkerhetskopia” under ”Inställningar”: hela tävlingen i en fil. Ta den efter lottningen, före start och efter sista målgång.",
-        "”Återställ tävling från säkerhetskopia” på Mitt O-Tid: filen blir en ny tävling, också på en annan server."
+        "”Återställ tävling från säkerhetskopia” under ”Mer” på Mitt O-Tid: filen blir en ny tävling, också på en annan server."
       ]
     ]
   },

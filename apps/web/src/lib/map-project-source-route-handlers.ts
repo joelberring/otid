@@ -1,5 +1,5 @@
 import {
-  clearCutRuntimeFromEnvironment, deleteMapSourceCredential, fetchMapProjectClearCuts, fetchMapProjectOsm, fetchMapProjectSoil, soilRuntimeFromEnvironment, type SoilRuntime, type ClearCutRuntime, lantmaterietRuntimeFromEnvironment, mapSourceRuntimeFromEnvironment, readMapProjectOrthoAsset,
+  clearCutRuntimeFromEnvironment, deleteMapSourceCredential, fetchMapProjectLandCover, landCoverRuntimeFromEnvironment, type LandCoverRuntime, fetchMapProjectClearCuts, fetchMapProjectOsm, fetchMapProjectSoil, soilRuntimeFromEnvironment, type SoilRuntime, type ClearCutRuntime, lantmaterietRuntimeFromEnvironment, mapSourceRuntimeFromEnvironment, readMapProjectOrthoAsset,
   readMapSourceCredential, saveMapSourceCredential, searchMapProjectOrtho, type LantmaterietRuntime, type MapSourceRuntime
 } from "@o-tid/application";
 import { UUID_PATTERN } from "@o-tid/contracts";
@@ -51,6 +51,23 @@ export async function mapProjectSoilRoute(db: Database, request: Request, projec
   return guarded(async () => {
     const result = await fetchMapProjectSoil(db, { ...input.proof, projectId, request: input.body }, runtime);
     if (result.status === "ok") return privateJson({ formatVersion: 1, crs: 3006, areas: result.areas, attribution: result.attribution });
+    if (result.status === "too-large") return problem("SOURCE_AREA_TOO_LARGE");
+    if (result.status === "throttled") return problem("SOURCE_THROTTLED");
+    if (result.status === "unavailable") return privateJson({ formatVersion: 1, error: "SOURCE_UNAVAILABLE", detail: result.detail }, 502);
+    return failure(result.status);
+  });
+}
+
+/** Ägaren 2026-11-17: POST …/sources/marktacke-nmd, Naturvårdsverkets marktäckedata (NMD2023) för en ruta (samma skydd som jordarterna). */
+export async function mapProjectLandCoverRoute(db: Database, request: Request, projectId: string, environment: ClubEnvironment = process.env,
+  runtime: LandCoverRuntime = landCoverRuntimeFromEnvironment(process.env)): Promise<Response> {
+  if (!UUID_PATTERN.test(projectId)) return failure("not-found");
+  const input = await mutation(request, environment);
+  if ("response" in input) return input.response;
+  return guarded(async () => {
+    const result = await fetchMapProjectLandCover(db, { ...input.proof, projectId, request: input.body }, runtime);
+    if (result.status === "ok") return privateJson({ formatVersion: 1, crs: 3006, minX: result.minX, maxY: result.maxY, cell: result.cell, width: result.width,
+      height: result.height, codes: result.codes, unknown: result.unknown, attribution: result.attribution });
     if (result.status === "too-large") return problem("SOURCE_AREA_TOO_LARGE");
     if (result.status === "throttled") return problem("SOURCE_THROTTLED");
     if (result.status === "unavailable") return privateJson({ formatVersion: 1, error: "SOURCE_UNAVAILABLE", detail: result.detail }, 502);

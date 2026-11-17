@@ -65,23 +65,31 @@ export function rgbaPng(width: number, height: number, rgba: Uint8Array): Uint8A
 }
 
 /**
- * En PNG (8 bitar, RGBA eller RGB, inte sammanflätad) som råa bildpunkter (RGBA) radvis uppifrån; inget för andra format
- * eller en trasig fil. För laserkörningens fuktdjup (lutningen i blå kanal), som geo-arbetaren skriver så.
+ * En PNG (inte sammanflätad) som råa bildpunkter (RGBA) radvis uppifrån: 8 bitar RGBA eller RGB, eller palett med 1–8 bitar
+ * (med genomskinlighet ur tRNS); inget för andra format eller en trasig fil. För laserkörningens fuktdjup (lutningen i blå
+ * kanal), som geo-arbetaren skriver så, och för NMD:s kartbild (ägaren 2026-11-17), som kan komma med palett.
  */
 export function decodeRgbaPng(bytes: Uint8Array): { width: number; height: number; data: Uint8Array } | undefined {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   if (bytes.byteLength < 33 || view.getUint32(0) !== 0x89504e47) return undefined;
-  let offset = 8, width = 0, height = 0, format = "";
+  let offset = 8, width = 0, height = 0, depth = 0, color = -1, interlace = 0;
+  let palette: Uint8Array | undefined, alpha: Uint8Array | undefined;
   const parts: Uint8Array[] = [];
   while (offset + 12 <= bytes.byteLength) {
     const length = view.getUint32(offset), type = String.fromCharCode(...bytes.subarray(offset + 4, offset + 8));
-    if (type === "IHDR") { width = view.getUint32(offset + 8); height = view.getUint32(offset + 12); format = [...bytes.subarray(offset + 16, offset + 21)].join(","); }
-    else if (type === "IDAT") parts.push(bytes.subarray(offset + 8, offset + 8 + length));
+    const body = bytes.subarray(offset + 8, offset + 8 + length);
+    if (type === "IHDR") { width = view.getUint32(offset + 8); height = view.getUint32(offset + 12); depth = bytes[offset + 16]!; color = bytes[offset + 17]!; interlace = bytes[offset + 20]!; }
+    else if (type === "PLTE") palette = body;
+    else if (type === "tRNS") alpha = body;
+    else if (type === "IDAT") parts.push(body);
     else if (type === "IEND") break;
     offset += 12 + length;
   }
-  const channels = format === "8,6,0,0,0" ? 4 : format === "8,2,0,0,0" ? 3 : 0, stride = width * channels;
-  if (!channels || width <= 0 || height <= 0 || width * height > 40_000_000) return undefined;
+  const indexed = color === 3 && !!palette && [1, 2, 4, 8].includes(depth);
+  const channels = depth === 8 && color === 6 ? 4 : depth === 8 && color === 2 ? 3 : indexed ? 1 : 0;
+  if (!channels || interlace !== 0 || width <= 0 || height <= 0 || width * height > 40_000_000) return undefined;
+  // Bytes per rad och avståndet till bildpunkten till vänster (minst en byte) för filtren.
+  const stride = indexed ? Math.ceil(width * depth / 8) : width * channels, step = indexed ? 1 : channels;
   let raw: Buffer;
   try { raw = inflateSync(Buffer.concat(parts)); } catch { return undefined; }
   if (raw.byteLength < height * (stride + 1)) return undefined;
@@ -90,8 +98,8 @@ export function decodeRgbaPng(bytes: Uint8Array): { width: number; height: numbe
   for (let row = 0; row < height; row += 1) {
     const filter = raw[row * (stride + 1)]!, source = row * (stride + 1) + 1, target = row * stride;
     for (let i = 0; i < stride; i += 1) {
-      const left = i >= channels ? rows[target + i - channels]! : 0, up = row > 0 ? rows[target - stride + i]! : 0;
-      const corner = row > 0 && i >= channels ? rows[target - stride + i - channels]! : 0;
+      const left = i >= step ? rows[target + i - step]! : 0, up = row > 0 ? rows[target - stride + i]! : 0;
+      const corner = row > 0 && i >= step ? rows[target - stride + i - step]! : 0;
       const guess = left + up - corner, toLeft = Math.abs(guess - left), toUp = Math.abs(guess - up), toCorner = Math.abs(guess - corner);
       const predicted = filter === 1 ? left : filter === 2 ? up : filter === 3 ? (left + up) >> 1
         : filter === 4 ? (toLeft <= toUp && toLeft <= toCorner ? left : toUp <= toCorner ? up : corner) : 0;
@@ -100,6 +108,15 @@ export function decodeRgbaPng(bytes: Uint8Array): { width: number; height: numbe
   }
   if (channels === 4) return { width, height, data: rows };
   const data = new Uint8Array(width * height * 4).fill(255);
+  if (indexed) {
+    const mask = (1 << depth) - 1;
+    for (let row = 0; row < height; row += 1) for (let column = 0; column < width; column += 1) {
+      const bit = column * depth, index = (rows[row * stride + (bit >> 3)]! >> (8 - depth - (bit & 7))) & mask, p = (row * width + column) * 4;
+      if (index * 3 + 2 < palette!.length) data.set(palette!.subarray(index * 3, index * 3 + 3), p);
+      data[p + 3] = alpha && index < alpha.length ? alpha[index]! : 255;
+    }
+    return { width, height, data };
+  }
   for (let p = 0; p < width * height; p += 1) data.set(rows.subarray(p * 3, p * 3 + 3), p * 4);
   return { width, height, data };
 }

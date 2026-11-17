@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { GEO_CLIP_MARGIN_M, type GeoClip, type GeoJobList, type GeoJobView, type MapProjectClearCutList, type MapProjectSoilArea, type MapProjectSoilList, type MapProjectView, type MapSourceCredentialView } from "@o-tid/contracts";
+import { GEO_CLIP_MARGIN_M, type GeoClip, type GeoJobList, type GeoJobView, type MapProjectClearCutList, type MapProjectSoilArea, type MapProjectLandCover, type MapProjectSoilList, type MapProjectView, type MapSourceCredentialView } from "@o-tid/contracts";
 import type { MapGeoreference } from "@o-tid/map-file";
 import { VectorParseError, type SourceData } from "@o-tid/map-revision";
 import { DEFAULT_ROCK_LEVEL, heightFieldFrom } from "@o-tid/map-revision/base-map";
@@ -13,7 +13,7 @@ import { accountRequest } from "../../lib/account-client";
 import { clubRequest } from "../../lib/club-archive-client";
 import type { Bounds } from "../../lib/course-setting-viewport";
 import { areaBox, type BoxArea } from "../../lib/map-project-area-box";
-import { baseMapOutputs, clearCutFeatures, clipWgs84, soilForMarsh } from "@o-tid/map-revision/base-map";
+import { baseMapOutputs, clearCutFeatures, clipWgs84, landCoverCodesFromBase64, landCoverFeatures, soilForMarsh } from "@o-tid/map-revision/base-map";
 import { mapProjectBase } from "../../lib/map-project-client";
 import { laserClip } from "../../lib/map-project-clip";
 import { HEIGHT_IMAGE, jobHeights, type HeightPart } from "../../lib/map-project-clear-contours";
@@ -212,6 +212,15 @@ export function useMapProjectLaser({ view, layers, importer, georeference, bound
         const listed = response.status === 200 ? response.json as MapProjectSoilList | undefined : undefined;
         if (listed && Array.isArray(listed.areas)) soil = soilForMarsh(listed.areas);
       }
+      // Naturvårdsverkets marktäckedata (ägaren 2026-11-17): öppen våtmark som sankmark där lasern inte har någon. Går
+      // hämtningen fel läses grundkartan in utan den.
+      let landCover: ReturnType<typeof landCoverFeatures> | undefined;
+      if (box) {
+        const response = await clubRequest(`${base}/sources/marktacke-nmd`, "POST", { formatVersion: 1, box }).catch(() => ({ status: 0, json: undefined }));
+        const grid = response.status === 200 ? response.json as MapProjectLandCover | undefined : undefined;
+        const codes = grid && typeof grid.codes === "string" ? landCoverCodesFromBase64(grid.codes, grid.width * grid.height) : undefined;
+        if (grid && codes) landCover = landCoverFeatures({ minX: grid.minX, maxY: grid.maxY, cell: grid.cell, width: grid.width, height: grid.height, codes }, georeference?.scale || 15_000);
+      }
       const stageParts = stages && read_.map(({ job: row, parts: rowParts }) => {
         const own = slopes.get(row.jobId);
         const ownRock = rockImages.get(row.jobId);
@@ -219,7 +228,7 @@ export function useMapProjectLaser({ view, layers, importer, georeference, bound
           ...(ownRock && ownRock !== "failed" ? { rock: ownRock } : {}) };
       });
       const { data, calm, clear, rock: rocky, soil: soiled, pits, hills } = await importer.readBaseMap({ parts: stageParts ? [] : parts, stages: stageParts, joined: !stages && !!job.mergedStages, merge: baseMap, osm, scale: georeference?.scale,
-        cuts: cuts && { features: cuts.features, afterScan: cuts.afterScan }, soil, calm: slope === "failed" ? undefined : slope,
+        cuts: cuts && { features: cuts.features, afterScan: cuts.afterScan }, soil, landCover, calm: slope === "failed" ? undefined : slope,
         clear: heightParts.length > 0 ? { parts: heightParts } : undefined,
         rock: !stages && rock && rock !== "failed" ? { ...rock, level: DEFAULT_ROCK_LEVEL } : undefined },
         at => step(at.step === "read" ? text.steps.reading(at.done, at.total) : text.steps.merging));

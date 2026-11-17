@@ -3,7 +3,7 @@ import { MAP_PROJECT_SYNC_MAX_EDITS, MCP_BASE_MAP_MAX_OBJECTS } from "@o-tid/con
 import type { Point } from "@o-tid/map-file";
 import { baseKeys, newKey, objectBox, objectRefFor, type RevisionEdit, type SourceData } from "@o-tid/map-revision";
 import {
-  assembleBaseMap, builtPolygons, candidateSymbols, DEFAULT_FLAT_LEVEL, editorBounds, heightGridOf, slopeGridOf, worldFileAffine, type BaseMapSummary, type ClearCut, type SoilArea,
+  assembleBaseMap, builtPolygons, landCoverCodesFromBase64, candidateSymbols, DEFAULT_FLAT_LEVEL, editorBounds, heightGridOf, slopeGridOf, worldFileAffine, type BaseMapSummary, type ClearCut, type SoilArea,
   type PhotoPixels
 } from "@o-tid/map-revision/base-map";
 import { symbolCode, type LoadedProjectMap } from "./map-project-job-run";
@@ -33,6 +33,8 @@ export interface BaseMapJobRequest {
   readonly cuts?: readonly ClearCut[] | undefined;
   /** SGU:s torra mark och vatten (`soilForMarsh`): ingen sankmark på sand och grus. */
   readonly soil?: readonly SoilArea[] | undefined;
+  /** NMD:s marktäckedata (ägaren 2026-11-17): rutnätet som tjänsten gav det, koderna som base64 (`landCoverCodesFromBase64`). */
+  readonly landCover?: { readonly minX: number; readonly maxY: number; readonly cell: number; readonly width: number; readonly height: number; readonly codes: string } | undefined;
   readonly scannedAt: string | null;
   /** Jobbets fuktdjup (bilden och världsfilen), för «Lugna kurvor på flack mark» med förvalet; saknas det lämnas kurvorna. */
   readonly depth?: { readonly image: string; readonly world: string } | undefined;
@@ -78,7 +80,7 @@ export function runBaseMap(loaded: LoadedProjectMap, area: Polygon | null, reque
     ...(rock && rockAffine ? { rock: { pixels: rock, affine: rockAffine } } : {}),
     ...(height && heightAffine ? { height: { grid: heightGridOf(height), affine: heightAffine } } : {}),
     flat: depth && affine ? { level: DEFAULT_FLAT_LEVEL, grid: slopeGridOf(depth), affine } : undefined,
-    parts: parts as { name: string; body: string }[], osm: request.osm, cuts: request.cuts, soil: request.soil, today: now.toISOString().slice(0, 10), scannedAt: request.scannedAt,
+    parts: parts as { name: string; body: string }[], osm: request.osm, cuts: request.cuts, soil: request.soil, landCover: landCoverOf(request.landCover), today: now.toISOString().slice(0, 10), scannedAt: request.scannedAt,
     knolls: knolls as { level: number; body: string } | undefined, cliffs: cliffs as { level: number; body: string } | undefined,
     georeference, symbols: candidateSymbols(loaded.base), bounds: editorBounds(loaded.base, area), area: area ?? undefined, stage: request.stage,
     built: builtPolygons(loaded.objects, symbol => loaded.base.symbols.get(symbol)?.code.main)
@@ -130,4 +132,11 @@ export function runBaseMap(loaded: LoadedProjectMap, area: Polygon | null, reque
   const summary: BaseMapSummary = { ...assembled.summary, objects: objects.length, symbols: assembled.summary.symbols.filter(row => only.has(row.symbol)),
     ...(request.replace ? { replaced } : {}) };
   return { summary, missing, parts: out };
+}
+
+/** NMD-rutnätet ur kartjobbets begäran, eller inget om koderna inte stämmer med storleken. */
+function landCoverOf(grid: BaseMapJobRequest["landCover"]) {
+  if (!grid) return undefined;
+  const codes = landCoverCodesFromBase64(grid.codes, grid.width * grid.height);
+  return codes && { minX: grid.minX, maxY: grid.maxY, cell: grid.cell, width: grid.width, height: grid.height, codes };
 }

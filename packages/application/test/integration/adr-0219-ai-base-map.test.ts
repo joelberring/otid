@@ -1,4 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
+import { rgbaPng } from "../../src/map-project-job-labels";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { GEO_WORKER_VERSION, MAP_PROJECT_SYNC_MAX_EDITS } from "@o-tid/contracts";
@@ -65,6 +66,17 @@ function sources(osmDown = false) {
       return osmDown ? new Response("upptagen", { status: 504 }) : Response.json({ elements: [{ type: "way", id: 1, tags: { highway: "path" },
         geometry: [wgs84(E - 300, N - 200), wgs84(E, N - 150), wgs84(E + 300, N - 200)] }] });
     }
+    // Naturvårdsverkets marktäckedata (ägaren 2026-11-17): tallskog överallt (ingen öppen våtmark).
+    if (target.includes("nmd.example")) {
+      const url = new URL(target);
+      if (url.searchParams.get("request") === "GetLegendGraphic") {
+        return Response.json({ Legend: [{ rules: [{ symbolizers: [{ Raster: { colormap: { entries: Array.from({ length: 12 }, (_, k) => ({ quantity: String(111 + k), color: `#6E8C${(5 + k).toString(16).padStart(2, "0").toUpperCase()}` })) } } }] }] }] });
+      }
+      const width = Number(url.searchParams.get("width")), height = Number(url.searchParams.get("height"));
+      const rgba = new Uint8Array(width * height * 4);
+      for (let p = 0; p < width * height; p += 1) rgba.set([0x6e, 0x8c, 0x05, 255], p * 4);
+      return new Response(Buffer.from(rgbaPng(width, height, rgba)), { headers: { "content-type": "image/png" } });
+    }
     // SGU:s jordartskarta: en sandyta över hela kartan.
     if (target.includes("sgu.example")) {
       const sand = [[E - W, N - H], [E + W, N - H], [E + W, N + H], [E - W, N + H], [E - W, N - H]];
@@ -75,7 +87,7 @@ function sources(osmDown = false) {
       properties: { Avvdatum: Date.parse("2026-03-01"), Avverktyp: "Föryngringsavverkning" } }] });
   }) as typeof fetch;
   return { calls, sources: { osm: { overpassUrl: "https://overpass.example/api", fetch: fetcher }, clearCuts: { url: "https://sks.example/MapServer/1", fetch: fetcher },
-    soil: { url: "https://sgu.example/items", fetch: fetcher } } };
+    soil: { url: "https://sgu.example/items", fetch: fetcher }, landCover: { url: "https://nmd.example/ows", fetch: fetcher } } };
 }
 
 const call = (name: string, args: object = {}) => ({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } });

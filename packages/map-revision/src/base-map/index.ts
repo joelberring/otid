@@ -39,3 +39,4 @@ export * from "./water-smooth";
 export * from "./drawing-basis";
 export * from "./dxf-write";
 export * from "./vegetation-shapes";
+export * from "./land-cover";

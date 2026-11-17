@@ -7,6 +7,7 @@ import { aiGate, mapProjectAllows } from "./map-project-access";
 import { mapProjectAreaViews } from "./map-project-areas";
 import { clearCutRuntimeFromEnvironment, fetchMapProjectClearCutsAsAi, type ClearCutRuntime } from "./map-project-clear-cuts";
 import { fetchMapProjectSoilAsAi, soilRuntimeFromEnvironment, type SoilRuntime } from "./map-project-soil";
+import { fetchMapProjectLandCoverAsAi, landCoverRuntimeFromEnvironment, type LandCoverRuntime } from "./map-project-land-cover";
 import { geoDepthOutputs, geoHeightOutputs, geoRockOutputs, geoVectorOutputs, listGeoJobsForAccount } from "./map-project-geo-jobs";
 import type { BaseMapJobRequest } from "./map-project-job-base-map";
 import { mapJobResultHead, mapJobResultPart, queueMapJob, reusableProjectJob, waitForMapJobState } from "./map-project-jobs";
@@ -47,7 +48,7 @@ export const MCP_BASE_MAP_TOOL = { name: "apply_base_map", title: "Lägg in grun
     required: ["project_id"] }, annotations: { readOnlyHint: false, destructiveHint: false } } as const;
 
 export interface McpBaseMapOptions { wait?: { timeoutMs?: number; pollMs?: number } | undefined; now?: Date | undefined; budgetMs?: number | undefined;
-  sources?: { osm?: MapSourceRuntime | undefined; clearCuts?: ClearCutRuntime | undefined; soil?: SoilRuntime | undefined } | undefined }
+  sources?: { osm?: MapSourceRuntime | undefined; clearCuts?: ClearCutRuntime | undefined; soil?: SoilRuntime | undefined; landCover?: LandCoverRuntime | undefined } | undefined }
 
 /** Ett fast UUID (version 4 till formen) ur en text: omgångens `requestId`, samma vid varje anrop. */
 function stableUuid(seed: string): string {
@@ -109,7 +110,7 @@ export async function callMcpBaseMapTool(db: Database, accountId: string, input:
     // OpenStreetMap och hyggena för jobbets ruta, som i webben; går en hämtning inte läggs grundkartan in utan den.
     const box = job.clip ? clipWgs84(job.clip) : undefined;
     const missing: string[] = [];
-    let osm: BaseMapJobRequest["osm"], cuts: BaseMapJobRequest["cuts"], soil: BaseMapJobRequest["soil"];
+    let osm: BaseMapJobRequest["osm"], cuts: BaseMapJobRequest["cuts"], soil: BaseMapJobRequest["soil"], landCover: BaseMapJobRequest["landCover"];
     if (box) {
       const request = { formatVersion: 1, box };
       const fetchedOsm = await fetchMapProjectOsmAsAi(db, { accountId, projectId, request }, options.sources?.osm ?? mapSourceRuntimeFromEnvironment(process.env), now);
@@ -119,7 +120,11 @@ export async function callMcpBaseMapTool(db: Database, accountId: string, input:
       // SGU:s jordartskarta: ingen sankmark på sand och grus (bara torr mark och vatten behövs i kartjobbet).
       const fetchedSoil = await fetchMapProjectSoilAsAi(db, { accountId, projectId, request }, options.sources?.soil ?? soilRuntimeFromEnvironment(process.env), now);
       if (fetchedSoil.status === "ok") soil = soilForMarsh(fetchedSoil.areas); else missing.push(`soil: ${sourceProblem(fetchedSoil)}`);
-    } else missing.push("osm: laserkörningen har ingen klippruta", "clear_cuts: laserkörningen har ingen klippruta", "soil: laserkörningen har ingen klippruta");
+      // Naturvårdsverkets marktäckedata (ägaren 2026-11-17): öppen våtmark som sankmark där lasern inte har någon.
+      const fetchedCover = await fetchMapProjectLandCoverAsAi(db, { accountId, projectId, request }, options.sources?.landCover ?? landCoverRuntimeFromEnvironment(process.env), now);
+      if (fetchedCover.status === "ok") landCover = { minX: fetchedCover.minX, maxY: fetchedCover.maxY, cell: fetchedCover.cell, width: fetchedCover.width, height: fetchedCover.height, codes: fetchedCover.codes };
+      else missing.push(`land_cover: ${sourceProblem(fetchedCover)}`);
+    } else missing.push("osm: laserkörningen har ingen klippruta", "clear_cuts: laserkörningen har ingen klippruta", "soil: laserkörningen har ingen klippruta", "land_cover: laserkörningen har ingen klippruta");
     // «Lugna kurvor på flack mark»: jobbets fuktdjup följer med när det finns, och förvalet gäller som i webben.
     const depth = await geoDepthOutputs(db, job.jobId);
     // Berg i dagen: har jobbet bergbilden används regeln med förvalet i stället för berg.dxf:s berg, som i webben.
@@ -128,7 +133,7 @@ export async function callMcpBaseMapTool(db: Database, accountId: string, input:
     const height = await geoHeightOutputs(db, job.jobId);
     const request: BaseMapJobRequest = { hash, files: parts.map(file => ({ name: file.name, sha256: file.sha256 })),
       ...(knolls ? { knolls: { level: levels.knolls!, sha256: knolls.sha256 } } : {}), ...(cliffs ? { cliffs: { level: levels.cliffs!, sha256: cliffs.sha256 } } : {}),
-      ...(osm ? { osm } : {}), ...(cuts ? { cuts } : {}), ...(soil ? { soil } : {}), scannedAt: job.scannedAt, ...(depth ? { depth } : {}), ...(rock ? { rock } : {}), ...(height ? { height } : {}), ...(stage ? { stage } : {}), ...(only ? { only, replace } : {}), missing };
+      ...(osm ? { osm } : {}), ...(cuts ? { cuts } : {}), ...(soil ? { soil } : {}), ...(landCover ? { landCover } : {}), scannedAt: job.scannedAt, ...(depth ? { depth } : {}), ...(rock ? { rock } : {}), ...(height ? { height } : {}), ...(stage ? { stage } : {}), ...(only ? { only, replace } : {}), missing };
     mapJobId = await queueMapJob(db, { accountId, projectId, kind: "BASE_MAP", request: request as unknown as Record<string, unknown> }, now);
     if (!mapJobId) return toolError("För många anrop just nu (högst 30 kartjobb per minut och två samtidigt). Vänta en stund.");
   }

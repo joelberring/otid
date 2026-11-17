@@ -222,6 +222,7 @@ export { readMapProjectStats, readMyMapStats, setMapStatsOptIn } from "./map-pro
 export { DEFAULT_OVERPASS_URL, fetchMapProjectOsm, mapSourceRuntimeFromEnvironment, type MapSourceRuntime } from "./map-project-sources";
 export { clearCutRuntimeFromEnvironment, clearCutsFromGeoJson, fetchMapProjectClearCuts, type ClearCutRuntime } from "./map-project-clear-cuts";
 export { fetchMapProjectSoil, soilFromFeatureCollection, soilRuntimeFromEnvironment, type SoilRuntime } from "./map-project-soil";
+export { fetchMapProjectLandCover, fetchMapProjectLandCoverAsAi, landCoverRuntimeFromEnvironment, nmdCodes, nmdColorMap, readLandCover, type LandCoverOutcome, type LandCoverResult, type LandCoverRuntime } from "./map-project-land-cover";
 export { deleteMapSourceCredential, readMapSourceCredential, saveMapSourceCredential } from "./map-source-credentials";
 export { changeClubDevice, listClubDevices, recordClubDevice } from "./club-devices";
 export { changeClubTerm, createClubTerm, createPlanSessions, readClubPlan, removePlanSession, updatePlanSession } from "./club-planning";

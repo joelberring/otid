@@ -56,7 +56,8 @@ export class CandidateSession {
    */
   baseMap(request: { parts: readonly BaseMapPart[]; stages?: readonly BaseMapStage[] | undefined; joined?: boolean | undefined; merge: boolean; osm?: SourceData | undefined; scale?: number | undefined;
     cuts?: Extract<CandidateRequest, { type: "base-map" }>["cuts"]; norm?: Extract<CandidateRequest, { type: "base-map" }>["norm"]; calm?: BaseMapCalm | undefined; clear?: BaseMapClear | undefined;
-    rock?: BaseMapRock | undefined; soil?: Extract<CandidateRequest, { type: "base-map" }>["soil"] },
+    rock?: BaseMapRock | undefined; soil?: Extract<CandidateRequest, { type: "base-map" }>["soil"];
+    landCover?: Extract<CandidateRequest, { type: "base-map" }>["landCover"] },
     onStep: (step: BaseMapStep) => void): Promise<{ data: SourceData; calm?: CalmOutcome | undefined; clear?: ClearOutcome | undefined; rock?: RockOutcome | undefined; soil?: SoilOutcome | undefined;
       pits?: PitOutcome | undefined; hills?: HillOutcome | undefined }> {
     const id = ++this.nextId, dataId = ++this.nextId;

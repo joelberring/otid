@@ -584,6 +584,21 @@ buffert runt vatten (kartans `vatten` och SGU:s kod 91) så att strandkärr blir
 för unionens ruta; beskedet säger hur många hektar) och i `apply_base_map` (svarets `soil`). Ett misslyckat anrop stoppar inget:
 grundkartan läses in och reglaget räknar som förut (`missing` har `soil`).
 
+### Tillägg 2026-11-17: Naturvårdsverkets marktäckedata (NMD) och hyggenas kanter
+
+Lasern skiljer inte öppen blöt mark från öppen torr (ägaren 2026-11-17: «kör NMD»). Servern hämtar NMD2023 v2.x (10 m, CC0,
+tillskrivning «NMD2023, Naturvårdsverket») ur Naturvårdsverkets visningstjänst (WMS på `geodata.naturvardsverket.se/inspire/lc-nmd/ows`,
+`OTID_NMD_URL`; tjänsten har ingen WCS med data). Färgkartan (GetLegendGraphic som JSON, typen «values») ger en färg per klass, och
+kartbilden i exakt 10 m per bildpunkt läses tillbaka till klasskoder (`readLandCover`, `map-project-land-cover.ts`; PNG med
+palett eller RGBA). Prövat för Gömmaren, Lida och Nåttarö: alla bildpunkter hade en färg ur färgkartan. Samma skydd som
+jordarterna (POST `…/sources/marktacke-nmd`, `…AsAi`, kontots hämtningar i timmen). Öppen våtmark (200–228) blir lagret
+`sankmark_oppen_nmd` (308) i grundkartan och i `apply_base_map` (`missing` har `land_cover` när hämtningen inte gick); laserns blöta
+mark går först och fuktigt klipps mot den. Mätt mot öppna kärr i kartorna: Gömmaren F 0,67 (laserns öppna mark 0,06), Lida 0,27.
+NMD:s häll (411) träffade berg i dagen dåligt (Lida P 0,08) och används inte.
+
+Skogsstyrelsens hyggen kommer ur en skillnadsanalys i 10 m-rutor och har hackiga kanter. Ett hygge som laserskanningen är
+nyare än tas inte med alls (lasern visar det); annars generaliseras kanten (`cutRing`: 12 m minsta bredd, rundade hörn).
+
 ## Tillägg 2026-11-14: etapperna läggs ihop på geo-servern
 
 Ägaren: «det verkade som den andra tråden inte gjorde ihopläsningen på servern. jag skulle vilja att det var så». En körning

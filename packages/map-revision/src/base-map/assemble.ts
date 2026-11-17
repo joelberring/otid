@@ -9,6 +9,7 @@ import { DEFAULT_HILL_LEVEL, findHills, hillLimitsAt, settleHills } from "./hill
 import { marshOnFloor } from "./marsh-floor";
 import { choosePits, DEFAULT_PIT_LEVEL, findPits, PIT_LAYERS, pitFeatures, pitLimitsAt } from "./pit-search";
 import type { SoilArea } from "./soil";
+import { landCoverFeatures, type LandCoverGrid } from "./land-cover";
 import { calmFlatContours, flatLimitsAt, flatSlopeFrom, type PixelAffine, type SlopeGrid } from "./flat-contours";
 import { cliffFeatures, cliffLimitsAt, defaultCliffLimits, readCliffCandidates } from "./cliff-choice";
 import { chooseKnolls, knollFeatures, knollLimitsAt, readKnollCandidates } from "./knoll-choice";
@@ -58,6 +59,8 @@ export interface BaseMapAssemblyInput {
   readonly cuts?: readonly ClearCut[] | undefined;
   /** SGU:s jordarter för rutan (ingen sankmark på sand och grus); utelämnat = gick inte att hämta. */
   readonly soil?: readonly SoilArea[] | undefined;
+  /** NMD:s marktäckedata för rutan (ägaren 2026-11-17); utelämnat = gick inte att hämta. */
+  readonly landCover?: LandCoverGrid | undefined;
   /** Dagens datum (ÅÅÅÅ-MM-DD) och laserskanningens, för hyggenas ålder. */
   readonly today: string;
   readonly scannedAt: string | null;
@@ -157,7 +160,7 @@ export function assembleBaseMap(input: BaseMapAssemblyInput): { objects: MapObje
   const norm = mapNorm({ scale, symbols });
   let soil: BaseMapSummary["soil"];
   let data = mergeBaseMap(read, input.osm, scale, cuts && { features: cuts.features, afterScan: cuts.afterScan }, norm,
-    input.soil && { areas: input.soil, report: outcome => { soil = outcome; } });
+    input.soil && { areas: input.soil, report: outcome => { soil = outcome; } }, input.landCover ? landCoverFeatures(input.landCover, scale) : []);
   read = [];
   // Hjälpkurvor och små ringar på flack mark tas bort, som när grundkartan läses in i webben.
   let flatContours: BaseMapSummary["flatContours"];

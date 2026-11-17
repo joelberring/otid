@@ -28,6 +28,7 @@ import type { SoilArea } from "./soil";
  * - slutna kurvor under ISOM:s minsta mått blir små kullar eller gropar (`smallRingsToPoints`),
  * - Skogsstyrelsens hyggen efter ålder och deras kanter (`clearCutFeatures`), utan laserns vegetation i nyare hyggen,
  * - sankmarken minskas med sand och grus ur SGU:s jordartskarta (`marshOffDrySoil`, när den gick att hämta),
+ * - NMD:s öppna våtmark (`landCoverFeatures`, ägaren 2026-11-17) kommer med som sankmark där lasern inte har någon,
  * - tomterna: OpenStreetMaps bostadsområden (`tomtmark_osm`), marktäckets låga bebyggelse (`tomtmark_marktacke`) och
  *   rektanglar kring hus utanför dem (`tomtmark_hus`, `yardsOf`), i var sitt lager så att kandidatraden kan välja,
  * - ur OpenStreetMap tas vägar, stigar, hus, ledningar, staket och liknande; vatten, sankmark, branter och markslag finns
@@ -160,7 +161,8 @@ export interface SoilOutcome { readonly removedHa: number }
  * På en sprintkarta (`norm`) blir OpenStreetMaps belagda vägar ytor med antagen bredd (`sprintOsm`).
  */
 export function mergeBaseMap(parts: readonly { readonly name: string; readonly data: SourceData }[], rawOsm?: SourceData, scale?: number,
-  cuts?: Pick<ReturnType<typeof clearCutFeatures>, "features" | "afterScan">, norm: MapNorm = "ISOM", soil?: BaseMapSoil): SourceData {
+  cuts?: Pick<ReturnType<typeof clearCutFeatures>, "features" | "afterScan">, norm: MapNorm = "ISOM", soil?: BaseMapSoil,
+  nmd: readonly SourceFeature[] = []): SourceData {
   const names = new Set(parts.map(part => part.name)), landCover = names.has("marktacke.geojson");
   const osm = rawOsm && isSprintNorm(norm) ? sprintOsm(rawOsm, { laserPaved: names.has(LASER_PAVED_FILE) }) : rawOsm;
   const shortest = scale ? twoTagMeters(scale) : 0;
@@ -202,7 +204,7 @@ export function mergeBaseMap(parts: readonly { readonly name: string; readonly d
     || (laserKnolls && feature.layer === "dotknoll"))));
   // Skogsstyrelsens hyggen efter ålder; laserns vegetation i ett hygge som är yngre än skanningen tas bort.
   // Ägaren 2026-11-16: små fastigheter med hus blir tomter (`parcelYards`), före sankmarken som inte ska ligga på tomter.
-  const all = parcelYards([...ticks, ...withoutCutVegetation(scale ? smallRingsToPoints(knolls, scale) : knolls, cuts?.afterScan ?? []), ...(cuts?.features ?? []), ...(osm ? osmForBaseMap(osm, names.has("byggnader.geojson")) : [])]);
+  const all = parcelYards([...ticks, ...withoutCutVegetation(scale ? smallRingsToPoints(knolls, scale) : knolls, cuts?.afterScan ?? []), ...(cuts?.features ?? []), ...nmd, ...(osm ? osmForBaseMap(osm, names.has("byggnader.geojson")) : [])]);
   // Ägaren 2026-11-12: en sankmark per plats (blött, fuktigt och marktäckets låg på varandra).
   // Ägaren 2026-11-13: ingen sankmark på sand och grus enligt SGU:s jordartskartan (strandkärr inom 30 m från vatten blir kvar).
   const marsh = singleMarsh(marshOutsideManaged(all, osm ? osmManaged(osm) : [])).features;

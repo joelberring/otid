@@ -172,6 +172,16 @@ export interface MapProjectSoilArea {
 }
 export interface MapProjectSoilList { readonly formatVersion: 1; readonly crs: 3006; readonly areas: readonly MapProjectSoilArea[]; readonly attribution: string }
 
+/**
+ * Ägaren 2026-11-17 («kör NMD»): Naturvårdsverkets Nationella marktäckedata (NMD2023, 10 m) för samma sorts ruta. Rutnätet
+ * följer NMD:s 10 m-rutor i SWEREF 99 TM: `minX` är västra kanten, `maxY` norra, rad 0 i norr. `codes` är klasskoderna
+ * (Uint16, little-endian) som base64; 0 = ingen klass. `unknown` är bildpunkter med en färg utanför färgkartan.
+ */
+export interface MapProjectLandCover {
+  readonly formatVersion: 1; readonly crs: 3006; readonly minX: number; readonly maxY: number; readonly cell: number;
+  readonly width: number; readonly height: number; readonly codes: string; readonly unknown: number; readonly attribution: string
+}
+
 /** Ägaren 2026-11-11 («tända/släcka bakgrundsinfo från Skogsstyrelsen»): Skogsstyrelsens kartbilder som underlag. */
 export const FOREST_IMAGE_PRODUCTS = ["CLEAR_CUTS", "NOTIFIED", "KEY_BIOTOPES"] as const;
 export type ForestImageProduct = typeof FOREST_IMAGE_PRODUCTS[number];

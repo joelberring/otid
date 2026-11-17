@@ -76,7 +76,9 @@ export type CandidateRequest =
       /** Berg i dagen ur bergbilden i stället för berg.dxf:s (utan etapper; med etapper ligger den i varje etapp). */
       readonly rock?: BaseMapRock | undefined;
       /** SGU:s torra mark och vatten (`soilForMarsh`): ingen sankmark på sand och grus. */
-      readonly soil?: readonly SoilArea[] | undefined }
+      readonly soil?: readonly SoilArea[] | undefined;
+      /** NMD:s öppna våtmark (`landCoverFeatures`, ägaren 2026-11-17) i SWEREF 99 TM. */
+      readonly landCover?: readonly SourceFeature[] | undefined }
   /** Objekten för en fil som inte kom från Workern; sparas under `dataId`. */
   | { readonly type: "data"; readonly dataId: number; readonly features: readonly SourceFeature[] }
   | { readonly type: "forget"; readonly dataId: number }
@@ -127,7 +129,7 @@ export function handleCandidateRequest(store: CandidateStore, request: Candidate
     if (request.merge) post({ type: "progress", id, step: "merge" });
     let soil: SoilOutcome | undefined;
     const merged: SourceData = request.merge ? mergeBaseMap(read, request.osm, request.scale, request.cuts, request.norm,
-      request.soil && { areas: request.soil, report: outcome => { soil = outcome; } }) : { ...read[0]!.data };
+      request.soil && { areas: request.soil, report: outcome => { soil = outcome; } }, request.landCover) : { ...read[0]!.data };
     // Hjälpkurvor och små ringar på flack mark tas bort direkt (förvalet), när körningen har fuktdjupet med lutningen.
     const calm = request.merge && request.calm ? request.calm : undefined;
     // Med etapper: varje etapps lutning där den har en, annars den gemensamma.

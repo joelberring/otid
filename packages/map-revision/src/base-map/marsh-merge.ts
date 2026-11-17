@@ -7,7 +7,8 @@ import polygonClipping, { type Polygon } from "polygon-clipping";
  * Här får varje plats en enda sankmark, i ordningen blött, marktäckets våta, fuktigt, marktäckets fasta: det som kommer
  * senare klipps mot det som redan finns. Skärvor under `MIN_PIECE_M2` tas bort.
  */
-const MARSH = ["blott", "sankmark_vat", "fuktigt", "sankmark_fast"] as const;
+// Ägaren 2026-11-17: NMD:s öppna våtmark (`land-cover.ts`) efter laserns blöta mark och marktäckets våta, före fuktigt.
+const MARSH = ["blott", "sankmark_vat", "sankmark_oppen_nmd", "fuktigt", "sankmark_fast"] as const;
 /**
  * Undervegetationens raster (407, 409) läggs ovanpå vit skog och gult, men får enligt normen inte kombineras med grönt
  * (406, 408): de klipps mot det gröna, och 407 mot 409 så att rastren inte ligger dubbelt. Det gröna självt rörs inte.
@@ -49,7 +50,7 @@ export const singleMarsh = (features: readonly SourceFeature[]) => withoutOverla
  * Marktäckets egen sankmark rörs inte.
  */
 const MANAGED = "\u0000skott_mark";
-const OFF_MANAGED = [MANAGED, "aker", "fruktodling", "tomtmark_marktacke", "tomtmark_osm", "tomtmark_fastighet", "blott", "fuktigt"] as const;
+const OFF_MANAGED = [MANAGED, "aker", "fruktodling", "tomtmark_marktacke", "tomtmark_osm", "tomtmark_fastighet", "blott", "fuktigt", "sankmark_oppen_nmd"] as const;
 export function marshOutsideManaged(features: readonly SourceFeature[], managed: readonly SourceFeature[] = []): SourceFeature[] {
   const marked = managed.map(feature => ({ ...feature, layer: MANAGED }));
   return withoutOverlap([...features, ...marked], OFF_MANAGED, 5).features.filter(feature => feature.layer !== MANAGED);

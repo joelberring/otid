@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import styles from "./shell.module.css";
 import { raceTypeSv } from "../../i18n/race-type-sv";
 import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
@@ -62,6 +62,9 @@ export function TopBar({ ws, exercise }: { ws: Workspace; exercise?: MobileExerc
   const courseSetting = courseSettingLink(ws, navigationText);
   const menuRef = useRef<HTMLDetailsElement>(null);
   const close = () => { if (menuRef.current) menuRef.current.open = false; };
+  // Delarna ritas bara när Meny är öppen, så att sidan inte har dolda kopior av sidopanelens texter.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const full = (menu: boolean) => menu && menuOpen;
   /**
    * Översynen 2026-11-17: i telefonen är Meny en fullständig väg – alla delar med sitt läge (som i sidopanelen) och raderna under
    * banan. Delarna och Personer/Inställningar syns bara när sidopanelen är en remsa (CSS); Banläggning och Övning i mobilen alltid.
@@ -76,16 +79,16 @@ export function TopBar({ ws, exercise }: { ws: Workspace; exercise?: MobileExerc
     </button>;
   };
   const shortcuts = (menu: boolean) => <>
-    {menu && profile.course.map(step)}
+    {full(menu) && profile.course.map(step)}
     {/* På smal skärm: banläggningen också i menyn (sidopanelens remsa kan vara utrullad åt sidan). */}
     {menu && courseSetting && <a href={courseSetting.href} data-testid="menu-course-setting" className={styles.menuStep}
-      onClick={event => { if (!mayLeave()) event.preventDefault(); }}><span>{courseSetting.label}</span><small>{courseSetting.status}</small></a>}
-    {menu && exercise && <a href={exercise.href} data-testid="menu-mobile-exercise" className={styles.menuStep}
+      onClick={event => { if (!mayLeave()) event.preventDefault(); }}><span>{courseSetting.label}</span>{full(menu) && <small>{courseSetting.status}</small>}</a>}
+    {full(menu) && exercise && <a href={exercise.href} data-testid="menu-mobile-exercise" className={styles.menuStep}
       onClick={event => { if (!mayLeave()) event.preventDefault(); }}><span>{navigationText.mobileExercise}</span>
       <small>{exerciseStatus(exercise, navigationText)}</small></a>}
-    {menu && profile.people && step(profile.people)}
-    {menu && profile.settings && step(profile.settings)}
-    {menu && <hr className={styles.menuRule} />}
+    {full(menu) && profile.people && step(profile.people)}
+    {full(menu) && profile.settings && step(profile.settings)}
+    {full(menu) && <hr className={styles.menuRule} />}
     <a href={`/admin/${raceId}/readout`} target="_blank" rel="noopener">{data?.raceType === "PARTY" ? typeText.openPartyDesk : typeText.openReadout}
       <span className={styles.hidden}> ({typeText.newTab})</span></a>
     {profile.features.speaker && <a href={`/admin/${raceId}/speaker`} target="_blank" rel="noopener">{typeText.openSpeaker}
@@ -108,7 +111,7 @@ export function TopBar({ ws, exercise }: { ws: Workspace; exercise?: MobileExerc
         <strong>{current.unknownCards}</strong> {typeText.live.unknown(current.unknownCards)}</span>}
     </p>}
     <nav className={styles.actions} aria-label={typeText.shortcuts}>{shortcuts(false)}</nav>
-    <details ref={menuRef} className={styles.menu}>
+    <details ref={menuRef} className={styles.menu} onToggle={event => setMenuOpen(event.currentTarget.open)}>
       <summary>{typeText.menu}</summary>
       <nav className={styles.menuItems} aria-label={typeText.shortcuts}>{shortcuts(true)}</nav>
     </details>

@@ -48,8 +48,8 @@ export const mapProjectEn: Texts<typeof mapProjectSv> = {
     },
     courses: {
       title: "Put courses on the map",
-      help: "Create a training or event in My events. Then choose Choose map project in the course setting, and this project.",
-      action: "To My events"
+      help: "Choose Set courses in My O-Tid. In the course setting, then choose Choose map project and this project.",
+      action: "To My O-Tid"
     }
   },
   roles: { OWNER: "Owner", EDIT: "Edit", SUGGEST: "Suggest", READ: "Read" } satisfies Record<MapProjectRole, string>,

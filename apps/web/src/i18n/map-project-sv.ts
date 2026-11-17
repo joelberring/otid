@@ -43,8 +43,8 @@ export const mapProjectSv = {
     },
     courses: {
       title: "Lägg banor på kartan",
-      help: "Skapa en träning eller tävling i Mina tävlingar. Välj sedan Välj kartprojekt i banläggningen och det här projektet.",
-      action: "Till Mina tävlingar"
+      help: "Välj Lägg banor i Mitt O-Tid. I banläggningen väljer du sedan Välj kartprojekt och det här projektet.",
+      action: "Till Mitt O-Tid"
     }
   },
   roles: { OWNER: "Ägare", EDIT: "Ändra", SUGGEST: "Föreslå", READ: "Läsa" } satisfies Record<MapProjectRole, string>,

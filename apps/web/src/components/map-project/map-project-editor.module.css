@@ -127,7 +127,11 @@
 @media (max-width: 760px) {
   /* Ägaren 2026-11-08: menyerna tar lite plats i mobilen. Rubriken på en rad, verktygen på en rad som rullar i sidled. */
   .header { padding: 4px 8px; flex-wrap: nowrap; }
-  .title a { display: none; }
+  /* Översynen 2026-11-17: tillbakalänken blir «‹» med 44 px tryckyta; texten finns kvar för skärmläsare (samma namn). */
+  .title { align-items: center; gap: .2rem; }
+  .title a.back { display: inline-grid; place-items: center; min-width: 44px; min-height: 44px; margin: -4px 0 -4px -8px; font-size: 1.6rem;
+    line-height: 1; color: var(--ink); text-decoration: none; }
+  .backText { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .title h1 { font-size: var(--text-md, 1rem); }
   .syncLoud { font-size: var(--text-xs, .8rem); max-width: 50vw; }
   .bareToggle { display: none; }

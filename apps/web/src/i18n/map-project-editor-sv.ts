@@ -7,7 +7,7 @@ export const mapProjectEditorSv = {
   offline: (when: string) => `Utan nät: projektet som det var ${when}. Ändringar och spår skickas när nätet kommer.`,
   openMap: "Öppna kartan",
   openMapHelp: "Kartan med alla ändringar. Med rollen Ändra ritar du direkt i den.",
-  back: "Till projektet",
+  back: "Till kartprojektet",
   loading: "Hämtar kartan …",
   failed: "Kartan kunde inte läsas.",
   mapLabel: "Kartprojektets karta",

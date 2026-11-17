@@ -39,7 +39,7 @@ export function MyMapProjects() {
   const [query, setQuery] = useState("");
   useEffect(() => { setShowClosed(readShowClosed()); }, []);
   const closedCount = list?.projects.filter(project => project.status === "CLOSED").length ?? 0;
-  // Listan kommer sorterad på senast använt; här filtreras bara på avslutade och sökningen.
+  // Listan kommer sorterad på senast använt (senast först, `listMapProjects`); här filtreras bara på avslutade och sökningen.
   const shown = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase("sv");
     return (list?.projects ?? []).filter(project => (showClosed || project.status === "OPEN")
@@ -58,6 +58,8 @@ export function MyMapProjects() {
       <AccountMenu />
     </header>
     <p className={styles.muted}>{text.hint}</p>
+    {/* Översynen 2026-11-17: «Nytt kartprojekt» syns direkt, också när listan är lång (formulären står längst ned). */}
+    <p><Link className={styles.buttonLink} href="#nytt-kartprojekt" data-testid="map-projects-new">{text.newProject}</Link></p>
     {problem && <Notice tone="error" role="alert">{problem}</Notice>}
     {list && list.projects.length === 0 && <p className={styles.muted}>{text.empty}</p>}
     {list && list.projects.length > 0 && <>
@@ -74,10 +76,11 @@ export function MyMapProjects() {
           <div><Link href={`/organizer/map-projects/${project.projectId}`}>{project.name}</Link>
             <span>{[project.club?.name ?? text.own, project.base.fileName, mapProjectText.roles[project.role], text.changed(project.changedObjects),
               text.lastUsed(project.lastActiveAt.slice(0, 10)), project.status === "CLOSED" ? text.closed : ""].filter(Boolean).join(" · ")}</span></div>
+          <Link className={styles.primaryLink} href={`/organizer/map-projects/${project.projectId}`} aria-label={text.openLabel(project.name)}>{text.open}</Link>
         </li>)}
       </ul>}
     </>}
-    {!problem && <div className={styles.sections}><MyMapStatsSection /><NewMapProject /><UploadProject /></div>}
+    {!problem && <div className={styles.sections}><NewMapProject /><UploadProject /><MyMapStatsSection /></div>}
   </main>;
 }
 

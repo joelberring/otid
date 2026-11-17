@@ -681,7 +681,8 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   return <main className={styles.page}>
     <header className={styles.header}>
       <div className={styles.title}>
-        <Link href={`/organizer/map-projects/${encodeURIComponent(view.projectId)}`}>‹ {text.back}</Link>
+        <Link className={styles.back} href={`/organizer/map-projects/${encodeURIComponent(view.projectId)}`} data-testid="map-project-back">
+          <span aria-hidden="true">‹</span> <span className={styles.backText}>{text.back}</span></Link>
         <h1>{view.name}</h1>
       </div>
       <SyncBadge sync={editor.sync} pending={pending} />

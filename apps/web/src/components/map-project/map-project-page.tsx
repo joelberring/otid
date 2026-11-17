@@ -16,6 +16,7 @@ import { mapProjectBase } from "../../lib/map-project-client";
 import { AccountMenu } from "../account-menu";
 import { ClubMemberPicker, JoinLinks } from "./map-project-join-panel";
 import { ProjectStatsSection } from "./map-stats-sections";
+import { MapProjectNextSteps } from "./map-project-next-steps";
 import { InvitationActions, invitationSentText } from "../invitation-actions";
 import { Button, Field, Notice, Select } from "../ui";
 import styles from "./map-project.module.css";
@@ -95,6 +96,7 @@ export function MapProjectPage({ projectId }: { projectId: string }) {
     {message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}
       {message.refusals && <ul className={styles.refusals}>{message.refusals.map((line, index) => <li key={index}>{line}</li>)}</ul>}</Notice>}
     <div className={styles.sections}>
+      {project.status === "OPEN" && (project.viewer.canEdit || project.viewer.canPropose) && <MapProjectNextSteps view={project} />}
       <section aria-labelledby="map-project-base">
         <h2 id="map-project-base">{text.page.base}</h2>
         <dl className={styles.facts}>

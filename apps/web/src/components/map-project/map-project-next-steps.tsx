@@ -7,6 +7,7 @@ import { mapProjectEn } from "../../i18n/map-project-en";
 import { mapProjectSv } from "../../i18n/map-project-sv";
 import { MAP_PROJECT_STEPS, mapProjectSteps, type MapProjectStep } from "../../lib/map-project-next-steps";
 import { useTexts } from "../language-provider";
+import { LantmaterietStatus, useLantmaterietCredential } from "../lantmateriet-connection";
 import start from "../club-archive/club-start.module.css";
 import styles from "./map-project.module.css";
 
@@ -17,6 +18,9 @@ import styles from "./map-project.module.css";
 export function MapProjectNextSteps({ view }: { view: MapProjectView }) {
   const text = useTexts(mapProjectSv.nextSteps, mapProjectEn.nextSteps);
   const status = mapProjectSteps(view);
+  // Översynen av första kartan: en ny karta behöver laserdata, och den kräver kopplingen till Lantmäteriet. Läget visas innan man börjar.
+  const needsLaser = view.base.source === "NEW" && !status.done.base;
+  const credential = useLantmaterietCredential(needsLaser);
   const mapHref = `/organizer/map-projects/${encodeURIComponent(view.projectId)}/map`;
   const help: Record<MapProjectStep, string> = {
     base: view.base.source === "NEW" ? text.base.help : text.base.existing(view.base.fileName),
@@ -25,8 +29,8 @@ export function MapProjectNextSteps({ view }: { view: MapProjectView }) {
     courses: text.courses.help
   };
   const action: Record<MapProjectStep, ReactNode> = {
-    base: <Link className={styles.primaryLink} href={mapHref}>{text.openMap}</Link>,
-    draw: <Link className={styles.primaryLink} href={mapHref}>{text.openMap}</Link>,
+    base: <Link className={styles.primaryLink} href={mapHref} data-testid="map-project-open-map">{text.openMap}</Link>,
+    draw: <Link className={styles.primaryLink} href={mapHref} data-testid="map-project-open-map">{text.openMap}</Link>,
     export: <a className={styles.primaryLink} href="#exportera">{text.export.action}</a>,
     courses: <Link className={styles.primaryLink} href="/organizer">{text.courses.action}</Link>
   };
@@ -42,6 +46,7 @@ export function MapProjectNextSteps({ view }: { view: MapProjectView }) {
             <h3>{text[step].title}<span className={start.state}>
               {done ? step === "draw" ? text.started : text.done : next ? text.next : text.later}</span></h3>
             <p className={start.small}>{help[step]}</p>
+            {step === "base" && needsLaser && <LantmaterietStatus view={credential} />}
             {next && <div className={start.actions}>{action[step]}</div>}
           </div>
         </li>;

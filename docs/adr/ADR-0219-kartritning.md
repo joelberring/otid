@@ -748,3 +748,35 @@ gränssnittets texter, ordning och utseende; beräkningarna och ritverktygen är
   heter Kartan och exporten står på ett ställe, «Exportera» (ny kartversion, bara ändringarna, versionerna). «Byt namn» heter
   Namn och status.
 - Större omflyttningar (en egen flik för stegen, laserpanelen ihop med guiden m.m.) är förslag till ägaren, inte gjorda.
+
+## Tillägg 2026-11-17: första kartan och sedan redigera (översynen av första kartan, ingen migration)
+
+Ägaren (svar på förslagen i tillägget ovan): «kör vidare, bara det blir tydligt vilka steg användare måste gå igenom för att ta
+fram en karta första gången. och sen att redigera den», och en beskrivning av vad som behövs hos Lantmäteriet, «kommer upp för
+de som försöker göra en karta utan fungerande api-koppling». Bara gränssnittet; beräkningarna, hämtningarna och ritverktygen
+är orörda.
+
+- **Lantmäteriet.** En hjälpartikel «Så kopplar du Lantmäteriet» (`lantmateriet-koppla`): Geotorgets användarnamn och lösenord
+  (privatperson) eller API-portalens nyckel och hemlighet (organisation), produkterna att beställa (Laserdata Nedladdning, skog
+  behövs för första kartan; Ortofoto Nedladdning, Ortofoto historiska Nedladdning och Marktäcke, Byggnad och Fastighetsindelning
+  är valfria), var uppgifterna läggs in (Mitt konto › Lantmäteriet), hur man provar (Sök laserrutor) och vad som går utan
+  Lantmäteriet. Samma produktlista står på Mitt konto. Kontots läge läses ur det befintliga `GET /api/account/map-sources/lantmateriet`
+  (ingen ny fråga till servern): kopplat, inte kopplat, behöver sparas igen (nyckeln bytt) eller går inte på installationen
+  (ingen masternyckel). Felkoderna `SOURCE_NO_CREDENTIAL`, `SOURCE_REJECTED` och `REJECTED` (ortofotobilden) ger ett lugnt besked
+  (`LantmaterietNotice`, inte rött) i guiden, i laserkörningarna och i steg 1 (ortofoto) med «Så kopplar du Lantmäteriet» och
+  «Mitt konto». Fel uppgifter och en produkt som inte är beställd går inte att skilja (Lantmäteriet svarar 401/403 i båda
+  fallen); beskedet säger att det är det ena eller det andra. Guidens första delsteg och projektsidans Nästa steg 1 visar läget
+  innan man trycker.
+- **Fliken Grundkarta** (K1): de tre stegen flyttas ur Lager till en egen flik. Lager har bara lagren: symbollagren, arbets- och
+  skisslagren, underlagen (med «Lägg till en egen bild» och passpunkterna) och sist «Kartans inställningar» (magnetisk nord och
+  färgerna) i en stängd utfällning (K6). Grundkarta väljs först för en ny karta utan objekt, annars Symboler. Steg 1 heter
+  fortfarande Hämta underlag men är uttryckligen valfritt; steg 2 och 3 behövs.
+- **Laserkörningarna i guiden** (K2): «Laserkörningar (avancerat)» står som en utfällning sist i guiden («välj rutor och
+  inställningar själv»), inte bredvid den under «Andra sätt».
+- **Exporten från redigeraren** (K3): «Till Exportera» sist i Granska, efter normkontrollen, till projektsidans `#exportera`.
+- **En «Öppna kartan»** (K7): på projektsidan står den i Nästa steg när den visas där, annars under Kartan.
+- **Delområden från guiden** (K5): när området är för stort leder guiden till Granska › Delområden.
+- **Bearbeta** (K4) står kvar som egen flik; den behövs inte första gången och konkurrerar inte med stegen.
+- **Efter första kartan:** när grundkartan är inlagd säger guiden «Rita färdigt» (välj en symbol under Symboler och rita; ändra
+  ett objekt med Redigera) med en knapp till Symboler; Nästa steg och hjälpen säger samma sak. En ny hjälpartikel «Redigera en karta
+  som redan finns» (`ritlaget-redigera`).

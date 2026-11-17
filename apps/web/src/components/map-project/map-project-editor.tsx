@@ -58,7 +58,8 @@ import { useMapProjectRecon } from "./use-map-project-recon";
 import { saveMapProjectShell } from "../../lib/map-project-offline";
 import { MapProjectSidebar, type SidebarTab } from "./map-project-sidebar";
 import { noticeText, SyncBadge } from "./map-project-sync-badge";
-import { MapProjectUnderlayPanels } from "./map-project-underlay-panels";
+import { MapProjectBaseMapPanel, MapProjectSettingsDetails, MapProjectToExport } from "./map-project-underlay-panels";
+import { MapProjectLayersPanel } from "./map-project-layers-panel";
 import { reverseLine } from "../../lib/map-project-join";
 import { MapProjectCandidateBar } from "./map-project-candidate-bar";
 import { clickTool, duplicateObjects, addEdges, shapeCommand } from "./map-project-click-tools";
@@ -216,7 +217,8 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const [wheelHover, setWheelHover] = useState<string>();
   const [recent, setRecent] = useState<readonly string[]>([]);
   // Ägaren 2026-11-10: panelens flik, och bara kartan (verktygsspalten och panelen gömda) med knappen överst eller §.
-  const [tab, setTab] = useState<SidebarTab>("symbols");
+  // Översynen av första kartan (K1): en ny karta utan objekt börjar i Grundkarta, en karta med innehåll i Symboler.
+  const [tab, setTab] = useState<SidebarTab>(() => view.base.source === "NEW" && view.changedObjects === 0 ? "basemap" : "symbols");
   const [bare, setBare] = useState(false);
   // Ägaren 2026-11-10: tangenterna under vänster hand, valbara (sparade i webbläsaren).
   const [keys, setKeys] = useMapProjectKeys();
@@ -746,7 +748,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         })()}
       </div>
       <div className={styles.statusRow}>
-        <MapProjectCandidateBar importer={importer} symbols={symbols} onShowLayers={() => { setTab("layers"); setPanelOpen(true); }} />
+        <MapProjectCandidateBar importer={importer} symbols={symbols} onShowLayers={() => { setTab("basemap"); setPanelOpen(true); }} />
         <MapProjectAreaProposalBar proposals={fill.proposals} />
         {canEdit && (work.drawingLayer || draft.length > 0 || (selected && tool === "select") || multi.items.length > 0) && <div className={styles.objectBar} role="group"
           aria-label={quick.actions} data-testid="map-project-object-bar">
@@ -793,11 +795,17 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
           state={symbolLayers.state} onState={symbolLayers.update} canEdit={canEdit} onMerge={symbolLayers.merge}
           merging={symbolLayers.merging} message={symbolLayers.message} work={workGroups} views={symbolLayers} symbolColors={editor.symbolColors}
           workPanel={<MapProjectWorkLayers work={work} catalog={catalog} state={symbolLayers.state} onState={symbolLayers.update} />} />
-          {georeference && <MapProjectUnderlayPanels view={view} georeference={georeference} bounds={editor.bounds ?? undefined} areas={collab.areas}
-            layers={layers} control={control} importer={importer} symbols={symbols} work={work} onSplit={view.viewer.canDecide ? area => startSplit(area ?? null) : undefined} />}
-          {georeference && <MapProjectNorthPanel georeference={georeference} northLines={editor.northLines} bounds={editor.bounds ?? undefined} importer={importer} symbols={symbols} />}
-          <MapProjectColors colors={editor.colors} saved={editor.colorChanges} canChange={canDecide} ocad={view.base.format === "OCD"} onShow={editor.showColors} onSave={editor.saveColors} />
+          {georeference && <MapProjectLayersPanel layers={layers} mapEpsg={georeference.crs.kind === "EPSG" ? georeference.crs.code : undefined}
+            control={control} scale={georeference.scale} area={editor.bounds ?? undefined} />}
+          <MapProjectSettingsDetails>
+            {georeference && <MapProjectNorthPanel georeference={georeference} northLines={editor.northLines} bounds={editor.bounds ?? undefined} importer={importer} symbols={symbols} />}
+            <MapProjectColors colors={editor.colors} saved={editor.colorChanges} canChange={canDecide} ocad={view.base.format === "OCD"} onShow={editor.showColors} onSave={editor.saveColors} />
+          </MapProjectSettingsDetails>
         </>}
+        basemap={georeference ? <MapProjectBaseMapPanel view={view} georeference={georeference} bounds={editor.bounds ?? undefined} areas={collab.areas}
+          layers={layers} importer={importer} symbols={symbols} work={work} onSplit={view.viewer.canDecide ? area => startSplit(area ?? null) : undefined}
+          onAreas={() => { setTab("review"); setTimeout(() => document.getElementById("map-project-areas")?.scrollIntoView({ block: "start" }), 60); }}
+          onDraw={() => setTab("symbols")} /> : undefined}
         review={<>
           {/* Översynen av kartstegen 2026-11-17: i arbetsordning – förslagen, normkontrollen, notiserna och rekningen, delområdena,
               och arbetssättet och AI-kopplingen (sällan ändrade) i en utfällning sist. */}
@@ -811,6 +819,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
               onSplitArea={() => startSplit()} splitting={tool === "split"}
               onSaveArea={(name, assignee) => { if (newArea) void collab.createArea(name, [newArea], assignee).then(ok => { if (ok) { setNewArea(undefined); setTool("select"); } }); }}
               onCancelArea={() => { setNewArea(undefined); setTool("select"); }} stages={stages} onStages={setStages} />)}
+          <MapProjectToExport projectId={view.projectId} />
         </>}
         process={<>
           <MapProjectGeneralizePanel generalize={generalizer} areas={collab.areas} />

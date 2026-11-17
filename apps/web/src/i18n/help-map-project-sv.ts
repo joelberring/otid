@@ -17,7 +17,7 @@ export const mapProjectHelpArticles: readonly HelpArticle[] = [
         "”Bara kartan” gömmer verktygen och panelen. Tangenten § gör samma sak.",
         "Pricken överst visar sparandet: fylld när allt är sparat, en tom ring när ändringar väntar. En varning i text visas bara när något är fel."
       ],
-      "Flikarna delar upp det som förut var en lång lista. ”Lager” är allt som går att släcka och låsa, och stegen fram till grundkartan: läs [Från laserdata till färdig karta](#ritlaget-arbetsgang). ”Granska” är förslag, normkontroll, notiser, rekning och delområden, och ”Bearbeta” är generalisering och rättning av hela kartan.",
+      "Flikarna delar upp det som förut var en lång lista. ”Grundkarta” är stegen för en ny karta: läs [Från laserdata till färdig karta](#ritlaget-arbetsgang); ”Lager” är allt som går att släcka, låsa och tona. ”Granska” är förslag, normkontroll, notiser, rekning och delområden, och ”Bearbeta” är generalisering och rättning av hela kartan.",
       "Tangenterna och hjulet står i [Punkter, tangenter och hjulet](#ritlaget-punkter-tangenter)."
     ]
   },
@@ -26,16 +26,61 @@ export const mapProjectHelpArticles: readonly HelpArticle[] = [
     title: "Från laserdata till färdig karta",
     views: ["MAP_EDITOR"],
     body: [
-      "En ny karta görs i samma ordning varje gång. De tre första stegen står numrerade under fliken ”Lager”, efter lagren. Det som står indraget under ett steg är val inom steget.",
+      "En ny karta görs i samma ordning varje gång, under fliken ”Grundkarta”. Steg 2 och 3 behövs, steg 1 är valfritt.",
       [
-        "Steg 1: hämta ortofoto, markfuktighet och Skogsstyrelsens kartor att rita efter. De syns bara som bakgrund.",
-        "”Ta fram grundkartan”: guiden kör laserdatan och lägger till OpenStreetMap och hyggen. Resultatet är ett utkast.",
-        "”Gå igenom utkastet”: reglagen ändrar utkastet direkt. Lägg in det med raden under kartan, eller lämna det som förslag.",
-        "Rita färdigt med symbolerna under ”Symboler”.",
+        "Före steg 2: koppla Lantmäteriet en gång. Läs [Så kopplar du Lantmäteriet](#lantmateriet-koppla).",
+        "Steg 1, valfritt: hämta ortofoto, markfuktighet och Skogsstyrelsens kartor att rita efter. De syns bara som bakgrund.",
+        "Steg 2, ”Ta fram grundkartan”: guiden kör laserdatan och lägger till OpenStreetMap och hyggen. Resultatet är ett utkast.",
+        "Steg 3, ”Gå igenom utkastet”: reglagen ändrar utkastet direkt. Lägg in det med raden under kartan.",
+        "”Rita färdigt”: välj en symbol under ”Symboler” och rita; ändra ett objekt med ”Redigera”.",
         "Kontrollera under ”Granska” › ”Normkontroll”.",
-        "Exportera på kartprojektets sida, under ”Exportera”: en ny kartversion eller bara ändringarna."
+        "Exportera med ”Till Exportera” sist i ”Granska”: en ny kartversion eller bara ändringarna."
       ],
-      "Ett utkast sparas inte i kartan förrän du lägger in det. Förslag är något annat: ändringar som en ägare godkänner under ”Granska”."
+      "Ett utkast sparas inte i kartan förrän du lägger in det. Förslag är något annat: ändringar som en ägare godkänner under ”Granska”.",
+      "En karta som redan har innehåll: läs [Redigera en karta som redan finns](#ritlaget-redigera)."
+    ]
+  },
+  {
+    id: "ritlaget-redigera",
+    title: "Redigera en karta som redan finns",
+    views: ["MAP_EDITOR"],
+    body: [
+      "En karta från en kartfil, eller en ny karta med grundkartan inlagd, redigeras med symbolerna. Stegen under ”Grundkarta” behövs inte då.",
+      [
+        "Öppna kartan från kartprojektets sida med ”Öppna kartan”.",
+        "”Rita färdigt”: välj en symbol under ”Symboler” och rita; ändra ett objekt med ”Redigera”.",
+        "Ändra: klicka på objektet i ”Redigera” och dra i punkterna. Knapparna för objektet står i raden under kartan.",
+        "Andras ändringar och AI:ns kommer som förslag under ”Granska”. En ägare godkänner eller avvisar dem.",
+        "Kontrollera under ”Granska” › ”Normkontroll”.",
+        "Exportera med ”Till Exportera” sist i ”Granska”. En ny kartversion sparas i projektet, och originalet ändras aldrig."
+      ],
+      "Tangenterna och hjulet står i [Punkter, tangenter och hjulet](#ritlaget-punkter-tangenter)."
+    ]
+  },
+  {
+    id: "lantmateriet-koppla",
+    title: "Så kopplar du Lantmäteriet",
+    views: ["MAP_EDITOR"],
+    body: [
+      "Laserdatan till grundkartan hämtas från Lantmäteriet med ditt eget konto där. O-Tid har inget eget konto hos Lantmäteriet. Utan kopplingen går guiden i steg 2 inte, men annat går.",
+      "Det här behövs:",
+      [
+        "Ett konto på Lantmäteriets Geotorget. Som privatperson loggar du in med Geotorgets användarnamn och lösenord.",
+        "En organisation kan i stället använda ett systemkonto i Lantmäteriets API-portal, med nyckel och hemlighet.",
+        "Produkterna nedan, beställda på Geotorget. Varje produkt beställs för sig; utan beställning säger Lantmäteriet nej.",
+        "Laserdata Nedladdning, skog: grundkartan i guiden, med kurvor, branter, kärr och grönt. Behövs för första kartan.",
+        "Ortofoto Nedladdning: flygbilder att rita efter, under ”Ortofoto från Lantmäteriet”. Valfri.",
+        "Ortofoto historiska Nedladdning: äldre flygbilder, en egen produkt. Valfri.",
+        "Marktäcke, Byggnad och Fastighetsindelning: läses med laserdatan när kontot har dem. Valfria; grundkartan blir klar utan dem."
+      ],
+      "Så kopplar du:",
+      [
+        "Mitt konto › Lantmäteriet: välj ”Sätt att logga in”, fyll i uppgifterna och tryck ”Spara uppgifterna”.",
+        "Ladda om kartans sida. Första delsteget i guiden säger om Lantmäteriet är kopplat.",
+        "Prova: öppna ”Laserkörningar (avancerat)” och tryck ”Sök laserrutor”. Kommer en lista med rutor fungerar laserdatan.",
+        "Säger O-Tid att Lantmäteriet sa nej: kontrollera uppgifterna under Mitt konto och beställningen på Geotorget."
+      ],
+      "Utan Lantmäteriet går OpenStreetMap under ”Läs in vektorfil eller OpenStreetMap”, ”Markfuktighet (SLU)”, Skogsstyrelsens kartor och egna bilder och vektorfiler."
     ]
   },
   {

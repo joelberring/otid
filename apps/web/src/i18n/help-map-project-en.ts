@@ -17,7 +17,7 @@ export const mapProjectHelpArticlesEn: readonly HelpArticle[] = [
         "”Map only” hides the tools and the panel. The key § does the same.",
         "The dot at the top shows saving: filled when saved, an empty ring when changes are waiting. A text warning appears only when something is wrong."
       ],
-      "The tabs divide what used to be one long list. ”Layers” is everything that can be turned off and locked, and the steps up to the base map: read [From laser data to a finished map](#ritlaget-arbetsgang). ”Review” is proposals, the norm check, notes, field checking and sub-areas, and ”Process” is generalising and correcting the whole map.",
+      "The tabs divide what used to be one long list. ”Base map” is the steps for a new map: read [From laser data to a finished map](#ritlaget-arbetsgang); ”Layers” is everything that can be turned off, locked and faded. ”Review” is proposals, the norm check, notes, field checking and sub-areas, and ”Process” is generalising and correcting the whole map.",
       "The keys and the wheel are in [Points, keys and the wheel](#ritlaget-punkter-tangenter)."
     ]
   },
@@ -26,16 +26,61 @@ export const mapProjectHelpArticlesEn: readonly HelpArticle[] = [
     title: "From laser data to a finished map",
     views: ["MAP_EDITOR"],
     body: [
-      "A new map is made in the same order every time. The first three steps are numbered under the tab ”Layers”, after the layers. What is indented under a step are choices within it.",
+      "A new map is made in the same order every time, under the tab ”Base map”. Steps 2 and 3 are needed, step 1 is optional.",
       [
-        "Step 1: fetch orthophotos, soil moisture and the Forest Agency's maps to draw from. They are only a background.",
-        "”Make the base map”: the guide runs the laser data and adds OpenStreetMap and clear-cuts. The result is a draft.",
-        "”Review the draft”: the sliders change the draft at once. Add it with the row below the map, or leave it as suggestions.",
-        "Finish drawing with the symbols under ”Symbols”.",
+        "Before step 2: connect Lantmäteriet once. Read [How to connect Lantmäteriet](#lantmateriet-koppla).",
+        "Step 1, optional: fetch orthophotos, soil moisture and the Forest Agency's maps to draw from. They are only a background.",
+        "Step 2, ”Make the base map”: the guide runs the laser data and adds OpenStreetMap and clear-cuts. The result is a draft.",
+        "Step 3, ”Review the draft”: the sliders change the draft at once. Add it with the row below the map.",
+        "”Finish drawing”: choose a symbol under ”Symbols” and draw; change an object with ”Edit”.",
         "Check under ”Review” › ”Norm check”.",
-        "Export on the map project's page, under ”Export”: a new map version or only the changes."
+        "Export with ”To Export” last in ”Review”: a new map version or only the changes."
       ],
-      "A draft is not saved in the map until you add it. Suggestions are something else: changes that an owner approves under ”Review”."
+      "A draft is not saved in the map until you add it. Suggestions are something else: changes that an owner approves under ”Review”.",
+      "A map that already has content: read [Edit a map that already exists](#ritlaget-redigera)."
+    ]
+  },
+  {
+    id: "ritlaget-redigera",
+    title: "Edit a map that already exists",
+    views: ["MAP_EDITOR"],
+    body: [
+      "A map from a map file, or a new map with the base map added, is edited with the symbols. The steps under ”Base map” are not needed then.",
+      [
+        "Open the map from the map project's page with ”Open the map”.",
+        "”Finish drawing”: choose a symbol under ”Symbols” and draw; change an object with ”Edit”.",
+        "Change: click the object in ”Edit” and drag the points. The buttons for the object are in the row below the map.",
+        "Other people's changes and the AI's come as suggestions under ”Review”. An owner approves or rejects them.",
+        "Check under ”Review” › ”Norm check”.",
+        "Export with ”To Export” last in ”Review”. A new map version is saved in the project, and the original never changes."
+      ],
+      "The keys and the wheel are in [Points, keys and the wheel](#ritlaget-punkter-tangenter)."
+    ]
+  },
+  {
+    id: "lantmateriet-koppla",
+    title: "How to connect Lantmäteriet",
+    views: ["MAP_EDITOR"],
+    body: [
+      "The laser data for the base map is fetched from Lantmäteriet with your own account there. O-Tid has no account of its own at Lantmäteriet. Without the connection the guide in step 2 does not work, but other things do.",
+      "This is needed:",
+      [
+        "An account on Lantmäteriet's Geotorget. As a private person you sign in with the Geotorget username and password.",
+        "An organisation can instead use a system account in Lantmäteriet's API portal, with a key and a secret.",
+        "The products below, ordered on Geotorget. Each product is ordered separately; without an order Lantmäteriet says no.",
+        "Laserdata Nedladdning, skog: the base map in the guide, with contours, cliffs, marshes and green. Needed for the first map.",
+        "Ortofoto Nedladdning: aerial photos to draw from, under ”Orthophoto from Lantmäteriet”. Optional.",
+        "Ortofoto historiska Nedladdning: older aerial photos, a product of its own. Optional.",
+        "Marktäcke, Byggnad and Fastighetsindelning: read with the laser data when the account has them. Optional; the base map is finished without them."
+      ],
+      "How to connect:",
+      [
+        "My account › Lantmäteriet: choose ”How to sign in”, fill in the credentials and press ”Save the credentials”.",
+        "Reload the map's page. The first sub-step of the guide says whether Lantmäteriet is connected.",
+        "Try it: open ”Laser runs (advanced)” and press ”Search laser tiles”. If a list of tiles appears, the laser data works.",
+        "If O-Tid says that Lantmäteriet refused: check the credentials under My account and the order on Geotorget."
+      ],
+      "Without Lantmäteriet you can use OpenStreetMap under ”Load a vector file or OpenStreetMap”, ”Soil moisture (SLU)”, the Forest Agency's maps and your own images and vector files."
     ]
   },
   {

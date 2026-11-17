@@ -205,7 +205,7 @@ export const mapProjectQuickEn: Texts<typeof mapProjectQuickSv> = {
   list: "List",
   view: "Show the symbols as",
   tabsLabel: "The panel's tabs",
-  tabs: { symbols: "Symbols", layers: "Layers", review: "Review", process: "Process" },
+  tabs: { basemap: "Base map", symbols: "Symbols", layers: "Layers", review: "Review", process: "Process" },
   hidePanels: "Map only",
   showPanels: "Show the panels",
   bareHelp: "Hide or show the tool column and the panel"

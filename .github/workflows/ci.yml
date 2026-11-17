@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:17.11-trixie
@@ -59,7 +59,9 @@ jobs:
     # Översynen 2026-11-10 G5: webbläsartesterna delas på två jobb (var sin driftuppsättning), så att CI tar ungefär hälften
     # så lång tid. `retries: 1` står kvar (ett ostadigt test syns som "flaky" i loggen) så att en slumpmässig miss inte stoppar
     # avbildningarna.
-    runs-on: ubuntu-latest
+    # Ubuntu 24.04 låst (2026-11-17): ubuntu-latest blev 26.04, som Playwright ännu inte har Chromium för, så testerna och
+    # därmed avbildningarna stoppades.
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:

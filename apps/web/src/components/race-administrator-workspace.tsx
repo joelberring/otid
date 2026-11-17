@@ -26,6 +26,7 @@ import { PartyPanel } from "./race-administrator/party-panel";
 import { Notice } from "./ui";
 import { AccessNotice } from "./race-administrator/access-notice";
 import { SiteFooter } from "./about/site-footer";
+import { useMobileExercise } from "./race-administrator/use-mobile-exercise";
 
 /**
  * Adminarbetsytan för en tävling. Den här komponenten håller sessionen, laddar data och visar skalet:
@@ -72,6 +73,7 @@ export function RaceAdministratorWorkspace({ raceId }: { raceId: string }) {
     return () => window.removeEventListener("afterprint", clearPrintTarget);
   }, []);
   useDuringRaceEffects(ws);
+  const exercise = useMobileExercise(ws);
   const status = <p className={styles.status} role="status" aria-live="polite">{message}</p>;
   // Användartestet 2026-11-12: nekad (inte ett nätfel) – säg varför i stället för "Logga in igen" till den som är inloggad.
   if (!authenticated) return <div className={`${styles.workspace} ${styles.login}`} data-authenticated="false">
@@ -83,9 +85,9 @@ export function RaceAdministratorWorkspace({ raceId }: { raceId: string }) {
     <SiteFooter newTab className={styles.footer} language={language} />
   </div>;
   return <div className={`${styles.root} ${shell.shell}`} data-print-target={printTarget} data-authenticated="true">
-    <TopBar ws={ws} />
+    <TopBar ws={ws} exercise={exercise} />
     <div className={shell.frame}>
-      <Sidebar ws={ws} />
+      <Sidebar ws={ws} exercise={exercise} />
       <div className={`${shell.content} ${styles.content}`}>
         {status}
         {ws.functionary && <details className={styles.disclosure} data-testid="functionary-note"><summary>{text.functionaryTitle}</summary>

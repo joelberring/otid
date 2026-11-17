@@ -140,7 +140,8 @@ const raceDayHelpArticles: readonly HelpArticle[] = [
         "”Sista säkra”: en mindre ring på sträckan. Den är inte en kontroll och syns inte i beskrivningen, längden eller avläsningen.",
         "”Område”: rita ett område med eget filter. Det kan gälla ”Den här banan” eller ”Alla banor”.",
         "”Stjärna”, ”Linje”, ”Keps” och ”Kartbitar”: stjärnbana, linjeorientering, kepsorientering i par och en liten karta per sträcka.",
-        "”Spegel”: kartan och banan spegelvända i utskriften. Siffrorna går att läsa som vanligt; i banläggningen ritas kartan som vanligt."
+        "”Spegel”: kartan och banan spegelvända i utskriften. Siffrorna går att läsa som vanligt; i banläggningen ritas kartan som vanligt.",
+        "”Med telefonen”: här slås Bingo, Sänka skepp och virtuella kontroller på. ”Övning i mobilen” i arbetsytan leder hit, eller till ledarens sida när en är på."
       ],
       "”Visa träningen på kartan” visar före och efter. Utskriften och PDF:en har samma maskning i kartans färger; se [Utskrift och förhandsvisning](#utskrift).",
       "Träningen följer med i .ppen-filen men försvinner om filen sparas i Purple Pen. ”Ta bort träningen för banan” gör banan vanlig igen."

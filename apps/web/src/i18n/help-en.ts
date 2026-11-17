@@ -103,7 +103,8 @@ const raceDayHelpArticlesEn: readonly HelpArticle[] = [
         "”Last safe point”: a smaller circle on the leg. It is not a control and does not show in the description, the length or the readout.",
         "”Area”: draw an area with its own filter. It can apply to ”This course” or ”All courses”.",
         "”Star”, ”Line”, ”Cap” and ”Map pieces”: star course, line orienteering, cap orienteering in pairs and a small map per leg.",
-        "”Mirror”: the map and the course mirrored in print. The numbers read as usual; in course setting the map is drawn as usual."
+        "”Mirror”: the map and the course mirrored in print. The numbers read as usual; in course setting the map is drawn as usual.",
+        "”With the phone”: switch on Bingo, Battleships or virtual controls. ”Phone exercise” in the workspace leads here, or to the leader's page when one is on."
       ],
       "”Show the training on the map” shows before and after. The print and the PDF have the same masking in the map's colours; see [Print and preview](#utskrift).",
       "The training follows along in the .ppen file but disappears if the file is saved in Purple Pen. ”Remove the training for the course” makes the course ordinary again."

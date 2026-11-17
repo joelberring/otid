@@ -6,6 +6,11 @@ export const raceWorkspaceNavigationSv = {
   courseSetting: "Banläggning",
   mapErrors: "Kartfel",
   courseSettingStatus: { EDIT: "Kartan, banor och utskrift", SUGGEST: "Du föreslår ändringar", COMMENT: "Läsa och kommentera", MAP: "Kartfelen" } as const,
+  /** Översynen 2026-11-17: övningarna i mobilen ställs in i banläggningen och följs på ledarens sida. */
+  mobileExercise: "Övning i mobilen",
+  mobileExerciseSetup: "Bingo, Sänka skepp och virtuella kontroller",
+  mobileExerciseOn: (mode: "BINGO" | "SHIPS" | "CONTROLS") =>
+    `${mode === "SHIPS" ? "Sänka skepp" : mode === "CONTROLS" ? "Virtuella kontroller" : "Bingo"} är på · ledarens sida`,
   checklist: "Checklista",
   steps: { COURSES: "Banor", CLASSES: "Klasser", ENTRIES: "Anmälda", START: "Start", READOUT: "Avläsning", RESULTS: "Resultat" },
   staff: "Funktionärer",

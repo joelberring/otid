@@ -8,8 +8,9 @@ import { registerAccount, unique, warmRoute } from "./helpers";
  * inom steget:
  * - Projektsidan: «Nästa steg» i fyra steg (underlag och grundkarta, rita, kontrollera och exportera, banor), och sektionerna
  *   «Kartan» och «Exportera» (ny kartversion och bara ändringarna på ett ställe).
- * - Kartredigeraren, fliken Lager: «Underlag och grundkarta» med tre numrerade huvudsteg (h3) – Hämta underlag, Ta fram
- *   grundkartan, Gå igenom utkastet – och valen indragna under, i mindre stil. Guiden är en del av steg 2 (h4).
+ * - Kartredigeraren, fliken Grundkarta (översynen av första kartan: tidigare under Lager): tre numrerade huvudsteg (h3) – Hämta
+ *   underlag, Ta fram grundkartan, Gå igenom utkastet – och valen indragna under, i mindre stil. Guiden är en del av steg 2 (h4),
+ *   med laserkörningarna som en utfällning sist i guiden.
  * - Fliken Granska i arbetsordning: Förslag, Normkontroll, Notiser, Rekning, Delområden; arbetssätt och AI i en utfällning sist.
  */
 const mapBytes = new Uint8Array(readFileSync(new URL("../../fixtures/maps/kartfil.omap", import.meta.url)));
@@ -35,7 +36,7 @@ test("översynen: kartstegen i ordning, huvudsteg skilda från valen under dem",
   await owner.goto(`/organizer/map-projects/${projectId}`);
   const next = owner.getByTestId("map-project-next");
   await expect(next).toBeVisible({ timeout: 60_000 });
-  await expect(next.getByRole("heading", { level: 3 })).toHaveText([/^Hämta underlag och ta fram grundkartan/, /^Rita färdigt/,
+  await expect(next.getByRole("heading", { level: 3 })).toHaveText([/^Ta fram grundkartan/, /^Rita färdigt/,
     /^Kontrollera och exportera/, /^Lägg banor på kartan/]);
   await expect(next.getByTestId("map-project-step-draw")).toHaveAttribute("data-next", "true");
   await expect(next.getByTestId("map-project-step-export")).toContainText("Granska › Normkontroll");
@@ -47,12 +48,12 @@ test("översynen: kartstegen i ordning, huvudsteg skilda från valen under dem",
   await expect(exporting.getByRole("heading", { level: 3 })).toHaveText(["Ny kartversion", "Bara ändringarna", "Versioner ur projektet"]);
   await expect(exporting.getByRole("link", { name: "Exportera ändringarna (GeoJSON)" })).toBeVisible();
 
-  // Kartredigeraren, fliken Lager.
+  // Kartredigeraren, fliken Grundkarta.
   await owner.goto(`/organizer/map-projects/${projectId}/map`);
   await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 90_000 });
-  await owner.getByTestId("map-project-tab-layers").click();
-  const panel = owner.getByTestId("map-project-layers");
-  await expect(panel.getByRole("heading", { level: 2 })).toHaveText("Underlag och grundkarta");
+  await owner.getByTestId("map-project-tab-basemap").click();
+  const panel = owner.getByTestId("map-project-basemap");
+  await expect(panel.getByRole("heading", { level: 2 })).toHaveText("Grundkarta");
   const steps = panel.getByRole("heading", { level: 3 });
   await expect(steps).toHaveCount(3);
   for (const [index, name] of ["Steg 1: Hämta underlag", "Steg 2: Ta fram grundkartan", "Steg 3: Gå igenom utkastet"].entries()) {
@@ -65,7 +66,7 @@ test("översynen: kartstegen i ordning, huvudsteg skilda från valen under dem",
   expect(await left(ortho)).toBeGreaterThan(await left(steps.first()) + 16);
   expect(await fontSize(ortho)).toBeLessThan(await fontSize(steps.first()));
   const baseMap = panel.getByTestId("map-project-mapstep-base-map");
-  await expect(baseMap.locator("summary").filter({ hasText: "Laserkörningar (avancerat)" })).toBeVisible();
+  await expect(baseMap.getByTestId("map-project-guide").locator("summary").filter({ hasText: "Laserkörningar (avancerat)" })).toBeVisible();
   await expect(baseMap.locator("summary").filter({ hasText: "Läs in vektorfil eller OpenStreetMap" })).toBeVisible();
   const guide = baseMap.getByTestId("map-project-guide");
   if (await guide.count()) await expect(guide.getByRole("heading", { level: 4 })).toHaveText("Guiden: från laserdata till grundkarta");

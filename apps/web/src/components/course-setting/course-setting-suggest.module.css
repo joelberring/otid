@@ -20,3 +20,12 @@
 .alternative span { font-size: var(--text-xs, .75rem); color: var(--muted); }
 .field { display: flex; align-items: center; gap: 8px; margin: 0; font-size: var(--text-sm); }
 .field span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Stegandet i beskrivningen och förslaget för vald kontroll ligger kvar överst när beskrivningen rullas (2026-11-17). */
+.sticky { position: sticky; top: -10px; z-index: 2; display: grid; min-width: 0; gap: 6px; margin: 0 -10px; padding: 10px 10px 8px;
+  border-bottom: 1px solid var(--line); background: var(--surface); }
+.steps { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.position { flex: 1; min-width: 0; overflow: hidden; text-align: center; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-sm); font-weight: 600; }
+.done { align-self: center; color: var(--muted); font-size: var(--text-sm); }
+.more summary { cursor: pointer; font-size: var(--text-sm); font-weight: 600; }
+.more[open] summary { margin-bottom: 4px; }

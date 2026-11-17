@@ -36,6 +36,26 @@ export function targetOfRef(document: CourseSettingDocument, view: string, ref: 
   return { kind: "control", control: ref, ...(courseControl ? { courseControl } : {}) };
 }
 
+/**
+ * Vanliga kontroller i beskrivningens ordning (raderna uppifrån, som de läggs ut), för att stega igenom dem med Föregående
+ * och Nästa (ägarens önskan 2026-11-17). Start, mål och märkta vägar hoppas över; en kontroll som finns två gånger på banan
+ * kommer bara med första gången.
+ */
+export function stepOrder(layout: DescriptionLayout | undefined, document: CourseSettingDocument): string[] {
+  const seen = new Set<string>();
+  for (const primitive of layout?.primitives ?? []) {
+    if (primitive.kind === "hit" && !seen.has(primitive.ref) && document.controls[primitive.ref]?.kind === "NORMAL") seen.add(primitive.ref);
+  }
+  return [...seen];
+}
+
+/** Grannen i `order` (ingen runtvarvning). Är ingen kontroll i listan vald blir Nästa den första och Föregående den sista. */
+export function stepFrom(order: readonly string[], current: string | undefined, delta: 1 | -1): string | undefined {
+  const index = current === undefined ? -1 : order.indexOf(current);
+  if (index < 0) return delta > 0 ? order[0] : order[order.length - 1];
+  return order[index + delta];
+}
+
 /** Raden i beskrivningen som ska markeras för editorns val (en vald kontroll; inget för en sträcka). */
 export function refOfSelection(selection: Selection | undefined): string | undefined {
   return selection?.kind === "control" ? selection.control : undefined;

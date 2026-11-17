@@ -607,7 +607,9 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
             edit(current => applySteps(current, [{ type: "SET_EVENT", changes: { descriptionLanguage: next.language } }], applyEdit));
           }
         }}
-        onSelect={target => apply(current => select(current, target))}
+        onSelect={target => { apply(current => select(current, target));
+          const at = target.kind === "control" ? document.controls[target.control]?.at : undefined;
+          if (at) mapHandle.current?.show(at); }}
         onEdit={edits => edit(current => applySteps(current, edits, applyEdit))}
         onPrint={() => void flush().finally(() => router.push(`/admin/${raceId}/course-setting/descriptions`))}
         suggestions={suggestions} readOnly={readOnly} onHoverSuggestion={setSuggestionHover} />;

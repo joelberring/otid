@@ -248,10 +248,11 @@ export const courseSettingHelpArticles: readonly HelpArticle[] = [
     title: "Förslag på kontrollbeskrivning ur kartan",
     views: ["CS_DESCRIPTION", "CS_FIELD"],
     body: [
-      "O-Tid läser kartfilen i ringen och föreslår objektet (kolumn D) och mer. Förslaget står under beskrivningen när en kontroll är vald.",
+      "O-Tid läser kartfilen i ringen och föreslår objektet (kolumn D) och mer. Förslaget står överst i fliken, ovanför beskrivningen, när en kontroll är vald och ligger kvar när beskrivningen rullas.",
       [
         "Säkerheten står som säkert, troligt eller osäkert med en procentsats.",
-        "”Godta” skriver in förslaget. ”Andra tolkningar” visar fler förslag.",
+        "”Godta” skriver in förslaget. ”Godta och nästa ▶” skriver in det och går till nästa kontroll. Andra tolkningar fälls ut under förslaget.",
+        "Pilarna ◀ ▶ överst (tangent , och .) stegar genom kontrollerna. Kartan zoomar till kontrollen.",
         "Godta alla tomma tar bästa förslaget för varje kontroll i vyn som saknar objekt.",
         "Peka på ett förslag så markeras objektet på kartan.",
         "Kontroller med förslag som inte är godtagna ritas ljusare i beskrivningen."

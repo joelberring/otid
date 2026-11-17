@@ -67,10 +67,12 @@ export function SuggestionCells({ suggestion, symbols, size = 34 }: { suggestion
  * Förslaget för vald kontroll i beskrivningspanelen: symbolerna, säkerheten och förklaringen, "Godta", "Godta alla tomma"
  * och de andra tolkningarna som rader att klicka på. Pekaren över ett förslag markerar objektet på kartan (`onHover`).
  */
-export function SuggestionPanel({ document, control, label, state, symbols, readOnly, emptyEdits, onEdits, onHover }: {
+export function SuggestionPanel({ document, control, label, state, symbols, readOnly, emptyEdits, onEdits, onHover, onNext }: {
   document: CourseSettingDocument; control: string; label: string; state: SuggestionsState; symbols: SymbolLookup; readOnly: boolean;
   emptyEdits: readonly CourseSettingEdit[]; onEdits: (edits: readonly CourseSettingEdit[]) => void;
   onHover: (shapes: readonly (readonly Point[])[] | undefined) => void;
+  /** Finns det en nästa kontroll att stega till visas "Godta och nästa" (ägarens önskan 2026-11-17). */
+  onNext?: (() => void) | undefined;
 }) {
   const text = useTexts(courseSettingSuggestSv, courseSettingSuggestEn);
   const list = state.byControl[control];
@@ -87,6 +89,8 @@ export function SuggestionPanel({ document, control, label, state, symbols, read
   const hover = (suggestion: DescriptionSuggestion | undefined) => onHover(suggestion ? highlightShapes(suggestion) : undefined);
   if (!best) return <p className={css.reason} data-testid="description-suggestion-none">{text.none}</p>;
   const percent = Math.round(best.confidence * 100);
+  const point = document.controls[control];
+  const done = point !== undefined && sameBoxes(acceptSuggestion(point.descriptions, best), point.descriptions);
   return <section className={css.box} aria-label={text.heading(label)} data-testid="description-suggestion"
     onMouseLeave={() => hover(undefined)}>
     <div className={css.head}>
@@ -98,12 +102,16 @@ export function SuggestionPanel({ document, control, label, state, symbols, read
     </div>
     <p className={css.reason} data-testid="description-suggestion-reason">{best.reason}</p>
     {!readOnly && <div className={css.actions}>
-      <Button onClick={() => accept(best)} onMouseEnter={() => hover(best)} data-testid="description-suggestion-accept">{text.accept}</Button>
+      {done ? <span className={css.done} data-testid="description-suggestion-done">{text.accepted}</span> : <>
+        <Button onClick={() => accept(best)} onMouseEnter={() => hover(best)} data-testid="description-suggestion-accept">{text.accept}</Button>
+        {onNext && <Button onClick={() => { accept(best); onNext(); }} onMouseEnter={() => hover(best)} title={text.acceptNextHelp}
+          data-testid="description-suggestion-accept-next">{text.acceptNext}</Button>}
+      </>}
       {emptyEdits.length > 0 && <Button variant="secondary" title={text.acceptEmptyHelp} onClick={() => { onHover(undefined); onEdits(emptyEdits); }}
         data-testid="description-suggestion-accept-empty">{text.acceptEmpty(emptyEdits.length)}</Button>}
     </div>}
-    {others.length > 0 && <>
-      <p className={css.reason}><strong>{text.alternatives}</strong></p>
+    {others.length > 0 && <details className={css.more}>
+      <summary>{text.alternativesCount(others.length)}</summary>
       <ul className={css.alternatives}>
         {others.map(suggestion => <li key={suggestion.boxes.map(box => `${box.box}${box.ref}`).join("")}>
           <button type="button" className={css.alternative} disabled={readOnly} data-testid="description-suggestion-alternative"
@@ -114,7 +122,7 @@ export function SuggestionPanel({ document, control, label, state, symbols, read
           </button>
         </li>)}
       </ul>
-    </>}
+    </details>}
     <p className="visually-hidden">{text.hover}</p>
   </section>;
 }

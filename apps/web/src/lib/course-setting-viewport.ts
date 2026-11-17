@@ -52,6 +52,17 @@ export function fitBounds(bounds: Bounds, width: number, height: number, margin 
     centerY: (bounds.minY + bounds.maxY) / 2 + (use.top - use.bottom) / 2 / pxPerMm, pxPerMm, width, height };
 }
 
+/**
+ * En punkt mitt i den fria delen av rutan (utanför `insets`), med minst `minPxPerMm` men aldrig utzoomat från `view`
+ * (ägarens önskan 2026-11-17: kartan går till kontrollen man stegar till i beskrivningen, så att objektet syns).
+ */
+export function centerOn(view: Viewport, point: Point, minPxPerMm: number, insets: Insets = NO_INSETS): Viewport {
+  const pxPerMm = clamp(Math.max(view.pxPerMm, minPxPerMm));
+  const free = { width: view.width - insets.left - insets.right, height: view.height - insets.top - insets.bottom };
+  const use = free.width >= view.width * 0.4 && free.height >= view.height * 0.4 ? insets : NO_INSETS;
+  return { ...view, pxPerMm, centerX: point.x - (use.left - use.right) / 2 / pxPerMm, centerY: point.y + (use.top - use.bottom) / 2 / pxPerMm };
+}
+
 /** Zoomar med `factor` kring en skärmpunkt (standard: mitten); kartpunkten där står still. */
 export function zoomAt(view: Viewport, factor: number, screen = { x: view.width / 2, y: view.height / 2 }): Viewport {
   const pxPerMm = clamp(view.pxPerMm * factor);

@@ -27,6 +27,15 @@ export const courseSettingDescriptionSv = {
     close: "Stäng",
     keys: "Pilarna flyttar, Enter väljer, Escape stänger."
   },
+  steps: {
+    label: "Stega mellan kontrollerna",
+    previous: "Föregående kontroll",
+    next: "Nästa kontroll",
+    previousHelp: "Föregående kontroll i beskrivningen (tangent ,). Kartan går dit.",
+    nextHelp: "Nästa kontroll i beskrivningen (tangent .). Kartan går dit.",
+    position: (label: string, index: number, count: number) => `${label} · ${index} av ${count}`,
+    none: (count: number) => `${count} kontroller – Nästa börjar på den första`
+  },
   textLines: {
     heading: "Textrader",
     before: "Text före kontrollen",

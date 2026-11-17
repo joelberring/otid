@@ -12,7 +12,7 @@ import {
 import { courseSettingDescriptionSv } from "../../i18n/course-setting-description-sv";
 import { courseSettingSv } from "../../i18n/course-setting-sv";
 import {
-  browserStorage, DESCRIPTION_KINDS, DESCRIPTION_LANGUAGES, descriptionTextLine, refOfSelection, rowArea, targetOfRef,
+  browserStorage, DESCRIPTION_KINDS, DESCRIPTION_LANGUAGES, descriptionTextLine, refOfSelection, rowArea, stepFrom, stepOrder, targetOfRef,
   type DescriptionSettings, type HitPrimitive
 } from "../../lib/course-setting-description";
 import { symbolLookup } from "../../lib/course-setting-description-draw";
@@ -23,12 +23,14 @@ import type { Selection } from "../../lib/course-setting-editor";
 import { controlLabel } from "../../lib/course-setting-text";
 import { Button } from "../ui";
 import { DescriptionPicker, type PickedValue } from "./course-setting-description-picker";
+import { DescriptionSteps } from "./course-setting-description-steps";
 import { DescriptionSvg } from "./description-svg";
 import { SuggestionPanel, type SuggestionsState } from "./course-setting-suggest";
 import { acceptEmptyEdits, previewDocument } from "../../lib/course-setting-suggest";
 import { courseSettingSuggestSv } from "../../i18n/course-setting-suggest-sv";
 import type { Point } from "@o-tid/map-file";
 import styles from "./course-setting.module.css";
+import suggestCss from "./course-setting-suggest.module.css";
 
 /** Paketets uträkningar får inte fälla editorn; ett fel syns i konsolen och panelen säger att beskrivningen inte gick. */
 function safely<T>(name: string, compute: () => T, fallback: T): T {
@@ -114,6 +116,17 @@ export function DescriptionPanel({ document, view, variant, selection, settings,
     }
   };
 
+  // Stega igenom vyns kontroller i beskrivningens ordning; editorns `onSelect` låter kartan gå dit.
+  const order = useMemo(() => stepOrder(layout, document), [layout, document]);
+  const next = stepFrom(order, selectedControl, 1);
+  const step = (delta: 1 | -1) => {
+    const control = stepFrom(order, selectedControl, delta);
+    const target = control ? targetOfRef(document, view, control, variant, selection) : undefined;
+    if (!target) return;
+    setPicking(undefined);
+    onSelect(target);
+  };
+
   const ref = refOfSelection(selection);
   const selectedPoint = selectedControl ? document.controls[selectedControl] : undefined;
   const before = descriptionTextLine(selectedPoint, "before"), after = descriptionTextLine(selectedPoint, "after");
@@ -126,15 +139,18 @@ export function DescriptionPanel({ document, view, variant, selection, settings,
   return <section className={styles.panel} aria-labelledby="course-setting-description" data-testid="description-panel">
     <h2 id="course-setting-description">{text.heading}</h2>
     {!layout && <p role="alert" className={styles.muted}>{text.failed}</p>}
+    {order.length > 0 && <div className={suggestCss.sticky} data-testid="description-work">
+      <DescriptionSteps order={order} current={selectedControl} label={selectedControl ? label(selectedControl) : undefined} onStep={step} />
+      {suggestions && selectedPoint?.kind === "NORMAL" && !picking && <SuggestionPanel document={document} control={selectedPoint.id}
+        label={label(selectedPoint.id)} state={suggestions} symbols={lookup} readOnly={readOnly} emptyEdits={emptyEdits} onEdits={onEdit}
+        onHover={shapes => onHoverSuggestion?.(shapes)} onNext={next ? () => step(1) : undefined} />}
+    </div>}
     {layout && <div className={styles.description}>
       <DescriptionSvg layout={layout} symbols={lookup} fluid label={text.label(course?.name ?? courseText.courses.all)}
         highlight={rowArea(layout, ref)} active={picking} onHit={onHit} hitLabel={hitLabel} testId="description-svg"
         preview={shown.preview} previewLabel={suggestText.preview} />
     </div>}
     {shown.preview.size > 0 && <p className={styles.muted} data-testid="description-preview-count">{suggestText.previewHelp(shown.preview.size)}</p>}
-    {suggestions && selectedPoint?.kind === "NORMAL" && !picking && <SuggestionPanel document={document} control={selectedPoint.id}
-      label={label(selectedPoint.id)} state={suggestions} symbols={lookup} readOnly={readOnly} emptyEdits={emptyEdits} onEdits={onEdit}
-      onHover={shapes => onHoverSuggestion?.(shapes)} />}
     {picking && <DescriptionPicker label={label(picking.control)} box={picking.box} symbols={boxSymbols} recent={recent[picking.box] ?? []}
       current={boxValue(document.controls[picking.control]?.descriptions ?? [], picking.box)} language={settings.language}
       onPick={pick} onClose={() => setPicking(undefined)} />}

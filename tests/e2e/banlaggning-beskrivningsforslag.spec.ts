@@ -95,6 +95,22 @@ test("förslag på kontrollbeskrivning: ny kontroll på en sten, förhandsvisnin
   const after = await (await owner.request.get(`${admin}/course-setting`)).json() as { setting: { document: Document } };
   expect(after.setting.document.controls[created[0]]!.descriptions.find(box => box.box === "D")?.ref).toBe("2.4");
   await expect(owner.getByTestId("description-svg").locator(`[data-ref="${created[0]}"][data-symbol="2.4"]`).first()).toBeVisible();
+  await expect(suggestion.getByTestId("description-suggestion-done")).toBeVisible();
+
+  // Stega (2026-11-17): Nästa går till nästa kontroll i beskrivningen och kartan zoomar dit; "," går tillbaka.
+  const position = owner.getByTestId("description-step-position");
+  const where = (await position.textContent())!;
+  const centerBefore = (await map.getAttribute("data-center"))!;
+  await owner.getByTestId("description-step-next").click();
+  await expect(position).not.toHaveText(where);
+  await expect(map).not.toHaveAttribute("data-center", centerBefore);
+  expect(Number(await map.getAttribute("data-px-per-mm"))).toBeGreaterThanOrEqual(14);
+  await shot(owner, "beskrivningsforslag-stega");
+  await owner.keyboard.press(",");
+  await expect(position).toHaveText(where);
+  // Förslaget och stegandet ligger kvar överst när beskrivningen rullas.
+  await owner.getByTestId("description-panel").evaluate(panel => panel.parentElement?.scrollBy(0, 2000));
+  await expect(owner.getByTestId("description-step-next")).toBeInViewport();
 
   // Telefonen: kontroll 34 på stenen (98, 30) saknar detalj; raden i fältläget godtar förslaget.
   const phoneContext = await browser.newContext({ storageState: await owner.context().storageState(), viewport: { width: 390, height: 844 },

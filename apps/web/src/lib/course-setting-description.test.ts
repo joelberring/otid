@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DescriptionLayout, DescriptionSymbol } from "@o-tid/course-setting";
 import {
-  descriptionLanguageOf, descriptionTextLine, ppenDescriptionLanguage, readDescriptionSettings, refOfSelection, rowArea, targetOfRef, writeDescriptionSettings
+  descriptionLanguageOf, descriptionTextLine, ppenDescriptionLanguage, readDescriptionSettings, refOfSelection, rowArea, stepFrom, stepOrder, targetOfRef, writeDescriptionSettings
 } from "./course-setting-description";
 import { descriptionNodes, descriptionSvg, symbolLookup, symbolNodes, symbolPoint, textNode } from "./course-setting-description-draw";
 import {
@@ -263,5 +263,24 @@ describe("beskrivningen i editorn", () => {
     expect(readDescriptionSettings(storage, "r1", document)).toEqual({ language: "sv", kind: "SYMBOLS" });
     expect(readDescriptionSettings(broken, "r1", document)).toEqual({ language: "sv", kind: "SYMBOLS" });
     expect(() => writeDescriptionSettings(broken, "r1", { language: "sv", kind: "TEXT" })).not.toThrow();
+  });
+});
+
+describe("stega i beskrivningen", () => {
+  const document = testDocument();
+  const hit = (ref: string, y: number, box?: string) => ({ kind: "hit" as const, x: 0, y, width: 8, height: 6, ref, ...(box ? { box } : {}) });
+  const layout = { primitives: [hit("s", 0), hit("a", 6, "D"), hit("a", 6), hit("b", 12), hit("a", 18), hit("f", 24)] } as unknown as DescriptionLayout;
+
+  it("tar vanliga kontroller i radernas ordning, varje kontroll en gång", () => {
+    expect(stepOrder(layout, document)).toEqual(["a", "b"]);
+    expect(stepOrder(undefined, document)).toEqual([]);
+  });
+
+  it("går till grannen utan att varva runt, och börjar i rätt ände när inget är valt", () => {
+    expect(stepFrom(["a", "b"], "a", 1)).toBe("b");
+    expect(stepFrom(["a", "b"], "b", 1)).toBeUndefined();
+    expect(stepFrom(["a", "b"], "a", -1)).toBeUndefined();
+    expect(stepFrom(["a", "b"], undefined, 1)).toBe("a");
+    expect(stepFrom(["a", "b"], "s", -1)).toBe("b");
   });
 });

@@ -13,6 +13,12 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+### 2026-11-17 – Kontrollbeskrivningen: stega mellan kontrollerna, kartan följer med
+- Ägaren 2026-11-17: knappen för att godta symbolförslaget var svår att hitta, och kartan borde gå till kontrollen när man går igenom alla för hand.
+- Beskrivningsfliken har överst en rad som ligger kvar när beskrivningen rullas: ◀ ▶ (tangent , och .) stegar genom vyns vanliga kontroller i beskrivningens ordning (`stepOrder`/`stepFrom`), och förslaget för vald kontroll står direkt under med «Godta» och «Godta och nästa ▶»; står förslaget redan i beskrivningen visas det i stället. Andra tolkningar fälls ut.
+- Ett val i beskrivningen (rad, ruta eller stegning) låter kartan gå till kontrollen (`show`, `centerOn`): mitt i den fria ytan, minst 14 px/mm, aldrig utzoomat.
+- Verifierat: enhetstester, typkontroll, lint, e2e `banlaggning-beskrivningsforslag` (utökad: stega, kartan zoomar, "," tillbaka, raden kvar efter rullning) och `kontrollbeskrivning`.
+
 ### 2026-11-17 – Namngivna versioner av banläggningen (migration 0130)
 - Ägaren 2026-11-17: spara en version med namn och tidpunkt. Fil och versioner har «Spara nuvarande version …» (det osparade skickas först) och «Ge namn …»/«Ta bort namnet» per tidigare version. Namngivna versioner (högst 100) rensas aldrig bort bland de 50 senaste; tidpunkten är versionens egen.
 - Migration 0130 (kolumnen `label`, bara tillägg). POST `course-setting/revisions` (`labelCourseSettingRevisionAsAdmin`, rollen EDIT, auditerad).

@@ -92,6 +92,15 @@ export const courseSettingDescriptionEn: Texts<typeof courseSettingDescriptionSv
     close: "Close",
     keys: "The arrows move, Enter chooses, Escape closes."
   },
+  steps: {
+    label: "Step between the controls",
+    previous: "Previous control",
+    next: "Next control",
+    previousHelp: "Previous control in the description (key ,). The map goes there.",
+    nextHelp: "Next control in the description (key .). The map goes there.",
+    position: (label: string, index: number, count: number) => `${label} · ${index} of ${count}`,
+    none: (count: number) => `${count} controls – Next starts at the first`
+  },
   textLines: {
     heading: "Text lines",
     before: "Text before the control",

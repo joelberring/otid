@@ -21,10 +21,13 @@ import { hitSketch } from "../../lib/course-setting-sketch";
 import type { CourseSettingSketchShape } from "@o-tid/contracts";
 import { MAX_RENDER_SIDE, type MapRenderSession } from "../../lib/course-setting-map-protocol";
 import {
-  bitmapPlacement, fitBounds, NO_INSETS, panBy, resize, toMap, toScreen, topLeft, wheelAction, wheelFactor, zoomAt, type Bounds, type Insets, type Viewport
+  bitmapPlacement, centerOn, fitBounds, NO_INSETS, panBy, resize, toMap, toScreen, topLeft, wheelAction, wheelFactor, zoomAt, type Bounds, type Insets, type Viewport
 } from "../../lib/course-setting-viewport";
 import { Button } from "../ui";
 import styles from "./course-setting.module.css";
+
+/** Skalan när kartan går till en kontroll: ringen ca 85 px och en sten några px (ändras inte om man redan zoomat in mer). */
+const SHOW_PX_PER_MM = 14;
 
 /** ADR-0180 beslut 14: tangenterna och fingrarna vid ett klick eller en dragning. */
 export interface PointerModifiers {
@@ -77,6 +80,8 @@ export interface CourseSettingMapHandle {
   readonly reveal: (points: readonly Point[]) => void;
   /** Steg 66: zoomar in till punkten (en notis i listan). */
   readonly focus: (point: Point) => void;
+  /** Kontrollen mitt i den fria kartytan, inzoomad så att objektet i ringen syns (stegandet i beskrivningen). */
+  readonly show: (point: Point) => void;
 }
 
 const PAN_STEP_PX = 80;
@@ -233,6 +238,10 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
     },
     focus(point) {
       setView(current => current ? { ...current, centerX: point.x, centerY: point.y, pxPerMm: Math.max(current.pxPerMm, 6) } : current);
+    },
+    show(point) {
+      const current = viewRef.current;
+      if (current) setView(centerOn(current, point, SHOW_PX_PER_MM, insets()));
     }
   }), []);
 

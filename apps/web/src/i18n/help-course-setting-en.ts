@@ -245,10 +245,11 @@ export const courseSettingHelpArticlesEn: readonly HelpArticle[] = [
     title: "Control description suggestions from the map",
     views: ["CS_DESCRIPTION", "CS_FIELD"],
     body: [
-      "O-Tid reads the map file in the circle and suggests the feature (column D) and more. The suggestion is below the description when a control is selected.",
+      "O-Tid reads the map file in the circle and suggests the feature (column D) and more. The suggestion is at the top of the tab, above the description, when a control is selected, and stays there when the description scrolls.",
       [
         "The certainty is shown as certain, likely or uncertain with a percentage.",
-        "”Accept” writes in the suggestion. ”Other interpretations” shows more suggestions.",
+        "”Accept” writes in the suggestion. ”Accept and next ▶” writes it in and goes to the next control. Other interpretations fold out under the suggestion.",
+        "The arrows ◀ ▶ at the top (key , and .) step through the controls. The map zooms to the control.",
         "Accept all empty takes the best suggestion for each control in the view that has no feature.",
         "Point at a suggestion and the feature is marked on the map.",
         "Controls with suggestions not yet accepted are drawn lighter in the description."

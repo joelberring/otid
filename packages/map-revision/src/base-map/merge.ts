@@ -1,6 +1,7 @@
 import { geodeticToGrid, gridToGeodetic, transverseMercatorFor } from "@o-tid/map-file";
 import { smoothWater } from "./water-smooth";
 import { isSprintNorm, joinSeams, type MapBox, type MapNorm, type SourceData, type SourceFeature } from "../index";
+import { snapPathsToTracks } from "./path-snap";
 import { sprintOsm } from "./sprint-osm";
 import { LASER_PAVED_FILE, laserPavedAreas } from "./laser-paved";
 import { withoutCutVegetation, type clearCutFeatures } from "./clear-cuts";
@@ -34,9 +35,11 @@ import type { SoilArea } from "./soil";
  * - ur OpenStreetMap tas vägar, stigar, hus, ledningar, staket och liknande; vatten, sankmark, branter och markslag finns
  *   redan ur lasern och marktäcket, och husen tas inte med när Lantmäteriets byggnader finns,
  * - belagd yta ur lasern (`belagt.dxf`, sprintkartor) blir ytor med kvarteren som hål, och då får OpenStreetMaps gator och
- *   gångvägar ingen yta med antagen bredd (lasern har den verkliga ytan); deras mittlinjer följer med utan förslag.
+ *   gångvägar ingen yta med antagen bredd (lasern har den verkliga ytan); deras mittlinjer följer med utan förslag,
+ * - laserns fåror (`spar.dxf`, ägaren 2026-11-17): OpenStreetMaps stigar flyttas till fåran de följer (`snapPathsToTracks`),
+ *   och fårorna som inte redan är en stig eller väg blir otydliga stigar (507).
  */
-const BASE_MAP = ["kurvor.dxf", "formlinjer.dxf", "brantlinjer.dxf", "knollar.dxf", "vatten.geojson", "marktacke.geojson", "byggnader.geojson", "fastigheter.geojson", "fukt.dxf", "diken.dxf", "berg.dxf", "vegetation.dxf", LASER_PAVED_FILE];
+const BASE_MAP = ["kurvor.dxf", "formlinjer.dxf", "brantlinjer.dxf", "knollar.dxf", "vatten.geojson", "marktacke.geojson", "byggnader.geojson", "fastigheter.geojson", "fukt.dxf", "diken.dxf", "berg.dxf", "vegetation.dxf", LASER_PAVED_FILE, "spar.dxf"];
 
 export function baseMapOutputs(names: readonly string[]): string[] {
   const has = new Set(names);
@@ -204,7 +207,8 @@ export function mergeBaseMap(parts: readonly { readonly name: string; readonly d
     || (laserKnolls && feature.layer === "dotknoll"))));
   // Skogsstyrelsens hyggen efter ålder; laserns vegetation i ett hygge som är yngre än skanningen tas bort.
   // Ägaren 2026-11-16: små fastigheter med hus blir tomter (`parcelYards`), före sankmarken som inte ska ligga på tomter.
-  const all = parcelYards([...ticks, ...withoutCutVegetation(scale ? smallRingsToPoints(knolls, scale) : knolls, cuts?.afterScan ?? []), ...(cuts?.features ?? []), ...nmd, ...(osm ? osmForBaseMap(osm, names.has("byggnader.geojson")) : [])]);
+  // Ägaren 2026-11-17: OpenStreetMaps stigar flyttas till laserns fåror (path-snap.ts); fårorna som blir kvar är nya spår.
+  const all = snapPathsToTracks(parcelYards([...ticks, ...withoutCutVegetation(scale ? smallRingsToPoints(knolls, scale) : knolls, cuts?.afterScan ?? []), ...(cuts?.features ?? []), ...nmd, ...(osm ? osmForBaseMap(osm, names.has("byggnader.geojson")) : [])])).features;
   // Ägaren 2026-11-12: en sankmark per plats (blött, fuktigt och marktäckets låg på varandra).
   // Ägaren 2026-11-13: ingen sankmark på sand och grus enligt SGU:s jordartskartan (strandkärr inom 30 m från vatten blir kvar).
   const marsh = singleMarsh(marshOutsideManaged(all, osm ? osmManaged(osm) : [])).features;

@@ -9,6 +9,7 @@
 import { isMainThread, parentPort, Worker, workerData } from "node:worker_threads";
 import type { GroundGrid } from "./geo-cliffs.ts";
 import { DEFAULT_DITCHES, ditchLines, localRelief, reliefImage } from "./geo-ditches.ts";
+import { trackLines } from "./geo-tracks.ts";
 import { bareRock, boulders, chooseKnolls, KNOLL_LOWER_SHARE, KNOLL_MIN_RISE, KNOLL_SPACING, knollCandidates, rockImage } from "./geo-rock.ts";
 import { waterAt, type WaterGrid } from "./geo-water.ts";
 
@@ -55,6 +56,11 @@ export const STEPS = {
     const { ground } = input, water = input.water ? waterAt(input.water.grid, input.water.mask) : undefined;
     const relief = localRelief(ground, DEFAULT_DITCHES.radius), image = reliefImage(ground, relief);
     return { png: image.png, world: image.world, lines: ditchLines(ground, relief, DEFAULT_DITCHES, lookup(ground, input.wet), water) };
+  },
+  /** Släpstigar och spår ur reliefen (geo-tracks.ts, ägaren 2026-11-17). */
+  tracks(input: StepInput) {
+    const { ground } = input, water = input.water ? waterAt(input.water.grid, input.water.mask) : undefined;
+    return { lines: trackLines(ground, localRelief(ground, DEFAULT_DITCHES.radius), undefined, lookup(ground, input.wet), water) };
   },
   stones(input: StepInput) {
     const water = input.water ? waterAt(input.water.grid, input.water.mask) : undefined;

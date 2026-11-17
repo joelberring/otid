@@ -1,7 +1,7 @@
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { and, asc, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import {
-  geoJobCreateRequestSchema, geoWorkerFinishSchema, geoWorkerProgressSchema, GEO_OUTPUT_MAX_BYTES, GEO_OUTPUT_NAME, MAP_PROJECT_LAYER_MAX_BYTES,
+  geoJobCreateRequestSchema, geoWorkerFinishSchema, GEO_CLIP_MARGIN_M, geoWorkerProgressSchema, GEO_OUTPUT_MAX_BYTES, GEO_OUTPUT_NAME, MAP_PROJECT_LAYER_MAX_BYTES,
   type GeoJobList, type GeoJobView, type GeoServerView
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
@@ -62,6 +62,16 @@ export function splitClip(clip: Clip, limitKm2: number): Clip[] {
   return Array.from({ length: parts }, (_, index) => height >= width
     ? { minX: clip.minX, maxX: clip.maxX, minY: Math.round(clip.minY + height * index / parts), maxY: Math.round(clip.minY + height * (index + 1) / parts) }
     : { minY: clip.minY, maxY: clip.maxY, minX: Math.round(clip.minX + width * index / parts), maxX: Math.round(clip.minX + width * (index + 1) / parts) });
+}
+
+/**
+ * Ägaren 2026-11-17 (reliefen för Järvsö östra hade raka skarvar mellan etapperna, norr ljust och söder mörkt): en etapp
+ * räknades bara inom sin egen remsa, så reliefen, kurvorna och fuktigheten vid snittet räknades med halva grannskapet.
+ * Etappen räknas nu på sin remsa med `GEO_CLIP_MARGIN_M` på var sida (inom hela klipprutan) och äger bara remsan.
+ */
+export function stageReach(part: Clip, whole: Clip, marginM = GEO_CLIP_MARGIN_M): Clip {
+  return { minX: Math.max(whole.minX, part.minX - marginM), minY: Math.max(whole.minY, part.minY - marginM),
+    maxX: Math.min(whole.maxX, part.maxX + marginM), maxY: Math.min(whole.maxY, part.maxY + marginM) };
 }
 
 /** Resultatfilerna från en körning som misslyckats eller avbrutits tas bort (ADR-0224 beslut 8); indata står kvar. */
@@ -232,16 +242,17 @@ async function createJob(db: Database, gate: MapProjectGate, body: unknown, runt
     const clips = request.clip ? splitClip(request.clip, geoSplitKm2(runtime.environment)) : [undefined];
     const group = randomUUID();
     const partJobs = clips.map((clip, index) => {
-      const reaching = clip && clips.length > 1 ? tileList.filter(tile => reaches(tile.bbox, clip)) : tileList;
+      const reach = clip && clips.length > 1 ? stageReach(clip, request.clip!) : undefined;
+      const reaching = reach ? tileList.filter(tile => reaches(tile.bbox, reach)) : tileList;
       const suffix = clips.length > 1 ? ` – etapp ${index + 1} av ${clips.length}` : "";
-      return { id: randomUUID(), clip, tiles: reaching.length ? reaching : tileList, name: `${request.name.slice(0, 80 - suffix.length)}${suffix}`,
+      return { id: randomUUID(), clip, reach, tiles: reaching.length ? reaching : tileList, name: `${request.name.slice(0, 80 - suffix.length)}${suffix}`,
         split: clips.length > 1 ? { group, index: index + 1, total: clips.length } : undefined, requestId: index === 0 ? request.requestId : randomUUID() };
     });
     const wanted = partJobs.reduce((sum, part) => sum + part.tiles.length, 0);
     if (tiles + wanted > (limits?.own ?? geoTilesPerMonth(runtime.environment))) return { status: "quota" } as const;
     for (const part of partJobs) {
       await tx.insert(jobs).values({ id: part.id, projectId: access.project.id, accountId: access.accountId, kind: "PULLAUTIN", status: "QUEUED",
-        request: { name: part.name, tiles: part.tiles, settings: request.settings, ...(part.split ? { split: part.split } : {}), ...(request.cliffs ? { cliffs: request.cliffs } : {}), ...(part.clip ? { clip: part.clip } : {}), ...(request.areaId ? { areaId: request.areaId } : {}), ...(request.extras?.length ? { extras: request.extras } : {}),
+        request: { name: part.name, tiles: part.tiles, settings: request.settings, ...(part.split ? { split: part.split } : {}), ...(request.cliffs ? { cliffs: request.cliffs } : {}), ...(part.clip ? { clip: part.clip } : {}), ...(part.reach ? { reach: part.reach } : {}), ...(request.areaId ? { areaId: request.areaId } : {}), ...(request.extras?.length ? { extras: request.extras } : {}),
         ...(request.moisture ? { moisture: request.moisture } : {}),
         ...(request.vegetation ? { vegetation: request.vegetation } : {}) },
       createdAt: new Date(now.getTime() + (part.split ? part.split.index - 1 : 0)), requestId: part.requestId });
@@ -410,6 +421,8 @@ export interface ClaimedGeoJob {
   readonly settings: Readonly<Record<string, number>>;
   /** Grundkartan G1: laserdatan klipps till rutan (SWEREF 99 TM) före körningen. */
   readonly clip: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number } | null;
+  /** En etapps ruta att räkna på: klipprutan (som etappen äger) med marginal mot grannetapperna. */
+  readonly reach?: ClaimedGeoJob["clip"] | undefined;
   readonly cliffs: { readonly minDrop: number; readonly impassableDrop: number; readonly impassableLength?: number | undefined; readonly tags?: boolean | undefined } | null;
   /** G8: Lantmäteriets vektorprodukter att läsa (hämtas med `/laser/x<index>`). */
   readonly extras: readonly { readonly index: number; readonly kind: "LAND_COVER" | "BUILDINGS" | "PARCELS" }[];
@@ -437,7 +450,7 @@ export async function releaseStaleGeoJobs(db: DbExecutor, now: Date): Promise<vo
 export async function claimGeoJob(db: Database, worker: string, now = new Date()): Promise<ClaimedGeoJob | undefined> {
   await releaseStaleGeoJobs(db, now);
   const result = await db.execute<{ id: string; kind: "PULLAUTIN" | "DWG"; request: { tiles?: { id: string; epsg: number | null }[]; settings?: Record<string, number>;
-    clip?: ClaimedGeoJob["clip"]; extras?: { kind: "LAND_COVER" | "BUILDINGS" | "PARCELS" }[]; cliffs?: ClaimedGeoJob["cliffs"]; moisture?: ClaimedGeoJob["moisture"]; vegetation?: ClaimedGeoJob["vegetation"] }; attempts: number }>(sql`
+    clip?: ClaimedGeoJob["clip"]; reach?: ClaimedGeoJob["clip"]; extras?: { kind: "LAND_COVER" | "BUILDINGS" | "PARCELS" }[]; cliffs?: ClaimedGeoJob["cliffs"]; moisture?: ClaimedGeoJob["moisture"]; vegetation?: ClaimedGeoJob["vegetation"] }; attempts: number }>(sql`
     update map_project_geo_job set status = 'RUNNING', started_at = ${now}, heartbeat_at = ${now}, attempts = attempts + 1, worker = ${worker},
       progress = null
     where id = (select id from map_project_geo_job where status = 'QUEUED' order by created_at, id for update skip locked limit 1)
@@ -450,7 +463,7 @@ export async function claimGeoJob(db: Database, worker: string, now = new Date()
   const merge = geoMergeOf(row);
   return { ...(merge ? { merge: { stages: await claimedStages(db, merge) } } : {}), ...((row.request as { split?: unknown }).split ? { stage: true } : {}),
     jobId: row.id, kind: row.kind, attempt: row.attempts, settings: row.request.settings ?? {}, clip: row.request.clip ?? null,
-    extras: (row.request.extras ?? []).map((extra, index) => ({ index, kind: extra.kind })), cliffs: row.request.cliffs ?? null, moisture: row.request.moisture ?? null,
+    ...(row.request.reach ? { reach: row.request.reach } : {}), extras: (row.request.extras ?? []).map((extra, index) => ({ index, kind: extra.kind })), cliffs: row.request.cliffs ?? null, moisture: row.request.moisture ?? null,
     vegetation: row.request.vegetation ?? null, tiles: (row.request.tiles ?? []).map((tile, index) => ({ index, id: tile.id, epsg: tile.epsg ?? null })) };
 }
 

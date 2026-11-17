@@ -53,7 +53,7 @@ export async function queueStageMerge(tx: DbExecutor, job: Pick<Job, "projectId"
     return seen.has(id) ? false : (seen.add(id), true);
   });
   // Allt i etappens begäran följer med (inställningarna, det jobbet räknade) utom det som är etappens eget.
-  const rest = Object.fromEntries(Object.entries(request).filter(([key]) => !["split", "tiles", "clip", "name"].includes(key))), name = request.name;
+  const rest = Object.fromEntries(Object.entries(request).filter(([key]) => !["split", "tiles", "clip", "reach", "name"].includes(key))), name = request.name;
   const id = randomUUID();
   await tx.insert(jobs).values({ id, projectId: first.projectId, accountId: first.accountId, kind: "PULLAUTIN", status: "QUEUED", createdAt: now, requestId: randomUUID(),
     request: { ...rest, name: (name ?? "Karttapullautin").replace(/ – etapp \d+ av \d+$/, ""), tiles: [],

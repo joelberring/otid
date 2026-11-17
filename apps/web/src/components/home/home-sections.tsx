@@ -4,7 +4,7 @@ import type { GroupSummary, MapProjectSummary } from "@o-tid/contracts";
 import { homeSv } from "../../i18n/home-sv";
 import { homeEn } from "../../i18n/public-en";
 import type { Language } from "../../lib/language";
-import { SOURCE_CODE_URL } from "../../lib/contact";
+import type { JoinCodeProblem } from "../../lib/join-code";
 import styles from "./home.module.css";
 
 /** Högst så många per grupp på startsidan; resten under Visa alla. */
@@ -44,12 +44,50 @@ export function HomePersonal({ personal, language }: { personal: Personal; langu
   </section>;
 }
 
-/** Vad O-Tid gör utöver tidtagning, hur det är byggt och var koden finns. */
-export function HomeAbout({ language, demo, guest }: { language: Language; demo?: string | undefined;
+/**
+ * Översynen av startsidan 2026-11-17: "Har du en kod?" överst. Formuläret skickas till `/kod` (GET, fungerar utan
+ * JavaScript), som leder till tävlingen, festen eller gruppen eller tillbaka hit med beskedet (`problem`). Tangentbordet i
+ * mobilen: inga versaler eller rättningar, vanliga tecken (koderna är a–z, 0–9 och bindestreck, och en länk ska gå att klistra in).
+ */
+export function JoinCode({ language, problem }: { language: Language; problem?: JoinCodeProblem | undefined }) {
+  const text = texts(language);
+  return <section className={styles.join} id="kod" aria-labelledby="kod-rubrik" data-testid="home-join">
+    <h2 id="kod-rubrik">{text.joinTitle}</h2>
+    <p id="kod-hjalp">{text.joinHelp}</p>
+    <form action="/kod" method="get" className={styles.joinForm}>
+      <label>{text.joinLabel}<input name="kod" type="text" required maxLength={300} placeholder={text.joinPlaceholder} autoComplete="off"
+        autoCapitalize="none" autoCorrect="off" spellCheck={false} inputMode="text" enterKeyHint="go"
+        aria-describedby={problem ? "kod-hjalp kod-besked" : "kod-hjalp"} aria-invalid={problem === "missing" || undefined} /></label>
+      <button type="submit">{text.join}</button>
+    </form>
+    {problem && <p id="kod-besked" role="alert" className={styles.joinProblem}>{problem === "busy" ? text.joinBusy : text.joinMissing}</p>}
+  </section>;
+}
+
+/** Arrangörens väg (översynen 2026-11-17): en rad under sökningen för den som inte är inloggad; `/organizer` loggar in eller skapar konto. */
+export function OrganizerStart({ language }: { language: Language }) {
+  const text = texts(language);
+  return <p className={styles.organizer} data-testid="home-organizer">
+    <span>{text.organizerQuestion}</span> <Link href="/organizer">{text.organizerStart}</Link>
+  </p>;
+}
+
+/** Vart rutorna under "Mer än tidtagning" leder, i rutornas ordning (texterna i `homeSv.features`). */
+type FeatureTarget = "demo" | "organizer" | "mapFilm" | "about";
+const FEATURE_TARGETS: readonly FeatureTarget[] = ["demo", "organizer", "organizer", "mapFilm", "about", "organizer"];
+
+/**
+ * Vad O-Tid gör utöver tidtagning. Översynen 2026-11-17: rutorna är länkar – tidtagningen till demotävlingen, kartritningen
+ * till filmen om den (annars till arrangörens sida), AI-kopplingen till Om O-Tid och resten till arrangörens sida. Hur O-Tid
+ * är byggt och länken till koden står på Om O-Tid.
+ */
+export function HomeAbout({ language, demo, mapFilm, guest }: { language: Language; demo?: string | undefined; mapFilm?: string | undefined;
   /** Demoläget del 2: "Prova arbetsytan" (bara utan inloggning och med `OTID_GUEST_DEMO=1`) och beskedet efter ett försök. */
   guest?: { message?: "busy" | "failed" | undefined } | undefined }) {
   const text = texts(language);
   const guestText = language === "en" ? guestDemoHomeEn : guestDemoHomeSv;
+  const href = (target: FeatureTarget | undefined) => target === "demo" ? demo ?? "/organizer" : target === "mapFilm" ? mapFilm ?? "/organizer"
+    : target === "about" ? "/om" : "/organizer";
   return <>
     {demo && <p className={styles.demo} data-testid="home-demo"><Link href={demo}>{text.demo}</Link> <span>{text.demoHelp}</span></p>}
     {guest && <form className={styles.demo} action="/api/demo/guest" method="post" data-testid="home-guest-demo">
@@ -59,13 +97,12 @@ export function HomeAbout({ language, demo, guest }: { language: Language; demo?
     <section className={styles.features} aria-labelledby="home-features" data-testid="home-features">
       <h2 id="home-features">{text.featuresTitle}</h2>
       <ul className={styles.featureGrid}>
-        {text.features.map(feature => <li key={feature.title}><strong>{feature.title}</strong><span>{feature.text}</span></li>)}
+        {text.features.map((feature, index) => {
+          const target = href(FEATURE_TARGETS[index]);
+          const body = <><strong>{feature.title}</strong><span>{feature.text}</span></>;
+          return <li key={feature.title}>{target.startsWith("/") ? <Link href={target}>{body}</Link> : <a href={target}>{body}</a>}</li>;
+        })}
       </ul>
-    </section>
-    <section className={styles.built} aria-labelledby="home-built">
-      <h2 id="home-built">{text.builtTitle}</h2>
-      <p>{text.built} {text.code}</p>
-      <p className={styles.builtLinks}><a href={SOURCE_CODE_URL} rel="noopener">{text.codeLink}</a><Link href="/om">{text.about}</Link></p>
     </section>
   </>;
 }

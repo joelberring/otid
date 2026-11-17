@@ -29,10 +29,15 @@
 .siteHeadInner nav a { display: inline-flex; align-items: center; min-height: 40px; font-size: var(--text-sm); }
 .siteHeadInner nav { display: flex; gap: 16px; align-items: center; }
 
-.home { display: grid; gap: 28px; max-width: 880px; padding-top: 24px; padding-bottom: 32px; }
+.home { display: grid; gap: 28px 32px; max-width: 880px; padding-top: 24px; padding-bottom: 32px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, min(400px, 48%)); align-items: start; }
+/* Översynen av startsidan 2026-11-17: målningen står efter Pågår nu i sidan, så att den på smal skärm kommer efter kodfältet,
+   sökningen och dagens tävlingar; på datorn läggs den i första raden bredvid rubriken. Allt annat tar hela bredden. */
+.home > * { grid-column: 1 / -1; }
+.home > .homeLead { grid-column: 1; grid-row: 1; }
+.home > .homePainting { grid-column: 2; grid-row: 1; }
 /* Rubrik, ingress och sökruta till vänster, veckans målning till höger: hel, aldrig beskuren eller utdragen (båda måtten auto). */
-.homeTop { display: grid; gap: 28px 32px; grid-template-columns: minmax(0, 1fr) minmax(0, min(400px, 48%)); align-items: start; }
-.homeLead { display: grid; gap: 28px; align-content: start; }
+.homeLead { display: grid; gap: 20px; align-content: start; }
 .homePainting { justify-self: end; display: block; width: auto; height: auto; max-width: 100%; max-height: 300px; }
 .homeIntro { display: grid; gap: 4px; }
 .homeIntro p { color: var(--muted); max-width: 60ch; }
@@ -112,8 +117,10 @@ a.hubLink:hover strong { text-decoration: underline; }
 
 @media (max-width: 640px) {
   .home { gap: 22px; padding-top: 16px; }
-  /* Smal skärm: målningen mellan sökrutan och listorna, kant i kant (main har 0.75rem sidmarginal upp till 640 px, globals.css). */
-  .homeTop, .homeLead { grid-template-columns: minmax(0, 1fr); gap: 22px; }
+  /* Smal skärm: målningen efter Pågår nu, hel och kant i kant (main har 0.75rem sidmarginal upp till 640 px, globals.css). */
+  .home { grid-template-columns: minmax(0, 1fr); }
+  .home > .homeLead, .home > .homePainting { grid-column: 1; grid-row: auto; }
+  .homeLead { gap: 16px; }
   .homePainting { justify-self: stretch; width: calc(100% + 1.5rem); max-width: none; max-height: none;
     margin-inline: -0.75rem; }
   .raceRow { grid-template-columns: minmax(0, 1fr); gap: 2px; padding: 12px 0; }

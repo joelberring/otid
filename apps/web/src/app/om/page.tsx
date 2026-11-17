@@ -3,7 +3,7 @@ import Link from "next/link";
 import { aboutSv } from "../../i18n/about-sv";
 import { aboutEn } from "../../i18n/public-en";
 import { currentLanguage } from "../../lib/language-server";
-import { PROGRAM_CONTACT_EMAIL } from "../../lib/contact";
+import { PROGRAM_CONTACT_EMAIL, SOURCE_CODE_URL } from "../../lib/contact";
 import { introFilmUrl, mapFilmUrl } from "../../lib/intro-film";
 import styles from "../../components/account-pages.module.css";
 
@@ -30,6 +30,7 @@ export default async function AboutPage() {
       <p>{text.beta}</p>
       <h2>{text.madeTitle}</h2>
       <p>{text.made}</p>
+      <p>{text.code} <a href={SOURCE_CODE_URL} rel="noopener">{text.codeLink}</a></p>
       <h2>{text.featuresTitle}</h2>
       <ul className={styles.list}>{text.features.map(feature => <li key={feature}>{feature}</li>)}</ul>
       <h2>{text.capacityTitle}</h2>

@@ -24,7 +24,7 @@ export const READOUT_SHELL_CSP = "default-src 'none'; script-src 'self'; style-s
   "connect-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
 
 /** Avläsningen och bardisken läser stationen med Web Serial (dator) eller WebUSB (Android). */
-export const READOUT_PERMISSIONS_POLICY = "camera=(), geolocation=(), microphone=(), serial=(self), usb=(self)";
+export const READOUT_PERMISSIONS_POLICY = "bluetooth=(self), camera=(), geolocation=(), microphone=(), serial=(self), usb=(self)";
 
 /** Alla svar: ingen MIME-gissning, ingen full adress till andra sajter och ingen inbäddning i ram. */
 export const BASE_SECURITY_HEADERS = [

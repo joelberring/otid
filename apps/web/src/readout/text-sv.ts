@@ -45,6 +45,11 @@ export const readoutText = {
   connectUsb: "Anslut via USB (läsplatta)",
   usbUnsupported: "Den här webbläsaren kan inte ansluta USB-enheter. Använd Chrome.",
   usbBusy: (detail: string) => `Stationen gick inte att ta (${detail}). Är en annan app (t.ex. SI-Droid) igång? Stäng den med Tvinga stopp under Inställningar → Appar, dra ur och sätt i stationen och försök igen.`,
+  // Reader BT (SPORTident, Bluetooth Low Energy).
+  connectBluetooth: "Anslut Reader BT (Bluetooth)",
+  bluetoothUnsupported: "Den här webbläsaren kan inte ansluta Bluetooth-stationer. Använd Chrome eller Edge på dator eller Android.",
+  bluetoothFailed: "Reader BT gick inte att ansluta. Är den på, och inte ansluten till en annan enhet (t.ex. SPORTident Config i en telefon)?",
+  bluetoothLost: "Förbindelsen med Reader BT bröts och gick inte att återställa. Kontrollera att stationen är på och nära, och anslut igen.",
   connectExercise: "Starta övningsstation",
   // Steg 35: stationen ansluts själv, ljud vid avläsning och avläsningen i en egen flik.
   autoTitle: "Automatisk anslutning",
@@ -68,6 +73,7 @@ export const readoutText = {
   clockSkew: (minutes: number) => `Stationens klocka avviker ${Math.abs(minutes)} min från datorn (${minutes > 0 ? "går före" : "går efter"}). Stämplingstiderna räknas mot stationens klocka. Kontrollera att kontrollenheterna och stationen är tidsynkade.`,
   clockIgnored: (minutes: number) => `Stationens klocka går helt fel (${formatSkew(minutes)} ${minutes > 0 ? "före" : "efter"} datorn). O-Tid räknar stämplingstiderna mot datorns klocka i stället. Kontrollera att datorns klocka stämmer, och ställ stationens klocka innan nästa tävling.`,
   clockMissing: "Stationen svarade inte på klockfrågan. Stämplingstiderna räknas mot datorns klocka.",
+  clockBluetooth: "Reader BT ger inte sin klocka. Stämplingstiderna räknas mot datorns klocka.",
   timeUnresolvable: (detail: string) => `Brickans tider går inte att tolka (${detail}). Läs om brickan. Går det inte: ange tiden manuellt i deltagarkortet. Brickan står i listan nedan.`,
   // Steg 45: även 400/404/409 hålls åt sidan, så att resten av kön går.
   heldReadouts: (count: number, serverError: boolean) => `${plural(count, "avläsning", "avläsningar")} avvisades två gånger i rad (${serverError

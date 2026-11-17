@@ -103,7 +103,7 @@ transaktion. Vilka personuppgifter som sparas står på `/integritet` (kontakt: 
   (rotlayouten väntar på `connection()`). Stilar, bilder och anrop begränsas inte (React sätter style-attribut och festens
   färger); allt laddas från samma värd. Utvecklingsläget har dessutom `'unsafe-eval'`.
 - Avläsningsskalet och bardisken (`/admin/{id}/readout` → `/readout/index.html`) har en egen CSP utan inbäddade skript
-  (`default-src 'none'`, bara egna filer, service worker) och `Permissions-Policy` med `serial=(self)` och `usb=(self)`.
+  (`default-src 'none'`, bara egna filer, service worker) och `Permissions-Policy` med `serial=(self)`, `usb=(self)` och `bluetooth=(self)` (Reader BT).
 - API-svaren har `default-src 'none'; frame-ancestors 'none'`.
 - Playwright `sakerhetshuvuden` kontrollerar huvudena på en publik sida, en adminsida, avläsningen, fest-sidan och en API-rutt
   och att sidorna fungerar utan CSP-fel.

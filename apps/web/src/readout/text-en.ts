@@ -49,6 +49,10 @@ export const readoutTextEn: Texts<typeof readoutText> = {
   connectUsb: "Connect via USB (tablet)",
   usbUnsupported: "This browser cannot connect USB devices. Use Chrome.",
   usbBusy: detail => `The station could not be taken (${detail}). Is another app (e.g. SI-Droid) running? Close it with Force stop under Settings → Apps, unplug and plug in the station and try again.`,
+  connectBluetooth: "Connect Reader BT (Bluetooth)",
+  bluetoothUnsupported: "This browser cannot connect Bluetooth stations. Use Chrome or Edge on a computer or Android.",
+  bluetoothFailed: "Reader BT could not be connected. Is it switched on, and not connected to another device (e.g. SPORTident Config on a phone)?",
+  bluetoothLost: "The connection to Reader BT was lost and could not be restored. Check that the station is on and nearby, and connect again.",
   connectExercise: "Start practice station",
   autoTitle: "Automatic connection",
   autoConnecting: "Connecting to the station automatically … Plug in the station if it is not plugged in.",
@@ -69,6 +73,7 @@ export const readoutTextEn: Texts<typeof readoutText> = {
   clockSkew: minutes => `The station's clock differs ${Math.abs(minutes)} min from the computer (${minutes > 0 ? "ahead" : "behind"}). The punch times are counted against the station's clock. Check that the control units and the station are time-synced.`,
   clockIgnored: minutes => `The station's clock is completely wrong (${formatSkew(minutes)} ${minutes > 0 ? "ahead of" : "behind"} the computer). O-Tid counts the punch times against the computer's clock instead. Check that the computer's clock is right, and set the station's clock before the next event.`,
   clockMissing: "The station did not answer the clock question. The punch times are counted against the computer's clock.",
+  clockBluetooth: "Reader BT does not report its clock. The punch times are counted against the computer's clock.",
   timeUnresolvable: detail => `The card's times cannot be interpreted (${detail}). Read the card again. If that fails: enter the time manually in the participant card. The card is in the list below.`,
   heldReadouts: (count, serverError) => `${plural(count, "readout was", "readouts were")} rejected twice in a row (${serverError
     ? "server error" : "the server did not accept them"}). They stay on this computer. The rest of the queue is sent as usual.`,

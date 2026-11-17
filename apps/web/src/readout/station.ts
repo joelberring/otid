@@ -12,7 +12,8 @@ export interface StationClockInfo {
 export type StationStatus =
   | { readonly kind: "disconnected" }
   | { readonly kind: "connecting" }
-  | { readonly kind: "ready"; readonly serialNumber: number; readonly clock?: StationClockInfo }
+  /** `link: "bluetooth"`: Reader BT, som inte ger sin klocka (tiderna räknas mot datorns). */
+  | { readonly kind: "ready"; readonly serialNumber: number; readonly clock?: StationClockInfo; readonly link?: "bluetooth" }
   | { readonly kind: "misconfigured"; readonly problems: readonly string[] }
   | { readonly kind: "no-response" }
   | { readonly kind: "error"; readonly message: string };
@@ -33,6 +34,14 @@ export interface StationCallbacks {
   onTraffic?(direction: "in" | "out", bytes: Uint8Array): void;
   /** Steg 53: händelser i klartext till felsökningsloggen (utläsningssätt, tid, reservväg). Inga namn. */
   onLog?(text: string): void;
+}
+
+/** En ansluten station: över USB/Web Serial (`StationController`) eller Reader BT över Bluetooth (`ReaderBtController`). */
+export interface StationLink {
+  /** Sant när stationen svarade. */
+  start(): Promise<boolean>;
+  stop(): Promise<void>;
+  fastRead: boolean;
 }
 
 const FAST_READ_KEY = "otid.readout.fast-read.v1";
@@ -57,7 +66,7 @@ const FALLBACK_REASONS: Record<string, string> = {
  * Kör protokollets tillståndsmaskin mot en bytetransport: skriver kommandon,
  * matar in mottagna bytes och håller tidsgränsen för väntade svar.
  */
-export class StationController {
+export class StationController implements StationLink {
   readonly #transport: ByteTransport;
   readonly #callbacks: StationCallbacks;
   readonly #timeoutMs: number;

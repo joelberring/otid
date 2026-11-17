@@ -29,7 +29,7 @@ import { placementState } from "./placement-text";
 import { placementLinesEn } from "./placement-text-en";
 import { RecentRow, Verdict, type Current } from "./verdict-panel";
 import { useReadoutQueue } from "./use-readout-queue";
-import { showUsbButton, useStation } from "./use-station";
+import { showBluetoothButton, showUsbButton, useStation } from "./use-station";
 import { useReadoutSound, useVerdictSound } from "./use-readout-sound";
 import { useReadoutRegistration } from "./use-readout-registration";
 import { useCurrentVerdict } from "./use-current-verdict";
@@ -142,7 +142,7 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
   }, [raceId, reload, sync, pkgRef, storeRef, setFailedReadouts, registrationsRef, itemsRef]);
 
   // Steg 35: stationen ansluts själv när sidan öppnas och när den sätts i, om den har anslutits här förut.
-  const { station, exercise, exerciseRef, trafficRef, fastRead, changeFastRead, connected, auto, connectSerial, connectUsb, connectExercise,
+  const { station, exercise, exerciseRef, trafficRef, fastRead, changeFastRead, connected, auto, connectSerial, connectUsb, connectExercise, connectBluetooth,
     disconnect } = useStation({ pkgRef, ready: pkg !== undefined, sound, onCardRead, setCurrent });
 
   function downloadRawLog() {
@@ -271,7 +271,8 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
     {station.kind === "misconfigured" ? <p className="notice" role="alert">{t.misconfiguredHelp} ({station.problems.join(", ")})</p> : null}
     {clockIgnored ? <p className="notice" role="alert" data-testid="clock-ignored">{t.clockIgnored(clockSkew ?? 0)}</p>
       : clockSkew !== undefined ? <p className="notice" role="alert" data-testid="clock-skew">{t.clockSkew(clockSkew)}</p> : null}
-    {!exercise && station.kind === "ready" && !station.clock ? <p className="notice" data-testid="clock-missing">{t.clockMissing}</p> : null}
+    {!exercise && station.kind === "ready" && !station.clock
+      ? <p className="notice" data-testid="clock-missing">{station.link === "bluetooth" ? t.clockBluetooth : t.clockMissing}</p> : null}
   </>;
   const controls = <>
     <section className="controls">
@@ -280,6 +281,7 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
         : <>
           <button type="button" className="primary" onClick={() => { void connectSerial(); }}>{t.connectSerial}</button>
           {showUsbButton ? <button type="button" className="primary" onClick={() => { void connectUsb(); }}>{t.connectUsb}</button> : null}
+          {showBluetoothButton ? <button type="button" className="primary" onClick={() => { void connectBluetooth(); }}>{t.connectBluetooth}</button> : null}
           <button type="button" onClick={() => { void connectExercise(); }}>{t.connectExercise}</button>
           {raceDay ? <small className="exercise-warning" data-testid="exercise-warning-short">
             {pkg?.party ? partyT.exerciseNotCountedShort : t.exerciseRaceDayShort}</small> : null}

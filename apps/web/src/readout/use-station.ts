@@ -9,7 +9,8 @@ import type { ReadoutPackage } from "@o-tid/contracts";
 import { CP210X_USB_FILTERS, WebSerialTransport, WebUsbCp210xPort, type WebSerialPortLike } from "@o-tid/device-transport";
 import { SiTimeError, type SiCardData } from "@o-tid/sportident";
 import { FakeStationTransport } from "./fake-transport";
-import { loadFastRead, saveFastRead, StationController, type StationFacts, type StationStatus } from "./station";
+import { READER_BT_REQUEST, ReaderBtController, type BluetoothLike } from "./reader-bt";
+import { loadFastRead, saveFastRead, StationController, type StationFacts, type StationLink, type StationStatus } from "./station";
 import { TrafficLog } from "./rawlog";
 import { serialIdentity, usbIdentity, useStationAutoConnect, type SerialApi, type SerialStation, type UsbApi,
   type UsbStation } from "./station-auto";
@@ -20,9 +21,13 @@ import type { Current } from "./verdict-panel";
 type SerialNavigator = Navigator & { serial?: SerialApi };
 /** WebUSB: läsplattor (Chrome på Android ser inte stationens CP210x-chip som serieport). */
 type UsbNavigator = Navigator & { usb?: UsbApi };
+/** Web Bluetooth: Reader BT (Chrome/Edge på dator och Android; på iPhone/iPad bara i webbläsare som Bluefy). */
+type BluetoothNavigator = Navigator & { bluetooth?: BluetoothLike };
 /** Visa USB-knappen där Web Serial inte når stationen: Android, eller utan Web Serial. */
 export const showUsbButton = typeof navigator !== "undefined" && !!(navigator as UsbNavigator).usb &&
   (/Android/i.test(navigator.userAgent) || !(navigator as SerialNavigator).serial);
+/** Visa Bluetooth-knappen där webbläsaren har Web Bluetooth. */
+export const showBluetoothButton = typeof navigator !== "undefined" && !!(navigator as BluetoothNavigator).bluetooth;
 const BAUD_RATES = [38_400, 4_800];
 
 export function useStation({ pkgRef, ready, sound, onCardRead, setCurrent }: {
@@ -34,14 +39,14 @@ export function useStation({ pkgRef, ready, sound, onCardRead, setCurrent }: {
   const t = useTexts(readoutText, readoutTextEn);
   const [station, setStation] = useState<StationStatus>({ kind: "disconnected" });
   const [exercise, setExercise] = useState(false);
-  const controllerRef = useRef<StationController | undefined>(undefined);
+  const controllerRef = useRef<StationLink | undefined>(undefined);
   const exerciseRef = useRef<FakeStationTransport | undefined>(undefined);
   const trafficRef = useRef(new TrafficLog());
   // Steg 53: snabb utläsning av SI10/11/SIAC (och SI6), på som förval; kan stängas av om en station krånglar.
   const [fastRead, setFastRead] = useState(() => loadFastRead());
   const fastReadRef = useRef(fastRead);
 
-  const attach = useCallback(async (controller: StationController): Promise<boolean> => {
+  const attach = useCallback(async (controller: StationLink): Promise<boolean> => {
     await controllerRef.current?.stop();
     controllerRef.current = controller;
     return controller.start();
@@ -117,6 +122,22 @@ export function useStation({ pkgRef, ready, sound, onCardRead, setCurrent }: {
     return connectPort(port);
   }
 
+  /** Reader BT över Bluetooth. Ingen automatisk anslutning: webbläsaren frågar efter stationen varje gång. */
+  async function connectBluetooth() {
+    void sound.current.unlock();
+    const bluetooth = (navigator as BluetoothNavigator).bluetooth;
+    if (!bluetooth) { setStation({ kind: "error", message: t.bluetoothUnsupported }); return; }
+    let device;
+    try { device = await bluetooth.requestDevice(READER_BT_REQUEST); }
+    catch { setStation({ kind: "disconnected" }); return; }
+    exerciseRef.current = undefined; setExercise(false);
+    trafficRef.current.note(`Ansluter till ${device.name ?? "Reader BT"} över Bluetooth`);
+    if (!(await attach(new ReaderBtController(device, callbacks, { lostMessage: t.bluetoothLost })))) {
+      controllerRef.current = undefined;
+      setStation({ kind: "error", message: t.bluetoothFailed });
+    }
+  }
+
   async function connectExercise() {
     void sound.current.unlock();
     const timeZone = pkgRef.current?.event.timeZone;
@@ -139,5 +160,5 @@ export function useStation({ pkgRef, ready, sound, onCardRead, setCurrent }: {
     label: (link, index, identity, name) => link === "usb" ? t.autoStationUsb(index, identity.serialNumber, name) : t.autoStationSerial(index) });
 
   return { station, exercise, exerciseRef, trafficRef, fastRead, changeFastRead, connected, auto, connectSerial, connectUsb, connectExercise,
-    disconnect };
+    connectBluetooth, disconnect };
 }

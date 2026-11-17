@@ -48,7 +48,7 @@ const raceDayHelpArticlesEn: readonly HelpArticle[] = [
     title: "Create an event and choose its type",
     views: ["EVENTS", "SETTINGS"],
     body: [
-      "Go to ”My events”. Write ”Event name” and ”Date” under ”Create event”. ”Stage/race (optional)” can be left empty.",
+      "Go to ”My O-Tid”. Write ”Event name” and ”Date” under ”Create event”. ”Stage/race (optional)” can be left empty.",
       "Choose ”Type of event”. The type decides which steps are shown in the workspace:",
       [
         "”Training”: free start, courses and classes in the same place.",
@@ -232,7 +232,7 @@ const raceDayHelpArticlesEn: readonly HelpArticle[] = [
         "”Download IOF file for Eventor”: the file to upload to Eventor.",
         "”Make the results preliminary again”: undoes it.",
         "”Download backup” under ”Settings”: the whole event in one file. Take it after the draw, before the start and after the last finisher.",
-        "”Restore event from backup” on My events: the file becomes a new event, also on another server."
+        "”Restore event from backup” on My O-Tid: the file becomes a new event, also on another server."
       ]
     ]
   },

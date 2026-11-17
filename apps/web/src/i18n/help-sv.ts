@@ -85,7 +85,7 @@ const raceDayHelpArticles: readonly HelpArticle[] = [
     title: "Skapa en tävling och välj typ",
     views: ["EVENTS", "SETTINGS"],
     body: [
-      "Gå till ”Mina tävlingar”. Skriv ”Tävlingens namn” och ”Datum” under ”Skapa tävling”. ”Etapp/lopp (valfritt)” kan stå tomt.",
+      "Gå till ”Mitt O-Tid”. Skriv ”Tävlingens namn” och ”Datum” under ”Skapa tävling”. ”Etapp/lopp (valfritt)” kan stå tomt.",
       "Välj ”Typ av tävling”. Typen styr vilka steg som syns i arbetsytan:",
       [
         "”Träning”: fri start, banor och klasser på samma ställe.",
@@ -269,7 +269,7 @@ const raceDayHelpArticles: readonly HelpArticle[] = [
         "”Ladda ner IOF-fil för Eventor”: filen att ladda upp i Eventor.",
         "”Gör resultaten preliminära igen”: ångrar.",
         "”Ladda ner säkerhetskopia” under ”Inställningar”: hela tävlingen i en fil. Ta den efter lottningen, före start och efter sista målgång.",
-        "”Återställ tävling från säkerhetskopia” på Mina tävlingar: filen blir en ny tävling, också på en annan server."
+        "”Återställ tävling från säkerhetskopia” på Mitt O-Tid: filen blir en ny tävling, också på en annan server."
       ]
     ]
   },

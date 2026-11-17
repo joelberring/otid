@@ -198,7 +198,7 @@ export const invitationEn: Texts<Pick<typeof invitationSv, "page" | "list" | "bu
     register: "Create account",
     login: "Sign in",
     open: "Open",
-    otherAccount: (email: string) => `You are signed in as ${email}. Sign out under My events and open the link again to sign in with the address in the invitation.`
+    otherAccount: (email: string) => `You are signed in as ${email}. Sign out under My O-Tid and open the link again to sign in with the address in the invitation.`
   },
   list: {
     sent: (time: string) => `sent ${time}`,

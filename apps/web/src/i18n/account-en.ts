@@ -39,7 +39,7 @@ export const accountEntryEn: Texts<AccountEntry> = {
     password: "New password",
     save: "Save and sign in",
     saving: "Saving …",
-    saved: "The password is changed and you are signed in. Opening My events …",
+    saved: "The password is changed and you are signed in. Opening My O-Tid …",
     invalidLink: "The link is invalid, already used or has expired. Ask for a new link.",
     newLink: "Ask for a new link",
     backToLogin: "Back to sign in"
@@ -63,7 +63,7 @@ export const accountEntryEn: Texts<AccountEntry> = {
 /** Del 7: Mitt konto (inte AI-kopplingen och Lantmäteriets uppgifter) och kontomenyn. */
 export type AccountPage = Pick<typeof accountSv, "backToEvents" | "genericError" | "networkError" | "sessionExpired" | "logIn" | "me">;
 export const accountPageEn: Texts<AccountPage> = {
-  backToEvents: "My events",
+  backToEvents: "My O-Tid",
   genericError: status => `Something went wrong (${status}). Try again.`,
   networkError: "Could not reach the server. Check the connection and try again.",
   sessionExpired: "You are not signed in.",
@@ -150,7 +150,7 @@ export const accountMenuEn: Texts<typeof accountMenuSv> = {
   myClubs: "My clubs",
   myGroups: "My groups",
   myMapProjects: "My map projects",
-  myEvents: "My events",
+  myEvents: "My O-Tid",
   myAccount: "My account",
   logout: "Sign out",
   loggingOut: "Signing out …",

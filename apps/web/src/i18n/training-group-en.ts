@@ -25,7 +25,7 @@ const groupLeaderEn: Texts<typeof trainingGroupSv.leader> = {
   backToGroup: (name: string) => `To the group ${name}`,
   firstSession: "The group has no earlier session. The training is created empty; add courses and classes in the workspace.",
   kicker: "O-Tid · Training group",
-  back: "My events",
+  back: "My O-Tid",
   loading: "Loading the group …",
   notFound: "The group does not exist, or you are not a leader in it.",
   publicLink: "The group's page",

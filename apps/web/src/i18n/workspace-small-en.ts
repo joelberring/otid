@@ -402,7 +402,7 @@ export const raceBackupEn: Texts<typeof raceBackupSv> = {
   error: "The backup could not be created. Try again.",
   last: at => `Last downloaded ${dateTimeEn(at)}.`,
   never: "No backup has been downloaded yet.",
-  restoreHint: "Restore under My events → Restore event from backup.",
+  restoreHint: "Restore under My O-Tid → Restore event from backup.",
   restore: {
     open: "Restore event from backup",
     openHint: "Has the server broken? Import a backup as a new event.",

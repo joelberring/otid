@@ -60,7 +60,7 @@ export const organizerSv = {
   logout: "Logga ut",
   myAccount: "Mitt konto",
   superadmin: "Superadmin",
-  yourEvents: "Mina tävlingar",
+  yourEvents: "Mitt O-Tid",
   kicker: "O-Tid · Arrangör",
   eventsSection: "Dina tävlingar",
   eventsHint: "Tävlingar som hör till ditt konto.",

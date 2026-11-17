@@ -96,7 +96,7 @@ test("hittbarhet: banläggningen i navigeringen, beskrivningen på papperet, BL-
   await shot(setter, "02-mina-tavlingar-banlaggare");
   await setter.goto(`/admin/${raceId}/manage`);
   await setter.waitForURL(new RegExp(`/admin/${raceId}/course-setting$`), { timeout: 30_000 });
-  await expect(setter.getByTestId("course-setting-back")).toHaveText("← Mina tävlingar", { timeout: 30_000 });
+  await expect(setter.getByTestId("course-setting-back")).toHaveText("← Mitt O-Tid", { timeout: 30_000 });
   await setter.context().close();
   // Ägaren har Banläggning direkt i Mina tävlingar.
   await owner.goto("/organizer");

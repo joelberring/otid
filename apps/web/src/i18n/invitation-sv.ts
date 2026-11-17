@@ -55,7 +55,7 @@ export const invitationSv = {
     register: "Skapa konto",
     login: "Logga in",
     open: "Öppna",
-    otherAccount: (email: string) => `Du är inloggad som ${email}. Logga ut under Mina tävlingar och öppna länken igen för att logga in med adressen i inbjudan.`
+    otherAccount: (email: string) => `Du är inloggad som ${email}. Logga ut under Mitt O-Tid och öppna länken igen för att logga in med adressen i inbjudan.`
   },
   list: {
     sent: (time: string) => `skickad ${time}`,

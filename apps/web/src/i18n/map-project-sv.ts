@@ -6,7 +6,7 @@ export const mapProjectSv = {
   title: "Kartprojekt",
   list: {
     title: "Mina kartprojekt",
-    back: "Mina tävlingar",
+    back: "Mitt O-Tid",
     hint: "Kartprojekt där flera ritar på samma karta. Starta ett eget från en kartfil här, eller från en kartversion i klubbarkivets Kartor.",
     empty: "Du är inte med i något kartprojekt än.",
     own: "eget",

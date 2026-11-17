@@ -135,7 +135,7 @@ export const clubHelpArticles: readonly HelpArticle[] = [
         "Har adressen inget konto säger mejlet att ett konto ska skapas med just den adressen.",
         "I innevarande vecka föreslås dagens datum. Koppla en träning visar först träningarna inom två veckor från veckan.",
         "”Ändra” vid en uppgift byter rubriken eller personen. Den nya personen får ett mejl och läsrätten flyttar med.",
-        "Personen ser bara sina egna uppgifter under ”Mina uppgifter” på Mina tävlingar, med tid, plats och den ansvarige, och kan bocka av dem.",
+        "Personen ser bara sina egna uppgifter under ”Mina uppgifter” på Mitt O-Tid, med tid, plats och den ansvarige, och kan bocka av dem.",
         "När träningen finns får personen läsrätt i banläggningen för just den träningen: banorna, kontrollkartan, beskrivningarna och utskriften.",
         "Tas uppgiften bort försvinner läsrätten också. Många mejl till samma person på kort tid spärras; uppgiften sparas då utan mejl."
       ],

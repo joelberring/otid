@@ -91,7 +91,7 @@ test("språk: Mitt konto på engelska", async ({ browser }) => {
   await expect(owner.getByRole("heading", { name: "My clubs" })).toBeVisible();
   await expect(owner.getByRole("combobox", { name: "Search club" })).toBeVisible();
   await owner.getByRole("button", { name: "Account: Kim Konto" }).click();
-  await expect(owner.getByRole("link", { name: "My events" }).first()).toBeVisible();
+  await expect(owner.getByRole("link", { name: "My O-Tid" }).first()).toBeVisible();
   await owner.goto(`/sprak?till=sv&tillbaka=${encodeURIComponent("/konto")}`);
   await expect(owner.getByRole("heading", { name: "Mitt konto", level: 1 })).toBeVisible();
 });
@@ -127,7 +127,7 @@ test("språk: arbetsytans skal på engelska", async ({ browser }) => {
   const parts = owner.getByRole("navigation", { name: "Parts of the event" });
   await expect(parts.getByRole("button", { name: "Courses & classes" })).toBeVisible({ timeout: 30_000 });
   await expect(parts.getByText("No course yet")).toBeVisible();
-  await expect(owner.getByRole("link", { name: "‹ My events" })).toBeVisible();
+  await expect(owner.getByRole("link", { name: "‹ My O-Tid" })).toBeVisible();
   // Arbetsytan del 2: arbetsytans egna texter (Ny bana).
   await expect(owner.getByRole("button", { name: "New course" }).first()).toBeVisible();
   await owner.getByRole("button", { name: "New course" }).first().click();

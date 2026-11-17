@@ -19,7 +19,7 @@ export const raceBackupSv = {
   error: "Säkerhetskopian kunde inte skapas. Försök igen.",
   last: (at: Date) => `Senast nedladdad ${dateTime(at)}.`,
   never: "Ingen säkerhetskopia har laddats ner ännu.",
-  restoreHint: "Återställ under Mina tävlingar → Återställ tävling från säkerhetskopia.",
+  restoreHint: "Återställ under Mitt O-Tid → Återställ tävling från säkerhetskopia.",
 
   restore: {
     open: "Återställ tävling från säkerhetskopia",

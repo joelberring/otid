@@ -10,9 +10,9 @@ export const gettingStartedHelpArticlesEn: readonly HelpArticle[] = [
     title: "Get started: set a training in 10 minutes",
     views: ["CS_START", "EVENTS", "COURSE_SETTING", "COURSES"],
     body: [
-      "From an empty event to printed maps and readout. The club spaces and training groups are at the top of ”My events” (”My clubs”, ”My groups”) and in the menu with your name.",
+      "From an empty event to printed maps and readout. The club spaces and training groups are at the top of ”My O-Tid” (”My clubs”, ”My groups”) and in the menu with your name.",
       { steps: [
-        "Write the name and date on ”My events”, choose ”Training” and press ”Create event”. See [Create an event](#skapa-tavling).",
+        "Write the name and date on ”My O-Tid”, choose ”Training” and press ”Create event”. See [Create an event](#skapa-tavling).",
         "Open ”Course setting” and upload the map file, or take it with ”Choose map from the club archive”. See [Course setting and the map file](#banlaggning-start).",
         "Press ”Start with an empty course setting” (or ”Import .ppen” if the course is in Purple Pen).",
         "Press ”New course” and choose ”Scale for the course” in the course's properties. Click out the controls, start and finish. See [Controls and courses](#kontroller-banor).",
@@ -30,7 +30,7 @@ export const gettingStartedHelpArticlesEn: readonly HelpArticle[] = [
     body: [
       "The courses are set in Purple Pen and are to become an event with maps from the printer:",
       { steps: [
-        "Create an event of the type ”Event” on ”My events”.",
+        "Create an event of the type ”Event” on ”My O-Tid”.",
         "Open ”Course setting” and upload the same map file as in Purple Pen. See [Course setting and the map file](#banlaggning-start).",
         "Press ”Import .ppen”. Only IOF XML: ”Courses” → ”Import course file”. See [Purple Pen, OCAD and IOF XML](#purple-pen).",
         "Go through the tab ”Warnings” and the tab ”Description”. See [Warnings](#varningar).",
@@ -49,7 +49,7 @@ export const courseSettingHelpArticlesEn: readonly HelpArticle[] = [
     title: "Course setting: open it and load the map",
     views: ["CS_START", "COURSE_SETTING", "COURSES"],
     body: [
-      "Course setting opens with ”Course setting” in the workspace's side panel, under ”Menu” on a phone or with the button ”Course setting” on ”My events”.",
+      "Course setting opens with ”Course setting” in the workspace's side panel, under ”Menu” on a phone or with the button ”Course setting” on ”My O-Tid”.",
       "Someone who only sets courses is added under ”Settings” → ”People with access” with one of the roles:",
       [
         "”Course setting: edit”: changes the courses directly.",

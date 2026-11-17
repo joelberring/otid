@@ -59,7 +59,7 @@ export const organizerEn: Texts<typeof organizerSv> = {
   logout: "Sign out",
   myAccount: "My account",
   superadmin: "Superadmin",
-  yourEvents: "My events",
+  yourEvents: "My O-Tid",
   kicker: "O-Tid · Organiser",
   eventsSection: "Your events",
   eventsHint: "Events that belong to your account.",

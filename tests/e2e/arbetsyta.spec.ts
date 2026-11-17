@@ -195,7 +195,7 @@ test("ny tävling: direkt in, tomlägen med åtgärd, svenska fältfel och tre d
 
   // Mobil: tillbakalänken, räknarna och en meny för genvägarna; inget sidled.
   await owner.setViewportSize({ width: 390, height: 800 });
-  await expect(owner.getByRole("link", { name: "‹ Mina tävlingar" })).toBeVisible();
+  await expect(owner.getByRole("link", { name: "‹ Mitt O-Tid" })).toBeVisible();
   await expect(owner.getByLabel("Läget just nu")).toBeVisible();
   await expect(owner.getByRole("link", { name: /Öppna avläsningen/ })).toBeHidden();
   await owner.getByText("Meny").click();

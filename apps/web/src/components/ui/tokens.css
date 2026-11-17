@@ -38,8 +38,10 @@
   --radius: 6px;
   --row: 36px;
   --control: 40px;
+  /* Minsta tryckyta (översynen 2026-11-17, C3): 0 med mus, 44 px på pekskärm. `min-height: max(32px, var(--tap))` i en modul. */
+  --tap: 0px;
   --focus: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent);
 }
 @media (pointer: coarse) {
-  :root { --control: 44px; }
+  :root { --control: 44px; --tap: 44px; }
 }

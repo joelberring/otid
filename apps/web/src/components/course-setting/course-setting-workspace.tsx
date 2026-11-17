@@ -61,7 +61,7 @@ export function TopBar({ raceId, document, summaries, view, variant, onView, sta
   return <header className={styles.topbar}>
     {/* Tillbaka tydligt (ägaren 2026-11-03): pilen och vart den går, kort på telefonen. */}
     <Link className={styles.back} href={admin ? workspacePath(raceId, "COURSES") : "/organizer"} title={admin ? text.back : text.backToEvents}
-      data-testid="course-setting-back">← {admin ? text.backShort : text.backShortEvents}</Link>
+      data-testid="course-setting-back"><span aria-hidden="true">←</span> <span className={styles.backLabel}>{admin ? text.backShort : text.backShortEvents}</span></Link>
     {tabs}
     <label className={`${styles.inline} ${styles.viewPicker}`}><span className={styles.srOnly}>{copy.topbar.course}</span>
       <select value={view} onChange={event => onView(event.target.value)} data-testid="course-setting-view">

@@ -31,7 +31,7 @@
   transform: rotate(45deg); }
 .menuItems { position: absolute; right: 0; top: calc(100% + 4px); z-index: 6; display: grid; min-width: 11rem; padding: 4px;
   border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); box-shadow: 0 6px 18px rgba(0, 0, 0, .08); }
-.menuItems :is(a, button) { display: flex; align-items: center; min-height: 36px; padding: 0 10px; border: 0; border-radius: 4px; background: transparent;
+.menuItems :is(a, button) { display: flex; align-items: center; min-height: max(36px, var(--tap)); padding: 0 10px; border: 0; border-radius: 4px; background: transparent;
   color: var(--ink); font-size: var(--text-sm); font-weight: 500; text-align: left; text-decoration: none; }
 .menuItems :is(a, button):hover:not(:disabled) { background: var(--subtle); }
 .menuItems span { padding: 6px 10px; color: var(--muted); font-size: var(--text-xs); }

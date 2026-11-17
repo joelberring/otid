@@ -22,7 +22,7 @@ import { resultDuration } from "./types";
 import { ParticipantCard } from "./participant-card";
 import { RemovalReview } from "./removal-review";
 import { RelayTeams } from "./relay-teams";
-import { Button, EmptyState } from "../ui";
+import { Button, EmptyState, Explain } from "../ui";
 import type { Workspace } from "./workspace-state";
 import { SelfRegistrationCleanup } from "./self-registration-cleanup";
 import { joinRaceParts, raceTitle } from "@o-tid/domain";
@@ -97,8 +97,8 @@ export function ParticipantList({ ws }: { ws: Workspace }) {
         {rentalEntries.length > 0 && <Button variant="secondary" disabled={disabled}
           onClick={() => printPrivate("RENTAL")}>{text.rentalPrint}</Button>}
         {/* ADR-0191 beslut 3: importen av anmälda har sin plats här (Inställningar hänvisar hit). */}
-        {profile.features.import && <Link href={`/admin/${raceId}/imports`} title={navigationText.entriesImportHelp}>
-          {navigationText.entriesImportLink}</Link>}
+        {profile.features.import && <span><Link href={`/admin/${raceId}/imports`}>{navigationText.entriesImportLink}</Link>{" "}
+          <Explain text={navigationText.entriesImportHelp} /></span>}
       </div>}
     </div>
     {/* PLAN.md steg 46: städa bort självregistrerade som inte läst ut, efter förhandsvisning. */}

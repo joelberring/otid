@@ -24,8 +24,8 @@ export default async function AboutPage() {
     <div className={styles.prose}>
       <p>{text.intro}</p>
       <p>{text.introMore}</p>
-      {film && <p><a href={film}>{text.film}</a></p>}
-      {mapFilm && <p><a href={mapFilm}>{text.mapFilm}</a></p>}
+      {film && <p className={styles.linkLine}><a href={film}>{text.film}</a></p>}
+      {mapFilm && <p className={styles.linkLine}><a href={mapFilm}>{text.mapFilm}</a></p>}
       <h2>{text.betaTitle}</h2>
       <p>{text.beta}</p>
       <h2>{text.madeTitle}</h2>
@@ -48,8 +48,8 @@ export default async function AboutPage() {
       </>}
       <h2>{text.clubTitle}</h2>
       <p>{text.club}</p>
-      <p><Link href="/organizer">{text.clubLink}</Link></p>
-      <p><Link href="/integritet">{text.privacyLink}</Link></p>
+      <p className={styles.linkLine}><Link href="/organizer">{text.clubLink}</Link></p>
+      <p className={styles.linkLine}><Link href="/integritet">{text.privacyLink}</Link></p>
     </div>
   </main>;
 }

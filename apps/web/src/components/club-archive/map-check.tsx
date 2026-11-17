@@ -5,6 +5,7 @@ import { clubArchiveChecksEn } from "../../i18n/club-archive-more-en";
 import { useTexts } from "../language-provider";
 import { clubArchiveChecksSv } from "../../i18n/club-archive-checks-sv";
 import { checkExplanation, checkLabel, entryThumbnailUrl, mapThumbnailUrl } from "../../lib/club-archive-thumbnails";
+import { Explain } from "../ui";
 import styles from "./archive-checks.module.css";
 
 const chipStatus = (check: ClubMapCheckView | null) => !check ? "NONE" : check.status === "OK" ? "OK" : "FAILED";
@@ -14,8 +15,9 @@ export function MapCheckChip({ check, checking = false, explain = false }: { che
   const text = useTexts(clubArchiveChecksSv, clubArchiveChecksEn);
   const why = checkExplanation(check, text);
   return <span>
-    <span className={styles.chip} data-status={chipStatus(check)} data-testid="map-check" title={why || undefined}>
-      {checking ? text.checking : checkLabel(check, text)}</span>
+    <span className={styles.chip} data-status={chipStatus(check)} data-testid="map-check">
+      {/* Översynen 2026-11-17 (C4): skälet vid tryck när det inte redan står under. */}
+      {checking ? text.checking : why && !explain ? <Explain text={why}>{checkLabel(check, text)}</Explain> : checkLabel(check, text)}</span>
     {explain && why && <span className={`${styles.why} ${styles.block}`}>{why}</span>}
   </span>;
 }
@@ -41,5 +43,6 @@ export function EntryThumbnail({ clubId, entry }: { clubId: string; entry: ClubA
       data-testid="entry-thumbnail" />;
   }
   const label = !entry.thumbnailSource ? text.trainingNoMap : thumbnail?.status === "MAP_FAILED" ? text.trainingMapFailed : text.noImage;
-  return <span className={styles.entryPlaceholder} data-testid="entry-thumbnail-missing" title={thumbnail?.detail ?? undefined}>{label}</span>;
+  return <span className={styles.entryPlaceholder} data-testid="entry-thumbnail-missing">
+    {thumbnail?.detail ? <Explain text={thumbnail.detail}>{label}</Explain> : label}</span>;
 }

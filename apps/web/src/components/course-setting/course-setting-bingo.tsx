@@ -12,7 +12,7 @@ import {
   trainingBingoArea
 } from "../../lib/bingo-setup";
 import { useTexts } from "../language-provider";
-import { Button } from "../ui";
+import { Button, Hint } from "../ui";
 import type { TrainingTool } from "./use-course-setting-training";
 import styles from "./course-setting-training.module.css";
 
@@ -120,8 +120,10 @@ export function BingoBlock({ document, view, readOnly, tool, onTool, pendingArea
             onClick={() => { leader.onShow(leader.shown === group.course ? undefined : group.course); if (group.course !== view) onView(group.course); }}>
             {leader.shown === group.course ? ships.hideShips : ships.showShips}</Button>}
           {leader && !readOnly && <Button variant="quiet" disabled={!started || started.has(group.course)}
-            title={started?.has(group.course) ? ships.rerollStarted : undefined}
+            aria-describedby={started?.has(group.course) ? `reroll-${group.course}` : undefined}
             onClick={() => onEdits(rerollSharedEdits(document, group, globalThis.crypto.getRandomValues(new Uint32Array(1))[0]!))}>{ships.reroll}</Button>}
+          {/* Översynen 2026-11-17 (C4): varför Slumpa om är avstängd, synligt också på pekskärm. */}
+          {leader && !readOnly && started?.has(group.course) && <Hint id={`reroll-${group.course}`}>{ships.rerollStarted}</Hint>}
           {!readOnly && !drawing && <Button variant="secondary" onClick={() => onTool({ kind: "BINGO", points: [], course: group.course })}>
             {text.drawOwn}</Button>}
           {!readOnly && group.bingo.ownArea && <Button variant="quiet" onClick={() => onEdits(setGroupAreaEdits(document, group,

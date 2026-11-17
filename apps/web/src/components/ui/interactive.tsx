@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode, type RefObject } from "react";
+import React, { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Button } from "./index";
+import styles from "./ui.module.css";
+import { useLanguage } from "../language-provider";
 
 /**
  * Text till urklippet. Falskt om urklippet saknas, nekas eller inte svarar inom två sekunder (det kan vänta på ett
@@ -34,4 +36,24 @@ export function Dialog({ dialogRef, className, labelledBy, onClose, closeOnBackd
     onClick={closeOnBackdrop ? event => { if (event.target === event.currentTarget) event.currentTarget.close(); } : undefined}>
     {children}
   </dialog>;
+}
+
+/**
+ * En kort text (en förkortning, ett märke eller ett streck) med en förklaring som går att nå på pekskärm (översynen
+ * 2026-11-17, C4): ett tryck visar förklaringen direkt efter texten, ett tryck till döljer den. Med mus står den också
+ * som verktygstips; `title` är också knappens beskrivning för skärmläsare. Texten i knappen är oförändrad (listor och test läser den). Utan `children` är knappen ett litet "i"
+ * (t.ex. vid en knapp vars namn inte räcker), och förklaringen hamnar på en egen rad under.
+ */
+export function Explain({ text, children, className, defaultOpen = false, testId }: { text: string; children?: ReactNode;
+  className?: string | undefined; defaultOpen?: boolean | undefined; testId?: string | undefined }) {
+  const [open, setOpen] = useState(defaultOpen);
+  const english = useLanguage() === "en";
+  const info = children === undefined;
+  return <>
+    <button type="button" className={[info ? styles.info : styles.explain, className].filter(Boolean).join(" ")} aria-expanded={open}
+      title={text} data-testid={testId} onClick={() => setOpen(value => !value)}>
+      {info ? <><span aria-hidden="true">i</span><span className="visually-hidden">{english ? "Explanation" : "Förklaring"}</span></> : children}
+    </button>
+    {open && <span className={info ? styles.explainedLine : styles.explained}> {text}</span>}
+  </>;
 }

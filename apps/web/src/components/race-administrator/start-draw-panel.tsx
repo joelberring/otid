@@ -63,8 +63,8 @@ export function StartDrawPanel({ ws, visible, number }: { ws: Workspace; visible
           const timed = row.method === "MINUTE";
           const later = ws.drawAdvanced.laterStarts[raceClass.id];
           return <tr key={raceClass.id} data-selected={row.selected ? "true" : undefined}>
-            <td className={styles.drawSelectCell}><input type="checkbox" aria-label={text.drawClass(raceClass.name)} checked={row.selected}
-              disabled={locked} onChange={event => changeDrawRow(raceClass.id, { selected: event.target.checked })} /></td>
+            <td className={styles.drawSelectCell}><label className="tap-check"><input type="checkbox" aria-label={text.drawClass(raceClass.name)} checked={row.selected}
+              disabled={locked} onChange={event => changeDrawRow(raceClass.id, { selected: event.target.checked })} /></label></td>
             <th scope="row" className={styles.drawClassCell}>{raceClass.name}
               <span className={styles.drawClassFacts}>{text.entries}: {raceClass.entryCount}{raceClass.hasStartTimes ? ` · ${text.hasTimes}` : ""}
                 {later?.kind === "CLOCK" && later.value.trim() !== "" ? ` · ${text.laterStartShort(later.value.trim())}` : ""}</span></th>
@@ -99,9 +99,9 @@ export function StartDrawPanel({ ws, visible, number }: { ws: Workspace; visible
 function SelectAll({ ws, locked }: { ws: Workspace; locked: boolean }) {
   const text = useTexts(startDrawSv, startDrawEn);
   const state = drawSelection(ws.drawRows);
-  return <input type="checkbox" aria-label={text.selectAll} title={text.selectAll} checked={state === "ALL"} disabled={locked}
+  return <label className="tap-check"><input type="checkbox" aria-label={text.selectAll} checked={state === "ALL"} disabled={locked}
     ref={element => { if (element) element.indeterminate = state === "SOME"; }}
-    onChange={event => ws.selectAllDrawRows(event.target.checked)} />;
+    onChange={event => ws.selectAllDrawRows(event.target.checked)} /></label>;
 }
 
 /** ADR-0188 beslut 1: startsätt, intervall, första start och vakanser en gång, för alla eller de ikryssade klasserna. */

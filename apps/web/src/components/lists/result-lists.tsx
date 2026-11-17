@@ -10,6 +10,7 @@ import { resultListCsv, type ResultView } from "../../lib/lists/csv";
 import { clubSummary, clubSummaryTotal, courseLine, filterResults, resultClassNames, resultClubs, resultsByClub, splitGroups, type RelayClass,
   type RelayTeam, type ResultClass, type ResultListModel, type ResultRow } from "../../lib/lists/result-list-model";
 import { RadioLive } from "../radio/radio-live";
+import { Explain } from "../ui";
 import { RunnerForking } from "../forking/runner-forking";
 import { forkingSv } from "../../i18n/forking-sv";
 import { forkingEn } from "../../i18n/forking-en";
@@ -72,13 +73,16 @@ function Runner({ row, context, club = true, forking }: { row: ResultRow; contex
   </th>;
 }
 
-/** Arbetsytan: "! Sen start" (eller notisen "Start från stämpling") med förklaringen för skärmläsare och som verktygstips. */
+/**
+ * Arbetsytan: "! Sen start" (eller notisen "Start från stämpling"). Förklaringen visas vid tryck (Explain), står i namnet
+ * för skärmläsare och som verktygstips med mus.
+ */
 function RowMark({ row, context }: { row: ResultRow; context: Context }) {
   const note = noteOf(row, context);
   if (!note?.mark) return null;
-  return <span className={note.warning ? styles.rowMark : styles.rowNotice} title={note.detail} data-testid="list-row-mark">
-    {note.warning ? "! " : ""}{note.mark}
-    {note.detail && <span className={styles.hiddenLabel}>: {note.detail}</span>}</span>;
+  const mark = <>{note.warning ? "! " : ""}{note.mark}</>;
+  return <span className={note.warning ? styles.rowMark : styles.rowNotice} data-testid="list-row-mark">
+    {note.detail ? <Explain text={note.detail}>{mark}</Explain> : mark}</span>;
 }
 
 /**
@@ -336,9 +340,9 @@ function ClubSummary({ model, onClub }: { model: ResultListModel; onClub: (club:
     <table className={`${styles.table} ${styles.summaryTable}`} aria-labelledby="result-club-summary">
       <thead><tr><th scope="col">{s.club}</th><th scope="col" className={styles.num}>{s.starters}</th>
         <th scope="col" className={styles.num}>{s.finished}</th>
-        <th scope="col" className={styles.num}><abbr title={s.firstLong}>{s.first}</abbr></th>
-        <th scope="col" className={styles.num}><abbr title={s.secondLong}>{s.second}</abbr></th>
-        <th scope="col" className={styles.num}><abbr title={s.thirdLong}>{s.third}</abbr></th></tr></thead>
+        <th scope="col" className={styles.num}><Explain text={s.firstLong}>{s.first}</Explain></th>
+        <th scope="col" className={styles.num}><Explain text={s.secondLong}>{s.second}</Explain></th>
+        <th scope="col" className={styles.num}><Explain text={s.thirdLong}>{s.third}</Explain></th></tr></thead>
       <tbody>{rows.map(row => <tr key={row.club ?? ""}>
         <th scope="row">{row.club ? <button type="button" className={styles.person} onClick={() => onClub(row.club!)}>{row.club}</button> : t.noClub}</th>
         <td className={styles.num}>{row.starters}</td><td className={styles.num}>{row.finished}</td>

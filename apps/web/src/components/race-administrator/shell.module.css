@@ -9,7 +9,7 @@
 /* Toppbalk: tillbaka, tävlingen, läget och genvägarna. Smal skärm: genvägarna i en meny (PLAN.md steg 24). */
 .topBar { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 8px 20px; height: var(--topbar);
   padding: 0 20px; background: var(--surface); border-bottom: 1px solid var(--line); }
-.back { flex: 0 0 auto; display: inline-flex; align-items: center; min-height: 32px; color: var(--muted); font-size: var(--text-xs);
+.back { flex: 0 0 auto; display: inline-flex; align-items: center; min-height: max(32px, var(--tap)); color: var(--muted); font-size: var(--text-xs);
   font-weight: 500; text-decoration: none; white-space: nowrap; }
 .back:hover { color: var(--ink); }
 .race { display: grid; flex: 1 1 auto; min-width: 0; padding-left: 18px; border-left: 1px solid var(--line); }

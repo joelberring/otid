@@ -55,6 +55,7 @@
 .tool[aria-pressed="true"], .tool[aria-pressed="true"]:hover:not(:disabled) { border-color: var(--ink); background: var(--ink); color: var(--surface); font-weight: 700; }
 .tool:disabled, .tool[aria-disabled="true"] { opacity: .4; cursor: default; }
 .toolIcon { font-size: 1.1rem; line-height: 1.2; }
+.toolLabel { max-width: 4.6rem; text-align: center; line-height: 1.15; hyphens: manual; }
 .key { position: absolute; top: 2px; right: 3px; font: inherit; font-size: 0.6rem; line-height: 1; opacity: .65; }
 /* Skärmlagret (krysset i vald kontrolls mitt) följer aldrig med vid utskrift. */
 @media print { .screenOnly { display: none; } }

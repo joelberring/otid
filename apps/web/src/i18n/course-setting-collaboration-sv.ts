@@ -43,6 +43,8 @@ export const collaborationSv = {
   },
   drawer: {
     label: "Paneler",
+    /** Översynen 2026-11-17: verktygets etikett radbryts vid det mjuka bindestrecket, så att verktygsspalten inte blir bredare. */
+    trainingShort: "Tränings\u00adformer",
     collapse: "Fäll ihop panelerna",
     expand: "Visa panelerna",
     resize: "Ändra panelernas bredd",

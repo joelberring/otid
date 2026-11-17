@@ -43,8 +43,7 @@ export const mapProjectEn: Texts<typeof mapProjectSv> = {
     },
     draw: {
       title: "Draw and edit the map",
-      help: "Draw in the map, on the computer or on the phone in the forest. More people can draw: invite them under Members.",
-      changed: (n: number) => `${count(n, "changed object", "changed objects")} so far.`
+      help: "Draw in the map, on the computer or on the phone in the forest. More people can draw: invite them under Members."
     },
     courses: {
       title: "Put courses on the map",

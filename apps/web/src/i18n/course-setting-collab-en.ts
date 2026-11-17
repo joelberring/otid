@@ -55,6 +55,7 @@ export const collaborationEn: Texts<typeof collaborationSv> = {
   },
   drawer: {
     label: "Panels",
+    trainingShort: "Training forms",
     collapse: "Collapse the panels",
     expand: "Show the panels",
     resize: "Change the panels' width",

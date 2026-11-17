@@ -20,7 +20,7 @@ export function MapProjectNextSteps({ view }: { view: MapProjectView }) {
   const mapHref = `/organizer/map-projects/${encodeURIComponent(view.projectId)}/map`;
   const help: Record<MapProjectStep, string> = {
     base: view.base.source === "NEW" ? text.base.help : text.base.existing(view.base.fileName),
-    draw: view.changedObjects > 0 ? `${text.draw.changed(view.changedObjects)} ${text.draw.help}` : text.draw.help,
+    draw: text.draw.help,
     courses: text.courses.help
   };
   const action: Record<MapProjectStep, ReactNode> = {

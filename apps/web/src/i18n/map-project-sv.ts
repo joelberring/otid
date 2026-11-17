@@ -38,8 +38,7 @@ export const mapProjectSv = {
     },
     draw: {
       title: "Rita och redigera kartan",
-      help: "Rita i kartan, i datorn eller i mobilen i skogen. Fler kan rita med: bjud in dem under Medlemmar.",
-      changed: (count: number) => `${plural(count, "ändrat objekt", "ändrade objekt")} hittills.`
+      help: "Rita i kartan, i datorn eller i mobilen i skogen. Fler kan rita med: bjud in dem under Medlemmar."
     },
     courses: {
       title: "Lägg banor på kartan",

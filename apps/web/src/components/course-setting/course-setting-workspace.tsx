@@ -139,7 +139,7 @@ export function ToolBar({ tool, tools, onTool, onFork, inCourse, help, onTrainin
       <kbd aria-hidden="true" className={styles.key}>{text.tools.shortcut.FORK}</kbd></button>}
     {onTraining && <button type="button" className={styles.tool} aria-label={copy.drawer.tabs.training} aria-pressed={trainingOpen === true}
       title={copy.drawer.tabs.training} onClick={onTraining} data-testid="course-setting-training-tool">
-      <span aria-hidden="true" className={styles.toolIcon}>{TAB_ICON.training}</span><span aria-hidden="true">{copy.drawer.tabs.training}</span></button>}
+      <span aria-hidden="true" className={styles.toolIcon}>{TAB_ICON.training}</span><span aria-hidden="true" className={styles.toolLabel}>{copy.drawer.trainingShort}</span></button>}
   </div>;
 }
 

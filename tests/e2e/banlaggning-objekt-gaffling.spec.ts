@@ -139,7 +139,7 @@ test("banläggning: passager och vridning, paletten, duplicera, fånga befintlig
 
   // 5. Gaffla vid 32 i två grenar: editorn står i gren A, Nästa gren, en kontroll i varje.
   await owner.getByTestId("course-setting-tree-control").filter({ hasText: "kontroll 32" }).click();
-  await owner.getByRole("button", { name: "Gaffla här (vid vald kontroll)" }).click();
+  await owner.getByRole("button", { name: "Gaffla här (vid vald kontroll eller sträcka)" }).click();
   await owner.getByTestId("course-setting-fork-picker").getByRole("button", { name: "2 grenar" }).click();
   const bar = owner.getByTestId("course-setting-fork-bar");
   await expect(bar).toContainText("Gren A av 2");

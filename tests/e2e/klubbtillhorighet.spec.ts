@@ -142,7 +142,7 @@ test("klubbtillhörighet: välj klubb, koppla till Eventor, bekräfta, bjud in f
   await expect(admin).toHaveURL(/\/organizer$/);
   await quick.getByRole("button", { name: "Stäng" }).click();
   await expect(quick).toHaveCount(0);
-  const raceId = await createRace(admin, `Klubbkvällen ${suffix}`, daysFromToday(-1), "Tävling", undefined, /^Välj OKÄÖ$/);
+  const raceId = await createRace(admin, `Klubbkvällen ${suffix}`, daysFromToday(-1), "Tävling", undefined, /^Välj (OKÄÖ|.*Älvsjö)/);
   // Banorna ur en banfil (Banor → Läs in banfil).
   const files = admin.getByRole("region", { name: "Banfil" });
   await files.getByLabel("Banfil (IOF XML)").setInputFiles(fixture("course-file-1.xml"));

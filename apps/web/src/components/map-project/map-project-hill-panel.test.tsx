@@ -17,7 +17,7 @@ describe("panelen Små höjder som ring", () => {
   it("säger vad den gör, och att grundkartan behöver läsas in från ett jobb med markens höjd", () => {
     const html = render(importer());
     expect(html).toContain("Små höjder som ring (101, 103)");
-    expect(html).toContain("Inga sökta höjder bland kandidaterna. Läs in grundkartan från ett laserjobb som har markens höjd sparad (hojd.png).");
+    expect(html).toContain("Inga sökta höjder i utkastet. Läs in grundkartan från ett laserjobb som har markens höjd sparad (hojd.png).");
     expect(html).not.toContain('data-testid="map-project-hills-amount"');
   });
   it("visar mängden 1–10 med förvalet 5, gränsen under Finjustera och vad som valdes", () => {

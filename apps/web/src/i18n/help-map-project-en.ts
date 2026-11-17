@@ -17,8 +17,25 @@ export const mapProjectHelpArticlesEn: readonly HelpArticle[] = [
         "”Map only” hides the tools and the panel. The key § does the same.",
         "The dot at the top shows saving: filled when saved, an empty ring when changes are waiting. A text warning appears only when something is wrong."
       ],
-      "The tabs divide what used to be one long list. ”Layers” is everything that can be turned off and locked: read [Turn off, fade and lock layers](#ritlaget-lager). ”Review” is proposals, sub-areas, notes, field checking and the norm check, and ”Process” is generalising and correcting the whole map.",
+      "The tabs divide what used to be one long list. ”Layers” is everything that can be turned off and locked, and the steps up to the base map: read [From laser data to a finished map](#ritlaget-arbetsgang). ”Review” is proposals, the norm check, notes, field checking and sub-areas, and ”Process” is generalising and correcting the whole map.",
       "The keys and the wheel are in [Points, keys and the wheel](#ritlaget-punkter-tangenter)."
+    ]
+  },
+  {
+    id: "ritlaget-arbetsgang",
+    title: "From laser data to a finished map",
+    views: ["MAP_EDITOR"],
+    body: [
+      "A new map is made in the same order every time. The first three steps are numbered under the tab ”Layers”, after the layers. What is indented under a step are choices within it.",
+      [
+        "Step 1: fetch orthophotos, soil moisture and the Forest Agency's maps to draw from. They are only a background.",
+        "”Make the base map”: the guide runs the laser data and adds OpenStreetMap and clear-cuts. The result is a draft.",
+        "”Review the draft”: the sliders change the draft at once. Add it with the row below the map, or leave it as suggestions.",
+        "Finish drawing with the symbols under ”Symbols”.",
+        "Check under ”Review” › ”Norm check”.",
+        "Export on the map project's page, under ”Export”: a new map version or only the changes."
+      ],
+      "A draft is not saved in the map until you add it. Suggestions are something else: changes that an owner approves under ”Review”."
     ]
   },
   {

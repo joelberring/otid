@@ -1,6 +1,6 @@
 /** ADR-0219 tillägget om underlagen (K4a): egna underlag i kartprojektets editor. */
 export const mapProjectLayersSv = {
-  heading: "Underlag",
+  heading: "Underlag och grundkarta",
   help: "Lägg upp ett eget underlag: ortofoto, laserdata, skuggning eller en skannad karta som GeoTIFF, eller PNG/JPEG med världsfil (.pgw, .jgw, .wld). "
     + "En bild utan världsfil läggs mitt på kartan och rättas med passpunkter. Bilden görs klar här i telefonen eller datorn och delas med projektet.",
   none: "Inga underlag ännu.",
@@ -10,6 +10,7 @@ export const mapProjectLayersSv = {
   crs: "Koordinatsystem (EPSG) om filen inte anger det",
   crsHelp: "T.ex. 3006 för SWEREF 99 TM, 3021 för RT 90, 32633 för UTM 33N, 4326 för WGS 84.",
   upload: "Lägg till",
+  uploadHeading: "Lägg till en egen bild",
   preparing: "Bilden görs klar …",
   uploading: "Skickar …",
   show: (name: string) => `Visa ${name}`,

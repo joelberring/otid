@@ -1,8 +1,8 @@
 /** Ägaren 2026-11-11: Skogsstyrelsens underlag, hyggen efter ålder och beståndsgränser i kartprojektet. */
 export const mapForestSv = {
   images: {
-    heading: "Skogsstyrelsen (underlag)",
-    help: "Skogsstyrelsens öppna kartor för hela kartan eller en etapp, som underlag att tända, släcka och tona under Lager.",
+    heading: "Skogsstyrelsens kartor (hyggen, nyckelbiotoper)",
+    help: "Skogsstyrelsens öppna kartor för hela kartan eller ett delområde, som underlag att tända, släcka och tona under Lager.",
     products: { CLEAR_CUTS: "Utförda avverkningar (hyggen)", NOTIFIED: "Avverkningsanmälningar", KEY_BIOTOPES: "Nyckelbiotoper" },
     fetch: "Hämta som underlag",
     fetching: "Hämtar från Skogsstyrelsen …",
@@ -12,7 +12,7 @@ export const mapForestSv = {
   },
   cuts: {
     heading: "Hyggen med reglage",
-    help: "Skogsstyrelsens utförda avverkningar (från 0,5 ha) delas in efter ålder. Dra i åldrarna: kandidaterna på kartan räknas om direkt.",
+    help: "Skogsstyrelsens utförda avverkningar (från 0,5 ha) delas in efter ålder. Dra i åldrarna: utkastet på kartan räknas om direkt.",
     fetch: "Hämta hyggen",
     fetching: "Hämtar hyggen …",
     fresh: (years: number) => `Färskt hygge (403) yngre än ${years} år`,

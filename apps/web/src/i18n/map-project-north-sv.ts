@@ -18,9 +18,9 @@ export const mapProjectNorthSv = {
     asMap: (value: number) => `Som kartan är ritad (missvisning ${degrees(value)})`,
     today: (value: number) => `Dagens magnetiska nord (${degrees(value)})`,
     spacing: (meters: number, mm: number) => `Avstånd mellan linjerna: ${meters} m (${mm.toLocaleString("sv-SE")} mm på kartan)`,
-    run: "Visa som kandidater",
+    run: "Visa som utkast",
     name: "Nordlinjer",
-    done: (count: number, code: string) => `${count} nordlinjer (${code}) visas som kandidater över hela kartan. Lägg in dem i raden under kartan.`,
+    done: (count: number, code: string) => `${count} nordlinjer (${code}) visas som utkast över hela kartan. Lägg in dem i raden under kartan.`,
     existing: "Kartan har redan nordlinjer; de nya läggs ovanpå. Ta bort de gamla först om de ska bytas.",
     noSymbol: "Kartan har ingen linjesymbol för nordlinjer (601).",
     noArea: "Kartan har ingen utbredning än."

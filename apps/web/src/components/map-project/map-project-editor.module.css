@@ -112,6 +112,20 @@
 .legend span[data-status="CHECKED"]::before { border-color: #1b5e20; background: #2e7d32; }
 .problem { margin: .25rem 0; color: var(--danger, #b3261e); font-size: var(--text-sm, .9rem); }
 .settings summary { cursor: pointer; min-height: 36px; display: flex; align-items: center; font-weight: 600; }
+/* Översynen av kartstegen 2026-11-17: huvudstegen under «Underlag och grundkarta» (nummer, rubrik, en rad om vad steget ger) och
+   det som hör till steget indraget under, i mindre stil. Typografi och luft, ingen egen färg. */
+.step { margin-top: .9rem; padding-top: .75rem; border-top: 1px solid var(--line, #d8dcd9); }
+.stepTitle { display: flex; align-items: center; gap: .5rem; margin: 0; font-size: var(--text-md, 1rem); font-weight: 700; }
+.stepNumber { display: inline-grid; place-items: center; flex: none; width: 1.6rem; height: 1.6rem; border: 2px solid var(--ink, #222);
+  border-radius: 50%; font-size: .85rem; font-weight: 700; line-height: 1; }
+.stepHelp { margin: .25rem 0 .4rem 2.1rem; color: var(--muted); font-size: var(--text-sm, .9rem); }
+.stepBody { margin-left: 2.1rem; }
+.stepBody .settings summary { min-height: 32px; font-size: var(--text-sm, .9rem); }
+.stepBody .groupTitle { margin-top: .75rem; }
+.then { margin: 1rem 0 .25rem; padding-top: .6rem; border-top: 1px solid var(--line, #d8dcd9); color: var(--muted); font-size: var(--text-sm, .9rem); }
+@media (max-width: 600px) {
+  .stepHelp, .stepBody { margin-left: .9rem; }
+}
 .fieldControls { position: absolute; right: 10px; bottom: 10px; z-index: 1; display: grid; justify-items: end; gap: 6px; pointer-events: none; }
 .fieldControls > * { pointer-events: auto; }
 .fieldButtons { display: flex; gap: 6px; align-items: center; }

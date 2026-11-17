@@ -73,7 +73,7 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   // Guiden «Ny grundkarta» står överst och följer samma körningar: uppgifterna finns och området ryms, så nästa steg är att köra.
   const guide = owner.getByTestId("map-project-guide");
   await expect(guide).toHaveAttribute("data-step", "run");
-  await laser.getByText("Laserdata och Karttapullautin").click();
+  await laser.getByText("Laserkörningar (avancerat)").click();
   await laser.getByTestId("map-project-laser-search").click();
   await expect(laser.getByTestId("map-project-laser-items")).toContainText("2024-05-20 · 24E001_658_67_2550 · 123 MB", { timeout: 30_000 });
   await expect(laser.getByTestId("map-project-laser-name")).toHaveValue("Karttapullautin hela kartan");
@@ -133,10 +133,10 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   await expect(green.getByTestId("map-project-green-message")).toContainText("ha mycket svårlöpt", { timeout: 20_000 });
 
   // Kurvorna som kandidater.
-  await laser.getByRole("button", { name: "Läs in kurvor som kandidater" }).click();
+  await laser.getByRole("button", { name: "Läs in kurvor som utkast" }).click();
   // Grönt med reglage visar redan sina ytor som kandidater; de byts mot kurvorna.
   await replace();
-  await expect(laser.getByTestId("map-project-laser-message")).toHaveText("Kurvor visas som kandidater nedan under Vektorfil.");
+  await expect(laser.getByTestId("map-project-laser-message")).toHaveText("Kurvor visas som utkast på kartan. Lägg in det i raden under kartan.");
   const importer = owner.getByTestId("map-project-import");
   // Testkartans symbolset saknar kurvor, så inga förslag här (förslagen prövas i vector-import.test.ts); lagren syns med namnen.
   await expect(importer.getByTestId("map-project-import-layer")).toHaveCount(2);
@@ -144,20 +144,20 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   await expect(importer.getByLabel("Symbol för contour_index")).toBeAttached();
   await reviewScreenshots(owner, "kartprojekt-laser");
   // Våtmarkerna som kandidater (ersätter kurvorna i importen): sänkan blir blött och fuktigt.
-  await laser.getByRole("button", { name: "Läs in våtmarker och fuktstråk som kandidater" }).click();
+  await laser.getByRole("button", { name: "Läs in våtmarker och fuktstråk som utkast" }).click();
   await replace();
-  await expect(laser.getByTestId("map-project-laser-message")).toHaveText("Våtmarker och fuktstråk visas som kandidater nedan under Vektorfil.");
+  await expect(laser.getByTestId("map-project-laser-message")).toHaveText("Våtmarker och fuktstråk visas som utkast på kartan. Lägg in det i raden under kartan.");
   await expect(importer.getByTestId("map-project-import-layer").first()).toContainText("blott");
   // Vegetationen: öppen mark i väster och mycket svårlöpt grönt i öster (alla tre gröna nivåerna).
-  await laser.getByRole("button", { name: "Läs in vegetationsytor som kandidater" }).click();
+  await laser.getByRole("button", { name: "Läs in vegetationsytor som utkast" }).click();
   await replace();
-  await expect(laser.getByTestId("map-project-laser-message")).toHaveText("Vegetationsytor visas som kandidater nedan under Vektorfil.");
+  await expect(laser.getByTestId("map-project-laser-message")).toHaveText("Vegetationsytor visas som utkast på kartan. Lägg in det i raden under kartan.");
   await expect(importer.getByTestId("map-project-import-layer")).toHaveCount(4);
   await expect(importer.getByTestId("map-project-import-layer").first()).toContainText("oppen_mark");
   // Grundkartan: allt på en gång, med branten som en linje i stället för Karttapullautins streck.
   await laser.getByTestId("map-project-laser-base-map").click();
   await replace();
-  await expect(laser.getByTestId("map-project-laser-message")).toContainText("Grundkartan visas som kandidater nedan under Vektorfil.");
+  await expect(laser.getByTestId("map-project-laser-message")).toContainText("Grundkartan visas som utkast på kartan. Lägg in det i raden under kartan.");
   // Skogsstyrelsens hyggen efter ålder (ägaren 2026-11-11): förra årets hygge är färskt, det gamla och det odaterade tas inte med.
   await expect(laser.getByTestId("map-project-laser-message")).toContainText("Hyggen från Skogsstyrelsen: 1 färska, 0 med sly och 0 med ungskog");
   // G8: Lantmäteriets marktäcke (åkern och sankmarken) och OpenStreetMap följer med, laserns öppna mark byter namn när
@@ -179,7 +179,7 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   await expect.poll(countOf).toBeLessThan(before);
   // Skogsstyrelsen (ägaren 2026-11-11): kartbilderna som underlag att tända och släcka, och hyggena med reglage för åldern.
   const forest = owner.getByTestId("map-project-forest-images");
-  await forest.getByText("Skogsstyrelsen (underlag)").click();
+  await forest.getByText("Skogsstyrelsens kartor (hyggen, nyckelbiotoper)").click();
   await forest.getByTestId("map-project-forest-images-fetch").click();
   await expect(forest.getByTestId("map-project-forest-images-message")).toHaveText("1 underlag är tillagt.", { timeout: 30_000 });
   await expect(owner.getByTestId("map-project-layer").filter({ hasText: "Skogsstyrelsen" })).toHaveCount(1, { timeout: 20_000 });
@@ -190,13 +190,13 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   await cuts.getByText("Finjustera").click();
   await cuts.getByTestId("map-project-cuts-fresh").fill("1");
   await expect(cuts.getByTestId("map-project-cuts-message")).toHaveText("0 färska, 1 med sly och 0 med ungskog av 3 hyggen i rutan.", { timeout: 20_000 });
-  await laser.getByRole("button", { name: "Läs in lantmäteriets marktäcke som kandidater" }).click();
+  await laser.getByRole("button", { name: "Läs in lantmäteriets marktäcke som utkast" }).click();
   await replace();
   await expect(importer.getByTestId("map-project-import-layer")).toHaveCount(2);
   // Vattnet ur laserns klasser: sjön blir en yta i lagret vatten.
-  await laser.getByRole("button", { name: "Läs in sjöar och vatten som kandidater" }).click();
+  await laser.getByRole("button", { name: "Läs in sjöar och vatten som utkast" }).click();
   await replace();
-  await expect(laser.getByTestId("map-project-laser-message")).toHaveText("Sjöar och vatten visas som kandidater nedan under Vektorfil.");
+  await expect(laser.getByTestId("map-project-laser-message")).toHaveText("Sjöar och vatten visas som utkast på kartan. Lägg in det i raden under kartan.");
   await expect(importer.getByTestId("map-project-import-layer")).toHaveCount(1);
   await expect(importer.getByTestId("map-project-import-layer").first()).toContainText("vatten");
 
@@ -236,7 +236,7 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   expect(dwgWorker.output).toContain("DWG klart");
   const dwgJob = laser.getByTestId("map-project-laser-job").filter({ hasText: "baskarta" });
   await expect(dwgJob).toContainText("baskarta · DWG-ritning · Klart", { timeout: 30_000 });
-  await dwgJob.getByRole("button", { name: "Läs in ritningen som kandidater" }).click();
+  await dwgJob.getByRole("button", { name: "Läs in ritningen som utkast" }).click();
   await expect(importer.getByTestId("map-project-import-layer")).toHaveCount(2);
   await expect(importer.getByTestId("map-project-import-layer").first()).toContainText("VAG");
   // Något annat än en DWG avvisas utan jobb.

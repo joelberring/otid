@@ -24,17 +24,17 @@ describe("panelen Lugna kurvor på flack mark", () => {
     expect(html).toContain("Inget fuktdjup bland underlagen. Kör laserjobbet med fuktigheten först.");
     expect(html).not.toContain('data-testid="map-project-flat-run"');
   });
-  it("ber om grundkartan när inga kurvor finns bland kandidaterna", () => {
+  it("ber om grundkartan när inga kurvor finns i utkastet", () => {
     const html = render(["Karttapullautin – fuktdjup"], importer({ layers: ["blott"] }));
-    expect(html).toContain("Inga kurvor bland kandidaterna. Läs in grundkartan först (steg 2).");
+    expect(html).toContain("Inga kurvor i utkastet. Ta fram grundkartan först (steg 2).");
     expect(html).not.toContain('data-testid="map-project-flat-level"');
   });
-  it("visar reglaget 0–10 med förvalet 3 och knappen för att visa resultatet som kandidater", () => {
+  it("visar reglaget 0–10 med förvalet 3 och knappen för att visa resultatet som utkast", () => {
     const html = render(["Karttapullautin – fuktdjup"], importer({ layers: ["contour", "formline"] }));
     expect(html).toMatch(/<input type="range" min="0" max="10" step="1"[^>]*value="3"/);
     expect(html).toContain("Nivå 3 av 10 (förval): mark som lutar mindre än 1°, ringar under 1");
     expect(html).toContain('data-testid="map-project-flat-run"');
-    expect(html).toContain("Visa som kandidater");
+    expect(html).toContain("Visa som utkast");
     expect(html).not.toContain('data-testid="map-project-flat-message"');
   });
   it("står på nivån som grundkartan lästes in med och säger vad som togs bort", () => {

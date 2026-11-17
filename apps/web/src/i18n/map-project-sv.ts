@@ -32,13 +32,18 @@ export const mapProjectSv = {
     later: "Sedan",
     openMap: "Öppna kartan",
     base: {
-      title: "Hämta underlag och grundkarta",
-      help: "Öppna kartan och välj Ny grundkarta under Lager: laserdata, vägar, vatten och hyggen blir en grundkarta att rita på.",
+      title: "Hämta underlag och ta fram grundkartan",
+      help: "Öppna kartan, fliken Lager › Underlag och grundkarta: hämta underlag, ta fram grundkartan och gå igenom utkastet.",
       existing: (file: string) => `Kartan startade från ${file}, som är underlaget.`
     },
     draw: {
-      title: "Rita och redigera kartan",
+      title: "Rita färdigt",
       help: "Rita i kartan, i datorn eller i mobilen i skogen. Fler kan rita med: bjud in dem under Medlemmar."
+    },
+    export: {
+      title: "Kontrollera och exportera",
+      help: "Kontrollera i kartan under Granska › Normkontroll. Skapa sedan en ny kartversion under Exportera här nedanför.",
+      action: "Till Exportera"
     },
     courses: {
       title: "Lägg banor på kartan",
@@ -121,7 +126,8 @@ export const mapProjectSv = {
     ownProject: "Eget projekt (ingen klubb)",
     newMap: "ny karta från O-Tid",
     loading: "Hämtar kartprojektet …",
-    base: "Grundversion",
+    map: "Kartan",
+    base: "Grundfil",
     club: "Klubb",
     changes: "Ändringar",
     changed: (count: number) => plural(count, "ändrat objekt", "ändrade objekt"),
@@ -133,8 +139,9 @@ export const mapProjectSv = {
     downloadShort: "Ladda ner",
     exportMapper: "Exportera ändringarna (Mapper)",
     exportGeojson: "Exportera ändringarna (GeoJSON)",
+    exportChanges: "Bara ändringarna",
     exportHelp: "En liten egen fil med bara de ändrade och nya objekten, att lägga in i kartan för hand.",
-    rename: "Byt namn",
+    settings: "Namn och status",
     name: "Projektets namn",
     save: "Spara",
     close: "Avsluta projektet",
@@ -166,8 +173,10 @@ export const mapProjectSv = {
     gone: (name: string) => `Projektet «${name}» är raderat.`
   },
   version: {
-    title: "Ny kartversion",
-    help: "Skriver ändringarna in i en kopia av grundfilen. Bara de ändrade objekten skrivs om, och filen kontrolleras efteråt. Grundfilen ändras aldrig; den nya versionen sparas i projektet.",
+    title: "Exportera",
+    help: "Ta ut kartan med ändringarna: som en ny kartversion, eller bara ändringarna som en liten fil.",
+    newVersion: "Ny kartversion",
+    newVersionHelp: "Skriver ändringarna in i en kopia av grundfilen. Bara de ändrade objekten skrivs om, och filen kontrolleras efteråt. Grundfilen ändras aldrig; den nya versionen sparas i projektet.",
     archive: "Lägg också den nya versionen i klubbarkivet",
     archiveHelp: "Som en ny version av samma karta, bredvid grundversionen.",
     button: "Skapa ny kartversion",

@@ -2,7 +2,7 @@ import type { Texts } from "../lib/language";
 import type { mapWmsSv } from "./map-wms-sv";
 
 export const mapWmsEn: Texts<typeof mapWmsSv> = {
-  heading: "Orthophoto from WMS",
+  heading: "Orthophoto from another map service (WMS)",
   help: "Fetch an aerial photo from an open WMS service, e.g. your municipality's orthophoto. Check that the service's terms allow the image to be used as a base layer for map drawing.",
   responsibility: "You are responsible for checking that the service's terms allow the use.",
   presetAttribution: "Göteborgs Stad (CC0)",
@@ -35,8 +35,8 @@ export const mapWmsEn: Texts<typeof mapWmsSv> = {
     WMS_NOT_WMS: "The address does not answer as a WMS service. Check the address.",
     WMS_NO_LAYER: "The layer no longer exists in the service. Read the layers again.",
     WMS_NO_SWEREF: "No layer in the service can be fetched in SWEREF 99 TM (EPSG:3006) or the map's coordinate system.",
-    WMS_IMAGE_TOO_LARGE: "The image is too large. Choose a coarser resolution or a stage.",
-    WMS_TOO_MANY_TILES: "The area becomes too many image tiles (at most 16). Choose a coarser resolution or a stage.",
+    WMS_IMAGE_TOO_LARGE: "The image is too large. Choose a coarser resolution or a sub-area.",
+    WMS_TOO_MANY_TILES: "The area becomes too many image tiles (at most 16). Choose a coarser resolution or a sub-area.",
     WMS_NO_FORMAT: "The service cannot deliver JPEG or PNG.",
     WMS_NOT_IMAGE: "The service did not answer with an image for the area. Check that the layer covers the map, or choose a coarser resolution.",
     SOURCE_THROTTLED: "Too many fetches in the last hour. Try again later.",

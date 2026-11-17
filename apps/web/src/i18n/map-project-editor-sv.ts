@@ -63,6 +63,7 @@ export const mapProjectEditorSv = {
     proposed: "Ändringen blev ett förslag som en ägare godkänner (Huvudkartritare, någon annans delområde eller rollen Föreslå)."
   },
   collab: {
+    settings: "Arbetssätt och AI-kopplingen",
     mode: "Arbetssätt",
     modes: { SHARED: "Gemensamt", LEAD: "Huvudkartritare" },
     modeHelp: {
@@ -106,8 +107,8 @@ export const mapProjectEditorSv = {
     assignee: "Kartritare",
     nobody: "Inte utdelat",
     areaStatus: "Läge",
-    stages: "Visa etapper",
-    stagesHelp: "Etapperna syns bara här, aldrig i utskrift. Färgen visar hur länge sedan delområdet reviderades.",
+    stages: "Färga delområdena efter revidering",
+    stagesHelp: "Färgen visar hur länge sedan delområdet reviderades. Den syns bara här, aldrig i utskrift.",
     stageAges: { YEAR: "inom ett år", THREE: "1–3 år", SIX: "3–6 år", OLDER: "äldre", NEVER: "inte reviderad" },
     revisedOn: "Reviderad",
     stageLabel: (name: string, revisedOn: string | null) => `${name} · ${revisedOn ?? "inte reviderad"}`,

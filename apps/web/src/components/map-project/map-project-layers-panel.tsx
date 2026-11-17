@@ -27,10 +27,14 @@ function problemText(problem: LayerProblem, text: Texts<typeof mapProjectLayersS
  * ADR-0219 tillägget om underlagen (K4a): underlagen i sidopanelen. Varje underlag kan döljas (för en själv) och göras mer eller
  * mindre genomskinligt (för alla) och tas bort av den som lade till det och ägarna; ägarna ändrar ordningen. Nya läggs till med bild och kanske världsfil.
  */
-export function MapProjectLayersPanel({ layers, mapEpsg, before, after, control, scale, area }: { layers: Layers; mapEpsg: number | undefined;
-  /** Guiden «Ny grundkarta», överst under rubriken. */
-  before?: ReactNode;
-  /** K4b: importen av vektorer, under underlagen. */
+export function MapProjectLayersPanel({ layers, mapEpsg, intro, step, sources, after, control, scale, area }: { layers: Layers; mapEpsg: number | undefined;
+  /** En rad under rubriken om ordningen. */
+  intro?: string;
+  /** Översynen av kartstegen 2026-11-17: steg 1 «Hämta underlag» runt listan; utan det står listan direkt under rubriken. */
+  step?: (body: ReactNode) => ReactNode;
+  /** Hämtningarna i steg 1, under listan och «Lägg till en egen bild». */
+  sources?: ReactNode;
+  /** Steg 2 och 3. */
   after?: ReactNode;
   /** K6b: passpunkterna, kartans skala (för avvikelserna i meter) och området där en bild utan georeferens läggs. */
   control: Control; scale: number; area: Bounds | undefined }) {
@@ -47,9 +51,7 @@ export function MapProjectLayersPanel({ layers, mapEpsg, before, after, control,
   const groups = groupLayers(layers.layers);
   const allHidden = layers.layers.every(layer => layers.hidden.has(layer.layerId));
 
-  return <section className={styles.panel} aria-labelledby="map-project-layers" data-testid="map-project-layers">
-    <h2 id="map-project-layers">{text.heading}</h2>
-    {before}
+  const body = <>
     {layers.layers.length === 0 ? <p className={styles.muted}>{text.none}</p> : <>
       <span className={styles.actions}>
         <Button variant="quiet" data-testid="map-project-layers-all" onClick={() => layers.setShown(layers.layers.map(layer => layer.layerId), allHidden)}>
@@ -65,8 +67,9 @@ export function MapProjectLayersPanel({ layers, mapEpsg, before, after, control,
     </>}
     {problem !== undefined && <p role="alert" className={styles.problem}>{problemText(problem, text)}{" "}
       <Button variant="quiet" onClick={() => layers.setProblem(undefined)}>OK</Button></p>}
+    {sources}
     {layers.canAdd && <details className={styles.settings} open={adding} onToggle={event => setAdding(event.currentTarget.open)}>
-      <summary>{text.upload}</summary>
+      <summary>{text.uploadHeading}</summary>
       <p className={styles.muted}>{text.help}</p>
       <form className={styles.areaForm} onSubmit={event => {
         event.preventDefault();
@@ -89,6 +92,11 @@ export function MapProjectLayersPanel({ layers, mapEpsg, before, after, control,
         </span>
       </form>
     </details>}
+  </>;
+  return <section className={styles.panel} aria-labelledby="map-project-layers" data-testid="map-project-layers">
+    <h2 id="map-project-layers">{text.heading}</h2>
+    {intro && <p className={styles.muted}>{intro}</p>}
+    {step ? step(body) : body}
     {after}
   </section>;
 }

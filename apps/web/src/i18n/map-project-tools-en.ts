@@ -12,7 +12,7 @@ const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : 
 const num = (x: number) => x.toLocaleString("en-GB", { maximumFractionDigits: 2 });
 
 export const mapProjectGeneralizeEn: Texts<typeof mapProjectGeneralizeSv> = {
-  heading: "Generalisation",
+  heading: "Generalise the map",
   help: "Simplifies lines and areas with dense points (e.g. contours from Karttapullautin), joins split lines and removes what is smaller than the norm allows. "
     + "Nothing changes directly: the changes are left as suggestions that the owner approves or rejects. Curves (arcs) are left untouched.",
   where: "Area",
@@ -46,16 +46,16 @@ export const mapProjectGeneralizeEn: Texts<typeof mapProjectGeneralizeSv> = {
 };
 
 export const mapProjectImportEn: Texts<typeof mapProjectImportSv> = {
-  replaceQuestion: (name: string, next: string) => `The candidates from “${name}” have not been added to the map and will be lost if you load “${next}”.`,
+  replaceQuestion: (name: string, next: string) => `The draft from “${name}” has not been added to the map and will be lost if you load “${next}”.`,
   replaceYes: "Load anyway",
   replaceNo: "Keep these",
-  heading: "Import vectors",
-  help: "A base map or other vector file (GeoJSON, DXF or Shapefile, preferably as .zip) becomes candidates: choose a symbol per layer, see them on the map and leave them as suggestions "
+  heading: "Load a vector file or OpenStreetMap",
+  help: "A base map or other vector file (GeoJSON, DXF or Shapefile, preferably as .zip) becomes a draft: choose a symbol per layer, see it on the map and leave it as suggestions "
     + "approved like other suggestions. Save DWG as DXF for now. Everything is read here in the browser. Some base maps are recognised "
     + "by their layer names, but not all. The choices can be saved as a profile for the next file.",
   choose: "Choose file",
   osmHeading: "Fetch from OpenStreetMap",
-  osmHelp: "Buildings, roads, paths, fences, walls, water and land use for the whole map or a stage. The server fetches them; they become candidates like a file. Data © OpenStreetMap contributors (ODbL).",
+  osmHelp: "Buildings, roads, paths, fences, walls, water and land use for the whole map or a sub-area. The server fetches them; they become a draft like a file. Data © OpenStreetMap contributors (ODbL).",
   osmWhere: "Area",
   osmWhole: "The whole map",
   osmFetch: "Fetch",
@@ -79,17 +79,17 @@ export const mapProjectImportEn: Texts<typeof mapProjectImportSv> = {
   symbolFor: (layer: string) => `Symbol for ${layer}`,
   result: (objects: number, joined: number, duplicates: number, short: number, outside: number, mismatched: number, clipped: number,
     closedAreas: number, stairs: number, steps: number) =>
-    `${count(objects, "candidate", "candidates")}`
+    `${count(objects, "object", "objects")} in the draft`
     + [joined && `${joined} merged`, closedAreas && `${count(closedAreas, "area", "areas")} from closed lines`,
       stairs && `${count(stairs, "staircase", "staircases")} from ${steps} steps`, clipped && `${clipped} clipped at the edge`, duplicates && `${duplicates} duplicates removed`,
       short && `${short} short stubs removed`, outside && `${outside} outside the map`, mismatched && `${mismatched} with the wrong shape`].filter(Boolean).map(part => ` · ${part}`).join(""),
-  propose: (n: number) => `Leave ${count(n, "candidate", "candidates")} as suggestions`,
+  propose: (n: number) => `Leave ${count(n, "object", "objects")} as suggestions`,
   accept: (n: number) => `Put ${count(n, "object", "objects")} in the map`,
   accepted: (n: number) => `${count(n, "object", "objects")} are now in the map. Undo removes them all again in one step.`,
-  acceptHelp: "The candidates are shown on the map with their symbols. Put them in directly, or leave them as suggestions to review.",
-  shownHelp: "The candidates are shown on the map with their symbols.",
-  barLabel: "Candidates on the map",
-  barTitle: (file: string) => `Candidates: ${file}`,
+  acceptHelp: "The draft is shown on the map with its symbols. Put it in directly, or leave it as suggestions to review.",
+  shownHelp: "The draft is shown on the map with its symbols.",
+  barLabel: "Draft on the map",
+  barTitle: (file: string) => `Draft: ${file}`,
   barUnmapped: (n: number) => n === 1 ? "1 layer without a symbol" : `${n} layers without a symbol`,
   barBuilt: "Nothing in private land, paving and buildings",
   barReplace: "Replace the map's objects with the same symbols here",
@@ -103,7 +103,7 @@ export const mapProjectImportEn: Texts<typeof mapProjectImportSv> = {
   hideOnMap: "Hide on the map",
   showOnMap: "Show on the map",
   sending: (done: number, total: number) => `Sending ${done} of ${total} …`,
-  dwgSent: (file: string) => `${file} is being read on the geo server. Load the drawing under Laser data and Karttapullautin → The jobs when it is ready.`,
+  dwgSent: (file: string) => `${file} is being read on the geo server. Load the drawing under Laser runs (advanced) → The jobs when it is ready.`,
   sent: (n: number) => `${count(n, "suggestion", "suggestions")} left. Approve or reject them under Suggestions.`,
   note: (file: string, part: number, parts: number) => `Import ${file}${parts > 1 ? `, part ${part} of ${parts}` : ""}`.slice(0, 500),
   cancel: "Cancel",
@@ -121,7 +121,7 @@ export const mapProjectImportEn: Texts<typeof mapProjectImportSv> = {
     STORAGE_QUOTA_EXCEEDED: "The storage is not enough for the drawing.",
     crs: "The coordinate system is not supported (SWEREF 99, RT 90, UTM or WGS 84).",
     generic: (status: number) => `That did not work (${status}).`,
-    SOURCE_AREA_TOO_LARGE: "The area is too large for one fetch (at most about 100 km²). Choose a stage.",
+    SOURCE_AREA_TOO_LARGE: "The area is too large for one fetch (at most about 100 km²). Choose a sub-area.",
     SOURCE_THROTTLED: "Too many fetches in the last hour. Try again later.",
     SOURCE_UNAVAILABLE: "OpenStreetMap did not answer right now. Try again in a while."
   }

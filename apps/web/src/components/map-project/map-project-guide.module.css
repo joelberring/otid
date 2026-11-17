@@ -1,7 +1,7 @@
 /* Guiden «Ny grundkarta»: stegen staplas i en lista (sidopanelen är smal också på bred skärm), märket till vänster. */
 .guide { margin: .5rem 0 .75rem; padding: .6rem .7rem; border: 1px solid var(--line-strong, #b9bfbb); border-radius: 8px; background: var(--surface, #fff); }
 .head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .35rem; }
-.head h3 { margin: 0; font-size: var(--text-md, 1rem); }
+.head h4 { margin: 0; font-size: var(--text-sm, .9rem); font-weight: 700; }
 .muted { margin: .2rem 0 .4rem; color: var(--muted); font-size: var(--text-sm, .9rem); }
 .problem { margin: .25rem 0; color: var(--danger, #b3261e); font-size: var(--text-sm, .9rem); }
 .steps { list-style: none; margin: .4rem 0 0; padding: 0; display: grid; gap: .1rem; }

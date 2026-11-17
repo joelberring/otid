@@ -4,13 +4,16 @@
  * ordning … svårt att förstå vilken ordning man kan göra saker»).
  */
 export const mapUnderlayStepsSv = {
-  sources: "1. Hämta underlag",
-  sourcesHelp: "OpenStreetMap (vägar, stigar, hus) behöver du inte hämta själv: det följer med när du läser in grundkartan i steg 2. Vill du ha det ensamt finns det längst ner under Importera vektorer → Hämta från OpenStreetMap.",
-  laser: "2. Laserdata",
-  laserHelp: "Sök laserrutor och kör en gång. Läs sedan in grundkartan från det klara jobbet: den visas som kandidater och sparas inte i kartan förrän du lägger in dem.",
-  adjust: "3. Justera utan ny körning",
-  adjustHelp: "Reglagen räknar om kandidaterna direkt ur det som redan är hämtat. Bara inställningarna i laserjobbet (ekvidistans, kurvornas utjämning) kräver en ny körning.",
-  other: "Egna filer"
+  intro: "Tre steg uppifrån och ned. Numret visar ordningen; det indragna under varje steg är val inom steget.",
+  sources: "Hämta underlag",
+  sourcesHelp: "Bilder att rita efter, som ortofoto och markfuktighet; OpenStreetMap och hyggen följer med grundkartan i steg 2.",
+  baseMap: "Ta fram grundkartan",
+  baseMapHelp: "Laserdata, OpenStreetMap och hyggen blir ett utkast till kartan, som du går igenom i steg 3.",
+  baseMapOther: "Andra sätt",
+  adjust: "Gå igenom utkastet",
+  adjustHelp: "Reglagen räknar om utkastet direkt, utan ny körning. Lägg sedan in det med raden under kartan.",
+  then: "Sedan: rita färdigt under Symboler, kontrollera under Granska › Normkontroll och exportera på kartprojektets sida.",
+  step: (number: number) => `Steg ${number}`
 };
 
 /** Gemensamt för reglagen som väljer bland det laserjobbet har sparat. */
@@ -32,7 +35,7 @@ export const mapSavedChoiceSv = {
 export const mapKnollsSv = {
   knolls: {
     heading: "Punkthöjder med reglage (109)",
-    help: "Laserjobbet sparar alla möjliga små kullar med sina mått. Dra i gränserna: kandidaterna på kartan räknas om direkt, utan ny körning.",
+    help: "Laserjobbet sparar alla möjliga små kullar med sina mått. Dra i gränserna: utkastet på kartan räknas om direkt, utan ny körning.",
     minRise: (meters: string) => `Minsta höjd över omgivningen: ${meters} m`,
     lowerShare: (percent: number) => `Andel av marken runt om som ligger lägre: minst ${percent} %`,
     maxFoot: (m2: number) => `Största fot: ${m2} m² (större blir en höjdkurva)`,
@@ -42,7 +45,7 @@ export const mapKnollsSv = {
   },
   cliffs: {
     heading: "Branter med reglage (201, 202)",
-    help: "Laserjobbet sparar alla branter från 0,8 m fall med sina mått. Dra i gränserna: kandidaterna räknas om direkt. Förvalet tar inte med branter kortare än normens 0,6 mm på kartan.",
+    help: "Laserjobbet sparar alla branter från 0,8 m fall med sina mått. Dra i gränserna: utkastet räknas om direkt. Förvalet tar inte med branter kortare än normens 0,6 mm på kartan.",
     minDrop: (meters: string) => `Minsta fall för en brant: ${meters} m`,
     minLength: (meters: string) => `Kortaste brant: ${meters} m`,
     impassableDrop: (meters: string) => `Opasserbar från: ${meters} m fall`,
@@ -56,8 +59,8 @@ export const mapKnollsSv = {
 /** Gropar och sänkor (ägaren 2026-11-15, negativ kurvbild): valet bland sänkorna som söktes ur markens höjd när grundkartan lästes in. */
 export const mapPitsSv = {
   heading: "Gropar och sänkor med reglage (111, 103)",
-  help: "När grundkartan läses in söks alla slutna sänkor ur markens höjd, också de som ligger mellan nivåerna. En liten sänka blir en gropsymbol och en större en ring av hjälpkurva efter formen, med lutningsstreck. Sänkor som kurvorna eller Karttapullautins gropar redan visar tas inte med. Dra i gränserna: kandidaterna räknas om direkt, utan ny körning.",
-  none: "Inga sökta sänkor bland kandidaterna. Läs in grundkartan från ett laserjobb som har markens höjd sparad (hojd.png).",
+  help: "När grundkartan läses in söks alla slutna sänkor ur markens höjd, också de som ligger mellan nivåerna. En liten sänka blir en gropsymbol och en större en ring av hjälpkurva efter formen, med lutningsstreck. Sänkor som kurvorna eller Karttapullautins gropar redan visar tas inte med. Dra i gränserna: utkastet räknas om direkt, utan ny körning.",
+  none: "Inga sökta sänkor i utkastet. Läs in grundkartan från ett laserjobb som har markens höjd sparad (hojd.png).",
   minDepth: (meters: string) => `Gropsymbol från: ${meters} m djup`,
   ringDepth: (meters: string) => `Ring av hjälpkurva från: ${meters} m djup (när sänkan rymmer normens minsta grop)`,
   spacing: (meters: number) => `Minsta avstånd mellan två gropsymboler: ${meters} m`,
@@ -69,7 +72,7 @@ export const mapPitsSv = {
 export const mapHillsSv = {
   heading: "Små höjder som ring (101, 103)",
   help: "När grundkartan läses in söks alla höjder med egen topp ur markens höjd, också de som ligger mellan nivåerna. En höjd som är hög nog och rymmer normens minsta höjd får en ring på halva höjden: en höjdkurva när nästa nivå ligger strax över toppen, annars en hjälpkurva. Punkthöjder inne i ringen tas bort. Höjder som kurvorna redan visar tas inte med. Förvalet (1 m) är mätt mot en kartritares karta i Högdalen.",
-  none: "Inga sökta höjder bland kandidaterna. Läs in grundkartan från ett laserjobb som har markens höjd sparad (hojd.png).",
+  none: "Inga sökta höjder i utkastet. Läs in grundkartan från ett laserjobb som har markens höjd sparad (hojd.png).",
   ringRise: (meters: string) => `Ring från: ${meters} m hög (lägre höjder blir punkthöjder eller lämnas)`,
   done: (rings: number, contours: number, dots: number, all: number) => `${rings === 1 ? "1 ring" : `${rings} ringar`} (${contours} höjdkurvor, ${rings - contours} hjälpkurvor) av ${all} möjliga höjder; ${dots === 1 ? "1 punkthöjd" : `${dots} punkthöjder`} ersattes av en ring.`,
   loaded: (rings: number, dots: number) => `Små höjder: ${rings === 1 ? "1 fick en ring" : `${rings} fick en ring`} efter formen (${dots === 1 ? "1 punkthöjd" : `${dots} punkthöjder`} ersattes).`
@@ -80,7 +83,7 @@ export const mapClearContoursSv = {
   heading: "Tydligare kurvbild",
   help: "Laserns kurvor följer marken exakt och blir plottriga. Reglagen gör som kartritare gör: mjukare kurvor där det är flackt, hjälpkurvor bara där de visar en form, och färre små ringar. Detaljerna i brant och kuperad terräng står kvar. Förvalen är mätta mot tre kartritares kartor (Högdalen, Gömmaren, Djurgården).",
   none: "Inget klart laserjobb har markens höjd sparad (hojd.png).",
-  noContours: "Inga kurvor bland kandidaterna. Läs in grundkartan först (steg 2).",
+  noContours: "Inga kurvor i utkastet. Ta fram grundkartan först (steg 2).",
   smooth: (level: number, isDefault: boolean, meters: string, full: string, none: string) => level === 0 ? "Mjukare kurvor på flack mark: av"
     : `Mjukare kurvor på flack mark: ${level} av 10${isDefault ? " (förval)" : ""} – jämnar ut över ${meters} m där marken lutar under ${full} %, inget över ${none} %`,
   formlines: (level: number, isDefault: boolean, convex: string, tight: string, form: number) => level === 0 ? "Färre hjälpkurvor: av"
@@ -90,7 +93,7 @@ export const mapClearContoursSv = {
   rings: (level: number, isDefault: boolean, squareMeters: string) => level === 0 ? "Små ringar av hjälpkurva: av"
     : `Små ringar av hjälpkurva: ${level} av 10${isDefault ? " (förval)" : ""} – tas bort under ${squareMeters} m²`,
   levelHelp: "0 är av och 10 är mest. Förvalen följer terrängen: i flack terräng med små former får fler hjälpkurvor och ringar stå kvar. Över förvalet tas hjälpkurvorna bort i ordning efter markens form mellan höjdkurvorna: först där marken är flack nedtill, sedan i jämn lutning, och höjdformerna sist. En kurva flyttas aldrig till mark som ligger mer än 1,25 m högre eller lägre (en fjärdedel av ekvidistansen, som normen tillåter).",
-  run: "Visa som kandidater",
+  run: "Visa som utkast",
   done: (smoothed: string, formlines: string, rings: number) => `${smoothed} m kurva jämnas ut, ${formlines} m hjälpkurva och ${rings === 1 ? "1 liten ring" : `${rings} små ringar`} tas bort.`,
   untouched: "Ingenting ändras.",
   failed: "Markens höjd kunde inte läsas.",
@@ -105,12 +108,12 @@ export const mapFlatContoursSv = {
   heading: "Lugna kurvor på flack mark",
   help: "På flack mark flyttar små höjdfel kurvorna många meter i sidled. Här tas hjälpkurvor och små ringar bort där marken lutar mindre än gränsen. Brantare terräng rörs inte.",
   none: "Inget fuktdjup bland underlagen. Kör laserjobbet med fuktigheten först.",
-  noContours: "Inga kurvor bland kandidaterna. Läs in grundkartan först (steg 2).",
+  noContours: "Inga kurvor i utkastet. Ta fram grundkartan först (steg 2).",
   layer: "Underlag",
   level: (level: number, degrees: string, squareMeters: string) => level === 0 ? "Av: ingenting tas bort"
     : `Nivå ${level} av 10${level === 3 ? " (förval)" : ""}: mark som lutar mindre än ${degrees}°, ringar under ${squareMeters} m²`,
   levelHelp: "0 är av, 1 tar bara det allra flackaste och 10 tar mest. Vanliga öppna kurvor rörs inte.",
-  run: "Visa som kandidater",
+  run: "Visa som utkast",
   done: (meters: string, rings: number) => `${meters} m hjälpkurva och ${rings === 1 ? "1 liten ring" : `${rings} små ringar`} på flack mark tas bort.`,
   untouched: "Ingenting tas bort: alla kurvor och hjälpkurvor visas.",
   failed: "Fuktdjupet kunde inte läsas.",

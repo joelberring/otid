@@ -21,9 +21,9 @@ export const mapProjectNorthEn: Texts<typeof mapProjectNorthSv> = {
     asMap: (value: number) => `As the map is drawn (declination ${degrees(value)})`,
     today: (value: number) => `Today's magnetic north (${degrees(value)})`,
     spacing: (meters: number, mm: number) => `Distance between the lines: ${meters} m (${mm.toLocaleString("en-GB")} mm on the map)`,
-    run: "Show as candidates",
+    run: "Show as draft",
     name: "North lines",
-    done: (count: number, code: string) => `${count} north lines (${code}) are shown as candidates across the whole map. Add them in the row below the map.`,
+    done: (count: number, code: string) => `${count} north lines (${code}) are shown as a draft across the whole map. Add them in the row below the map.`,
     existing: "The map already has north lines; the new ones are added on top. Remove the old ones first if they are to be replaced.",
     noSymbol: "The map has no line symbol for north lines (601).",
     noArea: "The map has no extent yet."

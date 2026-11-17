@@ -38,7 +38,7 @@ export const mapDrawingBasisEn: Texts<typeof mapDrawingBasisSv> = {
   addLayer: "Add as base layer",
   layerName: (meters: string, job: string) => `Dense contours ${meters} m – ${job}`,
   layerDone: (name: string) => `Done: "${name}" is under Layers. Fade it with the slider until it is faint enough.`,
-  layerCoarse: (meters: string) => `The area is large, so the contours are drawn with one point per ${meters} m and look coarse. Choose a stage for sharper contours.`,
+  layerCoarse: (meters: string) => `The area is large, so the contours are drawn with one point per ${meters} m and look coarse. Choose a sub-area for sharper contours.`,
   layerFailed: "The base layer could not be added.",
   printHeading: "Field print for drafting film",
   printHelp: "Light pages to draw on, split into sheets with 10 mm overlap and a coordinate grid.",

@@ -24,6 +24,7 @@ import { MapProjectDrawingBasisPanel } from "./map-project-drawing-basis-panel";
 import { MapProjectMoisturePanel } from "./map-project-moisture-panel";
 import { MapProjectOrthoPanel } from "./map-project-ortho-panel";
 import { MapProjectWmsPanel } from "./map-project-wms-panel";
+import { MapProjectStep } from "./map-project-step";
 import type { useMapProjectControlPoints } from "./use-map-project-control-points";
 import type { useMapProjectImport } from "./use-map-project-import";
 import { useMapProjectLaser } from "./use-map-project-laser";
@@ -45,24 +46,29 @@ export function MapProjectUnderlayPanels({ view, georeference, bounds, areas, la
   const steps = useTexts(mapUnderlayStepsSv, mapUnderlayStepsEn);
   // Körningarna och uppgifterna läses en gång och delas av guiden och laserpanelen.
   const laser = useMapProjectLaser({ view, layers, importer, georeference, bounds, areas });
+  // Ägaren 2026-11-12: i den ordning man arbetar. Översynen av kartstegen 2026-11-17: tre numrerade huvudsteg (h3) med det som
+  // hör till steget indraget under – 1 hämta underlag, 2 ta fram grundkartan (guiden först, andra sätt under), 3 gå igenom utkastet.
   return <MapProjectLayersPanel layers={layers} mapEpsg={georeference.crs.kind === "EPSG" ? georeference.crs.code : undefined}
-    control={control} scale={georeference.scale} area={bounds}
-    before={<MapProjectGuide view={view} laser={laser} importer={importer} areas={areas} onSplit={onSplit} />}
-    after={<>
-      {/* Ägaren 2026-11-12: i den ordning man arbetar – hämta underlag, kör lasern, justera med reglage, egna filer. */}
-      <h3 className={styles.groupTitle}>{steps.sources}</h3>
-      <p className={styles.muted}>{steps.sourcesHelp}</p>
+    control={control} scale={georeference.scale} area={bounds} intro={steps.intro}
+    step={body => <MapProjectStep number={1} title={steps.sources} help={steps.sourcesHelp} label={steps.step(1)} testId="map-project-mapstep-sources">
+      {body}</MapProjectStep>}
+    sources={<>
       <MapProjectOrthoPanel view={view} layers={layers} georeference={georeference} bounds={bounds} areas={areas} />
       <MapProjectWmsPanel view={view} layers={layers} georeference={georeference} bounds={bounds} areas={areas} />
       <MapProjectMoisturePanel view={view} layers={layers} georeference={georeference} bounds={bounds} areas={areas} />
       <MapProjectForestImagePanel view={view} layers={layers} georeference={georeference} bounds={bounds} areas={areas} importer={importer} />
-      <h3 className={styles.groupTitle}>{steps.laser}</h3>
-      <p className={styles.muted}>{steps.laserHelp}</p>
-      <MapProjectLaserPanel view={view} laser={laser} importer={importer} georeference={georeference} bounds={bounds} areas={areas} />
-      {/* Ägaren 2026-11-16: för den som ritar själv – ladda ner underlaget i stället för att läsa in kandidater. */}
-      {importer.canImport && <MapProjectDrawingBasisPanel view={view} layers={layers} />}
-      <h3 className={styles.groupTitle}>{steps.adjust}</h3>
-      <p className={styles.muted}>{steps.adjustHelp}</p>
+      {importer.canImport && <MapProjectFolderIntake projectId={view.projectId} georeference={georeference} bounds={bounds} layers={layers} work={work} />}
+    </>}
+    after={<>
+      <MapProjectStep number={2} title={steps.baseMap} help={steps.baseMapHelp} label={steps.step(2)} testId="map-project-mapstep-base-map">
+        <MapProjectGuide view={view} laser={laser} importer={importer} areas={areas} onSplit={onSplit} />
+        <h4 className={styles.groupTitle}>{steps.baseMapOther}</h4>
+        <MapProjectLaserPanel view={view} laser={laser} importer={importer} georeference={georeference} bounds={bounds} areas={areas} />
+        {importer.canImport && <MapProjectImportPanel importer={importer} symbols={symbols} areas={areas} />}
+        {/* Ägaren 2026-11-16: för den som ritar själv – ladda ner underlaget i stället för att läsa in ett utkast. */}
+        {importer.canImport && <MapProjectDrawingBasisPanel view={view} layers={layers} />}
+      </MapProjectStep>
+      <MapProjectStep number={3} title={steps.adjust} help={steps.adjustHelp} label={steps.step(3)} testId="map-project-mapstep-review">
       <MapProjectKnollPanel view={view} importer={importer} />
       <MapProjectHillPanel importer={importer} />
       <MapProjectPitPanel importer={importer} />
@@ -74,8 +80,7 @@ export function MapProjectUnderlayPanels({ view, georeference, bounds, areas, la
       <MapProjectRockPanel layers={layers} georeference={georeference} importer={importer} />
       <MapProjectClearCutPanel view={view} layers={layers} georeference={georeference} bounds={bounds} areas={areas} importer={importer} />
       <MapProjectPhotoPanel layers={layers} georeference={georeference} importer={importer} />
-      <h3 className={styles.groupTitle}>{steps.other}</h3>
-      {importer.canImport && <MapProjectImportPanel importer={importer} symbols={symbols} areas={areas} />}
-      {importer.canImport && <MapProjectFolderIntake projectId={view.projectId} georeference={georeference} bounds={bounds} layers={layers} work={work} />}
+      </MapProjectStep>
+      <p className={styles.then} data-testid="map-project-steps-then">{steps.then}</p>
     </>} />;
 }

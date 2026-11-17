@@ -4,8 +4,8 @@ import type { mapForestSv } from "./map-forest-sv";
 /** English: the Swedish Forest Agency's layers, clear-cuts by age and stand boundaries in the map project. */
 export const mapForestEn: Texts<typeof mapForestSv> = {
   images: {
-    heading: "Swedish Forest Agency (base layers)",
-    help: "The Swedish Forest Agency's open maps for the whole map or a stage, as base layers to show, hide and fade under Layers.",
+    heading: "The Forest Agency's maps (clear-cuts, key biotopes)",
+    help: "The Swedish Forest Agency's open maps for the whole map or a sub-area, as base layers to show, hide and fade under Layers.",
     products: { CLEAR_CUTS: "Completed fellings (clear-cuts)", NOTIFIED: "Felling notifications", KEY_BIOTOPES: "Woodland key habitats" },
     fetch: "Fetch as base layers",
     fetching: "Fetching from the Swedish Forest Agency …",
@@ -15,7 +15,7 @@ export const mapForestEn: Texts<typeof mapForestSv> = {
   },
   cuts: {
     heading: "Clear-cuts with sliders",
-    help: "The Swedish Forest Agency's completed fellings (from 0.5 ha) are grouped by age. Drag the ages: the candidates on the map are recalculated at once.",
+    help: "The Swedish Forest Agency's completed fellings (from 0.5 ha) are grouped by age. Drag the ages: the draft on the map is recalculated at once.",
     fetch: "Fetch clear-cuts",
     fetching: "Fetching clear-cuts …",
     fresh: (years: number) => `Fresh clear-cut (403) younger than ${years} years`,

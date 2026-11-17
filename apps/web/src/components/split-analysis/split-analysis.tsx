@@ -9,6 +9,7 @@ import { useTexts } from "../language-provider";
 import type { Texts } from "../../lib/language";
 import { useListTexts } from "../lists/use-list-texts";
 import { formatDuration } from "../../lib/clock-time";
+import { Explain } from "../ui";
 import { legSplitGroup, resultListFromPublic, splitGroups, type ResultRow, type SplitGroup } from "../../lib/lists/result-list-model";
 import { forkingSv } from "../../i18n/forking-sv";
 import { forkingEn } from "../../i18n/forking-en";
@@ -47,11 +48,10 @@ function Runner({ row, raceId }: { row: ResultRow; raceId: string }) {
 /** En cell: sträcktid och placering, förlust mot bästa, totaltid och placering, och länk till vägval när det finns. */
 function Cell({ cell, route, runner, leg }: { cell: SplitTableCell | null; route: string | undefined; runner: string; leg: string }) {
   const text = useSplitTexts();
-  if (!cell) return <td className={styles.leg}><span className={styles.muted} title={text.missingLabel}>{text.missing}</span>
-    <span className={styles.hidden}>{text.missingLabel}</span></td>;
+  if (!cell) return <td className={styles.leg}><span className={styles.muted}><Explain text={text.missingLabel}>{text.missing}</Explain></span></td>;
   return <td className={styles.leg} data-best={cell.best || undefined}>
     <span className={styles.legTime}>
-      {cell.legMs === null ? <span className={styles.muted} title={text.missingLabel}>{text.missing}</span> : duration(cell.legMs)}
+      {cell.legMs === null ? <span className={styles.muted}><Explain text={text.missingLabel}>{text.missing}</Explain></span> : duration(cell.legMs)}
       {cell.best && <><span aria-hidden="true" className={styles.star}>★</span><span className={styles.hidden}> ({text.bestLeg})</span></>}
       {cell.place !== null && <small> {text.legPlace(cell.place)}</small>}
     </span>

@@ -10,6 +10,7 @@ import { classStartRows, filterStartList, groupByStartTime, startClub, startList
 import { courseLine } from "../../lib/lists/result-list-model";
 import { download, ListFrame, useClubFilter, type IofExport } from "./list-frame";
 import styles from "./lists.module.css";
+import { Explain } from "../ui";
 import { joinRaceParts, raceTitle } from "@o-tid/domain";
 
 
@@ -37,7 +38,7 @@ function Name({ entry, context, club = true }: { entry: StartEntry; context: Con
       ? <button type="button" className={styles.person} disabled={disabled} onClick={() => onSelectEntry(entry.id!)}
         aria-label={t.openPerson(entry.name)}>{entry.name}</button>
       : entry.name}
-    {entry.selfRegistered && <> <abbr className={styles.muted} title={t.selfRegisteredHelp}>{t.selfRegistered}</abbr></>}
+    {entry.selfRegistered && <> <span className={styles.muted}><Explain text={t.selfRegisteredHelp}>{t.selfRegistered}</Explain></span></>}
     {club && <span className={styles.subMobile}>{startClub(entry) ?? ""}</span>}
   </th>;
 }
@@ -60,7 +61,7 @@ function ClassBlock({ raceClass, context }: { raceClass: StartClass; context: Co
     relay ? t.teams(teams.length) : t.runners(raceClass.entries.length),
     raceClass.vacancies.length > 0 && t.vacancies(raceClass.vacancies.length)].filter(Boolean).join(" · ");
   const id = `start-class-${raceClass.name.replace(/\W+/g, "-")}`;
-  const time = (entry: StartEntry) => free ? <span className={styles.muted} title={t.freeStart}>–</span>
+  const time = (entry: StartEntry) => free ? <span className={styles.muted}><Explain text={t.freeStart}>–</Explain></span>
     : entry.startTime ? clock(entry.startTime, timeZone)
     : entry.relay && entry.relay.leg > 1 ? <span className={styles.muted}>{t.waitingChangeover}</span>
       : <span className={styles.attention}>{t.missingTime}</span>;

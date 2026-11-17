@@ -127,4 +127,12 @@ export function Disclosure({ summary, summaryClassName, className, open, onToggl
   </details>;
 }
 
-export { CopyButton, copyText, Dialog } from "./interactive";
+/**
+ * En kort, dämpad hjälprad (översynen 2026-11-17, C4): det som annars bara stod i `title`, synligt också på pekskärm – t.ex.
+ * varför en knapp är avstängd. `id` för `aria-describedby` från knappen.
+ */
+export function Hint({ children, id, className }: { children: ReactNode; id?: string | undefined; className?: string | undefined }) {
+  return <span className={join(styles.hint, className)} id={id}>{children}</span>;
+}
+
+export { CopyButton, copyText, Dialog, Explain } from "./interactive";

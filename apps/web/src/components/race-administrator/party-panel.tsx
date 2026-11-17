@@ -9,7 +9,7 @@ import styles from "../race-administrator-workspace.module.css";
 import local from "./party.module.css";
 import { partySv } from "../../i18n/party-sv";
 import { readAccountCsrfCookie } from "../../lib/organizer-account-cookies";
-import { Button, Notice, Section, Table, numeric, DateInput } from "../ui";
+import { Button, Notice, Section, Table, numeric, DateInput, Explain } from "../ui";
 import type { Workspace } from "./workspace-state";
 import { PartyThemeForm } from "./party-theme-form";
 import { CENTRUM_PRESET } from "../../lib/party-theme-style";
@@ -180,8 +180,8 @@ function PartyWorkspace({ raceId, admin, ws }: { raceId: string; admin: boolean;
                   void change({ kind: "guest-remove", cardNumber: guest.cardNumber }, text.guestRemoved);
                 }
               }}>{text.removeGuest}</button> : null}
-            {partyMemoryWarning(guest.memory) && guest.memory ? <span className={local.warning} title={text.memoryHelp}>
-              ! {text.nearlyFull(guest.memory.punches, guest.memory.capacity)}</span> : null}</td>
+            {partyMemoryWarning(guest.memory) && guest.memory ? <span className={local.warning}>
+              <Explain text={text.memoryHelp}>! {text.nearlyFull(guest.memory.punches, guest.memory.capacity)}</Explain></span> : null}</td>
           <td>{partyDisplayName(guest) ?? ""}</td>
           <td>{guest.cardNumber}</td>
           <td className={numeric}>{guest.purchaseCount}</td>

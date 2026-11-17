@@ -65,3 +65,24 @@
   .table :is(th, td) { overflow-wrap: normal; word-break: normal; }
   .table tbody th { white-space: nowrap; }
 }
+
+/* Förklaring vid tryck (Explain) och kort hjälprad (Hint), översynen 2026-11-17 (C4). */
+.explain { display: inline; min-height: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit;
+  text-align: inherit; text-decoration: underline dotted; text-decoration-color: var(--line-strong); text-underline-offset: .18em; cursor: help; }
+.explain:hover:not(:disabled) { background: none; text-decoration-color: currentcolor; }
+.explained { color: var(--muted); font-size: var(--text-xs); font-weight: 400; }
+/* "i": en liten ring i textens storlek (som hjälpens "?"); på pekskärm 44 px utan att raden blir högre. */
+.info { display: inline-grid; place-items: center; flex: 0 0 auto; width: 22px; height: 22px; min-height: 0; padding: 0;
+  border: 1px solid var(--line-strong); border-radius: 50%; background: var(--surface); color: var(--muted); font-size: 12px;
+  font-weight: 700; font-style: italic; line-height: 1; vertical-align: middle; cursor: help; }
+.info:hover:not(:disabled), .info[aria-expanded="true"] { border-color: var(--ink); background: var(--surface); color: var(--ink); }
+.explainedLine { display: block; flex-basis: 100%; max-width: 70ch; color: var(--muted); font-size: var(--text-xs); font-weight: 400; }
+.hint { display: block; color: var(--muted); font-size: var(--text-xs); font-weight: 400; }
+/* Pekskärm: 44 px att trycka på utan att raden blir högre. */
+@media (pointer: coarse) {
+  .explain { display: inline-flex; align-items: center; justify-content: center; padding-block: 11px; margin-block: -11px;
+    vertical-align: baseline; }
+  .info { width: 44px; height: 44px; margin: -11px; border-color: transparent; background: transparent;
+    background-image: radial-gradient(circle, var(--surface) 10px, var(--line-strong) 10.5px, var(--line-strong) 11.5px, transparent 12px); }
+  .info:hover:not(:disabled), .info[aria-expanded="true"] { border-color: transparent; background-color: transparent; }
+}

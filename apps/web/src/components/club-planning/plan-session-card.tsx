@@ -7,7 +7,7 @@ import { clubPlanningEn } from "../../i18n/club-planning-en";
 import { clubPlanningSv } from "../../i18n/club-planning-sv";
 import { planRequest, shortDate } from "../../lib/club-planning-client";
 import { useLanguage, useTexts } from "../language-provider";
-import { Button } from "../ui";
+import { Button, Explain } from "../ui";
 import { MomentBadges } from "../training-moments/moment-picker";
 import { PlanLinkRace } from "./plan-link-race";
 import { RacePrintFiles } from "../race-print-files";
@@ -55,9 +55,11 @@ export function PlanSessionCard({ plan, session, termId, busy, change, reload }:
           <Button variant="quiet" disabled={busy} onClick={() => { if (window.confirm(text.link.unlinkConfirm))
             void change(`${path}/race`, "PUT", { formatVersion: 1, raceId: null }, () => text.link.unlinked); }}>{text.link.unlink}</Button>
         </> : <>
-          <Button variant="secondary" disabled={busy} title={text.session.createRaceHelp}
+          <Button variant="secondary" disabled={busy}
             onClick={() => void change(`${path}/race`, "POST", undefined, () => text.session.raceCreated)}>{text.session.createRace}</Button>
-          <Button variant="quiet" disabled={busy} title={text.link.help} onClick={() => setLinking(true)}>{text.link.open}</Button>
+          <Explain text={text.session.createRaceHelp} />
+          <Button variant="quiet" disabled={busy} onClick={() => setLinking(true)}>{text.link.open}</Button>
+          <Explain text={text.link.help} />
         </>}
         <Button variant="quiet" disabled={busy} onClick={() => setEditing(true)}>{text.session.change}</Button>
         <Button variant="quiet" disabled={busy} onClick={() => { if (window.confirm(text.session.removeConfirm)) void change(path, "DELETE", undefined); }}>

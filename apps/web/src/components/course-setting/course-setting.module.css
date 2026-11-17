@@ -4,7 +4,7 @@
 .head h1 { margin: 0; font-size: var(--text-xl, 1.5rem); }
 .head p { margin: 0; color: var(--muted); }
 .back { color: var(--muted); font-size: var(--text-sm); white-space: nowrap; }
-@media (pointer: coarse) { .back { display: inline-flex; align-items: center; min-height: 44px; } }
+@media (pointer: coarse) { .back { display: inline-flex; align-items: center; justify-content: center; gap: .25em; min-width: 44px; min-height: 44px; } }
 .status { margin: 0; padding: 3px 10px; border: 1px solid var(--line-strong); border-radius: 999px; font-size: var(--text-sm); white-space: nowrap; }
 .status[data-status="too-large"], .status[data-status="stopped"] { border-color: var(--danger, #b00020); color: var(--danger, #b00020); font-weight: 700; }
 .status[data-status="failed"] { border-color: var(--attention); }
@@ -305,3 +305,8 @@ fieldset.row legend { width: 100%; padding: 0; font-weight: 600; }
 .mapProjects { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .mapProjects li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line); }
 .panel h3 { margin: 0; font-size: var(--text-md, 1rem); }
+/* Telefonen med pekskärm: raden överst rymmer bara pilen (knapparna är 44 px); namnet finns kvar för skärmläsare. */
+@media (pointer: coarse) and (max-width: 699px) {
+  .topbar .backLabel { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .topbar { gap: 2px; }
+}

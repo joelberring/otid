@@ -1,0 +1,22 @@
+/* Översynen av första kartan 2026-11-17: kopplingen till Lantmäteriet. Lugna färger: ett väntat läge, inget fel. */
+.notice { margin: .4rem 0; padding: .5rem .75rem; border: 1px solid var(--line, #d8dcd9); border-left: 4px solid var(--line-strong, #9aa29d);
+  border-radius: 4px; background: var(--surface, #fff); font-size: var(--text-sm, .9rem); }
+.notice p { margin: 0 0 .35rem; }
+.status { margin: .2rem 0 .5rem; font-size: var(--text-sm, .9rem); color: var(--muted); }
+.status strong { color: var(--ink); font-weight: 600; }
+.links { display: inline-flex; flex-wrap: wrap; gap: .25rem 1rem; align-items: center; }
+.muted { margin: .2rem 0 .5rem; color: var(--muted); font-size: var(--text-sm, .9rem); }
+.products { margin: .75rem 0; }
+.products h3 { margin: 0 0 .25rem; font-size: var(--text-md, 1rem); }
+.products table { width: 100%; border-collapse: collapse; font-size: var(--text-sm, .9rem); }
+.products th, .products td { padding: .35rem .5rem .35rem 0; border-bottom: 1px solid var(--line, #d8dcd9); text-align: left; vertical-align: top; }
+.products thead th { color: var(--muted); font-weight: 600; }
+.products tbody th { font-weight: 600; font-size: inherit; color: var(--ink); text-transform: none; letter-spacing: normal; }
+@media (max-width: 560px) {
+  /* Telefonen: varje produkt som ett litet block i stället för tre smala kolumner. */
+  .products thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .products table, .products tbody, .products tr, .products th, .products td { display: block; }
+  .products tr { padding: .4rem 0; border-bottom: 1px solid var(--line, #d8dcd9); }
+  .products th, .products td { padding: 0; border: 0; }
+  .products td[data-label]::before { content: attr(data-label) ": "; color: var(--muted); }
+}

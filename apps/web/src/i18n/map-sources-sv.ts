@@ -3,7 +3,7 @@ export const mapSourcesSv = {
   account: {
     title: "Lantmäteriet",
     help: "Dina egna uppgifter till Lantmäteriet, för att hämta ortofoton och laserdata till kartprojekten. O-Tid har inget eget konto hos Lantmäteriet. "
-      + "Uppgifterna sparas krypterade, används bara när du hämtar och visas aldrig igen. Produkterna (Ortofoto Nedladdning, Laserdata Nedladdning skog) måste vara beställda på Geotorget.",
+      + "Uppgifterna sparas krypterade, används bara när du hämtar och visas aldrig igen. Produkterna måste vara beställda på Geotorget; vilka som behövs står nedanför.",
     method: "Sätt att logga in",
     basic: "Geotorgets användarnamn och lösenord (privatperson)",
     oauth: "API-portalens nyckel och hemlighet (organisationens systemkonto)",
@@ -24,8 +24,6 @@ export const mapSourcesSv = {
   ortho: {
     heading: "Ortofoto från Lantmäteriet",
     help: "Sök flygbilder för hela kartan eller ett delområde med dina egna uppgifter till Lantmäteriet; de valda läggs till som underlag (en per bildruta). © Lantmäteriet.",
-    noCredential: "Lägg in dina uppgifter till Lantmäteriet under Mitt konto först.",
-    account: "Mitt konto",
     where: "Område",
     whole: "Hela kartan",
     search: "Sök ortofoton",
@@ -34,10 +32,10 @@ export const mapSourcesSv = {
     item: (when: string | null, collection: string | null, id: string) => [when?.slice(0, 10), collection, id].filter(Boolean).join(" · "),
     add: (count: number) => count === 1 ? "Lägg till 1 bild som underlag" : `Lägg till ${count} bilder som underlag`,
     adding: (done: number, total: number) => `Hämtar bild ${done} av ${total} …`,
-    added: (count: number) => count === 1 ? "1 underlag tillagt. Det ligger i listan överst i steget, där det tänds, släcks och görs genomskinligt."
-      : `${count} underlag tillagda. De ligger i listan överst i steget, där de tänds, släcks och görs genomskinliga.`,
-    failed: (count: number) => count === 1 ? "1 bild kunde inte läggas till. Orsaken står i listan överst i steget."
-      : `${count} bilder kunde inte läggas till. Orsaken står i listan överst i steget.`,
+    added: (count: number) => count === 1 ? "1 underlag tillagt. Det ligger under Lager › Underlag, där det tänds, släcks och görs genomskinligt."
+      : `${count} underlag tillagda. De ligger under Lager › Underlag, där de tänds, släcks och görs genomskinliga.`,
+    failed: (count: number) => count === 1 ? "1 bild kunde inte läggas till. Orsaken står här nedanför och under Lager › Underlag."
+      : `${count} bilder kunde inte läggas till. Orsaken står här nedanför och under Lager › Underlag.`,
     name: (collection: string | null, id: string) => `Ortofoto ${collection ?? ""} ${id}`.replace(/\s+/g, " ").trim().slice(0, 80),
     problems: {
       SOURCE_NO_CREDENTIAL: "Lägg in dina uppgifter till Lantmäteriet under Mitt konto först.",
@@ -245,7 +243,7 @@ export const mapSourcesSv = {
     } as Record<string, string>,
     problems: {
       SOURCE_NO_CREDENTIAL: "Lägg in dina uppgifter till Lantmäteriet under Mitt konto först.",
-      SOURCE_REJECTED: "Lantmäteriet godtog inte uppgifterna, eller Laserdata Nedladdning skog är inte beställd på Geotorget.",
+      SOURCE_REJECTED: "Lantmäteriet godtog inte uppgifterna, eller Laserdata Nedladdning, skog inte är beställd på Geotorget.",
       SOURCE_AREA_TOO_LARGE: "Området är för stort för en sökning. Välj ett delområde.",
       SOURCE_THROTTLED: "För många sökningar den senaste timmen. Försök igen senare.",
       SOURCE_UNAVAILABLE: "Lantmäteriet svarade inte just nu. Försök igen om en stund.",

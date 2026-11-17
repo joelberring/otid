@@ -8,8 +8,6 @@ type Sources = typeof mapSourcesSv;
 export const mapSourcesOrthoEn: Texts<Sources["ortho"]> = {
   heading: "Orthophoto from Lantmäteriet",
   help: "Search aerial photos for the whole map or a sub-area with your own credentials for Lantmäteriet; the chosen ones are added as base layers (one per image tile). © Lantmäteriet.",
-  noCredential: "Add your credentials for Lantmäteriet under My account first.",
-  account: "My account",
   where: "Area",
   whole: "The whole map",
   search: "Search orthophotos",
@@ -18,9 +16,9 @@ export const mapSourcesOrthoEn: Texts<Sources["ortho"]> = {
   item: (when: string | null, collection: string | null, id: string) => [when?.slice(0, 10), collection, id].filter(Boolean).join(" · "),
   add: (n: number) => n === 1 ? "Add 1 image as a base layer" : `Add ${n} images as base layers`,
   adding: (done: number, total: number) => `Fetching image ${done} of ${total} …`,
-  added: (n: number) => n === 1 ? "1 base layer added. It is in the list at the top of the step, where it is shown, hidden and made transparent."
-    : `${n} base layers added. They are in the list at the top of the step, where they are shown, hidden and made transparent.`,
-  failed: (n: number) => n === 1 ? "1 image could not be added. The reason is in the list at the top of the step." : `${n} images could not be added. The reason is in the list at the top of the step.`,
+  added: (n: number) => n === 1 ? "1 base layer added. It is under Layers › Base layers, where it is shown, hidden and made transparent."
+    : `${n} base layers added. They are under Layers › Base layers, where they are shown, hidden and made transparent.`,
+  failed: (n: number) => n === 1 ? "1 image could not be added. The reason is below and under Layers › Base layers." : `${n} images could not be added. The reason is below and under Layers › Base layers.`,
   name: (collection: string | null, id: string) => `Orthophoto ${collection ?? ""} ${id}`.replace(/\s+/g, " ").trim().slice(0, 80),
   problems: {
     SOURCE_NO_CREDENTIAL: "Add your credentials for Lantmäteriet under My account first.",
@@ -171,7 +169,7 @@ export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
   },
   problems: {
     SOURCE_NO_CREDENTIAL: "Add your credentials for Lantmäteriet under My account first.",
-    SOURCE_REJECTED: "Lantmäteriet did not accept the credentials, or Laserdata Nedladdning skog is not ordered on Geotorget.",
+    SOURCE_REJECTED: "Lantmäteriet did not accept the credentials, or Laserdata Nedladdning, skog is not ordered on Geotorget.",
     SOURCE_AREA_TOO_LARGE: "The area is too large for one search. Choose a sub-area.",
     SOURCE_THROTTLED: "Too many searches in the last hour. Try again later.",
     SOURCE_UNAVAILABLE: "Lantmäteriet did not answer right now. Try again in a while.",

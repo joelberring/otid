@@ -200,7 +200,7 @@ export const aiConnectionsEn: Texts<typeof aiSv.connections> = {
 export const mapSourcesAccountEn: Texts<typeof mapSourcesSv.account> = {
   title: "Lantmäteriet (Swedish mapping authority)",
   help: "Your own credentials for Lantmäteriet, to fetch orthophotos and laser data for the map projects. O-Tid has no account of its own at Lantmäteriet. "
-    + "The credentials are stored encrypted, only used when you fetch and never shown again. The products (Ortofoto Nedladdning, Laserdata Nedladdning skog) must be ordered on Geotorget.",
+    + "The credentials are stored encrypted, only used when you fetch and never shown again. The products must be ordered on Geotorget; which ones are needed is listed below.",
   method: "How to sign in",
   basic: "Geotorget username and password (private person)",
   oauth: "API portal key and secret (the organisation's system account)",

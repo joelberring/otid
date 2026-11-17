@@ -19,7 +19,10 @@ const view = (canDecide = true) => ({ projectId: "p", viewer: { canPropose: true
 /** Hooken som den ser ut för guiden, med det som testet behöver. */
 function laser(patch: { jobs?: GeoJobView[]; ready?: boolean; credential?: boolean; box?: typeof small; clip?: typeof clip; queue?: GeoJobList["queue"];
   message?: ReturnType<Laser["messageFor"]> } = {}): Laser {
-  return { credential: patch.credential === false ? undefined : {}, ready: patch.ready ?? true, busy: false, active: false,
+  const ready = patch.ready ?? true;
+  const credential = { formatVersion: 1, provider: "LANTMATERIET", available: true,
+    saved: ready ? { method: "BASIC", hint: "abcd", updatedAt: "2026-11-17T08:00:00.000Z", readable: true } : null };
+  return { credential: patch.credential === false ? undefined : credential, ready, busy: false, active: false,
     list: { formatVersion: 1, jobs: patch.jobs ?? [], server: { state: "READY", detail: null }, queue: patch.queue },
     busyFor: () => undefined, messageFor: () => patch.message, boxOf: () => patch.box ?? small, clipOf: () => patch.clip ?? clip,
     baseMapFiles: (row: GeoJobView) => row.outputs.map(output => output.name), baseMapName: (row: GeoJobView) => `${row.name} – Grundkartan`,
@@ -27,7 +30,8 @@ function laser(patch: { jobs?: GeoJobView[]; ready?: boolean; credential?: boole
 }
 const importer = (file?: string) => ({ file: file ? { name: file } : undefined, result: file ? { objects: [1, 2, 3] } : undefined, computing: false }) as unknown as ReturnType<typeof useMapProjectImport>;
 const render = (hook: Laser, options: { file?: string; canDecide?: boolean } = {}) => renderToStaticMarkup(<MapProjectGuide view={view(options.canDecide)} laser={hook}
-  importer={importer(options.file)} areas={[]} onSplit={options.canDecide === false ? undefined : () => undefined} />);
+  importer={importer(options.file)} areas={[]} onSplit={options.canDecide === false ? undefined : () => undefined} onAreas={() => undefined}
+  onDraw={() => undefined} advanced={<details data-testid="advanced"><summary>Laserkörningar (avancerat)</summary></details>} />);
 const outputs = ["kurvor.dxf", "branter.dxf"].map(name => ({ name, mediaType: "", byteSize: 1 }));
 
 describe("guiden Ny grundkarta på sidan", () => {
@@ -54,13 +58,39 @@ describe("guiden Ny grundkarta på sidan", () => {
     const member = render(large, { canDecide: false });
     expect(member).not.toContain('data-testid="map-project-guide-split"');
     expect(member).toContain("Be en ägare av kartan att dela området");
+    // K5: delområdena nås härifrån.
+    expect(member).toContain('data-testid="map-project-guide-areas"');
+    expect(member).toContain("Till Delområden");
     expect(render(laser({ box: { south: 59, west: 18, north: 59.3, east: 18.1 } }))).toContain("en sökning efter laserdata tar högst 100 km²");
   });
 
-  it("visar länken till Mitt konto när uppgifterna saknas", () => {
+  it("säger lugnt att Lantmäteriet inte är kopplat än, med länkarna, när uppgifterna saknas", () => {
     const html = render(laser({ ready: false }));
     expect(html).toContain('href="/konto#konto-lantmateriet"');
+    expect(html).toContain('data-problem="missing"');
+    expect(html).toContain("Lantmäteriet är inte kopplat än");
+    expect(html).toContain("Så kopplar du Lantmäteriet");
+    expect(html).toContain("Lantmäteriet: inte kopplat än.");
+    expect(html).not.toContain('role="alert"');
     expect(html).not.toContain('data-testid="map-project-guide-run"');
+    // Kopplat: läget står i första delsteget, utan länkar.
+    const connected = render(laser());
+    expect(connected).toContain('data-link="connected"');
+    expect(connected).toContain("Lantmäteriet: kopplat.");
+  });
+
+  it("säger att Lantmäteriet sa nej, och att det är fel uppgifter eller en produkt som inte är beställd", () => {
+    const html = render(laser({ message: { from: "guide", tone: "error", text: "x", code: "SOURCE_REJECTED" } }));
+    expect(html).toContain('data-problem="rejected"');
+    expect(html).toContain("Laserdata Nedladdning, skog inte beställd");
+    expect(html).toContain("O-Tid kan inte se vilket");
+    expect(html).not.toContain('data-testid="map-project-guide-message"');
+  });
+
+  it("har laserkörningarna sist i guiden", () => {
+    const html = render(laser());
+    expect(html).toContain("Välj rutor och inställningar själv");
+    expect(html.indexOf('data-testid="advanced"')).toBeGreaterThan(html.indexOf('data-testid="map-project-guide-step-review"'));
   });
 
   it("visar förlopp, kö, geo-serverns läge och att sidan kan stängas medan körningen pågår", () => {
@@ -88,7 +118,7 @@ describe("guiden Ny grundkarta på sidan", () => {
 
   it("säger vad man gör härnäst efter ett fel", () => {
     const busy = render(laser({ message: { from: "guide", tone: "error", text: "x", code: "GEO_JOB_BUSY" } }));
-    expect(busy).toContain("Vänta tills en är klar, eller avbryt en under 2. Laserdata › Jobben");
+    expect(busy).toContain("Vänta tills en är klar, eller avbryt en under Laserkörningar (avancerat) › Jobben");
     const net = render(laser({ message: { from: "guide", tone: "error", text: "Det gick inte (0).", code: undefined } }));
     expect(net).toContain("Det gick inte (0). Försök igen om en stund.");
     expect(render(laser({ jobs: [job({ status: "FAILED", error: "slut på minne" })] }))).toContain("Den förra körningen misslyckades: slut på minne");

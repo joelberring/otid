@@ -11,7 +11,9 @@ import { estimateMinutes, GUIDE_STEPS, guideDefaultArea, guideState, laserAreaSi
 import { CONTOUR_STYLES, defaultLaserJob, type ContourStyle } from "../../lib/map-project-laser-request";
 import { useTexts } from "../language-provider";
 import { Button } from "../ui";
-import { LaserCredentialHint, LaserServerStatus } from "./map-project-laser-shared";
+import { lantmaterietGap, lantmaterietProblem } from "../../lib/lantmateriet-status";
+import { LantmaterietNotice, LantmaterietStatus } from "../lantmateriet-connection";
+import { LaserServerStatus } from "./map-project-laser-shared";
 import type { useMapProjectImport } from "./use-map-project-import";
 import type { LaserArea, useMapProjectLaser } from "./use-map-project-laser";
 import styles from "./map-project-guide.module.css";
@@ -42,10 +44,16 @@ function readContours(projectId: string): ContourStyle {
  * med en huvudknapp i taget. Den gör samma sak som laserpanelen (samma hook, `useMapProjectLaser`) med förvalen, och läget
  * härleds ur det som finns (`guideState`), så att den står rätt efter en omladdning.
  */
-export function MapProjectGuide({ view, laser, importer, areas, onSplit }: { view: MapProjectView; laser: ReturnType<typeof useMapProjectLaser>;
-  importer: ReturnType<typeof useMapProjectImport>; areas: readonly LaserArea[];
+export function MapProjectGuide({ view, laser, importer, areas, onSplit, onAreas, onDraw, advanced }: { view: MapProjectView;
+  laser: ReturnType<typeof useMapProjectLaser>; importer: ReturnType<typeof useMapProjectImport>; areas: readonly LaserArea[];
   /** Startar «Dela med ett streck» för delen (eller hela kartområdet); saknas för den som inte får dela. */
-  onSplit: ((areaId: string | undefined) => void) | undefined }) {
+  onSplit: ((areaId: string | undefined) => void) | undefined;
+  /** K5 (översynen av första kartan): till Granska › Delområden när området är för stort. */
+  onAreas?: (() => void) | undefined;
+  /** Efter första kartan: «Rita färdigt» byter till fliken Symboler. */
+  onDraw?: (() => void) | undefined;
+  /** K2: laserkörningarna (avancerat) som en utfällning sist i guiden. */
+  advanced?: ReactNode }) {
   const text = useTexts(mapGuideSv, mapGuideEn);
   const laserText = useTexts(mapSourcesSv.laser, mapSourcesEn.laser);
   const jobs = laser.list?.jobs;
@@ -94,6 +102,8 @@ export function MapProjectGuide({ view, laser, importer, areas, onSplit }: { vie
   if (!view.viewer.canPropose || !box) return null;
 
   const message = laser.messageFor("guide");
+  // Kopplingen till Lantmäteriet (saknas, nekad): ett lugnt besked med länkarna i stället för ett rött fel.
+  const connection = message?.tone === "error" ? lantmaterietProblem(message.code, laser.credential) : undefined;
   const size = laserAreaSize(box, laser.clipOf(area, 0), counted?.where === where ? counted.tiles : undefined);
   const tooLarge = size.tooLarge ?? (message?.code === "SOURCE_AREA_TOO_LARGE" ? "search" : undefined);
   const state = guideState({ credential: !laser.credential ? "unknown" : laser.ready ? "ready" : "missing", tooLarge, job,
@@ -120,18 +130,21 @@ export function MapProjectGuide({ view, laser, importer, areas, onSplit }: { vie
           <option value="">{text.area.whole}</option>
           {areas.map(row => <option key={row.areaId} value={row.areaId}>{row.name}</option>)}
         </select></label>
+      <LantmaterietStatus view={laser.credential} />
       {state.step !== "area" ? <p className={styles.muted} data-testid="map-project-guide-size">{text.area.size(size.tiles, size.km2, GEO_JOB_MAX_TILES)}</p> : <>
         <p role="alert" className={styles.problem} data-testid="map-project-guide-too-large">{tooLarge === "tiles"
           ? text.area.tooLargeTiles(area?.name, size.tiles, GEO_JOB_MAX_TILES) : text.area.tooLargeSearch(area?.name, LASER_SEARCH_LIMITS.maxAreaKm2)}</p>
         <p>{onSplit ? text.area.splitNext : text.area.splitByOwner}{!area && areas.length > 0 ? ` ${text.area.pickSmaller}` : ""}</p>
-        {onSplit && <span className={styles.actions}>
-          <Button onClick={() => onSplit(area?.areaId)} data-testid="map-project-guide-split">{text.split}</Button></span>}
+        {(onSplit || onAreas) && <span className={styles.actions}>
+          {onSplit && <Button onClick={() => onSplit(area?.areaId)} data-testid="map-project-guide-split">{text.split}</Button>}
+          {onAreas && <Button variant="quiet" onClick={onAreas} data-testid="map-project-guide-areas">{text.area.areas}</Button>}</span>}
         {tooLarge === "tiles" && <p className={styles.muted}>{text.area.manual}</p>}
       </>}
     </>,
     run: state.step !== "run" ? null : <>
       {state.detail === "checking" && <p className={styles.muted} role="status">{text.run.checking}</p>}
-      {state.detail === "credential" && <div data-testid="map-project-guide-credential"><p>{text.run.credential}</p><LaserCredentialHint /></div>}
+      {state.detail === "credential" && <div data-testid="map-project-guide-credential">
+        <LantmaterietNotice problem={lantmaterietGap(laser.credential) ?? "missing"} product="laser" /></div>}
       {state.detail !== "checking" && state.detail !== "credential" && <>
         {state.detail === "failed" && <p role="alert" className={styles.problem}>{text.run.failed(job?.error ?? null)}</p>}
         {state.detail === "unusable" && <p className={styles.problem}>{text.run.unusable}</p>}
@@ -188,7 +201,10 @@ export function MapProjectGuide({ view, laser, importer, areas, onSplit }: { vie
     </div>
     {state.finished ? <>
       <p data-testid="map-project-guide-finished">{text.finished(area?.name)} <span className={styles.muted}>{text.finishedNext}</span></p>
-      <span className={styles.actions}><Button variant="secondary" onClick={restart} data-testid="map-project-guide-restart">{text.restart}</Button></span>
+      <p data-testid="map-project-guide-draw"><strong>{text.draw}</strong></p>
+      <span className={styles.actions}>
+        {onDraw && <Button onClick={onDraw} data-testid="map-project-guide-draw-button">{text.drawButton}</Button>}
+        <Button variant="secondary" onClick={restart} data-testid="map-project-guide-restart">{text.restart}</Button></span>
     </> : !open && <p className={styles.muted}>{text.stepLabel(GUIDE_STEPS.indexOf(state.step) + 1, text.stepNames[state.step], text.marks.current)}</p>}
     {open && <>
       {!state.finished && <p className={styles.muted}>{text.intro}</p>}
@@ -201,7 +217,8 @@ export function MapProjectGuide({ view, laser, importer, areas, onSplit }: { vie
             {bodies[step]}
             {state.marks[step] === "current" && <>
               {busyText && <p role="status" className={styles.muted} data-testid="map-project-guide-status">{busyText}</p>}
-              {message && (message.tone === "error" || step === "review") && <p role={message.tone === "ok" ? "status" : "alert"}
+              {connection && <LantmaterietNotice problem={connection} product="laser" />}
+              {message && !connection && (message.tone === "error" || step === "review") && <p role={message.tone === "ok" ? "status" : "alert"}
                 className={message.tone === "ok" ? styles.muted : styles.problem} data-testid="map-project-guide-message">
                 {message.tone === "ok" ? message.text : message.code && message.code in text.problems ? text.problems[message.code] : `${message.text} ${text.retry}`}</p>}
             </>}
@@ -209,5 +226,6 @@ export function MapProjectGuide({ view, laser, importer, areas, onSplit }: { vie
         </li>)}
       </ol>
     </>}
+    {advanced && <div className={styles.advanced}><p className={styles.muted}>{text.advanced}</p>{advanced}</div>}
   </section>;
 }

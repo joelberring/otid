@@ -13,7 +13,9 @@ import type { Bounds } from "../../lib/course-setting-viewport";
 import { Button } from "../ui";
 import type { useMapProjectImport } from "./use-map-project-import";
 import { MapProjectLaserDownload } from "./map-project-laser-download";
-import { LaserCredentialHint, LaserServerStatus } from "./map-project-laser-shared";
+import { lantmaterietGap, lantmaterietProblem } from "../../lib/lantmateriet-status";
+import { LantmaterietNotice } from "../lantmateriet-connection";
+import { LaserServerStatus } from "./map-project-laser-shared";
 import { LASER_ACTIVE as ACTIVE, type LaserArea as Area, type useMapProjectLaser } from "./use-map-project-laser";
 import styles from "./map-project-editor.module.css";
 
@@ -39,6 +41,7 @@ export function MapProjectLaserPanel({ view, laser, importer, georeference, boun
   const mapSourcesText = useTexts(mapSourcesSv, mapSourcesEn);
   const text = useTexts(mapSourcesSv.laser, mapSourcesEn.laser);
   const { credential, list, ready } = laser, busy = laser.busy, message = laser.messageFor("panel");
+  const connection = message?.tone === "error" ? lantmaterietProblem(message.code, credential) : undefined;
   const [where, setWhere] = useState("");
   const [items, setItems] = useState<LaserItem[]>();
   // G8: Lantmäteriets Marktäcke och Byggnad för rutan (när kontot kommer åt dem), och vilka som ska läsas.
@@ -114,7 +117,7 @@ export function MapProjectLaserPanel({ view, laser, importer, georeference, boun
     <summary>{text.heading}</summary>
     <p className={styles.muted}>{text.help}</p>
     {list && <LaserServerStatus list={list} testId="map-project-laser" />}
-    {credential && !ready ? <LaserCredentialHint /> : <>
+    {credential && !ready ? <LantmaterietNotice problem={lantmaterietGap(credential) ?? "missing"} product="laser" /> : <>
       <label>{mapSourcesText.ortho.where}<select value={where} onChange={event => setWhere(event.target.value)} data-testid="map-project-laser-area">
         <option value="">{mapSourcesText.ortho.whole}</option>
         {areas.map(row => <option key={row.areaId} value={row.areaId}>{row.name}</option>)}
@@ -195,8 +198,9 @@ export function MapProjectLaserPanel({ view, laser, importer, georeference, boun
       </fieldset>}
     </>}
     {(laser.busyFor("panel") || importer.computing) && <p role="status" className={styles.muted} data-testid="map-project-laser-status">{laser.busyFor("panel") ?? text.steps.candidates}</p>}
-    {message && <p role={message.tone === "ok" ? "status" : "alert"} className={message.tone === "ok" ? styles.muted : styles.problem}
-      data-testid="map-project-laser-message">{message.text}</p>}
+    {connection ? <LantmaterietNotice problem={connection} product="laser" />
+      : message && <p role={message.tone === "ok" ? "status" : "alert"} className={message.tone === "ok" ? styles.muted : styles.problem}
+        data-testid="map-project-laser-message">{message.text}</p>}
     {list && list.jobs.length > 0 && <div data-testid="map-project-laser-jobs">
       <h4>{text.jobs}</h4>
       <ul>

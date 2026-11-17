@@ -67,7 +67,9 @@ export const mcpToolInputSchemas = {
   // Ägaren 2026-11-11: träningsdata för att lära geo-arbetarens regler av en väl ritad karta.
   training_labels: z.object({ project_id: idSchema, min_e: z.number().finite(), min_n: z.number().finite(), max_e: z.number().finite(), max_n: z.number().finite(),
     cell: z.number().min(0.5).max(10).optional() }).refine(box => box.max_e > box.min_e && box.max_n > box.min_n, "max ska vara större än min"),
-  training_raster: z.object({ project_id: idSchema, name: z.enum(MCP_TRAINING_RASTERS), job_id: idSchema.optional() }),
+  training_raster: z.object({ project_id: idSchema, name: z.enum(MCP_TRAINING_RASTERS), job_id: idSchema.optional(),
+    // Ägaren 2026-11-17: ett utsnitt (SWEREF 99 TM) av ett PNG-raster, när hela kartans raster är för stort för ett svar.
+    min_e: z.number().optional(), min_n: z.number().optional(), max_e: z.number().optional(), max_n: z.number().optional() }),
   list_objects: z.object({ project_id: idSchema, area: boxSchema.optional(), symbols: z.array(codeSchema).max(50).optional(),
     limit: z.number().int().min(1).max(500).optional(), offset: z.number().int().min(0).optional(),
     keys: z.array(keySchema).min(1).max(100).optional(), max_points: z.number().int().min(2).max(MCP_OBJECTS_MAX_POINTS_PER_OBJECT).optional(),

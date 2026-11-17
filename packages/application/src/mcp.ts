@@ -7,6 +7,7 @@ import {
 import { schema, type Database } from "@o-tid/database";
 import { aiGate, mapProjectAllows, requireMapProjectForAccount } from "./map-project-access";
 import { readGeoRaster } from "./map-project-geo-jobs";
+import { decodeRgbaPng, rgbaPng } from "./map-project-job-labels";
 import { createMapProjectNewForAccount } from "./map-project-new";
 import { mapProjectAreaViews } from "./map-project-areas";
 import { runMapJobAndWait, type MapJobKind, type MapJobOutcome } from "./map-project-jobs";
@@ -61,7 +62,9 @@ export const MCP_TOOLS = [
     inputSchema: { type: "object", properties: { ...projectId, min_e: { type: "number" }, min_n: { type: "number" }, max_e: { type: "number" }, max_n: { type: "number" },
       cell: { type: "number", minimum: 0.5, maximum: 10 } }, required: ["project_id", "min_e", "min_n", "max_e", "max_n"] }, annotations: { readOnlyHint: true } },
   { name: "training_raster", title: "Laserkörningens raster", description: "Träningsdata: ett raster (PNG; relief och skuggning är WebP från nyare körningar) ur projektets senaste klara laserkörning (eller job_id) med världsfilen som text. hojd = markens höjd i cm + 10 000 som 24 bitar (R·65536 + G·256 + B), fuktdjup = höjden över fuktstråket i steg om 2 cm (R) och lutningen i steg om 0,1° (B), vegetationsklasser = Karttapullautins klass (R), relief och skuggning = bilder. Ur punktmolnet (2 m): lasveg = vegetationens höjd i steg om 0,2 m (R), markträffarnas andel (G) och andelen 1–3 m (B); lasmark = andelen 0,3–1 m (R), markträffarnas intensitet / 64 (G) och spridning i cm (B); laskron = andelen över 3 m (R) och antal punkter (G).",
-    inputSchema: { type: "object", properties: { ...projectId, name: { type: "string", enum: [...MCP_TRAINING_RASTERS] }, job_id: { type: "string" } }, required: ["project_id", "name"] },
+    inputSchema: { type: "object", properties: { ...projectId, name: { type: "string", enum: [...MCP_TRAINING_RASTERS] }, job_id: { type: "string" },
+      min_e: { type: "number", description: "Utsnitt i SWEREF 99 TM (alla fyra), bara för PNG-rastren; högst 2 000 bildpunkter per sida" }, min_n: { type: "number" },
+      max_e: { type: "number" }, max_n: { type: "number" } }, required: ["project_id", "name"] },
     annotations: { readOnlyHint: true } },
   { name: "list_objects", title: "Objekten i kartan", description: `Objekten (i ett område, med vissa symbolnummer och/eller vissa nycklar): nyckel, symbol, slag, omslutande ruta och geometri i kartans mm. Geometrin är glesad till högst ${MCP_OBJECTS_DEFAULT_POINTS} punkter per objekt (vertices säger hur många den har); be om hela med max_points (högst ${MCP_OBJECTS_MAX_POINTS_PER_OBJECT}) bara för de objekt som ska formas om, helst utpekade med keys. Ett svar har högst ${MCP_OBJECTS_MAX_POINTS} punkter; truncated och nextOffset säger att mer finns. brief: true utelämnar namn, ruta och ändrad-märke. För att klippa en yta mot andra ytor behövs ingen geometri alls: använd subtract i propose_changes. Nyckeln används i propose_changes och render_view.`,
     inputSchema: { type: "object", properties: { ...projectId, ...area, symbols: { type: "array", items: { type: "string" }, maxItems: 50 },
@@ -193,6 +196,13 @@ export async function callMcpTool(db: Database, accountId: string, name: string,
     case "training_raster": {
       const raster = await readGeoRaster(db, input.project_id, String(input.name), typeof input.job_id === "string" ? input.job_id : undefined);
       if (!raster) return toolError("Projektet har ingen klar laserkörning med det rastret (hojd finns från geo-arbetarens version 11).");
+      const box = [input.min_e, input.min_n, input.max_e, input.max_n];
+      if (box.some(value => typeof value === "number")) {
+        if (!box.every(value => typeof value === "number")) return toolError("Utsnittet behöver min_e, min_n, max_e och max_n.");
+        const cut = cropRaster(raster, box as [number, number, number, number]);
+        if ("error" in cut) return toolError(cut.error);
+        return { content: [{ type: "image", data: Buffer.from(cut.png).toString("base64"), mimeType: "image/png" }, text({ jobId: raster.jobId, name: input.name, worldFile: cut.world })] };
+      }
       return { content: [{ type: "image", data: raster.png.toString("base64"), mimeType: raster.mediaType }, text({ jobId: raster.jobId, name: input.name, worldFile: raster.world })] };
     }
     case "list_objects": {
@@ -294,4 +304,22 @@ export async function handleMcpMessage(db: Database, accountId: string, message:
     }
     default: return { jsonrpc: "2.0", id, error: { code: -32601, message: `Okänd metod ${method}` } };
   }
+}
+
+/** Ett utsnitt (SWEREF 99 TM) av ett PNG-raster med världsfil, med den nya världsfilen (ägaren 2026-11-17). */
+export function cropRaster(raster: { png: Uint8Array; mediaType: string; world: string | null }, [minE, minN, maxE, maxN]: [number, number, number, number])
+  : { png: Uint8Array; world: string } | { error: string } {
+  if (raster.mediaType !== "image/png" || !raster.world) return { error: "Utsnitt går bara för PNG-rastren med världsfil (inte relief och skuggning)." };
+  const values = raster.world.trim().split(/\s+/).map(Number);
+  const [size, , , negative, left, top] = values;
+  if (values.length < 6 || !(size! > 0) || Math.abs(size! + negative!) > 1e-9) return { error: "Rastrets världsfil har ett okänt format." };
+  const image = decodeRgbaPng(raster.png);
+  if (!image) return { error: "Rastret gick inte att läsa." };
+  const x0 = Math.max(0, Math.floor((minE - left! + size! / 2) / size!)), x1 = Math.min(image.width, Math.ceil((maxE - left! + size! / 2) / size!));
+  const y0 = Math.max(0, Math.floor((top! - maxN + size! / 2) / size!)), y1 = Math.min(image.height, Math.ceil((top! - minN + size! / 2) / size!));
+  if (x1 - x0 < 1 || y1 - y0 < 1) return { error: "Utsnittet ligger utanför rastret." };
+  if (x1 - x0 > 2000 || y1 - y0 > 2000) return { error: `Utsnittet är för stort (${x1 - x0} × ${y1 - y0} bildpunkter, högst 2 000 per sida).` };
+  const out = new Uint8Array((x1 - x0) * (y1 - y0) * 4);
+  for (let row = y0; row < y1; row += 1) out.set(image.data.subarray((row * image.width + x0) * 4, (row * image.width + x1) * 4), (row - y0) * (x1 - x0) * 4);
+  return { png: rgbaPng(x1 - x0, y1 - y0, out), world: [size, 0, 0, -size!, left! + x0 * size!, top! - y0 * size!].join("\n") };
 }

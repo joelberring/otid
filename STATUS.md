@@ -13,6 +13,8 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+- 2026-11-17: `training_raster` kan ge ett utsnitt (min_e, min_n, max_e, max_n i SWEREF 99 TM) av PNG-rastren, högst 2 000 bildpunkter per sida, så att hojd går att läsa för stora kartor (hela Järvsö östra var för stort för ett svar). Prov på släpstigar ur reliefen (Järvsö östra, `claude/slapstigar-prov-2026-11-17.md`); reliefen har synliga skarvar vid etapperna (rad 2 320 och 4 641), ska utredas.
+
 - 2026-11-17: AI-kopplingens `render_view` ritar projektets underlag (ortofoto, «– IR», laserns skuggning) under kartan: `underlays` pekar ut dem med en del av namnet (högst fyra, det sista överst), `map_opacity` är kartans täckning (förval 0,5). Webben slår upp underlagen och kartjobbet läser bilderna med innehållsnyckeln (`loadImage` i utskriftsarbetaren, @napi-rs/canvas). Verifierat: enhetstest med riktig canvas (läge och färg), typkontroll, lint. Kräver serveruppdatering (webben och utskriftsarbetaren).
 
 - 2026-11-17: Ortofoton med nära infrarött (Lantmäteriets `rgbi`, fyra band; ägaren): det fjärde bandet läses och blir ett eget underlag i falskfärg (IR, rött, grönt; namnet slutar på «– IR»), både för hämtade och egna GeoTIFF. «Tolka flygbild» använder IR-bilden när den finns: NDVI skiljer häll från torrt gräs. Gränserna är inte prövade mot riktiga bilder. Verifierat: enhetstester (band, falskfärg, tolkningen), typkontroll, lint.

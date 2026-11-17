@@ -12,7 +12,7 @@ describe("ledarsidan utan påslagen övning (översynen 2026-11-17)", () => {
   it("lugnt besked, var övningen slås på, knapp till fliken Träning och vägen tillbaka till tävlingen", () => {
     const html = renderToStaticMarkup(<LeaderOff raceId={raceId} />);
     expect(html).toContain("Ingen övning i mobilen är påslagen");
-    expect(html).toContain("fliken Träning");
+    expect(html).toContain("fliken Träningsformer");
     expect(html).toContain(`href="/admin/${raceId}/course-setting?flik=traning"`);
     expect(html).toContain(`href="/admin/${raceId}/manage"`);
     expect(html).not.toContain("data-tone=\"error\"");

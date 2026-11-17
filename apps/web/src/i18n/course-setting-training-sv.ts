@@ -1,7 +1,7 @@
 /** Träningsläget i banläggningen (ADR-0192). Enkel svenska. */
 export const trainingSv = {
-  tab: "Träning",
-  heading: "Träning",
+  tab: "Träningsformer",
+  heading: "Träningsformer",
   help: "Gör banan till en träning: korridor, sista säkra, bara kurvbild, fönster med mera. Formerna gäller avsnitt av banan och kan läggas efter varandra på samma karta.",
   chooseCourse: "Välj en bana överst för att göra den till en träning. Ritade områden med filter kan gälla alla banor.",
   show: "Visa träningen på kartan",

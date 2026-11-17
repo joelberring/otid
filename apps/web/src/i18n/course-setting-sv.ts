@@ -84,6 +84,8 @@ export const courseSettingSv = {
       NOTE: "N", FORK: "G", SPECIAL: "O" } as Record<string, string>,
     forkTool: "Gaffla här (vid vald kontroll eller sträcka)",
     forkNeedsSelection: "Välj en kontroll eller sträcka på banan först.",
+    /** Översynen 2026-11-17: ett tryck på ett grått verktyg (i Alla kontroller) säger varför. */
+    needsCourse: (tool: string) => `${tool}: välj en bana först. Verktyget gäller en bana, inte Alla kontroller.`,
     withKey: (label: string, key: string) => `${label} (${key})`,
     help: {
       SELECT: "Klicka för att välja. Dra en kontroll, ett nummer eller en brytpunkt för att flytta. Dra kartan för att panorera.",

@@ -120,7 +120,7 @@ export function CourseLayoutPage({ raceId }: { raceId: string }) {
   const entries = useMemo(() => document ? layoutEntries(document, text.mainName) : [], [document]);
 
   const head = <div className={styles.topLine}>
-    <Link className={styles.back} href={`/admin/${raceId}/manage`}>←</Link>
+    <Link className={styles.back} href={`/admin/${raceId}/manage`} aria-label={text.backLabel} data-testid="layout-back"><span aria-hidden="true">←</span> {text.back}</Link>
     <CourseSettingTabs raceId={raceId} current="LAYOUT" />
     <span className={styles.spacer} />
     {canEdit && <Button variant="secondary" disabled={undoCount === 0} onClick={onUndo} data-testid="layout-undo">{text.states.undo}</Button>}

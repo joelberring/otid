@@ -10,6 +10,8 @@ export const courseSettingTabsSv = {
 
 export const layoutSv = {
   title: "Layout",
+  back: "Tävlingen",
+  backLabel: "Tillbaka till tävlingen",
   intro: "Papperet: layouter (papper och skala), arken för varje bana och vilken layout varje klass får. Banorna läggs i Banläggning.",
   loading: "Läser banläggningen …",
   failed: "Banläggningen kunde inte läsas.",
@@ -89,20 +91,20 @@ export const layoutSv = {
     marked: (count: number) => `${count} markerade`
   },
   states: {
-    heading: "Lägen",
-    help: "Ett läge sparar layouterna, arken, justeringarna, klassernas val och färgprofilen (inte banorna).",
-    name: "Namn på läget",
-    save: "Spara läge",
+    heading: "Sparade kopior av layouten",
+    help: "En sparad kopia innehåller layouterna, arken, justeringarna, klassernas val och färgprofilen (inte banorna).",
+    name: "Namn på kopian",
+    save: "Spara en kopia",
     restore: "Återställ",
-    restoreConfirm: (name: string) => `Återställa läget ”${name}”? Det kan ångras med Ångra.`,
+    restoreConfirm: (name: string) => `Återställa kopian ”${name}”? Det kan ångras med Ångra.`,
     compare: "Jämför",
     remove: "Ta bort",
-    none: "Inga sparade lägen.",
+    none: "Inga sparade kopior.",
     same: "Inga skillnader mot nu.",
     ppen: "automatiskt vid inläsning",
     undo: "Ångra",
     differences: {
-      LAYOUT: (name: string, change: string) => `Layouten ${name}: ${change === "ADDED" ? "ny sedan läget" : change === "REMOVED" ? "borttagen sedan läget" : "ändrad"}`,
+      LAYOUT: (name: string, change: string) => `Layouten ${name}: ${change === "ADDED" ? "ny sedan kopian" : change === "REMOVED" ? "borttagen sedan kopian" : "ändrad"}`,
       SHEET: (course: string, layout: string) => `Arket ${course} i ${layout}`,
       CLASS: (name: string, from: string, to: string) => `${name}: ${from} → ${to}`,
       TEMPLATES: "Mall för papperet och Kartor per ark",

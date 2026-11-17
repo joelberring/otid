@@ -214,7 +214,7 @@ test("banläggningen: hela fliknamn, fältknappar bara i fältet och inga dubble
   await owner.reload();
   await expect(owner.getByTestId("course-setting-map")).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
   // Hela namn, inget avkortat.
-  for (const name of ["Banor", "Beskrivning", "Vald", "Objekt", "Utskrift", "Varningar", "Notiser", "Kollat", "Förslag", "Inställningar"]) {
+  for (const name of ["Banor", "Beskrivning", "Vald", "Objekt", "Utsnitt", "Varningar", "Notiser", "Kollat", "Förslag", "Inställningar"]) {
     const tab = owner.getByRole("tab", { name: new RegExp(`^${name}`) });
     await expect(tab).toBeVisible();
     expect(await tab.evaluate(element => element.scrollWidth <= element.clientWidth + 1), name).toBe(true);

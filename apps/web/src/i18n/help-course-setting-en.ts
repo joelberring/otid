@@ -16,7 +16,7 @@ export const gettingStartedHelpArticlesEn: readonly HelpArticle[] = [
         "Open ”Course setting” and upload the map file, or take it with ”Choose map from the club archive”. See [Course setting and the map file](#banlaggning-start).",
         "Press ”Start with an empty course setting” (or ”Import .ppen” if the course is in Purple Pen).",
         "Press ”New course” and choose ”Scale for the course” in the course's properties. Click out the controls, start and finish. See [Controls and courses](#kontroller-banor).",
-        "Corridor, contours or another form: the tab ”Training”. See [Training forms](#traning).",
+        "Corridor, contours or another form: the tab ”Training forms”. See [Training forms](#traning).",
         "”File” → ”Print courses …” → ”Print on a printer”. See [Print and preview](#utskrift).",
         "Write the class in the course's field ”Classes (as in Purple Pen, e.g. M21, W21)”.",
         "”File” → ”Transfer to the event …”. Then you can read out. See [Transfer the courses](#overfor) and [Readout](#avlasning)."

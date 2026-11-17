@@ -10,7 +10,7 @@ import { PrintPanel } from "./course-setting-print-panel";
 
 /**
  * ADR-0215: "Färger för tryck" är en statusrad och två lägen; profilen, tabellen för hand och BL:s hela lista ligger under
- * "Avancerat", som är stängt som förval. Fliken Utskrift har samma skallista som banans egenskaper.
+ * "Avancerat", som är stängt som förval. Fliken Utsnitt har samma skallista som banans egenskaper.
  */
 // Komponenterna använder JSX utan att importera React (Next); testet ger dem React (vitest kompilerar klassiskt).
 (globalThis as { React?: typeof React }).React = React;
@@ -51,7 +51,7 @@ describe("Färger för tryck (ADR-0215)", () => {
   });
 });
 
-describe("fliken Utskrift (skalan)", () => {
+describe("fliken Utsnitt (skalan)", () => {
   it("Alla kontroller väljer bland samma skalor som banans egenskaper (COURSE_PRINT_SCALES), också 1:3 000", () => {
     const html = renderToStaticMarkup(<PrintPanel document={emptyDocument({ title: "Skala", mapScale: 10000 })} view={ALL_CONTROLS} readOnly={false}
       onEdits={() => undefined} onPreview={() => undefined} onLayout={() => undefined} />);

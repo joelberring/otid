@@ -4,7 +4,8 @@
 .page p { margin: 0; }
 .topLine { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .spacer { flex: 1; }
-.back { color: var(--muted); text-decoration: none; padding: 4px 6px; }
+/* Översynen 2026-11-17: tillbakapilen med text och 44 px tryckyta. */
+.back { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; color: var(--muted); text-decoration: none; padding: 0 6px; }
 .muted { color: var(--muted); font-size: var(--text-sm); }
 .row { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 14px; }
 .stack { display: grid; gap: 8px; }

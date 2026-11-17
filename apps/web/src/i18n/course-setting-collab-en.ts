@@ -59,7 +59,7 @@ export const collaborationEn: Texts<typeof collaborationSv> = {
     expand: "Show the panels",
     resize: "Change the panels' width",
     more: "More",
-    tabs: { courses: "Courses", description: "Description", selected: "Selected", objects: "Objects", training: "Training", print: "Print",
+    tabs: { courses: "Courses", description: "Description", selected: "Selected", objects: "Objects", training: "Training forms", print: "Print area",
       checks: "Warnings", notes: "Notes", inspections: "Checked", suggestions: "Suggestions", settings: "Settings" },
     count: (label: string, n: number) => n > 0 ? `${label} (${n})` : label
   },

@@ -51,8 +51,8 @@ export const fieldPrintHelpArticlesEn: readonly HelpArticle[] = [
     title: "Print and preview",
     views: ["CS_PRINT", "CS_PRINT_PAGE"],
     body: [
-      "The scale belongs to the course: ”Scale for the course” under the tab ”Courses” in the course's properties. Choose it early; circle size and numbers follow it. The tab ”Print” shows it and has ”Change in the course's properties”.",
-      "The tab ”Print” in course setting has ”Preview and print”, which opens the print page, and ”The paper in Layout”. The print page only has what is printed, how many, the colours and PDF or printer, from the top:",
+      "The scale belongs to the course: ”Scale for the course” under the tab ”Courses” in the course's properties. Choose it early; circle size and numbers follow it. The tab ”Print area” shows it and has ”Change in the course's properties”.",
+      "The tab ”Print area” in course setting has ”Preview and print”, which opens the print page, and ”The paper in Layout”. The print page only has what is printed, how many, the colours and PDF or printer, from the top:",
       [
         "”Colours for print”: a row about the colours with ”Show”, and ”The map's own colours” or ”Printing at BL”. See [Colours for print](#bl-farger).",
         "”Print”: choose ”Courses”, ”One map per runner (in the same order as Maps for the start)”, ”Classes” or ”Proof sheets (one of each)”, and which courses.",
@@ -89,7 +89,7 @@ export const fieldPrintHelpArticlesEn: readonly HelpArticle[] = [
         "”Move the frame on the sheet”: drag inside the frame to move it over the map, and the bottom right handle to make it smaller. The frame stays centred.",
         "”Automatic again” removes the course's own print area. For a part of a course with a map exchange: ”As the course's again”.",
         "Map exchanges: each part has its own card. ”Show overlap” chooses how much of the previous part shows.",
-        "A fixed frame can also be dragged on the map in course setting, with the tab ”Print” open."
+        "A fixed frame can also be dragged on the map in course setting, with the tab ”Print area” open."
       ],
       "In a layout other than the main layout it shows the layout's scale, with ”Change in the layout”.",
       "If the print uses ”Maps per sheet”, Maps per sheet decides the paper instead."
@@ -220,7 +220,7 @@ export const fieldPrintHelpArticlesEn: readonly HelpArticle[] = [
         "Finished PDFs are kept a few days and are only visible to the event's administrators."
       ],
       "Always make a test print at the printer before the PDF is used for real.",
-      "Mirrored map: the tab ”Training” → ”Mirror” → ”Mirror the map and the course in print”. The print and the PDF are flipped, but not the map in course setting."
+      "Mirrored map: the tab ”Training forms” → ”Mirror” → ”Mirror the map and the course in print”. The print and the PDF are flipped, but not the map in course setting."
     ]
   },
   {
@@ -248,7 +248,7 @@ export const fieldPrintHelpArticlesEn: readonly HelpArticle[] = [
     body: [
       "A course with a map exchange is split into parts as in Purple Pen. Part 2 starts at the map exchange, which is drawn as a start, and the numbers continue.",
       [
-        "”Part” under ”Map exchanges” in the tab ”Print”: ”The whole course” or one of the parts (Part 1, Part 2 …). The map in course setting shows that part.",
+        "”Part” under ”Map exchanges” in the tab ”Print area”: ”The whole course” or one of the parts (Part 1, Part 2 …). The map in course setting shows that part.",
         "Each part gets its own print area when you change its sheet under ”Paper and map frame” in the tab ”Layout”. ”As the course's again” removes it.",
         "”Show overlap” under ”Paper and map frame”: ”None”, ”The last leg” or ”The whole previous part”, faded and without numbers.",
         "In the preview each part is on its own sheet with the part's control description.",

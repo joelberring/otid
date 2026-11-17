@@ -153,7 +153,7 @@ test("banläggning-layout: två layouter, klassernas layout, utsnitt, justerat n
   await expect(cell("Mellan", old!)).toContainText("1 justering");
   await shot(owner, "ark", "layout-sheet");
 
-  // 7. Spara läge, ändra en klass, jämför och återställ (och ångra).
+  // 7. Spara en kopia av layouten, ändra en klass, jämför och återställ (och ångra).
   const states = owner.getByTestId("layout-states");
   await states.getByTestId("layout-state-name").fill("Före provtryck");
   await states.getByTestId("layout-state-save").click();

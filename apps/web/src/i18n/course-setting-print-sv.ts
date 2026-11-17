@@ -2,7 +2,7 @@ import { plural } from "./plural";
 
 /** Steg 64: specialobjekten och utskriften i banläggningen. */
 export const coursePrintSv = {
-  tabs: { objects: "Objekt", print: "Utskrift" },
+  tabs: { objects: "Objekt", print: "Utsnitt" },
   kinds: {
     "out-of-bounds": "Förbjudet område", "white-out": "Vit bakgrund", "optional-crossing-point": "Valfri passage",
     descriptions: "Beskrivningen på kartan", text: "Text", "forbidden-route": "Förbjuden väg", "dangerous-area": "Farligt område",
@@ -35,8 +35,8 @@ export const coursePrintSv = {
     custom: "Egen färg (CMYK)"
   },
   print: {
-    heading: "Utskrift",
-    help: "Papper, riktning, marginal och kartram ställs in på arket i fliken Layout; en fast ram kan också dras här på kartan.",
+    heading: "Utsnitt",
+    help: "Vilken del av kartan som skrivs ut, och i vilken skala. Papper, riktning, marginal och kartram ställs in på arket i fliken Layout; en fast ram kan också dras här på kartan.",
     scale: "Utskriftsskala",
     mapScale: (scale: string) => `Kartans (1:${scale})`,
     scaleChange: "Ändra i banans egenskaper",

@@ -20,6 +20,9 @@
   background: var(--surface); overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
 .topbar button, .topbar select { min-height: 36px; white-space: nowrap; }
 .topbar select { max-width: 220px; padding: 2px 6px; font: inherit; }
+/* Översynen 2026-11-17: banväljaren krymper inte till «Alla k…» på datorn; Ångra och Gör om visar bara pilen när raden är trång. */
+@media (min-width: 700px) { .topbar .viewPicker select { flex: 0 0 auto; min-width: 9.5em; } .viewPicker { flex: 0 0 auto; } }
+@media (max-width: 1440px) { .roomy { display: none; } }
 .inline { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-sm); }
 /* Telefonen med fältets rad: banväljaren finns där (stora rutor), inte i raden överst. */
 .shell[data-field] .viewPicker { display: none; }
@@ -47,10 +50,10 @@
   background: var(--surface); box-shadow: 0 2px 10px rgba(0, 0, 0, .2); }
 .tool { position: relative; display: grid; justify-items: center; gap: 1px; min-width: 60px; min-height: 48px; padding: 4px 6px; border: 2px solid transparent;
   border-radius: 6px; background: none; color: inherit; font: inherit; font-size: 0.75rem; cursor: pointer; }
-.tool:hover:not(:disabled) { background: var(--surface-strong, rgba(0, 0, 0, .06)); }
+.tool:hover:not(:disabled, [aria-disabled="true"]) { background: var(--surface-strong, rgba(0, 0, 0, .06)); }
 /* Också vid hovring: annars vinner hovringsregeln ovan och det valda verktyget blir ljust med vit text. */
 .tool[aria-pressed="true"], .tool[aria-pressed="true"]:hover:not(:disabled) { border-color: var(--ink); background: var(--ink); color: var(--surface); font-weight: 700; }
-.tool:disabled { opacity: .4; cursor: default; }
+.tool:disabled, .tool[aria-disabled="true"] { opacity: .4; cursor: default; }
 .toolIcon { font-size: 1.1rem; line-height: 1.2; }
 .key { position: absolute; top: 2px; right: 3px; font: inherit; font-size: 0.6rem; line-height: 1; opacity: .65; }
 /* Skärmlagret (krysset i vald kontrolls mitt) följer aldrig med vid utskrift. */
@@ -259,9 +262,9 @@ fieldset.row legend { width: 100%; padding: 0; font-weight: 600; }
   .bottomStack { position: static; padding-top: 4px; background: var(--surface); }
   .zoom { top: 8px; bottom: auto; }
   /* Den smala raden: banväljaren först och tydlig, knapparna utan text. */
-  .topbar { gap: 4px; padding: 4px 6px; }
+  .topbar { gap: 3px; padding: 4px 6px; }
   .topbar select { flex: 0 1 auto; min-width: 7.5em; max-width: 45vw; }
-  .topbar button { min-width: 36px; padding-inline: 8px; }
+  .topbar button { min-width: 36px; padding-inline: 6px; }
   .toasts { right: 56px; }
   /* ADR-0188: de vanligaste flikarna med namn, vald flik och resten under "Mer". */
   .tabs { gap: 0; overflow: visible; }

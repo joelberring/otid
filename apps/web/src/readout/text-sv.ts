@@ -48,6 +48,7 @@ export const readoutText = {
   // Reader BT (SPORTident, Bluetooth Low Energy).
   connectBluetooth: "Anslut Reader BT (Bluetooth)",
   bluetoothUnsupported: "Den här webbläsaren kan inte ansluta Bluetooth-stationer. Använd Chrome eller Edge på dator eller Android.",
+  bluetoothRequestFailed: (detail: string) => `Webbläsaren kunde inte söka efter Reader BT (${detail}). Är Bluetooth påslaget på enheten och tillåtet för webbläsaren?`,
   bluetoothFailed: "Reader BT gick inte att ansluta. Är den på, och inte ansluten till en annan enhet (t.ex. SPORTident Config i en telefon)?",
   bluetoothLost: "Förbindelsen med Reader BT bröts och gick inte att återställa. Kontrollera att stationen är på och nära, och anslut igen.",
   connectExercise: "Starta övningsstation",

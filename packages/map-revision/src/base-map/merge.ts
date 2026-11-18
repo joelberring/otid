@@ -1,7 +1,7 @@
 import { geodeticToGrid, gridToGeodetic, transverseMercatorFor } from "@o-tid/map-file";
 import { smoothWater } from "./water-smooth";
 import { isSprintNorm, joinSeams, type MapBox, type MapNorm, type SourceData, type SourceFeature } from "../index";
-import { snapPathsToTracks } from "./path-snap";
+import { snapPathsToTracks, tracksOffFields } from "./path-snap";
 import { sprintOsm } from "./sprint-osm";
 import { LASER_PAVED_FILE, laserPavedAreas } from "./laser-paved";
 import { withoutCutVegetation, type clearCutFeatures } from "./clear-cuts";
@@ -208,7 +208,9 @@ export function mergeBaseMap(parts: readonly { readonly name: string; readonly d
   // Skogsstyrelsens hyggen efter ålder; laserns vegetation i ett hygge som är yngre än skanningen tas bort.
   // Ägaren 2026-11-16: små fastigheter med hus blir tomter (`parcelYards`), före sankmarken som inte ska ligga på tomter.
   // Ägaren 2026-11-17: OpenStreetMaps stigar flyttas till laserns fåror (path-snap.ts); fårorna som blir kvar är nya spår.
-  const all = snapPathsToTracks(parcelYards([...ticks, ...withoutCutVegetation(scale ? smallRingsToPoints(knolls, scale) : knolls, cuts?.afterScan ?? []), ...(cuts?.features ?? []), ...nmd, ...(osm ? osmForBaseMap(osm, names.has("byggnader.geojson")) : [])])).features;
+  // Ägaren 2026-11-18: inga fåror som spår på åker (plogfåror och körspår ändras med säsongen).
+  const all = snapPathsToTracks(tracksOffFields(parcelYards([...ticks, ...withoutCutVegetation(scale ? smallRingsToPoints(knolls, scale) : knolls, cuts?.afterScan ?? []), ...(cuts?.features ?? []), ...nmd, ...(osm ? osmForBaseMap(osm, names.has("byggnader.geojson")) : [])]),
+    osm ? osmManaged(osm).filter(feature => /farmland|orchard|allotments|farmyard/.test(feature.layer)) : [])).features;
   // Ägaren 2026-11-12: en sankmark per plats (blött, fuktigt och marktäckets låg på varandra).
   // Ägaren 2026-11-13: ingen sankmark på sand och grus enligt SGU:s jordartskartan (strandkärr inom 30 m från vatten blir kvar).
   const marsh = singleMarsh(marshOutsideManaged(all, osm ? osmManaged(osm) : [])).features;

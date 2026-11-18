@@ -189,3 +189,45 @@ export function snapPathsToTracks(features: readonly SourceFeature[], settings: 
   });
   return { features: [...out.filter(feature => feature.layer !== LASER_TRACK_LAYER), ...kept], moved };
 }
+
+/** Lagren där laserns fåror inte blir spår: åker och fruktodling ur marktäcket (plus `managed`, OpenStreetMaps odlade ytor). */
+const FIELD_LAYERS = new Set(["aker", "fruktodling"]);
+type Field = { rings: readonly (readonly (readonly [number, number])[])[]; minX: number; minY: number; maxX: number; maxY: number };
+
+/**
+ * Ägaren 2026-11-18 («ska inte vara på åkrar eftersom de kan ändras över året»): laserns fåror på åker är plogfåror, körspår och
+ * diken mellan tegarna och ändras med säsongen. De delar av `spar_laser` som ligger på åker (marktäckets `aker` och
+ * `fruktodling`, och `managed`) tas bort; bitar som blir kortare än `minRun` m tas också bort.
+ */
+export function tracksOffFields(features: readonly SourceFeature[], managed: readonly SourceFeature[] = [], minRun = DEFAULT_PATH_SNAP.minRun): SourceFeature[] {
+  const fields: Field[] = [];
+  for (const feature of [...features.filter(row => FIELD_LAYERS.has(row.layer.toLowerCase())), ...managed]) {
+    const geometry = feature.geometry;
+    const rings = (geometry.kind === "area" ? geometry.rings : geometry.kind === "line" && geometry.closed ? [geometry.points] : []).filter(ring => ring.length >= 3);
+    if (!rings.length) continue;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const [x, y] of rings[0]!) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
+    fields.push({ rings, minX, minY, maxX, maxY });
+  }
+  if (!fields.length || !features.some(feature => feature.layer === LASER_TRACK_LAYER)) return [...features];
+  // Inne i någon åker (jämn–udda inom åkerns egna ringar: ett hål räknas som utanför).
+  const onField = ([x, y]: Pair) => fields.some(field => {
+    if (x < field.minX || x > field.maxX || y < field.minY || y > field.maxY) return false;
+    let inside = false;
+    for (const ring of field.rings) for (let i = 0, j = ring.length - 1; i < ring.length; j = i, i += 1) {
+      const [xi, yi] = ring[i]!, [xj, yj] = ring[j]!;
+      if (yi > y !== yj > y && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+  });
+  const out: SourceFeature[] = [];
+  for (const feature of features) {
+    if (feature.layer !== LASER_TRACK_LAYER || feature.geometry.kind !== "line") { out.push(feature); continue; }
+    const line = densify(feature.geometry.points);
+    let run: Pair[] = [];
+    const flush = () => { if (run.length > 1 && (run.length - 1) * STEP >= minRun) out.push({ ...feature, geometry: { kind: "line", closed: false, points: simplify(run, 0.5) } }); run = []; };
+    for (const point of line) { if (onField(point)) flush(); else run.push(point); }
+    flush();
+  }
+  return out;
+}

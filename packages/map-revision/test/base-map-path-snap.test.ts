@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SourceFeature } from "../src";
-import { LASER_TRACK_LAYER, snapPathsToTracks } from "../src/base-map/path-snap";
+import { LASER_TRACK_LAYER, snapPathsToTracks, tracksOffFields } from "../src/base-map/path-snap";
 
 const line = (layer: string, points: [number, number][]): SourceFeature => ({ layer, geometry: { kind: "line", closed: false, points } });
 
@@ -31,5 +31,27 @@ describe("OpenStreetMaps stigar till laserns fåror (ägaren 2026-11-17)", () =>
   it("utan fåror ändras inget", () => {
     const features = [line("OSM stig", [[0, 0], [100, 0]])];
     expect(snapPathsToTracks(features).features).toEqual(features);
+  });
+});
+
+describe("laserns fåror på åker (ägaren 2026-11-18)", () => {
+  it("delen på åkern tas bort, delen i skogen blir kvar, korta stumpar försvinner", () => {
+    const field: SourceFeature = { layer: "aker", geometry: { kind: "area", rings: [[[0, 0], [200, 0], [200, 200], [0, 200], [0, 0]]] } };
+    const across: SourceFeature = { layer: "spar_laser", geometry: { kind: "line", closed: false, points: [[100, 100], [400, 100]] } };
+    const stub: SourceFeature = { layer: "spar_laser", geometry: { kind: "line", closed: false, points: [[50, 50], [215, 50]] } };
+    const inside: SourceFeature = { layer: "spar_laser", geometry: { kind: "line", closed: false, points: [[20, 20], [180, 20]] } };
+    const out = tracksOffFields([field, across, stub, inside]);
+    const tracks = out.filter(feature => feature.layer === "spar_laser");
+    expect(tracks).toHaveLength(1);
+    const xs = tracks[0]!.geometry.kind === "line" ? tracks[0]!.geometry.points.map(([x]) => x) : [];
+    expect(Math.min(...xs)).toBeGreaterThan(199);
+    expect(Math.max(...xs)).toBeCloseTo(400, 0);
+    expect(out).toContain(field);
+  });
+  it("OpenStreetMaps odlade ytor räknas också, och utan åker lämnas fårorna orörda", () => {
+    const farmland: SourceFeature = { layer: "OSM markanvändning (farmland)", geometry: { kind: "line", closed: true, points: [[0, 0], [200, 0], [200, 200], [0, 200]] } };
+    const track: SourceFeature = { layer: "spar_laser", geometry: { kind: "line", closed: false, points: [[20, 20], [180, 20]] } };
+    expect(tracksOffFields([track], [farmland])).toHaveLength(0);
+    expect(tracksOffFields([track])).toEqual([track]);
   });
 });

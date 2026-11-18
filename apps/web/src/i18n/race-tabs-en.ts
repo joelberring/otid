@@ -20,7 +20,7 @@ export const raceTabsEn: Texts<typeof raceTabsSv> = {
     ENTRIES: "Entries", PARTICIPANTS: "Participants", TEAMS: "Teams", START: "Start", PUBLISH: "Publish", SECRETARIAT: "Secretariat",
     RESULTS: "Results", PARTY: "Party", PEOPLE: "People", SETTINGS: "Settings", READOUT_STATION: "Readout",
     PARTY_DESK: "Bar desk", SPEAKER: "Speaker", COURSE_SETTING: "Course setting", MAP_ERRORS: "Map errors", EXERCISE_SETUP: "Exercise",
-    BINGO: "Bingo", SHIPS: "Battleships", CONTROLS: "Controls"
+    MASTERMIND: "Mastermind", BINGO: "Bingo", SHIPS: "Battleships", CONTROLS: "Controls"
   },
   items: {
     COURSES: ["Courses", "Course file, courses and forkings"], COURSES_CLASSES: ["Courses & classes", "Courses and classes in one place"],
@@ -34,6 +34,7 @@ export const raceTabsEn: Texts<typeof raceTabsSv> = {
     READOUT_STATION: ["Readout", "The readout station"], PARTY_DESK: ["Bar desk", "The bar desk with the card"],
     SPEAKER: ["Speaker", "The speaker's board"], COURSE_SETTING: ["Course setting", "The map, the controls and printing"],
     MAP_ERRORS: ["Map errors", "Map errors for the course setter"], EXERCISE_SETUP: ["Exercise on the phone", "Bingo, Battleships and virtual controls"],
+    MASTERMIND: ["Mastermind with controls", "A game with SI units: each colour is a control, the team guesses the pattern"], 
     BINGO: ["Bingo", "The leader's page"], SHIPS: ["Battleships", "The leader's page"], CONTROLS: ["Virtual controls", "The leader's page"]
   }
 };

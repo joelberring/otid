@@ -4,7 +4,7 @@ import { pageContentSecurityPolicy } from "./lib/content-security-policy";
 /**
  * PLAN.md steg 46: strikt CSP med nonce för Next-sidorna (publika sidor, adminsidor och kontosidorna). Next läser
  * noncen ur förfrågans Content-Security-Policy och sätter den på sina egna skript; därför renderas alla sidor dynamiskt
- * (rotlayouten väntar på förfrågan). API-rutterna, Nexts statiska filer, avläsningsskalet under /readout/ och
+ * (rotlayouten väntar på förfrågan). API-rutterna, Nexts statiska filer, avläsningsskalet under /readout/, spelet under /mastermind/ och
  * banläggningens service worker går inte hit;
  * deras huvuden står i next.config.ts och security-policy.ts.
  * @public Next läser `proxy` och `config`.
@@ -23,7 +23,7 @@ export function proxy(request: NextRequest) {
 /** @public */
 export const config = {
   matcher: [{
-    source: "/((?!api/|_next/static|_next/image|readout/|course-setting-sw.js|map-project-sw.js|favicon.ico|robots.txt).*)",
+    source: "/((?!api/|_next/static|_next/image|readout/|mastermind/|course-setting-sw.js|map-project-sw.js|favicon.ico|robots.txt).*)",
     missing: [{ type: "header", key: "next-router-prefetch" }, { type: "header", key: "purpose", value: "prefetch" }]
   }]
 };

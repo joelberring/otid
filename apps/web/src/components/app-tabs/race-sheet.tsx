@@ -53,7 +53,7 @@ export function RaceSheet({ open, onClose, title, items, active, onSelect, newTa
 /** Ikonen för en rad i tävlingsraden. */
 export const RACE_ICONS: Record<RaceNavKey, AppIconName> = { courses: "course", classes: "classes", entries: "entries", start: "event",
   publish: "publish", secretariat: "secretariat", results: "results", party: "party", people: "club", settings: "more", readout: "readout",
-  speaker: "speaker", exercise: "exercise", courseSetting: "map" };
+  speaker: "speaker", exercise: "exercise", mastermind: "exercise", courseSetting: "map" };
 
 /**
  * Avläsningen och speakern (byggda för stress) har ingen flikrad i telefonbredd, bara en smal rad nertill med funktionens namn

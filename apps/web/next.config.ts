@@ -55,6 +55,9 @@ const nextConfig: NextConfig = {
       { source: "/admin/:raceId/readout", headers: [readout] },
       { source: "/readout/:path*", headers: [{ key: "Cache-Control", value: "no-cache" },
         { key: "Content-Security-Policy", value: READOUT_SHELL_CSP }, { key: "Referrer-Policy", value: "no-referrer" }, readout] },
+      // Mastermind med kontroller: samma statiska skal och samma rätt till stationen som avläsningen.
+      { source: "/mastermind/:path*", headers: [{ key: "Cache-Control", value: "no-cache" },
+        { key: "Content-Security-Policy", value: READOUT_SHELL_CSP }, { key: "Referrer-Policy", value: "no-referrer" }, readout] },
       { source: "/starts/:raceId", headers: [...privateAdminHeaders] },
       // ADR-0214: kartritarens länk. Nyckeln står i adressen: ingen cache, ingen referer och telefonens position på kartan.
       { source: "/kartfel/:token", headers: [{ key: "Cache-Control", value: "private, no-store" }, { key: "Referrer-Policy", value: "no-referrer" },

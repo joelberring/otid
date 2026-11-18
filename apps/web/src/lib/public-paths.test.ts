@@ -42,7 +42,8 @@ function appRoutes(dir = appDir): { url: string; source: string }[] {
 }
 
 /** Översta delar under src/app som aldrig är publika: arbetsytan, admin, konto och inloggningens flöden (ADR-0177). */
-const NOT_PUBLIC_SECTIONS = ["admin", "organizer", "superadmin", "konto", "inbjudan", "kartlank", "recover", "verify", "oauth"];
+/** Mastermind med kontroller är ett statiskt skal som avläsningen (`/mastermind/`), och går liksom den till `web`. */
+const NOT_PUBLIC_SECTIONS = ["admin", "organizer", "superadmin", "konto", "inbjudan", "kartlank", "recover", "verify", "oauth", "mastermind"];
 /** API:er som aldrig är publika; `/api/public/…` och startlistan är det. */
 /** Demoläget del 2: "Prova arbetsytan" skapar ett konto och loggar in, så det går till `web` (som inloggningen). */
 const NOT_PUBLIC_API = ["account", "admin", "club-import", "demo", "geo-worker", "health", "invitation", "map-link", "map-project-link", "oauth", "organizer", "superadmin"];
@@ -83,7 +84,7 @@ describe("publika sökvägar (ADR-0177): en lista i koden och i deploy/Caddyfile
       } else if (NOT_PUBLIC_SECTIONS.includes(section)) expect(isPublic(url), url).toBe(false);
       else expect(isPublic(url), url).toBe(true);
     }
-    for (const sample of ["/organizer", "/organizer/x", "/admin/x", "/superadmin", "/konto", "/readout/", "/course-setting-sw.js", "/map-project-sw.js",
+    for (const sample of ["/organizer", "/organizer/x", "/admin/x", "/superadmin", "/konto", "/readout/", "/mastermind/", "/course-setting-sw.js", "/map-project-sw.js",
       "/api/races/x/imports", "/api/admin/races/x/administrator/map/source", "/api/map-link/x/reply"]) {
       expect(isPublic(sample), sample).toBe(false);
     }

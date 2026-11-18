@@ -116,6 +116,8 @@ export const raceWorkspaceNavigationEn: Texts<typeof raceWorkspaceNavigationSv> 
   mobileExercise: "Phone exercise",
   mobileExerciseSetup: "Bingo, Battleships and virtual controls",
   mobileExerciseOn: mode => `${mode === "SHIPS" ? "Battleships" : mode === "CONTROLS" ? "Virtual controls" : "Bingo"} is on · the leader's page`,
+  mastermind: "Mastermind with controls",
+  mastermindStatus: "A game with SI units and the readout station",
   checklist: "Checklist",
   steps: { COURSES: "Courses", CLASSES: "Classes", ENTRIES: "Entries", START: "Start", READOUT: "Readout", RESULTS: "Results" },
   staff: "Officials",

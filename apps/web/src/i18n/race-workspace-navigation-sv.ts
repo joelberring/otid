@@ -11,6 +11,9 @@ export const raceWorkspaceNavigationSv = {
   mobileExerciseSetup: "Bingo, Sänka skepp och virtuella kontroller",
   mobileExerciseOn: (mode: "BINGO" | "SHIPS" | "CONTROLS") =>
     `${mode === "SHIPS" ? "Sänka skepp" : mode === "CONTROLS" ? "Virtuella kontroller" : "Bingo"} är på · ledarens sida`,
+  /** PR #2: Mastermind med kontroller i en träning (stationens eget skal; resultaten stannar i webbläsaren). */
+  mastermind: "Mastermind med kontroller",
+  mastermindStatus: "Lek med SI-enheter och avläsningsstationen",
   checklist: "Checklista",
   steps: { COURSES: "Banor", CLASSES: "Klasser", ENTRIES: "Anmälda", START: "Start", READOUT: "Avläsning", RESULTS: "Resultat" },
   staff: "Funktionärer",

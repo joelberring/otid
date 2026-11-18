@@ -1,4 +1,3 @@
-import { gunzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { cachedJsonResponse, createPublicRaceCache, isRetryableReadConflict, onlyNewResults } from "./public-race-cache";
 
@@ -70,13 +69,14 @@ describe("steg 51: publika listor en gång per tävlingsversion", () => {
     expect((await cache.read(race, "results", compute)).value).toBe("v1");
   });
 
-  it("svarar med gzip och ETag, 304 när innehållet är oförändrat och vanlig JSON utan gzip", async () => {
+  it("svarar med JSON utan egen packning (Next 16.4.5 tar bort content-encoding), ETag och 304 när innehållet är oförändrat", async () => {
     const cache = createPublicRaceCache({ version: async () => "v1" });
     const entry = await cache.read(race, "results", async () => ({ formatVersion: 7, results: [{ givenName: "Alva" }] }));
     const packed = cachedJsonResponse(new Request("http://127.0.0.1/", { headers: { "accept-encoding": "gzip, br" } }), entry, "public, max-age=2");
-    expect(packed.headers.get("content-encoding")).toBe("gzip");
+    expect(packed.headers.get("content-encoding")).toBeNull();
     expect(packed.headers.get("vary")).toBe("accept-encoding");
-    expect(JSON.parse(gunzipSync(Buffer.from(await packed.arrayBuffer())).toString("utf8"))).toEqual(entry.value);
+    expect(packed.headers.get("etag")).toBe(entry.etag);
+    expect(await packed.json()).toEqual(entry.value);
     const plain = cachedJsonResponse(new Request("http://127.0.0.1/", { headers: { "accept-encoding": "gzip;q=0, br" } }), entry, "no-store");
     expect(plain.headers.get("content-encoding")).toBeNull();
     expect(plain.headers.get("cache-control")).toBe("no-store");

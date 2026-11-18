@@ -60,6 +60,7 @@ export class ReaderBtController implements StationLink {
   #stopped = false;
   #reconnecting = false;
   #insertedAt: number | undefined;
+  #insertedCard: number | undefined;
 
   /** `lostMessage`: beskedet när förbindelsen inte gick att återställa. */
   constructor(device: BluetoothDeviceLike, callbacks: StationCallbacks,
@@ -168,7 +169,7 @@ export class ReaderBtController implements StationLink {
     if (!bytes) return;
     this.#callbacks.onTraffic?.("in", bytes);
     const card = readerBtCardEvent(bytes);
-    if (card?.inserted) { this.#insertedAt = Date.now(); this.#callbacks.onCardInserted(card.cardNumber); }
+    if (card?.inserted) { this.#insertedAt = Date.now(); this.#insertedCard = card.cardNumber; this.#callbacks.onCardInserted(card.cardNumber); }
   };
 
   readonly #onData = (event: Event): void => {
@@ -177,7 +178,15 @@ export class ReaderBtController implements StationLink {
     this.#callbacks.onTraffic?.("in", bytes);
     let complete: Uint8Array | undefined;
     try { complete = this.#assembler.push(bytes); }
-    catch (error) { this.#callbacks.onLog?.(`Reader BT: ${message(error)} (${hex(bytes.slice(0, 12))} …)`); return; }
+    catch (error) {
+      this.#callbacks.onLog?.(`Reader BT: ${message(error)} (${hex(bytes.slice(0, 12))} …)`);
+      if (!(error instanceof CardDecodeError)) throw error;
+      // Avläsningen syns som misslyckad (läs om brickan) i stället för att bara stå i felsökningsloggen; råtrafiken finns i råloggen.
+      const cardNumber = this.#insertedCard ?? 0;
+      this.#insertedAt = undefined; this.#insertedCard = undefined;
+      this.#callbacks.onReadFailed(cardNumber, error.message);
+      return;
+    }
     if (!complete) return;
     // Stationen väntar på kvittensen före nästa bricka; den skickas oavsett om innehållet går att tolka.
     if (this.#data) {
@@ -191,7 +200,7 @@ export class ReaderBtController implements StationLink {
     const cardNumber = readerBtCardNumber(complete) ?? 0;
     if (this.#insertedAt === undefined) this.#callbacks.onCardInserted(cardNumber);
     const ms = this.#insertedAt === undefined ? undefined : Date.now() - this.#insertedAt;
-    this.#insertedAt = undefined;
+    this.#insertedAt = undefined; this.#insertedCard = undefined;
     if (!cardTypeFromSi8PlusNumber(cardNumber)) {
       this.#callbacks.onLog?.(`Reader BT: bricktypen stöds inte (${cardNumber})`);
       this.#callbacks.onUnsupportedCard(cardNumber);

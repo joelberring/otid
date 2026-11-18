@@ -66,6 +66,54 @@ describe("Reader BT", () => {
     expect(readerBtStorageFrames([new Uint8Array(650)]).map((frame) => frame.length)).toEqual([300, 300, 50]);
   });
 
+  it("läser om sparade råramar oberoende av var de är delade", () => {
+    const stream = Uint8Array.from(SI11_9150186.flatMap((part) => Array.from(hex(part))));
+    const expected = decodeRecordedFrames(SI11_9150186.map(hex));
+    let seed = 7;
+    const random = () => (seed = (seed * 1_103_515_245 + 12_345) % 2_147_483_648) / 2_147_483_648;
+    for (let round = 0; round < 200; round += 1) {
+      const frames: Uint8Array[] = [];
+      // Första ramen måste börja med meddelandets huvud (01 a1) för att kännas igen som Reader BT.
+      let at = 0;
+      while (at < stream.length) {
+        const size = at === 0 ? Math.max(2, 1 + Math.floor(random() * 300)) : 1 + Math.floor(random() * 300);
+        frames.push(stream.slice(at, at + size)); at += size;
+      }
+      expect(decodeRecordedFrames(frames)).toEqual(expected);
+    }
+  });
+
+  it("dubbletter: en upprepad första bit börjar om, en upprepad senare bit eller en dubblerad bricka ger fel", () => {
+    const [first, second] = SI11_9150186.map(hex) as [Uint8Array, Uint8Array];
+    const assembler = new ReaderBtAssembler();
+    assembler.push(first);
+    assembler.push(first);
+    expect(decodeReaderBtCard(assembler.push(second)!).cardNumber).toBe(9_150_186);
+    const again = new ReaderBtAssembler();
+    expect(again.push(first)).toBeUndefined();
+    expect(() => again.push(Uint8Array.of(...second.slice(0, 4), 3, ...second.slice(5)))).toThrow(/bit 2 väntades/);
+    expect(() => decodeRecordedFrames([first, second, first, second])).toThrow(/mer än ett meddelande/);
+    expect(() => decodeRecordedFrames([hex(SI9_1200002), hex(SI9_1200002)])).toThrow(/mer än ett meddelande/);
+  });
+
+  it("avkortade bitar och fel längd (protokollet har ingen kontrollsumma) ger fel, aldrig en gissad bricka", () => {
+    const [first, second] = SI11_9150186.map(hex) as [Uint8Array, Uint8Array];
+    expect(() => new ReaderBtAssembler().push(first.slice(0, 120))).toThrow(/avkortad/);
+    const assembler = new ReaderBtAssembler();
+    assembler.push(first);
+    expect(() => assembler.push(second.slice(0, 30))).toThrow(/avkortad/);
+    expect(() => new ReaderBtAssembler().push(hex(SI9_1200002).slice(0, 50))).toThrow(/avkortat/);
+    for (let cut = 1; cut < first.length + second.length; cut += 17) {
+      const stream = Uint8Array.of(...first, ...second).slice(0, cut);
+      expect(() => decodeRecordedFrames([stream])).toThrow(CardDecodeError);
+    }
+    // Fel längd i huvudet: meddelandet slutar inte där ramarna slutar.
+    const longer = hex(SI9_1200002); longer[2] = 0x41;
+    expect(() => decodeRecordedFrames([longer])).toThrow(CardDecodeError);
+    const count = hex(SI9_1200002); count[9] = 0x09;
+    expect(() => decodeReaderBtCard(count)).toThrow(/ryms inte/);
+  });
+
   it("ger tider i tävlingens tidszon", () => {
     const normalized = normalizeCard(decodeReaderBtCard(hex(SI9_1506987)),
       { reference: new Date("2026-11-17T19:40:00+01:00"), timeZone: "Europe/Stockholm" });

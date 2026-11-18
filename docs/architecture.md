@@ -76,7 +76,8 @@ Gemensamma hjälpare: UUID-mönstret och idempotensnycklarnas form (`UUID_PATTER
 ## Publika listor under last (PLAN.md steg 51, `docs/lasttest.md`)
 
 - De publika listorna (resultat, stafett, radio, Live, startlistan) räknas en gång per tävlingsversion i webbprocessen
-  (`lib/public-race-cache.ts`, `lib/public-race-data.ts`) och delas av alla besökare, som JSON och gzip med ETag. Versionen är
+  (`lib/public-race-cache.ts`, `lib/public-race-data.ts`) och delas av alla besökare, som JSON med ETag (packas per anrop av Next/Caddy; Next 16.4.5 tar bort `content-encoding`
+  ur route handlers, så förpackad gzip går inte längre). Versionen är
   `publicRaceContentVersion` (`application/src/public-race-version.ts`: resultatströmmens markör, `snapshot_version`,
   fastställandet, startlistans publicering, publiceringen, banornas publicering); det som inte syns i den täcks av en
   maxålder (15 s, Live 5 s). Högst en uträkning åt gången och högst en tredjedel av processens tid. Har bara nya resultat

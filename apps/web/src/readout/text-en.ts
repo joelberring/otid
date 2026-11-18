@@ -51,6 +51,7 @@ export const readoutTextEn: Texts<typeof readoutText> = {
   usbBusy: detail => `The station could not be taken (${detail}). Is another app (e.g. SI-Droid) running? Close it with Force stop under Settings → Apps, unplug and plug in the station and try again.`,
   connectBluetooth: "Connect Reader BT (Bluetooth)",
   bluetoothUnsupported: "This browser cannot connect Bluetooth stations. Use Chrome or Edge on a computer or Android.",
+  bluetoothRequestFailed: detail => `The browser could not search for Reader BT (${detail}). Is Bluetooth switched on and allowed for the browser?`,
   bluetoothFailed: "Reader BT could not be connected. Is it switched on, and not connected to another device (e.g. SPORTident Config on a phone)?",
   bluetoothLost: "The connection to Reader BT was lost and could not be restored. Check that the station is on and nearby, and connect again.",
   connectExercise: "Start practice station",

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { openStep } from "./helpers";
 
 /**
  * Demoläget del 2 (ägaren 2026-11-09): "Prova arbetsytan" på startsidan ger ett gästkonto med en egen övningstävling med
@@ -18,7 +19,13 @@ for (const width of [1280, 390]) {
     await page.waitForURL(/\/admin\/[0-9a-f-]{36}\/manage$/, { timeout: 60_000 });
     const raceId = page.url().split("/admin/")[1]!.split("/")[0]!;
     await expect(page.getByTestId("guest-notice")).toContainText("Ingenting syns utåt");
-    await expect(page.getByText("10 deltagare").first()).toBeVisible({ timeout: 30_000 });
+    // Under 640 px ersätter tävlingsraden sidopanelen med räknarna (ADR-0227 tillägg 2026-11-18): deltagarna under Anmälda.
+    if (width > 640) await expect(page.getByText("10 deltagare").first()).toBeVisible({ timeout: 30_000 });
+    else {
+      await expect(page.getByTestId("race-tabs")).toBeVisible({ timeout: 30_000 });
+      await openStep(page, "Anmälda");
+      await expect(page.getByText("Visar 10 av 10")).toBeVisible({ timeout: 30_000 });
+    }
     await page.screenshot({ path: `test-results/demolage-arbetsytan-${width}.png`, fullPage: false });
 
     // Banläggningen (med kontomenyn): gästläget vid menyn, bara "Skapa ett eget konto" och "Avsluta provet".

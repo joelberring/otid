@@ -77,6 +77,8 @@ export class ReaderBtAssembler {
     if (!isFragment(bytes) || bytes.length < HEADER + 1) return undefined;
     const length = HEADER + u16(bytes, 2);
     const index = bytes[4]!;
+    // Protokollet har ingen kontrollsumma (BLE-länken har sin egen CRC); en avkortad bit fångas här och via längderna.
+    if (bytes.length < length) { this.#reset(); throw new CardDecodeError(`Bit ${index} är avkortad: ${bytes.length} av ${length} byte`); }
     if (index === 1) {
       this.#reset();
       if (length < 9) throw new CardDecodeError("Första biten saknar längd");
@@ -84,7 +86,11 @@ export class ReaderBtAssembler {
       if (this.#expected > MAX_MESSAGE) throw new CardDecodeError(`Orimlig meddelandelängd ${this.#expected}`);
       this.#parts.push(bytes.slice(9, length));
     } else {
-      if (index !== this.#next) { this.#reset(); throw new CardDecodeError(`Bit ${index} kom när bit ${this.#next} väntades`); }
+      if (index !== this.#next) {
+        const expected = this.#next;
+        this.#reset();
+        throw new CardDecodeError(`Bit ${index} kom när bit ${expected} väntades`);
+      }
       this.#parts.push(bytes.slice(5, length));
     }
     this.#frames.push(bytes);
@@ -187,7 +193,10 @@ export function decodeReaderBtFrames(frames: readonly Uint8Array[]): SiCardData 
   while (at + HEADER <= stream.length) {
     const end = at + HEADER + u16(stream, at + 2);
     if (end > stream.length) throw new CardDecodeError("Råramarna slutar mitt i ett meddelande");
-    message = assembler.push(stream.subarray(at, end)) ?? message;
+    const complete = assembler.push(stream.subarray(at, end));
+    // En sparad avläsning är exakt en bricka; ett andra meddelande (dubblett eller annan bricka) är fel i råramarna.
+    if (complete && message) throw new CardDecodeError("Råramarna har mer än ett meddelande från brickan");
+    message = complete ?? message;
     at = end;
   }
   if (at !== stream.length) throw new CardDecodeError("Råramarna slutar mitt i ett meddelande");

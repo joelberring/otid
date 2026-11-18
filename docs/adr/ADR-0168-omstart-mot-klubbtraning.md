@@ -94,3 +94,13 @@ Caddy för HTTPS) och nattlig `pg_dump`. Mer avancerad backup kommer senare.
   träning och klubbtävling.
 - Risken flyttas till hårdvaruprovet i steg 7. Den hanteras genom att alla
   råbytes sparas och att avvikelser kan rättas i efterhand utifrån loggarna.
+
+## Tillägg 2026-11-18: Reader BT och kvittoskrivare över Web Bluetooth (beslut 2)
+
+Utöver Web Serial (och WebUSB på Android) kan avläsningen använda SPORTidents Reader BT och en kvittoskrivare över Web
+Bluetooth (PR #1). Det är ett val bredvid USB, inte en ersättning, och gäller bara avläsningsskalet: där har
+`Permissions-Policy` `bluetooth=(self)`, ingen annan sida får Bluetooth. Läsarens protokoll är eget (inte det seriella) och
+implementeras i `packages/sportident/src/reader-bt.ts` utan kopierad kod; stödet märks enligt stödmatrisen i
+`docs/sportident.md` (`decoded` för SI9 och SI11). Ingen lagring eller behörighet ändras: avläsningarna går samma väg, med
+läsarens notifieringar som råramar.
+

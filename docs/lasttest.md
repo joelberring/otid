@@ -228,8 +228,9 @@ Lastgeneratorn (`scripts/lasttest/load.ts`) kör ett scenario i taget:
 - **Samma resurser som CX23:** webben och databasen låg i en gemensam cgroup med **2 kärnor (cfs-kvot) och 4 GB** (det
   `docker --cpus 2 --memory 4g` gör), med högre CPU-vikt än resten av maskinen så att andra processer inte stal tid.
   `scripts/lasttest/server.sh cgroup` gör samma uppställning; `server.sh docker` använder Docker där bilderna går att hämta.
-- **Utan Caddy:** lastgeneratorn talade HTTP direkt med webben (TLS och Caddys packning ingår inte). Webben svarar nu själv
-  med gzip för de publika listorna, så Caddy behöver inte packa dem. Två webbinstanser fick vardera en port och
+- **Utan Caddy:** lastgeneratorn talade HTTP direkt med webben (TLS och Caddys packning ingår inte). Webben svarade då själv
+  med gzip för de publika listorna (togs bort 2026-11-18: Next 16.4.5 tar bort `content-encoding` ur route handlers, så
+  packningen görs nu per anrop av Next eller Caddy och kostar CPU som inte ingick i mätningen). Två webbinstanser fick vardera en port och
   lastgeneratorn fördelade webbläsarna mellan dem, som Caddy gör.
 - **Lastgeneratorn** körde på samma maskin (0,2 kärnor, redovisat per körning) och mätte varje anrop till sista byte.
 - **Belastning:** andra agenter körde tester på maskinen under dagen. De slutliga mätningarna startade först när inga

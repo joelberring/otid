@@ -129,7 +129,14 @@ export function useStation({ pkgRef, ready, sound, onCardRead, setCurrent }: {
     if (!bluetooth) { setStation({ kind: "error", message: t.bluetoothUnsupported }); return; }
     let device;
     try { device = await bluetooth.requestDevice(READER_BT_REQUEST); }
-    catch { setStation({ kind: "disconnected" }); return; }
+    catch (error) {
+      // Avbrutet val i webbläsaren (NotFoundError) är inget fel; allt annat (t.ex. Bluetooth avstängt eller nekat) visas.
+      if (error instanceof Error && error.name === "NotFoundError") { setStation({ kind: "disconnected" }); return; }
+      const detail = error instanceof Error ? error.message : String(error);
+      trafficRef.current.note(`Reader BT: webbläsaren gav ingen station (${detail})`);
+      setStation({ kind: "error", message: t.bluetoothRequestFailed(detail) });
+      return;
+    }
     exerciseRef.current = undefined; setExercise(false);
     trafficRef.current.note(`Ansluter till ${device.name ?? "Reader BT"} över Bluetooth`);
     if (!(await attach(new ReaderBtController(device, callbacks, { lostMessage: t.bluetoothLost })))) {

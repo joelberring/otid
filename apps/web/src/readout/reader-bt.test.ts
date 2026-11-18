@@ -145,6 +145,19 @@ describe("ReaderBtController", () => {
     expect(spies.onCardRead).not.toHaveBeenCalled();
   });
 
+  it("en trasig bit visas som misslyckad avläsning för brickan som sattes i", async () => {
+    const device = new FakeDevice();
+    const { spies } = callbacks();
+    await new ReaderBtController(device, spies, { lostMessage: "borta" }).start();
+    device.char(READER_BT_EVENTS).notify(hex("01110700ea9e8b00010500"));
+    device.char(READER_BT_CARD_DATA).notify(hex(SI11_9150186[1]!));
+    expect(spies.onReadFailed).toHaveBeenCalledWith(9_150_186, expect.stringMatching(/bit 1 väntades/));
+    expect(spies.onCardRead).not.toHaveBeenCalled();
+    // Nästa bricka läses som vanligt.
+    for (const part of SI11_9150186) device.char(READER_BT_CARD_DATA).notify(hex(part));
+    expect(spies.onCardRead).toHaveBeenCalledOnce();
+  });
+
   it("misslyckad anslutning ger falskt", async () => {
     const device = new FakeDevice();
     device.failConnects = 1;

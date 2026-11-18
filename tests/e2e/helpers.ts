@@ -397,6 +397,8 @@ const RACE_TAB_KEYS: Record<SectionName, string> = { "Banor": "courses", "Banor 
 export async function openStep(page: Page, name: SectionName): Promise<void> {
   const bar = page.getByTestId("race-tabs");
   if (await bar.isVisible()) {
+    // Utvecklingsserverns egen knapp (nere till vänster) ligger över första fliken; den finns inte i drift.
+    await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
     const key = RACE_TAB_KEYS[name];
     const tab = bar.locator(`[data-tab="${key}"]`);
     if (await tab.count()) {

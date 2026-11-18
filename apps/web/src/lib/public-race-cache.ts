@@ -1,15 +1,14 @@
 import { createHash } from "node:crypto";
-import { promisify } from "node:util";
-import { gzip as gzipCallback } from "node:zlib";
 import { PUBLIC_STALE_HEADER, PUBLIC_STALE_RETRY_HEADER } from "./public-stale";
 import { retryReadConflicts } from "./read-conflict";
 
-const gzip = promisify(gzipCallback);
 export { isRetryableReadConflict } from "./read-conflict";
 
 /**
  * Steg 51 (lasttest, docs/lasttest.md): de publika listorna räknas en gång per tävlingsversion och delas av alla
- * besökare, i stället för en gång per anrop. Svaret sparas som JSON och gzip (Caddy packar inte om ett packat svar).
+ * besökare, i stället för en gång per anrop. Svaret sparas som JSON; packningen (gzip/zstd) görs av Next eller Caddy per
+ * anrop. Next 16.4.5 och senare tar bort `content-encoding` ur en route handlers svar, så ett förpackat svar gick ut
+ * som gzip-bytes utan rubrik och kunde inte läsas (CI röd 2026-11-18).
  *
  * - Nyckeln är tävlingens innehållsversion (`publicRaceContentVersion`); en ändring som inte syns i nyckeln täcks av
  *   maxåldern (`maxAgeMs`).
@@ -26,7 +25,7 @@ export { isRetryableReadConflict } from "./read-conflict";
 export type CachedPublic<T> = { readonly key: string; readonly at: number;
   /** Steg 57: när uträkningen började; allt som sparats före det finns med i listan. */
   readonly startedAt: number; readonly value: T; readonly json: string;
-  readonly gzip: Buffer; readonly etag: string; readonly stale?: boolean;
+  readonly etag: string; readonly stale?: boolean;
   /** Steg 54: under tryck – sidan hämtar igen först efter så här lång tid (i stället för 1,5–2,5 s). */
   readonly retryMs?: number };
 
@@ -123,7 +122,7 @@ export function createPublicRaceCache(options: PublicRaceCacheOptions) {
     const value = await retryReadConflicts(compute);
     const json = JSON.stringify(value);
     slot.lastDuration = now() - slot.lastStart;
-    const entry: CachedPublic<T> = { key, at: now(), startedAt, value, json, gzip: await gzip(json),
+    const entry: CachedPublic<T> = { key, at: now(), startedAt, value, json,
       etag: `"${createHash("sha256").update(json).digest("base64url").slice(0, 27)}"` };
     slot.entry = entry;
     return entry;
@@ -203,7 +202,7 @@ export function createPublicRaceCache(options: PublicRaceCacheOptions) {
 }
 
 /**
- * Ett cachat publikt JSON-svar: gzip när webbläsaren tar emot det, ETag och 304 när innehållet inte ändrats.
+ * Ett cachat publikt JSON-svar med ETag och 304 när innehållet inte ändrats. Svaret packas inte här (se ovan).
  * `publicRaceResponse` gör om cache-control till privat vid förhandsvisning.
  */
 export function cachedJsonResponse(request: Request, entry: CachedPublic<unknown>, cacheControl: string): Response {
@@ -213,10 +212,5 @@ export function cachedJsonResponse(request: Request, entry: CachedPublic<unknown
     ...(entry.stale && entry.retryMs !== undefined ? { [PUBLIC_STALE_RETRY_HEADER]: String(Math.ceil(entry.retryMs / 1000)) } : {}) };
   const match = request.headers.get("if-none-match");
   if (match !== null && match.split(",").some((tag) => tag.trim() === entry.etag)) return new Response(null, { status: 304, headers });
-  const acceptsGzip = (request.headers.get("accept-encoding") ?? "").split(",").some((part) => {
-    const [coding, ...params] = part.trim().toLowerCase().split(";");
-    return coding?.trim() === "gzip" && !params.some((param) => /^\s*q=0(\.0*)?\s*$/.test(param));
-  });
-  if (acceptsGzip) return new Response(entry.gzip as Uint8Array<ArrayBuffer>, { headers: { ...headers, "content-encoding": "gzip" } });
   return new Response(entry.json, { headers });
 }

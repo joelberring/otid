@@ -24,7 +24,7 @@ const subject = (n: number, elapsedMs: number): PlacementSubject => ({ resultRev
 function list(rows: [number, number][], startedAt: number): CachedPublic<PublicResultListResponse> {
   const value = { formatVersion: 7, results: rows.map(([n, elapsedMs]) => ({ className: "H21", publicResultId: id(n), givenName: "Löpare",
     familyName: String(n), status: "OK", elapsedMs, rankingState: "RANKED" })) } as unknown as PublicResultListResponse;
-  return { key: "v", at: startedAt + 1, startedAt, value, json: "", gzip: Buffer.from(""), etag: "" };
+  return { key: "v", at: startedAt + 1, startedAt, value, json: "", etag: "" };
 }
 
 const db = {} as Database;

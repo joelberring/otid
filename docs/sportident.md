@@ -114,6 +114,31 @@ all trafik till och från stationen sedan sidan öppnades (tid, riktning, hex)
 och råramarna för loppets avläsningar. Filen innehåller bricknummer men inga
 namn. Den används i steg 7 för att rätta avvikelser och blir testfixtures.
 
+## Reader BT över Bluetooth (PR #1, 2026-11-18)
+
+SPORTidents **Reader BT** (Bluetooth Low Energy) kan användas som avläsningsstation i stället för stationen över USB:
+avläsningssidan har knappen "Anslut Reader BT (Bluetooth)" där webbläsaren har Web Bluetooth (Chrome, Edge och Opera på
+dator och Android, Bluefy på iPhone/iPad; inte Firefox eller Safari). Avläsningsskalets `Permissions-Policy` har
+`bluetooth=(self)`; övriga sidor har det inte.
+
+- Protokollet är **inte** stationens seriella (STX … ETX) utan läsarens eget, uttytt ur en Bluetooth-logg från SPORTident
+  Config (iOS). Vi skickar bara det appen skickar: avläsningsläget `0f 01 01 00 01` och kvittensen `10 11 01 00 01` efter
+  varje bricka. `packages/sportident/src/reader-bt.ts` sätter ihop bitarna (`01 a1`) och avkodar `03 11` till samma
+  `SiCardData`; tiderna är millisekunder sedan söndag 00:00. Okänd flagga, posttyp, två mål, avkortad bit, bit i fel ordning
+  eller mer än en bricka i råramarna ger `CardDecodeError`, aldrig en gissning.
+- Protokollet har **ingen kontrollsumma** (BLE-länken har sin egen). Trasiga meddelanden fångas av längderna och
+  strukturen. Testerna täcker godtyckliga delningar av råramarna, dubbletter, avkortning och fel längd.
+- Notifieringarna sparas oförändrade som råramar (delade i högst 300 byte för kontraktet) och läses om med
+  `decodeRecordedFrames`. De innehåller brickans ägaruppgifter (som block 0 över USB); felsökningsloggen skriver bara
+  bricknummer och de första tolv byten vid fel.
+- Stationen ger inte sin klocka: tiderna räknas mot datorns klocka. Ingen automatisk anslutning; webbläsaren frågar efter
+  stationen varje gång. Bruten förbindelse försöker ansluta igen i ungefär 30 s.
+- SI5 och SI6 stöds inte över Bluetooth än (ger "bricktypen stöds inte").
+
+**Kvittoskrivare över Bluetooth:** valet "Skrivare" i avläsningens kvittoinställningar (webbläsarens utskrift eller
+kvittoskrivare). Kvittot skrivs som ESC/POS (`apps/web/src/readout/escpos.ts`, Windows-1252, 32/48 tecken på 58/80 mm) till
+tjänsten 18f0/egenskapen 2af1 (`bluetooth-printer.ts`). Provat på SPORTidents SI Printer 2.
+
 ## Mac: drivrutin för stationen
 
 En SPORTident-station med USB (BSM7/BSM8-USB) har en USB-seriell krets från Silicon Labs (CP210x). macOS visar den
@@ -186,6 +211,9 @@ på tävling/träning).
 | BSM8-USB | untested |
 | BSM-USB, modell ej noterad (CP210x, macOS, Chrome) | field-verified¹ för SI9-avläsning |
 | SI-USB-läsare | untested |
+| Reader BT (Bluetooth), SI9 och SI11 | decoded³ |
+| Reader BT (Bluetooth), andra brickor (SI8, SI10, SIAC, pCard) | untested; SI5/SI6 stöds inte |
+| Kvittoskrivare SI Printer 2 (Bluetooth, ESC/POS) | provutskrift³ |
 | Utläsning av kontroll, start eller mål (fjärr via BSM) | untested |
 | Inställning av klocka, kod och läge (fjärr via BSM) | untested |
 
@@ -196,3 +224,8 @@ Windows och Linux är fortfarande `untested`.
 
 ² SIAC lästes med "alla block" på natt-KM 2026-10-20 (steg 34, stationen skickade alla åtta block). Snabb utläsning
 (steg 53) är bara provad med den falska stationen och den brickans inspelade block.
+
+³ 2026-11-17/18, PR #1 (gatchell): en Reader BT (serienummer 1000298) med SI9 och SI11 i Opera på Mac och Bluefy på iPhone;
+notifieringarna är sparade som testfall och avkodningen stämmer med brickorna. Provutskrift och automatisk utskrift efter
+avläsning på SI Printer 2 från en demosida. Inte provat: den riktiga avläsningssidan med ett lopp, Chrome/Edge på Android
+och Windows, och en tävling eller träning (alltså inte `field-verified`).

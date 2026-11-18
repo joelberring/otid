@@ -22,13 +22,16 @@ import type { BaseMapStep, CalmOutcome, ClearOutcome, CandidateInput, CandidateR
 import { CandidateSession } from "../../lib/map-project-candidates-client";
 import { controlledWorker } from "../../lib/course-setting-worker";
 import {
-  calmFlatContours, choosePits, clearContours, flatLimitsAt, mergeCandidates, PIT_LAYERS, pitFeatures, restoreFlatContours, settleHills, snapTicks, sprintOsm, suggestedMapping, tickDepressions, unsettleHills,
+  calmFlatContours, choosePits, clearContours, extendAreas, flatLimitsAt, mergeCandidates, PIT_LAYERS, pitFeatures, restoreFlatContours, settleHills, snapTicks, sprintOsm, suggestedMapping, tickDepressions, unsettleHills,
   type ClearSettings, type HeightField, type HillLimits, type PitLimits
 } from "@o-tid/map-revision/base-map";
 import { readVectorFiles } from "../../lib/map-project-vector-files";
 import type { CatalogSymbol, MapProjectSession, SymbolObject } from "../../lib/map-project-protocol";
 import type { ObjectChange } from "./use-map-project-editor";
 import { mapProjectImportSv } from "../../i18n/map-project-import-sv";
+
+/** Hur kandidaterna läggs in: till kartan, som utvidgning av kartans ytor med samma symbol, eller i stället för kartans objekt. */
+export type AcceptMode = "add" | "extend" | "replace";
 
 const createCandidateWorker = () => controlledWorker(() => new Worker(new URL("../../lib/map-project-candidates-worker.ts", import.meta.url), { type: "module" }));
 /** Ett förslag hålls under synkens gränser (antal och storlek). */
@@ -63,6 +66,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   const [crs, setCrs] = useState<number>();
   /** Kartans bebyggda ytor (hämtas ur Workern när en fil öppnas) och om kandidaterna ska hållas utanför dem. */
   const [built, setBuilt] = useState<readonly [number, number][][][]>([]);
+  const [fields, setFields] = useState<readonly [number, number][][][]>([]);
   const [maskBuiltOn, setMaskBuiltOn] = useState(true);
   /** Ägaren 2026-11-10: inpassningen mot kartan (efter koordinatsystemet), "running" medan den räknas, null om den inte gick. */
   const [fit, setFit] = useState<VectorFit | "running" | null>();
@@ -119,7 +123,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   const [hills, setHills] = useState<HillOutcome>();
   const hillsWith = useRef<HillOutcome | undefined>(undefined);
   const show = useCallback((fileName: string, data: SourceData, area?: Bounds, general = false, within?: readonly (readonly { x: number; y: number }[])[]) => {
-    setNormed(general); setStage(within); setCalm(undefined); setClear(undefined); clearWith.current = undefined; setPits(undefined); pitsWith.current = undefined; setHills(undefined); hillsWith.current = undefined; setOrigin(undefined); setReplace(false); setReplaced(undefined); setTicks(undefined);
+    setNormed(general); setStage(within); setCalm(undefined); setClear(undefined); clearWith.current = undefined; setPits(undefined); pitsWith.current = undefined; setHills(undefined); hillsWith.current = undefined; setOrigin(undefined); setMode("add"); setReplaced(undefined); setTicks(undefined);
     const found = importLayers(data);
     const list = symbolList;
     setFile({ name: fileName, data });
@@ -213,8 +217,8 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   const input = useMemo((): CandidateInput | undefined => {
     if (!georeference || crs === undefined || !(crs === WGS84_EPSG || isSupportedEpsg(crs))) return undefined;
     return { georeference, crs, mapping: [...mapping], skipped: [...skipped], bounds, clip, area: view.area ?? undefined, stage, fit: fitted, normed,
-      built, maskBuilt: maskBuiltOn, symbols: [...symbols.values()].map(symbol => [symbol.id, symbol.code, symbol.kind] as const) };
-  }, [georeference, crs, mapping, symbols, bounds, clip, stage, fitted, skipped, normed, view.area, built, maskBuiltOn]);
+      built, fields, maskBuilt: maskBuiltOn, symbols: [...symbols.values()].map(symbol => [symbol.id, symbol.code, symbol.kind] as const) };
+  }, [georeference, crs, mapping, symbols, bounds, clip, stage, fitted, skipped, normed, view.area, built, fields, maskBuiltOn]);
   const [computed, setComputed] = useState<{ name: string; features: readonly SourceFeature[]; input: CandidateInput; result: CandidateResult | undefined }>();
   useEffect(() => {
     if (!file || !input) return;
@@ -230,7 +234,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     worker().baseMap({ ...request, norm }, onStep), [worker, norm]);
 
   // Ytorna hämtas på nytt för varje fil, så att det som ritats sedan sist är med.
-  useEffect(() => { if (file && session) session.built(setBuilt); }, [file, session]);
+  useEffect(() => { if (file && session) session.built((polygons, areas) => { setBuilt(polygons); setFields(areas); }); }, [file, session]);
 
   /**
    * "Passa in mot kartan": lagren som fått hus, vägar, vatten, murar eller järnväg som punkter i kartans mm, inpassade mot
@@ -290,8 +294,12 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
    * Ägaren 2026-11-14 («göra om kurvbilden på en befintlig karta … utan att det blir dubbelt»): kandidaterna byter ut kartans
    * objekt med samma symboler inom kandidaternas område (kurvor mot nya kurvor, grönt mot nytt grönt) i samma steg som de läggs in.
    */
-  const [replace, setReplace] = useState(false);
+  // Ägaren 2026-11-18: tre sätt att lägga in – lägga till, utvidga kartans ytor med samma symbol (och lägga till resten), byta ut.
+  const [mode, setMode] = useState<AcceptMode>("add");
   const [replaced, setReplaced] = useState<number>();
+  const [extended, setExtended] = useState<number>();
+  // Ägaren 2026-11-18: medan utkastet visas tonas kartan och underlagen släcks, så att tilläggen syns (går att slå av).
+  const [focus, setFocus] = useState(true);
   const [ticks, setTicks] = useState<{ moved: number; dropped: number }>();
   const accept = useCallback(() => {
     if (!file || !result || result.objects.length === 0 || !commitMany || computing) return;
@@ -304,11 +312,30 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
       after: { kind: "OBJECT", object } }));
     const finish = (removals: readonly ObjectChange[]) => {
       const count = commitMany([...removals, ...adds]);
-      setMarked(marking?.paper); setReplaced(removals.length || undefined);
+      setMarked(marking?.paper); setReplaced(mode === "replace" ? removals.length || undefined : undefined);
       // Antalet nya objekt: allt som lades in utom borttagningarna (lutningsstrecken som följde med räknas med).
-      setAccepted(Math.max(0, count - removals.length)); setFile(undefined); setLayers([]); setMapping(new Map()); setReplace(false);
+      setAccepted(Math.max(0, count - removals.length)); setFile(undefined); setLayers([]); setMapping(new Map()); setMode("add");
     };
-    if (!replace || !session) { finish([]); return; }
+    setExtended(undefined);
+    if (mode === "add" || !session) { finish([]); return; }
+    if (mode === "extend") {
+      // Kartans ytor med kandidaternas ytsymboler; de som överlappar en kandidat slås ihop med den.
+      const areaSymbols = [...new Set(result.objects.filter(object => object.kind === "area").map(object => object.symbol))], rows: SymbolObject[] = [];
+      const step = (index: number) => {
+        const symbol = areaSymbols[index];
+        if (symbol === undefined) {
+          const merged = extendAreas(result.objects, rows.map(row => ({ id: row, object: row.object })));
+          adds.splice(0, result.objects.length, ...merged.adds.map((object): ObjectChange => ({ key: newKey(crypto.randomUUID()), ref: null, kind: "ADD", after: { kind: "OBJECT", object } })));
+          setExtended(merged.extended || undefined);
+          finish(merged.removed.map((row): ObjectChange => { const box = objectBox(row.object);
+            return { key: row.key, ref: row.ref, kind: "DELETE", after: { kind: "DELETED" }, point: { x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 } }; }));
+          return;
+        }
+        session.bySymbol(symbol, objects => { rows.push(...objects); step(index + 1); });
+      };
+      step(0);
+      return;
+    }
     // Kandidaternas område, och kartans objekt med kandidaternas symboler vars mitt ligger där (Workern svarar på en fråga i taget).
     const area = result.objects.map(objectBox).reduce((all, box) => ({ minX: Math.min(all.minX, box.minX), minY: Math.min(all.minY, box.minY),
       maxX: Math.max(all.maxX, box.maxX), maxY: Math.max(all.maxY, box.maxY) }));
@@ -345,7 +372,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
       });
     };
     next(0);
-  }, [file, result, computing, commitMany, origin, georeference, symbols, bounds, markingText, calm, clear, replace, session]);
+  }, [file, result, computing, commitMany, origin, georeference, symbols, bounds, markingText, calm, clear, mode, session]);
 
   const choose = useCallback((layer: string, symbolId: string) => setMapping(current => {
     const next = new Map(current);
@@ -469,7 +496,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     showSettled(file, settled.features);
     return hillsWith.current;
   }, [file, withPits, withoutHills, showSettled]);
-  return { file, calm, calmContours, clear, clearCurves, /** Sänkorna som söktes när grundkartan lästes in, och reglagets val bland dem. */ pits, choosePitLimits, /** Små höjder som fick en ring när grundkartan lästes in, och reglagets val bland dem. */ hills, chooseHillLimits, replace, setReplace, /** Så många av kartans objekt som byttes ut när kandidaterna lades in, och lutningsstrecken som följde med. */ replaced, ticks, /** Pappret som märkningens ram gjordes för när grundkartan lades in. */ marked, /** Höjden som «Tydligare kurvbild» senast räknades med. */ clearField: () => clearWith.current?.field,
+  return { file, calm, calmContours, clear, clearCurves, /** Sänkorna som söktes när grundkartan lästes in, och reglagets val bland dem. */ pits, choosePitLimits, /** Små höjder som fick en ring när grundkartan lästes in, och reglagets val bland dem. */ hills, chooseHillLimits, focus, setFocus, mode, setMode, /** Så många kandidater som slogs ihop med kartans ytor. */ extended, /** Så många av kartans objekt som byttes ut när kandidaterna lades in, och lutningsstrecken som följde med. */ replaced, ticks, /** Pappret som märkningens ram gjordes för när grundkartan lades in. */ marked, /** Höjden som «Tydligare kurvbild» senast räknades med. */ clearField: () => clearWith.current?.field,
     /** Nya kandidater väntar på svar (de som visas är inte införda): läs in dem ändå, eller behåll de som visas. */
     pendingReplace: pendingReplace?.fileName,
     replaceAnyway: () => { const pending = pendingReplace; setPendingReplace(undefined); pending?.open(); },

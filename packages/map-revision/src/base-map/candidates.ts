@@ -34,6 +34,8 @@ export interface CandidateInput {
   readonly normed: boolean;
   /** Kartans bebyggda ytor och om kandidaterna ska hållas utanför dem. */
   readonly built: readonly [number, number][][][];
+  /** Åker och fruktodling (412, 413): inget berg i dagen eller öppen mark där (ägaren 2026-11-18). */
+  readonly fields?: readonly [number, number][][][] | undefined;
   readonly maskBuilt: boolean;
 }
 
@@ -65,7 +67,8 @@ export function computeCandidates(features: readonly SourceFeature[], input: Can
       polygon: clip ? undefined : input.area });
     const imported = stage?.[0] && stage[0].length >= 3 ? { ...whole, objects: clipObjectsToPolygon(whole.objects, stage).objects } : whole;
     // Ägaren 2026-11-12: inget av markens detaljer eller vegetationen i det som redan är ritat som tomtmark, asfalt eller hus.
-    const masked = input.maskBuilt && input.built.length ? maskBuilt(imported.objects, input.built, symbol => { const code = symbols.get(symbol)?.code; return code ? Number(code.split(".")[0]) : undefined; }) : undefined;
+    const fields = input.fields ?? [];
+    const masked = input.maskBuilt && (input.built.length || fields.length) ? maskBuilt(imported.objects, input.built, symbol => { const code = symbols.get(symbol)?.code; return code ? Number(code.split(".")[0]) : undefined; }, fields) : undefined;
     const kept = masked?.objects ?? imported.objects, builtMask = masked && masked.removed + masked.clipped > 0 ? { removed: masked.removed, clipped: masked.clipped } : undefined;
     if (!input.normed) return { ...imported, objects: kept, generalized: undefined, builtMask };
     // Ägaren 2026-11-11: kandidaterna generaliseras efter normen innan de läggs in (går att slå av i kandidatraden).

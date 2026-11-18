@@ -5,7 +5,7 @@ import { mapProjectImportEn } from "../../i18n/map-project-tools-en";
 import type { CatalogSymbol } from "../../lib/map-project-protocol";
 import { useTexts } from "../language-provider";
 import { Button } from "../ui";
-import type { useMapProjectImport } from "./use-map-project-import";
+import type { AcceptMode, useMapProjectImport } from "./use-map-project-import";
 import styles from "./map-project-candidate-bar.module.css";
 
 /**
@@ -48,11 +48,17 @@ export function MapProjectCandidateBar({ importer, symbols, onShowLayers }: { im
       <input type="checkbox" checked={importer.maskBuiltOn} onChange={() => importer.setMaskBuiltOn(!importer.maskBuiltOn)} data-testid="map-project-candidate-built" />
       {text.barBuilt}{importer.result?.builtMask && <small> ({text.barBuiltDone(importer.result.builtMask.removed, importer.result.builtMask.clipped)})</small>}
     </label>
-    {/* Ägaren 2026-11-14: göra om ett tema (kurvbilden, grönt) på en befintlig karta utan dubbletter. */}
-    {importer.canAccept && <label className={styles.layer} data-on={importer.replace || undefined}>
-      <input type="checkbox" checked={importer.replace} onChange={() => importer.setReplace(!importer.replace)} data-testid="map-project-candidate-replace" />
-      {text.barReplace}
+    {/* Ägaren 2026-11-14: göra om ett tema (kurvbilden, grönt) på en befintlig karta utan dubbletter; 2026-11-18: utvidga befintliga ytor. */}
+    {importer.canAccept && <label className={styles.layer} title={text.barModeHelp[importer.mode]}>
+      {text.barMode}{" "}
+      <select value={importer.mode} onChange={event => importer.setMode(event.target.value as AcceptMode)} data-testid="map-project-candidate-mode">
+        {(["add", "extend", "replace"] as const).map(mode => <option key={mode} value={mode}>{text.barModes[mode]}</option>)}
+      </select>
     </label>}
+    <label className={styles.layer} data-on={importer.focus || undefined}>
+      <input type="checkbox" checked={importer.focus} onChange={() => importer.setFocus(!importer.focus)} data-testid="map-project-candidate-focus" />
+      {text.barFocus}
+    </label>
     <span className={styles.actions}>
       {importer.canAccept && <Button disabled={count === 0 || !!importer.progress || importer.computing} onClick={importer.accept} data-testid="map-project-candidate-accept">
         {text.accept(count)}</Button>}

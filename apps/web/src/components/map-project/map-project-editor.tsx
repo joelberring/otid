@@ -248,6 +248,9 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     georeference ?? undefined, symbols, editor.commitMany);
   // Grundkartan G2b: kandidaterna ritas av Workern med sina symboler ovanpå kartan.
   const candidates = importer.candidates, showCandidates = editor.showCandidates; useEffect(() => { showCandidates(candidates); }, [candidates, showCandidates]);
+  // Ägaren 2026-11-18: medan utkastet visas tonas kartan och underlagen släcks (kandidaterna ritas i full färg ovanpå).
+  const focused = importer.focus && candidates.length > 0;
+  const allSymbols = useMemo(() => [...symbols.keys()], [symbols]);
   const symbol = symbolId ? symbols.get(symbolId) : undefined;
   // Ägaren 2026-11-09: lagren efter normen. Släckta och låsta lager går inte att markera; låsta kan visas nedtonade.
   const work = useMapProjectWorkLayers(view);
@@ -571,7 +574,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const gapMm = editor.georeference ? MAX_SEGMENT_M / metersPerMm(editor.georeference, editor.georeference.scale) : Infinity;
   const overlay = useCallback((ctx: CanvasRenderingContext2D, current: Viewport) => {
     const shown = preview ?? selected?.object;
-    drawLayers(ctx, current, drawnLayers);
+    if (!focused) drawLayers(ctx, current, drawnLayers);
     if (coverage?.image) drawCoverage(ctx, current, coverage.grid, coverage.image);
     if (recon.layers.has("TRACKS")) drawTracks(ctx, current, recon.trackLines.others, recon.trackLines.recording, gapMm);
     if (walk && walk.length > 0) drawTracks(ctx, current, [], walk.map(point => ({ ...point, accuracyM: 0 })), Infinity);
@@ -610,7 +613,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       if (handles) drawHandles(ctx, current, handles);
     }
   }, [preview, selected, symbols, tool, symbol, draft, cursor, circleCenter, activeVertex, areaDrawings, proposedOpen, proposedShown, view.area, coverage, recon.layers,
-    recon.trackLines, reconResult, walk, gapMm, notes.notes, shownNote, noteDraft, drawnLayers, candidates, normIssues, shownIssue,
+    recon.trackLines, reconResult, walk, gapMm, notes.notes, shownNote, noteDraft, drawnLayers, focused, candidates, normIssues, shownIssue,
     control.active, control.markers, rectify.shown, rectify.markers, sketchLayers, work.dragging, work.drawingLayer, work.stroke,
     multi.moving, multi.shown, multi.box, multi.cuts, multi.items.length, multi.marquee, fill.preview, fill.gaps, fill.proposals.candidates, fill.proposals.override]);
 
@@ -717,7 +720,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
             const zone = multi.zoneAt(point, tolerance);
             return zone === "move" ? "move" : zone === "rotate" ? ROTATE_CURSOR : undefined;
           } : undefined}
-          renderKey={editor.renderKey} hiddenSymbols={hiddenSymbols} dimmedSymbols={symbolLayers.dimmed} shownSymbols={symbolLayers.shown}
+          renderKey={editor.renderKey} hiddenSymbols={hiddenSymbols} dimmedSymbols={focused ? allSymbols : symbolLayers.dimmed} shownSymbols={symbolLayers.shown}
           position={position.position && positionMode !== "off" ? { position: position.position, follow: positionMode === "follow" } : undefined}
           onPan={() => setPositionMode(mode => mode === "follow" ? "on" : mode)} handle={mapHandle} /></div>}
         {editor.mapStatus === "ready" && georeference && <MapProjectFieldControls mode={positionMode} onMode={setPositionMode} problem={position.problem}

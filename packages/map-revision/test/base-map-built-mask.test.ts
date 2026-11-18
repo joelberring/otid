@@ -1,6 +1,6 @@
 import type { MapObject, PathCommand } from "@o-tid/map-file";
 import { describe, expect, it } from "vitest";
-import { builtPolygons, maskBuilt } from "../src/base-map/built-mask";
+import { builtPolygons, extendAreas, FIELD_MAINS, maskBuilt } from "../src/base-map/built-mask";
 
 const square = (x: number, y: number, side: number): PathCommand[] => [{ type: "M", x, y }, { type: "L", x: x + side, y }, { type: "L", x: x + side, y: y + side }, { type: "L", x, y: y + side }, { type: "L", x, y }];
 const area = (symbol: string, x: number, y: number, side: number): MapObject => ({ kind: "area", symbol, rings: [square(x, y, side)], angle: 0 });
@@ -38,5 +38,36 @@ describe("kandidater hålls utanför kartans bebyggda ytor", () => {
   it("gör ingenting utan bebyggda ytor", () => {
     const all = [point("109", 5, 5), area("406", 5, 2, 10)];
     expect(maskBuilt(all, [], mainOf)).toEqual({ objects: all, removed: 0, clipped: 0 });
+  });
+});
+
+describe("flygbildens berg och öppna mark inte på åker (ägaren 2026-11-18)", () => {
+  const fields = builtPolygons([area("412", 0, 0, 10), area("520", 20, 0, 10)], mainOf, FIELD_MAINS);
+  it("tar åker och fruktodling, inte tomtmark", () => {
+    expect(fields).toHaveLength(1);
+  });
+  it("tar bort berg i dagen och öppen mark på åkern men behåller diken, kurvor och berg utanför", () => {
+    const kept = [line("306", [[1, 1], [9, 9]]), line("101", [[1, 2], [9, 3]]), area("214", 40, 40, 5)];
+    const result = maskBuilt([area("214", 2, 2, 3), area("401", 3, 3, 2), ...kept], [], mainOf, fields);
+    expect(result.objects).toEqual(kept);
+    expect(result.removed).toBe(2);
+  });
+});
+
+describe("utvidga befintliga ytor (ägaren 2026-11-18)", () => {
+  it("slår ihop en kandidat med kartans yta med samma symbol och lägger till de andra", () => {
+    const old = [{ id: "a", object: area("214", 0, 0, 10) }, { id: "b", object: area("401", 0, 0, 10) }, { id: "c", object: area("214", 100, 100, 5) }];
+    const result = extendAreas([area("214", 5, 5, 10), area("214", 50, 50, 5), line("306", [[0, 0], [1, 1]])], old);
+    expect(result.removed).toEqual(["a"]);
+    expect(result.extended).toBe(1);
+    expect(result.adds).toHaveLength(3);
+    const merged = result.adds.find(object => object.kind === "area" && extent(object)[1] === 15);
+    expect(merged && extent(merged)).toEqual([0, 15]);
+  });
+  it("en kandidat som rör två gamla ytor gör dem till en", () => {
+    const old = [{ id: 1, object: area("406", 0, 0, 10) }, { id: 2, object: area("406", 20, 0, 10) }];
+    const result = extendAreas([area("406", 8, 2, 14)], old);
+    expect(result.removed.sort()).toEqual([1, 2]);
+    expect(result.adds).toHaveLength(1);
   });
 });

@@ -19,5 +19,3 @@ export const raceNavigationResponseSchema = z.object({
   courseSetting: courseSettingLevelSchema.optional(),
   bingo: z.object({ enabled: z.boolean(), mode: bingoModeSchema }).strict().optional()
 }).strict();
-
-export type RaceNavigationResponse = z.infer<typeof raceNavigationResponseSchema>;

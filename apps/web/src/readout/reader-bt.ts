@@ -29,7 +29,9 @@ export interface BluetoothDeviceLike extends EventTarget {
   readonly gatt?: BluetoothServerLike | undefined;
 }
 export interface BluetoothLike {
-  requestDevice(options: { filters: readonly { namePrefix: string }[]; optionalServices: readonly string[] }): Promise<BluetoothDeviceLike>;
+  requestDevice(options: {
+    filters: readonly { readonly namePrefix?: string; readonly services?: readonly string[] }[]; optionalServices: readonly string[];
+  }): Promise<BluetoothDeviceLike>;
 }
 
 /** Väljaren i webbläsaren visar bara Reader BT; tjänsterna måste anges för att få användas. */

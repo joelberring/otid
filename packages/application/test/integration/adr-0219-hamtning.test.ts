@@ -179,6 +179,10 @@ describe("ADR-0219 K4c: hämtning", () => {
     expect(found.items).toHaveLength(2);
     expect(seen.at(-1)).toMatchObject({ url: "https://api.lantmateriet.se/stac-bild/v1/search", auth: `Basic ${Buffer.from("anna:hemligt").toString("base64")}` });
     expect((await searchMapProjectOrtho(db, { ...reader.proof, projectId, request: { formatVersion: 1, box: BOX } }, runtime, NOW)).status).toBe("forbidden");
+    // Ägaren 2026-11-18: hela kartan (större än OpenStreetMaps 40 km² men inom laserns 100 km²) går att söka; större avvisas.
+    const wide = { south: 59.2, west: 18.0, north: 59.28, east: 18.18 };
+    expect((await searchMapProjectOrtho(db, { ...owner.proof, projectId, request: { formatVersion: 1, box: wide } }, runtime, NOW)).status).toBe("ok");
+    expect((await searchMapProjectOrtho(db, { ...owner.proof, projectId, request: { formatVersion: 1, box: { ...BOX, north: 60 } } }, runtime, NOW)).status).toBe("too-large");
 
     const part = await readMapProjectOrthoAsset(db, { ...owner.proof, projectId, href: found.items[0]!.href, range: "bytes=0-99" }, runtime, NOW);
     expect(part.status).toBe("ok");

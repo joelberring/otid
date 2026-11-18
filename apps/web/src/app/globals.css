@@ -264,7 +264,10 @@ button.danger { border-color: #81291e; color: #81291e; }
  * skärmens nedre kant). Sidan får lika mycket luft nertill så att inget hamnar bakom raden.
  */
 @media screen and (max-width: 640px) {
-  body:has(> [data-app-tabs]) { padding-bottom: calc(56px + max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px))); }
+  body:has(> [data-app-tabs]), body:has(> [data-race-tabs]) {
+    padding-bottom: calc(56px + max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px))); }
+  /* Tävlingsraden (ADR-0227 tillägg 2026-11-18): arrangemangets egna sidor har överraden «‹ Mitt O-Tid» i stället för sidhuvudet. */
+  body:has(> [data-race-top]) > .site-header { display: none; }
 }
 /* Förslag B: Mitt O-Tid har en egen låg topprad i telefonbredd; layoutens sidhuvud döljs där. */
 @media (max-width: 640px) {

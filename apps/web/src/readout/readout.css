@@ -258,3 +258,8 @@ button.link { min-height: 44px; padding: 0 4px; border: 0; background: none; col
 .party[data-look="centrum"] .party-verdict[data-kind="CHECKED_OUT"] { border-color: var(--party-confirm); border-top-width: 12px; }
 .party[data-look="centrum"] .party-verdict[data-kind="WELCOME"] .big, .party[data-look="centrum"] .party-verdict[data-kind="PURCHASES"] .big,
 .party[data-look="centrum"] .party-verdict[data-kind="CHECKED_OUT"] .big { color: var(--party-confirm); font-weight: 700; }
+
+/* Tävlingsraden (ADR-0227 tillägg 2026-11-18): den smala raden nertill i telefonbredd tar plats under sidan. */
+@media screen and (max-width: 640px) {
+  body:has([data-race-tabs]) { padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
+}

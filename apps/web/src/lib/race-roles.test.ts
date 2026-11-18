@@ -11,6 +11,8 @@ import type { CourseSettingRequirement, RaceRoleRequest } from "@o-tid/applicati
  */
 const FUNCTIONARY_ALLOWED: Record<string, readonly string[]> = {
   "admin/races/[raceId]/administrator/session": ["GET", "DELETE"],
+  /** Tävlingsraden (ADR-0227 tillägg 2026-11-18): avläsningens Byt funktion. */
+  "admin/races/[raceId]/administrator/navigation": ["GET"],
   "admin/races/[raceId]/administrator/transfer-candidates": ["GET"],
   "admin/races/[raceId]/administrator/readout-package": ["GET"],
   "admin/races/[raceId]/administrator/readouts": ["POST"],

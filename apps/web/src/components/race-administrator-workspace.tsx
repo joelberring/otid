@@ -28,6 +28,8 @@ import { Notice } from "./ui";
 import { AccessNotice } from "./race-administrator/access-notice";
 import { SiteFooter } from "./about/site-footer";
 import { useMobileExercise } from "./race-administrator/use-mobile-exercise";
+import { useRaceWorkspace } from "./app-tabs/race-nav";
+import { RaceModeSwitch } from "./app-tabs/race-tab-bar";
 
 /**
  * Adminarbetsytan för en tävling. Den här komponenten håller sessionen, laddar data och visar skalet:
@@ -74,6 +76,8 @@ export function RaceAdministratorWorkspace({ raceId }: { raceId: string }) {
     return () => window.removeEventListener("afterprint", clearPrintTarget);
   }, []);
   useDuringRaceEffects(ws);
+  // Tävlingsraden i telefonbredd (ADR-0227 tillägg 2026-11-18): raden byter del här och stannar vid osparat, som sidopanelen.
+  useRaceWorkspace(ws.section.id, { navigate: ws.navigateStep, mayLeave: ws.mayLeave, refresh: () => void ws.refresh() });
   const exercise = useMobileExercise(ws);
   const status = <p className={styles.status} role="status" aria-live="polite">{message}</p>;
   // Användartestet 2026-11-12: nekad (inte ett nätfel) – säg varför i stället för "Logga in igen" till den som är inloggad.
@@ -90,6 +94,7 @@ export function RaceAdministratorWorkspace({ raceId }: { raceId: string }) {
     <div className={shell.frame}>
       <Sidebar ws={ws} exercise={exercise} />
       <div className={`${shell.content} ${styles.content}`}>
+        <RaceModeSwitch inline />
         {status}
         {ws.functionary && <details className={styles.disclosure} data-testid="functionary-note"><summary>{text.functionaryTitle}</summary>
           <p className={styles.muted}>{text.functionaryNote}</p></details>}

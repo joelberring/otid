@@ -1,4 +1,4 @@
-import { readBingoAsAdmin, setBingoAsAdmin } from "@o-tid/application";
+import { loadRaceNavigationFacts, readBingoAsAdmin, setBingoAsAdmin } from "@o-tid/application";
 import { loadStartDrawSetupAsAdmin, previewStartDrawAsAdmin, commitStartDrawAsAdmin, previewRaceDateMoveAsAdmin,
   listResultFinalizationCandidatesAsAdmin, finalizeResultsAsAdmin,
   exportIofResultListAsAdmin, exportFrozenIofResultListAsAdmin, listFrozenRaceFinalizationsAsAdmin,
@@ -184,10 +184,12 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   // PLAN.md steg 46: stryk självregistrerade som inte läst ut.
   selfRegistrationCleanup: previewSelfRegistrationCleanupAsAdmin, strikeSelfRegistered: strikeSelfRegisteredAsAdmin,
   // ADR-0225: bingoorientering med telefonen.
-  bingo: readBingoAsAdmin, bingoSetting: setBingoAsAdmin };
+  bingo: readBingoAsAdmin, bingoSetting: setBingoAsAdmin,
+  // Tävlingsraden (ADR-0227 tillägg 2026-11-18): avläsningens Byt funktion.
+  raceNavigationFacts: loadRaceNavigationFacts };
 export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: string } | { kind: "review-conflicts" } | { kind: "checkin-history"; entryId: string } | { kind: "start-correction" } | { kind: "manual-return-withdrawal" } | { kind: "manual-return" } | { kind: "forest-watch" } | { kind: "publication-preview" } | { kind: "publication" } | { kind: "start-list-export" } | { kind: "draw-preview" } | { kind: "draw" } | { kind: "race-date-move-preview" } |
   { kind: "finalization-candidates" } | { kind: "finalize" } | { kind: "frozen-results" } | { kind: "frozen-result"; finalizationId: string } |
-  { kind: "result-export" } | { kind: "session" } | { kind: "participants" } | { kind: "transfer-candidates" } |
+  { kind: "result-export" } | { kind: "session" } | { kind: "navigation" } | { kind: "participants" } | { kind: "transfer-candidates" } |
   { kind: "class"; entryId: string } | { kind: "transfer"; entryId: string } | { kind: "capacity"; classId: string } |
   { kind: "manual-course-class" } | { kind: "manual-class" } |
   { kind: "courses" } | { kind: "course-edit-preview"; courseId: string } | { kind: "course-edit"; courseId: string } |

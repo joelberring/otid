@@ -385,13 +385,39 @@ export function sectionButton(page: Page, name: SectionName) {
   return page.getByRole("navigation", { name: "Tävlingens delar" }).getByRole("button", { name, exact: true });
 }
 
+/** Tävlingsradens nyckel för en del (ADR-0227 tillägg 2026-11-18); Avläsning-delen heter Sekretariat i raden. */
+const RACE_TAB_KEYS: Record<SectionName, string> = { "Banor": "courses", "Banor & klasser": "courses", "Kontroller & poäng": "courses",
+  "Klasser": "classes", "Klasser & sträckor": "classes", "Anmälda": "entries", "Deltagare": "entries", "Lag": "entries", "Start": "start",
+  "Publicera": "publish", "Avläsning": "secretariat", "Resultat": "results", "Fest": "party", "Personer": "people", "Inställningar": "settings" };
+
+/**
+ * Öppnar en del i arbetsytan. I telefonbredd (tävlingsraden nertill i stället för remsan) med raden: fliken om den finns,
+ * annars under Mer.
+ */
 export async function openStep(page: Page, name: SectionName): Promise<void> {
+  const bar = page.getByTestId("race-tabs");
+  if (await bar.isVisible()) {
+    const key = RACE_TAB_KEYS[name];
+    const tab = bar.locator(`[data-tab="${key}"]`);
+    if (await tab.count()) {
+      await tab.click();
+      await expect(tab).toHaveAttribute("aria-current", "page");
+    } else {
+      await bar.locator('[data-tab="more"]').click();
+      await page.getByTestId("race-more").locator(`a[data-item="${key}"]`).click();
+      await expect(page.getByTestId("race-more")).toBeHidden();
+      await expect(bar.locator('[data-tab="more"]')).toHaveAttribute("data-active", "true");
+    }
+    return;
+  }
   await sectionButton(page, name).click();
   await expect(sectionButton(page, name)).toHaveAttribute("aria-current", "step");
 }
 
 /** Öppnar den första av delarna som tävlingstypen har (t.ex. "Banor" eller "Banor & klasser"). */
 async function openFirst(page: Page, names: SectionName[]): Promise<void> {
+  // Telefonbredd: tävlingsraden har en nyckel per del oavsett vad typen kallar den (Banor eller Banor & klasser).
+  if (await page.getByTestId("race-tabs").isVisible()) { await openStep(page, names[0]!); return; }
   // Vänta tills sidopanelen visar någon av delarna (den ritas om när tävlingen läses in på nytt).
   await expect(names.map(name => sectionButton(page, name)).reduce((all, one) => all.or(one)).first()).toBeVisible();
   for (const name of names) {

@@ -71,13 +71,14 @@ test("typen byts under Inställningar utan att något försvinner, och navigerin
   await expect(sectionButton(owner, "Inställningar")).toBeInViewport();
   await expect(owner.getByRole("heading", { name: `Byt typ ${suffix}` })).toBeInViewport();
 
-  // Mobil: delarna blir en remsa överst som också följer med.
-  await owner.setViewportSize({ width: 390, height: 700 });
+  // Smal skärm: delarna blir en remsa överst som också följer med. Under 640 px ersätts den av tävlingsraden nertill
+  // (ADR-0227 tillägg 2026-11-18, tavlingsrad.spec.ts).
+  await owner.setViewportSize({ width: 700, height: 700 });
   await owner.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   await expect.poll(() => owner.evaluate(() => window.scrollY)).toBeGreaterThan(200);
   await expect(owner.getByRole("navigation", { name: "Tävlingens delar" })).toBeInViewport();
   await expect(sectionButton(owner, "Inställningar")).toHaveAttribute("aria-current", "step");
-  expect(await owner.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  expect(await owner.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(700);
 });
 
 test("speakern har en egen sida som visar den som gått i mål", async ({ browser }) => {

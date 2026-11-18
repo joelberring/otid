@@ -73,10 +73,14 @@ test("hittbarhet: banläggningen i navigeringen, beskrivningen på papperet, BL-
   await expect(nav).toContainText("Banläggning");
   await expect(nav).toHaveAttribute("href", `/admin/${raceId}/course-setting`);
   await shot(owner, "01-arbetsyta-banlaggning");
-  await owner.setViewportSize({ width: 390, height: 844 });
+  await owner.setViewportSize({ width: 700, height: 844 });
   await expect(nav).toBeVisible();
   await owner.getByText("Meny", { exact: true }).click();
   await expect(owner.getByTestId("menu-course-setting")).toBeVisible();
+  // Telefonbredd: Banläggning under tävlingsradens Mer (ADR-0227 tillägg 2026-11-18).
+  await owner.setViewportSize({ width: 390, height: 844 });
+  await owner.getByTestId("race-tabs").locator('[data-tab="more"]').click();
+  await expect(owner.getByTestId("race-more").locator('a[data-item="courseSetting"]')).toHaveAttribute("href", `/admin/${raceId}/course-setting`);
   await owner.setViewportSize({ width: 1280, height: 720 });
   await owner.reload();
   await owner.getByTestId("nav-course-setting").click();

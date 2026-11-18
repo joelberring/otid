@@ -1,5 +1,5 @@
 import type { Database } from "@o-tid/database";
-import { raceSessionAbsentSchema, raceSessionResponseSchema, raceSettingsRequestSchema, raceSettingsResponseSchema } from "@o-tid/contracts";
+import { raceNavigationResponseSchema, raceSessionAbsentSchema, raceSessionResponseSchema, raceSettingsRequestSchema, raceSettingsResponseSchema } from "@o-tid/contracts";
 import {
   clearSessionCookies,
   adminFailure as failure,
@@ -107,7 +107,7 @@ export async function raceAdministratorRoute(db: Database, request: Request, rac
     // Ägaren 2026-11-03: den som bara har banläggningen på tävlingen skickas dit i stället för till en tom arbetsyta, och
     // funktionären med banläggning ser den i sidopanelen.
     const courseLevel = async () => {
-      if (action.kind !== "session") return undefined;
+      if (action.kind !== "session" && action.kind !== "navigation") return undefined;
       const access = await dependencies.authenticateCourseSetting(db, { ...proof, raceId, required: "MAP", requireCsrf: false });
       return access.status === "authenticated" && access.principal.raceId === raceId ? access.principal.level : undefined;
     };
@@ -119,6 +119,12 @@ export async function raceAdministratorRoute(db: Database, request: Request, rac
     if (!principalAllows(auth.principal, raceId, role)) return failure(403, "FORBIDDEN");
     // Demoläget: gästen provar men skriver inte ut, laddar inte ner och når inte tjänster utanför O-Tid (guest-demo-limits.ts).
     if (auth.principal.guest && !guestMayUse(action.kind, request.method)) return failure(403, "FORBIDDEN");
+    if (action.kind === "navigation") {
+      const courseSetting = auth.principal.role === "ADMIN" ? "EDIT" as const : await courseLevel();
+      const facts = await dependencies.raceNavigationFacts(db, raceId);
+      if (!facts) return failure(404, "NOT_FOUND");
+      return json(raceNavigationResponseSchema.parse({ raceId, ...facts, role: auth.principal.role, ...(courseSetting ? { courseSetting } : {}) }));
+    }
     if (action.kind === "session") {
       const courseSetting = auth.principal.role === "ADMIN" ? "EDIT" as const : await courseLevel();
       return json(raceSessionResponseSchema.parse({ formatVersion: 1, raceId, role: auth.principal.role, expiresAt: auth.principal.expiresAt,

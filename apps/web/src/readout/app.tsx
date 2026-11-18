@@ -33,6 +33,7 @@ import { showUsbButton, useStation } from "./use-station";
 import { useReadoutSound, useVerdictSound } from "./use-readout-sound";
 import { useReadoutRegistration } from "./use-readout-registration";
 import { useCurrentVerdict } from "./use-current-verdict";
+import { ReadoutRaceSwitch } from "./race-switch";
 
 /** Större klockskillnad mellan stationen och datorn än så visas som en varning (PLAN.md steg 22). */
 const CLOCK_SKEW_WARNING_MS = 5 * 60_000;
@@ -330,6 +331,7 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
       statusArea={null}
       staffArea={<>{connected ? controls : null}{autoConnect}{rawAndLinks}</>} />
     {!connected ? controls : null}
+    {raceId ? <ReadoutRaceSwitch raceId={raceId} party connected={connected} /> : null}
   </main>;
 
   return <main className="readout">
@@ -398,6 +400,7 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
     </section>
 
     {rawAndLinks}
+    {raceId ? <ReadoutRaceSwitch raceId={raceId} party={false} connected={connected} /> : null}
   </main>;
 }
 

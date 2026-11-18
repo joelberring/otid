@@ -135,6 +135,35 @@ huvuddelarna från alla vanliga inloggade sidor, också i appskalet (översynens
   leder till samma ställe; loggan står i stället).
 - Webbändring: kräver serveruppdatering, ingen ny appversion.
 
+## Tillägg 2026-11-18 – tävlingsrad inne i ett arrangemang i telefonbredd
+
+Ägaren godkände 2026-11-18 att flikraden (Hem, Kartor …) under 640 px byts mot arrangemangets egen rad inne i
+`/admin/{id}/…`, så att man växlar mellan tävlingens funktioner utan att hamna på Mitt O-Tid. Ingen ny funktion, ingen
+schemaändring och ingen ny lagring på servern; datorvyn och bredder över 640 px är oförändrade.
+
+- **Två lägen** (`lib/race-tabs.ts`, ren funktion med tester): Förbereda – Banor, Klasser, Anmälda, Start, Mer. Tävlingsdag –
+  Avläsning (`/admin/{id}/readout`), Sekretariat (arbetsytans del Avläsning: kontrollvyn med kvar i skogen, okända brickor med
+  direktanmälan och felstämplade), Resultat, Speaker (bara typer med speaker), Mer. «Sekretariat» och «Röd utgång» är samma
+  befintliga del, så det finns ingen växel mellan dem. Flikarna tas i ordning bland det typen och rollen har, högst fyra plus Mer:
+  Träning och Rogaining får Banor, Deltagare, Publicera respektive Avläsning, Sekretariat, Resultat; Stafett Banor, Klasser, Lag,
+  Start; Fest Fest, Publicera respektive Bardisk, Fest. Övningen i mobilen (bingo, Sänka skepp, virtuella kontroller) är en flik på
+  tävlingsdagen när den är på (ledarens sida), annars under Mer. Mer har allt övrigt: arbetsytans övriga delar, Avläsning, Speaker,
+  Övning i mobilen, Banläggning (eller Kartfel), Personer, Inställningar och «Uppdatera översikten».
+- **Behörighet:** raden följer arbetsytans `profileForRole` (funktionären: Start, Sekretariat, Fest) plus avläsningen, speakern och
+  banläggningen med banläggningens egen nivå. Övningen kräver administratör. Har rollen ingen flik i Förbereda visas tävlingsdagens.
+  Servern prövar som förut varje anrop; inga nya rolltyper.
+- **Läget** väljs automatiskt: Tävlingsdag under tävlingsdygnet (ADR-0178, `inRaceDay`), annars Förbereda. Växeln Förbereda |
+  Tävlingsdag överst byter, och valet sparas per arrangemang i fliken (`sessionStorage`, nyckeln `otid.raceMode.{id}`).
+- **Var:** arrangemangets layout (`app/admin/[raceId]/layout.tsx`) läser rollen med `requireRaceRole` och arrangemangets uppgifter
+  (`loadRaceNavigationContext`); utan roll gäller den vanliga flikraden. Arbetsytan anmäler delen som visas och byter del själv
+  (osparat stoppar som i sidopanelen). I arbetsytans toppbalk är «‹ Mitt O-Tid» vägen ut; de egna sidorna (kartor till starten,
+  import, bingo, etiketter) får överraden «‹ Mitt O-Tid» med namnet och växeln. Banläggningen och stationerna har ingen rad.
+- **Avläsningen och speakern:** bara en smal rad nertill med funktionens namn och «Byt funktion» (samma val, lägets flikar först,
+  och Mitt O-Tid). Avläsningens skal hämtar rollen och typen från `administrator/navigation` (funktionär eller administratör); utan
+  svar visar listan bara Mitt O-Tid. Med ansluten station öppnas valen i en ny flik (steg 35). Beskedet och statusraden är orörda.
+- **Ersatt i telefonbredd:** sidopanelens remsa och Meny döljs när raden finns. Mellan 641 och 760 px är remsan och Meny kvar.
+- Webbändring: kräver serveruppdatering, ingen ny appversion.
+
 ## Återstår i A1
 
 - Bygga och prova på riktiga telefoner (iPhone och minst två Android-märken): en timme med låst skärm, pling efter 15

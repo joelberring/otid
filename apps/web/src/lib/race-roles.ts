@@ -18,6 +18,8 @@ import type { CourseSettingRequirement, RaceRole } from "@o-tid/application";
 export const FUNCTIONARY_ROUTES: Readonly<Record<string, readonly string[]>> = {
   /** Sessionen: läsa rollen och logga ut. */
   session: ["GET", "DELETE"],
+  /** Tävlingsraden (ADR-0227 tillägg 2026-11-18): rollen, typen och datumet för avläsningens Byt funktion. */
+  navigation: ["GET"],
   /** Arbetsytans ögonblicksbild: klasser och deltagare (startlista, direktanmälan, kvar i skogen). */
   "transfer-candidates": ["GET"],
   /** Avläsningen i webbläsaren: paketet och inskickade avläsningar. */

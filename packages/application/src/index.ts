@@ -29,6 +29,7 @@ export { decodeIofXml } from "@o-tid/iof-xml";
 export * from "./ingest";
 export * from "./overview";
 export * from "./race-session";
+export * from "./race-navigation";
 export * from "./race-shortcut";
 export * from "./result-finalization";
 export * from "./result-list-export";

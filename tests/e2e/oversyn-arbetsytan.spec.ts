@@ -89,7 +89,9 @@ test("översynen: Personer, Övning i mobilen, ledarens och deltagarens besked o
   await owner.setViewportSize({ width: 390, height: 844 });
   await insideWidth(owner, adminLink, 390, 8);
 
-  // Telefonen: remsan visar att den fortsätter, och Meny har alla delar med läge och raderna under banan.
+  // Smal skärm över telefonbredd (tävlingsraden tar över under 640 px, ADR-0227 tillägg 2026-11-18): remsan visar att den
+  // fortsätter, och Meny har alla delar med läge och raderna under banan.
+  await owner.setViewportSize({ width: 700, height: 844 });
   await owner.goto(`/admin/${raceId}/manage`);
   await expect(sectionButton(owner, "Banor & klasser")).toHaveAttribute("aria-current", "step", { timeout: 30_000 });
   await expect(owner.getByTestId("scroll-row-forward")).toBeVisible();
@@ -108,7 +110,8 @@ test("översynen: Personer, Övning i mobilen, ledarens och deltagarens besked o
   await owner.getByTestId("menu-step-PEOPLE").click();
   await expect(owner.getByRole("region", { name: "Personer med behörighet" })).toBeVisible();
   await expect(sectionButton(owner, "Personer")).toBeInViewport();
-  expect(await owner.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  expect(await owner.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(700);
+  await owner.setViewportSize({ width: 390, height: 844 });
 
   // Klubbytans flikar: alla nås i 390 px, och kom igång-listans knappar sticker inte ut.
   await createClub(owner, `OK Översyn ${suffix}`);

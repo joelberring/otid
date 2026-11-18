@@ -124,6 +124,15 @@
     margin-left: 5px; border-radius: 50%; background: var(--attention); color: var(--surface); font-size: 10px; font-weight: 700; vertical-align: 2px; }
   .after { margin: 0 0 0 6px; padding: 0 0 0 6px; border-top: 0; border-left: 1px solid var(--line); }
 }
+/*
+ * Tävlingsraden (ADR-0227 tillägg 2026-11-18): i telefonbredd ersätter raden nertill och Mer remsan och Meny (bara när raden
+ * finns). Datorvyn och bredder över 640 px är oförändrade.
+ */
+@media (max-width: 640px) {
+  :global(body:has(> [data-race-tabs])) .sidebar, :global(body:has(> [data-race-tabs])) .menu { display: none; }
+  /* «‹ Mitt O-Tid» är vägen ut ur arrangemanget: tydlig och minst 44 px hög. */
+  :global(body:has(> [data-race-tabs])) .back { min-height: 44px; color: var(--accent); font-size: var(--text-md); font-weight: 600; }
+}
 @media print {
   .topBar, .sidebar { display: none; }
   .frame { display: block; }

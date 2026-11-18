@@ -1,0 +1,66 @@
+/*
+ * Tävlingsraden (ägaren 2026-11-18, ADR-0227 tillägg): raden nertill, den smala raden, överraden, växeln och listan under Mer
+ * och Byt funktion. Bara i telefonbredd (640 px, samma som flikraden); på datorn och i utskrift syns inget av det. Listan är en
+ * modal som bara öppnas från raden. Aktiv flik: accentfärg och fetare text (inte bara färg).
+ */
+.bar, .narrow, .top { display: none; }
+
+.sheet { width: min(100vw, 480px); max-width: 100vw; max-height: 85vh; margin: auto auto 0; padding: 0 0 max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
+  border: 1px solid var(--line); border-radius: 14px 14px 0 0; background: var(--surface); color: var(--ink); font-family: var(--font-ui); }
+.sheet::backdrop { background: rgb(0 0 0 / 0.35); }
+.sheetHead { position: sticky; top: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px 6px 16px;
+  border-bottom: 1px solid var(--line); background: var(--surface); }
+.sheetHead h2 { margin: 0; font-size: var(--text-md); }
+.sheetClose, .sheetButton { min-height: 44px; padding: 0 12px; border: 0; background: none; color: var(--accent); font: inherit; font-weight: 600; cursor: pointer; }
+.sheetNote { margin: 8px 16px 0; color: var(--muted); font-size: var(--text-sm); }
+.sheetList { margin: 0; padding: 0; list-style: none; }
+.sheetList a { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 52px; padding: 6px 10px 6px 16px;
+  border-bottom: 1px solid var(--line); color: var(--ink); text-decoration: none; }
+.sheetList a span { display: flex; flex-direction: column; min-width: 0; }
+.sheetList a strong { font-size: var(--text-md); font-weight: 600; line-height: 1.2; }
+.sheetList a small { color: var(--muted); font-size: var(--text-sm); line-height: 1.25; }
+.sheetList a[aria-current="page"] strong { color: var(--accent); font-weight: 700; }
+.sheetList a:focus-visible, .sheetClose:focus-visible, .sheetButton:focus-visible, .sheetBack:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.chevron { flex: none; color: var(--muted); }
+.sheetBack { display: flex; align-items: center; min-height: 52px; padding: 0 16px; color: var(--accent); font-weight: 600; text-decoration: none; }
+.sheetButton { display: block; width: 100%; text-align: left; padding-inline: 16px; min-height: 52px; border-bottom: 1px solid var(--line); }
+
+@media screen and (max-width: 640px) {
+  .bar { position: fixed; inset: auto 0 0; z-index: 40; display: flex; padding: 0 4px max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--line); background: var(--surface); }
+  .tab { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-width: 44px;
+    min-height: 56px; padding: 4px 2px; border: 0; background: none; color: var(--muted); font: inherit; font-size: 12px; font-weight: 500;
+    line-height: 1.1; text-align: center; text-decoration: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .tab:hover { color: var(--ink); }
+  .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .tab[aria-current="page"], .tab[data-active] { color: var(--accent); font-weight: 700; }
+  .tab span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .narrow { position: fixed; inset: auto 0 0; z-index: 40; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 6px 12px max(6px, env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line);
+    background: var(--surface); }
+  .narrowName { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--accent); font-weight: 700; }
+  .narrowName span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .switchFunction { flex: none; min-height: 44px; padding: 0 14px; border: 1px solid var(--line-strong); border-radius: var(--radius);
+    background: var(--surface); color: var(--ink); font: inherit; font-weight: 600; cursor: pointer; }
+  .switchFunction:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .top { display: block; margin-bottom: 12px; }
+  .topRow { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 56px; padding: 0 12px 0 4px;
+    border-bottom: 1px solid var(--line); background: var(--surface); }
+  .back { display: flex; align-items: center; gap: 2px; min-height: 44px; padding: 0 8px; color: var(--accent); font-weight: 600; text-decoration: none; }
+  .topName { display: flex; flex-direction: column; align-items: flex-end; min-width: 0; }
+  .topName strong { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-md); }
+  .topName span { color: var(--muted); font-size: var(--text-sm); }
+
+  .modeSwitch { display: flex; gap: 3px; margin: 12px 12px 0; padding: 3px; border-radius: 10px; background: var(--subtle); }
+  .modeSwitch button { flex: 1; min-height: 44px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font: inherit;
+    font-weight: 500; cursor: pointer; }
+  .modeSwitch button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 700; box-shadow: 0 1px 2px rgb(0 0 0 / 0.12); }
+  .modeSwitch button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  /* I arbetsytan står växeln överst i innehållet, som redan har sin marginal. */
+  .modeSwitchInline { margin: 0 0 12px; }
+}
+.modeSwitch { display: none; }
+@media screen and (max-width: 640px) { .modeSwitch { display: flex; } }
+@media print { .bar, .narrow, .top, .modeSwitch, .sheet { display: none; } }

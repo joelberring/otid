@@ -199,8 +199,9 @@ test("ny tävling: direkt in, tomlägen med åtgärd, svenska fältfel och tre d
   await expect(sectionButton(owner, "Publicera")).toHaveAttribute("aria-current", "step");
   await expect(owner.getByRole("button", { name: "Publicera tävlingen" })).toBeVisible();
 
-  // Mobil: tillbakalänken, räknarna och en meny för genvägarna; inget sidled.
-  await owner.setViewportSize({ width: 390, height: 800 });
+  // Smal skärm: tillbakalänken, räknarna och en meny för genvägarna; inget sidled. Under 640 px ersätter tävlingsraden Meny
+  // (ADR-0227 tillägg 2026-11-18, tavlingsrad.spec.ts).
+  await owner.setViewportSize({ width: 700, height: 800 });
   await expect(owner.getByRole("link", { name: "‹ Mitt O-Tid" })).toBeVisible();
   await expect(owner.getByLabel("Läget just nu")).toBeVisible();
   await expect(owner.getByRole("link", { name: /Öppna avläsningen/ })).toBeHidden();
@@ -208,12 +209,12 @@ test("ny tävling: direkt in, tomlägen med åtgärd, svenska fältfel och tre d
   await expect(owner.getByRole("link", { name: /Öppna avläsningen/ })).toBeVisible();
   // Användartest 2026-11-12: Logga ut ligger i kontomenyn, som på övriga sidor.
   await expect(owner.getByRole("button", { name: /^Konto: / })).toBeVisible();
-  expect(await owner.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  expect(await owner.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(700);
   if (process.env.E2E_SCREENSHOT_DIR) {
-    await owner.screenshot({ path: `${process.env.E2E_SCREENSHOT_DIR}/step24-mobil-toppbalk-390.png` });
+    await owner.screenshot({ path: `${process.env.E2E_SCREENSHOT_DIR}/step24-mobil-toppbalk-700.png` });
     await owner.getByText("Meny").click();
     await openStep(owner, "Anmälda");
-    await owner.screenshot({ path: `${process.env.E2E_SCREENSHOT_DIR}/step24-mobil-anmalda-390.png`, fullPage: true });
+    await owner.screenshot({ path: `${process.env.E2E_SCREENSHOT_DIR}/step24-mobil-anmalda-700.png`, fullPage: true });
     await owner.setViewportSize({ width: 1280, height: 900 });
     await owner.screenshot({ path: `${process.env.E2E_SCREENSHOT_DIR}/step24-toppbalk-1280.png` });
   }

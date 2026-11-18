@@ -3,6 +3,7 @@ import { cardReadPlan } from "./card-types";
 import { cardImageFromResponses, CardDecodeError, decodeCard, type SiCardData } from "./decode";
 import { FrameDecoder, type SiFrame } from "./frame";
 import { detectCard } from "./readout-session";
+import { decodeReaderBtFrames, isReaderBtFrames } from "./reader-bt";
 
 /**
  * Steg 36: läser om en sparad avläsning från dess råramar (detekteringen och svaren, så som avläsningen sparade dem)
@@ -10,6 +11,8 @@ import { detectCard } from "./readout-session";
  * avbruten ram, ingen detektering, saknade block, annat bricknummer) ger `CardDecodeError`; inga stämplingar hittas på.
  */
 export function decodeRecordedFrames(frames: readonly Uint8Array[]): SiCardData {
+  // Reader BT (Bluetooth) sparar sina egna meddelanden; stationens seriella ramar börjar alltid med STX (0x02).
+  if (isReaderBtFrames(frames)) return decodeReaderBtFrames(frames);
   const parsed: SiFrame[] = [];
   frames.forEach((bytes, index) => {
     const decoder = new FrameDecoder();

@@ -25,6 +25,11 @@ export { cardImageFromResponses, CardDecodeError, decodeCard, type SiCardData, t
 export { normalizeCard, type NormalizedSiReadout } from "./normalize";
 export { decodeRecordedFrames, framesFromHex } from "./recorded";
 export {
+  decodeReaderBtCard, decodeReaderBtFrames, isReaderBtFrames, READER_BT_ACK_CARD, READER_BT_CARD_DATA, READER_BT_COMMAND, READER_BT_EVENTS,
+  READER_BT_NAME_PREFIX, READER_BT_SERVICE_CARDS, READER_BT_SERVICE_MAIN, READER_BT_START_READOUT, ReaderBtAssembler, readerBtCardEvent,
+  readerBtCardNumber, readerBtSerial, readerBtStorageFrames
+} from "./reader-bt";
+export {
   detectCard, parseSystemValues, ReadoutSession, type FastReadFallbackReason, type ReadMode, type ReadoutEvent, type ReadoutSessionOptions,
   type SessionOutput, type StationInfo
 } from "./readout-session";

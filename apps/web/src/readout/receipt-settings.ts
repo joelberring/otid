@@ -1,14 +1,16 @@
 /**
- * Kvittots inställningar per enhet (PLAN.md steg 21): skriv ut automatiskt, visa QR-kod på skärmen och
- * kvittoskrivarens bredd. Sparas i webbläsaren; går det inte (privat läge) gäller förvalen och en varning loggas.
+ * Kvittots inställningar per enhet (PLAN.md steg 21): skriv ut automatiskt, visa QR-kod på skärmen, kvittoskrivarens
+ * bredd och skrivaren (webbläsarens utskrift eller en kvittoskrivare över Bluetooth). Sparas i webbläsaren; går det
+ * inte (privat läge) gäller förvalen och en varning loggas.
  */
 export interface ReceiptSettings {
   readonly auto: boolean;
   readonly showQr: boolean;
   readonly paperMm: 80 | 58;
+  readonly printer: "browser" | "bluetooth";
 }
 
-export const DEFAULT_RECEIPT_SETTINGS: ReceiptSettings = { auto: false, showQr: true, paperMm: 80 };
+export const DEFAULT_RECEIPT_SETTINGS: ReceiptSettings = { auto: false, showQr: true, paperMm: 80, printer: "browser" };
 const KEY = "otid.readout.receipt.v1";
 
 type SettingsStorage = Pick<Storage, "getItem" | "setItem">;
@@ -25,7 +27,8 @@ export function loadReceiptSettings(storage: SettingsStorage | undefined = brows
     return {
       auto: typeof value.auto === "boolean" ? value.auto : DEFAULT_RECEIPT_SETTINGS.auto,
       showQr: typeof value.showQr === "boolean" ? value.showQr : DEFAULT_RECEIPT_SETTINGS.showQr,
-      paperMm: value.paperMm === 58 ? 58 : 80
+      paperMm: value.paperMm === 58 ? 58 : 80,
+      printer: value.printer === "bluetooth" ? "bluetooth" : "browser"
     };
   } catch (error) {
     console.warn("Kvittots inställningar kunde inte läsas; förvalen gäller", error);

@@ -72,7 +72,7 @@ test("säkerhetshuvuden: publika sidor, admin, avläsningen, festen och API:t", 
   expect(redirect.headers()["permissions-policy"]).toContain("usb=(self)");
   const shell = await owner.request.get("/readout/index.html");
   expectBase(shell, "no-referrer");
-  expect(shell.headers()["permissions-policy"]).toBe("camera=(), geolocation=(), microphone=(), serial=(self), usb=(self)");
+  expect(shell.headers()["permissions-policy"]).toBe("bluetooth=(self), camera=(), geolocation=(), microphone=(), serial=(self), usb=(self)");
   expect(shell.headers()["content-security-policy"]).toContain("script-src 'self'");
   const desk = await owner.context().newPage();
   const deskErrors = cspErrors(desk);

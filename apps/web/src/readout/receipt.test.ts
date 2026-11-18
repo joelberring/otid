@@ -122,8 +122,8 @@ describe("kvitto efter avläsning", () => {
     const values = new Map<string, string>();
     const storage = { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value); } };
     expect(loadReceiptSettings(storage)).toEqual(DEFAULT_RECEIPT_SETTINGS);
-    saveReceiptSettings({ auto: true, showQr: false, paperMm: 58 }, storage);
-    expect(loadReceiptSettings(storage)).toEqual({ auto: true, showQr: false, paperMm: 58 });
+    saveReceiptSettings({ auto: true, showQr: false, paperMm: 58, printer: "bluetooth" }, storage);
+    expect(loadReceiptSettings(storage)).toEqual({ auto: true, showQr: false, paperMm: 58, printer: "bluetooth" });
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const blocked = { getItem: () => { throw new Error("SecurityError"); }, setItem: () => { throw new Error("SecurityError"); } };
     expect(loadReceiptSettings(blocked)).toEqual(DEFAULT_RECEIPT_SETTINGS);

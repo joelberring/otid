@@ -3,12 +3,17 @@ import { readoutTextEn } from "./text-en";
 import { useTexts } from "../components/language-provider";
 import type { ReadoutPackage } from "@o-tid/contracts";
 import type { LocalVerdict } from "./evaluate";
+import { BluetoothPrinter } from "./bluetooth-printer";
+import { receiptToEscPos } from "./escpos";
 import { buildReceipt } from "./receipt";
+import type { BluetoothLike } from "./reader-bt";
 import { ReceiptView } from "./receipt-view";
 import { receiptPageCss, type ReceiptSettings } from "./receipt-settings";
 import { readoutText } from "./text-sv";
 
 const PAGE_STYLE_ID = "otid-receipt-page";
+/** Web Bluetooth (Chrome/Edge på dator och Android, Bluefy på iPhone/iPad): kvittoskrivare över Bluetooth. */
+const bluetooth = typeof navigator !== "undefined" ? (navigator as Navigator & { bluetooth?: BluetoothLike }).bluetooth : undefined;
 
 /**
  * Avläsningen som kvittot gäller: det senaste beskedet med underlag. Steg 57: `placement` är placeringens rader ur
@@ -37,6 +42,10 @@ export function ReceiptPanel({ printable, pkg, settings, onSettings }: {
   const [shown, setShown] = useState<{ sequence: number; printedAt: Date }>();
   const [printRequest, setPrintRequest] = useState(0);
   const receiptRef = useRef<HTMLDivElement>(null);
+  // Kvittoskrivaren över Bluetooth: ansluts med en knapp varje gång sidan öppnas (webbläsaren minns den inte säkert).
+  const [printer, setPrinter] = useState<BluetoothPrinter>();
+  const [printerProblem, setPrinterProblem] = useState<string>();
+  const useBluetooth = settings.printer === "bluetooth" && !!bluetooth;
   // Den avläsning som senast skrevs ut automatiskt (eller som syntes när valet slogs på): skrivs inte ut igen.
   const autoHandled = useRef<number | undefined>(printable?.localSequence);
 
@@ -68,7 +77,16 @@ export function ReceiptPanel({ printable, pkg, settings, onSettings }: {
   }, [sequence, pending, settings.auto]);
 
   useEffect(() => {
-    if (printRequest === 0 || !receiptRef.current) return;
+    if (printRequest === 0) return;
+    if (useBluetooth) {
+      if (!receipt) return;
+      if (!printer) { setPrinterProblem(t.printerNone); return; }
+      setPrinterProblem(undefined);
+      printer.print(receiptToEscPos(receipt, { paperMm: settings.paperMm, text: t }))
+        .catch((error: unknown) => setPrinterProblem(t.printerFailed(error instanceof Error ? error.message : String(error))));
+      return;
+    }
+    if (!receiptRef.current) return;
     let style = document.getElementById(PAGE_STYLE_ID);
     if (!style) {
       style = document.createElement("style");
@@ -78,6 +96,21 @@ export function ReceiptPanel({ printable, pkg, settings, onSettings }: {
     style.textContent = receiptPageCss(settings.paperMm, receiptRef.current.getBoundingClientRect().height);
     window.print();
   }, [printRequest]);
+
+  async function connectPrinter() {
+    if (!bluetooth) { setPrinterProblem(t.printerUnsupported); return; }
+    try {
+      const next = await BluetoothPrinter.request(bluetooth);
+      printer?.disconnect();
+      setPrinter(next); setPrinterProblem(undefined);
+      // SPORTidents skrivare har 58 mm papper.
+      if (next.name.startsWith("SI Printer") && settings.paperMm !== 58) change({ paperMm: 58 });
+    } catch (error) {
+      // Avbrutet val i webbläsaren är inget fel.
+      if (error instanceof Error && error.name === "NotFoundError") return;
+      setPrinterProblem(t.printerFailed(error instanceof Error ? error.message : String(error)));
+    }
+  }
 
   function change(patch: Partial<ReceiptSettings>) {
     if (patch.auto) autoHandled.current = printable?.localSequence;
@@ -96,7 +129,17 @@ export function ReceiptPanel({ printable, pkg, settings, onSettings }: {
         <select value={settings.paperMm} onChange={(event) => change({ paperMm: event.target.value === "58" ? 58 : 80 })}>
           {[80, 58].map((millimetres) => <option key={millimetres} value={millimetres}>{t.paperOption(millimetres)}</option>)}
         </select></label>
+      {bluetooth ? <label className="paper">{t.printer}
+        <select value={settings.printer} onChange={(event) => change({ printer: event.target.value === "bluetooth" ? "bluetooth" : "browser" })}>
+          <option value="browser">{t.printerBrowser}</option>
+          <option value="bluetooth">{t.printerBluetooth}</option>
+        </select></label> : null}
+      {useBluetooth ? <>
+        <button type="button" onClick={() => { void connectPrinter(); }}>{printer ? t.changePrinter : t.connectPrinter}</button>
+        <span data-testid="printer-status">{printer ? t.printerConnected(printer.name) : t.printerNone}</span>
+      </> : null}
     </div>
+    {printerProblem ? <p className="notice" role="alert">{printerProblem}</p> : null}
     {receipt ? <div className="receipt-preview" data-paper={settings.paperMm}>
       <div className="receipt-preview-head"><h2>{t.preview}</h2>
         <button type="button" className="quiet" onClick={() => setShown(undefined)}>{t.close}</button></div>

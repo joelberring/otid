@@ -41,4 +41,23 @@ describe("hyggen efter ålder", () => {
     const square: [number, number][] = [[0, 0], [40, 0], [40, 40], [0, 40], [0, 0]];
     expect(cutRing(square)!.length).toBeGreaterThanOrEqual(4);
   });
+  it("stora hyggen behåller raka hörn, små hack rundas bort (ägaren 2026-11-18)", () => {
+    // 300 × 200 m i 10 m-rutor med ett trappsteg och ett hack på 10 × 10 m mitt på nederkanten.
+    const ring: [number, number][] = [[1000, 1000], [1140, 1000], [1140, 1010], [1150, 1010], [1150, 1000], [1300, 1000], [1300, 1200], [1010, 1200], [1010, 1190], [1000, 1190], [1000, 1000]];
+    const smooth = cutRing(ring)!;
+    const nearest = (x: number, y: number) => Math.min(...smooth.map(([px, py]) => Math.hypot(px - x, py - y)));
+    // Tre hörn ligger skarpt (inom 3 m); det fjärde har trappsteget och får rundas.
+    expect(nearest(1000, 1000)).toBeLessThan(3);
+    expect(nearest(1300, 1000)).toBeLessThan(3);
+    expect(nearest(1300, 1200)).toBeLessThan(3);
+    // Hacket är borta: ingen punkt nära hackets botten.
+    expect(nearest(1145, 1010)).toBeGreaterThan(5);
+  });
+  it("ett runt eller sneddat hygge får inga påhittade hörn", () => {
+    const circle: [number, number][] = Array.from({ length: 40 }, (_, i) => [Math.round(100 * Math.cos(i / 40 * 2 * Math.PI) / 10) * 10, Math.round(100 * Math.sin(i / 40 * 2 * Math.PI) / 10) * 10] as [number, number]);
+    circle.push(circle[0]!);
+    const smooth = cutRing(circle)!;
+    // Ingen punkt utanför cirkeln med marginal (ett påhittat hörn i skärningen mellan två sidor skulle sticka ut).
+    expect(Math.max(...smooth.map(([x, y]) => Math.hypot(x, y)))).toBeLessThan(108);
+  });
 });

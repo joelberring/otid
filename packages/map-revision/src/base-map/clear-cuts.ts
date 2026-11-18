@@ -2,7 +2,7 @@
 export interface ClearCut { readonly rings: readonly (readonly (readonly [number, number])[])[]; readonly date: string | null }
 import type { SourceFeature } from "../index";
 import { maskOutlines } from "./photo-interpret";
-import { generalizeVegetation, VEG_FOREST, VEG_OPEN, vegetationLayerMask, vegetationRing } from "./vegetation-shapes";
+import { generalizeVegetation, simplifyClosed, VEG_FOREST, VEG_OPEN, vegetationLayerMask } from "./vegetation-shapes";
 
 /**
  * Ägaren 2026-11-11 («gör beräkningar beroende på hur gamla fotona/underlaget är … om hyggen är helt färska eller hunnit växa
@@ -84,8 +84,8 @@ export function cutRing(ring: Ring): [number, number][] | undefined {
   const outlines = maskOutlines(vegetationLayerMask(general, columns, rows, VEG_OPEN), columns, rows);
   let best: [number, number][] | undefined, bestArea = 0;
   for (const outline of outlines) {
-    // Hörnen i lite större steg än vegetationens: hyggen har raka kanter.
-    const smooth = vegetationRing(outline, 1.5, 2);
+    // Hörnen i lite större steg än vegetationens: hyggen har raka kanter, och stora hyggens hörn hålls skarpa (ägaren 2026-11-18).
+    const smooth = cutOutline(outline);
     if (smooth.length < 3) continue;
     let area = 0;
     for (let i = 0; i < smooth.length; i += 1) { const [ax, ay] = smooth[i]!, [bx, by] = smooth[(i + 1) % smooth.length]!; area += ax * by - bx * ay; }
@@ -94,6 +94,92 @@ export function cutRing(ring: Ring): [number, number][] | undefined {
   // Ett litet hygge (under generaliseringens minsta yta) är fortfarande ett hygge: det behåller sin egen kant.
   if (!best) return ring.map(([x, y]) => [x, y]);
   return [...best, best[0]!].map(([column, row]) => [left + column * CUT_CELL, top - row * CUT_CELL]);
+}
+
+type Point = [number, number];
+/**
+ * Raka sidor minst så här långa (celler, 28 m) möts i ett skarpt hörn. Generaliseringen rundar hörnen med ca 25 m radie, så
+ * den rundade kanten däremellan får vara upp till 80 m och hörnet ligga upp till 50 m från dess ändar.
+ */
+const LONG_SIDE = 14, SHORT_RUN = 40, CORNER_REACH = 25, MIN_TURN = Math.PI / 4, MAX_TURN = Math.PI * 3 / 4;
+
+/**
+ * Ägaren 2026-11-18: «hyggenas form ska generaliseras i de mindre formerna för att få bort konstiga hack, men det finns ofta raka
+ * hörn på större former.» Kanten förenklas; där två raka sidor på minst 28 m (efter rundningen) möts i 45–135° (efter högst 80 m avrundad kant
+ * från generaliseringen) läggs hörnet i sidornas skärning och hålls skarpt. Övriga hörn rundas som förut (Chaikin, två varv).
+ */
+export function cutOutline(outline: readonly Point[]): Point[] {
+  const closed = outline.length > 1 && outline[0]![0] === outline[outline.length - 1]![0] && outline[0]![1] === outline[outline.length - 1]![1];
+  const simple = simplifyClosed(closed ? outline.slice(0, -1) : outline.slice(), 1.5);
+  if (simple.length < 3) return [];
+  const { points, sharp } = squaredCorners(simple);
+  return roundExcept(points, sharp, 2);
+}
+
+/** Hörnen mellan långa raka sidor (i ringens ordning) som skarpa punkter i sidornas skärning. */
+export function squaredCorners(ring: readonly Point[]): { points: Point[]; sharp: boolean[] } {
+  const n = ring.length, at = (i: number) => ring[((i % n) + n) % n]!;
+  const length = (i: number) => Math.hypot(at(i + 1)[0] - at(i)[0], at(i + 1)[1] - at(i)[1]);
+  const first = Array.from({ length: n }, (_, i) => i).find(i => length(i) >= LONG_SIDE);
+  if (first === undefined) return { points: ring.slice(), sharp: ring.map(() => false) };
+  // Vriden så att den första långa sidan blir den sista (n − 1): ingen följd av korta sidor går då runt index 0.
+  const rotated = Array.from({ length: n }, (_, i) => at(i + first + 1));
+  const side = (i: number) => Math.hypot(rotated[(i + 1) % n]![0] - rotated[i]![0], rotated[(i + 1) % n]![1] - rotated[i]![1]);
+  const long = Array.from({ length: n }, (_, i) => i).filter(i => side(i) >= LONG_SIDE);
+  const corners = new Map<number, { to: number; point: Point }>();
+  for (let k = 0; k < long.length; k += 1) {
+    const a = k === 0 ? long[long.length - 1]! : long[k - 1]!, b = long[k]!;
+    if (a === b) continue;
+    const from = (a + 1) % n, to = b; // hörnpunkterna from..to (inga varv runt 0)
+    if (to < from) continue;
+    const a0 = rotated[a]!, a1 = rotated[(a + 1) % n]!, b0 = rotated[b]!, b1 = rotated[(b + 1) % n]!;
+    const ux = a1[0] - a0[0], uy = a1[1] - a0[1], vx = b1[0] - b0[0], vy = b1[1] - b0[1];
+    const turn = Math.acos(Math.max(-1, Math.min(1, (ux * vx + uy * vy) / Math.hypot(ux, uy) / Math.hypot(vx, vy))));
+    if (turn < MIN_TURN || turn > MAX_TURN) continue;
+    let run = 0;
+    for (let i = from; i < to; i += 1) run += side(i);
+    if (run > SHORT_RUN) continue;
+    const cross = ux * vy - uy * vx;
+    // Den rundade kanten svänger hela vägen åt samma håll som hörnet (ett hack eller en udde däremellan ger inget hörn).
+    let bends = true;
+    for (let i = from; i <= to && bends; i += 1) {
+      const p0 = rotated[(i - 1 + n) % n]!, p1 = rotated[i]!, p2 = rotated[(i + 1) % n]!;
+      const bend = ((p1[0] - p0[0]) * (p2[1] - p1[1]) - (p1[1] - p0[1]) * (p2[0] - p1[0]))
+        / (Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) * Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) || 1);
+      // Små vickningar (under ca 10°) åt andra hållet är förenklingens och räknas inte.
+      if (bend * Math.sign(cross) < -0.17) bends = false;
+    }
+    if (!bends) continue;
+    const t = ((b0[0] - a0[0]) * vy - (b0[1] - a0[1]) * vx) / cross;
+    const point: Point = [a0[0] + ux * t, a0[1] + uy * t];
+    if (Math.hypot(point[0] - rotated[from]![0], point[1] - rotated[from]![1]) > CORNER_REACH
+      || Math.hypot(point[0] - rotated[to]![0], point[1] - rotated[to]![1]) > CORNER_REACH) continue;
+    corners.set(from, { to, point });
+  }
+  const points: Point[] = [], sharp: boolean[] = [];
+  for (let i = 0; i < n; i += 1) {
+    const corner = corners.get(i);
+    if (corner) { points.push(corner.point); sharp.push(true); i = corner.to; continue; }
+    points.push(rotated[i]!); sharp.push(false);
+  }
+  return { points, sharp };
+}
+
+/** Chaikin för en sluten ring där de skarpa punkterna står kvar (sidorna intill dem förblir raka). */
+function roundExcept(ring: readonly Point[], sharp: readonly boolean[], rounds: number): Point[] {
+  let points = ring.slice(), flags = sharp.slice();
+  for (let round = 0; round < rounds; round += 1) {
+    const next: Point[] = [], nextFlags: boolean[] = [];
+    for (let i = 0; i < points.length; i += 1) {
+      const p = points[i]!;
+      if (flags[i]) { next.push(p); nextFlags.push(true); continue; }
+      const prev = points[(i - 1 + points.length) % points.length]!, after = points[(i + 1) % points.length]!;
+      next.push([p[0] * 0.75 + prev[0] * 0.25, p[1] * 0.75 + prev[1] * 0.25], [p[0] * 0.75 + after[0] * 0.25, p[1] * 0.75 + after[1] * 0.25]);
+      nextFlags.push(false, false);
+    }
+    points = next; flags = nextFlags;
+  }
+  return points;
 }
 
 function inside(ring: Ring, x: number, y: number): boolean {

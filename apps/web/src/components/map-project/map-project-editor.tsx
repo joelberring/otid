@@ -219,6 +219,9 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   // Ägaren 2026-11-10: panelens flik, och bara kartan (verktygsspalten och panelen gömda) med knappen överst eller §.
   // Översynen av första kartan (K1): en ny karta utan objekt börjar i Grundkarta, en karta med innehåll i Symboler.
   const [tab, setTab] = useState<SidebarTab>(() => view.base.source === "NEW" && view.changedObjects === 0 ? "basemap" : "symbols");
+  // Ägaren 2026-11-19: släckta underlag hämtas först när fliken Grundkarta syns (reglagen läser dem); i telefonbredd är panelen stängd från början.
+  const { loadHidden } = layers;
+  useEffect(() => { if (tab === "basemap" && (panelOpen || !window.matchMedia("(max-width: 760px)").matches)) loadHidden(); }, [tab, panelOpen, loadHidden]);
   const [bare, setBare] = useState(false);
   // Ägaren 2026-11-10: tangenterna under vänster hand, valbara (sparade i webbläsaren).
   const [keys, setKeys] = useMapProjectKeys();

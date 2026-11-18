@@ -24,7 +24,7 @@ export type LayerProblem = LayerFileProblem | "quota" | number;
  * och en själv (sparat i webbläsaren, `map-project-layer-visibility.ts`); genomskinligheten är projektets.
  *
  * `start` (ägaren 2026-11-14): bilderna hämtas först när kartans objekt har kommit, så att kartan går att rita i medan
- * underlagen kommer.
+ * underlagen kommer. Ägaren 2026-11-19: bara de tända hämtas; de släckta först efter `loadHidden` (fliken Grundkarta).
  */
 export function useMapProjectLayers(view: MapProjectView, georeference: MapGeoreference | undefined, start = true) {
   const base = mapProjectBase(view.projectId);
@@ -55,11 +55,13 @@ export function useMapProjectLayers(view: MapProjectView, georeference: MapGeore
   // Bilderna: en gång per underlag (sha256 ändras aldrig för ett underlag). De som visas hämtas först och bara några åt gången.
   const asked = useRef(new Set<string>()), fetching = useRef(0), closedRef = useRef(false);
   const [round, setRound] = useState(0);
+  const [withHidden, setWithHidden] = useState(false);
+  const loadHidden = useCallback(() => setWithHidden(true), []);
   useEffect(() => { closedRef.current = false; return () => { closedRef.current = true; }; }, []);
   useEffect(() => {
     if (!start) return;
     while (fetching.current < LAYER_FETCHES) {
-      const layer = loadOrder(layers, hidden).find(row => !asked.current.has(row.layerId));
+      const layer = loadOrder(layers, hidden, withHidden).find(row => !asked.current.has(row.layerId));
       if (!layer) return;
       asked.current.add(layer.layerId);
       fetching.current += 1;
@@ -86,7 +88,7 @@ export function useMapProjectLayers(view: MapProjectView, georeference: MapGeore
         }
       })();
     }
-  }, [layers, hidden, base, start, round]);
+  }, [layers, hidden, base, start, round, withHidden]);
 
   /** Alla inlästa underlag, också de släckta (ägaren 2026-11-12: reglagen ska inte kräva att underlaget är tänt). */
   const loaded = useMemo((): DrawnLayer[] => {
@@ -121,7 +123,14 @@ export function useMapProjectLayers(view: MapProjectView, georeference: MapGeore
       if ((response.status === 200 || response.status === 201) && prepared.infrared) {
         await send(prepared.infrared.bytes, `${title.slice(0, 80 - IR_LAYER_SUFFIX.length)}${IR_LAYER_SUFFIX}`).catch(() => undefined);
       }
-      if (response.status === 200 || response.status === 201) { if (reload) await load(); return true; }
+      if (response.status === 200 || response.status === 201) {
+        // Ägaren 2026-11-19: underlag är släckta från början, men det man själv just lagt till tänds (bara huvudbilden, inte IR-bilden).
+        const created = await response.json().catch(() => undefined) as { layer?: { layerId?: string } } | undefined;
+        const layerId = created?.layer?.layerId;
+        if (layerId) setChoices(current => { const next = { ...current, [layerId]: true }; saveLayerChoices(view.projectId, next); return next; });
+        if (reload) await load();
+        return true;
+      }
       const body = await response.json().catch(() => undefined) as { error?: string } | undefined;
       setProblem(body?.error === "STORAGE_QUOTA_EXCEEDED" ? "quota" : body?.error === "MAP_FILE_TOO_LARGE" ? "TOO_LARGE"
         : body?.error === "UNSUPPORTED_IMAGE" ? "UNREADABLE" : response.status);
@@ -130,7 +139,7 @@ export function useMapProjectLayers(view: MapProjectView, georeference: MapGeore
       setProblem(error instanceof LayerFileError ? error.problem : 0);
       return false;
     } finally { setBusy(undefined); }
-  }, [base, load]);
+  }, [base, load, view.projectId]);
   /** K6b: en bild utan georeferens läggs mitt i `area` (kartans mm) i kartans koordinatsystem och rättas sedan med passpunkter. */
   const upload = useCallback((files: readonly File[], name: string, fallbackCrs: number | undefined, area?: Bounds) => {
     const mapCrs = georeference?.crs.kind === "EPSG" ? georeference.crs.code : undefined;
@@ -195,6 +204,6 @@ export function useMapProjectLayers(view: MapProjectView, georeference: MapGeore
 
   // Listan visas med det översta först.
   const listed = useMemo(() => [...layers].sort((a, b) => b.sort - a.sort || b.createdAt.localeCompare(a.createdAt)), [layers]);
-  return { layers: listed, hidden, toggle, setShown, drawn, loaded, upload, addRemote, addPrepared: add, placeLayer, reload: load, busy, problem, setProblem, setOpacity, remove, move,
+  return { layers: listed, hidden, toggle, setShown, drawn, loaded, loadHidden, upload, addRemote, addPrepared: add, placeLayer, reload: load, busy, problem, setProblem, setOpacity, remove, move,
     canAdd: view.viewer.canPropose, canReorder: view.viewer.canDecide, canManage: (layer: MapProjectLayerView) => layer.own || view.viewer.canDecide };
 }

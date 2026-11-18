@@ -172,8 +172,10 @@ export async function callMcpTool(db: Database, accountId: string, name: string,
         rows.sort((a, b) => a.sort - b.sort || a.createdAt.getTime() - b.createdAt.getTime());
         underlays = [];
         for (const wanted of input.underlays as string[]) {
-          // Det senast tillagda underlaget som namnet passar, utan dubbletter.
-          const hit = [...rows].reverse().find(row => row.name.toLowerCase().includes(wanted.toLowerCase()) && !underlays!.some(found => found.sha256 === row.sha256));
+          // Det senast tillagda underlaget som namnet passar, utan dubbletter. Ett exakt namn går före (2026-11-18: färgbilden
+          // «Ortofoto …» gick inte att välja när falskfärgsbilden «Ortofoto … – IR» fanns).
+          const free = [...rows].reverse().filter(row => !underlays!.some(found => found.sha256 === row.sha256));
+          const hit = free.find(row => row.name.toLowerCase() === wanted.trim().toLowerCase()) ?? free.find(row => row.name.toLowerCase().includes(wanted.toLowerCase()));
           if (hit) underlays.push({ name: hit.name, sha256: hit.sha256, width: hit.width, height: hit.height, crs: hit.crs, transform: hit.transform });
         }
         if (!underlays.length) return toolError(rows.length ? `Inget underlag passar. Projektets underlag: ${rows.map(row => `«${row.name}»`).join(", ")}.`

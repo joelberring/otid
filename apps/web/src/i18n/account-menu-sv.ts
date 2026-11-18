@@ -8,6 +8,8 @@ export const accountMenuSv = {
   myMapProjects: "Mina kartprojekt",
   myEvents: "Mitt O-Tid",
   myAccount: "Mitt konto",
+  /** Förslag B: superadminsidan i menyn i telefonbredd (på datorn står länken i navets överrad). */
+  superadmin: "Superadmin",
   logout: "Logga ut",
   loggingOut: "Loggar ut …",
   checking: "Kontrollerar ändringar som väntar …",

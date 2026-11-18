@@ -101,10 +101,10 @@ export const organizerEn: Texts<typeof organizerSv> = {
   created: "The event is created. Opening the workspace …",
   hub: {
     label: "What do you want to do?",
-    map: { title: "Make a map", help: "Draw a new orienteering map, or continue on one you have started." },
-    course: { title: "Set courses", help: "Start setting courses straight away. A training is created for you." },
-    create: { title: "Create training or event", help: "Name, date and type: training, event, relay and more." },
-    club: { title: "My club", help: "The club space with archive and maps, or join your club." },
+    map: { title: "Make a map", help: "Draw a new orienteering map, or continue on one you have started.", short: "New or continue" },
+    course: { title: "Set courses", help: "Start setting courses straight away. A training is created for you.", short: "A training is made for you" },
+    create: { title: "Create training or event", help: "Name, date and type: training, event, relay and more.", short: "Training, event, relay" },
+    club: { title: "My club", help: "The club space with archive and maps, or join your club.", short: "Archive and maps" },
     newHere: "New here?",
     gettingStarted: "Get started: set a training in 10 minutes",
     more: "More"

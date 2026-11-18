@@ -1,0 +1,17 @@
+/*
+ * Förslag B (ägaren 2026-11-18, ADR-0227 tillägg): flikraden nertill för inloggade i telefonbredd (samma brytpunkt som
+ * sidornas, 640 px). På datorn och i utskrift syns den inte. Aktiv flik: accentfärg och fetare text (inte bara färg).
+ * Sidans bottenmarginal för raden står i globals.css (`body:has(> [data-app-tabs])`).
+ */
+.bar { display: none; }
+@media screen and (max-width: 640px) {
+  .bar { position: fixed; inset: auto 0 0; z-index: 40; display: flex; padding: 0 4px max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--line); background: var(--surface); }
+  .tab { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-width: 44px;
+    min-height: 56px; padding: 4px 2px; color: var(--muted); font-size: 12px; font-weight: 500; line-height: 1.1; text-align: center;
+    text-decoration: none; -webkit-tap-highlight-color: transparent; }
+  .tab:hover { color: var(--ink); }
+  .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .tab[aria-current="page"] { color: var(--accent); font-weight: 700; }
+  .tab span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}

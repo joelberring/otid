@@ -152,6 +152,7 @@ export const accountMenuEn: Texts<typeof accountMenuSv> = {
   myMapProjects: "My map projects",
   myEvents: "My O-Tid",
   myAccount: "My account",
+  superadmin: "Superadmin",
   logout: "Sign out",
   loggingOut: "Signing out …",
   checking: "Checking changes that are waiting …",

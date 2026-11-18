@@ -5,7 +5,7 @@ import { languageSwitch } from "../i18n/public-en";
 import { languageHref, type Language } from "../lib/language";
 
 /** Idéerna 2026-11-08 (engelska): länken som byter språk och kommer tillbaka till samma sida. */
-export function LanguageSwitch({ language, className }: { language: Language; className?: string }) {
+export function LanguageSwitch({ language, className }: { language: Language; className?: string | undefined }) {
   const pathname = usePathname();
   const target: Language = language === "sv" ? "en" : "sv";
   const text = languageSwitch[language];

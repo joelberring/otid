@@ -106,10 +106,10 @@ export const organizerSv = {
   /** Översynen 2026-11-17: navet Mitt O-Tid med fyra val överst. */
   hub: {
     label: "Vad vill du göra?",
-    map: { title: "Ta fram en karta", help: "Rita en ny orienteringskarta, eller fortsätt på en du har påbörjat." },
-    course: { title: "Lägg banor", help: "Börja lägga banor direkt. En träning skapas åt dig." },
-    create: { title: "Skapa träning eller tävling", help: "Namn, datum och typ: träning, tävling, stafett och mer." },
-    club: { title: "Min klubb", help: "Klubbytan med arkiv och kartor, eller gå med i din klubb." },
+    map: { title: "Ta fram en karta", help: "Rita en ny orienteringskarta, eller fortsätt på en du har påbörjat.", short: "Rita ny eller fortsätt" },
+    course: { title: "Lägg banor", help: "Börja lägga banor direkt. En träning skapas åt dig.", short: "En träning skapas åt dig" },
+    create: { title: "Skapa träning eller tävling", help: "Namn, datum och typ: träning, tävling, stafett och mer.", short: "Träning, tävling, stafett" },
+    club: { title: "Min klubb", help: "Klubbytan med arkiv och kartor, eller gå med i din klubb.", short: "Arkiv och kartor" },
     newHere: "Ny här?",
     gettingStarted: "Kom igång: lägga en träning på 10 minuter",
     more: "Mer"

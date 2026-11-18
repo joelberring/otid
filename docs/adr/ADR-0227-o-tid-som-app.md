@@ -109,6 +109,32 @@ Personligt utvecklarkonto hos Apple och Google, knutet till ägaren. Googles st�
 - Öppet: om plinget hörs med låst skärm på iOS (kan kräva bakgrundsläget `audio`, som i så fall är ett nytt beslut), och om
   webbvyns JavaScript stryps med släckt skärm på Android så att plinget kommer sent. Journalen är hel i båda fallen.
 
+## Tillägg 2026-11-18 – flikrad för inloggade i telefonbredd (förslag B)
+
+Ägaren godkände 2026-11-18 «förslag B»: inloggade O-Tid på telefon ska kännas som en app och ge en väg tillbaka till
+huvuddelarna från alla vanliga inloggade sidor, också i appskalet (översynens D3). Ingen ny funktion och ingen ändrad datamodell.
+
+- **Flikraden** (`components/app-tabs/`, `lib/app-tabs.ts`): Hem (`/organizer`), Kartor (`/organizer/map-projects`), Banor
+  (`/organizer#lagg-banor`, öppnar panelen Lägg banor), Träningar (`/organizer#dina-tavlingar`, listan Dina tävlingar), Klubb
+  (`/organizer#mina-klubbar`, där man också går med i en klubb). Det finns inga egna listsidor för banor, träningar och klubbar;
+  inga nya sidor byggdes. Aktiv flik har `aria-current="page"`, accentfärg och fetare text: Hem i navet, Kartor i kartprojekten,
+  Klubb i klubbytor och grupper, Träningar i arbetsytan (`/admin/…`), ingen på Mitt konto och superadmin.
+- **Var:** de inloggade delarnas layouter (`/organizer`, `/admin`, `/konto`, `/superadmin`) ritar `SignedInTabBar`, som visar raden
+  bara för ett inloggat konto (samma sessionskontroll som startsidan). Publika sidor (`/t`, `/g`, `/fest`, listor, startsidan,
+  löparlägena) har den aldrig. Inte heller kartredigeraren, banläggningen med undersidor, speakern, stationerna, avläsningen
+  eller klubbens utskrift av terminsplaneringen (`appTabsHidden`). Bara under 640 px (sidornas brytpunkt) och inte i utskrift;
+  datorvyn är oförändrad (jämförd pixel för pixel i 1280 px).
+- **Skärmens kant:** raden har `padding-bottom: env(safe-area-inset-bottom)` (eller Capacitors `--safe-area-inset-bottom`) och
+  sidan lika mycket luft nertill. `viewport-fit=cover` läggs inte till: iOS-skalet håller redan webbvyn ovanför hemstrecket
+  (`OTidRootViewController`), och i Safari utan `cover` slutar sidan ovanför det. Med `cover` hade alla sidor hamnat under kameran
+  i liggande läge. Provas i TestFlight och på Android (kanter, D5).
+- **Mitt O-Tid i telefonbredd:** egen låg överrad (loggan som länk till startsidan, sidnamnet, språket, hjälpen, kontot; layoutens
+  sidhuvud döljs där), de fyra valen som 2 × 2 med ikon och kort rad, Mina klubbar/grupper/kartprojekt som täta rader med pil,
+  «Ny klubbyta»/«Ny grupp» som textknapp i rubrikraden och «Ny här?» längst ned. Superadmin står i kontomenyn i telefonbredd.
+  «Till Skapa träning eller tävling» och raden «O-Tid · Arrangör» visas inte i telefonbredd (valet Skapa träning eller tävling
+  leder till samma ställe; loggan står i stället).
+- Webbändring: kräver serveruppdatering, ingen ny appversion.
+
 ## Återstår i A1
 
 - Bygga och prova på riktiga telefoner (iPhone och minst två Android-märken): en timme med låst skärm, pling efter 15

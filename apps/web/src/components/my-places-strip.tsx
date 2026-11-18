@@ -16,6 +16,7 @@ import { clubRequest } from "../lib/club-archive-client";
 import { groupRequest } from "../lib/training-group-client";
 import { NewClubForm } from "./club-archive/my-clubs";
 import { NewGroupForm } from "./training-group/my-groups";
+import { ChevronIcon } from "./app-tabs/app-icons";
 import styles from "./my-places-strip.module.css";
 
 /**
@@ -23,6 +24,7 @@ import styles from "./my-places-strip.module.css";
  * remsa överst i Mina tävlingar, före tävlingarna: ett kort per klubbyta och grupp med namn, roll och antal, och en direktlänk.
  * Ägare och administratörer ser hur många som väntar på bekräftelse. "Ny klubbyta" och "Ny grupp" är små åtgärder i remsan.
  * Ankarna `#mina-klubbar` och `#mina-grupper` nås från kontomenyn på alla sidor.
+ * Förslag B (ägaren 2026-11-18): i telefonbredd är korten täta listrader i en gemensam ruta per del, med pil.
  */
 export function MyPlacesStrip({ onClubs, clubQuestionShown = false }: {
   /** Klubbytorna när de har lästs in (organizer-workspace döljer klubbfrågan för den som redan är med i en). */
@@ -76,6 +78,7 @@ export function MyPlacesStrip({ onClubs, clubQuestionShown = false }: {
             <strong>{club.name}</strong>
             <span>{clubArchiveText.roles[club.role]} · {clubArchiveText.myClubs.entries(club.entries)}</span>
             {(club.pending ?? 0) > 0 && <span className={styles.badge}>{text.pending(club.pending!)}</span>}
+            <ChevronIcon className={styles.chevron} />
           </Link>
         </li>)}
       </ul>}
@@ -89,6 +92,7 @@ export function MyPlacesStrip({ onClubs, clubQuestionShown = false }: {
           <Link className={styles.chip} href={group.role === "LEADER" ? `/organizer/groups/${encodeURIComponent(group.groupId)}` : `/g/${group.code}`}>
             <strong>{group.name}</strong>
             <span>{trainingGroupText.myGroups.role[group.role]} · {trainingGroupText.myGroups.sessions(group.sessions)}</span>
+            <ChevronIcon className={styles.chevron} />
           </Link>
         </li>)}
       </ul>}
@@ -104,6 +108,7 @@ export function MyPlacesStrip({ onClubs, clubQuestionShown = false }: {
           <Link className={styles.chip} href={`/organizer/map-projects/${encodeURIComponent(project.projectId)}`}>
             <strong>{project.name}</strong>
             <span>{mapProjectText.roles[project.role]} · {mapProjectText.list.changed(project.changedObjects)}</span>
+            <ChevronIcon className={styles.chevron} />
           </Link>
         </li>)}
       </ul>}

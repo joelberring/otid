@@ -24,7 +24,12 @@ import {
 } from "../lib/organizer-client";
 import { organizerSv } from "../i18n/organizer-sv";
 import { organizerEn } from "../i18n/organizer-en";
-import { useTexts } from "./language-provider";
+import { useLanguage, useTexts } from "./language-provider";
+import { useRouter } from "next/navigation";
+import { Logo } from "./brand/logo";
+import { LanguageSwitch } from "./language-switch";
+import { COURSE_TAB_HASH } from "../lib/app-tabs";
+import { sv } from "../i18n/sv";
 import { formErrorsSv } from "../i18n/form-errors-sv";
 import { formErrorsEn } from "../i18n/workspace-small-en";
 import { raceMapSv } from "../i18n/race-map-sv";
@@ -53,7 +58,7 @@ import { clubLeadersEn } from "../i18n/club-leaders-en";
 import { clubMapDuplicatesSv } from "../i18n/club-map-duplicates-sv";
 import { readInvitationHandoff, takeInvitationNext } from "../lib/invitation-handoff";
 import { NewPasswordFields, PasswordInput, passwordsReady } from "./password-field";
-import { HubChoices } from "./organizer-hub/hub-choices";
+import { HubChoices, HubNewHere } from "./organizer-hub/hub-choices";
 import { HubStartCard } from "./organizer-hub/hub-start-card";
 import { QuickCourse } from "./organizer-hub/quick-course";
 import { createSubmitLabel, myClubHref } from "../lib/hub-start";
@@ -119,6 +124,8 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
   const raceTypeText = useTexts(raceTypeSv, raceTypeEn);
   const formErrorText = useTexts(formErrorsSv, formErrorsEn);
   const copy = useTexts(organizerSv, organizerEn);
+  const language = useLanguage();
+  const router = useRouter();
   const [session, setSession] = useState<Session>();
   /** Klubbytorna kontot är med i (undefined tills remsan har läst dem) och om klubbfrågan visas. */
   const [clubSpaces, setClubSpaces] = useState<readonly ClubSummary[]>();
@@ -224,6 +231,24 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
     void checkSession();
   }, []);
 
+  /**
+   * Förslag B: flikraden når navet med ankare. `#lagg-banor` öppnar panelen Lägg banor (också när navet redan är öppet; ankaret
+   * tas sedan bort så att fliken fungerar igen), och `#dina-tavlingar` rullar till listan när den har kommit.
+   */
+  useEffect(() => {
+    const openCourse = () => {
+      if (window.location.hash !== COURSE_TAB_HASH) return;
+      setQuickOpen(true);
+      window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}`);
+    };
+    openCourse();
+    window.addEventListener("hashchange", openCourse);
+    return () => window.removeEventListener("hashchange", openCourse);
+  }, []);
+  useEffect(() => {
+    if (eventsLoaded && window.location.hash === "#dina-tavlingar") document.getElementById("dina-tavlingar")?.scrollIntoView({ block: "start" });
+  }, [eventsLoaded]);
+
   /** ADR-0206: efter inloggningen till sidan i inbjudan (om kontot har dess adress). */
   function followInvitation(accountEmail: string): boolean {
     const next = takeInvitationNext(accountEmail) ?? takeAfterLogin();
@@ -255,6 +280,8 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
       if (followInvitation(signedIn.email)) return;
       setSession(signedIn);
       setMessage("");
+      // Förslag B: layouten ritas om så att flikraden kommer med efter inloggningen.
+      router.refresh();
       try {
         await loadEvents();
       } catch (error) {
@@ -288,6 +315,8 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
       if (followInvitation(signedIn.email)) return;
       setSession(signedIn);
       setMessage("");
+      // Förslag B: layouten ritas om så att flikraden kommer med efter inloggningen.
+      router.refresh();
       try {
         await loadEvents();
       } catch (error) {
@@ -462,16 +491,20 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
             })}</ul>
           </li>;
 
-  return <main className={styles.main}>
+  // Förslag B: i telefonbredd en låg topprad (loggan, sidnamnet, språket, hjälpen och kontot) i stället för sidhuvudet.
+  return <main className={styles.main} data-compact-hub>
     <header className={styles.header}>
-      <div><p className={styles.kicker}>{copy.kicker}</p><h1>{copy.yourEvents}</h1>
-        {session && events.length > 0 && <a className={styles.createJump} href="#organizer-create-event">{copy.createJump}</a>}</div>
+      <div className={styles.title}><Link className={styles.phoneLogo} href="/" aria-label={sv.appName}><Logo size={30} /></Link>
+        <div><p className={styles.kicker}>{copy.kicker}</p><h1>{copy.yourEvents}</h1>
+        {session && events.length > 0 && <a className={styles.createJump} href="#organizer-create-event">{copy.createJump}</a>}</div></div>
       {session && <div className={styles.account}>
-        {session.superadmin && <Link href="/superadmin">{copy.superadmin}</Link>}
+        {session.superadmin && <Link className={styles.superadmin} href="/superadmin">{copy.superadmin}</Link>}
+        <LanguageSwitch language={language} className={styles.phoneLanguage} />
         <HelpButton view="EVENTS" />
-        <AccountMenu who={{ displayName: session.displayName, email: session.email }} />
+        <AccountMenu who={{ displayName: session.displayName, email: session.email }} superadmin={session.superadmin} />
       </div>}
-      {!session && <HelpButton view="EVENTS" />}
+      {!session && <div className={styles.account}><LanguageSwitch language={language} className={styles.phoneLanguage} />
+        <HelpButton view="EVENTS" /></div>}
     </header>
 
     {!sessionChecked && <section className={styles.panel} aria-live="polite"><p>{copy.checkSession}</p></section>}
@@ -528,6 +561,7 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
     {/* Översynen 2026-11-17: fyra val överst; Lägg banor öppnar panelen under valen. */}
     {session && <HubChoices clubHref={myClubHref(clubSpaces)} courseOpen={quickOpen} onCourse={() => setQuickOpen(open => !open)}
       onCreate={() => createHeadingRef.current?.focus({ preventScroll: true })} />}
+    {session && <HubNewHere />}
     {session && quickOpen && !attempt && <QuickCourse events={events} busy={busy || enteringRaceId !== undefined}
       onOpen={raceId => enterRace(raceId, "course-setting")} onCreate={(name, organisationId) => void createQuick(name, organisationId)}
       onClose={() => setQuickOpen(false)} />}
@@ -535,7 +569,7 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
     {session && <MyPlacesStrip onClubs={onClubs} clubQuestionShown={clubQuestionShown} />}
     {session && <MyPlanTasks />}
     {session && <div className={styles.columns}>
-      <section className={`${styles.panel} ${styles.events}`}>
+      <section id="dina-tavlingar" className={`${styles.panel} ${styles.events}`}>
         <div className={styles.sectionHeading}><div><h2>{copy.eventsSection}</h2><p className={styles.muted}>{copy.eventsHint}</p></div>
           <button type="button" className={styles.secondary} disabled={busy} onClick={() => void loadEvents().catch((error) => setMessage(errorMessage(copy, error)))}>{copy.refresh}</button>
         </div>

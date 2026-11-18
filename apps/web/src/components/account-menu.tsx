@@ -23,7 +23,9 @@ export function initialsOf(name: string): string {
  * Logga ut. Väntar ändringar på nät frågar menyn först. Utan inloggning visas ingenting. `who` sparar en hämtning när sidan
  * redan vet vem som är inloggad.
  */
-export function AccountMenu({ who: known, mayLeave }: { who?: Who | undefined;
+export function AccountMenu({ who: known, mayLeave, superadmin = false }: { who?: Who | undefined;
+  /** Förslag B: kontot är superadmin; länken står i menyn i telefonbredd (Mitt O-Tids överrad har den på datorn). */
+  superadmin?: boolean | undefined;
   /** Arbetsytan (användartest 2026-11-12): false = något är inte sparat; menyn stängs och sidan stannar kvar. */
   mayLeave?: (() => boolean) | undefined }) {
   const text = useTexts(accountMenuSv, accountMenuEn);
@@ -110,6 +112,7 @@ export function AccountMenu({ who: known, mayLeave }: { who?: Who | undefined;
         <Link className={styles.item} onClick={guard} href="/organizer#mina-grupper">{text.myGroups}</Link>
         <Link className={styles.item} onClick={guard} href="/organizer/map-projects">{text.myMapProjects}</Link>
         <Link className={styles.item} onClick={guard} href="/konto">{text.myAccount}</Link>
+        {superadmin && <Link className={`${styles.item} ${styles.phoneOnly}`} onClick={guard} href="/superadmin">{text.superadmin}</Link>}
       </nav>}
       <div className={styles.separator} />
       {stage !== "confirm" && <button type="button" className={styles.item} disabled={stage !== "idle"} aria-busy={stage !== "idle"}

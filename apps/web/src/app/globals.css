@@ -258,3 +258,15 @@ button.danger { border-color: #81291e; color: #81291e; }
   body:has([data-list]) > header, body:has([data-list]) main > nav, .public-list-heading { display: none; }
   body:has([data-list]) main { display: block; max-width: none; margin: 0; padding: 0; }
 }
+
+/*
+ * Förslag B (ägaren 2026-11-18, ADR-0227 tillägg): flikraden nertill för inloggade i telefonbredd (`AppTabBar`, 56 px plus
+ * skärmens nedre kant). Sidan får lika mycket luft nertill så att inget hamnar bakom raden.
+ */
+@media screen and (max-width: 640px) {
+  body:has(> [data-app-tabs]) { padding-bottom: calc(56px + max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px))); }
+}
+/* Förslag B: Mitt O-Tid har en egen låg topprad i telefonbredd; layoutens sidhuvud döljs där. */
+@media (max-width: 640px) {
+  body:has(> main[data-compact-hub]) > .site-header { display: none; }
+}

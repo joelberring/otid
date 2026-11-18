@@ -34,7 +34,10 @@
 .confirm p { margin: 0; }
 .confirm div { display: flex; flex-wrap: wrap; gap: .5rem; }
 .error { margin: 0; padding: .4rem .6rem; color: var(--mp); font-size: var(--text-sm); }
+/* Förslag B: superadminlänken bara i telefonbredd. */
+.phoneOnly { display: none; }
 @media (max-width: 640px) {
+  .phoneOnly { display: flex; }
   .name, .caret { display: none; }
   .trigger { padding: 0 .3rem; }
 }

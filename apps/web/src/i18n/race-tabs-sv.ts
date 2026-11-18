@@ -20,7 +20,7 @@ export const raceTabsSv = {
     ENTRIES: "Anmälda", PARTICIPANTS: "Deltagare", TEAMS: "Lag", START: "Start", PUBLISH: "Publicera", SECRETARIAT: "Sekretariat",
     RESULTS: "Resultat", PARTY: "Fest", PEOPLE: "Personer", SETTINGS: "Inställningar", READOUT_STATION: "Avläsning",
     PARTY_DESK: "Bardisk", SPEAKER: "Speaker", COURSE_SETTING: "Banläggning", MAP_ERRORS: "Kartfel", EXERCISE_SETUP: "Övning",
-    BINGO: "Bingo", SHIPS: "Sänka skepp", CONTROLS: "Kontroller"
+    MASTERMIND: "Mastermind", BINGO: "Bingo", SHIPS: "Sänka skepp", CONTROLS: "Kontroller"
   } satisfies Record<RaceNavLabel, string>,
   /** Namn och en rad om innehållet i listan (Mer och Byt funktion). */
   items: {
@@ -35,6 +35,7 @@ export const raceTabsSv = {
     READOUT_STATION: ["Avläsning", "Avläsningsstationen"], PARTY_DESK: ["Bardisk", "Bardisken med brickan"],
     SPEAKER: ["Speaker", "Speakerns tavla"], COURSE_SETTING: ["Banläggning", "Kartan, kontrollerna och utskriften"],
     MAP_ERRORS: ["Kartfel", "Kartfelen till banläggaren"], EXERCISE_SETUP: ["Övning i mobilen", "Bingo, Sänka skepp och virtuella kontroller"],
+    MASTERMIND: ["Mastermind med kontroller", "Lek med SI-enheter: varje färg är en kontroll, laget gissar mönstret"],
     BINGO: ["Bingo", "Ledarens sida"], SHIPS: ["Sänka skepp", "Ledarens sida"], CONTROLS: ["Virtuella kontroller", "Ledarens sida"]
   } satisfies Record<RaceNavLabel, readonly [string, string]>
 };

@@ -13,11 +13,11 @@ import { profileForRole, raceTypeProfile, visibleSections, workspacePath, type S
 export type RaceMode = "PREPARE" | "RACE_DAY";
 
 export type RaceNavKey = "courses" | "classes" | "entries" | "start" | "publish" | "secretariat" | "results" | "party" | "people" |
-  "settings" | "readout" | "speaker" | "exercise" | "courseSetting";
+  "settings" | "readout" | "speaker" | "exercise" | "mastermind" | "courseSetting";
 
 /** Namnet på en rad: arbetsytans delnamn (utom Avläsning-delen, som här heter Sekretariat) eller en egen sida. */
 export type RaceNavLabel = Exclude<SectionLabel, "READOUT"> | "SECRETARIAT" | "READOUT_STATION" | "PARTY_DESK" | "SPEAKER" |
-  "COURSE_SETTING" | "MAP_ERRORS" | "EXERCISE_SETUP" | BingoMode;
+  "COURSE_SETTING" | "MAP_ERRORS" | "EXERCISE_SETUP" | "MASTERMIND" | BingoMode;
 
 export interface RaceNavItem {
   key: RaceNavKey;
@@ -70,6 +70,9 @@ export function raceNavItems(input: RaceNavInput): RaceNavItem[] {
   const exercise = mobileExerciseLink({ raceId: input.raceId, raceType: input.raceType, admin, bingo: input.bingo });
   if (exercise) items.push({ key: "exercise", label: exercise.target === "LEADER" && exercise.mode ? exercise.mode : "EXERCISE_SETUP",
     href: exercise.href });
+  // PR #2: Mastermind med kontroller (stationen i ett eget statiskt skal, som avläsningen) i en träning; resultaten stannar i
+  // webbläsaren (ingen tabell på servern), så det är ett val för den som sköter stationen, inte en övning i mobilen.
+  if (input.raceType === "TRAINING") items.push({ key: "mastermind", label: "MASTERMIND", href: `${base}/mastermind` });
   if (input.courseSetting) items.push({ key: "courseSetting", label: input.courseSetting === "MAP" ? "MAP_ERRORS" : "COURSE_SETTING",
     href: `${base}/${input.courseSetting === "MAP" ? "course-setting/map-errors" : "course-setting"}` });
   for (const row of sections) if (row.id === "PEOPLE" || row.id === "SETTINGS") items.push(section(row.id, row.label));
@@ -101,7 +104,7 @@ export function raceNavPlacement(pathname: string): RaceNavPlacement {
   if (rest === "" || rest === "/manage") return "workspace";
   if (rest === "/speaker") return "narrow";
   // Helskärmslägen och kioskvyer: banläggningen, stationerna och avläsningen (som är ett eget statiskt skal med egen smal rad).
-  if (/^\/(course-setting|stations|readout)(\/|$)/.test(rest)) return "none";
+  if (/^\/(course-setting|stations|readout|mastermind)(\/|$)/.test(rest)) return "none";
   return "page";
 }
 
@@ -112,7 +115,7 @@ export function activeRaceNavKey(pathname: string, section?: SectionId): RaceNav
   const rest = match[2] ?? "";
   if (rest === "" || rest === "/manage") return section ? SECTION_KEYS[section] : undefined;
   const page = /^\/([^/]+)/.exec(rest)?.[1];
-  const pages: Record<string, RaceNavKey> = { readout: "readout", speaker: "speaker", bingo: "exercise", "course-setting": "courseSetting",
+  const pages: Record<string, RaceNavKey> = { readout: "readout", speaker: "speaker", bingo: "exercise", mastermind: "mastermind", "course-setting": "courseSetting",
     maps: "start", imports: "entries", "party-labels": "party", stations: "secretariat" };
   return page ? pages[page] : undefined;
 }

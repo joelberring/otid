@@ -4,7 +4,15 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 
 export const mastermindText = {
   title: "Mastermind med kontroller",
-  intro: "Varje färg är en kontroll. Börja med att läsa ut brickan: då startar spelet och klockan går från 0 (det som redan finns på brickan räknas inte). Stämpla sedan färgerna i den ordning du gissar och läs ut brickan. Klockan stannar när du läser ut gissningen som knäcker mönstret. Stämplar du fler gäller de sista. Svart pigg: rätt färg på rätt plats. Vit pigg: rätt färg på fel plats.",
+  // Joel 2026-11-18: en kort förklaring överst (hopfällbar), eftersom leken inte är en vanlig övning.
+  aboutTitle: "Så fungerar leken",
+  about: [
+    "Mastermind med kontroller är en lek med SI-enheter. Varje färg är en kontroll, och mönstret är hemligt för varje bricka.",
+    "Laget stämplar sin gissning (kontrollerna i den ordning de tror) och läser ut brickan. Svart stift: rätt färg på rätt plats. Vitt stift: rätt färg på fel plats.",
+    "Ledaren behöver kontroller som får vara färgerna (koderna ställs in nedan), en avläsningsstation via USB eller Reader BT, och brickor.",
+    "Lagets första utläsning startar klockan; utläsningen av den vinnande gissningen stoppar den. Snabbast vinner.",
+    "Flera lag kan spela samtidigt: varje bricka har sitt eget mönster, och resultaten står i tabellen."
+  ],
   station: "Station",
   connect: "Anslut station",
   connectUsb: "Anslut station (USB)",
@@ -79,14 +87,28 @@ export const mastermindText = {
   undo: "Ångra",
   clearCard: "Töm brickan",
   cardFull: "Brickan är nästan full. Töm den (Clear) innan nästa gissning.",
-  language: "In English"
+  language: "In English",
+  // Från en träning (Mer i tävlingsraden eller sidopanelen): resultaten hålls isär per träning och stannar i webbläsaren.
+  training: (name: string) => `Träning: ${name}`,
+  trainingUnknown: "Från en träning",
+  backToTraining: "‹ Till träningen",
+  trainingNote: "Resultaten sparas i den här webbläsaren för träningen, inte på servern.",
+  bluetoothUnsupported: "Webbläsaren kan inte ansluta Bluetooth-stationer. Använd Chrome eller Edge på dator eller Android.",
+  connectFailed: (detail: string) => `Stationen gick inte att ansluta (${detail}).`
 } as const;
 
 export type MastermindTexts = Texts<typeof mastermindText>;
 
 export const mastermindTextEn: MastermindTexts = {
   title: "Mastermind with controls",
-  intro: "Each colour is a control. Start by reading out your card: the game starts and the clock runs from 0 (what is already on the card does not count). Then punch the colours in the order you guess and read out your card. The clock stops when you read out the guess that cracks the pattern. If you punch more, the last ones count. Black peg: right colour in the right place. White peg: right colour in the wrong place.",
+  aboutTitle: "How the game works",
+  about: [
+    "Mastermind with controls is a game with SI units. Each colour is a control, and every card has its own secret pattern.",
+    "The team punches its guess (the controls in the order they think) and reads out the card. Black peg: right colour in the right place. White peg: right colour in the wrong place.",
+    "The leader needs controls to act as the colours (the codes are set below), a readout station via USB or Reader BT, and cards.",
+    "The team's first readout starts the clock; reading out the winning guess stops it. Fastest wins.",
+    "Several teams can play at once: every card has its own pattern, and the results are in the table."
+  ],
   station: "Station",
   connect: "Connect station",
   connectUsb: "Connect station (USB)",
@@ -161,5 +183,11 @@ export const mastermindTextEn: MastermindTexts = {
   undo: "Undo",
   clearCard: "Clear the card",
   cardFull: "The card is nearly full. Clear it before the next guess.",
-  language: "På svenska"
+  language: "På svenska",
+  training: (name: string) => `Training: ${name}`,
+  trainingUnknown: "From a training",
+  backToTraining: "‹ To the training",
+  trainingNote: "The results are saved in this browser for the training, not on the server.",
+  bluetoothUnsupported: "This browser cannot connect Bluetooth stations. Use Chrome or Edge on a computer or Android.",
+  connectFailed: (detail: string) => `The station could not be connected (${detail}).`
 };

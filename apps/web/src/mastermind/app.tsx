@@ -7,21 +7,24 @@ import {
   applyReadout, formatDuration, gameDuration, gameStatus, MAX_COLORS, MAX_POSITIONS, MIN_COLORS, MIN_POSITIONS, PALETTE, parseSavedState,
   restart, resultOf, settingsProblems, standings, type CardGame, type CardPunch, type Code, type GameSettings, type SavedState, type Score
 } from "./game";
+import { RaceSwitch } from "../readout/race-switch";
 import { StandingsTable, useElapsed } from "./standings-view";
 import { hasSerial, hasBluetooth, hasUsb, useGameStation, type CardEvent } from "./station";
 import { mastermindText, mastermindTextEn, type MastermindTexts } from "./texts";
 
 const STORAGE_KEY = "otid.mastermind.v1";
+/** Från en träning hålls spelen och resultaten isär per träning (i webbläsaren; servern sparar inget). */
+const storageKey = (raceId: string | undefined) => raceId ? `${STORAGE_KEY}.${raceId}` : STORAGE_KEY;
 const PRACTICE_CARDS = [7_000_001, 7_000_002, 7_000_003];
 type Tone = "info" | "ok" | "fail";
 
-function loadState(): SavedState {
-  try { return parseSavedState(window.localStorage.getItem(STORAGE_KEY)); }
+function loadState(key: string): SavedState {
+  try { return parseSavedState(window.localStorage.getItem(key)); }
   catch { return parseSavedState(null); }
 }
 
-function saveState(state: SavedState): void {
-  try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+function saveState(key: string, state: SavedState): void {
+  try { window.localStorage.setItem(key, JSON.stringify(state)); }
   catch (error) { console.warn("Spelet kunde inte sparas i webbläsaren", error); }
 }
 
@@ -206,15 +209,17 @@ function PracticePanel({ settings, onReadOut, t, language }: {
   );
 }
 
-export function MastermindApp({ language }: { language: Language }) {
+export function MastermindApp({ language, raceId }: { language: Language; raceId?: string | undefined }) {
   const t = language === "en" ? mastermindTextEn : mastermindText;
-  const [state, setState] = useState<SavedState>(() => loadState());
+  const key = storageKey(raceId);
+  const [state, setState] = useState<SavedState>(() => loadState(key));
+  const [training, setTraining] = useState<string>();
   const [viewing, setViewing] = useState<number | undefined>(() => state.games.at(-1)?.cardNumber);
   const [message, setMessage] = useState<{ tone: Tone; text: string } | undefined>(undefined);
   const sound = useRef(new ReadoutSound());
   const stateRef = useRef(state);
 
-  const commit = useCallback((next: SavedState) => { stateRef.current = next; setState(next); saveState(next); }, []);
+  const commit = useCallback((next: SavedState) => { stateRef.current = next; setState(next); saveState(key, next); }, [key]);
 
   // Stationen läser alltid den senaste versionen av funktionen (useGameStation håller den i en ref).
   const onCard = (event: CardEvent) => {
@@ -272,10 +277,10 @@ export function MastermindApp({ language }: { language: Language }) {
   const unlockThen = (action: () => Promise<void>) => () => { void sound.current.unlock(); void action(); };
 
   useEffect(() => {
-    const onStorage = (event: StorageEvent) => { if (event.key === STORAGE_KEY) { const next = loadState(); stateRef.current = next; setState(next); } };
+    const onStorage = (event: StorageEvent) => { if (event.key === key) { const next = loadState(key); stateRef.current = next; setState(next); } };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
-  }, []);
+  }, [key]);
 
   const game = state.games.find((g) => g.cardNumber === viewing);
   const connected = station.status.kind === "ready" || station.status.kind === "misconfigured" || station.status.kind === "connecting";
@@ -287,7 +292,14 @@ export function MastermindApp({ language }: { language: Language }) {
         <h1>{t.title}</h1>
         <a className="mm-language" href={languageHref(language === "en" ? "sv" : "en", "/mastermind/")}>{t.language}</a>
       </header>
-      <p className="mm-intro">{t.intro}</p>
+      {raceId && <p className="mm-training" data-testid="mastermind-training">
+        <a href={`/admin/${raceId}`}>{t.backToTraining}</a> <strong>{training ? t.training(training) : t.trainingUnknown}</strong>{" "}
+        <span className="mm-muted">{t.trainingNote}</span></p>}
+      {/* Öppen tills något spel finns (för träningen), sedan hopfälld så att den inte tar plats under spelet. */}
+      <details className="mm-panel mm-about" open={state.games.length === 0} data-testid="mastermind-about">
+        <summary>{t.aboutTitle}</summary>
+        <ul>{t.about.map((line) => <li key={line}>{line}</li>)}</ul>
+      </details>
 
       <section className="mm-panel" aria-label={t.station}>
         <div className="mm-actions">
@@ -347,6 +359,9 @@ export function MastermindApp({ language }: { language: Language }) {
           if (window.confirm(t.forgetConfirm)) { commit({ ...stateRef.current, games: [], results: [] }); setViewing(undefined); setMessage(undefined); }
         }}>{t.forget}</button>}
       </section>
+      {raceId && <RaceSwitch raceId={raceId} connected={connected} onContext={(context) =>
+        setTraining(context.raceName === context.eventName ? context.eventName : `${context.eventName} – ${context.raceName}`)}
+        current={{ key: "mastermind", label: "MASTERMIND", href: `/admin/${raceId}/mastermind` }} />}
     </main>
   );
 }

@@ -32,6 +32,12 @@ describe("tävlingsraden", () => {
     const bingo = raceNavigation(admin("TRAINING", { bingo: { enabled: true, mode: "SHIPS" } }), "RACE_DAY");
     expect(bingo.tabs.map(item => item.key)).toEqual(["readout", "secretariat", "results", "exercise"]);
     expect(bingo.tabs[3]).toMatchObject({ label: "SHIPS", href: `${RACE}/bingo` });
+    // PR #2: Mastermind med kontroller under Mer i en träning (också för funktionären som sköter stationen), inte i andra typer.
+    expect(prepare.more.find(item => item.key === "mastermind")).toMatchObject({ label: "MASTERMIND", href: `${RACE}/mastermind` });
+    expect(raceNavigation(functionary("TRAINING"), "RACE_DAY").more.map(item => item.key)).toContain("mastermind");
+    for (const type of ["STANDARD", "SMALL", "RELAY", "ROGAINING", "PARTY"] as const) {
+      expect(raceNavigation(admin(type), "RACE_DAY").all.some(item => item.key === "mastermind"), type).toBe(false);
+    }
   });
 
   it("specialtyperna får bara sidor som finns", () => {
@@ -46,7 +52,7 @@ describe("tävlingsraden", () => {
   });
 
   it("funktionären ser bara det rollen får använda", () => {
-    const allowed = new Set(["start", "secretariat", "party", "readout", "speaker", "courseSetting"]);
+    const allowed = new Set(["start", "secretariat", "party", "readout", "speaker", "mastermind", "courseSetting"]);
     for (const type of ["TRAINING", "SMALL", "STANDARD", "RELAY", "ROGAINING", "PARTY"] as const) {
       for (const mode of ["PREPARE", "RACE_DAY"] as const) {
         const nav = raceNavigation(functionary(type), mode);
@@ -81,11 +87,12 @@ describe("tävlingsraden", () => {
     expect(raceNavPlacement(RACE)).toBe("workspace");
     expect(raceNavPlacement(`${RACE}/speaker`)).toBe("narrow");
     for (const page of ["maps", "imports", "bingo", "party-labels"]) expect(raceNavPlacement(`${RACE}/${page}`), page).toBe("page");
-    for (const page of ["course-setting", "course-setting/print", "stations", "readout"]) expect(raceNavPlacement(`${RACE}/${page}`), page).toBe("none");
+    for (const page of ["course-setting", "course-setting/print", "stations", "readout", "mastermind"]) expect(raceNavPlacement(`${RACE}/${page}`), page).toBe("none");
     expect(raceNavPlacement("/organizer")).toBe("none");
     expect(activeRaceNavKey(`${RACE}/manage`, "READOUT")).toBe("secretariat");
     expect(activeRaceNavKey(`${RACE}/manage`)).toBeUndefined();
     expect(activeRaceNavKey(`${RACE}/speaker`)).toBe("speaker");
+    expect(activeRaceNavKey(`${RACE}/mastermind`)).toBe("mastermind");
     expect(activeRaceNavKey(`${RACE}/maps`)).toBe("start");
     expect(activeRaceNavKey(`${RACE}/imports`)).toBe("entries");
     expect(activeRaceNavKey(`${RACE}/bingo`)).toBe("exercise");

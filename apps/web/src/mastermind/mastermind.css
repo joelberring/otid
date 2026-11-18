@@ -6,7 +6,6 @@ body { margin: 0; background: var(--canvas); color: var(--ink); font-family: var
 .mm-header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .mm-header h1 { font-size: var(--text-xl); margin: 8px 0; }
 .mm-language { color: var(--accent); font-size: var(--text-sm); }
-.mm-intro { color: var(--muted); max-width: 70ch; margin: 0 0 16px; }
 h2 { font-size: var(--text-lg); margin: 0 0 8px; }
 
 .mm-panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
@@ -99,3 +98,12 @@ select, input[type="number"] {
 .mm-code input { width: 72px; }
 .mm-problems { color: var(--mp); font-size: var(--text-sm); margin: 12px 0 0; padding-left: 20px; }
 .mm-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Från en träning: vägen tillbaka och träningens namn; i telefonbredd dessutom den smala raden nertill (Byt funktion). */
+.mm-training { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: 0 0 12px; }
+.mm-training a { display: inline-flex; align-items: center; min-height: 44px; color: var(--accent); font-weight: 600; }
+@media screen and (max-width: 640px) {
+  body:has([data-race-tabs]) { padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
+}
+.mm-about ul { margin: 8px 0 0; padding-left: 20px; max-width: 75ch; }
+.mm-about li { margin: 4px 0; }

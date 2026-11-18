@@ -25,8 +25,13 @@ export type CardEvent =
   | { readonly kind: "failed"; readonly cardNumber: number }
   | { readonly kind: "unsupported"; readonly cardNumber: number };
 
+/** Webbläsarens väljare stängdes utan val: inget fel. Allt annat (nekat, Bluetooth av, porten upptagen) visas. */
+const cancelled = (error: unknown) => error instanceof Error && error.name === "NotFoundError";
+const detail = (error: unknown) => error instanceof Error ? error.message : String(error);
+
 export function useGameStation(onCard: (event: CardEvent) => void, messages: {
-  serialFailed: string; serialUnsupported: string; usbUnsupported: string; bluetoothFailed: string; bluetoothLost: string
+  serialFailed: string; serialUnsupported: string; usbUnsupported: string; bluetoothUnsupported: string; bluetoothFailed: string;
+  bluetoothLost: string; connectFailed: (detail: string) => string
 }) {
   const [status, setStatus] = useState<StationStatus>({ kind: "disconnected" });
   const [practice, setPractice] = useState<FakeStationTransport | undefined>(undefined);
@@ -48,6 +53,12 @@ export function useGameStation(onCard: (event: CardEvent) => void, messages: {
     return controller.start();
   }, []);
 
+  function failed(error: unknown) {
+    if (cancelled(error)) { setStatus({ kind: "disconnected" }); return; }
+    console.warn("Stationen kunde inte anslutas", error);
+    setStatus({ kind: "error", message: messages.connectFailed(detail(error)) });
+  }
+
   async function connectPort(port: WebSerialPortLike): Promise<boolean> {
     setPractice(undefined);
     for (const baudRate of BAUD_RATES) {
@@ -61,8 +72,11 @@ export function useGameStation(onCard: (event: CardEvent) => void, messages: {
   async function connectSerial() {
     const serial = (navigator as SerialNavigator).serial;
     if (!serial) { setStatus({ kind: "error", message: messages.serialUnsupported }); return; }
-    try { await connectPort(await serial.requestPort()); }
-    catch { setStatus({ kind: "disconnected" }); }
+    let port: WebSerialPortLike;
+    try { port = await serial.requestPort(); }
+    catch (error) { failed(error); return; }
+    try { await connectPort(port); }
+    catch (error) { await controllerRef.current?.stop(); failed(error); }
   }
 
   async function connectUsb() {
@@ -70,17 +84,18 @@ export function useGameStation(onCard: (event: CardEvent) => void, messages: {
     if (!usb) { setStatus({ kind: "error", message: messages.usbUnsupported }); return; }
     let device: UsbStation;
     try { device = await usb.requestDevice({ filters: CP210X_USB_FILTERS }); }
-    catch { setStatus({ kind: "disconnected" }); return; }
-    await connectPort(new WebUsbCp210xPort(device, usb));
+    catch (error) { failed(error); return; }
+    try { await connectPort(new WebUsbCp210xPort(device, usb)); }
+    catch (error) { await controllerRef.current?.stop(); failed(error); }
   }
 
   /** Reader BT: webbläsaren frågar efter stationen varje gång (ingen automatisk anslutning). */
   async function connectBluetooth() {
     const bluetooth = (navigator as BluetoothNavigator).bluetooth;
-    if (!bluetooth) { setStatus({ kind: "error", message: messages.serialUnsupported }); return; }
+    if (!bluetooth) { setStatus({ kind: "error", message: messages.bluetoothUnsupported }); return; }
     let device;
     try { device = await bluetooth.requestDevice(READER_BT_REQUEST); }
-    catch { setStatus({ kind: "disconnected" }); return; }
+    catch (error) { failed(error); return; }
     setPractice(undefined);
     if (!(await attach(new ReaderBtController(device, callbacks, { lostMessage: messages.bluetoothLost })))) {
       controllerRef.current = undefined;

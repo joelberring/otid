@@ -184,18 +184,25 @@ export const mapSourcesEn: Texts<Sources> = {
   account: mapSourcesAccountEn,
   ortho: mapSourcesOrthoEn,
   photo: {
-    heading: "Interpret aerial photo (bare rock, open land)",
-    help: "A first attempt: an orthophoto that is a base layer is interpreted here in the browser. Grey and light areas become bare rock (214), light green and even areas open land (401). "
-      + "Only broad areas count. Dry grass, gravel and roofs can become bare rock, so go through the suggestions before you put them in. "
-      + "If the orthophoto has near infrared (newer images from Lantmäteriet) there is also a base layer ending in \u00ab– IR\u00bb; it is interpreted instead, and rock is told from dry grass by how much living vegetation the surface has.",
+    heading: "Interpret aerial photo (bare rock, glades)",
+    help: "The laser run gives the shape and edge: open is where vegetation is lower than 1.5 m. The orthophoto says what the surface is, compared with the rest of the same image: "
+      + "a gap with living tree crowns in the photo is no glade, and the dry open land with the least greenery becomes bare rock (214), the rest open land (403). "
+      + "It needs a finished laser run and works best with the orthophoto's false-colour image (the base layer ending in «– IR»). Go through the suggestions before you put them in.",
     none: "No visible base layer. Fetch an orthophoto above and keep it shown.",
     layer: "Base layer",
     run: "Interpret the photo",
+    loading: "Reading the laser run …",
+    rockShare: (percent: number) => percent === 0 ? "Bare rock: none (all open land becomes glade)" : `Bare rock: the dry open land with the least greenery (${percent} % of the image)`,
+    rockShareHelp: "The line between rock and glade is often fluid. Low gives more yellow, high more grey. The default 10 % is measured against Tyresta.",
     name: (layer: string) => `${layer} – photo interpretation`.slice(0, 120),
     done: (rock: number, open: number) => `${rock} ha bare rock and ${open} ha open land are shown as a draft on the map. Add it in the row below the map.`,
-    nothing: "No broad grey or light green areas were found in the photo.",
+    noInfrared: "The image has no near infrared, so only the laser's open land is shown and no rock. Choose the base layer ending in «– IR».",
+    noLaser: "The interpretation needs a finished laser run with the vegetation height (geo worker version 12 or later). Run the laser first.",
+    notSweref: "The interpretation with the laser needs the map to be in SWEREF 99 TM.",
+    nothing: "No open areas were found in the image.",
     failed: "The photo could not be interpreted."
   },
+
   depth: {
     heading: "Moisture with sliders (wet and moist)",
     help: "The laser run's moisture depth (height above the nearest moisture channel) is read here. Drag the limits: the areas show at once as a draft on the map, "

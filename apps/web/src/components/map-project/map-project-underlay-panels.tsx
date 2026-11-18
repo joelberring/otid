@@ -83,7 +83,7 @@ export function MapProjectBaseMapPanel({ view, georeference, bounds, areas, laye
       <MapProjectDepthPanel view={view} bounds={bounds} layers={layers} georeference={georeference} importer={importer} />
       <MapProjectRockPanel layers={layers} georeference={georeference} importer={importer} />
       <MapProjectClearCutPanel view={view} layers={layers} georeference={georeference} bounds={bounds} areas={areas} importer={importer} />
-      <MapProjectPhotoPanel layers={layers} georeference={georeference} importer={importer} />
+      <MapProjectPhotoPanel view={view} layers={layers} georeference={georeference} importer={importer} />
     </MapProjectStep>
     <p className={styles.then} data-testid="map-project-steps-then">{steps.then}</p>
   </section>;

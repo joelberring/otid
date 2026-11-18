@@ -49,18 +49,25 @@ export const mapSourcesSv = {
   },
   /** K5c: SLU:s markfuktighetskarta som underlag. */
   photo: {
-    heading: "Tolka flygbild (berg i dagen, öppen mark)",
-    help: "Ett första försök: ett ortofoto som ligger som underlag tolkas här i webbläsaren. Grå och ljusa ytor blir berg i dagen (214), ljusgröna och jämna ytor öppen mark (401). "
-      + "Bara breda ytor räknas. Torrt gräs, grus och tak kan bli berg i dagen, så gå igenom förslagen innan du lägger in dem. "
-      + "Har ortofotot nära infrarött (nyare bilder från Lantmäteriet) finns också ett underlag som slutar på «– IR»; då tolkas det i stället, och berg skiljs från torrt gräs med hur mycket levande växtlighet ytan har.",
+    heading: "Tolka flygbild (berg i dagen, gläntor)",
+    help: "Laserkörningen ger formen och kanten: öppet är där vegetationen är lägre än 1,5 m. Ortofotot säger vad ytan är, jämfört med resten av samma bild: "
+      + "en lucka med levande trädkronor i bilden blir ingen glänta, och den torra öppna marken med minst grönska blir berg i dagen (214), resten öppen mark (403). "
+      + "Tolkningen kräver en klar laserkörning och fungerar bäst med ortofotots falskfärgsbild (underlaget som slutar på «– IR»). Gå igenom förslagen innan du lägger in dem.",
     none: "Inget synligt underlag. Hämta ett ortofoto ovan och låt det vara tänt.",
     layer: "Underlag",
     run: "Tolka flygbilden",
+    loading: "Läser laserkörningen …",
+    rockShare: (percent: number) => percent === 0 ? "Berg i dagen: inget (allt öppet blir glänta)" : `Berg i dagen: den torra öppna mark som har minst grönska (${percent} % av bilden)`,
+    rockShareHelp: "Gränsen mellan häll och glänta är ofta flytande. Lågt ger mer gult, högt mer grått. Förvalet 10 % är mätt mot Tyresta.",
     name: (layer: string) => `${layer} – flygbildstolkning`.slice(0, 120),
     done: (rock: number, open: number) => `${String(rock).replace(".", ",")} ha berg i dagen och ${String(open).replace(".", ",")} ha öppen mark visas som utkast på kartan. Lägg in det i raden under kartan.`,
-    nothing: "Inga breda grå eller ljusgröna ytor hittades i bilden.",
+    noInfrared: "Bilden saknar nära infrarött, så bara laserns öppna mark visas och inget berg. Välj underlaget som slutar på «– IR».",
+    noLaser: "Tolkningen behöver en klar laserkörning med vegetationshöjden (geo-arbetarens version 12 eller senare). Kör lasern först.",
+    notSweref: "Tolkningen med lasern kräver att kartan ligger i SWEREF 99 TM.",
+    nothing: "Inga öppna ytor hittades i bildrutan.",
     failed: "Flygbilden kunde inte tolkas."
   },
+
   depth: {
     heading: "Fukt med reglage (blött och fuktigt)",
     help: "Laserkörningens fuktdjup (höjden över närmaste fuktstråk) läses här. Dra i gränserna: ytorna visas direkt som utkast på kartan, "

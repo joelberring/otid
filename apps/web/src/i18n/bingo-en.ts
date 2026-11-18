@@ -51,8 +51,6 @@ export const bingoEn: Texts<typeof bingoSv> = {
     racePage: "To the event page",
     hubTitle: "Bingo: sign up and start",
     hubHelp: "The phone counts the squares with GPS and pings for each square.",
-    hubShipsTitle: "Battleships: sign up and start",
-    hubShipsHelp: "Fire at the square you are in; the phone takes a position for each shot.",
     hubCta: { BINGO: "Sign up and start the bingo", SHIPS: "Sign up and start Battleships", CONTROLS: "Sign up and start" },
     hubCtaHelp: "Enter your name, choose your group and press Start.",
     hubRules: "Rules",

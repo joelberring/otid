@@ -10,7 +10,7 @@ export function publicStartListValue(result: Awaited<ReturnType<typeof getPublic
 }
 
 /**
- * Startlistan ur cachen per tävlingsversion (steg 51, `cachedPublicStartList`): bara validerad data, gzip och ETag,
+ * Startlistan ur cachen per tävlingsversion (steg 51, `cachedPublicStartList`): bara validerad data och ETag,
  * aldrig i en delad cache. Fel ger 503 utan innehåll, ingen lista 404.
  */
 export async function cachedPublicStartListRoute(request: Request,

@@ -88,7 +88,8 @@ export const userAccountLoginThrottles = pgTable("user_account_login_throttle", 
 export const ACCOUNT_REQUEST_THROTTLE_SCOPES = ["REGISTER_IP", "RESET_IP", "RESET_EMAIL", "SELF_REGISTRATION_IP", "SELF_REGISTRATION_RACE",
   "VERIFY_EMAIL", "GROUP_CODE_IP", "MAP_LINK_IP", "MAP_LINK_TOKEN", "INVITATION_RECIPIENT_HOUR", "INVITATION_RECIPIENT_DAY",
   "INVITATION_ISSUER_HOUR", "INVITATION_ISSUER_DAY", "OAUTH_REGISTER_IP", "OAUTH_TOKEN_IP", "MCP_JOB_ACCOUNT",
-  "MAP_SOURCE_ACCOUNT", "GUEST_DEMO_IP", "BINGO_IP", "BINGO_RACE"] as const;
+  "MAP_SOURCE_ACCOUNT", "GUEST_DEMO_IP", "BINGO_IP", "BINGO_RACE",
+  "MASTERMIND_IP", "MASTERMIND_RACE"] as const;
 export type AccountRequestThrottleScope = typeof ACCOUNT_REQUEST_THROTTLE_SCOPES[number];
 
 /** Spärr mot upprepade registreringar och återställningsförfrågningar; nyckeln (IP eller e-post) lagras hashad. */

@@ -50,6 +50,12 @@ export const mastermindText = {
   scoreLabel: (exact: number, colorOnly: number) => `${exact} svarta, ${colorOnly} vita`,
   secret: "Hemligt mönster",
   newGame: "Nytt spel för brickan",
+  // Arrangörens dator: avbryt ett spel som pågår (räknas inte, nästa utläsning startar ett nytt).
+  abort: "Avbryt",
+  abortGame: "Avbryt spelet",
+  abortFor: (team: string) => `Avbryt spelet för ${team}`,
+  abortConfirm: (team: string) => `Avbryta spelet för ${team}? Det räknas inte i resultaten, och brickans nästa utläsning startar ett nytt spel.`,
+  aborted: (team: string) => `Spelet för ${team} är avbrutet. Nästa utläsning av brickan startar ett nytt spel.`,
   results: "Resultat",
   resultsNote: "Tiden går från lagets första utläsning till utläsningen av gissningen som knäckte mönstret. Snabbast först; vid lika tid vinner färre gissningar.",
   place: "Plac.",
@@ -88,11 +94,28 @@ export const mastermindText = {
   clearCard: "Töm brickan",
   cardFull: "Brickan är nästan full. Töm den (Clear) innan nästa gissning.",
   language: "In English",
-  // Från en träning (Mer i tävlingsraden eller sidopanelen): resultaten hålls isär per träning och stannar i webbläsaren.
+  // Från en träning (Mer i tävlingsraden eller sidopanelen): resultaten hålls isär per träning och sparas på servern (ADR-0228).
   training: (name: string) => `Träning: ${name}`,
   trainingUnknown: "Från en träning",
   backToTraining: "‹ Till träningen",
-  trainingNote: "Resultaten sparas i den här webbläsaren för träningen, inte på servern.",
+  sync: {
+    saved: "Resultaten är sparade på servern och syns på tävlingssidan under träningsdagen.",
+    pending: "Sparar på servern …",
+    offline: "Inget nät: resultaten sparas här och skickas när nätet är tillbaka.",
+    unauthorized: "Inte inloggad: resultaten sparas bara i den här webbläsaren. Logga in för att spara dem på servern.",
+    failed: "Servern tog inte emot resultaten; försöker igen. De är sparade här.",
+    closed: "Spela på egen dator är inte öppet just nu; spelen sparas bara här."
+  },
+  // "Spela på egen dator" (ADR-0228): administratörens val och sidan som öppnas från tävlingssidan.
+  stations: {
+    label: "Låt lagen spela på egen dator",
+    help: "Tävlingssidan får knappen ”Spela på den här datorn” under träningsdagen. Datorn behöver en avläsningsstation.",
+    on: "Lagen kan spela på egen dator (knappen på tävlingssidan).",
+    failed: "Det gick inte att ändra. Bara administratören kan slå på och av det.",
+    back: "‹ Till tävlingssidan",
+    loading: "Hämtar träningen …",
+    closed: "Spela på egen dator är inte öppet för den här träningen just nu. Fråga arrangören."
+  },
   bluetoothUnsupported: "Webbläsaren kan inte ansluta Bluetooth-stationer. Använd Chrome eller Edge på dator eller Android.",
   connectFailed: (detail: string) => `Stationen gick inte att ansluta (${detail}).`
 } as const;
@@ -146,6 +169,11 @@ export const mastermindTextEn: MastermindTexts = {
   scoreLabel: (exact: number, colorOnly: number) => `${exact} black, ${colorOnly} white`,
   secret: "Secret pattern",
   newGame: "New game for this card",
+  abort: "Abort",
+  abortGame: "Abort the game",
+  abortFor: (team: string) => `Abort the game for ${team}`,
+  abortConfirm: (team: string) => `Abort the game for ${team}? It does not count in the results, and the card's next readout starts a new game.`,
+  aborted: (team: string) => `The game for ${team} is aborted. The card's next readout starts a new game.`,
   results: "Results",
   resultsNote: "The time runs from the team's first readout to the readout of the guess that cracked the pattern. Fastest first; on equal time, fewer guesses wins.",
   place: "Place",
@@ -187,7 +215,23 @@ export const mastermindTextEn: MastermindTexts = {
   training: (name: string) => `Training: ${name}`,
   trainingUnknown: "From a training",
   backToTraining: "‹ To the training",
-  trainingNote: "The results are saved in this browser for the training, not on the server.",
+  sync: {
+    saved: "The results are saved on the server and shown on the race page on the day of the training.",
+    pending: "Saving on the server …",
+    offline: "No network: the results are kept here and sent when the network is back.",
+    unauthorized: "Not logged in: the results are saved only in this browser. Log in to save them on the server.",
+    failed: "The server did not accept the results; trying again. They are kept here.",
+    closed: "Playing on your own computer is not open right now; the games are kept only here."
+  },
+  stations: {
+    label: "Let teams play on their own computer",
+    help: "The race page gets the button “Play on this computer” on the day of the training. The computer needs a readout station.",
+    on: "Teams can play on their own computer (the button on the race page).",
+    failed: "That did not work. Only the administrator can switch it on and off.",
+    back: "‹ To the race page",
+    loading: "Fetching the training …",
+    closed: "Playing on your own computer is not open for this training right now. Ask the organiser."
+  },
   bluetoothUnsupported: "This browser cannot connect Bluetooth stations. Use Chrome or Edge on a computer or Android.",
   connectFailed: (detail: string) => `The station could not be connected (${detail}).`
 };

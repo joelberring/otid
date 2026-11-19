@@ -4,23 +4,28 @@ import { ReadoutSound } from "../readout/sound";
 import type { StationStatus } from "../readout/station";
 import { languageHref, type Language } from "../lib/language";
 import {
-  applyReadout, formatDuration, gameDuration, gameStatus, MAX_COLORS, MAX_POSITIONS, MIN_COLORS, MIN_POSITIONS, PALETTE, parseSavedState,
-  restart, resultOf, settingsProblems, standings, type CardGame, type CardPunch, type Code, type GameSettings, type SavedState, type Score
-} from "./game";
+  abandonGame, applyReadout, currentGame, isPlaying, formatDuration, gameDuration, gameStatus, MASTERMIND_NAME_MAX, MAX_COLORS, MAX_GUESSES, MAX_POSITIONS, MIN_COLORS,
+  MIN_POSITIONS, PALETTE, restart, settingsProblems, standings, teamName, type CardGame, type CardPunch, type Code, type GameSettings, type MastermindState,
+  type Score
+} from "@o-tid/domain/mastermind";
 import { RaceSwitch } from "../readout/race-switch";
 import { StandingsTable, useElapsed } from "./standings-view";
+import { EMPTY_SAVED, parseSavedState, upsertGame, type SavedState } from "./saved-state";
+import { accountCsrf } from "../readout/api";
+import { setOpenStations, useMastermindSync, type SyncInfo, type SyncStatus } from "./server-sync";
 import { hasSerial, hasBluetooth, hasUsb, useGameStation, type CardEvent } from "./station";
 import { mastermindText, mastermindTextEn, type MastermindTexts } from "./texts";
 
 const STORAGE_KEY = "otid.mastermind.v1";
-/** Från en träning hålls spelen och resultaten isär per träning (i webbläsaren; servern sparar inget). */
-const storageKey = (raceId: string | undefined) => raceId ? `${STORAGE_KEY}.${raceId}` : STORAGE_KEY;
+/** Från en träning hålls spelen och resultaten isär per träning; de skickas också till servern (ADR-0228). */
+const storageKey = (raceId: string | undefined, station: boolean) =>
+  raceId ? `${STORAGE_KEY}.${station ? "spela." : ""}${raceId}` : STORAGE_KEY;
 const PRACTICE_CARDS = [7_000_001, 7_000_002, 7_000_003];
 type Tone = "info" | "ok" | "fail";
 
 function loadState(key: string): SavedState {
   try { return parseSavedState(window.localStorage.getItem(key)); }
-  catch { return parseSavedState(null); }
+  catch { return EMPTY_SAVED; }
 }
 
 function saveState(key: string, state: SavedState): void {
@@ -134,7 +139,7 @@ function SettingsPanel({ settings, onChange, t, language }: { settings: GameSett
           </select>
         </label>
         <label>{t.maxGuesses}
-          <input type="number" min={1} max={20} value={Number.isNaN(draft.maxGuesses) ? "" : draft.maxGuesses}
+          <input type="number" min={1} max={MAX_GUESSES} value={Number.isNaN(draft.maxGuesses) ? "" : draft.maxGuesses}
             onChange={(event) => update({ ...draft, maxGuesses: number(event.target.value) })} />
         </label>
         <label className="mm-check">
@@ -209,9 +214,40 @@ function PracticePanel({ settings, onReadOut, t, language }: {
   );
 }
 
-export function MastermindApp({ language, raceId }: { language: Language; raceId?: string | undefined }) {
+/** Var resultaten finns: sparade på servern, väntar på nätet, eller bara här (inte inloggad). */
+function SyncNote({ status, t }: { status: SyncStatus | undefined; t: MastermindTexts }) {
+  if (!status) return null;
+  return <span className={`mm-muted mm-sync mm-sync-${status}`} role="status" data-testid="mastermind-sync">{t.sync[status]}</span>;
+}
+
+/**
+ * Administratören slår på "Spela på egen dator" (knappen på tävlingssidan); funktionären ser bara om det är på.
+ */
+function OpenStations({ raceId, info, onChange, t }: { raceId: string; info: Extract<SyncInfo, { mode: "staff" }>;
+  onChange: (info: SyncInfo) => void; t: MastermindTexts }) {
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  // Valet syns direkt; går ändringen inte igenom visas serverns läge igen.
+  const [wanted, setWanted] = useState<boolean>();
+  if (!info.canOpen) return info.openStations ? <span className="mm-muted" data-testid="mastermind-stations">{t.stations.on}</span> : null;
+  return <span className="mm-stations" data-testid="mastermind-stations">
+    <label className="mm-check">
+      <input type="checkbox" checked={wanted ?? info.openStations} disabled={busy} onChange={(event) => {
+        const open = event.target.checked;
+        setBusy(true); setFailed(false); setWanted(open);
+        void setOpenStations(raceId, open, { fetch: (...args) => fetch(...args), csrf: accountCsrf }).then((outcome) => {
+          if (outcome.kind === "ok") onChange(outcome.info); else setFailed(true);
+        }).finally(() => { setBusy(false); setWanted(undefined); });
+      }} />
+      {t.stations.label}
+    </label>{" "}
+    <span className="mm-muted">{failed ? t.stations.failed : t.stations.help}</span>
+  </span>;
+}
+
+export function MastermindApp({ language, raceId, station: publicStation = false }: { language: Language; raceId?: string | undefined; station?: boolean }) {
   const t = language === "en" ? mastermindTextEn : mastermindText;
-  const key = storageKey(raceId);
+  const key = storageKey(raceId, publicStation);
   const [state, setState] = useState<SavedState>(() => loadState(key));
   const [training, setTraining] = useState<string>();
   const [viewing, setViewing] = useState<number | undefined>(() => state.games.at(-1)?.cardNumber);
@@ -219,7 +255,18 @@ export function MastermindApp({ language, raceId }: { language: Language; raceId
   const sound = useRef(new ReadoutSound());
   const stateRef = useRef(state);
 
-  const commit = useCallback((next: SavedState) => { stateRef.current = next; setState(next); saveState(key, next); }, [key]);
+  /** En ändring på den här datorn: versionen räknas upp så att den skickas till servern. */
+  const commit = useCallback((next: MastermindState) => {
+    const saved: SavedState = { ...next, version: stateRef.current.version + 1, acked: stateRef.current.acked };
+    stateRef.current = saved; setState(saved); saveState(key, saved);
+  }, [key]);
+  /** Serverns läge inslaget (`useMastermindSync`): ingen ny version. */
+  const applyServer = useCallback((next: SavedState) => { stateRef.current = next; setState(next); saveState(key, next); }, [key]);
+  const sync = useMastermindSync(raceId, publicStation ? "station" : "staff", state.version, state.acked, () => stateRef.current, applyServer);
+  // "Spela på egen dator": spelet startar först när träningens inställningar har kommit från servern.
+  const stationInfo = sync.info?.mode === "station" ? sync.info : undefined;
+  const staffInfo = sync.info?.mode === "staff" ? sync.info : undefined;
+  const ready = !publicStation || (stationInfo !== undefined && sync.status !== "closed");
 
   // Stationen läser alltid den senaste versionen av funktionen (useGameStation håller den i en ref).
   const onCard = (event: CardEvent) => {
@@ -231,12 +278,9 @@ export function MastermindApp({ language, raceId }: { language: Language; raceId
 
   function readCard(card: SiCardData) {
     const current = stateRef.current;
-    const existing = current.games.find((game) => game.cardNumber === card.cardNumber);
-    const outcome = applyReadout(existing, card.cardNumber, cardPunches(card), current.settings, new Date());
-    const games = [...current.games.filter((game) => game.cardNumber !== card.cardNumber), outcome.game];
-    // Ett spel som just tog slut går in i statistiken (en gång: nästa utläsning startar ett nytt spel).
-    const result = outcome.kind === "guessed" ? resultOf(outcome.game) : undefined;
-    commit({ ...current, games, results: result ? [...current.results, result] : current.results });
+    const outcome = applyReadout(currentGame(current.games, card.cardNumber), card.cardNumber, cardPunches(card), current.settings, new Date());
+    // Avgjorda spel ligger kvar i listan (statistiken); nästa utläsning av brickan startar ett nytt.
+    commit({ ...current, games: upsertGame(current.games, outcome.game) });
     setViewing(card.cardNumber);
     const full = card.punches.length + outcome.game.settings.positions > CARD_LAYOUTS[card.cardType].maxPunches ? ` ${t.cardFull}` : "";
     if (outcome.kind === "started") {
@@ -266,11 +310,22 @@ export function MastermindApp({ language, raceId }: { language: Language; raceId
     return t.won(game.guesses.length) + (duration === undefined ? "" : ` ${t.wonTime(formatDuration(duration))}`);
   }
 
+  /** Arrangörens dator: avbryter ett spel som pågår, efter en bekräftelse. Når servern och andra datorer som vanligt. */
+  function abort(gameId: string) {
+    const current = stateRef.current;
+    const target = current.games.find((item) => item.id === gameId);
+    if (!target || !isPlaying(target)) return;
+    const team = teamName(current.names, target.cardNumber) ?? t.card(target.cardNumber);
+    if (!window.confirm(t.abortConfirm(team))) return;
+    commit({ ...current, games: upsertGame(current.games, abandonGame(target, new Date())) });
+    setMessage({ tone: "info", text: t.aborted(team) });
+  }
+  const canAbort = raceId !== undefined && !publicStation;
+
   function setName(cardNumber: number, name: string) {
     const current = stateRef.current;
-    const names = { ...current.names };
-    if (name.trim()) names[String(cardNumber)] = name; else delete names[String(cardNumber)];
-    commit({ ...current, names });
+    // Ett tomt namn står kvar med sin tid, så att borttagningen också når servern och andra datorer.
+    commit({ ...current, names: { ...current.names, [String(cardNumber)]: { name, at: new Date().toISOString() } } });
   }
 
   const station = useGameStation(onCard, t);
@@ -282,9 +337,13 @@ export function MastermindApp({ language, raceId }: { language: Language; raceId
     return () => window.removeEventListener("storage", onStorage);
   }, [key]);
 
-  const game = state.games.find((g) => g.cardNumber === viewing);
+  const game = viewing === undefined ? undefined : currentGame(state.games, viewing);
   const connected = station.status.kind === "ready" || station.status.kind === "misconfigured" || station.status.kind === "connecting";
-  const rows = standings(state.results, state.games);
+  const rows = standings(state.games);
+  const names = Object.fromEntries(Object.keys(state.names).flatMap((card) => {
+    const name = teamName(state.names, Number(card));
+    return name ? [[card, name]] : [];
+  }));
 
   return (
     <main className="mm-app">
@@ -292,9 +351,15 @@ export function MastermindApp({ language, raceId }: { language: Language; raceId
         <h1>{t.title}</h1>
         <a className="mm-language" href={languageHref(language === "en" ? "sv" : "en", "/mastermind/")}>{t.language}</a>
       </header>
-      {raceId && <p className="mm-training" data-testid="mastermind-training">
+      {raceId && !publicStation && <p className="mm-training" data-testid="mastermind-training">
         <a href={`/admin/${raceId}`}>{t.backToTraining}</a> <strong>{training ? t.training(training) : t.trainingUnknown}</strong>{" "}
-        <span className="mm-muted">{t.trainingNote}</span></p>}
+        <SyncNote status={sync.status} t={t} />
+        {staffInfo && <> <OpenStations raceId={raceId} info={staffInfo} onChange={sync.setInfo} t={t} /></>}</p>}
+      {raceId && publicStation && <p className="mm-training" data-testid="mastermind-training">
+        {stationInfo && <><a href={`/t/${stationInfo.shortCode}`}>{t.stations.back}</a>{" "}
+          <strong>{t.training(stationInfo.raceName === stationInfo.eventName ? stationInfo.eventName : `${stationInfo.eventName} – ${stationInfo.raceName}`)}</strong>{" "}</>}
+        {sync.status === "closed" ? <span className="mm-muted" role="status">{t.stations.closed}</span>
+          : stationInfo ? <SyncNote status={sync.status} t={t} /> : <span className="mm-muted" role="status">{t.stations.loading}</span>}</p>}
       {/* Öppen tills något spel finns (för träningen), sedan hopfälld så att den inte tar plats under spelet. */}
       <details className="mm-panel mm-about" open={state.games.length === 0} data-testid="mastermind-about">
         <summary>{t.aboutTitle}</summary>
@@ -302,13 +367,13 @@ export function MastermindApp({ language, raceId }: { language: Language; raceId
       </details>
 
       <section className="mm-panel" aria-label={t.station}>
-        <div className="mm-actions">
+        {ready && <div className="mm-actions">
           {!connected && hasSerial && <button type="button" className="mm-button mm-primary" onClick={unlockThen(station.connectSerial)}>{t.connect}</button>}
           {!connected && hasUsb && <button type="button" className="mm-button" onClick={unlockThen(station.connectUsb)}>{t.connectUsb}</button>}
           {!connected && hasBluetooth && <button type="button" className="mm-button" onClick={unlockThen(station.connectBluetooth)}>{t.connectBluetooth}</button>}
           {!connected && <button type="button" className="mm-button" onClick={unlockThen(station.connectPractice)}>{t.practice}</button>}
           {connected && <button type="button" className="mm-button" onClick={() => void station.disconnect()}>{t.disconnect}</button>}
-        </div>
+        </div>}
         <p className={`mm-status mm-status-${station.status.kind}`} role="status">{statusText(t, station.status)}</p>
       </section>
 
@@ -328,14 +393,19 @@ export function MastermindApp({ language, raceId }: { language: Language; raceId
               <div>
                 <h2>{t.card(game.cardNumber)}</h2>
                 <label className="mm-name">{t.teamName}
-                  <input type="text" maxLength={40} value={state.names[String(game.cardNumber)] ?? ""} placeholder={t.teamNamePlaceholder}
+                  <input type="text" maxLength={MASTERMIND_NAME_MAX} value={state.names[String(game.cardNumber)]?.name ?? ""} placeholder={t.teamNamePlaceholder}
                     onChange={(event) => setName(game.cardNumber, event.target.value)} />
                 </label>
               </div>
+              <div className="mm-actions">
               <button type="button" className="mm-button" onClick={() => {
-                commit({ ...state, games: state.games.map((g) => g === game ? restart(g, state.settings, new Date()) : g) });
+                const current = stateRef.current;
+                const { previous, next } = restart(game, current.settings, new Date());
+                commit({ ...current, games: upsertGame(upsertGame(current.games, previous), next) });
                 setMessage(undefined);
               }}>{t.newGame}</button>
+              {canAbort && isPlaying(game) && <button type="button" className="mm-button" onClick={() => abort(game.id)}>{t.abortGame}</button>}
+              </div>
             </div>
             <GameClock game={game} t={t} />
             {message && <p className={`mm-message mm-message-${message.tone}`}>{message.text}</p>}
@@ -346,20 +416,23 @@ export function MastermindApp({ language, raceId }: { language: Language; raceId
         <aside className="mm-side">
           {station.practice && <PracticePanel settings={state.settings} t={t} language={language}
             onReadOut={(card) => station.practice?.insert(card)} />}
-          <SettingsPanel settings={state.settings} onChange={(settings) => commit({ ...stateRef.current, settings })} t={t} language={language} />
+          {/* "Spela på egen dator" spelar med träningens inställningar. */}
+          {!publicStation && <SettingsPanel settings={state.settings} onChange={(settings) => commit({ ...stateRef.current, settings, settingsAt: new Date().toISOString() })}
+            t={t} language={language} />}
         </aside>
       </div>
 
       <section className="mm-panel" aria-labelledby="mm-results-title">
         <h2 id="mm-results-title">{t.results}</h2>
         <p className="mm-muted">{t.resultsNote}</p>
-        <StandingsTable rows={rows} names={state.names} viewing={viewing} t={t}
-          onSelect={(cardNumber) => setViewing(cardNumber)} />
-        {rows.length > 0 && <button type="button" className="mm-button mm-small" onClick={() => {
-          if (window.confirm(t.forgetConfirm)) { commit({ ...stateRef.current, games: [], results: [] }); setViewing(undefined); setMessage(undefined); }
+        <StandingsTable rows={rows} names={names} viewing={viewing} t={t}
+          onSelect={(cardNumber) => setViewing(cardNumber)} onAbort={canAbort ? abort : undefined} />
+        {/* Från en träning finns spelen på servern (också andra datorers), så de glöms inte här; gallringen tar bort dem. */}
+        {!raceId && rows.length > 0 && <button type="button" className="mm-button mm-small" onClick={() => {
+          if (window.confirm(t.forgetConfirm)) { commit({ ...stateRef.current, games: [] }); setViewing(undefined); setMessage(undefined); }
         }}>{t.forget}</button>}
       </section>
-      {raceId && <RaceSwitch raceId={raceId} connected={connected} onContext={(context) =>
+      {raceId && !publicStation && <RaceSwitch raceId={raceId} connected={connected} onContext={(context) =>
         setTraining(context.raceName === context.eventName ? context.eventName : `${context.eventName} – ${context.raceName}`)}
         current={{ key: "mastermind", label: "MASTERMIND", href: `/admin/${raceId}/mastermind` }} />}
     </main>

@@ -267,3 +267,4 @@ export type { McpResponse } from "./mcp";
 export { listRacePrintFiles, readRacePrintFile, removeRacePrintFile, saveRacePrintFile, printFileName, RACE_PRINT_FILE_LIMITS, type RacePrintFileView } from "./race-print-files";
 export { fetchMapProjectWmsImage, readMapProjectWmsCapabilities, wmsRuntime, type WmsRuntime } from "./map-project-wms";
 export { BINGO_POSTS_PER_IP, BINGO_RUNNERS_PER_RACE_AND_DAY, loadBingoSetup, readBingoAsAdmin, readBingoLeaderboard, readBingoPublic, receiveBingoProgress, setBingoAsAdmin, type BingoMapImage, type BingoPublicRead, type BingoSetup } from "./bingo";
+export { readMastermindAsStaff, readMastermindStandings, receiveMastermindStation, setMastermindStationsAsAdmin, syncMastermindAsStaff, type MastermindResult } from "./mastermind";

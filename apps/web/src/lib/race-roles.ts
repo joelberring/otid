@@ -48,7 +48,9 @@ export const FUNCTIONARY_ROUTES: Readonly<Record<string, readonly string[]>> = {
   /** Fest (PLAN.md steg 40): läsa läget, sätta gästens namn och bardiskens in- och utcheckning. Varor och ångra kräver admin. */
   party: ["GET"],
   "party-guests": ["POST"],
-  "party-desk-events": ["POST"]
+  "party-desk-events": ["POST"],
+  /** Mastermind med kontroller (ADR-0228): den som sköter stationen läser och skickar spelen. */
+  mastermind: ["GET", "POST"]
 };
 
 /** Rollen som en åtgärd kräver. */

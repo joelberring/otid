@@ -138,13 +138,15 @@ export const RACE_BACKUP_TABLES: readonly BackupTable[] = [
  * - `race_map_project_link` (migration 0117): vilket kartprojekt kartfilen kom ur; projektet följer inte med, kartfilen gör det.
  * - `bingo_race` och `bingo_runner` (ADR-0225): bingon med telefonen slås på igen i den återställda tävlingen; löparnas namn och
  *   spår är personuppgifter för en dag och följer aldrig med.
+ * - `mastermind_race` och `mastermind_game` (ADR-0228): spelen och lagens namn hör till träningsdagen och följer inte med.
  * Konton, lösenord, sessioner, behörigheternas journal och träningsgrupper har ingen `race_id` och följer inte heller med;
  * behörigheterna följer med som e-postadresser (`personer.json`).
  */
 export const RACE_BACKUP_EXCLUDED_TABLES: readonly string[] = [
   "race_copy_request", "public_result_update_event", "course_setting_print_job", "user_account_event_creation_request",
   "race_restore_request", "race_person_invitation", "race_organiser", "race_club_archive", "race_club_archive_auto", "course_setting_map_link",
-  "map_project_job", "club_plan_session", "race_map_project_link", "bingo_race", "bingo_runner"
+  "map_project_job", "club_plan_session", "race_map_project_link", "bingo_race", "bingo_runner",
+  "mastermind_race", "mastermind_game"
 ];
 
 /** Kolumner som töms vid återställningen: de pekar på sådant som inte följer med (träningsgruppen och dess kartor). */

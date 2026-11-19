@@ -70,8 +70,8 @@ export function raceNavItems(input: RaceNavInput): RaceNavItem[] {
   const exercise = mobileExerciseLink({ raceId: input.raceId, raceType: input.raceType, admin, bingo: input.bingo });
   if (exercise) items.push({ key: "exercise", label: exercise.target === "LEADER" && exercise.mode ? exercise.mode : "EXERCISE_SETUP",
     href: exercise.href });
-  // PR #2: Mastermind med kontroller (stationen i ett eget statiskt skal, som avläsningen) i en träning; resultaten stannar i
-  // webbläsaren (ingen tabell på servern), så det är ett val för den som sköter stationen, inte en övning i mobilen.
+  // PR #2: Mastermind med kontroller (stationen i ett eget statiskt skal, som avläsningen) i en träning; ett val för den som
+  // sköter stationen, inte en övning i mobilen. Resultaten sparas på servern per träning (ADR-0228).
   if (input.raceType === "TRAINING") items.push({ key: "mastermind", label: "MASTERMIND", href: `${base}/mastermind` });
   if (input.courseSetting) items.push({ key: "courseSetting", label: input.courseSetting === "MAP" ? "MAP_ERRORS" : "COURSE_SETTING",
     href: `${base}/${input.courseSetting === "MAP" ? "course-setting/map-errors" : "course-setting"}` });

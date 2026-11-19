@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  applyReadout, DEFAULT_SETTINGS, formatDuration, gameDuration, gameStatus, newGame, parseSavedState, punchesSince, randomSecret, readGuess,
-  resultOf, scoreGuess, settingsProblems, standings, type CardGame, type CardPunch, type GameResult, type GameSettings
-} from "./game";
+  abandonGame, applyReadout, currentGame, DEFAULT_SETTINGS, formatDuration, gameDuration, gameStatus, mergeGame, mergeMastermindState, newGame, normalizeGame,
+  punchesSince, randomSecret, readGuess, restart, scoreGuess, settingsProblems, standings, type CardGame, type CardPunch, type GameSettings,
+  type MastermindState
+} from "../src/mastermind";
 
 const at = new Date("2026-11-11T20:00:00Z");
 /** Ger samma följd varje gång: 0, 0.1, 0.2, … */
@@ -82,13 +83,13 @@ describe("punchesSince", () => {
 
 describe("applyReadout", () => {
   it("starts the game at the first readout without reading the punches", () => {
-    const first = applyReadout(undefined, 7_000_001, punches([31, 32, 33, 34]), DEFAULT_SETTINGS, at, sequence());
+    const first = applyReadout(undefined, 7_000_001, punches([31, 32, 33, 34]), DEFAULT_SETTINGS, at, { random: sequence(), id: () => "a" });
     expect(first).toMatchObject({ kind: "started", afterGame: false });
-    expect(first.game).toMatchObject({ startedAt: at.toISOString(), guesses: [], marker: { count: 4, code: 34, time: "3" } });
+    expect(first.game).toMatchObject({ id: "a", startedAt: at.toISOString(), guesses: [], marker: { count: 4, code: 34, time: "3", at: at.toISOString() } });
   });
 
   it("plays a whole game on one card without clearing it", () => {
-    const random = sequence();
+    const random = { random: sequence() };
     const secret = randomSecret(DEFAULT_SETTINGS, sequence());
     const codes = secret.map((color) => DEFAULT_SETTINGS.codes[color]!);
     const wrong = [...codes].reverse();
@@ -123,7 +124,7 @@ describe("applyReadout", () => {
     const result = applyReadout(game, 1, punches([31, 32]), DEFAULT_SETTINGS, at);
     expect(result.kind).toBe("rejected");
     expect(result.game.guesses).toHaveLength(0);
-    expect(result.game.marker).toEqual({ count: 2, code: 32, time: "1" });
+    expect(result.game.marker).toEqual({ count: 2, code: 32, time: "1", at: at.toISOString() });
   });
 
   it("is lost after the last guess", () => {
@@ -135,19 +136,11 @@ describe("applyReadout", () => {
   });
 });
 
-describe("settings and saved state", () => {
+describe("settings", () => {
   it("flags impossible settings", () => {
     expect(settingsProblems(DEFAULT_SETTINGS)).toEqual([]);
     expect(settingsProblems({ ...DEFAULT_SETTINGS, codes: [31, 31, 33, 34] })).toContain("code-duplicate");
     expect(settingsProblems({ ...DEFAULT_SETTINGS, codes: [31, 32, 33, 34], positions: 5 })).toContain("too-few-colors");
-  });
-
-  it("survives broken storage", () => {
-    expect(parseSavedState("{not json")).toEqual({ settings: DEFAULT_SETTINGS, games: [], results: [], names: {} });
-    const game = newGame(5, DEFAULT_SETTINGS, at);
-    const saved = parseSavedState(JSON.stringify({ settings: { codes: [1] }, games: [game, { cardNumber: "x" }] }));
-    expect(saved.settings).toEqual(DEFAULT_SETTINGS);
-    expect(saved.games).toEqual([game]);
   });
 });
 
@@ -164,7 +157,7 @@ describe("timer", () => {
     const second = applyReadout(first.game, 1, [...card1, ...punches([31, 32, 33, 34], 10)], DEFAULT_SETTINGS, later(243));
     expect(second.kind === "guessed" && second.status).toBe("won");
     expect(gameDuration(second.game)).toBe(243_000);
-    expect(resultOf(second.game)).toMatchObject({ status: "won", guesses: 2, finishedAt: later(243).toISOString() });
+    expect(second.game).toMatchObject({ finishedAt: later(243).toISOString() });
   });
 
   it("formats durations", () => {
@@ -173,22 +166,110 @@ describe("timer", () => {
   });
 });
 
-describe("standings", () => {
-  const result = (cardNumber: number, status: GameResult["status"], guesses: number, seconds?: number): GameResult => ({
-    cardNumber, startedAt: at.toISOString(), status, guesses,
-    ...(seconds === undefined ? {} : { finishedAt: new Date(at.getTime() + seconds * 1000).toISOString() })
+/** Ett avgjort spel: vunnet på `guesses` gissningar efter `seconds` sekunder, eller förlorat. */
+function played(cardNumber: number, status: "won" | "lost" | "playing", guesses: number, seconds = 60, startSecond = 0): CardGame {
+  const settings: GameSettings = { ...DEFAULT_SETTINGS, maxGuesses: status === "lost" ? guesses : 10 };
+  const start = later(startSecond);
+  const wrong = [1, 0, 2, 3], right = [0, 1, 2, 3];
+  const list = Array.from({ length: guesses }, (_, index) => {
+    const colors = status === "won" && index === guesses - 1 ? right : wrong;
+    return { colors, score: scoreGuess(right, colors), at: new Date(start.getTime() + (index === guesses - 1 ? seconds : index + 1) * 1000).toISOString() };
   });
+  return normalizeGame({ id: `${cardNumber}-${startSecond}`, cardNumber, secret: right, guesses: list, startedAt: start.toISOString(), settings })!;
+}
 
+describe("standings", () => {
   it("ranks solved games by time, then playing, then lost", () => {
-    const playing = newGame(9, DEFAULT_SETTINGS, at);
-    const rows = standings([result(1, "won", 5, 300), result(2, "lost", 10, 900), result(3, "won", 3, 200), result(4, "won", 4),
-      result(5, "won", 2, 300)], [playing]);
-    expect(rows.map((r) => [r.cardNumber, r.place])).toEqual([[3, 1], [5, 2], [1, 3], [4, 4], [9, undefined], [2, undefined]]);
+    const games = [played(1, "won", 5, 300), played(2, "lost", 10, 900), played(3, "won", 3, 200), played(5, "won", 2, 300),
+      played(9, "playing", 1)];
+    const rows = standings(games);
+    expect(rows.map((r) => [r.cardNumber, r.place])).toEqual([[3, 1], [5, 2], [1, 3], [9, undefined], [2, undefined]]);
     expect(rows[0]!.durationMs).toBe(200_000);
   });
 
   it("gives equal time and guesses the same place", () => {
-    const rows = standings([result(1, "won", 4, 100), result(2, "won", 4, 100), result(3, "won", 4, 120)], []);
+    const rows = standings([played(1, "won", 4, 100), played(2, "won", 4, 100), played(3, "won", 4, 120)]);
     expect(rows.map((r) => r.place)).toEqual([1, 1, 3]);
+  });
+
+  it("keeps finished games, leaves out abandoned ones and shows only the card's current game as playing", () => {
+    const solved = played(1, "won", 2, 100);
+    const old = played(4, "playing", 1, 60, 0);
+    const { previous, next } = restart(old, DEFAULT_SETTINGS, later(30), { id: () => "4-new" });
+    expect(previous.abandonedAt).toBe(later(30).toISOString());
+    const rows = standings([solved, previous, next]);
+    expect(rows.map((r) => r.gameId)).toEqual([solved.id, "4-new"]);
+    expect(currentGame([solved, previous, next], 4)).toBe(next);
+    // Ett avgjort spel blir inte avbrutet av Nytt spel; det står kvar i statistiken.
+    expect(restart(solved, DEFAULT_SETTINGS, later(200)).previous).toBe(solved);
+  });
+});
+
+describe("abandonGame", () => {
+  it("takes an ongoing game out of the standings so that the card's next readout starts a new game", () => {
+    const ongoing = played(4, "playing", 1);
+    const aborted = abandonGame(ongoing, later(30));
+    expect(aborted.abandonedAt).toBe(later(30).toISOString());
+    expect(standings([aborted])).toEqual([]);
+    expect(currentGame([aborted], 4)).toBeUndefined();
+    expect(applyReadout(currentGame([aborted], 4), 4, [], DEFAULT_SETTINGS, later(40))).toMatchObject({ kind: "started", afterGame: false });
+    // Ett avgjort spel avbryts inte; ett avbrutet behåller sin tid, också efter sammanslagningen.
+    const solved = played(1, "won", 2, 100);
+    expect(abandonGame(solved, later(200))).toBe(solved);
+    expect(abandonGame(aborted, later(50))).toBe(aborted);
+    expect(mergeGame(ongoing, aborted).abandonedAt).toBe(later(30).toISOString());
+  });
+});
+
+describe("normalizeGame", () => {
+  it("recomputes the scores from the secret and ends the game at the deciding guess", () => {
+    const game = played(1, "won", 2, 100);
+    const forged = { ...game, guesses: [{ ...game.guesses[0]!, score: { exact: 4, colorOnly: 0 } }, ...game.guesses,
+      { colors: [3, 2, 1, 0], score: { exact: 0, colorOnly: 4 }, at: later(500).toISOString() }], finishedAt: undefined };
+    const checked = normalizeGame(forged)!;
+    expect(checked.guesses.map((guess) => guess.score.exact)).toEqual([2, 4]);
+    expect(checked.finishedAt).toBe(game.guesses[1]!.at);
+  });
+
+  it("rejects games that do not fit their settings", () => {
+    const game = newGame(1, DEFAULT_SETTINGS, at, { id: () => "x" });
+    expect(normalizeGame(game)).toEqual(game);
+    expect(normalizeGame({ ...game, secret: [0, 0, 1, 2] })).toBeUndefined();
+    expect(normalizeGame({ ...game, secret: [0, 1, 2, 9] })).toBeUndefined();
+    expect(normalizeGame({ ...game, settings: { ...DEFAULT_SETTINGS, codes: [1] } })).toBeUndefined();
+    expect(normalizeGame({ ...game, id: undefined })).toBeUndefined();
+    expect(normalizeGame({ ...game, id: undefined }, () => "new")?.id).toBe("new");
+    // En ogiltig gissning hoppas över; spelet står kvar.
+    expect(normalizeGame({ ...game, guesses: [{ colors: [0, 1], at: at.toISOString() }] })?.guesses).toEqual([]);
+  });
+});
+
+describe("merging", () => {
+  const base = { ...newGame(7, DEFAULT_SETTINGS, at, { id: () => "g" }), secret: [0, 1, 2, 3] };
+  const guess = (colors: number[], second: number) => ({ colors, score: scoreGuess([0, 1, 2, 3], colors), at: later(second).toISOString() });
+
+  it("joins the guesses of two copies of a game, keeps the first copy's secret and the latest marker", () => {
+    const server: CardGame = { ...base, guesses: [guess([1, 0, 2, 3], 10)], marker: { count: 4, code: 34, time: "3", at: later(10).toISOString() } };
+    const local: CardGame = { ...base, secret: [3, 2, 1, 0], guesses: [guess([1, 0, 2, 3], 10), guess([0, 1, 2, 3], 20)],
+      marker: { count: 8, code: 34, time: "9", at: later(20).toISOString() } };
+    const merged = mergeGame(server, local);
+    expect(merged.secret).toEqual([0, 1, 2, 3]);
+    expect(merged.guesses).toHaveLength(2);
+    expect(gameStatus(merged)).toBe("won");
+    expect(merged.finishedAt).toBe(later(20).toISOString());
+    expect(merged.marker?.count).toBe(8);
+    expect(mergeGame(merged, server)).toEqual(merged);
+  });
+
+  it("merges the whole state: games by id, the latest settings and the latest name per card", () => {
+    const other = newGame(8, DEFAULT_SETTINGS, later(5), { id: () => "h" });
+    const server: MastermindState = { settings: DEFAULT_SETTINGS, games: [base], names: { "7": { name: "Rävarna", at: later(1).toISOString() } } };
+    const local: MastermindState = { settings: { ...DEFAULT_SETTINGS, positions: 3 }, settingsAt: later(2).toISOString(), games: [other],
+      names: { "7": { name: "Gamla", at: later(0).toISOString() }, "8": { name: "Ugglorna", at: later(3).toISOString() } } };
+    const merged = mergeMastermindState(server, local);
+    expect(merged.games.map((game) => game.id)).toEqual(["g", "h"]);
+    expect(merged.settings.positions).toBe(3);
+    expect(merged.names).toEqual({ "7": { name: "Rävarna", at: later(1).toISOString() }, "8": { name: "Ugglorna", at: later(3).toISOString() } });
+    expect(mergeMastermindState(merged, server)).toEqual(merged);
   });
 });

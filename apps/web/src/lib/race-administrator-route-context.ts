@@ -1,4 +1,4 @@
-import { loadRaceNavigationFacts, readBingoAsAdmin, setBingoAsAdmin } from "@o-tid/application";
+import { loadRaceNavigationFacts, readBingoAsAdmin, readMastermindAsStaff, setBingoAsAdmin, setMastermindStationsAsAdmin, syncMastermindAsStaff } from "@o-tid/application";
 import { loadStartDrawSetupAsAdmin, previewStartDrawAsAdmin, commitStartDrawAsAdmin, previewRaceDateMoveAsAdmin,
   listResultFinalizationCandidatesAsAdmin, finalizeResultsAsAdmin,
   exportIofResultListAsAdmin, exportFrozenIofResultListAsAdmin, listFrozenRaceFinalizationsAsAdmin,
@@ -185,6 +185,8 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   selfRegistrationCleanup: previewSelfRegistrationCleanupAsAdmin, strikeSelfRegistered: strikeSelfRegisteredAsAdmin,
   // ADR-0225: bingoorientering med telefonen.
   bingo: readBingoAsAdmin, bingoSetting: setBingoAsAdmin,
+  // ADR-0228: Mastermind med kontroller sparas på servern.
+  mastermind: readMastermindAsStaff, mastermindSync: syncMastermindAsStaff, mastermindStations: setMastermindStationsAsAdmin,
   // Tävlingsraden (ADR-0227 tillägg 2026-11-18): avläsningens Byt funktion.
   raceNavigationFacts: loadRaceNavigationFacts };
 export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: string } | { kind: "review-conflicts" } | { kind: "checkin-history"; entryId: string } | { kind: "start-correction" } | { kind: "manual-return-withdrawal" } | { kind: "manual-return" } | { kind: "forest-watch" } | { kind: "publication-preview" } | { kind: "publication" } | { kind: "start-list-export" } | { kind: "draw-preview" } | { kind: "draw" } | { kind: "race-date-move-preview" } |
@@ -234,7 +236,8 @@ export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: str
   { kind: "results-official" } | { kind: "race-export" } | { kind: "race-backup-status" } | { kind: "runner-database" } | { kind: "runner-search" } |
   { kind: "race-corrections" } | { kind: "race-corrections-preview" } | { kind: "readout-reread" } | { kind: "readout-reread-preview" } |
   { kind: "uninterpreted-readouts" } | { kind: "uninterpreted-readouts-reread" } |
-  { kind: "party" } | { kind: "party-guests" } | { kind: "party-desk-events" } | { kind: "party-logo" } | { kind: "self-registration-cleanup" } | { kind: "bingo" };
+  { kind: "party" } | { kind: "party-guests" } | { kind: "party-desk-events" } | { kind: "party-logo" } | { kind: "self-registration-cleanup" } | { kind: "bingo" } |
+  { kind: "mastermind" };
 
 export function resultFailure(status: string): Response {
   switch (status) {

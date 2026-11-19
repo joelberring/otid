@@ -22,8 +22,9 @@ import { raceDetails, shownRaceName } from "@o-tid/domain";
 import { hubEn, hubMoreEn, raceTypeNamesEn } from "../../../i18n/public-en";
 import { currentLanguage } from "../../../lib/language-server";
 import { LOCALE } from "../../../lib/language";
-import { raceGroupNameDisplay, readBingoLeaderboard } from "@o-tid/application";
+import { raceGroupNameDisplay, readBingoLeaderboard, readMastermindStandings } from "@o-tid/application";
 import { LiveBingoBoard } from "../../../components/bingo/bingo-board";
+import { LiveMastermindBoard } from "../../../components/mastermind/mastermind-board";
 import { db } from "../../../lib/db";
 import { bingoEn } from "../../../i18n/bingo-en";
 import { bingoSv } from "../../../i18n/bingo-sv";
@@ -59,6 +60,8 @@ export default async function RaceHubPage({ params }: Params) {
   const names = await raceGroupNameDisplay(db, hub.raceId);
   // ADR-0225: bingons topplista (bara på träningsdagen).
   const bingoBoard = hub.bingo ? await readBingoLeaderboard(db, { raceId: hub.raceId, staff: false }) : undefined;
+  // ADR-0228: Mastermind med kontroller (bara en träning, bara på träningsdagen och när något spel finns).
+  const mastermindBoard = hub.raceType === "TRAINING" ? await readMastermindStandings(db, { raceId: hub.raceId, staff: false }) : undefined;
   const hasStartSection = raceTypeProfile(hub.raceType).course.some(section => section.id === "START");
   const details = [shownRaceName(hub.eventName, hub.raceName), formatRaceDate(hub.raceDate, undefined, LOCALE[language]),
     en ? raceTypeNamesEn[hub.raceType] : raceTypeSv.types[hub.raceType].name]
@@ -81,6 +84,7 @@ export default async function RaceHubPage({ params }: Params) {
         <span>{item.text}</span></li>)}</ol>
     </section>}
     {bingoBoard && <LiveBingoBoard raceId={hub.raceId} initial={bingoBoard} />}
+    {mastermindBoard && <LiveMastermindBoard raceId={hub.raceId} initial={mastermindBoard} />}
     {/* En bingoträning har sin egen anmälan på löparsidan; den vanliga anmälan här skulle bara förvirra. */}
     {!hub.bingo && <SelfRegistrationForm raceId={hub.raceId} startList={hub.startListPublished} names={names} />}
     <ul className={styles.hubLinks} aria-label={text.navigation}>

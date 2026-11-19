@@ -35,7 +35,9 @@ const FUNCTIONARY_ALLOWED: Record<string, readonly string[]> = {
   /** PLAN.md steg 40: festens läge, gästnamn och bardiskens in- och utcheckning (varor och ångra bara administratören). */
   "admin/races/[raceId]/administrator/party": ["GET"],
   "admin/races/[raceId]/administrator/party-guests": ["POST"],
-  "admin/races/[raceId]/administrator/party-desk-events": ["POST"]
+  "admin/races/[raceId]/administrator/party-desk-events": ["POST"],
+  /** ADR-0228: Mastermind med kontroller – den som sköter stationen läser och skickar spelen. */
+  "admin/races/[raceId]/administrator/mastermind": ["GET", "POST"]
 };
 /**
  * Steg 66 (ADR-0181 beslut 5): banläggningens routes och vad de kräver. Den som bara har banläggningen (läsa och

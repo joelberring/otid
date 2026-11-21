@@ -11,7 +11,7 @@ export const mapProjectHelpArticlesEn: readonly HelpArticle[] = [
       [
         "First choose a symbol under ”Symbols”, then draw. The tool ”Draw” is chosen by itself.",
         "Hold the mouse over a square to see the symbol's number and name. Search by number or name in the field at the top.",
-        "The latest symbols are at the top of the tab and in the tool wheel. The keys 1–6 show and hide the standard's groups under Layers.",
+        "The latest symbols are at the top of the tab and in the wheel, on the keys 1–8. Alt+1–6 show and hide the standard's groups under Layers.",
         "”Select” selects, moves and bends. Esc always takes you back there.",
         "The buttons for the selected object are in the row below the map: ”Delete”, ”Simplify”, ”Make smooth” and ”Move whole”.",
         "”Map only” hides the tools and the panel. The key § does the same.",

@@ -11,7 +11,7 @@ export const mapProjectHelpArticles: readonly HelpArticle[] = [
       [
         "Välj först en symbol under ”Symboler”, sedan ritar du. Verktyget ”Rita” väljs av sig självt.",
         "Håll musen över en ruta för att se symbolens nummer och namn. Sök på nummer eller namn i fältet överst.",
-        "De senaste symbolerna ligger överst i fliken och i verktygshjulet. Tangenterna 1–6 tänder och släcker normens grupper under Lager.",
+        "De senaste symbolerna ligger överst i fliken och i hjulet, på tangenterna 1–8. Alt+1–6 tänder och släcker normens grupper under Lager.",
         "”Markera” markerar, flyttar och böjer. Esc tar dig alltid tillbaka dit.",
         "Knapparna för det markerade objektet ligger i raden under kartan: ”Ta bort”, ”Förenkla”, ”Gör mjuk” och ”Flytta hela”.",
         "”Bara kartan” gömmer verktygen och panelen. Tangenten § gör samma sak.",

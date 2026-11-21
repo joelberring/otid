@@ -114,8 +114,9 @@ export function withSymbolFlag(state: LayerState, id: string, flag: keyof LayerF
 }
 
 /**
- * R3 (ägaren 2026-11-10: «siffrorna 1–6 för normens grupper»): tangenten 1–6 tänder eller släcker normens grupp (landformer,
- * berg, vatten, vegetation, anläggningar, tekniska), Skift+siffran visar bara den gruppen och 0 tänder allt.
+ * R3 (ägaren 2026-11-10: «siffrorna 1–6 för normens grupper»; sedan K8b V1 2026-11-21 Alt+siffran): Alt+1–6 tänder eller
+ * släcker normens grupp (landformer, berg, vatten, vegetation, anläggningar, tekniska), Alt+Skift+siffran visar bara den
+ * gruppen och Alt+0 tänder allt.
  */
 export const GROUP_KEYS: readonly LayerId[] = LAYER_ORDER.slice(0, 6);
 export function withGroupKey(state: LayerState, catalog: readonly CatalogSymbol[], standard: ReadonlyMap<string, string>, digit: number, solo: boolean): LayerState {

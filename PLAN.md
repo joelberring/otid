@@ -1499,7 +1499,7 @@ vårdnadshavarens samtycke och automatisk radering. Kräver en ADR före A1.
 - [ ] A4 Live på tävling med fördröjning för publik och speaker, per klass.
 - [ ] A5 (senare) Garmin Connect IQ och Apple Watch.
 
-## [ ] Steg G – Gafflingarna i banläggningen: arbetsflödet och nycklarna (ägaren 2026-11-21)
+## [x] Steg G – Gafflingarna i banläggningen: arbetsflödet och nycklarna (ägaren 2026-11-21)
 
 Översyn och beslut: projektets dokument `claude/gafflingar-oversyn-2026-11-21.md`. Före Stockholm by Night 9 december.
 Ägarens beslut 2026-11-21: «Ordna nycklarna» får köras också efter tryck, med bekräftelse och lista; en publicerad startlista

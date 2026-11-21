@@ -20,12 +20,13 @@
 .notice { padding: 6px 12px 0; }
 .offline { margin: 0; padding: 4px 12px; background: var(--attention-bg, #fff4ce); font-size: var(--text-sm, .9rem); }
 /* Ägaren 2026-11-10: verktygsspalten till vänster, kartan i mitten med statusraden under, panelen med flikar till höger. */
-.workspace { flex: 1; display: grid; grid-template-columns: 82px minmax(0, 1fr) var(--sidebar-width, 300px); grid-template-rows: minmax(0, 1fr) auto; min-height: 0; }
+/* K8b V1: raden överst (Senaste, Ångra och Gör om) ovanför kartan. */
+.workspace { flex: 1; display: grid; grid-template-columns: 82px minmax(0, 1fr) var(--sidebar-width, 300px); grid-template-rows: auto minmax(0, 1fr) auto; min-height: 0; }
 .workspace[data-bare="true"] { grid-template-columns: 0 minmax(0, 1fr) 0; }
 .workspace[data-bare="true"] > [role="toolbar"], .workspace[data-bare="true"] > .sidebar { display: none; }
 /* Statusraden under kartan: det markerade objektets knappar och tipset på en rad med fast höjd (hela texten i title), så att
    kartan inte flyttar sig när knapparna eller ett besked kommer och går. */
-.statusRow { grid-column: 2; grid-row: 2; display: flex; align-items: center; gap: .6rem; height: 38px; padding: 0 10px; overflow: hidden;
+.statusRow { grid-column: 2; grid-row: 3; display: flex; align-items: center; gap: .6rem; height: 38px; padding: 0 10px; overflow: hidden;
   border-top: 1px solid var(--line); }
 /* Ägaren 2026-11-11: med kandidater på kartan får raden plats för dem ovanför verktygens knappar. */
 /* Ägaren 2026-11-13: samma för raden Föreslå ytor (sprintkartor, verktyget Fyll yta). */
@@ -35,14 +36,14 @@
 .objectBar > * { flex: none; }
 .objectBar button { min-height: 30px; padding-block: 0; }
 .hint { flex: 1; min-width: 0; margin: 0; color: var(--muted); font-size: var(--text-sm, .9rem); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mapArea { grid-column: 2; grid-row: 1; position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+.mapArea { grid-column: 2; grid-row: 2; position: relative; min-width: 0; min-height: 0; overflow: hidden; }
 /* Kartvyn fyller rutan på alla bredder (banläggningens telefonregel för kartans ram gäller inte här). */
 .frame, .frame > div { position: absolute; inset: 0; }
 .loading { position: absolute; inset: auto 0 50% 0; text-align: center; color: var(--muted); z-index: 1; }
-.sidebar { grid-column: 3; grid-row: 1 / span 2; overflow: auto; border-left: 1px solid var(--line); padding: 0 10px 24px; display: grid;
+.sidebar { grid-column: 3; grid-row: 1 / span 3; overflow: auto; border-left: 1px solid var(--line); padding: 0 10px 24px; display: grid;
   align-content: start; gap: 8px; grid-template-columns: minmax(0, 1fr); }
 .sidebar > * { min-width: 0; }
-.sidebarGrip { grid-column: 3; grid-row: 1 / span 2; justify-self: start; width: 7px; margin-left: -4px; z-index: 2; cursor: col-resize; touch-action: none; }
+.sidebarGrip { grid-column: 3; grid-row: 1 / span 3; justify-self: start; width: 7px; margin-left: -4px; z-index: 2; cursor: col-resize; touch-action: none; }
 .sidebarGrip:hover, .sidebarGrip:focus-visible { background: var(--accent, #3b6ea5); opacity: .5; outline: none; }
 .workspace[data-bare="true"] > .sidebarGrip { display: none; }
 /* Översynen av första kartan: fem flikar; raden rullar i sidled (ScrollRow) när panelen är smal i stället för att klippa. */

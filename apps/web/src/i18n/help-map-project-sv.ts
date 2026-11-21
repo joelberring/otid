@@ -12,7 +12,7 @@ export const mapProjectHelpArticles: readonly HelpArticle[] = [
         "Välj först en symbol under ”Symboler”, sedan ritar du. Verktyget ”Rita” väljs av sig självt.",
         "Håll musen över en ruta för att se symbolens nummer och namn. Sök på nummer eller namn i fältet överst.",
         "De senaste symbolerna ligger överst i fliken och i verktygshjulet. Tangenterna 1–6 tänder och släcker normens grupper under Lager.",
-        "”Redigera” markerar, flyttar och böjer. Esc tar dig alltid tillbaka dit.",
+        "”Markera” markerar, flyttar och böjer. Esc tar dig alltid tillbaka dit.",
         "Knapparna för det markerade objektet ligger i raden under kartan: ”Ta bort”, ”Förenkla”, ”Gör mjuk” och ”Flytta hela”.",
         "”Bara kartan” gömmer verktygen och panelen. Tangenten § gör samma sak.",
         "Pricken överst visar sparandet: fylld när allt är sparat, en tom ring när ändringar väntar. En varning i text visas bara när något är fel."
@@ -32,7 +32,7 @@ export const mapProjectHelpArticles: readonly HelpArticle[] = [
         "Steg 1, valfritt: hämta ortofoto, markfuktighet och Skogsstyrelsens kartor att rita efter. De syns bara som bakgrund.",
         "Steg 2, ”Ta fram grundkartan”: guiden kör laserdatan och lägger till OpenStreetMap och hyggen. Resultatet är ett utkast.",
         "Steg 3, ”Gå igenom utkastet”: reglagen ändrar utkastet direkt. Lägg in det med raden under kartan.",
-        "”Rita färdigt”: välj en symbol under ”Symboler” och rita; ändra ett objekt med ”Redigera”.",
+        "”Rita färdigt”: välj en symbol under ”Symboler” och rita; ändra ett objekt med ”Markera”.",
         "Kontrollera under ”Granska” › ”Normkontroll”.",
         "Exportera med ”Till Exportera” sist i ”Granska”: en ny kartversion eller bara ändringarna."
       ],
@@ -48,8 +48,8 @@ export const mapProjectHelpArticles: readonly HelpArticle[] = [
       "En karta från en kartfil, eller en ny karta med grundkartan inlagd, redigeras med symbolerna. Stegen under ”Grundkarta” behövs inte då.",
       [
         "Öppna kartan från kartprojektets sida med ”Öppna kartan”.",
-        "”Rita färdigt”: välj en symbol under ”Symboler” och rita; ändra ett objekt med ”Redigera”.",
-        "Ändra: klicka på objektet i ”Redigera” och dra i punkterna. Knapparna för objektet står i raden under kartan.",
+        "”Rita färdigt”: välj en symbol under ”Symboler” och rita; ändra ett objekt med ”Markera”.",
+        "Ändra: klicka på objektet i ”Markera” och dra i punkterna. Knapparna för objektet står i raden vid objektet (i telefonen längst ned).",
         "Andras ändringar och AI:ns kommer som förslag under ”Granska”. En ägare godkänner eller avvisar dem.",
         "Kontrollera under ”Granska” › ”Normkontroll”.",
         "Exportera med ”Till Exportera” sist i ”Granska”. En ny kartversion sparas i projektet, och originalet ändras aldrig."
@@ -110,17 +110,20 @@ export const mapProjectHelpArticles: readonly HelpArticle[] = [
     body: [
       "Det mesta går att göra på tre sätt: med ikonen till vänster, med en tangent eller i hjulet. Tangenten står i ikonens hörn.",
       [
-        "Tangenterna ligger under vänster hand: Q väljer ”Redigera”, W ”Rita”, A ”Lägg till punkt” och S ”Ta bort punkt”.",
+        "Tangenterna ligger under vänster hand: Q väljer ”Markera”, W ”Rita”, A ”Lägg till punkt” och S ”Ta bort punkt”.",
         "X väljer ”Klipp isär”: klicka på en linje så klipps den i två där. Båda delarna blir markerade och de nya ändarna får rosa ringar.",
         "V vänder den markerade linjens riktning, så att en brants taggar byter sida. D tar symbolen från det markerade objektet.",
         "Skift ger varianten: Skift+E ”Cirkel”, Skift+A ”Gör mjuk” och Skift+S ”Förenkla”. C byter symbol och R markerar kollad.",
         "Ny punkt: välj ”Lägg till punkt” och klicka på sträckan. Ta bort: välj ”Ta bort punkt” och klicka på punkten.",
-        "I ”Redigera” gör Cmd- eller Ctrl-klick samma sak: på en punkt tas den bort, på en sträcka blir det en ny.",
+        "I ”Markera” gör Cmd- eller Ctrl-klick samma sak: på en punkt tas den bort, på en sträcka blir det en ny.",
         "Rita: klicka för hörn, tryck och dra för kurva. Backsteg tar bort sista punkten, Enter avslutar och Esc avbryter.",
-        "Hjulet: högerklicka på kartan, håll fingret på den eller tryck mellanslag. Där finns verktygen, saxen och de senaste symbolerna.",
+        "Hjulet: högerklicka på kartan, håll fingret på den eller tryck mellanslag. Verktygen har fasta platser: Markera uppåt, Rita snett höger, Rektangel åt höger.",
+        "Håll högerknappen och dra åt ett håll för att välja verktyget där direkt. De senaste symbolerna och åtgärderna står i listan bredvid ringen.",
         "Raden under kartan säger vad pekaren står på i hjulet, och annars vilket verktyg som är valt.",
         "Byt tangenter med ”Tangenter” längst ned i verktygsspalten. Valet sparas i webbläsaren.",
-        "Z ångrar och Skift+Z gör om. Cmd eller Ctrl + Z fungerar också."
+        "Z ångrar och Skift+Z gör om. Cmd eller Ctrl + Z fungerar också.",
+        "Siffrorna 1–8 väljer de senaste symbolerna i raden överst. Skift+mellanslag gör den senaste åtgärden igen.",
+        "Håll Q för att markera en stund: när du släpper är du tillbaka i verktyget du hade."
       ],
       "Läs också [Så tänker du i ritläget](#ritlaget-sa-tanker-du)."
     ]
@@ -130,13 +133,13 @@ export const mapProjectHelpArticles: readonly HelpArticle[] = [
     title: "Markera, flytta och vrida flera objekt",
     views: ["MAP_EDITOR"],
     body: [
-      "I ”Redigera” kan du markera flera objekt på en gång och ändra dem tillsammans, som i ett ritprogram.",
+      "I ”Markera” kan du markera flera objekt på en gång och ändra dem tillsammans, som i ett ritprogram.",
       [
         "Dra en ruta på tom karta. Allt som rutan rör vid markeras. En yta som bara omsluter rutan följer inte med.",
         "Skift+klick lägger till ett objekt i markeringen, eller tar bort det ur den.",
         "Flytta: dra inne i markeringens ruta. Alla objekt följer med.",
         "Vrid: dra strax utanför ett hörn, där markören blir en böjd pil. Allt vrids runt rutans mitt.",
-        "Slå ihop: markera och tryck F, eller ”Slå ihop linjer eller ytor”. Linjer vars ändar möts blir en, ytor som överlappar blir en yta.",
+        "Slå ihop: markera och tryck G, eller ”Slå ihop linjer eller ytor”. Linjer vars ändar möts blir en, ytor som överlappar blir en yta.",
         "Byt symbol på flera: markera dem, välj symbolen i panelen och tryck C. Alla med samma form får symbolen.",
         "Delete tar bort allt markerat. Ångra tar tillbaka hela flytten, vridningen eller borttagningen i ett steg.",
         "Flytta kartan: håll mellanslag nere och dra, eller dra med två fingrar på styrplattan. Ett kort tryck på mellanslag öppnar hjulet.",

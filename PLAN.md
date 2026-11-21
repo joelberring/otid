@@ -1437,7 +1437,7 @@ Underlag: projektdokumentet `claude/plan-verktyg-fast-magisk-fyll-2026-11-21.md`
 (artifact ae28b9a3-…, sex artboards: skrivbordet, hjulet, mobilen, processen, mus/tangenter, kontextraden). Principer: verktyget
 stannar kvar; siffror byter symbol, bokstäver verktyg; tryck byter, håll lånar; högerklick är alltid hjulet, Esc alltid avbryt.
 
-- [ ] V1 Spalten bara verktyg i fyra grupper (Rita, Fyll, Forma, Granska); kontextraden vid det markerade (bara det som går,
+- [x] V1 Spalten bara verktyg i fyra grupper (Rita, Fyll, Forma, Granska); kontextraden vid det markerade (bara det som går,
   först «Byt till» vald symbol); Senaste-raden överst med 1–8 (byter symbol, inte verktyg); statusradens brytare Fäst/Vinkel/Glapp;
   nya förval F fyll, G koppla ihop, E rektangel, T fäst, ⇧␣ gör igen, håll Q = tillfälligt Markera, Alt+1–6 normens grupper
   (sparade egna tangenter behålls); hjulet med fasta platser (N Markera, NO Rita, O Rektangel, SO Fyll, S Gör igen, SV Klipp,

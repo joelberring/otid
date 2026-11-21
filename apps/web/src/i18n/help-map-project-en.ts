@@ -12,7 +12,7 @@ export const mapProjectHelpArticlesEn: readonly HelpArticle[] = [
         "First choose a symbol under ”Symbols”, then draw. The tool ”Draw” is chosen by itself.",
         "Hold the mouse over a square to see the symbol's number and name. Search by number or name in the field at the top.",
         "The latest symbols are at the top of the tab and in the tool wheel. The keys 1–6 show and hide the standard's groups under Layers.",
-        "”Edit” selects, moves and bends. Esc always takes you back there.",
+        "”Select” selects, moves and bends. Esc always takes you back there.",
         "The buttons for the selected object are in the row below the map: ”Delete”, ”Simplify”, ”Make smooth” and ”Move whole”.",
         "”Map only” hides the tools and the panel. The key § does the same.",
         "The dot at the top shows saving: filled when saved, an empty ring when changes are waiting. A text warning appears only when something is wrong."
@@ -32,7 +32,7 @@ export const mapProjectHelpArticlesEn: readonly HelpArticle[] = [
         "Step 1, optional: fetch orthophotos, soil moisture and the Forest Agency's maps to draw from. They are only a background.",
         "Step 2, ”Make the base map”: the guide runs the laser data and adds OpenStreetMap and clear-cuts. The result is a draft.",
         "Step 3, ”Review the draft”: the sliders change the draft at once. Add it with the row below the map.",
-        "”Finish drawing”: choose a symbol under ”Symbols” and draw; change an object with ”Edit”.",
+        "”Finish drawing”: choose a symbol under ”Symbols” and draw; change an object with ”Select”.",
         "Check under ”Review” › ”Norm check”.",
         "Export with ”To Export” last in ”Review”: a new map version or only the changes."
       ],
@@ -48,8 +48,8 @@ export const mapProjectHelpArticlesEn: readonly HelpArticle[] = [
       "A map from a map file, or a new map with the base map added, is edited with the symbols. The steps under ”Base map” are not needed then.",
       [
         "Open the map from the map project's page with ”Open the map”.",
-        "”Finish drawing”: choose a symbol under ”Symbols” and draw; change an object with ”Edit”.",
-        "Change: click the object in ”Edit” and drag the points. The buttons for the object are in the row below the map.",
+        "”Finish drawing”: choose a symbol under ”Symbols” and draw; change an object with ”Select”.",
+        "Change: click the object in ”Select” and drag the points. The buttons for the object are in the row at the object (at the bottom on a phone).",
         "Other people's changes and the AI's come as suggestions under ”Review”. An owner approves or rejects them.",
         "Check under ”Review” › ”Norm check”.",
         "Export with ”To Export” last in ”Review”. A new map version is saved in the project, and the original never changes."
@@ -110,17 +110,20 @@ export const mapProjectHelpArticlesEn: readonly HelpArticle[] = [
     body: [
       "Most things can be done in three ways: with the icon on the left, with a key or in the wheel. The key is shown in the corner of the icon.",
       [
-        "The keys are under the left hand: Q chooses ”Edit”, W ”Draw”, A ”Add point” and S ”Remove point”.",
+        "The keys are under the left hand: Q chooses ”Select”, W ”Draw”, A ”Add point” and S ”Remove point”.",
         "X chooses ”Cut apart”: click a line and it is cut in two there. Both parts become selected and the new ends get pink rings.",
         "V reverses the direction of the selected line, so that the tags of a cliff change side. D takes the symbol from the selected object.",
         "Shift gives the variant: Shift+E ”Circle”, Shift+A ”Make smooth” and Shift+S ”Simplify”. C changes symbol and R marks checked.",
         "New point: choose ”Add point” and click the segment. Remove: choose ”Remove point” and click the point.",
-        "In ”Edit”, Cmd-click or Ctrl-click does the same: on a point it is removed, on a segment there is a new one.",
+        "In ”Select”, Cmd-click or Ctrl-click does the same: on a point it is removed, on a segment there is a new one.",
         "Draw: click for corners, press and drag for a curve. Backspace removes the last point, Enter finishes and Esc cancels.",
-        "The wheel: right-click the map, hold a finger on it or press space. It has the tools, the scissors and the latest symbols.",
+        "The wheel: right-click the map, hold a finger on it or press space. The tools have fixed places: Select up, Draw up to the right, Rectangle to the right.",
+        "Hold the right button and drag in a direction to choose the tool there at once. The latest symbols and actions are in the list beside the ring.",
         "The line below the map says what the pointer is on in the wheel, and otherwise which tool is chosen.",
         "Change keys with ”Keys” at the bottom of the tool column. The choice is saved in the browser.",
-        "Z undoes and Shift+Z redoes. Cmd or Ctrl + Z also works."
+        "Z undoes and Shift+Z redoes. Cmd or Ctrl + Z also works.",
+        "The digits 1–8 choose the latest symbols in the top row. Shift+space repeats the latest action.",
+        "Hold Q to select for a moment: when you let go you are back in the tool you had."
       ],
       "Also read [How to think in the drawing mode](#ritlaget-sa-tanker-du)."
     ]
@@ -130,13 +133,13 @@ export const mapProjectHelpArticlesEn: readonly HelpArticle[] = [
     title: "Select, move and rotate several objects",
     views: ["MAP_EDITOR"],
     body: [
-      "In ”Edit” you can select several objects at once and change them together, as in a drawing program.",
+      "In ”Select” you can select several objects at once and change them together, as in a drawing program.",
       [
         "Drag a box on empty map. Everything the box touches is selected. An area that only surrounds the box is not included.",
         "Shift-click adds an object to the selection, or removes it from it.",
         "Move: drag inside the selection's box. All objects follow.",
         "Rotate: drag just outside a corner, where the cursor becomes a curved arrow. Everything turns around the centre of the box.",
-        "Join: select and press F, or ”Join lines or areas”. Lines whose ends meet become one, overlapping areas become one area.",
+        "Join: select and press G, or ”Join lines or areas”. Lines whose ends meet become one, overlapping areas become one area.",
         "Change symbol on several: select them, choose the symbol in the panel and press C. All with the same shape get the symbol.",
         "Delete removes everything selected. Undo takes back the whole move, rotation or removal in one step.",
         "Move the map: hold space and drag, or drag with two fingers on the trackpad. A short press on space opens the wheel.",

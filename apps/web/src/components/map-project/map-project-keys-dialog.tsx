@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { mapProjectKeysEn } from "../../i18n/map-project-tools-en";
 import { mapProjectKeysSv } from "../../i18n/map-project-keys-sv";
-import { bindingOf, DEFAULT_KEYS, isReserved, KEY_COMMANDS, keyLabel, KEYS_STORAGE, parseKeys, withBinding, type KeyCommand, type KeyMap } from "../../lib/map-project-keys";
+import { bindingOf, DEFAULT_KEYS, isReserved, KEY_COMMANDS, keyLabel, KEYS_STORAGE, parseKeys, serializeKeys, withBinding, type KeyCommand, type KeyMap } from "../../lib/map-project-keys";
 import { useTexts } from "../language-provider";
 import { Button, Dialog } from "../ui";
 import styles from "./map-project-keys-dialog.module.css";
@@ -12,7 +12,7 @@ import styles from "./map-project-keys-dialog.module.css";
 export function useMapProjectKeys(): [KeyMap, (keys: KeyMap) => void] {
   const [keys, setKeys] = useState<KeyMap>(DEFAULT_KEYS);
   useEffect(() => { try { setKeys(parseKeys(localStorage.getItem(KEYS_STORAGE))); } catch { /* utan lagring: förvalet */ } }, []);
-  const save = (next: KeyMap) => { setKeys(next); try { localStorage.setItem(KEYS_STORAGE, JSON.stringify(next)); } catch { /* utan lagring */ } };
+  const save = (next: KeyMap) => { setKeys(next); try { localStorage.setItem(KEYS_STORAGE, serializeKeys(next)); } catch { /* utan lagring */ } };
   return [keys, save];
 }
 
@@ -58,6 +58,7 @@ export function MapProjectKeysDialog({ keys, onKeys, onClose }: { keys: KeyMap; 
         </li>)}
       </ul>
       <p className={styles.fixed}>{text.fixed}</p>
+      <p className={styles.fixed} data-testid="map-project-keys-changed">{text.changedDefaults}</p>
       <p className={styles.message} role="status" data-testid="map-project-keys-message">{message}</p>
       <div className={styles.actions}>
         <Button variant="secondary" onClick={() => { onKeys(DEFAULT_KEYS); setListening(undefined); setMessage(text.wasReset); }}

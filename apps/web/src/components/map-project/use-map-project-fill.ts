@@ -37,30 +37,30 @@ export function useMapProjectFill(input: { session: MapProjectSession | undefine
   const [bridges, setBridges] = useState<readonly FillBridge[]>([]);
   const [gaps, setGaps] = useState<readonly (readonly [Point, Point])[]>([]);
   /** Pekarens frågor går en i taget: `waiting` är frågan som är ute, `next` punkten som väntar på tur. */
-  const hovering = useRef<{ waiting: boolean; next: Point | undefined }>({ waiting: false, next: undefined });
+  const hovering = useRef<{ waiting: boolean; next: Point | undefined; exact?: boolean }>({ waiting: false, next: undefined });
   /** Ett klick är på väg: pekaren frågar inte under tiden (bara det senaste svaret kommer fram). */
   const filling = useRef(false);
   const proposals = useMapProjectAreaProposals(input);
   const usable = active && symbol?.kind === "area";
   useEffect(() => { if (!usable) { setPreview(undefined); setBridges([]); setGaps([]); hovering.current.next = undefined; } }, [usable]);
 
-  function ask(point: Point) {
+  function ask(point: Point, exact: boolean) {
     if (!session) return;
-    hovering.current = { waiting: true, next: undefined };
-    session.fill({ point, hidden: input.hidden, diagnose: false, gapM }, result => {
+    hovering.current = { waiting: true, next: undefined, exact };
+    session.fill({ point, hidden: input.hidden, diagnose: false, gapM, exact }, result => {
       const next = hovering.current.next;
       hovering.current.waiting = false;
       setPreview(result.status === "found" ? result.rings : undefined);
       setBridges(result.status === "found" ? result.bridges : []);
-      if (next) ask(next);
+      if (next) ask(next, hovering.current.exact ?? false);
     });
   }
 
-  /** Pekaren över kartan (musen): rutan under den visas. */
-  function hover(point: Point | undefined) {
+  /** Pekaren över kartan (musen): rutan under den visas; med Alt nedtryckt (`exact`) det exakta resultatet (K8b V1). */
+  function hover(point: Point | undefined, exact = false) {
     if (!usable || filling.current) return;
     if (!point || proposals.inCandidate(point)) { hovering.current.next = undefined; setPreview(undefined); setBridges([]); return; }
-    if (hovering.current.waiting) hovering.current.next = point; else ask(point);
+    if (hovering.current.waiting) { hovering.current.next = point; hovering.current.exact = exact; } else ask(point, exact);
   }
 
   /** Klicket eller trycket: rutan läggs in med den valda symbolen; `exact` (Alt+klick) sluter bara glapp upp till grundtoleransen. */

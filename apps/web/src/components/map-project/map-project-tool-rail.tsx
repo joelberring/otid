@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import styles from "./map-project-tool-rail.module.css";
 
 export type RailIcon = "select" | "draw" | "circle" | "area" | "note" | "undo" | "redo" | "panel" | "addPoint" | "removePoint" | "keys"
-  | "cut" | "rectangle" | "bucket" | "duplicate" | "fill" | "parallel" | "pick" | "reverse" | "switchSymbol" | "join" | "smooth" | "simplify" | "checked" | "remove" | "wheel" | "bare";
+  | "cut" | "rectangle" | "bucket" | "duplicate" | "fill" | "parallel" | "pick" | "reverse" | "switchSymbol" | "join" | "smooth" | "simplify" | "checked" | "remove" | "wheel" | "bare" | "repeat";
 
 export interface RailTool {
   readonly id: string; readonly label: string; readonly icon: RailIcon;
@@ -15,8 +15,10 @@ export interface RailTool {
   readonly active?: boolean | undefined; readonly disabled?: boolean | undefined;
   /** Varför verktyget inte går att använda just nu (visas i förklaringen). */
   readonly disabledHelp?: string | undefined;
-  /** Strecket före verktyget (en ny grupp). */
-  readonly gap?: boolean | undefined;
+  /** En ny grupp börjar med verktyget: ett tunt streck och gruppens rubrik (K8b V1). */
+  readonly group?: string | undefined;
+  /** Längst ned i spalten (hjulet, bara kartan och tangenterna). */
+  readonly bottom?: boolean | undefined;
   /** Bara på telefonen (panelens knapp). */
   readonly phoneOnly?: boolean | undefined;
   /** Bara i datorn (tangenterna). */
@@ -58,7 +60,9 @@ const PATHS: Record<RailIcon, ReactNode> = {
   checked: <><circle cx="12" cy="12" r="9" /><path d="M7.5 12.5l3 3 6-7" /></>,
   remove: <><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6" /></>,
   wheel: <><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="3.5" /><path d="M12 3v5.5M12 15.5V21M3 12h5.5M15.5 12H21" /></>,
-  bare: <><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></>
+  bare: <><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></>,
+  // Gör igen: en pil i en ring och en punkt.
+  repeat: <><path d="M19 12a7 7 0 11-2.05-4.95" /><path d="M19 4v4h-4" /><circle cx="12" cy="12" r="1.6" fill="currentColor" /></>
 };
 
 /** Verktygets ikon (också i verktygshjulet). */
@@ -81,15 +85,19 @@ export function MapProjectToolRail({ label, tools, spaceLabel = "Space" }: { lab
     setTip({ id, top: rect.top + rect.height / 2, left: rect.right + 8 });
   };
   const shown = tip && tools.find(tool => tool.id === tip.id);
+  const button = (tool: RailTool) => <button key={tool.id} type="button" className={styles.tool} aria-label={tool.label} aria-pressed={tool.active}
+    aria-keyshortcuts={tool.key} aria-description={tool.help} aria-disabled={tool.disabled || undefined}
+    data-gap={tool.group ? true : undefined} data-phone={tool.phoneOnly || undefined} data-desktop={tool.desktopOnly || undefined} data-pin={tool.pin} data-testid={tool.testId}
+    onPointerEnter={event => { if (event.pointerType === "mouse") show(tool.id)(event); }} onPointerLeave={() => setTip(undefined)}
+    onFocus={show(tool.id)} onBlur={() => setTip(undefined)} onClick={() => { if (!tool.disabled) tool.onPick(); }}>
+    <RailIconImage icon={tool.icon} />
+    {tool.key && <kbd className={styles.key} aria-hidden="true">{tool.key}</kbd>}
+  </button>;
+  const group = (list: readonly RailTool[]) => list.map(tool => tool.group
+    ? <Fragment key={tool.id}><span className={styles.group} aria-hidden="true">{tool.group}</span>{button(tool)}</Fragment> : button(tool));
   return <div className={styles.rail} role="toolbar" aria-label={label} aria-orientation="vertical" data-testid="map-project-rail">
-    {tools.map(tool => <button key={tool.id} type="button" className={styles.tool} aria-label={tool.label} aria-pressed={tool.active}
-      aria-keyshortcuts={tool.key} aria-description={tool.help} aria-disabled={tool.disabled || undefined}
-      data-gap={tool.gap || undefined} data-phone={tool.phoneOnly || undefined} data-desktop={tool.desktopOnly || undefined} data-pin={tool.pin} data-testid={tool.testId}
-      onPointerEnter={event => { if (event.pointerType === "mouse") show(tool.id)(event); }} onPointerLeave={() => setTip(undefined)}
-      onFocus={show(tool.id)} onBlur={() => setTip(undefined)} onClick={() => { if (!tool.disabled) tool.onPick(); }}>
-      <RailIconImage icon={tool.icon} />
-      {tool.key && <kbd className={styles.key} aria-hidden="true">{tool.key}</kbd>}
-    </button>)}
+    <div className={styles.part}>{group(tools.filter(tool => !tool.bottom))}</div>
+    <div className={styles.part} data-bottom>{group(tools.filter(tool => tool.bottom))}</div>
     {shown && <div className={styles.tip} role="tooltip" style={{ top: tip.top, left: tip.left }} data-testid="map-project-rail-tip">
       <strong>{shown.label}</strong>{shown.key && <kbd>{shown.key.replace("␣", spaceLabel)}</kbd>}
       {shown.help && <span>{shown.help}</span>}

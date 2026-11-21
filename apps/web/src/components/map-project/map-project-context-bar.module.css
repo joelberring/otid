@@ -1,0 +1,20 @@
+/* K8b V1: kontextraden vid det markerade objektets ram (läget sätts av `placeContextRow`); i telefonen en rad nederst på kartan. */
+.row { position: absolute; z-index: 4; left: var(--context-x, 0); top: var(--context-y, 0); display: flex; flex-wrap: nowrap; gap: 2px; max-width: calc(100% - 8px);
+  padding: 3px; overflow-x: auto; border: 1px solid var(--line, #ccc); border-radius: 8px; background: rgb(255 255 255 / 96%);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 18%); scrollbar-width: none; }
+.row:not([data-placed]) { visibility: hidden; }
+.row[hidden] { display: none; }
+.action { flex: none; display: inline-flex; align-items: baseline; gap: 5px; min-height: 30px; padding: 2px 8px; border: 1px solid transparent; border-radius: 6px;
+  background: none; font: inherit; font-size: var(--text-sm, .9rem); color: var(--ink, #222); cursor: pointer; white-space: nowrap; }
+.action:hover, .action:focus-visible { background: var(--surface-2, #f3f3f3); border-color: var(--line, #ccc); }
+.action[aria-pressed="true"] { background: var(--ink, #111); border-color: var(--ink, #111); color: #fff; }
+.key { font: 700 .66rem/1 system-ui, sans-serif; color: var(--muted, #666); background: none; border: 0; padding: 0; }
+.action[aria-pressed="true"] .key { color: #fff; }
+
+@media (max-width: 760px) {
+  .row[hidden] { display: none; }
+  .row, .row:not([data-placed]) { visibility: visible; left: 0; right: 0; top: auto; bottom: 0; max-width: none; border-radius: 0; border-width: 1px 0 0;
+    box-shadow: none; padding: 3px 6px; }
+  .action { min-height: 38px; }
+  .key { display: none; }
+}

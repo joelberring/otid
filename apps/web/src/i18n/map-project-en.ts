@@ -250,7 +250,7 @@ export const mapProjectEditorEn: Texts<typeof mapProjectEditorSv> = {
   closed: "The project is closed. The map cannot be changed.",
   tools: {
     label: "Tools",
-    select: "Edit",
+    select: "Select",
     selectHelp: "Select and move objects and vertices",
     draw: "Draw",
     drawHelp: "Click for corners, press and drag for a curve, double-click or Enter to finish",

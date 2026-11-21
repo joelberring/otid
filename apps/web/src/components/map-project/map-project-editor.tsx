@@ -9,7 +9,7 @@ import Link from "next/link";
 import type { MapProjectView } from "@o-tid/contracts";
 import type { MapObject, Point } from "@o-tid/map-file";
 import {
-  MAX_SEGMENT_M, bendSegment, deleteVertex, hitDistance, moveHandle, moveVertex, nearestSegment, newKey, vertexHandles, withSymbol,
+  MAX_SEGMENT_M, bendSegment, deleteVertex, hitDistance, isSprintNorm, mapNorm, moveHandle, moveVertex, nearestSegment, newKey, objectBox, vertexHandles,
   type EditKind, type ObjectKey, type ObjectRef, type VertexAddress
 } from "@o-tid/map-revision";
 import { mapProjectEditorSv } from "../../i18n/map-project-editor-sv";
@@ -41,6 +41,7 @@ import { useMapProjectSymbolLayers } from "./use-map-project-symbol-layers";
 import { useMapProjectWorkLayers } from "./use-map-project-work-layers";
 import { MapProjectWorkLayers } from "./map-project-work-layers";
 import { drawSketches } from "../../lib/map-project-sketch";
+import { proposedDrawing } from "../../lib/map-project-proposed";
 import { mapProjectWorkLayersSv } from "../../i18n/map-project-work-layers-sv";
 import { CourseSettingMap, type CourseSettingMapHandle, type MapPointerHandlers } from "../course-setting/course-setting-map";
 import { AccountMenu } from "../account-menu";
@@ -60,12 +61,16 @@ import { MapProjectSidebar, type SidebarTab } from "./map-project-sidebar";
 import { noticeText, SyncBadge } from "./map-project-sync-badge";
 import { MapProjectBaseMapPanel, MapProjectSettingsDetails, MapProjectToExport } from "./map-project-underlay-panels";
 import { MapProjectLayersPanel } from "./map-project-layers-panel";
-import { reverseLine } from "../../lib/map-project-join";
 import { MapProjectCandidateBar } from "./map-project-candidate-bar";
-import { clickTool, duplicateObjects, addEdges, shapeCommand } from "./map-project-click-tools";
-import { edgePlan } from "../../lib/map-project-edge";
+import { clickTool } from "./map-project-click-tools";
 import { MapProjectColors } from "./map-project-colors";
-import { railTools, selectionLabel, toolHint, wheelActionsOf, wheelToolsOf } from "./map-project-rail-tools";
+import { railTools, selectionLabel, toolHint, wheelToolsOf } from "./map-project-rail-tools";
+import { useMapProjectActions } from "./use-map-project-actions";
+import { MapProjectContextBar, placeContextRow } from "./map-project-context-bar";
+import { MapProjectTopBar } from "./map-project-top-bar";
+import { MapProjectModeSwitches } from "./map-project-mode-switches";
+import { stepGap, useMapProjectModes } from "./use-map-project-modes";
+import { useMapProjectFlick } from "./use-map-project-flick";
 import { MapProjectToolRail } from "./map-project-tool-rail";
 import { HelpButton } from "../help/help-panel";
 import { MapProjectKeysDialog, useMapProjectKeys } from "./map-project-keys-dialog";
@@ -73,12 +78,12 @@ import { mapProjectKeysSv } from "../../i18n/map-project-keys-sv";
 import { keyLabel } from "../../lib/map-project-keys";
 import { editPointAt } from "../../lib/map-project-point-edit";
 import { anchorOf, ROTATE_CURSOR, useMapProjectMulti } from "./use-map-project-multi";
-import { useMapProjectShortcuts, type SelectedCommand } from "./use-map-project-shortcuts";
+import { useMapProjectShortcuts } from "./use-map-project-shortcuts";
 import { useMapProjectCollaboration } from "./use-map-project-collaboration";
 import { useMapProjectEditor } from "./use-map-project-editor";
 import { MapProjectToolWheel } from "./map-project-tool-wheel";
 import { mapProjectQuickSv } from "../../i18n/map-project-quick-sv";
-import { circleFor, shapeActions, withRecent } from "../../lib/map-project-shape-actions";
+import { circleFor, withRecent } from "../../lib/map-project-shape-actions";
 import { MapProjectPrintButton } from "./map-project-print-button";
 import styles from "./map-project-editor.module.css";
 
@@ -105,18 +110,6 @@ const DOUBLE_TAP_MS = 350;
 const TOUCH_HOLD_MS = 120;
 const recentKey = (projectId: string) => `otid-map-recent:${projectId}`;
 const degreesTo = (from: Point, to: Point) => Math.atan2(to.y - from.y, to.x - from.x) * 180 / Math.PI;
-/** Förslagens ändringar att rita: nya lägen och platserna för borttagningar (ändringens punkt). */
-interface ProposedDrawing { readonly objects: MapObject[]; readonly deleted: Point[] }
-function proposedDrawing(edits: readonly { state: unknown; point?: Point | null | undefined }[]): ProposedDrawing {
-  const objects: MapObject[] = [], deleted: Point[] = [];
-  for (const edit of edits) {
-    const value = edit.state as { kind?: string; object?: MapObject } | undefined;
-    if (value?.kind === "OBJECT" && value.object) objects.push(value.object);
-    else if (value?.kind === "DELETED" && edit.point) deleted.push(edit.point);
-  }
-  return { objects, deleted };
-}
-
 /**
  * ADR-0219 (K1): kartprojektets karta med ritverktygen. Kartan ritas i Workern med alla ändringar; markeringen, objektet som
  * dras och utkastet ritas ovanpå. Verktygen som i Mapper: Redigera (E) markerar och flyttar objekt och punkter, Rita (P)
@@ -233,6 +226,10 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const [flash, setFlash] = useState<string>();
   const split = useMapProjectSplit({ view, areas: collab.areas, bounds: editor.bounds ?? undefined, only: shownArea, reload: collab.loadAreas, say: setFlash, done: () => setTool("select") });
   const mapArea = useRef<HTMLDivElement>(null);
+  const contextRow = useRef<HTMLDivElement>(null);
+  /** Hjulets platser (sätts längre ned): snärten väljer verktyget på platsen i riktningen. */
+  const wheelSlots = useRef<readonly ({ readonly disabled?: boolean | undefined; readonly onPick: () => void } | undefined)[]>([]);
+  const wheelGate = useMapProjectFlick(mapArea, slot => { const target = wheelSlots.current[slot]; if (target && !target.disabled) target.onPick(); });
   const pointerAt = useRef<{ x: number; y: number }>(undefined);
   useEffect(() => {
     try { const stored = JSON.parse(localStorage.getItem(recentKey(view.projectId)) ?? "[]") as unknown; if (Array.isArray(stored)) setRecent(stored.filter(id => typeof id === "string").slice(0, 9)); }
@@ -270,7 +267,10 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   // Ägaren 2026-11-10: flera objekt markerade med en ruta (som i Illustrator). Mellanslag nedtryckt = dra kartan i stället.
   const multi = useMapProjectMulti({ session, hidden: unselectable, commit, setPreviewKeys: setPreview, tool });
   const panKey = useRef({ down: false, used: false });
-  const fill = useMapProjectFill({ session, active: tool === "bucket" && canEdit, symbol, hidden: hiddenSymbols, commit, say: setFlash, symbols, scale: editor.scale ?? georeference?.scale, commitMany: editor.commitMany });
+  // K8b V1: Fäst (V3) och Glapp, som Magisk fyll läser (V2).
+  const modes = useMapProjectModes({ projectId: view.projectId, sprint: useMemo(() => isSprintNorm(mapNorm({ scale: editor.scale ?? georeference?.scale, symbols: symbols.values() })),
+    [editor.scale, georeference?.scale, symbols]) });
+  const fill = useMapProjectFill({ session, active: tool === "bucket" && canEdit, symbol, hidden: hiddenSymbols, commit, say: setFlash, symbols, scale: editor.scale ?? georeference?.scale, commitMany: editor.commitMany, gapM: modes.gapM });
   useEffect(() => { if (selected && symbolLayers.locked.has(selected.object.symbol)) deselect(); }, [symbolLayers.locked, selected]);
   const deselect = () => { setSelected(undefined); setActiveVertex(undefined); setRotating(false); setMoveWhole(false); };
   const cancelDraft = () => { setDraft([]); setPreviewObject(undefined); setCircleCenter(undefined); };
@@ -310,15 +310,23 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     const rect = mapArea.current?.getBoundingClientRect();
     if (canEdit && rect) setWheel({ screen: pointerAt.current ?? { x: rect.width / 2, y: rect.height / 2 }, bounds: { width: rect.width, height: rect.height } });
   };
-  // Tangenterna (`use-map-project-shortcuts.ts`). Det markerade objektets kommandon sätts längre ned, där de är uträknade.
-  const keyAction = useRef<(command: SelectedCommand) => void>(() => undefined);
+  // Tangenterna (`use-map-project-shortcuts.ts`).
   const rectCorners = useRef<Point[]>([]);
+  // K8b V1: det som går att göra med det markerade (kontextraden, hjulets lista, tangenterna och Gör igen).
+  const { contextList, doAction, keyAction, repeat, repeatLabel } = useMapProjectActions({ canEdit, tool, keys, keysText, quick, multi, selected, symbol, symbolId,
+    activeVertex, recon, symbols, catalog, save, reshape, commit, setFlash, chooseSymbol, removeSelected, joinMm: JOIN_MM });
   useMapProjectShortcuts({ keys, blocked: keysOpen, canEdit, canNote: notes.canWrite, tool, hasSelection: !!selected, drafting: draft.length > 0,
     multiCount: multi.items.length, panKey, undo: editor.undo, redo: editor.redo, toggleBare: () => setBare(value => !value),
     pickTool: next => { if (next === "draw" || next === "circle") deselect(); cancelDraft(); setTool(next); },
-    selectedAction: command => keyAction.current(command), layerKey: symbolLayers.groupKey,
+    restoreTool: previous => { cancelDraft(); setTool(previous as Tool); },
+    selectedAction: keyAction, layerKey: symbolLayers.groupKey, repeat,
+    toggleSnap: () => { modes.setSnap(!modes.snap); setFlash(keysText.snapChanged(!modes.snap)); },
+    gapStep: direction => { const next = stepGap(modes.gapM, direction); modes.setGapM(next); setFlash(keysText.gapChanged(next)); },
+    recentKey: digit => { const chosen = symbols.get(recent[digit - 1] ?? ""); if (chosen) { setSymbolId(chosen.id); setFlash(keysText.picked(chosen.code)); } },
     openWheel,
-    escape: () => { if (draft.length) cancelDraft(); else { deselect(); multi.clear(); } }, finishDraft,
+    // Esc avbryter det pågående; en gång till (inget pågår) ger Markera.
+    escape: () => { if (draft.length || circleCenter || rectCorners.current.length) { cancelDraft(); rectCorners.current.length = 0; }
+      else if (selected || multi.items.length) { deselect(); multi.clear(); } else if (tool !== "select") setTool("select"); }, finishDraft,
     dropDraftPoint: () => setDraft(points => points.slice(0, -1)), remove: () => { if (multi.items.length) multi.remove(); else removeSelected(); } });
 
   function chooseSymbol(id: string) {
@@ -533,7 +541,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     onDragCancel() { multi.cancel(); drag.current = undefined; setPreviewObject(undefined); setPreview(new Set()); },
     onHover(point, modifiers) {
       if (tool === "select" && multi.items.length) multi.hover(point, 8 / modifiers.pxPerMm);
-      if (tool === "bucket") fill.hover(point);
+      if (tool === "bucket") fill.hover(point, modifiers.alt);
       if (tool !== "select" && (draft.length || circleCenter)) setCursor(point);
       if (tool === "circle" && circleCenter && point && symbol) setPreviewObject(circleFor(symbol.kind, symbol.id, circleCenter, point));
     },
@@ -543,7 +551,8 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       if (!canEdit) return;
       if (draft.length) { finishDraft(); return; }
       const rect = mapArea.current?.getBoundingClientRect();
-      const open = () => setWheel({ screen, bounds: { width: rect?.width ?? 800, height: rect?.height ?? 600 } });
+      // K8b V1: med högerknappen nere avgör snärten om hjulet öppnas (`use-map-project-flick.ts`).
+      const open = () => wheelGate(() => setWheel({ screen, bounds: { width: rect?.width ?? 800, height: rect?.height ?? 600 } }));
       if (tool !== "select" || (selected && hitDistance(selected.object, point, tolerance)) || multi.zoneAt(point, tolerance) === "move") { open(); return; }
       multi.clear();
       session?.hit(point, tolerance, unselectable, hits => {
@@ -571,6 +580,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     ...(newArea ? [{ polygon: [newArea], label: "", owner: "MINE" as const, selected: true }] : [])
   ], [collab.areas, shownArea, newArea, view.viewer.accountId, stages]);
 
+  const contextKey = contextList.map(action => action.label).join("|");
   const reconResult = recon.result;
   const coverage = useMemo(() => reconResult?.coverage && recon.layers.has("COVERAGE")
     ? { grid: reconResult.coverage, image: coverageImage(reconResult.coverage) } : undefined, [reconResult, recon.layers]);
@@ -610,6 +620,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     if (multi.box && multi.items.length) drawMultiSelection(ctx, current, multi.shown, multi.box, multi.cuts);
     if (multi.marquee) drawMarquee(ctx, current, multi.marquee);
     fill.draw(ctx, current);
+    placeContextRow(contextRow.current, multi.items.length ? multi.box : shown && tool === "select" && selected ? objectBox(shown) : undefined, current, multi.items.length > 0);
     if (shown && tool === "select" && selected) {
       drawSelection(ctx, current, shown, activeVertex);
       const handles = activeVertex ? vertexHandles(shown, activeVertex) : undefined;
@@ -618,7 +629,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   }, [preview, selected, symbols, tool, symbol, draft, cursor, circleCenter, activeVertex, areaDrawings, proposedOpen, proposedShown, view.area, coverage, recon.layers,
     recon.trackLines, reconResult, walk, gapMm, notes.notes, shownNote, noteDraft, drawnLayers, focused, candidates, normIssues, shownIssue,
     control.active, control.markers, rectify.shown, rectify.markers, sketchLayers, work.dragging, work.drawingLayer, work.stroke,
-    multi.moving, multi.shown, multi.box, multi.cuts, multi.items.length, multi.marquee, fill.preview, fill.bridges, fill.gaps, fill.proposals.candidates, fill.proposals.override]);
+    multi.moving, multi.shown, multi.box, multi.cuts, multi.items.length, multi.marquee, fill.preview, fill.bridges, fill.gaps, fill.proposals.candidates, fill.proposals.override, contextKey]);
 
   const hint = tool === "split" ? split.hint : tool === "bucket" && canEdit ? fill.hint : toolHint({ canEdit, closed: view.status === "CLOSED", tool, multiCount: multi.items.length, rotating: multi.zone === "rotate", symbol,
     text, notes: notesText, keys: keysText, quick });
@@ -633,57 +644,25 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     // det valda verktygets namn först på raden.
     : wheel && wheelHover ? wheelHover
     : flash ?? `${canEdit && activeToolName ? `${activeToolName} · ` : ""}${selectedSymbol && tool === "select" ? selectionLabel(selectedSymbol, selected?.object, editor.scale ?? georeference?.scale, keysText) : ""}${hint}`;
-  const canSwitch = !!selected && !!symbol && symbol.id !== selected.object.symbol && symbol.kind === selected.object.kind && canEdit;
-  // Ägaren 2026-11-09: formens åtgärder för det markerade objektet (i hjulet och i verktygsraden).
-  const shapes = selected && tool === "select" && canEdit ? shapeActions(selected.object, quick) : [];
   const pickTool = (next: Tool) => () => { if (next !== "select") deselect(); cancelDraft(); rectCorners.current.length = 0; setTool(next); };
-  // Saxen som i spalten: det markerade släpps inte (man klipper ofta linjen man just markerat).
-  const wheelTools = wheelToolsOf(keys, keysText.space, quick.tools, tool, notes.canWrite, next => { if (next === "cut") { cancelDraft(); setTool("cut"); } else pickTool(next)(); },
-    { select: text.hints.select, circle: keysText.tips.circle, cut: keysText.tips.cut, note: keysText.tips.note });
-  // Ägaren 2026-11-15: kantlinje på de markerade ytorna, med kantsymbolen ur kartans symboler.
-  const edgeOf = multi.items.length ? multi.items.map(item => item.object) : selected && tool === "select" ? [selected.object] : [];
-  const edges = canEdit && edgeOf.some(object => object.kind === "area") ? edgePlan(edgeOf, symbols, catalog, symbol) : undefined;
-  const wheelActions = wheelActionsOf({ edge: edges && { areas: edges.areas, codes: edges.codes, onPick: () => setFlash(addEdges(edges, commit, keysText)) }, multi: multi.items.length && canEdit ? { count: multi.items.length, switchable: symbol ? multi.switchable(symbol) : 0,
-    joinable: multi.joinable(JOIN_MM), smooth: multi.shapeable("smooth"), simplify: multi.shapeable("simplify"), remove: multi.remove } : undefined, single: selected && tool === "select" && canEdit ? { shapes, line: selected.object.kind === "line",
-    switchTo: canSwitch ? symbol.code : undefined, remove: removeSelected, reshape } : undefined, symbolCode: symbol?.code, text: keysText, quick, act: keyAction.current });
+  // Saxen och punkterna som i spalten: det markerade släpps inte (man klipper ofta linjen man just markerat).
+  const railPick = (next: "select" | "draw" | "circle" | "rectangle" | "bucket" | "addPoint" | "removePoint" | "cut" | "area" | "note") => {
+    if (next === "select" || next === "addPoint" || next === "removePoint" || next === "cut") { cancelDraft(); setTool(next); }
+    else if (next === "note") { cancelDraft(); setTool(tool === "note" ? "select" : "note"); } else pickTool(next)();
+  };
   const pending = editor.state?.pending.length ?? 0;
   const conflicts = editor.state ? Object.values(editor.state.conflicts) : [];
 
-  const multiSwitch = symbol && canEdit ? multi.switchable(symbol) : 0;
-  const act = (command: SelectedCommand) => {
-    if (multi.items.length) {
-      if (command === "switchSymbol" && symbol && multiSwitch) setFlash(keysText.switched(multi.switchSymbol(symbol), symbol.code));
-      else if (command === "join") { const count = multi.join(JOIN_MM); setFlash(count ? keysText.joined(count) : keysText.needLines); }
-      else if (command === "reverse") { const count = multi.reverse(); setFlash(count ? keysText.reversed(count) : keysText.needLine); }
-      else if (command === "duplicate") duplicate(multi.items);
-      else if (command === "smooth" || command === "simplify") { const count = multi.shape(command); setFlash(count ? keysText[command === "smooth" ? "multiSmoothed" : "multiSimplified"](count) : keysText.needShape); }
-      return;
-    }
-    if (!selected) return;
-    const shape = command === "simplify" || command === "smooth" ? shapes.find(action => action.id === command) : undefined;
-    if (shape) reshape(shape.result, shape.message);
-    else if (command === "switchSymbol" && canSwitch) save(selected.key, selected.ref, withSymbol(selected.object, symbol.id), "SYMBOL");
-    else if (command === "reverse") { const turned = reverseLine(selected.object); if (turned && save(selected.key, selected.ref, turned, "RESHAPE")) setFlash(keysText.reversed(1)); }
-    else if (command === "duplicate") duplicate([selected]);
-    else if (command === "fill" || command === "parallel") setFlash(shapeCommand(command, selected.object, symbol, commit, keysText));
-    else if (command === "pick") { chooseSymbol(selected.object.symbol); setFlash(keysText.picked(symbols.get(selected.object.symbol)?.code ?? "")); }
-    else if (command === "checked" && recon.canRecord) void recon.setChecked([selected.key], !recon.validChecks.has(selected.key));
-  };
-  keyAction.current = act;
-  const duplicate = (items: readonly { object: MapObject }[]) => setFlash(keysText.duplicated(duplicateObjects(items, commit)));
-  const rail = railTools({ keys, text: keysText, tool, panelOpen, bare, canEdit, canDecide, canNote: notes.canWrite, canCheck: recon.canRecord,
+  const wheelTools = wheelToolsOf({ keys, space: keysText.space, tool, canNote: notes.canWrite, labels: quick.tools, repeat: repeatLabel, onRepeat: repeat,
+    help: { select: text.hints.select, rectangle: keysText.tips.rectangle, bucket: keysText.tips.bucket, cut: keysText.tips.cut, point: keysText.addPointHint, note: keysText.tips.note,
+      repeat: keysText.tips.repeat },
+    pick: next => railPick(next) });
+  wheelSlots.current = wheelTools;
+  const keyOf = (command: keyof typeof keys) => keys[command] ? keyLabel(keys[command], keysText.space) : undefined;
+  const rail = railTools({ keys, text: keysText, tool, panelOpen, bare, canEdit, canDecide, canNote: notes.canWrite,
     labels: { panel: text.panel, select: text.tools.select, selectHelp: text.tools.selectHelp, draw: text.tools.draw, drawHelp: text.tools.drawHelp, circle: quick.tools.circle,
-      area: text.collab.areaTool, note: notesText.tool, undo: text.tools.undo, redo: text.tools.redo, checked: keysText.commands.checked,
-      switchTo: symbol && (canSwitch || multiSwitch) ? text.tools.switchSymbol(symbol.code) : undefined },
-    isChecked: !!selected && recon.validChecks.has(selected.key), canUndo: editor.history.undo.length > 0, canRedo: editor.history.redo.length > 0,
-    hasSelection: tool === "select" && (!!selected || multi.items.length > 0), canSwitch: canSwitch || multiSwitch > 0, canJoin: canEdit && multi.joinable(JOIN_MM),
-    canReverse: canEdit && tool === "select" && (selected ? selected.object.kind === "line" : multi.items.some(item => item.object.kind === "line")),
-    canPick: tool === "select" && !!selected && selected.object.symbol !== symbolId,
-    canSmooth: shapes.some(action => action.id === "smooth" && action.result) || (canEdit && multi.shapeable("smooth") > 0),
-    canSimplify: shapes.some(action => action.id === "simplify" && action.result) || (canEdit && multi.shapeable("simplify") > 0),
-    pick: next => { if (next === "select" || next === "addPoint" || next === "removePoint" || next === "cut") { cancelDraft(); setTool(next); }
-      else if (next === "note") { cancelDraft(); setTool(tool === "note" ? "select" : "note"); } else pickTool(next)(); },
-    act, remove: () => { if (multi.items.length) multi.remove(); else removeSelected(); }, undo: editor.undo, redo: editor.redo,
+      area: text.collab.areaTool, note: notesText.tool, undo: text.tools.undo, redo: text.tools.redo },
+    canUndo: editor.history.undo.length > 0, canRedo: editor.history.redo.length > 0, pick: railPick, undo: editor.undo, redo: editor.redo,
     togglePanel: () => setPanelOpen(open => !open), toggleBare: () => setBare(value => !value), openWheel, openKeys: () => setKeysOpen(true) });
 
   return <main className={styles.page}>
@@ -707,13 +686,19 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     {keysOpen && <MapProjectKeysDialog keys={keys} onKeys={setKeys} onClose={() => setKeysOpen(false)} />}
     <div className={styles.workspace} data-bare={bare}>
       <MapProjectToolRail label={text.tools.label} tools={rail} spaceLabel={keysText.space} />
+      {canEdit && <MapProjectTopBar recent={recent.map(id => symbols.get(id)).filter((entry): entry is CatalogSymbol => entry !== undefined)} symbolId={symbolId}
+        onSymbol={setSymbolId} text={keysText} undo={{ label: text.tools.undo, key: keyOf("undo"), disabled: editor.history.undo.length === 0, onPick: editor.undo }}
+        redo={{ label: text.tools.redo, key: keyOf("redo"), disabled: editor.history.redo.length === 0, onPick: editor.redo }} />}
       <div className={styles.mapArea} ref={mapArea} onPointerMove={event => {
         const rect = event.currentTarget.getBoundingClientRect();
         pointerAt.current = { x: event.clientX - rect.left, y: event.clientY - rect.top };
       }}>
         {wheel && <MapProjectToolWheel at={wheel.screen} bounds={wheel.bounds} tools={wheelTools} onHover={setWheelHover}
           symbols={recent.map(id => symbols.get(id)).filter((entry): entry is CatalogSymbol => entry !== undefined).slice(0, 6)}
-          symbolId={symbolId} onSymbol={chooseSymbol} actions={wheelActions} onClose={() => setWheel(undefined)} />}
+          symbolId={symbolId} onSymbol={chooseSymbol} onClose={() => setWheel(undefined)}
+          repeat={repeatLabel ? { id: "repeat", label: repeatLabel, key: keyOf("repeat"), onPick: repeat } : undefined}
+          actions={contextList.map(action => ({ id: action.id, label: action.label, key: action.key, onPick: () => doAction(action.id) }))} />}
+        <MapProjectContextBar label={quick.actions} actions={contextList} rowRef={contextRow} onAction={doAction} spaceLabel={keysText.space} hidden={!!wheel} />
         {editor.mapStatus === "loading" && <p className={styles.loading}>{text.loading}</p>}
         {editor.mapStatus === "failed" && <Notice tone="error" role="alert">{text.failed}</Notice>}
         {/* Kartvyn visas när kartan är läst: då har rutan sin storlek och hela kartan passas in. */}
@@ -756,14 +741,9 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       <div className={styles.statusRow}>
         <MapProjectCandidateBar importer={importer} symbols={symbols} onShowLayers={() => { setTab("basemap"); setPanelOpen(true); }} />
         <MapProjectAreaProposalBar proposals={fill.proposals} />
-        {canEdit && (work.drawingLayer || draft.length > 0 || (selected && tool === "select") || multi.items.length > 0) && <div className={styles.objectBar} role="group"
+        {/* Det som görs med det markerade står i kontextraden; här bara utkastet, skisslagret och flytta hela/vrid. */}
+        {canEdit && (work.drawingLayer || draft.length > 0 || (selected && tool === "select" && (selected.object.kind === "line" || selected.object.kind === "point"))) && <div className={styles.objectBar} role="group"
           aria-label={quick.actions} data-testid="map-project-object-bar">
-          {multi.items.length > 0 && <Button variant="secondary" onClick={multi.remove} data-testid="map-project-multi-remove">
-            {keysText.multiRemove(multi.items.length)}</Button>}
-          {multiSwitch > 0 && symbol && <Button variant="secondary" onClick={() => act("switchSymbol")} data-testid="map-project-multi-switch">
-            {keysText.multiSwitch(multiSwitch, symbol.code)}</Button>}
-          {multi.items.length > 1 && multi.joinable(JOIN_MM) && <Button variant="secondary" onClick={() => act("join")} data-testid="map-project-multi-join">
-            {keysText.commands.join}</Button>}
           {work.drawingLayer && <>
             <label className={styles.inlineField}>{workText.textLabel}<input value={work.label} maxLength={200} onChange={event => work.setLabel(event.target.value)}
               data-testid="map-project-sketch-text" /></label>
@@ -774,24 +754,13 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
             <Button onClick={finishDraft}>{text.tools.finish}</Button>
             <Button variant="secondary" onClick={cancelDraft}>{text.tools.cancel}</Button>
           </>}
-          {selected && tool === "select" && <>
-            <Button variant="secondary" onClick={removeSelected}>{activeVertex ? text.tools.deleteVertex : text.tools.delete}</Button>
-            {selected.object.kind === "line" && !activeVertex && <Button variant={moveWhole ? "primary" : "secondary"} aria-pressed={moveWhole}
-              title={text.tools.moveWholeHelp} onClick={() => setMoveWhole(value => !value)} data-testid="map-project-move-whole">{text.tools.moveWhole}</Button>}
-            {(selected.object.kind === "point") && <Button variant={rotating ? "primary" : "secondary"} aria-pressed={rotating}
-              title={text.tools.rotateHelp} onClick={() => setRotating(value => !value)}>{text.tools.rotate}</Button>}
-            {shapes.filter(action => action.id !== "simplifyMore").map(action => <Button key={action.id} variant="secondary" disabled={!action.result} data-testid={`map-project-shape-${action.id}`}
-              onClick={() => reshape(action.result, action.message)}>{action.label}</Button>)}
-            {canSwitch && <Button variant="secondary" onClick={() => save(selected.key, selected.ref, withSymbol(selected.object, symbol.id), "SYMBOL")}>
-              {text.tools.switchSymbol(symbol.code)}</Button>}
-            {recon.canRecord && <Button variant={recon.validChecks.has(selected.key) ? "primary" : "secondary"} aria-pressed={recon.validChecks.has(selected.key)}
-              data-testid="recon-check" title={recon.validChecks.has(selected.key) ? reconText.checkedBy(recon.checks.get(selected.key)?.name ?? null,
-                new Date(recon.checks.get(selected.key)?.at ?? Date.now()).toLocaleDateString(locale, { day: "numeric", month: "short" })) : undefined}
-              onClick={() => void recon.setChecked([selected.key], !recon.validChecks.has(selected.key))}>
-              {recon.validChecks.has(selected.key) ? reconText.checked : reconText.unchecked}</Button>}
-          </>}
+          {selected && tool === "select" && selected.object.kind === "line" && !activeVertex && <Button variant={moveWhole ? "primary" : "secondary"} aria-pressed={moveWhole}
+            title={text.tools.moveWholeHelp} onClick={() => setMoveWhole(value => !value)} data-testid="map-project-move-whole">{text.tools.moveWhole}</Button>}
+          {selected && tool === "select" && selected.object.kind === "point" && <Button variant={rotating ? "primary" : "secondary"} aria-pressed={rotating}
+            title={text.tools.rotateHelp} onClick={() => setRotating(value => !value)}>{text.tools.rotate}</Button>}
         </div>}
         <p className={styles.hint} aria-live="polite" data-testid="map-project-hint" title={hintLine}>{hintLine}</p>
+        {canEdit && <MapProjectModeSwitches snap={modes.snap} onSnap={() => modes.setSnap(value => !value)} snapKey={keyOf("snap")} gapM={modes.gapM} onGap={modes.setGapM} text={keysText} />}
       </div>
       <MapProjectSidebar open={panelOpen} catalog={catalog} symbolId={symbolId} onSymbol={chooseSymbol} tab={tab} onTab={setTab}
         recent={recent.map(id => symbols.get(id)).filter((entry): entry is CatalogSymbol => entry !== undefined)}

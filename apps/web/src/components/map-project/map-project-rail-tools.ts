@@ -7,116 +7,87 @@ import type { mapProjectNotesSv } from "../../i18n/map-project-notes-sv";
 import type { mapProjectQuickSv } from "../../i18n/map-project-quick-sv";
 import type { Texts } from "../../lib/language";
 import type { RailTool } from "./map-project-tool-rail";
-import type { WheelAction, WheelTool } from "./map-project-tool-wheel";
+import type { WheelTool } from "./map-project-tool-wheel";
+
+type RailPick = "select" | "draw" | "circle" | "rectangle" | "bucket" | "addPoint" | "removePoint" | "cut" | "area" | "note";
 
 export interface RailState {
   readonly keys: KeyMap; readonly text: Texts<typeof mapProjectKeysSv>;
   readonly labels: { readonly panel: string; readonly select: string; readonly selectHelp: string; readonly draw: string; readonly drawHelp: string; readonly circle: string;
-    readonly area: string; readonly note: string; readonly undo: string; readonly redo: string; readonly checked: string; readonly switchTo: string | undefined };
+    readonly area: string; readonly note: string; readonly undo: string; readonly redo: string };
   readonly tool: string; readonly panelOpen: boolean; readonly bare: boolean;
-  readonly canEdit: boolean; readonly canDecide: boolean; readonly canNote: boolean; readonly canCheck: boolean; readonly isChecked: boolean;
+  readonly canEdit: boolean; readonly canDecide: boolean; readonly canNote: boolean;
   readonly canUndo: boolean; readonly canRedo: boolean;
-  /** Något är markerat (ett objekt eller flera), och vad som går att göra med det. */
-  readonly hasSelection: boolean; readonly canSwitch: boolean; readonly canJoin: boolean; readonly canReverse: boolean; readonly canPick: boolean; readonly canSmooth: boolean; readonly canSimplify: boolean;
-  readonly pick: (tool: "select" | "draw" | "circle" | "rectangle" | "bucket" | "addPoint" | "removePoint" | "cut" | "area" | "note") => void;
-  readonly act: (command: "switchSymbol" | "join" | "smooth" | "simplify" | "checked" | "reverse" | "pick" | "duplicate" | "fill" | "parallel") => void;
-  readonly remove: () => void; readonly undo: () => void; readonly redo: () => void;
+  readonly pick: (tool: RailPick) => void;
+  readonly undo: () => void; readonly redo: () => void;
   readonly togglePanel: () => void; readonly toggleBare: () => void; readonly openWheel: () => void; readonly openKeys: () => void;
 }
 
 /**
- * Ägaren 2026-11-10 («en symbol för alla snabbkommandon så att man kan välja tangentbord eller symbol», «en förklaring när man
- * drar med musen över»): verktygsspaltens knappar. Tre grupper: verktygen (vad ett klick på kartan gör), det som görs med det
- * markerade, och ångra, hjulet, bara kartan och tangenterna. Det som inte går just nu är grått och förklaringen säger varför.
+ * Ägaren 2026-11-10 («en symbol för alla snabbkommandon») och K8b V1 (2026-11-21): verktygsspalten har bara verktyg, i
+ * grupper med en liten rubrik: Markera | Rita, Rektangel, Cirkel | Fyll | Forma | Granska; längst ned hjulet, bara kartan och
+ * tangenterna. Det som görs med det markerade står i kontextraden vid objektet (`map-project-context-actions.ts`), och Ångra
+ * och Gör om i raden överst (i telefonen ligger de kvar fästa i spaltens rad).
  */
 export function railTools(state: RailState): RailTool[] {
   const { keys, text, labels } = state, key = (command: keyof KeyMap) => keys[command] ? keyLabel(keys[command], "␣") : undefined;
-  const needs = state.hasSelection ? undefined : text.needSelection;
+  const tool = (id: Exclude<RailPick, "area">, icon: RailTool["icon"], label: string, help: string, extra: Partial<RailTool> = {}): RailTool =>
+    ({ id, label, icon, key: key(id), help, active: state.tool === id, onPick: () => state.pick(id), ...extra });
+  const review: RailTool[] = [
+    ...(state.canNote ? [tool("note", "note", labels.note, text.tips.note, { testId: "map-project-note-tool" })] : []),
+    ...(state.canDecide ? [{ id: "area", label: labels.area, icon: "area", help: text.tips.area, active: state.tool === "area", onPick: () => state.pick("area") } as const] : [])
+  ];
   return [
     { id: "panel", label: labels.panel, icon: "panel", active: state.panelOpen, phoneOnly: true, onPick: state.togglePanel },
     ...(state.canEdit ? [
-      { id: "select", label: labels.select, icon: "select", key: key("select"), help: labels.selectHelp, active: state.tool === "select", onPick: () => state.pick("select") },
-      { id: "draw", label: labels.draw, icon: "draw", key: key("draw"), help: labels.drawHelp, active: state.tool === "draw", onPick: () => state.pick("draw") },
-      { id: "circle", label: labels.circle, icon: "circle", key: key("circle"), help: text.tips.circle, active: state.tool === "circle", testId: "map-project-circle-tool",
-        onPick: () => state.pick("circle") },
-      { id: "rectangle", label: text.commands.rectangle, icon: "rectangle", key: key("rectangle"), help: text.tips.rectangle, active: state.tool === "rectangle",
-        testId: "map-project-rectangle-tool", onPick: () => state.pick("rectangle") },
-      { id: "bucket", label: text.commands.bucket, icon: "bucket", key: key("bucket"), help: text.tips.bucket, active: state.tool === "bucket",
-        testId: "map-project-bucket-tool", onPick: () => state.pick("bucket") },
-      { id: "addPoint", label: text.commands.addPoint, icon: "addPoint", key: key("addPoint"), help: text.addPointHint, gap: true, active: state.tool === "addPoint",
-        testId: "map-project-add-point", onPick: () => state.pick("addPoint") },
-      { id: "removePoint", label: text.commands.removePoint, icon: "removePoint", key: key("removePoint"), help: text.removePointHint, active: state.tool === "removePoint",
-        testId: "map-project-remove-point", onPick: () => state.pick("removePoint") },
-      { id: "cut", label: text.commands.cut, icon: "cut", key: key("cut"), help: text.tips.cut, active: state.tool === "cut", testId: "map-project-cut", onPick: () => state.pick("cut") },
-      ...(state.canDecide ? [{ id: "area", label: labels.area, icon: "area", help: text.tips.area, active: state.tool === "area", onPick: () => state.pick("area") } as const] : []),
-      ...(state.canNote ? [{ id: "note", label: labels.note, icon: "note", key: key("note"), help: text.tips.note, active: state.tool === "note", testId: "map-project-note-tool",
-        onPick: () => state.pick("note") } as const] : []),
-      { id: "switchSymbol", label: labels.switchTo ?? text.commands.switchSymbol, icon: "switchSymbol", key: key("switchSymbol"), help: text.tips.switchSymbol, gap: true,
-        disabled: !state.canSwitch, disabledHelp: needs ?? text.needOtherSymbol, testId: "map-project-rail-switch", onPick: () => state.act("switchSymbol") },
-      { id: "pick", label: text.commands.pick, icon: "pick", key: key("pick"), help: text.tips.pick, disabled: !state.canPick, disabledHelp: text.needSelection,
-        testId: "map-project-rail-pick", onPick: () => state.act("pick") },
-      { id: "duplicate", label: text.commands.duplicate, icon: "duplicate", key: key("duplicate"), help: text.tips.duplicate, disabled: !state.hasSelection,
-        disabledHelp: text.needSelection, testId: "map-project-duplicate", onPick: () => state.act("duplicate") },
-      { id: "fill", label: text.commands.fill, icon: "fill", key: key("fill"), help: text.tips.fill, disabled: !state.hasSelection,
-        disabledHelp: text.needSelection, testId: "map-project-fill", onPick: () => state.act("fill") },
-      { id: "parallel", label: text.commands.parallel, icon: "parallel", key: key("parallel"), help: text.tips.parallel, disabled: !state.canReverse,
-        disabledHelp: text.needLine, testId: "map-project-parallel", onPick: () => state.act("parallel") },
-      { id: "join", label: text.commands.join, icon: "join", key: key("join"), help: text.tips.join, disabled: !state.canJoin, disabledHelp: text.needLines,
-        testId: "map-project-rail-join", onPick: () => state.act("join") },
-      { id: "reverse", label: text.commands.reverse, icon: "reverse", key: key("reverse"), help: text.tips.reverse, disabled: !state.canReverse, disabledHelp: text.needLine,
-        testId: "map-project-rail-reverse", onPick: () => state.act("reverse") },
-      { id: "smooth", label: text.commands.smooth, icon: "smooth", key: key("smooth"), help: text.tips.smooth, disabled: !state.canSmooth, disabledHelp: text.needShape,
-        onPick: () => state.act("smooth") },
-      { id: "simplify", label: text.commands.simplify, icon: "simplify", key: key("simplify"), help: text.tips.simplify, disabled: !state.canSimplify, disabledHelp: text.needShape,
-        onPick: () => state.act("simplify") },
-      ...(state.canCheck ? [{ id: "checked", label: labels.checked, icon: "checked", key: key("checked"), help: text.tips.checked, active: state.isChecked,
-        disabled: !state.hasSelection, disabledHelp: text.needSelection, onPick: () => state.act("checked") } as const] : []),
-      { id: "remove", label: text.remove, icon: "remove", key: "Del", help: text.tips.remove, disabled: !state.hasSelection, disabledHelp: text.needSelection,
-        testId: "map-project-rail-remove", onPick: state.remove },
-      { id: "undo", label: labels.undo, icon: "undo", key: key("undo"), help: text.tips.undo, gap: true, pin: "first", disabled: !state.canUndo, onPick: state.undo },
-      { id: "redo", label: labels.redo, icon: "redo", key: key("redo"), pin: "second", disabled: !state.canRedo, onPick: state.redo },
-      { id: "wheel", label: text.commands.wheel, icon: "wheel", key: key("wheel"), help: text.tips.wheel, gap: true, desktopOnly: true, onPick: state.openWheel }
+      tool("select", "select", labels.select, labels.selectHelp),
+      tool("draw", "draw", labels.draw, labels.drawHelp, { group: text.groups.draw }),
+      tool("rectangle", "rectangle", text.commands.rectangle, text.tips.rectangle, { testId: "map-project-rectangle-tool" }),
+      tool("circle", "circle", labels.circle, text.tips.circle, { testId: "map-project-circle-tool" }),
+      tool("bucket", "bucket", text.commands.bucket, text.tips.bucket, { group: text.groups.fill, testId: "map-project-bucket-tool" }),
+      tool("addPoint", "addPoint", text.commands.addPoint, text.addPointHint, { group: text.groups.shape, testId: "map-project-add-point" }),
+      tool("removePoint", "removePoint", text.commands.removePoint, text.removePointHint, { testId: "map-project-remove-point" }),
+      tool("cut", "cut", text.commands.cut, text.tips.cut, { testId: "map-project-cut" }),
+      ...review.map((entry, index) => index === 0 ? { ...entry, group: text.groups.review } : entry),
+      // Telefonen: Ångra och Gör om ligger kvar vid radens högra kant (i datorn står de i raden överst).
+      { id: "undo", label: labels.undo, icon: "undo", key: key("undo"), help: text.tips.undo, phoneOnly: true, pin: "first", disabled: !state.canUndo, onPick: state.undo },
+      { id: "redo", label: labels.redo, icon: "redo", key: key("redo"), phoneOnly: true, pin: "second", disabled: !state.canRedo, onPick: state.redo },
+      { id: "wheel", label: text.commands.wheel, icon: "wheel", key: key("wheel"), help: text.tips.wheel, desktopOnly: true, bottom: true, onPick: state.openWheel }
     ] satisfies RailTool[] : []),
-    { id: "bare", label: text.commands.bare, icon: "bare", key: key("bare"), help: text.tips.bare, active: state.bare, desktopOnly: true, gap: !state.canEdit, onPick: state.toggleBare },
-    { id: "keys", label: text.open, icon: "keys", help: text.tips.keys, desktopOnly: true, testId: "map-project-keys-open", onPick: state.openKeys }
+    { id: "bare", label: text.commands.bare, icon: "bare", key: key("bare"), help: text.tips.bare, active: state.bare, desktopOnly: true, bottom: true, onPick: state.toggleBare },
+    { id: "keys", label: text.open, icon: "keys", help: text.tips.keys, desktopOnly: true, bottom: true, testId: "map-project-keys-open", onPick: state.openKeys }
   ];
 }
 
-/** Hjulets verktyg: spaltens viktigaste (redigera, rita, cirkel, saxen och notisen), med förklaringen för raden under kartan. */
-export function wheelToolsOf(keys: KeyMap, space: string, labels: { readonly select: string; readonly draw: string; readonly circle: string; readonly cut: string; readonly note: string },
-  tool: string, canNote: boolean, pick: (tool: "select" | "draw" | "circle" | "cut" | "note") => void,
-  help: Partial<Record<"select" | "draw" | "circle" | "cut" | "note", string>> = {}): WheelTool[] {
-  return (["select", "draw", "circle", "cut", ...(canNote ? ["note" as const] : [])] as const).map(id =>
-    ({ id, label: labels[id], icon: id, key: keyLabel(keys[id], space), help: help[id], active: tool === id, onPick: () => pick(id) }));
+/** Hjulets fasta platser medurs från norr (K8b V1): N, NO, O, SO, S, SV, V, NV. */
+export const WHEEL_SLOTS = ["select", "draw", "rectangle", "bucket", "repeat", "cut", "point", "note"] as const;
+export type WheelSlotId = typeof WHEEL_SLOTS[number];
+
+/** Platsen (0 = norr, medurs) för en rörelse på skärmen (y nedåt). */
+export function wheelDirection(dx: number, dy: number): number {
+  return ((Math.round((Math.atan2(dy, dx) * 180 / Math.PI + 90) / 45) % 8) + 8) % 8;
 }
 
-/** Hjulets åtgärder för det markerade: flera objekt (byt symbol, slå ihop, ta bort) eller ett (formen, byt symbol, vänd, ta bort). */
-export function wheelActionsOf(input: {
-  multi: { count: number; switchable: number; joinable: boolean; smooth: number; simplify: number; remove: () => void } | undefined;
-  single: { shapes: readonly { id: string; label: string; result: unknown; message: string }[]; line: boolean; switchTo: string | undefined; remove: () => void;
-    reshape: (result: never, message: string) => void } | undefined;
-  symbolCode: string | undefined; text: Texts<typeof mapProjectKeysSv>; quick: { switchTo: (code: string) => string; remove: string };
-  act: (command: "switchSymbol" | "join" | "reverse" | "smooth" | "simplify") => void;
-  /** Ägaren 2026-11-15: kantlinje på de markerade ytorna; `codes` tomt = ingen kantsymbol finns (välj en linjesymbol). */
-  edge?: { areas: number; codes: readonly string[]; onPick: () => void } | undefined;
-}): WheelAction[] {
-  const { multi, single, text } = input;
-  const edge: WheelAction[] = input.edge ? [{ id: "edge", label: input.edge.codes.length ? text.edge(input.edge.areas, input.edge.codes.join(", ")) : text.edgeNeedsSymbol,
-    disabled: input.edge.codes.length === 0, onPick: input.edge.onPick }] : [];
-  if (multi) return [
-    ...(input.symbolCode && multi.switchable ? [{ id: "switch", label: text.multiSwitch(multi.switchable, input.symbolCode), onPick: () => input.act("switchSymbol") }] : []),
-    ...(multi.joinable ? [{ id: "join", label: text.commands.join, onPick: () => input.act("join") }] : []),
-    ...(multi.smooth ? [{ id: "smooth", label: text.multiSmooth(multi.smooth), onPick: () => input.act("smooth") }] : []),
-    ...(multi.simplify ? [{ id: "simplify", label: text.multiSimplify(multi.simplify), onPick: () => input.act("simplify") }] : []),
-    ...edge,
-    { id: "remove", label: text.multiRemove(multi.count), onPick: multi.remove }];
-  if (!single) return [];
-  return [
-    ...single.shapes.map(action => ({ id: action.id, label: action.label, disabled: !action.result, onPick: () => single.reshape(action.result as never, action.message) })),
-    ...(single.switchTo ? [{ id: "switch", label: input.quick.switchTo(single.switchTo), onPick: () => input.act("switchSymbol") }] : []),
-    ...(single.line ? [{ id: "reverse", label: text.commands.reverse, onPick: () => input.act("reverse") }] : []),
-    ...edge,
-    { id: "remove", label: input.quick.remove, onPick: single.remove }];
+/**
+ * Hjulets åtta platser (K8b V1). Platserna flyttar aldrig: får man inte skriva notiser är NV tom, och Gör igen är grå tills
+ * det finns något att göra igen. Punkt väljer Lägg till punkt, och ett klick till när det redan är valt Ta bort punkt.
+ */
+export function wheelToolsOf(input: { keys: KeyMap; space: string; tool: string; canNote: boolean;
+  labels: { readonly select: string; readonly draw: string; readonly rectangle: string; readonly fill: string; readonly repeat: string; readonly cut: string;
+    readonly point: string; readonly note: string };
+  help?: Partial<Record<WheelSlotId, string>>; repeat: string | undefined;
+  pick: (tool: "select" | "draw" | "rectangle" | "bucket" | "cut" | "addPoint" | "removePoint" | "note") => void; onRepeat: () => void }): (WheelTool | undefined)[] {
+  const { keys, space, tool, labels } = input, help = input.help ?? {};
+  const label = (command: keyof KeyMap) => keys[command] ? keyLabel(keys[command], space) : "";
+  return WHEEL_SLOTS.map((id): WheelTool | undefined => {
+    if (id === "note" && !input.canNote) return undefined;
+    if (id === "repeat") return { id, label: input.repeat ?? labels.repeat, icon: "repeat", key: label("repeat"), help: help.repeat, active: false, disabled: !input.repeat, onPick: input.onRepeat };
+    if (id === "point") return { id, label: labels.point, icon: tool === "addPoint" ? "removePoint" : "addPoint", key: label("addPoint"), help: help.point,
+      active: tool === "addPoint" || tool === "removePoint", onPick: () => input.pick(tool === "addPoint" ? "removePoint" : "addPoint") };
+    const icon = id === "bucket" ? "bucket" : id;
+    const name = id === "bucket" ? labels.fill : labels[id];
+    return { id, label: name, icon, key: label(id), help: help[id], active: tool === id, onPick: () => input.pick(id) };
+  });
 }
 
 /** Raden under kartan: vad det valda verktyget gör (utbrutet ur `map-project-editor.tsx`). */

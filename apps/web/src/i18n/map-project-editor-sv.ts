@@ -15,7 +15,7 @@ export const mapProjectEditorSv = {
   closed: "Projektet är avslutat. Kartan kan inte ändras.",
   tools: {
     label: "Verktyg",
-    select: "Redigera",
+    select: "Markera",
     selectHelp: "Markera och flytta objekt och brytpunkter",
     draw: "Rita",
     drawHelp: "Klicka för hörn, tryck och dra för kurva, dubbelklicka eller Enter för att avsluta",

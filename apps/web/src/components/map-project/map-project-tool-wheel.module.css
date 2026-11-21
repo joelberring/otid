@@ -7,10 +7,20 @@
   display: grid; place-items: center; padding: 0; font: inherit; color: var(--ink, #222); cursor: pointer; }
 .slot:hover, .slot:focus-visible { background: #fff; border-color: var(--ink, #111); }
 .slot[aria-checked="true"] { background: var(--ink, #111); color: #fff; }
-.symbol[aria-checked="true"] { background: #fff; border: 2px solid var(--ink, #111); }
-.symbol img, .symbol span { border-color: transparent; background: none; border-radius: 50%; }
+.slot:disabled { opacity: .4; cursor: default; }
+.slot:disabled:hover { background: none; border-color: transparent; }
+/* K8b V1: en tom plats (verktyget får inte användas) syns som en svag ring, så att platserna inte flyttar. */
+.empty { border: 1px dashed rgb(0 0 0 / 15%); pointer-events: none; }
 .actions { position: absolute; top: 8px; display: grid; gap: 2px; min-width: 160px; padding: 4px; background: #fff; border: 1px solid var(--line, #ccc);
   border-radius: 8px; box-shadow: 0 2px 8px rgb(0 0 0 / .18); pointer-events: auto; }
+/* De senaste symbolerna överst i listan (1–6), sedan Gör igen och åtgärderna. */
+.symbols { display: flex; flex-wrap: wrap; gap: 2px; max-width: 220px; padding-bottom: 4px; margin-bottom: 2px; border-bottom: 1px solid var(--line, #ccc); }
+.actions .symbols button { position: relative; display: grid; place-items: center; width: 34px; height: 34px; min-height: 0; padding: 0; }
+.actions .symbols button[aria-checked="true"] { border: 2px solid var(--ink, #111); }
+.symbols kbd { position: absolute; right: 1px; bottom: 0; font: 700 .56rem/1 system-ui, sans-serif; color: var(--muted, #666); background: none; border: 0; padding: 0; }
+.list { display: grid; gap: 2px; }
+.list button { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.list kbd { font: 700 .66rem/1 system-ui, sans-serif; color: var(--muted, #666); background: none; border: 0; padding: 0; }
 .actions button { text-align: left; min-height: 32px; padding: 2px 10px; border: 1px solid transparent; border-radius: 6px; background: none; font: inherit;
   color: inherit; cursor: pointer; }
 .actions button:hover:not(:disabled), .actions button:focus-visible { background: var(--surface-2, #f3f3f3); border-color: var(--line, #ccc); }

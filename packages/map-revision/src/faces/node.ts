@@ -9,9 +9,11 @@ export interface Segment {
   readonly sources: readonly number[];
   /** Slutningsbit: sluter ett glapp och blir aldrig en kantlinje. */
   readonly closure: boolean;
+  /** Steg 2 (`bridge-gaps.ts`): bryggans nummer, för slutningsbitar utöver grundtoleransen. */
+  readonly bridge?: number | undefined;
 }
 
-export interface Edge { readonly u: number; readonly v: number; sources: readonly number[]; closure: boolean }
+export interface Edge { readonly u: number; readonly v: number; sources: readonly number[]; closure: boolean; bridge?: number | undefined }
 
 /** Den plana grafen: nodernas lägen och kanterna mellan dem (högst en kant per nodpar). */
 export interface Graph { readonly xs: number[]; readonly ys: number[]; readonly edges: Edge[] }
@@ -137,8 +139,13 @@ export function nodeSegments(segments: readonly Segment[], snap: number): Graph 
     let row = byPair.get(low);
     if (!row) { row = new Map(); byPair.set(low, row); }
     const known = row.get(high);
-    if (!known) { const edge: Edge = { u: low, v: high, sources: segment.sources, closure: segment.closure }; row.set(high, edge); edges.push(edge); return; }
+    if (!known) {
+      const edge: Edge = { u: low, v: high, sources: segment.sources, closure: segment.closure, bridge: segment.bridge };
+      row.set(high, edge); edges.push(edge); return;
+    }
     known.closure = known.closure && segment.closure;
+    // En brygga som ligger på en kantlinje eller en vanlig slutning är ingen brygga.
+    if (!known.closure || segment.bridge === undefined) known.bridge = undefined;
     if (segment.sources.some(source => !known.sources.includes(source))) known.sources = [...new Set([...known.sources, ...segment.sources])];
   };
   segments.forEach((segment, index) => {

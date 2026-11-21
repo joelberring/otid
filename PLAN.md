@@ -1442,7 +1442,7 @@ stannar kvar; siffror byter symbol, bokstäver verktyg; tryck byter, håll låna
   nya förval F fyll, G koppla ihop, E rektangel, T fäst, ⇧␣ gör igen, håll Q = tillfälligt Markera, Alt+1–6 normens grupper
   (sparade egna tangenter behålls); hjulet med fasta platser (N Markera, NO Rita, O Rektangel, SO Fyll, S Gör igen, SV Klipp,
   V Punkt, NV Notis), snärt med högerknappen, symbolerna i listan bredvid.
-- [ ] V2 Magisk fyll steg 2: hörn som inte möts (förlängningarnas skärning), längre rak förlängning och brygga mellan ändar upp
+- [x] V2 Magisk fyll steg 2: hörn som inte möts (förlängningarnas skärning), längre rak förlängning och brygga mellan ändar upp
   till Glapp (förval 4 m, [ ] 2/4/8/15 m), bryggorna högst ~20 % av omkretsen, orange streckade i förhandsvisningen, Alt+klick exakt.
 - [ ] V3 Fäst: punkt/linje/skärning med ihåliga markörer, ~10 px mus/22 px finger, synliga objekt (också låsta), T och håll Alt,
   förval på för sprintnormen; i Rita, Rektangel, Cirkel, Lägg till punkt och när punkter flyttas.

@@ -9,7 +9,7 @@ import { adjacency, MAX_GRID, type Graph, type Segment } from "./node";
  * En bit räknas bara när den är en genväg: vägen längs linjerna från änden till målet ska vara minst dubbelt så lång som
  * biten. Annars skulle en kort stump «slutas» mot linjen den själv sitter på.
  */
-const SHORTCUT = 2;
+export const SHORTCUT = 2;
 
 export function closeGaps(graph: Graph, tolerance: number, snap: number): { closures: Segment[]; looseEnds: number } {
   const { xs, ys, edges } = graph;

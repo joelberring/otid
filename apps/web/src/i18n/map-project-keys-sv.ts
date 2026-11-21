@@ -49,7 +49,7 @@ export const mapProjectKeysSv = {
     join: "Markera med en ruta eller Skift+klick. Linjer med samma symbol vars ändar möts blir en linje; två markerade linjer binds alltid ihop. Ytor med samma symbol som överlappar blir en yta.",
     cut: "Klicka på en linje för att dela den i två där. På en brytpunkt delas den i punkten.",
     rectangle: "Klicka två hörn för en sida och ett tredje för bredden: en rektangel med räta vinklar i valfri riktning (hus, plattformar). Ritas med den valda linje- eller ytsymbolen.",
-    bucket: "Klicka i en ruta som är omgiven av linjer eller ytkanter: den fylls med den valda ytsymbolen, med hus och andra slutna ytor som hål. Glapp upp till 2 m sluts.",
+    bucket: "Klicka i en ruta som är omgiven av linjer eller ytkanter: den fylls med den valda ytsymbolen, med hus och andra slutna ytor som hål. Glapp upp till 2 m sluts, och hörn som inte möts och öppningar upp till Glapp (förval 4 m, orange streckade). Alt+klick fyller bara exakt.",
     duplicate: "Gör en kopia av det markerade, en halv millimeter snett nedanför.",
     fill: "En markerad sluten linje fylls med den valda ytsymbolen; en markerad yta får en kant med den valda linjesymbolen.",
     parallel: "En linje parallellt med den markerade, en millimeter till höger (taggarnas sida). Byt riktning först för vänster sida.",

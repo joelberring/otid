@@ -1,6 +1,6 @@
 import { flattenPath, type MapObject, type MapSymbol, type Point } from "@o-tid/map-file";
 import type { Box } from "@o-tid/map-revision";
-import { FACE_GAP_M, faceAt, facesFromLines, type Face, type FaceLine } from "@o-tid/map-revision/faces";
+import { FACE_GAP_M, faceAt, faceStages, withinBridgeShare, type BridgeKind, type Face, type FaceLine, type FaceStages, type FacesResult } from "@o-tid/map-revision/faces";
 
 /**
  * Ägaren 2026-11-13 («fylla ytor», sprintkartans ytor): verktyget Fyll yta. Kartans synliga linjer och ytkanter kring
@@ -9,6 +9,15 @@ import { FACE_GAP_M, faceAt, facesFromLines, type Face, type FaceLine } from "@o
  * en stor karta, och en ruta som når fönstrets kant räknas som inte sluten. Räknas i kartans Worker.
  */
 export const FILL_GAP_M = FACE_GAP_M;
+/**
+ * K8b V2 (magisk fyll): när rutan inte är sluten vid `FILL_GAP_M` prövas hörn som inte möts, rak förlängning och bryggor
+ * mellan ändar upp till Glapp (förval 4 m, statusradens val 2/4/8/15 m); Alt+klick fyller bara exakt (`exact`).
+ */
+export const FILL_BRIDGE_M = 4;
+/** Steg 2 får ta så här lång tid per fönster (ms) när pekaren hovrar; annars räknas rutan som inte sluten. Klicket får
+ * försöka igen med längre tid (`FILL_BRIDGE_CLICK_MS`). */
+export const FILL_BRIDGE_MS = 150;
+const FILL_BRIDGE_CLICK_MS = 1000;
 /** Fönstret kring klicket: så här långt åt varje håll (m i terrängen). */
 export const FILL_WINDOW_M = 150;
 /** Flest sträckor i fönstret; blir det fler halveras fönstret. */
@@ -28,11 +37,18 @@ export interface FillQuery {
   readonly hidden: readonly string[];
   /** Klicket (inte pekaren som bara hovrar): leta också upp öppningen när ytan inte är sluten. */
   readonly diagnose: boolean;
+  /** Glapp (m i terrängen) för steg 2; förval `FILL_BRIDGE_M`. Högst grundtoleransen = bara exakt. */
+  readonly gapM?: number | undefined;
+  /** Bara exakt (Alt+klick): grundtoleransen, inga bryggor. */
+  readonly exact?: boolean | undefined;
 }
+
+/** Ett glapp som slöts utöver grundtoleransen: ett hörn (två bitar), en förlängning eller en brygga, i kartans mm. */
+export interface FillBridge { readonly kind: BridgeKind; readonly pieces: (readonly [Point, Point])[]; readonly lengthsM: number[] }
 
 export type FillResult =
   /** Ringarna i kartans mm (ytterkanten först, sedan hålen), ytan i terrängen och hur många glapp som slöts. */
-  | { readonly status: "found"; readonly rings: Point[][]; readonly areaM2: number; readonly closed: number }
+  | { readonly status: "found"; readonly rings: Point[][]; readonly areaM2: number; readonly closed: number; readonly bridges: FillBridge[] }
   /** Inte sluten: `gaps` är öppningarna som hittades (större än toleransen); tom = ytan fortsätter ut ur fönstret. */
   | { readonly status: "open"; readonly gaps: (readonly [Point, Point])[] };
 
@@ -87,31 +103,36 @@ function boundaryLines(input: FillInput, hidden: ReadonlySet<string>, box: Box):
   return { lines, segments };
 }
 
-interface FillWindow { readonly box: Box; readonly faces: readonly Face[] }
+interface FillWindow { readonly box: Box; readonly faces: readonly Face[]; readonly stages: FaceStages }
 
 /**
  * Alla ytor i en ruta (kartans mm): gränslinjerna klippta mot rutan, med rutans ram som egen gränslinje (`FILL_FRAME`).
  * Källorna (`Face.sources`) är objektens nummer i `input.objects`. Undefined när rutan har fler sträckor än `maxSegments`.
  */
 export function fillFaces(input: FillInput, hidden: ReadonlySet<string>, box: Box, tolerance: number, maxSegments = Infinity): Face[] | undefined {
+  return fillStages(input, hidden, box, tolerance, maxSegments)?.faces;
+}
+
+/** Som `fillFaces`, med steg 2 på samma graf på begäran. */
+function fillStages(input: FillInput, hidden: ReadonlySet<string>, box: Box, tolerance: number, maxSegments: number): FaceStages | undefined {
   const { lines, segments } = boundaryLines(input, hidden, box);
   if (segments > maxSegments) return undefined;
   lines.push({ id: FILL_FRAME, closed: true, points: [{ x: box.minX, y: box.minY }, { x: box.maxX, y: box.minY }, { x: box.maxX, y: box.maxY }, { x: box.minX, y: box.maxY }] });
-  return facesFromLines(lines, { gapTolerance: tolerance }).faces;
+  return faceStages(lines, { gapTolerance: tolerance });
 }
 
 /** Alla ytor i ett fönster kring `center` (halva sidan `half`, tolerans `tolerance`, allt i kartans mm). */
 function fillWindow(input: FillInput, hidden: ReadonlySet<string>, center: Point, half: number, tolerance: number): FillWindow {
   for (let attempt = 0; ; attempt += 1) {
     const box = { minX: center.x - half, minY: center.y - half, maxX: center.x + half, maxY: center.y + half };
-    const faces = fillFaces(input, hidden, box, tolerance, attempt < 3 ? MAX_SEGMENTS : Infinity);
-    if (faces) return { box, faces };
+    const stages = fillStages(input, hidden, box, tolerance, attempt < 3 ? MAX_SEGMENTS : Infinity);
+    if (stages) return { box, faces: stages.faces, stages };
     half /= 2;
   }
 }
 
 /** Ytan under punkten om den är sluten (inte når fönstrets kant). */
-function closedFaceAt(window: FillWindow, point: Point): Face | undefined {
+function closedFaceAt(window: { readonly faces: readonly Face[] }, point: Point): Face | undefined {
   const face = faceAt(window.faces, point);
   return face && !face.sources.includes(FILL_FRAME) ? face : undefined;
 }
@@ -131,11 +152,12 @@ export function withoutStraightPoints(ring: readonly Point[]): Point[] {
 }
 
 /**
- * Sökaren i Workern. Fönstrets ytor sparas mellan frågorna, så att pekaren som rör sig över kartan (förhandsvisningen) bara
- * slår upp ytan under sig; de räknas om när kartan, de släckta lagren eller platsen har ändrats.
+ * Sökaren i Workern. Fönstrets graf och ytor sparas mellan frågorna, så att pekaren som rör sig över kartan
+ * (förhandsvisningen) bara slår upp ytan under sig; de räknas om när kartan, de släckta lagren eller platsen har ändrats.
+ * Steg 2 (större glapp) räknas bara när rutan under punkten inte är sluten, en gång per fönster och glapp, med tidsgräns.
  */
 export function fillFinder(): (input: FillInput, query: FillQuery) => FillResult {
-  let cached: { objects: readonly MapObject[]; hiddenKey: string; center: Point; window: FillWindow } | undefined;
+  let cached: { objects: readonly MapObject[]; hiddenKey: string; center: Point; window: FillWindow; bridged: Map<number, FacesResult | null> } | undefined;
   return (input, query) => {
     const mmPerM = 1000 / input.scale, tolerance = FILL_GAP_M * mmPerM, half = FILL_WINDOW_M * mmPerM;
     const hidden = new Set(query.hidden), hiddenKey = [...hidden].sort().join(" ");
@@ -144,11 +166,26 @@ export function fillFinder(): (input: FillInput, query: FillQuery) => FillResult
     const reach = cached ? (cached.window.box.maxX - cached.window.box.minX) / 4 : 0;
     if (!cached || cached.objects !== input.objects || cached.hiddenKey !== hiddenKey || Math.abs(point.x - cached.center.x) > reach
       || Math.abs(point.y - cached.center.y) > reach) {
-      cached = { objects: input.objects, hiddenKey, center: point, window: fillWindow(input, hidden, point, half, tolerance) };
+      cached = { objects: input.objects, hiddenKey, center: point, window: fillWindow(input, hidden, point, half, tolerance), bridged: new Map() };
     }
+    const found = (face: Face, bridges: FillBridge[]): FillResult => ({ status: "found", rings: [face.outer, ...face.holes].map(withoutStraightPoints),
+      areaM2: face.area / (mmPerM * mmPerM), closed: face.closures.length, bridges });
     const face = closedFaceAt(cached.window, point);
-    if (face) {
-      return { status: "found", rings: [face.outer, ...face.holes].map(withoutStraightPoints), areaM2: face.area / (mmPerM * mmPerM), closed: face.closures.length };
+    if (face) return found(face, []);
+    const gapM = query.exact ? FILL_GAP_M : query.gapM ?? FILL_BRIDGE_M;
+    if (gapM > FILL_GAP_M) {
+      let wider = cached.bridged.get(gapM);
+      if (wider === undefined || (wider === null && query.diagnose)) {
+        wider = cached.window.stages.bridged(gapM * mmPerM, performance.now() + (query.diagnose ? FILL_BRIDGE_CLICK_MS : FILL_BRIDGE_MS)) ?? null;
+        cached.bridged.set(gapM, wider);
+      }
+      const bridged = wider && closedFaceAt(wider, point);
+      if (wider && bridged && withinBridgeShare(bridged)) {
+        return found(bridged, bridged.bridges.map(index => {
+          const { kind, pieces } = wider.bridges[index]!;
+          return { kind, pieces: pieces.map(piece => [piece.a, piece.b] as const), lengthsM: pieces.map(piece => piece.length / mmPerM) };
+        }));
+      }
     }
     if (!query.diagnose) return { status: "open", gaps: [] };
     // Var är öppningen? Pröva med större tolerans: blir ytan sluten då är de långa slutningsbitarna öppningarna.

@@ -262,7 +262,7 @@ export const mapProjectKeysEn: Texts<typeof mapProjectKeysSv> = {
     join: "Select with a box or Shift-click. Lines with the same symbol whose ends meet become one line; two selected lines are always joined. Overlapping areas with the same symbol become one area.",
     cut: "Click a line to split it in two there. On a vertex it is split at the point.",
     rectangle: "Click two corners for one side and a third for the width: a rectangle with right angles in any direction (houses, platforms). Drawn with the chosen line or area symbol.",
-    bucket: "Click in a space enclosed by lines or area edges: it is filled with the chosen area symbol, with houses and other closed areas as holes. Gaps up to 2 m are closed.",
+    bucket: "Click in a space enclosed by lines or area edges: it is filled with the chosen area symbol, with houses and other closed areas as holes. Gaps up to 2 m are closed, and corners that do not meet and openings up to Gap (4 m by default, dashed orange). Alt+click fills exactly only.",
     duplicate: "Makes a copy of the selection, half a millimetre down to the right.",
     fill: "A selected closed line is filled with the chosen area symbol; a selected area gets a border with the chosen line symbol.",
     parallel: "A line parallel to the selected one, one millimetre to the right (the tag side). Reverse it first for the left side.",

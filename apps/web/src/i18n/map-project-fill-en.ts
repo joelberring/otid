@@ -3,10 +3,13 @@ import type { mapProjectFillSv } from "./map-project-fill-sv";
 
 /** The Fill area tool (the space between the map's lines is filled with the chosen area symbol). */
 export const mapProjectFillEn: Texts<typeof mapProjectFillSv> = {
-  hint: (code, gapM) => `Fill area: click in a space enclosed by lines or area edges and it is filled with ${code}. Gaps up to ${gapM} m are closed. Hidden layers, contours and north lines do not count as boundaries.`,
+  hint: (code, baseM, gapM) => `Fill area: click in a space enclosed by lines or area edges and it is filled with ${code}. Gaps up to ${baseM} m are closed${gapM > baseM ? `, and corners that do not meet and openings up to ${gapM} m (dashed orange); Alt+click fills exactly only` : ""}. Hidden layers, contours and north lines do not count as boundaries.`,
   needsArea: "Choose an area symbol in the list first: Fill area adds an area with the chosen symbol.",
-  done: (code, squareMeters, closed) =>
-    `Filled with ${code}: ${squareMeters} m²${closed === 0 ? "" : closed === 1 ? ", one gap was closed" : `, ${closed} gaps were closed`}. Undo removes the area.`,
+  done: (code, squareMeters, closed, bridged) =>
+    `Filled with ${code}: ${squareMeters} m²${closed === 0 ? "" : closed === 1 ? ", one gap was closed" : `, ${closed} gaps were closed`}${bridged ? `, ${bridged}` : ""}. Undo removes the area.`,
+  bridged: (kind, count, lengths) =>
+    `${count} ${kind === "corner" ? (count === 1 ? "corner closed" : "corners closed") : kind === "extend" ? (count === 1 ? "end extended" : "ends extended")
+      : (count === 1 ? "opening bridged" : "openings bridged")} (${lengths})`,
   notSaved: "The area could not be added.",
   openGap: (gapM, count) => count === 1
     ? `The area is not closed – there is an opening larger than ${gapM} m (red on the map). Draw the edge there and try again.`

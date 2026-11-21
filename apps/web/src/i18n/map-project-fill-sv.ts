@@ -1,9 +1,13 @@
 /** Ägaren 2026-11-13: verktyget Fyll yta (rutan mellan kartans linjer fylls med den valda ytsymbolen). */
 export const mapProjectFillSv = {
-  hint: (code: string, gapM: number) => `Fyll yta: klicka i en ruta som är omgiven av linjer eller ytkanter, så fylls den med ${code}. Glapp upp till ${gapM} m sluts. Släckta lager, höjdkurvor och nordlinjer räknas inte som gräns.`,
+  hint: (code: string, baseM: number, gapM: number) => `Fyll yta: klicka i en ruta som är omgiven av linjer eller ytkanter, så fylls den med ${code}. Glapp upp till ${baseM} m sluts${gapM > baseM ? `, och hörn som inte möts och öppningar upp till ${gapM} m (orange streckade); Alt+klick fyller bara exakt` : ""}. Släckta lager, höjdkurvor och nordlinjer räknas inte som gräns.`,
   needsArea: "Välj en ytsymbol i listan först: Fyll yta lägger in en yta med den valda symbolen.",
-  done: (code: string, squareMeters: string, closed: number) =>
-    `Fylld med ${code}: ${squareMeters} m²${closed === 0 ? "" : closed === 1 ? ", ett glapp slöts" : `, ${closed} glapp slöts`}. Ångra tar bort ytan.`,
+  done: (code: string, squareMeters: string, closed: number, bridged: string) =>
+    `Fylld med ${code}: ${squareMeters} m²${closed === 0 ? "" : closed === 1 ? ", ett glapp slöts" : `, ${closed} glapp slöts`}${bridged ? `, ${bridged}` : ""}. Ångra tar bort ytan.`,
+  /** Glappen som slöts utöver grundtoleransen: slaget, antalet och längderna («3,1 m + 2,2 m»). */
+  bridged: (kind: "corner" | "extend" | "bridge", count: number, lengths: string) =>
+    `${count} ${kind === "corner" ? (count === 1 ? "hörn slutet" : "hörn slutna") : kind === "extend" ? (count === 1 ? "ände förlängd" : "ändar förlängda")
+      : (count === 1 ? "öppning överbryggad" : "öppningar överbryggade")} (${lengths})`,
   notSaved: "Ytan kunde inte läggas in.",
   openGap: (gapM: number, count: number) => count === 1
     ? `Ytan är inte sluten – det finns en öppning större än ${gapM} m (röd på kartan). Rita kanten där och försök igen.`

@@ -370,7 +370,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         setDraft(points => [...points, { at: point }]);
         return;
       }
-      if (tool === "bucket" && canEdit) { fill.tap(point); return; }
+      if (tool === "bucket" && canEdit) { fill.tap(point, modifiers.alt); return; }
       if (tool === "circle" && canEdit) {
         if (!symbol || (symbol.kind !== "line" && symbol.kind !== "area")) { setFlash(quick.circleNeedsShape); return; }
         if (circleCenter) placeCircle(circleCenter, point); else setCircleCenter(point);
@@ -618,7 +618,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   }, [preview, selected, symbols, tool, symbol, draft, cursor, circleCenter, activeVertex, areaDrawings, proposedOpen, proposedShown, view.area, coverage, recon.layers,
     recon.trackLines, reconResult, walk, gapMm, notes.notes, shownNote, noteDraft, drawnLayers, focused, candidates, normIssues, shownIssue,
     control.active, control.markers, rectify.shown, rectify.markers, sketchLayers, work.dragging, work.drawingLayer, work.stroke,
-    multi.moving, multi.shown, multi.box, multi.cuts, multi.items.length, multi.marquee, fill.preview, fill.gaps, fill.proposals.candidates, fill.proposals.override]);
+    multi.moving, multi.shown, multi.box, multi.cuts, multi.items.length, multi.marquee, fill.preview, fill.bridges, fill.gaps, fill.proposals.candidates, fill.proposals.override]);
 
   const hint = tool === "split" ? split.hint : tool === "bucket" && canEdit ? fill.hint : toolHint({ canEdit, closed: view.status === "CLOSED", tool, multiCount: multi.items.length, rotating: multi.zone === "rotate", symbol,
     text, notes: notesText, keys: keysText, quick });

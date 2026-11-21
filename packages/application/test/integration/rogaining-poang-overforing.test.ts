@@ -102,8 +102,10 @@ describe("rogaining: poängen ur banläggningen", () => {
     // Banläggaren ändrar: 33 tillbaka till förvalet, 37 får 12. En ny överföring ger två poängrader.
     const changed = applyEdit(applyEdit(document, { type: "SET_POINTS", course, courseControl: at("33"), points: null }).document,
       { type: "SET_POINTS", course, courseControl: at("37"), points: 12 }).document;
-    expect((await saveCourseSettingAsAdmin(db, { ...proof, request: { formatVersion: 1, expectedVersion: 1, document: changed } })).status).toBe("ok");
-    const second = await preview(proof, 2);
+    // ADR-0175, tillägg 2026-11-21 (b): överföringen sparade de gafflade banornas bokstäver (en ny version).
+    const version = (await pool.query<{ version: number }>("select version from course_setting where race_id = $1", [proof.raceId])).rows[0]!.version;
+    expect((await saveCourseSettingAsAdmin(db, { ...proof, request: { formatVersion: 1, expectedVersion: version, document: changed } })).status).toBe("ok");
+    const second = await preview(proof, version + 1);
     expect(second.rows.filter(row => row.subject === "CONTROL").map(row => [row.label, row.changes[0]])).toEqual([
       ["33", { field: "POINTS", from: "8", to: "3" }], ["37", { field: "POINTS", from: "3", to: "12" }]]);
     await apply(proof, second.snapshotId);

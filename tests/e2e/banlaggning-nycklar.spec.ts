@@ -45,7 +45,13 @@ test("banläggning-nycklar: utkast, Överför, Fördela gafflingar, gör om en g
   const admin = `/api/admin/races/${raceId}/administrator`;
   await warmCourseSetting(owner, raceId);
   await warmRoute(owner, `${admin}/course-setting/fork-letters`);
-  const { db: _db, pool } = createDatabase(process.env.E2E_DATABASE_URL!);
+  // Utvecklingsservern kompilerar vid första anropet; anmälan och fördelningen värms som i de andra testerna.
+  for (const path of ["courses", "entries", "classes"]) await warmRoute(owner, `${admin}/${path}`);
+  for (const path of ["registration", "registration-candidates", "classes/00000000-0000-4000-8000-000000000000/variant-distribution"]) {
+    await warmRoute(owner, `${admin}/${path}`, "POST");
+  }
+  await warmRoute(owner, `/admin/${raceId}/manage`);
+  const { pool } = createDatabase(process.env.E2E_DATABASE_URL!);
   try {
     const courseRow = (page: Page, name: string) => page.getByTestId("course-setting-course")
       .filter({ has: page.locator("strong").getByText(name, { exact: true }) });

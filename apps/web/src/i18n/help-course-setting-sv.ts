@@ -155,15 +155,16 @@ export const courseSettingHelpArticles: readonly HelpArticle[] = [
         "”Varianter” i listan och väljaren överst visar varje variant med antal kontroller och längd."
       ],
       "Varianterna följer med när banorna förs över till tävlingen. En poängbana kan inte gafflas.",
-      "Bokstäverna (nycklarna) har två lägen per bana, som raden ”Nycklarna” i panelen ”Varianter” visar:",
+      "Bokstäverna (nycklarna) har två lägen per bana, som raden ”Nycklarna” i ”Varianter” visar:",
       [
-        "Utkast (en ny bana): nycklarna ordnas medan du arbetar, i banans ordning som i Purple Pen (A, B; C, D …). Tas en gren bort ur tre blir det A, B; görs en gaffling om får den C, D igen.",
-        "Låst: en gren behåller sin bokstav när en annan tas bort (A, C), och en ny gren får en bokstav som inte använts, så att tryckta kartor stämmer i tävlingen.",
-        "Banan låses av sig själv när kartor med variantkod trycks (PDF, utskrift, kartbuntar), när löpare får varianter i tävlingen och när startlistan publiceras. ”Lås nycklarna” låser för hand; ”Häv låset” visar först vad som berörs.",
-        "”Ordna nycklarna” ger grenarna bokstäver i banans ordning, med förhandsvisning gammal → ny kod. I en låst bana visas först tryckta kartor, löpare med tilldelad variant och bortval som berörs. Bortvalen följer med.",
-        "Vid nästa ”Överför till tävlingen” får löparna de nya koderna och behåller sina kontroller (AG blir AC). Bara de vars kontroller ändras står i beskedet."
+        "Utkast (ny bana): nycklarna följer banans ordning (A, B; C, D …). En borttagen gren av tre ger A, B; en omgjord gaffling får C, D igen.",
+        "Låst: en gren behåller sin bokstav (A, C) och en ny gren får en oanvänd, så att tryckta kartor stämmer.",
+        "Banan låses vid tryck med variantkod, när löpare får varianter och när startlistan publiceras, eller med ”Lås nycklarna”.",
+        "”Häv låset” och ”Ordna nycklarna” i en låst bana visar först tryckta kartor, löpare med variant och bortval som berörs.",
+        "”Ordna nycklarna” ger bokstäver i banans ordning och visar gammal → ny kod. Bortvalen följer med.",
+        "Vid nästa ”Överför till tävlingen” får löparna de nya koderna med samma kontroller (AG blir AC).",
+        "I Purple Pen blir bokstäverna alltid i följd; en fil som läses in här paras med O-Tids bokstäver."
       ],
-      "I Purple Pen blir bokstäverna alltid i följd; en fil som läses in här paras med O-Tids bokstäver.",
       "Blir det för många varianter, eller vissa för långa? Se [Färre varianter](#varianter)."
     ]
   },

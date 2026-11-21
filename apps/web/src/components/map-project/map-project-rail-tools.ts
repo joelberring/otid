@@ -18,6 +18,8 @@ export interface RailState {
   readonly tool: string; readonly panelOpen: boolean; readonly bare: boolean;
   readonly canEdit: boolean; readonly canDecide: boolean; readonly canNote: boolean;
   readonly canUndo: boolean; readonly canRedo: boolean;
+  /** K8b V5: Visa ofyllda rutor är på. */
+  readonly unfilled: boolean; readonly toggleUnfilled: () => void;
   readonly pick: (tool: RailPick) => void;
   readonly undo: () => void; readonly redo: () => void;
   readonly togglePanel: () => void; readonly toggleBare: () => void; readonly openWheel: () => void; readonly openKeys: () => void;
@@ -25,7 +27,7 @@ export interface RailState {
 
 /**
  * Ägaren 2026-11-10 («en symbol för alla snabbkommandon») och K8b V1 (2026-11-21): verktygsspalten har bara verktyg, i
- * grupper med en liten rubrik: Markera | Rita, Rektangel, Cirkel | Fyll | Forma | Granska; längst ned hjulet, bara kartan och
+ * grupper med en liten rubrik: Markera | Rita, Rektangel, Cirkel | Fyll | Forma | Granska (V5: Visa ofyllda rutor); längst ned hjulet, bara kartan och
  * tangenterna. Det som görs med det markerade står i kontextraden vid objektet (`map-project-context-actions.ts`), och Ångra
  * och Gör om i raden överst (i telefonen ligger de kvar fästa i spaltens rad).
  */
@@ -35,7 +37,9 @@ export function railTools(state: RailState): RailTool[] {
     ({ id, label, icon, key: key(id), help, active: state.tool === id, onPick: () => state.pick(id), ...extra });
   const review: RailTool[] = [
     ...(state.canNote ? [tool("note", "note", labels.note, text.tips.note, { testId: "map-project-note-tool" })] : []),
-    ...(state.canDecide ? [{ id: "area", label: labels.area, icon: "area", help: text.tips.area, active: state.tool === "area", onPick: () => state.pick("area") } as const] : [])
+    ...(state.canDecide ? [{ id: "area", label: labels.area, icon: "area", help: text.tips.area, active: state.tool === "area", onPick: () => state.pick("area") } as const] : []),
+    { id: "unfilled", label: text.commands.unfilled, icon: "unfilled", key: key("unfilled"), help: text.tips.unfilled, active: state.unfilled, desktopOnly: true,
+      testId: "map-project-unfilled", onPick: state.toggleUnfilled }
   ];
   return [
     { id: "panel", label: labels.panel, icon: "panel", active: state.panelOpen, phoneOnly: true, onPick: state.togglePanel },

@@ -8,7 +8,7 @@ export const mapProjectKeysSv = {
   commands: {
     select: "Markera", draw: "Rita", circle: "Cirkel", rectangle: "Rektangel", bucket: "Magisk fyll", duplicate: "Duplicera", fill: "Fyll yta eller gör kant", parallel: "Parallell linje", note: "Notis", addPoint: "Lägg till punkt", removePoint: "Ta bort punkt", cut: "Klipp isär", pick: "Ta symbolen från det markerade", reverse: "Vänd riktning",
     switchSymbol: "Byt symbol på det markerade", join: "Slå ihop linjer eller ytor", simplify: "Förenkla", smooth: "Gör mjuk", checked: "Markera kollad",
-    repeat: "Gör igen", snap: "Fäst", undo: "Ångra", redo: "Gör om", wheel: "Verktygshjulet", bare: "Bara kartan"
+    repeat: "Gör igen", snap: "Fäst", undo: "Ångra", redo: "Gör om", wheel: "Verktygshjulet", bare: "Bara kartan", unfilled: "Visa ofyllda rutor"
   } satisfies Record<KeyCommand, string>,
   change: (command: string) => `Byt tangent för ${command}`,
   press: "Tryck en tangent …",
@@ -64,7 +64,8 @@ export const mapProjectKeysSv = {
     wheel: "Verktygen och de senaste symbolerna i en ring vid pekaren. Också med högerklick på kartan.",
     bare: "Gömmer eller visar panelen, så att kartan får hela ytan.",
     keys: "Se och byt tangenterna för verktygen.",
-    repeat: "Gör den senaste åtgärden på det markerade en gång till (byt symbol, duplicera, parallell …)."
+    repeat: "Gör den senaste åtgärden på det markerade en gång till (byt symbol, duplicera, parallell …).",
+    unfilled: "Rutor i bild som ingen yta täcker skrafferas röda och räknas i statusraden; klicka på räknaren för att gå till nästa. Rutor utanför kartans område räknas inte."
   },
   /** K8b V1: spaltens grupper, Gör igen, raden Senaste och statusradens brytare. */
   groups: { draw: "Rita", fill: "Fyll", shape: "Forma", review: "Granska" },
@@ -75,10 +76,15 @@ export const mapProjectKeysSv = {
   recentPick: (digit: number, code: string, name: string) => `${digit}: ${code} ${name}`,
   modes: "Lägen",
   snap: "Fäst",
-  snapHelp: "Fäster det du ritar och drar mot punkter, skärningar och linjer i närheten. Tangenten T; håll Alt för att släppa fästet en stund.",
+  snapHelp: "Fäster det du ritar och drar mot punkter, skärningar och linjer i närheten. Tangenten T; håll Alt för att släppa fästet en stund. I Rita: håll Skift när punkten är fäst på en kant för att följa kanten.",
   snapAt: (kind: "vertex" | "intersection" | "edge") => kind === "vertex" ? "Fäster mot punkt" : kind === "intersection" ? "Fäster i skärning" : "Fäster på kant",
   angle: "Vinkel",
-  angleHelp: "Håll ⌘ eller Ctrl medan du ritar för 0, 45 och 90 grader. Kommer i ett senare steg.",
+  angleHelp: "Håll ⌘ (Mac) eller Ctrl medan du ritar: sträckan låses i steg om 45° mot förra sträckan, vinkelrätt eller parallellt mot kanten du började på, annars mot norr. Lyser när låset används.",
+  /** K8b V5: räknaren för Visa ofyllda rutor. */
+  unfilledCount: (count: number) => count === 0 ? "Inga ofyllda rutor" : count === 1 ? "1 ofylld ruta" : `${count} ofyllda rutor`,
+  unfilledBusy: "Räknar ofyllda rutor …",
+  unfilledZoom: "Zooma in för ofyllda rutor",
+  unfilledNext: "Gå till nästa ofyllda ruta",
   gap: "Glapp",
   gapHelp: "Hur stora glapp Magisk fyll får sluta. [ och ] byter.",
   gapOption: (meters: number) => `${meters} m`,

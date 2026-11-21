@@ -103,10 +103,15 @@ export function buildSnapIndex(objects: readonly MapObject[], keys: readonly Obj
     for (const vertex of vertices(object)) { points.push(vertex.at.x, vertex.at.y); pointInfo.push(id, vertex.part, vertex.index); extend(vertex.at.x, vertex.at.y); }
     objectParts(object).forEach((part, partIndex) => {
       let index = 0;
-      for (const line of flattenPath(part)) for (let i = 1; i < line.length; i += 1) {
-        const a = line[i - 1]!, b = line[i]!;
-        segments.push(a.x, a.y, b.x, b.y); segmentInfo.push(id, partIndex, index++);
-        extend(a.x, a.y); extend(b.x, b.y);
+      for (const flat of flattenPath(part)) {
+        // K8b V5: en ytas ring sluts också när filen inte upprepar första punkten (kanten finns att fästa och följa).
+        const first = flat[0], last = flat[flat.length - 1];
+        const line = object.kind === "area" && first && last && flat.length > 2 && (first.x !== last.x || first.y !== last.y) ? [...flat, first] : flat;
+        for (let i = 1; i < line.length; i += 1) {
+          const a = line[i - 1]!, b = line[i]!;
+          segments.push(a.x, a.y, b.x, b.y); segmentInfo.push(id, partIndex, index++);
+          extend(a.x, a.y); extend(b.x, b.y);
+        }
       }
     });
   });

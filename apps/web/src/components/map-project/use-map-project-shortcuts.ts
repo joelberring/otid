@@ -26,6 +26,8 @@ export interface ShortcutApi {
   /** Gör igen (⇧Mellanslag): den senaste åtgärden på det markerade en gång till. */
   readonly repeat: () => void;
   readonly toggleSnap: () => void;
+  /** K8b V5: Visa ofyllda rutor (⇧§). */
+  readonly toggleUnfilled: () => void;
   /** [ och ]: Glapp ett steg mindre eller större. */
   readonly gapStep: (direction: 1 | -1) => void;
   /** 1–8: den senaste symbolen med den siffran, utan att byta verktyg. */
@@ -73,6 +75,7 @@ export function useMapProjectShortcuts(api: ShortcutApi) {
       if (bound === "undo") { event.preventDefault(); now.undo(); }
       else if (bound === "redo") { event.preventDefault(); now.redo(); }
       else if (bound === "bare") { event.preventDefault(); now.toggleBare(); }
+      else if (bound === "unfilled") { event.preventDefault(); now.toggleUnfilled(); }
       else if (bound && now.canEdit && EDIT_TOOLS.has(bound)) now.pickTool(bound as ToolCommand);
       else if (bound === "note" && now.canNote) now.pickTool("note");
       else if (bound === "repeat") { event.preventDefault(); if (now.canEdit) now.repeat(); }

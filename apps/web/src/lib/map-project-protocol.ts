@@ -7,6 +7,7 @@ import type { Bounds } from "./course-setting-viewport";
 import type { ProposeQuery, ProposeResult } from "./map-project-area-proposals";
 import type { FillQuery, FillResult } from "./map-project-fill-area";
 import type { SnapIndex } from "./map-project-snap";
+import type { UnfilledQuery, UnfilledResult } from "./map-project-unfilled";
 
 /**
  * ADR-0219 (K1): kartprojektets karta ritas i en egen Worker (`map-project-worker.ts`). Den läser grundfilen en gång (med
@@ -85,7 +86,9 @@ export type MapProjectRequest =
   /** Ägaren 2026-11-13: Föreslå ytor – de slutna, ofyllda rutorna i en ruta på en sprintkarta, med förslag på symbol. */
   | { readonly type: "proposeAreas"; readonly id: number; readonly query: ProposeQuery }
   /** K8b V3: Fäst – indexet över kartans objekt (byggs när objekten ändrats, frågorna går på sidan). */
-  | { readonly type: "snapIndex"; readonly id: number };
+  | { readonly type: "snapIndex"; readonly id: number }
+  /** K8b V5: Visa ofyllda rutor – rutorna i utsnittet som ingen yta täcker. */
+  | { readonly type: "unfilled"; readonly id: number; readonly query: UnfilledQuery };
 
 export type MapProjectResponse =
   | { readonly type: "loaded"; readonly bounds: Bounds; readonly scale: number; readonly georeference: MapGeoreference | null;
@@ -110,6 +113,7 @@ export type MapProjectResponse =
   | { readonly type: "fill"; readonly id: number; readonly result: FillResult }
   | { readonly type: "proposeAreas"; readonly id: number; readonly result: ProposeResult }
   | { readonly type: "snapIndex"; readonly id: number; readonly index: SnapIndex | null }
+  | { readonly type: "unfilled"; readonly id: number; readonly result: UnfilledResult }
   | { readonly type: "error"; readonly code: MapRenderErrorCode };
 
 /** Ett objekt med sin nyckel och (för grundfilens objekt) sin referens. */
@@ -148,6 +152,8 @@ export class MapProjectSession {
   private onPropose: ((result: ProposeResult) => void) | undefined;
   private latestSnap = 0;
   private onSnap: ((index: SnapIndex | null) => void) | undefined;
+  private latestUnfilled = 0;
+  private onUnfilled: ((result: UnfilledResult) => void) | undefined;
   private onFit: ((fit: VectorFit | null) => void) | undefined;
   private onWarp: ((changes: readonly WarpChange<ObjectKey>[], refs: ReadonlyMap<ObjectKey, ObjectRef>) => void) | undefined;
 
@@ -170,6 +176,7 @@ export class MapProjectSession {
       else if (message.type === "fit") { if (message.id === this.latestFit) this.onFit?.(message.fit); }
       else if (message.type === "fill") { if (message.id === this.latestFill) this.onFill?.(message.result); }
       else if (message.type === "snapIndex") { if (message.id === this.latestSnap) this.onSnap?.(message.index); }
+      else if (message.type === "unfilled") { if (message.id === this.latestUnfilled) this.onUnfilled?.(message.result); }
       else if (message.type === "proposeAreas") { if (message.id === this.latestPropose) this.onPropose?.(message.result); }
       else if (message.type === "built") { if (message.id === this.latestBuilt) this.onBuilt?.(message.polygons, message.fields ?? []); }
       else if (message.id === this.latest && this.onRendered) this.onRendered(message.id, message.bitmap);
@@ -278,6 +285,13 @@ export class MapProjectSession {
     this.post({ type: "snapIndex", id });
   }
 
+  /** Visa ofyllda rutor: rutorna i utsnittet som ingen yta täcker. Bara det senaste svaret används. */
+  unfilled(query: UnfilledQuery, onUnfilled: (result: UnfilledResult) => void) {
+    const id = ++this.latestUnfilled;
+    this.onUnfilled = onUnfilled;
+    this.post({ type: "unfilled", id, query });
+  }
+
   fit(source: readonly FitPoint[], onFit: (fit: VectorFit | null) => void) {
     const id = ++this.latestFit;
     this.onFit = onFit;
@@ -285,7 +299,7 @@ export class MapProjectSession {
   }
 
   close() {
-    this.onFit = undefined; this.onFill = undefined; this.onPropose = undefined; this.onSnap = undefined;
+    this.onFit = undefined; this.onFill = undefined; this.onPropose = undefined; this.onSnap = undefined; this.onUnfilled = undefined;
     this.onGeneralize = undefined; this.onBySymbol = undefined; this.onWarp = undefined;
     this.onRendered = undefined; this.onHit = undefined; this.onCatalog = undefined; this.onRecon = undefined; this.onNorm = undefined;
     this.worker.terminate();

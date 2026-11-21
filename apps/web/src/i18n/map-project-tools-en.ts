@@ -223,7 +223,7 @@ export const mapProjectKeysEn: Texts<typeof mapProjectKeysSv> = {
   commands: {
     select: "Select", draw: "Draw", circle: "Circle", rectangle: "Rectangle", bucket: "Magic fill", duplicate: "Duplicate", fill: "Fill area or make border", parallel: "Parallel line", note: "Note", addPoint: "Add point", removePoint: "Remove point", cut: "Cut apart", pick: "Take the symbol from the selection", reverse: "Reverse direction",
     switchSymbol: "Change symbol on the selection", join: "Join lines or areas", simplify: "Simplify", smooth: "Make smooth", checked: "Mark checked",
-    repeat: "Repeat", snap: "Snap", undo: "Undo", redo: "Redo", wheel: "The tool wheel", bare: "Map only"
+    repeat: "Repeat", snap: "Snap", undo: "Undo", redo: "Redo", wheel: "The tool wheel", bare: "Map only", unfilled: "Show unfilled cells"
   },
   change: (command: string) => `Change the key for ${command}`,
   press: "Press a key …",
@@ -277,7 +277,8 @@ export const mapProjectKeysEn: Texts<typeof mapProjectKeysSv> = {
     wheel: "The tools and the latest symbols in a ring at the pointer. Also with a right-click on the map.",
     bare: "Hides or shows the panel, so that the map gets the whole area.",
     keys: "See and change the keys for the tools.",
-    repeat: "Does the latest action on the selection once more (change symbol, duplicate, parallel …)."
+    repeat: "Does the latest action on the selection once more (change symbol, duplicate, parallel …).",
+    unfilled: "Cells in view that no area covers are hatched red and counted in the status row; click the counter to go to the next one. Cells outside the map's area are not counted."
   },
   groups: { draw: "Draw", fill: "Fill", shape: "Shape", review: "Review" },
   repeatOf: (label: string) => `Repeat: ${label}`,
@@ -287,10 +288,14 @@ export const mapProjectKeysEn: Texts<typeof mapProjectKeysSv> = {
   recentPick: (digit: number, code: string, name: string) => `${digit}: ${code} ${name}`,
   modes: "Modes",
   snap: "Snap",
-  snapHelp: "Snaps what you draw and drag to points, intersections and lines nearby. The key T; hold Alt to release the snap for a moment.",
+  snapHelp: "Snaps what you draw and drag to points, intersections and lines nearby. The key T; hold Alt to release the snap for a moment. In Draw: hold Shift when the point is snapped to an edge to follow the edge.",
   snapAt: (kind: "vertex" | "intersection" | "edge") => kind === "vertex" ? "Snapping to point" : kind === "intersection" ? "Snapping to intersection" : "Snapping to edge",
   angle: "Angle",
-  angleHelp: "Hold ⌘ or Ctrl while you draw for 0, 45 and 90 degrees. Comes in a later step.",
+  angleHelp: "Hold ⌘ (Mac) or Ctrl while you draw: the segment locks in steps of 45° to the previous segment, perpendicular or parallel to the edge you started on, otherwise to north. Lights up when the lock is used.",
+  unfilledCount: (count: number) => count === 0 ? "No unfilled cells" : count === 1 ? "1 unfilled cell" : `${count} unfilled cells`,
+  unfilledBusy: "Counting unfilled cells …",
+  unfilledZoom: "Zoom in for unfilled cells",
+  unfilledNext: "Go to the next unfilled cell",
   gap: "Gap",
   gapHelp: "How large gaps Magic fill may close. [ and ] change it.",
   gapOption: (meters: number) => `${meters} m`,

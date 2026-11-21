@@ -20,6 +20,11 @@ describe("ritlägets tangenter", () => {
     expect(press("Space", " ")).toBe("Space");
     expect(press("Backquote", "§")).toBe("§");
     expect(press("Backquote", "`")).toBe("§");
+    // K8b V5: ⇧§ (° på svensk Mac, ½ i Windows) visar ofyllda rutor; förvalet i övrigt är detsamma.
+    expect(press("IntlBackslash", "°", { shiftKey: true })).toBe("Shift+§");
+    expect(press("Backquote", "½", { shiftKey: true })).toBe("Shift+§");
+    expect(commandFor(DEFAULT_KEYS, "Shift+§")).toBe("unfilled");
+    expect(commandFor(DEFAULT_KEYS, "§")).toBe("bare");
   });
 
   it("Cmd, Ctrl och Alt och en ensam Skift ger ingen tangent", () => {

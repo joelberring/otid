@@ -4,19 +4,19 @@
  * plats (`event.code`), så att de är desamma oavsett tangentbordets språk. Cmd/Ctrl+Z och Cmd/Ctrl+Skift+Z gäller alltid.
  */
 export const KEY_COMMANDS = ["select", "draw", "rectangle", "circle", "bucket", "addPoint", "removePoint", "cut", "note", "switchSymbol", "pick", "reverse", "join", "simplify", "smooth", "checked", "duplicate", "fill", "parallel",
-  "repeat", "snap", "undo", "redo", "wheel", "bare"] as const;
+  "repeat", "snap", "undo", "redo", "wheel", "bare", "unfilled"] as const;
 export type KeyCommand = typeof KEY_COMMANDS[number];
 export type KeyMap = Readonly<Record<KeyCommand, string>>;
 
 /**
  * Förvalet. K8b V1 (ägaren 2026-11-21): F magisk fyll, G koppla ihop, E rektangel, T fäst och ⇧Mellanslag gör igen; håll Q
- * för att tillfälligt markera (`use-map-project-shortcuts.ts`).
+ * för att tillfälligt markera (`use-map-project-shortcuts.ts`). K8b V5: ⇧§ visar ofyllda rutor.
  */
 export const DEFAULT_KEYS: KeyMap = {
   select: "Q", draw: "W", rectangle: "E", circle: "Shift+E", bucket: "F", note: "Shift+T", duplicate: "Shift+D", fill: "Shift+F", parallel: "Shift+V",
   addPoint: "A", removePoint: "S", cut: "X", pick: "D", reverse: "V", smooth: "Shift+A", simplify: "Shift+S",
   undo: "Z", redo: "Shift+Z", switchSymbol: "C", join: "G", checked: "R", snap: "T", repeat: "Shift+Space",
-  wheel: "Space", bare: "§"
+  wheel: "Space", bare: "§", unfilled: "Shift+§"
 };
 
 /**
@@ -37,11 +37,14 @@ export const KEYS_STORAGE = "otid-map-keys";
  */
 const RESERVED = new Set(["Enter", "Escape", "Delete", "Backspace", "Tab", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "[", "]"]);
 
+/** §-tangenten med och utan Skift (svenskt tangentbord: ° på Mac, ½ i Windows; ` och ~ på amerikanskt). */
+const SECTION_KEYS = new Set(["§", "°", "½", "`", "~"]);
+
 /** Tangenttryckningen som en tangent i kartan, eller inget för en ren Skift/Alt och för tryck med Cmd/Ctrl. */
 export function bindingOf(event: { key: string; code: string; shiftKey: boolean; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean }): string | undefined {
   if (event.ctrlKey || event.metaKey || event.altKey) return undefined;
   const letter = /^Key([A-Z])$/.exec(event.code)?.[1];
-  const base = letter ?? (event.code === "Space" || event.key === " " ? "Space" : event.key === "`" ? "§" : [...event.key].length === 1 ? event.key.toUpperCase() : event.key);
+  const base = letter ?? (event.code === "Space" || event.key === " " ? "Space" : SECTION_KEYS.has(event.key) ? "§" : [...event.key].length === 1 ? event.key.toUpperCase() : event.key);
   if (!base || base === "Shift" || base === "Alt" || base === "Control" || base === "Meta" || base === "Dead" || base === "CapsLock") return undefined;
   return event.shiftKey ? `Shift+${base}` : base;
 }

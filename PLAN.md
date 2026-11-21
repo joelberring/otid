@@ -1448,8 +1448,8 @@ stannar kvar; siffror byter symbol, bokstäver verktyg; tryck byter, håll låna
   förval på för sprintnormen; i Rita, Rektangel, Cirkel, Lägg till punkt och när punkter flyttas.
 - [ ] V4 Dra över flera rutor (och ⇧+klick) blir en yta; reserven för röriga ställen (bild med slutna glapp, tillbaka till linjer
   med punkterna fästa på grannlinjerna), i Workern med tidsgräns; mobilen: första trycket visar, andra fyller.
-- [ ] V5 Följ kant (håll ⇧ i Rita), vinkellås (håll ⌘/Ctrl, 0/45/90° mot förra sträckan eller kanten), «Visa ofyllda rutor» (⇧§).
-  Mätning: kvarter på Älvsjö–Solberga i Mapper och O-Tid.
+- [x] V5 Följ kant (håll ⇧ i Rita), vinkellås (håll ⌘/Ctrl, 0/45/90° mot förra sträckan eller kanten), «Visa ofyllda rutor» (⇧§).
+  Mätning: kvarter på Älvsjö–Solberga i Mapper och O-Tid – **ej gjord** (byggt 2026-11-21, inte sett i webbläsare).
 
 ## [ ] Steg L – Lagring: gränser, städning och arkiv (ägaren 2026-11-13)
 

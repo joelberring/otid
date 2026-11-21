@@ -9,6 +9,7 @@ import { builtPolygons, FIELD_MAINS } from "@o-tid/map-revision/base-map";
 import { proposeAreas } from "./map-project-area-proposals";
 import { fillFinder } from "./map-project-fill-area";
 import { buildSnapIndex, snapTransfer } from "./map-project-snap";
+import { findUnfilled } from "./map-project-unfilled";
 import { symbolGroup, type CatalogSymbol, type MapProjectRequest, type MapProjectResponse, type ProjectHit } from "./map-project-protocol";
 
 /**
@@ -295,6 +296,15 @@ self.onmessage = (event: MessageEvent<MapProjectRequest>) => {
   if (request.type === "snapIndex") {
     const index = current ? buildSnapIndex(current.map.objects, current.keys, current.map.symbols) : null;
     post({ type: "snapIndex", id: request.id, index }, index ? snapTransfer(index) : []);
+    return;
+  }
+  if (request.type === "unfilled") {
+    if (!current) { post({ type: "unfilled", id: request.id, result: { status: "done", cells: [], count: 0 } }); return; }
+    // Kartans yttre kant: rutan runt alla objekt (med ändringarna).
+    const bounds = current.boxes.reduce<Box | undefined>((all, box) => all ? { minX: Math.min(all.minX, box.minX), minY: Math.min(all.minY, box.minY),
+      maxX: Math.max(all.maxX, box.maxX), maxY: Math.max(all.maxY, box.maxY) } : box, undefined);
+    post({ type: "unfilled", id: request.id, result: findUnfilled({ objects: current.map.objects, boxes: current.boxes, symbols: current.map.symbols,
+      scale: current.map.scale, bounds }, request.query) });
     return;
   }
   if (request.type === "proposeAreas") {

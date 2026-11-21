@@ -4,7 +4,7 @@ import { Fragment, useState, type ReactNode } from "react";
 import styles from "./map-project-tool-rail.module.css";
 
 export type RailIcon = "select" | "draw" | "circle" | "area" | "note" | "undo" | "redo" | "panel" | "addPoint" | "removePoint" | "keys"
-  | "cut" | "rectangle" | "bucket" | "duplicate" | "fill" | "parallel" | "pick" | "reverse" | "switchSymbol" | "join" | "smooth" | "simplify" | "checked" | "remove" | "wheel" | "bare" | "repeat";
+  | "cut" | "rectangle" | "bucket" | "duplicate" | "fill" | "parallel" | "pick" | "reverse" | "switchSymbol" | "join" | "smooth" | "simplify" | "checked" | "remove" | "wheel" | "bare" | "repeat" | "unfilled";
 
 export interface RailTool {
   readonly id: string; readonly label: string; readonly icon: RailIcon;
@@ -62,7 +62,9 @@ const PATHS: Record<RailIcon, ReactNode> = {
   wheel: <><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="3.5" /><path d="M12 3v5.5M12 15.5V21M3 12h5.5M15.5 12H21" /></>,
   bare: <><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></>,
   // Gör igen: en pil i en ring och en punkt.
-  repeat: <><path d="M19 12a7 7 0 11-2.05-4.95" /><path d="M19 4v4h-4" /><circle cx="12" cy="12" r="1.6" fill="currentColor" /></>
+  repeat: <><path d="M19 12a7 7 0 11-2.05-4.95" /><path d="M19 4v4h-4" /><circle cx="12" cy="12" r="1.6" fill="currentColor" /></>,
+  // Visa ofyllda rutor: en streckad ruta med snedstreck.
+  unfilled: <><path d="M4 4h16v16H4z" strokeDasharray="3 2" /><path d="M4 12l8-8M4 20L20 4M12 20l8-8" /></>
 };
 
 /** Verktygets ikon (också i verktygshjulet). */

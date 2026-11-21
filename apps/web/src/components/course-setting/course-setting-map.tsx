@@ -397,8 +397,8 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
     if (event.pointerType !== "mouse") handlers.onHover?.(toMap(view, at), modifiersOf(event, view));
   }
 
-  function modifiersOf(event: { altKey: boolean; shiftKey: boolean; pointerType: string }, current: Viewport, free = false): PointerModifiers {
-    return { alt: event.altKey, free: free || event.shiftKey, pointerType: event.pointerType, pxPerMm: current.pxPerMm };
+  function modifiersOf(event: { altKey: boolean; shiftKey: boolean; metaKey: boolean; ctrlKey: boolean; pointerType: string }, current: Viewport, free = false): PointerModifiers {
+    return { alt: event.altKey, command: event.metaKey || event.ctrlKey, free: free || event.shiftKey, pointerType: event.pointerType, pxPerMm: current.pxPerMm };
   }
 
   function onPointerMove(event: React.PointerEvent<HTMLDivElement>) {

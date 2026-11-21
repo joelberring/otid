@@ -74,5 +74,7 @@ export function useMapProjectSnap(input: { session: MapProjectSession | undefine
   }
 
   return { hit, at: (point: Point, pointer: SnapPointer, options?: SnapOptions): Point => hit(point, pointer, options)?.at ?? point,
-    clear: () => show(undefined), draw, mark };
+    clear: () => show(undefined), draw, mark,
+    /** K8b V5 (följ kant och vinkellås): indexet, de släckta symbolerna, om fästet gäller för pekaren, och markören. */
+    index: () => index.current, hidden, active: (pointer: SnapPointer) => on && !pointer.alt && !alt.current, show };
 }

@@ -57,7 +57,7 @@ export type FillResult =
  * tekniska symboler (nordlinjer, passmärken) eller banpåtryck: de korsar ytorna utan att avgränsa dem (mätningen på
  * Älvsjö–Solberga: slänt och höjdkurvor ska inte vara ytgränser).
  */
-function isBoundary(symbol: MapSymbol | undefined, hidden: ReadonlySet<string>): boolean {
+export function isBoundary(symbol: MapSymbol | undefined, hidden: ReadonlySet<string>): boolean {
   if (!symbol || symbol.hidden || hidden.has(symbol.id)) return false;
   const main = symbol.code.main;
   return !(main >= 100 && main < 200) && !(main >= 600 && main < 800);

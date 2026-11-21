@@ -9,14 +9,14 @@ const state = (extra: Partial<RailState> = {}): RailState => ({
   keys: DEFAULT_KEYS, text: mapProjectKeysSv,
   labels: { panel: "Panel", select: "Markera", selectHelp: "", draw: "Rita", drawHelp: "", circle: "Cirkel", area: "Område", note: "Notis", undo: "Ångra", redo: "Gör om" },
   tool: "select", panelOpen: false, bare: false, canEdit: true, canDecide: false, canNote: true, canUndo: false, canRedo: false,
-  pick: noop, undo: noop, redo: noop, togglePanel: noop, toggleBare: noop, openWheel: noop, openKeys: noop, ...extra
+  unfilled: false, toggleUnfilled: noop, pick: noop, undo: noop, redo: noop, togglePanel: noop, toggleBare: noop, openWheel: noop, openKeys: noop, ...extra
 });
 
 describe("verktygsspalten (K8b V1)", () => {
   it("har bara verktyg, i grupperna Markera | Rita | Fyll | Forma | Granska, och hjulet, bara kartan och tangenterna längst ned", () => {
     const tools = railTools(state({ canDecide: true }));
     const top = tools.filter(tool => !tool.bottom && !tool.phoneOnly).map(tool => tool.id);
-    expect(top).toEqual(["select", "draw", "rectangle", "circle", "bucket", "addPoint", "removePoint", "cut", "note", "area"]);
+    expect(top).toEqual(["select", "draw", "rectangle", "circle", "bucket", "addPoint", "removePoint", "cut", "note", "area", "unfilled"]);
     expect(tools.filter(tool => tool.group).map(tool => [tool.id, tool.group])).toEqual([["draw", "Rita"], ["bucket", "Fyll"], ["addPoint", "Forma"], ["note", "Granska"]]);
     expect(tools.filter(tool => tool.bottom).map(tool => tool.id)).toEqual(["wheel", "bare", "keys"]);
     // Inga åtgärder på det markerade i spalten.
@@ -30,9 +30,10 @@ describe("verktygsspalten (K8b V1)", () => {
     expect(tools.filter(tool => tool.pin).map(tool => [tool.id, tool.pin, tool.phoneOnly])).toEqual([["undo", "first", true], ["redo", "second", true]]);
   });
 
-  it("Granska utan notiser börjar med Område, och utan notis och område finns ingen Granska", () => {
+  it("Granska utan notiser börjar med Område, och utan notis och område med Visa ofyllda rutor (⇧§, V5)", () => {
     expect(railTools(state({ canNote: false, canDecide: true })).find(tool => tool.id === "area")?.group).toBe("Granska");
-    expect(railTools(state({ canNote: false })).some(tool => tool.group === "Granska")).toBe(false);
+    expect(railTools(state({ canNote: false })).filter(tool => tool.group === "Granska").map(tool => tool.id)).toEqual(["unfilled"]);
+    expect(railTools(state({ unfilled: true })).find(tool => tool.id === "unfilled")).toMatchObject({ key: "⇧§", active: true });
     // Den som bara läser får bara bara kartan och tangenterna.
     expect(railTools(state({ canEdit: false })).map(tool => tool.id)).toEqual(["panel", "bare", "keys"]);
   });

@@ -33,7 +33,7 @@ function lockFields(row: Partial<CourseLetters>): Partial<Pick<Course, "forkLett
   const out: { forkLetterLock?: ForkLetterLock; forkLetterUnlockedAt?: string; transferredLetters?: Record<string, string> } = {};
   const lock = row.lock as Partial<ForkLetterLock> | undefined;
   if (lock && typeof lock === "object" && typeof lock.reason === "string" && REASONS.has(lock.reason) && typeof lock.at === "string") {
-    out.forkLetterLock = { reason: lock.reason as ForkLetterLock["reason"], at: lock.at };
+    out.forkLetterLock = { reason: lock.reason, at: lock.at };
   }
   if (typeof row.unlockedAt === "string") out.forkLetterUnlockedAt = row.unlockedAt;
   if (row.transferred && typeof row.transferred === "object") {

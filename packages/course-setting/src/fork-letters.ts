@@ -100,7 +100,7 @@ function packLetters(document: CourseSettingDocument, course: Course, old: Reado
   let ids: string[] = [];
   try { ids = enumerateCourseControls(document, course.id); } catch { return document; }
   const courseControls: Record<string, CourseControl> = { ...document.courseControls };
-  for (const id of ids) if (courseControls[id]?.letter !== undefined) courseControls[id] = withoutLetter(courseControls[id]!);
+  for (const id of ids) if (courseControls[id]?.letter !== undefined) courseControls[id] = withoutLetter(courseControls[id]);
   const packed: CourseSettingDocument = { ...document, courseControls, courses: document.courses.map(row => row.id === course.id ? withoutRetired(row) : row) };
   return renameExcludedVariants(document, packed, course.id, old);
 }

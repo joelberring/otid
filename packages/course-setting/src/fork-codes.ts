@@ -10,7 +10,8 @@ import { findCourse, variantLetters } from "./walk";
 /** Gammal bokstav → ny bokstav (null = grenen finns inte kvar) ur grenarnas bokstäver före och efter (gren → bokstav). */
 export function letterTranslation(before: ReadonlyMap<string, string> | Readonly<Record<string, string>>, after: ReadonlyMap<string, string>)
   : Map<string, string | null> {
-  const entries = before instanceof Map ? [...before.entries()] : Object.entries(before);
+  const entries: [string, string][] = before instanceof Map ? [...(before as ReadonlyMap<string, string>).entries()]
+    : Object.entries(before as Readonly<Record<string, string>>);
   const out = new Map<string, string | null>();
   for (const [branch, letter] of entries) out.set(letter, after.get(branch) ?? null);
   return out;

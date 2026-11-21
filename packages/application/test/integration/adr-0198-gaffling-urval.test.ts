@@ -54,6 +54,10 @@ async function race() {
 
 type Proof = Awaited<ReturnType<typeof race>>;
 
+/** Banläggningens version nu (en överföring sparar grenarnas bokstäver, ADR-0175 tillägg 2026-11-21 b). */
+const settingVersion = async (raceId: string) =>
+  (await pool.query<{ version: number }>("select version from course_setting where race_id = $1", [raceId])).rows[0]!.version;
+
 async function transfer(proof: Proof, version: number) {
   const preview = await previewCourseSettingTransferAsAdmin(db, { ...proof, request: { formatVersion: 1, version } });
   if (preview.status !== "ok") throw new Error(`Förhandsvisningen saknas: ${preview.status}`);
@@ -84,9 +88,9 @@ describe("ADR-0198: bortvalda varianter i tävlingen", () => {
     expect(rows[0]!.excluded).toBeNull();
 
     // Banläggaren väljer bort fyra; en ny överföring ger version 2 med fyra varianter och de bortvalda i banversionen.
-    expect((await importCourseSettingAsAdmin(db, { ...proof, request: { formatVersion: 1, expectedVersion: 1,
+    expect((await importCourseSettingAsAdmin(db, { ...proof, request: { formatVersion: 1, expectedVersion: await settingVersion(proof.raceId),
       document: exclude(["ADF", "BCF", "BDE", "BDF"]), fileName: "gaffling-urval.ppen", ppen } })).status).toBe("ok");
-    await transfer(proof, 2);
+    await transfer(proof, await settingVersion(proof.raceId));
     rows = await variantsOf();
     expect(rows.map(row => [row.version, row.code])).toEqual([[2, "ACE"], [2, "ACF"], [2, "ADE"], [2, "BCE"]]);
     const excluded = rows[0]!.excluded as { code: string; controlCodes: number[] }[];

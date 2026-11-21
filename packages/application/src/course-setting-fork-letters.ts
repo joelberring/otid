@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
-import { courseSettingDocumentSchema, type CourseSettingDocumentDto } from "@o-tid/contracts";
+import { courseSettingDocumentSchema } from "@o-tid/contracts";
 import {
   diffTouches, isForkedCourse, withForkLetterLocks, withTransferredLetters, type CourseSettingDocument, type ForkLetterLockRequest
 } from "@o-tid/course-setting";
@@ -105,7 +105,7 @@ async function storeChange(tx: Transaction, raceId: string, actorId: string, now
   if (after === before) return undefined;
   const parsed = courseSettingDocumentSchema.safeParse(after);
   if (!parsed.success) return undefined;
-  const saved = await store(tx, { raceId, actorId, now, current, kind: "SAVE", document: parsed.data as CourseSettingDocumentDto,
+  const saved = await store(tx, { raceId, actorId, now, current, kind: "SAVE", document: parsed.data,
     change: { touches: diffTouches(before, after), requestId: randomUUID(), result: () => ({}) } });
   await tx.insert(schema.auditEvents).values({ raceId, entityType: "course_setting", entityId: raceId, action: "COURSE_SETTING_FORK_LETTERS_LOCKED",
     actorKind: "USER_ACCOUNT", actorId, after: { version: saved.version, courses: after.courses.filter(course => {

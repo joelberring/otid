@@ -167,3 +167,50 @@ tävlingen (koden «försvann» och löparen fick en annan variant). Ägarens be
 3. **Översättningen följer med vid Överför**: en löpare vars kod bytts (AG → AC) får den nya koden och behåller sina
    kontroller; bara de vars kontroller ändras står i beskedet.
 4. **Ta bort gafflingen** behåller gren A.
+
+## Tillägg 2026-11-21 (b): hur utkast, lås och översättning är byggda
+
+Allt som påverkar bokstäverna står i banläggningens dokument (jsonb i `course_setting.document`, ingen migration), så att
+samma ändring ger samma bokstäver i webbläsaren och på servern (autospar, samarbete, förslag och versioner spelar upp samma
+`applyEdit`). Koden: `packages/course-setting/src/fork-lock.ts`, `fork-codes.ts`, `fork-letters.ts` och
+`packages/application/src/course-setting-fork-letters.ts`.
+
+1. **Fält på banan** (`Course`):
+   - `forkLetterLock?: { reason: "MANUAL" | "PRINT" | "ASSIGNED" | "START_LIST"; at: string }` – låst. Saknas = utkast.
+   - `forkLetterUnlockedAt?: string` – låset hävdes för hand (då låser tävlingens *läge* inte igen, bara en ny händelse).
+   - `transferredLetters?: Record<grenId, bokstav>` – grenarnas bokstäver vid senaste godkända «Överför till tävlingen». En gren
+     är banans kontroll som börjar grenen; dess id är stabilt genom ändringarna (inte genom en .ppen sparad i Purple Pen som
+     byter id).
+   - Alla tre skrivs i .ppen i `<otid:letters>` (`lock`, `unlockedAt`, `transferred`) och följer med när en fil utan elementet
+     läses in över banläggningen (`carryForkLetters`).
+2. **Utkast** (`keepForkLetters`): ändras en banas grenar tas sparade bokstäver (`CourseControl.letter`) och `retiredLetters`
+   bort, så att grenarna får Purple Pens bokstäver i banans ordning (A, B, C → B bort → A, B; en gaffling som görs om får C, D
+   igen). Bortvalen (ADR-0198) flyttas till de nya koderna när den översatta koden har samma kontroller. En bana utan lås som
+   har sparade bokstäver (med lucka, alla befintliga dokument) behåller dem tills nästa gafflingsändring eller «Ordna
+   nycklarna»: flyttade kontroller, koder och utseende rör dem inte. **Låst**: tillägg (c) som förut.
+3. **Ändringssteg**: `RENUMBER_FORK_LETTERS { course }` («Ordna nycklarna»: Purple Pens bokstäver skrivs ut på grenarna,
+   bortvalen flyttas, `retiredLetters` töms, låset står kvar) och `SET_FORK_LETTER_LOCK { course, locked, reason?: MANUAL |
+   PRINT, at }` (för hand, eller av en utskrift i webbläsaren med variantkod). Tiden står i ändringen, inte i `applyEdit`.
+4. **Servern låser** (`lockForkLettersFromRace`, ny version som ett sparande, ändringen i konfliktloggen med `diffTouches`):
+   banläggningens bana paras med tävlingens på namnet. PRINT = ett tryckjobb med en variant av banan eller en utskriven
+   kartbuntslista för en bana med tilldelade varianter; START_LIST = publicerad startlista och banan har klasser; ASSIGNED =
+   en löpare eller stafettsträcka i banans klasser har en variant. Anropas när ett tryckjobb skapas, kartbuntslistan skrivs ut,
+   «Fördela gafflingar» eller «Byt variant» görs och startlistan publiceras, efter varje godkänd överföring och när editorn
+   läser dokumentet (`readCourseSettingAsAdmin`). Varianter som ges vid anmälan eller import låser alltså senast när editorn
+   öppnas eller vid nästa överföring. Efter ett lås som hävts för hand låser bara en händelse efter `forkLetterUnlockedAt`
+   (tryck eller publicering senare, en ny fördelning); tilldelade varianter i sig låser inte igen.
+5. **Översättningen vid Överför**: projektionen får `forkLetters` per gafflad bana (`letters` nu och `renames`: bokstaven i
+   `transferredLetters` → grenens bokstav nu, `null` när grenen inte finns). Jämförelsen (`course-file-diff`) gör om dem till
+   tävlingens koder (`CHANGE_COURSE.codeRenames`, bokstav för bokstav: AG → AC; en kod med en bokstav vars gren försvunnit blir
+   `null`). Beskedet (`courseFileVariantChanges`) jämför löparens gamla kontroller med den nya kodens; samma kontroller = inte i
+   beskedet, annars med `codeAfter`. Vid godkännandet (`renameTransferredVariants`, före fördelningen) får löpare – också de
+   som läst ut, grenen är densamma – och stafettsträckornas fasta variant den nya koden; en `null`-kod får en ny variant av
+   `reassignVanishedVariants` (inte avlästa), också när den gamla koden råkar finnas bland de nya. Sedan sparas `letters` som
+   `transferredLetters` för banorna som fördes över (vald rad, ny bana eller ingen omnumrering).
+6. **UI**: raden «Nycklarna» i panelen Varianter visar läget («Utkast: nycklarna ordnas medan du arbetar» eller «Låst: … och
+   varför»), «Lås nycklarna»/«Häv låset» och «Ordna nycklarna» med förhandsvisning gammal → ny kod. I en låst bana (och för
+   att häva låset) visas först det som berörs ur `GET …/course-setting/fork-letters` (EDIT): kartor med variant i tryckjobben,
+   publicerad startlista, löpare med tilldelad variant (namn, klass, kod) och bortval som får ny kod. Kartor som skrivits ut i
+   webbläsaren går inte att räkna (de låser banan med `SET_FORK_LETTER_LOCK` reason PRINT).
+7. **Kvar**: tävlingens egen baneditor (C4 i översynen) har inte utkast och lås; en återanvänd grens id (borttagen sist och
+   en ny gren med samma id) översätts som samma gren, och om kontrollerna skiljer står löparen i beskedet.

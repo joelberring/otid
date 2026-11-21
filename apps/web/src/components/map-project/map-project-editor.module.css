@@ -132,6 +132,8 @@
 }
 .fieldControls { position: absolute; right: 10px; bottom: 10px; z-index: 1; display: grid; justify-items: end; gap: 6px; pointer-events: none; }
 .fieldControls > * { pointer-events: auto; }
+/* K8b V1: i telefonen ligger kontextraden nederst på kartan (min 38 px knappar + 6 px luft + kant); fältets knappar står ovanför. */
+@media (max-width: 760px) { .fieldControls[data-above-context] { bottom: 56px; } }
 .fieldButtons { display: flex; gap: 6px; align-items: center; }
 .fieldRound, .fieldButton { min-width: 44px; min-height: 44px; border-radius: 22px; border: 1px solid var(--line-strong, #999); background: var(--surface, #fff);
   box-shadow: 0 1px 4px rgb(0 0 0 / 25%); font: inherit; font-weight: 600; color: var(--ink, #222); cursor: pointer; }

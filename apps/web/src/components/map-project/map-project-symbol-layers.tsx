@@ -98,7 +98,7 @@ export function MapProjectSymbolLayers({ catalog, standard, standardSymbols, sta
       {rows.map(row => <li key={row.id} data-testid="map-project-layer-row" data-layer={row.id}>
         <details>
           <summary>
-            {GROUP_KEYS.includes(row.id) && <kbd className={styles.layerKey} title={text.groupKey(GROUP_KEYS.indexOf(row.id) + 1)}>{GROUP_KEYS.indexOf(row.id) + 1}</kbd>}
+            {GROUP_KEYS.includes(row.id) && <kbd className={styles.layerKey} title={text.groupKey(GROUP_KEYS.indexOf(row.id) + 1)}>Alt+{GROUP_KEYS.indexOf(row.id) + 1}</kbd>}
             <span className={styles.layerName}>{text.layers[row.id]}</span> <small className={styles.muted}>{text.count(row.count)}</small>
           </summary>
           {row.id === "OUTSIDE" && <p className={styles.muted}>{text.outsideHelp(standard)}</p>}

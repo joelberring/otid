@@ -149,7 +149,7 @@ export const mapProjectSymbolLayersEn: Texts<typeof mapProjectSymbolLayersSv> = 
     + "when the layer is on, are left out of the norm check and the generalisation and cannot be selected. Transfer them to a symbol in the norm below.",
   fileShort: "sketch layer",
   count: (n: number) => count(n, "object", "objects"),
-  groupKey: (digit: number) => `The key ${digit} shows and hides the group, Shift+${digit} shows only it, 0 shows everything.`,
+  groupKey: (digit: number) => `Alt+${digit} shows and hides the group, Alt+Shift+${digit} shows only it, Alt+0 shows everything.`,
   multiHelp: "Shift+click an eye or lock sets the same choice on all rows in between; Alt+click on the eye shows only that row. 1–6 show and hide the standard's groups.",
   viewsHeading: "Saved views",
   viewsHelp: "Save the layers' choices under a name (e.g. “contours only” or “survey”) and switch between them. The views are saved in this browser.",

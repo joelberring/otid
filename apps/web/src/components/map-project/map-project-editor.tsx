@@ -718,7 +718,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
           position={position.position && positionMode !== "off" ? { position: position.position, follow: positionMode === "follow" } : undefined}
           onPan={() => setPositionMode(mode => mode === "follow" ? "on" : mode)} handle={mapHandle} /></div>}
         {editor.mapStatus === "ready" && georeference && <MapProjectFieldControls mode={positionMode} onMode={setPositionMode} problem={position.problem}
-          canRecord={recon.canRecord} recording={!!recon.recording}
+          aboveContext={contextList.length > 0 && !wheel} canRecord={recon.canRecord} recording={!!recon.recording}
           note={notes.canWrite && position.position ? () => { setShownNote(undefined); setNoteDraft({ at: position.position!.at }); } : undefined}
           onRecord={() => { if (recon.recording) void recon.stopRecording();
             else void recon.startRecording(reconText.recordDefault(new Date().toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }))); }}

@@ -23,12 +23,14 @@ export function MapProjectFieldControls(props: {
   /** Symbolen som är vald, om den kan sättas här (punkt) eller gås (linje), och om positionen finns. */
   point?: { code: string; onPlace: () => void } | undefined;
   walk?: { code: string; walking: number | undefined; onStart: () => void; onStop: () => void } | undefined;
+  /** Kontextraden (K8b V1) ligger nederst på kartan i telefonen: knapparna står då ovanför den. */
+  aboveContext?: boolean | undefined;
 }) {
   const notesText = useTexts(mapProjectNotesSv, mapProjectNotesEn);
   const text = useTexts(mapProjectReconSv, mapProjectReconEn);
   const { mode, onMode, problem, canRecord, recording, onRecord, point, walk, note } = props;
   const next: Record<PositionMode, PositionMode> = { off: "on", on: "follow", follow: "off" };
-  return <div className={styles.fieldControls} data-testid="map-project-field">
+  return <div className={styles.fieldControls} data-above-context={props.aboveContext ? "" : undefined} data-testid="map-project-field">
     {problem && mode !== "off" && <p className={styles.fieldProblem} role="status">{text.problems[problem]}</p>}
     {walk && walk.walking !== undefined && <p className={styles.fieldProblem} role="status">{text.walking(walk.walking)}</p>}
     <div className={styles.fieldButtons}>

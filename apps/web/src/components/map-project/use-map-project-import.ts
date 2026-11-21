@@ -8,7 +8,7 @@ import { baseMapMarking, type BaseMapOrigin } from "../../lib/map-project-markin
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { mapProjectImportEn } from "../../i18n/map-project-tools-en";
 import { useTexts } from "../language-provider";
-import { MAP_PROJECT_SYNC_MAX_EDITS, type MapLayerProfileView, type MapProjectView } from "@o-tid/contracts";
+import { MAP_PROJECT_SYNC_MAX_EDITS, type MapLayerProfileView, type MapProjectDecisionRequest, type MapProjectView } from "@o-tid/contracts";
 import { isSupportedEpsg, type MapGeoreference, type MapObject, type PathCommand } from "@o-tid/map-file";
 import {
   fitClassOf, guessCrs, importLayers, isSprintNorm, mapNorm, newKey, objectBox, samplePath, sourcePointToMap, suggestSymbol, VectorParseError, WGS84_EPSG,
@@ -314,7 +314,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
       const count = commitMany([...removals, ...adds]);
       // Ägaren 2026-11-21 (idé 1, «lär av kartritarens egna beslut»): vad som erbjöds och lades in sparas, så att reglagen kan lära
       // av kartritarens senare ändringar (de står redan i ändringshistoriken). Misslyckas det märks inget för den som ritar.
-      const decision = { formatVersion: 1, decisionId: crypto.randomUUID(), source: file.name.slice(0, 160), geoJobId: null,
+      const decision: MapProjectDecisionRequest = { formatVersion: 1, decisionId: crypto.randomUUID(), source: file.name.slice(0, 160), geoJobId: null,
         settings: Object.fromEntries(Object.entries(origin?.settings ?? {}).filter(([, value]) => Number.isFinite(value)).slice(0, 40)),
         mode: mode === "extend" ? "EXTEND" : mode === "replace" ? "REPLACE" : "ADD",
         layers: layers.slice(0, 300).map(layer => { const symbol = mapping.get(layer.name);

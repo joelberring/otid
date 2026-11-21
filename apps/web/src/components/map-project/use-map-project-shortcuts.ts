@@ -69,7 +69,7 @@ export function useMapProjectShortcuts(api: ShortcutApi) {
         event.preventDefault(); if (!event.repeat) now.panKey.current = { down: true, used: false }; return;
       }
       if (bound === "select") {
-        if (!event.repeat) { held = { at: performance.now(), previous: now.tool, binding: binding! }; now.pickTool("select"); }
+        if (!event.repeat) { held = { at: event.timeStamp, previous: now.tool, binding: binding! }; now.pickTool("select"); }
         return;
       }
       if (bound === "undo") { event.preventDefault(); now.undo(); }
@@ -97,7 +97,9 @@ export function useMapProjectShortcuts(api: ShortcutApi) {
       if (held && (bindingOf(event) === held.binding || bindingOf({ ...plain(event), shiftKey: held.binding.startsWith("Shift+") }) === held.binding)) {
         const was = held;
         held = undefined;
-        if (performance.now() - was.at >= HOLD_SELECT_MS && was.previous !== "select") now.restoreTool(was.previous);
+        // Tiden mellan händelserna (deras tidsstämplar), inte när de hanteras: en sida som ritar om efter bytet till Markera
+        // får inte göra ett kort tryck till ett håll.
+        if (event.timeStamp - was.at >= HOLD_SELECT_MS && was.previous !== "select") now.restoreTool(was.previous);
         return;
       }
       if (event.code !== "Space" || !now.panKey.current.down) return;

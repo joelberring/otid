@@ -24,7 +24,7 @@ export const mapProjectSymbolLayersSv = {
     + "när lagret är tänt, ingår inte i normkontrollen eller generaliseringen och går inte att markera. För över dem till en symbol i normen nedan.",
   fileShort: "skisslager",
   count: (count: number) => plural(count, "objekt", "objekt"),
-  groupKey: (digit: number) => `Tangenten ${digit} tänder och släcker gruppen, Skift+${digit} visar bara den, 0 tänder allt.`,
+  groupKey: (digit: number) => `Alt+${digit} tänder och släcker gruppen, Alt+Skift+${digit} visar bara den, Alt+0 tänder allt.`,
   multiHelp: "Skift+klick på ett öga eller lås sätter samma val på alla rader emellan; Alt+klick på ögat visar bara den raden. 1–6 tänder och släcker normens grupper.",
   viewsHeading: "Sparade vyer",
   viewsHelp: "Spara lagrens val under ett namn (t.ex. ”bara kurvor” eller ”rekning”) och växla mellan dem. Vyerna sparas i den här webbläsaren.",

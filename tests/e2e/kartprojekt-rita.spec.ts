@@ -525,7 +525,10 @@ test("kartprojekt: förklaringar i verktygsspalten, slå ihop linjer och byt sym
   const cutAt = await screenOf(owner, { x: 40, y: 88 });
   await owner.mouse.click(cutAt.x, cutAt.y);
   await expect(owner.getByTestId("map-project-hint")).toHaveText("Linjen är klippt i två delar.");
-  // Båda delarna är markerade (två objekt), och markeringen släpps med Escape innan nästa steg.
+  // Båda delarna är markerade (två objekt); saxen stannar kvar utan kontextrad (K8b V1: raden hör till Markera), Q visar den.
+  // Markeringen släpps med Escape innan nästa steg.
+  await expect(owner.getByTestId("map-project-rail-remove")).toHaveCount(0);
+  await owner.keyboard.press("q");
   await expect(owner.getByTestId("map-project-rail-remove")).toHaveText("Ta bort 2 objektDel");
   await owner.keyboard.press("Escape");
   await expect(owner.getByTestId("map-project-rail-remove")).toHaveCount(0);
@@ -916,17 +919,18 @@ test("kartprojekt: lager efter normen, lås, nedtonat och slå ihop symboler", a
   await owner.mouse.click(at.x, at.y);
   await expect(owner.getByTestId("map-project-hint")).toContainText("206");
 
-  // R3: tangenten 2 släcker berg och stenar, 0 tänder allt; en sparad vy tar tillbaka valen.
+  // R3: Alt+2 släcker berg och stenar, Alt+0 tänder allt (K8b V1: siffrorna utan Alt väljer de senaste symbolerna); en sparad
+  // vy tar tillbaka valen.
   const rockEye = owner.getByTestId("map-project-symbol-layers").locator("[data-layer=ROCK]").getByTestId("map-project-layer-visible").last();
   await owner.mouse.click(10, 10);
   await owner.keyboard.press("Escape");
-  await owner.keyboard.press("2");
+  await owner.keyboard.press("Alt+2");
   await expect(rockEye).toHaveAttribute("aria-pressed", "false");
   const views = owner.getByTestId("map-project-layer-views");
   await views.locator("summary").click();
   await views.getByTestId("map-project-layer-view-name").fill("Utan berg");
   await views.getByTestId("map-project-layer-view-save").click();
-  await owner.keyboard.press("0");
+  await owner.keyboard.press("Alt+0");
   await expect(rockEye).toHaveAttribute("aria-pressed", "true");
   await views.getByTestId("map-project-layer-view").filter({ hasText: "Utan berg" }).getByRole("button", { name: "Använd" }).click();
   await expect(rockEye).toHaveAttribute("aria-pressed", "false");

@@ -14,9 +14,9 @@ export type RaceListTiming = "ONGOING" | "UPCOMING" | "RECENT";
 export const hasSplitAnalysis = (raceType: PublicRaceListItem["raceType"]) => raceType !== "RELAY" && raceType !== "ROGAINING";
 
 /**
- * Startsidans rad för en tävling (ADR-0172 beslut 4): datum, namn (till tävlingssidan), lopp och typ, och
- * länkarna som gäller just då. Startlistan bara när den är publicerad; resultat och sträcktider från tävlingsdagen.
- * Inga adminlänkar.
+ * Startsidans rad för en tävling (ADR-0172 beslut 4, skissen F3 2026-11-21): datum (i dag med första start), namnet som länk
+ * till tävlingssidan, lopp · arrangörsklubb · typ, och följdlänkarna som gäller just då, små och grå till höger: Live och
+ * resultat på tävlingsdagen, startlistan när den är publicerad, resultat och sträcktider efteråt. Inga knappar, inga adminlänkar.
  */
 export function RaceList({ races, timing, today, language = "sv" }: { races: readonly PublicRaceListItem[]; timing: RaceListTiming; today: string;
   language?: Language }) {
@@ -25,13 +25,17 @@ export function RaceList({ races, timing, today, language = "sv" }: { races: rea
   return <ul className={styles.raceList}>
     {races.map(race => {
       const started = timing !== "UPCOMING";
-      const links = [race.startListPublished && <Link key="start" href={`/starts/${race.raceId}`}>{text.startList}</Link>,
+      // En fest har en egen sida (/fest/) utan Live.
+      const links = [timing === "ONGOING" && race.raceType !== "PARTY" && <Link key="live" href={`${raceHubPath(race.shortCode)}/live`}>{text.live}</Link>,
         started && <Link key="results" href={`/results/${race.raceId}`}>{text.results}</Link>,
-        started && hasSplitAnalysis(race.raceType) && <Link key="splits" href={`/results/${race.raceId}/splits`}>{text.splits}</Link>]
+        timing === "RECENT" && hasSplitAnalysis(race.raceType) && <Link key="splits" href={`/results/${race.raceId}/splits`}>{text.splits}</Link>,
+        race.startListPublished && timing !== "RECENT" && <Link key="start" href={`/starts/${race.raceId}`}>{text.startList}</Link>]
         .filter(Boolean);
-      const details = [shownRaceName(race.eventName, race.raceName), typeName(race.raceType)].filter(Boolean);
+      const details = [shownRaceName(race.eventName, race.raceName), race.organiserName, typeName(race.raceType)].filter(Boolean);
+      const date = timing === "ONGOING" ? [text.today, race.firstStartTime?.replace(":", language === "en" ? ":" : ".")].filter(Boolean).join(" ")
+        : formatRaceDate(race.raceDate, today, LOCALE[language]);
       return <li key={race.raceId} className={styles.raceRow}>
-        <time className={styles.raceDate} dateTime={race.raceDate}>{formatRaceDate(race.raceDate, today, LOCALE[language])}</time>
+        <time className={styles.raceDate} dateTime={race.raceDate}>{date}</time>
         <div className={styles.raceName}>
           <Link href={raceHubPath(race.shortCode)}>{race.eventName}</Link>
           <span>{details.join(" · ")}</span>

@@ -72,7 +72,7 @@ test("opublicerad tävling syns inte, publicerad syns under rätt rubrik, kort a
   // Besökaren ser den inte: inte på startsidan, resultatlistan, tävlingssidan, QR-sidan eller i API:t, och inget namn läcker.
   const visitor = await anonymous(browser);
   await visitor.goto("/");
-  await expect(visitor.getByRole("heading", { name: "Tävlingar", level: 1 })).toBeVisible();
+  await expect(visitor.getByRole("heading", { name: "Hitta din tävling", level: 1 })).toBeVisible();
   // Sidhuvudet: loggan, namnet och "Banläggning och tidtagning för orientering". Filmlänken bara med NEXT_PUBLIC_INTRO_FILM_URL.
   await expect(visitor.locator("[data-site-head] a[href='/']")).toHaveText("O-TidBanläggning och tidtagning för orientering");
   await expect(visitor.locator("[data-site-head] svg[aria-hidden='true']")).toBeVisible();
@@ -103,16 +103,16 @@ test("opublicerad tävling syns inte, publicerad syns under rätt rubrik, kort a
   await expect(owner.getByText(/^Publicerad .*Tävlingssidan syns för alla\.$/)).toBeVisible();
 
   // Startsidan: inga adminlänkar. Rubrikerna kontrolleras med sök på testets egna tävlingar, eftersom testdatabasen
-  // har tävlingar från andra flöden och "Senaste" visar tio i taget.
+  // har tävlingar från andra flöden och "Genomförda" visar åtta i taget.
   await visitor.goto("/");
   await expect(visitor.locator('a[href*="/admin/"]')).toHaveCount(0);
   await visitor.goto(`/?q=${suffix}`);
   const section = (name: string) => visitor.getByRole("region", { name: new RegExp(`^${name}`) });
   await expect(section("Pågår nu").getByRole("link", { name: todayName })).toHaveAttribute("href", hubPath!);
   await expect(section("Kommande").getByRole("link", { name: upcomingName })).toBeVisible();
-  await expect(section("Senaste").getByRole("link", { name: recentName })).toBeVisible();
+  await expect(section("Genomförda").getByRole("link", { name: recentName })).toBeVisible();
   await expect(section("Pågår nu").getByRole("link", { name: upcomingName })).toHaveCount(0);
-  await expect(section("Senaste").getByRole("listitem")).toHaveCount(2);
+  await expect(section("Genomförda").getByRole("listitem")).toHaveCount(2);
   await expect(visitor.locator('a[href*="/admin/"]')).toHaveCount(0);
   await expect(visitor.getByRole("link", { name: "För arrangörer: logga in" })).toBeVisible();
   await expect(section("Pågår nu").getByRole("navigation", { name: todayName }).getByRole("link", { name: "Resultat" }))

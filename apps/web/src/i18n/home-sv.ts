@@ -20,15 +20,6 @@ export const homeSv = {
   projects: "Kartprojekt",
   more: (count: number) => `och ${count} till`,
   showAll: "Visa alla",
-  featuresTitle: "Mer än tidtagning",
-  features: [
-    { title: "Tidtagning och resultat", text: "Avläsning med SPORTident direkt i webbläsaren, även utan nät. Start- och resultatlistor, Live och sträcktider för publiken." },
-    { title: "Banläggning", text: "Lägg banor på kartan i webbläsaren, med gafflingar, kontrollbeskrivningar, utskrift och PDF för tryck." },
-    { title: "Kartor och klubbarkiv", text: "Klubbens kartor och versioner på ett ställe, med avtal, gamla banor och kartor till starten." },
-    { title: "Kartritning", text: "Rita och revidera kartor tillsammans: laser, ortofoto, baskartor, generalisering och normkontroll som förslag." },
-    { title: "AI-koppling", text: "Koppla ditt eget Claude-konto. AI:n läser banor och kartor och lämnar bara förslag som du godkänner." },
-    { title: "Klubbar och grupper", text: "Verifierade klubbar via Eventor, träningsgrupper med anmälan på plats och funktionärer med egna konton." }
-  ],
   demo: "Prova: se en demotävling",
   demoHelp: "Startlista, resultat, Live och sträcktider från en riktig träning, utan att logga in."
 } as const;

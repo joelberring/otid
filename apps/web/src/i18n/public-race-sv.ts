@@ -1,20 +1,19 @@
 /** ADR-0172 beslut 4: startsidan, tävlingssidan, förhandsvisningen, QR-sidan och publiceringen i arbetsytan. */
 export const publicRaceSv = {
   home: {
-    title: "Tävlingar",
+    title: "Hitta din tävling",
     intro: "Startlistor, resultat och sträcktider från tävlingar och träningar som tar tid med O-Tid.",
     searchLabel: "Sök tävling",
-    searchPlaceholder: "Tävlingens namn",
+    searchPlaceholder: "Till exempel Natt-KM",
     search: "Sök",
     showAll: "Visa alla",
     searchHeading: (query: string) => `Sökträffar för ”${query}”`,
     ongoing: "Pågår nu",
     upcoming: "Kommande",
-    recent: "Senaste",
-    showMore: "Visa fler",
-    noneOngoing: "Inga tävlingar i dag.",
-    noneUpcoming: "Inga kommande tävlingar publicerade.",
-    noneRecent: "Inga tidigare tävlingar.",
+    recent: "Genomförda",
+    showMore: "Visa fler genomförda",
+    noneAtAll: "Inga publicerade tävlingar just nu.",
+    paintingCaption: "Veckans målning",
     noMatch: (query: string) => `Ingen publicerad tävling matchar ”${query}”.`,
     myRaces: "Mitt O-Tid",
     organizerLogin: "För arrangörer: logga in",
@@ -23,7 +22,7 @@ export const publicRaceSv = {
     mapFilm: "Så fungerar kartritningen (film)",
     paintingAlt: (title: string) => `Veckans målning: ${title} av Emm Berring`
   },
-  links: { startList: "Startlista", results: "Resultat", splits: "Sträcktider" },
+  links: { startList: "Startlista", results: "Resultat", splits: "Sträcktider", live: "Live", today: "I dag" },
   hub: {
     navigation: "Tävlingssidan",
     back: "‹ Tävlingssidan",

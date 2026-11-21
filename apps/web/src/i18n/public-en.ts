@@ -23,20 +23,19 @@ export const languageSwitch: Readonly<Record<"sv" | "en", { readonly label: stri
 };
 
 export const publicHomeEn: Texts<typeof publicRaceSv.home> = {
-  title: "Events",
+  title: "Find your event",
   intro: "Start lists, results and split times from events and trainings timed with O-Tid.",
   searchLabel: "Search events",
-  searchPlaceholder: "Event name",
+  searchPlaceholder: "For example Night championship",
   search: "Search",
   showAll: "Show all",
   searchHeading: query => `Results for “${query}”`,
   ongoing: "Today",
   upcoming: "Upcoming",
-  recent: "Recent",
-  showMore: "Show more",
-  noneOngoing: "No events today.",
-  noneUpcoming: "No upcoming events published.",
-  noneRecent: "No earlier events.",
+  recent: "Finished",
+  showMore: "Show more finished events",
+  noneAtAll: "No published events right now.",
+  paintingCaption: "Painting of the week",
   noMatch: query => `No published event matches “${query}”.`,
   myRaces: "My O-Tid",
   organizerLogin: "Organisers: sign in",
@@ -46,7 +45,7 @@ export const publicHomeEn: Texts<typeof publicRaceSv.home> = {
   paintingAlt: title => `Painting of the week: ${title} by Emm Berring`
 };
 
-export const publicLinksEn: Texts<typeof publicRaceSv.links> = { startList: "Start list", results: "Results", splits: "Split times" };
+export const publicLinksEn: Texts<typeof publicRaceSv.links> = { startList: "Start list", results: "Results", splits: "Split times", live: "Live", today: "Today" };
 
 export const raceTypeNamesEn: Readonly<Record<keyof typeof raceTypeSv.types, string>> = {
   TRAINING: "Training", SMALL: "Small event", STANDARD: "Event", FORKED: "Event", RELAY: "Relay", ROGAINING: "Rogaining", PARTY: "Party"
@@ -351,15 +350,6 @@ export const homeEn: Texts<typeof homeSv> = {
   projects: "Map projects",
   more: count => `and ${count} more`,
   showAll: "Show all",
-  featuresTitle: "More than timing",
-  features: [
-    { title: "Timing and results", text: "SPORTident readout directly in the browser, even without a network. Start lists, results, Live and split times for the public." },
-    { title: "Course setting", text: "Set courses on the map in the browser, with forking, control descriptions, printing and PDF for the printer." },
-    { title: "Maps and club archive", text: "The club's maps and versions in one place, with agreements, old courses and maps for the start." },
-    { title: "Map drawing", text: "Draw and revise maps together: lidar, orthophotos, base maps, generalisation and norm checks as proposals." },
-    { title: "AI connection", text: "Connect your own Claude account. The AI reads courses and maps and only leaves proposals that you approve." },
-    { title: "Clubs and groups", text: "Verified clubs via Eventor, training groups with on-the-spot entry and officials with their own accounts." }
-  ],
   demo: "Try it: see a demo event",
   demoHelp: "Start list, results, Live and split times from a real training, without signing in."
 };

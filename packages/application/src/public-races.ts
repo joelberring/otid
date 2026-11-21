@@ -13,6 +13,10 @@ import { publicRaceCondition } from "./public-race-visibility";
 export type PublicRaceListItem = {
   raceId: string; shortCode: string; eventName: string; raceName: string; raceDate: string; raceType: RaceType;
   startListPublished: boolean;
+  /** ADR-0230 (startsidan F3): arrangörsklubben (ADR-0209, `race_organiser`), eller null. */
+  organiserName: string | null;
+  /** Steg 33: första start (HH:MM), eller null. */
+  firstStartTime: string | null;
 };
 export type PublicRaceListing = {
   ongoing: PublicRaceListItem[]; upcoming: PublicRaceListItem[]; recent: PublicRaceListItem[]; moreRecent: boolean;
@@ -57,8 +61,11 @@ export async function listPublicRaces(db: Database, input: { search?: string | u
   const today = localToday(now);
   const select = (when: SQL, order: SQL[], limit: number) => db.select({
     raceId: schema.races.id, shortCode: schema.races.shortCode, eventName: schema.events.name, raceName: schema.races.name,
-    raceDate: schema.races.raceDate, raceType: schema.races.raceType, startListPublished
+    raceDate: schema.races.raceDate, raceType: schema.races.raceType, startListPublished, organiserName: schema.organisations.name,
+    firstStartTime: schema.races.firstStartTime
   }).from(schema.races).innerJoin(schema.events, eq(schema.events.id, schema.races.eventId))
+    .leftJoin(schema.raceOrganisers, eq(schema.raceOrganisers.raceId, schema.races.id))
+    .leftJoin(schema.organisations, eq(schema.organisations.id, schema.raceOrganisers.organisationId))
     // Steg 68 (ADR-0182 beslut 7): en träningsgrupps tillfällen listas inte på startsidan; de nås via gruppens länk.
     .where(and(publicRaceCondition(), isNull(schema.events.trainingGroupId), when,
       pattern ? or(ilike(schema.events.name, pattern), ilike(schema.races.name, pattern)) : undefined))

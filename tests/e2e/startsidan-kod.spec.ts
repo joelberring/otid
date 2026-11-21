@@ -5,8 +5,8 @@ import { publishRaceViaApi, registerAccount, TIME_ZONE, today, unique, warmRoute
 /**
  * Översynen av startsidan 2026-11-17: "Har du en kod?" överst, men bara i appen (bryggan `OTidTracking` finns, ADR-0227); i
  * en vanlig webbläsare syns fältet bara med beskedet efter en okänd kod. Deltagaren skriver koden (eller klistrar in hela
- * adressen) och hamnar på tävlingssidan. Arrangören har en egen väg, och rutorna under "Mer än tidtagning" är länkar. Allt även
- * på 390 px, där kodfältet i appen syns utan att rulla.
+ * adressen) och hamnar på tävlingssidan. Arrangören har en egen väg. Allt även på 390 px, där kodfältet i appen syns utan att
+ * rulla. (Rutorna "Mer än tidtagning" togs bort med skissen F3 2026-11-21.)
  */
 const APP_BRIDGE = () => { (window as unknown as { Capacitor: unknown }).Capacitor = { Plugins: { OTidTracking: {} } }; };
 
@@ -25,7 +25,7 @@ async function join(page: Page, code: string) {
   await page.getByRole("button", { name: "Gå med" }).click();
 }
 
-test("startsidan: gå med med kod eller adress, okänd kod, arrangörens väg och rutorna som länkar", async ({ browser }) => {
+test("startsidan: gå med med kod eller adress, okänd kod och arrangörens väg", async ({ browser }) => {
   test.setTimeout(240_000);
   const suffix = unique();
   const name = `Kodträningen ${suffix}`;
@@ -93,14 +93,11 @@ test("startsidan: gå med med kod eller adress, okänd kod, arrangörens väg oc
   expect(browserVisitor.url()).not.toContain("zzzzzz");
   await browserVisitor.context().close();
 
-  // Arrangörens väg och rutorna under "Mer än tidtagning".
+  // Arrangörens väg.
   await web.setViewportSize({ width: 1280, height: 900 });
   await web.goto("/");
   await expect(web.getByTestId("home-organizer").getByRole("link", { name: "Kom igång som arrangör" })).toHaveAttribute("href", "/organizer");
-  const features = web.getByTestId("home-features");
-  await expect(features.getByRole("link")).toHaveCount(6);
-  await expect(features.getByRole("link", { name: /^AI-koppling/ })).toHaveAttribute("href", "/om");
-  await expect(features.getByRole("link", { name: /^Klubbar och grupper/ })).toHaveAttribute("href", "/organizer");
+  await expect(web.getByTestId("home-features")).toHaveCount(0);
   await expect(web.getByRole("heading", { name: "Så är O-Tid byggt" })).toHaveCount(0);
   await web.goto("/om");
   await expect(web.getByRole("link", { name: "O-Tid på GitHub" })).toHaveAttribute("href", "https://github.com/joelberring/otid");

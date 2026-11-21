@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { headers } from "next/headers";
-import { authenticateUserAccountSession, listMapProjects, listMyClubs, listMyGroups, listPublicRaces, PUBLIC_RECENT_MAX, PUBLIC_RECENT_STEP
+import { authenticateUserAccountSession, listHomeNews, listMapProjects, listMyClubs, listMyGroups, listPublicRaces, PUBLIC_RECENT_MAX, PUBLIC_RECENT_STEP
 } from "@o-tid/application";
 import { db } from "../lib/db";
 import { accountSessionToken } from "../lib/public-race-gate";
@@ -15,8 +15,12 @@ import { publicRaceSv } from "../i18n/public-race-sv";
 import { Logo } from "../components/brand/logo";
 import { LanguageSwitch } from "../components/language-switch";
 import { SiteFooter } from "../components/about/site-footer";
-import { paintingOfTheWeek } from "../lib/weekly-painting";
-import { HomeAbout, HomePersonal, JoinCode, OrganizerStart, type Personal } from "../components/home/home-sections";
+import { ARTIST_PORTFOLIO_URL, paintingOfTheWeek } from "../lib/weekly-painting";
+import { HomePersonal, HomeTry, JoinCode, OrganizerStart, type Personal } from "../components/home/home-sections";
+import { HomeFilms, HomeNews } from "../components/home/home-news";
+import { newsEn } from "../i18n/news-en";
+import { newsSv } from "../i18n/news-sv";
+import start from "../components/home/start.module.css";
 import { AppMark } from "../components/home/app-mark";
 import { joinCodeProblem } from "../lib/join-code";
 import { RaceList, type RaceListTiming } from "../components/public-race/race-list";
@@ -31,15 +35,17 @@ export async function generateMetadata(): Promise<Metadata> {
 
 type Query = { q?: string | string[]; fler?: string | string[]; demo?: string | string[]; kodfel?: string | string[] };
 
+/** Genomförda: så många först (skissen F3: de senaste), sedan tio till per "Visa fler genomförda". */
+const RECENT_FIRST = 8;
+
 /**
- * Startsidan för besökare (ADR-0172 beslut 4): "Har du en kod?" (översynen 2026-11-17, `/kod`; bara i appen och vid ett besked), sök, Pågår nu (tävlingsdagen i tävlingens tidszon), Kommande och
- * Senaste med "Visa fler". Bara publicerade tävlingar och inga adminlänkar; den inloggade får en länk till Mina tävlingar.
- * Längst ned länkar till filmerna (introduktionen och kartritningen), bara när `NEXT_PUBLIC_INTRO_FILM_URL` respektive
- * `NEXT_PUBLIC_MAP_FILM_URL` är satt (docs/drift.md); på engelska den engelska filmen när den finns.
- * Veckans målning (ägarens önskemål 2026-11-12) står bredvid rubriken och sökrutan på datorn och efter Pågår nu på smal skärm
- * (översynen 2026-11-17: sökningen och dagens tävlingar, och i appen kodfältet, syns utan att rulla), och texten om den i startsidans
- * egen sidfot. Den som inte är inloggad får raden "Kom igång som arrangör" under sökningen; i appen (AppMark) syns kodfältet och
- * den raden är borta.
+ * Startsidan för besökare (ADR-0172 beslut 4, skissen F3 2026-11-21). Överst rubriken, ingressen, sökningen (sidans enda
+ * mörka knapp), "Kom igång som arrangör" för den som inte är inloggad och "Har du en kod?" bara i appen (översynen 2026-11-17,
+ * `/kod`); till höger veckans målning hel med bildtext och länk till konstnären (ägarens önskemål 2026-11-12). Under det brett
+ * till vänster Pågår nu (tävlingsdagen i tävlingens tidszon), Kommande och Genomförda – ett tomt avsnitt visas inte – och för
+ * den inloggade "Ditt O-Tid"; smalt till höger Nytt i O-Tid (ADR-0230), filmerna och demon. På smal skärm i ordningen sökningen,
+ * Pågår nu, Kommande, Genomförda, målningen, Nytt och filmerna. Bara publicerade tävlingar och inga adminlänkar.
+ * Filmlänkarna bara när `NEXT_PUBLIC_INTRO_FILM_URL` respektive `NEXT_PUBLIC_MAP_FILM_URL` är satt (docs/drift.md).
  * Sidan renderas vid varje förfrågan (`force-dynamic`), så målningen byts när veckan byts.
  */
 export default async function Home({ searchParams }: { searchParams: Promise<Query> }) {
@@ -48,10 +54,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<Que
   const text = language === "en" ? publicHomeEn : publicRaceSv.home;
   const search = typeof query.q === "string" ? query.q.trim().slice(0, 100) : "";
   const requested = typeof query.fler === "string" ? Number.parseInt(query.fler, 10) : NaN;
-  const recentLimit = Number.isFinite(requested) ? Math.min(Math.max(requested, PUBLIC_RECENT_STEP), PUBLIC_RECENT_MAX) : PUBLIC_RECENT_STEP;
+  const recentLimit = Number.isFinite(requested) ? Math.min(Math.max(requested, RECENT_FIRST), PUBLIC_RECENT_MAX) : RECENT_FIRST;
   const token = await accountSessionToken();
-  const [listing, account] = await Promise.all([listPublicRaces(db, { search, recentLimit }),
-    token ? authenticateUserAccountSession(db, { sessionToken: token }) : undefined]);
+  const [listing, account, news] = await Promise.all([listPublicRaces(db, { search, recentLimit }),
+    token ? authenticateUserAccountSession(db, { sessionToken: token }) : undefined, homeNewsFor(token)]);
   const signedIn = account?.status === "authenticated";
   const personal = signedIn && token ? await personalFor(token) : undefined;
   const film = introFilmUrl(process.env, language), mapFilm = mapFilmUrl(process.env, language);
@@ -59,12 +65,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<Que
   const painting = paintingOfTheWeek(new Date());
   const total = listing.ongoing.length + listing.upcoming.length + listing.recent.length;
   const moreHref = `/?${new URLSearchParams({ ...(search ? { q: search } : {}), fler: String(recentLimit + PUBLIC_RECENT_STEP) })}#senaste`;
-  const section = (id: string, title: string, races: typeof listing.ongoing, timing: RaceListTiming, empty: string, more?: boolean) =>
-    search && races.length === 0 ? null : <section className={styles.raceSection} aria-labelledby={`${id}-rubrik`} id={id}>
+  const section = (id: string, title: string, races: typeof listing.ongoing, timing: RaceListTiming, more?: boolean) =>
+    races.length === 0 ? null : <section className={styles.raceSection} aria-labelledby={`${id}-rubrik`} id={id}>
       <h2 id={`${id}-rubrik`}>{title}</h2>
-      {races.length > 0 ? <RaceList races={races} timing={timing} today={today} language={language} /> : <p className={styles.empty}>{empty}</p>}
+      <RaceList races={races} timing={timing} today={today} language={language} />
       {more && <Link className={styles.more} href={moreHref}>{text.showMore}</Link>}
     </section>;
+  const guest = guestDemoEnabled() && !signedIn ? { message: query.demo === "upptaget" ? "busy" as const : query.demo === "fel" ? "failed" as const : undefined }
+    : undefined;
   return <>
     <header className={styles.siteHead} data-site-head>
       <div className={styles.siteHeadInner}>
@@ -78,41 +86,48 @@ export default async function Home({ searchParams }: { searchParams: Promise<Que
         </nav>
       </div>
     </header>
-    <main className={styles.home} suppressHydrationWarning>
+    <main className={start.page} suppressHydrationWarning>
       <AppMark nonce={(await headers()).get("x-nonce") ?? undefined} />
-      <div className={styles.homeLead}>
-        <div className={styles.homeIntro}>
-          <h1>{text.title}</h1>
-          <p>{text.intro}</p>
-        </div>
+      <div className={start.lead}>
+        <h1>{text.title}</h1>
+        <p className={start.intro}>{text.intro}</p>
         <JoinCode language={language} problem={joinCodeProblem(query.kodfel)} />
-        <form className={styles.search} role="search" action="/" method="get">
+        <form className={start.search} role="search" action="/" method="get">
           <label>{text.searchLabel}<input type="search" name="q" defaultValue={search} placeholder={text.searchPlaceholder} maxLength={100}
             autoComplete="off" /></label>
           <button type="submit">{text.search}</button>
         </form>
         {!signedIn && <OrganizerStart language={language} />}
       </div>
-      {search && <div className={styles.searchMeta}>
-        <p role="status">{total === 0 ? text.noMatch(search) : text.searchHeading(search)}</p>
-        <Link href="/">{text.showAll}</Link>
-      </div>}
-      {personal && !search && <HomePersonal personal={personal} language={language} />}
-      {section("pagar", text.ongoing, listing.ongoing, "ONGOING", text.noneOngoing)}
-      <img className={styles.homePainting} src={painting.src} width={painting.width} height={painting.height}
-        alt={text.paintingAlt(painting.title)} loading="eager" decoding="async" data-testid="home-painting" />
-      {section("kommande", text.upcoming, listing.upcoming, "UPCOMING", text.noneUpcoming)}
-      {section("senaste", text.recent, listing.recent, "RECENT", text.noneRecent, listing.moreRecent)}
-      {(film || mapFilm) && <p className={styles.introFilm}>
-        {film && <a href={film}>{text.introFilm}</a>}
-        {mapFilm && <a href={mapFilm}>{text.mapFilm}</a>}
-      </p>}
-      {!search && <HomeAbout language={language} demo={demoRacePath()} mapFilm={mapFilm}
-        guest={guestDemoEnabled() && !signedIn ? { message: query.demo === "upptaget" ? "busy" : query.demo === "fel" ? "failed" : undefined }
-          : undefined} />}
+      <figure className={start.painting}>
+        <img src={painting.src} width={painting.width} height={painting.height} alt={text.paintingAlt(painting.title)} loading="eager"
+          decoding="async" data-testid="home-painting" />
+        <figcaption>{text.paintingCaption} · <a href={ARTIST_PORTFOLIO_URL}>Emm Berring</a></figcaption>
+      </figure>
+      <div className={start.races}>
+        {search && <div className={styles.searchMeta}>
+          <p role="status">{total === 0 ? text.noMatch(search) : text.searchHeading(search)}</p>
+          <Link href="/">{text.showAll}</Link>
+        </div>}
+        {section("pagar", text.ongoing, listing.ongoing, "ONGOING")}
+        {section("kommande", text.upcoming, listing.upcoming, "UPCOMING")}
+        {section("senaste", text.recent, listing.recent, "RECENT", listing.moreRecent)}
+        {!search && total === 0 && <p className={start.none}>{text.noneAtAll}</p>}
+        {personal && !search && <HomePersonal personal={personal} language={language} />}
+      </div>
+      <aside className={start.side} aria-label={language === "en" ? newsEn.title : newsSv.title}>
+        <HomeNews items={news} language={language} />
+        <HomeFilms film={film} mapFilm={mapFilm} labels={{ intro: text.introFilm, map: text.mapFilm }} language={language} />
+        {!search && <HomeTry language={language} demo={demoRacePath()} guest={guest} />}
+      </aside>
     </main>
     <SiteFooter language={language} painting={painting} />
   </>;
+}
+
+/** ADR-0230: nyheterna i högerspalten; ett fel ger en tom spalt i stället för ett sidfel. */
+async function homeNewsFor(sessionToken: string | null) {
+  return listHomeNews(db, sessionToken).catch((error: unknown) => { console.error("Startsidans nyheter kunde inte läsas", error); return []; });
 }
 
 /** Den inloggades klubbar, träningsgrupper och kartprojekt (bara namnen); ett fel ger en tom del i stället för ett sidfel. */

@@ -10,7 +10,7 @@ test("språk: engelska för den som inte har svenska, och språkvalet", async ({
   const page = await english.newPage();
   await page.goto("/");
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Events");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Find your event");
   await expect(page.getByRole("contentinfo")).toContainText("About O-Tid");
   await page.goto("/om");
   await expect(page.getByRole("heading", { name: "Clubs outside Sweden" })).toBeVisible();
@@ -19,15 +19,15 @@ test("språk: engelska för den som inte har svenska, och språkvalet", async ({
   await expect(page).toHaveURL(/\/om$/);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Om O-Tid");
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Tävlingar");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Hitta din tävling");
   await page.locator("[data-testid=language-switch]:visible").click();
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Events");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Find your event");
   await english.close();
 
   const swedish = await browser.newContext();
   const svPage = await swedish.newPage();
   await svPage.goto("/");
-  await expect(svPage.getByRole("heading", { level: 1 })).toHaveText("Tävlingar");
+  await expect(svPage.getByRole("heading", { level: 1 })).toHaveText("Hitta din tävling");
   await expect(svPage.locator("[data-testid=language-switch]:visible")).toHaveText("English");
   await swedish.close();
 });

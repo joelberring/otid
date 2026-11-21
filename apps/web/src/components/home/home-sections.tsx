@@ -74,37 +74,21 @@ export function OrganizerStart({ language }: { language: Language }) {
   </p>;
 }
 
-/** Vart rutorna under "Mer än tidtagning" leder, i rutornas ordning (texterna i `homeSv.features`). */
-type FeatureTarget = "demo" | "organizer" | "mapFilm" | "about";
-const FEATURE_TARGETS: readonly FeatureTarget[] = ["demo", "organizer", "organizer", "mapFilm", "about", "organizer"];
-
 /**
- * Vad O-Tid gör utöver tidtagning. Översynen 2026-11-17: rutorna är länkar – tidtagningen till demotävlingen, kartritningen
- * till filmen om den (annars till arrangörens sida), AI-kopplingen till Om O-Tid och resten till arrangörens sida. Hur O-Tid
- * är byggt och länken till koden står på Om O-Tid.
+ * Prova O-Tid (skissen F3 2026-11-21): demotävlingen och "Prova arbetsytan" som korta rader i högerspalten, under filmerna.
+ * Rutorna "Mer än tidtagning" finns inte längre på startsidan (vad O-Tid gör står på Om O-Tid).
  */
-export function HomeAbout({ language, demo, mapFilm, guest }: { language: Language; demo?: string | undefined; mapFilm?: string | undefined;
+export function HomeTry({ language, demo, guest }: { language: Language; demo?: string | undefined;
   /** Demoläget del 2: "Prova arbetsytan" (bara utan inloggning och med `OTID_GUEST_DEMO=1`) och beskedet efter ett försök. */
   guest?: { message?: "busy" | "failed" | undefined } | undefined }) {
   const text = texts(language);
   const guestText = language === "en" ? guestDemoHomeEn : guestDemoHomeSv;
-  const href = (target: FeatureTarget | undefined) => target === "demo" ? demo ?? "/organizer" : target === "mapFilm" ? mapFilm ?? "/organizer"
-    : target === "about" ? "/om" : "/organizer";
+  if (!demo && !guest) return null;
   return <>
     {demo && <p className={styles.demo} data-testid="home-demo"><Link href={demo}>{text.demo}</Link> <span>{text.demoHelp}</span></p>}
     {guest && <form className={styles.demo} action="/api/demo/guest" method="post" data-testid="home-guest-demo">
       {guest.message && <p role="alert" className={styles.demoProblem}>{guest.message === "busy" ? guestText.busy : guestText.failed}</p>}
-      <button type="submit">{guestText.button}</button> <span>{guestText.explanation}</span>
+      <button type="submit" className="secondary">{guestText.button}</button> <span>{guestText.explanation}</span>
     </form>}
-    <section className={styles.features} aria-labelledby="home-features" data-testid="home-features">
-      <h2 id="home-features">{text.featuresTitle}</h2>
-      <ul className={styles.featureGrid}>
-        {text.features.map((feature, index) => {
-          const target = href(FEATURE_TARGETS[index]);
-          const body = <><strong>{feature.title}</strong><span>{feature.text}</span></>;
-          return <li key={feature.title}>{target.startsWith("/") ? <Link href={target}>{body}</Link> : <a href={target}>{body}</a>}</li>;
-        })}
-      </ul>
-    </section>
   </>;
 }

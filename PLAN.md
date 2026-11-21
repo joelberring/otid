@@ -1431,6 +1431,26 @@ och `claude/plan-ritlage-hjul-och-mobil.md`.
   vinklar, fyll, duplicera och parallell kopia, följ kant.
 - [ ] R5 Nya symboler (duplicera, hämta ur en annan kartfil) och resten av verktygen efter vad piloten behöver.
 
+### K8b – Knappar, hjul, fäst och magisk fyll (ägaren 2026-11-21: «topp, kör på detta»)
+
+Underlag: projektdokumentet `claude/plan-verktyg-fast-magisk-fyll-2026-11-21.md` och skissen «O-Tid ritläge – knappar och hjul»
+(artifact ae28b9a3-…, sex artboards: skrivbordet, hjulet, mobilen, processen, mus/tangenter, kontextraden). Principer: verktyget
+stannar kvar; siffror byter symbol, bokstäver verktyg; tryck byter, håll lånar; högerklick är alltid hjulet, Esc alltid avbryt.
+
+- [ ] V1 Spalten bara verktyg i fyra grupper (Rita, Fyll, Forma, Granska); kontextraden vid det markerade (bara det som går,
+  först «Byt till» vald symbol); Senaste-raden överst med 1–8 (byter symbol, inte verktyg); statusradens brytare Fäst/Vinkel/Glapp;
+  nya förval F fyll, G koppla ihop, E rektangel, T fäst, ⇧␣ gör igen, håll Q = tillfälligt Markera, Alt+1–6 normens grupper
+  (sparade egna tangenter behålls); hjulet med fasta platser (N Markera, NO Rita, O Rektangel, SO Fyll, S Gör igen, SV Klipp,
+  V Punkt, NV Notis), snärt med högerknappen, symbolerna i listan bredvid.
+- [ ] V2 Magisk fyll steg 2: hörn som inte möts (förlängningarnas skärning), längre rak förlängning och brygga mellan ändar upp
+  till Glapp (förval 4 m, [ ] 2/4/8/15 m), bryggorna högst ~20 % av omkretsen, orange streckade i förhandsvisningen, Alt+klick exakt.
+- [ ] V3 Fäst: punkt/linje/skärning med ihåliga markörer, ~10 px mus/22 px finger, synliga objekt (också låsta), T och håll Alt,
+  förval på för sprintnormen; i Rita, Rektangel, Cirkel, Lägg till punkt och när punkter flyttas.
+- [ ] V4 Dra över flera rutor (och ⇧+klick) blir en yta; reserven för röriga ställen (bild med slutna glapp, tillbaka till linjer
+  med punkterna fästa på grannlinjerna), i Workern med tidsgräns; mobilen: första trycket visar, andra fyller.
+- [ ] V5 Följ kant (håll ⇧ i Rita), vinkellås (håll ⌘/Ctrl, 0/45/90° mot förra sträckan eller kanten), «Visa ofyllda rutor» (⇧§).
+  Mätning: kvarter på Älvsjö–Solberga i Mapper och O-Tid.
+
 ## [ ] Steg L – Lagring: gränser, städning och arkiv (ägaren 2026-11-13)
 
 Underlag: `claude/plan-lagring-och-backup-2026-11-13.md` och ADR-0224. Delas i leveranser i den här ordningen.

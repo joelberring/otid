@@ -42,7 +42,7 @@ export interface CheckGroup {
 export type LevelCheckText = (check: Extract<CourseCheck, { kind: "LEVEL_DEVIATION" }>) => string;
 
 const GROUP_ORDER = ["LEG_NO_ROUTE", "CONTROL_IN_FORBIDDEN", "DUPLICATE_CODE", "MISSING_CODE", "COURSE_WITHOUT_START_OR_FINISH",
-  "CONTROLS_TOO_CLOSE", "LEG_THROUGH_CONTROL", "SAME_CONTROL_TWICE_IN_ROW", "INVERTIBLE_CODE",
+  "CONTROLS_TOO_CLOSE", "LEG_THROUGH_CONTROL", "SAME_CONTROL_TWICE_IN_ROW", "EMPTY_BRANCH", "SAME_VARIANTS", "INVERTIBLE_CODE",
   "LEG_THROUGH_FORBIDDEN", "CONTROLS_NEAR", "NUMBER_ON_OBSTACLE", "LEVEL_DEVIATION", "UNUSED_CONTROL"];
 const LEVELS: readonly CheckLevel[] = ["ERROR", "WARNING", "NOTICE"];
 
@@ -63,6 +63,8 @@ function rowText(document: CourseSettingDocument, check: CourseCheck, courses: s
     case "DUPLICATE_CODE": return text.checks.DUPLICATE_CODE(check.code, check.controls.length);
     case "INVERTIBLE_CODE": return text.checks.INVERTIBLE_CODE(check.code);
     case "SAME_CONTROL_TWICE_IN_ROW": return text.checks.SAME_CONTROL_TWICE_IN_ROW(courses, label(check.control));
+    case "EMPTY_BRANCH": return text.checks.EMPTY_BRANCH(courses, check.letter, label(check.control));
+    case "SAME_VARIANTS": return text.checks.SAME_VARIANTS(courses, check.codes);
     case "LEG_THROUGH_CONTROL": return text.checks.LEG_THROUGH_CONTROL(courses, label(check.from), label(check.to), label(check.control));
     case "LEG_THROUGH_FORBIDDEN": return check.route === "NO_ROUTE"
       ? text.checks.LEG_NO_ROUTE(courses, label(check.from), label(check.to), forbiddenWhat(document, check.special, text))
@@ -81,7 +83,7 @@ function controlsOf(check: CourseCheck): string[] {
     case "CONTROLS_TOO_CLOSE": case "DUPLICATE_CODE": return [...check.controls];
     case "LEG_THROUGH_CONTROL": return [check.from, check.to, check.control];
     case "LEG_THROUGH_FORBIDDEN": return [check.from, check.to];
-    case "COURSE_WITHOUT_START_OR_FINISH": return [];
+    case "COURSE_WITHOUT_START_OR_FINISH": case "SAME_VARIANTS": return [];
     case "LEVEL_DEVIATION": return [check.control, check.from, check.to].filter((id): id is string => id !== undefined);
     default: return [check.control];
   }

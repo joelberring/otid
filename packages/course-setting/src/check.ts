@@ -7,6 +7,7 @@ import type { CheckOptions, CourseCheck, CourseSettingDocument, DescriptionBox }
 import { enumerateCourseControls, enumerateLegs, legPath } from "./walk";
 import { numberObstacleChecks } from "./number-notices";
 import { legKey } from "./ppen-common";
+import { forkChecks } from "./fork-checks";
 
 /** IOF:s riktvärden: under `min` för nära, under `similar` bara med tydligt olika objekt (sprint hälften). */
 export const CONTROL_DISTANCE_LIMITS = {
@@ -76,6 +77,8 @@ export function checkCourseSetting(document: CourseSettingDocument, options: Che
         seenTwice.add(from);
       }
     }
+
+    checks.push(...forkChecks(document, course.id));
 
     // Sträcka genom en annan kontrolls ring: per variant, eftersom en gafflad banas karta bara visar sin egen variants
     // kontroller (en annan grens ring syns inte på löparens karta).

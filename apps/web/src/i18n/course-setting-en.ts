@@ -148,7 +148,7 @@ export const courseSettingEn: Texts<typeof courseSettingSv> = {
       DUPLICATE_CODE: "Same code on several controls", MISSING_CODE: "Code missing", COURSE_WITHOUT_START_OR_FINISH: "Start or finish missing",
       CONTROL_IN_FORBIDDEN: "Control in a forbidden area", LEG_NO_ROUTE: "Cannot be reached legally",
       CONTROLS_TOO_CLOSE: "Too close to each other", INVERTIBLE_CODE: "Code that can be read upside down",
-      SAME_CONTROL_TWICE_IN_ROW: "Same control twice in a row", LEG_THROUGH_CONTROL: "Leg through another circle",
+      SAME_CONTROL_TWICE_IN_ROW: "Same control twice in a row", EMPTY_BRANCH: "Empty branch", SAME_VARIANTS: "Identical variations", LEG_THROUGH_CONTROL: "Leg through another circle",
       UNUSED_CONTROL: "Unused controls", LEG_THROUGH_FORBIDDEN: "The straight line crosses a forbidden area",
       CONTROLS_NEAR: "Close to each other – give the feature", NUMBER_ON_OBSTACLE: "Number on a building or dark area",
       LEVEL_DEVIATION: "Differs from the course's level"
@@ -171,6 +171,8 @@ export const courseSettingEn: Texts<typeof courseSettingSv> = {
       : `${a} and ${b} are ${Math.round(distance)} m apart (guideline at least ${limit} m).`,
     DUPLICATE_CODE: (code: string, n: number) => `The code ${code} is on ${n} controls.`,
     INVERTIBLE_CODE: (code: string) => `The code ${code} can be read upside down.`,
+    EMPTY_BRANCH: (courses: string, letter: string, control: string) => `${courses}: branch ${letter} at ${control} is empty.`,
+    SAME_VARIANTS: (courses: string, codes: readonly string[]) => `${courses}: the variations ${codes.join(", ")} have the same controls.`,
     SAME_CONTROL_TWICE_IN_ROW: (course: string, control: string) => `${course}: ${control} comes twice in a row.`,
     LEG_THROUGH_CONTROL: (courses: string, from: string, to: string, control: string) =>
       `${courses}: the leg ${from}–${to} passes through the circle of ${control}.`,

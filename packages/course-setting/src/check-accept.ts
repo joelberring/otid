@@ -27,7 +27,7 @@ export function checkLevel(check: CourseCheck): CheckLevel {
     case "LEG_THROUGH_FORBIDDEN": return check.route === "NO_ROUTE" ? "ERROR" : "NOTICE";
     case "CONTROLS_TOO_CLOSE": return check.feature === "UNKNOWN" ? "NOTICE" : "WARNING";
     case "UNUSED_CONTROL": case "NUMBER_ON_OBSTACLE": case "LEVEL_DEVIATION": return "NOTICE";
-    case "INVERTIBLE_CODE": case "SAME_CONTROL_TWICE_IN_ROW": case "LEG_THROUGH_CONTROL": return "WARNING";
+    case "INVERTIBLE_CODE": case "SAME_CONTROL_TWICE_IN_ROW": case "LEG_THROUGH_CONTROL": case "EMPTY_BRANCH": case "SAME_VARIANTS": return "WARNING";
   }
 }
 
@@ -47,6 +47,8 @@ export function checkKey(check: CourseCheck): string {
     case "INVERTIBLE_CODE": return `INVERTIBLE_CODE/${check.control}/${check.code}`;
     case "SAME_CONTROL_TWICE_IN_ROW": return `SAME_CONTROL_TWICE_IN_ROW/${check.course}/${check.control}`;
     case "LEG_THROUGH_CONTROL": return `LEG_THROUGH_CONTROL/${check.from}/${check.to}/${check.control}`;
+    case "EMPTY_BRANCH": return `EMPTY_BRANCH/${check.course}/${check.branch}`;
+    case "SAME_VARIANTS": return `SAME_VARIANTS/${check.course}/${check.codes[0]}/${check.codes[1]}`;
     case "LEG_THROUGH_FORBIDDEN": return check.route === "NO_ROUTE" ? `LEG_NO_ROUTE/${check.from}/${check.to}`
       : `LEG_THROUGH_FORBIDDEN/${check.from}/${check.to}`;
     case "CONTROL_IN_FORBIDDEN": return `CONTROL_IN_FORBIDDEN/${check.control}/${check.special}`;
@@ -75,7 +77,8 @@ export function checkSubjects(document: CourseSettingDocument, check: CourseChec
     case "LEG_THROUGH_CONTROL": controls.push(check.from, check.to, check.control); break;
     case "LEG_THROUGH_FORBIDDEN": controls.push(check.from, check.to); specials.push(...(check.specials ?? [check.special])); break;
     case "CONTROL_IN_FORBIDDEN": controls.push(check.control); specials.push(check.special); break;
-    case "COURSE_WITHOUT_START_OR_FINISH": break;
+    case "EMPTY_BRANCH": controls.push(check.control); break;
+    case "COURSE_WITHOUT_START_OR_FINISH": case "SAME_VARIANTS": break;
     case "LEVEL_DEVIATION": for (const id of [check.control, check.from, check.to]) if (id !== undefined) controls.push(id); break;
   }
   const at: Record<string, Point> = {};
@@ -122,7 +125,7 @@ export function keepAcceptedChecks(accepted: CourseSettingDocument["event"]["acc
   const specials = new Set(document.specialObjects.map(special => special.id));
   const courses = new Set(document.courses.map(course => course.id));
   const kept = Object.entries(accepted).filter(([key, entry]) => {
-    if (key.startsWith("SAME_CONTROL_TWICE_IN_ROW/") && !courses.has(key.split("/")[1]!)) return false;
+    if (/^(SAME_CONTROL_TWICE_IN_ROW|EMPTY_BRANCH|SAME_VARIANTS)\//.test(key) && !courses.has(key.split("/")[1]!)) return false;
     return Object.keys(entry.at).every(id => id.startsWith("c:") ? document.controls[id.slice(2)] !== undefined
       : id.startsWith("s:") ? specials.has(id.slice(2)) : false);
   });

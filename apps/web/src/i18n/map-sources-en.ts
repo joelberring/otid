@@ -189,6 +189,8 @@ export const mapSourcesEn: Texts<Sources> = {
       + "a gap with living tree crowns in the photo is no glade, and the dry open land with the least greenery becomes bare rock (214), the rest open land (403). "
       + "It needs a finished laser run and works best with the orthophoto's false-colour image (the base layer ending in «– IR»). Go through the suggestions before you put them in.",
     none: "No visible base layer. Fetch an orthophoto above and keep it shown.",
+    allTiles: (count: number) => `All shown orthophotos (${count} tiles, as one image)`,
+    allName: (count: number) => `Orthophotos (${count} tiles)`,
     layer: "Base layer",
     run: "Interpret the photo",
     loading: "Reading the laser run …",

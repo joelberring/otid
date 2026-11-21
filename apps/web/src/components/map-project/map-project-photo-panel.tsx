@@ -36,13 +36,21 @@ export function MapProjectPhotoPanel({ view, layers, georeference, importer }: {
   const shown = layers.drawn.map(drawn => ({ drawn, name: layers.layers.find(row => row.layerId === drawn.layerId)?.name ?? drawn.layerId }));
   if (!importer.canImport || georeference.crs.kind !== "EPSG") return null;
   const crs = georeference.crs.code;
-  const picked = shown.find(row => row.drawn.layerId === chosen) ?? shown[0];
+  // Ägaren 2026-11-21 (nästa steg): alla tända ortofoton tolkas på en gång, som en mosaik, så att bildrutornas gränser inte
+  // syns i ytorna och percentilerna räknas över hela området. Finns falskfärgsbilder (IR) används bara de.
+  const photos = shown.filter(row => row.name.startsWith("Ortofoto"));
+  const irPhotos = photos.filter(row => row.name.endsWith(IR_LAYER_SUFFIX));
+  const allTiles = irPhotos.length ? irPhotos : photos;
+  const ALL = "__alla";
+  const chosenId = chosen || (allTiles.length > 1 ? ALL : "");
+  const picked = shown.find(row => row.drawn.layerId === chosenId) ?? shown[0];
   // Ägaren 2026-11-17: finns ortofotots falskfärgsbild (nära infrarött) tolkas den i stället för färgbilden.
-  const current = picked && !picked.name.endsWith(IR_LAYER_SUFFIX) ? shown.find(row => row.name === `${picked.name}${IR_LAYER_SUFFIX}`) ?? picked : picked;
-  const infrared = !!current?.name.endsWith(IR_LAYER_SUFFIX);
+  const single = picked && !picked.name.endsWith(IR_LAYER_SUFFIX) ? shown.find(row => row.name === `${picked.name}${IR_LAYER_SUFFIX}`) ?? picked : picked;
+  const tiles = chosenId === ALL ? allTiles : single ? [single] : [];
+  const infrared = tiles.length > 0 && tiles.every(row => row.name.endsWith(IR_LAYER_SUFFIX));
 
   async function interpret() {
-    if (!current) return;
+    if (tiles.length === 0) return;
     setMessage(undefined);
     let found = laser;
     if (found === undefined) {
@@ -52,26 +60,33 @@ export function MapProjectPhotoPanel({ view, layers, georeference, importer }: {
     }
     if (found === "none" || crs !== SWEREF99TM) { setMessage({ tone: "error", text: found === "none" ? text.noLaser : text.notSweref }); return; }
     try {
-      const { image, toMap } = current.drawn;
-      // Bildpunktens storlek i terrängen, och skalningen till ritytan.
-      const meters = Math.hypot(toMap.a, toMap.d) * georeference.scale / 1000;
-      const factor = Math.min(1, meters / METERS_PER_PIXEL, MAX_SIDE / Math.max(image.width, image.height));
-      const width = Math.max(1, Math.round(image.width * factor)), height = Math.max(1, Math.round(image.height * factor));
+      // Mosaiken i kartans mm (y uppåt): bildrutornas hörn ger utbredningen, en bildpunkt ≈ METERS_PER_PIXEL m.
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const { drawn: { image, toMap } } of tiles) for (const [px, py] of [[0, 0], [image.width, 0], [0, image.height], [image.width, image.height]] as const) {
+        const x = toMap.a * px + toMap.b * py + toMap.c, y = toMap.d * px + toMap.e * py + toMap.f;
+        minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+      }
+      let step = METERS_PER_PIXEL * 1000 / georeference.scale; // mm per bildpunkt
+      step = Math.max(step, (maxX - minX) / MAX_SIDE, (maxY - minY) / MAX_SIDE);
+      const width = Math.max(1, Math.ceil((maxX - minX) / step)), height = Math.max(1, Math.ceil((maxY - minY) / step));
       const canvas = document.createElement("canvas");
       canvas.width = width; canvas.height = height;
       const context = canvas.getContext("2d", { willReadFrequently: true });
       if (!context) { setMessage({ tone: "error", text: text.failed }); return; }
-      context.drawImage(image, 0, 0, width, height);
-      const cellMeters = meters / factor, cellPixels = Math.max(1, Math.round(CELL_METERS / cellMeters));
+      for (const { drawn: { image, toMap } } of tiles) {
+        context.setTransform(toMap.a / step, -toMap.d / step, toMap.b / step, -toMap.e / step, (toMap.c - minX) / step, (maxY - toMap.f) / step);
+        context.drawImage(image, 0, 0);
+      }
+      context.setTransform(1, 0, 0, 1, 0, 0);
+      const cellMeters = step * georeference.scale / 1000, cellPixels = Math.max(1, Math.round(CELL_METERS / cellMeters));
       const cellArea = (cellPixels * cellMeters) ** 2;
       const result = interpretPhotoWithLaser(context.getImageData(0, 0, width, height), { cellPixels, minCells: Math.max(4, Math.round(MIN_AREA_M2 / cellArea)), infrared, rockPercentile },
         (column, row) => {
-          const x = column / factor, y = row / factor;
-          const at = mapPointToProjected(georeference, { x: toMap.a * x + toMap.b * y + toMap.c, y: toMap.d * x + toMap.e * y + toMap.f });
+          const at = mapPointToProjected(georeference, { x: minX + column * step, y: maxY - row * step });
           return [at.easting, at.northing];
         }, crs, found);
       if (result.data.features.length === 0) { setMessage({ tone: "error", text: text.nothing }); return; }
-      importer.openData(text.name(current.name), result.data, true);
+      importer.openData(text.name(tiles.length > 1 ? text.allName(tiles.length) : tiles[0]!.name), result.data, true);
       const hectares = (cells: number) => Math.round(cells * cellArea / 1000) / 10;
       setMessage({ tone: "ok", text: text.done(hectares(result.rockCells), hectares(result.openCells)) + (infrared ? "" : ` ${text.noInfrared}`) });
     } catch (error) {
@@ -84,7 +99,8 @@ export function MapProjectPhotoPanel({ view, layers, georeference, importer }: {
     <summary>{text.heading}</summary>
     <p className={styles.muted}>{text.help}</p>
     {shown.length === 0 ? <p className={styles.muted}>{text.none}</p> : <>
-      <label>{text.layer}<select value={current?.drawn.layerId ?? ""} onChange={event => setChosen(event.target.value)} data-testid="map-project-photo-layer">
+      <label>{text.layer}<select value={chosenId === ALL ? ALL : single?.drawn.layerId ?? ""} onChange={event => setChosen(event.target.value)} data-testid="map-project-photo-layer">
+        {allTiles.length > 1 && <option value={ALL}>{text.allTiles(allTiles.length)}</option>}
         {shown.map(row => <option key={row.drawn.layerId} value={row.drawn.layerId}>{row.name}</option>)}
       </select></label>
       <label>{text.rockShare(rockPercentile)}

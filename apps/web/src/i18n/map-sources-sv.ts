@@ -54,6 +54,8 @@ export const mapSourcesSv = {
       + "en lucka med levande trädkronor i bilden blir ingen glänta, och den torra öppna marken med minst grönska blir berg i dagen (214), resten öppen mark (403). "
       + "Tolkningen kräver en klar laserkörning och fungerar bäst med ortofotots falskfärgsbild (underlaget som slutar på «– IR»). Gå igenom förslagen innan du lägger in dem.",
     none: "Inget synligt underlag. Hämta ett ortofoto ovan och låt det vara tänt.",
+    allTiles: (count: number) => `Alla tända ortofoton (${count} bildrutor, som en bild)`,
+    allName: (count: number) => `Ortofoton (${count} bildrutor)`,
     layer: "Underlag",
     run: "Tolka flygbilden",
     loading: "Läser laserkörningen …",

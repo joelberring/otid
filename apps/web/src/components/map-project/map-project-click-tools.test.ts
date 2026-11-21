@@ -50,3 +50,25 @@ describe("saxen i ritläget", () => {
     expect(refused.flashes).toEqual([mapProjectKeysSv.noLineHere]);
   });
 });
+
+describe("Lägg till punkt med Fäst (K8b V3)", () => {
+  function add(point: { x: number; y: number }, snapped: Parameters<typeof clickTool>[0]["snapped"]) {
+    const saved: MapObject[] = [];
+    const session = { hit: (_p: unknown, _t: unknown, _h: unknown, done: (rows: unknown[]) => void) => done([{ key: KEY, ref: null, object: road }]) } as unknown as MapProjectSession;
+    clickTool({ tool: "addPoint", command: false, point, snapped, tolerance: 0.5, selected: undefined, session, hidden: [], commit: () => true,
+      save: (_key, _ref, object) => { if (object) saved.push(object); return true; }, text: mapProjectKeysSv, setFlash: () => undefined, onEdited: () => undefined });
+    return saved[0]?.kind === "line" ? saved[0].path.map(command => ({ x: command.x, y: command.y })) : undefined;
+  }
+
+  it("den nya punkten hamnar i fästpunkten på linjen (t.ex. en skärning)", () => {
+    expect(add({ x: 4.2, y: 0.1 }, { kind: "intersection", at: { x: 4, y: 0 }, distance: 0.2, target: { key: "other", symbol: "s", part: 0, index: 0 } }))
+      .toEqual([{ x: 0, y: 0 }, { x: 4, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }]);
+  });
+
+  it("fäster inte mot linjens egen punkt (ingen dubblett), då gäller klicket", () => {
+    const path = add({ x: 9.7, y: 0.1 }, { kind: "vertex", at: { x: 10, y: 0 }, distance: 0.3, target: { key: KEY, symbol: "s", part: 0, index: 1 } });
+    expect(path?.[1]?.x).toBeCloseTo(9.7);
+    expect(path?.[1]?.y).toBeCloseTo(0);
+    expect(path).toHaveLength(4);
+  });
+});

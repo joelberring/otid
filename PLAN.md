@@ -1444,7 +1444,7 @@ stannar kvar; siffror byter symbol, bokstäver verktyg; tryck byter, håll låna
   V Punkt, NV Notis), snärt med högerknappen, symbolerna i listan bredvid.
 - [x] V2 Magisk fyll steg 2: hörn som inte möts (förlängningarnas skärning), längre rak förlängning och brygga mellan ändar upp
   till Glapp (förval 4 m, [ ] 2/4/8/15 m), bryggorna högst ~20 % av omkretsen, orange streckade i förhandsvisningen, Alt+klick exakt.
-- [ ] V3 Fäst: punkt/linje/skärning med ihåliga markörer, ~10 px mus/22 px finger, synliga objekt (också låsta), T och håll Alt,
+- [x] V3 Fäst: punkt/linje/skärning med ihåliga markörer, ~10 px mus/22 px finger, synliga objekt (också låsta), T och håll Alt,
   förval på för sprintnormen; i Rita, Rektangel, Cirkel, Lägg till punkt och när punkter flyttas.
 - [ ] V4 Dra över flera rutor (och ⇧+klick) blir en yta; reserven för röriga ställen (bild med slutna glapp, tillbaka till linjer
   med punkterna fästa på grannlinjerna), i Workern med tidsgräns; mobilen: första trycket visar, andra fyller.

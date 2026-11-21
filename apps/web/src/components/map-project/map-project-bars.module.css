@@ -20,10 +20,11 @@
 .switch[aria-pressed="true"], .switch[data-held] { background: var(--ink, #111); border-color: var(--ink, #111); color: #fff; }
 .switch kbd { font: 700 .62rem/1 system-ui, sans-serif; background: none; border: 0; padding: 0; color: inherit; opacity: .75; }
 .switch[data-indicator] { cursor: default; }
+.snapState { font-size: var(--text-xs, .8rem); color: var(--muted, #555); white-space: nowrap; }
 .gap { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-xs, .8rem); color: var(--muted, #555); white-space: nowrap; }
 .gap select { min-height: 28px; font: inherit; }
 
 @media (max-width: 760px) {
   .top { display: none; }
-  .switch[data-indicator], .gap { display: none; }
+  .switch[data-indicator], .gap, .snapState { display: none; }
 }

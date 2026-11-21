@@ -5,11 +5,11 @@ import { GAP_STEPS_M } from "./use-map-project-modes";
 import styles from "./map-project-bars.module.css";
 
 /**
- * K8b V1 (ägaren 2026-11-21): statusradens brytare. Fäst (T) slås på och av (fästandet byggs i V3), Vinkel lyser medan
+ * K8b V1 (ägaren 2026-11-21): statusradens brytare. Fäst (T) slås på och av (med vad det fäster mot just nu, V3), Vinkel lyser medan
  * ⌘/Ctrl hålls (vinkellåset byggs i V5) och Glapp väljer hur stora glapp Magisk fyll får sluta ([ och ]).
  */
-export function MapProjectModeSwitches({ snap, onSnap, snapKey, gapM, onGap, text }: {
-  snap: boolean; onSnap: () => void; snapKey: string | undefined; gapM: number; onGap: (meters: number) => void;
+export function MapProjectModeSwitches({ snap, onSnap, snapKey, snapState, gapM, onGap, text }: {
+  snap: boolean; onSnap: () => void; snapKey: string | undefined; snapState?: string | undefined; gapM: number; onGap: (meters: number) => void;
   text: { readonly modes: string; readonly snap: string; readonly snapHelp: string; readonly angle: string; readonly angleHelp: string; readonly gap: string;
     readonly gapHelp: string; readonly gapOption: (meters: number) => string };
 }) {
@@ -17,6 +17,7 @@ export function MapProjectModeSwitches({ snap, onSnap, snapKey, gapM, onGap, tex
   return <div className={styles.modes} role="group" aria-label={text.modes} data-testid="map-project-modes">
     <button type="button" className={styles.switch} aria-pressed={snap} title={text.snapHelp} onClick={onSnap} data-testid="map-project-snap">
       {text.snap}{snapKey && <kbd aria-hidden="true">{snapKey}</kbd>}</button>
+    {snapState && <span className={styles.snapState} data-testid="map-project-snap-state">{snapState}</span>}
     <span className={styles.switch} data-indicator data-held={held || undefined} title={text.angleHelp} data-testid="map-project-angle">
       {text.angle}<kbd aria-hidden="true">⌘/Ctrl</kbd></span>
     <label className={styles.gap} title={text.gapHelp}>{text.gap}

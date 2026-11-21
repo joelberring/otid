@@ -8,6 +8,7 @@ import { MAX_RENDER_SIDE } from "./course-setting-map-protocol";
 import { builtPolygons, FIELD_MAINS } from "@o-tid/map-revision/base-map";
 import { proposeAreas } from "./map-project-area-proposals";
 import { fillFinder } from "./map-project-fill-area";
+import { buildSnapIndex, snapTransfer } from "./map-project-snap";
 import { symbolGroup, type CatalogSymbol, type MapProjectRequest, type MapProjectResponse, type ProjectHit } from "./map-project-protocol";
 
 /**
@@ -289,6 +290,11 @@ self.onmessage = (event: MessageEvent<MapProjectRequest>) => {
     post({ type: "fill", id: request.id, result: current
       ? findFill({ objects: current.map.objects, boxes: current.boxes, symbols: current.map.symbols, scale: current.map.scale }, request.query)
       : { status: "open", gaps: [] } });
+    return;
+  }
+  if (request.type === "snapIndex") {
+    const index = current ? buildSnapIndex(current.map.objects, current.keys, current.map.symbols) : null;
+    post({ type: "snapIndex", id: request.id, index }, index ? snapTransfer(index) : []);
     return;
   }
   if (request.type === "proposeAreas") {

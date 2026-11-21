@@ -17,7 +17,7 @@ export function stepGap(current: number, direction: 1 | -1): number {
 
 /**
  * K8b V1 (ägaren 2026-11-21): statusradens lägen. Fäst sparas per kartprojekt (förval på för en karta efter sprintnormen
- * ISSprOM, annars av); själva fästandet byggs i V3. Glapp (2/4/8/15 m, förval 4) gäller i hela webbläsaren och läses av
+ * ISSprOM, annars av); fästandet är `use-map-project-snap.ts` (V3). Glapp (2/4/8/15 m, förval 4) gäller i hela webbläsaren och läses av
  * Magisk fyll (V2).
  */
 export function useMapProjectModes(input: { projectId: string; sprint: boolean }) {

@@ -9,6 +9,7 @@ import { cutMarks, type EndMark } from "../../lib/map-project-cut-marks";
 import { cutLineAt } from "../../lib/map-project-join";
 import { editPointAt } from "../../lib/map-project-point-edit";
 import type { MapProjectSession } from "../../lib/map-project-protocol";
+import type { SnapHit } from "../../lib/map-project-snap";
 import type { ObjectChange } from "./use-map-project-editor";
 
 interface Target { readonly key: ObjectKey; readonly ref: ObjectRef | null; readonly object: MapObject }
@@ -27,7 +28,9 @@ export function rectangleCorners(a: Point, b: Point, c: Point): Point[] | undefi
  * Cmd/Ctrl+klick i Redigera (punkt = ta bort, sträcka = ny punkt). Sant när klicket hörde till ett av verktygen.
  */
 export function clickTool(input: {
-  tool: string; command: boolean | undefined; point: Point; tolerance: number; selected: Target | undefined; session: MapProjectSession | undefined;
+  tool: string; command: boolean | undefined; point: Point; tolerance: number;
+  /** K8b V3: fästpunkten för Lägg till punkt (den nya punkten hamnar där om den ligger på linjen; inte på linjens egen punkt). */
+  snapped?: SnapHit | undefined; selected: Target | undefined; session: MapProjectSession | undefined;
   hidden: readonly string[]; commit: (change: ObjectChange) => boolean;
   save: (key: ObjectKey, ref: ObjectRef | null, object: MapObject | undefined, kind: EditKind) => boolean;
   text: Texts<typeof mapProjectKeysSv>; setFlash: (message: string) => void;
@@ -72,8 +75,11 @@ export function clickTool(input: {
     return true;
   }
   if (tool !== "addPoint" && tool !== "removePoint" && !(tool === "select" && input.command)) return false;
+  const snapped = tool === "addPoint" ? input.snapped : undefined;
   const edit = (target: Target): boolean => {
-    const result = editPointAt(target.object, point, tolerance, tool === "addPoint" ? "ADD" : tool === "removePoint" ? "REMOVE" : "EITHER");
+    const mode = tool === "addPoint" ? "ADD" : tool === "removePoint" ? "REMOVE" : "EITHER";
+    const at = snapped && !(snapped.kind === "vertex" && snapped.target.key === target.key) ? snapped.at : undefined;
+    const result = (at && editPointAt(target.object, at, tolerance, mode)) || editPointAt(target.object, point, tolerance, mode);
     if (!result) return false;
     save(target.key, target.ref, result.object, "RESHAPE");
     input.onEdited({ ...target, object: result.object }, result.address);

@@ -6,6 +6,7 @@ import type { MapRenderErrorCode, MapRenderRequest } from "./course-setting-map-
 import type { Bounds } from "./course-setting-viewport";
 import type { ProposeQuery, ProposeResult } from "./map-project-area-proposals";
 import type { FillQuery, FillResult } from "./map-project-fill-area";
+import type { SnapIndex } from "./map-project-snap";
 
 /**
  * ADR-0219 (K1): kartprojektets karta ritas i en egen Worker (`map-project-worker.ts`). Den läser grundfilen en gång (med
@@ -82,7 +83,9 @@ export type MapProjectRequest =
   /** Ägaren 2026-11-13: Fyll yta – rutan som kartans synliga linjer och ytkanter bildar kring punkten. */
   | { readonly type: "fill"; readonly id: number; readonly query: FillQuery }
   /** Ägaren 2026-11-13: Föreslå ytor – de slutna, ofyllda rutorna i en ruta på en sprintkarta, med förslag på symbol. */
-  | { readonly type: "proposeAreas"; readonly id: number; readonly query: ProposeQuery };
+  | { readonly type: "proposeAreas"; readonly id: number; readonly query: ProposeQuery }
+  /** K8b V3: Fäst – indexet över kartans objekt (byggs när objekten ändrats, frågorna går på sidan). */
+  | { readonly type: "snapIndex"; readonly id: number };
 
 export type MapProjectResponse =
   | { readonly type: "loaded"; readonly bounds: Bounds; readonly scale: number; readonly georeference: MapGeoreference | null;
@@ -106,6 +109,7 @@ export type MapProjectResponse =
   | { readonly type: "built"; readonly id: number; readonly polygons: readonly [number, number][][][]; readonly fields?: readonly [number, number][][][] }
   | { readonly type: "fill"; readonly id: number; readonly result: FillResult }
   | { readonly type: "proposeAreas"; readonly id: number; readonly result: ProposeResult }
+  | { readonly type: "snapIndex"; readonly id: number; readonly index: SnapIndex | null }
   | { readonly type: "error"; readonly code: MapRenderErrorCode };
 
 /** Ett objekt med sin nyckel och (för grundfilens objekt) sin referens. */
@@ -142,6 +146,8 @@ export class MapProjectSession {
   private onFill: ((result: FillResult) => void) | undefined;
   private latestPropose = 0;
   private onPropose: ((result: ProposeResult) => void) | undefined;
+  private latestSnap = 0;
+  private onSnap: ((index: SnapIndex | null) => void) | undefined;
   private onFit: ((fit: VectorFit | null) => void) | undefined;
   private onWarp: ((changes: readonly WarpChange<ObjectKey>[], refs: ReadonlyMap<ObjectKey, ObjectRef>) => void) | undefined;
 
@@ -163,6 +169,7 @@ export class MapProjectSession {
       else if (message.type === "warp") { if (message.id === this.latestWarp) this.onWarp?.(message.changes, new Map(message.refs)); }
       else if (message.type === "fit") { if (message.id === this.latestFit) this.onFit?.(message.fit); }
       else if (message.type === "fill") { if (message.id === this.latestFill) this.onFill?.(message.result); }
+      else if (message.type === "snapIndex") { if (message.id === this.latestSnap) this.onSnap?.(message.index); }
       else if (message.type === "proposeAreas") { if (message.id === this.latestPropose) this.onPropose?.(message.result); }
       else if (message.type === "built") { if (message.id === this.latestBuilt) this.onBuilt?.(message.polygons, message.fields ?? []); }
       else if (message.id === this.latest && this.onRendered) this.onRendered(message.id, message.bitmap);
@@ -264,6 +271,13 @@ export class MapProjectSession {
     this.post({ type: "proposeAreas", id, query });
   }
 
+  /** Fäst: indexet över kartans objekt som de är nu. Bara det senaste svaret används. */
+  snapIndex(onSnap: (index: SnapIndex | null) => void) {
+    const id = ++this.latestSnap;
+    this.onSnap = onSnap;
+    this.post({ type: "snapIndex", id });
+  }
+
   fit(source: readonly FitPoint[], onFit: (fit: VectorFit | null) => void) {
     const id = ++this.latestFit;
     this.onFit = onFit;
@@ -271,7 +285,7 @@ export class MapProjectSession {
   }
 
   close() {
-    this.onFit = undefined; this.onFill = undefined; this.onPropose = undefined;
+    this.onFit = undefined; this.onFill = undefined; this.onPropose = undefined; this.onSnap = undefined;
     this.onGeneralize = undefined; this.onBySymbol = undefined; this.onWarp = undefined;
     this.onRendered = undefined; this.onHit = undefined; this.onCatalog = undefined; this.onRecon = undefined; this.onNorm = undefined;
     this.worker.terminate();

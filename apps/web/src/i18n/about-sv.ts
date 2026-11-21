@@ -4,15 +4,23 @@ export const aboutSv = {
   metaDescription: "O-Tid är tidtagning, banläggning och kartritning för orientering i webbläsaren, för klubbtävlingar och träningar.",
   kicker: "O-Tid",
   title: "Om O-Tid",
-  intro: "O-Tid är tidtagning, banläggning och kartritning för orientering i webbläsaren. Det är gjort för klubbtävlingar och träningar.",
-  introMore: "Du lägger in banor, klasser och anmälda på webben. I mål läser du av brickorna med en SPORTident-station. " +
-    "Löparna ser start- och resultatlistor på mobilen utan att logga in.",
+  intro: "O-Tid håller ihop kartritning, banläggning, sekretariat och klubbens träningar i webbläsaren, i datorn och i mobilen. " +
+    "Det är gjort för klubbtävlingar och träningar.",
+  introMore: "Du lägger in banor, klasser och anmälda på webben. I mål läser du av brickorna med en SPORTident-station, med sladd " +
+    "eller över Bluetooth. Löparna ser start- och resultatlistor på mobilen utan att logga in.",
   /** Bara när NEXT_PUBLIC_INTRO_FILM_URL respektive NEXT_PUBLIC_MAP_FILM_URL är satt. */
   film: "Se filmen om O-Tid",
   mapFilm: "Se filmen om kartritningen",
   betaTitle: "Beta – fritt att använda",
   beta: "O-Tid är i beta. Det är öppet och gratis att använda. Det fungerar, men det kan finnas fel. " +
     "Hör gärna av dig om något krånglar.",
+  /** Ägaren 2026-11-21: vad som är på gång. Enkel svenska, inga tekniska ord. */
+  nextTitle: "Under utveckling",
+  next: [
+    "Avläsning över Bluetooth. Den fungerar redan med SPORTidents Bluetooth-station, och vi provar den vidare i skarpt läge.",
+    "En egen app för iPhone och Android. Med den kan till exempel tränare följa ungdomarna i realtid i skogen och sedan gå igenom vägvalen tillsammans.",
+    "Kartritningen för sprint och skog. Grundkartan ur laser och flygbilder och ritverktygen trimmas vidare."
+  ],
   madeTitle: "Så är det gjort",
   made: "O-Tid är utvecklat av Joel Berring med AI-stöd. Det är en webbapp i Next.js och TypeScript med en " +
     "PostgreSQL-databas, och den körs på en egen server. Avläsningen sker direkt i webbläsaren, utan något program att installera.",
@@ -21,7 +29,9 @@ export const aboutSv = {
   codeLink: "O-Tid på GitHub",
   featuresTitle: "Tekniska funktioner",
   features: [
-    "SPORTident-avläsning direkt i webbläsaren: Web Serial i Chrome eller Edge på dator, WebUSB i Chrome på Android-platta. iPhone och iPad går inte.",
+    "SPORTident-avläsning direkt i webbläsaren: Web Serial i Chrome eller Edge på dator, WebUSB i Chrome på Android-platta.",
+    "Avläsning över Bluetooth med SPORTident Reader BT (Web Bluetooth), också på iPhone i appen Bluefy. Provat med SI-Card 9 och 11; stödet är under utveckling.",
+    "Kvitto på en Bluetooth-kvittoskrivare (till exempel SI Printer) direkt från avläsningen.",
     "Brickorna SI-Card 5, 6, 8, 9, 10, 11 och SIAC. Alla bricktyper är inte provade i skarpt läge än.",
     "Avläsning även utan nät: avläsningarna sparas i en lokal kö i webbläsaren och skickas när nätet kommer tillbaka.",
     "Eventor: klasser, anmälda och löpardatabas med klubbens löpare och brickor.",
@@ -34,6 +44,7 @@ export const aboutSv = {
     "Funktionärer med egna konton som når avläsning, start, Kvar i skogen och speaker.",
     "Nödlägen under tävlingen: justera tiden för en station, kontroll ur funktion, manuell tid och omläsning från sparade rådata.",
     "Tävlingstyperna Träning, Liten tävling, Tävling (också med gafflade banor), Stafett och Rogaining.",
+    "Träningslekar: Bingo och Sänka skepp med mobilen i skogen, virtuella kontroller och Mastermind med SPORTident-enheter.",
     "Banläggning i webbläsaren: kontroller och banor på kartan, gafflingar, kontrollbeskrivningar och tryckfärdiga PDF:er med individuella baksidor.",
     "Kartritning i webbläsaren: kartprojekt i OCAD- och OpenOrienteering Mapper-format, ritverktyg för ISOM, ISSprOM och äldre sprintnorm, och flera som ritar i samma karta.",
     "Grundkarta ur Lantmäteriets laserdata: kurvor, branter, vegetation och fukt med Karttapullautin, med reglage för hur mycket som tas med, plus OpenStreetMap och Skogsstyrelsens hyggen.",

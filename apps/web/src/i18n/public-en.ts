@@ -57,13 +57,20 @@ export const aboutEn: Texts<typeof aboutSv> & { readonly internationalTitle: str
   metaDescription: "O-Tid is timing, course setting and map making for orienteering in the browser, for club events and trainings.",
   kicker: "O-Tid",
   title: "About O-Tid",
-  intro: "O-Tid is timing, course setting and map making for orienteering in the browser. It is made for club events and trainings.",
-  introMore: "You add courses, classes and entries on the web. At the finish you read out the cards with a SPORTident station. "
-    + "Runners see start lists and results on their phones without signing in.",
+  intro: "O-Tid brings together map making, course setting, event administration and your club's trainings in the browser, "
+    + "on your computer and your phone. It is made for club events and trainings.",
+  introMore: "You add courses, classes and entries on the web. At the finish you read out the cards with a SPORTident station, "
+    + "by cable or over Bluetooth. Runners see start lists and results on their phones without signing in.",
   film: "Watch the film about O-Tid",
   mapFilm: "Watch the film about map making",
   betaTitle: "Beta – free to use",
   beta: "O-Tid is in beta. It is open and free to use. It works, but there may be bugs. Please get in touch if something goes wrong.",
+  nextTitle: "Under development",
+  next: [
+    "Readout over Bluetooth. It already works with SPORTident's Bluetooth station, and we are trying it further at real events.",
+    "A dedicated app for iPhone and Android. With it, coaches can for example follow young runners in real time in the forest and go through their route choices together afterwards.",
+    "Map making for sprint and forest. The base map from laser data and aerial photos and the drawing tools are being refined further."
+  ],
   madeTitle: "How it is made",
   made: "O-Tid is developed by Joel Berring with AI support. It is a web app in Next.js and TypeScript with a PostgreSQL database, "
     + "running on its own server. Card readout happens directly in the browser, with nothing to install.",
@@ -71,7 +78,9 @@ export const aboutEn: Texts<typeof aboutSv> & { readonly internationalTitle: str
   codeLink: "O-Tid on GitHub",
   featuresTitle: "Technical features",
   features: [
-    "SPORTident readout directly in the browser: Web Serial in Chrome or Edge on a computer, WebUSB in Chrome on an Android tablet. iPhone and iPad do not work.",
+    "SPORTident readout directly in the browser: Web Serial in Chrome or Edge on a computer, WebUSB in Chrome on an Android tablet.",
+    "Readout over Bluetooth with SPORTident Reader BT (Web Bluetooth), also on iPhone in the Bluefy app. Tried with SI-Card 9 and 11; support is under development.",
+    "Receipts on a Bluetooth receipt printer (for example SI Printer) straight from the readout.",
     "Cards SI-Card 5, 6, 8, 9, 10, 11 and SIAC. Not every card type has been tried at a real event yet.",
     "Readout without a network: readouts are kept in a local queue in the browser and sent when the network is back.",
     "Eventor: classes, entries and the runner database with the club's runners and cards.",
@@ -84,6 +93,7 @@ export const aboutEn: Texts<typeof aboutSv> & { readonly internationalTitle: str
     "Officials with their own accounts who reach readout, start, still in the forest and speaker.",
     "Emergencies during the event: adjust the time of a station, a broken control, manual times and reading again from saved raw data.",
     "Event types Training, Small event, Event (also with forked courses), Relay and Rogaining.",
+    "Training games: Bingo and Battleship with the phone in the forest, virtual controls and Mastermind with SPORTident units.",
     "Course setting in the browser: controls and courses on the map, forking, control descriptions and print-ready PDFs with individual backs.",
     "Map making in the browser: map projects in OCAD and OpenOrienteering Mapper formats, drawing tools for ISOM, ISSprOM and the older sprint standard, and several people drawing in the same map.",
     "Base map from the Swedish national laser data: contours, cliffs, vegetation and wetness with Karttapullautin, with sliders for how much to include, plus OpenStreetMap and clear-cuts from the Swedish Forest Agency.",

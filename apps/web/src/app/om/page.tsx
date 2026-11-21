@@ -28,6 +28,8 @@ export default async function AboutPage() {
       {mapFilm && <p className={styles.linkLine}><a href={mapFilm}>{text.mapFilm}</a></p>}
       <h2>{text.betaTitle}</h2>
       <p>{text.beta}</p>
+      <h2>{text.nextTitle}</h2>
+      <ul className={styles.list}>{text.next.map(item => <li key={item}>{item}</li>)}</ul>
       <h2>{text.madeTitle}</h2>
       <p>{text.made}</p>
       <p>{text.code} <a href={SOURCE_CODE_URL} rel="noopener">{text.codeLink}</a></p>

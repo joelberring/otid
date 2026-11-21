@@ -261,5 +261,21 @@ export const clubHelpArticlesEn: readonly HelpArticle[] = [
       ],
       "Elements, levels and own words follow the training when it is put in the club archive, where you can search for them. In the archive the level is suggested from the courses' names. The plan is never public; members without a leader role only see their own tasks."
     ]
+  },
+  {
+    id: "klubbens-nyheter",
+    title: "Club news",
+    views: ["ARCHIVE_NEWS"],
+    body: [
+      "Under the tab ”News” in the club space the club's leaders, administrators and owners write short news items for the club's members.",
+      { steps: [
+        "Open the club space and the tab ”News”.",
+        "Write a heading and a short text under ”Write a news item”. The link and the picture are optional.",
+        "The link can be a page in O-Tid, for example /om, or an address starting with https://.",
+        "The picture is shown small in 16:9 and is scaled down before it is sent.",
+        "Choose ”Publish”. With ”Edit”, ”Hide” and ”Remove” at the item you change it later."
+      ] },
+      "The news is shown to the club's signed-in members on the start page under New in O-Tid, marked with the club's name, and here in the club space. It is never shown to visitors who are not signed in or to other clubs. The start page shows at most three items, and none when the latest is older than two months."
+    ]
   }
 ];

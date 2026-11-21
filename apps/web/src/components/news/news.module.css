@@ -1,0 +1,21 @@
+/* ADR-0230: skrivandet av nyheter (superadmin och klubbytan). Linjer i stället för rutor (ADR-0170 beslut 2). */
+.form { display: grid; gap: 12px; max-width: 40rem; padding: 4px 0 16px; border-bottom: 1px solid var(--line); }
+.form h3 { font-size: var(--text-md); }
+.form textarea { min-height: 5rem; resize: vertical; }
+.preview { display: block; width: 240px; max-width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--radius); }
+.check { display: flex; align-items: center; gap: 8px; min-height: max(32px, var(--tap)); font-size: var(--text-sm); font-weight: 400; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.muted { color: var(--muted); }
+.list { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.row { display: grid; grid-template-columns: 7rem minmax(0, 1fr) auto; gap: 4px 16px; align-items: baseline; padding: 10px 0;
+  border-bottom: 1px solid var(--line); }
+.date { color: var(--muted); font-family: var(--font-dense); font-size: var(--text-sm); white-space: nowrap; }
+.main { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.main strong { font-size: var(--text-md); font-weight: 600; }
+.main span { color: var(--muted); font-size: var(--text-sm); }
+.main .meta { font-family: var(--font-dense); font-size: var(--text-xs); }
+.rowActions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0 4px; }
+@media (max-width: 640px) {
+  .row { grid-template-columns: minmax(0, 1fr); }
+  .rowActions { justify-content: flex-start; }
+}

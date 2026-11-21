@@ -23,11 +23,12 @@ import { ClubStartCard, type ClubStartTarget } from "./club-start-card";
 import { clubAffiliationSv } from "../../i18n/club-affiliation-sv";
 import { HelpButton } from "../help/help-panel";
 import { AccountMenu } from "../account-menu";
+import { NewsEditor } from "../news/news-editor";
 import styles from "./club-archive.module.css";
 
-type Tab = "trainings" | "planning" | "maps" | "members" | "devices" | "club" | "import";
-const TABS: readonly Tab[] = ["trainings", "planning", "maps", "members", "devices", "club", "import"];
-const TAB_HELP: Record<Tab, HelpView> = { trainings: "ARCHIVE_TRAININGS", planning: "ARCHIVE_PLANNING", maps: "ARCHIVE_MAPS", members: "ARCHIVE_MEMBERS", devices: "ARCHIVE_MEMBERS", club: "ARCHIVE_CLUB",
+type Tab = "trainings" | "news" | "planning" | "maps" | "members" | "devices" | "club" | "import";
+const TABS: readonly Tab[] = ["trainings", "news", "planning", "maps", "members", "devices", "club", "import"];
+const TAB_HELP: Record<Tab, HelpView> = { trainings: "ARCHIVE_TRAININGS", news: "ARCHIVE_NEWS", planning: "ARCHIVE_PLANNING", maps: "ARCHIVE_MAPS", members: "ARCHIVE_MEMBERS", devices: "ARCHIVE_MEMBERS", club: "ARCHIVE_CLUB",
   import: "ARCHIVE_IMPORT" };
 
 function initialTab(): Tab {
@@ -37,7 +38,7 @@ function initialTab(): Tab {
 }
 
 /**
- * ADR-0194: klubbarkivet (`/organizer/clubs/[clubId]`). Flikarna Träningar (sök och filter), Kartor (versioner, rättigheter,
+ * ADR-0194: klubbarkivet (`/organizer/clubs/[clubId]`). Flikarna Träningar (sök och filter), Nyheter (ADR-0230), Kartor (versioner, rättigheter,
  * slå ihop och dela, ny version), Medlemmar och Import (nyckeln och kommandot). Aldrig publikt; behörigheten avgörs av API:et.
  */
 export function ClubArchivePage({ clubId }: { clubId: string }) {
@@ -119,6 +120,8 @@ export function ClubArchivePage({ clubId }: { clubId: string }) {
     <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
       {tab === "trainings" && (list.viewer.access.archive ? <ArchiveList clubId={clubId} list={list} admin={admin} />
         : <Notice role="status">{clubAffiliationText.space.archiveClosed}</Notice>)}
+      {/* ADR-0230: klubbens nyheter; medlemmar läser, ledare och uppåt skriver. */}
+      {tab === "news" && <NewsEditor base={`${clubBase(clubId)}/news`} scope="club" />}
       {tab === "planning" && leader && <PlanningPanel clubId={clubId} />}
       {tab === "maps" && (list.viewer.access.archive ? <ClubMapsPanel clubId={clubId} maps={list.maps} admin={admin} mapBank={list.viewer.access.mapBank}
         onChanged={load} checks={checks} /> : <Notice role="status">{clubAffiliationText.space.archiveClosed}</Notice>)}

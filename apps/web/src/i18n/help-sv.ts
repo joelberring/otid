@@ -22,7 +22,7 @@ export type CourseSettingHelpView = "COURSE_SETTING" | "CS_START" | "CS_COURSES"
   | "CS_PRINT_PAGE" | "CS_DESCRIPTIONS_PAGE";
 
 /** Klubbarkivets flikar och en träning i arkivet. */
-export type ArchiveHelpView = "ARCHIVE_TRAININGS" | "ARCHIVE_MAPS" | "ARCHIVE_MEMBERS" | "ARCHIVE_CLUB" | "ARCHIVE_IMPORT" | "ARCHIVE_ENTRY"
+export type ArchiveHelpView = "ARCHIVE_TRAININGS" | "ARCHIVE_NEWS" | "ARCHIVE_MAPS" | "ARCHIVE_MEMBERS" | "ARCHIVE_CLUB" | "ARCHIVE_IMPORT" | "ARCHIVE_ENTRY"
   | "ARCHIVE_DEVICES" | "ARCHIVE_PLANNING";
 
 /**

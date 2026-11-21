@@ -1,0 +1,45 @@
+/**
+ * ADR-0230: nyhetsflödet «Nytt i O-Tid» – startsidans spalt och skrivandet (superadmin och klubbytan).
+ */
+export const newsSv = {
+  title: "Nytt i O-Tid",
+  films: "Filmer",
+  imageAlt: (title: string) => `Bild till nyheten ${title}`,
+  editor: {
+    generalTitle: "Nyheter",
+    generalHelp: "Allmänna nyheter syns för alla på startsidan under Nytt i O-Tid (högst tre, nyast först). Här syns också klubbarnas nyheter, som du kan ändra, dölja eller ta bort.",
+    clubTitle: "Klubbens nyheter",
+    clubHelp: "Nyheterna syns för klubbens inloggade medlemmar på startsidan under Nytt i O-Tid, märkta med klubbens namn, och här. Aldrig för utloggade eller andra klubbar.",
+    clubReadHelp: "Nyheter från klubbens ledare. De syns också på startsidan när du är inloggad.",
+    newItem: "Skriv en nyhet",
+    editItem: "Ändra nyheten",
+    heading: "Rubrik",
+    body: "Kort text",
+    link: "Länk (valfri)",
+    linkHelp: "En sida i O-Tid (t.ex. /om) eller en adress som börjar med https://.",
+    image: "Bild (valfri)",
+    imageHelp: "Visas liten i formatet 16:9 (beskärs vid behov). Den skalas ned innan den skickas.",
+    removeImage: "Ta bort bilden",
+    keepImage: "Bilden finns kvar.",
+    hidden: "Dold (syns inte för läsarna)",
+    publish: "Publicera",
+    save: "Spara",
+    cancel: "Avbryt",
+    edit: "Ändra",
+    hide: "Dölj",
+    show: "Visa",
+    remove: "Ta bort",
+    confirmRemove: (title: string) => `Ta bort nyheten ”${title}”? Det går inte att ångra.`,
+    hiddenBadge: "Dold",
+    general: "Allmän",
+    empty: "Inga nyheter ännu.",
+    loading: "Hämtar nyheterna …",
+    saved: "Sparat.",
+    removed: "Nyheten är borttagen.",
+    failed: "Det gick inte. Försök igen.",
+    invalid: "Kontrollera rubriken, länken och bilden.",
+    forbidden: "Du får inte skriva nyheter här.",
+    imageFailed: "Bilden kunde inte läsas. Välj en JPEG-, PNG- eller WebP-bild.",
+    imageTooLarge: "Bilden blev för stor även efter nedskalningen."
+  }
+} as const;

@@ -15,6 +15,7 @@ import { Button, EmptyState, Field, Notice, numeric, Section, Table } from "../u
 import { actionRequest, ResetLink, SuperadminActionPanel, type LimitValues, type PendingAction } from "./superadmin-action-panel";
 import { AccountStorageSection } from "../account-storage";
 import { SuperadminInstallation } from "./superadmin-installation";
+import { NewsEditor } from "../news/news-editor";
 import styles from "../account-pages.module.css";
 import { raceTitle, shownRaceName } from "@o-tid/domain";
 
@@ -215,6 +216,9 @@ export function SuperadminPage() {
       </Section>
       {storageFor && <AccountStorageSection id="superadmin-lagring" url={`/api/superadmin/accounts/${storageFor.accountId}/storage`}
         canPrune={false} title={text.storageOf(storageFor.email)} />}
+
+      {/* ADR-0230: allmänna nyheter till startsidan och moderering av klubbarnas. */}
+      <NewsEditor base="/api/superadmin/news" scope="superadmin" />
 
       <Section id="superadmin-logg" title={text.log} help={text.logHelp}>
         {overview.log.length === 0 ? <EmptyState title={text.logEmpty} /> : <Table aria-label={text.log}>

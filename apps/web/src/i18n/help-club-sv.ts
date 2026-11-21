@@ -141,5 +141,21 @@ export const clubHelpArticles: readonly HelpArticle[] = [
       ],
       "Moment, nivåer och egna ord följer med när träningen läggs i klubbarkivet, där du kan söka på dem. I arkivet föreslås nivån ur banornas namn. Planen är aldrig publik; medlemmar utan ledarroll ser bara sina egna uppgifter."
     ]
+  },
+  {
+    id: "klubbens-nyheter",
+    title: "Klubbens nyheter",
+    views: ["ARCHIVE_NEWS"],
+    body: [
+      "Under fliken ”Nyheter” på klubbytan skriver klubbens ledare, administratörer och ägare korta nyheter till klubbens medlemmar.",
+      { steps: [
+        "Öppna klubbytan och fliken ”Nyheter”.",
+        "Skriv en rubrik och en kort text under ”Skriv en nyhet”. Länken och bilden är valfria.",
+        "Länken kan vara en sida i O-Tid, till exempel /om, eller en adress som börjar med https://.",
+        "Bilden visas liten i formatet 16:9 och skalas ned innan den skickas.",
+        "Välj ”Publicera”. Med ”Ändra”, ”Dölj” och ”Ta bort” vid nyheten ändrar du den senare."
+      ] },
+      "Nyheterna syns för klubbens inloggade medlemmar på startsidan under Nytt i O-Tid, märkta med klubbens namn, och här på klubbytan. De syns aldrig för den som inte är inloggad eller för andra klubbar. Startsidan visar högst tre nyheter, och inga alls när den senaste är äldre än två månader."
+    ]
   }
 ];

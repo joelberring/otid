@@ -201,6 +201,9 @@ const ROUTES: Record<string, Partial<Record<Method, Rule>>> = {
     title: "Sätta ut kontroller", assignee: { kind: "NONE" } }) } },
   "organizer/clubs/[clubId]/planning/sessions/[sessionId]/tasks/[taskId]": { DELETE: { allow: CLUB_LEADERS },
     PUT: { allow: CLUB_LEADERS, body: { formatVersion: 1, title: "Sätta ut kontroller", assignee: { kind: "NONE" } } } },
+  // ADR-0230: klubbens nyheter; medlemmar läser, ledare och uppåt skriver.
+  "organizer/clubs/[clubId]/news": { GET: { allow: CLUB_MEMBERS }, POST: { allow: CLUB_LEADERS, body: () => ({ formatVersion: 1, requestId: id(), title: "Behörighetstest", body: "", link: "" }) } },
+  "organizer/clubs/[clubId]/news/[newsId]": { PUT: { allow: CLUB_LEADERS, body: () => ({ formatVersion: 1, requestId: id(), title: "Behörighetstest", body: "", link: "" }) }, DELETE: { allow: CLUB_LEADERS } },
   "organizer/plan-tasks": { GET: { allow: LOGGED_IN } },
   "organizer/plan-tasks/[taskId]": { PUT: { allow: LOGGED_IN, body: { formatVersion: 1, done: true } } },
   "organizer/clubs/[clubId]/members": {
@@ -239,6 +242,9 @@ const ROUTES: Record<string, Partial<Record<Method, Rule>>> = {
   // --- Superadmin (ADR-0172) ---------------------------------------------------------------------------------------------------
   "superadmin": { GET: { allow: ["SUPERADMIN"] } },
   "superadmin/accounts/[accountId]/storage": { GET: { allow: ["SUPERADMIN"] } },
+  // ADR-0230: allmänna nyheter och moderering.
+  "superadmin/news": { GET: { allow: ["SUPERADMIN"] }, POST: { allow: ["SUPERADMIN"], body: () => ({ formatVersion: 1, requestId: id(), title: "Behörighetstest", body: "", link: "" }) } },
+  "superadmin/news/[newsId]": { PUT: { allow: ["SUPERADMIN"], body: () => ({ formatVersion: 1, requestId: id(), title: "Behörighetstest", body: "", link: "" }) }, DELETE: { allow: ["SUPERADMIN"] } },
   "superadmin/actions": { POST: { allow: ["SUPERADMIN"], body: () => ({ formatVersion: 1, action: "HIDE_RACE", raceId: id(), reason: "Behörighetstest" }) } }
 };
 

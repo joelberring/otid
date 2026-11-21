@@ -151,3 +151,19 @@ Kartorna trycks ur banläggningen. Med Purple Pens ordning döptes grenarna om n
    längre finns, som inte läst ut och inte har något resultat, den minst använda av klassens varianter
    (`reassignVanishedVariants`). Giltiga koder behålls (de står på kartan), stafetten fördelas som förut och beskedet säger
    vilka som får en ny variant. Ägaren svarade inte på frågan om hur; antagandet «behåll giltiga, fördela resten» kan ändras.
+
+## Tillägg 2026-11-21: utkast och lås för nycklarna (ägaren inför Stockholm by Night)
+
+Översyn: projektets dokument `claude/gafflingar-oversyn-2026-11-21.md`. Tillägg (b) och (c) låste bokstäverna från första
+klicket, så en gaffling som gjordes om fick nya bokstäver (G, H) och en omnumrering i banläggningen slog inte igenom rätt i
+tävlingen (koden «försvann» och löparen fick en annan variant). Ägarens beslut:
+
+1. **Utkast och lås per bana i banläggningen.** I utkast har grenarna bokstäver i banans ordning (som Purple Pen), utan
+   luckor och utan använda bokstäver; tas en gren bort ur en gaffling med fler än två grenar försvinner sista bokstaven, med två
+   grenar försvinner gafflingen. Låst gäller tillägg (c). Banan låses av tryck med variantkod, av tilldelade varianter i
+   tävlingen och av en publicerad startlista, eller för hand; låset kan hävas för hand med en lista över vad som berörs.
+2. **«Ordna nycklarna»** ger grenarna bokstäver i banans ordning, med förhandsvisning gammal → ny kod. Tillåtet också i en
+   låst bana, efter bekräftelse med tryckta kartor, löpare med tilldelad variant och bortval som berörs. Bortvalen flyttas med.
+3. **Översättningen följer med vid Överför**: en löpare vars kod bytts (AG → AC) får den nya koden och behåller sina
+   kontroller; bara de vars kontroller ändras står i beskedet.
+4. **Ta bort gafflingen** behåller gren A.

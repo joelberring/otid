@@ -1479,6 +1479,21 @@ vårdnadshavarens samtycke och automatisk radering. Kräver en ADR före A1.
 - [ ] A4 Live på tävling med fördröjning för publik och speaker, per klass.
 - [ ] A5 (senare) Garmin Connect IQ och Apple Watch.
 
+## [ ] Steg G – Gafflingarna i banläggningen: arbetsflödet och nycklarna (ägaren 2026-11-21)
+
+Översyn och beslut: projektets dokument `claude/gafflingar-oversyn-2026-11-21.md`. Före Stockholm by Night 9 december.
+Ägarens beslut 2026-11-21: «Ordna nycklarna» får köras också efter tryck, med bekräftelse och lista; en publicerad startlista
+låser nycklarna; tas en gren bort ur en gaffling med två grenar försvinner gafflingen, med fler försvinner sista bokstaven
+(nycklarna packas i utkast). Tillägg i ADR-0175 (2026-11-21).
+
+- [ ] G1 Editorn: Klar fortsätter efter mötespunkten, efter Ta bort står man kvar i grenen, befintliga kontroller på banan går
+  att lägga in (varning för samma kontroll två gånger i rad), Ta bort gafflingen behåller gren A, Delete på gaffelkontrollen
+  frågar, sträckor i flera grenar, inre gaffling som möts med den yttre, varning för tomma grenar och lika varianter,
+  MCP-översiktens sträckor per variant.
+- [ ] G2 Nycklarna: utkast och lås per bana (lås av tryck med variantkod, tilldelade varianter eller publicerad startlista,
+  eller för hand), packade bokstäver i utkast, «Ordna nycklarna» med förhandsvisning, översättningen och bortvalen följer
+  med vid Överför till tävlingen, E2E-test för hela flödet.
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

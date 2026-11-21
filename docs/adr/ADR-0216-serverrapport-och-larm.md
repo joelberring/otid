@@ -54,3 +54,8 @@ kartfiler varje timme (48 timdumpar och 14 dagliga), så säkerhetskopiorna väx
 skriver därför antalet misslyckade körningar i rad sist i `.backup-status`, och bevakningen larmar först vid den andra
 (med timvisa körningar: efter högst två timmar). En rad utan fältet (äldre backupavbildning) räknas som det första
 misslyckandet. Larmet för en för gammal kopia (`backupMaxAgeHours`) är oförändrat.
+
+## Tillägg 2026-11-21: förrådet (ADR-0229)
+
+Beslut 6 ändras: innehåll som ligger i förrådet (`map_content.stored_in = 'STORE'`) sparas inte i `backups/map-content`,
+räknas inte som saknat och läses inte in av `restore-map-content`; det ligger bara i objektlagringen.

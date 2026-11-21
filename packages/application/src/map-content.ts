@@ -4,6 +4,9 @@ import type { Database } from "@o-tid/database";
 import type { DbExecutor } from "./snapshot";
 import { sha256Hex } from "./serialization";
 import { restoreMapContent } from "./map-archive";
+import { readStoredMapContent } from "./map-cache";
+import { activeMapStore, discardStagedFile, registerStoredMapContent, releaseUnusedUpload, stageMapContentToFile, uploadToStore,
+  type StoreSource } from "./map-store";
 
 /**
  * ADR-0189 beslut 1–3: kartbilder och kartfiler lagras en gång (`map_content`, adresserat med sha256) i delar om högst 1 MiB
@@ -14,6 +17,11 @@ import { restoreMapContent } from "./map-archive";
  * i minnet. Först när filen är kontrollerad sparas innehållets rad i samma transaktion som referensen (`storeMapContent`), med
  * kvoten per konto och installation kontrollerad. Delar som aldrig fick någon rad tas bort (`discardStagedMapContent`, och
  * underhållet efter ett dygn).
+ *
+ * ADR-0229 (PLAN.md steg M1): med förrådet påslaget (`OTID_STORE_MODE=on`, `map-store.ts`) strömmas uppladdningen i stället
+ * till en fil i mellanlagret och laddas upp till förrådet i `storeMapContent`; raden får `stored_in = 'STORE'` och inga delar.
+ * Läsningen går via samma funktioner (`readMapContent`, `rowContent`, `streamMapContentParts` i club-maps.ts) och avgörs av
+ * raden: 'DB' läses som förut, 'STORE' ur mellanlagret eller förrådet (`map-cache.ts`).
  */
 export const MAP_CONTENT_PART_BYTES = 1024 * 1024;
 /** Så mycket av filens början som hålls i minnet för kontrollen av format och bildens mått. */
@@ -28,6 +36,8 @@ export interface StagedMapContent {
   readonly byteLength: number;
   /** Filens första byte (högst `MAP_CONTENT_HEAD_BYTES`). */
   readonly head: Uint8Array;
+  /** ADR-0229: uppladdningen ligger i en fil i mellanlagret (förrådet påslaget) i stället för i `map_content_part`. */
+  readonly file?: string;
 }
 
 /** Innehåll att spara: bytes i minnet (tester, små filer) eller en strömmad uppladdning. */
@@ -46,6 +56,10 @@ export type StageResult = StagedMapContent | { kind: "too-large" } | { kind: "em
  */
 export async function stageMapContent(db: Database, chunks: AsyncIterable<Uint8Array>, options: { maxBytes: number; now?: Date })
   : Promise<StageResult> {
+  if (activeMapStore()) {
+    const staged = await stageMapContentToFile(chunks, { maxBytes: options.maxBytes, headBytes: MAP_CONTENT_HEAD_BYTES });
+    return "kind" in staged ? staged : { kind: "staged", ...staged };
+  }
   const contentId = randomUUID();
   const hash = createHash("sha256");
   const head = new Uint8Array(MAP_CONTENT_HEAD_BYTES);
@@ -92,18 +106,26 @@ export async function stageMapContent(db: Database, chunks: AsyncIterable<Uint8A
 
 /** Tar bort en strömmad uppladdnings delar om de inte blev sparat innehåll. Ofarlig att anropa efter `storeMapContent`. */
 export async function discardStagedMapContent(db: DbExecutor, contentId: string): Promise<void> {
+  await discardStagedFile(contentId);
   await db.execute(sql`delete from map_content_part where content_id = ${contentId}
     and not exists (select 1 from map_content where content_id = ${contentId})`);
 }
 
 /** Kvoten (ADR-0189 beslut 3). Null = ingen gräns. */
 export interface MapStorageQuota { readonly accountBytes: number | null; readonly totalBytes: number | null }
-export const DEFAULT_MAP_QUOTA_ACCOUNT_MB = 2048;
+/** ADR-0229: förvalet per konto höjt från 2048 till 5120 MB (ägaren 2026-11-21). */
+export const DEFAULT_MAP_QUOTA_ACCOUNT_MB = 5120;
+/** Installationens totala gräns när allt ligger på serverns disk. */
 export const DEFAULT_MAP_QUOTA_TOTAL_MB = 20480;
+/** ADR-0229: med förrådet påslaget ligger nytt innehåll i objektlagringen; förvalet är 1 TB (det som grundpriset omfattar). */
+export const DEFAULT_MAP_QUOTA_TOTAL_STORE_MB = 1_048_576;
+/** ADR-0229: förvalet för kontots återskapbara innehåll (PLAN.md steg M4). */
+export const DEFAULT_REGENERABLE_QUOTA_MB = 10_240;
 
 /**
- * `OTID_MAP_QUOTA_ACCOUNT_MB` (förval 2048) och `OTID_MAP_QUOTA_TOTAL_MB` (förval 20480); 0 stänger av gränsen. Ett ogiltigt
- * värde ger förvalet (och `startup-check` skriver det i loggen).
+ * `OTID_MAP_QUOTA_ACCOUNT_MB` (förval 5120) och `OTID_MAP_QUOTA_TOTAL_MB` (förval 20480, med förrådet påslaget 1 048 576);
+ * 0 stänger av gränsen. Ett ogiltigt värde ger förvalet (och `startup-check` skriver det i loggen). Superadmins inställning
+ * av totalgränsen (`installation_setting`) går före och läses i `storeMapContent`.
  */
 export function mapStorageQuota(env: Partial<Record<string, string | undefined>> = process.env): MapStorageQuota {
   const read = (value: string | undefined, fallback: number) => {
@@ -112,8 +134,17 @@ export function mapStorageQuota(env: Partial<Record<string, string | undefined>>
     const parsed = Number(trimmed);
     return parsed === 0 ? null : parsed * MB;
   };
+  const storeOn = env.OTID_STORE_MODE?.trim().toLowerCase() === "on";
   return { accountBytes: read(env.OTID_MAP_QUOTA_ACCOUNT_MB, DEFAULT_MAP_QUOTA_ACCOUNT_MB),
-    totalBytes: read(env.OTID_MAP_QUOTA_TOTAL_MB, DEFAULT_MAP_QUOTA_TOTAL_MB) };
+    totalBytes: read(env.OTID_MAP_QUOTA_TOTAL_MB, storeOn ? DEFAULT_MAP_QUOTA_TOTAL_STORE_MB : DEFAULT_MAP_QUOTA_TOTAL_MB) };
+}
+
+/** Installationens gällande totalgräns: superadmins inställning (0 = ingen gräns) eller miljöns. */
+export async function effectiveTotalQuotaBytes(tx: DbExecutor, quota: MapStorageQuota): Promise<number | null> {
+  const [row] = (await tx.execute<{ value: unknown }>(sql`select value from installation_setting where key = 'map_quota_total_mb'`)).rows;
+  const value = row?.value;
+  if (typeof value !== "number" || !Number.isInteger(value)) return quota.totalBytes;
+  return value === 0 ? null : value * MB;
 }
 
 /** Ett ogiltigt värde i miljön, för loggen vid start. */
@@ -149,34 +180,78 @@ export async function accountMapQuotaBytes(tx: DbExecutor, accountId: string, qu
 
 export type StoreResult = { status: "stored"; sha256: string } | { status: "quota"; quota: MapQuotaExceeded };
 
+/** Över kontots eller installationens gräns med `byteLength` till? */
+async function quotaProblem(tx: DbExecutor, accountId: string | null, byteLength: number, quota: MapStorageQuota): Promise<MapQuotaExceeded | null> {
+  const usage = await mapStorageUsage(tx, accountId);
+  const accountLimit = accountId ? await accountMapQuotaBytes(tx, accountId, quota) : null;
+  if (accountId && accountLimit !== null && usage.accountBytes + byteLength > accountLimit) {
+    return { scope: "ACCOUNT", usedBytes: usage.accountBytes, limitBytes: accountLimit, neededBytes: byteLength };
+  }
+  const totalLimit = await effectiveTotalQuotaBytes(tx, quota);
+  if (totalLimit !== null && usage.totalBytes + byteLength > totalLimit) {
+    return { scope: "INSTALLATION", usedBytes: usage.totalBytes, limitBytes: totalLimit, neededBytes: byteLength };
+  }
+  return null;
+}
+
+/** Filen i mellanlagret för en uppladdning som avvisades (delarna i databasen tar anroparen bort, som förut). */
+async function dropStagedFile(input: MapContentInput): Promise<void> {
+  if (isStaged(input) && input.file) await discardStagedFile(input.contentId);
+}
+
+/** Tar bort en uppladdning som inte behövs (delarna, eller filen i mellanlagret). */
+async function dropStaged(tx: DbExecutor, input: MapContentInput, keepContentId?: string): Promise<void> {
+  if (!isStaged(input)) return;
+  if (input.file) await discardStagedFile(input.contentId);
+  else if (input.contentId !== keepContentId) await tx.execute(sql`delete from map_content_part where content_id = ${input.contentId}`);
+}
+
 /**
  * Sparar innehållet (eller hittar samma innehåll som redan finns) i anroparens transaktion och ger dess sha256. Nytt innehåll
  * räknas mot kontots och installationens kvot; samma innehåll som redan finns kostar ingenting. Raden låses tills
  * transaktionen är klar, så att den inte tas bort innan referensen är sparad.
+ *
+ * ADR-0229: en uppladdning i en fil i mellanlagret, och bytes i minnet när förrådet är påslaget, laddas upp till förrådet och
+ * kontrolleras innan raden skrivs. Uppladdningen görs före låset (den kan ta sekunder), med kvoten förhandsprövad.
  */
 export async function storeMapContent(tx: DbExecutor, input: MapContentInput, accountId: string | null, now: Date,
   quota: MapStorageQuota = mapStorageQuota()): Promise<StoreResult> {
   const sha256 = contentSha256(input);
   const byteLength = contentLength(input);
+  const store = isStaged(input) ? (input.file ? activeMapStore() ?? missingStore() : null) : activeMapStore();
+  const source: StoreSource | null = !store ? null : isStaged(input) ? { file: input.file! } : { bytes: input };
+  let uploaded = false;
+  if (store && source) {
+    const [known] = (await tx.execute(sql`select 1 from map_content where sha256 = ${sha256}`)).rows;
+    if (!known) {
+      const problem = await quotaProblem(tx, accountId, byteLength, quota);
+      if (problem) { await dropStagedFile(input); return { status: "quota", quota: problem }; }
+      await uploadToStore(store, sha256, byteLength, source);
+      uploaded = true;
+    }
+  }
   // Uppladdningarna köas här: kvoten räknas och nytt innehåll sparas en i taget (det är sällsynt och går fort).
   await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended('otid.map-content', 0))`);
   const existing = (await tx.execute<{ content_id: string }>(sql`select content_id from map_content where sha256 = ${sha256}
     for key share`)).rows[0];
   if (existing) {
-    if (isStaged(input) && input.contentId !== existing.content_id) {
-      await tx.execute(sql`delete from map_content_part where content_id = ${input.contentId}`);
-    }
+    await dropStaged(tx, input, existing.content_id);
     return { status: "stored", sha256 };
   }
-  const usage = await mapStorageUsage(tx, accountId);
-  const accountLimit = accountId ? await accountMapQuotaBytes(tx, accountId, quota) : null;
-  if (accountId && accountLimit !== null && usage.accountBytes + byteLength > accountLimit) {
-    return { status: "quota", quota: { scope: "ACCOUNT", usedBytes: usage.accountBytes, limitBytes: accountLimit, neededBytes: byteLength } };
-  }
-  if (quota.totalBytes !== null && usage.totalBytes + byteLength > quota.totalBytes) {
-    return { status: "quota", quota: { scope: "INSTALLATION", usedBytes: usage.totalBytes, limitBytes: quota.totalBytes, neededBytes: byteLength } };
+  const problem = await quotaProblem(tx, accountId, byteLength, quota);
+  if (problem) {
+    if (uploaded) await releaseUnusedUpload(tx, sha256, byteLength, now);
+    await dropStagedFile(input);
+    return { status: "quota", quota: problem };
   }
   const contentId = isStaged(input) ? input.contentId : randomUUID();
+  if (store && source) {
+    // Innehållet togs bort mellan förhandskontrollen och låset, eller arkivets städning raderade objektet under tiden
+    // (den raderar under samma lås): ladda upp nu.
+    if (!uploaded || await store.size(sha256) !== byteLength) await uploadToStore(store, sha256, byteLength, source);
+    await registerStoredMapContent(tx, { sha256, contentId, byteLength, accountId, source }, now);
+    return { status: "stored", sha256 };
+  }
   if (!isStaged(input)) {
     for (let part = 0; part * MAP_CONTENT_PART_BYTES < input.byteLength; part++) {
       const data = input.subarray(part * MAP_CONTENT_PART_BYTES, (part + 1) * MAP_CONTENT_PART_BYTES);
@@ -196,6 +271,10 @@ export async function storeMapContent(tx: DbExecutor, input: MapContentInput, ac
   return { status: "stored", sha256 };
 }
 
+function missingStore(): never {
+  throw new Error("Uppladdningen ligger i mellanlagret men förrådet är inte längre inställt");
+}
+
 /**
  * Hela innehållet i minnet, en del i taget ur databasen. Undefined när det inte finns. Innehåll som ligger i arkivet
  * (ADR-0224, PLAN.md steg L5) hämtas tillbaka därifrån först.
@@ -203,10 +282,20 @@ export async function storeMapContent(tx: DbExecutor, input: MapContentInput, ac
 export async function readMapContent(tx: DbExecutor, sha256: string): Promise<Buffer | undefined> {
   const rows = (await tx.execute<{ data: Buffer; byte_length: number }>(sql`select p.data, c.byte_length from map_content c
     join map_content_part p on p.content_id = c.content_id where c.sha256 = ${sha256} order by p.part`)).rows;
-  if (rows.length === 0) return restoreMapContent(tx, { sha256 });
+  if (rows.length === 0) {
+    const stored = await storedMapContent(tx, sha256);
+    return stored ? readStoredMapContent(tx, sha256, stored.byteLength) : restoreMapContent(tx, { sha256 });
+  }
   const bytes = Buffer.concat(rows.map(row => row.data));
   if (bytes.byteLength !== rows[0]!.byte_length) throw new Error("Kartinnehållet är ofullständigt");
   return bytes;
+}
+
+/** ADR-0229: innehållets längd om det ligger i förrådet (`stored_in = 'STORE'`), annars undefined. */
+export async function storedMapContent(tx: DbExecutor, sha256: string): Promise<{ byteLength: number; contentId: string } | undefined> {
+  const [row] = (await tx.execute<{ byte_length: number; content_id: string }>(sql`select byte_length, content_id from map_content
+    where sha256 = ${sha256} and stored_in = 'STORE'`)).rows;
+  return row ? { byteLength: Number(row.byte_length), contentId: row.content_id } : undefined;
 }
 
 /** En rads innehåll: den gamla kolumnen om den finns (rader före migration 0044), annars innehållet den pekar på. */

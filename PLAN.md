@@ -1514,6 +1514,21 @@ låser nycklarna; tas en gren bort ur en gaffling med två grenar försvinner ga
   eller för hand), packade bokstäver i utkast, «Ordna nycklarna» med förhandsvisning, översättningen och bortvalen följer
   med vid Överför till tävlingen, E2E-test för hela flödet.
 
+## [ ] Steg M – Förrådet: kartinnehåll i objektlagringen, servern som mellanlager (ägaren 2026-11-21)
+
+Servern låg nära 80 % disk fast bara ägaren arbetade, och fler ska bjudas in. ADR-0229: objektlagringen (samma S3 som
+arkivet) blir förrådet för allt kartinnehåll och serverns disk ett mellanlager med tak som superadmin ändrar.
+
+- [x] M1 Förrådet och mellanlagret: `OTID_STORE_MODE` (off som förval), nytt innehåll uppladdat och kontrollerat innan det
+  räknas som sparat, `stored_in`/`last_used_at`/`regenerable` (migration 0133), mellanlagret med tak och utträngning,
+  backupen hoppar över förrådet, gränserna på superadminsidan (kontots återskapbart, mellanlagrets tak, totalgränsen),
+  kontots förval 5120 MB. Kvar hos ägaren: slå på enligt docs/drift.md "Förrådet och mellanlagret".
+- [ ] M2 Tävlingars och träningars kartor spikas fast i mellanlagret från dagen före till dagen efter.
+- [ ] M3 Befintligt innehåll flyttas ur PostgreSQL i omgångar nattetid; bort med `backups/map-content`; VACUUM/pg_repack.
+- [ ] M4 Recept för återskapbart underlag; gräns per konto för återskapbart (äldst använt bort först, skydd för projekt
+  öppnade de senaste 3 dygnen och projektets senaste klara laserkörning); borttagning ur förrådet efter 90 dagar orört.
+- [ ] M5 Larm via mejl till superadmin, stöd för flera superadmin, automatisk rensning av docker-avbildningar.
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

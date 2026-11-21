@@ -1,4 +1,4 @@
-import { index, integer, jsonb, pgTable, text, timestamp, uuid, foreignKey } from "drizzle-orm/pg-core";
+import { boolean, index, integer, jsonb, pgTable, text, timestamp, uuid, foreignKey } from "drizzle-orm/pg-core";
 import { entries, races } from "./core";
 import { bytea } from "./types";
 
@@ -71,7 +71,13 @@ export const mapContents = pgTable("map_content", {
   contentId: uuid("content_id").notNull(),
   byteLength: integer("byte_length").notNull(),
   uploadedBy: uuid("uploaded_by"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull()
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  /** ADR-0229 (migration 0133): 'DB' = delarna i `map_content_part`; 'STORE' = bara i förrådet (objektlagringen). */
+  storedIn: text("stored_in").$type<"DB" | "STORE">().notNull().default("DB"),
+  /** Senast läst ur förrådet eller mellanlagret (högst var 10:e minut). */
+  lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+  /** Går att skapa igen ur ett recept (PLAN.md steg M4). */
+  regenerable: boolean("regenerable").notNull().default(false)
 });
 
 /** PLAN.md steg 16 (migration 0098): löparens GPS-rutt. Punkterna är [tid ms, lat, lon] i tidsordning. */

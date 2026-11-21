@@ -16,12 +16,17 @@ export const superadminActionKindSchema = z.enum([
   /** ADR-0172 tillägg 2026-11-12: bekräftade kontots e-postadress (i appen eller med serverkommandot). */
   "VERIFY_EMAIL",
   /** Ägaren 2026-11-13: satte kontots egna gränser för kartlagring och laserrutor (migration 0118). */
-  "SET_ACCOUNT_LIMITS"
+  "SET_ACCOUNT_LIMITS",
+  /** ADR-0229: satte installationens gränser (mellanlagrets tak och kartlagringens totala gräns, migration 0133). */
+  "SET_INSTALLATION_LIMITS"
 ]);
 
 /** Kontots egna gränser; null = installationens förval. */
 export const accountMapQuotaMbSchema = z.number().int().min(1).max(1_000_000).nullable();
 export const accountGeoTilesPerMonthSchema = z.number().int().min(0).max(100_000).nullable();
+/** ADR-0229: installationens gränser; null = förvalet. Totalgränsen 0 = ingen gräns. */
+export const installationCacheMaxMbSchema = z.number().int().min(100).max(10_000_000).nullable();
+export const installationMapQuotaTotalMbSchema = z.number().int().min(0).max(100_000_000).nullable();
 /** Konton som använt minst så här stor andel av en gräns visas i listan "nära gränsen". */
 export const SUPERADMIN_NEAR_LIMIT_SHARE = 0.7;
 
@@ -38,7 +43,9 @@ export const superadminAccountSchema = z.object({
   emailVerified: z.boolean(),
   /** Kontots egna gränser (null = förvalet), för att fylla i formuläret "Ändra gränser". */
   mapQuotaMb: accountMapQuotaMbSchema,
-  geoTilesPerMonth: accountGeoTilesPerMonthSchema
+  geoTilesPerMonth: accountGeoTilesPerMonthSchema,
+  /** ADR-0229: kontots gräns för återskapbart innehåll (null = förvalet; används i PLAN.md steg M4). */
+  regenerableQuotaMb: accountMapQuotaMbSchema
 }).strict();
 
 /** Ett konto i listan över förbrukning: kartlagring och månadens laserrutor mot kontots gällande gränser. */
@@ -52,13 +59,36 @@ export const superadminAccountUsageSchema = z.object({
   mapQuotaMb: accountMapQuotaMbSchema,
   geoTilesUsed: z.number().int().min(0),
   geoTilesLimit: z.number().int().min(0),
-  geoTilesPerMonth: accountGeoTilesPerMonthSchema
+  geoTilesPerMonth: accountGeoTilesPerMonthSchema,
+  regenerableQuotaMb: accountMapQuotaMbSchema
+}).strict();
+
+/** ADR-0229: förrådet och mellanlagret för installationen. */
+export const superadminInstallationSchema = z.object({
+  /** off = allt i databasen; on = nytt innehåll i förrådet; incomplete = på men uppgifterna eller mellanlagret saknas. */
+  storeMode: z.enum(["off", "on", "incomplete"]),
+  /** Mellanlagrets tak: inställningen (null = förvalet) och det gällande. */
+  cacheMaxMb: installationCacheMaxMbSchema,
+  cacheMaxMbDefault: z.number().int().min(1),
+  /** Hur fullt mellanlagret är, eller null när katalogen inte går att läsa här. */
+  cacheUsedBytes: z.number().int().min(0).nullable(),
+  cacheFiles: z.number().int().min(0).nullable(),
+  /** Hämtningar ur förrådet i dag och i går (svensk tid). */
+  storeFetchesToday: z.number().int().min(0),
+  storeFetchBytesToday: z.number().int().min(0),
+  storeFetchesYesterday: z.number().int().min(0),
+  /** Kartlagringens totala gräns: inställningen (null = förvalet ur miljön) och förvalet i MB (null = ingen gräns). */
+  mapQuotaTotalMb: installationMapQuotaTotalMbSchema,
+  mapQuotaTotalDefaultMb: z.number().int().min(0).nullable()
 }).strict();
 
 export const superadminLimitsSchema = z.object({
   /** Installationens förval: lagring per konto i MB (null = ingen gräns) och laserrutor per månad. */
   defaultMapQuotaMb: z.number().int().min(1).nullable(),
   defaultGeoTilesPerMonth: z.number().int().min(0),
+  /** ADR-0229: förvalet för återskapbart innehåll per konto i MB. */
+  defaultRegenerableQuotaMb: z.number().int().min(1),
+  installation: superadminInstallationSchema,
   /** All kartlagring på installationen mot dess gräns (null = ingen gräns). */
   totalUsedBytes: z.number().int().min(0),
   totalLimitBytes: z.number().int().min(0).nullable(),
@@ -83,7 +113,7 @@ export const superadminLogEntrySchema = z.object({
   createdAt: instant,
   actorLabel: z.string().min(1).max(254),
   action: superadminActionKindSchema,
-  targetType: z.enum(["ACCOUNT", "EVENT", "RACE"]),
+  targetType: z.enum(["ACCOUNT", "EVENT", "RACE", "INSTALLATION"]),
   targetLabel: z.string().min(1).max(320),
   reason: z.string().min(1).max(500)
 }).strict();
@@ -107,7 +137,11 @@ export const superadminActionRequestSchema = z.discriminatedUnion("action", [
   z.object({ formatVersion: z.literal(1), action: z.literal("DELETE_ACCOUNT"), accountId: uuid, reason,
     confirmation: z.string().max(320) }).strict(),
   z.object({ formatVersion: z.literal(1), action: z.literal("SET_ACCOUNT_LIMITS"), accountId: uuid, reason,
-    mapQuotaMb: accountMapQuotaMbSchema, geoTilesPerMonth: accountGeoTilesPerMonthSchema }).strict()
+    mapQuotaMb: accountMapQuotaMbSchema, geoTilesPerMonth: accountGeoTilesPerMonthSchema,
+    /** ADR-0229; saknas (äldre sida) = oförändrad. */
+    regenerableQuotaMb: accountMapQuotaMbSchema.optional() }).strict(),
+  z.object({ formatVersion: z.literal(1), action: z.literal("SET_INSTALLATION_LIMITS"), reason,
+    cacheMaxMb: installationCacheMaxMbSchema, mapQuotaTotalMb: installationMapQuotaTotalMbSchema }).strict()
 ]);
 
 export const superadminActionResponseSchema = z.object({

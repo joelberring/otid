@@ -1,3 +1,7 @@
+import { createHash } from "node:crypto";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { archiveConnection, archiveMode, archiveSettingsProblems, memoryArchiveStore, probeArchiveStore, s3ArchiveStore, signS3 } from "../src/map-archive-store";
 import { archiveSettings } from "../src/map-archive";
@@ -41,6 +45,27 @@ describe("arkivets objektlagring", () => {
     const denied = s3ArchiveStore({ endpoint: "https://hel1.example.test", bucket: "b", region: "hel1", accessKey: "a", secretKey: "s" }, {
       fetch: (async () => new Response("<Error><Code>SignatureDoesNotMatch</Code></Error>", { status: 403 })) as unknown as typeof fetch });
     await expect(denied.put(sha, new Uint8Array([1]))).rejects.toThrow("(403 SignatureDoesNotMatch)");
+  });
+
+  it("ADR-0229: laddar upp en fil som ström med längd, och hämtar till en fil med kontrollsumma", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "otid-s3-"));
+    const bytes = Buffer.alloc(2_000_000, 9), sha = createHash("sha256").update(bytes).digest("hex");
+    await writeFile(join(dir, "in"), bytes);
+    let received: { length: string | undefined; body: number } | undefined;
+    const store = s3ArchiveStore({ endpoint: "https://hel1.example.test", bucket: "b", region: "hel1", accessKey: "a", secretKey: "s" }, {
+      fetch: (async (_url: URL, init: RequestInit) => {
+        if (init.method === "PUT") {
+          received = { length: (init.headers as Record<string, string>)["content-length"], body: (await new Response(init.body).arrayBuffer()).byteLength };
+          return new Response("", { status: 200 });
+        }
+        return new Response(bytes, { status: 200 });
+      }) as unknown as typeof fetch });
+    await store.putFile(sha, join(dir, "in"), bytes.byteLength);
+    expect(received).toEqual({ length: "2000000", body: 2_000_000 });
+    expect(await store.digest(sha)).toEqual({ byteLength: bytes.byteLength, sha256: sha });
+    expect(await store.download(sha, join(dir, "out"))).toEqual({ byteLength: bytes.byteLength, sha256: sha });
+    expect((await readFile(join(dir, "out"))).equals(bytes)).toBe(true);
+    await rm(dir, { recursive: true, force: true });
   });
 
   it("provet av anslutningen lämnar inget kvar och säger ifrån när objektet inte kommer tillbaka", async () => {

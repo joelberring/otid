@@ -14,6 +14,7 @@ import { accountRequest } from "../../lib/account-client";
 import { Button, EmptyState, Field, Notice, numeric, Section, Table } from "../ui";
 import { actionRequest, ResetLink, SuperadminActionPanel, type LimitValues, type PendingAction } from "./superadmin-action-panel";
 import { AccountStorageSection } from "../account-storage";
+import { SuperadminInstallation } from "./superadmin-installation";
 import styles from "../account-pages.module.css";
 import { raceTitle, shownRaceName } from "@o-tid/domain";
 
@@ -89,10 +90,11 @@ export function SuperadminPage() {
         return;
       }
       if (response.status === 404) { setActionError(text.notFound); await load(); return; }
-      if (response.status === 400 && pending.kind !== "CREATE_RESET_LINK" && pending.kind !== "VERIFY_EMAIL" && pending.kind !== "SET_ACCOUNT_LIMITS") { setActionError(text.ownAccount); return; }
+      if (response.status === 400 && pending.kind !== "CREATE_RESET_LINK" && pending.kind !== "VERIFY_EMAIL" && pending.kind !== "SET_ACCOUNT_LIMITS"
+        && pending.kind !== "SET_INSTALLATION_LIMITS") { setActionError(text.ownAccount); return; }
       const parsed = superadminActionResponseSchema.safeParse(response.json);
       if (response.status !== 200 || !parsed.success) { setActionError(account.genericError(response.status)); return; }
-      setDone({ section: "raceId" in pending || "eventId" in pending ? "races" : pending.kind === "SET_ACCOUNT_LIMITS" ? "limits" : "accounts",
+      setDone({ section: "raceId" in pending || "eventId" in pending ? "races" : pending.kind === "SET_ACCOUNT_LIMITS" || pending.kind === "SET_INSTALLATION_LIMITS" ? "limits" : "accounts",
         text: text.done(`${text.logAction[pending.kind]} – ${pending.label}`),
         ...(parsed.data.resetUrl && parsed.data.resetExpiresAt ? { reset: { url: parsed.data.resetUrl, expiresAt: parsed.data.resetExpiresAt } } : {}) });
       setPending(undefined);
@@ -105,10 +107,12 @@ export function SuperadminPage() {
     <SuperadminActionPanel key={`${pending.kind}-${pending.label}`} action={pending} busy={busy} error={actionError}
       onSubmit={(reason, confirmation, limits) => void perform(reason, confirmation, limits)} onCancel={() => setPending(undefined)} />;
   const mb = (bytes: number) => Math.round(bytes / (1024 * 1024));
-  const limitsAction = (account: { accountId: string; email: string; mapQuotaMb: number | null; geoTilesPerMonth: number | null }): PendingAction => ({
+  const limitsAction = (account: { accountId: string; email: string; mapQuotaMb: number | null; geoTilesPerMonth: number | null;
+    regenerableQuotaMb: number | null }): PendingAction => ({
     kind: "SET_ACCOUNT_LIMITS", accountId: account.accountId, label: account.email, mapQuotaMb: account.mapQuotaMb,
-    geoTilesPerMonth: account.geoTilesPerMonth, defaultMapQuotaMb: overview?.limits.defaultMapQuotaMb ?? null,
-    defaultGeoTilesPerMonth: overview?.limits.defaultGeoTilesPerMonth ?? 0 });
+    geoTilesPerMonth: account.geoTilesPerMonth, regenerableQuotaMb: account.regenerableQuotaMb,
+    defaultMapQuotaMb: overview?.limits.defaultMapQuotaMb ?? null, defaultGeoTilesPerMonth: overview?.limits.defaultGeoTilesPerMonth ?? 0,
+    defaultRegenerableQuotaMb: overview?.limits.defaultRegenerableQuotaMb ?? 10_240 });
 
   return <main className={styles.page}>
     <header className={styles.header}>
@@ -179,8 +183,10 @@ export function SuperadminPage() {
       </Section>
 
       <Section id="superadmin-granser" title={text.limits} help={text.limitsHelp(mb(overview.limits.totalUsedBytes),
-        overview.limits.totalLimitBytes === null ? null : mb(overview.limits.totalLimitBytes), overview.limits.defaultMapQuotaMb, overview.limits.defaultGeoTilesPerMonth)}>
-        {panel(["SET_ACCOUNT_LIMITS"])}
+        overview.limits.totalLimitBytes === null ? null : mb(overview.limits.totalLimitBytes), overview.limits.defaultMapQuotaMb, overview.limits.defaultGeoTilesPerMonth,
+        overview.limits.defaultRegenerableQuotaMb)}>
+        <SuperadminInstallation limits={overview.limits} busy={busy} onChange={start} />
+        {panel(["SET_ACCOUNT_LIMITS", "SET_INSTALLATION_LIMITS"])}
         {done?.section === "limits" && <Notice tone="ok" role="status">{done.text}</Notice>}
         {overview.limits.accounts.length === 0 ? <EmptyState title={text.limitsEmpty} /> : <Table aria-label={text.limits}>
           <thead><tr><th>{text.columns.email}</th><th>{text.columns.name}</th><th>{text.limitColumns.storage}</th><th>{text.limitColumns.tiles}</th>
@@ -194,7 +200,7 @@ export function SuperadminPage() {
               <td className={styles.nowrap}>{text.storageUse(mb(account.mapUsedBytes), account.mapLimitBytes === null ? null : mb(account.mapLimitBytes),
                 storageShare === null ? null : Math.round(storageShare * 100))}</td>
               <td className={styles.nowrap}>{text.tilesUse(account.geoTilesUsed, account.geoTilesLimit)}</td>
-              <td>{text.ownLimits(account.mapQuotaMb, account.geoTilesPerMonth)}</td>
+              <td>{text.ownLimits(account.mapQuotaMb, account.geoTilesPerMonth, account.regenerableQuotaMb)}</td>
               <td>{share >= 1 ? <span className={styles.badge} data-tone="attention">{text.overLimit}</span>
                 : share >= SUPERADMIN_NEAR_LIMIT_SHARE ? <span className={styles.badge} data-tone="attention">{text.nearLimit}</span> : null}</td>
               <td><div className={styles.rowActions}>

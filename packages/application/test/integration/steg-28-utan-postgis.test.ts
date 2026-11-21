@@ -126,6 +126,8 @@ describe("steg 28: PostgreSQL utan PostGIS", () => {
     await pool.query("ALTER TABLE user_account ADD COLUMN guest_expires_at timestamptz");
     // Kontots egna gränser (migration 0118): kolumnerna behövs för att lägga in kontot med dagens schema.
     await pool.query("ALTER TABLE user_account ADD COLUMN map_quota_mb integer, ADD COLUMN geo_tiles_per_month integer");
+    // …och gränsen för återskapbart (migration 0133, ADR-0229).
+    await pool.query("ALTER TABLE user_account ADD COLUMN regenerable_quota_mb integer");
     const { ids, cards } = await seedRace(db, pool);
     await ingest(db, ids.race, [run(cards.ada, "10:02:00", 30), run(cards.bo, "10:05:00", 41)]);
     await pool.query("DROP TABLE race_station_correction");

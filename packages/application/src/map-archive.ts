@@ -176,7 +176,8 @@ export async function restoreMapContent(tx: DbExecutor, key: { sha256: string } 
   store: ArchiveStore | null = mapArchiveStore()): Promise<Buffer | undefined> {
   const where = "sha256" in key ? sql`c.sha256 = ${key.sha256}` : sql`c.content_id = ${key.contentId}::uuid`;
   const [row] = (await tx.execute<{ sha256: string; content_id: string; byte_length: string }>(sql`select c.sha256, c.content_id, c.byte_length::text
-    from map_content c join map_content_archive a on a.sha256 = c.sha256 where ${where} and a.cold_at is not null`)).rows;
+    from map_content c join map_content_archive a on a.sha256 = c.sha256 where ${where} and a.cold_at is not null
+    and c.stored_in = 'DB'`)).rows;
   if (!row) return undefined;
   if (!store) throw new Error("Kartinnehållet ligger i arkivet, men arkivet är inte inställt (OTID_ARCHIVE_*)");
   const bytes = await store.get(row.sha256);
@@ -263,23 +264,42 @@ export async function runMapArchive(db: Database, store: ArchiveStore | null, se
       if (result.errors.length < 5) result.errors.push(error instanceof Error ? error.message : String(error));
     }
   }
-  // Beslut 7: ett innehåll som inte finns kvar raderas i arkivet först när backupens sparade kopior har gått ut.
+  const orphans = await removeArchiveOrphans(db, store, settings.orphanDays, now);
+  result.orphansRemoved = orphans.removed;
+  result.failed += orphans.errors.length;
+  for (const error of orphans.errors) if (result.errors.length < 5) result.errors.push(error);
+  return result;
+}
+
+/**
+ * Beslut 7: ett innehåll som inte finns kvar raderas i arkivet (och förrådet, ADR-0229) först när backupens sparade kopior
+ * har gått ut (`orphanDays` efter att det släpptes). Körs av arkivet och av förrådets löpare.
+ */
+export async function removeArchiveOrphans(db: Database, store: ArchiveStore, orphanDays: number, now = new Date())
+  : Promise<{ removed: number; errors: string[] }> {
   await db.execute(sql`update map_content_archive a set orphaned_at = ${now} where a.orphaned_at is null
     and not exists (select 1 from map_content c where c.sha256 = a.sha256)`);
   await db.execute(sql`update map_content_archive a set orphaned_at = null where a.orphaned_at is not null
     and exists (select 1 from map_content c where c.sha256 = a.sha256)`);
   const orphans = (await db.execute<{ sha256: string }>(sql`select sha256 from map_content_archive
-    where orphaned_at < ${new Date(now.getTime() - settings.orphanDays * 24 * HOUR)} limit 200`)).rows;
+    where orphaned_at < ${new Date(now.getTime() - orphanDays * 24 * HOUR)} limit 200`)).rows;
+  let removed = 0;
+  const errors: string[] = [];
   for (const orphan of orphans) {
     try {
-      await store.remove(orphan.sha256);
-      await db.execute(sql`delete from map_content_archive a where a.sha256 = ${orphan.sha256} and a.orphaned_at is not null
-        and not exists (select 1 from map_content c where c.sha256 = a.sha256)`);
-      result.orphansRemoved += 1;
+      // Under samma lås som storeMapContent: ett innehåll som just sparas igen (förrådet, ADR-0229) raderas inte, och det som
+      // raderas här laddas upp igen av den som sparar (den kontrollerar objektet under låset).
+      const gone = await db.transaction(async tx => {
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended('otid.map-content', 0))`);
+        const [row] = (await tx.execute(sql`delete from map_content_archive a where a.sha256 = ${orphan.sha256} and a.orphaned_at is not null
+          and not exists (select 1 from map_content c where c.sha256 = a.sha256) returning 1`)).rows;
+        if (row) await store.remove(orphan.sha256);
+        return row !== undefined;
+      });
+      if (gone) removed += 1;
     } catch (error) {
-      result.failed += 1;
-      if (result.errors.length < 5) result.errors.push(error instanceof Error ? error.message : String(error));
+      errors.push(error instanceof Error ? error.message : String(error));
     }
   }
-  return result;
+  return { removed, errors };
 }

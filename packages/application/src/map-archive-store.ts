@@ -1,4 +1,8 @@
 import { createHash, createHmac } from "node:crypto";
+import { createReadStream, createWriteStream } from "node:fs";
+import { readFile, stat, writeFile } from "node:fs/promises";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 
 /**
  * ADR-0224, PLAN.md steg L5: arkivet för vilande kartinnehåll i S3-kompatibel objektlagring (Hetzner Object Storage).
@@ -15,6 +19,30 @@ export interface ArchiveStore {
   size(sha256: string): Promise<number | undefined>;
   /** Tar bort objektet; ofarligt om det redan är borta. */
   remove(sha256: string): Promise<void>;
+  /**
+   * ADR-0229 (förrådet): laddar upp en fil på disken utan att hålla den i minnet. `byteLength` är filens storlek, som skickas
+   * som Content-Length (objektlagringen tar inte emot en ström utan längd).
+   */
+  putFile(sha256: string, path: string, byteLength: number): Promise<void>;
+  /** Hämtar objektet till filen `path` utan att hålla det i minnet; ger dess längd och sha256, eller undefined när det saknas. */
+  download(sha256: string, path: string): Promise<ObjectDigest | undefined>;
+  /** Läser objektet och räknar längd och sha256 (kontrollen efter uppladdningen), utan att spara det. */
+  digest(sha256: string): Promise<ObjectDigest | undefined>;
+}
+
+/** Ett objekts längd och kontrollsumma, räknade på det som faktiskt kom tillbaka. */
+export interface ObjectDigest { readonly byteLength: number; readonly sha256: string }
+
+/** Längd och sha256 för en ström, och valfritt en kopia till filen `path`. */
+export async function digestStream(source: AsyncIterable<Uint8Array>, path?: string): Promise<ObjectDigest> {
+  const hash = createHash("sha256");
+  let byteLength = 0;
+  const counted = async function* () {
+    for await (const chunk of source) { hash.update(chunk); byteLength += chunk.byteLength; yield chunk; }
+  };
+  if (path) await pipeline(counted, createWriteStream(path, { flags: "wx" }));
+  else for await (const chunk of counted()) void chunk;
+  return { byteLength, sha256: hash.digest("hex") };
 }
 
 export type ArchiveMode = "off" | "log" | "on";
@@ -101,14 +129,28 @@ const REQUEST_TIMEOUT_MS = 10 * 60_000;
 /** Arkivet i en S3-kompatibel objektlagring. Fel från lagringen kastas med statuskoden (aldrig nycklar i texten). */
 export function s3ArchiveStore(connection: ArchiveConnection, options: { fetch?: typeof fetch; now?: () => Date } = {}): ArchiveStore {
   const send = options.fetch ?? fetch;
-  const call = async (method: string, sha256: string, body?: Uint8Array) => {
+  /** `body` är bytes i minnet eller en fil på disken (strömmas, med längden som Content-Length). */
+  const call = async (method: string, sha256: string, body?: Uint8Array | { path: string; byteLength: number }) => {
     if (!SHA256.test(sha256)) throw new Error("Ogiltig kontrollsumma för arkivet");
     const url = new URL(`${connection.endpoint}/${connection.bucket}/map-content/${sha256}`);
     const headers = signS3({ method, url, payloadSha256: body ? sha256 : EMPTY_SHA256, region: connection.region,
       accessKey: connection.accessKey, secretKey: connection.secretKey, now: options.now?.() ?? new Date(),
       ...(body ? { headers: { "content-type": "application/octet-stream" } } : {}) });
+    if (body && !(body instanceof Uint8Array)) {
+      return send(url, { method, headers: { ...headers, "content-length": String(body.byteLength) },
+        body: Readable.toWeb(createReadStream(body.path)) as unknown as BodyInit, duplex: "half",
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) } as RequestInit);
+    }
     return send(url, { method, headers, ...(body ? { body: body as unknown as BodyInit } : {}),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+  };
+  /** GET som ström: undefined när objektet saknas. */
+  const stream = async (sha256: string): Promise<AsyncIterable<Uint8Array> | undefined> => {
+    const response = await call("GET", sha256);
+    if (response.status === 404) { await response.arrayBuffer(); return undefined; }
+    if (!response.ok) throw await failed("hämtningen", response);
+    if (!response.body) return (async function* () { /* tomt objekt */ })();
+    return Readable.fromWeb(response.body as import("node:stream/web").ReadableStream<Uint8Array>);
   };
   // Lagringens egen felkod (t.ex. SignatureDoesNotMatch, InvalidAccessKeyId, AccessDenied, NoSuchBucket) skiljer fel
   // nycklar från fel bucket; den innehåller aldrig den hemliga nyckeln.
@@ -139,6 +181,19 @@ export function s3ArchiveStore(connection: ArchiveConnection, options: { fetch?:
       const response = await call("DELETE", sha256);
       if (!response.ok && response.status !== 404) throw await failed("borttagningen", response);
       await response.arrayBuffer();
+    },
+    async putFile(sha256, path, byteLength) {
+      const response = await call("PUT", sha256, { path, byteLength });
+      if (!response.ok) throw await failed("uppladdningen", response);
+      await response.arrayBuffer();
+    },
+    async download(sha256, path) {
+      const body = await stream(sha256);
+      return body ? digestStream(body, path) : undefined;
+    },
+    async digest(sha256) {
+      const body = await stream(sha256);
+      return body ? digestStream(body) : undefined;
     }
   };
 }
@@ -164,7 +219,22 @@ export function memoryArchiveStore(): ArchiveStore & { readonly objects: Map<str
     async put(sha256, bytes) { objects.set(sha256, Buffer.from(bytes)); },
     async get(sha256) { return objects.get(sha256); },
     async size(sha256) { return objects.get(sha256)?.byteLength; },
-    async remove(sha256) { objects.delete(sha256); }
+    async remove(sha256) { objects.delete(sha256); },
+    async putFile(sha256, path, byteLength) {
+      const bytes = await readFile(path);
+      if (bytes.byteLength !== byteLength || (await stat(path)).size !== byteLength) throw new Error("Filen har fel längd");
+      objects.set(sha256, bytes);
+    },
+    async download(sha256, path) {
+      const bytes = objects.get(sha256);
+      if (!bytes) return undefined;
+      await writeFile(path, bytes, { flag: "wx" });
+      return { byteLength: bytes.byteLength, sha256: createHash("sha256").update(bytes).digest("hex") };
+    },
+    async digest(sha256) {
+      const bytes = objects.get(sha256);
+      return bytes ? { byteLength: bytes.byteLength, sha256: createHash("sha256").update(bytes).digest("hex") } : undefined;
+    }
   };
 }
 

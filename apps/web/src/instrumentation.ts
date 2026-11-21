@@ -23,6 +23,9 @@ export async function register(): Promise<void> {
   // ADR-0224 (PLAN.md steg L5): vilande laserfiler flyttas till arkivet i objektlagringen.
   const { startMapArchiveRunner } = await import("./lib/map-archive-runner");
   startMapArchiveRunner();
+  // ADR-0229 (PLAN.md steg M1): förrådet – mellanlagrets städning och släppta objekt i objektlagringen.
+  const { startMapStoreRunner } = await import("./lib/map-store-runner");
+  startMapStoreRunner();
   // ADR-0219 K5b: geo-servern hos Hetzner startas när geo-jobb väntar och raderas efter tomgång.
   const { startGeoServerRunner } = await import("./lib/geo-server-runner");
   startGeoServerRunner();

@@ -1,4 +1,4 @@
-import { mapStorageQuotaProblems, retentionSettingsProblems, serverWatchSettingsProblems } from "@o-tid/application";
+import { cacheSettingProblems, mapStorageQuotaProblems, retentionSettingsProblems, serverWatchSettingsProblems, storeModeProblems } from "@o-tid/application";
 import { mailConfiguration } from "./mail";
 import { SecurityConfigurationError, securityPolicy } from "./security-policy";
 
@@ -32,6 +32,8 @@ export function configurationProblems(environment: Partial<Record<string, string
   }
   // ADR-0189 beslut 3: kartornas kvot.
   problems.push(...mapStorageQuotaProblems(environment).map(problem => `${problem}.`));
+  // ADR-0229: förrådet och mellanlagret.
+  problems.push(...[...storeModeProblems(environment), ...cacheSettingProblems(environment)].map(problem => `${problem}.`));
   // ADR-0189 beslut 6: gallringen.
   problems.push(...retentionSettingsProblems(environment).map(problem => `${problem}.`));
   problems.push(...serverWatchSettingsProblems(environment).map(problem => `${problem}.`));

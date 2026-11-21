@@ -16,7 +16,10 @@ import { createPasswordResetToken } from "./password-reset";
 import { markAccountEmailVerified } from "./email-verification";
 import { logAction, SERVER_COMMAND_ACTOR } from "./superadmin-log";
 import { purgeRows } from "./purge";
-import { mapStorageQuota, mapStorageUsage } from "./map-content";
+import { DEFAULT_REGENERABLE_QUOTA_MB, effectiveTotalQuotaBytes, mapStorageQuota, mapStorageUsage } from "./map-content";
+import { defaultCacheMaxMb, readInstallationSettings, writeInstallationSetting } from "./installation-settings";
+import { activeMapStore, storeMode } from "./map-store";
+import { forgetMapCacheCap, mapCacheUsage, storeFetches } from "./map-cache";
 import { GEO_JOB_COUNTS, geoTilesPerMonth } from "./map-project-geo-jobs";
 import {
   authenticateUserAccountSessionForMutation,
@@ -92,9 +95,9 @@ export async function readSuperadminOverview(
     const month = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
     const MB = 1024 * 1024;
     const usage = (await tx.execute<{ id: string; email: string; display_name: string; map_quota_mb: number | null;
-      geo_tiles_per_month: number | null; bytes: string; tiles: number }>(sql`
+      geo_tiles_per_month: number | null; regenerable_quota_mb: number | null; bytes: string; tiles: number }>(sql`
       with u as (
-        select a.id, a.email, a.display_name, a.map_quota_mb, a.geo_tiles_per_month,
+        select a.id, a.email, a.display_name, a.map_quota_mb, a.geo_tiles_per_month, a.regenerable_quota_mb,
           coalesce(m.bytes, 0) as bytes, coalesce(g.tiles, 0)::int as tiles,
           coalesce(a.map_quota_mb::numeric * ${MB}, ${quota.accountBytes}::numeric) as map_limit,
           coalesce(a.geo_tiles_per_month, ${defaultTiles}::int) as tile_limit
@@ -109,10 +112,17 @@ export async function readSuperadminOverview(
         select u.*, greatest(case when map_limit > 0 then bytes / map_limit else 0 end,
           case when tile_limit > 0 then tiles::numeric / tile_limit when tiles > 0 then 1 else 0 end) as share from u
       )
-      select id, email, display_name, map_quota_mb, geo_tiles_per_month, bytes::text as bytes, tiles from s
+      select id, email, display_name, map_quota_mb, geo_tiles_per_month, regenerable_quota_mb, bytes::text as bytes, tiles from s
       where share >= ${SUPERADMIN_NEAR_LIMIT_SHARE} or map_quota_mb is not null or geo_tiles_per_month is not null
+        or regenerable_quota_mb is not null
       order by share desc, email limit ${SUPERADMIN_LIST_LIMIT}`)).rows;
     const total = await mapStorageUsage(tx, null);
+    // ADR-0229: förrådet och mellanlagret.
+    const totalLimit = await effectiveTotalQuotaBytes(tx, quota);
+    const settings = await readInstallationSettings(tx);
+    const cache = await mapCacheUsage(now);
+    const fetches = await storeFetches(tx, now);
+    const mode = storeMode(environment) === "off" ? "off" : activeMapStore(environment) ? "on" : "incomplete";
 
     return { status: "ok", response: superadminOverviewSchema.parse({
       formatVersion: 1,
@@ -121,7 +131,7 @@ export async function readSuperadminOverview(
         createdAt: account.createdAt.toISOString(), lastLoginAt: account.lastLoginAt?.toISOString() ?? null,
         eventCount: count, blocked: account.blockedAt !== null, superadmin: account.isSuperadmin,
         emailVerified: account.emailVerifiedAt !== null,
-        mapQuotaMb: account.mapQuotaMb, geoTilesPerMonth: account.geoTilesPerMonth
+        mapQuotaMb: account.mapQuotaMb, geoTilesPerMonth: account.geoTilesPerMonth, regenerableQuotaMb: account.regenerableQuotaMb
       })),
       accountTotal: accountTotal?.count ?? 0,
       races: races.map(({ race, eventName, ownerEmail: owner }) => ({
@@ -134,11 +144,20 @@ export async function readSuperadminOverview(
       limits: {
         defaultMapQuotaMb: quota.accountBytes === null ? null : Math.round(quota.accountBytes / MB),
         defaultGeoTilesPerMonth: defaultTiles,
-        totalUsedBytes: total.totalBytes, totalLimitBytes: quota.totalBytes,
+        defaultRegenerableQuotaMb: DEFAULT_REGENERABLE_QUOTA_MB,
+        installation: {
+          storeMode: mode, cacheMaxMb: settings.cacheMaxMb, cacheMaxMbDefault: defaultCacheMaxMb(environment),
+          cacheUsedBytes: cache?.usedBytes ?? null, cacheFiles: cache?.files ?? null,
+          storeFetchesToday: fetches.today, storeFetchBytesToday: fetches.todayBytes, storeFetchesYesterday: fetches.yesterday,
+          mapQuotaTotalMb: settings.mapQuotaTotalMb,
+          mapQuotaTotalDefaultMb: quota.totalBytes === null ? null : Math.round(quota.totalBytes / MB)
+        },
+        totalUsedBytes: total.totalBytes, totalLimitBytes: totalLimit,
         accounts: usage.map(row => ({
           accountId: row.id, email: row.email, displayName: row.display_name, mapUsedBytes: Number(row.bytes),
           mapLimitBytes: row.map_quota_mb != null ? row.map_quota_mb * MB : quota.accountBytes, mapQuotaMb: row.map_quota_mb,
-          geoTilesUsed: row.tiles, geoTilesLimit: row.geo_tiles_per_month ?? defaultTiles, geoTilesPerMonth: row.geo_tiles_per_month
+          geoTilesUsed: row.tiles, geoTilesLimit: row.geo_tiles_per_month ?? defaultTiles, geoTilesPerMonth: row.geo_tiles_per_month,
+          regenerableQuotaMb: row.regenerable_quota_mb
         }))
       }
     }) } as const;
@@ -183,6 +202,19 @@ export async function performSuperadminAction(
       return { status: "done", action: "DELETE_EVENT" };
     }
 
+    if (action.action === "SET_INSTALLATION_LIMITS") {
+      // ADR-0229 (ägaren 2026-11-21): mellanlagrets tak och kartlagringens totala gräns; null = förvalet. Loggen säger från och till.
+      const before = await readInstallationSettings(tx);
+      await writeInstallationSetting(tx, "cache_max_mb", action.cacheMaxMb, auth.principal.accountId, now);
+      await writeInstallationSetting(tx, "map_quota_total_mb", action.mapQuotaTotalMb, auth.principal.accountId, now);
+      forgetMapCacheCap();
+      const shown = (value: number | null) => value === null ? "förval" : value === 0 ? "ingen gräns" : `${value} MB`;
+      const change = `Mellanlager ${shown(before.cacheMaxMb)} → ${shown(action.cacheMaxMb)}, total kartlagring ${shown(before.mapQuotaTotalMb)} → ${shown(action.mapQuotaTotalMb)}`;
+      await logAction(tx, { ...actor, action: action.action, targetType: "INSTALLATION", targetId: "00000000-0000-0000-0000-000000000000",
+        targetLabel: "Installationen", reason: `${action.reason} (${change})`.slice(0, 500) }, now);
+      return { status: "done", action: action.action };
+    }
+
     const [account] = await tx.select().from(schema.userAccounts).where(eq(schema.userAccounts.id, action.accountId)).for("update");
     if (!account) return { status: "not-found" };
     // Det egna kontot spärras eller tas bort under Mitt konto, inte här. Gränserna får superadmin sätta också på sitt eget.
@@ -215,9 +247,12 @@ export async function performSuperadminAction(
       case "SET_ACCOUNT_LIMITS": {
         // Ägaren 2026-11-13: egna gränser för kartlagring och laserrutor; null = installationens förval. Loggen säger från och till.
         const shown = (value: number | null, unit: string) => value === null ? "förval" : `${value} ${unit}`;
-        await tx.update(schema.userAccounts).set({ mapQuotaMb: action.mapQuotaMb, geoTilesPerMonth: action.geoTilesPerMonth })
-          .where(eq(schema.userAccounts.id, account.id));
-        const change = `Lagring ${shown(account.mapQuotaMb, "MB")} → ${shown(action.mapQuotaMb, "MB")}, laserrutor ${shown(account.geoTilesPerMonth, "per månad")} → ${shown(action.geoTilesPerMonth, "per månad")}`;
+        // ADR-0229: gränsen för återskapbart innehåll; saknas fältet (äldre sida) är den oförändrad.
+        const regenerable = action.regenerableQuotaMb === undefined ? account.regenerableQuotaMb : action.regenerableQuotaMb;
+        await tx.update(schema.userAccounts).set({ mapQuotaMb: action.mapQuotaMb, geoTilesPerMonth: action.geoTilesPerMonth,
+          regenerableQuotaMb: regenerable }).where(eq(schema.userAccounts.id, account.id));
+        const change = `Lagring ${shown(account.mapQuotaMb, "MB")} → ${shown(action.mapQuotaMb, "MB")}, laserrutor ${shown(account.geoTilesPerMonth, "per månad")} → ${shown(action.geoTilesPerMonth, "per månad")}` +
+          (regenerable === account.regenerableQuotaMb ? "" : `, återskapbart ${shown(account.regenerableQuotaMb, "MB")} → ${shown(regenerable, "MB")}`);
         await logAction(tx, { ...actor, ...target, action: action.action, reason: `${action.reason} (${change})`.slice(0, 500) }, now);
         return { status: "done", action: action.action };
       }

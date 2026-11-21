@@ -36,6 +36,9 @@ const SQL_ONLY_TABLES: Record<string, string> = {
   map_content_part: "kartinnehållets delar, rå SQL i map-content.ts",
   // Arkivet för vilande kartinnehåll (ADR-0224, migration 0123) läses och skrivs med rå SQL i application/src/map-archive.ts.
   map_content_archive: "arkivets rader, rå SQL i map-archive.ts",
+  // ADR-0229 (migration 0133): installationens inställningar och förrådets hämtningar per dygn, rå SQL.
+  installation_setting: "installationens inställningar, rå SQL i installation-settings.ts",
+  map_store_fetch_day: "förrådets hämtningar per dygn, rå SQL i map-cache.ts",
   // Förkortad bana med klassbyte: ingen kod läser eller skriver tabellerna sedan omstarten; Drizzle-tabellerna togs bort i C1
   // (städrundan 2026-11-07). SQL-tabellerna står kvar tills en migration tar bort dem (tvåstegsregeln).
   shortened_course_class_transfer: "oanvänd sedan omstarten; tas bort med en senare migration",

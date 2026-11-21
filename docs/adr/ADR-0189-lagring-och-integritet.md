@@ -92,3 +92,8 @@ två valfria egna gränser (migration 0118): `map_quota_mb` för kartfiler och `
 installationens förval (`OTID_MAP_QUOTA_ACCOUNT_MB`, `OTID_GEO_TILES_PER_MONTH`). Bara superadmin sätter dem
 (`SET_ACCOUNT_LIMITS`, loggas i `superadmin_action` med skäl och från/till). En sänkt gräns tar inte bort något; kontot kan bara
 inte spara mer. Installationens totala gräns (`OTID_MAP_QUOTA_TOTAL_MB`) gäller som förut över alla konton.
+
+## Tillägg 2026-11-21 – högre förval och gränser på superadminsidan (ADR-0229)
+
+Förvalet per konto (`OTID_MAP_QUOTA_ACCOUNT_MB`) är 5120 MB (ägarens beslut). Installationens totala gräns kan ändras på
+superadminsidan (`installation_setting`, går före `.env`), och med förrådet påslaget är dess förval 1 048 576 MB.

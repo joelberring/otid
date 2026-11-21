@@ -62,9 +62,21 @@ uuid_ok() { printf '%s' "$1" | grep -Eq '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0
 
 # ADR-0224 (PLAN.md steg L5): kartinnehåll som ligger i arkivet (objektlagringen) har inga delar här. Det är väntat: det
 # sparas inte, räknas inte som saknat och hämtas ur arkivet när det läses. Tom lista om tabellen inte finns (äldre databas).
+# ADR-0229 (PLAN.md steg M1): innehåll i förrådet (map_content.stored_in = 'STORE') likaså; det ligger bara i objektlagringen.
 cold_contents() {
   [ "$(psql -X -Atq -c "select to_regclass('map_content_archive') is not null" 2>/dev/null)" = "t" ] || return 0
-  psql -X -Atq -c "select c.content_id from map_content c join map_content_archive a on a.sha256 = c.sha256 where a.cold_at is not null"
+  if [ "$(psql -X -Atq -c "select count(*) from information_schema.columns where table_name = 'map_content' and column_name = 'stored_in'" 2>/dev/null)" = "1" ]; then
+    psql -X -Atq -c "select c.content_id from map_content c where c.stored_in = 'STORE'
+      or exists (select 1 from map_content_archive a where a.sha256 = c.sha256 and a.cold_at is not null)"
+  else
+    psql -X -Atq -c "select c.content_id from map_content c join map_content_archive a on a.sha256 = c.sha256 where a.cold_at is not null"
+  fi
+}
+
+# ADR-0229: innehållen som ligger i förrådet (tom lista före migration 0133).
+store_contents() {
+  [ "$(psql -X -Atq -c "select count(*) from information_schema.columns where table_name = 'map_content' and column_name = 'stored_in'" 2>/dev/null)" = "1" ] || return 0
+  psql -X -Atq -c "select content_id from map_content where stored_in = 'STORE'"
 }
 
 # Innehållen i databasen som har sina delar här (allt utom det som ligger i arkivet).
@@ -127,12 +139,14 @@ prune_contents() {
 # ADR-0216: efter en pg_restore läses kartinnehållet in för varje innehåll i databasen som saknar sina delar.
 restore_map_content() {
   loaded=0; missing=0; archived=0
-  cold="$dir/map-content/.cold.tmp"
-  cold_contents > "$cold"
+  cold="$dir/map-content/.cold.tmp"; stored="$dir/map-content/.store.tmp"
+  cold_contents > "$cold"; store_contents > "$stored"
   for id in $(psql -X -Atq -v ON_ERROR_STOP=1 -c "select c.content_id from map_content c
       where not exists (select 1 from map_content_part p where p.content_id = c.content_id)"); do
     file="$dir/map-content/$id.copy"
     # ADR-0224: innehåll i arkivet hämtas därifrån när det läses (en sparad kopia läses ändå in, den skadar inte).
+    # ADR-0229: innehåll i förrådet läses aldrig in här (det ligger bara i objektlagringen).
+    if grep -qxF "$id" "$stored"; then archived=$((archived + 1)); continue; fi
     if [ ! -s "$file" ] && grep -qxF "$id" "$cold"; then archived=$((archived + 1)); continue; fi
     if [ -s "$file" ] && psql -X -q -v ON_ERROR_STOP=1 -c "\\copy map_content_part (content_id, part, data, created_at) from '$file' with (format binary)"; then
       loaded=$((loaded + 1))
@@ -140,8 +154,8 @@ restore_map_content() {
       missing=$((missing + 1)); echo "Kartinnehåll saknas: $id" >&2
     fi
   done
-  rm -f "$cold"
-  echo "Kartinnehåll inläst: $loaded, saknas: $missing, i arkivet: $archived."
+  rm -f "$cold" "$stored"
+  echo "Kartinnehåll inläst: $loaded, saknas: $missing, i arkivet eller förrådet: $archived."
   [ "$missing" -eq 0 ]
 }
 

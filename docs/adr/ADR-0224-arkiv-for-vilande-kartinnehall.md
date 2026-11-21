@@ -69,3 +69,10 @@ den som kör många körningar i följd. Därför, för laserkörningars resulta
 6. Arkivets rad (`map_content_archive`, migration 0123) har ingen främmande nyckel till innehållet, så att objektet kan
    raderas först 35 dygn efter att innehållet släppts. Objektlagringen anropas med egen SigV4-signering (inget beroende).
 7. Arkiverat innehåll räknas tills vidare fullt mot kontots gräns (den öppna frågan står kvar till L6).
+
+## Tillägg 2026-11-21: arkivet blir förrådet (ADR-0229)
+
+Ägaren: objektlagringen blir förrådet för allt kartinnehåll och servern ett mellanlager. Med `OTID_STORE_MODE=on` sparas nytt
+innehåll direkt där (samma bucket och nycklar); varje sådant innehåll har en rad här med `cold_at` satt, så att beslut 7
+(radering efter backupens tid) gäller också det. `restoreMapContent` hämtar bara innehåll med `stored_in = 'DB'` tillbaka
+till databasen. Reglerna för laserkörningar ovan gäller tills befintligt innehåll flyttats (PLAN.md steg M3).

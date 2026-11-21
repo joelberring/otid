@@ -16,9 +16,13 @@ export type PendingAction =
   | { kind: "DELETE_ACCOUNT"; accountId: string; label: string; confirm: string; ownedEvents: number }
   /** Ägaren 2026-11-13: kontots egna gränser; fälten fylls med de nuvarande och förvalen visas i etiketterna. */
   | { kind: "SET_ACCOUNT_LIMITS"; accountId: string; label: string; mapQuotaMb: number | null; geoTilesPerMonth: number | null;
-      defaultMapQuotaMb: number | null; defaultGeoTilesPerMonth: number };
+      regenerableQuotaMb: number | null; defaultMapQuotaMb: number | null; defaultGeoTilesPerMonth: number; defaultRegenerableQuotaMb: number }
+  /** ADR-0229: installationens gränser (mellanlagrets tak och kartlagringens totala gräns). */
+  | { kind: "SET_INSTALLATION_LIMITS"; label: string; cacheMaxMb: number | null; cacheMaxMbDefault: number; mapQuotaTotalMb: number | null;
+      mapQuotaTotalDefaultMb: number | null };
 
-export interface LimitValues { mapQuotaMb: number | null; geoTilesPerMonth: number | null }
+export interface LimitValues { mapQuotaMb: number | null; geoTilesPerMonth: number | null; regenerableQuotaMb: number | null;
+  cacheMaxMb: number | null; mapQuotaTotalMb: number | null }
 /** Fältets text som gräns: tomt = förvalet (null); annars ett heltal inom gränserna, eller undefined om det inte går att tolka. */
 function limitValue(text: string, min: number, max: number): number | null | undefined {
   const trimmed = text.trim();
@@ -31,7 +35,9 @@ function limitValue(text: string, min: number, max: number): number | null | und
 export function actionRequest(action: PendingAction, reason: string, confirmation: string, limits?: LimitValues): SuperadminActionRequest {
   switch (action.kind) {
     case "SET_ACCOUNT_LIMITS": return { formatVersion: 1, action: action.kind, accountId: action.accountId, reason,
-      mapQuotaMb: limits?.mapQuotaMb ?? null, geoTilesPerMonth: limits?.geoTilesPerMonth ?? null };
+      mapQuotaMb: limits?.mapQuotaMb ?? null, geoTilesPerMonth: limits?.geoTilesPerMonth ?? null, regenerableQuotaMb: limits?.regenerableQuotaMb ?? null };
+    case "SET_INSTALLATION_LIMITS": return { formatVersion: 1, action: action.kind, reason,
+      cacheMaxMb: limits?.cacheMaxMb ?? null, mapQuotaTotalMb: limits?.mapQuotaTotalMb ?? null };
     case "HIDE_RACE": case "UNHIDE_RACE": return { formatVersion: 1, action: action.kind, raceId: action.raceId, reason };
     case "DELETE_EVENT": return { formatVersion: 1, action: action.kind, eventId: action.eventId, reason, confirmation };
     case "DELETE_ACCOUNT": return { formatVersion: 1, action: action.kind, accountId: action.accountId, reason, confirmation };
@@ -51,30 +57,43 @@ export function SuperadminActionPanel({ action, busy, error, onSubmit, onCancel 
   useEffect(() => { heading.current?.focus(); }, [action]);
   const confirm = "confirm" in action ? action.confirm : undefined;
   const destructive = action.kind === "DELETE_EVENT" || action.kind === "DELETE_ACCOUNT";
-  const [mapQuota, setMapQuota] = useState(action.kind === "SET_ACCOUNT_LIMITS" ? action.mapQuotaMb?.toString() ?? "" : "");
-  const [geoTiles, setGeoTiles] = useState(action.kind === "SET_ACCOUNT_LIMITS" ? action.geoTilesPerMonth?.toString() ?? "" : "");
-  const limits = action.kind === "SET_ACCOUNT_LIMITS"
-    ? { mapQuotaMb: limitValue(mapQuota, 1, 1_000_000), geoTilesPerMonth: limitValue(geoTiles, 0, 100_000) } : undefined;
-  const limitsValid = !limits || (limits.mapQuotaMb !== undefined && limits.geoTilesPerMonth !== undefined);
+  const account = action.kind === "SET_ACCOUNT_LIMITS" ? action : undefined;
+  const installation = action.kind === "SET_INSTALLATION_LIMITS" ? action : undefined;
+  const [mapQuota, setMapQuota] = useState(account?.mapQuotaMb?.toString() ?? "");
+  const [geoTiles, setGeoTiles] = useState(account?.geoTilesPerMonth?.toString() ?? "");
+  const [regenerable, setRegenerable] = useState(account?.regenerableQuotaMb?.toString() ?? "");
+  const [cacheMax, setCacheMax] = useState(installation?.cacheMaxMb?.toString() ?? "");
+  const [totalQuota, setTotalQuota] = useState(installation?.mapQuotaTotalMb?.toString() ?? "");
+  const values = account ? { mapQuotaMb: limitValue(mapQuota, 1, 1_000_000), geoTilesPerMonth: limitValue(geoTiles, 0, 100_000),
+    regenerableQuotaMb: limitValue(regenerable, 1, 1_000_000), cacheMaxMb: null, mapQuotaTotalMb: null }
+    : installation ? { mapQuotaMb: null, geoTilesPerMonth: null, regenerableQuotaMb: null, cacheMaxMb: limitValue(cacheMax, 100, 10_000_000),
+      mapQuotaTotalMb: limitValue(totalQuota, 0, 100_000_000) } : undefined;
+  const limitsValid = !values || Object.values(values).every(value => value !== undefined);
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (!limitsValid) return;
-    onSubmit(reason.trim(), confirmation, limits ? { mapQuotaMb: limits.mapQuotaMb ?? null, geoTilesPerMonth: limits.geoTilesPerMonth ?? null } : undefined);
+    onSubmit(reason.trim(), confirmation, values as LimitValues | undefined);
   };
+  const numberField = (label: string, value: string, set: (value: string) => void, max: number, invalid: boolean) =>
+    <Field label={label}>
+      <input value={value} inputMode="numeric" maxLength={String(max).length} disabled={busy} aria-invalid={invalid}
+        onChange={event => set(event.target.value)} />
+    </Field>;
   return <form className={styles.panel} onSubmit={submit} aria-labelledby="superadmin-action-title">
     <h3 id="superadmin-action-title" ref={heading} tabIndex={-1}>{text.confirmTitle[action.kind]}</h3>
     <dl className={styles.facts}><dt>{text.target}</dt><dd>{action.label}</dd></dl>
     <p>{text.confirmHelp[action.kind]}</p>
     {action.kind === "DELETE_ACCOUNT" && action.ownedEvents > 0 && <Notice tone="attention">{text.ownedEvents(action.ownedEvents)}</Notice>}
-    {action.kind === "SET_ACCOUNT_LIMITS" && <>
-      <Field label={text.mapQuotaField(action.defaultMapQuotaMb)}>
-        <input value={mapQuota} inputMode="numeric" maxLength={7} disabled={busy} aria-invalid={limits?.mapQuotaMb === undefined}
-          onChange={event => setMapQuota(event.target.value)} />
-      </Field>
-      <Field label={text.geoTilesField(action.defaultGeoTilesPerMonth)}>
-        <input value={geoTiles} inputMode="numeric" maxLength={6} disabled={busy} aria-invalid={limits?.geoTilesPerMonth === undefined}
-          onChange={event => setGeoTiles(event.target.value)} />
-      </Field>
+    {account && <>
+      {numberField(text.mapQuotaField(account.defaultMapQuotaMb), mapQuota, setMapQuota, 1_000_000, values?.mapQuotaMb === undefined)}
+      {numberField(text.regenerableQuotaField(account.defaultRegenerableQuotaMb), regenerable, setRegenerable, 1_000_000,
+        values?.regenerableQuotaMb === undefined)}
+      {numberField(text.geoTilesField(account.defaultGeoTilesPerMonth), geoTiles, setGeoTiles, 100_000, values?.geoTilesPerMonth === undefined)}
+    </>}
+    {installation && <>
+      {numberField(text.cacheMaxField(installation.cacheMaxMbDefault), cacheMax, setCacheMax, 10_000_000, values?.cacheMaxMb === undefined)}
+      {numberField(text.totalQuotaField(installation.mapQuotaTotalDefaultMb), totalQuota, setTotalQuota, 100_000_000,
+        values?.mapQuotaTotalMb === undefined)}
     </>}
     <Field label={text.reason}>
       <input value={reason} maxLength={500} required disabled={busy} onChange={event => setReason(event.target.value)} />

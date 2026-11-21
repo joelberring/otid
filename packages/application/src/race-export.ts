@@ -11,6 +11,7 @@ import { RACE_BACKUP_TABLES } from "./race-backup-tables";
 import { loadBackupCatalog, quoteIdentifier, remapDeep } from "./race-backup-catalog";
 import { writeZip, type ZipEntry } from "./race-backup-zip";
 import { sha256Hex } from "./serialization";
+import { readMapContent } from "./map-content";
 import { clubSourcedInContext } from "./club-invite";
 
 /**
@@ -58,10 +59,19 @@ export async function exportRaceAsAdmin(db: Database, input: Omit<RaceSessionPro
       // ADR-0189: innehåll i lagret läses ut som fil, precis som innehåll i den gamla kolumnen.
       const binaryValue = (name: string) => table.stored?.[name]
         ? `coalesce(t.${quoteIdentifier(name)}, otid_map_content_bytes(t.${quoteIdentifier(table.stored[name])}))` : `t.${quoteIdentifier(name)}`;
+      // ADR-0229: innehåll i förrådet har inga delar i databasen; referensen läses också och innehållet hämtas därifrån.
+      const storedRef = (name: string) => table.stored?.[name] ? `t.${quoteIdentifier(table.stored[name])}` : "null::text";
       const query = sql.join([sql.raw(`select to_jsonb(t)${removed} as row${binary.map((column, index) =>
-        `, ${binaryValue(column.name)} as b${index}`).join("")} from ${quoteIdentifier(table.name)} t where `),
+        `, ${binaryValue(column.name)} as b${index}, ${storedRef(column.name)} as s${index}`).join("")} from ${quoteIdentifier(table.name)} t where `),
       table.scope(raceId, eventId), sql.raw(order)]);
-      const rows = (await tx.execute<Record<string, unknown> & { row: Row }>(query)).rows.map(result => {
+      const results = (await tx.execute<Record<string, unknown> & { row: Row }>(query)).rows;
+      for (const result of results) for (const [index] of binary.entries()) {
+        const ref = result[`s${index}`];
+        if ((result[`b${index}`] === null || result[`b${index}`] === undefined) && typeof ref === "string") {
+          result[`b${index}`] = await readMapContent(tx, ref) ?? null;
+        }
+      }
+      const rows = results.map(result => {
         const row = result.row;
         binary.forEach((column, index) => {
           const value = result[`b${index}`];

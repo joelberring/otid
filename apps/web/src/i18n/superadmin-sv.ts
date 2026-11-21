@@ -29,19 +29,19 @@ export const superadminSv = {
     unverified: "Obekräftad adress" },
   action: {
     HIDE_RACE: "Dölj", UNHIDE_RACE: "Visa", DELETE_EVENT: "Ta bort", BLOCK_ACCOUNT: "Spärra", UNBLOCK_ACCOUNT: "Släpp spärr",
-    DELETE_ACCOUNT: "Ta bort", CREATE_RESET_LINK: "Återställningslänk", VERIFY_EMAIL: "Bekräfta adressen", SET_ACCOUNT_LIMITS: "Gränser",
+    DELETE_ACCOUNT: "Ta bort", CREATE_RESET_LINK: "Återställningslänk", VERIFY_EMAIL: "Bekräfta adressen", SET_ACCOUNT_LIMITS: "Gränser", SET_INSTALLATION_LIMITS: "Ändra",
     GRANT_SUPERADMIN: "Gav superadmin", REVOKE_SUPERADMIN: "Tog bort superadmin"
   },
   logAction: {
     HIDE_RACE: "Dolde tävling", UNHIDE_RACE: "Visade tävling", DELETE_EVENT: "Tog bort tävling", BLOCK_ACCOUNT: "Spärrade konto",
     UNBLOCK_ACCOUNT: "Släppte spärr", DELETE_ACCOUNT: "Tog bort konto", CREATE_RESET_LINK: "Skapade återställningslänk",
-    VERIFY_EMAIL: "Bekräftade adress", SET_ACCOUNT_LIMITS: "Ändrade gränser", GRANT_SUPERADMIN: "Gav superadmin", REVOKE_SUPERADMIN: "Tog bort superadmin"
+    VERIFY_EMAIL: "Bekräftade adress", SET_ACCOUNT_LIMITS: "Ändrade gränser", SET_INSTALLATION_LIMITS: "Ändrade installationens gränser", GRANT_SUPERADMIN: "Gav superadmin", REVOKE_SUPERADMIN: "Tog bort superadmin"
   },
   confirmTitle: {
     HIDE_RACE: "Dölj tävlingen från de publika sidorna", UNHIDE_RACE: "Visa tävlingen på de publika sidorna igen",
     DELETE_EVENT: "Ta bort tävlingen med all data", BLOCK_ACCOUNT: "Spärra kontot", UNBLOCK_ACCOUNT: "Släpp spärren",
     DELETE_ACCOUNT: "Ta bort kontot", CREATE_RESET_LINK: "Skapa återställningslänk", VERIFY_EMAIL: "Bekräfta kontots e-postadress",
-    SET_ACCOUNT_LIMITS: "Ändra kontots gränser"
+    SET_ACCOUNT_LIMITS: "Ändra kontots gränser", SET_INSTALLATION_LIMITS: "Ändra installationens gränser"
   },
   confirmHelp: {
     HIDE_RACE: "Startlistor, resultat och sträcktider slutar synas för besökare. Arrangören ser tävlingen som vanligt.",
@@ -52,25 +52,46 @@ export const superadminSv = {
     DELETE_ACCOUNT: "Kontot och tävlingarna det äger tas bort. Det går inte att ångra.",
     CREATE_RESET_LINK: "Länken visas en gång. Ge den till kontots ägare; den gäller i en timme och kan användas en gång.",
     VERIFY_EMAIL: "Gör det bara om du vet att adressen är personens egen och att personen själv har valt kontots lösenord (till exempel om mejlet aldrig kommer fram). Behörigheter som andra gett adressen gäller sedan direkt. Lösenordet ändras inte; är du osäker, skapa en återställningslänk i stället.",
-    SET_ACCOUNT_LIMITS: "Gränserna gäller bara det här kontot. Lämna ett fält tomt för att kontot ska följa förvalet. En sänkt gräns tar inte bort något; kontot kan bara inte spara mer förrän det ligger under gränsen."
+    SET_ACCOUNT_LIMITS: "Gränserna gäller bara det här kontot. Lämna ett fält tomt för att kontot ska följa förvalet. En sänkt gräns tar inte bort något; kontot kan bara inte spara mer förrän det ligger under gränsen.",
+    SET_INSTALLATION_LIMITS: "Mellanlagret är kopian på serverns disk av det som ligger i förrådet; blir det fullt tas det som använts minst nyligen bort (det finns kvar i förrådet). Totalgränsen gäller all kartlagring på installationen (0 = ingen gräns). Lämna ett fält tomt för förvalet."
   },
   ownedEvents: (count: number) => count === 1 ? "Kontot äger 1 tävling, som också tas bort." : `Kontot äger ${count} tävlingar, som också tas bort.`,
   limits: "Lagring och laserrutor",
-  limitsHelp: (usedMb: number, limitMb: number | null, defaultMb: number | null, defaultTiles: number) =>
-    `Kartfiler på servern: ${usedMb} MB${limitMb === null ? "" : ` av ${limitMb} MB`}. Förval per konto: ${defaultMb === null ? "ingen gräns" : `${defaultMb} MB`} lagring och ${defaultTiles} laserrutor i månaden. Listan visar konton som använt minst 70 % av en gräns och konton med egna gränser, de som ligger närmast gränsen först.`,
+  limitsHelp: (usedMb: number, limitMb: number | null, defaultMb: number | null, defaultTiles: number, defaultRegenerableMb: number) =>
+    `Kartfiler: ${usedMb} MB${limitMb === null ? "" : ` av ${limitMb} MB`}. Förval per konto: ${defaultMb === null ? "ingen gräns" : `${defaultMb} MB`} lagring för eget material, ${defaultRegenerableMb} MB för återskapbart och ${defaultTiles} laserrutor i månaden. Listan visar konton som använt minst 70 % av en gräns och konton med egna gränser, de som ligger närmast gränsen först.`,
   limitsEmpty: "Inget konto är nära sin gräns och inget har egna gränser.",
   limitColumns: { storage: "Kartlagring", tiles: "Laserrutor i månaden", own: "Egna gränser" },
   storageUse: (usedMb: number, limitMb: number | null, percent: number | null) =>
     limitMb === null ? `${usedMb} MB (ingen gräns)` : `${usedMb} av ${limitMb} MB (${percent} %)`,
   tilesUse: (used: number, limit: number) => `${used} av ${limit}`,
-  ownLimits: (mapQuotaMb: number | null, tiles: number | null) =>
-    mapQuotaMb === null && tiles === null ? "Förval" : [mapQuotaMb === null ? null : `${mapQuotaMb} MB`, tiles === null ? null : `${tiles} rutor`].filter(Boolean).join(", "),
+  ownLimits: (mapQuotaMb: number | null, tiles: number | null, regenerableMb: number | null = null) =>
+    mapQuotaMb === null && tiles === null && regenerableMb === null ? "Förval" : [mapQuotaMb === null ? null : `${mapQuotaMb} MB`,
+      regenerableMb === null ? null : `${regenerableMb} MB återskapbart`, tiles === null ? null : `${tiles} rutor`].filter(Boolean).join(", "),
   showStorage: "Visa lagring",
   storageOf: (email: string) => `Lagring för ${email}`,
   nearLimit: "Nära gränsen",
   overLimit: "Över gränsen",
   mapQuotaField: (defaultMb: number | null) => `Kartlagring i MB (tomt = förvalet${defaultMb === null ? ", ingen gräns" : ` ${defaultMb}`})`,
   geoTilesField: (defaultTiles: number) => `Laserrutor per månad (tomt = förvalet ${defaultTiles})`,
+  regenerableQuotaField: (defaultMb: number) => `Återskapbart i MB, till exempel laserkörningar och hämtade underlag (tomt = förvalet ${defaultMb})`,
+  cacheMaxField: (defaultMb: number) => `Mellanlagrets tak i MB (tomt = förvalet ${defaultMb})`,
+  totalQuotaField: (defaultMb: number | null) => `Total kartlagring i MB, 0 = ingen gräns (tomt = förvalet${defaultMb === null ? ", ingen gräns" : ` ${defaultMb}`})`,
+  installation: {
+    title: "Installationen",
+    label: "Installationen",
+    store: "Förrådet",
+    storeMode: { off: "Av: kartinnehållet sparas i databasen", on: "På: nytt kartinnehåll sparas i objektlagringen",
+      incomplete: "Påslaget men inte i bruk (uppgifterna till objektlagringen eller mellanlagret saknas; se loggen)" },
+    cache: "Mellanlagret",
+    cacheUse: (usedMb: number | null, capMb: number, files: number | null, isDefault: boolean) =>
+      `${usedMb === null ? "okänt" : `${usedMb} MB`} av ${capMb} MB${isDefault ? " (förval)" : ""}${files === null ? "" : `, ${files} filer`}`,
+    fetches: "Hämtningar ur förrådet",
+    fetchesUse: (today: number, todayMb: number, yesterday: number) => `${today} i dag (${todayMb} MB), ${yesterday} i går`,
+    total: "Total kartlagring",
+    totalUse: (usedMb: number, limitMb: number | null, isDefault: boolean) =>
+      `${usedMb} MB${limitMb === null ? " (ingen gräns)" : ` av ${limitMb} MB`}${isDefault ? " (förval)" : ""}`,
+    change: "Ändra installationens gränser"
+  },
   target: "Gäller",
   reason: "Skäl (loggas)",
   confirmName: (name: string) => `Skriv tävlingens namn, ${name}, för att bekräfta`,

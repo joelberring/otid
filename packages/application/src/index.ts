@@ -98,7 +98,11 @@ export {
 export type { MapContentInput, MapQuotaExceeded, MapStorageQuota, StagedMapContent, StageResult } from "./map-content";
 export { archiveConnection, archiveMode, archiveSettingsProblems, mapArchiveStore, memoryArchiveStore, probeArchiveStore, s3ArchiveStore, setMapArchiveStore, signS3 } from "./map-archive-store";
 export type { ArchiveConnection, ArchiveMode, ArchiveStore } from "./map-archive-store";
-export { archiveNumberProblems, archiveSettings, planMapArchive, restoreMapContent, runMapArchive } from "./map-archive";
+export { archiveNumberProblems, archiveSettings, planMapArchive, removeArchiveOrphans, restoreMapContent, runMapArchive } from "./map-archive";
+export { activeMapStore, setMapStoreMode, storeMode, storeModeProblems } from "./map-store";
+export type { StoreMode } from "./map-store";
+export { mapCacheCapBytes, mapCacheDir, setMapCacheDir, startMapCacheSweep, sweepMapCache, usableMapCacheDir } from "./map-cache";
+export { cacheSettingProblems } from "./installation-settings";
 export type { ArchiveCandidate, ArchiveRule, ArchiveRunResult, ArchiveSettings } from "./map-archive";
 export { ANONYMOUS_FAMILY_NAME, ANONYMOUS_GIVEN_NAME, anonymizeEntries } from "./anonymization";
 export {

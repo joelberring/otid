@@ -203,6 +203,12 @@ services:
       OTID_ARCHIVE_RUN_MB: ${OTID_ARCHIVE_RUN_MB:-}
       OTID_ARCHIVE_MIN_MB: ${OTID_ARCHIVE_MIN_MB:-}
       OTID_MAP_QUOTA_TOTAL_MB: ${OTID_MAP_QUOTA_TOTAL_MB:-}
+      # ADR-0229 (PLAN.md steg M1): förrådet. off (förval) = allt kartinnehåll i databasen som förut; on = nytt kartinnehåll
+      # laddas upp till objektlagringen (OTID_ARCHIVE_* ovan) och mellanlagras i /cache (./map-cache). Taket ändras på
+      # superadminsidan; OTID_CACHE_MAX_MB ger bara förvalet (tom = 10240). Samma värden i web-public och print-worker.
+      OTID_STORE_MODE: ${OTID_STORE_MODE:-}
+      OTID_CACHE_DIR: /cache
+      OTID_CACHE_MAX_MB: ${OTID_CACHE_MAX_MB:-}
       # ADR-0189: valfri gallring (tom/off = av, anonymize eller delete) av tävlingar äldre än OTID_RETENTION_MONTHS (tom = 24).
       # Körs av underhållet i web. Integritetssidan (/integritet) säger vad som gäller, så sätt samma värden i web-public.
       OTID_RETENTION: ${OTID_RETENTION:-}
@@ -226,6 +232,8 @@ services:
     volumes:
       - ./backups:/backups:ro
       - ./status:/status:ro
+      # ADR-0229: mellanlagret för förrådet (ägs av uid 1000, docs/drift.md "Förrådet").
+      - ./map-cache:/cache
     extra_hosts:
       - "host.docker.internal:host-gateway"
     # Hälsokontrollen (2026-11-07): /api/health (en liten fråga mot databasen, ingen inloggning, ingen sidrendering) var 30:e
@@ -286,8 +294,22 @@ services:
       OTID_SGU_JORDARTER_URL: ${OTID_SGU_JORDARTER_URL:-}
       OTID_GEO_TILES_PER_MONTH: ${OTID_GEO_TILES_PER_MONTH:-}
       OTID_GEO_SPLIT_KM2: ${OTID_GEO_SPLIT_KM2:-}
+      # ADR-0229: förrådet. Publikens instanser läser kartinnehåll ur förrådet och mellanlagret och sparar det som
+      # AI-kopplingen skapar, så de behöver objektlagringens uppgifter och samma mellanlager som web.
+      OTID_STORE_MODE: ${OTID_STORE_MODE:-}
+      OTID_CACHE_DIR: /cache
+      OTID_CACHE_MAX_MB: ${OTID_CACHE_MAX_MB:-}
+      OTID_ARCHIVE_ENDPOINT: ${OTID_ARCHIVE_ENDPOINT:-}
+      OTID_ARCHIVE_BUCKET: ${OTID_ARCHIVE_BUCKET:-}
+      OTID_ARCHIVE_ACCESS_KEY: ${OTID_ARCHIVE_ACCESS_KEY:-}
+      OTID_ARCHIVE_SECRET_KEY: ${OTID_ARCHIVE_SECRET_KEY:-}
+      OTID_ARCHIVE_REGION: ${OTID_ARCHIVE_REGION:-}
+      OTID_MAP_QUOTA_ACCOUNT_MB: ${OTID_MAP_QUOTA_ACCOUNT_MB:-}
+      OTID_MAP_QUOTA_TOTAL_MB: ${OTID_MAP_QUOTA_TOTAL_MB:-}
       NODE_OPTIONS: --max-old-space-size=448
     command: ["node", "apps/web/server.js"]
+    volumes:
+      - ./map-cache:/cache
     healthcheck: *web-healthcheck
 
   web-public2: *web-public
@@ -312,8 +334,18 @@ services:
       DATABASE_URL: postgresql://${OTID_DB_PRINT_USER:-otid}:${OTID_DB_PRINT_PASSWORD:-${POSTGRES_PASSWORD}}@postgres:5432/otid
       OTID_PRINT_JOB_TIMEOUT_MS: ${OTID_PRINT_JOB_TIMEOUT_MS:-}
       OTID_MAP_JOB_TIMEOUT_MS: ${OTID_MAP_JOB_TIMEOUT_MS:-}
+      # ADR-0229: utskrifterna och kartjobben läser kartfiler som kan ligga i förrådet (bara läsning; inget skrivs dit).
+      OTID_CACHE_DIR: /cache
+      OTID_CACHE_MAX_MB: ${OTID_CACHE_MAX_MB:-}
+      OTID_ARCHIVE_ENDPOINT: ${OTID_ARCHIVE_ENDPOINT:-}
+      OTID_ARCHIVE_BUCKET: ${OTID_ARCHIVE_BUCKET:-}
+      OTID_ARCHIVE_ACCESS_KEY: ${OTID_ARCHIVE_ACCESS_KEY:-}
+      OTID_ARCHIVE_SECRET_KEY: ${OTID_ARCHIVE_SECRET_KEY:-}
+      OTID_ARCHIVE_REGION: ${OTID_ARCHIVE_REGION:-}
       NODE_OPTIONS: --max-old-space-size=96
     command: ["node", "print-worker.mjs"]
+    volumes:
+      - ./map-cache:/cache
     healthcheck:
       test: ["CMD", "node", "-e", "const s=require('fs').statSync('/tmp/otid-print-worker-alive');process.exit(Date.now()-s.mtimeMs<120000?0:1)"]
       interval: 30s

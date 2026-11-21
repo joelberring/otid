@@ -1,4 +1,5 @@
 import { restoreMapContent } from "./map-archive";
+import { readStoredMapContent, streamStoredMapContent } from "./map-cache";
 import { randomUUID } from "node:crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import {
@@ -12,7 +13,7 @@ import { mayUseClubMap } from "./club-map-use";
 import { clubLinkFacts } from "./club-affiliation-access";
 import { imageDimensions } from "./image-dimensions";
 import {
-  contentHead, contentLength, discardStagedMapContent, MAP_CONTENT_HEAD_BYTES, mapStorageQuota, stageMapContent, storeMapContent,
+  contentHead, contentLength, discardStagedMapContent, MAP_CONTENT_HEAD_BYTES, mapStorageQuota, stageMapContent, storeMapContent, storedMapContent,
   type MapContentInput, type MapQuotaExceeded, type StagedMapContent
 } from "./map-content";
 import { mapFileFormatOf, saveRaceMapSourceAsAdmin } from "./race-map-source";
@@ -202,7 +203,14 @@ export async function readClubMapVersionHead(db: Database, input: ClubProof & { 
 export async function* streamMapContentParts(db: DbExecutor, contentId: string): AsyncGenerator<Uint8Array> {
   for (let part = 0; ; part++) {
     const read = async () => (await db.execute<{ data: Buffer }>(sql`select data from map_content_part where content_id = ${contentId} and part = ${part}`)).rows[0]?.data;
-    const data = await read() ?? (part === 0 && await restoreMapContent(db, { contentId }) ? await read() : undefined);
+    let data = await read();
+    if (!data && part === 0) {
+      // ADR-0229: innehåll i förrådet strömmas ur mellanlagret.
+      const [stored] = (await db.execute<{ sha256: string; byte_length: number }>(sql`select sha256, byte_length from map_content
+        where content_id = ${contentId}::uuid and stored_in = 'STORE'`)).rows;
+      if (stored) { yield* streamStoredMapContent(db, stored.sha256, Number(stored.byte_length)); return; }
+      data = await restoreMapContent(db, { contentId }) ? await read() : undefined;
+    }
     if (!data) return;
     yield new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
   }
@@ -213,7 +221,14 @@ async function existingContent(tx: DbExecutor, sha256: string): Promise<StagedMa
   const [row] = (await tx.execute<{ content_id: string; byte_length: number; head: Buffer | null }>(sql`select c.content_id, c.byte_length,
       substring(p.data from 1 for ${MAP_CONTENT_HEAD_BYTES}) as head
     from map_content c left join map_content_part p on p.content_id = c.content_id and p.part = 0 where c.sha256 = ${sha256}`)).rows;
-  if (!row?.head) return undefined;
+  if (!row) return undefined;
+  if (!row.head) {
+    // ADR-0229: innehåll i förrådet har inga delar här; filens början läses ur mellanlagret.
+    const stored = await storedMapContent(tx, sha256);
+    if (!stored) return undefined;
+    const bytes = await readStoredMapContent(tx, sha256, stored.byteLength);
+    return { kind: "staged", contentId: row.content_id, sha256, byteLength: Number(row.byte_length), head: new Uint8Array(bytes.subarray(0, MAP_CONTENT_HEAD_BYTES)) };
+  }
   return { kind: "staged", contentId: row.content_id, sha256, byteLength: Number(row.byte_length), head: new Uint8Array(row.head) };
 }
 

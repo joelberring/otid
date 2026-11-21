@@ -13,7 +13,8 @@
 #   otid_print  utskriftsarbetaren: läser tävlingens namn och kartfil (race_map_source och innehållet i map_content och
 #               map_content_part, ADR-0189), papperets bilder (course_setting_paper_image, ADR-0197) och skriver bara i
 #               utskriftskön. ADR-0219 (K2): tar också kartjobben (map_project_job) och läser kartprojektens grundfil och
-#               ändrade objekt (map_project, map_project_object).
+#               ändrade objekt (map_project, map_project_object). ADR-0229: när kartfilerna senast användes, hämtningarna ur
+#               förrådet och mellanlagrets tak.
 # Superusern otid (POSTGRES_USER) finns kvar för det här skriptet och för underhåll för hand; ingen tjänst använder den sedan.
 #
 # Ingen data flyttas eller ändras: bara ägare och rättigheter. Allt sker i en transaktion; går något fel ändras inget.
@@ -105,6 +106,14 @@ SELECT format('GRANT SELECT, UPDATE, DELETE ON map_project_job TO %I', :'print')
   WHERE to_regclass('public.map_project_job') IS NOT NULL \gexec
 SELECT format('GRANT SELECT ON map_project, map_project_object TO %I', :'print')
   WHERE to_regclass('public.map_project_object') IS NOT NULL \gexec
+-- ADR-0229 (migration 0133): förrådet. Utskriftsarbetaren läser kartfiler ur mellanlagret, sätter när de senast användes,
+-- räknar hämtningar ur förrådet och läser mellanlagrets tak. Utan rättigheterna hoppar den bara över det (läsningen fungerar).
+SELECT format('GRANT UPDATE (last_used_at) ON map_content TO %I', :'print')
+  WHERE to_regclass('public.map_store_fetch_day') IS NOT NULL \gexec
+SELECT format('GRANT SELECT, INSERT, UPDATE ON map_store_fetch_day TO %I', :'print')
+  WHERE to_regclass('public.map_store_fetch_day') IS NOT NULL \gexec
+SELECT format('GRANT SELECT ON installation_setting TO %I', :'print')
+  WHERE to_regclass('public.installation_setting') IS NOT NULL \gexec
 COMMIT;
 SQL
     echo "Klart: $owner äger databasen, $app och $print har sina rättigheter. Kör nu 'sh deploy/db-roles.sh check' och sedan"

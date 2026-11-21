@@ -184,7 +184,7 @@ describe("ADR-0172 konton", () => {
     expect(overview.response.limits).toMatchObject({ defaultMapQuotaMb: 2, defaultGeoTilesPerMonth: 200, totalLimitBytes: null });
     expect(overview.response.limits.accounts.find(row => row.accountId === mapper.accountId)).toEqual({
       accountId: mapper.accountId, email: mapper.email, displayName: mapper.login.response.displayName, mapUsedBytes: 800 * 1024, mapLimitBytes: MB,
-      mapQuotaMb: 1, geoTilesUsed: 0, geoTilesLimit: 5, geoTilesPerMonth: 5 });
+      mapQuotaMb: 1, geoTilesUsed: 0, geoTilesLimit: 5, geoTilesPerMonth: 5, regenerableQuotaMb: null });
     // Ett konto utan egna gränser och långt från förvalet står inte i listan.
     expect(overview.response.limits.accounts.some(row => row.accountId === boss.accountId)).toBe(false);
     expect(overview.response.log[0]).toMatchObject({ action: "SET_ACCOUNT_LIMITS", targetLabel: mapper.email,

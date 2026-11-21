@@ -30,6 +30,8 @@ export const userAccounts = pgTable("user_account", {
   /** Migration 0118: kontots egna gränser, satta av superadmin. NULL = installationens förval. */
   mapQuotaMb: integer("map_quota_mb"),
   geoTilesPerMonth: integer("geo_tiles_per_month"),
+  /** Migration 0133 (ADR-0229): kontots gräns för återskapbart innehåll i MB. NULL = förvalet (PLAN.md steg M4). */
+  regenerableQuotaMb: integer("regenerable_quota_mb"),
   blockedAt: timestamp("blocked_at", { withTimezone: true }),
   lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
   /** ADR-0186 (migration 0040): när adressen bekräftades. NULL = obekräftad; behörigheter från andra gäller då inte. */
@@ -43,7 +45,8 @@ export const userAccounts = pgTable("user_account", {
   check("user_account_email_check", sql`${table.email} = lower(btrim(${table.email})) AND length(${table.email}) BETWEEN 3 AND 254 AND ${table.email} ~ '^[^@[:space:]]+@[^@[:space:]]+$'`),
   check("user_account_display_name_check", sql`length(btrim(${table.displayName})) between 1 and 120`),
   check("user_account_map_quota_mb_check", sql`${table.mapQuotaMb} IS NULL OR ${table.mapQuotaMb} BETWEEN 1 AND 1000000`),
-  check("user_account_geo_tiles_per_month_check", sql`${table.geoTilesPerMonth} IS NULL OR ${table.geoTilesPerMonth} BETWEEN 0 AND 100000`)
+  check("user_account_geo_tiles_per_month_check", sql`${table.geoTilesPerMonth} IS NULL OR ${table.geoTilesPerMonth} BETWEEN 0 AND 100000`),
+  check("user_account_regenerable_quota_mb_check", sql`${table.regenerableQuotaMb} IS NULL OR ${table.regenerableQuotaMb} BETWEEN 1 AND 1000000`)
 ]);
 
 /** Mutable MVCC marker only; immutable account/password/session journals remain authority. */
@@ -172,7 +175,8 @@ export const userAccountGoogleIdentities = pgTable("user_account_google_identity
  * (`superadminActionKindSchema`), och `logAction` i application vägrar andra värden.
  */
 export type SuperadminActionKind = "GRANT_SUPERADMIN" | "REVOKE_SUPERADMIN" | "HIDE_RACE" | "UNHIDE_RACE" |
-  "DELETE_EVENT" | "BLOCK_ACCOUNT" | "UNBLOCK_ACCOUNT" | "DELETE_ACCOUNT" | "CREATE_RESET_LINK" | "VERIFY_EMAIL" | "SET_ACCOUNT_LIMITS";
+  "DELETE_EVENT" | "BLOCK_ACCOUNT" | "UNBLOCK_ACCOUNT" | "DELETE_ACCOUNT" | "CREATE_RESET_LINK" | "VERIFY_EMAIL" | "SET_ACCOUNT_LIMITS" |
+  "SET_INSTALLATION_LIMITS";
 
 /** Superadmins åtgärder (append-only, utan främmande nycklar så att loggen överlever borttagningar). */
 export const superadminActions = pgTable("superadmin_action", {
@@ -181,14 +185,14 @@ export const superadminActions = pgTable("superadmin_action", {
   actorAccountId: uuid("actor_account_id"),
   actorLabel: text("actor_label").notNull(),
   action: text("action").$type<SuperadminActionKind>().notNull(),
-  targetType: text("target_type").$type<"ACCOUNT" | "EVENT" | "RACE">().notNull(),
+  targetType: text("target_type").$type<"ACCOUNT" | "EVENT" | "RACE" | "INSTALLATION">().notNull(),
   targetId: uuid("target_id").notNull(),
   targetLabel: text("target_label").notNull(),
   reason: text("reason").notNull()
 }, (table) => [
   index("superadmin_action_created_idx").on(table.createdAt.desc()),
   check("superadmin_action_action_format_check", sql`${table.action} ~ '^[A-Z][A-Z0-9_]{0,62}[A-Z0-9]$'`),
-  check("superadmin_action_target_type_check", sql`${table.targetType} IN ('ACCOUNT', 'EVENT', 'RACE')`),
+  check("superadmin_action_target_type_check", sql`${table.targetType} IN ('ACCOUNT', 'EVENT', 'RACE', 'INSTALLATION')`),
   check("superadmin_action_actor_label_check", sql`length(btrim(${table.actorLabel})) BETWEEN 1 AND 254`),
   check("superadmin_action_target_label_check", sql`length(btrim(${table.targetLabel})) BETWEEN 1 AND 320`),
   check("superadmin_action_reason_check", sql`length(btrim(${table.reason})) BETWEEN 1 AND 500`)

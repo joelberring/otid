@@ -780,8 +780,10 @@ kopior, träningstillfällen, gruppens bibliotek och återställda tävlingar pe
 tävlingen eller biblioteksraden som pekar på det tas bort. Uppladdningen strömmas till databasen i delar om 1 MiB, så webben
 håller aldrig hela filen i minnet.
 
-**Kvoten** (bara i `web`, i MB): `OTID_MAP_QUOTA_ACCOUNT_MB` (förval 2048) är vad ett konto får ha laddat upp, räknat på nytt
-innehåll som kontot laddade upp först; `OTID_MAP_QUOTA_TOTAL_MB` (förval 20480) är vad hela servern lagrar. `0` stänger av en
+**Kvoten** (i `web` och `web-public`, i MB): `OTID_MAP_QUOTA_ACCOUNT_MB` (förval 5120 sedan ADR-0229, tidigare 2048) är vad ett
+konto får ha laddat upp, räknat på nytt innehåll som kontot laddade upp först; `OTID_MAP_QUOTA_TOTAL_MB` (förval 20480, med
+förrådet påslaget 1 048 576) är vad hela installationen lagrar. Totalgränsen går också att ändra på superadminsidan
+(Lagring och laserrutor → Installationen), och den inställningen går före `.env`. `0` stänger av en
 gräns. Samma fil igen, en kopia eller ett träningstillfälle kostar ingenting. Arrangören får ett besked med hur mycket som
 används. Ett ogiltigt värde skrivs som KONFIGURATIONSFEL i loggen och förvalet används. Se läget med
 `docker compose -f docker-compose.prod.yml exec web node superadmin.mjs map-content status`.
@@ -852,6 +854,44 @@ som ligger där. Efter ett haveri måste alltså både databasen (backupen) och 
 räknas tills vidare fullt mot kontots kartkvot. Utrymmet som frigörs i databasen återanvänds av nya filer; diskens siffra
 i `df` sjunker först efter `VACUUM (FULL) map_content_part` (låser tabellen en stund, kör en lugn dag).
 
+## Förrådet och mellanlagret (ADR-0229)
+
+Med förrådet påslaget sparas **nytt** kartinnehåll (uppladdningar och laserkörningarnas resultat) i objektlagringen i stället för
+i databasen; servern håller bara en kopia av det som används i mellanlagret (`./map-cache`). Allt som redan finns ligger kvar i
+databasen och läses som förut (flytten av det kommer i steg M3). Förrådet använder samma bucket och nycklar som
+[arkivet](#arkivet-objektlagring-adr-0224) (`OTID_ARCHIVE_ENDPOINT`, `_BUCKET`, `_ACCESS_KEY`, `_SECRET_KEY`); arkivets läge
+behöver inte vara på.
+
+**Slå på** (inte på en tävlingsdag), först när uppdateringen med migration 0133 körts med läget av:
+
+1. Uppdatera som vanligt, med `OTID_STORE_MODE` tomt eller `off`. Allt fungerar som förut.
+2. Skapa mellanlagrets katalog, som webbens användare (uid 1000) ska kunna skriva i, och ge utskriftsarbetaren dess nya
+   rättigheter om databasrollerna används:
+
+   ```bash
+   mkdir -p map-cache && sudo chown 1000:1000 map-cache
+   sh deploy/db-roles.sh setup && sh deploy/db-roles.sh check    # bara om OTID_DB_*-rollerna används
+   ```
+
+3. Kontrollera att `OTID_ARCHIVE_*` står i `.env` (se Arkivet) och lägg till `OTID_STORE_MODE=on`. Starta om:
+   `docker compose -f docker-compose.prod.yml up -d`.
+4. Läs loggraden: `docker compose -f docker-compose.prod.yml logs web | grep Förrådet`. Den ska säga
+   `Förrådet: på; nytt kartinnehåll laddas upp till objektlagringen …` och sedan `anslutningen till objektlagringen fungerar`.
+   Står det `Förrådet: AV trots OTID_STORE_MODE=on` saknas en uppgift eller går `map-cache` inte att skriva i; då sparas allt
+   i databasen som förut. Superadminsidan visar läget under Lagring och laserrutor → Installationen.
+5. Ladda upp en liten karta och se att `Hämtningar ur förrådet` och mellanlagrets storlek rör sig när den öppnas.
+
+**Tillbaka:** `OTID_STORE_MODE=off` och `up -d`. Det som sparats i förrådet läses ändå därifrån (läsningen avgörs av varje
+innehålls rad), så låt `OTID_ARCHIVE_*` stå kvar. En äldre version av O-Tid hämtar det som arkiverat innehåll.
+
+**Mellanlagrets tak** (förval 10 240 MB, eller `OTID_CACHE_MAX_MB`) ändras på superadminsidan. Var 5:e minut, och direkt efter
+en hämtning som gör att taket passeras, tas det som använts minst nyligen bort tills mellanlagret är under 90 % av taket; det
+finns kvar i förrådet och hämtas igen (och kontrolleras mot sin sha256) nästa gång det läses. En fil som någon läser just då
+läses klart (Linux behåller en öppen fil tills den stängs).
+
+**Backupen** sparar inte innehåll i förrådet och räknar det inte som saknat; efter ett haveri måste både databasen och
+bucketen finnas. Ett innehåll som ingen längre pekar på tas bort ur förrådet efter `OTID_ARCHIVE_ORPHAN_DAYS` (35) dygn.
+
 ## Gallring
 
 ADR-0189 beslut 6: av som förval. Sätt i `.env` och kör `docker compose -f docker-compose.prod.yml up -d`:
@@ -906,7 +946,10 @@ inte skickar vidare (markerade "ej i compose") gäller i drift först när de l�
 | `OTID_REGISTRATION_LIMIT_PER_HOUR` | 10 | Nya konton per IP-adress och timme. |
 | `OTID_RADIO_POLLER` | på (`off` i publikens instanser) | `off` = instansen hämtar inga radiostämplingar. |
 | `OTID_GEO_SPLIT_KM2` | 16 | Största yta (km²) för en laserkörning; ett större område delas i etapper som körs efter varandra. 0 = dela aldrig. |
-| `OTID_MAP_QUOTA_ACCOUNT_MB`, `OTID_MAP_QUOTA_TOTAL_MB` | 2048, 20480 | Kartornas kvot per konto och för servern; 0 = ingen gräns. Enskilda konton höjs på superadminsidan under "Lagring och laserrutor" ([Kartornas lagring](#kartornas-lagring)). |
+| `OTID_MAP_QUOTA_ACCOUNT_MB`, `OTID_MAP_QUOTA_TOTAL_MB` | 5120, 20480 (med förrådet 1 048 576) | Kartornas kvot per konto och för installationen; 0 = ingen gräns. Enskilda konton och totalgränsen ändras på superadminsidan under "Lagring och laserrutor" ([Kartornas lagring](#kartornas-lagring)). |
+| `OTID_STORE_MODE` | off | `on` = nytt kartinnehåll sparas i förrådet (objektlagringen, `OTID_ARCHIVE_*`) i stället för i databasen ([Förrådet](#förrådet-och-mellanlagret-adr-0229)). |
+| `OTID_CACHE_DIR` | `/cache` i compose (annars en katalog under tmp) | Mellanlagret för innehåll i förrådet; volymen `./map-cache` i web, web-public, web-public2 och print-worker. |
+| `OTID_CACHE_MAX_MB` | 10240 | Förvalet för mellanlagrets tak; superadminsidans inställning går före. |
 | `OTID_RETENTION`, `OTID_RETENTION_MONTHS` | av, 24 | Gallring av gamla tävlingar (`anonymize` eller `delete`) ([Gallring](#gallring)). |
 | `OTID_PRINT_JOB_TIMEOUT_MS` | 600000 | Tidsgräns för ett utskriftsjobb. |
 | `OTID_PRINT_JOB_MEMORY_MB` | 256 (minst 64) | Minnestak för ett utskriftsjobbs barnprocess. Ej i compose. |

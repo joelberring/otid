@@ -54,6 +54,10 @@ export type CourseCheck =
   | { readonly kind: "DUPLICATE_CODE"; readonly code: string; readonly controls: readonly string[] }
   | { readonly kind: "INVERTIBLE_CODE"; readonly code: string; readonly control: string }
   | { readonly kind: "SAME_CONTROL_TWICE_IN_ROW"; readonly course: string; readonly control: string }
+  /** Ägaren 2026-11-21: en gren i en gaffling (inte slinga) utan kontroller; `branch` = banans kontroll som börjar grenen. */
+  | { readonly kind: "EMPTY_BRANCH"; readonly course: string; readonly branch: string; readonly letter: string; readonly control: string }
+  /** Ägaren 2026-11-21: varianter med exakt samma kontroller i samma ordning (`codes` i varianternas ordning, minst två). */
+  | { readonly kind: "SAME_VARIANTS"; readonly course: string; readonly codes: readonly string[] }
   | { readonly kind: "LEG_THROUGH_CONTROL"; readonly course: string; readonly from: string; readonly to: string; readonly control: string }
   /**
    * Steg 64, ADR-0199: sträckans fågelväg går genom ett förbjudet område (specialobjektet) eller över en gräns eller förbjuden

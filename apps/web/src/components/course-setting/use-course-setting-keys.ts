@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { applyEdit } from "@o-tid/course-setting";
-import { cancelTool, redo, removeSelected, setTool, undo, type EditorState, type Tool } from "../../lib/course-setting-editor";
+import { cancelTool, redo, setTool, undo, type EditorState, type Tool } from "../../lib/course-setting-editor";
 import { finishDrawing } from "../../lib/course-setting-specials";
 
 type Change = (change: (current: EditorState) => EditorState) => void;
@@ -17,17 +17,19 @@ const KEYS: Record<string, Tool> = { v: "SELECT", k: "ADD_CONTROL", s: "ADD_STAR
  * lyssnaren inte behöver läggas om vid varje rendering.
  */
 export function useCourseSettingKeys(input: { readOnly: boolean; drawing: () => boolean; apply: Change; edit: Change; onEscape: () => void;
-  fork: () => void; togglePalette: () => void }) {
+  fork: () => void; togglePalette: () => void;
+  /** Delete: ta bort det valda (på en gaffelkontroll frågar banläggningen först, ägaren 2026-11-21). */
+  remove: () => void }) {
   const current = useRef(input);
   current.current = input;
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
-      const { readOnly, drawing, apply, edit, onEscape, fork, togglePalette } = current.current;
+      const { drawing, apply, edit, onEscape, fork, togglePalette, remove, readOnly } = current.current;
       const target = event.target as HTMLElement | null;
       if (target && (target.closest("input, textarea, select, [contenteditable='true'], dialog"))) return;
       const mod = event.ctrlKey || event.metaKey;
       const key = event.key.toLowerCase();
-      if (event.key === "Delete" || event.key === "Backspace") { event.preventDefault(); edit(next => removeSelected(next, applyEdit)); }
+      if (event.key === "Delete" || event.key === "Backspace") { event.preventDefault(); remove(); }
       else if (event.key === "Escape") { apply(cancelTool); onEscape(); }
       else if (event.key === "Enter" && drawing()) { event.preventDefault(); edit(next => finishDrawing(next, applyEdit)); }
       else if (mod && key === "z") { event.preventDefault(); edit(event.shiftKey ? redo : undo); }

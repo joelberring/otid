@@ -1,8 +1,9 @@
 import {
-  applyEdit, CourseSettingEditError, createdIdsBetween, objectPatch, type ControlKind, type CourseSettingDocument, type CourseSettingEdit,
+  applyEdit, courseControlOrder, CourseSettingEditError, createdIdsBetween, objectPatch, type ControlKind, type CourseSettingDocument, type CourseSettingEdit,
   type CreatedIds, type EditResult, type PutObjectsEdit, type SpecialKind
 } from "@o-tid/course-setting";
 import type { Point } from "@o-tid/map-file";
+import { allBranches, branchOf, courseTree } from "./course-setting-forks";
 import { ALL_CONTROLS, bendInsertIndex, type HitTarget } from "./course-setting-hit";
 import { legOrientation } from "./course-setting-rotate";
 import { inLanguage } from "./in-language";
@@ -264,26 +265,68 @@ const KIND_OF_TOOL: Partial<Record<Tool, ControlKind>> = { ADD_CONTROL: "NORMAL"
   ADD_MAP_EXCHANGE: "MAP_EXCHANGE" };
 export const toolControlKind = (tool: Tool) => KIND_OF_TOOL[tool];
 
+/** Sträckan finns i flera grenar och ingen gren eller variant är vald (ägaren 2026-11-21, A6). */
+export const LEG_IN_SEVERAL_BRANCHES = inLanguage("Sträckan finns i flera grenar. Välj grenen (Arbeta i gren) eller en variant först.",
+  "The leg is in several branches. Choose the branch (Work in branch) or a variation first.");
+
+/** `branch` om den fortfarande börjar en gren på banan (en borttagen gren, eller en gaffling som försvann, ger undefined). */
+export function branchStart(document: CourseSettingDocument, branch: string | undefined): string | undefined {
+  return branch !== undefined && document.courseControls[branch]?.split?.branches.includes(branch) ? branch : undefined;
+}
+
+/** Sista banans kontroll i grenen (där nästa kontroll läggs in), ur banans träd; en tom gren: grenens början. */
+export function branchLast(document: CourseSettingDocument, course: string, branch: string): string | undefined {
+  try { return allBranches(courseTree(document, course)).find(row => row.start === branch)?.last; } catch { return undefined; }
+}
+
+/** Banans kontroller i grenen som börjar med `start` (början, grenens kontroller och gafflingar i den), fram till mötespunkten. */
+function branchMembers(document: CourseSettingDocument, start: string): Set<string> {
+  const end = document.courseControls[start]?.split?.end;
+  const members = new Set([start]);
+  const queue = [document.courseControls[start]?.next];
+  while (queue.length) {
+    const id = queue.pop();
+    if (id === undefined || id === end || members.has(id)) continue;
+    const item = document.courseControls[id];
+    if (!item) continue;
+    members.add(id);
+    queue.push(item.next);
+    if (item.split) queue.push(...item.split.branches);
+  }
+  return members;
+}
+
+type Place = { readonly after: string | null | undefined; readonly error?: undefined } | { readonly error: string };
+
 /**
  * Var en ny kontroll läggs in på banan: start och mål utan `after` (paketet ersätter en befintlig start eller ett
- * befintligt mål, som Purple Pen), annars efter vald kontroll (utan val: före målet).
+ * befintligt mål, som Purple Pen), annars efter vald kontroll. Utan val: efter sista kontrollen i grenen man arbetar i
+ * (ägaren 2026-11-21, A3), annars före målet.
  */
-function insertAfter(state: EditorState, kind: ControlKind): string | null | undefined {
-  if (kind === "START" || kind === "FINISH") return undefined;
+function insertPlace(state: EditorState, kind: ControlKind): Place {
+  if (kind === "START" || kind === "FINISH") return { after: undefined };
   // Ägaren 2026-11-17: med en vald sträcka läggs kontrollen in på den sträckan, också i en gren av en gaffling (förut hamnade
   // den före målet, så en befintlig kontroll gick inte att lägga in i grenen).
-  if (state.selection?.kind === "leg") return legCourseControl(state.document, state.view, state.selection, state.branch);
+  if (state.selection?.kind === "leg") {
+    const place = legPlace(state.document, state.view, state.selection, state.branch, state.variant);
+    return place.ambiguous ? { error: LEG_IN_SEVERAL_BRANCHES } : { after: place.at };
+  }
   const selected = state.selection?.kind === "control" ? state.selection.courseControl : undefined;
-  return selected && state.document.courseControls[selected] ? selected : undefined;
+  if (selected && state.document.courseControls[selected]) return { after: selected };
+  const branch = branchStart(state.document, state.branch);
+  if (branch && state.view !== ALL_CONTROLS) return { after: branchLast(state.document, state.view, branch) ?? branch };
+  return { after: undefined };
 }
 
 /**
- * Banans kontroll där sträckan `from`–`to` börjar, i alla grenar. Har flera grenar samma sträcka (en ny gaffling) väljs den
- * som `branch` (grenen man arbetar i) börjar, annars den första. `fromCourseControl` används när den finns.
+ * Banans kontroll där sträckan `from`–`to` börjar. Har flera grenar samma sträcka (en ny gaffling har tomma grenar) väljs
+ * den i grenen man arbetar i (`branch`) eller i vald variant; annars är sträckan tvetydig (`ambiguous`, ägaren 2026-11-21:
+ * besked i stället för att tyst ta den första). `fromCourseControl` används när den finns.
  */
-export function legCourseControl(document: CourseSettingDocument, courseId: string,
-  leg: { readonly from: string; readonly to: string; readonly fromCourseControl?: string | undefined }, branch?: string): string | undefined {
-  if (leg.fromCourseControl && document.courseControls[leg.fromCourseControl]) return leg.fromCourseControl;
+export function legPlace(document: CourseSettingDocument, courseId: string,
+  leg: { readonly from: string; readonly to: string; readonly fromCourseControl?: string | undefined }, branch?: string, variant?: string)
+  : { readonly at?: string | undefined; readonly ambiguous: boolean } {
+  if (leg.fromCourseControl && document.courseControls[leg.fromCourseControl]) return { at: leg.fromCourseControl, ambiguous: false };
   const course = document.courses.find(row => row.id === courseId);
   const seen = new Set<string>(), queue = course?.first ? [course.first] : [], found: string[] = [];
   while (queue.length) {
@@ -296,7 +339,27 @@ export function legCourseControl(document: CourseSettingDocument, courseId: stri
     if (item.split) queue.push(...item.split.branches);
     if (item.next) queue.push(item.next);
   }
-  return found.find(id => id === branch) ?? found[0];
+  if (found.length <= 1) return { at: found[0], ambiguous: false };
+  const working = branchStart(document, branch);
+  if (working) {
+    const members = branchMembers(document, working);
+    const inBranch = found.filter(id => members.has(id));
+    if (inBranch.length === 1) return { at: inBranch[0], ambiguous: false };
+  }
+  if (variant !== undefined) {
+    try {
+      const inVariant = new Set(courseControlOrder(document, courseId, variant));
+      const hits = found.filter(id => inVariant.has(id));
+      if (hits.length === 1) return { at: hits[0], ambiguous: false };
+    } catch { /* en bana som inte går att gå igenom: tvetydig */ }
+  }
+  return { ambiguous: true };
+}
+
+/** Banans kontroll där sträckan börjar (`legPlace`); undefined när den inte finns eller är tvetydig. */
+export function legCourseControl(document: CourseSettingDocument, courseId: string,
+  leg: { readonly from: string; readonly to: string; readonly fromCourseControl?: string | undefined }, branch?: string, variant?: string): string | undefined {
+  return legPlace(document, courseId, leg, branch, variant).at;
 }
 
 /**
@@ -310,7 +373,9 @@ export function addPoint(state: EditorState, tool: Tool, at: Point, apply: Apply
   // ADR-0180 beslut 14: ett klick i ringen på en befintlig kontroll lägger in den (som Purple Pens AddControlMode).
   if (snap !== undefined && state.view !== ALL_CONTROLS && state.document.controls[snap]) return insertExisting(state, snap, apply);
   const inCourse = state.view !== ALL_CONTROLS;
-  const after = inCourse ? insertAfter(state, kind) : undefined;
+  const place = inCourse ? insertPlace(state, kind) : { after: undefined };
+  if (place.error !== undefined) return { ...state, error: place.error };
+  const after = place.after;
   let control: string | undefined, courseControl: string | undefined;
   return applySteps(state, [
     { type: "ADD_CONTROL", kind, at, ...(kind === "NORMAL" ? { code: nextCode(state.document) } : {}) },
@@ -330,8 +395,9 @@ export function addPoint(state: EditorState, tool: Tool, at: Point, apply: Apply
 export function insertExisting(state: EditorState, control: string, apply: Apply): EditorState {
   if (state.view === ALL_CONTROLS || !state.document.controls[control]) return state;
   const kind = state.document.controls[control].kind;
-  const after = insertAfter(state, kind);
-  return applySteps(state, [{ type: "INSERT_COURSE_CONTROL", course: state.view, control, after }], apply,
+  const place = insertPlace(state, kind);
+  if (place.error !== undefined) return { ...state, error: place.error };
+  return applySteps(state, [{ type: "INSERT_COURSE_CONTROL", course: state.view, control, after: place.after }], apply,
     (created, document) => ({ kind: "control", control, courseControl: created && document.courseControls[created] ? created : undefined }));
 }
 
@@ -345,9 +411,65 @@ export function removeSelected(state: EditorState, apply: Apply, everywhere = st
       ? applySteps(state, [{ type: "SET_LEG_BENDS", from: selection.from, to: selection.to, bends: [] }], apply) : state;
   }
   if (!everywhere && selection.courseControl && state.view !== ALL_CONTROLS) {
-    return applySteps(state, [{ type: "REMOVE_COURSE_CONTROL", course: state.view, courseControl: selection.courseControl }], apply, () => undefined);
+    // Ägaren 2026-11-21 (A3): kontrollen före den borttagna blir vald, så att nästa kontroll läggs in där (i samma gren).
+    const before = selectAfterRemove(state, selection.courseControl);
+    const next = applySteps(state, [{ type: "REMOVE_COURSE_CONTROL", course: state.view, courseControl: selection.courseControl }], apply,
+      (_created, document) => {
+        const at = before.find(id => document.courseControls[id] && courseHas(document, state.view, id));
+        return at ? { kind: "control", control: document.courseControls[at]!.control, courseControl: at } : undefined;
+      });
+    return next.document === state.document ? next : { ...next, branch: branchStart(next.document, next.branch) };
   }
   return applySteps(state, [{ type: "DELETE_CONTROL", control: selection.control }], apply, () => undefined);
+}
+
+/** Banans kontroll finns på banan (inte bara kvar i dokumentet). */
+function courseHas(document: CourseSettingDocument, course: string, id: string): boolean {
+  try { return courseControlOrder(document, course).includes(id); } catch { return false; }
+}
+
+/**
+ * Kandidaterna att välja efter att banans kontroll `removed` tagits bort, i ordning: kontrollen före den (helst i grenen
+ * man arbetar i, annars i grundföljden), och för en grens början gafflingens första gren (gaffelkontrollen).
+ */
+function selectAfterRemove(state: EditorState, removed: string): string[] {
+  const { document } = state;
+  let order: string[];
+  try { order = [...courseControlOrder(document, state.view)]; } catch { return []; }
+  const before = order.filter(id => document.courseControls[id]?.next === removed);
+  const branch = branchStart(document, state.branch);
+  const members = branch ? branchMembers(document, branch) : new Set<string>();
+  const main = new Set(courseChain(document, state.view));
+  const rank = (id: string) => members.has(id) ? 0 : main.has(id) ? 1 : 2;
+  const split = document.courseControls[removed]?.split;
+  return [...before.sort((a, b) => rank(a) - rank(b)), ...(split ? split.branches.filter(id => id !== removed) : [])];
+}
+
+/**
+ * Ägaren 2026-11-21 (A2): «Klar» i grenraden. Kontrollen där grenarna möts blir vald (slingan: gaffelkontrollen i följden),
+ * så att nästa kontroll läggs in efter gafflingen. Ligger gafflingen i en gren arbetar man sedan i den grenen.
+ */
+export function finishBranch(state: EditorState): EditorState {
+  const branch = branchStart(state.document, state.branch);
+  const split = branch ? state.document.courseControls[branch]!.split! : undefined;
+  if (!split || state.view === ALL_CONTROLS) return { ...state, branch: undefined, error: undefined };
+  const at = split.kind === "LOOP" ? split.branches[0]! : split.end;
+  const item = state.document.courseControls[at];
+  if (!item) return { ...state, branch: undefined, error: undefined };
+  let outer: string | undefined;
+  try { outer = branchOf(courseTree(state.document, state.view), at)?.start; } catch { outer = undefined; }
+  return { ...state, branch: outer, selection: { kind: "control", control: item.control, courseControl: at }, error: undefined };
+}
+
+/**
+ * Ägaren 2026-11-21 (A5): vald kontroll är en gaffelkontroll (banans kontroll som börjar en gren i en gaffling, inte en
+ * slinga). Delete frågar då om grenen eller hela gafflingen ska tas bort.
+ */
+export function selectedForkStart(state: EditorState): { readonly courseControl: string; readonly control: string } | undefined {
+  if (state.view === ALL_CONTROLS || state.selection?.kind !== "control" || !state.selection.courseControl) return undefined;
+  const id = state.selection.courseControl;
+  const item = state.document.courseControls[id];
+  return item?.split?.kind === "FORK" && item.split.branches.includes(id) ? { courseControl: id, control: item.control } : undefined;
 }
 
 /**
@@ -369,14 +491,26 @@ export function addSplit(state: EditorState, kind: "FORK" | "LOOP", branches: nu
  */
 export function splitPlace(state: EditorState): string | undefined {
   if (state.view === ALL_CONTROLS) return undefined;
-  if (state.selection?.kind === "leg") return legCourseControl(state.document, state.view, state.selection, state.branch);
+  if (state.selection?.kind === "leg") return legCourseControl(state.document, state.view, state.selection, state.branch, state.variant);
   return state.selection?.kind === "control" ? state.selection.courseControl : undefined;
 }
 
+/** Den valda sträckan finns i flera grenar och ingen gren eller variant pekar ut en (beskedet `LEG_IN_SEVERAL_BRANCHES`). */
+export function selectedLegAmbiguous(state: EditorState): boolean {
+  return state.view !== ALL_CONTROLS && state.selection?.kind === "leg"
+    && legPlace(state.document, state.view, state.selection, state.branch, state.variant).ambiguous;
+}
+
+/** Ta bort gafflingen vid vald kontroll: gren A blir kvar (paketet) och dess gaffelkontroll blir vald. */
 export function removeSplit(state: EditorState, apply: Apply): EditorState {
   const at = state.selection?.kind === "control" ? state.selection.courseControl : undefined;
   if (!at || state.view === ALL_CONTROLS) return state;
-  return applySteps(state, [{ type: "REMOVE_SPLIT", course: state.view, at }], apply);
+  const keep = state.document.courseControls[at]?.split?.branches[0];
+  const next = applySteps(state, [{ type: "REMOVE_SPLIT", course: state.view, at }], apply, (_created, document) => {
+    const item = keep ? document.courseControls[keep] : undefined;
+    return item ? { kind: "control", control: item.control, courseControl: keep } : stillThere(document, state.selection);
+  });
+  return next.document === state.document ? next : { ...next, branch: branchStart(next.document, next.branch) };
 }
 
 /** Brytpunkt på vald sträcka där man klickade (i ordning längs linjen). */

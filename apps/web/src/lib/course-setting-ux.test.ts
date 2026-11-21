@@ -21,11 +21,11 @@ function withLoose() {
 }
 
 describe("befintliga kontroller snäpper", () => {
-  it("kandidaterna är kontroller av samma slag som inte är med i banan", () => {
+  it("kandidaterna är kontroller av samma slag, också de som redan är med i banan (G1), men inte start och mål på banan", () => {
     const { document, created } = withLoose();
-    expect(snapCandidates(document, "k", "NORMAL")).toEqual([created]);
+    expect(snapCandidates(document, "k", "NORMAL")).toEqual([created, "a", "b"]);
     expect(snapCandidates(document, "k", "START")).toEqual([]);
-    expect(snapCandidates(document, "k", "ANY")).toEqual([created]);
+    expect(snapCandidates(document, "k", "ANY")).toEqual([created, "a", "b"]);
     expect(snapCandidates(document, ALL_CONTROLS, "NORMAL")).toEqual([]);
   });
 

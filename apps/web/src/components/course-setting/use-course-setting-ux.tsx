@@ -11,7 +11,8 @@ import type { Point } from "@o-tid/map-file";
 import { courseSettingSv } from "../../i18n/course-setting-sv";
 import { courseSettingUxSv } from "../../i18n/course-setting-ux-sv";
 import {
-  addPoint, addSplit, applySteps, beginDrag, dragTo, insertExisting, setTool, setView, splitPlace, toolControlKind, workInBranch, type EditorState, type Tool
+  addPoint, addSplit, applySteps, beginDrag, dragTo, finishBranch, insertExisting, LEG_IN_SEVERAL_BRANCHES, removeSelected, removeSplit,
+  selectedForkStart, selectedLegAmbiguous, setTool, setView, splitPlace, toolControlKind, workInBranch, type EditorState, type Tool
 } from "../../lib/course-setting-editor";
 import { drawBranchLabels, drawRotateHandle, drawSnapHint, drawUnused } from "../../lib/course-setting-draw-ux";
 import { allBranches, branchLabels, branchOf, branchVariant, courseTree, forkOfBranch, type TreeBranch } from "../../lib/course-setting-forks";
@@ -20,7 +21,9 @@ import type { PaletteItem } from "../../lib/course-setting-palette";
 import {
   angleTowards, nearHandle, orientationAlongLeg, rotatableOf, rotateEdit, type Rotatable
 } from "../../lib/course-setting-rotate";
-import { ghostPrimitives, otherCoursesPrimitives, snapAt, snapCandidates, snapTolerancePx, type Snap } from "../../lib/course-setting-snap";
+import {
+  controlsInCourse, ghostPrimitives, otherCoursesPrimitives, placesOnCourse, snapAt, snapCandidates, snapTolerancePx, type Snap
+} from "../../lib/course-setting-snap";
 import { controlLabel } from "../../lib/course-setting-text";
 import type { Viewport } from "../../lib/course-setting-viewport";
 import type { PointerModifiers } from "./course-setting-map";
@@ -85,7 +88,6 @@ export function useCourseSettingUx({ editor, store, apply, edit, readOnly, radiu
   const variant = editor.variant ?? (active ? branchVariant(document, view, active.start) : undefined);
 
   const adding = inCourse && ADD_TOOLS.includes(tool) && !readOnly;
-  const ghosts = useMemo(() => adding ? safe(() => ghostPrimitives(document, view), [] as OverprintPrimitive[]) : [], [document, view, adding]);
   const others = useMemo(() => showOthers && inCourse ? safe(() => otherCoursesPrimitives(document, view), [] as OverprintPrimitive[]) : [],
     [document, view, showOthers, inCourse]);
   const unused = useMemo(() => safe(() => unusedControls(document), [] as string[]), [document]);
@@ -93,12 +95,15 @@ export function useCourseSettingUx({ editor, store, apply, edit, readOnly, radiu
   const unusedRefs = useMemo(() => new Set(unusedShown ? unused : []), [unusedShown, unused]);
   const snapKind = tool === "INSERT_EXISTING" ? "ANY" as const : toolControlKind(tool);
   const candidates = useMemo(() => adding && snapKind ? snapCandidates(document, view, snapKind) : [], [document, view, adding, snapKind]);
+  const onCourse = useMemo(() => adding ? controlsInCourse(document, view) : new Set<string>(), [document, view, adding]);
+  const ghosts = useMemo(() => adding ? safe(() => ghostPrimitives(document, view, candidates), [] as OverprintPrimitive[]) : [],
+    [document, view, adding, candidates]);
   const rotatable = tool === "SELECT" && !readOnly ? rotatableOf(document, selection) : undefined;
   const labels = useMemo(() => tree.some(row => row.kind === "fork") ? safe(() => branchLabels(document, view, tree), []) : [], [document, view, tree]);
 
   const snapFor = (point: Point, modifiers: PointerModifiers): Snap | undefined => {
     if (!adding || (forceNew && tool !== "INSERT_EXISTING") || (modifiers.alt && tool !== "INSERT_EXISTING")) return undefined;
-    return snapAt(document, candidates, point, radiusMm, snapTolerancePx(modifiers.pointerType) / modifiers.pxPerMm);
+    return snapAt(document, candidates, point, radiusMm, snapTolerancePx(modifiers.pointerType) / modifiers.pxPerMm, onCourse);
   };
 
   /** Ett klick med ett lägg-till-verktyg i en bana: befintlig kontroll om klicket träffar en, annars en ny. Sant = hanterat. */
@@ -160,7 +165,7 @@ export function useCourseSettingUx({ editor, store, apply, edit, readOnly, radiu
   }
   const openForkPicker = () => {
     const at = splitPlace(store.state);
-    if (!at) { say({ tone: "attention", text: text.tools.forkNeedsSelection }); return; }
+    if (!at) { say({ tone: "attention", text: selectedLegAmbiguous(store.state) ? LEG_IN_SEVERAL_BRANCHES : text.tools.forkNeedsSelection }); return; }
     setForkPicker(true);
   };
   const workIn = (branch: TreeBranch) => apply(current => workInBranch(current, branch.start, branch.last));
@@ -169,6 +174,33 @@ export function useCourseSettingUx({ editor, store, apply, edit, readOnly, radiu
     const found = forkOfBranch(tree, active.start);
     const next = found ? found.fork.branches[(found.index + 1) % found.fork.branches.length] : undefined;
     if (next) workIn(next);
+  }
+
+  /** «Klar» i grenraden: fortsätt efter gafflingen (A2) och säg var. */
+  function doneWithBranch() {
+    const next = finishBranch(store.state);
+    apply(finishBranch);
+    const chosen = next.selection?.kind === "control" && next.selection !== store.state.selection ? next.selection.control : undefined;
+    if (!chosen) return;
+    const finish = next.document.controls[chosen]?.kind === "FINISH";
+    say({ tone: "ok", text: finish ? ux.forks.joinsAtFinish : ux.forks.continuesAfter(controlLabel(next.document, chosen, text)) });
+  }
+
+  /**
+   * Delete och «Ta bort från banan» (A5): på en gaffelkontroll frågar en dialog om grenen eller hela gafflingen ska bort;
+   * annars som förut.
+   */
+  function requestRemoveSelected(everywhere?: boolean) {
+    const fork = everywhere ? undefined : selectedForkStart(store.state);
+    if (!fork) { edit(current => removeSelected(current, applyEdit, everywhere)); return; }
+    const letter = branches.find(branch => branch.start === fork.courseControl)?.letter ?? "?";
+    const label = controlLabel(document, fork.control, text);
+    const close = () => setConfirm(undefined);
+    setConfirm({ title: ux.forks.removeForkControl(label), body: <ConfirmList testId="course-setting-remove-fork-control"
+      intro={ux.forks.removeForkControlIntro(letter)} items={[]}
+      actions={[{ label: ux.forks.removeThisBranch(letter), onClick: () => { close(); edit(current => removeSelected(current, applyEdit, false)); } },
+        { label: ux.forks.removeWholeFork, variant: "secondary" as const, onClick: () => { close(); edit(current => removeSplit(current, applyEdit)); } },
+        { label: ux.forks.cancel, onClick: close, variant: "quiet" as const }]} /> });
   }
 
   function duplicate(course: string) {
@@ -213,6 +245,13 @@ export function useCourseSettingUx({ editor, store, apply, edit, readOnly, radiu
       } }, { label: ux.courses.cancel, onClick: () => setConfirm(undefined), variant: "quiet" as const }]} /> });
   }
 
+  /** Beskedet vid en kontroll som snäpper; en som redan finns på banan säger var (A1). */
+  const snapText = (snap: Snap, short: boolean) => {
+    const label = controlLabel(document, snap.control, text);
+    const shown = short ? label.replace(/^(kontroll|control) /, "") : label;
+    return snap.onCourse ? ux.snap.insertAgain(shown, placesOnCourse(document, view, snap.control, tree)) : ux.snap.insert(shown);
+  };
+
   /** Det som ritas ovanpå banpåtrycket (bara på skärmen). */
   const rotateTarget = rotatable ? `${rotatable.kind}:${rotatable.id}:${rotatable.at.x},${rotatable.at.y}:${rotatable.orientation}` : "";
   const draw = useCallback((ctx: CanvasRenderingContext2D, mapView: Viewport) => {
@@ -220,9 +259,9 @@ export function useCourseSettingUx({ editor, store, apply, edit, readOnly, radiu
       radiusMm);
     if (labels.length > 0) drawBranchLabels(ctx, mapView, labels, active?.start);
     if (rotatable) drawRotateHandle(ctx, mapView, rotating.current ?? rotatable, rotating.current !== undefined);
-    if (hover) drawSnapHint(ctx, mapView, { at: hover.at, radiusMm, text: ux.snap.insert(controlLabel(document, hover.control, text).replace(/^(kontroll|control) /, "")) });
+    if (hover) drawSnapHint(ctx, mapView, { at: hover.at, radiusMm, text: snapText(hover, true) });
     // `rotateTarget` och `rotatingOn` står för vridhandtaget (objektet räknas om vid varje ritning).
-  }, [unusedShown, unused, document, radiusMm, labels, active?.start, rotateTarget, rotatingOn, hover]);
+  }, [unusedShown, unused, document, radiusMm, labels, active?.start, rotateTarget, rotatingOn, hover, tree]);
 
   const selectedCourseControl = selection?.kind === "control" ? selection.courseControl : undefined;
   const branchOfSelection = selectedCourseControl ? branchOf(tree, selectedCourseControl) : undefined;
@@ -238,9 +277,9 @@ export function useCourseSettingUx({ editor, store, apply, edit, readOnly, radiu
   /** I beskedens stapel uppe till höger: grenen man arbetar i och "Alltid ny". */
   const toasts = <>
     {active && forkInfo && <ForkBar letter={active.letter} count={forkInfo.fork.branches.length} onNext={nextBranch}
-      onDone={() => apply(current => ({ ...current, branch: undefined }))} />}
+      onDone={doneWithBranch} />}
     {adding && tool !== "INSERT_EXISTING" && candidates.length > 0 && <ForceNew on={forceNew} onChange={setForceNew} />}
-    {hover && <p className={srOnly} role="status" data-testid="course-setting-snap">{ux.snap.insert(controlLabel(document, hover.control, text))}</p>}
+    {hover && <p className={srOnly} role="status" data-testid="course-setting-snap">{snapText(hover, false)}</p>}
   </>;
   const rotateControls = (target: Rotatable | undefined) => target
     ? <RotateControls orientation={target.orientation} readOnly={readOnly} onSet={value => edit(next => applySteps(next, [rotateEdit(target, value)], applyEdit))}
@@ -249,6 +288,7 @@ export function useCourseSettingUx({ editor, store, apply, edit, readOnly, radiu
   return {
     variant, ghosts, others, unused, unusedRefs, tree, active, branchOfSelection, palette, setPalette, openForkPicker,
     tap, hoverAt, startRotate, moveRotate, endRotate, isRotating: () => rotating.current !== undefined, along, workIn, duplicate, requestDelete,
+    requestRemoveSelected,
     requestRemoveUnused, draw, elements, toasts, rotateControls, rotatable: rotatableOf(document, selection), marks
   };
 }

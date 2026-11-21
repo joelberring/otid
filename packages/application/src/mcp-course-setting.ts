@@ -2,7 +2,8 @@ import { createHash, randomUUID } from "node:crypto";
 import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { mcpCourseToolInputSchemas } from "@o-tid/contracts";
 import {
-  checkDocument, courseControlOrder, courseLength, describeControl, isCourseLevel, suggestedCourseLevel, type CourseSettingDocument
+  checkDocument, courseControlOrder, courseLength, courseVariants, describeControl, isCourseLevel, suggestedCourseLevel,
+  type CourseSettingDocument
 } from "@o-tid/course-setting";
 import { schema, type Database } from "@o-tid/database";
 import { requireCourseSettingForAccount, type CourseSettingRequirement } from "./course-setting-access";
@@ -29,7 +30,7 @@ const raceIdProperty = { race_id: { type: "string", description: "Tävlingens id
 export const MCP_COURSE_TOOLS = [
   { name: "list_course_settings", title: "Mina banläggningar", description: "Tävlingarna där kontot får se banläggningen: id, namn, datum, behörighet och antal banor.",
     inputSchema: { type: "object", properties: {} }, annotations: { readOnlyHint: true } },
-  { name: "course_overview", title: "Banorna i en tävling", description: "Banorna med målnivå (Grön, Vit, Gul, Orange, Violett, Blå, Svart eller förslag ur klassnamnen), klasser, längd och stigning, kontrollerna i ordning (kod, beskrivning i text, läge i kartans mm med y uppåt) och sträckorna (fågelvägen i meter, riktning i grader från norr), samt O-Tids varningar. Ange course_id för en bana. Börja här för att granska nivån.",
+  { name: "course_overview", title: "Banorna i en tävling", description: "Banorna med målnivå (Grön, Vit, Gul, Orange, Violett, Blå, Svart eller förslag ur klassnamnen), klasser, längd och stigning, kontrollerna i ordning (kod, beskrivning i text, läge i kartans mm med y uppåt; i en gafflad bana varje kontroll en gång), sträckorna (varje sträcka en gång, också i gafflade banor; fågelvägen i meter, riktning i grader från norr), varianterna för gafflade banor (kod som AC, kontrollkoderna i ordning och längden), samt O-Tids varningar. Ange course_id för en bana. Börja här för att granska nivån.",
     inputSchema: { type: "object", properties: { ...raceIdProperty, course_id: { type: "string", description: "Bara den här banan" } }, required: ["race_id"] },
     annotations: { readOnlyHint: true } },
   { name: "render_course", title: "Bild av en bana", description: "En bild (PNG, högst 1600 px) av banan på tävlingens karta, i kartans färger med banan i lila och ett rutnät i kartans mm (samma lägen som course_overview). Ange area för ett utsnitt, t.ex. en sträcka. Titta på vägvalen och kontrollernas omgivning när du granskar nivån.",
@@ -89,18 +90,37 @@ export function courseOverviewOf(document: CourseSettingDocument, courseId?: str
     courses: courses.map(course => {
       let order: readonly string[] = [];
       try { order = courseControlOrder(document, course.id); } catch { order = []; }
+      let variants: { code: string; controls: string[]; lengthMeters: number }[] = [];
+      try {
+        variants = courseVariants(document, course.id).filter(variant => variant.code !== "")
+          .map(variant => ({ code: variant.code, controls: [...variant.controlCodes], lengthMeters: Math.round(variant.lengthMeters) }));
+      } catch { variants = []; }
+      const seenControls = new Set<string>();
       const controls = order.flatMap(ccId => {
         const control = document.controls[document.courseControls[ccId]?.control ?? ""];
         if (!control) return [];
+        // Gafflad bana: den platta listan går genom alla grenar (gaffelkontrollen en gång per gren); varje kontroll en gång.
+        if (variants.length > 0 && seenControls.has(control.id)) return [];
+        seenControls.add(control.id);
         let description = "";
         try { description = describeControl(document, control.id, "sv"); } catch { description = ""; }
         return [{ controlId: control.id, kind: control.kind, code: control.code ?? null, description, atMm: [round(control.at.x, 1), round(control.at.y, 1)] }];
       });
-      const legs = controls.slice(1).map((control, index) => {
-        const from = controls[index]!;
-        const dx = control.atMm[0]! - from.atMm[0]!, dy = control.atMm[1]! - from.atMm[1]!;
-        return { fromControlId: from.controlId, toControlId: control.controlId, from: from.code ?? from.kind, to: control.code ?? control.kind,
-          straightMeters: Math.round(Math.hypot(dx, dy) * mmToM), bearingDegrees: Math.round(((Math.atan2(dx, dy) * 180) / Math.PI + 360) % 360) };
+      // Ägaren 2026-11-21 (A9): sträckorna ur banans länkar (som paketets `enumerateLegs`: varje banans kontroll till sin
+      // `next`), inte ur den platta listan över alla grenar (som gav «56→56, 0 m» och sträckor mellan grenarna); samma
+      // sträcka i flera grenar en gång. Poängbanor har inga sträckor.
+      const legPairs = course.kind === "SCORE" ? [] : order.flatMap(ccId => {
+        const next = document.courseControls[ccId]?.next;
+        return next !== undefined ? [[ccId, next] as const] : [];
+      });
+      const seenLegs = new Set<string>();
+      const legs = legPairs.flatMap(([fromCc, toCc]) => {
+        const from = document.controls[document.courseControls[fromCc]?.control ?? ""], to = document.controls[document.courseControls[toCc]?.control ?? ""];
+        if (!from || !to || from.id === to.id || seenLegs.has(`${from.id}>${to.id}`)) return [];
+        seenLegs.add(`${from.id}>${to.id}`);
+        const dx = to.at.x - from.at.x, dy = to.at.y - from.at.y;
+        return [{ fromControlId: from.id, toControlId: to.id, from: from.code ?? from.kind, to: to.code ?? to.kind,
+          straightMeters: Math.round(Math.hypot(dx, dy) * mmToM), bearingDegrees: Math.round(((Math.atan2(dx, dy) * 180) / Math.PI + 360) % 360) }];
       });
       let length: { meters: number; min: number; max: number } | null = null;
       try { const value = courseLength(document, course.id); length = { meters: Math.round(value.meters), min: Math.round(value.min), max: Math.round(value.max) }; }
@@ -110,7 +130,7 @@ export function courseOverviewOf(document: CourseSettingDocument, courseId?: str
         courseId: course.id, name: course.name, kind: course.kind, classes: course.secondaryTitle ?? null,
         level: course.level && isCourseLevel(course.level) ? course.level : null, levelFromClassNames: suggested ?? null,
         printScale: course.printScale ?? document.event.mapScale, lengthMeters: length, climbMeters: course.climbMeters ?? null,
-        controls, legs,
+        controls, legs, ...(variants.length > 0 ? { variants } : {}),
         warnings: checks.filter(check => !("course" in check) || check.course === course.id).slice(0, 100)
       };
     })

@@ -62,6 +62,18 @@ function branchMembers(document: CourseSettingDocument, branch: string, join: st
   return members;
 }
 
+/**
+ * Gaffelkontrollen (första grenen) för den gaffling bland `others` (banans kontroller med en gaffling) som har `at` i en av
+ * sina grenar, om alla i `others` hör till den gafflingen; annars undefined.
+ */
+function enclosingSplit(document: CourseSettingDocument, others: readonly string[], at: string): string | undefined {
+  const firsts = new Set(others.map(id => document.courseControls[id]!.split!.branches[0]!));
+  if (firsts.size !== 1) return undefined;
+  const outer = [...firsts][0]!;
+  const split = document.courseControls[outer]!.split!;
+  return split.branches.some(branch => branchMembers(document, branch, split.end).has(at)) ? outer : undefined;
+}
+
 /** Banans kontroller (i hela banan) vars `next` är `id`. */
 const predecessors = (document: CourseSettingDocument, ids: readonly string[], id: string) => ids.filter(other => document.courseControls[other]?.next === id);
 
@@ -138,8 +150,14 @@ export function moveSplit(document: CourseSettingDocument, courseId: string, at:
     const meeting = courseControls[join];
     if (!meeting || meeting.next === undefined) throw invalid("Det finns ingen kontroll efter mötespunkten");
     if (meeting.split) throw invalid("Mötespunkten börjar en annan gaffling");
-    if (ids.some(id => !inFork.has(id) && courseControls[id]?.split?.end === join && !branches.includes(id))) {
-      throw invalid("En annan gaffling möts vid samma kontroll");
+    const others = ids.filter(id => !inFork.has(id) && courseControls[id]?.split?.end === join && !branches.includes(id));
+    if (others.length > 0) {
+      // Ägaren 2026-11-21 (A7): gafflingen som omsluter den här möts vid samma kontroll. Dess mötespunkt flyttas först (det
+      // ändrar ingen variant), sedan den här; annars skulle den inre gafflingen gå ut ur den yttre.
+      const outer = enclosingSplit(document, others, at);
+      if (!outer) throw invalid("En annan gaffling möts vid samma kontroll: flytta den yttre gafflingens ihopgång först");
+      const moved = moveSplit(document, courseId, outer, "END", "FORWARD");
+      return moveSplit({ ...document, courseControls: moved.courseControls, courses: moved.courses }, courseId, at, "END", "FORWARD");
     }
     const after = meeting.next;
     branches.forEach((branch, index) => {

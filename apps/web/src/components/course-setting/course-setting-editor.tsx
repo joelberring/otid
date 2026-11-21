@@ -478,7 +478,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
   const fork = ux.openForkPicker;
 
   useCourseSettingKeys({ readOnly, drawing: () => !!store.state.drawing?.length, apply, edit, onEscape: () => setNoteDraft(undefined), fork,
-    togglePalette: () => ux.setPalette(open => !open) });
+    togglePalette: () => ux.setPalette(open => !open), remove: () => ux.requestRemoveSelected() });
 
   /** Ett dokument från servern (inläsning, återställning): historiken börjar om och sparandet bygger på dess version. */
   function fromServer(next: CourseSettingDocument, version: number) {
@@ -626,7 +626,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
       case "selected": return <>
         <SelectedPanel state={editor} described={describedControl} readOnly={readOnly}
           onCode={(control, value) => edit(current => applySteps(current, [{ type: "SET_CONTROL_CODE", control, code: value }], applyEdit))}
-          onRemoveFromCourse={() => edit(current => removeSelected(current, applyEdit, false))}
+          onRemoveFromCourse={() => ux.requestRemoveSelected(false)}
           onDelete={() => edit(current => removeSelected(current, applyEdit, true))}
           onSplit={(kind, branches) => edit(current => addSplit(current, kind, branches, applyEdit))}
           onRemoveSplit={() => edit(current => removeSplit(current, applyEdit))}
@@ -759,7 +759,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
           // Rutan med vald kontroll bara med Välj: när man sätter ut kontroller eller notiser ligger den inte i vägen.
           : editor.tool === "SELECT" && <SelectionCard state={editor} described={describedControl} readOnly={readOnly}
             onCode={(control, value) => edit(current => applySteps(current, [{ type: "SET_CONTROL_CODE", control, code: value }], applyEdit))}
-            onRemoveFromCourse={() => edit(current => removeSelected(current, applyEdit, false))}
+            onRemoveFromCourse={() => ux.requestRemoveSelected(false)}
             onDelete={() => edit(current => removeSelected(current, applyEdit, true))}
             onDescription={() => setTab("description")} onMore={() => setTab("selected")} onClose={() => apply(current => select(current, undefined))}
             extra={ux.rotateControls(ux.rotatable?.kind === "control" ? ux.rotatable : undefined)} />}

@@ -154,7 +154,7 @@ export const courseSettingSv = {
       DUPLICATE_CODE: "Samma kod på flera kontroller", MISSING_CODE: "Kod saknas", COURSE_WITHOUT_START_OR_FINISH: "Start eller mål saknas",
       CONTROL_IN_FORBIDDEN: "Kontroll i förbjudet område", LEG_NO_ROUTE: "Går inte att nå lagligt",
       CONTROLS_TOO_CLOSE: "För nära varandra", INVERTIBLE_CODE: "Kod som kan läsas upp och ned",
-      SAME_CONTROL_TWICE_IN_ROW: "Samma kontroll två gånger i rad", LEG_THROUGH_CONTROL: "Sträcka genom en annan ring",
+      SAME_CONTROL_TWICE_IN_ROW: "Samma kontroll två gånger i rad", EMPTY_BRANCH: "Tom gren", SAME_VARIANTS: "Lika varianter", LEG_THROUGH_CONTROL: "Sträcka genom en annan ring",
       UNUSED_CONTROL: "Oanvända kontroller", LEG_THROUGH_FORBIDDEN: "Fågelvägen korsar förbjudet område",
       CONTROLS_NEAR: "Nära varandra – ange objekt", NUMBER_ON_OBSTACLE: "Nummer på hus eller mörk yta",
       LEVEL_DEVIATION: "Avviker från banans nivå"
@@ -177,6 +177,8 @@ export const courseSettingSv = {
       : `${a} och ${b} ligger ${Math.round(distance)} m från varandra (riktvärde minst ${limit} m).`,
     DUPLICATE_CODE: (code: string, count: number) => `Koden ${code} finns på ${count} kontroller.`,
     INVERTIBLE_CODE: (code: string) => `Koden ${code} kan läsas upp och ned.`,
+    EMPTY_BRANCH: (courses: string, letter: string, control: string) => `${courses}: gren ${letter} vid ${control} är tom.`,
+    SAME_VARIANTS: (courses: string, codes: readonly string[]) => `${courses}: varianterna ${codes.join(", ")} har samma kontroller.`,
     SAME_CONTROL_TWICE_IN_ROW: (course: string, control: string) => `${course}: ${control} kommer två gånger i rad.`,
     LEG_THROUGH_CONTROL: (courses: string, from: string, to: string, control: string) =>
       `${courses}: sträckan ${from}–${to} går genom ringen för ${control}.`,

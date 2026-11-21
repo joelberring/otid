@@ -1506,7 +1506,7 @@ vårdnadshavarens samtycke och automatisk radering. Kräver en ADR före A1.
 låser nycklarna; tas en gren bort ur en gaffling med två grenar försvinner gafflingen, med fler försvinner sista bokstaven
 (nycklarna packas i utkast). Tillägg i ADR-0175 (2026-11-21).
 
-- [ ] G1 Editorn: Klar fortsätter efter mötespunkten, efter Ta bort står man kvar i grenen, befintliga kontroller på banan går
+- [x] G1 Editorn: Klar fortsätter efter mötespunkten, efter Ta bort står man kvar i grenen, befintliga kontroller på banan går
   att lägga in (varning för samma kontroll två gånger i rad), Ta bort gafflingen behåller gren A, Delete på gaffelkontrollen
   frågar, sträckor i flera grenar, inre gaffling som möts med den yttre, varning för tomma grenar och lika varianter,
   MCP-översiktens sträckor per variant.

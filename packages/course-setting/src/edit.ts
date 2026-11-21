@@ -248,11 +248,14 @@ function addSplit(draft: Draft, courseId: string, at: string, kind: "FORK" | "LO
   for (const id of ids) draft.courseControls[id] = { ...cc(draft, id), split: { kind, branches: ids, end } };
 }
 
-/** Ta bort gafflingen: grenen som börjar vid `at` blir kvar (slinga: utgången), de andra grenarna tas bort. */
+/**
+ * Ta bort gafflingen: första grenen (A, huvudspåret; slinga: utgången) blir kvar, de andra grenarna tas bort. Ägaren
+ * 2026-11-21 (ADR-0175): alltid gren A, oavsett vilken grens kopia av gaffelkontrollen som är vald (de ligger på samma ställe).
+ */
 function removeSplit(draft: Draft, courseId: string, at: string): void {
   const split = cc(draft, at).split;
   if (!split) throw invalidEdit("Här finns ingen gaffling");
-  const keep = split.kind === "LOOP" ? split.branches[0]! : at;
+  const keep = split.branches[0]!;
   for (const branch of split.branches) {
     if (branch !== keep && draft.courseControls[branch] && ordered(draft, courseId).includes(branch)) removeCourseControl(draft, courseId, branch);
   }

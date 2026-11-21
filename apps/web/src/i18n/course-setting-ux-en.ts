@@ -51,6 +51,9 @@ export const courseSettingUxEn: Texts<typeof courseSettingUxSv> = {
   },
   snap: {
     insert: (label: string) => `Insert ${label}`,
+    insertAgain: (label: string, letters: readonly string[]) => letters.length === 0 || letters.includes("")
+      ? `Insert ${label} again (already on the course)`
+      : `Insert ${label} again (already in ${letters.length === 1 ? "branch" : "branches"} ${letters.join(", ")})`,
     forceNew: "Always new",
     forceNewHelp: "Create a new control even close to an existing one (or hold Alt).",
   },
@@ -97,6 +100,13 @@ export const courseSettingUxEn: Texts<typeof courseSettingUxSv> = {
     working: "New controls are put in the branch.",
     next: "Next branch",
     done: "Done",
+    continuesAfter: (label: string) => `Continues after ${label}.`,
+    joinsAtFinish: "The branches join at the finish.",
+    removeForkControl: (label: string) => `${label} starts a fork`,
+    removeForkControlIntro: (letter: string) => `The selected copy of the control starts branch ${letter}. What should be removed?`,
+    removeThisBranch: (letter: string) => `Remove branch ${letter}`,
+    removeWholeFork: "Remove the fork (branch A remains)",
+    cancel: "Cancel",
     join: (label: string) => `The branches join at ${label}`,
     loopJoin: (label: string) => `The loops return to ${label}`,
     emptyBranch: "empty",

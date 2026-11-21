@@ -49,6 +49,10 @@ export const courseSettingUxSv = {
   },
   snap: {
     insert: (label: string) => `Lägg in ${label}`,
+    /** Ägaren 2026-11-21: en kontroll som redan finns på banan läggs in en gång till ("" = grundföljden). */
+    insertAgain: (label: string, letters: readonly string[]) => letters.length === 0 || letters.includes("")
+      ? `Lägg in ${label} igen (finns redan på banan)`
+      : `Lägg in ${label} igen (finns redan i ${letters.length === 1 ? "gren" : "grenarna"} ${letters.join(", ")})`,
     forceNew: "Alltid ny",
     forceNewHelp: "Skapa en ny kontroll även nära en befintlig (eller håll Alt).",
   },
@@ -96,6 +100,14 @@ export const courseSettingUxSv = {
     working: "Nya kontroller läggs i grenen.",
     next: "Nästa gren",
     done: "Klar",
+    continuesAfter: (label: string) => `Fortsätter efter ${label}.`,
+    joinsAtFinish: "Grenarna går ihop vid målet.",
+    /** Ägaren 2026-11-21: Delete på gaffelkontrollen frågar. */
+    removeForkControl: (label: string) => `${label} börjar en gaffling`,
+    removeForkControlIntro: (letter: string) => `Den valda kopian av kontrollen börjar gren ${letter}. Vad ska tas bort?`,
+    removeThisBranch: (letter: string) => `Ta bort gren ${letter}`,
+    removeWholeFork: "Ta bort gafflingen (gren A blir kvar)",
+    cancel: "Avbryt",
     join: (label: string) => `Grenarna går ihop vid ${label}`,
     loopJoin: (label: string) => `Slingorna går tillbaka till ${label}`,
     emptyBranch: "tom",

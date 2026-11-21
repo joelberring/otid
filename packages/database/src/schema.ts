@@ -23,3 +23,4 @@ export * from "./schema/server";
 export * from "./schema/oauth";
 export * from "./schema/bingo";
 export * from "./schema/mastermind";
+export * from "./schema/news";

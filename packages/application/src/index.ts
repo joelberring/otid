@@ -276,3 +276,4 @@ export { listRacePrintFiles, readRacePrintFile, removeRacePrintFile, saveRacePri
 export { fetchMapProjectWmsImage, readMapProjectWmsCapabilities, wmsRuntime, type WmsRuntime } from "./map-project-wms";
 export { BINGO_POSTS_PER_IP, BINGO_RUNNERS_PER_RACE_AND_DAY, loadBingoSetup, readBingoAsAdmin, readBingoLeaderboard, readBingoPublic, receiveBingoProgress, setBingoAsAdmin, type BingoMapImage, type BingoPublicRead, type BingoSetup } from "./bingo";
 export { readMastermindAsStaff, readMastermindStandings, receiveMastermindStation, setMastermindStationsAsAdmin, syncMastermindAsStaff, type MastermindResult } from "./mastermind";
+export { deleteClubNews, deleteNewsAsSuperadmin, listClubNews, listHomeNews, listNewsAsSuperadmin, readNewsImage, saveClubNews, saveNewsAsSuperadmin, type NewsFailure } from "./news";

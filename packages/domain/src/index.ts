@@ -69,3 +69,4 @@ export * from "./club-name";
 export * from "./bingo";
 export * from "./bingo-ships";
 export * from "./virtual-controls";
+export * from "./news";

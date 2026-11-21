@@ -314,3 +314,4 @@ export * from "./map-project-work-layers";
 export * from "./geo-jobs";
 export * from "./map-project-wms";
 export * from "./race-navigation";
+export * from "./news";

@@ -1,6 +1,6 @@
 import {
   COURSE_SETTING_EDITS_MAX, COURSE_SETTING_EDITS_MAX_BYTES, COURSE_SETTING_IMPORT_MAX_BYTES, COURSE_SETTING_NOTE_MAX_BYTES, COURSE_SETTING_SAVE_MAX_BYTES,
-  courseSettingConflictSchema, courseSettingEditsSavedSchema, courseSettingInspectionsSchema, courseSettingModeRequestSchema, courseSettingNoteSchema, courseSettingNotesSchema,
+  courseSettingConflictSchema, courseSettingEditsSavedSchema, courseSettingForkLettersSchema, courseSettingInspectionsSchema, courseSettingModeRequestSchema, courseSettingNoteSchema, courseSettingNotesSchema,
   courseSettingRevisionLabeledSchema, courseSettingRevisionSchema, courseSettingRevisionsSchema, courseSettingSavedSchema, courseSettingStateSchema, courseSettingSuggestionDecidedSchema,
   courseSettingSuggestionSchema, courseSettingSuggestionsSchema, mapLinkCreatedSchema, mapLinkStateSchema, courseSettingTransferProblemSchema, PRINT_JOB_REQUEST_MAX_BYTES, printJobProblemSchema,
   printJobSchema, printJobsSchema, syncPreviewResponseSchema, PAPER_IMAGE_MAX_BYTES, PAPER_TEMPLATE_MAX_BYTES, paperImageSchema, paperLibrarySchema
@@ -249,6 +249,12 @@ export async function handleCourseSettingRoute(context: RaceAdministratorRouteCo
       if (response.raceId !== raceId) return failure(500, "INTERNAL_ERROR");
       if (result.changed) publishCourseSettingEvent(raceId, { type: "inspections", by });
       return json(response);
+    }
+    case "course-setting-fork-letters": {
+      const result = await dependencies.courseSettingForkLetters(db, input);
+      if (result.status !== "ok") return resultFailure(result.status);
+      const response = courseSettingForkLettersSchema.parse(result.response);
+      return response.raceId === raceId ? json(response) : failure(500, "INTERNAL_ERROR");
     }
     case "course-setting-print-jobs": {
       if (request.method === "GET") {

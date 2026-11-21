@@ -135,6 +135,7 @@ export {
   readMapLinkView, replyViaMapLink, revokeMapLinkAsAdmin, setVerdictViaMapLink, type MapLinkFailure, type MapLinkInput, type MapLinkLimits
 } from "./course-setting-map-link";
 export { listCourseSettingInspectionsAsAdmin, setCourseSettingInspectionAsAdmin } from "./course-setting-inspections";
+export { readForkLetterFactsAsAdmin } from "./course-setting-fork-letters";
 export {
   claimPrintJob, cleanupPrintJobs, createPrintJobAsAdmin, deletePrintJobAsAdmin, heartbeatPrintJob, listPrintJobsAsAdmin, PRINT_JOB_LIMITS, readPrintJobPdfAsAdmin,
   runPrintJob, type ClaimedPrintJob, type PrintWorkerOptions

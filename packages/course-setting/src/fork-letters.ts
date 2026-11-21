@@ -1,13 +1,17 @@
 /**
- * ADR-0175, tillägg 2026-11-12 (c): grenarnas bokstäver i banläggningen är grenarnas identitet, som i tidtagningen. Kartorna
- * trycks härifrån med variantkoden, så en bokstav ska betyda samma gren efter en ändring:
+ * ADR-0175, tillägg 2026-11-12 (c) och 2026-11-21 (b): grenarnas bokstäver i banläggningen. I en låst bana
+ * (`Course.forkLetterLock`) är bokstaven grenens identitet, som i tidtagningen; i utkast följer bokstäverna banans ordning.
  *
  * - Ett dokument utan sparade bokstäver har Purple Pens ordning (`variantLetters`) tills en gaffling eller slinga ändras.
- * - När en banas grenar ändras (`keepForkLetters`, efter varje ändring) skrivs bokstäverna ut på grenarna: de som finns kvar
- *   behåller sin bokstav, en borttagen grens bokstav blir använd (`retiredLetters`) och en ny gren får nästa lediga.
+ * - När en banas grenar ändras (`keepForkLetters`, efter varje ändring):
+ *   - låst: bokstäverna skrivs ut på grenarna; de som finns kvar behåller sin bokstav, en borttagen grens bokstav blir använd
+ *     (`retiredLetters`) och en ny gren får nästa lediga.
+ *   - utkast: sparade och använda bokstäver tas bort, så att grenarna får bokstäver i banans ordning utan luckor (Purple Pen).
+ *     Bortvalen (ADR-0198) följer med till de nya koderna.
  * - En .ppen saknar bokstäver (Purple Pen döper i ordning). Läses en fil in över en banläggning med sparade bokstäver paras
  *   grenarna efter innehåll (`carryForkLetters`); det som inte går att para sägs.
  */
+import { renameExcludedVariants } from "./fork-codes";
 import { enumerateCourseControls, findCourse, variantLetters } from "./walk";
 import type { Course, CourseControl, CourseSettingDocument } from "./types";
 
@@ -30,7 +34,7 @@ const sameOrder = (left: ReadonlyMap<string, string>, right: ReadonlyMap<string,
  * Skriver ut bokstäverna på banans grenar: `kept` (gren → bokstav) gäller, övriga grenar får nästa lediga bokstav som inte
  * är använd. Tar bort `letter` från banans kontroller som inte längre börjar en gren.
  */
-function stampLetters(document: CourseSettingDocument, course: Course, kept: ReadonlyMap<string, string>, retired: readonly string[]): CourseSettingDocument {
+export function stampLetters(document: CourseSettingDocument, course: Course, kept: ReadonlyMap<string, string>, retired: readonly string[]): CourseSettingDocument {
   const keptLetters = new Set(kept.values());
   const retiredLetters = [...new Set(retired)].filter(letter => !keptLetters.has(letter)).sort();
   const base: Course = retiredLetters.length > 0 ? { ...course, retiredLetters } : withoutRetired(course);
@@ -78,10 +82,27 @@ export function keepForkLetters(before: CourseSettingDocument, after: CourseSett
     const old = lettersOf(before, course.id);
     const now = lettersOf(after, course.id);
     if (sameOrder(old, now)) continue;
+    if (course.forkLetterLock === undefined) {
+      result = packLetters(result, findCourse(result, course.id), old);
+      continue;
+    }
     const kept = new Map([...now.keys()].flatMap(id => old.has(id) ? [[id, old.get(id)!] as const] : []));
     result = stampLetters(result, findCourse(result, course.id), kept, [...(previous.retiredLetters ?? []), ...old.values()]);
   }
   return result;
+}
+
+/**
+ * Utkast (tillägg 2026-11-21 b): banans sparade och använda bokstäver tas bort, så att grenarna får Purple Pens bokstäver i
+ * banans ordning. `old` är bokstäverna före ändringen; bortvalen flyttas till de nya koderna.
+ */
+function packLetters(document: CourseSettingDocument, course: Course, old: ReadonlyMap<string, string>): CourseSettingDocument {
+  let ids: string[] = [];
+  try { ids = enumerateCourseControls(document, course.id); } catch { return document; }
+  const courseControls: Record<string, CourseControl> = { ...document.courseControls };
+  for (const id of ids) if (courseControls[id]?.letter !== undefined) courseControls[id] = withoutLetter(courseControls[id]);
+  const packed: CourseSettingDocument = { ...document, courseControls, courses: document.courses.map(row => row.id === course.id ? withoutRetired(row) : row) };
+  return renameExcludedVariants(document, packed, course.id, old);
 }
 
 /** Grenens innehåll: gaffelkontrollens kod och kontrollerna i grenen fram till där grenarna möts. */
@@ -119,9 +140,9 @@ export interface ForkLetterNotice {
  */
 export function carryForkLetters(current: CourseSettingDocument, imported: CourseSettingDocument)
   : { readonly document: CourseSettingDocument; readonly notices: readonly ForkLetterNotice[] } {
-  let document = imported;
+  let document = carryForkLetterLocks(current, imported);
   const notices: ForkLetterNotice[] = [];
-  for (const course of imported.courses) {
+  for (const course of document.courses) {
     if (course.kind === "SCORE" || hasStoredForkLetters(imported, course)) continue;
     const previous = current.courses.find(row => row.id === course.id && row.name === course.name) ??
       current.courses.find(row => row.name === course.name);
@@ -148,6 +169,24 @@ export function carryForkLetters(current: CourseSettingDocument, imported: Cours
     if (lost.length > 0 || added.length > 0) notices.push({ course: course.name, lost, added });
   }
   return { document, notices };
+}
+
+/**
+ * Tillägg 2026-11-21 (b): låset och bokstäverna vid senaste överföringen följer med när en .ppen utan O-Tid:s element (sparad
+ * i Purple Pen) läses in över banläggningen; samma bana = samma id och namn, annars samma namn.
+ */
+function carryForkLetterLocks(current: CourseSettingDocument, imported: CourseSettingDocument): CourseSettingDocument {
+  let changed = false;
+  const courses = imported.courses.map(course => {
+    if (course.forkLetterLock || course.forkLetterUnlockedAt !== undefined || course.transferredLetters) return course;
+    const previous = current.courses.find(row => row.id === course.id && row.name === course.name) ?? current.courses.find(row => row.name === course.name);
+    if (!previous || !(previous.forkLetterLock || previous.forkLetterUnlockedAt !== undefined || previous.transferredLetters)) return course;
+    changed = true;
+    return { ...course, ...(previous.forkLetterLock ? { forkLetterLock: previous.forkLetterLock } : {}),
+      ...(previous.forkLetterUnlockedAt !== undefined ? { forkLetterUnlockedAt: previous.forkLetterUnlockedAt } : {}),
+      ...(previous.transferredLetters ? { transferredLetters: previous.transferredLetters } : {}) };
+  });
+  return changed ? { ...imported, courses } : imported;
 }
 
 /**

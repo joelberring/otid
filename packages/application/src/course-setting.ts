@@ -11,6 +11,7 @@ import { paperLinksFor, writePpen, type CourseSettingDocument, type PaperLinks }
 import { raceTitle } from "@o-tid/domain";
 import { schema, type Database } from "@o-tid/database";
 import { courseSettingProjection } from "./course-setting-transfer";
+import { lockForkLettersOnRead } from "./course-setting-fork-letters";
 import { requireCourseSettingAccess, type CourseSettingPrincipal, type CourseSettingRequirement } from "./course-setting-access";
 import type { RaceSessionProof } from "./race-session";
 import { UUID_PATTERN as uuid } from "./serialization";
@@ -163,6 +164,8 @@ export async function loadPaperLinks(tx: Pick<Database, "select">, raceId: strin
 /** Editorns läge: dokumentet (null = inget än), den inlästa .ppen-filen, kartfilen som editorn ritar och behörigheten. */
 export async function readCourseSettingAsAdmin(db: Database, input: ReadProof & { readonly origin?: string | undefined }, now = new Date())
   : Promise<Failure | { status: "ok"; response: CourseSettingState }> {
+  // ADR-0175, tillägg 2026-11-21 (b): banor vars nycklar fått betydelse i tävlingen låses innan dokumentet visas.
+  await lockForkLettersOnRead(db, input, now);
   return courseSettingRead(db, input, now, async (tx, raceId, principal) => {
     const row = await loadRow(tx, raceId);
     const map = await loadMapFile(tx, raceId);

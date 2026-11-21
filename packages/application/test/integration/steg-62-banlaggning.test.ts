@@ -241,18 +241,19 @@ describe("steg 62: banläggningen", { timeout: 120_000 }, () => {
     [proof.raceId]);
     expect(classes.rows).toEqual([{ name: "D21", course: "Mellan" }, { name: "H21", course: "Lång" }]);
 
+    // ADR-0175, tillägg 2026-11-21 (b): överföringen sparade grenarnas bokstäver i banläggningen (version 2).
     // Samma dokument igen: inget att ändra.
-    const again = await previewCourseSettingTransferAsAdmin(db, { ...proof, request: { formatVersion: 1, version: 1 } });
+    const again = await previewCourseSettingTransferAsAdmin(db, { ...proof, request: { formatVersion: 1, version: 2 } });
     if (again.status !== "ok") throw new Error("Förhandsvisningen saknas");
     expect(again.response.rows).toEqual([]);
 
     // Ingen bana med start och mål, och kontroller utan kod på banorna.
-    expect((await save(proof, empty(), 1)).status).toBe("ok");
-    expect(await previewCourseSettingTransferAsAdmin(db, { ...proof, request: { formatVersion: 1, version: 2 } }))
+    expect((await save(proof, empty(), 2)).status).toBe("ok");
+    expect(await previewCourseSettingTransferAsAdmin(db, { ...proof, request: { formatVersion: 1, version: 3 } }))
       .toEqual({ status: "problem", problem: { formatVersion: 1, error: "NO_COURSES", controls: [] } });
     const coded = { ...document, controls: { ...document.controls, "3": { ...document.controls["3"]!, code: "A1" } } };
-    expect((await save(proof, coded, 2)).status).toBe("ok");
-    expect(await previewCourseSettingTransferAsAdmin(db, { ...proof, request: { formatVersion: 1, version: 3 } }))
+    expect((await save(proof, coded, 3)).status).toBe("ok");
+    expect(await previewCourseSettingTransferAsAdmin(db, { ...proof, request: { formatVersion: 1, version: 4 } }))
       .toEqual({ status: "problem", problem: { formatVersion: 1, error: "INVALID_CODES", controls: ["3"] } });
   });
 

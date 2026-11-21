@@ -593,7 +593,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
           return step ? applySteps(current, [step], applyEdit) : current; })} extra={<LevelAllButton support={level} />} />
         {course && <CourseProperties key={course.id} course={course} summary={summaries.find(row => row.course === course.id)} readOnly={readOnly} mapScale={document.event.mapScale}
           onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} />}
-        {course && <VariantsPanel document={document} course={course} routeLength={routeLength} hasMap={Boolean(state.mapFile)} readOnly={readOnly}
+        {course && <VariantsPanel raceId={raceId} document={document} course={course} routeLength={routeLength} hasMap={Boolean(state.mapFile)} readOnly={readOnly}
           onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} />}
         {course && <RouteLengthPanel state={routeLength} hasMap={Boolean(state.mapFile)} />}
         {course && <LevelPanel store={levelStore} support={level} document={document} readOnly={readOnly}

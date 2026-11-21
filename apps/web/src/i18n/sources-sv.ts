@@ -145,9 +145,9 @@ export const sourcesSv = {
     variantChangesTitle: (count: number) => count === 1 ? "1 löpare med tilldelad variant får andra kontroller. Kartan kan behöva bytas:"
       : `${count} löpare med tilldelad variant får andra kontroller. Kartorna kan behöva bytas:`,
     variantChange: (name: string, className: string, leg: number | undefined, code: string, before: readonly number[], after: readonly number[] | null,
-      reassigned = false) =>
+      reassigned = false, codeAfter?: string) =>
       `${name} · ${className}${leg === undefined ? "" : ` · sträcka ${leg}`}: ${code} ${before.join(" ")} → ` +
-      (after !== null ? after.join(" ") : reassigned ? "koden finns inte längre; får en ny variant (den minst använda i klassen)"
+      (after !== null ? `${codeAfter ? `${codeAfter} ` : ""}${after.join(" ")}` : reassigned ? "koden finns inte längre; får en ny variant (den minst använda i klassen)"
         : "koden finns inte längre (ge en ny variant)"),
     cardsKept: (count: number) => count === 1 ? "1 löpare har läst ut och får ny bricka. Resultatet behålls." : `${count} löpare har läst ut och får ny bricka. Resultaten behålls.`,
     apply: (count: number) => count === 1 ? "Godkänn 1 ändring" : `Godkänn ${count} ändringar`,

@@ -5,6 +5,7 @@
  */
 import { keepForkLetters } from "./fork-letters";
 import { addBranch, moveSplit } from "./fork-edit";
+import { applyForkLetterEdit } from "./fork-lock";
 import type { Point } from "@o-tid/map-file";
 import { setAppearance } from "./appearance-edit";
 import { LEG_CIRCLE_GAP_LIMITS } from "./appearance";
@@ -439,10 +440,12 @@ export function normalizeDegrees(degrees: number): number {
 /** Ändringar som aldrig ändrar en banas grenar (tas bort ur bokstavskontrollen, så att dragningar går fort). */
 const NO_BRANCH_EDITS: ReadonlySet<CourseSettingEdit["type"]> = new Set<CourseSettingEdit["type"]>(["ADD_CONTROL", "MOVE_CONTROL",
   "SET_CONTROL_CODE", "SET_CONTROL_ORIENTATION", "ADD_COURSE", "MOVE_NUMBER", "SET_LEG_BENDS", "SET_LEG_GAPS", "SET_CIRCLE_GAPS", "SET_EVENT",
-  "SET_DESCRIPTION", "SET_DESCRIPTION_TEXT_LINE", "SET_POINTS", "SET_ACCEPTED_CHECKS", "SET_ROUTE_HINTS", "SET_APPEARANCE"]);
+  "SET_DESCRIPTION", "SET_DESCRIPTION_TEXT_LINE", "SET_POINTS", "SET_ACCEPTED_CHECKS", "SET_ROUTE_HINTS", "SET_APPEARANCE",
+  "RENUMBER_FORK_LETTERS", "SET_FORK_LETTER_LOCK"]);
 
 /**
- * Gör en ändring. ADR-0175, tillägg 2026-11-12 (c): ändras en banas grenar står de gamla bokstäverna kvar (`keepForkLetters`).
+ * Gör en ändring. ADR-0175, tillägg 2026-11-12 (c) och 2026-11-21 (b): ändras en banas grenar står de gamla bokstäverna kvar
+ * i en låst bana och ordnas i banans ordning i utkast (`keepForkLetters`).
  */
 export function applyDocumentEdit(document: CourseSettingDocument, edit: CourseSettingEdit): EditResult {
   const result = applyDocumentEditOnly(document, edit);
@@ -472,6 +475,7 @@ function applyDocumentEditOnly(document: CourseSettingDocument, edit: CourseSett
   if (edit.type === "PUT_TRAINING") return { document: applyTrainingPatch(document, edit) };
   if (edit.type === "SET_ACCEPTED_CHECKS") return { document: setAcceptedChecks(document, edit.checks) };
   if (edit.type === "SET_ROUTE_HINTS") return { document: setRouteHints(document, edit.hints) };
+  if (edit.type === "RENUMBER_FORK_LETTERS" || edit.type === "SET_FORK_LETTER_LOCK") return { document: applyForkLetterEdit(document, edit) };
   const draft = draftOf(document);
   let created: string | undefined;
   switch (edit.type) {

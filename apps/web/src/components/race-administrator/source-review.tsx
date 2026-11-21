@@ -78,7 +78,7 @@ export function SourceReviewPanel({ review, busy, sourceName }: { review: Source
         {consequence.variantChanges && <Notice tone="attention">
           <strong>{text.variantChangesTitle(consequence.variantChanges.length)}</strong>
           <ul className={styles.statusChanges} data-testid="source-variant-changes">{consequence.variantChanges.map(change => <li key={change.entryId}>
-            {text.variantChange(change.displayName, change.className, change.leg, change.code, change.beforeControls, change.afterControls, change.reassigned)}</li>)}</ul>
+            {text.variantChange(change.displayName, change.className, change.leg, change.code, change.beforeControls, change.afterControls, change.reassigned, change.codeAfter)}</li>)}</ul>
         </Notice>}
       </>}
     </div>}

@@ -13,6 +13,7 @@ import { bumpReadoutPackageVersion, loadRaceSnapshot } from "./snapshot";
 import { assessReadOutEntries, recalculateAssessedEntries, summarizeAssessment, type AssessedEntry } from "./result-reassessment";
 import { classVariantCodes, planVariantDistribution, writeEntryVariants } from "./course-variants";
 import { UUID_PATTERN as uuid } from "./serialization";
+import { lockForkLettersFromRace } from "./course-setting-fork-letters";
 
 /**
  * Gafflingar (ADR-0169 beslut 2): byt variant på en löpare och fördela varianter i en
@@ -140,6 +141,8 @@ export async function changeEntryVariantAsAdmin(db: Database, input: Authenticat
       before: { courseVariantCode: entry.code, entryVersion: entry.version, snapshotVersion: race.snapshotVersion },
       after: { courseVariantCode: intent.variantCode, entryVersion: entry.version + 1, snapshotVersion: snapshotVersionAfter,
         recalculatedCount: recalculated.length, ...(intent.reason === "WRONG_MAP" ? { reason: "Fel karta vid starten" } : {}) }, createdAt: now });
+    // ADR-0175, tillägg 2026-11-21 (b): en tilldelad variant låser nycklarna i banläggningen.
+    await lockForkLettersFromRace(tx, raceId, auth.principal.accountId, now, { forceAssigned: true });
     return { status: "changed", response };
   });
 }
@@ -213,6 +216,7 @@ export async function distributeClassVariantsAsAdmin(db: Database,
       actorKind: "USER_ACCOUNT", actorId: auth.principal.accountId, action: "CLASS_COURSE_VARIANTS_DISTRIBUTED_BY_ADMIN",
       before: { snapshotVersion: race.snapshotVersion },
       after: { snapshotVersion: snapshotVersionAfter, assignedCount: planned.size, recalculatedCount: recalculated.length }, createdAt: now });
+    await lockForkLettersFromRace(tx, raceId, auth.principal.accountId, now, { forceAssigned: true });
     return { status: "distributed", response };
   });
 }

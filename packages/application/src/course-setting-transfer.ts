@@ -1,4 +1,7 @@
-import { allCourseVariants, courseLength, courseVariants, defaultScorePoints, scorePoints, type ControlPoint, type CourseSettingDocument } from "@o-tid/course-setting";
+import {
+  allCourseVariants, courseLength, courseVariants, defaultScorePoints, scorePoints, transferLetterRenames, transferLetters, type ControlPoint,
+  type CourseSettingDocument
+} from "@o-tid/course-setting";
 import { courseVariantCode, type CourseImport, type GeoPosition, type MapPositionImport } from "@o-tid/iof-xml";
 import { isSupportedEpsg, mapPointToWgs84, type MapGeoreference, type Point } from "@o-tid/map-file";
 import type { CourseFileProjection } from "./source-sync-model";
@@ -19,6 +22,10 @@ import type { CourseFileProjection } from "./source-sync-model";
  *
  * ADR-0198: bortvalda varianter blir inte varianter i tävlingen (ingen löpare får dem, de räknas inte och skrivs inte i
  * tävlingens IOF XML). De följer med banversionen som `excludedVariants` (högst 1000) så att avläsningen känner igen dem.
+ *
+ * ADR-0175, tillägg 2026-11-21 (b): per gafflad bana följer grenarnas bokstäver med (`forkLetters`); de sparas i dokumentet
+ * när överföringen godkänns (`transferredLetters`). Har bokstäverna bytts sedan förra överföringen följer översättningen
+ * gammal → ny bokstav med (`renames`), så att tävlingens löpare får de nya koderna och behåller sina kontroller.
  */
 export type CourseSettingTransferProblem = { readonly error: "NO_COURSES" | "INVALID_CODES"; readonly controls: readonly string[] };
 
@@ -90,6 +97,7 @@ export function courseSettingProjection(document: CourseSettingDocument, options
   const courses: CourseImport[] = [];
   const assignments: CourseFileProjection["data"]["assignments"][number][] = [];
   const assigned = new Set<string>();
+  const forkLetters: NonNullable<CourseFileProjection["data"]["forkLetters"]>[number][] = [];
   const ordered = [...document.courses].sort((left, right) => left.order - right.order || left.name.localeCompare(right.name, "sv-SE"));
 
   for (const course of ordered) {
@@ -119,6 +127,8 @@ export function courseSettingProjection(document: CourseSettingDocument, options
     let externalId = course.name;
     if (forked) {
       externalId = `family:${course.name}`;
+      const renames = transferLetterRenames(document, course.id);
+      forkLetters.push({ courseExternalId: externalId, course: course.id, letters: transferLetters(document, course.id), ...(renames ? { renames } : {}) });
       const familyLength = roundedLength(courseLength(document, course.id).meters);
       courses.push({ externalId, name: course.name, controlCodes: [], ...ends,
         variants: measured.map(variant => ({ code: courseVariantCode(course.name, `${course.name} ${variant.code}`), controlCodes: variant.controlCodes,
@@ -165,5 +175,6 @@ export function courseSettingProjection(document: CourseSettingDocument, options
     : ["Inga ClassCourseAssignment hittades"];
   return { projection: { kind: "COURSE_FILE", data: { fromCourseSetting: true, courses, assignments, legAssignments: [], personAssignments: [], teamAssignments: [],
     controlPositions, ...(controlMapPositions.length > 0 ? { controlMapPositions } : {}), mapScale: Math.round(document.event.mapScale), warnings,
+    ...(forkLetters.length > 0 ? { forkLetters } : {}),
     ...(options.rogaining ? { controlPoints: scoreControlPoints(document) } : {}) } } };
 }

@@ -117,6 +117,14 @@ export interface ExcludedVariant {
   readonly controls: readonly string[];
 }
 
+/** Varför nycklarna är låsta (ADR-0175, tillägg 2026-11-21 b). */
+export type ForkLetterLockReason = "MANUAL" | "PRINT" | "ASSIGNED" | "START_LIST";
+export interface ForkLetterLock {
+  readonly reason: ForkLetterLockReason;
+  /** När låset sattes (ISO-tid). */
+  readonly at: string;
+}
+
 export interface Course {
   readonly id: string;
   readonly name: string;
@@ -147,6 +155,18 @@ export interface Course {
    * länge andra finns. Bara O-Tid (i .ppen i `<otid:letters>`).
    */
   readonly retiredLetters?: readonly string[] | undefined;
+  /**
+   * ADR-0175, tillägg 2026-11-21 (b): nycklarna är låsta (tillägg c gäller). Saknas = utkast: grenarna får bokstäver i
+   * banans ordning när en gaffling ändras. Satt av servern (tryck, tilldelade varianter, publicerad startlista) eller för hand.
+   */
+  readonly forkLetterLock?: ForkLetterLock | undefined;
+  /** Låset hävdes för hand (ISO-tid): servern låser inte igen av tävlingens läge, bara av en ny händelse (tryck, fördelning). */
+  readonly forkLetterUnlockedAt?: string | undefined;
+  /**
+   * Grenarnas bokstäver vid senaste «Överför till tävlingen» (grenens första banans kontroll → bokstav). Nästa överföring
+   * översätter tävlingens koder med den (AG → AC), så att löparna behåller sina kontroller.
+   */
+  readonly transferredLetters?: Readonly<Record<string, string>> | undefined;
   /**
    * ADR-0212: banans målnivå (Grön … Svart) för nivåstödet. Bara O-Tid; skrivs inte till .ppen och följer med när en ny .ppen
    * läses in (`carryCourseLevels`). Saknas = ingen.

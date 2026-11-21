@@ -35,6 +35,13 @@ export interface CourseFileProjection {
        * banläggningen förs över till en rogaining; en IOF-fil ger dem inte.
        */
       readonly controlPoints?: readonly { readonly code: number; readonly points: number | null }[];
+      /**
+       * ADR-0175, tillägg 2026-11-21 (b): grenarnas bokstäver per gafflad bana ur banläggningen (`course` = banläggningens
+       * bana, `letters` = gren → bokstav) och översättningen sedan förra överföringen (gammal bokstav → ny, null = grenen
+       * finns inte kvar).
+       */
+      readonly forkLetters?: readonly { readonly courseExternalId: string; readonly course: string;
+        readonly letters: Readonly<Record<string, string>>; readonly renames?: Readonly<Record<string, string | null>> }[];
     };
 }
 
@@ -115,7 +122,12 @@ export type CourseFileAction =
   | { readonly type: "CHANGE_COURSE"; readonly courseId: string; readonly controlCodes: readonly number[];
       readonly variants: readonly { readonly code: string; readonly controlCodes: readonly number[] }[];
       /** ADR-0198: bortvalda varianter ur banläggningen. */
-      readonly excludedVariants?: readonly { readonly code: string; readonly controlCodes: readonly number[] }[] | undefined }
+      readonly excludedVariants?: readonly { readonly code: string; readonly controlCodes: readonly number[] }[] | undefined;
+      /**
+       * ADR-0175, tillägg 2026-11-21 (b): tävlingens koder som byter kod (gammal → ny, null = varianten finns inte kvar), ur
+       * banläggningens översättning. Saknas = koderna betyder samma som förut.
+       */
+      readonly codeRenames?: Readonly<Record<string, string | null>> | undefined }
   /** ADR-0190: bara längden eller stigningen ändrad (inga resultat räknas om). */
   | { readonly type: "SET_COURSE_MEASURES"; readonly courseId: string }
   /** Rogaining: kontrollens poäng ur banläggningen (null = förvalet). */

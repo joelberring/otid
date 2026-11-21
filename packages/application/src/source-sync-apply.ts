@@ -10,13 +10,14 @@ import {
 import { storeControlMapPositions, storeControlPositions, storeCourseEnds } from "./course-positions";
 import { insertCourseVersionControls, leastUsedVariantForClass, variantAfterClassChange } from "./course-variants";
 import { applyEntryDecision } from "./entry-status";
-import { courseFileVariantChanges, reassignVanishedVariants, type CourseFileVariantChange } from "./course-file-variant-changes";
+import { courseFileVariantChanges, reassignVanishedVariants, renameTransferredVariants, type CourseFileVariantChange } from "./course-file-variant-changes";
 import { importLegCourses, importPersonCourseAssignments, importTeamCourseAssignments } from "./import-iof";
 import { loadRelayClassConfigs } from "./relay-model";
 import { planNewRelayTeamVariants } from "./relay-variants";
 import { synchronizeRelayTeams } from "./relay-sync";
 import { assessReadOutEntries, recalculateAssessedEntries, summarizeAssessment, type AssessedEntry } from "./result-reassessment";
 import { bumpReadoutPackageVersion, loadRaceSnapshot } from "./snapshot";
+import { recordTransferredForkLetters } from "./course-setting-fork-letters";
 import {
   fullName, PLACEHOLDER_COURSE, type ClassRef, type CourseFileAction, type CourseFileProjection, type CourseRef, type CurrentState,
   type EventorAction, type EventorProjection, type PlannedRow
@@ -403,6 +404,8 @@ export async function applyCourseFile(tx: Transaction, input: ApplyInput, projec
   }
   const measured = new Set(rows.flatMap(({ action }) => action.type === "CHANGE_COURSE" || action.type === "SET_COURSE_MEASURES" ? [action.courseId] : []));
   await storeCourseMeasurements(tx, raceId, projection, state, links, ids, measured);
+  // Tillägg 2026-11-21 (b): koder som bytts i banläggningen (AG → AC) följer med till löparna, före fördelningen.
+  const renamed = await renameTransferredVariants(tx, raceId, rows);
   // Varianter per löpare och lag ur filen; den som läst ut behåller sin variant.
   const keep = new Set(state.entries.filter(entry => entry.readOut || entry.hasResult).map(entry => entry.id));
   // Steg 47: AllowedOnLeg ger stafettsträckornas banor.
@@ -411,7 +414,9 @@ export async function applyCourseFile(tx: Transaction, input: ApplyInput, projec
   await importTeamCourseAssignments(tx, raceId, projection.data, keep);
   // Ägaren 2026-11-17: den vars variant försvann (och inte läst ut) får en ny; giltiga koder behålls.
   await reassignVanishedVariants(tx, raceId, state,
-    new Set(rows.flatMap(({ action }) => action.type === "CHANGE_COURSE" ? [action.courseId] : [])));
+    new Set(rows.flatMap(({ action }) => action.type === "CHANGE_COURSE" ? [action.courseId] : [])), renamed.vanished);
+  // Tillägg 2026-11-21 (b): bokstäverna som fördes över sparas i banläggningen, och banorna låses om tävlingen kräver det.
+  if (projection.data.fromCourseSetting) await recordTransferredForkLetters(tx, raceId, input.actorAccountId, input.now, projection, rows, state);
   await bumpReadoutPackageVersion(tx, raceId);
   return recalculate(tx, raceId, assessment, input.snapshotVersionAfter);
 }

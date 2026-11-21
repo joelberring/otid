@@ -1510,7 +1510,7 @@ låser nycklarna; tas en gren bort ur en gaffling med två grenar försvinner ga
   att lägga in (varning för samma kontroll två gånger i rad), Ta bort gafflingen behåller gren A, Delete på gaffelkontrollen
   frågar, sträckor i flera grenar, inre gaffling som möts med den yttre, varning för tomma grenar och lika varianter,
   MCP-översiktens sträckor per variant.
-- [ ] G2 Nycklarna: utkast och lås per bana (lås av tryck med variantkod, tilldelade varianter eller publicerad startlista,
+- [x] G2 Nycklarna: utkast och lås per bana (lås av tryck med variantkod, tilldelade varianter eller publicerad startlista,
   eller för hand), packade bokstäver i utkast, «Ordna nycklarna» med förhandsvisning, översättningen och bortvalen följer
   med vid Överför till tävlingen, E2E-test för hela flödet.
 

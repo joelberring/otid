@@ -12,6 +12,7 @@ import { sha256Hex } from "./serialization";
 import { rowContent } from "./map-content";
 import { paperImagesFor } from "./course-setting-paper";
 import type { FontFiles } from "@o-tid/print-pdf";
+import { lockForkLettersFromRace } from "./course-setting-fork-letters";
 import { PDF_CAPABILITIES } from "@o-tid/print-pdf";
 
 /**
@@ -125,6 +126,8 @@ export async function createPrintJobAsAdmin(db: Database, input: RaceSessionProo
       documentVersion: row.version, createdAt: now, createdBy: actorId }).returning(listColumns);
     await tx.insert(schema.auditEvents).values({ raceId, entityType: "course_setting", entityId: raceId, action: "COURSE_SETTING_PRINT_JOB_CREATED",
       actorKind: "USER_ACCOUNT", actorId, after: { job: id, kind: request.kind, items: request.items.length, version: row.version } });
+    // ADR-0175, tillägg 2026-11-21 (b): kartor med variantkod i tryck låser nycklarna (jobbet har dokumentet som det var).
+    if (request.items.some(item => item.variant)) await lockForkLettersFromRace(tx, raceId, actorId, now);
     return { status: "ok" as const, job: dto(created!, null), created: true };
   });
 }

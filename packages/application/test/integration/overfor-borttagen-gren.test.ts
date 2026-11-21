@@ -5,7 +5,7 @@ import { applyEdit, emptyDocument, writePpen, type CourseSettingDocument, type C
 import { createOrganizerEvent } from "../../src/organizer-events";
 import { registerUserAccount } from "../../src/user-account";
 import { applySyncAsAdmin } from "../../src/source-sync";
-import { importCourseSettingAsAdmin, previewCourseSettingTransferAsAdmin } from "../../src/course-setting";
+import { importCourseSettingAsAdmin, previewCourseSettingTransferAsAdmin, readCourseSettingAsAdmin } from "../../src/course-setting";
 import { listEntryRegistrationClassesAsAdmin, registerEntryAsAdmin } from "../../src/entry-registration";
 import { changeEntryVariantAsAdmin } from "../../src/course-variant-assignment";
 import { createRelayClassAsAdmin, registerRelayTeamAsAdmin } from "../../src/relay-admin";
@@ -96,6 +96,9 @@ async function apply(proof: Proof, snapshotId: string, confirmResultChanges: boo
     excludedRowIds: [], confirmResultChanges } });
 }
 
+const setting = async (raceId: string) => (await pool.query<{ version: number; document: CourseSettingDocument }>(
+  "select version, document from course_setting where race_id = $1", [raceId])).rows[0]!;
+
 const raceVariants = async (raceId: string) => (await pool.query<{ code: string }>(`select cv.code from course_variant cv
   join course_version v on v.id = cv.course_version_id join course c on c.id = v.course_id
   where c.race_id = $1 and c.name = 'Natt' and v.version = (select max(version) from course_version where course_id = c.id) order by cv.sequence`,
@@ -153,10 +156,14 @@ describe("Överför till tävlingen efter en borttagen gren (tillägg 2026-11-12
     }
     expect(await entryCodes(proof.raceId)).toMatchObject({ Ada: "AC", Bo: "AD", Cia: "AE", Lag1: "BD", Lag2: "BE" });
 
+    // Tillägg 2026-11-21 (b): löparna har fått varianter, så servern låser nycklarna i banläggningen (senast när editorn läser).
+    expect((await readCourseSettingAsAdmin(db, proof)).status).toBe("ok");
+    const current = await setting(proof.raceId);
+    expect(current.document.courses.find(row => row.id === course)!.forkLetterLock?.reason).toBe("ASSIGNED");
     // I banläggningen tas grenen D (63) bort. E står kvar som E (Purple Pen hade döpt om den till D).
-    const removed = applyEdit(document, { type: "REMOVE_COURSE_CONTROL", course, courseControl: second[1]! }).document;
-    await save(proof, removed, 1);
-    const transfer = await preview(proof, 2);
+    const removed = applyEdit(current.document, { type: "REMOVE_COURSE_CONTROL", course, courseControl: second[1]! }).document;
+    await save(proof, removed, current.version);
+    const transfer = await preview(proof, current.version + 1);
     expect(transfer.consequence.requiresConfirmation).toBe(true);
     expect(transfer.consequence.variantChanges!.map(row => [row.displayName, row.className, row.leg ?? null, row.code, row.beforeControls, row.afterControls,
       row.reassigned ?? false]))

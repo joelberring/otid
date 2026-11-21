@@ -49,6 +49,14 @@ export type CourseSettingEdit =
   /** Ägaren 2026-11-17: en gren till i gafflingen vid `at` (en av grenarnas gaffelkontroller), och flytta början eller slutet. */
   | { readonly type: "ADD_BRANCH"; readonly course: string; readonly at: string }
   | { readonly type: "MOVE_SPLIT"; readonly course: string; readonly at: string; readonly edge: "START" | "END"; readonly direction: "FORWARD" | "BACK" }
+  /**
+   * ADR-0175, tillägg 2026-11-21 (b): «Ordna nycklarna» – grenarna får bokstäver i banans ordning (Purple Pen), bortvalen
+   * följer med till de nya koderna och de använda bokstäverna glöms.
+   */
+  | { readonly type: "RENUMBER_FORK_LETTERS"; readonly course: string }
+  /** Lås nycklarna (för hand, eller av en utskrift i webbläsaren) eller häv låset; `at` är tiden (ISO). */
+  | { readonly type: "SET_FORK_LETTER_LOCK"; readonly course: string; readonly locked: boolean; readonly reason?: "MANUAL" | "PRINT" | undefined;
+      readonly at: string }
   /** ADR-0217: med `printLayout` (inte huvudlayouten) ett justerat nummer på arket; null = som banläggningen. */
   | { readonly type: "MOVE_NUMBER"; readonly course: string; readonly courseControl: string; readonly at: Point | null; readonly printLayout?: string | undefined }
   | { readonly type: "SET_LEG_BENDS"; readonly from: string; readonly to: string; readonly bends: readonly Point[] }

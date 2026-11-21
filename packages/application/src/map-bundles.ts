@@ -14,6 +14,7 @@ import { loadCourseVersionVariants } from "./course-variants";
 import { loadStartListFacts } from "./start-draw-basis";
 import type { DbExecutor } from "./snapshot";
 import { canonicalHash, UUID_PATTERN as uuid } from "./serialization";
+import { lockForkLettersFromRace } from "./course-setting-fork-letters";
 
 /**
  * Kartor till starten (PLAN.md steg 61): tryckantal per variant, kartbuntslistan och baksidorna ur domänens
@@ -193,6 +194,8 @@ export async function recordMapPrintAsAdmin(db: Database, input: Authentication 
     const state = printedMapState(basis.plan);
     await tx.insert(schema.mapPrints).values({ raceId, list: parsed.data.list, printedAt: now, state: { ...state } })
       .onConflictDoUpdate({ target: [schema.mapPrints.raceId, schema.mapPrints.list], set: { printedAt: now, state: { ...state } } });
+    // ADR-0175, tillägg 2026-11-21 (b): utskrivna kartbuntar låser nycklarna i banläggningen.
+    if (parsed.data.list === "BUNDLE") await lockForkLettersFromRace(tx, raceId, auth.principal.accountId, now);
     return { status: "printed", response: mapPrintResponseSchema.parse({ formatVersion: 1, raceId, list: parsed.data.list,
       printedAt: now.toISOString() }) };
   });

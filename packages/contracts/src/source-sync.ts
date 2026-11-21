@@ -90,7 +90,9 @@ export const syncConsequenceSchema = z.object({
     leg: z.number().int().min(1).max(100).optional(), code: z.string().min(1).max(32),
     beforeControls: z.array(z.number().int().positive()).max(1000), afterControls: z.array(z.number().int().positive()).max(1000).nullable(),
     /** Ägaren 2026-11-17: koden försvinner och löparen (som inte läst ut) får den minst använda av klassens varianter. */
-    reassigned: z.literal(true).optional() }).strict())
+    reassigned: z.literal(true).optional(),
+    /** ADR-0175, tillägg 2026-11-21 (b): löparens nya kod när banläggningens nycklar ordnats om (AG → AC). */
+    codeAfter: z.string().min(1).max(32).optional() }).strict())
     .max(10_000).optional(),
   requiresConfirmation: z.boolean()
 }).strict();

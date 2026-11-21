@@ -173,6 +173,7 @@ const ROUTE_METHODS: Readonly<Partial<Record<Action["kind"], readonly string[]>>
   "course-setting-transfer": ["POST"], "course-setting-notes": ["GET", "POST"], "course-setting-suggestions": ["GET", "POST"],
   "course-setting-edits": ["POST"], "course-setting-note-reply": ["POST"], "course-setting-suggestion-decision": ["POST"],
   "course-setting-mode": ["PUT"], "course-setting-note-status": ["PUT"], "course-setting-inspections": ["GET", "PUT"],
+  "course-setting-fork-letters": ["GET"],
   "course-setting-map-link": ["GET", "POST", "DELETE"], "course-setting-print-jobs": ["GET", "POST"],
   "course-setting-print-job": ["DELETE"], "course-setting-print-job-pdf": ["GET"],
   "course-setting-print-files": ["GET", "POST"], "course-setting-print-file": ["GET", "DELETE"], "course-setting-paper-images": ["POST"],

@@ -1,4 +1,5 @@
 import type { SyncRow } from "@o-tid/contracts";
+import { translateTransferredCode } from "@o-tid/course-setting";
 import { defaultRogainingPoints } from "@o-tid/domain";
 import {
   normalized, PLACEHOLDER_COURSE, row, sameCodes, type CourseFileAction, type CourseFileProjection, type CourseRef, type CurrentCourse,
@@ -7,6 +8,21 @@ import {
 
 type Variants = readonly { readonly code: string; readonly controlCodes: readonly number[] }[];
 const codes = (values: readonly number[]) => values.join(" ");
+
+/**
+ * ADR-0175, tillägg 2026-11-21 (b): tävlingens koder som byter kod enligt banläggningens översättning (bokstav för bokstav;
+ * null = en gren finns inte kvar). Tomt när inget byter kod.
+ */
+function codeRenamesFor(projection: CourseFileProjection, externalId: string, current: Variants): { codeRenames?: Record<string, string | null> } {
+  const renames = projection.data.forkLetters?.find(row => row.courseExternalId === externalId)?.renames;
+  if (!renames) return {};
+  const out: Record<string, string | null> = {};
+  for (const variant of current) {
+    const next = translateTransferredCode(variant.code, renames);
+    if (next !== variant.code) out[variant.code] = next;
+  }
+  return Object.keys(out).length > 0 ? { codeRenames: out } : {};
+}
 
 /** Ändrade varianter som läsbara rader: "AC: 31 32 33" → "AC: 31 39 33". */
 function variantChanges(current: Variants, next: Variants): SyncRow["changes"] {
@@ -103,7 +119,7 @@ export function diffCourseFile(projection: CourseFileProjection, state: CurrentS
       readOut: readOutOnCourse(local.id) > 0, context: state.classes.filter(raceClass => raceClass.courseId === local.id)
         .map(raceClass => raceClass.name).join(", ") || null }),
     action: { type: "CHANGE_COURSE", courseId: local.id, controlCodes: variants.length > 0 ? [] : course.controlCodes, variants,
-      excludedVariants } });
+      excludedVariants, ...codeRenamesFor(projection, course.externalId, local.variants) } });
   }
   for (const course of candidates) {
     if (course.externalSource === "iof" && !used.has(course.id) && !courses.some(row => row.externalId === course.externalId)) {

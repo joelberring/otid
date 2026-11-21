@@ -8,7 +8,7 @@ import {
   courseSettingSuggestionSchema, courseSettingSuggestionsSchema, type CourseSettingEditsRequest, type CourseSettingEditsSaved, type CourseSettingMode,
   type CourseSettingNote, type CourseSettingNoteCreate, type CourseSettingNotes, type CourseSettingSuggestion, type CourseSettingSuggestionCreate,
   type CourseSettingSuggestionDecided, type CourseSettingSuggestionDecision, type CourseSettingSuggestions, type CourseSettingInspectionRequest,
-  type CourseSettingInspections
+  type CourseSettingInspections, courseSettingForkLettersSchema, type CourseSettingForkLetters
 } from "@o-tid/contracts";
 import type { CourseSettingDocument } from "@o-tid/course-setting";
 import { HttpStatusError } from "./course-setting-sync";
@@ -182,4 +182,10 @@ export async function fetchCourseSettingInspections(raceId: string): Promise<Cou
 
 export async function setCourseSettingInspection(raceId: string, request: CourseSettingInspectionRequest): Promise<CourseSettingInspections> {
   return parsed(await write(raceId, "/course-setting/inspections", "PUT", request), courseSettingInspectionsSchema);
+}
+
+// ADR-0175, tillägg 2026-11-21 (b): det som berörs om nycklarna ordnas om eller låset hävs.
+export async function fetchCourseSettingForkLetters(raceId: string): Promise<CourseSettingForkLetters> {
+  return parsed(await fetchWithRetry(`${base(raceId)}/course-setting/fork-letters`, { credentials: "same-origin", cache: "no-store" }),
+    courseSettingForkLettersSchema);
 }

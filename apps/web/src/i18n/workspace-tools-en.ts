@@ -293,9 +293,9 @@ export const sourcesEn: Texts<typeof sourcesSv> = {
     variantChangesTitle: (count: number) => count === 1 ? "1 runner with an assigned variant gets other controls. The map may need to be replaced:"
       : `${count} runners with an assigned variant get other controls. The maps may need to be replaced:`,
     variantChange: (name: string, className: string, leg: number | undefined, code: string, before: readonly number[], after: readonly number[] | null,
-      reassigned = false) =>
+      reassigned = false, codeAfter?: string) =>
       `${name} · ${className}${leg === undefined ? "" : ` · leg ${leg}`}: ${code} ${before.join(" ")} → ` +
-      (after !== null ? after.join(" ") : reassigned ? "the code no longer exists; gets a new variant (the least used in the class)"
+      (after !== null ? `${codeAfter ? `${codeAfter} ` : ""}${after.join(" ")}` : reassigned ? "the code no longer exists; gets a new variant (the least used in the class)"
         : "the code no longer exists (give a new variant)"),
     cardsKept: count => count === 1 ? "1 runner has read out and gets a new card. The result is kept." : `${count} runners have read out and get a new card. The results are kept.`,
     apply: count => count === 1 ? "Approve 1 change" : `Approve ${count} changes`,

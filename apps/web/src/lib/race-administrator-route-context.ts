@@ -37,7 +37,7 @@ import { loadStartDrawSetupAsAdmin, previewStartDrawAsAdmin, commitStartDrawAsAd
   createMapLinkAsAdmin, readMapLinkAsAdmin, revokeMapLinkAsAdmin, editCourseSettingNoteAsAdmin,
   createCourseSettingNoteAsAdmin, replyCourseSettingNoteAsAdmin, setCourseSettingNoteStatusAsAdmin, readCourseSettingNotePhotoAsAdmin,
   deleteCourseSettingNoteAsAdmin, deleteCourseSettingNoteReplyAsAdmin,
-  listCourseSettingInspectionsAsAdmin, setCourseSettingInspectionAsAdmin,
+  listCourseSettingInspectionsAsAdmin, setCourseSettingInspectionAsAdmin, readForkLetterFactsAsAdmin,
   listPrintJobsAsAdmin, createPrintJobAsAdmin, readPrintJobPdfAsAdmin, deletePrintJobAsAdmin,
   listRacePrintFiles, readRacePrintFile, removeRacePrintFile, saveRacePrintFile,
   uploadPaperImageAsAdmin, readPaperImageAsAdmin, listPaperLibraryAsAdmin, savePaperLibraryAsAdmin, deletePaperLibraryAsAdmin,
@@ -144,6 +144,7 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   courseSettingSuggestion: createCourseSettingSuggestionAsAdmin, courseSettingSuggestionDecision: decideCourseSettingSuggestionAsAdmin,
   // Steg 67: "kollad" per kontroll.
   courseSettingInspections: listCourseSettingInspectionsAsAdmin, courseSettingInspection: setCourseSettingInspectionAsAdmin,
+  courseSettingForkLetters: readForkLetterFactsAsAdmin,
   // Steg 65: PDF för tryck (kön; utskriftsarbetaren skriver PDF:en).
   printJobs: listPrintJobsAsAdmin, printJobCreate: createPrintJobAsAdmin, printJobPdf: readPrintJobPdfAsAdmin, printJobDelete: deletePrintJobAsAdmin,
   // Ägaren 2026-11-10: utskrifternas PDF:er sparade i träningen.
@@ -225,7 +226,7 @@ export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: str
   { kind: "course-setting-note-photo"; noteId: string } | { kind: "course-setting-suggestions" } |
   { kind: "course-setting-note"; noteId: string } | { kind: "course-setting-note-reply-item"; noteId: string; replyId: string } |
   { kind: "course-setting-map-link" } |
-  { kind: "course-setting-suggestion-decision"; suggestionId: string } | { kind: "course-setting-events" } | { kind: "course-setting-inspections" } |
+  { kind: "course-setting-suggestion-decision"; suggestionId: string } | { kind: "course-setting-events" } | { kind: "course-setting-inspections" } | { kind: "course-setting-fork-letters" } |
   { kind: "course-setting-print-jobs" } | { kind: "course-setting-print-job"; jobId: string } | { kind: "course-setting-print-job-pdf"; jobId: string } |
   { kind: "course-setting-print-files" } | { kind: "course-setting-print-file"; fileId: string } |
   { kind: "course-setting-paper-images" } | { kind: "course-setting-paper-image"; sha256: string } | { kind: "course-setting-paper-library" } |

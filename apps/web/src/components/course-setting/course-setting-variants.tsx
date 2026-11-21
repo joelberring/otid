@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { courseVariantsCsEn } from "../../i18n/course-setting-course-en";
 import { useTexts } from "../language-provider";
 import type { Course, CourseSettingDocument, CourseSettingEdit } from "@o-tid/course-setting";
@@ -10,6 +10,7 @@ import { safely } from "../../lib/course-setting-safely";
 import { excludedRows, parseLimit, pruningPlan, variantTable, type VariantTable } from "../../lib/course-setting-variants";
 import { Button } from "../ui";
 import type { RouteLength } from "./course-setting-route-length";
+import { ForkLettersPanel } from "./course-setting-fork-letters";
 import base from "./course-setting.module.css";
 import styles from "./course-setting-variants.module.css";
 
@@ -24,18 +25,22 @@ type PruneMode = (typeof PRUNE_MODES)[number];
  * att välja bort den, eller "Begränsa varianter" med förhandsgranskning. Bortvalen sparas på banan (`UPDATE_COURSE`), så
  * att de följer med autosparande, ångra och versioner.
  */
-export function VariantsPanel({ document, course, routeLength, hasMap, readOnly, onEdits }: {
+export function VariantsPanel({ raceId, document, course, routeLength, hasMap, readOnly, onEdits }: {
+  /** Tävlingen, för det som berörs när nycklarna ordnas om (ADR-0175, tillägg 2026-11-21 b). */
+  raceId?: string | undefined;
   document: CourseSettingDocument; course: Course; routeLength: RouteLength; hasMap: boolean; readOnly: boolean;
   onEdits: (edits: CourseSettingEdit[]) => void;
 }) {
   const table = useMemo(() => safely("Varianterna", () => variantTable(document, course.id, routeLength.results), () => undefined),
     [document, course.id, routeLength.results]);
   if (!table) return null;
-  return <VariantsBody key={course.id} table={table} course={course} routeLength={routeLength} hasMap={hasMap} readOnly={readOnly} onEdits={onEdits} />;
+  return <VariantsBody key={course.id} table={table} course={course} routeLength={routeLength} hasMap={hasMap} readOnly={readOnly} onEdits={onEdits}
+    forkLetters={<ForkLettersPanel raceId={raceId} document={document} course={course} readOnly={readOnly} onEdits={onEdits} />} />;
 }
 
-function VariantsBody({ table, course, routeLength, hasMap, readOnly, onEdits }: {
+function VariantsBody({ table, course, routeLength, hasMap, readOnly, onEdits, forkLetters }: {
   table: VariantTable; course: Course; routeLength: RouteLength; hasMap: boolean; readOnly: boolean; onEdits: (edits: CourseSettingEdit[]) => void;
+  forkLetters: ReactNode;
 }) {
   const text = useTexts(courseVariantsSv, courseVariantsCsEn);
   // Ägaren 2026-11-03: förval "Ta bort de längsta" med 3; "längst i alla avseenden (alla)" och taken är andra sätt.
@@ -90,6 +95,7 @@ function VariantsBody({ table, course, routeLength, hasMap, readOnly, onEdits }:
     <p className={base.muted}>{text.help}</p>
     {kept > MAX_RACE_VARIANTS && <p className={styles.warning} role="alert">{text.tooMany(kept)}</p>}
     {course.relay && <p className={styles.warning} role="note">{text.relay}</p>}
+    {forkLetters}
     {unusedLabels.length > 0 && <p className={styles.warning} role="note" data-testid="course-setting-variants-unused">{text.unused(unusedLabels)}</p>}
     <div className={styles.scroll}>
       <table className={styles.table} data-testid="course-setting-variants-table">

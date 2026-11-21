@@ -95,6 +95,8 @@ export const COURSE_SETTING_ROUTES: Readonly<Record<string, Readonly<Record<stri
   "course-setting-events": { GET: "COMMENT" },
   // Steg 67: "kollad" per kontroll (bankontrollanten får bocka).
   "course-setting-inspections": { GET: "COMMENT", PUT: "COMMENT" },
+  // ADR-0175, tillägg 2026-11-21 (b): vad som berörs av nycklarna (löparnas namn), för den som får ändra.
+  "course-setting-fork-letters": { GET: "EDIT" },
   // Steg 65: PDF för tryck, bara admin (ägare och administratörer); PDF:erna är aldrig publika.
   "course-setting-print-jobs": { GET: "ADMIN", POST: "ADMIN" },
   "course-setting-print-job": { DELETE: "ADMIN" },

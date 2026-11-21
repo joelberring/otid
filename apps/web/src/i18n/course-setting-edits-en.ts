@@ -64,6 +64,8 @@ export const editTextsEn: EditTexts = {
     REMOVE_SPLIT: (edit, ctx) => `Remove the fork at ${ctx.onCourse(edit.at)}`,
     ADD_BRANCH: (edit, ctx) => `Another branch in the fork at ${ctx.onCourse(edit.at)}`,
     MOVE_SPLIT: (edit, ctx) => `Move the fork's ${edit.edge === "START" ? "start" : "end"} ${edit.direction === "FORWARD" ? "forward" : "back"} (at ${ctx.onCourse(edit.at)})`,
+    RENUMBER_FORK_LETTERS: (edit, ctx) => `Order the keys on ${ctx.course(edit.course)}`,
+    SET_FORK_LETTER_LOCK: (edit, ctx) => `${edit.locked ? "Lock" : "Unlock"} the keys on ${ctx.course(edit.course)}`,
     MOVE_NUMBER: (edit, ctx) => `Move the number for ${ctx.onCourse(edit.courseControl)}`,
     SET_LEG_BENDS: (edit, ctx) => `Bend points on the leg ${ctx.label(edit.from)}–${ctx.label(edit.to)}`,
     SET_LEG_GAPS: (edit, ctx) => `Gaps on the leg ${ctx.label(edit.from)}–${ctx.label(edit.to)}`,

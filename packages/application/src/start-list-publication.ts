@@ -8,6 +8,7 @@ import { loadCourseVersionVariants } from "./course-variants";
 import { loadRelayClassConfigs, loadRelayTeams } from "./relay-model";
 import { loadStartListFacts } from "./start-draw-basis";
 import { canonicalHash as hh, UUID_PATTERN as raceIdPattern } from "./serialization";
+import { lockForkLettersFromRace } from "./course-setting-fork-letters";
 import { hideUnstartedVariants, loadPublicVariantPolicy } from "./public-before-start";
 const MAX_CLASSES = 1000, MAX_ENTRIES = 10000;
 type Auth = RaceSessionProof;
@@ -275,6 +276,8 @@ export async function decideStartListPublicationAsAdmin(db: Database, input: Aut
                 revision: saved.revision
             }
         });
+        // ADR-0175, tillägg 2026-11-21 (b): en publicerad startlista låser nycklarna i banläggningen.
+        if (saved.action === "PUBLISH") await lockForkLettersFromRace(tx, race.id, a.principal.accountId, now);
         return {
             status: "decided" as const, response: out(saved, false)
         };

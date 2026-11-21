@@ -15,7 +15,7 @@ import Link from "next/link";
 import type { CourseSettingEditsRequest, CourseSettingState, MapBundleResponse } from "@o-tid/contracts";
 import {
   exchangeAfterPart, expandPartItems, expandTrainingItems, isFlip, BUILT_IN_PRINT_PROFILES, BUILT_IN_SHEET_LAYOUTS, descriptionSymbols, printSheetGroups, layoutEntries,
-  sheetLayoutOfLayout, MAIN_LAYOUT, type CourseSettingDocument, type CourseSettingEdit, type DescriptionSymbol, type MapRect, type Sheet, type SheetItem
+  sheetLayoutOfLayout, MAIN_LAYOUT, isForkedCourse, type CourseSettingDocument, type CourseSettingEdit, type DescriptionSymbol, type MapRect, type Sheet, type SheetItem
 } from "@o-tid/course-setting";
 import { coursePrintSv } from "../../i18n/course-setting-print-sv";
 import { sheetLayoutSv } from "../../i18n/course-setting-print-profile-sv";
@@ -317,6 +317,15 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
   const runnerMode = mode === "RUNNERS";
   const shownPaper = readOnlyPaper(sha => paperImageUrl(raceId, sha));
   const saveProfile = async (edits: CourseSettingEdit[]) => { const ok = await save(edits); if (ok) setProfileId(undefined); return ok; };
+  // ADR-0175, tillägg 2026-11-21 (b): kartor med variantkod som skrivs ut i webbläsaren låser nycklarna för banan.
+  const lockPrinted = () => {
+    if (!canEdit || !document) return;
+    const at = new Date().toISOString();
+    const courses = new Set(sheets.flatMap(row => { const [course, variant] = row.key.split("|"); return course && variant ? [course] : []; }));
+    const edits: CourseSettingEdit[] = document.courses.filter(course => courses.has(course.id) && !course.forkLetterLock && isForkedCourse(document, course.id))
+      .map(course => ({ type: "SET_FORK_LETTER_LOCK", course: course.id, locked: true, reason: "PRINT", at }));
+    if (edits.length > 0) void saveShown(edits);
+  };
   const blPanel = { profile, builtIn: BUILT_IN_PRINT_PROFILES, colors, usage, readOnly: !canEdit, frame: sheets[0]?.sheet.frames[0], symbols, render: renderImage,
     norm: pressNorm, onSave: saveProfile };
   return <main className={styles.page}>
@@ -374,7 +383,7 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
           onChange={useFile => saveShown([{ type: "SET_EVENT", changes: { printFileTitle: useFile } }])} />
         <div className={styles.outputs}>
           <div className={styles.stack} data-testid="print-output-printer">
-            <Button onClick={() => window.print()} disabled={sheets.length === 0}>{outputText.printer}</Button>
+            <Button onClick={() => { lockPrinted(); window.print(); }} disabled={sheets.length === 0}>{outputText.printer}</Button>
             <p className={styles.muted} data-testid="print-draft">{outputText.printerHelp}</p>
           </div>
           <PdfPanel raceId={raceId} profile={profile} colors={colors} usage={usage} disabled={sheets.length === 0 || blocked || errors.length > 0}

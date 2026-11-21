@@ -152,7 +152,15 @@ export const courseSettingHelpArticlesEn: readonly HelpArticle[] = [
         "”Variants” in the list and the chooser at the top show each variant with the number of controls and the length."
       ],
       "The variants follow along when the courses are transferred to the event. A score course cannot be forked.",
-      "Letters stay on their branches when a branch is removed (A, C), so printed maps match the event, and a new branch gets a letter that has not been used; in Purple Pen they are in order again, but a file imported here is paired with O-Tid's letters.",
+      "The letters (fork keys) have two modes per course, shown on the row ”Fork keys” in the panel ”Variants”:",
+      [
+        "Draft (a new course): the keys are ordered as you work, in course order as in Purple Pen (A, B; C, D …). Removing one of three branches gives A, B; a fork that is redone gets C, D again.",
+        "Locked: a branch keeps its letter when another is removed (A, C), and a new branch gets an unused letter, so printed maps match the event.",
+        "The course locks itself when maps with variant codes are printed (PDF, printing, map bundles), when runners get variants in the race and when the start list is published. ”Lock the keys” locks by hand; ”Unlock” first shows what is affected.",
+        "”Order the keys” gives the branches letters in course order, with a preview old → new code. On a locked course it first shows printed maps, runners with an assigned variant and excluded variants that are affected. Exclusions follow along.",
+        "At the next ”Transfer to the race” the runners get the new codes and keep their controls (AG becomes AC). Only those whose controls change are listed."
+      ],
+      "In Purple Pen the letters are always in order; a file imported here is paired with O-Tid's letters.",
       "Too many variants, or some too long? See [Fewer variants](#varianter)."
     ]
   },

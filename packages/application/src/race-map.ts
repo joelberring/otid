@@ -21,9 +21,10 @@ import { racePublicMapBlocked } from "./training-group-maps";
 import { publicMapAllowedNow } from "./public-before-start";
 import { UUID_PATTERN as uuid, sha256Hex as sha256 } from "./serialization";
 import {
-  contentHead, contentLength, mapStorageQuota, rowContent, storeMapContent, type MapContentInput, type MapQuotaExceeded,
+  contentHead, contentLength, contentSha256, mapStorageQuota, rowContent, storeMapContent, type MapContentInput, type MapQuotaExceeded,
   type MapStorageQuota
 } from "./map-content";
+import { pinRaceContentNow } from "./map-pin";
 
 /**
  * Karta och vägval (ADR-0171, PLAN.md steg 16). Kartbilden och GPX-filerna sparas i PostgreSQL. Bara admin
@@ -130,6 +131,8 @@ export async function saveRaceMapAsAdmin(db: Database,
   if (!image) return { status: "problem", problem: "INVALID_IMAGE" };
   const quota = input.quota ?? mapStorageQuota();
   return adminWrite(db, input, now, async (tx, actorId) => {
+    // PLAN.md steg M2: i fönstret kring tävlingsdagen spikas bilden fast innan den läggs i mellanlagret.
+    await pinRaceContentNow(tx, input.raceId, now, [contentSha256(input.bytes)]);
     // ADR-0189: bilden lagras en gång; tävlingen pekar på den.
     const stored = await storeMapContent(tx, input.bytes, actorId, now, quota);
     if (stored.status === "quota") return { status: "problem" as const, problem: "STORAGE_QUOTA_EXCEEDED" as const, quota: stored.quota };

@@ -889,6 +889,15 @@ en hämtning som gör att taket passeras, tas det som använts minst nyligen bor
 finns kvar i förrådet och hämtas igen (och kontrolleras mot sin sha256) nästa gång det läses. En fil som någon läser just då
 läses klart (Linux behåller en öppen fil tills den stängs).
 
+**Fastspikning för tävlingar** (PLAN.md steg M2): kartbilder och kartfiler som en tävling eller träning använder spikas fast i
+mellanlagret från dagen före till dagen efter tävlingsdagen (i tävlingens tidszon), så att tävlingsdagen aldrig behöver
+objektlagringen. Var 5:e minut hämtas det som saknas (och kontrolleras mot sin sha256); en karta som laddas upp eller byts i
+fönstret spikas direkt. Städningen tar aldrig det fastspikade, och det räknas utanför taket med en egen gräns (förval 3 072 MB,
+ändras bredvid taket). Superadminsidan visar under Installationen hur många innehåll och hur många MB som är spikade, en gul
+varning om något av dem saknas i mellanlagret (röd när tävlingen är i dag) och en varning när gränsen passeras (allt spikas ändå).
+Loggen: `docker compose -f docker-compose.prod.yml logs web | grep Fastspikningen` (antal och storlek, inga namn). Står en röd
+varning kvar: kontrollera anslutningen till objektlagringen (raden `Förrådet: anslutningen …`) och diskens utrymme.
+
 **Backupen** sparar inte innehåll i förrådet och räknar det inte som saknat; efter ett haveri måste både databasen och
 bucketen finnas. Ett innehåll som ingen längre pekar på tas bort ur förrådet efter `OTID_ARCHIVE_ORPHAN_DAYS` (35) dygn.
 

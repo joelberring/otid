@@ -53,7 +53,7 @@ export const superadminSv = {
     CREATE_RESET_LINK: "Länken visas en gång. Ge den till kontots ägare; den gäller i en timme och kan användas en gång.",
     VERIFY_EMAIL: "Gör det bara om du vet att adressen är personens egen och att personen själv har valt kontots lösenord (till exempel om mejlet aldrig kommer fram). Behörigheter som andra gett adressen gäller sedan direkt. Lösenordet ändras inte; är du osäker, skapa en återställningslänk i stället.",
     SET_ACCOUNT_LIMITS: "Gränserna gäller bara det här kontot. Lämna ett fält tomt för att kontot ska följa förvalet. En sänkt gräns tar inte bort något; kontot kan bara inte spara mer förrän det ligger under gränsen.",
-    SET_INSTALLATION_LIMITS: "Mellanlagret är kopian på serverns disk av det som ligger i förrådet; blir det fullt tas det som använts minst nyligen bort (det finns kvar i förrådet). Totalgränsen gäller all kartlagring på installationen (0 = ingen gräns). Lämna ett fält tomt för förvalet."
+    SET_INSTALLATION_LIMITS: "Mellanlagret är kopian på serverns disk av det som ligger i förrådet; blir det fullt tas det som använts minst nyligen bort (det finns kvar i förrådet). Tävlingars och träningars kartor spikas fast från dagen före till dagen efter och räknas utanför taket, med en egen gräns som bara varnar. Totalgränsen gäller all kartlagring på installationen (0 = ingen gräns). Lämna ett fält tomt för förvalet."
   },
   ownedEvents: (count: number) => count === 1 ? "Kontot äger 1 tävling, som också tas bort." : `Kontot äger ${count} tävlingar, som också tas bort.`,
   limits: "Lagring och laserrutor",
@@ -75,6 +75,7 @@ export const superadminSv = {
   geoTilesField: (defaultTiles: number) => `Laserrutor per månad (tomt = förvalet ${defaultTiles})`,
   regenerableQuotaField: (defaultMb: number) => `Återskapbart i MB, till exempel laserkörningar och hämtade underlag (tomt = förvalet ${defaultMb})`,
   cacheMaxField: (defaultMb: number) => `Mellanlagrets tak i MB (tomt = förvalet ${defaultMb})`,
+  pinMaxField: (defaultMb: number) => `Gräns för fastspikade tävlingskartor i MB (tomt = förvalet ${defaultMb})`,
   totalQuotaField: (defaultMb: number | null) => `Total kartlagring i MB, 0 = ingen gräns (tomt = förvalet${defaultMb === null ? ", ingen gräns" : ` ${defaultMb}`})`,
   installation: {
     title: "Installationen",
@@ -87,6 +88,13 @@ export const superadminSv = {
       `${usedMb === null ? "okänt" : `${usedMb} MB`} av ${capMb} MB${isDefault ? " (förval)" : ""}${files === null ? "" : `, ${files} filer`}`,
     fetches: "Hämtningar ur förrådet",
     fetchesUse: (today: number, todayMb: number, yesterday: number) => `${today} i dag (${todayMb} MB), ${yesterday} i går`,
+    pinned: "Fastspikat för tävlingar",
+    pinnedUse: (count: number, mb: number, limitMb: number, isDefault: boolean) =>
+      `${count} innehåll, ${mb} MB (gräns ${limitMb} MB${isDefault ? ", förval" : ""}); kartor till tävlingar och träningar från dagen före till dagen efter, utanför taket`,
+    pinnedUnknown: "Okänt (mellanlagret går inte att läsa här)",
+    pinnedMissing: (count: number, mb: number) => `${count} av de fastspikade (${mb} MB) saknas i mellanlagret. De hämtas var 5:e minut; står det kvar, se loggen ("Fastspikningen").`,
+    pinnedMissingToday: (count: number, mb: number) => `En tävling i dag saknar ${count} kartinnehåll (${mb} MB) i mellanlagret. Det läses då ur förrådet över nätet. Se loggen ("Fastspikningen") och kontrollera anslutningen till objektlagringen.`,
+    pinnedOverLimit: (mb: number, limitMb: number) => `Det fastspikade (${mb} MB) är över gränsen ${limitMb} MB. Allt spikas ändå (tävlingen går först); höj gränsen eller se till att disken räcker.`,
     total: "Total kartlagring",
     totalUse: (usedMb: number, limitMb: number | null, isDefault: boolean) =>
       `${usedMb} MB${limitMb === null ? " (ingen gräns)" : ` av ${limitMb} MB`}${isDefault ? " (förval)" : ""}`,

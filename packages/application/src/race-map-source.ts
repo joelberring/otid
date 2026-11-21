@@ -10,9 +10,10 @@ import { requireCourseSettingAccess } from "./course-setting-access";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { UUID_PATTERN as uuid } from "./serialization";
 import {
-  contentHead, contentLength, mapStorageQuota, rowContent, storeMapContent, type MapContentInput, type MapQuotaExceeded,
+  contentHead, contentLength, contentSha256, mapStorageQuota, rowContent, storeMapContent, type MapContentInput, type MapQuotaExceeded,
   type MapStorageQuota
 } from "./map-content";
+import { pinRaceContentNow } from "./map-pin";
 
 /**
  * Steg 59 (ADR-0179 beslut 1–3): banläggarens kartfil. Webbläsaren läser filen, ritar bilden och räknar tre punkter ur
@@ -102,6 +103,8 @@ export async function saveRaceMapSourceAsAdmin(db: Database, input: RaceSessionP
   const quota = input.quota ?? mapStorageQuota();
   return adminWrite(db, input, now, async (tx, actorId) => {
     const raceId = input.raceId, fileName = cleanName(input.fileName, metadata.data.format === "OCD" ? "karta.ocd" : "karta.omap");
+    // PLAN.md steg M2: i fönstret kring tävlingsdagen spikas filen och bilden fast innan de läggs i mellanlagret.
+    await pinRaceContentNow(tx, raceId, now, [contentSha256(input.file), contentSha256(input.image)]);
     // ADR-0189: innehållet lagras en gång; tävlingen pekar på det. Kvoten gäller bara nytt innehåll.
     const storedFile = await storeMapContent(tx, input.file, actorId, now, quota);
     if (storedFile.status === "quota") return { status: "problem" as const, problem: "STORAGE_QUOTA_EXCEEDED" as const, quota: storedFile.quota };

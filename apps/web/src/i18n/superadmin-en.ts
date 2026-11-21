@@ -55,7 +55,7 @@ export const superadminEn: Texts<typeof superadminSv> = {
     CREATE_RESET_LINK: "The link is shown once. Give it to the account's owner; it is valid for one hour and can be used once.",
     VERIFY_EMAIL: "Only do this if you know the address belongs to the person and that they chose the account's password themselves (for example if the email never arrives). Permissions others have given the address then apply at once. The password is not changed; if you are unsure, create a reset link instead.",
     SET_ACCOUNT_LIMITS: "The limits apply to this account only. Leave a field empty for the account to follow the default. Lowering a limit deletes nothing; the account just cannot save more until it is below the limit.",
-    SET_INSTALLATION_LIMITS: "The cache is the copy on the server's disk of what is in the store; when it is full, what was used least recently is removed (it remains in the store). The total limit applies to all map storage on the installation (0 = no limit). Leave a field empty for the default."
+    SET_INSTALLATION_LIMITS: "The cache is the copy on the server's disk of what is in the store; when it is full, what was used least recently is removed (it remains in the store). Maps for races and trainings are pinned from the day before to the day after and count outside the limit, with a limit of their own that only warns. The total limit applies to all map storage on the installation (0 = no limit). Leave a field empty for the default."
   },
   ownedEvents: (count: number) => count === 1 ? "The account owns 1 event, which is also deleted." : `The account owns ${count} events, which are also deleted.`,
   limits: "Storage and laser tiles",
@@ -77,6 +77,7 @@ export const superadminEn: Texts<typeof superadminSv> = {
   geoTilesField: (defaultTiles: number) => `Laser tiles per month (empty = the default ${defaultTiles})`,
   regenerableQuotaField: (defaultMb: number) => `Regenerable content in MB, for example laser runs and fetched underlays (empty = the default ${defaultMb})`,
   cacheMaxField: (defaultMb: number) => `Cache limit in MB (empty = the default ${defaultMb})`,
+  pinMaxField: (defaultMb: number) => `Limit for pinned race maps in MB (empty = the default ${defaultMb})`,
   totalQuotaField: (defaultMb: number | null) => `Total map storage in MB, 0 = no limit (empty = the default${defaultMb === null ? ", no limit" : ` ${defaultMb}`})`,
   installation: {
     title: "The installation",
@@ -89,6 +90,13 @@ export const superadminEn: Texts<typeof superadminSv> = {
       `${usedMb === null ? "unknown" : `${usedMb} MB`} of ${capMb} MB${isDefault ? " (default)" : ""}${files === null ? "" : `, ${files} files`}`,
     fetches: "Fetches from the store",
     fetchesUse: (today: number, todayMb: number, yesterday: number) => `${today} today (${todayMb} MB), ${yesterday} yesterday`,
+    pinned: "Pinned for races",
+    pinnedUse: (count: number, mb: number, limitMb: number, isDefault: boolean) =>
+      `${count} ${count === 1 ? "item" : "items"}, ${mb} MB (limit ${limitMb} MB${isDefault ? ", default" : ""}); maps for races and trainings from the day before to the day after, outside the cache limit`,
+    pinnedUnknown: "Unknown (the cache cannot be read here)",
+    pinnedMissing: (count: number, mb: number) => `${count} of the pinned items (${mb} MB) are missing from the cache. They are fetched every 5 minutes; if this remains, see the log ("Fastspikningen").`,
+    pinnedMissingToday: (count: number, mb: number) => `A race today is missing ${count} map items (${mb} MB) in the cache. They will then be read from the store over the network. See the log ("Fastspikningen") and check the connection to object storage.`,
+    pinnedOverLimit: (mb: number, limitMb: number) => `The pinned content (${mb} MB) is over the limit of ${limitMb} MB. Everything is pinned anyway (the race comes first); raise the limit or make sure the disk is large enough.`,
     total: "Total map storage",
     totalUse: (usedMb: number, limitMb: number | null, isDefault: boolean) =>
       `${usedMb} MB${limitMb === null ? " (no limit)" : ` of ${limitMb} MB`}${isDefault ? " (default)" : ""}`,

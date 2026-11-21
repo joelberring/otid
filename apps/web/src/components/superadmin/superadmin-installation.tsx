@@ -4,13 +4,14 @@ import type { SuperadminOverview } from "@o-tid/contracts";
 import { superadminEn } from "../../i18n/superadmin-en";
 import { superadminSv } from "../../i18n/superadmin-sv";
 import { useTexts } from "../language-provider";
-import { Button } from "../ui";
+import { Button, Notice } from "../ui";
 import type { PendingAction } from "./superadmin-action-panel";
 import styles from "../account-pages.module.css";
 
 /**
  * ADR-0229 (ägaren 2026-11-21): installationens gränser på superadminsidan – förrådets läge, mellanlagrets tak och hur fullt det
- * är, hämtningar ur förrådet och kartlagringens totala gräns. "Ändra" öppnar samma bekräftelse med skäl som kontots gränser.
+ * är, det fastspikade för tävlingar (PLAN.md steg M2, med varning när något saknas – fel när tävlingen är i dag), hämtningar ur
+ * förrådet och kartlagringens totala gräns. "Ändra" öppnar samma bekräftelse med skäl som kontots gränser.
  */
 export function SuperadminInstallation({ limits, busy, onChange }: {
   limits: SuperadminOverview["limits"]; busy: boolean; onChange: (action: PendingAction) => void;
@@ -19,6 +20,8 @@ export function SuperadminInstallation({ limits, busy, onChange }: {
   const mb = (bytes: number) => Math.round(bytes / (1024 * 1024));
   const install = limits.installation;
   const cacheMax = install.cacheMaxMb ?? install.cacheMaxMbDefault;
+  const pinMax = install.pinMaxMb ?? install.pinMaxMbDefault;
+  const pinned = install.pinned;
   const totalMb = install.mapQuotaTotalMb === null ? install.mapQuotaTotalDefaultMb : install.mapQuotaTotalMb === 0 ? null : install.mapQuotaTotalMb;
   return <div className={styles.panel} aria-labelledby="superadmin-installation-title">
     <h3 id="superadmin-installation-title">{text.title}</h3>
@@ -29,13 +32,20 @@ export function SuperadminInstallation({ limits, busy, onChange }: {
         install.cacheMaxMb === null)}</dd>
       <dt>{text.fetches}</dt>
       <dd>{text.fetchesUse(install.storeFetchesToday, mb(install.storeFetchBytesToday), install.storeFetchesYesterday)}</dd>
+      <dt>{text.pinned}</dt>
+      <dd>{install.pinned === null ? (install.storeMode === "off" ? text.storeMode.off : text.pinnedUnknown)
+        : text.pinnedUse(install.pinned.count, mb(install.pinned.bytes), pinMax, install.pinMaxMb === null)}</dd>
       <dt>{text.total}</dt>
       <dd>{text.totalUse(mb(limits.totalUsedBytes), totalMb, install.mapQuotaTotalMb === null)}</dd>
     </dl>
+    {pinned && pinned.missing > 0 && <Notice tone={pinned.missingRaceDay ? "error" : "attention"} role={pinned.missingRaceDay ? "alert" : undefined}>
+      {pinned.missingRaceDay ? text.pinnedMissingToday(pinned.missing, mb(pinned.missingBytes)) : text.pinnedMissing(pinned.missing, mb(pinned.missingBytes))}
+    </Notice>}
+    {pinned?.overLimit && <Notice tone="attention">{text.pinnedOverLimit(mb(pinned.bytes), pinMax)}</Notice>}
     <div className={styles.actions}>
       <Button variant="secondary" disabled={busy} onClick={() => onChange({ kind: "SET_INSTALLATION_LIMITS", label: text.label,
         cacheMaxMb: install.cacheMaxMb, cacheMaxMbDefault: install.cacheMaxMbDefault, mapQuotaTotalMb: install.mapQuotaTotalMb,
-        mapQuotaTotalDefaultMb: install.mapQuotaTotalDefaultMb })}>{text.change}</Button>
+        mapQuotaTotalDefaultMb: install.mapQuotaTotalDefaultMb, pinMaxMb: install.pinMaxMb, pinMaxMbDefault: install.pinMaxMbDefault })}>{text.change}</Button>
     </div>
   </div>;
 }

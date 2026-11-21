@@ -13,6 +13,14 @@ Riktiga tjänster: Eventor (klubbens nyckel, tävlingslistan, klubben och klubbe
 
 ## Logg
 
+- 2026-11-21: Steg M2 fastspikning (ADR-0229 tillägg, ingen migration). Kartor (race_map, race_map_source och bibliotekets
+  karta via race_map_agreement) till lopp vars tävlingsdag i eventets tidszon är i går/i dag/i morgon spikas fast i
+  mellanlagret med markeringar `.pinned/<sha256>` (`map-pin.ts`, `pinWindowDays`). Löparen hämtar det som saknas var 5:e
+  minut (kontrollerat, loggar antal och MB); uppladdning/byte i fönstret spikas direkt. Städningen tar aldrig det spikade, som
+  räknas utanför taket med egen gräns `pin_max_mb` (3 072 MB, bara varning). Superadmin: antal, MB, saknat (rött på
+  tävlingsdagen), gränsen bredvid taket. Verifierat: typkontroll, lint, enhetstester (`map-pin`), integrationstester
+  (`adr-0229-fastspikning` ny: läsning med förrådet nere, varv som misslyckas, gränsen, läget av). Kräver serveruppdatering.
+
 - 2026-11-21: K8b V4 magisk fyll del 2. Dra över flera rutor med Fyll (musen; fingret bara med «+ ruta» i telefonens statusrad) samlar rutorna och visar dem som en yta; släpp lägger in en ångringsbar yta. ⇧+klick lägger till en ruta, vanligt klick lägger in, Esc tömmer. Sammanslagningen i ren TS (`faces/merge-faces.ts`: gemensamma kanter bort, delning i grannens noder, ringar spåras, hål kvar); öppna och redan fyllda rutor hoppas över och räknas i beskedet (`use-map-project-fill-cells.ts`).
   Reserven vid klick när steg 1 och 2 inte sluter (`faces/raster-fill.ts`, `raster-snap.ts`): bild med 0,2 m rutor (±75 m), linjerna tjockare med halva Glapp (exakt avståndstransform), flood fill, tillbaka mot linjerna upp till 1,5 × radien utan att korsa linjer, kantspårning, Douglas–Peucker 0,1 m, punkter inom 0,3 m fästs på linjerna (linjernas hörn först, deras punkter emellan tas med), punkter utan linje (slutna glapp) tas bort; hål kvar; når bildens kant = öppen; för smala rutor prövas halva radien; tidsgräns 200 ms. Visas streckad orange–blå med «Ungefärlig yta – klicka igen», andra klicket i den lägger in. Mätt i testet: 150 m fönster med 450 linjer ~100–140 ms (750 × 750).
   En ruta som redan täcks av en yta läggs inte in: samma symbol = «redan fylld», annan = «finns redan som X – tryck C» och ytan markeras (C fungerar i Fyll). Telefonen: första trycket visar, andra i samma ruta lägger in. Verifierat: typkontroll, lint, knip, vitest (map-revision och webbens fyll). Inte sett i webbläsare, inte mätt på Älvsjö–Solberga. Kräver serveruppdatering.

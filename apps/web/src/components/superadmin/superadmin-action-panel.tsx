@@ -19,10 +19,10 @@ export type PendingAction =
       regenerableQuotaMb: number | null; defaultMapQuotaMb: number | null; defaultGeoTilesPerMonth: number; defaultRegenerableQuotaMb: number }
   /** ADR-0229: installationens gränser (mellanlagrets tak och kartlagringens totala gräns). */
   | { kind: "SET_INSTALLATION_LIMITS"; label: string; cacheMaxMb: number | null; cacheMaxMbDefault: number; mapQuotaTotalMb: number | null;
-      mapQuotaTotalDefaultMb: number | null };
+      mapQuotaTotalDefaultMb: number | null; pinMaxMb: number | null; pinMaxMbDefault: number };
 
 export interface LimitValues { mapQuotaMb: number | null; geoTilesPerMonth: number | null; regenerableQuotaMb: number | null;
-  cacheMaxMb: number | null; mapQuotaTotalMb: number | null }
+  cacheMaxMb: number | null; mapQuotaTotalMb: number | null; pinMaxMb?: number | null }
 /** Fältets text som gräns: tomt = förvalet (null); annars ett heltal inom gränserna, eller undefined om det inte går att tolka. */
 function limitValue(text: string, min: number, max: number): number | null | undefined {
   const trimmed = text.trim();
@@ -37,7 +37,7 @@ export function actionRequest(action: PendingAction, reason: string, confirmatio
     case "SET_ACCOUNT_LIMITS": return { formatVersion: 1, action: action.kind, accountId: action.accountId, reason,
       mapQuotaMb: limits?.mapQuotaMb ?? null, geoTilesPerMonth: limits?.geoTilesPerMonth ?? null, regenerableQuotaMb: limits?.regenerableQuotaMb ?? null };
     case "SET_INSTALLATION_LIMITS": return { formatVersion: 1, action: action.kind, reason,
-      cacheMaxMb: limits?.cacheMaxMb ?? null, mapQuotaTotalMb: limits?.mapQuotaTotalMb ?? null };
+      cacheMaxMb: limits?.cacheMaxMb ?? null, mapQuotaTotalMb: limits?.mapQuotaTotalMb ?? null, pinMaxMb: limits?.pinMaxMb ?? null };
     case "HIDE_RACE": case "UNHIDE_RACE": return { formatVersion: 1, action: action.kind, raceId: action.raceId, reason };
     case "DELETE_EVENT": return { formatVersion: 1, action: action.kind, eventId: action.eventId, reason, confirmation };
     case "DELETE_ACCOUNT": return { formatVersion: 1, action: action.kind, accountId: action.accountId, reason, confirmation };
@@ -64,10 +64,11 @@ export function SuperadminActionPanel({ action, busy, error, onSubmit, onCancel 
   const [regenerable, setRegenerable] = useState(account?.regenerableQuotaMb?.toString() ?? "");
   const [cacheMax, setCacheMax] = useState(installation?.cacheMaxMb?.toString() ?? "");
   const [totalQuota, setTotalQuota] = useState(installation?.mapQuotaTotalMb?.toString() ?? "");
+  const [pinMax, setPinMax] = useState(installation?.pinMaxMb?.toString() ?? "");
   const values = account ? { mapQuotaMb: limitValue(mapQuota, 1, 1_000_000), geoTilesPerMonth: limitValue(geoTiles, 0, 100_000),
     regenerableQuotaMb: limitValue(regenerable, 1, 1_000_000), cacheMaxMb: null, mapQuotaTotalMb: null }
     : installation ? { mapQuotaMb: null, geoTilesPerMonth: null, regenerableQuotaMb: null, cacheMaxMb: limitValue(cacheMax, 100, 10_000_000),
-      mapQuotaTotalMb: limitValue(totalQuota, 0, 100_000_000) } : undefined;
+      mapQuotaTotalMb: limitValue(totalQuota, 0, 100_000_000), pinMaxMb: limitValue(pinMax, 100, 10_000_000) } : undefined;
   const limitsValid = !values || Object.values(values).every(value => value !== undefined);
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -92,6 +93,7 @@ export function SuperadminActionPanel({ action, busy, error, onSubmit, onCancel 
     </>}
     {installation && <>
       {numberField(text.cacheMaxField(installation.cacheMaxMbDefault), cacheMax, setCacheMax, 10_000_000, values?.cacheMaxMb === undefined)}
+      {numberField(text.pinMaxField(installation.pinMaxMbDefault), pinMax, setPinMax, 10_000_000, values?.pinMaxMb === undefined)}
       {numberField(text.totalQuotaField(installation.mapQuotaTotalDefaultMb), totalQuota, setTotalQuota, 100_000_000,
         values?.mapQuotaTotalMb === undefined)}
     </>}

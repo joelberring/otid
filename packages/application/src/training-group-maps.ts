@@ -9,6 +9,7 @@ import { mapAgreementIssues, mapPublicUseBlocked, type MapAgreementFacts } from 
 import { latestClubMapVersion } from "./club-map-version-order";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation } from "./concurrency";
+import { pinRaceContentNow } from "./map-pin";
 import type { DbExecutor } from "./snapshot";
 import { UUID_PATTERN } from "./serialization";
 import type { UserAccountSessionProof } from "./user-account";
@@ -199,6 +200,8 @@ export async function applyLibraryMapToRace(tx: DbExecutor, input: { mapId: stri
     select ${raceId}, file_name, format, version, null, coalesce(content_sha256, otid_map_content_store(file, null)), sha256, byte_length,
       scale, bounds, georeference, render, summary, ${now}
     from training_group_map_source where map_id = ${input.mapId}`);
+  // PLAN.md steg M2: en karta som byts till ett lopp nära tävlingsdagen spikas fast direkt.
+  await pinRaceContentNow(tx, raceId, now);
   if (input.includeCourseSetting) {
     const [setting] = await tx.select({ mapId: schema.trainingGroupMapCourseSettings.mapId }).from(schema.trainingGroupMapCourseSettings)
       .where(eq(schema.trainingGroupMapCourseSettings.mapId, input.mapId));

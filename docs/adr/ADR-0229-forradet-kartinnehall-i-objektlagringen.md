@@ -53,6 +53,32 @@ befintligt innehåll ur PostgreSQL i omgångar nattetid, bort med `backups/map-c
 dygnen och projektets senaste klara laserkörning), borttagning ur förrådet efter 90 dagar orört. M5 larm via mejl till
 superadmin, flera superadmin, automatisk rensning av docker-avbildningar.
 
+## Tillägg 2026-11-21: fastspikning för tävlingar och träningar (PLAN.md steg M2)
+
+Ägaren: en tävlingskarta får aldrig behöva hämtas ur objektlagringen på tävlingsdagen.
+
+- **Urvalet** (`map-pin.ts`, `pinWindowDays` = en dag före, en dag efter): innehåll i förrådet som ett lopp vars tävlingsdag
+  i eventets tidszon är i går, i dag eller i morgon pekar på genom `race_map` och `race_map_source` (bilden och kartfilen som
+  gafflingar, banor, utskrift och kartritarens länk ritas ur), och träningsbibliotekets karta som loppet kom ifrån
+  (`race_map_agreement.source_map_id` → `training_group_map`, `training_group_map_source`). En träning är ett lopp, så den
+  följer samma regel. Andra tabeller med `content_sha256` (klubbarkivet, kartprojekten) hör inte till ett lopp. En okänd
+  tidszon räknas som spikad.
+- **Markeringar i stället för en tabell:** en tom fil `.pinned/<sha256>` i mellanlagret. Alla processer som delar katalogen
+  (web, publikens instanser, utskriftsarbetaren, som inte får läsa `event`) ser dem utan att fråga databasen. Ingen migration.
+  Städningen läser markeringarna efter genomgången av filerna, så det som spikats före läsningen skyddas alltid.
+- **Löparen** (tävlingsinstansen, var 5:e minut före städningen): spikar fast, hämtar det som saknas (kontrollerat), släpper
+  markeringar som inte längre ska finnas (efter 15 minuter, så att en markering från en skrivning som pågår får vara kvar).
+  Misslyckas en hämtning prövas den nästa varv; loggen säger antal och storlek, aldrig namn.
+- **Vid skrivningen:** en kartbild eller kartfil som laddas upp till ett lopp i fönstret spikas innan den läggs i
+  mellanlagret (sha256 är känd före uppladdningen); en karta ur biblioteket och en kopia av ett lopp spikas efter skrivningen.
+- **Gränsen** `pin_max_mb` (installationsinställning, förval 3 072 MB, bredvid taket på superadminsidan): det fastspikade
+  räknas utanför taket. Passeras gränsen spikas allt ändå (tävlingen går först), med varning i loggen och på superadminsidan.
+- **Läsningen** av ett spikat innehåll som finns i mellanlagret går aldrig till förrådet (test med ett förråd som kastar fel).
+- Med `OTID_STORE_MODE=off` görs ingenting av detta (innehållet ligger i databasen).
+- Kvar: ett lopp som flyttas in i fönstret spikas vid nästa varv (högst 5 minuter). Utträngningen mellan skrivningen och
+  markeringen kan inte inträffa för uppladdningar; för en kopia eller en bibliotekskarta finns innehållet oftast inte i
+  mellanlagret ännu och hämtas nästa varv.
+
 ## Följder
 
 - Med läget på blir objektlagringen en beroendepunkt för nytt innehåll: utan anslutning misslyckas en uppladdning (med ett

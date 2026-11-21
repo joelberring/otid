@@ -79,7 +79,19 @@ export const superadminInstallationSchema = z.object({
   storeFetchesYesterday: z.number().int().min(0),
   /** Kartlagringens totala gräns: inställningen (null = förvalet ur miljön) och förvalet i MB (null = ingen gräns). */
   mapQuotaTotalMb: installationMapQuotaTotalMbSchema,
-  mapQuotaTotalDefaultMb: z.number().int().min(0).nullable()
+  mapQuotaTotalDefaultMb: z.number().int().min(0).nullable(),
+  /** PLAN.md steg M2: gränsen för det fastspikade (null = förvalet) och förvalet i MB. */
+  pinMaxMb: z.number().int().min(0).nullable(),
+  pinMaxMbDefault: z.number().int().min(1),
+  /**
+   * Tävlingars och träningars kartor som är fastspikade från dagen före till dagen efter, och det av dem som saknas i
+   * mellanlagret (`missingRaceDay`: något som saknas behövs av en tävling i dag). Null med förrådet av eller när
+   * mellanlagret inte går att läsa här.
+   */
+  pinned: z.object({
+    count: z.number().int().min(0), bytes: z.number().int().min(0), missing: z.number().int().min(0),
+    missingBytes: z.number().int().min(0), missingRaceDay: z.boolean(), overLimit: z.boolean()
+  }).strict().nullable()
 }).strict();
 
 export const superadminLimitsSchema = z.object({
@@ -141,7 +153,9 @@ export const superadminActionRequestSchema = z.discriminatedUnion("action", [
     /** ADR-0229; saknas (äldre sida) = oförändrad. */
     regenerableQuotaMb: accountMapQuotaMbSchema.optional() }).strict(),
   z.object({ formatVersion: z.literal(1), action: z.literal("SET_INSTALLATION_LIMITS"), reason,
-    cacheMaxMb: installationCacheMaxMbSchema, mapQuotaTotalMb: installationMapQuotaTotalMbSchema }).strict()
+    cacheMaxMb: installationCacheMaxMbSchema, mapQuotaTotalMb: installationMapQuotaTotalMbSchema,
+    /** PLAN.md steg M2; saknas (äldre sida) = oförändrad. */
+    pinMaxMb: installationCacheMaxMbSchema.optional() }).strict()
 ]);
 
 export const superadminActionResponseSchema = z.object({

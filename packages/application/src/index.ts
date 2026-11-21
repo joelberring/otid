@@ -102,6 +102,8 @@ export { archiveNumberProblems, archiveSettings, planMapArchive, removeArchiveOr
 export { activeMapStore, setMapStoreMode, storeMode, storeModeProblems } from "./map-store";
 export type { StoreMode } from "./map-store";
 export { mapCacheCapBytes, mapCacheDir, setMapCacheDir, startMapCacheSweep, sweepMapCache, usableMapCacheDir } from "./map-cache";
+export { pinStatus, pinWindowDays, runPinRound } from "./map-pin";
+export type { PinRoundResult, PinStatus } from "./map-pin";
 export { cacheSettingProblems } from "./installation-settings";
 export type { ArchiveCandidate, ArchiveRule, ArchiveRunResult, ArchiveSettings } from "./map-archive";
 export { ANONYMOUS_FAMILY_NAME, ANONYMOUS_GIVEN_NAME, anonymizeEntries } from "./anonymization";

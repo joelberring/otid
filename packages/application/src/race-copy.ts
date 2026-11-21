@@ -3,6 +3,7 @@ import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { raceCopyRequestSchema, raceCopyResponseSchema, type RaceCopyResponse } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { lockRaceForSnapshot } from "./concurrency";
+import { pinRaceContentNow } from "./map-pin";
 import { activeEventAdministrationGrant } from "./race-session";
 import { leaderMembership } from "./training-group-access";
 import { authenticateUserAccountSessionForMutation, type UserAccountSessionProof } from "./user-account";
@@ -198,6 +199,8 @@ export async function copyRaceContent(tx: Transaction, input: ContentInput) {
     select ${raceId}, source_map_id, map_name, ownership, owner_kind, owner_name, agreement, valid_until, contact, training_only,
       fee_per_print, no_public_display, ${now}
     from race_map_agreement where race_id = ${sourceRaceId} and exists (select 1 from race_map where race_id = ${raceId})`);
+  // PLAN.md steg M2: en kopia till ett datum nära i tid spikas fast direkt.
+  await pinRaceContentNow(tx, raceId, now);
   // Steg 60: vägvalsanalysens inställningar följer med; publicerade bästa vägar hör till den gamla tävlingen.
   await tx.execute(sql`insert into race_route_choice (race_id, settings, published, updated_at)
     select ${raceId}, settings, null, ${now} from race_route_choice where race_id = ${sourceRaceId}`);

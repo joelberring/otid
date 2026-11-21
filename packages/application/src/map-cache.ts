@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { accessSync, constants, mkdirSync } from "node:fs";
 import { mkdir, open, readdir, rename, rm, stat, utimes, writeFile, type FileHandle } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { sql } from "drizzle-orm";
 import type { DbExecutor } from "./snapshot";
 import { cacheMaxBytes, readInstallationSettings } from "./installation-settings";
@@ -21,10 +21,16 @@ import { mapArchiveStore, type ArchiveStore } from "./map-archive-store";
  * - **Utträngning:** när mellanlagret passerar taket tas de minst nyligen använda filerna bort tills det ligger under 90 %.
  *   En fil som någon läser just nu förstörs inte: på Linux lever en öppen fil kvar tills den stängs, också efter unlink.
  *   Därför öppnas en hämtad fil innan den byter namn, och läsningen sker alltid ur en öppen fil.
+ * - **Fastspikat** (PLAN.md steg M2, `map-pin.ts`): en tom fil `.pinned/<sha256>` för varje innehåll som en tävling eller
+ *   träning behöver från dagen före till dagen efter. Utträngningen tar aldrig ett fastspikat innehåll och räknar det utanför
+ *   taket. Markeringarna är filer, så att alla processer som delar katalogen (web, publikens instanser, utskriftsarbetaren)
+ *   ser dem utan att fråga databasen. Städningen läser markeringarna efter genomgången av filerna, så att en fil som spikats
+ *   före läsningen alltid skyddas.
  */
 const MINUTE = 60_000;
 const TOUCH_MS = 10 * MINUTE;
 const SHA = /^[0-9a-f]{64}$/;
+const PINNED = ".pinned";
 type Env = Partial<Record<string, string | undefined>>;
 
 interface CacheState {
@@ -114,7 +120,7 @@ export async function touchMapContent(tx: DbExecutor, sha256: string, now: Date)
 }
 
 /** En hämtning ur förrådet, räknad per dygn (svensk tid) för superadminsidan. */
-async function countFetch(tx: DbExecutor, byteLength: number, now: Date): Promise<void> {
+export async function countFetch(tx: DbExecutor, byteLength: number, now: Date): Promise<void> {
   if (!(await privileges(tx)).count) return;
   await tx.execute(sql`insert into map_store_fetch_day (day, fetches, bytes)
     values ((${now}::timestamptz at time zone 'Europe/Stockholm')::date, 1, ${byteLength})
@@ -148,7 +154,7 @@ async function openCached(path: string, byteLength: number): Promise<FileHandle 
 }
 
 /** Hämtar ur förrådet till mellanlagret och ger filen öppnad (öppnad före namnbytet, så att utträngningen inte kan ta den). */
-async function fetchIntoCache(store: ArchiveStore, dir: string, sha256: string, byteLength: number): Promise<FileHandle> {
+export async function fetchIntoCache(store: ArchiveStore, dir: string, sha256: string, byteLength: number): Promise<FileHandle> {
   const path = cachePath(dir, sha256);
   await mkdir(dirname(path), { recursive: true });
   const temporary = join(dirname(path), `.${sha256}.${randomUUID()}.tmp`);
@@ -239,19 +245,65 @@ export interface CacheEntry { readonly path: string; readonly bytes: number; rea
 
 /**
  * Utträngningen (ren funktion): över taket tas de minst nyligen använda bort tills det som är kvar är högst 90 % av taket.
- * Under taket tas ingenting bort. Lika gamla tas i namnordning, så att resultatet är stabilt.
+ * Under taket tas ingenting bort. Lika gamla tas i namnordning, så att resultatet är stabilt. Fastspikade (`pinned`, filens
+ * namn = sha256) tas aldrig och räknas inte mot taket (PLAN.md steg M2).
  */
-export function pickCacheEvictions(entries: readonly CacheEntry[], capBytes: number, otherBytes = 0): CacheEntry[] {
-  let total = otherBytes + entries.reduce((sum, entry) => sum + entry.bytes, 0);
+export function pickCacheEvictions(entries: readonly CacheEntry[], capBytes: number, otherBytes = 0,
+  pinned: ReadonlySet<string> = new Set()): CacheEntry[] {
+  const free = entries.filter(entry => !pinned.has(basename(entry.path)));
+  let total = otherBytes + free.reduce((sum, entry) => sum + entry.bytes, 0);
   if (total <= capBytes) return [];
   const target = capBytes * 0.9;
   const picked: CacheEntry[] = [];
-  for (const entry of [...entries].sort((a, b) => a.usedAtMs - b.usedAtMs || a.path.localeCompare(b.path))) {
+  for (const entry of [...free].sort((a, b) => a.usedAtMs - b.usedAtMs || a.path.localeCompare(b.path))) {
     if (total <= target) break;
     picked.push(entry);
     total -= entry.bytes;
   }
   return picked;
+}
+
+/** Markeringarnas katalog (PLAN.md steg M2). */
+export const pinnedDir = (dir: string) => join(dir, PINNED);
+
+/** De fastspikade innehållen enligt markeringarna (sha256), med markeringens mtime. */
+export async function readPinMarkers(dir: string): Promise<Map<string, number>> {
+  const result = new Map<string, number>();
+  let names: string[];
+  try { names = await readdir(pinnedDir(dir)); } catch (error) { if (isMissing(error)) return result; throw error; }
+  for (const name of names) {
+    if (!SHA.test(name)) continue;
+    try { result.set(name, (await stat(join(pinnedDir(dir), name))).mtimeMs); } catch (error) { if (!isMissing(error)) throw error; }
+  }
+  return result;
+}
+
+/** Spikar fast (skapar eller förnyar markeringen). Innehållet behöver inte finnas i mellanlagret än. */
+export async function markPinned(dir: string, sha256s: Iterable<string>, now = new Date()): Promise<void> {
+  const folder = pinnedDir(dir);
+  await mkdir(folder, { recursive: true });
+  for (const sha256 of sha256s) {
+    if (!SHA.test(sha256)) throw new Error("Ogiltig kontrollsumma för mellanlagret");
+    const path = join(folder, sha256);
+    await writeFile(path, "", { flag: "a" });
+    await utimes(path, now, now);
+  }
+}
+
+/** Släpper markeringar som inte ska vara kvar och är äldre än `graceMs` (en markering från en skrivning just nu får vara kvar). */
+export async function releasePinMarkers(dir: string, keep: ReadonlySet<string>, graceMs: number, now = new Date()): Promise<number> {
+  let released = 0;
+  for (const [sha256, mtimeMs] of await readPinMarkers(dir)) {
+    if (keep.has(sha256) || now.getTime() - mtimeMs < graceMs) continue;
+    await rm(join(pinnedDir(dir), sha256), { force: true });
+    released += 1;
+  }
+  return released;
+}
+
+/** Finns innehållet i mellanlagret med rätt längd? */
+export async function cachedWithLength(dir: string, sha256: string, byteLength: number): Promise<boolean> {
+  try { return (await stat(cachePath(dir, sha256))).size === byteLength; } catch (error) { if (isMissing(error)) return false; throw error; }
 }
 
 export interface CacheScan { entries: CacheEntry[]; otherBytes: number; stale: string[]; totalBytes: number; files: number }
@@ -263,7 +315,7 @@ export async function scanMapCache(dir: string, now = new Date()): Promise<Cache
   const list = async (path: string) => { try { return await readdir(path, { withFileTypes: true }); } catch (error) { if (isMissing(error)) return []; throw error; } };
   const info = async (path: string) => { try { return await stat(path); } catch (error) { if (isMissing(error)) return undefined; throw error; } };
   for (const top of await list(dir)) {
-    if (!top.isDirectory()) continue;
+    if (!top.isDirectory() || top.name === PINNED) continue;
     const folder = join(dir, top.name);
     for (const file of await list(folder)) {
       if (!file.isFile()) continue;
@@ -279,30 +331,37 @@ export async function scanMapCache(dir: string, now = new Date()): Promise<Cache
   return { entries, otherBytes, stale, totalBytes, files: entries.length };
 }
 
-export interface CacheSweepResult { removed: number; freedBytes: number; totalBytes: number; files: number; capBytes: number }
+export interface CacheSweepResult { removed: number; freedBytes: number; totalBytes: number; files: number; capBytes: number;
+  pinnedBytes: number; pinnedFiles: number }
 
-/** Städar mellanlagret: kvarglömda temporära filer och, över taket, de minst nyligen använda. */
+/**
+ * Städar mellanlagret: kvarglömda temporära filer och, över taket, de minst nyligen använda. Fastspikade rörs inte; de läses
+ * efter genomgången (se överst).
+ */
 export async function sweepMapCache(dir: string, capBytes: number, now = new Date()): Promise<CacheSweepResult> {
   const scan = await scanMapCache(dir, now);
+  const pinned = new Set((await readPinMarkers(dir)).keys());
   let freedBytes = 0, removed = 0;
   for (const path of scan.stale) { await rm(path, { force: true }); removed += 1; }
-  for (const entry of pickCacheEvictions(scan.entries, capBytes, scan.otherBytes)) {
+  for (const entry of pickCacheEvictions(scan.entries, capBytes, scan.otherBytes, pinned)) {
     await rm(entry.path, { force: true });
     removed += 1;
     freedBytes += entry.bytes;
   }
+  const kept = scan.entries.filter(entry => pinned.has(basename(entry.path)));
   const totalBytes = scan.totalBytes - freedBytes;
   const current = state();
-  current.estimateBytes = totalBytes;
+  current.estimateBytes = totalBytes - kept.reduce((sum, entry) => sum + entry.bytes, 0);
   current.lastSweepAt = now.getTime();
-  return { removed, freedBytes, totalBytes, files: scan.files - (removed - scan.stale.length), capBytes };
+  return { removed, freedBytes, totalBytes, files: scan.files - (removed - scan.stale.length), capBytes,
+    pinnedBytes: kept.reduce((sum, entry) => sum + entry.bytes, 0), pinnedFiles: kept.length };
 }
 
 /** Mellanlagrets gällande tak (inställningen på superadminsidan eller förvalet), läst högst var 5:e minut. */
 export async function mapCacheCapBytes(tx: DbExecutor, now = Date.now()): Promise<number> {
   const current = state();
   if (current.capBytes !== null && now - current.capReadAt < 5 * MINUTE) return current.capBytes;
-  const settings = (await privileges(tx)).settings ? await readInstallationSettings(tx) : { cacheMaxMb: null, mapQuotaTotalMb: null };
+  const settings = (await privileges(tx)).settings ? await readInstallationSettings(tx) : { cacheMaxMb: null, mapQuotaTotalMb: null, pinMaxMb: null };
   current.capBytes = cacheMaxBytes(settings);
   current.capReadAt = now;
   return current.capBytes;

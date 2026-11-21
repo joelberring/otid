@@ -1523,7 +1523,9 @@ arkivet) blir förrådet för allt kartinnehåll och serverns disk ett mellanlag
   räknas som sparat, `stored_in`/`last_used_at`/`regenerable` (migration 0133), mellanlagret med tak och utträngning,
   backupen hoppar över förrådet, gränserna på superadminsidan (kontots återskapbart, mellanlagrets tak, totalgränsen),
   kontots förval 5120 MB. Kvar hos ägaren: slå på enligt docs/drift.md "Förrådet och mellanlagret".
-- [ ] M2 Tävlingars och träningars kartor spikas fast i mellanlagret från dagen före till dagen efter.
+- [x] M2 Tävlingars och träningars kartor spikas fast i mellanlagret från dagen före till dagen efter (markeringar i
+  `/cache/.pinned`, hämtning var 5:e minut, spikat direkt vid uppladdning, egen gräns 3 072 MB som bara varnar, läget på
+  superadminsidan). Ingen migration.
 - [ ] M3 Befintligt innehåll flyttas ur PostgreSQL i omgångar nattetid; bort med `backups/map-content`; VACUUM/pg_repack.
 - [ ] M4 Recept för återskapbart underlag; gräns per konto för återskapbart (äldst använt bort först, skydd för projekt
   öppnade de senaste 3 dygnen och projektets senaste klara laserkörning); borttagning ur förrådet efter 90 dagar orört.

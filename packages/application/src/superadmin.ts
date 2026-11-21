@@ -17,9 +17,10 @@ import { markAccountEmailVerified } from "./email-verification";
 import { logAction, SERVER_COMMAND_ACTOR } from "./superadmin-log";
 import { purgeRows } from "./purge";
 import { DEFAULT_REGENERABLE_QUOTA_MB, effectiveTotalQuotaBytes, mapStorageQuota, mapStorageUsage } from "./map-content";
-import { defaultCacheMaxMb, readInstallationSettings, writeInstallationSetting } from "./installation-settings";
+import { DEFAULT_PIN_MAX_MB, defaultCacheMaxMb, readInstallationSettings, writeInstallationSetting } from "./installation-settings";
+import { pinStatus } from "./map-pin";
 import { activeMapStore, storeMode } from "./map-store";
-import { forgetMapCacheCap, mapCacheUsage, storeFetches } from "./map-cache";
+import { forgetMapCacheCap, mapCacheDir, mapCacheUsage, storeFetches } from "./map-cache";
 import { GEO_JOB_COUNTS, geoTilesPerMonth } from "./map-project-geo-jobs";
 import {
   authenticateUserAccountSessionForMutation,
@@ -123,6 +124,7 @@ export async function readSuperadminOverview(
     const cache = await mapCacheUsage(now);
     const fetches = await storeFetches(tx, now);
     const mode = storeMode(environment) === "off" ? "off" : activeMapStore(environment) ? "on" : "incomplete";
+    const pinned = mode === "off" ? null : await pinStatus(tx, mapCacheDir(environment), now);
 
     return { status: "ok", response: superadminOverviewSchema.parse({
       formatVersion: 1,
@@ -150,7 +152,10 @@ export async function readSuperadminOverview(
           cacheUsedBytes: cache?.usedBytes ?? null, cacheFiles: cache?.files ?? null,
           storeFetchesToday: fetches.today, storeFetchBytesToday: fetches.todayBytes, storeFetchesYesterday: fetches.yesterday,
           mapQuotaTotalMb: settings.mapQuotaTotalMb,
-          mapQuotaTotalDefaultMb: quota.totalBytes === null ? null : Math.round(quota.totalBytes / MB)
+          mapQuotaTotalDefaultMb: quota.totalBytes === null ? null : Math.round(quota.totalBytes / MB),
+          pinMaxMb: settings.pinMaxMb ?? null, pinMaxMbDefault: DEFAULT_PIN_MAX_MB,
+          pinned: pinned && { count: pinned.count, bytes: pinned.bytes, missing: pinned.missing, missingBytes: pinned.missingBytes,
+            missingRaceDay: pinned.missingRaceDay, overLimit: pinned.overLimit }
         },
         totalUsedBytes: total.totalBytes, totalLimitBytes: totalLimit,
         accounts: usage.map(row => ({
@@ -207,9 +212,11 @@ export async function performSuperadminAction(
       const before = await readInstallationSettings(tx);
       await writeInstallationSetting(tx, "cache_max_mb", action.cacheMaxMb, auth.principal.accountId, now);
       await writeInstallationSetting(tx, "map_quota_total_mb", action.mapQuotaTotalMb, auth.principal.accountId, now);
+      if (action.pinMaxMb !== undefined) await writeInstallationSetting(tx, "pin_max_mb", action.pinMaxMb, auth.principal.accountId, now);
       forgetMapCacheCap();
-      const shown = (value: number | null) => value === null ? "förval" : value === 0 ? "ingen gräns" : `${value} MB`;
-      const change = `Mellanlager ${shown(before.cacheMaxMb)} → ${shown(action.cacheMaxMb)}, total kartlagring ${shown(before.mapQuotaTotalMb)} → ${shown(action.mapQuotaTotalMb)}`;
+      const shown = (value: number | null | undefined) => value == null ? "förval" : value === 0 ? "ingen gräns" : `${value} MB`;
+      const change = `Mellanlager ${shown(before.cacheMaxMb)} → ${shown(action.cacheMaxMb)}, total kartlagring ${shown(before.mapQuotaTotalMb)} → ${shown(action.mapQuotaTotalMb)}`
+        + (action.pinMaxMb === undefined ? "" : `, fastspikat ${shown(before.pinMaxMb)} → ${shown(action.pinMaxMb)}`);
       await logAction(tx, { ...actor, action: action.action, targetType: "INSTALLATION", targetId: "00000000-0000-0000-0000-000000000000",
         targetLabel: "Installationen", reason: `${action.reason} (${change})`.slice(0, 500) }, now);
       return { status: "done", action: action.action };

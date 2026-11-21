@@ -191,7 +191,8 @@ describe("ADR-0229 M1: förrådet och mellanlagret", () => {
     forgetMapCacheCap();
     expect(await mapCacheCapBytes(db)).toBe(20_000 * MB);
 
-    const overview = await readSuperadminOverview(db, proof, { accounts: account.email }, NOW, { OTID_STORE_MODE: "on" });
+    // Inloggningen sker med verklig tid, så översikten läses med verklig tid (med NOW blev sessionen ogiltig efter kl. 12 UTC).
+    const overview = await readSuperadminOverview(db, proof, { accounts: account.email }, new Date(), { OTID_STORE_MODE: "on" });
     if (overview.status !== "ok") throw new Error(overview.status);
     expect(overview.response.accounts[0]).toMatchObject({ mapQuotaMb: 9000, regenerableQuotaMb: 30_000 });
     expect(overview.response.limits.installation).toMatchObject({ storeMode: "on", cacheMaxMb: 20_000, cacheMaxMbDefault: 10_240,

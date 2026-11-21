@@ -25,10 +25,15 @@ test("Om O-Tid och sidfoten utan inloggning", async ({ browser }) => {
   await expect(visitor.getByRole("heading", { name: "Beta – fritt att använda" })).toBeVisible();
   await expect(visitor.getByText("utvecklat av Joel Berring med AI-stöd", { exact: false })).toBeVisible();
   const features = visitor.getByRole("heading", { name: "Tekniska funktioner" }).locator("xpath=following-sibling::ul[1]");
-  // Ägaren 2026-11-13: också banläggning, kartritning, grundkarta ur laser och AI-kopplingen.
-  await expect(features.getByRole("listitem")).toHaveCount(17);
+  // Ägaren 2026-11-13: också banläggning, kartritning, grundkarta ur laser och AI-kopplingen; 2026-11-21: Bluetooth, kvittoskrivare, träningslekar.
+  await expect(features.getByRole("listitem")).toHaveCount(20);
   await expect(features).toContainText("WebUSB i Chrome på Android-platta");
+  await expect(features).toContainText("Reader BT");
   await expect(features).toContainText("ROC");
+  // Ägaren 2026-11-21: vad som är på gång.
+  const next = visitor.getByRole("heading", { name: "Under utveckling" }).locator("xpath=following-sibling::ul[1]");
+  await expect(next.getByRole("listitem")).toHaveCount(3);
+  await expect(next).toContainText("följa ungdomarna i realtid");
   // Steg 54: gränserna med uppmätta siffror, i enkel svenska.
   await expect(visitor.getByRole("heading", { name: "Hur stora tävlingar klarar O-Tid?" })).toBeVisible();
   await expect(visitor.getByText("3 000 löpare och 1 000 besökare samtidigt", { exact: false })).toBeVisible();

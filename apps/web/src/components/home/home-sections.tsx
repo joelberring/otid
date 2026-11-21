@@ -66,12 +66,20 @@ export function JoinCode({ language, problem }: { language: Language; problem?: 
   </section>;
 }
 
-/** Arrangörens väg (översynen 2026-11-17): en rad under sökningen för den som inte är inloggad; `/organizer` loggar in eller skapar konto. */
-export function OrganizerStart({ language }: { language: Language }) {
+/**
+ * Arrangörens väg under sökningen för den som inte är inloggad (översynen 2026-11-17): vad O-Tid är i två rader (ägaren
+ * 2026-11-21), "Kom igång som arrangör" (`/organizer` loggar in eller skapar konto) och filmen när den är inställd.
+ */
+export function OrganizerStart({ language, film }: { language: Language; film?: string | undefined }) {
   const text = texts(language);
-  return <p className={styles.organizer} data-testid="home-organizer">
-    <span>{text.organizerQuestion}</span> <Link href="/organizer">{text.organizerStart}</Link>
-  </p>;
+  return <section className={styles.organizer} data-testid="home-organizer" aria-labelledby="home-organizer-title">
+    <h2 id="home-organizer-title">{text.organizerTitle}</h2>
+    <p>{text.organizerText}</p>
+    <p className={styles.organizerLinks}>
+      <Link href="/organizer">{text.organizerStart}</Link>
+      {film && <a href={film}>{text.organizerFilm}</a>}
+    </p>
+  </section>;
 }
 
 /**

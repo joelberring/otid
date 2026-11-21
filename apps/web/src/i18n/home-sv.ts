@@ -11,7 +11,10 @@ export const homeSv = {
   join: "Gå med",
   joinMissing: "Koden hittades inte. Kontrollera att du skrivit rätt.",
   joinBusy: "För många försök. Vänta en stund och försök igen.",
-  organizerQuestion: "Ordnar du tävlingar eller träningar?",
+  /** Ägaren 2026-11-21: några rader om vad O-Tid är, för den som inte är inloggad. */
+  organizerTitle: "Ett nytt system för orientering",
+  organizerText: "O-Tid håller ihop kartritning, banläggning, sekretariat och klubbens träningar. Gratis, i datorn och i mobilen.",
+  organizerFilm: "Se filmen",
   organizerStart: "Kom igång som arrangör",
   personalTitle: "Ditt O-Tid",
   myRaces: "Mitt O-Tid",

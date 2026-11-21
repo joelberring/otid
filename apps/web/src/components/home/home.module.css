@@ -24,7 +24,10 @@
 .joinForm input, .joinForm button { min-height: 44px; }
 .joinForm button { flex: 0 0 auto; }
 .join > .joinProblem { margin: 0; font-weight: 600; color: var(--ink); font-size: var(--text-sm); }
-.organizer { display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; color: var(--muted); font-size: var(--text-sm); }
+.organizer { display: grid; gap: 4px; max-width: 34rem; padding-top: 16px; border-top: 1px solid var(--line); }
+.organizer h2 { margin: 0; font-size: var(--text-md); font-weight: 700; color: var(--ink); }
+.organizer p { margin: 0; color: var(--muted); font-size: var(--text-sm); line-height: 1.45; }
+.organizerLinks { display: flex; flex-wrap: wrap; align-items: center; gap: 0 20px; }
 .organizer a { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; }
 .join.joinShown, .join:target, :global([data-otid-app]) .join { display: grid; }
 /* I appen (ADR-0227) behövs inte arrangörens rad (appen är deltagarens); kodfältet har samma storlek som andra fält. */

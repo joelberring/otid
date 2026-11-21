@@ -97,7 +97,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Que
             autoComplete="off" /></label>
           <button type="submit">{text.search}</button>
         </form>
-        {!signedIn && <OrganizerStart language={language} />}
+        {!signedIn && <OrganizerStart language={language} film={film} />}
       </div>
       <figure className={start.painting}>
         <img src={painting.src} width={painting.width} height={painting.height} alt={text.paintingAlt(painting.title)} loading="eager"

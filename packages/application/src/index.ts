@@ -103,6 +103,13 @@ export { activeMapStore, setMapStoreMode, storeMode, storeModeProblems } from ".
 export type { StoreMode } from "./map-store";
 export { mapCacheCapBytes, mapCacheDir, setMapCacheDir, startMapCacheSweep, sweepMapCache, usableMapCacheDir } from "./map-cache";
 export { pinStatus, pinWindowDays, runPinRound } from "./map-pin";
+export { categoryOf, orderMigrateCandidates, planMapMigration, reconcileStoredContent, runMapMigration } from "./map-store-migrate";
+export type { MigrateCandidate, MigrateCategory } from "./map-store-migrate";
+export {
+  inMigrateWindow, largestTables, mapMigrationStatus, migrateSettings, migrateSettingsProblems, partTableSize, requestMapMigration,
+  takeMapMigrationRequest
+} from "./map-store-migrate-settings";
+export type { MigrateRunSummary, MigrateSettings, MigrateStatus } from "./map-store-migrate-settings";
 export type { PinRoundResult, PinStatus } from "./map-pin";
 export { cacheSettingProblems } from "./installation-settings";
 export type { ArchiveCandidate, ArchiveRule, ArchiveRunResult, ArchiveSettings } from "./map-archive";

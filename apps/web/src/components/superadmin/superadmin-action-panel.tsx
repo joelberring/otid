@@ -19,7 +19,9 @@ export type PendingAction =
       regenerableQuotaMb: number | null; defaultMapQuotaMb: number | null; defaultGeoTilesPerMonth: number; defaultRegenerableQuotaMb: number }
   /** ADR-0229: installationens gränser (mellanlagrets tak och kartlagringens totala gräns). */
   | { kind: "SET_INSTALLATION_LIMITS"; label: string; cacheMaxMb: number | null; cacheMaxMbDefault: number; mapQuotaTotalMb: number | null;
-      mapQuotaTotalDefaultMb: number | null; pinMaxMb: number | null; pinMaxMbDefault: number };
+      mapQuotaTotalDefaultMb: number | null; pinMaxMb: number | null; pinMaxMbDefault: number }
+  /** PLAN.md steg M3: «Flytta nu». */
+  | { kind: "MIGRATE_MAP_CONTENT_NOW"; label: string };
 
 export interface LimitValues { mapQuotaMb: number | null; geoTilesPerMonth: number | null; regenerableQuotaMb: number | null;
   cacheMaxMb: number | null; mapQuotaTotalMb: number | null; pinMaxMb?: number | null }
@@ -38,6 +40,7 @@ export function actionRequest(action: PendingAction, reason: string, confirmatio
       mapQuotaMb: limits?.mapQuotaMb ?? null, geoTilesPerMonth: limits?.geoTilesPerMonth ?? null, regenerableQuotaMb: limits?.regenerableQuotaMb ?? null };
     case "SET_INSTALLATION_LIMITS": return { formatVersion: 1, action: action.kind, reason,
       cacheMaxMb: limits?.cacheMaxMb ?? null, mapQuotaTotalMb: limits?.mapQuotaTotalMb ?? null, pinMaxMb: limits?.pinMaxMb ?? null };
+    case "MIGRATE_MAP_CONTENT_NOW": return { formatVersion: 1, action: action.kind, reason };
     case "HIDE_RACE": case "UNHIDE_RACE": return { formatVersion: 1, action: action.kind, raceId: action.raceId, reason };
     case "DELETE_EVENT": return { formatVersion: 1, action: action.kind, eventId: action.eventId, reason, confirmation };
     case "DELETE_ACCOUNT": return { formatVersion: 1, action: action.kind, accountId: action.accountId, reason, confirmation };

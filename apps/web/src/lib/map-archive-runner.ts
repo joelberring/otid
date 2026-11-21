@@ -1,4 +1,4 @@
-import { archiveMode, archiveNumberProblems, archiveSettings, archiveSettingsProblems, mapArchiveStore, probeArchiveStore, runMapArchive } from "@o-tid/application";
+import { activeMapStore, archiveMode, archiveNumberProblems, archiveSettings, archiveSettingsProblems, mapArchiveStore, probeArchiveStore, runMapArchive } from "@o-tid/application";
 import { db } from "./db";
 
 /**
@@ -6,6 +6,9 @@ import { db } from "./db";
  * `instrumentation.ts`). Tio minuter efter start och sedan en gång i timmen flyttas laserkörningars resultatfiler som vilar
  * till objektlagringen. `OTID_ARCHIVE_MODE`: off (förval), log (skriver bara vad som skulle ha flyttats) eller on. Bara
  * tävlingsinstansen kör det. Loggen har antal och storlek, aldrig namn.
+ *
+ * PLAN.md steg M3 (ADR-0229 tillägg 2026-11-21 (M3)): med förrådet i bruk startas arkivet inte. Allt innehåll flyttas då till
+ * förrådet (`map-store-runner.ts`), också laserkörningarnas, och förrådets löpare tar bort släppta objekt.
  */
 const HOUR = 60 * 60_000, MB = 1024 * 1024;
 type RunnerState = { started: boolean; running: boolean };
@@ -39,6 +42,10 @@ export function startMapArchiveRunner(environment: Partial<Record<string, string
   for (const problem of [...archiveSettingsProblems(environment), ...archiveNumberProblems(environment)]) console.warn(problem);
   const mode = archiveMode(environment);
   if (environment.OTID_INSTANCE_ROLE?.trim().toLowerCase() === "public" || mode === "off") return;
+  if (activeMapStore(environment)) {
+    console.info("Arkivet för kartinnehåll: avstängt, förrådet är i bruk (OTID_STORE_MODE=on); befintligt innehåll flyttas dit nattetid (ADR-0229)");
+    return;
+  }
   const state = globalRunner.oTidMapArchive ??= { started: false, running: false };
   if (state.started) return;
   state.started = true;

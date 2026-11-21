@@ -37,7 +37,7 @@ x-backup-environment: &backup-environment
   # ADR-0186: en dump varje hel timme dygnet runt (tidigare 08–23) och en dagsbackup i 14 dagar. ADR-0216: de 24 senaste
   # timdumparna (tidigare 48); kartinnehållet sparas en gång i ./backups/map-content i stället för i varje dump.
   BACKUP_INTERVAL_MINUTES: ${BACKUP_INTERVAL_MINUTES:-60}
-  BACKUP_KEEP_HOURLY: ${BACKUP_KEEP_HOURLY:-24}
+  BACKUP_KEEP_HOURLY: ${BACKUP_KEEP_HOURLY:-12}
   BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
   # Valfri krypterad kopia utanför servern med restic (docs/drift.md, Kopia utanför servern). Tomt = ingen kopia.
   RESTIC_REPOSITORY: ${RESTIC_REPOSITORY:-}
@@ -209,6 +209,12 @@ services:
       OTID_STORE_MODE: ${OTID_STORE_MODE:-}
       OTID_CACHE_DIR: /cache
       OTID_CACHE_MAX_MB: ${OTID_CACHE_MAX_MB:-}
+      # PLAN.md steg M3: flytten av befintligt kartinnehåll till förrådet (bara web). Tomt = förvalen: on, kl. 1-6 svensk tid,
+      # 2048 MB per varv, delarna kvar 24 h. Se docs/drift.md, Flytten till förrådet.
+      OTID_STORE_MIGRATE: ${OTID_STORE_MIGRATE:-}
+      OTID_STORE_MIGRATE_HOURS: ${OTID_STORE_MIGRATE_HOURS:-}
+      OTID_STORE_MIGRATE_RUN_MB: ${OTID_STORE_MIGRATE_RUN_MB:-}
+      OTID_STORE_MIGRATE_GRACE_HOURS: ${OTID_STORE_MIGRATE_GRACE_HOURS:-}
       # ADR-0189: valfri gallring (tom/off = av, anonymize eller delete) av tävlingar äldre än OTID_RETENTION_MONTHS (tom = 24).
       # Körs av underhållet i web. Integritetssidan (/integritet) säger vad som gäller, så sätt samma värden i web-public.
       OTID_RETENTION: ${OTID_RETENTION:-}

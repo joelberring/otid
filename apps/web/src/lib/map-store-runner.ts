@@ -1,6 +1,7 @@
 import {
-  activeMapStore, archiveMode, archiveSettings, mapCacheCapBytes, mapCacheDir, probeArchiveStore, removeArchiveOrphans, runPinRound,
-  startMapCacheSweep, storeMode, usableMapCacheDir, type PinRoundResult
+  activeMapStore, archiveSettings, inMigrateWindow, mapCacheCapBytes, mapCacheDir, migrateSettings, migrateSettingsProblems, probeArchiveStore,
+  reconcileStoredContent, removeArchiveOrphans, runMapMigration, runPinRound, startMapCacheSweep, storeMode, takeMapMigrationRequest, usableMapCacheDir,
+  type MigrateRunSummary, type PinRoundResult
 } from "@o-tid/application";
 import { db } from "./db";
 
@@ -8,16 +9,18 @@ import { db } from "./db";
  * ADR-0229 (PLAN.md steg M1): förrådet och mellanlagret i webbprocessen (som arkivet, startas från `instrumentation.ts`).
  * Bara tävlingsinstansen kör det. Var 5:e minut spikas tävlingars och träningars kartor fast och det som saknas laddas ner
  * (PLAN.md steg M2, `map-pin.ts`), och därefter städas mellanlagret (taket från superadminsidan); en gång i timmen tas
- * objekt bort ur förrådet som släpptes för mer än `OTID_ARCHIVE_ORPHAN_DAYS` sedan (när arkivet är på gör arkivet det).
+ * objekt bort ur förrådet som släpptes för mer än `OTID_ARCHIVE_ORPHAN_DAYS` sedan (arkivets löpare är avstängd när förrådet
+ * är i bruk, PLAN.md steg M3). Varje minut ser löparen efter en beställning från «Flytta nu», och var 10:e minut i nattfönstret
+ * flyttas befintligt innehåll ur databasen (`map-store-migrate.ts`).
  * Vid start skrivs en rad i loggen som säger om förrådet är på; den raden kontrollerar ägaren när läget slagits på.
  */
 const MINUTE = 60_000;
-type RunnerState = { started: boolean };
+type RunnerState = { started: boolean; migrating: boolean; lastNightRun: number; lastReconcile: number };
 const globalRunner = globalThis as typeof globalThis & { oTidMapStoreRunner?: RunnerState };
 
 export function startMapStoreRunner(environment: Partial<Record<string, string | undefined>> = process.env): void {
   if (environment.OTID_INSTANCE_ROLE?.trim().toLowerCase() === "public" || storeMode(environment) !== "on") return;
-  const state = globalRunner.oTidMapStoreRunner ??= { started: false };
+  const state = globalRunner.oTidMapStoreRunner ??= { started: false, migrating: false, lastNightRun: 0, lastReconcile: 0 };
   if (state.started) return;
   state.started = true;
   const store = activeMapStore(environment);
@@ -49,7 +52,7 @@ export function startMapStoreRunner(environment: Partial<Record<string, string |
     }
   };
   const orphans = async () => {
-    if (!store || archiveMode(environment) === "on") return;
+    if (!store) return;
     try {
       const result = await removeArchiveOrphans(db, store, archiveSettings(environment).orphanDays);
       if (result.removed > 0) console.info(`Förrådet: ${result.removed} släppta objekt borttagna`);
@@ -58,12 +61,54 @@ export function startMapStoreRunner(environment: Partial<Record<string, string |
       console.error(`Förrådets städning avbröts: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
+  const migration = migrateSettings(environment);
+  for (const problem of migrateSettingsProblems(environment)) console.warn(problem);
+  const migrate = async () => {
+    if (!store || !migration.enabled || state.migrating) return;
+    state.migrating = true;
+    try {
+      const request = await takeMapMigrationRequest(db);
+      const now = new Date();
+      const night = !request && inMigrateWindow(now, migration) && now.getTime() - state.lastNightRun >= 10 * MINUTE - 5_000;
+      if (!request && !night) {
+        // Återkopplingen efter en återställning (map-store-migrate.ts) görs var 10:e minut också utanför fönstret.
+        if (now.getTime() - state.lastReconcile < 10 * MINUTE - 5_000) return;
+        state.lastReconcile = now.getTime();
+        const result = await reconcileStoredContent(db, store, now);
+        if (result.reconciled > 0) console.info(`Flytten till förrådet: Återkopplat ${result.reconciled} innehåll som låg i förrådet`);
+        if (result.missing > 0) console.error(`Flytten till förrådet: ${result.missing} innehåll saknar delar i databasen och finns inte i förrådet`);
+        return;
+      }
+      if (night) state.lastNightRun = now.getTime();
+      logMigration(await runMapMigration(db, store, migration, { trigger: request ? "MANUAL" : "NIGHT",
+        ...(request?.megabytes ? { runBytes: request.megabytes * 1024 * 1024 } : {}) }));
+    } catch (error) {
+      console.error(`Flytten till förrådet avbröts: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      state.migrating = false;
+    }
+  };
+  if (store && migration.enabled) {
+    console.info(`Flytten till förrådet: kl. ${migration.fromHour}–${migration.toHour} svensk tid, högst ${mb(migration.runBytes)} MB per varv, ` +
+      `delarna kvar ${migration.graceHours} h (PLAN.md steg M3)`);
+  }
+  setInterval(() => void migrate(), MINUTE).unref();
   setTimeout(() => void sweep(), MINUTE).unref();
   setInterval(() => void sweep(), 5 * MINUTE).unref();
   setInterval(() => void orphans(), 60 * MINUTE).unref();
 }
 
 const mb = (bytes: number) => Math.round(bytes / (1024 * 1024));
+
+/** Loggen för flyttens varv: antal och storlek, aldrig namn. Tyst när ingenting hände. */
+export function logMigration(result: MigrateRunSummary): void {
+  if (result.moved + result.freed + result.reconciled > 0) {
+    console.info(`Flytten till förrådet (${result.trigger === "MANUAL" ? "Flytta nu" : "natt"}): ${result.moved} innehåll flyttade (${mb(result.movedBytes)} MB, ` +
+      `${mb(result.uploadedBytes)} MB uppladdat), delarna borttagna för ${result.freed} (${mb(result.freedBytes)} MB), ${result.reconciled} återkopplade`);
+  }
+  if (result.stopped === "RACE_DAY" && result.trigger === "MANUAL") console.warn("Flytten till förrådet: tävlingsdygn, ingenting flyttas i dag");
+  if (result.failed > 0) console.error(`Flytten till förrådet: ${result.failed} fel: ${result.errors.join("; ")}`);
+}
 
 /** Loggen för ett varv: bara antal och storlek, aldrig namn. Tyst när allt redan låg på plats. */
 export function logPinRound(result: PinRoundResult): void {

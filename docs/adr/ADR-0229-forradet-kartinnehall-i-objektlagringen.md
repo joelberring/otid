@@ -79,6 +79,37 @@ superadmin, flera superadmin, automatisk rensning av docker-avbildningar.
   markeringen kan inte inträffa för uppladdningar; för en kopia eller en bibliotekskarta finns innehållet oftast inte i
   mellanlagret ännu och hämtas nästa varv.
 
+## Tillägg 2026-11-21 (M3): flytten av befintligt innehåll (PLAN.md steg M3)
+
+Ägaren 2026-11-21 kl. 23: förrådet är på sedan i kväll; disken 78 % full (backups/map-content 5,0 GB, Postgres 4,7 GB).
+
+- **Löparen** (`map-store-migrate.ts`, i förrådets löpare i tävlingsinstansen): var 10:e minut kl. 01–06 svensk tid, högst
+  2 048 MB uppladdat per varv (ett större innehåll flyttas ensamt), aldrig på tävlingsdygnet (ADR-0178), bara med förrådet i bruk.
+  Inställningar `OTID_STORE_MIGRATE` (`off` stänger av), `_HOURS`, `_RUN_MB`, `_GRACE_HOURS`. Ordning: laserkörningars resultat,
+  underlag, grundfiler och övrigt, sist tävlingars och träningars kartor; störst först inom varje.
+- **Ett innehåll:** delarna strömmas till en fil i mellanlagret och kontrolleras, laddas upp och läses tillbaka; sedan, i en
+  transaktion som låser raden och prövar igen (fortfarande 'DB', samma `content_id`, hela delar), `stored_in = 'STORE'` och
+  arkivets rad med `cold_at`, som också är fristens början. Delarna tas bort efter fristen (24 h) när objektets längd kontrollerats
+  igen; saknas objektet laddas det upp igen ur delarna och fristen börjar om. Under fristen läses delarna, och en ström vars delar
+  försvinner mitt i fortsätter ur förrådet där den slutade (`streamMapContentParts`).
+- **Arkivet (L5) blir överflödigt:** innehåll som arkivet laddat upp kontrolleras i förrådet (längd och sha256) i stället för att
+  laddas upp igen, och innehåll som arkivet redan tagit bort här (`cold_at`) blir 'STORE' när objektets längd stämmer. Med
+  förrådet i bruk startas arkivets löpare inte; förrådets löpare tar bort släppta objekt (beslut 4). `restoreMapContent` finns
+  kvar för 'DB'-innehåll med `cold_at` tills det flyttats, och arkivets kod tas bort när förrådet är förval.
+- **Fastspikat:** en tävlings- eller träningskarta i fastspikningsfönstret (M2) läggs i mellanlagret och spikas i samma varv som
+  den flyttas.
+- **Återkopplingen:** en rad 'DB' utan delar och utan `cold_at`, vars objekt finns i förrådet med rätt längd, blir 'STORE' (var
+  10:e minut, hela dygnet). Det är så en återställd äldre dump (där innehållet ännu var 'DB') hittar det som flyttats sedan.
+- **Manuell start:** `node superadmin.mjs map-store migrate-now [--mb N]` (skriver förloppet) och «Flytta nu» på
+  superadminsidan (en rad `map_migrate_request` i `installation_setting`, som löparen tar inom en minut; åtgärden loggas).
+  Tävlingsdygnet gäller, nattfönstret inte. Ett varv i taget (`map_migrate_lease`, 15 minuter). Senaste varvet sparas i
+  `map_migrate_last` och visas med kvar i databasen, i förrådet och väntar på frist. Ingen migration.
+- **Backupen** (beslut 7): när innehåll blivit 'STORE' tar `prune_contents` bort dess fil i `backups/map-content` också om äldre
+  dumpar pekar på det, och dess id sparas i `map-content/.store-ids`; `restore-map-content` räknar dem som flyttade, inte saknade.
+- **Efteråt:** `map-store status` skriver `map_content_part`-tabellens storlek och när VACUUM FULL rekommenderas (docs/drift.md,
+  "Efter flytten: frigör databasens utrymme"). Inget pg_repack (ett beroende till för en engångsåtgärd).
+- Kvar: med träningar nästan varje dag kan tävlingsdygnet stoppa flytten flera nätter i rad; då `migrate-now` en dag utan.
+
 ## Följder
 
 - Med läget på blir objektlagringen en beroendepunkt för nytt innehåll: utan anslutning misslyckas en uppladdning (med ett

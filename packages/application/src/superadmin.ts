@@ -19,6 +19,8 @@ import { purgeRows } from "./purge";
 import { DEFAULT_REGENERABLE_QUOTA_MB, effectiveTotalQuotaBytes, mapStorageQuota, mapStorageUsage } from "./map-content";
 import { DEFAULT_PIN_MAX_MB, defaultCacheMaxMb, readInstallationSettings, writeInstallationSetting } from "./installation-settings";
 import { pinStatus } from "./map-pin";
+import { raceDayNow } from "./map-archive";
+import { mapMigrationStatus, migrateSettings, requestMapMigration } from "./map-store-migrate-settings";
 import { activeMapStore, storeMode } from "./map-store";
 import { forgetMapCacheCap, mapCacheDir, mapCacheUsage, storeFetches } from "./map-cache";
 import { GEO_JOB_COUNTS, geoTilesPerMonth } from "./map-project-geo-jobs";
@@ -125,6 +127,15 @@ export async function readSuperadminOverview(
     const fetches = await storeFetches(tx, now);
     const mode = storeMode(environment) === "off" ? "off" : activeMapStore(environment) ? "on" : "incomplete";
     const pinned = mode === "off" ? null : await pinStatus(tx, mapCacheDir(environment), now);
+    // PLAN.md steg M3: flytten av befintligt innehåll till förrådet.
+    const migrate = migrateSettings(environment);
+    const moving = mode === "off" ? null : await mapMigrationStatus(tx);
+    const migration = moving && { enabled: migrate.enabled && mode === "on", window: `${migrate.fromHour}–${migrate.toHour}`,
+      dbCount: moving.dbCount, dbBytes: moving.dbBytes, storeCount: moving.storeCount, storeBytes: moving.storeBytes,
+      pendingCount: moving.pendingCount, pendingBytes: moving.pendingBytes, requested: moving.requested, raceDay: await raceDayNow(tx, now),
+      last: moving.last && { at: moving.last.at, trigger: moving.last.trigger, stopped: moving.last.stopped, moved: moving.last.moved,
+        movedBytes: moving.last.movedBytes, freed: moving.last.freed, freedBytes: moving.last.freedBytes, failed: moving.last.failed,
+        errors: moving.last.errors.slice(0, 3).map(error => error.slice(0, 200)) } };
 
     return { status: "ok", response: superadminOverviewSchema.parse({
       formatVersion: 1,
@@ -155,7 +166,8 @@ export async function readSuperadminOverview(
           mapQuotaTotalDefaultMb: quota.totalBytes === null ? null : Math.round(quota.totalBytes / MB),
           pinMaxMb: settings.pinMaxMb ?? null, pinMaxMbDefault: DEFAULT_PIN_MAX_MB,
           pinned: pinned && { count: pinned.count, bytes: pinned.bytes, missing: pinned.missing, missingBytes: pinned.missingBytes,
-            missingRaceDay: pinned.missingRaceDay, overLimit: pinned.overLimit }
+            missingRaceDay: pinned.missingRaceDay, overLimit: pinned.overLimit },
+          migration
         },
         totalUsedBytes: total.totalBytes, totalLimitBytes: totalLimit,
         accounts: usage.map(row => ({
@@ -205,6 +217,15 @@ export async function performSuperadminAction(
       await purgeRows(tx, "event", [event.id]);
       await logAction(tx, { ...actor, action: "DELETE_EVENT", targetType: "EVENT", targetId: event.id, targetLabel: event.name }, now);
       return { status: "done", action: "DELETE_EVENT" };
+    }
+
+    if (action.action === "MIGRATE_MAP_CONTENT_NOW") {
+      // PLAN.md steg M3: förrådets löpare (tävlingsinstansen) tar beställningen inom en minut; tävlingsdygnet gäller ändå.
+      if (!activeMapStore() || !migrateSettings().enabled) return { status: "invalid-request" };
+      await requestMapMigration(tx, auth.principal.accountId, now);
+      await logAction(tx, { ...actor, action: action.action, targetType: "INSTALLATION", targetId: "00000000-0000-0000-0000-000000000000",
+        targetLabel: "Installationen" }, now);
+      return { status: "done", action: action.action };
     }
 
     if (action.action === "SET_INSTALLATION_LIMITS") {

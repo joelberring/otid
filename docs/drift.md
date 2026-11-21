@@ -56,6 +56,18 @@ inloggning:
 git pull && docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d
 ```
 
+**Städa efter uppdateringen** (PLAN.md steg M3, förtur från M5): gamla avbildningar och byggcachen fyller annars disken (2026-11-21:
+4,4 GB avbildningar, varav 3 GB oanvända, och 3,9 GB byggcache). När den nya versionen svarar:
+
+```bash
+docker image prune -af --filter "until=72h"   # avbildningar som ingen behållare använder och som är äldre än tre dygn
+docker builder prune -af                       # byggcachen (bara reserven nedan bygger; nästa sådana bygge tar då längre tid)
+df -h /
+```
+
+Avbildningar som en körande behållare använder tas aldrig bort, och de tre senaste dygnens finns kvar för en tillbakagång
+(`OTID_TAG`); en äldre version hämtas annars igen från ghcr.io med `pull`.
+
 `git pull` behövs fortfarande: compose-filen, `deploy/Caddyfile` och skripten i `deploy/` kommer från repot, och de ska höra
 ihop med avbildningen. Med förvalet (`OTID_TAG` tom eller `main`) hämtar `pull` den senaste gröna avbildningen från `main`;
 kör alltså uppdateringen först när arbetsflödet `Avbildningar` för den commit du drog ned är klart, annars får du förra
@@ -459,15 +471,19 @@ Tjänsten `backup` (`deploy/backup.sh`, avbildningen `otid-backup` = `postgres:1
 `pg_dump` direkt vid start och sedan varje hel timme **dygnet runt** (ADR-0186; tidigare bara 08–23). Före varje start av
 webben tar `backup-before-migrate` dessutom en dump (`./backups/fore-migrering/`, de 10 senaste).
 
-- `./backups/hourly/otid-<tid>.dump`: de 24 senaste timdumparna (ett dygn; ADR-0216, tidigare 48).
+- `./backups/hourly/otid-<tid>.dump`: de 12 senaste timdumparna (ADR-0216 tillägg 2026-11-21 (M3); tidigare 24 och 48). Kopian utanför
+  servern behåller 48 timvisa, 30 dagliga och 12 månatliga.
 - `./backups/daily/otid-<datum>.dump`: dagens senaste dump, sparad i 14 dagar.
 - `./backups/map-content/<id>.copy` (ADR-0216): kartfilerna och kartbilderna (`map_content_part`), **en fil per innehåll**. De
   ändras aldrig, så de sparas en gång i stället för i varje dump; dumparna har bara tabellens struktur. Bredvid varje dump står
   `<dump>.contents` med innehållen den pekar på, och en fil tas bort först när varken databasen eller någon sparad dump pekar på
   den. Hinner ett innehåll tas bort under dumpen tas dumpen om med kartinnehållet i, så varje dump går att återställa.
+  Innehåll i förrådet (ADR-0229) sparas inte här, och när ett innehåll flyttats dit (PLAN.md steg M3) tas dess fil bort också om
+  äldre dumpar pekar på det; dess id skrivs i `map-content/.store-ids`. Det ligger i objektlagringen, med bucketens versionering.
 - Inte med i dumparna (går att skapa igen): utskriftsjobbens PDF:er (steg 65) och klubbarkivets miniatyrer och kartkontroller
   (`club_archive_entry_thumbnail`, `club_map_version_check`; ADR-0196 – de ritas om i en administratörs webbläsare när
-  klubbarkivet öppnas, högst sex kartversioner per besök).
+  klubbarkivet öppnas, högst sex kartversioner per besök) och AI-kopplingens kartjobb (`map_project_job`: tillfälliga svar med
+  bilder som rensas efter en timme; ADR-0216 tillägg 2026-11-21 (M3)).
 - `./backups/.backup-status`: resultatet av senaste körningen och antalet misslyckade i rad (läses av serverns bevakning,
   som larmar först när två körningar i rad har misslyckats).
 - En dump skrivs först till en dold fil (`.….partial`) och byter namn när `pg_dump` är klar, så en avbruten dump ser
@@ -476,7 +492,8 @@ webben tar `backup-before-migrate` dessutom en dump (`./backups/fore-migrering/`
   görs om nästa timme. Med bevakning (nedan) får du också ett mejl.
 
 Intervallet och antalen ställs in i `.env` (`BACKUP_INTERVAL_MINUTES`, förval 60; `BACKUP_KEEP_HOURLY`, förval 24;
-`BACKUP_KEEP_DAYS`, förval 14). Före ADR-0216 hade varje dump alla kartfiler, så 48 + 14 dumpar tog 62 gånger kartornas storlek;
+`BACKUP_KEEP_DAYS`, förval 14; `BACKUP_KEEP_HOURLY`, förval 12). Vad dumparna består av:
+`docker compose -f docker-compose.prod.yml exec web node superadmin.mjs map-store status` skriver de största tabellerna. Före ADR-0216 hade varje dump alla kartfiler, så 48 + 14 dumpar tog 62 gånger kartornas storlek;
 nu tar kartinnehållet sin storlek en gång. Gamla timdumpar (med kartinnehållet i) gallras som vanligt inom ett dygn efter
 uppdateringen och dagsbackuperna inom 14 dagar; de går att återställa precis som förut.
 Dumpar från före steg 45 ligger kvar direkt i `./backups/` och tas inte bort av tjänsten.
@@ -656,7 +673,16 @@ docker compose -f docker-compose.prod.yml start web web-public web-public2 print
 ```
 
 `restore-map-content` (ADR-0216) läser in kartinnehållet ur `./backups/map-content/` för varje karta i databasen som saknar sitt
-innehåll och skriver `Kartinnehåll inläst: N, saknas: 0.` Det går att köra flera gånger. En dump från före ADR-0216 (eller en som
+innehåll och skriver `Kartinnehåll inläst: N, saknas: 0, i arkivet eller förrådet: M, flyttat till förrådet efter dumpen: K.` Det går
+att köra flera gånger.
+
+**Innehåll i förrådet efter en återställning** (ADR-0229, PLAN.md steg M3): det läses aldrig in i databasen. Det som var `STORE`
+när dumpen togs hämtas ur förrådet när det läses. Det som flyttades till förrådet *efter* att dumpen togs (K ovan, ur
+`map-content/.store-ids`) står i den återställda databasen som `DB` utan delar; webben (med `OTID_STORE_MODE=on` och samma
+`OTID_ARCHIVE_*` som förut) ser att objektet finns i förrådet och markerar det som `STORE` inom tio minuter efter start
+(`logs web | grep Återkopplat`), och `map-store status` säger sedan `Kvar i databasen` utan dem. Både databasen och bucketen
+måste alltså finnas; bucketen ska ha versionering eller objektlås påslaget, och objekt raderas där tidigast
+`OTID_ARCHIVE_ORPHAN_DAYS` (35) dygn efter att innehållet släppts, längre än servern sparar dumpar. En dump från före ADR-0216 (eller en som
 togs om med kartinnehållet i) har innehållet själv; då läses inget in. Glömmer du steget fungerar allt utom kartorna, som
 saknar bild och fil tills du kör det.
 
@@ -678,7 +704,7 @@ Efter övergången till databasroller körs kommandot som `otid_owner` (backuptj
    docker compose -f docker-compose.prod.yml run --rm --entrypoint restic -v ./backups/aterstallt:/aterstallt backup \
      restore latest --target /aterstallt --include /backups/daily --include /backups/map-content
    ls backups/aterstallt/backups/daily/       # dagsbackuperna; flytta den du vill ha till backups/daily/
-   mkdir -p backups/map-content && mv backups/aterstallt/backups/map-content/* backups/map-content/
+   mkdir -p backups/map-content && cp -a backups/aterstallt/backups/map-content/. backups/map-content/   # också .store-ids
    ```
 
 3. Återställ som superusern i en tom databas och starta webben:
@@ -814,6 +840,9 @@ filerna till en bucket i S3-kompatibel objektlagring (Hetzner Object Storage) oc
 ändringarna och själva kartan ligger alltid kvar i databasen. När någon öppnar en arkiverad körning hämtas filerna tillbaka
 av sig själva (det tar några sekunder till någon minut för en stor körning) och ligger sedan kvar minst ett dygn.
 
+Med förrådet i bruk (`OTID_STORE_MODE=on`, nästa avsnitt) startas arkivet inte: allt innehåll flyttas då till förrådet, också
+laserkörningarnas (PLAN.md steg M3). Det som redan ligger i arkivet blir förrådets innehåll utan ny uppladdning.
+
 **Slå på:** skapa en bucket (privat) och S3-nycklar i Hetzner Cloud Console under Object Storage, och sätt i `.env`:
 
 ```
@@ -858,7 +887,7 @@ i `df` sjunker först efter `VACUUM (FULL) map_content_part` (låser tabellen en
 
 Med förrådet påslaget sparas **nytt** kartinnehåll (uppladdningar och laserkörningarnas resultat) i objektlagringen i stället för
 i databasen; servern håller bara en kopia av det som används i mellanlagret (`./map-cache`). Allt som redan finns ligger kvar i
-databasen och läses som förut (flytten av det kommer i steg M3). Förrådet använder samma bucket och nycklar som
+databasen tills flytten nedan tagit det. Förrådet använder samma bucket och nycklar som
 [arkivet](#arkivet-objektlagring-adr-0224) (`OTID_ARCHIVE_ENDPOINT`, `_BUCKET`, `_ACCESS_KEY`, `_SECRET_KEY`); arkivets läge
 behöver inte vara på.
 
@@ -900,6 +929,61 @@ varning kvar: kontrollera anslutningen till objektlagringen (raden `Förrådet: 
 
 **Backupen** sparar inte innehåll i förrådet och räknar det inte som saknat; efter ett haveri måste både databasen och
 bucketen finnas. Ett innehåll som ingen längre pekar på tas bort ur förrådet efter `OTID_ARCHIVE_ORPHAN_DAYS` (35) dygn.
+
+### Flytten till förrådet (PLAN.md steg M3)
+
+Med förrådet i bruk flyttar webben (bara tävlingsinstansen) befintligt kartinnehåll ur databasen till förrådet: laserkörningars
+resultat först, sedan underlag, grundfiler och övrigt, sist tävlingars och träningars kartor, störst först. Varje innehåll laddas
+upp, läses tillbaka och jämförs (längd och sha256) innan det byter till förrådet; det som arkivet redan laddat upp kontrolleras i
+förrådet i stället för att laddas upp igen. Delarna i databasen ligger kvar en frist (24 h) och tas bort först när objektet i
+förrådet kontrollerats igen. En karta till en tävling eller träning från dagen före till dagen efter läggs direkt i mellanlagret
+och spikas. Arkivet (ovan) är avstängt så länge förrådet är i bruk: allt innehåll hamnar i förrådet, och förrådets löpare tar bort
+släppta objekt.
+
+- **När:** var 10:e minut kl. 01–06 svensk tid, högst 2 048 MB uppladdat per varv (ett större innehåll flyttas ensamt), **aldrig
+  på tävlingsdygnet** (ADR-0178; en träning räknas). 5 GB tar alltså två–tre nätter.
+- **Inställningar** i `.env` (tomt = förvalet, `up -d web` efter ändring): `OTID_STORE_MIGRATE=off` stänger av flytten,
+  `OTID_STORE_MIGRATE_HOURS=1-6` (fönstret; `0-24` = hela dygnet), `OTID_STORE_MIGRATE_RUN_MB=2048`,
+  `OTID_STORE_MIGRATE_GRACE_HOURS=24`.
+- **Starta direkt** (inte på tävlingsdygnet, men utan att vänta på natten), med förloppet rad för rad:
+
+  ```bash
+  docker compose -f docker-compose.prod.yml exec web node superadmin.mjs map-store migrate-now            # högst 2 048 MB
+  docker compose -f docker-compose.prod.yml exec web node superadmin.mjs map-store migrate-now --mb 6000  # högst 6 000 MB
+  ```
+
+  Samma som knappen **Flytta nu** på superadminsidan (Lagring och laserrutor → Installationen; varvet startar inom en minut).
+  Ett varv i taget: kör webben redan ett säger kommandot det. Kommandot kan avbrytas (Ctrl-C) och köras om.
+- **Läget:** `docker compose -f docker-compose.prod.yml exec web node superadmin.mjs map-store status` och superadminsidan visar
+  kvar i databasen (antal, MB), i förrådet, väntar på frist, senaste varvet med fel. Loggen: `logs web | grep "Flytten till förrådet"`.
+- **Backupen:** när ett innehåll flyttats tar nästa backupkörning bort dess fil i `backups/map-content`, så katalogen krymper i
+  takt med flytten.
+
+### Efter flytten: frigör databasens utrymme
+
+Borttagna delar frigör inte disken: PostgreSQL återanvänder utrymmet men lämnar det inte tillbaka. När allt är flyttat:
+
+1. Kontrollera att inget är kvar och att fristen gått ut, och se tabellens storlek:
+
+   ```bash
+   docker compose -f docker-compose.prod.yml exec web node superadmin.mjs map-store status
+   # ska säga "Kvar i databasen: 0 …", "Väntar på frist: 0 …" och "VACUUM FULL rekommenderas"
+   docker compose -f docker-compose.prod.yml exec postgres psql -U otid -d otid -c \
+     "select pg_size_pretty(pg_total_relation_size('map_content_part')) as tabellen, pg_size_pretty(pg_database_size('otid')) as databasen"
+   df -h /
+   ```
+
+2. En dag utan tävling (VACUUM FULL låser tabellen, så kartor som ännu inte flyttats går inte att läsa under tiden; efter flytten
+   läses inget därifrån). Den skriver en ny kopia av tabellen och behöver ledigt utrymme ungefär lika med det som fortfarande
+   används, vilket då är nästan 0:
+
+   ```bash
+   docker compose -f docker-compose.prod.yml exec postgres psql -U otid -d otid -c "VACUUM FULL map_content_part;"
+   docker compose -f docker-compose.prod.yml exec postgres psql -U otid -d otid -c "VACUUM (ANALYZE);"
+   ```
+
+3. Kör frågan i steg 1 och `df -h /` igen: tabellen ska vara nära 0 och databasen och disken några GB mindre. Med databasroller
+   (`OTID_DB_*`) körs kommandona som `otid` (ägaren) som ovan.
 
 ## Gallring
 
@@ -948,7 +1032,7 @@ inte skickar vidare (markerade "ej i compose") gäller i drift först när de l�
 | --- | --- | --- |
 | `OTID_IMAGE`, `OTID_BACKUP_IMAGE` | `ghcr.io/joelberring/otid-web`, `…/otid-backup` | Avbildningarnas namn; lokala namn när servern bygger själv ([reserv](#bygga-på-servern-reserv)). |
 | `OTID_DB_OWNER_USER`/`_PASSWORD`, `OTID_DB_APP_*`, `OTID_DB_PRINT_*` | `otid` och `POSTGRES_PASSWORD` | Databasrollerna; skrivs av `deploy/db-roles.sh setup` ([Databasroller](#databasroller)). |
-| `BACKUP_INTERVAL_MINUTES`, `BACKUP_KEEP_HOURLY`, `BACKUP_KEEP_DAYS` | 60, 48, 14 | Dumpens intervall och hur många tim- och dagsdumpar som sparas ([Backup](#backup)). |
+| `BACKUP_INTERVAL_MINUTES`, `BACKUP_KEEP_HOURLY`, `BACKUP_KEEP_DAYS` | 60, 12, 14 | Dumpens intervall och hur många tim- och dagsdumpar som sparas ([Backup](#backup)). |
 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | tomma | restic-kopian till S3 ([Kopia utanför servern](#kopia-utanför-servern-valfri-krypterad)). |
 | `OTID_HEALTH_INTERVAL_MINUTES`, `OTID_DISK_ALERT_PERCENT` | 15, 80 | Hälsokontrollens intervall och diskens larmgräns i procent ([Bevakning](#bevakning-valfri)). |
 | `OTID_EVENTOR_API_KEY` | tom (en nyckel som ett klubbarkiv sparat) | Klubbens Eventor-nyckel för klubblistan, bara i `web` ([Eventor](#eventor)). |
@@ -957,6 +1041,7 @@ inte skickar vidare (markerade "ej i compose") gäller i drift först när de l�
 | `OTID_GEO_SPLIT_KM2` | 16 | Största yta (km²) för en laserkörning; ett större område delas i etapper som körs efter varandra. 0 = dela aldrig. |
 | `OTID_MAP_QUOTA_ACCOUNT_MB`, `OTID_MAP_QUOTA_TOTAL_MB` | 5120, 20480 (med förrådet 1 048 576) | Kartornas kvot per konto och för installationen; 0 = ingen gräns. Enskilda konton och totalgränsen ändras på superadminsidan under "Lagring och laserrutor" ([Kartornas lagring](#kartornas-lagring)). |
 | `OTID_STORE_MODE` | off | `on` = nytt kartinnehåll sparas i förrådet (objektlagringen, `OTID_ARCHIVE_*`) i stället för i databasen ([Förrådet](#förrådet-och-mellanlagret-adr-0229)). |
+| `OTID_STORE_MIGRATE`, `_HOURS`, `_RUN_MB`, `_GRACE_HOURS` | on, 1-6, 2048, 24 | Flytten av befintligt kartinnehåll till förrådet ([Flytten](#flytten-till-förrådet-plan-md-steg-m3)). |
 | `OTID_CACHE_DIR` | `/cache` i compose (annars en katalog under tmp) | Mellanlagret för innehåll i förrådet; volymen `./map-cache` i web, web-public, web-public2 och print-worker. |
 | `OTID_CACHE_MAX_MB` | 10240 | Förvalet för mellanlagrets tak; superadminsidans inställning går före. |
 | `OTID_RETENTION`, `OTID_RETENTION_MONTHS` | av, 24 | Gallring av gamla tävlingar (`anonymize` eller `delete`) ([Gallring](#gallring)). |

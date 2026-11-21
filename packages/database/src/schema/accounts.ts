@@ -176,7 +176,7 @@ export const userAccountGoogleIdentities = pgTable("user_account_google_identity
  */
 export type SuperadminActionKind = "GRANT_SUPERADMIN" | "REVOKE_SUPERADMIN" | "HIDE_RACE" | "UNHIDE_RACE" |
   "DELETE_EVENT" | "BLOCK_ACCOUNT" | "UNBLOCK_ACCOUNT" | "DELETE_ACCOUNT" | "CREATE_RESET_LINK" | "VERIFY_EMAIL" | "SET_ACCOUNT_LIMITS" |
-  "SET_INSTALLATION_LIMITS";
+  "SET_INSTALLATION_LIMITS" | "MIGRATE_MAP_CONTENT_NOW";
 
 /** Superadmins åtgärder (append-only, utan främmande nycklar så att loggen överlever borttagningar). */
 export const superadminActions = pgTable("superadmin_action", {

@@ -201,17 +201,28 @@ export async function readClubMapVersionHead(db: Database, input: ClubProof & { 
  * (ADR-0224) hämtas det tillbaka först.
  */
 export async function* streamMapContentParts(db: DbExecutor, contentId: string): AsyncGenerator<Uint8Array> {
+  let sent = 0;
   for (let part = 0; ; part++) {
     const read = async () => (await db.execute<{ data: Buffer }>(sql`select data from map_content_part where content_id = ${contentId} and part = ${part}`)).rows[0]?.data;
     let data = await read();
-    if (!data && part === 0) {
-      // ADR-0229: innehåll i förrådet strömmas ur mellanlagret.
+    if (!data) {
+      // ADR-0229: innehåll i förrådet strömmas ur mellanlagret. PLAN.md steg M3: tog fristen bort delarna mitt i strömmen
+      // fortsätter den ur förrådet där den slutade, så att filen aldrig blir avkortad.
       const [stored] = (await db.execute<{ sha256: string; byte_length: number }>(sql`select sha256, byte_length from map_content
         where content_id = ${contentId}::uuid and stored_in = 'STORE'`)).rows;
-      if (stored) { yield* streamStoredMapContent(db, stored.sha256, Number(stored.byte_length)); return; }
-      data = await restoreMapContent(db, { contentId }) ? await read() : undefined;
+      if (stored && sent < Number(stored.byte_length)) {
+        let skip = sent;
+        for await (const chunk of streamStoredMapContent(db, stored.sha256, Number(stored.byte_length))) {
+          if (skip >= chunk.byteLength) { skip -= chunk.byteLength; continue; }
+          yield skip > 0 ? chunk.subarray(skip) : chunk;
+          skip = 0;
+        }
+        return;
+      }
+      if (part === 0 && !stored) data = await restoreMapContent(db, { contentId }) ? await read() : undefined;
     }
     if (!data) return;
+    sent += data.byteLength;
     yield new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
   }
 }

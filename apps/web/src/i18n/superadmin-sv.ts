@@ -29,19 +29,20 @@ export const superadminSv = {
     unverified: "Obekräftad adress" },
   action: {
     HIDE_RACE: "Dölj", UNHIDE_RACE: "Visa", DELETE_EVENT: "Ta bort", BLOCK_ACCOUNT: "Spärra", UNBLOCK_ACCOUNT: "Släpp spärr",
-    DELETE_ACCOUNT: "Ta bort", CREATE_RESET_LINK: "Återställningslänk", VERIFY_EMAIL: "Bekräfta adressen", SET_ACCOUNT_LIMITS: "Gränser", SET_INSTALLATION_LIMITS: "Ändra",
+    DELETE_ACCOUNT: "Ta bort", CREATE_RESET_LINK: "Återställningslänk", VERIFY_EMAIL: "Bekräfta adressen", SET_ACCOUNT_LIMITS: "Gränser", SET_INSTALLATION_LIMITS: "Ändra", MIGRATE_MAP_CONTENT_NOW: "Flytta nu",
     GRANT_SUPERADMIN: "Gav superadmin", REVOKE_SUPERADMIN: "Tog bort superadmin"
   },
   logAction: {
     HIDE_RACE: "Dolde tävling", UNHIDE_RACE: "Visade tävling", DELETE_EVENT: "Tog bort tävling", BLOCK_ACCOUNT: "Spärrade konto",
     UNBLOCK_ACCOUNT: "Släppte spärr", DELETE_ACCOUNT: "Tog bort konto", CREATE_RESET_LINK: "Skapade återställningslänk",
-    VERIFY_EMAIL: "Bekräftade adress", SET_ACCOUNT_LIMITS: "Ändrade gränser", SET_INSTALLATION_LIMITS: "Ändrade installationens gränser", GRANT_SUPERADMIN: "Gav superadmin", REVOKE_SUPERADMIN: "Tog bort superadmin"
+    VERIFY_EMAIL: "Bekräftade adress", SET_ACCOUNT_LIMITS: "Ändrade gränser", SET_INSTALLATION_LIMITS: "Ändrade installationens gränser", MIGRATE_MAP_CONTENT_NOW: "Startade flytten till förrådet", GRANT_SUPERADMIN: "Gav superadmin", REVOKE_SUPERADMIN: "Tog bort superadmin"
   },
   confirmTitle: {
     HIDE_RACE: "Dölj tävlingen från de publika sidorna", UNHIDE_RACE: "Visa tävlingen på de publika sidorna igen",
     DELETE_EVENT: "Ta bort tävlingen med all data", BLOCK_ACCOUNT: "Spärra kontot", UNBLOCK_ACCOUNT: "Släpp spärren",
     DELETE_ACCOUNT: "Ta bort kontot", CREATE_RESET_LINK: "Skapa återställningslänk", VERIFY_EMAIL: "Bekräfta kontots e-postadress",
-    SET_ACCOUNT_LIMITS: "Ändra kontots gränser", SET_INSTALLATION_LIMITS: "Ändra installationens gränser"
+    SET_ACCOUNT_LIMITS: "Ändra kontots gränser", SET_INSTALLATION_LIMITS: "Ändra installationens gränser",
+    MIGRATE_MAP_CONTENT_NOW: "Flytta kartinnehåll till förrådet nu"
   },
   confirmHelp: {
     HIDE_RACE: "Startlistor, resultat och sträcktider slutar synas för besökare. Arrangören ser tävlingen som vanligt.",
@@ -53,7 +54,8 @@ export const superadminSv = {
     CREATE_RESET_LINK: "Länken visas en gång. Ge den till kontots ägare; den gäller i en timme och kan användas en gång.",
     VERIFY_EMAIL: "Gör det bara om du vet att adressen är personens egen och att personen själv har valt kontots lösenord (till exempel om mejlet aldrig kommer fram). Behörigheter som andra gett adressen gäller sedan direkt. Lösenordet ändras inte; är du osäker, skapa en återställningslänk i stället.",
     SET_ACCOUNT_LIMITS: "Gränserna gäller bara det här kontot. Lämna ett fält tomt för att kontot ska följa förvalet. En sänkt gräns tar inte bort något; kontot kan bara inte spara mer förrän det ligger under gränsen.",
-    SET_INSTALLATION_LIMITS: "Mellanlagret är kopian på serverns disk av det som ligger i förrådet; blir det fullt tas det som använts minst nyligen bort (det finns kvar i förrådet). Tävlingars och träningars kartor spikas fast från dagen före till dagen efter och räknas utanför taket, med en egen gräns som bara varnar. Totalgränsen gäller all kartlagring på installationen (0 = ingen gräns). Lämna ett fält tomt för förvalet."
+    SET_INSTALLATION_LIMITS: "Mellanlagret är kopian på serverns disk av det som ligger i förrådet; blir det fullt tas det som använts minst nyligen bort (det finns kvar i förrådet). Tävlingars och träningars kartor spikas fast från dagen före till dagen efter och räknas utanför taket, med en egen gräns som bara varnar. Totalgränsen gäller all kartlagring på installationen (0 = ingen gräns). Lämna ett fält tomt för förvalet.",
+    MIGRATE_MAP_CONTENT_NOW: "Ett varv av flytten startar inom en minut, utan att vänta på natten: kartinnehåll i databasen laddas upp till förrådet och kontrolleras, högst den vanliga mängden per varv. Delarna i databasen ligger kvar ett dygn. På en tävlingsdag flyttas ingenting."
   },
   ownedEvents: (count: number) => count === 1 ? "Kontot äger 1 tävling, som också tas bort." : `Kontot äger ${count} tävlingar, som också tas bort.`,
   limits: "Lagring och laserrutor",
@@ -98,7 +100,20 @@ export const superadminSv = {
     total: "Total kartlagring",
     totalUse: (usedMb: number, limitMb: number | null, isDefault: boolean) =>
       `${usedMb} MB${limitMb === null ? " (ingen gräns)" : ` av ${limitMb} MB`}${isDefault ? " (förval)" : ""}`,
-    change: "Ändra installationens gränser"
+    change: "Ändra installationens gränser",
+    migration: "Flytten till förrådet",
+    migrationUse: (dbCount: number, dbMb: number, storeCount: number, storeMb: number, pendingCount: number, pendingMb: number) =>
+      `Kvar i databasen: ${dbCount} innehåll (${dbMb} MB). I förrådet: ${storeCount} (${storeMb} MB). Väntar på frist: ${pendingCount} (${pendingMb} MB).`,
+    migrationWindow: (window: string) => `Nattetid kl. ${window} svensk tid, inte på tävlingsdygn.`,
+    migrationOff: "Avstängd på servern, eller förrådet är inte i bruk.",
+    migrationLast: (at: string, moved: number, movedMb: number, freed: number, failed: number) =>
+      `Senaste varvet ${at}: ${moved} flyttade (${movedMb} MB), delarna borttagna för ${freed}, ${failed} fel.`,
+    migrationStopped: { RACE_DAY: "Stoppat: tävlingsdygn.", WINDOW: "Stoppat: nattfönstret slutade.", BUDGET: "Mängden per varv är nådd; nästa varv fortsätter.",
+      BUSY: "En annan flytt pågick." },
+    migrationRequested: "«Flytta nu» är beställt och startar inom en minut.",
+    migrationRaceDay: "Tävlingsdygn i dag: ingenting flyttas förrän i morgon.",
+    migrationDone: "Allt är flyttat. När fristen gått ut kan databasens utrymme frigöras (docs/drift.md, Efter flytten).",
+    migrateNow: "Flytta nu"
   },
   target: "Gäller",
   reason: "Skäl (loggas)",

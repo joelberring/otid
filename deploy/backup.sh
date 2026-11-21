@@ -9,7 +9,8 @@
 #   sh /backup.sh restore-map-content
 #                                 efter en pg_restore: läser in kartinnehållet ur $BACKUP_DIR/map-content (se nedan).
 #
-# Timdumparna hamnar i $BACKUP_DIR/hourly och de BACKUP_KEEP_HOURLY senaste (förval 24, ADR-0216; tidigare 48) sparas. Varje dag sparas
+# Timdumparna hamnar i $BACKUP_DIR/hourly och de BACKUP_KEEP_HOURLY senaste (förval 12, ADR-0216 tillägg 2026-11-21 (M3); tidigare 24
+# och 48) sparas; kopian utanför servern (restic) behåller 48 timvisa. Varje dag sparas
 # dessutom dagens senaste dump i $BACKUP_DIR/daily, i BACKUP_KEEP_DAYS dagar (förval 14). En dump skrivs först till en
 # dold fil och byter namn när pg_dump är klar, så en avbruten dump syns aldrig som en hel. Ett misslyckande loggas som
 # "BACKUP MISSLYCKADES" och försöks igen nästa gång.
@@ -24,11 +25,14 @@
 # Bredvid varje dump står <dump>.contents med innehållen som dumpen pekar på; en fil tas bort först när ingen sparad dump och
 # inte databasen pekar på den. Saknas en fil för något innehåll i dumpen (det skapades och togs bort under dumpen) tas dumpen om
 # med kartinnehållet i, så varje dump går alltid att återställa. Data som går att skapa igen tas inte med: utskriftsjobbens PDF:er
-# (steg 65) och klubbarkivets miniatyrer och kartkontroller (ADR-0196; ritas om i administratörens webbläsare när de saknas).
+# (steg 65), klubbarkivets miniatyrer och kartkontroller (ADR-0196; ritas om i administratörens webbläsare när de saknas) och
+# AI-kopplingens kartjobb (map_project_job: tillfälliga svar med bilder, rensas efter en timme; ADR-0216 tillägg 2026-11-21 (M3)).
+# ADR-0229 (PLAN.md steg M3): innehåll som flyttats till förrådet tas bort ur map-content/ även om äldre dumpar pekar på det; det
+# ligger i objektlagringen. Dess id skrivs i map-content/.store-ids, så att restore-map-content vet att det inte saknas.
 # Efter varje körning skrivs `<epok>\t<ok|fail>\t<text>\t<misslyckade i rad>` i $BACKUP_DIR/.backup-status (webbens serverbevakning läser den).
 set -u
 dir="${BACKUP_DIR:-/backups}"
-keep_hourly="${BACKUP_KEEP_HOURLY:-24}"
+keep_hourly="${BACKUP_KEEP_HOURLY:-12}"
 keep_days="${BACKUP_KEEP_DAYS:-14}"
 interval="${BACKUP_INTERVAL_MINUTES:-60}"
 case "$interval" in ''|*[!0-9]*) interval=60 ;; esac
@@ -124,23 +128,31 @@ save_missing() {
   echo "$failed"
 }
 
-# Tar bort kartinnehåll som varken databasen eller någon sparad dump pekar på.
+# Tar bort kartinnehåll som varken databasen eller någon sparad dump pekar på, och (ADR-0229, PLAN.md steg M3) allt som nu
+# ligger i förrådet, också om en äldre dump pekar på det: det finns i objektlagringen, och webben återkopplar det efter en
+# återställning. Förrådets id samlas i .store-ids (restore-map-content räknar dem inte som saknade).
 prune_contents() {
-  keep="$dir/map-content/.keep.tmp"
+  keep="$dir/map-content/.keep.tmp"; stored="$dir/map-content/.store.tmp"; ids="$dir/map-content/.store-ids"
+  store_contents > "$stored" || { rm -f "$stored"; return 1; }
+  if [ -s "$stored" ]; then
+    cat "$stored" "$ids" 2>/dev/null | sort -u > "$ids.tmp" && mv -f "$ids.tmp" "$ids"
+  fi
   { warm_contents || return 1
-    find "$dir" -type f -name 'otid-*.dump.contents' -exec cat {} + 2>/dev/null; } | sort -u > "$keep" || return 1
+    find "$dir" -type f -name 'otid-*.dump.contents' -exec cat {} + 2>/dev/null; } | sort -u > "$keep.all" || return 1
+  if [ -s "$stored" ]; then grep -vxFf "$stored" "$keep.all" > "$keep"; else mv -f "$keep.all" "$keep"; fi
+  rm -f "$keep.all"
   find "$dir/map-content" -maxdepth 1 -type f -name '*.copy' | while read -r file; do
     id=$(basename "$file" .copy)
     grep -qx "$id" "$keep" || { rm -f "$file" && echo "Kartinnehåll borttaget: $id"; }
   done
-  rm -f "$keep"
+  rm -f "$keep" "$stored"
 }
 
 # ADR-0216: efter en pg_restore läses kartinnehållet in för varje innehåll i databasen som saknar sina delar.
 restore_map_content() {
-  loaded=0; missing=0; archived=0
-  cold="$dir/map-content/.cold.tmp"; stored="$dir/map-content/.store.tmp"
-  cold_contents > "$cold"; store_contents > "$stored"
+  loaded=0; missing=0; archived=0; moved=0
+  cold="$dir/map-content/.cold.tmp"; stored="$dir/map-content/.store.tmp"; ids="$dir/map-content/.store-ids"
+  cold_contents > "$cold"; store_contents > "$stored"; [ -f "$ids" ] || : > "$ids"
   for id in $(psql -X -Atq -v ON_ERROR_STOP=1 -c "select c.content_id from map_content c
       where not exists (select 1 from map_content_part p where p.content_id = c.content_id)"); do
     file="$dir/map-content/$id.copy"
@@ -150,12 +162,17 @@ restore_map_content() {
     if [ ! -s "$file" ] && grep -qxF "$id" "$cold"; then archived=$((archived + 1)); continue; fi
     if [ -s "$file" ] && psql -X -q -v ON_ERROR_STOP=1 -c "\\copy map_content_part (content_id, part, data, created_at) from '$file' with (format binary)"; then
       loaded=$((loaded + 1))
+    elif [ ! -s "$file" ] && grep -qxF "$id" "$ids"; then
+      # PLAN.md steg M3: flyttat till förrådet efter att dumpen togs. Webben (förrådet påslaget) markerar det som 'STORE'
+      # inom tio minuter efter start (loggen: "Återkopplat"); det ligger i objektlagringen.
+      moved=$((moved + 1))
     else
       missing=$((missing + 1)); echo "Kartinnehåll saknas: $id" >&2
     fi
   done
   rm -f "$cold" "$stored"
-  echo "Kartinnehåll inläst: $loaded, saknas: $missing, i arkivet eller förrådet: $archived."
+  echo "Kartinnehåll inläst: $loaded, saknas: $missing, i arkivet eller förrådet: $archived, flyttat till förrådet efter dumpen: $moved."
+  [ "$moved" -eq 0 ] || echo "Starta webben med OTID_STORE_MODE=on och OTID_ARCHIVE_* som förut; de $moved återkopplas ur förrådet inom tio minuter."
   [ "$missing" -eq 0 ]
 }
 
@@ -207,10 +224,10 @@ dump() {
   partial="$target/.$name.partial"
   # ADR-0216: kartinnehållet som finns nu sparas före dumpen (resten, som skapas under dumpen, efter).
   warm_contents 2>/dev/null | save_missing >/dev/null
-  # Steg 65 och ADR-0216: utskriftsjobbens PDF:er, klubbarkivets miniatyrer och kartkontroller (kan skapas igen) och
+  # Steg 65 och ADR-0216: utskriftsjobbens PDF:er, klubbarkivets miniatyrer och kartkontroller, AI-kopplingens kartjobb (kan skapas igen) och
   # kartinnehållets delar (sparas en gång i map-content/) tas inte med; tabellerna gör det.
   if ! pg_dump --format=custom --exclude-table-data=course_setting_print_job --exclude-table-data=club_archive_entry_thumbnail \
-      --exclude-table-data=club_map_version_check --exclude-table-data=map_content_part --file="$partial"; then
+      --exclude-table-data=club_map_version_check --exclude-table-data=map_project_job --exclude-table-data=map_content_part --file="$partial"; then
     rm -f "$partial"
     echo "BACKUP MISSLYCKADES $(date +%FT%T%z)" >&2
     heartbeat fail "pg_dump misslyckades $(date +%FT%T%z)"
@@ -234,7 +251,7 @@ dump() {
     # Ett innehåll i dumpen fanns inte kvar att spara: ta om dumpen med kartinnehållet i (den går då att återställa ensam).
     echo "Kartinnehåll ändrades under dumpen ($failed); dumpen tas om med kartinnehållet i."
     if ! pg_dump --format=custom --exclude-table-data=course_setting_print_job --exclude-table-data=club_archive_entry_thumbnail \
-        --exclude-table-data=club_map_version_check --file="$partial"; then
+        --exclude-table-data=club_map_version_check --exclude-table-data=map_project_job --file="$partial"; then
       rm -f "$partial" "$partial.contents"
       echo "BACKUP MISSLYCKADES $(date +%FT%T%z)" >&2
       heartbeat fail "pg_dump misslyckades $(date +%FT%T%z)"

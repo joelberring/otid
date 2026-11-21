@@ -205,8 +205,8 @@ export interface ArchiveRunResult {
   readonly errors: string[];
 }
 
-/** Körs en tävling i appen i dag (tävlingsdygnet, ADR-0178)? */
-async function raceDayNow(db: DbExecutor, now: Date): Promise<boolean> {
+/** Körs en tävling i appen i dag (tävlingsdygnet, ADR-0178)? Också förrådets flytt (PLAN.md steg M3) frågar. */
+export async function raceDayNow(db: DbExecutor, now: Date): Promise<boolean> {
   const rows = (await db.execute(sql`select 1 from ${schema.races} join ${schema.events} on ${schema.events.id} = ${schema.races.eventId}
     where ${inRaceDaySql(schema.races.raceDate, schema.events.timeZone, now)} limit 1`)).rows;
   return rows.length > 0;

@@ -59,3 +59,18 @@ misslyckandet. Larmet för en för gammal kopia (`backupMaxAgeHours`) är oför�
 
 Beslut 6 ändras: innehåll som ligger i förrådet (`map_content.stored_in = 'STORE'`) sparas inte i `backups/map-content`,
 räknas inte som saknat och läses inte in av `restore-map-content`; det ligger bara i objektlagringen.
+
+## Tillägg 2026-11-21 (M3): mindre timdumpar, förrådet tar över kartinnehållet
+
+Ägaren 2026-11-21: `backups/hourly` var 3,4 GB (24 dumpar à omkring 140 MB). `map_content_part` utesluts redan korrekt (bara
+omtagna dumpar, när ett innehåll försvann under dumpen, har kartinnehållet i). Det som är kvar är vanliga tabeller, och i O-Tid
+domineras de av kartprojekten: objekten och ändringsloggen (`map_project_object`, `map_project_edit`, `map_project_proposal_edit`,
+varje ändring med objektets hela geometri; en hämtad grundkarta ger tusentals) och laserjobbens resultat. Det är ägarens arbete och
+historik, inte återskapbart. Uppmätt på servern med `node superadmin.mjs map-store status`, som nu skriver de största tabellerna.
+
+- `BACKUP_KEEP_HOURLY` förval **12** (var 24): halverar timdumparna. Säkert: dygnets dagsdump finns kvar i `daily`, och kopian
+  utanför servern (restic) behåller 48 timvisa, 30 dagliga och 12 månatliga. Tävlingsdata rörs inte.
+- `map_project_job` utesluts ur dumparna (tabellen finns kvar, tom efter en återställning): AI-kopplingens kartjobb med bilder,
+  tillfälliga och rensade efter en timme; AI:n frågar igen. Inget annat utesluts.
+- Beslut 6 ändras (ADR-0229 tillägg M3): innehåll som flyttats till förrådet tas bort ur `backups/map-content` även om äldre
+  dumpar pekar på det; efter en återställning hämtas det ur förrådet (webben återkopplar det, docs/drift.md "Återställa").

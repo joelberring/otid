@@ -5,6 +5,10 @@
  * `pnpm account:superadmin map-content status|move` – kartornas lagring (ADR-0189): hur mycket som lagras, och steg två av
  *   övergången: flyttar kartbilder och kartfiler ur de gamla kolumnerna till innehållslagret, en rad per transaktion (kan
  *   avbrytas och köras om). Kör `move` först när den nya versionen fungerar (docs/drift.md, Kartornas lagring).
+ * `pnpm account:superadmin map-store status` – förrådets flytt (PLAN.md steg M3): kvar i databasen, i förrådet, väntar på frist,
+ *   senaste varvet, `map_content_part`-tabellens storlek och om VACUUM FULL rekommenderas, och de största tabellerna.
+ * `pnpm account:superadmin map-store migrate-now [--mb N]` – ett varv av flytten nu (inte på tävlingsdygnet, men utan att vänta på
+ *   nattfönstret), högst N MB uppladdat (förval OTID_STORE_MIGRATE_RUN_MB, 2048). Skriver förloppet. Kräver OTID_STORE_MODE=on.
  * `pnpm account:superadmin clubs refresh [--force]` – klubblistan från Eventor (ADR-0209) med `OTID_EVENTOR_API_KEY` (eller en
  *   klubbnyckel som ett klubbarkiv har sparat), högst en gång per dygn (Eventors villkor; `--force` bara vid behov).
  *   `OTID_EVENTOR_BASE_URL` pekar på en annan Eventor (test). Nyckeln skrivs aldrig ut.
@@ -36,8 +40,12 @@ import { collectServerSnapshot, hostPaths, readHistory, readHost } from "../pack
 import {
   inlineMapContentRows, mapStorageQuota, mapStorageUsage, moveInlineMapContent, sweepMapContent
 } from "../packages/application/src/map-content.ts";
+import { activeMapStore } from "../packages/application/src/map-store.ts";
+import { runMapMigration } from "../packages/application/src/map-store-migrate.ts";
+import { largestTables, mapMigrationStatus, migrateSettings, partTableSize } from "../packages/application/src/map-store-migrate-settings.ts";
 
 const USAGE = "Användning: account:superadmin grant|revoke <e-postadress> [skäl] | verify <e-postadress> | map-content status|move" +
+  " | map-store status | map-store migrate-now [--mb N]" +
   " | clubs refresh [--force] | clubs import <fil.xml|-> | clubs unlink <eventor-id> | clubs sync" +
   " | google move <googles-eller-källkontots-adress> <målkontots-adress> [--delete-source-if-empty] | server-report";
 
@@ -113,6 +121,46 @@ async function clubsCommand(url: string, args: readonly string[]): Promise<void>
 }
 const mb = (bytes: number) => `${Math.round(bytes / 1024 / 1024)} MB`;
 
+/** `map-store migrate-now`: `--mb N` (positivt heltal) eller inget. */
+export function parseMigrateNowArguments(args: readonly string[]): { megabytes: number | null } {
+  if (args.length === 0) return { megabytes: null };
+  if (args.length === 2 && args[0] === "--mb" && /^\d+$/.test(args[1]!) && Number(args[1]) > 0) return { megabytes: Number(args[1]) };
+  throw new Error(USAGE);
+}
+
+async function mapStoreCommand(url: string, args: readonly string[]): Promise<void> {
+  if (args[0] !== "status" && args[0] !== "migrate-now") throw new Error(USAGE);
+  const options = args[0] === "migrate-now" ? parseMigrateNowArguments(args.slice(1)) : null;
+  const { db, pool } = createDatabase(url);
+  try {
+    if (options) {
+      const store = activeMapStore();
+      if (!store) throw new Error("Förrådet är inte i bruk här (OTID_STORE_MODE=on, OTID_ARCHIVE_* och ett skrivbart mellanlager krävs).");
+      const settings = migrateSettings();
+      if (!settings.enabled) throw new Error("Flytten är avstängd (OTID_STORE_MIGRATE=off).");
+      const result = await runMapMigration(db, store, settings, { trigger: "COMMAND",
+        ...(options.megabytes ? { runBytes: options.megabytes * 1024 * 1024 } : {}), onProgress: line => process.stdout.write(`${line}\n`) });
+      process.stdout.write(`Klart: ${result.moved} innehåll flyttade (${mb(result.movedBytes)}, ${mb(result.uploadedBytes)} uppladdat), ` +
+        `delarna borttagna för ${result.freed} (${mb(result.freedBytes)}), ${result.reconciled} återkopplade, ${result.failed} fel.` +
+        `${result.stopped === "RACE_DAY" ? " Tävlingsdygn: ingenting flyttades." : result.stopped === "BUDGET" ? " Mängden per varv nådd; kör igen för mer." : ""}\n`);
+      for (const error of result.errors) process.stdout.write(`  Fel: ${error}\n`);
+    }
+    const status = await mapMigrationStatus(db);
+    const table = await partTableSize(db, status);
+    process.stdout.write(`Kvar i databasen: ${status.dbCount} innehåll (${mb(status.dbBytes)}). I förrådet: ${status.storeCount} (${mb(status.storeBytes)}). ` +
+      `Väntar på frist: ${status.pendingCount} (${mb(status.pendingBytes)}).\n`);
+    if (status.last) {
+      process.stdout.write(`Senaste varvet ${status.last.at} (${status.last.trigger}): ${status.last.moved} flyttade, ${status.last.freed} frigjorda, ` +
+        `${status.last.failed} fel${status.last.stopped ? `, stopp: ${status.last.stopped}` : ""}.\n`);
+    }
+    process.stdout.write(`map_content_part: ${mb(table.totalBytes)} på disken, ${mb(table.liveBytes)} används. ` +
+      (table.vacuumRecommended ? "VACUUM FULL rekommenderas (docs/drift.md, Efter flytten: frigör databasens utrymme).\n"
+        : status.dbCount > 0 || status.pendingCount > 0 ? "VACUUM FULL först när inget är kvar och fristen gått ut.\n" : "Ingen VACUUM FULL behövs.\n"));
+    process.stdout.write("Största tabellerna:\n");
+    for (const row of await largestTables(db)) process.stdout.write(`  ${row.table.padEnd(36)} ${mb(row.totalBytes).padStart(9)}  ~${row.rows} rader\n`);
+  } finally { await pool.end(); }
+}
+
 export function parseSuperadminArguments(args: readonly string[]): { superadmin: boolean; email: string; reason?: string } {
   const [command, email, ...reason] = args;
   if ((command !== "grant" && command !== "revoke") || !email) throw new Error(USAGE);
@@ -124,6 +172,7 @@ async function main(): Promise<void> {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("Sätt DATABASE_URL till databasen.");
   if (args[0] === "clubs") { await clubsCommand(url, args.slice(1)); return; }
+  if (args[0] === "map-store") { await mapStoreCommand(url, args.slice(1)); return; }
   if (args[0] === "map-content") {
     if (args[1] !== "status" && args[1] !== "move") throw new Error(USAGE);
     const { db, pool } = createDatabase(url);

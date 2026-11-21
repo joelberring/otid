@@ -18,7 +18,9 @@ export const superadminActionKindSchema = z.enum([
   /** Ägaren 2026-11-13: satte kontots egna gränser för kartlagring och laserrutor (migration 0118). */
   "SET_ACCOUNT_LIMITS",
   /** ADR-0229: satte installationens gränser (mellanlagrets tak och kartlagringens totala gräns, migration 0133). */
-  "SET_INSTALLATION_LIMITS"
+  "SET_INSTALLATION_LIMITS",
+  /** PLAN.md steg M3: beställde flytten av befintligt kartinnehåll till förrådet nu («Flytta nu»). */
+  "MIGRATE_MAP_CONTENT_NOW"
 ]);
 
 /** Kontots egna gränser; null = installationens förval. */
@@ -91,6 +93,25 @@ export const superadminInstallationSchema = z.object({
   pinned: z.object({
     count: z.number().int().min(0), bytes: z.number().int().min(0), missing: z.number().int().min(0),
     missingBytes: z.number().int().min(0), missingRaceDay: z.boolean(), overLimit: z.boolean()
+  }).strict().nullable(),
+  /**
+   * PLAN.md steg M3: flytten av befintligt innehåll ur databasen till förrådet – kvar i databasen, i förrådet, flyttat men med
+   * delarna kvar tills fristen gått ut, om «Flytta nu» väntar, och senaste varvet. Null med förrådet av.
+   */
+  migration: z.object({
+    enabled: z.boolean(),
+    window: z.string().max(20),
+    dbCount: z.number().int().min(0), dbBytes: z.number().int().min(0),
+    storeCount: z.number().int().min(0), storeBytes: z.number().int().min(0),
+    pendingCount: z.number().int().min(0), pendingBytes: z.number().int().min(0),
+    requested: z.boolean(),
+    raceDay: z.boolean(),
+    last: z.object({
+      at: instant, trigger: z.enum(["NIGHT", "MANUAL", "COMMAND"]),
+      stopped: z.enum(["RACE_DAY", "WINDOW", "BUDGET", "BUSY"]).nullable(),
+      moved: z.number().int().min(0), movedBytes: z.number().int().min(0), freed: z.number().int().min(0),
+      freedBytes: z.number().int().min(0), failed: z.number().int().min(0), errors: z.array(z.string().max(200)).max(3)
+    }).strict().nullable()
   }).strict().nullable()
 }).strict();
 
@@ -155,7 +176,8 @@ export const superadminActionRequestSchema = z.discriminatedUnion("action", [
   z.object({ formatVersion: z.literal(1), action: z.literal("SET_INSTALLATION_LIMITS"), reason,
     cacheMaxMb: installationCacheMaxMbSchema, mapQuotaTotalMb: installationMapQuotaTotalMbSchema,
     /** PLAN.md steg M2; saknas (äldre sida) = oförändrad. */
-    pinMaxMb: installationCacheMaxMbSchema.optional() }).strict()
+    pinMaxMb: installationCacheMaxMbSchema.optional() }).strict(),
+  z.object({ formatVersion: z.literal(1), action: z.literal("MIGRATE_MAP_CONTENT_NOW"), reason }).strict()
 ]);
 
 export const superadminActionResponseSchema = z.object({

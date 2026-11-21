@@ -107,6 +107,7 @@
     { "idx": 102, "version": "7", "when": 1808409600000, "tag": "0128_klubbledare_audit", "breakpoints": true },
     { "idx": 103, "version": "7", "when": 1808496000000, "tag": "0129_virtuella_kontroller", "breakpoints": true },
     { "idx": 104, "version": "7", "when": 1808582400000, "tag": "0130_banlaggning_namngivna_versioner", "breakpoints": true },
-    { "idx": 105, "version": "7", "when": 1808668800000, "tag": "0131_mastermind", "breakpoints": true }
+    { "idx": 105, "version": "7", "when": 1808668800000, "tag": "0131_mastermind", "breakpoints": true },
+    { "idx": 106, "version": "7", "when": 1808755200000, "tag": "0132_kartritarens_beslut", "breakpoints": true }
   ]
 }

@@ -246,6 +246,7 @@ export {
 export { mergeGeoStages, readGeoStageOutput } from "./map-project-geo-merge";
 export { createDwgJob, readGeoJobInput, type DwgJobResult } from "./map-project-geo-dwg";
 export { createMapProjectNote, deleteMapProjectNote, listMapProjectNotes, readMapProjectNotePhoto, updateMapProjectNote } from "./map-project-notes";
+export { listMapProjectDecisions, recordMapProjectDecision } from "./map-project-decisions";
 export {
   createMapProjectSketch, createMapProjectSketches, createMapProjectWorkLayer, deleteMapProjectSketch, deleteMapProjectWorkLayer, listMapProjectWorkLayers, updateMapProjectWorkLayer
 } from "./map-project-work-layers";

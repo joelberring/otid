@@ -312,6 +312,17 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
       after: { kind: "OBJECT", object } }));
     const finish = (removals: readonly ObjectChange[]) => {
       const count = commitMany([...removals, ...adds]);
+      // Ägaren 2026-11-21 (idé 1, «lär av kartritarens egna beslut»): vad som erbjöds och lades in sparas, så att reglagen kan lära
+      // av kartritarens senare ändringar (de står redan i ändringshistoriken). Misslyckas det märks inget för den som ritar.
+      const decision = { formatVersion: 1, decisionId: crypto.randomUUID(), source: file.name.slice(0, 160), geoJobId: null,
+        settings: Object.fromEntries(Object.entries(origin?.settings ?? {}).filter(([, value]) => Number.isFinite(value)).slice(0, 40)),
+        mode: mode === "extend" ? "EXTEND" : mode === "replace" ? "REPLACE" : "ADD",
+        layers: layers.slice(0, 300).map(layer => { const symbol = mapping.get(layer.name);
+          return { layer: layer.name.slice(0, 160), symbol: symbol ? (symbols.get(symbol)?.code ?? null) : null, offered: layer.count, accepted: !!symbol }; }),
+        addedKeys: adds.slice(0, adds.length - (marking?.objects.length ?? 0)).slice(0, 20_000).map(change => change.key) };
+      void clubRequest(`${base}/decisions`, "POST", decision).then(response => {
+        if (response.status >= 400) console.warn("Utkastets beslut sparades inte", response.status);
+      }, error => console.warn("Utkastets beslut sparades inte", error));
       setMarked(marking?.paper); setReplaced(mode === "replace" ? removals.length || undefined : undefined);
       // Antalet nya objekt: allt som lades in utom borttagningarna (lutningsstrecken som följde med räknas med).
       setAccepted(Math.max(0, count - removals.length)); setFile(undefined); setLayers([]); setMapping(new Map()); setMode("add");
@@ -372,7 +383,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
       });
     };
     next(0);
-  }, [file, result, computing, commitMany, origin, georeference, symbols, bounds, markingText, calm, clear, mode, session]);
+  }, [file, result, computing, commitMany, origin, georeference, symbols, bounds, markingText, calm, clear, mode, session, layers, mapping, base]);
 
   const choose = useCallback((layer: string, symbolId: string) => setMapping(current => {
     const next = new Map(current);

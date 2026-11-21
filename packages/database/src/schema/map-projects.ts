@@ -250,6 +250,23 @@ export const mapProjectNotes = pgTable("map_project_note", {
   resolvedBy: uuid("resolved_by")
 });
 
+/**
+ * Kartritarens beslut om grundkartans förslag (0132, ägaren 2026-11-21): ett utkast som lades in, med lagren som erbjöds och
+ * nycklarna på det som lades till. Objektens senare öden står i `map_project_edit`.
+ */
+export const mapProjectDecisions = pgTable("map_project_decision", {
+  id: uuid("id").primaryKey(),
+  projectId: uuid("project_id").notNull().references(() => mapProjects.id),
+  accountId: uuid("account_id").notNull(),
+  source: text("source").notNull(),
+  geoJobId: uuid("geo_job_id"),
+  settings: jsonb("settings").$type<Record<string, number>>().notNull(),
+  mode: text("mode").$type<"ADD" | "EXTEND" | "REPLACE">().notNull(),
+  layers: jsonb("layers").$type<{ layer: string; symbol: string | null; offered: number; accepted: boolean }[]>().notNull(),
+  addedKeys: jsonb("added_keys").$type<string[]>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull()
+}, table => [index("map_project_decision_project_idx").on(table.projectId, table.createdAt)]);
+
 /** Arbetslager och skisslager (0107, ägaren 2026-11-09): normens symboler i egna grupper, och skisser som inte hör till kartan. */
 export const mapProjectWorkLayers = pgTable("map_project_work_layer", {
   id: uuid("id").primaryKey(),

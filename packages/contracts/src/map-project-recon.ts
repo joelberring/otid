@@ -228,3 +228,14 @@ export interface MapLayerProfileView {
   readonly rules: readonly { readonly layer: string; readonly code: string; readonly kind: "point" | "line" | "area" }[];
   readonly updatedAt: string;
 }
+
+/** Kartritarens beslut om ett utkast (0132): skickas när utkastet läggs in. */
+export const MAP_PROJECT_DECISION_MAX_KEYS = 20_000;
+export const mapProjectDecisionRequestSchema = z.object({
+  formatVersion: z.literal(1), decisionId: uuidSchema, source: z.string().trim().min(1).max(160), geoJobId: uuidSchema.nullable().optional(),
+  settings: z.record(z.string().max(40), z.number().finite()).refine(value => Object.keys(value).length <= 40),
+  mode: z.enum(["ADD", "EXTEND", "REPLACE"]),
+  layers: z.array(z.object({ layer: z.string().max(160), symbol: z.string().max(60).nullable(), offered: z.number().int().min(0).max(1_000_000), accepted: z.boolean() }).strict()).max(300),
+  addedKeys: z.array(objectKeySchema).max(MAP_PROJECT_DECISION_MAX_KEYS)
+}).strict();
+export type MapProjectDecisionRequest = z.infer<typeof mapProjectDecisionRequestSchema>;

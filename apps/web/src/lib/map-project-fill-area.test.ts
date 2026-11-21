@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { MapObject, MapSymbol, Path } from "@o-tid/map-file";
 import { objectBox } from "@o-tid/map-revision";
+import { mergeFaceRings } from "@o-tid/map-revision/faces";
 import { fillFinder, fillObject, type FillInput, type FillQuery } from "./map-project-fill-area";
 
 /** Kartan i 1:4 000: 1 mm = 4 m, toleransen 2 m = 0,5 mm och fönstret 150 m = 37,5 mm åt varje håll. */
@@ -89,6 +90,40 @@ describe("Fyll yta", () => {
     // Med bara den övre öppningen (15 %) fylls den.
     const one = [line("kant", 0.25, 1.5, 0, 1.5, 0, 0, 1.5, 0, 1.5, 1.5, 1.125, 1.5)];
     expect(ask(one, 0.75, 0.75, [], false)).toMatchObject({ status: "found", areaM2: 36 });
+  });
+
+  it("reserven: där steg 2 vägrar (20 %-regeln) ger klicket en ungefärlig yta, men inte förbi en öppning större än Glapp", () => {
+    const leaky = [line("kant", 0.25, 1.5, 0, 1.5, 0, 0, 0.25, 0), line("kant", 1.125, 0, 1.5, 0, 1.5, 1.5, 1.125, 1.5)];
+    const result = ask(leaky, 0.75, 0.75);
+    expect(result).toMatchObject({ status: "found", approx: true, closed: 0, bridges: [] });
+    expect(result.status === "found" && result.areaM2).toBeGreaterThan(34);
+    expect(result.status === "found" && result.areaM2).toBeLessThan(38);
+    // Kanten ligger på linjerna (hörnen är linjernas egna punkter).
+    expect(result.status === "found" && result.rings[0]).toContainEqual({ x: 1.5, y: 1.5 });
+    // Öppningar på 5 m (Glapp 4 m): ytan rinner ut, inget läggs in.
+    const wide = [line("kant", 0.25, 1.5, 0, 1.5, 0, 0, 0.25, 0), line("kant", 1.5, 0, 1.75, 0, 1.75, 1.5, 1.5, 1.5)];
+    expect(ask(wide, 0.875, 0.75).status).toBe("open");
+    // Alt+klick (exakt) använder inte reserven.
+    expect(ask(leaky, 0.75, 0.75, [], true, { exact: true }).status).toBe("open");
+  });
+
+  it("dra över flera rutor: grannrutorna ur samma fönster slås ihop till en yta med huset som hål", () => {
+    // Kvarteret delat av ett staket i x = 7; huset ligger i den vänstra rutan.
+    const objects = [...block, line("staket", 7, 0, 7, 10)];
+    const find = fillFinder();
+    const left = find(input(objects), { point: { x: 1, y: 1 }, hidden: [], diagnose: false });
+    const right = find(input(objects), { point: { x: 8, y: 5 }, hidden: [], diagnose: false });
+    if (left.status !== "found" || right.status !== "found") throw new Error("inte slutna");
+    const merged = mergeFaceRings([left.rings, right.rings]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]).toHaveLength(2);
+    expect(merged[0]![0]).toHaveLength(4);
+  });
+
+  it("en ruta som redan täcks av en yta säger vilken", () => {
+    const result = ask(block, 5, 5);
+    expect(result).toMatchObject({ status: "found", covered: { index: 4, symbol: "hus" } });
+    expect(ask(block, 1, 1)).toMatchObject({ status: "found", covered: undefined });
   });
 
   it("utan gräns inom fönstret: inte sluten och ingen öppning att peka på", () => {

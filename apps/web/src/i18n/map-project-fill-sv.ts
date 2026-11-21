@@ -9,6 +9,21 @@ export const mapProjectFillSv = {
     `${count} ${kind === "corner" ? (count === 1 ? "hörn slutet" : "hörn slutna") : kind === "extend" ? (count === 1 ? "ände förlängd" : "ändar förlängda")
       : (count === 1 ? "öppning överbryggad" : "öppningar överbryggade")} (${lengths})`,
   notSaved: "Ytan kunde inte läggas in.",
+  /** K8b V4: dra över flera rutor, reserven, telefonens två tryck och dubblettskyddet. */
+  dragHint: "Dra över flera rutor (eller ⇧+klick) för en yta; Esc tömmer.",
+  approx: (touch: boolean) => `Ungefärlig yta – ${touch ? "tryck" : "klicka"} igen för att lägga in.`,
+  confirm: (code: string, squareMeters: string) => `${code}: ${squareMeters} m² – tryck igen i rutan för att lägga in.`,
+  coveredAs: (code: string, key: string) => `Ytan finns redan som ${code} – tryck ${key} för att byta symbol.`,
+  alreadyFilled: (code: string) => `Rutan är redan fylld med ${code}.`,
+  collecting: (count: number, squareMeters: string, touch: boolean) =>
+    `${count} ${count === 1 ? "ruta" : "rutor"} samlade (${squareMeters} m²) – ${touch ? "tryck Lägg in" : "klicka utan Skift för att lägga in"}, Esc tömmer.`,
+  merged: (code: string, count: number, squareMeters: string) => `Fylld med ${code}: ${count} ${count === 1 ? "ruta" : "rutor"} som en yta, ${squareMeters} m². Ångra tar bort ytan.`,
+  skipped: (open: number, covered: number) => [open ? `${open} ${open === 1 ? "ruta var inte sluten" : "rutor var inte slutna"}` : "",
+    covered ? `${covered} redan ${covered === 1 ? "fylld" : "fyllda"}` : ""].filter(Boolean).join(", ") + (open || covered ? " och hoppades över." : ""),
+  noCells: "Ingen sluten ruta att lägga in.",
+  cellsMode: "+ ruta",
+  cellsHelp: "Varje tryck lägger till en ruta (och ett finger som drar samlar rutor); Lägg in fyller dem som en yta.",
+  cellsCommit: (count: number) => `Lägg in (${count})`,
   openGap: (gapM: number, count: number) => count === 1
     ? `Ytan är inte sluten – det finns en öppning större än ${gapM} m (röd på kartan). Rita kanten där och försök igen.`
     : `Ytan är inte sluten – det finns ${count} öppningar större än ${gapM} m (röda på kartan). Rita kanterna där och försök igen.`,

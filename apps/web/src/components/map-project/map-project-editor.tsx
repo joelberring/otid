@@ -212,6 +212,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const [keys, setKeys] = useMapProjectKeys();
   const [keysOpen, setKeysOpen] = useState(false);
   const keysText = useTexts(mapProjectKeysSv, mapProjectKeysEn);
+  const keyOf = (command: keyof typeof keys) => keys[command] ? keyLabel(keys[command], keysText.space) : undefined;
   const drawingArea = !!newArea;
   useEffect(() => { if (drawingArea) setTab("review"); }, [drawingArea]);
   const [circleCenter, setCircleCenter] = useState<Point>();
@@ -259,7 +260,8 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   // K8b V1: Fäst (V3) och Glapp, som Magisk fyll läser (V2).
   const modes = useMapProjectModes({ projectId: view.projectId, sprint: useMemo(() => isSprintNorm(mapNorm({ scale: editor.scale ?? georeference?.scale, symbols: symbols.values() })),
     [editor.scale, georeference?.scale, symbols]) });
-  const fill = useMapProjectFill({ session, active: tool === "bucket" && canEdit, symbol, hidden: hiddenSymbols, commit, say: setFlash, symbols, scale: editor.scale ?? georeference?.scale, commitMany: editor.commitMany, gapM: modes.gapM });
+  const fill = useMapProjectFill({ session, active: tool === "bucket" && canEdit, symbol, hidden: hiddenSymbols, commit, say: setFlash, symbols, scale: editor.scale ?? georeference?.scale, commitMany: editor.commitMany, gapM: modes.gapM,
+    select: hit => { setSelected({ key: hit.key, ref: hit.ref, object: hit.object }); setActiveVertex(undefined); }, switchKey: keyOf("switchSymbol") });
   // K8b V3: Fäst mot synliga objekt (också låsta) i Rita, Rektangel, Cirkelns mitt, Lägg till punkt och när punkter dras.
   const snap = useMapProjectSnap({ session, renderKey: editor.renderKey, on: modes.snap && canEdit, hidden: hiddenSymbols, tool });
   const snapping = canEdit && (tool === "draw" || tool === "rectangle" || tool === "addPoint" || (tool === "circle" && !circleCenter));
@@ -322,7 +324,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     recentKey: digit => { const chosen = symbols.get(recent[digit - 1] ?? ""); if (chosen) { setSymbolId(chosen.id); setFlash(keysText.picked(chosen.code)); } },
     openWheel,
     // Esc avbryter det pågående; en gång till (inget pågår) ger Markera.
-    escape: () => { if (draft.length || circleCenter || rectCorners.current.length) { cancelDraft(); rectCorners.current.length = 0; }
+    escape: () => { if (fill.escape()) return; if (draft.length || circleCenter || rectCorners.current.length) { cancelDraft(); rectCorners.current.length = 0; }
       else if (selected || multi.items.length) { deselect(); multi.clear(); } else if (tool !== "select") setTool("select"); }, finishDraft,
     dropDraftPoint: () => setDraft(points => points.slice(0, -1)), remove: () => { if (multi.items.length) multi.remove(); else removeSelected(); } });
 
@@ -372,7 +374,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         setDraft(points => [...points, { at: point }]);
         return;
       }
-      if (tool === "bucket" && canEdit) { fill.tap(point, modifiers.alt); return; }
+      if (tool === "bucket" && canEdit) { fill.tap(point, modifiers.alt, modifiers); return; }
       if (tool === "circle" && canEdit) {
         if (!symbol || (symbol.kind !== "line" && symbol.kind !== "area")) { setFlash(quick.circleNeedsShape); return; }
         if (circleCenter) placeCircle(circleCenter, point); else setCircleCenter(at);
@@ -423,6 +425,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     },
     onDragStart(point, tolerance, pointerType, pxPerMm, heldMs) {
       if (control.active || rectify.picking) return false;
+      if (tool === "bucket") return /* K8b V4: dragningen samlar rutor */ canEdit && !panKey.current.down && fill.dragStart(point, pointerType);
       // Ägaren 2026-11-10: med fingret följer något markerat med först efter ett kort håll; ett snabbt drag flyttar kartan.
       const quickTouch = pointerType === "touch" && heldMs < TOUCH_HOLD_MS;
       if (work.drawing) return work.dragStart(point);
@@ -487,7 +490,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       return marquee();
     },
     onDragMove(point, modifiers) {
-      if (work.dragging) { work.dragMove(point); return; }
+      if (fill.dragging()) { fill.dragMove(point, modifiers.free); return; } if (work.dragging) { work.dragMove(point); return; }
       if (multi.dragging()) { multi.dragMove(point); return; }
       const current = drag.current;
       if (!current) return;
@@ -516,7 +519,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       else if (current.original.kind === "point" || current.original.kind === "text") setPreviewObject(rotatePoint(current.original, degreesTo(current.original.at, point)));
     },
     onDragEnd() {
-      if (work.dragging) { work.dragEnd(); return; }
+      if (fill.dragging()) { fill.dragEnd(); return; } if (work.dragging) { work.dragEnd(); return; }
       if (multi.dragging()) { multi.dragEnd(); return; }
       const current = drag.current;
       drag.current = undefined;
@@ -539,7 +542,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       if (!target || !moved) return;
       save(target.key, target.ref, moved, current.mode === "object" || current.mode === "rotate" ? "MOVE" : "RESHAPE");
     },
-    onDragCancel() { multi.cancel(); drag.current = undefined; setPreviewObject(undefined); setPreview(new Set()); snap.clear(); },
+    onDragCancel() { if (fill.dragging()) fill.escape(); multi.cancel(); drag.current = undefined; setPreviewObject(undefined); setPreview(new Set()); snap.clear(); },
     onHover(point, modifiers) {
       if (tool === "select" && multi.items.length) multi.hover(point, 8 / modifiers.pxPerMm);
       if (tool === "bucket") fill.hover(point, modifiers.alt);
@@ -633,7 +636,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   }, [preview, selected, symbols, tool, symbol, draft, cursor, circleCenter, activeVertex, areaDrawings, proposedOpen, proposedShown, view.area, coverage, recon.layers,
     recon.trackLines, reconResult, walk, gapMm, notes.notes, shownNote, noteDraft, drawnLayers, focused, candidates, normIssues, shownIssue,
     control.active, control.markers, rectify.shown, rectify.markers, sketchLayers, work.dragging, work.drawingLayer, work.stroke,
-    multi.moving, multi.shown, multi.box, multi.cuts, multi.items.length, multi.marquee, fill.preview, fill.bridges, fill.gaps, fill.proposals.candidates, fill.proposals.override, contextKey, snap.mark, assist.via, unfilled.on, unfilled.result, editor.renderKey, hiddenSymbols]);
+    multi.moving, multi.shown, multi.box, multi.cuts, multi.items.length, multi.marquee, fill.preview, fill.bridges, fill.gaps, fill.pending, fill.shown, fill.proposals.candidates, fill.proposals.override, contextKey, snap.mark, assist.via, unfilled.on, unfilled.result, editor.renderKey, hiddenSymbols]);
 
   const hint = tool === "split" ? split.hint : tool === "bucket" && canEdit ? fill.hint : toolHint({ canEdit, closed: view.status === "CLOSED", tool, multiCount: multi.items.length, rotating: multi.zone === "rotate", symbol,
     text, notes: notesText, keys: keysText, quick });
@@ -662,7 +665,6 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       repeat: keysText.tips.repeat },
     pick: next => railPick(next) });
   wheelSlots.current = wheelTools;
-  const keyOf = (command: keyof typeof keys) => keys[command] ? keyLabel(keys[command], keysText.space) : undefined;
   const rail = railTools({ keys, text: keysText, tool, panelOpen, bare, canEdit, canDecide, canNote: notes.canWrite, unfilled: unfilled.on, toggleUnfilled: unfilled.toggle,
     labels: { panel: text.panel, select: text.tools.select, selectHelp: text.tools.selectHelp, draw: text.tools.draw, drawHelp: text.tools.drawHelp, circle: quick.tools.circle,
       area: text.collab.areaTool, note: notesText.tool, undo: text.tools.undo, redo: text.tools.redo },
@@ -750,7 +752,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
           rotating={rotating} onRotating={setRotating} />}
         <p className={styles.hint} aria-live="polite" data-testid="map-project-hint" title={hintLine}>{hintLine}</p>
         {canEdit && <MapProjectModeSwitches snap={modes.snap} onSnap={() => modes.setSnap(value => !value)} snapKey={keyOf("snap")} snapState={snap.mark && keysText.snapAt(snap.mark.kind)}
-          angle={assist.locked} unfilled={{ state: unfilled.state, onNext: unfilled.next }} gapM={modes.gapM} onGap={modes.setGapM} text={keysText} />}
+          angle={assist.locked} unfilled={{ state: unfilled.state, onNext: unfilled.next }} gapM={modes.gapM} onGap={modes.setGapM} cells={fill.cells} text={keysText} />}
       </div>
       <MapProjectSidebar open={panelOpen} catalog={catalog} symbolId={symbolId} onSymbol={chooseSymbol} tab={tab} onTab={setTab}
         recent={recentSymbols}

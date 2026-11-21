@@ -110,7 +110,8 @@ export type MapProjectResponse =
   | { readonly type: "warp"; readonly id: number; readonly changes: readonly WarpChange<ObjectKey>[]; readonly refs: readonly (readonly [ObjectKey, ObjectRef])[] }
   | { readonly type: "fit"; readonly id: number; readonly fit: VectorFit | null }
   | { readonly type: "built"; readonly id: number; readonly polygons: readonly [number, number][][][]; readonly fields?: readonly [number, number][][][] }
-  | { readonly type: "fill"; readonly id: number; readonly result: FillResult }
+  /** `covered`: ytan som redan täcker rutan (K8b V4), så att den kan markeras. */
+  | { readonly type: "fill"; readonly id: number; readonly result: FillResult; readonly covered?: ProjectHit | undefined }
   | { readonly type: "proposeAreas"; readonly id: number; readonly result: ProposeResult }
   | { readonly type: "snapIndex"; readonly id: number; readonly index: SnapIndex | null }
   | { readonly type: "unfilled"; readonly id: number; readonly result: UnfilledResult }
@@ -147,7 +148,7 @@ export class MapProjectSession {
   private latestBuilt = 0;
   private onBuilt: ((polygons: readonly [number, number][][][], fields: readonly [number, number][][][]) => void) | undefined;
   private latestFill = 0;
-  private onFill: ((result: FillResult) => void) | undefined;
+  private onFill: ((result: FillResult, covered?: ProjectHit) => void) | undefined;
   private latestPropose = 0;
   private onPropose: ((result: ProposeResult) => void) | undefined;
   private latestSnap = 0;
@@ -174,7 +175,7 @@ export class MapProjectSession {
       else if (message.type === "bySymbol") { if (message.id === this.latestBySymbol) this.onBySymbol?.(message.objects); }
       else if (message.type === "warp") { if (message.id === this.latestWarp) this.onWarp?.(message.changes, new Map(message.refs)); }
       else if (message.type === "fit") { if (message.id === this.latestFit) this.onFit?.(message.fit); }
-      else if (message.type === "fill") { if (message.id === this.latestFill) this.onFill?.(message.result); }
+      else if (message.type === "fill") { if (message.id === this.latestFill) this.onFill?.(message.result, message.covered); }
       else if (message.type === "snapIndex") { if (message.id === this.latestSnap) this.onSnap?.(message.index); }
       else if (message.type === "unfilled") { if (message.id === this.latestUnfilled) this.onUnfilled?.(message.result); }
       else if (message.type === "proposeAreas") { if (message.id === this.latestPropose) this.onPropose?.(message.result); }
@@ -265,7 +266,7 @@ export class MapProjectSession {
   }
 
   /** Fyll yta: den slutna rutan kring punkten, eller varför den inte är sluten. Bara det senaste svaret används. */
-  fill(query: FillQuery, onFill: (result: FillResult) => void) {
+  fill(query: FillQuery, onFill: (result: FillResult, covered?: ProjectHit) => void) {
     const id = ++this.latestFill;
     this.onFill = onFill;
     this.post({ type: "fill", id, query });

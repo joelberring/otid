@@ -11,6 +11,20 @@ export const mapProjectFillEn: Texts<typeof mapProjectFillSv> = {
     `${count} ${kind === "corner" ? (count === 1 ? "corner closed" : "corners closed") : kind === "extend" ? (count === 1 ? "end extended" : "ends extended")
       : (count === 1 ? "opening bridged" : "openings bridged")} (${lengths})`,
   notSaved: "The area could not be added.",
+  dragHint: "Drag across several spaces (or ⇧+click) for one area; Esc clears.",
+  approx: touch => `Approximate area – ${touch ? "tap" : "click"} again to add it.`,
+  confirm: (code, squareMeters) => `${code}: ${squareMeters} m² – tap the space again to add it.`,
+  coveredAs: (code, key) => `The area already exists as ${code} – press ${key} to switch symbol.`,
+  alreadyFilled: code => `The space is already filled with ${code}.`,
+  collecting: (count, squareMeters, touch) =>
+    `${count} ${count === 1 ? "space" : "spaces"} collected (${squareMeters} m²) – ${touch ? "tap Add" : "click without Shift to add"}, Esc clears.`,
+  merged: (code, count, squareMeters) => `Filled with ${code}: ${count} ${count === 1 ? "space" : "spaces"} as one area, ${squareMeters} m². Undo removes the area.`,
+  skipped: (open, covered) => [open ? `${open} ${open === 1 ? "space was not closed" : "spaces were not closed"}` : "",
+    covered ? `${covered} already filled` : ""].filter(Boolean).join(", ") + (open || covered ? " and skipped." : ""),
+  noCells: "No closed space to add.",
+  cellsMode: "+ space",
+  cellsHelp: "Each tap adds a space (and a dragging finger collects spaces); Add fills them as one area.",
+  cellsCommit: count => `Add (${count})`,
   openGap: (gapM, count) => count === 1
     ? `The area is not closed – there is an opening larger than ${gapM} m (red on the map). Draw the edge there and try again.`
     : `The area is not closed – there are ${count} openings larger than ${gapM} m (red on the map). Draw the edges there and try again.`,

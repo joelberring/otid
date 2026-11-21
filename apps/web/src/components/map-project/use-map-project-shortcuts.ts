@@ -80,7 +80,9 @@ export function useMapProjectShortcuts(api: ShortcutApi) {
       else if (bound === "note" && now.canNote) now.pickTool("note");
       else if (bound === "repeat") { event.preventDefault(); if (now.canEdit) now.repeat(); }
       else if (bound === "snap") { event.preventDefault(); now.toggleSnap(); }
-      else if (bound && SELECTED.has(bound) && (now.hasSelection || now.multiCount > 0) && now.canEdit && now.tool === "select") { event.preventDefault(); now.selectedAction(bound as SelectedCommand); }
+      else if (bound && SELECTED.has(bound) && (now.hasSelection || now.multiCount > 0) && now.canEdit
+        // K8b V4: Fyll markerar ytan som redan täcker rutan, så att Byt symbol går direkt.
+        && (now.tool === "select" || (now.tool === "bucket" && bound === "switchSymbol"))) { event.preventDefault(); now.selectedAction(bound as SelectedCommand); }
       else if (bound === "wheel") { event.preventDefault(); now.openWheel(); }
       else if (/^Digit[1-8]$/.test(event.code) && !event.shiftKey) { event.preventDefault(); now.recentKey(Number(event.code.slice(5))); }
       else if ((event.code === "BracketLeft" || event.code === "BracketRight") && !event.shiftKey) { event.preventDefault(); now.gapStep(event.code === "BracketLeft" ? -1 : 1); }

@@ -7,7 +7,7 @@ import {
 import { MAX_RENDER_SIDE } from "./course-setting-map-protocol";
 import { builtPolygons, FIELD_MAINS } from "@o-tid/map-revision/base-map";
 import { proposeAreas } from "./map-project-area-proposals";
-import { fillFinder } from "./map-project-fill-area";
+import { fillFinder, type FillResult } from "./map-project-fill-area";
 import { buildSnapIndex, snapTransfer } from "./map-project-snap";
 import { findUnfilled } from "./map-project-unfilled";
 import { symbolGroup, type CatalogSymbol, type MapProjectRequest, type MapProjectResponse, type ProjectHit } from "./map-project-protocol";
@@ -44,6 +44,16 @@ const MAX_LAYERS = 60;
 let candidateObjects: readonly MapObject[] = [];
 let candidateMap: ParsedMap | undefined;
 const refreshCandidates = () => { candidateMap = base && candidateObjects.length ? { ...base, objects: [...candidateObjects] } : undefined; };
+
+/** Objektet nummer `index` i kartan som träff för sidan; källan i grundfilen följer inte med (bara referensen). */
+function hitOf(index: number, distance: number): ProjectHit | undefined {
+  const object = current?.map.objects[index];
+  if (!current || !object) return undefined;
+  const key = current.keys[index]!;
+  const plain = { ...object, source: undefined } as MapObject;
+  delete (plain as { source?: unknown }).source;
+  return { key, ref: refs.get(key) ?? null, object: plain, distance };
+}
 
 function rebuild(states: ReadonlyMap<ObjectKey, KeyedState>) {
   if (!base) return;
@@ -275,22 +285,18 @@ self.onmessage = (event: MessageEvent<MapProjectRequest>) => {
       const found = request.type === "hit" ? hitTest(input, request.point, request.tolerance)
         : boxTest(input, request.box).map(key => ({ key, distance: 0 }));
       for (const candidate of found) {
-        const index = current.keys.indexOf(candidate.key);
-        const object = objects[index];
-        if (!object) continue;
-        // Källan i grundfilen följer inte med till sidan (bara referensen).
-        const plain = { ...object, source: undefined } as MapObject;
-        delete (plain as { source?: unknown }).source;
-        hits.push({ key: candidate.key, ref: refs.get(candidate.key) ?? null, object: plain, distance: candidate.distance });
+        const hit = hitOf(current.keys.indexOf(candidate.key), candidate.distance);
+        if (hit) hits.push(hit);
       }
     }
     post({ type: request.type, id: request.id, hits });
     return;
   }
   if (request.type === "fill") {
-    post({ type: "fill", id: request.id, result: current
+    const result: FillResult = current
       ? findFill({ objects: current.map.objects, boxes: current.boxes, symbols: current.map.symbols, scale: current.map.scale }, request.query)
-      : { status: "open", gaps: [] } });
+      : { status: "open", gaps: [] };
+    post({ type: "fill", id: request.id, result, covered: result.status === "found" && result.covered ? hitOf(result.covered.index, 0) : undefined });
     return;
   }
   if (request.type === "snapIndex") {

@@ -168,3 +168,6 @@ function inRing(ring: readonly FacePoint[], point: FacePoint): boolean {
 export function faceAt(faces: readonly Face[], point: FacePoint): Face | undefined {
   return faces.find(face => inRing(face.outer, point) && !face.holes.some(hole => inRing(hole, point)));
 }
+
+export { mergeFaceRings } from "./merge-faces";
+export { rasterFill, type RasterFillOptions, type RasterFillResult } from "./raster-fill";

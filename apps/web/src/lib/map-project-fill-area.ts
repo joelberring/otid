@@ -1,6 +1,6 @@
 import { flattenPath, type MapObject, type MapSymbol, type Point } from "@o-tid/map-file";
 import type { Box } from "@o-tid/map-revision";
-import { FACE_GAP_M, faceAt, faceStages, withinBridgeShare, type BridgeKind, type Face, type FaceLine, type FaceStages, type FacesResult } from "@o-tid/map-revision/faces";
+import { FACE_GAP_M, faceAt, faceStages, rasterFill, withinBridgeShare, type BridgeKind, type Face, type FaceLine, type FaceStages, type FacesResult } from "@o-tid/map-revision/faces";
 
 /**
  * Ägaren 2026-11-13 («fylla ytor», sprintkartans ytor): verktyget Fyll yta. Kartans synliga linjer och ytkanter kring
@@ -18,6 +18,16 @@ export const FILL_BRIDGE_M = 4;
  * försöka igen med längre tid (`FILL_BRIDGE_CLICK_MS`). */
 export const FILL_BRIDGE_MS = 150;
 const FILL_BRIDGE_CLICK_MS = 1000;
+/**
+ * K8b V4, reserven för röriga ställen: när varken grundtoleransen eller steg 2 ger en sluten ruta vid ett klick ritas
+ * gränslinjerna som en bild (rutor på `FILL_ROUGH_CELL_M`) i ett fönster `FILL_ROUGH_WINDOW_M` åt varje håll, med tidsgräns
+ * (`@o-tid/map-revision/faces`, `rasterFill`). Resultatet är ungefärligt och visas först (`approx`).
+ */
+const FILL_ROUGH_CELL_M = 0.2;
+const FILL_ROUGH_WINDOW_M = 75;
+const FILL_ROUGH_SNAP_M = 0.3;
+const FILL_ROUGH_SIMPLIFY_M = 0.1;
+const FILL_ROUGH_MS = 200;
 /** Fönstret kring klicket: så här långt åt varje håll (m i terrängen). */
 export const FILL_WINDOW_M = 150;
 /** Flest sträckor i fönstret; blir det fler halveras fönstret. */
@@ -48,7 +58,11 @@ export interface FillBridge { readonly kind: BridgeKind; readonly pieces: (reado
 
 export type FillResult =
   /** Ringarna i kartans mm (ytterkanten först, sedan hålen), ytan i terrängen och hur många glapp som slöts. */
-  | { readonly status: "found"; readonly rings: Point[][]; readonly areaM2: number; readonly closed: number; readonly bridges: FillBridge[] }
+  | { readonly status: "found"; readonly rings: Point[][]; readonly areaM2: number; readonly closed: number; readonly bridges: FillBridge[];
+      /** Reserven (bilden) gav ytan: ungefärlig, visas först. */
+      readonly approx?: boolean | undefined;
+      /** Rutan täcks redan helt av en yta på kartan (översta; nummer i `input.objects` och dess symbol). */
+      readonly covered?: { readonly index: number; readonly symbol: string } | undefined }
   /** Inte sluten: `gaps` är öppningarna som hittades (större än toleransen); tom = ytan fortsätter ut ur fönstret. */
   | { readonly status: "open"; readonly gaps: (readonly [Point, Point])[] };
 
@@ -137,6 +151,33 @@ function closedFaceAt(window: { readonly faces: readonly Face[] }, point: Point)
   return face && !face.sources.includes(FILL_FRAME) ? face : undefined;
 }
 
+/** Den översta ytan på kartan (synlig, en gräns) som punkten ligger i; rutorna följer ytornas kanter, så den täcker hela rutan. */
+function coveringArea(input: FillInput, hidden: ReadonlySet<string>, point: Point): { index: number; symbol: string } | undefined {
+  for (let index = input.objects.length - 1; index >= 0; index -= 1) {
+    const object = input.objects[index]!, box = input.boxes[index];
+    if (object.kind !== "area" || (box && (point.x < box.minX || point.x > box.maxX || point.y < box.minY || point.y > box.maxY))) continue;
+    if (!isBoundary(input.symbols.get(object.symbol), hidden)) continue;
+    let inside = false;
+    for (const path of object.rings) for (const ring of flattenPath(path)) {
+      for (let at = 0, previous = ring.length - 1; at < ring.length; previous = at, at += 1) {
+        const a = ring[at]!, b = ring[previous]!;
+        if ((a.y > point.y) !== (b.y > point.y) && point.x < (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x) inside = !inside;
+      }
+    }
+    if (inside) return { index, symbol: object.symbol };
+  }
+  return undefined;
+}
+
+/** Reserven: ytan ur en bild av gränslinjerna kring punkten (halva Glapp som radie), eller undefined (öppen eller för långsam). */
+function roughFill(input: FillInput, hidden: ReadonlySet<string>, point: Point, gapM: number): { rings: Point[][]; areaM2: number } | undefined {
+  const mmPerM = 1000 / input.scale, half = FILL_ROUGH_WINDOW_M * mmPerM;
+  const box = { minX: point.x - half, minY: point.y - half, maxX: point.x + half, maxY: point.y + half };
+  const result = rasterFill(boundaryLines(input, hidden, box).lines, point, { box, cell: FILL_ROUGH_CELL_M * mmPerM, radius: gapM / 2 * mmPerM,
+    snap: FILL_ROUGH_SNAP_M * mmPerM, simplify: FILL_ROUGH_SIMPLIFY_M * mmPerM, deadline: performance.now() + FILL_ROUGH_MS });
+  return result.status === "found" ? { rings: [result.outer, ...result.holes], areaM2: result.area / (mmPerM * mmPerM) } : undefined;
+}
+
 /** Ringen utan punkter som ligger mitt på en rak sträcka (noderna där andra linjer ansluter). */
 export function withoutStraightPoints(ring: readonly Point[]): Point[] {
   const out: Point[] = [];
@@ -168,8 +209,9 @@ export function fillFinder(): (input: FillInput, query: FillQuery) => FillResult
       || Math.abs(point.y - cached.center.y) > reach) {
       cached = { objects: input.objects, hiddenKey, center: point, window: fillWindow(input, hidden, point, half, tolerance), bridged: new Map() };
     }
+    const covered = coveringArea(input, hidden, point);
     const found = (face: Face, bridges: FillBridge[]): FillResult => ({ status: "found", rings: [face.outer, ...face.holes].map(withoutStraightPoints),
-      areaM2: face.area / (mmPerM * mmPerM), closed: face.closures.length, bridges });
+      areaM2: face.area / (mmPerM * mmPerM), closed: face.closures.length, bridges, covered });
     const face = closedFaceAt(cached.window, point);
     if (face) return found(face, []);
     const gapM = query.exact ? FILL_GAP_M : query.gapM ?? FILL_BRIDGE_M;
@@ -188,6 +230,8 @@ export function fillFinder(): (input: FillInput, query: FillQuery) => FillResult
       }
     }
     if (!query.diagnose) return { status: "open", gaps: [] };
+    const rough = query.exact ? undefined : roughFill(input, hidden, point, gapM);
+    if (rough) return { status: "found", rings: rough.rings, areaM2: rough.areaM2, closed: 0, bridges: [], approx: true, covered };
     // Var är öppningen? Pröva med större tolerans: blir ytan sluten då är de långa slutningsbitarna öppningarna.
     for (const factor of [4, 16]) {
       const wider = closedFaceAt(fillWindow(input, hidden, point, half, tolerance * factor), point);

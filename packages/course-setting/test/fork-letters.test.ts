@@ -12,8 +12,11 @@ import { lineCourse } from "./build";
  * tryckts härifrån betyder samma sak i tidtagningen.
  */
 
-/** Nattbanan: S 31 [A:41 | B:42] 50 [C:61 | D:63 | E:64] 70 M. */
-function night() {
+/**
+ * Nattbanan: S 31 [A:41 | B:42] 50 [C:61 | D:63 | E:64] 70 M. Tillägg 2026-11-21 (b): regeln i (c) gäller en låst bana, så
+ * banan låses när den är byggd (`lock: false` = utkast).
+ */
+function night({ lock = true }: { lock?: boolean } = {}) {
   const { b, course, controls } = lineCourse(3);
   const [c31, c50] = controls;
   const at31 = b.cc(course, c31!), at50 = b.cc(course, c50!);
@@ -26,6 +29,7 @@ function night() {
   b.insert(course, b.control("NORMAL", 30, 10, "61"), second[0]);
   b.insert(course, b.control("NORMAL", 30, 0, "63"), second[1]);
   b.insert(course, b.control("NORMAL", 30, -10, "64"), second[2]);
+  if (lock) b.edit({ type: "SET_FORK_LETTER_LOCK", course, locked: true, reason: "MANUAL", at: "2026-11-21T10:00:00Z" });
   return { b, course, first, second };
 }
 
@@ -139,6 +143,7 @@ describe("en gren tas bort i banläggningen", () => {
     b.edit({ type: "ADD_SPLIT", course, at, kind: "LOOP", branches: 3 });
     const branches = b.document.courseControls[at]!.split!.branches;
     for (const [index, branch] of branches.slice(1).entries()) b.insert(course, b.control("NORMAL", 5 + index, 20, String(51 + index)), branch);
+    b.edit({ type: "SET_FORK_LETTER_LOCK", course, locked: true, at: "2026-11-21T10:00:00Z" });
     expect([...variantLetters(b.document, course).values()]).toEqual(["A", "B", "C"]);
     const gone = applyEdit(b.document, { type: "REMOVE_COURSE_CONTROL", course, courseControl: branches[2]! }).document;
     expect([...variantLetters(gone, course).values()]).toEqual(["A", "C"]);

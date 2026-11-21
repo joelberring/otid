@@ -178,6 +178,7 @@ export function editTouches(edit: CourseSettingEdit): string[] {
     case "UPDATE_COURSE": return Object.keys(edit.changes).sort().map(key => `course:${edit.course}:${key}`);
     case "SET_POINTS": return [`courseControl:${edit.courseControl}:points`];
     case "DELETE_COURSE": return [`course:${edit.course}`];
+    case "SET_FORK_LETTER_LOCK": return [`course:${edit.course}:forkLetterLock`];
     case "MOVE_NUMBER": return [`courseControl:${edit.courseControl}:numberAt`];
     case "SET_LEG_BENDS": return [`leg:${legKey(edit.from, edit.to)}:bends`];
     case "SET_LEG_GAPS": return [`leg:${legKey(edit.from, edit.to)}:gaps`];
@@ -267,7 +268,8 @@ function editRefs(edit: CourseSettingEdit): [Kind, string][] {
     case "ADD_CONTROL": case "ADD_COURSE": return [];
     case "MOVE_CONTROL": case "DELETE_CONTROL": case "SET_CONTROL_CODE": case "SET_CIRCLE_GAPS": case "SET_DESCRIPTION":
     case "SET_DESCRIPTION_TEXT_LINE": case "SET_CONTROL_ORIENTATION": return [["controls", edit.control]];
-    case "UPDATE_COURSE": case "DELETE_COURSE": case "DUPLICATE_COURSE": return [["courses", edit.course]];
+    case "UPDATE_COURSE": case "DELETE_COURSE": case "DUPLICATE_COURSE": case "RENUMBER_FORK_LETTERS": case "SET_FORK_LETTER_LOCK":
+      return [["courses", edit.course]];
     case "INSERT_COURSE_CONTROL": return [["courses", edit.course], ["controls", edit.control],
       ...(typeof edit.after === "string" ? [["courseControls", edit.after] as [Kind, string]] : [])];
     case "REMOVE_COURSE_CONTROL": return [["courses", edit.course], ["courseControls", edit.courseControl]];
@@ -358,7 +360,8 @@ function remapWith(edit: CourseSettingEdit, map: Lookup): CourseSettingEdit {
     case "ADD_CONTROL": case "ADD_COURSE": case "SET_EVENT": case "SET_APPEARANCE": return edit;
     case "MOVE_CONTROL": case "DELETE_CONTROL": case "SET_CONTROL_CODE": case "SET_CIRCLE_GAPS": case "SET_DESCRIPTION":
     case "SET_DESCRIPTION_TEXT_LINE": case "SET_CONTROL_ORIENTATION": return { ...edit, control: c(edit.control) };
-    case "UPDATE_COURSE": case "DELETE_COURSE": case "DUPLICATE_COURSE": return { ...edit, course: co(edit.course) };
+    case "UPDATE_COURSE": case "DELETE_COURSE": case "DUPLICATE_COURSE": case "RENUMBER_FORK_LETTERS": case "SET_FORK_LETTER_LOCK":
+      return { ...edit, course: co(edit.course) };
     case "INSERT_COURSE_CONTROL": return { ...edit, course: co(edit.course), control: c(edit.control),
       ...(typeof edit.after === "string" ? { after: cc(edit.after) } : {}) };
     case "REMOVE_COURSE_CONTROL": return { ...edit, course: co(edit.course), courseControl: cc(edit.courseControl) };

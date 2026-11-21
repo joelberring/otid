@@ -3,8 +3,10 @@
  * fram i ordning), så de skrivs som de bortvalda varianterna: ett eget element sist i filen i O-Tid:s namnrymd med JSON.
  * Purple Pen hoppar över elementet och skriver inte tillbaka det; en fil som sparats i Purple Pen saknar det, och då paras
  * grenarna med banläggningens bokstäver när filen läses in (`carryForkLetters`).
+ *
+ * Tillägg 2026-11-21 (b): låset (`lock`, `unlockedAt`) och bokstäverna vid senaste överföringen (`transferred`) följer med.
  */
-import type { CourseSettingDocument } from "./types";
+import type { Course, CourseSettingDocument, ForkLetterLock } from "./types";
 import { attr, el, textOf, type XmlElement } from "./xml";
 
 export const LETTERS_ELEMENT = "otid:letters";
@@ -13,7 +15,32 @@ const LETTERS_NAMESPACE = "https://o-tid.se/ns/ppen-letters/1";
 interface LettersJson {
   readonly schemaVersion: 1;
   /** Banans id → grenarnas bokstäver (banans kontroll → bokstav) och använda bokstäver. */
-  readonly courses: Readonly<Record<string, { readonly branches: Readonly<Record<string, string>>; readonly retired?: readonly string[] }>>;
+  readonly courses: Readonly<Record<string, CourseLetters>>;
+}
+
+interface CourseLetters {
+  readonly branches: Readonly<Record<string, string>>;
+  readonly retired?: readonly string[];
+  readonly lock?: ForkLetterLock;
+  readonly unlockedAt?: string;
+  readonly transferred?: Readonly<Record<string, string>>;
+}
+
+const REASONS = new Set(["MANUAL", "PRINT", "ASSIGNED", "START_LIST"]);
+
+/** Låset och överförda bokstäver ur filen (det som har fel form hoppas över). */
+function lockFields(row: Partial<CourseLetters>): Partial<Pick<Course, "forkLetterLock" | "forkLetterUnlockedAt" | "transferredLetters">> {
+  const out: { forkLetterLock?: ForkLetterLock; forkLetterUnlockedAt?: string; transferredLetters?: Record<string, string> } = {};
+  const lock = row.lock as Partial<ForkLetterLock> | undefined;
+  if (lock && typeof lock === "object" && typeof lock.reason === "string" && REASONS.has(lock.reason) && typeof lock.at === "string") {
+    out.forkLetterLock = { reason: lock.reason as ForkLetterLock["reason"], at: lock.at };
+  }
+  if (typeof row.unlockedAt === "string") out.forkLetterUnlockedAt = row.unlockedAt;
+  if (row.transferred && typeof row.transferred === "object") {
+    const entries = Object.entries(row.transferred).filter(([, letter]) => typeof letter === "string" && LETTER.test(letter));
+    if (entries.length > 0) out.transferredLetters = Object.fromEntries(entries);
+  }
+  return out;
 }
 
 const LETTER = /^[A-Za-z]$/;
@@ -35,14 +62,14 @@ export function readLettersElement(element: XmlElement, document: CourseSettingD
       if (item) courseControls[id] = { ...item, letter };
     }
     const retired = Array.isArray(row.retired) ? row.retired.filter(letter => typeof letter === "string" && LETTER.test(letter)) : [];
-    return retired.length > 0 ? { ...course, retiredLetters: retired } : course;
+    return { ...course, ...(retired.length > 0 ? { retiredLetters: retired } : {}), ...lockFields(row) };
   });
   return { ...document, courseControls, courses };
 }
 
 /** Elementet för filen, eller `undefined` när ingen bana har sparade bokstäver. */
 export function lettersElement(document: CourseSettingDocument): XmlElement | undefined {
-  const courses: Record<string, { branches: Record<string, string>; retired?: string[] }> = {};
+  const courses: Record<string, CourseLetters> = {};
   for (const course of document.courses) {
     const branches: Record<string, string> = {};
     for (const id of reachable(document, course.first)) {
@@ -50,7 +77,12 @@ export function lettersElement(document: CourseSettingDocument): XmlElement | un
       if (item?.letter !== undefined && item.split) branches[id] = item.letter;
     }
     const retired = course.retiredLetters ?? [];
-    if (Object.keys(branches).length > 0 || retired.length > 0) courses[course.id] = { branches, ...(retired.length > 0 ? { retired: [...retired] } : {}) };
+    const extra = { ...(course.forkLetterLock ? { lock: course.forkLetterLock } : {}),
+      ...(course.forkLetterUnlockedAt !== undefined ? { unlockedAt: course.forkLetterUnlockedAt } : {}),
+      ...(course.transferredLetters ? { transferred: course.transferredLetters } : {}) };
+    if (Object.keys(branches).length > 0 || retired.length > 0 || Object.keys(extra).length > 0) {
+      courses[course.id] = { branches, ...(retired.length > 0 ? { retired: [...retired] } : {}), ...extra };
+    }
   }
   if (Object.keys(courses).length === 0) return undefined;
   const out: LettersJson = { schemaVersion: 1, courses };

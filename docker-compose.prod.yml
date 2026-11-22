@@ -278,6 +278,8 @@ services:
       NEXT_PUBLIC_MAP_FILM_URL: ${NEXT_PUBLIC_MAP_FILM_URL:-}
       NEXT_PUBLIC_MAP_FILM_URL_EN: ${NEXT_PUBLIC_MAP_FILM_URL_EN:-}
       OTID_DEMO_RACE: ${OTID_DEMO_RACE:-}
+      # Bara för att startsidan (/) ska visa "Prova arbetsytan". Gästkontot skapas av POST /api/demo/guest, som inte står i
+      # Caddyfilens @public och därför alltid går till web; OTID_GUEST_DEMO_PER_HOUR och OTID_GUEST_DEMO_TEMPLATE läses där.
       OTID_GUEST_DEMO: ${OTID_GUEST_DEMO:-}
       OTID_THROTTLE_SECRET: ${OTID_THROTTLE_SECRET:-}
       OTID_REGISTRATION_LIMIT_PER_HOUR: ${OTID_REGISTRATION_LIMIT_PER_HOUR:-}

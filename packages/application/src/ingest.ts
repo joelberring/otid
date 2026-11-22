@@ -113,6 +113,9 @@ export async function storeIngestedReadout(tx: IngestTransaction, raceId: string
     .where(and(eq(schema.cardAssignments.raceId, raceId), eq(schema.cardAssignments.active, true),
       eq(schema.cardAssignments.cardNumber, readoutRow.cardNumber))).limit(1);
   await lockRelayClassOfEntry(tx, cardOwner?.entryId);
+  // Deltagarraden låses före "lånad bricka"-kontrollen och bedömningen (samma låsordning som `lockResultHead`: lopp, stafettklass,
+  // deltagare). Annars läser två samtidiga avläsningar av samma bricka båda "inget tidigare resultat" och den andra skriver över.
+  if (cardOwner) await tx.select({ id: schema.entries.id }).from(schema.entries).where(eq(schema.entries.id, cardOwner.entryId)).for("update");
   // Steg 54: bara brickans löpare och laget, inte hela tävlingen (samma bedömning, ADR-0177).
   const snapshot = await loadRaceSnapshot(tx, raceId, { cardNumber: readoutRow.cardNumber });
   const normalized = normalizedReadout(readoutRow);

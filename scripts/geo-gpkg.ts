@@ -17,8 +17,19 @@ type Ring = [number, number][];
 export type Geometry = { kind: "point"; at: [number, number] } | { kind: "line"; points: Ring } | { kind: "area"; rings: Ring[] };
 export interface GpkgFeature { readonly table: string; readonly type: string; readonly geometry: Geometry }
 
+/** Högsta storlek på en uppackad fil i ett arkiv (ett litet arkiv kan annars packas upp till gigabyte). */
+const UNZIP_MAX_BYTES = 1024 * 2 ** 20;
+
+function inflate(data: Uint8Array, maxBytes: number): Uint8Array {
+  try { return new Uint8Array(inflateRawSync(data, { maxOutputLength: maxBytes })); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ERR_BUFFER_TOO_LARGE") throw new Error("Filen i zip-arkivet blir för stor när den packas upp");
+    throw error;
+  }
+}
+
 /** Den första filen i zip-arkivet vars namn passar (lagrad eller deflate; inget zip64). */
-export function unzipFirst(zip: Uint8Array, name: RegExp): { name: string; bytes: Uint8Array } | undefined {
+export function unzipFirst(zip: Uint8Array, name: RegExp, maxBytes = UNZIP_MAX_BYTES): { name: string; bytes: Uint8Array } | undefined {
   const view = new DataView(zip.buffer, zip.byteOffset, zip.byteLength);
   let end = -1;
   for (let i = zip.length - 22; i >= Math.max(0, zip.length - 66_000); i -= 1) if (view.getUint32(i, true) === 0x06054b50) { end = i; break; }
@@ -32,7 +43,7 @@ export function unzipFirst(zip: Uint8Array, name: RegExp): { name: string; bytes
       if (packed === 0xffffffff || local === 0xffffffff) throw new Error("Zip-arkivet är för stort (zip64)");
       const start = local + 30 + view.getUint16(local + 26, true) + view.getUint16(local + 28, true), data = zip.subarray(start, start + packed);
       if (method !== 0 && method !== 8) throw new Error("Zip-arkivet använder en okänd packning");
-      return { name: fileName, bytes: method === 0 ? data : new Uint8Array(inflateRawSync(data)) };
+      return { name: fileName, bytes: method === 0 ? data : inflate(data, maxBytes) };
     }
     at += 46 + nameLength + view.getUint16(at + 30, true) + view.getUint16(at + 32, true);
   }
@@ -58,11 +69,17 @@ export function readGpkgGeometry(blob: Uint8Array): Geometry[] {
     type &= 0x0fffffff;
     if (type >= 3000) { extra = 2; type -= 3000; } else if (type >= 2000) { extra = 1; type -= 2000; } else if (type >= 1000) { extra = 1; type -= 1000; }
     const point = (): [number, number] => { const x = view.getFloat64(at, little), y = view.getFloat64(at + 8, little); at += 16 + extra * 8; return [x, y]; };
-    const ring = (): Ring => { const count = view.getUint32(at, little); at += 4; return Array.from({ length: count }, point); };
+    // Ett antal som inte ryms i resten av blobben är trasigt; utan kontrollen allokerar Array.from upp till 4 miljarder poster.
+    const counted = (size: number): number => {
+      const count = view.getUint32(at, little); at += 4;
+      if (count * size > blob.length - at) throw new Error("Antalet punkter går utanför geometrin");
+      return count;
+    };
+    const ring = (): Ring => Array.from({ length: counted(16 + extra * 8) }, point);
     if (type === 1) out.push({ kind: "point", at: point() });
     else if (type === 2) out.push({ kind: "line", points: ring() });
-    else if (type === 3) { const count = view.getUint32(at, little); at += 4; out.push({ kind: "area", rings: Array.from({ length: count }, ring) }); }
-    else if (type >= 4 && type <= 7) { const count = view.getUint32(at, little); at += 4; for (let i = 0; i < count; i += 1) read(); }
+    else if (type === 3) out.push({ kind: "area", rings: Array.from({ length: counted(4) }, ring) });
+    else if (type >= 4 && type <= 7) { const count = counted(9); for (let i = 0; i < count; i += 1) read(); }
     else throw new Error(`Okänd geometrityp ${type}`);
   };
   try { read(); } catch { return []; }

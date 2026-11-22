@@ -78,7 +78,8 @@ export async function pendingOfflineChanges(): Promise<PendingOfflineChanges> {
 
 /** Nycklar i `localStorage` med tävlings- eller persondata (inte inställningar som ljud, kvitto eller panelens bredd). */
 const PERSONAL_KEYS = [FOLLOW_STORAGE_KEY, "otid.inbjudan"];
-const PERSONAL_PREFIXES = ["otid-grupp-anmalan:"];
+/** Mastermind sparar spel och lagnamn per dator (`otid.mastermind.v1`, `.v1.<tävling>`, `.v1.spela.<tävling>`); stationens id (`.station.`) är inte persondata. */
+const PERSONAL_PREFIXES = ["otid-grupp-anmalan:", "otid.mastermind.v1"];
 
 /** Tar bort det som webbläsaren sparat om tävlingar och personer (se ovan). Kastar inte; fel skrivs i konsolen. */
 export async function clearPersonalBrowserData(): Promise<void> {

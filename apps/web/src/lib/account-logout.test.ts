@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./course-setting-offline-forget", () => ({ forgetAllCourseSettingCopies: async () => undefined, fieldStore: () => ({ pendingCount: async () => 0 }) }));
 
-const { LOGGED_OUT_PATH, logOut } = await import("./account-logout");
+const { LOGGED_OUT_PATH, clearPersonalBrowserData, logOut } = await import("./account-logout");
 
 /** Städrundan 2026-11-07: "Du är utloggad" först när servern har spärrat sessionen, också utan CSRF-kakan. */
 describe("utloggningen", () => {
@@ -43,5 +43,14 @@ describe("utloggningen", () => {
     expect(await logOut({ everywhere: true })).toEqual({ ok: false, status: 403 });
     expect(fetchMock).not.toHaveBeenCalled();
     expect(assign).not.toHaveBeenCalled();
+  });
+
+  it("tar bort Mastermind-spelen och lagnamnen men inte stationens id", async () => {
+    const data = new Map([["otid.mastermind.v1", "{}"], ["otid.mastermind.v1.race", "{}"], ["otid.mastermind.v1.spela.race", "{}"],
+      ["otid.mastermind.station.race", "id"], ["annat", "x"]]);
+    const localStorage = { get length() { return data.size; }, key: (index: number) => [...data.keys()][index] ?? null, removeItem: (key: string) => { data.delete(key); } };
+    vi.stubGlobal("window", { localStorage, sessionStorage: { length: 0, key: () => null, removeItem: () => undefined }, location: { href: "https://otid.example/organizer", assign } });
+    await clearPersonalBrowserData();
+    expect([...data.keys()].sort()).toEqual(["annat", "otid.mastermind.station.race"]);
   });
 });

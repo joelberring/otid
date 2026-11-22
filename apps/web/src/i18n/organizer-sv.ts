@@ -29,6 +29,8 @@ export const organizerSv = {
   loginHint: "Logga in med e-postadress och lösenord för att hitta och skapa tävlingar.",
   register: "Skapa konto",
   registerHint: "Alla kan skapa ett konto och arrangera tävlingar. Den som skapar en tävling kan sedan lägga till administratörer och funktionärer.",
+  /** Ägaren 2026-11-22: samma adress som i Eventor ger klubbmedlemskap direkt när klubben kopplat O-Tid till Eventor (ADR-0209). */
+  registerEventorEmail: "Tips: använd samma e-postadress som i Eventor. Har din klubb kopplat O-Tid till Eventor blir du då klubbmedlem i O-Tid direkt.",
   registerPrivacy: "Vi sparar e-postadress, namn och lösenordet i krypterad form.",
   privacyLink: "Så hanterar O-Tid personuppgifter",
   displayName: "Ditt namn",
@@ -40,7 +42,7 @@ export const organizerSv = {
   /** ADR-0205: inloggning med Google (visas bara när servern har en Google-klient). */
   googleLogin: "Logga in med Google",
   googleOr: "eller",
-  googleHint: "Finns inget konto med adressen skapas ett. Finns det kopplas Google till det.",
+  googleHint: "Finns inget konto med adressen skapas ett. Finns det kopplas Google till det. Använd samma adress som i Eventor om du kan.",
   googleProblem: {
     avbruten: "Inloggningen med Google avbröts. Försök igen, eller logga in med e-post och lösenord.",
     obekraftad: "Google har inte bekräftat e-postadressen på ditt Google-konto, så den kan inte användas här. Logga in med e-post och lösenord.",

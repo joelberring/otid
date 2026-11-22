@@ -543,8 +543,9 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
         </label>
         <label>{copy.email}
           <input type="email" autoComplete="email" autoCapitalize="none" spellCheck={false} value={email} maxLength={254}
-            readOnly={lockedEmail} onChange={(event) => setEmail(event.target.value)} required />
+            readOnly={lockedEmail} onChange={(event) => setEmail(event.target.value)} required aria-describedby="register-eventor-email" />
         </label>
+        <p id="register-eventor-email" className={styles.muted}>{copy.registerEventorEmail}</p>
         <NewPasswordFields password={password} repeat={repeat} onPassword={setPassword} onRepeat={setRepeat} />
         <p className={styles.muted}>{copy.registerPrivacy} <Link href="/integritet">{copy.privacyLink}</Link></p>
         <button type="submit" disabled={busy || !email || !displayName.trim() || !passwordsReady(password, repeat)} aria-busy={busy}>{copy.register}</button>

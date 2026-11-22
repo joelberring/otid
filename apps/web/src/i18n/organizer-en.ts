@@ -30,6 +30,7 @@ export const organizerEn: Texts<typeof organizerSv> = {
   loginHint: "Sign in with email address and password to find and create events.",
   register: "Create account",
   registerHint: "Anyone can create an account and organise events. Whoever creates an event can then add administrators and officials.",
+  registerEventorEmail: "Tip: use the same email address as in Eventor. If your club has connected O-Tid to Eventor, you then become a club member in O-Tid straight away.",
   registerPrivacy: "We store your email address, name and the password in encrypted form.",
   privacyLink: "How O-Tid handles personal data",
   displayName: "Your name",
@@ -39,7 +40,7 @@ export const organizerEn: Texts<typeof organizerSv> = {
   unverifiedNotice: "Your email address is not confirmed. Events you create yourself work as usual, but permissions others give you apply only when the address is confirmed. Choose a new password with Forgot password (it confirms the address), or ask whoever runs O-Tid to confirm it.",
   googleLogin: "Sign in with Google",
   googleOr: "or",
-  googleHint: "If there is no account with the address, one is created. If there is, Google is linked to it.",
+  googleHint: "If there is no account with the address, one is created. If there is, Google is linked to it. Use the same address as in Eventor if you can.",
   googleProblem: {
     avbruten: "Signing in with Google was cancelled. Try again, or sign in with email and password.",
     obekraftad: "Google has not confirmed the email address of your Google account, so it cannot be used here. Sign in with email and password.",

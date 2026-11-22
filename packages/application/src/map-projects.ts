@@ -130,7 +130,7 @@ export type MapProjectUploadFailure = ClubFailure | { status: "quota" } | { stat
 
 /**
  * Nytt eget projekt från en uppladdad kartfil (OCAD eller Mapper; alla inloggade, ingen klubb). Filen räknas mot kontots kvot.
- * Idempotent på `requestId`. Det uppladdade innehållet tas bort om projektet inte skapas.
+ * Idempotent på `requestId`. Det uppladdade som inte blev innehåll tas bort efteråt.
  */
 export async function createMapProjectFromUpload(db: Database, input: ClubProof & { metadata: unknown; file: MapContentInput }, now = new Date())
   : Promise<MapProjectUploadFailure | { status: "created"; replayed: boolean; projectId: string }> {
@@ -156,9 +156,8 @@ export async function createMapProjectFromUpload(db: Database, input: ClubProof 
     await addMapProjectMember(tx, { projectId, accountId, role: "OWNER", addedBy: accountId, now });
     return { status: "created", replayed: false, projectId };
   });
-  if (result.status !== "created" || result.replayed) {
-    if (!(input.file instanceof Uint8Array)) await discardStagedMapContent(db, input.file.contentId);
-  }
+  // Det strömmade som inte blev innehåll (och den strömmade filen i mellanlagret) tas bort efter transaktionen.
+  if (!(input.file instanceof Uint8Array)) await discardStagedMapContent(db, input.file.contentId);
   return result;
 }
 

@@ -130,3 +130,21 @@ igen medan geo-serverns anrop väntade.
 - **Beslut:** anropen till objektlagringen provas igen vid 429, 500, 502, 503, 504 och nätfel (tre försök, 1 s och 4 s emellan).
   Andra svar (403, 404) provas inte igen.
 - Flytten (M3) och arkivet läser fortfarande hela objektet där de behöver det (`download`, `digest`).
+
+## Tillägg 2026-11-22 (granskningen runda 2, A och B): uppladdningen utanför transaktionen
+
+`storeMapContent` laddade upp till objektlagringen, tog bort den strömmade filen och flyttade den till mellanlagret inne i
+anroparens transaktion, som görs om vid 40001/40P01, och kontrollerade objektet under kartinnehållets gemensamma lås.
+
+- **Beslut:** transaktionen gör bara databasarbete. Behövs en uppladdning kastar `storeMapContent` `OutsideTransactionWork`
+  (`@o-tid/database`): transaktionen rullas tillbaka, uppladdningen görs utan öppen transaktion och transaktionen görs om
+  (högst sex gånger). Behörigheten och kvoten prövas alltså före uppladdningen, i det första försöket.
+- **Beslut:** före uppladdningen reserveras innehållet: arkivets rad markeras som släppt (`orphaned_at` = nu). Rullas
+  transaktionen tillbaka städas objektet efter fristen som andra släppta objekt. Städningen prövar fristen igen när den tar
+  bort och ordnas mot en ny uppladdning med radlåset, inte med det gemensamma låset; registreringen kräver att reservationen
+  står kvar (`storeReservationHolds`, under radlåset), annars laddas innehållet upp igen.
+- **Beslut:** den strömmade filen länkas in i mellanlagret och tas bort av anroparen efter transaktionen
+  (`discardStagedMapContent`), också när innehållet sparades.
+- Filens början för en klubbkarta i förrådet läses ur mellanlagret eller med HTTP Range (`readHead`), efter transaktionen.
+- Säkerhetskopian läser innehåll i förrådet eller arkivet och bygger zip-filen efter sin ögonblicksbild; tryck-PDF:en läses i
+  en egen fråga efter behörigheten. Båda hålls fortfarande hela i minnet (strömmande zip och PDF är inte gjort).

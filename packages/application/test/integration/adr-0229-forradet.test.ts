@@ -9,7 +9,7 @@ import { mapStorageQuota, readMapContent, stageMapContent, storeMapContent, disc
 import { streamMapContentParts } from "../../src/club-maps";
 import { memoryArchiveStore, setMapArchiveStore } from "../../src/map-archive-store";
 import { setMapStoreMode } from "../../src/map-store";
-import { cachePath, forgetMapCacheCap, mapCacheCapBytes, setMapCacheDir } from "../../src/map-cache";
+import { cachePath, forgetMapCacheCap, mapCacheCapBytes, readStoredMapContentHead, setMapCacheDir } from "../../src/map-cache";
 import { removeArchiveOrphans } from "../../src/map-archive";
 import { performSuperadminAction, readSuperadminOverview, setSuperadmin } from "../../src/superadmin";
 import { loginUserAccount } from "../../src/user-account";
@@ -79,10 +79,13 @@ describe("ADR-0229 M1: förrådet och mellanlagret", () => {
     expect(await row(staged.sha256)).toMatchObject({ stored_in: "STORE" });
     expect(await parts(staged.sha256)).toBe(0);
     expect(store.objects.get(staged.sha256)?.equals(bytes)).toBe(true);
-    // Den strömmade filen ligger nu i mellanlagret; ingenting finns kvar under uppladdningarna.
+    // Den strömmade filen ligger nu i mellanlagret. Granskningen runda 2 (A): transaktionen raderar inga filer; den strömmade
+    // filen finns kvar tills anroparen tar bort den efter transaktionen, och mellanlagrets fil är kvar efter det.
     expect((await stat(cachePath(cacheDir, staged.sha256))).size).toBe(bytes.byteLength);
-    expect(await readdir(join(cacheDir, ".staging"))).toEqual([]);
+    expect(await readdir(join(cacheDir, ".staging"))).toEqual([staged.contentId]);
     await discardStagedMapContent(db, staged.contentId);
+    expect(await readdir(join(cacheDir, ".staging"))).toEqual([]);
+    expect((await stat(cachePath(cacheDir, staged.sha256))).size).toBe(bytes.byteLength);
     expect(await row(staged.sha256)).toBeDefined();
     // Arkivets rad gör att städningen gäller också förrådets objekt.
     expect((await db.execute(sql`select 1 from map_content_archive where sha256 = ${staged.sha256} and cold_at is not null`)).rows).toHaveLength(1);
@@ -151,6 +154,7 @@ describe("ADR-0229 M1: förrådet och mellanlagret", () => {
     if (big.kind !== "staged") throw new Error(big.kind);
     expect(await db.transaction(tx => storeMapContent(tx, big, owner.accountId, NOW, small))).toMatchObject({ status: "quota", quota: { scope: "ACCOUNT" } });
     expect(store.objects.has(big.sha256)).toBe(false);
+    await discardStagedMapContent(db, big.contentId);
     expect(await readdir(join(cacheDir, ".staging"))).toEqual([]);
     expect(await stageMapContent(db, chunked(bytesOf(7, 5000)), { maxBytes: 1000 })).toEqual({ kind: "too-large" });
     expect(await readdir(join(cacheDir, ".staging"))).toEqual([]);
@@ -165,12 +169,87 @@ describe("ADR-0229 M1: förrådet och mellanlagret", () => {
     expect(await row(sha)).toBeUndefined();
     expect(await removeArchiveOrphans(db, store, 35, NOW)).toEqual({ removed: 0, errors: [] });
     expect(store.objects.has(sha)).toBe(true);
-    expect((await removeArchiveOrphans(db, store, 35, new Date(NOW.getTime() + 36 * 24 * 3600_000))).removed).toBe(1);
+    // (Också objektet från fallet ovan vars kontroll misslyckades: det reserverades före uppladdningen och städas nu.)
+    expect((await removeArchiveOrphans(db, store, 35, new Date(NOW.getTime() + 36 * 24 * 3600_000))).removed).toBe(2);
     expect(store.objects.has(sha)).toBe(false);
     await db.transaction(tx => storeMapContent(tx, bytes, owner.accountId, NOW, quota));
     expect(store.objects.has(sha)).toBe(true);
     await rm(cachePath(cacheDir, sha));
     expect((await readMapContent(db, sha))?.equals(bytes)).toBe(true);
+  });
+
+  it("granskningen runda 2 (A): uppladdningen sker utan öppen transaktion, och ett nytt försök eller en återrullning förlorar ingenting", async () => {
+    const store = storeOn();
+    const owner = await registerTestAccount(db, undefined, NOW);
+    const openTransactions = async () => Number((await db.execute<{ n: string }>(sql`select count(*)::text as n from pg_stat_activity
+      where datname = current_database() and state like 'idle in transaction%'`)).rows[0]!.n);
+    const uploads: number[] = [];
+    setMapArchiveStore({ ...store,
+      putFile: async (sha, path, length) => { uploads.push(await openTransactions()); await store.putFile(sha, path, length); },
+      put: async (sha, bytes) => { uploads.push(await openTransactions()); await store.put(sha, bytes); } });
+
+    // Ett nytt försök (40001) efter att innehållet registrerats: filen finns kvar och laddas inte upp igen.
+    const bytes = bytesOf(11, 400_000);
+    const staged = await stageMapContent(db, chunked(bytes), { maxBytes: MB });
+    if (staged.kind !== "staged") throw new Error(staged.kind);
+    let attempts = 0, conflicted = false;
+    const stored = await db.transaction(async tx => {
+      attempts += 1;
+      const result = await storeMapContent(tx, staged, owner.accountId, NOW, quota);
+      if (!conflicted) { conflicted = true; throw Object.assign(new Error("konflikt"), { code: "40001" }); }
+      return result;
+    });
+    expect(stored).toEqual({ status: "stored", sha256: staged.sha256 });
+    expect(attempts).toBe(3);
+    expect(uploads).toEqual([0]);
+    expect(await row(staged.sha256)).toMatchObject({ stored_in: "STORE" });
+    expect(await readdir(join(cacheDir, ".staging"))).toContain(staged.contentId);
+    await discardStagedMapContent(db, staged.contentId);
+    expect((await readMapContent(db, staged.sha256))?.equals(bytes)).toBe(true);
+
+    // Samma innehåll igen, med ett nytt försök: inget laddas upp och den strömmade filen tas inte bort i transaktionen.
+    const again = await stageMapContent(db, chunked(bytes), { maxBytes: MB });
+    if (again.kind !== "staged") throw new Error(again.kind);
+    let retried = false;
+    await db.transaction(async tx => {
+      const result = await storeMapContent(tx, again, owner.accountId, NOW, quota);
+      if (!retried) { retried = true; throw Object.assign(new Error("dödläge"), { code: "40P01" }); }
+      return result;
+    });
+    expect(uploads).toHaveLength(1);
+    expect(await readdir(join(cacheDir, ".staging"))).toContain(again.contentId);
+    await discardStagedMapContent(db, again.contentId);
+
+    // En återrullning efter uppladdningen: inget innehåll, objektet ligger kvar som släppt och tas bort först efter fristen.
+    const lost = bytesOf(12, 5000), lostSha = hashOf(lost);
+    await expect(db.transaction(async tx => {
+      await storeMapContent(tx, lost, owner.accountId, NOW, quota);
+      throw new Error("något annat gick fel");
+    })).rejects.toThrow("något annat gick fel");
+    expect(uploads).toEqual([0, 0]);
+    expect(await row(lostSha)).toBeUndefined();
+    expect(store.objects.has(lostSha)).toBe(true);
+    expect((await db.execute(sql`select 1 from map_content_archive where sha256 = ${lostSha} and orphaned_at = ${NOW}`)).rows).toHaveLength(1);
+    expect((await removeArchiveOrphans(db, store, 35, new Date(NOW.getTime() + 34 * 24 * 3600_000))).removed).toBe(0);
+    // Sparas det i tid registreras samma objekt (reservationen står kvar) utan ny uppladdning.
+    expect(await db.transaction(tx => storeMapContent(tx, lost, owner.accountId, NOW, quota))).toMatchObject({ status: "stored" });
+    expect(uploads).toHaveLength(2);
+    expect((await db.execute(sql`select orphaned_at from map_content_archive where sha256 = ${lostSha}`)).rows).toEqual([{ orphaned_at: null }]);
+  });
+
+  it("granskningen runda 2 (A): filens början läses ur mellanlagret eller med en avgränsad hämtning, aldrig hela filen", async () => {
+    const store = storeOn();
+    const owner = await registerTestAccount(db, undefined, NOW);
+    const bytes = bytesOf(13, 600_000), sha = hashOf(bytes);
+    await db.transaction(tx => storeMapContent(tx, bytes, owner.accountId, NOW, quota));
+    const heads: number[] = [];
+    setMapArchiveStore({ ...store, get: async () => { throw new Error("hela filen"); }, download: async () => { throw new Error("hela filen"); },
+      readHead: async (key, max) => { heads.push(max); return store.readHead(key, max); } });
+    expect((await readStoredMapContentHead(db, sha, bytes.byteLength, 1000)).equals(bytes.subarray(0, 1000))).toBe(true);
+    expect(heads).toEqual([]);
+    await rm(cachePath(cacheDir, sha));
+    expect((await readStoredMapContentHead(db, sha, bytes.byteLength, 1000)).equals(bytes.subarray(0, 1000))).toBe(true);
+    expect(heads).toEqual([1000]);
   });
 
   it("superadmin sätter installationens gränser och kontots gräns för återskapbart, också för sitt eget konto", async () => {

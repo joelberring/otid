@@ -44,20 +44,46 @@ export function isTransactionConflict(error: unknown): boolean {
 }
 
 const TRANSACTION_ATTEMPTS = 3;
+/** Så många gånger en transaktion får göras om för arbete utanför den (`OutsideTransactionWork`). */
+const OUTSIDE_WORK_ROUNDS = 6;
+const OUTSIDE_WORK = Symbol.for("otid.outside-transaction-work");
+
+/**
+ * Granskningen runda 2 (A): arbete som inte får göras i en transaktion (nätverk mot objektlagringen, filer) men som
+ * transaktionen behöver. Transaktionens funktion kastar felet, transaktionen rullas tillbaka och kopplingen lämnas tillbaka,
+ * `run` körs utan öppen transaktion och transaktionen görs sedan om från början. `run` ska vara idempotent: den kan
+ * köras igen om transaktionen görs om. Gäller bara poolens egna transaktioner (`createDatabase`).
+ */
+export class OutsideTransactionWork extends Error {
+  readonly [OUTSIDE_WORK] = true;
+  constructor(readonly run: (db: Database) => Promise<void>, message = "Arbete utanför transaktionen") { super(message); }
+}
+
+export function isOutsideTransactionWork(error: unknown): error is OutsideTransactionWork {
+  return typeof error === "object" && error !== null && (error as { [OUTSIDE_WORK]?: unknown })[OUTSIDE_WORK] === true;
+}
 
 /**
  * Översynen 2026-11-02: en transaktion som PostgreSQL avbröt med 40001 eller 40P01 har rullats tillbaka helt och görs om,
  * högst tre försök med växande väntan (med lite slump). Gäller bara poolens egna transaktioner; en savepoint i en
  * transaktion (`tx.transaction`) görs inte om, eftersom hela den yttre transaktionen redan är avbruten.
- * Transaktionens funktion får därför inte ha sidoeffekter utanför databasen (det har ingen i O-Tid).
+ * Transaktionens funktion får därför inte ha sidoeffekter utanför databasen; det som måste göras utanför (en uppladdning)
+ * begärs med `OutsideTransactionWork`, som körs mellan två försök.
  */
 export function retryTopLevelTransactions(db: { transaction: (...args: never[]) => Promise<unknown> }): void {
   const original = db.transaction.bind(db);
   const retrying = async (...args: Parameters<typeof original>) => {
-    for (let attempt = 1; ; attempt += 1) {
+    for (let attempt = 1, rounds = 0; ;) {
       try { return await original(...args); } catch (error) {
+        if (isOutsideTransactionWork(error)) {
+          if (rounds >= OUTSIDE_WORK_ROUNDS) throw new Error("Transaktionen begärde arbete utanför sig för många gånger", { cause: error });
+          rounds += 1;
+          await error.run(db as unknown as Database);
+          continue;
+        }
         if (attempt >= TRANSACTION_ATTEMPTS || !isTransactionConflict(error)) throw error;
         await new Promise((resolve) => setTimeout(resolve, 40 * attempt + Math.floor(Math.random() * 40)));
+        attempt += 1;
       }
     }
   };

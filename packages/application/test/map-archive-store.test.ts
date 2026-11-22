@@ -47,6 +47,26 @@ describe("arkivets objektlagring", () => {
     await expect(denied.put(sha, new Uint8Array([1]))).rejects.toThrow("(403 SignatureDoesNotMatch)");
   });
 
+  it("granskningen runda 2 (A): filens början hämtas med Range och läser aldrig mer än begärt", async () => {
+    const sha = "cd".repeat(32), ranges: (string | undefined)[] = [];
+    const full = Buffer.alloc(1000, 7);
+    let ignoreRange = false;
+    const store = s3ArchiveStore({ endpoint: "https://hel1.example.test", bucket: "b", region: "hel1", accessKey: "a", secretKey: "s" }, {
+      fetch: (async (_url: URL, init: RequestInit) => {
+        const headers = init.headers as Record<string, string>;
+        ranges.push(headers.range);
+        expect(headers.authorization).toContain("SignedHeaders=host;range;");
+        return ignoreRange ? new Response(full, { status: 200 }) : new Response(full.subarray(0, 10), { status: 206 });
+      }) as unknown as typeof fetch });
+    expect((await store.readHead(sha, 10))?.byteLength).toBe(10);
+    ignoreRange = true;
+    expect((await store.readHead(sha, 10))?.byteLength).toBe(10);
+    expect(ranges).toEqual(["bytes=0-9", "bytes=0-9"]);
+    const missing = s3ArchiveStore({ endpoint: "https://hel1.example.test", bucket: "b", region: "hel1", accessKey: "a", secretKey: "s" }, {
+      fetch: (async () => new Response(null, { status: 404 })) as unknown as typeof fetch });
+    expect(await missing.readHead(sha, 10)).toBeUndefined();
+  });
+
   it("ADR-0229: laddar upp en fil som ström med längd, och hämtar till en fil med kontrollsumma", async () => {
     const dir = await mkdtemp(join(tmpdir(), "otid-s3-"));
     const bytes = Buffer.alloc(2_000_000, 9), sha = createHash("sha256").update(bytes).digest("hex");

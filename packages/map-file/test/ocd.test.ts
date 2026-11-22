@@ -199,6 +199,12 @@ describe("OCAD-läsaren: indexposter som pekar på samma data", () => {
     expect(() => readMapFile(data, "dubbletter.ocd")).toThrow(expect.objectContaining({ code: "INVALID" }) as Error);
   });
 
+  it("kastar INVALID när 255 objektposter pekar på samma textobjekt med lång text", () => {
+    const data = buildOcd({ ...spec, objects: [{ symbol: 101000, type: 4, coords: [ocdCoord(1, 1)], text: "x".repeat(30_000) }] });
+    duplicateEntries(data, 12, 40);
+    expect(() => readMapFile(data, "textdubbletter.ocd")).toThrow(expect.objectContaining({ code: "INVALID" }) as Error);
+  });
+
   it("kastar INVALID när strängposter pekar på samma text flera gånger", () => {
     const data = buildOcd({ ...spec, strings: [{ type: 1, value: "x".repeat(20_000) }] });
     duplicateEntries(data, 32, 16);

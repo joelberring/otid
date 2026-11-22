@@ -112,7 +112,8 @@ function readObject(
   const symbol = String(layout.symbol16 ? v8SymbolNumber(rawSymbol) : rawSymbol);
   const definition = symbols.get(symbol);
   if (!definition) { warnings.add("UNKNOWN_SYMBOL"); return null; }
-  budget.left -= count;
+  // Texten räknas också: många indexposter mot ett enda textobjekt får inte läsa (och allokera) samma text om och om igen.
+  budget.left -= count + textCount;
   if (budget.left < 0) throw new MapFileError("INVALID", "OCAD-filen är trasig: indexposterna pekar på samma punkter flera gånger.");
   const coords = readCoords(bytes, at + layout.coords, count);
   const angle = normalizeAngle(bytes.i16(at + layout.angle) / 10);

@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { and, eq, gte, inArray, isNull, ne, or, sql } from "drizzle-orm";
+import { and, eq, gte, isNull, ne, or, sql } from "drizzle-orm";
 import { geoJobMemoryGb, type GeoServerView } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { releaseStaleGeoJobs } from "./map-project-geo-jobs";
@@ -27,12 +27,17 @@ const SILENT_MS = 10 * 60_000;
 const LEASE_MS = 5 * 60_000;
 /** Pris när Hetzner inte uppger något för typen: högsta kända priset, eller det här om inget är känt (räkna högt). */
 const UNKNOWN_HOURLY_EUR = 0.2;
-/** Högst så många nya servrar per timme (om något går fel i starten blir det inte en ström av servrar). */
-const STARTS_PER_HOUR = 3;
+/**
+ * Högst så många misslyckade starter per timme (om något går fel i starten, t.ex. avbildningen, blir det inte en ström av
+ * servrar). Ägaren 2026-11-22: räknas på servrar som inte startade, så att flera servrar samtidigt för en kurs går bra.
+ */
+const FAILED_STARTS_PER_HOUR = 3;
 
 export interface GeoServerSettings {
   readonly token: string; readonly types: readonly string[]; readonly locations: readonly string[];
   readonly idleMinutes: number; readonly budgetEur: number; readonly maxHours: number;
+  /** Ägaren 2026-11-22: högst så många geo-servrar samtidigt (förval 10, t.ex. för en kurs), och tomgången för de extra. */
+  readonly maxServers: number; readonly extraIdleMinutes: number;
   readonly image: string; readonly origin: string; readonly label: string;
 }
 
@@ -55,6 +60,7 @@ export function geoServerSettings(environment: Record<string, string | undefined
   return { token, types: list(environment.OTID_GEO_SERVER_TYPES, ["cx33", "cx23", "cax11", "cpx32", "cpx22"]), locations: list(environment.OTID_GEO_SERVER_LOCATIONS, ["fsn1", "nbg1", "hel1"]),
     idleMinutes: number(environment.OTID_GEO_IDLE_MINUTES, 60, 5, 240), budgetEur: number(environment.OTID_GEO_BUDGET_EUR_PER_MONTH, 10, 0, 1000),
     maxHours: number(environment.OTID_GEO_MAX_HOURS, 8, 1, 48),
+    maxServers: Math.round(number(environment.OTID_GEO_MAX_SERVERS, 10, 1, 20)), extraIdleMinutes: number(environment.OTID_GEO_EXTRA_IDLE_MINUTES, 10, 2, 240),
     image: environment.OTID_GEO_IMAGE?.trim() || `ghcr.io/joelberring/otid-geo:${/^[A-Za-z0-9_.-]{1,128}$/.test(tag) ? tag : "main"}`,
     origin, label: host.replace(/[^a-z0-9.-]/gi, "-").slice(0, 63) || "otid" };
 }
@@ -215,11 +221,17 @@ export async function manageGeoServer(db: Database, hetzner: Hetzner, settings: 
 
 async function manageRound(db: Database, hetzner: Hetzner, settings: GeoServerSettings, mail: GeoMailer, now: Date): Promise<ManageResult> {
   await releaseStaleGeoJobs(db, now);
-  const [{ waiting, running } = { waiting: 0, running: 0 }] = await db.select({
-    waiting: sql<number>`count(*) filter (where ${schema.mapProjectGeoJobs.status} = 'QUEUED')::int`,
-    running: sql<number>`count(*) filter (where ${schema.mapProjectGeoJobs.status} = 'RUNNING')::int` })
-    .from(schema.mapProjectGeoJobs).where(inArray(schema.mapProjectGeoJobs.status, ["QUEUED", "RUNNING"]));
+  const [{ waiting } = { waiting: 0 }] = await db.select({
+    waiting: sql<number>`count(*)::int` }).from(schema.mapProjectGeoJobs).where(eq(schema.mapProjectGeoJobs.status, "QUEUED"));
   const active = await db.select().from(servers).where(ne(servers.status, "DELETED"));
+  // Ägaren 2026-11-22: flera servrar samtidigt. Varje jobb vet vilken server som kör det (`worker`).
+  const busy = new Set((await db.select({ worker: schema.mapProjectGeoJobs.worker }).from(schema.mapProjectGeoJobs)
+    .where(eq(schema.mapProjectGeoJobs.status, "RUNNING"))).map(row => row.worker).filter((name): name is string => !!name));
+  // De extra servrarna raderas fortare, så att de inte kostar en tom timme var: medan någon server arbetar har de lediga den
+  // korta tomgången, och när alla är lediga behåller den som arbetade senast den vanliga (den tar nästa jobb direkt).
+  const activity = (row: typeof active[number]) => Math.max(row.createdAt.getTime(), row.lastJobAt?.getTime() ?? 0);
+  const first = active.some(row => busy.has(row.name)) ? undefined
+    : [...active].sort((a, b) => activity(b) - activity(a) || a.name.localeCompare(b.name))[0]?.id;
   const state = await readState(db);
   const mailed = { ...state.mailed };
   const retired = new Set(state.retired ?? []);
@@ -255,27 +267,32 @@ async function manageRound(db: Database, hetzner: Hetzner, settings: GeoServerSe
       // Översynen C1: arbetaren har tystnat (servern hängde eller Docker stannade). Dess jobb läggs tillbaka i kön ovan.
       await remove(row, "hördes inte av");
       deleted = `${row.name} har inte hört av sig på 10 minuter`;
-    } else if (waiting === 0 && running === 0 && now.getTime() - lastActivity > settings.idleMinutes * 60_000) {
+    } else if (waiting === 0 && !busy.has(row.name) && now.getTime() - lastActivity > (row.id === first ? settings.idleMinutes : settings.extraIdleMinutes) * 60_000) {
+      const minutes = row.id === first ? settings.idleMinutes : settings.extraIdleMinutes;
       await remove(row, "tomgång");
-      deleted = `${row.name} utan jobb i ${settings.idleMinutes} minuter`;
+      deleted = `${row.name} utan jobb i ${minutes} minuter`;
     }
   }
   const remaining = await db.select().from(servers).where(ne(servers.status, "DELETED"));
   const stillRetired = (state.retired ?? []).filter(name => remaining.some(row => row.name === name));
   const view = (next: GeoServerView) => writeState(db, { view: next, mailed, retired: stillRetired }, now);
 
-  if (remaining.length > 0) {
-    await view({ state: remaining.some(row => row.status === "READY") ? "READY" : "STARTING", detail: null });
+  // Lediga platser: servrar som startar och servrar utan jobb tar nästa jobb i kön. En ny server startas för varje jobb som
+  // väntar utöver dem, upp till `maxServers`.
+  const free = remaining.filter(row => row.status === "STARTING" || !busy.has(row.name)).length;
+  const needed = Math.min(settings.maxServers - remaining.length, waiting - free);
+  if (needed <= 0) {
+    await view(remaining.length > 0 ? { state: remaining.some(row => row.status === "READY") ? "READY" : "STARTING", detail: null } : { state: "OFF", detail: null });
     return { action: deleted ? "deleted" : "none", detail: deleted };
   }
-  if (waiting === 0) {
-    await view({ state: "OFF", detail: null });
-    return { action: deleted ? "deleted" : "none", detail: deleted };
-  }
+  // Med servrar igång är ett misslyckat försök att starta en till inget fel för användarna: deras jobb körs ändå.
+  const serving = remaining.length > 0;
+  const servingView = () => view({ state: remaining.some(row => row.status === "READY") ? "READY" : "STARTING", detail: null });
 
-  const [{ recent } = { recent: 0 }] = await db.select({ recent: sql<number>`count(*)::int` }).from(servers)
-    .where(gte(servers.createdAt, new Date(now.getTime() - HOUR)));
-  if (recent >= STARTS_PER_HOUR) {
+  const [{ failed } = { failed: 0 }] = await db.select({ failed: sql<number>`count(*)::int` }).from(servers)
+    .where(and(gte(servers.createdAt, new Date(now.getTime() - HOUR)), eq(servers.deleteReason, "startade inte")));
+  if (failed >= FAILED_STARTS_PER_HOUR) {
+    if (serving) { await servingView(); return { action: "unavailable", detail: "för många starter" }; }
     await view({ state: "UNAVAILABLE", detail: "Flera starter i rad misslyckades; nytt försök om en stund." });
     return { action: "unavailable", detail: "för många starter" };
   }
@@ -298,52 +315,69 @@ async function manageRound(db: Database, hetzner: Hetzner, settings: GeoServerSe
     }
     return { action: "unavailable", detail: `inget med ${needGb} GB` };
   }
-  const cost = await geoServerMonthCost(db, now);
+  let cost = await geoServerMonthCost(db, now);
   // Översynen C2: ett okänt pris räknas högt, inte lågt, så att budgeten inte överskrids med en dyrare reservtyp.
   const prices = types.flatMap(type => [...type.hourly.values()]);
   const highestKnown = prices.length ? Math.max(...prices) : UNKNOWN_HOURLY_EUR;
   const tried: string[] = [];
-  for (const [typeIndex, type] of settings.types.entries()) {
-    if (!bigEnough(type)) continue;
-    for (const location of settings.locations) {
-      const hourly = types.find(row => row.name === type)?.hourly.get(location) ?? highestKnown;
-      if (cost + hourly > settings.budgetEur) {
-        if (dueMail(state, "BUDGET", now)) {
-          await mail({ subject: "O-Tid: geo-serverns budget är slut", text: `Månadens kostnad för geo-servern är ${cost.toFixed(2)} € av `
-            + `${settings.budgetEur} € (OTID_GEO_BUDGET_EUR_PER_MONTH). ${waiting} geo-jobb väntar i kön. Höj budgeten och starta om web, eller vänta till nästa månad.` });
-          mailed.BUDGET = now.toISOString();
+  const made: string[] = [];
+  const started = (): ManageResult => ({ action: "created", detail: made.join(", ") });
+  // Ägaren 2026-11-22: en server per jobb som väntar utöver de lediga, alla i samma varv (en kurs ska inte vänta en minut per server).
+  for (let count = 0; count < needed; count += 1) {
+    let created = false;
+    for (const [typeIndex, type] of settings.types.entries()) {
+      if (!bigEnough(type)) continue;
+      for (const location of settings.locations) {
+        const hourly = types.find(row => row.name === type)?.hourly.get(location) ?? highestKnown;
+        if (cost + hourly > settings.budgetEur) {
+          if (dueMail(state, "BUDGET", now)) {
+            await mail({ subject: "O-Tid: geo-serverns budget är slut", text: `Månadens kostnad för geo-servern är ${cost.toFixed(2)} € av `
+              + `${settings.budgetEur} € (OTID_GEO_BUDGET_EUR_PER_MONTH). ${waiting} geo-jobb väntar i kön. Höj budgeten och starta om web, eller vänta till nästa månad.` });
+            mailed.BUDGET = now.toISOString();
+          }
+          if (serving || made.length) { await view({ state: made.length ? "STARTING" : remaining.some(row => row.status === "READY") ? "READY" : "STARTING", detail: null }); return made.length ? started() : { action: "budget", detail: `${cost.toFixed(2)} av ${settings.budgetEur} €` }; }
+          await view({ state: "BUDGET", detail: null });
+          return { action: "budget", detail: `${cost.toFixed(2)} av ${settings.budgetEur} €` };
         }
-        await view({ state: "BUDGET", detail: null });
-        return { action: "budget", detail: `${cost.toFixed(2)} av ${settings.budgetEur} €` };
-      }
-      const token = randomBytes(32).toString("hex");
-      const name = `otid-geo-${randomUUID().slice(0, 8)}`;
-      const created = await hetzner.create({ name, type, location, labels: { "otid-geo": settings.label },
-        userData: geoCloudInit({ image: settings.image, origin: settings.origin, token, name }) });
-      if (!created.ok) {
-        tried.push(`${type} i ${location}: ${created.code}`);
-        if (UNAVAILABLE.has(created.code)) continue;
-        // Andra fel (nyckeln, kontots gränser): inget mer provas i det här varvet.
-        await view({ state: "UNAVAILABLE", detail: null });
-        if (dueMail(state, "UNAVAILABLE", now)) {
-          await mail({ subject: "O-Tid: geo-servern kunde inte skapas", text: `Hetzner svarade ${created.code}: ${created.message}\n\n${waiting} geo-jobb väntar. `
-            + "Kontrollera OTID_HETZNER_TOKEN (Läs och skriv) och projektets gränser hos Hetzner." });
-          mailed.UNAVAILABLE = now.toISOString();
+        const token = randomBytes(32).toString("hex");
+        const name = `otid-geo-${randomUUID().slice(0, 8)}`;
+        const result = await hetzner.create({ name, type, location, labels: { "otid-geo": settings.label },
+          userData: geoCloudInit({ image: settings.image, origin: settings.origin, token, name }) });
+        if (!result.ok) {
+          tried.push(`${type} i ${location}: ${result.code}`);
+          if (UNAVAILABLE.has(result.code)) continue;
+          // Andra fel (nyckeln, kontots gränser, t.ex. högsta antalet servrar i Hetzner-projektet): inget mer provas i det här varvet.
+          if (serving || made.length) { await view({ state: made.length ? "STARTING" : remaining.some(row => row.status === "READY") ? "READY" : "STARTING", detail: null }); return made.length ? started() : { action: "unavailable", detail: result.code }; }
+          await view({ state: "UNAVAILABLE", detail: null });
+          if (dueMail(state, "UNAVAILABLE", now)) {
+            await mail({ subject: "O-Tid: geo-servern kunde inte skapas", text: `Hetzner svarade ${result.code}: ${result.message}\n\n${waiting} geo-jobb väntar. `
+              + "Kontrollera OTID_HETZNER_TOKEN (Läs och skriv) och projektets gränser hos Hetzner." });
+            mailed.UNAVAILABLE = now.toISOString();
+          }
+          return { action: "unavailable", detail: result.code };
         }
-        return { action: "unavailable", detail: created.code };
+        await db.insert(servers).values({ id: randomUUID(), providerId: result.id, name, serverType: type, location, hourlyEur: hourly,
+          tokenSha256: createHash("sha256").update(token).digest("hex"), status: "STARTING", createdAt: now });
+        if (typeIndex > firstFit && dueMail(state, "FALLBACK", now)) {
+          await mail({ subject: "O-Tid: geo-servern startade med en reservtyp", text: `Geo-servern startade som ${type} i ${location}, eftersom `
+            + `${settings.types.slice(firstFit, typeIndex).filter(bigEnough).join(", ")} inte gick att skapa just nu. Allt fungerar, men lägg gärna till fler typer i `
+            + `OTID_GEO_SERVER_TYPES innan även reserven tar slut.\n\nFörsök: ${tried.join("; ")}` });
+          mailed.FALLBACK = now.toISOString();
+        }
+        cost += hourly;
+        made.push(`${type} i ${location}`);
+        created = true;
+        break;
       }
-      await db.insert(servers).values({ id: randomUUID(), providerId: created.id, name, serverType: type, location, hourlyEur: hourly,
-        tokenSha256: createHash("sha256").update(token).digest("hex"), status: "STARTING", createdAt: now });
-      if (typeIndex > firstFit && dueMail(state, "FALLBACK", now)) {
-        await mail({ subject: "O-Tid: geo-servern startade med en reservtyp", text: `Geo-servern startade som ${type} i ${location}, eftersom `
-          + `${settings.types.slice(firstFit, typeIndex).filter(bigEnough).join(", ")} inte gick att skapa just nu. Allt fungerar, men lägg gärna till fler typer i `
-          + `OTID_GEO_SERVER_TYPES innan även reserven tar slut.\n\nFörsök: ${tried.join("; ")}` });
-        mailed.FALLBACK = now.toISOString();
-      }
-      await view({ state: "STARTING", detail: null });
-      return { action: "created", detail: `${type} i ${location}` };
+      if (created) break;
     }
+    if (!created) break;
   }
+  if (made.length) {
+    await view({ state: "STARTING", detail: null });
+    return started();
+  }
+  if (serving) { await servingView(); return { action: "unavailable", detail: tried.join("; ") }; }
 
   // Ingen typ gick att skapa någonstans.
   await view({ state: "UNAVAILABLE", detail: null });

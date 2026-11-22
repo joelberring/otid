@@ -175,6 +175,50 @@ describe("ADR-0219 K5b: geo-servern hos Hetzner", () => {
     expect(mails).toHaveLength(2);
   });
 
+  it("flera servrar samtidigt: en per jobb som väntar, högst maxServers; de extra raderas efter kortare tomgång", async () => {
+    // Ägaren 2026-11-22: etapperna i en körning (och en kurs där många kör samtidigt) ska inte vänta på varandra.
+    await clear();
+    const { hetzner, created, removed } = fakeHetzner(() => true);
+    const mail = async () => undefined;
+    const many = { ...settings, maxServers: 2, extraIdleMinutes: 5 };
+    expect(geoServerSettings(environment)).toMatchObject({ maxServers: 10, extraIdleMinutes: 10 });
+    const jobs = [await waitingJob(), await waitingJob(), await waitingJob()];
+    // Tre jobb väntar men högst två servrar, båda i samma varv.
+    expect(await manageGeoServer(db, hetzner, many, mail, NOW)).toEqual({ action: "created", detail: "cx23 i fsn1, cx23 i fsn1" });
+    expect(created).toHaveLength(2);
+    // De två som startar räknas som lediga platser: ingen tredje.
+    expect((await manageGeoServer(db, hetzner, many, mail, at(1))).action).toBe("none");
+    const names: string[] = [], tokens: string[] = [];
+    // Servrarna och det jobb som körs hör av sig.
+    const beat = async (minute: number, count = 2) => {
+      for (const token of tokens.slice(0, count)) await authenticateGeoWorker(db, `Bearer ${token}`, null, {}, at(minute));
+      await db.update(schema.mapProjectGeoJobs).set({ heartbeatAt: at(minute) }).where(eq(schema.mapProjectGeoJobs.status, "RUNNING"));
+    };
+    for (const server of created) {
+      const token = /OTID_GEO_WORKER_TOKEN='([0-9a-f]{64})'/.exec(server.userData)![1]!;
+      tokens.push(token);
+      names.push((await authenticateGeoWorker(db, `Bearer ${token}`, null, {}, at(3)))!);
+    }
+    const first = (await claimGeoJob(db, names[0]!, at(3)))!.jobId, second = (await claimGeoJob(db, names[1]!, at(3)))!.jobId;
+    const last = jobs.find(id => id !== first && id !== second)!;
+    expect(new Set([first, second, last]).size).toBe(3);
+    expect((await manageGeoServer(db, hetzner, many, mail, at(4))).action).toBe("none");
+    // Den andra blir klar och tar det sista jobbet; sedan blir båda klara.
+    await finishGeoJob(db, second, names[1]!, { status: "FAILED", error: "prov" }, at(6));
+    expect((await claimGeoJob(db, names[1]!, at(6)))!.jobId).toBe(last);
+    await finishGeoJob(db, last, names[1]!, { status: "FAILED", error: "prov" }, at(8));
+    await beat(10);
+    await beat(13);
+    // Den extra servern raderas efter 5 minuter utan jobb, medan den första kör vidare.
+    expect(await manageGeoServer(db, hetzner, many, mail, at(14))).toEqual({ action: "deleted", detail: `${names[1]!} utan jobb i 5 minuter` });
+    expect(removed).toEqual([created[1]!.id]);
+    await finishGeoJob(db, first, names[0]!, { status: "FAILED", error: "prov" }, at(15));
+    for (const minute of [20, 26, 32]) await beat(minute, 1);
+    // Den första har den vanliga tomgången (20 minuter).
+    expect((await manageGeoServer(db, hetzner, many, mail, at(25))).action).toBe("none");
+    expect(await manageGeoServer(db, hetzner, many, mail, at(36))).toEqual({ action: "deleted", detail: `${names[0]!} utan jobb i 20 minuter` });
+  });
+
   it("budgeten, en server som inte startar, en som gått för länge och en okänd med O-Tids etikett", async () => {
     await clear();
     const { hetzner, created, removed, extra } = fakeHetzner(() => true);
@@ -191,7 +235,7 @@ describe("ADR-0219 K5b: geo-servern hos Hetzner", () => {
     expect((await manageGeoServer(db, hetzner, settings, mail, at(16))).action).toBe("created");
     expect(removed).toEqual([created[0]!.id]);
     expect(mails.map(message => message.subject)).toContain("O-Tid: geo-servern startade inte");
-    // Högst tre starter i timmen.
+    // Högst tre misslyckade starter i timmen.
     await manageGeoServer(db, hetzner, settings, mail, at(32));
     expect(created).toHaveLength(3);
     expect((await manageGeoServer(db, hetzner, settings, mail, at(48))).action).toBe("unavailable");

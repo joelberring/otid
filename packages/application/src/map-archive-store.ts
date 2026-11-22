@@ -15,6 +15,8 @@ export interface ArchiveStore {
   put(sha256: string, bytes: Uint8Array): Promise<void>;
   /** Hela innehållet, eller undefined när objektet inte finns. */
   get(sha256: string): Promise<Buffer | undefined>;
+  /** Objektets första `maxBytes` (HTTP Range), eller undefined när objektet inte finns. Kortare om objektet är kortare. */
+  readHead(sha256: string, maxBytes: number): Promise<Buffer | undefined>;
   /** Objektets storlek, eller undefined när det inte finns. */
   size(sha256: string): Promise<number | undefined>;
   /** Tar bort objektet; ofarligt om det redan är borta. */
@@ -137,11 +139,12 @@ export function s3ArchiveStore(connection: ArchiveConnection, options: { fetch?:
   const send = options.fetch ?? fetch;
   const delays = options.retryDelaysMs ?? RETRY_DELAYS_MS;
   /** Ett anrop, med nya försök vid tillfälliga fel (filen strömmas från början igen varje gång). */
-  const call = async (method: string, sha256: string, body?: Uint8Array | { path: string; byteLength: number }): Promise<Response> => {
+  const call = async (method: string, sha256: string, body?: Uint8Array | { path: string; byteLength: number },
+    extra: Record<string, string> = {}): Promise<Response> => {
     for (let attempt = 0; ; attempt += 1) {
       const last = attempt >= delays.length;
       try {
-        const response = await once(method, sha256, body);
+        const response = await once(method, sha256, body, extra);
         if (last || !TRANSIENT.has(response.status)) return response;
         await response.arrayBuffer().catch(() => undefined);
       } catch (error) {
@@ -152,12 +155,12 @@ export function s3ArchiveStore(connection: ArchiveConnection, options: { fetch?:
     }
   };
   /** `body` är bytes i minnet eller en fil på disken (strömmas, med längden som Content-Length). */
-  const once = async (method: string, sha256: string, body?: Uint8Array | { path: string; byteLength: number }) => {
+  const once = async (method: string, sha256: string, body?: Uint8Array | { path: string; byteLength: number }, extra: Record<string, string> = {}) => {
     if (!SHA256.test(sha256)) throw new Error("Ogiltig kontrollsumma för arkivet");
     const url = new URL(`${connection.endpoint}/${connection.bucket}/map-content/${sha256}`);
     const headers = signS3({ method, url, payloadSha256: body ? sha256 : EMPTY_SHA256, region: connection.region,
       accessKey: connection.accessKey, secretKey: connection.secretKey, now: options.now?.() ?? new Date(),
-      ...(body ? { headers: { "content-type": "application/octet-stream" } } : {}) });
+      headers: { ...(body ? { "content-type": "application/octet-stream" } : {}), ...extra } });
     if (body && !(body instanceof Uint8Array)) {
       return send(url, { method, headers: { ...headers, "content-length": String(body.byteLength) },
         body: Readable.toWeb(createReadStream(body.path)) as unknown as BodyInit, duplex: "half",
@@ -192,6 +195,14 @@ export function s3ArchiveStore(connection: ArchiveConnection, options: { fetch?:
       if (!response.ok) throw await failed("hämtningen", response);
       return Buffer.from(await response.arrayBuffer());
     },
+    async readHead(sha256, maxBytes) {
+      if (!Number.isInteger(maxBytes) || maxBytes < 1) throw new Error("Ogiltig längd för filens början");
+      const response = await call("GET", sha256, undefined, { range: `bytes=0-${maxBytes - 1}` });
+      if (response.status === 404) { await response.arrayBuffer(); return undefined; }
+      if (response.status === 416) { await response.arrayBuffer(); return Buffer.alloc(0); }
+      if (!response.ok) throw await failed("hämtningen", response);
+      return readAtMost(response, maxBytes);
+    },
     async size(sha256) {
       const response = await call("HEAD", sha256);
       if (response.status === 404) return undefined;
@@ -220,6 +231,26 @@ export function s3ArchiveStore(connection: ArchiveConnection, options: { fetch?:
   };
 }
 
+/** Högst `maxBytes` ur svaret; resten läses inte (lagringen kan strunta i Range och skicka hela objektet). */
+async function readAtMost(response: Response, maxBytes: number): Promise<Buffer> {
+  if (!response.body) return Buffer.alloc(0);
+  const reader = response.body.getReader();
+  const chunks: Buffer[] = [];
+  let total = 0;
+  try {
+    while (total < maxBytes) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const take = value.subarray(0, maxBytes - total);
+      chunks.push(Buffer.from(take));
+      total += take.byteLength;
+    }
+  } finally {
+    if (total >= maxBytes) await reader.cancel(); else reader.releaseLock();
+  }
+  return Buffer.concat(chunks, total);
+}
+
 /**
  * Provar anslutningen med ett litet provobjekt: ladda upp, hämta tillbaka, jämför och ta bort. Kastar med lagringens
  * statuskod när något steg misslyckas (fel nycklar ger 403, fel bucket 404).
@@ -240,6 +271,7 @@ export function memoryArchiveStore(): ArchiveStore & { readonly objects: Map<str
     objects,
     async put(sha256, bytes) { objects.set(sha256, Buffer.from(bytes)); },
     async get(sha256) { return objects.get(sha256); },
+    async readHead(sha256, maxBytes) { return objects.get(sha256)?.subarray(0, maxBytes); },
     async size(sha256) { return objects.get(sha256)?.byteLength; },
     async remove(sha256) { objects.delete(sha256); },
     async putFile(sha256, path, byteLength) {

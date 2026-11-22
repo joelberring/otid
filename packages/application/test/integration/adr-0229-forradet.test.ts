@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdtemp, readdir, rm, stat } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -9,11 +9,14 @@ import { mapStorageQuota, readMapContent, stageMapContent, storeMapContent, disc
 import { streamMapContentParts } from "../../src/club-maps";
 import { memoryArchiveStore, setMapArchiveStore } from "../../src/map-archive-store";
 import { setMapStoreMode } from "../../src/map-store";
-import { cachePath, forgetMapCacheCap, mapCacheCapBytes, setMapCacheDir } from "../../src/map-cache";
+import { cachePath, forgetMapCacheCap, mapCacheCapBytes, readStoredMapContentHead, setMapCacheDir } from "../../src/map-cache";
 import { removeArchiveOrphans } from "../../src/map-archive";
 import { performSuperadminAction, readSuperadminOverview, setSuperadmin } from "../../src/superadmin";
 import { loginUserAccount } from "../../src/user-account";
-import { registerTestAccount } from "./accounts";
+import { createOrganizerEvent } from "../../src/organizer-events";
+import { saveRaceMapSourceAsAdmin } from "../../src/race-map-source";
+import { exportRaceAsAdmin } from "../../src/race-export";
+import { accountOnRace, registerTestAccount } from "./accounts";
 
 /**
  * ADR-0229 (PLAN.md steg M1): förrådet och mellanlagret. Med läget på laddas nytt innehåll upp och kontrolleras innan det
@@ -79,10 +82,13 @@ describe("ADR-0229 M1: förrådet och mellanlagret", () => {
     expect(await row(staged.sha256)).toMatchObject({ stored_in: "STORE" });
     expect(await parts(staged.sha256)).toBe(0);
     expect(store.objects.get(staged.sha256)?.equals(bytes)).toBe(true);
-    // Den strömmade filen ligger nu i mellanlagret; ingenting finns kvar under uppladdningarna.
+    // Den strömmade filen ligger nu i mellanlagret. Granskningen runda 2 (A): transaktionen raderar inga filer; den strömmade
+    // filen finns kvar tills anroparen tar bort den efter transaktionen, och mellanlagrets fil är kvar efter det.
     expect((await stat(cachePath(cacheDir, staged.sha256))).size).toBe(bytes.byteLength);
-    expect(await readdir(join(cacheDir, ".staging"))).toEqual([]);
+    expect(await readdir(join(cacheDir, ".staging"))).toEqual([staged.contentId]);
     await discardStagedMapContent(db, staged.contentId);
+    expect(await readdir(join(cacheDir, ".staging"))).toEqual([]);
+    expect((await stat(cachePath(cacheDir, staged.sha256))).size).toBe(bytes.byteLength);
     expect(await row(staged.sha256)).toBeDefined();
     // Arkivets rad gör att städningen gäller också förrådets objekt.
     expect((await db.execute(sql`select 1 from map_content_archive where sha256 = ${staged.sha256} and cold_at is not null`)).rows).toHaveLength(1);
@@ -151,6 +157,7 @@ describe("ADR-0229 M1: förrådet och mellanlagret", () => {
     if (big.kind !== "staged") throw new Error(big.kind);
     expect(await db.transaction(tx => storeMapContent(tx, big, owner.accountId, NOW, small))).toMatchObject({ status: "quota", quota: { scope: "ACCOUNT" } });
     expect(store.objects.has(big.sha256)).toBe(false);
+    await discardStagedMapContent(db, big.contentId);
     expect(await readdir(join(cacheDir, ".staging"))).toEqual([]);
     expect(await stageMapContent(db, chunked(bytesOf(7, 5000)), { maxBytes: 1000 })).toEqual({ kind: "too-large" });
     expect(await readdir(join(cacheDir, ".staging"))).toEqual([]);
@@ -165,12 +172,124 @@ describe("ADR-0229 M1: förrådet och mellanlagret", () => {
     expect(await row(sha)).toBeUndefined();
     expect(await removeArchiveOrphans(db, store, 35, NOW)).toEqual({ removed: 0, errors: [] });
     expect(store.objects.has(sha)).toBe(true);
-    expect((await removeArchiveOrphans(db, store, 35, new Date(NOW.getTime() + 36 * 24 * 3600_000))).removed).toBe(1);
+    // (Också objektet från fallet ovan vars kontroll misslyckades: det reserverades före uppladdningen och städas nu.)
+    expect((await removeArchiveOrphans(db, store, 35, new Date(NOW.getTime() + 36 * 24 * 3600_000))).removed).toBe(2);
     expect(store.objects.has(sha)).toBe(false);
     await db.transaction(tx => storeMapContent(tx, bytes, owner.accountId, NOW, quota));
     expect(store.objects.has(sha)).toBe(true);
     await rm(cachePath(cacheDir, sha));
     expect((await readMapContent(db, sha))?.equals(bytes)).toBe(true);
+  });
+
+  it("granskningen runda 2 (A): uppladdningen sker utan öppen transaktion, och ett nytt försök eller en återrullning förlorar ingenting", async () => {
+    const store = storeOn();
+    const owner = await registerTestAccount(db, undefined, NOW);
+    const openTransactions = async () => Number((await db.execute<{ n: string }>(sql`select count(*)::text as n from pg_stat_activity
+      where datname = current_database() and state like 'idle in transaction%'`)).rows[0]!.n);
+    const uploads: number[] = [];
+    setMapArchiveStore({ ...store,
+      putFile: async (sha, path, length) => { uploads.push(await openTransactions()); await store.putFile(sha, path, length); },
+      put: async (sha, bytes) => { uploads.push(await openTransactions()); await store.put(sha, bytes); } });
+
+    // Ett nytt försök (40001) efter att innehållet registrerats: filen finns kvar och laddas inte upp igen.
+    const bytes = bytesOf(11, 400_000);
+    const staged = await stageMapContent(db, chunked(bytes), { maxBytes: MB });
+    if (staged.kind !== "staged") throw new Error(staged.kind);
+    let attempts = 0, conflicted = false;
+    const stored = await db.transaction(async tx => {
+      attempts += 1;
+      const result = await storeMapContent(tx, staged, owner.accountId, NOW, quota);
+      if (!conflicted) { conflicted = true; throw Object.assign(new Error("konflikt"), { code: "40001" }); }
+      return result;
+    });
+    expect(stored).toEqual({ status: "stored", sha256: staged.sha256 });
+    expect(attempts).toBe(3);
+    expect(uploads).toEqual([0]);
+    expect(await row(staged.sha256)).toMatchObject({ stored_in: "STORE" });
+    expect(await readdir(join(cacheDir, ".staging"))).toContain(staged.contentId);
+    await discardStagedMapContent(db, staged.contentId);
+    expect((await readMapContent(db, staged.sha256))?.equals(bytes)).toBe(true);
+
+    // Samma innehåll igen, med ett nytt försök: inget laddas upp och den strömmade filen tas inte bort i transaktionen.
+    const again = await stageMapContent(db, chunked(bytes), { maxBytes: MB });
+    if (again.kind !== "staged") throw new Error(again.kind);
+    let retried = false;
+    await db.transaction(async tx => {
+      const result = await storeMapContent(tx, again, owner.accountId, NOW, quota);
+      if (!retried) { retried = true; throw Object.assign(new Error("dödläge"), { code: "40P01" }); }
+      return result;
+    });
+    expect(uploads).toHaveLength(1);
+    expect(await readdir(join(cacheDir, ".staging"))).toContain(again.contentId);
+    await discardStagedMapContent(db, again.contentId);
+
+    // En återrullning efter uppladdningen: inget innehåll, objektet ligger kvar som släppt och tas bort först efter fristen.
+    const lost = bytesOf(12, 5000), lostSha = hashOf(lost);
+    await expect(db.transaction(async tx => {
+      await storeMapContent(tx, lost, owner.accountId, NOW, quota);
+      throw new Error("något annat gick fel");
+    })).rejects.toThrow("något annat gick fel");
+    expect(uploads).toEqual([0, 0]);
+    expect(await row(lostSha)).toBeUndefined();
+    expect(store.objects.has(lostSha)).toBe(true);
+    expect((await db.execute(sql`select 1 from map_content_archive where sha256 = ${lostSha} and orphaned_at = ${NOW}`)).rows).toHaveLength(1);
+    expect((await removeArchiveOrphans(db, store, 35, new Date(NOW.getTime() + 34 * 24 * 3600_000))).removed).toBe(0);
+    // Sparas det i tid registreras samma objekt (reservationen står kvar) utan ny uppladdning.
+    expect(await db.transaction(tx => storeMapContent(tx, lost, owner.accountId, NOW, quota))).toMatchObject({ status: "stored" });
+    expect(uploads).toHaveLength(2);
+    expect((await db.execute(sql`select orphaned_at from map_content_archive where sha256 = ${lostSha}`)).rows).toEqual([{ orphaned_at: null }]);
+  });
+
+  it("granskningen runda 2 (A): filens början läses ur mellanlagret eller med en avgränsad hämtning, aldrig hela filen", async () => {
+    const store = storeOn();
+    const owner = await registerTestAccount(db, undefined, NOW);
+    const bytes = bytesOf(13, 600_000), sha = hashOf(bytes);
+    await db.transaction(tx => storeMapContent(tx, bytes, owner.accountId, NOW, quota));
+    const heads: number[] = [];
+    setMapArchiveStore({ ...store, get: async () => { throw new Error("hela filen"); }, download: async () => { throw new Error("hela filen"); },
+      readHead: async (key, max) => { heads.push(max); return store.readHead(key, max); } });
+    expect((await readStoredMapContentHead(db, sha, bytes.byteLength, 1000)).equals(bytes.subarray(0, 1000))).toBe(true);
+    expect(heads).toEqual([]);
+    await rm(cachePath(cacheDir, sha));
+    expect((await readStoredMapContentHead(db, sha, bytes.byteLength, 1000)).equals(bytes.subarray(0, 1000))).toBe(true);
+    expect(heads).toEqual([1000]);
+  });
+
+  it("granskningen runda 2 (A, B): tävlingens kartfil och bild laddas upp utanför transaktionen, och säkerhetskopian hämtar dem efter sin", async () => {
+    const store = storeOn();
+    const account = await registerTestAccount(db, undefined, NOW);
+    const created = await createOrganizerEvent(db, { ...account.proof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
+      readBody: async () => ({ formatVersion: 1, eventName: "Förrådet", raceName: "Torsdag", raceDate: "2026-12-29",
+        timeZone: "Europe/Stockholm", raceType: "STANDARD" }) });
+    if (created.status !== "created") throw new Error(created.status);
+    const entered = await accountOnRace(db, { ...account.proof, raceId: created.response.raceId });
+    if (entered.status !== "authenticated") throw new Error(entered.status);
+    const proof = { raceId: created.response.raceId, sessionToken: entered.sessionToken, csrfCookie: entered.csrfToken, csrfHeader: entered.csrfToken };
+    const omap = new Uint8Array(await readFile(new URL("../../../../fixtures/maps/kartfil.omap", import.meta.url)));
+    const image = new Uint8Array(64);
+    image.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]);
+    new DataView(image.buffer).setUint32(16, 992); new DataView(image.buffer).setUint32(20, 832);
+    const openTransactions = async () => Number((await db.execute<{ n: string }>(sql`select count(*)::text as n from pg_stat_activity
+      where datname = current_database() and state like 'idle in transaction%'`)).rows[0]!.n);
+    const during: number[] = [];
+    setMapArchiveStore({ ...store,
+      put: async (sha, bytes) => { during.push(await openTransactions()); await store.put(sha, bytes); },
+      download: async (sha, path) => { during.push(await openTransactions()); return store.download(sha, path); } });
+    expect(await saveRaceMapSourceAsAdmin(db, { ...proof, file: omap, fileName: "kartfil.omap", image, metadata: { formatVersion: 1, format: "OMAP",
+      version: "Mapper v9", scale: 10_000, bounds: { minX: 0, minY: 0, maxX: 120, maxY: 100 }, georeference: null,
+      render: { pxPerMm: 8, originX: -2, originY: 102 }, summary: { objectCount: 11, warnings: [], simplifications: [] }, tiePoints: null },
+      quota })).toEqual({ status: "ok", georeferenced: false });
+    expect(during).toEqual([0, 0]);
+    expect(await row(hashOf(omap))).toMatchObject({ stored_in: "STORE" });
+    expect(await row(hashOf(image))).toMatchObject({ stored_in: "STORE" });
+
+    // Utan filerna i mellanlagret hämtar säkerhetskopian dem ur förrådet, efter sin transaktion.
+    await rm(cachePath(cacheDir, hashOf(omap)));
+    await rm(cachePath(cacheDir, hashOf(image)));
+    const exported = await exportRaceAsAdmin(db, proof, NOW);
+    if (exported.status !== "ok") throw new Error(exported.status);
+    expect(during).toEqual([0, 0, 0, 0]);
+    expect(exported.manifest.files.map(entry => entry.sha256).sort()).toEqual([hashOf(omap), hashOf(image)].sort());
   });
 
   it("superadmin sätter installationens gränser och kontots gräns för återskapbart, också för sitt eget konto", async () => {

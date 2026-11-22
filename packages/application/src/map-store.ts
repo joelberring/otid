@@ -5,14 +5,14 @@ import { pipeline } from "node:stream/promises";
 import { sql } from "drizzle-orm";
 import type { DbExecutor } from "./snapshot";
 import { archiveConnection, mapArchiveStore, type ArchiveStore } from "./map-archive-store";
-import { placeInCache, stagingPath, usableMapCacheDir } from "./map-cache";
+import { stagingPath, usableMapCacheDir } from "./map-cache";
 
 /**
  * ADR-0229 (PLAN.md steg M1): förrådet för kartinnehåll. Med `OTID_STORE_MODE=on` (och fullständiga `OTID_ARCHIVE_*`)
  * laddas nytt kartinnehåll upp till objektlagringen (samma bucket och nycklar som arkivet, objektet `map-content/<sha256>`),
  * läses tillbaka och kontrolleras (längd och sha256) innan det räknas som sparat; inga delar skrivs i `map_content_part`.
  * Uppladdningen strömmas till en fil i mellanlagret (`.staging/<id>`) och därifrån till förrådet, så att webben aldrig håller
- * hela filen i minnet. Efter registreringen flyttas filen in i mellanlagret.
+ * hela filen i minnet. Uppladdningen och mellanlagret sköts utanför databasens transaktion (`storeMapContent`).
  *
  * Med `off` (förval) skrivs allt som förut i databasen. Läsningen avgörs av raden (`stored_in`), inte av läget: innehåll i
  * förrådet går att läsa också när läget slagits av igen, så länge `OTID_ARCHIVE_*` finns.
@@ -128,17 +128,39 @@ export async function uploadToStore(store: ArchiveStore, sha256: string, byteLen
 }
 
 /**
- * Registrerar innehållet som ligger i förrådet (anroparens transaktion, efter kvoten) och lägger filen i mellanlagret.
- * Arkivets rad markerar att delarna inte finns här (se överst).
+ * Granskningen runda 2 (A): uppladdningen görs utanför transaktionen och föregås av en reservation, arkivets rad för
+ * innehållet markerad som släppt (`orphaned_at` = nu). Rullas transaktionen tillbaka, eller tar kvoten slut, ligger objektet
+ * kvar som släppt och tas bort av arkivets städning efter fristen (`removeArchiveOrphans`). Städningen tar bara bort rader
+ * vars frist gått ut, så en färsk reservation skyddar objektet. Håller städningen på att ta bort samma objekt väntar
+ * reservationen tills den är klar (radlåset), och uppladdningen sker efter borttagningen. Finns innehållet redan görs inget.
+ */
+export async function reserveStoreUpload(db: DbExecutor, sha256: string, byteLength: number, now: Date): Promise<void> {
+  await db.execute(sql`insert into map_content_archive (sha256, byte_length, archived_at, cold_at, orphaned_at)
+    select ${sha256}, ${byteLength}, ${now}, ${now}, ${now} where not exists (select 1 from map_content where sha256 = ${sha256})
+    on conflict (sha256) do update set orphaned_at = excluded.orphaned_at`);
+}
+
+/**
+ * Står reservationen kvar (raden finns och har inte släppts före reservationen)? Raden låses tills transaktionen är klar,
+ * så att städningen inte kan ta bort objektet innan innehållet är registrerat. Anropas under låset i `storeMapContent`.
+ */
+export async function storeReservationHolds(tx: DbExecutor, sha256: string, reservedAt: Date): Promise<boolean> {
+  const [row] = (await tx.execute<{ holds: boolean }>(sql`select (orphaned_at is null or orphaned_at >= ${reservedAt}) as holds
+    from map_content_archive where sha256 = ${sha256} for update`)).rows;
+  return row?.holds === true;
+}
+
+/**
+ * Registrerar innehållet som ligger i förrådet (anroparens transaktion, efter kvoten). Arkivets rad markerar att delarna
+ * inte finns här (se överst). Bara databasen: filen lades i mellanlagret redan vid uppladdningen.
  */
 export async function registerStoredMapContent(tx: DbExecutor, input: { sha256: string; contentId: string; byteLength: number;
-  accountId: string | null; source: StoreSource }, now: Date): Promise<void> {
+  accountId: string | null }, now: Date): Promise<void> {
   await tx.execute(sql`insert into map_content (sha256, content_id, byte_length, uploaded_by, created_at, stored_in, last_used_at)
     values (${input.sha256}, ${input.contentId}, ${input.byteLength}, ${input.accountId}, ${now}, 'STORE', ${now})`);
   await tx.execute(sql`insert into map_content_archive (sha256, byte_length, archived_at, cold_at) values (${input.sha256}, ${input.byteLength}, ${now}, ${now})
     on conflict (sha256) do update set byte_length = excluded.byte_length, archived_at = excluded.archived_at, cold_at = excluded.cold_at,
       restored_at = null, orphaned_at = null`);
-  await placeInCache(tx, input.sha256, input.source, input.byteLength);
 }
 
 /**

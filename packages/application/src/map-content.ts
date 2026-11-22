@@ -1,12 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
-import type { Database } from "@o-tid/database";
+import { OutsideTransactionWork, type Database } from "@o-tid/database";
 import type { DbExecutor } from "./snapshot";
 import { sha256Hex } from "./serialization";
 import { restoreMapContent } from "./map-archive";
-import { readStoredMapContent } from "./map-cache";
-import { activeMapStore, discardStagedFile, registerStoredMapContent, releaseUnusedUpload, stageMapContentToFile, uploadToStore,
-  type StoreSource } from "./map-store";
+import { placeInCache, readStoredMapContent } from "./map-cache";
+import { activeMapStore, discardStagedFile, registerStoredMapContent, reserveStoreUpload, stageMapContentToFile, storeReservationHolds,
+  uploadToStore, type StoreSource } from "./map-store";
 
 /**
  * ADR-0189 beslut 1–3: kartbilder och kartfiler lagras en gång (`map_content`, adresserat med sha256) i delar om högst 1 MiB
@@ -194,17 +194,15 @@ async function quotaProblem(tx: DbExecutor, accountId: string | null, byteLength
   return null;
 }
 
-/** Filen i mellanlagret för en uppladdning som avvisades (delarna i databasen tar anroparen bort, som förut). */
-async function dropStagedFile(input: MapContentInput): Promise<void> {
-  if (isStaged(input) && input.file) await discardStagedFile(input.contentId);
+/** Tar bort delarna för en strömmad uppladdning som inte behövs (samma innehåll fanns). Filen i mellanlagret tar anroparen bort efter transaktionen. */
+async function dropStagedParts(tx: DbExecutor, input: MapContentInput, keepContentId: string): Promise<void> {
+  if (isStaged(input) && !input.file && input.contentId !== keepContentId) {
+    await tx.execute(sql`delete from map_content_part where content_id = ${input.contentId}`);
+  }
 }
 
-/** Tar bort en uppladdning som inte behövs (delarna, eller filen i mellanlagret). */
-async function dropStaged(tx: DbExecutor, input: MapContentInput, keepContentId?: string): Promise<void> {
-  if (!isStaged(input)) return;
-  if (input.file) await discardStagedFile(input.contentId);
-  else if (input.contentId !== keepContentId) await tx.execute(sql`delete from map_content_part where content_id = ${input.contentId}`);
-}
+/** Uppladdningar till förrådet som gjorts utanför transaktionen, per indata (bytes eller strömmad uppladdning). */
+const storeUploads = new WeakMap<object, { sha256: string; reservedAt: Date }>();
 
 /**
  * Sparar innehållet (eller hittar samma innehåll som redan finns) i anroparens transaktion och ger dess sha256. Nytt innehåll
@@ -212,7 +210,11 @@ async function dropStaged(tx: DbExecutor, input: MapContentInput, keepContentId?
  * transaktionen är klar, så att den inte tas bort innan referensen är sparad.
  *
  * ADR-0229: en uppladdning i en fil i mellanlagret, och bytes i minnet när förrådet är påslaget, laddas upp till förrådet och
- * kontrolleras innan raden skrivs. Uppladdningen görs före låset (den kan ta sekunder), med kvoten förhandsprövad.
+ * kontrolleras innan raden skrivs. Granskningen runda 2 (A): uppladdningen görs aldrig i transaktionen. Behövs den (nytt
+ * innehåll, kvoten förhandsprövad efter anroparens behörighetskontroll) kastas `OutsideTransactionWork`: transaktionen rullas
+ * tillbaka, innehållet reserveras, laddas upp och läggs i mellanlagret utan öppen transaktion, och transaktionen görs om.
+ * Andra gången registreras det bara. Transaktionen raderar inga filer; den strömmade filen tar anroparen bort efteråt
+ * (`discardStagedMapContent`), så att ett nytt försök alltid har den kvar. Måste köras i `db.transaction` (`createDatabase`).
  */
 export async function storeMapContent(tx: DbExecutor, input: MapContentInput, accountId: string | null, now: Date,
   quota: MapStorageQuota = mapStorageQuota()): Promise<StoreResult> {
@@ -220,36 +222,41 @@ export async function storeMapContent(tx: DbExecutor, input: MapContentInput, ac
   const byteLength = contentLength(input);
   const store = isStaged(input) ? (input.file ? activeMapStore() ?? missingStore() : null) : activeMapStore();
   const source: StoreSource | null = !store ? null : isStaged(input) ? { file: input.file! } : { bytes: input };
-  let uploaded = false;
-  if (store && source) {
+  const done = storeUploads.get(input);
+  const uploaded = done?.sha256 === sha256 ? done : undefined;
+  const uploadFirst = () => new OutsideTransactionWork(async db => {
+    await reserveStoreUpload(db, sha256, byteLength, now);
+    await uploadToStore(store!, sha256, byteLength, source!);
+    await placeInCache(db, sha256, source!, byteLength, { keepSource: true });
+    storeUploads.set(input, { sha256, reservedAt: now });
+  }, "Kartinnehållet laddas upp till förrådet utanför transaktionen");
+  if (store && source && !uploaded) {
     const [known] = (await tx.execute(sql`select 1 from map_content where sha256 = ${sha256}`)).rows;
     if (!known) {
       const problem = await quotaProblem(tx, accountId, byteLength, quota);
-      if (problem) { await dropStagedFile(input); return { status: "quota", quota: problem }; }
-      await uploadToStore(store, sha256, byteLength, source);
-      uploaded = true;
+      if (problem) return { status: "quota", quota: problem };
+      throw uploadFirst();
     }
   }
-  // Uppladdningarna köas här: kvoten räknas och nytt innehåll sparas en i taget (det är sällsynt och går fort).
+  // Uppladdningarna köas här: kvoten räknas och nytt innehåll sparas en i taget (bara databasen, det går fort).
   await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended('otid.map-content', 0))`);
   const existing = (await tx.execute<{ content_id: string }>(sql`select content_id from map_content where sha256 = ${sha256}
     for key share`)).rows[0];
   if (existing) {
-    await dropStaged(tx, input, existing.content_id);
+    await dropStagedParts(tx, input, existing.content_id);
     return { status: "stored", sha256 };
   }
+  // Ett uppladdat objekt som inte blir innehåll här ligger kvar som släppt och tas bort efter fristen (reservationen).
   const problem = await quotaProblem(tx, accountId, byteLength, quota);
-  if (problem) {
-    if (uploaded) await releaseUnusedUpload(tx, sha256, byteLength, now);
-    await dropStagedFile(input);
-    return { status: "quota", quota: problem };
-  }
+  if (problem) return { status: "quota", quota: problem };
   const contentId = isStaged(input) ? input.contentId : randomUUID();
   if (store && source) {
-    // Innehållet togs bort mellan förhandskontrollen och låset, eller arkivets städning raderade objektet under tiden
-    // (den raderar under samma lås): ladda upp nu.
-    if (!uploaded || await store.size(sha256) !== byteLength) await uploadToStore(store, sha256, byteLength, source);
-    await registerStoredMapContent(tx, { sha256, contentId, byteLength, accountId, source }, now);
+    // Innehållet togs bort mellan förhandskontrollen och låset, eller reservationen gick ut: ladda upp (igen) utanför.
+    if (!uploaded || !await storeReservationHolds(tx, sha256, uploaded.reservedAt)) {
+      storeUploads.delete(input);
+      throw uploadFirst();
+    }
+    await registerStoredMapContent(tx, { sha256, contentId, byteLength, accountId }, now);
     return { status: "stored", sha256 };
   }
   if (!isStaged(input)) {

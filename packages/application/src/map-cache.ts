@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { accessSync, constants, mkdirSync } from "node:fs";
-import { mkdir, open, readdir, rename, rm, stat, utimes, writeFile, type FileHandle } from "node:fs/promises";
+import { link, mkdir, open, readdir, rename, rm, stat, utimes, writeFile, type FileHandle } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { sql } from "drizzle-orm";
@@ -225,20 +225,63 @@ export async function* streamStoredMapContent(tx: DbExecutor, sha256: string, by
   } finally { await handle.close(); }
 }
 
-/** Lägger en uppladdning (redan i förrådet) i mellanlagret: flyttar den strömmade filen, eller skriver bytes. */
-export async function placeInCache(tx: DbExecutor, sha256: string, source: { file: string } | { bytes: Uint8Array }, byteLength: number): Promise<void> {
+/**
+ * Lägger en uppladdning (redan i förrådet) i mellanlagret: flyttar den strömmade filen, eller skriver bytes. Med
+ * `keepSource` blir filen en hård länk i stället (samma filsystem), så att den strömmade filen finns kvar tills anroparen
+ * tar bort den (`storeMapContent` kan behöva ladda upp den igen om transaktionen görs om).
+ */
+export async function placeInCache(tx: DbExecutor, sha256: string, source: { file: string } | { bytes: Uint8Array }, byteLength: number,
+  options: { keepSource?: boolean } = {}): Promise<void> {
   const dir = usableMapCacheDir();
   if (!dir) return;
   const path = cachePath(dir, sha256);
   await mkdir(dirname(path), { recursive: true });
-  if ("file" in source) {
+  if ("file" in source && !options.keepSource) {
     await rename(source.file, path);
   } else {
     const temporary = join(dirname(path), `.${sha256}.${randomUUID()}.tmp`);
-    await writeFile(temporary, source.bytes, { flag: "wx" });
-    await rename(temporary, path);
+    try {
+      if ("file" in source) await link(source.file, temporary);
+      else await writeFile(temporary, source.bytes, { flag: "wx" });
+      await rename(temporary, path);
+    } catch (error) {
+      await rm(temporary, { force: true });
+      throw error;
+    }
   }
   await noteCacheWrite(tx, byteLength);
+}
+
+/**
+ * Granskningen runda 2 (A): filens början (högst `maxBytes`) för ett innehåll i förrådet, utan att hela filen läses: ur
+ * mellanlagret om den finns där, annars med en avgränsad hämtning (HTTP Range) ur förrådet. Hämtningen läggs inte i
+ * mellanlagret.
+ */
+export async function readStoredMapContentHead(db: DbExecutor, sha256: string, byteLength: number, maxBytes: number, now = new Date())
+  : Promise<Buffer> {
+  const want = Math.min(maxBytes, byteLength);
+  const dir = usableMapCacheDir();
+  const handle = dir ? await openCached(cachePath(dir, sha256), byteLength) : undefined;
+  if (handle) {
+    try {
+      const head = Buffer.alloc(want);
+      let filled = 0;
+      while (filled < want) {
+        const { bytesRead } = await handle.read(head, filled, want - filled, filled);
+        if (bytesRead === 0) break;
+        filled += bytesRead;
+      }
+      if (filled !== want) throw new Error("Kartinnehållet i mellanlagret är ofullständigt");
+      await touchFile(cachePath(dir!, sha256), sha256, now);
+      await touchMapContent(db, sha256, now);
+      return head;
+    } finally { await handle.close(); }
+  }
+  const head = await requireStore().readHead(sha256, want);
+  if (!head || head.byteLength !== want) throw new Error("Kartinnehållet i förrådet saknas eller är kortare än väntat");
+  await countFetch(db, head.byteLength, now);
+  await touchMapContent(db, sha256, now);
+  return head;
 }
 
 export interface CacheEntry { readonly path: string; readonly bytes: number; readonly usedAtMs: number }

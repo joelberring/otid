@@ -231,9 +231,9 @@ export async function geoWorkerOutputRoute(db: Database, request: Request, jobId
     if (staged.kind === "too-large") return problem("MAP_FILE_TOO_LARGE");
     if (staged.kind === "empty") return failure("invalid-request");
     let result: Awaited<ReturnType<typeof storeGeoOutput>>;
+    // Granskningen runda 2 (A): den strömmade filen tas bort efter transaktionen, också när innehållet sparades.
     try { result = await storeGeoOutput(db, { jobId, worker: name, name: fileName, mediaType, file: staged }); }
-    catch (error) { await discardStagedMapContent(db, staged.contentId); throw error; }
-    if (result.status !== "stored") await discardStagedMapContent(db, staged.contentId).catch(() => undefined);
+    finally { await discardStagedMapContent(db, staged.contentId); }
     if (result.status === "stored") return privateJson({ formatVersion: 1, status: "stored" }, 201);
     if (result.status === "quota") return problem("STORAGE_QUOTA_EXCEEDED");
     if (result.status === "too-large") return problem("MAP_FILE_TOO_LARGE");

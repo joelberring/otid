@@ -19,7 +19,8 @@ import { clubSourcedInContext } from "./club-invite";
  * ny tävling på samma eller en annan server (`race-restore.ts`). Raderna skrivs som databasen har dem (kolumnnamn i snake_case),
  * binärdata som egna filer och kontonas id som slumpade referenser; personer med behörighet följer med som e-post och roll,
  * utom adressen för den som bjöds in "Från klubben" (ADR-0209 beslut 7: den som bjöd in ser aldrig adressen).
- * Konton, lösenord, sessioner och Eventor-nycklar följer aldrig med. Läser i en ögonblicksbild (repeatable read); när kopian
+ * Konton, lösenord, sessioner och Eventor-nycklar följer aldrig med. Läser i en ögonblicksbild (repeatable read); innehåll i
+ * förrådet eller arkivet hämtas och zip-filen byggs efter den transaktionen (granskningen runda 2, B). När kopian
  * är klar sparas tiden (`race.last_backup_at`) och en rad i journalen utan personuppgifter, i en egen kort transaktion.
  * Bara administratören.
  */
@@ -37,7 +38,7 @@ function counted(tables: ReadonlyMap<string, Row[]>, files: number, people: numb
 
 export async function exportRaceAsAdmin(db: Database, input: Omit<RaceSessionProof, "csrfCookie" | "csrfHeader">,
   now = new Date()): Promise<RaceExportResult> {
-  const result = await db.transaction(async (tx) => {
+  const snapshot = await db.transaction(async (tx) => {
     const auth = await requireRaceRole(tx, { ...input, role: "ADMIN" }, now, "share");
     if (auth.status !== "authenticated") return auth;
     const { raceId, eventId, accountId } = auth.principal;
@@ -49,6 +50,8 @@ export async function exportRaceAsAdmin(db: Database, input: Omit<RaceSessionPro
     const catalog = await loadBackupCatalog(tx, RACE_BACKUP_TABLES.map(table => table.name));
     const tables = new Map<string, Row[]>();
     const files = new Map<string, Uint8Array>();
+    /** Innehåll som inte ligger i databasen (förrådet, arkivet): hämtas när transaktionen är klar. */
+    const later: { table: string; rowIndex: number; column: string; sha256: string }[] = [];
     const uuids = new Set<string>();
     for (const table of RACE_BACKUP_TABLES) {
       const { columns, primaryKey } = catalog.get(table.name)!;
@@ -65,16 +68,17 @@ export async function exportRaceAsAdmin(db: Database, input: Omit<RaceSessionPro
         `, ${binaryValue(column.name)} as b${index}, ${storedRef(column.name)} as s${index}`).join("")} from ${quoteIdentifier(table.name)} t where `),
       table.scope(raceId, eventId), sql.raw(order)]);
       const results = (await tx.execute<Record<string, unknown> & { row: Row }>(query)).rows;
-      for (const result of results) for (const [index] of binary.entries()) {
-        const ref = result[`s${index}`];
-        if ((result[`b${index}`] === null || result[`b${index}`] === undefined) && typeof ref === "string") {
-          result[`b${index}`] = await readMapContent(tx, ref) ?? null;
-        }
-      }
-      const rows = results.map(result => {
+      const rows = results.map((result, rowIndex) => {
         const row = result.row;
         binary.forEach((column, index) => {
           const value = result[`b${index}`];
+          const ref = result[`s${index}`];
+          if ((value === null || value === undefined) && typeof ref === "string") {
+            // Granskningen runda 2 (B): innehållet hämtas efter transaktionen (förrådet eller arkivet); referensen är dess sha256.
+            row[column.name] = { fil: ref };
+            later.push({ table: table.name, rowIndex, column: column.name, sha256: ref });
+            return;
+          }
           if (value === null || value === undefined) { row[column.name] = null; return; }
           const bytes = new Uint8Array(value as Buffer);
           const sha = sha256Hex(bytes);
@@ -133,45 +137,61 @@ export async function exportRaceAsAdmin(db: Database, input: Omit<RaceSessionPro
       where r.race_id = ${raceId} and r.basis_hash is not null and r.basis_hash is distinct from otid_result_basis_hash(r.entry_id)
       order by r.id`);
 
-    const peopleBytes = new TextEncoder().encode(JSON.stringify(raceBackupPeopleSchema.parse([...people.values()])));
-    const entries: ZipEntry[] = [];
-    const tableEntries: RaceBackupManifest["tables"] = [];
-    for (const [name, rows] of tables) {
-      const data = new TextEncoder().encode(JSON.stringify(rows));
-      entries.push({ name: backupDataPath(name), data });
-      tableEntries.push({ name, rows: rows.length, sha256: sha256Hex(data), bytes: data.byteLength });
-    }
-    const fileEntries = [...files].sort(([a], [b]) => a.localeCompare(b));
-    for (const [sha, data] of fileEntries) entries.push({ name: backupBinaryPath(sha), data });
-    const manifest = raceBackupManifestSchema.parse({
-      format: RACE_BACKUP_FORMAT, formatVersion: RACE_BACKUP_FORMAT_VERSION, createdAt: now.toISOString(),
-      engineVersion: RESULT_ENGINE_VERSION, containsPersonalData: true,
-      race: { eventName: race.eventName, raceName: race.name, raceDate: race.raceDate, raceType: race.raceType, timeZone: race.timeZone },
-      counts: counted(tables, files.size, people.size), staleResults: stale.rows[0]?.count ?? 0,
-      staleResultRevisions: staleRevisions.rows.map(row => row.id), tables: tableEntries,
-      people: { sha256: sha256Hex(peopleBytes), bytes: peopleBytes.byteLength },
-      files: fileEntries.map(([sha, data]) => ({ sha256: sha, bytes: data.byteLength }))
-    });
-    const bytes = writeZip([{ name: BACKUP_MANIFEST_PATH, data: new TextEncoder().encode(JSON.stringify(manifest, null, 2)) },
-      { name: BACKUP_PEOPLE_PATH, data: peopleBytes }, ...entries]);
-    // Loppets namn, eller evenemangets när loppet saknar eget namn.
-    const slug = (race.name.trim() || race.eventName).normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "").slice(0, 60) || race.shortCode;
-    const stamp = now.toISOString().slice(0, 16).replace(/[-:]/g, "").replace("T", "-");
-    return { status: "ok", bytes, manifest, raceId, accountId, sha256: sha256Hex(bytes),
-      fileName: `otid-sakerhetskopia-${slug}-${race.raceDate}-${stamp}.zip` } as const;
+    return { status: "ok", race, raceId, accountId, tables, files, later, people,
+      staleCount: stale.rows[0]?.count ?? 0, staleRevisionIds: staleRevisions.rows.map(row => row.id) } as const;
   }, { isolationLevel: "repeatable read" });
-  if (result.status !== "ok") return result;
+  if (snapshot.status !== "ok") return snapshot;
+  const { race, raceId, accountId, tables, files, people } = snapshot;
+
+  // Granskningen runda 2 (B): ögonblicksbilden är läst och transaktionen klar. Innehåll i förrådet eller arkivet hämtas nu
+  // (en i taget, varje gång med en egen kort fråga), och zip-filen byggs utan öppen transaktion.
+  const fetched = new Map<string, Uint8Array | null>();
+  for (const item of snapshot.later) {
+    if (!fetched.has(item.sha256)) {
+      const bytes = await readMapContent(db, item.sha256);
+      if (bytes && sha256Hex(bytes) !== item.sha256) throw new Error("Kartinnehållet stämmer inte med sin kontrollsumma");
+      fetched.set(item.sha256, bytes ? new Uint8Array(bytes) : null);
+    }
+    const bytes = fetched.get(item.sha256)!;
+    if (bytes) files.set(item.sha256, bytes);
+    else tables.get(item.table)![item.rowIndex]![item.column] = null;
+  }
+
+  const peopleBytes = new TextEncoder().encode(JSON.stringify(raceBackupPeopleSchema.parse([...people.values()])));
+  const entries: ZipEntry[] = [];
+  const tableEntries: RaceBackupManifest["tables"] = [];
+  for (const [name, rows] of tables) {
+    const data = new TextEncoder().encode(JSON.stringify(rows));
+    entries.push({ name: backupDataPath(name), data });
+    tableEntries.push({ name, rows: rows.length, sha256: sha256Hex(data), bytes: data.byteLength });
+  }
+  const fileEntries = [...files].sort(([a], [b]) => a.localeCompare(b));
+  for (const [sha, data] of fileEntries) entries.push({ name: backupBinaryPath(sha), data });
+  const manifest = raceBackupManifestSchema.parse({
+    format: RACE_BACKUP_FORMAT, formatVersion: RACE_BACKUP_FORMAT_VERSION, createdAt: now.toISOString(),
+    engineVersion: RESULT_ENGINE_VERSION, containsPersonalData: true,
+    race: { eventName: race.eventName, raceName: race.name, raceDate: race.raceDate, raceType: race.raceType, timeZone: race.timeZone },
+    counts: counted(tables, files.size, people.size), staleResults: snapshot.staleCount,
+    staleResultRevisions: snapshot.staleRevisionIds, tables: tableEntries,
+    people: { sha256: sha256Hex(peopleBytes), bytes: peopleBytes.byteLength },
+    files: fileEntries.map(([sha, data]) => ({ sha256: sha, bytes: data.byteLength }))
+  });
+  const bytes = writeZip([{ name: BACKUP_MANIFEST_PATH, data: new TextEncoder().encode(JSON.stringify(manifest, null, 2)) },
+    { name: BACKUP_PEOPLE_PATH, data: peopleBytes }, ...entries]);
+  // Loppets namn, eller evenemangets när loppet saknar eget namn.
+  const slug = (race.name.trim() || race.eventName).normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "").slice(0, 60) || race.shortCode;
+  const stamp = now.toISOString().slice(0, 16).replace(/[-:]/g, "").replace("T", "-");
+  const fileName = `otid-sakerhetskopia-${slug}-${race.raceDate}-${stamp}.zip`;
 
   // Tiden för "Senast nedladdad" och journalen: utan namn, bara antal och filens kontrollsumma.
   await db.transaction(async (tx) => {
-    await tx.update(schema.races).set({ lastBackupAt: now }).where(eq(schema.races.id, result.raceId));
-    await tx.insert(schema.auditEvents).values({ raceId: result.raceId, entityType: "race", entityId: result.raceId,
-      action: "RACE_BACKUP_CREATED", actorKind: "USER_ACCOUNT", actorId: result.accountId, createdAt: now,
-      after: { formatVersion: RACE_BACKUP_FORMAT_VERSION, sha256: result.sha256, bytes: result.bytes.byteLength,
-        counts: result.manifest.counts } });
+    await tx.update(schema.races).set({ lastBackupAt: now }).where(eq(schema.races.id, raceId));
+    await tx.insert(schema.auditEvents).values({ raceId, entityType: "race", entityId: raceId,
+      action: "RACE_BACKUP_CREATED", actorKind: "USER_ACCOUNT", actorId: accountId, createdAt: now,
+      after: { formatVersion: RACE_BACKUP_FORMAT_VERSION, sha256: sha256Hex(bytes), bytes: bytes.byteLength, counts: manifest.counts } });
   });
-  return { status: "ok", bytes: result.bytes, fileName: result.fileName, manifest: result.manifest };
+  return { status: "ok", bytes, fileName, manifest };
 }
 
 /** Tiden när säkerhetskopian senast laddades ner (Inställningar). Bara administratören. */

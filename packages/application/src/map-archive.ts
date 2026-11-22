@@ -281,17 +281,20 @@ export async function removeArchiveOrphans(db: Database, store: ArchiveStore, or
     and not exists (select 1 from map_content c where c.sha256 = a.sha256)`);
   await db.execute(sql`update map_content_archive a set orphaned_at = null where a.orphaned_at is not null
     and exists (select 1 from map_content c where c.sha256 = a.sha256)`);
+  const cutoff = new Date(now.getTime() - orphanDays * 24 * HOUR);
   const orphans = (await db.execute<{ sha256: string }>(sql`select sha256 from map_content_archive
-    where orphaned_at < ${new Date(now.getTime() - orphanDays * 24 * HOUR)} limit 200`)).rows;
+    where orphaned_at < ${cutoff} limit 200`)).rows;
   let removed = 0;
   const errors: string[] = [];
   for (const orphan of orphans) {
     try {
-      // Under samma lås som storeMapContent: ett innehåll som just sparas igen (förrådet, ADR-0229) raderas inte, och det som
-      // raderas här laddas upp igen av den som sparar (den kontrollerar objektet under låset).
+      // Granskningen runda 2 (A): radlåset ordnar borttagningen mot en ny uppladdning av samma innehåll (förrådet, ADR-0229),
+      // inte längre kartinnehållets gemensamma lås (så att objektlagringens svarstid inte stoppar alla uppladdningar). Fristen
+      // prövas igen här: en uppladdning som reserverats sedan listan lästes (`reserveStoreUpload`) har förnyat den. En
+      // reservation som kommer under borttagningen väntar på radlåset, så objektet laddas upp först efter att det raderats,
+      // och `storeMapContent` registrerar bara under radlåset på en reservation som står kvar (`storeReservationHolds`).
       const gone = await db.transaction(async tx => {
-        await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended('otid.map-content', 0))`);
-        const [row] = (await tx.execute(sql`delete from map_content_archive a where a.sha256 = ${orphan.sha256} and a.orphaned_at is not null
+        const [row] = (await tx.execute(sql`delete from map_content_archive a where a.sha256 = ${orphan.sha256} and a.orphaned_at < ${cutoff}
           and not exists (select 1 from map_content c where c.sha256 = a.sha256) returning 1`)).rows;
         if (row) await store.remove(orphan.sha256);
         return row !== undefined;

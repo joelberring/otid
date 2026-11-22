@@ -121,8 +121,9 @@ export async function mapProjectUploadRoute(db: Database, request: Request, envi
     if (staged.kind === "too-large") return problem("MAP_FILE_TOO_LARGE");
     if (staged.kind === "empty") return failure("invalid-request");
     let result: Awaited<ReturnType<typeof createMapProjectFromUpload>>;
+    // Granskningen runda 2 (A): den strömmade filen tas bort efter transaktionen, också när innehållet sparades.
     try { result = await createMapProjectFromUpload(db, { ...input.proof, metadata, file: staged }); }
-    catch (error) { await discardStagedMapContent(db, staged.contentId); throw error; }
+    finally { await discardStagedMapContent(db, staged.contentId); }
     if (result.status === "created") return privateJson({ formatVersion: 1, projectId: result.projectId }, result.replayed ? 200 : 201);
     if (result.status === "quota") return problem("STORAGE_QUOTA_EXCEEDED");
     if (result.status === "unsupported-file") return problem("UNSUPPORTED_MAP_FILE");

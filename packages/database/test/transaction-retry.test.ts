@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isTransactionConflict, retryTopLevelTransactions } from "../src/index";
+import { isTransactionConflict, OutsideTransactionWork, retryTopLevelTransactions } from "../src/index";
 
 /** Översynen 2026-11-02: poolens transaktioner görs om vid 40001 och 40P01. */
 describe("transaktioner som PostgreSQL avbröt", () => {
@@ -28,5 +28,32 @@ describe("transaktioner som PostgreSQL avbröt", () => {
     await expect(other.db.transaction(async () => "aldrig")).rejects.toThrow();
     expect(other.calls()).toBe(1);
     expect(isTransactionConflict({ code: "23505" })).toBe(false);
+  });
+
+  it("kör arbete utanför transaktionen och gör sedan om den (granskningen runda 2, A)", async () => {
+    const log: string[] = [];
+    let uploaded = false;
+    const db = { transaction: async (run: (tx: string) => Promise<string>) => {
+      log.push("begin");
+      try { const result = await run("tx"); log.push("commit"); return result; } catch (error) { log.push("rollback"); throw error; }
+    } };
+    retryTopLevelTransactions(db as never);
+    const result = await db.transaction(async () => {
+      if (!uploaded) throw new OutsideTransactionWork(async () => { log.push("upload"); uploaded = true; });
+      return "sparad";
+    });
+    expect(result).toBe("sparad");
+    expect(log).toEqual(["begin", "rollback", "upload", "begin", "commit"]);
+  });
+
+  it("ett fel i arbetet utanför går vidare, och arbetet begärs inte i all oändlighet", async () => {
+    const db = { transaction: async (run: (tx: string) => Promise<string>) => run("tx") };
+    retryTopLevelTransactions(db as never);
+    await expect(db.transaction(async () => { throw new OutsideTransactionWork(async () => { throw new Error("nätet är borta"); }); }))
+      .rejects.toThrow("nätet är borta");
+    let rounds = 0;
+    await expect(db.transaction(async () => { throw new OutsideTransactionWork(async () => { rounds += 1; }); }))
+      .rejects.toThrow("för många gånger");
+    expect(rounds).toBe(6);
   });
 });

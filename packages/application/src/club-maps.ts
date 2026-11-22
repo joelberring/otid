@@ -1,5 +1,5 @@
 import { restoreMapContent } from "./map-archive";
-import { readStoredMapContent, streamStoredMapContent } from "./map-cache";
+import { readStoredMapContentHead, streamStoredMapContent } from "./map-cache";
 import { randomUUID } from "node:crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import {
@@ -227,18 +227,21 @@ export async function* streamMapContentParts(db: DbExecutor, contentId: string):
   }
 }
 
-/** Kartinnehållet som redan finns, som en "uppladdning" utan ny kopia (tävlingens kartfil pekar på samma innehåll). */
+/**
+ * Kartinnehållet som redan finns, som en "uppladdning" utan ny kopia (tävlingens kartfil pekar på samma innehåll). Läses
+ * utanför transaktionen: innehåll i förrådet kan behöva hämtas därifrån (bara filens början).
+ */
 async function existingContent(tx: DbExecutor, sha256: string): Promise<StagedMapContent | undefined> {
   const [row] = (await tx.execute<{ content_id: string; byte_length: number; head: Buffer | null }>(sql`select c.content_id, c.byte_length,
       substring(p.data from 1 for ${MAP_CONTENT_HEAD_BYTES}) as head
     from map_content c left join map_content_part p on p.content_id = c.content_id and p.part = 0 where c.sha256 = ${sha256}`)).rows;
   if (!row) return undefined;
   if (!row.head) {
-    // ADR-0229: innehåll i förrådet har inga delar här; filens början läses ur mellanlagret.
+    // ADR-0229: innehåll i förrådet har inga delar här; bara filens början läses (mellanlagret eller en avgränsad hämtning).
     const stored = await storedMapContent(tx, sha256);
     if (!stored) return undefined;
-    const bytes = await readStoredMapContent(tx, sha256, stored.byteLength);
-    return { kind: "staged", contentId: row.content_id, sha256, byteLength: Number(row.byte_length), head: new Uint8Array(bytes.subarray(0, MAP_CONTENT_HEAD_BYTES)) };
+    const head = await readStoredMapContentHead(tx, sha256, stored.byteLength, MAP_CONTENT_HEAD_BYTES);
+    return { kind: "staged", contentId: row.content_id, sha256, byteLength: Number(row.byte_length), head: new Uint8Array(head) };
   }
   return { kind: "staged", contentId: row.content_id, sha256, byteLength: Number(row.byte_length), head: new Uint8Array(row.head) };
 }
@@ -273,14 +276,15 @@ export async function saveClubMapVersionToRace(db: Database, input: ClubProof & 
     // ADR-0210 beslut 7: samma beslut som "Välj karta från klubbarkivet".
     if (!mayUseClubMap({ role: member.role, clubId: input.clubId, mapBank: (await clubLinkFacts(tx, input.clubId)).access.MAP_BANK },
       { mapId: row.map.id, ...agreementOf(row.map) })) return { status: "forbidden" } as const;
-    const file = await existingContent(tx, row.version.contentSha256);
-    return file ? { status: "ok", row, file } as const : { status: "not-found" } as const;
+    return { status: "ok", row } as const;
   });
   if (found.status !== "ok") return found;
+  const file = await existingContent(db, found.row.version.contentSha256);
+  if (!file) return { status: "not-found" };
   // Kartan och kartavtalet i samma transaktion: misslyckas avtalet sparas inte kartan heller.
   const values = { sourceMapId: null, mapName: found.row.map.name, ...agreementOf(found.row.map), updatedAt: now };
   return saveRaceMapSourceAsAdmin(db, { raceId: input.raceId, sessionToken: input.sessionToken, csrfCookie: input.csrfCookie ?? null,
-    csrfHeader: input.csrfHeader ?? null, file: found.file, fileName: found.row.version.fileName, image: input.image, metadata: input.metadata,
+    csrfHeader: input.csrfHeader ?? null, file, fileName: found.row.version.fileName, image: input.image, metadata: input.metadata,
     alsoSave: async tx => {
       await tx.insert(schema.raceMapAgreements).values({ raceId: input.raceId, ...values })
         .onConflictDoUpdate({ target: schema.raceMapAgreements.raceId, set: { ...values, publicUseAcknowledgedAt: null, publicUseAcknowledgedBy: null } });

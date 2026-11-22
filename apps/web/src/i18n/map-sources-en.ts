@@ -63,6 +63,8 @@ export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
     cliffStyle: "Impassable cliffs",
     cliffStyles: { few: "Only high cliffs (from 4.5 m, at least 20 m)", most: "Most cliffs (from 3.5 m, at least 10 m)" },
     cliffTags: "Suggest passable cliffs with tags",
+    rawTicks: "Keep Karttapullautin's raw cliff ticks (branter.dxf, stup.dxf)",
+    rawTicksHelp: "Rarely needed: the base map uses the cliff lines. The raw ticks make large files, often tens of MB.",
     choiceLabels: { cliffs: "Cliffs", contours: "Contours", knolls: "Knolls", green: "Green", undergrowth: "Undergrowth", open: "Yellow", rock: "Bare rock" },
     choiceLevels: {
       cliffs: { less: "Fewer", default: "Default", more: "More" }, contours: { less: "Smoother", default: "Default", more: "More detailed" },

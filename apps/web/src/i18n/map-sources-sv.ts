@@ -142,6 +142,8 @@ export const mapSourcesSv = {
     cliffStyle: "Opasserbara branter",
     cliffStyles: { few: "Bara höga stup (från 4,5 m, minst 20 m)", most: "De flesta branter (från 3,5 m, minst 10 m)" } as Record<string, string>,
     cliffTags: "Föreslå passerbara branter med taggar",
+    rawTicks: "Spara Karttapullautins råa brantstreck (branter.dxf, stup.dxf)",
+    rawTicksHelp: "Behövs sällan: grundkartan använder brantlinjerna. De råa strecken blir stora filer, ofta flera tiotals MB.",
     choiceLabels: { cliffs: "Branter", contours: "Kurvor", knolls: "Knollar", green: "Grönt", undergrowth: "Undervegetation", open: "Gult", rock: "Berg i dagen" } as Record<string, string>,
     choiceLevels: {
       cliffs: { less: "Färre", default: "Som förval", more: "Fler" }, contours: { less: "Slätare", default: "Som förval", more: "Detaljrikare" },

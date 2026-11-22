@@ -23,10 +23,13 @@ describe("enkla val för Karttapullautin", () => {
     expect(choiceSettings(DEFAULT_CHOICES, {}, "most").cliffs).toEqual({ minDrop: 1.3, impassableDrop: 3.5, impassableLength: 10 });
     expect(choiceSettings({ ...DEFAULT_CHOICES, cliffs: "less" }, {}, "most", true).cliffs).toEqual({ minDrop: 1.8, impassableDrop: 4.5, impassableLength: 10, tags: true });
     expect(choiceSettings(DEFAULT_CHOICES, {}, "few", true).cliffs).toEqual({ minDrop: 1.3, impassableDrop: 4.5, impassableLength: 20, tags: true });
-    expect(cliffChoicesOf(null)).toEqual({ level: "default", style: "few", tags: false });
-    expect(cliffChoicesOf({ minDrop: 1, impassableLength: 10, tags: true })).toEqual({ level: "more", style: "most", tags: true });
+    expect(cliffChoicesOf(null)).toEqual({ level: "default", style: "few", tags: false, rawTicks: false });
+    expect(cliffChoicesOf({ minDrop: 1, impassableLength: 10, tags: true })).toEqual({ level: "more", style: "most", tags: true, rawTicks: false });
     // Äldre jobb har ingen minsta längd: de räknas som «few».
-    expect(cliffChoicesOf({ minDrop: 1.8 })).toEqual({ level: "less", style: "few", tags: false });
+    expect(cliffChoicesOf({ minDrop: 1.8 })).toEqual({ level: "less", style: "few", tags: false, rawTicks: false });
+    // Ägaren 2026-11-22: de råa brantstrecken sparas bara när man kryssat i dem, och det följer med vid «Kör om».
+    expect(choiceSettings(DEFAULT_CHOICES, {}, "few", false, true).cliffs).toEqual({ minDrop: 1.3, impassableDrop: 4.5, impassableLength: 20, rawTicks: true });
+    expect(cliffChoicesOf({ minDrop: 1.3, rawTicks: true }).rawTicks).toBe(true);
   });
   it("valen för gult, grönt, kullar och berg i dagen blir geo-arbetarens egna trösklar", () => {
     expect(choiceSettings({ ...DEFAULT_CHOICES, open: "more", green: "less", knolls: "more", rock: "more" }).settings)

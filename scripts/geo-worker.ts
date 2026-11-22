@@ -33,6 +33,7 @@ import { buildingLayer, featuresGeoJson, gpkgBytes, landCoverLayer, parcelLayer,
 import { dwgFeatures, dwgObjects } from "./geo-dwg.ts";
 import { AREA_DXF, clipDxfEntities, decodePng, dxfFrame, encodeRawPng, mergeGeoJson, mosaicPng, readWorld, writeWorld, type Box } from "./geo-merge.ts";
 import { moistureDxf, moistureFromHeightMaps, readHeightMap } from "./geo-moisture.ts";
+import { slimDxf } from "./geo-slim.ts";
 import { pavedFromPoints } from "./geo-paved.ts";
 import { groundShareAt, vegetationSignals, type VegetationSignals, mergePointStats, pointImages, readPointStats, type PointStats } from "./geo-points.ts";
 import { maskOf, runStep, StepSkipped, STEP_TIMEOUT_MS, type StepInput, type StepName } from "./geo-steps.ts";
@@ -50,7 +51,7 @@ interface Job {
   /** G8: Lantmäteriets vektorprodukter (Marktäcke, Byggnad) att läsa till kandidater. */
   readonly extras?: readonly { readonly index: number; readonly kind: "LAND_COVER" | "BUILDINGS" | "PARCELS" }[];
   /** G4: branternas trösklar (null = Kungshatt-kedjans förval). */
-  readonly cliffs?: { readonly minDrop: number; readonly impassableDrop: number; readonly impassableLength?: number; readonly tags?: boolean } | null;
+  readonly cliffs?: { readonly minDrop: number; readonly impassableDrop: number; readonly impassableLength?: number; readonly tags?: boolean; readonly rawTicks?: boolean } | null;
   /** K5c del 2: fuktigheten ur markmodellen (Karttapullautins höjdraster per ruta). */
   readonly moisture?: { readonly channelHa: number; readonly wetMeters: number; readonly moistMeters: number } | null;
   /** K5c del 3: vegetationen ur returerna som ytor (Karttapullautins klassbilder per ruta). */
@@ -94,6 +95,15 @@ export function jobMemoryGb(job: { readonly clip?: Job["clip"]; readonly tiles: 
   return areaKm2 <= 8 ? 4 : areaKm2 <= 45 ? 8 : 16;
 }
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+/**
+ * Ägaren 2026-11-22: Karttapullautins råa brantstreck (branter.dxf, stup.dxf) blev 77 MB per etapp och föll ibland bort.
+ * Grundkartan använder brantlinjerna (brantlinjer.dxf), så de råa strecken skickas bara när användaren kryssat i dem
+ * (`cliffs.rawTicks`) eller när det inte blev några brantlinjer.
+ */
+export const RAW_TICK_OUTPUTS: ReadonlySet<string> = new Set(["branter.dxf", "stup.dxf"]);
+export function keepsRawTicks(job: Pick<Job, "cliffs">, hasCliffLines: boolean): boolean {
+  return job.cliffs?.rawTicks === true || !hasCliffLines;
+}
 /** Arbetarens version (samma som `GEO_WORKER_VERSION` i contracts; servern ger inga jobb till en äldre). */
 export const WORKER_VERSION = 39;
 
@@ -489,7 +499,7 @@ async function runJob(job: Job): Promise<void> {
     }
     const files = new Set(await readdir(dir));
     const uploads: (readonly [string, string, string])[] = [["karta.png", "merged.png", "image/png"], ["karta.pgw", "merged.pgw", "text/plain"],
-      ...VECTOR_OUTPUTS.filter(([, source]) => files.has(source)).map(([name, source]) => [name, source, "application/dxf"] as const),
+      ...VECTOR_OUTPUTS.filter(([name, source]) => files.has(source) && (!RAW_TICK_OUTPUTS.has(name) || keepsRawTicks(job, files.has("brantlinjer.dxf")))).map(([name, source]) => [name, source, "application/dxf"] as const),
       ...(job.moisture ? [["fukt.png", "fukt.png", "image/png"], ["fukt.pgw", "fukt.pgw", "text/plain"], ["fukt.dxf", "fukt.dxf", "application/dxf"],
         ["fuktdjup.png", "fuktdjup.png", "image/png"], ["fuktdjup.pgw", "fukt.pgw", "text/plain"]] as const : []),
       ...(job.vegetation ? [["vegetation.dxf", "vegetation.dxf", "application/dxf"], ["vegetationsklasser.png", "vegetationsklasser.png", "image/png"],
@@ -515,7 +525,10 @@ async function runJob(job: Job): Promise<void> {
       if (!files.has(pngSource)) throw new Error(`Karttapullautin gav ingen ${pngSource}`);
       // Bilderna att titta på som WebP, utom i en etapp (sammanläggningen läser PNG och gör om dem sedan).
       const webp = !job.stage && WEBP_OUTPUTS.has(pngName) ? await toWebp(dir, pngSource, control.signal) : undefined;
-      const put = async (name: string, source: string, mediaType: string): Promise<Response | "skipped"> => {
+      // Ägaren 2026-11-22: linjerna förenklas (0,2 m) och skrivs med centimeter, så att filerna blir ungefär en fjärdedel.
+      if (pngType === "application/dxf") await writeFile(join(dir, `${pngSource}.slim`), slimDxf(await readFile(join(dir, pngSource), "utf8")));
+      const put = async (name: string, given: string, mediaType: string): Promise<Response | "skipped"> => {
+        const source = mediaType === "application/dxf" ? `${given}.slim` : given;
         if ((await stat(join(dir, source))).size > OUTPUT_MAX_BYTES && !name.startsWith("karta.")) return "skipped";
         const bytes = await readFile(join(dir, source));
         return call(`/api/geo-worker/jobs/${job.jobId}/outputs/${name}`, { method: "PUT", body: new Uint8Array(bytes),
@@ -585,6 +598,7 @@ async function runMergeJob(job: Job): Promise<void> {
       await set(done, names.length);
       done += 1;
       const having = stages.filter(stage => stage.outputs.includes(name));
+      if (RAW_TICK_OUTPUTS.has(name) && !keepsRawTicks(job, stages.every(stage => stage.outputs.includes("brantlinjer.dxf")))) continue;
       try {
         if (name.endsWith(".png")) {
           const world = name.replace(/\.png$/, ".pgw");
@@ -610,7 +624,8 @@ async function runMergeJob(job: Job): Promise<void> {
           const out = createWriteStream(target);
           const put = (text: string) => new Promise<void>((resolve, reject) => { size += Buffer.byteLength(text); out.write(text, error => error ? reject(error) : resolve()); });
           for (const stage of having) {
-            const text = (await read(stage, name)).toString("utf8");
+            // Äldre etapper skickades utan förenkling. En redan förenklad fil kan flytta högst 0,2 m till, vilket inte syns.
+            const text = slimDxf((await read(stage, name)).toString("utf8"));
             if (first) await put(dxfFrame(text).head);
             const lines = clipDxfEntities(text, stage.clip, union, { areas: AREA_DXF.has(name), first });
             // I omgångar: en rad per kod och värde, många miljoner för de största filerna.

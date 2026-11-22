@@ -423,7 +423,7 @@ export interface ClaimedGeoJob {
   readonly clip: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number } | null;
   /** En etapps ruta att räkna på: klipprutan (som etappen äger) med marginal mot grannetapperna. */
   readonly reach?: ClaimedGeoJob["clip"] | undefined;
-  readonly cliffs: { readonly minDrop: number; readonly impassableDrop: number; readonly impassableLength?: number | undefined; readonly tags?: boolean | undefined } | null;
+  readonly cliffs: { readonly minDrop: number; readonly impassableDrop: number; readonly impassableLength?: number | undefined; readonly tags?: boolean | undefined; readonly rawTicks?: boolean | undefined } | null;
   /** G8: Lantmäteriets vektorprodukter att läsa (hämtas med `/laser/x<index>`). */
   readonly extras: readonly { readonly index: number; readonly kind: "LAND_COVER" | "BUILDINGS" | "PARCELS" }[];
   readonly moisture: { readonly channelHa: number; readonly wetMeters: number; readonly moistMeters: number } | null;

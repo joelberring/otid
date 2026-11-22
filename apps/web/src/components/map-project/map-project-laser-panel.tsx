@@ -57,6 +57,7 @@ export function MapProjectLaserPanel({ view, laser, importer, georeference, boun
   const [choices, setChoices] = useState<LaserChoices>(LASER_FORM_DEFAULTS.choices);
   const [cliffStyle, setCliffStyle] = useState<CliffStyle>(LASER_FORM_DEFAULTS.cliffStyle);
   const [cliffTags, setCliffTags] = useState(LASER_FORM_DEFAULTS.cliffTags);
+  const [rawTicks, setRawTicks] = useState(false);
   // G6 (ägaren 2026-11-11: «itereringar av olika lager, t.ex. grönt, efter första körning»): ett klart jobb körs om med samma
   // rutor och område men nya inställningar, och resultaten jämförs innan något läggs in i kartan.
   const [rerun, setRerun] = useState<GeoJobView>();
@@ -90,7 +91,7 @@ export function MapProjectLaserPanel({ view, laser, importer, georeference, boun
   async function start() {
     const tiles = (items ?? []).filter(item => chosen.has(item.id));
     const ok = await laser.start(laserJobBody({ name: (name.trim() || text.defaultName(area?.name)).slice(0, sampled ? 68 : 80) + (sampled ? text.sampleSuffix : ""),
-      interval, formline, sprint: !!importer.sprint, chosen: choiceSettings(choices, moreSettings(more), cliffStyle, cliffTags),
+      interval, formline, sprint: !!importer.sprint, chosen: choiceSettings(choices, moreSettings(more), cliffStyle, cliffTags, rawTicks),
       // Kör om: rutorna, området och Lantmäteriets produkter tas från jobbet; annars de valda rutorna och kartans område.
       target: rerun ? { rerunOf: rerun.jobId, clip: sampled } : { tiles, clip, areaId: area?.areaId, extras: extras.filter(extra => !skippedExtras.has(extra.kind)) },
       moisture: moisture ? { channelHa, wetMeters } : undefined, vegetation: vegetation ? { minAreaM2 } : undefined }), "panel");
@@ -105,7 +106,7 @@ export function MapProjectLaserPanel({ view, laser, importer, georeference, boun
     setName(text.rerunName(job.name));
     setInterval_(settings.contour_interval ?? 5); setFormline(settings.formline ?? 2);
     const cliffs = cliffChoicesOf(job.cliffs);
-    setChoices({ ...picked, cliffs: cliffs.level }); setCliffStyle(cliffs.style); setCliffTags(cliffs.tags);
+    setChoices({ ...picked, cliffs: cliffs.level }); setCliffStyle(cliffs.style); setCliffTags(cliffs.tags); setRawTicks(cliffs.rawTicks);
     setMore(typedOf(settings, picked, MORE_SETTINGS));
     setMoisture(!!job.moisture); setVegetation(!!job.vegetation);
     if (job.moisture) { setChannelHa(job.moisture.channelHa); setWetMeters(job.moisture.wetMeters); }
@@ -170,6 +171,8 @@ export function MapProjectLaserPanel({ view, laser, importer, georeference, boun
         <details className={styles.settings} data-testid="map-project-laser-more">
           <summary>{text.more}</summary>
           <p className={styles.muted}>{text.moreHelp}</p>
+          <label><input type="checkbox" checked={rawTicks} data-testid="map-project-laser-raw-ticks" onChange={event => setRawTicks(event.target.checked)} /> {text.rawTicks}</label>
+          <small className={styles.muted}>{text.rawTicksHelp}</small>
           {MORE_SETTINGS.map(key => <label key={key}>{text.settingField(text.settingLabels[key] ?? key, key, PULLAUTIN_SETTINGS[key][0], PULLAUTIN_SETTINGS[key][1])}
             <input inputMode="decimal" value={more[key] ?? ""} placeholder={text.settingDefault} data-testid={`map-project-laser-setting-${key}`}
               onChange={event => setMore(current => ({ ...current, [key]: event.target.value }))} />

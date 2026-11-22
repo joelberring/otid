@@ -42,23 +42,23 @@ const CLIFF_STYLE = { few: { impassableDrop: 4.5, impassableLength: 20 }, most: 
 const CLIFF_LEVEL = { less: { minDrop: 1.8, shift: 1 }, default: { minDrop: 1.3, shift: 0 }, more: { minDrop: 1, shift: -1 } } as const;
 
 /** Valen som värden för jobbet: inställningarna (de handskrivna går före) och branternas trösklar. */
-export function choiceSettings(choices: LaserChoices, typed: Readonly<Record<string, number>> = {}, style: CliffStyle = "few", tags = false) {
+export function choiceSettings(choices: LaserChoices, typed: Readonly<Record<string, number>> = {}, style: CliffStyle = "few", tags = false, rawTicks = false) {
   const settings: Record<string, number> = {};
   for (const choice of LASER_CHOICES) {
     const level = choices[choice];
     if (level !== "default") Object.assign(settings, PRESETS[choice][level]);
   }
   const level = CLIFF_LEVEL[choices.cliffs], base = CLIFF_STYLE[style];
-  const cliffs = choices.cliffs === "default" && style === "few" && !tags ? undefined
-    : { minDrop: level.minDrop, impassableDrop: base.impassableDrop + level.shift, impassableLength: base.impassableLength, ...(tags ? { tags: true } : {}) };
+  const cliffs = choices.cliffs === "default" && style === "few" && !tags && !rawTicks ? undefined
+    : { minDrop: level.minDrop, impassableDrop: base.impassableDrop + level.shift, impassableLength: base.impassableLength, ...(tags ? { tags: true } : {}), ...(rawTicks ? { rawTicks: true } : {}) };
   return { settings: { ...settings, ...typed }, cliffs };
 }
 
 /** Brantvalen ur ett körts jobb (för «Kör om»). */
-export function cliffChoicesOf(cliffs: { readonly minDrop: number; readonly impassableLength?: number | undefined; readonly tags?: boolean | undefined } | null):
-  { level: ChoiceLevel; style: CliffStyle; tags: boolean } {
+export function cliffChoicesOf(cliffs: { readonly minDrop: number; readonly impassableLength?: number | undefined; readonly tags?: boolean | undefined; readonly rawTicks?: boolean | undefined } | null):
+  { level: ChoiceLevel; style: CliffStyle; tags: boolean; rawTicks: boolean } {
   return { level: !cliffs || cliffs.minDrop === 1.3 ? "default" : cliffs.minDrop > 1.3 ? "less" : "more",
-    style: cliffs && (cliffs.impassableLength ?? 20) <= 10 ? "most" : "few", tags: cliffs?.tags === true };
+    style: cliffs && (cliffs.impassableLength ?? 20) <= 10 ? "most" : "few", tags: cliffs?.tags === true, rawTicks: cliffs?.rawTicks === true };
 }
 
 /** Valen ur ett körts jobbs inställningar (för «Kör om»): ett val som inte stämmer med något förval blir «default». */

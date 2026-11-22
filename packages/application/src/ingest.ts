@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import {
   deviceBatchAcknowledgementSchema,
   deviceBatchSchema,
@@ -302,21 +302,19 @@ export async function ingestDeviceBatch(
     acknowledgements.push(acknowledgement);
   }
 
-  const [storedSequences, currentRace] = await Promise.all([
-    db.select({ sequence: schema.rawDeviceMessages.localSequence })
-      .from(schema.rawDeviceMessages)
-      .where(eq(schema.rawDeviceMessages.deviceId, batch.deviceId))
-      .orderBy(asc(schema.rawDeviceMessages.localSequence)),
+  const [contiguous, currentRace] = await Promise.all([
+    // Högsta sammanhängande löpnummer från 1, räknat i databasen (inte enhetens hela historik i Node): löpnumren är unika och
+    // stigande, så raderna där numret är lika med radnumret är exakt de före första luckan.
+    db.execute<{ highest: string | number | null }>(sql`select max(local_sequence) as highest from (
+        select local_sequence, row_number() over (order by local_sequence) as position from raw_device_message
+        where device_id = ${batch.deviceId} and local_sequence >= 1) numbered
+      where local_sequence = position`),
     db.select({ snapshotVersion: schema.races.snapshotVersion })
       .from(schema.races).where(eq(schema.races.id, raceId)).then((rows) => rows[0])
   ]);
   if (!currentRace) throw new Error("Loppet finns inte");
 
-  let highestContiguousSequence = 0;
-  for (const row of storedSequences) {
-    if (row.sequence === highestContiguousSequence + 1) highestContiguousSequence = row.sequence;
-    else if (row.sequence > highestContiguousSequence + 1) break;
-  }
+  const highestContiguousSequence = Number(contiguous.rows[0]?.highest ?? 0);
 
   const packageVersionStatus = batch.packageVersion === currentRace.snapshotVersion
     ? "current"

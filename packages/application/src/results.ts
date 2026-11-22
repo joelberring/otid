@@ -26,7 +26,7 @@ import {
 } from "@o-tid/domain";
 import { loadCourseVersionVariants, variantAfterClassChange } from "./course-variants";
 import { courseForkingView, loadCourseVersionForking } from "./course-forking";
-import { loadCoursePositions, withPositionLengths } from "./course-positions";
+import { loadCoursePositionsMany, withPositionLengths } from "./course-positions";
 import { coursesArePublic } from "./course-secrecy";
 import { bumpReadoutPackageVersion } from "./snapshot";
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
@@ -464,12 +464,17 @@ export async function publicClassCourses(tx: DatabaseTransaction, raceId: string
   const versionIds = rows.map((row) => row.courseVersionId);
   const variants = await loadCourseVersionVariants(tx, versionIds);
   const forkings = variants.size === 0 ? new Map<string, CourseForking>() : await loadCourseVersionForking(tx, versionIds);
+  // Lägena för alla gaffelbanor i två frågor (inte två per klass), och bara för varianter som saknar längd i banfilen.
+  const needing = rows.flatMap(({ courseVersionId, courseId }) => {
+    const own = variants.get(courseVersionId) ?? [];
+    return own.some(variant => variant.lengthMeters == null) ? [{ courseId, codes: own.flatMap(variant => variant.controlCodes) }] : [];
+  });
+  const positions = await loadCoursePositionsMany(tx, raceId, needing);
   const result: PublicClassCourse[] = [];
   for (const { courseVersionId, courseId, ...row } of rows) {
     const own = variants.get(courseVersionId) ?? [];
     // Längd per variant: banfilens, annars ur kontrollernas lägen.
-    const measured = own.length === 0 ? own : withPositionLengths(own, await loadCoursePositions(tx, raceId, courseId,
-      own.flatMap(variant => variant.controlCodes)));
+    const measured = positions.has(courseId) ? withPositionLengths(own, positions.get(courseId)!) : own;
     const view = courseForkingView(measured, forkings.get(courseVersionId));
     result.push({ ...row, ...(view ? { forking: { items: view.items, variants: view.variants } } : {}) } as PublicClassCourse);
   }

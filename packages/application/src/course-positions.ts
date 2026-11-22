@@ -63,6 +63,34 @@ export async function loadCoursePositions(tx: Executor, raceId: string, courseId
   return { controls, start: course?.start ?? undefined, finish: course?.finish ?? undefined };
 }
 
+/**
+ * Samma som `loadCoursePositions` för flera banor med två frågor (banorna och kontrollerna) i stället för två per bana.
+ * Varje bana får bara de kontrollägen som dess egna koder (i förfrågningarna för banan) pekar på.
+ */
+export async function loadCoursePositionsMany(tx: Executor, raceId: string, requests: readonly { courseId: string; codes: readonly number[] }[]):
+  Promise<Map<string, CoursePositions>> {
+  const result = new Map<string, CoursePositions>();
+  if (requests.length === 0) return result;
+  const courseIds = [...new Set(requests.map(request => request.courseId))];
+  const codes = [...new Set(requests.flatMap(request => request.codes))];
+  const courses = await tx.select({ id: schema.courses.id, start: schema.courses.startPosition, finish: schema.courses.finishPosition })
+    .from(schema.courses).where(and(eq(schema.courses.raceId, raceId), inArray(schema.courses.id, courseIds)));
+  const rows = codes.length === 0 ? [] : await tx.select({ code: schema.controls.code, latitude: schema.controls.latitude,
+    longitude: schema.controls.longitude }).from(schema.controls)
+    .where(and(eq(schema.controls.raceId, raceId), inArray(schema.controls.code, codes)));
+  const known = new Map<number, ForkingGeoPoint>();
+  for (const row of rows) if (row.latitude !== null && row.longitude !== null) known.set(row.code, { latitude: row.latitude, longitude: row.longitude });
+  for (const courseId of courseIds) {
+    const course = courses.find(row => row.id === courseId);
+    const controls = new Map<number, ForkingGeoPoint>();
+    for (const request of requests) if (request.courseId === courseId) {
+      for (const code of request.codes) { const point = known.get(code); if (point) controls.set(code, point); }
+    }
+    result.set(courseId, { controls, start: course?.start ?? undefined, finish: course?.finish ?? undefined });
+  }
+  return result;
+}
+
 /** Steg 59: kartlägena (IOF MapPosition, mm) för en banas kontroller, start och mål. */
 export interface CourseMapPositions {
   readonly controls: ReadonlyMap<number, { x: number; y: number }>;

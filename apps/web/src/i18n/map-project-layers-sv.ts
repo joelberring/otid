@@ -19,6 +19,8 @@ export const mapProjectLayersSv = {
   up: (name: string) => `Flytta upp ${name}`,
   down: (name: string) => `Flytta ned ${name}`,
   removeConfirm: "Ta bort underlaget för alla i projektet?",
+  /** PLAN.md steg M4. */
+  missing: "Bilden har tagits bort ur förrådet för att spara plats och kan återskapas (överst på sidan).",
   by: (name: string | null, size: string) => `${name ?? "Okänd"} · ${size}`,
   // Ägaren 2026-11-13: många underlag efter en körning i etapper; samma bild som en rad, och allt på en gång.
   hideAll: "Släck alla",

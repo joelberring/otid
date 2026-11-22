@@ -85,6 +85,9 @@ export const superadminInstallationSchema = z.object({
   /** PLAN.md steg M2: gränsen för det fastspikade (null = förvalet) och förvalet i MB. */
   pinMaxMb: z.number().int().min(0).nullable(),
   pinMaxMbDefault: z.number().int().min(1),
+  /** PLAN.md steg M4: dagar orört innan återskapbart tas bort ur förrådet (null = förvalet, 0 = av); saknas i äldre svar. */
+  regenerableIdleDays: z.number().int().min(0).nullable().optional(),
+  regenerableIdleDaysDefault: z.number().int().min(1).optional(),
   /**
    * Tävlingars och träningars kartor som är fastspikade från dagen före till dagen efter, och det av dem som saknas i
    * mellanlagret (`missingRaceDay`: något som saknas behövs av en tävling i dag). Null med förrådet av eller när
@@ -176,7 +179,9 @@ export const superadminActionRequestSchema = z.discriminatedUnion("action", [
   z.object({ formatVersion: z.literal(1), action: z.literal("SET_INSTALLATION_LIMITS"), reason,
     cacheMaxMb: installationCacheMaxMbSchema, mapQuotaTotalMb: installationMapQuotaTotalMbSchema,
     /** PLAN.md steg M2; saknas (äldre sida) = oförändrad. */
-    pinMaxMb: installationCacheMaxMbSchema.optional() }).strict(),
+    pinMaxMb: installationCacheMaxMbSchema.optional(),
+    /** PLAN.md steg M4; saknas (äldre sida) = oförändrad, null = förvalet 90, 0 = av. */
+    regenerableIdleDays: z.number().int().min(0).max(3650).nullable().optional() }).strict(),
   z.object({ formatVersion: z.literal(1), action: z.literal("MIGRATE_MAP_CONTENT_NOW"), reason }).strict()
 ]);
 

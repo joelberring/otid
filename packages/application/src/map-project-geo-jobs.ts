@@ -15,6 +15,8 @@ import type { LantmaterietFailure } from "./map-project-lantmateriet";
 import { missingMapSourceCredential, openMapSourceCredential, type MapSourceCredentialGap } from "./map-source-credentials";
 import { claimedStages, completeStageMerge, geoMergeOf, queueStageMerge } from "./map-project-geo-merge";
 import { geoServerForToken, geoServerSettings, geoServerStateView, noteGeoServerJob } from "./geo-server";
+import { adoptRegeneratedJob } from "./map-project-regenerate";
+import { afterRegenerableStored, laserRecipe } from "./map-regenerable";
 import { UUID_PATTERN } from "./serialization";
 import type { DbExecutor } from "./snapshot";
 
@@ -35,8 +37,10 @@ const DEFAULT_TILES_PER_MONTH = 200;
 /**
  * PLAN.md steg L3 (ägaren 2026-11-13): en körning som föll på serverns fel räknas inte mot kontots laserkvot. Felet märks i
  * `result.fault` när jobbet misslyckas: geo-servern tystnade (minnet) eller resultatet gick inte att skicka eller spara.
+ * PLAN.md steg M4: en körning som återskapar en annan (`request.regenerates`, resultatet togs bort ur förrådet) räknas inte heller.
  */
-export const GEO_JOB_COUNTS = sql.raw(`not (map_project_geo_job.status = 'FAILED' and coalesce(map_project_geo_job.result->>'fault', '') = 'SERVER')`);
+export const GEO_JOB_COUNTS = sql.raw(`not (map_project_geo_job.status = 'FAILED' and coalesce(map_project_geo_job.result->>'fault', '') = 'SERVER')
+  and map_project_geo_job.request->'regenerates' is null`);
 const SERVER_FAULT = /kunde inte skickas|fick inte plats|lagring för kartfiler|minnet inte räckte/i;
 const faultOf = (error: string): { fault: "SERVER" } | null => SERVER_FAULT.test(error) ? { fault: "SERVER" } : null;
 /**
@@ -196,7 +200,9 @@ export async function createGeoJobAsAi(db: Database, input: { accountId: string;
   return createJob(db, aiGate(input.accountId, input.projectId, now), input.request, runtime, now);
 }
 
-async function createJob(db: Database, gate: MapProjectGate, body: unknown, runtime: LaserRuntime, now: Date): Promise<GeoJobCreated> {
+/** Gemensamt för användaren, AI-kopplingen och «Återskapa» (`regenerates`: körningen som ersätts, räknas inte mot laserkvoten). */
+export async function createJob(db: Database, gate: MapProjectGate, body: unknown, runtime: LaserRuntime, now: Date,
+  regenerates?: string): Promise<GeoJobCreated> {
   const parsed = geoJobCreateRequestSchema.safeParse(body);
   return db.transaction(async tx => {
     const access = await gate(tx, "propose", true);
@@ -249,12 +255,12 @@ async function createJob(db: Database, gate: MapProjectGate, body: unknown, runt
         split: clips.length > 1 ? { group, index: index + 1, total: clips.length } : undefined, requestId: index === 0 ? request.requestId : randomUUID() };
     });
     const wanted = partJobs.reduce((sum, part) => sum + part.tiles.length, 0);
-    if (tiles + wanted > (limits?.own ?? geoTilesPerMonth(runtime.environment))) return { status: "quota" } as const;
+    if (!regenerates && tiles + wanted > (limits?.own ?? geoTilesPerMonth(runtime.environment))) return { status: "quota" } as const;
     for (const part of partJobs) {
       await tx.insert(jobs).values({ id: part.id, projectId: access.project.id, accountId: access.accountId, kind: "PULLAUTIN", status: "QUEUED",
         request: { name: part.name, tiles: part.tiles, settings: request.settings, ...(part.split ? { split: part.split } : {}), ...(request.cliffs ? { cliffs: request.cliffs } : {}), ...(part.clip ? { clip: part.clip } : {}), ...(part.reach ? { reach: part.reach } : {}), ...(request.areaId ? { areaId: request.areaId } : {}), ...(request.extras?.length ? { extras: request.extras } : {}),
         ...(request.moisture ? { moisture: request.moisture } : {}),
-        ...(request.vegetation ? { vegetation: request.vegetation } : {}) },
+        ...(request.vegetation ? { vegetation: request.vegetation } : {}), ...(regenerates ? { regenerates } : {}) },
       createdAt: new Date(now.getTime() + (part.split ? part.split.index - 1 : 0)), requestId: part.requestId });
     }
     const id = partJobs[0]!.id;
@@ -503,12 +509,18 @@ export async function storeGeoOutput(db: Database, input: { jobId: string; worke
   return db.transaction(async tx => {
     const job = await runningJob(tx, input.jobId, input.worker);
     if (!job || job.status !== "RUNNING" || !job.accountId) return { status: "not-found" } as const;
-    const stored = await storeMapContent(tx, input.file, job.accountId, now, mapStorageQuota());
+    // PLAN.md steg M4: Karttapullautins resultat är återskapbart (receptet är körningen); indata och DWG är det inte.
+    const recipe = job.kind === "PULLAUTIN" && !input.name.startsWith("indata.") ? laserRecipe(job, input.name, now) : undefined;
+    const stored = await storeMapContent(tx, input.file, job.accountId, now, mapStorageQuota(), recipe);
     if (stored.status === "quota") return { status: "quota" } as const;
     await tx.insert(outputs).values({ jobId: job.id, name: input.name, contentSha256: stored.sha256, mediaType: input.mediaType,
       byteSize: contentLength(input.file), createdAt: now })
       .onConflictDoUpdate({ target: [outputs.jobId, outputs.name], set: { contentSha256: stored.sha256, mediaType: input.mediaType,
         byteSize: contentLength(input.file), createdAt: now } });
+    return { status: "stored", accountId: recipe ? job.accountId : null } as const;
+  }).then(async result => {
+    if (result.status !== "stored") return result;
+    await afterRegenerableStored(db, result.accountId, now);
     return { status: "stored" } as const;
   });
 }
@@ -558,7 +570,7 @@ export async function finishGeoJob(db: Database, jobId: string, worker: string, 
         .where(eq(jobs.id, job.id));
       await dropOutputs(tx, [job.id]);
       await noteGeoServerJob(tx, worker, now);
-      return { status: "ok", layerId: null } as const;
+      return { status: "ok", layerId: null, accountId: null } as const;
     }
     const files = await tx.select().from(outputs).where(eq(outputs.jobId, job.id));
     // En sammanläggning av etapper: rutorna (och koordinatsystemet) är etappernas.
@@ -579,7 +591,13 @@ export async function finishGeoJob(db: Database, jobId: string, worker: string, 
     // Sista etappen i en delad körning köar sammanläggningen; en klar sammanläggning tar bort etapperna.
     if (merge) await completeStageMerge(tx, job, merge);
     else await queueStageMerge(tx, job, now, job.accountId);
-    return { status: "ok", layerId } as const;
+    // PLAN.md steg M4: en körning som återskapar en annan tar över dess underlag och ersätter den (inte en etapp).
+    const replaced = (job.request as { split?: unknown }).split ? undefined : await adoptRegeneratedJob(tx, job.id);
+    return { status: "ok", layerId: replaced?.layerId ?? layerId, accountId: job.accountId } as const;
+  }).then(async result => {
+    if (result.status !== "ok") return result;
+    await afterRegenerableStored(db, result.accountId, now, true);
+    return { status: "ok", layerId: result.layerId } as const;
   });
 }
 

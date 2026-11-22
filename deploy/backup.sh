@@ -67,10 +67,11 @@ uuid_ok() { printf '%s' "$1" | grep -Eq '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0
 # ADR-0224 (PLAN.md steg L5): kartinnehåll som ligger i arkivet (objektlagringen) har inga delar här. Det är väntat: det
 # sparas inte, räknas inte som saknat och hämtas ur arkivet när det läses. Tom lista om tabellen inte finns (äldre databas).
 # ADR-0229 (PLAN.md steg M1): innehåll i förrådet (map_content.stored_in = 'STORE') likaså; det ligger bara i objektlagringen.
+# PLAN.md steg M4: återskapbart som tagits bort ur förrådet ('GONE') finns ingenstans och skapas igen ur receptet.
 cold_contents() {
   [ "$(psql -X -Atq -c "select to_regclass('map_content_archive') is not null" 2>/dev/null)" = "t" ] || return 0
   if [ "$(psql -X -Atq -c "select count(*) from information_schema.columns where table_name = 'map_content' and column_name = 'stored_in'" 2>/dev/null)" = "1" ]; then
-    psql -X -Atq -c "select c.content_id from map_content c where c.stored_in = 'STORE'
+    psql -X -Atq -c "select c.content_id from map_content c where c.stored_in in ('STORE', 'GONE')
       or exists (select 1 from map_content_archive a where a.sha256 = c.sha256 and a.cold_at is not null)"
   else
     psql -X -Atq -c "select c.content_id from map_content c join map_content_archive a on a.sha256 = c.sha256 where a.cold_at is not null"

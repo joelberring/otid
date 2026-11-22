@@ -39,6 +39,8 @@ export function SuperadminInstallation({ limits, busy, onChange }: {
         : text.pinnedUse(install.pinned.count, mb(install.pinned.bytes), pinMax, install.pinMaxMb === null)}</dd>
       <dt>{text.total}</dt>
       <dd>{text.totalUse(mb(limits.totalUsedBytes), totalMb, install.mapQuotaTotalMb === null)}</dd>
+      <dt>{text.idle}</dt>
+      <dd>{text.idleUse(install.regenerableIdleDays ?? install.regenerableIdleDaysDefault ?? 90, install.regenerableIdleDays == null)}</dd>
     </dl>
     {pinned && pinned.missing > 0 && <Notice tone={pinned.missingRaceDay ? "error" : "attention"} role={pinned.missingRaceDay ? "alert" : undefined}>
       {pinned.missingRaceDay ? text.pinnedMissingToday(pinned.missing, mb(pinned.missingBytes)) : text.pinnedMissing(pinned.missing, mb(pinned.missingBytes))}
@@ -58,7 +60,8 @@ export function SuperadminInstallation({ limits, busy, onChange }: {
     <div className={styles.actions}>
       <Button variant="secondary" disabled={busy} onClick={() => onChange({ kind: "SET_INSTALLATION_LIMITS", label: text.label,
         cacheMaxMb: install.cacheMaxMb, cacheMaxMbDefault: install.cacheMaxMbDefault, mapQuotaTotalMb: install.mapQuotaTotalMb,
-        mapQuotaTotalDefaultMb: install.mapQuotaTotalDefaultMb, pinMaxMb: install.pinMaxMb, pinMaxMbDefault: install.pinMaxMbDefault })}>{text.change}</Button>
+        mapQuotaTotalDefaultMb: install.mapQuotaTotalDefaultMb, pinMaxMb: install.pinMaxMb, pinMaxMbDefault: install.pinMaxMbDefault,
+        regenerableIdleDays: install.regenerableIdleDays ?? null, regenerableIdleDaysDefault: install.regenerableIdleDaysDefault ?? 90 })}>{text.change}</Button>
       {migration?.enabled && migration.dbCount > 0 && <Button variant="secondary" disabled={busy || migration.requested || migration.raceDay}
         onClick={() => onChange({ kind: "MIGRATE_MAP_CONTENT_NOW", label: text.label })}>{text.migrateNow}</Button>}
     </div>

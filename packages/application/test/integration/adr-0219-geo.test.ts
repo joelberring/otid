@@ -257,7 +257,9 @@ describe("ADR-0219 K5: geo-arbetaren", () => {
     expect(mine).toMatchObject({ name: "Laser", layerBytes: 0, outputBytes: 0, baseBytes: 0, prunableRuns: 3 });
     expect(mine.geoBytes).toBeGreaterThan(2 * 64);
     expect(mine.totalBytes).toBe(mine.geoBytes + mine.baseBytes);
-    expect(before.response.usedBytes).toBe(mine.totalBytes + before.response.otherBytes);
+    // PLAN.md steg M4: laserns resultat är återskapbart och räknas mot sin egen gräns, inte mot kartlagringens.
+    expect(before.response.usedBytes).toBe(mine.baseBytes + before.response.otherBytes);
+    expect(before.response.regenerable?.usedBytes).toBe(mine.geoBytes);
     const readers = await readOwnAccountStorage(db, reader.proof, later(5));
     expect(readers).toMatchObject({ status: "ok", response: { usedBytes: 0, projects: [], otherBytes: 0 } });
     expect(await readAccountStorageAsSuperadmin(db, reader.proof, owner.accountId, later(5))).toEqual({ status: "forbidden" });

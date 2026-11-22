@@ -21,5 +21,18 @@ export const accountStorageEn: AccountStorageTexts = {
   working: "Removing …",
   pruned: (runs: number, layers: number) => `${runs} ${runs === 1 ? "run" : "runs"} and ${layers} ${layers === 1 ? "base image" : "base images"} were removed. The space is freed within a day.`,
   pruneFailed: "The runs could not be removed.",
-  open: "Open"
+  open: "Open",
+  regenerable: {
+    title: "Regenerable base data",
+    summary: (usedMb: number, limitMb: number) => `${usedMb} of ${limitMb} MB used by laser runs and fetched images (orthophotos, soil moisture, Skogsstyrelsen, WMS).`,
+    help: (idleDays: number | null) => "When the limit is passed, what was used least recently is removed from the store at once. It can be regenerated: when you open the "
+      + "project the laser run is run again (not counted against the laser quota) and the images are fetched again. Base data in projects opened in the last "
+      + `3 days and the project's latest finished laser run are never removed for the limit.${idleDays === null ? "" : ` Anything unused for ${idleDays} days is also removed.`}`,
+    protected: (mb: number) => `Protected right now: ${mb} MB.`,
+    gone: (mb: number) => `Removed and can be regenerated: ${mb} MB.`,
+    next: "Removed next",
+    nextEmpty: "Nothing can be removed right now: everything is protected.",
+    columns: { what: "Base data", project: "Map project", size: "Size", used: "Last used" },
+    overLimit: (projects: readonly string[]) => `You have a lot of base data in ${projects.join(" and ")}. Remove older runs or ask the superadmin for more.`
+  }
 };

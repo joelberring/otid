@@ -54,9 +54,10 @@ export function MapProjectForestImagePanel({ view, layers, georeference, bounds,
     try {
       for (const product of FOREST_IMAGE_PRODUCTS.filter(item => chosen.has(item))) {
         const token = csrf();
+        const request = { formatVersion: 1 as const, box: areaBox(bounds!, georeference!, area).wgs84, product };
         const response = await fetch(`${mapProjectBase(view.projectId)}/sources/skogsstyrelsen`, { method: "POST", credentials: "same-origin", cache: "no-store",
           headers: { "content-type": "application/json", ...(token ? { "x-otid-csrf": token } : {}) },
-          body: JSON.stringify({ formatVersion: 1, box: areaBox(bounds!, georeference!, area).wgs84, product }) }).catch(() => undefined);
+          body: JSON.stringify(request) }).catch(() => undefined);
         if (!response?.ok) {
           const body = await response?.json().catch(() => undefined) as { error?: string } | undefined;
           // Ett lager som inte går att hämta hindrar inte de andra.
@@ -65,7 +66,9 @@ export function MapProjectForestImagePanel({ view, layers, georeference, bounds,
         }
         const world = decodeURIComponent(response.headers.get("x-otid-world") ?? "");
         const files = [new File([await response.blob()], "skogsstyrelsen.png", { type: "image/png" }), new File([world], "skogsstyrelsen.pgw", { type: "text/plain" })];
-        if (await layers.upload(files, text.name(text.products[product].toLowerCase(), area?.name), 3006)) added += 1;
+        // PLAN.md steg M4: samma anrop är receptet (underlaget blir återskapbart).
+        if (await layers.upload(files, text.name(text.products[product].toLowerCase(), area?.name), 3006, undefined,
+          { recipe: { source: "SKS_FOREST", request } })) added += 1;
       }
       setMessage(failed ? { tone: "error", text: `${added ? `${text.added(added)} ` : ""}${failed}` } : { tone: "ok", text: text.added(added) });
     } finally { setBusy(false); }

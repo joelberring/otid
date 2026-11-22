@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { MapProjectLayerList, MapProjectLayerView, MapProjectView } from "@o-tid/contracts";
+import type { LayerRecipe, MapProjectLayerList, MapProjectLayerView, MapProjectView } from "@o-tid/contracts";
 import type { MapGeoreference } from "@o-tid/map-file";
 import { clubRequest, csrf } from "../../lib/club-archive-client";
 import { cachedMapFile, layerImageCache } from "../../lib/map-file-cache";
@@ -13,6 +13,10 @@ import { hiddenLayers, LAYER_FETCHES, loadOrder, savedLayerChoices, saveLayerCho
 import { placeInBounds, worldFromMap } from "../../lib/map-project-control-points";
 import type { Bounds } from "../../lib/course-setting-viewport";
 import { inLanguage } from "../../lib/in-language";
+import { fetchRecipeImage, layerRecipeOf } from "../../lib/map-project-layer-recipe";
+
+/** PLAN.md steg M4: hur bilden hämtades (då är den återskapbar) och underlaget vars borttagna bild den ersätter. */
+export interface LayerAddOptions { readonly recipe?: LayerRecipe | undefined; readonly replaces?: string | undefined }
 
 /** Ett underlag att rita: bilden och transformen från bildens pixlar till kartans mm. */
 export interface DrawnLayer { readonly layerId: string; readonly image: ImageBitmap; readonly toMap: Affine; readonly opacity: number; readonly size?: { readonly width: number; readonly height: number } | undefined }
@@ -105,7 +109,7 @@ export function useMapProjectLayers(view: MapProjectView, georeference: MapGeore
   const drawn = useMemo(() => loaded.filter(layer => !hidden.has(layer.layerId)), [loaded, hidden]);
 
   /** Gör bilden klar (`prepare`) och lägger upp den som underlag. */
-  const add = useCallback(async (prepare: () => Promise<PreparedLayer>, name: string, reload = true): Promise<boolean> => {
+  const add = useCallback(async (prepare: () => Promise<PreparedLayer>, name: string, reload = true, options: LayerAddOptions = {}): Promise<boolean> => {
     setProblem(undefined);
     setBusy("preparing");
     try {
@@ -113,21 +117,29 @@ export function useMapProjectLayers(view: MapProjectView, georeference: MapGeore
       setBusy("uploading");
       const token = csrf();
       if (!token) { setProblem(401); return false; }
-      const send = (bytes: Blob, title: string) => fetch(`${base}/layers`, { method: "POST", credentials: "same-origin", cache: "no-store", body: bytes,
+      const send = (bytes: Blob, title: string, main: boolean) => fetch(`${base}/layers`, { method: "POST", credentials: "same-origin", cache: "no-store", body: bytes,
         headers: { "content-type": "application/octet-stream", "x-otid-csrf": token, "x-otid-request-id": crypto.randomUUID(),
           "x-otid-name": encodeURIComponent(title.slice(0, 80)),
-          "x-otid-layer": encodeURIComponent(JSON.stringify({ crs: prepared.crs, transform: prepared.transform })) } });
+          "x-otid-layer": encodeURIComponent(JSON.stringify({ crs: prepared.crs, transform: prepared.transform })),
+          // Falskfärgsbilden har inget eget recept (receptet ger huvudbilden).
+          ...(main && options.recipe ? { "x-otid-recipe": encodeURIComponent(JSON.stringify(options.recipe)) } : {}),
+          ...(main && options.replaces ? { "x-otid-replaces": options.replaces } : {}) } });
       const title = name.trim() || prepared.name;
-      const response = await send(prepared.bytes, title);
+      const response = await send(prepared.bytes, title, true);
       // Ägaren 2026-11-17: ett ortofoto med nära infrarött får också sin falskfärgsbild som eget underlag (samma läge).
-      if ((response.status === 200 || response.status === 201) && prepared.infrared) {
-        await send(prepared.infrared.bytes, `${title.slice(0, 80 - IR_LAYER_SUFFIX.length)}${IR_LAYER_SUFFIX}`).catch(() => undefined);
+      if ((response.status === 200 || response.status === 201) && prepared.infrared && !options.replaces) {
+        await send(prepared.infrared.bytes, `${title.slice(0, 80 - IR_LAYER_SUFFIX.length)}${IR_LAYER_SUFFIX}`, false).catch(() => undefined);
       }
       if (response.status === 200 || response.status === 201) {
         // Ägaren 2026-11-19: underlag är släckta från början, men det man själv just lagt till tänds (bara huvudbilden, inte IR-bilden).
         const created = await response.json().catch(() => undefined) as { layer?: { layerId?: string } } | undefined;
         const layerId = created?.layer?.layerId;
-        if (layerId) setChoices(current => { const next = { ...current, [layerId]: true }; saveLayerChoices(view.projectId, next); return next; });
+        if (layerId && !options.replaces) setChoices(current => { const next = { ...current, [layerId]: true }; saveLayerChoices(view.projectId, next); return next; });
+        if (options.replaces) {
+          // Den återskapade bilden har ett nytt innehåll: hämtas igen.
+          asked.current.delete(options.replaces);
+          setImages(current => { const next = new Map(current); next.get(options.replaces!)?.close(); next.delete(options.replaces!); return next; });
+        }
         if (reload) await load();
         return true;
       }
@@ -141,11 +153,11 @@ export function useMapProjectLayers(view: MapProjectView, georeference: MapGeore
     } finally { setBusy(undefined); }
   }, [base, load, view.projectId]);
   /** K6b: en bild utan georeferens läggs mitt i `area` (kartans mm) i kartans koordinatsystem och rättas sedan med passpunkter. */
-  const upload = useCallback((files: readonly File[], name: string, fallbackCrs: number | undefined, area?: Bounds) => {
+  const upload = useCallback((files: readonly File[], name: string, fallbackCrs: number | undefined, area?: Bounds, options?: LayerAddOptions) => {
     const mapCrs = georeference?.crs.kind === "EPSG" ? georeference.crs.code : undefined;
     const place: Placement | undefined = georeference && area && mapCrs !== undefined
       ? (width, height) => ({ crs: mapCrs, transform: worldFromMap(placeInBounds(width, height, area), width, height, georeference) }) : undefined;
-    return add(() => prepareLayer(files, fallbackCrs, place), name);
+    return add(() => prepareLayer(files, fallbackCrs, place), name, true, options);
   }, [add, georeference]);
 
   /** K6b: ny georeferens ur passpunkterna (bildens pixlar → kartans mm), sparad i kartans koordinatsystem. */
@@ -159,8 +171,26 @@ export function useMapProjectLayers(view: MapProjectView, georeference: MapGeore
     return true;
   }, [layers, georeference, base]);
   /** K4c: en del av en bild på nätet (ortofoto genom serverns `asset`-anrop) för rutan (kartans mm). */
-  const addRemote = useCallback((url: string, area: Bounds, name: string, reload: boolean) => georeference
-    ? add(() => prepareRemoteLayer(url, area, georeference, name), name, reload) : Promise.resolve(false), [add, georeference]);
+  const addRemote = useCallback((url: string, area: Bounds, name: string, reload: boolean, options?: LayerAddOptions) => georeference
+    ? add(() => prepareRemoteLayer(url, area, georeference, name), name, reload, options) : Promise.resolve(false), [add, georeference]);
+
+  /**
+   * PLAN.md steg M4: hämtar om ett underlag vars bild tagits bort ur förrådet, med receptet (samma källa, ruta och parametrar), och
+   * ersätter bilden i samma underlag. Underlag från en laserkörning återskapas med körningen (`useMapProjectRegenerable`).
+   */
+  const regenerate = useCallback(async (layer: MapProjectLayerView): Promise<boolean> => {
+    const recipe = layerRecipeOf(layer.recipe);
+    if (!recipe || !georeference) return false;
+    const options = { recipe, replaces: layer.layerId };
+    if (recipe.source === "LM_ORTHO") {
+      return add(() => prepareRemoteLayer(`${base}/sources/lantmateriet/asset?href=${encodeURIComponent(recipe.href)}`, recipe.area, georeference, layer.name),
+        layer.name, false, options);
+    }
+    return add(async () => {
+      const fetched = await fetchRecipeImage(base, recipe);
+      return prepareLayer(fetched.files, fetched.crs);
+    }, layer.name, false, options);
+  }, [add, base, georeference]);
 
   /** Genomskinligheten ändras direkt på kartan; `save` skickar den (när reglaget släpps). */
   const setOpacity = useCallback(async (layerId: string, opacity: number, save: boolean) => {
@@ -204,6 +234,6 @@ export function useMapProjectLayers(view: MapProjectView, georeference: MapGeore
 
   // Listan visas med det översta först.
   const listed = useMemo(() => [...layers].sort((a, b) => b.sort - a.sort || b.createdAt.localeCompare(a.createdAt)), [layers]);
-  return { layers: listed, hidden, toggle, setShown, drawn, loaded, loadHidden, upload, addRemote, addPrepared: add, placeLayer, reload: load, busy, problem, setProblem, setOpacity, remove, move,
+  return { layers: listed, hidden, toggle, setShown, drawn, loaded, loadHidden, upload, addRemote, addPrepared: add, regenerate, placeLayer, reload: load, busy, problem, setProblem, setOpacity, remove, move,
     canAdd: view.viewer.canPropose, canReorder: view.viewer.canDecide, canManage: (layer: MapProjectLayerView) => layer.own || view.viewer.canDecide };
 }

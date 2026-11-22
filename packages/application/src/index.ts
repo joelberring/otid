@@ -103,6 +103,9 @@ export { activeMapStore, setMapStoreMode, storeMode, storeModeProblems } from ".
 export type { StoreMode } from "./map-store";
 export { mapCacheCapBytes, mapCacheDir, setMapCacheDir, startMapCacheSweep, sweepMapCache, usableMapCacheDir } from "./map-cache";
 export { pinStatus, pinWindowDays, runPinRound } from "./map-pin";
+export { enforceRegenerableQuota, markLaserOutputsRegenerable, runRegenerableRound } from "./map-regenerable";
+export type { RegenerableRoundResult } from "./map-regenerable";
+export { projectRegenerableMissing, regenerateGeoJob } from "./map-project-regenerate";
 export { categoryOf, orderMigrateCandidates, planMapMigration, reconcileStoredContent, runMapMigration } from "./map-store-migrate";
 export type { MigrateCandidate, MigrateCategory } from "./map-store-migrate";
 export {

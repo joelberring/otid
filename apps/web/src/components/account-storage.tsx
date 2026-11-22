@@ -77,6 +77,29 @@ export function AccountStorageSection({ url, id, canPrune, title }: { url: strin
             <td className={numeric}>{text.mb(storage.otherBytes)}</td><td />{canPrune && <td />}</tr>}
         </tbody>
       </Table>}
+      {storage.regenerable && <RegenerablePart regenerable={storage.regenerable} />}
     </>}
   </Section>;
+}
+
+/** PLAN.md steg M4: gränsen för återskapbart och vad som tas bort härnäst (äldst använt först). */
+function RegenerablePart({ regenerable }: { regenerable: NonNullable<AccountStorage["regenerable"]> }) {
+  const text = useTexts(accountStorageSv, accountStorageEn);
+  const locale = useLocale();
+  const part = text.regenerable;
+  const mb = (bytes: number) => Math.round(bytes / 1048576);
+  return <div data-testid="account-storage-regenerable">
+    <h3>{part.title}</h3>
+    <p>{part.summary(mb(regenerable.usedBytes), mb(regenerable.limitBytes))} {part.protected(mb(regenerable.protectedBytes))}
+      {regenerable.goneBytes > 0 && ` ${part.gone(mb(regenerable.goneBytes))}`}</p>
+    <p className={styles.muted}>{part.help(regenerable.idleDays)}</p>
+    {regenerable.overLimitProjects.length > 0 && <Notice tone="attention">{part.overLimit(regenerable.overLimitProjects)}</Notice>}
+    <h4>{part.next}</h4>
+    {regenerable.next.length === 0 ? <p>{part.nextEmpty}</p> : <Table aria-label={part.next}>
+      <thead><tr><th>{part.columns.what}</th><th>{part.columns.project}</th><th>{part.columns.size}</th><th>{part.columns.used}</th></tr></thead>
+      <tbody>{regenerable.next.map((item, index) => <tr key={index}>
+        <th scope="row">{item.label}</th><td>{item.projectName ?? "–"}</td><td className={numeric}>{text.mb(item.bytes)}</td>
+        <td className={styles.nowrap}>{new Date(item.lastUsedAt).toLocaleDateString(locale)}</td></tr>)}</tbody>
+    </Table>}
+  </div>;
 }

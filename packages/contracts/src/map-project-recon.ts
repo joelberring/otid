@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { uuidSchema } from "./ids";
+import { layerRecipeSchema, type StoredRecipe } from "./map-regenerable";
 
 /**
  * ADR-0219 tillägget om rekningen (K3): GPS-spår, bekräftade objekt ("kollat") och projektets inställningar för rekningen.
@@ -120,7 +121,11 @@ const affine = z.object({ a: finite, b: finite, c: finite, d: finite, e: finite,
   .refine(value => Math.abs(value.a * value.e - value.b * value.d) > 1e-18, { message: "Transformen går inte att vända" });
 export const mapProjectLayerMetadataSchema = z.object({
   formatVersion: z.literal(1), requestId: uuidSchema, name: z.string().trim().min(1).max(80),
-  crs: z.number().int().min(1).max(999_999), transform: affine
+  crs: z.number().int().min(1).max(999_999), transform: affine,
+  /** PLAN.md steg M4: hur bilden hämtades (då är den återskapbar och räknas mot kontots gräns för återskapbart). */
+  recipe: layerRecipeSchema.optional(),
+  /** PLAN.md steg M4: underlaget vars borttagna bild ersätts (återskapad med receptet); namn, genomskinlighet och ordning står kvar. */
+  replaces: uuidSchema.optional()
 }).strict();
 export const mapProjectLayerUpdateRequestSchema = z.object({
   formatVersion: z.literal(1), name: z.string().trim().min(1).max(80).optional(), opacity: z.number().finite().min(0).max(1).optional(),
@@ -140,6 +145,10 @@ export interface MapProjectLayerView {
   layerId: string; name: string; mediaType: MapProjectLayerMediaType; width: number; height: number; crs: number;
   transform: { a: number; b: number; c: number; d: number; e: number; f: number }; opacity: number; sort: number; sha256: string; byteLength: number;
   createdBy: { accountId: string; name: string | null }; own: boolean; createdAt: string;
+  /** PLAN.md steg M4: bilden har tagits bort ur förrådet och kan återskapas med receptet (saknas i äldre svar = finns). */
+  missing?: boolean;
+  /** Receptet ur registret när underlaget går att återskapa (källa och parametrar); null = eget underlag. */
+  recipe?: StoredRecipe | null;
 }
 export interface MapProjectLayerList { formatVersion: 1; layers: MapProjectLayerView[] }
 

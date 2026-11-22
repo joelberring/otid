@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { UUID_SOURCE as canonicalUuidPattern } from "./ids";
+import { accountRegenerableSchema } from "./map-regenerable";
 
 /** PLAN.md steg L2–L3 (ägaren 2026-11-13): vad kontots kartlagring består av, per kartprojekt och slag. */
 const uuid = z.string().regex(new RegExp(`^${canonicalUuidPattern}$`));
@@ -28,7 +29,9 @@ export const accountStorageSchema = z.object({
   /** Störst först, högst 100. */
   projects: z.array(accountStorageProjectSchema).max(100),
   /** Det som inte hör till ett kartprojekt: klubbarkivet, tävlingars och träningars kartor. */
-  otherBytes: bytes
+  otherBytes: bytes,
+  /** PLAN.md steg M4: återskapbart underlag (laserkörningar, hämtade bilder) räknas mot en egen gräns; saknas i äldre svar. */
+  regenerable: accountRegenerableSchema.optional()
 }).strict();
 
 export const geoJobPruneResponseSchema = z.object({

@@ -15,9 +15,9 @@ import { logServerError } from "./server-error-log";
 type Environment = ClubEnvironment;
 const validId = (id: string) => UUID_PATTERN.test(id);
 
-/** `x-otid-layer` är procentkodad JSON med `crs` och `transform`. */
-function layerHeader(request: Request): unknown {
-  const raw = headerText(request, "x-otid-layer", 2000);
+/** `x-otid-layer` är procentkodad JSON med `crs` och `transform` (PLAN.md steg M4: `x-otid-recipe` med receptet, samma form). */
+function layerHeader(request: Request, name = "x-otid-layer", max = 2000): unknown {
+  const raw = headerText(request, name, max);
   if (!raw) return undefined;
   try { return JSON.parse(raw) as unknown; } catch { return undefined; }
 }
@@ -38,8 +38,9 @@ export async function mapProjectLayersRoute(db: Database, request: Request, proj
   if (request.headers.get("content-type") !== "application/octet-stream" || !request.body) return failure("invalid-request");
   if (!validDeclaredLength(request, MAP_PROJECT_LAYER_MAX_BYTES)) return problem("MAP_FILE_TOO_LARGE");
   const layer = layerHeader(request) as { crs?: unknown; transform?: unknown } | undefined;
+  const recipe = layerHeader(request, "x-otid-recipe", 4000), replaces = headerText(request, "x-otid-replaces", 64);
   const metadata = { formatVersion: 1, requestId: headerText(request, "x-otid-request-id", 64) ?? "", name: headerText(request, "x-otid-name", 80) ?? "",
-    crs: layer?.crs, transform: layer?.transform };
+    crs: layer?.crs, transform: layer?.transform, ...(recipe !== undefined ? { recipe } : {}), ...(replaces ? { replaces } : {}) };
   const unauthenticated = await requireStreamSession(db, input.proof);
   if (unauthenticated) return unauthenticated;
   const body = request.body;

@@ -80,6 +80,7 @@ export const superadminEn: Texts<typeof superadminSv> = {
   regenerableQuotaField: (defaultMb: number) => `Regenerable content in MB, for example laser runs and fetched underlays (empty = the default ${defaultMb})`,
   cacheMaxField: (defaultMb: number) => `Cache limit in MB (empty = the default ${defaultMb})`,
   pinMaxField: (defaultMb: number) => `Limit for pinned race maps in MB (empty = the default ${defaultMb})`,
+  idleDaysField: (defaultDays: number) => `Regenerable base data is removed from the store after this many days unused (empty = the default ${defaultDays}, 0 = never)`,
   totalQuotaField: (defaultMb: number | null) => `Total map storage in MB, 0 = no limit (empty = the default${defaultMb === null ? ", no limit" : ` ${defaultMb}`})`,
   installation: {
     title: "The installation",
@@ -100,6 +101,9 @@ export const superadminEn: Texts<typeof superadminSv> = {
     pinnedMissingToday: (count: number, mb: number) => `A race today is missing ${count} map items (${mb} MB) in the cache. They will then be read from the store over the network. See the log ("Fastspikningen") and check the connection to object storage.`,
     pinnedOverLimit: (mb: number, limitMb: number) => `The pinned content (${mb} MB) is over the limit of ${limitMb} MB. Everything is pinned anyway (the race comes first); raise the limit or make sure the disk is large enough.`,
     total: "Total map storage",
+    idle: "Regenerable, unused",
+    idleUse: (days: number, isDefault: boolean) => days === 0 ? "Never removed for being unused"
+      : `Removed from the store after ${days} days unused${isDefault ? " (the default)" : ""}; laser runs and fetched images are made again from their recipe`,
     totalUse: (usedMb: number, limitMb: number | null, isDefault: boolean) =>
       `${usedMb} MB${limitMb === null ? " (no limit)" : ` of ${limitMb} MB`}${isDefault ? " (default)" : ""}`,
     change: "Change the installation's limits",

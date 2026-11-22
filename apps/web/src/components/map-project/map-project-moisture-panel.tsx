@@ -35,9 +35,10 @@ export function MapProjectMoisturePanel({ view, layers, georeference, bounds, ar
     setBusy(true); setMessage(undefined);
     try {
       const token = csrf();
+      const request = { formatVersion: 1 as const, box: areaBox(bounds!, georeference!, area).wgs84 };
       const response = await fetch(`${mapProjectBase(view.projectId)}/sources/markfuktighet`, { method: "POST", credentials: "same-origin", cache: "no-store",
         headers: { "content-type": "application/json", ...(token ? { "x-otid-csrf": token } : {}) },
-        body: JSON.stringify({ formatVersion: 1, box: areaBox(bounds!, georeference!, area).wgs84 }) }).catch(() => undefined);
+        body: JSON.stringify(request) }).catch(() => undefined);
       if (!response?.ok) {
         const body = await response?.json().catch(() => undefined) as { error?: string } | undefined;
         setMessage({ tone: "error", text: body?.error && body.error in problems ? problems[body.error]! : mapSourcesText.laser.problems.generic(response?.status ?? 0) });
@@ -46,7 +47,8 @@ export function MapProjectMoisturePanel({ view, layers, georeference, bounds, ar
       const world = decodeURIComponent(response.headers.get("x-otid-world") ?? "");
       const crs = Number(response.headers.get("x-otid-crs") ?? 3006);
       const files = [new File([await response.blob()], "markfuktighet.png", { type: "image/png" }), new File([world], "markfuktighet.pgw", { type: "text/plain" })];
-      if (await layers.upload(files, text.name(area?.name), crs)) setMessage({ tone: "ok", text: text.added });
+      // PLAN.md steg M4: samma anrop är receptet (underlaget blir återskapbart).
+      if (await layers.upload(files, text.name(area?.name), crs, undefined, { recipe: { source: "SLU_MOISTURE", request } })) setMessage({ tone: "ok", text: text.added });
     } finally { setBusy(false); }
   }
 

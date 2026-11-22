@@ -110,6 +110,39 @@ superadmin, flera superadmin, automatisk rensning av docker-avbildningar.
   "Efter flytten: frigör databasens utrymme"). Inget pg_repack (ett beroende till för en engångsåtgärd).
 - Kvar: med träningar nästan varje dag kan tävlingsdygnet stoppa flytten flera nätter i rad; då `migrate-now` en dag utan.
 
+## Tillägg 2026-11-22 (M4): recept för återskapbart underlag och kontots gräns (PLAN.md steg M4, migration 0138)
+
+- **Registret** (`map_content`) får `recipe` (källa, ruta eller område, datum, parametrar; `StoredRecipe` i contracts, högst 4 kB) och
+  `evicted_at`, och `stored_in` får värdet `'GONE'`: raden, referenserna och receptet står kvar men innehållet finns inte längre.
+  Återskapbart är Karttapullautins resultatfiler (receptet är körningen: rutor, klippruta, inställningar, skanningens datum; inte
+  `indata.*` och inte DWG) och hämtade bilder som underlag: ortofoton från Lantmäteriet (bilden och rutan i kartans mm),
+  markfuktigheten (SLU), Skogsstyrelsens kartbilder och WMS (samma anrop som första gången). Egna uppladdningar, kurvbilder ur
+  höjden, falskfärgsbilden och NMD/SGU/OSM (sparas inte som innehåll) har inget recept. Laserresultat från före M4 får sitt recept
+  av förrådets löpare (högst 500 per varv), om inget annat än kartprojektens körningar pekar på dem.
+- **Kvoterna:** återskapbart räknas mot `regenerable_quota_mb` (förval 10 240 MB) och inte längre mot kartlagringens gräns; det
+  nekar aldrig ett sparande. Det som är 'GONE' räknas inte alls (inte heller i installationens totalgräns). Samma innehåll
+  uppladdat som eget blir inte återskapbart.
+- **Gränsen passeras:** direkt efter sparandet (laserns resultatfiler, högst var 30:e sekund per konto och alltid när körningen är
+  klar; ett hämtat underlag) tas det som använts minst nyligen bort ur förrådet tills kontot är under gränsen; förrådets löpare
+  prövar alla konton var 5:e minut. Senast använt = det senare av `last_used_at` (eller när innehållet skapades) och när ett
+  projekt som pekar på det senast öppnades. Under radlåset prövas villkoren igen; raden blir 'GONE', objektet tas bort ur förrådet
+  efter transaktionen (misslyckas det tar den timvisa städningen det, arkivets rad är märkt) och filen ur mellanlagret.
+- **Skydd:** underlag i projekt öppnade de senaste 3 dygnen, projektets senaste klara laserkörning (alla etapper i en delad),
+  resultat från körningar som inte är klara och innehåll som en tävling, träning eller klubbarkivet pekar på. Bara innehåll i
+  förrådet tas bort (det i databasen flyttas först, M3). Räcker skyddet inte (det skyddade ensamt över gränsen) säger O-Tid det
+  i stället, i projektet och på kontosidan: «Du har mycket underlag i X och Y. Ta bort äldre körningar eller be superadmin om mer.»
+- **Orört:** återskapbart som är orört `regenerable_idle_days` dagar (installationsinställning på superadminsidan, förval 90, 0 =
+  av) tas bort ur förrådet, utom i projekt öppnade de senaste 3 dygnen. Projektets senaste körning skyddas inte av den regeln
+  (den kostar lagring fast ingen använder den, och den kan köras om).
+- **Tävlingsdygnet** (ADR-0178): ingen automatisk borttagning, varken för gränsen eller för orört.
+- **Återskapa:** när projektet öppnas visar O-Tid vad som saknas och «Återskapa». En laserkörning körs om (`regenerates` i
+  begäran, samma begäran via «Kör om») på det egna kontots uppgifter till Lantmäteriet och räknas inte mot laserkvoten; när den
+  är klar (efter sammanläggningen för en delad) tar den över den gamla körningens underlag (samma id, namn, genomskinlighet,
+  ordning) och den gamla körningen tas bort. En hämtad bild hämtas om i webbläsaren med receptet och ersätter bilden i samma
+  underlag (`replaces`). Blir bytena desamma får det gamla innehållet tillbaka sin plats i förrådet.
+- Kvar: en återställd äldre dump där innehållet ännu var 'STORE' pekar på objekt som tagits bort; läsningen ger då ett fel i stället
+  för «kan återskapas». En äldre kodversion (tillbakagång) läser 'GONE' som innehåll utan delar.
+
 ## Följder
 
 - Med läget på blir objektlagringen en beroendepunkt för nytt innehåll: utan anslutning misslyckas en uppladdning (med ett

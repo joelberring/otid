@@ -310,6 +310,7 @@ export * from "./club-devices";
 export * from "./club-planning";
 export * from "./training-moments";
 export * from "./map-project-recon";
+export * from "./map-regenerable";
 export * from "./map-project-work-layers";
 export * from "./geo-jobs";
 export * from "./map-project-wms";

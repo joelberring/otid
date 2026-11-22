@@ -8,6 +8,7 @@ import { MAX_RENDER_SIDE } from "./course-setting-map-protocol";
 import { builtPolygons, FIELD_MAINS } from "@o-tid/map-revision/base-map";
 import { proposeAreas } from "./map-project-area-proposals";
 import { fillFinder, type FillResult } from "./map-project-fill-area";
+import { underChanges } from "./map-project-fill-under";
 import { buildSnapIndex, snapTransfer } from "./map-project-snap";
 import { findUnfilled } from "./map-project-unfilled";
 import { symbolGroup, type CatalogSymbol, type MapProjectRequest, type MapProjectResponse, type ProjectHit } from "./map-project-protocol";
@@ -296,7 +297,10 @@ self.onmessage = (event: MessageEvent<MapProjectRequest>) => {
     const result: FillResult = current
       ? findFill({ objects: current.map.objects, boxes: current.boxes, symbols: current.map.symbols, scale: current.map.scale }, request.query)
       : { status: "open", gaps: [] };
-    post({ type: "fill", id: request.id, result, covered: result.status === "found" && result.covered ? hitOf(result.covered.index, 0) : undefined });
+    const under = current && result.status === "found" && request.query.clearUnder
+      ? underChanges({ objects: current.map.objects, boxes: current.boxes, keys: current.keys, refs, symbols: current.map.symbols }, result.rings) : undefined;
+    post({ type: "fill", id: request.id, result, covered: result.status === "found" && result.covered ? hitOf(result.covered.index, 0) : undefined,
+      ...(under?.length ? { under } : {}) });
     return;
   }
   if (request.type === "snapIndex") {

@@ -12,6 +12,8 @@ import { useLocale, useTexts } from "../language-provider";
 import { useMapProjectAreaProposals } from "./use-map-project-area-proposals";
 import type { ObjectChange } from "./use-map-project-editor";
 import { insideRings, useMapProjectFillCells } from "./use-map-project-fill-cells";
+import { BUILT_MAINS } from "@o-tid/map-revision/base-map";
+import type { UnderChange } from "../../lib/map-project-fill-under";
 
 type Found = Extract<FillResult, { status: "found" }>;
 
@@ -84,9 +86,31 @@ export function useMapProjectFill(input: { session: MapProjectSession | undefine
     if (hovering.current.waiting) { hovering.current.next = point; hovering.current.exact = exact; } else ask(point, exact);
   }
 
-  function add(rings: readonly (readonly Point[])[]): boolean {
-    return !!symbol && input.commit({ key: newKey(crypto.randomUUID()), ref: null, kind: "ADD", after: { kind: "OBJECT", object: fillObject(symbol.id, rings) } });
+  /**
+   * Ytan som en ändring. Ägaren 2026-11-22 («berg hamnar ovanpå kvartersmark»): för tomtmark, hårdgjord yta och byggnad tas
+   * markens detaljer och vegetationen under ytan bort eller klipps i samma grupp, så att Ångra tar tillbaka allt på en gång.
+   */
+  function add(rings: readonly (readonly Point[])[], under: readonly UnderChange[] = []): boolean {
+    if (!symbol) return false;
+    const area: ObjectChange = { key: newKey(crypto.randomUUID()), ref: null, kind: "ADD", after: { kind: "OBJECT", object: fillObject(symbol.id, rings) } };
+    if (under.length === 0) return input.commit(area);
+    const group = crypto.randomUUID(), point = rings[0]?.[0];
+    const changes: ObjectChange[] = [{ ...area, group }];
+    for (const change of under) {
+      const [first, ...rest] = change.objects;
+      changes.push(first ? { key: change.key, ref: change.ref, kind: "RESHAPE", after: { kind: "OBJECT", object: first }, group }
+        : { key: change.key, ref: change.ref, kind: "DELETE", after: { kind: "DELETED" }, point, group });
+      for (const object of rest) changes.push({ key: newKey(crypto.randomUUID()), ref: null, kind: "ADD", after: { kind: "OBJECT", object }, group });
+    }
+    const done = input.commitMany(changes) > 0;
+    if (done) cleared.current = under.length;
+    return done;
   }
+  /** Hur många objekt under den senaste ytan som togs bort eller klipptes (för beskedet). */
+  const cleared = useRef(0);
+  /** Det som ska bort under ytan som väntar på ett andra klick. */
+  const pendingUnder = useRef<readonly UnderChange[]>([]);
+  const clearUnder = !!symbol && BUILT_MAINS.has(Number(symbol.code.split(".")[0]));
 
   /** De samlade rutorna som en yta (när Workern svarat på det som är ute). */
   function commitCells() {
@@ -118,10 +142,10 @@ export function useMapProjectFill(input: { session: MapProjectSession | undefine
     const touch = pointer.pointerType === "touch";
     if (pointer.free || (touch && cellsMode)) { addCell(point, touch); return; }
     if (cells.cells.count > 0 || cells.busy()) { hovering.current = { waiting: false, next: undefined }; cells.add(point); commitCells(); return; }
-    if (pending && insideRings(pending.rings, point)) { setPending(undefined); report(pending, add(pending.rings)); return; }
+    if (pending && insideRings(pending.rings, point)) { setPending(undefined); report(pending, add(pending.rings, pendingUnder.current)); return; }
     filling.current = true;
     hovering.current = { waiting: false, next: undefined };
-    session.fill({ point, hidden: input.hidden, diagnose: true, gapM, exact }, (result, covered) => {
+    session.fill({ point, hidden: input.hidden, diagnose: true, gapM, exact, clearUnder }, (result, covered, under) => {
       filling.current = false;
       setPreview(undefined); setBridges([]); setPending(undefined);
       if (result.status === "open") {
@@ -139,16 +163,19 @@ export function useMapProjectFill(input: { session: MapProjectSession | undefine
       }
       if (result.approx || touch) {
         setPending(result);
+        pendingUnder.current = under ?? [];
         input.say(result.approx ? text.approx(touch) : text.confirm(symbol.code, squareMeters(result.areaM2)));
         return;
       }
-      report(result, add(result.rings));
+      report(result, add(result.rings, under ?? []));
     });
   }
 
   function report(result: Found, ok: boolean) {
     if (!symbol) return;
-    input.say(ok ? text.done(symbol.code, squareMeters(result.areaM2), result.closed, bridgeSummary(result.bridges)) : text.notSaved);
+    const removed = cleared.current;
+    cleared.current = 0;
+    input.say(ok ? [text.done(symbol.code, squareMeters(result.areaM2), result.closed, bridgeSummary(result.bridges)), removed ? text.clearedUnder(removed) : ""].filter(Boolean).join(" ") : text.notSaved);
   }
 
   /** Bryggorna i beskedet, t.ex. «1 hörn slutet (3,1 m + 2,2 m)». */

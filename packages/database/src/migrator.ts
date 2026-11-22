@@ -3,6 +3,9 @@ import { join } from "node:path";
 import { readMigrationFiles } from "drizzle-orm/migrator";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { sql } from "drizzle-orm";
+import type { Pool } from "pg";
+
+const LOCK_POLL_MS = 250;
 
 export interface MigrateOptions {
   readonly migrationsFolder: string;
@@ -56,9 +59,34 @@ type AppliedRow = { id: number; hash: string; created_at: string | number | null
  * som körd om tabellen har dess tagg, eller (rader från före steg 44, utan
  * tagg) dess `when` i `created_at` eller dess hash. Sådana äldre rader får
  * taggen ifylld. Hashen räcker inte ensam: baslinjen ändrades i steg 28.
+ *
+ * Ett samtidigt index (`CREATE INDEX CONCURRENTLY`) byggs före filens transaktion och kan därför inte bero på en tabell eller
+ * kolumn som samma fil skapar; lägg det i en egen, senare migration.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function migrate(db: NodePgDatabase<any>, options: MigrateOptions): Promise<void> {
+  // Granskningen 2026-11-22 (2.9): två containrar som startar samtidigt får inte migrera samtidigt (samma migration två gånger,
+  // och ett `CREATE INDEX CONCURRENTLY` hos den ena kan dödläsa mot den andras DDL). Ett sessionslås på en egen anslutning hålls
+  // under hela körningen; den som kommer sist väntar och ser sedan att allt redan är bokfört.
+  const pool = (db as unknown as { $client?: Pool }).$client;
+  if (!pool || typeof pool.connect !== "function") return migrateUnlocked(db, options);
+  const lock = await pool.connect();
+  try {
+    // Väntan görs med korta försök, inte med `pg_advisory_lock`: en blockerad sats håller en ögonblicksbild som den andras
+    // `CREATE INDEX CONCURRENTLY` väntar på, och då väntar båda på varandra.
+    for (;;) {
+      const { rows } = await lock.query<{ locked: boolean }>("select pg_try_advisory_lock(hashtext('otid.migrations')) as locked");
+      if (rows[0]?.locked) break;
+      await new Promise((resolve) => setTimeout(resolve, LOCK_POLL_MS));
+    }
+    await migrateUnlocked(db, options);
+  } finally {
+    try { await lock.query("select pg_advisory_unlock(hashtext('otid.migrations'))"); } finally { lock.release(); }
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function migrateUnlocked(db: NodePgDatabase<any>, options: MigrateOptions): Promise<void> {
   const migrations = readMigrationFiles({ migrationsFolder: options.migrationsFolder });
   const journal = readMigrationJournal(options.migrationsFolder);
   if (journal.length !== migrations.length) throw new Error("Migrationsjournalen kunde inte läsas");

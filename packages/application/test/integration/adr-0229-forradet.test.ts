@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdtemp, readdir, rm, stat } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -13,7 +13,10 @@ import { cachePath, forgetMapCacheCap, mapCacheCapBytes, readStoredMapContentHea
 import { removeArchiveOrphans } from "../../src/map-archive";
 import { performSuperadminAction, readSuperadminOverview, setSuperadmin } from "../../src/superadmin";
 import { loginUserAccount } from "../../src/user-account";
-import { registerTestAccount } from "./accounts";
+import { createOrganizerEvent } from "../../src/organizer-events";
+import { saveRaceMapSourceAsAdmin } from "../../src/race-map-source";
+import { exportRaceAsAdmin } from "../../src/race-export";
+import { accountOnRace, registerTestAccount } from "./accounts";
 
 /**
  * ADR-0229 (PLAN.md steg M1): förrådet och mellanlagret. Med läget på laddas nytt innehåll upp och kontrolleras innan det
@@ -250,6 +253,43 @@ describe("ADR-0229 M1: förrådet och mellanlagret", () => {
     await rm(cachePath(cacheDir, sha));
     expect((await readStoredMapContentHead(db, sha, bytes.byteLength, 1000)).equals(bytes.subarray(0, 1000))).toBe(true);
     expect(heads).toEqual([1000]);
+  });
+
+  it("granskningen runda 2 (A, B): tävlingens kartfil och bild laddas upp utanför transaktionen, och säkerhetskopian hämtar dem efter sin", async () => {
+    const store = storeOn();
+    const account = await registerTestAccount(db, undefined, NOW);
+    const created = await createOrganizerEvent(db, { ...account.proof, idempotencyKey: `organizer-event-create:${randomUUID()}`,
+      readBody: async () => ({ formatVersion: 1, eventName: "Förrådet", raceName: "Torsdag", raceDate: "2026-12-29",
+        timeZone: "Europe/Stockholm", raceType: "STANDARD" }) });
+    if (created.status !== "created") throw new Error(created.status);
+    const entered = await accountOnRace(db, { ...account.proof, raceId: created.response.raceId });
+    if (entered.status !== "authenticated") throw new Error(entered.status);
+    const proof = { raceId: created.response.raceId, sessionToken: entered.sessionToken, csrfCookie: entered.csrfToken, csrfHeader: entered.csrfToken };
+    const omap = new Uint8Array(await readFile(new URL("../../../../fixtures/maps/kartfil.omap", import.meta.url)));
+    const image = new Uint8Array(64);
+    image.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]);
+    new DataView(image.buffer).setUint32(16, 992); new DataView(image.buffer).setUint32(20, 832);
+    const openTransactions = async () => Number((await db.execute<{ n: string }>(sql`select count(*)::text as n from pg_stat_activity
+      where datname = current_database() and state like 'idle in transaction%'`)).rows[0]!.n);
+    const during: number[] = [];
+    setMapArchiveStore({ ...store,
+      put: async (sha, bytes) => { during.push(await openTransactions()); await store.put(sha, bytes); },
+      download: async (sha, path) => { during.push(await openTransactions()); return store.download(sha, path); } });
+    expect(await saveRaceMapSourceAsAdmin(db, { ...proof, file: omap, fileName: "kartfil.omap", image, metadata: { formatVersion: 1, format: "OMAP",
+      version: "Mapper v9", scale: 10_000, bounds: { minX: 0, minY: 0, maxX: 120, maxY: 100 }, georeference: null,
+      render: { pxPerMm: 8, originX: -2, originY: 102 }, summary: { objectCount: 11, warnings: [], simplifications: [] }, tiePoints: null },
+      quota })).toEqual({ status: "ok", georeferenced: false });
+    expect(during).toEqual([0, 0]);
+    expect(await row(hashOf(omap))).toMatchObject({ stored_in: "STORE" });
+    expect(await row(hashOf(image))).toMatchObject({ stored_in: "STORE" });
+
+    // Utan filerna i mellanlagret hämtar säkerhetskopian dem ur förrådet, efter sin transaktion.
+    await rm(cachePath(cacheDir, hashOf(omap)));
+    await rm(cachePath(cacheDir, hashOf(image)));
+    const exported = await exportRaceAsAdmin(db, proof, NOW);
+    if (exported.status !== "ok") throw new Error(exported.status);
+    expect(during).toEqual([0, 0, 0, 0]);
+    expect(exported.manifest.files.map(entry => entry.sha256).sort()).toEqual([hashOf(omap), hashOf(image)].sort());
   });
 
   it("superadmin sätter installationens gränser och kontots gräns för återskapbart, också för sitt eget konto", async () => {

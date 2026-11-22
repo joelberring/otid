@@ -132,17 +132,28 @@ export async function createPrintJobAsAdmin(db: Database, input: RaceSessionProo
   });
 }
 
-/** PDF:en för ett klart jobb (bara admin). */
+/**
+ * PDF:en för ett klart jobb (bara admin). Granskningen runda 2 (B): behörigheten och jobbet prövas i läsningens transaktion,
+ * själva PDF:en (upp till `PRINT_JOB_LIMITS.maxBytes`, 150 MB) läses efteråt i en egen fråga, så att ögonblicksbilden och
+ * transaktionen inte hålls öppna medan den förs över.
+ */
 export async function readPrintJobPdfAsAdmin(db: Database, input: ReadProof & { jobId: string }, now = new Date())
   : Promise<Failure | { status: "ok"; pdf: Uint8Array; fileName: string }> {
-  return courseSettingRead(db, input, now, async (tx, raceId) => {
-    const [row] = await tx.select({ pdf: schema.courseSettingPrintJobs.pdf, status: schema.courseSettingPrintJobs.status, kind: schema.courseSettingPrintJobs.kind,
-      createdAt: schema.courseSettingPrintJobs.createdAt }).from(schema.courseSettingPrintJobs)
+  const job = await courseSettingRead(db, input, now, async (tx, raceId) => {
+    const [row] = await tx.select({ status: schema.courseSettingPrintJobs.status, kind: schema.courseSettingPrintJobs.kind,
+      createdAt: schema.courseSettingPrintJobs.createdAt, hasPdf: sql<boolean>`${schema.courseSettingPrintJobs.pdf} is not null` })
+      .from(schema.courseSettingPrintJobs)
       .where(and(eq(schema.courseSettingPrintJobs.raceId, raceId), eq(schema.courseSettingPrintJobs.id, input.jobId)));
-    if (!row || row.status !== "DONE" || !row.pdf) return { status: "not-found" as const };
-    const stamp = row.createdAt.toISOString().slice(0, 16).replace(/[-:]/g, "").replace("T", "-");
-    return { status: "ok" as const, pdf: row.pdf as Uint8Array, fileName: `banor-${row.kind === "OFFICE" ? "kontor" : "tryck"}-${stamp}.pdf` };
+    if (!row || row.status !== "DONE" || !row.hasPdf) return { status: "not-found" as const };
+    return { status: "found" as const, raceId, kind: row.kind, createdAt: row.createdAt };
   }, "ADMIN");
+  if (job.status !== "found") return job;
+  const [row] = await db.select({ pdf: schema.courseSettingPrintJobs.pdf }).from(schema.courseSettingPrintJobs)
+    .where(and(eq(schema.courseSettingPrintJobs.raceId, job.raceId), eq(schema.courseSettingPrintJobs.id, input.jobId),
+      eq(schema.courseSettingPrintJobs.status, "DONE")));
+  if (!row?.pdf) return { status: "not-found" };
+  const stamp = job.createdAt.toISOString().slice(0, 16).replace(/[-:]/g, "").replace("T", "-");
+  return { status: "ok", pdf: row.pdf as Uint8Array, fileName: `banor-${job.kind === "OFFICE" ? "kontor" : "tryck"}-${stamp}.pdf` };
 }
 
 /** Tar bort ett jobb (också ett väntande eller pågående: arbetaren slänger då sitt resultat). */

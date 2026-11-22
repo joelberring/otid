@@ -140,6 +140,10 @@ async function syncRegistrations(store: ReadoutStore, raceId: string, deps: Sync
       await store.updateRegistration({ ...item, status: "rejected", rejectedReason: String(response.status) });
       continue;
     }
+    // Samma som för avläsningarna: 429 och 502/503/504 går över av att vänta, så appen väntar allt längre i stället för
+    // att visa ett synkfel och försöka igen var femte sekund.
+    if (response.status === 429) return { kind: "throttled" };
+    if (TRANSIENT_STATUSES.has(response.status)) return { kind: "unavailable", status: response.status, count: 0 };
     if (!response.ok) return { kind: "failed", status: response.status };
     const receipt = readoutRegistrationResponseSchema.parse(await response.json());
     if (receipt.requestId !== item.requestId || receipt.raceId !== raceId) throw new Error(inLanguage("Direktanmälans kvitto gäller en annan begäran", "The entry receipt belongs to a different request"));

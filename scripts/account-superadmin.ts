@@ -1,6 +1,7 @@
 /**
  * `pnpm account:superadmin grant|revoke <e-post> [skäl]` – ger eller tar bort superadmin (ADR-0172 beslut 2).
  * Rollen sätts bara här, på servern, aldrig i appen. Åtgärden loggas som "Serverkommando" på superadminsidan.
+ * `pnpm account:superadmin list` – alla superadmin (flera kan vara det samtidigt) och vilka som får serverns rapport och larm.
  * `pnpm account:superadmin verify <e-post>` – bekräftar kontots e-postadress (ADR-0186), t.ex. när servern saknar e-post.
  * `pnpm account:superadmin map-content status|move` – kartornas lagring (ADR-0189): hur mycket som lagras, och steg två av
  *   övergången: flyttar kartbilder och kartfiler ur de gamla kolumnerna till innehållslagret, en rad per transaktion (kan
@@ -44,7 +45,7 @@ import { activeMapStore } from "../packages/application/src/map-store.ts";
 import { runMapMigration } from "../packages/application/src/map-store-migrate.ts";
 import { largestTables, mapMigrationStatus, migrateSettings, partTableSize } from "../packages/application/src/map-store-migrate-settings.ts";
 
-const USAGE = "Användning: account:superadmin grant|revoke <e-postadress> [skäl] | verify <e-postadress> | map-content status|move" +
+const USAGE = "Användning: account:superadmin grant|revoke <e-postadress> [skäl] | list | verify <e-postadress> | map-content status|move" +
   " | map-store status | map-store migrate-now [--mb N]" +
   " | clubs refresh [--force] | clubs import <fil.xml|-> | clubs unlink <eventor-id> | clubs sync" +
   " | google move <googles-eller-källkontots-adress> <målkontots-adress> [--delete-source-if-empty] | server-report";
@@ -187,6 +188,17 @@ async function main(): Promise<void> {
       const quota = mapStorageQuota();
       process.stdout.write(`Kartor lagras: ${mb(usage.totalBytes)} (gräns ${quota.totalBytes === null ? "ingen" : mb(quota.totalBytes)}, ` +
         `per konto ${quota.accountBytes === null ? "ingen" : mb(quota.accountBytes)}). Rader kvar i de gamla kolumnerna: ${left}.\n`);
+    } finally { await pool.end(); }
+    return;
+  }
+  if (args[0] === "list") {
+    // Alla konton med superadmin och vilka som får rapporten och larmen (spärrade får inget), M5.
+    const { pool } = createDatabase(url);
+    try {
+      const rows = (await pool.query<{ email: string; blocked: boolean }>(
+        "select email, blocked_at is not null as blocked from user_account where is_superadmin order by email")).rows;
+      if (rows.length === 0) process.stdout.write("Ingen superadmin. Ge rollen med: node superadmin.mjs grant <e-post>\n");
+      for (const row of rows) process.stdout.write(`${row.email}${row.blocked ? "  (spärrat konto: får inga mejl)" : "  (får veckorapporten och larmen)"}\n`);
     } finally { await pool.end(); }
     return;
   }

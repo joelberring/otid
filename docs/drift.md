@@ -53,20 +53,37 @@ inloggning:
   visibility → Public. (`docker compose ... pull` svarar annars `unauthorized` eller `denied`.)
 
 ```bash
+sh deploy/update.sh
+```
+
+Skriptet (PLAN.md steg M5) gör det som annars är fyra kommandon: `git pull --ff-only`, `pull`, `up -d`, `restart caddy` när
+`deploy/Caddyfile` ändrats (se nedan) och sist städningen. Det stannar vid första felet, så en misslyckad uppdatering städar inget.
+Det gamla sättet fungerar också och ger samma resultat:
+
+```bash
 git pull && docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d
 ```
 
-**Städa efter uppdateringen** (PLAN.md steg M3, förtur från M5): gamla avbildningar och byggcachen fyller annars disken (2026-11-21:
-4,4 GB avbildningar, varav 3 GB oanvända, och 3,9 GB byggcache). När den nya versionen svarar:
+**Städa efter uppdateringen** (PLAN.md steg M3 och M5): gamla avbildningar och byggcachen fyller annars disken (2026-11-21:
+4,4 GB avbildningar, varav 3 GB oanvända, och 3,9 GB byggcache). `deploy/update.sh` städar sist av allt, när den nya versionen
+har startats; städningen kan också köras för sig (till exempel när disklarmet kommer):
 
 ```bash
+sh deploy/update.sh prune
+# samma sak för hand:
 docker image prune -af --filter "until=72h"   # avbildningar som ingen behållare använder och som är äldre än tre dygn
-docker builder prune -af                       # byggcachen (bara reserven nedan bygger; nästa sådana bygge tar då längre tid)
+docker builder prune -f --filter "until=72h"  # byggcachen (bara reserven nedan bygger; nästa sådana bygge tar då längre tid)
 df -h /
 ```
 
 Avbildningar som en körande behållare använder tas aldrig bort, och de tre senaste dygnens finns kvar för en tillbakagång
-(`OTID_TAG`); en äldre version hämtas annars igen från ghcr.io med `pull`.
+(`OTID_TAG`); en äldre version hämtas annars igen från ghcr.io med `pull`. Fristen ändras med `OTID_PRUNE_HOURS` (förval 72).
+
+*Varför ett steg i uppdateringskommandot och inte en tjänst i compose:* en tjänst som raderar avbildningar måste ha Docker-uttaget
+(`/var/run/docker.sock`), och det ger i praktiken root på servern åt en behållare. Ingen av O-Tids tjänster har det, och en
+städning som ändå bara behövs efter en uppdatering vinner inget på att köras av en sådan tjänst. Uppdateringen sker alltid för
+hand av ägaren (inte på en tävlingsdag), så städningen följer med den. Larmet för disken och veckorapporten pekar på
+`sh deploy/update.sh prune`.
 
 `git pull` behövs fortfarande: compose-filen, `deploy/Caddyfile` och skripten i `deploy/` kommer från repot, och de ska höra
 ihop med avbildningen. Med förvalet (`OTID_TAG` tom eller `main`) hämtar `pull` den senaste gröna avbildningen från `main`;
@@ -309,12 +326,24 @@ försök" efter 30 missade koder i timmen från samma IP-adress. Bakom Caddy är
 
 Superadmin ser alla konton och tävlingar på `/superadmin` och kan dölja eller ta bort en tävling,
 spärra eller ta bort ett konto och skapa en återställningslänk. Varje åtgärd loggas med vem, när och varför.
-Rollen sätts bara med kommando på servern, aldrig i appen. Kontot måste finnas först:
+Rollen sätts bara med kommando på servern, aldrig i appen. Kontot måste finnas först. Flera konton kan vara superadmin samtidigt:
+rapporten och alla larm skickas till varje konto med rollen som inte är spärrat (ett mejl var, adresserna syns inte för varandra).
 
 ```bash
 docker compose -f docker-compose.prod.yml exec web node superadmin.mjs grant anna@exempelklubb.se
 docker compose -f docker-compose.prod.yml exec web node superadmin.mjs revoke anna@exempelklubb.se
 ```
+
+**Lägga till en andra superadmin:** personen skapar först ett eget konto i O-Tid (och bekräftar adressen). Sedan, på servern:
+
+```bash
+docker compose -f docker-compose.prod.yml exec web node superadmin.mjs grant kollega@exempelklubb.se "Reserv för driften"
+docker compose -f docker-compose.prod.yml exec web node superadmin.mjs list     # alla superadmin och vilka som får mejlen
+```
+
+Kontot får veckorapporten och larmen från och med nästa varv (högst 15 minuter), utan omstart. Den som ska sluta tas bort med
+`revoke`; `list` visar spärrade superadmin, som inte får några mejl. Behåll alltid minst en aktiv superadmin: utan någon
+mejlas ingenting (larmen skrivs då i `logs web`).
 
 Ett skäl kan läggas sist (`… grant anna@exempelklubb.se "Driftansvarig"`); det syns i loggen på
 `/superadmin` med "Serverkommando" som utförare. Lokalt: `pnpm account:superadmin grant <e-post>`.
@@ -594,14 +623,33 @@ veckan), och den skickas inte två gånger efter en omstart (tiden sparas i data
 - säkerhetskopiornas totala storlek (dumpar och kartinnehåll) och senaste dump,
 - antal konton (nya senaste veckan), klubbar och tävlingar, och tävlingarna de kommande 14 dagarna (antal, publicerade,
   anmälda; inga namn),
-- larm och "löst" senaste veckan och hur många hälsokontroller som misslyckades,
+- larm och "löst" senaste veckan och hälsokontrollerna uppdelade i **misslyckade** (webben, databasen, publiken eller
+  utskriftskön) och **varningar** (bara disken eller säkerhetskopian över sin gräns; de har egna larm), med orsakerna per kod,
+- förrådets läge (svarar eller fel),
 - belastningens topp (1 minut, mätt varje minut; 2 = båda kärnorna fullt använda) och minst ledigt minne.
+
+**Hälsokontrollens siffror** (rapport v. 47: 349 misslyckade av 678): kontrollen kör var 15:e minut, 672 per vecka, så 678 är i
+princip alla. Före 2026-11-22 räknades varje kontroll där disken låg över 80 % som misslyckad, och disken låg över gränsen
+ungefär halva veckan, samtidigt som disklarmen. Orsaken syns i `monitor.log`, där varje rad har koderna `web`, `db`, `print`,
+`public`, `disk`, `backup`; rapporten visar nu antal per kod och skiljer fel från varningar. Se orsakerna för hela loggen
+(senaste 1 000 raderna, drygt en vecka):
+
+```bash
+docker compose -f docker-compose.prod.yml exec web sh -c "cut -f2,3 /status/monitor.log | sort | uniq -c | sort -rn"
+docker compose -f docker-compose.prod.yml exec web sh -c "grep -P '\tfail\t' /status/monitor.log | grep -v -P '\tfail\t(disk|backup|disk,backup)\t' | tail -20"
+```
+
+Första kommandot räknar kontroller per resultat och koder (t.ex. `300 fail disk`); det andra visar de senaste riktiga felen
+(rad: epoktid, resultat, koder, text; `date -d @<epoktid>` ger tiden). Syns bara `disk` är det disken som över gränsen och
+inget annat som felat.
 
 Se rapporten som den ser ut just nu (skickar och sparar inget):
 `docker compose -f docker-compose.prod.yml exec web node superadmin.mjs server-report`.
 
-**Larm** (ett mejl per varv med alla nya larm och "löst"): högst ett larm per sort och dygn (står problemet kvar kommer en
-påminnelse efter ett dygn) och ett "löst" när problemet har gått över, om det larmades.
+**Larm** (ett mejl per varv med alla nya larm och "löst", till alla superadmin): **samma larm mejlas högst en gång per 6 timmar**
+(står problemet kvar kommer en påminnelse efter 6 timmar) och ett "löst" när problemet har gått över, om det larmades. Ett
+problem som går över och kommer tillbaka inom 6 timmar ger varken nytt larm eller nytt "löst". Larmen kommer inom 15 minuter
+efter att problemet uppstått (bevakningens varv).
 
 | Sort | Larmar när | Inställning (förval) |
 |---|---|---|
@@ -610,8 +658,12 @@ påminnelse efter ett dygn) och ett "löst" när problemet har gått över, om d
 | Säkerhetskopian | senaste körningen misslyckades, ingen dump finns eller den senaste är äldre än gränsen | `OTID_BACKUP_ALERT_HOURS` (3) |
 | Hälsokontrollen | `monitor` har misslyckats tre gånger i rad (webben, databasen, publiken, utskriftskön) eller inte rapporterat på en timme | – |
 | Minnet | mindre ledigt minne (MemAvailable, hela servern) än gränsen | `OTID_MEMORY_ALERT_PERCENT` (10) |
+| Förrådet | objektlagringen svarar inte på ett prov (HEAD av ett objekt som inte finns; "saknas" är friskt, nätfel, 403, 5xx och tidsgräns är fel), uppgifterna `OTID_ARCHIVE_*` är ofullständiga eller mellanlagret går inte att skriva i; bara med `OTID_STORE_MODE=on` | – |
+| Geo-servern | geo-servern kan inte startas: ingen typ går att skapa, Hetzner avvisar nyckeln eller gränsen, budgeten är slut, ingen typ är stor nog för ett jobb i kön, eller servrar som inte startade den senaste timmen; bara med `OTID_HETZNER_TOKEN` | `OTID_GEO_*` |
 
-Disken och säkerhetskopian larmar bara här, inte också som "hälsokontrollen". Går hela servern eller `web` ner kan inget mejlas:
+Disken och säkerhetskopian larmar bara här, inte också som "hälsokontrollen". Geo-serverns tidigare egna mejl (ingen typ går att
+skapa, budgeten slut, startade inte) har ersatts av larmet "geo-servern" (samma text, nu med "löst"); mejlet om att en reservtyp
+användes (allt fungerar) finns kvar. Med `OTID_SERVER_ALERTS=off` eller `OTID_SERVER_WATCH=off` mejlas inga geo-larm. Går hela servern eller `web` ner kan inget mejlas:
 det fångar bevakningstjänsten (OTID_HEARTBEAT_HEALTH_URL, [Bevakning](#bevakning-valfri)).
 
 Valfritt i `.env` (sedan `docker compose -f docker-compose.prod.yml up -d`): `OTID_SERVER_REPORT_DAY` (1 = måndag … 7 = söndag) och
@@ -621,7 +673,7 @@ Valfritt i `.env` (sedan `docker compose -f docker-compose.prod.yml up -d`): `OT
 **Disken** (ägarens fråga "ska jag köpa större disk redan nu?"): svaret står i rapporten varje vecka. Före ADR-0216 var
 säkerhetskopiorna det som växte snabbast (varje dump hade alla kartor); nu tar de ungefär databasens storlek utan kartor gånger
 antalet dumpar plus kartorna en gång. Behövs mer plats: ta bort gamla dumpar från före steg 45 direkt i `./backups/`, kör
-`docker image prune -a` (gamla avbildningar) eller köp en Hetzner Volume eller större server. Kvoten för kartor (förval 20 GB)
+`sh deploy/update.sh prune` (gamla avbildningar och byggcache) eller köp en Hetzner Volume eller större server. Kvoten för kartor (förval 20 GB)
 ryms inte på CX23:s disk om klubbarna fyller den; rapporten säger vilken kvot som ryms.
 
 ## Belastningstest
@@ -1167,9 +1219,9 @@ Karttapullautin på laserdata körs av geo-arbetaren på en egen geo-server, ald
   känner till raderas.
 - **Kostnaden:** varje påbörjad timme räknas mot `OTID_GEO_BUDGET_EUR_PER_MONTH`; när budgeten inte räcker startas ingen
   server och jobben väntar.
-- **Mejl till superadmin** (högst ett per sort och dygn): när ingen typ går att skapa (med andra typer med minst 4 GB som
-  förslag), när en reservtyp användes, när budgeten är slut och när en server inte startade. Lägg till en typ i
-  `OTID_GEO_SERVER_TYPES` och starta om `web`.
+- **Larm till superadmin** (larmet "geo-servern", högst ett per 6 timmar och med "löst", se Serverrapport och larm): när ingen typ
+  går att skapa (med andra typer med minst 4 GB som förslag), när budgeten är slut och när en server inte startade. Ett eget
+  mejl (högst ett per dygn) kommer när en reservtyp användes. Lägg till en typ i `OTID_GEO_SERVER_TYPES` och starta om `web`.
 - **Avbildningen** `otid-geo` måste vara publik på ghcr.io (se Uppdatera); annars kan geo-servern inte hämta den.
 - **Med en egen fast server i stället:** sätt `OTID_GEO_WORKER_TOKEN` (`openssl rand -hex 32`) i `.env`, starta om `web` och
   kör på servern (Docker installerat)

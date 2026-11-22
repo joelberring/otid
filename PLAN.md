@@ -1539,7 +1539,9 @@ arkivet) blir förrådet för allt kartinnehåll och serverns disk ett mellanlag
   öppnade de senaste 3 dygnen och projektets senaste klara laserkörning); borttagning ur förrådet efter 90 dagar orört.
   Migration 0138 (`recipe`, `evicted_at`, `stored_in = 'GONE'`), borttagning direkt efter sparandet och var 5:e minut, aldrig på
   tävlingsdygnet, «Återskapa» i projektet (laser utan laserkvot, bilder hämtas om), kontosidan och superadmins inställning för orört.
-- [ ] M5 Larm via mejl till superadmin, stöd för flera superadmin, automatisk rensning av docker-avbildningar.
+- [x] M5 Larm via mejl till superadmin (också förrådet och geo-servern, högst ett per 6 timmar, med "löst"), flera superadmin
+  (`superadmin.mjs list`, dokumenterat), docker-städning som ett steg i `deploy/update.sh`, hälsokontrollens varningar skilda från fel.
+  Migration 0141 (check-villkoren för larmsorterna).
 - [x] M6 Rå laserdata (ägaren 2026-11-22): LAZ sparas aldrig efter körningen. Rutan «Spara även rå laserdata åt mig» före
   körningen lägger en zip i förrådet med en hämtningslänk (försignerad, direkt från förrådet) som gäller 7 dygn, visas i
   körningen och i ett mejl, tas bort automatiskt och räknas inte mot någon kvot. En rad om Lantmäteriets villkor vid rutan.

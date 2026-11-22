@@ -7,6 +7,10 @@ import { schema, type Database } from "@o-tid/database";
 import { localRaceDate } from "@o-tid/domain";
 import type { DbExecutor } from "./snapshot";
 import { mapStorageQuota, mapStorageUsage } from "./map-content";
+import { mapArchiveStore } from "./map-archive-store";
+import { storeMode } from "./map-store";
+import { usableMapCacheDir } from "./map-cache";
+import { geoServerProblem } from "./geo-server";
 import {
   ALERT_KINDS, alertMessage, evaluateAlerts, serverProblems, TIME_ZONE, weeklyReport, weeklyReportDue, EMPTY_NOTICE,
   type AlertKind, type BackupStatus, type DatabaseSizes, type LogRow, type MonitorCheck, type NoticeState, type SampleRow,
@@ -180,12 +184,41 @@ export async function readHost(paths: HostPaths, now: Date): Promise<HostReading
     monitor: await readMonitorChecks(paths.statusDir) };
 }
 
+/** Provet på förrådet kan ta lång tid när objektlagringen hänger (anropen provas om tre gånger); längre än så räknas som fel. */
+const STORE_PROBE_MS = 45_000;
+
+/**
+ * Förrådet (ADR-0229) provas med ett HEAD på ett objekt som inte finns: svaret "saknas" är friskt, allt annat (nätfel, 403, 5xx,
+ * tidsgräns) är ett fel. Null när förrådet är av. Skriver ingenting och kostar ett anrop per varv.
+ */
+export async function readStoreHealth(env: Partial<Record<string, string | undefined>> = process.env,
+  probe?: () => Promise<unknown>): Promise<{ error: string | null } | null> {
+  if (storeMode(env) !== "on") return null;
+  const store = mapArchiveStore(env);
+  if (!store) return { error: "uppgifterna OTID_ARCHIVE_* är inte fullständiga" };
+  if (!usableMapCacheDir(env)) return { error: "mellanlagret (OTID_CACHE_DIR) går inte att skriva till" };
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    await Promise.race([
+      probe ? probe() : store.size("0".repeat(64)),
+      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`inget svar inom ${STORE_PROBE_MS / 1000} s`)), STORE_PROBE_MS); })
+    ]);
+    return { error: null };
+  } catch (error) {
+    return { error: (error instanceof Error ? error.message : String(error)).replace(/\s+/g, " ").slice(0, 200) };
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export async function collectServerSnapshot(db: Database, host: HostReadings, now: Date,
   env: Partial<Record<string, string | undefined>> = process.env): Promise<ServerSnapshot> {
   const database = await readDatabaseSizes(db);
   const usage = await mapStorageUsage(db, null);
   const counts = await readServerCounts(db, now);
-  return { at: now, ...host, database, maps: { storedBytes: usage.totalBytes, quotaBytes: mapStorageQuota(env).totalBytes }, counts };
+  const store = await readStoreHealth(env);
+  const geo = await geoServerProblem(db, now, env);
+  return { at: now, ...host, database, maps: { storedBytes: usage.totalBytes, quotaBytes: mapStorageQuota(env).totalBytes }, counts, store, geo };
 }
 
 // ---- Varvet

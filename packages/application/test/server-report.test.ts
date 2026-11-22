@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
-  alertMessage, diskForecast, EMPTY_NOTICE, evaluateAlerts, isoWeek, lastReportSlot, serverProblems, serverWatchSettings,
+  alertMessage, classifyChecks, diskForecast, EMPTY_NOTICE, evaluateAlerts, isoWeek, lastReportSlot, serverProblems, serverWatchSettings,
   serverWatchSettingsProblems, weeklyReport, weeklyReportDue, type AlertKind, type NoticeState, type SampleRow, type ServerSnapshot
 } from "../src/server-report";
 import { parseMonitorLog } from "../src/server-status";
 
-/** ADR-0216: veckorapportens sammanställning och larmens "en gång per dygn / löst"-logik. */
+/** ADR-0216: veckorapportens sammanställning och larmens "en gång per 6 timmar / löst"-logik. */
 const GB = 1024 ** 3;
 const MB = 1024 ** 2;
 const HOUR = 3_600_000;
@@ -83,28 +83,28 @@ describe("problemen", () => {
   });
 });
 
-describe("larmen: högst ett per sort och dygn, och löst", () => {
+describe("larmen: högst ett per sort och 6 timmar, och löst", () => {
   const disk = new Map<AlertKind, string>([["DISK", "Disken är 85 % full"]]);
   const none = new Map<AlertKind, string>();
   const at = (hours: number) => new Date(now.getTime() + hours * HOUR);
   const run = (states: Map<AlertKind, NoticeState>, problems: Map<AlertKind, string>, time: Date) => evaluateAlerts(states, problems, time);
 
-  it("larmar direkt, inte igen samma dygn, påminner efter ett dygn och säger löst en gång", () => {
+  it("larmar direkt, inte igen inom 6 timmar, påminner efter 6 timmar och säger löst en gång", () => {
     let result = run(new Map(), disk, at(0));
     expect(result.messages).toEqual([{ kind: "DISK", status: "ALERT", detail: "Disken är 85 % full", since: at(0) }]);
     result = run(result.states, disk, at(1));
     expect(result.messages).toEqual([]);
-    result = run(result.states, disk, at(23.9));
+    result = run(result.states, disk, at(5.9));
     expect(result.messages).toEqual([]);
-    result = run(result.states, disk, at(24));
+    result = run(result.states, disk, at(6));
     expect(result.messages).toEqual([{ kind: "DISK", status: "ALERT", detail: "Disken är 85 % full", since: at(0) }]);
-    result = run(result.states, none, at(25));
+    result = run(result.states, none, at(7));
     expect(result.messages).toEqual([{ kind: "DISK", status: "RESOLVED", detail: "Disken är 85 % full", since: at(0) }]);
-    result = run(result.states, none, at(26));
+    result = run(result.states, none, at(8));
     expect(result.messages).toEqual([]);
   });
 
-  it("ett problem som kommer tillbaka samma dygn larmar inte och ger inget löst; efter ett dygn larmar det", () => {
+  it("ett problem som kommer tillbaka inom 6 timmar larmar inte och ger inget löst; efter 6 timmar larmar det", () => {
     let result = run(new Map(), disk, at(0));
     result = run(result.states, none, at(1));
     expect(result.messages.map(message => message.status)).toEqual(["RESOLVED"]);
@@ -113,9 +113,38 @@ describe("larmen: högst ett per sort och dygn, och löst", () => {
     expect(result.states.get("DISK")).toMatchObject({ activeSince: at(2), alerted: false });
     result = run(result.states, none, at(3));
     expect(result.messages).toEqual([]);
-    result = run(result.states, disk, at(10));
-    result = run(result.states, disk, at(24));
-    expect(result.messages).toEqual([{ kind: "DISK", status: "ALERT", detail: "Disken är 85 % full", since: at(10) }]);
+    result = run(result.states, disk, at(4));
+    result = run(result.states, disk, at(6));
+    expect(result.messages).toEqual([{ kind: "DISK", status: "ALERT", detail: "Disken är 85 % full", since: at(4) }]);
+  });
+
+  it("förrådet och geo-servern larmar och löses som de andra, var för sig", () => {
+    const problems = serverProblems(snapshot({ store: { error: "403 Forbidden" }, geo: { problem: "Ingen av typerna gick att skapa." } }), settings);
+    expect(problems.get("STORE")).toContain("403 Forbidden");
+    expect(problems.get("GEO")).toBe("Ingen av typerna gick att skapa.");
+    expect(serverProblems(snapshot({ store: { error: null }, geo: { problem: null } }), settings).size).toBe(0);
+    expect(serverProblems(snapshot({ store: null, geo: null }), settings).size).toBe(0);
+    let result = run(new Map(), problems, at(0));
+    expect(result.messages.map(message => `${message.kind}:${message.status}`)).toEqual(["STORE:ALERT", "GEO:ALERT"]);
+    expect(alertMessage(result.messages, at(0), "otid.exempel.se").subject).toBe("O-Tid otid.exempel.se: larm – förrådet, geo-servern");
+    result = run(result.states, problems, at(5));
+    expect(result.messages).toEqual([]);
+    result = run(result.states, none, at(5.5));
+    expect(result.messages.map(message => `${message.kind}:${message.status}`)).toEqual(["STORE:RESOLVED", "GEO:RESOLVED"]);
+  });
+
+  it("hälsokontrollens varningar (bara disken eller backupen) skiljs från riktiga fel i rapporten", () => {
+    const check = (minutes: number, ok: boolean, codes: string[], text = "") => ({ at: new Date(now.getTime() - minutes * 60_000), ok, codes, text });
+    const monitor = [check(100, true, []), check(90, false, ["disk"], "disken är 83 % full"), check(80, false, ["disk", "backup"], "båda"),
+      check(70, false, ["web", "disk"], "webben svarar inte"), check(60, false, [], "gammal rad"), check(10, true, [])];
+    const result = classifyChecks(monitor);
+    expect(result).toMatchObject({ ok: 2, warnings: 2, failures: 2 });
+    expect(result.byCode.get("disk")).toBe(3);
+    const report = weeklyReport(snapshot({ monitor }), { samples: [], log: [] }, settings, "otid.exempel.se").text;
+    expect(report).toContain("Hälsokontrollen: 6 kontroller, 2 misslyckade (webben, databasen, publiken eller utskriftskön) och 2 varningar");
+    expect(report).toContain("Orsaker i kontrollerna som inte var ok: disken 3, säkerhetskopian 1, webben 1.");
+    expect(report).toContain("Senaste riktiga fel");
+    expect(report).toContain("gammal rad");
   });
 
   it("sorterna räknas var för sig", () => {

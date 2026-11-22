@@ -111,14 +111,15 @@ function runInChild(job: { id: string; raceId: string; attempts: number }, worke
     const environment = { ...process.env };
     delete environment.NODE_OPTIONS;
     let settled = false;
-    let timer: NodeJS.Timeout | undefined;
+    let timedOut = false;
+    let child: ReturnType<typeof fork> | undefined;
+    const timer = setTimeout(() => { timedOut = true; child?.kill("SIGKILL"); }, limits.timeoutMs);
     const settle = (result: { outcome?: string; failure?: string }) => {
       if (settled) return;
       settled = true;
-      if (timer) clearTimeout(timer);
+      clearTimeout(timer);
       resolve(result);
     };
-    let child: ReturnType<typeof fork>;
     try {
       child = fork(process.argv[1]!, args, {
         execArgv: [...process.execArgv, `--max-old-space-size=${limits.memoryMb}`], env: environment, stdio: "inherit" });
@@ -128,8 +129,6 @@ function runInChild(job: { id: string; raceId: string; attempts: number }, worke
       return;
     }
     let outcome: string | undefined;
-    let timedOut = false;
-    timer = setTimeout(() => { timedOut = true; child.kill("SIGKILL"); }, limits.timeoutMs);
     child.on("message", (message: unknown) => {
       if (message && typeof message === "object" && "outcome" in message) outcome = String((message as { outcome: unknown }).outcome);
     });

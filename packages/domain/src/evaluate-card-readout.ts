@@ -256,7 +256,9 @@ export function courseVariantForReadout(readout: EvaluationReadout, snapshot: Ra
   { readonly code: string; readonly assigned: boolean } | undefined {
   const resolved = resolveEntry(readout, snapshot);
   if (!resolved) return undefined;
-  const chosen = chooseVariant(resolved, prepareReadoutForEvaluation(readout, snapshot).readout.punches, controlCodesOutOfOrder(snapshot));
+  // Samma stämplingar som bedömningen: teamsprint väljer variant efter sträckans del av brickan.
+  const own = ownReadout(prepareReadoutForEvaluation(readout, snapshot).readout, resolved.entry, snapshot);
+  const chosen = chooseVariant(resolved, own.punches, controlCodesOutOfOrder(snapshot));
   return chosen && { code: chosen.code, assigned: chosen.assigned };
 }
 
@@ -345,6 +347,13 @@ export function excludedVariantsFitting(readout: EvaluationReadout, snapshot: Ra
   return fitting.length > 0 ? fitting : undefined;
 }
 
+/** Teamsprint: sträckan bedöms mot sin del av löparens bricka (ADR-0174 beslut 7 och 9); annars hela avläsningen. */
+function ownReadout(prepared: EvaluationReadout, entry: Entry, snapshot: RaceSnapshot): EvaluationReadout {
+  const sprint = entry.teamSprint;
+  return !sprint ? prepared : sprint.mode === "EACH_LEG" ? teamSprintEachLegReadout(prepared, sprint, snapshot)
+    : teamSprintReadoutPart(prepared, sprint);
+}
+
 export function evaluateCardReadout(
   input: EvaluationReadout,
   snapshot: RaceSnapshot
@@ -354,10 +363,7 @@ export function evaluateCardReadout(
   const resolved = resolveEntry(prepared, snapshot);
   if (!resolved) return invalid("UNKNOWN_CARD");
   const { entry, raceClass, courseVersion } = resolved;
-  // Teamsprint: sträckan bedöms mot sin del av löparens bricka (ADR-0174 beslut 7 och 9).
-  const sprint = entry.teamSprint;
-  const readout = !sprint ? prepared : sprint.mode === "EACH_LEG" ? teamSprintEachLegReadout(prepared, sprint, snapshot)
-    : teamSprintReadoutPart(prepared, sprint);
+  const readout = ownReadout(prepared, entry, snapshot);
 
   const common = {
     entryId: entry.id,

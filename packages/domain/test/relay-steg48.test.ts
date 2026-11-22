@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   relayParallelChangeover, relayParallelLegOutcome, teamSprintChangeoverProblem, teamSprintReadoutPart, type TeamSprintPart
 } from "../src/relay-parallel";
-import { evaluateCardReadout } from "../src/evaluate-card-readout";
+import { courseVariantForReadout, evaluateCardReadout } from "../src/evaluate-card-readout";
 import { evaluateReadoutWithTimes } from "../src/entry-readout";
 import { manualTimeOutcome, partialTiming } from "../src";
 import type { EvaluationReadout, RaceSnapshot } from "../src/types";
@@ -91,6 +91,24 @@ describe("teamsprint", () => {
     expect(legOne).toMatchObject({ status: "OK", elapsedMs: minutes(6), finishTime: at("17:06:00") });
     const legThree = evaluateCardReadout(card, snapshot("leg-3", partOf(2), at("17:12:00")));
     expect(legThree).toMatchObject({ status: "MP", reason: "MISSING_CONTROL", missingControls: [43], finishTime: at("17:19:00") });
+  });
+
+  it("gafflad sträcka utan tilldelad variant: varianten väljs efter sträckans del av brickan, som i bedömningen", () => {
+    const variant = (code: string, sequence: number, codes: number[]) => ({ id: `c-${code}`, courseVersionId: "c", code, sequence,
+      controls: codes.map((controlCode, index) => ({ id: `c-${code}-${index}`, courseVariantId: `c-${code}`, controlId: `c${controlCode}`,
+        sequence: index + 1, controlCode })) });
+    // Hela brickan passar båda varianterna (X först); sträckans del (41, 42) passar bara Y.
+    const snapshot: RaceSnapshot = {
+      race: { id: "race", eventId: "event", name: "Teamsprint", raceDate: "2026-10-08", snapshotVersion: 1 },
+      classes: [{ id: "class", raceId: "race", name: "Teamsprint", courseVersionId: "c", startRule: "FIXED" }],
+      courses: [{ id: "course-c", raceId: "race", name: "C", versions: [{ id: "c", courseId: "course-c", version: 1, createdAt: at("08:00:00"),
+        controls: [], variants: [variant("X", 1, [31, 32, 41, 42]), variant("Y", 2, [41, 42])] }] }],
+      entries: [{ id: "leg-3", raceId: "race", classId: "class", givenName: "Ada", familyName: "Ek", fixedStartTime: at("17:12:00"),
+        teamSprint: partOf(2) }],
+      cardAssignments: [{ id: "a", raceId: "race", entryId: "leg-3", cardNumber: "500", active: true }]
+    };
+    expect(evaluateCardReadout(card, snapshot)).toMatchObject({ status: "OK" });
+    expect(courseVariantForReadout(card, snapshot)).toEqual({ code: "Y", assigned: false });
   });
 
   it("manuell tid och brutet bedömer sträckans del av brickan med de angivna tiderna (inte saknad start)", () => {

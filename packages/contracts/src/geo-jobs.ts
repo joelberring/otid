@@ -132,7 +132,8 @@ export interface GeoJobView {
   /** K5c del 3: vegetationen som ytor, när jobbet räknade den. */
   readonly vegetation: { readonly minAreaM2: number } | null;
   readonly outputs: readonly { readonly name: string; readonly mediaType: string; readonly byteSize: number }[];
-  readonly createdBy: { readonly accountId: string; readonly name: string | null }; readonly own: boolean;
+  /** `accountId` är null när skaparens konto tagits bort (körningen finns kvar i det delade projektet). */
+  readonly createdBy: { readonly accountId: string | null; readonly name: string | null }; readonly own: boolean;
   readonly createdAt: string; readonly finishedAt: string | null;
   /** Ägaren 2026-11-14: antalet etapper som geo-servern lagt ihop till den här körningen, eller som den håller på att lägga ihop. */
   readonly mergedStages?: number | undefined;

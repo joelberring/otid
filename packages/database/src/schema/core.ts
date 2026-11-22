@@ -265,7 +265,8 @@ export const classes = pgTable("class", {
 }, (table) => [
   uniqueIndex("class_external_uidx").on(table.raceId, table.externalSource, table.externalId),
   uniqueIndex("class_id_race_uidx").on(table.id, table.raceId),
-  uniqueIndex("class_id_course_version_uidx").on(table.id, table.courseVersionId)
+  uniqueIndex("class_id_course_version_uidx").on(table.id, table.courseVersionId),
+  index("class_course_version_idx").on(table.courseVersionId)
   ,check("class_max_entries_check", sql`${table.maxEntries} IS NULL OR ${table.maxEntries} BETWEEN 0 AND 10000`)
   ,check("class_capacity_version_check", sql`${table.capacityVersion} > 0`)
   ,check("class_rogaining_check", sql`(${table.rogainingTimeLimitSeconds} IS NULL) = (${table.rogainingPenaltyPointsPerMinute} IS NULL) AND
@@ -329,7 +330,10 @@ export const cardAssignments = pgTable("card_assignment", {
 }, (table) => [
   uniqueIndex("card_assignment_active_race_card_uidx").on(table.raceId, table.cardNumber).where(sql`${table.active}`),
   uniqueIndex("card_assignment_id_race_entry_card_uidx").on(table.id, table.raceId, table.entryId, table.cardNumber),
-  uniqueIndex("card_assignment_id_race_card_uidx").on(table.id, table.raceId, table.cardNumber)
+  uniqueIndex("card_assignment_id_race_card_uidx").on(table.id, table.raceId, table.cardNumber),
+  // Migration 0136: avläsningens sökning på bricka tar med inaktiva kopplingar (det partiella indexet räcker inte), och deltagaren slås upp.
+  index("card_assignment_race_card_idx").on(table.raceId, table.cardNumber),
+  index("card_assignment_entry_idx").on(table.entryId)
 ]);
 
 export const importFiles = pgTable("import_file", {

@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import {
   accountDeleteRequestSchema,
   accountDisplayNameChangeSchema,
@@ -52,6 +52,16 @@ export async function ownedEvents(tx: DbExecutor, accountId: string) {
     .from(schema.events).where(inArray(schema.events.id, active)).orderBy(asc(schema.events.startsOn), asc(schema.events.name));
 }
 
+/** Nollställer kontot som ansvarig och som uppgiftens person i klubbplaneringen, och uppgifter på kontots e-postadress. */
+export async function clearClubPlanPerson(tx: DbExecutor, accountId: string): Promise<void> {
+  const [account] = await tx.select({ email: schema.userAccounts.email }).from(schema.userAccounts).where(eq(schema.userAccounts.id, accountId));
+  await tx.update(schema.clubPlanSessions).set({ responsibleAccountId: null }).where(eq(schema.clubPlanSessions.responsibleAccountId, accountId));
+  const email = account?.email.trim().toLowerCase();
+  await tx.update(schema.clubPlanTasks).set({ assigneeAccountId: null, assigneeEmail: null })
+    .where(email ? or(eq(schema.clubPlanTasks.assigneeAccountId, accountId), eq(schema.clubPlanTasks.assigneeEmail, email))
+      : eq(schema.clubPlanTasks.assigneeAccountId, accountId));
+}
+
 /** Tar bort kontot och tävlingarna det äger. Används både av användaren och av superadmin. */
 export async function deleteAccountWithOwnedEvents(tx: DbExecutor, accountId: string, now: Date): Promise<{ eventIds: string[] }> {
   const events = await ownedEvents(tx, accountId);
@@ -65,6 +75,14 @@ export async function deleteAccountWithOwnedEvents(tx: DbExecutor, accountId: st
   await purgeRows(tx, "map_project", solo);
   // Delområden som kontot fått har ingen nyckel till kontot (0091); de blir inte utdelade. Kontots förslag står kvar.
   await clearAreaAssignee(tx, accountId, now);
+  // Klubbplaneringen har ingen nyckel till kontot: ansvarig och uppgifter nollställs, också adressen en uppgift kan ha på kontots e-post.
+  await clearClubPlanPerson(tx, accountId);
+  // Delade kartprojekt och klubbar behåller körningar och lagerprofiler som kontot skapat (kontot nollställs av databasen vid
+  // borttagningen, migration 0135). Pågående körningar kan inte köras utan kontot (Lantmäteriet-uppgifterna) och tas bort,
+  // och egna lagerprofiler utan klubb är personliga.
+  await tx.delete(schema.mapProjectGeoJobs).where(and(eq(schema.mapProjectGeoJobs.accountId, accountId),
+    inArray(schema.mapProjectGeoJobs.status, ["QUEUED", "RUNNING"])));
+  await tx.delete(schema.mapLayerProfiles).where(and(eq(schema.mapLayerProfiles.accountId, accountId), isNull(schema.mapLayerProfiles.clubId)));
   // ADR-0219 (K2): AI-kopplingarna och kontots kartjobb (ingen nyckel till kontot).
   await purgeOauthForAccount(tx, accountId);
   await tx.delete(schema.mapProjectJobs).where(eq(schema.mapProjectJobs.accountId, accountId));

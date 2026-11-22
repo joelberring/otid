@@ -32,7 +32,7 @@ export const geoMergeOf = (job: Pick<Job, "request">): GeoMerge | undefined => {
  * Köar sammanläggningen när alla etapper i jobbets omgång är klara och ingen sammanläggning redan finns. Ger det nya jobbets
  * id, eller inget (jobbet är ingen etapp, någon etapp är inte klar, eller omgången är redan ihoplagd eller på väg).
  */
-export async function queueStageMerge(tx: DbExecutor, job: Pick<Job, "projectId" | "request">, now: Date): Promise<string | undefined> {
+export async function queueStageMerge(tx: DbExecutor, job: Pick<Job, "projectId" | "request">, now: Date, fallbackAccountId?: string | null): Promise<string | undefined> {
   const split = (job.request as StageRequest).split;
   if (!split?.group || !(Number(split.total) > 1)) return undefined;
   const batch = await tx.select().from(jobs).where(and(eq(jobs.projectId, job.projectId), sql`${jobs.request}->'split'->>'group' = ${split.group}`)).for("update");
@@ -46,6 +46,9 @@ export async function queueStageMerge(tx: DbExecutor, job: Pick<Job, "projectId"
     sql`${jobs.request}->'merge'->>'group' = ${split.group}`, inArray(jobs.status, ["QUEUED", "RUNNING", "DONE"])));
   if (existing) return undefined;
   const first = stages[0]!, request = first.request as StageRequest & Record<string, unknown>;
+  // Första etappens konto kan vara borttaget (migration 0135): sammanläggningen körs då på kontot som begärde den.
+  const accountId = first.accountId ?? fallbackAccountId ?? null;
+  if (!accountId) return undefined;
   const clips = stages.map(stage => (stage.request as StageRequest).clip!);
   const seen = new Set<string>();
   const tiles = stages.flatMap(stage => (stage.request as StageRequest).tiles ?? []).filter(tile => {
@@ -55,7 +58,7 @@ export async function queueStageMerge(tx: DbExecutor, job: Pick<Job, "projectId"
   // Allt i etappens begäran följer med (inställningarna, det jobbet räknade) utom det som är etappens eget.
   const rest = Object.fromEntries(Object.entries(request).filter(([key]) => !["split", "tiles", "clip", "reach", "name"].includes(key))), name = request.name;
   const id = randomUUID();
-  await tx.insert(jobs).values({ id, projectId: first.projectId, accountId: first.accountId, kind: "PULLAUTIN", status: "QUEUED", createdAt: now, requestId: randomUUID(),
+  await tx.insert(jobs).values({ id, projectId: first.projectId, accountId, kind: "PULLAUTIN", status: "QUEUED", createdAt: now, requestId: randomUUID(),
     request: { ...rest, name: (name ?? "Karttapullautin").replace(/ – etapp \d+ av \d+$/, ""), tiles: [],
       clip: { minX: Math.min(...clips.map(c => c.minX)), minY: Math.min(...clips.map(c => c.minY)), maxX: Math.max(...clips.map(c => c.maxX)), maxY: Math.max(...clips.map(c => c.maxY)) },
       merge: { group: split.group, stages: stages.map(stage => ({ jobId: stage.id, clip: (stage.request as StageRequest).clip! })), tiles } satisfies GeoMerge } });
@@ -106,7 +109,7 @@ export async function mergeGeoStages(db: Database, input: ClubProof & { projectI
     const [job] = await tx.select().from(jobs).where(and(eq(jobs.id, input.jobId), eq(jobs.projectId, access.project.id)));
     if (!job) return { status: "not-found" } as const;
     if (job.accountId !== access.accountId && !mapProjectAllows(access.role, access.project, "manage")) return { status: "forbidden" } as const;
-    const id = await queueStageMerge(tx, job, now);
+    const id = await queueStageMerge(tx, job, now, access.accountId);
     return id ? { status: "queued", jobId: id } as const : { status: "conflict" } as const;
   });
 }

@@ -110,6 +110,8 @@
     { "idx": 105, "version": "7", "when": 1808668800000, "tag": "0131_mastermind", "breakpoints": true },
     { "idx": 106, "version": "7", "when": 1808755200000, "tag": "0132_kartritarens_beslut", "breakpoints": true },
     { "idx": 107, "version": "7", "when": 1808841600000, "tag": "0133_forradet", "breakpoints": true },
-    { "idx": 108, "version": "7", "when": 1808928000000, "tag": "0134_nyheter", "breakpoints": true }
+    { "idx": 108, "version": "7", "when": 1808928000000, "tag": "0134_nyheter", "breakpoints": true },
+    { "idx": 109, "version": "7", "when": 1809014400000, "tag": "0135_konto_nyckel_set_null", "breakpoints": true },
+    { "idx": 110, "version": "7", "when": 1809100800000, "tag": "0136_index_brickkoppling_m_fl", "breakpoints": true }
   ]
 }

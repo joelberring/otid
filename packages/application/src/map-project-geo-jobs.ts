@@ -142,7 +142,7 @@ function toView(row: Awaited<ReturnType<typeof rows>>[number], viewer: string): 
     layerId: typeof job.result?.layerId === "string" ? job.result.layerId : null, skippedSteps: skippedSteps(job.result?.summary),
     moistureLayerId: typeof job.result?.moistureLayerId === "string" ? job.result.moistureLayerId : null, moisture: request.moisture ?? null,
     vegetation: request.vegetation ?? null, outputs: row.files.map(file => ({ name: file.name, mediaType: file.mediaType, byteSize: file.byteSize })),
-    createdBy: { accountId: job.accountId, name: row.creator }, own: job.accountId === viewer, createdAt: job.createdAt.toISOString(),
+    createdBy: { accountId: job.accountId ?? null, name: row.creator }, own: job.accountId === viewer, createdAt: job.createdAt.toISOString(),
     finishedAt: job.finishedAt?.toISOString() ?? null, ...(geoMergeOf(job) ? { mergedStages: geoMergeOf(job)!.stages.length } : {}) };
 }
 
@@ -490,6 +490,7 @@ export async function openGeoJobLaser(db: Database, jobId: string, worker: strin
   const request = job.request as { tiles?: { href: string }[]; extras?: { href: string }[] };
   const tile = (extra ? request.extras : request.tiles)?.[index];
   if (!tile) return { status: "not-found" };
+  if (!job.accountId) return { status: "not-found" };
   const secret = await openMapSourceCredential(db, job.accountId, runtime.environment);
   if (!secret) return missingMapSourceCredential(db, job.accountId, runtime.environment, "laserhämtning i geo-jobb");
   return fetchLaserFile(secret, tile.href, runtime);
@@ -501,7 +502,7 @@ export async function storeGeoOutput(db: Database, input: { jobId: string; worke
   if (contentLength(input.file) > GEO_OUTPUT_MAX_BYTES) return { status: "too-large" };
   return db.transaction(async tx => {
     const job = await runningJob(tx, input.jobId, input.worker);
-    if (!job || job.status !== "RUNNING") return { status: "not-found" } as const;
+    if (!job || job.status !== "RUNNING" || !job.accountId) return { status: "not-found" } as const;
     const stored = await storeMapContent(tx, input.file, job.accountId, now, mapStorageQuota());
     if (stored.status === "quota") return { status: "quota" } as const;
     await tx.insert(outputs).values({ jobId: job.id, name: input.name, contentSha256: stored.sha256, mediaType: input.mediaType,
@@ -524,7 +525,7 @@ export function parseWorld(text: string): { a: number; b: number; c: number; d: 
 async function layerFrom(tx: DbExecutor, job: typeof jobs.$inferSelect, files: (typeof outputs.$inferSelect)[], imageName: string, worldName: string,
   name: string, opacity: number, requestId: string, now: Date): Promise<string | null> {
   const image = imageNamed(files, imageName), world = files.find(file => file.name === worldName);
-  if (!image || !world || image.byteSize > MAP_PROJECT_LAYER_MAX_BYTES) return null;
+  if (!job.accountId || !image || !world || image.byteSize > MAP_PROJECT_LAYER_MAX_BYTES) return null;
   const [head, worldBytes] = await Promise.all([readMapContent(tx, image.contentSha256), readMapContent(tx, world.contentSha256)]);
   const start = head ? contentHead(new Uint8Array(head)) : undefined;
   const dimensions = start ? imageDimensions(start) ?? webpDimensions(start) : undefined;
@@ -577,7 +578,7 @@ export async function finishGeoJob(db: Database, jobId: string, worker: string, 
       result: { layerId, moistureLayerId, shadeLayerId, depthLayerId, reliefLayerId, greenLayerId, rockLayerId, ...(parsed.data.summary ? { summary: parsed.data.summary } : {}) } }).where(eq(jobs.id, job.id));
     // Sista etappen i en delad körning köar sammanläggningen; en klar sammanläggning tar bort etapperna.
     if (merge) await completeStageMerge(tx, job, merge);
-    else await queueStageMerge(tx, job, now);
+    else await queueStageMerge(tx, job, now, job.accountId);
     return { status: "ok", layerId } as const;
   });
 }

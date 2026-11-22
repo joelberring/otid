@@ -335,7 +335,8 @@ export type GeoJobStatus = "QUEUED" | "RUNNING" | "DONE" | "FAILED" | "CANCELLED
 export const mapProjectGeoJobs = pgTable("map_project_geo_job", {
   id: uuid("id").primaryKey(),
   projectId: uuid("project_id").notNull().references(() => mapProjects.id, { onDelete: "cascade" }),
-  accountId: uuid("account_id").notNull().references(() => userAccounts.id, { onDelete: "cascade" }),
+  /** Migration 0135: null när kontot tagits bort; körningen finns kvar i det delade projektet. */
+  accountId: uuid("account_id").references(() => userAccounts.id, { onDelete: "set null" }),
   kind: text("kind").$type<"PULLAUTIN" | "DWG">().notNull(),
   status: text("status").$type<GeoJobStatus>().notNull(),
   request: jsonb("request").$type<Record<string, unknown>>().notNull(),
@@ -350,7 +351,8 @@ export const mapProjectGeoJobs = pgTable("map_project_geo_job", {
   finishedAt: timestamp("finished_at", { withTimezone: true }),
   requestId: uuid("request_id").notNull().unique()
 }, table => [index("map_project_geo_job_queue_idx").on(table.status, table.createdAt),
-  index("map_project_geo_job_project_idx").on(table.projectId, table.createdAt)]);
+  index("map_project_geo_job_project_idx").on(table.projectId, table.createdAt),
+  index("map_project_geo_job_account_idx").on(table.accountId)]);
 
 /** Geo-jobbets resultatfiler i kartinnehållet (tas bort med jobbet). */
 export const mapProjectGeoOutputs = pgTable("map_project_geo_output", {
@@ -389,7 +391,8 @@ export const geoServerStates = pgTable("geo_server_state", {
 /** K6b (migration 0105): lagermappningsprofiler (lager → symbolnummer), per konto och valfritt delade med en klubb. */
 export const mapLayerProfiles = pgTable("map_layer_profile", {
   id: uuid("id").primaryKey(),
-  accountId: uuid("account_id").notNull().references(() => userAccounts.id, { onDelete: "cascade" }),
+  /** Migration 0135: null när kontot tagits bort; klubbens delade profiler finns kvar. */
+  accountId: uuid("account_id").references(() => userAccounts.id, { onDelete: "set null" }),
   clubId: uuid("club_id").references(() => clubs.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   rules: jsonb("rules").$type<{ layer: string; code: string; kind: "point" | "line" | "area" }[]>().notNull(),

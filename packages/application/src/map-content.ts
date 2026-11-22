@@ -371,9 +371,16 @@ export async function sweepMapContent(tx: DbExecutor, now: Date): Promise<{ cont
       and not exists (select 1 from map_project where base_sha256 = c.sha256)
       and not exists (select 1 from map_project_output where content_sha256 = c.sha256)
       and not exists (select 1 from map_project_layer where content_sha256 = c.sha256)
+      and not exists (select 1 from map_project_geo_output where content_sha256 = c.sha256)
     limit 100`)).rows;
-  for (const row of contents) await tx.execute(sql`select otid_map_content_release(${row.sha256})`);
+  // Samma tabeller som i `otid_map_content_release` (0103): saknas en här fastnar sökningen på samma hundra levande rader.
+  let released = 0;
+  for (const row of contents) {
+    await tx.execute(sql`select otid_map_content_release(${row.sha256})`);
+    // Frigörandet hoppar över en rad som en annan transaktion låst; bara borttagna rader räknas.
+    if (!(await tx.execute(sql`select 1 from map_content where sha256 = ${row.sha256}`)).rows.length) released += 1;
+  }
   const parts = await tx.execute(sql`delete from map_content_part p where p.created_at < ${new Date(now.getTime() - 24 * 60 * 60_000)}
     and not exists (select 1 from map_content c where c.content_id = p.content_id)`);
-  return { contents: contents.length, parts: parts.rowCount ?? 0 };
+  return { contents: released, parts: parts.rowCount ?? 0 };
 }

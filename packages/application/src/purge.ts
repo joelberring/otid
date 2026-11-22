@@ -9,6 +9,7 @@ import type { DbExecutor } from "./snapshot";
  *
  * Vilka rader som hör till följer databasens främmande nycklar: en rad tas bort om den pekar på en rad
  * som tas bort. Raderna samlas först i temporära tabeller och tas sedan bort barn före förälder.
+ * Nycklar med ON DELETE SET NULL följs inte: barnraden bevaras och databasen nollställer nyckeln när föräldern tas bort.
  * Uppskjutna nycklar (DEFERRABLE) kontrolleras vid commit och styr inte ordningen. Nya tabeller med
  * nycklar kommer därför med automatiskt. Skyddstriggrarna släpper igenom DELETE bara när
  * `otid.purge` är satt i samma transaktion (migration 0099).
@@ -23,13 +24,16 @@ export class PurgeProtectedError extends Error {
   constructor(readonly table: string) { super(`Borttagningen skulle ta rader i ${table}`); }
 }
 
-interface ForeignKey { child: string; parent: string; childColumns: string[]; parentColumns: string[]; deferrable: boolean }
+interface ForeignKey { child: string; parent: string; childColumns: string[]; parentColumns: string[]; deferrable: boolean;
+  /** `ON DELETE SET NULL`/`SET DEFAULT`: barnraden bevaras (databasen nollställer nyckeln själv) och följer inte med borttagningen. */
+  keepsChild: boolean }
 
 const quote = (identifier: string) => `"${identifier.replaceAll("\"", "\"\"")}"`;
 
 async function foreignKeys(tx: DbExecutor): Promise<ForeignKey[]> {
-  const result = await tx.execute<{ child: string; parent: string; child_columns: string[]; parent_columns: string[]; deferrable: boolean }>(sql`
+  const result = await tx.execute<{ child: string; parent: string; child_columns: string[]; parent_columns: string[]; deferrable: boolean; keeps_child: boolean }>(sql`
     select child.relname as child, parent.relname as parent, c.condeferrable as deferrable,
+      c.confdeltype in ('n', 'd') as keeps_child,
       array(select a.attname::text from unnest(c.conkey) with ordinality k(attnum, position)
         join pg_attribute a on a.attrelid = c.conrelid and a.attnum = k.attnum order by k.position) as child_columns,
       array(select a.attname::text from unnest(c.confkey) with ordinality k(attnum, position)
@@ -41,7 +45,7 @@ async function foreignKeys(tx: DbExecutor): Promise<ForeignKey[]> {
     where c.contype = 'f' and n.nspname = current_schema()
     order by child.relname, c.conname`);
   return result.rows.map((row) => ({ child: row.child, parent: row.parent, childColumns: row.child_columns,
-    parentColumns: row.parent_columns, deferrable: row.deferrable }));
+    parentColumns: row.parent_columns, deferrable: row.deferrable, keepsChild: row.keeps_child }));
 }
 
 /**
@@ -54,7 +58,7 @@ export async function purgeRows(tx: DbExecutor, root: PurgeRoot, ids: readonly s
   const deleted = new Map<string, number>();
   if (ids.length === 0) return deleted;
   await tx.execute(sql`select set_config('otid.purge', 'on', true)`);
-  const keys = await foreignKeys(tx);
+  const keys = (await foreignKeys(tx)).filter((key) => !key.keepsChild);
   const byParent = new Map<string, ForeignKey[]>();
   const keyColumns = new Map<string, Set<string>>();
   for (const key of keys) {

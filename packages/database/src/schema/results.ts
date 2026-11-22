@@ -240,7 +240,7 @@ export const auditEvents = pgTable("audit_event", {
   actorId: uuid("actor_id"),
   requestId: uuid("request_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
-});
+}, (table) => [index("audit_event_race_idx").on(table.raceId)]);
 
 /**
  * Direktanmälan av okänd bricka på avläsningssidan (migration 0004, PLAN.md steg 25). En rad per begäran

@@ -171,6 +171,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
   const untouched = useRef(true);
   const setView: typeof setViewState = next => { untouched.current = false; setViewState(next); };
   const drawn = useRef<Drawn | undefined>(undefined);
+  const unmounted = useRef(false);
   const overview = useRef<Drawn | undefined>(undefined);
   const staleOverview = useRef(false);
   const [drawnVersion, setDrawnVersion] = useState(0);
@@ -254,6 +255,8 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
         ...(mapPasses ? { passes: mapPasses } : {}), ...(hiddenSymbols ? { hiddenSymbols } : {}),
         ...(dimmedSymbols?.length ? { dimmedSymbols } : {}), ...(shownSymbols?.length ? { shownSymbols } : {}) };
       session.render(request, (_id, bitmap) => {
+        // Komponenten är borta när bilden kommer: bilden släpps direkt (annars läcker dess minne).
+        if (unmounted.current) { bitmap.close(); return; }
         const next = { bitmap, view, passes: mapPasses?.length ?? 0 };
         if (staleOverview.current) {
           // Träningen ändrades: den nya bilden blir översikten och de gamla bilderna släpps.
@@ -280,9 +283,13 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
     passesRef.current = [mapPasses, renderKey, hiddenSymbols, dimmedSymbols, shownSymbols];
     staleOverview.current = true;
   }, [mapPasses, renderKey, hiddenSymbols, dimmedSymbols, shownSymbols]);
-  useEffect(() => () => {
-    if (drawn.current && drawn.current !== overview.current) drawn.current.bitmap.close();
-    overview.current?.bitmap.close();
+  useEffect(() => {
+    unmounted.current = false;
+    return () => {
+      unmounted.current = true;
+      if (drawn.current && drawn.current !== overview.current) drawn.current.bitmap.close();
+      overview.current?.bitmap.close();
+    };
   }, []);
 
   // Kartlagret: översikten under, den senaste bilden ovanpå, båda flyttade till vyn.

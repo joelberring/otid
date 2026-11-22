@@ -3,6 +3,8 @@ import {
   relayParallelChangeover, relayParallelLegOutcome, teamSprintChangeoverProblem, teamSprintReadoutPart, type TeamSprintPart
 } from "../src/relay-parallel";
 import { evaluateCardReadout } from "../src/evaluate-card-readout";
+import { evaluateReadoutWithTimes } from "../src/entry-readout";
+import { manualTimeOutcome, partialTiming } from "../src";
 import type { EvaluationReadout, RaceSnapshot } from "../src/types";
 
 /** Steg 48: parallella sträckor (båda reglerna) och teamsprint (delad avläsning, felstämplad del, saknad växling). */
@@ -89,5 +91,32 @@ describe("teamsprint", () => {
     expect(legOne).toMatchObject({ status: "OK", elapsedMs: minutes(6), finishTime: at("17:06:00") });
     const legThree = evaluateCardReadout(card, snapshot("leg-3", partOf(2), at("17:12:00")));
     expect(legThree).toMatchObject({ status: "MP", reason: "MISSING_CONTROL", missingControls: [43], finishTime: at("17:19:00") });
+  });
+
+  it("manuell tid och brutet bedömer sträckans del av brickan med de angivna tiderna (inte saknad start)", () => {
+    const version = (id: string, codes: number[]) => ({ id, courseId: `course-${id}`, version: 1, createdAt: at("08:00:00"),
+      controls: codes.map((code, index) => ({ id: `${id}-${code}`, courseVersionId: id, controlId: `c${code}`, sequence: index + 1, controlCode: code })) });
+    const snapshot: RaceSnapshot = {
+      race: { id: "race", eventId: "event", name: "Teamsprint", raceDate: "2026-10-08", snapshotVersion: 1 },
+      classes: [{ id: "class", raceId: "race", name: "Teamsprint", courseVersionId: "c", startRule: "FIXED" }],
+      courses: [{ id: "course-c", raceId: "race", name: "C", versions: [version("c", [41, 42])] }],
+      entries: [{ id: "leg-3", raceId: "race", classId: "class", givenName: "Ada", familyName: "Ek", fixedStartTime: at("17:12:00"),
+        teamSprint: partOf(2) }],
+      cardAssignments: [{ id: "a", raceId: "race", entryId: "leg-3", cardNumber: "500", active: true }]
+    };
+    const withTimes = (readout: EvaluationReadout) => (startTime: string, finishTime: string) =>
+      evaluateReadoutWithTimes(readout, snapshot, "leg-3", startTime, finishTime);
+    // Manuell måltid ersätter växlingsstämplingen som mål; stämplingarna är sträckans (inte första sträckans 31 och 32).
+    const manual = withTimes(card)(at("17:12:00"), at("17:20:00"));
+    expect(manual).toMatchObject({ status: "OK", elapsedMs: minutes(8), finishTime: at("17:20:00"), extraPunches: [] });
+    expect(manual.splits.map(split => split.controlCode)).toEqual([41, 42]);
+    const context = { entryId: "leg-3", classId: "class", courseVersionId: "c", evaluateWithTimes: withTimes(card) };
+    expect(manualTimeOutcome({ status: "MP", finishTime: at("17:20:00") }, at("17:12:00"), context)?.splits.map(split => split.controlCode))
+      .toEqual([41, 42]);
+    // Saknad växlingsstämpling: delen har inget mål; brutet får sträcktiderna fram till sista kontrollen.
+    const missing = { ...card, punches: card.punches.filter(punch => punch.code !== 100 || punch.punchedAt === at("17:06:00")) };
+    const outcome = evaluateCardReadout(missing, snapshot);
+    expect(outcome).toMatchObject({ reason: "MISSING_FINISH", startTime: at("17:12:00") });
+    expect(partialTiming(outcome, { evaluateWithTimes: withTimes(missing) }).splits.map(split => split.controlCode)).toEqual([41, 42]);
   });
 });

@@ -1,6 +1,8 @@
 import { evaluateCardReadout } from "./evaluate-card-readout";
+import { teamSprintReadoutPart } from "./relay-parallel";
 import { controlCodesOutOfOrder, prepareReadoutForEvaluation } from "./station-corrections";
-import type { EvaluationReadout, EvaluationResult, RaceSnapshot } from "./types";
+import { teamSprintEachLegReadout } from "./team-sprint";
+import type { Entry, EvaluationReadout, EvaluationResult, RaceSnapshot } from "./types";
 
 /**
  * Steg 31: ögonblicksbilden där just denna deltagare har avläsningens bricka. Resultatet hänger på avläsningen och
@@ -17,9 +19,15 @@ export function evaluateReadoutForEntry(readout: EvaluationReadout, snapshot: Ra
   return evaluateCardReadout(readout, snapshotForEntryCard(snapshot, entryId, readout.cardNumber));
 }
 
+function withoutTeamSprint(entry: Entry): Entry {
+  const { teamSprint, ...rest } = entry;
+  return teamSprint === undefined ? entry : rest;
+}
+
 /**
  * Avläsningen bedömd med arrangörens start- och måltid (manuell tid): starten är den angivna tiden även vid lottad start,
- * och målet ersätter målstämplingen. Kontroller och sträcktider räknas som vanligt.
+ * och målet ersätter målstämplingen. Kontroller och sträcktider räknas som vanligt. Teamsprint: sträckans del av brickan
+ * tas ut först (som i bedömningen) och bedöms sedan med de angivna tiderna; annars skulle delningen ta bort starten.
  */
 export function evaluateReadoutWithTimes(readout: EvaluationReadout, snapshot: RaceSnapshot, entryId: string,
   startTime: string, finishTime: string): EvaluationResult {
@@ -28,9 +36,13 @@ export function evaluateReadoutWithTimes(readout: EvaluationReadout, snapshot: R
   // Kontrollernas tider förbereds som vanligt (tidsjustering per station, gamla stämplingar bort). Arrangörens start-
   // och måltid är redan rätta: ingen stationsjustering läggs på dem.
   const prepared = prepareReadoutForEvaluation(readout, forEntry).readout;
+  const sprint = entry?.teamSprint;
+  const own = !sprint ? prepared : sprint.mode === "EACH_LEG" ? teamSprintEachLegReadout(prepared, sprint, forEntry)
+    : teamSprintReadoutPart(prepared, sprint);
   const punchStart: RaceSnapshot = { ...forEntry, stationTimeAdjustments: [],
-    classes: forEntry.classes.map((raceClass) => raceClass.id === entry?.classId ? { ...raceClass, startRule: "PUNCH" } : raceClass) };
-  return evaluateCardReadout({ cardNumber: readout.cardNumber, punches: prepared.punches, startPunchedAt: startTime,
+    classes: forEntry.classes.map((raceClass) => raceClass.id === entry?.classId ? { ...raceClass, startRule: "PUNCH" } : raceClass),
+    entries: sprint ? forEntry.entries.map((candidate) => candidate.id === entryId ? withoutTeamSprint(candidate) : candidate) : forEntry.entries };
+  return evaluateCardReadout({ cardNumber: readout.cardNumber, punches: own.punches, startPunchedAt: startTime,
     finishPunchedAt: finishTime }, punchStart);
 }
 

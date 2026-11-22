@@ -5,9 +5,10 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase, migrate } from "@o-tid/database";
 import { createOrganizerEvent } from "../../src/organizer-events";
+import { setMapArchiveStore } from "../../src/map-archive-store";
 import { serverWatchSettings } from "../../src/server-report";
 import {
-  collectServerSnapshot, readHost, runServerWatch, superadminRecipients, type HostReadings, type ServerMessage
+  collectServerSnapshot, readHost, readStoreHealth, runServerWatch, superadminRecipients, type HostReadings, type ServerMessage
 } from "../../src/server-status";
 import { registerTestAccount } from "./accounts";
 
@@ -135,4 +136,47 @@ describe("ADR-0216: serverrapporten och larmen", () => {
       send: async (_message, recipients) => recipients.length });
     expect(retried.alerts).toEqual([{ kind: "DISK", status: "ALERT" }]);
   });
+
+  it("flera superadmin samtidigt: larm och rapport går till alla, förrådet och geo-servern larmar och löses", async () => {
+    await pool.query("delete from server_notice; delete from server_notice_log; delete from server_sample; update user_account set is_superadmin = false");
+    const first = await registerTestAccount(db);
+    const second = await registerTestAccount(db);
+    const third = await registerTestAccount(db);
+    await pool.query("update user_account set is_superadmin = true where id = any($1)", [[first.accountId, second.accountId, third.accountId]]);
+    expect(await superadminRecipients(db)).toEqual([first.email, second.email, third.email].sort());
+
+    const sent: { message: ServerMessage; recipients: readonly string[] }[] = [];
+    const send = async (message: ServerMessage, recipients: readonly string[]) => { sent.push({ message, recipients }); return recipients.length; };
+    const settings = serverWatchSettings({});
+    const host: HostReadings = { disk: { totalBytes: 100, freeBytes: 90 }, memory: null, load: null, backups: null, monitor: null };
+
+    // Förrådet provas mot objektlagringen (här ett prov som misslyckas, sedan ett som lyckas); utan förråd inget prov.
+    const env = { OTID_STORE_MODE: "on", OTID_ARCHIVE_ENDPOINT: "s3.exempel.test", OTID_ARCHIVE_BUCKET: "b", OTID_ARCHIVE_ACCESS_KEY: "a",
+      OTID_ARCHIVE_SECRET_KEY: "s", OTID_CACHE_DIR: join(dir, "cache") };
+    expect(await readStoreHealth({})).toBeNull();
+    expect((await readStoreHealth({ OTID_STORE_MODE: "on" }))?.error).toContain("OTID_ARCHIVE_*");
+    setMapArchiveStore(undefined); // arkivet läses ur miljön en gång per process; räkna om det med uppgifterna
+    expect(await readStoreHealth(env, async () => { throw new Error("403 Forbidden"); })).toEqual({ error: "403 Forbidden" });
+    expect(await readStoreHealth(env, async () => undefined)).toEqual({ error: null });
+    setMapArchiveStore(undefined);
+
+    // Geo-servern: orsaken i geo_server_state blir larmet.
+    await pool.query(`insert into geo_server_state (key, value, updated_at) values ('server', $1::jsonb, now())
+      on conflict (key) do update set value = excluded.value`, [JSON.stringify({ view: { state: "UNAVAILABLE", detail: null }, mailed: {},
+      cause: "Ingen av typerna gick att skapa." })]);
+    const geoEnv = { OTID_HETZNER_TOKEN: "t", O_TID_PUBLIC_ORIGIN: "https://otid.example.se" };
+    const withProblems = await collectServerSnapshot(db, host, now, geoEnv);
+    expect(withProblems.geo).toEqual({ problem: "Ingen av typerna gick att skapa." });
+    const alarm = await runServerWatch(db, { host, now, settings, serverName: "test", send, env: geoEnv });
+    expect(alarm.alerts).toEqual([{ kind: "GEO", status: "ALERT" }]);
+    expect(sent[0]!.recipients).toEqual([first.email, second.email, third.email].sort());
+    expect(sent[0]!.message.subject).toBe("O-Tid test: larm – geo-servern");
+
+    // Inom 6 timmar inget nytt mejl; när orsaken är borta kommer "löst".
+    expect((await runServerWatch(db, { host, now: new Date(now.getTime() + 5 * HOUR), settings, serverName: "test", send, env: geoEnv })).alerts).toEqual([]);
+    await pool.query("update geo_server_state set value = $1::jsonb where key = 'server'", [JSON.stringify({ view: { state: "OFF", detail: null }, mailed: {} })]);
+    const resolved = await runServerWatch(db, { host, now: new Date(now.getTime() + 5.5 * HOUR), settings, serverName: "test", send, env: geoEnv });
+    expect(resolved.alerts).toEqual([{ kind: "GEO", status: "RESOLVED" }]);
+    expect(sent.map(row => row.recipients.length)).toEqual([3, 3]);
+  }, 60_000);
 });

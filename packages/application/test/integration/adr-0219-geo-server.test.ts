@@ -7,7 +7,7 @@ import { createMapProjectFromUpload } from "../../src/map-projects";
 import { lantmaterietRuntimeFromEnvironment } from "../../src/map-project-lantmateriet";
 import { laserRuntimeFromEnvironment } from "../../src/map-project-laser";
 import { authenticateGeoWorker, claimGeoJob, createGeoJob, finishGeoJob, geoServerView } from "../../src/map-project-geo-jobs";
-import { geoCloudInit, geoServerMonthCost, geoServerSettings, manageGeoServer, retireGeoServer, type Hetzner, type HetznerType } from "../../src/geo-server";
+import { geoCloudInit, geoServerMonthCost, geoServerProblem, geoServerSettings, manageGeoServer, retireGeoServer, type Hetzner, type HetznerType } from "../../src/geo-server";
 import type { ServerMessage } from "../../src/server-status";
 import { saveMapSourceCredential } from "../../src/map-source-credentials";
 import { registerTestAccount } from "./accounts";
@@ -157,7 +157,7 @@ describe("ADR-0219 K5b: geo-servern hos Hetzner", () => {
     await retireGeoServer(db, "finns-inte", at(46));
   });
 
-  it("ingen typ går att skapa: jobben väntar, ägaren får ett mejl per dygn med andra typer", async () => {
+  it("ingen typ går att skapa: jobben väntar, orsaken blir larmet geo-servern med andra typer (inget eget mejl)", async () => {
     await clear();
     const { hetzner, created } = fakeHetzner(() => false);
     const mails: ServerMessage[] = [];
@@ -165,14 +165,17 @@ describe("ADR-0219 K5b: geo-servern hos Hetzner", () => {
     expect((await manageGeoServer(db, hetzner, settings, async message => { mails.push(message); }, NOW)).action).toBe("unavailable");
     expect(created).toEqual([]);
     expect(await geoServerView(db, environment, NOW)).toEqual({ state: "UNAVAILABLE", detail: null });
-    expect(mails).toHaveLength(1);
-    expect(mails[0]!.subject).toBe("O-Tid: ingen geo-server går att skapa");
-    expect(mails[0]!.text).toContain("cpx22 (från 0.0200 €/h)");
-    expect(mails[0]!.text).toContain("cx23 i fsn1: resource_unavailable; cx23 i hel1: resource_unavailable; cax11 i fsn1");
+    expect(mails).toHaveLength(0);
+    const problem = (await geoServerProblem(db, NOW, environment))?.problem;
+    expect(problem).toContain("cpx22 (från 0.0200 €/h)");
+    expect(problem).toContain("cx23 i fsn1: resource_unavailable; cx23 i hel1: resource_unavailable; cax11 i fsn1");
+    // Orsaken står kvar så länge servern inte går att skapa och försvinner när en server startats.
     await manageGeoServer(db, hetzner, settings, async message => { mails.push(message); }, at(60));
-    expect(mails).toHaveLength(1);
-    await manageGeoServer(db, hetzner, settings, async message => { mails.push(message); }, at(24 * 60 + 1));
-    expect(mails).toHaveLength(2);
+    expect((await geoServerProblem(db, at(60), environment))?.problem).toContain("Ingen av typerna");
+    const working = fakeHetzner(() => true);
+    await manageGeoServer(db, working.hetzner, settings, async message => { mails.push(message); }, at(61));
+    expect(working.created).toHaveLength(1);
+    expect(await geoServerProblem(db, at(61), environment)).toEqual({ problem: null });
   });
 
   it("flera servrar på reservtyp i samma varv ger ett enda mejl", async () => {
@@ -238,13 +241,14 @@ describe("ADR-0219 K5b: geo-servern hos Hetzner", () => {
     // Budget 0,005 €: inte ens en timme ryms.
     expect((await manageGeoServer(db, hetzner, { ...settings, budgetEur: 0.005 }, mail, NOW)).action).toBe("budget");
     expect(await geoServerView(db, environment, NOW)).toEqual({ state: "BUDGET", detail: null });
-    expect(mails.map(message => message.subject)).toEqual(["O-Tid: geo-serverns budget är slut"]);
+    expect(mails).toEqual([]);
+    expect((await geoServerProblem(db, NOW, environment))?.problem).toContain("OTID_GEO_BUDGET_EUR_PER_MONTH");
 
     // Startar men hör aldrig av sig: raderas efter 15 minuter, och en ny startas.
     expect((await manageGeoServer(db, hetzner, settings, mail, NOW)).action).toBe("created");
     expect((await manageGeoServer(db, hetzner, settings, mail, at(16))).action).toBe("created");
     expect(removed).toEqual([created[0]!.id]);
-    expect(mails.map(message => message.subject)).toContain("O-Tid: geo-servern startade inte");
+    expect((await geoServerProblem(db, at(16), environment))?.problem).toContain("startade inte inom 15 minuter");
     // Högst tre misslyckade starter i timmen.
     await manageGeoServer(db, hetzner, settings, mail, at(32));
     expect(created).toHaveLength(3);
@@ -302,13 +306,15 @@ describe("ADR-0219 K5b: geo-servern hos Hetzner", () => {
     const first = fakeHetzner(() => true);
     expect(await manageGeoServer(db, first.hetzner, small, mail, at(1))).toEqual({ action: "unavailable", detail: "inget med 8 GB" });
     expect(first.created).toHaveLength(0);
-    expect(mails.map(message => message.subject)).toEqual(["O-Tid: ingen geo-server är stor nog"]);
+    expect(mails).toEqual([]);
+    expect((await geoServerProblem(db, at(1), environment))?.problem).toContain("behöver minst 8 GB minne");
     expect((await geoServerView(db, environment, at(1))).detail).toContain("minst 8 GB");
 
     const mixed = geoServerSettings({ ...environment, OTID_GEO_SERVER_TYPES: "cx23,cx33,cpx22" })!;
     const second = fakeHetzner(() => true);
     expect(await manageGeoServer(db, second.hetzner, mixed, mail, at(2))).toEqual({ action: "created", detail: "cx33 i fsn1" });
-    // Den första typen som är stor nog är inte en reserv: inget mejl om reservtyp.
-    expect(mails).toHaveLength(1);
+    // Den första typen som är stor nog är inte en reserv: inget mejl om reservtyp, och larmet är borta.
+    expect(mails).toHaveLength(0);
+    expect(await geoServerProblem(db, at(2), environment)).toEqual({ problem: null });
   });
 });

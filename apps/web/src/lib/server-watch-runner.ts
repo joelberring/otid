@@ -8,7 +8,7 @@ import { mailEnabled, mailErrorSummary, sendMessage, type TransportFactory } fro
 /**
  * ADR-0216: serverns bevakning i webbprocessen (som underhållet, startas från `instrumentation.ts`), bara i tävlingens instans.
  * Tio minuter efter start och sedan var OTID_HEALTH_INTERVAL_MINUTES:e minut (förval 15): mätningen sparas, larm och "löst" mejlas
- * till superadmin (högst ett per sort och dygn) och veckorapporten går söndag kl. 19 (OTID_SERVER_REPORT_DAY/_HOUR). Mellan varven
+ * till superadmin (högst ett per sort och 6 timmar) och veckorapporten går söndag kl. 19 (OTID_SERVER_REPORT_DAY/_HOUR). Mellan varven
  * mäts belastningen och det lediga minnet varje minut, så att rapporten får topparna. Stängs av med `OTID_SERVER_WATCH=off`.
  * Utan e-post (`OTID_SMTP_URL`) skrivs larmen och rapporten i loggen i stället.
  */

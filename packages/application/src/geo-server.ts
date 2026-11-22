@@ -9,8 +9,8 @@ import type { DbExecutor } from "./snapshot";
 /**
  * ADR-0219 K5b (ägaren 2026-11-08): geo-servern startas hos Hetzner när ett geo-jobb väntar och raderas när den stått utan
  * jobb en stund. Servertyper och platser provas i tur och ordning; den första som går att skapa används. Månadens kostnad
- * räknas ur servrarna (Hetzner tar betalt per påbörjad timme) och hålls under budgeten. Ägaren (superadmin) får mejl, högst ett
- * per sort och dygn, när ingen typ går att skapa, när en reservtyp användes och när budgeten är slut.
+ * räknas ur servrarna (Hetzner tar betalt per påbörjad timme) och hålls under budgeten. Superadmin får larmet "geo-servern" (`geoServerProblem`, högst ett per 6 timmar, med "löst") när ingen typ går att skapa
+ * eller budgeten är slut, och ett mejl per dygn när en reservtyp användes.
  *
  * Geo-servern får en egen nyckel (bara sha256 sparas här) i sin uppstart och kör avbildningen `otid-geo`; den talar bara HTTPS
  * med O-Tid. Servrar med O-Tids etikett som inte finns i tabellen raderas (en krasch mitt i en start lämnar inget efter sig).
@@ -131,15 +131,22 @@ export function geoCloudInit(input: { image: string; origin: string; token: stri
 
 // --- Läget ------------------------------------------------------------------------------------------------------------
 
-type Notice = "UNAVAILABLE" | "FALLBACK" | "BUDGET" | "START_FAILED";
+/** Bara reservtypen mejlas som en händelse; det som hindrar geo-servern är ett larm (`cause`, PLAN.md steg M5). */
+type Notice = "FALLBACK";
 interface ServerState { readonly view: GeoServerView; readonly mailed: Partial<Record<Notice, string>>;
+  /**
+   * Varför geo-servern inte går att starta just nu (orsak och råd, på svenska), eller utelämnad när allt fungerar. Serverbevakningen
+   * (`geoServerProblem`) gör det till larmet "geo-servern" till superadmin, med "löst" när orsaken försvunnit.
+   */
+  readonly cause?: string;
   /** Servrar vars arbetare är för gammal; raderas i nästa omgång. */
   readonly retired?: readonly string[] }
 
 async function readState(db: DbExecutor): Promise<ServerState> {
   const [row] = await db.select().from(states).where(eq(states.key, "server"));
   const value = row?.value as Partial<ServerState> | undefined;
-  return { view: value?.view ?? { state: "OFF", detail: null }, mailed: value?.mailed ?? {}, retired: Array.isArray(value?.retired) ? value.retired : [] };
+  return { view: value?.view ?? { state: "OFF", detail: null }, mailed: value?.mailed ?? {}, retired: Array.isArray(value?.retired) ? value.retired : [],
+    ...(typeof value?.cause === "string" && value.cause ? { cause: value.cause } : {}) };
 }
 async function writeState(db: DbExecutor, state: ServerState, now: Date): Promise<void> {
   await db.insert(states).values({ key: "server", value: state as unknown as Record<string, unknown>, updatedAt: now })
@@ -191,6 +198,21 @@ export async function noteGeoServerJob(db: DbExecutor, name: string, now = new D
 }
 
 export type GeoMailer = (message: ServerMessage) => Promise<void>;
+
+/** Larmet "geo-servern" (M5): orsaken ur läget, eller servrar som inte startade den senaste timmen. Null när geo-servern inte används. */
+export async function geoServerProblem(db: DbExecutor, now: Date, environment: Record<string, string | undefined>): Promise<{ problem: string | null } | null> {
+  const settings = geoServerSettings(environment);
+  if (!settings) return null;
+  const state = await readState(db);
+  if (state.cause) return { problem: state.cause };
+  const [{ failed } = { failed: 0 }] = await db.select({ failed: sql<number>`count(*)::int` }).from(servers)
+    .where(and(gte(servers.createdAt, new Date(now.getTime() - HOUR)), eq(servers.deleteReason, "startade inte")));
+  if (failed > 0) {
+    return { problem: `${failed === 1 ? "En geo-server" : `${failed} geo-servrar`} startade inte inom 15 minuter den senaste timmen och raderades. `
+      + `Kontrollera att avbildningen ${settings.image} finns och att ${settings.origin} nås från Hetzner.` };
+  }
+  return { problem: null };
+}
 
 function dueMail(state: ServerState, notice: Notice, now: Date): boolean {
   const last = state.mailed[notice];
@@ -255,11 +277,6 @@ async function manageRound(db: Database, hetzner: Hetzner, settings: GeoServerSe
     } else if (row.status === "STARTING" && now.getTime() - row.createdAt.getTime() > START_TIMEOUT_MS) {
       await remove(row, "startade inte");
       deleted = `${row.name} startade inte inom 15 minuter`;
-      if (dueMail(state, "START_FAILED", now)) {
-        await mail({ subject: "O-Tid: geo-servern startade inte", text: `Geo-servern ${row.name} (${row.serverType}, ${row.location}) hörde inte av sig inom `
-          + `15 minuter och raderades. Kontrollera att avbildningen ${settings.image} finns och att ${settings.origin} nås från Hetzner.` });
-        mailed.START_FAILED = now.toISOString();
-      }
     } else if (now.getTime() - row.createdAt.getTime() > settings.maxHours * HOUR) {
       await remove(row, `längre än ${settings.maxHours} timmar`);
       deleted = `${row.name} har gått i ${settings.maxHours} timmar`;
@@ -275,7 +292,7 @@ async function manageRound(db: Database, hetzner: Hetzner, settings: GeoServerSe
   }
   const remaining = await db.select().from(servers).where(ne(servers.status, "DELETED"));
   const stillRetired = (state.retired ?? []).filter(name => remaining.some(row => row.name === name));
-  const view = (next: GeoServerView) => writeState(db, { view: next, mailed, retired: stillRetired }, now);
+  const view = (next: GeoServerView, cause?: string) => writeState(db, { view: next, mailed, retired: stillRetired, ...(cause ? { cause } : {}) }, now);
 
   // Lediga platser: servrar som startar och servrar utan jobb tar nästa jobb i kön. En ny server startas för varje jobb som
   // väntar utöver dem, upp till `maxServers`.
@@ -293,7 +310,8 @@ async function manageRound(db: Database, hetzner: Hetzner, settings: GeoServerSe
     .where(and(gte(servers.createdAt, new Date(now.getTime() - HOUR)), eq(servers.deleteReason, "startade inte")));
   if (failed >= FAILED_STARTS_PER_HOUR) {
     if (serving) { await servingView(); return { action: "unavailable", detail: "för många starter" }; }
-    await view({ state: "UNAVAILABLE", detail: "Flera starter i rad misslyckades; nytt försök om en stund." });
+    await view({ state: "UNAVAILABLE", detail: "Flera starter i rad misslyckades; nytt försök om en stund." },
+      `Flera geo-servrar i rad startade inte (${failed} den senaste timmen); nya försök görs först om en stund. Kontrollera att avbildningen ${settings.image} finns och att ${settings.origin} nås från Hetzner.`);
     return { action: "unavailable", detail: "för många starter" };
   }
 
@@ -306,13 +324,8 @@ async function manageRound(db: Database, hetzner: Hetzner, settings: GeoServerSe
   const firstFit = settings.types.findIndex(bigEnough);
   if (firstFit < 0) {
     const detail = `Området behöver en geo-server med minst ${needGb} GB minne, och ingen sådan typ är inställd. Dela området i etapper.`;
-    await view({ state: "UNAVAILABLE", detail });
-    if (dueMail(state, "UNAVAILABLE", now)) {
-      await mail({ subject: "O-Tid: ingen geo-server är stor nog", text: `Ett geo-jobb i kön behöver minst ${needGb} GB minne, men ingen av typerna i `
-        + `OTID_GEO_SERVER_TYPES (${settings.types.join(", ")}) har det. Lägg till en större typ i .env och starta om web, eller be användaren dela området i etapper.` });
-      mailed.UNAVAILABLE = now.toISOString();
-      await writeState(db, { view: { state: "UNAVAILABLE", detail }, mailed, retired: stillRetired }, now);
-    }
+    await view({ state: "UNAVAILABLE", detail }, `Ett geo-jobb i kön behöver minst ${needGb} GB minne, men ingen av typerna i OTID_GEO_SERVER_TYPES (${settings.types.join(", ")}) `
+      + "har det. Lägg till en större typ i .env och starta om web, eller be användaren dela området i etapper.");
     return { action: "unavailable", detail: `inget med ${needGb} GB` };
   }
   let cost = await geoServerMonthCost(db, now);
@@ -330,13 +343,10 @@ async function manageRound(db: Database, hetzner: Hetzner, settings: GeoServerSe
       for (const location of settings.locations) {
         const hourly = types.find(row => row.name === type)?.hourly.get(location) ?? highestKnown;
         if (cost + hourly > settings.budgetEur) {
-          if (dueMail(state, "BUDGET", now)) {
-            await mail({ subject: "O-Tid: geo-serverns budget är slut", text: `Månadens kostnad för geo-servern är ${cost.toFixed(2)} € av `
-              + `${settings.budgetEur} € (OTID_GEO_BUDGET_EUR_PER_MONTH). ${waiting} geo-jobb väntar i kön. Höj budgeten och starta om web, eller vänta till nästa månad.` });
-            mailed.BUDGET = now.toISOString();
-          }
-          if (serving || made.length) { await view({ state: made.length ? "STARTING" : remaining.some(row => row.status === "READY") ? "READY" : "STARTING", detail: null }); return made.length ? started() : { action: "budget", detail: `${cost.toFixed(2)} av ${settings.budgetEur} €` }; }
-          await view({ state: "BUDGET", detail: null });
+          const budgetCause = `Månadens kostnad för geo-servern är ${cost.toFixed(2)} € av ${settings.budgetEur} € (OTID_GEO_BUDGET_EUR_PER_MONTH). `
+            + `${waiting} geo-jobb väntar i kön. Höj budgeten och starta om web, eller vänta till nästa månad.`;
+          if (serving || made.length) { await view({ state: made.length ? "STARTING" : remaining.some(row => row.status === "READY") ? "READY" : "STARTING", detail: null }, budgetCause); return made.length ? started() : { action: "budget", detail: `${cost.toFixed(2)} av ${settings.budgetEur} €` }; }
+          await view({ state: "BUDGET", detail: null }, budgetCause);
           return { action: "budget", detail: `${cost.toFixed(2)} av ${settings.budgetEur} €` };
         }
         const token = randomBytes(32).toString("hex");
@@ -348,12 +358,8 @@ async function manageRound(db: Database, hetzner: Hetzner, settings: GeoServerSe
           if (UNAVAILABLE.has(result.code)) continue;
           // Andra fel (nyckeln, kontots gränser, t.ex. högsta antalet servrar i Hetzner-projektet): inget mer provas i det här varvet.
           if (serving || made.length) { await view({ state: made.length ? "STARTING" : remaining.some(row => row.status === "READY") ? "READY" : "STARTING", detail: null }); return made.length ? started() : { action: "unavailable", detail: result.code }; }
-          await view({ state: "UNAVAILABLE", detail: null });
-          if (dueMail(state, "UNAVAILABLE", now)) {
-            await mail({ subject: "O-Tid: geo-servern kunde inte skapas", text: `Hetzner svarade ${result.code}: ${result.message}\n\n${waiting} geo-jobb väntar. `
-              + "Kontrollera OTID_HETZNER_TOKEN (Läs och skriv) och projektets gränser hos Hetzner." });
-            mailed.UNAVAILABLE = now.toISOString();
-          }
+          await view({ state: "UNAVAILABLE", detail: null }, `Hetzner svarade ${result.code}: ${result.message}. ${waiting} geo-jobb väntar. `
+            + "Kontrollera OTID_HETZNER_TOKEN (Läs och skriv) och projektets gränser hos Hetzner.");
           return { action: "unavailable", detail: result.code };
         }
         await db.insert(servers).values({ id: randomUUID(), providerId: result.id, name, serverType: type, location, hourlyEur: hourly,
@@ -380,18 +386,13 @@ async function manageRound(db: Database, hetzner: Hetzner, settings: GeoServerSe
   if (serving) { await servingView(); return { action: "unavailable", detail: tried.join("; ") }; }
 
   // Ingen typ gick att skapa någonstans.
-  await view({ state: "UNAVAILABLE", detail: null });
-  if (dueMail(state, "UNAVAILABLE", now)) {
-    const suggestions = types.filter(type => !type.deprecated && type.memoryGb >= 4 && !settings.types.includes(type.name))
-      .map(type => ({ name: type.name, price: Math.min(...[...type.hourly.values()]) })).filter(type => Number.isFinite(type.price))
-      .sort((a, b) => a.price - b.price).slice(0, 5).map(type => `${type.name} (från ${type.price.toFixed(4)} €/h)`);
-    await mail({ subject: "O-Tid: ingen geo-server går att skapa", text: `Ingen av typerna i OTID_GEO_SERVER_TYPES (${settings.types.join(", ")}) gick att skapa `
-      + `på platserna ${settings.locations.join(", ")}. ${waiting} geo-jobb väntar i kön och körs när en server går att starta.\n\n`
-      + `Försök: ${tried.join("; ")}\n\n`
-      + (suggestions.length ? `Andra typer hos Hetzner med minst 4 GB (kan också vara slut): ${suggestions.join(", ")}.\n` : "")
-      + "Lägg till en typ i OTID_GEO_SERVER_TYPES i .env och starta om web (docker compose -f docker-compose.prod.yml up -d web)." });
-    mailed.UNAVAILABLE = now.toISOString();
-  }
-  await writeState(db, { view: { state: "UNAVAILABLE", detail: null }, mailed, retired: (await readState(db)).retired ?? [] }, now);
+  const suggestions = types.filter(type => !type.deprecated && type.memoryGb >= 4 && !settings.types.includes(type.name))
+    .map(type => ({ name: type.name, price: Math.min(...[...type.hourly.values()]) })).filter(type => Number.isFinite(type.price))
+    .sort((a, b) => a.price - b.price).slice(0, 5).map(type => `${type.name} (från ${type.price.toFixed(4)} €/h)`);
+  await view({ state: "UNAVAILABLE", detail: null }, `Ingen av typerna i OTID_GEO_SERVER_TYPES (${settings.types.join(", ")}) gick att skapa `
+    + `på platserna ${settings.locations.join(", ")}. ${waiting} geo-jobb väntar i kön och körs när en server går att starta. `
+    + `Försök: ${tried.join("; ")}. `
+    + (suggestions.length ? `Andra typer hos Hetzner med minst 4 GB (kan också vara slut): ${suggestions.join(", ")}. ` : "")
+    + "Lägg till en typ i OTID_GEO_SERVER_TYPES i .env och starta om web.");
   return { action: "unavailable", detail: tried.join("; ") };
 }

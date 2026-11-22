@@ -2,17 +2,17 @@ import { localRaceDate, parseRaceClock } from "@o-tid/domain";
 
 /**
  * ADR-0216: serverns veckorapport och larm till superadmin. Den här filen är ren (ingen I/O): inställningarna, vilka problem en
- * mätning visar, larmens "högst ett per sort och dygn / löst"-logik, när veckorapporten ska gå och texterna. Mätningen görs i
+ * mätning visar, larmens "högst ett per sort och 6 timmar / löst"-logik, när veckorapporten ska gå och texterna. Mätningen görs i
  * `server-status.ts` och skickas av webbens bevakning (`apps/web/src/lib/server-watch-runner.ts`). Inga personuppgifter: bara
  * storlekar, antal och tider.
  */
-export const ALERT_KINDS = ["DISK", "MAP_QUOTA", "BACKUP", "HEALTH", "MEMORY"] as const;
+export const ALERT_KINDS = ["DISK", "MAP_QUOTA", "BACKUP", "HEALTH", "MEMORY", "STORE", "GEO"] as const;
 export type AlertKind = typeof ALERT_KINDS[number];
 export const TIME_ZONE = "Europe/Stockholm";
 const HOUR = 60 * 60_000;
 const DAY = 24 * HOUR;
-/** Larm per sort: högst ett per dygn (också påminnelsen när problemet står kvar). */
-export const ALERT_REPEAT_MS = DAY;
+/** Larm per sort: högst ett per 6 timmar (också påminnelsen när problemet står kvar; PLAN.md steg M5). */
+export const ALERT_REPEAT_MS = 6 * HOUR;
 /** Säkerhetskopian larmar först när så många körningar i rad har misslyckats: en kopia som avbröts av en uppdatering går igenom nästa timme. */
 const BACKUP_ALARM_FAILURES = 2;
 
@@ -129,10 +129,33 @@ export interface ServerSnapshot {
   /** De senaste hälsokontrollerna (nyast sist); null när tjänsten monitor inte skriver något som webben ser. */
   readonly monitor: readonly MonitorCheck[] | null;
   readonly counts: ServerCounts;
+  /** Förrådet (objektlagringen, ADR-0229): null eller utelämnat när förrådet är av. `error` = null när provet lyckades. */
+  readonly store?: { readonly error: string | null } | null;
+  /** Geo-servern (ADR-0219 K5b): null eller utelämnat när den inte används. `problem` = null när allt fungerar. */
+  readonly geo?: { readonly problem: string | null } | null;
 }
 
 /** Hälsokontrollens koder som har egna larm (disken och backupen) räknas inte som "hälsokontroll misslyckad". */
 const OWN_ALERT_CODES = new Set(["disk", "backup"]);
+
+/**
+ * Hälsokontrollens kontroller de senaste dygnen, sorterade: ett fel är en kontroll där något utöver disken och backupen
+ * misslyckades (webben, databasen, publiken, utskriftskön); en varning är en kontroll där bara disken eller backupen låg över
+ * sin gräns (de har egna larm). Äldre rader utan koder räknas som fel.
+ */
+export function classifyChecks(checks: readonly MonitorCheck[]): { ok: number; warnings: number; failures: number; byCode: Map<string, number>; lastFailure: MonitorCheck | null } {
+  let ok = 0, warnings = 0, failures = 0;
+  const byCode = new Map<string, number>();
+  let lastFailure: MonitorCheck | null = null;
+  for (const check of checks) {
+    if (check.ok) { ok += 1; continue; }
+    for (const code of check.codes) byCode.set(code, (byCode.get(code) ?? 0) + 1);
+    if (check.codes.length > 0 && check.codes.every(code => OWN_ALERT_CODES.has(code))) { warnings += 1; continue; }
+    failures += 1;
+    lastFailure = check;
+  }
+  return { ok, warnings, failures, byCode, lastFailure };
+}
 
 export const usedPercent = (disk: { totalBytes: number; freeBytes: number }) =>
   disk.totalBytes > 0 ? (disk.totalBytes - disk.freeBytes) / disk.totalBytes * 100 : 0;
@@ -177,6 +200,8 @@ export function serverProblems(snapshot: ServerSnapshot, settings: ServerWatchSe
       problems.set("HEALTH", `Hälsokontrollen har misslyckats ${settings.healthFailures} gånger i rad: ${last.text}`.slice(0, 400));
     }
   }
+  if (snapshot.store?.error) problems.set("STORE", `Förrådet (objektlagringen) svarar inte som det ska: ${snapshot.store.error}`.slice(0, 400));
+  if (snapshot.geo?.problem) problems.set("GEO", snapshot.geo.problem.slice(0, 400));
   if (snapshot.memory && snapshot.memory.totalBytes > 0) {
     const free = snapshot.memory.availableBytes / snapshot.memory.totalBytes * 100;
     if (free < settings.memoryAlertPercent) {
@@ -240,13 +265,16 @@ export function evaluateAlerts(states: ReadonlyMap<AlertKind, NoticeState>, prob
 }
 
 const KIND_NAMES: Record<AlertKind, string> = {
-  DISK: "disken", MAP_QUOTA: "kartornas kvot", BACKUP: "säkerhetskopian", HEALTH: "hälsokontrollen", MEMORY: "minnet"
+  DISK: "disken", MAP_QUOTA: "kartornas kvot", BACKUP: "säkerhetskopian", HEALTH: "hälsokontrollen", MEMORY: "minnet",
+  STORE: "förrådet", GEO: "geo-servern"
 };
 const KIND_HELP: Record<AlertKind, string> = {
-  DISK: "Se docs/drift.md, Serverrapport och larm (Disken): gamla dumpar, loggar och docker-avbildningar kan tas bort, eller köp större disk.",
+  DISK: "Se docs/drift.md, Serverrapport och larm (Disken): `sh deploy/update.sh prune` tar bort gamla docker-avbildningar; gamla dumpar och loggar kan tas bort, eller köp större disk.",
   MAP_QUOTA: "Höj OTID_MAP_QUOTA_TOTAL_MB i .env om disken räcker, eller be klubbarna ta bort gamla kartor.",
   BACKUP: "Se `docker compose -f docker-compose.prod.yml logs backup` (BACKUP MISSLYCKADES) och docs/drift.md, Backup.",
   HEALTH: "Se `docker compose -f docker-compose.prod.yml logs monitor` och `ps`; starta om en tjänst med `restart <tjänst>`.",
+  STORE: "Kontrollera objektlagringens uppgifter (OTID_ARCHIVE_*), att den nås och att nyckeln gäller (docs/drift.md, Förrådet och mellanlagret). Nytt kartinnehåll sparas i databasen så länge.",
+  GEO: "Se `docker compose -f docker-compose.prod.yml logs web | grep Geo-servern` och OTID_HETZNER_TOKEN, OTID_GEO_SERVER_TYPES och OTID_GEO_BUDGET_EUR_PER_MONTH i .env (docs/drift.md).",
   MEMORY: "Se `docker stats --no-stream`; en tjänst som växer kan startas om med `docker compose -f docker-compose.prod.yml restart <tjänst>`."
 };
 
@@ -267,7 +295,7 @@ export function alertMessage(messages: readonly AlertMessage[], now: Date, serve
     lines.push(`LÖST (${KIND_NAMES[message.kind]}): problemet från ${dateTime(message.since)} har gått över.`,
       ...(message.detail ? [`  Det var: ${message.detail}`] : []), "");
   }
-  lines.push("Samma larm skickas högst en gång per dygn, och ett \"löst\" när problemet har gått över.",
+  lines.push("Samma larm skickas högst en gång per 6 timmar, och ett \"löst\" när problemet har gått över.",
     "Skickas till kontona med superadmin. Stängs av med OTID_SERVER_ALERTS=off i .env (docs/drift.md, Serverrapport och larm).");
   return { subject, text: lines.join("\n") };
 }
@@ -367,6 +395,7 @@ export function weeklyReport(snapshot: ServerSnapshot, history: WeeklyHistory, s
     }
   } else lines.push("- Diskens storlek kunde inte läsas.");
   const { storedBytes, quotaBytes } = snapshot.maps;
+  if (snapshot.store) lines.push(snapshot.store.error ? `- Förrådet (objektlagringen): FEL, ${snapshot.store.error}` : "- Förrådet (objektlagringen): svarar.");
   lines.push(`- Kartorna tar ${bytes(storedBytes)}${quotaBytes === null ? " (ingen kvot)" : ` av kvoten ${bytes(quotaBytes)}`}. ` +
     "Varje GB kartor tar ungefär 2 GB disk (databasen och säkerhetskopiornas kartinnehåll).");
   if (quotaBytes !== null && snapshot.disk && 2 * (quotaBytes - storedBytes) > snapshot.disk.freeBytes) {
@@ -412,8 +441,15 @@ export function weeklyReport(snapshot: ServerSnapshot, history: WeeklyHistory, s
   for (const [kind, detail] of problems) lines.push(`- Just nu (${KIND_NAMES[kind]}): ${detail}`);
   const checks = (snapshot.monitor ?? []).filter(check => check.at.getTime() >= weekAgo);
   if (snapshot.monitor) {
-    const failed = checks.filter(check => !check.ok).length;
-    lines.push(`- Hälsokontrollen: ${checks.length} kontroller, ${failed} misslyckade.`);
+    const result = classifyChecks(checks);
+    lines.push(`- Hälsokontrollen: ${checks.length} kontroller, ${result.failures} misslyckade (webben, databasen, publiken eller utskriftskön) ` +
+      `och ${result.warnings} varningar (bara disken eller säkerhetskopian över sin gräns; de har egna larm och räknas inte som misslyckade).`);
+    if (result.byCode.size > 0) {
+      const names: Record<string, string> = { web: "webben", db: "databasen", print: "utskriftskön", public: "publiken", disk: "disken", backup: "säkerhetskopian" };
+      lines.push(`  Orsaker i kontrollerna som inte var ok: ${[...result.byCode].sort((a, b) => b[1] - a[1]).map(([code, n]) => `${names[code] ?? code} ${n}`).join(", ")}.`);
+    }
+    if (result.lastFailure) lines.push(`  Senaste riktiga fel ${dateTime(result.lastFailure.at)}: ${result.lastFailure.text}`);
+    if (result.failures > 0) lines.push("  Se alla: docker compose -f docker-compose.prod.yml exec web sh -c \"grep -P '\\tfail\\t' /status/monitor.log\" (epoktid, koder, text).");
   } else lines.push("- Hälsokontrollens resultat syns inte för webben (se docs/drift.md, Serverrapport och larm).");
   lines.push("");
 

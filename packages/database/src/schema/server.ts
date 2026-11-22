@@ -4,7 +4,7 @@ import { bigint, boolean, index, integer, pgTable, real, text, timestamp, uuid }
  * ADR-0216 (migration 0085): serverns veckorapport och larm till superadmin. Inga personuppgifter: bara storlekar, antal och
  * vilka slags larm som skickats till hur många.
  */
-export type ServerNoticeKind = "WEEKLY_REPORT" | "DISK" | "MAP_QUOTA" | "BACKUP" | "HEALTH" | "MEMORY";
+export type ServerNoticeKind = "WEEKLY_REPORT" | "DISK" | "MAP_QUOTA" | "BACKUP" | "HEALTH" | "MEMORY" | "STORE" | "GEO";
 
 /** En mätning per varv (förval var 15:e minut) för trenden, prognosen och belastningstopparna. */
 export const serverSamples = pgTable("server_sample", {

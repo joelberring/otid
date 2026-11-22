@@ -125,12 +125,34 @@ export function signS3(input: SignInput): Record<string, string> {
 
 const SHA256 = /^[0-9a-f]{64}$/;
 const REQUEST_TIMEOUT_MS = 10 * 60_000;
+/**
+ * Ägaren 2026-11-22: objektlagringen svarar ibland 504 (eller 500/502/503/429) en kort stund. Ett sådant svar, och ett nätfel,
+ * provas igen efter väntetiderna här (tre försök); andra fel (t.ex. 403 fel nycklar, 404) provas inte igen.
+ */
+const RETRY_DELAYS_MS = [1_000, 4_000] as const;
+const TRANSIENT = new Set([429, 500, 502, 503, 504]);
 
 /** Arkivet i en S3-kompatibel objektlagring. Fel från lagringen kastas med statuskoden (aldrig nycklar i texten). */
-export function s3ArchiveStore(connection: ArchiveConnection, options: { fetch?: typeof fetch; now?: () => Date } = {}): ArchiveStore {
+export function s3ArchiveStore(connection: ArchiveConnection, options: { fetch?: typeof fetch; now?: () => Date; retryDelaysMs?: readonly number[] } = {}): ArchiveStore {
   const send = options.fetch ?? fetch;
+  const delays = options.retryDelaysMs ?? RETRY_DELAYS_MS;
+  /** Ett anrop, med nya försök vid tillfälliga fel (filen strömmas från början igen varje gång). */
+  const call = async (method: string, sha256: string, body?: Uint8Array | { path: string; byteLength: number }): Promise<Response> => {
+    for (let attempt = 0; ; attempt += 1) {
+      const last = attempt >= delays.length;
+      try {
+        const response = await once(method, sha256, body);
+        if (last || !TRANSIENT.has(response.status)) return response;
+        await response.arrayBuffer().catch(() => undefined);
+      } catch (error) {
+        if (last || (error instanceof Error && error.message === "Ogiltig kontrollsumma för arkivet")) throw error;
+      }
+      console.warn(`Arkivet: ${method} gav ett tillfälligt fel, försöker igen (${attempt + 2} av ${delays.length + 1})`);
+      await new Promise(resolve => setTimeout(resolve, delays[attempt]));
+    }
+  };
   /** `body` är bytes i minnet eller en fil på disken (strömmas, med längden som Content-Length). */
-  const call = async (method: string, sha256: string, body?: Uint8Array | { path: string; byteLength: number }) => {
+  const once = async (method: string, sha256: string, body?: Uint8Array | { path: string; byteLength: number }) => {
     if (!SHA256.test(sha256)) throw new Error("Ogiltig kontrollsumma för arkivet");
     const url = new URL(`${connection.endpoint}/${connection.bucket}/map-content/${sha256}`);
     const headers = signS3({ method, url, payloadSha256: body ? sha256 : EMPTY_SHA256, region: connection.region,

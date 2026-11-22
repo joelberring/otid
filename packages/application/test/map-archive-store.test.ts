@@ -68,6 +68,26 @@ describe("arkivets objektlagring", () => {
     await rm(dir, { recursive: true, force: true });
   });
 
+  it("ägaren 2026-11-22: försöker igen vid 504 och nätfel, men inte vid 403", async () => {
+    const sha = createHash("sha256").update("x").digest("hex");
+    const replies: (number | "nät")[] = [504, "nät", 200, 403];
+    const methods: string[] = [];
+    const store = s3ArchiveStore({ endpoint: "https://hel1.example.test", bucket: "b", region: "hel1", accessKey: "a", secretKey: "s" }, {
+      retryDelaysMs: [0, 0], fetch: (async (_url: URL, init: RequestInit) => {
+        methods.push(init.method!);
+        const reply = replies.shift();
+        if (reply === "nät") throw new TypeError("fetch failed");
+        return new Response(reply === 200 ? "" : "<Error><Code>Fel</Code></Error>", { status: reply ?? 500 });
+      }) as unknown as typeof fetch });
+    await store.put(sha, new Uint8Array([1]));
+    expect(methods).toEqual(["PUT", "PUT", "PUT"]);
+    await expect(store.put(sha, new Uint8Array([1]))).rejects.toThrow("(403 Fel)");
+    expect(methods).toHaveLength(4);
+    // Tre tillfälliga fel i rad: felet går vidare.
+    replies.push(503, 503, 503);
+    await expect(store.size(sha)).rejects.toThrow("(503");
+  });
+
   it("provet av anslutningen lämnar inget kvar och säger ifrån när objektet inte kommer tillbaka", async () => {
     const store = memoryArchiveStore();
     await probeArchiveStore(store);

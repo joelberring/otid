@@ -77,7 +77,7 @@ describe("förrådets läge och uppladdning", () => {
     const hash = createHash("sha256").update(bytes).digest("hex");
     await uploadToStore(store, hash, bytes.byteLength, { bytes });
     expect(store.objects.get(hash)?.equals(bytes)).toBe(true);
-    const broken = { ...store, digest: async () => ({ byteLength: 1, sha256: hash }) };
+    const broken = { ...store, size: async () => 1 };
     await expect(uploadToStore(broken, hash, bytes.byteLength, { bytes })).rejects.toThrow("stämmer inte");
   });
 });

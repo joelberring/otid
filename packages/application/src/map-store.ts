@@ -113,12 +113,18 @@ export async function discardStagedFile(contentId: string): Promise<void> {
 
 export type StoreSource = { file: string } | { bytes: Uint8Array };
 
-/** Laddar upp och läser tillbaka: först när längd och sha256 stämmer är innehållet i förrådet. */
+/**
+ * Laddar upp och kontrollerar: först när objektet finns med rätt längd är innehållet i förrådet.
+ *
+ * Ägaren 2026-11-22 (laserkörningarna gick långsamt och föll med «Arkivet: hämtningen misslyckades (504)»): kontrollen läste
+ * förut tillbaka hela objektet, så en fil på 77 MB gick upp och ner igen medan geo-serverns anrop väntade. Innehållet är redan
+ * kontrollerat vid uppladdningen: anropet signeras med innehållets sha256 (`x-amz-content-sha256`), och objektlagringen nekar
+ * en kropp som inte stämmer. Kvar är en HEAD som visar att objektet finns och har rätt längd.
+ */
 export async function uploadToStore(store: ArchiveStore, sha256: string, byteLength: number, source: StoreSource): Promise<void> {
   if ("file" in source) await store.putFile(sha256, source.file, byteLength);
   else await store.put(sha256, source.bytes);
-  const back = await store.digest(sha256);
-  if (!back || back.byteLength !== byteLength || back.sha256 !== sha256) throw new Error("Kopian i förrådet stämmer inte med originalet");
+  if (await store.size(sha256) !== byteLength) throw new Error("Kopian i förrådet stämmer inte med originalet");
 }
 
 /**

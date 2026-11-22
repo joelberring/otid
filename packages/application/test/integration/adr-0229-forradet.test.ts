@@ -134,7 +134,8 @@ describe("ADR-0229 M1: förrådet och mellanlagret", () => {
     const store = storeOn();
     const owner = await registerTestAccount(db, undefined, NOW);
     const bytes = bytesOf(5, 9000);
-    setMapArchiveStore({ ...store, digest: async () => ({ byteLength: bytes.byteLength, sha256: "0".repeat(64) }) });
+    // Ägaren 2026-11-22: kontrollen är längden i en HEAD (innehållet kontrollerar objektlagringen mot den signerade sha256).
+    setMapArchiveStore({ ...store, size: async () => bytes.byteLength - 1 });
     const staged = await stageMapContent(db, chunked(bytes), { maxBytes: MB });
     if (staged.kind !== "staged") throw new Error(staged.kind);
     await expect(db.transaction(tx => storeMapContent(tx, staged, owner.accountId, NOW, quota))).rejects.toThrow("stämmer inte");

@@ -118,3 +118,15 @@ superadmin, flera superadmin, automatisk rensning av docker-avbildningar.
 - Publikens instanser och utskriftsarbetaren får objektlagringens nycklar och mellanlagrets volym. Utskriftsrollen får läsa
   mellanlagrets tak och skriva `last_used_at` och hämtningarna (`deploy/db-roles.sh setup`); utan det hoppar den bara över det.
 - Ett objekt som laddats upp men inte blev innehåll (kvoten tog slut under tiden) märks som släppt och raderas efter fristen.
+
+## Tillägg 2026-11-22: kontrollen efter uppladdningen och nya försök
+
+Ägaren 2026-11-22: laserkörningarna gick långsamt, och en etapp föll med «Arkivet: hämtningen misslyckades (504 GatewayTimeout)».
+Kontrollen efter uppladdningen läste tillbaka hela objektet, så varje resultatfil från geo-servern (upp till 77 MB) gick upp och ner
+igen medan geo-serverns anrop väntade.
+
+- **Beslut:** `uploadToStore` kontrollerar med en HEAD att objektet finns med rätt längd. Innehållet kontrolleras redan vid
+  uppladdningen: PUT signeras med innehållets sha256 (`x-amz-content-sha256`), och objektlagringen nekar en kropp som inte stämmer.
+- **Beslut:** anropen till objektlagringen provas igen vid 429, 500, 502, 503, 504 och nätfel (tre försök, 1 s och 4 s emellan).
+  Andra svar (403, 404) provas inte igen.
+- Flytten (M3) och arkivet läser fortfarande hela objektet där de behöver det (`download`, `digest`).

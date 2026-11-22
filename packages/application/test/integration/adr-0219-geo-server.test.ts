@@ -175,6 +175,16 @@ describe("ADR-0219 K5b: geo-servern hos Hetzner", () => {
     expect(mails).toHaveLength(2);
   });
 
+  it("flera servrar på reservtyp i samma varv ger ett enda mejl", async () => {
+    await clear();
+    const { hetzner, created } = fakeHetzner(type => type === "cax11");
+    const mails: ServerMessage[] = [];
+    await waitingJob(); await waitingJob();
+    await manageGeoServer(db, hetzner, { ...settings, maxServers: 2 }, async message => { mails.push(message); }, NOW);
+    expect(created).toHaveLength(2);
+    expect(mails.map(message => message.subject)).toEqual(["O-Tid: geo-servern startade med en reservtyp"]);
+  });
+
   it("flera servrar samtidigt: en per jobb som väntar, högst maxServers; de extra raderas efter kortare tomgång", async () => {
     // Ägaren 2026-11-22: etapperna i en körning (och en kurs där många kör samtidigt) ska inte vänta på varandra.
     await clear();

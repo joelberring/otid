@@ -358,7 +358,7 @@ async function manageRound(db: Database, hetzner: Hetzner, settings: GeoServerSe
         }
         await db.insert(servers).values({ id: randomUUID(), providerId: result.id, name, serverType: type, location, hourlyEur: hourly,
           tokenSha256: createHash("sha256").update(token).digest("hex"), status: "STARTING", createdAt: now });
-        if (typeIndex > firstFit && dueMail(state, "FALLBACK", now)) {
+        if (typeIndex > firstFit && dueMail({ ...state, mailed }, "FALLBACK", now)) {
           await mail({ subject: "O-Tid: geo-servern startade med en reservtyp", text: `Geo-servern startade som ${type} i ${location}, eftersom `
             + `${settings.types.slice(firstFit, typeIndex).filter(bigEnough).join(", ")} inte gick att skapa just nu. Allt fungerar, men lägg gärna till fler typer i `
             + `OTID_GEO_SERVER_TYPES innan även reserven tar slut.\n\nFörsök: ${tried.join("; ")}` });

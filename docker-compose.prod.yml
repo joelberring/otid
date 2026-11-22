@@ -34,8 +34,8 @@ x-backup-environment: &backup-environment
   PGDATABASE: otid
   BACKUP_DIR: /backups
   TZ: Europe/Stockholm
-  # ADR-0186: en dump varje hel timme dygnet runt (tidigare 08–23) och en dagsbackup i 14 dagar. ADR-0216: de 24 senaste
-  # timdumparna (tidigare 48); kartinnehållet sparas en gång i ./backups/map-content i stället för i varje dump.
+  # ADR-0186: en dump varje hel timme dygnet runt (tidigare 08–23) och en dagsbackup i 14 dagar. ADR-0216 tillägg (M3): de 12 senaste
+  # timdumparna (tidigare 24 och 48); kartinnehållet sparas en gång i ./backups/map-content i stället för i varje dump.
   BACKUP_INTERVAL_MINUTES: ${BACKUP_INTERVAL_MINUTES:-60}
   BACKUP_KEEP_HOURLY: ${BACKUP_KEEP_HOURLY:-12}
   BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}

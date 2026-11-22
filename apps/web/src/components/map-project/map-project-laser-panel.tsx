@@ -13,6 +13,7 @@ import type { Bounds } from "../../lib/course-setting-viewport";
 import { Button } from "../ui";
 import type { useMapProjectImport } from "./use-map-project-import";
 import { MapProjectLaserDownload } from "./map-project-laser-download";
+import { MapProjectRawLaserChoice, MapProjectRawLaserLinks } from "./map-project-raw-laser";
 import { lantmaterietGap, lantmaterietProblem } from "../../lib/lantmateriet-status";
 import { LantmaterietNotice } from "../lantmateriet-connection";
 import { LaserServerStatus } from "./map-project-laser-shared";
@@ -58,6 +59,7 @@ export function MapProjectLaserPanel({ view, laser, importer, georeference, boun
   const [cliffStyle, setCliffStyle] = useState<CliffStyle>(LASER_FORM_DEFAULTS.cliffStyle);
   const [cliffTags, setCliffTags] = useState(LASER_FORM_DEFAULTS.cliffTags);
   const [rawTicks, setRawTicks] = useState(false);
+  const [rawLaser, setRawLaser] = useState(false);
   // G6 (ägaren 2026-11-11: «itereringar av olika lager, t.ex. grönt, efter första körning»): ett klart jobb körs om med samma
   // rutor och område men nya inställningar, och resultaten jämförs innan något läggs in i kartan.
   const [rerun, setRerun] = useState<GeoJobView>();
@@ -94,8 +96,9 @@ export function MapProjectLaserPanel({ view, laser, importer, georeference, boun
       interval, formline, sprint: !!importer.sprint, chosen: choiceSettings(choices, moreSettings(more), cliffStyle, cliffTags, rawTicks),
       // Kör om: rutorna, området och Lantmäteriets produkter tas från jobbet; annars de valda rutorna och kartans område.
       target: rerun ? { rerunOf: rerun.jobId, clip: sampled } : { tiles, clip, areaId: area?.areaId, extras: extras.filter(extra => !skippedExtras.has(extra.kind)) },
-      moisture: moisture ? { channelHa, wetMeters } : undefined, vegetation: vegetation ? { minAreaM2 } : undefined }), "panel");
-    if (ok) { setItems(undefined); setRerun(undefined); setSample(""); }
+      moisture: moisture ? { channelHa, wetMeters } : undefined, vegetation: vegetation ? { minAreaM2 } : undefined,
+      rawLaser: rawLaser && list?.rawLaserAvailable === true }), "panel");
+    if (ok) { setItems(undefined); setRerun(undefined); setSample(""); setRawLaser(false); }
   }
 
   /** Formuläret med jobbets inställningar, för att köra om det med andra. */
@@ -193,6 +196,7 @@ export function MapProjectLaserPanel({ view, laser, importer, georeference, boun
         {vegetation && <label>{text.minArea}<select value={minAreaM2} onChange={event => setMinAreaM2(Number(event.target.value))}>
           {[100, 300, 600, 1000].map(value => <option key={value} value={value}>{text.minAreaOption(value)}</option>)}
         </select></label>}
+        <MapProjectRawLaserChoice available={list?.rawLaserAvailable === true} checked={rawLaser} onChange={setRawLaser} />
         <span className={styles.actions}>
           <Button disabled={busy || (!rerun && (selected === 0 || selected > GEO_JOB_MAX_TILES))} onClick={() => void start()} data-testid="map-project-laser-start">
             {rerun ? text.rerunStart : text.start(selected)}</Button>
@@ -231,6 +235,7 @@ export function MapProjectLaserPanel({ view, laser, importer, georeference, boun
               onClick={() => void laser.candidates(job, [output.name], text.outputs[output.name]!, false, "panel")}>{text.load(text.outputs[output.name]!)}</Button>)}
           </span>}
           {job.status === "DONE" && job.outputs.length > 0 && <MapProjectLaserDownload projectId={view.projectId} job={job} />}
+          <MapProjectRawLaserLinks job={job} />
           {job.kind === "PULLAUTIN" && !ACTIVE.has(job.status) && importer.canImport && ready && <span className={styles.actions}>
             <Button variant="secondary" disabled={busy} onClick={() => startRerun(job)} data-testid="map-project-laser-rerun-start">{text.rerun}</Button>
           </span>}

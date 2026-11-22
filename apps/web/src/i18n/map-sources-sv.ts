@@ -144,6 +144,16 @@ export const mapSourcesSv = {
     cliffTags: "Föreslå passerbara branter med taggar",
     rawTicks: "Spara Karttapullautins råa brantstreck (branter.dxf, stup.dxf)",
     rawTicksHelp: "Behövs sällan: grundkartan använder brantlinjerna. De råa strecken blir stora filer, ofta flera tiotals MB.",
+    /** PLAN.md M6 (ägaren 2026-11-22): rå laserdata sparas aldrig, utom i en zip med hämtningslänk när man kryssar i det. */
+    rawLaser: "Spara även rå laserdata åt mig",
+    rawLaserHelp: "Laserfilerna som körningen använder (klippta till området) läggs i en zip med en hämtningslänk som gäller i 7 dygn. Länken visas här och skickas med e-post; sedan tas filen bort. Den räknas inte mot din lagring.",
+    rawLaserTerms: "Lantmäteriets villkor för laserdata gäller den som hämtar (CC BY 4.0, källan ©Lantmäteriet; laserdata kan innehålla personuppgifter).",
+    rawLaserOff: "Rå laserdata kan inte sparas här: förrådet (objektlagringen) är inte påslaget på den här servern. Laserfilerna tas alltid bort efter körningen.",
+    rawLaserStatus: { PENDING: "Rå laserdata packas …", READY: "Rå laserdata", FAILED: "Rå laserdata kunde inte sparas" } as Record<string, string>,
+    rawLaserLink: (megabytes: number) => `Hämta zip (${megabytes} MB)`,
+    rawLaserUntil: (date: string) => `gäller till ${date}`,
+    rawLaserOthers: "bara den som startade körningen kan hämta",
+    rawLaserMissing: "Rå laserdata begärdes, men ingen zip-fil finns (geo-servern packade den inte, eller filen är redan borttagen).",
     choiceLabels: { cliffs: "Branter", contours: "Kurvor", knolls: "Knollar", green: "Grönt", undergrowth: "Undervegetation", open: "Gult", rock: "Berg i dagen" } as Record<string, string>,
     choiceLevels: {
       cliffs: { less: "Färre", default: "Som förval", more: "Fler" }, contours: { less: "Slätare", default: "Som förval", more: "Detaljrikare" },

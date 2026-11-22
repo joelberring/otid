@@ -67,3 +67,22 @@ export async function prune(cacheDir: string, maxBytes = CACHE_MAX_BYTES): Promi
   }
   return removed;
 }
+
+/**
+ * PLAN.md M6: ingen laserdata ligger kvar på geo-servern efter en körning. Arbetskatalogen rensas efter varje jobb, och vid
+ * start (behållaren startas om efter en krasch, och då hann `finally` inte köras); rutornas förråd (`geo-cache.ts`) töms vid
+ * start och när arbetaren slutar.
+ */
+export async function clearLeftovers(work: string, cache: string): Promise<number> {
+  let removed = 0;
+  // Bara jobbens kataloger (jobbets id) och rutornas filer, så att en felinställd katalog (t.ex. /tmp) inte töms.
+  for (const name of await readdir(work).catch(() => [] as string[])) {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(name)) continue;
+    await rm(join(work, name), { recursive: true, force: true }); removed += 1;
+  }
+  for (const name of await readdir(cache).catch(() => [] as string[])) {
+    if (!/\.la[sz](\.del)?$/i.test(name)) continue;
+    await rm(join(cache, name), { force: true }); removed += 1;
+  }
+  return removed;
+}

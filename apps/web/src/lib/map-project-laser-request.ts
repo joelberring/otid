@@ -39,6 +39,8 @@ export interface LaserJobInput {
   readonly chosen: ReturnType<typeof choiceSettings>;
   readonly moisture?: { readonly channelHa: number; readonly wetMeters: number } | undefined;
   readonly vegetation?: { readonly minAreaM2: number } | undefined;
+  /** PLAN.md M6: «Spara även rå laserdata åt mig». */
+  readonly rawLaser?: boolean | undefined;
   /** Kör om: rutorna, området och Lantmäteriets produkter tas från jobbet; annars de valda rutorna och kartans område. */
   readonly target: { readonly rerunOf: string; readonly clip?: GeoClip | undefined }
     | { readonly tiles: readonly LaserItem[]; readonly clip?: GeoClip | undefined; readonly areaId?: string | undefined; readonly extras: readonly LaserExtra[] };
@@ -55,7 +57,7 @@ export function laserJobBody(input: LaserJobInput) {
       ...(target.clip ? { clip: target.clip } : {}), ...(target.areaId ? { areaId: target.areaId } : {}),
       ...(target.clip && target.extras.length > 0 ? { extras: target.extras } : {}) }),
     ...(input.moisture ? { moisture: { channelHa: input.moisture.channelHa, wetMeters: input.moisture.wetMeters, moistMeters: Math.round(input.moisture.wetMeters * 160) / 100 } } : {}),
-    ...(input.vegetation ? { vegetation: { minAreaM2: input.vegetation.minAreaM2 } } : {}) } as const;
+    ...(input.vegetation ? { vegetation: { minAreaM2: input.vegetation.minAreaM2 } } : {}), ...(input.rawLaser ? { rawLaser: true } : {}) } as const;
 }
 
 /**

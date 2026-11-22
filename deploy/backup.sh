@@ -142,6 +142,8 @@ prune_contents() {
   if [ -s "$stored" ]; then grep -vxFf "$stored" "$keep.all" > "$keep"; else mv -f "$keep.all" "$keep"; fi
   rm -f "$keep.all"
   [ -f "$keep" ] || { rm -f "$stored"; return 1; }
+  # while-loopen efter | körs i en subshell: ett fel där måste ge utgångskoden hit, inte bara avsluta subshellen.
+  prune_status=0
   find "$dir/map-content" -maxdepth 1 -type f -name '*.copy' | while read -r file; do
     id=$(basename "$file" .copy)
     # grep ger 1 när id:t saknas i listan men 2 när listan själv inte gick att läsa; i det fallet får inget tas bort.
@@ -150,10 +152,11 @@ prune_contents() {
       rm -f "$file" && echo "Kartinnehåll borttaget: $id"
     elif [ "$found" -ne 0 ]; then
       echo "Gallringen av kartinnehållet avbröts: listan över innehåll som ska sparas kunde inte läsas." >&2
-      rm -f "$keep" "$stored"; return 1
+      exit 1
     fi
-  done
+  done || prune_status=$?
   rm -f "$keep" "$stored"
+  return "$prune_status"
 }
 
 # ADR-0216: efter en pg_restore läses kartinnehållet in för varje innehåll i databasen som saknar sina delar.

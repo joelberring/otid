@@ -1,7 +1,7 @@
 import { discardStagedMapContent, readMapProjectCurrentFile, saveMapProjectSnapshotToRace } from "@o-tid/application";
 import { MAP_PROJECT_SNAPSHOT_HEADERS, UUID_PATTERN } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
-import { attachment, failure, guarded, mutation, problem, readProof, renderedMap, type ClubEnvironment } from "./club-route-handlers";
+import { attachment, failure, guarded, mutation, problem, readProof, renderedMap, requireStreamSession, type ClubEnvironment } from "./club-route-handlers";
 import { privateHeaders, privateJson } from "./security-policy";
 
 /**
@@ -41,6 +41,8 @@ export async function mapProjectRaceRoute(db: Database, request: Request, projec
   const input = await mutation(request, environment, "stream");
   if ("response" in input) return input.response;
   const raceId = request.headers.get(MAP_PROJECT_SNAPSHOT_HEADERS.race) ?? "", sha256 = request.headers.get(MAP_PROJECT_SNAPSHOT_HEADERS.sha256) ?? "";
+  const unauthenticated = await requireStreamSession(db, input.proof);
+  if (unauthenticated) return unauthenticated;
   return guarded(async () => {
     const rendered = await renderedMap(db, request);
     if (rendered instanceof Response) return rendered;

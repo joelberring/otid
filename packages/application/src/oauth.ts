@@ -193,6 +193,10 @@ export async function exchangeOauthToken(db: Database, input: { form: Record<str
       if (!VERIFIER_PATTERN.test(form.code_verifier ?? "") || pkceChallenge(form.code_verifier!) !== row.codeChallenge) {
         return failure("invalid_grant", "PKCE stämmer inte");
       }
+      // Som vid förnyelsen: kontot ska finnas och inte vara spärrat när koden löses in.
+      const [codeOwner] = await tx.select({ blockedAt: schema.userAccounts.blockedAt }).from(schema.userAccounts)
+        .where(eq(schema.userAccounts.id, row.accountId));
+      if (!codeOwner || codeOwner.blockedAt) return failure("invalid_grant", "Koden är ogiltig, använd eller för gammal");
       const [client] = await tx.select().from(schema.oauthClients).where(eq(schema.oauthClients.id, row.clientId));
       const grantId = randomUUID();
       const access = secret("otid_at_"), refresh = secret("otid_rt_");

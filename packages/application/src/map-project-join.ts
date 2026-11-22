@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, count, eq, gt, inArray, isNull, notInArray, sql } from "drizzle-orm";
+import { and, asc, count, eq, gt, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
 import {
   MAP_PROJECT_CLUB_MEMBERS_LIMIT, MAP_PROJECT_JOIN_LINKS_MAX, MAP_PROJECT_JOIN_LINK_LIFETIME_DAYS, mapProjectClubMemberAddRequestSchema,
   mapProjectJoinLinkCreateRequestSchema, mapProjectJoinLinkRevokeRequestSchema, mapProjectJoinTokenRequestSchema,
@@ -32,8 +32,8 @@ async function clubsOf(tx: DbExecutor, accountId: string): Promise<{ clubId: str
     .innerJoin(schema.clubs, eq(schema.clubs.id, schema.clubMembers.clubId)).where(eq(schema.clubMembers.accountId, accountId)).limit(200);
 }
 
-/** Konton som får läggas till: inte spärrade, inte gäster. */
-const usable = and(isNull(schema.userAccounts.blockedAt), isNull(schema.userAccounts.guestExpiresAt));
+/** Konton som får läggas till: inte spärrade, inte gäster och med bekräftad e-postadress (granskningen 3.7; ADR-0186). */
+const usable = and(isNull(schema.userAccounts.blockedAt), isNull(schema.userAccounts.guestExpiresAt), isNotNull(schema.userAccounts.emailVerifiedAt));
 
 /**
  * Klubbmedlemmarna som ägaren kan lägga till: konton i samma klubb(ar) som ägaren, inte redan med i projektet, som namn

@@ -14,6 +14,7 @@ import {
   clearUserAccountLoginThrottle,
   currentUserAccountVerifier,
   issueUserAccountSession,
+  revokeAllUserAccountOauthGrants,
   revokeAllUserAccountSessions,
   type UserAccountLoginResult,
   type UserAccountRuntimeOptions
@@ -113,6 +114,7 @@ export async function completePasswordReset(
       .where(and(eq(schema.passwordResetTokens.accountId, account.id), isNull(schema.passwordResetTokens.usedAt)));
     await consumeEmailVerificationTokens(tx, account.id, now);
     await revokeAllUserAccountSessions(tx, account.id, now, "PASSWORD_RESET");
+    await revokeAllUserAccountOauthGrants(tx, account.id, now);
     await clearUserAccountLoginThrottle(tx, account.email, now, options.clientKey);
     await acceptOnLogin(tx, account.id, now);
     return issueUserAccountSession(tx, updated!, version, now, options);

@@ -68,8 +68,15 @@ export async function acceptMapProjectInvitations(tx: DbExecutor, accountId: str
 /** Kontots roll i projektet: medlemskapet, eller ägare för administratörer och ägare i projektets klubb. Undefined = ingen. */
 export async function mapProjectRoleOf(tx: DbExecutor, accountId: string, project: Pick<MapProjectRow, "id" | "clubId">)
   : Promise<MapProjectRole | undefined> {
-  const [member] = await tx.select({ role: schema.mapProjectMembers.role }).from(schema.mapProjectMembers)
+  const [row] = await tx.select({ role: schema.mapProjectMembers.role, addedBy: schema.mapProjectMembers.addedBy }).from(schema.mapProjectMembers)
     .where(and(eq(schema.mapProjectMembers.projectId, project.id), eq(schema.mapProjectMembers.accountId, accountId)));
+  // ADR-0186, granskningen 3.7: en roll som någon annan gett kontot gäller först med bekräftad e-postadress (som i klubbar,
+  // grupper och banläggningen). Den som skapat projektet själv behåller sin roll.
+  let member = row;
+  if (row && row.addedBy !== accountId) {
+    const [account] = await tx.select({ verifiedAt: schema.userAccounts.emailVerifiedAt }).from(schema.userAccounts).where(eq(schema.userAccounts.id, accountId));
+    if (!account?.verifiedAt) member = undefined;
+  }
   const club = project.clubId ? await clubMembership(tx, { accountId, clubId: project.clubId }, "none") : undefined;
   return higher(member?.role, club && clubRoleAtLeast(club.role, "ADMIN") ? "OWNER" : undefined);
 }

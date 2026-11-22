@@ -40,9 +40,9 @@ const nextConfig: NextConfig = {
       ...NO_INDEX_HEADER_SOURCES.map((source) => ({ source, headers: [NO_INDEX_HEADER] })),
       // Festens API (namn på gäster) sparas inte heller i någon cache.
       { source: "/api/public/parties/:path*", headers: [{ key: "Cache-Control", value: "private, no-store" }] },
-      ...["", "/manage", "/readout", "/speaker", "/imports", "/party-labels", "/course-setting", "/bingo"].map((surface) => ({
-        source: `/admin/:raceId${surface}`, headers: [...privateAdminHeaders]
-      })),
+      // Alla inloggade ytor under /admin med jokertecken, så att en ny undersida inte glöms (granskningen 3.2). Senare regler
+      // nedan (fältläget, avläsningen) skriver över enskilda huvuden för sina adresser.
+      { source: "/admin/:path*", headers: [...privateAdminHeaders] },
       // Banläggningens fältläge (ADR-0181 beslut 6–7): telefonens position på kartan. Gäller före regeln ovan.
       { source: "/admin/:raceId/course-setting", headers: [{ key: "Permissions-Policy", value: "camera=(), geolocation=(self), microphone=()" }] },
       // ADR-0219 (K3): kartprojektets service worker (scope per projekt, bara kartan).
@@ -66,9 +66,10 @@ const nextConfig: NextConfig = {
       // ADR-0214: kartritarens länk. Nyckeln står i adressen: ingen cache, ingen referer och telefonens position på kartan.
       { source: "/kartfel/:token", headers: [{ key: "Cache-Control", value: "private, no-store" }, { key: "Referrer-Policy", value: "no-referrer" },
         { key: "Permissions-Policy", value: "camera=(), geolocation=(self), microphone=()" }] },
-      // Kontosidorna (ADR-0172): inte i cache, inte i ram och ingen referer (återställningslänken).
-      ...["/superadmin", "/konto", "/recover", "/organizer/groups/:groupId", "/organizer/map-projects", "/organizer/map-projects/:projectId",
-        "/organizer/map-projects/:projectId/map", "/oauth/authorize"].map((source) => ({ source, headers: [...privateAdminHeaders] })),
+      // Kontosidorna (ADR-0172) och sidor där en nyckel står i adressen eller fragmentet (inbjudan, bekräftelse, kartlänk): inte i
+      // cache, inte i ram och ingen referer. Jokertecken, så att nya undersidor täcks.
+      ...["/superadmin", "/superadmin/:path*", "/konto", "/konto/:path*", "/recover", "/recover/:path*", "/verify", "/inbjudan", "/kartlank",
+        "/organizer", "/organizer/:path*", "/oauth/authorize"].map((source) => ({ source, headers: [...privateAdminHeaders] })),
       // ADR-0219 (K3): kartprojektets rekning, telefonens position på kartan. Gäller före regeln ovan.
       { source: "/organizer/map-projects/:projectId/map", headers: [{ key: "Permissions-Policy", value: "camera=(), geolocation=(self), microphone=()" }] }
     ];

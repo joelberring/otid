@@ -65,7 +65,7 @@ export async function raceAdministratorRoute(db: Database, request: Request, rac
     ("classId" in action && !uuid.test(action.classId)) ||
     ("courseId" in action && !uuid.test(action.courseId)) ||
     ("noteId" in action && !uuid.test(action.noteId)) || ("suggestionId" in action && !uuid.test(action.suggestionId)) ||
-    ("jobId" in action && !uuid.test(action.jobId)) || ("templateId" in action && !uuid.test(action.templateId)) ||
+    ("jobId" in action && !uuid.test(action.jobId)) || ("fileId" in action && !uuid.test(action.fileId)) || ("templateId" in action && !uuid.test(action.templateId)) ||
     ("sha256" in action && !/^[0-9a-f]{64}$/.test(action.sha256)) ||
     (url.search && !validHistoryQuery && !validCheckinQuery)) {
     return failure(400, "INVALID_REQUEST");

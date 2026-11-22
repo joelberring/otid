@@ -37,6 +37,25 @@ describe("banläggningens kontrakt", () => {
 });
 
 describe("administratörsroutes: banläggningen", () => {
+  it("granskningen 3.6: att namnge en version prövas som EDIT (inte tävlingens ADMIN)", async () => {
+    const services = dependencies();
+    const courseSettingRevisionLabel = vi.fn<typeof Application.labelCourseSettingRevisionAsAdmin>().mockResolvedValue({ status: "ok",
+      response: { formatVersion: 1, raceId: id, version: 2 } });
+    const post = new Request("https://otid.example/api/admin", { method: "POST", headers: { cookie: `__Host-otid-organizer-session=${token}; __Host-otid-organizer-csrf=${csrf}`,
+      origin: "https://otid.example", "content-type": "application/json", "x-otid-csrf": csrf }, body: JSON.stringify({ formatVersion: 1, version: 2, label: "Före ändringen" }) });
+    await raceAdministratorRoute(db, post, id, { kind: "course-setting-revisions" }, { ...services, courseSettingRevisionLabel }, environment);
+    expect(services.authenticateCourseSetting).toHaveBeenLastCalledWith(db, expect.objectContaining({ required: "EDIT" }));
+  });
+
+  it("granskningen 3.8: ett fileId som inte är ett uuid ger 400, inte ett databasfel", async () => {
+    const services = dependencies();
+    for (const method of ["GET", "DELETE"]) {
+      const response = await raceAdministratorRoute(db, new Request("https://otid.example/api/admin", { method, headers: { cookie: `__Host-otid-organizer-session=${token}; __Host-otid-organizer-csrf=${csrf}`,
+        origin: "https://otid.example", "x-otid-csrf": csrf } }), id, { kind: "course-setting-print-file", fileId: "inte-ett-uuid" }, services, environment);
+      expect(response.status).toBe(400);
+    }
+  });
+
   it("sessionen säger banläggningens nivå: admin EDIT, bara banläggare utan roll på tävlingen, funktionär med egen nivå", async () => {
     const services = dependencies();
     const session = async () => (await raceAdministratorRoute(db, get(), id, { kind: "session" }, services, environment)).json() as Promise<Record<string, unknown>>;

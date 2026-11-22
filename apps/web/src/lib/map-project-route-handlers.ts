@@ -6,7 +6,7 @@ import {
 import { CLUB_ARCHIVE_MAP_MAX_BYTES, MAP_PROJECT_SYNC_MAX_BYTES, UUID_PATTERN } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
 import {
-  attachment, failure, guarded, headerText, mutation, problem, readProof, streamChunks, type ClubEnvironment
+  attachment, failure, guarded, headerText, mutation, problem, readProof, requireStreamSession, streamChunks, type ClubEnvironment
 } from "./club-route-handlers";
 import { mailAvailable, routeMailer } from "./invitation-route-handlers";
 import { privateHeaders, privateJson, validDeclaredLength } from "./security-policy";
@@ -113,6 +113,8 @@ export async function mapProjectUploadRoute(db: Database, request: Request, envi
   if (!validDeclaredLength(request, CLUB_ARCHIVE_MAP_MAX_BYTES)) return problem("MAP_FILE_TOO_LARGE");
   const metadata = { formatVersion: 1, requestId: headerText(request, "x-otid-request-id", 64) ?? "", name: headerText(request, "x-otid-name", 120) ?? "",
     fileName: headerText(request, "x-otid-file-name", 200) ?? "" };
+  const unauthenticated = await requireStreamSession(db, input.proof);
+  if (unauthenticated) return unauthenticated;
   const body = request.body;
   return guarded(async () => {
     const staged = await stageMapContent(db, streamChunks(body), { maxBytes: CLUB_ARCHIVE_MAP_MAX_BYTES });

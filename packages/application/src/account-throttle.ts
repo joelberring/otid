@@ -1,6 +1,6 @@
 import { createHmac, randomBytes } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
-import { ACCOUNT_REQUEST_THROTTLE_SCOPES, schema, type AccountRequestThrottleScope } from "@o-tid/database";
+import { ACCOUNT_REQUEST_THROTTLE_SCOPES, schema, type AccountRequestThrottleScope, type Database } from "@o-tid/database";
 import type { DbExecutor } from "./snapshot";
 
 /**
@@ -82,4 +82,12 @@ export async function consumeAccountRequestAllowance(
   await tx.update(schema.accountRequestThrottles)
     .set(inWindow ? { attempts: row.attempts + 1 } : { windowStartedAt: now, attempts: 1 }).where(where);
   return true;
+}
+
+/**
+ * Granskningen 3.9: spärren per IP-adress för öppna anrop som slår i databasen med en nyckel i kroppen (inbjudan, kartlänk,
+ * återkallelse). Som `consumeAccountRequestAllowance` i en egen transaktion; svarar om anropet ryms inom gränsen.
+ */
+export async function consumeIpRequestAllowance(db: Database, scope: AccountThrottleScope, ip: string, limit: number, now = new Date()): Promise<boolean> {
+  return db.transaction(tx => consumeAccountRequestAllowance(tx, { scope, key: ip, limit }, now));
 }

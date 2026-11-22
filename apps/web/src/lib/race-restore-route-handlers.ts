@@ -1,4 +1,4 @@
-import { previewRaceBackup, restoreRaceBackup } from "@o-tid/application";
+import { authenticateAccountSessionForWrite, previewRaceBackup, restoreRaceBackup } from "@o-tid/application";
 import {
   RACE_BACKUP_MAX_BYTES, raceBackupPreviewSchema, raceBackupProblemSchema, raceRestoreResponseSchema, type RaceBackupProblem
 } from "@o-tid/contracts";
@@ -20,11 +20,16 @@ const TYPES = new Set(["application/zip", "application/x-zip-compressed", "appli
 
 const problem = (value: RaceBackupProblem, status = 422) => privateJson(raceBackupProblemSchema.parse(value), status);
 
-async function upload(request: Request, environment: Environment): Promise<{ response: Response } | { policy: SecurityPolicy; bytes: Uint8Array }> {
+async function upload(db: Database, request: Request, environment: Environment): Promise<{ response: Response } | { policy: SecurityPolicy; bytes: Uint8Array }> {
   let policy: SecurityPolicy;
   try { policy = securityPolicy(environment); }
   catch (error) { if (error instanceof SecurityConfigurationError) return { response: accountFailure(500, "INTERNAL_ERROR") }; throw error; }
   if (!hasExpectedOrigin(request, policy)) return { response: accountFailure(403, "FORBIDDEN") };
+  // Sessionen och CSRF prövas före kroppen läses, så att en påhittad kaka inte kan fylla webbens minne med en säkerhetskopia.
+  try {
+    const auth = await authenticateAccountSessionForWrite(db, sessionProof(request, policy, true));
+    if (auth.status !== "authenticated") return { response: failure(auth.status) };
+  } catch (error) { logServerError("race-restore", "upload", error); return { response: accountFailure(500, "INTERNAL_ERROR") }; }
   if (!TYPES.has((request.headers.get("content-type") ?? "").split(";")[0]!.trim())) return { response: accountFailure(400, "INVALID_REQUEST") };
   if (!validDeclaredLength(request, RACE_BACKUP_MAX_BYTES)) return { response: problem({ formatVersion: 1, error: "TOO_LARGE" }, 413) };
   try { return { policy, bytes: await readBoundedBytes(request, RACE_BACKUP_MAX_BYTES) }; }
@@ -43,7 +48,7 @@ function failure(status: string): Response {
 
 export async function raceRestorePreviewRoute(db: Database, request: Request, environment: Environment = process.env,
   preview: typeof previewRaceBackup = previewRaceBackup): Promise<Response> {
-  const input = await upload(request, environment);
+  const input = await upload(db, request, environment);
   if ("response" in input) return input.response;
   try {
     const result = await preview(db, { ...sessionProof(request, input.policy, true), requireCsrf: true, bytes: input.bytes });
@@ -55,7 +60,7 @@ export async function raceRestorePreviewRoute(db: Database, request: Request, en
 
 export async function raceRestoreRoute(db: Database, request: Request, environment: Environment = process.env,
   restore: typeof restoreRaceBackup = restoreRaceBackup): Promise<Response> {
-  const input = await upload(request, environment);
+  const input = await upload(db, request, environment);
   if ("response" in input) return input.response;
   const search = new URL(request.url).searchParams;
   try {

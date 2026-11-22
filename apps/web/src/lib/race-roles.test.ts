@@ -47,7 +47,7 @@ const COURSE_SETTING: Record<string, Record<string, CourseSettingRequirement>> =
   "admin/races/[raceId]/administrator/course-setting": { GET: "COMMENT", PUT: "EDIT" },
   "admin/races/[raceId]/administrator/course-setting/import": { POST: "EDIT" },
   "admin/races/[raceId]/administrator/course-setting/restore": { POST: "EDIT" },
-  "admin/races/[raceId]/administrator/course-setting/revisions": { GET: "COMMENT" },
+  "admin/races/[raceId]/administrator/course-setting/revisions": { GET: "COMMENT", POST: "EDIT" },
   "admin/races/[raceId]/administrator/course-setting/revisions/[version]": { GET: "COMMENT" },
   "admin/races/[raceId]/administrator/course-setting/original": { GET: "COMMENT" },
   "admin/races/[raceId]/administrator/course-setting/transfer": { POST: "ADMIN" },
@@ -139,7 +139,7 @@ const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
 async function call(route: { file: string; path: string }, method: string): Promise<number> {
   const handlers = await import(route.file) as Record<string, (request: Request, context: unknown) => Promise<Response>>;
   const params = Promise.resolve({ raceId: uuid, entryId: uuid, classId: uuid, courseId: uuid, finalizationId: uuid, noteId: uuid,
-    replyId: uuid, suggestionId: uuid, jobId: uuid, templateId: uuid, invitationId: uuid, sha256: "a".repeat(64), version: "1" });
+    replyId: uuid, suggestionId: uuid, jobId: uuid, templateId: uuid, fileId: uuid, invitationId: uuid, sha256: "a".repeat(64), version: "1" });
   const write = method !== "GET";
   const response = await handlers[method]!(new Request(`${origin}/api/${route.path.replace("[sha256]", "a".repeat(64)).replaceAll(/\[[a-zA-Z]+\]/g, uuid)}`, {
     method, ...(write ? { body: "{}" } : {}), headers: {

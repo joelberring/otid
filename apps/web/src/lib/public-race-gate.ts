@@ -1,9 +1,11 @@
+import { createHash } from "node:crypto";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
-import { isRaceStaff, publicRaceGate, type PublicRaceAccess } from "@o-tid/application";
+import { authenticateUserAccountSession, isRaceStaff, publicRaceGate, type PublicRaceAccess } from "@o-tid/application";
 import { db } from "./db";
 import { publicBusyResponse, publicLoad } from "./public-load";
 import { organizerAccountSessionCookieName } from "./organizer-account-cookies";
+import { logServerError } from "./server-error-log";
 
 /**
  * Den enda grinden för publika sidor och API:er (ADR-0172 beslut 4): tävlingen syns när den är publicerad och
@@ -16,6 +18,38 @@ const SESSION_TOKEN = /^[A-Za-z0-9._~-]{1,256}$/;
 export async function accountSessionToken(): Promise<string | null> {
   const value = (await cookies()).get(organizerAccountSessionCookieName())?.value;
   return value && SESSION_TOKEN.test(value) ? value : null;
+}
+
+/** Hur länge en prövad session räknas som inloggad utan ny kontroll, och hur många som minns (granskningen 3.3). */
+const VERIFIED_TTL_MS = 30_000;
+const VERIFIED_MAX = 500;
+const verifiedSessions = new Map<string, number>();
+
+/**
+ * Är kakan en giltig session? Lastskyddet släpper bara förbi inloggade, så en påhittad kaka får inte räcka. En giltig session
+ * minns i 30 sekunder (nyckeln är en hash av kakan, ogiltiga minns aldrig), så att inloggade inte kostar en kontroll per anrop.
+ * Går kontrollen inte att göra räknas anroparen som publik.
+ */
+export async function hasVerifiedAccountSession(now = Date.now()): Promise<boolean> {
+  const token = await accountSessionToken();
+  if (token === null) return false;
+  const key = createHash("sha256").update(token).digest("hex");
+  const until = verifiedSessions.get(key);
+  if (until !== undefined && until > now) return true;
+  verifiedSessions.delete(key);
+  try {
+    const auth = await authenticateUserAccountSession(db, { sessionToken: token, allowGuest: true });
+    if (auth.status !== "authenticated") return false;
+  } catch (error) {
+    logServerError("public-race-gate", "hasVerifiedAccountSession", error);
+    return false;
+  }
+  if (verifiedSessions.size >= VERIFIED_MAX) {
+    for (const [stored, expires] of verifiedSessions) if (expires <= now) verifiedSessions.delete(stored);
+    if (verifiedSessions.size >= VERIFIED_MAX) verifiedSessions.delete(verifiedSessions.keys().next().value as string);
+  }
+  verifiedSessions.set(key, now + VERIFIED_TTL_MS);
+  return true;
 }
 
 export async function raceAccess(raceId: string): Promise<PublicRaceAccess> {
@@ -40,7 +74,7 @@ export async function requirePublicRace(raceId: string): Promise<"PUBLIC" | "PRE
  */
 export async function publicRaceResponse(raceId: string, respond: () => Promise<Response> | Response): Promise<Response> {
   // Steg 54 (ADR-0177): publiken utan inloggning får en plats i taget (kö, sist 503 med Retry-After); inloggade går före.
-  const slot = await accountSessionToken() === null ? await publicLoad().admit() : undefined;
+  const slot = await hasVerifiedAccountSession() ? undefined : await publicLoad().admit();
   if (slot?.kind === "busy") return publicBusyResponse(slot.retryAfterSeconds);
   try {
     const { access, privateCache } = await raceGate(raceId);

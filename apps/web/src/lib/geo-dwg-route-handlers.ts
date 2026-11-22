@@ -1,7 +1,7 @@
 import { authenticateGeoWorker, createDwgJob, discardStagedMapContent, readGeoJobInput, stageMapContent } from "@o-tid/application";
 import { GEO_DWG_MAX_BYTES, UUID_PATTERN } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
-import { failure, guarded, headerText, mutation, problem, streamChunks, type ClubEnvironment } from "./club-route-handlers";
+import { failure, guarded, headerText, mutation, problem, requireStreamSession, streamChunks, type ClubEnvironment } from "./club-route-handlers";
 import { privateHeaders, privateJson, validDeclaredLength } from "./security-policy";
 
 /**
@@ -15,6 +15,8 @@ export async function geoDwgJobRoute(db: Database, request: Request, projectId: 
   if (request.headers.get("content-type") !== "application/octet-stream" || !request.body) return failure("invalid-request");
   if (!validDeclaredLength(request, GEO_DWG_MAX_BYTES)) return problem("MAP_FILE_TOO_LARGE");
   const requestId = headerText(request, "x-otid-request-id", 64) ?? "", fileName = headerText(request, "x-otid-file-name", 200) ?? "ritning.dwg";
+  const unauthenticated = await requireStreamSession(db, input.proof);
+  if (unauthenticated) return unauthenticated;
   const body = request.body;
   return guarded(async () => {
     const staged = await stageMapContent(db, streamChunks(body), { maxBytes: GEO_DWG_MAX_BYTES });

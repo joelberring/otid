@@ -28,9 +28,11 @@ export type SidebarTab = "basemap" | "symbols" | "layers" | "review" | "process"
  * Översynen av första kartan 2026-11-17 (K1): Grundkarta först, med arbetsgången för en ny karta, så att Lager bara är lager.
  */
 export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, recent, standardSymbols, layerState, basemap, layers, review, process, conflicts, symbols,
-  onResolve, canEdit, tab, onTab }: {
+  onResolve, canEdit, tab, onTab, onClose }: {
   /** Telefonen: panelen visas bara när den är öppnad (på större skärmar alltid, om den inte är gömd). */
   open: boolean;
+  /** Telefonen (ägaren 2026-11-22): stängknappen i flikraden. */
+  onClose?: (() => void) | undefined;
   catalog: readonly CatalogSymbol[]; symbolId: string | undefined; onSymbol: (id: string) => void;
   /** De senast använda symbolerna (också i verktygshjulet). */
   recent: readonly CatalogSymbol[];
@@ -86,6 +88,8 @@ export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, recent, s
         {quick.tabs[id]}{id === "review" && conflicts.length > 0 && <span className={styles.tabCount}> {conflicts.length}</span>}
       </button>)}
     </ScrollRow>
+    {onClose && <button type="button" className={styles.sidebarClose} onClick={onClose} aria-label={quick.closePanel} title={quick.closePanel}
+      data-testid="map-project-sidebar-close">✕</button>}
 
     {canEdit && basemap && <div role="tabpanel" id="map-project-tabpanel-basemap" aria-labelledby="map-project-tab-basemap" hidden={current !== "basemap"}
       className={styles.tabPanel}>

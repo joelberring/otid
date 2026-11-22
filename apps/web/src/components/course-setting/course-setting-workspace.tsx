@@ -174,7 +174,11 @@ export function Drawer({ tab, onTab, counts, children, reveal }: { tab: DrawerTa
   const copy = useTexts(collaborationSv, collaborationEn);
   const [collapsed, setCollapsed] = useState(false);
   const [width, setWidth] = useState(380);
-  const [sheetOpen, setSheetOpen] = useState(false);
+  // Telefonen (ägaren 2026-11-22): bladet har tre lägen – stängt (bara flikraden), halvt (kartan syns ovanför) och helt.
+  const [sheet, setSheet] = useState<"closed" | "half" | "full">("closed");
+  const sheetOpen = sheet !== "closed";
+  const setSheetOpen = (open: boolean | ((value: boolean) => boolean)) =>
+    setSheet(current => (typeof open === "function" ? open(current !== "closed") : open) ? (current === "closed" ? "half" : current) : "closed");
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
   useEffect(() => { setWidth(readWidth()); }, []);
@@ -191,6 +195,7 @@ export function Drawer({ tab, onTab, counts, children, reveal }: { tab: DrawerTa
   const more = tabs.filter(item => !PHONE_TABS.includes(item) && item !== tab);
   const moreCount = more.reduce((sum, item) => sum + (counts[item] ?? 0), 0);
   return <aside className={styles.drawer} data-collapsed={collapsed || undefined} data-sheet-open={sheetOpen || undefined}
+    data-sheet-size={sheet === "full" ? "full" : undefined}
     style={{ "--drawer-width": `${width}px` } as React.CSSProperties} aria-label={copy.drawer.label}>
     <div className={styles.resize} role="separator" aria-orientation="vertical" aria-label={copy.drawer.resize} tabIndex={0}
       onKeyDown={event => {
@@ -211,11 +216,14 @@ export function Drawer({ tab, onTab, counts, children, reveal }: { tab: DrawerTa
         sheetDrag.current = undefined;
         if (start === undefined) return;
         const moved = event.clientY - start;
-        if (moved < -24) setSheetOpen(true);
-        else if (moved > 24) setSheetOpen(false);
+        // Uppåt: stängt → halvt → helt; nedåt: helt → halvt → stängt (en lång dragning nedåt stänger direkt).
+        if (moved < -24) setSheet(current => current === "closed" && moved > -160 ? "half" : "full");
+        else if (moved > 24) setSheet(current => current === "full" && moved < 160 ? "half" : "closed");
         else setSheetOpen(value => !value);
       }}
       onClick={event => { if (event.detail === 0) setSheetOpen(value => !value); }}><span aria-hidden="true" /></button>
+    {sheetOpen && <button type="button" className={styles.sheetClose} aria-label={copy.drawer.collapse} title={copy.drawer.collapse}
+      data-testid="course-setting-sheet-close" onClick={() => setSheet("closed")}>✕</button>}
     <div className={styles.tabs} role="tablist" aria-label={copy.drawer.label}>
       <button type="button" className={styles.collapse} aria-label={collapsed ? copy.drawer.expand : copy.drawer.collapse}
         title={collapsed ? copy.drawer.expand : copy.drawer.collapse} onClick={() => setCollapsed(value => !value)}>{collapsed ? "«" : "»"}</button>

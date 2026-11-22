@@ -43,6 +43,7 @@
 .sidebar { grid-column: 3; grid-row: 1 / span 3; overflow: auto; border-left: 1px solid var(--line); padding: 0 10px 24px; display: grid;
   align-content: start; gap: 8px; grid-template-columns: minmax(0, 1fr); }
 .sidebar > * { min-width: 0; }
+.sidebarClose { display: none; }
 .sidebarGrip { grid-column: 3; grid-row: 1 / span 3; justify-self: start; width: 7px; margin-left: -4px; z-index: 2; cursor: col-resize; touch-action: none; }
 .sidebarGrip:hover, .sidebarGrip:focus-visible { background: var(--accent, #3b6ea5); opacity: .5; outline: none; }
 .workspace[data-bare="true"] > .sidebarGrip { display: none; }
@@ -164,9 +165,13 @@
   .workspace[data-bare="true"] > [role="toolbar"] { display: flex; }
   .sidebarGrip { display: none; }
   /* Panelen ligger över kartans nedre del när den är öppen. */
-  .sidebar, .workspace[data-bare="true"] > .sidebar { display: grid; position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; grid-column: 1; grid-row: 1 / span 3; max-height: 60dvh; border-left: 0;
+  .sidebar, .workspace[data-bare="true"] > .sidebar { display: grid; position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; grid-column: 1; grid-row: 1 / span 3; max-height: 45dvh; border-left: 0;
     border-top: 1px solid var(--line-strong); background: var(--surface); box-shadow: 0 -4px 16px rgb(0 0 0 / 12%); }
   .sidebar[data-open="false"], .workspace[data-bare="true"] > .sidebar[data-open="false"] { display: none; }
+  /* Ägaren 2026-11-22: panelen stängs i sitt eget hörn (inte bara med verktygsradens knapp); flikraden lämnar plats åt den. */
+  .sidebar > .tabsWrap { padding-right: 48px; }
+  .sidebarClose { display: grid; position: sticky; top: 4px; justify-self: end; margin: -44px -4px 4px 0; z-index: 2; place-items: center; width: 40px; height: 40px; padding: 0;
+    border: 1px solid var(--line-strong); border-radius: 20px; background: var(--surface); color: var(--ink); font: inherit; cursor: pointer; }
   .hint { font-size: var(--text-xs, .8rem); }
 }
 .importLayers { display: grid; gap: 6px; border: 0; padding: 0; margin: 0; }

@@ -87,7 +87,7 @@
 .drawer[data-collapsed] .tabpanel, .drawer[data-collapsed] .resize { display: none; }
 .resize { cursor: col-resize; background: var(--line); touch-action: none; }
 .resize:hover, .resize:focus-visible { background: var(--ink); outline: none; }
-.sheetHandle { display: none; }
+.sheetHandle, .sheetClose { display: none; }
 .tabs { display: flex; flex-direction: column; gap: 2px; padding: 4px 2px; border-right: 1px solid var(--line); overflow-y: auto; }
 .collapse, .tab { position: relative; display: grid; justify-items: center; gap: 2px; min-height: 48px; padding: 4px 2px; border: none;
   border-radius: 6px; background: none; color: inherit; font: inherit; font-size: 0.65rem; cursor: pointer; }
@@ -237,10 +237,15 @@ fieldset.row legend { width: 100%; padding: 0; font-weight: 600; }
   .drawer, .drawer[data-collapsed] { position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; display: grid; grid-template-columns: 1fr;
     grid-template-rows: 18px auto 0; width: auto; max-height: 50px; border-top: 1px solid var(--line-strong); border-left: none;
     box-shadow: 0 -4px 16px rgba(0, 0, 0, .2); transition: none; }
-  .drawer[data-sheet-open] { grid-template-rows: 18px auto minmax(0, 1fr); height: 58dvh; max-height: 58dvh; }
+  /* Halvt blad (ägaren 2026-11-22): kartan ska synas ovanför; dras upp till helt med handtaget. */
+  .drawer[data-sheet-open] { grid-template-rows: 18px auto minmax(0, 1fr); height: 40dvh; max-height: 40dvh; }
+  .drawer[data-sheet-open][data-sheet-size="full"] { height: 88dvh; max-height: 88dvh; }
+  .sheetClose { position: absolute; right: 8px; z-index: 2; display: grid; place-items: center; width: 44px; height: 30px; top: -15px;
+    padding: 0; border: 1px solid var(--line-strong); border-radius: 15px; background: var(--surface); color: var(--ink); font: inherit; font-size: .9rem;
+    cursor: pointer; }
   .resize, .collapse { display: none; }
-  .sheetHandle { display: grid; place-items: center; min-height: 18px; padding: 0; border: none; background: none; cursor: pointer; }
-  .sheetHandle span { width: 44px; height: 4px; border-radius: 2px; background: var(--line-strong); }
+  .sheetHandle { display: grid; place-items: center; min-height: 18px; padding: 0; border: none; background: none; cursor: pointer; touch-action: none; }
+  .sheetHandle span { width: 56px; height: 5px; border-radius: 3px; background: var(--muted, #777); }
   .tabs { flex-direction: row; padding: 0 4px 4px; border-right: none; overflow-x: auto; overflow-y: hidden; }
   .tab { flex: 1 0 auto; min-width: 48px; min-height: 32px; grid-auto-flow: column; align-items: center; gap: 4px; font-size: 0.75rem; }
   .tabLabel { max-width: none; }

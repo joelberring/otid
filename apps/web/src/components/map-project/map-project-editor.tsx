@@ -754,7 +754,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         {canEdit && <MapProjectModeSwitches snap={modes.snap} onSnap={() => modes.setSnap(value => !value)} snapKey={keyOf("snap")} snapState={snap.mark && keysText.snapAt(snap.mark.kind)}
           angle={assist.locked} unfilled={{ state: unfilled.state, onNext: unfilled.next }} gapM={modes.gapM} onGap={modes.setGapM} cells={fill.cells} text={keysText} />}
       </div>
-      <MapProjectSidebar open={panelOpen} catalog={catalog} symbolId={symbolId} onSymbol={chooseSymbol} tab={tab} onTab={setTab}
+      <MapProjectSidebar open={panelOpen} onClose={() => setPanelOpen(false)} catalog={catalog} symbolId={symbolId} onSymbol={chooseSymbol} tab={tab} onTab={setTab}
         recent={recentSymbols}
         standardSymbols={symbolLayers.standardSymbols} layerState={symbolLayers.state} conflicts={conflicts} symbols={symbols} onResolve={editor.resolve} canEdit={canEdit}
         layers={<>

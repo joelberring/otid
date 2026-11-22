@@ -58,7 +58,9 @@ export async function purgeRows(tx: DbExecutor, root: PurgeRoot, ids: readonly s
   const deleted = new Map<string, number>();
   if (ids.length === 0) return deleted;
   await tx.execute(sql`select set_config('otid.purge', 'on', true)`);
-  const keys = (await foreignKeys(tx)).filter((key) => !key.keepsChild);
+  const allKeys = await foreignKeys(tx);
+  // Markeringen följer bara nycklar som tar med barnet; ordningen vid borttagning ska också känna SET NULL-nycklarna.
+  const keys = allKeys.filter((key) => !key.keepsChild);
   const byParent = new Map<string, ForeignKey[]>();
   const keyColumns = new Map<string, Set<string>>();
   for (const key of keys) {
@@ -115,8 +117,12 @@ export async function purgeRows(tx: DbExecutor, root: PurgeRoot, ids: readonly s
   const protectedTable = options.protect?.find((table) => remaining.has(table));
   if (protectedTable) throw new PurgeProtectedError(protectedTable);
   while (remaining.size > 0) {
-    const ready = [...remaining].filter((table) => !keys.some((key) => key.parent === table && key.child !== table &&
-      !key.deferrable && remaining.has(key.child)));
+    // Tas en förälder bort före ett markerat barn med ON DELETE SET NULL uppdateras barnet (ny ctid) och raden missas. Därför
+    // går barnet först; bildar SET NULL-nycklarna en cykel faller ordningen tillbaka på nycklarna som tar med barnet.
+    const readyBy = (ordering: readonly ForeignKey[]) => [...remaining].filter((table) => !ordering.some((key) => key.parent === table &&
+      key.child !== table && !key.deferrable && remaining.has(key.child)));
+    let ready = readyBy(allKeys);
+    if (ready.length === 0) ready = readyBy(keys);
     if (ready.length === 0) throw new Error(`Borttagningen har en cykel av omedelbara nycklar: ${[...remaining].join(", ")}`);
     for (const table of ready.sort()) {
       const result = await tx.execute(sql.raw(`delete from ${quote(table)} where ctid in (select purge_ctid from ${marked.get(table)})`));

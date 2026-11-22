@@ -74,3 +74,11 @@ historik, inte återskapbart. Uppmätt på servern med `node superadmin.mjs map-
   tillfälliga och rensade efter en timme; AI:n frågar igen. Inget annat utesluts.
 - Beslut 6 ändras (ADR-0229 tillägg M3): innehåll som flyttats till förrådet tas bort ur `backups/map-content` även om äldre
   dumpar pekar på det; efter en återställning hämtas det ur förrådet (webben återkopplar det, docs/drift.md "Återställa").
+
+## Tillägg 2026-11-22: besökare i veckorapporten
+
+Ägaren vill se var nya besökare faller bort. Avsnittet BESÖKARE har per dygn (sju dygn) och veckans summa: unika besökare på
+startsidan, demotävlingen, gästdemon («Prova arbetsytan»), Skapa konto/logga in och nya konton. Inga kakor och inga IP-adresser:
+under dygnet sparas bara en HMAC-SHA256 av adress och webbläsare med dygnets slumpade salt (migration 0138); efter dygnet räknas
+hasharna ihop till antal per dag och steg och tas bort med saltet. Hasharna och saltet utesluts ur dumparna. Veckosumman är summan
+av dygnens unika. Antalen sparas 400 dagar.

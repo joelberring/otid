@@ -236,9 +236,11 @@ dump_locked() {
   # ADR-0216: kartinnehållet som finns nu sparas före dumpen (resten, som skapas under dumpen, efter).
   warm_contents 2>/dev/null | save_missing >/dev/null
   # Steg 65 och ADR-0216: utskriftsjobbens PDF:er, klubbarkivets miniatyrer och kartkontroller, AI-kopplingens kartjobb (kan skapas igen) och
-  # kartinnehållets delar (sparas en gång i map-content/) tas inte med; tabellerna gör det.
+  # kartinnehållets delar (sparas en gång i map-content/) tas inte med; tabellerna gör det. Besöksstatistikens dygnskoder och salt
+  # (2026-11-22) tas inte med, så att de inte finns kvar i kopiorna efter dygnet; antalen per dag tas med.
   if ! pg_dump --format=custom --exclude-table-data=course_setting_print_job --exclude-table-data=club_archive_entry_thumbnail \
-      --exclude-table-data=club_map_version_check --exclude-table-data=map_project_job --exclude-table-data=map_content_part --file="$partial"; then
+      --exclude-table-data=club_map_version_check --exclude-table-data=map_project_job --exclude-table-data=map_content_part \
+      --exclude-table-data=visitor_hit --exclude-table-data=visitor_day_salt --file="$partial"; then
     rm -f "$partial"
     echo "BACKUP MISSLYCKADES $(date +%FT%T%z)" >&2
     heartbeat fail "pg_dump misslyckades $(date +%FT%T%z)"
@@ -262,7 +264,8 @@ dump_locked() {
     # Ett innehåll i dumpen fanns inte kvar att spara: ta om dumpen med kartinnehållet i (den går då att återställa ensam).
     echo "Kartinnehåll ändrades under dumpen ($failed); dumpen tas om med kartinnehållet i."
     if ! pg_dump --format=custom --exclude-table-data=course_setting_print_job --exclude-table-data=club_archive_entry_thumbnail \
-        --exclude-table-data=club_map_version_check --exclude-table-data=map_project_job --file="$partial"; then
+        --exclude-table-data=club_map_version_check --exclude-table-data=map_project_job \
+        --exclude-table-data=visitor_hit --exclude-table-data=visitor_day_salt --file="$partial"; then
       rm -f "$partial" "$partial.contents"
       echo "BACKUP MISSLYCKADES $(date +%FT%T%z)" >&2
       heartbeat fail "pg_dump misslyckades $(date +%FT%T%z)"

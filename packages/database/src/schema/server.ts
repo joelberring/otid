@@ -1,4 +1,4 @@
-import { bigint, boolean, index, integer, pgTable, real, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, date, index, integer, pgTable, primaryKey, real, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 /**
  * ADR-0216 (migration 0085): serverns veckorapport och larm till superadmin. Inga personuppgifter: bara storlekar, antal och
@@ -42,3 +42,28 @@ export const serverNoticeLog = pgTable("server_notice_log", {
   recipients: integer("recipients").notNull(),
   sentAt: timestamp("sent_at", { withTimezone: true }).notNull()
 }, (table) => [index("server_notice_log_sent_idx").on(table.sentAt)]);
+
+/**
+ * Besöksstatistiken (migration 0138): dygnets slumpade salt (finns bara under dygnet, svensk tid), dygnets hashar per steg
+ * (HMAC av adress och webbläsare, för att räkna unika) och antalet per dag och steg som finns kvar. Läses och skrivs med rå SQL
+ * (`visitor-stats.ts`); tabellerna står här för schemats skull.
+ * @public
+ */
+export const visitorDaySalts = pgTable("visitor_day_salt", {
+  day: date("day").primaryKey(),
+  salt: text("salt").notNull()
+});
+
+/** @public */
+export const visitorHits = pgTable("visitor_hit", {
+  day: date("day").notNull(),
+  step: text("step").notNull(),
+  hash: text("hash").notNull()
+}, (table) => [primaryKey({ columns: [table.day, table.step, table.hash] })]);
+
+/** @public */
+export const visitorDayCounts = pgTable("visitor_day_count", {
+  day: date("day").notNull(),
+  step: text("step").notNull(),
+  visitors: integer("visitors").notNull()
+}, (table) => [primaryKey({ columns: [table.day, table.step] })]);

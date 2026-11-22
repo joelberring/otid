@@ -7,10 +7,11 @@ import { schema, type Database } from "@o-tid/database";
 import { localRaceDate } from "@o-tid/domain";
 import type { DbExecutor } from "./snapshot";
 import { mapStorageQuota, mapStorageUsage } from "./map-content";
+import { readVisitorWeek, rollupVisitorDays } from "./visitor-stats";
 import {
   ALERT_KINDS, alertMessage, evaluateAlerts, serverProblems, TIME_ZONE, weeklyReport, weeklyReportDue, EMPTY_NOTICE,
-  type AlertKind, type BackupStatus, type DatabaseSizes, type LogRow, type MonitorCheck, type NoticeState, type SampleRow,
-  type ServerCounts, type ServerSnapshot, type ServerWatchSettings
+  type AlertKind, type BackupStatus, type DatabaseSizes, type MonitorCheck, type NoticeState,
+  type ServerCounts, type ServerSnapshot, type ServerWatchSettings, type WeeklyHistory
 } from "./server-report";
 
 /**
@@ -221,7 +222,7 @@ async function logSent(tx: DbExecutor, kind: string, status: "ALERT" | "RESOLVED
     recipients, sentAt: now });
 }
 
-export async function readHistory(db: DbExecutor, now: Date): Promise<{ samples: SampleRow[]; log: LogRow[] }> {
+export async function readHistory(db: DbExecutor, now: Date): Promise<WeeklyHistory> {
   const samples = (await db.execute<{ sampled_at: unknown; disk_total_bytes: string | null; disk_free_bytes: string | null; load_max: number | null;
     load_max_at: unknown; memory_total_bytes: string | null; memory_available_min_bytes: string | null }>(sql`select sampled_at, disk_total_bytes,
       disk_free_bytes, load_max, load_max_at, memory_total_bytes, memory_available_min_bytes from server_sample
@@ -233,7 +234,8 @@ export async function readHistory(db: DbExecutor, now: Date): Promise<{ samples:
     samples: samples.map(row => ({ at: rowDate(row.sampled_at)!, diskTotalBytes: numberOrNull(row.disk_total_bytes), diskFreeBytes: numberOrNull(row.disk_free_bytes),
       loadMax: numberOrNull(row.load_max), loadMaxAt: rowDate(row.load_max_at), memoryTotalBytes: numberOrNull(row.memory_total_bytes),
       memoryAvailableMinBytes: numberOrNull(row.memory_available_min_bytes) })),
-    log: log.map(row => ({ kind: row.kind, status: row.status, detail: row.detail, sentAt: rowDate(row.sent_at)! }))
+    log: log.map(row => ({ kind: row.kind, status: row.status, detail: row.detail, sentAt: rowDate(row.sent_at)! })),
+    visitors: await readVisitorWeek(db, now)
   };
 }
 
@@ -282,6 +284,7 @@ export async function runServerWatch(db: Database, input: { host: HostReadings; 
     const due = weeklyReportDue(reportState?.lastSentAt ?? null, now, settings.report);
     if (due === "baseline") await saveState(tx, "WEEKLY_REPORT", { ...EMPTY_NOTICE, lastSentAt: now });
     if (due === "due") {
+      await rollupVisitorDays(tx, now);
       const history = await readHistory(tx, now);
       const sent = await input.send(weeklyReport(snapshot, history, settings, input.serverName), recipients);
       await saveState(tx, "WEEKLY_REPORT", { ...EMPTY_NOTICE, lastSentAt: now });

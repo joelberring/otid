@@ -4,6 +4,7 @@ import { accountSv } from "./account-sv";
 import { helpArticles } from "./help-sv";
 import { helpArticleText } from "../lib/help-search";
 import { raceTypeSv } from "./race-type-sv";
+import { privacyEn } from "./privacy-en";
 
 /** Steg 46: /integritet, /om och hjälpen säger det som appen faktiskt gör (genomlysningen, säkerhet #4 och #10). */
 describe("personuppgifter och om O-Tid", () => {
@@ -16,6 +17,14 @@ describe("personuppgifter och om O-Tid", () => {
     expect(privacy.party).toMatch(/visningsnamn/);
     expect(privacy.selfRegistration).toMatch(/hash med en hemlig nyckel/);
     expect(privacy.selfRegistration).toMatch(/två dygn/);
+  });
+
+  it("besöksstatistiken: antal per dag utan kakor, en kod som inte kan kopplas efter dygnet och inga IP-adresser (2026-11-22)", () => {
+    expect(privacy.visitors).toMatch(/per dag och utan kakor/);
+    expect(privacy.visitors).toMatch(/kan inte kopplas till dig efter dygnet/);
+    expect(privacy.visitors).toMatch(/IP-adresser sparas inte/);
+    expect(privacyEn.visitors).toMatch(/without cookies/);
+    expect(privacyEn.visitors).toMatch(/IP addresses are not stored/);
   });
 
   it("säger vad som är publikt: bricknummer bara när arrangören slår på det, live och sträcktider, fest utan belopp, inte för sökmotorer", () => {

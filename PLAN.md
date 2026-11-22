@@ -1450,6 +1450,12 @@ stannar kvar; siffror byter symbol, bokstäver verktyg; tryck byter, håll låna
   med punkterna fästa på grannlinjerna), i Workern med tidsgräns; mobilen: första trycket visar, andra fyller.
 - [x] V5 Följ kant (håll ⇧ i Rita), vinkellås (håll ⌘/Ctrl, 0/45/90° mot förra sträckan eller kanten), «Visa ofyllda rutor» (⇧§).
   Mätning: kvarter på Älvsjö–Solberga i Mapper och O-Tid – **ej gjord** (byggt 2026-11-21, inte sett i webbläsare).
+- [ ] V6 Text (ägaren 2026-11-22: «låter topp»). Som Mapper/OCAD: storlek, färg och typsnitt hör till textsymbolen, objektet
+  har text, plats och vinkel. Textverktyget (B) i Rita-gruppen: klick, skriv i ett fält på kartan, Enter/Esc, vald textsymbol
+  (1–8 fungerar). Dubbelklick på text i Markera redigerar; kontextraden: Redigera text, Byt textsymbol, Vrid. «Ändra
+  textsymbol» (högerklick i symbolpanelen): typsnitt, storlek i mm, färg ur kartans färger, fet/kursiv, justering, vit kontur;
+  gäller alla texter med symbolen; «Duplicera som ny symbol». Skrivs tillbaka till .xmap och syns rätt i Mapper; saknat
+  typsnitt ersätts i webbläsaren.
 
 ## [ ] Steg L – Lagring: gränser, städning och arkiv (ägaren 2026-11-13)
 

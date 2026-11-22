@@ -33,6 +33,7 @@ export class EntryCardImportConflictError extends Error {}
 export class EntryIdentityImportConflictError extends Error {}
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { bumpReadoutPackageVersion } from "./snapshot";
+import { fillMassStartTimes } from "./start-draw-basis";
 import { loadRelayClassConfigs } from "./relay-model";
 import { recomputeRelayStarts } from "./relay-sync";
 import { planNewRelayTeamVariants } from "./relay-variants";
@@ -573,6 +574,8 @@ export async function importIofXmlAsAdmin(
     const applied = await applyParsedImport(tx, input.raceId, parsed, { actorAccountId: authorization.principal.accountId,
       snapshotVersionAfter: race.snapshotVersion + 1, now: importedAt, confirmChanges: input.confirmChanges === true });
     const report = applied.report;
+    // Fel 2026-11-22: importerade löpare i en klass med masstart får masstartens tid.
+    if (applied.snapshotChanged) await fillMassStartTimes(tx, input.raceId);
     const [saved] = await tx.insert(schema.importFiles).values({
       raceId: input.raceId,
       kind: parsed.kind,

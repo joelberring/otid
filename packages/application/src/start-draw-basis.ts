@@ -167,6 +167,23 @@ export async function loadMassStarts(tx: DbExecutor, raceId: string): Promise<{ 
   });
 }
 
+/**
+ * Ger löpare utan starttid i en klass med masstart klassens tid (fel 2026-11-22: tre löpare som kom in med Eventor-
+ * uppdateringen efter att masstarten satts stod med "Ingen starttid"). Rör bara löpare som saknar tid och inte är
+ * strukna; masstartens tid är entydig, så ingen annan tid skrivs över. Ger antalet löpare som fick en tid.
+ */
+export async function fillMassStartTimes(tx: Transaction, raceId: string): Promise<number> {
+  let filled = 0;
+  for (const mass of await loadMassStarts(tx, raceId)) {
+    const rows = await tx.update(schema.entries).set({ fixedStartTime: new Date(mass.startTime),
+      version: sql`${schema.entries.version} + 1` })
+      .where(and(eq(schema.entries.raceId, raceId), eq(schema.entries.classId, mass.classId), isNull(schema.entries.fixedStartTime),
+        isNull(schema.entries.struckAt), isNull(schema.entries.teamId))).returning({ id: schema.entries.id });
+    filled += rows.length;
+  }
+  return filled;
+}
+
 export type StartListFacts = { firstControlCode: number | null; drawMethod: "MINUTE" | "MASS" | null; vacancies: string[] };
 
 /**

@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
 import {
   courseVariantForReadout, distributeCourseVariants, leastUsedCourseVariant, storedResultCourseVariant, type RaceSnapshot
@@ -76,13 +76,25 @@ export async function classVariantCodes(tx: Transaction, raceId: string, classId
   return rows.map(row => row.code);
 }
 
-/** Efteranmäld i en gafflad klass får den minst använda varianten; annars ingen. Anroparen håller skrivlåset. */
+/** Klassens varianter med kontrollföljd, för att jämna ut gafflingspunkterna vid fördelningen. */
+async function classVariantControls(tx: Transaction, raceId: string, classId: string): Promise<StoredCourseVariant[]> {
+  const [raceClass] = await tx.select({ courseVersionId: schema.classes.courseVersionId }).from(schema.classes)
+    .where(and(eq(schema.classes.id, classId), eq(schema.classes.raceId, raceId)));
+  if (!raceClass) return [];
+  return (await loadCourseVersionVariants(tx, [raceClass.courseVersionId])).get(raceClass.courseVersionId) ?? [];
+}
+
+/**
+ * Efteranmäld i en gafflad klass får den minst använda varianten, och bland dem den som jämnar ut gafflingspunkterna
+ * (fel 2026-11-22); annars ingen. Strukna räknas inte. Anroparen håller skrivlåset.
+ */
 export async function leastUsedVariantForClass(tx: Transaction, raceId: string, classId: string): Promise<string | null> {
   const codes = await classVariantCodes(tx, raceId, classId);
   if (codes.length === 0) return null;
   const used = await tx.select({ code: schema.entries.courseVariantCode }).from(schema.entries)
-    .where(and(eq(schema.entries.raceId, raceId), eq(schema.entries.classId, classId)));
-  return leastUsedCourseVariant(codes, used.map(row => row.code)) ?? null;
+    .where(and(eq(schema.entries.raceId, raceId), eq(schema.entries.classId, classId), isNull(schema.entries.struckAt)));
+  const variants = (await classVariantControls(tx, raceId, classId)).filter(variant => codes.includes(variant.code));
+  return leastUsedCourseVariant(codes, used.map(row => row.code), variants) ?? null;
 }
 
 /**
@@ -157,7 +169,8 @@ export async function planVariantDistribution(tx: Transaction, raceId: string, c
     });
     // Varje klass får ett eget frö ur lottningens frö så att klassernas fördelningar är oberoende.
     const classSeed = ((seed + index * 2_654_435_761) % 4_294_967_295) + 1;
-    for (const [entryId, code] of distributeCourseVariants({ seed: classSeed, variantCodes: codes, runners })) planned.set(entryId, code);
+    const variants = (await classVariantControls(tx, raceId, classId)).filter(variant => codes.includes(variant.code));
+    for (const [entryId, code] of distributeCourseVariants({ seed: classSeed, variantCodes: codes, runners, variants })) planned.set(entryId, code);
   }
   return planned;
 }

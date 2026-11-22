@@ -497,7 +497,7 @@ export const courseVariantsEn: Texts<typeof courseVariantsSv> = {
     : `The variants ${unused.slice(0, 8).join(", ")}${unused.length > 8 ? " …" : ""} have no runners`,
   readinessMissing: (className, count) => count === 1 ? `1 runner in ${className} is missing a variant`
     : `${count} runners in ${className} are missing a variant`,
-  readinessUneven: (className, point, counts) => `${className}, forking ${point}: ${counts.map(row => `${row.letters} ${row.count}`).join(", ")}`,
+  readinessUneven: (className, point, counts) => `${className} is unevenly spread at forking ${point} (${counts.map(row => `${row.count} on ${row.letters}`).join(", ")})`,
   readinessTooMany: count => `${count} variants – at most 100 work`,
   readinessLetters: "More than 26 forking letters",
   wrongMap: (assigned, fitting) => `Mispunched against ${assigned}, but the punches fit ${fitting.join(" and ")}. Did the runner get the wrong map?`,

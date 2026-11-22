@@ -17,6 +17,7 @@ import { planNewRelayTeamVariants } from "./relay-variants";
 import { synchronizeRelayTeams } from "./relay-sync";
 import { assessReadOutEntries, recalculateAssessedEntries, summarizeAssessment, type AssessedEntry } from "./result-reassessment";
 import { bumpReadoutPackageVersion, loadRaceSnapshot } from "./snapshot";
+import { assignLateStartTime, fillMassStartTimes } from "./start-draw-basis";
 import { recordTransferredForkLetters } from "./course-setting-fork-letters";
 import {
   fullName, PLACEHOLDER_COURSE, type ClassRef, type CourseFileAction, type CourseFileProjection, type CourseRef, type CurrentState,
@@ -211,6 +212,9 @@ export async function applyEventor(tx: Transaction, input: ApplyInput, projectio
       const classId = classIdOf(action.classRef, ids);
       const [entry] = await tx.insert(schema.entries).values({ raceId, classId, givenName: action.givenName, familyName: action.familyName,
         organisationName: action.club, externalSource: "eventor", externalId: action.eventorId,
+        // Fel 2026-11-22: ny löpare i en lottad klass får tid som en efteranmäld i arbetsytan (masstartens tid,
+        // annars första lediga minut); en klass som inte är lottad får tiden när den lottas.
+        fixedStartTime: await assignLateStartTime(tx, raceId, classId, now),
         courseVariantCode: await leastUsedVariantForClass(tx, raceId, classId) }).returning({ id: schema.entries.id });
       if (action.cardNumber) await activateCard(tx, raceId, entry!.id, action.cardNumber);
     }
@@ -220,6 +224,8 @@ export async function applyEventor(tx: Transaction, input: ApplyInput, projectio
       const [current] = await tx.select({ code: schema.entries.courseVariantCode }).from(schema.entries).where(eq(schema.entries.id, local.id));
       await tx.update(schema.entries).set({ ...(action.name ?? {}), ...(action.club !== undefined ? { organisationName: action.club } : {}),
         ...(classId ? { classId, courseVariantCode: await variantAfterClassChange(tx, raceId, local.id, classId, current?.code ?? null) } : {}),
+        // Klassbyte till en lottad klass: den nya klassens tid, inte den gamla klassens (fel 2026-11-22).
+        ...(classId && classId !== local.classId ? await lateStartAfterClassChange(tx, raceId, classId, now) : {}),
         ...(action.eventorId ? { externalSource: "eventor", externalId: action.eventorId } : {}),
         version: sql`${schema.entries.version} + 1` }).where(eq(schema.entries.id, local.id));
       if (action.cardNumber) await activateCard(tx, raceId, local.id, action.cardNumber);
@@ -233,9 +239,16 @@ export async function applyEventor(tx: Transaction, input: ApplyInput, projectio
     if (action.type === "CREATE_TEAM") relayTeams.add(await createTeam(tx, raceId, action, classIdOf(action.classRef, ids), legCount));
   }
   await storeEventorIdentities(tx, raceId, projection);
+  // Löpare som redan saknar tid i en masstartsklass (från en tidigare uppdatering) får masstartens tid nu.
+  await fillMassStartTimes(tx, raceId);
   await bumpReadoutPackageVersion(tx, raceId);
   if (relayTeams.size > 0) await synchronizeRelayTeams(tx, raceId, [...relayTeams], input.snapshotVersionAfter);
   return recalculate(tx, raceId, assessment, input.snapshotVersionAfter);
+}
+
+async function lateStartAfterClassChange(tx: Transaction, raceId: string, classId: string, now: Date): Promise<{ fixedStartTime?: Date }> {
+  const time = await assignLateStartTime(tx, raceId, classId, now);
+  return time ? { fixedStartTime: time } : {};
 }
 
 async function createTeam(tx: Transaction, raceId: string, action: Extract<EventorAction, { type: "CREATE_TEAM" }>, classId: string,

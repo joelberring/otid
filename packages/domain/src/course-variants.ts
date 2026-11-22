@@ -1,3 +1,4 @@
+import { deriveCourseForking } from "./course-forking";
 import { createRandom, shuffle } from "./seeded-random";
 import type { CourseVariant, CourseVersion, RaceSnapshot } from "./types";
 
@@ -98,12 +99,47 @@ export function unevenCourseVariantLegs(variants: readonly { readonly code: stri
   return uneven;
 }
 
-/** Koden som används minst; vid lika antal den första i variantordningen. */
-export function leastUsedCourseVariant(variantCodes: readonly string[], usedCodes: readonly (string | null | undefined)[]): string | undefined {
-  let best: { code: string; count: number } | undefined;
+/** En variants kontrollföljd: underlaget för att jämna ut gafflingspunkterna. */
+export interface CourseVariantControls { readonly code: string; readonly controlCodes: readonly number[] }
+
+/**
+ * Nycklarna för variantens val vid varje gafflingspunkt ("punkt:val"), härledda ur kontrollföljderna. Undefined när
+ * banan inte har två varianter. Fel 2026-11-22: med fler varianter än löpare (16 varianter, 6 löpare) jämnade
+ * fördelningen bara ut antalet per variant, så att en gaffling kunde bli A 5, B 1.
+ */
+export function courseVariantForkKeys(variants: readonly CourseVariantControls[] | undefined): Map<string, readonly string[]> | undefined {
+  if (!variants || variants.length < 2) return undefined;
+  const { choices } = deriveCourseForking(variants);
+  return new Map(variants.map((variant) => [variant.code, (choices.get(variant.code) ?? [])
+    .flatMap((choice, index) => choice === null ? [] : [`${index}:${JSON.stringify(choice)}`])] as const));
+}
+
+/** Löpare per val vid gafflingspunkterna, för de koder som räknas. */
+function forkKeyCounts(keys: ReadonlyMap<string, readonly string[]> | undefined, codes: readonly (string | null | undefined)[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  if (!keys) return counts;
+  for (const code of codes) for (const key of (code ? keys.get(code) : undefined) ?? []) counts.set(key, (counts.get(key) ?? 0) + 1);
+  return counts;
+}
+
+function forkScore(keys: ReadonlyMap<string, readonly string[]> | undefined, counts: ReadonlyMap<string, number>, code: string): number {
+  return (keys?.get(code) ?? []).reduce((sum, key) => sum + (counts.get(key) ?? 0), 0);
+}
+
+/**
+ * Koden som används minst. Bland lika använda väljs den vars val vid gafflingspunkterna har minst löpare (när
+ * kontrollföljderna är kända), så att varje gaffling blir jämn även med färre löpare än varianter; därefter den
+ * första i variantordningen.
+ */
+export function leastUsedCourseVariant(variantCodes: readonly string[], usedCodes: readonly (string | null | undefined)[],
+  variants?: readonly CourseVariantControls[]): string | undefined {
+  const keys = courseVariantForkKeys(variants);
+  const points = forkKeyCounts(keys, usedCodes.filter((code) => code && variantCodes.includes(code)));
+  let best: { code: string; count: number; score: number } | undefined;
   for (const code of variantCodes) {
     const count = usedCodes.filter((used) => used === code).length;
-    if (!best || count < best.count) best = { code, count };
+    const score = forkScore(keys, points, code);
+    if (!best || count < best.count || (count === best.count && score < best.score)) best = { code, count, score };
   }
   return best?.code;
 }
@@ -126,6 +162,8 @@ export function distributeCourseVariants(input: {
   readonly seed: number;
   readonly variantCodes: readonly string[];
   readonly runners: readonly CourseVariantRunner[];
+  /** Kontrollföljderna: bland lika använda varianter väljs den som jämnar ut gafflingspunkterna. */
+  readonly variants?: readonly CourseVariantControls[];
 }): Map<string, string> {
   const assigned = new Map<string, string>();
   if (input.variantCodes.length === 0) return assigned;
@@ -143,13 +181,19 @@ export function distributeCourseVariants(input: {
       open.push(runner);
     }
   }
+  const keys = courseVariantForkKeys(input.variants);
+  const points = forkKeyCounts(keys, [...counts.entries()].flatMap(([code, count]) => Array<string>(count).fill(code)));
   const random = createRandom(input.seed);
   const order = shuffle(input.variantCodes, random);
   for (const runner of shuffle(open, random)) {
     let best = order[0]!;
-    for (const code of order) if (counts.get(code)! < counts.get(best)!) best = code;
+    for (const code of order) {
+      const fewer = counts.get(code)! - counts.get(best)!;
+      if (fewer < 0 || (fewer === 0 && forkScore(keys, points, code) < forkScore(keys, points, best))) best = code;
+    }
     assigned.set(runner.entryId, best);
     counts.set(best, counts.get(best)! + 1);
+    for (const key of keys?.get(best) ?? []) points.set(key, (points.get(key) ?? 0) + 1);
   }
   return assigned;
 }

@@ -18,6 +18,7 @@ import {
   applySyncAsAdmin, getSourceSyncStatusAsAdmin, previewCourseFileAsAdmin, previewEventorSyncAsAdmin,
   syncConsequenceAsAdmin
 } from "../../src/source-sync";
+import { commitStartDrawAsAdmin, previewStartDrawAsAdmin } from "../../src/start-draw";
 import { accountOnRace } from "./accounts";
 
 const base = process.env.TEST_DATABASE_URL;
@@ -270,6 +271,36 @@ describe("ADR-0170 Eventor och banfiler, med uppdateringar", () => {
     // Nyckeln kan tas bort; Eventor går då inte att läsa.
     expect(await removeEventorKeyAsAdmin(db, proof, runtime)).toMatchObject({ status: "ok", response: { key: "NONE" } });
     expect(await previewEventorSyncAsAdmin(db, proof, runtime)).toEqual({ status: "eventor", outcome: "NO_KEY" });
+  });
+
+  it("ny löpare från Eventor i en klass med masstart får masstartens tid, också en som saknade tid sedan förut (fel 2026-11-22)", async () => {
+    const { state, runtime } = fakeEventor();
+    const proof = await race();
+    await saveEventorKeyAsAdmin(db, { ...proof, request: { formatVersion: 1, apiKey: API_KEY } }, runtime);
+    await chooseEventorEventAsAdmin(db, { ...proof, request: { formatVersion: 1, eventId: "47110" } }, runtime);
+    expect((await apply(proof, await eventorPreview(proof, runtime))).result).toMatchObject({ status: "saved" });
+    expect((await apply(proof, await coursePreview(proof, "course-file-1.xml"))).result).toMatchObject({ status: "saved" });
+    const h21 = (await pool.query<{ id: string }>("select id from class where race_id = $1 and name = 'H21'", [proof.raceId])).rows[0]!.id;
+    const MASS = "2026-10-18T17:00:00.000Z";
+    const settings = { firstStartTime: MASS, clubSeparation: false,
+      classes: [{ classId: h21, method: "MASS" as const, intervalMinutes: 2, vacancies: { kind: "COUNT" as const, value: 0 } }] };
+    const now = new Date();
+    const shown = await previewStartDrawAsAdmin(db, { ...proof, request: { formatVersion: 1, ...settings } }, now);
+    if (shown.status !== "ok") throw new Error(`Förhandsvisningen saknas: ${shown.status}`);
+    const requestId = randomUUID();
+    const drawn = await commitStartDrawAsAdmin(db, { ...proof, idempotencyKey: `start-draw:${requestId}`,
+      request: { formatVersion: 1, requestId, seed: shown.response.seed, ...settings, confirmChanges: shown.response.requiresConfirmation } }, now);
+    expect(drawn.status).toBe("drawn");
+    // Som efter en äldre uppdatering: en löpare i masstartsklassen står utan tid.
+    const david = await entry(proof.raceId, "Lund");
+    await pool.query("update entry set fixed_start_time = null where id = $1", [david.id]);
+
+    state.entries = fixture("eventor/entries-2.xml");
+    expect((await apply(proof, await eventorPreview(proof, runtime), { confirm: true })).result).toMatchObject({ status: "saved" });
+    const times = (await pool.query<{ family_name: string; fixed_start_time: Date | null }>(
+      "select family_name, fixed_start_time from entry where class_id = $1 and struck_at is null", [h21])).rows;
+    expect(times.find(row => row.family_name === "Ek")?.fixed_start_time).toEqual(new Date(MASS));
+    expect(times.every(row => row.fixed_start_time?.toISOString() === MASS)).toBe(true);
   });
 
   it("stafett: lag med sträcklöpare och vakant sträcka, som fylls i vid nästa uppdatering", async () => {

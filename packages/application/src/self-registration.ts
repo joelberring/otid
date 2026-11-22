@@ -1,3 +1,5 @@
+import { assignLateStartTime } from "./start-draw-basis";
+import { leastUsedVariantForClass } from "./course-variants";
 import { and, asc, count, eq } from "drizzle-orm";
 import {
   SELF_REGISTRATION_CLUB_MAX, SELF_REGISTRATION_NAME_MAX, selfRegistrationInfoResponseSchema, selfRegistrationRequestSchema,
@@ -153,7 +155,10 @@ export async function selfRegisterCard(db: Database, input: { raceId: string; cl
     const [total] = await tx.select({ value: count() }).from(schema.entries).where(eq(schema.entries.raceId, race.id));
     if (!total || total.value >= 10_000) return { status: "class-full" as const };
     const [entry] = await tx.insert(schema.entries).values({ raceId: race.id, classId: raceClass.id, givenName: givenName!, familyName: familyName!,
-      organisationName: clubText, version: 1, selfRegisteredAt: now }).returning({ id: schema.entries.id });
+      organisationName: clubText, version: 1, selfRegisteredAt: now,
+      // Fel 2026-11-22: som efteranmälan i arbetsytan – lottad klass ger tid (masstartens), gafflad klass en variant.
+      fixedStartTime: await assignLateStartTime(tx, race.id, raceClass.id, now),
+      courseVariantCode: await leastUsedVariantForClass(tx, race.id, raceClass.id) }).returning({ id: schema.entries.id });
     if (!entry) throw new Error("Deltagaren kunde inte sparas");
     await assignCard(tx, { raceId: race.id, entryId: entry.id, cardNumber });
     await bumpReadoutPackageVersion(tx, race.id);

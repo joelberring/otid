@@ -36,13 +36,14 @@ export const courseVariantsSv = {
   readinessOk: (variants: number) => `Klar för start: alla ${variants} varianter har löpare och fördelningen är jämn.`,
   readinessOkUnused: (unused: readonly string[]) =>
     `Klar för start. Färre löpare än varianter, så ${unused.join(", ")} används inte.`,
-  readinessLabel: "Före start",
+  readinessLabel: "Se över före start",
   readinessUnused: (unused: readonly string[]) => unused.length === 1 ? `Variant ${unused[0]} har inga löpare`
     : `Varianterna ${unused.slice(0, 8).join(", ")}${unused.length > 8 ? " …" : ""} har inga löpare`,
   readinessMissing: (className: string, count: number) => count === 1 ? `1 löpare i ${className} saknar variant`
     : `${count} löpare i ${className} saknar variant`,
   readinessUneven: (className: string, point: number, counts: readonly { letters: string; count: number }[]) =>
-    `${className}, gaffling ${point}: ${counts.map(row => `${row.letters} ${row.count}`).join(", ")}`,
+    // Fel 2026-11-22: "Superion herr, gaffling 1: A 5, B 1" gick inte att förstå.
+    `${className} är ojämnt fördelad vid gaffling ${point} (${counts.map(row => `${row.count} på ${row.letters}`).join(", ")})`,
   readinessTooMany: (count: number) => `${count} varianter – högst 100 går`,
   readinessLetters: "Fler än 26 gafflingsbokstäver",
   // Steg 61: fel karta vid starten.

@@ -222,3 +222,36 @@ describe("bortvald variant i avläsningen (ADR-0198)", () => {
     expect(excludedVariantsFitting(readout(variantCodes("BD")), snapshot("AC"), ids.entry)).toBeUndefined();
   });
 });
+
+describe("jämna gafflingspunkter med fler varianter än löpare (fel 2026-11-22)", () => {
+  // Fyra enkla gafflingar = 16 varianter, som bana A i Stockholm by Night-testet.
+  const forks = [[34, 54], [38, 57], [43, 58], [61, 62]] as const;
+  const variants = Array.from({ length: 16 }, (_, index) => {
+    const picks = forks.map((fork, point) => (index >> (3 - point)) & 1);
+    return { code: picks.map((pick, point) => String.fromCharCode(65 + point * 2 + pick)).join(""),
+      controlCodes: [31, ...forks.flatMap((fork, point) => [fork[picks[point]!]!, 70 + point])] };
+  });
+  const codes = variants.map((variant) => variant.code);
+  const balanced = (assigned: readonly string[]) => [0, 1, 2, 3].every((point) => {
+    const first = assigned.filter((code) => code[point] === String.fromCharCode(65 + point * 2)).length;
+    return Math.abs(first - (assigned.length - first)) <= 1;
+  });
+
+  it("fördelar sex löpare jämnt vid varje gaffling, för många frön", () => {
+    for (let seed = 1; seed <= 50; seed += 1) {
+      const runners = Array.from({ length: 6 }, (_, index) => ({ entryId: `e${index}`, variantCode: null }));
+      const assigned = [...distributeCourseVariants({ seed, variantCodes: codes, runners, variants }).values()];
+      expect(new Set(assigned).size).toBe(6);
+      expect(balanced(assigned)).toBe(true);
+    }
+  });
+
+  it("efteranmälda en i taget håller gafflingarna jämna", () => {
+    const used: string[] = [];
+    for (let index = 0; index < 7; index += 1) {
+      used.push(leastUsedCourseVariant(codes, used, variants)!);
+      expect(balanced(used)).toBe(true);
+    }
+    expect(new Set(used).size).toBe(7);
+  });
+});

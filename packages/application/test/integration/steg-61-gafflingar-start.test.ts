@@ -117,12 +117,9 @@ describe("steg 61: gafflingar till start och karta", () => {
     if (drawn.status !== "drawn") throw new Error(`Lottningen sparades inte: ${drawn.status}`);
     const afterDraw = await listCoursesForEditAsAdmin(db, proof);
     if (afterDraw.status !== "ok") throw new Error("Banlistan saknas");
-    // Ingen saknar variant längre. Fördelningen är jämn per variant men kan vara ojämn per gafflingspunkt; kontrollen
-    // räknar då per alternativ (sex löpare i H21).
+    // Ingen saknar variant längre, och fördelningen är jämn både per variant och per gafflingspunkt (fel 2026-11-22).
     const readiness = afterDraw.response.courses.find(course => course.name === "Lång")?.readiness;
-    expect(readiness).toMatchObject({ missingVariant: [], unusedVariants: [] });
-    for (const point of readiness!.uneven) expect(point.counts.reduce((sum, row) => sum + row.count, 0)).toBe(6);
-    expect(readiness!.ok).toBe(readiness!.uneven.length === 0);
+    expect(readiness).toMatchObject({ missingVariant: [], unusedVariants: [], uneven: [], ok: true });
 
     const reserve = await saveMapReserveAsAdmin(db, { ...proof, request: { formatVersion: 1, reserve: { kind: "COUNT", value: 1 } } });
     expect(reserve.status).toBe("saved");
@@ -161,9 +158,9 @@ describe("steg 61: gafflingar till start och karta", () => {
     expect(changed.status).toBe("changed");
     const later = await bundles(proof);
     expect(later.prints.BUNDLE?.changes).toEqual([{ kind: "VARIANT", name: "Cia Holm", className: "H21", from: "AD", to: "BD" }]);
+    // Tryckantalet per variant ändras bara om de lediga tiderna inte jämnar ut bytet; det beror på fördelningen.
     expect(later.prints.BACKS?.changes).toEqual(expect.arrayContaining([
-      { kind: "VARIANT", name: "Cia Holm", className: "H21", from: "AD", to: "BD" },
-      expect.objectContaining({ kind: "COUNT", courseName: "Lång", variantCode: "BD" })]));
+      { kind: "VARIANT", name: "Cia Holm", className: "H21", from: "AD", to: "BD" }]));
 
     // Fel karta: Eva har AC men stämplar BD. Felstämplad, med beskedet; inget byts.
     const eva = (await pool.query<{ fixed_start_time: Date; course_variant_code: string; version: number }>(

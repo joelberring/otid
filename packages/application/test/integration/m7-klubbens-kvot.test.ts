@@ -6,6 +6,7 @@ import { createDatabase, migrate } from "@o-tid/database";
 import { createClub, readClub } from "../../src/clubs";
 import { uploadClubMapVersion } from "../../src/club-maps";
 import { clubStorageUsage, mapStorageUsage, storeMapContent } from "../../src/map-content";
+import { regenerableRows } from "../../src/map-regenerable";
 import { performSuperadminAction, readSuperadminOverview, setSuperadmin } from "../../src/superadmin";
 import { loginUserAccount } from "../../src/user-account";
 import { registerTestAccount } from "./accounts";
@@ -125,5 +126,29 @@ describe("PLAN.md steg M7: klubbens kvot", () => {
     view = await readClub(db, { ...owner.proof, clubId }, NOW);
     if (view.status !== "ok") throw new Error(view.status);
     expect(view.view.storage?.limitBytes).toBe(2048 * MB);
+  });
+  it("samspelet med M4: återskapbart i klubbarkivet är klubbens och tas aldrig bort, 'GONE' räknas inte mot klubben", async () => {
+    const { owner, clubId } = await clubWithOwner();
+    const map = mapOf(MB, 8);
+    const recipe = { source: "WMS", createdAt: NOW.toISOString() };
+    expect(await db.transaction(tx => storeMapContent(tx, map, owner.accountId, NOW, undefined, { recipe }))).toMatchObject({ status: "stored" });
+    expect((await regenerableRows(db, { accountId: owner.accountId }, NOW)).map(row => row.byteLength)).toEqual([MB]);
+    expect((await mapStorageUsage(db, owner.accountId)).accountBytes).toBe(0);
+    // Samma innehåll läggs i klubbarkivet: det blir klubbens vanliga material och inte längre återskapbart.
+    expect(await upload(owner.proof, clubId, map, "Bilden")).toMatchObject({ status: "created" });
+    expect(await regenerableRows(db, { accountId: owner.accountId }, NOW)).toEqual([]);
+    const [row] = (await db.execute<{ regenerable: boolean }>(sql`select regenerable from map_content where byte_length = ${MB}
+      and sha256 in (select content_sha256 from club_map_version where club_id = ${clubId}::uuid)`)).rows;
+    expect(row?.regenerable).toBe(false);
+    expect((await clubStorageUsage(db, clubId)).mapBytes).toBe(MB);
+    // Recept med clubId sparar utan recept (klubbarkivet är aldrig återskapbart).
+    const other = mapOf(MB / 4, 9);
+    await db.transaction(tx => storeMapContent(tx, other, owner.accountId, NOW, undefined, { clubId, recipe }));
+    expect((await db.execute<{ regenerable: boolean }>(sql`select regenerable from map_content where byte_length = ${MB / 4}
+      and recipe is null and uploaded_by = ${owner.accountId}::uuid`)).rows.map(r => r.regenerable)).toContain(false);
+    // Det som tagits bort ur förrådet ('GONE') räknas inte mot klubben.
+    await db.execute(sql`update map_content set stored_in = 'GONE' where sha256 in
+      (select content_sha256 from club_map_version where club_id = ${clubId}::uuid)`);
+    expect((await clubStorageUsage(db, clubId)).mapBytes).toBe(0);
   });
 });

@@ -1,6 +1,6 @@
 import type { NextConfig } from "next";
 import {
-  BASE_SECURITY_HEADERS, READOUT_PERMISSIONS_POLICY, READOUT_SHELL_CSP
+  BASE_SECURITY_HEADERS, GAME_FILE_CSP, READOUT_PERMISSIONS_POLICY, READOUT_SHELL_CSP
 } from "./src/lib/content-security-policy";
 import { NO_INDEX_HEADER, NO_INDEX_HEADER_SOURCES } from "./src/lib/no-index";
 
@@ -58,6 +58,10 @@ const nextConfig: NextConfig = {
       // Mastermind med kontroller: samma statiska skal och samma rätt till stationen som avläsningen.
       { source: "/mastermind/:path*", headers: [{ key: "Cache-Control", value: "no-cache" },
         { key: "Content-Security-Policy", value: READOUT_SHELL_CSP }, { key: "Referrer-Policy", value: "no-referrer" }, readout] },
+      // Fristående spel (nyheten om Fel trapphus): egen CSP utan anrop till O-Tid; ?ladda=1 sparar filen i stället.
+      { source: "/spel/:path*", headers: [{ key: "Cache-Control", value: "public, max-age=3600" },
+        { key: "Content-Security-Policy", value: GAME_FILE_CSP }, { key: "Referrer-Policy", value: "no-referrer" }] },
+      { source: "/spel/:file", has: [{ type: "query", key: "ladda" }], headers: [{ key: "Content-Disposition", value: "attachment" }] },
       { source: "/starts/:raceId", headers: [...privateAdminHeaders] },
       // ADR-0214: kartritarens länk. Nyckeln står i adressen: ingen cache, ingen referer och telefonens position på kartan.
       { source: "/kartfel/:token", headers: [{ key: "Cache-Control", value: "private, no-store" }, { key: "Referrer-Policy", value: "no-referrer" },

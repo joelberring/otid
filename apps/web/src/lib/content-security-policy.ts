@@ -23,6 +23,14 @@ export function pageContentSecurityPolicy(nonce: string, development: boolean): 
 export const READOUT_SHELL_CSP = "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data: blob:; " +
   "connect-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
 
+/**
+ * Fristående spel i /spel/ (Fel trapphus): en enda HTML-fil med inbäddade skript och stilar, 3D-modellen som data: och
+ * inspelningen som blob:. Inga anrop till O-Tid ('self' saknas i connect-src), inga formulär och ingen inbäddning.
+ */
+export const GAME_FILE_CSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; " +
+  "media-src data: blob:; connect-src data: blob:; font-src data:; worker-src blob:; object-src 'none'; frame-ancestors 'none'; " +
+  "base-uri 'none'; form-action 'none'";
+
 /** Avläsningen och bardisken läser stationen med Web Serial (dator) eller WebUSB (Android). */
 export const READOUT_PERMISSIONS_POLICY = "bluetooth=(self), camera=(), geolocation=(), microphone=(), serial=(self), usb=(self)";
 

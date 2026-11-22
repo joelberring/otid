@@ -1,5 +1,5 @@
 import {
-  readInvitationLink, resendClubInvitation, resendGroupInvitation, resendMapProjectInvitation, type InvitationMailer,
+  consumeIpRequestAllowance, readInvitationLink, resendClubInvitation, resendGroupInvitation, resendMapProjectInvitation, type InvitationMailer,
   type InvitationResendResult
 } from "@o-tid/application";
 import { invitationLinkRequestSchema, invitationLinkViewSchema, invitationResendResponseSchema, UUID_PATTERN } from "@o-tid/contracts";
@@ -7,7 +7,7 @@ import type { Database } from "@o-tid/database";
 import { invitationMailer } from "./invitation-mail";
 import { languageOfRequest } from "./language";
 import {
-  SecurityConfigurationError, accountFailure, hasExpectedOrigin, privateJson, readJsonBody, securityPolicy, sessionProof, type SecurityPolicy
+  SecurityConfigurationError, accountFailure, clientAddress, hasExpectedOrigin, privateJson, readJsonBody, securityPolicy, sessionProof, type SecurityPolicy
 } from "./security-policy";
 import { logServerError } from "./server-error-log";
 
@@ -17,6 +17,8 @@ import { logServerError } from "./server-error-log";
  * Svaren är privata och cachas inte.
  */
 type Environment = Record<string, string | undefined>;
+/** Slagningar av en inbjudningslänk per IP-adress och timme (en per öppnad länk; en klubb bakom en adress ryms gott). */
+const LINK_LOOKUPS_PER_IP_AND_HOUR = 300;
 const BODY_MAX = 2 * 1024;
 
 function policy(environment: Environment): SecurityPolicy | undefined {
@@ -46,6 +48,8 @@ export async function invitationLinkRoute(db: Database, request: Request, enviro
   const parsed = invitationLinkRequestSchema.safeParse(body);
   if (!parsed.success) return privateJson(invitationLinkViewSchema.parse({ formatVersion: 1, status: "invalid" }));
   try {
+    // Granskningen 3.9: spärr per IP-adress (öppet anrop som läser databasen med nyckeln i kroppen).
+    if (!await consumeIpRequestAllowance(db, "INVITATION_LINK_IP", clientAddress(request), LINK_LOOKUPS_PER_IP_AND_HOUR)) return accountFailure(429, "RATE_LIMITED");
     return privateJson(invitationLinkViewSchema.parse(await readInvitationLink(db, parsed.data.token)));
   } catch (error) {
     logServerError("invitation", "link", error);

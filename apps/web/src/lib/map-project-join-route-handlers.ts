@@ -1,11 +1,11 @@
 import {
-  acceptMapProjectJoinLink, addMapProjectClubMember, createMapProjectJoinLink, listMapProjectClubMembers, readMapProjectJoinLink,
+  acceptMapProjectJoinLink, addMapProjectClubMember, consumeIpRequestAllowance, createMapProjectJoinLink, listMapProjectClubMembers, readMapProjectJoinLink,
   revokeMapProjectJoinLink
 } from "@o-tid/application";
 import { UUID_PATTERN, mapProjectJoinLinkViewSchema, mapProjectJoinTokenRequestSchema } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
 import { failure, guarded, mutation, readProof, type ClubEnvironment } from "./club-route-handlers";
-import { SecurityConfigurationError, accountFailure, hasExpectedOrigin, privateJson, readJsonBody, securityPolicy } from "./security-policy";
+import { SecurityConfigurationError, accountFailure, clientAddress, hasExpectedOrigin, privateJson, readJsonBody, securityPolicy } from "./security-policy";
 import { logServerError } from "./server-error-log";
 
 /**
@@ -13,6 +13,8 @@ import { logServerError } from "./server-error-log";
  * kartprojektets övriga anrop (exakt Origin och CSRF på skrivningar, privata svar); behörigheten avgörs i tjänsterna.
  */
 type Environment = ClubEnvironment;
+/** Slagningar av en kartlänk per IP-adress och timme (en per öppnad länk). */
+const LINK_LOOKUPS_PER_IP_AND_HOUR = 300;
 const validId = (id: string) => UUID_PATTERN.test(id);
 
 /** GET klubbmedlemmarna ägaren kan lägga till (`?q=` söker på namn), POST lägg till en (som en medlem i projektet). */
@@ -79,6 +81,8 @@ export async function mapProjectJoinLinkInfoRoute(db: Database, request: Request
   const parsed = mapProjectJoinTokenRequestSchema.safeParse(body);
   if (!parsed.success) return privateJson(mapProjectJoinLinkViewSchema.parse({ formatVersion: 1, status: "invalid" }));
   try {
+    // Granskningen 3.9: spärr per IP-adress (öppet anrop som läser databasen med nyckeln i kroppen).
+    if (!await consumeIpRequestAllowance(db, "MAP_PROJECT_LINK_IP", clientAddress(request), LINK_LOOKUPS_PER_IP_AND_HOUR)) return accountFailure(429, "RATE_LIMITED");
     return privateJson(mapProjectJoinLinkViewSchema.parse(await readMapProjectJoinLink(db, parsed.data.token)));
   } catch (error) {
     logServerError("map-project", "join-link", error);

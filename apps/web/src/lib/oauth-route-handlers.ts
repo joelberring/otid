@@ -1,5 +1,5 @@
 import {
-  authenticateOauthAccess, decideAuthorization, describeAuthorization, exchangeOauthToken, handleMcpMessage, listAiConnections, OAUTH_SCOPES,
+  authenticateOauthAccess, consumeIpRequestAllowance, decideAuthorization, describeAuthorization, exchangeOauthToken, handleMcpMessage, listAiConnections, OAUTH_SCOPES,
   registerOauthClient, revokeAiConnection, revokeOauthToken, type OauthError
 } from "@o-tid/application";
 import type { Database } from "@o-tid/database";
@@ -95,11 +95,20 @@ export async function tokenRoute(db: Database, request: Request, environment: En
   });
 }
 
+/** Återkallelser per IP-adress och timme. */
+const REVOKES_PER_IP_AND_HOUR = 120;
+
 export async function revokeRoute(db: Database, request: Request): Promise<Response> {
   return guarded(async () => {
     let form: Record<string, string | undefined>;
     try { form = await formOf(request); } catch { return oauthJson({ error: "invalid_request" }, 400); }
-    if (form.token) await revokeOauthToken(db, form.token);
+    if (form.token) {
+      // Granskningen 3.9: spärr per IP-adress, som token-anropet. Ett överskridet tak svarar 429 i stället för att tyst ignorera.
+      if (!await consumeIpRequestAllowance(db, "OAUTH_REVOKE_IP", clientAddress(request), REVOKES_PER_IP_AND_HOUR)) {
+        return oauthJson({ error: "too_many_requests", error_description: "För många försök; försök igen senare" }, 429);
+      }
+      await revokeOauthToken(db, form.token);
+    }
     return oauthJson({});
   });
 }

@@ -224,12 +224,13 @@ describe("tidsjustering för alla enheter flyttar också clear och check", () =>
   // Lottad start 10:00 utan startstämpling. Enheterna går en timme före: checken 09:55 står 10:55, kontrollerna 10:10–10:30
   // står 11:10–11:30. Avläsningen (datorns klocka) 10:41 + en timme för att checken ska ligga före avläsningen även oflyttad.
   const fixedStart = (shift: number): NormalizedCardReadout => {
-    const { startPunchedAt: _none, ...rest } = readout({ checkPunchedAt: new Date(Date.parse("2026-08-30T09:55:00Z") + shift).toISOString(),
+    const { startPunchedAt, ...rest } = readout({ checkPunchedAt: new Date(Date.parse("2026-08-30T09:55:00Z") + shift).toISOString(),
     clearPunchedAt: new Date(Date.parse("2026-08-30T09:54:00Z") + shift).toISOString(),
     finishPunchedAt: new Date(Date.parse("2026-08-30T10:40:00Z") + shift).toISOString(),
     punches: [31, 32, 33].map((code, index) => ({ code,
       punchedAt: new Date(Date.parse("2026-08-30T10:10:00Z") + index * 10 * 60_000 + shift).toISOString() })),
     readAt: "2026-08-30T11:41:00Z" });
+    expect(startPunchedAt).toBeDefined();
     return rest;
   };
 

@@ -37,8 +37,8 @@ const useOrdinal = () => useLanguage() === "en" ? ordinalEn : ordinalSv;
 const nameOf = (runner: Runner) => `${runner.givenName} ${runner.familyName}`;
 const minutes = (instant: string, timeZone: string) => formatClockTime(instant, timeZone).slice(0, 5);
 // Steg 47: stafettlöpare med laget (klassnamnet har redan sträckan).
-const clubClass = (runner: Runner) => [runner.organisationName, runner.className,
-  runner.relay ? `Lag ${runner.relay.teamNumber} ${runner.relay.teamName}` : null].filter(Boolean).join(" · ");
+const clubClass = (runner: Runner, text: LiveTexts) => [runner.organisationName, runner.className,
+  runner.relay ? text.relayTeam(runner.relay.teamNumber, runner.relay.teamName) : null].filter(Boolean).join(" · ");
 
 /** Tid eller status för en målgång; placeringen under. Felstämplad och disk. har ingen placering. */
 function FinishResult({ row }: { row: PublicLiveFinish }) {
@@ -55,9 +55,10 @@ function FinishResult({ row }: { row: PublicLiveFinish }) {
 }
 
 function FinishRow({ row, timeZone, star }: { row: PublicLiveFinish; timeZone: string; star: Star }) {
+  const text = useTexts(liveSv, liveEn);
   return <li className={styles.row} data-status={row.status}>
     <time className={styles.clock} dateTime={row.finishedAt}>{minutes(row.finishedAt, timeZone)}</time>
-    <span className={styles.who}><strong>{nameOf(row)}</strong><span className={styles.sub}>{clubClass(row)}</span></span>
+    <span className={styles.who}><strong>{nameOf(row)}</strong><span className={styles.sub}>{clubClass(row, text)}</span></span>
     <FinishResult row={row} />
     {star(row)}
   </li>;
@@ -74,7 +75,7 @@ function PassageRow({ passage, timeZone, star }: { passage: PublicRadioPassage; 
     {passage.passedAt ? <time className={styles.clock} dateTime={passage.passedAt}>{minutes(passage.passedAt, timeZone)}</time>
       : <span className={styles.clock} />}
     <span className={styles.who}><strong>{nameOf(passage)}</strong><span className={styles.passage}>{passageText(text, passage)}</span>
-      <span className={styles.sub}>{clubClass(passage)}</span></span>
+      <span className={styles.sub}>{clubClass(passage, text)}</span></span>
     <span className={styles.result} />
     {star(passage)}
   </li>;

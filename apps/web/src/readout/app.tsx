@@ -15,7 +15,7 @@ import { heldReadouts, releaseHeldReadouts } from "./sync";
 import { failedReadoutsFile, loadFailedReadouts, saveFailedReadouts, type FailedReadout } from "./failed-readouts";
 import { inRaceDay, raceTitle } from "@o-tid/domain";
 import { toHex } from "./payload";
-import type { Texts } from "../lib/language";
+import { LOCALE, type Texts } from "../lib/language";
 import { readoutText } from "./text-sv";
 import { ReceiptPanel, type Printable } from "./receipt-panel";
 import { receiptLink } from "./receipt";
@@ -43,8 +43,8 @@ function raceIdFromHash(): string | undefined {
   return /^[0-9a-f-]{36}$/.test(value) ? value : undefined;
 }
 
-function fetchedAt(pkg: ReadoutPackage): string {
-  return new Intl.DateTimeFormat("sv-SE", { timeZone: pkg.event.timeZone, hour: "2-digit", minute: "2-digit" })
+function fetchedAt(pkg: ReadoutPackage, locale: string): string {
+  return new Intl.DateTimeFormat(locale, { timeZone: pkg.event.timeZone, hour: "2-digit", minute: "2-digit" })
     .format(new Date(pkg.fetchedAt));
 }
 
@@ -74,6 +74,7 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
   const t = useTexts(readoutText, readoutTextEn);
   const partyT = useTexts(partyText, partyTextEn);
   const language = useLanguage();
+  const locale = LOCALE[language];
   const englishPlacement = language === "en";
   // Skalet är statiskt med svensk <title> (scripts/build-shells.mjs); sidans språk sätter titeln och lang när appen startat.
   useEffect(() => { document.title = t.title; document.documentElement.lang = language; }, [t.title, language]);
@@ -232,7 +233,7 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
           <dt>{t.queue}</dt><dd data-testid="queue-status">{waiting === 0 ? t.queueEmpty : serverDown ? t.queueServerDown(waiting)
             : t.queueWaiting(waiting)}</dd></div>
         <div data-state={pkg ? "good" : "bad"}>
-          <dt>{t.packageLabel}</dt><dd data-testid="package-status">{pkg ? <>{t.packageUpdated(fetchedAt(pkg))} <small className="package-version"
+          <dt>{t.packageLabel}</dt><dd data-testid="package-status">{pkg ? <>{t.packageUpdated(fetchedAt(pkg, locale))} <small className="package-version"
             title={t.packageVersionTitle(pkg.packageVersion)}>{t.packageVersion(pkg.packageVersion)}</small></> : t.packageMissing}</dd></div>
       </dl>
     </header>
@@ -249,7 +250,7 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
     {failedReadouts.length > 0 ? <section className="notice" role="alert" data-testid="failed-readouts" aria-label={t.failedTitle}>
       <strong>{t.failedTitle}</strong> {t.failedHelp}
       <ul>{failedReadouts.map((row) => <li key={`${row.cardNumber}-${row.at}`}>{t.failedRow(row.cardNumber,
-        new Date(row.at).toLocaleTimeString("sv-SE"), row.message)} – {row.storedAt ? t.failedStored : t.failedWaiting}</li>)}</ul>
+        new Date(row.at).toLocaleTimeString(locale), row.message)} – {row.storedAt ? t.failedStored : t.failedWaiting}</li>)}</ul>
       {/* Steg 45: ladda ner listan med råramar innan den rensas. */}
       <div className="row">
         <button type="button" onClick={downloadFailedReadouts}>{t.failedDownload}</button>
@@ -261,7 +262,7 @@ export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new Idb
       aria-label={t.elsewhereTitle}>
       <strong>{t.elsewhereTitle}</strong> {t.elsewhere(group.readouts.length, group.name, group.raceDate)}
       <ul>{group.readouts.map((item) => <li key={`${item.deviceId}-${item.localSequence}`}>{t.elsewhereRow(item.payload.cardNumber,
-        new Date(item.stationReceivedAt).toLocaleTimeString("sv-SE"))}</li>)}</ul>
+        new Date(item.stationReceivedAt).toLocaleTimeString(locale))}</li>)}</ul>
       <div className="row">
         <button type="button" onClick={() => downloadElsewhere(group)}>{t.elsewhereDownload}</button>
         <a href={`/admin/${encodeURIComponent(group.raceId)}/readout`}>{t.elsewhereOpen}</a>

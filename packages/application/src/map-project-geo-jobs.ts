@@ -17,6 +17,8 @@ import { claimedStages, completeStageMerge, geoMergeOf, queueStageMerge } from "
 import { geoServerForToken, geoServerSettings, geoServerStateView, noteGeoServerJob } from "./geo-server";
 import { adoptRegeneratedJob } from "./map-project-regenerate";
 import { afterRegenerableStored, laserRecipe } from "./map-regenerable";
+import { rawLaserViews } from "./map-project-raw-laser";
+import { rawLaserAvailable } from "./raw-laser-store";
 import { UUID_PATTERN } from "./serialization";
 import type { DbExecutor } from "./snapshot";
 
@@ -147,10 +149,18 @@ function toView(row: Awaited<ReturnType<typeof rows>>[number], viewer: string): 
     moistureLayerId: typeof job.result?.moistureLayerId === "string" ? job.result.moistureLayerId : null, moisture: request.moisture ?? null,
     vegetation: request.vegetation ?? null, outputs: row.files.map(file => ({ name: file.name, mediaType: file.mediaType, byteSize: file.byteSize })),
     createdBy: { accountId: job.accountId ?? null, name: row.creator }, own: job.accountId === viewer, createdAt: job.createdAt.toISOString(),
-    finishedAt: job.finishedAt?.toISOString() ?? null, ...(geoMergeOf(job) ? { mergedStages: geoMergeOf(job)!.stages.length } : {}) };
+    finishedAt: job.finishedAt?.toISOString() ?? null, ...(geoMergeOf(job) ? { mergedStages: geoMergeOf(job)!.stages.length } : {}),
+    ...((job.request as { rawLaser?: boolean }).rawLaser ? { rawLaserRequested: true } : {}) };
+}
+/** Jobben med zip-filerna med rå laserdata (PLAN.md M6). */
+async function viewsWithRawLaser(tx: DbExecutor, list: Awaited<ReturnType<typeof rows>>, viewer: string, now: Date,
+  environment: Record<string, string | undefined>): Promise<GeoJobView[]> {
+  const raw = await rawLaserViews(tx, list.map(row => row.job), viewer, now, environment);
+  return list.map(row => ({ ...toView(row, viewer), ...(raw.has(row.job.id) ? { rawLaser: raw.get(row.job.id)! } : {}) }));
 }
 
-export async function listGeoJobs(db: Database, input: ClubProof & { projectId: string }, server: GeoServerView, now = new Date())
+export async function listGeoJobs(db: Database, input: ClubProof & { projectId: string }, server: GeoServerView, now = new Date(),
+  environment: Record<string, string | undefined> = process.env)
   : Promise<ClubFailure | { status: "ok"; list: GeoJobList }> {
   return db.transaction(async tx => {
     const access = await requireMapProject(tx, input, now, "view", false);
@@ -166,7 +176,8 @@ export async function listGeoJobs(db: Database, input: ClubProof & { projectId: 
       waiting += 1;
     }
     const queue = { running, waiting, users: new Set(active.map(job => job.accountId)).size, ahead };
-    return { status: "ok", list: { formatVersion: 1, jobs: (await rows(tx, access.project.id)).map(row => toView(row, access.accountId)), server, queue } } as const;
+    return { status: "ok", list: { formatVersion: 1, jobs: await viewsWithRawLaser(tx, await rows(tx, access.project.id), access.accountId, now, environment), server, queue,
+      rawLaserAvailable: rawLaserAvailable(environment) } } as const;
   });
 }
 
@@ -183,7 +194,8 @@ export async function listGeoJobsForAccount(db: Database, input: { accountId: st
       const version = (row.job.result?.summary as { worker?: unknown } | undefined)?.worker;
       return typeof version === "number" ? [[row.job.id, version] as const] : [];
     }));
-    return { status: "ok", list: { formatVersion: 1, jobs: list.map(row => toView(row, access.accountId)), server: await geoServerView(tx, environment, now) }, workerVersions } as const;
+    return { status: "ok", list: { formatVersion: 1, jobs: await viewsWithRawLaser(tx, list, access.accountId, now, environment), server: await geoServerView(tx, environment, now),
+      rawLaserAvailable: rawLaserAvailable(environment) }, workerVersions } as const;
   });
 }
 
@@ -260,7 +272,9 @@ export async function createJob(db: Database, gate: MapProjectGate, body: unknow
       await tx.insert(jobs).values({ id: part.id, projectId: access.project.id, accountId: access.accountId, kind: "PULLAUTIN", status: "QUEUED",
         request: { name: part.name, tiles: part.tiles, settings: request.settings, ...(part.split ? { split: part.split } : {}), ...(request.cliffs ? { cliffs: request.cliffs } : {}), ...(part.clip ? { clip: part.clip } : {}), ...(part.reach ? { reach: part.reach } : {}), ...(request.areaId ? { areaId: request.areaId } : {}), ...(request.extras?.length ? { extras: request.extras } : {}),
         ...(request.moisture ? { moisture: request.moisture } : {}),
-        ...(request.vegetation ? { vegetation: request.vegetation } : {}), ...(regenerates ? { regenerates } : {}) },
+        ...(request.vegetation ? { vegetation: request.vegetation } : {}), ...(regenerates ? { regenerates } : {}),
+        // PLAN.md M6: bara när förrådet är i bruk; annars visar panelen inte rutan.
+        ...(request.rawLaser && rawLaserAvailable(runtime.environment) ? { rawLaser: true } : {}) },
       createdAt: new Date(now.getTime() + (part.split ? part.split.index - 1 : 0)), requestId: part.requestId });
     }
     const id = partJobs[0]!.id;
@@ -436,6 +450,8 @@ export interface ClaimedGeoJob {
   readonly vegetation: { readonly minAreaM2: number } | null;
   /** Jobbet är en etapp i en delad körning: bilderna lämnas som PNG, så att sammanläggningen kan läsa dem. */
   readonly stage?: boolean | undefined;
+  /** PLAN.md M6: laserfilerna packas i en zip till förrådet (`/raw-laser`) innan Karttapullautin körs. */
+  readonly rawLaser?: boolean | undefined;
   /** Etapperna som jobbet lägger ihop (ägaren 2026-11-14), med filernas namn; annars inget. */
   readonly merge?: { readonly stages: readonly { readonly jobId: string; readonly clip: NonNullable<ClaimedGeoJob["clip"]>; readonly outputs: readonly string[] }[] } | undefined;
 }
@@ -456,7 +472,7 @@ export async function releaseStaleGeoJobs(db: DbExecutor, now: Date): Promise<vo
 export async function claimGeoJob(db: Database, worker: string, now = new Date()): Promise<ClaimedGeoJob | undefined> {
   await releaseStaleGeoJobs(db, now);
   const result = await db.execute<{ id: string; kind: "PULLAUTIN" | "DWG"; request: { tiles?: { id: string; epsg: number | null }[]; settings?: Record<string, number>;
-    clip?: ClaimedGeoJob["clip"]; reach?: ClaimedGeoJob["clip"]; extras?: { kind: "LAND_COVER" | "BUILDINGS" | "PARCELS" }[]; cliffs?: ClaimedGeoJob["cliffs"]; moisture?: ClaimedGeoJob["moisture"]; vegetation?: ClaimedGeoJob["vegetation"] }; attempts: number }>(sql`
+    clip?: ClaimedGeoJob["clip"]; reach?: ClaimedGeoJob["clip"]; extras?: { kind: "LAND_COVER" | "BUILDINGS" | "PARCELS" }[]; cliffs?: ClaimedGeoJob["cliffs"]; moisture?: ClaimedGeoJob["moisture"]; vegetation?: ClaimedGeoJob["vegetation"]; rawLaser?: boolean }; attempts: number }>(sql`
     update map_project_geo_job set status = 'RUNNING', started_at = ${now}, heartbeat_at = ${now}, attempts = attempts + 1, worker = ${worker},
       progress = null
     where id = (select id from map_project_geo_job where status = 'QUEUED' order by created_at, id for update skip locked limit 1)
@@ -468,6 +484,7 @@ export async function claimGeoJob(db: Database, worker: string, now = new Date()
   await db.delete(outputs).where(and(eq(outputs.jobId, row.id), sql`${outputs.name} not like 'indata.%'`));
   const merge = geoMergeOf(row);
   return { ...(merge ? { merge: { stages: await claimedStages(db, merge) } } : {}), ...((row.request as { split?: unknown }).split ? { stage: true } : {}),
+    ...(row.request.rawLaser === true && !merge && row.kind === "PULLAUTIN" ? { rawLaser: true } : {}),
     jobId: row.id, kind: row.kind, attempt: row.attempts, settings: row.request.settings ?? {}, clip: row.request.clip ?? null,
     ...(row.request.reach ? { reach: row.request.reach } : {}), extras: (row.request.extras ?? []).map((extra, index) => ({ index, kind: extra.kind })), cliffs: row.request.cliffs ?? null, moisture: row.request.moisture ?? null,
     vegetation: row.request.vegetation ?? null, tiles: (row.request.tiles ?? []).map((tile, index) => ({ index, id: tile.id, epsg: tile.epsg ?? null })) };

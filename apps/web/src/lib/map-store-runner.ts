@@ -1,6 +1,6 @@
 import {
   activeMapStore, archiveSettings, inMigrateWindow, mapCacheCapBytes, mapCacheDir, migrateSettings, migrateSettingsProblems, probeArchiveStore,
-  reconcileStoredContent, removeArchiveOrphans, runMapMigration, runPinRound, runRegenerableRound, startMapCacheSweep, storeMode, takeMapMigrationRequest,
+  rawLaserStore, reconcileStoredContent, removeArchiveOrphans, removeExpiredRawLaser, runMapMigration, runPinRound, runRegenerableRound, startMapCacheSweep, storeMode, takeMapMigrationRequest,
   usableMapCacheDir, type MigrateRunSummary, type PinRoundResult, type RegenerableRoundResult
 } from "@o-tid/application";
 import { db } from "./db";
@@ -20,7 +20,9 @@ type RunnerState = { started: boolean; migrating: boolean; lastNightRun: number;
 const globalRunner = globalThis as typeof globalThis & { oTidMapStoreRunner?: RunnerState };
 
 export function startMapStoreRunner(environment: Partial<Record<string, string | undefined>> = process.env): void {
-  if (environment.OTID_INSTANCE_ROLE?.trim().toLowerCase() === "public" || storeMode(environment) !== "on") return;
+  if (environment.OTID_INSTANCE_ROLE?.trim().toLowerCase() === "public") return;
+  startRawLaserCleanup(environment);
+  if (storeMode(environment) !== "on") return;
   const state = globalRunner.oTidMapStoreRunner ??= { started: false, migrating: false, lastNightRun: 0, lastReconcile: 0 };
   if (state.started) return;
   state.started = true;
@@ -109,6 +111,28 @@ export function startMapStoreRunner(environment: Partial<Record<string, string |
 }
 
 const mb = (bytes: number) => Math.round(bytes / (1024 * 1024));
+
+const globalRaw = globalThis as typeof globalThis & { oTidRawLaserCleanup?: boolean };
+/**
+ * PLAN.md M6: zip-filerna med rå laserdata tas bort ur objektlagringen när deras 7 dygn gått, en gång i timmen (och en
+ * minut efter start). Körs så länge `OTID_ARCHIVE_*` finns, också om förrådet slagits av efter att filerna lades dit.
+ */
+function startRawLaserCleanup(environment: Partial<Record<string, string | undefined>>): void {
+  const store = rawLaserStore(environment);
+  if (!store || globalRaw.oTidRawLaserCleanup) return;
+  globalRaw.oTidRawLaserCleanup = true;
+  const clean = async () => {
+    try {
+      const result = await removeExpiredRawLaser(db, store);
+      if (result.removed > 0) console.info(`Rå laserdata: ${result.removed} zip-filer borttagna efter 7 dygn`);
+      if (result.errors.length > 0) console.error(`Rå laserdata: ${result.errors.length} borttagningar misslyckades: ${result.errors.slice(0, 5).join("; ")}`);
+    } catch (error) {
+      console.error(`Rå laserdatans städning avbröts: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
+  setTimeout(() => void clean(), MINUTE).unref();
+  setInterval(() => void clean(), 60 * MINUTE).unref();
+}
 
 /** Loggen för flyttens varv: antal och storlek, aldrig namn. Tyst när ingenting hände. */
 export function logMigration(result: MigrateRunSummary): void {

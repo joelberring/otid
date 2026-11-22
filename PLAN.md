@@ -1540,9 +1540,10 @@ arkivet) blir förrådet för allt kartinnehåll och serverns disk ett mellanlag
   Migration 0138 (`recipe`, `evicted_at`, `stored_in = 'GONE'`), borttagning direkt efter sparandet och var 5:e minut, aldrig på
   tävlingsdygnet, «Återskapa» i projektet (laser utan laserkvot, bilder hämtas om), kontosidan och superadmins inställning för orört.
 - [ ] M5 Larm via mejl till superadmin, stöd för flera superadmin, automatisk rensning av docker-avbildningar.
-- [ ] M6 Rå laserdata (ägaren 2026-11-22): LAZ sparas aldrig efter körningen. Rutan «Spara även rå laserdata åt mig» före
+- [x] M6 Rå laserdata (ägaren 2026-11-22): LAZ sparas aldrig efter körningen. Rutan «Spara även rå laserdata åt mig» före
   körningen lägger en zip i förrådet med en hämtningslänk (försignerad, direkt från förrådet) som gäller 7 dygn, visas i
   körningen och i ett mejl, tas bort automatiskt och räknas inte mot någon kvot. En rad om Lantmäteriets villkor vid rutan.
+  Byggt (migration 0139, geo-arbetarens version 41); kvar hos ägaren: ny geo-avbildning och gärna livscykelregeln i docs/drift.md.
 - [ ] M7 Klubbarkivet räknas mot klubben (ägaren 2026-11-22): egen kvot per klubb (förval 2 GB eget material), allt i
   klubbarkivet (också automatisk arkivering av klara träningar) räknas mot klubben, kopior räknas inte dubbelt (sha256),
   ändringar i en kopia mot det egna kontot. Ledare och administratörer ser klubbens lagring på klubbsidan och får besked vid

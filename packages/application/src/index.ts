@@ -287,3 +287,7 @@ export { fetchMapProjectWmsImage, readMapProjectWmsCapabilities, wmsRuntime, typ
 export { BINGO_POSTS_PER_IP, BINGO_RUNNERS_PER_RACE_AND_DAY, loadBingoSetup, readBingoAsAdmin, readBingoLeaderboard, readBingoPublic, receiveBingoProgress, setBingoAsAdmin, type BingoMapImage, type BingoPublicRead, type BingoSetup } from "./bingo";
 export { readMastermindAsStaff, readMastermindStandings, receiveMastermindStation, setMastermindStationsAsAdmin, syncMastermindAsStaff, type MastermindResult } from "./mastermind";
 export { deleteClubNews, deleteNewsAsSuperadmin, listClubNews, listHomeNews, listNewsAsSuperadmin, readNewsImage, saveClubNews, saveNewsAsSuperadmin, type NewsFailure } from "./news";
+export { markRawLaserMailed, rawLaserFileName, rawLaserRunKey, recordRawLaserStep, removeExpiredRawLaser } from "./map-project-raw-laser";
+export type { RawLaserCleanup, RawLaserMail, RawLaserStep } from "./map-project-raw-laser";
+export { memoryRawLaserStore, presignS3, RAW_LASER_PREFIX, rawLaserAvailable, rawLaserStore, s3RawLaserStore, setRawLaserStore } from "./raw-laser-store";
+export type { RawLaserStore } from "./raw-laser-store";

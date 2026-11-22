@@ -27,7 +27,8 @@ import { join } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { createReadStream } from "node:fs";
-import { fromCache, toCache } from "./geo-cache.ts";
+import { clearLeftovers, fromCache, toCache } from "./geo-cache.ts";
+import { saveRawLaser } from "./geo-raw-zip.ts";
 import { cliffsFromTicks, DEFAULT_CLIFF_RULES, hillshade, mergeGroundGrids, readGroundGrid, readTicks, steepAt, heightPng } from "./geo-cliffs.ts";
 import { buildingLayer, featuresGeoJson, gpkgBytes, landCoverLayer, parcelLayer, readGpkgFeatures, type Geometry } from "./geo-gpkg.ts";
 import { dwgFeatures, dwgObjects } from "./geo-dwg.ts";
@@ -58,6 +59,8 @@ interface Job {
   readonly vegetation?: { readonly minAreaM2: number } | null;
   /** Jobbet är en etapp i en delad körning: bilderna skickas som PNG, så att sammanläggningen kan läsa dem. */
   readonly stage?: boolean;
+  /** PLAN.md M6: laserfilerna packas i en zip som laddas upp till förrådet («Spara även rå laserdata åt mig»). */
+  readonly rawLaser?: boolean;
   /** Ägaren 2026-11-14: jobbet lägger ihop en delad körnings etapper (inga rutor körs); filerna hämtas från O-Tid. */
   readonly merge?: { readonly stages: readonly { readonly jobId: string; readonly clip: Box; readonly outputs: readonly string[] }[] } | null;
 }
@@ -105,7 +108,7 @@ export function keepsRawTicks(job: Pick<Job, "cliffs">, hasCliffLines: boolean):
   return job.cliffs?.rawTicks === true || !hasCliffLines;
 }
 /** Arbetarens version (samma som `GEO_WORKER_VERSION` i contracts; servern ger inga jobb till en äldre). */
-export const WORKER_VERSION = 40;
+export const WORKER_VERSION = 41;
 
 /**
  * Ägarens sprintkörningar 2026-11-13 föll med «stup.dxf kunde inte skickas (422)»: kontots kvot för kartfiler var full.
@@ -288,6 +291,11 @@ async function runJob(job: Job): Promise<void> {
       for (let tile = waiting.shift(); tile; tile = waiting.shift()) await fetchTile(tile);
     }));
     if (job.clip && (await readdir(join(dir, "in"))).length === 0) throw new Error("Kartans område ligger utanför laserrutorna");
+    if (job.rawLaser) {
+      await set("Sparar rå laserdata", 0, 1);
+      await saveRawLaser({ jobId: job.jobId, tiles: job.tiles, clip: job.clip ?? null, reach: reachOf(job) ?? null }, join(dir, "in"), call, control.signal)
+        .catch(error => { if (control.signal.aborted) throw new Stopped(); throw error; });
+    }
     await writeFile(join(dir, "pullauta.ini"), iniWith(await readFile(defaultIni, "utf8"), job.settings, !!job.moisture, !!job.vegetation, together));
     await set("Karttapullautin", 0, 1);
     await run([], dir, AbortSignal.any([control.signal, AbortSignal.timeout(pullautaTimeoutMs)]));
@@ -732,6 +740,8 @@ async function fail(job: Job, error: unknown): Promise<void> {
 async function main(): Promise<void> {
   if (!origin || token.length < 32) throw new Error("OTID_GEO_ORIGIN och OTID_GEO_WORKER_TOKEN (minst 32 tecken) krävs");
   console.log(`Geo-arbetaren startad (${workerName}) mot ${origin}`);
+  const left = await clearLeftovers(workdir, CACHE_DIR);
+  if (left > 0) console.log(`Geo-arbetaren: ${left} kvarlämnade filer och kataloger borttagna (laserdata sparas inte)`);
   let idleSince = Date.now();
   for (;;) {
     let response: Response;
@@ -752,7 +762,7 @@ async function main(): Promise<void> {
       continue;
     }
     if (once) return;
-    if (exitIdleMs && Date.now() - idleSince > exitIdleMs) { console.log("Inga jobb; geo-arbetaren slutar"); return; }
+    if (exitIdleMs && Date.now() - idleSince > exitIdleMs) { await clearLeftovers(workdir, CACHE_DIR); console.log("Inga jobb; geo-arbetaren slutar"); return; }
     await sleep(15_000);
   }
 }

@@ -87,7 +87,12 @@ export const geoJobCreateRequestSchema = z.object({
   moisture: z.object({ channelHa: z.number().min(0.25).max(10), wetMeters: z.number().min(0.1).max(3), moistMeters: z.number().min(0.2).max(5) })
     .strict().refine(value => value.moistMeters >= value.wetMeters, "Fuktigt ska vara minst lika högt som blött").optional(),
   /** K5c del 3: vegetationen ur laserns returer (Karttapullautins grönt, gult och undervegetation) som ytor; minsta yta i m². */
-  vegetation: z.object({ minAreaM2: z.number().int().min(50).max(5000) }).strict().optional()
+  vegetation: z.object({ minAreaM2: z.number().int().min(50).max(5000) }).strict().optional(),
+  /**
+   * PLAN.md M6 (ägaren 2026-11-22): «Spara även rå laserdata åt mig». Laserfilerna som körningen använde packas i en zip i
+   * förrådet med en hämtningslänk som gäller i 7 dygn. Bara när förrådet är på (`GeoJobList.rawLaserAvailable`).
+   */
+  rawLaser: z.boolean().optional()
 }).strict().refine(value => !!value.tiles !== !!value.rerunOf, "Rutorna eller jobbet att köra om, inte båda");
 
 /**
@@ -137,13 +142,28 @@ export interface GeoJobView {
   readonly createdAt: string; readonly finishedAt: string | null;
   /** Ägaren 2026-11-14: antalet etapper som geo-servern lagt ihop till den här körningen, eller som den håller på att lägga ihop. */
   readonly mergedStages?: number | undefined;
+  /** PLAN.md M6: körningen bad om rå laserdata. */
+  readonly rawLaserRequested?: boolean | undefined;
+  /** PLAN.md M6: zip-filerna med rå laserdata (en per etapp i en delad körning) som ännu inte tagits bort. */
+  readonly rawLaser?: readonly GeoRawLaserView[] | undefined;
+}
+/**
+ * PLAN.md M6: en zip med rå laserdata i förrådet. `url` är en försignerad länk direkt till objektlagringen (bara för den som
+ * lade körningen, och bara när filen är klar); den gäller till `expiresAt`, då filen också tas bort.
+ */
+export interface GeoRawLaserView {
+  readonly status: "PENDING" | "READY" | "FAILED";
+  readonly fileName: string; readonly byteSize: number | null; readonly expiresAt: string;
+  readonly url: string | null; readonly error: string | null;
 }
 /**
  * Ägaren 2026-11-13 («om andra använder programmet kan geoservern bli full … hur många användare/kö det är»): läget på
  * geo-servern över alla kartprojekt, utan att säga vems jobben är. `ahead` är antalet jobb före i kön för projektets egna väntande.
  */
 export interface GeoQueueView { readonly running: number; readonly waiting: number; readonly users: number; readonly ahead: Readonly<Record<string, number>> }
-export interface GeoJobList { readonly formatVersion: 1; readonly jobs: readonly GeoJobView[]; readonly server: GeoServerView; readonly queue?: GeoQueueView }
+export interface GeoJobList { readonly formatVersion: 1; readonly jobs: readonly GeoJobView[]; readonly server: GeoServerView; readonly queue?: GeoQueueView;
+  /** PLAN.md M6: om rutan «Spara även rå laserdata åt mig» går att välja (förrådet är på). */
+  readonly rawLaserAvailable?: boolean | undefined }
 /** Geo-serverns läge som det syns för användaren (K5b): igång, startar, saknas eller kan inte startas och varför. */
 export interface GeoServerView { readonly state: "READY" | "STARTING" | "OFF" | "UNAVAILABLE" | "BUDGET" | "NOT_CONFIGURED"; readonly detail: string | null }
 
@@ -160,7 +180,18 @@ export const geoWorkerFinishSchema = z.discriminatedUnion("status", [
  * skickar den i `x-otid-geo-version`; en äldre arbetare får inga jobb, och en server som O-Tid startat raderas. Höjs när
  * `scripts/geo-worker.ts` får något som jobben räknar med (samma tal står där; ett test håller dem lika).
  */
-export const GEO_WORKER_VERSION = 40;
+export const GEO_WORKER_VERSION = 41;
+
+/** PLAN.md M6: hur länge zip-filen med rå laserdata och dess länk finns (7 dygn, det längsta en försignerad länk får gälla). */
+export const RAW_LASER_DAYS = 7;
+/** Största zip med rå laserdata (en zip utan Zip64, och en enda uppladdning till objektlagringen). */
+export const RAW_LASER_MAX_BYTES = 4 * 1024 ** 3 - 64 * 1024 ** 2;
+/** Geo-arbetarens anrop om zip-filen: före uppladdningen (storleken), efter den, eller när den inte gick att göra. */
+export const geoWorkerRawLaserSchema = z.discriminatedUnion("step", [
+  z.object({ step: z.literal("start"), byteLength: z.number().int().min(1).max(RAW_LASER_MAX_BYTES), files: z.number().int().min(1).max(100) }).strict(),
+  z.object({ step: z.literal("done") }).strict(),
+  z.object({ step: z.literal("failed"), error: z.string().min(1).max(500) }).strict()
+]);
 
 /**
  * Minnet (GB) som geo-servern behöver för ett jobb, efter områdets yta (ägaren 2026-11-12: «vill inte att det ska dö för

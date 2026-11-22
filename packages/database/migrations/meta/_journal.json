@@ -114,6 +114,7 @@
     { "idx": 109, "version": "7", "when": 1809014400000, "tag": "0135_konto_nyckel_set_null", "breakpoints": true },
     { "idx": 110, "version": "7", "when": 1809100800000, "tag": "0136_index_brickkoppling_m_fl", "breakpoints": true },
     { "idx": 111, "version": "7", "when": 1809187200000, "tag": "0137_kartprojekt_textsymboler", "breakpoints": true },
-    { "idx": 112, "version": "7", "when": 1809273600000, "tag": "0138_aterskapbart_recept", "breakpoints": true }
+    { "idx": 112, "version": "7", "when": 1809273600000, "tag": "0138_aterskapbart_recept", "breakpoints": true },
+    { "idx": 113, "version": "7", "when": 1809360000000, "tag": "0139_ra_laserdata", "breakpoints": true }
   ]
 }

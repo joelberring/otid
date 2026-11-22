@@ -181,3 +181,36 @@ anroparens transaktion, som görs om vid 40001/40P01, och kontrollerade objektet
 - Filens början för en klubbkarta i förrådet läses ur mellanlagret eller med HTTP Range (`readHead`), efter transaktionen.
 - Säkerhetskopian läser innehåll i förrådet eller arkivet och bygger zip-filen efter sin ögonblicksbild; tryck-PDF:en läses i
   en egen fråga efter behörigheten. Båda hålls fortfarande hela i minnet (strömmande zip och PDF är inte gjort).
+
+## Tillägg 2026-11-22 (M6): rå laserdata
+
+Ägaren 2026-11-22: rå laserdata (LAZ) ska aldrig sparas efter körningen, men användaren ska kunna be om en kopia.
+
+- **Läget i dag (kontrollerat):** LAZ hamnar aldrig i databasen, förrådet eller mellanlagret. Servern strömmar laserfilen från
+  Lantmäteriet direkt till geo-arbetaren (`openGeoJobLaser`, inget sparas), geo-arbetaren skickar bara sina resultatfiler (bilder,
+  DXF, GeoJSON) och mappintaget säger nej till LAZ/LAS. Geo-arbetarens arbetskatalog togs redan bort i `finally`, också när jobbet
+  misslyckas; men en krasch (minnet slut) startar om behållaren utan att `finally` körts, och rutornas förråd på geo-servern
+  (`geo-cache.ts`, ägaren 2026-11-12) låg kvar så länge servern levde.
+- **Beslut:** geo-arbetaren tar vid start bort kvarlämnade jobbkataloger (namn = jobbets id) och rutornas filer, och tömmer
+  rutornas förråd när den slutar efter tomgång. Förrådet på geo-servern finns alltså bara medan servern är igång mellan jobb (för
+  «Kör om» utan ny hämtning), och geo-servern raderas efter tomgången. Ägaren kan välja att ta bort det helt.
+- **Beslut:** rutan «Spara även rå laserdata åt mig» (frivillig, före körningen, `rawLaser` i jobbets begäran) finns bara när
+  förrådet är i bruk; annars förklarar en rad varför. Geo-arbetaren packar filerna i `in/` (klippta till körningens ruta med
+  marginal, annars hela rutor: det som Karttapullautin faktiskt fick) med en `LASMIG.txt` om källan och villkoren i en okomprimerad
+  zip (LAZ är redan komprimerat; ingen Zip64, högst 4 GB) och strömmar den **direkt** till objektlagringen med en försignerad PUT
+  (3 h) för just det objektet: inga nycklar lämnar servern och zip-filen går aldrig genom O-Tids disk. Objekten ligger under
+  `raw-laser/<id>/laserdata.zip`, skilt från `map-content/`.
+- **Registret:** tabellen `map_project_raw_laser` (migration 0139). Raden skrivs innan uppladdningslänken ges, så att städningen
+  alltid vet om objektet, och står kvar (SET NULL) när jobbet, projektet eller kontot tas bort. «Klar» kräver att objektets längd
+  stämmer (HEAD). Filen räknas inte mot någon kvot: den är inget kartinnehåll.
+- **Hämtningen:** en försignerad GET (AWS Signature Version 4 i frågesträngen, med `response-content-disposition`) som gäller till
+  7 dygn efter att filen blev klar, det längsta en sådan länk får gälla. Länken visas i körningen bara för den som lade den
+  (signeras vid varje visning för den tid som är kvar) och skickas en gång med e-post. En delad körning ger en zip per etapp, som
+  syns på den ihoplagda körningen.
+- **Borttagningen:** webbens tävlingsinstans tar bort objekt vars 7 dygn gått, och sådana som inte blivit klara på 6 timmar, en
+  gång i timmen så länge `OTID_ARCHIVE_*` finns (också om förrådet slagits av). En livscykelregel i bucketen för `raw-laser/`
+  (8 dygn) rekommenderas som reserv (docs/drift.md).
+- Lantmäteriets villkor (CC BY 4.0, källan ©Lantmäteriet, kan innehålla personuppgifter) står vid rutan, vid länken, i mejlet och
+  i zip-filen: de gäller den som hämtar.
+- Geo-arbetarens version 41.
+

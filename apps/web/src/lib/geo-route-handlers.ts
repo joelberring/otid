@@ -2,12 +2,14 @@ import {
   retireGeoServer,
   authenticateGeoWorker, fetchMapProjectForestImage, fetchMapProjectMoisture, forestImageRuntimeFromEnvironment, moistureRuntimeFromEnvironment,
   type ForestImageRuntime, type MoistureRuntime, claimGeoJob, createGeoJob, discardStagedMapContent, finishGeoJob, geoServerView, heartbeatGeoJob, laserRuntimeFromEnvironment,
-  lantmaterietRuntimeFromEnvironment, listGeoJobs, mergeGeoStages, openGeoJobLaser, projectRegenerableMissing, pruneGeoJobs, regenerateGeoJob, readGeoOutput, readGeoStageOutput, removeGeoJob, searchMapProjectLaser, stageMapContent, storeGeoOutput,
+  lantmaterietRuntimeFromEnvironment, listGeoJobs, markRawLaserMailed, recordRawLaserStep, mergeGeoStages, openGeoJobLaser, projectRegenerableMissing, pruneGeoJobs, regenerateGeoJob, readGeoOutput, readGeoStageOutput, removeGeoJob, searchMapProjectLaser, stageMapContent, storeGeoOutput,
   type LaserRuntime
 } from "@o-tid/application";
 import { GEO_OUTPUT_MAX_BYTES, GEO_OUTPUT_NAME, GEO_WORKER_VERSION, UUID_PATTERN, geoJobPruneResponseSchema } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
 import { failure, guarded, mutation, problem, readProof, streamChunks, type ClubEnvironment } from "./club-route-handlers";
+import { mailErrorSummary, runInBackground } from "./mail";
+import { sendRawLaserMail } from "./raw-laser-mail";
 import { privateHeaders, privateJson, validDeclaredLength } from "./security-policy";
 
 /**
@@ -78,7 +80,8 @@ export async function geoJobsRoute(db: Database, request: Request, projectId: st
     const input = await readProof(request, environment);
     if ("response" in input) return input.response;
     return guarded(async () => {
-      const result = await listGeoJobs(db, { ...input.proof, projectId }, await geoServerView(db, environment as Record<string, string | undefined>));
+      const result = await listGeoJobs(db, { ...input.proof, projectId }, await geoServerView(db, environment as Record<string, string | undefined>), new Date(),
+        environment as Record<string, string | undefined>);
       return result.status === "ok" ? privateJson(result.list) : failure(result.status);
     });
   }
@@ -274,5 +277,35 @@ export async function geoWorkerFinishRoute(db: Database, request: Request, jobId
   return guarded(async () => {
     const result = await finishGeoJob(db, jobId, name, await jsonBody(request));
     return result.status === "ok" ? privateJson({ formatVersion: 1, layerId: result.layerId }) : failure(result.status);
+  });
+}
+
+/**
+ * POST /api/geo-worker/jobs/[jobId]/raw-laser (PLAN.md M6): «start» ger en försignerad uppladdningslänk direkt till
+ * objektlagringen, «done» kontrollerar filen och mejlar hämtningslänken (efter svaret), «failed» sparar felet.
+ */
+export async function geoWorkerRawLaserRoute(db: Database, request: Request, jobId: string, environment: Record<string, string | undefined> = process.env)
+  : Promise<Response> {
+  const name = await worker(db, request, environment);
+  if (typeof name !== "string") return name;
+  if (!UUID_PATTERN.test(jobId)) return failure("not-found");
+  return guarded(async () => {
+    const result = await recordRawLaserStep(db, { jobId, worker: name, body: await jsonBody(request) }, new Date(), environment);
+    if (result.status === "upload") return privateJson({ formatVersion: 1, uploadUrl: result.url });
+    if (result.status === "ready") {
+      const mail = result.mail;
+      if (mail) {
+        runInBackground("Mejlet med rå laserdata", async () => {
+          try {
+            if (await sendRawLaserMail(mail, environment)) await markRawLaserMailed(db, jobId);
+          } catch (error) { throw new Error(mailErrorSummary(error)); }
+        });
+      }
+      return privateJson({ formatVersion: 1, status: "ready" });
+    }
+    if (result.status === "recorded") return privateJson({ formatVersion: 1, status: "recorded" });
+    if (result.status === "unavailable") return privateJson({ formatVersion: 1, error: "RAW_LASER_UNAVAILABLE" }, 409);
+    if (result.status === "missing") return privateJson({ formatVersion: 1, error: "RAW_LASER_MISSING" }, 409);
+    return failure(result.status);
   });
 }

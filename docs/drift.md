@@ -930,6 +930,31 @@ varning kvar: kontrollera anslutningen till objektlagringen (raden `Förrådet: 
 **Backupen** sparar inte innehåll i förrådet och räknar det inte som saknat; efter ett haveri måste både databasen och
 bucketen finnas. Ett innehåll som ingen längre pekar på tas bort ur förrådet efter `OTID_ARCHIVE_ORPHAN_DAYS` (35) dygn.
 
+### Rå laserdata (PLAN.md steg M6)
+
+Lantmäteriets laserfiler (LAZ) sparas aldrig efter en körning: servern strömmar dem bara vidare till geo-servern, och
+geo-servern tar bort arbetskatalogen efter varje jobb, och dessutom kvarlämnade jobbkataloger och rutornas förråd när
+geo-arbetaren startar (efter en krasch) och när den slutar. Med förrådet i bruk kan användaren kryssa i **Spara även rå
+laserdata åt mig** före körningen. Då packar geo-servern laserfilerna (klippta till körningens ruta, annars hela rutor) i en zip
+och laddar upp den **direkt** till objektlagringen under prefixet `raw-laser/` med en försignerad länk (zip-filen går aldrig
+genom O-Tids disk och räknas inte mot någon kvot). Användaren får en försignerad hämtningslänk som gäller i 7 dygn, i körningen
+och i ett mejl (kräver e-post, se ovan). Webben (tävlingsinstansen) tar bort zip-filerna en gång i timmen när de 7 dygnen gått;
+loggen: `logs web | grep "Rå laserdata"`. Är förrådet av visas inte rutan.
+
+Lägg gärna också en livscykelregel i bucketen som tar bort det som O-Tids städning missat (t.ex. om webben stått still länge):
+objekt under `raw-laser/` raderas efter 8 dygn. Med `aws` (eller `s3cmd`, `mc`) mot Hetzners adress:
+
+```bash
+cat > raw-laser-lifecycle.json <<'JSON'
+{ "Rules": [ { "ID": "ra-laserdata-8-dygn", "Status": "Enabled", "Filter": { "Prefix": "raw-laser/" }, "Expiration": { "Days": 8 } } ] }
+JSON
+aws s3api put-bucket-lifecycle-configuration --endpoint-url "https://$OTID_ARCHIVE_ENDPOINT" --bucket "$OTID_ARCHIVE_BUCKET" \
+  --lifecycle-configuration file://raw-laser-lifecycle.json
+```
+
+Regeln gäller bara `raw-laser/`; kartinnehållet (`map-content/`) får **ingen** livscykelregel. Finns redan regler i bucketen,
+lägg till den här i samma lista (kommandot ersätter hela listan).
+
 ### Flytten till förrådet (PLAN.md steg M3)
 
 Med förrådet i bruk flyttar webben (bara tävlingsinstansen) befintligt kartinnehåll ur databasen till förrådet: laserkörningars

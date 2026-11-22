@@ -419,3 +419,29 @@ export const raceMapProjectLinks = pgTable("race_map_project_link", {
   linkedBy: uuid("linked_by").notNull(),
   linkedAt: timestamp("linked_at", { withTimezone: true }).notNull()
 }, table => [index("race_map_project_link_project_idx").on(table.projectId)]);
+
+export type RawLaserStatus = "PENDING" | "READY" | "FAILED" | "REMOVED";
+/**
+ * PLAN.md M6 (migration 0139): zip-filer med rå laserdata som användaren bett om («Spara även rå laserdata åt mig»), i
+ * förrådets objektlagring under `raw-laser/`. Raden finns innan geo-arbetaren får sin uppladdningslänk, så att städningen
+ * alltid vet om objektet; den står kvar när jobbet, projektet eller kontot tas bort (SET NULL) tills objektet raderats.
+ * `run_key` är jobbets id, eller omgångens id för en delad körning (etapperna tas bort när de lagts ihop).
+ */
+export const mapProjectRawLaser = pgTable("map_project_raw_laser", {
+  id: uuid("id").primaryKey(),
+  jobId: uuid("job_id").unique().references(() => mapProjectGeoJobs.id, { onDelete: "set null" }),
+  runKey: uuid("run_key").notNull(),
+  projectId: uuid("project_id").references(() => mapProjects.id, { onDelete: "set null" }),
+  accountId: uuid("account_id").references(() => userAccounts.id, { onDelete: "set null" }),
+  objectKey: text("object_key").notNull().unique(),
+  fileName: text("file_name").notNull(),
+  status: text("status").$type<RawLaserStatus>().notNull(),
+  byteSize: bigint("byte_size", { mode: "number" }),
+  files: integer("files"),
+  error: text("error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  readyAt: timestamp("ready_at", { withTimezone: true }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  mailedAt: timestamp("mailed_at", { withTimezone: true }),
+  removedAt: timestamp("removed_at", { withTimezone: true })
+}, table => [index("map_project_raw_laser_run_idx").on(table.runKey), index("map_project_raw_laser_expiry_idx").on(table.status, table.expiresAt)]);

@@ -117,7 +117,13 @@ describe("steg 23: beslut som ligger kvar över senare avläsningar (ADR-0173 be
     const history = await revisions(ada);
     expect(history.map((row) => row.revision)).toEqual(history.map((_, index) => index + 1));
     if (withdrawn.status === "decided") expect(history.map((row) => row.cause)).toContain("MANUAL_DID_NOT_FINISH_WITHDRAWAL");
-    else expect(withdrawn).toMatchObject({ status: "conflict", headRevision: 6 });
+    else {
+      // Avläsningen vann (deltagaren låses före bedömningen, granskningen 2.1): återtagandet ser avläsningens huvud och
+      // beslutet ligger kvar över avläsningen.
+      expect(withdrawn).toMatchObject({ status: "conflict", headRevision: history.length });
+      expect(history.at(-1)).toMatchObject({ cause: "CARD_READOUT" });
+      expect(await entryStatus(auth, ada)).toMatchObject({ headRevision: history.length, governingDecision: "DNF" });
+    }
   });
 
   it("avvisar ett beslut mot ett äldre huvud utan revision eller audit", async () => {

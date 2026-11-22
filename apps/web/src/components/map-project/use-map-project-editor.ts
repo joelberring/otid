@@ -145,14 +145,14 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
   }, [session, mapStatus, states]);
 
   // Synken.
-  const syncing = useRef(false), again = useRef(false);
+  const syncing = useRef(false), again = useRef(false), alive = useRef(true);
   const syncNow = useCallback(async () => {
     if (!clientRef.current) return;
     if (syncing.current) { again.current = true; return; }
     syncing.current = true;
     setSync(previous => ({ ...previous, kind: "syncing" }));
     try {
-      for (let round = 0; round < 200; round += 1) {
+      for (let round = 0; round < 200 && alive.current; round += 1) {
         const current = clientRef.current;
         const edits = canEdit ? sendBatch(current.state.pending) : [];
         let result: { status: number; json: unknown };
@@ -172,7 +172,7 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
         // Mer att hämta, eller egna ändringar som kom till under tiden (eller inte fick plats): en omgång till.
         const sent = new Set(edits.map(edit => edit.editId));
         const unsent = canEdit && response.status === "OPEN" && merged.pending.some(edit => !sent.has(edit.editId));
-        if (!response.more && !unsent) break;
+        if ((!response.more && !unsent) || !alive.current) break;
       }
       setSync({ kind: "idle", at: Date.now() });
     } finally {
@@ -197,7 +197,10 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
     document.addEventListener("visibilitychange", online);
     return () => { clearInterval(timer); window.removeEventListener("online", online); document.removeEventListener("visibilitychange", online); };
   }, [ready, syncNow]);
-  useEffect(() => () => { if (sendTimer.current) clearTimeout(sendTimer.current); }, []);
+  useEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; if (sendTimer.current) clearTimeout(sendTimer.current); };
+  }, []);
 
   /** En egen ändring: i kön, i historiken (Ångra) och snart till servern. Falskt när objektet väntar på ett val efter en krock. */
   const commit = useCallback((change: ObjectChange): boolean => {

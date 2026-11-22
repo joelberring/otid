@@ -116,6 +116,9 @@ function Board({ game, t, language }: { game: CardGame; t: MastermindTexts; lang
 
 function SettingsPanel({ settings, onChange, t, language }: { settings: GameSettings; onChange: (settings: GameSettings) => void; t: MastermindTexts; language: Language }) {
   const [draft, setDraft] = useState(settings);
+  // Inställningarna ändras utifrån (serverns träning eller en annan flik): utkastet följer med när de skiljer sig.
+  const settingsJson = JSON.stringify(settings);
+  useEffect(() => { setDraft(current => JSON.stringify(current) === settingsJson ? current : JSON.parse(settingsJson) as GameSettings); }, [settingsJson]);
   const problems = settingsProblems(draft);
   const update = (next: GameSettings) => { setDraft(next); if (settingsProblems(next).length === 0) onChange(next); };
   const setColors = (count: number) => {
@@ -349,7 +352,9 @@ export function MastermindApp({ language, raceId, station: publicStation = false
     <main className="mm-app">
       <header className="mm-header">
         <h1>{t.title}</h1>
-        <a className="mm-language" href={languageHref(language === "en" ? "sv" : "en", "/mastermind/")}>{t.language}</a>
+        <a className="mm-language" href={languageHref(language === "en" ? "sv" : "en", "/mastermind/")}
+          // Träningen (`#<tävling>`) och den publika stationen (`#spela:<tävling>`) ligger i adressens fragment, som servern inte ser.
+          onClick={(event) => { const link = event.currentTarget; link.href = languageHref(language === "en" ? "sv" : "en", `/mastermind/${window.location.hash}`); }}>{t.language}</a>
       </header>
       {raceId && !publicStation && <p className="mm-training" data-testid="mastermind-training">
         <a href={`/admin/${raceId}`}>{t.backToTraining}</a> <strong>{training ? t.training(training) : t.trainingUnknown}</strong>{" "}

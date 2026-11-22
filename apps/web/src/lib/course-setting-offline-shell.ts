@@ -34,12 +34,18 @@ export function ask(worker: ServiceWorker, message: unknown, timeoutMs = 60_000)
   });
 }
 
-export async function activeWorker(registration: ServiceWorkerRegistration): Promise<ServiceWorker> {
+/** Väntar på att en ny service worker blir aktiv; avbryts om den blir överflödig (installationen misslyckades) eller tar för lång tid. */
+export async function activeWorker(registration: ServiceWorkerRegistration, timeoutMs = 15_000): Promise<ServiceWorker> {
   if (registration.active) return registration.active;
   const installing = registration.installing ?? registration.waiting;
-  if (!installing) throw new Error("Ingen service worker");
-  await new Promise<void>(resolve => {
-    const check = () => { if (installing.state === "activated") { installing.removeEventListener("statechange", check); resolve(); } };
+  if (!installing) throw new Error(inLanguage("Ingen service worker", "No service worker"));
+  await new Promise<void>((resolve, reject) => {
+    const finish = () => { clearTimeout(timer); installing.removeEventListener("statechange", check); };
+    const timer = setTimeout(() => { finish(); reject(new Error(inLanguage("Service workern blev inte aktiv", "The service worker did not become active"))); }, timeoutMs);
+    const check = () => {
+      if (installing.state === "activated") { finish(); resolve(); }
+      else if (installing.state === "redundant") { finish(); reject(new Error(inLanguage("Service workern kunde inte installeras", "The service worker could not be installed"))); }
+    };
     installing.addEventListener("statechange", check);
     check();
   });

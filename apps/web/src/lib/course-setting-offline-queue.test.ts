@@ -181,4 +181,20 @@ describe("översynen 2026-11-02: posten i telefonen", () => {
     expect(results.at(-1)).toBeUndefined();
     expect((await store.readRecord(raceId))!.document.controls.a!.at).toEqual({ x: 3, y: 0 });
   });
+
+  it("samtidiga skrivningar går i tur och ordning (den sista vinner och grunden skrivs en gång)", async () => {
+    const store = counting();
+    const writer = new RecordWriter(store, () => undefined);
+    const base = testDocument(), current = state(base, 1);
+    let editor = setView(createEditor(base), "k");
+    const writes: Promise<boolean>[] = [];
+    for (let x = 1; x <= 4; x += 1) {
+      editor = applySteps(editor, [move(x)], applyEdit);
+      const record = recordToKeep({ raceId, state: current, version: 1, base, document: editor.document, log: editor.log, offline: false, now: new Date() });
+      writes.push(writer.write(raceId, record, { version: 1, parts: [base, current] }));
+    }
+    expect(await Promise.all(writes)).toEqual([true, true, true, true]);
+    expect(store.bases).toBe(1);
+    expect((await store.readRecord(raceId))!.log).toHaveLength(4);
+  });
 });

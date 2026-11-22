@@ -105,9 +105,16 @@ export function useVirtualRun({ raceId, courses, settings, georeference, mapScal
       const path = `/api/public/races/${encodeURIComponent(raceId)}/bingo`;
       const post = trackingBridge()?.post;
       // I appen genom `post` (Android stryper webbvyns egna nätanrop i bakgrunden); samma adress, body och kvitto.
-      const response = post ? await postThroughApp(post, path, JSON.stringify(bingoProgressRequest(current)), 15_000)
-        : await fetch(path, { method: "POST", credentials: "same-origin",
-          headers: { "content-type": "application/json" }, body: JSON.stringify(bingoProgressRequest(current)) });
+      let response: Response;
+      if (post) response = await postThroughApp(post, path, JSON.stringify(bingoProgressRequest(current)), 15_000);
+      else {
+        // Utan svar inom 15 s avbryts anropet, så att en hängande hämtning (dålig täckning) inte låser alla senare sändningar.
+        const controller = new AbortController();
+        const timer = window.setTimeout(() => controller.abort(), 15_000);
+        response = await fetch(path, { method: "POST", credentials: "same-origin",
+          headers: { "content-type": "application/json" }, body: JSON.stringify(bingoProgressRequest(current)), signal: controller.signal })
+          .finally(() => window.clearTimeout(timer));
+      }
       if (!response.ok) { console.warn("Läget togs inte emot", response.status); return; }
       const receipt = bingoProgressResponseSchema.parse(await response.json());
       const latest = runRef.current;
@@ -163,11 +170,17 @@ export function useVirtualRun({ raceId, courses, settings, georeference, mapScal
     }
     let id: number | undefined;
     let lock: WakeLockSentinelLike | undefined;
+    let cancelled = false;
     const stop = () => { if (id !== undefined) navigator.geolocation.clearWatch(id); id = undefined; fixes.current = []; };
     const begin = () => {
       if (settings.punch === "AUTO") {
         const withLock = navigator as WakeLockNavigator;
-        void withLock.wakeLock?.request("screen").then(sentinel => { lock = sentinel; }, (error: unknown) => console.warn("Skärmen kunde inte hållas tänd", error));
+        void withLock.wakeLock?.request("screen").then(sentinel => {
+          // Sidan göms eller lämnas medan låsningen är på väg: den släpps direkt i stället för att läcka.
+          if (cancelled || document.visibilityState !== "visible") { void sentinel.release().catch(() => undefined); return; }
+          void lock?.release().catch(() => undefined);
+          lock = sentinel;
+        }, (error: unknown) => console.warn("Skärmen kunde inte hållas tänd", error));
       }
       if (id !== undefined) return;
       warmup.current = Date.now();
@@ -193,7 +206,7 @@ export function useVirtualRun({ raceId, courses, settings, georeference, mapScal
     const visibility = () => { if (document.visibilityState === "visible") begin(); else { stop(); void lock?.release().catch(() => undefined); } };
     visibility();
     document.addEventListener("visibilitychange", visibility);
-    return () => { document.removeEventListener("visibilitychange", visibility); stop(); void lock?.release().catch(() => undefined); };
+    return () => { cancelled = true; document.removeEventListener("visibilitychange", visibility); stop(); void lock?.release().catch(() => undefined); };
   }, [running, settings.punch, georeference, perMm, commit, tryPunch]);
 
   /** «Stämpla» (knapp): en färsk, noggrann position (`chooseShotFix`), annars väntar telefonen upp till 20 s. */

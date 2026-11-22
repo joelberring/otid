@@ -69,7 +69,14 @@ async function write(names: string[], change: (transaction: IDBTransaction) => v
 export function indexedDbFieldStore(): FieldStore | undefined {
   if (typeof indexedDB === "undefined") return undefined;
   return {
-    readRecord: async raceId => joinRecord(await read<StoredLog | FieldRecord>("record", raceId), await read<StoredBase>("base", raceId)),
+    // Loggen och grunden läses i samma transaktion, så att en annan flik inte hinner byta grunden emellan.
+    readRecord: async raceId => {
+      const db = await open();
+      const transaction = db.transaction(["record", "base"], "readonly");
+      const [log, base] = await Promise.all([request(transaction.objectStore("record").get(raceId)) as Promise<StoredLog | FieldRecord | undefined>,
+        request(transaction.objectStore("base").get(raceId)) as Promise<StoredBase | undefined>]);
+      return joinRecord(log, base);
+    },
     // Grunden och loggen i samma transaktion: antingen båda eller ingen.
     writeRecord: (record, withBase) => write(withBase ? ["record", "base"] : ["record"], transaction => {
       const parts = splitRecord(record);

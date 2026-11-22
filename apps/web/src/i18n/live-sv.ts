@@ -11,6 +11,7 @@ export const liveSv = {
   metaTitle: (event: string) => `Live – ${event}`,
   heading: (race: string) => `${race} · Live`,
   results: "Resultat",
+  relayTeam: (number: number, name: string) => `Lag ${number} ${name}`,
   updated: (time: string) => `Uppdaterad ${time}`,
   offline: (time: string) => `Ingen anslutning just nu – visar läget från ${time}. Sidan försöker igen av sig själv.`,
   empty: "Inga målgångar än – sidan uppdateras av sig själv.",

@@ -72,17 +72,23 @@ export function useBingoRun({ raceId, mode, groups, georeference, mapScale }: {
   const { watch: watchApp, attempt: appAttempt } = app;
 
   // Skärmen tänd (Wake Lock) medan loppet pågår; tas igen när sidan syns på nytt.
+  // `lockEpoch` räknas upp när låsningen släpps (sidan lämnas eller loppet slutar): en låsning som då är på väg släpps direkt.
+  const lockEpoch = useRef(0);
   const lockScreen = useCallback(async () => {
     const navigatorWithLock = navigator as WakeLockNavigator;
     if (!navigatorWithLock.wakeLock) { setWakeLockFailed(true); return; }
     try {
       if (wakeLock.current && !wakeLock.current.released) return;
-      wakeLock.current = await navigatorWithLock.wakeLock.request("screen");
+      const epoch = lockEpoch.current;
+      const sentinel = await navigatorWithLock.wakeLock.request("screen");
+      if (epoch !== lockEpoch.current) { void sentinel.release().catch(() => undefined); return; }
+      wakeLock.current = sentinel;
       setWakeLockFailed(false);
     } catch (error) { console.warn("Skärmen kunde inte hållas tänd", error); setWakeLockFailed(true); }
   }, []);
   useEffect(() => {
-    if (!tracking) { void wakeLock.current?.release().catch(() => undefined); wakeLock.current = undefined; return; }
+    const release = () => { lockEpoch.current += 1; void wakeLock.current?.release().catch(() => undefined); wakeLock.current = undefined; };
+    if (!tracking) { release(); return; }
     // I appen räknas positionerna med låst skärm: ingen Wake Lock och inget glapp för en dold sida.
     if (trackingBridge()) return;
     void lockScreen();
@@ -95,7 +101,7 @@ export function useBingoRun({ raceId, mode, groups, georeference, mapScale }: {
       if (from !== undefined && Date.now() - from > GAP_MS) setGapNotice([from, Date.now()]);
     };
     document.addEventListener("visibilitychange", visibility);
-    return () => document.removeEventListener("visibilitychange", visibility);
+    return () => { document.removeEventListener("visibilitychange", visibility); release(); };
   }, [tracking, lockScreen]);
 
   // Kön mot servern: hela läget tills den senaste versionen är kvitterad.

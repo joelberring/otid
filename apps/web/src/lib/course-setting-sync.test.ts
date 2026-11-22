@@ -4,7 +4,7 @@ import {
   applyEdit, editTouches, replayEdits, touchedConflict, type CourseSettingDocument, type CourseSettingEdit, type CreatedIds
 } from "@o-tid/course-setting";
 import { addPoint, applySteps, createEditor, setView, undo, type EditorState } from "./course-setting-editor";
-import { CourseSettingSync, EditorStore, rebaseEditor, type LostEdit } from "./course-setting-sync";
+import { CourseSettingSync, EditorStore, HttpStatusError, rebaseEditor, type LostEdit } from "./course-setting-sync";
 import { testDocument } from "./course-setting-test-document";
 
 /** Steg 66: samtidigt arbete – två editorer mot en server som gör som tjänsten (uppspelning med konfliktloggen). */
@@ -120,5 +120,27 @@ describe("steg 66: samtidigt arbete i editorn", () => {
     expect(next.document.controls.a!.at).toEqual({ x: 12, y: 2 });
     expect(next.document.controls.b!.at).toEqual({ x: 22, y: 12 });
     expect(undo(next).document.controls.b!.at).toEqual(base.controls.b!.at);
+  });
+});
+
+describe("indragen behörighet vid omläsning", () => {
+  it("403 från fetchSetting stoppar synken utan nya försök", async () => {
+    const server = new FakeServer(testDocument());
+    const store = new EditorStore(setView(createEditor(server.document), "k"));
+    const statuses: string[] = [];
+    const timers: (() => void)[] = [];
+    let fetches = 0;
+    const sync = new CourseSettingSync(store, { version: server.version, document: server.document }, {
+      saveEdits: request => server.saveEdits(request),
+      fetchSetting: () => { fetches += 1; return Promise.reject(new HttpStatusError(403)); }
+    }, { onStatus: status => statuses.push(status), onLost: () => undefined, setTimer: callback => { timers.push(callback); return timers.length; },
+      clearTimer: () => undefined });
+    sync.remote(server.version + 1);
+    await sync.flush();
+    expect(statuses.at(-1)).toBe("stopped");
+    expect(fetches).toBe(1);
+    for (const timer of timers.splice(0)) timer();
+    await sync.flush();
+    expect(fetches).toBe(1);
   });
 });

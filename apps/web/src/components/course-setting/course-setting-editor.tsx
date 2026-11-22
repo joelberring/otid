@@ -497,12 +497,14 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
     setBusy(true);
     try {
       await sync.flush();
+      // Dokumentet läses efter sparandet: omläsningen kan ha tagit in andras ändringar (renderns `document` är då gammal).
+      const current = store.state.document;
       // Det som bara finns i O-Tid (utskriftsprofiler, ringklipp, godtagna varningar, träningen, varianter, nivåer) följer med.
-      const { document: carried, letterNotices } = carryOnImport(document, file.document);
+      const { document: carried, letterNotices } = carryOnImport(current, file.document);
       // ADR-0197: papperet och dess mallar följer med; O-Tid:s egna text- och bildobjekt och beskrivningar på automatisk plats
       // i filen står inte två gånger (`keepPaperOnImport`).
       // ADR-0217: layouterna, arken, klassernas val och lägena följer med; läget "Från Purple Pen" sparas automatiskt.
-      const imported = withPpenState(keepPaperOnImport(document, carried, await importedImageHashes(carried),
+      const imported = withPpenState(keepPaperOnImport(current, carried, await importedImageHashes(carried),
         (doc, course) => layoutCoursePage(doc, { course, mapBounds })[0]), new Date().toISOString(), text.file.ppenState);
       file = { ...file, document: imported };
       const outcome = await importCourseSetting(raceId, { document: file.document, expectedVersion: sync.version, fileName: file.fileName, ppen: file.ppen });

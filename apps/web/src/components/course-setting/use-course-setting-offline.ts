@@ -16,7 +16,7 @@ import {
 import { fieldStore, forgetCourseSettingCopy } from "../../lib/course-setting-offline-forget";
 import { refreshShell, removeShell, saveShell, shellSupported } from "../../lib/course-setting-offline-shell";
 import type { CourseSettingSync, EditorStore, SyncStatus } from "../../lib/course-setting-sync";
-import { mapFileCache } from "../../lib/map-file-cache";
+import { cachedMapFile, mapFileCache } from "../../lib/map-file-cache";
 import { fetchMapSource } from "../../lib/route-choice-api";
 
 /**
@@ -156,10 +156,17 @@ export function useCourseSettingOffline(input: OfflineInput) {
   useEffect(() => store.subscribe(schedulePersist), [store, schedulePersist]);
   useEffect(() => { schedulePersist(); }, [version, status, offlineSaved, input.notes, input.inspections, schedulePersist]);
   useEffect(() => {
-    const now = () => { if (document.visibilityState === "hidden") { if (timer.current) clearTimeout(timer.current); void persist(); } };
-    document.addEventListener("visibilitychange", now);
+    const now = () => { if (timer.current) clearTimeout(timer.current); timer.current = undefined; void persist(); };
+    // `pagehide` skjuter ofta med synlig sida (navigering, stängd flik): där sparas alltid direkt.
+    const hidden = () => { if (document.visibilityState === "hidden") now(); };
+    document.addEventListener("visibilitychange", hidden);
     window.addEventListener("pagehide", now);
-    return () => { document.removeEventListener("visibilitychange", now); window.removeEventListener("pagehide", now); };
+    return () => {
+      document.removeEventListener("visibilitychange", hidden);
+      window.removeEventListener("pagehide", now);
+      // Sidan lämnas: det som väntar på timern sparas nu i stället för att tappas.
+      if (timer.current) now();
+    };
   }, [persist]);
 
   // Kön: skickas i ordning efter editorns ändringar (en notis kan gälla en kontroll som just skapats); det som inte gick
@@ -283,7 +290,10 @@ export function useCourseSettingOffline(input: OfflineInput) {
     try {
       const sha256 = latest.current.mapSha256;
       if (!sha256) throw new Error("Ingen kartfil");
-      const file = await fetchMapSource(raceId);
+      // Samma fil som editorn har (sha256 i adressen, ur kartcachen om den finns); innehållet kontrolleras mot sha256 som det stämplas med.
+      const file = await cachedMapFile(mapFileCache, sha256, known => fetchMapSource(raceId, undefined, { sha256: known }));
+      const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", file.bytes));
+      if (Array.from(digest, byte => byte.toString(16).padStart(2, "0")).join("") !== sha256) throw new Error("Kartfilen på servern har ändrats sedan sidan lästes");
       const info = { raceId, sha256, fileName: file.fileName, bytes: file.bytes.byteLength, savedAt: new Date().toISOString() };
       await storage.writeMap({ ...info, data: file.bytes });
       setMapInfo(info);

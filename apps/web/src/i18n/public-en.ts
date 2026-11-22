@@ -186,6 +186,7 @@ export const liveEn: Texts<typeof liveSv> = {
   metaTitle: event => `Live – ${event}`,
   heading: race => `${race} · Live`,
   results: "Results",
+  relayTeam: (number, name) => `Team ${number} ${name}`,
   updated: time => `Updated ${time}`,
   offline: time => `No connection right now – showing the state from ${time}. The page tries again by itself.`,
   empty: "No finishers yet – the page updates by itself.",

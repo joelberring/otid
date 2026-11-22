@@ -23,6 +23,13 @@ export async function saveMapProjectShell(projectId: string): Promise<void> {
   await ask(await activeWorker(registration), { type: "cache", urls: pageResources(scopeOf(projectId), workerResources()) });
 }
 
+/** Skrivningen är klar först när transaktionen genomförts; fel och avbrott (full lagring: `QuotaExceededError`) avvisas så att inget hänger. */
+function watch(transaction: IDBTransaction, resolve: () => void, reject: (error: Error) => void, message: string): void {
+  transaction.oncomplete = () => resolve();
+  transaction.onerror = () => reject(transaction.error ?? new Error(message));
+  transaction.onabort = () => reject(transaction.error ?? new Error(message));
+}
+
 let opened: Promise<IDBDatabase> | undefined;
 function open(): Promise<IDBDatabase> {
   opened ??= new Promise<IDBDatabase>((resolve, reject) => {
@@ -30,6 +37,7 @@ function open(): Promise<IDBDatabase> {
     request.onupgradeneeded = () => { request.result.createObjectStore(STORE); };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error ?? new Error(inLanguage("IndexedDB kunde inte öppnas", "The browser's storage (IndexedDB) could not be opened")));
+    request.onblocked = () => reject(new Error(inLanguage("IndexedDB är blockerad av en annan flik", "The browser's storage (IndexedDB) is blocked by another tab")));
   }).catch(error => { opened = undefined; throw error; });
   return opened;
 }
@@ -41,8 +49,7 @@ export async function saveMapProjectView(view: MapProjectView): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     const transaction = database.transaction(STORE, "readwrite");
     transaction.objectStore(STORE).put({ view, savedAt: new Date().toISOString() }, view.projectId);
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error ?? new Error(inLanguage("Projektet kunde inte sparas", "The project could not be saved")));
+    watch(transaction, resolve, reject, inLanguage("Projektet kunde inte sparas", "The project could not be saved"));
   });
 }
 
@@ -64,8 +71,7 @@ export async function saveMapProjectLayers(projectId: string, layers: readonly M
   await new Promise<void>((resolve, reject) => {
     const transaction = database.transaction(STORE, "readwrite");
     transaction.objectStore(STORE).put(layers, layersKey(projectId));
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error ?? new Error(inLanguage("Underlagen kunde inte sparas", "The base layers could not be saved")));
+    watch(transaction, resolve, reject, inLanguage("Underlagen kunde inte sparas", "The base layers could not be saved"));
   });
 }
 
@@ -87,8 +93,7 @@ export async function forgetMapProjectCopy(projectId: string): Promise<void> {
       const transaction = database.transaction(STORE, "readwrite");
       transaction.objectStore(STORE).delete(projectId);
       transaction.objectStore(STORE).delete(layersKey(projectId));
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error ?? new Error(inLanguage("Projektet kunde inte tas bort", "The project could not be removed")));
+      watch(transaction, resolve, reject, inLanguage("Projektet kunde inte tas bort", "The project could not be removed"));
     });
   }
   if (!shellSupported()) return;
@@ -111,7 +116,6 @@ export async function forgetMapProjectCopies(): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     const transaction = database.transaction(STORE, "readwrite");
     transaction.objectStore(STORE).clear();
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error ?? new Error(inLanguage("Projekten kunde inte tas bort", "The projects could not be removed")));
+    watch(transaction, resolve, reject, inLanguage("Projekten kunde inte tas bort", "The projects could not be removed"));
   });
 }

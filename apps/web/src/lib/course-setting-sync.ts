@@ -405,7 +405,10 @@ export class CourseSettingSync {
     let fetched: { version: number; document: CourseSettingDocument };
     try {
       fetched = await this.transport.fetchSetting();
-    } catch {
+    } catch (error) {
+      const status = error instanceof HttpStatusError ? error.status : undefined;
+      // Behörigheten är indragen (eller utloggad): försök inte i evighet, så att ägaren av sidan kan rensa lokala kopior.
+      if (status === 401 || status === 403) { this.unread = after; this.stopped = true; this.options.onStatus("stopped"); return; }
       this.options.onStatus("failed");
       // Det sparade finns på servern; nästa försök läser om och spelar upp resten.
       this.unread = after;

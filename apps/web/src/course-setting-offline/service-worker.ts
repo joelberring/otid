@@ -47,10 +47,34 @@ function cacheable(response: Response, html: boolean): boolean {
   return html ? type.startsWith("text/html") : true;
 }
 
+/** Filerna under `/_next/static/` som sidan senast bad om att spara (de gäller nu; äldre byggens filer får rensas när utrymmet tryter). */
+let currentStatic = new Set<string>();
+
+/** Full lagring: äldre byggens hashade filer tas bort (de som inte hör till senaste bygget) för att få plats. */
+async function pruneStatic(cache: Cache, keep: string): Promise<void> {
+  for (const request of await cache.keys()) {
+    const url = new URL(request.url);
+    if (isStatic(url) && request.url !== keep && !currentStatic.has(url.pathname + url.search)) await cache.delete(request);
+  }
+}
+
+/** Sparar svaret. Går det inte (full lagring) ska nätsvaret ändå levereras: felet loggas och `false` returneras. */
 async function store(key: string, response: Response, html: boolean): Promise<boolean> {
   if (!cacheable(response, html)) return false;
-  await (await caches.open(CACHE)).put(key, response);
-  return true;
+  try {
+    const cache = await caches.open(CACHE);
+    try {
+      await cache.put(key, response.clone());
+    } catch (error) {
+      if ((error as { name?: string }).name !== "QuotaExceededError") throw error;
+      await pruneStatic(cache, key);
+      await cache.put(key, response);
+    }
+    return true;
+  } catch (error) {
+    console.error("Service workern kunde inte spara svaret", key, error);
+    return false;
+  }
 }
 
 worker.addEventListener("install", event => event.waitUntil(worker.skipWaiting()));
@@ -94,6 +118,7 @@ worker.addEventListener("message", event => {
   const data = event.data as { type?: string; urls?: unknown } | null;
   if (data?.type !== "cache" || !Array.isArray(data.urls)) return;
   const reply = event.ports[0];
+  currentStatic = new Set((data.urls as unknown[]).filter((raw): raw is string => typeof raw === "string" && raw.startsWith("/_next/static/")));
   event.waitUntil((async () => {
     let saved = 0, failed = 0;
     for (const raw of data.urls as unknown[]) {

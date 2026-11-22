@@ -69,8 +69,10 @@ function saveJson(text: string, prefix: string) {
   } finally { URL.revokeObjectURL(url); }
 }
 
-export function ReadoutApp({ store = new IdbReadoutStore(), partyStore = new IdbPartyActionStore() }: { store?: ReadoutStore;
-  partyStore?: PartyActionStore }) {
+export function ReadoutApp(props: { store?: ReadoutStore; partyStore?: PartyActionStore }) {
+  // En gång per montering: ett standardvärde i parametrarna skulle öppna två nya IndexedDB-kopplingar vid varje rendering.
+  const [store] = useState<ReadoutStore>(() => props.store ?? new IdbReadoutStore());
+  const [partyStore] = useState<PartyActionStore>(() => props.partyStore ?? new IdbPartyActionStore());
   const t = useTexts(readoutText, readoutTextEn);
   const partyT = useTexts(partyText, partyTextEn);
   const language = useLanguage();

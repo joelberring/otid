@@ -55,7 +55,10 @@ type SaveResult = Failure | { status: "too-many" } | { status: "ok"; file: RaceP
 /** En egen PDF (kontrolleras: börjar med %PDF-, högst 40 MB) eller ett klart tryckjobbs PDF (`fromJobId`). */
 export async function saveRacePrintFile(db: Database, input: RaceSessionProof & { fileName: string; label: string } &
   ({ pdf: Uint8Array } | { fromJobId: string }), now = new Date()): Promise<SaveResult> {
-  return courseSettingWrite(db, input, now, "EDIT", async (tx, raceId, actorId) => {
+  return courseSettingWrite(db, input, now, "EDIT", async (tx, raceId, actorId, principal) => {
+    // Granskningen 3.5: tryckjobbens PDF:er är bara för administratörer; en kopia hit skulle ge den som bara får ändra (och den som
+    // läser) nedladdning av dem. En egen PDF (UPLOAD) får den som ändrar spara som förut.
+    if ("fromJobId" in input && !principal.admin) return { status: "forbidden" as const };
     const [count] = await tx.select({ n: sql<number>`count(*)::int` }).from(schema.racePrintFiles).where(eq(schema.racePrintFiles.raceId, raceId));
     if ((count?.n ?? 0) >= RACE_PRINT_FILE_LIMITS.perRace) return { status: "too-many" as const };
     let pdf: Uint8Array, source: "UPLOAD" | "PRINT_JOB", fileName = input.fileName, label = input.label;

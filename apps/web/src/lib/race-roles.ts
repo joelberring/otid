@@ -73,7 +73,7 @@ export const COURSE_SETTING_ROUTES: Readonly<Record<string, Readonly<Record<stri
   "course-setting": { GET: "COMMENT", PUT: "EDIT" },
   "course-setting-import": { POST: "EDIT" },
   "course-setting-restore": { POST: "EDIT" },
-  "course-setting-revisions": { GET: "COMMENT" },
+  "course-setting-revisions": { GET: "COMMENT", POST: "EDIT" },
   "course-setting-revision": { GET: "COMMENT" },
   "course-setting-original": { GET: "COMMENT" },
   "course-setting-transfer": { POST: "ADMIN" },

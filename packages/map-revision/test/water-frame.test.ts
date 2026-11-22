@@ -22,6 +22,18 @@ describe("vattnet i grundkartan", () => {
     expect(kept[0]).toBe(pond);
   });
 
+  it("tar bort marktäckesvatten som täcks av flera åtskilda laservattenytor", () => {
+    const laser = [water(square(0, 0, 400, 400)), water(square(600, 600, 1000, 1000))];
+    const a = water(square(-100, -100, 410, 410)), b = water(square(590, 590, 1100, 1100)), pond = water(square(450, 100, 480, 130));
+    expect(withoutDuplicateWater([a, b, pond], laser, extent)).toEqual([pond]);
+  });
+
+  it("slår ihop vatten vars strand slutar strax innanför körningens kant med remsan", () => {
+    const sea = water(square(0, 0, 400, 1000).map(([x, y]): [number, number] => [x, y === 0 ? 1 : y]));
+    const out = waterToFrame([sea], extent).filter(feature => feature.layer === "vatten");
+    expect(out).toHaveLength(1);
+  });
+
   it("förlänger vattnet där körningens kant skär av det, med hörnet, och drar ingen strand längs förlängningen", () => {
     // Havet i körningens västra del med en ö; stranden i öster.
     const sea = water(square(0, 0, 400, 1000), square(100, 100, 200, 200).reverse());

@@ -47,6 +47,9 @@ export function withoutDuplicateWater(landCover: readonly SourceFeature[], laser
   const laserPolygons = laser.flatMap(feature => feature.layer === "vatten" ? [polygonOf(feature)].filter((p): p is Polygon => !!p && p.length > 0) : []);
   if (laserPolygons.length === 0 || !extent) return [...landCover];
   const inside = boxPolygon(extent);
+  // Snittet mot unionen av laserns ytor: `intersection(a, b, c)` är a ∩ b ∩ c, vilket är tomt för åtskilda ytor.
+  let laserWater: MultiPolygon;
+  try { laserWater = polygonClipping.union(laserPolygons[0]!, ...laserPolygons.slice(1)); } catch { return [...landCover]; }
   return landCover.filter(feature => {
     if (feature.layer !== "vatten") return true;
     const polygon = polygonOf(feature);
@@ -54,13 +57,13 @@ export function withoutDuplicateWater(landCover: readonly SourceFeature[], laser
     try {
       const within = polygonClipping.intersection(polygon, inside), total = areaOf(within);
       if (total <= 0) return true;
-      const covered = areaOf(polygonClipping.intersection(within, ...laserPolygons));
+      const covered = areaOf(polygonClipping.intersection(within, laserWater));
       return covered < total * LAND_COVER_OVERLAP;
     } catch { return true; }
   });
 }
 
-/** Strimlorna utanför körningens kant där vattnet är avskuret, och hörnen som vattnet täcker. */
+/** Strimlorna utanför (och `EDGE_M` innanför, så att de överlappar en strand som slutar strax före kanten) körningens kant där vattnet är avskuret, och hörnen som vattnet täcker. */
 function edgeStrips(polygons: readonly Polygon[], extent: Box): Polygon[] {
   const strips: Polygon[] = [];
   const side = ([x, y]: Pair) => (Math.abs(x - extent.minX) <= EDGE_M ? 1 : 0) | (Math.abs(x - extent.maxX) <= EDGE_M ? 2 : 0)
@@ -78,10 +81,10 @@ function edgeStrips(polygons: readonly Polygon[], extent: Box): Polygon[] {
       const a = ring[i]!, b = ring[i + 1]!, shared = side(a) & side(b);
       if (!shared || Math.hypot(b[0] - a[0], b[1] - a[1]) < MIN_CUT_M) continue;
       const lowY = Math.min(a[1], b[1]), highY = Math.max(a[1], b[1]), lowX = Math.min(a[0], b[0]), highX = Math.max(a[0], b[0]);
-      if (shared & 1) strips.push(boxPolygon({ minX: extent.minX - REACH_M, minY: lowY, maxX: extent.minX, maxY: highY }));
-      if (shared & 2) strips.push(boxPolygon({ minX: extent.maxX, minY: lowY, maxX: extent.maxX + REACH_M, maxY: highY }));
-      if (shared & 4) strips.push(boxPolygon({ minX: lowX, minY: extent.minY - REACH_M, maxX: highX, maxY: extent.minY }));
-      if (shared & 8) strips.push(boxPolygon({ minX: lowX, minY: extent.maxY, maxX: highX, maxY: extent.maxY + REACH_M }));
+      if (shared & 1) strips.push(boxPolygon({ minX: extent.minX - REACH_M, minY: lowY, maxX: extent.minX + EDGE_M, maxY: highY }));
+      if (shared & 2) strips.push(boxPolygon({ minX: extent.maxX - EDGE_M, minY: lowY, maxX: extent.maxX + REACH_M, maxY: highY }));
+      if (shared & 4) strips.push(boxPolygon({ minX: lowX, minY: extent.minY - REACH_M, maxX: highX, maxY: extent.minY + EDGE_M }));
+      if (shared & 8) strips.push(boxPolygon({ minX: lowX, minY: extent.maxY - EDGE_M, maxX: highX, maxY: extent.maxY + REACH_M }));
     }
     for (const [, at, box] of corners) {
       if (ring.some(([x, y]) => Math.hypot(x - at[0], y - at[1]) <= EDGE_M * 2)) strips.push(boxPolygon(box));

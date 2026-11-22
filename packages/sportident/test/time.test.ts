@@ -70,6 +70,32 @@ describe("resolveSiTime", () => {
     expect(resolveSiTime({ secondsIn12h: 2 * 3600 + 30 * 60 }, { reference, timeZone: zone }).toISOString()).toBe("2026-10-03T00:30:00.000Z");
   });
 
+  it("en stämpling strax efter midnatt när avläsningen är strax före hamnar på nästa dygn", () => {
+    const justAfter = (dayOfWeek?: number) => dayOfWeek === undefined ? { secondsIn12h: 5 } : { secondsIn12h: 5, pm: false, dayOfWeek };
+    // Nyårsafton 23:59:50 (CET), stämpling fredag 2027-01-01 00:00:05: över månad och år.
+    const newYear = new Date("2026-12-31T22:59:50Z");
+    expect(resolveSiTime(justAfter(5), { reference: newYear, timeZone: zone }).toISOString()).toBe("2026-12-31T23:00:05.000Z");
+    expect(resolveSiTime(justAfter(), { reference: newYear, timeZone: zone }).toISOString()).toBe("2026-12-31T23:00:05.000Z");
+    // Natten då sommartiden börjar (söndag 2026-03-29) och slutar (söndag 2026-10-25).
+    const spring = new Date("2026-03-28T22:59:50Z");
+    expect(resolveSiTime(justAfter(0), { reference: spring, timeZone: zone }).toISOString()).toBe("2026-03-28T23:00:05.000Z");
+    expect(resolveSiTime(justAfter(), { reference: spring, timeZone: zone }).toISOString()).toBe("2026-03-28T23:00:05.000Z");
+    const autumn = new Date("2026-10-24T21:59:50Z");
+    expect(resolveSiTime(justAfter(0), { reference: autumn, timeZone: zone }).toISOString()).toBe("2026-10-24T22:00:05.000Z");
+    expect(resolveSiTime(justAfter(), { reference: autumn, timeZone: zone }).toISOString()).toBe("2026-10-24T22:00:05.000Z");
+  });
+
+  it("nästa dygn väljs inte när stämplingen ligger utanför toleransen", () => {
+    // Avläsning 21:00; 00:30 nästa dygn är 3,5 h fram. SI5 blir 12:30 samma dag, SI6+ med nästa veckodag förra veckan.
+    const reference = new Date("2026-10-03T19:00:00Z");
+    expect(resolveSiTime({ secondsIn12h: 30 * 60 }, { reference, timeZone: zone }).toISOString()).toBe("2026-10-03T10:30:00.000Z");
+    expect(resolveSiTime({ secondsIn12h: 30 * 60, pm: false, dayOfWeek: 0 }, { reference, timeZone: zone }).toISOString())
+      .toBe("2026-09-26T22:30:00.000Z");
+    // Utan tolerans prövas inte nästa dygn.
+    const late = new Date("2026-12-31T22:59:50Z");
+    expect(resolveSiTime({ secondsIn12h: 5 }, { reference: late, timeZone: zone, toleranceMs: 0 }).toISOString()).toBe("2026-12-31T11:00:05.000Z");
+  });
+
   it("vägrar motsägelsefulla bricktider i stället för att gissa", () => {
     const reference = new Date("2026-10-03T10:08:00Z");
     expect(() => resolveSiTime({ secondsIn12h: 12 * 3600 }, { reference, timeZone: zone })).toThrow(SiTimeError);

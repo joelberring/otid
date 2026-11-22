@@ -77,7 +77,10 @@ export function resolveSiTime(time: SiTime, options: ResolveTimeOptions): Date {
   const limit = options.reference.getTime() + tolerance;
   const today = localDate(options.reference, options.timeZone);
   const halves = time.pm === undefined ? [1, 0] : [time.pm ? 1 : 0];
-  for (let daysBack = 0; daysBack <= 8; daysBack += 1) {
+  // Toleransen kan nå över midnatt: en kontroll som går före stämplar 00:00:05 nästa dygn när avläsningen är 23:59:50.
+  // Kommande dygn prövas därför först; en kandidat där väljs bara om den ligger inom referensen plus toleransen.
+  const firstDaysBack = -Math.ceil(Math.max(0, tolerance) / 86_400_000);
+  for (let daysBack = firstDaysBack; daysBack <= 8; daysBack += 1) {
     const day = new Date(Date.UTC(today.year, today.month - 1, today.day - daysBack));
     if (time.dayOfWeek !== undefined && day.getUTCDay() !== time.dayOfWeek) continue;
     for (const half of halves) {

@@ -22,6 +22,7 @@ import {
   authenticateUserAccountSessionForProtectedRead,
   currentUserAccountVerifier,
   issueUserAccountSession,
+  revokeAllUserAccountOauthGrants,
   revokeAllUserAccountSessions,
   sessionRemembered,
   userAccountPasswordMatches,
@@ -167,6 +168,7 @@ export async function changeAccountPassword(
     // ADR-0205 tillägg: enheten behåller sitt slag av inloggning (kort utan "Kom ihåg mig").
     const remember = await sessionRemembered(tx, auth.principal.sessionId);
     await revokeAllUserAccountSessions(tx, account.id, now, "PASSWORD_CHANGED");
+    await revokeAllUserAccountOauthGrants(tx, account.id, now);
     return issueUserAccountSession(tx, account, version, now, { remember });
   });
 }

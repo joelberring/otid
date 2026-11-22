@@ -61,12 +61,12 @@ test("kartprojekt: rekning i mobilen med GPS-spår, status, kollat och GPX", asy
   await expect(map).toHaveAttribute("data-position", "", { timeout: 15_000 });
 
   // Statuslagret: allt är ej rekat.
-  await phone.getByRole("button", { name: "Panel" }).click();
+  await phone.getByRole("button", { name: "Panel", exact: true }).click();
   const recon = phone.getByTestId("map-project-recon");
   await phone.getByTestId("map-project-tab-review").click();
   await recon.getByTestId("recon-layer-STATUS").check();
   await expect(recon.getByTestId("recon-counts")).toContainText("0 passerade", { timeout: 20_000 });
-  await phone.getByRole("button", { name: "Panel" }).click();
+  await phone.getByRole("button", { name: "Panel", exact: true }).click();
 
   // Spela in längs stenen (5 m söder om den), en punkt i taget.
   await phone.getByTestId("field-record").click();
@@ -83,10 +83,10 @@ test("kartprojekt: rekning i mobilen med GPS-spår, status, kollat och GPX", asy
   }, { timeout: 30_000 }).toEqual([["FIELD", true, true]]);
 
   // Stenen är passerad.
-  await phone.getByRole("button", { name: "Panel" }).click();
+  await phone.getByRole("button", { name: "Panel", exact: true }).click();
   await expect(recon.getByTestId("recon-counts")).not.toContainText(" 0 passerade", { timeout: 20_000 });
   await expect(recon.getByTestId("recon-track")).toHaveCount(1);
-  await phone.getByRole("button", { name: "Panel" }).click();
+  await phone.getByRole("button", { name: "Panel", exact: true }).click();
   await reviewScreenshots(phone, "kartprojekt-rekning", [390]);
   await phone.setViewportSize({ width: 390, height: 844 });
 
@@ -116,7 +116,7 @@ test("kartprojekt: rekning i mobilen med GPS-spår, status, kollat och GPX", asy
   await expect.poll(async () => ((await (await phone.request.get(`${api}/notes`)).json()) as Notes).notes.map(note => [note.text, note.photo?.mediaType]),
     { timeout: 20_000 }).toEqual([["Stigen saknas här", "image/jpeg"]]);
   await phone.getByTestId("field-position").click();
-  await phone.getByRole("button", { name: "Panel" }).click();
+  await phone.getByRole("button", { name: "Panel", exact: true }).click();
   await phone.getByTestId("map-project-notes").getByRole("button", { name: "Visa" }).click();
   const note = phone.getByTestId("map-project-note");
   await expect(note).toContainText("Stigen saknas här");
@@ -129,7 +129,7 @@ test("kartprojekt: rekning i mobilen med GPS-spår, status, kollat och GPX", asy
   const gpx = `<?xml version="1.0"?><gpx version="1.1" creator="Klocka"><trk><name>Klockans runda</name><trkseg>${
     [[10, 10], [20, 20], [30, 15]].map(([x, y], index) => { const p = wgs(x!, y!);
       return `<trkpt lat="${p.latitude}" lon="${p.longitude}"><time>2026-11-08T08:0${index}:00Z</time></trkpt>`; }).join("")}</trkseg></trk></gpx>`;
-  await phone.getByRole("button", { name: "Panel" }).click();
+  await phone.getByRole("button", { name: "Panel", exact: true }).click();
   await recon.getByTestId("recon-gpx").setInputFiles({ name: "runda.gpx", mimeType: "application/gpx+xml", buffer: Buffer.from(gpx) });
   await expect.poll(async () => ((await (await phone.request.get(`${api}/tracks`)).json()) as Tracks).tracks.map(track => track.name).sort(),
     { timeout: 30_000 }).toEqual(["Klockans runda", expect.stringMatching(/^Rekning /)]);
@@ -156,7 +156,7 @@ test("kartprojekt: rekning i mobilen med GPS-spår, status, kollat och GPX", asy
   await context.setOffline(true);
   await context.route("**/*", noNetwork);
   // Panelen är öppen sedan GPX-filen.
-  await phone.getByRole("button", { name: "Panel" }).click();
+  await phone.getByRole("button", { name: "Panel", exact: true }).click();
   await phone.getByTestId("field-record").click();
   for (let y = 40; y <= 50; y += 1) {
     await context.setGeolocation({ ...wgs(80, y), accuracy: 5 });
@@ -169,7 +169,7 @@ test("kartprojekt: rekning i mobilen med GPS-spår, status, kollat och GPX", asy
   await phone.mouse.click(spot.x, spot.y);
   await phone.getByTestId("map-project-note-form").getByRole("textbox").fill("Nytt hygge");
   await phone.getByTestId("map-project-note-save").click();
-  await phone.getByRole("button", { name: "Panel" }).click();
+  await phone.getByRole("button", { name: "Panel", exact: true }).click();
   await expect(recon.getByTestId("recon-track").filter({ hasText: "väntar på nät" })).toHaveCount(1, { timeout: 15_000 });
   await expect(phone.getByTestId("map-project-note-row").filter({ hasText: "Nytt hygge" })).toContainText("väntar på nät");
   if (process.env.E2E_BASE_URL) {

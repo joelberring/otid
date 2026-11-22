@@ -1,4 +1,4 @@
-import { autoArchiveFinishedRaces, retentionSettings, runMaintenance, syncDueClubEventorMembers } from "@o-tid/application";
+import { autoArchiveFinishedRaces, retentionSettings, rollupVisitorDays, runMaintenance, syncDueClubEventorMembers } from "@o-tid/application";
 import { db } from "./db";
 
 /**
@@ -6,7 +6,8 @@ import { db } from "./db";
  * sedan en gång i timmen: kartinnehåll som ingen tävling pekar på och avbrutna uppladdningar tas bort, och den valfria
  * gallringen (`OTID_RETENTION`, `OTID_RETENTION_MONTHS`) anonymiserar eller tar bort gamla tävlingar. Bara tävlingsinstansen
  * kör det (inte publikens, `OTID_INSTANCE_ROLE=public`); varje tävling gallras i en egen transaktion med radlås, så två
- * instanser gör aldrig samma sak. ADR-0209: kopplade klubbarkivs medlemslistor från Eventor hämtas när de är äldre än ett
+ * instanser gör aldrig samma sak. Besöksstatistiken (2026-11-22): tidigare dygns hashar och salt räknas ihop och tas bort.
+ * ADR-0209: kopplade klubbarkivs medlemslistor från Eventor hämtas när de är äldre än ett
  * dygn (högst tio klubbar per varv). Ägaren 2026-11-12: de senaste två veckornas träningar som är klara läggs i klubbens arkiv när
  * rutan är i (högst 20 per varv, `autoArchiveFinishedRaces`). Loggen har bara antal, aldrig namn eller adresser. Stängs av med
  * `OTID_MAINTENANCE=off`.
@@ -28,6 +29,8 @@ async function tick(state: RunnerState): Promise<void> {
     }
     const members = await syncDueClubEventorMembers(db, new Date());
     if (members.synced + members.failed > 0) console.info(`Klubbarnas medlemslistor: ${members.synced} hämtade, ${members.failed} misslyckades`);
+    const visitors = await rollupVisitorDays(db, new Date());
+    if (visitors.hits > 0) console.info(`Besöksstatistiken: ${visitors.days} dygn räknade, ${visitors.hits} dygnskoder borttagna`);
     const archived = await autoArchiveFinishedRaces(db, new Date());
     if (archived.archived + archived.noAdmin + archived.clubFull + archived.failed > 0) {
       console.info(`Klubbarkiven: ${archived.archived} träningar arkiverade, ${archived.noAdmin} utan administratör, ${archived.clubFull} med klubbens lagring full, ${archived.failed} misslyckades`);

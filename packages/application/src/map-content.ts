@@ -208,7 +208,7 @@ export async function clubStorageUsage(tx: DbExecutor, clubId: string): Promise<
   return { mapBytes, courseFileBytes, usedBytes: mapBytes + courseFileBytes };
 }
 
-/** Klubbens gräns: den som superadmin satt (`club.map_quota_mb`, migration 0140) eller förvalet 2 048 MB. */
+/** Klubbens gräns: den som superadmin satt (`club.map_quota_mb`, migration 0141) eller förvalet 2 048 MB. */
 export async function clubMapQuotaBytes(tx: DbExecutor, clubId: string): Promise<number> {
   const [row] = (await tx.execute<{ map_quota_mb: number | null }>(sql`select map_quota_mb from club where id = ${clubId}::uuid`)).rows;
   return (row?.map_quota_mb ?? DEFAULT_CLUB_MAP_QUOTA_MB) * MB;

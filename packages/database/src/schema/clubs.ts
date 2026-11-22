@@ -21,7 +21,7 @@ export const clubs = pgTable("club", {
   createdBy: uuid("created_by").notNull(),
   requestId: uuid("request_id").notNull(),
   /**
-   * PLAN.md steg M7 (migration 0140): klubbens gräns för eget material i MB, satt av superadmin; null = förvalet (2 048 MB).
+   * PLAN.md steg M7 (migration 0141): klubbens gräns för eget material i MB, satt av superadmin; null = förvalet (2 048 MB).
    * Innehåll som en version i klubbens arkiv pekar på räknas mot klubben och inte mot kontot som laddade upp det.
    */
   mapQuotaMb: integer("map_quota_mb")

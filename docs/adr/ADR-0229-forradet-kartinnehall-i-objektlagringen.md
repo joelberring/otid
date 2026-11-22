@@ -110,7 +110,7 @@ superadmin, flera superadmin, automatisk rensning av docker-avbildningar.
   "Efter flytten: frigör databasens utrymme"). Inget pg_repack (ett beroende till för en engångsåtgärd).
 - Kvar: med träningar nästan varje dag kan tävlingsdygnet stoppa flytten flera nätter i rad; då `migrate-now` en dag utan.
 
-## Tillägg 2026-11-22 (M4): recept för återskapbart underlag och kontots gräns (PLAN.md steg M4, migration 0138)
+## Tillägg 2026-11-22 (M4): recept för återskapbart underlag och kontots gräns (PLAN.md steg M4, migration 0139)
 
 - **Registret** (`map_content`) får `recipe` (källa, ruta eller område, datum, parametrar; `StoredRecipe` i contracts, högst 4 kB) och
   `evicted_at`, och `stored_in` får värdet `'GONE'`: raden, referenserna och receptet står kvar men innehållet finns inte längre.
@@ -200,7 +200,7 @@ anroparens transaktion, som görs om vid 40001/40P01, och kontrollerade objektet
   zip (LAZ är redan komprimerat; ingen Zip64, högst 4 GB) och strömmar den **direkt** till objektlagringen med en försignerad PUT
   (3 h) för just det objektet: inga nycklar lämnar servern och zip-filen går aldrig genom O-Tids disk. Objekten ligger under
   `raw-laser/<id>/laserdata.zip`, skilt från `map-content/`.
-- **Registret:** tabellen `map_project_raw_laser` (migration 0139). Raden skrivs innan uppladdningslänken ges, så att städningen
+- **Registret:** tabellen `map_project_raw_laser` (migration 0140). Raden skrivs innan uppladdningslänken ges, så att städningen
   alltid vet om objektet, och står kvar (SET NULL) när jobbet, projektet eller kontot tas bort. «Klar» kräver att objektets längd
   stämmer (HEAD). Filen räknas inte mot någon kvot: den är inget kartinnehåll.
 - **Hämtningen:** en försignerad GET (AWS Signature Version 4 i frågesträngen, med `response-content-disposition`) som gäller till
@@ -222,7 +222,7 @@ konto med klubbens kartor och så att materialet ligger kvar när någon lämnar
 - **Beslut:** innehåll i `map_content` som en version i ett klubbarkiv pekar på (`club_map_version.content_sha256`) räknas mot
   klubben och inte mot kontot i `uploaded_by`. Registret avgör, ingen ny kolumn: befintligt klubbarkiv byter till klubbens kvot
   utan att någon rad eller fil ändras, och en medlem som lämnar klubben tar inget med sig. Ett innehåll räknas en gång per klubb.
-- **Beslut:** klubbens gräns är `club.map_quota_mb` (migration 0140; null = förvalet `DEFAULT_CLUB_MAP_QUOTA_MB` = 2 048 MB),
+- **Beslut:** klubbens gräns är `club.map_quota_mb` (migration 0141; null = förvalet `DEFAULT_CLUB_MAP_QUOTA_MB` = 2 048 MB),
   satt av superadmin på superadminsidan (åtgärden `SET_CLUB_LIMITS`, målet `CLUB` i `superadmin_action`). Klubbens använda
   utrymme är kartinnehållet ovan och arkivets banfiler (`clubStorageUsage`).
 - **Beslut:** allt som läggs i arkivet prövas mot klubbens gräns i stället för kontots: uppladdad version, importen (innehållet och

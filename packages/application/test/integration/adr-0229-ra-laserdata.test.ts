@@ -18,7 +18,7 @@ import { saveMapSourceCredential } from "../../src/map-source-credentials";
 import { registerTestAccount } from "./accounts";
 
 /**
- * PLAN.md M6 (migration 0139): «Spara även rå laserdata åt mig». Jobbet bär valet bara när förrådet är på; geo-arbetaren får
+ * PLAN.md M6 (migration 0140): «Spara även rå laserdata åt mig». Jobbet bär valet bara när förrådet är på; geo-arbetaren får
  * en försignerad uppladdningslänk, filen kontrolleras i objektlagringen, länken (7 dygn) visas bara för den som lade körningen,
  * mejlet ges en gång, filen räknas inte mot kvoten och städningen tar bort den efter 7 dygn – också när jobbet tagits bort.
  */

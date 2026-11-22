@@ -1537,20 +1537,20 @@ arkivet) blir förrådet för allt kartinnehåll och serverns disk ett mellanlag
   `backups/map-content` för det som flyttats, timdumparna 12, VACUUM FULL efteråt enligt docs/drift.md. Ingen migration.
 - [x] M4 Recept för återskapbart underlag; gräns per konto för återskapbart (äldst använt bort först, skydd för projekt
   öppnade de senaste 3 dygnen och projektets senaste klara laserkörning); borttagning ur förrådet efter 90 dagar orört.
-  Migration 0138 (`recipe`, `evicted_at`, `stored_in = 'GONE'`), borttagning direkt efter sparandet och var 5:e minut, aldrig på
+  Migration 0139 (`recipe`, `evicted_at`, `stored_in = 'GONE'`), borttagning direkt efter sparandet och var 5:e minut, aldrig på
   tävlingsdygnet, «Återskapa» i projektet (laser utan laserkvot, bilder hämtas om), kontosidan och superadmins inställning för orört.
 - [x] M5 Larm via mejl till superadmin (också förrådet och geo-servern, högst ett per 6 timmar, med "löst"), flera superadmin
   (`superadmin.mjs list`, dokumenterat), docker-städning som ett steg i `deploy/update.sh`, hälsokontrollens varningar skilda från fel.
-  Migration 0141 (check-villkoren för larmsorterna).
+  Migration 0142 (check-villkoren för larmsorterna).
 - [x] M6 Rå laserdata (ägaren 2026-11-22): LAZ sparas aldrig efter körningen. Rutan «Spara även rå laserdata åt mig» före
   körningen lägger en zip i förrådet med en hämtningslänk (försignerad, direkt från förrådet) som gäller 7 dygn, visas i
   körningen och i ett mejl, tas bort automatiskt och räknas inte mot någon kvot. En rad om Lantmäteriets villkor vid rutan.
-  Byggt (migration 0139, geo-arbetarens version 41); kvar hos ägaren: ny geo-avbildning och gärna livscykelregeln i docs/drift.md.
+  Byggt (migration 0140, geo-arbetarens version 41); kvar hos ägaren: ny geo-avbildning och gärna livscykelregeln i docs/drift.md.
 - [x] M7 Klubbarkivet räknas mot klubben (ägaren 2026-11-22): egen kvot per klubb (förval 2 GB eget material), allt i
   klubbarkivet (också automatisk arkivering av klara träningar) räknas mot klubben, kopior räknas inte dubbelt (sha256),
   ändringar i en kopia mot det egna kontot. Ledare och administratörer ser klubbens lagring på klubbsidan och får besked vid
   80 %; superadmin höjer per klubb. Befintligt klubbarkiv byter till klubbens kvot (bara registret). Byggt 2026-11-22
-  (migration 0140, tillägg i ADR-0229).
+  (migration 0141, tillägg i ADR-0229).
 - [ ] M8 (senare, efter mätning) Direktuppladdning från webbläsaren till förrådet och raster som COG som läses direkt ur
   förrådet med intervallanrop. Underlag: projektets dokument `claude/plan-tungt-direkt-till-arkivet-2026-11-22.md`.
 

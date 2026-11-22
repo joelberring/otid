@@ -218,6 +218,8 @@ export {
   collectServerSnapshot, hostPaths, readHost, readMemory, runServerWatch, superadminRecipients
 } from "./server-status";
 export type { HostPaths, HostReadings, ServerMailer, ServerMessage, ServerWatchResult } from "./server-status";
+export { isLikelyRobot, type VisitorStep } from "./visitor-report";
+export { recordVisit, rollupVisitorDays } from "./visitor-stats";
 export {
   createMapProject, createMapProjectFromUpload, inviteMapProjectMember, listMapProjects, readMapProject, readMapProjectSource, removeMapProjectMember, setMapProjectMemberRole,
   updateMapProject

@@ -21,7 +21,7 @@ export const superadminActionKindSchema = z.enum([
   "SET_INSTALLATION_LIMITS",
   /** PLAN.md steg M3: beställde flytten av befintligt kartinnehåll till förrådet nu («Flytta nu»). */
   "MIGRATE_MAP_CONTENT_NOW",
-  /** PLAN.md steg M7: satte klubbens gräns för eget material (migration 0140). */
+  /** PLAN.md steg M7: satte klubbens gräns för eget material (migration 0141). */
   "SET_CLUB_LIMITS"
 ]);
 

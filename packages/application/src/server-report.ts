@@ -1,4 +1,5 @@
 import { localRaceDate, parseRaceClock } from "@o-tid/domain";
+import { visitorLines, type VisitorDay } from "./visitor-report";
 
 /**
  * ADR-0216: serverns veckorapport och larm till superadmin. Den här filen är ren (ingen I/O): inställningarna, vilka problem en
@@ -363,6 +364,8 @@ export interface WeeklyHistory {
   readonly samples: readonly SampleRow[];
   /** Det som skickats de senaste sju dagarna. */
   readonly log: readonly LogRow[];
+  /** Besökarna de senaste sju dygnen (`readVisitorWeek`); saknas = avsnittet visas inte. */
+  readonly visitors?: { readonly today: string; readonly days: readonly VisitorDay[] };
 }
 
 /** Veckorapporten: kort och läsbar, på svenska, utan personuppgifter. */
@@ -429,6 +432,8 @@ export function weeklyReport(snapshot: ServerSnapshot, history: WeeklyHistory, s
       `${counts.events} evenemang med ${count(counts.races, "tävling", "tävlingar")}.`,
     `- Kommande 14 dagar: ${count(counts.upcomingRaces, "tävling", "tävlingar")} (${counts.upcomingPublished} publicerade), ${counts.upcomingEntries} anmälda` +
       `${counts.upcomingRaces > 0 ? `, störst ${counts.upcomingMaxEntries} anmälda` : ""}.`, "");
+
+  if (history.visitors) lines.push(...visitorLines(history.visitors.days, history.visitors.today), "");
 
   lines.push("LARM OCH FEL SENASTE VECKAN");
   const sent = history.log.filter(row => row.sentAt.getTime() >= weekAgo && row.status !== "REPORT").sort((a, b) => a.sentAt.getTime() - b.sentAt.getTime());

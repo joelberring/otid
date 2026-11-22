@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { NO_INDEX_ROBOTS } from "../../../lib/no-index";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { sv } from "../../../i18n/sv";
 import { publicRaceSv } from "../../../i18n/public-race-sv";
 import { raceTypeSv } from "../../../i18n/race-type-sv";
@@ -26,6 +27,9 @@ import { raceGroupNameDisplay, readBingoLeaderboard, readMastermindStandings } f
 import { LiveBingoBoard } from "../../../components/bingo/bingo-board";
 import { LiveMastermindBoard } from "../../../components/mastermind/mastermind-board";
 import { db } from "../../../lib/db";
+import { demoRacePath } from "../../../lib/intro-film";
+import { accountSessionToken } from "../../../lib/public-race-gate";
+import { countVisit } from "../../../lib/visitor-tracking";
 import { bingoEn } from "../../../i18n/bingo-en";
 import { bingoSv } from "../../../i18n/bingo-sv";
 
@@ -56,6 +60,8 @@ export default async function RaceHubPage({ params }: Params) {
   const text = en ? hubEn : publicRaceSv.hub;
   const bingoText = en ? bingoEn.runner : bingoSv.runner;
   const path = raceHubPath(hub.shortCode);
+  // Besöksstatistiken (ägaren 2026-11-22): demotävlingen (OTID_DEMO_RACE) öppnad av en besökare utan inloggning.
+  if (path === demoRacePath() && !await accountSessionToken()) countVisit("DEMO_RACE", await headers());
   const address = displayAddress(await publicOrigin(), path);
   const names = await raceGroupNameDisplay(db, hub.raceId);
   // ADR-0225: bingons topplista (bara på träningsdagen).

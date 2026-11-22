@@ -80,7 +80,7 @@ export const mapContents = pgTable("map_content", {
   lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
   /** Går att skapa igen ur ett recept (PLAN.md steg M4). */
   regenerable: boolean("regenerable").notNull().default(false),
-  /** PLAN.md steg M4 (migration 0138): receptet som skapar innehållet igen (`StoredRecipe` i contracts); 'GONE' = borttaget, kan återskapas. */
+  /** PLAN.md steg M4 (migration 0139): receptet som skapar innehållet igen (`StoredRecipe` i contracts); 'GONE' = borttaget, kan återskapas. */
   recipe: jsonb("recipe").$type<Record<string, unknown>>(),
   evictedAt: timestamp("evicted_at", { withTimezone: true })
 }, table => [index("map_content_regenerable_idx").on(table.uploadedBy).where(sql`${table.regenerable}`)]);

@@ -23,6 +23,7 @@ import { newsSv } from "../i18n/news-sv";
 import start from "../components/home/start.module.css";
 import { AppMark } from "../components/home/app-mark";
 import { joinCodeProblem } from "../lib/join-code";
+import { countVisit } from "../lib/visitor-tracking";
 import { RaceList, type RaceListTiming } from "../components/public-race/race-list";
 import styles from "../components/public-race/public-race.module.css";
 
@@ -56,6 +57,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<Que
   const requested = typeof query.fler === "string" ? Number.parseInt(query.fler, 10) : NaN;
   const recentLimit = Number.isFinite(requested) ? Math.min(Math.max(requested, RECENT_FIRST), PUBLIC_RECENT_MAX) : RECENT_FIRST;
   const token = await accountSessionToken();
+  // Besöksstatistiken (ägaren 2026-11-22): besökare utan inloggning, räknas efter svaret.
+  if (!token) countVisit("HOME", await headers());
   const [listing, account, news] = await Promise.all([listPublicRaces(db, { search, recentLimit }),
     token ? authenticateUserAccountSession(db, { sessionToken: token }) : undefined, homeNewsFor(token)]);
   const signedIn = account?.status === "authenticated";

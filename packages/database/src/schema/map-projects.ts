@@ -422,7 +422,7 @@ export const raceMapProjectLinks = pgTable("race_map_project_link", {
 
 export type RawLaserStatus = "PENDING" | "READY" | "FAILED" | "REMOVED";
 /**
- * PLAN.md M6 (migration 0139): zip-filer med rå laserdata som användaren bett om («Spara även rå laserdata åt mig»), i
+ * PLAN.md M6 (migration 0140): zip-filer med rå laserdata som användaren bett om («Spara även rå laserdata åt mig»), i
  * förrådets objektlagring under `raw-laser/`. Raden finns innan geo-arbetaren får sin uppladdningslänk, så att städningen
  * alltid vet om objektet; den står kvar när jobbet, projektet eller kontot tas bort (SET NULL) tills objektet raderats.
  * `run_key` är jobbets id, eller omgångens id för en delad körning (etapperna tas bort när de lagts ihop).

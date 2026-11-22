@@ -20,12 +20,16 @@ export const superadminActionKindSchema = z.enum([
   /** ADR-0229: satte installationens gränser (mellanlagrets tak och kartlagringens totala gräns, migration 0133). */
   "SET_INSTALLATION_LIMITS",
   /** PLAN.md steg M3: beställde flytten av befintligt kartinnehåll till förrådet nu («Flytta nu»). */
-  "MIGRATE_MAP_CONTENT_NOW"
+  "MIGRATE_MAP_CONTENT_NOW",
+  /** PLAN.md steg M7: satte klubbens gräns för eget material (migration 0140). */
+  "SET_CLUB_LIMITS"
 ]);
 
 /** Kontots egna gränser; null = installationens förval. */
 export const accountMapQuotaMbSchema = z.number().int().min(1).max(1_000_000).nullable();
 export const accountGeoTilesPerMonthSchema = z.number().int().min(0).max(100_000).nullable();
+/** PLAN.md steg M7: klubbens gräns för eget material i MB; null = förvalet (2 048 MB). */
+export const clubMapQuotaMbSchema = z.number().int().min(1).max(1_000_000).nullable();
 /** ADR-0229: installationens gränser; null = förvalet. Totalgränsen 0 = ingen gräns. */
 export const installationCacheMaxMbSchema = z.number().int().min(100).max(10_000_000).nullable();
 export const installationMapQuotaTotalMbSchema = z.number().int().min(0).max(100_000_000).nullable();
@@ -63,6 +67,16 @@ export const superadminAccountUsageSchema = z.object({
   geoTilesLimit: z.number().int().min(0),
   geoTilesPerMonth: accountGeoTilesPerMonthSchema,
   regenerableQuotaMb: accountMapQuotaMbSchema
+}).strict();
+
+/** PLAN.md steg M7: en klubb och dess lagring (klubbarkivet) mot klubbens gällande gräns. */
+export const superadminClubUsageSchema = z.object({
+  clubId: uuid,
+  name: z.string().trim().min(1).max(200),
+  usedBytes: z.number().int().min(0),
+  limitBytes: z.number().int().min(0),
+  /** Klubbens egen gräns (null = förvalet). */
+  mapQuotaMb: clubMapQuotaMbSchema
 }).strict();
 
 /** ADR-0229: förrådet och mellanlagret för installationen. */
@@ -126,7 +140,10 @@ export const superadminLimitsSchema = z.object({
   totalUsedBytes: z.number().int().min(0),
   totalLimitBytes: z.number().int().min(0).nullable(),
   /** Konton nära en gräns eller med egna gränser, de som ligger närmast först. */
-  accounts: z.array(superadminAccountUsageSchema).max(SUPERADMIN_LIST_LIMIT)
+  accounts: z.array(superadminAccountUsageSchema).max(SUPERADMIN_LIST_LIMIT),
+  /** PLAN.md steg M7: klubbarnas förval i MB och klubbarna, den som ligger närmast sin gräns först. */
+  defaultClubMapQuotaMb: z.number().int().min(1),
+  clubs: z.array(superadminClubUsageSchema).max(SUPERADMIN_LIST_LIMIT)
 }).strict();
 
 export const superadminRaceSchema = z.object({
@@ -146,7 +163,7 @@ export const superadminLogEntrySchema = z.object({
   createdAt: instant,
   actorLabel: z.string().min(1).max(254),
   action: superadminActionKindSchema,
-  targetType: z.enum(["ACCOUNT", "EVENT", "RACE", "INSTALLATION"]),
+  targetType: z.enum(["ACCOUNT", "EVENT", "RACE", "INSTALLATION", "CLUB"]),
   targetLabel: z.string().min(1).max(320),
   reason: z.string().min(1).max(500)
 }).strict();
@@ -177,7 +194,8 @@ export const superadminActionRequestSchema = z.discriminatedUnion("action", [
     cacheMaxMb: installationCacheMaxMbSchema, mapQuotaTotalMb: installationMapQuotaTotalMbSchema,
     /** PLAN.md steg M2; saknas (äldre sida) = oförändrad. */
     pinMaxMb: installationCacheMaxMbSchema.optional() }).strict(),
-  z.object({ formatVersion: z.literal(1), action: z.literal("MIGRATE_MAP_CONTENT_NOW"), reason }).strict()
+  z.object({ formatVersion: z.literal(1), action: z.literal("MIGRATE_MAP_CONTENT_NOW"), reason }).strict(),
+  z.object({ formatVersion: z.literal(1), action: z.literal("SET_CLUB_LIMITS"), clubId: uuid, reason, mapQuotaMb: clubMapQuotaMbSchema }).strict()
 ]);
 
 export const superadminActionResponseSchema = z.object({

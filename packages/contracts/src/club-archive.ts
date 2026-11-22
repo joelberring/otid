@@ -155,8 +155,17 @@ export interface ClubView {
   members: ClubMember[]; invitations: ClubInvitation[]; usage: ClubUsage; tokens: ClubImportTokenView[];
   /** ADR-0206: e-post finns på servern ("Skicka igen"); utan den "Kopiera länken". Sätts av webben. */
   mailEnabled?: boolean;
-  /** Kontots kvot för kartinnehåll (ADR-0189 beslut 3), null = ingen gräns. */
-  quota: { accountLimitBytes: number | null; accountUsedBytes: number };
+  /**
+   * PLAN.md steg M7: klubbens lagring mot klubbens gräns (allt i klubbarkivet räknas mot klubben, inte mot den som laddade
+   * upp), bara för ledare, administratörer och ägare; null för medlemmar.
+   */
+  storage: ClubStorage | null;
+}
+
+/** PLAN.md steg M7: klubbens lagring, kartorna störst först. `warning` = minst 80 % av gränsen är använd. */
+export interface ClubStorage {
+  usedBytes: number; limitBytes: number; warning: boolean; full: boolean; courseFileBytes: number;
+  maps: { mapId: string; name: string; bytes: number; versions: number }[];
 }
 
 export type ClubArchiveEntryStatus = "COMPLETE" | "COURSES_ONLY" | "MAP_MISSING" | "MAP_ONLY";

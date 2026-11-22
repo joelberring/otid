@@ -113,6 +113,7 @@
     { "idx": 108, "version": "7", "when": 1808928000000, "tag": "0134_nyheter", "breakpoints": true },
     { "idx": 109, "version": "7", "when": 1809014400000, "tag": "0135_konto_nyckel_set_null", "breakpoints": true },
     { "idx": 110, "version": "7", "when": 1809100800000, "tag": "0136_index_brickkoppling_m_fl", "breakpoints": true },
-    { "idx": 111, "version": "7", "when": 1809187200000, "tag": "0137_kartprojekt_textsymboler", "breakpoints": true }
+    { "idx": 111, "version": "7", "when": 1809187200000, "tag": "0137_kartprojekt_textsymboler", "breakpoints": true },
+    { "idx": 112, "version": "7", "when": 1809446400000, "tag": "0140_klubbens_kvot", "breakpoints": true }
   ]
 }

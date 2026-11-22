@@ -158,14 +158,16 @@ export const clubAffiliationSv = {
     autoRemoved: "Den har legat i klubbarkivet och läggs inte dit automatiskt igen. Lägg i den för hand om den ska vara där.",
     autoProblem: {
       NO_ADMIN: "Den kunde inte läggas i klubbarkivet automatiskt: varken ägaren eller den ansvarige är administratör i klubbytan. Lägg i den för hand.",
-      FAILED: "Det gick inte att lägga den i klubbarkivet automatiskt. Det provas igen inom en timme; du kan också lägga i den för hand."
+      FAILED: "Det gick inte att lägga den i klubbarkivet automatiskt. Det provas igen inom en timme; du kan också lägga i den för hand.",
+      CLUB_FULL: "Den kunde inte läggas i klubbarkivet automatiskt: klubbens lagring är full. Det provas igen varje timme när något tagits bort ur klubbarkivet eller superadmin höjt klubbens gräns."
     },
     reminder: "Tävlingen är klar – lägga banorna i klubbarkivet?",
     reminderOpen: "Till Klubben och klubbarkivet",
     errors: {
       NO_CLUB_ARCHIVE: "Arrangörsklubben har ingen klubbyta kopplad till Eventor där du är administratör.",
       COURSES_SECRET: "Bekräfta banhemligheten först.",
-      ALREADY_IN_ARCHIVE: "Tävlingen ligger redan i klubbarkivet."
+      ALREADY_IN_ARCHIVE: "Tävlingen ligger redan i klubbarkivet.",
+      CLUB_STORAGE_FULL: "Klubbens lagring är full. Ta bort något ur klubbarkivet eller be superadmin höja klubbens gräns."
     } as Record<string, string>,
     failed: "Det gick inte. Försök igen."
   }

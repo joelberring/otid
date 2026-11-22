@@ -12,7 +12,7 @@ function club(change: Partial<ClubView> = {}): ClubView {
     formatVersion: 1, clubId: "00000000-0000-4000-8000-0000000000c1", name: "Klubben", viewer: { accountId: me, role: "OWNER" }, eventorClub: null,
     members: [{ memberId: "m1", you: true, email: "agare@exempel.se", displayName: "Ägaren", role: "OWNER", addedAt: "2026-11-07T10:00:00Z" }],
     invitations: [], usage: { mapBytes: 0, courseFileBytes: 0, maps: 0, versions: 0, entries: 0, courseFiles: 0 }, tokens: [],
-    quota: { accountLimitBytes: null, accountUsedBytes: 0 }, ...change
+    storage: null, ...change
   };
 }
 const usage = (maps: number) => ({ mapBytes: 1000, courseFileBytes: 0, maps, versions: maps, entries: 0, courseFiles: 0 });

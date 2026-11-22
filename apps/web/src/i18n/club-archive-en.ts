@@ -227,7 +227,7 @@ export const clubArchiveEn: Texts<typeof clubArchiveSv> = {
     duplicate: "That file is already in the archive.",
     tooLarge: "The map file is larger than 75 MB.",
     invalid: "The file does not look like an OCAD or Mapper map.",
-    quota: (used: number, limit: number) => `The storage is full (${used} of ${limit} MB). Remove old maps or ask the server's owner to raise the limit.`,
+    quota: (used: number, limit: number) => `The club's storage is full (${used} of ${limit} MB). Remove old maps from the club archive or ask the superadmin to raise the club's limit.`,
     toGroup: "Put in the group's map library",
     toGroupHelp: "The latest version is drawn and put in the group's map library with the map's rights. If the map is already there it is replaced by the latest version.",
     toGroupButton: (name: string) => `Put in ${name}`,
@@ -253,8 +253,8 @@ export const clubArchiveEn: Texts<typeof clubArchiveSv> = {
   importer: {
     help: "The import runs on your computer and sends the map files and course files directly to this server. PDF, Word, Excel, images and other files are never read and never sent.",
     usageTitle: "The archive's size",
-    quota: (used: number, limit: number | null) => limit === null ? `Your uploaded maps: ${mb(used)} (no limit).`
-      : `Your uploaded maps: ${mb(used)} of ${mb(limit)}.`,
+    quota: (used: number, limit: number | null) => limit === null ? `The club's storage: ${mb(used)} (no limit).`
+      : `The club's storage: ${mb(used)} of ${mb(limit)}. Everything in the club archive counts against the club, not against the person who uploads it.`,
     step1: "1. Get O-Tid onto the computer (git clone) and run pnpm install once.",
     step2: "2. Test run: nothing is sent, the report shows what would be imported.",
     step3: "3. Create an import key here and run the import. The key is valid for 12 hours and is only shown once.",

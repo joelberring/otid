@@ -7,7 +7,7 @@ export const SERVER_COMMAND_ACTOR = "Serverkommando";
 
 export async function logAction(tx: DbExecutor, entry: {
   actorAccountId: string | null; actorLabel: string; action: SuperadminActionKind;
-  targetType: "ACCOUNT" | "EVENT" | "RACE" | "INSTALLATION"; targetId: string; targetLabel: string; reason: string;
+  targetType: "ACCOUNT" | "EVENT" | "RACE" | "INSTALLATION" | "CLUB"; targetId: string; targetLabel: string; reason: string;
 }, now: Date): Promise<void> {
   // Migration 0115: databasen kräver bara formen, så listan prövas här.
   const action = superadminActionKindSchema.parse(entry.action);

@@ -20,6 +20,7 @@ import { ScrollRow } from "../ui/scroll-row";
 import { useArchiveChecks } from "./use-archive-checks";
 import { ClubSpacePanel, type ClubSpaceFocus } from "../club-affiliation/club-space-panel";
 import { ClubStartCard, type ClubStartTarget } from "./club-start-card";
+import { ClubStorageSection } from "./club-storage";
 import { clubAffiliationSv } from "../../i18n/club-affiliation-sv";
 import { HelpButton } from "../help/help-panel";
 import { AccountMenu } from "../account-menu";
@@ -110,6 +111,8 @@ export function ClubArchivePage({ clubId }: { clubId: string }) {
       </div>
     </header>
     <ClubStartCard club={club} clubName={list.clubName} onGo={go} />
+    {/* PLAN.md steg M7: klubbens lagring och beskedet vid 80 % för ledare och uppåt. */}
+    {club.storage && <ClubStorageSection storage={club.storage} />}
     {/* Översynen 2026-11-17: flikarna rullar i telefonen och visar med toning och pil att raden fortsätter (som arbetsytans steg). */}
     <div ref={tabs} className={styles.tabsWrap}>
       <ScrollRow rowClassName={styles.tabs} role="tablist" aria-label={text.title} active={tab}>

@@ -114,7 +114,7 @@ export const raceClubArchives = pgTable("race_club_archive", {
  * Ägaren 2026-11-12 (migration 0113): "Lägg i klubbarkivet när träningen är klar". `enabled` null = förvalet; `archivedAt`
  * spärrar en ny automatisk arkivering (också efter Ta ur); `problem` = varför den automatiska inte gick.
  */
-export type RaceClubArchiveAutoProblem = "NO_ADMIN" | "FAILED";
+export type RaceClubArchiveAutoProblem = "NO_ADMIN" | "FAILED" | "CLUB_FULL";
 
 export const raceClubArchiveAutos = pgTable("race_club_archive_auto", {
   raceId: uuid("race_id").primaryKey().references(() => races.id),

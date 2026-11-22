@@ -15,6 +15,7 @@ import { autoArchiveRow, autoArchiveView, markAutoArchived, setAutoArchive } fro
 import { coursesArePublic } from "./course-secrecy";
 import { organisationById, organisationSummary } from "./organisations";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
+import { clubArchiveQuotaProblem, type MapQuotaExceeded } from "./map-content";
 import type { DbExecutor } from "./snapshot";
 
 /**
@@ -143,7 +144,8 @@ export async function setRaceOrganiserAsAdmin(db: Database, input: RaceSessionPr
   });
 }
 
-export type RaceClubArchiveResult = Failure | { status: "no-space" | "secret" | "already" | "not-lifted" } | { status: "ok"; view: RaceClubArchiveView };
+export type RaceClubArchiveResult = Failure | { status: "no-space" | "secret" | "already" | "not-lifted" }
+  | { status: "club-full"; quota: MapQuotaExceeded } | { status: "ok"; view: RaceClubArchiveView };
 
 /**
  * Den senast inlästa banfilen (IOF CourseData): "Läs in banfil" (en godkänd banfil, `source_snapshot` med källan COURSE_FILE),
@@ -191,7 +193,8 @@ async function dualAdmin(tx: DbExecutor, input: RaceSessionProof, now: Date) {
  * för `accountId` (administratör i tävlingen och i klubbytan), banhemligheten och tagit låset på tävlingens arkiv.
  */
 export async function liftInTransaction(tx: DbExecutor, input: { raceId: string; clubId: string; accountId: string; now: Date;
-  beforeFinished: boolean; automatic: boolean }): Promise<{ status: "already" } | { status: "lifted"; entryId: string }> {
+  beforeFinished: boolean; automatic: boolean }): Promise<{ status: "already" } | { status: "club-full"; quota: MapQuotaExceeded }
+  | { status: "lifted"; entryId: string }> {
   const { raceId, clubId, accountId, now, beforeFinished, automatic } = input;
   const prior = await liftOf(tx, raceId, clubId);
   if (prior?.entryId) return { status: "already" } as const;
@@ -199,11 +202,34 @@ export async function liftInTransaction(tx: DbExecutor, input: { raceId: string;
   if (prior) await tx.delete(schema.raceClubArchives).where(eq(schema.raceClubArchives.id, prior.lift.id));
   const title = raceTitle(facts.event.name, facts.race.name).slice(0, 200);
 
-  // Kartan: samma innehåll är en version en gång per klubb (ADR-0194 beslut 2); annars en ny version av kartan med samma namn.
   const [source] = await tx.select().from(schema.raceMapSources).where(eq(schema.raceMapSources.raceId, raceId));
   const [agreement] = await tx.select().from(schema.raceMapAgreements).where(eq(schema.raceMapAgreements.raceId, raceId));
   let versionId: string | null = null, createdMapId: string | null = null, createdVersionId: string | null = null;
   const mapName = (agreement?.mapName || (source ? stem(source.fileName) : "") || facts.event.name).slice(0, 120);
+
+  // Banorna: banläggningens dokument som .ppen och IOF XML, annars den senast inlästa banfilen (IOF CourseData).
+  const files: { kind: "PPEN" | "COURSE_DATA"; fileName: string; bytes: Buffer }[] = [];
+  const [courseSetting] = await tx.select({ document: schema.courseSettings.document }).from(schema.courseSettings)
+    .where(eq(schema.courseSettings.raceId, raceId));
+  const note = courseSetting ? withoutMapNote(await coursesWithoutMap(tx, raceId, courseSetting.document as unknown as CourseSettingDocument)) : null;
+  if (courseSetting) {
+    const document = courseSetting.document as unknown as CourseSettingDocument;
+    files.push({ kind: "PPEN", fileName: `${safeName(title)}.ppen`, bytes: Buffer.from(writePpen(document), "utf8") });
+    // Banor utan start och mål (t.ex. bingons grupper) ger ingen giltig IOF XML; då arkiveras bara .ppen (ägaren 2026-11-15).
+    if (hasIofCourses(document)) files.push({ kind: "COURSE_DATA", fileName: `${safeName(title)} IOF.xml`, bytes: Buffer.from(writeIofCourseData(document,
+      { mapBounds: source?.bounds, createTime: now }), "utf8") });
+  } else {
+    const imported = await latestCourseFile(tx, raceId);
+    if (imported) files.push({ kind: "COURSE_DATA", fileName: imported.fileName ?? `${safeName(title)} banor.xml`, bytes: Buffer.from(imported.xml, "utf8") });
+  }
+
+  // PLAN.md steg M7: allt i klubbarkivet räknas mot klubbens gräns (också den automatiska arkiveringen). Kartfilen kostar bara
+  // om den inte redan ligger i klubbens arkiv; tävlingens egen kopia räknas inte en gång till (samma innehåll sparas en gång).
+  const courseBytes = files.reduce((sum, file) => sum + (file.bytes.byteLength > CLUB_ARCHIVE_COURSE_FILE_MAX_BYTES ? 0 : file.bytes.byteLength), 0);
+  const full = await clubArchiveQuotaProblem(tx, clubId, { sha256s: source?.contentSha256 ? [source.contentSha256] : [], newBytes: courseBytes });
+  if (full) return { status: "club-full", quota: full } as const;
+
+  // Kartan: samma innehåll är en version en gång per klubb (ADR-0194 beslut 2); annars en ny version av kartan med samma namn.
   if (source?.contentSha256) {
     const [same] = await tx.select({ id: schema.clubMapVersions.id }).from(schema.clubMapVersions)
       .where(and(eq(schema.clubMapVersions.clubId, clubId), eq(schema.clubMapVersions.contentSha256, source.contentSha256)));
@@ -225,22 +251,6 @@ export async function liftInTransaction(tx: DbExecutor, input: { raceId: string;
         format: source.format, byteLength: source.byteLength, versionDate: facts.race.raceDate, note: `Från tävlingen ${title}`.slice(0, 500),
         uploadedBy: accountId, uploadedAt: now, sourcePath: null });
     }
-  }
-
-  // Banorna: banläggningens dokument som .ppen och IOF XML, annars den senast inlästa banfilen (IOF CourseData).
-  const files: { kind: "PPEN" | "COURSE_DATA"; fileName: string; bytes: Buffer }[] = [];
-  const [courseSetting] = await tx.select({ document: schema.courseSettings.document }).from(schema.courseSettings)
-    .where(eq(schema.courseSettings.raceId, raceId));
-  const note = courseSetting ? withoutMapNote(await coursesWithoutMap(tx, raceId, courseSetting.document as unknown as CourseSettingDocument)) : null;
-  if (courseSetting) {
-    const document = courseSetting.document as unknown as CourseSettingDocument;
-    files.push({ kind: "PPEN", fileName: `${safeName(title)}.ppen`, bytes: Buffer.from(writePpen(document), "utf8") });
-    // Banor utan start och mål (t.ex. bingons grupper) ger ingen giltig IOF XML; då arkiveras bara .ppen (ägaren 2026-11-15).
-    if (hasIofCourses(document)) files.push({ kind: "COURSE_DATA", fileName: `${safeName(title)} IOF.xml`, bytes: Buffer.from(writeIofCourseData(document,
-      { mapBounds: source?.bounds, createTime: now }), "utf8") });
-  } else {
-    const imported = await latestCourseFile(tx, raceId);
-    if (imported) files.push({ kind: "COURSE_DATA", fileName: imported.fileName ?? `${safeName(title)} banor.xml`, bytes: Buffer.from(imported.xml, "utf8") });
   }
 
   // ADR-0222: moment, nivåer och egna ord från terminsplaneringen när träningen skapades ur klubbens plan.
@@ -287,7 +297,7 @@ export async function liftRaceToClubArchive(db: Database, input: RaceSessionProo
     if (!raceFinishedForArchive({ raceDate: facts.race.raceDate, today: localRaceDate(now, facts.event.timeZone), coursesPublic })
       && !parsed.data.confirmSecrecy) return { status: "secret" } as const;
     const lifted = await liftInTransaction(tx, { raceId, clubId, accountId, now, beforeFinished: parsed.data.confirmSecrecy, automatic: false });
-    if (lifted.status === "already") return lifted;
+    if (lifted.status === "already" || lifted.status === "club-full") return lifted;
     return { status: "ok", view: (await view(tx, raceId, accountId, now))! } as const;
   });
 }

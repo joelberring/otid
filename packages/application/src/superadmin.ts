@@ -16,7 +16,7 @@ import { createPasswordResetToken } from "./password-reset";
 import { markAccountEmailVerified } from "./email-verification";
 import { logAction, SERVER_COMMAND_ACTOR } from "./superadmin-log";
 import { purgeRows } from "./purge";
-import { DEFAULT_REGENERABLE_QUOTA_MB, effectiveTotalQuotaBytes, mapStorageQuota, mapStorageUsage } from "./map-content";
+import { DEFAULT_CLUB_MAP_QUOTA_MB, DEFAULT_REGENERABLE_QUOTA_MB, effectiveTotalQuotaBytes, mapStorageQuota, mapStorageUsage } from "./map-content";
 import { DEFAULT_PIN_MAX_MB, defaultCacheMaxMb, readInstallationSettings, writeInstallationSetting } from "./installation-settings";
 import { pinStatus } from "./map-pin";
 import { raceDayNow } from "./map-archive";
@@ -105,7 +105,8 @@ export async function readSuperadminOverview(
           coalesce(a.map_quota_mb::numeric * ${MB}, ${quota.accountBytes}::numeric) as map_limit,
           coalesce(a.geo_tiles_per_month, ${defaultTiles}::int) as tile_limit
         from user_account a
-        left join (select uploaded_by, sum(byte_length) as bytes from map_content where uploaded_by is not null group by uploaded_by) m
+        left join (select uploaded_by, sum(byte_length) as bytes from map_content where uploaded_by is not null
+          and not exists (select 1 from club_map_version v where v.content_sha256 = map_content.sha256) group by uploaded_by) m
           on m.uploaded_by = a.id
         left join (select account_id, sum(jsonb_array_length(request->'tiles')) as tiles from map_project_geo_job
           where created_at >= ${month.toISOString()}::timestamptz and (status = 'QUEUED' or started_at is not null) and ${GEO_JOB_COUNTS}
@@ -119,6 +120,19 @@ export async function readSuperadminOverview(
       where share >= ${SUPERADMIN_NEAR_LIMIT_SHARE} or map_quota_mb is not null or geo_tiles_per_month is not null
         or regenerable_quota_mb is not null
       order by share desc, email limit ${SUPERADMIN_LIST_LIMIT}`)).rows;
+    // PLAN.md steg M7: klubbarna och deras lagring (innehåll som klubbens versioner pekar på, en gång, och banfilerna), närmast
+    // gränsen först. Samma räkning som `clubStorageUsage`.
+    const clubs = (await tx.execute<{ id: string; name: string; map_quota_mb: number | null; bytes: string }>(sql`
+      with u as (
+        select c.id, c.name, c.map_quota_mb,
+          coalesce((select sum(m.byte_length) from map_content m
+            where m.sha256 in (select v.content_sha256 from club_map_version v where v.club_id = c.id)), 0)
+          + coalesce((select sum(f.byte_length) from club_archive_course_file f where f.club_id = c.id), 0) as bytes
+        from club c
+      )
+      select id, name, map_quota_mb, bytes::text as bytes from u
+      order by bytes / (coalesce(map_quota_mb, ${DEFAULT_CLUB_MAP_QUOTA_MB}::int)::numeric * ${MB}) desc, name
+      limit ${SUPERADMIN_LIST_LIMIT}`)).rows;
     const total = await mapStorageUsage(tx, null);
     // ADR-0229: förrådet och mellanlagret.
     const totalLimit = await effectiveTotalQuotaBytes(tx, quota);
@@ -175,7 +189,10 @@ export async function readSuperadminOverview(
           mapLimitBytes: row.map_quota_mb != null ? row.map_quota_mb * MB : quota.accountBytes, mapQuotaMb: row.map_quota_mb,
           geoTilesUsed: row.tiles, geoTilesLimit: row.geo_tiles_per_month ?? defaultTiles, geoTilesPerMonth: row.geo_tiles_per_month,
           regenerableQuotaMb: row.regenerable_quota_mb
-        }))
+        })),
+        defaultClubMapQuotaMb: DEFAULT_CLUB_MAP_QUOTA_MB,
+        clubs: clubs.map(row => ({ clubId: row.id, name: row.name.slice(0, 200), usedBytes: Number(row.bytes),
+          limitBytes: (row.map_quota_mb ?? DEFAULT_CLUB_MAP_QUOTA_MB) * MB, mapQuotaMb: row.map_quota_mb }))
       }
     }) } as const;
   });
@@ -240,6 +257,17 @@ export async function performSuperadminAction(
         + (action.pinMaxMb === undefined ? "" : `, fastspikat ${shown(before.pinMaxMb)} → ${shown(action.pinMaxMb)}`);
       await logAction(tx, { ...actor, action: action.action, targetType: "INSTALLATION", targetId: "00000000-0000-0000-0000-000000000000",
         targetLabel: "Installationen", reason: `${action.reason} (${change})`.slice(0, 500) }, now);
+      return { status: "done", action: action.action };
+    }
+
+    if (action.action === "SET_CLUB_LIMITS") {
+      // PLAN.md steg M7 (ägaren 2026-11-22): klubbens gräns för eget material; null = förvalet. Loggen säger från och till.
+      const [club] = await tx.select().from(schema.clubs).where(eq(schema.clubs.id, action.clubId)).for("update");
+      if (!club) return { status: "not-found" };
+      await tx.update(schema.clubs).set({ mapQuotaMb: action.mapQuotaMb }).where(eq(schema.clubs.id, club.id));
+      const shown = (value: number | null) => value === null ? `förval (${DEFAULT_CLUB_MAP_QUOTA_MB} MB)` : `${value} MB`;
+      await logAction(tx, { ...actor, action: action.action, targetType: "CLUB", targetId: club.id, targetLabel: club.name,
+        reason: `${action.reason} (Lagring ${shown(club.mapQuotaMb)} → ${shown(action.mapQuotaMb)})`.slice(0, 500) }, now);
       return { status: "done", action: action.action };
     }
 

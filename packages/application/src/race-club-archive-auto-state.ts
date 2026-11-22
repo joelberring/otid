@@ -38,7 +38,7 @@ export async function markAutoArchived(tx: DbExecutor, input: { raceId: string; 
 }
 
 /** Varför den automatiska arkiveringen inte gick (visas för administratörerna under Klubben och klubbarkivet). */
-export async function recordAutoArchiveProblem(tx: DbExecutor, input: { raceId: string; problem: "NO_ADMIN" | "FAILED"; now: Date }): Promise<void> {
+export async function recordAutoArchiveProblem(tx: DbExecutor, input: { raceId: string; problem: "NO_ADMIN" | "FAILED" | "CLUB_FULL"; now: Date }): Promise<void> {
   await tx.insert(auto).values({ raceId: input.raceId, problem: input.problem, updatedAt: input.now })
     .onConflictDoUpdate({ target: auto.raceId, set: { problem: input.problem, updatedAt: input.now } });
 }

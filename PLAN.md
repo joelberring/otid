@@ -1541,10 +1541,11 @@ arkivet) blir förrådet för allt kartinnehåll och serverns disk ett mellanlag
 - [ ] M6 Rå laserdata (ägaren 2026-11-22): LAZ sparas aldrig efter körningen. Rutan «Spara även rå laserdata åt mig» före
   körningen lägger en zip i förrådet med en hämtningslänk (försignerad, direkt från förrådet) som gäller 7 dygn, visas i
   körningen och i ett mejl, tas bort automatiskt och räknas inte mot någon kvot. En rad om Lantmäteriets villkor vid rutan.
-- [ ] M7 Klubbarkivet räknas mot klubben (ägaren 2026-11-22): egen kvot per klubb (förval 2 GB eget material), allt i
+- [x] M7 Klubbarkivet räknas mot klubben (ägaren 2026-11-22): egen kvot per klubb (förval 2 GB eget material), allt i
   klubbarkivet (också automatisk arkivering av klara träningar) räknas mot klubben, kopior räknas inte dubbelt (sha256),
   ändringar i en kopia mot det egna kontot. Ledare och administratörer ser klubbens lagring på klubbsidan och får besked vid
-  80 %; superadmin höjer per klubb. Befintligt klubbarkiv byter till klubbens kvot (bara registret).
+  80 %; superadmin höjer per klubb. Befintligt klubbarkiv byter till klubbens kvot (bara registret). Byggt 2026-11-22
+  (migration 0140, tillägg i ADR-0229).
 - [ ] M8 (senare, efter mätning) Direktuppladdning från webbläsaren till förrådet och raster som COG som läses direkt ur
   förrådet med intervallanrop. Underlag: projektets dokument `claude/plan-tungt-direkt-till-arkivet-2026-11-22.md`.
 

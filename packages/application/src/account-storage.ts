@@ -11,12 +11,14 @@ import { authenticateUserAccountSessionForProtectedRead, type UserAccountSession
  * PLAN.md steg L2 (ägaren 2026-11-13): vad kontots kartlagring består av. Kvoten räknar innehåll efter den som laddade upp det
  * (`map_content.uploaded_by`), och samma innehåll sparas en gång, så varje innehåll räknas här till ett enda ställe: först
  * laserkörningen det kom ur, sedan underlaget, resultatet och sist grundfilen (och det lägsta projekt-id:t om flera projekt
- * delar det). Det som inget kartprojekt pekar på är klubbarkivets, tävlingarnas och träningarnas kartor.
+ * delar det). Det som inget kartprojekt pekar på är tävlingarnas och träningarnas kartor. Innehåll i ett klubbarkiv räknas mot
+ * klubben (PLAN.md steg M7) och syns inte här, också när ett eget kartprojekt pekar på det.
  */
 export async function accountStorage(tx: DbExecutor, accountId: string): Promise<AccountStorage> {
   const rows = (await tx.execute<{ project_id: string; name: string; geo: string; layer: string; output: string; base: string; prunable: number;
     last_opened_at: Date | string | null }>(sql`
-    with mine as (select sha256, byte_length from map_content where uploaded_by = ${accountId}::uuid),
+    with mine as (select sha256, byte_length from map_content where uploaded_by = ${accountId}::uuid
+      and not exists (select 1 from club_map_version v where v.content_sha256 = map_content.sha256)),
     refs as (
       select o.content_sha256 as sha, j.project_id as pid, 1 as pri from map_project_geo_output o join map_project_geo_job j on j.id = o.job_id
       union all select content_sha256, project_id, 2 from map_project_layer

@@ -177,8 +177,14 @@ export async function writeMapProjectVersion(db: Database, input: ClubProof & { 
     if (archive && !await mapProjectCanArchive(tx, access.accountId, access.project)) return { status: "forbidden" };
     // Någon hann ändra medan filen skrevs: inget sparas (försök igen så kommer ändringen med).
     if (access.project.seq !== project.seq) return { status: "conflict" };
-    const stored = await storeMapContent(tx, outputBytes, access.accountId, now, mapStorageQuota());
-    if (stored.status === "quota") return refused("QUOTA", "Kvoten för kartfiler är full.");
+    // PLAN.md steg M7: en ny version i klubbarkivet räknas mot klubbens gräns; en egen version mot kontots.
+    const clubId = archive && project.clubId && base.mapId ? project.clubId : undefined;
+    const stored = await storeMapContent(tx, outputBytes, access.accountId, now, mapStorageQuota(), { clubId });
+    if (stored.status === "quota") {
+      return stored.quota.scope === "CLUB"
+        ? refused("CLUB_QUOTA", "Klubbens lagring är full. Ta bort något ur klubbarkivet eller be superadmin höja klubbens gräns.")
+        : refused("QUOTA", "Kvoten för kartfiler är full.");
+    }
     const versionId = archive && project.clubId && base.mapId ? randomUUID() : null;
     if (versionId && project.clubId && base.mapId) {
       await tx.insert(schema.clubMapVersions).values({ id: versionId, clubId: project.clubId, mapId: base.mapId, contentSha256: stored.sha256, fileName,

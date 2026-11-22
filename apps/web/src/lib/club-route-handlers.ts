@@ -478,6 +478,7 @@ export async function clubImportBatchRoute(db: Database, request: Request, clubI
   try { body = await importJson(request); } catch { return importFailure("invalid-request"); }
   return guarded(async () => {
     const result = await importBatch(db, { token, clubId, request: body });
+    if (result.status === "quota") return problem("STORAGE_QUOTA_EXCEEDED", result.quota);
     return result.status === "ok" ? privateJson(result.response) : importFailure(result.status);
   });
 }
@@ -520,6 +521,7 @@ export async function clubWebImportBatchRoute(db: Database, request: Request, cl
   if ("response" in input) return input.response;
   return guarded(async () => {
     const result = await importBatch(db, { session: input.proof, clubId, request: input.body });
+    if (result.status === "quota") return problem("STORAGE_QUOTA_EXCEEDED", result.quota);
     return result.status === "ok" ? privateJson(result.response) : failure(result.status);
   });
 }

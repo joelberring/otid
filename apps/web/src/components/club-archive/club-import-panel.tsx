@@ -64,7 +64,7 @@ export function ClubImportPanel({ club, onChanged }: { club: ClubView; onChanged
     <div className={styles.card}>
       <h2>{text.usageTitle}</h2>
       <p>{clubArchiveText.usage(usage.mapBytes + usage.courseFileBytes, usage.maps, usage.versions, usage.entries)}</p>
-      <p className={styles.small}>{text.quota(club.quota.accountUsedBytes, club.quota.accountLimitBytes)}</p>
+      {club.storage && <p className={styles.small}>{text.quota(club.storage.usedBytes, club.storage.limitBytes)}</p>}
     </div>
     {admin && <details className={`${styles.card} ${styles.cliDetails}`}>
       <summary><h2>{clubWebImportText.cliTitle}</h2></summary>

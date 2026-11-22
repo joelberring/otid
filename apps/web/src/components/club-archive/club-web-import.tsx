@@ -213,7 +213,7 @@ export function ClubWebImport({ club, onChanged }: { club: ClubView; onChanged: 
     {phase.kind === "stopped" && <Notice tone={phase.tone} role="alert">{phase.line}</Notice>}
     {plan && scanned && server && phase.kind !== "reading" && <>
       <ClubImportPreview plan={plan} scanned={scanned.scan.scanned} problems={scanned.problems} server={server}
-        quota={{ used: club.quota.accountUsedBytes, limit: club.quota.accountLimitBytes }} />
+        quota={{ used: club.storage?.usedBytes ?? 0, limit: club.storage?.limitBytes ?? null }} />
       <div className={styles.actions}>
         {phase.kind !== "uploading" && phase.kind !== "checking" && (plan.trainings.length > 0 || plan.maps.length > 0) &&
           <Button onClick={() => void start()}>{phase.kind === "done" ? text.startAgain : text.start}</Button>}

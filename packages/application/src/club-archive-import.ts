@@ -9,7 +9,8 @@ import { schema, type ClubCourseFileSummary, type Database } from "@o-tid/databa
 import { decodeIofXml, parseIofXml } from "@o-tid/iof-xml";
 import { clubJournal, clubMembership, clubRoleAtLeast, requireClubRole, type ClubProof, type ClubTransaction } from "./club-access";
 import { importTokenHash } from "./clubs";
-import { discardStagedMapContent, mapStorageQuota, stageMapContent, storeMapContent, type MapQuotaExceeded, type MapStorageQuota } from "./map-content";
+import { clubArchiveQuotaProblem, discardStagedMapContent, mapStorageQuota, stageMapContent, storeMapContent, type MapQuotaExceeded,
+  type MapStorageQuota } from "./map-content";
 import { mapFileFormatOf } from "./race-map-source";
 import { UUID_PATTERN, sha256Hex } from "./serialization";
 import type { DbExecutor } from "./snapshot";
@@ -122,7 +123,8 @@ export async function importMapContent(db: Database, input: ImportCaller & { clu
       const importer = await authenticateImporter(tx, input, now);
       if (importer.status !== "ok") return importer;
       const existed = (await tx.execute(sql`select 1 from map_content where sha256 = ${staged.sha256}`)).rows.length > 0;
-      const stored = await storeMapContent(tx, staged, importer.accountId, now, input.quota ?? mapStorageQuota());
+      // PLAN.md steg M7: det som importeras till klubbarkivet räknas mot klubbens gräns.
+      const stored = await storeMapContent(tx, staged, importer.accountId, now, input.quota ?? mapStorageQuota(), { clubId: importer.clubId });
       if (stored.status === "quota") return { status: "quota", quota: stored.quota } as const;
       return { status: "ok", response: { formatVersion: 1, sha256: stored.sha256, byteLength: staged.byteLength,
         stored: existed ? "existing" : "new" } } as const;
@@ -183,6 +185,9 @@ async function insertCourseFile(tx: ClubTransaction, input: { clubId: string; en
   now: Date }): Promise<boolean | "invalid"> {
   const bytes = Buffer.from(input.file.contentBase64, "base64");
   if (bytes.byteLength === 0 || bytes.byteLength > CLUB_ARCHIVE_COURSE_FILE_MAX_BYTES || sha256Hex(bytes) !== input.file.sha256) return "invalid";
+  // PLAN.md steg M7: banfilerna räknas också mot klubbens gräns.
+  const full = await clubArchiveQuotaProblem(tx, input.clubId, { newBytes: bytes.byteLength });
+  if (full) throw new QuotaBatch(full);
   const versionId = input.file.mapSha256 ? input.versions.get(input.file.mapSha256) ?? null : null;
   // En karta som klienten löste men som inte finns i klubben räknas som saknad.
   const resolution = versionId ? (input.file.resolution === "NAME" ? "NAME" : "FOLDER")
@@ -195,6 +200,10 @@ async function insertCourseFile(tx: ClubTransaction, input: { clubId: string; en
 }
 
 class InvalidBatch extends Error {}
+/** PLAN.md steg M7: klubbens gräns är nådd; omgången rullas tillbaka. */
+class QuotaBatch extends Error {
+  constructor(readonly quota: MapQuotaExceeded) { super("Klubbens lagring är full"); }
+}
 
 /**
  * Kartornas versioner och träningarna i en omgång, i en transaktion. En karta känns igen på importens nyckel (namnet utan datum
@@ -202,7 +211,7 @@ class InvalidBatch extends Error {}
  * en träning på källans sökväg (en befintlig träning ändras inte, men banfiler och kartor som saknas läggs till).
  */
 export async function importBatch(db: Database, input: ImportCaller & { clubId: string; request: unknown }, now = new Date())
-  : Promise<ImportFailure | { status: "ok"; response: ClubImportBatchResponse }> {
+  : Promise<ImportFailure | { status: "quota"; quota: MapQuotaExceeded } | { status: "ok"; response: ClubImportBatchResponse }> {
   const parsed = clubImportBatchRequestSchema.safeParse(input.request);
   return db.transaction(async tx => {
     const importer = await authenticateImporter(tx, input, now);
@@ -225,6 +234,9 @@ export async function importBatch(db: Database, input: ImportCaller & { clubId: 
       response.missingContent.push(...missing.map(version => version.sha256));
       const toAdd = fresh.filter(version => present.has(version.sha256));
       if (toAdd.length === 0) continue;
+      // PLAN.md steg M7: innehåll som ännu inte ligger i klubbens arkiv byter till klubben och ska rymmas i dess gräns.
+      const full = await clubArchiveQuotaProblem(tx, clubId, { sha256s: toAdd.map(version => version.sha256) });
+      if (full) throw new QuotaBatch(full);
       let [target] = await tx.select({ id: schema.clubMaps.id }).from(schema.clubMaps)
         .where(and(eq(schema.clubMaps.clubId, clubId), eq(schema.clubMaps.importKey, map.importKey))).limit(1);
       if (!target) {
@@ -273,6 +285,7 @@ export async function importBatch(db: Database, input: ImportCaller & { clubId: 
     return { status: "ok", response } as const;
   }).catch((error: unknown) => {
     if (error instanceof InvalidBatch) return { status: "invalid-request" } as const;
+    if (error instanceof QuotaBatch) return { status: "quota", quota: error.quota } as const;
     throw error;
   });
 }

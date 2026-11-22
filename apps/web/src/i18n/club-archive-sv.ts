@@ -229,7 +229,7 @@ export const clubArchiveSv = {
     duplicate: "Den filen finns redan i arkivet.",
     tooLarge: "Kartfilen är större än 75 MB.",
     invalid: "Filen ser inte ut som en OCAD- eller Mapper-karta.",
-    quota: (used: number, limit: number) => `Lagringen är full (${used} av ${limit} MB). Ta bort gamla kartor eller be serverns ägare höja gränsen.`,
+    quota: (used: number, limit: number) => `Klubbens lagring är full (${used} av ${limit} MB). Ta bort gamla kartor ur klubbarkivet eller be superadmin höja klubbens gräns.`,
     toGroup: "Lägg i gruppens kartbibliotek",
     toGroupHelp: "Senaste versionen ritas och läggs i gruppens kartbibliotek med kartans rättigheter. Finns kartan redan där byts den mot den senaste versionen.",
     toGroupButton: (name: string) => `Lägg i ${name}`,
@@ -256,8 +256,8 @@ export const clubArchiveSv = {
   importer: {
     help: "Importen körs på din dator och skickar kartfilerna och banfilerna direkt till den här servern. PDF, Word, Excel, bilder och annat läses aldrig och skickas aldrig.",
     usageTitle: "Arkivets storlek",
-    quota: (used: number, limit: number | null) => limit === null ? `Dina uppladdade kartor: ${mb(used)} (ingen gräns).`
-      : `Dina uppladdade kartor: ${mb(used)} av ${mb(limit)}.`,
+    quota: (used: number, limit: number | null) => limit === null ? `Klubbens lagring: ${mb(used)} (ingen gräns).`
+      : `Klubbens lagring: ${mb(used)} av ${mb(limit)}. Allt i klubbarkivet räknas mot klubben, inte mot den som laddar upp.`,
     step1: "1. Hämta O-Tid till datorn (git clone) och kör pnpm install en gång.",
     step2: "2. Provkör: inget skickas, rapporten visar vad som skulle importeras.",
     step3: "3. Skapa en importnyckel här och kör importen. Nyckeln gäller i 12 timmar och visas bara en gång.",

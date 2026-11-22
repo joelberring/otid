@@ -12,7 +12,7 @@ import { withDerivedClubs } from "./club-affiliation-access";
 import { pendingClubAffiliations } from "./club-affiliations";
 import { clubSourcedInContext } from "./club-invite";
 import { deliverPrepared, invitationSentTimes, prepareIfMail, replayedOutcome, type InvitationMailer } from "./invitation-links";
-import { accountMapQuotaBytes, mapStorageUsage } from "./map-content";
+import { clubStorage } from "./club-storage";
 import { UUID_PATTERN } from "./serialization";
 import { authenticateUserAccountSessionForMutation, authenticateUserAccountSessionForProtectedRead } from "./user-account";
 import type { DbExecutor } from "./snapshot";
@@ -108,8 +108,6 @@ async function clubView(tx: ClubTransaction, clubId: string, viewer: { accountId
     createdByName: schema.userAccounts.displayName }).from(schema.clubImportTokens)
     .innerJoin(schema.userAccounts, eq(schema.userAccounts.id, schema.clubImportTokens.accountId))
     .where(eq(schema.clubImportTokens.clubId, clubId)).orderBy(desc(schema.clubImportTokens.createdAt)).limit(20) : [];
-  const accountLimitBytes = await accountMapQuotaBytes(tx, viewer.accountId);
-  const used = await mapStorageUsage(tx, viewer.accountId);
   const fromClub = await clubSourcedInContext(tx, "CLUB", clubId);
   const [linked] = await tx.select({ name: schema.organisations.name }).from(schema.clubSettings)
     .innerJoin(schema.organisations, eq(schema.organisations.id, schema.clubSettings.organisationId)).where(eq(schema.clubSettings.clubId, clubId));
@@ -123,7 +121,8 @@ async function clubView(tx: ClubTransaction, clubId: string, viewer: { accountId
     usage: await clubUsage(tx, clubId),
     tokens: tokens.map(row => ({ ...row, createdAt: row.createdAt.toISOString(), expiresAt: row.expiresAt.toISOString(),
       revokedAt: row.revokedAt?.toISOString() ?? null, lastUsedAt: row.lastUsedAt?.toISOString() ?? null })),
-    quota: { accountLimitBytes, accountUsedBytes: used.accountBytes }
+    // PLAN.md steg M7: klubbens lagring syns för ledare och uppåt.
+    storage: clubRoleAtLeast(viewer.role, "LEADER") ? await clubStorage(tx, clubId) : null
   };
 }
 

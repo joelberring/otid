@@ -41,6 +41,18 @@
 .form > button { justify-self: start; min-height: 44px; padding-inline: 20px; }
 .loginPanel .form > button { justify-self: stretch; }
 .loginPanel { width: 100%; }
+/* Ägaren 2026-11-22: formuläret och rutan om kontot; i mobilen rutan under, på datorn till vänster om formuläret. */
+.loginLayout { display: grid; gap: 1rem; align-items: start; justify-content: center; grid-template-columns: minmax(0, 32rem); }
+.loginLayout > .loginPanel { margin-inline: 0; }
+.benefits h2 { margin: 0 0 .5rem; }
+.benefits h3 { margin: .9rem 0 .35rem; font-size: var(--text-md, 1rem); font-weight: 600; }
+.benefits p { margin: 0 0 .5rem; }
+.benefits .benefitsTip { margin-top: .9rem; padding: .6rem .75rem; border-left: 3px solid var(--accent, #8e2a80); background: var(--bg-soft, rgba(0,0,0,.03)); }
+.benefits ul { margin: 0; padding-left: 1.2rem; display: grid; gap: .3rem; }
+@media (min-width: 900px) {
+  .loginLayout { grid-template-columns: minmax(0, 22rem) minmax(0, 32rem); }
+  .benefits { order: -1; }
+}
 .loginMessage { margin: 0; color: var(--muted); overflow-wrap: anywhere; }
 .loginMessage[role="alert"] { color: var(--mp); }
 .loginLinks { display: flex; flex-wrap: wrap; gap: .2rem .8rem; margin-top: .65rem; padding-top: .4rem; border-top: 1px solid var(--line); }

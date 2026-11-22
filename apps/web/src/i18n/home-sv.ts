@@ -15,7 +15,9 @@ export const homeSv = {
   organizerTitle: "Ett nytt system för orientering",
   organizerText: "O-Tid håller ihop kartritning, banläggning, sekretariat och klubbens träningar. Gratis, i datorn och i mobilen.",
   organizerFilm: "Se filmen",
-  organizerStart: "Kom igång som arrangör",
+  organizerStart: "Skapa konto eller logga in",
+  /** Ägaren 2026-11-22: "arrangör" avskräckte; kontot är för alla som gör något i O-Tid. */
+  organizerStartHint: "Gratis. För banläggare, kartritare, ledare och arrangörer.",
   personalTitle: "Ditt O-Tid",
   myRaces: "Mitt O-Tid",
   clubs: "Klubbar",

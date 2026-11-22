@@ -96,7 +96,7 @@ test("startsidan: gå med med kod eller adress, okänd kod och arrangörens väg
   // Arrangörens väg.
   await web.setViewportSize({ width: 1280, height: 900 });
   await web.goto("/");
-  await expect(web.getByTestId("home-organizer").getByRole("link", { name: "Kom igång som arrangör" })).toHaveAttribute("href", "/organizer");
+  await expect(web.getByTestId("home-organizer").getByRole("link", { name: "Skapa konto eller logga in" })).toHaveAttribute("href", "/organizer");
   await expect(web.getByTestId("home-features")).toHaveCount(0);
   await expect(web.getByRole("heading", { name: "Så är O-Tid byggt" })).toHaveCount(0);
   await web.goto("/om");

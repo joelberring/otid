@@ -40,7 +40,7 @@ const RECENT_FIRST = 8;
 
 /**
  * Startsidan för besökare (ADR-0172 beslut 4, skissen F3 2026-11-21). Överst rubriken, ingressen, sökningen (sidans enda
- * mörka knapp), "Kom igång som arrangör" för den som inte är inloggad och "Har du en kod?" bara i appen (översynen 2026-11-17,
+ * mörka knapp), "Skapa konto eller logga in" för den som inte är inloggad och "Har du en kod?" bara i appen (översynen 2026-11-17,
  * `/kod`); till höger veckans målning hel med bildtext och länk till konstnären (ägarens önskemål 2026-11-12). Under det brett
  * till vänster Pågår nu (tävlingsdagen i tävlingens tidszon), Kommande och Genomförda – ett tomt avsnitt visas inte – och för
  * den inloggade "Ditt O-Tid"; smalt till höger Nytt i O-Tid (ADR-0230), filmerna och demon. På smal skärm i ordningen sökningen,

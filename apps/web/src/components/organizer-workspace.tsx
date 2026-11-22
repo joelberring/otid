@@ -51,6 +51,7 @@ import { raceListName } from "../lib/race-list-name";
 import { MyPlacesStrip } from "./my-places-strip";
 import { MyPlanTasks } from "./club-planning/my-plan-tasks";
 import { AccountMenu } from "./account-menu";
+import { AccountBenefits } from "./account-benefits";
 import { applyClubMap, ClubMapChoiceField, type ClubMapChoice } from "./club-archive/club-map-picker";
 import { OrganiserChoiceField } from "./club-affiliation/organiser-choice-field";
 import { clubLeadersSv } from "../i18n/club-leaders-sv";
@@ -510,6 +511,8 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
     {!sessionChecked && <section className={styles.panel} aria-live="polite"><p>{copy.checkSession}</p></section>}
     {session?.emailVerified === false && <section className={styles.panel} data-testid="unverified-email"><p>{copy.unverifiedNotice}</p></section>}
 
+    {/* Ägaren 2026-11-22: rutan om vad ett konto ger står bredvid formuläret (under det i mobilen). */}
+    {sessionChecked && !session && <div className={styles.loginLayout}>
     {sessionChecked && !session && mode === "login" && <section className={`${styles.panel} ${styles.narrow} ${styles.loginPanel}`}>
       <h2>{copy.login}</h2>
       <p className={styles.muted}>{copy.loginHint}</p>
@@ -556,6 +559,8 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
         <button type="button" className={styles.secondary} onClick={() => { setMode("login"); setMessage(""); setRepeat(""); }}>{copy.toLogin}</button>
       </nav>
     </section>}
+    <AccountBenefits />
+    </div>}
 
     {/* ADR-0209: "Vilken klubb tillhör du?" efter registreringen (valfritt, tills det är besvarat). */}
     {/* Användartest 2026-11-12: klubbfrågan bara för den som inte redan är med i en klubbyta, och remsan upprepar den inte. */}

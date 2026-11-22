@@ -32,6 +32,15 @@ const FILL_ROUGH_MS = 200;
 export const FILL_WINDOW_M = 150;
 /** Flest sträckor i fönstret; blir det fler halveras fönstret. */
 const MAX_SEGMENTS = 40_000;
+/**
+ * Ägaren 2026-11-22 («går det att ändra så att större ytor fylls med magisk fyll?», havet runt öarna på Kungshatt): ett klick
+ * på en yta som inte är sluten inom `FILL_WINDOW_M` prövar större fönster i tur och ordning (m åt varje håll), exakt och med
+ * Glapp. Landformerna (höjdkurvorna) är inga gränser, så också en stor karta har få sträckor; ett fönster med fler än
+ * `MAX_LARGE_SEGMENTS` hoppas över. Kartans ram (990) är en gräns, så havet innanför ramen sluts.
+ */
+export const FILL_LARGE_WINDOWS_M = [500, 1500, 5000] as const;
+const MAX_LARGE_SEGMENTS = 250_000;
+const FILL_LARGE_BRIDGE_MS = 1500;
 /** Fönstrets ram som gränslinje: en ruta som har den i sin gräns når fönstrets kant och är inte sluten. */
 export const FILL_FRAME = "#fönster";
 
@@ -178,6 +187,25 @@ function roughFill(input: FillInput, hidden: ReadonlySet<string>, point: Point, 
   return result.status === "found" ? { rings: [result.outer, ...result.holes], areaM2: result.area / (mmPerM * mmPerM) } : undefined;
 }
 
+/** En stor yta: fönstren i `FILL_LARGE_WINDOWS_M`, först exakt och sedan med Glapp (`gap`, kartans mm). */
+function largeFill(input: FillInput, hidden: ReadonlySet<string>, point: Point, tolerance: number, gap: number | undefined)
+  : { face: Face; bridges?: FacesResult["bridges"] } | undefined {
+  const mmPerM = 1000 / input.scale;
+  for (const sizeM of FILL_LARGE_WINDOWS_M) {
+    const half = sizeM * mmPerM, box = { minX: point.x - half, minY: point.y - half, maxX: point.x + half, maxY: point.y + half };
+    const stages = fillStages(input, hidden, box, tolerance, MAX_LARGE_SEGMENTS);
+    if (!stages) return undefined;
+    const face = closedFaceAt(stages, point);
+    if (face) return { face };
+    if (gap !== undefined && gap > tolerance) {
+      const wider = stages.bridged(gap, performance.now() + FILL_LARGE_BRIDGE_MS);
+      const bridged = wider && closedFaceAt(wider, point);
+      if (wider && bridged && withinBridgeShare(bridged)) return { face: bridged, bridges: wider.bridges };
+    }
+  }
+  return undefined;
+}
+
 /** Ringen utan punkter som ligger mitt på en rak sträcka (noderna där andra linjer ansluter). */
 export function withoutStraightPoints(ring: readonly Point[]): Point[] {
   const out: Point[] = [];
@@ -230,6 +258,13 @@ export function fillFinder(): (input: FillInput, query: FillQuery) => FillResult
       }
     }
     if (!query.diagnose) return { status: "open", gaps: [] };
+    const large = largeFill(input, hidden, point, tolerance, query.exact ? undefined : gapM * mmPerM);
+    if (large) {
+      return found(large.face, large.bridges ? large.face.bridges.map(index => {
+        const { kind, pieces } = large.bridges![index]!;
+        return { kind, pieces: pieces.map(piece => [piece.a, piece.b] as const), lengthsM: pieces.map(piece => piece.length / mmPerM) };
+      }) : []);
+    }
     const rough = query.exact ? undefined : roughFill(input, hidden, point, gapM);
     if (rough) return { status: "found", rings: rough.rings, areaM2: rough.areaM2, closed: 0, bridges: [], approx: true, covered };
     // Var är öppningen? Pröva med större tolerans: blir ytan sluten då är de långa slutningsbitarna öppningarna.

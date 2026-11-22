@@ -6,7 +6,7 @@ import { newKey } from "@o-tid/map-revision";
 import { mapProjectFillEn } from "../../i18n/map-project-fill-en";
 import { mapProjectFillSv } from "../../i18n/map-project-fill-sv";
 import { toScreen, type Viewport } from "../../lib/course-setting-viewport";
-import { FILL_BRIDGE_M, FILL_GAP_M, FILL_WINDOW_M, fillObject, type FillBridge, type FillResult } from "../../lib/map-project-fill-area";
+import { FILL_BRIDGE_M, FILL_GAP_M, FILL_LARGE_WINDOWS_M, fillObject, type FillBridge, type FillResult } from "../../lib/map-project-fill-area";
 import type { CatalogSymbol, MapProjectSession, ProjectHit } from "../../lib/map-project-protocol";
 import { useLocale, useTexts } from "../language-provider";
 import { useMapProjectAreaProposals } from "./use-map-project-area-proposals";
@@ -126,7 +126,7 @@ export function useMapProjectFill(input: { session: MapProjectSession | undefine
       setPreview(undefined); setBridges([]); setPending(undefined);
       if (result.status === "open") {
         setGaps(result.gaps);
-        input.say(result.gaps.length ? text.openGap(exact ? FILL_GAP_M : Math.max(FILL_GAP_M, gapM), result.gaps.length) : text.openFar(FILL_WINDOW_M));
+        input.say(result.gaps.length ? text.openGap(exact ? FILL_GAP_M : Math.max(FILL_GAP_M, gapM), result.gaps.length) : text.openFar(FILL_LARGE_WINDOWS_M[FILL_LARGE_WINDOWS_M.length - 1]!));
         return;
       }
       setGaps([]);

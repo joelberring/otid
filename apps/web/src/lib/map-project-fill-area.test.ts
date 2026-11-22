@@ -35,6 +35,20 @@ describe("Fyll yta", () => {
     expect(inHouse.status === "found" && inHouse.areaM2).toBeCloseTo(64, 6);
   });
 
+  it("ägaren 2026-11-22: ett klick fyller också stora ytor, t.ex. havet runt en ö inom kartans ram", () => {
+    // En ram 2 × 2 km (500 × 500 mm i 1:4 000) med en ö 40 × 40 m mitt i, och höjdkurvor som inte är gränser.
+    const frame = [line("kant", -250, -250, 250, -250), line("kant", 250, -250, 250, 250), line("kant", 250, 250, -250, 250), line("kant", -250, 250, -250, -250)];
+    const island = [line("kant", 0, 0, 10, 0), line("kant", 10, 0, 10, 10), line("kant", 10, 10, 0, 10), line("kant", 0, 10, 0, 0)];
+    const objects = [...frame, ...island, line("kurva", -200, -200, 200, 200)];
+    const sea = ask(objects, -100, 100);
+    expect(sea.status).toBe("found");
+    if (sea.status !== "found") return;
+    expect(sea.rings).toHaveLength(2);
+    expect(sea.areaM2).toBeCloseTo(2000 * 2000 - 1600, 0);
+    // Pekaren som bara hovrar räknar inte de stora fönstren.
+    expect(ask(objects, -100, 100, [], false).status).toBe("open");
+  });
+
   it("sluter glapp upp till 2 m i terrängen och säger hur många", () => {
     // Staketet slutar 0,4 mm (1,6 m) före kanten.
     const result = ask([...block, line("staket", 7, 0, 7, 9.6)], 8, 5);
@@ -128,8 +142,10 @@ describe("Fyll yta", () => {
 
   it("utan gräns inom fönstret: inte sluten och ingen öppning att peka på", () => {
     expect(ask([line("kant", 0, 0, 10, 0)], 5, 5)).toEqual({ status: "open", gaps: [] });
-    // En ruta som är större än fönstret når dess kant.
-    expect(ask([line("kant", -50, -50, 50, -50, 50, 50, -50, 50, -50, -50)], 0, 0)).toEqual({ status: "open", gaps: [] });
+    // En ruta som är större än det första fönstret (150 m) fylls med de större fönstren (ägaren 2026-11-22) …
+    expect(ask([line("kant", -50, -50, 50, -50, 50, 50, -50, 50, -50, -50)], 0, 0)).toMatchObject({ status: "found", areaM2: 400 * 400 });
+    // … men en som är större än det största (5 km åt varje håll) når dess kant.
+    expect(ask([line("kant", -1500, -1500, 1500, -1500, 1500, 1500, -1500, 1500, -1500, -1500)], 0, 0)).toEqual({ status: "open", gaps: [] });
   });
 
   it("höjdkurvor, nordlinjer och släckta symboler är inga gränser", () => {

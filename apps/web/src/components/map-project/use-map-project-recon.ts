@@ -81,6 +81,8 @@ export function useMapProjectRecon(input: { view: MapProjectView; session: MapPr
   const flushAgain = useRef(false);
   /** Spår som avslutats i den här sidan men ännu inte kvitterats: deras färska läge får aldrig skrivas över av ett flush som började före stoppet. */
   const endedRef = useRef(new Map<string, LocalTrack>());
+  /** Tomma spår som kastats vid stopp: ett flush som redan höll på att skapa dem på servern får inte återuppliva dem i telefonen. */
+  const discardedRef = useRef(new Set<string>());
   /** Det färskaste läget för spåret (pågående inspelning eller nyss avslutat) med det som skickats hittills. */
   const freshest = (track: LocalTrack): LocalTrack => {
     const live = recordingRef.current?.trackId === track.trackId ? recordingRef.current : endedRef.current.get(track.trackId);
@@ -114,6 +116,15 @@ export function useMapProjectRecon(input: { view: MapProjectView; session: MapPr
             points: track.parts[seq], ...(last ? { endedAt: track.endedAt } : {}) });
           if (sent.status !== 200) { track = { ...track, problem: sent.status }; break; }
           track = { ...track, sent: seq + 1, problem: undefined };
+        }
+        if (discardedRef.current.has(track.trackId)) {
+          if (track.created) {
+            const removed = await clubRequest(`${base}/tracks/${encodeURIComponent(track.trackId)}`, "DELETE");
+            if (removed.status !== 200 && removed.status !== 404) { await putLocalTrack({ ...track, problem: removed.status }); continue; }
+          }
+          discardedRef.current.delete(track.trackId);
+          await deleteLocalTrack(track.trackId);
+          continue;
         }
         // Inspelningen kan ha fått nya punkter (eller ha stoppats) under tiden: dess eget läge vinner, med det som skickats.
         if (recordingRef.current?.trackId === track.trackId) {
@@ -186,7 +197,7 @@ export function useMapProjectRecon(input: { view: MapProjectView; session: MapPr
     recordingRef.current = undefined;
     setRecording(undefined);
     const ended = closeParts({ ...track, endedAt: new Date().toISOString() }, true);
-    if (ended.parts.length === 0 && !ended.created) { await deleteLocalTrack(ended.trackId).catch(() => undefined); await loadLocal(); return; }
+    if (ended.parts.length === 0 && !ended.created) { discardedRef.current.add(ended.trackId); await deleteLocalTrack(ended.trackId).catch(() => undefined); await loadLocal(); return; }
     endedRef.current.set(ended.trackId, ended);
     await putLocalTrack(ended).catch(() => setProblem("noStore"));
     await flush();

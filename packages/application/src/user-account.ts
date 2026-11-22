@@ -224,6 +224,18 @@ export async function revokeAllUserAccountSessions(tx: DbExecutor, accountId: st
   return sessions.length;
 }
 
+/**
+ * Granskningen 3.4: återkallar kontots AI-kopplingar (30 dagars förnyelsenycklar till /api/mcp) och koder som inte lösts in.
+ * Anropas när lösenordet återställs eller byts och vid "Logga ut från alla enheter"; annars behåller den som tagit över kontot
+ * sin åtkomst. (Inte vid Google-koppling eller bekräftad adress, där kontots ägare är densamma.)
+ */
+export async function revokeAllUserAccountOauthGrants(tx: DbExecutor, accountId: string, now: Date): Promise<void> {
+  await tx.update(schema.oauthGrants).set({ revokedAt: now })
+    .where(and(eq(schema.oauthGrants.accountId, accountId), isNull(schema.oauthGrants.revokedAt)));
+  await tx.update(schema.oauthCodes).set({ usedAt: now })
+    .where(and(eq(schema.oauthCodes.accountId, accountId), isNull(schema.oauthCodes.usedAt)));
+}
+
 export type UserAccountRegistrationResult =
   | { status: "invalid-request" | "conflict" | "rate-limited" }
   | Extract<UserAccountLoginResult, { status: "authenticated" }>;
@@ -364,6 +376,7 @@ export async function logoutAllUserAccountSessions(
   return db.transaction(async (tx) => {
     const auth = await authenticateUserAccountSessionForMutation(tx, { ...proof, requireCsrf: true }, at);
     if (auth.status !== "authenticated") return auth;
+    await revokeAllUserAccountOauthGrants(tx, auth.principal.accountId, at);
     return { status: "logged-out", sessions: await revokeAllUserAccountSessions(tx, auth.principal.accountId, at, "USER_LOGOUT_ALL") } as const;
   });
 }
@@ -445,6 +458,18 @@ export async function authenticateUserAccountSession(
   now = new Date()
 ): Promise<UserAccountAuthenticationResult> {
   return db.transaction((tx) => authorizeUserAccountSession(tx, proof, validDate(now), "share"));
+}
+
+/**
+ * Prövar sessionen och CSRF-paret mot databasen innan en stor kropp (kartfil, säkerhetskopia) läses: en ogiltig kaka eller
+ * en gissad CSRF-rubrik ska ge 401/403 utan att något skrivits till databasen eller disken. Spärrar ingenting (läser bara).
+ */
+export async function authenticateAccountSessionForWrite(
+  db: Database,
+  proof: UserAccountSessionProof,
+  now = new Date()
+): Promise<UserAccountAuthenticationResult> {
+  return authenticateUserAccountSession(db, { ...proof, requireCsrf: true }, now);
 }
 
 export async function authenticateUserAccountSessionForMutation(

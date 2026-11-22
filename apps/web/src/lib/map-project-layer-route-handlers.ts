@@ -4,7 +4,7 @@ import {
 } from "@o-tid/application";
 import { MAP_PROJECT_LAYER_MAX_BYTES, UUID_PATTERN } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
-import { failure, guarded, headerText, mutation, problem, readProof, streamChunks, type ClubEnvironment } from "./club-route-handlers";
+import { failure, guarded, headerText, mutation, problem, readProof, requireStreamSession, streamChunks, type ClubEnvironment } from "./club-route-handlers";
 import { privateHeaders, privateJson, validDeclaredLength } from "./security-policy";
 import { logServerError } from "./server-error-log";
 
@@ -40,6 +40,8 @@ export async function mapProjectLayersRoute(db: Database, request: Request, proj
   const layer = layerHeader(request) as { crs?: unknown; transform?: unknown } | undefined;
   const metadata = { formatVersion: 1, requestId: headerText(request, "x-otid-request-id", 64) ?? "", name: headerText(request, "x-otid-name", 80) ?? "",
     crs: layer?.crs, transform: layer?.transform };
+  const unauthenticated = await requireStreamSession(db, input.proof);
+  if (unauthenticated) return unauthenticated;
   const body = request.body;
   return guarded(async () => {
     const staged = await stageMapContent(db, streamChunks(body), { maxBytes: MAP_PROJECT_LAYER_MAX_BYTES });

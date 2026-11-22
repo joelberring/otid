@@ -1,5 +1,5 @@
 import {
-  bearerToken, createClub, createClubImportToken, deleteClubArchiveEntry, discardStagedMapContent, importBatch, importCheck, importMapContent, importTokenClub,
+  authenticateAccountSessionForWrite, bearerToken, createClub, createClubImportToken, deleteClubArchiveEntry, discardStagedMapContent, importBatch, importCheck, importMapContent, importTokenClub,
   inviteClubMember, listMyClubs, moveClubMapVersion, readClub, readClubArchive, readClubArchiveEntry, readClubCourseFile,
   readClubMapVersionHead, removeClubMember, revokeClubImportToken, saveClubMapToGroupLibrary, saveClubMapVersionToRace, setClubCourseFileMap,
   setClubAccessSettings, setClubMemberRole, stageMapContent, streamMapContentParts, updateClubArchiveEntry, updateClubMap, updateClubMapVersion, uploadClubMapVersion,
@@ -66,6 +66,23 @@ export async function mutation(request: Request, environment: Environment, body:
     try { parsed = await readJsonBody(request, maxBytes); } catch { return { response: accountFailure(400, "INVALID_REQUEST") }; }
   } else if (body === "none" && !await hasNoRequestBody(request)) return { response: accountFailure(400, "INVALID_REQUEST") };
   return { body: parsed, proof };
+}
+
+/**
+ * Prövar sessionen och CSRF mot databasen innan en stor kropp börjar läsas (efter de billiga kontrollerna av rubrikerna): utan
+ * det kunde vem som helst med en påhittad kaka få webben att skriva en hel kartfil till databasen eller disken före 401
+ * (granskningen 3.1). Ger svaret att skicka, eller undefined när sessionen gäller.
+ */
+export async function requireStreamSession(db: Database, proof: Proof): Promise<Response | undefined> {
+  try {
+    const auth = await authenticateAccountSessionForWrite(db, proof);
+    if (auth.status === "unauthorized") return accountFailure(401, "UNAUTHORIZED");
+    if (auth.status === "forbidden") return accountFailure(403, "FORBIDDEN");
+    return undefined;
+  } catch (error) {
+    logServerError("club", "requireStreamSession", error);
+    return accountFailure(500, "INTERNAL_ERROR");
+  }
 }
 
 export async function readProof(request: Request, environment: Environment): Promise<{ response: Response } | { proof: Proof }> {
@@ -386,6 +403,8 @@ export async function clubMapVersionTargetRoute(db: Database, request: Request, 
   if (!validId(targetId)) return failure("invalid-request");
   const input = await mutation(request, environment, "stream");
   if ("response" in input) return input.response;
+  const unauthenticated = await requireStreamSession(db, input.proof);
+  if (unauthenticated) return unauthenticated;
   return guarded(async () => {
     const rendered = await renderedMap(db, request);
     if (rendered instanceof Response) return rendered;

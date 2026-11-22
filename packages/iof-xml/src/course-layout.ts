@@ -65,7 +65,8 @@ export interface CourseLayoutImport {
   readonly classes: readonly CourseLayoutClass[];
 }
 
-const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_", parseTagValue: false, processEntities: false, trimValues: true });
+const FORBIDDEN_DECLARATION_PATTERN = /<!\s*(?:DTD|DOCTYPE|ENTITY)\b/i;
+const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_", parseTagValue: false, processEntities: true, htmlEntities: true, trimValues: true });
 
 function mapPosition(value: unknown): MapPositionImport | undefined {
   const position = record(value);
@@ -197,6 +198,8 @@ function readV2(root: XmlRecord): CourseLayoutImport {
  * `IofValidationError` om roten inte är CourseData.
  */
 export function readCourseLayoutXml(xml: string): CourseLayoutImport {
+  // Entiteter avkodas (&amp;), så deklarationer som kan definiera egna avvisas före tolkningen, också när funktionen anropas direkt.
+  if (FORBIDDEN_DECLARATION_PATTERN.test(xml)) throw new IofValidationError(["DTD, DOCTYPE och ENTITY-deklarationer stöds inte"]);
   const document = record(parser.parse(xml));
   if (!document.CourseData) throw new IofValidationError(["Roten måste vara CourseData"]);
   const root = record(document.CourseData);

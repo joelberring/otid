@@ -1,4 +1,5 @@
 import { geodeticToGrid, gridToGeodetic, transverseMercatorFor } from "@o-tid/map-file";
+import { waterToFrame, withoutDuplicateWater } from "./water-frame";
 import { smoothWater } from "./water-smooth";
 import { isSprintNorm, joinSeams, type MapBox, type MapNorm, type SourceData, type SourceFeature } from "../index";
 import { snapPathsToTracks, tracksOffFields } from "./path-snap";
@@ -175,7 +176,11 @@ export function mergeBaseMap(parts: readonly { readonly name: string; readonly d
   const contours = new Set<SourceFeature>();
   // Ägaren 2026-11-13 («strandlinjer blir väldigt hackiga»): vattnets rasterkant jämnas ut innan stranden dras.
   const extent = extentOf(parts.flatMap(part => part.data.features));
-  const joined = parts.map(part => {
+  // Ägaren 2026-11-22 («dubbla linjer kring alla öar»): marktäckets vatten bara där lasern inte redan har vattnet (water-frame.ts).
+  const laserWater = parts.find(part => part.name === "vatten.geojson")?.data.features ?? [];
+  const deduplicated = parts.map(part => part.name !== "marktacke.geojson" || laserWater.length === 0 ? part
+    : { ...part, data: { ...part.data, features: withoutDuplicateWater(part.data.features, laserWater, extent) } });
+  const joined = deduplicated.map(part => {
     if (part.data.features.some(feature => feature.layer === "vatten")) part = { ...part, data: { ...part.data, features: smoothWater(part.data.features, extent) } };
     if (part.name === LASER_PAVED_FILE) return { ...part, data: { ...part.data, features: laserPavedAreas(part.data.features) } };
     if (!/^(kurvor|formlinjer)\.dxf$/.test(part.name)) return part;
@@ -219,6 +224,8 @@ export function mergeBaseMap(parts: readonly { readonly name: string; readonly d
   // Ägaren 2026-11-15: inga gropar mitt i sankmark (`marsh-pits.ts`).
   const single = withoutMarshPits(undergrowthOutsideGreen(dryless ? dryless.features : marsh).features).features;
   const yarded = semiOpenOutsideYards([...single, ...yardsOf(single)]);
-  return { features: [...yarded, ...shoreLines(single)], skipped: parts.reduce((sum, part) => sum + part.data.skipped, 0) + (osm?.skipped ?? 0),
+  // Ägaren 2026-11-22: vattnet som körningens kant skär av fortsätter ut till kartans ram (klipps till kartans område sedan);
+  // strandlinjen dras bara längs laserns strand.
+  return { features: [...waterToFrame(yarded, extent), ...shoreLines(single)], skipped: parts.reduce((sum, part) => sum + part.data.skipped, 0) + (osm?.skipped ?? 0),
     crs: SWEREF99TM };
 }

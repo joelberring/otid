@@ -334,7 +334,9 @@ services:
     image: *web-image
     restart: unless-stopped
     cpu_shares: 64
-    mem_limit: 640m
+    # Föräldern (96 MB heap) + utskriftsbarnet (256 MB) + kartjobbsbarnet (256 MB, 512 MB för COURSE_LEVEL/BASE_MAP) körs
+    # samtidigt, plus canvasens minne utanför heapen. 640m räckte inte för det värsta fallet.
+    mem_limit: 1024m
     depends_on:
       migrate:
         condition: service_completed_successfully

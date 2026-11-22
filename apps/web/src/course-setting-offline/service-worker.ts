@@ -52,6 +52,9 @@ let currentStatic = new Set<string>();
 
 /** Full lagring: äldre byggens hashade filer tas bort (de som inte hör till senaste bygget) för att få plats. */
 async function pruneStatic(cache: Cache, keep: string): Promise<void> {
+  // Listan ligger bara i minnet och töms när webbläsaren vilar service workern: utan en färsk lista vet vi inte vad som gäller,
+  // och då får inget tas bort (annars rensas hela offline-skalet).
+  if (currentStatic.size === 0) return;
   for (const request of await cache.keys()) {
     const url = new URL(request.url);
     if (isStatic(url) && request.url !== keep && !currentStatic.has(url.pathname + url.search)) await cache.delete(request);
@@ -131,6 +134,10 @@ worker.addEventListener("message", event => {
         const response = await fetch(url.href, { credentials: "same-origin", cache: page ? "no-store" : "default" });
         if (await store(page ? pageKey(url) : url.href, response, page)) saved += 1; else failed += 1;
       } catch { failed += 1; }
+    }
+    // Listan är färsk och allt sparades: äldre byggens filer behövs inte längre (och får inte ligga kvar tills lagringen tryter).
+    if (failed === 0 && currentStatic.size > 0) {
+      try { await pruneStatic(await caches.open(CACHE), ""); } catch (error) { console.error("Service workern kunde inte rensa äldre filer", error); }
     }
     reply?.postMessage({ type: "cached", saved, failed });
   })());

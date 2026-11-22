@@ -166,9 +166,22 @@ export function pngSize(bytes: Uint8Array): { width: number; height: number } | 
   return { width: view.getUint32(16), height: view.getUint32(20) };
 }
 
+/**
+ * Miljön för programmen som tolkar opålitliga filer (pullauta, lasclip, cwebp, dwgread): utan arbetarens nyckel och andra
+ * hemligheter, som de inte behöver.
+ */
+export function childEnvironment(source: NodeJS.ProcessEnv = env): NodeJS.ProcessEnv {
+  const clean: NodeJS.ProcessEnv = { ...source, RUST_LOG: "warn" };
+  for (const key of Object.keys(clean)) if (/^OTID_.*(TOKEN|SECRET|PASSWORD|KEY)/.test(key)) delete clean[key];
+  return clean;
+}
+
+/** Längsta tid för Karttapullautin på ett jobb (minuter). Geo-servern rivs efter OTID_GEO_MAX_HOURS (förval 8), så jobbet ska fela före det. */
+const pullautaTimeoutMs = Math.max(1, Number(env.OTID_GEO_PULLAUTA_TIMEOUT_MIN) || 360) * 60_000;
+
 function run(args: readonly string[], cwd: string, signal: AbortSignal, program = pullauta): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(program, args, { cwd, stdio: ["ignore", "ignore", "pipe"], env: { ...env, RUST_LOG: "warn" } });
+    const child = spawn(program, args, { cwd, stdio: ["ignore", "ignore", "pipe"], env: childEnvironment() });
     let tail = "";
     child.stderr.on("data", (chunk: Buffer) => { tail = (tail + chunk.toString("utf8")).slice(-1500); });
     const abort = () => child.kill("SIGKILL");
@@ -176,8 +189,11 @@ function run(args: readonly string[], cwd: string, signal: AbortSignal, program 
     child.on("error", reject);
     child.on("close", code => {
       signal.removeEventListener("abort", abort);
-      if (signal.aborted) reject(new Stopped());
-      else if (code === 0) resolve();
+      if (signal.aborted) {
+        // En tidsgräns är ett fel som jobbet ska rapportera; ett avbrott (control.abort) är ett stopp och rapporteras inte.
+        if ((signal.reason as { name?: string } | undefined)?.name === "TimeoutError") reject(new Error(`${program === pullauta ? "Karttapullautin" : program === lasclip ? "lasclip" : program === cwebp ? "cwebp" : "dwgread"} avbröts efter tidsgränsen`));
+        else reject(new Stopped());
+      } else if (code === 0) resolve();
       else reject(new Error(`${program === pullauta ? "Karttapullautin" : program === lasclip ? "lasclip" : program === cwebp ? "cwebp" : "dwgread"} avslutades med kod ${code}: ${tail.trim().split("\n").slice(-3).join(" ")}`));
     });
   });
@@ -274,17 +290,17 @@ async function runJob(job: Job): Promise<void> {
     if (job.clip && (await readdir(join(dir, "in"))).length === 0) throw new Error("Kartans område ligger utanför laserrutorna");
     await writeFile(join(dir, "pullauta.ini"), iniWith(await readFile(defaultIni, "utf8"), job.settings, !!job.moisture, !!job.vegetation, together));
     await set("Karttapullautin", 0, 1);
-    await run([], dir, control.signal);
+    await run([], dir, AbortSignal.any([control.signal, AbortSignal.timeout(pullautaTimeoutMs)]));
     await set("Slår ihop rutorna", 0, 1);
     let scale = job.tiles.length > 4 ? 2 : 1;
     for (;;) {
-      await run(["pngmerge", String(scale)], dir, control.signal);
+      await run(["pngmerge", String(scale)], dir, AbortSignal.any([control.signal, AbortSignal.timeout(60 * 60_000)]));
       const head = new Uint8Array(await readFile(join(dir, "merged.png")).then(bytes => bytes.subarray(0, 32)));
       const size = pngSize(head), bytes = (await stat(join(dir, "merged.png"))).size;
       if ((size && Math.max(size.width, size.height) <= LAYER_MAX_PIXELS && bytes <= LAYER_MAX_BYTES) || scale >= 8) break;
       scale *= 2;
     }
-    await run(["dxfmerge"], dir, control.signal);
+    await run(["dxfmerge"], dir, AbortSignal.any([control.signal, AbortSignal.timeout(60 * 60_000)]));
     // Grundkartan G4: branternas korta streck blir linjer med nedför till höger (geo-cliffs.ts). Med lasclips markraster
     // (1 m) mäts fallet över varje linje, och det avgör om den är opasserbar, passerbar eller ingen brant.
     let cliffSummary: Record<string, number> = {};
@@ -672,12 +688,17 @@ async function runDwgJob(job: Job): Promise<void> {
   await rm(dir, { recursive: true, force: true });
   await mkdir(dir, { recursive: true });
   const control = new AbortController();
-  const beat = async (step: string) => {
+  let step = "Hämtar ritningen";
+  const beat = async (next: string = step) => {
+    step = next;
     const response = await call(`/api/geo-worker/jobs/${job.jobId}/heartbeat`, { method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ step, done: 0, total: 1 }) }).catch(() => undefined);
     const body = response?.ok ? await response.json().catch(() => undefined) as { action?: string } | undefined : undefined;
     if (body?.action === "stop") { control.abort(); throw new Stopped(); }
   };
+  // dwgread kan ta upp till 20 minuter: utan livstecken räknar servern jobbet som övergivet, och ett stopp märks inte förrän det är klart.
+  // Ett stopp avbryter dwgread via `control`; felet från beat behöver därför inte kastas vidare härifrån.
+  const timer = setInterval(() => void beat().catch((error: unknown) => { if (!(error instanceof Stopped)) console.warn("Livstecknet för DWG-jobbet misslyckades", error); }), 60_000);
   try {
     await beat("Hämtar ritningen");
     const input = await call(`/api/geo-worker/jobs/${job.jobId}/input`, { signal: AbortSignal.any([control.signal, AbortSignal.timeout(10 * 60_000)]) });
@@ -696,6 +717,7 @@ async function runDwgJob(job: Job): Promise<void> {
       body: JSON.stringify({ status: "DONE", summary: { features: read.features.length, skipped: read.skipped } }) });
     console.log(`Geo-jobb ${job.jobId}: DWG klart (svar ${finished.status})`);
   } finally {
+    clearInterval(timer);
     await rm(dir, { recursive: true, force: true }).catch(() => undefined);
   }
 }

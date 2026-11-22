@@ -146,7 +146,11 @@ export async function dwgFeatures(objects: AsyncIterable<Json>): Promise<{ featu
     if (typeof kind !== "string") continue;
     if (kind === "VERTEX_2D" || kind === "VERTEX_3D") {
       const owner = handle(object.ownerhandle), at = xy(object.point);
-      if (owner !== undefined && at) vertices.set(owner, [...(vertices.get(owner) ?? []), { at, bulge: number(object.bulge) }]);
+      if (owner !== undefined && at) {
+        const list = vertices.get(owner);
+        if (list) list.push({ at, bulge: number(object.bulge) });
+        else vertices.set(owner, [{ at, bulge: number(object.bulge) }]);
+      }
       continue;
     }
     // Bara modellrymden (inte blockens innehåll eller pappersrymden): `entmode` 2, eller 0 med ägaren *Model_Space (prövas sist).

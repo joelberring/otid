@@ -19,11 +19,12 @@ import { fork } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { hostname, setPriority } from "node:os";
 import { fileURLToPath } from "node:url";
-import { createDatabase } from "../packages/database/src/index.ts";
+import { createDatabase, type PoolClient } from "../packages/database/src/index.ts";
 import { claimPrintJob, cleanupPrintJobs, failPrintJob, heartbeatPrintJob, runPrintJob } from "../packages/application/src/course-setting-print.ts";
 import {
   claimMapJob, cleanupMapJobs, failMapJob, heartbeatMapJob, loadClaimedMapJob, MAP_JOB_CHANNEL, runMapJob
 } from "../packages/application/src/map-project-jobs.ts";
+import { sleep } from "./abortable-sleep.ts";
 import { createMapJobCanvas, loadMapJobImage } from "./map-job-canvas.ts";
 import { FONT_FILE_NAMES, FONT_VARIANTS, type FontFiles } from "../packages/print-pdf/src/index.ts";
 
@@ -47,11 +48,6 @@ export function jobLimits(environment: NodeJS.ProcessEnv = process.env): { timeo
   return { timeoutMs: Number.isFinite(timeout) && timeout >= 1_000 ? timeout : 10 * 60_000,
     memoryMb: Number.isFinite(memory) && memory >= 64 ? Math.round(memory) : 256 };
 }
-
-const sleep = (ms: number, signal: AbortSignal) => new Promise<void>(resolve => {
-  const timer = setTimeout(resolve, ms);
-  signal.addEventListener("abort", () => { clearTimeout(timer); resolve(); }, { once: true });
-});
 
 function alive(): void {
   try { writeFileSync(ALIVE_FILE, String(Date.now())); } catch (error) {
@@ -114,20 +110,37 @@ function runInChild(job: { id: string; raceId: string; attempts: number }, worke
   return new Promise(resolve => {
     const environment = { ...process.env };
     delete environment.NODE_OPTIONS;
-    const child = fork(process.argv[1]!, args, {
-      execArgv: [...process.execArgv, `--max-old-space-size=${limits.memoryMb}`], env: environment, stdio: "inherit" });
-    let outcome: string | undefined;
+    let settled = false;
     let timedOut = false;
-    const timer = setTimeout(() => { timedOut = true; child.kill("SIGKILL"); }, limits.timeoutMs);
+    let child: ReturnType<typeof fork> | undefined;
+    const timer = setTimeout(() => { timedOut = true; child?.kill("SIGKILL"); }, limits.timeoutMs);
+    const settle = (result: { outcome?: string; failure?: string }) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(result);
+    };
+    try {
+      child = fork(process.argv[1]!, args, {
+        execArgv: [...process.execArgv, `--max-old-space-size=${limits.memoryMb}`], env: environment, stdio: "inherit" });
+    } catch (error) {
+      console.error(`Utskriftsjobb ${job.id}: barnprocessen kunde inte startas`, error instanceof Error ? error.message : error);
+      settle({ failure: "Barnprocessen kunde inte startas. Försök igen om en stund." });
+      return;
+    }
+    let outcome: string | undefined;
     child.on("message", (message: unknown) => {
       if (message && typeof message === "object" && "outcome" in message) outcome = String((message as { outcome: unknown }).outcome);
     });
-    child.on("error", error => console.error(`Utskriftsjobb ${job.id}: barnprocessen kunde inte startas`, error.message));
+    // Misslyckas fork (eller kan processen inte dödas) kommer ingen "exit"; lös löftet här så att kön går vidare.
+    child.on("error", error => {
+      console.error(`Utskriftsjobb ${job.id}: barnprocessen kunde inte startas`, error.message);
+      settle({ failure: "Barnprocessen kunde inte startas eller avbrytas. Försök igen om en stund." });
+    });
     child.on("exit", (code, signal) => {
-      clearTimeout(timer);
-      if (timedOut) resolve({ failure: `Jobbet tog längre tid än ${Math.round(limits.timeoutMs / 60_000)} minuter och avbröts. Dela upp utskriften eller försök igen.` });
-      else if (outcome) resolve({ outcome });
-      else resolve({ failure: `PDF:en kunde inte skrivas (processen avslutades${signal ? ` med ${signal}` : ` med kod ${code}`}, till exempel när minnet tog slut). Dela upp utskriften eller försök igen.` });
+      if (timedOut) settle({ failure: `Jobbet tog längre tid än ${Math.round(limits.timeoutMs / 60_000)} minuter och avbröts. Dela upp utskriften eller försök igen.` });
+      else if (outcome) settle({ outcome });
+      else settle({ failure: `PDF:en kunde inte skrivas (processen avslutades${signal ? ` med ${signal}` : ` med kod ${code}`}, till exempel när minnet tog slut). Dela upp utskriften eller försök igen.` });
     });
   });
 }
@@ -145,6 +158,8 @@ async function main(): Promise<void> {
   loadFonts(); // fel tidigt om typsnitten saknas
   // Två till utskrifterna, två till kartjobben (en av dem lyssnar på `pg_notify`).
   const { db, pool } = createDatabase(url, { max: 4, applicationName: "otid-print-worker", statementTimeoutMs: 120_000, idleInTransactionTimeoutMs: 30_000 });
+  // En tappad anslutning i poolen (databasen startar om) skickas som "error"; utan lyssnare kraschar processen.
+  pool.on("error", error => console.warn("Utskriftsarbetarens databasanslutning tappades", error.message));
   const worker = `${hostname()}:${process.pid}`;
   const stop = new AbortController();
   for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, () => stop.abort());
@@ -217,14 +232,32 @@ async function mapLoop(db: ReturnType<typeof createDatabase>["db"], pool: Return
   signal: AbortSignal, once: boolean): Promise<void> {
   const limits = mapJobLimits();
   let wake: (() => void) | undefined;
-  const listener = once ? undefined : await pool.connect().catch(() => undefined);
-  if (listener) {
-    listener.on("notification", () => wake?.());
-    await listener.query(`LISTEN ${MAP_JOB_CHANNEL}`).catch(() => undefined);
-  }
+  // LISTEN-anslutningen kan tappas (databasen startar om): felet får inte krascha processen. Anslutningen kastas och en ny
+  // tas i nästa varv; loopen tittar ändå i kön varannan sekund, så inget jobb väntar på ett väckningsmeddelande.
+  let listener: PoolClient | undefined;
+  const dropListener = (error: unknown) => {
+    const lost = listener;
+    listener = undefined;
+    console.warn("Kartjobbens LISTEN-anslutning tappades; ansluter igen", error instanceof Error ? error.message : error);
+    lost?.removeAllListeners("notification");
+    try { lost?.release(error instanceof Error ? error : new Error(String(error))); } catch { /* redan släppt */ }
+  };
+  const ensureListener = async () => {
+    if (once || listener) return;
+    let client: PoolClient;
+    try { client = await pool.connect(); } catch (error) {
+      console.warn("Kartjobben når inte databasen för LISTEN; tittar i kön i stället", error instanceof Error ? error.message : error);
+      return;
+    }
+    client.on("error", dropListener);
+    client.on("notification", () => wake?.());
+    listener = client;
+    try { await client.query(`LISTEN ${MAP_JOB_CHANNEL}`); } catch (error) { dropListener(error); }
+  };
   let cleaned = 0;
   try {
     while (!signal.aborted) {
+      await ensureListener();
       if (Date.now() - cleaned > CLEANUP_MS) {
         cleaned = Date.now();
         await cleanupMapJobs(db).catch((error: unknown) => console.error("Rensningen av kartjobb misslyckades", error instanceof Error ? error.message : error));
@@ -239,11 +272,7 @@ async function mapLoop(db: ReturnType<typeof createDatabase>["db"], pool: Return
       }
       if (!job) {
         if (once) return;
-        await new Promise<void>(resolve => {
-          const timer = setTimeout(resolve, 2000);
-          wake = () => { clearTimeout(timer); resolve(); };
-          signal.addEventListener("abort", () => { clearTimeout(timer); resolve(); }, { once: true });
-        });
+        await sleep(2000, signal, finish => { wake = finish; });
         wake = undefined;
         continue;
       }
@@ -261,7 +290,7 @@ async function mapLoop(db: ReturnType<typeof createDatabase>["db"], pool: Return
       } finally { clearInterval(heartbeat); }
     }
   } finally {
-    listener?.release();
+    if (listener) { listener.removeAllListeners("error"); listener.on("error", () => undefined); listener.release(); }
   }
 }
 

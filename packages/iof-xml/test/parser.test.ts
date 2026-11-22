@@ -409,3 +409,17 @@ describe("IOF XML 2.0.3 CourseData (ADR-0196)", () => {
     expect(() => parseIofXml(`<CourseData iofVersion="3.0"><Event><Name>x</Name></Event><RaceCourseData/></CourseData>`)).toThrow(/namnrymden/);
   });
 });
+
+describe("XML-entiteter i namn (översynen 2026-11-22)", () => {
+  it("avkodar &amp;, &apos; och numeriska entiteter i klubb- och löparnamn", () => {
+    const xml = fixture("entry-list.xml")
+      .replace("<Name>Centrum OK</Name>", "<Name>OK Skog &amp; Mark &apos;Nord&apos;</Name>")
+      .replace("<Given>Ada</Given>", "<Given>Bj&#246;rn &#xC5;sa</Given>");
+    const parsed = parseIofXml(xml);
+    if (parsed.kind !== "EntryList") throw new Error("Fel typ");
+    const text = JSON.stringify(parsed);
+    expect(text).toContain("OK Skog & Mark 'Nord'");
+    expect(text).toContain("Björn Åsa");
+    expect(text).not.toContain("&amp;");
+  });
+});

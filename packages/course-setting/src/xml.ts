@@ -22,13 +22,24 @@ const ENTITIES: Record<string, string> = { lt: "<", gt: ">", amp: "&", quot: "\"
 function decode(text: string, at: number): string {
   if (!text.includes("&")) return text;
   return text.replace(/&(#x[0-9a-fA-F]+|#[0-9]+|[a-zA-Z]+);/g, (match, body: string) => {
-    if (body.startsWith("#x")) return String.fromCodePoint(parseInt(body.slice(2), 16));
-    if (body.startsWith("#")) return String.fromCodePoint(parseInt(body.slice(1), 10));
+    if (body.startsWith("#x")) return fromReference(parseInt(body.slice(2), 16), match, at);
+    if (body.startsWith("#")) return fromReference(parseInt(body.slice(1), 10), match, at);
     const value = ENTITIES[body];
     if (value === undefined) throw invalid(`okänd entitet ${match}`, at);
     return value;
   });
 }
+
+/** Tecknet för en teckenreferens; ogiltiga kodpunkter (utanför Unicode, surrogat, 0) ger INVALID i stället för RangeError. */
+function fromReference(codePoint: number, match: string, at: number): string {
+  if (!Number.isInteger(codePoint) || codePoint < 1 || codePoint > 0x10FFFF || (codePoint >= 0xD800 && codePoint <= 0xDFFF)) {
+    throw invalid(`ogiltig teckenreferens ${match}`, at);
+  }
+  return String.fromCodePoint(codePoint);
+}
+
+/** Djupast tillåtna nästling; en .ppen är ett tiotal nivåer, och djupare går inte att rekursera över utan att stacken tar slut. */
+const MAX_DEPTH = 64;
 
 function invalid(message: string, at: number): CourseSettingEditError {
   return new CourseSettingEditError("INVALID", `Ogiltig XML (tecken ${at}): ${message}`);
@@ -125,7 +136,10 @@ export function parseXml(input: string): XmlParseResult {
       if (parent) parent.children.push(element);
       else if (root) throw invalid("mer än ett rotelement", pos);
       else root = element;
-      if (!selfClosing) stack.push(element);
+      if (!selfClosing) {
+        if (stack.length >= MAX_DEPTH) throw invalid(`elementen är nästlade djupare än ${MAX_DEPTH} nivåer`, pos);
+        stack.push(element);
+      }
     }
   }
   if (stack.length > 0) throw invalid(`<${stack[stack.length - 1]!.name}> stängs aldrig`, pos);

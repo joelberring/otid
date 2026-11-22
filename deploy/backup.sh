@@ -58,8 +58,8 @@ status() {
     failures=$(awk -F '\t' 'NR == 1 && $2 == "fail" { print ($4 ~ /^[0-9]+$/ ? $4 : 1) }' "$dir/.backup-status" 2>/dev/null)
     failures=$(( ${failures:-0} + 1 ))
   fi
-  printf '%s\t%s\t%s\t%s\n' "$(date +%s)" "$1" "$(printf '%s' "${2:-}" | tr '\t\n' '  ')" "$failures" > "$dir/.backup-status.tmp" \
-    && mv -f "$dir/.backup-status.tmp" "$dir/.backup-status"
+  printf '%s\t%s\t%s\t%s\n' "$(date +%s)" "$1" "$(printf '%s' "${2:-}" | tr '\t\n' '  ')" "$failures" > "$dir/.backup-status.$$.tmp" \
+    && mv -f "$dir/.backup-status.$$.tmp" "$dir/.backup-status"
 }
 
 uuid_ok() { printf '%s' "$1" | grep -Eq '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'; }
@@ -85,7 +85,7 @@ store_contents() {
 
 # Innehållen i databasen som har sina delar här (allt utom det som ligger i arkivet).
 warm_contents() {
-  cold="$dir/map-content/.cold.tmp"; all="$dir/map-content/.all.tmp"
+  cold="$dir/map-content/.cold.$$.tmp"; all="$dir/map-content/.all.$$.tmp"
   if cold_contents > "$cold" && psql -X -Atq -v ON_ERROR_STOP=1 -c "select content_id from map_content" > "$all"; then
     if [ -s "$cold" ]; then grep -vxFf "$cold" "$all"; else cat "$all"; fi
     rm -f "$cold" "$all"; return 0
@@ -132,18 +132,26 @@ save_missing() {
 # ligger i förrådet, också om en äldre dump pekar på det: det finns i objektlagringen, och webben återkopplar det efter en
 # återställning. Förrådets id samlas i .store-ids (restore-map-content räknar dem inte som saknade).
 prune_contents() {
-  keep="$dir/map-content/.keep.tmp"; stored="$dir/map-content/.store.tmp"; ids="$dir/map-content/.store-ids"
+  keep="$dir/map-content/.keep.$$.tmp"; stored="$dir/map-content/.store.$$.tmp"; ids="$dir/map-content/.store-ids"
   store_contents > "$stored" || { rm -f "$stored"; return 1; }
   if [ -s "$stored" ]; then
-    cat "$stored" "$ids" 2>/dev/null | sort -u > "$ids.tmp" && mv -f "$ids.tmp" "$ids"
+    cat "$stored" "$ids" 2>/dev/null | sort -u > "$ids.$$.tmp" && mv -f "$ids.$$.tmp" "$ids"
   fi
   { warm_contents || return 1
     find "$dir" -type f -name 'otid-*.dump.contents' -exec cat {} + 2>/dev/null; } | sort -u > "$keep.all" || return 1
   if [ -s "$stored" ]; then grep -vxFf "$stored" "$keep.all" > "$keep"; else mv -f "$keep.all" "$keep"; fi
   rm -f "$keep.all"
+  [ -f "$keep" ] || { rm -f "$stored"; return 1; }
   find "$dir/map-content" -maxdepth 1 -type f -name '*.copy' | while read -r file; do
     id=$(basename "$file" .copy)
-    grep -qx "$id" "$keep" || { rm -f "$file" && echo "Kartinnehåll borttaget: $id"; }
+    # grep ger 1 när id:t saknas i listan men 2 när listan själv inte gick att läsa; i det fallet får inget tas bort.
+    grep -qx "$id" "$keep"; found=$?
+    if [ "$found" -eq 1 ]; then
+      rm -f "$file" && echo "Kartinnehåll borttaget: $id"
+    elif [ "$found" -ne 0 ]; then
+      echo "Gallringen av kartinnehållet avbröts: listan över innehåll som ska sparas kunde inte läsas." >&2
+      rm -f "$keep" "$stored"; return 1
+    fi
   done
   rm -f "$keep" "$stored"
 }
@@ -151,7 +159,7 @@ prune_contents() {
 # ADR-0216: efter en pg_restore läses kartinnehållet in för varje innehåll i databasen som saknar sina delar.
 restore_map_content() {
   loaded=0; missing=0; archived=0; moved=0
-  cold="$dir/map-content/.cold.tmp"; stored="$dir/map-content/.store.tmp"; ids="$dir/map-content/.store-ids"
+  cold="$dir/map-content/.cold.$$.tmp"; stored="$dir/map-content/.store.$$.tmp"; ids="$dir/map-content/.store-ids"
   cold_contents > "$cold"; store_contents > "$stored"; [ -f "$ids" ] || : > "$ids"
   for id in $(psql -X -Atq -v ON_ERROR_STOP=1 -c "select c.content_id from map_content c
       where not exists (select 1 from map_content_part p where p.content_id = c.content_id)"); do
@@ -215,7 +223,7 @@ offsite() {
   fi
 }
 
-dump() {
+dump_locked() {
   label="${1:-}"
   stamp=$(date +%Y-%m-%dT%H%M%S%z)
   name="otid-$stamp.dump"
@@ -281,13 +289,36 @@ dump() {
   prune_contents || echo "Gallringen av kartinnehållet misslyckades; försöker igen nästa gång." >&2
   status ok "Backup klar: $name"
 
+  # Dumpen med etikett (tjänsten backup-before-migrate) väntar inte på kopian utanför servern: en driftsättning ska inte
+  # blockeras av en full restic-körning. Kopian tas med nästa timdump, som innehåller hela $BACKUP_DIR.
+  if [ -n "$label" ]; then
+    heartbeat ok
+    return 0
+  fi
   if ! offsite; then
     heartbeat fail "Kopian utanför servern misslyckades $(date +%FT%T%z)"
     status fail "Dumpen lyckades men kopian utanför servern misslyckades"
-    return 0
+    # Dumpen finns lokalt, men en manuell körning (sh /backup.sh dump) ska se att kopian saknas; tjänsten ignorerar koden.
+    return 2
   fi
   heartbeat ok
   return 0
+}
+
+# Dumpar och gallringen får inte köra samtidigt (timtjänsten, en manuell körning och dumpen före migrering delar $dir):
+# flock på en fil i den delade katalogen, så att även en annan container väntar. Låset släpps av kärnan om processen dör.
+# Saknas flock körs det utan lås, som förut.
+dump() {
+  if ! command -v flock >/dev/null 2>&1; then
+    dump_locked "$@"; return $?
+  fi
+  (
+    flock -w "${BACKUP_LOCK_WAIT_SECONDS:-1800}" 9 || {
+      echo "BACKUP HOPPADES ÖVER: en annan backup körde i mer än ${BACKUP_LOCK_WAIT_SECONDS:-1800} s." >&2
+      exit 3
+    }
+    dump_locked "$@"
+  ) 9> "$dir/.backup.lock"
 }
 
 if [ "${1:-}" = "dump" ]; then

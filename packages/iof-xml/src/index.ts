@@ -119,7 +119,8 @@ const parser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: "@_",
   parseTagValue: false,
-  processEntities: false,
+  processEntities: true,
+  htmlEntities: true,
   trimValues: true
 });
 

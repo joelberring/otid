@@ -6,8 +6,9 @@
 #   - migrate och backup ägarrollen (otid_owner, äger tabellerna, ingen superuser),
 #   - web, web-public och web-public2 applikationsrollen (otid_app, läser och skriver data, kan inte ändra schemat),
 #   - print-worker utskriftsrollen (otid_print, bara utskriftskön, tävlingens namn och kartfilen).
-# Hemligheter ges bara till tjänster som behöver dem: Eventors masternyckel och e-posten bara till web, inte till publikens
-# instanser eller utskriftsarbetaren.
+# Hemligheter ges bara till tjänster som behöver dem: e-posten (och Google-inloggningen, Hetzner- och arbetarnyckeln) bara till
+# web. Eventors masternyckel ges också till publikens instanser, eftersom AI-kopplingen (/api/mcp) går dit (Caddyfile); den
+# ges inte till utskriftsarbetaren.
 #
 # ADR-0195: avbildningarna byggs av GitHub Actions efter grön CI på main och hämtas med `docker compose ... pull`
 # (docs/drift.md, Uppdatera). OTID_TAG i .env väljer version (förval main; en commit-sha låser versionen, t.ex. inför en
@@ -34,8 +35,8 @@ x-backup-environment: &backup-environment
   PGDATABASE: otid
   BACKUP_DIR: /backups
   TZ: Europe/Stockholm
-  # ADR-0186: en dump varje hel timme dygnet runt (tidigare 08–23) och en dagsbackup i 14 dagar. ADR-0216: de 24 senaste
-  # timdumparna (tidigare 48); kartinnehållet sparas en gång i ./backups/map-content i stället för i varje dump.
+  # ADR-0186: en dump varje hel timme dygnet runt (tidigare 08–23) och en dagsbackup i 14 dagar. ADR-0216 tillägg (M3): de 12 senaste
+  # timdumparna (tidigare 24 och 48); kartinnehållet sparas en gång i ./backups/map-content i stället för i varje dump.
   BACKUP_INTERVAL_MINUTES: ${BACKUP_INTERVAL_MINUTES:-60}
   BACKUP_KEEP_HOURLY: ${BACKUP_KEEP_HOURLY:-12}
   BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
@@ -257,8 +258,8 @@ services:
   # eftersom en Node-process bara använder en kärna; Caddy fördelar publiken mellan dem. Lägre CPU-vikt än web och
   # databasen (256 mot 1024): när processorn inte räcker blir resultatredovisningen långsammare, inte avläsningen. Egen
   # liten databaspool med tidsgräns och lastavlastning (äldre lista, glesare uppdatering, sist 503 med Retry-After).
-  # Startar när web är igång, migrerar inte och hämtar inga radiostämplingar. ADR-0186: ingen Eventor-nyckel och ingen
-  # e-post (självregistreringen och festen behöver ingen av dem).
+  # Startar när web är igång, migrerar inte och hämtar inga radiostämplingar. ADR-0186: ingen e-post (självregistreringen och
+  # festen behöver den inte). Eventor-nyckeln och kartkällorna nedan finns här bara för AI-kopplingen (/api/mcp).
   web-public: &web-public
     logging: *logging
     image: *web-image
@@ -300,6 +301,9 @@ services:
       OTID_OVERPASS_URL: ${OTID_OVERPASS_URL:-}
       OTID_SKS_AVVERKNING_URL: ${OTID_SKS_AVVERKNING_URL:-}
       OTID_SGU_JORDARTER_URL: ${OTID_SGU_JORDARTER_URL:-}
+      OTID_SLU_MOISTURE_WMS_URL: ${OTID_SLU_MOISTURE_WMS_URL:-}
+      OTID_SKS_REST_URL: ${OTID_SKS_REST_URL:-}
+      OTID_OCAD_WRITE: ${OTID_OCAD_WRITE:-}
       OTID_GEO_TILES_PER_MONTH: ${OTID_GEO_TILES_PER_MONTH:-}
       OTID_GEO_SPLIT_KM2: ${OTID_GEO_SPLIT_KM2:-}
       # ADR-0229: förrådet. Publikens instanser läser kartinnehåll ur förrådet och mellanlagret och sparar det som
@@ -318,6 +322,9 @@ services:
     command: ["node", "apps/web/server.js"]
     volumes:
       - ./map-cache:/cache
+    # Som web: CI pekar kartkällorna och Eventor på falska tjänster på värden (AI-kopplingen körs här).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck: *web-healthcheck
 
   web-public2: *web-public
@@ -334,7 +341,9 @@ services:
     image: *web-image
     restart: unless-stopped
     cpu_shares: 64
-    mem_limit: 640m
+    # Föräldern (96 MB heap) + utskriftsbarnet (256 MB) + kartjobbsbarnet (256 MB, 512 MB för COURSE_LEVEL/BASE_MAP) körs
+    # samtidigt, plus canvasens minne utanför heapen. 640m räckte inte för det värsta fallet.
+    mem_limit: 1024m
     depends_on:
       migrate:
         condition: service_completed_successfully

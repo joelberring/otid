@@ -56,13 +56,15 @@ export function layerOf(properties: unknown, fallback: string): string {
   return fallback;
 }
 
+const MAX_COLLECTION_DEPTH = 8;
+
 /** GeoJSON: en FeatureCollection, en Feature eller en geometri. Lagret ur egenskaper som `layer` eller `objekttyp`, annars typen. */
 export function parseGeoJson(text: string, options: { readonly properties?: boolean } = {}): SourceData {
   let root: unknown;
   try { root = JSON.parse(text) as unknown; } catch { throw new VectorParseError("Filen är inte GeoJSON."); }
   const features: SourceFeature[] = [];
   let skipped = 0;
-  const add = (geometry: unknown, layer: string, properties?: Readonly<Record<string, unknown>>) => {
+  const add = (geometry: unknown, layer: string, properties?: Readonly<Record<string, unknown>>, depth = 0) => {
     const g = geometry as { type?: string; coordinates?: unknown; geometries?: unknown[] } | null;
     if (!g || typeof g !== "object") { skipped += 1; return; }
     const push = (item: SourceGeometry) => features.push(properties ? { layer, geometry: item, properties } : { layer, geometry: item });
@@ -84,7 +86,11 @@ export function parseGeoJson(text: string, options: { readonly properties?: bool
         }
         return;
       }
-      case "GeometryCollection": for (const part of g.geometries ?? []) add(part, layer, properties); return;
+      case "GeometryCollection":
+        // Samlingar i samlingar används inte i praktiken; en djup nästling vore bara ett sätt att ta slut på stacken.
+        if (depth >= MAX_COLLECTION_DEPTH) { skipped += 1; return; }
+        for (const part of Array.isArray(g.geometries) ? g.geometries : []) add(part, layer, properties, depth + 1);
+        return;
       default: skipped += 1;
     }
   };

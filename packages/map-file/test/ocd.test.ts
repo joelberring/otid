@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MapFileError, mapPointToWgs84, readMapFile, wgs84ToMapPoint, type ParsedMap } from "../src";
-import { buildOcd, seededRandom, type OcdSpec } from "./ocd-builder";
+import { buildOcd, ocdCoord, seededRandom, type OcdSpec } from "./ocd-builder";
 import { COLORS, GEOREF, SPEC } from "./ocd-spec";
 
 function read(spec: OcdSpec = SPEC): ParsedMap {
@@ -175,5 +175,33 @@ describe("OCAD-läsaren på trasiga filer", () => {
       }
       expect(performance.now() - start, `runda ${round}`).toBeLessThan(1000);
     }
+  });
+});
+
+describe("OCAD-läsaren: indexposter som pekar på samma data", () => {
+  const manyPoints = Array.from({ length: 4000 }, (_, index) => ocdCoord(index, index));
+  const spec: OcdSpec = { ...SPEC, objects: [{ symbol: 101000, type: 2, coords: manyPoints }], strings: [...(SPEC.strings ?? []), { type: 1, value: "x".repeat(20_000) }] };
+
+  /** Kopierar indexpost 0 till alla övriga poster i första blocket. */
+  function duplicateEntries(data: Uint8Array, firstOffset: number, entrySize: number): void {
+    const view = new DataView(data.buffer);
+    const block = view.getInt32(firstOffset, true);
+    for (let k = 1; k < 256; k++) data.copyWithin(block + 4 + k * entrySize, block + 4, block + 4 + entrySize);
+  }
+
+  it("läser filen när varje objekt och sträng har sin egen plats", () => {
+    expect(readMapFile(buildOcd(spec), "ok.ocd").objects.length).toBeGreaterThan(0);
+  });
+
+  it("kastar INVALID när 255 objektposter pekar på samma 4 000 punkter", () => {
+    const data = buildOcd({ ...spec, objects: [{ symbol: 101000, type: 2, coords: manyPoints }] });
+    duplicateEntries(data, 12, 40);
+    expect(() => readMapFile(data, "dubbletter.ocd")).toThrow(expect.objectContaining({ code: "INVALID" }) as Error);
+  });
+
+  it("kastar INVALID när strängposter pekar på samma text flera gånger", () => {
+    const data = buildOcd({ ...spec, strings: [{ type: 1, value: "x".repeat(20_000) }] });
+    duplicateEntries(data, 32, 16);
+    expect(() => readMapFile(data, "strangar.ocd")).toThrow(expect.objectContaining({ code: "INVALID" }) as Error);
   });
 });

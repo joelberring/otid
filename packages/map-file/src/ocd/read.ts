@@ -55,6 +55,9 @@ function readObjects(
   const objects: MapObject[] = [];
   if (first === 0) return objects;
   const index = variant.index;
+  // Varje punkt tar 8 byte i filen, så en fil utan överlappande poster har högst längden/8 punkter. Fler betyder att flera
+  // indexposter pekar på samma (eller överlappande) objekt, som får en liten fil att växa till gigabyte i minnet.
+  const budget = { left: Math.floor(bytes.length / 8) };
   const blocks = indexBlocks(bytes, first, index.blockSize);
   for (let b = 0; b < blocks.length; b++) {
     const block = blocks[b]!;
@@ -66,7 +69,7 @@ function readObjects(
       // Version 8 saknar status; ett borttaget objekt har symbol 0.
       if (index.status === null && bytes.i16(entry + index.symbol) === 0) continue;
       const length = index.lengthInCoords ? variant.object.coords + bytes.u16(entry + index.length) * 8 : bytes.i32(entry + index.length);
-      const object = readObject(bytes, position, length, symbols, variant, warnings);
+      const object = readObject(bytes, position, length, symbols, variant, warnings, budget);
       if (!object) continue;
       if (!sources) { objects.push(object); continue; }
       const size = recordLength(bytes, position, length, variant);
@@ -89,7 +92,8 @@ function recordLength(bytes: Bytes, at: number, indexLength: number, variant: Oc
 }
 
 function readObject(
-  bytes: Bytes, at: number, length: number, symbols: ReadonlyMap<string, MapSymbol>, variant: OcdVariant, warnings: WarningCollector
+  bytes: Bytes, at: number, length: number, symbols: ReadonlyMap<string, MapSymbol>, variant: OcdVariant, warnings: WarningCollector,
+  budget: { left: number }
 ): MapObject | null {
   const layout = variant.object;
   if (!bytes.has(at, layout.coords)) throw new MapFileError("TRUNCATED", "OCAD-filen är avkortad (ett objekt ligger utanför filen).");
@@ -108,6 +112,8 @@ function readObject(
   const symbol = String(layout.symbol16 ? v8SymbolNumber(rawSymbol) : rawSymbol);
   const definition = symbols.get(symbol);
   if (!definition) { warnings.add("UNKNOWN_SYMBOL"); return null; }
+  budget.left -= count;
+  if (budget.left < 0) throw new MapFileError("INVALID", "OCAD-filen är trasig: indexposterna pekar på samma punkter flera gånger.");
   const coords = readCoords(bytes, at + layout.coords, count);
   const angle = normalizeAngle(bytes.i16(at + layout.angle) / 10);
   const first = { x: coords.x[0]!, y: coords.y[0]! };

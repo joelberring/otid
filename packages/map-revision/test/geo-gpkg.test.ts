@@ -85,3 +85,27 @@ describe("fastighetsindelningen (ägaren 2026-11-16)", () => {
   });
 });
 
+describe("trasiga och elaka filer (översynen 2026-11-22)", () => {
+  it("vägrar packa upp mer än gränsen", () => {
+    const zip = zipOf("a.gpkg", deflateRawSync(Buffer.alloc(200_000)));
+    zip.writeUInt16LE(8, 8); zip.writeUInt16LE(8, zip.length - 22 - 6 - 46 + 10);
+    expect(unzipFirst(new Uint8Array(zip), /\.gpkg$/i)?.bytes.length).toBe(200_000);
+    expect(() => unzipFirst(new Uint8Array(zip), /\.gpkg$/i, 1000)).toThrow(/för stor/);
+  });
+
+  it("läser inte en geometri vars antal punkter är större än blobben", () => {
+    // GP-huvud (8 byte, inget kuvert) och en LineString med 4 miljarder punkter men inga data.
+    const blob = Buffer.alloc(8 + 1 + 4 + 4);
+    blob.write("GP", 0, "latin1");
+    blob.writeUInt8(1, 8); blob.writeUInt32LE(2, 9); blob.writeUInt32LE(0xfffffff0, 13);
+    const started = Date.now();
+    expect(readGpkgGeometry(new Uint8Array(blob))).toEqual([]);
+    expect(Date.now() - started).toBeLessThan(500);
+  });
+
+  it("GeoJSON med djupt nästlade GeometryCollection ger inget stackfel", () => {
+    const depth = 50_000;
+    const text = `{"type":"GeometryCollection","geometries":[`.repeat(depth) + "]}".repeat(depth);
+    expect(() => parseGeoJson(text)).not.toThrow(RangeError);
+  });
+});

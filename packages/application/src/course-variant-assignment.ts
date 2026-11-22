@@ -237,8 +237,6 @@ export async function previewClassVariantRebalanceAsAdmin(db: Database, input: A
   now = new Date()): Promise<ClassVariantRebalancePreviewResult> {
   if (!uuid.test(input.raceId) || !uuid.test(input.classId)) return { status: "invalid-request" };
   const authentication = { ...input, role: "ADMIN" as const, requireCsrf: true };
-  const initial = await requireRaceRole(db, authentication, now);
-  if (initial.status !== "authenticated") return initial;
   return db.transaction(async tx => {
     const auth = await requireRaceRole(tx, authentication, now);
     if (auth.status !== "authenticated") return auth;

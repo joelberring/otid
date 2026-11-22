@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { readMigrationFiles } from "drizzle-orm/migrator";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { sql } from "drizzle-orm";
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 
 const LOCK_POLL_MS = 250;
 
@@ -81,8 +81,22 @@ export async function migrate(db: NodePgDatabase<any>, options: MigrateOptions):
     }
     await migrateUnlocked(db, options);
   } finally {
-    try { await lock.query("select pg_advisory_unlock(hashtext('otid.migrations'))"); } finally { lock.release(); }
+    await releaseMigrationLock(lock);
   }
+}
+
+/**
+ * Släpper sessionslåset och återlämnar anslutningen. Misslyckas upplåsningen kan låset sitta kvar: då förstörs anslutningen
+ * (`release(true)`) i stället för att återvända till poolen, så att låset släpps när sessionen avslutas.
+ */
+async function releaseMigrationLock(lock: PoolClient): Promise<void> {
+  try {
+    await lock.query("select pg_advisory_unlock(hashtext('otid.migrations'))");
+  } catch (error) {
+    lock.release(true);
+    throw error;
+  }
+  lock.release();
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

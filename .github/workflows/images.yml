@@ -19,17 +19,8 @@ on:
       - .dockerignore
       - deploy/backup.Dockerfile
       - deploy/geo.Dockerfile
-      - scripts/geo-worker.ts
-      - scripts/geo-moisture.ts
-      - scripts/geo-vegetation.ts
-      - scripts/geo-water.ts
-      - scripts/geo-cliffs.ts
-      - scripts/geo-ditches.ts
-      - scripts/geo-rock.ts
-      - scripts/geo-paved.ts
-      - scripts/geo-paved-generalize.ts
-      - scripts/geo-paved-contour.ts
-      - scripts/geo-gpkg.ts
+      - scripts/geo-*.ts
+      - packages/map-revision/src/base-map/vegetation-shapes.ts
       - tools/lasclip/**
       - apps/web/next.config.ts
       - package.json

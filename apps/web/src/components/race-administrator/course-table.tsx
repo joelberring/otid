@@ -131,7 +131,7 @@ export function CourseTable({ ws, visible }: { ws: Workspace; visible: boolean }
 }
 
 /** Steg 61: kontrollen före tävlingen i klartext, en rad per bana. Stoppar aldrig något. */
-function Readiness({ readiness }: { readiness: NonNullable<CourseRow["readiness"]> }) {
+function Readiness({ ws, course, readiness }: { ws: Workspace; course: CourseRow; readiness: NonNullable<CourseRow["readiness"]> }) {
   const variantText = useTexts(courseVariantsSv, courseVariantsEn);
   // ADR-0198: varianter som banläggningen valt bort.
   const excluded = readiness.excludedCount ? ` · ${variantText.readinessExcluded(readiness.excludedCount)}` : "";
@@ -147,8 +147,31 @@ function Readiness({ readiness }: { readiness: NonNullable<CourseRow["readiness"
     ...(readiness.unusedVariants.length > 0 && !readiness.unusedExpected ? [variantText.readinessUnused(readiness.unusedVariants)] : []),
     ...readiness.uneven.map(row => variantText.readinessUneven(row.className, row.point, row.counts))
   ];
-  return <Notice tone="attention" role="status"><span data-testid="forking-readiness">
-    <strong>{variantText.readinessLabel}:</strong> {problems.join(" · ")}{excluded}</span></Notice>;
+  // Fel 2026-11-22: en ojämn klass kan fördelas om härifrån (besked med namn före och efter).
+  const unevenClasses = [...new Set(readiness.uneven.map(row => row.className))]
+    .flatMap(name => course.classes.filter(raceClass => raceClass.name === name));
+  return <><Notice tone="attention" role="status"><span data-testid="forking-readiness">
+    <strong>{variantText.readinessLabel}:</strong> {problems.join(" · ")}{excluded}</span>
+    {unevenClasses.map(raceClass => <span key={raceClass.classId}> <Button variant="secondary" aria-label={variantText.rebalanceLabel(raceClass.name)}
+      disabled={ws.disabled || ws.workflowLocked || !!ws.rebalancePreview} onClick={() => void ws.previewRebalance(raceClass.classId)}>
+      {unevenClasses.length === 1 ? variantText.rebalance : variantText.rebalanceLabel(raceClass.name)}</Button></span>)}
+  </Notice></>;
+}
+
+/** Beskedet före "Fördela om jämnt": vilka löpare som byter variant, och bekräftelse. */
+function RebalanceReview({ ws, course }: { ws: Workspace; course: CourseRow }) {
+  const variantText = useTexts(courseVariantsSv, courseVariantsEn);
+  const preview = ws.rebalancePreview;
+  const raceClass = preview && course.classes.find(row => row.classId === preview.classId);
+  if (!preview || !raceClass) return ws.rebalanceMessage && course.classes.some(row => row.classId === ws.rebalanceClassId)
+    ? <Notice tone="ok" role="status">{ws.rebalanceMessage}</Notice> : null;
+  return <Notice tone="attention" role="alert"><div data-testid="rebalance-review">
+    <strong>{variantText.rebalanceTitle(raceClass.name, preview.changes.length)}</strong>
+    <ul>{preview.changes.map(change => <li key={change.entryId}>{variantText.rebalanceRow(change.name, change.from, change.to)}</li>)}</ul>
+    <p>{variantText.rebalanceHelp}</p>
+    <Button disabled={ws.disabled} onClick={() => void ws.confirmRebalance()}>{variantText.rebalanceConfirm}</Button>{" "}
+    <Button variant="quiet" disabled={ws.disabled} onClick={ws.cancelRebalance}>{variantText.rebalanceCancel}</Button>
+  </div></Notice>;
 }
 
 /**
@@ -187,7 +210,8 @@ function CourseVariants({ ws, course }: { ws: Workspace; course: CourseRow }) {
   const id = `forking-mode-${course.courseId}`;
   return <div className={styles.courseVariants}>
     <strong>{variantText.forked(course.variants.length)}</strong>
-    {course.readiness && <Readiness readiness={course.readiness} />}
+    {course.readiness && <Readiness ws={ws} course={course} readiness={course.readiness} />}
+    <RebalanceReview ws={ws} course={course} />
     {view && <ForkingDiagram items={view.items} letters={forkingLetters({ items: view.items })} count={branchCount(course, forking)}
       label={forking.courseDiagram(course.name)} caption={lengths || course.entryCount > 0 ? <>
         {lengths && <span>{forking.lengths(lengths.shortest, lengths.longest)}</span>}

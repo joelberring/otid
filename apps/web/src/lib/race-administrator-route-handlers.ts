@@ -192,7 +192,7 @@ const ROUTE_METHODS: Readonly<Partial<Record<Action["kind"], readonly string[]>>
   recalculate: ["POST"], registration: ["POST"], "registration-candidates": ["POST"], "manual-course-class": ["POST"],
   "manual-class": ["POST"], "course-edit-preview": ["POST"], "course-edit": ["POST"], "class-edit-preview": ["POST"],
   "class-edit": ["POST"], "rogaining-preview": ["POST"], rogaining: ["POST"], "entry-variant-preview": ["POST"],
-  "entry-variant": ["POST"], "class-variant-distribution": ["POST"], "map-print": ["POST"], "map-reserve": ["POST"],
+  "entry-variant": ["POST"], "class-variant-distribution": ["POST"], "class-variant-rebalance-preview": ["POST"], "map-print": ["POST"], "map-reserve": ["POST"],
   "relay-class": ["POST"], "relay-team": ["POST"], "relay-leg-runner": ["POST"], "relay-start-times": ["POST"],
   "relay-class-edit": ["POST"], "relay-team-edit": ["POST"], "relay-team-removal": ["POST"], "relay-team-dns": ["POST"],
   "relay-leg-variant": ["POST"], "race-settings": ["POST"], "readout-registrations": ["POST"], "course-details": ["POST"],

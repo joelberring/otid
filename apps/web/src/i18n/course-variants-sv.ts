@@ -44,6 +44,19 @@ export const courseVariantsSv = {
   readinessUneven: (className: string, point: number, counts: readonly { letters: string; count: number }[]) =>
     // Fel 2026-11-22: "Superion herr, gaffling 1: A 5, B 1" gick inte att förstå.
     `${className} är ojämnt fördelad vid gaffling ${point} (${counts.map(row => `${row.count} på ${row.letters}`).join(", ")})`,
+  // "Fördela om jämnt" (fel 2026-11-22).
+  rebalance: "Fördela om jämnt",
+  rebalanceLabel: (className: string) => `Fördela om varianterna jämnt i ${className}`,
+  rebalanceTitle: (className: string, count: number) => count === 1 ? `1 löpare i ${className} byter variant`
+    : `${count} löpare i ${className} byter variant`,
+  rebalanceHelp: "Avlästa löpare behåller sin variant. Är kartorna redan utskrivna måste de här löparnas kartor skrivas om – listan Kartor till starten visar ändringarna.",
+  rebalanceRow: (name: string, from: string, to: string) => `${name}: ${from} → ${to}`,
+  rebalanceConfirm: "Byt varianterna",
+  rebalanceCancel: "Avbryt",
+  rebalanced: (count: number) => count === 1 ? "1 löpare bytte variant." : `${count} löpare bytte variant.`,
+  rebalanceNothing: "Det går inte att göra jämnare utan att flytta avlästa löpare.",
+  rebalanceConflict: "Tävlingen har ändrats under tiden. Tryck Fördela om jämnt en gång till.",
+  rebalanceError: "Varianterna kunde inte fördelas om. Försök igen.",
   readinessTooMany: (count: number) => `${count} varianter – högst 100 går`,
   readinessLetters: "Fler än 26 gafflingsbokstäver",
   // Steg 61: fel karta vid starten.

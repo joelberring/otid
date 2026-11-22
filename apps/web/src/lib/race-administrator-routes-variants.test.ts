@@ -54,4 +54,19 @@ describe("administratörsroutes: gafflingar", () => {
     expect((await raceAdministratorRoute(db, request("POST", JSON.stringify(body), { "idempotency-key": `variant-distribution:${id}` }),
       id, action, services, environment)).status).toBe(409);
   });
+
+  it("Fördela om jämnt: beskedet med POST och samma klass; annan tävling i svaret ger 500", async () => {
+    const preview = { formatVersion: 1 as const, raceId: id, classId: other, snapshotVersion: 4,
+      changes: [{ entryId: other, name: "Ada Ek", from: "AC", to: "BD" }] };
+    const classVariantRebalancePreview = vi.fn<typeof import("@o-tid/application").previewClassVariantRebalanceAsAdmin>()
+      .mockResolvedValue({ status: "ok", response: preview });
+    const services = { ...dependencies(), classVariantRebalancePreview };
+    const action = { kind: "class-variant-rebalance-preview" as const, classId: other };
+    const shown = await raceAdministratorRoute(db, request("POST", "{}"), id, action, services, environment);
+    expect(shown.status).toBe(200);
+    expect(await shown.json()).toEqual(preview);
+    expect((await raceAdministratorRoute(db, request("GET"), id, action, services, environment)).status).toBe(405);
+    classVariantRebalancePreview.mockResolvedValueOnce({ status: "ok", response: { ...preview, classId: id } });
+    expect((await raceAdministratorRoute(db, request("POST", "{}"), id, action, services, environment)).status).toBe(500);
+  });
 });

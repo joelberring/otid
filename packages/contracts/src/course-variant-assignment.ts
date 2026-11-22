@@ -50,7 +50,16 @@ export const entryVariantResponseSchema = z.object({
 });
 
 export const classVariantDistributionRequestSchema = z.object({
-  formatVersion: z.literal(1), requestId: uuid, classId: uuid
+  formatVersion: z.literal(1), requestId: uuid, classId: uuid,
+  /** "Fördela om jämnt" (fel 2026-11-22): byten enligt beskedet för tävlingens version; annars bara löpare utan variant. */
+  rebalance: z.object({ expectedSnapshotVersion: version }).strict().optional()
+}).strict();
+
+/** Beskedet före "Fördela om jämnt": vilka löpare som byter variant. */
+export const classVariantRebalancePreviewResponseSchema = z.object({
+  formatVersion: z.literal(1), raceId: uuid, classId: uuid, snapshotVersion: version,
+  changes: z.array(z.object({ entryId: uuid, name: z.string().max(400), from: courseVariantCodeSchema, to: courseVariantCodeSchema })
+    .strict()).max(10_000)
 }).strict();
 
 export const classVariantDistributionIdempotencyKeySchema = z.string().regex(
@@ -72,3 +81,4 @@ export type EntryVariantRequest = z.infer<typeof entryVariantRequestSchema>;
 export type EntryVariantResponse = z.infer<typeof entryVariantResponseSchema>;
 export type ClassVariantDistributionRequest = z.infer<typeof classVariantDistributionRequestSchema>;
 export type ClassVariantDistributionResponse = z.infer<typeof classVariantDistributionResponseSchema>;
+export type ClassVariantRebalancePreviewResponse = z.infer<typeof classVariantRebalancePreviewResponseSchema>;

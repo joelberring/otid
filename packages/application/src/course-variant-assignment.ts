@@ -3,7 +3,8 @@ import { and, asc, eq, sql } from "drizzle-orm";
 import {
   classVariantDistributionIdempotencyKeySchema, classVariantDistributionRequestSchema, classVariantDistributionResponseSchema,
   entryVariantIdempotencyKeySchema, entryVariantPreviewRequestSchema, entryVariantPreviewResponseSchema, entryVariantRequestSchema,
-  entryVariantResponseSchema, type ClassVariantDistributionResponse, type EntryVariantPreviewResponse, type EntryVariantResponse
+  entryVariantResponseSchema, classVariantRebalancePreviewResponseSchema, type ClassVariantDistributionResponse,
+  type ClassVariantRebalancePreviewResponse, type EntryVariantPreviewResponse, type EntryVariantResponse
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { withProposedEntryVariants, type RaceSnapshot } from "@o-tid/domain";
@@ -11,7 +12,7 @@ import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
 import { bumpReadoutPackageVersion, loadRaceSnapshot } from "./snapshot";
 import { assessReadOutEntries, recalculateAssessedEntries, summarizeAssessment, type AssessedEntry } from "./result-reassessment";
-import { classVariantCodes, planVariantDistribution, writeEntryVariants } from "./course-variants";
+import { classVariantCodes, planVariantDistribution, planVariantRebalance, writeEntryVariants } from "./course-variants";
 import { UUID_PATTERN as uuid } from "./serialization";
 import { lockForkLettersFromRace } from "./course-setting-fork-letters";
 
@@ -195,7 +196,11 @@ export async function distributeClassVariantsAsAdmin(db: Database,
       eq(schema.entries.classId, raceClass.id))).orderBy(asc(schema.entries.id)).for("update");
     const seed = randomSeed();
     const snapshot = await loadRaceSnapshot(tx, raceId);
-    const planned = await planVariantDistribution(tx, raceId, [raceClass.id], seed, snapshot);
+    // "Fördela om jämnt": samma byten som beskedet visade, bara om tävlingen inte ändrats sedan dess.
+    if (intent.rebalance && intent.rebalance.expectedSnapshotVersion !== race.snapshotVersion) return { status: "conflict" };
+    const planned = intent.rebalance
+      ? new Map((await planVariantRebalance(tx, raceId, raceClass.id, race.snapshotVersion)).map(row => [row.entryId, row.to]))
+      : await planVariantDistribution(tx, raceId, [raceClass.id], seed, snapshot);
     if (planned.size === 0) return { status: "conflict" };
     const assessedAll = await assessReadOutEntries(tx, raceId, [raceClass], snapshot, withProposedEntryVariants(snapshot, planned));
     if (assessedAll === "too-large") return { status: "too-large" };
@@ -213,10 +218,37 @@ export async function distributeClassVariantsAsAdmin(db: Database,
       classId: raceClass.id, entryId: null, seed, actorAccountId: auth.principal.accountId,
       request: intent, response, assignedAt: now });
     await tx.insert(schema.auditEvents).values({ raceId, entityType: "class", entityId: raceClass.id, requestId: intent.requestId,
-      actorKind: "USER_ACCOUNT", actorId: auth.principal.accountId, action: "CLASS_COURSE_VARIANTS_DISTRIBUTED_BY_ADMIN",
+      actorKind: "USER_ACCOUNT", actorId: auth.principal.accountId,
+      action: intent.rebalance ? "CLASS_COURSE_VARIANTS_REBALANCED_BY_ADMIN" : "CLASS_COURSE_VARIANTS_DISTRIBUTED_BY_ADMIN",
       before: { snapshotVersion: race.snapshotVersion },
-      after: { snapshotVersion: snapshotVersionAfter, assignedCount: planned.size, recalculatedCount: recalculated.length }, createdAt: now });
+      after: { snapshotVersion: snapshotVersionAfter, assignedCount: planned.size, recalculatedCount: recalculated.length,
+        ...(intent.rebalance ? { changes: Object.fromEntries(planned) } : {}) }, createdAt: now });
     await lockForkLettersFromRace(tx, raceId, auth.principal.accountId, now, { forceAssigned: true });
     return { status: "distributed", response };
+  });
+}
+
+export type ClassVariantRebalancePreviewResult =
+  | { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" }
+  | { status: "ok"; response: ClassVariantRebalancePreviewResponse };
+
+/** Läser bara: vilka löpare som byter variant vid "Fördela om jämnt" (fel 2026-11-22). Avlästa byter aldrig. */
+export async function previewClassVariantRebalanceAsAdmin(db: Database, input: Authentication & { classId: string },
+  now = new Date()): Promise<ClassVariantRebalancePreviewResult> {
+  if (!uuid.test(input.raceId) || !uuid.test(input.classId)) return { status: "invalid-request" };
+  const authentication = { ...input, role: "ADMIN" as const, requireCsrf: true };
+  const initial = await requireRaceRole(db, authentication, now);
+  if (initial.status !== "authenticated") return initial;
+  return db.transaction(async tx => {
+    const auth = await requireRaceRole(tx, authentication, now);
+    if (auth.status !== "authenticated") return auth;
+    const raceId = auth.principal.raceId;
+    const race = await lockRaceForSnapshot(tx, raceId);
+    const [raceClass] = await tx.select({ id: schema.classes.id }).from(schema.classes)
+      .where(and(eq(schema.classes.id, input.classId), eq(schema.classes.raceId, raceId)));
+    if (!raceClass) return { status: "not-found" };
+    const changes = await planVariantRebalance(tx, raceId, raceClass.id, race.snapshotVersion);
+    return { status: "ok", response: classVariantRebalancePreviewResponseSchema.parse({ formatVersion: 1, raceId, classId: raceClass.id,
+      snapshotVersion: race.snapshotVersion, changes }) };
   });
 }

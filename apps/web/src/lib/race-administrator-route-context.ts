@@ -19,7 +19,7 @@ import { loadStartDrawSetupAsAdmin, previewStartDrawAsAdmin, commitStartDrawAsAd
   exportCurrentStartListXmlAsAdmin,
   listAdministratorForestWatch, registerAdministratorReturn, withdrawAdministratorReturn, correctAdministratorStart,
   listCheckinHistoryAsAdmin, readStartCheckinConflictReviewAsAdmin, reviewStartCheckinConflictsAsAdmin,
-  previewEntryVariantAsAdmin, changeEntryVariantAsAdmin, distributeClassVariantsAsAdmin,
+  previewEntryVariantAsAdmin, changeEntryVariantAsAdmin, distributeClassVariantsAsAdmin, previewClassVariantRebalanceAsAdmin,
   readMapBundlesAsAdmin, recordMapPrintAsAdmin, saveMapReserveAsAdmin,
   getRelayOverviewAsAdmin, createRelayClassAsAdmin, registerRelayTeamAsAdmin,
   changeRelayLegRunnerAsAdmin, setRelayStartTimesAsAdmin, saveRaceSettingsAsAdmin,
@@ -88,7 +88,7 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   courseEdit: editCourseAsAdmin, classEditPreview: previewClassEditAsAdmin, classEdit: editClassAsAdmin,
   rogainingPreview: previewRogainingChangeAsAdmin, rogaining: changeRogainingAsAdmin,
   entryVariantPreview: previewEntryVariantAsAdmin, entryVariant: changeEntryVariantAsAdmin,
-  classVariantDistribution: distributeClassVariantsAsAdmin,
+  classVariantDistribution: distributeClassVariantsAsAdmin, classVariantRebalancePreview: previewClassVariantRebalanceAsAdmin,
   // Steg 61: kartor till starten (tryckantal, kartbuntslistan, baksidorna).
   mapBundles: readMapBundlesAsAdmin, mapPrint: recordMapPrintAsAdmin, mapReserve: saveMapReserveAsAdmin,
   relayOverview: getRelayOverviewAsAdmin, relayClass: createRelayClassAsAdmin, relayTeam: registerRelayTeamAsAdmin,
@@ -199,7 +199,7 @@ export type RaceAdministratorAction = { kind: "conflict-candidate"; entryId: str
   { kind: "class-edit-preview"; classId: string } | { kind: "class-edit"; classId: string } |
   { kind: "rogaining-preview" } | { kind: "rogaining" } |
   { kind: "entry-variant-preview"; entryId: string } | { kind: "entry-variant"; entryId: string } |
-  { kind: "class-variant-distribution"; classId: string } |
+  { kind: "class-variant-distribution"; classId: string } | { kind: "class-variant-rebalance-preview"; classId: string } |
   { kind: "map-bundles" } | { kind: "map-print" } | { kind: "map-reserve" } |
   { kind: "relay" } | { kind: "relay-class" } | { kind: "relay-team" } | { kind: "relay-leg-runner" } | { kind: "relay-start-times" } |
   { kind: "relay-class-edit" } | { kind: "relay-team-edit" } | { kind: "relay-team-removal" } | { kind: "relay-team-dns" } |

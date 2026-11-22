@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  courseVariantForReadout, distributeCourseVariants, entryCourseControls, evaluateCardReadout, leastUsedCourseVariant, storedResultCourseVariant,
+  courseVariantForReadout, distributeCourseVariants, rebalanceCourseVariants, entryCourseControls, evaluateCardReadout, leastUsedCourseVariant, storedResultCourseVariant,
   unevenCourseVariantLegs, withProposedCourseVersion, withProposedEntryVariants, wrongMapVariants, excludedVariantsFitting, type EvaluationReadout, type RaceSnapshot
 } from "../src";
 
@@ -253,5 +253,31 @@ describe("jämna gafflingspunkter med fler varianter än löpare (fel 2026-11-22
       expect(balanced(used)).toBe(true);
     }
     expect(new Set(used).size).toBe(7);
+  });
+});
+
+describe("Fördela om jämnt (fel 2026-11-22)", () => {
+  const forks = [[34, 54], [38, 57], [43, 58], [61, 62]] as const;
+  const variants = Array.from({ length: 16 }, (_, index) => {
+    const picks = forks.map((_fork, point) => (index >> (3 - point)) & 1);
+    return { code: picks.map((pick, point) => String.fromCharCode(65 + point * 2 + pick)).join(""),
+      controlCodes: [31, ...forks.flatMap((fork, point) => [fork[picks[point]!]!, 70 + point])] };
+  });
+  const perPoint = (codes: readonly string[], point: number) => codes.filter((code) => code[point] === String.fromCharCode(65 + point * 2)).length;
+
+  it("jämnar ut A 5, B 1 med få flyttar och rör inte avlästa", () => {
+    const start = ["ACEG", "ACEH", "ACFH", "ADEH", "ADFH", "BCEG"];
+    const runners = start.map((code, index) => ({ entryId: `e${index}`, variantCode: code, fixed: index === 0 }));
+    const changed = rebalanceCourseVariants({ seed: 7, variants, runners });
+    const after = runners.map((runner) => changed.get(runner.entryId) ?? runner.variantCode);
+    expect(changed.has("e0")).toBe(false);
+    for (let point = 0; point < 4; point += 1) expect(Math.abs(perPoint(after, point) * 2 - 6)).toBeLessThanOrEqual(1);
+    expect(new Set(after).size).toBe(6);
+    expect(changed.size).toBeLessThanOrEqual(3);
+  });
+
+  it("ändrar ingenting när det redan är jämnt", () => {
+    const runners = ["ACEG", "BDFH", "ADEH", "BCFG"].map((code, index) => ({ entryId: `e${index}`, variantCode: code, fixed: false }));
+    expect(rebalanceCourseVariants({ seed: 3, variants, runners }).size).toBe(0);
   });
 });

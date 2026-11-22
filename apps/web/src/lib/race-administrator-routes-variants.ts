@@ -1,4 +1,4 @@
-import { classVariantDistributionIdempotencyKeySchema, classVariantDistributionRequestSchema, classVariantDistributionResponseSchema,
+import { classVariantRebalancePreviewResponseSchema, classVariantDistributionIdempotencyKeySchema, classVariantDistributionRequestSchema, classVariantDistributionResponseSchema,
   entryVariantIdempotencyKeySchema, entryVariantPreviewRequestSchema, entryVariantPreviewResponseSchema, entryVariantRequestSchema,
   entryVariantResponseSchema, mapBundleResponseSchema, mapPrintRequestSchema, mapPrintResponseSchema, mapReserveRequestSchema,
   mapReserveResponseSchema } from "@o-tid/contracts";
@@ -67,6 +67,13 @@ export async function handleVariantRoute(context: RaceAdministratorRouteContext)
     if (response.raceId !== raceId || response.entryId !== action.entryId || response.requestId !== parsed.data.requestId ||
         JSON.stringify(response.request) !== JSON.stringify(parsed.data)) return failure(500, "INTERNAL_ERROR");
     return json(response);
+  }
+  // "Fördela om jämnt" (fel 2026-11-22): bara beskedet; sparandet går genom class-variant-distribution med rebalance.
+  if (action.kind === "class-variant-rebalance-preview") {
+    const result = await dependencies.classVariantRebalancePreview(db, { ...proof, raceId, classId: action.classId });
+    if (result.status !== "ok") return resultFailure(result.status);
+    const response = classVariantRebalancePreviewResponseSchema.parse(result.response);
+    return response.raceId === raceId && response.classId === action.classId ? json(response) : failure(500, "INTERNAL_ERROR");
   }
   if (action.kind === "class-variant-distribution") {
     const key = classVariantDistributionIdempotencyKeySchema.safeParse(request.headers.get("idempotency-key"));

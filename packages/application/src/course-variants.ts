@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
 import {
-  courseVariantForReadout, distributeCourseVariants, leastUsedCourseVariant, storedResultCourseVariant, type RaceSnapshot
+  courseVariantForReadout, distributeCourseVariants, leastUsedCourseVariant, rebalanceCourseVariants, storedResultCourseVariant, type RaceSnapshot
 } from "@o-tid/domain";
 import { normalizedReadout } from "./result-reassessment";
 
@@ -173,6 +173,34 @@ export async function planVariantDistribution(tx: Transaction, raceId: string, c
     for (const [entryId, code] of distributeCourseVariants({ seed: classSeed, variantCodes: codes, runners, variants })) planned.set(entryId, code);
   }
   return planned;
+}
+
+/**
+ * "Fördela om jämnt" (fel 2026-11-22): klassens löpare (ej strukna) som har en giltig variant och varken är avlästa eller
+ * har resultat kan få en ny variant, så att varianterna och varje gafflingspunkt blir så jämna som det går med så få
+ * byten som möjligt. Fröet är bestämt av klassen och tävlingens version, så att beskedet och sparandet ger samma byten.
+ * Ger de löpare som byter (kod före och efter).
+ */
+export async function planVariantRebalance(tx: Transaction, raceId: string, classId: string, snapshotVersion: number)
+  : Promise<{ entryId: string; name: string; from: string; to: string }[]> {
+  const codes = await classVariantCodes(tx, raceId, classId);
+  if (codes.length < 2) return [];
+  const variants = (await classVariantControls(tx, raceId, classId)).filter(variant => codes.includes(variant.code));
+  const entries = await tx.select({ id: schema.entries.id, code: schema.entries.courseVariantCode, givenName: schema.entries.givenName,
+    familyName: schema.entries.familyName }).from(schema.entries)
+    .where(and(eq(schema.entries.raceId, raceId), eq(schema.entries.classId, classId), isNull(schema.entries.struckAt)));
+  const withCode = entries.filter((row): row is typeof row & { code: string } => row.code !== null && codes.includes(row.code));
+  if (withCode.length === 0) return [];
+  const ids = withCode.map(row => row.id);
+  const readouts = await latestReadouts(tx, raceId, ids);
+  const results = new Set((await tx.selectDistinct({ entryId: schema.resultRevisions.entryId }).from(schema.resultRevisions)
+    .where(inArray(schema.resultRevisions.entryId, ids))).map(row => row.entryId));
+  let seed = snapshotVersion + 1;
+  for (const char of classId) seed = (Math.imul(seed, 31) + char.charCodeAt(0)) >>> 0;
+  const changed = rebalanceCourseVariants({ seed: seed || 1, variants, runners: withCode.map(row => ({ entryId: row.id,
+    variantCode: row.code, fixed: readouts.has(row.id) || results.has(row.id) })) });
+  return withCode.filter(row => changed.has(row.id)).map(row => ({ entryId: row.id, name: `${row.givenName} ${row.familyName}`.trim(),
+    from: row.code, to: changed.get(row.id)! })).sort((left, right) => left.name.localeCompare(right.name, "sv"));
 }
 
 /** Sparar planerade varianter. Ökar deltagarens version; anroparen ökar tävlingens version. */

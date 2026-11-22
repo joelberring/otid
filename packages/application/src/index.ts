@@ -77,9 +77,9 @@ export { listClassResultRecalculationCandidatesAsAdmin, recalculateClassResultsA
 export * from "./readout-station";
 export { isEffectiveResultCurrent, isResultCurrent, loadResultBasisHash, loadResultBasisHashes } from "./result-basis";
 export {
-  changeEntryVariantAsAdmin, distributeClassVariantsAsAdmin, previewEntryVariantAsAdmin
+  changeEntryVariantAsAdmin, distributeClassVariantsAsAdmin, previewClassVariantRebalanceAsAdmin, previewEntryVariantAsAdmin
 } from "./course-variant-assignment";
-export type { ClassVariantDistributionResult, EntryVariantPreviewResult, EntryVariantResult } from "./course-variant-assignment";
+export type { ClassVariantDistributionResult, ClassVariantRebalancePreviewResult, EntryVariantPreviewResult, EntryVariantResult } from "./course-variant-assignment";
 export { readMapBundlesAsAdmin, recordMapPrintAsAdmin, saveMapReserveAsAdmin } from "./map-bundles";
 export type { MapBundleResult, MapPrintResult, MapReserveResult } from "./map-bundles";
 export * from "./relay-admin";

@@ -232,3 +232,67 @@ export function storedResultCourseVariant<T extends { readonly code: string; rea
   }
   return best?.variant;
 }
+
+export interface RebalanceRunner {
+  readonly entryId: string;
+  readonly variantCode: string;
+  /** Avläst (eller med resultat): behåller sin variant men räknas. */
+  readonly fixed: boolean;
+}
+
+/**
+ * "Fördela om jämnt" (fel 2026-11-22): flyttar så få löpare som möjligt tills varje gafflingspunkt och varje variant är
+ * så jämn som det går. En flytt i taget, den som minskar ojämnheten mest (antal per variant väger tyngst, sedan antal per
+ * val vid gafflingspunkterna, kvadratsumma); lika avgörs av fröets ordning. Fasta löpare flyttas aldrig. Ger bara de
+ * löpare som får en ny kod.
+ */
+export function rebalanceCourseVariants(input: {
+  readonly seed: number;
+  readonly variants: readonly CourseVariantControls[];
+  readonly runners: readonly RebalanceRunner[];
+}): Map<string, string> {
+  const keys = courseVariantForkKeys(input.variants);
+  const codes = input.variants.map((variant) => variant.code);
+  const valid = new Set(codes);
+  const runners = input.runners.filter((runner) => valid.has(runner.variantCode))
+    .sort((left, right) => left.entryId < right.entryId ? -1 : left.entryId > right.entryId ? 1 : 0);
+  const current = new Map(runners.map((runner) => [runner.entryId, runner.variantCode]));
+  const variantCounts = new Map(codes.map((code) => [code, 0]));
+  for (const code of current.values()) variantCounts.set(code, variantCounts.get(code)! + 1);
+  const points = forkKeyCounts(keys, [...current.values()]);
+  const random = createRandom(input.seed);
+  const order = shuffle(codes, random);
+  const movable = shuffle(runners.filter((runner) => !runner.fixed), random);
+  const VARIANT_WEIGHT = 1_000;
+  // Ändringen i kvadratsumman när en löpare flyttas från `from` till `to`.
+  const delta = (from: string, to: string): number => {
+    const a = variantCounts.get(from)!, b = variantCounts.get(to)!;
+    let change = VARIANT_WEIGHT * (((a - 1) ** 2 + (b + 1) ** 2) - (a ** 2 + b ** 2));
+    const leaving = keys?.get(from) ?? [], joining = keys?.get(to) ?? [];
+    const shared = new Set(leaving.filter((key) => joining.includes(key)));
+    for (const key of leaving) if (!shared.has(key)) { const n = points.get(key) ?? 0; change += (n - 1) ** 2 - n ** 2; }
+    for (const key of joining) if (!shared.has(key)) { const n = points.get(key) ?? 0; change += (n + 1) ** 2 - n ** 2; }
+    return change;
+  };
+  const limit = movable.length * 4 + 10;
+  for (let step = 0; step < limit; step += 1) {
+    let best: { entryId: string; from: string; to: string; change: number } | undefined;
+    for (const runner of movable) {
+      const from = current.get(runner.entryId)!;
+      for (const to of order) {
+        if (to === from) continue;
+        const change = delta(from, to);
+        if (change < 0 && (!best || change < best.change)) best = { entryId: runner.entryId, from, to, change };
+      }
+    }
+    if (!best) break;
+    current.set(best.entryId, best.to);
+    variantCounts.set(best.from, variantCounts.get(best.from)! - 1);
+    variantCounts.set(best.to, variantCounts.get(best.to)! + 1);
+    for (const key of keys?.get(best.from) ?? []) points.set(key, (points.get(key) ?? 0) - 1);
+    for (const key of keys?.get(best.to) ?? []) points.set(key, (points.get(key) ?? 0) + 1);
+  }
+  const changed = new Map<string, string>();
+  for (const runner of runners) if (current.get(runner.entryId) !== runner.variantCode) changed.set(runner.entryId, current.get(runner.entryId)!);
+  return changed;
+}

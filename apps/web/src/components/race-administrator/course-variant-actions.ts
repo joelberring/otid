@@ -1,8 +1,8 @@
 import { useState } from "react";
 
 
-import { classVariantDistributionResponseSchema, entryVariantPreviewResponseSchema, entryVariantResponseSchema,
-  type ClassVariantDistributionRequest, type EntryVariantPreviewResponse, type EntryVariantRequest } from "@o-tid/contracts";
+import { classVariantDistributionResponseSchema, classVariantRebalancePreviewResponseSchema, entryVariantPreviewResponseSchema,
+  entryVariantResponseSchema, type ClassVariantDistributionRequest, type ClassVariantRebalancePreviewResponse, type EntryVariantPreviewResponse, type EntryVariantRequest } from "@o-tid/contracts";
 
 import type { Operation } from "./types";
 import type { Base } from "./workspace-state";
@@ -21,7 +21,11 @@ export function useCourseVariantState() {
   const [entryVariantError, setEntryVariantError] = useState("");
   const [distributionAttempt, setDistributionAttempt] = useState<ClassVariantDistributionRequest>();
   const [distributionMessage, setDistributionMessage] = useState("");
-  return { entryVariantPreview, setEntryVariantPreview, entryVariantAttempt, setEntryVariantAttempt, entryVariantMessage,
+  // "Fördela om jämnt" (fel 2026-11-22): beskedet med namn före och efter, och felbeskedet.
+  const [rebalancePreview, setRebalancePreview] = useState<ClassVariantRebalancePreviewResponse>();
+  const [rebalanceMessage, setRebalanceMessage] = useState("");
+  const [rebalanceClassId, setRebalanceClassId] = useState("");
+  return { rebalancePreview, setRebalancePreview, rebalanceMessage, setRebalanceMessage, rebalanceClassId, setRebalanceClassId, entryVariantPreview, setEntryVariantPreview, entryVariantAttempt, setEntryVariantAttempt, entryVariantMessage,
     setEntryVariantMessage, entryVariantError, setEntryVariantError, distributionAttempt, setDistributionAttempt,
     distributionMessage, setDistributionMessage };
 }
@@ -30,7 +34,8 @@ export function createCourseVariantActions(ws: Base & RaceDataActions & CourseEd
   const text = ws.variantText;
   const { raceId, data, selected, courseList, entryVariantAttempt, distributionAttempt, writingRef, pending, requireSession,
     begin, finish, current, request, json, csrf, load, readCourses, setEntryVariantPreview, setEntryVariantAttempt,
-    setEntryVariantMessage, setEntryVariantError, setDistributionAttempt, setDistributionMessage, setCourseListError } = ws;
+    setEntryVariantMessage, setEntryVariantError, setDistributionAttempt, setDistributionMessage, setCourseListError, rebalancePreview, setRebalancePreview,
+    setRebalanceMessage, setRebalanceClassId } = ws;
 
   async function sendEntryVariant(op: Operation, attempt: EntryVariantRequest) {
     const response = await request(`/entries/${attempt.entryId}/variant`, op, { method: "POST",
@@ -116,5 +121,47 @@ export function createCourseVariantActions(ws: Base & RaceDataActions & CourseEd
     } catch { if (current(op)) setDistributionMessage(text.distributeError); }
     finally { finish(op); }
   }
-  return { chooseEntryVariant, confirmEntryVariant, cancelEntryVariant, distributeVariants };
+  /** "Fördela om jämnt": beskedet först, med vilka löpare som byter variant. Avlästa byter aldrig. */
+  async function previewRebalance(classId: string) {
+    if (writingRef.current || pending.current || !requireSession()) return;
+    setRebalanceMessage(""); setRebalancePreview(undefined); setDistributionMessage(""); setRebalanceClassId(classId);
+    const op = begin(true);
+    try {
+      const response = await request(`/classes/${classId}/variant-rebalance-preview`, op, { method: "POST",
+        headers: { "content-type": "application/json", "x-otid-csrf": csrf() }, body: "{}" });
+      if (!response.ok) throw new Error("Rebalance preview unavailable");
+      const preview = classVariantRebalancePreviewResponseSchema.parse(await json(response, op));
+      if (preview.raceId !== raceId || preview.classId !== classId) throw new Error("Rebalance preview mismatch");
+      if (preview.changes.length === 0) { setRebalanceMessage(text.rebalanceNothing); return; }
+      setRebalancePreview(preview);
+    } catch { if (current(op)) setRebalanceMessage(text.rebalanceError); }
+    finally { finish(op); }
+  }
+  async function confirmRebalance() {
+    if (writingRef.current || pending.current || !requireSession() || !rebalancePreview) return;
+    const preview = rebalancePreview;
+    const attempt: ClassVariantDistributionRequest = { formatVersion: 1, requestId: crypto.randomUUID(), classId: preview.classId,
+      rebalance: { expectedSnapshotVersion: preview.snapshotVersion } };
+    const op = begin(true);
+    try {
+      const response = await request(`/classes/${preview.classId}/variant-distribution`, op, { method: "POST",
+        headers: { "content-type": "application/json", "x-otid-csrf": csrf(), "idempotency-key": `variant-distribution:${attempt.requestId}` },
+        body: JSON.stringify(attempt) });
+      if (response.status === 409 || response.status === 400 || response.status === 404) {
+        setRebalancePreview(undefined); setRebalanceMessage(text.rebalanceConflict);
+        await load(op); await readCourses(op);
+        return;
+      }
+      if (!response.ok) throw new Error("Unknown rebalance outcome");
+      const receipt = classVariantDistributionResponseSchema.parse(await json(response, op));
+      if (receipt.raceId !== raceId || receipt.requestId !== attempt.requestId) throw new Error("Rebalance receipt mismatch");
+      setRebalancePreview(undefined); setRebalanceMessage(text.rebalanced(receipt.assignedCount));
+      try { await load(op); await readCourses(op); }
+      catch { if (current(op)) setCourseListError(text.distributeError); }
+    } catch { if (current(op)) setRebalanceMessage(text.rebalanceError); }
+    finally { finish(op); }
+  }
+  function cancelRebalance() { setRebalancePreview(undefined); setRebalanceMessage(""); }
+  return { chooseEntryVariant, confirmEntryVariant, cancelEntryVariant, distributeVariants, previewRebalance, confirmRebalance,
+    cancelRebalance };
 }

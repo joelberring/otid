@@ -1,15 +1,15 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, eq, or } from "drizzle-orm";
+import { and, asc, eq, isNull, or } from "drizzle-orm";
 import { mapLayerProfileCreateRequestSchema, type MapLayerProfileView } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import type { ClubFailure, ClubProof } from "./club-access";
-import { requireMapProject } from "./map-project-access";
+import { mapProjectCanArchive, requireMapProject } from "./map-project-access";
 import { UUID_PATTERN } from "./serialization";
 
 /**
  * ADR-0219 K6b (planen för baskartor): lagermappningsprofiler. Den som får föreslå i ett kartprojekt sparar en vektorfils
  * lager → symbolnummer som en profil, för sig själv eller delad med projektets klubb; nästa fil med samma lagernamn får
- * mappningen direkt (webbläsaren jämför lagren). Ett namn som redan finns hos kontot ersätts. Bara den som sparade tar bort.
+ * mappningen direkt (webbläsaren jämför lagren). Ett namn som redan finns hos kontot ersätts. Bara den som sparade tar bort (en klubbprofil utan ägare tas bort av klubbens administratörer).
  */
 const profiles = schema.mapLayerProfiles;
 const MAX_PROFILES = 100;
@@ -62,7 +62,11 @@ export async function deleteMapLayerProfile(db: Database, input: ClubProof & { p
     const access = await requireMapProject(tx, input, now, "propose", true);
     if (access.status !== "ok") return access;
     if (!UUID_PATTERN.test(input.profileId)) return { status: "not-found" } as const;
-    const deleted = await tx.delete(profiles).where(and(eq(profiles.id, input.profileId), eq(profiles.accountId, access.accountId))).returning({ id: profiles.id });
+    const own = and(eq(profiles.id, input.profileId), eq(profiles.accountId, access.accountId));
+    // Klubbens delade profil vars skapare tagit bort sitt konto (accountId är NULL, migration 0135): klubbens administratörer tar bort den.
+    const orphaned = access.project.clubId && await mapProjectCanArchive(tx, access.accountId, access.project)
+      ? and(eq(profiles.id, input.profileId), isNull(profiles.accountId), eq(profiles.clubId, access.project.clubId)) : undefined;
+    const deleted = await tx.delete(profiles).where(orphaned ? or(own, orphaned) : own).returning({ id: profiles.id });
     return deleted.length ? { status: "deleted" } as const : { status: "not-found" } as const;
   });
 }

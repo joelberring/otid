@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * Granskningen 3.3: lastskyddet för publiken kringgås inte med en påhittad sessionskaka. Bara en session som databasen känner
  * igen går förbi kön; en giltig session minns en kort stund.
  */
-const state = vi.hoisted(() => ({ cookie: "", valid: false, authCalls: 0, admits: 0 }));
+const state = vi.hoisted(() => ({ cookie: "", valid: false, authCalls: 0, admits: 0, hold: false, release: undefined as (() => void) | undefined, gate: undefined as Promise<void> | undefined }));
 vi.mock("server-only", () => ({}));
 vi.mock("./db", () => ({ db: {}, pool: {}, database: {}, publicDb: {}, publicDatabase: {} }));
 vi.mock("./public-load", () => ({
@@ -12,7 +12,7 @@ vi.mock("./public-load", () => ({
   publicLoad: () => ({ admit: async () => { state.admits += 1; return { kind: "admitted", release: () => undefined }; } })
 }));
 vi.mock("@o-tid/application", () => ({
-  authenticateUserAccountSession: async () => { state.authCalls += 1; return { status: state.valid ? "authenticated" : "unauthorized" }; },
+  authenticateUserAccountSession: async () => { state.authCalls += 1; if (state.hold) await (state.gate ??= new Promise<void>(resolve => { state.release = resolve; })); return { status: state.valid ? "authenticated" : "unauthorized" }; },
   publicRaceGate: async () => ({ access: "PUBLIC", privateCache: false }),
   isRaceStaff: async () => false
 }));
@@ -38,6 +38,28 @@ describe("publikt lastskydd och sessionskakan", () => {
     await publicRaceResponse(raceId, () => Response.json({}));
     expect(state.admits).toBe(0);
     expect(state.authCalls).toBe(1);
+  });
+
+  it("en ogiltig kaka kontrolleras en gång och minns kort", async () => {
+    const { publicRaceResponse } = await import("./public-race-gate");
+    state.cookie = "ogiltig-kaka-minns";
+    await publicRaceResponse(raceId, () => Response.json({}));
+    await publicRaceResponse(raceId, () => Response.json({}));
+    expect(state.authCalls).toBe(1);
+    expect(state.admits).toBe(2);
+  });
+
+  it("högst åtta kontroller pågår samtidigt; resten ställs i den publika kön utan databasfråga", async () => {
+    const { hasVerifiedAccountSession } = await import("./public-race-gate");
+    state.cookie = "flod-kaka-0";
+    state.hold = true;
+    const first = Array.from({ length: 8 }, (_, i) => { state.cookie = `flod-kaka-${i}`; return hasVerifiedAccountSession(); });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    state.cookie = "flod-kaka-extra";
+    expect(await hasVerifiedAccountSession()).toBe(false);
+    expect(state.authCalls).toBe(8);
+    state.hold = false; state.release?.(); state.gate = undefined;
+    await Promise.all(first);
   });
 
   it("utan kaka ställs anropet i kön utan att databasen frågas", async () => {

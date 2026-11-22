@@ -4,7 +4,7 @@
  */
 import { clamp01, rgbFromCmyk, spotName } from "../color";
 import { crsFromEpsg } from "../georef";
-import type { MapColor, MapGeoreference } from "../model";
+import { MapFileError, type MapColor, type MapGeoreference } from "../model";
 import type { WarningCollector } from "../warnings";
 import { indexBlocks, type Bytes } from "./bytes";
 
@@ -16,6 +16,8 @@ export interface ParameterString { readonly type: number; readonly value: string
 export function readParameterStrings(bytes: Bytes, first: number): ParameterString[] {
   const strings: ParameterString[] = [];
   if (first === 0) return strings;
+  // Strängarna tar plats i filen; mer än filens storlek i sum betyder att posterna pekar på samma bytes flera gånger.
+  let budget = bytes.length;
   for (const block of indexBlocks(bytes, first, STRING_BLOCK_SIZE)) {
     for (let index = 0; index < 256; index++) {
       const entry = block + 4 + index * 16;
@@ -26,6 +28,8 @@ export function readParameterStrings(bytes: Bytes, first: number): ParameterStri
       // En sträng som går utanför filen betyder att filen är avkortad.
       const size = Math.min(length, MAX_STRING_BYTES);
       bytes.check(position, size, "inställning");
+      budget -= size;
+      if (budget < 0) throw new MapFileError("INVALID", "OCAD-filen är trasig: inställningsposterna pekar på samma text flera gånger.");
       strings.push({ type, value: bytes.utf8(position, size) });
     }
   }

@@ -176,7 +176,7 @@ export const userAccountGoogleIdentities = pgTable("user_account_google_identity
  */
 export type SuperadminActionKind = "GRANT_SUPERADMIN" | "REVOKE_SUPERADMIN" | "HIDE_RACE" | "UNHIDE_RACE" |
   "DELETE_EVENT" | "BLOCK_ACCOUNT" | "UNBLOCK_ACCOUNT" | "DELETE_ACCOUNT" | "CREATE_RESET_LINK" | "VERIFY_EMAIL" | "SET_ACCOUNT_LIMITS" |
-  "SET_INSTALLATION_LIMITS" | "MIGRATE_MAP_CONTENT_NOW";
+  "SET_INSTALLATION_LIMITS" | "MIGRATE_MAP_CONTENT_NOW" | "SET_CLUB_LIMITS";
 
 /** Superadmins åtgärder (append-only, utan främmande nycklar så att loggen överlever borttagningar). */
 export const superadminActions = pgTable("superadmin_action", {
@@ -185,14 +185,14 @@ export const superadminActions = pgTable("superadmin_action", {
   actorAccountId: uuid("actor_account_id"),
   actorLabel: text("actor_label").notNull(),
   action: text("action").$type<SuperadminActionKind>().notNull(),
-  targetType: text("target_type").$type<"ACCOUNT" | "EVENT" | "RACE" | "INSTALLATION">().notNull(),
+  targetType: text("target_type").$type<"ACCOUNT" | "EVENT" | "RACE" | "INSTALLATION" | "CLUB">().notNull(),
   targetId: uuid("target_id").notNull(),
   targetLabel: text("target_label").notNull(),
   reason: text("reason").notNull()
 }, (table) => [
   index("superadmin_action_created_idx").on(table.createdAt.desc()),
   check("superadmin_action_action_format_check", sql`${table.action} ~ '^[A-Z][A-Z0-9_]{0,62}[A-Z0-9]$'`),
-  check("superadmin_action_target_type_check", sql`${table.targetType} IN ('ACCOUNT', 'EVENT', 'RACE', 'INSTALLATION')`),
+  check("superadmin_action_target_type_check", sql`${table.targetType} IN ('ACCOUNT', 'EVENT', 'RACE', 'INSTALLATION', 'CLUB')`),
   check("superadmin_action_actor_label_check", sql`length(btrim(${table.actorLabel})) BETWEEN 1 AND 254`),
   check("superadmin_action_target_label_check", sql`length(btrim(${table.targetLabel})) BETWEEN 1 AND 320`),
   check("superadmin_action_reason_check", sql`length(btrim(${table.reason})) BETWEEN 1 AND 500`)

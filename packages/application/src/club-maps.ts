@@ -158,7 +158,8 @@ export async function uploadClubMapVersion(db: Database, input: ClubProof & { cl
         await tx.insert(schema.clubMaps).values({ id: mapId, clubId: input.clubId, name: name!, ownership: "CLUB", ownerKind: "CLUB", trainingOnly: false,
           feePerPrint: false, noPublicDisplay: false, createdAt: now, createdBy: member.accountId, updatedAt: now });
       }
-      const stored = await storeMapContent(tx, staged, member.accountId, now, mapStorageQuota());
+      // PLAN.md steg M7: klubbarkivet räknas mot klubbens gräns, inte mot den som laddar upp.
+      const stored = await storeMapContent(tx, staged, member.accountId, now, mapStorageQuota(), { clubId: input.clubId });
       if (stored.status === "quota") throw new QuotaRollback(stored.quota);
       const versionId = randomUUID();
       const fileName = input.fileName.replace(/\p{Cc}/gu, "").trim().slice(0, 200) || (format === "OCD" ? "karta.ocd" : "karta.omap");

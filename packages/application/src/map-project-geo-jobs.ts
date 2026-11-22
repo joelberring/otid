@@ -528,7 +528,7 @@ export async function storeGeoOutput(db: Database, input: { jobId: string; worke
     if (!job || job.status !== "RUNNING" || !job.accountId) return { status: "not-found" } as const;
     // PLAN.md steg M4: Karttapullautins resultat är återskapbart (receptet är körningen); indata och DWG är det inte.
     const recipe = job.kind === "PULLAUTIN" && !input.name.startsWith("indata.") ? laserRecipe(job, input.name, now) : undefined;
-    const stored = await storeMapContent(tx, input.file, job.accountId, now, mapStorageQuota(), recipe);
+    const stored = await storeMapContent(tx, input.file, job.accountId, now, mapStorageQuota(), { recipe });
     if (stored.status === "quota") return { status: "quota" } as const;
     await tx.insert(outputs).values({ jobId: job.id, name: input.name, contentSha256: stored.sha256, mediaType: input.mediaType,
       byteSize: contentLength(input.file), createdAt: now })

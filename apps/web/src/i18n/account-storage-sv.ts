@@ -10,7 +10,7 @@ export const accountStorageSv = {
   empty: "Inga kartfiler ännu.",
   columns: { project: "Kartprojekt", geo: "Laserkörningar", layers: "Underlag", outputs: "Resultat", base: "Grundfil", total: "Totalt", opened: "Senast öppnat", actions: "Åtgärd" },
   neverOpened: "–",
-  other: "Övrigt (klubbarkiv, tävlingar och träningar)",
+  other: "Övrigt (tävlingar och träningar)",
   mb: (bytes: number) => bytes === 0 ? "–" : bytes < 104858 ? "< 0,1 MB" : `${(bytes / 1048576).toFixed(1).replace(".", ",")} MB`,
   prune: (runs: number) => runs === 1 ? "Ta bort 1 äldre körning" : `Ta bort ${runs} äldre körningar`,
   pruneConfirm: "Körningarnas filer och underlagsbilderna de gav tas bort. Projektets senaste klara körning och dess underlag behålls. Det går inte att ångra.",

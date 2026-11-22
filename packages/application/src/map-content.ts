@@ -154,18 +154,30 @@ export function mapStorageQuotaProblems(env: Partial<Record<string, string | und
     .map(name => `${name} ska vara ett heltal i MB (0 = ingen gräns); förvalet används`);
 }
 
-export interface MapQuotaExceeded { readonly scope: "ACCOUNT" | "INSTALLATION"; readonly usedBytes: number; readonly limitBytes: number;
+/** PLAN.md steg M7: CLUB = klubbens gräns för eget material (klubbarkivet). */
+export interface MapQuotaExceeded { readonly scope: "ACCOUNT" | "CLUB" | "INSTALLATION"; readonly usedBytes: number; readonly limitBytes: number;
   readonly neededBytes: number }
 
+/** PLAN.md steg M7 (ägaren 2026-11-22): förvalet för klubbens eget material, när superadmin inte satt något annat. */
+export const DEFAULT_CLUB_MAP_QUOTA_MB = 2048;
+/** Klubbens ledare och administratörer får besked när så här stor andel av klubbens gräns är använd. */
+export const CLUB_QUOTA_WARNING_SHARE = 0.8;
+
 /**
- * Hur mycket kartinnehåll kontot har laddat upp och hur mycket som lagras på installationen (också gamla rader). PLAN.md steg
- * M4: kontots återskapbara innehåll räknas mot sin egen gräns (`map-regenerable.ts`), och det som tagits bort ur förrådet
- * ('GONE') räknas inte alls.
+ * PLAN.md steg M7: innehåll som en version i något klubbarkiv pekar på räknas mot klubben och inte mot kontot i `uploaded_by`.
+ * Samma innehåll sparas en gång, så en kopia ur arkivet (ett eget kartprojekt, en egen träning) kostar kontot ingenting.
+ */
+const NOT_IN_CLUB_ARCHIVE = sql`not exists (select 1 from club_map_version v where v.content_sha256 = map_content.sha256)`;
+
+/**
+ * Hur mycket kartinnehåll kontot har laddat upp och hur mycket som lagras på installationen (konton och klubbar tillsammans,
+ * också gamla rader). PLAN.md steg M4: kontots återskapbara innehåll räknas mot sin egen gräns (`map-regenerable.ts`), och det
+ * som tagits bort ur förrådet ('GONE') räknas inte alls. PLAN.md steg M7: det som ligger i ett klubbarkiv räknas mot klubben.
  */
 export async function mapStorageUsage(tx: DbExecutor, accountId: string | null): Promise<{ accountBytes: number; totalBytes: number }> {
   const [row] = (await tx.execute<{ account: string; total: string }>(sql`select
       coalesce((select sum(byte_length) from map_content where ${accountId}::uuid is not null and uploaded_by = ${accountId}::uuid
-        and not regenerable and stored_in <> 'GONE'), 0)::text as account,
+        and not regenerable and stored_in <> 'GONE' and ${NOT_IN_CLUB_ARCHIVE}), 0)::text as account,
       ((select coalesce(sum(byte_length), 0) from map_content where stored_in <> 'GONE')
         + (select coalesce(sum(octet_length(image)), 0) from race_map where image is not null)
         + (select coalesce(sum(octet_length(file)), 0) from race_map_source where file is not null)
@@ -183,18 +195,69 @@ export async function accountMapQuotaBytes(tx: DbExecutor, accountId: string, qu
   return row?.map_quota_mb != null ? row.map_quota_mb * MB : quota.accountBytes;
 }
 
+/**
+ * PLAN.md steg M7: klubbens använda utrymme – kartinnehållet som klubbens versioner pekar på (varje innehåll en gång) och
+ * arkivets banfiler.
+ */
+export async function clubStorageUsage(tx: DbExecutor, clubId: string): Promise<{ mapBytes: number; courseFileBytes: number; usedBytes: number }> {
+  const [row] = (await tx.execute<{ maps: string; courses: string }>(sql`select
+      (select coalesce(sum(c.byte_length), 0) from map_content c
+        where c.stored_in <> 'GONE' and c.sha256 in (select v.content_sha256 from club_map_version v where v.club_id = ${clubId}::uuid))::text as maps,
+      (select coalesce(sum(byte_length), 0) from club_archive_course_file where club_id = ${clubId}::uuid)::text as courses`)).rows;
+  const mapBytes = Number(row?.maps ?? 0), courseFileBytes = Number(row?.courses ?? 0);
+  return { mapBytes, courseFileBytes, usedBytes: mapBytes + courseFileBytes };
+}
+
+/** Klubbens gräns: den som superadmin satt (`club.map_quota_mb`, migration 0140) eller förvalet 2 048 MB. */
+export async function clubMapQuotaBytes(tx: DbExecutor, clubId: string): Promise<number> {
+  const [row] = (await tx.execute<{ map_quota_mb: number | null }>(sql`select map_quota_mb from club where id = ${clubId}::uuid`)).rows;
+  return (row?.map_quota_mb ?? DEFAULT_CLUB_MAP_QUOTA_MB) * MB;
+}
+
+/**
+ * Ryms det i klubbens gräns att lägga innehållen `sha256s` (som redan finns i `map_content`) och `newBytes` nytt material i
+ * klubbarkivet? Innehåll som redan ligger i klubbens arkiv kostar ingenting. Innehåll som ett konto laddat upp till ett eget
+ * projekt byter till klubben när det läggs i arkivet och räknas därför här.
+ */
+export async function clubArchiveQuotaProblem(tx: DbExecutor, clubId: string, input: { sha256s?: readonly string[]; newBytes?: number })
+  : Promise<MapQuotaExceeded | null> {
+  const shas = [...new Set(input.sha256s ?? [])];
+  let added = input.newBytes ?? 0;
+  if (shas.length > 0) {
+    const [row] = (await tx.execute<{ bytes: string }>(sql`select coalesce(sum(c.byte_length), 0)::text as bytes from map_content c
+      where c.sha256 = any(${sql.param(shas)}::text[]) and c.stored_in <> 'GONE'
+        and not exists (select 1 from club_map_version v where v.club_id = ${clubId}::uuid and v.content_sha256 = c.sha256)`)).rows;
+    added += Number(row?.bytes ?? 0);
+  }
+  if (added === 0) return null;
+  const used = (await clubStorageUsage(tx, clubId)).usedBytes;
+  const limit = await clubMapQuotaBytes(tx, clubId);
+  return used + added > limit ? { scope: "CLUB", usedBytes: used, limitBytes: limit, neededBytes: added } : null;
+}
+
 export type StoreResult = { status: "stored"; sha256: string } | { status: "quota"; quota: MapQuotaExceeded };
 
 /**
- * Över kontots eller installationens gräns med `byteLength` till? Återskapbart (`regenerable`) prövas bara mot installationens:
+ * PLAN.md steg M7: innehållet sparas till klubbarkivet (`clubId`) och räknas mot klubbens gräns i stället för kontots. Det blir
+ * då klubbens eget material och aldrig återskapbart, också med recept. PLAN.md steg M4: `recipe` gör innehållet återskapbart.
+ */
+export interface StoreOptions { readonly clubId?: string | undefined; readonly recipe?: object | undefined }
+
+/**
+ * Över kontots (eller klubbens) eller installationens gräns med `byteLength` till? Återskapbart prövas bara mot installationens:
  * kontots gräns för återskapbart nekar ingenting, utan det äldst använda tas bort efteråt (PLAN.md steg M4).
  */
-async function quotaProblem(tx: DbExecutor, accountId: string | null, byteLength: number, quota: MapStorageQuota, regenerable = false)
+async function quotaProblem(tx: DbExecutor, accountId: string | null, byteLength: number, quota: MapStorageQuota, options: StoreOptions = {})
   : Promise<MapQuotaExceeded | null> {
-  const usage = await mapStorageUsage(tx, accountId);
-  const accountLimit = accountId && !regenerable ? await accountMapQuotaBytes(tx, accountId, quota) : null;
-  if (accountId && accountLimit !== null && usage.accountBytes + byteLength > accountLimit) {
-    return { scope: "ACCOUNT", usedBytes: usage.accountBytes, limitBytes: accountLimit, neededBytes: byteLength };
+  const usage = await mapStorageUsage(tx, options.clubId ? null : accountId);
+  if (options.clubId) {
+    const club = await clubArchiveQuotaProblem(tx, options.clubId, { newBytes: byteLength });
+    if (club) return club;
+  } else if (options.recipe === undefined) {
+    const accountLimit = accountId ? await accountMapQuotaBytes(tx, accountId, quota) : null;
+    if (accountId && accountLimit !== null && usage.accountBytes + byteLength > accountLimit) {
+      return { scope: "ACCOUNT", usedBytes: usage.accountBytes, limitBytes: accountLimit, neededBytes: byteLength };
+    }
   }
   const totalLimit = await effectiveTotalQuotaBytes(tx, quota);
   if (totalLimit !== null && usage.totalBytes + byteLength > totalLimit) {
@@ -226,7 +289,8 @@ const storeUploads = new WeakMap<object, { sha256: string; reservedAt: Date }>()
  * (`discardStagedMapContent`), så att ett nytt försök alltid har den kvar. Måste köras i `db.transaction` (`createDatabase`).
  */
 export async function storeMapContent(tx: DbExecutor, input: MapContentInput, accountId: string | null, now: Date,
-  quota: MapStorageQuota = mapStorageQuota(), recipe?: object): Promise<StoreResult> {
+  quota: MapStorageQuota = mapStorageQuota(), options: StoreOptions = {}): Promise<StoreResult> {
+  const recipe = options.clubId ? undefined : options.recipe;
   const sha256 = contentSha256(input);
   const byteLength = contentLength(input);
   const store = isStaged(input) ? (input.file ? activeMapStore() ?? missingStore() : null) : activeMapStore();
@@ -243,7 +307,7 @@ export async function storeMapContent(tx: DbExecutor, input: MapContentInput, ac
     // PLAN.md steg M4: innehåll som tagits bort ur förrådet ('GONE') laddas upp igen, som nytt.
     const [known] = (await tx.execute(sql`select 1 from map_content where sha256 = ${sha256} and stored_in <> 'GONE'`)).rows;
     if (!known) {
-      const problem = await quotaProblem(tx, accountId, byteLength, quota, recipe !== undefined);
+      const problem = await quotaProblem(tx, accountId, byteLength, quota, options);
       if (problem) return { status: "quota", quota: problem };
       throw uploadFirst();
     }
@@ -253,13 +317,19 @@ export async function storeMapContent(tx: DbExecutor, input: MapContentInput, ac
   const existing = (await tx.execute<{ content_id: string; stored_in: string; regenerable: boolean }>(sql`select content_id, stored_in, regenerable
     from map_content where sha256 = ${sha256} for key share`)).rows[0];
   if (existing && existing.stored_in !== "GONE") {
+    // PLAN.md steg M7: samma innehåll som redan finns kostar ingenting, utom när det läggs i ett klubbarkiv där det inte finns:
+    // då byter det till klubben och ska rymmas i klubbens gräns.
+    if (options.clubId) {
+      const club = await clubArchiveQuotaProblem(tx, options.clubId, { sha256s: [sha256] });
+      if (club) return { status: "quota", quota: club };
+    }
     await dropStagedParts(tx, input, existing.content_id);
-    // Samma innehåll uppladdat som eget (utan recept) tas aldrig bort som återskapbart.
+    // Samma innehåll uppladdat som eget (utan recept) eller till ett klubbarkiv (M7) tas aldrig bort som återskapbart.
     if (!recipe && existing.regenerable) await tx.execute(sql`update map_content set regenerable = false where sha256 = ${sha256}`);
     return { status: "stored", sha256 };
   }
   // Ett uppladdat objekt som inte blir innehåll här ligger kvar som släppt och tas bort efter fristen (reservationen).
-  const problem = await quotaProblem(tx, accountId, byteLength, quota, recipe !== undefined);
+      const problem = await quotaProblem(tx, accountId, byteLength, quota, options);
   if (problem) return { status: "quota", quota: problem };
   const contentId = isStaged(input) ? input.contentId : randomUUID();
   if (store && source) {

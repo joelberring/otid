@@ -16,7 +16,7 @@ export function importErrorText(status: number, body: string): string {
   if (status === 413) return "Filen är för stor för servern.";
   let code = "";
   try { code = (JSON.parse(body) as { error?: string }).error ?? ""; } catch { code = body.slice(0, 200); }
-  if (code === "STORAGE_QUOTA_EXCEEDED") return "Ditt utrymme för kartor på servern är fullt.";
+  if (code === "STORAGE_QUOTA_EXCEEDED") return "Klubbens lagring på servern är full. Ta bort något ur klubbarkivet eller be superadmin höja klubbens gräns.";
   return `Servern svarade ${status}${code ? ` (${code})` : ""}. Försök igen om en stund.`;
 }
 

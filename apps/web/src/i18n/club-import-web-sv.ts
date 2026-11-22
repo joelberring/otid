@@ -40,9 +40,9 @@ export const clubWebImportSv = {
     : `${upload} laddas upp (${mb(bytes)})${known > 0 ? `, ${known} finns redan på servern` : ""}.`,
   courses: (ppen: number, courseData: number, bytes: number) => `Banfiler: ${ppen} .ppen och ${courseData} CourseData (${mb(bytes)})`,
   quota: (used: number, adding: number, limit: number | null) => limit === null
-    ? `Ditt utrymme för kartor: ${mb(used)} används, importen lägger till ${mb(adding)} (ingen gräns).`
-    : `Ditt utrymme för kartor: ${mb(used)} av ${mb(limit)} används, importen lägger till ${mb(adding)}.`,
-  quotaFull: (missing: number) => `Det får inte plats: ${mb(missing)} för mycket. Ta bort kartor du inte behöver eller importera färre mappar.`,
+    ? `Klubbens lagring: ${mb(used)} används, importen lägger till ${mb(adding)} (ingen gräns).`
+    : `Klubbens lagring: ${mb(used)} av ${mb(limit)} används, importen lägger till ${mb(adding)}.`,
+  quotaFull: (missing: number) => `Det får inte plats: ${mb(missing)} för mycket. Ta bort kartor klubben inte behöver, importera färre mappar eller be superadmin höja klubbens gräns.`,
   nothingNew: "Det finns inget nytt att importera. Allt finns redan i arkivet.",
   notSentTitle: "Skickas inte (öppnas aldrig)",
   notSentLine: (count: number, label: string, bytes: number) => `${count} ${label} (${mb(bytes)})`,
@@ -72,7 +72,7 @@ export const clubWebImportSv = {
     forbidden: "Bara klubbens ägare och administratörer importerar.",
     notFound: "Klubben finns inte, eller så är du inte med i den.",
     tooLarge: (name: string) => `${name} är för stor för servern.`,
-    quota: "Ditt utrymme för kartor på servern är fullt.",
+    quota: "Klubbens lagring är full. Ta bort något ur klubbarkivet eller be superadmin höja klubbens gräns.",
     hashMismatch: (name: string) => `${name} ändrades medan den skickades. Välj filerna igen.`,
     invalidMap: (name: string) => `${name} ser inte ut som en kartfil från OCAD eller Mapper.`,
     network: "Kontakten med servern bröts.",

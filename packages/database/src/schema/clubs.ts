@@ -1,4 +1,5 @@
-import { bigint, boolean, date, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { bigint, boolean, check, date, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import type { MapFingerprint } from "@o-tid/domain";
 import { userAccounts } from "./accounts";
 import { bytea } from "./types";
@@ -18,8 +19,15 @@ export const clubs = pgTable("club", {
   name: text("name").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   createdBy: uuid("created_by").notNull(),
-  requestId: uuid("request_id").notNull()
-});
+  requestId: uuid("request_id").notNull(),
+  /**
+   * PLAN.md steg M7 (migration 0140): klubbens gräns för eget material i MB, satt av superadmin; null = förvalet (2 048 MB).
+   * Innehåll som en version i klubbens arkiv pekar på räknas mot klubben och inte mot kontot som laddade upp det.
+   */
+  mapQuotaMb: integer("map_quota_mb")
+}, (table) => [
+  check("club_map_quota_mb_check", sql`${table.mapQuotaMb} IS NULL OR ${table.mapQuotaMb} BETWEEN 1 AND 1000000`)
+]);
 
 export const clubMembers = pgTable("club_member", {
   id: uuid("id").primaryKey(),

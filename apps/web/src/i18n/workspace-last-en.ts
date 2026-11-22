@@ -117,14 +117,16 @@ export const clubRaceEn: Texts<typeof clubAffiliationSv.race> = {
   autoRemoved: "It has been in the club archive and is not put there automatically again. Put it in by hand if it should be there.",
   autoProblem: {
     NO_ADMIN: "It could not be put in the club archive automatically: neither the owner nor the responsible leader is an administrator in the club space. Put it in by hand.",
-    FAILED: "It could not be put in the club archive automatically. It is tried again within an hour; you can also put it in by hand."
+    FAILED: "It could not be put in the club archive automatically. It is tried again within an hour; you can also put it in by hand.",
+    CLUB_FULL: "It could not be put in the club archive automatically: the club's storage is full. It is tried again every hour once something has been removed from the club archive or the superadmin has raised the club's limit."
   },
   reminder: "The event is over – put the courses in the club archive?",
   reminderOpen: "To The club and the club archive",
   errors: {
     NO_CLUB_ARCHIVE: "The organising club has no club space linked to Eventor where you are an administrator.",
     COURSES_SECRET: "Confirm the course secrecy first.",
-    ALREADY_IN_ARCHIVE: "The event is already in the club archive."
+    ALREADY_IN_ARCHIVE: "The event is already in the club archive.",
+    CLUB_STORAGE_FULL: "The club's storage is full. Remove something from the club archive or ask the superadmin to raise the club's limit."
   },
   failed: "That did not work. Try again."
 };

@@ -75,7 +75,7 @@ export async function createMapProjectLayer(db: Database, input: ClubProof & { p
     const [total] = await tx.select({ value: count() }).from(layers).where(eq(layers.projectId, access.project.id));
     if (Number(total?.value ?? 0) >= MAX_LAYERS) return { status: "conflict" } as const;
     const recipe = parsed.data.recipe ? { ...parsed.data.recipe, createdAt: now.toISOString() } : undefined;
-    const stored = await storeMapContent(tx, input.file, access.accountId, now, mapStorageQuota(), recipe);
+    const stored = await storeMapContent(tx, input.file, access.accountId, now, mapStorageQuota(), { recipe });
     if (stored.status === "quota") return { status: "quota" } as const;
     const id = randomUUID();
     await tx.insert(layers).values({ id, projectId: access.project.id, name, contentSha256: stored.sha256, mediaType: image.mediaType, width: image.width,
@@ -101,7 +101,7 @@ async function replaceLayerImage(tx: DbExecutor, access: { accountId: string; pr
   const image = imageDimensions(contentHead(file));
   if (!image) return { status: "unsupported-file" } as const;
   const recipe = given ? { ...given, createdAt: now.toISOString() } : { ...old!, createdAt: now.toISOString() };
-  const stored = await storeMapContent(tx, file, access.accountId, now, mapStorageQuota(), recipe);
+  const stored = await storeMapContent(tx, file, access.accountId, now, mapStorageQuota(), { recipe });
   if (stored.status === "quota") return { status: "quota" } as const;
   await tx.update(layers).set({ contentSha256: stored.sha256, mediaType: image.mediaType, width: image.width, height: image.height })
     .where(eq(layers.id, row.layer.id));

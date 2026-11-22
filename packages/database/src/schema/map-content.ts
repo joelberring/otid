@@ -65,7 +65,8 @@ export const raceMapSources = pgTable("race_map_source", {
 /**
  * ADR-0189 (migration 0044): kartbilder och kartfiler lagras en gång, adresserade med sha256, i delar om högst 1 MiB. Raderna i
  * `race_map`, `race_map_source` och träningsgruppens bibliotek pekar hit med `content_sha256`. Innehållet tas bort av en
- * utlösare när den sista referensen försvinner. `uploadedBy` är kontot vars kvot innehållet räknas mot.
+ * utlösare när den sista referensen försvinner. `uploadedBy` är kontot vars kvot innehållet räknas mot, utom när en version i ett
+ * klubbarkiv pekar på det: då räknas det mot klubben (PLAN.md steg M7).
  */
 export const mapContents = pgTable("map_content", {
   sha256: text("sha256").primaryKey(),

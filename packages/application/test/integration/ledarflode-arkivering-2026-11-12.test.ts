@@ -9,6 +9,7 @@ import {
   liftRaceToClubArchive, readRaceClubArchiveAsAdmin, removeRaceFromClubArchive, setRaceClubArchiveAutoAsAdmin
 } from "../../src/race-club-archive";
 import { contentHash } from "../../src";
+import { uploadClubMapVersion } from "../../src/club-maps";
 import { registerTestAccount } from "./accounts";
 import { statusFlow } from "./entry-status-helpers";
 import { clubHelpers, ledarDatabase } from "./ledarflode-fixtures";
@@ -189,6 +190,34 @@ describe("G (i): när träningen blir klar", () => {
     await autoArchiveFinishedRaces(db, at);
     const [lift] = await lifts(raceId);
     expect(lift?.liftedBy).toBe(clubAdmin.accountId);
+    expect((await autoRow(raceId))?.problem).toBeNull();
+  });
+
+  it("PLAN.md steg M7: med klubbens lagring full sparas CLUB_FULL och inget skapas; efter höjd gräns arkiveras den", async () => {
+    const { owner, clubId, organisationId } = await linkedClub("OK Fullt arkiv");
+    const at = new Date("2031-05-10T09:00:00Z");
+    // Klubbens gräns 1 MB, fylld med en kartversion på exakt 1 MB: banfilerna får inte plats.
+    await db.execute(sql`update club set map_quota_mb = 1 where id = ${clubId}::uuid`);
+    const omap = new Uint8Array(await readFile(new URL("../../../../fixtures/maps/kartfil.omap", import.meta.url)));
+    const full = new Uint8Array(1024 * 1024).fill(32);
+    full.set(omap);
+    async function* body() { yield full; }
+    expect(await uploadClubMapVersion(db, { ...owner.proof, clubId, mapId: null, newMapName: "Fyllnad", fileName: "Fyllnad.omap",
+      versionDate: null, note: null, body: body() }, NOW)).toMatchObject({ status: "created" });
+    const raceId = await organisedRace({ ownerId: owner.accountId, organisationId, raceDate: "2031-05-09" });
+    await withEntries(raceId);
+    const counts = await autoArchiveFinishedRaces(db, at);
+    expect(counts.clubFull).toBeGreaterThanOrEqual(1);
+    expect(await lifts(raceId)).toHaveLength(0);
+    expect((await autoRow(raceId))?.problem).toBe("CLUB_FULL");
+    expect((await autoRow(raceId))?.archivedAt).toBeNull();
+    // För hand: samma besked.
+    expect(await liftRaceToClubArchive(db, { ...auth(owner.proof, raceId), request: { formatVersion: 1, confirmSecrecy: true } }, NOW))
+      .toMatchObject({ status: "club-full", quota: { scope: "CLUB" } });
+
+    await db.execute(sql`update club set map_quota_mb = 5 where id = ${clubId}::uuid`);
+    await autoArchiveFinishedRaces(db, at);
+    expect(await lifts(raceId)).toHaveLength(1);
     expect((await autoRow(raceId))?.problem).toBeNull();
   });
 

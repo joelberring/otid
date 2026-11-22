@@ -111,9 +111,9 @@ export const clubWebImportEn: Texts<typeof clubWebImportSv> = {
     : `${upload} will be uploaded (${mb(bytes)})${known > 0 ? `, ${known} already on the server` : ""}.`,
   courses: (ppen: number, courseData: number, bytes: number) => `Course files: ${ppen} .ppen and ${courseData} CourseData (${mb(bytes)})`,
   quota: (used: number, adding: number, limit: number | null) => limit === null
-    ? `Your space for maps: ${mb(used)} used, the import adds ${mb(adding)} (no limit).`
-    : `Your space for maps: ${mb(used)} of ${mb(limit)} used, the import adds ${mb(adding)}.`,
-  quotaFull: (missing: number) => `It does not fit: ${mb(missing)} too much. Remove maps you do not need or import fewer folders.`,
+    ? `The club's storage: ${mb(used)} used, the import adds ${mb(adding)} (no limit).`
+    : `The club's storage: ${mb(used)} of ${mb(limit)} used, the import adds ${mb(adding)}.`,
+  quotaFull: (missing: number) => `It does not fit: ${mb(missing)} too much. Remove maps the club does not need, import fewer folders or ask the superadmin to raise the club's limit.`,
   nothingNew: "There is nothing new to import. Everything is already in the archive.",
   notSentTitle: "Not sent (never opened)",
   notSentLine: (n: number, label: string, bytes: number) => `${n} ${label} (${mb(bytes)})`,
@@ -143,7 +143,7 @@ export const clubWebImportEn: Texts<typeof clubWebImportSv> = {
     forbidden: "Only the club's owners and administrators import.",
     notFound: "The club does not exist, or you are not a member of it.",
     tooLarge: (name: string) => `${name} is too large for the server.`,
-    quota: "Your space for maps on the server is full.",
+    quota: "The club's storage is full. Remove something from the club archive or ask the superadmin to raise the club's limit.",
     hashMismatch: (name: string) => `${name} changed while it was being sent. Choose the files again.`,
     invalidMap: (name: string) => `${name} does not look like a map file from OCAD or Mapper.`,
     network: "The connection with the server was lost.",

@@ -51,6 +51,8 @@ export async function regenerableRows(tx: DbExecutor, input: { accountId: string
     with mine as (
       select c.sha256, c.byte_length, c.stored_in, coalesce(c.last_used_at, c.created_at) as used, c.recipe from map_content c
       where c.regenerable and c.stored_in in ('DB', 'STORE')
+        -- PLAN.md steg M7: det som ligger i ett klubbarkiv är klubbens och räknas inte mot kontots gräns för återskapbart.
+        and not exists (select 1 from club_map_version v where v.content_sha256 = c.sha256)
         and (${input.accountId}::uuid is null or c.uploaded_by = ${input.accountId}::uuid)
         and (${input.sha256 ?? null}::text is null or c.sha256 = ${input.sha256 ?? null}::text)
     ),
@@ -238,7 +240,8 @@ export async function runRegenerableRound(db: Database, store: ArchiveStore, now
   if (await raceDayNow(db, now)) return { marked, evicted: 0, evictedBytes: 0, idle: 0, idleBytes: 0, raceDay: true, errors };
   let evicted = 0, evictedBytes = 0, idle = 0, idleBytes = 0;
   const over = (await db.execute<{ id: string }>(sql`select a.id from user_account a join (select uploaded_by, sum(byte_length) as bytes from map_content
-      where regenerable and stored_in in ('DB', 'STORE') and uploaded_by is not null group by uploaded_by) m on m.uploaded_by = a.id
+      where regenerable and stored_in in ('DB', 'STORE') and uploaded_by is not null
+        and not exists (select 1 from club_map_version v where v.content_sha256 = map_content.sha256) group by uploaded_by) m on m.uploaded_by = a.id
     where m.bytes > coalesce(a.regenerable_quota_mb, ${DEFAULT_REGENERABLE_QUOTA_MB})::bigint * ${MB} limit 50`)).rows;
   for (const account of over) {
     try {

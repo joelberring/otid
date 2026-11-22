@@ -144,7 +144,7 @@ export interface RaceClubArchiveView {
    * automatisk arkivering igen, också efter Ta ur); `problem` = varför den automatiska inte gick. Null utan klubbyta där du är
    * administratör (samma villkor som Lägg i klubbarkivet).
    */
-  auto: { enabled: boolean; explicit: boolean; archivedAt: string | null; problem: "NO_ADMIN" | "FAILED" | null } | null;
+  auto: { enabled: boolean; explicit: boolean; archivedAt: string | null; problem: "NO_ADMIN" | "FAILED" | "CLUB_FULL" | null } | null;
 }
 
 export const raceOrganiserRequestSchema = z.object({ formatVersion: z.literal(1), organisationId: uuidSchema.nullable() }).strict();

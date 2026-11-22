@@ -30,19 +30,20 @@ export const superadminSv = {
   action: {
     HIDE_RACE: "Dölj", UNHIDE_RACE: "Visa", DELETE_EVENT: "Ta bort", BLOCK_ACCOUNT: "Spärra", UNBLOCK_ACCOUNT: "Släpp spärr",
     DELETE_ACCOUNT: "Ta bort", CREATE_RESET_LINK: "Återställningslänk", VERIFY_EMAIL: "Bekräfta adressen", SET_ACCOUNT_LIMITS: "Gränser", SET_INSTALLATION_LIMITS: "Ändra", MIGRATE_MAP_CONTENT_NOW: "Flytta nu",
-    GRANT_SUPERADMIN: "Gav superadmin", REVOKE_SUPERADMIN: "Tog bort superadmin"
+    SET_CLUB_LIMITS: "Gräns", GRANT_SUPERADMIN: "Gav superadmin", REVOKE_SUPERADMIN: "Tog bort superadmin"
   },
   logAction: {
     HIDE_RACE: "Dolde tävling", UNHIDE_RACE: "Visade tävling", DELETE_EVENT: "Tog bort tävling", BLOCK_ACCOUNT: "Spärrade konto",
     UNBLOCK_ACCOUNT: "Släppte spärr", DELETE_ACCOUNT: "Tog bort konto", CREATE_RESET_LINK: "Skapade återställningslänk",
-    VERIFY_EMAIL: "Bekräftade adress", SET_ACCOUNT_LIMITS: "Ändrade gränser", SET_INSTALLATION_LIMITS: "Ändrade installationens gränser", MIGRATE_MAP_CONTENT_NOW: "Startade flytten till förrådet", GRANT_SUPERADMIN: "Gav superadmin", REVOKE_SUPERADMIN: "Tog bort superadmin"
+    VERIFY_EMAIL: "Bekräftade adress", SET_ACCOUNT_LIMITS: "Ändrade gränser", SET_INSTALLATION_LIMITS: "Ändrade installationens gränser", MIGRATE_MAP_CONTENT_NOW: "Startade flytten till förrådet", SET_CLUB_LIMITS: "Ändrade klubbens gräns", GRANT_SUPERADMIN: "Gav superadmin", REVOKE_SUPERADMIN: "Tog bort superadmin"
   },
   confirmTitle: {
     HIDE_RACE: "Dölj tävlingen från de publika sidorna", UNHIDE_RACE: "Visa tävlingen på de publika sidorna igen",
     DELETE_EVENT: "Ta bort tävlingen med all data", BLOCK_ACCOUNT: "Spärra kontot", UNBLOCK_ACCOUNT: "Släpp spärren",
     DELETE_ACCOUNT: "Ta bort kontot", CREATE_RESET_LINK: "Skapa återställningslänk", VERIFY_EMAIL: "Bekräfta kontots e-postadress",
     SET_ACCOUNT_LIMITS: "Ändra kontots gränser", SET_INSTALLATION_LIMITS: "Ändra installationens gränser",
-    MIGRATE_MAP_CONTENT_NOW: "Flytta kartinnehåll till förrådet nu"
+    MIGRATE_MAP_CONTENT_NOW: "Flytta kartinnehåll till förrådet nu",
+    SET_CLUB_LIMITS: "Ändra klubbens gräns för lagring"
   },
   confirmHelp: {
     HIDE_RACE: "Startlistor, resultat och sträcktider slutar synas för besökare. Arrangören ser tävlingen som vanligt.",
@@ -55,7 +56,8 @@ export const superadminSv = {
     VERIFY_EMAIL: "Gör det bara om du vet att adressen är personens egen och att personen själv har valt kontots lösenord (till exempel om mejlet aldrig kommer fram). Behörigheter som andra gett adressen gäller sedan direkt. Lösenordet ändras inte; är du osäker, skapa en återställningslänk i stället.",
     SET_ACCOUNT_LIMITS: "Gränserna gäller bara det här kontot. Lämna ett fält tomt för att kontot ska följa förvalet. En sänkt gräns tar inte bort något; kontot kan bara inte spara mer förrän det ligger under gränsen.",
     SET_INSTALLATION_LIMITS: "Mellanlagret är kopian på serverns disk av det som ligger i förrådet; blir det fullt tas det som använts minst nyligen bort (det finns kvar i förrådet). Tävlingars och träningars kartor spikas fast från dagen före till dagen efter och räknas utanför taket, med en egen gräns som bara varnar. Totalgränsen gäller all kartlagring på installationen (0 = ingen gräns). Lämna ett fält tomt för förvalet.",
-    MIGRATE_MAP_CONTENT_NOW: "Ett varv av flytten startar inom en minut, utan att vänta på natten: kartinnehåll i databasen laddas upp till förrådet och kontrolleras, högst den vanliga mängden per varv. Delarna i databasen ligger kvar ett dygn. På en tävlingsdag flyttas ingenting."
+    MIGRATE_MAP_CONTENT_NOW: "Ett varv av flytten startar inom en minut, utan att vänta på natten: kartinnehåll i databasen laddas upp till förrådet och kontrolleras, högst den vanliga mängden per varv. Delarna i databasen ligger kvar ett dygn. På en tävlingsdag flyttas ingenting.",
+    SET_CLUB_LIMITS: "Gränsen gäller klubbarkivet: allt som klubbens ledare och administratörer lägger där, också den automatiska arkiveringen av klara träningar. Lämna fältet tomt för förvalet. En sänkt gräns tar inte bort något; klubben kan bara inte lägga in mer förrän den ligger under gränsen."
   },
   ownedEvents: (count: number) => count === 1 ? "Kontot äger 1 tävling, som också tas bort." : `Kontot äger ${count} tävlingar, som också tas bort.`,
   limits: "Lagring och laserrutor",
@@ -80,6 +82,15 @@ export const superadminSv = {
   pinMaxField: (defaultMb: number) => `Gräns för fastspikade tävlingskartor i MB (tomt = förvalet ${defaultMb})`,
   idleDaysField: (defaultDays: number) => `Återskapbart underlag tas bort ur förrådet efter så många dagar orört (tomt = förvalet ${defaultDays}, 0 = aldrig)`,
   totalQuotaField: (defaultMb: number | null) => `Total kartlagring i MB, 0 = ingen gräns (tomt = förvalet${defaultMb === null ? ", ingen gräns" : ` ${defaultMb}`})`,
+  /** PLAN.md steg M7: klubbarnas lagring. */
+  clubs: {
+    title: "Klubbar",
+    help: (defaultMb: number) => `Klubbarkivet räknas mot klubben, inte mot den som laddade upp (förval ${defaultMb} MB per klubb). Totalgränsen ovan gäller konton och klubbar tillsammans. Närmast gränsen först.`,
+    empty: "Inga klubbar ännu.",
+    columns: { club: "Klubb", storage: "Lagring", own: "Egen gräns" },
+    own: (mb: number | null) => mb === null ? "Förval" : `${mb} MB`,
+    field: (defaultMb: number) => `Klubbens lagring i MB (tomt = förvalet ${defaultMb})`
+  },
   installation: {
     title: "Installationen",
     label: "Installationen",

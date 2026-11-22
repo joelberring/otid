@@ -214,3 +214,30 @@ anroparens transaktion, som görs om vid 40001/40P01, och kontrollerade objektet
   i zip-filen: de gäller den som hämtar.
 - Geo-arbetarens version 41.
 
+## Tillägg 2026-11-22 (M7): klubbarkivet räknas mot klubben
+
+Ägaren 2026-11-22: klubbarkivet ska räknas mot klubben, inte mot den som laddade upp, så att en ledare inte fyller sitt eget
+konto med klubbens kartor och så att materialet ligger kvar när någon lämnar klubben.
+
+- **Beslut:** innehåll i `map_content` som en version i ett klubbarkiv pekar på (`club_map_version.content_sha256`) räknas mot
+  klubben och inte mot kontot i `uploaded_by`. Registret avgör, ingen ny kolumn: befintligt klubbarkiv byter till klubbens kvot
+  utan att någon rad eller fil ändras, och en medlem som lämnar klubben tar inget med sig. Ett innehåll räknas en gång per klubb.
+- **Beslut:** klubbens gräns är `club.map_quota_mb` (migration 0140; null = förvalet `DEFAULT_CLUB_MAP_QUOTA_MB` = 2 048 MB),
+  satt av superadmin på superadminsidan (åtgärden `SET_CLUB_LIMITS`, målet `CLUB` i `superadmin_action`). Klubbens använda
+  utrymme är kartinnehållet ovan och arkivets banfiler (`clubStorageUsage`).
+- **Beslut:** allt som läggs i arkivet prövas mot klubbens gräns i stället för kontots: uppladdad version, importen (innehållet och
+  omgången, också innehåll som redan fanns hos ett konto och därför byter till klubben), ny version ur ett kartprojekt
+  (Spara i klubbarkivet) och tävlingens inlyft, också den automatiska arkiveringen. Vid taket sparas inget: uppladdningen får
+  `STORAGE_QUOTA_EXCEEDED` med `scope: "CLUB"`, inlyftet `CLUB_STORAGE_FULL`, och den automatiska arkiveringen sparar problemet
+  `CLUB_FULL` och provas igen av underhållsvarvet varje timme tills något tagits bort eller gränsen höjts.
+- **Beslut:** en kopia ur arkivet (eget kartprojekt, egen träning, tävling) pekar på samma innehåll och kostar kontot ingenting;
+  ändringar i kopian är nytt innehåll och räknas mot kontot. Tas versionen bort ur arkivet medan en kopia finns räknas
+  innehållet igen mot kontot i `uploaded_by` (den som laddade upp, som inte behöver vara den som har kopian); det tar inget bort.
+- **Beslut:** installationens totalgräns mäter som förut allt kartinnehåll, alltså konton och klubbar tillsammans.
+- Klubbens ledare, administratörer och ägare ser klubbens lagring på klubbsidan (kartorna störst först, banfilerna) med besked vid
+  80 % och vid taket; medlemmar ser den inte. Ett innehåll som finns i två klubbars arkiv räknas mot båda klubbarna (men en gång
+  för installationen).
+- **Samspelet med M4 (sammanslagningen 2026-11-22):** innehåll i ett klubbarkiv är klubbens eget material och tas aldrig bort som
+  återskapbart: det räknas inte mot kontots gräns för återskapbart, `storeMapContent` med `clubId` sparar utan recept och gör
+  befintligt återskapbart innehåll vanligt, och 'GONE' räknas varken mot konto, klubb eller installation. `storeMapContent` tar
+  `{ clubId, recipe }` som sista argument (`StoreOptions`).

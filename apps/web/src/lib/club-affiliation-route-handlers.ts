@@ -150,6 +150,8 @@ export async function raceClubArchiveRoute(db: Database, request: Request, raceI
     if (result.status === "no-space") return problem("NO_CLUB_ARCHIVE");
     if (result.status === "secret") return problem("COURSES_SECRET");
     if (result.status === "already") return problem("ALREADY_IN_ARCHIVE");
+    // PLAN.md steg M7: klubbens lagring är full.
+    if (result.status === "club-full") return problem("CLUB_STORAGE_FULL", 422);
     if (result.status === "not-lifted") return failure("not-found");
     return failure(result.status);
   });

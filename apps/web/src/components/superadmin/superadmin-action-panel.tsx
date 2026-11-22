@@ -21,6 +21,8 @@ export type PendingAction =
   | { kind: "SET_INSTALLATION_LIMITS"; label: string; cacheMaxMb: number | null; cacheMaxMbDefault: number; mapQuotaTotalMb: number | null;
       mapQuotaTotalDefaultMb: number | null; pinMaxMb: number | null; pinMaxMbDefault: number; regenerableIdleDays?: number | null;
       regenerableIdleDaysDefault?: number }
+  /** PLAN.md steg M7: klubbens gräns för lagring (klubbarkivet). */
+  | { kind: "SET_CLUB_LIMITS"; clubId: string; label: string; mapQuotaMb: number | null; defaultMapQuotaMb: number }
   /** PLAN.md steg M3: «Flytta nu». */
   | { kind: "MIGRATE_MAP_CONTENT_NOW"; label: string };
 
@@ -43,6 +45,7 @@ export function actionRequest(action: PendingAction, reason: string, confirmatio
       cacheMaxMb: limits?.cacheMaxMb ?? null, mapQuotaTotalMb: limits?.mapQuotaTotalMb ?? null, pinMaxMb: limits?.pinMaxMb ?? null,
       regenerableIdleDays: limits?.regenerableIdleDays ?? null };
     case "MIGRATE_MAP_CONTENT_NOW": return { formatVersion: 1, action: action.kind, reason };
+    case "SET_CLUB_LIMITS": return { formatVersion: 1, action: action.kind, clubId: action.clubId, reason, mapQuotaMb: limits?.mapQuotaMb ?? null };
     case "HIDE_RACE": case "UNHIDE_RACE": return { formatVersion: 1, action: action.kind, raceId: action.raceId, reason };
     case "DELETE_EVENT": return { formatVersion: 1, action: action.kind, eventId: action.eventId, reason, confirmation };
     case "DELETE_ACCOUNT": return { formatVersion: 1, action: action.kind, accountId: action.accountId, reason, confirmation };
@@ -64,7 +67,8 @@ export function SuperadminActionPanel({ action, busy, error, onSubmit, onCancel 
   const destructive = action.kind === "DELETE_EVENT" || action.kind === "DELETE_ACCOUNT";
   const account = action.kind === "SET_ACCOUNT_LIMITS" ? action : undefined;
   const installation = action.kind === "SET_INSTALLATION_LIMITS" ? action : undefined;
-  const [mapQuota, setMapQuota] = useState(account?.mapQuotaMb?.toString() ?? "");
+  const club = action.kind === "SET_CLUB_LIMITS" ? action : undefined;
+  const [mapQuota, setMapQuota] = useState((account ?? club)?.mapQuotaMb?.toString() ?? "");
   const [geoTiles, setGeoTiles] = useState(account?.geoTilesPerMonth?.toString() ?? "");
   const [regenerable, setRegenerable] = useState(account?.regenerableQuotaMb?.toString() ?? "");
   const [cacheMax, setCacheMax] = useState(installation?.cacheMaxMb?.toString() ?? "");
@@ -75,7 +79,9 @@ export function SuperadminActionPanel({ action, busy, error, onSubmit, onCancel 
     regenerableQuotaMb: limitValue(regenerable, 1, 1_000_000), cacheMaxMb: null, mapQuotaTotalMb: null }
     : installation ? { mapQuotaMb: null, geoTilesPerMonth: null, regenerableQuotaMb: null, cacheMaxMb: limitValue(cacheMax, 100, 10_000_000),
       mapQuotaTotalMb: limitValue(totalQuota, 0, 100_000_000), pinMaxMb: limitValue(pinMax, 100, 10_000_000),
-      regenerableIdleDays: limitValue(idleDays, 0, 3650) } : undefined;
+      regenerableIdleDays: limitValue(idleDays, 0, 3650) }
+    : club ? { mapQuotaMb: limitValue(mapQuota, 1, 1_000_000), geoTilesPerMonth: null, regenerableQuotaMb: null, cacheMaxMb: null, mapQuotaTotalMb: null }
+    : undefined;
   const limitsValid = !values || Object.values(values).every(value => value !== undefined);
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -98,6 +104,7 @@ export function SuperadminActionPanel({ action, busy, error, onSubmit, onCancel 
         values?.regenerableQuotaMb === undefined)}
       {numberField(text.geoTilesField(account.defaultGeoTilesPerMonth), geoTiles, setGeoTiles, 100_000, values?.geoTilesPerMonth === undefined)}
     </>}
+    {club && numberField(text.clubs.field(club.defaultMapQuotaMb), mapQuota, setMapQuota, 1_000_000, values?.mapQuotaMb === undefined)}
     {installation && <>
       {numberField(text.cacheMaxField(installation.cacheMaxMbDefault), cacheMax, setCacheMax, 10_000_000, values?.cacheMaxMb === undefined)}
       {numberField(text.pinMaxField(installation.pinMaxMbDefault), pinMax, setPinMax, 10_000_000, values?.pinMaxMb === undefined)}

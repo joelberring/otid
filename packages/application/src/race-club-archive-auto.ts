@@ -62,7 +62,7 @@ async function archiveActor(tx: DbExecutor, input: { raceId: string; eventId: st
   return undefined;
 }
 
-export type AutoArchiveOutcome = "archived" | "none" | "no-admin";
+export type AutoArchiveOutcome = "archived" | "none" | "no-admin" | "club-full";
 
 /** Arkiverar tävlingen om villkoren håller; gör annars ingenting. Körs i anroparens transaktion. */
 export async function maybeAutoArchive(tx: DbExecutor, raceId: string, now: Date): Promise<AutoArchiveOutcome> {
@@ -79,6 +79,12 @@ export async function maybeAutoArchive(tx: DbExecutor, raceId: string, now: Date
     return "no-admin";
   }
   const lifted = await liftInTransaction(tx, { raceId, clubId: row.clubId, accountId, now, beforeFinished: false, automatic: true });
+  if (lifted.status === "club-full") {
+    // PLAN.md steg M7: klubbens lagring är full. Inget skapas; underhållsvarvet provar igen när något tagits bort eller
+    // superadmin höjt gränsen, och arrangören ser beskedet vid rutan.
+    if (row.problem !== "CLUB_FULL") await recordAutoArchiveProblem(tx, { raceId, problem: "CLUB_FULL", now });
+    return "club-full";
+  }
   return lifted.status === "lifted" ? "archived" : "none";
 }
 
@@ -98,7 +104,8 @@ export async function autoArchiveAfterResult(tx: Transaction, raceId: string, no
 }
 
 /** Underhållsvarvet: tävlingarna från de senaste två veckorna som ingen läste ut helt (de blir klara dagen efter). */
-export async function autoArchiveFinishedRaces(db: Database, now = new Date()): Promise<{ archived: number; noAdmin: number; failed: number }> {
+export async function autoArchiveFinishedRaces(db: Database, now = new Date())
+  : Promise<{ archived: number; noAdmin: number; clubFull: number; failed: number }> {
   const today = swedishToday(now);
   const from = new Date(Date.parse(`${today}T00:00:00Z`) - MAINTENANCE_DAYS * 86_400_000).toISOString().slice(0, 10);
   const rows = (await db.execute<{ id: string }>(sql`select r.id from race r
@@ -109,12 +116,13 @@ export async function autoArchiveFinishedRaces(db: Database, now = new Date()): 
       and a.archived_at is null and coalesce(a.enabled, r.race_type = 'TRAINING')
       and not exists (select 1 from race_club_archive x where x.race_id = r.id and x.club_id = c.club_id)
     order by (a.problem is not null), r.race_date desc, r.id limit ${MAINTENANCE_LIMIT}`)).rows;
-  const counts = { archived: 0, noAdmin: 0, failed: 0 };
+  const counts = { archived: 0, noAdmin: 0, clubFull: 0, failed: 0 };
   for (const { id } of rows) {
     try {
       const outcome = await db.transaction(tx => maybeAutoArchive(tx, id, now));
       if (outcome === "archived") counts.archived += 1;
       if (outcome === "no-admin") counts.noAdmin += 1;
+      if (outcome === "club-full") counts.clubFull += 1;
     } catch (error) {
       counts.failed += 1;
       console.error(`Automatisk arkivering av tävlingen ${id} misslyckades: ${error instanceof Error ? error.message : String(error)}`);

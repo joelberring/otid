@@ -11,6 +11,12 @@ describe("formatDuration", () => {
     expect(formatDuration(3_600_000)).toBe("1:00:00");
     expect(formatDuration(3_723_900)).toBe("1:02:03");
   });
+
+  it("skriver en negativ tid med tecknet först", () => {
+    expect(formatDuration(-90_000)).toBe("-1:30");
+    expect(formatDuration(-3_723_900)).toBe("-1:02:03");
+    expect(formatDuration(-999)).toBe("-0:00");
+  });
 });
 
 describe("klockslag och datum i tidszonen", () => {

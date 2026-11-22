@@ -205,7 +205,8 @@ export function rankRelayTeams(candidates: readonly RelayTeamRankingCandidate[],
     const elapsed = candidate.result.elapsedMs!;
     const key = `${tier(candidate.result)}:${elapsed}`;
     if (key !== previous) position = index + 1;
-    positions.set(candidate.key, { position, timeBehindMs: elapsed - ranked[0]!.result.elapsedMs! });
+    // Med omstartslag efter de andra (förvalet) kan ett omstartslag ha kortare tid än segraren; efter är då aldrig negativt.
+    positions.set(candidate.key, { position, timeBehindMs: Math.max(0, elapsed - ranked[0]!.result.elapsedMs!) });
     previous = key;
   }
   const group = (result: RelayTeamResult) => result.status === "OK" ? 0 : result.status === "RUNNING" ? 1 : 2;

@@ -93,7 +93,14 @@ describe("omstart", () => {
       { leg: 2, status: "OK", elapsedMs: minutes(10), restarted: true }]);
     expect(restarted).toMatchObject({ status: "OK", elapsedMs: minutes(80), restarted: true });
     expect(rankRelayTeams([{ key: "omstart", result: restarted }, { key: "vanlig", result: normal }])).toEqual([
-      { key: "vanlig", position: 1, timeBehindMs: 0 }, { key: "omstart", position: 2, timeBehindMs: minutes(-5) }]);
+      { key: "vanlig", position: 1, timeBehindMs: 0 }, { key: "omstart", position: 2, timeBehindMs: 0 }]);
+    // Ett omstartslag med kortare tid än segraren får aldrig negativ tid efter (kontraktet kräver ≥ 0); ett långsammare
+    // omstartslag får sin vanliga tid efter segraren.
+    const slower = relayTeamResult(2, [{ leg: 1, status: "OK", elapsedMs: minutes(70) },
+      { leg: 2, status: "OK", elapsedMs: minutes(30), restarted: true }]);
+    expect(rankRelayTeams([{ key: "omstart", result: restarted }, { key: "vanlig", result: normal }, { key: "sen", result: slower }]))
+      .toEqual([{ key: "vanlig", position: 1, timeBehindMs: 0 }, { key: "omstart", position: 2, timeBehindMs: 0 },
+        { key: "sen", position: 3, timeBehindMs: minutes(15) }]);
     expect(rankRelayTeams([{ key: "omstart", result: restarted }, { key: "vanlig", result: normal }], { restartRanking: "BY_TIME" })).toEqual([
       { key: "omstart", position: 1, timeBehindMs: 0 }, { key: "vanlig", position: 2, timeBehindMs: minutes(5) }]);
   });

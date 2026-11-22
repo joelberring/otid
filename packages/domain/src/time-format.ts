@@ -8,10 +8,12 @@
  * millisekunder visas aldrig i listor och sträcktider.
  */
 export function formatDuration(milliseconds: number): string {
-  const total = Math.floor(milliseconds / 1_000);
+  // En negativ tid skrivs med tecknet först (−90 s blir "-1:30"), aldrig med tecken på varje del.
+  const sign = milliseconds < 0 ? "-" : "";
+  const total = Math.floor(Math.abs(milliseconds) / 1_000);
   const hours = Math.floor(total / 3_600), minutes = Math.floor(total / 60) % 60, seconds = total % 60;
-  return hours > 0 ? `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
-    : `${minutes}:${String(seconds).padStart(2, "0")}`;
+  return sign + (hours > 0 ? `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
+    : `${minutes}:${String(seconds).padStart(2, "0")}`);
 }
 
 /** Ett ögonblick som klockslag (HH:MM:SS) i tidszonen, utan datum och utan tidszonsbeteckning (ADR-0169 beslut 4). */

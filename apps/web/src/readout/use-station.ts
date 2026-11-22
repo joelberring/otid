@@ -2,7 +2,7 @@
  * Stationen: anslutning över Web Serial, WebUSB (läsplatta) eller övningsstationen, automatisk anslutning till den sparade
  * stationen (steg 35), snabb utläsning (steg 53) och trafikloggen. Avläsningarna lämnas till `onCardRead`.
  */
-import { useCallback, useRef, useState, type MutableRefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import { readoutTextEn } from "./text-en";
 import { useTexts } from "../components/language-provider";
 import type { ReadoutPackage } from "@o-tid/contracts";
@@ -89,8 +89,11 @@ export function useStation({ pkgRef, ready, sound, onCardRead, setCurrent }: {
     const timeZone = pkgRef.current?.event.timeZone;
     for (const baudRate of BAUD_RATES) {
       trafficRef.current.note(`Ansluter med ${baudRate} baud`);
-      if (await attach(new StationController(new WebSerialTransport(port, { baudRate }), callbacks,
-        { fastRead: fastReadRef.current, ...(timeZone ? { timeZone } : {}) }))) return true;
+      const controller = new StationController(new WebSerialTransport(port, { baudRate }), callbacks,
+        { fastRead: fastReadRef.current, ...(timeZone ? { timeZone } : {}) });
+      if (await attach(controller)) return true;
+      // Frånkopplad eller ersatt (övningsstationen, en annan station) under handskakningen: pröva inte nästa hastighet.
+      if (controller.stopped) return false;
     }
     await controllerRef.current?.stop();
     setStation({ kind: "error", message: t.serialFailed });
@@ -159,6 +162,11 @@ export function useStation({ pkgRef, ready, sound, onCardRead, setCurrent }: {
     await controllerRef.current?.stop();
     controllerRef.current = undefined; exerciseRef.current = undefined; setExercise(false);
   }
+
+  // Stationen stängs när avläsningsvyn försvinner, så att porten inte hålls öppen.
+  useEffect(() => () => {
+    controllerRef.current?.stop().catch((error: unknown) => console.error("Stationen kunde inte stängas", error));
+  }, []);
 
   // Steg 35: stationen ansluts själv när sidan öppnas och när den sätts i, om den har anslutits här förut.
   const connected = station.kind === "ready" || station.kind === "misconfigured" || station.kind === "connecting";

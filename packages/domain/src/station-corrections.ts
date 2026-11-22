@@ -155,9 +155,14 @@ function adjustStationTimes(readout: EvaluationReadout, snapshot: RaceSnapshot):
     applied.push({ station: "CONTROL", controlCode: code, offsetMs: offsetFor(adjustments, "CONTROL", code), punches: count });
   }
   if (applied.length === 0) return { readout, adjustments: [] };
+  // Clear- och checkenheterna är också enheter: en justering för alla flyttar deras tider, annars jämförs kvällens
+  // flyttade kontrollstämplingar med en oflyttad check och räknas felaktigt som ett gammalt varv (withoutOldPunches).
+  const allOffset = adjustments.filter((adjustment) => adjustment.station === "ALL").reduce((sum, adjustment) => sum + adjustment.offsetMs, 0);
   return {
     readout: {
       ...readout,
+      ...(allOffset !== 0 && readout.clearPunchedAt ? { clearPunchedAt: shifted(readout.clearPunchedAt, allOffset) } : {}),
+      ...(allOffset !== 0 && readout.checkPunchedAt ? { checkPunchedAt: shifted(readout.checkPunchedAt, allOffset) } : {}),
       ...(readout.startPunchedAt ? { startPunchedAt: startOffset ? shifted(readout.startPunchedAt, startOffset) : readout.startPunchedAt } : {}),
       ...(readout.finishPunchedAt ? { finishPunchedAt: finishOffset ? shifted(readout.finishPunchedAt, finishOffset) : readout.finishPunchedAt } : {}),
       punches

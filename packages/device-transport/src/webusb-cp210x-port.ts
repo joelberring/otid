@@ -49,6 +49,7 @@ export interface UsbDeviceLike {
   controlTransferOut(setup: UsbControlSetup, data?: BufferSource): Promise<UsbOutResult>;
   transferIn(endpointNumber: number, length: number): Promise<UsbInResult>;
   transferOut(endpointNumber: number, data: BufferSource): Promise<UsbOutResult>;
+  clearHalt(direction: "in" | "out", endpointNumber: number): Promise<void>;
 }
 export interface UsbLike {
   addEventListener(type: "disconnect", listener: (event: { readonly device: unknown }) => void): void;
@@ -56,6 +57,12 @@ export interface UsbLike {
 }
 
 const PACKET_SIZE = 64;
+/** Så många stopp (stall) i rad på läsändpunkten, trots att de rensas, räknas som ett fel på enheten. */
+export const MAX_CONSECUTIVE_STALLS = 3;
+
+function message(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
 
 interface Opened { readonly interfaceNumber: number; readonly inEndpoint: number; readonly outEndpoint: number }
 
@@ -83,7 +90,25 @@ export class WebUsbCp210xPort implements WebSerialPortLike {
   async open(options: WebSerialOpenOptions): Promise<void> {
     if (this.#opened) throw new Error("USB-porten är redan öppen");
     const device = this.#device;
-    if (!device.opened) await device.open();
+    const openedHere = !device.opened;
+    if (openedHere) await device.open();
+    let claimed: number | undefined;
+    try {
+      await this.#configure(device, options, (interfaceNumber) => { claimed = interfaceNumber; });
+    } catch (error) {
+      // Ett fel efter att enheten öppnats lämnar den inte öppen och tagen: close() vet inget om en halv öppning.
+      const cleanup: unknown[] = [];
+      if (claimed !== undefined) await device.releaseInterface(claimed).catch((cleanupError: unknown) => cleanup.push(cleanupError));
+      if (openedHere || claimed !== undefined) await device.close().catch((cleanupError: unknown) => cleanup.push(cleanupError));
+      if (cleanup.length > 0) {
+        throw new Error(`${message(error)} (USB-enheten kunde inte heller stängas: ${cleanup.map(message).join("; ")})`, { cause: error });
+      }
+      throw error;
+    }
+  }
+
+  /** Väljer gränssnitt, ställer in chipet och skapar strömmarna. `onClaimed` får gränssnittet så fort det är taget. */
+  async #configure(device: UsbDeviceLike, options: WebSerialOpenOptions, onClaimed: (interfaceNumber: number) => void): Promise<void> {
     if (device.configuration === null) await device.selectConfiguration(1);
     const configuration = device.configuration;
     const found = configuration?.interfaces.map((usbInterface) => ({ usbInterface,
@@ -93,6 +118,7 @@ export class WebUsbCp210xPort implements WebSerialPortLike {
     if (!found?.inEndpoint || !found.outEndpoint) throw new Error("USB-enheten saknar dataändpunkter (är det en SPORTident-station?)");
     const interfaceNumber = found.usbInterface.interfaceNumber;
     await device.claimInterface(interfaceNumber);
+    onClaimed(interfaceNumber);
     const control = (request: number, value: number, data?: BufferSource) =>
       device.controlTransferOut({ requestType: "vendor", recipient: "interface", request, value, index: interfaceNumber }, data);
     await control(CP210X.IFC_ENABLE, CP210X.UART_ENABLE);
@@ -109,6 +135,7 @@ export class WebUsbCp210xPort implements WebSerialPortLike {
     this.#readable = new ReadableStream<Uint8Array>({
       pull: async (controller) => {
         // En väntande överföring per läsning; tomma svar (inga byte ännu) väntar vidare.
+        let stalls = 0;
         for (;;) {
           if (this.#closing) { controller.close(); return; }
           let result: UsbInResult;
@@ -118,9 +145,18 @@ export class WebUsbCp210xPort implements WebSerialPortLike {
             throw error;
           }
           if (result.status === "stall") {
-            // Rensa en stoppad ändpunkt genom att försöka igen; enheten skickar inget på en stall.
+            // En stoppad ändpunkt förblir stoppad tills den rensas; utan clearHalt svarar varje läsning "stall" direkt
+            // och loopen låser fliken. Upprepade stopp trots rensning är ett fel: transporten stänger porten.
+            stalls += 1;
+            if (stalls > MAX_CONSECUTIVE_STALLS) throw new Error("USB-läsningen stoppades upprepade gånger (stall)");
+            try { await device.clearHalt("in", opened.inEndpoint); }
+            catch (error) {
+              if (this.#closing) { controller.close(); return; }
+              throw error;
+            }
             continue;
           }
+          stalls = 0;
           const data = result.data;
           if (data && data.byteLength > 0) {
             controller.enqueue(new Uint8Array(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength)));

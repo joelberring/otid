@@ -124,6 +124,23 @@ describe("direktanmälan på avläsningssidan", () => {
     expect(store.items[0]!.status).toBe("stored");
   });
 
+  it("429 och 502/503/504 för anmälan ger vänta respektive servern svarar inte, och inget skickas eller markeras", async () => {
+    for (const [status, expected] of [[429, { kind: "throttled" }], [502, { kind: "unavailable", status: 502, count: 0 }],
+      [503, { kind: "unavailable", status: 503, count: 0 }], [504, { kind: "unavailable", status: 504, count: 0 }]] as const) {
+      const store = await storeWithUnknownReadout();
+      await store.addRegistration(registration());
+      const calls: string[] = [];
+      const fetch = (async (url: string, init: RequestInit) => {
+        calls.push(url.split("/").at(-1)!);
+        return url.endsWith("/readout-registrations") ? new Response(null, { status }) : ack(JSON.parse(init.body as string) as DeviceBatch);
+      }) as typeof globalThis.fetch;
+      expect(await syncPending(store, ids.race, { fetch, csrf: () => "token" })).toEqual(expected);
+      expect(calls).toEqual(["readout-registrations"]);
+      expect(store.registrations[0]!.status).toBe("pending");
+      expect(store.items[0]!.status).toBe("pending");
+    }
+  });
+
   it("två anmälningar skickas i den ordning de gjordes och samma id kan inte köas två gånger", async () => {
     const store = new MemoryReadoutStore();
     const second = "20000000-0000-4000-8000-000000000002";

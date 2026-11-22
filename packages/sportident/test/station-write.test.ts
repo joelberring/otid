@@ -10,7 +10,7 @@ import {
 } from "../src";
 import { encodeStationClock } from "../src/time";
 
-function fakeUnit(options: { ignoreWrites?: boolean; nakTime?: boolean; silent?: boolean } = {}) {
+function fakeUnit(options: { ignoreWrites?: boolean; nakTime?: boolean; silent?: boolean; clockAfter?: "nak" | "silent" } = {}) {
   const system = new Uint8Array(0x80);
   system.set([0x00, 0x03, 0x0f, 0x42], 0x00);
   system.set([0x81, 0x98], 0x0b);
@@ -28,7 +28,10 @@ function fakeUnit(options: { ignoreWrites?: boolean; nakTime?: boolean; silent?:
       if (options.silent && !(command === Command.SET_MASTER_SLAVE && data[0] === MASTER_DIRECT)) continue;
       if (command === Command.SET_MASTER_SLAVE) out.push(encodeStationFrame(command, 31, [data[0]!]));
       else if (command === Command.GET_SYSTEM_VALUE) out.push(encodeStationFrame(command, 31, [0x00, ...system]));
-      else if (command === Command.GET_TIME) out.push(encodeStationFrame(command, 31, clock));
+      else if (command === Command.GET_TIME) {
+        if (options.clockAfter === "nak") out.push(Uint8Array.of(0x15));
+        else if (options.clockAfter !== "silent") out.push(encodeStationFrame(command, 31, clock));
+      }
       else if (command === Command.SET_TIME) {
         if (options.nakTime) { out.push(Uint8Array.of(0x15)); continue; }
         clock = [...data]; out.push(encodeStationFrame(command, 31, [...data]));
@@ -96,6 +99,16 @@ describe("ställa in en enhet", () => {
     expect(nak.seen.at(-1)).toBe(Command.SET_MASTER_SLAVE);
     const silent = fakeUnit({ silent: true });
     expect(run(new StationWriteSession({ code: 45 }), silent).map(event => event.type)).toEqual(["no-station"]);
+  });
+
+  it("klockan efteråt saknas (tystnad eller NAK): skrivningen är ändå gjord och rapporteras utan klockan", () => {
+    for (const clockAfter of ["silent", "nak"] as const) {
+      const unit = fakeUnit({ clockAfter });
+      const events = run(new StationWriteSession({ code: 45 }), unit);
+      expect(events.map(event => event.type)).toEqual(["station-written"]);
+      expect(events[0]).toMatchObject({ report: { codeOk: true, clockAfter: null, after: { code: 45 } } });
+      expect(unit.seen.at(-1)).toBe(Command.SET_MASTER_SLAVE);
+    }
   });
 
   it("planen prövas först", () => {

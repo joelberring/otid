@@ -62,7 +62,10 @@ export function useGameStation(onCard: (event: CardEvent) => void, messages: {
   async function connectPort(port: WebSerialPortLike): Promise<boolean> {
     setPractice(undefined);
     for (const baudRate of BAUD_RATES) {
-      if (await attach(new StationController(new WebSerialTransport(port, { baudRate }), callbacks))) return true;
+      const controller = new StationController(new WebSerialTransport(port, { baudRate }), callbacks);
+      if (await attach(controller)) return true;
+      // Frånkopplad eller ersatt under handskakningen: pröva inte nästa hastighet.
+      if (controller.stopped) return false;
     }
     await controllerRef.current?.stop();
     setStatus({ kind: "error", message: messages.serialFailed });

@@ -13,6 +13,10 @@ class FakeCp210x implements UsbDeviceLike {
   readonly controls: { request: number; value: number; index: number; data?: number[] }[] = [];
   readonly written: number[][] = [];
   readonly claimed: number[] = [];
+  readonly cleared: string[] = [];
+  /** Så många av de kommande läsningarna svarar "stall" tills ändpunkten rensas (`Infinity`: rensningen hjälper inte). */
+  stallsLeft = 0;
+  halted = false;
   #incoming: Uint8Array[] = [];
   #waiting: ((result: UsbInResult) => void) | undefined;
   #reject: ((error: Error) => void) | undefined;
@@ -37,6 +41,8 @@ class FakeCp210x implements UsbDeviceLike {
   }
   transferIn(endpointNumber: number): Promise<UsbInResult> {
     expect(endpointNumber).toBe(1);
+    if (this.halted) return Promise.resolve({ status: "stall" });
+    if (this.stallsLeft > 0) { this.stallsLeft -= 1; this.halted = true; return Promise.resolve({ status: "stall" }); }
     const next = this.#incoming.shift();
     if (next) return Promise.resolve({ status: "ok", data: new DataView(next.buffer) });
     return new Promise((resolve, reject) => { this.#waiting = resolve; this.#reject = reject; });
@@ -45,6 +51,10 @@ class FakeCp210x implements UsbDeviceLike {
     expect(endpointNumber).toBe(1);
     this.written.push([...new Uint8Array(data as ArrayBuffer)]);
     return { status: "ok", bytesWritten: (data as ArrayBuffer).byteLength };
+  }
+  async clearHalt(direction: "in" | "out", endpointNumber: number) {
+    this.cleared.push(`${direction}${endpointNumber}`);
+    this.halted = false;
   }
   /** Stationen skickar byte. */
   push(bytes: number[]) {
@@ -120,10 +130,67 @@ describe("SPORTident-station över WebUSB (CP210x, läsplatta)", () => {
     expect(states.at(-1)).toBe("closed");
   });
 
+  it("rensar en stoppad läsändpunkt (stall) och läser vidare", async () => {
+    const device = new FakeCp210x();
+    const transport = new WebSerialTransport(new WebUsbCp210xPort(device), { baudRate: 38_400 });
+    const received: number[] = [];
+    transport.onBytes((chunk) => received.push(...chunk));
+    device.stallsLeft = 2;
+    device.push([0x02, 0xf0, 0x03]);
+    await transport.open();
+    for (let i = 0; i < 10; i += 1) await tick();
+    expect(device.cleared).toEqual(["in1", "in1"]);
+    expect(received).toEqual([0x02, 0xf0, 0x03]);
+    await transport.close();
+  });
+
+  it("ger upp och stänger porten när ändpunkten fortsätter att stoppa, i stället för att låsa fliken", async () => {
+    const device = new FakeCp210x();
+    device.clearHalt = async (direction, endpointNumber) => { device.cleared.push(`${direction}${endpointNumber}`); };
+    const transport = new WebSerialTransport(new WebUsbCp210xPort(device), { baudRate: 38_400 });
+    const states: { status: string; code?: string }[] = [];
+    transport.onState((state) => states.push(state));
+    device.stallsLeft = 1;
+    await transport.open();
+    for (let i = 0; i < 20; i += 1) await tick();
+    expect(device.cleared.length).toBe(3);
+    expect(states).toContainEqual(expect.objectContaining({ status: "error", code: "WEB_SERIAL_READ_FAILED" }));
+    expect(states.at(-1)?.status).toBe("closed");
+    expect(device.opened).toBe(false);
+    expect(device.claimed).toEqual([]);
+  });
+
+  it("släpper gränssnittet och stänger enheten när inställningen misslyckas under open()", async () => {
+    const device = new FakeCp210x();
+    device.controlTransferOut = async (setup) => {
+      if (setup.request === CP210X.SET_BAUDRATE) throw new Error("A transfer error has occurred.");
+      return { status: "ok" };
+    };
+    const port = new WebUsbCp210xPort(device);
+    await expect(port.open({ baudRate: 38_400 })).rejects.toThrow("A transfer error has occurred.");
+    expect(device.claimed).toEqual([]);
+    expect(device.opened).toBe(false);
+    // Porten går att öppna igen när felet är borta.
+    delete (device as { controlTransferOut?: unknown }).controlTransferOut;
+    await port.open({ baudRate: 38_400 });
+    expect(device.claimed).toEqual([0]);
+    await port.close();
+  });
+
+  it("säger till om enheten inte heller går att stänga efter ett fel under open()", async () => {
+    const device = new FakeCp210x();
+    device.controlTransferOut = async () => { throw new Error("A transfer error has occurred."); };
+    device.close = async () => { throw new Error("The device was disconnected."); };
+    await expect(new WebUsbCp210xPort(device).open({ baudRate: 38_400 }))
+      .rejects.toThrow(/A transfer error has occurred\. \(USB-enheten kunde inte heller stängas: The device was disconnected\.\)/);
+    expect(device.claimed).toEqual([]);
+  });
+
   it("avvisar en USB-enhet utan dataändpunkter", async () => {
     const device = new FakeCp210x();
     device.selectConfiguration = async () => { device.configuration = { configurationValue: 1, interfaces: [
       { interfaceNumber: 0, alternate: { endpoints: [] } }] }; };
     await expect(new WebUsbCp210xPort(device).open({ baudRate: 38_400 })).rejects.toThrow(/dataändpunkter/);
+    expect(device.opened).toBe(false);
   });
 });

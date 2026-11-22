@@ -85,16 +85,16 @@ export class StationWriteSession {
     const send: Uint8Array[] = [];
     const events: StationWriteEvent[] = [];
     this.#decoder.flush();
-    const state = this.#state;
-    // Klockan efteråt är bara en kontroll: utan svar blir rapporten utan den.
-    if (state.name === "writing" && state.step === "read-clock" && state.after) this.#done(state.before, state.after, null, send, events);
-    else this.#fail("timeout", send, events);
+    this.#fail("timeout", send, events);
     return { send, events };
   }
 
   #fail(reason: "timeout" | "nak" | "unexpected", send: Uint8Array[], events: StationWriteEvent[]): void {
     const state = this.#state;
     if (state.name === "idle") return;
+    // Klockan efteråt är bara en kontroll: utan svar (tystnad eller NAK) blir rapporten utan den. Skrivningen och
+    // efterläsningen av systemdata har redan lyckats.
+    if (state.name === "writing" && state.step === "read-clock" && state.after) { this.#done(state.before, state.after, null, send, events); return; }
     if (state.name === "restore") { this.#state = { name: "idle" }; events.push(state.event); return; }
     if (state.name === "set-target" || state.name === "read-before") {
       this.#state = { name: "idle" };

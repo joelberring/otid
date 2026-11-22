@@ -3,7 +3,8 @@ import {
   teamSprintCoverage, teamSprintEachLegLayout, teamSprintEachLegReadout, teamSprintMissingReadouts, teamSprintRoute,
   type TeamSprintEachLegPart, type TeamSprintRoutePart
 } from "../src/team-sprint";
-import { evaluateReadoutForEntry } from "../src/entry-readout";
+import { evaluateReadoutForEntry, evaluateReadoutWithTimes } from "../src/entry-readout";
+import { manualTimeOutcome, partialTiming } from "../src";
 import type { EvaluationReadout, Punch, RaceSnapshot } from "../src/types";
 
 /**
@@ -61,6 +62,26 @@ describe("teamsprint: utläsning efter varje sträcka", () => {
     const snap = snapshot(layout, starts);
     expect(evaluateReadoutForEntry(first, snap, "leg-1")).toMatchObject({ status: "OK", elapsedMs: minutes(8), finishTime: at("17:08:00") });
     expect(evaluateReadoutForEntry(second, snap, "leg-3")).toMatchObject({ status: "OK", elapsedMs: minutes(10), finishTime: at("17:30:00") });
+  });
+
+  it("manuell tid och brutet: sträckans stämplingar och sträcktider räknas med de angivna tiderna (inte saknad start)", () => {
+    const layout = teamSprintEachLegLayout([{ entryId: "leg-1", readout: { id: "r1", finishPunchedAt: first.finishPunchedAt! } },
+      { entryId: "leg-3", readout: { id: "r2", finishPunchedAt: second.finishPunchedAt! } }]);
+    const snap = snapshot(layout, starts);
+    const withTimes = (readout: EvaluationReadout) => (startTime: string, finishTime: string) =>
+      evaluateReadoutWithTimes(readout, snap, "leg-3", startTime, finishTime);
+    const manual = withTimes(second)(at("17:20:00"), at("17:31:00"));
+    expect(manual).toMatchObject({ status: "OK", elapsedMs: minutes(11), startTime: at("17:20:00"), finishTime: at("17:31:00") });
+    expect(manual.splits.map((split) => split.controlCode)).toEqual([41, 43]);
+    const context = { entryId: "leg-3", classId: "class", courseVersionId: "c", evaluateWithTimes: withTimes(second) };
+    const outcome = manualTimeOutcome({ status: "OK", finishTime: at("17:31:00") }, at("17:20:00"), context);
+    expect(outcome?.splits.map((split) => split.controlCode)).toEqual([41, 43]);
+    // Utan mål (brutet): sträcktiderna fram till sista stämplade kontrollen.
+    const { finishPunchedAt, ...noFinish } = second;
+    expect(finishPunchedAt).toBeDefined();
+    const missingFinish = evaluateReadoutForEntry(noFinish, snap, "leg-3");
+    expect(missingFinish).toMatchObject({ reason: "MISSING_FINISH", startTime: at("17:20:00") });
+    expect(partialTiming(missingFinish, { evaluateWithTimes: withTimes(noFinish) }).splits.map((split) => split.controlCode)).toEqual([41, 43]);
   });
 
   it("dubblett: samma bricka utläst igen efter samma sträcka är en omläsning, inte nästa sträcka", () => {

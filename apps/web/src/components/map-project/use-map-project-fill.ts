@@ -111,6 +111,8 @@ export function useMapProjectFill(input: { session: MapProjectSession | undefine
   /** Det som ska bort under ytan som väntar på ett andra klick. */
   const pendingUnder = useRef<readonly UnderChange[]>([]);
   const clearUnder = !!symbol && BUILT_MAINS.has(Number(symbol.code.split(".")[0]));
+  // Byter ytan symbol medan en fyllning väntar på bekräftelse gäller varken ytan eller det som skulle tas bort under den längre.
+  useEffect(() => { setPending(undefined); pendingUnder.current = []; }, [symbol?.id]);
 
   /** De samlade rutorna som en yta (när Workern svarat på det som är ute). */
   function commitCells() {
@@ -142,7 +144,7 @@ export function useMapProjectFill(input: { session: MapProjectSession | undefine
     const touch = pointer.pointerType === "touch";
     if (pointer.free || (touch && cellsMode)) { addCell(point, touch); return; }
     if (cells.cells.count > 0 || cells.busy()) { hovering.current = { waiting: false, next: undefined }; cells.add(point); commitCells(); return; }
-    if (pending && insideRings(pending.rings, point)) { setPending(undefined); report(pending, add(pending.rings, pendingUnder.current)); return; }
+    if (pending && insideRings(pending.rings, point)) { setPending(undefined); report(pending, add(pending.rings, clearUnder ? pendingUnder.current : [])); return; }
     filling.current = true;
     hovering.current = { waiting: false, next: undefined };
     session.fill({ point, hidden: input.hidden, diagnose: true, gapM, exact, clearUnder }, (result, covered, under) => {

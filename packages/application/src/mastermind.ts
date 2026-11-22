@@ -148,14 +148,16 @@ export async function readMastermindAsStaff(db: Database, input: RaceSessionProo
  */
 export async function syncMastermindAsStaff(db: Database, input: RaceSessionProof & { request: unknown }, now = new Date()): Promise<MastermindResult> {
   const parsed = mastermindStateSchema.safeParse(input.request);
-  if (!parsed.success || !uuid.test(input.raceId)) return { status: "invalid-request" };
-  const settings = readSettings(parsed.data.settings);
-  if (!settings) return { status: "invalid-request" };
-  const incoming: MastermindState = { settings, ...(parsed.data.settingsAt ? { settingsAt: parsed.data.settingsAt } : {}),
-    games: parsed.data.games.flatMap(game => normalizeGame(game) ?? []), names: cleanNames(parsed.data.names) };
+  if (!uuid.test(input.raceId)) return { status: "invalid-request" };
   return db.transaction(async tx => {
     const auth = await requireRaceRole(tx, { ...input, role: "FUNCTIONARY", requireCsrf: true }, now, "update");
     if (auth.status !== "authenticated") return auth;
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success) return { status: "invalid-request" as const };
+    const settings = readSettings(parsed.data.settings);
+    if (!settings) return { status: "invalid-request" as const };
+    const incoming: MastermindState = { settings, ...(parsed.data.settingsAt ? { settingsAt: parsed.data.settingsAt } : {}),
+      games: parsed.data.games.flatMap(game => normalizeGame(game) ?? []), names: cleanNames(parsed.data.names) };
     const raceId = auth.principal.raceId;
     if (!await isTraining(tx, raceId)) return { status: "not-found" as const };
     await lockRace(tx, raceId, now);

@@ -245,11 +245,13 @@ export async function readBingoAsAdmin(db: Database, input: RaceSessionProof, no
 /** Slår på eller av bingon med telefonen (auditpost). Löparna som redan finns står kvar. */
 export async function setBingoAsAdmin(db: Database, input: RaceSessionProof & { request: unknown }, now = new Date()): Promise<BingoAdminResult> {
   const parsed = bingoSettingRequestSchema.safeParse(input.request);
-  if (!parsed.success || !uuid.test(input.raceId)) return { status: "invalid-request" };
+  if (!uuid.test(input.raceId)) return { status: "invalid-request" };
   return db.transaction(async tx => {
     const auth = await requireRaceRole(tx, { ...input, role: "ADMIN", requireCsrf: true }, now, "update");
     if (auth.status !== "authenticated") return auth;
     if (auth.principal.guest) return { status: "forbidden" as const };
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success) return { status: "invalid-request" as const };
     const raceId = auth.principal.raceId;
     if (parsed.data.enabled) {
       const mode = parsed.data.mode;

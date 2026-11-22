@@ -178,16 +178,6 @@ export async function changeEntryClassAsAdmin(
   const changedAt = new Date(now);
   if (!Number.isFinite(changedAt.getTime())) throw new Error("Ändringstiden är ogiltig");
 
-  const preflightAuthorization = await requireRaceRole(db, {
-    sessionToken: input.sessionToken,
-    raceId: input.raceId,
-    role: "ADMIN",
-    csrfCookie: input.csrfCookie ?? null,
-    csrfHeader: input.csrfHeader ?? null,
-    requireCsrf: true
-  }, changedAt);
-  if (preflightAuthorization.status !== "authenticated") return preflightAuthorization;
-
   return db.transaction(async (tx) => {
     const authorization = await requireRaceRole(tx, {
       sessionToken: input.sessionToken,

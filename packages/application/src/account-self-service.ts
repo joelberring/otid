@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, notExists, or, sql } from "drizzle-orm";
 import {
   accountDeleteRequestSchema,
   accountDisplayNameChangeSchema,
@@ -38,15 +38,11 @@ type Failure = { status: "unauthorized" | "forbidden" | "invalid-request" };
 
 /** Event där kontot har en aktiv OWNER-grant. */
 export async function ownedEvents(tx: DbExecutor, accountId: string) {
-  const grants = await tx.select({ id: schema.eventAdministrationGrants.id, eventId: schema.eventAdministrationGrants.eventId })
-    .from(schema.eventAdministrationGrants)
-    .where(and(eq(schema.eventAdministrationGrants.accountId, accountId), eq(schema.eventAdministrationGrants.role, "OWNER")));
-  const active: string[] = [];
-  for (const grant of grants) {
-    const [revocation] = await tx.select({ id: schema.eventAdministrationGrantRevocations.id })
-      .from(schema.eventAdministrationGrantRevocations).where(eq(schema.eventAdministrationGrantRevocations.grantId, grant.id));
-    if (!revocation) active.push(grant.eventId);
-  }
+  // Aktiva OWNER-grants (utan återkallelse) i en fråga.
+  const grants = schema.eventAdministrationGrants;
+  const active = (await tx.select({ eventId: grants.eventId }).from(grants).where(and(eq(grants.accountId, accountId), eq(grants.role, "OWNER"),
+    notExists(tx.select({ id: schema.eventAdministrationGrantRevocations.id }).from(schema.eventAdministrationGrantRevocations)
+      .where(eq(schema.eventAdministrationGrantRevocations.grantId, grants.id)))))).map(row => row.eventId);
   if (active.length === 0) return [];
   return tx.select({ eventId: schema.events.id, eventName: schema.events.name, startsOn: schema.events.startsOn })
     .from(schema.events).where(inArray(schema.events.id, active)).orderBy(asc(schema.events.startsOn), asc(schema.events.name));

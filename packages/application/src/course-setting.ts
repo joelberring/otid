@@ -188,9 +188,10 @@ export async function readCourseSettingAsAdmin(db: Database, input: ReadProof & 
 export async function saveCourseSettingAsAdmin(db: Database, input: RaceSessionProof & { request: unknown }, now = new Date())
   : Promise<Failure | Conflict | { status: "ok"; response: CourseSettingSaved }> {
   const parsed = courseSettingSaveRequestSchema.safeParse(input.request);
-  if (!parsed.success) return { status: "invalid-request" };
-  if (documentBytes(parsed.data.document) > COURSE_SETTING_DOCUMENT_MAX_BYTES) return { status: "too-large" };
   return courseSettingWrite(db, input, now, "EDIT", async (tx, raceId, actorId) => {
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success) return { status: "invalid-request" as const };
+    if (documentBytes(parsed.data.document) > COURSE_SETTING_DOCUMENT_MAX_BYTES) return { status: "too-large" as const };
     const current = await loadRow(tx, raceId);
     if ((current?.version ?? 0) !== parsed.data.expectedVersion) return conflict(current, await actors(tx, current ? [current.updatedBy] : []));
     const response = await store(tx, { raceId, actorId, now, current, kind: "SAVE", document: parsed.data.document });
@@ -203,9 +204,10 @@ export async function saveCourseSettingAsAdmin(db: Database, input: RaceSessionP
 export async function importCourseSettingAsAdmin(db: Database, input: RaceSessionProof & { request: unknown }, now = new Date())
   : Promise<Failure | Conflict | { status: "ok"; response: CourseSettingSaved }> {
   const parsed = courseSettingImportRequestSchema.safeParse(input.request);
-  if (!parsed.success) return { status: "invalid-request" };
-  if (documentBytes(parsed.data.document) > COURSE_SETTING_DOCUMENT_MAX_BYTES) return { status: "too-large" };
   return courseSettingWrite(db, input, now, "EDIT", async (tx, raceId, actorId) => {
+    // Inloggningen och behörigheten prövas före kroppen (städrundan 2026-11-07): utloggad får 401, inte 400.
+    if (!parsed.success) return { status: "invalid-request" as const };
+    if (documentBytes(parsed.data.document) > COURSE_SETTING_DOCUMENT_MAX_BYTES) return { status: "too-large" as const };
     const current = await loadRow(tx, raceId);
     if ((current?.version ?? 0) !== parsed.data.expectedVersion) return conflict(current, await actors(tx, current ? [current.updatedBy] : []));
     const { fileName, ppen, document } = parsed.data;

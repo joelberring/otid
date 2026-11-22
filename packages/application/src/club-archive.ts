@@ -41,6 +41,13 @@ async function accountNames(tx: DbExecutor, ids: Iterable<string>): Promise<Map<
     .where(inArray(schema.userAccounts.id, unique))).map(row => [row.id, row.name]));
 }
 
+/** Raderna grupperade på nyckeln (en genomgång, i stället för en filtrering per post). */
+function groupBy<T>(rows: readonly T[], key: (row: T) => string): Map<string, T[]> {
+  const groups = new Map<string, T[]>();
+  for (const row of rows) { const list = groups.get(key(row)); if (list) list.push(row); else groups.set(key(row), [row]); }
+  return groups;
+}
+
 /** Högst så många kartor per klubb. */
 const MAX_CLUB_MAPS = 2000;
 
@@ -54,7 +61,7 @@ export async function clubMapViewsByClub(tx: DbExecutor, clubIds: readonly strin
   if (clubIds.length === 0 || (mapIds && mapIds.length === 0)) return result;
   const query = tx.select().from(schema.clubMaps).where(and(inArray(schema.clubMaps.clubId, [...clubIds]),
     mapIds ? inArray(schema.clubMaps.id, [...mapIds]) : undefined)).orderBy(asc(schema.clubMaps.clubId), asc(schema.clubMaps.name));
-  const rows = clubIds.length === 1 ? await query.limit(MAX_CLUB_MAPS) : await query;
+  const rows = await query.limit(MAX_CLUB_MAPS * clubIds.length);
   const mapsOf = new Map<string, MapRow[]>();
   for (const map of rows) {
     const list = mapsOf.get(map.clubId) ?? [];
@@ -146,10 +153,11 @@ async function listItems(tx: DbExecutor, clubId: string, entryIds?: readonly str
   const mapOf = new Map(versionMaps.map(row => [row.versionId, { mapId: row.mapId, name: row.name }]));
   const versionOf = new Map(versionMaps.map(row => [row.versionId, row]));
   // ADR-0196: bilden ritas av första banfilen (i namnordning) som har en karta, annars den nyaste kartan i mappen.
+  const filesOf = groupBy(files, file => file.entryId), folderOf = groupBy(folder, row => row.entryId);
   const sources = new Map(entries.map(entry => {
-    const withMap = files.filter(file => file.entryId === entry.id && file.mapVersionId && versionOf.has(file.mapVersionId))
+    const withMap = (filesOf.get(entry.id) ?? []).filter(file => file.mapVersionId && versionOf.has(file.mapVersionId))
       .sort((a, b) => a.fileName.localeCompare(b.fileName, "sv") || a.id.localeCompare(b.id))[0];
-    const inFolder = folder.filter(row => row.entryId === entry.id && versionOf.has(row.versionId)).map(row => versionOf.get(row.versionId)!)
+    const inFolder = (folderOf.get(entry.id) ?? []).filter(row => versionOf.has(row.versionId)).map(row => versionOf.get(row.versionId)!)
       .sort((a, b) => (b.versionDate ?? "").localeCompare(a.versionDate ?? "") || a.versionId.localeCompare(b.versionId))[0];
     const versionId = withMap?.mapVersionId ?? inFolder?.versionId ?? null;
     return [entry.id, versionId ? { versionId, fileName: versionOf.get(versionId)!.fileName, courseFileId: withMap?.id ?? null } : null] as const;
@@ -159,8 +167,8 @@ async function listItems(tx: DbExecutor, clubId: string, entryIds?: readonly str
   const fromRace = new Set((await tx.select({ entryId: schema.raceClubArchives.entryId }).from(schema.raceClubArchives)
     .where(inArray(schema.raceClubArchives.entryId, ids))).map(row => row.entryId));
   return entries.map(entry => {
-    const own = files.filter(file => file.entryId === entry.id);
-    const folderMaps = folder.filter(row => row.entryId === entry.id);
+    const own = filesOf.get(entry.id) ?? [];
+    const folderMaps = folderOf.get(entry.id) ?? [];
     const maps = new Map<string, { mapId: string; name: string }>();
     for (const versionId of [...folderMaps.map(row => row.versionId), ...own.flatMap(file => file.mapVersionId ? [file.mapVersionId] : [])]) {
       const map = mapOf.get(versionId);

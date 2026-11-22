@@ -235,12 +235,14 @@ async function mapLoop(db: ReturnType<typeof createDatabase>["db"], pool: Return
   // LISTEN-anslutningen kan tappas (databasen startar om): felet får inte krascha processen. Anslutningen kastas och en ny
   // tas i nästa varv; loopen tittar ändå i kön varannan sekund, så inget jobb väntar på ett väckningsmeddelande.
   let listener: PoolClient | undefined;
-  const dropListener = (error: unknown) => {
-    const lost = listener;
+  /** Släpper just den här klienten, och bara om den fortfarande är den aktuella: en sen händelse från en gammal klient rör inte en ny. */
+  const dropListener = (client: PoolClient, onError: (error: Error) => void, error: unknown) => {
+    client.removeListener("error", onError);
+    client.removeAllListeners("notification");
+    if (listener !== client) return;
     listener = undefined;
     console.warn("Kartjobbens LISTEN-anslutning tappades; ansluter igen", error instanceof Error ? error.message : error);
-    lost?.removeAllListeners("notification");
-    try { lost?.release(error instanceof Error ? error : new Error(String(error))); } catch { /* redan släppt */ }
+    try { client.release(error instanceof Error ? error : new Error(String(error))); } catch { /* redan släppt */ }
   };
   const ensureListener = async () => {
     if (once || listener) return;
@@ -249,10 +251,11 @@ async function mapLoop(db: ReturnType<typeof createDatabase>["db"], pool: Return
       console.warn("Kartjobben når inte databasen för LISTEN; tittar i kön i stället", error instanceof Error ? error.message : error);
       return;
     }
-    client.on("error", dropListener);
+    const onError = (error: Error) => dropListener(client, onError, error);
+    client.on("error", onError);
     client.on("notification", () => wake?.());
     listener = client;
-    try { await client.query(`LISTEN ${MAP_JOB_CHANNEL}`); } catch (error) { dropListener(error); }
+    try { await client.query(`LISTEN ${MAP_JOB_CHANNEL}`); } catch (error) { dropListener(client, onError, error); }
   };
   let cleaned = 0;
   try {

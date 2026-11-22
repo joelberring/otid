@@ -220,6 +220,48 @@ describe("tidsjustering för alla enheter (steg 45)", () => {
   });
 });
 
+describe("tidsjustering för alla enheter flyttar också clear och check", () => {
+  // Lottad start 10:00 utan startstämpling. Enheterna går en timme före: checken 09:55 står 10:55, kontrollerna 10:10–10:30
+  // står 11:10–11:30. Avläsningen (datorns klocka) 10:41 + en timme för att checken ska ligga före avläsningen även oflyttad.
+  const fixedStart = (shift: number): NormalizedCardReadout => {
+    const { startPunchedAt: _none, ...rest } = readout({ checkPunchedAt: new Date(Date.parse("2026-08-30T09:55:00Z") + shift).toISOString(),
+    clearPunchedAt: new Date(Date.parse("2026-08-30T09:54:00Z") + shift).toISOString(),
+    finishPunchedAt: new Date(Date.parse("2026-08-30T10:40:00Z") + shift).toISOString(),
+    punches: [31, 32, 33].map((code, index) => ({ code,
+      punchedAt: new Date(Date.parse("2026-08-30T10:10:00Z") + index * 10 * 60_000 + shift).toISOString() })),
+    readAt: "2026-08-30T11:41:00Z" });
+    return rest;
+  };
+
+  it("−60 min: kvällens kontroller räknas inte som gamla (ingen falsk felstämpling)", () => {
+    const all: StationTimeAdjustment = { id: "adj-all", station: "ALL", offsetMs: -HOUR };
+    const input = fixedStart(HOUR);
+    const prepared = prepareReadoutForEvaluation(input, snapshot([all]));
+    expect(prepared.ignoredPunches).toBe(0);
+    expect(prepared.readout.checkPunchedAt).toBe("2026-08-30T09:55:00.000Z");
+    expect(prepared.readout.clearPunchedAt).toBe("2026-08-30T09:54:00.000Z");
+    const result = evaluateCardReadout(input, snapshot([all]));
+    expect(result).toMatchObject({ status: "OK", elapsedMs: 40 * 60_000 });
+    expect(result.splits.map((split) => split.elapsedMs)).toEqual([10, 20, 30].map((minutes) => minutes * 60_000));
+  });
+
+  it("+60 min: enheterna går efter, och resultatet blir detsamma", () => {
+    const all: StationTimeAdjustment = { id: "adj-all", station: "ALL", offsetMs: HOUR };
+    const input = fixedStart(-HOUR);
+    const prepared = prepareReadoutForEvaluation(input, snapshot([all]));
+    expect(prepared.ignoredPunches).toBe(0);
+    expect(prepared.readout.checkPunchedAt).toBe("2026-08-30T09:55:00.000Z");
+    expect(evaluateCardReadout(input, snapshot([all]))).toMatchObject({ status: "OK", elapsedMs: 40 * 60_000 });
+  });
+
+  it("en justering för en enskild enhet flyttar inte clear och check", () => {
+    const input = fixedStart(0);
+    const prepared = prepareReadoutForEvaluation(input, snapshot([finish(60_000)]));
+    expect(prepared.readout.checkPunchedAt).toBe(input.checkPunchedAt);
+    expect(prepared.readout.clearPunchedAt).toBe(input.clearPunchedAt);
+  });
+});
+
 describe("oröjd bricka med ett fullt varv tidigare samma dag (steg 45)", () => {
   const punchStart = (): RaceSnapshot => {
     const base = snapshot();

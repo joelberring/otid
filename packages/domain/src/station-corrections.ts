@@ -154,10 +154,13 @@ function adjustStationTimes(readout: EvaluationReadout, snapshot: RaceSnapshot):
   for (const [code, count] of [...counts].sort(([left], [right]) => left - right)) {
     applied.push({ station: "CONTROL", controlCode: code, offsetMs: offsetFor(adjustments, "CONTROL", code), punches: count });
   }
-  if (applied.length === 0) return { readout, adjustments: [] };
   // Clear- och checkenheterna är också enheter: en justering för alla flyttar deras tider, annars jämförs kvällens
   // flyttade kontrollstämplingar med en oflyttad check och räknas felaktigt som ett gammalt varv (withoutOldPunches).
+  // Det gäller också när inga stämplingar flyttas (en brickas enda stämplingar är clear/check, eller tar ALL och en
+  // stationsjustering ut varandra).
   const allOffset = adjustments.filter((adjustment) => adjustment.station === "ALL").reduce((sum, adjustment) => sum + adjustment.offsetMs, 0);
+  const movesClearOrCheck = allOffset !== 0 && (!!readout.clearPunchedAt || !!readout.checkPunchedAt);
+  if (applied.length === 0 && !movesClearOrCheck) return { readout, adjustments: [] };
   return {
     readout: {
       ...readout,

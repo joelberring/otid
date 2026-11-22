@@ -255,6 +255,17 @@ describe("tidsjustering för alla enheter flyttar också clear och check", () =>
     expect(evaluateCardReadout(input, snapshot([all]))).toMatchObject({ status: "OK", elapsedMs: 40 * 60_000 });
   });
 
+  it("flyttar clear och check också när alla stämplingar går ut mot varandra (ALL −60 min och kontroll 31 +60 min, bara en kontroll)", () => {
+    const all: StationTimeAdjustment = { id: "adj-all", station: "ALL", offsetMs: -HOUR };
+    const control: StationTimeAdjustment = { id: "adj-31", station: "CONTROL", controlCode: 31, offsetMs: HOUR };
+    const { startPunchedAt, finishPunchedAt, ...input } = readout({ checkPunchedAt: "2026-08-30T10:55:00Z", clearPunchedAt: "2026-08-30T10:54:00Z",
+      punches: [{ code: 31, punchedAt: "2026-08-30T10:10:00Z" }] });
+    expect([startPunchedAt, finishPunchedAt].every(Boolean)).toBe(true);
+    const prepared = prepareReadoutForEvaluation(input, snapshot([all, control]));
+    expect(prepared.readout.checkPunchedAt).toBe("2026-08-30T09:55:00.000Z");
+    expect(prepared.readout.clearPunchedAt).toBe("2026-08-30T09:54:00.000Z");
+  });
+
   it("en justering för en enskild enhet flyttar inte clear och check", () => {
     const input = fixedStart(0);
     const prepared = prepareReadoutForEvaluation(input, snapshot([finish(60_000)]));

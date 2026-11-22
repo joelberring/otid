@@ -17,7 +17,7 @@ export const accountBenefitsSv = {
   promisesTitle: "Om ditt konto",
   promises: [
     "Du kan ta bort ditt konto när som helst under Mitt konto.",
-    "O-Tid skickar aldrig nyhetsbrev eller reklam, bara mejl som gäller dig: att bekräfta adressen, ett nytt lösenord eller en inbjudan."
+    "Vi skickar inga nyhetsbrev eller reklam."
   ],
   eventorTip: "Tips: använd samma e-postadress som i Eventor. Har din klubb kopplat O-Tid till Eventor blir du då klubbmedlem i O-Tid direkt.",
   noAccount: "Du behöver inget konto för att se resultat eller vara med på en träning."

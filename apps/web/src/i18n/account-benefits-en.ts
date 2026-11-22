@@ -14,7 +14,7 @@ export const accountBenefitsEn: AccountBenefitsTexts = {
   promisesTitle: "About your account",
   promises: [
     "You can delete your account at any time under My account.",
-    "We don't send newsletters or advertising."
+    "O-Tid never sends newsletters or advertising, only emails about you: confirming your address, a new password or an invitation."
   ],
   eventorTip: "Tip: use the same email address as in Eventor. If your club has connected O-Tid to Eventor, you then become a club member in O-Tid straight away.",
   noAccount: "You don't need an account to see results or take part in a training."

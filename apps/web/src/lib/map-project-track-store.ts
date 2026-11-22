@@ -54,6 +54,13 @@ export function closeParts(track: LocalTrack, final: boolean): LocalTrack {
   return { ...track, parts, open: final || !last ? [] : [last] };
 }
 
+/**
+ * Ett flush som började före ett stopp har bara det gamla läget i handen: det färska spåret (med `endedAt` och slutdelen) behålls och
+ * får bara det som servern kvitterat (`sent`, `created`, felet), så att inget skrivs över i telefonen.
+ */
+export const withServerProgress = (live: LocalTrack, progress: Pick<LocalTrack, "sent" | "created" | "problem">): LocalTrack =>
+  ({ ...live, sent: Math.max(live.sent, progress.sent), created: live.created || progress.created, problem: progress.problem });
+
 /** Alla punkter (delarna och de som ännu inte blivit en del), för kartan. */
 export const localPoints = (track: LocalTrack): RawPoint[] => [...track.parts.flat(), ...track.open];
 

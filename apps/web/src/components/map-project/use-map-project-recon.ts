@@ -10,7 +10,7 @@ import { clubRequest } from "../../lib/club-archive-client";
 import { mapProjectBase } from "../../lib/map-project-client";
 import type { MapProjectSession, ReconResult } from "../../lib/map-project-protocol";
 import {
-  closeParts, deleteLocalTrack, localPoints, localTracks, putLocalTrack, trackFull, type LocalTrack
+  closeParts, deleteLocalTrack, localPoints, localTracks, putLocalTrack, trackFull, withServerProgress, type LocalTrack
 } from "../../lib/map-project-track-store";
 import { joinSegments, parseGpx, trackOnMap, trackParts, type RawPoint } from "../../lib/map-project-tracks";
 import { MAX_RECORD_ACCURACY_M, type TimedFix } from "./use-map-project-position";
@@ -78,16 +78,33 @@ export function useMapProjectRecon(input: { view: MapProjectView; session: MapPr
 
   /** Telefonens spår till servern, del för del; ett spår tas bort ur telefonen först när servern har allt. */
   const flushing = useRef(false);
+  const flushAgain = useRef(false);
+  /** Spår som avslutats i den här sidan men ännu inte kvitterats: deras färska läge får aldrig skrivas över av ett flush som började före stoppet. */
+  const endedRef = useRef(new Map<string, LocalTrack>());
+  /** Det färskaste läget för spåret (pågående inspelning eller nyss avslutat) med det som skickats hittills. */
+  const freshest = (track: LocalTrack): LocalTrack => {
+    const live = recordingRef.current?.trackId === track.trackId ? recordingRef.current : endedRef.current.get(track.trackId);
+    return live ? withServerProgress(live, track) : track;
+  };
   const flush = useCallback(async () => {
-    if (flushing.current) return;
+    if (flushing.current) { flushAgain.current = true; return; }
     flushing.current = true;
     try {
+      do {
+        flushAgain.current = false;
+        await flushOnce();
+      } while (flushAgain.current);
+    } finally { flushing.current = false; }
+    await loadLocal();
+    await loadServer();
+    async function flushOnce() {
+    try {
       for (const stored of await localTracks(view.projectId, accountId)) {
-        let track = stored.trackId === recordingRef.current?.trackId ? recordingRef.current : stored;
+        let track = stored.trackId === recordingRef.current?.trackId ? recordingRef.current : endedRef.current.get(stored.trackId) ?? stored;
         if (!track.created) {
           const created = await clubRequest(`${base}/tracks`, "POST", { formatVersion: 1, trackId: track.trackId, name: track.name, source: track.source,
             startedAt: track.startedAt });
-          if (created.status !== 200 && created.status !== 201) { await putLocalTrack({ ...track, problem: created.status }); continue; }
+          if (created.status !== 200 && created.status !== 201) { await putLocalTrack({ ...freshest(track), problem: created.status }); continue; }
           track = { ...track, created: true, problem: undefined };
         }
         while (track.sent < track.parts.length) {
@@ -98,20 +115,22 @@ export function useMapProjectRecon(input: { view: MapProjectView; session: MapPr
           if (sent.status !== 200) { track = { ...track, problem: sent.status }; break; }
           track = { ...track, sent: seq + 1, problem: undefined };
         }
-        // Inspelningen kan ha fått nya punkter under tiden: dess eget läge vinner, med det som skickats.
+        // Inspelningen kan ha fått nya punkter (eller ha stoppats) under tiden: dess eget läge vinner, med det som skickats.
         if (recordingRef.current?.trackId === track.trackId) {
-          const sentNow = track.sent, created = track.created;
-          recordingRef.current = { ...recordingRef.current, sent: sentNow, created, problem: track.problem };
+          recordingRef.current = freshest(track);
           track = recordingRef.current;
           setRecording(track);
+        } else if (endedRef.current.has(track.trackId)) {
+          track = freshest(track);
+          endedRef.current.set(track.trackId, track);
         }
-        if (track.endedAt !== undefined && track.sent >= track.parts.length && track.created) await deleteLocalTrack(track.trackId);
-        else await putLocalTrack(track);
+        if (track.endedAt !== undefined && track.sent >= track.parts.length && track.created) {
+          await deleteLocalTrack(track.trackId);
+          endedRef.current.delete(track.trackId);
+        } else await putLocalTrack(track);
       }
     } catch { /* Utan nät: nästa försök. */ }
-    finally { flushing.current = false; }
-    await loadLocal();
-    await loadServer();
+    }
   }, [base, view.projectId, accountId, loadLocal, loadServer]);
 
   useEffect(() => {
@@ -141,7 +160,7 @@ export function useMapProjectRecon(input: { view: MapProjectView; session: MapPr
     if (!track || fix.accuracyM > MAX_RECORD_ACCURACY_M) return;
     const seconds = Math.max(0, (fix.at - Date.parse(track.startedAt)) / 1000);
     let next = closeParts({ ...track, open: [...track.open, [fix.latitude, fix.longitude, Math.round(seconds), Math.round(fix.accuracyM)]] }, false);
-    if (trackFull(next)) { next = closeParts({ ...next, endedAt: new Date().toISOString() }, true); recordingRef.current = undefined; setRecording(undefined);
+    if (trackFull(next)) { next = closeParts({ ...next, endedAt: new Date().toISOString() }, true); recordingRef.current = undefined; endedRef.current.set(next.trackId, next); setRecording(undefined);
       setProblem("trackFull"); void putLocalTrack(next).then(() => flush()); return; }
     const closed = next.parts.length > track.parts.length;
     recordingRef.current = next;
@@ -168,6 +187,7 @@ export function useMapProjectRecon(input: { view: MapProjectView; session: MapPr
     setRecording(undefined);
     const ended = closeParts({ ...track, endedAt: new Date().toISOString() }, true);
     if (ended.parts.length === 0 && !ended.created) { await deleteLocalTrack(ended.trackId).catch(() => undefined); await loadLocal(); return; }
+    endedRef.current.set(ended.trackId, ended);
     await putLocalTrack(ended).catch(() => setProblem("noStore"));
     await flush();
   }, [flush, loadLocal]);

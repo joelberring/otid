@@ -27,6 +27,7 @@ export const mapProjectFillSv = {
   openGap: (gapM: number, count: number) => count === 1
     ? `Ytan är inte sluten – det finns en öppning större än ${gapM} m (röd på kartan). Rita kanten där och försök igen.`
     : `Ytan är inte sluten – det finns ${count} öppningar större än ${gapM} m (röda på kartan). Rita kanterna där och försök igen.`,
+  clearedUnder: (count: number) => `${count === 1 ? "Ett objekt" : `${count} objekt`} under ytan (berg, grönt, kärr, stenar eller små landformer) togs bort eller klipptes, som på tomtmark. Ångra tar tillbaka allt.`,
   openFar: (windowM: number) => `Ytan är inte sluten inom ${windowM} m från klicket: en kant saknas eller är släckt, eller så är ytan större än så. Rita kanten som saknas, eller rita ytan för hand.`,
   /** Föreslå ytor (sprintkartor): kandidatytorna i det som syns på skärmen. */
   propose: {

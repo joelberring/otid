@@ -60,6 +60,8 @@ export interface FillQuery {
   readonly gapM?: number | undefined;
   /** Bara exakt (Alt+klick): grundtoleransen, inga bryggor. */
   readonly exact?: boolean | undefined;
+  /** Ägaren 2026-11-22: ytan är tomtmark, hårdgjord yta eller byggnad – ge också det som ska bort under den (`map-project-fill-under.ts`). */
+  readonly clearUnder?: boolean | undefined;
 }
 
 /** Ett glapp som slöts utöver grundtoleransen: ett hörn (två bitar), en förlängning eller en brygga, i kartans mm. */

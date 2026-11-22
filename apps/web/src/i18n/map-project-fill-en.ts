@@ -28,6 +28,7 @@ export const mapProjectFillEn: Texts<typeof mapProjectFillSv> = {
   openGap: (gapM, count) => count === 1
     ? `The area is not closed – there is an opening larger than ${gapM} m (red on the map). Draw the edge there and try again.`
     : `The area is not closed – there are ${count} openings larger than ${gapM} m (red on the map). Draw the edges there and try again.`,
+  clearedUnder: count => `${count === 1 ? "One object" : `${count} objects`} under the area (bare rock, vegetation, marsh, boulders or small landforms) were removed or clipped, as on private land. Undo restores everything.`,
   openFar: windowM => `The area is not closed within ${windowM} m of the click: an edge is missing or hidden, or the area is larger than that. Draw the missing edge, or draw the area by hand.`,
   propose: {
     barLabel: "Suggest areas",

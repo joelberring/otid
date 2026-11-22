@@ -12,7 +12,8 @@ import { simplifyRing } from "./photo-interpret";
  */
 type Pair = [number, number];
 export interface WaterSmoothing { readonly spacing: number; readonly sigma: number; readonly tolerance: number }
-export const WATER_SMOOTHING: WaterSmoothing = { spacing: 1.5, sigma: 3.5, tolerance: 0.4 };
+// Ägaren 2026-11-22 («den mer detaljerade är bättre men lite för kantig»): sigma 3,5 → 5 m.
+export const WATER_SMOOTHING: WaterSmoothing = { spacing: 1.5, sigma: 5, tolerance: 0.4 };
 
 const perimeterOf = (ring: readonly (readonly [number, number])[]) =>
   ring.reduce((sum, point, i) => { const next = ring[(i + 1) % ring.length]!; return sum + Math.hypot(next[0] - point[0], next[1] - point[1]); }, 0);

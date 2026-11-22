@@ -6,6 +6,7 @@ import type { MapRenderErrorCode, MapRenderRequest } from "./course-setting-map-
 import type { Bounds } from "./course-setting-viewport";
 import type { ProposeQuery, ProposeResult } from "./map-project-area-proposals";
 import type { FillQuery, FillResult } from "./map-project-fill-area";
+import type { UnderChange } from "./map-project-fill-under";
 import type { SnapIndex } from "./map-project-snap";
 import type { UnfilledQuery, UnfilledResult } from "./map-project-unfilled";
 
@@ -111,7 +112,9 @@ export type MapProjectResponse =
   | { readonly type: "fit"; readonly id: number; readonly fit: VectorFit | null }
   | { readonly type: "built"; readonly id: number; readonly polygons: readonly [number, number][][][]; readonly fields?: readonly [number, number][][][] }
   /** `covered`: ytan som redan täcker rutan (K8b V4), så att den kan markeras. */
-  | { readonly type: "fill"; readonly id: number; readonly result: FillResult; readonly covered?: ProjectHit | undefined }
+  | { readonly type: "fill"; readonly id: number; readonly result: FillResult; readonly covered?: ProjectHit | undefined;
+      /** Det som ska bort eller klippas under ytan (`FillQuery.clearUnder`). */
+      readonly under?: readonly UnderChange[] | undefined }
   | { readonly type: "proposeAreas"; readonly id: number; readonly result: ProposeResult }
   | { readonly type: "snapIndex"; readonly id: number; readonly index: SnapIndex | null }
   | { readonly type: "unfilled"; readonly id: number; readonly result: UnfilledResult }
@@ -148,7 +151,7 @@ export class MapProjectSession {
   private latestBuilt = 0;
   private onBuilt: ((polygons: readonly [number, number][][][], fields: readonly [number, number][][][]) => void) | undefined;
   private latestFill = 0;
-  private onFill: ((result: FillResult, covered?: ProjectHit) => void) | undefined;
+  private onFill: ((result: FillResult, covered?: ProjectHit, under?: readonly UnderChange[]) => void) | undefined;
   private latestPropose = 0;
   private onPropose: ((result: ProposeResult) => void) | undefined;
   private latestSnap = 0;
@@ -175,7 +178,7 @@ export class MapProjectSession {
       else if (message.type === "bySymbol") { if (message.id === this.latestBySymbol) this.onBySymbol?.(message.objects); }
       else if (message.type === "warp") { if (message.id === this.latestWarp) this.onWarp?.(message.changes, new Map(message.refs)); }
       else if (message.type === "fit") { if (message.id === this.latestFit) this.onFit?.(message.fit); }
-      else if (message.type === "fill") { if (message.id === this.latestFill) this.onFill?.(message.result, message.covered); }
+      else if (message.type === "fill") { if (message.id === this.latestFill) this.onFill?.(message.result, message.covered, message.under); }
       else if (message.type === "snapIndex") { if (message.id === this.latestSnap) this.onSnap?.(message.index); }
       else if (message.type === "unfilled") { if (message.id === this.latestUnfilled) this.onUnfilled?.(message.result); }
       else if (message.type === "proposeAreas") { if (message.id === this.latestPropose) this.onPropose?.(message.result); }
@@ -266,7 +269,7 @@ export class MapProjectSession {
   }
 
   /** Fyll yta: den slutna rutan kring punkten, eller varför den inte är sluten. Bara det senaste svaret används. */
-  fill(query: FillQuery, onFill: (result: FillResult, covered?: ProjectHit) => void) {
+  fill(query: FillQuery, onFill: (result: FillResult, covered?: ProjectHit, under?: readonly UnderChange[]) => void) {
     const id = ++this.latestFill;
     this.onFill = onFill;
     this.post({ type: "fill", id, query });

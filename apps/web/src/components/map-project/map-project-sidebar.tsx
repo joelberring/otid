@@ -1,5 +1,6 @@
 "use client";
 
+import { symbolWordMatches } from "../../lib/map-symbol-words";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { mapProjectEditorEn } from "../../i18n/map-project-en";
 import { mapProjectSymbolLayersEn } from "../../i18n/map-project-more-en";
@@ -64,7 +65,8 @@ export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, recent, s
   };
   const groups = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    const match = (entry: CatalogSymbol) => !needle || entry.code.toLowerCase().startsWith(needle) || entry.name.toLowerCase().includes(needle);
+    const match = (entry: CatalogSymbol) => !needle || entry.code.toLowerCase().startsWith(needle) || entry.name.toLowerCase().includes(needle)
+      || symbolWordMatches(entry.code, needle);
     // Skisslagren ur kartfilen ritar man inte med (de förs över under Lager).
     return layerRows(catalog, standardSymbols, layerState).filter(row => row.id !== "FILE").map(row => ({ id: row.id, symbols: row.symbols.filter(match) })).filter(row => row.symbols.length > 0);
   }, [catalog, standardSymbols, layerState, query]);

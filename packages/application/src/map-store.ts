@@ -136,7 +136,7 @@ export async function uploadToStore(store: ArchiveStore, sha256: string, byteLen
  */
 export async function reserveStoreUpload(db: DbExecutor, sha256: string, byteLength: number, now: Date): Promise<void> {
   await db.execute(sql`insert into map_content_archive (sha256, byte_length, archived_at, cold_at, orphaned_at)
-    select ${sha256}, ${byteLength}, ${now}, ${now}, ${now} where not exists (select 1 from map_content where sha256 = ${sha256})
+    select ${sha256}, ${byteLength}, ${now}, ${now}, ${now} where not exists (select 1 from map_content where sha256 = ${sha256} and stored_in <> 'GONE')
     on conflict (sha256) do update set orphaned_at = excluded.orphaned_at`);
 }
 
@@ -155,9 +155,15 @@ export async function storeReservationHolds(tx: DbExecutor, sha256: string, rese
  * inte finns här (se överst). Bara databasen: filen lades i mellanlagret redan vid uppladdningen.
  */
 export async function registerStoredMapContent(tx: DbExecutor, input: { sha256: string; contentId: string; byteLength: number;
-  accountId: string | null }, now: Date): Promise<void> {
-  await tx.execute(sql`insert into map_content (sha256, content_id, byte_length, uploaded_by, created_at, stored_in, last_used_at)
-    values (${input.sha256}, ${input.contentId}, ${input.byteLength}, ${input.accountId}, ${now}, 'STORE', ${now})`);
+  accountId: string | null; recipe?: object | null }, now: Date): Promise<void> {
+  // PLAN.md steg M4: med recept är innehållet återskapbart; en rad som tagits bort ur förrådet ('GONE') får tillbaka sitt innehåll.
+  const recipe = input.recipe ?? null;
+  await tx.execute(sql`insert into map_content (sha256, content_id, byte_length, uploaded_by, created_at, stored_in, last_used_at, regenerable, recipe)
+    values (${input.sha256}, ${input.contentId}, ${input.byteLength}, ${input.accountId}, ${now}, 'STORE', ${now}, ${recipe !== null},
+      ${recipe ? JSON.stringify(recipe) : null}::jsonb)
+    on conflict (sha256) do update set content_id = excluded.content_id, byte_length = excluded.byte_length, uploaded_by = excluded.uploaded_by,
+      stored_in = 'STORE', evicted_at = null, last_used_at = excluded.last_used_at, regenerable = excluded.regenerable,
+      recipe = coalesce(excluded.recipe, map_content.recipe) where map_content.stored_in = 'GONE'`);
   await tx.execute(sql`insert into map_content_archive (sha256, byte_length, archived_at, cold_at) values (${input.sha256}, ${input.byteLength}, ${now}, ${now})
     on conflict (sha256) do update set byte_length = excluded.byte_length, archived_at = excluded.archived_at, cold_at = excluded.cold_at,
       restored_at = null, orphaned_at = null`);
@@ -169,6 +175,6 @@ export async function registerStoredMapContent(tx: DbExecutor, input: { sha256: 
  */
 export async function releaseUnusedUpload(tx: DbExecutor, sha256: string, byteLength: number, now: Date): Promise<void> {
   await tx.execute(sql`insert into map_content_archive (sha256, byte_length, archived_at, cold_at, orphaned_at)
-    select ${sha256}, ${byteLength}, ${now}, ${now}, ${now} where not exists (select 1 from map_content where sha256 = ${sha256})
+    select ${sha256}, ${byteLength}, ${now}, ${now}, ${now} where not exists (select 1 from map_content where sha256 = ${sha256} and stored_in <> 'GONE')
     on conflict (sha256) do nothing`);
 }

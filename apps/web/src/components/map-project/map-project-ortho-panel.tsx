@@ -69,7 +69,10 @@ export function MapProjectOrthoPanel({ view, layers, georeference, bounds, areas
     for (const [index, item] of selected.entries()) {
       setBusy(text.adding(index + 1, selected.length));
       const url = `${base}/sources/lantmateriet/asset?href=${encodeURIComponent(item.href)}`;
-      if (await layers.addRemote(url, box, text.name(item.collection, item.id), false)) added += 1;
+      // PLAN.md steg M4: receptet (bilden, rutan i kartans mm, årgången) gör underlaget återskapbart.
+      const recipe = { source: "LM_ORTHO" as const, href: item.href, area: { minX: box.minX, minY: box.minY, maxX: box.maxX, maxY: box.maxY },
+        collection: item.collection?.slice(0, 200) ?? null, datetime: item.datetime?.slice(0, 40) ?? null };
+      if (await layers.addRemote(url, box, text.name(item.collection, item.id), false, { recipe })) added += 1;
     }
     setBusy(undefined);
     await layers.reload();

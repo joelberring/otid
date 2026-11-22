@@ -157,11 +157,16 @@ export function mapStorageQuotaProblems(env: Partial<Record<string, string | und
 export interface MapQuotaExceeded { readonly scope: "ACCOUNT" | "INSTALLATION"; readonly usedBytes: number; readonly limitBytes: number;
   readonly neededBytes: number }
 
-/** Hur mycket kartinnehåll kontot har laddat upp och hur mycket som lagras på installationen (också gamla rader). */
+/**
+ * Hur mycket kartinnehåll kontot har laddat upp och hur mycket som lagras på installationen (också gamla rader). PLAN.md steg
+ * M4: kontots återskapbara innehåll räknas mot sin egen gräns (`map-regenerable.ts`), och det som tagits bort ur förrådet
+ * ('GONE') räknas inte alls.
+ */
 export async function mapStorageUsage(tx: DbExecutor, accountId: string | null): Promise<{ accountBytes: number; totalBytes: number }> {
   const [row] = (await tx.execute<{ account: string; total: string }>(sql`select
-      coalesce((select sum(byte_length) from map_content where ${accountId}::uuid is not null and uploaded_by = ${accountId}::uuid), 0)::text as account,
-      ((select coalesce(sum(byte_length), 0) from map_content)
+      coalesce((select sum(byte_length) from map_content where ${accountId}::uuid is not null and uploaded_by = ${accountId}::uuid
+        and not regenerable and stored_in <> 'GONE'), 0)::text as account,
+      ((select coalesce(sum(byte_length), 0) from map_content where stored_in <> 'GONE')
         + (select coalesce(sum(octet_length(image)), 0) from race_map where image is not null)
         + (select coalesce(sum(octet_length(file)), 0) from race_map_source where file is not null)
         + (select coalesce(sum(octet_length(image)), 0) from training_group_map where image is not null)
@@ -180,10 +185,14 @@ export async function accountMapQuotaBytes(tx: DbExecutor, accountId: string, qu
 
 export type StoreResult = { status: "stored"; sha256: string } | { status: "quota"; quota: MapQuotaExceeded };
 
-/** Över kontots eller installationens gräns med `byteLength` till? */
-async function quotaProblem(tx: DbExecutor, accountId: string | null, byteLength: number, quota: MapStorageQuota): Promise<MapQuotaExceeded | null> {
+/**
+ * Över kontots eller installationens gräns med `byteLength` till? Återskapbart (`regenerable`) prövas bara mot installationens:
+ * kontots gräns för återskapbart nekar ingenting, utan det äldst använda tas bort efteråt (PLAN.md steg M4).
+ */
+async function quotaProblem(tx: DbExecutor, accountId: string | null, byteLength: number, quota: MapStorageQuota, regenerable = false)
+  : Promise<MapQuotaExceeded | null> {
   const usage = await mapStorageUsage(tx, accountId);
-  const accountLimit = accountId ? await accountMapQuotaBytes(tx, accountId, quota) : null;
+  const accountLimit = accountId && !regenerable ? await accountMapQuotaBytes(tx, accountId, quota) : null;
   if (accountId && accountLimit !== null && usage.accountBytes + byteLength > accountLimit) {
     return { scope: "ACCOUNT", usedBytes: usage.accountBytes, limitBytes: accountLimit, neededBytes: byteLength };
   }
@@ -217,7 +226,7 @@ const storeUploads = new WeakMap<object, { sha256: string; reservedAt: Date }>()
  * (`discardStagedMapContent`), så att ett nytt försök alltid har den kvar. Måste köras i `db.transaction` (`createDatabase`).
  */
 export async function storeMapContent(tx: DbExecutor, input: MapContentInput, accountId: string | null, now: Date,
-  quota: MapStorageQuota = mapStorageQuota()): Promise<StoreResult> {
+  quota: MapStorageQuota = mapStorageQuota(), recipe?: object): Promise<StoreResult> {
   const sha256 = contentSha256(input);
   const byteLength = contentLength(input);
   const store = isStaged(input) ? (input.file ? activeMapStore() ?? missingStore() : null) : activeMapStore();
@@ -231,23 +240,26 @@ export async function storeMapContent(tx: DbExecutor, input: MapContentInput, ac
     storeUploads.set(input, { sha256, reservedAt: now });
   }, "Kartinnehållet laddas upp till förrådet utanför transaktionen");
   if (store && source && !uploaded) {
-    const [known] = (await tx.execute(sql`select 1 from map_content where sha256 = ${sha256}`)).rows;
+    // PLAN.md steg M4: innehåll som tagits bort ur förrådet ('GONE') laddas upp igen, som nytt.
+    const [known] = (await tx.execute(sql`select 1 from map_content where sha256 = ${sha256} and stored_in <> 'GONE'`)).rows;
     if (!known) {
-      const problem = await quotaProblem(tx, accountId, byteLength, quota);
+      const problem = await quotaProblem(tx, accountId, byteLength, quota, recipe !== undefined);
       if (problem) return { status: "quota", quota: problem };
       throw uploadFirst();
     }
   }
   // Uppladdningarna köas här: kvoten räknas och nytt innehåll sparas en i taget (bara databasen, det går fort).
   await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended('otid.map-content', 0))`);
-  const existing = (await tx.execute<{ content_id: string }>(sql`select content_id from map_content where sha256 = ${sha256}
-    for key share`)).rows[0];
-  if (existing) {
+  const existing = (await tx.execute<{ content_id: string; stored_in: string; regenerable: boolean }>(sql`select content_id, stored_in, regenerable
+    from map_content where sha256 = ${sha256} for key share`)).rows[0];
+  if (existing && existing.stored_in !== "GONE") {
     await dropStagedParts(tx, input, existing.content_id);
+    // Samma innehåll uppladdat som eget (utan recept) tas aldrig bort som återskapbart.
+    if (!recipe && existing.regenerable) await tx.execute(sql`update map_content set regenerable = false where sha256 = ${sha256}`);
     return { status: "stored", sha256 };
   }
   // Ett uppladdat objekt som inte blir innehåll här ligger kvar som släppt och tas bort efter fristen (reservationen).
-  const problem = await quotaProblem(tx, accountId, byteLength, quota);
+  const problem = await quotaProblem(tx, accountId, byteLength, quota, recipe !== undefined);
   if (problem) return { status: "quota", quota: problem };
   const contentId = isStaged(input) ? input.contentId : randomUUID();
   if (store && source) {
@@ -256,7 +268,7 @@ export async function storeMapContent(tx: DbExecutor, input: MapContentInput, ac
       storeUploads.delete(input);
       throw uploadFirst();
     }
-    await registerStoredMapContent(tx, { sha256, contentId, byteLength, accountId }, now);
+    await registerStoredMapContent(tx, { sha256, contentId, byteLength, accountId, recipe: recipe ?? null }, now);
     return { status: "stored", sha256 };
   }
   if (!isStaged(input)) {
@@ -271,8 +283,12 @@ export async function storeMapContent(tx: DbExecutor, input: MapContentInput, ac
       from map_content_part where content_id = ${input.contentId}`)).rows;
     if (Number(parts?.bytes ?? 0) !== byteLength) throw new Error("Uppladdningens delar saknas");
   }
-  await tx.execute(sql`insert into map_content (sha256, content_id, byte_length, uploaded_by, created_at)
-    values (${sha256}, ${contentId}, ${byteLength}, ${accountId}, ${now})`);
+  // PLAN.md steg M4: en rad som tagits bort ur förrådet ('GONE') får tillbaka sitt innehåll här (återskapat).
+  await tx.execute(sql`insert into map_content (sha256, content_id, byte_length, uploaded_by, created_at, regenerable, recipe)
+    values (${sha256}, ${contentId}, ${byteLength}, ${accountId}, ${now}, ${recipe !== undefined}, ${recipe ? JSON.stringify(recipe) : null}::jsonb)
+    on conflict (sha256) do update set content_id = excluded.content_id, byte_length = excluded.byte_length, uploaded_by = excluded.uploaded_by,
+      stored_in = 'DB', evicted_at = null, last_used_at = ${now}, regenerable = excluded.regenerable,
+      recipe = coalesce(excluded.recipe, map_content.recipe) where map_content.stored_in = 'GONE'`);
   // ADR-0224: samma innehåll kan ligga kvar i arkivet efter att det släpptes; nu finns delarna här igen.
   await tx.execute(sql`update map_content_archive set cold_at = null, orphaned_at = null where sha256 = ${sha256}`);
   return { status: "stored", sha256 };

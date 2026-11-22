@@ -2,7 +2,7 @@ import {
   retireGeoServer,
   authenticateGeoWorker, fetchMapProjectForestImage, fetchMapProjectMoisture, forestImageRuntimeFromEnvironment, moistureRuntimeFromEnvironment,
   type ForestImageRuntime, type MoistureRuntime, claimGeoJob, createGeoJob, discardStagedMapContent, finishGeoJob, geoServerView, heartbeatGeoJob, laserRuntimeFromEnvironment,
-  lantmaterietRuntimeFromEnvironment, listGeoJobs, mergeGeoStages, openGeoJobLaser, pruneGeoJobs, readGeoOutput, readGeoStageOutput, removeGeoJob, searchMapProjectLaser, stageMapContent, storeGeoOutput,
+  lantmaterietRuntimeFromEnvironment, listGeoJobs, mergeGeoStages, openGeoJobLaser, projectRegenerableMissing, pruneGeoJobs, regenerateGeoJob, readGeoOutput, readGeoStageOutput, removeGeoJob, searchMapProjectLaser, stageMapContent, storeGeoOutput,
   type LaserRuntime
 } from "@o-tid/application";
 import { GEO_OUTPUT_MAX_BYTES, GEO_OUTPUT_NAME, GEO_WORKER_VERSION, UUID_PATTERN, geoJobPruneResponseSchema } from "@o-tid/contracts";
@@ -115,6 +115,30 @@ export async function geoJobsPruneRoute(db: Database, request: Request, projectI
     return result.status === "pruned"
       ? privateJson(geoJobPruneResponseSchema.parse({ formatVersion: 1, removedRuns: result.removedRuns, removedLayers: result.removedLayers }))
       : failure(result.status);
+  });
+}
+
+/** POST «Återskapa» (PLAN.md steg M4): kör om en körning vars resultat tagits bort ur förrådet; räknas inte mot laserkvoten. */
+export async function geoJobRegenerateRoute(db: Database, request: Request, projectId: string, jobId: string, environment: ClubEnvironment = process.env,
+  runtime: LaserRuntime = laserRuntime()): Promise<Response> {
+  if (!UUID_PATTERN.test(projectId) || !UUID_PATTERN.test(jobId)) return failure("not-found");
+  const input = await mutation(request, environment, "none");
+  if ("response" in input) return input.response;
+  return guarded(async () => {
+    const result = await regenerateGeoJob(db, { ...input.proof, projectId, jobId }, runtime);
+    return result.status === "queued" ? privateJson({ formatVersion: 1, jobId: result.jobId }, result.replayed ? 200 : 201) : geoFailure(result);
+  });
+}
+
+/** GET det som saknas i projektet och kan återskapas (PLAN.md steg M4). */
+export async function mapProjectRegenerableRoute(db: Database, request: Request, projectId: string, environment: ClubEnvironment = process.env)
+  : Promise<Response> {
+  if (!UUID_PATTERN.test(projectId)) return failure("not-found");
+  const input = await readProof(request, environment);
+  if ("response" in input) return input.response;
+  return guarded(async () => {
+    const result = await projectRegenerableMissing(db, { ...input.proof, projectId });
+    return result.status === "ok" ? privateJson(result.missing) : failure(result.status);
   });
 }
 

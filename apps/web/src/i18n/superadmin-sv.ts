@@ -78,6 +78,7 @@ export const superadminSv = {
   regenerableQuotaField: (defaultMb: number) => `Återskapbart i MB, till exempel laserkörningar och hämtade underlag (tomt = förvalet ${defaultMb})`,
   cacheMaxField: (defaultMb: number) => `Mellanlagrets tak i MB (tomt = förvalet ${defaultMb})`,
   pinMaxField: (defaultMb: number) => `Gräns för fastspikade tävlingskartor i MB (tomt = förvalet ${defaultMb})`,
+  idleDaysField: (defaultDays: number) => `Återskapbart underlag tas bort ur förrådet efter så många dagar orört (tomt = förvalet ${defaultDays}, 0 = aldrig)`,
   totalQuotaField: (defaultMb: number | null) => `Total kartlagring i MB, 0 = ingen gräns (tomt = förvalet${defaultMb === null ? ", ingen gräns" : ` ${defaultMb}`})`,
   installation: {
     title: "Installationen",
@@ -98,6 +99,9 @@ export const superadminSv = {
     pinnedMissingToday: (count: number, mb: number) => `En tävling i dag saknar ${count} kartinnehåll (${mb} MB) i mellanlagret. Det läses då ur förrådet över nätet. Se loggen ("Fastspikningen") och kontrollera anslutningen till objektlagringen.`,
     pinnedOverLimit: (mb: number, limitMb: number) => `Det fastspikade (${mb} MB) är över gränsen ${limitMb} MB. Allt spikas ändå (tävlingen går först); höj gränsen eller se till att disken räcker.`,
     total: "Total kartlagring",
+    idle: "Återskapbart orört",
+    idleUse: (days: number, isDefault: boolean) => days === 0 ? "Tas aldrig bort för att det är orört"
+      : `Tas bort ur förrådet efter ${days} dagar orört${isDefault ? " (förvalet)" : ""}; laserkörningar och hämtade bilder skapas igen ur sitt recept`,
     totalUse: (usedMb: number, limitMb: number | null, isDefault: boolean) =>
       `${usedMb} MB${limitMb === null ? " (ingen gräns)" : ` av ${limitMb} MB`}${isDefault ? " (förval)" : ""}`,
     change: "Ändra installationens gränser",

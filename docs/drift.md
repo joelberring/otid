@@ -959,6 +959,17 @@ släppta objekt.
 - **Backupen:** när ett innehåll flyttats tar nästa backupkörning bort dess fil i `backups/map-content`, så katalogen krymper i
   takt med flytten.
 
+### Återskapbart underlag (PLAN.md steg M4)
+
+Laserkörningarnas resultat och hämtade bilder (ortofoton, markfuktighet, Skogsstyrelsen, WMS) har ett recept och räknas mot kontots
+gräns för återskapbart (förval 10 240 MB, ändras per konto på superadminsidan), inte mot kartlagringens. När gränsen passeras tas
+det som använts minst nyligen bort ur förrådet direkt; underlag i projekt öppnade de senaste 3 dygnen och projektets senaste klara
+laserkörning tas aldrig bort för gränsen. Det som är orört i 90 dagar (superadminsidan → Installationen, «Återskapbart orört»; 0 = av)
+tas också bort. Ingenting tas bort automatiskt på tävlingsdygnet. Användaren ser i projektet vad som saknas och trycker «Återskapa»
+(laserkörningen körs om utan att räknas mot laserkvoten, bilderna hämtas igen); kontosidan visar gränsen och vad som tas bort härnäst.
+Bara innehåll i förrådet tas bort, så inget av detta händer med `OTID_STORE_MODE=off`. Loggen: `logs web | grep "återskapbar"`
+(antal och MB, inga namn). Äldre laserresultat får sitt recept av löparen de första varven efter uppdateringen.
+
 ### Efter flytten: frigör databasens utrymme
 
 Borttagna delar frigör inte disken: PostgreSQL återanvänder utrymmet men lämnar det inte tillbaka. När allt är flyttat:

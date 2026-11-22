@@ -1,7 +1,7 @@
 import {
   activeMapStore, archiveSettings, inMigrateWindow, mapCacheCapBytes, mapCacheDir, migrateSettings, migrateSettingsProblems, probeArchiveStore,
-  reconcileStoredContent, removeArchiveOrphans, runMapMigration, runPinRound, startMapCacheSweep, storeMode, takeMapMigrationRequest, usableMapCacheDir,
-  type MigrateRunSummary, type PinRoundResult
+  reconcileStoredContent, removeArchiveOrphans, runMapMigration, runPinRound, runRegenerableRound, startMapCacheSweep, storeMode, takeMapMigrationRequest,
+  usableMapCacheDir, type MigrateRunSummary, type PinRoundResult, type RegenerableRoundResult
 } from "@o-tid/application";
 import { db } from "./db";
 
@@ -11,7 +11,8 @@ import { db } from "./db";
  * (PLAN.md steg M2, `map-pin.ts`), och därefter städas mellanlagret (taket från superadminsidan); en gång i timmen tas
  * objekt bort ur förrådet som släpptes för mer än `OTID_ARCHIVE_ORPHAN_DAYS` sedan (arkivets löpare är avstängd när förrådet
  * är i bruk, PLAN.md steg M3). Varje minut ser löparen efter en beställning från «Flytta nu», och var 10:e minut i nattfönstret
- * flyttas befintligt innehåll ur databasen (`map-store-migrate.ts`).
+ * flyttas befintligt innehåll ur databasen (`map-store-migrate.ts`). Var 5:e minut prövas också kontonas gräns för återskapbart
+ * underlag och regeln om orört (PLAN.md steg M4, `map-regenerable.ts`; aldrig på tävlingsdygnet).
  * Vid start skrivs en rad i loggen som säger om förrådet är på; den raden kontrollerar ägaren när läget slagits på.
  */
 const MINUTE = 60_000;
@@ -42,8 +43,17 @@ export function startMapStoreRunner(environment: Partial<Record<string, string |
       console.error(`Fastspikningen avbröts: ${error instanceof Error ? error.message : String(error)}; den prövas igen om 5 minuter`);
     }
   };
+  const regenerable = async () => {
+    if (!store) return;
+    try {
+      logRegenerable(await runRegenerableRound(db, store));
+    } catch (error) {
+      console.error(`Förrådet: återskapbart underlag kunde inte prövas: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
   const sweep = async () => {
     await pin();
+    await regenerable();
     try {
       const cap = await mapCacheCapBytes(db);
       startMapCacheSweep(dir, cap);
@@ -108,6 +118,16 @@ export function logMigration(result: MigrateRunSummary): void {
   }
   if (result.stopped === "RACE_DAY" && result.trigger === "MANUAL") console.warn("Flytten till förrådet: tävlingsdygn, ingenting flyttas i dag");
   if (result.failed > 0) console.error(`Flytten till förrådet: ${result.failed} fel: ${result.errors.join("; ")}`);
+}
+
+/** Loggen för återskapbart (PLAN.md steg M4): antal och storlek, aldrig namn. Tyst när ingenting hände. */
+export function logRegenerable(result: RegenerableRoundResult): void {
+  if (result.marked > 0) console.info(`Förrådet: ${result.marked} äldre laserresultat fick recept (återskapbara)`);
+  if (result.evicted + result.idle > 0) {
+    console.info(`Förrådet: återskapbart borttaget ur förrådet: ${result.evicted} (${mb(result.evictedBytes)} MB) för kontonas gränser, ` +
+      `${result.idle} (${mb(result.idleBytes)} MB) orörda`);
+  }
+  if (result.errors.length > 0) console.error(`Förrådet: återskapbart: ${result.errors.length} fel: ${result.errors.join("; ")}`);
 }
 
 /** Loggen för ett varv: bara antal och storlek, aldrig namn. Tyst när allt redan låg på plats. */

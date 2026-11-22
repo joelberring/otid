@@ -1535,8 +1535,10 @@ arkivet) blir förrådet för allt kartinnehåll och serverns disk ett mellanlag
 - [x] M3 Befintligt innehåll flyttas ur PostgreSQL i omgångar nattetid (kl. 01–06, 2 048 MB per varv, aldrig på tävlingsdygnet,
   delarna kvar 24 h, arkivet L5 avstängt med förrådet i bruk), `map-store migrate-now` och «Flytta nu», bort med
   `backups/map-content` för det som flyttats, timdumparna 12, VACUUM FULL efteråt enligt docs/drift.md. Ingen migration.
-- [ ] M4 Recept för återskapbart underlag; gräns per konto för återskapbart (äldst använt bort först, skydd för projekt
+- [x] M4 Recept för återskapbart underlag; gräns per konto för återskapbart (äldst använt bort först, skydd för projekt
   öppnade de senaste 3 dygnen och projektets senaste klara laserkörning); borttagning ur förrådet efter 90 dagar orört.
+  Migration 0138 (`recipe`, `evicted_at`, `stored_in = 'GONE'`), borttagning direkt efter sparandet och var 5:e minut, aldrig på
+  tävlingsdygnet, «Återskapa» i projektet (laser utan laserkvot, bilder hämtas om), kontosidan och superadmins inställning för orört.
 - [ ] M5 Larm via mejl till superadmin, stöd för flera superadmin, automatisk rensning av docker-avbildningar.
 - [ ] M6 Rå laserdata (ägaren 2026-11-22): LAZ sparas aldrig efter körningen. Rutan «Spara även rå laserdata åt mig» före
   körningen lägger en zip i förrådet med en hämtningslänk (försignerad, direkt från förrådet) som gäller 7 dygn, visas i

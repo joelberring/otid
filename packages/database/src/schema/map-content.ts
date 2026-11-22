@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { boolean, index, integer, jsonb, pgTable, text, timestamp, uuid, foreignKey } from "drizzle-orm/pg-core";
 import { entries, races } from "./core";
 import { bytea } from "./types";
@@ -73,12 +74,15 @@ export const mapContents = pgTable("map_content", {
   uploadedBy: uuid("uploaded_by"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   /** ADR-0229 (migration 0133): 'DB' = delarna i `map_content_part`; 'STORE' = bara i förrådet (objektlagringen). */
-  storedIn: text("stored_in").$type<"DB" | "STORE">().notNull().default("DB"),
+  storedIn: text("stored_in").$type<"DB" | "STORE" | "GONE">().notNull().default("DB"),
   /** Senast läst ur förrådet eller mellanlagret (högst var 10:e minut). */
   lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
   /** Går att skapa igen ur ett recept (PLAN.md steg M4). */
-  regenerable: boolean("regenerable").notNull().default(false)
-});
+  regenerable: boolean("regenerable").notNull().default(false),
+  /** PLAN.md steg M4 (migration 0138): receptet som skapar innehållet igen (`StoredRecipe` i contracts); 'GONE' = borttaget, kan återskapas. */
+  recipe: jsonb("recipe").$type<Record<string, unknown>>(),
+  evictedAt: timestamp("evicted_at", { withTimezone: true })
+}, table => [index("map_content_regenerable_idx").on(table.uploadedBy).where(sql`${table.regenerable}`)]);
 
 /** PLAN.md steg 16 (migration 0098): löparens GPS-rutt. Punkterna är [tid ms, lat, lon] i tidsordning. */
 export const participantRoutes = pgTable("participant_route", {

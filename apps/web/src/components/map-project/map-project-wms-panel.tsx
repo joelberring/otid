@@ -76,8 +76,9 @@ export function MapProjectWmsPanel({ view, layers, georeference, bounds, areas }
     try {
       for (let tile = 0; tile < total; tile += 1) {
         setBusy(text.fetching(tile + 1, total));
-        const response = await post("image", { formatVersion: 1, url: url.trim(), layer, metersPerPixel: Number(resolution), box: areaBox(bounds!, georeference!, area).wgs84,
-          tile, ...(mapEpsg ? { mapEpsg } : {}) });
+        const request = { formatVersion: 1 as const, url: url.trim(), layer, metersPerPixel: Number(resolution), box: areaBox(bounds!, georeference!, area).wgs84,
+          tile, ...(mapEpsg ? { mapEpsg } : {}) };
+        const response = await post("image", request);
         if ("error" in response) { setMessage({ tone: "error", text: `${added > 0 ? `${text.failedAfter(added)} ` : ""}${response.error}` }); return; }
         total = Number(response.headers.get("x-otid-tiles") ?? 1) || 1;
         const jpeg = (response.headers.get("content-type") ?? "").includes("jpeg");
@@ -85,7 +86,8 @@ export function MapProjectWmsPanel({ view, layers, georeference, bounds, areas }
         const files = [new File([await response.blob()], jpeg ? "ortofoto.jpg" : "ortofoto.png", { type: jpeg ? "image/jpeg" : "image/png" }),
           new File([world], jpeg ? "ortofoto.jgw" : "ortofoto.pgw", { type: "text/plain" })];
         const name = text.name(chosen.title, area?.name, total > 1 ? `(${tile + 1}/${total})` : undefined, attribution);
-        if (!await layers.upload(files, name, Number(response.headers.get("x-otid-crs") ?? 3006))) return;
+        // PLAN.md steg M4: samma anrop är receptet (underlaget blir återskapbart).
+        if (!await layers.upload(files, name, Number(response.headers.get("x-otid-crs") ?? 3006), undefined, { recipe: { source: "WMS", request } })) return;
         added += 1;
       }
       remember(STORAGE_LAYER, layer);

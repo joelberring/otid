@@ -18,6 +18,7 @@ import { logAction, SERVER_COMMAND_ACTOR } from "./superadmin-log";
 import { purgeRows } from "./purge";
 import { DEFAULT_REGENERABLE_QUOTA_MB, effectiveTotalQuotaBytes, mapStorageQuota, mapStorageUsage } from "./map-content";
 import { DEFAULT_PIN_MAX_MB, defaultCacheMaxMb, readInstallationSettings, writeInstallationSetting } from "./installation-settings";
+import { DEFAULT_REGENERABLE_IDLE_DAYS } from "./map-regenerable";
 import { pinStatus } from "./map-pin";
 import { raceDayNow } from "./map-archive";
 import { mapMigrationStatus, migrateSettings, requestMapMigration } from "./map-store-migrate-settings";
@@ -105,7 +106,8 @@ export async function readSuperadminOverview(
           coalesce(a.map_quota_mb::numeric * ${MB}, ${quota.accountBytes}::numeric) as map_limit,
           coalesce(a.geo_tiles_per_month, ${defaultTiles}::int) as tile_limit
         from user_account a
-        left join (select uploaded_by, sum(byte_length) as bytes from map_content where uploaded_by is not null group by uploaded_by) m
+        left join (select uploaded_by, sum(byte_length) as bytes from map_content where uploaded_by is not null and not regenerable
+          and stored_in <> 'GONE' group by uploaded_by) m
           on m.uploaded_by = a.id
         left join (select account_id, sum(jsonb_array_length(request->'tiles')) as tiles from map_project_geo_job
           where created_at >= ${month.toISOString()}::timestamptz and (status = 'QUEUED' or started_at is not null) and ${GEO_JOB_COUNTS}
@@ -165,6 +167,7 @@ export async function readSuperadminOverview(
           mapQuotaTotalMb: settings.mapQuotaTotalMb,
           mapQuotaTotalDefaultMb: quota.totalBytes === null ? null : Math.round(quota.totalBytes / MB),
           pinMaxMb: settings.pinMaxMb ?? null, pinMaxMbDefault: DEFAULT_PIN_MAX_MB,
+          regenerableIdleDays: settings.regenerableIdleDays ?? null, regenerableIdleDaysDefault: DEFAULT_REGENERABLE_IDLE_DAYS,
           pinned: pinned && { count: pinned.count, bytes: pinned.bytes, missing: pinned.missing, missingBytes: pinned.missingBytes,
             missingRaceDay: pinned.missingRaceDay, overLimit: pinned.overLimit },
           migration
@@ -234,10 +237,15 @@ export async function performSuperadminAction(
       await writeInstallationSetting(tx, "cache_max_mb", action.cacheMaxMb, auth.principal.accountId, now);
       await writeInstallationSetting(tx, "map_quota_total_mb", action.mapQuotaTotalMb, auth.principal.accountId, now);
       if (action.pinMaxMb !== undefined) await writeInstallationSetting(tx, "pin_max_mb", action.pinMaxMb, auth.principal.accountId, now);
+      if (action.regenerableIdleDays !== undefined) {
+        await writeInstallationSetting(tx, "regenerable_idle_days", action.regenerableIdleDays, auth.principal.accountId, now);
+      }
       forgetMapCacheCap();
       const shown = (value: number | null | undefined) => value == null ? "förval" : value === 0 ? "ingen gräns" : `${value} MB`;
+      const days = (value: number | null | undefined) => value == null ? "förval" : value === 0 ? "av" : `${value} dagar`;
       const change = `Mellanlager ${shown(before.cacheMaxMb)} → ${shown(action.cacheMaxMb)}, total kartlagring ${shown(before.mapQuotaTotalMb)} → ${shown(action.mapQuotaTotalMb)}`
-        + (action.pinMaxMb === undefined ? "" : `, fastspikat ${shown(before.pinMaxMb)} → ${shown(action.pinMaxMb)}`);
+        + (action.pinMaxMb === undefined ? "" : `, fastspikat ${shown(before.pinMaxMb)} → ${shown(action.pinMaxMb)}`)
+        + (action.regenerableIdleDays === undefined ? "" : `, återskapbart orört ${days(before.regenerableIdleDays)} → ${days(action.regenerableIdleDays)}`);
       await logAction(tx, { ...actor, action: action.action, targetType: "INSTALLATION", targetId: "00000000-0000-0000-0000-000000000000",
         targetLabel: "Installationen", reason: `${action.reason} (${change})`.slice(0, 500) }, now);
       return { status: "done", action: action.action };

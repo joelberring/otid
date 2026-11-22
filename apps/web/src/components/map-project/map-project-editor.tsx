@@ -46,6 +46,7 @@ import { mapProjectWorkLayersSv } from "../../i18n/map-project-work-layers-sv";
 import { CourseSettingMap, type CourseSettingMapHandle, type MapPointerHandlers } from "../course-setting/course-setting-map";
 import { AccountMenu } from "../account-menu";
 import { Button, Notice } from "../ui";
+import { MapProjectRegenerableNotice } from "./map-project-regenerable-notice";
 import { MapProjectCollabPanel } from "./map-project-collab-panel";
 import { MapProjectFieldControls, type PositionMode } from "./map-project-field-controls";
 import { MapProjectReconPanel } from "./map-project-recon-panel";
@@ -697,6 +698,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       {text.offline(new Date(offlineSince).toLocaleString(locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }))}</p>}
     {editor.notice && <div className={styles.notice}><Notice tone="attention" role="status">{noticeText(editor.notice, text)}{" "}
       <Button variant="quiet" onClick={() => editor.setNotice(undefined)}>{text.ok}</Button></Notice></div>}
+    <MapProjectRegenerableNotice view={view} layers={layers} />
     {keysOpen && <MapProjectKeysDialog keys={keys} onKeys={setKeys} onClose={() => setKeysOpen(false)} />}
     <div className={styles.workspace} data-bare={bare}>
       <MapProjectToolRail label={text.tools.label} tools={rail} spaceLabel={keysText.space} />

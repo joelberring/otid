@@ -277,10 +277,11 @@ export async function runMapArchive(db: Database, store: ArchiveStore | null, se
  */
 export async function removeArchiveOrphans(db: Database, store: ArchiveStore, orphanDays: number, now = new Date())
   : Promise<{ removed: number; errors: string[] }> {
+  // PLAN.md steg M4: innehåll som tagits bort ur förrådet ('GONE') räknas som borta; objektet tas bort som ett släppt.
   await db.execute(sql`update map_content_archive a set orphaned_at = ${now} where a.orphaned_at is null
-    and not exists (select 1 from map_content c where c.sha256 = a.sha256)`);
+    and not exists (select 1 from map_content c where c.sha256 = a.sha256 and c.stored_in <> 'GONE')`);
   await db.execute(sql`update map_content_archive a set orphaned_at = null where a.orphaned_at is not null
-    and exists (select 1 from map_content c where c.sha256 = a.sha256)`);
+    and exists (select 1 from map_content c where c.sha256 = a.sha256 and c.stored_in <> 'GONE')`);
   const cutoff = new Date(now.getTime() - orphanDays * 24 * HOUR);
   const orphans = (await db.execute<{ sha256: string }>(sql`select sha256 from map_content_archive
     where orphaned_at < ${cutoff} limit 200`)).rows;
@@ -295,7 +296,7 @@ export async function removeArchiveOrphans(db: Database, store: ArchiveStore, or
       // och `storeMapContent` registrerar bara under radlåset på en reservation som står kvar (`storeReservationHolds`).
       const gone = await db.transaction(async tx => {
         const [row] = (await tx.execute(sql`delete from map_content_archive a where a.sha256 = ${orphan.sha256} and a.orphaned_at < ${cutoff}
-          and not exists (select 1 from map_content c where c.sha256 = a.sha256) returning 1`)).rows;
+          and not exists (select 1 from map_content c where c.sha256 = a.sha256 and c.stored_in <> 'GONE') returning 1`)).rows;
         if (row) await store.remove(orphan.sha256);
         return row !== undefined;
       });

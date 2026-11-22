@@ -1,12 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, count, eq } from "drizzle-orm";
 import {
-  MAP_PROJECT_LAYER_MAX_BYTES, mapProjectLayerMetadataSchema, mapProjectLayerUpdateRequestSchema, type MapProjectLayerList, type MapProjectLayerView
+  MAP_PROJECT_LAYER_MAX_BYTES, mapProjectLayerMetadataSchema, mapProjectLayerUpdateRequestSchema, type LayerRecipe, type MapProjectLayerList,
+  type MapProjectLayerView, type StoredRecipe
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import type { ClubFailure, ClubProof } from "./club-access";
 import { imageDimensions } from "./image-dimensions";
 import { contentHead, contentLength, mapStorageQuota, storeMapContent, type MapContentInput } from "./map-content";
+import { afterRegenerableStored } from "./map-regenerable";
 import { mapProjectAllows, requireMapProject } from "./map-project-access";
 import { UUID_PATTERN } from "./serialization";
 import type { DbExecutor } from "./snapshot";
@@ -26,7 +28,8 @@ const MAX_LAYERS = 50;
 export type MapProjectLayerFailure = ClubFailure | { status: "quota" } | { status: "too-large" } | { status: "unsupported-file" };
 
 async function rows(tx: DbExecutor, projectId: string, layerId?: string) {
-  return tx.select({ layer: layers, byteLength: schema.mapContents.byteLength, creator: schema.userAccounts.displayName }).from(layers)
+  return tx.select({ layer: layers, byteLength: schema.mapContents.byteLength, creator: schema.userAccounts.displayName,
+    storedIn: schema.mapContents.storedIn, recipe: schema.mapContents.recipe, regenerable: schema.mapContents.regenerable }).from(layers)
     .innerJoin(schema.mapContents, eq(schema.mapContents.sha256, layers.contentSha256))
     .leftJoin(schema.userAccounts, eq(schema.userAccounts.id, layers.createdBy))
     .where(and(eq(layers.projectId, projectId), layerId ? eq(layers.id, layerId) : undefined)).orderBy(asc(layers.sort), asc(layers.createdAt));
@@ -35,7 +38,8 @@ function toView(row: Awaited<ReturnType<typeof rows>>[number], viewer: string): 
   const layer = row.layer;
   return { layerId: layer.id, name: layer.name, mediaType: layer.mediaType, width: layer.width, height: layer.height, crs: layer.crs,
     transform: layer.transform, opacity: layer.opacity, sort: layer.sort, sha256: layer.contentSha256, byteLength: row.byteLength,
-    createdBy: { accountId: layer.createdBy, name: row.creator }, own: layer.createdBy === viewer, createdAt: layer.createdAt.toISOString() };
+    createdBy: { accountId: layer.createdBy, name: row.creator }, own: layer.createdBy === viewer, createdAt: layer.createdAt.toISOString(),
+    missing: row.storedIn === "GONE", recipe: row.regenerable && row.recipe ? row.recipe as unknown as StoredRecipe : null };
 }
 
 export async function listMapProjectLayers(db: Database, input: ClubProof & { projectId: string }, now = new Date())
@@ -47,7 +51,10 @@ export async function listMapProjectLayers(db: Database, input: ClubProof & { pr
   });
 }
 
-/** Nytt underlag (Föreslå eller mer, projektet öppet). Idempotent på `requestId`. */
+/**
+ * Nytt underlag (Föreslå eller mer, projektet öppet). Idempotent på `requestId`. PLAN.md steg M4: med ett recept (en hämtad bild)
+ * är bilden återskapbar; med `replaces` ersätter den bilden i ett underlag vars bild tagits bort ur förrådet (återskapad).
+ */
 export async function createMapProjectLayer(db: Database, input: ClubProof & { projectId: string; metadata: unknown; file: MapContentInput },
   now = new Date()): Promise<MapProjectLayerFailure | { status: "created"; replayed: boolean; layer: MapProjectLayerView }> {
   const parsed = mapProjectLayerMetadataSchema.safeParse(input.metadata);
@@ -55,7 +62,8 @@ export async function createMapProjectLayer(db: Database, input: ClubProof & { p
     const access = await requireMapProject(tx, input, now, "propose", true);
     if (access.status !== "ok") return access;
     if (!parsed.success) return { status: "invalid-request" } as const;
-    const { requestId, name, crs, transform } = parsed.data;
+    const { requestId, name, crs, transform, replaces } = parsed.data;
+    if (replaces) return replaceLayerImage(tx, access, replaces, parsed.data.recipe, input.file, now);
     const [prior] = await tx.select().from(layers).where(eq(layers.requestId, requestId));
     if (prior) {
       if (prior.projectId !== access.project.id || prior.createdBy !== access.accountId) return { status: "conflict" } as const;
@@ -66,13 +74,38 @@ export async function createMapProjectLayer(db: Database, input: ClubProof & { p
     if (!image) return { status: "unsupported-file" } as const;
     const [total] = await tx.select({ value: count() }).from(layers).where(eq(layers.projectId, access.project.id));
     if (Number(total?.value ?? 0) >= MAX_LAYERS) return { status: "conflict" } as const;
-    const stored = await storeMapContent(tx, input.file, access.accountId, now, mapStorageQuota());
+    const recipe = parsed.data.recipe ? { ...parsed.data.recipe, createdAt: now.toISOString() } : undefined;
+    const stored = await storeMapContent(tx, input.file, access.accountId, now, mapStorageQuota(), recipe);
     if (stored.status === "quota") return { status: "quota" } as const;
     const id = randomUUID();
     await tx.insert(layers).values({ id, projectId: access.project.id, name, contentSha256: stored.sha256, mediaType: image.mediaType, width: image.width,
       height: image.height, crs, transform, opacity: 0.5, sort: Number(total?.value ?? 0), createdBy: access.accountId, createdAt: now, requestId });
-    return { status: "created", replayed: false, layer: toView((await rows(tx, access.project.id, id))[0]!, access.accountId) } as const;
+    return { status: "created", replayed: false, layer: toView((await rows(tx, access.project.id, id))[0]!, access.accountId), regenerable: !!recipe } as const;
+  }).then(async result => {
+    if (result.status === "created" && "regenerable" in result && result.regenerable) await afterRegenerableStored(db, result.layer.createdBy.accountId, now);
+    if (result.status !== "created") return result;
+    return { status: "created", replayed: result.replayed, layer: result.layer } as const;
   });
+}
+
+/** Den återskapade bilden i ett underlag vars bild tagits bort ur förrådet; receptet är det gamla om inget nytt kom. */
+async function replaceLayerImage(tx: DbExecutor, access: { accountId: string; project: { id: string } }, layerId: string,
+  given: LayerRecipe | undefined, file: MapContentInput, now: Date) {
+  const [row] = await rows(tx, access.project.id, layerId);
+  if (!row) return { status: "not-found" } as const;
+  // Redan återskapad (ett nytt försök med samma anrop, eller någon annan hann före): underlaget som det är.
+  if (row.storedIn !== "GONE") return { status: "created", replayed: true, layer: toView(row, access.accountId), regenerable: false } as const;
+  const old = row.regenerable && row.recipe ? row.recipe : undefined;
+  if (!given && !old) return { status: "conflict" } as const;
+  if (contentLength(file) > MAP_PROJECT_LAYER_MAX_BYTES) return { status: "too-large" } as const;
+  const image = imageDimensions(contentHead(file));
+  if (!image) return { status: "unsupported-file" } as const;
+  const recipe = given ? { ...given, createdAt: now.toISOString() } : { ...old!, createdAt: now.toISOString() };
+  const stored = await storeMapContent(tx, file, access.accountId, now, mapStorageQuota(), recipe);
+  if (stored.status === "quota") return { status: "quota" } as const;
+  await tx.update(layers).set({ contentSha256: stored.sha256, mediaType: image.mediaType, width: image.width, height: image.height })
+    .where(eq(layers.id, row.layer.id));
+  return { status: "created", replayed: false, layer: toView((await rows(tx, access.project.id, row.layer.id))[0]!, access.accountId), regenerable: true } as const;
 }
 
 async function ownOrOwner(tx: Parameters<typeof requireMapProject>[0], input: ClubProof & { projectId: string; layerId: string }, now: Date) {
@@ -120,8 +153,11 @@ export async function readMapProjectLayerImage(db: Database, input: ClubProof & 
     if (access.status !== "ok") return access;
     if (!UUID_PATTERN.test(input.layerId)) return { status: "not-found" } as const;
     const [row] = await tx.select({ mediaType: layers.mediaType, sha256: layers.contentSha256, byteLength: schema.mapContents.byteLength,
-      contentId: schema.mapContents.contentId }).from(layers).innerJoin(schema.mapContents, eq(schema.mapContents.sha256, layers.contentSha256))
+      contentId: schema.mapContents.contentId, storedIn: schema.mapContents.storedIn }).from(layers)
+      .innerJoin(schema.mapContents, eq(schema.mapContents.sha256, layers.contentSha256))
       .where(and(eq(layers.id, input.layerId), eq(layers.projectId, access.project.id)));
-    return row ? { status: "ok", ...row } as const : { status: "not-found" } as const;
+    // PLAN.md steg M4: en bild som tagits bort ur förrådet finns inte (listan säger att den kan återskapas).
+    if (!row || row.storedIn === "GONE") return { status: "not-found" } as const;
+    return { status: "ok", mediaType: row.mediaType, sha256: row.sha256, byteLength: row.byteLength, contentId: row.contentId } as const;
   });
 }

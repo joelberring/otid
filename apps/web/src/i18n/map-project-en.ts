@@ -378,6 +378,7 @@ export const mapProjectLayersEn: Texts<typeof mapProjectLayersSv> = {
   up: (name: string) => `Move ${name} up`,
   down: (name: string) => `Move ${name} down`,
   removeConfirm: "Remove the base layer for everyone in the project?",
+  missing: "The image was removed from the store to save space and can be regenerated (at the top of the page).",
   by: (name: string | null, size: string) => `${name ?? "Unknown"} · ${size}`,
   hideAll: "Hide all",
   showAll: "Show all",

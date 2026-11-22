@@ -10,6 +10,7 @@ import type { DbExecutor } from "./snapshot";
  * - `map_quota_total_mb`: kartlagringens totala gräns för installationen (förval `OTID_MAP_QUOTA_TOTAL_MB`; 0 = ingen gräns).
  * - `pin_max_mb` (PLAN.md steg M2): gränsen för det som spikats fast för tävlingar och träningar (förval 3 072 MB). Det
  *   fastspikade räknas utanför taket; passeras gränsen spikas det ändå, men superadminsidan och loggen varnar.
+ * - `regenerable_idle_days` (PLAN.md steg M4): återskapbart som är orört så många dagar tas bort ur förrådet (förval 90, 0 = av).
  */
 export const DEFAULT_CACHE_MAX_MB = 10_240;
 export const DEFAULT_PIN_MAX_MB = 3072;
@@ -22,6 +23,8 @@ export interface InstallationSettings {
   readonly mapQuotaTotalMb: number | null;
   /** Satt av superadmin, eller null = förvalet (`DEFAULT_PIN_MAX_MB`). Saknas i äldre anrop = förvalet. */
   readonly pinMaxMb?: number | null;
+  /** Satt av superadmin (0 = av), eller null = förvalet 90 dagar (PLAN.md steg M4). */
+  readonly regenerableIdleDays?: number | null;
 }
 
 type Env = Partial<Record<string, string | undefined>>;
@@ -40,15 +43,16 @@ export function cacheSettingProblems(env: Env): string[] {
     : [`OTID_CACHE_MAX_MB ska vara ett heltal mellan ${CACHE_MAX_MB_RANGE.min} och ${CACHE_MAX_MB_RANGE.max} (MB); förvalet ${DEFAULT_CACHE_MAX_MB} används`];
 }
 
-export type InstallationSettingKey = "cache_max_mb" | "map_quota_total_mb" | "pin_max_mb";
+export type InstallationSettingKey = "cache_max_mb" | "map_quota_total_mb" | "pin_max_mb" | "regenerable_idle_days";
 
 const integerOrNull = (value: unknown): number | null => typeof value === "number" && Number.isInteger(value) ? value : null;
 
 export async function readInstallationSettings(tx: DbExecutor): Promise<InstallationSettings> {
   const rows = (await tx.execute<{ key: string; value: unknown }>(sql`select key, value from installation_setting
-    where key in ('cache_max_mb', 'map_quota_total_mb', 'pin_max_mb')`)).rows;
+    where key in ('cache_max_mb', 'map_quota_total_mb', 'pin_max_mb', 'regenerable_idle_days')`)).rows;
   const value = (key: string) => integerOrNull(rows.find(row => row.key === key)?.value);
-  return { cacheMaxMb: value("cache_max_mb"), mapQuotaTotalMb: value("map_quota_total_mb"), pinMaxMb: value("pin_max_mb") };
+  return { cacheMaxMb: value("cache_max_mb"), mapQuotaTotalMb: value("map_quota_total_mb"), pinMaxMb: value("pin_max_mb"),
+    regenerableIdleDays: value("regenerable_idle_days") };
 }
 
 /** Sparar eller tar bort (null = förvalet) en inställning. Anroparen kontrollerar behörigheten och loggar. */

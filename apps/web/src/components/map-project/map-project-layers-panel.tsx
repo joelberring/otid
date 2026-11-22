@@ -103,6 +103,7 @@ function LayerRow({ layer, layers, control, mapEpsg, scale }: RowProps & { layer
     <label className={styles.check}><input type="checkbox" checked={!layers.hidden.has(layer.layerId)} aria-label={text.show(layer.name)}
       onChange={() => layers.toggle(layer.layerId)} />{layer.name}</label>
     <span className={styles.muted}>{text.by(layer.own ? null : layer.createdBy.name, megabytes(layer.byteLength, locale))}</span>
+    {layer.missing && <span className={styles.problem} data-testid="map-project-layer-missing">{text.missing}</span>}
     <input type="range" min={0.1} max={1} step={0.05} value={layer.opacity} aria-label={text.opacity(layer.name)} data-testid="map-project-layer-opacity"
       disabled={!layers.canManage(layer)}
       onChange={event => void layers.setOpacity(layer.layerId, Number(event.target.value), false)}

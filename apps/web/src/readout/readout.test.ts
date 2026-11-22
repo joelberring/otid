@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { deviceEventSchema, sportidentReadoutPayloadSchema, type DeviceBatch } from "@o-tid/contracts";
 import type { SiCardData } from "@o-tid/sportident";
+import type { ByteTransport } from "@o-tid/device-transport";
 import { formatDuration } from "@o-tid/domain";
 import { evaluateLocally } from "./evaluate";
 import { cardTypeForNumber, simulatedRun, stationClock } from "@o-tid/sportident";
@@ -138,6 +139,22 @@ describe("avläsning i webbläsaren", () => {
     expect(loadFastRead(storage)).toBe(false);
     saveFastRead(true, storage);
     expect(loadFastRead(storage)).toBe(true);
+  });
+
+  it("en station som kopplas från under handskakningen: start() ger falskt i stället för att hänga", async () => {
+    // En station som aldrig svarar; frånkopplingen kommer innan tidsgränsen för handskakningen.
+    const silent: ByteTransport = { kind: "web-serial", open: async () => undefined, close: async () => undefined,
+      write: async () => undefined, onBytes: () => () => undefined, onState: () => () => undefined };
+    const statuses: StationStatus[] = [];
+    const controller = new StationController(silent, { onStatus: (status) => statuses.push(status), onCardInserted: () => undefined,
+      onCardRead: () => undefined, onReadFailed: () => undefined, onUnsupportedCard: () => undefined }, { timeoutMs: 60_000 });
+    const started = controller.start();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(controller.stopped).toBe(false);
+    await controller.stop();
+    await expect(started).resolves.toBe(false);
+    expect(controller.stopped).toBe(true);
+    expect(statuses.at(-1)).toEqual({ kind: "disconnected" });
   });
 
   // PLAN.md steg 22: stationens klocka, övning på tävlingsdagen och brickbyte i övningsstationen.

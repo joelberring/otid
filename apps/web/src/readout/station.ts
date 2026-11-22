@@ -78,6 +78,7 @@ export class StationController implements StationLink {
   #unsubscribe: Unsubscribe[] = [];
   #facts: StationFacts = { serialNumber: undefined, clock: undefined };
   #handshakeDone: ((ok: boolean) => void) | undefined;
+  #stopped = false;
 
   /** `timeZone`: tävlingens tidszon, som stationens väggklocka tolkas i. */
   constructor(transport: ByteTransport, callbacks: StationCallbacks,
@@ -92,6 +93,9 @@ export class StationController implements StationLink {
   /** Steg 53: snabb utläsning av SI6 och SI10/11/SIAC; gäller från nästa bricka. */
   set fastRead(value: boolean) { this.#session.fastRead = value; }
   get fastRead(): boolean { return this.#session.fastRead; }
+
+  /** Sant när `stop()` har anropats: en anslutning som pågick ska inte fortsätta (t.ex. med nästa hastighet). */
+  get stopped(): boolean { return this.#stopped; }
 
   /** Stationens klocka i förhållande till datorns, när stationen har svarat på GET_TIME. */
   get clock(): StationClockInfo | undefined { return this.#facts.clock; }
@@ -114,12 +118,17 @@ export class StationController implements StationLink {
       if (state.status === "error") this.#callbacks.onStatus({ kind: "error", message: state.message });
     }));
     await this.#transport.open();
+    if (this.#stopped) return false;
     const answered = new Promise<boolean>((resolve) => { this.#handshakeDone = resolve; });
     this.#handle(this.#session.start());
     return answered;
   }
 
   async stop(): Promise<void> {
+    this.#stopped = true;
+    // En handskakning som pågår får aldrig svar när timern och lyssnarna tas bort: start() ger falskt i stället för att hänga.
+    this.#handshakeDone?.(false);
+    this.#handshakeDone = undefined;
     clearTimeout(this.#timer);
     for (const unsubscribe of this.#unsubscribe) unsubscribe();
     this.#unsubscribe = [];

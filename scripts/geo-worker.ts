@@ -105,7 +105,7 @@ export function keepsRawTicks(job: Pick<Job, "cliffs">, hasCliffLines: boolean):
   return job.cliffs?.rawTicks === true || !hasCliffLines;
 }
 /** Arbetarens version (samma som `GEO_WORKER_VERSION` i contracts; servern ger inga jobb till en äldre). */
-export const WORKER_VERSION = 39;
+export const WORKER_VERSION = 40;
 
 /**
  * Ägarens sprintkörningar 2026-11-13 föll med «stup.dxf kunde inte skickas (422)»: kontots kvot för kartfiler var full.

@@ -6,7 +6,7 @@ import type { Texts } from "../../lib/language";
 import type { Box } from "@o-tid/map-revision";
 
 export type ContextActionId = "switchSymbol" | "pick" | "duplicate" | "parallel" | "reverse" | "join" | "fill" | "smooth" | "simplify" | "simplifyMore" | "straighten"
-  | "checked" | "edge" | "remove";
+  | "checked" | "edge" | "remove" | "editText" | "rotate" | "textStyle";
 
 export interface ContextAction {
   readonly id: ContextActionId; readonly label: string;
@@ -34,6 +34,8 @@ export interface ContextInput {
     readonly canFill: boolean;
     /** En brytpunkt är vald: Ta bort tar bort den. */
     readonly vertex: boolean;
+    /** K8b V6: ett textobjekt (knapparnas namn). */
+    readonly text?: { readonly edit: string; readonly rotate: string; readonly style: string; readonly switchTo: (code: string) => string } | undefined;
   } | undefined;
   /** Flera markerade. */
   readonly multi?: { readonly count: number; readonly switchable: number; readonly symbolCode: string | undefined; readonly joinable: boolean;
@@ -71,6 +73,16 @@ export function contextActions(input: ContextInput): ContextAction[] {
     return found ? [of(id, found.label, id === "simplify" || id === "smooth" ? id : undefined)] : [];
   };
   const line = single.kind === "line";
+  // K8b V6: en text – Redigera text, Byt textsymbol, Vrid, Ändra textsymbol, Duplicera, Ta bort.
+  if (single.text) return [
+    of("editText", single.text.edit, undefined, { testId: "map-project-text-edit" }),
+    ...(single.switchTo ? [of("switchSymbol", single.text.switchTo(single.switchTo), "switchSymbol", { testId: "map-project-rail-switch" })] : []),
+    of("rotate", single.text.rotate, undefined, { testId: "map-project-text-rotate" }),
+    of("textStyle", single.text.style, undefined, { testId: "map-project-text-style" }),
+    ...(single.canPick ? [of("pick", text.commands.pick, "pick", { testId: "map-project-rail-pick" })] : []),
+    of("duplicate", text.commands.duplicate, "duplicate", { testId: "map-project-duplicate" }),
+    ...checked,
+    of("remove", quick.remove, undefined, { key: "Del", help: text.tips.remove, testId: "map-project-rail-remove" })];
   return [
     ...(single.switchTo ? [of("switchSymbol", quick.switchTo(single.switchTo), "switchSymbol", { testId: "map-project-rail-switch" })] : []),
     ...(single.canPick ? [of("pick", text.commands.pick, "pick", { testId: "map-project-rail-pick" })] : []),

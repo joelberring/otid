@@ -16,7 +16,7 @@ describe("verktygsspalten (K8b V1)", () => {
   it("har bara verktyg, i grupperna Markera | Rita | Fyll | Forma | Granska, och hjulet, bara kartan och tangenterna längst ned", () => {
     const tools = railTools(state({ canDecide: true }));
     const top = tools.filter(tool => !tool.bottom && !tool.phoneOnly).map(tool => tool.id);
-    expect(top).toEqual(["select", "draw", "rectangle", "circle", "bucket", "addPoint", "removePoint", "cut", "note", "area", "unfilled"]);
+    expect(top).toEqual(["select", "draw", "rectangle", "circle", "text", "bucket", "addPoint", "removePoint", "cut", "note", "area", "unfilled"]);
     expect(tools.filter(tool => tool.group).map(tool => [tool.id, tool.group])).toEqual([["draw", "Rita"], ["bucket", "Fyll"], ["addPoint", "Forma"], ["note", "Granska"]]);
     expect(tools.filter(tool => tool.bottom).map(tool => tool.id)).toEqual(["wheel", "bare", "keys"]);
     // Inga åtgärder på det markerade i spalten.

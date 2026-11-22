@@ -6,7 +6,7 @@ import { useTexts, useLocale } from "../language-provider";
 import { mapProjectNotesSv } from "../../i18n/map-project-notes-sv";
 import { photoFromFile } from "../course-setting/course-setting-notes";
 import { Button } from "../ui";
-import type { ShownNote } from "./use-map-project-notes";
+import type { ShownNote, useMapProjectNotes } from "./use-map-project-notes";
 import styles from "./map-project-editor.module.css";
 
 const when = (iso: string, locale: string) => new Date(iso).toLocaleString(locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -49,7 +49,14 @@ export function NoteForm({ onSave, onCancel }: { onSave: (value: string, photo: 
   </form>;
 }
 
-export function NoteDetail({ note, canManage, onStatus, onRemove, onClose }: { note: ShownNote; canManage: boolean;
+/** Notisen som visas (ur listan), med status och borttagning. */
+export function ShownNoteDetail({ notes, noteId, onClose }: { notes: ReturnType<typeof useMapProjectNotes>; noteId: string; onClose: () => void }) {
+  const note = notes.notes.find(row => row.noteId === noteId);
+  return note ? <NoteDetail note={note} canManage={notes.canManage(note)} onClose={onClose} onStatus={status => void notes.setStatus(note.noteId, status)}
+    onRemove={() => void notes.remove(note.noteId).then(ok => { if (ok) onClose(); })} /> : null;
+}
+
+function NoteDetail({ note, canManage, onStatus, onRemove, onClose }: { note: ShownNote; canManage: boolean;
   onStatus: (status: "OPEN" | "DONE") => void; onRemove: () => void; onClose: () => void }) {
   const locale = useLocale();
   const text = useTexts(mapProjectNotesSv, mapProjectNotesEn);

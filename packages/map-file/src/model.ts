@@ -162,6 +162,13 @@ export interface TextSymbol extends SymbolBase {
   readonly fontFamily: string;
   readonly bold: boolean;
   readonly italic: boolean;
+  /**
+   * K8b V6: justeringen kring ankaret (vänster när den saknas). Läses inte ur filen: i Mapper hör justeringen till varje
+   * objekt (`h_align`), och sätts bara av kartprojektets ändrade textsymbol, som då skriver den på objekten.
+   */
+  readonly align?: "left" | "center" | "right" | undefined;
+  /** K8b V6: kontur runt tecknen (Mappers `framing` med linje): färgen och linjens hela bredd i mm. */
+  readonly framing?: { readonly color: number; readonly width: number } | undefined;
 }
 
 /** Mapper: en symbol som består av andra symboler (t.ex. yta med kantlinje). */

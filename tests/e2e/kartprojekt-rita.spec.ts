@@ -122,6 +122,36 @@ test("kartprojekt: rita en stig, ångra och gör om, flytta och ta bort en sten"
   objects = await serverObjects(owner, projectId, baseURL!);
   expect(objects.find(object => object.key === moved!.key)?.state.kind).toBe("DELETED");
 
+  // K8b V6: textverktyget (B) med kartans textsymbol (999.0): klick, skriv två rader, Enter; sedan Redigera text i kontextraden.
+  await owner.keyboard.press("b");
+  await expect(owner.getByTestId("map-project-symbols-recent").locator("[data-code='999.0']")).toBeVisible();
+  const textAt = await screenOf(owner, { x: 20, y: 92 });
+  await owner.mouse.click(textAt.x, textAt.y);
+  const field = owner.getByTestId("map-project-text-field");
+  await expect(field).toBeFocused();
+  await owner.keyboard.type("Hej");
+  await owner.keyboard.press("Shift+Enter");
+  await owner.keyboard.type("du");
+  await owner.keyboard.press("Enter");
+  await expect(field).toHaveCount(0);
+  await settled(owner);
+  objects = await serverObjects(owner, projectId, baseURL!);
+  const written = objects.find(object => object.state.object?.kind === "text" && object.key.startsWith("n:"));
+  expect(written?.state.object).toMatchObject({ kind: "text", text: "Hej\ndu" });
+  // Den nya texten är markerad; släpp den och markera den med ett klick (den ligger överst).
+  await owner.keyboard.press("Escape");
+  await owner.keyboard.press("q");
+  await owner.mouse.click(textAt.x, textAt.y);
+  await expect(owner.getByTestId("map-project-hint")).toContainText("999.0");
+  await owner.getByTestId("map-project-text-edit").click();
+  await expect(field).toHaveValue("Hej\ndu");
+  await field.fill("Hejdå");
+  await owner.keyboard.press("Enter");
+  await settled(owner);
+  objects = await serverObjects(owner, projectId, baseURL!);
+  expect(objects.find(object => object.key === written!.key)?.state.object).toMatchObject({ kind: "text", text: "Hejdå" });
+  await owner.keyboard.press("Escape");
+
   // Efter omladdning: samma ändringar (kön är tom och kartan ritas med serverns läge).
   await owner.reload();
   await expect(map).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });

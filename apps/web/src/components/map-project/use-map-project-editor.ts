@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MAP_PROJECT_SYNC_MAX_EDITS, type MapProjectSyncResponse, type MapProjectView } from "@o-tid/contracts";
-import { withColorChanges, type MapColor, type MapColorChange, type MapGeoreference, type MapObject, type MapSymbolColorChange, type Point } from "@o-tid/map-file";
+import { withColorChanges, type MapColor, type MapColorChange, type MapGeoreference, type MapObject, type MapSymbolColorChange, type MapTextSymbolChange, type Point } from "@o-tid/map-file";
 import type { SymbolColorsControl } from "./map-project-symbol-colors";
 import {
   acknowledge, addEdit, effectiveObjects, effectiveState, emptyHistory, keepOpenProposals, mergePulled, recordStep, recordSteps, redoStep, resolveConflict, undoStep,
@@ -71,6 +71,8 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
   const [scale, setScale] = useState<number>();
   const [mapStatus, setMapStatus] = useState<"loading" | "ready" | "failed">("loading");
   const [catalog, setCatalog] = useState<readonly CatalogSymbol[]>([]);
+  /** K8b V6: alla symbolers id i filen (för en ny textsymbols id). */
+  const [symbolIds, setSymbolIds] = useState<readonly string[]>([]);
   const [client, setClient] = useState<StoredClient>();
   const clientRef = useRef<StoredClient | undefined>(undefined);
   const [history, setHistory] = useState<RevisionHistory>(emptyHistory);
@@ -92,7 +94,7 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
     const created = new MapProjectSession(createWorker, loaded => {
       if (closed) return;
       // En ny tom karta: kartvyn täcker området.
-      setBounds(loaded.objects === 0 && area ? areaBounds(area) : loaded.bounds); setColors(loaded.colors); if (view.colors.length) created.colors(view.colors); if (view.symbolColors.length) created.symbolColors(view.symbolColors); setGeoreference(loaded.georeference); setNorthLines(loaded.northLines); setScale(loaded.scale); setMapStatus("ready");
+      setBounds(loaded.objects === 0 && area ? areaBounds(area) : loaded.bounds); setColors(loaded.colors); if (view.colors.length) created.colors(view.colors); if (view.symbolColors.length) created.symbolColors(view.symbolColors); if (view.textSymbols.length) created.textSymbols(view.textSymbols); setSymbolIds(loaded.symbolIds); setGeoreference(loaded.georeference); setNorthLines(loaded.northLines); setScale(loaded.scale); setMapStatus("ready");
       created.catalog(symbols => { if (!closed) setCatalog(symbols); });
     }, () => { if (!closed) setMapStatus("failed"); });
     void (async () => {
@@ -317,8 +319,16 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
     canChange: view.viewer.canDecide, ocad: view.base.format === "OCD", onShow: showSymbolColors, onSave: saveSymbolColors }),
   [colors, colorChanges, symbolColorChanges, view.viewer.canDecide, view.base.format, showSymbolColors, saveSymbolColors]);
 
+  /** K8b V6: rita kartan med textsymbolerna och läs paletten igen (sparas i `use-map-project-text-symbols.ts`). */
+  const showTextSymbols = useCallback((changes: readonly MapTextSymbolChange[]) => {
+    if (!session) return;
+    session.textSymbols(changes);
+    session.catalog(setCatalog);
+    setRenderKey(value => value + 1);
+  }, [session]);
+
   return {
-    colorChanges, showColors, saveColors, symbolColors, showCandidates,
+    colorChanges, showColors, saveColors, symbolColors, showCandidates, showTextSymbols, symbolIds,
     session, bounds, colors, georeference, northLines, scale, mapStatus, catalog, renderKey, sync, notice, setNotice,
     state: client?.state, history, commit, commitMany, undo: () => step("undo"), redo: () => step("redo"), resolve, syncNow,
     /** Objekten som dras (ritas inte av Workern medan förhandsvisningen syns ovanpå). */

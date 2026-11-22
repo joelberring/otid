@@ -51,6 +51,8 @@ export interface MapDrawingContext {
   clip(fillRule?: CanvasFillRule): void;
   fillRect(x: number, y: number, w: number, h: number): void;
   fillText(text: string, x: number, y: number): void;
+  /** Textens kontur (K8b V6); PDF:en ritar den inte. */
+  strokeText?(text: string, x: number, y: number): void;
 }
 
 export interface DrawMapOptions {
@@ -385,7 +387,7 @@ function planArea(plan: Plan, symbol: AreaSymbol, rings: readonly Path[], angleD
 
 function planText(plan: Plan, symbol: TextSymbol, object: Extract<MapObject, { kind: "text" }>, options: DrawMapOptions) {
   if (!object.text.trim() || !(symbol.size > 0)) return;
-  plan.add(symbol.color, (ctx, color) => {
+  const draw = (ctx: MapCanvasContext, paint: (line: string, y: number) => void) => {
     // Texten ritas i bildens pixlar (y nedåt) så att typsnittet inte speglas och får sin storlek i px.
     const px = (object.at.x - options.origin.x) * options.pxPerMm, py = (options.origin.y - object.at.y) * options.pxPerMm;
     const size = symbol.size * options.pxPerMm;
@@ -393,17 +395,31 @@ function planText(plan: Plan, symbol: TextSymbol, object: Extract<MapObject, { k
     ctx.setTransform(1, 0, 0, 1, px, py);
     if (object.angle !== 0) ctx.rotate(-object.angle * DEGREES);
     ctx.font = `${symbol.italic ? "italic " : ""}${symbol.bold ? "bold " : ""}${Math.round(size * 10) / 10}px ${fontFamily(symbol.fontFamily)}`;
-    ctx.fillStyle = css(color);
-    ctx.textAlign = "left";
+    ctx.textAlign = symbol.align ?? "left";
     ctx.textBaseline = "alphabetic";
-    object.text.split(/\r?\n/).forEach((line, index) => ctx.fillText(line, 0, index * size * 1.15));
+    object.text.split(/\r?\n/).forEach((line, index) => paint(line, index * size * 1.15));
     ctx.restore();
-  });
+  };
+  // K8b V6: konturen (Mappers framing) under texten, i sin egen färg.
+  const framing = symbol.framing;
+  if (framing && framing.width > 0) {
+    plan.add(framing.color, (ctx, color) => draw(ctx, (line, y) => {
+      ctx.strokeStyle = css(color);
+      ctx.lineWidth = framing.width * options.pxPerMm;
+      ctx.lineJoin = "round";
+      ctx.strokeText?.(line, 0, y);
+    }));
+  }
+  plan.add(symbol.color, (ctx, color) => draw(ctx, (line, y) => { ctx.fillStyle = css(color); ctx.fillText(line, 0, y); }));
 }
 
+const SERIF = /times|georgia|garamond|serif|roman|book|cambria|palatino/i;
+
+/** Filens typsnitt med ett liknande som reserv (serif eller sans-serif) när det saknas på datorn. */
 function fontFamily(name: string): string {
   const clean = name.replace(/["\\;{}]/g, "").trim();
-  return clean ? `"${clean}", sans-serif` : "sans-serif";
+  const fallback = SERIF.test(clean) && !/sans/i.test(clean) ? "serif" : "sans-serif";
+  return clean ? `"${clean}", ${fallback}` : "sans-serif";
 }
 
 /** Delarna i en kombinerad symbol (Mapper), utan cirklar och med ett tak för djupet. */

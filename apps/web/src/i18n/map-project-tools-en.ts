@@ -222,7 +222,7 @@ export const mapProjectKeysEn: Texts<typeof mapProjectKeysSv> = {
   title: "Keys in the drawing mode",
   help: "The keys are under the left hand, so that the right hand can stay on the mouse. Click a key and then press the new one. The choice is saved in this browser.",
   commands: {
-    select: "Select", draw: "Draw", circle: "Circle", rectangle: "Rectangle", bucket: "Magic fill", duplicate: "Duplicate", fill: "Fill area or make border", parallel: "Parallel line", note: "Note", addPoint: "Add point", removePoint: "Remove point", cut: "Cut apart", pick: "Take the symbol from the selection", reverse: "Reverse direction",
+    select: "Select", draw: "Draw", circle: "Circle", rectangle: "Rectangle", bucket: "Magic fill", text: "Text", duplicate: "Duplicate", fill: "Fill area or make border", parallel: "Parallel line", note: "Note", addPoint: "Add point", removePoint: "Remove point", cut: "Cut apart", pick: "Take the symbol from the selection", reverse: "Reverse direction",
     switchSymbol: "Change symbol on the selection", join: "Join lines or areas", simplify: "Simplify", smooth: "Make smooth", checked: "Mark checked",
     repeat: "Repeat", snap: "Snap", undo: "Undo", redo: "Redo", wheel: "The tool wheel", bare: "Map only", unfilled: "Show unfilled cells"
   },
@@ -257,6 +257,7 @@ export const mapProjectKeysEn: Texts<typeof mapProjectKeysSv> = {
   multiRemove: (n: number) => `Remove ${n} objects`,
   remove: "Remove",
   tips: {
+    text: "Click the map and type. Enter adds the text, Shift+Enter gives a new line and Esc cancels. The text gets the chosen text symbol; font, size and colour belong to the symbol (right-click it in the symbol panel).",
     circle: "Click the centre and drag out to the edge. Drawn with the chosen line or area symbol.",
     area: "Draw a sub-area that a mapper can be made responsible for.",
     note: "Click the map and write a note to yourself or the others.",

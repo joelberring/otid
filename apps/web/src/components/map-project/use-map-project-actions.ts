@@ -33,6 +33,8 @@ export function useMapProjectActions(input: {
   save: (key: ObjectKey, ref: ObjectRef | null, object: MapObject | undefined, kind: EditKind) => boolean;
   reshape: (result: MapObject | undefined, message: string) => void; commit: (change: ObjectChange) => boolean; setFlash: (message: string) => void;
   chooseSymbol: (id: string) => void; removeSelected: () => void; joinMm: number;
+  /** K8b V6: textobjektets åtgärder (Redigera text, Vrid, Ändra textsymbol). */
+  text: { labels: { edit: string; rotate: string; style: string; switchTo: (code: string) => string }; edit: () => void; rotate: () => void; style: () => void };
 }) {
   const { canEdit, tool, keysText, multi, selected, symbol, recon, setFlash } = input;
   const [last, setLast] = useState<{ id: ContextActionId; label: string }>();
@@ -49,7 +51,8 @@ export function useMapProjectActions(input: {
       lines: multi.items.filter(item => item.object.kind === "line").length, smooth: multi.shapeable("smooth"), simplify: multi.shapeable("simplify") } : undefined,
     single: single ? { kind: single.object.kind, switchTo: canSwitch ? symbol.code : undefined, canPick: single.object.symbol !== input.symbolId,
       shapes: shapes.filter(action => action.result), canFill: !!symbol && !!fillOrBorder(single.object, symbol),
-      vertex: !!input.activeVertex && single.object.kind !== "point" && single.object.kind !== "text" } : undefined,
+      vertex: !!input.activeVertex && single.object.kind !== "point" && single.object.kind !== "text",
+      ...(single.object.kind === "text" ? { text: input.text.labels } : {}) } : undefined,
     checked: single && recon.canRecord ? recon.validChecks.has(single.key) : undefined });
 
   const duplicate = (items: readonly { object: MapObject }[]) => setFlash(keysText.duplicated(duplicateObjects(items, input.commit)));
@@ -73,10 +76,13 @@ export function useMapProjectActions(input: {
     else if (command === "checked" && recon.canRecord) void recon.setChecked([selected.key], !recon.validChecks.has(selected.key));
   };
   const remember = (id: ContextActionId) => {
-    if (id !== "pick" && id !== "checked") setLast({ id, label: contextList.find(action => action.id === id)?.label ?? id });
+    if (id !== "pick" && id !== "checked" && id !== "editText" && id !== "textStyle") setLast({ id, label: contextList.find(action => action.id === id)?.label ?? id });
   };
   const doAction = (id: ContextActionId) => {
     if (id === "edge") { if (edges) setFlash(addEdges(edges, input.commit, keysText)); }
+    else if (id === "editText") input.text.edit();
+    else if (id === "rotate") input.text.rotate();
+    else if (id === "textStyle") input.text.style();
     else if (id === "remove") { if (multi.items.length) multi.remove(); else input.removeSelected(); }
     else if (id === "simplifyMore" || id === "straighten") { const shape = shapes.find(action => action.id === id); if (shape) input.reshape(shape.result, shape.message); }
     else act(id);
@@ -87,7 +93,8 @@ export function useMapProjectActions(input: {
   const repeat = () => {
     if (!last) setFlash(keysText.nothingToRepeat);
     else if (contextList.some(action => action.id === last.id)) doAction(last.id);
-    else if (last.id !== "edge" && last.id !== "remove" && last.id !== "simplifyMore" && last.id !== "straighten") act(last.id);
+    else if (last.id !== "edge" && last.id !== "remove" && last.id !== "simplifyMore" && last.id !== "straighten" && last.id !== "rotate"
+      && last.id !== "editText" && last.id !== "textStyle") act(last.id);
     else setFlash(keysText.needSelection);
   };
   const repeatLabel = last ? keysText.repeatOf(contextList.find(action => action.id === last.id)?.label ?? last.label) : undefined;

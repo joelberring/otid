@@ -31,7 +31,7 @@ const privateParts = (symbols: ReadonlyMap<string, MapSymbol>, symbol: MapSymbol
 function ownColors(symbol: MapSymbol): number[] {
   switch (symbol.kind) {
     case "POINT": return elements(symbol.elements);
-    case "TEXT": return [symbol.color];
+    case "TEXT": return symbol.framing ? [symbol.color, symbol.framing.color] : [symbol.color];
     case "COMBINED": return [];
     case "LINE": return [...strokes(symbol.strokes), ...elements(symbol.repeated?.elements ?? []), ...elements(symbol.between?.elements ?? []),
       ...elements(symbol.corner?.elements ?? []), ...elements(symbol.start?.elements ?? []), ...elements(symbol.end?.elements ?? [])];
@@ -51,7 +51,7 @@ function recolor(symbol: MapSymbol, remap: Remap): MapSymbol {
     value && { ...value, elements: value.elements.map(item => element(item, remap)) };
   switch (symbol.kind) {
     case "POINT": return { ...symbol, elements: symbol.elements.map(item => element(item, remap)) };
-    case "TEXT": return { ...symbol, color: remap(symbol.color) };
+    case "TEXT": return { ...symbol, color: remap(symbol.color), ...(symbol.framing ? { framing: { ...symbol.framing, color: remap(symbol.framing.color) } } : {}) };
     case "COMBINED": return symbol;
     case "LINE": return { ...symbol, strokes: symbol.strokes.map(stroke), repeated: group(symbol.repeated), between: group(symbol.between),
       corner: group(symbol.corner), start: group(symbol.start), end: group(symbol.end) };
@@ -151,8 +151,8 @@ export function applyMapSymbolColors(original: Uint8Array, changes: readonly Map
   return { ok: true, bytes, changed: done };
 }
 
-/** Slutet på `<symbol>`-elementet som börjar vid `open` (inbyggda `<symbol>` i mittsymboler och delar räknas med). */
-function symbolEnd(text: string, open: number, limit: number): number {
+/** Slutet på `<symbol>`-elementet (också för textsymbolerna, `text-symbols.ts`) som börjar vid `open` (inbyggda `<symbol>` i mittsymboler och delar räknas med). */
+export function symbolEnd(text: string, open: number, limit: number): number {
   const tagEnd = text.indexOf(">", open);
   if (tagEnd < 0 || tagEnd >= limit) return -1;
   if (text.charCodeAt(tagEnd - 1) === 47) return tagEnd + 1;

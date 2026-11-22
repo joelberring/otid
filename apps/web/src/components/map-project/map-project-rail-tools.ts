@@ -9,7 +9,7 @@ import type { Texts } from "../../lib/language";
 import type { RailTool } from "./map-project-tool-rail";
 import type { WheelTool } from "./map-project-tool-wheel";
 
-type RailPick = "select" | "draw" | "circle" | "rectangle" | "bucket" | "addPoint" | "removePoint" | "cut" | "area" | "note";
+type RailPick = "select" | "draw" | "circle" | "rectangle" | "bucket" | "text" | "addPoint" | "removePoint" | "cut" | "area" | "note";
 
 export interface RailState {
   readonly keys: KeyMap; readonly text: Texts<typeof mapProjectKeysSv>;
@@ -27,7 +27,7 @@ export interface RailState {
 
 /**
  * Ägaren 2026-11-10 («en symbol för alla snabbkommandon») och K8b V1 (2026-11-21): verktygsspalten har bara verktyg, i
- * grupper med en liten rubrik: Markera | Rita, Rektangel, Cirkel | Fyll | Forma | Granska (V5: Visa ofyllda rutor); längst ned hjulet, bara kartan och
+ * grupper med en liten rubrik: Markera | Rita, Rektangel, Cirkel, Text (K8b V6) | Fyll | Forma | Granska (V5: Visa ofyllda rutor); längst ned hjulet, bara kartan och
  * tangenterna. Det som görs med det markerade står i kontextraden vid objektet (`map-project-context-actions.ts`), och Ångra
  * och Gör om i raden överst (i telefonen ligger de kvar fästa i spaltens rad).
  */
@@ -48,6 +48,7 @@ export function railTools(state: RailState): RailTool[] {
       tool("draw", "draw", labels.draw, labels.drawHelp, { group: text.groups.draw }),
       tool("rectangle", "rectangle", text.commands.rectangle, text.tips.rectangle, { testId: "map-project-rectangle-tool" }),
       tool("circle", "circle", labels.circle, text.tips.circle, { testId: "map-project-circle-tool" }),
+      tool("text", "text", text.commands.text, text.tips.text, { testId: "map-project-text-tool" }),
       tool("bucket", "bucket", text.commands.bucket, text.tips.bucket, { group: text.groups.fill, testId: "map-project-bucket-tool" }),
       tool("addPoint", "addPoint", text.commands.addPoint, text.addPointHint, { group: text.groups.shape, testId: "map-project-add-point" }),
       tool("removePoint", "removePoint", text.commands.removePoint, text.removePointHint, { testId: "map-project-remove-point" }),
@@ -97,9 +98,12 @@ export function wheelToolsOf(input: { keys: KeyMap; space: string; tool: string;
 /** Raden under kartan: vad det valda verktyget gör (utbrutet ur `map-project-editor.tsx`). */
 export function toolHint(input: { canEdit: boolean; closed: boolean; tool: string; multiCount: number; rotating: boolean;
   symbol: { readonly code: string; readonly kind: string } | undefined; text: Texts<typeof mapProjectEditorSv>; notes: Texts<typeof mapProjectNotesSv>;
-  keys: Texts<typeof mapProjectKeysSv>; quick: Texts<typeof mapProjectQuickSv> }): string {
+  keys: Texts<typeof mapProjectKeysSv>; quick: Texts<typeof mapProjectQuickSv>;
+  /** K8b V6: textverktygets rad (också Rita med en textsymbol). */
+  textHint: string }): string {
   const { tool, symbol, text, keys, quick } = input;
   return !input.canEdit ? (input.closed ? text.closed : text.readOnly)
+    : tool === "text" || (tool === "draw" && symbol?.kind === "text") ? input.textHint
     : tool === "area" ? text.collab.areaHint
     : tool === "note" ? input.notes.toolHint
     : tool === "rectangle" ? keys.rectangleHint(0)
@@ -110,7 +114,13 @@ export function toolHint(input: { canEdit: boolean; closed: boolean; tool: strin
     : tool === "circle" ? (symbol.kind === "line" || symbol.kind === "area" ? quick.circleHint(symbol.code) : quick.circleNeedsShape)
     : symbol.kind === "point" ? text.hints.drawPoint(symbol.code)
     : symbol.kind === "line" ? text.hints.drawLine(symbol.code)
-    : symbol.kind === "area" ? text.hints.drawArea(symbol.code) : text.tools.textNotSupported;
+    : text.hints.drawArea(symbol.code);
+}
+
+/** Det valda verktygets namn först i raden under kartan. */
+export function toolName(tool: string, quick: Texts<typeof mapProjectQuickSv>, keys: Texts<typeof mapProjectKeysSv>): string | undefined {
+  return ({ select: quick.tools.select, draw: quick.tools.draw, circle: quick.tools.circle, cut: quick.tools.cut, text: keys.commands.text, note: quick.tools.note,
+    rectangle: keys.commands.rectangle, bucket: keys.commands.bucket, addPoint: keys.commands.addPoint, removePoint: keys.commands.removePoint } as Partial<Record<string, string>>)[tool];
 }
 
 /** Det markerade under kartan: symbolen och, för en linje eller yta, längden eller ytan i terrängen. */

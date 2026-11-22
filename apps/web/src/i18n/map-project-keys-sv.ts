@@ -6,7 +6,7 @@ export const mapProjectKeysSv = {
   title: "Tangenter i ritläget",
   help: "Tangenterna ligger under vänster hand, så att höger hand kan stanna på musen. Klicka på en tangent och tryck sedan den nya. Valet sparas i den här webbläsaren.",
   commands: {
-    select: "Markera", draw: "Rita", circle: "Cirkel", rectangle: "Rektangel", bucket: "Magisk fyll", duplicate: "Duplicera", fill: "Fyll yta eller gör kant", parallel: "Parallell linje", note: "Notis", addPoint: "Lägg till punkt", removePoint: "Ta bort punkt", cut: "Klipp isär", pick: "Ta symbolen från det markerade", reverse: "Vänd riktning",
+    select: "Markera", draw: "Rita", circle: "Cirkel", rectangle: "Rektangel", bucket: "Magisk fyll", text: "Text", duplicate: "Duplicera", fill: "Fyll yta eller gör kant", parallel: "Parallell linje", note: "Notis", addPoint: "Lägg till punkt", removePoint: "Ta bort punkt", cut: "Klipp isär", pick: "Ta symbolen från det markerade", reverse: "Vänd riktning",
     switchSymbol: "Byt symbol på det markerade", join: "Slå ihop linjer eller ytor", simplify: "Förenkla", smooth: "Gör mjuk", checked: "Markera kollad",
     repeat: "Gör igen", snap: "Fäst", undo: "Ångra", redo: "Gör om", wheel: "Verktygshjulet", bare: "Bara kartan", unfilled: "Visa ofyllda rutor"
   } satisfies Record<KeyCommand, string>,
@@ -43,6 +43,7 @@ export const mapProjectKeysSv = {
   remove: "Ta bort",
   // Förklaringarna i verktygsspalten.
   tips: {
+    text: "Klicka på kartan och skriv. Enter lägger in texten, Skift+Enter ger en ny rad och Esc avbryter. Texten får den valda textsymbolen; typsnitt, storlek och färg hör till symbolen (högerklicka på den i symbolpanelen).",
     circle: "Klicka i mitten och dra ut till kanten. Ritas med den valda linje- eller ytsymbolen.",
     area: "Rita ett delområde som en kartritare kan få ansvar för.",
     note: "Klicka på kartan och skriv en notis till dig själv eller de andra.",

@@ -391,6 +391,46 @@ describe("ADR-0219 kartprojekt", () => {
     expect(await write(later(6))).toMatchObject({ status: "ok", response: { status: "empty" } });
   });
 
+  it("K8b V6: textsymbolerna – ägaren ändrar och duplicerar, en ny text med kopian skrivs i den nya kartversionen; OCAD-kartor spärras", async () => {
+    const owner = await registerTestAccount(db, undefined, NOW);
+    const other = await registerTestAccount(db, undefined, NOW);
+    const created = await createMapProjectFromUpload(db, { ...owner.proof, metadata: { formatVersion: 1, requestId: randomUUID(), name: "Text",
+      fileName: "Text.omap" }, file: mapBytes }, NOW);
+    if (created.status !== "created") throw new Error(created.status);
+    const projectId = created.projectId;
+    const later = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000);
+    const textSymbol = [...parsed.symbols.values()].find((symbol): symbol is Extract<typeof symbol, { kind: "TEXT" }> => symbol.kind === "TEXT")!;
+    const nextId = String(Math.max(...[...parsed.symbols.keys()].filter(id => /^\d+$/.test(id)).map(Number)) + 1);
+    const style = { fontFamily: "Verdana", size: 4.5, color: textSymbol.color, bold: true, italic: false, align: "center" as const, framing: null };
+    const textSymbols = [{ id: textSymbol.id, ...style }, { id: nextId, copyOf: textSymbol.id, code: "999.1", name: "Liten", ...style, size: 2, bold: false }];
+    await inviteMapProjectMember(db, { ...owner.proof, projectId, request: { formatVersion: 1, requestId: randomUUID(), email: other.email, role: "EDIT" } }, NOW);
+    expect((await updateMapProject(db, { ...other.proof, projectId, request: { formatVersion: 1, textSymbols } }, later(1))).status).toBe("forbidden");
+    expect((await updateMapProject(db, { ...owner.proof, projectId, request: { formatVersion: 1, textSymbols: [...textSymbols, textSymbols[0]] } }, later(1))).status)
+      .toBe("invalid-request");
+    expect((await updateMapProject(db, { ...owner.proof, projectId, request: { formatVersion: 1, textSymbols } }, later(1))).status).toBe("ok");
+    const view = await readMapProject(db, { ...other.proof, projectId }, later(1));
+    expect(view.status === "ok" && view.view.textSymbols).toEqual(textSymbols);
+    // En ny text med den nya textsymbolen (två rader, vriden).
+    const text = { kind: "text" as const, symbol: nextId, at: { x: 12.5, y: -4 }, angle: 45, text: "Älvsjö\nskogen" };
+    await sync(owner.proof, projectId, [edit(newKey(randomUUID()), { kind: "OBJECT", object: text }, null, "ADD", null)]);
+    const written = await writeMapProjectVersion(db, { ...owner.proof, projectId, request: { formatVersion: 1, requestId: randomUUID() } }, later(2));
+    if (written.status !== "ok" || written.response.status !== "created") throw new Error(JSON.stringify(written));
+    const output = await readMapProjectOutput(db, { ...owner.proof, projectId, outputId: written.response.outputId }, NOW);
+    if (output.status !== "ok") throw new Error(output.status);
+    const reread = readMapFile(new Uint8Array((await readMapContent(db, output.sha256))!), output.fileName);
+    expect(reread.symbols.get(textSymbol.id)).toMatchObject({ kind: "TEXT", fontFamily: "Verdana", size: 4.5, bold: true });
+    expect(reread.symbols.get(nextId)).toMatchObject({ kind: "TEXT", code: { text: "999.1" }, name: "Liten", size: 2 });
+    expect(reread.objects.filter(object => object.kind === "text" && object.symbol === nextId)).toMatchObject([{ text: "Älvsjö\nskogen", angle: 45 }]);
+    expect(reread.objects).toHaveLength(parsed.objects.length + 1);
+    // OCAD: textsymbolerna går inte att ändra.
+    const ocd = new Uint8Array(await readFile(new URL("../../../../fixtures/maps/kartfil.ocd", import.meta.url)));
+    const ocad = await createMapProjectFromUpload(db, { ...owner.proof, metadata: { formatVersion: 1, requestId: randomUUID(), name: "Ocad text",
+      fileName: "Ocad.ocd" }, file: ocd }, NOW);
+    if (ocad.status !== "created") throw new Error(ocad.status);
+    expect((await updateMapProject(db, { ...owner.proof, projectId: ocad.projectId, request: { formatVersion: 1, textSymbols } }, later(3))).status)
+      .toBe("invalid-request");
+  });
+
   it("K7: en ny version av en OCAD-karta skrivs bara med flaggan OTID_OCAD_WRITE", async () => {
     const ocd = new Uint8Array(await readFile(new URL("../../../../fixtures/maps/kartfil.ocd", import.meta.url)));
     const ocdSha = sha256Hex(ocd);

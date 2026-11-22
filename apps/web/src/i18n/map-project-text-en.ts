@@ -1,0 +1,42 @@
+import type { Texts } from "../lib/language";
+import type { mapProjectTextSv } from "./map-project-text-sv";
+
+/** K8b V6: the text tool, the text field on the map and the Change text symbol dialog. */
+export const mapProjectTextEn: Texts<typeof mapProjectTextSv> = {
+  hint: code => `Text (${code}): click where the text should go and type. Enter adds it, Shift+Enter a new line, Esc cancels.`,
+  noTextSymbol: "The map has no text symbol – create one in the symbol panel.",
+  picked: code => `The text tool with ${code}.`,
+  field: "Text on the map",
+  fieldHelp: "Enter adds, Shift+Enter new line, Esc cancels",
+  added: "The text is on the map. Undo removes it.",
+  changed: "The text is changed.",
+  edit: "Edit text",
+  switchTo: code => `Change text symbol to ${code}`,
+  rotate: "Rotate",
+  style: "Change text symbol",
+  title: (code, name) => `Text symbol ${code} ${name}`,
+  help: "Font, size and colour belong to the symbol and apply to every text with it. The change shows at once and is kept with Save; Undo takes it back.",
+  readOnly: "Only the project's owners can change text symbols. Suggest the change in a note.",
+  ocad: "The map is an OCAD file. The text symbols cannot be written back to the OCAD file safely here, so they cannot be changed. Save the map in Mapper (.omap/.xmap) and start the project from it to change them.",
+  font: "Font",
+  fallback: "shown with a substitute font (the font is not on this computer)",
+  size: "Size (mm on the map)",
+  color: "Colour",
+  bold: "Bold",
+  italic: "Italic",
+  align: "Alignment",
+  aligns: { left: "Left", center: "Centre", right: "Right" },
+  framing: "White outline",
+  framingColor: "Outline colour",
+  framingWidth: "Outline width (mm)",
+  sample: "Sample text",
+  save: "Save",
+  saved: "The text symbol is saved.",
+  failed: "The text symbol could not be saved. Try again.",
+  cancel: "Cancel",
+  close: "Close",
+  duplicate: "Duplicate as new text symbol",
+  copyName: name => `${name} (copy)`,
+  undone: "The text symbol change is undone.",
+  redone: "The text symbol change is redone."
+};

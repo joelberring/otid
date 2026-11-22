@@ -83,6 +83,20 @@ export const mapProjectSymbolColorsSchema = z.array(z.object({ symbol: z.string(
 export type MapProjectSymbolColorChange = z.infer<typeof mapProjectSymbolColorsSchema>[number];
 
 /**
+ * K8b V6: kartprojektets ändrade och nya textsymboler (`MapTextSymbolChange` i map-file): symbolens id i filen (eller kopians nya
+ * id med `copyOf`, nummer och namn), typsnitt, storlek i mm, kartans färg, fet/kursiv, justering och kontur. Hela stilen varje gång.
+ */
+export const mapProjectTextSymbolsSchema = z.array(z.object({
+  id: z.string().regex(/^\d{1,6}$/), copyOf: z.string().regex(/^\d{1,6}$/).optional(), code: z.string().regex(/^\d{1,4}(\.\d{1,4})?$/).optional(),
+  name: z.string().max(120).optional(), fontFamily: z.string().trim().min(1).max(80).refine(value => !/["<>&]/.test(value) && [...value].every(char => char.charCodeAt(0) >= 32)),
+  size: z.number().min(0.1).max(100), color: z.number().int().min(0).max(100_000), bold: z.boolean(), italic: z.boolean(),
+  align: z.enum(["left", "center", "right"]).optional(),
+  framing: z.object({ color: z.number().int().min(0).max(100_000), width: z.number().gt(0).max(10) }).strict().nullable()
+}).strict().refine(row => (row.copyOf === undefined) === (row.code === undefined))).max(500)
+  .refine(rows => new Set(rows.map(row => row.id)).size === rows.length);
+export type MapProjectTextSymbolChange = z.infer<typeof mapProjectTextSymbolsSchema>[number];
+
+/**
  * Vad AI-kopplingen får göra i projektet (ägaren 2026-11-12): bara läsa, lämna förslag som en ägare godkänner (förval), eller
  * arbeta självständigt, då AI:ns ändringar godkänns direkt och hamnar i kartans historik som godkända förslag.
  */
@@ -101,10 +115,13 @@ export const mapProjectUpdateRequestSchema = z.object({
   colors: mapProjectColorsSchema.optional(),
   /** Symbolernas färger; tom lista = symbolernas egna färger. */
   symbolColors: mapProjectSymbolColorsSchema.optional(),
+  /** K8b V6: textsymbolernas stil och nya textsymboler; tom lista = filens egna (bara Mapper-kartor). */
+  textSymbols: mapProjectTextSymbolsSchema.optional(),
   /** AI-kopplingens läge i projektet. */
   aiMode: mapProjectAiModeSchema.optional()
 }).strict().refine(value => value.name !== undefined || value.status !== undefined || value.mode !== undefined || value.recon !== undefined
-  || value.leaderboard !== undefined || value.colors !== undefined || value.symbolColors !== undefined || value.aiMode !== undefined);
+  || value.leaderboard !== undefined || value.colors !== undefined || value.symbolColors !== undefined || value.textSymbols !== undefined
+  || value.aiMode !== undefined);
 
 export const mapProjectInviteRequestSchema = z.object({
   formatVersion: z.literal(1), requestId: uuidSchema, email: accountEmailSchema, role: mapProjectRoleSchema
@@ -272,6 +289,8 @@ export interface MapProjectView extends MapProjectSummary {
   colors: MapProjectColorChange[];
   /** Ändrade färger för enskilda symboler (tom = symbolernas egna). */
   symbolColors: MapProjectSymbolColorChange[];
+  /** K8b V6: ändrade och nya textsymboler (tom = filens egna). */
+  textSymbols: MapProjectTextSymbolChange[];
   /** Vad AI-kopplingen får göra i projektet. */
   aiMode: MapProjectAiMode;
   areas: MapProjectAreaView[];

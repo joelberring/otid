@@ -29,7 +29,9 @@ export type SidebarTab = "basemap" | "symbols" | "layers" | "review" | "process"
  * Översynen av första kartan 2026-11-17 (K1): Grundkarta först, med arbetsgången för en ny karta, så att Lager bara är lager.
  */
 export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, recent, standardSymbols, layerState, basemap, layers, review, process, conflicts, symbols,
-  onResolve, canEdit, tab, onTab, onClose }: {
+  onResolve, canEdit, tab, onTab, onClose, onTextSymbol }: {
+  /** K8b V6: högerklick på en textsymbol öppnar Ändra textsymbol. */
+  onTextSymbol?: ((id: string) => void) | undefined;
   /** Telefonen: panelen visas bara när den är öppnad (på större skärmar alltid, om den inte är gömd). */
   open: boolean;
   /** Telefonen (ägaren 2026-11-22): stängknappen i flikraden. */
@@ -75,6 +77,7 @@ export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, recent, s
   const current = tabs.includes(tab) ? tab : tabs[0]!;
   const tile = (entry: CatalogSymbol, index?: number) => <button type="button" className={grid || index !== undefined ? styles.tile : styles.symbol}
     aria-pressed={entry.id === symbolId} onClick={() => onSymbol(entry.id)} data-code={entry.code} data-kind={entry.kind}
+    onContextMenu={entry.kind === "text" && onTextSymbol ? event => { event.preventDefault(); setTip(undefined); onTextSymbol(entry.id); } : undefined}
     aria-label={grid || index !== undefined ? `${entry.code} ${entry.name}` : undefined}
     onMouseEnter={event => showTip(entry, event.currentTarget)} onFocus={event => showTip(entry, event.currentTarget)}
     onMouseLeave={() => setTip(undefined)} onBlur={() => setTip(undefined)}>

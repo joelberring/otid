@@ -30,8 +30,7 @@ export const mapProjectEditorSv = {
     rotateHelp: "Dra från punkten åt det håll symbolen ska peka.",
     moveWhole: "Flytta hela",
     moveWholeHelp: "Dra linjen hel i stället för att böja sträckan du tar tag i.",
-    noSymbol: "Välj en symbol att rita med.",
-    textNotSupported: "Texter går inte att rita här ännu."
+    noSymbol: "Välj en symbol att rita med."
   },
   hints: {
     select: "Klicka på ett objekt. Dra en punkt för att flytta den, dra i en sträcka för att böja den. Dubbelklicka på en sträcka för en ny punkt, på en punkt för att ta bort den. Dra en ruta på tom karta för att markera flera.",

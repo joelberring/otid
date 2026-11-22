@@ -196,14 +196,18 @@ function areaSymbol(area: XmlNode | undefined): Pick<AreaSymbol, "fill" | "hatch
   return { fill: color(area, "inner_color") ?? undefined, hatches, pattern, border: undefined };
 }
 
-function textSymbol(node: XmlNode | undefined): Pick<TextSymbol, "color" | "size" | "fontFamily" | "bold" | "italic"> {
+function textSymbol(node: XmlNode | undefined): Pick<TextSymbol, "color" | "size" | "fontFamily" | "bold" | "italic" | "framing"> {
   const font = child(node, "font");
+  // K8b V6: Mappers kontur med linje (mode 1); skugga (mode 2) visas inte.
+  const framing = child(node, "framing"), framingColor = color(framing, "color");
+  const half = num(framing, "line_half_width", 0) * UM;
   return {
     color: color(child(node, "text"), "color") ?? 0,
     size: num(font, "size", 4000) * UM,
     fontFamily: attr(font, "family") ?? "Arial",
     bold: bool(font, "bold"),
-    italic: bool(font, "italic")
+    italic: bool(font, "italic"),
+    ...(framing && attr(framing, "mode") === "1" && framingColor !== null && half > 0 ? { framing: { color: framingColor, width: 2 * half } } : {})
   };
 }
 

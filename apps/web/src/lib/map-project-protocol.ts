@@ -1,4 +1,4 @@
-import type { MapColor, MapColorChange, MapGeoreference, MapObject, MapSymbolColorChange, Point } from "@o-tid/map-file";
+import type { MapColor, MapColorChange, MapGeoreference, MapObject, MapSymbolColorChange, MapTextSymbolChange, Point, TextAlign } from "@o-tid/map-file";
 import type {
   Coverage, FitPoint, GeneralizeOptions, GeneralizeResult, KeyedState, NormResult, ObjectKey, ObjectRef, ReconMarker, ReconSettings, TrackPoint, VectorFit, WarpChange, WarpOptions
 } from "@o-tid/map-revision";
@@ -39,8 +39,16 @@ export interface CatalogSymbol {
    * CAD). Den ritas bara när skisslagret är tänt och kan föras över till en symbol i normen.
    */
   readonly fileHidden?: boolean | undefined;
+  /** K8b V6: textsymbolens stil (med projektets ändringar), för textfältet och dialogen Ändra textsymbol. */
+  readonly text?: TextStyle | undefined;
   /** Lagernamnen från en DWG/DXF-import (Mappers tagg `Layer`) med antalet objekt, flest först (högst 60). */
   readonly layers?: readonly { readonly name: string; readonly count: number }[] | undefined;
+}
+
+/** Textsymbolens stil som paletten visar den (`TextSymbol` i map-file). */
+export interface TextStyle {
+  readonly fontFamily: string; readonly size: number; readonly color: number; readonly bold: boolean; readonly italic: boolean;
+  readonly align?: TextAlign | undefined; readonly framing?: { readonly color: number; readonly width: number } | undefined;
 }
 
 export interface ProjectHit {
@@ -58,6 +66,7 @@ export type MapProjectRequest =
   | { readonly type: "states"; readonly states: readonly (readonly [ObjectKey, KeyedState])[] }
   | { readonly type: "colors"; readonly changes: readonly MapColorChange[] }
   | { readonly type: "symbolColors"; readonly changes: readonly MapSymbolColorChange[] }
+  | { readonly type: "textSymbols"; readonly changes: readonly MapTextSymbolChange[] }
   | { readonly type: "candidates"; readonly objects: readonly MapObject[] }
   | { readonly type: "hit"; readonly id: number; readonly point: Point; readonly tolerance: number; readonly hidden: readonly string[] }
   /** Ägaren 2026-11-10: objekten som en dragen ruta rör vid (kartans mm). */
@@ -94,6 +103,8 @@ export type MapProjectRequest =
 export type MapProjectResponse =
   | { readonly type: "loaded"; readonly bounds: Bounds; readonly scale: number; readonly georeference: MapGeoreference | null;
       readonly colors: readonly MapColor[]; readonly objects: number;
+      /** K8b V6: alla symbolernas id i filen (också dolda), så att en ny textsymbol får ett ledigt id. */
+      readonly symbolIds: readonly string[];
       /** Nordlinjernas (601) riktning i kartan, grader medurs; saknas när kartan inte har några. */
       readonly northLines?: number | undefined }
   | { readonly type: "rendered"; readonly id: number; readonly bitmap: ImageBitmap }
@@ -207,6 +218,8 @@ export class MapProjectSession {
   colors(changes: readonly MapColorChange[]) { this.post({ type: "colors", changes }); }
   /** Symbolernas ändrade färger (ägaren 2026-11-13): kartan ritas med dem från nästa bild. */
   symbolColors(changes: readonly MapSymbolColorChange[]) { this.post({ type: "symbolColors", changes }); }
+  /** K8b V6: projektets ändrade och nya textsymboler: kartan ritas med dem från nästa bild. */
+  textSymbols(changes: readonly MapTextSymbolChange[]) { this.post({ type: "textSymbols", changes }); }
 
   hit(point: Point, tolerance: number, hidden: readonly string[], onHit: (hits: readonly ProjectHit[]) => void) {
     const id = ++this.latestHit;

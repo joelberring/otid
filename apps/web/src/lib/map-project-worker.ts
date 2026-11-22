@@ -1,5 +1,8 @@
 /// <reference lib="webworker" />
-import { drawMap, MapFileError, northLineDegrees, readMapFile, symbolColorIds, withColorChanges, withSymbolColorChanges, type MapObject, type MapSymbol, type ParsedMap } from "@o-tid/map-file";
+import {
+  drawMap, MapFileError, northLineDegrees, readMapFile, symbolColorIds, withColorChanges, withSymbolColorChanges, withTextSymbolChanges, type MapObject, type MapSymbol,
+  type MapSymbolColorChange, type MapTextSymbolChange, type ParsedMap
+} from "@o-tid/map-file";
 import {
   baseKeys, checkNorm, combineGeneralize, coveredObjects, coverageGrid, generalizeJoins, generalizePart, generalizeParts, editedObjects, fitToMap, mapFitPoints, boxTest, hitTest, objectBox, objectRefFor, reconMarkers, symbolObjectKind, warpObjects, type Box, type GeneralizeResult, type KeyedState, type NormObject, type ObjectKey,
   type ObjectRef, type ReconObject
@@ -35,6 +38,7 @@ let drawing = false;
 let fileColors: ParsedMap["colors"] = [];
 /** Symbolerna som i filen och projektets färgbyten per symbol (ägaren 2026-11-13). */
 let fileSymbols: ParsedMap["symbols"] = new Map();
+let symbolColorChanges: readonly MapSymbolColorChange[] = [], textSymbolChanges: readonly MapTextSymbolChange[] = [];
 let lastStates: ReadonlyMap<ObjectKey, KeyedState> = new Map();
 /** Skisslagren: objektens lagernamn från en DWG/DXF-import i Mapper (taggen `Layer`), per nyckel. */
 const layerByKey = new Map<ObjectKey, string>();
@@ -186,6 +190,8 @@ async function catalog(map: ParsedMap): Promise<CatalogSymbol[]> {
     }
     out.push({ id: symbol.id, code: symbol.code.text, name: symbol.name, kind, group: symbolGroup(symbol.code.main), ...previewStyle(map, symbol), icon,
       count: counts.get(symbol.id) ?? 0, colors: symbolColorIds(fileSymbols, fileSymbols.get(symbol.id) ?? symbol),
+      ...(symbol.kind === "TEXT" ? { text: { fontFamily: symbol.fontFamily, size: symbol.size, color: symbol.color, bold: symbol.bold, italic: symbol.italic,
+        ...(symbol.align ? { align: symbol.align } : {}), ...(symbol.framing ? { framing: symbol.framing } : {}) } } : {}),
       ...(symbol.hidden ? { fileHidden: true } : {}), ...(layers.length ? { layers } : {}) });
   }
   return out.sort((a, b) => a.code.localeCompare(b.code, "sv", { numeric: true }));
@@ -262,7 +268,7 @@ self.onmessage = (event: MessageEvent<MapProjectRequest>) => {
     });
     rebuild(new Map());
     const bounds = base.bounds ?? { minX: -100, minY: -100, maxX: 100, maxY: 100 };
-    post({ type: "loaded", bounds, scale: base.scale, georeference: base.georeference, colors: base.colors, objects: base.objects.length,
+    post({ type: "loaded", bounds, scale: base.scale, georeference: base.georeference, colors: base.colors, objects: base.objects.length, symbolIds: [...fileSymbols.keys()],
       northLines: northLineDegrees(base) });
     return;
   }
@@ -270,8 +276,13 @@ self.onmessage = (event: MessageEvent<MapProjectRequest>) => {
   if (request.type === "candidates") { candidateObjects = request.objects; refreshCandidates(); return; }
   // Projektets ändrade färger (ägaren 2026-11-10): färgtabellen byts och kartan byggs om med samma objekt.
   if (request.type === "colors") { if (base) { base = { ...base, colors: withColorChanges(fileColors, request.changes) }; rebuild(lastStates); } return; }
-  if (request.type === "symbolColors") {
-    if (base) { base = { ...base, symbols: withSymbolColorChanges(fileSymbols, fileColors, request.changes) }; rebuild(lastStates); }
+  // Symbolfärgerna (ägaren 2026-11-13) och textsymbolerna (K8b V6) läggs på filens symboler: först textsymbolerna, sedan färgerna.
+  if (request.type === "symbolColors" || request.type === "textSymbols") {
+    if (request.type === "symbolColors") symbolColorChanges = request.changes; else textSymbolChanges = request.changes;
+    if (base) {
+      base = { ...base, symbols: withSymbolColorChanges(withTextSymbolChanges(fileSymbols, fileColors, textSymbolChanges), fileColors, symbolColorChanges) };
+      rebuild(lastStates);
+    }
     return;
   }
   if (request.type === "render") { queued = request; drain(); return; }

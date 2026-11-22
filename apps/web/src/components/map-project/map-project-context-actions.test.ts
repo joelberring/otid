@@ -27,6 +27,15 @@ describe("kontextraden (K8b V1)", () => {
     expect(contextActions({ ...base, single: { ...line, kind: "area" }, edge: { areas: 1, codes: [] } }).some(action => action.id === "edge")).toBe(false);
   });
 
+  it("en text (K8b V6): Redigera text, Byt textsymbol, Vrid, Ändra textsymbol, Duplicera och Ta bort", () => {
+    const labels = { edit: "Redigera text", rotate: "Vrid", style: "Ändra textsymbol", switchTo: (code: string) => `Byt textsymbol till ${code}` };
+    const actions = contextActions({ ...base, single: { ...line, kind: "text", switchTo: "999.1", text: labels } });
+    expect(actions.map(action => action.id)).toEqual(["editText", "switchSymbol", "rotate", "textStyle", "duplicate", "remove"]);
+    expect(actions[1]).toMatchObject({ label: "Byt textsymbol till 999.1", key: "C" });
+    expect(contextActions({ ...base, single: { ...line, kind: "text", text: labels } }).map(action => action.id))
+      .toEqual(["editText", "rotate", "textStyle", "duplicate", "remove"]);
+  });
+
   it("en vald brytpunkt: Ta bort tar bort punkten", () => {
     expect(contextActions({ ...base, single: { ...line, vertex: true } }).at(-1)?.label).toBe("Ta bort punkt");
   });

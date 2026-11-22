@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { desc, eq, inArray } from "drizzle-orm";
 import { CLUB_ARCHIVE_MAP_MAX_BYTES, mapProjectOutputRequestSchema, type MapProjectOutputResponse } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { applyMapColors, applyMapRevision, applyMapSymbolColors, MapFileError, readMapFile, type MapColorsResult, type ParsedMap } from "@o-tid/map-file";
+import { applyMapColors, applyMapRevisionWithTextSymbols, applyMapSymbolColors, applyMapTextSymbols, MapFileError, readMapFile, type MapColorsResult, type ParsedMap } from "@o-tid/map-file";
 import {
   changeCounts, changeList, changesGeoJson, mapperChangesFile, parseObjectRef, toChangeSet, validState, type KeyedState, type ObjectChange,
   type ObjectKey
@@ -47,8 +47,9 @@ export function revisedFileName(fileName: string, date: string, format: "OCD" | 
   return `${stem} reviderad ${date}${extension}`;
 }
 
-/** Projektet har ändrade färger (färgtabellen eller enskilda symboler). */
-export const hasProjectColors = (project: Pick<MapProjectRow, "colors" | "symbolColors">) => !!project.colors?.length || !!project.symbolColors?.length;
+/** Projektet har ändrade färger (färgtabellen eller enskilda symboler) eller textsymboler (K8b V6). */
+export const hasProjectColors = (project: Pick<MapProjectRow, "colors" | "symbolColors" | "textSymbols">) =>
+  !!project.colors?.length || !!project.symbolColors?.length || !!project.textSymbols?.length;
 
 /** Färgtabellens ändringar och därefter symbolernas färgbyten (ägaren 2026-11-13), som två kontrollerade steg efter objekten. */
 export function applyProjectColors(bytes: Uint8Array, project: Pick<MapProjectRow, "colors" | "symbolColors">): MapColorsResult {
@@ -150,7 +151,9 @@ export async function writeMapProjectVersion(db: Database, input: ClubProof & { 
     response: { formatVersion: 1, status: "refused", refusals: [{ code, message }] } });
   const map = readBase(bytes, base.fileName);
   if (!map) return refused("UNSAFE_FILE", "Grundfilen går inte att läsa.");
-  const written = applyMapRevision(bytes, toChangeSet(map, project.baseSha256, project.baseFormat, changes), { ocad: ocadWriteEnabled() });
+  // K8b V6: ändrade och nya textsymboler skrivs i samma kontrollerade väg som objekten (bara Mapper; OCAD vägras).
+  const written = applyMapRevisionWithTextSymbols(bytes, toChangeSet(map, project.baseSha256, project.baseFormat, changes), project.textSymbols ?? [],
+    { ocad: ocadWriteEnabled() });
   if (!written.ok) {
     return { status: "ok", replayed: false, response: { formatVersion: 1, status: "refused",
       refusals: written.refusals.slice(0, 50).map(refusal => ({ code: refusal.code, message: refusal.message })) } };
@@ -208,7 +211,7 @@ export async function exportMapProjectChanges(db: Database, input: ClubProof & {
     if (input.format === "omap" && access.project.baseFormat !== "OMAP") return { status: "invalid-request" } as const;
     const file = await baseFile(tx, access.project);
     if (!file) return { status: "not-found" } as const;
-    return { status: "ready", project: access.project, fileName: file.fileName, bytes: file.bytes,
+    return { status: "ready", project: access.project, fileName: file.fileName, bytes: file.bytes, textSymbols: access.project.textSymbols ?? [],
       changes: (await savedChanges(tx, access.project)).changes } as const;
   });
   if (loaded.status !== "ready") return loaded;
@@ -219,7 +222,9 @@ export async function exportMapProjectChanges(db: Database, input: ClubProof & {
     return { status: "ok", fileName: `${stem} ändringar.geojson`, contentType: "application/geo+json",
       body: JSON.stringify(changesGeoJson(map, loaded.changes, stem)) };
   }
-  const text = new TextDecoder("utf-8").decode(loaded.bytes).replace(/^\uFEFF/, "");
+  // K8b V6: filens huvud med projektets textsymboler, så att nya texter med en ny textsymbol har sin symbol.
+  const symbols = applyMapTextSymbols(loaded.bytes, loaded.textSymbols);
+  const text = new TextDecoder("utf-8").decode(symbols.ok ? symbols.bytes : loaded.bytes).replace(/^\uFEFF/, "");
   const body = mapperChangesFile(text, map, loaded.changes);
   return body === undefined ? { status: "not-found" }
     : { status: "ok", fileName: `${stem} ändringar.xmap`, contentType: "application/xml", body };

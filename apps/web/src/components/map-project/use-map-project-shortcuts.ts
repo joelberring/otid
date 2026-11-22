@@ -3,10 +3,10 @@
 import { useEffect, useRef, type RefObject } from "react";
 import { bindingOf, commandFor, type KeyMap } from "../../lib/map-project-keys";
 
-export type ToolCommand = "select" | "draw" | "circle" | "rectangle" | "bucket" | "addPoint" | "removePoint" | "cut" | "note";
+export type ToolCommand = "select" | "draw" | "circle" | "rectangle" | "bucket" | "text" | "addPoint" | "removePoint" | "cut" | "note";
 export type SelectedCommand = "simplify" | "smooth" | "switchSymbol" | "checked" | "join" | "reverse" | "pick" | "duplicate" | "fill" | "parallel";
 const SELECTED: ReadonlySet<string> = new Set<SelectedCommand>(["simplify", "smooth", "switchSymbol", "checked", "join", "reverse", "pick", "duplicate", "fill", "parallel"]);
-const EDIT_TOOLS: ReadonlySet<string> = new Set<ToolCommand>(["draw", "circle", "rectangle", "bucket", "addPoint", "removePoint", "cut"]);
+const EDIT_TOOLS: ReadonlySet<string> = new Set<ToolCommand>(["draw", "circle", "rectangle", "bucket", "text", "addPoint", "removePoint", "cut"]);
 /** Så länge (ms) Markeras tangent ska hållas för att bara låna Markera (släpp = tillbaka till förra verktyget). */
 export const HOLD_SELECT_MS = 250;
 

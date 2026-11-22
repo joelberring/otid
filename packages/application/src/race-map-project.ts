@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { raceMapProjectLinkStateSchema, type RaceMapProblem, type RaceMapProjectLinkState } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { applyMapRevision } from "@o-tid/map-file";
+import { applyMapRevisionWithTextSymbols } from "@o-tid/map-file";
 import { toChangeSet, type ObjectChange } from "@o-tid/map-revision";
 import { type ClubFailure, type ClubProof } from "./club-access";
 import { agreementOf } from "./club-maps";
@@ -17,7 +17,7 @@ import type { DbExecutor } from "./snapshot";
  * Ägarens plan 2026-11-13, etapp 1: banläggningens karta ur ett kartprojekt i stället för en uppladdad fil.
  *
  * Kartan är en **ögonblicksbild**: grundfilen med projektets införda ändringar och ändrade färger, skriven med samma
- * skrivare som "Skapa ny kartversion" (`applyMapRevision`, som läser filen igen och vägrar om något inte stämmer). Bilden
+ * skrivare som "Skapa ny kartversion" (`applyMapRevisionWithTextSymbols`, som läser filen igen och vägrar om något inte stämmer). Bilden
  * sparas som tävlingens kartfil på samma väg som en uppladdad fil (`saveRaceMapSourceAsAdmin`: samma kontroller, samma
  * lagring och cache), och `race_map_project_link` säger vilket projekt och vilket löpnummer den motsvarar. Kartan under
  * banorna ändras alltså inte när projektet ändras; «Ta in kartans ändringar» är samma anrop en gång till.
@@ -44,7 +44,8 @@ export function composeMapProjectSnapshot({ project, base, changes }: SnapshotIn
   if (changes.length === 0 && !hasProjectColors(project)) return { status: "ok", bytes: base.bytes, sha256: sha256Hex(base.bytes) };
   const map = readBase(base.bytes, base.fileName);
   if (!map) return refused("UNSAFE_FILE", "Grundfilen går inte att läsa.");
-  const written = applyMapRevision(base.bytes, toChangeSet(map, project.baseSha256, project.baseFormat, changes), { ocad: ocadWriteEnabled() });
+  const written = applyMapRevisionWithTextSymbols(base.bytes, toChangeSet(map, project.baseSha256, project.baseFormat, changes), project.textSymbols ?? [],
+    { ocad: ocadWriteEnabled() });
   if (!written.ok) {
     return { status: "refused", refusals: written.refusals.slice(0, 50).map(refusal => ({ code: refusal.code, message: refusal.message })) };
   }

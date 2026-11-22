@@ -20,6 +20,10 @@ export { applyMapRevision } from "./revision/apply";
 export { applyMapColors, effectiveColorChanges, withColorChanges, type MapColorChange, type MapColorsResult } from "./revision/colors";
 export { applyMapSymbolColors, effectiveSymbolColorChanges, symbolColorIds, withSymbolColorChanges, type MapSymbolColorChange } from "./revision/symbol-colors";
 export { sha256Hex } from "./revision/sha256";
+export {
+  applyMapRevisionWithTextSymbols, applyMapTextSymbols, effectiveTextSymbolChanges, nextTextSymbolCode, nextTextSymbolId, withTextSymbolChanges,
+  type MapTextSymbolChange, type TextAlign
+} from "./revision/text-symbols";
 export { newMapFile, NewMapError, SYMBOL_SETS } from "./template/new-map";
 export { MARKING_CODES, MARKING_LOGO_SIZE, MARKING_TEXT_SIZE, MARKING_TITLE_SIZE } from "./template/isom-2017-2";
 export type { NewMapOptions, SymbolSetId } from "./template/new-map";

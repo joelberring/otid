@@ -1,0 +1,10 @@
+/* K8b V6: textfältet på kartan och dialogen Ändra textsymbol. */
+.field { position: absolute; z-index: 6; min-width: 8ch; margin: 0; padding: 0 2px; border: 1px dashed #c0392b; border-radius: 2px;
+  background: rgb(255 255 255 / 70%); color: #111; line-height: 1.15; resize: none; overflow: hidden; white-space: pre; field-sizing: content; }
+.field:focus { outline: 2px solid #c0392b; outline-offset: 1px; }
+.grid { display: grid; gap: 8px; }
+.grid label { display: grid; gap: 3px; font-size: var(--text-sm, .9rem); }
+.grid input:not([type="checkbox"]), .grid select { min-height: 32px; padding: 3px 6px; border: 1px solid var(--line-strong, #999); border-radius: 4px; font: inherit; }
+.grid .row, .row { display: flex; align-items: center; gap: 14px; }
+.note { margin: -4px 0 0; color: var(--muted); font-size: var(--text-sm, .9rem); }
+.sample { margin: 4px 0 0; padding: 6px 8px; border: 1px solid var(--line, #ddd); border-radius: 4px; font-size: 1.3rem; }

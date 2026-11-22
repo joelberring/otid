@@ -58,6 +58,10 @@ export const mapProjects = pgTable("map_project", {
   colorsChangedAt: timestamp("colors_changed_at", { withTimezone: true }),
   /** Symbolernas färger (0120): symbolens nummer i filen, färgen i grundfilen (`from`) och kartfärgen den ritas med (`to`); null = symbolernas egna. */
   symbolColors: jsonb("symbol_colors").$type<{ symbol: string; from: number; to: number }[]>(),
+  /** Textsymbolernas stil och nya textsymboler (0137, K8b V6; `MapTextSymbolChange` i map-file); null = filens egna. */
+  textSymbols: jsonb("text_symbols").$type<{ id: string; copyOf?: string | undefined; code?: string | undefined; name?: string | undefined; fontFamily: string;
+    size: number; color: number; bold: boolean; italic: boolean; align?: "left" | "center" | "right" | undefined;
+    framing: { color: number; width: number } | null }[]>(),
   /** Vad AI-kopplingen får göra (0116): READ, PROPOSE (förval) eller AUTONOMOUS. */
   aiMode: text("ai_mode").$type<"READ" | "PROPOSE" | "AUTONOMOUS">().notNull().default("PROPOSE"),
   /** När projektet senast användes av någon med behörighet (0119, högst en skrivning i timmen); null = inte sedan kolumnen kom till. */

@@ -265,8 +265,7 @@ export const mapProjectEditorEn: Texts<typeof mapProjectEditorSv> = {
     rotateHelp: "Drag from the point in the direction the symbol should point.",
     moveWhole: "Move whole",
     moveWholeHelp: "Drag the whole line instead of bending the segment you grab.",
-    noSymbol: "Choose a symbol to draw with.",
-    textNotSupported: "Texts cannot be drawn here yet."
+    noSymbol: "Choose a symbol to draw with."
   },
   hints: {
     select: "Click an object. Drag a point to move it, drag a segment to bend it. Double-click a segment for a new point, a point to remove it. Drag a box on empty map to select several.",

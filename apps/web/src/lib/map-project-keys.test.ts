@@ -45,7 +45,8 @@ describe("ritlägets tangenter", () => {
     expect(commandFor(DEFAULT_KEYS, "Shift+T")).toBe("note");
     expect(commandFor(DEFAULT_KEYS, "Shift+F")).toBe("fill");
     expect(commandFor(DEFAULT_KEYS, "Shift+Space")).toBe("repeat");
-    expect(commandFor(DEFAULT_KEYS, "B")).toBeUndefined();
+    expect(commandFor(DEFAULT_KEYS, "B")).toBe("text");
+    expect(commandFor(DEFAULT_KEYS, "Shift+B")).toBeUndefined();
     expect(commandFor(DEFAULT_KEYS, undefined)).toBeUndefined();
   });
 

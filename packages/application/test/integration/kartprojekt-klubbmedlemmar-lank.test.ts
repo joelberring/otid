@@ -117,6 +117,26 @@ describe("kartprojekt: klubbmedlemmar och länk utan e-post", () => {
       invitationId: null } }, NOW)).status).toBe("removed");
   });
 
+  it("granskningen 3.7: ett konto utan bekräftad adress läggs inte till, och en roll som någon annan gett gäller först när adressen är bekräftad", async () => {
+    const s = await setup();
+    const unverify = (accountId: string) => db.update(schema.userAccounts).set({ emailVerifiedAt: null }).where(eq(schema.userAccounts.id, accountId));
+    const add = (accountId: string) => addMapProjectClubMember(db,
+      { ...s.owner.proof, projectId: s.projectId, request: { formatVersion: 1, accountId, role: "EDIT" } }, NOW);
+    // Bertil är med i klubben men har ingen bekräftad adress: varken i listan eller att lägga till.
+    await unverify(s.bertil.accountId);
+    expect((await add(s.bertil.accountId)).status).toBe("not-found");
+    const list = await listMapProjectClubMembers(db, { ...s.owner.proof, projectId: s.projectId }, NOW);
+    expect(list.status === "ok" && list.response.members.map(member => member.name)).toEqual([`Arrangör anna.${s.tag}`]);
+    // Anna läggs till och ser projektet; tappar hon bekräftelsen ser hon det inte (rollen kommer från ägaren).
+    expect((await add(s.anna.accountId)).status).toBe("added");
+    expect((await readMapProject(db, { ...s.anna.proof, projectId: s.projectId }, NOW)).status).toBe("ok");
+    await unverify(s.anna.accountId);
+    expect((await readMapProject(db, { ...s.anna.proof, projectId: s.projectId }, NOW)).status).toBe("not-found");
+    // Ägaren som skapat projektet själv behåller sin roll.
+    await unverify(s.owner.accountId);
+    expect((await readMapProject(db, { ...s.owner.proof, projectId: s.projectId }, NOW)).status).toBe("ok");
+  });
+
   it("ägare utan klubb kan inte lägga till någon", async () => {
     const s = await setup();
     const project = await createMapProjectFromUpload(db, { ...s.loner.proof, metadata: { formatVersion: 1, requestId: randomUUID(), name: "Ensam",

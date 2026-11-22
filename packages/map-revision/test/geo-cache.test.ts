@@ -28,4 +28,21 @@ describe("laserrutornas förråd på geo-servern", () => {
     expect(await prune(dir, 250)).toBe(1);
     expect((await readdir(dir)).sort()).toEqual(["mellan.laz", "ny.laz"]);
   });
+  it("rör inte en parallell kopiering som pågår men tar bort en övergiven", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "otid-cache-"));
+    await writeFile(join(dir, "pagar.laz.del"), "halv");
+    await writeFile(join(dir, "overgiven.laz.del"), "halv");
+    const old = new Date(Date.now() - 20 * 60_000);
+    await utimes(join(dir, "overgiven.laz.del"), old, old);
+    await writeFile(join(dir, "ny.laz"), "x");
+    expect(await prune(dir, 1000)).toBe(1);
+    expect((await readdir(dir)).sort()).toEqual(["ny.laz", "pagar.laz.del"]);
+  });
+  it("parallella toCache för olika rutor tappar ingen ruta", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "otid-cache-")), cache = join(dir, "cache");
+    await writeFile(join(dir, "src.laz"), "laserdata".repeat(1000));
+    const ids = Array.from({ length: 12 }, (_, index) => `ruta-${index}`);
+    await Promise.all(ids.map(id => toCache(cache, id, join(dir, "src.laz"))));
+    expect((await readdir(cache)).sort()).toEqual(ids.map(cacheName).sort());
+  });
 });

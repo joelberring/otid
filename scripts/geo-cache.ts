@@ -35,17 +35,35 @@ export async function toCache(cacheDir: string, tileId: string, source: string, 
   } catch { /* Förrådet är en bekvämlighet: ett fullt eller trasigt förråd får inte fälla jobbet. */ }
 }
 
-/** Tar bort de längst oanvända filerna tills förrådet ryms i `maxBytes`. Ger antalet borttagna. */
+/** En tillfällig `.del`-fil yngre än så är en kopiering som pågår (rutor hämtas parallellt) och får inte röras. */
+const STALE_PART_MS = 10 * 60_000;
+
+/**
+ * Tar bort de längst oanvända filerna tills förrådet ryms i `maxBytes`, och övergivna `.del`-filer (äldre än tio minuter).
+ * Pågående kopieringar från parallella rutor lämnas orörda, och en fil som försvinner under genomgången hoppas över.
+ * Ger antalet borttagna.
+ */
 export async function prune(cacheDir: string, maxBytes = CACHE_MAX_BYTES): Promise<number> {
-  const rows = await Promise.all((await readdir(cacheDir)).map(async name => {
-    const info = await stat(join(cacheDir, name));
-    return { name, size: info.size, used: info.mtimeMs };
+  const now = Date.now();
+  const found = await Promise.all((await readdir(cacheDir)).map(async name => {
+    try {
+      const info = await stat(join(cacheDir, name));
+      return { name, size: info.size, used: info.mtimeMs };
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined; // en parallell kopiering döptes om
+      throw error;
+    }
   }));
+  const rows = found.filter((row): row is NonNullable<typeof row> => row !== undefined);
   rows.sort((a, b) => b.used - a.used);
   let total = 0, removed = 0;
   for (const row of rows) {
+    if (row.name.endsWith(".del")) {
+      if (now - row.used > STALE_PART_MS) { await rm(join(cacheDir, row.name), { force: true }); removed += 1; }
+      continue;
+    }
     total += row.size;
-    if (total > maxBytes || row.name.endsWith(".del")) { await rm(join(cacheDir, row.name), { force: true }); removed += 1; }
+    if (total > maxBytes) { await rm(join(cacheDir, row.name), { force: true }); removed += 1; }
   }
   return removed;
 }

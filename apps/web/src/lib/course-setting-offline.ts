@@ -183,9 +183,17 @@ export interface BaseKey { readonly version: number; readonly parts: readonly un
  */
 export class RecordWriter {
   private written: BaseKey | undefined;
+  private chain: Promise<unknown> = Promise.resolve();
   constructor(private readonly store: FieldStore, private readonly onResult: (error: unknown) => void) {}
 
-  async write(raceId: string, record: FieldRecord | undefined, key: BaseKey): Promise<boolean> {
+  /** Skrivningarna går i tur och ordning, så att `written` alltid hör till det som senast skrevs. */
+  write(raceId: string, record: FieldRecord | undefined, key: BaseKey): Promise<boolean> {
+    const next = this.chain.then(() => this.writeNow(raceId, record, key));
+    this.chain = next;
+    return next;
+  }
+
+  private async writeNow(raceId: string, record: FieldRecord | undefined, key: BaseKey): Promise<boolean> {
     const last = this.written;
     const withBase = !last || last.version !== key.version || last.parts.length !== key.parts.length ||
       last.parts.some((part, index) => part !== key.parts[index]);

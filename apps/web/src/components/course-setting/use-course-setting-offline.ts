@@ -156,10 +156,17 @@ export function useCourseSettingOffline(input: OfflineInput) {
   useEffect(() => store.subscribe(schedulePersist), [store, schedulePersist]);
   useEffect(() => { schedulePersist(); }, [version, status, offlineSaved, input.notes, input.inspections, schedulePersist]);
   useEffect(() => {
-    const now = () => { if (document.visibilityState === "hidden") { if (timer.current) clearTimeout(timer.current); void persist(); } };
-    document.addEventListener("visibilitychange", now);
+    const now = () => { if (timer.current) clearTimeout(timer.current); timer.current = undefined; void persist(); };
+    // `pagehide` skjuter ofta med synlig sida (navigering, stängd flik): där sparas alltid direkt.
+    const hidden = () => { if (document.visibilityState === "hidden") now(); };
+    document.addEventListener("visibilitychange", hidden);
     window.addEventListener("pagehide", now);
-    return () => { document.removeEventListener("visibilitychange", now); window.removeEventListener("pagehide", now); };
+    return () => {
+      document.removeEventListener("visibilitychange", hidden);
+      window.removeEventListener("pagehide", now);
+      // Sidan lämnas: det som väntar på timern sparas nu i stället för att tappas.
+      if (timer.current) now();
+    };
   }, [persist]);
 
   // Kön: skickas i ordning efter editorns ändringar (en notis kan gälla en kontroll som just skapats); det som inte gick

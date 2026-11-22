@@ -34,7 +34,7 @@ export function MapProjectJoinPage() {
   const [token, setToken] = useState<string>();
   const [signedIn, setSignedIn] = useState<boolean>();
   const [verified, setVerified] = useState(true);
-  const [outcome, setOutcome] = useState<{ kind: "joining" } | { kind: "joined"; projectId: string } | { kind: "refused" } | undefined>();
+  const [outcome, setOutcome] = useState<{ kind: "joining" } | { kind: "joined"; projectId: string } | { kind: "refused" } | { kind: "failed" } | undefined>();
 
   useEffect(() => {
     const found = tokenFromHash(window.location.hash);
@@ -61,9 +61,13 @@ export function MapProjectJoinPage() {
   async function join() {
     if (!token) return;
     setOutcome({ kind: "joining" });
-    const result = await clubRequest("/api/organizer/map-projects/join", "POST", { formatVersion: 1, token });
+    // Utan nät eller vid annat fel går det att försöka igen: knappen får inte stå kvar avstängd.
+    const result = await clubRequest("/api/organizer/map-projects/join", "POST", { formatVersion: 1, token }).catch((error: unknown) => {
+      console.error("Kartprojektets länk kunde inte skickas", error);
+      return { status: 0, json: undefined };
+    });
     const projectId = (result.json as { projectId?: unknown } | undefined)?.projectId;
-    setOutcome(result.status === 200 && typeof projectId === "string" ? { kind: "joined", projectId } : { kind: "refused" });
+    setOutcome(result.status === 200 && typeof projectId === "string" ? { kind: "joined", projectId } : { kind: result.status === 0 ? "failed" : "refused" });
   }
 
   const view = state.kind === "valid" ? state.view : undefined;
@@ -81,6 +85,7 @@ export function MapProjectJoinPage() {
         <p>{text.validUntil(until)}</p>
         {signedIn === false && <Notice tone="info" role="status">{text.signedOut}</Notice>}
         {signedIn && !verified && <Notice tone="attention" role="status">{text.verify}</Notice>}
+        {outcome?.kind === "failed" && <Notice tone="error" role="alert">{text.failed}</Notice>}
         {outcome?.kind === "refused" && <Notice tone="error" role="alert">{text.refused}</Notice>}
         {outcome?.kind === "joined" && <Notice tone="ok" role="status">{text.joined(view.projectName)}</Notice>}
         <div className={styles.actions}>

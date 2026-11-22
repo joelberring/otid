@@ -104,9 +104,11 @@ export async function selfRegisterCard(db: Database, input: { raceId: string; cl
     if (!isOpen(race, now)) return { status: "closed" as const };
     const ipAllowed = await consumeAccountRequestAllowance(tx, { scope: "SELF_REGISTRATION_IP", key: input.clientKey,
       limit: SELF_REGISTRATIONS_PER_IP, windowMs: SELF_REGISTRATION_IP_WINDOW_MS }, now);
-    const raceAllowed = ipAllowed && await consumeAccountRequestAllowance(tx, { scope: "SELF_REGISTRATION_RACE", key: race.id,
+    if (!ipAllowed) return { status: "rate-limited" as const };
+    // Tävlingens dagskvot dras först när en ny anmälan faktiskt ska skapas (efter validering, robotfällan, upptagen bricka och full
+    // klass), annars kan en robot eller en ogiltig begäran stänga självregistreringen för hela tävlingen.
+    const raceAllowed = () => consumeAccountRequestAllowance(tx, { scope: "SELF_REGISTRATION_RACE", key: race.id,
       limit: SELF_REGISTRATIONS_PER_RACE_AND_DAY, windowMs: DAY_MS }, now);
-    if (!ipAllowed || !raceAllowed) return { status: "rate-limited" as const };
 
     const party = race.raceType === "PARTY";
     const givenName = normalizeSelfRegistrationName(intent.givenName, SELF_REGISTRATION_NAME_MAX);
@@ -139,6 +141,7 @@ export async function selfRegisterCard(db: Database, input: { raceId: string; cl
       // Steg 44: en pinne som redan har köp i kväll namnges bara i bardisken (annars kan vem som helst styra om notan).
       const state = await loadPartyState(tx, race.id, now);
       if (state.purchases.some(row => row.cardNumber === cardNumber)) return { status: "card-has-purchases" as const };
+      if (!await raceAllowed()) return { status: "rate-limited" as const };
       await tx.insert(schema.partyGuests).values({ raceId: race.id, cardNumber, name, club: clubText, displayName, updatedAt: now,
         selfRegisteredAt: now });
       await tx.insert(schema.auditEvents).values({ raceId: race.id, entityType: "party", entityId: race.id, actorKind: null, actorId: null,
@@ -154,6 +157,7 @@ export async function selfRegisterCard(db: Database, input: { raceId: string; cl
     if (!await canAddClassEntry(tx, race.id, raceClass.id)) return { status: "class-full" as const };
     const [total] = await tx.select({ value: count() }).from(schema.entries).where(eq(schema.entries.raceId, race.id));
     if (!total || total.value >= 10_000) return { status: "class-full" as const };
+    if (!await raceAllowed()) return { status: "rate-limited" as const };
     const [entry] = await tx.insert(schema.entries).values({ raceId: race.id, classId: raceClass.id, givenName: givenName!, familyName: familyName!,
       organisationName: clubText, version: 1, selfRegisteredAt: now,
       // Fel 2026-11-22: som efteranmälan i arbetsytan – lottad klass ger tid (masstartens), gafflad klass en variant.

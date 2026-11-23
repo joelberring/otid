@@ -32,13 +32,14 @@ export const mapProjectImportSv = {
   layerShape: (points: number, lines: number, closed: number, areas: number) =>
     [points && plural(points, "punkt", "punkter"), lines && plural(lines, "linje", "linjer"), closed && plural(closed, "sluten linje", "slutna linjer"),
       areas && plural(areas, "yta", "ytor")].filter(Boolean).join(", "),
+  layerStairs: (stairs: number, lines: number) => `${plural(stairs, "trappa", "trappor")} ur ${plural(lines, "streck", "streck")}`,
   skip: "Hoppa över",
   symbolFor: (layer: string) => `Symbol för ${layer}`,
   result: (objects: number, joined: number, duplicates: number, short: number, outside: number, mismatched: number, clipped: number,
-    closedAreas: number, stairs: number, steps: number) =>
+    closedAreas: number, stairs: number, steps: number, stairDropped: number) =>
     `${plural(objects, "objekt", "objekt")} i utkastet`
     + [joined && `${joined} hopslagna`, closedAreas && `${plural(closedAreas, "yta", "ytor")} av slutna linjer`,
-      stairs && `${plural(stairs, "trappa", "trappor")} av ${steps} steg`, clipped && `${clipped} klippta vid kanten`, duplicates && `${duplicates} dubbletter borta`, short && `${short} korta stumpar borta`,
+      stairs && `${plural(stairs, "trappa", "trappor")} av ${steps} steg`, stairDropped && `${stairDropped} trappstreck utan trappa borta`, clipped && `${clipped} klippta vid kanten`, duplicates && `${duplicates} dubbletter borta`, short && `${short} korta stumpar borta`,
       outside && `${outside} utanför kartan`, mismatched && `${mismatched} med fel form`].filter(Boolean).map(part => ` · ${part}`).join(""),
   propose: (count: number) => `Lämna ${plural(count, "objekt", "objekt")} som förslag`,
   accept: (count: number) => `Lägg in ${plural(count, "objekt", "objekt")} i kartan`,

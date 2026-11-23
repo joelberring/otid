@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { MapGeoreference } from "@o-tid/map-file";
 import {
-  clipLine, clipRing, guessCrs, stairsFromSteps, importLayers, importObjects, joinLines, parseDxf, parseGeoJson, sourcePointToMap, suggestSymbol, VectorParseError
+  clipLine, clipRing, guessCrs, importLayers, importObjects, joinLines, parseDxf, parseGeoJson, sourcePointToMap, suggestSymbol, VectorParseError
 } from "../src";
 
 /** ADR-0219 K4b: GeoJSON och DXF, lagren, symbolförslagen, omräkningen och städningen. */
@@ -165,28 +165,22 @@ describe("vektorunderlagen (K4b)", () => {
       { layer: "HUSYTA", geometry: { kind: "area" as const, rings: [[[675010, 6580010], [675010, 6580000], [675000, 6580000], [675000, 6580010]]] as [number, number][][] } },
       // Fem steg, 3 m breda, 0,4 m mellan.
       ...[0, 1, 2, 3, 4].map(step => line("TRAPPA", [[675050, 6580050 + step * 0.4], [675053, 6580050 + step * 0.4]])),
-      // Två steg räcker inte till en trappa.
+      // Två steg är ingen trappa och ritas inte (lagret har trappsteg).
       line("TRAPPA", [[675080, 6580050], [675083, 6580050]]), line("TRAPPA", [[675080, 6580050.4], [675083, 6580050.4]])
     ];
-    const result = importObjects(features, { toMap, minLengthMm: 0, stairSymbols: new Set(["s532"]),
+    const result = importObjects(features, { toMap, minLengthMm: 0, stairs: { symbols: [{ id: "s532" }], scale: 10000 },
       mapping: new Map([["FASAD", { symbol: "s521", kind: "area" as const }], ["HUSYTA", { symbol: "s521", kind: "area" as const }],
         ["TRAPPA", { symbol: "s532", kind: "line" as const }]]) });
-    expect(result).toMatchObject({ closedAreas: 1, duplicates: 1, stairs: 1, steps: 5, mismatched: 0 });
+    expect(result).toMatchObject({ closedAreas: 1, duplicates: 1, stairs: 1, steps: 5, stairDropped: 2, mismatched: 0 });
+    expect(result.stairLayers).toEqual([{ layer: "TRAPPA", lines: 7, stairs: 1, steps: 5, dropped: 2 }]);
     expect(result.objects.filter(object => object.kind === "area")).toHaveLength(1);
     const stairs = result.objects.filter(object => object.kind === "line");
-    // Trappan och de två stegen som blev kvar.
-    expect(stairs).toHaveLength(3);
+    expect(stairs).toHaveLength(1);
+    // Mittlinjen i gångriktningen (norrut), mitt i stegen: x = 675051,5 m.
     const stair = stairs[0]!;
-    expect(stair.kind === "line" && stair.path).toHaveLength(5);
-  });
-
-  it("trappor: steg i förlängningen av varandra eller åt olika håll blir ingen trappa", () => {
-    const p = (x: number, y: number) => ({ x, y });
-    expect(stairsFromSteps([[p(0, 0), p(1, 0)], [p(1.2, 0), p(2.2, 0)], [p(2.4, 0), p(3.4, 0)]]).stairs).toEqual([]);
-    expect(stairsFromSteps([[p(0, 0), p(1, 0)], [p(0.5, -0.5), p(0.5, 0.5)], [p(0, 0.2), p(1, 1)]]).stairs).toEqual([]);
-    const found = stairsFromSteps([[p(0, 0), p(1, 0)], [p(1, 0.2), p(0, 0.2)], [p(0, 0.4), p(1, 0.4)], [p(0, 5), p(9, 5)]]);
-    expect(found.stairs).toEqual([[p(0.5, 0), p(0.5, 0.2), p(0.5, 0.4)]]);
-    expect(found.rest).toEqual([[p(0, 5), p(9, 5)]]);
+    const middle = toMap(675051.5, 6580050.8);
+    expect(stair.kind === "line" && stair.path).toHaveLength(2);
+    if (stair.kind === "line") for (const command of stair.path) expect(command.x).toBeCloseTo(middle.x, 2);
   });
 });
 

@@ -26,6 +26,8 @@ export function MapProjectImportPanel({ importer, symbols, areas }: { importer: 
   const [where, setWhere] = useState("");
   const { file, result, problem } = importer;
   const all = [...symbols.values()].filter(symbol => symbol.kind !== "text");
+  // Trapplagren (ägaren 2026-11-23): stegen blir trappor; raden visar hur många ur hur många streck.
+  const stairLayers = new Map(result?.stairLayers.map(row => [row.layer, row] as const));
   const problemText = problem === undefined ? undefined : typeof problem === "number" ? text.problems.generic(problem)
     : problem in text.problems ? (text.problems as unknown as Record<string, string>)[problem] : problem;
 
@@ -70,7 +72,8 @@ export function MapProjectImportPanel({ importer, symbols, areas }: { importer: 
             ...(layer.closedLines || layer.areas ? ["area"] : [])]);
           const options = [...all.filter(symbol => shapes.has(symbol.kind)), ...all.filter(symbol => !shapes.has(symbol.kind))];
           return <label key={layer.name} data-testid="map-project-import-layer">
-            <span><strong>{layer.name}</strong> <span className={styles.muted}>{text.layerShape(layer.points, layer.lines, layer.closedLines, layer.areas)}</span></span>
+            <span><strong>{layer.name}</strong> <span className={styles.muted}>{text.layerShape(layer.points, layer.lines, layer.closedLines, layer.areas)}
+              {stairLayers.get(layer.name)?.steps ? ` · ${text.layerStairs(stairLayers.get(layer.name)!.stairs, stairLayers.get(layer.name)!.lines)}` : ""}</span></span>
             <select value={importer.mapping.get(layer.name) ?? ""} aria-label={text.symbolFor(layer.name)}
               onChange={event => importer.choose(layer.name, event.target.value)}>
               <option value="">{text.skip}</option>
@@ -83,7 +86,7 @@ export function MapProjectImportPanel({ importer, symbols, areas }: { importer: 
         {text.profileUsed(importer.profile.name, importer.profile.matched, importer.profile.layers)}</p>}
       <ProfileForm importer={importer} />
       {result && <p className={styles.muted} data-testid="map-project-import-result" role="status">
-        {text.result(result.objects.length, result.joined, result.duplicates, result.short, result.outside, result.mismatched, result.clipped, result.closedAreas, result.stairs, result.steps)}</p>}
+        {text.result(result.objects.length, result.joined, result.duplicates, result.short, result.outside, result.mismatched, result.clipped, result.closedAreas, result.stairs, result.steps, result.stairDropped)}</p>}
       {!result && importer.crs !== undefined && <p role="alert" className={styles.problem}>{text.problems.crs}</p>}
       {result && result.objects.length > 0 && <p className={styles.muted}>{importer.canAccept ? text.acceptHelp : text.shownHelp}</p>}
       <span className={styles.actions}>

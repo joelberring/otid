@@ -27,6 +27,25 @@ describe("ADR-0219 K1: ny karta (.omap med O-Tids symbolset)", () => {
     });
   }
 
+  it("ISSprOM: byggnaden är grå yta med svart kant i en kombinerad symbol, trappan finns i två bredder", () => {
+    const map = readMapFile(newMapFile({ symbolSet: "ISSPROM2019-2", scale: 4000, refPoint: KUNGSHATT }), "ny.omap");
+    const byCode = (code: string) => [...map.symbols.values()].find(symbol => `${symbol.code.main}${symbol.code.sub ? `.${symbol.code.sub}` : ""}` === code);
+    const building = byCode("521");
+    expect(building?.kind).toBe("COMBINED");
+    const parts = building?.kind === "COMBINED" ? building.parts.map(id => map.symbols.get(id)!) : [];
+    const area = parts.find(part => part.kind === "AREA"), line = parts.find(part => part.kind === "LINE");
+    const black = map.colors.find(color => color.name === "Svart")!, grey = map.colors.find(color => color.name === "Svart 60 %")!;
+    expect(area?.fill).toBe(grey.id);
+    expect(line?.strokes).toEqual([expect.objectContaining({ color: black.id, width: 0.14 })]);
+    expect(map.colors.findIndex(color => color.id === grey.id)).toBeGreaterThan(map.colors.findIndex(color => color.id === black.id));
+    for (const [code, length] of [["532", 0.4], ["532.1", 0.7]] as const) {
+      const stair = byCode(code) as LineSymbol | undefined;
+      expect(stair?.strokes).toEqual([]);
+      expect(stair?.repeated?.spacing).toBeCloseTo(0.4, 6);
+      expect(JSON.stringify(stair?.repeated?.elements)).toContain(String(length / 2));
+    }
+  });
+
   it("georeferensen: SWEREF 99 TM, referenspunkten i 0,0 och grivationen = missvisning − meridiankonvergens", () => {
     const bytes = newMapFile({ symbolSet: "ISOM2017-2", scale: 10000, refPoint: KUNGSHATT, declinationDegrees: 6.5 });
     const map = readMapFile(bytes, "ny.omap");

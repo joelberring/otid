@@ -6,6 +6,7 @@ import { nestRings } from "./ring-nesting";
 import { isSprintNorm, type MapNorm } from "./map-norm";
 import { sprintLayerSymbol, sprintSymbolForCode, type SprintNorm } from "./sprint-layers";
 import { LIMITS } from "./state";
+import { stairLines, stairsFromSteps, type StairInput, type StairLayer, type StairSymbol } from "./stairs";
 import { stockholmLayer } from "./stockholm-layers";
 import type { SourceData, SourceFeature, SourceGeometry } from "./vector-parse";
 
@@ -212,8 +213,11 @@ export interface ImportOptions {
   readonly bounds?: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number } | undefined;
   /** Kortare linjer (mm) hoppas över; förval 0,3 mm. */
   readonly minLengthMm?: number;
-  /** Trappsymbolerna (id): korta parallella steglinjer i en trappsymbol blir en trapplinja längs trappan. */
-  readonly stairSymbols?: ReadonlySet<string> | undefined;
+  /**
+   * Trappsymbolerna (id och bredd i meter när namnet anger den) och kartans skala: linjerna i lager med en trappsymbol blir
+   * trappor ur sina steg (`stairs.ts`), en linje per trappa i den variant vars bredd passar.
+   */
+  readonly stairs?: { readonly symbols: readonly StairSymbol[]; readonly scale: number } | undefined;
   /** Kartans område (polygonens ringar i mm): kandidaterna klipps mot det också (ägaren 2026-11-11). */
   readonly polygon?: readonly (readonly Point[])[] | undefined;
 }
@@ -226,8 +230,10 @@ export interface ImportResult {
   readonly mismatched: number;
   /** Ytor som byggts av öppna linjer som sluter sig när de slagits ihop (t.ex. fasadlinjer till en byggnad). */
   readonly closedAreas: number;
-  /** Trappor som byggts av steglinjer, och hur många steglinjer de ersatte. */
-  readonly stairs: number; readonly steps: number;
+  /** Trappor som byggts av steglinjer, hur många steglinjer de ersatte och hur många linjer som inte ritas (sidolinjer, ensamma steg). */
+  readonly stairs: number; readonly steps: number; readonly stairDropped: number;
+  /** Trapplagren: linjer, trappor, steg och linjer som inte ritas per lager. */
+  readonly stairLayers: readonly StairLayer[];
 }
 
 const length = (points: readonly Point[]) => points.reduce((sum, point, index) => index === 0 ? 0 : sum + Math.hypot(point.x - points[index - 1]!.x,
@@ -334,11 +340,27 @@ export function importObjects(features: readonly SourceFeature[], options: Impor
   const openLines = new Map<string, Point[][]>();
   const openAreas = new Map<string, Point[][]>();
   const closedRings = new Map<string, Point[][]>();
+  const stairSymbols = new Set(options.stairs?.symbols.map(symbol => symbol.id));
+  const stairInputs: StairInput[] = [], stairLayerSymbol = new Map<string, string>();
+  const addLine = (symbol: string, points: Point[], closed: boolean) => {
+    const whole = closed ? [...points, points[0]!] : points;
+    const pieces = bounds ? clipLine(whole, bounds) : [whole];
+    if (pieces.length === 0) { outside += 1; return; }
+    const untouched = pieces.length === 1 && same(pieces[0]!, whole);
+    if (!untouched) clipped += 1;
+    if (closed && untouched) objects.push({ kind: "line", symbol, path: pathOf(whole) });
+    else for (const piece of pieces) { const list = openLines.get(symbol); if (list) list.push(piece); else openLines.set(symbol, [piece]); }
+  };
   for (const { layer, geometry } of features) {
     const target = options.mapping.get(layer);
     if (!target) continue;
     const converted = convert(geometry, target.kind, map);
     if (!converted) { mismatched += 1; continue; }
+    if (converted.kind === "line" && target.kind === "line" && stairSymbols.has(target.symbol)) {
+      stairInputs.push({ points: converted.points, closed: converted.closed, layer });
+      stairLayerSymbol.set(layer, target.symbol);
+      continue;
+    }
     if (target.kind === "area" && converted.kind === "line") { openAreas.set(target.symbol, [...(openAreas.get(target.symbol) ?? []), converted.points]); continue; }
     if (converted.kind === "point") {
       if (bounds && !within(bounds, converted.at)) { outside += 1; continue; }
@@ -353,17 +375,25 @@ export function importObjects(features: readonly SourceFeature[], options: Impor
       if ((rings[0]?.length ?? 0) < 3) { outside += 1; continue; }
       if (rings.some((ring, index) => !same(ring, converted.rings[index]!))) clipped += 1;
       objects.push({ kind: "area", symbol: target.symbol, rings: rings.filter(ring => ring.length >= 3).map(pathOf), angle: 0 });
-    } else {
-      const whole = converted.closed ? [...converted.points, converted.points[0]!] : converted.points;
-      const pieces = bounds ? clipLine(whole, bounds) : [whole];
-      if (pieces.length === 0) { outside += 1; continue; }
-      const untouched = pieces.length === 1 && same(pieces[0]!, whole);
-      if (!untouched) clipped += 1;
-      if (converted.closed && untouched) objects.push({ kind: "line", symbol: target.symbol, path: pathOf(whole) });
-      else for (const piece of pieces) openLines.set(target.symbol, [...(openLines.get(target.symbol) ?? []), piece]);
-    }
+    } else addLine(target.symbol, converted.points, converted.closed);
   }
-  let joined = 0, closedAreas = 0, stairs = 0, steps = 0;
+  let joined = 0, closedAreas = 0, stairs = 0, steps = 0, stairDropped = 0;
+  let stairLayers: StairLayer[] = [];
+  if (options.stairs && stairInputs.length) {
+    const metresPerMm = options.stairs.scale / 1000;
+    const found = stairsFromSteps(stairInputs, metresPerMm);
+    for (const stair of found.stairs) {
+      for (const { symbol, path } of stairLines(stair, stairLayerSymbol.get(stair.layer)!, options.stairs.symbols, metresPerMm)) {
+        const pieces = bounds ? clipLine(path, bounds) : [path];
+        if (pieces.length === 0) { outside += 1; continue; }
+        if (pieces.length !== 1 || !same(pieces[0]!, path)) clipped += 1;
+        for (const piece of pieces) objects.push({ kind: "line", symbol, path: pathOf(piece) });
+      }
+    }
+    for (const line of found.kept) addLine(stairLayerSymbol.get(line.layer)!, [...line.points], line.closed);
+    stairs = found.stairs.length; stairLayers = found.layers;
+    for (const row of found.layers) { steps += row.steps; stairDropped += row.dropped; }
+  }
   const pushArea = (symbol: string, ring: Point[]) => {
     const kept = bounds ? clipRing(ring, bounds) : ring;
     if (kept.length < 3) { outside += 1; return false; }
@@ -387,14 +417,7 @@ export function importObjects(features: readonly SourceFeature[], options: Impor
       } else mismatched += 1;
     }
   }
-  for (const [symbol, all] of openLines) {
-    let lines = all;
-    if (options.stairSymbols?.has(symbol)) {
-      const found = stairsFromSteps(all);
-      lines = found.rest;
-      stairs += found.stairs.length; steps += found.steps;
-      for (const stair of found.stairs) objects.push({ kind: "line", symbol, path: pathOf(stair) });
-    }
+  for (const [symbol, lines] of openLines) {
     const result = joinLines(lines);
     joined += result.joined;
     for (const line of result.lines) {
@@ -417,7 +440,7 @@ export function importObjects(features: readonly SourceFeature[], options: Impor
   });
   const inArea = options.polygon?.length ? clipObjectsToPolygon(unique, options.polygon) : undefined;
   return { objects: inArea?.objects ?? unique, outside: outside + (inArea?.outside ?? 0), clipped: clipped + (inArea?.clipped ?? 0),
-    duplicates: objects.length - unique.length, short, joined, mismatched, closedAreas, stairs, steps };
+    duplicates: objects.length - unique.length, short, joined, mismatched, closedAreas, stairs, steps, stairDropped, stairLayers };
 }
 
 type Converted = { kind: "point"; at: Point; toward?: Point } | { kind: "line"; points: Point[]; closed: boolean } | { kind: "area"; rings: Point[][] };
@@ -436,66 +459,6 @@ function convert(geometry: SourceGeometry, kind: TargetKind, map: (points: reado
 }
 
 const CLOSE_MM = 0.05;
-const STEP_MAX_MM = 3;
-const STEP_GAP_MM = 1;
-const STEP_ANGLE = 15 * Math.PI / 180;
-const MIN_STEPS = 3;
-
-/** En nästan rak linje (alla punkter inom 0,05 mm från kordan). */
-function straight(points: readonly Point[]): boolean {
-  const a = points[0]!, b = points[points.length - 1]!;
-  const chord = Math.hypot(b.x - a.x, b.y - a.y);
-  if (chord === 0) return false;
-  return points.every(point => Math.abs((b.x - a.x) * (a.y - point.y) - (a.x - point.x) * (b.y - a.y)) / chord <= 0.05);
-}
-
-/**
- * Trappor ur steglinjer: korta raka linjer som ligger parallellt och tätt (högst 1 mm mellan mitterna, högst 15° vinkelskillnad)
- * blir en linje genom stegens mittpunkter, i trappans riktning. Grupper med färre än tre steg lämnas som de är.
- */
-export function stairsFromSteps(lines: readonly Point[][]): { stairs: Point[][]; rest: Point[][]; steps: number } {
-  const steps: { line: Point[]; mid: Point; angle: number; length: number }[] = [];
-  const rest: Point[][] = [];
-  for (const line of lines) {
-    const a = line[0]!, b = line[line.length - 1]!;
-    const lengthMm = Math.hypot(b.x - a.x, b.y - a.y);
-    if (lengthMm > 0 && lengthMm <= STEP_MAX_MM && straight(line)) {
-      // Riktningen modulo 180°.
-      let angle = Math.atan2(b.y - a.y, b.x - a.x);
-      if (angle < 0) angle += Math.PI;
-      if (angle >= Math.PI) angle -= Math.PI;
-      steps.push({ line, mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, angle, length: lengthMm });
-    } else rest.push(line);
-  }
-  const parent = steps.map((_, index) => index);
-  const find = (index: number): number => { while (parent[index] !== index) { parent[index] = parent[parent[index]!]!; index = parent[index]!; } return index; };
-  for (let i = 0; i < steps.length; i += 1) for (let j = i + 1; j < steps.length; j += 1) {
-    const s = steps[i]!, t = steps[j]!;
-    let turn = Math.abs(s.angle - t.angle);
-    turn = Math.min(turn, Math.PI - turn);
-    if (turn > STEP_ANGLE) continue;
-    const dx = t.mid.x - s.mid.x, dy = t.mid.y - s.mid.y;
-    if (Math.hypot(dx, dy) > STEP_GAP_MM) continue;
-    // Stegen ska ligga bredvid varandra, inte i förlängningen av varandra.
-    const along = Math.abs(dx * Math.cos(s.angle) + dy * Math.sin(s.angle));
-    if (along > Math.min(s.length, t.length) / 2) continue;
-    parent[find(j)] = find(i);
-  }
-  const groups = new Map<number, number[]>();
-  steps.forEach((_, index) => groups.set(find(index), [...(groups.get(find(index)) ?? []), index]));
-  const stairs: Point[][] = [];
-  let used = 0;
-  for (const members of groups.values()) {
-    if (members.length < MIN_STEPS) { for (const index of members) rest.push(steps[index]!.line); continue; }
-    const angle = members.reduce((sum, index) => sum + steps[index]!.angle, 0) / members.length;
-    const normal = { x: -Math.sin(angle), y: Math.cos(angle) };
-    const mids = members.map(index => steps[index]!.mid).sort((p, q) => (p.x * normal.x + p.y * normal.y) - (q.x * normal.x + q.y * normal.y));
-    stairs.push(mids);
-    used += members.length;
-  }
-  return { stairs, rest, steps: used };
-}
-
 /** Ringens nyckel oberoende av startpunkt och riktning, så att samma yta från två lager känns igen. */
 function ringKey(ring: readonly Point[]): string {
   const keys = ring.map(keyOf);

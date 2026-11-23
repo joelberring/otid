@@ -37,6 +37,16 @@ describe("Stockholms lagernamn", () => {
     }
   });
 
+  it("trapplagren blir trappa (532), inte byggnad (ägaren 2026-11-23, Liljeholmen)", () => {
+    for (const norm of ["ISOM", "ISSPROM"] as const) {
+      const set = SYMBOL_SETS[norm === "ISOM" ? "ISOM2017-2" : "ISSPROM2019-2"].symbols.map(symbol => ({ id: symbol.code, code: symbol.code, kind: symbol.kind, name: symbol.name }));
+      expect(suggestSymbol(layer("ByggnadsanlaggningTrappagyBOde", { closedLines: 38 }), set, norm), norm).toBe("532");
+      expect(suggestSymbol(layer("ByggnadsanlaggningTrappaglBOde", { lines: 133, closedLines: 8 }), set, norm), norm).toBe("532");
+      expect(suggestSymbol(layer("TrafikanlaggningTerrangtrappag", { lines: 12733, closedLines: 1038, points: 8 }), set, norm), norm).toBe("532");
+    }
+    expect(stockholmLayer("ByggnadsanlaggningTrappagyBOde")).toEqual({ kind: "symbol", rule: { line: ["532"], area: ["532"] } });
+  });
+
   it("känner igen namn som DWG → DXF kortat till 30 tecken (ägaren 2026-11-23, Liljeholmen och Gröndal)", () => {
     const buildings = ["BostadsbyggnadFlerbostadshusgy", "OspecificeradbyggnadOspec_bygg", "OvrigbyggnadKomplementbyggnadg", "IndustribyggnadIndustribyggnad",
       "IndustribyggnadOspec_industrib", "VerksamhetsbyggnadKontorsbyggn", "VerksamhetsbyggnadHandelsbyggn", "VerksamhetsbyggnadHotellbyggna",

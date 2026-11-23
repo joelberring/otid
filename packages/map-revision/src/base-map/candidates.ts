@@ -1,6 +1,6 @@
 import type { MapGeoreference, MapObject } from "@o-tid/map-file";
 import {
-  applyFit, clipObjectsToPolygon, generalizeCandidates, importObjects, sourcePointToMap, suggestSymbol,
+  applyFit, clipObjectsToPolygon, codeParts, generalizeCandidates, stairWidthOfName, importObjects, sourcePointToMap, suggestSymbol,
   type ImportLayer, type ImportResult, type MapBox, type MapNorm, type SourceFeature, type TargetKind, type VectorFit
 } from "../index";
 import { maskBuilt } from "./built-mask";
@@ -56,13 +56,16 @@ export function computeCandidates(features: readonly SourceFeature[], input: Can
   }
   const { georeference, crs, fit, clip, stage } = input;
   try {
-    // Trappan (532) byggs av baskartornas steglinjer.
-    const stairSymbols = new Set(input.symbols.filter(([, code]) => code.replace(/\.0+$/, "") === "532").map(([id]) => id));
+    // Trappan (532, i ISSOM 529.2 «Trappa») byggs av baskartornas steglinjer; varianternas bredd ur namnet («Stairway, 1.6 m»).
+    const stairSymbols = input.symbols.filter(([, code, kind, name]) => kind === "line"
+      && (codeParts(code).main === 532 || (!!name && /trapp|stair/i.test(name) && !/kontur|kant|edge/i.test(name))))
+      .map(([id, , , name]) => ({ id, widthM: stairWidthOfName(name) }));
     const toMap = (x: number, y: number) => {
       const at = sourcePointToMap(georeference, crs, x, y);
       return fit ? applyFit(fit, at) : at;
     };
-    const whole = importObjects(features, { mapping: targets, toMap, bounds: clip ?? input.bounds, stairSymbols,
+    const whole = importObjects(features, { mapping: targets, toMap, bounds: clip ?? input.bounds,
+      stairs: { symbols: stairSymbols, scale: georeference.scale },
       // Kartans område (polygonen) klipper också, utom när en etapp valts (den har sin ruta).
       polygon: clip ? undefined : input.area });
     const imported = stage?.[0] && stage[0].length >= 3 ? { ...whole, objects: clipObjectsToPolygon(whole.objects, stage).objects } : whole;

@@ -36,8 +36,9 @@ const RULES: readonly (readonly [RegExp, LayerRule])[] = [
   // Sjöns yta (HATCH) och strandlinjen.
   [/^sjo.*strand/, { line: ["301.1"] }],
   [/^sjo/, { area: ["301"] }],
-  [/byggnad/, { area: ["521"] }],
+  // Trappor före byggnad: «ByggnadsanlaggningTrappagyBOde» är en trappa vid ett hus, ingen byggnad (ägaren 2026-11-23).
   [/trappa/, { line: ["532"], area: ["532"] }],
+  [/byggnad/, { area: ["521"] }],
   [/bullerskydd|stodmur|stenmur|bruksmur|kallmur/, { line: ["513"] }],
   [/staket|natstang|trastaket|plank/, { line: ["516", "518"] }],
   [/hogspanning/, { line: ["511", "510"] }],
@@ -63,7 +64,7 @@ export function stockholmOverflow(name: string): boolean {
   const geometry = GEOMETRY.exec(name)?.[1] ?? TRUNCATED_GEOMETRY.exec(name)?.[1];
   const text = normalized(name);
   return geometry === "t" || geometry === "glh" || /skymd/.test(text) || SKIP.test(text)
-    || (/byggnad/.test(text) && !/skarmtak|regnskydd/.test(text) && geometry === "gl");
+    || (/byggnad/.test(text) && !/skarmtak|regnskydd|trappa/.test(text) && geometry === "gl");
 }
 
 /** Tolkningen av ett av Stockholms lagernamn, eller inget om namnet inte följer grammatiken. */

@@ -38,7 +38,9 @@ export type SymbolDef = Base & (
     /** Upprepad punktsymbol längs linjen, `spacing` mm isär (för en streckad linje: mitt i strecken). */
     readonly mid?: { readonly elements: readonly ElementDef[]; readonly spacing: number };
   }
-  | { readonly kind: "area"; readonly fill?: string; readonly hatches?: readonly HatchDef[]; readonly dots?: DotPatternDef }
+  | { readonly kind: "area"; readonly fill?: string; readonly hatches?: readonly HatchDef[]; readonly dots?: DotPatternDef;
+    /** Kantlinje runt ytan (som Mappers kombinerade symbol: ytan och linjen i samma symbol, t.ex. sprintnormens byggnad). */
+    readonly border?: { readonly color: string; readonly width: number } }
   | { readonly kind: "text"; readonly color: string; readonly size: number; readonly bold?: boolean; readonly italic?: boolean }
 );
 

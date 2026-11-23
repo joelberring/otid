@@ -172,6 +172,8 @@ export const ISOM_SYMBOLS: readonly SymbolDef[] = [
   { code: "529", name: "Speciellt oöverstigligt linjeföremål", kind: "line", color: "black", width: 0.5 },
   { code: "530", name: "Speciellt föremål, ring", kind: "point", elements: [ring("black", 0.8, 0.18)] },
   { code: "531", name: "Speciellt föremål, kryss", kind: "point", elements: cross("black", 0.8, 0.18) },
+  // 532 Trappa: stegen generaliserade tvärs gångriktningen, minsta bredd 0,4 mm och minst tre grafiska steg (normen).
+  { code: "532", name: "Trappa", kind: "line", mid: { elements: tick("black", 0.1, 0.4), spacing: 0.4 } },
 
   // Tekniska symboler.
   { code: "601", name: "Nordlinje", kind: "line", color: "black", width: 0.1 },

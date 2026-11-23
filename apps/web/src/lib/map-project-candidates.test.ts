@@ -27,7 +27,7 @@ describe("kandidaterna i Workern", () => {
     const toMap = (x: number, y: number) => sourcePointToMap(georeference, 3006, x, y);
     const mapping = new Map([["stenar", { symbol: "s", kind: "point" as const }], ["kurvor", { symbol: "k", kind: "line" as const }],
       ["kärr", { symbol: "m", kind: "area" as const }]]);
-    const expected = importObjects(features, { mapping, toMap, bounds: input().bounds, stairSymbols: new Set() });
+    const expected = importObjects(features, { mapping, toMap, bounds: input().bounds, stairs: { symbols: [], scale: 10000 } });
     const result = computeCandidates(features, input());
     expect(result?.objects).toEqual(expected.objects);
     expect(result?.objects.length).toBeGreaterThan(0);

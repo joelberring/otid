@@ -123,7 +123,13 @@ class SymbolWriter {
     switch (symbol.kind) {
       case "point": return `<symbol ${head}>${this.point(symbol.elements, symbol.rotatable ?? false)}</symbol>`;
       case "line": return `<symbol ${head}>${this.line(symbol)}</symbol>`;
-      case "area": return `<symbol ${head}>${this.area(symbol)}</symbol>`;
+      case "area": {
+        if (!symbol.border) return `<symbol ${head}>${this.area(symbol)}</symbol>`;
+        // Ytan och kantlinjen som privata delar i en kombinerad symbol (Mappers typ 16).
+        const part = (type: number, body: string) => `<part private="true"><symbol type="${type}" code="" name="">${body}</symbol></part>`;
+        return `<symbol ${head}><combined_symbol parts="2">${part(4, this.area(symbol))}` +
+          `${part(2, this.lineSymbol({ color: symbol.border.color, width: symbol.border.width, join: "miter" }))}</combined_symbol></symbol>`;
+      }
       case "text":
         return `<symbol ${head}><text_symbol icon_text="A"><font family="Arial" size="${this.um(symbol.size)}"` +
           `${symbol.bold ? ` bold="true"` : ""}${symbol.italic ? ` italic="true"` : ""}/>` +
@@ -219,7 +225,7 @@ function typeNumber(symbol: SymbolDef): number {
   switch (symbol.kind) {
     case "point": return 1;
     case "line": return 2;
-    case "area": return 4;
+    case "area": return symbol.border ? 16 : 4;
     case "text": return 8;
   }
 }

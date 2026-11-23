@@ -76,13 +76,14 @@ export const mapProjectImportEn: Texts<typeof mapProjectImportSv> = {
   layerShape: (points: number, lines: number, closed: number, areas: number) =>
     [points && count(points, "point", "points"), lines && count(lines, "line", "lines"), closed && count(closed, "closed line", "closed lines"),
       areas && count(areas, "area", "areas")].filter(Boolean).join(", "),
+  layerStairs: (stairs: number, lines: number) => `${count(stairs, "staircase", "staircases")} from ${count(lines, "stroke", "strokes")}`,
   skip: "Skip",
   symbolFor: (layer: string) => `Symbol for ${layer}`,
   result: (objects: number, joined: number, duplicates: number, short: number, outside: number, mismatched: number, clipped: number,
-    closedAreas: number, stairs: number, steps: number) =>
+    closedAreas: number, stairs: number, steps: number, stairDropped: number) =>
     `${count(objects, "object", "objects")} in the draft`
     + [joined && `${joined} merged`, closedAreas && `${count(closedAreas, "area", "areas")} from closed lines`,
-      stairs && `${count(stairs, "staircase", "staircases")} from ${steps} steps`, clipped && `${clipped} clipped at the edge`, duplicates && `${duplicates} duplicates removed`,
+      stairs && `${count(stairs, "staircase", "staircases")} from ${steps} steps`, stairDropped && `${stairDropped} stair strokes without a staircase removed`, clipped && `${clipped} clipped at the edge`, duplicates && `${duplicates} duplicates removed`,
       short && `${short} short stubs removed`, outside && `${outside} outside the map`, mismatched && `${mismatched} with the wrong shape`].filter(Boolean).map(part => ` · ${part}`).join(""),
   propose: (n: number) => `Leave ${count(n, "object", "objects")} as suggestions`,
   accept: (n: number) => `Put ${count(n, "object", "objects")} in the map`,

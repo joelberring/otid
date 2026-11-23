@@ -70,7 +70,7 @@ import { clickTool } from "./map-project-click-tools";
 import { MapProjectColors } from "./map-project-colors";
 import { railTools, selectionLabel, toolHint, toolName, wheelToolsOf } from "./map-project-rail-tools";
 import { useMapProjectActions } from "./use-map-project-actions";
-import { MapProjectContextBar, placeContextRow } from "./map-project-context-bar";
+import { MapProjectActionsMenu, MapProjectContextBar, placeContextRow, useContextRowSetting, usePhoneWidth } from "./map-project-context-bar";
 import { MapProjectTopBar } from "./map-project-top-bar";
 import { MapProjectModeSwitches } from "./map-project-mode-switches";
 import { stepGap, useMapProjectModes } from "./use-map-project-modes";
@@ -79,7 +79,7 @@ import { useMapProjectSnap } from "./use-map-project-snap";
 import { useMapProjectDrawAssist } from "./use-map-project-draw-assist";
 import { useMapProjectUnfilled } from "./use-map-project-unfilled";
 import { useMapProjectWalk } from "./use-map-project-walk";
-import { draftExtra, nearestAnchor, objectExtra, type SnapExtra } from "../../lib/map-project-snap";
+import { draftExtra, nearestAnchor, objectExtra } from "../../lib/map-project-snap";
 import { MapProjectToolRail } from "./map-project-tool-rail";
 import { HelpButton } from "../help/help-panel";
 import { MapProjectKeysDialog, useMapProjectKeys } from "./map-project-keys-dialog";
@@ -100,38 +100,14 @@ import { useMapProjectText } from "./use-map-project-text";
 import { MapProjectTextLayer, placeTextField } from "./map-project-text";
 import styles from "./map-project-editor.module.css";
 
-/** `area` = rita ett delområde (bara ägarna); `split` = dela kartområdet eller en del med ett streck; `note` = tryck där en notis ska sitta (K3); `circle` = runda former (ägaren 2026-11-09); `bucket` = Fyll yta (rutan mellan linjerna, ägaren 2026-11-13). */
-type Tool = "select" | "draw" | "area" | "split" | "note" | "circle" | "rectangle" | "bucket" | "text" | "addPoint" | "removePoint" | "cut";
-interface Selected { readonly key: ObjectKey; readonly ref: ObjectRef | null; readonly object: MapObject }
-type Drag =
-  /** `extra`: objektets övriga punkter och sträckor att fästa mot (K8b V3); `anchor`: objektets punkt närmast greppet, som fästs. */
-  | { readonly mode: "vertex"; readonly address: VertexAddress; readonly original: MapObject; readonly extra: SnapExtra }
-  | { readonly mode: "object"; readonly start: Point; readonly original: MapObject; readonly anchor: Point | undefined }
-  | { readonly mode: "rotate"; readonly original: MapObject }
-  | { readonly mode: "place"; readonly at: Point }
-  | { readonly mode: "handle" }
-  /** K3: sträckan böjs (dras i där man tog tag). */
-  | { readonly mode: "bend"; readonly address: VertexAddress; readonly t: number; readonly start: Point; readonly original: MapObject }
-  /** K3: punktens styrpunkt dras. */
-  | { readonly mode: "curveHandle"; readonly address: VertexAddress; readonly which: "in" | "out"; readonly original: MapObject }
-  /** Cirkeln dras från mitten ut till kanten. */
-  | { readonly mode: "circle"; readonly center: Point };
+import { DOUBLE_TAP_MS, JOIN_MM, NO_MARKS, SHOWN_STATUSES, TOUCH_HOLD_MS, degreesTo, type Drag, type Selected, type Tool } from "./map-project-editor-types";
 
-const NO_MARKS = { selected: [], flagged: [], radiusMm: 0 } as const;
-const SHOWN_STATUSES = new Set(["UNSEEN", "PASSED", "CHECKED"] as const);
-const DOUBLE_TAP_MS = 350;
-/** Fingret: så länge (ms) innan något markerat följer med i ett drag. Kort (ägaren 2026-11-12: «lyckas bara en gång»): efter 550 ms öppnas hjulet, så fönstret var för smalt med 250. */
-const TOUCH_HOLD_MS = 120;
-const degreesTo = (from: Point, to: Point) => Math.atan2(to.y - from.y, to.x - from.x) * 180 / Math.PI;
 /**
  * ADR-0219 (K1): kartprojektets karta med ritverktygen. Kartan ritas i Workern med alla ändringar; markeringen, objektet som
  * dras och utkastet ritas ovanpå. Verktygen som i Mapper: Redigera (E) markerar och flyttar objekt och punkter, Rita (P)
  * ritar med vald symbol (klick = hörn, tryck och dra = kurva, dubbelklick eller Enter avslutar). Delete tar bort, Ctrl/Cmd+Z
  * ångrar och Ctrl/Cmd+Skift+Z eller Ctrl+Y gör om. Varje ändring blir en ändring av ett objekt i projektets kö.
  */
-/** Linjeändar närmare varandra än så (mm på kartan) räknas som att de möts när linjer slås ihop. */
-const JOIN_MM = 0.3;
-
 export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   /** K3: projektet kommer från telefonen (utan nät), sparat då. */
   offlineSince?: string | undefined }) {
@@ -217,6 +193,9 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   // Ägaren 2026-11-10: tangenterna under vänster hand, valbara (sparade i webbläsaren).
   const [keys, setKeys] = useMapProjectKeys();
   const [keysOpen, setKeysOpen] = useState(false);
+  // Ägaren 2026-11-23: åtgärdsraden vid det markerade bara med inställningen (i telefonen alltid, nederst); annars «Åtgärder ▾» i statusraden.
+  const [contextRowOn, setContextRowOn] = useContextRowSetting(), floatingRow = usePhoneWidth() || contextRowOn;
+  const [nearVertex, setNearVertex] = useState<VertexAddress>();
   const keysText = useTexts(mapProjectKeysSv, mapProjectKeysEn);
   const keyOf = (command: keyof typeof keys) => keys[command] ? keyLabel(keys[command], keysText.space) : undefined;
   const drawingArea = !!newArea;
@@ -330,7 +309,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const rectCorners = useRef<Point[]>([]);
   // K8b V1: det som går att göra med det markerade (kontextraden, hjulets lista, tangenterna och Gör igen).
   const { contextList, doAction, keyAction, repeat, repeatLabel } = useMapProjectActions({ canEdit, tool, keys, keysText, quick, multi, selected, symbol, symbolId,
-    activeVertex, recon, symbols, catalog, save, reshape, commit, setFlash, chooseSymbol, removeSelected, joinMm: JOIN_MM, outlines, stairs: repair,
+    activeVertex, recon, symbols, catalog, save, reshape, commit, setFlash, chooseSymbol, removeSelected, joinMm: JOIN_MM, scale: editor.scale ?? georeference?.scale, outlines, stairs: repair,
     text: { labels: textUi.labels, edit: () => { if (selected?.object.kind === "text") textUi.edit({ ...selected, object: selected.object }); }, rotate: () => setRotating(true), style: () => textUi.styles.setOpen(selected?.object.symbol) } });
   useMapProjectShortcuts({ keys, blocked: keysOpen, canEdit, canNote: notes.canWrite, tool, hasSelection: !!selected, drafting: draft.length > 0,
     multiCount: multi.items.length, panKey, undo: textUi.undo, redo: textUi.redo, toggleBare: () => setBare(value => !value),
@@ -564,6 +543,9 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     onDragCancel() { if (fill.dragging()) fill.escape(); multi.cancel(); drag.current = undefined; setPreviewObject(undefined); setPreview(new Set()); snap.clear(); },
     onHover(point, modifiers) {
       if (tool === "select" && multi.items.length) multi.hover(point, 8 / modifiers.pxPerMm);
+      // Punkten pekaren är nära har alltid ett handtag (handtagen glesas ut när de är täta).
+      const near = tool === "select" && point && selected ? nearestVertex(selected.object, point, 8 / modifiers.pxPerMm) : undefined;
+      if (near?.part !== nearVertex?.part || near?.index !== nearVertex?.index) setNearVertex(near && { part: near.part, index: near.index });
       if (tool === "bucket") fill.hover(point, modifiers.alt);
       const at = point && snapping ? assist.hover(point, modifiers, snapExtra().extra) : point;
       if (!snapping || !point) { snap.clear(); assist.leave(); }
@@ -648,11 +630,11 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     snap.draw(ctx, current); placeTextField(textField.current, textUi.draft, textUi.draftStyle, current);
     placeContextRow(contextRow.current, multi.items.length ? multi.box : shown && tool === "select" && selected ? objectBox(shown) : undefined, current, multi.items.length > 0);
     if (shown && tool === "select" && selected) {
-      drawSelection(ctx, current, shown, activeVertex);
+      drawSelection(ctx, current, shown, activeVertex, nearVertex);
       const handles = activeVertex ? vertexHandles(shown, activeVertex) : undefined;
       if (handles) drawHandles(ctx, current, handles);
     }
-  }, [preview, selected, symbols, tool, symbol, draft, cursor, circleCenter, activeVertex, areaDrawings, proposedOpen, proposedShown, view.area, coverage, recon.layers,
+  }, [preview, selected, nearVertex, symbols, tool, symbol, draft, cursor, circleCenter, activeVertex, areaDrawings, proposedOpen, proposedShown, view.area, coverage, recon.layers,
     recon.trackLines, reconResult, walk, gapMm, notes.notes, shownNote, noteDraft, drawnLayers, focused, candidates, normIssues, shownIssue,
     control.active, control.markers, rectify.shown, rectify.markers, sketchLayers, work.dragging, work.drawingLayer, work.stroke,
     multi.moving, multi.shown, multi.box, multi.cuts, multi.items.length, multi.marquee, fill.preview, fill.bridges, fill.gaps, fill.pending, fill.shown, fill.proposals.candidates, fill.proposals.override, contextKey, snap.mark, assist.via, unfilled.on, unfilled.result, editor.renderKey, hiddenSymbols, textUi.draft, textUi.draftStyle]);
@@ -707,7 +689,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     {editor.notice && <div className={styles.notice}><Notice tone="attention" role="status">{noticeText(editor.notice, text)}{" "}
       <Button variant="quiet" onClick={() => editor.setNotice(undefined)}>{text.ok}</Button></Notice></div>}
     <MapProjectRegenerableNotice view={view} layers={layers} />
-    {keysOpen && <MapProjectKeysDialog keys={keys} onKeys={setKeys} onClose={() => setKeysOpen(false)} />}
+    {keysOpen && <MapProjectKeysDialog keys={keys} onKeys={setKeys} onClose={() => setKeysOpen(false)} contextRow={contextRowOn} onContextRow={setContextRowOn} />}
     <div className={styles.workspace} data-bare={bare}>
       <MapProjectToolRail label={text.tools.label} tools={rail} spaceLabel={keysText.space} />
       {canEdit && <MapProjectTopBar recent={recentSymbols} symbolId={symbolId}
@@ -723,7 +705,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
           repeat={repeatLabel ? { id: "repeat", label: repeatLabel, key: keyOf("repeat"), onPick: repeat } : undefined}
           actions={[...contextList.map(action => ({ id: action.id, label: action.label, key: action.key, onPick: () => doAction(action.id) })),
             { id: "textTool", label: keysText.commands.text, key: keyOf("text"), onPick: () => railPick("text") }]} />}
-        <MapProjectContextBar label={quick.actions} actions={contextList} rowRef={contextRow} onAction={doAction} spaceLabel={keysText.space} hidden={!!wheel} />
+        {floatingRow && <MapProjectContextBar label={quick.actions} actions={contextList} rowRef={contextRow} onAction={doAction} spaceLabel={keysText.space} hidden={!!wheel} />}
         <MapProjectTextLayer ui={textUi} fieldRef={textField} catalog={catalog} symbols={symbols} colors={editor.symbolColors.colors} fileIds={editor.symbolIds} chooseSymbol={chooseSymbol} />
         {editor.mapStatus === "loading" && <p className={styles.loading}>{text.loading}</p>}
         {editor.mapStatus === "failed" && <Notice tone="error" role="alert">{text.failed}</Notice>}
@@ -738,7 +720,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
           position={position.position && positionMode !== "off" ? { position: position.position, follow: positionMode === "follow" } : undefined}
           onPan={() => setPositionMode(mode => mode === "follow" ? "on" : mode)} handle={mapHandle} /></div>}
         {editor.mapStatus === "ready" && georeference && <MapProjectFieldControls mode={positionMode} onMode={setPositionMode} problem={position.problem}
-          aboveContext={contextList.length > 0 && !wheel} canRecord={recon.canRecord} recording={!!recon.recording}
+          aboveContext={floatingRow && contextList.length > 0 && !wheel} canRecord={recon.canRecord} recording={!!recon.recording}
           note={notes.canWrite && position.position ? () => { setShownNote(undefined); setNoteDraft({ at: position.position!.at }); } : undefined}
           onRecord={() => { if (recon.recording) void recon.stopRecording();
             else void recon.startRecording(reconText.recordDefault(new Date().toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }))); }}
@@ -756,10 +738,11 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
       <div className={styles.statusRow}>
         <MapProjectCandidateBar importer={importer} symbols={symbols} onShowLayers={() => { setTab("basemap"); setPanelOpen(true); }} />
         <MapProjectAreaProposalBar proposals={fill.proposals} />
-        {/* Det som görs med det markerade står i kontextraden; här bara utkastet, skisslagret och flytta hela/vrid. */}
+        {/* Det som görs med det markerade: «Åtgärder ▾» här (eller raden vid det markerade); dessutom utkastet, skisslagret och flytta hela/vrid. */}
         {canEdit && <MapProjectObjectBar label={quick.actions} work={work} workText={workText} tools={text.tools} drafting={draft.length > 0} onFinish={finishDraft} onCancel={cancelDraft}
           selectedKind={selected && tool === "select" ? selected.object.kind : undefined} activeVertex={!!activeVertex} moveWhole={moveWhole} onMoveWhole={setMoveWhole}
           rotating={rotating} onRotating={setRotating} />}
+        {!floatingRow && <MapProjectActionsMenu label={quick.actionsMenu} actions={contextList} onAction={doAction} spaceLabel={keysText.space} />}
         <p className={styles.hint} aria-live="polite" data-testid="map-project-hint" title={hintLine}>{hintLine}</p>
         {canEdit && <MapProjectModeSwitches snap={modes.snap} onSnap={() => modes.setSnap(value => !value)} snapKey={keyOf("snap")} snapState={snap.mark && keysText.snapAt(snap.mark.kind)}
           angle={assist.locked} unfilled={{ state: unfilled.state, onNext: unfilled.next }} gapM={modes.gapM} onGap={modes.setGapM} cells={fill.cells} text={keysText} over={{ on: modes.over, onToggle: () => modes.setOver(!modes.over), key: keyOf("fillOver"), note: tool === "bucket" ? fill.overNote : undefined }} />}

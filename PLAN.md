@@ -1477,6 +1477,11 @@ stannar kvar; siffror byter symbol, bokstäver verktyg; tryck byter, håll låna
   bebyggda … stigar mitt i vägar?», «trapporna har ingen avgränsning på sidorna och har inte färg?»): kandidatradens kryssruta och
   reglage (förval på, 25 m), stegen 5–7 i «Rätta efter sprintnormen» (kärr och bäckar i bebyggt, stigar i vägar, små kantringar),
   trappan och de andra måtten som wikin inte anger som i Mappers ISSprOM 2019-2.
+- [x] V10 Lugnare ritläge (ägaren 2026-11-23: «stressande att denna meny kommer upp varje gång», «förenkla mer … går att göra en gång»):
+  raden vid det markerade bara med inställningen «Visa åtgärdsraden vid det markerade» (tangentdialogen, av som förval; i telefonen
+  alltid, smal nederst), annars högerklick/hjulet, tangenterna och «Åtgärder ▾» i statusraden, de vanligaste först (Byt till,
+  Duplicera, Ta bort); Förenkla/Förenkla mer stegvis (×1,6 per tryck från förra, tak 0,8 mm), kurvor behålls, ytor korsar inte
+  sig själva och krymper inte under normens minsta yta; glesare och mindre punkthandtag när de är täta.
 
 ## [ ] Steg L – Lagring: gränser, städning och arkiv (ägaren 2026-11-13)
 

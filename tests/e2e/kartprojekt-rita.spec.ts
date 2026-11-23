@@ -143,6 +143,9 @@ test("kartprojekt: rita en stig, ångra och gör om, flytta och ta bort en sten"
   await owner.keyboard.press("q");
   await owner.mouse.click(textAt.x, textAt.y);
   await expect(owner.getByTestId("map-project-hint")).toContainText("999.0");
+  // Ägaren 2026-11-23: ingen rad vid det markerade som förval; åtgärderna ligger under «Åtgärder ▾» i statusraden.
+  await expect(owner.getByTestId("map-project-context")).toHaveCount(0);
+  await owner.getByTestId("map-project-actions").click();
   await owner.getByTestId("map-project-text-edit").click();
   await expect(field).toHaveValue("Hej\ndu");
   await field.fill("Hejdå");
@@ -323,6 +326,8 @@ test("kartprojekt: tangenter under vänster hand, lägg till och ta bort punkter
   await owner.getByTestId("map-project-keys-open").click();
   const dialog = owner.getByTestId("map-project-keys");
   await expect(dialog.getByTestId("map-project-key-draw")).toHaveText("W");
+  // Ägaren 2026-11-23: raden vid det markerade är av som förval och slås på här.
+  await expect(dialog.getByTestId("map-project-context-setting")).not.toBeChecked();
   await dialog.getByTestId("map-project-key-draw").click();
   await owner.keyboard.press("p");
   await expect(dialog.getByTestId("map-project-key-draw")).toHaveText("P");
@@ -364,6 +369,8 @@ test("kartprojekt: markera flera objekt med en ruta, flytta, vrid och ta bort de
   expect(created.status()).toBe(201);
   const projectId = (await created.json() as { projectId: string }).projectId;
   await owner.setViewportSize({ width: 1280, height: 900 });
+  // Raden vid det markerade är av som förval (ägaren 2026-11-23); här läses dess knappar, så den slås på.
+  await owner.addInitScript(() => localStorage.setItem("otid-map-context-row", "on"));
   await owner.goto(`/organizer/map-projects/${projectId}/map`);
   const map = owner.getByTestId("course-setting-map");
   await expect(map).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });
@@ -458,6 +465,8 @@ test("kartprojekt: förklaringar i verktygsspalten, slå ihop linjer och byt sym
   expect(created.status()).toBe(201);
   const projectId = (await created.json() as { projectId: string }).projectId;
   await owner.setViewportSize({ width: 1280, height: 900 });
+  // Ägaren 2026-11-23: raden vid det markerade är av som förval; testet läser dess knappar, så den slås på (som i tangentdialogen).
+  await owner.addInitScript(() => localStorage.setItem("otid-map-context-row", "on"));
   await owner.goto(`/organizer/map-projects/${projectId}/map`);
   const map = owner.getByTestId("course-setting-map");
   await expect(map).toHaveAttribute("data-drawn", "true", { timeout: 60_000 });

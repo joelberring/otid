@@ -15,6 +15,8 @@ export const mapProjectKeysSv = {
   none: "Ingen",
   space: "Mellanslag",
   fixed: "Fasta: Esc avbryter (en gång till: Markera), Enter avslutar, Delete tar bort, Backsteg tar bort sista punkten medan du ritar, 1–8 väljer de senaste symbolerna utan att byta verktyg, [ och ] byter Glapp, Alt+1–6 tänder och släcker normens grupper (Alt+Skift: bara den gruppen), Alt+0 tänder allt. Håll Markeras tangent för att markera en stund; när du släpper är du tillbaka i verktyget du hade.",
+  contextRow: "Visa åtgärdsraden vid det markerade",
+  contextRowHelp: "Av: åtgärderna nås med högerklick (hjulet), tangenterna och «Åtgärder» i statusraden. I telefonen ligger raden alltid nederst.",
   changedDefaults: "Nytt förval 2026-11-21: F är Magisk fyll (förut G), G Slå ihop (förut F), E Rektangel (förut ⇧W), T Fäst och ⇧Mellanslag Gör igen. Siffrorna väljer de senaste symbolerna; normens grupper ligger på Alt+siffra. Tangenter du själv har bytt behålls.",
   displaced: (command: string, key: string) => `${command} hade ${key} och har nu ingen tangent.`,
   reserved: (key: string) => `${key} används redan till något fast.`,

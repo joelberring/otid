@@ -1,5 +1,6 @@
 import type { MapObject, Path, PathCommand, Point } from "@o-tid/map-file";
 import { objectParts } from "./edit";
+import { objectBox } from "./hit";
 import { simplifyPoints } from "./generalize";
 
 /**
@@ -134,4 +135,85 @@ export function circleShape(kind: "line" | "area", symbol: string, center: Point
     { type: "C", x1: x + k, y1: y - radius, x2: x + radius, y2: y - k, x: x + radius, y }
   ];
   return kind === "area" ? { kind: "area", symbol, rings: [path], angle: 0 } : { kind: "line", symbol, path };
+}
+
+/** Förenkla stegvis (ägaren 2026-11-23): varje steg prövar en tolerans så mycket större än förra. */
+export const SIMPLIFY_GROWTH = 1.6;
+/** Det största steget (kartans mm), och högst så stor del av objektets diagonal: mer ändrar formen för mycket. */
+export const SIMPLIFY_MAX_MM = 0.8;
+const SIMPLIFY_MAX_SHARE = 0.1;
+/** En yta får inte krympa eller växa mer än så av sin yta i ett steg. */
+const SIMPLIFY_AREA_CHANGE = 0.35;
+
+export interface SimplifyStep { readonly object: MapObject; readonly tolerance: number }
+
+const ringArea = (ring: readonly Point[]) => Math.abs(ring.reduce((sum, point, index) => {
+  const next = ring[(index + 1) % ring.length]!;
+  return sum + point.x * next.y - next.x * point.y;
+}, 0) / 2);
+
+/** Ytans storlek (kartans mm²): den yttre ringen minus hålen. */
+function areaOf(object: MapObject): number {
+  if (object.kind !== "area") return 0;
+  return objectParts(object).map(part => ringArea(flatten(part))).reduce((sum, area, index) => index === 0 ? area : sum - area, 0);
+}
+
+function crosses(a: Point, b: Point, c: Point, d: Point): boolean {
+  const side = (p: Point, q: Point, r: Point) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+  const d1 = side(c, d, a), d2 = side(c, d, b), d3 = side(a, b, c), d4 = side(a, b, d);
+  return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
+}
+
+/** Om ytans ringar (med kurvorna utplattade) korsar sig själva eller varandra. Svep i x, så att täta ytor går fort. */
+export function areaSelfCrosses(object: MapObject): boolean {
+  if (object.kind !== "area") return false;
+  const segments: { a: Point; b: Point; minX: number; maxX: number; ring: number; index: number; count: number }[] = [];
+  objectParts(object).forEach((part, ring) => {
+    const points = flatten(part);
+    const count = points.length - 1;
+    for (let index = 0; index < count; index += 1) {
+      const a = points[index]!, b = points[index + 1]!;
+      segments.push({ a, b, minX: Math.min(a.x, b.x), maxX: Math.max(a.x, b.x), ring, index, count });
+    }
+  });
+  segments.sort((p, q) => p.minX - q.minX);
+  for (let i = 0; i < segments.length; i += 1) {
+    const s = segments[i]!;
+    for (let j = i + 1; j < segments.length && segments[j]!.minX <= s.maxX; j += 1) {
+      const t = segments[j]!;
+      if (Math.max(s.a.y, s.b.y) < Math.min(t.a.y, t.b.y) || Math.max(t.a.y, t.b.y) < Math.min(s.a.y, s.b.y)) continue;
+      // Grannar i samma ring delar en punkt.
+      if (s.ring === t.ring && (Math.abs(s.index - t.index) === 1 || Math.abs(s.index - t.index) === s.count - 1)) continue;
+      if (crosses(s.a, s.b, t.a, t.b)) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Ett steg enklare (ägaren 2026-11-23: «går att göra en gång sen blir det inte mer förenklingar»): den minsta toleransen från
+ * `from` och uppåt (×1,6 per försök, högst `SIMPLIFY_MAX_MM` och en tiondel av objektets diagonal) som ger färre punkter i
+ * objektets nuvarande form. Kurvor behålls: ett objekt med kurvor görs mjukt genom de punkter som är kvar (rakt om den mjuka
+ * formen inte håller). En yta får inte korsa sig själv, inte ändra storlek mer än en tredjedel och inte bli mindre än
+ * `minArea` (normens minsta yta, kartans mm²). Undefined när inget steg går.
+ */
+export function simplifyStep(object: MapObject, from: number, options: { readonly minArea?: number | undefined } = {}): SimplifyStep | undefined {
+  if (object.kind !== "line" && object.kind !== "area") return undefined;
+  const box = objectBox(object), max = Math.min(SIMPLIFY_MAX_MM, SIMPLIFY_MAX_SHARE * Math.hypot(box.maxX - box.minX, box.maxY - box.minY));
+  const curved = objectParts(object).some(part => part.some(command => command.type === "C"));
+  const before = areaOf(object);
+  const smallest = options.minArea === undefined ? 0 : Math.min(options.minArea, before);
+  const holds = (candidate: MapObject) => {
+    if (candidate.kind !== "area") return true;
+    const area = areaOf(candidate);
+    return area >= smallest && Math.abs(area - before) <= SIMPLIFY_AREA_CHANGE * before && !areaSelfCrosses(candidate);
+  };
+  for (let tolerance = from; tolerance <= max * (1 + 1e-9); tolerance *= SIMPLIFY_GROWTH) {
+    const straight = simplifyShape(object, tolerance);
+    if (!straight) continue;
+    const smooth = curved ? smoothShape(straight) : undefined;
+    if (smooth && holds(smooth)) return { object: smooth, tolerance };
+    if (holds(straight)) return { object: straight, tolerance };
+  }
+  return undefined;
 }

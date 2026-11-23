@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { MapObject } from "@o-tid/map-file";
-import { withSymbol, type EditKind, type ObjectKey, type ObjectRef, type VertexAddress } from "@o-tid/map-revision";
+import { areaMinimum, withSymbol, type EditKind, type ObjectKey, type ObjectRef, type VertexAddress } from "@o-tid/map-revision";
 import type { mapProjectKeysSv } from "../../i18n/map-project-keys-sv";
 import type { mapProjectQuickSv } from "../../i18n/map-project-quick-sv";
 import { edgePlan } from "../../lib/map-project-edge";
@@ -10,7 +10,7 @@ import { reverseLine } from "../../lib/map-project-join";
 import type { KeyMap } from "../../lib/map-project-keys";
 import type { Texts } from "../../lib/language";
 import type { CatalogSymbol } from "../../lib/map-project-protocol";
-import { shapeActions } from "../../lib/map-project-shape-actions";
+import { nextSimplify, rememberSimplify, shapeActions, SIMPLIFY_MM, type SimplifyMemory } from "../../lib/map-project-shape-actions";
 import { fillOrBorder } from "../../lib/map-project-shape-tools";
 import { addEdges, duplicateObjects, shapeCommand } from "./map-project-click-tools";
 import { contextActions, type ContextActionId } from "./map-project-context-actions";
@@ -33,6 +33,8 @@ export function useMapProjectActions(input: {
   save: (key: ObjectKey, ref: ObjectRef | null, object: MapObject | undefined, kind: EditKind) => boolean;
   reshape: (result: MapObject | undefined, message: string) => void; commit: (change: ObjectChange) => boolean; setFlash: (message: string) => void;
   chooseSymbol: (id: string) => void; removeSelected: () => void; joinMm: number;
+  /** Kartans skala (normens minsta yta när en yta förenklas). */
+  scale: number | undefined;
   /** K8b V6: textobjektets åtgärder (Redigera text, Vrid, Ändra textsymbol). */
   text: { labels: { edit: string; rotate: string; style: string; switchTo: (code: string) => string }; edit: () => void; rotate: () => void; style: () => void };
   /** Ägaren 2026-11-23: «Lägg kant runt husen» för de markerade husen. */
@@ -44,7 +46,19 @@ export function useMapProjectActions(input: {
   const [last, setLast] = useState<{ id: ContextActionId; label: string }>();
   const canSwitch = !!selected && !!symbol && symbol.id !== selected.object.symbol && symbol.kind === selected.object.kind && canEdit;
   // Ägaren 2026-11-09: formens åtgärder för det markerade objektet.
-  const shapes = selected && tool === "select" && canEdit ? shapeActions(selected.object, input.quick) : [];
+  // Ägaren 2026-11-23: förenklingen går stegvis (förra toleransen per objekt minns här).
+  const simplified = useRef<SimplifyMemory>(new Map()).current;
+  const minAreaOf = (object: MapObject) => {
+    const code = input.symbols.get(object.symbol)?.code;
+    return object.kind === "area" && code && input.scale ? areaMinimum(code, input.scale) : undefined;
+  };
+  const shapeTarget = selected && tool === "select" && canEdit ? selected : undefined;
+  const shapes = useMemo(() => shapeTarget ? shapeActions(shapeTarget.object, input.quick, { memory: simplified, key: shapeTarget.key, minArea: minAreaOf(shapeTarget.object) }) : [],
+    [shapeTarget?.key, shapeTarget?.object, input.quick, input.scale, input.symbols]);
+  const reshapeWith = (shape: (typeof shapes)[number]) => {
+    if ((shape.id === "simplify" || shape.id === "simplifyMore") && shape.step && selected) rememberSimplify(simplified, selected.key, shape.step);
+    input.reshape(shape.result, shape.message);
+  };
   // Ägaren 2026-11-15: kantlinje på de markerade ytorna, med kantsymbolen ur kartans symboler.
   const edgeOf = multi.items.length ? multi.items.map(item => item.object) : selected && tool === "select" ? [selected.object] : [];
   const edges = canEdit && edgeOf.some(object => object.kind === "area") ? edgePlan(edgeOf, input.symbols, input.catalog, symbol) : undefined;
@@ -71,12 +85,20 @@ export function useMapProjectActions(input: {
       else if (command === "join") { const count = multi.join(input.joinMm); setFlash(count ? keysText.joined(count) : keysText.needLines); }
       else if (command === "reverse") { const count = multi.reverse(); setFlash(count ? keysText.reversed(count) : keysText.needLine); }
       else if (command === "duplicate") duplicate(multi.items);
-      else if (command === "smooth" || command === "simplify") { const count = multi.shape(command); setFlash(count ? keysText[command === "smooth" ? "multiSmoothed" : "multiSimplified"](count) : keysText.needShape); }
+      else if (command === "smooth") { const count = multi.shape(command); setFlash(count ? keysText.multiSmoothed(count) : keysText.needShape); }
+      else if (command === "simplify") {
+        const count = multi.shape(command, item => {
+          const step = nextSimplify(simplified, item.key, item.object, SIMPLIFY_MM.little, minAreaOf(item.object));
+          if (step) rememberSimplify(simplified, item.key, step);
+          return step?.object;
+        });
+        setFlash(count ? keysText.multiSimplified(count) : multi.items.some(item => item.object.kind === "line" || item.object.kind === "area") ? input.quick.nothingToSimplify : keysText.needShape);
+      }
       return;
     }
     if (!selected) return;
     const shape = command === "simplify" || command === "smooth" ? shapes.find(action => action.id === command) : undefined;
-    if (shape) input.reshape(shape.result, shape.message);
+    if (shape) reshapeWith(shape);
     else if (command === "switchSymbol" && canSwitch) input.save(selected.key, selected.ref, withSymbol(selected.object, symbol.id), "SYMBOL");
     else if (command === "reverse") { const turned = reverseLine(selected.object); if (turned && input.save(selected.key, selected.ref, turned, "RESHAPE")) setFlash(keysText.reversed(1)); }
     else if (command === "duplicate") duplicate([selected]);
@@ -95,7 +117,7 @@ export function useMapProjectActions(input: {
     else if (id === "rotate") input.text.rotate();
     else if (id === "textStyle") input.text.style();
     else if (id === "remove") { if (multi.items.length) multi.remove(); else input.removeSelected(); }
-    else if (id === "simplifyMore" || id === "straighten") { const shape = shapes.find(action => action.id === id); if (shape) input.reshape(shape.result, shape.message); }
+    else if (id === "simplifyMore" || id === "straighten") { const shape = shapes.find(action => action.id === id); if (shape) reshapeWith(shape); }
     else act(id);
     remember(id);
   };

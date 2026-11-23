@@ -9,11 +9,11 @@ const base: ContextInput = { keys: DEFAULT_KEYS, space: "Mellanslag", text: mapP
 const line = { kind: "line" as const, switchTo: undefined, canPick: false, shapes: [], canFill: false, vertex: false };
 
 describe("kontextraden (K8b V1)", () => {
-  it("visar bara det som går, med Byt till först och tangenten på varje knapp", () => {
+  it("visar bara det som går, med Byt till, Duplicera och Ta bort först och tangenten på varje knapp", () => {
     const actions = contextActions({ ...base, single: { ...line, switchTo: "506.0", canPick: true, shapes: [{ id: "smooth", label: "Gör mjuk" }], canFill: true } });
-    expect(actions.map(action => action.id)).toEqual(["switchSymbol", "pick", "duplicate", "parallel", "reverse", "fill", "smooth", "remove"]);
+    expect(actions.map(action => action.id)).toEqual(["switchSymbol", "duplicate", "remove", "pick", "parallel", "reverse", "fill", "smooth"]);
     expect(actions[0]).toMatchObject({ label: "Byt till 506.0", key: "C", testId: "map-project-rail-switch" });
-    expect(actions.map(action => action.key)).toEqual(["C", "D", "⇧D", "⇧V", "V", "⇧F", "⇧A", "Del"]);
+    expect(actions.map(action => action.key)).toEqual(["C", "⇧D", "Del", "D", "⇧V", "V", "⇧F", "⇧A"]);
   });
 
   it("en punkt: ingen parallell, vänd eller form; samma symbol ger ingen Byt till och ingen pipett", () => {
@@ -22,7 +22,7 @@ describe("kontextraden (K8b V1)", () => {
 
   it("kollad syns för den som rekar, nedtryckt när objektet är kollat; kant bara med en kantsymbol", () => {
     const actions = contextActions({ ...base, single: { ...line, kind: "area" }, checked: true, edge: { areas: 1, codes: ["508.0"] } });
-    expect(actions.map(action => action.id)).toEqual(["duplicate", "checked", "edge", "remove"]);
+    expect(actions.map(action => action.id)).toEqual(["duplicate", "remove", "checked", "edge"]);
     expect(actions.find(action => action.id === "checked")).toMatchObject({ pressed: true, key: "R", testId: "recon-check" });
     expect(contextActions({ ...base, single: { ...line, kind: "area" }, edge: { areas: 1, codes: [] } }).some(action => action.id === "edge")).toBe(false);
   });
@@ -30,22 +30,22 @@ describe("kontextraden (K8b V1)", () => {
   it("en text (K8b V6): Redigera text, Byt textsymbol, Vrid, Ändra textsymbol, Duplicera och Ta bort", () => {
     const labels = { edit: "Redigera text", rotate: "Vrid", style: "Ändra textsymbol", switchTo: (code: string) => `Byt textsymbol till ${code}` };
     const actions = contextActions({ ...base, single: { ...line, kind: "text", switchTo: "999.1", text: labels } });
-    expect(actions.map(action => action.id)).toEqual(["editText", "switchSymbol", "rotate", "textStyle", "duplicate", "remove"]);
+    expect(actions.map(action => action.id)).toEqual(["editText", "switchSymbol", "duplicate", "remove", "rotate", "textStyle"]);
     expect(actions[1]).toMatchObject({ label: "Byt textsymbol till 999.1", key: "C" });
     expect(contextActions({ ...base, single: { ...line, kind: "text", text: labels } }).map(action => action.id))
-      .toEqual(["editText", "rotate", "textStyle", "duplicate", "remove"]);
+      .toEqual(["editText", "duplicate", "remove", "rotate", "textStyle"]);
   });
 
   it("en vald brytpunkt: Ta bort tar bort punkten", () => {
-    expect(contextActions({ ...base, single: { ...line, vertex: true } }).at(-1)?.label).toBe("Ta bort punkt");
+    expect(contextActions({ ...base, single: { ...line, vertex: true } }).find(action => action.id === "remove")?.label).toBe("Ta bort punkt");
   });
 
-  it("flera markerade: byt alla, slå ihop, förenkla, duplicera och ta bort", () => {
+  it("flera markerade: byt alla, duplicera, ta bort, slå ihop och förenkla", () => {
     const actions = contextActions({ ...base, multi: { count: 3, switchable: 3, symbolCode: "505.0", joinable: true, lines: 0, smooth: 0, simplify: 2 } });
-    expect(actions.map(action => action.label)).toEqual(["Byt alla 3 till 505.0", "Slå ihop linjer eller ytor", "Förenkla 2", "Duplicera", "Ta bort 3 objekt"]);
-    expect(actions.map(action => action.key)).toEqual(["C", "G", "⇧S", "⇧D", "Del"]);
+    expect(actions.map(action => action.label)).toEqual(["Byt alla 3 till 505.0", "Duplicera", "Ta bort 3 objekt", "Slå ihop linjer eller ytor", "Förenkla 2"]);
+    expect(actions.map(action => action.key)).toEqual(["C", "⇧D", "Del", "G", "⇧S"]);
     const few = contextActions({ ...base, multi: { count: 2, switchable: 0, symbolCode: "505.0", joinable: false, lines: 2, smooth: 0, simplify: 0 } });
-    expect(few.map(action => action.id)).toEqual(["duplicate", "reverse", "remove"]);
+    expect(few.map(action => action.id)).toEqual(["duplicate", "remove", "reverse"]);
   });
 
   it("inget markerat: ingen rad", () => {

@@ -1,7 +1,7 @@
 "use client";
 
 import type { MapObject, Point } from "@o-tid/map-file";
-import { simplifyShape, smoothShape, withSymbol, type Box, type ObjectKey, type ObjectRef } from "@o-tid/map-revision";
+import { simplifyShape, simplifyStep, smoothShape, withSymbol, type Box, type ObjectKey, type ObjectRef } from "@o-tid/map-revision";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { EndMark } from "../../lib/map-project-cut-marks";
 import { translateObject } from "../../lib/map-project-draw";
@@ -30,7 +30,7 @@ const ROTATE_REACH = 3;
 /** Formen för ett av flera markerade: förenklad, eller mjuk (förenklas först med 0,15 mm, som generaliseringen). Inget när inget ändras. */
 export function multiShape(object: MapObject, how: "simplify" | "smooth"): MapObject | undefined {
   if (object.kind !== "line" && object.kind !== "area") return undefined;
-  return how === "simplify" ? simplifyShape(object, SIMPLIFY_MM.little) : smoothShape(simplifyShape(object, SIMPLIFY_MM.more) ?? object);
+  return how === "simplify" ? simplifyStep(object, SIMPLIFY_MM.little)?.object : smoothShape(simplifyShape(object, SIMPLIFY_MM.more) ?? object);
 }
 
 /** En punkt på objektet: var en borttagning ligger (för delområdena när servern bara har objektet i grundfilen). */
@@ -167,12 +167,12 @@ export function useMapProjectMulti({ session, hidden, commit, setPreviewKeys, to
     },
     /** Hur många av de markerade linjerna och ytorna som formen ändrar. */
     shapeable: (how: "simplify" | "smooth") => itemsRef.current.filter(item => multiShape(item.object, how)).length,
-    /** Ägaren 2026-11-12: förenkla eller gör alla markerade linjer och ytor mjuka (ett steg att ångra). Antalet som ändrades. */
-    shape: (how: "simplify" | "smooth"): number => {
+    /** Ägaren 2026-11-12: förenkla eller gör alla markerade linjer och ytor mjuka (ett steg att ångra; `custom` = stegvis förenkling). Antalet som ändrades. */
+    shape: (how: "simplify" | "smooth", custom?: (item: MultiItem) => MapObject | undefined): number => {
       const group = crypto.randomUUID();
       let count = 0;
       setItems(itemsRef.current.map(item => {
-        const object = multiShape(item.object, how);
+        const object = custom ? custom(item) : multiShape(item.object, how);
         if (!object || !commit({ key: item.key, ref: item.ref, kind: "RESHAPE", after: { kind: "OBJECT", object }, group })) return item;
         count += 1;
         return { ...item, object };

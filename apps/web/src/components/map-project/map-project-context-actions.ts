@@ -52,8 +52,9 @@ export interface ContextInput {
 
 /**
  * K8b V1 (ägaren 2026-11-21): kontextraden vid det markerade och listan i hjulet. Bara det som går att använda, i fast
- * ordning med «Byt till» den valda symbolen först, och varje knapp med sin tangent. Flera markerade: byt alla, slå ihop,
- * förenkla, duplicera och ta bort (och vänd, mjuk och kant när de går).
+ * ordning med de vanligaste först (ägaren 2026-11-23): «Byt till» den valda symbolen, Duplicera och Ta bort, sedan resten,
+ * och varje knapp med sin tangent. Flera markerade: byt alla, duplicera, ta bort, slå ihop, förenkla (och mjuk, vänd och kant
+ * när de går).
  */
 export function contextActions(input: ContextInput): ContextAction[] {
   const { keys, text, quick, single, multi } = input;
@@ -66,40 +67,41 @@ export function contextActions(input: ContextInput): ContextAction[] {
   const checked = input.checked === undefined ? [] : [of("checked", text.commands.checked, "checked", { pressed: input.checked, testId: "recon-check" })];
   if (multi) return [
     ...(multi.switchable && multi.symbolCode ? [of("switchSymbol", text.multiSwitch(multi.switchable, multi.symbolCode), "switchSymbol", { testId: "map-project-rail-switch" })] : []),
+    of("duplicate", text.commands.duplicate, "duplicate", { testId: "map-project-duplicate" }),
+    of("remove", text.multiRemove(multi.count), undefined, { key: "Del", help: text.tips.remove, testId: "map-project-rail-remove" }),
     ...(multi.joinable ? [of("join", text.commands.join, "join", { testId: "map-project-rail-join" })] : []),
     ...(multi.simplify ? [of("simplify", text.multiSimplify(multi.simplify), "simplify")] : []),
     ...(multi.smooth ? [of("smooth", text.multiSmooth(multi.smooth), "smooth")] : []),
-    of("duplicate", text.commands.duplicate, "duplicate", { testId: "map-project-duplicate" }),
     ...(multi.lines ? [of("reverse", text.commands.reverse, "reverse", { testId: "map-project-rail-reverse" })] : []),
-    ...edge, ...outlines,
-    of("remove", text.multiRemove(multi.count), undefined, { key: "Del", help: text.tips.remove, testId: "map-project-rail-remove" })];
+    ...edge, ...outlines];
   if (!single) return [];
   const shape = (id: "simplify" | "simplifyMore" | "smooth" | "straighten") => {
     const found = single.shapes.find(entry => entry.id === id);
     return found ? [of(id, found.label, id === "simplify" || id === "smooth" ? id : undefined)] : [];
   };
   const line = single.kind === "line";
+  const remove = of("remove", single.vertex ? text.commands.removePoint : quick.remove, undefined, { key: "Del", help: text.tips.remove, testId: "map-project-rail-remove" });
   // K8b V6: en text – Redigera text, Byt textsymbol, Vrid, Ändra textsymbol, Duplicera, Ta bort.
   if (single.text) return [
     of("editText", single.text.edit, undefined, { testId: "map-project-text-edit" }),
     ...(single.switchTo ? [of("switchSymbol", single.text.switchTo(single.switchTo), "switchSymbol", { testId: "map-project-rail-switch" })] : []),
+    of("duplicate", text.commands.duplicate, "duplicate", { testId: "map-project-duplicate" }),
+    remove,
     of("rotate", single.text.rotate, undefined, { testId: "map-project-text-rotate" }),
     of("textStyle", single.text.style, undefined, { testId: "map-project-text-style" }),
     ...(single.canPick ? [of("pick", text.commands.pick, "pick", { testId: "map-project-rail-pick" })] : []),
-    of("duplicate", text.commands.duplicate, "duplicate", { testId: "map-project-duplicate" }),
-    ...checked,
-    of("remove", quick.remove, undefined, { key: "Del", help: text.tips.remove, testId: "map-project-rail-remove" })];
+    ...checked];
   return [
     ...(single.switchTo ? [of("switchSymbol", quick.switchTo(single.switchTo), "switchSymbol", { testId: "map-project-rail-switch" })] : []),
-    ...(single.canPick ? [of("pick", text.commands.pick, "pick", { testId: "map-project-rail-pick" })] : []),
     of("duplicate", text.commands.duplicate, "duplicate", { testId: "map-project-duplicate" }),
+    remove,
+    ...(single.canPick ? [of("pick", text.commands.pick, "pick", { testId: "map-project-rail-pick" })] : []),
     ...(line ? [of("parallel", text.commands.parallel, "parallel", { testId: "map-project-parallel" })] : []),
     ...(line ? [of("reverse", text.commands.reverse, "reverse", { testId: "map-project-rail-reverse" })] : []),
     ...(single.canFill ? [of("fill", text.commands.fill, "fill", { testId: "map-project-fill" })] : []),
     ...shape("smooth"), ...shape("simplify"), ...shape("simplifyMore"), ...shape("straighten"),
     ...checked,
-    ...edge, ...outlines,
-    of("remove", single.vertex ? text.commands.removePoint : quick.remove, undefined, { key: "Del", help: text.tips.remove, testId: "map-project-rail-remove" })];
+    ...edge, ...outlines];
 }
 
 /** Avståndet (px) mellan objektets ram och raden, och till kartrutans kant. Flera markerade: utanför hörnens vridzon. */

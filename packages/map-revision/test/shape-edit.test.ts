@@ -1,6 +1,6 @@
 import type { MapObject, PathCommand } from "@o-tid/map-file";
 import { describe, expect, it } from "vitest";
-import { circleShape, simplifyShape, smoothShape, straightenShape, vertexCount } from "../src";
+import { areaSelfCrosses, circleShape, SIMPLIFY_GROWTH, simplifyShape, simplifyStep, smoothShape, straightenShape, vertexCount } from "../src";
 
 /** Ägaren 2026-11-09: förenkla, mjuk, rak och cirkel för ett markerat objekt. */
 const line = (points: readonly [number, number][], corner: number[] = []): MapObject => ({ kind: "line", symbol: "101",
@@ -50,5 +50,61 @@ describe("formen på ett objekt", () => {
     expect(top && [top.x, top.y]).toEqual([10, 13]);
     expect(circleShape("line", "101", { x: 0, y: 0 }, 0.01)).toBeUndefined();
     expect(circleShape("line", "101", { x: 0, y: 0 }, 1)?.kind).toBe("line");
+  });
+});
+
+describe("förenkla stegvis (ägaren 2026-11-23)", () => {
+  // En slingrig höjdkurva: punkter var 0,02 mm längs en våg med små ryckningar.
+  const wiggly = line(Array.from({ length: 401 }, (_, i) => [i * 0.02, Math.sin(i / 30) * 1.5 + Math.sin(i * 1.7) * 0.03] as [number, number]));
+
+  it("varje steg från förra toleransen ger synbart färre punkter tills det inte går längre", () => {
+    const counts: number[] = [];
+    let object = wiggly, from = 0.05, steps = 0;
+    for (;;) {
+      const step = simplifyStep(object, from);
+      if (!step) break;
+      expect(step.tolerance).toBeGreaterThanOrEqual(from);
+      object = step.object; from = step.tolerance * SIMPLIFY_GROWTH; steps += 1;
+      counts.push(vertexCount(object));
+      expect(steps).toBeLessThan(20);
+    }
+    expect(steps).toBeGreaterThanOrEqual(3);
+    // Strikt färre punkter i varje steg, och den sista formen går inte att förenkla vidare inom taket.
+    counts.forEach((count, index) => { if (index > 0) expect(count).toBeLessThan(counts[index - 1]!); });
+    expect(simplifyStep(object, from)).toBeUndefined();
+    // Samma tolerans igen på det redan förenklade (det gamla felet): inget eller lite, men stegvis går det.
+    expect(simplifyStep(simplifyStep(wiggly, 0.15)!.object, 0.15 * SIMPLIFY_GROWTH)).toBeDefined();
+  });
+
+  it("behåller kurvor: ett mjukt objekt blir mjukt igen med färre punkter", () => {
+    const curved = smoothShape(simplifyShape(wiggly, 0.02)!)!;
+    const step = simplifyStep(curved, 0.05)!;
+    expect(vertexCount(step.object)).toBeLessThan(vertexCount(curved));
+    expect(step.object.kind === "line" && step.object.path.slice(1).every(command => command.type === "C")).toBe(true);
+  });
+
+  it("en yta korsar inte sig själv, krymper inte under normens minsta yta och kollapsar inte", () => {
+    // En tät cirkel som yta (radie 2 mm, 120 punkter).
+    const ring = Array.from({ length: 121 }, (_, i) => ({ type: i === 0 ? "M" as const : "L" as const,
+      x: 2 * Math.cos(i / 120 * Math.PI * 2), y: 2 * Math.sin(i / 120 * Math.PI * 2) }));
+    const area: MapObject = { kind: "area", symbol: "401", rings: [ring], angle: 0 };
+    let object: MapObject = area, from = 0.05;
+    for (let step = simplifyStep(object, from); step; step = simplifyStep(object, from)) {
+      object = step.object; from = step.tolerance * SIMPLIFY_GROWTH;
+      expect(areaSelfCrosses(object)).toBe(false);
+    }
+    // Minst en triangel kvar, och ytan är inte borta.
+    expect(vertexCount(object)).toBeGreaterThanOrEqual(4);
+    expect(vertexCount(object)).toBeLessThan(121);
+    // Med en minsta yta nära cirkelns stannar förenklingen tidigare.
+    const strict = simplifyStep(area, 0.05, { minArea: Math.PI * 4 * 0.999 });
+    expect(strict).toBeUndefined();
+  });
+
+  it("ser en yta som korsar sig själv (en åtta)", () => {
+    const eight: MapObject = { kind: "area", symbol: "401", angle: 0, rings: [[{ type: "M", x: 0, y: 0 }, { type: "L", x: 2, y: 2 }, { type: "L", x: 2, y: 0 },
+      { type: "L", x: 0, y: 2 }, { type: "L", x: 0, y: 0 }]] };
+    expect(areaSelfCrosses(eight)).toBe(true);
+    expect(areaSelfCrosses({ ...eight, rings: [[{ type: "M", x: 0, y: 0 }, { type: "L", x: 2, y: 0 }, { type: "L", x: 2, y: 2 }, { type: "L", x: 0, y: 2 }, { type: "L", x: 0, y: 0 }]] })).toBe(false);
   });
 });

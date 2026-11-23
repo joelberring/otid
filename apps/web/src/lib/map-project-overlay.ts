@@ -60,8 +60,8 @@ export function drawPreview(ctx: Context, view: Viewport, object: MapObject, sym
   ctx.restore();
 }
 
-function handle(ctx: Context, at: { x: number; y: number }, curve: boolean, active: boolean) {
-  const size = active ? 7 : 5;
+function handle(ctx: Context, at: { x: number; y: number }, curve: boolean, active: boolean, small = false) {
+  const size = active ? 7 : small ? 3 : 5;
   ctx.beginPath();
   if (curve) ctx.arc(at.x, at.y, size, 0, Math.PI * 2);
   else ctx.rect(at.x - size, at.y - size, size * 2, size * 2);
@@ -111,7 +111,30 @@ export function drawCutMarks(ctx: Context, view: Viewport, marks: readonly EndMa
 }
 
 /** Markerat objekt: kontur och brytpunkter (fyrkant = hörn, ring = kurva), vald punkt ifylld. */
-export function drawSelection(ctx: Context, view: Viewport, object: MapObject, activeVertex: VertexAddress | undefined) {
+/** Punkthandtagen ritas inte tätare än så (skärmens px). */
+export const HANDLE_GAP_PX = 14;
+
+/**
+ * Ägaren 2026-11-23 (bild med en yta täckt av fyrkanter): vilka av objektets punkter som får ett handtag. Punkterna i ordning
+ * längs varje del, och en punkt visas bara när den ligger minst `gapPx` från förra visade; delarnas ändar och punkterna i
+ * `keep` (den aktiva och den pekaren är nära) visas alltid. `dense` = några doldes (då ritas handtagen mindre). Alla punkter
+ * går fortfarande att ta tag i.
+ */
+export function shownHandles(points: readonly { readonly x: number; readonly y: number; readonly part: number }[], keep: (index: number) => boolean,
+  gapPx = HANDLE_GAP_PX): { shown: boolean[]; dense: boolean } {
+  const shown = points.map(() => false);
+  let last: { x: number; y: number } | undefined, dense = false;
+  points.forEach((point, index) => {
+    const end = index === 0 || points[index - 1]!.part !== point.part || index === points.length - 1 || points[index + 1]!.part !== point.part;
+    if (end || keep(index) || !last || Math.hypot(point.x - last.x, point.y - last.y) >= gapPx) { shown[index] = true; last = point; }
+    else dense = true;
+  });
+  return { shown, dense };
+}
+
+export function drawSelection(ctx: Context, view: Viewport, object: MapObject, activeVertex: VertexAddress | undefined,
+  /** Punkten som pekaren är nära: den har alltid ett handtag. */
+  nearVertex?: VertexAddress) {
   ctx.save();
   if (object.kind === "point" || object.kind === "text") {
     const at = toScreen(view, object.at);
@@ -126,9 +149,10 @@ export function drawSelection(ctx: Context, view: Viewport, object: MapObject, a
   traceObject(ctx, view, object);
   ctx.strokeStyle = "#fff"; ctx.lineWidth = 5; ctx.stroke();
   ctx.strokeStyle = SELECT; ctx.lineWidth = 2; ctx.setLineDash([6, 4]); ctx.stroke(); ctx.setLineDash([]);
-  for (const vertex of vertices(object)) {
-    handle(ctx, toScreen(view, vertex.at), vertex.curve, !!activeVertex && activeVertex.part === vertex.part && activeVertex.index === vertex.index);
-  }
+  const all = vertices(object), screen = all.map(vertex => ({ ...toScreen(view, vertex.at), part: vertex.part }));
+  const is = (address: VertexAddress | undefined, index: number) => !!address && address.part === all[index]!.part && address.index === all[index]!.index;
+  const { shown, dense } = shownHandles(screen, index => is(activeVertex, index) || is(nearVertex, index));
+  all.forEach((vertex, index) => { if (shown[index]) handle(ctx, screen[index]!, vertex.curve, is(activeVertex, index), dense && !is(nearVertex, index)); });
   // Ägaren 2026-11-13: ändpunkterna syns med en egen markör, så att en klippt linje går att se även senare.
   drawEndMarks(ctx, view, lineEnds(object));
   ctx.restore();

@@ -30,7 +30,7 @@ export const mapProjectHelpArticlesEn: readonly HelpArticle[] = [
       [
         "Before step 2: connect Lantmäteriet once. Read [How to connect Lantmäteriet](#lantmateriet-koppla).",
         "Step 1, optional: fetch orthophotos, soil moisture and the Forest Agency's maps to draw from. They are only a background.",
-        "Step 2, ”Make the base map”: the guide runs the laser data and adds OpenStreetMap and clear-cuts. The result is a draft.",
+        "Step 2, ”Make the base map”: the guide runs the laser data and adds OpenStreetMap and clear-cuts. The result is a draft. [Have a base map?](#ritlaget-huvudkalla)",
         "Step 3, ”Review the draft”: the sliders change the draft at once. Add it with the row below the map.",
         "”Finish drawing”: choose a symbol under ”Symbols” and draw; change an object with ”Select”.",
         "Check under ”Review” › ”Norm check”.",
@@ -38,6 +38,24 @@ export const mapProjectHelpArticlesEn: readonly HelpArticle[] = [
       ],
       "A draft is not saved in the map until you add it. Suggestions are something else: changes that an owner approves under ”Review”.",
       "A map that already has content: read [Edit a map that already exists](#ritlaget-redigera)."
+    ]
+  },
+  {
+    id: "ritlaget-huvudkalla",
+    title: "Base map and OpenStreetMap without duplicates",
+    views: ["MAP_EDITOR"],
+    body: [
+      "A base map often has the same buildings and roads as OpenStreetMap, but more accurate. Mark it as a primary source, so that they do not come twice.",
+      [
+        "First: load the base map under ”Load a vector file or OpenStreetMap” with ”Primary source” ticked, and add it.",
+        "Stockholm's base map is recognised, and the box is ticked from the start.",
+        "Then: make the base map with the guide. Within the base map's area OpenStreetMap's buildings, roads, railway, walls and fences are skipped.",
+        "Paths, the laser and the vegetation come along as usual.",
+        "If the base map is already in the map, O-Tid asks whether OpenStreetMap's objects of those kinds within the area should be removed. They are marked on the map.",
+        "Only what came from OpenStreetMap and that nobody has changed is removed, never anything drawn by hand. Undo puts it back.",
+        "Objects added before 21 November 2026 have no saved origin and are not removed by themselves."
+      ],
+      "The primary sources are under ”Other ways” in the tab ”Base map”. ”Remove the marking” changes nothing in the map; the next base map then includes OpenStreetMap there again."
     ]
   },
   {

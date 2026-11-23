@@ -9,7 +9,7 @@ export const mapUnderlayStepsEn: Texts<typeof mapUnderlayStepsSv> = {
   sourcesHelp: "Optional: images to draw from, such as orthophotos and soil moisture. OpenStreetMap and clear-cuts come with the base map in step 2.",
   sourcesWhere: "What you fetch is put under Layers › Base layers, where it is shown, hidden and faded. You also add an image of your own there.",
   baseMap: "Make the base map",
-  baseMapHelp: "Laser data, OpenStreetMap and clear-cuts become a draft of the map, which you review in step 3.",
+  baseMapHelp: "Laser data, OpenStreetMap and clear-cuts become a draft of the map, which you review in step 3. If you have a base map, load it first as a primary source (under Other ways); OpenStreetMap is then skipped there.",
   baseMapOther: "Other ways",
   adjust: "Review the draft",
   adjustHelp: "The sliders recalculate the draft at once, without a new run. Then add it with the row below the map.",

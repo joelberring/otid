@@ -10,7 +10,7 @@ export const mapUnderlayStepsSv = {
   sourcesHelp: "Valfritt: bilder att rita efter, som ortofoto och markfuktighet. OpenStreetMap och hyggen följer med grundkartan i steg 2.",
   sourcesWhere: "Det du hämtar läggs under Lager › Underlag, där det tänds, släcks och tonas. Där lägger du också till en egen bild.",
   baseMap: "Ta fram grundkartan",
-  baseMapHelp: "Laserdata, OpenStreetMap och hyggen blir ett utkast till kartan, som du går igenom i steg 3.",
+  baseMapHelp: "Laserdata, OpenStreetMap och hyggen blir ett utkast till kartan, som du går igenom i steg 3. Har du en baskarta läser du in den först som huvudkälla (under Andra sätt); då hoppas OpenStreetMap över där.",
   baseMapOther: "Andra sätt",
   adjust: "Gå igenom utkastet",
   adjustHelp: "Reglagen räknar om utkastet direkt, utan ny körning. Lägg sedan in det med raden under kartan.",

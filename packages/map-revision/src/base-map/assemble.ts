@@ -14,6 +14,7 @@ import { calmFlatContours, flatLimitsAt, flatSlopeFrom, type PixelAffine, type S
 import { cliffFeatures, cliffLimitsAt, defaultCliffLimits, readCliffCandidates } from "./cliff-choice";
 import { chooseKnolls, knollFeatures, knollLimitsAt, readKnollCandidates } from "./knoll-choice";
 import { mergeBaseMap } from "./merge";
+import { primaryForMerge, type PrimaryArea, type PrimaryKind, type PrimaryOutcome } from "./primary-source";
 import { DEFAULT_ROCK_LEVEL, rockAreasOfJob, withRockAreas } from "./rock-choice";
 import type { PhotoPixels } from "./photo-interpret";
 
@@ -92,6 +93,8 @@ export interface BaseMapAssemblyInput {
   readonly stage?: readonly Ring[] | undefined;
   /** Kartans bebyggda ytor (`builtPolygons`). */
   readonly built: readonly [number, number][][][];
+  /** Kartprojektets huvudkällor (K4c, kartans mm): inom dem hoppas OpenStreetMaps objekt av källans slag över. */
+  readonly primary?: readonly { readonly name: string; readonly kinds: readonly PrimaryKind[]; readonly area: PrimaryArea }[] | undefined;
 }
 
 export interface BaseMapSummary {
@@ -112,6 +115,8 @@ export interface BaseMapSummary {
   readonly clipped: number; readonly joined: number; readonly simplified: number;
   /** Kartans objekt som byttes ut (apply_base_map med symbols och replace). */
   readonly replaced?: number | undefined;
+  /** OpenStreetMaps objekt som hoppades över inom huvudkällorna (K4c). */
+  readonly primary?: readonly PrimaryOutcome[] | undefined;
   /** Sankmark som togs bort på sand och grus ur jordartskartan (när den gick att hämta), i hektar. */
   readonly soil?: { readonly removedHa: number } | undefined;
   /** Hyggena efter ålder (när de gick att hämta). */
@@ -160,7 +165,9 @@ export function assembleBaseMap(input: BaseMapAssemblyInput): { objects: MapObje
   const norm = mapNorm({ scale, symbols });
   let soil: BaseMapSummary["soil"];
   let data = mergeBaseMap(read, input.osm, scale, cuts && { features: cuts.features, afterScan: cuts.afterScan }, norm,
-    input.soil && { areas: input.soil, report: outcome => { soil = outcome; } }, input.landCover ? landCoverFeatures(input.landCover, scale) : []);
+    input.soil && { areas: input.soil, report: outcome => { soil = outcome; } }, input.landCover ? landCoverFeatures(input.landCover, scale) : [],
+    (input.primary ?? []).flatMap(source => primaryForMerge(source, input.georeference) ?? []));
+  const primary = data.primary;
   read = [];
   // Hjälpkurvor och små ringar på flack mark tas bort, som när grundkartan läses in i webben.
   let flatContours: BaseMapSummary["flatContours"];
@@ -221,6 +228,7 @@ export function assembleBaseMap(input: BaseMapAssemblyInput): { objects: MapObje
       inBuilt: result.builtMask?.removed ?? 0, belowNorm: result.generalized?.removed ?? 0 },
     clipped: result.clipped, joined: result.joined, simplified: result.generalized?.simplified ?? 0,
     ...(cuts ? { clearCuts: cuts.counts } : {}), ...(soil ? { soil } : {}), ...(rock ? { rock } : {}), ...(knolls ? { knolls } : {}), ...(cliffs ? { cliffs } : {}),
-    ...(flatContours ? { flatContours } : {}), ...(hills ? { hills } : {}), ...(marshFloor ? { marshFloor } : {}), ...(pits ? { pits } : {}), ...(slopeTicks ? { slopeTicks } : {})
+    ...(flatContours ? { flatContours } : {}), ...(hills ? { hills } : {}), ...(marshFloor ? { marshFloor } : {}), ...(pits ? { pits } : {}), ...(slopeTicks ? { slopeTicks } : {}),
+    ...(primary ? { primary } : {})
   } };
 }

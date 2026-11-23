@@ -1264,7 +1264,7 @@ K4a: migration 0097, ADR-0219 tillägget 2026-11-08 (underlagen).
 - [x] Mappen med äldre underlag (ägaren 2026-11-10): sorteras i webbläsaren, vektorer blir skisslager och bilder underlag, resten
   laddas aldrig upp.
 - [ ] K4b kvar: GeoPackage.
-- [ ] K4c Huvudkälla (ägaren 2026-11-23: «gör så»). En inläst vektorfil (DXF/DWG/Shape/GeoJSON) kan vara Huvudkälla inom sitt
+- [x] K4c Huvudkälla (ägaren 2026-11-23: «gör så», migration 0143). En inläst vektorfil (DXF/DWG/Shape/GeoJSON) kan vara Huvudkälla inom sitt
   område (förval på för Stockholms baskarta). Då hoppar grundkartan över OpenStreetMap där för det filen täcker: hus, vägar och
   asfalt, järnväg, broar, vatten, murar och staket (OSM:s stigar, lasern och vegetationen kvar). Läses filen in efter att grundkartan
   redan ligger i kartan föreslår O-Tid att ta bort OSM:s objekt av de slagen inom filens område – bara objekt som kom från OSM och

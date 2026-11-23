@@ -57,7 +57,7 @@ export function osmMeters(value: unknown): number | undefined {
 }
 
 /** Vägklassen: ur taggen, annars ur lagrets namn (äldre hämtningar utan taggar). */
-function highwayOf(feature: SourceFeature): string | undefined {
+export function highwayOf(feature: SourceFeature): string | undefined {
   const tagged = feature.properties?.highway;
   if (typeof tagged === "string") return tagged;
   const road = /^OSM väg \((\w+)\)$/.exec(feature.layer)?.[1];
@@ -96,7 +96,7 @@ function capsule(a: Position, b: Position, r: number): Polygon {
 }
 
 /** Alla ytor som en (parvis, så att varje sammanslagning är liten). En sammanslagning som inte går lämnar ytorna var för sig. */
-function unionAll(polygons: readonly Polygon[]): MultiPolygon {
+export function unionAll(polygons: readonly Polygon[]): MultiPolygon {
   let level: MultiPolygon[] = polygons.map(polygon => [polygon]);
   while (level.length > 1) {
     const next: MultiPolygon[] = [];

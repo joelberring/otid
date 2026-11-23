@@ -11,7 +11,7 @@ import { useTexts } from "../language-provider";
 import { MAP_PROJECT_SYNC_MAX_EDITS, type MapLayerProfileView, type MapProjectDecisionRequest, type MapProjectView } from "@o-tid/contracts";
 import { isSupportedEpsg, type MapGeoreference, type MapObject, type PathCommand } from "@o-tid/map-file";
 import {
-  fitClassOf, guessCrs, importLayers, isSprintNorm, mapNorm, newKey, objectBox, samplePath, sourcePointToMap, suggestSymbol, VectorParseError, WGS84_EPSG,
+  fitClassOf, guessCrs, importLayers, isSprintNorm, isStockholmLayer, mapNorm, newKey, objectBox, samplePath, sourcePointToMap, suggestSymbol, VectorParseError, WGS84_EPSG,
   type FitPoint, type ImportLayer, type SourceData, type SourceFeature, type VectorFit
 } from "@o-tid/map-revision";
 import { clubRequest, csrf } from "../../lib/club-archive-client";
@@ -29,6 +29,7 @@ import { readVectorFiles } from "../../lib/map-project-vector-files";
 import type { CatalogSymbol, MapProjectSession, SymbolObject } from "../../lib/map-project-protocol";
 import type { ObjectChange } from "./use-map-project-editor";
 import { mapProjectImportSv } from "../../i18n/map-project-import-sv";
+import { useMapProjectPrimary } from "./use-map-project-primary";
 
 /** Hur kandidaterna läggs in: till kartan, som utvidgning av kartans ytor med samma symbol, eller i stället för kartans objekt. */
 export type AcceptMode = "add" | "extend" | "replace";
@@ -89,6 +90,14 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   const symbolList = useMemo(() => [...symbols.values()].map(symbol => ({ id: symbol.id, code: symbol.code, kind: symbol.kind, name: symbol.name })), [symbols]);
   const norm = useMemo(() => mapNorm({ scale: georeference?.scale, symbols: symbolList }), [georeference?.scale, symbolList]);
   const sprint = isSprintNorm(norm);
+  /** K4c Huvudkälla: en inläst vektorfil (inte grundkartan eller OpenStreetMap) kan markeras; förval på för Stockholms baskarta. */
+  const primary = useMapProjectPrimary({ view, base, georeference, bounds, symbols, sprint, session, commitMany });
+  const markPrimary = primary.mark;
+  const [primaryOn, setPrimaryOn] = useState(false);
+  const [primaryEligible, setPrimaryEligible] = useState(false);
+  const allowPrimary = useCallback((data: SourceData) => {
+    setPrimaryEligible(true); setPrimaryOn(importLayers(data).some(layer => isStockholmLayer(layer.name)));
+  }, []);
 
   /** K6b: sparade lagermappningsprofiler (kontots och klubbens) och den som passade filen. */
   const [profiles, setProfiles] = useState<readonly MapLayerProfileView[]>([]);
@@ -123,7 +132,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   const [hills, setHills] = useState<HillOutcome>();
   const hillsWith = useRef<HillOutcome | undefined>(undefined);
   const show = useCallback((fileName: string, data: SourceData, area?: Bounds, general = false, within?: readonly (readonly { x: number; y: number }[])[]) => {
-    setNormed(general); setStage(within); setCalm(undefined); setClear(undefined); clearWith.current = undefined; setPits(undefined); pitsWith.current = undefined; setHills(undefined); hillsWith.current = undefined; setOrigin(undefined); setMode("add"); setReplaced(undefined); setTicks(undefined);
+    setNormed(general); setStage(within); setPrimaryEligible(false); setCalm(undefined); setClear(undefined); clearWith.current = undefined; setPits(undefined); pitsWith.current = undefined; setHills(undefined); hillsWith.current = undefined; setOrigin(undefined); setMode("add"); setReplaced(undefined); setTicks(undefined);
     const found = importLayers(data);
     const list = symbolList;
     setFile({ name: fileName, data });
@@ -186,11 +195,11 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     try {
       const read = await readVectorFiles(files);
       if (!read) { setProblem("unsupported"); return; }
-      show(read.name, read.data);
+      show(read.name, read.data); allowPrimary(read.data);
     } catch (error) {
       setProblem(error instanceof VectorParseError ? error.message : "unsupported");
     }
-  }, [show, base]);
+  }, [show, base, allowPrimary]);
 
   /** K4c: OpenStreetMap för kartans område eller en etapp (delområdets polygon i kartans mm), hämtat av servern. */
   const fetchOsm = useCallback(async (area?: BoxArea) => {
@@ -283,8 +292,9 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
       setProgress({ done: index + 1, total: parts.length });
     }
     setProgress(undefined); setSent(parts.length); setFile(undefined); setLayers([]); setMapping(new Map());
+    if (primaryEligible && primaryOn) void markPrimary(file.name, result.objects, new Set(edits.map(edit => edit.key)));
     onSent();
-  }, [file, result, computing, base, onSent]);
+  }, [file, result, computing, base, onSent, primaryEligible, primaryOn, markPrimary]);
 
   /**
    * Ägaren 2026-11-10 («godkännas i ett svep»): alla kandidater läggs i kartan som egna ändringar i ett steg (Ångra tar bort
@@ -324,6 +334,8 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
         if (response.status >= 400) console.warn("Utkastets beslut sparades inte", response.status);
       }, error => console.warn("Utkastets beslut sparades inte", error));
       setMarked(marking?.paper); setReplaced(mode === "replace" ? removals.length || undefined : undefined);
+      // K4c: en huvudkälla sparas med området och slagen ur det som lades in, och O-Tid frågar om OpenStreetMaps objekt där.
+      if (primaryEligible && primaryOn) void markPrimary(file.name, result.objects, new Set(adds.map(change => change.key)));
       // Antalet nya objekt: allt som lades in utom borttagningarna (lutningsstrecken som följde med räknas med).
       setAccepted(Math.max(0, count - removals.length)); setFile(undefined); setLayers([]); setMapping(new Map()); setMode("add");
     };
@@ -383,7 +395,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
       });
     };
     next(0);
-  }, [file, result, computing, commitMany, origin, georeference, symbols, bounds, markingText, calm, clear, mode, session, layers, mapping, base]);
+  }, [file, result, computing, commitMany, origin, georeference, symbols, bounds, markingText, calm, clear, mode, session, layers, mapping, base, primaryEligible, primaryOn, markPrimary]);
 
   const choose = useCallback((layer: string, symbolId: string) => setMapping(current => {
     const next = new Map(current);
@@ -396,9 +408,12 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   const [pendingReplace, setPendingReplace] = useState<{ fileName: string; open: () => void }>();
   /** K5: geo-arbetarens kurvor (DXF) som kandidater. */
   const openData = useCallback((fileName: string, data: SourceData, general = false, within?: readonly (readonly { x: number; y: number }[])[], calmed?: CalmOutcome,
-    cleared?: { outcome: ClearOutcome; field: HeightField }, from?: BaseMapOrigin, pitted?: PitOutcome, hilled?: HillOutcome) => {
+    cleared?: { outcome: ClearOutcome; field: HeightField }, from?: BaseMapOrigin, pitted?: PitOutcome, hilled?: HillOutcome,
+    /** En inläst vektorfil (DWG via geo-servern), som kan bli huvudkälla. */
+    vector = false) => {
     const open = () => {
       setProblem(undefined); setSent(undefined); setAccepted(undefined); show(fileName, data, undefined, general, within); setCalm(calmed); setOrigin(from);
+      if (vector) allowPrimary(data);
       setClear(cleared?.outcome); clearWith.current = cleared && { settings: cleared.outcome.settings, field: cleared.field };
       setPits(pitted); pitsWith.current = pitted; setHills(hilled); hillsWith.current = hilled;
     };
@@ -406,7 +421,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     // fråga. Frågan står i kandidaternas rad under kartan (ingen dialogruta; ägaren 2026-11-13 fick den som webbläsarens ruta).
     if (file && file.name !== fileName && file.data.features.length > 0) { setPendingReplace({ fileName, open }); return; }
     setPendingReplace(undefined); open();
-  }, [show, file]);
+  }, [show, file, allowPrimary]);
   /** En panel med reglage byter sina egna lager (`own`) i det som visas; utan något som visas öppnas datan som vanligt. */
   const refine = useCallback((fileName: string, data: SourceData, own: RegExp) => {
     if (!file) { openData(fileName, data, true); return; }
@@ -519,5 +534,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     profile, saveProfile, canShareProfile: !!view.club,
     hideOnMap, setHideOnMap, skipped,
     toggleLayer: (layer: string) => setSkipped(current => { const next = new Set(current); if (next.has(layer)) next.delete(layer); else next.add(layer); return next; }),
-    normed, setNormed, maskBuiltOn, setMaskBuiltOn, candidates: hideOnMap ? NO_CANDIDATES : result?.objects ?? NO_CANDIDATES, canImport: view.viewer.canPropose };
+    normed, setNormed, maskBuiltOn, setMaskBuiltOn, candidates: hideOnMap ? NO_CANDIDATES : result?.objects ?? primary.question?.objects ?? NO_CANDIDATES, canImport: view.viewer.canPropose,
+    /** K4c Huvudkälla: projektets huvudkällor och frågan om OpenStreetMaps objekt; kryssrutan för filen som visas. */
+    primary, primaryEligible: primaryEligible && primary.canMark, primaryOn, setPrimaryOn };
 }

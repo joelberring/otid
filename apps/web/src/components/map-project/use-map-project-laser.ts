@@ -24,6 +24,8 @@ import { mapRockSv } from "../../i18n/map-rock-sv";
 import { completeStages, stageOf } from "../../lib/map-project-stages";
 import type { laserJobBody, LaserExtra, LaserItem } from "../../lib/map-project-laser-request";
 import { useTexts } from "../language-provider";
+import { mapPrimaryEn } from "../../i18n/map-primary-en";
+import { mapPrimarySv } from "../../i18n/map-primary-sv";
 import type { useMapProjectImport } from "./use-map-project-import";
 import type { useMapProjectLayers } from "./use-map-project-layers";
 
@@ -47,6 +49,7 @@ export function useMapProjectLaser({ view, layers, importer, georeference, bound
   const pitText = useTexts(mapPitsSv, mapPitsEn);
   const hillText = useTexts(mapHillsSv, mapHillsEn);
   const rockText = useTexts(mapRockSv, mapRockEn);
+  const primaryText = useTexts(mapPrimarySv, mapPrimaryEn);
   const base = mapProjectBase(view.projectId);
   const [credential, setCredential] = useState<MapSourceCredentialView>();
   const [list, setList] = useState<GeoJobList>();
@@ -227,7 +230,9 @@ export function useMapProjectLaser({ view, layers, importer, georeference, bound
         return { box: row.clip!, parts: rowParts, ...(own && own !== "failed" ? { slope: { grid: own.grid, affine: own.affine } } : {}),
           ...(ownRock && ownRock !== "failed" ? { rock: ownRock } : {}) };
       });
-      const { data, calm, clear, rock: rocky, soil: soiled, pits, hills } = await importer.readBaseMap({ parts: stageParts ? [] : parts, stages: stageParts, joined: !stages && !!job.mergedStages, merge: baseMap, osm, scale: georeference?.scale,
+      const { data, calm, clear, rock: rocky, soil: soiled, pits, hills, primary } = await importer.readBaseMap({ parts: stageParts ? [] : parts, stages: stageParts, joined: !stages && !!job.mergedStages, merge: baseMap, osm, scale: georeference?.scale,
+        // K4c: inom projektets huvudkällor hoppas OpenStreetMaps objekt av källornas slag över.
+        primary: baseMap ? importer.primary.forBaseMap() : undefined,
         cuts: cuts && { features: cuts.features, afterScan: cuts.afterScan }, soil, landCover, calm: slope === "failed" ? undefined : slope,
         clear: heightParts.length > 0 ? { parts: heightParts } : undefined,
         rock: !stages && rock && rock !== "failed" ? { ...rock, level: DEFAULT_ROCK_LEVEL } : undefined },
@@ -238,7 +243,7 @@ export function useMapProjectLaser({ view, layers, importer, georeference, bound
         stages ? undefined : areas.find(row => row.areaId === job.areaId)?.polygon, calm,
         clear && { outcome: clear, field: heightFieldFrom(heightParts) },
         // Kartans märkning (ägaren 2026-11-14): laserjobbets inställningar följer med grundkartan till rutan i hörnet.
-        baseMap && job.kind !== "DWG" ? { scannedAt: job.scannedAt, settings: job.settings } : undefined, pits, hills);
+        baseMap && job.kind !== "DWG" ? { scannedAt: job.scannedAt, settings: job.settings } : undefined, pits, hills, job.kind === "DWG");
       const calmText = calm ? ` ${flatText.loaded(calm.level, calm.formlineMeters.toLocaleString("sv-SE"), calm.rings)}` : slope === "failed" ? ` ${flatText.failed}` : "";
       const clearMessage = clear ? ` ${clearText.loaded(clear.smoothedMeters.toLocaleString("sv-SE"), clear.formlineMeters.toLocaleString("sv-SE"), clear.rings)}` : "";
       const rockMessage = rocky ? ` ${rockText.loaded(rocky.level, rocky.areas, String(rocky.hectares).replace(".", ","))}`
@@ -247,7 +252,8 @@ export function useMapProjectLaser({ view, layers, importer, georeference, bound
       const hillMessage = hills && hills.rings > 0 ? ` ${hillText.loaded(hills.rings, hills.hidden.length)}` : "";
       const cutText = cuts ? ` ${text.clearCuts(cuts.counts.fresh, cuts.counts.scrub, cuts.counts.young, job.scannedAt)}` : "";
       const soilMessage = soiled && soiled.removedHa > 0 ? ` ${text.soilRemoved(String(soiled.removedHa).replace(".", ","))}` : "";
-      setMessage({ from, tone: "ok", text: `${osmMissing ? `${text.loaded(label)} ${text.osmMissing}` : text.loaded(label)}${cutText}${soilMessage}${calmText}${clearMessage}${hillMessage}${pitMessage}${rockMessage}` });
+      const primaryMessage = (primary ?? []).map(row => ` ${primaryText.skipped(primaryText.list(row.kinds.map(kind => primaryText.kinds[kind])), row.name)}`).join("");
+      setMessage({ from, tone: "ok", text: `${osmMissing ? `${text.loaded(label)} ${text.osmMissing}` : text.loaded(label)}${cutText}${soilMessage}${primaryMessage}${calmText}${clearMessage}${hillMessage}${pitMessage}${rockMessage}` });
     } catch (error) {
       setMessage({ from, tone: "error", text: error instanceof VectorParseError ? error.message : text.problems.generic("DXF") });
     } finally { setBusy(undefined); }

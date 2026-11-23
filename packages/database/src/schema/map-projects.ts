@@ -271,6 +271,20 @@ export const mapProjectDecisions = pgTable("map_project_decision", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull()
 }, table => [index("map_project_decision_project_idx").on(table.projectId, table.createdAt)]);
 
+/**
+ * Huvudkällor (0143, PLAN K4c): en inläst vektorfil som går före OpenStreetMap inom sitt område (ytor i kartans mm, yttre ring
+ * först) för de slag den täcker (`PrimaryKind` i map-revision). Den som markerade har ingen främmande nyckel.
+ */
+export const mapProjectPrimarySources = pgTable("map_project_primary_source", {
+  id: uuid("id").primaryKey(),
+  projectId: uuid("project_id").notNull().references(() => mapProjects.id),
+  name: text("name").notNull(),
+  area: jsonb("area").$type<{ x: number; y: number }[][][]>().notNull(),
+  kinds: jsonb("kinds").$type<string[]>().notNull(),
+  createdBy: uuid("created_by").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull()
+}, table => [index("map_project_primary_source_project_idx").on(table.projectId, table.createdAt)]);
+
 /** Arbetslager och skisslager (0107, ägaren 2026-11-09): normens symboler i egna grupper, och skisser som inte hör till kartan. */
 export const mapProjectWorkLayers = pgTable("map_project_work_layer", {
   id: uuid("id").primaryKey(),

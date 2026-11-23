@@ -30,7 +30,7 @@ export const mapProjectHelpArticles: readonly HelpArticle[] = [
       [
         "Före steg 2: koppla Lantmäteriet en gång. Läs [Så kopplar du Lantmäteriet](#lantmateriet-koppla).",
         "Steg 1, valfritt: hämta ortofoto, markfuktighet och Skogsstyrelsens kartor att rita efter. De syns bara som bakgrund.",
-        "Steg 2, ”Ta fram grundkartan”: guiden kör laserdatan och lägger till OpenStreetMap och hyggen. Resultatet är ett utkast.",
+        "Steg 2, ”Ta fram grundkartan”: guiden kör laserdatan och lägger till OpenStreetMap och hyggen. Resultatet är ett utkast. [Har du en baskarta?](#ritlaget-huvudkalla)",
         "Steg 3, ”Gå igenom utkastet”: reglagen ändrar utkastet direkt. Lägg in det med raden under kartan.",
         "”Rita färdigt”: välj en symbol under ”Symboler” och rita; ändra ett objekt med ”Markera”.",
         "Kontrollera under ”Granska” › ”Normkontroll”.",
@@ -38,6 +38,24 @@ export const mapProjectHelpArticles: readonly HelpArticle[] = [
       ],
       "Ett utkast sparas inte i kartan förrän du lägger in det. Förslag är något annat: ändringar som en ägare godkänner under ”Granska”.",
       "En karta som redan har innehåll: läs [Redigera en karta som redan finns](#ritlaget-redigera)."
+    ]
+  },
+  {
+    id: "ritlaget-huvudkalla",
+    title: "Baskarta och OpenStreetMap utan dubbletter",
+    views: ["MAP_EDITOR"],
+    body: [
+      "En baskarta har ofta samma hus och vägar som OpenStreetMap, men noggrannare. Markera den som huvudkälla, så kommer de inte två gånger.",
+      [
+        "Först: läs in baskartan under ”Läs in vektorfil eller OpenStreetMap” med ”Huvudkälla” ikryssad, och lägg in den.",
+        "Stockholms baskarta känns igen, och rutan är ikryssad från början.",
+        "Sedan: ta fram grundkartan med guiden. Inom baskartans område hoppas OpenStreetMaps hus, vägar, järnväg, murar och staket över.",
+        "Stigarna, lasern och vegetationen kommer med som vanligt.",
+        "Ligger grundkartan redan i kartan frågar O-Tid om OpenStreetMaps objekt av de slagen inom området ska tas bort. De är markerade på kartan.",
+        "Bara det som kom från OpenStreetMap och som ingen ändrat tas bort, aldrig egenritat. Ångra lägger tillbaka det.",
+        "Objekt som lades in före 21 november 2026 har inget sparat ursprung och tas inte bort av sig själva."
+      ],
+      "Huvudkällorna står under ”Andra sätt” i fliken ”Grundkarta”. ”Ta bort markeringen” ändrar inget i kartan; nästa grundkarta tar då med OpenStreetMap där igen."
     ]
   },
   {

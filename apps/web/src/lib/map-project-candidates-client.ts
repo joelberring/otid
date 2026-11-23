@@ -57,15 +57,15 @@ export class CandidateSession {
   baseMap(request: { parts: readonly BaseMapPart[]; stages?: readonly BaseMapStage[] | undefined; joined?: boolean | undefined; merge: boolean; osm?: SourceData | undefined; scale?: number | undefined;
     cuts?: Extract<CandidateRequest, { type: "base-map" }>["cuts"]; norm?: Extract<CandidateRequest, { type: "base-map" }>["norm"]; calm?: BaseMapCalm | undefined; clear?: BaseMapClear | undefined;
     rock?: BaseMapRock | undefined; soil?: Extract<CandidateRequest, { type: "base-map" }>["soil"];
-    landCover?: Extract<CandidateRequest, { type: "base-map" }>["landCover"] },
+    landCover?: Extract<CandidateRequest, { type: "base-map" }>["landCover"]; primary?: Extract<CandidateRequest, { type: "base-map" }>["primary"] },
     onStep: (step: BaseMapStep) => void): Promise<{ data: SourceData; calm?: CalmOutcome | undefined; clear?: ClearOutcome | undefined; rock?: RockOutcome | undefined; soil?: SoilOutcome | undefined;
-      pits?: PitOutcome | undefined; hills?: HillOutcome | undefined }> {
+      pits?: PitOutcome | undefined; hills?: HillOutcome | undefined; primary?: Extract<CandidateResponse, { type: "base-map" }>["primary"] }> {
     const id = ++this.nextId, dataId = ++this.nextId;
     return new Promise((resolve, reject) => {
       this.pending.set(id, response => {
         if (response.type === "progress") { onStep(response.step === "read" ? { step: "read", done: response.done, total: response.total } : { step: "merge" }); return; }
         this.pending.delete(id);
-        if (response.type === "base-map") { this.remember(response.data.features, response.dataId); resolve({ data: response.data, calm: response.calm, clear: response.clear, rock: response.rock, soil: response.soil, pits: response.pits, hills: response.hills }); }
+        if (response.type === "base-map") { this.remember(response.data.features, response.dataId); resolve({ data: response.data, calm: response.calm, clear: response.clear, rock: response.rock, soil: response.soil, pits: response.pits, hills: response.hills, primary: response.primary }); }
         else if (response.type === "error") reject(response.parse ? new VectorParseError(response.message) : new Error(response.message));
       });
       this.post({ type: "base-map", id, dataId, ...request });

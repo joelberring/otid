@@ -11,6 +11,7 @@ import { MapProjectFolderIntake } from "./map-project-folder-intake";
 import { MapProjectGuide } from "./map-project-guide";
 import { MapProjectClearCutPanel, MapProjectForestImagePanel } from "./map-project-forest-panels";
 import { MapProjectImportPanel } from "./map-project-import-panel";
+import { MapProjectPrimarySources } from "./map-project-primary";
 import { MapProjectLaserPanel } from "./map-project-laser-panel";
 import { MapProjectPhotoPanel } from "./map-project-photo-panel";
 import { mapUnderlayStepsEn } from "../../i18n/map-knolls-en";
@@ -68,6 +69,7 @@ export function MapProjectBaseMapPanel({ view, georeference, bounds, areas, laye
       {importer.canImport && <>
         <h4 className={styles.groupTitle}>{steps.baseMapOther}</h4>
         <MapProjectImportPanel importer={importer} symbols={symbols} areas={areas} />
+        <MapProjectPrimarySources importer={importer} />
         {/* Ägaren 2026-11-16: för den som ritar själv – ladda ner underlaget i stället för att läsa in ett utkast. */}
         <MapProjectDrawingBasisPanel view={view} layers={layers} />
       </>}

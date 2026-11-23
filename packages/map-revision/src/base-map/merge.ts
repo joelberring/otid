@@ -14,6 +14,7 @@ import { marshOutsideManaged, semiOpenOutsideYards, singleMarsh, undergrowthOuts
 import { linesOutsideWater } from "./water-clip";
 import { marshOffDrySoil } from "./soil-marsh";
 import type { SoilArea } from "./soil";
+import { osmOutsidePrimary, type PrimaryForMerge, type PrimaryOutcome } from "./primary-source";
 
 /**
  * Grundkartan G2 och G8 (ägaren 2026-11-10: «ungefär som en halvfärdig karta», utan grundkartefil: lasern, Lantmäteriets
@@ -163,12 +164,18 @@ export interface SoilOutcome { readonly removedHa: number }
 /**
  * Jobbets filer (i `baseMapOutputs` ordning) och OpenStreetMap som en inläsning i SWEREF 99 TM; `scale` är kartans skala.
  * På en sprintkarta (`norm`) blir OpenStreetMaps belagda vägar ytor med antagen bredd (`sprintOsm`).
+ *
+ * PLAN K4c Huvudkälla (ägaren 2026-11-23): inom en huvudkällas område (`primary`, t.ex. Stockholms baskarta) tas inget av
+ * OpenStreetMaps hus, vägar, järnvägar, murar och staket med för de slag källan täcker (`osmOutsidePrimary`), före sprintens
+ * belagda ytor och tomterna kring husen, så att det som räknas fram ur dem följer. Svarets `primary` säger vad som hoppades över.
  */
 export function mergeBaseMap(parts: readonly { readonly name: string; readonly data: SourceData }[], rawOsm?: SourceData, scale?: number,
   cuts?: Pick<ReturnType<typeof clearCutFeatures>, "features" | "afterScan">, norm: MapNorm = "ISOM", soil?: BaseMapSoil,
-  nmd: readonly SourceFeature[] = []): SourceData {
+  nmd: readonly SourceFeature[] = [], primary: readonly PrimaryForMerge[] = []): SourceData & { readonly primary?: readonly PrimaryOutcome[] } {
   const names = new Set(parts.map(part => part.name)), landCover = names.has("marktacke.geojson");
-  const osm = rawOsm && isSprintNorm(norm) ? sprintOsm(rawOsm, { laserPaved: names.has(LASER_PAVED_FILE) }) : rawOsm;
+  const outside = rawOsm && primary.length > 0 ? osmOutsidePrimary(rawOsm, primary, isSprintNorm(norm)) : undefined;
+  const kept = outside?.data ?? rawOsm;
+  const osm = kept && isSprintNorm(norm) ? sprintOsm(kept, { laserPaved: names.has(LASER_PAVED_FILE) }) : kept;
   const shortest = scale ? twoTagMeters(scale) : 0;
   const minCliff = scale ? MIN_CLIFF_MM * scale / 1000 : 0;
   // G3: kurvorna och formlinjerna fogas över laserrutornas skarvar.
@@ -227,5 +234,5 @@ export function mergeBaseMap(parts: readonly { readonly name: string; readonly d
   // Ägaren 2026-11-22: vattnet som körningens kant skär av fortsätter ut till kartans ram (klipps till kartans område sedan);
   // strandlinjen dras bara längs laserns strand.
   return { features: [...waterToFrame(yarded, extent), ...shoreLines(single)], skipped: parts.reduce((sum, part) => sum + part.data.skipped, 0) + (osm?.skipped ?? 0),
-    crs: SWEREF99TM };
+    crs: SWEREF99TM, ...(outside && outside.outcomes.length > 0 ? { primary: outside.outcomes } : {}) };
 }

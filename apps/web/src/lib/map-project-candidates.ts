@@ -1,7 +1,7 @@
 import { parseDxf, parseGeoJson, VectorParseError, type MapNorm, type SourceData, type SourceFeature } from "@o-tid/map-revision";
 import {
   calmFlatContours, choosePits, clearContours, computeCandidates, suggestedClear, DEFAULT_HILL_LEVEL, DEFAULT_HILL_LIMITS, DEFAULT_PIT_LEVEL, DEFAULT_ROCK_LEVEL, findHills, findPits, flatLimitsAt, marshOnFloor, flatSlopeFrom, heightFieldFrom, joinStages, mergeBaseMap,
-  pitFeatures, pitLimitsAt, settleHills, tickDepressions, unionWater, rockAreasOfJob, withRockAreas, type HillCandidate, type HillLimits, type PitCandidate, type PitLimits,
+  pitFeatures, pitLimitsAt, settleHills, tickDepressions, unionWater, rockAreasOfJob, withRockAreas, type HillCandidate, type HillLimits, type PitCandidate, type PitLimits, type PrimaryForMerge, type PrimaryOutcome,
   type CandidateInput, type CandidateResult, type clearCutFeatures, type ClearResult, type ClearSettings, type FlatContourResult, type HeightGrid, type PhotoPixels, type PixelAffine, type SlopeGrid, type SoilArea, type SoilOutcome, type StageBox
 } from "@o-tid/map-revision/base-map";
 
@@ -78,7 +78,9 @@ export type CandidateRequest =
       /** SGU:s torra mark och vatten (`soilForMarsh`): ingen sankmark på sand och grus. */
       readonly soil?: readonly SoilArea[] | undefined;
       /** NMD:s öppna våtmark (`landCoverFeatures`, ägaren 2026-11-17) i SWEREF 99 TM. */
-      readonly landCover?: readonly SourceFeature[] | undefined }
+      readonly landCover?: readonly SourceFeature[] | undefined;
+      /** Projektets huvudkällor (K4c) i SWEREF 99 TM: OpenStreetMaps objekt av källornas slag hoppas över inom dem. */
+      readonly primary?: readonly PrimaryForMerge[] | undefined }
   /** Objekten för en fil som inte kom från Workern; sparas under `dataId`. */
   | { readonly type: "data"; readonly dataId: number; readonly features: readonly SourceFeature[] }
   | { readonly type: "forget"; readonly dataId: number }
@@ -88,7 +90,9 @@ export type CandidateResponse =
   | ({ readonly type: "progress"; readonly id: number } & BaseMapStep)
   | { readonly type: "base-map"; readonly id: number; readonly dataId: number; readonly data: SourceData; readonly calm?: CalmOutcome | undefined;
       readonly clear?: ClearOutcome | undefined; readonly rock?: RockOutcome | undefined; readonly soil?: SoilOutcome | undefined;
-      readonly pits?: PitOutcome | undefined; readonly hills?: HillOutcome | undefined }
+      readonly pits?: PitOutcome | undefined; readonly hills?: HillOutcome | undefined;
+      /** Det som hoppades över av OpenStreetMap inom huvudkällorna. */
+      readonly primary?: readonly PrimaryOutcome[] | undefined }
   | { readonly type: "computed"; readonly id: number; readonly result: CandidateResult | null }
   /** `parse`: filen gick inte att tolka (meddelandet visas som det är). */
   | { readonly type: "error"; readonly id: number; readonly message: string; readonly parse: boolean };
@@ -128,8 +132,8 @@ export function handleCandidateRequest(store: CandidateStore, request: Candidate
       : request.joined ? parsed[0]!.parts.map(part => ({ ...part, data: { ...part.data, features: unionWater(part.data.features) } })) : parsed[0]!.parts;
     if (request.merge) post({ type: "progress", id, step: "merge" });
     let soil: SoilOutcome | undefined;
-    const merged: SourceData = request.merge ? mergeBaseMap(read, request.osm, request.scale, request.cuts, request.norm,
-      request.soil && { areas: request.soil, report: outcome => { soil = outcome; } }, request.landCover) : { ...read[0]!.data };
+    const merged: SourceData & { readonly primary?: readonly PrimaryOutcome[] } = request.merge ? mergeBaseMap(read, request.osm, request.scale, request.cuts, request.norm,
+      request.soil && { areas: request.soil, report: outcome => { soil = outcome; } }, request.landCover, request.primary) : { ...read[0]!.data };
     // Hjälpkurvor och små ringar på flack mark tas bort direkt (förvalet), när körningen har fuktdjupet med lutningen.
     const calm = request.merge && request.calm ? request.calm : undefined;
     // Med etapper: varje etapps lutning där den har en, annars den gemensamma.
@@ -166,7 +170,9 @@ export function handleCandidateRequest(store: CandidateStore, request: Candidate
       pits = { candidates, limits, level: DEFAULT_PIT_LEVEL, scale: request.scale, points: choice.points.length, rings: choice.rings.length, ticks: ticked.ticks, byHeight: ticked.byHeight };
     }
     store.set(request.dataId, data.features);
-    post({ type: "base-map", id, dataId: request.dataId, data, ...(rockUsed ? { rock } : {}), ...(soil ? { soil } : {}), ...(pits ? { pits } : {}), ...(hills ? { hills } : {}),
+    // Det som OpenStreetMap hoppade över inom huvudkällorna följer med svaret, inte med objekten.
+    const { primary: skippedOsm, ...plain } = data;
+    post({ type: "base-map", id, dataId: request.dataId, data: plain, ...(skippedOsm ? { primary: skippedOsm } : {}), ...(rockUsed ? { rock } : {}), ...(soil ? { soil } : {}), ...(pits ? { pits } : {}), ...(hills ? { hills } : {}),
       ...(cleared && clearSettings ? { clear: { ...cleared, settings: clearSettings, ...(clear?.settings ? {} : { suggested: clearSettings }) } } : {}),
       ...(calm && calmed ? { calm: { removed: calmed.removed, added: calmed.added, formlineMeters: calmed.formlineMeters, rings: calmed.rings, level: calm.level } } : {}) });
   } catch (error) {

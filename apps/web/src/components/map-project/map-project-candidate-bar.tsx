@@ -6,6 +6,7 @@ import type { CatalogSymbol } from "../../lib/map-project-protocol";
 import { useTexts } from "../language-provider";
 import { Button } from "../ui";
 import type { AcceptMode, useMapProjectImport } from "./use-map-project-import";
+import { MapProjectPrimaryCheck, MapProjectPrimaryQuestion } from "./map-project-primary";
 import styles from "./map-project-candidate-bar.module.css";
 
 /**
@@ -17,7 +18,8 @@ import styles from "./map-project-candidate-bar.module.css";
 export function MapProjectCandidateBar({ importer, symbols, onShowLayers }: { importer: ReturnType<typeof useMapProjectImport>;
   symbols: ReadonlyMap<string, CatalogSymbol>; onShowLayers: () => void }) {
   const text = useTexts(mapProjectImportSv, mapProjectImportEn);
-  if (!importer.file) return null;
+  // K4c: sedan utkastet lagts in står frågan om OpenStreetMaps objekt inom huvudkällan här.
+  if (!importer.file) return <MapProjectPrimaryQuestion importer={importer} />;
   const count = importer.result?.objects.length ?? 0;
   const rows = importer.layers.filter(layer => importer.mapping.has(layer.name));
   return <section className={styles.bar} aria-label={text.barLabel} data-testid="map-project-candidate-bar">
@@ -55,6 +57,7 @@ export function MapProjectCandidateBar({ importer, symbols, onShowLayers }: { im
         {(["add", "extend", "replace"] as const).map(mode => <option key={mode} value={mode}>{text.barModes[mode]}</option>)}
       </select>
     </label>}
+    <MapProjectPrimaryCheck importer={importer} className={styles.layer} />
     <label className={styles.layer} data-on={importer.focus || undefined}>
       <input type="checkbox" checked={importer.focus} onChange={() => importer.setFocus(!importer.focus)} data-testid="map-project-candidate-focus" />
       {text.barFocus}

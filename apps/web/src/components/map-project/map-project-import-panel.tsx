@@ -11,6 +11,7 @@ import type { CatalogSymbol } from "../../lib/map-project-protocol";
 import { Button } from "../ui";
 import type { useMapProjectImport } from "./use-map-project-import";
 import styles from "./map-project-editor.module.css";
+import { MapProjectPrimaryCheck } from "./map-project-primary";
 
 type Import = ReturnType<typeof useMapProjectImport>;
 
@@ -88,6 +89,7 @@ export function MapProjectImportPanel({ importer, symbols, areas }: { importer: 
       {result && <p className={styles.muted} data-testid="map-project-import-result" role="status">
         {text.result(result.objects.length, result.joined, result.duplicates, result.short, result.outside, result.mismatched, result.clipped, result.closedAreas, result.stairs, result.steps, result.stairDropped)}</p>}
       {!result && importer.crs !== undefined && <p role="alert" className={styles.problem}>{text.problems.crs}</p>}
+      <MapProjectPrimaryCheck importer={importer} />
       {result && result.objects.length > 0 && <p className={styles.muted}>{importer.canAccept ? text.acceptHelp : text.shownHelp}</p>}
       <span className={styles.actions}>
         {importer.canAccept && <Button disabled={!result || result.objects.length === 0 || !!importer.progress} onClick={importer.accept}

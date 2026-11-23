@@ -5,6 +5,7 @@ import { schema, type Database } from "@o-tid/database";
 import { baseMapOutputs, clipWgs84, soilForMarsh, type BaseMapSummary } from "@o-tid/map-revision/base-map";
 import { aiGate, mapProjectAllows } from "./map-project-access";
 import { mapProjectAreaViews } from "./map-project-areas";
+import { primarySourcesOf } from "./map-project-primary-sources";
 import { clearCutRuntimeFromEnvironment, fetchMapProjectClearCutsAsAi, type ClearCutRuntime } from "./map-project-clear-cuts";
 import { fetchMapProjectSoilAsAi, soilRuntimeFromEnvironment, type SoilRuntime } from "./map-project-soil";
 import { fetchMapProjectLandCoverAsAi, landCoverRuntimeFromEnvironment, type LandCoverRuntime } from "./map-project-land-cover";
@@ -107,6 +108,8 @@ export async function callMcpBaseMapTool(db: Database, accountId: string, input:
       return toolError(`Laserkörningens filer är för stora att sätta ihop här (${megabytes(bytes)} MB, högst ${megabytes(MCP_BASE_MAP_MAX_BYTES)} MB). Dela kartan i etapper och kör laserjobbet och apply_base_map en etapp i taget.`);
     }
     const stage = job.areaId ? (await db.transaction(tx => mapProjectAreaViews(tx, projectId))).find(area => area.areaId === job.areaId)?.polygon : undefined;
+    // K4c: inom projektets huvudkällor hoppas OpenStreetMaps objekt av källornas slag över, som i webben.
+    const primary = (await db.transaction(tx => primarySourcesOf(tx, projectId))).map(source => ({ name: source.name, kinds: source.kinds, area: source.area }));
     // OpenStreetMap och hyggena för jobbets ruta, som i webben; går en hämtning inte läggs grundkartan in utan den.
     const box = job.clip ? clipWgs84(job.clip) : undefined;
     const missing: string[] = [];
@@ -133,7 +136,8 @@ export async function callMcpBaseMapTool(db: Database, accountId: string, input:
     const height = await geoHeightOutputs(db, job.jobId);
     const request: BaseMapJobRequest = { hash, files: parts.map(file => ({ name: file.name, sha256: file.sha256 })),
       ...(knolls ? { knolls: { level: levels.knolls!, sha256: knolls.sha256 } } : {}), ...(cliffs ? { cliffs: { level: levels.cliffs!, sha256: cliffs.sha256 } } : {}),
-      ...(osm ? { osm } : {}), ...(cuts ? { cuts } : {}), ...(soil ? { soil } : {}), ...(landCover ? { landCover } : {}), scannedAt: job.scannedAt, ...(depth ? { depth } : {}), ...(rock ? { rock } : {}), ...(height ? { height } : {}), ...(stage ? { stage } : {}), ...(only ? { only, replace } : {}), missing };
+      ...(osm ? { osm } : {}), ...(cuts ? { cuts } : {}), ...(soil ? { soil } : {}), ...(landCover ? { landCover } : {}), scannedAt: job.scannedAt, ...(depth ? { depth } : {}), ...(rock ? { rock } : {}), ...(height ? { height } : {}), ...(stage ? { stage } : {}), ...(only ? { only, replace } : {}),
+      ...(primary.length > 0 ? { primary } : {}), missing };
     mapJobId = await queueMapJob(db, { accountId, projectId, kind: "BASE_MAP", request: request as unknown as Record<string, unknown> }, now);
     if (!mapJobId) return toolError("För många anrop just nu (högst 30 kartjobb per minut och två samtidigt). Vänta en stund.");
   }

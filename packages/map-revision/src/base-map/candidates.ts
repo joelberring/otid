@@ -3,6 +3,7 @@ import {
   applyFit, clipObjectsToPolygon, codeParts, generalizeCandidates, stairWidthOfName, importObjects, sourcePointToMap, suggestSymbol,
   type ImportLayer, type ImportResult, type MapBox, type MapNorm, type SourceFeature, type TargetKind, type VectorFit
 } from "../index";
+import { buildingOutlines } from "../building-outlines";
 import { maskBuilt } from "./built-mask";
 
 /**
@@ -37,12 +38,27 @@ export interface CandidateInput {
   /** Åker och fruktodling (412, 413): inget berg i dagen eller öppen mark där (ägaren 2026-11-18). */
   readonly fields?: readonly [number, number][][][] | undefined;
   readonly maskBuilt: boolean;
+  /**
+   * Ägaren 2026-11-23: kantsymbolen (t.ex. 521.1) när kartans byggnad (521) är en yta utan egen kant; då får de inlästa husen
+   * kantlinjer runt sammanhängande hus (`buildingOutlines`). Utelämnat = ingen kant läggs till.
+   */
+  readonly buildingEdge?: string | undefined;
 }
 
 export type CandidateResult = ImportResult & {
   readonly generalized: { readonly removed: number; readonly simplified: number } | undefined;
   readonly builtMask: { readonly removed: number; readonly clipped: number } | undefined;
+  /** Kantlinjer som lades till runt husen (`CandidateInput.buildingEdge`). */
+  readonly outlines?: number | undefined;
 };
+
+/** Kantlinjerna runt de inlästa husen (521) i kantsymbolen. */
+function withBuildingEdges(objects: readonly MapObject[], edge: string | undefined, codeOf: (symbol: string) => string | undefined): { objects: MapObject[]; outlines: number } {
+  if (!edge) return { objects: [...objects], outlines: 0 };
+  const houses = objects.flatMap((object, index) => object.kind === "area" && codeParts(codeOf(object.symbol) ?? "").main === 521 ? [{ key: String(index), object }] : []);
+  const plan = buildingOutlines(houses, [], edge);
+  return { objects: [...objects, ...plan.add], outlines: plan.add.length };
+}
 
 /** Kandidaterna ur filens objekt; `undefined` om uträkningen inte gick (som förr). */
 export function computeCandidates(features: readonly SourceFeature[], input: CandidateInput): CandidateResult | undefined {
@@ -73,10 +89,13 @@ export function computeCandidates(features: readonly SourceFeature[], input: Can
     const fields = input.fields ?? [];
     const masked = input.maskBuilt && (input.built.length || fields.length) ? maskBuilt(imported.objects, input.built, symbol => { const code = symbols.get(symbol)?.code; return code ? Number(code.split(".")[0]) : undefined; }, fields) : undefined;
     const kept = masked?.objects ?? imported.objects, builtMask = masked && masked.removed + masked.clipped > 0 ? { removed: masked.removed, clipped: masked.clipped } : undefined;
-    if (!input.normed) return { ...imported, objects: kept, generalized: undefined, builtMask };
+    const codeOf = (symbol: string) => symbols.get(symbol)?.code;
+    if (!input.normed) { const edged = withBuildingEdges(kept, input.buildingEdge, codeOf); return { ...imported, objects: edged.objects, generalized: undefined, builtMask, outlines: edged.outlines }; }
     // Ägaren 2026-11-11: kandidaterna generaliseras efter normen innan de läggs in (går att slå av i kandidatraden).
-    const general = generalizeCandidates(kept, symbol => symbols.get(symbol)?.code, georeference.scale);
-    return { ...imported, objects: general.objects, generalized: { removed: general.removed, simplified: general.simplified }, builtMask };
+    const general = generalizeCandidates(kept, codeOf, georeference.scale);
+    // Kanten runt husen efter generaliseringen, så att den följer husens slutliga form.
+    const edged = withBuildingEdges(general.objects, input.buildingEdge, codeOf);
+    return { ...imported, objects: edged.objects, generalized: { removed: general.removed, simplified: general.simplified }, builtMask, outlines: edged.outlines };
   } catch { return undefined; }
 }
 

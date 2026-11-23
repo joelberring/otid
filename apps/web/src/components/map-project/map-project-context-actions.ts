@@ -6,7 +6,7 @@ import type { Texts } from "../../lib/language";
 import type { Box } from "@o-tid/map-revision";
 
 export type ContextActionId = "switchSymbol" | "pick" | "duplicate" | "parallel" | "reverse" | "join" | "fill" | "smooth" | "simplify" | "simplifyMore" | "straighten"
-  | "checked" | "edge" | "remove" | "editText" | "rotate" | "textStyle";
+  | "checked" | "edge" | "outlines" | "remove" | "editText" | "rotate" | "textStyle";
 
 export interface ContextAction {
   readonly id: ContextActionId; readonly label: string;
@@ -44,6 +44,8 @@ export interface ContextInput {
   readonly checked?: boolean | undefined;
   /** Kantlinje på markerade ytor med kartans kantsymboler (tomt = ingen kantsymbol, och då finns inte åtgärden). */
   readonly edge?: { readonly areas: number; readonly codes: readonly string[] } | undefined;
+  /** Ägaren 2026-11-23: «Lägg kant runt husen» för markerade hus (bara när kartans byggnad saknar egen kant och har 521.1). */
+  readonly outlines?: string | undefined;
 }
 
 /**
@@ -57,6 +59,7 @@ export function contextActions(input: ContextInput): ContextAction[] {
   const of = (id: ContextActionId, label: string, command: KeyCommand | undefined, extra: Partial<ContextAction> = {}): ContextAction =>
     ({ id, label, key: command && key(command), help: command && command in text.tips ? text.tips[command as keyof typeof text.tips] : undefined, ...extra });
   const edge = input.edge && input.edge.codes.length ? [of("edge", text.edge(input.edge.areas, input.edge.codes.join(", ")), undefined)] : [];
+  const outlines = input.outlines ? [of("outlines", input.outlines, undefined, { testId: "map-project-rail-outlines" })] : [];
   const checked = input.checked === undefined ? [] : [of("checked", text.commands.checked, "checked", { pressed: input.checked, testId: "recon-check" })];
   if (multi) return [
     ...(multi.switchable && multi.symbolCode ? [of("switchSymbol", text.multiSwitch(multi.switchable, multi.symbolCode), "switchSymbol", { testId: "map-project-rail-switch" })] : []),
@@ -65,7 +68,7 @@ export function contextActions(input: ContextInput): ContextAction[] {
     ...(multi.smooth ? [of("smooth", text.multiSmooth(multi.smooth), "smooth")] : []),
     of("duplicate", text.commands.duplicate, "duplicate", { testId: "map-project-duplicate" }),
     ...(multi.lines ? [of("reverse", text.commands.reverse, "reverse", { testId: "map-project-rail-reverse" })] : []),
-    ...edge,
+    ...edge, ...outlines,
     of("remove", text.multiRemove(multi.count), undefined, { key: "Del", help: text.tips.remove, testId: "map-project-rail-remove" })];
   if (!single) return [];
   const shape = (id: "simplify" | "simplifyMore" | "smooth" | "straighten") => {
@@ -92,7 +95,7 @@ export function contextActions(input: ContextInput): ContextAction[] {
     ...(single.canFill ? [of("fill", text.commands.fill, "fill", { testId: "map-project-fill" })] : []),
     ...shape("smooth"), ...shape("simplify"), ...shape("simplifyMore"), ...shape("straighten"),
     ...checked,
-    ...edge,
+    ...edge, ...outlines,
     of("remove", single.vertex ? text.commands.removePoint : quick.remove, undefined, { key: "Del", help: text.tips.remove, testId: "map-project-rail-remove" })];
 }
 

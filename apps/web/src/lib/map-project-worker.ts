@@ -1,10 +1,10 @@
 /// <reference lib="webworker" />
 import {
-  drawMap, MapFileError, northLineDegrees, readMapFile, symbolColorIds, withColorChanges, withSymbolColorChanges, withTextSymbolChanges, type MapObject, type MapSymbol,
-  type MapSymbolColorChange, type MapTextSymbolChange, type ParsedMap
+  drawMap, MapFileError, northLineDegrees, readMapFile, symbolColorIds, withColorChanges, withSymbolColorChanges, withSymbolReplacements, withTextSymbolChanges,
+  type MapColorChange, type MapObject, type MapSymbol, type MapSymbolColorChange, type MapTextSymbolChange, type ParsedMap
 } from "@o-tid/map-file";
 import {
-  baseKeys, checkNorm, combineGeneralize, coveredObjects, coverageGrid, generalizeJoins, generalizePart, generalizeParts, editedObjects, fitToMap, mapFitPoints, boxTest, hitTest, objectBox, objectRefFor, reconMarkers, symbolObjectKind, warpObjects, type Box, type GeneralizeResult, type KeyedState, type NormObject, type ObjectKey,
+  baseKeys, checkNorm, checkSymbolNorm, hasOwnOutline, isSprintNorm, mapNorm, missingNormSymbols, normSymbolAdditions, normSymbolFixes, type NormSymbolSetting, combineGeneralize, coveredObjects, coverageGrid, generalizeJoins, generalizePart, generalizeParts, editedObjects, fitToMap, mapFitPoints, boxTest, hitTest, objectBox, objectRefFor, reconMarkers, symbolObjectKind, warpObjects, type Box, type GeneralizeResult, type KeyedState, type NormObject, type ObjectKey,
   type ObjectRef, type ReconObject
 } from "@o-tid/map-revision";
 import { MAX_RENDER_SIDE } from "./course-setting-map-protocol";
@@ -40,6 +40,23 @@ let fileColors: ParsedMap["colors"] = [];
 /** Symbolerna som i filen och projektets färgbyten per symbol (ägaren 2026-11-13). */
 let fileSymbols: ParsedMap["symbols"] = new Map();
 let symbolColorChanges: readonly MapSymbolColorChange[] = [], textSymbolChanges: readonly MapTextSymbolChange[] = [];
+let colorChanges: readonly MapColorChange[] = [];
+/** Ägaren 2026-11-23: symbolerna rättade efter normen (tillagda först, bytta sist, som när filen skrivs). */
+let normSetting: NormSymbolSetting = { replace: [], add: [] };
+
+/**
+ * Kartans färger och symboler med projektets ändringar i samma ordning som servern skriver filen: normens nya symboler,
+ * textsymbolerna, färgtabellen och symbolernas färger, och sist normens byten (som kan lägga in färger).
+ */
+function restyle() {
+  if (!base) return;
+  const file = { colors: fileColors, symbols: fileSymbols };
+  const added = normSetting.add.length ? withSymbolReplacements(file, normSymbolAdditions(file, normSetting.add)).symbols : fileSymbols;
+  const symbols = withSymbolColorChanges(withTextSymbolChanges(added, fileColors, textSymbolChanges), fileColors, symbolColorChanges);
+  const colors = withColorChanges(fileColors, colorChanges);
+  const fixed = normSetting.replace.length ? withSymbolReplacements({ colors, symbols }, normSymbolFixes(symbols, normSetting)) : { colors, symbols };
+  base = { ...base, colors: fixed.colors, symbols: fixed.symbols };
+}
 let lastStates: ReadonlyMap<ObjectKey, KeyedState> = new Map();
 /** Skisslagren: objektens lagernamn från en DWG/DXF-import i Mapper (taggen `Layer`), per nyckel. */
 const layerByKey = new Map<ObjectKey, string>();
@@ -202,6 +219,7 @@ async function catalog(map: ParsedMap): Promise<CatalogSymbol[]> {
       } catch { icon = undefined; }
     }
     out.push({ id: symbol.id, code: symbol.code.text, name: symbol.name, kind, group: symbolGroup(symbol.code.main), ...previewStyle(map, symbol), icon,
+      ...(kind === "area" && hasOwnOutline(map.symbols, symbol) ? { outlined: true } : {}),
       count: counts.get(symbol.id) ?? 0, colors: symbolColorIds(fileSymbols, fileSymbols.get(symbol.id) ?? symbol),
       ...(symbol.kind === "TEXT" ? { text: { fontFamily: symbol.fontFamily, size: symbol.size, color: symbol.color, bold: symbol.bold, italic: symbol.italic,
         ...(symbol.align ? { align: symbol.align } : {}), ...(symbol.framing ? { framing: symbol.framing } : {}) } } : {}),
@@ -288,14 +306,25 @@ self.onmessage = (event: MessageEvent<MapProjectRequest>) => {
   if (request.type === "states") { rebuild(new Map(request.states)); return; }
   if (request.type === "candidates") { candidateObjects = request.objects; refreshCandidates(); return; }
   // Projektets ändrade färger (ägaren 2026-11-10): färgtabellen byts och kartan byggs om med samma objekt.
-  if (request.type === "colors") { if (base) { base = { ...base, colors: withColorChanges(fileColors, request.changes) }; rebuild(lastStates); } return; }
+  if (request.type === "colors") { colorChanges = request.changes; if (base) { restyle(); rebuild(lastStates); } return; }
   // Symbolfärgerna (ägaren 2026-11-13) och textsymbolerna (K8b V6) läggs på filens symboler: först textsymbolerna, sedan färgerna.
-  if (request.type === "symbolColors" || request.type === "textSymbols") {
-    if (request.type === "symbolColors") symbolColorChanges = request.changes; else textSymbolChanges = request.changes;
-    if (base) {
-      base = { ...base, symbols: withSymbolColorChanges(withTextSymbolChanges(fileSymbols, fileColors, textSymbolChanges), fileColors, symbolColorChanges) };
-      rebuild(lastStates);
-    }
+  if (request.type === "symbolColors" || request.type === "textSymbols" || request.type === "normSymbols") {
+    if (request.type === "symbolColors") symbolColorChanges = request.changes;
+    else if (request.type === "textSymbols") textSymbolChanges = request.changes;
+    else normSetting = request.setting;
+    if (base) { restyle(); rebuild(lastStates); }
+    return;
+  }
+  if (request.type === "symbolNorm") {
+    // Symbolerna mot ISSprOM 2019-2 för kartan med ändringarna: bara symbolerna som används.
+    const map = current?.map;
+    if (!map) { post({ type: "symbolNorm", id: request.id, sprint: false, issues: [], missing: [] }); return; }
+    const counts = new Map<string, number>();
+    for (const object of map.objects) counts.set(object.symbol, (counts.get(object.symbol) ?? 0) + 1);
+    const sprint = isSprintNorm(mapNorm({ scale: map.scale, symbols: [...map.symbols.values()].filter(symbol => !symbol.id.includes("."))
+      .map(symbol => ({ code: symbol.code.text, kind: symbolObjectKind(map, symbol), name: symbol.name })) }));
+    post({ type: "symbolNorm", id: request.id, sprint, issues: checkSymbolNorm({ colors: map.colors, symbols: map.symbols, counts }, sprint),
+      missing: sprint ? missingNormSymbols(map.symbols) : [] });
     return;
   }
   if (request.type === "render") { queued = request; drain(); return; }

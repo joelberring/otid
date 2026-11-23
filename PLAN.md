@@ -1465,6 +1465,14 @@ stannar kvar; siffror byter symbol, bokstäver verktyg; tryck byter, håll låna
   rutan bara av linjer och hårda ytor (hus, vatten, oframkomligt) och klipper den nya ytan ur markytorna under (borttagna när
   helt täckta, restbitar under normens minsta yta bort), i samma ångringsbara grupp; röd skraffering och «Fyller över 3 ytor».
 
+- [x] V8 Symbolerna efter sprintnormen (ägaren 2026-11-23: «husen blev helt svarta … trappa är fel liksom många andra symboler»,
+  «hela symboluppsättningen från sprintnormen i valen»; migration 0144). Granska › «Symbolerna mot ISSprOM 2019-2»: kartans
+  symboldefinitioner mot normens tabell ur O-Map Wiki (`symbol-norm.ts`, `issprom-symbols.ts` med alla normens nummer och källa)
+  och saknade normsymboler; ägaren rättar (per symbol, alla, lägg till saknade; skrivs i nya kartversioner, bara Mapper).
+  «Lägg kant runt husen» (Granska, kontextraden, efter Fyll och vid import/grundkarta när 521 saknar egen kant och 521.1 finns):
+  kant runt sammanhängande hus utan gemensamma väggar. O-Tids sprintmall med alla normens symboler (521 svart 50 %, 214 35 %,
+  501.1 0,18 mm). Sprintkartor: 520 bara på småhustomter, inga vägar som linjer.
+
 ## [ ] Steg L – Lagring: gränser, städning och arkiv (ägaren 2026-11-13)
 
 Underlag: `claude/plan-lagring-och-backup-2026-11-13.md` och ADR-0224. Delas i leveranser i den här ordningen.

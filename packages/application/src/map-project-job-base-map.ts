@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { MAP_PROJECT_SYNC_MAX_EDITS, MCP_BASE_MAP_MAX_OBJECTS } from "@o-tid/contracts";
 import type { Point } from "@o-tid/map-file";
-import { baseKeys, newKey, objectBox, objectRefFor, type RevisionEdit, type SourceData } from "@o-tid/map-revision";
+import { autoBuildingEdge, baseKeys, newKey, objectBox, objectRefFor, type RevisionEdit, type SourceData } from "@o-tid/map-revision";
 import {
   assembleBaseMap, builtPolygons, landCoverCodesFromBase64, candidateSymbols, DEFAULT_FLAT_LEVEL, editorBounds, heightGridOf, slopeGridOf, worldFileAffine, type BaseMapAssemblyInput, type BaseMapSummary, type ClearCut, type SoilArea,
   type PhotoPixels
@@ -85,7 +85,8 @@ export function runBaseMap(loaded: LoadedProjectMap, area: Polygon | null, reque
     parts: parts as { name: string; body: string }[], osm: request.osm, cuts: request.cuts, soil: request.soil, landCover: landCoverOf(request.landCover), today: now.toISOString().slice(0, 10), scannedAt: request.scannedAt,
     knolls: knolls as { level: number; body: string } | undefined, cliffs: cliffs as { level: number; body: string } | undefined,
     georeference, symbols: candidateSymbols(loaded.base), bounds: editorBounds(loaded.base, area), area: area ?? undefined, stage: request.stage,
-    built: builtPolygons(loaded.objects, symbol => loaded.base.symbols.get(symbol)?.code.main), primary: request.primary
+    built: builtPolygons(loaded.objects, symbol => loaded.base.symbols.get(symbol)?.code.main), primary: request.primary,
+    buildingEdge: autoBuildingEdge(loaded.base.symbols)
   });
   if ("problem" in assembled) return assembled;
   if (assembled.objects.length === 0) return { problem: "Grundkartan gav inga objekt inom kartan (ligger laserjobbet utanför kartans område?)." };

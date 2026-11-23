@@ -9,7 +9,7 @@ import { withoutCutVegetation, type clearCutFeatures } from "./clear-cuts";
 import { smallRingsToPoints } from "./small-rings";
 import { isRing, ringTick, smallDepressionPoints } from "./depressions";
 import { withoutMarshPits } from "./marsh-pits";
-import { parcelYards, yardsOf } from "./yards";
+import { parcelYards, privateYardsOnly, yardsOf } from "./yards";
 import { marshOutsideManaged, semiOpenOutsideYards, singleMarsh, undergrowthOutsideGreen } from "./marsh-merge";
 import { linesOutsideWater } from "./water-clip";
 import { marshOffDrySoil } from "./soil-marsh";
@@ -230,7 +230,9 @@ export function mergeBaseMap(parts: readonly { readonly name: string; readonly d
   if (soil && dryless) soil.report?.({ removedHa: dryless.removedHa });
   // Ägaren 2026-11-15: inga gropar mitt i sankmark (`marsh-pits.ts`).
   const single = withoutMarshPits(undergrowthOutsideGreen(dryless ? dryless.features : marsh).features).features;
-  const yarded = semiOpenOutsideYards([...single, ...yardsOf(single)]);
+  // Ägaren 2026-11-23: på sprintkartor bara privata tomter (småhus), inte gårdarna kring flerbostadshus (`privateYardsOnly`).
+  const yards = [...single, ...yardsOf(single)];
+  const yarded = semiOpenOutsideYards(isSprintNorm(norm) ? privateYardsOnly(yards, [...single, ...(rawOsm ? osmInSweref(rawOsm.features.filter(feature => OSM_BUILDING.test(feature.layer))) : [])]) : yards);
   // Ägaren 2026-11-22: vattnet som körningens kant skär av fortsätter ut till kartans ram (klipps till kartans område sedan);
   // strandlinjen dras bara längs laserns strand.
   return { features: [...waterToFrame(yarded, extent), ...shoreLines(single)], skipped: parts.reduce((sum, part) => sum + part.data.skipped, 0) + (osm?.skipped ?? 0),

@@ -11,7 +11,7 @@ import { useTexts } from "../language-provider";
 import { MAP_PROJECT_SYNC_MAX_EDITS, type MapLayerProfileView, type MapProjectDecisionRequest, type MapProjectView } from "@o-tid/contracts";
 import { isSupportedEpsg, type MapGeoreference, type MapObject, type PathCommand } from "@o-tid/map-file";
 import {
-  fitClassOf, guessCrs, importLayers, isSprintNorm, isStockholmLayer, mapNorm, newKey, objectBox, samplePath, sourcePointToMap, suggestSymbol, VectorParseError, WGS84_EPSG,
+  autoBuildingEdgeOf, fitClassOf, guessCrs, importLayers, isSprintNorm, isStockholmLayer, mapNorm, newKey, objectBox, samplePath, sourcePointToMap, suggestSymbol, VectorParseError, WGS84_EPSG,
   type FitPoint, type ImportLayer, type SourceData, type SourceFeature, type VectorFit
 } from "@o-tid/map-revision";
 import { clubRequest, csrf } from "../../lib/club-archive-client";
@@ -226,7 +226,9 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   const input = useMemo((): CandidateInput | undefined => {
     if (!georeference || crs === undefined || !(crs === WGS84_EPSG || isSupportedEpsg(crs))) return undefined;
     return { georeference, crs, mapping: [...mapping], skipped: [...skipped], bounds, clip, area: view.area ?? undefined, stage, fit: fitted, normed,
-      built, fields, maskBuilt: maskBuiltOn, symbols: [...symbols.values()].map(symbol => [symbol.id, symbol.code, symbol.kind] as const) };
+      built, fields, maskBuilt: maskBuiltOn, symbols: [...symbols.values()].map(symbol => [symbol.id, symbol.code, symbol.kind] as const),
+      // Ägaren 2026-11-23: kantlinjer runt de inlästa husen när kartans byggnad är en yta utan egen kant (och 521.1 finns).
+      buildingEdge: autoBuildingEdgeOf([...symbols.values()]) };
   }, [georeference, crs, mapping, symbols, bounds, clip, stage, fitted, skipped, normed, view.area, built, fields, maskBuiltOn]);
   const [computed, setComputed] = useState<{ name: string; features: readonly SourceFeature[]; input: CandidateInput; result: CandidateResult | undefined }>();
   useEffect(() => {

@@ -1,6 +1,6 @@
 import type { MapColor, MapColorChange, MapGeoreference, MapObject, MapSymbolColorChange, MapTextSymbolChange, Point, TextAlign } from "@o-tid/map-file";
 import type {
-  Coverage, FitPoint, GeneralizeOptions, GeneralizeResult, KeyedState, NormResult, ObjectKey, ObjectRef, ReconMarker, ReconSettings, TrackPoint, VectorFit, WarpChange, WarpOptions
+  Coverage, FitPoint, GeneralizeOptions, GeneralizeResult, KeyedState, NormResult, NormSymbolSetting, ObjectKey, SymbolNormIssue, ObjectRef, ReconMarker, ReconSettings, TrackPoint, VectorFit, WarpChange, WarpOptions
 } from "@o-tid/map-revision";
 import type { MapRenderErrorCode, MapRenderRequest } from "./course-setting-map-protocol";
 import type { Bounds } from "./course-setting-viewport";
@@ -35,6 +35,8 @@ export interface CatalogSymbol {
   readonly colors: readonly number[];
   /** Hur många objekt i kartan som har symbolen. */
   readonly count: number;
+  /** Ytsymbolen har egen kant (kantlinje eller kombinerad med en linje); avgör om husen får kantlinjer (`autoBuildingEdgeOf`). */
+  readonly outlined?: boolean | undefined;
   /**
    * Skisslager (ägaren 2026-11-15): symbolen är dold i kartfilen (Mappers «dölj symbol», t.ex. en inläst grundkarta från
    * CAD). Den ritas bara när skisslagret är tänt och kan föras över till en symbol i normen.
@@ -60,6 +62,9 @@ export interface ProjectHit {
   readonly distance: number;
 }
 
+/** Symbolerna mot normen (Workerns svar utan typ och id). */
+export type SymbolNormResult = Omit<Extract<MapProjectResponse, { type: "symbolNorm" }>, "type" | "id">;
+
 export type MapProjectRequest =
   | { readonly type: "load"; readonly bytes: ArrayBuffer; readonly fileName: string; readonly sha256: string }
   | Extract<MapRenderRequest, { type: "render" }>
@@ -68,6 +73,10 @@ export type MapProjectRequest =
   | { readonly type: "colors"; readonly changes: readonly MapColorChange[] }
   | { readonly type: "symbolColors"; readonly changes: readonly MapSymbolColorChange[] }
   | { readonly type: "textSymbols"; readonly changes: readonly MapTextSymbolChange[] }
+  /** Ägaren 2026-11-23: symbolerna rättade efter normen (projektets inställning). */
+  | { readonly type: "normSymbols"; readonly setting: NormSymbolSetting }
+  /** Symbolerna mot ISSprOM 2019-2 och normens symboler som kartan saknar. */
+  | { readonly type: "symbolNorm"; readonly id: number }
   | { readonly type: "candidates"; readonly objects: readonly MapObject[] }
   | { readonly type: "hit"; readonly id: number; readonly point: Point; readonly tolerance: number; readonly hidden: readonly string[] }
   /** Ägaren 2026-11-10: objekten som en dragen ruta rör vid (kartans mm). */
@@ -116,6 +125,8 @@ export type MapProjectResponse =
   | { readonly type: "catalog"; readonly id: number; readonly symbols: readonly CatalogSymbol[] }
   | { readonly type: "recon"; readonly id: number; readonly result: ReconResult }
   | { readonly type: "norm"; readonly id: number; readonly result: NormResult }
+  | { readonly type: "symbolNorm"; readonly id: number; readonly sprint: boolean; readonly issues: readonly SymbolNormIssue[];
+      readonly missing: readonly { readonly code: string; readonly name: string }[] }
   /** `failed`: räkningen gick fel (resultatet är tomt). */
   | { readonly type: "generalize"; readonly id: number; readonly result: GeneralizeResult; readonly refs: readonly (readonly [ObjectKey, ObjectRef])[];
       readonly failed?: boolean | undefined }
@@ -161,6 +172,8 @@ export class MapProjectSession {
   private onRecon: ((result: ReconResult) => void) | undefined;
   private latestNorm = 0;
   private onNorm: ((result: NormResult) => void) | undefined;
+  private latestSymbolNorm = 0;
+  private onSymbolNorm: ((result: SymbolNormResult) => void) | undefined;
   private latestGeneralize = 0;
   private onGeneralize: ((result: GeneralizeResult, refs: ReadonlyMap<ObjectKey, ObjectRef>, failed: boolean) => void) | undefined;
   private onGeneralizeProgress: ((done: number, total: number) => void) | undefined;
@@ -195,6 +208,7 @@ export class MapProjectSession {
       else if (message.type === "catalog") { if (message.id === this.latestCatalog) this.onCatalog?.(message.symbols); }
       else if (message.type === "recon") { if (message.id === this.latestRecon) this.onRecon?.(message.result); }
       else if (message.type === "norm") { if (message.id === this.latestNorm) this.onNorm?.(message.result); }
+      else if (message.type === "symbolNorm") { if (message.id === this.latestSymbolNorm) this.onSymbolNorm?.(message); }
       else if (message.type === "generalize") { if (message.id === this.latestGeneralize) this.onGeneralize?.(message.result, new Map(message.refs), message.failed === true); }
       else if (message.type === "generalizeProgress") { if (message.id === this.latestGeneralize) this.onGeneralizeProgress?.(message.done, message.total); }
       else if (message.type === "bySymbol") { if (message.id === this.latestBySymbol) this.onBySymbol?.(message.objects); }
@@ -256,6 +270,15 @@ export class MapProjectSession {
     const id = ++this.latestRecon;
     this.onRecon = onRecon;
     this.post({ type: "recon", id, ...input });
+  }
+
+  /** Ägaren 2026-11-23: symbolerna rättade efter normen; kartan ritas med dem från nästa bild. */
+  normSymbols(setting: NormSymbolSetting) { this.post({ type: "normSymbols", setting }); }
+
+  symbolNorm(onResult: (result: SymbolNormResult) => void) {
+    const id = ++this.latestSymbolNorm;
+    this.onSymbolNorm = onResult;
+    this.post({ type: "symbolNorm", id });
   }
 
   norm(onNorm: (result: NormResult) => void) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { mapProjectKeysEn, mapProjectNotesEn, mapProjectQuickEn } from "../../i18n/map-project-tools-en";
 import { mapProjectEditorEn, mapProjectLayersEn } from "../../i18n/map-project-en";
 import { mapProjectReconEn, mapProjectRectifyEn, mapProjectWorkLayersEn } from "../../i18n/map-project-more-en";
@@ -20,6 +20,7 @@ import {
 } from "../../lib/map-project-overlay";
 import { coverageImage, drawCoverage, drawNormIssues, drawNotes, drawReconMarkers, drawTracks, noteAt } from "../../lib/map-project-recon-overlay";
 import { MapProjectNormPanel } from "./map-project-norm-panel";
+import { MapProjectSymbolNormPanel } from "./map-project-symbol-norm-panel";
 import { MapProjectGeneralizePanel } from "./map-project-generalize-panel";
 import { useMapProjectGeneralize } from "./use-map-project-generalize";
 import { useMapProjectRectify } from "./use-map-project-rectify";
@@ -30,6 +31,7 @@ import { useMapProjectFill } from "./use-map-project-fill";
 import { MapProjectAreaProposalBar } from "./map-project-area-proposal-bar";
 import { mapProjectRectifySv } from "../../i18n/map-project-rectify-sv";
 import { useMapProjectNorm } from "./use-map-project-norm";
+import { useMapProjectBuildingOutlines } from "./use-map-project-building-outlines";
 import { mapProjectNotesSv } from "../../i18n/map-project-notes-sv";
 import { NoteForm, NotesPanel, ShownNoteDetail } from "./map-project-notes";
 import { useMapProjectNotes } from "./use-map-project-notes";
@@ -263,7 +265,11 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   // K8b V1: Fäst (V3) och Glapp, som Magisk fyll läser (V2).
   const modes = useMapProjectModes({ projectId: view.projectId, sprint: useMemo(() => isSprintNorm(mapNorm({ scale: editor.scale ?? georeference?.scale, symbols: symbols.values() })),
     [editor.scale, georeference?.scale, symbols]) });
-  const fill = useMapProjectFill({ session, active: tool === "bucket" && canEdit, symbol, hidden: hiddenSymbols, commit, say: setFlash, symbols, scale: editor.scale ?? georeference?.scale, commitMany: editor.commitMany, gapM: modes.gapM, over: modes.over,
+  // Ägaren 2026-11-23: kant runt husen (Granska, kontextraden och efter Fyll när kartans byggnad saknar egen kant).
+  const outlines = useMapProjectBuildingOutlines({ session, catalog, commitMany: editor.commitMany, canEdit });
+  const fill = useMapProjectFill({ session, active: tool === "bucket" && canEdit, symbol, hidden: hiddenSymbols, say: setFlash, symbols, scale: editor.scale ?? georeference?.scale, gapM: modes.gapM, over: modes.over,
+    commit: change => { const ok = commit(change); if (ok) outlines.afterAdd([change]); return ok; },
+    commitMany: changes => { const count = editor.commitMany(changes); if (count) outlines.afterAdd(changes); return count; },
     select: hit => { setSelected({ key: hit.key, ref: hit.ref, object: hit.object }); setActiveVertex(undefined); }, switchKey: keyOf("switchSymbol") });
   // K8b V3: Fäst mot synliga objekt (också låsta) i Rita, Rektangel, Cirkelns mitt, Lägg till punkt och när punkter dras.
   const snap = useMapProjectSnap({ session, renderKey: editor.renderKey, on: modes.snap && canEdit, hidden: hiddenSymbols, tool });
@@ -322,7 +328,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const rectCorners = useRef<Point[]>([]);
   // K8b V1: det som går att göra med det markerade (kontextraden, hjulets lista, tangenterna och Gör igen).
   const { contextList, doAction, keyAction, repeat, repeatLabel } = useMapProjectActions({ canEdit, tool, keys, keysText, quick, multi, selected, symbol, symbolId,
-    activeVertex, recon, symbols, catalog, save, reshape, commit, setFlash, chooseSymbol, removeSelected, joinMm: JOIN_MM,
+    activeVertex, recon, symbols, catalog, save, reshape, commit, setFlash, chooseSymbol, removeSelected, joinMm: JOIN_MM, outlines,
     text: { labels: textUi.labels, edit: () => { if (selected?.object.kind === "text") textUi.edit({ ...selected, object: selected.object }); }, rotate: () => setRotating(true), style: () => textUi.styles.setOpen(selected?.object.symbol) } });
   useMapProjectShortcuts({ keys, blocked: keysOpen, canEdit, canNote: notes.canWrite, tool, hasSelection: !!selected, drafting: draft.length > 0,
     multiCount: multi.items.length, panKey, undo: textUi.undo, redo: textUi.redo, toggleBare: () => setBare(value => !value),
@@ -779,7 +785,9 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
           {/* Översynen av kartstegen 2026-11-17: i arbetsordning – förslagen, normkontrollen, notiserna och rekningen, delområdena,
               och arbetssättet och AI-kopplingen (sällan ändrade) i en utfällning sist. */}
           {(["proposals", "norm", "notes", "recon", "areas", "settings"] as const).map(part => part === "norm"
-            ? <MapProjectNormPanel key={part} norm={norm} onShow={issue => { setShownIssue(issue.at); setPanelOpen(false); mapHandle.current?.focus(issue.at); }} />
+            ? <Fragment key={part}><MapProjectNormPanel norm={norm} onShow={issue => { setShownIssue(issue.at); setPanelOpen(false); mapHandle.current?.focus(issue.at); }} />
+              <MapProjectSymbolNormPanel session={session} canDecide={view.viewer.canDecide} ocad={view.base.format === "OCD"} saved={editor.normSymbols}
+                onSave={editor.saveNormSymbols} outlines={outlines} /></Fragment>
             : part === "notes" ? <NotesPanel key={part} notes={notes.notes} problem={notes.problem} onShow={note => { setShownNote(note.noteId); setPanelOpen(false); mapHandle.current?.focus(note.at); }} />
             : part === "recon" ? <MapProjectReconPanel key={part} view={view} recon={recon} hasGeoreference={!!georeference} />
             : <MapProjectCollabPanel key={part} part={part} view={view} collab={collab} shownProposal={shownProposal} onShowProposal={setShownProposal}

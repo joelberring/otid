@@ -97,6 +97,14 @@ export const mapProjectTextSymbolsSchema = z.array(z.object({
 export type MapProjectTextSymbolChange = z.infer<typeof mapProjectTextSymbolsSchema>[number];
 
 /**
+ * Ägaren 2026-11-23: symbolerna rättade efter ISSprOM 2019-2 (`NormSymbolSetting` i map-revision): numren vars symbol byts mot
+ * normens och normens nummer som läggs till. Tomma listor = filens egna.
+ */
+const normCodeSchema = z.string().regex(/^\d{1,4}(\.\d{1,4})?$/);
+export const mapProjectNormSymbolsSchema = z.object({ replace: z.array(normCodeSchema).max(300), add: z.array(normCodeSchema).max(300) }).strict();
+export type MapProjectNormSymbols = z.infer<typeof mapProjectNormSymbolsSchema>;
+
+/**
  * Vad AI-kopplingen får göra i projektet (ägaren 2026-11-12): bara läsa, lämna förslag som en ägare godkänner (förval), eller
  * arbeta självständigt, då AI:ns ändringar godkänns direkt och hamnar i kartans historik som godkända förslag.
  */
@@ -117,11 +125,13 @@ export const mapProjectUpdateRequestSchema = z.object({
   symbolColors: mapProjectSymbolColorsSchema.optional(),
   /** K8b V6: textsymbolernas stil och nya textsymboler; tom lista = filens egna (bara Mapper-kartor). */
   textSymbols: mapProjectTextSymbolsSchema.optional(),
+  /** Symbolerna rättade efter normen (bara Mapper-kartor). */
+  normSymbols: mapProjectNormSymbolsSchema.optional(),
   /** AI-kopplingens läge i projektet. */
   aiMode: mapProjectAiModeSchema.optional()
 }).strict().refine(value => value.name !== undefined || value.status !== undefined || value.mode !== undefined || value.recon !== undefined
   || value.leaderboard !== undefined || value.colors !== undefined || value.symbolColors !== undefined || value.textSymbols !== undefined
-  || value.aiMode !== undefined);
+  || value.normSymbols !== undefined || value.aiMode !== undefined);
 
 export const mapProjectInviteRequestSchema = z.object({
   formatVersion: z.literal(1), requestId: uuidSchema, email: accountEmailSchema, role: mapProjectRoleSchema
@@ -291,6 +301,8 @@ export interface MapProjectView extends MapProjectSummary {
   symbolColors: MapProjectSymbolColorChange[];
   /** K8b V6: ändrade och nya textsymboler (tom = filens egna). */
   textSymbols: MapProjectTextSymbolChange[];
+  /** Symbolerna rättade efter normen (tomma listor = filens egna). */
+  normSymbols: MapProjectNormSymbols;
   /** Vad AI-kopplingen får göra i projektet. */
   aiMode: MapProjectAiMode;
   areas: MapProjectAreaView[];

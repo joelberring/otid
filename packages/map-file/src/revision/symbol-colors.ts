@@ -45,7 +45,8 @@ export function symbolColorIds(symbols: ReadonlyMap<string, MapSymbol>, symbol: 
   return [...new Set([...ownColors(symbol), ...privateParts(symbols, symbol).flatMap(part => ownColors(part))])];
 }
 
-function recolor(symbol: MapSymbol, remap: Remap): MapSymbol {
+/** Symbolen med färgerna bytta (`remap` får färgens id och ger det nya). */
+export function recolor(symbol: MapSymbol, remap: Remap): MapSymbol {
   const stroke = (item: StrokeStyle): StrokeStyle => ({ ...item, color: remap(item.color) });
   const group = <T extends { readonly elements: readonly PointElement[] }>(value: T | undefined): T | undefined =>
     value && { ...value, elements: value.elements.map(item => element(item, remap)) };

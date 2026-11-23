@@ -95,6 +95,8 @@ export interface BaseMapAssemblyInput {
   readonly built: readonly [number, number][][][];
   /** Kartprojektets huvudkällor (K4c, kartans mm): inom dem hoppas OpenStreetMaps objekt av källans slag över. */
   readonly primary?: readonly { readonly name: string; readonly kinds: readonly PrimaryKind[]; readonly area: PrimaryArea }[] | undefined;
+  /** Kantsymbolen för husen (`autoBuildingEdge`), när kartans byggnad saknar egen kant. */
+  readonly buildingEdge?: string | undefined;
 }
 
 export interface BaseMapSummary {
@@ -213,7 +215,7 @@ export function assembleBaseMap(input: BaseMapAssemblyInput): { objects: MapObje
   const mapping = suggestedMapping(layers, symbols, norm);
   const result = computeCandidates(data.features, { georeference: input.georeference, crs: data.crs ?? SWEREF99TM, mapping: [...mapping], skipped: [],
     symbols: input.symbols, bounds: input.bounds, clip: undefined, area: input.area, stage: input.stage, fit: undefined, normed: true,
-    built: input.built, maskBuilt: true });
+    built: input.built, maskBuilt: true, buildingEdge: input.buildingEdge });
   if (!result) return { problem: "Grundkartans objekt gick inte att räkna om till kartan." };
   const codes = new Map(input.symbols.map(([id, code]) => [id, code.replace(/\.0$/, "")]));
   const counts = new Map<string, number>();

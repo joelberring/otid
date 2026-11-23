@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SourceFeature } from "../src";
-import { parcelYards, yardsOf } from "../src/base-map/yards";
+import { parcelYards, privateYardsOnly, yardsOf } from "../src/base-map/yards";
 
 const house = (x: number, y: number, side: number, layer = "byggnad"): SourceFeature => ({ layer, geometry: { kind: "area",
   rings: [[[x, y], [x + side, y], [x + side, y + side], [x, y + side]]] } });
@@ -84,5 +84,21 @@ describe("halvöppen mark utanför tomterna (ägaren 2026-11-16)", () => {
       : feature.geometry.kind === "line" ? feature.geometry.points.map(p => p[0]) : []);
     expect(Math.max(...xs)).toBeLessThanOrEqual(50.01);
     expect(out.some(feature => feature.layer === "tomtmark_hus")).toBe(true);
+  });
+});
+
+describe("sprintkartornas tomter (520 bara kring småhus)", () => {
+  const yard = (x: number, y: number, side: number, layer: string): SourceFeature => ({ layer, geometry: { kind: "line", closed: true,
+    points: [[x, y], [x + side, y], [x + side, y + side], [x, y + side]] } });
+  it("en gård kring ett flerbostadshus (OSM:s bostadsområde och rektangeln kring soprummet) tas bort, villatomten blir kvar", () => {
+    const apartments = house(100, 100, 40, "OSM byggnad");
+    const features = [yard(50, 50, 150, "tomtmark_osm"), yard(130, 130, 30, "tomtmark_hus"), yard(1000, 1000, 60, "tomtmark_osm"), house(1010, 1010, 12), yard(5000, 0, 10, "oppen_mark")];
+    const kept = privateYardsOnly(features, [apartments, house(1010, 1010, 12)]);
+    expect(kept.map(feature => feature.layer)).toEqual(["tomtmark_osm", "byggnad", "oppen_mark"]);
+    expect(kept[0]!.geometry.kind === "line" && kept[0]!.geometry.points[0]).toEqual([1000, 1000]);
+  });
+  it("utan stora hus ändras inget", () => {
+    const features = [yard(0, 0, 50, "tomtmark_hus")];
+    expect(privateYardsOnly(features, [house(10, 10, 10)])).toEqual(features);
   });
 });

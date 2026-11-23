@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MAP_PROJECT_SYNC_MAX_EDITS, type MapProjectSyncResponse, type MapProjectView } from "@o-tid/contracts";
+import { MAP_PROJECT_SYNC_MAX_EDITS, type MapProjectNormSymbols, type MapProjectSyncResponse, type MapProjectView } from "@o-tid/contracts";
 import { withColorChanges, type MapColor, type MapColorChange, type MapGeoreference, type MapObject, type MapSymbolColorChange, type MapTextSymbolChange, type Point } from "@o-tid/map-file";
 import type { SymbolColorsControl } from "./map-project-symbol-colors";
 import {
@@ -65,6 +65,8 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
   // Projektets ändrade färger (ägaren 2026-11-10): de sparade, och det som visas just nu (en förhandsvisning medan man ändrar).
   const [colorChanges, setColorChanges] = useState<readonly MapColorChange[]>(view.colors);
   const [symbolColorChanges, setSymbolColorChanges] = useState<readonly MapSymbolColorChange[]>(view.symbolColors);
+  /** Ägaren 2026-11-23: symbolerna rättade efter normen (sparade i projektet). */
+  const [normSymbols, setNormSymbols] = useState<MapProjectNormSymbols>(view.normSymbols);
   const [georeference, setGeoreference] = useState<MapGeoreference | null>(null);
   const [northLines, setNorthLines] = useState<number>();
   /** Kartans skala (normen för lagren). */
@@ -94,7 +96,7 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
     const created = new MapProjectSession(createWorker, loaded => {
       if (closed) return;
       // En ny tom karta: kartvyn täcker området.
-      setBounds(loaded.objects === 0 && area ? areaBounds(area) : loaded.bounds); setColors(loaded.colors); if (view.colors.length) created.colors(view.colors); if (view.symbolColors.length) created.symbolColors(view.symbolColors); if (view.textSymbols.length) created.textSymbols(view.textSymbols); setSymbolIds(loaded.symbolIds); setGeoreference(loaded.georeference); setNorthLines(loaded.northLines); setScale(loaded.scale); setMapStatus("ready");
+      setBounds(loaded.objects === 0 && area ? areaBounds(area) : loaded.bounds); setColors(loaded.colors); if (view.colors.length) created.colors(view.colors); if (view.symbolColors.length) created.symbolColors(view.symbolColors); if (view.textSymbols.length) created.textSymbols(view.textSymbols); if (view.normSymbols.replace.length || view.normSymbols.add.length) created.normSymbols(view.normSymbols); setSymbolIds(loaded.symbolIds); setGeoreference(loaded.georeference); setNorthLines(loaded.northLines); setScale(loaded.scale); setMapStatus("ready");
       created.catalog(symbols => { if (!closed) setCatalog(symbols); });
     }, () => { if (!closed) setMapStatus("failed"); });
     void (async () => {
@@ -327,7 +329,17 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
     setRenderKey(value => value + 1);
   }, [session]);
 
+  /** Spara symbolerna rättade efter normen (ägarna); kartan ritas med dem och paletten läses igen. Falskt när servern säger nej. */
+  const saveNormSymbols = useCallback(async (setting: MapProjectNormSymbols): Promise<boolean> => {
+    const result = await clubRequest(base, "PUT", { formatVersion: 1, normSymbols: setting }).catch(() => ({ status: 0 }));
+    if (result.status !== 200 && result.status !== 204) return false;
+    setNormSymbols(setting);
+    if (session) { session.normSymbols(setting); session.catalog(setCatalog); setRenderKey(value => value + 1); }
+    return true;
+  }, [base, session]);
+
   return {
+    normSymbols, saveNormSymbols,
     colorChanges, showColors, saveColors, symbolColors, showCandidates, showTextSymbols, symbolIds,
     session, bounds, colors, georeference, northLines, scale, mapStatus, catalog, renderKey, sync, notice, setNotice,
     state: client?.state, history, commit, commitMany, undo: () => step("undo"), redo: () => step("redo"), resolve, syncNow,

@@ -2,9 +2,9 @@ import { randomUUID } from "node:crypto";
 import { desc, eq, inArray } from "drizzle-orm";
 import { CLUB_ARCHIVE_MAP_MAX_BYTES, mapProjectOutputRequestSchema, type MapProjectOutputResponse } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { applyMapColors, applyMapRevisionWithTextSymbols, applyMapSymbolColors, applyMapTextSymbols, MapFileError, readMapFile, type MapColorsResult, type ParsedMap } from "@o-tid/map-file";
+import { applyMapColors, applyMapRevisionWithSymbols, applyMapSymbolColors, applyMapSymbolReplacements, applyMapTextSymbols, MapFileError, readMapFile, type MapColorsResult, type ParsedMap } from "@o-tid/map-file";
 import {
-  changeCounts, changeList, changesGeoJson, mapperChangesFile, parseObjectRef, toChangeSet, validState, type KeyedState, type ObjectChange,
+  changeCounts, changeList, changesGeoJson, mapperChangesFile, normSymbolAdditions, normSymbolFixes, parseObjectRef, toChangeSet, validState, type KeyedState, type ObjectChange,
   type ObjectKey
 } from "@o-tid/map-revision";
 import { type ClubFailure, type ClubProof } from "./club-access";
@@ -47,16 +47,28 @@ export function revisedFileName(fileName: string, date: string, format: "OCD" | 
   return `${stem} reviderad ${date}${extension}`;
 }
 
-/** Projektet har ändrade färger (färgtabellen eller enskilda symboler) eller textsymboler (K8b V6). */
-export const hasProjectColors = (project: Pick<MapProjectRow, "colors" | "symbolColors" | "textSymbols">) =>
-  !!project.colors?.length || !!project.symbolColors?.length || !!project.textSymbols?.length;
+/** Projektet har ändrade färger (färgtabellen eller enskilda symboler), textsymboler (K8b V6) eller symboler rättade efter normen. */
+export const hasProjectColors = (project: Pick<MapProjectRow, "colors" | "symbolColors" | "textSymbols" | "normSymbols">) =>
+  !!project.colors?.length || !!project.symbolColors?.length || !!project.textSymbols?.length
+  || !!project.normSymbols?.replace.length || !!project.normSymbols?.add.length;
 
-/** Färgtabellens ändringar och därefter symbolernas färgbyten (ägaren 2026-11-13), som två kontrollerade steg efter objekten. */
-export function applyProjectColors(bytes: Uint8Array, project: Pick<MapProjectRow, "colors" | "symbolColors">): MapColorsResult {
+/**
+ * Färgtabellens ändringar, symbolernas färgbyten (ägaren 2026-11-13) och sist symbolerna rättade efter normen (ägaren
+ * 2026-11-23; kan lägga in färger och flytta färgernas ordning, därför sist), som kontrollerade steg efter objekten.
+ */
+export function applyProjectColors(bytes: Uint8Array, project: Pick<MapProjectRow, "colors" | "symbolColors" | "normSymbols">): MapColorsResult {
   const colored = applyMapColors(bytes, project.colors ?? []);
   if (!colored.ok) return colored;
   const symbols = applyMapSymbolColors(colored.bytes, project.symbolColors ?? []);
-  return symbols.ok ? { ...symbols, changed: colored.changed + symbols.changed } : symbols;
+  if (!symbols.ok) return symbols;
+  const setting = project.normSymbols;
+  if (!setting?.replace.length) return { ...symbols, changed: colored.changed + symbols.changed };
+  let map: ParsedMap;
+  try { map = readMapFile(symbols.bytes, "karta.omap"); } catch (error) {
+    return { ok: false, message: error instanceof MapFileError ? error.message : "Kartfilen går inte att läsa." };
+  }
+  const normed = applyMapSymbolReplacements(symbols.bytes, normSymbolFixes(map.symbols, setting));
+  return normed.ok ? { ...normed, changed: colored.changed + symbols.changed + normed.changed } : normed;
 }
 
 /** Projektets ändringar ur databasen, i nyckelordning (samma lägen ger alltid samma lista). */
@@ -152,8 +164,8 @@ export async function writeMapProjectVersion(db: Database, input: ClubProof & { 
   const map = readBase(bytes, base.fileName);
   if (!map) return refused("UNSAFE_FILE", "Grundfilen går inte att läsa.");
   // K8b V6: ändrade och nya textsymboler skrivs i samma kontrollerade väg som objekten (bara Mapper; OCAD vägras).
-  const written = applyMapRevisionWithTextSymbols(bytes, toChangeSet(map, project.baseSha256, project.baseFormat, changes), project.textSymbols ?? [],
-    { ocad: ocadWriteEnabled() });
+  const written = applyMapRevisionWithSymbols(bytes, toChangeSet(map, project.baseSha256, project.baseFormat, changes), project.textSymbols ?? [],
+    normSymbolAdditions(map, project.normSymbols?.add ?? []), { ocad: ocadWriteEnabled() });
   if (!written.ok) {
     return { status: "ok", replayed: false, response: { formatVersion: 1, status: "refused",
       refusals: written.refusals.slice(0, 50).map(refusal => ({ code: refusal.code, message: refusal.message })) } };

@@ -34,7 +34,7 @@ describe("ADR-0219 K1: ny karta (.omap med O-Tids symbolset)", () => {
     expect(building?.kind).toBe("COMBINED");
     const parts = building?.kind === "COMBINED" ? building.parts.map(id => map.symbols.get(id)!) : [];
     const area = parts.find(part => part.kind === "AREA"), line = parts.find(part => part.kind === "LINE");
-    const black = map.colors.find(color => color.name === "Svart")!, grey = map.colors.find(color => color.name === "Svart 60 %")!;
+    const black = map.colors.find(color => color.name === "Svart")!, grey = map.colors.find(color => color.name === "Svart 50 %")!;
     expect(area?.fill).toBe(grey.id);
     expect(line?.strokes).toEqual([expect.objectContaining({ color: black.id, width: 0.14 })]);
     expect(map.colors.findIndex(color => color.id === grey.id)).toBeGreaterThan(map.colors.findIndex(color => color.id === black.id));

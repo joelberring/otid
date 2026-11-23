@@ -120,6 +120,9 @@ const SPRINT_RULES: readonly SprintRule[] = [
   // Obelagda vägar och stigar förblir linjer: traktorväg och obelagd väg 505, stig 506.
   { words: /TRAKTORVAG|OBELAGD|GRUSVAG|\(TRACK\)/, line: ["path"] },
   { words: new RegExp(`OSM STIG|${word("STIG|PATH")}`), line: ["smallPath"] },
+  // Ägaren 2026-11-23 (sprintnormen): en väg eller gata som linje finns inte i ISSprOM 2019-2 (gator är belagda ytor, 501).
+  // Mittlinjer som inte fångats ovan (belagda vägar utan yta) får ingen symbol i stället för skogsnormens 502–504.
+  { words: new RegExp(word("VAG|VAGAR|GATA|GATOR|ROAD|STREET|HIGHWAY")) },
   // En reserverad trädplats är inget träd: ingen symbol.
   { words: /RESERVERAD/ },
   // Träd som punkter: stort träd 417 när namnet säger det, annars 418 (buske eller litet träd).

@@ -107,7 +107,7 @@ describe("lager → symbol på sprintkartor", () => {
       ["STAKET", line, "line516"], ["Stängsel", line, "line516"], ["RÄCKE", line, "line516"], ["A-STK", line, "line516"], ["MarkanlaggningStaketglBBefintl", line, "line516"],
       ["Bullerskydd", line, "line518"], ["MarkanlaggningBullerskyddglBBefintl", line, "line518"], ["PLANK", line, "line518"], ["HÖGT_STAKET", line, "line518"],
       ["Staket opasserbart", line, "line518"],
-      ["MUR", line, "line513"], ["Stödmur", line, "line513"], ["MarkanlaggningStenmurglBBefintl", line, "line513"], ["HÖG_MUR", line, "line515"], ["Mur, opasserbar", line, "line515"],
+      ["MUR", line, "line513.1"], ["Stödmur", line, "line513.2"], ["MarkanlaggningStenmurglBBefintl", line, "line513.1"], ["HÖG_MUR", line, "line515"], ["Mur, opasserbar", line, "line515"],
       ["Trappa", line, "line532"], ["TrafikanlaggningTerrangtrappaglBBefintl", line, "line532"], ["ByggnadsanlaggningTrappaglBBefintl", line, "line532"],
       ["VÄGKANT", line, "line501.1"], ["Kantsten", line, "line501.1"], ["VagavgransningInfartglBBefintl", line, "line501.1"], ["VagavgransningRefugglBBefintl", line, "line501.1"],
       ["M-KS", line, "line501.1"], ["VK", line, "line501.1"], ["VagutbredningVagutbredningglBBefintl", line, "line501.1"], ["VagutbredningParkvagsutbredningglBBefintl", line, "line501.1"],
@@ -115,6 +115,8 @@ describe("lager → symbol på sprintkartor", () => {
       ["VÄGKANT", { closedLines: 4 }, "line501.1"],
       ["VagutbredningVagutbredninggyBBefintl", area, "area501"], ["Gångyta", area, "area501"], ["TORG", area, "area501"], ["Parkering", area, "area501"], ["VÄGYTA", area, "area501"],
       ["Perrong", area, "area501"],
+      // Vägar som linjer finns inte i sprintnormen (gator är ytor): ingen symbol.
+      ["OSM väg (residential)", line, undefined], ["GATA", line, undefined],
       ["Tomtmark", area, "area520"], ["tomtmark_osm", area, "area520"], ["tomtmark_hus", { closedLines: 3 }, "area520"],
       ["Träd", point, "point418"], ["Stora träd", point, "point417"], ["VegetationTradsBBefintl", point, "point418"],
       // Häck och plantering: opasserbar vegetation, som linje häcklinjen 411.1 och som yta 411.
@@ -137,8 +139,8 @@ describe("lager → symbol på sprintkartor", () => {
       [["Markanläggning Staket", "MarkanlaggningStaket", "Staket"], line, "line516", "line516.0"],
       [["Markanläggning Bullerskydd", "MarkanlaggningBullerskydd"], line, "line518", "line518.0"],
       [["Trafikanläggning Navföljare", "TrafikanlaggningNavfoljare", "Navföljare"], line, "line516", "line516.0"],
-      [["Markanläggning Stödmur", "MarkanlaggningStodmur"], line, "line513", "line513.200"],
-      [["Markanläggning Stenmur", "MarkanlaggningStenmur"], line, "line513", "line513.100"],
+      [["Markanläggning Stödmur", "MarkanlaggningStodmur"], line, "line513.2", "line513.200"],
+      [["Markanläggning Stenmur", "MarkanlaggningStenmur"], line, "line513.1", "line513.100"],
       [["Trafikanläggning Terrängtrappa", "TrafikanlaggningTerrangtrappa", "Byggnadsanläggning Trappa"], line, "line532", "line532.0"],
       [["Byggnadsanläggning Skärmtak", "ByggnadsanlaggningSkarmtak", "Servicebyggnad Regnskydd", "Regnskydd"], area, "area522", "area522.0"],
       [["Bostadsbyggnad Enbostadshus", "BostadsbyggnadEnbostadshus", "Bostadsbyggnad", "Ospecificerad byggnad Ospec. byggnad Oregistrerad", "Industribyggnad",
@@ -146,7 +148,7 @@ describe("lager → symbol på sprintkartor", () => {
       [["Vegetation Plantering", "VegetationPlantering", "Plantering"], { lines: 40, closedLines: 21 }, "line411.1", "line411.1"],
       [["Vattendrag Dike", "VattendragDike", "Dike"], line, "line306", "line306.0"],
       [["Vattendrag Bäck", "VattendragBack", "Vattendrag"], line, "line305", undefined],
-      [["Spårnät SJ Normalspår", "SparnatSJNormalspar", "Spårnät"], line, "line509", "line509.100"],
+      [["Spårnät SJ Normalspår", "SparnatSJNormalspar", "Spårnät"], line, "line509.1", "line509.100"],
       [["Elnät Högspänningsledning"], { lines: 5, closedLines: 20 }, "line510", undefined],
       // Hopslagen känns den igen som Stockholms grupp (Elnät, tillägget 2026-11-23) och följer grammatikens regel, som det fullständiga namnet.
       [["ElnatHogspanningsledning"], { lines: 5, closedLines: 20 }, "line511", undefined],
@@ -186,11 +188,11 @@ describe("lager → symbol på sprintkartor", () => {
       ["OSM kant belagd yta (antagen bredd)", { closedLines: 3 }], ["OSM stig", line], ["OSM traktorväg (track)", line], ["OSM obelagd väg (residential)", line],
       ["OSM träd", point], ["OSM träd (stort)", point], ["OSM trädrad (tree_row)", line], ["OSM järnväg", line], ["OSM tunnel eller passage", line],
       ["OSM anläggning (bridge)", { closedLines: 1 }]] as const).map(([name, shape]) => [name, sprint(name, shape)]))).toEqual({
-      "OSM byggnad": "area521", "OSM skärmtak (building=roof)": "area522", "OSM staket": "line516", "OSM mur": "line513", "OSM stödmur": "line513",
+      "OSM byggnad": "area521", "OSM skärmtak (building=roof)": "area522", "OSM staket": "line516", "OSM mur": "line513.1", "OSM stödmur": "line513.2",
       "OSM trappa": "line532", "OSM gångyta (highway=pedestrian)": "area501", "OSM parkering": "area501", "OSM kantsten": "line501.1",
       "OSM belagd yta (antagen bredd)": "area501", "OSM kant belagd yta (antagen bredd)": "line501.1", "OSM stig": "line506", "OSM traktorväg (track)": "line505",
       "OSM obelagd väg (residential)": "line505", "OSM träd": "point418", "OSM träd (stort)": "point417", "OSM trädrad (tree_row)": undefined,
-      "OSM järnväg": "line509", "OSM tunnel eller passage": undefined, "OSM anläggning (bridge)": "line512.1" });
+      "OSM järnväg": "line509.1", "OSM tunnel eller passage": undefined, "OSM anläggning (bridge)": "line512.1" });
   });
 
   it("en OCAD-uppsättning efter ISSprOM: kanten väljs på namnet (501.100, inte ytan 501.1 eller gångvägen 501.10), muren på underkoden", () => {

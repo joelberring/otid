@@ -101,8 +101,8 @@ function escapeXml(value: string): string {
 const CAP = { butt: 0, round: 1, square: 2 } as const;
 const JOIN = { bevel: 0, miter: 1, round: 2 } as const;
 
-/** Skriver symbolerna som Mapper-XML; mått i 0,001 mm förstorade med skalans faktor. */
-class SymbolWriter {
+/** Skriver symbolerna som Mapper-XML; mått i 0,001 mm förstorade med skalans faktor (också för normens symboler, `symbol-replace.ts`). */
+export class SymbolWriter {
   constructor(private readonly factor: number, private readonly colors: ReadonlyMap<string, number>) {}
 
   private um(mm: number): number { return Math.round(mm * this.factor * 1000); }

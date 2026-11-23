@@ -191,7 +191,7 @@ export async function readMapProject(db: Database, input: ClubProof & { projectI
         canArchive: canManage && await mapProjectCanArchive(tx, accountId, project), canPropose: mapProjectAllows(role, project, "propose"),
         canDecide: canManage },
       mode: project.mode ?? "SHARED", area: project.area ?? null,
-      recon: (project.recon as MapProjectView["recon"] | null) ?? null, leaderboard: project.leaderboard ?? null, colors: project.colors ?? [], symbolColors: project.symbolColors ?? [], textSymbols: project.textSymbols ?? [], aiMode: project.aiMode, areas: await mapProjectAreaViews(tx, project.id), openProposals: await openProposalCount(tx, project.id),
+      recon: (project.recon as MapProjectView["recon"] | null) ?? null, leaderboard: project.leaderboard ?? null, colors: project.colors ?? [], symbolColors: project.symbolColors ?? [], textSymbols: project.textSymbols ?? [], normSymbols: project.normSymbols ?? { replace: [], add: [] }, aiMode: project.aiMode, areas: await mapProjectAreaViews(tx, project.id), openProposals: await openProposalCount(tx, project.id),
       storage: await mapProjectStorage(tx, project.id),
       readerVersion: project.readerVersion, seq: project.seq, members: await members(tx, project),
       invitations: open.map(row => ({ invitationId: row.id, email: row.email, role: row.role, createdAt: row.createdAt.toISOString(),
@@ -224,10 +224,13 @@ export async function updateMapProject(db: Database, input: ClubProof & { projec
     const access = await requireMapProject(tx, input, now, "manage", true);
     if (access.status !== "ok") return access;
     if (!parsed.success) return { status: "invalid-request" } as const;
-    const { name, status, mode, recon, leaderboard, colors, symbolColors, textSymbols, aiMode } = parsed.data;
+    const { name, status, mode, recon, leaderboard, colors, symbolColors, textSymbols, normSymbols, aiMode } = parsed.data;
     // K8b V6: textsymbolerna skrivs bara i Mapper-filer (OCAD-filen får inte riskeras).
     if (textSymbols?.length && access.project.baseFormat !== "OMAP") return { status: "invalid-request" } as const;
-    const recolored = colors !== undefined || symbolColors !== undefined || textSymbols !== undefined;
+    // Normens symboler skrivs också bara i Mapper-filer.
+    const normed = normSymbols && (normSymbols.replace.length || normSymbols.add.length) ? normSymbols : undefined;
+    if (normed && access.project.baseFormat !== "OMAP") return { status: "invalid-request" } as const;
+    const recolored = colors !== undefined || symbolColors !== undefined || textSymbols !== undefined || normSymbols !== undefined;
     const closing = status && status !== access.project.status ? status : undefined;
     // Gemensamt lagras som null (rader från före 0091 har null).
     await tx.update(schema.mapProjects).set({ ...(name ? { name } : {}), ...(mode ? { mode: mode === "SHARED" ? null : mode } : {}),
@@ -235,14 +238,16 @@ export async function updateMapProject(db: Database, input: ClubProof & { projec
       ...(colors !== undefined ? { colors: colors.length ? colors : null } : {}),
       ...(symbolColors !== undefined ? { symbolColors: symbolColors.length ? symbolColors : null } : {}),
       ...(textSymbols !== undefined ? { textSymbols: textSymbols.length ? textSymbols : null } : {}),
+      ...(normSymbols !== undefined ? { normSymbols: normed ? { replace: [...new Set(normed.replace)], add: [...new Set(normed.add)] } : null } : {}),
       ...(recolored ? { colorsChangedAt: now } : {}), ...(aiMode ? { aiMode } : {}),
       ...(closing === "CLOSED" ? { status: "CLOSED", closedAt: now, closedBy: access.accountId } : {}),
       ...(closing === "OPEN" ? { status: "OPEN", closedAt: null, closedBy: null } : {}) }).where(eq(schema.mapProjects.id, access.project.id));
     await mapProjectJournal(tx, access.project, { action: closing === "CLOSED" ? "MAP_PROJECT_CLOSED" : closing === "OPEN"
       ? "MAP_PROJECT_REOPENED" : name ? "MAP_PROJECT_RENAMED" : mode ? "MAP_PROJECT_MODE_CHANGED" : recon !== undefined ? "MAP_PROJECT_RECON_CHANGED"
-      : textSymbols !== undefined ? "MAP_PROJECT_TEXT_SYMBOLS_CHANGED" : recolored ? "MAP_PROJECT_COLORS_CHANGED" : aiMode ? "MAP_PROJECT_AI_MODE_CHANGED" : "MAP_PROJECT_LEADERBOARD_CHANGED", actorAccountId: access.accountId,
+      : textSymbols !== undefined ? "MAP_PROJECT_TEXT_SYMBOLS_CHANGED" : normSymbols !== undefined ? "MAP_PROJECT_NORM_SYMBOLS_CHANGED" : recolored ? "MAP_PROJECT_COLORS_CHANGED" : aiMode ? "MAP_PROJECT_AI_MODE_CHANGED" : "MAP_PROJECT_LEADERBOARD_CHANGED", actorAccountId: access.accountId,
       details: { projectId: access.project.id, ...(mode ? { mode } : {}), ...(colors !== undefined ? { colors: colors.length } : {}),
-        ...(symbolColors !== undefined ? { symbolColors: symbolColors.length } : {}), ...(textSymbols !== undefined ? { textSymbols: textSymbols.length } : {}), ...(aiMode ? { aiMode } : {}) }, now });
+        ...(symbolColors !== undefined ? { symbolColors: symbolColors.length } : {}), ...(textSymbols !== undefined ? { textSymbols: textSymbols.length } : {}),
+        ...(normed ? { normSymbols: { replace: normed.replace.length, add: normed.add.length } } : {}), ...(aiMode ? { aiMode } : {}) }, now });
     return { status: "ok" } as const;
   });
 }

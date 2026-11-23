@@ -20,6 +20,8 @@ export { applyMapRevision } from "./revision/apply";
 export { applyMapColors, effectiveColorChanges, withColorChanges, type MapColorChange, type MapColorsResult } from "./revision/colors";
 export { applyMapSymbolColors, effectiveSymbolColorChanges, symbolColorIds, withSymbolColorChanges, type MapSymbolColorChange } from "./revision/symbol-colors";
 export { sha256Hex } from "./revision/sha256";
+export { applyMapRevisionWithSymbols, applyMapSymbolReplacements, planColors, withSymbolReplacements, type SymbolReplacement } from "./revision/symbol-replace";
+export type { ColorDef, SymbolDef } from "./template/symbol-def";
 export {
   applyMapRevisionWithTextSymbols, applyMapTextSymbols, effectiveTextSymbolChanges, nextTextSymbolCode, nextTextSymbolId, withTextSymbolChanges,
   type MapTextSymbolChange, type TextAlign

@@ -3,8 +3,8 @@ import { readFile } from "node:fs/promises";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { createDatabase, migrate, schema } from "@o-tid/database";
-import { readMapFile, sha256Hex, type MapObject } from "@o-tid/map-file";
-import { baseKey, newKey, objectRefFor, type ObjectState } from "@o-tid/map-revision";
+import { applyMapSymbolReplacements, newMapFile, readMapFile, sha256Hex, SYMBOL_SETS, withSymbolReplacements, type MapObject } from "@o-tid/map-file";
+import { baseKey, newKey, normSymbolAdditions, objectRefFor, type ObjectState } from "@o-tid/map-revision";
 import { acceptAllInvitations } from "../../src/account-arrival";
 import { createClub, inviteClubMember, listMyClubs } from "../../src/clubs";
 import { readClubMapVersionHead, uploadClubMapVersion } from "../../src/club-maps";
@@ -428,6 +428,51 @@ describe("ADR-0219 kartprojekt", () => {
       fileName: "Ocad.ocd" }, file: ocd }, NOW);
     if (ocad.status !== "created") throw new Error(ocad.status);
     expect((await updateMapProject(db, { ...owner.proof, projectId: ocad.projectId, request: { formatVersion: 1, textSymbols } }, later(3))).status)
+      .toBe("invalid-request");
+  });
+
+  it("symbolerna efter ISSprOM: ägaren rättar byggnad och trappa och lägger till lyktstolpen; en ny lyktstolpe skrivs i kartversionen", async () => {
+    // Som ägarens karta ur O-Tids äldre mall: helsvart byggnad (521.1 finns), trappa med mittlinje, utan sprintnormens 545.
+    const fresh = newMapFile({ symbolSet: "ISOM2017-2", scale: 15000, refPoint: { easting: 670_000, northing: 6_575_000 } });
+    const old = applyMapSymbolReplacements(fresh, [
+      { code: "532", def: { code: "532", name: "Trappa", kind: "line", color: "black", width: 0.14 }, palette: SYMBOL_SETS["ISOM2017-2"].colors }]);
+    if (!old.ok) throw new Error(old.message);
+    const withoutLamp = old.bytes;
+    const before = readMapFile(withoutLamp, "Sprint.omap");
+    const owner = await registerTestAccount(db, undefined, NOW);
+    const created = await createMapProjectFromUpload(db, { ...owner.proof, metadata: { formatVersion: 1, requestId: randomUUID(), name: "Sprint",
+      fileName: "Sprint.omap" }, file: withoutLamp }, NOW);
+    if (created.status !== "created") throw new Error(created.status);
+    const projectId = created.projectId;
+    const later = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000);
+    const setting = { replace: ["521", "532"], add: ["545"] };
+    // 545 finns inte i den gamla kartan; den läggs till sist med ett id 1 000 över filens största.
+    const lampId = String(Math.max(...[...before.symbols.keys()].filter(id => /^\d+$/.test(id)).map(Number)) + 1000);
+    expect(withSymbolReplacements(before, normSymbolAdditions(before, setting.add)).symbols.get(lampId)?.code.text).toBe("545");
+    expect((await updateMapProject(db, { ...owner.proof, projectId, request: { formatVersion: 1, normSymbols: { replace: ["5x"], add: [] } } }, later(1))).status)
+      .toBe("invalid-request");
+    expect((await updateMapProject(db, { ...owner.proof, projectId, request: { formatVersion: 1, normSymbols: setting } }, later(1))).status).toBe("ok");
+    const view = await readMapProject(db, { ...owner.proof, projectId }, later(1));
+    expect(view.status === "ok" && view.view.normSymbols).toEqual(setting);
+    const lamp = { kind: "point" as const, symbol: lampId, at: { x: 3, y: 4 }, angle: 0 };
+    await sync(owner.proof, projectId, [edit(newKey(randomUUID()), { kind: "OBJECT", object: lamp }, null, "ADD", null)]);
+    const written = await writeMapProjectVersion(db, { ...owner.proof, projectId, request: { formatVersion: 1, requestId: randomUUID() } }, later(2));
+    if (written.status !== "ok" || written.response.status !== "created") throw new Error(JSON.stringify(written));
+    const output = await readMapProjectOutput(db, { ...owner.proof, projectId, outputId: written.response.outputId }, NOW);
+    if (output.status !== "ok") throw new Error(output.status);
+    const reread = readMapFile(new Uint8Array((await readMapContent(db, output.sha256))!), output.fileName);
+    const building = [...reread.symbols.values()].find(symbol => symbol.code.text === "521")!;
+    expect(building.kind === "AREA" && reread.colors.find(color => color.id === building.fill)?.name).toBe("Svart 50 %");
+    const stair = [...reread.symbols.values()].find(symbol => symbol.code.text === "532")!;
+    expect(stair.kind === "LINE" && stair.strokes).toEqual([]);
+    expect(reread.symbols.get(lampId)?.code.text).toBe("545");
+    expect(reread.objects.filter(object => object.symbol === lampId)).toHaveLength(1);
+    // OCAD-kartor spärras.
+    const ocd = new Uint8Array(await readFile(new URL("../../../../fixtures/maps/kartfil.ocd", import.meta.url)));
+    const ocad = await createMapProjectFromUpload(db, { ...owner.proof, metadata: { formatVersion: 1, requestId: randomUUID(), name: "Ocad norm",
+      fileName: "Ocad.ocd" }, file: ocd }, NOW);
+    if (ocad.status !== "created") throw new Error(ocad.status);
+    expect((await updateMapProject(db, { ...owner.proof, projectId: ocad.projectId, request: { formatVersion: 1, normSymbols: setting } }, later(3))).status)
       .toBe("invalid-request");
   });
 

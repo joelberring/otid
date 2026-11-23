@@ -162,3 +162,27 @@ export function parcelYards(features: readonly SourceFeature[], settings: YardSe
     return built ? [{ ...feature, layer: "tomtmark_fastighet" }] : [];
   });
 }
+
+/**
+ * Sprintkartor (ägaren 2026-11-23, Liljeholmen och Gröndal: olivgröna 520 täckte hela gårdar kring flerbostadshus). ISSprOM
+ * 2019-2 520 är «an area that shall not be entered such as a private area, a flower bed …»: privata trädgårdar, inte gårdarna
+ * mellan flerbostadshus, som normalt är öppna och ritas som öppen mark, belagd yta osv. På en sprintkarta tas därför varje
+ * tomtyta (`tomtmark_*`: OpenStreetMaps bostadsområden, marktäckets låga bebyggelse, fastigheterna och rektanglarna kring hus)
+ * bort när ett hus större än `maxBuilding` (400 m², större än ett småhus) står i den eller skär in i den. Husen tas ur
+ * `buildings` (Lantmäteriets och OpenStreetMaps, också där en huvudkälla ersätter dem i kartan).
+ */
+export function privateYardsOnly(features: readonly SourceFeature[], buildings: readonly SourceFeature[], settings: YardSettings = DEFAULT_YARDS): SourceFeature[] {
+  const big = buildings.filter(feature => BUILDING.test(feature.layer)).map(outerRing)
+    .filter((ring): ring is Ring => !!ring && ring.length >= 3 && ringArea(ring) > settings.maxBuilding)
+    .map(ring => { const xs = ring.map(p => p[0]), ys = ring.map(p => p[1]); return { ring, box: [minOf(xs), minOf(ys), maxOf(xs), maxOf(ys)] as const }; });
+  if (!big.length) return [...features];
+  return features.filter(feature => {
+    if (!/^tomtmark_/.test(feature.layer)) return true;
+    const yard = outerRing(feature);
+    if (!yard || yard.length < 3) return true;
+    const xs = yard.map(p => p[0]), ys = yard.map(p => p[1]);
+    const box = [minOf(xs), minOf(ys), maxOf(xs), maxOf(ys)] as const;
+    return !big.some(house => house.box[0] <= box[2] && house.box[2] >= box[0] && house.box[1] <= box[3] && house.box[3] >= box[1]
+      && ([centroid(house.ring), ...house.ring].some(([x, y]) => inside(yard, x, y)) || yard.some(([x, y]) => inside(house.ring, x, y))));
+  });
+}

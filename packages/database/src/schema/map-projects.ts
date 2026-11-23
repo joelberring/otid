@@ -62,6 +62,8 @@ export const mapProjects = pgTable("map_project", {
   textSymbols: jsonb("text_symbols").$type<{ id: string; copyOf?: string | undefined; code?: string | undefined; name?: string | undefined; fontFamily: string;
     size: number; color: number; bold: boolean; italic: boolean; align?: "left" | "center" | "right" | undefined;
     framing: { color: number; width: number } | null }[]>(),
+  /** Symbolerna rättade efter normen (0144, `NormSymbolSetting` i map-revision): nummer som byts och nummer som läggs till; null = filens egna. */
+  normSymbols: jsonb("norm_symbols").$type<{ replace: string[]; add: string[] }>(),
   /** Vad AI-kopplingen får göra (0116): READ, PROPOSE (förval) eller AUTONOMOUS. */
   aiMode: text("ai_mode").$type<"READ" | "PROPOSE" | "AUTONOMOUS">().notNull().default("PROPOSE"),
   /** När projektet senast användes av någon med behörighet (0119, högst en skrivning i timmen); null = inte sedan kolumnen kom till. */

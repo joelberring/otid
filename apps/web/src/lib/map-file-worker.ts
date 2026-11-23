@@ -46,6 +46,10 @@ self.onmessage = (event: MessageEvent<MapFileWorkerRequest>) => {
   render(event.data).then(post, (error: unknown) => {
     // Ett läsfel är ett begripligt besked till arrangören; allt annat loggas i webbläsarens konsol.
     if (error instanceof MapFileError) post({ type: "error", code: error.code, message: error.message.slice(0, 300) });
-    else { console.error("Kartfilen kunde inte ritas", error); post({ type: "error", code: "FAILED" }); }
+    else {
+      // Felet följer med till beskedet (ägaren 2026-11-23), så att ett fel i en viss webbläsare går att se utan konsolen.
+      console.error("Kartfilen kunde inte ritas", error);
+      post({ type: "error", code: "FAILED", message: (error instanceof Error ? `${error.name}: ${error.message}` : String(error)).slice(0, 300) });
+    }
   });
 };

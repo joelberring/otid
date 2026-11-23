@@ -650,6 +650,7 @@ export const raceMapEn: Texts<typeof raceMapSv> = {
       TOO_LARGE: "The map becomes too large as an image.",
       FAILED: "The map file could not be drawn."
     },
+    reloadPage: "The page needs to be reloaded, probably because O-Tid has been updated. Reload the page and try again.",
     invalid: "The server did not accept the map file. Check that it is a map file from OCAD or Mapper.",
     failed: "The map file could not be saved.",
     download: "Download the map file",

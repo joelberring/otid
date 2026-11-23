@@ -54,7 +54,7 @@ export function runnerBackSheet(document: CourseSettingDocument, paper: Sheet["p
   options: { readonly date?: string | undefined; readonly runnerPlaceholders?: boolean | undefined; readonly links?: PaperLinks | undefined } = {}): Sheet {
   const page = { x: 0, y: 0, width: paper.widthMm, height: paper.heightMm };
   const frame = { course: front.course, ...(front.variant ? { variant: front.variant } : {}), printScale: front.printScale,
-    ...(front.runner ? { runner: front.runner } : {}), clip: page };
+    ...(front.runner ? { runner: front.runner } : {}), ...(options.runnerPlaceholders && !front.variant ? { variantPlaceholder: true } : {}), clip: page };
   const paperItems: SheetPaperItem[] = [];
   for (const item of runnerBackOf(document, front.runner?.team !== undefined).items) {
     if (item.hide) continue;

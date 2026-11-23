@@ -19,7 +19,9 @@ export type MapFileWorkerResponse =
   | MapFileRenderError;
 
 /** `message` är läsarens besked (t.ex. "OCAD 7 stöds inte. …") när filen inte gick att läsa. */
-export type MapFileRenderError = { readonly type: "error"; readonly code: MapFileWorkerErrorCode; readonly message?: string };
+export type MapFileRenderError = { readonly type: "error"; readonly code: MapFileWorkerErrorCode; readonly message?: string;
+  /** Workerns fil gick inte att ladda (oftast en flik som var öppen när O-Tid uppdaterades): sidan behöver laddas om. */
+  readonly workerNotLoaded?: true };
 
 export type MapFileRenderResult = Extract<MapFileWorkerResponse, { type: "done" }>;
 
@@ -38,7 +40,11 @@ export function renderMapFile(createWorker: () => Worker, request: MapFileWorker
       if (message.type === "progress") onStage(message.stage);
       else done(message);
     };
-    worker.onerror = event => { event.preventDefault(); done({ type: "error", code: "FAILED" }); };
+    // Ett fel utan meddelande är att själva workerfilen inte laddades; annars kom felet ur koden i workern.
+    worker.onerror = event => {
+      event.preventDefault();
+      done(event.message ? { type: "error", code: "FAILED", message: event.message.slice(0, 300) } : { type: "error", code: "FAILED", workerNotLoaded: true });
+    };
     worker.postMessage(request, [request.bytes]);
   });
 }

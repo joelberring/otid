@@ -71,4 +71,12 @@ describe("löparens variabler och baksidan (ADR-0213)", () => {
     expect(JSON.stringify(paperTemplateFromCourse(withFront, course, "t", "Mall"))).not.toContain("Anna");
     expect(defaultRunnerBack(true).items.map(item => item.kind === "TEXT" ? item.text : "")).toContain("Lag {lagnummer} · Sträcka {sträcka}");
   });
+
+  it("baksidans förhandsvisning visar {variant} som platshållare, utskriften med löpare fyller i eller utelämnar den", () => {
+    const { b, course } = lineCourse(3);
+    const paper = { widthMm: 210, heightMm: 297, landscape: false, marginMm: 7 };
+    expect(texts(runnerBackSheet(b.document, paper, { course, printScale: 10000 }, { runnerPlaceholders: true }))[0]).toBe("{variant}");
+    expect(texts(runnerBackSheet(b.document, paper, { course, variant: "ACEG", printScale: 10000, runner: anna }))[0]).toBe("ACEG");
+    expect(texts(runnerBackSheet(b.document, paper, { course, printScale: 10000, runner: anna }))).not.toContain("{variant}");
+  });
 });

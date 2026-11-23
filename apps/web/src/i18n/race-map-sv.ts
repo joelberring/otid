@@ -57,6 +57,7 @@ export const raceMapSv = {
       TOO_LARGE: "Kartan blir för stor som bild.",
       FAILED: "Kartfilen kunde inte ritas."
     },
+    reloadPage: "Sidan behöver laddas om, troligen för att O-Tid har uppdaterats. Ladda om sidan och försök igen.",
     invalid: "Servern godtog inte kartfilen. Kontrollera att det är en kartfil från OCAD eller Mapper.",
     failed: "Kartfilen kunde inte sparas.",
     download: "Hämta kartfilen",

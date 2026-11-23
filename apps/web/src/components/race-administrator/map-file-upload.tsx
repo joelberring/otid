@@ -40,7 +40,11 @@ export function MapFileUpload({ disabled, hasMap, upload, onMessage }: {
       const bytes = await file.arrayBuffer();
       const original = new Blob([bytes]);
       const result = await renderMapFile(createWorker, { bytes, fileName: file.name }, setStage);
-      if (result.type === "error") { onMessage({ tone: "error", text: text.errors[result.code satisfies MapFileWorkerErrorCode] }); return; }
+      if (result.type === "error") {
+        const detail = result.workerNotLoaded ? text.reloadPage : result.message ?? "";
+        onMessage({ tone: "error", text: [text.errors[result.code satisfies MapFileWorkerErrorCode], detail].filter(Boolean).join(" ") });
+        return;
+      }
       setStage("saving");
       const form = new FormData();
       form.append(RACE_MAP_SOURCE_PARTS.metadata, new Blob([JSON.stringify(result.metadata)], { type: "application/json" }), "metadata.json");

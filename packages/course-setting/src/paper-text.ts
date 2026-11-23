@@ -19,6 +19,11 @@ export interface PaperTextFrame {
    * annars blir de tomma (PDF:en och utskriften av banor).
    */
   readonly runnerPlaceholders?: boolean | undefined;
+  /**
+   * Baksidans förhandsvisning (ägaren 2026-11-23): utan variant står {variant} kvar som platshållare, eftersom baksidan gäller
+   * alla löpare och gafflade banor får sin kombination i utskriften. Annars blev raden tom och syntes inte förrän på papperet.
+   */
+  readonly variantPlaceholder?: boolean | undefined;
 }
 
 const thousands = (value: number) => Math.round(value).toLocaleString("sv-SE").replace(/\s/g, " ");
@@ -38,7 +43,7 @@ export function paperTextValues(document: CourseSettingDocument, frame: PaperTex
   return {
     "tävling": document.event.title.replace(/\|/g, " "),
     bana: frame ? course?.name ?? "Alla kontroller" : "",
-    variant: frame?.variant ?? "",
+    variant: frame?.variant ?? (frame?.variantPlaceholder ? "{variant}" : ""),
     "längd": meters === undefined ? "" : `${(Math.round(meters / 100) / 10).toFixed(1).replace(".", ",")} km`,
     stigning: course?.climbMeters !== undefined && course.climbMeters >= 0 ? `${Math.round(course.climbMeters / 5) * 5} m` : "",
     skala: frame ? `1:${thousands(frame.printScale)}` : "",

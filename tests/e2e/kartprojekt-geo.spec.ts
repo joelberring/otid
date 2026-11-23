@@ -148,11 +148,12 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   await replace();
   await expect(laser.getByTestId("map-project-laser-message")).toHaveText("Våtmarker och fuktstråk visas som utkast på kartan. Lägg in det i raden under kartan.");
   await expect(importer.getByTestId("map-project-import-layer").first()).toContainText("blott");
-  // Vegetationen: öppen mark i väster och mycket svårlöpt grönt i öster (alla tre gröna nivåerna).
+  // Vegetationen: öppen mark i väster och mycket svårlöpt grönt i öster. Bara 410: grönt utan egna celler blir inte en kapslad
+  // kopia i 406 och 408 med samma kant (ägaren 2026-11-23: «mörkgröna ytor ligger trippelt»).
   await laser.getByRole("button", { name: "Läs in vegetationsytor som utkast" }).click();
   await replace();
   await expect(laser.getByTestId("map-project-laser-message")).toHaveText("Vegetationsytor visas som utkast på kartan. Lägg in det i raden under kartan.");
-  await expect(importer.getByTestId("map-project-import-layer")).toHaveCount(4);
+  await expect(importer.getByTestId("map-project-import-layer")).toHaveCount(2);
   await expect(importer.getByTestId("map-project-import-layer").first()).toContainText("oppen_mark");
   // Grundkartan: allt på en gång, med branten som en linje i stället för Karttapullautins streck.
   await laser.getByTestId("map-project-laser-base-map").click();

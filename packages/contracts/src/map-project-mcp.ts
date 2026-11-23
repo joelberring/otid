@@ -92,6 +92,10 @@ export const mcpToolInputSchemas = {
     note: z.string().trim().max(500).optional() }),
   // Ägaren 2026-11-16 («det som lyser över fel på tomtmark»): markens detaljer och vegetationen bort ur det bebyggda.
   clear_built: z.object({ project_id: idSchema, area: boxSchema.optional(), propose: z.boolean().optional(), note: z.string().trim().max(500).optional() }),
+  // Ägaren 2026-11-23: Fyll ytor ur flygbilden – rutorna klassade ur ortofotot, de osäkra som bild, och svaren som förslag.
+  classify_cells: z.object({ project_id: idSchema, area: boxSchema, include_ground: z.boolean().optional(),
+    max_images: z.number().int().min(1).max(24).optional(), accept_confident: z.boolean().optional(), note: z.string().trim().max(500).optional(),
+    answers: z.array(z.object({ id: z.string().regex(/^-?\d+:-?\d+$/), class: z.enum(["paved", "grass", "trees", "water", "skip"]) })).min(1).max(MCP_PROPOSAL_MAX_OPERATIONS).optional() }),
   propose_changes: z.object({ project_id: idSchema, note: z.string().trim().max(500),
     operations: z.array(mcpProposalOperationSchema).min(1).max(MCP_PROPOSAL_MAX_OPERATIONS) })
 } as const;

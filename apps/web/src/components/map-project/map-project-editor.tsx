@@ -78,6 +78,7 @@ import { useMapProjectFlick } from "./use-map-project-flick";
 import { useMapProjectSnap } from "./use-map-project-snap";
 import { useMapProjectDrawAssist } from "./use-map-project-draw-assist";
 import { useMapProjectUnfilled } from "./use-map-project-unfilled";
+import { useMapProjectPhotoFill } from "./use-map-project-photo-fill";
 import { useMapProjectWalk } from "./use-map-project-walk";
 import { draftExtra, nearestAnchor, objectExtra } from "../../lib/map-project-snap";
 import { MapProjectToolRail } from "./map-project-tool-rail";
@@ -258,6 +259,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const snapExtra = () => ({ extra: draftExtra(tool === "draw" ? draft.map(entry => entry.at) : tool === "rectangle" ? rectCorners.current : []) });
   // K8b V5: följ kant (Skift) och vinkellås (⌘/Ctrl) i Rita, och Visa ofyllda rutor (⇧§).
   const assist = useMapProjectDrawAssist({ snap, tool, points: draft.map(entry => entry.at), corners: () => rectCorners.current, setCursor });
+  const photoFill = useMapProjectPhotoFill({ session, layers, symbols, hidden: hiddenSymbols, scale: editor.scale ?? georeference?.scale, bounds: editor.bounds ?? undefined, area: view.area ?? undefined, commitMany: editor.commitMany });
   const unfilled = useMapProjectUnfilled({ session, renderKey: editor.renderKey, hidden: hiddenSymbols, area: view.area ?? undefined, scale: editor.scale ?? georeference?.scale,
     focus: point => mapHandle.current?.focus(point) });
   useEffect(() => { if (selected && symbolLayers.locked.has(selected.object.symbol)) deselect(); }, [symbolLayers.locked, selected]);
@@ -626,7 +628,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     if (multi.moving) for (const object of multi.shown) drawPreview(ctx, current, object, symbols.get(object.symbol));
     if (multi.box && multi.items.length) drawMultiSelection(ctx, current, multi.shown, multi.box, multi.cuts);
     if (multi.marquee) drawMarquee(ctx, current, multi.marquee);
-    fill.draw(ctx, current); unfilled.draw(ctx, current);
+    fill.draw(ctx, current); unfilled.draw(ctx, current); photoFill.draw(ctx, current);
     snap.draw(ctx, current); placeTextField(textField.current, textUi.draft, textUi.draftStyle, current);
     placeContextRow(contextRow.current, multi.items.length ? multi.box : shown && tool === "select" && selected ? objectBox(shown) : undefined, current, multi.items.length > 0);
     if (shown && tool === "select" && selected) {
@@ -637,7 +639,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   }, [preview, selected, nearVertex, symbols, tool, symbol, draft, cursor, circleCenter, activeVertex, areaDrawings, proposedOpen, proposedShown, view.area, coverage, recon.layers,
     recon.trackLines, reconResult, walk, gapMm, notes.notes, shownNote, noteDraft, drawnLayers, focused, candidates, normIssues, shownIssue,
     control.active, control.markers, rectify.shown, rectify.markers, sketchLayers, work.dragging, work.drawingLayer, work.stroke,
-    multi.moving, multi.shown, multi.box, multi.cuts, multi.items.length, multi.marquee, fill.preview, fill.bridges, fill.gaps, fill.pending, fill.shown, fill.proposals.candidates, fill.proposals.override, contextKey, snap.mark, assist.via, unfilled.on, unfilled.result, editor.renderKey, hiddenSymbols, textUi.draft, textUi.draftStyle]);
+    multi.moving, multi.shown, multi.box, multi.cuts, multi.items.length, multi.marquee, fill.preview, fill.bridges, fill.gaps, fill.pending, fill.shown, fill.proposals.candidates, fill.proposals.override, contextKey, snap.mark, assist.via, unfilled.on, unfilled.result, photoFill.cells, photoFill.taken, editor.renderKey, hiddenSymbols, textUi.draft, textUi.draftStyle]);
 
   const hint = tool === "split" ? split.hint : tool === "bucket" && canEdit ? fill.hint : toolHint({ canEdit, closed: view.status === "CLOSED", tool, multiCount: multi.items.length, rotating: multi.zone === "rotate", symbol,
     text, notes: notesText, keys: keysText, quick, textHint: textUi.hint });
@@ -763,7 +765,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
           </MapProjectSettingsDetails>
         </>}
         basemap={georeference ? <MapProjectBaseMapPanel view={view} georeference={georeference} bounds={editor.bounds ?? undefined} areas={collab.areas}
-          layers={layers} importer={importer} symbols={symbols} work={work} onSplit={view.viewer.canDecide ? area => startSplit(area ?? null) : undefined}
+          layers={layers} importer={importer} symbols={symbols} work={work} photoFill={photoFill} onSplit={view.viewer.canDecide ? area => startSplit(area ?? null) : undefined}
           onAreas={() => { setTab("review"); setTimeout(() => document.getElementById("map-project-areas")?.scrollIntoView({ block: "start" }), 60); }}
           onDraw={() => setTab("symbols")} /> : undefined}
         review={<>

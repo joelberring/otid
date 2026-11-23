@@ -11,5 +11,6 @@ export const loadMapJobImage = (bytes: Uint8Array): Promise<unknown> => loadImag
 export const createMapJobCanvas: CreateMapJobCanvas = (width, height) => {
   const canvas = createCanvas(width, height);
   const context = canvas.getContext("2d");
-  return { context: context as unknown as MapJobCanvas["context"], png: () => new Uint8Array(canvas.toBuffer("image/png")) };
+  return { context: context as unknown as MapJobCanvas["context"], png: () => new Uint8Array(canvas.toBuffer("image/png")),
+    rgba: () => new Uint8Array(context.getImageData(0, 0, width, height).data.buffer) };
 };

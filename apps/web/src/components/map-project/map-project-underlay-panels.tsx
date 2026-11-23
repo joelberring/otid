@@ -14,6 +14,8 @@ import { MapProjectImportPanel } from "./map-project-import-panel";
 import { MapProjectPrimarySources } from "./map-project-primary";
 import { MapProjectLaserPanel } from "./map-project-laser-panel";
 import { MapProjectPhotoPanel } from "./map-project-photo-panel";
+import { MapProjectPhotoFillPanel } from "./map-project-photo-fill-panel";
+import type { useMapProjectPhotoFill } from "./use-map-project-photo-fill";
 import { mapUnderlayStepsEn } from "../../i18n/map-knolls-en";
 import { mapUnderlayStepsSv } from "../../i18n/map-knolls-sv";
 import { useTexts } from "../language-provider";
@@ -37,11 +39,13 @@ import type { useMapProjectWorkLayers } from "./use-map-project-work-layers";
  * steg – 1 hämta underlag (valfritt), 2 ta fram grundkartan (guiden, med laserkörningarna som en utfällning sist i guiden, K2;
  * sedan «Andra sätt»), 3 gå igenom utkastet – och en rad om vad som kommer sedan. Underlagen själva ligger under Lager.
  */
-export function MapProjectBaseMapPanel({ view, georeference, bounds, areas, layers, importer, symbols, work, onSplit, onAreas, onDraw }: {
+export function MapProjectBaseMapPanel({ view, georeference, bounds, areas, layers, importer, symbols, work, photoFill, onSplit, onAreas, onDraw }: {
   view: MapProjectView; georeference: MapGeoreference; bounds: Bounds | undefined;
   areas: readonly { areaId: string; name: string; polygon: readonly (readonly Point[])[] }[];
   layers: ReturnType<typeof useMapProjectLayers>;
   importer: ReturnType<typeof useMapProjectImport>; symbols: ReadonlyMap<string, CatalogSymbol>; work: ReturnType<typeof useMapProjectWorkLayers>;
+  /** Fyll ytor ur flygbilden (ägaren 2026-11-23). */
+  photoFill: ReturnType<typeof useMapProjectPhotoFill>;
   /** Guiden: starta «Dela med ett streck» för en del eller hela kartområdet (bara för den som får dela). */
   onSplit: ((areaId: string | undefined) => void) | undefined;
   /** Guiden: till Granska › Delområden (K5). */
@@ -86,6 +90,7 @@ export function MapProjectBaseMapPanel({ view, georeference, bounds, areas, laye
       <MapProjectRockPanel layers={layers} georeference={georeference} importer={importer} />
       <MapProjectClearCutPanel view={view} layers={layers} georeference={georeference} bounds={bounds} areas={areas} importer={importer} />
       <MapProjectPhotoPanel view={view} layers={layers} georeference={georeference} importer={importer} />
+      <MapProjectPhotoFillPanel photo={photoFill} projectName={view.name} canEdit={view.viewer.canEdit || view.viewer.canPropose} />
     </MapProjectStep>
     <p className={styles.then} data-testid="map-project-steps-then">{steps.then}</p>
   </section>;

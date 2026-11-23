@@ -1,0 +1,30 @@
+/** Ägaren 2026-11-23: Fyll ytor ur flygbilden (rutorna mellan kartans linjer klassas ur ortofotot). */
+export const mapPhotoFillSv = {
+  heading: "Fyll ytor ur flygbilden",
+  help: "Rutorna mellan kartans linjer och hårda ytor (som Fyll över) klassas ur ortofotot: hårdgjord, gräs, träd eller vatten. Färgad ruta = säker, streckad = osäker. Bilden lämnar inte webbläsaren.",
+  noPhoto: "Lägg till ett ortofoto under Underlag (steg 1) först.",
+  infrared: "IR-bilden används (NDVI).",
+  noInfrared: "Ingen IR-bild: gräs och grus skiljs sämre.",
+  scopeView: "Det synliga utsnittet",
+  scopeMap: "Hela kartan i etapper",
+  includeGround: "Också rutor som redan har grundkartans markytor (de klipps när rutan läggs in)",
+  run: "Klassa rutorna",
+  busy: (done: number, total: number) => total > 1 ? `Klassar … etapp ${done} av ${total}` : "Klassar …",
+  zoomIn: "Utsnittet är för stort eller har för många linjer – zooma in eller välj hela kartan i etapper.",
+  noView: "Kartan syns inte än.",
+  result: (count: number, seconds: string, km2: string) => `${count} rutor på ${seconds} s (${km2} km²).`,
+  /** Klassernas namn. */
+  classes: { paved: "Hårdgjord", grass: "Gräs/öppen mark", trees: "Träd/skog", water: "Vatten", unsure: "Osäker" } as Record<string, string>,
+  row: (count: number, hectares: string) => `${count} rutor, ${hectares} ha`,
+  missingSymbol: "symbolen saknas i kartan",
+  unsure: (count: number, large: number) => `${count} osäkra rutor${large ? ` (varav ${large} större än 2 ha)` : ""} läggs inte in.`,
+  takeUnsure: "Lägg också in osäkra rutor efter bästa gissning (inte de stora)",
+  commit: (count: number) => `Lägg in ${count} ytor`,
+  committed: (count: number, cut: number) => `${count} ytor inlagda${cut ? `, ${cut} objekt under dem klipptes eller togs bort` : ""}. Ångra tar tillbaka allt.`,
+  notSaved: "Ytorna kunde inte läggas in.",
+  clear: "Släpp utkastet",
+  ai: "Fråga AI om osäkra rutor",
+  aiHelp: "O-Tid anropar inte Claude själv. Kopiera uppdraget och klistra in det i ditt Claude-samtal med O-Tids AI-koppling: Claude tittar på de osäkra rutorna med verktyget classify_cells och lämnar svaren som förslag (eller lägger in dem direkt i läget självständigt).",
+  aiCopied: "Uppdraget är kopierat.",
+  aiPrompt: (name: string, box: string, ground: boolean) => `Använd O-Tids verktyg classify_cells i kartprojektet «${name}» för området ${box} (kartans mm)${ground ? " med include_ground: true" : ""}. Titta på bilderna av de osäkra rutorna och svara med klass per ruta (paved, grass, trees, water eller skip), i batcher, och lämna svaren med answers.`
+};

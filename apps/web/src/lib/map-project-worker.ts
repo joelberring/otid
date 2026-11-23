@@ -17,6 +17,7 @@ import { joinUnder, overChanges, type FillOverlay } from "./map-project-fill-ove
 import { underChanges, type UnderChange } from "./map-project-fill-under";
 import { buildSnapIndex, snapTransfer } from "./map-project-snap";
 import { findUnfilled } from "./map-project-unfilled";
+import { photoCells, photoCuts } from "./map-project-photo-fill";
 import { symbolGroup, type CatalogSymbol, type FillCutsQuery, type MapProjectRequest, type MapProjectResponse, type ProjectHit } from "./map-project-protocol";
 
 /**
@@ -378,6 +379,15 @@ self.onmessage = (event: MessageEvent<MapProjectRequest>) => {
       maxX: Math.max(all.maxX, box.maxX), maxY: Math.max(all.maxY, box.maxY) } : box, undefined);
     post({ type: "unfilled", id: request.id, result: findUnfilled({ objects: current.map.objects, boxes: current.boxes, symbols: current.map.symbols,
       scale: current.map.scale, bounds }, request.query) });
+    return;
+  }
+  if (request.type === "photoCells" || request.type === "photoCuts") {
+    const parsed = current?.map;
+    const map = current && parsed && { objects: parsed.objects, boxes: current.boxes, symbols: parsed.symbols, scale: parsed.scale, keys: current.keys, refs,
+      norm: mapNorm({ scale: parsed.scale, symbols: [...parsed.symbols.values()].filter(symbol => !symbol.id.includes("."))
+        .map(symbol => ({ code: symbol.code.text, kind: symbolObjectKind(parsed, symbol), name: symbol.name })) }) };
+    if (request.type === "photoCells") post({ type: "photoCells", id: request.id, result: map ? photoCells(map, request.query) : { status: "done", cells: [] } });
+    else post({ type: "photoCuts", id: request.id, under: map ? photoCuts(map, request.cells, request.hidden) : [] });
     return;
   }
   if (request.type === "proposeAreas") {

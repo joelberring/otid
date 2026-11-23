@@ -3,6 +3,7 @@ import { decodeRgbaPng, runLabels, type LabelsRequest } from "./map-project-job-
 import { runBaseMap, type BaseMapJobRequest } from "./map-project-job-base-map";
 import { runLaserArea, runLaserOutput, type LaserOutputRequest } from "./map-project-job-laser";
 import { runMapPdf, type MapPdfRequest } from "./map-project-job-pdf";
+import { runPhotoCellsJob, type PhotoCellsJobRequest } from "./map-project-job-photo";
 import type { FontFiles } from "@o-tid/print-pdf";
 import type { Box } from "./map-project-job-run";
 import { randomUUID } from "node:crypto";
@@ -25,7 +26,7 @@ import {
  * utskriftsarbetaren (låg prioritet, barnprocess per jobb) tar jobben ett i taget och skriver resultatet. Resultaten är
  * tillfälliga (rensas efter en timme). `pg_notify('otid_map_job')` väcker arbetaren direkt.
  */
-export const MAP_JOB_KINDS = ["OVERVIEW", "RENDER", "COMPARE", "OBJECTS", "CHECK", "PROPOSE", "COURSE_RENDER", "COURSE_LEVEL", "GENERALIZE", "LASER_AREA", "LASER_OUTPUT", "BASE_MAP", "MAP_PDF"] as const;
+export const MAP_JOB_KINDS = ["OVERVIEW", "RENDER", "COMPARE", "OBJECTS", "CHECK", "PROPOSE", "COURSE_RENDER", "COURSE_LEVEL", "GENERALIZE", "LASER_AREA", "LASER_OUTPUT", "BASE_MAP", "MAP_PDF", "PHOTO_CELLS"] as const;
 export type MapJobKind = typeof MAP_JOB_KINDS[number];
 export const MAP_JOB_CHANNEL = "otid_map_job";
 /** Högst så många jobb per konto och minut, och samtidigt. */
@@ -186,6 +187,30 @@ export async function cleanupMapJobs(db: Database, now = new Date()): Promise<nu
   return deleted.length;
 }
 
+/** Underlagens bilder (innehållsnyckeln) med pixlarna → kartans mm; en bild som inte går att läsa eller ett okänt system hoppas över. */
+async function loadUnderlays(db: Database, loaded: { base: { georeference?: Parameters<typeof underlayToMap>[1] | null | undefined } },
+  sources: readonly RenderUnderlaySource[], loadImage: ((bytes: Uint8Array) => Promise<unknown>) | undefined, within?: Box) {
+  const underlays: RenderUnderlay[] = [], used: string[] = [];
+  for (const source of sources) {
+    if (!loadImage || !loaded.base.georeference) break;
+    let toMap: RenderUnderlay["toMap"];
+    try { toMap = underlayToMap(source, loaded.base.georeference); } catch { continue; }
+    // Bara bilder som når in i området (`within`), så att inte alla ortofoton läses.
+    if (within) {
+      const xs = [0, source.width].flatMap(c => [0, source.height].map(r => toMap.a * c + toMap.b * r + toMap.c));
+      const ys = [0, source.width].flatMap(c => [0, source.height].map(r => toMap.d * c + toMap.e * r + toMap.f));
+      if (Math.max(...xs) < within.minX || Math.min(...xs) > within.maxX || Math.max(...ys) < within.minY || Math.min(...ys) > within.maxY) continue;
+    }
+    const content = await readMapContent(db, source.sha256);
+    if (!content) continue;
+    try {
+      underlays.push({ image: await loadImage(new Uint8Array(content)), toMap });
+      used.push(source.name);
+    } catch { /* En bild som inte går att läsa eller ett okänt koordinatsystem hoppas över. */ }
+  }
+  return { underlays, used };
+}
+
 /** Barnprocessen: läser grundfilen och projektets objekt, gör jobbet och skriver resultatet. */
 export async function runMapJob(db: Database, job: ClaimedMapJob, deps: { worker: string; createCanvas: CreateMapJobCanvas; fonts?: () => FontFiles;
   /** Underlagens bilder (JPEG, PNG, WebP) för render_view (ägaren 2026-11-17); utan den ritas inga underlag. */
@@ -209,16 +234,7 @@ export async function runMapJob(db: Database, job: ClaimedMapJob, deps: { worker
     case "RENDER": {
       // Klassrastret för att lära av en karta (map-project-job-labels.ts) är en bild utan canvas.
       if (request.labels) { const labels = runLabels(loaded, request.labels as LabelsRequest); output = "error" in labels ? labels : { result: labels.meta, image: labels.png }; break; }
-      const underlays: RenderUnderlay[] = [], used: string[] = [];
-      for (const source of ((request.underlays ?? []) as RenderUnderlaySource[])) {
-        if (!deps.loadImage || !loaded.base.georeference) break;
-        const content = await readMapContent(db, source.sha256);
-        if (!content) continue;
-        try {
-          underlays.push({ image: await deps.loadImage(new Uint8Array(content)), toMap: underlayToMap(source, loaded.base.georeference) });
-          used.push(source.name);
-        } catch { /* En bild som inte går att läsa eller ett okänt koordinatsystem hoppas över. */ }
-      }
+      const { underlays, used } = await loadUnderlays(db, loaded, (request.underlays ?? []) as RenderUnderlaySource[], deps.loadImage);
       const rendered = runRender(loaded, request, area, deps.createCanvas, underlays);
       output = { result: { ...rendered.meta, ...(used.length ? { underlays: used } : {}) }, image: rendered.png }; break;
     }
@@ -267,6 +283,15 @@ export async function runMapJob(db: Database, job: ClaimedMapJob, deps: { worker
       if (!deps.fonts) { output = { error: "Arbetaren saknar typsnitt" }; break; }
       const pdf = await runMapPdf(loaded, request as MapPdfRequest, deps.fonts(), now);
       output = "error" in pdf ? pdf : { result: pdf.result, image: pdf.pdf };
+      break;
+    }
+    // Ägaren 2026-11-23: Fyll ytor ur flygbilden (classify_cells); ortofotona och IR-bilderna läses som underlagen ovan.
+    case "PHOTO_CELLS": {
+      if (!deps.loadImage) { output = { error: "Arbetaren kan inte läsa bilder" }; break; }
+      const within = request.area as Box;
+      const rgb = await loadUnderlays(db, loaded, (request.rgb ?? []) as RenderUnderlaySource[], deps.loadImage, within);
+      const ir = await loadUnderlays(db, loaded, (request.ir ?? []) as RenderUnderlaySource[], deps.loadImage, within);
+      output = runPhotoCellsJob(loaded, request as unknown as PhotoCellsJobRequest, { createCanvas: deps.createCanvas, rgb: rgb.underlays, ir: ir.underlays }, now);
       break;
     }
     default: output = { error: `Okänt jobb ${job.kind}` };

@@ -13,6 +13,7 @@ import { mapProjectAreaViews } from "./map-project-areas";
 import { runMapJobAndWait, type MapJobKind, type MapJobOutcome } from "./map-project-jobs";
 import type { RenderUnderlaySource } from "./map-project-job-run";
 import { createMapProjectProposalAsAi, openProposalCount } from "./map-project-proposals";
+import { PHOTO_JOB_MAX_IMAGES, PHOTO_JOB_MAX_SIDE_M } from "./map-project-job-photo";
 import { listMapProjectsForAccount } from "./map-projects";
 import { callMcpBaseMapTool, MCP_BASE_MAP_TOOL, type McpBaseMapOptions } from "./mcp-base-map";
 import { callMcpCourseTool, MCP_COURSE_TOOL_NAMES, MCP_COURSE_TOOLS } from "./mcp-course-setting";
@@ -89,6 +90,14 @@ export const MCP_TOOLS = [
         by: { type: "array", items: { type: "string" }, maxItems: 50, description: "subtract: nycklar till ytorna som klipper" },
         dx: { type: "number" }, dy: { type: "number" }, angle: { type: "number" } }, required: ["op"] } } },
       required: ["project_id", "note", "operations"] }, annotations: { readOnlyHint: false, destructiveHint: false } },
+  { name: "classify_cells", title: "Fyll ytor ur flygbilden", description: `Rutorna mellan kartans linjer och hårda ytor (som Fyll över i O-Tid) i ett område (högst ${PHOTO_JOB_MAX_SIDE_M} × ${PHOTO_JOB_MAX_SIDE_M} m) klassade ur projektets ortofoto (Ortofoto-underlagen; IR-bilden ger NDVI): paved (hårdgjord, 501), grass (gräs/öppen mark, 401), trees (träd, 405), water (vatten, 301) med säkerhet 0–1. Utan answers: rutornas id, klass och säkerhet, och en bild med de osäkra rutorna utskurna (rosa kant, nummer; image i svaret säger vilket id numret har). Titta på bilden och anropa igen med answers (id och klass, eller skip) – de blir ytor och grundkartans markytor under dem klipps, som ett förslag (eller införda direkt i läget AUTONOMOUS); accept_confident: true tar också med de säkra rutorna. Rutor större än 2 ha är alltid osäkra. Var sparsam: svara på de rutor bilden visar, och be om fler med max_images bara vid behov.`,
+    inputSchema: { type: "object", properties: { ...projectId, area: { ...area.area, description: "Område i kartans mm med y uppåt (krävs)" },
+      include_ground: { type: "boolean", description: "Också rutor som redan har grundkartans markytor" },
+      max_images: { type: "integer", minimum: 1, maximum: PHOTO_JOB_MAX_IMAGES, description: "Så många osäkra rutor i bilden (förval 12)" },
+      answers: { type: "array", maxItems: MCP_PROPOSAL_MAX_OPERATIONS, items: { type: "object", properties: { id: { type: "string" },
+        class: { type: "string", enum: ["paved", "grass", "trees", "water", "skip"] } }, required: ["id", "class"] } },
+      accept_confident: { type: "boolean" }, note: { type: "string", maxLength: 500 } }, required: ["project_id", "area"] },
+    annotations: { readOnlyHint: false, destructiveHint: false } },
   ...MCP_LASER_TOOLS,
   MCP_BASE_MAP_TOOL
 ] as const;
@@ -147,7 +156,8 @@ export async function callMcpTool(db: Database, accountId: string, name: string,
   const parsed = schemaFor.safeParse(args ?? {});
   if (!parsed.success) return toolError(`Ogiltiga argument: ${parsed.error.issues.map(issue => `${issue.path.join(".") || "(argumenten)"}: ${issue.message}`).join("; ")}`);
   const input = parsed.data as { project_id: string } & Record<string, unknown>;
-  const denied = await access(db, accountId, input.project_id, name === "propose_changes" || ((name === "generalize" || name === "clear_built") && input.propose === true) ? "propose" : "view");
+  const denied = await access(db, accountId, input.project_id, name === "propose_changes" || ((name === "generalize" || name === "clear_built") && input.propose === true)
+    || (name === "classify_cells" && Array.isArray(input.answers)) ? "propose" : "view");
   if (denied) return toolError(denied);
   if (MCP_LASER_TOOL_NAMES.has(name)) return callMcpLaserTool(db, accountId, name, input, { runtime: laser.runtime, now: laser.now, wait });
   if (name === MCP_BASE_MAP_TOOL.name) return callMcpBaseMapTool(db, accountId, input, { now: laser.now, sources: laser.sources, budgetMs: laser.budgetMs, wait });
@@ -166,10 +176,7 @@ export async function callMcpTool(db: Database, accountId: string, name: string,
       // Ägaren 2026-11-17: underlagen pekas ut med en del av namnet; kartjobbet läser bilderna med innehållsnyckeln.
       let underlays: RenderUnderlaySource[] | undefined;
       if (name === "render_view" && Array.isArray(input.underlays) && input.underlays.length) {
-        const rows = await db.select({ name: schema.mapProjectLayers.name, sha256: schema.mapProjectLayers.contentSha256, width: schema.mapProjectLayers.width,
-          height: schema.mapProjectLayers.height, crs: schema.mapProjectLayers.crs, transform: schema.mapProjectLayers.transform, sort: schema.mapProjectLayers.sort,
-          createdAt: schema.mapProjectLayers.createdAt }).from(schema.mapProjectLayers).where(eq(schema.mapProjectLayers.projectId, input.project_id));
-        rows.sort((a, b) => a.sort - b.sort || a.createdAt.getTime() - b.createdAt.getTime());
+        const rows = await projectUnderlays(db, input.project_id);
         underlays = [];
         for (const wanted of input.underlays as string[]) {
           // Det senast tillagda underlaget som namnet passar, utan dubbletter. Ett exakt namn går före (2026-11-18: färgbilden
@@ -187,6 +194,24 @@ export async function callMcpTool(db: Database, accountId: string, name: string,
       if (outcome.status !== "done") return jobFailure(outcome);
       if (!outcome.image) return toolError("Bilden saknas");
       return { content: [{ type: "image", data: Buffer.from(outcome.image).toString("base64"), mimeType: "image/png" }, text(outcome.result)] };
+    }
+    case "classify_cells": {
+      const rows = (await projectUnderlays(db, input.project_id)).filter(row => row.name.startsWith("Ortofoto"));
+      if (!rows.length) return toolError("Projektet har inget ortofoto. Ortofoton hämtas i O-Tid under Grundkarta › Underlag (Ortofoto från Lantmäteriet).");
+      const source = (row: typeof rows[number]) => ({ name: row.name, sha256: row.sha256, width: row.width, height: row.height, crs: row.crs, transform: row.transform });
+      const answers = input.answers as { id: string; class: string }[] | undefined;
+      const outcome = await job(db, accountId, input.project_id, "PHOTO_CELLS", strip({ area: input.area, includeGround: input.include_ground, maxImages: input.max_images,
+        answers, acceptConfident: input.accept_confident, rgb: rows.filter(row => !row.name.endsWith(" – IR")).map(source),
+        ir: rows.filter(row => row.name.endsWith(" – IR")).map(source) }), wait);
+      if (outcome.status !== "done") return jobFailure(outcome);
+      const result = outcome.result as { errors?: string[]; edits?: unknown[]; summary?: unknown };
+      if (result.errors) return toolError(result.errors.join("\n"));
+      if (!answers) return { content: [...(outcome.image ? [{ type: "image" as const, data: Buffer.from(outcome.image).toString("base64"), mimeType: "image/png" as const }] : []), text(result)] };
+      if (!result.edits?.length) return { content: [text({ summary: result.summary, message: "Inga ytor att lägga in." })] };
+      const created = await createMapProjectProposalAsAi(db, { accountId, projectId: input.project_id, request: { formatVersion: 1, requestId: randomUUID(),
+        note: typeof input.note === "string" && input.note ? input.note.slice(0, 500) : "Ytor ur flygbilden (AI)", edits: result.edits } });
+      if (created.status !== "created") return toolError(refusal(created.status));
+      return { content: [text({ summary: result.summary, proposalId: created.proposal.proposalId, changes: created.proposal.edits.length, ...outcomeOf(created) })] };
     }
     case "training_labels": {
       const outcome = await job(db, accountId, input.project_id, "RENDER", { labels: { minE: input.min_e, minN: input.min_n, maxE: input.max_e, maxN: input.max_n,
@@ -255,6 +280,14 @@ export async function callMcpTool(db: Database, accountId: string, name: string,
     }
     default: return toolError(`Okänt verktyg ${name}`);
   }
+}
+
+/** Projektets underlag i ordning (det senast tillagda sist), med det kartjobbet behöver för att läsa och placera bilden. */
+async function projectUnderlays(db: Database, project: string) {
+  const rows = await db.select({ name: schema.mapProjectLayers.name, sha256: schema.mapProjectLayers.contentSha256, width: schema.mapProjectLayers.width,
+    height: schema.mapProjectLayers.height, crs: schema.mapProjectLayers.crs, transform: schema.mapProjectLayers.transform, sort: schema.mapProjectLayers.sort,
+    createdAt: schema.mapProjectLayers.createdAt }).from(schema.mapProjectLayers).where(eq(schema.mapProjectLayers.projectId, project));
+  return rows.sort((a, b) => a.sort - b.sort || a.createdAt.getTime() - b.createdAt.getTime());
 }
 
 const refusal = (status: string) => status === "forbidden" ? "Ägaren har satt AI-kopplingen till att bara läsa i det här projektet (eller kontot får inte föreslå)."

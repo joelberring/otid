@@ -10,6 +10,7 @@ import type { FillOverlay } from "./map-project-fill-over";
 import type { UnderChange } from "./map-project-fill-under";
 import type { SnapIndex } from "./map-project-snap";
 import type { UnfilledQuery, UnfilledResult } from "./map-project-unfilled";
+import type { PhotoCellsQuery, PhotoCellsResult } from "./map-project-photo-fill";
 
 /**
  * ADR-0219 (K1): kartprojektets karta ritas i en egen Worker (`map-project-worker.ts`). Den läser grundfilen en gång (med
@@ -110,7 +111,13 @@ export type MapProjectRequest =
   /** K8b V3: Fäst – indexet över kartans objekt (byggs när objekten ändrats, frågorna går på sidan). */
   | { readonly type: "snapIndex"; readonly id: number }
   /** K8b V5: Visa ofyllda rutor – rutorna i utsnittet som ingen yta täcker. */
-  | { readonly type: "unfilled"; readonly id: number; readonly query: UnfilledQuery };
+  | { readonly type: "unfilled"; readonly id: number; readonly query: UnfilledQuery }
+  /** Fyll ytor ur flygbilden: rutorna i en etapp klassade ur ortofotot, och det som ändras under de valda rutorna. */
+  | { readonly type: "photoCells"; readonly id: number; readonly query: PhotoCellsQuery }
+  | { readonly type: "photoCuts"; readonly id: number; readonly cells: readonly PhotoCutCell[]; readonly hidden: readonly string[] };
+
+/** En ruta som läggs in: ringarna och symbolens id. */
+export interface PhotoCutCell { readonly rings: readonly (readonly Point[])[]; readonly symbol: string }
 
 export type MapProjectResponse =
   | { readonly type: "loaded"; readonly bounds: Bounds; readonly scale: number; readonly georeference: MapGeoreference | null;
@@ -148,6 +155,8 @@ export type MapProjectResponse =
   | { readonly type: "proposeAreas"; readonly id: number; readonly result: ProposeResult }
   | { readonly type: "snapIndex"; readonly id: number; readonly index: SnapIndex | null }
   | { readonly type: "unfilled"; readonly id: number; readonly result: UnfilledResult }
+  | { readonly type: "photoCells"; readonly id: number; readonly result: PhotoCellsResult }
+  | { readonly type: "photoCuts"; readonly id: number; readonly under: readonly UnderChange[] }
   | { readonly type: "error"; readonly code: MapRenderErrorCode };
 
 /** K8b V7: ringarna för den samlade ytan och vad som ska klippas under den (som i `FillQuery`). */
@@ -198,6 +207,9 @@ export class MapProjectSession {
   private onSnap: ((index: SnapIndex | null) => void) | undefined;
   private latestUnfilled = 0;
   private onUnfilled: ((result: UnfilledResult) => void) | undefined;
+  /** Fyll ytor ur flygbilden: svaren går till frågan med samma id (etapperna köas). */
+  private latestPhoto = 0;
+  private readonly onPhoto = new Map<number, (message: Extract<MapProjectResponse, { type: "photoCells" | "photoCuts" }>) => void>();
   private onFit: ((fit: VectorFit | null) => void) | undefined;
   private onWarp: ((changes: readonly WarpChange<ObjectKey>[], refs: ReadonlyMap<ObjectKey, ObjectRef>) => void) | undefined;
 
@@ -223,6 +235,7 @@ export class MapProjectSession {
       else if (message.type === "fillCuts") { if (message.id === this.latestFillCuts) this.onFillCuts?.(message.under, message.overlay); }
       else if (message.type === "snapIndex") { if (message.id === this.latestSnap) this.onSnap?.(message.index); }
       else if (message.type === "unfilled") { if (message.id === this.latestUnfilled) this.onUnfilled?.(message.result); }
+      else if (message.type === "photoCells" || message.type === "photoCuts") { this.onPhoto.get(message.id)?.(message); this.onPhoto.delete(message.id); }
       else if (message.type === "proposeAreas") { if (message.id === this.latestPropose) this.onPropose?.(message.result); }
       else if (message.type === "built") { if (message.id === this.latestBuilt) this.onBuilt?.(message.polygons, message.fields ?? [], { roads: message.roads ?? [], edges: message.edges ?? [] }); }
       else if (message.id === this.latest && this.onRendered) this.onRendered(message.id, message.bitmap);
@@ -356,6 +369,21 @@ export class MapProjectSession {
     this.post({ type: "unfilled", id, query });
   }
 
+  /** Fyll ytor ur flygbilden: en etapps rutor klassade ur bilderna (bildernas pixlar flyttas till Workern). */
+  photoCells(query: PhotoCellsQuery, onCells: (result: PhotoCellsResult) => void) {
+    const id = ++this.latestPhoto;
+    this.onPhoto.set(id, message => { if (message.type === "photoCells") onCells(message.result); });
+    const transfer = [query.rgb.data.buffer, ...(query.ir ? [query.ir.data.buffer] : [])].filter((buffer): buffer is ArrayBuffer => buffer instanceof ArrayBuffer);
+    this.post({ type: "photoCells", id, query }, transfer);
+  }
+
+  /** Fyll ytor ur flygbilden: det som klipps och rensas under de valda rutorna. */
+  photoCuts(cells: readonly PhotoCutCell[], hidden: readonly string[], onCuts: (under: readonly UnderChange[]) => void) {
+    const id = ++this.latestPhoto;
+    this.onPhoto.set(id, message => { if (message.type === "photoCuts") onCuts(message.under); });
+    this.post({ type: "photoCuts", id, cells, hidden });
+  }
+
   fit(source: readonly FitPoint[], onFit: (fit: VectorFit | null) => void) {
     const id = ++this.latestFit;
     this.onFit = onFit;
@@ -363,7 +391,7 @@ export class MapProjectSession {
   }
 
   close() {
-    this.onFit = undefined; this.onFill = undefined; this.onPropose = undefined; this.onSnap = undefined; this.onUnfilled = undefined;
+    this.onFit = undefined; this.onFill = undefined; this.onPropose = undefined; this.onSnap = undefined; this.onUnfilled = undefined; this.onPhoto.clear();
     this.onGeneralize = undefined; this.onBySymbol = undefined; this.onWarp = undefined;
     this.onRendered = undefined; this.onHit = undefined; this.onCatalog = undefined; this.onRecon = undefined; this.onNorm = undefined;
     this.worker.terminate();

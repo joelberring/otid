@@ -31,6 +31,8 @@ export * from "./rock-choice";
 export * from "./candidate-merge";
 export * from "./photo-interpret";
 export * from "./photo-laser";
+export * from "./photo-cells";
+export * from "./photo-fill";
 export * from "./candidates";
 export * from "./assemble";
 export * from "./sprint-osm";

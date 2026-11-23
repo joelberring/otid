@@ -24,6 +24,8 @@ export interface MapJobCanvas {
     /** Underlagen (ortofoton, terrängskuggning) som bilder ur `loadImage`. */
     drawImage(image: unknown, x: number, y: number): void };
   png(): Uint8Array;
+  /** Bildens pixlar (RGBA, rad för rad), för Fyll ytor ur flygbilden. */
+  rgba?(): Uint8Array;
 }
 export type CreateMapJobCanvas = (width: number, height: number) => MapJobCanvas;
 

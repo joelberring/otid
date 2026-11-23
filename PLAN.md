@@ -1364,6 +1364,10 @@ och `claude/plan-ritlage-hjul-och-mobil.md`.
     markhöjdmodell): 201 vid ≥ 2,4 m över ±3 m, ≥ 3 m över ±6 m och ≥ 10 m längd, annars 202, under 1,3 m ingen brant.
     (e) Lantmäteriets Byggnad läses på samma sätt när kontot har behörighet, annars husen ur OpenStreetMap.
     Terrängskuggning ur markrastret blir ett underlag att tona.
+  - [x] G8f Fyll ytor ur flygbilden (ägaren 2026-11-23: «flygbildanalys … vilka ytor som är vägar/hårdgjord mark?»): rutorna som
+    Fyll över ger (linjer och hårda ytor, glapp 2 m) klassas ur ortofotot och IR-bilden (hårdgjord, gräs, träd, vatten, osäker;
+    skugga räknas inte, över 2 ha alltid osäker), utkast på kartan med kryssrutor och symbol per klass, «Lägg in» klipper
+    markytorna under (Grundkarta › steg 3); AI-kopplingens `classify_cells` visar osäkra rutor som bild och tar svaren som förslag.
   - [ ] G8 kvar: prövas mot riktiga Lantmäteriet (`stac-vektor` är byggd efter samma mönster som de andra, oprövad) och mot
     riktiga flygbilder (bara konstruerade bilder hittills; IR saknas); hus ur lasern; brantlinjens läge flyttat till
     brantaste punkten; hällar under glesa tallar (laserklassificeraren i Kungshatt-kedjan).

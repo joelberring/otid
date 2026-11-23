@@ -205,10 +205,17 @@ export interface ArchiveRunResult {
   readonly errors: string[];
 }
 
-/** Körs en tävling i appen i dag (tävlingsdygnet, ADR-0178)? Också förrådets flytt (PLAN.md steg M3) frågar. */
+/**
+ * Körs en tävling i appen i dag (tävlingsdygnet, ADR-0178)? Också förrådets flytt (PLAN.md steg M3) frågar.
+ * Gästdemons övningstävlingar (demoläget del 2) skapas med dagens datum och ägs av ett tillfälligt gästkonto; de räknas inte,
+ * annars blir varje dag då någon provar demon ett tävlingsdygn och flytten och arkivet stannar.
+ */
 export async function raceDayNow(db: DbExecutor, now: Date): Promise<boolean> {
   const rows = (await db.execute(sql`select 1 from ${schema.races} join ${schema.events} on ${schema.events.id} = ${schema.races.eventId}
-    where ${inRaceDaySql(schema.races.raceDate, schema.events.timeZone, now)} limit 1`)).rows;
+    where ${inRaceDaySql(schema.races.raceDate, schema.events.timeZone, now)}
+      and not exists (select 1 from ${schema.eventAdministrationGrants} g join ${schema.userAccounts} u on u.id = g.account_id
+        where g.event_id = ${schema.events.id} and u.guest_expires_at is not null)
+    limit 1`)).rows;
   return rows.length > 0;
 }
 

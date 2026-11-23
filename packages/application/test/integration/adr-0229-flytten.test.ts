@@ -12,6 +12,7 @@ import { memoryArchiveStore, setMapArchiveStore, type ArchiveStore } from "../..
 import { setMapStoreMode } from "../../src/map-store";
 import { cachePath, pinnedDir, setMapCacheDir } from "../../src/map-cache";
 import { runMapMigration } from "../../src/map-store-migrate";
+import { raceDayNow } from "../../src/map-archive";
 import { mapMigrationStatus, migrateSettings, takeMapMigrationRequest, takeMigrateLease } from "../../src/map-store-migrate-settings";
 import { createOrganizerEvent } from "../../src/organizer-events";
 import { saveRaceMapAsAdmin } from "../../src/race-map";
@@ -241,6 +242,13 @@ describe("ADR-0229 M3: flytten av befintligt innehåll till förrådet", () => {
     setMapStoreMode("off");
     expect(await performSuperadminAction(db, proof, { formatVersion: 1, action: "MIGRATE_MAP_CONTENT_NOW", reason: "Av" }))
       .toEqual({ status: "invalid-request" });
+  });
+
+  it("gästdemons övningstävling med dagens datum gör inte dagen till tävlingsdygn", async () => {
+    const demo = await raceMapInDatabase(localRaceDate(new Date(), STHLM), 13);
+    await db.execute(sql`update user_account set guest_expires_at = now() + interval '1 hour' where id in (select g.account_id
+      from event_administration_grant g join race r on r.event_id = g.event_id where r.id = ${demo.raceId})`);
+    expect(await raceDayNow(db, new Date())).toBe(false);
   });
 
   it("tävlingsdygnet stoppar flytten, också den manuella", async () => {

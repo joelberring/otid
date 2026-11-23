@@ -1,3 +1,5 @@
+import { arcEntity, bulgedPoints, hatchAreas } from "./dxf-curves";
+
 /**
  * ADR-0219 tillägget om vektorunderlagen (K4b): GeoJSON och DXF (text) läses till objekt per lager i källans koordinater. Inget
  * ritas här; lagren mappas till symboler och räknas om till kartans mm i `vector-import.ts`. DWG läses senare i geo-arbetaren.
@@ -106,7 +108,10 @@ export function parseGeoJson(text: string, options: { readonly properties?: bool
   return { features, crs: named ? Number(named[1]) : 4326, skipped };
 }
 
-/** DXF i textform: POINT, INSERT och CIRCLE (punkter), LINE, LWPOLYLINE, POLYLINE med VERTEX och SPLINE (anpassningspunkterna). */
+/**
+ * DXF i textform: POINT, INSERT och CIRCLE (punkter), LINE, ARC, LWPOLYLINE och POLYLINE med VERTEX (bågarna i hörnens bulge
+ * utplattade), SPLINE (anpassningspunkterna) och HATCH (gränsvägarna som ytor, med hål; `dxf-curves.ts`).
+ */
 export function parseDxf(text: string): SourceData {
   if (text.startsWith("AutoCAD Binary DXF")) throw new VectorParseError("Binär DXF stöds inte; spara som DXF i textform.");
   const lines = text.split(/\r?\n/);
@@ -139,6 +144,18 @@ export function parseDxf(text: string): SourceData {
     }
     return result;
   };
+  // LWPOLYLINE:s hörn med buktighet (42 efter hörnets 10/20); inget när ingen sträcka buktar (det vanliga, och snabbare).
+  const bulged = (body: [number, string][], closed: boolean): Position[] | undefined => {
+    if (!body.some(([code, value]) => code === 42 && Number(value) !== 0)) return undefined;
+    const vertices: { at: Position; bulge: number }[] = [];
+    let x: number | undefined;
+    for (const [code, value] of body) {
+      if (code === 10) x = Number(value);
+      else if (code === 20 && x !== undefined) { const y = Number(value); if (Number.isFinite(x) && Number.isFinite(y)) vertices.push({ at: [x, y], bulge: 0 }); x = undefined; }
+      else if (code === 42 && vertices.length) vertices[vertices.length - 1]!.bulge = Number(value) || 0;
+    }
+    return bulgedPoints(vertices, closed);
+  };
   const flags = (body: [number, string][]) => Number(body.find(([code]) => code === 70)?.[1] ?? 0);
   const elevationOf = (...bodies: ([number, string][] | undefined)[]) => {
     for (const body of bodies) {
@@ -159,8 +176,15 @@ export function parseDxf(text: string): SourceData {
     } else if (type === "LINE") {
       const a = coordinates(body, 10, 20)[0], b = coordinates(body, 11, 21)[0];
       if (a && b) features.push({ layer, geometry: { kind: "line", points: [a, b], closed: false } }); else skipped += 1;
+    } else if (type === "ARC") {
+      const points = arcEntity(body);
+      if (points) features.push({ layer, geometry: { kind: "line", points, closed: false } }); else skipped += 1;
+    } else if (type === "HATCH") {
+      const areas = hatchAreas(body);
+      for (const rings of areas) features.push({ layer, geometry: { kind: "area", rings } });
+      if (areas.length === 0) skipped += 1;
     } else if (type === "LWPOLYLINE") {
-      const points = coordinates(body, 10, 20);
+      const points = bulged(body, (flags(body) & 1) === 1) ?? coordinates(body, 10, 20);
       if (points.length >= 2) features.push({ layer, geometry: lineOf(points, (flags(body) & 1) === 1), ...elevationOf(body) }); else skipped += 1;
     } else if (type === "SPLINE") {
       const fit = coordinates(body, 11, 21);
@@ -168,15 +192,17 @@ export function parseDxf(text: string): SourceData {
       if (points.length >= 2) features.push({ layer, geometry: { kind: "line", points, closed: (flags(body) & 1) === 1 } }); else skipped += 1;
     } else if (type === "POLYLINE") {
       const closed = (flags(body) & 1) === 1;
-      const points: Position[] = [];
+      let points: Position[] = [];
+      const bulges: number[] = [];
       let first: [number, string][] | undefined;
       while (index < pairs.length && pairs[index]![1] === "VERTEX") {
         const vertex = entity();
         first ??= vertex.body;
         const at = coordinates(vertex.body, 10, 20)[0];
-        if (at) points.push(at);
+        if (at) { points.push(at); bulges.push(Number(vertex.body.find(([code]) => code === 42)?.[1] ?? 0) || 0); }
       }
       if (pairs[index]?.[1] === "SEQEND") entity();
+      if (bulges.some(bulge => bulge !== 0)) points = bulgedPoints(points.map((at, k) => ({ at, bulge: bulges[k]! })), closed);
       if (points.length >= 2) features.push({ layer, geometry: lineOf(points, closed), ...elevationOf(body, first) }); else skipped += 1;
     } else skipped += 1;
   }

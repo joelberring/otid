@@ -8,7 +8,8 @@ export const mapProjectImportSv = {
   replaceNo: "Behåll de här",
   help: "En baskarta eller annan vektorfil (GeoJSON, DXF eller Shapefile, gärna som .zip) blir ett utkast: välj symbol per lager, se det på kartan och lämna det som förslag "
     + "som godkänns som andra förslag. DWG sparas som DXF tills vidare. Allt läses här i webbläsaren. Vissa baskartor känns igen "
-    + "på lagernamnen, men inte alla. Valen kan sparas som en profil till nästa fil.",
+    + "på lagernamnen, men inte alla. Stockholms baskarta känns igen också när DXF-filen kortat lagernamnen; där hoppas fastighetsgränser, "
+    + "höjdkurvor och träd över som förval (välj en symbol för lagret om du vill ha dem). Valen kan sparas som en profil till nästa fil.",
   choose: "Välj fil",
   osmHeading: "Hämta från OpenStreetMap",
   osmHelp: "Byggnader, vägar, stigar, staket, murar, vatten och markanvändning för hela kartan eller ett delområde. Servern hämtar dem; de blir ett utkast som en fil. Data © OpenStreetMap-bidragsgivare (ODbL).",

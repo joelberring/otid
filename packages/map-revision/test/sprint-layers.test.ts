@@ -147,7 +147,9 @@ describe("lager → symbol på sprintkartor", () => {
       [["Vattendrag Dike", "VattendragDike", "Dike"], line, "line306", "line306.0"],
       [["Vattendrag Bäck", "VattendragBack", "Vattendrag"], line, "line305", undefined],
       [["Spårnät SJ Normalspår", "SparnatSJNormalspar", "Spårnät"], line, "line509", "line509.100"],
-      [["Elnät Högspänningsledning", "ElnatHogspanningsledning"], { lines: 5, closedLines: 20 }, "line510", undefined],
+      [["Elnät Högspänningsledning"], { lines: 5, closedLines: 20 }, "line510", undefined],
+      // Hopslagen känns den igen som Stockholms grupp (Elnät, tillägget 2026-11-23) och följer grammatikens regel, som det fullständiga namnet.
+      [["ElnatHogspanningsledning"], { lines: 5, closedLines: 20 }, "line511", undefined],
       [["Gatuträd", "Parkträd", "Övrigt träd", "OvrigtTrad"], point, "point418", "point418.0"],
       [["VagYta"], area, "area501", "area501.0"],
       // Ingen symbol: altan, slänt, den reserverade trädplatsen, och objekttyper som rymmer flera slag.

@@ -9,17 +9,33 @@ export interface LayerRule { readonly line?: readonly string[]; readonly area?: 
 export type StockholmLayer = { readonly kind: "skip" } | { readonly kind: "symbol"; readonly rule: LayerRule };
 
 const GEOMETRY = /^[A-Z][a-z]+[A-Z][A-Za-z_]*?(glh|gy|gl|gb|s|t)B(?:[A-Z0-9]|$)/;
+/**
+ * Tillägget 2026-11-23 (ägaren, Liljeholmen och Gröndal): DWG → DXF kortar lagernamnen till 30 tecken, så att geometrin och
+ * statusen ofta fattas («BostadsbyggnadFlerbostadshusgy», «GranslinjeFastighetsomradesgra»). Stadens grupper i början av
+ * namnet räcker då; geometrin tas ur suffixet om det finns kvar i slutet, annars avgör lagrets objekt (HATCH och slutna
+ * linjer är ytor, öppna linjer linjer, INSERT punkter) som för alla lager.
+ */
+const GROUP = new RegExp(`^(?:Hojdkurva[a-z]*|Granslinje|Kvarter|Rattighet|Registerenhet|Gatunamn|Adress|Vagutbredning|Vagavgransning|Sparnat|Elnat|`
+  + `Vattendrag|Sjo|Trad|[A-Z][a-z]*(?:byggnad|anlaggning))[A-Z0-9_]`);
+const TRUNCATED_GEOMETRY = /(glh|gy|gl|gb)B?$/;
 const normalized = (name: string) => name.toLowerCase().replace(/[åä]/g, "a").replace(/ö/g, "o");
 
-/** Är namnet Stockholms baskartas eller parkkartans? */
+/** Är namnet Stockholms baskartas eller parkkartans (också avkortat)? */
 export function isStockholmLayer(name: string): boolean {
-  return /^Park[A-Z]/.test(name) || GEOMETRY.test(name);
+  return /^Park[A-Z]/.test(name) || GEOMETRY.test(name) || GROUP.test(name);
 }
 
-const SKIP = /enhetsomrade|registerenhet|granslinje|tomt|snorojning|markutrustning|va_?anlaggning|elanlaggning|ledstang|graskant|slant|hojdkurva|bergkant|text/;
+/**
+ * Fastighets- och kvartersgränser, rättigheter (servitut), gatunamn och adresser finns inte på en orienteringskarta. Träden
+ * (`Trad…`, parkkartans `ParkTrad…`) hoppas över som förval: tusentals gatu- och parkträd blir plottrigt; 418 går att välja.
+ */
+const SKIP = /enhetsomrade|registerenhet|granslinje|^kvarter|^rattighet|^gatunamn|^adress|^(park)?trad(?!bevux)|tomt|snorojning|markutrustning|va_?anlaggning|elanlaggning|ledstang|graskant|slant|hojdkurva|bergkant|text/;
 /** Objekttyp i namnet → symbol; första träffen gäller (de mer bestämda först). */
 const RULES: readonly (readonly [RegExp, LayerRule])[] = [
-  [/skarmtak/, { area: ["522"], line: ["522"] }],
+  [/skarmtak|regnskydd/, { area: ["522"], line: ["522"] }],
+  // Sjöns yta (HATCH) och strandlinjen.
+  [/^sjo.*strand/, { line: ["301.1"] }],
+  [/^sjo/, { area: ["301"] }],
   [/byggnad/, { area: ["521"] }],
   [/trappa/, { line: ["532"], area: ["532"] }],
   [/bullerskydd|stodmur|stenmur|bruksmur|kallmur/, { line: ["513"] }],
@@ -36,7 +52,6 @@ const RULES: readonly (readonly [RegExp, LayerRule])[] = [
   [/buskage|klippthack/, { area: ["408"] }],
   [/belaggning|asfalt|plattor|gatsten|grus/, { area: ["501"] }],
   [/vagutbredning|infart|refug|parkvag/, { area: ["501"] }],
-  [/trad/, {}]
 ];
 
 /**
@@ -45,10 +60,10 @@ const RULES: readonly (readonly [RegExp, LayerRule])[] = [
  */
 export function stockholmOverflow(name: string): boolean {
   if (!isStockholmLayer(name)) return false;
-  const geometry = GEOMETRY.exec(name)?.[1];
+  const geometry = GEOMETRY.exec(name)?.[1] ?? TRUNCATED_GEOMETRY.exec(name)?.[1];
   const text = normalized(name);
   return geometry === "t" || geometry === "glh" || /skymd/.test(text) || SKIP.test(text)
-    || (/byggnad/.test(text) && !/skarmtak/.test(text) && geometry === "gl");
+    || (/byggnad/.test(text) && !/skarmtak|regnskydd/.test(text) && geometry === "gl");
 }
 
 /** Tolkningen av ett av Stockholms lagernamn, eller inget om namnet inte följer grammatiken. */

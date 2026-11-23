@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { isStockholmLayer, stockholmLayer, suggestSymbol } from "../src";
+import { SYMBOL_SETS } from "@o-tid/map-file";
+import { isStockholmLayer, stockholmLayer, suggestSymbol, type MapNorm } from "../src";
 
 /** K6b: Stockholms baskarta och parkkarta: lagernamnens grammatik till symboler (utkastet i planen) eller hoppa över. */
 const symbols = ["521", "522", "532", "513", "516", "509", "511", "305", "306", "301", "401", "405", "408", "501"].flatMap(code =>
@@ -33,6 +34,41 @@ describe("Stockholms lagernamn", () => {
     for (const name of ["RegisterenhetFastighetglBBefintlig", "TrafikanlaggningBroglBSkymd", "MarkanlaggningSlantglBBefintlig",
       "HojdkurvaHojdkurvaglhBBefintlig", "AdressTextBefintligtB0", "ParkSnorojningglB0", "ParkTradsB0"]) {
       expect(stockholmLayer(name), name).toEqual({ kind: "skip" });
+    }
+  });
+
+  it("känner igen namn som DWG → DXF kortat till 30 tecken (ägaren 2026-11-23, Liljeholmen och Gröndal)", () => {
+    const buildings = ["BostadsbyggnadFlerbostadshusgy", "OspecificeradbyggnadOspec_bygg", "OvrigbyggnadKomplementbyggnadg", "IndustribyggnadIndustribyggnad",
+      "IndustribyggnadOspec_industrib", "VerksamhetsbyggnadKontorsbyggn", "VerksamhetsbyggnadHandelsbyggn", "VerksamhetsbyggnadHotellbyggna",
+      "VerksamhetsbyggnadParkeringshu", "VerksamhetsbyggnadOspec_verksa", "SamhallsfunktionsbyggnadAllman", "SamhallsfunktionsbyggnadIdrott",
+      "SamhallsfunktionsbyggnadVardby", "SamfundsbyggnadOspec_samfundsb", "ServicebyggnadOffentligtoalett", "ServicebyggnadMobilteknikbodgy"];
+    for (const name of buildings) expect(stockholmLayer(name), name).toEqual({ kind: "symbol", rule: { area: ["521"] } });
+    expect(stockholmLayer("ServicebyggnadRegnskyddgyBBefi")).toEqual({ kind: "symbol", rule: { area: ["522"], line: ["522"] } });
+    expect(stockholmLayer("TrafikanlaggningTerrangtrappag")).toEqual({ kind: "symbol", rule: { line: ["532"], area: ["532"] } });
+    expect(stockholmLayer("VagutbredningParkvagsutbrednin")).toEqual({ kind: "symbol", rule: { area: ["501"] } });
+    expect(stockholmLayer("SjoSjogySOdefinierad")).toEqual({ kind: "symbol", rule: { area: ["301"] } });
+    expect(stockholmLayer("SjoStrandglBOdefinierad")).toEqual({ kind: "symbol", rule: { line: ["301.1"] } });
+    for (const name of ["GranslinjeFastighetsomradesgra", "GranslinjeKvarterstraktgransgb", "GranslinjeAgarlagenhetsutrymme", "GranslinjeFastighetsutrymmesgr",
+      "GranslinjeTraktgransenligtJB1_", "KvarterKvarterenldetaljplan_ej", "KvarterKvarterenldetaljplangyB", "RattighetOfficialservitutgyBBe",
+      "GatunamnGatunamntB2Odefinierad", "Hojdkurvatrimmad5mglhBBefintli", "Hojdkurvatrimmad10mglhBBefintl", "Hojdkurvatrimmad10mthBBefintli",
+      "MiljoanlaggningAtervinningssta", "TeknikanlaggningMobiltelemastg", "OvriganlaggningOspec_anlaggnin", "VagutbredningVagillustrationgl",
+      "TradGatutradsBOdefinierad", "TradParktradsBOdefinierad"]) {
+      expect(stockholmLayer(name), name).toEqual(name.startsWith("Vagutbredning") ? { kind: "symbol", rule: { area: ["501"] } } : { kind: "skip" });
+    }
+  });
+
+  it("gör aldrig fastighetsgränser till stigar och träden till 418 som förval, på skogs- och sprintkartor", () => {
+    const sets: [MapNorm, keyof typeof SYMBOL_SETS][] = [["ISOM", "ISOM2017-2"], ["ISSPROM", "ISSPROM2019-2"]];
+    for (const [norm, set] of sets) {
+      const list = SYMBOL_SETS[set].symbols.map(symbol => ({ id: `${symbol.kind}${symbol.code}`, code: symbol.code, kind: symbol.kind, name: symbol.name }));
+      for (const name of ["GranslinjeFastighetsomradesgra", "GranslinjeFastighetsutrymmesgr", "GranslinjeKvarterstraktgransgb"]) {
+        expect(suggestSymbol(layer(name, { lines: 3652 }), list, norm), `${norm} ${name}`).toBeUndefined();
+      }
+      for (const name of ["TradGatutradsBOdefinierad", "TradParktradsBOdefinierad", "ParkTradsB0"]) {
+        expect(suggestSymbol(layer(name, { points: 3000 }), list, norm), `${norm} ${name}`).toBeUndefined();
+      }
+      expect(suggestSymbol(layer("BostadsbyggnadFlerbostadshusgy", { areas: 1264 }), list, norm)).toBe("area521");
+      expect(suggestSymbol(layer("Hojdkurvatrimmad5mglhBBefintli", { lines: 1700 }), list, norm)).toBeUndefined();
     }
   });
 });

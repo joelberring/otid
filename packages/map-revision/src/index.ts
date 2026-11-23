@@ -28,6 +28,7 @@ export * from "./norm-check";
 export * from "./symbol-norm";
 export * from "./issprom-symbols";
 export * from "./building-outlines";
+export * from "./sprint-repair";
 export * from "./generalize";
 export * from "./generalize-topology";
 export * from "./generalize-parts";

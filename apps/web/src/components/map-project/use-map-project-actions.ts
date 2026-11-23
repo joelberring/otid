@@ -37,6 +37,8 @@ export function useMapProjectActions(input: {
   text: { labels: { edit: string; rotate: string; style: string; switchTo: (code: string) => string }; edit: () => void; rotate: () => void; style: () => void };
   /** Ägaren 2026-11-23: «Lägg kant runt husen» för de markerade husen. */
   outlines?: { readonly available: boolean; readonly houseSymbols: readonly string[]; readonly run: (only: ReadonlySet<ObjectKey>) => void; readonly label: string } | undefined;
+  /** «Förenkla trappor» för de markerade trapplinjerna (532). */
+  stairs?: { readonly stairSymbols: readonly string[]; readonly simplifyStairs: (only: ReadonlySet<ObjectKey>) => Promise<number>; readonly canEdit: boolean } | undefined;
 }) {
   const { canEdit, tool, keysText, multi, selected, symbol, recon, setFlash } = input;
   const [last, setLast] = useState<{ id: ContextActionId; label: string }>();
@@ -49,9 +51,11 @@ export function useMapProjectActions(input: {
   const multiSwitch = symbol && canEdit ? multi.switchable(symbol) : 0;
   const houseKeys = !input.outlines?.available || tool !== "select" ? [] : (multi.items.length ? multi.items : selected ? [selected] : [])
     .filter(item => item.object.kind === "area" && input.outlines!.houseSymbols.includes(item.object.symbol)).map(item => item.key);
+  const stairKeys = !input.stairs?.canEdit || tool !== "select" || multi.items.length < 3 ? []
+    : multi.items.filter(item => item.object.kind === "line" && input.stairs!.stairSymbols.includes(item.object.symbol)).map(item => item.key);
   const single = selected && !multi.items.length ? selected : undefined;
   const contextList = !canEdit || tool !== "select" ? [] : contextActions({ keys: input.keys, space: keysText.space, text: keysText, quick: input.quick, edge: edges,
-    outlines: houseKeys.length ? input.outlines?.label : undefined,
+    outlines: houseKeys.length ? input.outlines?.label : undefined, stairs: stairKeys.length >= 3 ? keysText.simplifyStairs : undefined,
     multi: multi.items.length ? { count: multi.items.length, switchable: multiSwitch, symbolCode: symbol?.code, joinable: multi.joinable(input.joinMm),
       lines: multi.items.filter(item => item.object.kind === "line").length, smooth: multi.shapeable("smooth"), simplify: multi.shapeable("simplify") } : undefined,
     single: single ? { kind: single.object.kind, switchTo: canSwitch ? symbol.code : undefined, canPick: single.object.symbol !== input.symbolId,
@@ -86,6 +90,7 @@ export function useMapProjectActions(input: {
   const doAction = (id: ContextActionId) => {
     if (id === "edge") { if (edges) setFlash(addEdges(edges, input.commit, keysText)); }
     else if (id === "outlines") { if (houseKeys.length) input.outlines?.run(new Set(houseKeys)); }
+    else if (id === "stairs") { if (stairKeys.length) void input.stairs?.simplifyStairs(new Set(stairKeys)).then(count => setFlash(keysText.stairsSimplified(count))); }
     else if (id === "editText") input.text.edit();
     else if (id === "rotate") input.text.rotate();
     else if (id === "textStyle") input.text.style();
@@ -99,7 +104,7 @@ export function useMapProjectActions(input: {
   const repeat = () => {
     if (!last) setFlash(keysText.nothingToRepeat);
     else if (contextList.some(action => action.id === last.id)) doAction(last.id);
-    else if (last.id !== "edge" && last.id !== "outlines" && last.id !== "remove" && last.id !== "simplifyMore" && last.id !== "straighten" && last.id !== "rotate"
+    else if (last.id !== "edge" && last.id !== "outlines" && last.id !== "stairs" && last.id !== "remove" && last.id !== "simplifyMore" && last.id !== "straighten" && last.id !== "rotate"
       && last.id !== "editText" && last.id !== "textStyle") act(last.id);
     else setFlash(keysText.needSelection);
   };

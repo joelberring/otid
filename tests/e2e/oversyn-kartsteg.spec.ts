@@ -76,7 +76,7 @@ test("översynen: kartstegen i ordning, huvudsteg skilda från valen under dem",
   // Fliken Granska i arbetsordning; arbetssättet och AI-kopplingen i en stängd utfällning sist.
   await owner.getByTestId("map-project-tab-review").click();
   const review = owner.locator("#map-project-tabpanel-review");
-  await expect(review.getByRole("heading", { level: 2 })).toHaveText([/^Förslag/, "Normkontroll", "Notiser", "Rekning", "Delområden"]);
+  await expect(review.getByRole("heading", { level: 2 })).toHaveText([/^Förslag/, "Normkontroll", "Rätta efter sprintnormen", "Notiser", "Rekning", "Delområden"]);
   const settings = review.getByTestId("map-project-collab-settings");
   await expect(settings).not.toHaveAttribute("open", "");
   await settings.getByText("Arbetssätt och AI-kopplingen").click();

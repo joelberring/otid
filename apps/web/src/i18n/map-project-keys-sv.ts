@@ -26,6 +26,8 @@ export const mapProjectKeysSv = {
   rectangleNeedsShape: "Välj en linje- eller ytsymbol för rektangeln.",
   filled: (count: number) => count === 1 ? "Klart: ett nytt objekt med den valda symbolen." : `Klart: ${count} nya objekt med den valda symbolen.`,
   /** Hjulets åtgärd på markerade ytor och beskedet efteråt. */
+  simplifyStairs: "Förenkla trappor",
+  stairsSimplified: (count: number) => count === 0 ? "Inga trappsteg att förenkla bland de markerade." : count === 1 ? "1 trappa förenklad." : `${count} trappor förenklade.`,
   edge: (areas: number, codes: string) => areas === 1 ? `Lägg på kantlinje (${codes})` : `Lägg på kantlinje på ${areas} ytor (${codes})`,
   edgeNeedsSymbol: "Kantlinje: välj en linjesymbol först",
   edged: (areas: number, codes: string) => areas === 1 ? `Ytan har fått en kantlinje med ${codes}.` : `${areas} ytor har fått kantlinje med ${codes}.`,

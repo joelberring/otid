@@ -1471,7 +1471,8 @@ stannar kvar; siffror byter symbol, bokstäver verktyg; tryck byter, håll låna
   och saknade normsymboler; ägaren rättar (per symbol, alla, lägg till saknade; skrivs i nya kartversioner, bara Mapper).
   «Lägg kant runt husen» (Granska, kontextraden, efter Fyll och vid import/grundkarta när 521 saknar egen kant och 521.1 finns):
   kant runt sammanhängande hus utan gemensamma väggar. O-Tids sprintmall med alla normens symboler (521 svart 50 %, 214 35 %,
-  501.1 0,18 mm). Sprintkartor: 520 bara på småhustomter, inga vägar som linjer.
+  501.1 0,18 mm). Sprintkartor: 520 bara på småhustomter, inga vägar som linjer. Panelen «Rätta efter sprintnormen» rättar en
+  befintlig karta utan ny inläsning: symbolerna, kant runt husen, Förenkla trappor och 520 kring flerbostadshus, med antal per steg.
 
 ## [ ] Steg L – Lagring: gränser, städning och arkiv (ägaren 2026-11-13)
 

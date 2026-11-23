@@ -7,36 +7,52 @@ import { mapProjectSymbolNormSv } from "../../i18n/map-project-symbol-norm-sv";
 import type { MapProjectSession, SymbolNormResult } from "../../lib/map-project-protocol";
 import { useTexts } from "../language-provider";
 import { Button } from "../ui";
-import type { useMapProjectBuildingOutlines } from "./use-map-project-building-outlines";
+import type { OutlineOutcome, useMapProjectBuildingOutlines } from "./use-map-project-building-outlines";
+import type { useMapProjectSprintRepair } from "./use-map-project-sprint-repair";
+import type { MultiItem } from "./use-map-project-multi";
 import styles from "./map-project-editor.module.css";
 
 /**
- * Ägaren 2026-11-23: «Symbolerna mot ISSprOM 2019-2» i Granska. Kontrollen körs i Workern (`checkSymbolNorm`) och listar de
- * använda symbolerna som avviker och normens symboler som saknas. Projektets ägare rättar dem (per symbol, alla, lägg till de
- * saknade): inställningen sparas i projektet och skrivs i nästa kartversion (bara Mapper-kartor). «Lägg kant runt husen» för alla.
+ * Ägaren 2026-11-23: «Rätta efter sprintnormen» i Granska, för en befintlig karta utan ny inläsning, i fyra steg med antal:
+ * 1. symbolerna mot ISSprOM 2019-2 (`checkSymbolNorm` i Workern; ägaren rättar per symbol, alla, och lägger till saknade normsymboler,
+ *    som sparas i projektet och skrivs i nästa kartversion, bara Mapper-kartor),
+ * 2. kant runt husen (`buildingOutlines`), 3. förenkla trappor (`stairObjectsPlan`), 4. 520 kring flerbostadshus (`apartmentYardKeys`).
  */
-export function MapProjectSymbolNormPanel({ session, canDecide, ocad, saved, onSave, outlines }: {
+export function MapProjectSymbolNormPanel({ session, canDecide, ocad, saved, onSave, outlines, repair, onMark }: {
   session: MapProjectSession | undefined; canDecide: boolean; ocad: boolean; saved: MapProjectNormSymbols;
   onSave: (setting: MapProjectNormSymbols) => Promise<boolean>; outlines: ReturnType<typeof useMapProjectBuildingOutlines>;
+  repair: ReturnType<typeof useMapProjectSprintRepair>; onMark: (items: readonly MultiItem[]) => void;
 }) {
   const text = useTexts(mapProjectSymbolNormSv, mapProjectSymbolNormEn);
   const [result, setResult] = useState<SymbolNormResult>();
-  const [checking, setChecking] = useState(false);
+  const [outlinePlan, setOutlinePlan] = useState<OutlineOutcome | null>();
+  const [busy, setBusy] = useState(false);
   const [told, setTold] = useState<string>();
-  const check = () => { if (!session) return; setChecking(true); session.symbolNorm(next => { setChecking(false); setResult(next); }); };
+  const check = () => new Promise<void>(resolve => { if (!session) { resolve(); return; } session.symbolNorm(next => { setResult(next); resolve(); }); });
+  const survey = async () => {
+    setBusy(true); setTold(undefined);
+    await check();
+    setOutlinePlan((await outlines.plan())?.outcome ?? null);
+    await repair.search();
+    setBusy(false);
+  };
   const canFix = canDecide && !ocad;
   const save = async (setting: MapProjectNormSymbols, message: string) => {
     setTold(undefined);
     const ok = await onSave({ replace: [...new Set(setting.replace)], add: [...new Set(setting.add)] });
     setTold(ok ? message : text.failed);
-    if (ok) setTimeout(check, 400);
+    if (ok) setTimeout(() => void check(), 400);
   };
   const fixable = result?.issues.filter(issue => issue.fixable) ?? [];
+  const found = repair.found;
   return <section className={styles.panel} aria-labelledby="map-project-symbol-norm" data-testid="map-project-symbol-norm">
-    <h2 id="map-project-symbol-norm">{text.heading}</h2>
-    <p className={styles.muted}>{text.help}</p>
-    <Button variant="quiet" onClick={check} disabled={!session || checking} data-testid="map-project-symbol-norm-check">{checking ? text.checking : text.check}</Button>
+    <h2 id="map-project-symbol-norm">{text.repairHeading}</h2>
+    <p className={styles.muted}>{text.repairHelp}</p>
+    <Button onClick={() => void survey()} disabled={!session || busy} data-testid="map-project-symbol-norm-check">{busy ? text.surveying : text.survey}</Button>
     {result && !result.sprint && <p className={styles.muted}>{text.forest}</p>}
+
+    <p><strong>{text.step(1, text.stepSymbols)}{result?.sprint ? ` (${result.issues.length + result.missing.length})` : ""}</strong></p>
+    <p className={styles.muted}>{text.help}</p>
     {result?.sprint && <>
       <p role="status" data-testid="map-project-symbol-norm-count">{result.issues.length === 0 ? text.none : text.count(result.issues.length)}</p>
       <ul className={styles.rows}>
@@ -50,7 +66,7 @@ export function MapProjectSymbolNormPanel({ session, canDecide, ocad, saved, onS
           {canFix && issue.fixable && <Button variant="quiet" onClick={() => void save({ ...saved, replace: [...saved.replace, issue.code] }, text.fixed)}>{text.fix}</Button>}
         </li>)}
       </ul>
-      {canFix && fixable.length > 1 && <Button onClick={() => void save({ ...saved, replace: [...saved.replace, ...fixable.map(issue => issue.code)] }, text.fixed)}
+      {canFix && fixable.length > 0 && <Button onClick={() => void save({ ...saved, replace: [...saved.replace, ...fixable.map(issue => issue.code)] }, text.fixed)}
         data-testid="map-project-symbol-norm-fix-all">{text.fixAll(fixable.length)}</Button>}
       {result.missing.length > 0 && <>
         <p className={styles.muted}>{text.missing(result.missing.length)} {result.missing.map(row => `${row.code} ${row.name}`).join(", ")}.</p>
@@ -61,11 +77,28 @@ export function MapProjectSymbolNormPanel({ session, canDecide, ocad, saved, onS
       {canDecide && ocad && <p className={styles.muted}>{text.ocad}</p>}
     </>}
     {canDecide && saved.replace.length > 0 && <Button variant="quiet" onClick={() => void save({ replace: [], add: saved.add }, text.fixed)}>{text.undone}</Button>}
-    {told && <p role="status" className={styles.muted}>{told}</p>}
-    {outlines.available && <>
+
+    <p><strong>{text.step(2, text.stepOutlines)}{outlinePlan ? ` (${outlinePlan.added + outlinePlan.removed})` : ""}</strong></p>
+    {outlines.available ? <>
       <p className={styles.muted}>{text.outlinesHelp}</p>
-      <Button variant="quiet" onClick={() => outlines.run()} disabled={outlines.busy} data-testid="map-project-building-outlines">{outlines.busy ? text.outlinesBusy : text.outlines}</Button>
+      {outlinePlan && <p role="status">{text.outlinesCount(outlinePlan.added, outlinePlan.removed)}</p>}
+      <Button variant="quiet" onClick={() => { outlines.run(); setOutlinePlan(undefined); }} disabled={outlines.busy} data-testid="map-project-building-outlines">
+        {outlines.busy ? text.outlinesBusy : text.outlines}</Button>
       {outlines.outcome && <p role="status" className={styles.muted}>{text.outlinesDone(outlines.outcome.added, outlines.outcome.removed, outlines.outcome.houses)}</p>}
+    </> : <p className={styles.muted}>{text.outlinesNone}</p>}
+
+    <p><strong>{text.step(3, text.stepStairs)}{found ? ` (${found.stairs.stairs})` : ""}</strong></p>
+    {found && <p role="status">{text.stairsCount(found.stairs.stairs, found.stairs.steps)}</p>}
+    {repair.canEdit && found && found.stairs.stairs > 0 && <Button variant="quiet" data-testid="map-project-simplify-stairs"
+      onClick={() => void repair.simplifyStairs().then(count => setTold(text.stairsDone(count)))}>{text.stairsRun(found.stairs.stairs)}</Button>}
+
+    <p><strong>{text.step(4, text.stepYards)}{found ? ` (${found.yards.length})` : ""}</strong></p>
+    {found && <p role="status">{text.yardsCount(found.yards.length)}</p>}
+    {found && found.yards.length > 0 && <>
+      <Button variant="quiet" onClick={() => onMark(found.yards)} data-testid="map-project-yards-mark">{text.yardsMark}</Button>
+      {repair.canEdit && <Button variant="quiet" onClick={() => setTold(text.yardsDone(repair.removeYards()))} data-testid="map-project-yards-remove">
+        {text.yardsRemove(found.yards.length)}</Button>}
     </>}
+    {told && <p role="status" className={styles.muted}>{told}</p>}
   </section>;
 }

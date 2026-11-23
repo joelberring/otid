@@ -32,6 +32,7 @@ import { MapProjectAreaProposalBar } from "./map-project-area-proposal-bar";
 import { mapProjectRectifySv } from "../../i18n/map-project-rectify-sv";
 import { useMapProjectNorm } from "./use-map-project-norm";
 import { useMapProjectBuildingOutlines } from "./use-map-project-building-outlines";
+import { useMapProjectSprintRepair } from "./use-map-project-sprint-repair";
 import { mapProjectNotesSv } from "../../i18n/map-project-notes-sv";
 import { NoteForm, NotesPanel, ShownNoteDetail } from "./map-project-notes";
 import { useMapProjectNotes } from "./use-map-project-notes";
@@ -267,6 +268,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     [editor.scale, georeference?.scale, symbols]) });
   // Ägaren 2026-11-23: kant runt husen (Granska, kontextraden och efter Fyll när kartans byggnad saknar egen kant).
   const outlines = useMapProjectBuildingOutlines({ session, catalog, commitMany: editor.commitMany, canEdit });
+  const repair = useMapProjectSprintRepair({ session, catalog, scale: editor.scale ?? georeference?.scale, commitMany: editor.commitMany, canEdit });
   const fill = useMapProjectFill({ session, active: tool === "bucket" && canEdit, symbol, hidden: hiddenSymbols, say: setFlash, symbols, scale: editor.scale ?? georeference?.scale, gapM: modes.gapM, over: modes.over,
     commit: change => { const ok = commit(change); if (ok) outlines.afterAdd([change]); return ok; },
     commitMany: changes => { const count = editor.commitMany(changes); if (count) outlines.afterAdd(changes); return count; },
@@ -328,7 +330,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const rectCorners = useRef<Point[]>([]);
   // K8b V1: det som går att göra med det markerade (kontextraden, hjulets lista, tangenterna och Gör igen).
   const { contextList, doAction, keyAction, repeat, repeatLabel } = useMapProjectActions({ canEdit, tool, keys, keysText, quick, multi, selected, symbol, symbolId,
-    activeVertex, recon, symbols, catalog, save, reshape, commit, setFlash, chooseSymbol, removeSelected, joinMm: JOIN_MM, outlines,
+    activeVertex, recon, symbols, catalog, save, reshape, commit, setFlash, chooseSymbol, removeSelected, joinMm: JOIN_MM, outlines, stairs: repair,
     text: { labels: textUi.labels, edit: () => { if (selected?.object.kind === "text") textUi.edit({ ...selected, object: selected.object }); }, rotate: () => setRotating(true), style: () => textUi.styles.setOpen(selected?.object.symbol) } });
   useMapProjectShortcuts({ keys, blocked: keysOpen, canEdit, canNote: notes.canWrite, tool, hasSelection: !!selected, drafting: draft.length > 0,
     multiCount: multi.items.length, panKey, undo: textUi.undo, redo: textUi.redo, toggleBare: () => setBare(value => !value),
@@ -787,7 +789,8 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
           {(["proposals", "norm", "notes", "recon", "areas", "settings"] as const).map(part => part === "norm"
             ? <Fragment key={part}><MapProjectNormPanel norm={norm} onShow={issue => { setShownIssue(issue.at); setPanelOpen(false); mapHandle.current?.focus(issue.at); }} />
               <MapProjectSymbolNormPanel session={session} canDecide={view.viewer.canDecide} ocad={view.base.format === "OCD"} saved={editor.normSymbols}
-                onSave={editor.saveNormSymbols} outlines={outlines} /></Fragment>
+                onSave={editor.saveNormSymbols} outlines={outlines} repair={repair} onMark={items => { const box = objectBox(items[0]!.object); deselect(); cancelDraft(); setTool("select");
+                  multi.showCut(items, []); setPanelOpen(false); mapHandle.current?.focus({ x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 }); }} /></Fragment>
             : part === "notes" ? <NotesPanel key={part} notes={notes.notes} problem={notes.problem} onShow={note => { setShownNote(note.noteId); setPanelOpen(false); mapHandle.current?.focus(note.at); }} />
             : part === "recon" ? <MapProjectReconPanel key={part} view={view} recon={recon} hasGeoreference={!!georeference} />
             : <MapProjectCollabPanel key={part} part={part} view={view} collab={collab} shownProposal={shownProposal} onShowProposal={setShownProposal}

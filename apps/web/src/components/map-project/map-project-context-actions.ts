@@ -6,7 +6,7 @@ import type { Texts } from "../../lib/language";
 import type { Box } from "@o-tid/map-revision";
 
 export type ContextActionId = "switchSymbol" | "pick" | "duplicate" | "parallel" | "reverse" | "join" | "fill" | "smooth" | "simplify" | "simplifyMore" | "straighten"
-  | "checked" | "edge" | "outlines" | "remove" | "editText" | "rotate" | "textStyle";
+  | "checked" | "edge" | "outlines" | "stairs" | "remove" | "editText" | "rotate" | "textStyle";
 
 export interface ContextAction {
   readonly id: ContextActionId; readonly label: string;
@@ -46,6 +46,8 @@ export interface ContextInput {
   readonly edge?: { readonly areas: number; readonly codes: readonly string[] } | undefined;
   /** Ägaren 2026-11-23: «Lägg kant runt husen» för markerade hus (bara när kartans byggnad saknar egen kant och har 521.1). */
   readonly outlines?: string | undefined;
+  /** «Förenkla trappor» för markerade trapplinjer (minst tre). */
+  readonly stairs?: string | undefined;
 }
 
 /**
@@ -59,7 +61,8 @@ export function contextActions(input: ContextInput): ContextAction[] {
   const of = (id: ContextActionId, label: string, command: KeyCommand | undefined, extra: Partial<ContextAction> = {}): ContextAction =>
     ({ id, label, key: command && key(command), help: command && command in text.tips ? text.tips[command as keyof typeof text.tips] : undefined, ...extra });
   const edge = input.edge && input.edge.codes.length ? [of("edge", text.edge(input.edge.areas, input.edge.codes.join(", ")), undefined)] : [];
-  const outlines = input.outlines ? [of("outlines", input.outlines, undefined, { testId: "map-project-rail-outlines" })] : [];
+  const outlines = [...(input.outlines ? [of("outlines", input.outlines, undefined, { testId: "map-project-rail-outlines" })] : []),
+    ...(input.stairs ? [of("stairs", input.stairs, undefined, { testId: "map-project-rail-stairs" })] : [])];
   const checked = input.checked === undefined ? [] : [of("checked", text.commands.checked, "checked", { pressed: input.checked, testId: "recon-check" })];
   if (multi) return [
     ...(multi.switchable && multi.symbolCode ? [of("switchSymbol", text.multiSwitch(multi.switchable, multi.symbolCode), "switchSymbol", { testId: "map-project-rail-switch" })] : []),

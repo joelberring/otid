@@ -36,6 +36,8 @@ export interface StairResult {
   /** Linjer som ritas som förut: lager utan trappsteg (t.ex. OpenStreetMaps trappor, som redan är mittlinjer). */
   readonly kept: StairInput[];
   readonly layers: StairLayer[];
+  /** Linjerna (index i indata) som blev steg i en trappa. */
+  readonly used: readonly number[];
 }
 
 const STEP_MIN_M = 0.4, STEP_MAX_M = 15;
@@ -271,7 +273,7 @@ export function stairsFromSteps(lines: readonly StairInput[], scale: number): St
     if (line.closed || stepLayer(line.layer)) at.dropped += 1; else kept.push(line);
   });
   for (const stair of stairs) row(stair.layer).stairs += 1;
-  return { stairs, kept, layers: [...rows].map(([layer, counts]) => ({ layer, ...counts })) };
+  return { stairs, kept, layers: [...rows].map(([layer, counts]) => ({ layer, ...counts })), used: [...used].sort((a, b) => a - b) };
 }
 
 /** En trappsymbol och dess bredd på kartan (mm), om den är känd. */

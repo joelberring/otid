@@ -26,6 +26,8 @@ export interface ShortcutApi {
   /** Gör igen (⇧Mellanslag): den senaste åtgärden på det markerade en gång till. */
   readonly repeat: () => void;
   readonly toggleSnap: () => void;
+  /** K8b V7: Fyll över ytor. */
+  readonly toggleFillOver: () => void;
   /** K8b V5: Visa ofyllda rutor (⇧§). */
   readonly toggleUnfilled: () => void;
   /** [ och ]: Glapp ett steg mindre eller större. */
@@ -80,6 +82,7 @@ export function useMapProjectShortcuts(api: ShortcutApi) {
       else if (bound === "note" && now.canNote) now.pickTool("note");
       else if (bound === "repeat") { event.preventDefault(); if (now.canEdit) now.repeat(); }
       else if (bound === "snap") { event.preventDefault(); now.toggleSnap(); }
+      else if (bound === "fillOver") { event.preventDefault(); now.toggleFillOver(); }
       else if (bound && SELECTED.has(bound) && (now.hasSelection || now.multiCount > 0) && now.canEdit
         // K8b V4: Fyll markerar ytan som redan täcker rutan, så att Byt symbol går direkt.
         && (now.tool === "select" || (now.tool === "bucket" && bound === "switchSymbol"))) { event.preventDefault(); now.selectedAction(bound as SelectedCommand); }

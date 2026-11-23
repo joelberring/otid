@@ -9,15 +9,17 @@ import styles from "./map-project-bars.module.css";
  * vinkellåset används (håll ⌘/Ctrl, V5) och Glapp väljer hur stora glapp Magisk fyll får sluta ([ och ]). V5: räknaren för Visa
  * ofyllda rutor (ett klick går till nästa ruta).
  * K8b V4: med Fyll i telefonen «+ ruta» (varje tryck lägger till en ruta) och «Lägg in» när rutor är samlade.
+ * K8b V7: Fyll över ytor (⇧G) bredvid Glapp, med vad Magisk fyll fyller över just nu («Fyller över 3 ytor (403, 520)»).
  */
-export function MapProjectModeSwitches({ snap, onSnap, snapKey, snapState, angle, unfilled, gapM, onGap, cells, text }: {
+export function MapProjectModeSwitches({ snap, onSnap, snapKey, snapState, angle, unfilled, gapM, onGap, cells, over, text }: {
   snap: boolean; onSnap: () => void; snapKey: string | undefined; snapState?: string | undefined; angle: boolean;
   unfilled?: { readonly state: UnfilledState; readonly onNext: () => void } | undefined; gapM: number; onGap: (meters: number) => void;
   cells?: { readonly on: boolean; readonly onToggle: () => void; readonly count: number; readonly onCommit: () => void;
     readonly text: { readonly mode: string; readonly help: string; readonly commit: (count: number) => string } } | undefined;
+  over?: { readonly on: boolean; readonly onToggle: () => void; readonly key: string | undefined; readonly note?: string | undefined } | undefined;
   text: { readonly modes: string; readonly snap: string; readonly snapHelp: string; readonly angle: string; readonly angleHelp: string; readonly gap: string;
     readonly gapHelp: string; readonly gapOption: (meters: number) => string; readonly unfilledCount: (count: number) => string; readonly unfilledBusy: string;
-    readonly unfilledZoom: string; readonly unfilledNext: string };
+    readonly unfilledZoom: string; readonly unfilledNext: string; readonly fillOver: string; readonly fillOverHelp: string };
 }) {
   const shown = unfilled?.state.kind === "done" ? unfilled.state : undefined;
   return <div className={styles.modes} role="group" aria-label={text.modes} data-testid="map-project-modes">
@@ -34,6 +36,9 @@ export function MapProjectModeSwitches({ snap, onSnap, snapKey, snapState, angle
         {GAP_STEPS_M.map(step => <option key={step} value={step}>{text.gapOption(step)}</option>)}
       </select>
     </label>
+    {over && <button type="button" className={styles.switch} aria-pressed={over.on} title={text.fillOverHelp} onClick={over.onToggle} data-testid="map-project-fill-over">
+      {text.fillOver}{over.key && <kbd aria-hidden="true">{over.key}</kbd>}</button>}
+    {over?.on && over.note && <span className={styles.snapState} data-testid="map-project-fill-over-state">{over.note}</span>}
     {cells && <button type="button" className={styles.switch} data-phone aria-pressed={cells.on} title={cells.text.help} onClick={cells.onToggle}
       data-testid="map-project-fill-cells">{cells.text.mode}</button>}
     {cells && cells.count > 0 && <button type="button" className={styles.switch} data-phone onClick={cells.onCommit}

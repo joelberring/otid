@@ -4,19 +4,20 @@
  * plats (`event.code`), så att de är desamma oavsett tangentbordets språk. Cmd/Ctrl+Z och Cmd/Ctrl+Skift+Z gäller alltid.
  */
 export const KEY_COMMANDS = ["select", "draw", "rectangle", "circle", "bucket", "text", "addPoint", "removePoint", "cut", "note", "switchSymbol", "pick", "reverse", "join", "simplify", "smooth", "checked", "duplicate", "fill", "parallel",
-  "repeat", "snap", "undo", "redo", "wheel", "bare", "unfilled"] as const;
+  "repeat", "snap", "undo", "redo", "wheel", "bare", "unfilled", "fillOver"] as const;
 export type KeyCommand = typeof KEY_COMMANDS[number];
 export type KeyMap = Readonly<Record<KeyCommand, string>>;
 
 /**
  * Förvalet. K8b V1 (ägaren 2026-11-21): F magisk fyll, G koppla ihop, E rektangel, T fäst och ⇧Mellanslag gör igen; håll Q
  * för att tillfälligt markera (`use-map-project-shortcuts.ts`). K8b V5: ⇧§ visar ofyllda rutor. K8b V6: B textverktyget.
+ * K8b V7: ⇧G slår på och av Fyll över (⇧F är redan Fyll yta eller gör kant; G-tangenten ligger bredvid Magisk fylls F).
  */
 export const DEFAULT_KEYS: KeyMap = {
   select: "Q", draw: "W", rectangle: "E", circle: "Shift+E", bucket: "F", text: "B", note: "Shift+T", duplicate: "Shift+D", fill: "Shift+F", parallel: "Shift+V",
   addPoint: "A", removePoint: "S", cut: "X", pick: "D", reverse: "V", smooth: "Shift+A", simplify: "Shift+S",
   undo: "Z", redo: "Shift+Z", switchSymbol: "C", join: "G", checked: "R", snap: "T", repeat: "Shift+Space",
-  wheel: "Space", bare: "§", unfilled: "Shift+§"
+  wheel: "Space", bare: "§", unfilled: "Shift+§", fillOver: "Shift+G"
 };
 
 /**

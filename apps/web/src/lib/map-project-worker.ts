@@ -11,10 +11,11 @@ import { MAX_RENDER_SIDE } from "./course-setting-map-protocol";
 import { builtPolygons, FIELD_MAINS } from "@o-tid/map-revision/base-map";
 import { proposeAreas } from "./map-project-area-proposals";
 import { fillFinder, type FillResult } from "./map-project-fill-area";
-import { underChanges } from "./map-project-fill-under";
+import { joinUnder, overChanges, type FillOverlay } from "./map-project-fill-over";
+import { underChanges, type UnderChange } from "./map-project-fill-under";
 import { buildSnapIndex, snapTransfer } from "./map-project-snap";
 import { findUnfilled } from "./map-project-unfilled";
-import { symbolGroup, type CatalogSymbol, type MapProjectRequest, type MapProjectResponse, type ProjectHit } from "./map-project-protocol";
+import { symbolGroup, type CatalogSymbol, type FillCutsQuery, type MapProjectRequest, type MapProjectResponse, type ProjectHit } from "./map-project-protocol";
 
 /**
  * ADR-0219 (K1): kartprojektets karta i webbläsaren. Grundfilen läses en gång med objektens källor; projektets ändringar
@@ -70,6 +71,18 @@ function rebuild(states: ReadonlyMap<ObjectKey, KeyedState>) {
 
 /** Fyll yta: sökaren minns fönstrets ytor mellan frågorna (kartan med ändringarna är en ny lista efter varje ändring). */
 const findFill = fillFinder();
+
+/**
+ * Det som ändras under en ny yta: Fyll över (K8b V7) klipper markytorna, och tomtmark, hårdgjord yta och byggnad rensar markens
+ * detaljer (`underChanges`). Ändringarna räknas bara när ytan ska läggas in (`changes`); förhandsvisningen får `overlay`.
+ */
+function fillCuts(query: FillCutsQuery, changes: boolean): { under: UnderChange[]; overlay?: FillOverlay; covered?: number | undefined } | undefined {
+  if (!current) return undefined;
+  const input = { objects: current.map.objects, boxes: current.boxes, keys: current.keys, refs, symbols: current.map.symbols, scale: current.map.scale };
+  const over = query.over ? overChanges(input, query.rings, { norm: query.over, hidden: query.hidden, symbol: query.symbol }) : undefined;
+  const under = changes ? joinUnder(over?.changes ?? [], query.clearUnder ? underChanges(input, query.rings) : []) : [];
+  return { under, ...(over ? { overlay: over.overlay, covered: over.covered } : {}) };
+}
 
 /** Låsta och nedtonade lager ritas med så här stor andel av färgen. */
 const DIMMED_TINT = 0.3;
@@ -305,13 +318,21 @@ self.onmessage = (event: MessageEvent<MapProjectRequest>) => {
     return;
   }
   if (request.type === "fill") {
-    const result: FillResult = current
+    let result: FillResult = current
       ? findFill({ objects: current.map.objects, boxes: current.boxes, symbols: current.map.symbols, scale: current.map.scale }, request.query)
       : { status: "open", gaps: [] };
-    const under = current && result.status === "found" && request.query.clearUnder
-      ? underChanges({ objects: current.map.objects, boxes: current.boxes, keys: current.keys, refs, symbols: current.map.symbols }, result.rings) : undefined;
+    const cuts = result.status === "found" ? fillCuts({ ...request.query, rings: result.rings }, request.query.diagnose) : undefined;
+    // Fyll över: en markyta med samma symbol som redan täcker hela rutan är en dubblett.
+    if (current && result.status === "found" && !result.covered && cuts?.covered !== undefined) {
+      result = { ...result, covered: { index: cuts.covered, symbol: current.map.objects[cuts.covered]!.symbol } };
+    }
     post({ type: "fill", id: request.id, result, covered: result.status === "found" && result.covered ? hitOf(result.covered.index, 0) : undefined,
-      ...(under?.length ? { under } : {}) });
+      ...(cuts?.under.length ? { under: cuts.under } : {}), ...(cuts?.overlay ? { overlay: cuts.overlay } : {}) });
+    return;
+  }
+  if (request.type === "fillCuts") {
+    const cuts = fillCuts(request.query, true);
+    post({ type: "fillCuts", id: request.id, under: cuts?.under ?? [], ...(cuts?.overlay ? { overlay: cuts.overlay } : {}) });
     return;
   }
   if (request.type === "snapIndex") {

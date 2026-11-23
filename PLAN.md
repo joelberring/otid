@@ -1461,6 +1461,9 @@ stannar kvar; siffror byter symbol, bokstäver verktyg; tryck byter, håll låna
   textsymbol» (högerklick i symbolpanelen): typsnitt, storlek i mm, färg ur kartans färger, fet/kursiv, justering, vit kontur;
   gäller alla texter med symbolen; «Duplicera som ny symbol». Skrivs tillbaka till .xmap och syns rätt i Mapper; saknat
   typsnitt ersätts i webbläsaren.
+- [x] V7 Fyll över (ägaren 2026-11-23, Liljeholmen och Gröndal): brytaren «Fyll över ytor» (⇧G, förval på för sprint) räknar
+  rutan bara av linjer och hårda ytor (hus, vatten, oframkomligt) och klipper den nya ytan ur markytorna under (borttagna när
+  helt täckta, restbitar under normens minsta yta bort), i samma ångringsbara grupp; röd skraffering och «Fyller över 3 ytor».
 
 ## [ ] Steg L – Lagring: gränser, städning och arkiv (ägaren 2026-11-13)
 

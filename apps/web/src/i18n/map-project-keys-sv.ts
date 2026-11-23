@@ -8,7 +8,7 @@ export const mapProjectKeysSv = {
   commands: {
     select: "Markera", draw: "Rita", circle: "Cirkel", rectangle: "Rektangel", bucket: "Magisk fyll", text: "Text", duplicate: "Duplicera", fill: "Fyll yta eller gör kant", parallel: "Parallell linje", note: "Notis", addPoint: "Lägg till punkt", removePoint: "Ta bort punkt", cut: "Klipp isär", pick: "Ta symbolen från det markerade", reverse: "Vänd riktning",
     switchSymbol: "Byt symbol på det markerade", join: "Slå ihop linjer eller ytor", simplify: "Förenkla", smooth: "Gör mjuk", checked: "Markera kollad",
-    repeat: "Gör igen", snap: "Fäst", undo: "Ångra", redo: "Gör om", wheel: "Verktygshjulet", bare: "Bara kartan", unfilled: "Visa ofyllda rutor"
+    repeat: "Gör igen", snap: "Fäst", undo: "Ångra", redo: "Gör om", wheel: "Verktygshjulet", bare: "Bara kartan", unfilled: "Visa ofyllda rutor", fillOver: "Fyll över ytor"
   } satisfies Record<KeyCommand, string>,
   change: (command: string) => `Byt tangent för ${command}`,
   press: "Tryck en tangent …",
@@ -91,6 +91,10 @@ export const mapProjectKeysSv = {
   gapOption: (meters: number) => `${meters} m`,
   gapChanged: (meters: number) => `Glapp: ${meters} m.`,
   snapChanged: (on: boolean) => on ? "Fäst är på." : "Fäst är av.",
+  /** K8b V7: Fyll över. */
+  fillOver: "Fyll över ytor",
+  fillOverHelp: "Magisk fyll räknar rutan bara av linjer och hårda ytor (hus, skärmtak, vatten, oframkomligt) och klipper bort den nya ytan ur markytorna under (vegetation, öppen mark, tomtmark, hårdgjord yta, berg, kärr). Förval på för sprintkartor. Tangenten ⇧G.",
+  fillOverChanged: (on: boolean) => on ? "Fyll över ytor är på: markytor under den nya ytan klipps bort." : "Fyll över ytor är av.",
   needSelection: "Markera något först: klicka på ett objekt med Redigera, eller dra en ruta runt flera.",
   needLines: "Markera två eller fler linjer eller ytor med samma symbol: dra en ruta runt dem eller Skift+klicka.",
   needShape: "Markera en linje eller en yta först.",

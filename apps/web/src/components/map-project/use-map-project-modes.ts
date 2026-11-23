@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 export const GAP_STEPS_M = [2, 4, 8, 15] as const;
 export const DEFAULT_GAP_M = 4;
 const snapKey = (projectId: string) => `otid-map-snap:${projectId}`;
+const overKey = (projectId: string) => `otid-map-fill-over:${projectId}`;
 const GAP_KEY = "otid-map-gap";
 
 /** Nästa eller förra glappet i stegen (`]` större, `[` mindre); ett värde utanför stegen går till närmaste. */
@@ -18,16 +19,20 @@ export function stepGap(current: number, direction: 1 | -1): number {
 /**
  * K8b V1 (ägaren 2026-11-21): statusradens lägen. Fäst sparas per kartprojekt (förval på för en karta efter sprintnormen
  * ISSprOM, annars av); fästandet är `use-map-project-snap.ts` (V3). Glapp (2/4/8/15 m, förval 4) gäller i hela webbläsaren och läses av
- * Magisk fyll (V2).
+ * Magisk fyll (V2). K8b V7: Fyll över sparas också per kartprojekt, förval på för sprintkartor (där grundkartans ytor ska fyllas
+ * över med vägar och gårdar) och av för skog.
  */
 export function useMapProjectModes(input: { projectId: string; sprint: boolean }) {
   const { projectId, sprint } = input;
   const [stored, setStored] = useState<boolean>();
+  const [storedOver, setStoredOver] = useState<boolean>();
   const [gapM, setGap] = useState<number>(DEFAULT_GAP_M);
   useEffect(() => {
     try {
       const snap = localStorage.getItem(snapKey(projectId));
       setStored(snap === "on" ? true : snap === "off" ? false : undefined);
+      const over = localStorage.getItem(overKey(projectId));
+      setStoredOver(over === "on" ? true : over === "off" ? false : undefined);
       const gap = Number(localStorage.getItem(GAP_KEY));
       if ((GAP_STEPS_M as readonly number[]).includes(gap)) setGap(gap);
     } catch { /* utan lagring: förvalen */ }
@@ -39,9 +44,13 @@ export function useMapProjectModes(input: { projectId: string; sprint: boolean }
       return value;
     });
   }, [projectId, sprint]);
+  const setOver = useCallback((next: boolean) => {
+    setStoredOver(next);
+    try { localStorage.setItem(overKey(projectId), next ? "on" : "off"); } catch { /* utan lagring */ }
+  }, [projectId]);
   const setGapM = useCallback((next: number) => {
     setGap(next);
     try { localStorage.setItem(GAP_KEY, String(next)); } catch { /* utan lagring */ }
   }, []);
-  return { snap: stored ?? sprint, setSnap, gapM, setGapM };
+  return { snap: stored ?? sprint, setSnap, gapM, setGapM, over: storedOver ?? sprint, setOver };
 }

@@ -90,6 +90,13 @@ export function lineMinimum(code: string, scale: number): { readonly length?: nu
   return { length: length === undefined ? undefined : length * factor, width: width === undefined ? undefined : width * factor };
 }
 
+/** Minsta yta (mm² på kartan, i kartans skala) för en ytsymbol ur normtabellerna, t.ex. för restbitar som Fyll över klipper. */
+export function areaMinimum(code: string, scale: number): number | undefined {
+  const { standard, factor } = normScale(scale);
+  const area = standard === "ISSPROM" ? limitOf(SPRINT_AREA, code) : MIN_AREA[mainOf(code)];
+  return area === undefined ? undefined : area * factor * factor;
+}
+
 const lengthOf = (line: readonly Point[]) => line.reduce((sum, point, index) => index === 0 ? 0
   : sum + Math.hypot(point.x - line[index - 1]!.x, point.y - line[index - 1]!.y), 0);
 const ringArea = (ring: readonly Point[]) => Math.abs(ring.reduce((sum, point, index) => {

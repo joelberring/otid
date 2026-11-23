@@ -32,6 +32,7 @@ export * from "./covered";
 export * from "./stockholm-layers";
 export * from "./map-norm";
 export * from "./sprint-faces";
+export * from "./fill-over";
 export { sprintLayerSymbol, sprintSymbolForCode, type SprintNorm } from "./sprint-layers";
 export * from "./warp";
 export * from "./vector-fit";

@@ -1,5 +1,5 @@
 import { flattenPath, type MapObject, type MapSymbol, type Point } from "@o-tid/map-file";
-import type { Box } from "@o-tid/map-revision";
+import { isGroundArea, type Box, type MapNorm } from "@o-tid/map-revision";
 import { FACE_GAP_M, faceAt, faceStages, rasterFill, withinBridgeShare, type BridgeKind, type Face, type FaceLine, type FaceStages, type FacesResult } from "@o-tid/map-revision/faces";
 
 /**
@@ -48,6 +48,8 @@ export interface FillInput {
   readonly objects: readonly MapObject[]; readonly boxes: readonly Box[]; readonly symbols: ReadonlyMap<string, MapSymbol>;
   /** Kartans skala (1:scale). */
   readonly scale: number;
+  /** K8b V7 Fyll över (kartans norm): markytorna (`isGroundArea`) är inga gränser. */
+  readonly over?: MapNorm | undefined;
 }
 
 export interface FillQuery {
@@ -62,6 +64,10 @@ export interface FillQuery {
   readonly exact?: boolean | undefined;
   /** Ägaren 2026-11-22: ytan är tomtmark, hårdgjord yta eller byggnad – ge också det som ska bort under den (`map-project-fill-under.ts`). */
   readonly clearUnder?: boolean | undefined;
+  /** K8b V7 Fyll över (kartans norm): rutan räknas bara av linjer och hårda ytor, och markytorna under klipps. */
+  readonly over?: MapNorm | undefined;
+  /** Fyll över: den valda symbolen (en markyta med samma symbol som redan täcker hela rutan är en dubblett). */
+  readonly symbol?: string | undefined;
 }
 
 /** Ett glapp som slöts utöver grundtoleransen: ett hörn (två bitar), en förlängning eller en brygga, i kartans mm. */
@@ -72,6 +78,8 @@ export type FillResult =
   | { readonly status: "found"; readonly rings: Point[][]; readonly areaM2: number; readonly closed: number; readonly bridges: FillBridge[];
       /** Reserven (bilden) gav ytan: ungefärlig, visas först. */
       readonly approx?: boolean | undefined;
+      /** Fyll över: ytan kom ur ett större fönster än det vanliga (visas först, så att en stor yta inte läggs in av misstag). */
+      readonly large?: boolean | undefined;
       /** Rutan täcks redan helt av en yta på kartan (översta; nummer i `input.objects` och dess symbol). */
       readonly covered?: { readonly index: number; readonly symbol: string } | undefined }
   /** Inte sluten: `gaps` är öppningarna som hittades (större än toleransen); tom = ytan fortsätter ut ur fönstret. */
@@ -86,6 +94,12 @@ export function isBoundary(symbol: MapSymbol | undefined, hidden: ReadonlySet<st
   if (!symbol || symbol.hidden || hidden.has(symbol.id)) return false;
   const main = symbol.code.main;
   return !(main >= 100 && main < 200) && !(main >= 600 && main < 800);
+}
+
+/** Är objektet en gräns i den här fyllningen? I Fyll över (`input.over`) är markytorna det inte. */
+function boundaryObject(input: FillInput, object: MapObject, hidden: ReadonlySet<string>): boolean {
+  const symbol = input.symbols.get(object.symbol);
+  return isBoundary(symbol, hidden) && !(input.over && object.kind === "area" && symbol && isGroundArea(symbol.code.main, input.over));
 }
 
 /** Sträckan a–b klippt mot rutan (Liang–Barsky), eller undefined utanför. */
@@ -109,7 +123,7 @@ function boundaryLines(input: FillInput, hidden: ReadonlySet<string>, box: Box):
     if (object.kind !== "line" && object.kind !== "area") return;
     const bounds = input.boxes[index];
     if (bounds && (bounds.maxX < box.minX || bounds.minX > box.maxX || bounds.maxY < box.minY || bounds.minY > box.maxY)) return;
-    if (!isBoundary(input.symbols.get(object.symbol), hidden)) return;
+    if (!boundaryObject(input, object, hidden)) return;
     for (const path of object.kind === "line" ? [object.path] : object.rings) for (const polyline of flattenPath(path)) {
       const first = polyline[0], last = polyline[polyline.length - 1];
       // En ytas ring sluts även när filen inte upprepar första punkten.
@@ -167,7 +181,7 @@ function coveringArea(input: FillInput, hidden: ReadonlySet<string>, point: Poin
   for (let index = input.objects.length - 1; index >= 0; index -= 1) {
     const object = input.objects[index]!, box = input.boxes[index];
     if (object.kind !== "area" || (box && (point.x < box.minX || point.x > box.maxX || point.y < box.minY || point.y > box.maxY))) continue;
-    if (!isBoundary(input.symbols.get(object.symbol), hidden)) continue;
+    if (!boundaryObject(input, object, hidden)) continue;
     let inside = false;
     for (const path of object.rings) for (const ring of flattenPath(path)) {
       for (let at = 0, previous = ring.length - 1; at < ring.length; previous = at, at += 1) {
@@ -229,19 +243,20 @@ export function withoutStraightPoints(ring: readonly Point[]): Point[] {
  */
 export function fillFinder(): (input: FillInput, query: FillQuery) => FillResult {
   let cached: { objects: readonly MapObject[]; hiddenKey: string; center: Point; window: FillWindow; bridged: Map<number, FacesResult | null> } | undefined;
-  return (input, query) => {
+  return (map, query) => {
+    const input: FillInput = query.over ? { ...map, over: query.over } : map;
     const mmPerM = 1000 / input.scale, tolerance = FILL_GAP_M * mmPerM, half = FILL_WINDOW_M * mmPerM;
-    const hidden = new Set(query.hidden), hiddenKey = [...hidden].sort().join(" ");
+    const hidden = new Set(query.hidden), hiddenKey = `${query.over ?? ""}|${[...hidden].sort().join(" ")}`;
     const { point } = query;
     // Fönstret duger så länge punkten ligger i dess inre halva.
     const reach = cached ? (cached.window.box.maxX - cached.window.box.minX) / 4 : 0;
-    if (!cached || cached.objects !== input.objects || cached.hiddenKey !== hiddenKey || Math.abs(point.x - cached.center.x) > reach
+    if (!cached || cached.objects !== map.objects || cached.hiddenKey !== hiddenKey || Math.abs(point.x - cached.center.x) > reach
       || Math.abs(point.y - cached.center.y) > reach) {
-      cached = { objects: input.objects, hiddenKey, center: point, window: fillWindow(input, hidden, point, half, tolerance), bridged: new Map() };
+      cached = { objects: map.objects, hiddenKey, center: point, window: fillWindow(input, hidden, point, half, tolerance), bridged: new Map() };
     }
     const covered = coveringArea(input, hidden, point);
-    const found = (face: Face, bridges: FillBridge[]): FillResult => ({ status: "found", rings: [face.outer, ...face.holes].map(withoutStraightPoints),
-      areaM2: face.area / (mmPerM * mmPerM), closed: face.closures.length, bridges, covered });
+    const found = (face: Face, bridges: FillBridge[], large = false): FillResult => ({ status: "found", rings: [face.outer, ...face.holes].map(withoutStraightPoints),
+      areaM2: face.area / (mmPerM * mmPerM), closed: face.closures.length, bridges, covered, ...(large ? { large } : {}) });
     const face = closedFaceAt(cached.window, point);
     if (face) return found(face, []);
     const gapM = query.exact ? FILL_GAP_M : query.gapM ?? FILL_BRIDGE_M;
@@ -265,7 +280,7 @@ export function fillFinder(): (input: FillInput, query: FillQuery) => FillResult
       return found(large.face, large.bridges ? large.face.bridges.map(index => {
         const { kind, pieces } = large.bridges![index]!;
         return { kind, pieces: pieces.map(piece => [piece.a, piece.b] as const), lengthsM: pieces.map(piece => piece.length / mmPerM) };
-      }) : []);
+      }) : [], !!query.over);
     }
     const rough = query.exact ? undefined : roughFill(input, hidden, point, gapM);
     if (rough) return { status: "found", rings: rough.rings, areaM2: rough.areaM2, closed: 0, bridges: [], approx: true, covered };

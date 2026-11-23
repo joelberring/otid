@@ -28,6 +28,10 @@ export const mapProjectFillSv = {
     ? `Ytan är inte sluten – det finns en öppning större än ${gapM} m (röd på kartan). Rita kanten där och försök igen.`
     : `Ytan är inte sluten – det finns ${count} öppningar större än ${gapM} m (röda på kartan). Rita kanterna där och försök igen.`,
   clearedUnder: (count: number) => `${count === 1 ? "Ett objekt" : `${count} objekt`} under ytan (berg, grönt, kärr, stenar eller små landformer) togs bort eller klipptes, som på tomtmark. Ångra tar tillbaka allt.`,
+  /** K8b V7 Fyll över: förhandsvisningen, beskedet efteråt och en stor yta som visas först. */
+  overNote: (count: number, codes: string) => count === 0 ? "Fyller inte över någon yta" : `Fyller över ${count} ${count === 1 ? "yta" : "ytor"}${codes ? ` (${codes})` : ""}`,
+  overDone: (count: number) => `${count === 1 ? "Ett objekt" : `${count} objekt`} under ytan klipptes eller togs bort. Ångra tar tillbaka allt.`,
+  overLarge: (code: string, squareMeters: string, touch: boolean) => `Stor yta: ${code}, ${squareMeters} m² – ${touch ? "tryck" : "klicka"} igen i den för att fylla över.`,
   openFar: (windowM: number) => `Ytan är inte sluten inom ${windowM} m från klicket: en kant saknas eller är släckt, eller så är ytan större än så. Rita kanten som saknas, eller rita ytan för hand.`,
   /** Föreslå ytor (sprintkartor): kandidatytorna i det som syns på skärmen. */
   propose: {

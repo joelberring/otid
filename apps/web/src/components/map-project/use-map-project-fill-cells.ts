@@ -2,7 +2,9 @@
 
 import { useRef, useState } from "react";
 import type { Point } from "@o-tid/map-file";
+import type { MapNorm, ObjectKey } from "@o-tid/map-revision";
 import { mergeFaceRings } from "@o-tid/map-revision/faces";
+import type { FillOverlay } from "../../lib/map-project-fill-over";
 import type { MapProjectSession } from "../../lib/map-project-protocol";
 
 /** Steget mellan punkterna längs en dragning (m i terrängen), så att också små rutor man drar snabbt över kommer med. */
@@ -25,10 +27,13 @@ export function insideRings(rings: readonly (readonly Point[])[], point: Point):
  * K8b V4 (magisk fyll, dra över flera rutor): rutorna man drar över (eller lägger till med Skift+klick, eller med «+ ruta» i
  * telefonen) samlas och visas som en yta; delade kanter tas bort och hålen behålls (`mergeFaceRings`). Frågorna till Workern
  * går en i taget, och en punkt som redan ligger i en samlad ruta frågas inte. Rutor som inte är slutna eller redan täcks av en
- * yta hoppas över och räknas.
+ * yta hoppas över och räknas. K8b V7 Fyll över (`over`): varje rutas svar säger vad som klipps under den (`removed`, `over`).
  */
-export function useMapProjectFillCells(input: { session: MapProjectSession | undefined; hidden: readonly string[]; gapM: number; scale: number | undefined }) {
-  const faces = useRef<{ rings: Point[][]; areaM2: number }[]>([]);
+export function useMapProjectFillCells(input: { session: MapProjectSession | undefined; hidden: readonly string[]; gapM: number; scale: number | undefined;
+  over?: MapNorm | undefined; symbol?: string | undefined }) {
+  const faces = useRef<{ rings: Point[][]; areaM2: number; overlay?: FillOverlay | undefined }[]>([]);
+  const [removed, setRemoved] = useState<Point[][][]>();
+  const [over, setOver] = useState<{ count: number; codes: readonly string[] }>({ count: 0, codes: [] });
   const [rings, setRings] = useState<Point[][]>();
   const [cells, setCells] = useState<FillCells>({ count: 0, areaM2: 0, open: 0, covered: 0 });
   const counts = useRef({ open: 0, covered: 0, lastOpen: false });
@@ -41,6 +46,9 @@ export function useMapProjectFillCells(input: { session: MapProjectSession | und
   function publish() {
     const merged = mergeFaceRings(faces.current.map(face => face.rings)).flat();
     setRings(merged.length ? merged : undefined);
+    const overlays = faces.current.flatMap(face => face.overlay ? [face.overlay] : []);
+    setRemoved(overlays.length ? overlays.flatMap(overlay => overlay.removed) : undefined);
+    setOver({ count: new Set<ObjectKey>(overlays.flatMap(overlay => overlay.keys)).size, codes: [...new Set(overlays.flatMap(overlay => overlay.codes))].sort() });
     setCells({ count: faces.current.length, areaM2: faces.current.reduce((sum, face) => sum + face.areaM2, 0), open: counts.current.open, covered: counts.current.covered });
   }
 
@@ -51,13 +59,13 @@ export function useMapProjectFillCells(input: { session: MapProjectSession | und
       if (!point || !session) { busy.current = false; const done = idle.current; idle.current = undefined; done?.(); return; }
       if (faces.current.some(face => insideRings(face.rings, point))) continue;
       busy.current = true;
-      session.fill({ point, hidden: input.hidden, diagnose: false, gapM: input.gapM }, result => {
+      session.fill({ point, hidden: input.hidden, diagnose: false, gapM: input.gapM, over: input.over, symbol: input.symbol }, (result, _covered, _under, overlay) => {
         if (result.status !== "found") {
           // En öppen ruta räknas en gång per sträcka man drar genom den.
           if (!counts.current.lastOpen) counts.current.open += 1;
           counts.current.lastOpen = true;
         } else if (result.covered) { counts.current.lastOpen = false; counts.current.covered += 1; }
-        else { counts.current.lastOpen = false; faces.current.push({ rings: result.rings, areaM2: result.areaM2 }); }
+        else { counts.current.lastOpen = false; faces.current.push({ rings: result.rings, areaM2: result.areaM2, overlay }); }
         publish();
         next();
       });
@@ -89,13 +97,13 @@ export function useMapProjectFillCells(input: { session: MapProjectSession | und
   function clear() {
     faces.current = []; queue.current = []; last.current = undefined; idle.current = undefined;
     counts.current = { open: 0, covered: 0, lastOpen: false };
-    setRings(undefined); setCells({ count: 0, areaM2: 0, open: 0, covered: 0 });
+    setRings(undefined); setCells({ count: 0, areaM2: 0, open: 0, covered: 0 }); setRemoved(undefined); setOver({ count: 0, codes: [] });
   }
 
   /** Dragningen är slut: nästa dragning börjar en ny sträcka. */
   function lift() { last.current = undefined; counts.current.lastOpen = false; }
 
-  return { rings, cells, add, track, lift, whenIdle, clear, busy: () => busy.current,
+  return { rings, cells, removed, over, add, track, lift, whenIdle, clear, busy: () => busy.current,
     /** Den samlade ytan just nu (ringarna, ytan och vad som hoppades över), ur referenserna (inte väntande tillstånd). */
     current: () => ({ rings: mergeFaceRings(faces.current.map(face => face.rings)).flat(), count: faces.current.length,
       areaM2: faces.current.reduce((sum, face) => sum + face.areaM2, 0), open: counts.current.open, covered: counts.current.covered }) };

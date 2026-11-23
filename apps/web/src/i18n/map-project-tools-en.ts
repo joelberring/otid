@@ -227,7 +227,7 @@ export const mapProjectKeysEn: Texts<typeof mapProjectKeysSv> = {
   commands: {
     select: "Select", draw: "Draw", circle: "Circle", rectangle: "Rectangle", bucket: "Magic fill", text: "Text", duplicate: "Duplicate", fill: "Fill area or make border", parallel: "Parallel line", note: "Note", addPoint: "Add point", removePoint: "Remove point", cut: "Cut apart", pick: "Take the symbol from the selection", reverse: "Reverse direction",
     switchSymbol: "Change symbol on the selection", join: "Join lines or areas", simplify: "Simplify", smooth: "Make smooth", checked: "Mark checked",
-    repeat: "Repeat", snap: "Snap", undo: "Undo", redo: "Redo", wheel: "The tool wheel", bare: "Map only", unfilled: "Show unfilled cells"
+    repeat: "Repeat", snap: "Snap", undo: "Undo", redo: "Redo", wheel: "The tool wheel", bare: "Map only", unfilled: "Show unfilled cells", fillOver: "Fill over areas"
   },
   change: (command: string) => `Change the key for ${command}`,
   press: "Press a key …",
@@ -306,6 +306,9 @@ export const mapProjectKeysEn: Texts<typeof mapProjectKeysSv> = {
   gapOption: (meters: number) => `${meters} m`,
   gapChanged: (meters: number) => `Gap: ${meters} m.`,
   snapChanged: (on: boolean) => on ? "Snap is on." : "Snap is off.",
+  fillOver: "Fill over areas",
+  fillOverHelp: "Magic fill bounds the cell only by lines and hard areas (buildings, canopies, water, impassable) and cuts the new area out of the ground areas below (vegetation, open land, private area, paved area, rock, marsh). On by default for sprint maps. The key ⇧G.",
+  fillOverChanged: (on: boolean) => on ? "Fill over areas is on: ground areas under the new area are cut away." : "Fill over areas is off.",
   needSelection: "Select something first: click an object with Edit, or drag a box around several.",
   needLines: "Select two or more lines or areas with the same symbol: drag a box around them or Shift-click.",
   needShape: "Select a line or an area first.",

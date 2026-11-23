@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Point } from "@o-tid/map-file";
-import { newKey } from "@o-tid/map-revision";
+import { mapNorm } from "@o-tid/map-revision";
 import { mapProjectFillEn } from "../../i18n/map-project-fill-en";
 import { mapProjectFillSv } from "../../i18n/map-project-fill-sv";
 import { toScreen, type Viewport } from "../../lib/course-setting-viewport";
-import { FILL_BRIDGE_M, FILL_GAP_M, FILL_LARGE_WINDOWS_M, fillObject, type FillBridge, type FillResult } from "../../lib/map-project-fill-area";
+import { FILL_BRIDGE_M, FILL_GAP_M, FILL_LARGE_WINDOWS_M, type FillBridge, type FillResult } from "../../lib/map-project-fill-area";
+import { fillChangeList, type FillOverlay } from "../../lib/map-project-fill-over";
 import type { CatalogSymbol, MapProjectSession, ProjectHit } from "../../lib/map-project-protocol";
 import { useLocale, useTexts } from "../language-provider";
 import { useMapProjectAreaProposals } from "./use-map-project-area-proposals";
@@ -28,6 +29,9 @@ type Found = Extract<FillResult, { status: "found" }>;
  * K8b V4: dra över flera rutor (eller ⇧+klick, eller «+ ruta» i telefonen) blir en yta (`use-map-project-fill-cells.ts`);
  * reservens ungefärliga yta och fingrets första tryck visas först (`pending`) och läggs in med ett andra klick i den; en ruta
  * som redan täcks av en yta läggs inte in igen (ytan markeras, så att C byter dess symbol).
+ * K8b V7 Fyll över (`over`): rutan räknas bara av linjer och hårda ytor, markytorna som den nya ytan täcker skrafferas röda i
+ * förhandsvisningen och klipps i samma ångringsbara grupp som ytan (`map-project-fill-over.ts`); en yta ur de stora fönstren
+ * visas först. Dubblettskyddet gäller då bara hårda ytor och en markyta med samma symbol som redan täcker hela rutan.
  */
 export function useMapProjectFill(input: { session: MapProjectSession | undefined; active: boolean; symbol: CatalogSymbol | undefined;
   /** Släckta symboler: de är inga gränser. */
@@ -36,12 +40,19 @@ export function useMapProjectFill(input: { session: MapProjectSession | undefine
   symbols: ReadonlyMap<string, CatalogSymbol>; scale: number | undefined; commitMany: (changes: readonly ObjectChange[]) => number;
   /** Glapp (m) för steg 2; förval `FILL_BRIDGE_M`. */
   gapM?: number | undefined;
+  /** K8b V7: Fyll över ytor (statusradens brytare). */
+  over?: boolean | undefined;
   /** Markerar ytan som redan täcker rutan, och tangenten för Byt symbol. */
   select?: ((hit: ProjectHit) => void) | undefined; switchKey?: string | undefined }) {
   const text = useTexts(mapProjectFillSv, mapProjectFillEn);
   const locale = useLocale();
   const { session, active, symbol } = input;
   const gapM = input.gapM ?? FILL_BRIDGE_M;
+  const norm = useMemo(() => mapNorm({ scale: input.scale, symbols: input.symbols.values() }), [input.scale, input.symbols]);
+  /** Fyll över: kartans norm (vilka ytor som är markytor), annars undefined. */
+  const over = input.over ? norm : undefined;
+  /** Fyll över: det som klipps under rutan under pekaren (eller den som väntar). */
+  const [overlay, setOverlay] = useState<FillOverlay>();
   const [preview, setPreview] = useState<Point[][]>();
   /** Bitarna som slöts utöver grundtoleransen i rutan under pekaren (orange). */
   const [bridges, setBridges] = useState<readonly FillBridge[]>([]);
@@ -57,22 +68,23 @@ export function useMapProjectFill(input: { session: MapProjectSession | undefine
   /** Dragningen som samlar rutor: om den lägger in när den släpps (musen utan Skift). */
   const drag = useRef<{ commit: boolean; touch: boolean } | undefined>(undefined);
   const proposals = useMapProjectAreaProposals(input);
-  const cells = useMapProjectFillCells({ session, hidden: input.hidden, gapM, scale: input.scale });
+  const cells = useMapProjectFillCells({ session, hidden: input.hidden, gapM, scale: input.scale, over, symbol: symbol?.id });
   const usable = active && symbol?.kind === "area";
   useEffect(() => {
     if (usable) return;
-    setPreview(undefined); setBridges([]); setGaps([]); setPending(undefined); hovering.current.next = undefined; cells.clear();
+    setPreview(undefined); setBridges([]); setGaps([]); setPending(undefined); setOverlay(undefined); hovering.current.next = undefined; cells.clear();
   }, [usable]);
   const squareMeters = (value: number) => (value < 10 ? Math.round(value * 10) / 10 : Math.round(value)).toLocaleString(locale);
 
   function ask(point: Point, exact: boolean) {
     if (!session) return;
     hovering.current = { waiting: true, next: undefined, exact };
-    session.fill({ point, hidden: input.hidden, diagnose: false, gapM, exact }, result => {
+    session.fill({ point, hidden: input.hidden, diagnose: false, gapM, exact, over, symbol: symbol?.id }, (result, _covered, _under, cut) => {
       const next = hovering.current.next;
       hovering.current.waiting = false;
       setPreview(result.status === "found" ? result.rings : undefined);
       setBridges(result.status === "found" ? result.bridges : []);
+      setOverlay(result.status === "found" ? cut : undefined);
       if (next) ask(next, hovering.current.exact ?? false);
     });
   }
@@ -81,7 +93,7 @@ export function useMapProjectFill(input: { session: MapProjectSession | undefine
   function hover(point: Point | undefined, exact = false) {
     if (!usable || filling.current || cells.busy() || drag.current) return;
     if (!point || proposals.inCandidate(point) || (pending && insideRings(pending.rings, point)) || (cells.rings && insideRings(cells.rings, point))) {
-      hovering.current.next = undefined; setPreview(undefined); setBridges([]); return;
+      hovering.current.next = undefined; setPreview(undefined); setBridges([]); if (!pending) setOverlay(undefined); return;
     }
     if (hovering.current.waiting) { hovering.current.next = point; hovering.current.exact = exact; } else ask(point, exact);
   }
@@ -92,16 +104,8 @@ export function useMapProjectFill(input: { session: MapProjectSession | undefine
    */
   function add(rings: readonly (readonly Point[])[], under: readonly UnderChange[] = []): boolean {
     if (!symbol) return false;
-    const area: ObjectChange = { key: newKey(crypto.randomUUID()), ref: null, kind: "ADD", after: { kind: "OBJECT", object: fillObject(symbol.id, rings) } };
-    if (under.length === 0) return input.commit(area);
-    const group = crypto.randomUUID(), point = rings[0]?.[0];
-    const changes: ObjectChange[] = [{ ...area, group }];
-    for (const change of under) {
-      const [first, ...rest] = change.objects;
-      changes.push(first ? { key: change.key, ref: change.ref, kind: "RESHAPE", after: { kind: "OBJECT", object: first }, group }
-        : { key: change.key, ref: change.ref, kind: "DELETE", after: { kind: "DELETED" }, point, group });
-      for (const object of rest) changes.push({ key: newKey(crypto.randomUUID()), ref: null, kind: "ADD", after: { kind: "OBJECT", object }, group });
-    }
+    const changes: ObjectChange[] = fillChangeList(symbol.id, rings, under, () => crypto.randomUUID());
+    if (changes.length === 1) return input.commit(changes[0]!);
     const done = input.commitMany(changes) > 0;
     if (done) cleared.current = under.length;
     return done;
@@ -112,7 +116,7 @@ export function useMapProjectFill(input: { session: MapProjectSession | undefine
   const pendingUnder = useRef<readonly UnderChange[]>([]);
   const clearUnder = !!symbol && BUILT_MAINS.has(Number(symbol.code.split(".")[0]));
   // Byter ytan symbol medan en fyllning väntar på bekräftelse gäller varken ytan eller det som skulle tas bort under den längre.
-  useEffect(() => { setPending(undefined); pendingUnder.current = []; }, [symbol?.id]);
+  useEffect(() => { setPending(undefined); setOverlay(undefined); pendingUnder.current = []; }, [symbol?.id, over]);
 
   /** De samlade rutorna som en yta (när Workern svarat på det som är ute). */
   function commitCells() {
@@ -121,12 +125,19 @@ export function useMapProjectFill(input: { session: MapProjectSession | undefine
       cells.clear();
       const skipped = text.skipped(now.open, now.covered);
       if (!symbol || now.rings.length === 0) { input.say([text.noCells, skipped].filter(Boolean).join(" ")); return; }
-      input.say(add(now.rings) ? [text.merged(symbol.code, now.count, squareMeters(now.areaM2)), skipped].filter(Boolean).join(" ") : text.notSaved);
+      const commit = (under: readonly UnderChange[]) => {
+        const ok = add(now.rings, under), removed = cleared.current;
+        cleared.current = 0;
+        input.say(ok ? [text.merged(symbol.code, now.count, squareMeters(now.areaM2)), skipped, removed ? clearedText(removed) : ""].filter(Boolean).join(" ") : text.notSaved);
+      };
+      // Fyll över och rensningen under bebyggt räknas för hela den samlade ytan (ett objekt kan ligga under flera rutor).
+      if (session && (over || clearUnder)) session.fillCuts({ rings: now.rings, hidden: input.hidden, clearUnder, over, symbol: symbol.id }, commit);
+      else commit([]);
     });
   }
 
   function addCell(point: Point, touch: boolean) {
-    setPreview(undefined); setBridges([]); setPending(undefined);
+    setPreview(undefined); setBridges([]); setPending(undefined); setOverlay(undefined);
     // Rutornas frågor tar över Workerns svar: pekarens fråga som är ute kommer inte fram.
     hovering.current = { waiting: false, next: undefined };
     cells.add(point);
@@ -144,12 +155,12 @@ export function useMapProjectFill(input: { session: MapProjectSession | undefine
     const touch = pointer.pointerType === "touch";
     if (pointer.free || (touch && cellsMode)) { addCell(point, touch); return; }
     if (cells.cells.count > 0 || cells.busy()) { hovering.current = { waiting: false, next: undefined }; cells.add(point); commitCells(); return; }
-    if (pending && insideRings(pending.rings, point)) { setPending(undefined); report(pending, add(pending.rings, clearUnder ? pendingUnder.current : [])); return; }
+    if (pending && insideRings(pending.rings, point)) { setPending(undefined); setOverlay(undefined); report(pending, add(pending.rings, pendingUnder.current)); return; }
     filling.current = true;
     hovering.current = { waiting: false, next: undefined };
-    session.fill({ point, hidden: input.hidden, diagnose: true, gapM, exact, clearUnder }, (result, covered, under) => {
+    session.fill({ point, hidden: input.hidden, diagnose: true, gapM, exact, clearUnder, over, symbol: symbol.id }, (result, covered, under, cut) => {
       filling.current = false;
-      setPreview(undefined); setBridges([]); setPending(undefined);
+      setPreview(undefined); setBridges([]); setPending(undefined); setOverlay(undefined);
       if (result.status === "open") {
         setGaps(result.gaps);
         input.say(result.gaps.length ? text.openGap(exact ? FILL_GAP_M : Math.max(FILL_GAP_M, gapM), result.gaps.length) : text.openFar(FILL_LARGE_WINDOWS_M[FILL_LARGE_WINDOWS_M.length - 1]!));
@@ -163,10 +174,11 @@ export function useMapProjectFill(input: { session: MapProjectSession | undefine
         input.say(text.coveredAs(code, input.switchKey ?? "C"));
         return;
       }
-      if (result.approx || touch) {
-        setPending(result);
+      if (result.approx || touch || (over && result.large)) {
+        setPending(result); setOverlay(cut);
         pendingUnder.current = under ?? [];
-        input.say(result.approx ? text.approx(touch) : text.confirm(symbol.code, squareMeters(result.areaM2)));
+        input.say(result.approx ? text.approx(touch) : over && result.large ? text.overLarge(symbol.code, squareMeters(result.areaM2), touch)
+          : [text.confirm(symbol.code, squareMeters(result.areaM2)), cut ? `${text.overNote(cut.count, cut.codes.join(", "))}.` : ""].filter(Boolean).join(" "));
         return;
       }
       report(result, add(result.rings, under ?? []));
@@ -177,8 +189,9 @@ export function useMapProjectFill(input: { session: MapProjectSession | undefine
     if (!symbol) return;
     const removed = cleared.current;
     cleared.current = 0;
-    input.say(ok ? [text.done(symbol.code, squareMeters(result.areaM2), result.closed, bridgeSummary(result.bridges)), removed ? text.clearedUnder(removed) : ""].filter(Boolean).join(" ") : text.notSaved);
+    input.say(ok ? [text.done(symbol.code, squareMeters(result.areaM2), result.closed, bridgeSummary(result.bridges)), removed ? clearedText(removed) : ""].filter(Boolean).join(" ") : text.notSaved);
   }
+  const clearedText = (count: number) => over ? text.overDone(count) : text.clearedUnder(count);
 
   /** Bryggorna i beskedet, t.ex. «1 hörn slutet (3,1 m + 2,2 m)». */
   function bridgeSummary(list: readonly FillBridge[]): string {
@@ -214,7 +227,7 @@ export function useMapProjectFill(input: { session: MapProjectSession | undefine
   /** Esc: töm det samlade och det som väntar. Sant = något tömdes. */
   function escape(): boolean {
     if (!cells.cells.count && !cells.busy() && !pending && gaps.length === 0) return false;
-    cells.clear(); setPending(undefined); setGaps([]); drag.current = undefined;
+    cells.clear(); setPending(undefined); setGaps([]); setOverlay(undefined); drag.current = undefined;
     return true;
   }
 
@@ -255,6 +268,8 @@ export function useMapProjectFill(input: { session: MapProjectSession | undefine
       ctx.setLineDash([]); ctx.lineWidth = 5; ctx.strokeStyle = "#fff"; ctx.stroke();
       ctx.lineWidth = 3; ctx.strokeStyle = "#e8740c"; ctx.setLineDash([5, 3]); ctx.stroke();
     }
+    // Fyll över: det som klipps ur befintliga ytor, rödskrafferat.
+    for (const removed of [overlay?.removed, cells.removed]) if (removed?.length) hatch(ctx, view, removed);
     ctx.setLineDash([]);
     for (const [from, to] of gaps) {
       const a = toScreen(view, from), b = toScreen(view, to);
@@ -268,9 +283,33 @@ export function useMapProjectFill(input: { session: MapProjectSession | undefine
 
   return { hover, tap, draw, preview, bridges, gaps, pending, proposals, dragStart, dragMove, dragEnd, dragging: () => !!drag.current, escape,
     /** Ritas om när något av det här ändras. */
-    shown: cells.rings,
+    shown: cells.rings, overlay,
+    /** Fyll över: «Fyller över 3 ytor (403, 520)» för rutan under pekaren eller de samlade rutorna. */
+    overNote: over && usable ? (cells.cells.count > 0 ? text.overNote(cells.over.count, cells.over.codes.join(", "))
+      : overlay ? text.overNote(overlay.count, overlay.codes.join(", ")) : undefined) : undefined,
     /** Telefonens «+ ruta» och «Lägg in» (statusraden). */
     cells: usable ? { on: cellsMode, onToggle: () => setCellsMode(value => !value), count: cells.cells.count, onCommit: commitCells,
       text: { mode: text.cellsMode, help: text.cellsHelp, commit: text.cellsCommit } } : undefined,
     hint: symbol?.kind === "area" ? `${text.hint(symbol.code, FILL_GAP_M, Math.max(FILL_GAP_M, gapM))} ${text.dragHint}` : text.needsArea };
+}
+
+/** Områdena som klipps bort (Fyll över): röd skraffering med röd kant. */
+function hatch(ctx: CanvasRenderingContext2D, view: Viewport, polygons: readonly (readonly (readonly Point[])[])[]) {
+  ctx.save();
+  ctx.beginPath();
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const polygon of polygons) for (const ring of polygon) {
+    ring.forEach((point, index) => {
+      const at = toScreen(view, point);
+      minX = Math.min(minX, at.x); minY = Math.min(minY, at.y); maxX = Math.max(maxX, at.x); maxY = Math.max(maxY, at.y);
+      if (index === 0) ctx.moveTo(at.x, at.y); else ctx.lineTo(at.x, at.y);
+    });
+    ctx.closePath();
+  }
+  ctx.setLineDash([]); ctx.lineWidth = 1.5; ctx.strokeStyle = "#d0021b"; ctx.stroke();
+  ctx.clip("evenodd");
+  ctx.beginPath();
+  for (let x = minX - (maxY - minY); x < maxX; x += 7) { ctx.moveTo(x, maxY); ctx.lineTo(x + (maxY - minY), minY); }
+  ctx.lineWidth = 1.5; ctx.strokeStyle = "rgba(208, 2, 27, 0.8)"; ctx.stroke();
+  ctx.restore();
 }

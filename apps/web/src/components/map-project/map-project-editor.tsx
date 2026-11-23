@@ -263,7 +263,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   // K8b V1: Fäst (V3) och Glapp, som Magisk fyll läser (V2).
   const modes = useMapProjectModes({ projectId: view.projectId, sprint: useMemo(() => isSprintNorm(mapNorm({ scale: editor.scale ?? georeference?.scale, symbols: symbols.values() })),
     [editor.scale, georeference?.scale, symbols]) });
-  const fill = useMapProjectFill({ session, active: tool === "bucket" && canEdit, symbol, hidden: hiddenSymbols, commit, say: setFlash, symbols, scale: editor.scale ?? georeference?.scale, commitMany: editor.commitMany, gapM: modes.gapM,
+  const fill = useMapProjectFill({ session, active: tool === "bucket" && canEdit, symbol, hidden: hiddenSymbols, commit, say: setFlash, symbols, scale: editor.scale ?? georeference?.scale, commitMany: editor.commitMany, gapM: modes.gapM, over: modes.over,
     select: hit => { setSelected({ key: hit.key, ref: hit.ref, object: hit.object }); setActiveVertex(undefined); }, switchKey: keyOf("switchSymbol") });
   // K8b V3: Fäst mot synliga objekt (också låsta) i Rita, Rektangel, Cirkelns mitt, Lägg till punkt och när punkter dras.
   const snap = useMapProjectSnap({ session, renderKey: editor.renderKey, on: modes.snap && canEdit, hidden: hiddenSymbols, tool });
@@ -329,7 +329,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     pickTool: next => { if (next === "text" && !textUi.start()) return; if (next === "draw" || next === "circle" || next === "text") deselect(); cancelDraft(); setTool(next); },
     restoreTool: previous => { cancelDraft(); setTool(previous as Tool); },
     selectedAction: keyAction, layerKey: symbolLayers.groupKey, repeat,
-    toggleUnfilled: unfilled.toggle, toggleSnap: () => { modes.setSnap(!modes.snap); setFlash(keysText.snapChanged(!modes.snap)); },
+    toggleUnfilled: unfilled.toggle, toggleSnap: () => { modes.setSnap(!modes.snap); setFlash(keysText.snapChanged(!modes.snap)); }, toggleFillOver: () => { modes.setOver(!modes.over); setFlash(keysText.fillOverChanged(!modes.over)); },
     gapStep: direction => { const next = stepGap(modes.gapM, direction); modes.setGapM(next); setFlash(keysText.gapChanged(next)); },
     recentKey: digit => { const chosen = symbols.get(recent[digit - 1] ?? ""); if (chosen) { setSymbolId(chosen.id); setFlash(keysText.picked(chosen.code)); } },
     openWheel,
@@ -754,7 +754,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
           rotating={rotating} onRotating={setRotating} />}
         <p className={styles.hint} aria-live="polite" data-testid="map-project-hint" title={hintLine}>{hintLine}</p>
         {canEdit && <MapProjectModeSwitches snap={modes.snap} onSnap={() => modes.setSnap(value => !value)} snapKey={keyOf("snap")} snapState={snap.mark && keysText.snapAt(snap.mark.kind)}
-          angle={assist.locked} unfilled={{ state: unfilled.state, onNext: unfilled.next }} gapM={modes.gapM} onGap={modes.setGapM} cells={fill.cells} text={keysText} />}
+          angle={assist.locked} unfilled={{ state: unfilled.state, onNext: unfilled.next }} gapM={modes.gapM} onGap={modes.setGapM} cells={fill.cells} text={keysText} over={{ on: modes.over, onToggle: () => modes.setOver(!modes.over), key: keyOf("fillOver"), note: tool === "bucket" ? fill.overNote : undefined }} />}
       </div>
       <MapProjectSidebar open={panelOpen} onClose={() => setPanelOpen(false)} catalog={catalog} symbolId={symbolId} onSymbol={chooseSymbol} tab={tab} onTab={setTab} onTextSymbol={textUi.styles.setOpen}
         recent={recentSymbols}

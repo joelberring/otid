@@ -240,6 +240,20 @@ describe("ADR-0229 M1: förrådet och mellanlagret", () => {
     expect((await db.execute(sql`select orphaned_at from map_content_archive where sha256 = ${lostSha}`)).rows).toEqual([{ orphaned_at: null }]);
   });
 
+  it("indata som byggs på nytt i varje försök (en ny karta) laddas upp en gång och sparas, utan att fastna", async () => {
+    storeOn();
+    const owner = await registerTestAccount(db, undefined, NOW);
+    const original = bytesOf(41, 120_000);
+    let attempts = 0;
+    const stored = await db.transaction(async tx => {
+      attempts += 1;
+      return storeMapContent(tx, Buffer.from(original), owner.accountId, NOW, quota);
+    });
+    expect(stored).toEqual({ status: "stored", sha256: hashOf(original) });
+    expect(attempts).toBe(2);
+    expect((await row(hashOf(original)))?.stored_in).not.toBe("DB");
+  });
+
   it("granskningen runda 2 (A): filens början läses ur mellanlagret eller med en avgränsad hämtning, aldrig hela filen", async () => {
     const store = storeOn();
     const owner = await registerTestAccount(db, undefined, NOW);

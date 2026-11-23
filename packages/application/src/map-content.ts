@@ -275,6 +275,25 @@ async function dropStagedParts(tx: DbExecutor, input: MapContentInput, keepConte
 
 /** Uppladdningar till förrådet som gjorts utanför transaktionen, per indata (bytes eller strömmad uppladdning). */
 const storeUploads = new WeakMap<object, { sha256: string; reservedAt: Date }>();
+/**
+ * Samma uppladdningar per sha256. En anropare som bygger indata på nytt i varje försök (t.ex. en ny karta som skapas inne i
+ * transaktionen) ger ett nytt objekt varje gång, och då hittas uppladdningen bara här; annars begärs den om och om igen.
+ * Reservationen kontrolleras ändå (`storeReservationHolds`), så en gammal post här kan aldrig registrera något som saknas.
+ */
+const storeUploadsBySha = new Map<string, { sha256: string; reservedAt: Date }>();
+const STORE_UPLOAD_MEMORY_MS = 60 * 60 * 1000;
+
+function rememberStoreUpload(input: object, upload: { sha256: string; reservedAt: Date }): void {
+  storeUploads.set(input, upload);
+  const cutoff = Date.now() - STORE_UPLOAD_MEMORY_MS;
+  for (const [sha, entry] of storeUploadsBySha) if (entry.reservedAt.getTime() < cutoff) storeUploadsBySha.delete(sha);
+  storeUploadsBySha.set(upload.sha256, upload);
+}
+
+function forgetStoreUpload(input: object, sha256: string): void {
+  storeUploads.delete(input);
+  storeUploadsBySha.delete(sha256);
+}
 
 /**
  * Sparar innehållet (eller hittar samma innehåll som redan finns) i anroparens transaktion och ger dess sha256. Nytt innehåll
@@ -295,13 +314,13 @@ export async function storeMapContent(tx: DbExecutor, input: MapContentInput, ac
   const byteLength = contentLength(input);
   const store = isStaged(input) ? (input.file ? activeMapStore() ?? missingStore() : null) : activeMapStore();
   const source: StoreSource | null = !store ? null : isStaged(input) ? { file: input.file! } : { bytes: input };
-  const done = storeUploads.get(input);
+  const done = storeUploads.get(input) ?? storeUploadsBySha.get(sha256);
   const uploaded = done?.sha256 === sha256 ? done : undefined;
   const uploadFirst = () => new OutsideTransactionWork(async db => {
     await reserveStoreUpload(db, sha256, byteLength, now);
     await uploadToStore(store!, sha256, byteLength, source!);
     await placeInCache(db, sha256, source!, byteLength, { keepSource: true });
-    storeUploads.set(input, { sha256, reservedAt: now });
+    rememberStoreUpload(input, { sha256, reservedAt: now });
   }, "Kartinnehållet laddas upp till förrådet utanför transaktionen");
   if (store && source && !uploaded) {
     // PLAN.md steg M4: innehåll som tagits bort ur förrådet ('GONE') laddas upp igen, som nytt.
@@ -329,16 +348,17 @@ export async function storeMapContent(tx: DbExecutor, input: MapContentInput, ac
     return { status: "stored", sha256 };
   }
   // Ett uppladdat objekt som inte blir innehåll här ligger kvar som släppt och tas bort efter fristen (reservationen).
-      const problem = await quotaProblem(tx, accountId, byteLength, quota, options);
+  const problem = await quotaProblem(tx, accountId, byteLength, quota, options);
   if (problem) return { status: "quota", quota: problem };
   const contentId = isStaged(input) ? input.contentId : randomUUID();
   if (store && source) {
     // Innehållet togs bort mellan förhandskontrollen och låset, eller reservationen gick ut: ladda upp (igen) utanför.
     if (!uploaded || !await storeReservationHolds(tx, sha256, uploaded.reservedAt)) {
-      storeUploads.delete(input);
+      forgetStoreUpload(input, sha256);
       throw uploadFirst();
     }
     await registerStoredMapContent(tx, { sha256, contentId, byteLength, accountId, recipe: recipe ?? null }, now);
+    storeUploadsBySha.delete(sha256);
     return { status: "stored", sha256 };
   }
   if (!isStaged(input)) {

@@ -74,14 +74,14 @@ describe("trappor ur trappsteg", () => {
   });
 
   it("normens minsta mått i sprint: en smal kort trappa blir 0,4 mm bred och tre grafiska steg lång i 1:4 000 och 1:3 000", () => {
-    expect(lineMinimum("532", 4000)).toEqual({ length: 1.2000000000000002, width: 0.4 });
+    expect(lineMinimum("532", 4000)).toEqual({ length: 1.1, width: 0.4 });
     for (const scale of [4000, 3000]) {
       const metre = 1000 / scale;
       // Tre steg 0,8 m breda med 0,3 m mellan: 0,9 m lång i verkligheten.
       const lines = Array.from({ length: 3 }, (_, step) => open("STEG", { x: 0, y: step * 0.3 * metre }, { x: 0.8 * metre, y: step * 0.3 * metre }));
       const [stair] = stairsFromSteps(lines, scale).stairs;
       expect(stair!.width, String(scale)).toBe(0.4);
-      expect(length(stair!.path), String(scale)).toBeGreaterThanOrEqual(1.2);
+      expect(length(stair!.path), String(scale)).toBeGreaterThanOrEqual(1.1);
       // Normkontrollen flaggar inte trappan (och skulle flagga den verkliga längden).
       const object = { kind: "line" as const, symbol: "532", path: stair!.path.map((point, at) => ({ type: at === 0 ? "M" as const : "L" as const, ...point })) };
       expect(checkNorm([{ key: "n:1", code: "532", object }], scale).issues, String(scale)).toEqual([]);

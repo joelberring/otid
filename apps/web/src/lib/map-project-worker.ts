@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 import {
-  drawMap, MapFileError, northLineDegrees, readMapFile, symbolColorIds, withColorChanges, withSymbolColorChanges, withSymbolReplacements, withTextSymbolChanges,
+  drawMap, flattenPath, MapFileError, northLineDegrees, readMapFile, symbolColorIds, withColorChanges, withSymbolColorChanges, withSymbolReplacements, withTextSymbolChanges,
   type MapColorChange, type MapObject, type MapSymbol, type MapSymbolColorChange, type MapTextSymbolChange, type ParsedMap
 } from "@o-tid/map-file";
 import {
@@ -9,6 +9,8 @@ import {
 } from "@o-tid/map-revision";
 import { MAX_RENDER_SIDE } from "./course-setting-map-protocol";
 import { builtPolygons, FIELD_MAINS } from "@o-tid/map-revision/base-map";
+
+const PAVED_MAINS: ReadonlySet<number> = new Set([501]);
 import { proposeAreas } from "./map-project-area-proposals";
 import { fillFinder, type FillResult } from "./map-project-fill-area";
 import { joinUnder, overChanges, type FillOverlay } from "./map-project-fill-over";
@@ -432,7 +434,13 @@ self.onmessage = (event: MessageEvent<MapProjectRequest>) => {
   if (request.type === "built") {
     const map = current?.map;
     const mainOf = (symbol: string) => map?.symbols.get(symbol)?.code.main;
-    post({ type: "built", id: request.id, polygons: map ? builtPolygons(map.objects, mainOf) : [], fields: map ? builtPolygons(map.objects, mainOf, FIELD_MAINS) : [] });
+    // Ägaren 2026-11-23 (sprintkartor): kanterna 501.1 och de hårdgjorda ytorna för kärr i bebyggt och stigar i vägar.
+    const edges = map ? map.objects.flatMap(object => {
+      const code = object.kind === "line" ? map.symbols.get(object.symbol)?.code : undefined;
+      return code?.main === 501 && code.sub === 1 && object.kind === "line" ? flattenPath(object.path).map(line => line.map(point => [point.x, point.y] as [number, number])) : [];
+    }) : [];
+    post({ type: "built", id: request.id, polygons: map ? builtPolygons(map.objects, mainOf) : [], fields: map ? builtPolygons(map.objects, mainOf, FIELD_MAINS) : [],
+      roads: map ? builtPolygons(map.objects, mainOf, PAVED_MAINS) : [], edges });
     return;
   }
   if (request.type === "warp") {

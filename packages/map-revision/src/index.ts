@@ -29,6 +29,7 @@ export * from "./symbol-norm";
 export * from "./issprom-symbols";
 export * from "./building-outlines";
 export * from "./sprint-repair";
+export * from "./sprint-clean";
 export * from "./generalize";
 export * from "./generalize-topology";
 export * from "./generalize-parts";

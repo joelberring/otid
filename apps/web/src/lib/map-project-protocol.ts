@@ -135,7 +135,9 @@ export type MapProjectResponse =
   | { readonly type: "bySymbol"; readonly id: number; readonly objects: readonly SymbolObject[] }
   | { readonly type: "warp"; readonly id: number; readonly changes: readonly WarpChange<ObjectKey>[]; readonly refs: readonly (readonly [ObjectKey, ObjectRef])[] }
   | { readonly type: "fit"; readonly id: number; readonly fit: VectorFit | null }
-  | { readonly type: "built"; readonly id: number; readonly polygons: readonly [number, number][][][]; readonly fields?: readonly [number, number][][][] }
+  | { readonly type: "built"; readonly id: number; readonly polygons: readonly [number, number][][][]; readonly fields?: readonly [number, number][][][];
+      /** Hårdgjorda ytor (501) och kantlinjer (501.1), för sprintkartornas kärr i bebyggt och stigar i vägar. */
+      readonly roads?: readonly [number, number][][][]; readonly edges?: readonly [number, number][][] }
   /** `covered`: ytan som redan täcker rutan (K8b V4), så att den kan markeras. */
   | { readonly type: "fill"; readonly id: number; readonly result: FillResult; readonly covered?: ProjectHit | undefined;
       /** Det som ska bort eller klippas under ytan (`FillQuery.clearUnder`). */
@@ -158,6 +160,9 @@ export interface SymbolObject { readonly key: ObjectKey; readonly ref: ObjectRef
 export interface ReconResult { readonly markers: readonly ReconMarker[]; readonly coverage: Coverage | undefined }
 
 /** Workern sedd från sidan. Bara det senaste svaret på varje slags fråga används. */
+/** Kartans hårdgjorda ytor (501) och kantlinjer (501.1) i kartans mm. */
+export interface BuiltPaved { readonly roads: readonly [number, number][][][]; readonly edges: readonly [number, number][][] }
+
 export class MapProjectSession {
   private readonly worker: Worker;
   private latest = 0;
@@ -182,7 +187,7 @@ export class MapProjectSession {
   private latestWarp = 0;
   private latestFit = 0;
   private latestBuilt = 0;
-  private onBuilt: ((polygons: readonly [number, number][][][], fields: readonly [number, number][][][]) => void) | undefined;
+  private onBuilt: ((polygons: readonly [number, number][][][], fields: readonly [number, number][][][], paved: BuiltPaved) => void) | undefined;
   private latestFill = 0;
   private onFill: ((result: FillResult, covered?: ProjectHit, under?: readonly UnderChange[], overlay?: FillOverlay) => void) | undefined;
   private latestFillCuts = 0;
@@ -219,7 +224,7 @@ export class MapProjectSession {
       else if (message.type === "snapIndex") { if (message.id === this.latestSnap) this.onSnap?.(message.index); }
       else if (message.type === "unfilled") { if (message.id === this.latestUnfilled) this.onUnfilled?.(message.result); }
       else if (message.type === "proposeAreas") { if (message.id === this.latestPropose) this.onPropose?.(message.result); }
-      else if (message.type === "built") { if (message.id === this.latestBuilt) this.onBuilt?.(message.polygons, message.fields ?? []); }
+      else if (message.type === "built") { if (message.id === this.latestBuilt) this.onBuilt?.(message.polygons, message.fields ?? [], { roads: message.roads ?? [], edges: message.edges ?? [] }); }
       else if (message.id === this.latest && this.onRendered) this.onRendered(message.id, message.bitmap);
       else message.bitmap.close();
     };
@@ -309,8 +314,8 @@ export class MapProjectSession {
     this.post({ type: "warp", id, options });
   }
 
-  /** Kartans bebyggda ytor och åkrar som polygoner i kartans mm (med ändringarna i arbetet). */
-  built(onBuilt: (polygons: readonly [number, number][][][], fields: readonly [number, number][][][]) => void) {
+  /** Kartans bebyggda ytor och åkrar som polygoner i kartans mm (med ändringarna i arbetet), och de hårdgjorda ytorna och kanterna. */
+  built(onBuilt: (polygons: readonly [number, number][][][], fields: readonly [number, number][][][], paved: BuiltPaved) => void) {
     const id = ++this.latestBuilt;
     this.onBuilt = onBuilt;
     this.post({ type: "built", id });

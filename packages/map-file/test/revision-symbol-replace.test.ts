@@ -48,12 +48,14 @@ describe("normens symboler i en Mapper-karta", () => {
     expect(area?.kind === "AREA" && colorName(model, area.fill)).toBe("Svart 50 %");
   });
 
-  it("trappan blir bara steg; en symbol som inte finns eller en OCAD-fil ändrar inget", () => {
+  it("trappan blir steg över ett brunt band med kantlinjer; en symbol som inte finns eller en OCAD-fil ändrar inget", () => {
     const result = applyMapSymbolReplacements(bytes, [{ code: "532", def: def("532"), palette: SPRINT.colors }, { code: "777", def: def("521"), palette: SPRINT.colors }]);
     expect(result.ok && result.changed).toBe(1);
     if (!result.ok) return;
     const stair = byCode(readMapFile(result.bytes, "skog.omap"), "532");
-    expect(stair.kind === "LINE" && stair.strokes).toEqual([]);
+    const model = readMapFile(result.bytes, "skog.omap");
+    expect(stair.kind === "LINE" && stair.strokes.map(stroke => [colorName(model, stroke.color), stroke.width, stroke.offset])).toEqual([
+      ["Brun 30 %", 0.4, undefined], ["Svart", 0.1, 0.25], ["Svart", 0.1, -0.25]]);
     expect(applyMapSymbolReplacements(new Uint8Array([0xad, 0x0c, 0, 0]), [{ code: "521", def: def("521"), palette: SPRINT.colors }]).ok).toBe(false);
   });
 

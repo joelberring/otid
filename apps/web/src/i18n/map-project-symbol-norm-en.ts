@@ -26,6 +26,20 @@ export const mapProjectSymbolNormEn: Texts<typeof mapProjectSymbolNormSv> = {
   yardsMark: "Mark on the map",
   yardsRemove: (n: number) => `Remove (${n})`,
   yardsDone: (n: number) => `${count(n, "area", "areas")} removed.`,
+  stepWater: "Marshes and streams in built-up land",
+  waterHelp: "Marsh (307–310), ditches and small streams (305, 306) within the distance from buildings, paved areas, edge lines and private land. A marsh is removed when at least half of it is there; a ditch is clipped.",
+  waterMetres: "Built-up within",
+  waterCount: (n: number) => n === 0 ? "No marshes or streams in built-up land." : `${count(n, "object", "objects")} in built-up land.`,
+  waterRemove: (n: number) => `Remove marshes and streams in built-up land (${n})`,
+  stepPaths: "Paths in roads",
+  pathsHelp: "Paths (505–507) inside paved areas, along an edge within 3 m or in the middle of a street between two edges; paths crossing the road are kept up to the edge.",
+  pathsCount: (n: number) => n === 0 ? "No paths in roads." : `${count(n, "path", "paths")} in roads.`,
+  pathsRemove: (n: number) => `Remove paths in roads (${n})`,
+  stepRings: "Small edge rings",
+  ringsHelp: "Closed edge lines (501.1) too small or narrow to show as an island: traffic islands and pole bases from the base map that become «D» shapes along footways.",
+  ringsCount: (n: number) => n === 0 ? "No small edge rings." : `${count(n, "edge ring", "edge rings")}.`,
+  ringsRemove: (n: number) => `Remove small edge rings (${n})`,
+  cleanDone: (n: number) => `${count(n, "object", "objects")} changed. Undo brings them back.`,
   help: "The map's symbols (colour, line width, outline) against the norm, for the symbols the map uses, and the norm's symbols missing from the map. The values come from IOF's O-Map Wiki; where the wiki gives no dimension it is not compared.",
   forest: "The check exists for sprint maps (ISSprOM 2019-2). Forest maps (ISOM 2017-2) have no table yet.",
   none: "The symbols the map uses follow the norm's table.",
@@ -40,7 +54,9 @@ export const mapProjectSymbolNormEn: Texts<typeof mapProjectSymbolNormSv> = {
       case "OUTLINE": return "has no black outline";
       case "LINE_COLOR": return `the line should be ${problem.base}`;
       case "LINE_WIDTH": return `line ${mm(typeof problem.found === "number" ? problem.found : 0)}, the norm says ${mm(problem.width ?? 0)}`;
-      case "STEPS": return "drawn as a continuous line, the norm says generalised steps";
+      case "STEPS": return "has no steps across the line";
+      case "STAIR_BAND": return "has no stairway band in brown 30% (as in Mapper's ISSprOM 2019-2)";
+      case "STAIR_SIDES": return "has no black side lines (as in Mapper's ISSprOM 2019-2)";
       default: return problem.kind;
     }
   },

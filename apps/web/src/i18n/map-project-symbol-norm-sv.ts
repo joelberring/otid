@@ -25,6 +25,20 @@ export const mapProjectSymbolNormSv = {
   yardsMark: "Markera på kartan",
   yardsRemove: (count: number) => `Ta bort (${count})`,
   yardsDone: (count: number) => `${plural(count, "yta", "ytor")} borttagna.`,
+  stepWater: "Kärr och bäckar i bebyggt",
+  waterHelp: "Sankmark (307–310), diken och små bäckar (305, 306) inom avståndet från hus, hårdgjord yta, kantlinjer och tomtmark. En sankmark tas bort när minst hälften ligger där; ett dike klipps.",
+  waterMetres: "Bebyggt inom",
+  waterCount: (count: number) => count === 0 ? "Inga kärr eller bäckar i bebyggt." : `${plural(count, "objekt", "objekt")} i bebyggt.`,
+  waterRemove: (count: number) => `Ta bort kärr och bäckar i bebyggt (${count})`,
+  stepPaths: "Stigar i vägar",
+  pathsHelp: "Stigar (505–507) inne i hårdgjord yta, längs en kant inom 3 m eller mitt i en gata mellan två kanter; stigar som korsar vägen står kvar fram till kanten.",
+  pathsCount: (count: number) => count === 0 ? "Inga stigar i vägar." : `${plural(count, "stig", "stigar")} i vägar.`,
+  pathsRemove: (count: number) => `Ta bort stigar i vägar (${count})`,
+  stepRings: "Små kantringar",
+  ringsHelp: "Slutna kantlinjer (501.1) som är för små eller smala för att synas som en ö: refuger och stolpfundament ur baskartan som blir «D» längs gångvägarna.",
+  ringsCount: (count: number) => count === 0 ? "Inga små kantringar." : `${plural(count, "kantring", "kantringar")}.`,
+  ringsRemove: (count: number) => `Ta bort små kantringar (${count})`,
+  cleanDone: (count: number) => `${plural(count, "objekt", "objekt")} ändrade. Ångra tar tillbaka dem.`,
   help: "Kartans symboler (färg, linjebredd, kant) mot normen, för de symboler kartan använder, och normens symboler som saknas i kartan. Värdena kommer ur IOF:s O-Map Wiki; där wikin inte anger ett mått jämförs det inte.",
   forest: "Kontrollen finns för sprintkartor (ISSprOM 2019-2). Skogskartor (ISOM 2017-2) har ingen tabell än.",
   none: "Symbolerna som kartan använder följer normens tabell.",
@@ -39,7 +53,9 @@ export const mapProjectSymbolNormSv = {
       case "OUTLINE": return "saknar svart kant";
       case "LINE_COLOR": return `linjen ska vara ${BASES[problem.base!]}`;
       case "LINE_WIDTH": return `linjen ${mm(typeof problem.found === "number" ? problem.found : 0)}, normen säger ${mm(problem.width ?? 0)}`;
-      case "STEPS": return "ritas som en löpande linje, normen säger generaliserade trappsteg";
+      case "STEPS": return "saknar trappsteg tvärs linjen";
+      case "STAIR_BAND": return "saknar trappans band i brunt 30 % (som Mappers ISSprOM 2019-2)";
+      case "STAIR_SIDES": return "saknar svarta kantlinjer på sidorna (som Mappers ISSprOM 2019-2)";
       default: return problem.kind;
     }
   },

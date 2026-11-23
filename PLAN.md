@@ -1473,6 +1473,10 @@ stannar kvar; siffror byter symbol, bokstäver verktyg; tryck byter, håll låna
   kant runt sammanhängande hus utan gemensamma väggar. O-Tids sprintmall med alla normens symboler (521 svart 50 %, 214 35 %,
   501.1 0,18 mm). Sprintkartor: 520 bara på småhustomter, inga vägar som linjer. Panelen «Rätta efter sprintnormen» rättar en
   befintlig karta utan ny inläsning: symbolerna, kant runt husen, Förenkla trappor och 520 kring flerbostadshus, med antal per steg.
+- [x] V9 Sprintkartor utan kärr i bebyggt och stigar i vägar (ägaren 2026-11-23: «kärr och bäckar inte skapas i områden som verkar
+  bebyggda … stigar mitt i vägar?», «trapporna har ingen avgränsning på sidorna och har inte färg?»): kandidatradens kryssruta och
+  reglage (förval på, 25 m), stegen 5–7 i «Rätta efter sprintnormen» (kärr och bäckar i bebyggt, stigar i vägar, små kantringar),
+  trappan och de andra måtten som wikin inte anger som i Mappers ISSprOM 2019-2.
 
 ## [ ] Steg L – Lagring: gränser, städning och arkiv (ägaren 2026-11-13)
 

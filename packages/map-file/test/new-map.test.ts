@@ -27,7 +27,7 @@ describe("ADR-0219 K1: ny karta (.omap med O-Tids symbolset)", () => {
     });
   }
 
-  it("ISSprOM: byggnaden är grå yta med svart kant i en kombinerad symbol, trappan finns i två bredder", () => {
+  it("ISSprOM: byggnaden är grå yta med svart kant i en kombinerad symbol, trappan finns i fyra bredder", () => {
     const map = readMapFile(newMapFile({ symbolSet: "ISSPROM2019-2", scale: 4000, refPoint: KUNGSHATT }), "ny.omap");
     const byCode = (code: string) => [...map.symbols.values()].find(symbol => `${symbol.code.main}${symbol.code.sub ? `.${symbol.code.sub}` : ""}` === code);
     const building = byCode("521");
@@ -38,11 +38,16 @@ describe("ADR-0219 K1: ny karta (.omap med O-Tids symbolset)", () => {
     expect(area?.fill).toBe(grey.id);
     expect(line?.strokes).toEqual([expect.objectContaining({ color: black.id, width: 0.14 })]);
     expect(map.colors.findIndex(color => color.id === grey.id)).toBeGreaterThan(map.colors.findIndex(color => color.id === black.id));
-    for (const [code, length] of [["532", 0.4], ["532.1", 0.7]] as const) {
+    // Trappan som i Mappers ISSprOM 2019-2: band i brunt 30 %, svarta kantlinjer 0,1 mm och steg 0,1 mm var 0,5 mm.
+    const brown30 = map.colors.find(color => color.name === "Brun 30 %")!;
+    for (const [code, band, side, step] of [["532", 0.4, 0.25, 0.25], ["532.1", 0.5, 0.25, 0.3], ["532.2", 0.75, 0.375, 0.4], ["532.3", 1, 0.5, 0.55]] as const) {
       const stair = byCode(code) as LineSymbol | undefined;
-      expect(stair?.strokes).toEqual([]);
-      expect(stair?.repeated?.spacing).toBeCloseTo(0.4, 6);
-      expect(JSON.stringify(stair?.repeated?.elements)).toContain(String(length / 2));
+      expect(stair?.strokes, code).toEqual([expect.objectContaining({ color: brown30.id, width: band }),
+        expect.objectContaining({ color: black.id, width: 0.1, offset: side }), expect.objectContaining({ color: black.id, width: 0.1, offset: -side })]);
+      expect(stair?.repeated?.spacing).toBeCloseTo(0.5, 6);
+      expect(stair?.repeated?.endLength).toBeCloseTo(0.05, 6);
+      expect(stair?.repeated?.minimum).toBe(3);
+      expect(JSON.stringify(stair?.repeated?.elements)).toContain(String(step));
     }
   });
 

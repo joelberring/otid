@@ -1,7 +1,8 @@
 import { maxOf, minOf, type MapGeoreference, type MapObject, type ParsedMap, type Point } from "@o-tid/map-file";
-import { importLayers, mapNorm, parseDxf, parseGeoJson, symbolObjectKind, VectorParseError, type MapBox, type SourceData } from "../index";
+import { importLayers, isSprintNorm, mapNorm, parseDxf, parseGeoJson, symbolObjectKind, VectorParseError, type MapBox, type SourceData } from "../index";
 import { mergeCandidates } from "./candidate-merge";
-import { computeCandidates, suggestedMapping, type CandidateSymbol } from "./candidates";
+import { computeCandidates, suggestedMapping, type CandidateSymbol, type SprintCleanOutcome } from "./candidates";
+import { SPRINT_BUILT_METRES } from "../sprint-clean";
 import { heightFieldFrom, type HeightGrid } from "./clear-contours";
 import { clearCutFeatures, type ClearCut } from "./clear-cuts";
 import { tickDepressions } from "./depressions";
@@ -97,6 +98,8 @@ export interface BaseMapAssemblyInput {
   readonly primary?: readonly { readonly name: string; readonly kinds: readonly PrimaryKind[]; readonly area: PrimaryArea }[] | undefined;
   /** Kantsymbolen för husen (`autoBuildingEdge`), när kartans byggnad saknar egen kant. */
   readonly buildingEdge?: string | undefined;
+  /** Sprintkartor: «bebyggt» i meter för kärr och bäckar (förval `SPRINT_BUILT_METRES`), `false` = av (`sprint-clean.ts`). */
+  readonly sprintBuiltMetres?: number | false | undefined;
 }
 
 export interface BaseMapSummary {
@@ -136,6 +139,8 @@ export interface BaseMapSummary {
   readonly hills?: { readonly level: number; readonly rings: number; readonly contours: number; readonly dots: number; readonly candidates: number } | undefined;
   /** Lutningsstrecken efter höjden: ringar med streck, och hur många av dem som bara höjden visade vara sänkor. */
   readonly slopeTicks?: { readonly ticks: number; readonly byHeight: number } | undefined;
+  /** Sprintkartor: kärr och vattendrag i bebyggt, stigar i vägar och små kantringar som togs bort eller klipptes. */
+  readonly sprintClean?: SprintCleanOutcome | undefined;
   /** Hjälpkurvor (meter) och små ringar som togs bort på flack mark (när jobbet har fuktdjupet). */
   readonly flatContours?: { readonly level: number; readonly formlineMeters: number; readonly rings: number } | undefined;
 }
@@ -215,7 +220,10 @@ export function assembleBaseMap(input: BaseMapAssemblyInput): { objects: MapObje
   const mapping = suggestedMapping(layers, symbols, norm);
   const result = computeCandidates(data.features, { georeference: input.georeference, crs: data.crs ?? SWEREF99TM, mapping: [...mapping], skipped: [],
     symbols: input.symbols, bounds: input.bounds, clip: undefined, area: input.area, stage: input.stage, fit: undefined, normed: true,
-    built: input.built, maskBuilt: true, buildingEdge: input.buildingEdge });
+    built: input.built, maskBuilt: true, buildingEdge: input.buildingEdge,
+    // Ägaren 2026-11-23: på sprintkartor inga kärr och bäckar i bebyggt och inga stigar i vägar (förval på).
+    sprintClean: isSprintNorm(norm) && input.sprintBuiltMetres !== false ? { builtMetres: input.sprintBuiltMetres ?? SPRINT_BUILT_METRES,
+      built: { polygons: input.built.map(polygon => polygon.map(ring => ring.map(([x, y]) => ({ x, y })))), lines: [] } } : undefined });
   if (!result) return { problem: "Grundkartans objekt gick inte att räkna om till kartan." };
   const codes = new Map(input.symbols.map(([id, code]) => [id, code.replace(/\.0$/, "")]));
   const counts = new Map<string, number>();
@@ -231,6 +239,6 @@ export function assembleBaseMap(input: BaseMapAssemblyInput): { objects: MapObje
     clipped: result.clipped, joined: result.joined, simplified: result.generalized?.simplified ?? 0,
     ...(cuts ? { clearCuts: cuts.counts } : {}), ...(soil ? { soil } : {}), ...(rock ? { rock } : {}), ...(knolls ? { knolls } : {}), ...(cliffs ? { cliffs } : {}),
     ...(flatContours ? { flatContours } : {}), ...(hills ? { hills } : {}), ...(marshFloor ? { marshFloor } : {}), ...(pits ? { pits } : {}), ...(slopeTicks ? { slopeTicks } : {}),
-    ...(primary ? { primary } : {})
+    ...(primary ? { primary } : {}), ...(result.sprintClean ? { sprintClean: result.sprintClean } : {})
   } };
 }

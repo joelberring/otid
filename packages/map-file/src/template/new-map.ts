@@ -171,22 +171,23 @@ export class SymbolWriter {
 
   private lineSymbol(line: { color?: string | undefined; width?: number | undefined; dash?: readonly [number, number] | undefined;
     cap?: "butt" | "round" | "square" | undefined; join?: "miter" | "round" | "bevel" | undefined;
-    border?: { color: string; width: number; dash?: readonly [number, number] | undefined } | undefined;
-    mid?: { elements: readonly ElementDef[]; spacing: number } | undefined }): string {
+    border?: { color: string; width: number; dash?: readonly [number, number] | undefined; shift?: number | undefined } | undefined;
+    mid?: { elements: readonly ElementDef[]; spacing: number; end?: number | undefined; minimum?: number | undefined } | undefined }): string {
     const dashed = !!line.dash;
     const attributes = [
-      `color="${this.color(line.color)}"`, `line_width="${line.color ? this.um(line.width ?? 0) : 0}"`, `minimum_length="0"`,
+      // Bredden också utan färg: en dubbellinjes kantlinjer ligger efter den (Mapper räknar så).
+      `color="${this.color(line.color)}"`, `line_width="${line.color || line.border ? this.um(line.width ?? 0) : 0}"`, `minimum_length="0"`,
       `join_style="${JOIN[line.join ?? "miter"]}"`, `cap_style="${CAP[line.cap ?? "butt"]}"`, `start_offset="0"`, `end_offset="0"`,
       ...(dashed ? [`dashed="true"`] : []),
-      `segment_length="${line.mid ? this.um(line.mid.spacing) : 0}"`, `end_length="${line.mid ? this.um(line.mid.spacing / 2) : 0}"`,
-      `show_at_least_one_symbol="true"`, `minimum_mid_symbol_count="0"`, `minimum_mid_symbol_count_when_closed="0"`,
+      `segment_length="${line.mid ? this.um(line.mid.spacing) : 0}"`, `end_length="${line.mid ? this.um(line.mid.end ?? line.mid.spacing / 2) : 0}"`,
+      `show_at_least_one_symbol="true"`, `minimum_mid_symbol_count="${line.mid?.minimum ?? 0}"`, `minimum_mid_symbol_count_when_closed="0"`,
       `dash_length="${dashed ? this.um(line.dash![0]) : 4000}"`, `break_length="${dashed ? this.um(line.dash![1]) : 1000}"`,
       `dashes_in_group="1"`, `in_group_break_length="500"`, `mid_symbols_per_spot="1"`, `mid_symbol_distance="0"`,
       ...(line.border ? [`have_border_lines="true"`] : [])
     ];
     const mid = line.mid ? `<mid_symbol><symbol type="1">${this.point(line.mid.elements, true)}</symbol></mid_symbol>` : "";
     const border = line.border
-      ? `<borders><border color="${this.color(line.border.color)}" width="${this.um(line.border.width)}" shift="0" ` +
+      ? `<borders><border color="${this.color(line.border.color)}" width="${this.um(line.border.width)}" shift="${this.um(line.border.shift ?? line.border.width / 2)}" ` +
         `dashed="${!!line.border.dash}" dash_length="${line.border.dash ? this.um(line.border.dash[0]) : 2000}" ` +
         `break_length="${line.border.dash ? this.um(line.border.dash[1]) : 1000}"/></borders>`
       : "";

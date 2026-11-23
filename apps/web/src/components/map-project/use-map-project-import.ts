@@ -11,7 +11,7 @@ import { useTexts } from "../language-provider";
 import { MAP_PROJECT_SYNC_MAX_EDITS, type MapLayerProfileView, type MapProjectDecisionRequest, type MapProjectView } from "@o-tid/contracts";
 import { isSupportedEpsg, type MapGeoreference, type MapObject, type PathCommand } from "@o-tid/map-file";
 import {
-  autoBuildingEdgeOf, fitClassOf, guessCrs, importLayers, isSprintNorm, isStockholmLayer, mapNorm, newKey, objectBox, samplePath, sourcePointToMap, suggestSymbol, VectorParseError, WGS84_EPSG,
+  autoBuildingEdgeOf, fitClassOf, SPRINT_BUILT_METRES, guessCrs, importLayers, isSprintNorm, isStockholmLayer, mapNorm, newKey, objectBox, samplePath, sourcePointToMap, suggestSymbol, VectorParseError, WGS84_EPSG,
   type FitPoint, type ImportLayer, type SourceData, type SourceFeature, type VectorFit
 } from "@o-tid/map-revision";
 import { clubRequest, csrf } from "../../lib/club-archive-client";
@@ -26,7 +26,7 @@ import {
   type ClearSettings, type HeightField, type HillLimits, type PitLimits
 } from "@o-tid/map-revision/base-map";
 import { readVectorFiles } from "../../lib/map-project-vector-files";
-import type { CatalogSymbol, MapProjectSession, SymbolObject } from "../../lib/map-project-protocol";
+import type { BuiltPaved, CatalogSymbol, MapProjectSession, SymbolObject } from "../../lib/map-project-protocol";
 import type { ObjectChange } from "./use-map-project-editor";
 import { mapProjectImportSv } from "../../i18n/map-project-import-sv";
 import { useMapProjectPrimary } from "./use-map-project-primary";
@@ -48,6 +48,9 @@ type Problem = string | number;
 const TICK_GROUPS = [{ line: /^10[12](\.0+)?$/, tick: /^10[12]\.1$/ }, { line: /^103(\.0+)?$/, tick: /^103\.1$/ }] as const;
 /** Samma tomma lista varje gång, så att kartan inte ritas om i onödan när det inte finns några kandidater. */
 const NO_CANDIDATES: readonly MapObject[] = [];
+const NO_PAVED: BuiltPaved = { roads: [], edges: [] };
+const toRing = (ring: readonly (readonly [number, number])[]) => ring.map(([x, y]) => ({ x, y }));
+const toRings = (polygon: readonly (readonly (readonly [number, number])[])[]) => polygon.map(toRing);
 
 export function useMapProjectImport(view: MapProjectView, georeference: MapGeoreference | undefined, bounds: Bounds | undefined,
   symbols: ReadonlyMap<string, CatalogSymbol>, onSent: () => void, session?: MapProjectSession,
@@ -69,6 +72,14 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
   const [built, setBuilt] = useState<readonly [number, number][][][]>([]);
   const [fields, setFields] = useState<readonly [number, number][][][]>([]);
   const [maskBuiltOn, setMaskBuiltOn] = useState(true);
+  /** Kartans hårdgjorda ytor och kanter (501, 501.1), för sprintreglerna nedan. */
+  const [paved, setPaved] = useState<BuiltPaved>(NO_PAVED);
+  /**
+   * Ägaren 2026-11-23 (sprintkartor, förval på): inga kärr och bäckar inom `builtMetres` från bebyggt, inga stigar i vägar och
+   * inga små kantringar (`sprint-clean.ts` i map-revision).
+   */
+  const [sprintCleanOn, setSprintCleanOn] = useState(true);
+  const [builtMetres, setBuiltMetres] = useState(SPRINT_BUILT_METRES);
   /** Ägaren 2026-11-10: inpassningen mot kartan (efter koordinatsystemet), "running" medan den räknas, null om den inte gick. */
   const [fit, setFit] = useState<VectorFit | "running" | null>();
   const [problem, setProblem] = useState<Problem>();
@@ -228,8 +239,10 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     return { georeference, crs, mapping: [...mapping], skipped: [...skipped], bounds, clip, area: view.area ?? undefined, stage, fit: fitted, normed,
       built, fields, maskBuilt: maskBuiltOn, symbols: [...symbols.values()].map(symbol => [symbol.id, symbol.code, symbol.kind] as const),
       // Ägaren 2026-11-23: kantlinjer runt de inlästa husen när kartans byggnad är en yta utan egen kant (och 521.1 finns).
-      buildingEdge: autoBuildingEdgeOf([...symbols.values()]) };
-  }, [georeference, crs, mapping, symbols, bounds, clip, stage, fitted, skipped, normed, view.area, built, fields, maskBuiltOn]);
+      buildingEdge: autoBuildingEdgeOf([...symbols.values()]),
+      sprintClean: sprint && sprintCleanOn ? { builtMetres, built: { polygons: [...built, ...paved.roads].map(toRings), lines: paved.edges.map(toRing) },
+        roads: { polygons: paved.roads.map(toRings), lines: paved.edges.map(toRing) } } : undefined };
+  }, [georeference, crs, mapping, symbols, bounds, clip, stage, fitted, skipped, normed, view.area, built, fields, maskBuiltOn, sprint, sprintCleanOn, builtMetres, paved]);
   const [computed, setComputed] = useState<{ name: string; features: readonly SourceFeature[]; input: CandidateInput; result: CandidateResult | undefined }>();
   useEffect(() => {
     if (!file || !input) return;
@@ -245,7 +258,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     worker().baseMap({ ...request, norm }, onStep), [worker, norm]);
 
   // Ytorna hämtas på nytt för varje fil, så att det som ritats sedan sist är med.
-  useEffect(() => { if (file && session) session.built((polygons, areas) => { setBuilt(polygons); setFields(areas); }); }, [file, session]);
+  useEffect(() => { if (file && session) session.built((polygons, areas, pavedNow) => { setBuilt(polygons); setFields(areas); setPaved(pavedNow); }); }, [file, session]);
 
   /**
    * "Passa in mot kartan": lagren som fått hus, vägar, vatten, murar eller järnväg som punkter i kartans mm, inpassade mot
@@ -536,7 +549,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     profile, saveProfile, canShareProfile: !!view.club,
     hideOnMap, setHideOnMap, skipped,
     toggleLayer: (layer: string) => setSkipped(current => { const next = new Set(current); if (next.has(layer)) next.delete(layer); else next.add(layer); return next; }),
-    normed, setNormed, maskBuiltOn, setMaskBuiltOn, candidates: hideOnMap ? NO_CANDIDATES : result?.objects ?? primary.question?.objects ?? NO_CANDIDATES, canImport: view.viewer.canPropose,
+    normed, setNormed, maskBuiltOn, setMaskBuiltOn, sprintCleanOn, setSprintCleanOn, builtMetres, setBuiltMetres, candidates: hideOnMap ? NO_CANDIDATES : result?.objects ?? primary.question?.objects ?? NO_CANDIDATES, canImport: view.viewer.canPropose,
     /** K4c Huvudkälla: projektets huvudkällor och frågan om OpenStreetMaps objekt; kryssrutan för filen som visas. */
     primary, primaryEligible: primaryEligible && primary.canMark, primaryOn, setPrimaryOn };
 }

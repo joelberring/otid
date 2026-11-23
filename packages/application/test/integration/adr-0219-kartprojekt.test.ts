@@ -464,7 +464,9 @@ describe("ADR-0219 kartprojekt", () => {
     const building = [...reread.symbols.values()].find(symbol => symbol.code.text === "521")!;
     expect(building.kind === "AREA" && reread.colors.find(color => color.id === building.fill)?.name).toBe("Svart 50 %");
     const stair = [...reread.symbols.values()].find(symbol => symbol.code.text === "532")!;
-    expect(stair.kind === "LINE" && stair.strokes).toEqual([]);
+    // Trappan som i Mappers ISSprOM 2019-2: ett band i brunt 30 % med svarta kantlinjer på båda sidor.
+    expect(stair.kind === "LINE" && stair.strokes.map(stroke => [reread.colors.find(color => color.id === stroke.color)?.name, stroke.width, stroke.offset]))
+      .toEqual([["Brun 30 %", 0.4, undefined], [expect.any(String), 0.1, 0.25], [expect.any(String), 0.1, -0.25]]);
     expect(reread.symbols.get(lampId)?.code.text).toBe("545");
     expect(reread.objects.filter(object => object.symbol === lampId)).toHaveLength(1);
     // OCAD-kartor spärras.

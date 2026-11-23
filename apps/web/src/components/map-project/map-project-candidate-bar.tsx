@@ -3,6 +3,7 @@
 import { mapProjectImportSv } from "../../i18n/map-project-import-sv";
 import { mapProjectImportEn } from "../../i18n/map-project-tools-en";
 import type { CatalogSymbol } from "../../lib/map-project-protocol";
+import { SPRINT_BUILT_RANGE } from "@o-tid/map-revision";
 import { useTexts } from "../language-provider";
 import { Button } from "../ui";
 import type { AcceptMode, useMapProjectImport } from "./use-map-project-import";
@@ -50,6 +51,16 @@ export function MapProjectCandidateBar({ importer, symbols, onShowLayers }: { im
       <input type="checkbox" checked={importer.maskBuiltOn} onChange={() => importer.setMaskBuiltOn(!importer.maskBuiltOn)} data-testid="map-project-candidate-built" />
       {text.barBuilt}{importer.result?.builtMask && <small> ({text.barBuiltDone(importer.result.builtMask.removed, importer.result.builtMask.clipped)})</small>}
     </label>
+    {/* Ägaren 2026-11-23: på sprintkartor inga kärr och bäckar nära bebyggt och inga stigar i vägar (förval på, avståndet går att ändra). */}
+    {importer.sprint && <label className={styles.layer} data-on={importer.sprintCleanOn || undefined}>
+      <input type="checkbox" checked={importer.sprintCleanOn} onChange={() => importer.setSprintCleanOn(!importer.sprintCleanOn)} data-testid="map-project-candidate-sprint-clean" />
+      {text.barSprintClean}{importer.result?.sprintClean && <small> ({text.barSprintCleanDone(importer.result.sprintClean.water, importer.result.sprintClean.paths, importer.result.sprintClean.rings)})</small>}
+    </label>}
+    {importer.sprint && importer.sprintCleanOn && <label className={styles.layer}>
+      {text.barSprintMetres}{" "}
+      <input type="range" min={SPRINT_BUILT_RANGE.min} max={SPRINT_BUILT_RANGE.max} step={5} value={importer.builtMetres}
+        onChange={event => importer.setBuiltMetres(Number(event.target.value))} data-testid="map-project-candidate-built-metres" /> {importer.builtMetres} m
+    </label>}
     {/* Ägaren 2026-11-14: göra om ett tema (kurvbilden, grönt) på en befintlig karta utan dubbletter; 2026-11-18: utvidga befintliga ytor. */}
     {importer.canAccept && <label className={styles.layer} title={text.barModeHelp[importer.mode]}>
       {text.barMode}{" "}

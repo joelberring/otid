@@ -107,13 +107,14 @@ function lineSymbol(line: XmlNode | undefined): Pick<LineSymbol, "strokes" | "re
     }
     strokes.push({ color: main, width, cap, join, dash });
   }
-  // En kantlinje gäller båda sidor; två kantlinjer är vänster och höger. "shift" flyttar kantlinjen inåt.
+  // En kantlinje gäller båda sidor; två kantlinjer är vänster och höger. Kantlinjens mitt ligger halva linjebredden plus
+  // "shift" från linjens mitt (Mapper: `LineSymbol::shiftCoordinates`, positivt utåt; 0 = mitt på linjens kant).
   const borders = asArray(child(line, "borders")?.border);
   borders.slice(0, 2).forEach((border, index) => {
     const borderColor = color(border, "color");
     const borderWidth = num(border, "width", 0) * UM;
     if (borderColor === null || borderWidth <= 0) return;
-    const offset = width / 2 + borderWidth / 2 - num(border, "shift", 0) * UM;
+    const offset = width / 2 + num(border, "shift", 0) * UM;
     const sides = borders.length === 1 ? [offset, -offset] : [index === 0 ? offset : -offset];
     for (const side of sides) strokes.push({ color: borderColor, width: borderWidth, offset: side, join });
   });
@@ -161,7 +162,7 @@ function midSymbols(line: XmlNode | undefined, elements: PointElement[]): LineSy
     // Utan avstånd blir det en symbol per del (mitt på, eller minst en).
     spacing: segment + spread > 0 ? segment + spread : 1e6,
     endLength: num(line, "end_length", 0) * UM + spread / 2,
-    minimum: bool(line, "show_at_least_one_symbol") ? 1 : 0
+    minimum: Math.max(bool(line, "show_at_least_one_symbol") ? 1 : 0, num(line, "minimum_mid_symbol_count", 0))
   };
 }
 

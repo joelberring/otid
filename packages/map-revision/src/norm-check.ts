@@ -33,12 +33,14 @@ const CONTOURS = new Set([101, 102, 103]);
 const CONTOUR_WIDTH: Readonly<Record<number, number>> = { 101: 0.14, 102: 0.25, 103: 0.14 };
 /**
  * 532 Trappa (ISOM 2017-2 och ISSprOM 2019-2, samma text): «Minimum length: 3 (graphical) steps. Minimum width: 0.4 mm».
- * Ett grafiskt steg är 0,4 mm (stegens avstånd i O-Tids mall och OCAD:s uppsättningar), så minst 1,2 mm.
+ * Ett grafiskt steg är 0,5 mm och de yttersta stegen ligger 0,05 mm från ändarna (OpenOrienteering Mappers ISSprOM 2019-2,
+ * `symbol-norm.ts`), så minst 2 × 0,5 + 2 × 0,05 = 1,1 mm.
  */
-const STAIR_STEPS = 3, STAIR_STEP_MM = 0.4;
+const STAIR_STEPS = 3, STAIR_STEP_MM = 0.5, STAIR_END_MM = 0.05;
+const STAIR_MIN_MM = (STAIR_STEPS - 1) * STAIR_STEP_MM + 2 * STAIR_END_MM;
 /** Minsta längd för en fristående linje (mm i grundskalan). */
 const MIN_LENGTH: Readonly<Record<number, number>> = { 104: 0.6, 201: 0.6, 202: 0.6, 304: 1, 305: 1, 306: 2.75, 504: 6.25, 505: 4.25, 506: 2.25,
-  507: 5.3, 508: 3.25, 509: 4, 510: 5, 513: 1.4, 515: 3, 516: 1.5, 518: 2, 529: 2, 532: STAIR_STEPS * STAIR_STEP_MM };
+  507: 5.3, 508: 3.25, 509: 4, 510: 5, 513: 1.4, 515: 3, 516: 1.5, 518: 2, 529: 2, 532: STAIR_MIN_MM };
 /** Minsta bredd för linjesymboler som ritas i objektets bredd (mm i grundskalan). */
 const MIN_LINE_WIDTH: Readonly<Record<number, number>> = { 532: 0.4 };
 /** Minsta yta (mm² i grundskalan; för de flesta a × b i normen). */
@@ -48,7 +50,7 @@ const MIN_AREA: Readonly<Record<number, number>> = { 206: 0.3, 301: 0.55 * 0.55,
 const MIN_WIDTH: Readonly<Record<number, number>> = { 206: 0.25, 301: 0.3, 404: 1.5, 406: 0.4, 408: 0.3, 410: 0.25 };
 /** ISSprOM 2019-2 (tabellen över minimimått): fristående linjer, mm. Nyckeln är numret med undernummer eller bara huvudnumret. */
 const SPRINT_LENGTH: Readonly<Record<string, number>> = { 107: 2, 201: 1.1, 202: 1.1, "513.1": 1.4, "513.2": 2.4, 515: 1, 516: 2.2, 518: 3,
-  528: 2.2, 529: 3, 532: STAIR_STEPS * STAIR_STEP_MM };
+  528: 2.2, 529: 3, 532: STAIR_MIN_MM };
 /** ISSprOM 2019-2: minsta bredd för linjesymboler (532 Trappa: 0,4 mm). */
 const SPRINT_STROKE_MIN: Readonly<Record<string, number>> = { 532: 0.4 };
 /** ISSprOM 2019-2: minsta yta (mm²) och bredd (mm). */

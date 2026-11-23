@@ -13,11 +13,19 @@ import { codeParts } from "./map-norm";
  * inte de flesta linjebredderna (de står bara i normens bilder), och de jämförs därför inte. Inte i tabellen, med skäl:
  * - 520 Område som inte får beträdas: «yellow 100%, green 50%» (en blandfärg; tryckets dekorfärger gör den svår att jämföra i CMYK).
  * - 521:s kantlinje: «black (outline)», bredden anges inte; bara att kanten finns kontrolleras.
- * - 532 Trappa: «Steps of a stairway shall be represented in a generalized manner», svart, minst 0,4 mm bred och tre grafiska
- *   steg; stegens bredd och avstånd anges inte i texten. Kontrollen säger bara att trappan ska vara steg utan löpande linje
- *   (O-Tids mall: steg 0,1 mm var 0,4 mm, `issprom-2019-2.ts`).
+ * - 532 Trappa: wikin säger bara «Steps of a stairway shall be represented in a generalized manner», svart, minst 0,4 mm bred
+ *   och tre grafiska steg (grafiken rättad 2022-01-02). Utseendet tas därför ur OpenOrienteering Mappers ISSprOM 2019-2 (se nedan):
+ *   ett band i brunt 30 % (trappans bredd: 0,4, 0,5, 0,75 eller 1,0 mm för 1,6, 2, 3 och 4 m), svarta kantlinjer 0,1 mm på båda
+ *   sidor och svarta steg 0,1 mm var 0,5 mm. Kontrollen prövar bandet, kantlinjerna och stegen (inte måtten).
  * - 401, 405, 505–507, 513–518 m.fl.: färgen eller bredden står inte i wikins text (inte verifierat, inte med).
  * Skogskartor (ISOM 2017-2) har ingen tabell här än.
+ *
+ * Måtten som wikin inte anger (trappan, järnvägen, spårvägen, murarna, pelaren, liten jordvall, belagd yta med träd, smal rågång
+ * och skärmtakets kant i O-Tids sprintmall `issprom-2019-2.ts`) är jämförda med OpenOrienteering Mappers egen ISSprOM 2019-2
+ * (github.com/OpenOrienteering/mapper, `symbol sets/src/ISSprOM 2019_4000.xmap`, master edd22fce3ec3 2026-11-02, läst
+ * 2026-11-23); ägaren ritar i Mapper. Talen är normens mått; ingen kod är kopierad. Mappers fil är äldre än wikins senaste
+ * rättelser på tre punkter, och där gäller wikin: 521 grå 50 % (Mapper 60 %), 501.1 0,18 mm (Mapper 0,1 mm) och 214 svart 35 %
+ * (Mapper 30 %). Mapper saknar 105.2, 321, 501.2 (som kant mot lägre nivå), 512.3, 533 och 541–545; de är O-Tids tolkning.
  */
 export type NormBase = "black" | "brown" | "yellow" | "green" | "blue";
 export interface SymbolNormSpec {
@@ -31,8 +39,8 @@ export interface SymbolNormSpec {
   readonly outline?: true | undefined;
   /** Linjens färg och bredd (mm i kartan; utan bredd jämförs bara färgen). */
   readonly line?: { readonly base: NormBase; readonly width?: number | undefined } | undefined;
-  /** Trappa: steg tvärs linjen, ingen löpande linje. */
-  readonly steps?: true | undefined;
+  /** Trappa: steg tvärs linjen över ett band i grundfärgens andel, med kantlinjer på båda sidor (Mappers ISSprOM 2019-2). */
+  readonly stair?: { readonly band: NormBase; readonly tint: number } | undefined;
   /** Sidan i O-Map Wiki och vad den säger (citat), med ändringsdatum. */
   readonly source: string;
 }
@@ -57,8 +65,9 @@ export const ISSPROM_SYMBOL_NORM: readonly SymbolNormSpec[] = [
     source: `${WIKI}501-1-step-or-edge-of-paved-area-2/ «Colour: black», «Change of line width: 0.12 –> 0.18 mm» (2023-02-01)` },
   { code: "521", name: "Byggnad", kind: "area", fill: { base: "black", tints: [0.5] }, outline: true,
     source: `${WIKI}521-building-2/ «Colour: black (outline), black 50%» (ändrat 2022-01-02 från 60 %); gränser mellan hus som rör varandra ritas inte` },
-  { code: "532", name: "Trappa", kind: "line", steps: true, line: { base: "black" },
-    source: `${WIKI}532-stairway-2/ «Steps of a stairway shall be represented in a generalized manner», svart, minst 0,4 mm bred, minst tre steg` }
+  { code: "532", name: "Trappa", kind: "line", stair: { band: "brown", tint: 0.3 },
+    source: `${WIKI}532-stairway-2/ «Steps of a stairway shall be represented in a generalized manner», svart, minst 0,4 mm bred, minst tre steg; `
+      + "utseendet ur Mappers ISSprOM 2019-2 (532.6–532.9: band brunt 30 %, kantlinjer och steg svarta 0,1 mm, steg var 0,5 mm)" }
 ];
 
 /** Normens grundfärger (CMYK 0–1, som O-Tids mallar). En andel är grundfärgen gånger andelen. */
@@ -72,7 +81,9 @@ export type SymbolNormProblem =
   | { readonly kind: "OUTLINE" }
   | { readonly kind: "LINE_COLOR"; readonly base: NormBase }
   | { readonly kind: "LINE_WIDTH"; readonly width: number; readonly found: number }
-  | { readonly kind: "STEPS" };
+  | { readonly kind: "STEPS" }
+  | { readonly kind: "STAIR_BAND"; readonly base: NormBase; readonly tint: number }
+  | { readonly kind: "STAIR_SIDES" };
 
 export interface SymbolNormIssue {
   /** Symbolens id och nummer i kartan. */
@@ -157,7 +168,16 @@ function problemsOf(input: SymbolNormInput, symbol: MapSymbol, spec: SymbolNormS
     const found = tintOf(color(lineColor));
     if (lineColor !== undefined && (!found || found.base !== spec.line.base || found.tint < 0.95)) out.push({ kind: "LINE_COLOR", base: spec.line.base });
     if (spec.line.width !== undefined && main && Math.abs(main.width - spec.line.width) > 0.005) out.push({ kind: "LINE_WIDTH", width: spec.line.width, found: main.width });
-    if (spec.steps && (strokes.some(stroke => stroke.width > 0) || elements.length === 0)) out.push({ kind: "STEPS" });
+  }
+  if (spec.stair) {
+    const strokes = parts(input.symbols, symbol).flatMap(part => part.kind === "LINE" ? part.strokes : []);
+    const elements = parts(input.symbols, symbol).flatMap(part => part.kind === "LINE" ? part.repeated?.elements ?? [] : []);
+    if (elements.length === 0) out.push({ kind: "STEPS" });
+    const band = strokes.find(stroke => !stroke.offset && stroke.width > 0);
+    const found = tintOf(color(band?.color));
+    if (!found || found.base !== spec.stair.band || Math.abs(found.tint - spec.stair.tint) > 0.04) out.push({ kind: "STAIR_BAND", base: spec.stair.band, tint: spec.stair.tint });
+    const sides = strokes.filter(stroke => !!stroke.offset && tintOf(color(stroke.color))?.base === "black");
+    if (!sides.some(stroke => stroke.offset! > 0) || !sides.some(stroke => stroke.offset! < 0)) out.push({ kind: "STAIR_SIDES" });
   }
   return out;
 }

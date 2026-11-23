@@ -42,7 +42,7 @@ describe("symbolerna mot ISSprOM 2019-2", () => {
     const by = (code: string) => issues.find(issue => issue.code === code);
     expect(by("521")?.problems).toEqual([{ kind: "FILL", base: "black", tints: [0.5], found: { base: "black", tint: 1 } }, { kind: "OUTLINE" }]);
     expect(by("521")).toMatchObject({ fixable: true, outlines: true });
-    expect(by("532")?.problems).toEqual([{ kind: "STEPS" }]);
+    expect(by("532")?.problems).toEqual([{ kind: "STAIR_BAND", base: "brown", tint: 0.3 }, { kind: "STAIR_SIDES" }]);
     expect(by("501.1")?.problems).toEqual([{ kind: "LINE_WIDTH", width: 0.18, found: 0.14 }]);
     expect(by("214")?.problems[0]).toMatchObject({ kind: "FILL", found: { base: "black", tint: 0.2 } });
     expect(issues.every(issue => issue.fixable)).toBe(true);
@@ -66,7 +66,8 @@ describe("symbolerna mot ISSprOM 2019-2", () => {
     expect(missing).not.toContain("509.1");
     expect(missing).not.toContain("521");
     const added = withSymbolReplacements(forest, normSymbolAdditions(forest, missing));
-    expect(missingNormSymbols(added.symbols)).toEqual([]);
+    // Ett tillägg lägger aldrig in färger: 501.3 (brunt 30 %) och 509.2 (svart 50 %) väntar tills en rättning lagt in dem.
+    expect(missingNormSymbols(added.symbols).map(row => row.code)).toEqual(["501.3", "509.2"]);
     expect(added.symbols.size).toBeGreaterThan(forest.symbols.size);
   });
 

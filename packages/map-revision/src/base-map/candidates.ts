@@ -4,6 +4,7 @@ import {
   type ImportLayer, type ImportResult, type MapBox, type MapNorm, type SourceFeature, type TargetKind, type VectorFit
 } from "../index";
 import { buildingOutlines } from "../building-outlines";
+import { isPathCode, isPavedEdgeCode, pathsInRoadsPlan, smallEdgeRingKeys, waterInBuiltPlan, type CleanPlan, type CodedObject, type Shapes } from "../sprint-clean";
 import { maskBuilt } from "./built-mask";
 
 /**
@@ -43,6 +44,28 @@ export interface CandidateInput {
    * kantlinjer runt sammanhängande hus (`buildingOutlines`). Utelämnat = ingen kant läggs till.
    */
   readonly buildingEdge?: string | undefined;
+  /**
+   * Ägaren 2026-11-23 (sprintkartor, förval på): inga kärr, diken eller fuktstråk ur lasern och marktäcket inom `builtMetres` från
+   * bebyggt, inga stigar i vägar och inga små kantringar (`sprint-clean.ts`). `built` och `roads` är kartans egna (t.ex. en
+   * huvudkälla som redan lästs in), i kartans mm; kandidaternas egna hus, hårdgjorda ytor, kanter och tomter räknas också.
+   */
+  readonly sprintClean?: { readonly builtMetres: number; readonly built?: Shapes | undefined; readonly roads?: Shapes | undefined } | undefined;
+}
+
+/** Vad sprintreglerna tog bort: sankmark och vattendrag, stigar och små kantringar (objekt borttagna eller klippta). */
+export interface SprintCleanOutcome { readonly water: number; readonly paths: number; readonly rings: number }
+
+/**
+ * Lagren med sankmark och vattendrag som räknats fram (lasern, marktäcket, NMD); OpenStreetMaps och huvudkällans vatten och
+ * laserns sjöar står kvar. Också allt annat som får sankmarkens nummer (307–310).
+ */
+const DERIVED_WATER = /^(blott|fuktigt|fuktstrak.*|dike|sankmark_(vat|fast|oppen_nmd|misstankt_ooverkomlig))$/;
+const isMarshCode = (code: string | undefined) => { const main = code ? codeParts(code).main : 0; return main >= 307 && main <= 310; };
+
+/** Objekten efter en plan: borttagna utelämnas, klippta ersätts av sina delar. */
+function applyPlan(rows: readonly CodedObject[], plan: CleanPlan): MapObject[] {
+  const removed = new Set(plan.remove), replaced = new Map(plan.replace.map(entry => [entry.key, entry.objects]));
+  return rows.flatMap(row => removed.has(row.key) ? [] : replaced.get(row.key) ?? [row.object]);
 }
 
 export type CandidateResult = ImportResult & {
@@ -50,6 +73,7 @@ export type CandidateResult = ImportResult & {
   readonly builtMask: { readonly removed: number; readonly clipped: number } | undefined;
   /** Kantlinjer som lades till runt husen (`CandidateInput.buildingEdge`). */
   readonly outlines?: number | undefined;
+  readonly sprintClean?: SprintCleanOutcome | undefined;
 };
 
 /** Kantlinjerna runt de inlästa husen (521) i kantsymbolen. */
@@ -80,22 +104,50 @@ export function computeCandidates(features: readonly SourceFeature[], input: Can
       const at = sourcePointToMap(georeference, crs, x, y);
       return fit ? applyFit(fit, at) : at;
     };
-    const whole = importObjects(features, { mapping: targets, toMap, bounds: clip ?? input.bounds,
+    const options = { mapping: targets, toMap, bounds: clip ?? input.bounds,
       stairs: { symbols: stairSymbols, scale: georeference.scale },
       // Kartans område (polygonen) klipper också, utom när en etapp valts (den har sin ruta).
-      polygon: clip ? undefined : input.area });
+      polygon: clip ? undefined : input.area };
+    const clean = input.sprintClean;
+    const codeOf = (symbol: string) => symbols.get(symbol)?.code;
+    const coded = (objects: readonly MapObject[]): CodedObject[] => objects.map((object, index) => ({ key: String(index), code: codeOf(object.symbol) ?? "", object }));
+    // Sprintkartor: de framräknade kärren och vattendragen läses in för sig och prövas mot allt annat bebyggt.
+    const derived = clean ? features.filter(feature => DERIVED_WATER.test(feature.layer) || isMarshCode(codeOf(targets.get(feature.layer)?.symbol ?? ""))) : [];
+    const wetSet = new Set(derived), rest = derived.length ? features.filter(feature => !wetSet.has(feature)) : features;
+    let whole = importObjects(rest, options);
+    let water = 0;
+    if (clean && derived.length) {
+      const wet = importObjects(derived, options), wetRows = coded(wet.objects);
+      const plan = waterInBuiltPlan(wetRows, coded(whole.objects), georeference.scale, clean.builtMetres, clean.built);
+      water = plan.remove.length + plan.replace.length;
+      whole = { ...whole, objects: [...whole.objects, ...applyPlan(wetRows, plan)], outside: whole.outside + wet.outside, short: whole.short + wet.short,
+        clipped: whole.clipped + wet.clipped, duplicates: whole.duplicates + wet.duplicates, mismatched: whole.mismatched + wet.mismatched };
+    }
     const imported = stage?.[0] && stage[0].length >= 3 ? { ...whole, objects: clipObjectsToPolygon(whole.objects, stage).objects } : whole;
     // Ägaren 2026-11-12: inget av markens detaljer eller vegetationen i det som redan är ritat som tomtmark, asfalt eller hus.
     const fields = input.fields ?? [];
     const masked = input.maskBuilt && (input.built.length || fields.length) ? maskBuilt(imported.objects, input.built, symbol => { const code = symbols.get(symbol)?.code; return code ? Number(code.split(".")[0]) : undefined; }, fields) : undefined;
     const kept = masked?.objects ?? imported.objects, builtMask = masked && masked.removed + masked.clipped > 0 ? { removed: masked.removed, clipped: masked.clipped } : undefined;
-    const codeOf = (symbol: string) => symbols.get(symbol)?.code;
-    if (!input.normed) { const edged = withBuildingEdges(kept, input.buildingEdge, codeOf); return { ...imported, objects: edged.objects, generalized: undefined, builtMask, outlines: edged.outlines }; }
+    // Stigar i vägar och små kantringar efter generaliseringen (den kan foga ihop stigar och kanter).
+    const tidy = (objects: readonly MapObject[]): { objects: MapObject[]; sprintClean?: SprintCleanOutcome } => {
+      if (!clean) return { objects: [...objects] };
+      const rows = coded(objects);
+      const paths = pathsInRoadsPlan(rows.filter(row => isPathCode(row.code)), rows, georeference.scale, clean.roads);
+      const rings = smallEdgeRingKeys(rows.filter(row => isPavedEdgeCode(row.code)));
+      const plan = { remove: [...paths.remove, ...rings], replace: paths.replace };
+      return { objects: applyPlan(rows, plan), sprintClean: { water, paths: paths.remove.length + paths.replace.length, rings: rings.length } };
+    };
+    if (!input.normed) {
+      const tidied = tidy(kept), edged = withBuildingEdges(tidied.objects, input.buildingEdge, codeOf);
+      return { ...imported, objects: edged.objects, generalized: undefined, builtMask, outlines: edged.outlines, sprintClean: tidied.sprintClean };
+    }
     // Ägaren 2026-11-11: kandidaterna generaliseras efter normen innan de läggs in (går att slå av i kandidatraden).
     const general = generalizeCandidates(kept, codeOf, georeference.scale);
     // Kanten runt husen efter generaliseringen, så att den följer husens slutliga form.
-    const edged = withBuildingEdges(general.objects, input.buildingEdge, codeOf);
-    return { ...imported, objects: edged.objects, generalized: { removed: general.removed, simplified: general.simplified }, builtMask, outlines: edged.outlines };
+    const tidied = tidy(general.objects);
+    const edged = withBuildingEdges(tidied.objects, input.buildingEdge, codeOf);
+    return { ...imported, objects: edged.objects, generalized: { removed: general.removed, simplified: general.simplified }, builtMask, outlines: edged.outlines,
+      sprintClean: tidied.sprintClean };
   } catch { return undefined; }
 }
 

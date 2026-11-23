@@ -33,10 +33,16 @@ export type SymbolDef = Base & (
     /** Streck och mellanrum (mm). */
     readonly dash?: readonly [number, number];
     readonly cap?: "butt" | "round" | "square"; readonly join?: "miter" | "round" | "bevel";
-    /** Kantlinjer på båda sidor (dubbellinje), `width` är då ytan mellan dem. */
-    readonly border?: { readonly color: string; readonly width: number; readonly dash?: readonly [number, number] };
-    /** Upprepad punktsymbol längs linjen, `spacing` mm isär (för en streckad linje: mitt i strecken). */
-    readonly mid?: { readonly elements: readonly ElementDef[]; readonly spacing: number };
+    /**
+     * Kantlinjer på båda sidor (dubbellinje), `width` är då ytan mellan dem. `shift` som i Mapper: kantlinjens mitt ligger
+     * `width / 2 + shift` från linjens mitt; utelämnat = kantlinjen helt utanför ytan (halva kantlinjens bredd).
+     */
+    readonly border?: { readonly color: string; readonly width: number; readonly dash?: readonly [number, number]; readonly shift?: number };
+    /**
+     * Upprepad punktsymbol längs linjen, `spacing` mm isär (för en streckad linje: mitt i strecken); `end` från ändarna
+     * (utelämnat: halva avståndet) och minst `minimum` symboler.
+     */
+    readonly mid?: { readonly elements: readonly ElementDef[]; readonly spacing: number; readonly end?: number; readonly minimum?: number };
   }
   | { readonly kind: "area"; readonly fill?: string; readonly hatches?: readonly HatchDef[]; readonly dots?: DotPatternDef;
     /** Kantlinje runt ytan (som Mappers kombinerade symbol: ytan och linjen i samma symbol, t.ex. sprintnormens byggnad). */

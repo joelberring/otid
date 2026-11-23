@@ -1,7 +1,10 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { apartmentYardKeys, codeParts, newKey, objectBox, stairObjectsPlan, stairWidthOfName, type ObjectKey } from "@o-tid/map-revision";
+import {
+  apartmentYardKeys, codeParts, isBuiltCode, isPathCode, isPavedEdgeCode, isWaterInBuiltCode, newKey, objectBox, pathsInRoadsPlan, smallEdgeRingKeys, SPRINT_BUILT_METRES,
+  stairObjectsPlan, stairWidthOfName, waterInBuiltPlan, type CleanPlan, type ObjectKey
+} from "@o-tid/map-revision";
 import type { CatalogSymbol, MapProjectSession, SymbolObject } from "../../lib/map-project-protocol";
 import type { ObjectChange } from "./use-map-project-editor";
 
@@ -27,17 +30,38 @@ export const deleteChange = (row: SymbolObject): ObjectChange => {
 const ofCode = (catalog: readonly CatalogSymbol[], kind: CatalogSymbol["kind"], main: number, sub?: number) =>
   catalog.filter(row => row.kind === kind && codeParts(row.code).main === main && (sub === undefined || codeParts(row.code).sub === sub));
 
+/** Planens ändringar: borttagna objekt (DELETE) och klippta (första delen RESHAPE, resten ADD). */
+export function cleanChanges(plan: CleanPlan, rows: readonly SymbolObject[]): ObjectChange[] {
+  const byKey = new Map(rows.map(row => [row.key, row]));
+  const replaced = plan.replace.flatMap(entry => {
+    const row = byKey.get(entry.key);
+    if (!row) return [];
+    const [first, ...rest] = entry.objects;
+    if (!first) return [deleteChange(row)];
+    return [{ key: row.key, ref: row.ref, kind: "RESHAPE" as const, after: { kind: "OBJECT" as const, object: first } },
+      ...rest.map((object): ObjectChange => ({ key: newKey(crypto.randomUUID()), ref: null, kind: "ADD", after: { kind: "OBJECT", object } }))];
+  });
+  return [...plan.remove.flatMap(key => { const row = byKey.get(key); return row ? [deleteChange(row)] : []; }), ...replaced];
+}
+
+/** Ett av stegen 5–7: ändringarna och objekten de gäller (för Markera på kartan). */
+export interface CleanFound { readonly changes: readonly ObjectChange[]; readonly objects: readonly SymbolObject[] }
+const NONE: CleanFound = { changes: [], objects: [] };
+
 export interface RepairFound {
   /** Trappor ur trappsteg som egna linjer: ändringarna och antalen. */
   readonly stairs: { readonly changes: readonly ObjectChange[]; readonly stairs: number; readonly steps: number };
   /** 520-ytor kring flerbostadshus. */
   readonly yards: readonly SymbolObject[];
+  /** Ägaren 2026-11-23: kärr och bäckar i bebyggt, stigar i vägar och små kantringar (`sprint-clean.ts`). */
+  readonly water: CleanFound; readonly paths: CleanFound; readonly rings: CleanFound;
 }
 
 /**
  * Ägaren 2026-11-23 («måste jag köra om filen eller kan jag läsa in rätt symbolbibliotek med en knapp?»): stegen i «Rätta efter
  * sprintnormen» som gäller objekten i en befintlig karta: «Förenkla trappor» (trappsteg som egna 532-linjer blir trappor,
- * `stairObjectsPlan`) och 520-ytorna kring flerbostadshus (`apartmentYardKeys`), som kan markeras på kartan innan de tas bort.
+ * `stairObjectsPlan`) och 520-ytorna kring flerbostadshus (`apartmentYardKeys`), som kan markeras på kartan innan de tas bort;
+ * steg 5–7 (ägaren 2026-11-23): kärr och bäckar i bebyggt, stigar i vägar och små kantringar (`sprint-clean.ts`).
  * Allt går genom editorns `commitMany` (ett steg att ångra, förslag för den som bara får föreslå).
  */
 export function useMapProjectSprintRepair(input: { session: MapProjectSession | undefined; catalog: readonly CatalogSymbol[]; scale: number | undefined;
@@ -45,8 +69,13 @@ export function useMapProjectSprintRepair(input: { session: MapProjectSession | 
   const { session, catalog, scale, commitMany, canEdit } = input;
   const symbols = useMemo(() => {
     const stairs = ofCode(catalog, "line", 532);
-    return { stairs, stair: stairs.find(row => codeParts(row.code).sub === 0) ?? stairs[0], yards: ofCode(catalog, "area", 520, 0), houses: ofCode(catalog, "area", 521, 0) };
+    const pick = (test: (code: string) => boolean, kinds: readonly CatalogSymbol["kind"][]) => catalog.filter(row => kinds.includes(row.kind) && test(row.code));
+    return { stairs, stair: stairs.find(row => codeParts(row.code).sub === 0) ?? stairs[0], yards: ofCode(catalog, "area", 520, 0), houses: ofCode(catalog, "area", 521, 0),
+      water: pick(isWaterInBuiltCode, ["area", "line"]), paths: pick(isPathCode, ["line"]),
+      built: [...pick(isBuiltCode, ["area"]), ...pick(isPavedEdgeCode, ["line"])], codes: new Map(catalog.map(row => [row.id, row.code])) };
   }, [catalog]);
+  /** «Bebyggt» för kärr och bäckar, meter i terrängen (reglaget i panelen). */
+  const [metres, setMetres] = useState(SPRINT_BUILT_METRES);
   const [found, setFound] = useState<RepairFound>();
   const [searching, setSearching] = useState(false);
 
@@ -62,11 +91,26 @@ export function useMapProjectSprintRepair(input: { session: MapProjectSession | 
     const yardRows = await symbolObjects(session, symbols.yards.map(row => row.id));
     const houseRows = yardRows.length ? await symbolObjects(session, symbols.houses.map(row => row.id)) : [];
     const keys = new Set(apartmentYardKeys(yardRows, houseRows, scale));
-    const next: RepairFound = { stairs: { changes, stairs: plan.stairs, steps: plan.remove.length }, yards: yardRows.filter(row => keys.has(row.key)) };
+    // Steg 5–7 (ägaren 2026-11-23): kärr och bäckar i bebyggt, stigar i vägar, små kantringar.
+    const coded = (rows: readonly SymbolObject[]) => rows.map(row => ({ key: row.key, code: symbols.codes.get(row.object.symbol) ?? "", object: row.object }));
+    const builtRows = await symbolObjects(session, symbols.built.map(row => row.id));
+    const waterRows = await symbolObjects(session, symbols.water.map(row => row.id));
+    const pathRows = await symbolObjects(session, symbols.paths.map(row => row.id));
+    const found = (plan: CleanPlan, rows: readonly SymbolObject[]): CleanFound => {
+      const touched = new Set<string>([...plan.remove, ...plan.replace.map(entry => entry.key)]);
+      return { changes: cleanChanges(plan, rows), objects: rows.filter(row => touched.has(row.key)) };
+    };
+    const builtCoded = coded(builtRows);
+    const water = waterRows.length ? found(waterInBuiltPlan(coded(waterRows), builtCoded, scale, metres), waterRows) : NONE;
+    const paths = pathRows.length ? found(pathsInRoadsPlan(coded(pathRows), builtCoded, scale), pathRows) : NONE;
+    const ringKeys = new Set(smallEdgeRingKeys(builtCoded));
+    const ringRows = builtRows.filter(row => ringKeys.has(row.key));
+    const next: RepairFound = { stairs: { changes, stairs: plan.stairs, steps: plan.remove.length }, yards: yardRows.filter(row => keys.has(row.key)),
+      water, paths, rings: { changes: ringRows.map(deleteChange), objects: ringRows } };
     setFound(next);
     setSearching(false);
     return next;
-  }, [session, scale, symbols]);
+  }, [session, scale, symbols, metres]);
 
   /** Förenkla trappor: för de markerade 532-linjerna (`only`) eller alla i kartan. Antalet trappor. */
   const simplifyStairs = useCallback(async (only?: ReadonlySet<ObjectKey>): Promise<number> => {
@@ -86,5 +130,14 @@ export function useMapProjectSprintRepair(input: { session: MapProjectSession | 
     return count;
   }, [canEdit, found, commitMany]);
 
-  return { found, searching, search, simplifyStairs, removeYards, stairSymbols: symbols.stairs.map(row => row.id), canEdit };
+  /** Steg 5–7: ändringarna som hittades, som ett steg att ångra. Antalet objekt. */
+  const clean = useCallback((which: "water" | "paths" | "rings"): number => {
+    const step = found?.[which];
+    if (!canEdit || !step?.changes.length) return 0;
+    commitMany(step.changes);
+    setFound(current => current && { ...current, [which]: NONE });
+    return step.objects.length;
+  }, [canEdit, found, commitMany]);
+
+  return { found, searching, search, simplifyStairs, removeYards, clean, metres, setMetres, stairSymbols: symbols.stairs.map(row => row.id), canEdit };
 }

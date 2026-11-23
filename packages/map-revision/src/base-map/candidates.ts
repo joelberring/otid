@@ -59,7 +59,7 @@ export function computeCandidates(features: readonly SourceFeature[], input: Can
     // Trappan (532, i ISSOM 529.2 «Trappa») byggs av baskartornas steglinjer; varianternas bredd ur namnet («Stairway, 1.6 m»).
     const stairSymbols = input.symbols.filter(([, code, kind, name]) => kind === "line"
       && (codeParts(code).main === 532 || (!!name && /trapp|stair/i.test(name) && !/kontur|kant|edge/i.test(name))))
-      .map(([id, , , name]) => ({ id, widthM: stairWidthOfName(name) }));
+      .map(([id, , , name]) => ({ id, widthMm: stairWidthOfName(name) }));
     const toMap = (x: number, y: number) => {
       const at = sourcePointToMap(georeference, crs, x, y);
       return fit ? applyFit(fit, at) : at;

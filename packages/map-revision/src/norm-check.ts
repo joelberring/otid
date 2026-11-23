@@ -31,9 +31,16 @@ export const MIN_GAP_MM = 0.15;
 const CONTOURS = new Set([101, 102, 103]);
 /** Linjebredd i grundskalan när filen inte säger något. */
 const CONTOUR_WIDTH: Readonly<Record<number, number>> = { 101: 0.14, 102: 0.25, 103: 0.14 };
+/**
+ * 532 Trappa (ISOM 2017-2 och ISSprOM 2019-2, samma text): «Minimum length: 3 (graphical) steps. Minimum width: 0.4 mm».
+ * Ett grafiskt steg är 0,4 mm (stegens avstånd i O-Tids mall och OCAD:s uppsättningar), så minst 1,2 mm.
+ */
+const STAIR_STEPS = 3, STAIR_STEP_MM = 0.4;
 /** Minsta längd för en fristående linje (mm i grundskalan). */
 const MIN_LENGTH: Readonly<Record<number, number>> = { 104: 0.6, 201: 0.6, 202: 0.6, 304: 1, 305: 1, 306: 2.75, 504: 6.25, 505: 4.25, 506: 2.25,
-  507: 5.3, 508: 3.25, 509: 4, 510: 5, 513: 1.4, 515: 3, 516: 1.5, 518: 2, 529: 2 };
+  507: 5.3, 508: 3.25, 509: 4, 510: 5, 513: 1.4, 515: 3, 516: 1.5, 518: 2, 529: 2, 532: STAIR_STEPS * STAIR_STEP_MM };
+/** Minsta bredd för linjesymboler som ritas i objektets bredd (mm i grundskalan). */
+const MIN_LINE_WIDTH: Readonly<Record<number, number>> = { 532: 0.4 };
 /** Minsta yta (mm² i grundskalan; för de flesta a × b i normen). */
 const MIN_AREA: Readonly<Record<number, number>> = { 206: 0.3, 301: 0.55 * 0.55, 302: 0.55 * 0.55, 308: 0.5 * 0.4, 401: 0.55 * 0.55, 403: 1, 404: 2.5 * 2.5,
   406: 1, 408: 0.7 * 0.7, 410: 0.55 * 0.55, 412: 9, 413: 4, 501: 1, 520: 1, 521: 0.5 * 0.5 };
@@ -41,7 +48,9 @@ const MIN_AREA: Readonly<Record<number, number>> = { 206: 0.3, 301: 0.55 * 0.55,
 const MIN_WIDTH: Readonly<Record<number, number>> = { 206: 0.25, 301: 0.3, 404: 1.5, 406: 0.4, 408: 0.3, 410: 0.25 };
 /** ISSprOM 2019-2 (tabellen över minimimått): fristående linjer, mm. Nyckeln är numret med undernummer eller bara huvudnumret. */
 const SPRINT_LENGTH: Readonly<Record<string, number>> = { 107: 2, 201: 1.1, 202: 1.1, "513.1": 1.4, "513.2": 2.4, 515: 1, 516: 2.2, 518: 3,
-  528: 2.2, 529: 3 };
+  528: 2.2, 529: 3, 532: STAIR_STEPS * STAIR_STEP_MM };
+/** ISSprOM 2019-2: minsta bredd för linjesymboler (532 Trappa: 0,4 mm). */
+const SPRINT_STROKE_MIN: Readonly<Record<string, number>> = { 532: 0.4 };
 /** ISSprOM 2019-2: minsta yta (mm²) och bredd (mm). */
 const SPRINT_AREA: Readonly<Record<string, number>> = { 401: 0.5, 402: 6.25, 403: 1, 404: 6.25, 406: 1, 408: 0.5, 410: 0.3, 411: 0.3,
   "501.3": 6.25, 520: 0.25, 521: 0.25, 522: 0.25 };
@@ -67,6 +76,18 @@ function limitOf(table: Readonly<Record<string, number>>, code: string): number 
 export function normScale(scale: number): { standard: "ISOM" | "ISSPROM"; factor: number } {
   if (scale <= 5000) return { standard: "ISSPROM", factor: 1 };
   return { standard: "ISOM", factor: scale < 15000 ? 1.5 : 1 };
+}
+
+/**
+ * Minsta längd och bredd (mm på kartan, i kartans skala) för en linjesymbol ur normtabellerna ovan, t.ex. för trappor som
+ * byggs ur ritade steg (`stairs.ts`): en smalare eller kortare trappa i verkligheten ritas ändå i normens minsta mått.
+ */
+export function lineMinimum(code: string, scale: number): { readonly length?: number | undefined; readonly width?: number | undefined } {
+  const { standard, factor } = normScale(scale);
+  const sprint = standard === "ISSPROM";
+  const length = sprint ? limitOf(SPRINT_LENGTH, code) : MIN_LENGTH[mainOf(code)];
+  const width = sprint ? limitOf(SPRINT_STROKE_MIN, code) : MIN_LINE_WIDTH[mainOf(code)];
+  return { length: length === undefined ? undefined : length * factor, width: width === undefined ? undefined : width * factor };
 }
 
 const lengthOf = (line: readonly Point[]) => line.reduce((sum, point, index) => index === 0 ? 0

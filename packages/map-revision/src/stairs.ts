@@ -1,4 +1,5 @@
 import type { Point } from "@o-tid/map-file";
+import { lineMinimum } from "./norm-check";
 
 /**
  * Trappor ur ritade trappsteg (ägaren 2026-11-23, Stockholms baskarta i en sprintkarta: «ritade trappor ersattes automatiskt av
@@ -9,13 +10,17 @@ import type { Point } from "@o-tid/map-file";
  * (genom stegens mittpunkter, utjämnad), med bredden = stegens typiska längd. Sidolinjer, konturer och ensamma steg i ett lager
  * med trappsteg och slutna konturer ritas inte (ägaren: «trappstegen ska ju förenklas så och symbolen gälla»); de räknas.
  *
- * Ren funktion i kartans mm; måtten i meter räknas om med `metresPerMm` (kartans skala / 1000).
+ * Ägaren 2026-11-23: «kolla så att trapporna uppfyller miniminormen i sprint i bredd trots att de kan vara smalare i
+ * verkligheten». Bredden och längden blir aldrig mindre än normens minsta mått för 532 i kartans skala (`lineMinimum` i
+ * normkontrollen: 0,4 mm bred, tre grafiska steg = 1,2 mm lång); bredare och längre trappor behåller sina mått.
+ *
+ * Ren funktion i kartans mm; måtten i meter räknas om med kartans skala.
  */
 export interface StairInput { readonly points: readonly Point[]; readonly closed: boolean; readonly layer: string }
 export interface Stair {
-  /** Mittlinjen i gångriktningen (mm), förlängd mot normens tre grafiska steg. */
+  /** Mittlinjen i gångriktningen (mm), minst normens minsta längd. */
   readonly path: Point[];
-  /** Trappans bredd (mm på kartan): stegens medianlängd. */
+  /** Trappans bredd (mm på kartan): stegens medianlängd, minst normens minsta bredd. */
   readonly width: number;
   readonly steps: number;
   /** Lagret som de flesta stegen kom ur. */
@@ -39,8 +44,6 @@ const TREAD_MIN_M = 0.1, TREAD_MAX_M = 1.5;
 const STEP_TURN = 15 * Math.PI / 180;
 /** Vilplan: högst så här långt mellan två lopp som fortsätter i samma riktning (högst 30° sväng). */
 const LANDING_M = 3, LANDING_TURN = 30 * Math.PI / 180;
-/** Normens minsta längd: tre grafiska steg, 0,4 mm isär. */
-export const STAIR_MIN_LENGTH_MM = 1.2;
 /** Ett lager «har trappsteg» när minst så stor del av dess steglika linjer blev trappor. */
 const STEP_LAYER_SHARE = 0.25;
 /** Minst tre steglinjer (två steg upp): två linjer är oftast ett enda steg eller en kant i en gångväg. */
@@ -199,13 +202,11 @@ function joinFlights(flights: Flight[], metre: number): Flight[] {
   return flights.filter((_, at) => alive[at]);
 }
 
-/**
- * Linjen förlängd lika mycket åt båda håll mot normens minsta längd `minimum` (mm), men högst till dubbla längden: en kort
- * trappa ska inte växa in i det som ligger runt den (normkontrollen visar den som för kort).
- */
+/** Linjen förlängd lika mycket åt båda håll till minst `minimum` (mm). */
 function atLeast(path: Point[], minimum: number): Point[] {
   const length = path.reduce((sum, point, at) => at === 0 ? 0 : sum + norm(sub(point, path[at - 1]!)), 0);
-  return length >= minimum || length === 0 ? path : extended(path, Math.min(minimum, 2 * length) / 2 - length / 2);
+  // En liten marginal, så att avrundningen inte gör trappan en aning för kort för normkontrollen.
+  return length >= minimum || length === 0 ? path : extended(path, (minimum * 1.001 - length) / 2);
 }
 
 /** Linjen förlängd `extra` mm i båda ändar, i ändarnas riktning. */
@@ -216,9 +217,9 @@ function extended(path: Point[], extra: number): Point[] {
     { x: path[path.length - 1]!.x + tail.x * extra, y: path[path.length - 1]!.y + tail.y * extra }];
 }
 
-/** Trapporna ur linjerna i trapplagren (kartans mm, `metresPerMm` = skalan / 1000). */
-export function stairsFromSteps(lines: readonly StairInput[], metresPerMm: number): StairResult {
-  const metre = 1 / metresPerMm;
+/** Trapporna ur linjerna i trapplagren (kartans mm) på en karta i skalan `scale` (t.ex. 4 000). */
+export function stairsFromSteps(lines: readonly StairInput[], scale: number): StairResult {
+  const metre = 1000 / scale, minimum = lineMinimum("532", scale);
   const steps: Step[] = [];
   lines.forEach((line, index) => { const step = stepOf(line, index, metre); if (step) steps.push(step); });
   const adjacency = new Map<number, Set<number>>();
@@ -249,7 +250,8 @@ export function stairsFromSteps(lines: readonly StairInput[], metresPerMm: numbe
     const counts = new Map<string, number>();
     for (const layer of flight.layers) counts.set(layer, (counts.get(layer) ?? 0) + 1);
     const layer = [...counts].sort((a, b) => b[1] - a[1])[0]![0];
-    return { path: atLeast(flight.path, STAIR_MIN_LENGTH_MM), width: median(flight.widths), steps: flight.widths.length, layer };
+    return { path: atLeast(flight.path, minimum.length ?? 0), width: Math.max(median(flight.widths), minimum.width ?? 0),
+      steps: flight.widths.length, layer };
   });
   // Lagren: ett lager med trappsteg ritar bara trapporna; i andra lager (OpenStreetMaps mittlinjer) ritas öppna linjer som förut.
   const stepLike = new Map<string, number>(), grouped = new Map<string, number>();
@@ -272,26 +274,30 @@ export function stairsFromSteps(lines: readonly StairInput[], metresPerMm: numbe
   return { stairs, kept, layers: [...rows].map(([layer, counts]) => ({ layer, ...counts })) };
 }
 
-/** En trappsymbol och dess bredd i meter (ur namnet, t.ex. «Stairway, 1.6 m» eller «Trappa (2,8 m)»), om namnet anger den. */
-export interface StairSymbol { readonly id: string; readonly widthM?: number | undefined }
+/** En trappsymbol och dess bredd på kartan (mm), om den är känd. */
+export interface StairSymbol { readonly id: string; readonly widthMm?: number | undefined }
+/**
+ * Bredden i en trappsymbols namn i mm på kartan: OCAD:s och O-Tids namn anger den i meter vid sprintnormens grundskala 1:4 000
+ * («Stairway, 1.6 m», «Trappa, 2,8 m» = 0,4 och 0,7 mm); normens mått i mm gäller också 1:3 000.
+ */
 export function stairWidthOfName(name: string | undefined): number | undefined {
   const found = name ? /(\d+(?:[.,]\d+)?)\s*m\b/.exec(name) : null;
-  const value = found ? Number(found[1]!.replace(",", ".")) : NaN;
-  return value > 0 && value < 50 ? value : undefined;
+  const metres = found ? Number(found[1]!.replace(",", ".")) : NaN;
+  return metres > 0 && metres < 50 ? metres / 4 : undefined;
 }
 
 /**
  * Trappans linjer i kartans symboler: varianten vars bredd ligger närmast trappans (`chosen` om ingen symbol anger bredd).
  * En trappa mycket bredare än den bredaste varianten fylls med flera parallella linjer, så att trappsymbolen täcker hela bredden.
  */
-export function stairLines(stair: Stair, chosen: string, symbols: readonly StairSymbol[], metresPerMm: number): { symbol: string; path: Point[] }[] {
-  const sized = symbols.filter((symbol): symbol is StairSymbol & { widthM: number } => symbol.widthM !== undefined);
+export function stairLines(stair: Stair, chosen: string, symbols: readonly StairSymbol[]): { symbol: string; path: Point[] }[] {
+  const sized = symbols.filter((symbol): symbol is StairSymbol & { widthMm: number } => symbol.widthMm !== undefined);
   if (sized.length === 0) return [{ symbol: chosen, path: stair.path }];
-  const width = stair.width * metresPerMm;
-  const nearest = [...sized].sort((a, b) => Math.abs(a.widthM - width) - Math.abs(b.widthM - width))[0]!;
-  const widest = [...sized].sort((a, b) => b.widthM - a.widthM)[0]!;
-  if (width < 1.6 * widest.widthM) return [{ symbol: nearest.id, path: stair.path }];
-  const copies = Math.round(width / widest.widthM), spread = (width - widest.widthM) / metresPerMm;
+  const width = stair.width;
+  const nearest = [...sized].sort((a, b) => Math.abs(a.widthMm - width) - Math.abs(b.widthMm - width))[0]!;
+  const widest = [...sized].sort((a, b) => b.widthMm - a.widthMm)[0]!;
+  if (width < 1.6 * widest.widthMm) return [{ symbol: nearest.id, path: stair.path }];
+  const copies = Math.round(width / widest.widthMm), spread = width - widest.widthMm;
   return Array.from({ length: copies }, (_, copy) => ({ symbol: widest.id, path: offset(stair.path, (copy / (copies - 1) - 0.5) * spread) }));
 }
 

@@ -214,7 +214,7 @@ export interface ImportOptions {
   /** Kortare linjer (mm) hoppas över; förval 0,3 mm. */
   readonly minLengthMm?: number;
   /**
-   * Trappsymbolerna (id och bredd i meter när namnet anger den) och kartans skala: linjerna i lager med en trappsymbol blir
+   * Trappsymbolerna (id och bredd i mm när namnet anger den) och kartans skala: linjerna i lager med en trappsymbol blir
    * trappor ur sina steg (`stairs.ts`), en linje per trappa i den variant vars bredd passar.
    */
   readonly stairs?: { readonly symbols: readonly StairSymbol[]; readonly scale: number } | undefined;
@@ -380,10 +380,9 @@ export function importObjects(features: readonly SourceFeature[], options: Impor
   let joined = 0, closedAreas = 0, stairs = 0, steps = 0, stairDropped = 0;
   let stairLayers: StairLayer[] = [];
   if (options.stairs && stairInputs.length) {
-    const metresPerMm = options.stairs.scale / 1000;
-    const found = stairsFromSteps(stairInputs, metresPerMm);
+    const found = stairsFromSteps(stairInputs, options.stairs.scale);
     for (const stair of found.stairs) {
-      for (const { symbol, path } of stairLines(stair, stairLayerSymbol.get(stair.layer)!, options.stairs.symbols, metresPerMm)) {
+      for (const { symbol, path } of stairLines(stair, stairLayerSymbol.get(stair.layer)!, options.stairs.symbols)) {
         const pieces = bounds ? clipLine(path, bounds) : [path];
         if (pieces.length === 0) { outside += 1; continue; }
         if (pieces.length !== 1 || !same(pieces[0]!, path)) clipped += 1;

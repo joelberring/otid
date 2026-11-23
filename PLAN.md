@@ -1486,6 +1486,10 @@ stannar kvar; siffror byter symbol, bokstäver verktyg; tryck byter, håll låna
   alltid, smal nederst), annars högerklick/hjulet, tangenterna och «Åtgärder ▾» i statusraden, de vanligaste först (Byt till,
   Duplicera, Ta bort); Förenkla/Förenkla mer stegvis (×1,6 per tryck från förra, tak 0,8 mm), kurvor behålls, ytor korsar inte
   sig själva och krymper inte under normens minsta yta; glesare och mindre punkthandtag när de är täta.
+- [x] V11 Trappan över ytorna, dubbletter och stora ytor (ägaren 2026-11-23: «brunt 30 i trappa ska ligga över andra ytor»,
+  «mörkgröna ytor ligger trippelt», «ytorna inte sitter ihop i superstora delar … ganska stora ok», «typ hav får gärna vara
+  större»): trappans band i en egen brun 30 % ovanför alla ytfärger, grundkartans kapslade grönt utan kopior, «Ta bort dubbletter»
+  och «Dela stora ytor» (steg 8–9 i Granska), och en gräns per norm och symbol för ytor som O-Tid skapar (vatten delas aldrig).
 
 ## [ ] Steg L – Lagring: gränser, städning och arkiv (ägaren 2026-11-13)
 

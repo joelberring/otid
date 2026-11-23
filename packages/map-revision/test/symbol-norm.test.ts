@@ -59,6 +59,19 @@ describe("symbolerna mot ISSprOM 2019-2", () => {
     expect(checkSymbolNorm({ ...fixed, counts: used(map) }, true)).toEqual([]);
   });
 
+  it("trappans band under belagd yta i färgordningen (ägaren 2026-11-23: «brunt 30 i trappa ska ligga över andra ytor») rättas", () => {
+    // Trappan som i mallen före 2026-11-23: bandet i den vanliga bruna 30 %, under 501 i brunt 50 % (där trapporna ligger).
+    const old = { ...SPRINT.symbols.find(symbol => symbol.code === "532")!, color: "brown30" } as SymbolDef;
+    const written = applyMapSymbolReplacements(sprintBytes, [{ code: "532", def: old, palette: SPRINT.colors }]);
+    if (!written.ok) throw new Error(written.message);
+    const map = readMapFile(written.bytes, "liljeholmen.omap");
+    const issue = checkSymbolNorm({ ...map, counts: used(map) }, true).find(row => row.code === "532");
+    expect(issue?.problems).toEqual([{ kind: "STAIR_ORDER", above: ["501", "501.3"] }]);
+    expect(issue?.fixable).toBe(true);
+    const fixed = withSymbolReplacements(map, normSymbolFixes(map.symbols, { replace: ["532"] }));
+    expect(checkSymbolNorm({ ...fixed, counts: used(map) }, true).find(row => row.code === "532")).toBeUndefined();
+  });
+
   it("saknade normsymboler läggs till, aldrig de som finns; 509 räcker för 509.1", () => {
     const forest = readMapFile(newMapFile({ symbolSet: "ISOM2017-2", scale: 15000, refPoint: POINT }), "skog.omap");
     const missing = missingNormSymbols(forest.symbols).map(row => row.code);

@@ -57,7 +57,11 @@ interface ColorPlan { readonly existing: ReadonlyMap<string, number>; readonly a
 /** Mallens färgnycklar → kartans färger; det som saknas blir nya färger. Samma namn går före samma CMYK. */
 export function planColors(colors: readonly MapColor[], replacements: readonly SymbolReplacement[]): ColorPlan {
   const existing = new Map<string, number>(), added: NewColor[] = [];
-  const find = (def: ColorDef) => colors.find(color => color.name === def.name && sameCmyk(color, def)) ?? colors.find(color => sameCmyk(color, def));
+  const find = (def: ColorDef) => colors.find(color => color.name === def.name && sameCmyk(color, def))
+    ?? (def.distinct ? undefined : colors.find(color => sameCmyk(color, def)));
+  // Grannen som en ny färg läggs ovanför: vitt hittas bara på namnet (kartans vita ligger på många ställen, t.ex. banans vita överst).
+  const white = (def: ColorDef) => def.cmyk.every(value => value === 0);
+  const neighbour = (def: ColorDef) => white(def) ? colors.find(color => color.name === def.name && sameCmyk(color, def)) : find(def);
   for (const replacement of replacements) {
     for (const key of symbolDefColorKeys(replacement.def)) {
       if (existing.has(key) || added.some(row => row.key === key)) continue;
@@ -67,7 +71,7 @@ export function planColors(colors: readonly MapColor[], replacements: readonly S
       const found = find(def);
       if (found) { existing.set(key, found.id); continue; }
       // Ovanför den första av mallens följande färger som kartan har.
-      const below = replacement.palette.slice(index + 1).map(find).find(color => !!color);
+      const below = replacement.palette.slice(index + 1).map(neighbour).find(color => !!color);
       added.push({ key, def, before: below?.id });
     }
   }

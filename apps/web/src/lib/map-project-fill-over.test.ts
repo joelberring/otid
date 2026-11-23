@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MapObject, MapSymbol, Path } from "@o-tid/map-file";
-import { addEdit, effectiveState, emptyClientState, emptyHistory, objectBox, recordSteps, undoStep, type ObjectKey, type RevisionClientState } from "@o-tid/map-revision";
+import { addEdit, effectiveState, splitLargeAreas, emptyClientState, emptyHistory, objectBox, recordSteps, undoStep, type ObjectKey, type RevisionClientState } from "@o-tid/map-revision";
 import { fillFinder, type FillInput } from "./map-project-fill-area";
 import { fillChangeList, overChanges } from "./map-project-fill-over";
 
@@ -76,5 +76,16 @@ describe("Fyll över", () => {
     }
     expect(changes.map(change => effectiveState(state, change.key))).toEqual(befores);
     expect(history.undo).toHaveLength(0);
+  });
+
+  it("en stor fylld markyta (dra över många rutor) blir bitar under normens gräns i samma grupp (ägaren 2026-11-23)", () => {
+    let counter = 0;
+    const big = [[{ x: 0, y: 0 }, { x: 120, y: 0 }, { x: 120, y: 120 }, { x: 0, y: 120 }, { x: 0, y: 0 }]];
+    const changes = fillChangeList("gult", big, [], () => `00000000-0000-4000-8000-${String(++counter).padStart(12, "0")}`,
+      object => splitLargeAreas([object], id => (id === "gult" ? "403" : undefined), "ISSPROM", SCALE));
+    expect(changes.length).toBeGreaterThan(1);
+    expect(changes.every(change => change.kind === "ADD")).toBe(true);
+    expect(new Set(changes.map(change => change.group)).size).toBe(1);
+    expect(changes[0]!.group).toBeDefined();
   });
 });

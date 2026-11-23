@@ -60,11 +60,14 @@ export interface FillChange {
  * Den nya ytan och det som ändras under den, som en grupp (Ångra tar allt på en gång): den första delen ändrar objektet
  * (RESHAPE), inga delar tar bort det (DELETE) och fler delar läggs till (ADD). `id` ger nya nycklar och gruppens id.
  */
-export function fillChangeList(symbol: string, rings: readonly (readonly Point[])[], under: readonly UnderChange[], id: () => string): FillChange[] {
-  const area: FillChange = { key: newKey(id()), ref: null, kind: "ADD", after: { kind: "OBJECT", object: fillObject(symbol, rings) } };
-  if (under.length === 0) return [area];
+export function fillChangeList(symbol: string, rings: readonly (readonly Point[])[], under: readonly UnderChange[], id: () => string,
+  split: (object: MapObject) => readonly MapObject[] = object => [object]): FillChange[] {
+  // Ägaren 2026-11-23: en stor markyta (dra över många rutor) delas i bitar under normens gräns (`splitLargeAreas`).
+  const pieces = split(fillObject(symbol, rings));
+  const areas: FillChange[] = pieces.map(object => ({ key: newKey(id()), ref: null, kind: "ADD", after: { kind: "OBJECT", object } }));
+  if (under.length === 0 && areas.length === 1) return areas;
   const group = id(), point = rings[0]?.[0];
-  const changes: FillChange[] = [{ ...area, group }];
+  const changes: FillChange[] = areas.map(area => ({ ...area, group }));
   for (const change of under) {
     const [first, ...rest] = change.objects;
     changes.push(first ? { key: change.key, ref: change.ref, kind: "RESHAPE", after: { kind: "OBJECT", object: first }, group }

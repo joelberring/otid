@@ -6,6 +6,7 @@ const SPRINT = SYMBOL_SETS["ISSPROM2019-2"];
 const def = (code: string) => SPRINT.symbols.find(symbol => symbol.code === code)!;
 const byCode = (map: Pick<ParsedMap, "symbols">, code: string) => [...map.symbols.values()].find(symbol => symbol.code.text === code)!;
 const colorName = (map: Pick<ParsedMap, "colors">, id: number | undefined) => map.colors.find(color => color.id === id)?.name;
+const byName = (map: Pick<ParsedMap, "colors">, name: string) => map.colors.find(color => color.name === name)?.id;
 const partsOf = (map: Pick<ParsedMap, "symbols">, symbol: MapSymbol) => symbol.kind === "COMBINED" ? symbol.parts.map(id => map.symbols.get(id)!) : [];
 
 describe("normens symboler i en Mapper-karta", () => {
@@ -55,8 +56,35 @@ describe("normens symboler i en Mapper-karta", () => {
     const stair = byCode(readMapFile(result.bytes, "skog.omap"), "532");
     const model = readMapFile(result.bytes, "skog.omap");
     expect(stair.kind === "LINE" && stair.strokes.map(stroke => [colorName(model, stroke.color), stroke.width, stroke.offset])).toEqual([
-      ["Brun 30 %", 0.4, undefined], ["Svart", 0.1, 0.25], ["Svart", 0.1, -0.25]]);
+      ["Brun 30 % (trappa)", 0.4, undefined], ["Svart", 0.1, 0.25], ["Svart", 0.1, -0.25]]);
     expect(applyMapSymbolReplacements(new Uint8Array([0xad, 0x0c, 0, 0]), [{ code: "521", def: def("521"), palette: SPRINT.colors }]).ok).toBe(false);
+  });
+
+  it("trappans band får en egen brun 30 % ovanför alla ytfärger och under svart (ägaren 2026-11-23), också när kartan har brunt 30 %", () => {
+    // Först 501.3 (lägger in den vanliga bruna 30 % under brunt 50 %), sedan trappan.
+    const first = applyMapSymbolReplacements(bytes, [{ code: "501", def: { ...def("501.3"), code: "501" }, palette: SPRINT.colors }]);
+    if (!first.ok) throw new Error(first.message);
+    const result = applyMapSymbolReplacements(first.bytes, [{ code: "532", def: def("532"), palette: SPRINT.colors }]);
+    if (!result.ok) throw new Error(result.message);
+    const model = readMapFile(result.bytes, "skog.omap");
+    const stair = byCode(model, "532");
+    const band = stair.kind === "LINE" ? model.colors.find(color => color.id === stair.strokes[0]?.color) : undefined;
+    expect(band?.name).toBe("Brun 30 % (trappa)");
+    const rankOf = (name: string) => model.colors.find(color => color.name === name)!.rank;
+    expect(rankOf("Brun 30 %")).toBeGreaterThan(band!.rank);
+    expect(rankOf("Svart")).toBeLessThan(band!.rank);
+    // Alla ytsymbolers fyllning ritas under bandet, utom de helsvarta (206 Jättesten) som ligger med de svarta linjerna.
+    for (const symbol of model.symbols.values()) if (symbol.kind === "AREA" && symbol.fill !== undefined && symbol.fill !== byName(model, "Svart")) {
+      expect(model.colors.find(color => color.id === symbol.fill)!.rank, symbol.code.text).toBeGreaterThan(band!.rank);
+    }
+  });
+
+  it("O-Tids sprintmall: trappans färg direkt under de bruna linjerna, ovanför brunt 50 %, husen, olivgrönt, grönt och gult", () => {
+    const names = SPRINT.colors.map(color => color.name);
+    const at = names.indexOf("Brun 30 % (trappa)");
+    expect(at).toBe(names.indexOf("Brun") + 1);
+    for (const below of ["Brun 50 %", "Brun 30 %", "Svart 50 %", "Svart 20 %", "Olivgrön", "Mörkgrön", "Grön", "Gul", "Gul 50 %"]) expect(names.indexOf(below), below).toBeGreaterThan(at);
+    expect(names.indexOf("Svart")).toBeLessThan(at);
   });
 
   it("lägger till en symbol som saknas (nytt id sist), aldrig en som finns", () => {

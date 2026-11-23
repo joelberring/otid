@@ -8,7 +8,7 @@ const mm = (value: number) => `${value.toLocaleString("sv-SE", { maximumFraction
 /** Ägaren 2026-11-23: symbolerna mot ISSprOM 2019-2 (färger, bredder, kanter), saknade normsymboler och kanten runt husen. */
 export const mapProjectSymbolNormSv = {
   repairHeading: "Rätta efter sprintnormen",
-  repairHelp: "En befintlig karta rättas här utan att något läses in igen: symbolerna, kanten runt husen, trapporna och tomtmarken, i den ordningen. Varje steg går att ångra (Ctrl+Z) utom symbolerna, som tas bort med «Ta bort rättningarna».",
+  repairHelp: "En befintlig karta rättas här utan att något läses in igen: symbolerna, kanten runt husen, trapporna, tomtmarken, kärr och stigar i bebyggt, dubbletter och stora ytor, i den ordningen. Varje steg går att ångra (Ctrl+Z) utom symbolerna, som tas bort med «Ta bort rättningarna».",
   survey: "Gå igenom kartan",
   surveying: "Går igenom kartan …",
   step: (index: number, title: string) => `${index}. ${title}`,
@@ -38,12 +38,20 @@ export const mapProjectSymbolNormSv = {
   ringsHelp: "Slutna kantlinjer (501.1) som är för små eller smala för att synas som en ö: refuger och stolpfundament ur baskartan som blir «D» längs gångvägarna.",
   ringsCount: (count: number) => count === 0 ? "Inga små kantringar." : `${plural(count, "kantring", "kantringar")}.`,
   ringsRemove: (count: number) => `Ta bort små kantringar (${count})`,
+  stepDuplicates: "Ta bort dubbletter",
+  duplicatesHelp: "Ytor med samma symbol som överlappar till minst 90 %, linjer och punkter med samma symbol på samma ställe, och ljusare grönt (406, 408) som till minst 90 % täcks av mörkare grönt: grundkartans kapslade grönt lade en fläck 410 som tre ytor med samma kant. Den största står kvar. Gäller också skogskartor.",
+  duplicatesCount: (count: number) => count === 0 ? "Inga dubbletter." : `${plural(count, "dubblett", "dubbletter")}:`,
+  duplicatesRemove: (count: number) => `Ta bort dubbletter (${count})`,
+  stepLarge: "Dela stora ytor",
+  largeHelp: "Markytor (gult, grönt, tomtmark, hårdgjord yta, berg, kärr) över 3 ha på en sprintkarta och 20 ha på en skogskarta delas i bitar kant i kant, där ytan är smalast längs ett rutnät som följer kartans norr (150 m respektive 400 m), så att de går att ändra. Kurvorna i en delad yta blir raka linjer. Nya ytor ur grundkartan, Fyll och Utvidga delas på samma sätt.",
+  largeCount: (count: number) => count === 0 ? "Inga ytor över gränsen." : `${plural(count, "yta", "ytor")} över gränsen.`,
+  largeSplit: (count: number) => `Dela stora ytor (${count})`,
   cleanDone: (count: number) => `${plural(count, "objekt", "objekt")} ändrade. Ångra tar tillbaka dem.`,
   help: "Kartans symboler (färg, linjebredd, kant) mot normen, för de symboler kartan använder, och normens symboler som saknas i kartan. Värdena kommer ur IOF:s O-Map Wiki; där wikin inte anger ett mått jämförs det inte.",
   forest: "Kontrollen finns för sprintkartor (ISSprOM 2019-2). Skogskartor (ISOM 2017-2) har ingen tabell än.",
   none: "Symbolerna som kartan använder följer normens tabell.",
   count: (count: number) => `${plural(count, "symbol", "symboler")} avviker från normen.`,
-  problem: (problem: { kind: string; base?: Base; tints?: readonly number[]; found?: { base?: Base | undefined; tint?: number | undefined } | null | number; width?: number }) => {
+  problem: (problem: { kind: string; base?: Base; tints?: readonly number[]; found?: { base?: Base | undefined; tint?: number | undefined } | null | number; width?: number; above?: readonly string[] }) => {
     switch (problem.kind) {
       case "FILL": {
         const found = typeof problem.found === "object" && problem.found ? problem.found : undefined;
@@ -56,6 +64,7 @@ export const mapProjectSymbolNormSv = {
       case "STEPS": return "saknar trappsteg tvärs linjen";
       case "STAIR_BAND": return "saknar trappans band i brunt 30 % (som Mappers ISSprOM 2019-2)";
       case "STAIR_SIDES": return "saknar svarta kantlinjer på sidorna (som Mappers ISSprOM 2019-2)";
+      case "STAIR_ORDER": return `bandet ligger under ${(problem.above ?? []).join(", ")} i färgordningen och syns inte där (trappan får en egen brun 30 % ovanför ytorna)`;
       default: return problem.kind;
     }
   },

@@ -11,7 +11,7 @@ import { useTexts } from "../language-provider";
 import { MAP_PROJECT_SYNC_MAX_EDITS, type MapLayerProfileView, type MapProjectDecisionRequest, type MapProjectView } from "@o-tid/contracts";
 import { isSupportedEpsg, type MapGeoreference, type MapObject, type PathCommand } from "@o-tid/map-file";
 import {
-  autoBuildingEdgeOf, fitClassOf, SPRINT_BUILT_METRES, guessCrs, importLayers, isSprintNorm, isStockholmLayer, mapNorm, newKey, objectBox, samplePath, sourcePointToMap, suggestSymbol, VectorParseError, WGS84_EPSG,
+  autoBuildingEdgeOf, fitClassOf, SPRINT_BUILT_METRES, guessCrs, importLayers, isSprintNorm, isStockholmLayer, mapNorm, newKey, splitLargeAreas, objectBox, samplePath, sourcePointToMap, suggestSymbol, VectorParseError, WGS84_EPSG,
   type FitPoint, type ImportLayer, type SourceData, type SourceFeature, type VectorFit
 } from "@o-tid/map-revision";
 import { clubRequest, csrf } from "../../lib/club-archive-client";
@@ -288,7 +288,9 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     if (!file || !result || result.objects.length === 0 || computing) return;
     setProblem(undefined);
     const at = new Date().toISOString();
-    const edits = result.objects.map((object: MapObject) => ({ editId: crypto.randomUUID(), key: newKey(crypto.randomUUID()), ref: null, base: null,
+    // Ägaren 2026-11-23: stora markytor delas också i förslagen.
+    const objects = georeference ? splitLargeAreas(result.objects, id => symbols.get(id)?.code, norm, georeference.scale) : result.objects;
+    const edits = objects.map((object: MapObject) => ({ editId: crypto.randomUUID(), key: newKey(crypto.randomUUID()), ref: null, base: null,
       state: { kind: "OBJECT", object }, kind: "ADD", at }));
     // Delarna: högst 200 ändringar och 3 MB per förslag.
     const parts: (typeof edits)[] = [];
@@ -307,9 +309,9 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
       setProgress({ done: index + 1, total: parts.length });
     }
     setProgress(undefined); setSent(parts.length); setFile(undefined); setLayers([]); setMapping(new Map());
-    if (primaryEligible && primaryOn) void markPrimary(file.name, result.objects, new Set(edits.map(edit => edit.key)));
+    if (primaryEligible && primaryOn) void markPrimary(file.name, objects, new Set(edits.map(edit => edit.key)));
     onSent();
-  }, [file, result, computing, base, onSent, primaryEligible, primaryOn, markPrimary]);
+  }, [file, result, computing, base, onSent, primaryEligible, primaryOn, markPrimary, georeference, symbols, norm]);
 
   /**
    * Ägaren 2026-11-10 («godkännas i ett svep»): alla kandidater läggs i kartan som egna ändringar i ett steg (Ångra tar bort
@@ -333,7 +335,10 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     const marking = origin && georeference ? baseMapMarking({ symbols, objects: result.objects, bounds, scale: georeference.scale, text: markingText, title: view.name,
       facts: { host: window.location.host, date: swedishToday(new Date()), worker: GEO_WORKER_VERSION, scale: georeference.scale, scannedAt: origin.scannedAt ?? undefined,
         settings: Object.entries(origin.settings), calm: calm?.level, clear: clear && [clear.settings.smooth, clear.settings.formlines, clear.settings.rings] } }) : undefined;
-    const adds = [...result.objects, ...(marking?.objects ?? [])].map((object: MapObject): ObjectChange => ({ key: newKey(crypto.randomUUID()), ref: null, kind: "ADD",
+    // Ägaren 2026-11-23: stora markytor delas i bitar under normens gräns, också efter Utvidga (`splitLargeAreas`).
+    const split = (objects: readonly MapObject[]) => georeference ? splitLargeAreas(objects, id => symbols.get(id)?.code, norm, georeference.scale) : [...objects];
+    const objects = split(result.objects);
+    const adds = [...objects, ...(marking?.objects ?? [])].map((object: MapObject): ObjectChange => ({ key: newKey(crypto.randomUUID()), ref: null, kind: "ADD",
       after: { kind: "OBJECT", object } }));
     const finish = (removals: readonly ObjectChange[]) => {
       const count = commitMany([...removals, ...adds]);
@@ -350,7 +355,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
       }, error => console.warn("Utkastets beslut sparades inte", error));
       setMarked(marking?.paper); setReplaced(mode === "replace" ? removals.length || undefined : undefined);
       // K4c: en huvudkälla sparas med området och slagen ur det som lades in, och O-Tid frågar om OpenStreetMaps objekt där.
-      if (primaryEligible && primaryOn) void markPrimary(file.name, result.objects, new Set(adds.map(change => change.key)));
+      if (primaryEligible && primaryOn) void markPrimary(file.name, objects, new Set(adds.map(change => change.key)));
       // Antalet nya objekt: allt som lades in utom borttagningarna (lutningsstrecken som följde med räknas med).
       setAccepted(Math.max(0, count - removals.length)); setFile(undefined); setLayers([]); setMapping(new Map()); setMode("add");
     };
@@ -362,8 +367,8 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
       const step = (index: number) => {
         const symbol = areaSymbols[index];
         if (symbol === undefined) {
-          const merged = extendAreas(result.objects, rows.map(row => ({ id: row, object: row.object })));
-          adds.splice(0, result.objects.length, ...merged.adds.map((object): ObjectChange => ({ key: newKey(crypto.randomUUID()), ref: null, kind: "ADD", after: { kind: "OBJECT", object } })));
+          const merged = extendAreas(objects, rows.map(row => ({ id: row, object: row.object })));
+          adds.splice(0, objects.length, ...split(merged.adds).map((object): ObjectChange => ({ key: newKey(crypto.randomUUID()), ref: null, kind: "ADD", after: { kind: "OBJECT", object } })));
           setExtended(merged.extended || undefined);
           finish(merged.removed.map((row): ObjectChange => { const box = objectBox(row.object);
             return { key: row.key, ref: row.ref, kind: "DELETE", after: { kind: "DELETED" }, point: { x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 } }; }));
@@ -410,7 +415,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
       });
     };
     next(0);
-  }, [file, result, computing, commitMany, origin, georeference, symbols, bounds, markingText, calm, clear, mode, session, layers, mapping, base, primaryEligible, primaryOn, markPrimary]);
+  }, [file, result, computing, commitMany, origin, georeference, symbols, bounds, markingText, calm, clear, mode, session, layers, mapping, base, primaryEligible, primaryOn, markPrimary, norm]);
 
   const choose = useCallback((layer: string, symbolId: string) => setMapping(current => {
     const next = new Map(current);

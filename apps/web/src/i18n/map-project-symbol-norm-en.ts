@@ -9,7 +9,7 @@ const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : 
 /** The symbols against ISSprOM 2019-2 (colours, widths, outlines), missing norm symbols and the outline around buildings. */
 export const mapProjectSymbolNormEn: Texts<typeof mapProjectSymbolNormSv> = {
   repairHeading: "Fix after the sprint norm",
-  repairHelp: "An existing map is fixed here without importing anything again: the symbols, the outline around buildings, the stairways and the yards, in that order. Each step can be undone (Ctrl+Z) except the symbols, which are removed with «Remove the fixes».",
+  repairHelp: "An existing map is fixed here without importing anything again: the symbols, the outline around buildings, the stairways, the yards, marshes and paths in built-up areas, duplicates and large areas, in that order. Each step can be undone (Ctrl+Z) except the symbols, which are removed with «Remove the fixes».",
   survey: "Go through the map",
   surveying: "Going through the map …",
   step: (index: number, title: string) => `${index}. ${title}`,
@@ -39,12 +39,20 @@ export const mapProjectSymbolNormEn: Texts<typeof mapProjectSymbolNormSv> = {
   ringsHelp: "Closed edge lines (501.1) too small or narrow to show as an island: traffic islands and pole bases from the base map that become «D» shapes along footways.",
   ringsCount: (n: number) => n === 0 ? "No small edge rings." : `${count(n, "edge ring", "edge rings")}.`,
   ringsRemove: (n: number) => `Remove small edge rings (${n})`,
+  stepDuplicates: "Remove duplicates",
+  duplicatesHelp: "Areas with the same symbol overlapping by at least 90%, lines and points with the same symbol in the same place, and lighter green (406, 408) covered at least 90% by darker green: the base map's nested green put a patch of 410 in as three areas with the same edge. The largest one is kept. Also for forest maps.",
+  duplicatesCount: (n: number) => n === 0 ? "No duplicates." : `${count(n, "duplicate", "duplicates")}:`,
+  duplicatesRemove: (n: number) => `Remove duplicates (${n})`,
+  stepLarge: "Split large areas",
+  largeHelp: "Ground areas (yellow, green, out of bounds, paved, rock, marsh) over 3 ha on a sprint map and 20 ha on a forest map are split into pieces edge to edge, where the area is narrowest along a grid that follows the map's north (150 m and 400 m), so that they can be edited. Curves in a split area become straight lines. New areas from the base map, Fill and Extend are split the same way.",
+  largeCount: (n: number) => n === 0 ? "No areas over the limit." : `${count(n, "area", "areas")} over the limit.`,
+  largeSplit: (n: number) => `Split large areas (${n})`,
   cleanDone: (n: number) => `${count(n, "object", "objects")} changed. Undo brings them back.`,
   help: "The map's symbols (colour, line width, outline) against the norm, for the symbols the map uses, and the norm's symbols missing from the map. The values come from IOF's O-Map Wiki; where the wiki gives no dimension it is not compared.",
   forest: "The check exists for sprint maps (ISSprOM 2019-2). Forest maps (ISOM 2017-2) have no table yet.",
   none: "The symbols the map uses follow the norm's table.",
   count: (n: number) => `${count(n, "symbol differs", "symbols differ")} from the norm.`,
-  problem: (problem: { kind: string; base?: Base; tints?: readonly number[]; found?: { base?: Base | undefined; tint?: number | undefined } | null | number; width?: number }) => {
+  problem: (problem: { kind: string; base?: Base; tints?: readonly number[]; found?: { base?: Base | undefined; tint?: number | undefined } | null | number; width?: number; above?: readonly string[] }) => {
     switch (problem.kind) {
       case "FILL": {
         const found = typeof problem.found === "object" && problem.found ? problem.found : undefined;
@@ -57,6 +65,7 @@ export const mapProjectSymbolNormEn: Texts<typeof mapProjectSymbolNormSv> = {
       case "STEPS": return "has no steps across the line";
       case "STAIR_BAND": return "has no stairway band in brown 30% (as in Mapper's ISSprOM 2019-2)";
       case "STAIR_SIDES": return "has no black side lines (as in Mapper's ISSprOM 2019-2)";
+      case "STAIR_ORDER": return `the band lies below ${(problem.above ?? []).join(", ")} in the colour order and is hidden there (the stairway gets its own brown 30% above the areas)`;
       default: return problem.kind;
     }
   },

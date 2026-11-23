@@ -75,13 +75,14 @@ describe("vegetationen ur klassbilderna", () => {
     const result = vegetationFromTiles([{ vege, undergrowth, world: world(675_000, 6_581_000) }], { minAreaM2: 100 });
     expect(result.summary.ha401).toBeCloseTo(1.2, 1);
     expect(result.summary.ha406).toBeCloseTo(1.6, 1);
-    expect(result.summary.ha408).toBeCloseTo(0.13, 1);
+    // Kärnan 410 har ingen egen 408 runt sig: ingen 408 med samma kant (ägaren 2026-11-23: «mörkgröna ytor ligger trippelt»).
+    expect(result.summary.ha408).toBe(0);
     expect(result.summary.ha410).toBeCloseTo(0.13, 1);
     expect(result.summary.ha407).toBeGreaterThan(0.2);
     expect(result.summary.ha409).toBe(result.summary.ha407);
     const data = parseDxf(result.dxf);
     const layers = new Map(data.features.map(feature => [feature.layer, feature.geometry.kind]));
-    expect([...layers.keys()].sort()).toEqual(["gron_lattlopt", "gron_mycket_svarlopt", "gron_svarlopt", "oppen_mark", "undervegetation_lattlopt",
+    expect([...layers.keys()].sort()).toEqual(["gron_lattlopt", "gron_mycket_svarlopt", "oppen_mark", "undervegetation_lattlopt",
       "undervegetation_svarlopt"]);
     expect(data.features.filter(feature => feature.layer === "gron_mycket_svarlopt")).toHaveLength(1);
   });

@@ -94,10 +94,12 @@ describe("Karttapullautins riktiga resultat för testrutan", () => {
     const vegetation = vegetationFromTiles(tiles);
     // Efter generaliseringen som en indelning (2026-11-17): smala band av 406 runt 408 och små fläckar går till grannen, så att
     // det gröna blir mindre (förut 406 1,8 ha, 408 0,75 ha). Mätt på Gömmaren och Lida ligger 406 då nära kartritarens mängd.
-    expect(vegetation.summary).toEqual({ ha401: 0.33, ha404: 0.28, ha406: 0.53, ha408: 0.53, ha410: 0, ha407: 0.04, ha409: 0.04 });
+    // Ägaren 2026-11-23 («mörkgröna ytor ligger trippelt»): 406 var här samma ytor som 408 (0,53 ha båda, kapslat utan ljusare kant)
+    // och blir nu inget; 408 står kvar ensam.
+    expect(vegetation.summary).toEqual({ ha401: 0.33, ha404: 0.28, ha406: 0, ha408: 0.53, ha410: 0, ha407: 0.04, ha409: 0.04 });
     const data = parseDxf(vegetation.dxf);
     // 404 finns inte i testets symbolset; 410 blir inget här (de små fläckarna går till 408).
-    expect(suggested(data)).toEqual({ oppen_mark: "s401", oppen_mark_spridda_trad: undefined, gron_lattlopt: "s406", gron_svarlopt: "s408",
+    expect(suggested(data)).toEqual({ oppen_mark: "s401", oppen_mark_spridda_trad: undefined, gron_svarlopt: "s408",
       undervegetation_lattlopt: "s407", undervegetation_svarlopt: "s409" });
     expect(within(data)).toBe(true);
     // Allt blir slutna ytor.

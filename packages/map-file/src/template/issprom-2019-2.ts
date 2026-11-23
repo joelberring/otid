@@ -15,9 +15,14 @@ import { dot, stroke, type ColorDef, type SymbolDef, type SymbolSetDef } from ".
  * bredd, 0,4 mm (som OCAD:s uppsättningar har «Uncrossable vegetation, hedge»); en bredare häck ritas som yta.
  */
 const DARK_GREEN = [1, 0, 0.8, 0.3] as const;
+/** Trappans band, en egen färg (matchas bara på namnet, aldrig på CMYK som den vanliga bruna 30 %). */
+export const STAIR_BROWN: ColorDef = { key: "brown30-stair", name: "Brun 30 % (trappa)", cmyk: [0, 0.168, 0.3, 0.054], distinct: true };
 /** Skogsnormens färger med sprintnormens mörkgröna: linjen över brunt, ytan mellan olivgrönt (520) och grönt. */
 const COLORS: readonly ColorDef[] = ISOM_COLORS.flatMap((color): ColorDef[] =>
-  color.key === "brown" ? [{ key: "darkgreen-line", name: "Mörkgrön (linje)", cmyk: DARK_GREEN }, color]
+  // Trappans band (ägaren 2026-11-23: «brunt 30 i trappa ska ligga över andra ytor»): en egen brun 30 % direkt under de bruna,
+  // blå och svarta linjerna och ovanför alla ytfärger (också belagd yta i brunt 50 %, husens grå och olivgrönt). Mappers ISSprOM
+  // 2019-2 ritar bandet i «Lower brown 30%» (under brunt 50 % och husen); där försvinner trappan på en belagd yta i brunt 50 %.
+  color.key === "brown" ? [{ key: "darkgreen-line", name: "Mörkgrön (linje)", cmyk: DARK_GREEN }, color, STAIR_BROWN]
     : color.key === "green" ? [{ key: "darkgreen", name: "Mörkgrön", cmyk: DARK_GREEN }, color]
     // Byggnadens grå (svart 50 %, ISSprOM 2019-2 sedan 2022-01-02) under de svarta linjerna, ovanför belagd yta och grönt.
     : color.key === "black65" ? [{ key: "black50", name: "Svart 50 %", cmyk: [0, 0, 0, 0.5] }, color]
@@ -38,7 +43,7 @@ const tick = (width: number, length: number) => [stroke("black", width, [0, leng
  * trappan finns i fyra bredder (1,6, 2, 3 och 4 m); importen väljer den som ligger närmast trappans bredd (`stairs.ts`).
  * Den smalaste har kantlinjerna utanför bandet, de andra mitt på bandets kant; stegen är 0,5, 0,6, 0,8 och 1,1 mm (som Mapper).
  */
-const stairway = (code: string, name: string, metres: number, step: number): SymbolDef => ({ code, name, kind: "line", color: "brown30", width: metres / 4,
+const stairway = (code: string, name: string, metres: number, step: number): SymbolDef => ({ code, name, kind: "line", color: STAIR_BROWN.key, width: metres / 4,
   border: { color: "black", width: 0.1, shift: metres <= 1.6 ? 0.05 : 0 }, mid: { elements: tick(0.1, step), spacing: 0.5, end: 0.05, minimum: 3 } });
 
 const OVERRIDES: readonly SymbolDef[] = [

@@ -313,12 +313,37 @@ export function generalizeVegetation(labels: Uint8Array, columns: number, rows: 
  */
 export function vegetationLayerMask(labels: Uint8Array, columns: number, rows: number, layer: number): Uint8Array {
   const out = new Uint8Array(labels.length);
-  if (layer >= VEG_SLOW) { for (let i = 0; i < labels.length; i += 1) if (labels[i]! >= layer) out[i] = 1; return out; }
+  if (layer >= VEG_SLOW) {
+    for (let i = 0; i < labels.length; i += 1) if (labels[i]! >= layer) out[i] = 1;
+    return layer < VEG_FIGHT ? withoutCoveredParts(out, labels, columns, rows, layer) : out;
+  }
   for (let i = 0; i < labels.length; i += 1) {
     if (labels[i] === layer) out[i] = 1;
     else if (labels[i]! >= VEG_SLOW) NEIGHBOURS(i, columns, rows, n => { if (labels[n] === layer) out[i] = 1; });
   }
   return out;
+}
+
+/**
+ * Ägaren 2026-11-23 («mörkgröna ytor ligger trippelt i denna fil»): en del av det kapslade gröna (≥ 406, ≥ 408) där mindre än
+ * en tiondel av cellerna är lagrets egna (resten är mörkare grönt) tas bort. Annars blir en fläck 410 utan ljusare kant tre
+ * ytor med samma kant (406, 408 och 410 ovanpå varandra), som syns som en men måste ändras tre gånger.
+ */
+export const NESTED_OWN_SHARE = 0.1;
+function withoutCoveredParts(mask: Uint8Array, labels: Uint8Array, columns: number, rows: number, layer: number): Uint8Array {
+  const seen = new Uint8Array(mask.length), queue = new Int32Array(mask.length);
+  for (let start = 0; start < mask.length; start += 1) {
+    if (!mask[start] || seen[start]) continue;
+    let head = 0, tail = 1, own = 0;
+    queue[0] = start; seen[start] = 1;
+    while (head < tail) {
+      const i = queue[head++]!;
+      if (labels[i] === layer) own += 1;
+      NEIGHBOURS(i, columns, rows, n => { if (mask[n] && !seen[n]) { seen[n] = 1; queue[tail++] = n; } });
+    }
+    if (own < NESTED_OWN_SHARE * tail) for (let k = 0; k < tail; k += 1) mask[queue[k]!] = 0;
+  }
+  return mask;
 }
 
 type Point = [number, number];

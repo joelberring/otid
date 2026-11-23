@@ -38,6 +38,8 @@ export * from "./stockholm-layers";
 export * from "./map-norm";
 export * from "./sprint-faces";
 export * from "./fill-over";
+export { AREA_SPLIT_TABLE, areaSplitLimit, largeAreaPlan, splitArea, splitLargeAreas, type AreaSplitLimit, type AreaSplitRow } from "./area-split";
+export * from "./duplicates";
 export { sprintLayerSymbol, sprintSymbolForCode, type SprintNorm } from "./sprint-layers";
 export * from "./warp";
 export * from "./vector-fit";

@@ -9,6 +9,8 @@ export interface ColorDef {
   readonly name: string;
   /** CMYK 0–1. */
   readonly cmyk: readonly [number, number, number, number];
+  /** En färg med egen plats i ritordningen (trappans band): kartans färg med samma CMYK räknas inte som den, bara samma namn. */
+  readonly distinct?: true | undefined;
 }
 
 export type XY = readonly [number, number];

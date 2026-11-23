@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Point } from "@o-tid/map-file";
-import { mapNorm } from "@o-tid/map-revision";
+import type { MapObject, Point } from "@o-tid/map-file";
+import { mapNorm, splitLargeAreas } from "@o-tid/map-revision";
 import { mapProjectFillEn } from "../../i18n/map-project-fill-en";
 import { mapProjectFillSv } from "../../i18n/map-project-fill-sv";
 import { toScreen, type Viewport } from "../../lib/course-setting-viewport";
@@ -104,7 +104,9 @@ export function useMapProjectFill(input: { session: MapProjectSession | undefine
    */
   function add(rings: readonly (readonly Point[])[], under: readonly UnderChange[] = []): boolean {
     if (!symbol) return false;
-    const changes: ObjectChange[] = fillChangeList(symbol.id, rings, under, () => crypto.randomUUID());
+    const scale = input.scale;
+    const split = scale ? (object: MapObject) => splitLargeAreas([object], id => input.symbols.get(id)?.code, norm, scale) : undefined;
+    const changes: ObjectChange[] = fillChangeList(symbol.id, rings, under, () => crypto.randomUUID(), split);
     if (changes.length === 1) return input.commit(changes[0]!);
     const done = input.commitMany(changes) > 0;
     if (done) cleared.current = under.length;

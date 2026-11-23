@@ -3,6 +3,7 @@ import { importLayers, isSprintNorm, mapNorm, parseDxf, parseGeoJson, symbolObje
 import { mergeCandidates } from "./candidate-merge";
 import { computeCandidates, suggestedMapping, type CandidateSymbol, type SprintCleanOutcome } from "./candidates";
 import { SPRINT_BUILT_METRES } from "../sprint-clean";
+import { splitLargeAreas } from "../area-split";
 import { heightFieldFrom, type HeightGrid } from "./clear-contours";
 import { clearCutFeatures, type ClearCut } from "./clear-cuts";
 import { tickDepressions } from "./depressions";
@@ -226,13 +227,15 @@ export function assembleBaseMap(input: BaseMapAssemblyInput): { objects: MapObje
       built: { polygons: input.built.map(polygon => polygon.map(ring => ring.map(([x, y]) => ({ x, y })))), lines: [] } } : undefined });
   if (!result) return { problem: "Grundkartans objekt gick inte att räkna om till kartan." };
   const codes = new Map(input.symbols.map(([id, code]) => [id, code.replace(/\.0$/, "")]));
+  // Ägaren 2026-11-23: stora markytor delas i bitar under normens gräns (som i webbens «Lägg in»).
+  const objects = splitLargeAreas(result.objects, id => codes.get(id), norm, scale);
   const counts = new Map<string, number>();
-  for (const object of result.objects) { const code = codes.get(object.symbol) ?? object.symbol; counts.set(code, (counts.get(code) ?? 0) + 1); }
+  for (const object of objects) { const code = codes.get(object.symbol) ?? object.symbol; counts.set(code, (counts.get(code) ?? 0) + 1); }
   const unmapped = layers.filter(layer => !mapping.has(layer.name));
-  return { objects: result.objects, summary: {
+  return { objects, summary: {
     layers: layers.map(layer => ({ layer: layer.name, features: layer.count, symbol: codes.get(mapping.get(layer.name) ?? "") ?? null })),
     symbols: [...counts].map(([symbol, objects]) => ({ symbol, objects })).sort((a, b) => a.symbol.localeCompare(b.symbol, "sv", { numeric: true })),
-    objects: result.objects.length,
+    objects: objects.length,
     skipped: { unmappedLayers: unmapped.length, unmappedFeatures: unmapped.reduce((sum, layer) => sum + layer.count, 0), unreadable: data.skipped,
       outside: result.outside, duplicates: result.duplicates, short: result.short, mismatched: result.mismatched,
       inBuilt: result.builtMask?.removed ?? 0, belowNorm: result.generalized?.removed ?? 0 },

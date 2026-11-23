@@ -2,12 +2,15 @@ import { describe, expect, it } from "vitest";
 import { clearingShape, greenCandidates, DEFAULT_GREEN, SEMI_ALPHA } from "./map-project-green-classes";
 import type { PhotoPixels } from "@o-tid/map-revision/base-map";
 
-/** 30 × 30 celler: västra tredjedelen öppen (1), mitten steg 3 (klass 5), östra steg 5 (klass 7) med svår undervegetation. */
+/**
+ * 30 × 30 celler: öppet i väster (1), sedan steg 2 (klass 4, 406), steg 3 (klass 5, 408) och steg 5 (klass 7, 410) med svår
+ * undervegetation i öster. Varje grönt har egna celler (ägaren 2026-11-23: grönt utan egna celler blir ingen kapslad kopia).
+ */
 function image() {
   const width = 30, height = 30, data = new Uint8ClampedArray(width * height * 4);
   for (let row = 0; row < height; row += 1) for (let column = 0; column < width; column += 1) {
     const i = (row * width + column) * 4;
-    data[i] = column < 10 ? 1 : column < 20 ? 5 : 7 | (2 << 4); data[i + 1] = 160; data[i + 3] = 255;
+    data[i] = column < 8 ? 1 : column < 15 ? 4 : column < 22 ? 5 : 7 | (2 << 4); data[i + 1] = 160; data[i + 3] = 255;
   }
   return { width, height, data };
 }
@@ -68,7 +71,7 @@ describe("generalisera ytorna", () => {
     };
     for (let row = 0; row < height; row += 1) for (let column = 0; column < width; column += 1) {
       const i = (row * width + column) * 4, core = column >= 34 && column < 46 && row >= 64 && row < 76;
-      data[i] = green(column, row) ? (core ? 7 : 5) : 2; data[i + 1] = 160; data[i + 3] = 255;
+      data[i] = green(column, row) ? (core ? 7 : 4) : 2; data[i + 1] = 160; data[i + 3] = 255;
     }
     return { width, height, data };
   }
@@ -101,10 +104,12 @@ describe("generalisera ytorna", () => {
   });
   it("behåller de tätare stegen inuti de glesare, och öppen mark rörs inte", () => {
     const after = at(4), outer = after.rings("gron_lattlopt");
-    expect(after.rings("gron_svarlopt").length).toBeGreaterThan(0);
+    // Klumpen är 406 med en kärna 410 (ingen egen 408: ingen 408 med kärnans kant, ägaren 2026-11-23).
+    expect(after.rings("gron_svarlopt")).toHaveLength(0);
+    expect(after.rings("gron_mycket_svarlopt").length).toBeGreaterThan(0);
     // Varje punkt på den tätare ytans kant ligger i den glesare ytan, eller på dess kant (inom förenklingens tolerans).
     const within = (point: readonly [number, number]) => outer.some(ring => inside(ring, point) || ring.some(([x, y]) => Math.hypot(x - point[0], y - point[1]) < 6));
-    for (const ring of after.rings("gron_svarlopt")) expect(ring.every(within)).toBe(true);
+    for (const ring of after.rings("gron_mycket_svarlopt")) expect(ring.every(within)).toBe(true);
     expect(after.hectares.gron_mycket_svarlopt!).toBeLessThanOrEqual(after.hectares.gron_lattlopt!);
     expect(at(8).hectares.oppen_mark).toBe(at(0).hectares.oppen_mark);
   });

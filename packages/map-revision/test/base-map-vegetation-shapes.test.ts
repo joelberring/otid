@@ -49,6 +49,16 @@ describe("generalisering av vegetationen som en indelning", () => {
     expect(open[41 * rows + 50]).toBe(0);
     expect(slow[80 * rows + 50]).toBe(1);
   });
+  it("en fläck 408 utan ljusare kant blir inte också en 406 med samma kant (ägaren 2026-11-23: «ligger trippelt»)", () => {
+    // Vänster: bara 408 (ingen 406 runt). Höger: 408 med en bred 406-ring. Kapslingen står kvar där 406 finns.
+    const labels = grid((x, y) => Math.hypot(x - 25, y - 50) < 12 ? VEG_DIFFICULT
+      : Math.hypot(x - 75, y - 50) < 10 ? VEG_DIFFICULT : Math.hypot(x - 75, y - 50) < 20 ? VEG_SLOW : VEG_FOREST);
+    const slow = vegetationLayerMask(labels, columns, rows, VEG_SLOW), difficult = vegetationLayerMask(labels, columns, rows, VEG_DIFFICULT);
+    expect(at(slow, 25, 50)).toBe(0);
+    expect(at(difficult, 25, 50)).toBe(1);
+    expect(at(slow, 75, 50)).toBe(1);
+    expect(at(slow, 75, 35)).toBe(1);
+  });
   it("kanten blir en ritad kurva: trappsteg förenklas och hörnen rundas", () => {
     const stairs: [number, number][] = [];
     for (let k = 0; k < 20; k += 1) stairs.push([k, k], [k + 1, k]);

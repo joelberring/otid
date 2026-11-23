@@ -18,7 +18,8 @@ import styles from "./map-project-editor.module.css";
  * 1. symbolerna mot ISSprOM 2019-2 (`checkSymbolNorm` i Workern; ägaren rättar per symbol, alla, och lägger till saknade normsymboler,
  *    som sparas i projektet och skrivs i nästa kartversion, bara Mapper-kartor),
  * 2. kant runt husen (`buildingOutlines`), 3. förenkla trappor (`stairObjectsPlan`), 4. 520 kring flerbostadshus (`apartmentYardKeys`),
- * 5. kärr och bäckar i bebyggt, 6. stigar i vägar, 7. små kantringar (`sprint-clean.ts`, ägaren 2026-11-23).
+ * 5. kärr och bäckar i bebyggt, 6. stigar i vägar, 7. små kantringar (`sprint-clean.ts`, ägaren 2026-11-23), 8. dubbletter
+ * (`duplicates.ts`) och 9. dela stora markytor (`area-split.ts`); 8–9 gäller också skogskartor.
  */
 export function MapProjectSymbolNormPanel({ session, canDecide, ocad, saved, onSave, outlines, repair, onMark }: {
   session: MapProjectSession | undefined; canDecide: boolean; ocad: boolean; saved: MapProjectNormSymbols;
@@ -102,7 +103,9 @@ export function MapProjectSymbolNormPanel({ session, canDecide, ocad, saved, onS
         {text.yardsRemove(found.yards.length)}</Button>}
     </>}
     {([["water", 5, text.stepWater, text.waterHelp, text.waterCount, text.waterRemove], ["paths", 6, text.stepPaths, text.pathsHelp, text.pathsCount, text.pathsRemove],
-      ["rings", 7, text.stepRings, text.ringsHelp, text.ringsCount, text.ringsRemove]] as const).map(([which, index, title, help, counted, remove]) => {
+      ["rings", 7, text.stepRings, text.ringsHelp, text.ringsCount, text.ringsRemove],
+      ["duplicates", 8, text.stepDuplicates, text.duplicatesHelp, text.duplicatesCount, text.duplicatesRemove],
+      ["large", 9, text.stepLarge, text.largeHelp, text.largeCount, text.largeSplit]] as const).map(([which, index, title, help, counted, remove]) => {
       const step = found?.[which];
       return <div key={which} data-testid={`map-project-clean-${which}`}>
         <p><strong>{text.step(index, title)}{step ? ` (${step.objects.length})` : ""}</strong></p>
@@ -111,7 +114,8 @@ export function MapProjectSymbolNormPanel({ session, canDecide, ocad, saved, onS
           <input type="range" min={SPRINT_BUILT_RANGE.min} max={SPRINT_BUILT_RANGE.max} step={5} value={repair.metres}
             onChange={event => repair.setMetres(Number(event.target.value))} onPointerUp={() => void repair.search()} onKeyUp={() => void repair.search()}
             data-testid="map-project-clean-metres" /> {repair.metres} m</label>}
-        {step && <p role="status">{counted(step.objects.length)}</p>}
+        {step && <p role="status">{counted(step.objects.length)}{which === "duplicates" && found && step.objects.length > 0
+          ? ` ${Object.entries(found.duplicates.bySymbol).sort(([a], [b]) => a.localeCompare(b, "sv", { numeric: true })).map(([code, count]) => `${code}: ${count}`).join(", ")}.` : ""}</p>}
         {step && step.objects.length > 0 && <>
           <Button variant="quiet" onClick={() => onMark(step.objects)} data-testid={`map-project-clean-${which}-mark`}>{text.yardsMark}</Button>
           {repair.canEdit && <Button variant="quiet" onClick={() => setTold(text.cleanDone(repair.clean(which)))} data-testid={`map-project-clean-${which}-remove`}>

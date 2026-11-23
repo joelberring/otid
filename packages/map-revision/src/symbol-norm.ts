@@ -83,7 +83,9 @@ export type SymbolNormProblem =
   | { readonly kind: "LINE_WIDTH"; readonly width: number; readonly found: number }
   | { readonly kind: "STEPS" }
   | { readonly kind: "STAIR_BAND"; readonly base: NormBase; readonly tint: number }
-  | { readonly kind: "STAIR_SIDES" };
+  | { readonly kind: "STAIR_SIDES" }
+  /** Bandets färg ligger under en ytfärg i kartans ritordning (`above`: ytsymbolernas nummer), så trappan försvinner där. */
+  | { readonly kind: "STAIR_ORDER"; readonly above: readonly string[] };
 
 export interface SymbolNormIssue {
   /** Symbolens id och nummer i kartan. */
@@ -147,6 +149,33 @@ export function edgeSymbolFor(symbols: ReadonlyMap<string, MapSymbol>, code: str
     ?? (main === 521 ? lines.find(symbol => /(kant|kontur).*byggnad|byggnad.*(kant|kontur)|building.*(outline|edge)/i.test(symbol.name)) : undefined);
 }
 
+/** Ytfärger (fyllning, mönster, skraffering) i ytsymboler som används. */
+function areaColorIds(symbols: ReadonlyMap<string, MapSymbol>, symbol: MapSymbol): number[] {
+  return parts(symbols, symbol).flatMap(part => part.kind !== "AREA" ? []
+    : [...(part.fill === undefined ? [] : [part.fill]), ...part.hatches.map(hatch => hatch.color), ...(part.pattern?.elements ?? []).map(element => element.color)]);
+}
+
+/** Hel svart, blå eller brun: linjernas färger, som trappan ligger under också i normen (t.ex. 206 Jättesten, helsvarta hus). */
+const isLineColor = (color: MapColor) => { const tint = tintOf(color); return !!tint && tint.tint >= 0.95 && tint.base !== "green" && tint.base !== "yellow"; };
+
+/**
+ * Ägaren 2026-11-23 («brunt 30 i trappa ska ligga över andra ytor»): numren på de använda ytsymboler vars färg ritas ovanför
+ * `band` (lägre rang ligger överst). Samma färg som bandet räknas inte (en belagd yta i samma bruna 30 % döljer inte trappan).
+ */
+export function areasOver(input: SymbolNormInput, band: MapColor | undefined): string[] {
+  if (!band) return [];
+  const over = new Set<string>();
+  for (const symbol of input.symbols.values()) {
+    if (symbol.id.includes(".") || !(input.counts.get(symbol.id) ?? 0)) continue;
+    const ids = areaColorIds(input.symbols, symbol);
+    if (ids.some(id => {
+      const color = input.colors.find(row => row.id === id);
+      return !!color && id !== band.id && color.rank < band.rank && !isLineColor(color);
+    })) over.add(symbol.code.text);
+  }
+  return [...over].sort((a, b) => a.localeCompare(b, "sv", { numeric: true }));
+}
+
 function problemsOf(input: SymbolNormInput, symbol: MapSymbol, spec: SymbolNormSpec): SymbolNormProblem[] {
   const out: SymbolNormProblem[] = [];
   const color = (id: number | undefined) => id === undefined ? undefined : input.colors.find(row => row.id === id);
@@ -178,6 +207,8 @@ function problemsOf(input: SymbolNormInput, symbol: MapSymbol, spec: SymbolNormS
     if (!found || found.base !== spec.stair.band || Math.abs(found.tint - spec.stair.tint) > 0.04) out.push({ kind: "STAIR_BAND", base: spec.stair.band, tint: spec.stair.tint });
     const sides = strokes.filter(stroke => !!stroke.offset && tintOf(color(stroke.color))?.base === "black");
     if (!sides.some(stroke => stroke.offset! > 0) || !sides.some(stroke => stroke.offset! < 0)) out.push({ kind: "STAIR_SIDES" });
+    const over = band ? areasOver(input, color(band.color)) : [];
+    if (over.length) out.push({ kind: "STAIR_ORDER", above: over });
   }
   return out;
 }

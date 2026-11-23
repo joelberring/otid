@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import {
-  apartmentYardKeys, codeParts, isBuiltCode, isPathCode, isPavedEdgeCode, isWaterInBuiltCode, newKey, objectBox, pathsInRoadsPlan, smallEdgeRingKeys, SPRINT_BUILT_METRES,
+  apartmentYardKeys, codeParts, duplicatePlan, isBuiltCode, largeAreaPlan, mapNorm, isPathCode, isPavedEdgeCode, isWaterInBuiltCode, newKey, objectBox, pathsInRoadsPlan, smallEdgeRingKeys, SPRINT_BUILT_METRES,
   stairObjectsPlan, stairWidthOfName, waterInBuiltPlan, type CleanPlan, type ObjectKey
 } from "@o-tid/map-revision";
 import type { CatalogSymbol, MapProjectSession, SymbolObject } from "../../lib/map-project-protocol";
@@ -55,6 +55,8 @@ export interface RepairFound {
   readonly yards: readonly SymbolObject[];
   /** Ägaren 2026-11-23: kärr och bäckar i bebyggt, stigar i vägar och små kantringar (`sprint-clean.ts`). */
   readonly water: CleanFound; readonly paths: CleanFound; readonly rings: CleanFound;
+  /** Ägaren 2026-11-23: dubbletter (`duplicates.ts`, antal per symbol) och markytor över gränsen (`area-split.ts`). */
+  readonly duplicates: CleanFound & { readonly bySymbol: Readonly<Record<string, number>> }; readonly large: CleanFound;
 }
 
 /**
@@ -72,8 +74,9 @@ export function useMapProjectSprintRepair(input: { session: MapProjectSession | 
     const pick = (test: (code: string) => boolean, kinds: readonly CatalogSymbol["kind"][]) => catalog.filter(row => kinds.includes(row.kind) && test(row.code));
     return { stairs, stair: stairs.find(row => codeParts(row.code).sub === 0) ?? stairs[0], yards: ofCode(catalog, "area", 520, 0), houses: ofCode(catalog, "area", 521, 0),
       water: pick(isWaterInBuiltCode, ["area", "line"]), paths: pick(isPathCode, ["line"]),
-      built: [...pick(isBuiltCode, ["area"]), ...pick(isPavedEdgeCode, ["line"])], codes: new Map(catalog.map(row => [row.id, row.code])) };
-  }, [catalog]);
+      built: [...pick(isBuiltCode, ["area"]), ...pick(isPavedEdgeCode, ["line"])], codes: new Map(catalog.map(row => [row.id, row.code])),
+      all: catalog.filter(row => row.kind === "area" || row.kind === "line" || row.kind === "point"), norm: mapNorm({ scale, symbols: catalog }) };
+  }, [catalog, scale]);
   /** «Bebyggt» för kärr och bäckar, meter i terrängen (reglaget i panelen). */
   const [metres, setMetres] = useState(SPRINT_BUILT_METRES);
   const [found, setFound] = useState<RepairFound>();
@@ -105,9 +108,18 @@ export function useMapProjectSprintRepair(input: { session: MapProjectSession | 
     const paths = pathRows.length ? found(pathsInRoadsPlan(coded(pathRows), builtCoded, scale), pathRows) : NONE;
     const ringKeys = new Set(smallEdgeRingKeys(builtCoded));
     const ringRows = builtRows.filter(row => ringKeys.has(row.key));
+    // Steg 8–9 (ägaren 2026-11-23): dubbletter och stora ytor, i alla kartans objekt.
+    // Bara när hela kartan gås igenom (inte för de markerade trapporna i kontextraden).
+    const allRows = only ? [] : await symbolObjects(session, symbols.all.map(row => row.id));
+    const duplicates = duplicatePlan(coded(allRows)), duplicateKeys = new Set(duplicates.remove);
+    const duplicateRows = allRows.filter(row => duplicateKeys.has(row.key));
+    const large = largeAreaPlan(coded(allRows.filter(row => row.object.kind === "area" && !duplicateKeys.has(row.key))), symbols.norm, scale);
+    const largeKeys = new Set(large.map(row => row.key));
     const next: RepairFound = { stairs: { changes, stairs: plan.stairs, steps: plan.remove.length }, yards: yardRows.filter(row => keys.has(row.key)),
-      water, paths, rings: { changes: ringRows.map(deleteChange), objects: ringRows } };
-    setFound(next);
+      water, paths, rings: { changes: ringRows.map(deleteChange), objects: ringRows },
+      duplicates: { changes: duplicateRows.map(deleteChange), objects: duplicateRows, bySymbol: duplicates.bySymbol },
+      large: { changes: cleanChanges({ remove: [], replace: large }, allRows), objects: allRows.filter(row => largeKeys.has(row.key)) } };
+    setFound(current => only && current ? { ...next, duplicates: current.duplicates, large: current.large } : next);
     setSearching(false);
     return next;
   }, [session, scale, symbols, metres]);
@@ -131,11 +143,11 @@ export function useMapProjectSprintRepair(input: { session: MapProjectSession | 
   }, [canEdit, found, commitMany]);
 
   /** Steg 5–7: ändringarna som hittades, som ett steg att ångra. Antalet objekt. */
-  const clean = useCallback((which: "water" | "paths" | "rings"): number => {
+  const clean = useCallback((which: "water" | "paths" | "rings" | "duplicates" | "large"): number => {
     const step = found?.[which];
     if (!canEdit || !step?.changes.length) return 0;
     commitMany(step.changes);
-    setFound(current => current && { ...current, [which]: NONE });
+    setFound(current => current && { ...current, [which]: which === "duplicates" ? { ...NONE, bySymbol: {} } : NONE });
     return step.objects.length;
   }, [canEdit, found, commitMany]);
 

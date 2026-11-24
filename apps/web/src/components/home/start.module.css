@@ -1,12 +1,12 @@
 /*
  * Startsidan (skissen F3 2026-11-21, ADR-0170 beslut 2): en blickpunkt (sökningen, sidans enda mörka knapp), två
  * innehållszoner (tävlingarna brett till vänster, Nytt i O-Tid smalt till höger), linjer i stället för rutor, lila bara som
- * linje och text. Datorn: tre kolumner så att målningen överst och högerspalten under kan ha olika bredd. Smal skärm: sökningen,
- * Pågår nu, Kommande, Genomförda, målningen, Nytt och filmerna.
+ * linje och text. Datorn: tre kolumner så att bilden överst (bildspelet för den som inte är inloggad, annars veckans målning) och
+ * högerspalten under kan ha olika bredd. Smal skärm: sökningen, Pågår nu, Kommande, Genomförda, bilden, Nytt och filmerna.
  */
 .page { display: grid; max-width: 1280px; padding: 32px 32px 48px; gap: 40px 56px; align-items: start;
   grid-template-columns: minmax(0, 1fr) minmax(0, 200px) minmax(0, 320px);
-  grid-template-areas: "lead painting painting" "races races side"; }
+  grid-template-areas: "lead media media" "races races side"; }
 .lead { grid-area: lead; display: grid; gap: 18px; align-content: center; align-self: center; min-width: 0; }
 .lead h1 { font-size: 40px; line-height: 1.05; letter-spacing: -0.01em; }
 .intro { margin: 0; max-width: 32rem; color: var(--muted); font-size: var(--text-md); line-height: 1.45; }
@@ -16,10 +16,27 @@
 .search button { min-height: 52px; padding: 0 26px; font-size: var(--text-md); }
 
 /* Veckans målning: hel, aldrig beskuren eller utdragen (bredd och höjd auto inom ramen). */
-.painting { grid-area: painting; display: grid; gap: 6px; justify-items: end; margin: 0; min-width: 0; }
+.painting { grid-area: media; display: grid; gap: 6px; justify-items: end; margin: 0; min-width: 0; }
 .painting img { display: block; width: auto; height: auto; max-width: 100%; max-height: 440px; border-radius: var(--radius); }
 .painting figcaption { color: var(--muted); font-size: var(--text-xs); }
 .painting figcaption a { color: inherit; }
+
+/* Bildspelet (ägaren 2026-11-24): bytet är direkt, ingen övergång. Bilderna är alla 16:10 och visas hela. */
+.slideshow { grid-area: media; display: grid; gap: 8px; min-width: 0; }
+.slide { display: grid; gap: 4px; touch-action: pan-y; }
+.slideImage { display: block; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: #f3f3f3; }
+.slideImage img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; user-select: none; }
+.slide h2 { margin-top: 6px; font-size: var(--text-md); font-weight: 600; }
+.slide p { margin: 0; color: var(--muted); font-size: var(--text-sm); line-height: 1.35; }
+.slideControls { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.slideControls > button { min-width: max(36px, var(--tap)); min-height: max(36px, var(--tap)); padding: 0 10px; font-size: var(--text-md); }
+.slideControls > .slidePause { margin-left: auto; font-size: var(--text-xs); }
+.slideDots { display: flex; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.slideDots button, .slideDots button:hover { display: grid; place-items: center; width: max(24px, var(--tap)); min-width: 0; min-height: max(28px, var(--tap)); padding: 0;
+  border: 0; background: none; }
+.slideDots button::before { content: ""; width: 10px; height: 10px; border: 1.5px solid var(--muted); border-radius: 50%; }
+.slideDots button[aria-current="true"]::before { border-color: var(--logo); background: var(--logo); }
+.slideCount { display: none; color: var(--muted); font-size: var(--text-sm); }
 
 .races { grid-area: races; display: grid; gap: 28px; min-width: 0; }
 .races > section > h2 { padding-bottom: 6px; border-bottom: 1px solid var(--line-strong); font-size: var(--text-lg); }
@@ -40,16 +57,20 @@
 .films a { display: inline-flex; align-items: center; min-height: max(36px, var(--tap)); font-size: var(--text-sm); font-weight: 600; }
 
 @media (max-width: 1100px) {
-  .page { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "lead painting" "races races" "side side"; gap: 32px; }
+  .page { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "lead media" "races races" "side side"; gap: 32px; }
   .side { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); align-items: start; }
 }
 @media (max-width: 640px) {
-  .page { grid-template-columns: minmax(0, 1fr); grid-template-areas: "lead" "races" "painting" "side"; gap: 24px; padding: 16px 0.75rem 32px; }
+  .page { grid-template-columns: minmax(0, 1fr); grid-template-areas: "lead" "races" "media" "side"; gap: 24px; padding: 16px 0.75rem 32px; }
   .lead { gap: 14px; }
   .lead h1 { font-size: var(--text-xl); }
   /* Kant i kant (main har 0.75rem sidmarginal). */
   .painting { justify-items: stretch; margin-inline: -0.75rem; }
   .painting img { width: 100%; max-height: none; border-radius: 0; }
   .painting figcaption { padding-inline: 0.75rem; }
+  .slideImage { margin-inline: -0.75rem; border-inline: 0; border-radius: 0; }
+  /* Nio punkter med 44 px tryckyta ryms inte i 390 px: «3 av 9» mellan pilarna i stället. */
+  .slideDots { display: none; }
+  .slideCount { display: inline; }
   .side { grid-template-columns: minmax(0, 1fr); }
 }

@@ -390,6 +390,7 @@ Se ADR-0172 beslut 4.
 2. Startsidan: Pågår nu, Kommande, Senaste och sök. Inga adminlänkar för besökare.
 3. Publik tävlingssida med kort adress och utskrivbar QR-kod: startlista,
    resultat, sträcktidsanalys.
+- [x] Ägaren 2026-11-24: bildspel ur programmet (nio bilder, `pnpm bildspel`) i stället för målningen för den som inte är inloggad.
 
 **Acceptans:** Playwright: opublicerad tävling syns inte för besökare;
 publicerad syns under rätt rubrik; QR-sidan skrivs ut rent; 390 px.

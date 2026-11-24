@@ -12,6 +12,7 @@
     "test": "pnpm -r test",
     "test:integration": "pnpm --filter @o-tid/application test:integration",
     "test:e2e": "playwright test",
+    "bildspel": "OTID_BILDSPEL=1 playwright test tests/e2e/bildspel.spec.ts",
     "build": "pnpm -r build",
     "db:migrate": "pnpm --filter @o-tid/database migrate",
     "archive-import": "pnpm --silent --filter @o-tid/club-archive archive-import",

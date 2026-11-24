@@ -12,15 +12,15 @@ import styles from "./site-footer.module.css";
  * lämnas; där är den ingen landmärkesroll eftersom den ligger i `main`). Döljs vid utskrift. Avläsningssidan har ingen
  * sidfot, bara Hjälp.
  *
- * Startsidan ritar en egen sidfot med veckans målning (`painting`, `lib/weekly-painting.ts`); layoutens döljs då med CSS, på
+ * Startsidan ritar en egen sidfot (`home`), för den inloggade med veckans målning (`painting`, `lib/weekly-painting.ts`); layoutens döljs med CSS, på
  * samma sätt som startsidans eget sidhuvud (globals.css). Andra sidor får sidfoten utan målningen.
  */
-export function SiteFooter({ newTab = false, className, language = "sv", painting }: { newTab?: boolean; className?: string | undefined;
-  language?: Language; painting?: WeeklyPainting }) {
+export function SiteFooter({ newTab = false, className, language = "sv", home = false, painting }: { newTab?: boolean;
+  className?: string | undefined; language?: Language; home?: boolean; painting?: WeeklyPainting | undefined }) {
   const text = language === "en" ? aboutEn.footer : aboutSv.footer;
   const target = newTab ? { target: "_blank", rel: "noopener" } : {};
   return <footer className={`site-footer ${styles.footer}${className ? ` ${className}` : ""}`} aria-label={text.label}
-    data-home-footer={painting ? "" : undefined}>
+    data-home-footer={home ? "" : undefined}>
     <span>{text.name}</span>{" "}
     <span aria-hidden="true">·</span>{" "}
     <span>{text.beta}</span>{" "}

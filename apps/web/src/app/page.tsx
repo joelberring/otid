@@ -18,6 +18,7 @@ import { SiteFooter } from "../components/about/site-footer";
 import { ARTIST_PORTFOLIO_URL, paintingOfTheWeek } from "../lib/weekly-painting";
 import { HomePersonal, HomeTry, JoinCode, OrganizerStart, type Personal } from "../components/home/home-sections";
 import { HomeFilms, HomeNews } from "../components/home/home-news";
+import { HomeSlideshow } from "../components/home/home-slideshow";
 import { newsEn } from "../i18n/news-en";
 import { newsSv } from "../i18n/news-sv";
 import start from "../components/home/start.module.css";
@@ -42,10 +43,11 @@ const RECENT_FIRST = 8;
 /**
  * Startsidan för besökare (ADR-0172 beslut 4, skissen F3 2026-11-21). Överst rubriken, ingressen, sökningen (sidans enda
  * mörka knapp), "Skapa konto eller logga in" för den som inte är inloggad och "Har du en kod?" bara i appen (översynen 2026-11-17,
- * `/kod`); till höger veckans målning hel med bildtext och länk till konstnären (ägarens önskemål 2026-11-12). Under det brett
+ * `/kod`); till höger bildspelet ur programmet för den som inte är inloggad (ägaren 2026-11-24) och veckans målning hel med
+ * bildtext och länk till konstnären för den inloggade (ägarens önskemål 2026-11-12 och 2026-11-24). Under det brett
  * till vänster Pågår nu (tävlingsdagen i tävlingens tidszon), Kommande och Genomförda – ett tomt avsnitt visas inte – och för
  * den inloggade "Ditt O-Tid"; smalt till höger Nytt i O-Tid (ADR-0230), filmerna och demon. På smal skärm i ordningen sökningen,
- * Pågår nu, Kommande, Genomförda, målningen, Nytt och filmerna. Bara publicerade tävlingar och inga adminlänkar.
+ * Pågår nu, Kommande, Genomförda, bildspelet eller målningen, Nytt och filmerna. Bara publicerade tävlingar och inga adminlänkar.
  * Filmlänkarna bara när `NEXT_PUBLIC_INTRO_FILM_URL` respektive `NEXT_PUBLIC_MAP_FILM_URL` är satt (docs/drift.md).
  * Sidan renderas vid varje förfrågan (`force-dynamic`), så målningen byts när veckan byts.
  */
@@ -65,7 +67,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Que
   const personal = signedIn && token ? await personalFor(token) : undefined;
   const film = introFilmUrl(process.env, language), mapFilm = mapFilmUrl(process.env, language);
   const today = todayIn("Europe/Stockholm");
-  const painting = paintingOfTheWeek(new Date());
+  const painting = signedIn ? paintingOfTheWeek(new Date()) : undefined;
   const total = listing.ongoing.length + listing.upcoming.length + listing.recent.length;
   const moreHref = `/?${new URLSearchParams({ ...(search ? { q: search } : {}), fler: String(recentLimit + PUBLIC_RECENT_STEP) })}#senaste`;
   const section = (id: string, title: string, races: typeof listing.ongoing, timing: RaceListTiming, more?: boolean) =>
@@ -102,11 +104,11 @@ export default async function Home({ searchParams }: { searchParams: Promise<Que
         </form>
         {!signedIn && <OrganizerStart language={language} film={film} />}
       </div>
-      <figure className={start.painting}>
+      {painting ? <figure className={start.painting}>
         <img src={painting.src} width={painting.width} height={painting.height} alt={text.paintingAlt(painting.title)} loading="eager"
           decoding="async" data-testid="home-painting" />
         <figcaption>{text.paintingCaption} · <a href={ARTIST_PORTFOLIO_URL}>Emm Berring</a></figcaption>
-      </figure>
+      </figure> : <HomeSlideshow language={language} />}
       <div className={start.races}>
         {search && <div className={styles.searchMeta}>
           <p role="status">{total === 0 ? text.noMatch(search) : text.searchHeading(search)}</p>
@@ -124,7 +126,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Que
         {!search && <HomeTry language={language} demo={demoRacePath()} guest={guest} />}
       </aside>
     </main>
-    <SiteFooter language={language} painting={painting} />
+    <SiteFooter language={language} home painting={painting} />
   </>;
 }
 

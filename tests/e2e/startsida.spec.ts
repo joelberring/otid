@@ -5,9 +5,10 @@ import { expect, test, type Page } from "@playwright/test";
 import { daysFromToday, grantSuperadmin, publishRaceViaApi, registerAccount, TIME_ZONE, unique, warmRoute } from "./helpers";
 
 /**
- * Startsidan efter skissen F3 (2026-11-21, ADR-0230): rubriken och sökningen överst med veckans målning hel till höger, Pågår
- * nu, Kommande och Genomförda brett till vänster (tomma avsnitt syns inte) och Nytt i O-Tid smalt till höger; i telefonen
- * sökningen, avsnitten, målningen och nyheterna i den ordningen. Den inloggade ser «Ditt O-Tid» med sina kartprojekt.
+ * Startsidan efter skissen F3 (2026-11-21, ADR-0230): rubriken och sökningen överst med bildspelet ur programmet till höger för
+ * besökaren (ägaren 2026-11-24) och veckans målning för den inloggade, Pågår nu, Kommande och Genomförda brett till vänster
+ * (tomma avsnitt syns inte) och Nytt i O-Tid smalt till höger; i telefonen sökningen, avsnitten, bilden och nyheterna i den
+ * ordningen. Den inloggade ser «Ditt O-Tid» med sina kartprojekt.
  * Nyheterna: superadmin skriver en allmän nyhet som syns för alla; klubbens ledare skriver en klubbnyhet som syns för klubbens
  * medlemmar, märkt med klubben, men inte för utloggade eller andra.
  */
@@ -33,7 +34,7 @@ async function publishedRace(page: Page, eventName: string, raceDate: string): P
   await publishRaceViaApi(page, (await response.json() as { raceId: string }).raceId);
 }
 
-test("startsidan: avsnitten, veckans målning i dator och telefon och den inloggades projekt", async ({ browser, baseURL }) => {
+test("startsidan: avsnitten, bildspelet för besökare, veckans målning för den inloggade och dess projekt", async ({ browser, baseURL }) => {
   test.setTimeout(240_000);
   const suffix = unique();
   const owner = await registerAccount(browser, `start.${suffix}@exempel.se`, "Stina Start");
@@ -53,29 +54,62 @@ test("startsidan: avsnitten, veckans målning i dator och telefon och den inlogg
   await expect(visitor.getByTestId("home-features")).toHaveCount(0);
   await expect(visitor.getByTestId("home-personal")).toHaveCount(0);
 
-  // Veckans målning: hel bild från samma värd, bildtexten med länk till konstnären, och sidfotens text.
+  // Bildspelet ur programmet för den som inte är inloggad (ägaren 2026-11-24): ingen målning, en bild i taget med rubrik och
+  // mening, bara den första bilden laddad, byte utan övergång med knapparna, punkterna och piltangenterna.
+  await visitor.emulateMedia({ reducedMotion: "reduce" });
   await visitor.goto("/");
-  const painting = visitor.getByTestId("home-painting");
-  await expect(painting).toHaveAttribute("alt", /^Veckans målning: .+ av Emm Berring$/);
-  const src = await painting.getAttribute("src");
-  expect(src).toMatch(/^\/malningar\/[a-z]+\.jpg$/);
-  expect((await visitor.request.get(src!)).status()).toBe(200);
-  expect(await painting.evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true);
-  await expect(visitor.locator("figcaption")).toHaveText("Veckans målning · Emm Berring");
-  await expect(visitor.locator("figcaption").getByRole("link", { name: "Emm Berring" })).toHaveAttribute("href", "https://berring.se/emm/");
+  await expect(visitor.getByTestId("home-painting")).toHaveCount(0);
+  await expect(visitor.getByText("Veckans målning")).toHaveCount(0);
+  const slides = visitor.getByRole("region", { name: "Bilder från O-Tid" });
+  await expect(slides).toHaveAttribute("aria-roledescription", "carousel");
+  const slide = slides.getByRole("group");
+  await expect(slide).toHaveAccessibleName("1 av 9");
+  await expect(slide).toHaveAttribute("aria-live", "polite");
+  await expect(slides.getByRole("heading", { level: 2 })).toHaveText("Från laserdata till grundkarta");
+  const image = slides.getByRole("img");
+  await expect(image).toHaveCount(1);
+  await expect(image).toHaveAttribute("src", "/bildspel/grundkarta.webp");
+  await expect(image).toHaveAttribute("alt", /guiden Ny grundkarta/);
+  expect(await image.evaluate((element: HTMLImageElement) => element.complete && element.naturalWidth === 1440)).toBe(true);
+  // Med prefers-reduced-motion växlar det aldrig själv och har ingen paus.
+  await expect(slides).toHaveAttribute("data-running", "false");
+  await expect(slides.getByRole("button", { name: "Pausa bildspelet" })).toHaveCount(0);
+  await slides.getByRole("button", { name: "Nästa bild" }).click();
+  await expect(slide).toHaveAccessibleName("2 av 9");
+  await expect(slides.getByRole("heading", { level: 2 })).toHaveText("Rita i webben och i mobilen");
+  await expect(image).toHaveAttribute("src", "/bildspel/rita.webp");
+  await visitor.keyboard.press("ArrowLeft");
+  await visitor.keyboard.press("ArrowLeft");
+  await expect(slides.getByRole("heading", { level: 2 })).toHaveText("Klubbens arkiv");
+  await slides.getByRole("button", { name: "Bild 3: Vägval" }).click();
+  await expect(slides.getByRole("button", { name: "Bild 3: Vägval" })).toHaveAttribute("aria-current", "true");
+  await expect(slides.getByRole("heading", { level: 2 })).toHaveText("Vägval");
+  for (const name of ["grundkarta", "rita", "vagval", "gps", "layout", "forbered", "avlasning", "resultat", "arkiv"]) {
+    expect((await visitor.request.get(`/bildspel/${name}.webp`)).status()).toBe(200);
+  }
+  // Utan önskemål om mindre rörelse: växlar själv, stannar vid hovring och för gott efter ett eget val.
+  const moving = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
+  await moving.goto("/");
+  const show = moving.getByTestId("home-slideshow");
+  await expect(show).toHaveAttribute("data-running", "true");
+  await show.hover();
+  await expect(show).toHaveAttribute("data-running", "false");
+  await moving.mouse.move(5, 5);
+  await expect(show).toHaveAttribute("data-running", "true");
+  await expect(show.getByRole("group")).toHaveAccessibleName("2 av 9", { timeout: 8_000 });
+  await show.getByRole("button", { name: "Pausa bildspelet" }).click();
+  await moving.mouse.move(5, 5);
+  await expect(show).toHaveAttribute("data-running", "false");
+  await expect(show.getByRole("button", { name: "Spela bildspelet" })).toBeVisible();
+  await moving.close();
   const footer = visitor.getByRole("contentinfo");
   await expect(footer).toHaveCount(1);
-  await expect(footer.getByTestId("home-painting-credit")).toHaveText(/^Veckans målning: .+ av Emm Berring, (olja|akryl och olja) på duk, \d+ × \d+ cm, \d{4}\.$/);
-  await expect(footer.getByRole("link", { name: "Emm Berrings portfolio" })).toHaveAttribute("href", "https://berring.se/emm/");
-  // Hel: proportionerna som filen, aldrig beskuren eller utdragen.
-  const ratio = await painting.evaluate((image: HTMLImageElement) => [image.getBoundingClientRect().width / image.getBoundingClientRect().height,
-    image.naturalWidth / image.naturalHeight]);
-  expect(Math.abs(ratio[0]! - ratio[1]!)).toBeLessThan(0.02);
+  await expect(footer.getByTestId("home-painting-credit")).toHaveCount(0);
 
-  // Datorbredd: målningen till höger om rubriken, avsnitten under till vänster.
-  const [wide, heading] = [await painting.boundingBox(), await visitor.getByRole("heading", { level: 1 }).boundingBox()];
+  // Datorbredd: bildspelet till höger om rubriken, avsnitten under till vänster.
+  await visitor.goto("/");
+  const [wide, heading] = [await slides.boundingBox(), await visitor.getByRole("heading", { level: 1 }).boundingBox()];
   expect(wide!.x).toBeGreaterThan(heading!.x + heading!.width);
-  expect(wide!.height).toBeLessThanOrEqual(441);
   expect(await top(visitor, "#kommande")).toBeGreaterThan(wide!.y);
   expect(await noSideScroll(visitor)).toBeLessThanOrEqual(0);
   // Sidhuvudet har samma vänsterkant som rubriken.
@@ -83,18 +117,27 @@ test("startsidan: avsnitten, veckans målning i dator och telefon och den inlogg
   await loadImages(visitor);
   await visitor.screenshot({ path: "test-results/startsida-utloggad-1280.png", fullPage: true });
 
-  // Telefonen: sökningen, avsnitten, målningen kant i kant.
-  await visitor.setViewportSize({ width: 390, height: 844 });
-  const narrow = await painting.boundingBox();
-  expect(narrow!.x).toBe(0);
-  expect(Math.round(narrow!.width)).toBe(390);
-  expect(await top(visitor, "#kommande")).toBeGreaterThan(await top(visitor, "[role=search]"));
-  expect(narrow!.y).toBeGreaterThan(await top(visitor, "#kommande"));
-  expect(await noSideScroll(visitor)).toBeLessThanOrEqual(0);
-  await loadImages(visitor);
-  await visitor.screenshot({ path: "test-results/startsida-utloggad-390.png", fullPage: true });
+  // Telefonen: sökningen, avsnitten, bildspelet kant i kant; svep åt vänster ger nästa bild.
+  const phone = await (await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })).newPage();
+  await phone.emulateMedia({ reducedMotion: "reduce" });
+  await phone.goto("/");
+  const phoneSlides = phone.getByTestId("home-slideshow");
+  const picture = await phoneSlides.getByRole("img").boundingBox();
+  expect(picture!.x).toBe(0);
+  expect(Math.round(picture!.width)).toBe(390);
+  expect(await top(phone, "#kommande")).toBeGreaterThan(await top(phone, "[role=search]"));
+  expect(picture!.y).toBeGreaterThan(await top(phone, "#kommande"));
+  expect(await noSideScroll(phone)).toBeLessThanOrEqual(0);
+  await phoneSlides.scrollIntoViewIfNeeded();
+  const box = (await phoneSlides.getByRole("img").boundingBox())!;
+  await phoneSlides.getByRole("img").dispatchEvent("pointerdown", { pointerType: "touch", clientX: box.x + 300, clientY: box.y + 100, isPrimary: true });
+  await phoneSlides.getByRole("img").dispatchEvent("pointerup", { pointerType: "touch", clientX: box.x + 120, clientY: box.y + 110, isPrimary: true });
+  await expect(phoneSlides.getByRole("group")).toHaveAccessibleName("2 av 9");
+  for (const button of await phoneSlides.getByRole("button").all()) expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await phone.screenshot({ path: "test-results/startsida-utloggad-390.png", fullPage: true });
+  await phone.close();
 
-  // Inloggad: «Ditt O-Tid» med kartprojektet, länken till Mitt O-Tid i sidhuvudet, målningen som för alla.
+  // Inloggad: «Ditt O-Tid» med kartprojektet, länken till Mitt O-Tid i sidhuvudet och veckans målning (inget bildspel).
   await warmRoute(owner, "/api/organizer/map-projects/upload", "POST");
   const created = await owner.request.post("/api/organizer/map-projects/upload", { headers: { origin: baseURL!, "x-otid-csrf": await csrfOf(owner),
     "content-type": "application/octet-stream", "x-otid-request-id": crypto.randomUUID(), "x-otid-name": "Kungshatt", "x-otid-file-name": "Kungshatt.omap" },
@@ -106,7 +149,14 @@ test("startsidan: avsnitten, veckans målning i dator och telefon och den inlogg
   await expect(personal.getByRole("heading", { name: "Ditt O-Tid" })).toBeVisible();
   await expect(personal.getByRole("link", { name: "Kungshatt" })).toHaveAttribute("href", `/organizer/map-projects/${projectId}`);
   await expect(owner.getByRole("navigation", { name: "Konto" }).getByRole("link", { name: "Mitt O-Tid" })).toHaveAttribute("href", "/organizer");
-  await expect(owner.getByTestId("home-painting")).toBeVisible();
+  const painting = owner.getByTestId("home-painting");
+  await expect(painting).toHaveAttribute("alt", /^Veckans målning: .+ av Emm Berring$/);
+  expect(await painting.getAttribute("src")).toMatch(/^\/malningar\/[a-z]+\.jpg$/);
+  await expect(owner.locator("figcaption").getByRole("link", { name: "Emm Berring" })).toHaveAttribute("href", "https://berring.se/emm/");
+  await expect(owner.getByRole("contentinfo").getByTestId("home-painting-credit"))
+    .toHaveText(/^Veckans målning: .+ av Emm Berring, (olja|akryl och olja) på duk, \d+ × \d+ cm, \d{4}\.$/);
+  await expect(owner.getByRole("contentinfo").getByRole("link", { name: "Emm Berrings portfolio" })).toHaveAttribute("href", "https://berring.se/emm/");
+  await expect(owner.getByTestId("home-slideshow")).toHaveCount(0);
   await owner.setViewportSize({ width: 1280, height: 900 });
   await loadImages(owner);
   await owner.screenshot({ path: "test-results/startsida-inloggad-1280.png", fullPage: true });

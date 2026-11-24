@@ -159,6 +159,11 @@ pnpm test:e2e           # kräver E2E_DATABASE_URL eller TEST_DATABASE_URL; star
 E2E_BASE_URL=https://localhost pnpm test:e2e   # mot en körande driftmiljö
 ```
 
+Startsidans bildspel (`apps/web/public/bildspel/*.webp`) tas om med `pnpm bildspel` (samma krav som `pnpm test:e2e`): Playwright
+bygger påhittade data (den räknade kartan «Tallbacken», demotävlingens löpare, ett klubbarkiv), tar skärmbilderna i 1440 × 900
+och 390 × 844 och sätter ihop dem med telefonen infälld (`tests/e2e/bildspel*.ts`). Körs aldrig i CI. En utvecklingsserver kan
+ta slut på minnet; mot ett produktionsbygge bakom HTTPS fungerar `E2E_BASE_URL=https://localhost:<port> pnpm bildspel`.
+
 ## Licens
 
 MIT – se [LICENSE](LICENSE). Du får använda, ändra och sprida koden fritt, också i egna och kommersiella program, så länge

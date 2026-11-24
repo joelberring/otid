@@ -63,7 +63,7 @@ test("startsidan: gå med med kod eller adress, okänd kod och arrangörens väg
   await expect(visitor.getByTestId("home-organizer")).toBeHidden();
   expect(buttonBox!.y + buttonBox!.height).toBeLessThanOrEqual(844);
   expect((await visitor.getByRole("search").boundingBox())!.y).toBeGreaterThan(fieldBox!.y);
-  expect((await visitor.getByTestId("home-painting").boundingBox())!.y).toBeGreaterThan((await visitor.locator("#pagar").boundingBox())!.y);
+  expect((await visitor.getByTestId("home-slideshow").boundingBox())!.y).toBeGreaterThan((await visitor.locator("#pagar").boundingBox())!.y);
   expect(await visitor.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
 
   // Koden med versaler och blanksteg leder till tävlingssidan.

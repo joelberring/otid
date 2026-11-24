@@ -159,10 +159,20 @@ pnpm test:e2e           # kräver E2E_DATABASE_URL eller TEST_DATABASE_URL; star
 E2E_BASE_URL=https://localhost pnpm test:e2e   # mot en körande driftmiljö
 ```
 
-Startsidans bildspel (`apps/web/public/bildspel/*.webp`) tas om med `pnpm bildspel` (samma krav som `pnpm test:e2e`): Playwright
-bygger påhittade data (den räknade kartan «Tallbacken», demotävlingens löpare, ett klubbarkiv), tar skärmbilderna i 1440 × 900
-och 390 × 844 och sätter ihop dem med telefonen infälld (`tests/e2e/bildspel*.ts`). Körs aldrig i CI. En utvecklingsserver kan
-ta slut på minnet; mot ett produktionsbygge bakom HTTPS fungerar `E2E_BASE_URL=https://localhost:<port> pnpm bildspel`.
+Startsidans bildspel (`apps/web/public/bildspel/*.webp` med svenskt gränssnitt och `bildspel/en/*.webp` med engelskt; besökaren
+får bilderna på sitt språk, med den svenska som reserv) tas om med `pnpm bildspel` (samma krav som `pnpm test:e2e`): Playwright
+bygger påhittade data (kartan «Tallbacken», demotävlingens löpare, ett klubbarkiv och en laserkörning med geo-arbetaren), tar
+skärmbilderna i 1440 × 900 och 390 × 844 på båda språken och sätter ihop dem med telefonen infälld (`tests/e2e/bildspel*.ts`).
+Körs aldrig i CI. En utvecklingsserver kan ta slut på minnet; mot ett produktionsbygge bakom HTTPS fungerar
+`E2E_BASE_URL=https://localhost:<port> pnpm bildspel` (servern med samma miljö som utvecklingsservern i `playwright.config.ts`).
+
+- Egen karta och banläggning: `BILDSPEL_KARTA=/sökväg/karta.omap` (.omap, .xmap eller .ocd), `BILDSPEL_BANOR=/sökväg/banor.ppen`,
+  valfritt `BILDSPEL_BANA=<banans namn>` (förval den första) och `BILDSPEL_STRACKA=2-3` (sträckan som zoomas in i vägvalsbilden).
+  Övrig tävlingsdata är påhittad. Lägg filerna utanför repot och checka aldrig in dem (kartor har upphovsrätt), bara bilderna.
+  Grundkartebilden (guiden med en färdig laserkörning) använder alltid Tallbacken.
+- Starttiderna: första start är 50 minuter före serverns klocka. För dagtid oavsett när skriptet körs, kör servern och
+  PostgreSQL med libfaketime förskjutna till förmiddagen (`LD_PRELOAD=…/libfaketime.so.1 FAKETIME=+234m
+  FAKETIME_DONT_FAKE_MONOTONIC=1`, för PostgreSQL i klustrets `environment`); webbläsaren följer serverns klocka.
 
 ## Licens
 

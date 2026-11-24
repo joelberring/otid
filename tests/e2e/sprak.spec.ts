@@ -12,6 +12,10 @@ test("språk: engelska för den som inte har svenska, och språkvalet", async ({
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Find your event");
   await expect(page.getByRole("contentinfo")).toContainText("About O-Tid");
+  // Bildspelet med skärmbilder ur det engelska gränssnittet och engelska alt-texter.
+  const slide = page.getByTestId("home-slideshow").getByRole("img");
+  await expect(slide).toHaveAttribute("src", "/bildspel/en/grundkarta.webp");
+  await expect(slide).toHaveAttribute("alt", /^The map editor with the New base map guide/);
   await page.goto("/om");
   await expect(page.getByRole("heading", { name: "Clubs outside Sweden" })).toBeVisible();
   await expect(page.locator("[data-testid=language-switch]:visible")).toHaveText("Svenska");

@@ -21,6 +21,9 @@ export function HomeSlideshow({ language }: { language: Language }) {
   const [held, setHeld] = useState({ hover: false, focus: false });
   const [reduced, setReduced] = useState(true);
   const swipe = useRef<{ x: number; y: number } | null>(null);
+  // Bilder som saknas på besökarens språk visas på svenska.
+  const [missing, setMissing] = useState<ReadonlySet<string>>(() => new Set());
+  const srcOf = (key: (typeof HOME_SLIDES)[number]) => homeSlideSrc(key, missing.has(key) ? "sv" : language);
   const running = !stopped && !reduced && !held.hover && !held.focus;
 
   useEffect(() => {
@@ -36,7 +39,8 @@ export function HomeSlideshow({ language }: { language: Language }) {
     return () => window.clearInterval(timer);
   }, [running]);
   // Nästa bild hämtas i förväg, så att bytet blir direkt.
-  useEffect(() => { new Image().src = homeSlideSrc(HOME_SLIDES[stepSlide(index, 1)]!); }, [index]);
+  const nextSrc = srcOf(HOME_SLIDES[stepSlide(index, 1)]!);
+  useEffect(() => { new Image().src = nextSrc; }, [nextSrc]);
 
   const choose = (next: number) => { setStopped(true); setIndex(next); };
   const onKeyDown = (event: KeyboardEvent) => {
@@ -62,9 +66,10 @@ export function HomeSlideshow({ language }: { language: Language }) {
     <div className={styles.slide} role="group" aria-roledescription="slide" aria-label={text.position(index + 1, HOME_SLIDES.length)}
       aria-live={running ? "off" : "polite"} onPointerDown={onPointerDown} onPointerUp={onPointerUp}
       onPointerCancel={() => { swipe.current = null; }}>
-      <a href={homeSlideSrc(slide)} className={styles.slideImage} title={text.enlarge} draggable={false}>
-        <img key={slide} src={homeSlideSrc(slide)} width={HOME_SLIDE_SIZE.width} height={HOME_SLIDE_SIZE.height} alt={current.alt}
-          loading={index === 0 ? "eager" : "lazy"} decoding="async" draggable={false} />
+      <a href={srcOf(slide)} className={styles.slideImage} title={text.enlarge} draggable={false}>
+        <img key={srcOf(slide)} src={srcOf(slide)} width={HOME_SLIDE_SIZE.width} height={HOME_SLIDE_SIZE.height} alt={current.alt}
+          loading={index === 0 ? "eager" : "lazy"} decoding="async" draggable={false}
+          onError={() => { if (language !== "sv" && !missing.has(slide)) setMissing(value => new Set(value).add(slide)); }} />
       </a>
       <h2>{current.title}</h2>
       <p>{current.text}</p>

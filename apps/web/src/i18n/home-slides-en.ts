@@ -13,11 +13,11 @@ export const homeSlidesEn: Texts<typeof homeSlidesSv> = {
   enlarge: "Open the picture in full size",
   slides: {
     grundkarta: { title: "From laser data to base map", text: "Load laser data, OpenStreetMap and orthophotos, and O-Tid makes a first draft of the map.",
-      alt: "The map editor with the New base map guide: the steps laser data, OpenStreetMap and orthophoto next to the map." },
+      alt: "The map editor with the New base map guide at its last step: the contours from the laser run as a draft on the map, with the layers to add." },
     rita: { title: "Draw on the web and on your phone", text: "The map is drawn in the browser with the standard's symbols, and can be corrected on the phone in the forest.",
       alt: "The map editor's drawing mode with the symbols and a phone in the corner showing the same map." },
     vagval: { title: "Route choice", text: "Set the course and see the route choices leg by leg, with the best route on the map.",
-      alt: "The control map in route choice mode, zoomed in on a long leg around a lake with the best route drawn." },
+      alt: "The control map in route choice mode, zoomed in on a long leg, with the best route and two other route choices drawn." },
     gps: { title: "Place controls with GPS", text: "In field mode the phone shows where you are, so the controls end up in the right place and can be ticked off.",
       alt: "Course setting with all controls on the computer and field mode on a large phone with the position on the map." },
     layout: { title: "Layout and print colours", text: "Courses and maps are printed in the right colours and in several scales and formats in the same event.",

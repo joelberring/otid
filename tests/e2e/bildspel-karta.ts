@@ -183,8 +183,11 @@ const inside = (point: XY, ring: readonly XY[]) => {
   return hit;
 };
 
-/** Kartfilen (.omap) med alla objekt. */
-export function demoMapFile(): Uint8Array {
+/**
+ * Kartfilen (.omap) med alla objekt. Med `terrain: false` bara det som en ny grundkarta börjar med före laserkörningen (vägar,
+ * stigar, gården, åkern, sjöarna och bäcken, som ur OpenStreetMap och Lantmäteriet): bildspelets bild av guiden Ny grundkarta.
+ */
+export function demoMapFile({ terrain = true }: { terrain?: boolean } = {}): Uint8Array {
   const base = newMapFile({ symbolSet: "ISOM2017-2", scale: DEMO_MAP_SCALE, refPoint: DEMO_MAP_REF,
     notes: "Påhittad karta «Tallbacken» för O-Tids bildspel. Terrängen är räknad och finns inte på riktigt." });
   const map = readMapFile(base, "tallbacken.omap");
@@ -205,11 +208,12 @@ export function demoMapFile(): Uint8Array {
   const field = blob(-98, 58, 16, 11, 1.4);
   area("401", field);
   area("401", blob(-30, 72, 7, 12, 1.6));
-  for (const [x, y, r, seed] of [[96, 58, 10, 21], [32, -62, 7, 22], [-62, -70, 6, 23], [74, 8, 5, 24]] as const) area("403", blob(x, y, r, seed, 1.3));
-  for (const [x, y, r, seed] of [[-40, 30, 9, 31], [20, 40, 11, 32], [70, -50, 12, 33], [-85, 10, 8, 34], [100, -5, 9, 35], [-10, -55, 8, 36],
-    [40, 75, 7, 37], [-110, -30, 7, 38], [55, -10, 6, 39], [-60, -40, 7, 40]] as const) area("406", blob(x, y, r, seed, 1.5));
-  for (const [x, y, r, seed] of [[18, 36, 5, 41], [72, -54, 5, 42], [-38, 34, 4, 43], [102, -2, 4, 44], [-8, -58, 3.5, 45], [88, 70, 4, 46]] as const) {
-    area("408", blob(x, y, r, seed, 1.4));
+  if (terrain) {
+    for (const [x, y, r, seed] of [[96, 58, 10, 21], [32, -62, 7, 22], [-62, -70, 6, 23], [74, 8, 5, 24]] as const) area("403", blob(x, y, r, seed, 1.3));
+    for (const [x, y, r, seed] of [[-40, 30, 9, 31], [20, 40, 11, 32], [70, -50, 12, 33], [-85, 10, 8, 34], [100, -5, 9, 35], [-10, -55, 8, 36],
+      [40, 75, 7, 37], [-110, -30, 7, 38], [55, -10, 6, 39], [-60, -40, 7, 40]] as const) area("406", blob(x, y, r, seed, 1.5));
+    for (const [x, y, r, seed] of [[18, 36, 5, 41], [72, -54, 5, 42], [-38, 34, 4, 43], [102, -2, 4, 44], [-8, -58, 3.5, 45], [88, 70, 4, 46]] as const) {
+      area("408", blob(x, y, r, seed, 1.4));
   }
   area("410", blob(73, -57, 2, 47));
   // Sankmark vid stränderna och i en svacka.
@@ -217,6 +221,7 @@ export function demoMapFile(): Uint8Array {
     area("310", blob(x, y, r, seed, 1.6));
   }
   area("308", blob(14, -12, 4, 56, 1.8));
+  }
 
   // Sjön och tjärnen: den slutna kurvan vid vattenytan runt sänkans mitt.
   const lakes: XY[][] = [];
@@ -232,15 +237,16 @@ export function demoMapFile(): Uint8Array {
   }
   const wet = (p: XY) => lakes.some(ring => inside(p, ring));
 
-  // Kurvorna var 5:e meter, stödkurvor var 25:e; inga under vattnet.
-  for (let level = 5; level < 140; level += 5) {
-    for (const contour of isolines(level)) {
-      const points = thin(smooth(contour.points, contour.closed), 0.7);
-      if (points.length < 4 || points.every(wet)) continue;
-      const length = points.reduce((sum, p, index) => index === 0 ? 0 : sum + Math.hypot(p[0] - points[index - 1]![0], p[1] - points[index - 1]![1]), 0);
-      if (contour.closed && length < 4) { point("109", points[0]!); continue; }
-      line(level % 25 === 0 ? "102" : "101", contour.closed ? [...points, points[0]!] : points);
-    }
+  if (terrain) {
+    // Kurvorna var 5:e meter, stödkurvor var 25:e; inga under vattnet.
+    for (let level = 5; level < 140; level += 5) {
+      for (const contour of isolines(level)) {
+        const points = thin(smooth(contour.points, contour.closed), 0.7);
+        if (points.length < 4 || points.every(wet)) continue;
+        const length = points.reduce((sum, p, index) => index === 0 ? 0 : sum + Math.hypot(p[0] - points[index - 1]![0], p[1] - points[index - 1]![1]), 0);
+        if (contour.closed && length < 4) { point("109", points[0]!); continue; }
+        line(level % 25 === 0 ? "102" : "101", contour.closed ? [...points, points[0]!] : points);
+      }
   }
 
   // Branter där det lutar mest (en per 9 mm), tvärs över lutningen.
@@ -262,6 +268,7 @@ export function demoMapFile(): Uint8Array {
     point(count % 5 === 0 ? "205" : "204", at);
   }
   for (const at of [[-64, 22], [36, 55], [82, -18], [-14, -44], [58, 60]] as const) point("207", at);
+  }
 
   // Vägen till gården, körvägen söderut och stigarna runt sjön.
   line("503", trail([[-120, 72], [-104, 64], [-84, 66], [-62, 78], [-48, 85]], 61, 0.4));

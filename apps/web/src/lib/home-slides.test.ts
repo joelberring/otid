@@ -21,9 +21,15 @@ describe("startsidans bildspel", () => {
     for (const slide of HOME_SLIDES) {
       expect(homeSlidesSv.slides[slide].title).not.toBe("");
       expect(homeSlidesEn.slides[slide].alt).not.toBe("");
-      const file = new URL(`../../public${homeSlideSrc(slide)}`, import.meta.url);
-      expect(existsSync(file), slide).toBe(true);
-      expect(statSync(file).size, slide).toBeLessThan(200_000);
+      for (const language of ["sv", "en"] as const) {
+        const file = new URL(`../../public${homeSlideSrc(slide, language)}`, import.meta.url);
+        expect(existsSync(file), `${language}/${slide}`).toBe(true);
+        expect(statSync(file).size, `${language}/${slide}`).toBeLessThan(200_000);
+      }
     }
+  });
+  it("tar bilden på besökarens språk", () => {
+    expect(homeSlideSrc("rita")).toBe("/bildspel/rita.webp");
+    expect(homeSlideSrc("rita", "en")).toBe("/bildspel/en/rita.webp");
   });
 });

@@ -1,5 +1,5 @@
 import type { MapObject, Path, Point } from "@o-tid/map-file";
-import { vertices, type VertexAddress } from "@o-tid/map-revision";
+import { objectParts, vertices, type VertexAddress } from "@o-tid/map-revision";
 import { toScreen, type Viewport } from "./course-setting-viewport";
 import { lineEnds, type EndMark } from "./map-project-cut-marks";
 import type { CatalogSymbol } from "./map-project-protocol";
@@ -13,6 +13,9 @@ type Context = CanvasRenderingContext2D;
 const SELECT = "#1a5fd0";
 /** Ändpunkter och klipp: en färg som inte finns bland kartans symboler eller markeringens blå. */
 const END_MARK = "#d6246e";
+/** Styrpunkter på streckade linjer: tydlig turkos romb som skiljer sig från vanliga brytpunkter och ändpunkter. */
+const DASH_MARK = "#0d9488";
+const DASH_MARK_ACTIVE = "#0f766e";
 
 function tracePath(ctx: Context, view: Viewport, path: Path) {
   for (const command of path) {
@@ -70,6 +73,58 @@ function handle(ctx: Context, at: { x: number; y: number }, curve: boolean, acti
   ctx.lineWidth = 2;
   ctx.strokeStyle = SELECT;
   ctx.stroke();
+}
+
+/** Styrpunkt (`dash: true`) på en markerad linje: en roterad romb (◆) i accentfärg med vit kant. */
+function dashHandle(ctx: Context, at: { x: number; y: number }, active: boolean) {
+  const size = active ? 8 : 6.5;
+  ctx.beginPath();
+  ctx.moveTo(at.x, at.y - size);
+  ctx.lineTo(at.x + size, at.y);
+  ctx.lineTo(at.x, at.y + size);
+  ctx.lineTo(at.x - size, at.y);
+  ctx.closePath();
+  ctx.fillStyle = active ? DASH_MARK_ACTIVE : DASH_MARK;
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = "#fff";
+  ctx.stroke();
+  if (active) {
+    ctx.beginPath();
+    ctx.moveTo(at.x, at.y - size - 2.5);
+    ctx.lineTo(at.x + size + 2.5, at.y);
+    ctx.lineTo(at.x, at.y + size + 2.5);
+    ctx.lineTo(at.x - size - 2.5, at.y);
+    ctx.closePath();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = DASH_MARK_ACTIVE;
+    ctx.stroke();
+  }
+}
+
+/** Förhandsvisning av föreslagna styrpunkter: ihåliga romber i accentfärg med vit gloria. */
+export function drawDashPreview(ctx: Context, view: Viewport, points: readonly Point[]) {
+  if (points.length === 0) return;
+  ctx.save();
+  const size = 7;
+  for (const point of points) {
+    const at = toScreen(view, point);
+    ctx.beginPath();
+    ctx.moveTo(at.x, at.y - size);
+    ctx.lineTo(at.x + size, at.y);
+    ctx.lineTo(at.x, at.y + size);
+    ctx.lineTo(at.x - size, at.y);
+    ctx.closePath();
+    ctx.fillStyle = "rgb(13 148 136 / 18%)";
+    ctx.fill();
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = "#fff";
+    ctx.stroke();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = DASH_MARK_ACTIVE;
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 /** Skärmpunkten för en ändpunkt och enhetsvektorn in i linjen (åt höger när linjen har noll längd). */
@@ -149,10 +204,15 @@ export function drawSelection(ctx: Context, view: Viewport, object: MapObject, a
   traceObject(ctx, view, object);
   ctx.strokeStyle = "#fff"; ctx.lineWidth = 5; ctx.stroke();
   ctx.strokeStyle = SELECT; ctx.lineWidth = 2; ctx.setLineDash([6, 4]); ctx.stroke(); ctx.setLineDash([]);
-  const all = vertices(object), screen = all.map(vertex => ({ ...toScreen(view, vertex.at), part: vertex.part }));
+  const all = vertices(object), parts = objectParts(object), screen = all.map(vertex => ({ ...toScreen(view, vertex.at), part: vertex.part }));
+  const isDash = all.map(vertex => parts[vertex.part]?.[vertex.index]?.dash === true);
   const is = (address: VertexAddress | undefined, index: number) => !!address && address.part === all[index]!.part && address.index === all[index]!.index;
-  const { shown, dense } = shownHandles(screen, index => is(activeVertex, index) || is(nearVertex, index));
-  all.forEach((vertex, index) => { if (shown[index]) handle(ctx, screen[index]!, vertex.curve, is(activeVertex, index), dense && !is(nearVertex, index)); });
+  const { shown, dense } = shownHandles(screen, index => is(activeVertex, index) || is(nearVertex, index) || isDash[index] === true);
+  all.forEach((vertex, index) => {
+    if (!shown[index]) return;
+    if (isDash[index]) dashHandle(ctx, screen[index]!, is(activeVertex, index));
+    else handle(ctx, screen[index]!, vertex.curve, is(activeVertex, index), dense && !is(nearVertex, index));
+  });
   // Ägaren 2026-11-13: ändpunkterna syns med en egen markör, så att en klippt linje går att se även senare.
   drawEndMarks(ctx, view, lineEnds(object));
   ctx.restore();

@@ -1,6 +1,6 @@
 import type { MapColor, MapColorChange, MapGeoreference, MapObject, MapSymbolColorChange, MapTextSymbolChange, Point, TextAlign } from "@o-tid/map-file";
 import type {
-  Coverage, FitPoint, GeneralizeOptions, GeneralizeResult, KeyedState, NormResult, NormSymbolSetting, ObjectKey, SymbolNormIssue, ObjectRef, ReconMarker, ReconSettings, TrackPoint, VectorFit, WarpChange, WarpOptions
+  Box, Coverage, DashPointCounts, DashPointOptions, DashPointPlacement, FitPoint, GeneralizeOptions, GeneralizeResult, KeyedState, NormResult, NormSymbolSetting, ObjectKey, SymbolNormIssue, ObjectRef, ReconMarker, ReconSettings, TrackPoint, VectorFit, WarpChange, WarpOptions
 } from "@o-tid/map-revision";
 import type { MapRenderErrorCode, MapRenderRequest } from "./course-setting-map-protocol";
 import type { Bounds } from "./course-setting-viewport";
@@ -38,6 +38,8 @@ export interface CatalogSymbol {
   readonly count: number;
   /** Ytsymbolen har egen kant (kantlinje eller kombinerad med en linje); avgör om husen får kantlinjer (`autoBuildingEdgeOf`). */
   readonly outlined?: boolean | undefined;
+  /** Streckad linjesymbol (hjälpkurva, stig …) som stöder styrpunkter (`isDashedLineSymbol`). */
+  readonly dashed?: boolean | undefined;
   /**
    * Skisslager (ägaren 2026-11-15): symbolen är dold i kartfilen (Mappers «dölj symbol», t.ex. en inläst grundkarta från
    * CAD). Den ritas bara när skisslagret är tänt och kan föras över till en symbol i normen.
@@ -114,7 +116,28 @@ export type MapProjectRequest =
   | { readonly type: "unfilled"; readonly id: number; readonly query: UnfilledQuery }
   /** Fyll ytor ur flygbilden: rutorna i en etapp klassade ur ortofotot, och det som ändras under de valda rutorna. */
   | { readonly type: "photoCells"; readonly id: number; readonly query: PhotoCellsQuery }
-  | { readonly type: "photoCuts"; readonly id: number; readonly cells: readonly PhotoCutCell[]; readonly hidden: readonly string[] };
+  | { readonly type: "photoCuts"; readonly id: number; readonly cells: readonly PhotoCutCell[]; readonly hidden: readonly string[] }
+  /** Styrpunkter på streckade linjer (markerade, utsnitt eller hela kartan). */
+  | { readonly type: "dashPoints"; readonly id: number; readonly query: DashPointsQuery };
+
+/** Fråga till Workern om automatiska styrpunkter. */
+export interface DashPointsQuery {
+  readonly options: DashPointOptions;
+  readonly hidden: readonly string[];
+  readonly keys?: readonly ObjectKey[] | undefined;
+  readonly box?: Box | undefined;
+}
+/** En planerad ändring från `autoDashPointsPlan` mappad till objektets nyckel och referens. */
+export interface DashPointChange {
+  readonly key: ObjectKey;
+  readonly ref: ObjectRef | null;
+  readonly after: MapObject;
+  readonly points: readonly DashPointPlacement[];
+}
+export interface DashPointsResult {
+  readonly entries: readonly DashPointChange[];
+  readonly counts: DashPointCounts;
+}
 
 /** En ruta som läggs in: ringarna och symbolens id. */
 export interface PhotoCutCell { readonly rings: readonly (readonly Point[])[]; readonly symbol: string }
@@ -157,6 +180,7 @@ export type MapProjectResponse =
   | { readonly type: "unfilled"; readonly id: number; readonly result: UnfilledResult }
   | { readonly type: "photoCells"; readonly id: number; readonly result: PhotoCellsResult }
   | { readonly type: "photoCuts"; readonly id: number; readonly under: readonly UnderChange[] }
+  | { readonly type: "dashPoints"; readonly id: number; readonly result: DashPointsResult }
   | { readonly type: "error"; readonly code: MapRenderErrorCode };
 
 /** K8b V7: ringarna för den samlade ytan och vad som ska klippas under den (som i `FillQuery`). */
@@ -212,6 +236,8 @@ export class MapProjectSession {
   private readonly onPhoto = new Map<number, (message: Extract<MapProjectResponse, { type: "photoCells" | "photoCuts" }>) => void>();
   private onFit: ((fit: VectorFit | null) => void) | undefined;
   private onWarp: ((changes: readonly WarpChange<ObjectKey>[], refs: ReadonlyMap<ObjectKey, ObjectRef>) => void) | undefined;
+  private latestDashPoints = 0;
+  private onDashPoints: ((result: DashPointsResult) => void) | undefined;
 
   constructor(createWorker: () => Worker, onLoaded: (loaded: Extract<MapProjectResponse, { type: "loaded" }>) => void,
     onError: (code: MapRenderErrorCode) => void) {
@@ -236,6 +262,7 @@ export class MapProjectSession {
       else if (message.type === "snapIndex") { if (message.id === this.latestSnap) this.onSnap?.(message.index); }
       else if (message.type === "unfilled") { if (message.id === this.latestUnfilled) this.onUnfilled?.(message.result); }
       else if (message.type === "photoCells" || message.type === "photoCuts") { this.onPhoto.get(message.id)?.(message); this.onPhoto.delete(message.id); }
+      else if (message.type === "dashPoints") { if (message.id === this.latestDashPoints) this.onDashPoints?.(message.result); }
       else if (message.type === "proposeAreas") { if (message.id === this.latestPropose) this.onPropose?.(message.result); }
       else if (message.type === "built") { if (message.id === this.latestBuilt) this.onBuilt?.(message.polygons, message.fields ?? [], { roads: message.roads ?? [], edges: message.edges ?? [] }); }
       else if (message.id === this.latest && this.onRendered) this.onRendered(message.id, message.bitmap);
@@ -390,9 +417,16 @@ export class MapProjectSession {
     this.post({ type: "fit", id, source });
   }
 
+  /** Automatiska styrpunkter på streckade linjer. Bara det senaste svaret används. */
+  dashPoints(query: DashPointsQuery, onDashPoints: (result: DashPointsResult) => void) {
+    const id = ++this.latestDashPoints;
+    this.onDashPoints = onDashPoints;
+    this.post({ type: "dashPoints", id, query });
+  }
+
   close() {
     this.onFit = undefined; this.onFill = undefined; this.onPropose = undefined; this.onSnap = undefined; this.onUnfilled = undefined; this.onPhoto.clear();
-    this.onGeneralize = undefined; this.onBySymbol = undefined; this.onWarp = undefined;
+    this.onGeneralize = undefined; this.onBySymbol = undefined; this.onWarp = undefined; this.onDashPoints = undefined;
     this.onRendered = undefined; this.onHit = undefined; this.onCatalog = undefined; this.onRecon = undefined; this.onNorm = undefined;
     this.worker.terminate();
   }

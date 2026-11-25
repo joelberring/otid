@@ -41,6 +41,12 @@ export function useMapProjectActions(input: {
   outlines?: { readonly available: boolean; readonly houseSymbols: readonly string[]; readonly run: (only: ReadonlySet<ObjectKey>) => void; readonly label: string } | undefined;
   /** «Förenkla trappor» för de markerade trapplinjerna (532). */
   stairs?: { readonly stairSymbols: readonly string[]; readonly simplifyStairs: (only: ReadonlySet<ObjectKey>) => Promise<number>; readonly canEdit: boolean } | undefined;
+  /** Styrpunkter för markerade streckade linjer. */
+  dash?: {
+    readonly isSelectedDashed: boolean; readonly selectedCount: number; readonly activeVertexDash: boolean; readonly mode: boolean;
+    readonly toggleActiveVertex: () => void; readonly toggleMode: () => void; readonly applySelected: () => void;
+    readonly text: { readonly toggleVertex: string; readonly toggleVertexHelp: string; readonly modeButton: string; readonly modeHelp: string; readonly autoButton: string; readonly autoHelp: string };
+  } | undefined;
 }) {
   const { canEdit, tool, keysText, multi, selected, symbol, recon, setFlash } = input;
   const [last, setLast] = useState<{ id: ContextActionId; label: string }>();
@@ -68,8 +74,15 @@ export function useMapProjectActions(input: {
   const stairKeys = !input.stairs?.canEdit || tool !== "select" || multi.items.length < 3 ? []
     : multi.items.filter(item => item.object.kind === "line" && input.stairs!.stairSymbols.includes(item.object.symbol)).map(item => item.key);
   const single = selected && !multi.items.length ? selected : undefined;
+  const dashActions = !input.dash || tool !== "select" || input.dash.selectedCount === 0 ? undefined : {
+    ...(single && input.dash.isSelectedDashed && input.activeVertex
+      ? { toggle: { label: input.dash.text.toggleVertex, pressed: input.dash.activeVertexDash, help: input.dash.text.toggleVertexHelp } } : {}),
+    ...(single && input.dash.isSelectedDashed
+      ? { mode: { label: input.dash.text.modeButton, pressed: input.dash.mode, help: input.dash.text.modeHelp } } : {}),
+    auto: { label: input.dash.text.autoButton, help: input.dash.text.autoHelp }
+  };
   const contextList = !canEdit || tool !== "select" ? [] : contextActions({ keys: input.keys, space: keysText.space, text: keysText, quick: input.quick, edge: edges,
-    outlines: houseKeys.length ? input.outlines?.label : undefined, stairs: stairKeys.length >= 3 ? keysText.simplifyStairs : undefined,
+    outlines: houseKeys.length ? input.outlines?.label : undefined, stairs: stairKeys.length >= 3 ? keysText.simplifyStairs : undefined, dash: dashActions,
     multi: multi.items.length ? { count: multi.items.length, switchable: multiSwitch, symbolCode: symbol?.code, joinable: multi.joinable(input.joinMm),
       lines: multi.items.filter(item => item.object.kind === "line").length, smooth: multi.shapeable("smooth"), simplify: multi.shapeable("simplify") } : undefined,
     single: single ? { kind: single.object.kind, switchTo: canSwitch ? symbol.code : undefined, canPick: single.object.symbol !== input.symbolId,
@@ -107,12 +120,17 @@ export function useMapProjectActions(input: {
     else if (command === "checked" && recon.canRecord) void recon.setChecked([selected.key], !recon.validChecks.has(selected.key));
   };
   const remember = (id: ContextActionId) => {
-    if (id !== "pick" && id !== "checked" && id !== "editText" && id !== "textStyle") setLast({ id, label: contextList.find(action => action.id === id)?.label ?? id });
+    if (id !== "pick" && id !== "checked" && id !== "editText" && id !== "textStyle" && id !== "dashPoint" && id !== "dashMode") {
+      setLast({ id, label: contextList.find(action => action.id === id)?.label ?? id });
+    }
   };
   const doAction = (id: ContextActionId) => {
     if (id === "edge") { if (edges) setFlash(addEdges(edges, input.commit, keysText)); }
     else if (id === "outlines") { if (houseKeys.length) input.outlines?.run(new Set(houseKeys)); }
     else if (id === "stairs") { if (stairKeys.length) void input.stairs?.simplifyStairs(new Set(stairKeys)).then(count => setFlash(keysText.stairsSimplified(count))); }
+    else if (id === "dashPoint") input.dash?.toggleActiveVertex();
+    else if (id === "dashMode") input.dash?.toggleMode();
+    else if (id === "autoDash") input.dash?.applySelected();
     else if (id === "editText") input.text.edit();
     else if (id === "rotate") input.text.rotate();
     else if (id === "textStyle") input.text.style();
@@ -127,7 +145,7 @@ export function useMapProjectActions(input: {
     if (!last) setFlash(keysText.nothingToRepeat);
     else if (contextList.some(action => action.id === last.id)) doAction(last.id);
     else if (last.id !== "edge" && last.id !== "outlines" && last.id !== "stairs" && last.id !== "remove" && last.id !== "simplifyMore" && last.id !== "straighten" && last.id !== "rotate"
-      && last.id !== "editText" && last.id !== "textStyle") act(last.id);
+      && last.id !== "editText" && last.id !== "textStyle" && last.id !== "dashPoint" && last.id !== "dashMode" && last.id !== "autoDash") act(last.id);
     else setFlash(keysText.needSelection);
   };
   const repeatLabel = last ? keysText.repeatOf(contextList.find(action => action.id === last.id)?.label ?? last.label) : undefined;

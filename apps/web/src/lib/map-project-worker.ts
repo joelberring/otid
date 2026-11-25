@@ -4,7 +4,7 @@ import {
   type MapColorChange, type MapObject, type MapSymbol, type MapSymbolColorChange, type MapTextSymbolChange, type ParsedMap
 } from "@o-tid/map-file";
 import {
-  baseKeys, checkNorm, checkSymbolNorm, hasOwnOutline, isSprintNorm, mapNorm, missingNormSymbols, normSymbolAdditions, normSymbolFixes, type NormSymbolSetting, combineGeneralize, coveredObjects, coverageGrid, generalizeJoins, generalizePart, generalizeParts, editedObjects, fitToMap, mapFitPoints, boxTest, hitTest, objectBox, objectRefFor, reconMarkers, symbolObjectKind, warpObjects, type Box, type GeneralizeResult, type KeyedState, type NormObject, type ObjectKey,
+  autoDashPointsPlan, baseKeys, checkNorm, checkSymbolNorm, hasOwnOutline, isDashedLineSymbol, isSprintNorm, mapNorm, missingNormSymbols, normSymbolAdditions, normSymbolFixes, type NormSymbolSetting, combineGeneralize, coveredObjects, coverageGrid, generalizeJoins, generalizePart, generalizeParts, editedObjects, fitToMap, mapFitPoints, boxTest, hitTest, objectBox, objectRefFor, reconMarkers, symbolObjectKind, warpObjects, type Box, type GeneralizeResult, type KeyedState, type NormObject, type ObjectKey,
   type ObjectRef, type ReconObject
 } from "@o-tid/map-revision";
 import { MAX_RENDER_SIDE } from "./course-setting-map-protocol";
@@ -223,6 +223,7 @@ async function catalog(map: ParsedMap): Promise<CatalogSymbol[]> {
     }
     out.push({ id: symbol.id, code: symbol.code.text, name: symbol.name, kind, group: symbolGroup(symbol.code.main), ...previewStyle(map, symbol), icon,
       ...(kind === "area" && hasOwnOutline(map.symbols, symbol) ? { outlined: true } : {}),
+      ...(isDashedLineSymbol(symbol) ? { dashed: true } : {}),
       count: counts.get(symbol.id) ?? 0, colors: symbolColorIds(fileSymbols, fileSymbols.get(symbol.id) ?? symbol),
       ...(symbol.kind === "TEXT" ? { text: { fontFamily: symbol.fontFamily, size: symbol.size, color: symbol.color, bold: symbol.bold, italic: symbol.italic,
         ...(symbol.align ? { align: symbol.align } : {}), ...(symbol.framing ? { framing: symbol.framing } : {}) } } : {}),
@@ -466,6 +467,41 @@ self.onmessage = (event: MessageEvent<MapProjectRequest>) => {
   if (request.type === "norm") {
     if (!current) { post({ type: "norm", id: request.id, result: { standard: "ISOM", factor: 1, issues: [], truncated: false } }); return; }
     post({ type: "norm", id: request.id, result: checkNorm(normRows(current.map, current.keys), current.map.scale) });
+    return;
+  }
+  if (request.type === "dashPoints") {
+    if (!current) {
+      post({ type: "dashPoints", id: request.id, result: { entries: [], counts: { objects: 0, added: 0, bends: 0, slopeTags: 0, junctions: 0 } } });
+      return;
+    }
+    const { map, keys: currentKeys, boxes } = current;
+    const hidden = new Set(request.query.hidden);
+    const keySet = request.query.keys ? new Set(request.query.keys) : undefined;
+    const box = request.query.box;
+    const visibleAll: MapObject[] = [];
+    const targets: MapObject[] = [];
+    const indexByObject = new Map<MapObject, number>();
+    map.objects.forEach((object, index) => {
+      if (hidden.has(object.symbol) || map.symbols.get(object.symbol)?.hidden) return;
+      visibleAll.push(object);
+      if (keySet && !keySet.has(currentKeys[index]!)) return;
+      if (box) {
+        const b = boxes[index]!;
+        if (b.maxX < box.minX || b.minX > box.maxX || b.maxY < box.minY || b.minY > box.maxY) return;
+      }
+      targets.push(object);
+      indexByObject.set(object, index);
+    });
+    const plan = autoDashPointsPlan(targets, visibleAll, map.symbols, request.query.options);
+    const entries = plan.entries.flatMap(entry => {
+      const idx = indexByObject.get(entry.before);
+      if (idx === undefined) return [];
+      const key = currentKeys[idx]!;
+      const plain = { ...entry.after, source: undefined } as MapObject;
+      delete (plain as { source?: unknown }).source;
+      return [{ key, ref: refs.get(key) ?? null, after: plain, points: entry.points }];
+    });
+    post({ type: "dashPoints", id: request.id, result: { entries, counts: plan.counts } });
     return;
   }
   if (request.type === "generalize") { latestGeneralize = request.id; void runGeneralize(request); return; }

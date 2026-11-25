@@ -6,7 +6,7 @@ import type { Texts } from "../../lib/language";
 import type { Box } from "@o-tid/map-revision";
 
 export type ContextActionId = "switchSymbol" | "pick" | "duplicate" | "parallel" | "reverse" | "join" | "fill" | "smooth" | "simplify" | "simplifyMore" | "straighten"
-  | "checked" | "edge" | "outlines" | "stairs" | "remove" | "editText" | "rotate" | "textStyle";
+  | "checked" | "edge" | "outlines" | "stairs" | "remove" | "editText" | "rotate" | "textStyle" | "dashPoint" | "dashMode" | "autoDash";
 
 export interface ContextAction {
   readonly id: ContextActionId; readonly label: string;
@@ -48,6 +48,12 @@ export interface ContextInput {
   readonly outlines?: string | undefined;
   /** «Förenkla trappor» för markerade trapplinjer (minst tre). */
   readonly stairs?: string | undefined;
+  /** Styrpunkter för markerade streckade linjer. */
+  readonly dash?: {
+    readonly toggle?: { readonly label: string; readonly pressed: boolean; readonly help?: string | undefined } | undefined;
+    readonly mode?: { readonly label: string; readonly pressed: boolean; readonly help?: string | undefined } | undefined;
+    readonly auto?: { readonly label: string; readonly help?: string | undefined } | undefined;
+  } | undefined;
 }
 
 /**
@@ -64,6 +70,11 @@ export function contextActions(input: ContextInput): ContextAction[] {
   const edge = input.edge && input.edge.codes.length ? [of("edge", text.edge(input.edge.areas, input.edge.codes.join(", ")), undefined)] : [];
   const outlines = [...(input.outlines ? [of("outlines", input.outlines, undefined, { testId: "map-project-rail-outlines" })] : []),
     ...(input.stairs ? [of("stairs", input.stairs, undefined, { testId: "map-project-rail-stairs" })] : [])];
+  const dash = [
+    ...(input.dash?.toggle ? [of("dashPoint", input.dash.toggle.label, undefined, { pressed: input.dash.toggle.pressed, help: input.dash.toggle.help, testId: "map-project-dash-vertex" })] : []),
+    ...(input.dash?.mode ? [of("dashMode", input.dash.mode.label, undefined, { pressed: input.dash.mode.pressed, help: input.dash.mode.help, testId: "map-project-dash-mode" })] : []),
+    ...(input.dash?.auto ? [of("autoDash", input.dash.auto.label, undefined, { help: input.dash.auto.help, testId: "map-project-dash-auto" })] : [])
+  ];
   const checked = input.checked === undefined ? [] : [of("checked", text.commands.checked, "checked", { pressed: input.checked, testId: "recon-check" })];
   if (multi) return [
     ...(multi.switchable && multi.symbolCode ? [of("switchSymbol", text.multiSwitch(multi.switchable, multi.symbolCode), "switchSymbol", { testId: "map-project-rail-switch" })] : []),
@@ -73,7 +84,7 @@ export function contextActions(input: ContextInput): ContextAction[] {
     ...(multi.simplify ? [of("simplify", text.multiSimplify(multi.simplify), "simplify")] : []),
     ...(multi.smooth ? [of("smooth", text.multiSmooth(multi.smooth), "smooth")] : []),
     ...(multi.lines ? [of("reverse", text.commands.reverse, "reverse", { testId: "map-project-rail-reverse" })] : []),
-    ...edge, ...outlines];
+    ...edge, ...outlines, ...dash];
   if (!single) return [];
   const shape = (id: "simplify" | "simplifyMore" | "smooth" | "straighten") => {
     const found = single.shapes.find(entry => entry.id === id);
@@ -100,6 +111,7 @@ export function contextActions(input: ContextInput): ContextAction[] {
     ...(line ? [of("reverse", text.commands.reverse, "reverse", { testId: "map-project-rail-reverse" })] : []),
     ...(single.canFill ? [of("fill", text.commands.fill, "fill", { testId: "map-project-fill" })] : []),
     ...shape("smooth"), ...shape("simplify"), ...shape("simplifyMore"), ...shape("straighten"),
+    ...dash,
     ...checked,
     ...edge, ...outlines];
 }

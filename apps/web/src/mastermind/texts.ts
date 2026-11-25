@@ -4,6 +4,9 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 
 export const mastermindText = {
   title: "Mastermind med kontroller",
+  modeLocal: "Lokal dator – sparas bara här",
+  modeTraining: "Träning",
+  modePublicStation: "Publik station",
   // Joel 2026-11-18: en kort förklaring överst (hopfällbar), eftersom leken inte är en vanlig övning.
   aboutTitle: "Så fungerar leken",
   about: [
@@ -50,12 +53,14 @@ export const mastermindText = {
   scoreLabel: (exact: number, colorOnly: number) => `${exact} svarta, ${colorOnly} vita`,
   secret: "Hemligt mönster",
   newGame: "Nytt spel för brickan",
+  newGameConfirm: "Tryck igen för nytt spel",
   // Arrangörens dator: avbryt ett spel som pågår (räknas inte, nästa utläsning startar ett nytt).
   abort: "Avbryt",
   abortGame: "Avbryt spelet",
   abortFor: (team: string) => `Avbryt spelet för ${team}`,
   abortConfirm: (team: string) => `Avbryta spelet för ${team}? Det räknas inte i resultaten, och brickans nästa utläsning startar ett nytt spel.`,
   aborted: (team: string) => `Spelet för ${team} är avbrutet. Nästa utläsning av brickan startar ett nytt spel.`,
+  cancel: "Avbryt",
   results: "Resultat",
   resultsNote: "Tiden går från lagets första utläsning till utläsningen av gissningen som knäckte mönstret. Snabbast först; vid lika tid vinner färre gissningar.",
   place: "Plac.",
@@ -74,6 +79,8 @@ export const mastermindText = {
   forgetConfirm: "Ta bort alla spel på den här datorn?",
   settings: "Inställningar",
   settingsNote: "Gäller nya spel. Pågående spel fortsätter med sina inställningar.",
+  saveSettings: "Spara inställningar",
+  settingsSaved: "Inställningarna sparades.",
   colors: "Antal färger",
   positions: "Färger i mönstret",
   maxGuesses: "Gissningar",
@@ -124,6 +131,9 @@ export type MastermindTexts = Texts<typeof mastermindText>;
 
 export const mastermindTextEn: MastermindTexts = {
   title: "Mastermind with controls",
+  modeLocal: "Local computer – saved only here",
+  modeTraining: "Training",
+  modePublicStation: "Public station",
   aboutTitle: "How the game works",
   about: [
     "Mastermind with controls is a game with SI units. Each colour is a control, and every card has its own secret pattern.",
@@ -169,11 +179,13 @@ export const mastermindTextEn: MastermindTexts = {
   scoreLabel: (exact: number, colorOnly: number) => `${exact} black, ${colorOnly} white`,
   secret: "Secret pattern",
   newGame: "New game for this card",
+  newGameConfirm: "Press again for new game",
   abort: "Abort",
   abortGame: "Abort the game",
   abortFor: (team: string) => `Abort the game for ${team}`,
   abortConfirm: (team: string) => `Abort the game for ${team}? It does not count in the results, and the card's next readout starts a new game.`,
   aborted: (team: string) => `The game for ${team} is aborted. The card's next readout starts a new game.`,
+  cancel: "Cancel",
   results: "Results",
   resultsNote: "The time runs from the team's first readout to the readout of the guess that cracked the pattern. Fastest first; on equal time, fewer guesses wins.",
   place: "Place",
@@ -192,6 +204,8 @@ export const mastermindTextEn: MastermindTexts = {
   forgetConfirm: "Remove all games on this computer?",
   settings: "Settings",
   settingsNote: "Applies to new games. Games in progress keep their settings.",
+  saveSettings: "Save settings",
+  settingsSaved: "Settings saved.",
   colors: "Number of colours",
   positions: "Colours in the pattern",
   maxGuesses: "Guesses",

@@ -42,7 +42,7 @@ export function RaceDeleteSection({ raceId, eventName, disabled }: { raceId: str
           onChange={event => setConfirmation(event.target.value)} />
       </Field>
       {problem && <Notice tone="error" role="alert">{problem}</Notice>}
-      <Button type="submit" className={styles.danger} disabled={busy || disabled || confirmation.trim() !== eventName.trim()}>{text.button}</Button>
+      <Button type="submit" variant="danger" disabled={busy || disabled || confirmation.trim() !== eventName.trim()}>{text.button}</Button>
     </form>
   </Section>;
 }

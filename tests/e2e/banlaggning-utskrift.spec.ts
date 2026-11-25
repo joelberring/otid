@@ -64,7 +64,7 @@ test("banläggning-utskrift: förbjudet område, beskrivningen på kartan, A4 li
   await expect(owner.getByTestId("course-setting-status")).toHaveText("Sparat", { timeout: 15_000 });
 
   // Fliken Utsnitt: skalan visas och ändras i banans egenskaper; papperet ställs in på arket i utskriften (ADR-0211 tillägg).
-  await owner.getByRole("tab", { name: "Utsnitt" }).click();
+  await owner.getByRole("tab", { name: "Tryckyta" }).click();
   const print = owner.getByTestId("course-setting-print");
   await expect(print.getByTestId("course-setting-print-scale-value")).toHaveText("1:10 000");
   await expect(print.getByTestId("course-setting-print-scale-change")).toBeVisible();
@@ -170,13 +170,13 @@ test("banläggning-utskrift: förbjudet område, beskrivningen på kartan, A4 li
   const more = phone.getByTestId("course-setting-field-more");
   await expect(more).toBeVisible({ timeout: 60_000 });
   await expect(phone.getByRole("button", { name: /Specialobjekt/ })).toBeHidden();
-  await expect(phone.getByRole("tab", { name: "Utsnitt" })).toBeHidden();
+  await expect(phone.getByRole("tab", { name: "Tryckyta" })).toBeHidden();
   await more.click();
   await expect(phone.getByRole("button", { name: /Specialobjekt/ })).toBeVisible();
-  // ADR-0188: Utsnitt ligger under lådans "Mer" (de vanligaste flikarna syns med namn).
+  // ADR-0188: Tryckyta ligger under lådans "Mer" (de vanligaste flikarna syns med namn).
   await phone.getByTestId("course-setting-tab-more").click();
-  await phone.getByRole("menuitem", { name: /Utsnitt/ }).click();
-  await expect(phone.getByRole("tab", { name: "Utsnitt" })).toBeVisible();
+  await phone.getByRole("menuitem", { name: /Tryckyta/ }).click();
+  await expect(phone.getByRole("tab", { name: "Tryckyta" })).toBeVisible();
   await expect(phone.getByTestId("course-setting-print")).toBeVisible();
   if (process.env.E2E_SCREENSHOT_DIR) await phone.screenshot({ path: `${process.env.E2E_SCREENSHOT_DIR}/banlaggning-utskrift-telefon-mer.png` });
   await phoneContext.close();

@@ -10,7 +10,7 @@ import type { Texts } from "../../lib/language";
 import type { ClubMapView, GroupSummary, MapAgreement } from "@o-tid/contracts";
 import { clubArchiveSv } from "../../i18n/club-archive-sv";
 import { clubBase, clubRequest, renderMapVersion, sendRenderedMap, uploadMapVersion } from "../../lib/club-archive-client";
-import { Button, DateInput, EmptyState, Field, Notice } from "../ui";
+import { Button, DateInput, EmptyState, Field, Notice, PromptDialog } from "../ui";
 import { MapAgreementSummary } from "../training-group/map-agreement";
 import { clubArchiveChecksSv } from "../../i18n/club-archive-checks-sv";
 import { clubMapDuplicatesSv } from "../../i18n/club-map-duplicates-sv";
@@ -84,6 +84,7 @@ function MapCard({ clubId, map, maps, admin, mapBank, groups, selected, onSelect
   const [description, setDescription] = useState(map.description ?? "");
   const [maker, setMaker] = useState(map.maker ?? "");
   const [busy, setBusy] = useState("");
+  const [pendingMoveNew, setPendingMoveNew] = useState<string>();
   const others = maps.filter(other => other.mapId !== map.mapId);
 
   async function act(key: string, action: () => Promise<{ status: number; json?: unknown }>, ok: string) {
@@ -137,10 +138,9 @@ function MapCard({ clubId, map, maps, admin, mapBank, groups, selected, onSelect
             onChange={event => {
               const target = event.target.value;
               if (!target) return;
-              const newName = target === "NEW" ? window.prompt(text.newMapName, map.name)?.trim() : null;
-              if (target === "NEW" && !newName) return;
+              if (target === "NEW") { setPendingMoveNew(version.versionId); return; }
               void act(`move-${version.versionId}`, () => clubRequest(`${clubBase(clubId)}/map-versions/${version.versionId}/move`, "POST",
-                { formatVersion: 1, targetMapId: target === "NEW" ? null : target, newMapName: target === "NEW" ? newName : null }), clubArchiveText.entry.saved);
+                { formatVersion: 1, targetMapId: target, newMapName: null }), clubArchiveText.entry.saved);
             }}>
             <option value="">{text.move}</option>
             {others.map(other => <option key={other.mapId} value={other.mapId}>{other.name}</option>)}
@@ -176,6 +176,12 @@ function MapCard({ clubId, map, maps, admin, mapBank, groups, selected, onSelect
       </details>
     </>}
     <MergeHistory clubId={clubId} map={map} admin={admin} onChanged={onChanged} onMessage={onMessage} />
+    {pendingMoveNew && <PromptDialog title={text.moveNew} label={text.newMapName} defaultValue={map.name} maxLength={120} confirmLabel={text.move}
+      busy={busy !== ""} onConfirm={newName => {
+        const versionId = pendingMoveNew; setPendingMoveNew(undefined);
+        void act(`move-${versionId}`, () => clubRequest(`${clubBase(clubId)}/map-versions/${versionId}/move`, "POST",
+          { formatVersion: 1, targetMapId: null, newMapName: newName }), clubArchiveText.entry.saved);
+      }} onCancel={() => setPendingMoveNew(undefined)} />}
   </article>;
 }
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { partyTextEn, readoutTextEn } from "./text-en";
 import { useLanguage, useTexts } from "../components/language-provider";
 import { sportidentReadoutPayloadSchema, type ReadoutPackage } from "@o-tid/contracts";
@@ -9,7 +9,7 @@ import type { FakeStationTransport } from "./fake-transport";
 import { buildReadoutPayload, payloadHash } from "./payload";
 import type { StationFacts, StationStatus } from "./station";
 import { chooseReadoutClock, stationClockUnusable } from "./clock";
-import { IdbReadoutStore, type OtherRacePending, type QueuedRegistration, type ReadoutStore } from "./store";
+import { IdbReadoutStore, type OtherRacePending, type QueuedReadout, type QueuedRegistration, type ReadoutStore } from "./store";
 import { RegistrationForm } from "./registration-form";
 import { heldReadouts, releaseHeldReadouts } from "./sync";
 import { failedReadoutsFile, loadFailedReadouts, saveFailedReadouts, type FailedReadout } from "./failed-readouts";
@@ -20,7 +20,7 @@ import { readoutText } from "./text-sv";
 import { ReceiptPanel, type Printable } from "./receipt-panel";
 import { receiptLink } from "./receipt";
 import { loadReceiptSettings, saveReceiptSettings, type ReceiptSettings } from "./receipt-settings";
-import { saveSoundEnabled } from "./sound";
+import { saveSoundEnabled, type ReadoutSoundKind } from "./sound";
 import { HelpButton } from "../components/help/help-panel";
 import { IdbPartyActionStore, type PartyActionStore } from "./party-store";
 import { PartyDesk } from "./party-desk";
@@ -84,9 +84,32 @@ export function ReadoutApp(props: { store?: ReadoutStore; partyStore?: PartyActi
   const { pkg, pkgRef, items, itemsRef, elsewhere, registrations, registrationsRef, online, loginNeeded, syncProblem, serverDown,
     failedReadouts, setFailedReadouts, persistent, storeRef, partyActions, reload, sync, addPartyAction } = useReadoutQueue(raceId, store, partyStore);
   const [current, setCurrent] = useState<Current>();
+  const [incoming, setIncoming] = useState<Extract<Current, { phase: "done" }>>();
+  const formDirtyRef = useRef(false);
+  const [confirmClearFailed, setConfirmClearFailed] = useState(false);
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const [runnerId, setRunnerId] = useState("");
   const [receiptSettings, setReceiptSettings] = useState<ReceiptSettings>(() => loadReceiptSettings());
   const { sound, soundOn, setSoundOn, soundUnlocked, setSoundUnlocked } = useReadoutSound();
+
+  useEffect(() => {
+    if (!confirmClearFailed) return;
+    const timer = setTimeout(() => setConfirmClearFailed(false), 5_000);
+    return () => clearTimeout(timer);
+  }, [confirmClearFailed]);
+
+  useEffect(() => {
+    if (!confirmDisconnect) return;
+    const timer = setTimeout(() => setConfirmDisconnect(false), 5_000);
+    return () => clearTimeout(timer);
+  }, [confirmDisconnect]);
+
+  useEffect(() => { if (failedReadouts.length === 0) setConfirmClearFailed(false); }, [failedReadouts.length]);
+
+  const handleStationCurrent = useCallback((next: Current) => {
+    if (formDirtyRef.current) return;
+    setCurrent(next);
+  }, []);
 
   const onCardRead = useCallback(async (card: SiCardData, frames: readonly Uint8Array[], station: StationFacts,
     exercise: FakeStationTransport | undefined) => {
@@ -139,14 +162,22 @@ export function ReadoutApp(props: { store?: ReadoutStore; partyStore?: PartyActi
     // kunde beskedet stå bredvid ett gammalt "0 väntar" en stund; den som då lämnade sidan trodde att allt var skickat
     // (och e2e-testerna gick vidare innan den sista avläsningen hade skickats).
     await reload();
-    setCurrent({ phase: "done", cardNumber: payload.cardNumber, localSequence: stored.localSequence,
-      ...(verdict ? { verdict } : {}), ...(valid ? {} : { invalid: true }) });
+    const nextCurrent: Extract<Current, { phase: "done" }> = { phase: "done", cardNumber: payload.cardNumber, localSequence: stored.localSequence,
+      ...(verdict ? { verdict } : {}), ...(valid ? {} : { invalid: true }) };
+    if (formDirtyRef.current) {
+      setIncoming(nextCurrent);
+    } else {
+      setIncoming(undefined);
+      setCurrent(nextCurrent);
+    }
     void sync();
   }, [raceId, reload, sync, pkgRef, storeRef, setFailedReadouts, registrationsRef, itemsRef]);
 
   // Steg 35: stationen ansluts själv när sidan öppnas och när den sätts i, om den har anslutits här förut.
   const { station, exercise, exerciseRef, trafficRef, fastRead, changeFastRead, connected, auto, connectSerial, connectUsb, connectExercise, connectBluetooth,
-    disconnect } = useStation({ pkgRef, ready: pkg !== undefined, sound, onCardRead, setCurrent });
+    disconnect } = useStation({ pkgRef, ready: pkg !== undefined, sound, onCardRead, setCurrent: handleStationCurrent });
+
+  useEffect(() => { if (!connected) setConfirmDisconnect(false); }, [connected]);
 
   function downloadRawLog() {
     if (!raceId) return;
@@ -194,7 +225,11 @@ export function ReadoutApp(props: { store?: ReadoutStore; partyStore?: PartyActi
     useCurrentVerdict({ current, pkg, items, registrations });
   const { register, linkEntry, searchServer } = useReadoutRegistration({ raceId, current, storeRef, reload, sync, online, pkg });
   useVerdictSound({ sound, soundOn, current, verdict, pkgRef });
-  const playParty = useCallback((kind: "ok" | "fail" | "neutral") => { if (soundOn) sound.current.play(kind); }, [soundOn]);
+  const playParty = useCallback((kind: ReadoutSoundKind) => { if (soundOn) sound.current.play(kind); }, [soundOn]);
+  const showRegistration = current?.phase === "done" && !!effectivePkg &&
+    (verdict?.status === "UNKNOWN_CARD" || currentRegistration?.status === "rejected") &&
+    (!currentRegistration || currentRegistration.status === "rejected");
+  useEffect(() => { if (!showRegistration) formDirtyRef.current = false; }, [showRegistration]);
 
   if (!raceId) return <main className="readout"><div className="readout-head"><h1>{t.title}</h1><HelpButton view="READOUT_PAGE" large /></div>
     <p className="notice">{t.noRace}</p></main>;
@@ -256,8 +291,11 @@ export function ReadoutApp(props: { store?: ReadoutStore; partyStore?: PartyActi
       {/* Steg 45: ladda ner listan med råramar innan den rensas. */}
       <div className="row">
         <button type="button" onClick={downloadFailedReadouts}>{t.failedDownload}</button>
-        <button type="button" onClick={() => { if (raceId) { saveFailedReadouts(raceId, []); setFailedReadouts([]); } }}>
-          {t.failedClear}</button>
+        <button type="button" className={confirmClearFailed ? "primary" : undefined} data-testid="failed-clear" onClick={() => {
+          if (!confirmClearFailed) { setConfirmClearFailed(true); return; }
+          if (raceId) { saveFailedReadouts(raceId, []); setFailedReadouts([]); }
+          setConfirmClearFailed(false);
+        }}>{confirmClearFailed ? t.failedClearConfirm : t.failedClear}</button>
       </div>
     </section> : null}
     {elsewhere.map((group) => <section key={group.raceId} className="notice" role="alert" data-testid="other-race-readouts"
@@ -280,7 +318,11 @@ export function ReadoutApp(props: { store?: ReadoutStore; partyStore?: PartyActi
   const controls = <>
     <section className="controls">
       {connected
-        ? <button type="button" onClick={() => { void disconnect(); }}>{t.disconnect}</button>
+        ? <button type="button" className={confirmDisconnect ? "disconnect-btn confirm" : "disconnect-btn"} data-testid="disconnect-station" onClick={() => {
+          if (!confirmDisconnect) { setConfirmDisconnect(true); return; }
+          setConfirmDisconnect(false);
+          void disconnect();
+        }}>{confirmDisconnect ? t.disconnectConfirm : t.disconnect}</button>
         : <>
           <button type="button" className="primary" onClick={() => { void connectSerial(); }}>{t.connectSerial}</button>
           {showUsbButton ? <button type="button" className="primary" onClick={() => { void connectUsb(); }}>{t.connectUsb}</button> : null}
@@ -294,7 +336,6 @@ export function ReadoutApp(props: { store?: ReadoutStore; partyStore?: PartyActi
         if (event.target.checked) void sound.current.unlock().then(setSoundUnlocked);
       }} />{t.sound}</label>
     </section>
-    {soundOn && !soundUnlocked && connected ? <p className="hint" data-testid="sound-locked">{t.soundLocked}</p> : null}
   </>;
   const autoConnect = <>
     {/* Steg 35: automatisk anslutning till den sparade stationen. */}
@@ -339,9 +380,27 @@ export function ReadoutApp(props: { store?: ReadoutStore; partyStore?: PartyActi
     {raceId ? <ReadoutRaceSwitch raceId={raceId} party connected={connected} /> : null}
   </main>;
 
+  function selectRecent(item: QueuedReadout) {
+    formDirtyRef.current = false;
+    setIncoming(undefined);
+    setCurrent({ phase: "done", cardNumber: item.payload.cardNumber, localSequence: item.localSequence, fromRecent: true });
+  }
+
   return <main className="readout">
     {head}
     {alerts}
+    {soundOn && !soundUnlocked && connected ? <section className="notice sound-unlock-notice" role="status" data-testid="sound-locked">
+      <p>{t.soundLocked}</p>
+      <button type="button" className="primary" onClick={() => { void sound.current.unlock().then(setSoundUnlocked); }}>{t.soundUnlock}</button>
+    </section> : null}
+    {incoming ? <section className="notice incoming-notice" role="status" data-testid="incoming-card">
+      <strong>{t.incomingCard(incoming.cardNumber)}</strong>
+      <button type="button" className="primary" onClick={() => {
+        formDirtyRef.current = false;
+        setCurrent(incoming);
+        setIncoming(undefined);
+      }}>{t.incomingShow}</button>
+    </section> : null}
 
     <section className="verdict" aria-live="assertive" data-testid="verdict"
       data-status={current?.phase === "done" ? verdict?.status ?? "NO_PACKAGE" : current?.phase ?? "idle"}>
@@ -360,10 +419,10 @@ export function ReadoutApp(props: { store?: ReadoutStore; partyStore?: PartyActi
       </section> : null}
 
     {/* Okänd bricka (PLAN.md steg 25): anmäl löparen här, även utan nät. */}
-    {current?.phase === "done" && effectivePkg && (verdict?.status === "UNKNOWN_CARD" || currentRegistration?.status === "rejected") &&
-      (!currentRegistration || currentRegistration.status === "rejected")
+    {showRegistration
       ? <RegistrationForm key={current.localSequence} pkg={effectivePkg} cardNumber={current.cardNumber}
         payload={currentItem?.payload ?? { punches: [] }} items={items} registrations={registrations} search={searchServer}
+        onDirtyChange={(dirty) => { formDirtyRef.current = dirty; }}
         onSubmit={(fields) => register(fields, !!borrowed)} onLink={(entry) => linkEntry(entry, !!borrowed)} /> : null}
 
     <ReceiptPanel printable={printable} pkg={pkg} settings={receiptSettings}
@@ -399,6 +458,8 @@ export function ReadoutApp(props: { store?: ReadoutStore; partyStore?: PartyActi
       <h2>{t.recent}</h2>
       {recent.length === 0 ? <p>{t.none}</p> : <ol data-testid="recent-readouts">
         {recent.map((item) => <RecentRow key={item.localSequence} item={item} pkg={effectivePkg}
+          selected={current?.phase === "done" && current.localSequence === item.localSequence}
+          onSelect={selectRecent}
           registration={registrations.filter((row) => row.request.cardNumber === item.payload.cardNumber).at(-1)}
           local={items.filter((candidate) => candidate.localSequence < item.localSequence).map((candidate) => candidate.payload)} />)}
       </ol>}

@@ -126,7 +126,7 @@ export const aboutEn: Texts<typeof aboutSv> & { readonly internationalTitle: str
     "Anyone can create an account and use O-Tid for trainings and events, in any country.",
     "Verified clubs (with the club's runners, cards and entries from Eventor) are only available through the Swedish Eventor today. "
       + "It may be possible to support Eventor in more countries, or other entry systems.",
-    "Most of the app is still in Swedish; the public pages come first in English."
+    "The app is available in English and Swedish; a few help articles are still being translated from Swedish."
   ],
   internationalSuggest: "Suggestions for your country are welcome: email",
   footer: { label: "About O-Tid and contact", name: "O-Tid", beta: "beta", questions: "Questions:", about: "About O-Tid", privacy: "Personal data",

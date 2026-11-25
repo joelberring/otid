@@ -7,7 +7,7 @@ import type { CourseSettingSuggestion, CourseSettingSuggestionDecided } from "@o
 import type { CourseSettingDocument, CourseSettingEdit } from "@o-tid/course-setting";
 import { collaborationSv } from "../../i18n/course-setting-collaboration-sv";
 import { useDescribeEdit } from "./use-describe-edit";
-import { Button, Notice } from "../ui";
+import { Button, ConfirmDialog, Notice } from "../ui";
 import styles from "./course-setting.module.css";
 
 /** Förslagsläget (den som föreslår): hur många ändringar, kommentar, skicka eller kasta. */
@@ -15,6 +15,7 @@ export function SuggestionDraft({ count, onSend, onDiscard }: { count: number; o
   const text = useTexts(collaborationSv, collaborationEn);
   const [comment, setComment] = useState("");
   const [busy, setBusy] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
   return <div className={styles.draft} data-testid="course-setting-draft">
     <strong>{text.suggestions.drafting}</strong>
@@ -30,10 +31,12 @@ export function SuggestionDraft({ count, onSend, onDiscard }: { count: number; o
           if (ok) setComment("");
         }).finally(() => setBusy(false));
       }}>{text.suggestions.send}</Button>
-      <Button variant="quiet" disabled={busy || count === 0} onClick={() => { if (window.confirm(text.suggestions.discardConfirm)) onDiscard(); }}>
+      <Button variant="quiet" disabled={busy || count === 0} onClick={() => setConfirmDiscard(true)}>
         {text.suggestions.discard}</Button>
     </div>
     {message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}</Notice>}
+    {confirmDiscard && <ConfirmDialog title={text.suggestions.discard} message={text.suggestions.discardConfirm} confirmLabel={text.suggestions.discard} danger
+      onConfirm={() => { setConfirmDiscard(false); onDiscard(); }} onCancel={() => setConfirmDiscard(false)} />}
   </div>;
 }
 

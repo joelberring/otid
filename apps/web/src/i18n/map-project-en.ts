@@ -312,6 +312,7 @@ export const mapProjectEditorEn: Texts<typeof mapProjectEditorSv> = {
       AUTONOMOUS: "The AI's changes go straight into the map. They are in the history as approved AI suggestions and can be undone there. The base file is never changed."
     },
     suggestHint: "You have the role Suggest: what you draw becomes suggestions that an owner approves.",
+    proposePill: "Suggest mode",
     proposals: (n: number) => n === 0 ? "Suggestions" : `Suggestions (${n} open)`,
     noProposals: "No suggestions.",
     proposalBy: (name: string, n: number) => `${name} · ${count(n, "change", "changes")}`,
@@ -354,6 +355,7 @@ export const mapProjectEditorEn: Texts<typeof mapProjectEditorSv> = {
     title: (n: number) => count(n, "conflict", "conflicts"),
     mine: "Keep mine",
     theirs: "Keep theirs",
+    showOnMap: "Show on map",
     object: (code: string) => `Object ${code}`
   }
 };

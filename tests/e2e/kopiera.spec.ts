@@ -111,6 +111,7 @@ test("kopiera förra veckans träning, läs av i kopian och skriv ut kvitto", as
   await owner.emulateMedia({ media: "screen" });
 
   // Automatisk utskrift (per enhet): nästa godkända avläsning skrivs ut utan knapptryck.
+  await owner.getByText("Kvittoval").click();
   await owner.getByRole("checkbox", { name: "Skriv ut kvitto automatiskt" }).check();
   await expect.poll(() => owner.evaluate(() => (window as unknown as { otidPrints: number }).otidPrints)).toBe(1);
   await owner.getByRole("button", { name: "Läs av: missad kontroll" }).click();

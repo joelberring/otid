@@ -31,9 +31,13 @@ export function SyncBadge({ sync, pending }: { sync: ReturnType<typeof useMapPro
   const label = sync.kind === "offline" ? copy.offlineShort(pending) : sync.kind === "error" ? copy.error(sync.status ?? 0)
     : waiting && stuck ? copy.stuck(pending)
     : waiting ? `${copy.syncing}${pending ? ` ${copy.pending(pending)}` : ""}` : copy.synced;
+  const shortText = waiting ? (pending > 0 ? copy.pending(pending) : copy.syncing) : copy.synced;
   return <p className={loud ? styles.syncLoud : styles.sync} role="status" data-testid="map-project-sync" data-state={sync.kind} data-pending={pending}
-    data-loud={loud} title={sync.kind === "offline" ? copy.offline : label}>
-    {loud ? label : <><span className={styles.syncDot} data-waiting={waiting || undefined} aria-hidden="true" /><span className={styles.srOnly}>{label}</span></>}
+    data-loud={loud} data-waiting={waiting || undefined} title={sync.kind === "offline" ? copy.offline : label} aria-label={label}>
+    {loud ? label : <>
+      <span className={styles.syncIcon} aria-hidden="true">{waiting ? "↻" : "✓"}</span>
+      <span className={styles.syncText}>{shortText}</span>
+    </>}
   </p>;
 }
 

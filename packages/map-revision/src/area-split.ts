@@ -100,8 +100,14 @@ function cutLength(parts: MultiPolygon, axis: "x" | "y", c: number): number {
   return sum;
 }
 
+/** Högst så många rutnätslinjer per axel och delningssteg (skyddar mot korrupta jättekoordinater). */
+const MAX_GRID_LINES = 64;
+/** En yta som kräver fler bitar än så (korrupta jättekoordinater) delas inte. */
+const MAX_SPLIT_PIECES = 5_000;
+
 /** Bitar (polygon-clipping) under gränsen; `undefined` om klippningen inte går att räkna. */
 function splitPolygon(polygon: Polygon, limit: AreaSplitLimit): Polygon[] | undefined {
+  if (polygonArea(polygon) > limit.maxMm2 * MAX_SPLIT_PIECES) return undefined;
   const done: Polygon[] = [], queue: Polygon[] = [polygon];
   for (let guard = 0; queue.length; guard += 1) {
     if (guard > 10_000) return undefined;
@@ -111,8 +117,14 @@ function splitPolygon(polygon: Polygon, limit: AreaSplitLimit): Polygon[] | unde
     let best: { parts: [MultiPolygon, MultiPolygon]; score: number } | undefined;
     for (const axis of ["x", "y"] as const) {
       const from = axis === "x" ? box.minX : box.minY, to = axis === "x" ? box.maxX : box.maxY, middle = (from + to) / 2;
-      for (let k = Math.floor(from / limit.gridMm) + 1; k * limit.gridMm < to; k += 1) {
+      if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) continue;
+      const firstK = Math.floor(from / limit.gridMm) + 1, lastK = Math.ceil(to / limit.gridMm) - 1;
+      if (lastK < firstK) continue;
+      const count = lastK - firstK + 1;
+      const stride = count > MAX_GRID_LINES ? Math.ceil(count / MAX_GRID_LINES) : 1;
+      for (let k = firstK; k <= lastK; k += stride) {
         const c = k * limit.gridMm;
+        if (!(c > from && c < to)) continue;
         const parts = halves(piece, axis, c, box);
         if (!parts) continue;
         const a = multiArea(parts[0]), b = multiArea(parts[1]);

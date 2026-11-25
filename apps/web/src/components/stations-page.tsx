@@ -41,6 +41,7 @@ function download(name: string, type: string, content: string) {
 export function StationsPage({ raceId }: { raceId: string }) {
   const text = useTexts(stationsSv, stationsEn);
   const [transport, setTransport] = useState<WebSerialTransport>();
+  const [connecting, setConnecting] = useState(false);
   const [remote, setRemote] = useState(true);
   const [busy, setBusy] = useState<{ done: number; total: number }>();
   const [problem, setProblem] = useState<StationReadProblem | "open" | "serial">();
@@ -52,6 +53,7 @@ export function StationsPage({ raceId }: { raceId: string }) {
   const [setTime, setSetTime] = useState(true);
   const [code, setCode] = useState("");
   const [mode, setMode] = useState("");
+  const [confirmWrite, setConfirmWrite] = useState(false);
   const [written, setWritten] = useState<{ report: StationWriteReport; at: number }>();
 
   useEffect(() => {
@@ -76,13 +78,16 @@ export function StationsPage({ raceId }: { raceId: string }) {
     if (!serial) { setProblem("serial"); return; }
     let port: WebSerialPortLike;
     try { port = await serial.requestPort(); } catch { return; }
+    setConnecting(true); setProblem(undefined);
     const next = new WebSerialTransport(port, { baudRate: 38_400 });
     try { await next.open(); setTransport(next); setProblem(undefined); }
     catch { setProblem("open"); }
+    finally { setConnecting(false); }
   }
 
   async function read() {
     if (!transport) return;
+    setConfirmWrite(false);
     setProblem(undefined); setResult(undefined); setWritten(undefined); setRegistered(undefined); setBusy({ done: 0, total: 0 });
     try {
       const { report } = await readStation(transport, { remote, traffic: traffic.current, onProgress: (done, total) => setBusy({ done, total }) });
@@ -96,10 +101,10 @@ export function StationsPage({ raceId }: { raceId: string }) {
   }
 
   async function write() {
-    if (!transport) return;
+    if (!transport || !result) return;
     const codeValue = code.trim() === "" ? undefined : Number(code);
     const modeValue = mode === "" ? undefined : Number(mode) as (typeof WRITABLE_MODES)[number];
-    if (!window.confirm(text.write.confirm(result ? String(result.report.system.serialNumber) : ""))) return;
+    setConfirmWrite(false);
     setProblem(undefined); setWritten(undefined); setRegistered(undefined); setBusy({ done: 0, total: 0 });
     try {
       // Klockan skickas så nära sekundskiftet som går: den tid det blir när kommandot når enheten.
@@ -134,8 +139,11 @@ export function StationsPage({ raceId }: { raceId: string }) {
     </header>
     <Notice tone="info">{text.trial}</Notice>
     <Section id="enheter-anslut" title={text.connect} help={text.howTo}>
-      {!transport ? <Button onClick={() => void connect()}>{text.connect}</Button> : <>
-        <p role="status">{text.connected} <Button variant="quiet" onClick={() => { void transport.close(); setTransport(undefined); }}>{text.disconnect}</Button></p>
+      {!transport ? <>
+        <Button disabled={connecting} onClick={() => void connect()}>{connecting ? text.connecting : text.connect}</Button>
+        {connecting && <p role="status" data-testid="station-connecting">{text.connecting}</p>}
+      </> : <>
+        <p role="status">{text.connected} <Button variant="quiet" onClick={() => { setConfirmWrite(false); void transport.close(); setTransport(undefined); }}>{text.disconnect}</Button></p>
         <fieldset className={styles.form}>
           <label><input type="radio" checked={remote} onChange={() => setRemote(true)} /> {text.remote}</label>
           <label><input type="radio" checked={!remote} onChange={() => setRemote(false)} /> {text.direct}</label>
@@ -156,15 +164,28 @@ export function StationsPage({ raceId }: { raceId: string }) {
         JSON.stringify({ formatVersion: 1, kind: "o-tid-station-read", traffic: traffic.current }, null, 1))}>{text.rawLog}</Button></p>}
     </Section>
     {transport && <Section id="enheter-installning" title={text.write.title} help={text.write.help}>
-      <form className={styles.form} onSubmit={event => { event.preventDefault(); void write(); }} noValidate data-testid="station-write">
-        <label><input type="checkbox" checked={setTime} onChange={event => setSetTime(event.target.checked)} /> {text.write.time}</label>
-        <label>{text.write.code}<input inputMode="numeric" maxLength={3} value={code} onChange={event => setCode(event.target.value.replace(/\D/g, ""))} /></label>
-        <label>{text.write.mode}<select value={mode} onChange={event => setMode(event.target.value)}>
+      {!report && <Notice tone="info" data-testid="station-read-first">{text.write.readFirst}</Notice>}
+      <form className={styles.form} onSubmit={event => { event.preventDefault(); if (report) setConfirmWrite(true); }} noValidate data-testid="station-write">
+        <label><input type="checkbox" checked={setTime} onChange={event => { setSetTime(event.target.checked); setConfirmWrite(false); }} /> {text.write.time}</label>
+        <label>{text.write.code}<input inputMode="numeric" maxLength={3} value={code} onChange={event => { setCode(event.target.value.replace(/\D/g, "")); setConfirmWrite(false); }} /></label>
+        <label>{text.write.mode}<select value={mode} onChange={event => { setMode(event.target.value); setConfirmWrite(false); }}>
           <option value="">{text.write.keepMode}</option>
           {WRITABLE_MODES.map(value => <option key={value} value={value}>{modeLabel(value)}</option>)}
         </select></label>
-        <Button type="submit" variant="secondary" disabled={!!busy || (!setTime && code === "" && mode === "")}>{text.write.submit}</Button>
+        {!confirmWrite && <Button type="submit" variant="secondary" disabled={!!busy || !report || (!setTime && code === "" && mode === "")}>{text.write.submit}</Button>}
       </form>
+      {confirmWrite && report && <div data-testid="station-write-confirm"><Notice tone="attention" role="status">
+        <p><strong>{text.write.confirm(String(report.system.serialNumber))}</strong></p>
+        <ul>
+          {code.trim() !== "" && <li>{text.write.diffCode(report.system.code, Number(code))}</li>}
+          {mode !== "" && <li>{text.write.diffMode(modeLabel(report.system.mode), modeLabel(Number(mode)))}</li>}
+          {setTime && <li>{text.write.diffClock(clockDiff)}</li>}
+        </ul>
+        <div className={styles.actions}>
+          <Button disabled={!!busy} onClick={() => void write()}>{text.write.confirmAction}</Button>
+          <Button variant="secondary" disabled={!!busy} onClick={() => setConfirmWrite(false)}>{text.write.cancel}</Button>
+        </div>
+      </Notice></div>}
       {written && <div role="status" data-testid="station-written">
         <p>{text.write.done}</p>
         <ul>

@@ -96,15 +96,16 @@ export function photoFillCells(map: PhotoFillMap, box: Box, options: PhotoFillOp
   const lines: FaceLine[] = [];
   const hard: { box: Box; rings: Point[][] }[] = [], ground: { box: Box; rings: Point[][]; code: string }[] = [];
   let segments = 0;
-  map.objects.forEach((object, index) => {
-    if (object.kind !== "line" && object.kind !== "area") return;
+  for (let index = 0; index < map.objects.length; index += 1) {
+    const object = map.objects[index]!;
+    if (object.kind !== "line" && object.kind !== "area") continue;
     const bounds = map.boxes[index];
-    if (bounds && !overlaps(bounds, box)) return;
+    if (bounds && !overlaps(bounds, box)) continue;
     const symbol = map.symbols.get(object.symbol);
-    if (!symbol || !visible(symbol, hidden) || !separates(symbol)) return;
+    if (!symbol || !visible(symbol, hidden) || !separates(symbol)) continue;
     if (object.kind === "area") {
       const rings = object.rings.flatMap(path => flattenPath(path));
-      if (isGroundArea(symbol.code.main, map.norm)) { ground.push({ box: bounds ?? box, rings, code: symbol.code.text }); return; }
+      if (isGroundArea(symbol.code.main, map.norm)) { ground.push({ box: bounds ?? box, rings, code: symbol.code.text }); continue; }
       hard.push({ box: bounds ?? box, rings });
     }
     for (const polyline of object.kind === "line" ? flattenPath(object.path) : object.rings.flatMap(path => flattenPath(path))) {
@@ -115,13 +116,13 @@ export function photoFillCells(map: PhotoFillMap, box: Box, options: PhotoFillOp
         const piece = clip(points[at - 1]!, points[at]!, box);
         if (!piece) { run = undefined; continue; }
         segments += 1;
+        if (segments > maxSegments) return undefined;
         const last = run?.[run.length - 1];
         if (run && last && last.x === piece[0].x && last.y === piece[0].y) run.push(piece[1]);
         else { run = [piece[0], piece[1]]; lines.push({ id: String(index), points: run }); }
       }
     }
-  });
-  if (segments > maxSegments) return undefined;
+  }
   lines.push({ id: FRAME, closed: true, points: [{ x: box.minX, y: box.minY }, { x: box.maxX, y: box.minY }, { x: box.maxX, y: box.maxY }, { x: box.minX, y: box.maxY }] });
   const faces = faceStages(lines, { gapTolerance: FACE_GAP_M * mmPerM }).faces;
   const core = options.core ?? box, cells: PhotoFillCell[] = [];
@@ -186,9 +187,13 @@ export interface PhotoFillCut { readonly index: number; readonly objects: MapObj
 export function photoFillCuts(map: PhotoFillMap, cells: readonly { readonly rings: readonly (readonly Point[])[]; readonly symbol: string }[],
   hidden?: ReadonlySet<string>): PhotoFillCut[] {
   const mm2PerM2 = (1000 / map.scale) ** 2;
-  const polygons = cells.map(cell => polygonOf(cell.rings)).filter(polygon => polygon.length > 0);
+  const entries = cells.flatMap(cell => {
+    const polygon = polygonOf(cell.rings);
+    return polygon.length > 0 ? [{ cell, polygon }] : [];
+  });
+  const polygons = entries.map(entry => entry.polygon);
   const boxes = polygons.map(boxOfPolygon);
-  const built = cells.flatMap((cell, i) => BUILT_MAINS.has(map.symbols.get(cell.symbol)?.code.main ?? 0) && polygons[i] ? [polygons[i]] : []);
+  const built = entries.flatMap(({ cell, polygon }) => BUILT_MAINS.has(map.symbols.get(cell.symbol)?.code.main ?? 0) ? [polygon] : []);
   const builtBoxes = built.map(boxOfPolygon);
   const cuts: PhotoFillCut[] = [];
   const mainOf = (id: string) => map.symbols.get(id)?.code.main;

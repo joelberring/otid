@@ -98,9 +98,9 @@ export default async function RaceHubPage({ params }: Params) {
         : hasStartSection && !hub.bingo && <li><div className={styles.hubPending}><strong>{text.startList}</strong><span>{text.startListPending}</span></div></li>}
       {link(`/results/${hub.raceId}`, text.results, hub.hasResults ? text.resultsHelp : text.resultsPending)}
       {link(`${path}/live`, en ? hubMoreEn.liveTitle : liveSv.hubTitle, en ? hubMoreEn.liveHelp : liveSv.hubHelp)}
-      {hub.radio && link(`/results/${hub.raceId}`, en ? hubMoreEn.radioTitle : radioSv.hub.title, en ? hubMoreEn.radioHelp : radioSv.hub.help)}
+      {hub.radio && link(`${path}/live#live-radio`, en ? hubMoreEn.radioTitle : radioSv.hub.title, en ? hubMoreEn.radioHelp : radioSv.hub.help)}
       {hub.hasResults && hasSplitAnalysis(hub.raceType) && link(`/results/${hub.raceId}/splits`, text.splits, text.splitsHelp)}
-      {hub.routes && link(`/results/${hub.raceId}/splits`, text.routes, text.routesHelp)}
+      {hub.routes && link(`/results/${hub.raceId}/routes`, text.routes, text.routesHelp)}
     </ul>
     <div className={styles.hubFoot}>
       {hub.lastUpdate && <p>{text.lastUpdate} <time dateTime={hub.lastUpdate}>{formatRaceInstant(hub.lastUpdate, hub.timeZone)}</time></p>}

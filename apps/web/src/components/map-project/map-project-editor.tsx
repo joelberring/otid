@@ -5,7 +5,6 @@ import { mapProjectKeysEn, mapProjectNotesEn, mapProjectQuickEn } from "../../i1
 import { mapProjectEditorEn, mapProjectLayersEn } from "../../i18n/map-project-en";
 import { mapProjectReconEn, mapProjectRectifyEn, mapProjectWorkLayersEn } from "../../i18n/map-project-more-en";
 import { useTexts, useLocale } from "../language-provider";
-import Link from "next/link";
 import type { MapProjectView } from "@o-tid/contracts";
 import type { MapObject, Point } from "@o-tid/map-file";
 import {
@@ -47,7 +46,6 @@ import { drawSketches } from "../../lib/map-project-sketch";
 import { proposedDrawing } from "../../lib/map-project-proposed";
 import { mapProjectWorkLayersSv } from "../../i18n/map-project-work-layers-sv";
 import { CourseSettingMap, type CourseSettingMapHandle, type MapPointerHandlers } from "../course-setting/course-setting-map";
-import { AccountMenu } from "../account-menu";
 import { Button, Notice } from "../ui";
 import { MapProjectRegenerableNotice } from "./map-project-regenerable-notice";
 import { MapProjectCollabPanel } from "./map-project-collab-panel";
@@ -62,7 +60,8 @@ import { useMapProjectPosition } from "./use-map-project-position";
 import { useMapProjectRecon } from "./use-map-project-recon";
 import { saveMapProjectShell } from "../../lib/map-project-offline";
 import { MapProjectSidebar, type SidebarTab } from "./map-project-sidebar";
-import { noticeText, SyncBadge } from "./map-project-sync-badge";
+import { noticeText } from "./map-project-sync-badge";
+import { MapProjectHeader } from "./map-project-header";
 import { MapProjectBaseMapPanel, MapProjectSettingsDetails, MapProjectToExport } from "./map-project-underlay-panels";
 import { MapProjectLayersPanel } from "./map-project-layers-panel";
 import { MapProjectCandidateBar } from "./map-project-candidate-bar";
@@ -82,7 +81,6 @@ import { useMapProjectPhotoFill } from "./use-map-project-photo-fill";
 import { useMapProjectWalk } from "./use-map-project-walk";
 import { draftExtra, nearestAnchor, objectExtra } from "../../lib/map-project-snap";
 import { MapProjectToolRail } from "./map-project-tool-rail";
-import { HelpButton } from "../help/help-panel";
 import { MapProjectKeysDialog, useMapProjectKeys } from "./map-project-keys-dialog";
 import { mapProjectKeysSv } from "../../i18n/map-project-keys-sv";
 import { keyLabel } from "../../lib/map-project-keys";
@@ -95,7 +93,6 @@ import { MapProjectToolWheel } from "./map-project-tool-wheel";
 import { mapProjectQuickSv } from "../../i18n/map-project-quick-sv";
 import { circleFor } from "../../lib/map-project-shape-actions";
 import { useMapProjectRecent } from "./use-map-project-recent";
-import { MapProjectPrintButton } from "./map-project-print-button";
 import { MapProjectObjectBar } from "./map-project-object-bar";
 import { useMapProjectText } from "./use-map-project-text";
 import { MapProjectTextLayer, placeTextField } from "./map-project-text";
@@ -198,7 +195,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const [contextRowOn, setContextRowOn] = useContextRowSetting(), floatingRow = usePhoneWidth() || contextRowOn;
   const [nearVertex, setNearVertex] = useState<VertexAddress>();
   const keysText = useTexts(mapProjectKeysSv, mapProjectKeysEn);
-  const keyOf = (command: keyof typeof keys) => keys[command] ? keyLabel(keys[command], keysText.space) : undefined;
+  const keyOf = (command: keyof typeof keys) => keys[command] ? keyLabel(keys[command], keysText.space, keysText.section) : undefined;
   const drawingArea = !!newArea;
   useEffect(() => { if (drawingArea) setTab("review"); }, [drawingArea]);
   const [circleCenter, setCircleCenter] = useState<Point>();
@@ -673,25 +670,15 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     togglePanel: () => setPanelOpen(open => !open), toggleBare: () => setBare(value => !value), openWheel, openKeys: () => setKeysOpen(true) });
 
   return <main className={styles.page}>
-    <header className={styles.header}>
-      <div className={styles.title}>
-        <Link className={styles.back} href={`/organizer/map-projects/${encodeURIComponent(view.projectId)}`} data-testid="map-project-back">
-          <span aria-hidden="true">‹</span> <span className={styles.backText}>{text.back}</span></Link>
-        <h1>{view.name}</h1>
-      </div>
-      <SyncBadge sync={editor.sync} pending={pending} />
-      <button type="button" className={styles.bareToggle} aria-pressed={bare} title={keys.bare ? `${quick.bareHelp} (${keyLabel(keys.bare, keysText.space)})` : quick.bareHelp} data-testid="map-project-bare"
-        onClick={() => setBare(value => !value)}>{bare ? quick.showPanels : quick.hidePanels}</button>
-      <MapProjectPrintButton projectId={view.projectId} pending={pending} />
-      <HelpButton view="MAP_EDITOR" compact />
-      <AccountMenu />
-    </header>
+    <MapProjectHeader view={view} sync={editor.sync} pending={pending} flush={editor.syncNow} collabMode={collab.mode}
+      onOpenReview={() => { setTab("review"); setPanelOpen(true); }} bare={bare} onToggleBare={() => setBare(value => !value)}
+      keys={keys} contextRow={contextRowOn} onContextRow={setContextRowOn} />
     {offlineSince && <p className={styles.offline} role="status" data-testid="map-project-offline">
       {text.offline(new Date(offlineSince).toLocaleString(locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }))}</p>}
     {editor.notice && <div className={styles.notice}><Notice tone="attention" role="status">{noticeText(editor.notice, text)}{" "}
       <Button variant="quiet" onClick={() => editor.setNotice(undefined)}>{text.ok}</Button></Notice></div>}
     <MapProjectRegenerableNotice view={view} layers={layers} />
-    {keysOpen && <MapProjectKeysDialog keys={keys} onKeys={setKeys} onClose={() => setKeysOpen(false)} contextRow={contextRowOn} onContextRow={setContextRowOn} />}
+    {keysOpen && <MapProjectKeysDialog keys={keys} onKeys={setKeys} onClose={() => setKeysOpen(false)} />}
     <div className={styles.workspace} data-bare={bare}>
       <MapProjectToolRail label={text.tools.label} tools={rail} spaceLabel={keysText.space} />
       {canEdit && <MapProjectTopBar recent={recentSymbols} symbolId={symbolId}
@@ -712,7 +699,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         {editor.mapStatus === "loading" && <p className={styles.loading}>{text.loading}</p>}
         {editor.mapStatus === "failed" && <Notice tone="error" role="alert">{text.failed}</Notice>}
         {/* Kartvyn visas när kartan är läst: då har rutan sin storlek och hela kartan passas in. */}
-        {editor.bounds && <div className={styles.frame}><CourseSettingMap session={session} mapBounds={editor.bounds} primitives={[]} faded={[]} marks={NO_MARKS} analysis={undefined}
+        {editor.bounds && <div className={styles.frame} data-has-field={editor.mapStatus === "ready" && georeference ? "true" : undefined}><CourseSettingMap session={session} mapBounds={editor.bounds} primitives={[]} faded={[]} marks={NO_MARKS} analysis={undefined}
           label={text.mapLabel} cursor={tool === "draw" || tool === "circle" || tool === "bucket" || tool === "rectangle" || tool === "addPoint" || tool === "removePoint" || tool === "cut" ? "crosshair" : "default"} handlers={handlers} overlayExtra={overlay}
           cursorAt={tool === "select" && multi.items.length ? (point, tolerance) => {
             const zone = multi.zoneAt(point, tolerance);
@@ -747,11 +734,15 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         {!floatingRow && <MapProjectActionsMenu label={quick.actionsMenu} actions={contextList} onAction={doAction} spaceLabel={keysText.space} />}
         <p className={styles.hint} aria-live="polite" data-testid="map-project-hint" title={hintLine}>{hintLine}</p>
         {canEdit && <MapProjectModeSwitches snap={modes.snap} onSnap={() => modes.setSnap(value => !value)} snapKey={keyOf("snap")} snapState={snap.mark && keysText.snapAt(snap.mark.kind)}
-          angle={assist.locked} unfilled={{ state: unfilled.state, onNext: unfilled.next }} gapM={modes.gapM} onGap={modes.setGapM} cells={fill.cells} text={keysText} over={{ on: modes.over, onToggle: () => modes.setOver(!modes.over), key: keyOf("fillOver"), note: tool === "bucket" ? fill.overNote : undefined }} />}
+          angle={assist.locked} unfilled={{ state: unfilled.state, onNext: unfilled.next }}
+          gap={tool === "bucket" ? { meters: modes.gapM, onChange: modes.setGapM } : undefined}
+          cells={fill.cells} text={keysText}
+          over={tool === "bucket" ? { on: modes.over, onToggle: () => modes.setOver(!modes.over), key: keyOf("fillOver"), note: fill.overNote } : undefined} />}
       </div>
       <MapProjectSidebar open={panelOpen} onClose={() => setPanelOpen(false)} catalog={catalog} symbolId={symbolId} onSymbol={chooseSymbol} tab={tab} onTab={setTab} onTextSymbol={textUi.styles.setOpen}
         recent={recentSymbols}
-        standardSymbols={symbolLayers.standardSymbols} layerState={symbolLayers.state} conflicts={conflicts} symbols={symbols} onResolve={editor.resolve} canEdit={canEdit}
+        standardSymbols={symbolLayers.standardSymbols} layerState={symbolLayers.state} conflicts={conflicts} symbols={symbols} onResolve={editor.resolve}
+        onFocusConflict={point => { setPanelOpen(false); mapHandle.current?.focus(point); }} canEdit={canEdit}
         layers={<>
           <MapProjectSymbolLayers catalog={catalog} standard={symbolLayers.standard} standardSymbols={symbolLayers.standardSymbols}
           state={symbolLayers.state} onState={symbolLayers.update} canEdit={canEdit} onMerge={symbolLayers.merge}

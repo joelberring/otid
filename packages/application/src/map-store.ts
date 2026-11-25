@@ -137,7 +137,8 @@ export async function uploadToStore(store: ArchiveStore, sha256: string, byteLen
 export async function reserveStoreUpload(db: DbExecutor, sha256: string, byteLength: number, now: Date): Promise<void> {
   await db.execute(sql`insert into map_content_archive (sha256, byte_length, archived_at, cold_at, orphaned_at)
     select ${sha256}, ${byteLength}, ${now}, ${now}, ${now} where not exists (select 1 from map_content where sha256 = ${sha256} and stored_in <> 'GONE')
-    on conflict (sha256) do update set orphaned_at = excluded.orphaned_at`);
+    on conflict (sha256) do update set orphaned_at = greatest(map_content_archive.orphaned_at, excluded.orphaned_at)
+    where map_content_archive.orphaned_at is not null`);
 }
 
 /**

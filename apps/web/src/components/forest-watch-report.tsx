@@ -61,12 +61,15 @@ export function ForestWatchReport({ data, classId, query = "", stale, onOpenHist
         {rows.length > 0 && <table>
           <thead><tr><th>{text.name}</th><th>{text.raceClass} / {text.start}</th><th>{text.status}</th></tr></thead>
           <tbody>{rows.map((entry) => <tr key={entry.entryId}>
-            <td><strong>{entry.displayName}</strong>{onOpenHistory && <button type="button" disabled={disabled}
-              onClick={() => onOpenHistory(entry.entryId)}>{text.history}</button>}
-              {onChoose && <button type="button" disabled={disabled} aria-label={text.chooseFor(entry.displayName)}
-                onClick={() => onChoose(entry.entryId)}>{text.choose}</button>}
-              {onReviewConflict && entry.conflictingReports && <button type="button" disabled={disabled}
-                onClick={() => onReviewConflict(entry.entryId)}>{text.reviewConflict}</button>}
+            <td><strong>{entry.displayName}</strong>
+              {(onOpenHistory || onChoose || (onReviewConflict && entry.conflictingReports)) && <div className={styles.rowActions}>
+                {onOpenHistory && <button type="button" disabled={disabled}
+                  onClick={() => onOpenHistory(entry.entryId)}>{text.history}</button>}
+                {onChoose && <button type="button" disabled={disabled} aria-label={text.chooseFor(entry.displayName)}
+                  onClick={() => onChoose(entry.entryId)}>{text.choose}</button>}
+                {onReviewConflict && entry.conflictingReports && <button type="button" disabled={disabled}
+                  onClick={() => onReviewConflict(entry.entryId)}>{text.reviewConflict}</button>}
+              </div>}
               <div>{entry.organisationName ?? text.noOrganisation}</div>
               <div>{text.card}: {entry.multipleActiveAssignments ? text.multipleCards : entry.cardNumber ?? text.noCard}</div></td>
             <td><strong>{entry.className}</strong><div>{entry.startRule === "PUNCH" ? text.punch : entry.fixedStartTime

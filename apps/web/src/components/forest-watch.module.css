@@ -2,6 +2,7 @@
 .report p { margin: .65rem 0; }
 .report td { width: 33.33%; }
 .report td div { margin-top: .35rem; }
+.rowActions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: .35rem; }
 .group { margin: 1.5rem 0; }
 .group h3 { border-bottom: 2px solid currentColor; padding-bottom: .5rem; break-after: avoid; }
 .group .groupCounts { font-weight: 700; font-variant-numeric: tabular-nums; margin: .35rem 0; break-after: avoid; }

@@ -107,11 +107,14 @@ test("läs ut en enhet: systemdata, klockan och brickorna i backupminnet med lö
   await expect(owner.getByTestId("station-registered")).toHaveText("Sparad i OK Enhets enhetsregister.");
 
   // Ställ in: kod 45 och Start; enheten läses igen.
-  owner.once("dialog", dialog => void dialog.accept());
   const write = owner.getByTestId("station-write");
   await write.getByLabel("Kod (lämna tomt för att inte ändra)").fill("45");
   await write.getByLabel("Läge").selectOption({ label: "Start" });
   await write.getByRole("button", { name: "Ställ in" }).click();
+  const confirmWrite = owner.getByTestId("station-write-confirm");
+  await expect(confirmWrite).toContainText("Kod: 31 → 45");
+  await expect(confirmWrite).toContainText("Läge: Kontroll → Start");
+  await confirmWrite.getByRole("button", { name: "Bekräfta och skriv" }).click();
   const written = owner.getByTestId("station-written");
   await expect(written).toContainText("Kod 31 → 45");
   await expect(written).toContainText("Läge Kontroll → Start");

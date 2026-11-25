@@ -9,7 +9,7 @@ export type ClassMassStartOutcome = { kind: "SAVED"; clock: string } | { kind: "
  * starttiden i deltagarlistan»): en lottning med masstart för bara den här klassen, samma väg som Start → Lottning. Alla i
  * klassen får tiden, och efteranmälda får den också. Lottningen ger klassen fast starttid, så det går lika bra från fri start.
  */
-export async function saveClassMassStart(ws: Workspace, classId: string, clock: string, confirmText: string): Promise<ClassMassStartOutcome> {
+export async function saveClassMassStart(ws: Workspace, classId: string, clock: string, confirm: () => Promise<boolean>): Promise<ClassMassStartOutcome> {
   if (ws.writingRef.current || ws.pending.current || !ws.requireSession()) return { kind: "BUSY" };
   const op = ws.begin(true);
   try {
@@ -24,7 +24,7 @@ export async function saveClassMassStart(ws: Workspace, classId: string, clock: 
       headers: { "content-type": "application/json", "x-otid-csrf": ws.csrf() }, body: JSON.stringify({ formatVersion: 1, ...settings }) });
     if (!previewResponse.ok) throw new Error("Draw preview unavailable");
     const preview = startDrawPreviewResponseSchema.parse(await ws.json(previewResponse, op));
-    if (preview.requiresConfirmation && !window.confirm(confirmText)) return { kind: "CANCELLED" };
+    if (preview.requiresConfirmation && !(await confirm())) return { kind: "CANCELLED" };
     const request: StartDrawRequest = { formatVersion: 1, requestId: crypto.randomUUID(), seed: preview.seed, ...settings,
       confirmChanges: preview.requiresConfirmation };
     const response = await ws.request("/draw", op, { method: "POST",

@@ -128,7 +128,7 @@
 .printHeader { display: none; }
 
 @media (max-width: 760px) {
-  .toolbar { margin: 0; padding: 8px 0; gap: 8px; }
+  .toolbar { position: static; margin: 0; padding: 8px 0; gap: 8px; }
   .segmented { flex: 1 1 100%; }
   .segmented button { flex: 1 1 0; padding: 0 6px; }
   .filters { flex: 1 1 100%; flex-wrap: wrap; }

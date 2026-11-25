@@ -64,11 +64,11 @@ describe("besöksstatistiken", () => {
     expect(week.today).toBe("2026-11-21");
     expect(week.days.at(-1)).toMatchObject({ day: "2026-11-21", steps: { HOME: 3, DEMO_RACE: 1, GUEST_DEMO: 0, SIGN_IN: 0 } });
 
-    // Första besökaren efter midnatt: lördagens hashar och salt räknas ihop och tas bort.
+    // Första besökaren efter midnatt: lördagens hashar räknas ihop och tas bort; gårdagens salt behålls ett dygn för klockskillnad kring midnatt.
     await recordVisit(db, { step: "SIGN_IN", address: "203.0.113.5", userAgent: SAFARI, now: sunday });
     expect((await rows("visitor_hit")).map(row => row.step)).toEqual(["SIGN_IN"]);
     const salts = await rows("visitor_day_salt");
-    expect(salts).toHaveLength(1);
+    expect(salts).toHaveLength(2);
     expect((await rows("visitor_day_count")).map(row => [row.step, row.visitors])).toEqual([["DEMO_RACE", 1], ["HOME", 3]]);
     const days = (await pool.query<{ day: string }>("select to_char(day, 'YYYY-MM-DD') as day from visitor_day_count group by 1")).rows;
     expect(days).toEqual([{ day: "2026-11-21" }]);
@@ -88,13 +88,18 @@ describe("besöksstatistiken", () => {
     expect(week.days.at(-1)).toMatchObject({ day: "2026-11-22", steps: { HOME: 1, SIGN_IN: 1 }, accounts: 1 });
     expect((await readHistory(db, sunday)).visitors?.days).toHaveLength(7);
 
-    // Underhållet nästa dag (ingen trafik): söndagen räknas ihop, inget blir kvar och en andra körning ändrar inget.
+    // Underhållet nästa dag (ingen trafik): söndagen räknas ihop, lördagens salt tas bort och bara gårdagens (söndagens) salt står kvar ett dygn.
     const monday = new Date("2026-11-23T10:00:00Z");
     expect(await rollupVisitorDays(db, monday)).toEqual({ days: 1, hits: 2 });
     expect(await rollupVisitorDays(db, monday)).toEqual({ days: 0, hits: 0 });
     expect(await rows("visitor_hit")).toEqual([]);
-    expect(await rows("visitor_day_salt")).toEqual([]);
+    expect(await rows("visitor_day_salt")).toHaveLength(1);
     expect((await readVisitorWeek(db, monday)).days.at(-2)).toMatchObject({ day: "2026-11-22", steps: { HOME: 1, SIGN_IN: 1 } });
+
+    // Ett dygn senare tas också söndagens salt bort.
+    const tuesday = new Date("2026-11-24T10:00:00Z");
+    expect(await rollupVisitorDays(db, tuesday)).toEqual({ days: 0, hits: 0 });
+    expect(await rows("visitor_day_salt")).toEqual([]);
 
     // Antal äldre än VISITOR_KEEP_DAYS tas bort.
     await rollupVisitorDays(db, new Date(monday.getTime() + (VISITOR_KEEP_DAYS + 2) * 24 * 3_600_000));

@@ -146,8 +146,8 @@ test("admin lägger till funktionär som läser av från två enheter men inte n
   await owner.reload();
   await openStep(owner, "Personer");
   await expect(staffRow).toBeVisible();
-  owner.once("dialog", dialog => void dialog.accept());
   await staffRow.getByRole("button", { name: "Ta bort behörigheten för Frida Funktionär" }).click();
+  await owner.getByRole("dialog").getByRole("button", { name: "Ta bort" }).click();
   await expect(people.getByText("Frida Funktionär har inte längre behörighet.")).toBeVisible({ timeout: 30_000 });
   await expect(staffRow).toHaveCount(0);
   for (const page of [staff, second]) {

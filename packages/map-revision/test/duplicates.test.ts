@@ -36,4 +36,30 @@ describe("dubbletter (ägaren 2026-11-23: «mörkgröna ytor ligger trippelt»)"
     expect(plan.remove).not.toContain("d");
     expect(plan.remove.filter(key => ["p", "q"].includes(key))).toHaveLength(1);
   });
+
+  it("hittar linjedubbletter på 0,10 mm avstånd i x-led, begränsar steg på jättelånga sträckor och beskär gröna ytor i x-led", () => {
+    // 0,10 mm är mellan POINT_TOLERANCE_MM (0,05) och LINE_TOLERANCE_MM (0,15).
+    const shifted = duplicatePlan([
+      line("v1", "501.1", [[0, 0], [0, 10]]),
+      line("v2", "501.1", [[0.1, 0], [0.1, 10]])
+    ]);
+    expect(shifted.remove).toHaveLength(1);
+
+    // Mycket lång sträcka (korrupt koordinat) ska bli klar direkt utan att låsa CPU.
+    const started = performance.now();
+    const giant = duplicatePlan([
+      line("g1", "501.1", [[0, 0], [1_000_000, 0]]),
+      line("g2", "501.1", [[0, 0.05], [1_000_000, 0.05]])
+    ]);
+    expect(giant.remove).toHaveLength(1);
+    expect(performance.now() - started).toBeLessThan(1000);
+
+    // Gröna ytor åtskilda i x-led behålls.
+    const greens = duplicatePlan([
+      area("l1", "406", square(0, 0, 10)),
+      area("d1", "410", square(50, 0, 10)),
+      area("l2", "406", square(50, 0, 10))
+    ]);
+    expect(greens.remove).toEqual(["l2"]);
+  });
 });

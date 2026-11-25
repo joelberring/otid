@@ -71,7 +71,7 @@ export function runPhotoCellsJob(loaded: LoadedProjectMap, request: PhotoCellsJo
   const cells = photoFillCells(map, area, { includeGround: request.includeGround === true });
   if (!cells) return { result: { errors: ["Området har för många linjer; välj ett mindre område."] } };
   const classified = cells.map(cell => ({ cell, ...classifyPhotoCell(photoCellStats(rgb, cell.rings, ir), cell.areaM2) }));
-  if (!request.answers) return overview(classified, request, deps, area, mPerMm, ir !== undefined);
+  if (!request.answers && !request.acceptConfident) return overview(classified, request, deps, area, mPerMm, ir !== undefined);
   return proposal(loaded, classified, request, now);
 }
 
@@ -105,10 +105,17 @@ function overview(classified: readonly Classified[], request: PhotoCellsJobReque
     ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0 + TILE_PX, y0); ctx.lineTo(x0 + TILE_PX, y0 + TILE_PX); ctx.lineTo(x0, y0 + TILE_PX); ctx.clip();
     drawPhoto(canvas, box, scale, deps.rgb.length ? deps.rgb : deps.ir, { x: x0, y: y0 });
     ctx.beginPath();
-    for (const ring of item.cell.rings) ring.forEach((point, i) => {
-      const px = x0 + (point.x - box.minX) * scale, py = y0 + (box.maxY - point.y) * scale;
-      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-    });
+    const closeable = ctx as { closePath?: () => void };
+    for (const ring of item.cell.rings) {
+      ring.forEach((point, i) => {
+        const px = x0 + (point.x - box.minX) * scale, py = y0 + (box.maxY - point.y) * scale;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      });
+      if (ring.length > 0) {
+        if (closeable.closePath) closeable.closePath();
+        else { const first = ring[0]!; ctx.lineTo(x0 + (first.x - box.minX) * scale, y0 + (box.maxY - first.y) * scale); }
+      }
+    }
     ctx.strokeStyle = "rgba(255,0,200,0.95)"; ctx.lineWidth = 2; ctx.setLineDash([]); ctx.stroke();
     ctx.font = "bold 16px sans-serif"; ctx.textAlign = "left"; ctx.textBaseline = "top";
     ctx.fillStyle = "#ffffff"; ctx.fillRect(x0 + 2, y0 + 2, 24, 20); ctx.fillStyle = "#000000"; ctx.fillText(String(index + 1), x0 + 5, y0 + 4);

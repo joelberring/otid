@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import styles from "../race-administrator-workspace.module.css";
 import { readoutRereadEn } from "../../i18n/workspace-small-en";
 import { uninterpretedReadoutsEn } from "../../i18n/workspace-small-en";
@@ -70,7 +71,7 @@ export function DuringRaceOverview({ ws }: { ws: Workspace }) {
           <label className={styles.check}><input type="checkbox" checked={forestSortByAge} disabled={disabled}
             onChange={event => setForestSortByAge(event.target.checked)} />{forestText.ageSort}</label>
         </div>
-        <details className={styles.disclosure}>
+        <details id={`forest-return-${raceId}`} className={styles.disclosure}>
           <summary>{text.returnSelected}: {selectedForest?.displayName ?? text.returnChoose}</summary>
           <div className={styles.toolbarRow}>
             <Button disabled={disabled || forestStale || !forestData.entries.some(row => row.entryId === entryId && !row.manualReturnRegistered)}
@@ -117,9 +118,16 @@ export function DuringRaceFollowUp({ ws }: { ws: Workspace }) {
     loadConflictReview, pending, raceId, returnAttempt, reviewAttempt, reviewCandidate, reviewConfirmed,
     reviewReason, sent, setReturnAttempt, setReviewCandidate, setReviewConfirmed, setReviewReason, setStartCorrection, startCorrection, submitConflictReview, submitReturn,
     submitStartCorrection, shows, unknown } = ws;
+  const reviewRef = useRef<HTMLElement>(null);
+  const startCorrectionRef = useRef<HTMLElement>(null);
+  const returnAttemptRef = useRef<HTMLElement>(null);
+  const reviewOpen = !!(reviewAttempt || reviewCandidate);
+  useEffect(() => { if (reviewOpen) reviewRef.current?.scrollIntoView?.({ behavior: "smooth", block: "nearest" }); }, [reviewOpen]);
+  useEffect(() => { if (startCorrection) startCorrectionRef.current?.scrollIntoView?.({ behavior: "smooth", block: "nearest" }); }, [startCorrection]);
+  useEffect(() => { if (returnAttempt) returnAttemptRef.current?.scrollIntoView?.({ behavior: "smooth", block: "nearest" }); }, [returnAttempt]);
   return <>
     <section className={styles.workflowGroup} aria-label={text.followUpTitle} hidden={!shows("READOUT")}>
-    {(reviewAttempt || reviewCandidate) && <section className={styles.review} aria-label={reviewText.title}>
+    {(reviewAttempt || reviewCandidate) && <section ref={reviewRef} className={styles.review} aria-label={reviewText.title}>
       <h2>{reviewText.title}</h2><p>{reviewText.adminHelp}</p>
       <AdministratorConflictEvidence candidate={reviewAttempt?.candidate ?? reviewCandidate!} timeZone={data?.timeZone ?? "UTC"} />
       {(reviewAttempt?.candidate ?? reviewCandidate!).source.conflicts.length > 0 && <>
@@ -132,7 +140,7 @@ export function DuringRaceFollowUp({ ws }: { ws: Workspace }) {
       </>}
       {!reviewAttempt && <button type="button" className="secondary" disabled={busy} onClick={() => setReviewCandidate(undefined)}>{text.cancel}</button>}
     </section>}
-    {startCorrection && <section className={styles.review} role="alert" aria-label={text.startCorrectionReview}>
+    {startCorrection && <section ref={startCorrectionRef} className={styles.review} role="alert" aria-label={text.startCorrectionReview}>
       <h3>{text.startCorrectionReview}: {startCorrection.name}</h3>
       <p>{text.startCorrectionConsequence}</p>
       <p>{forestText.reports[startCorrection.request.targetStartState]}</p>
@@ -140,7 +148,7 @@ export function DuringRaceFollowUp({ ws }: { ws: Workspace }) {
       <button type="button" disabled={busy} onClick={() => void submitStartCorrection(startCorrection)}>{unknown ? text.retry : text.startCorrectionConfirm}</button>
       {!unknown && <button type="button" className="secondary" disabled={busy} onClick={() => { pending.current = undefined; sent.current = false; setStartCorrection(undefined); }}>{text.cancel}</button>}
     </section>}
-    {returnAttempt && <section className={styles.review} role="alert" aria-label={returnAttempt.withdraw ? text.returnWithdrawalReview : text.returnReview}>
+    {returnAttempt && <section ref={returnAttemptRef} className={styles.review} role="alert" aria-label={returnAttempt.withdraw ? text.returnWithdrawalReview : text.returnReview}>
       <h3>{returnAttempt.withdraw ? text.returnWithdrawalReview : text.returnReview}: {returnAttempt.name}</h3>
       <p>{returnAttempt.withdraw ? text.returnWithdrawalConsequence : text.returnConsequence}</p>
       <p>{forestText.reports[returnAttempt.request.expectedStartState]}</p>

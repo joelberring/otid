@@ -322,12 +322,14 @@ test("kartprojekt: tangenter under vänster hand, lägg till och ta bort punkter
   await settled(owner);
   expect((await pathOf()).map(command => Math.round(command.x))).toEqual([20, 65, 80]);
 
+  // Ägaren 2026-11-23: raden vid det markerade är av som förval och slås på under Vy.
+  await owner.getByTestId("map-project-view-menu").click();
+  await expect(owner.getByTestId("map-project-context-setting")).not.toBeChecked();
+  await owner.keyboard.press("Escape");
   // Byt tangent: Rita får P. W gör då ingenting, och valet finns kvar efter en omladdning. Återställ ger W igen.
   await owner.getByTestId("map-project-keys-open").click();
   const dialog = owner.getByTestId("map-project-keys");
   await expect(dialog.getByTestId("map-project-key-draw")).toHaveText("W");
-  // Ägaren 2026-11-23: raden vid det markerade är av som förval och slås på här.
-  await expect(dialog.getByTestId("map-project-context-setting")).not.toBeChecked();
   await dialog.getByTestId("map-project-key-draw").click();
   await owner.keyboard.press("p");
   await expect(dialog.getByTestId("map-project-key-draw")).toHaveText("P");
@@ -754,9 +756,10 @@ test("kartprojekt: delområde, förslag från Föreslå och godkännande", async
   expect((await serverObjects(owner, projectId, baseURL!)).filter(object => object.state.kind === "DELETED")).toHaveLength(1);
 
   // Arbetssättet: Huvudkartritare (i utfällningen «Arbetssätt och AI-kopplingen» sist under Granska).
-  await owner.getByTestId("map-project-collab-settings").getByText("Arbetssätt och AI-kopplingen").click();
-  await owner.getByRole("button", { name: "Huvudkartritare" }).click();
-  await expect(owner.getByRole("button", { name: "Huvudkartritare" })).toHaveAttribute("aria-pressed", "true");
+  const collabSettings = owner.getByTestId("map-project-collab-settings");
+  await collabSettings.getByText("Arbetssätt och AI-kopplingen").click();
+  await collabSettings.getByRole("button", { name: "Huvudkartritare" }).click();
+  await expect(collabSettings.getByRole("button", { name: "Huvudkartritare" })).toHaveAttribute("aria-pressed", "true");
   const project = await (await owner.request.get(api)).json() as { mode: string };
   expect(project.mode).toBe("LEAD");
 });

@@ -5,23 +5,25 @@
  */
 export type AppTab = "home" | "maps" | "courses" | "events" | "club";
 
-export interface AppTabLink { tab: AppTab; href: string; /** Vanlig länk (hela sidan laddas) i stället för Next-länk. */ plain?: boolean }
+export interface AppTabLink { tab: AppTab; href: string }
 
 /**
  * Flikarnas mål. Det finns ingen egen listsida för banor, träningar eller klubbar: Banor öppnar panelen Lägg banor i Mitt O-Tid
  * (`#lagg-banor`), Träningar listan Dina tävlingar och Klubb remsan Mina klubbar (där man också går med i en klubb).
- * Banor är en vanlig länk så att webbläsaren ger `hashchange` även när Mitt O-Tid redan är öppet.
  */
 export const APP_TAB_LINKS: readonly AppTabLink[] = [
   { tab: "home", href: "/organizer" },
   { tab: "maps", href: "/organizer/map-projects" },
-  { tab: "courses", href: "/organizer#lagg-banor", plain: true },
+  { tab: "courses", href: "/organizer#lagg-banor" },
   { tab: "events", href: "/organizer#dina-tavlingar" },
   { tab: "club", href: "/organizer#mina-klubbar" }
 ];
 
 /** Ankaret i Mitt O-Tid som öppnar panelen Lägg banor. */
 export const COURSE_TAB_HASH = "#lagg-banor";
+
+/** Händelsen som öppnar panelen Lägg banor utan omladdning när Mitt O-Tid redan är öppet. */
+export const OPEN_COURSE_EVENT = "otid:open-course";
 
 const ADMIN = /^\/admin\/[^/]+(\/.*)?$/;
 
@@ -42,10 +44,16 @@ export function appTabsHidden(pathname: string): boolean {
   return false;
 }
 
-/** Fliken som hör till sidan, eller null (Mitt konto, superadmin). */
-export function activeAppTab(pathname: string): AppTab | null {
+/** Fliken som hör till sidan (och ankaret i Mitt O-Tid), eller null (Mitt konto, superadmin). */
+export function activeAppTab(pathname: string, hash = ""): AppTab | null {
   const path = trim(pathname);
-  if (path === "/organizer") return "home";
+  if (path === "/organizer") {
+    const anchor = hash || (pathname.includes("#") ? pathname.slice(pathname.indexOf("#")) : "");
+    if (anchor === COURSE_TAB_HASH) return "courses";
+    if (anchor === "#dina-tavlingar") return "events";
+    if (anchor === "#mina-klubbar") return "club";
+    return "home";
+  }
   if (path === "/organizer/map-projects" || path.startsWith("/organizer/map-projects/")) return "maps";
   if (/^\/organizer\/(clubs|groups)(\/|$)/.test(path)) return "club";
   const admin = ADMIN.exec(path);

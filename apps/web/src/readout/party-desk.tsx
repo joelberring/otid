@@ -51,6 +51,7 @@ export function PartyDesk(props: PartyDeskProps) {
   const [server, setServer] = useState<PartyStateResponse>();
   const [mode, setMode] = useState<DeskMode>("AUTO");
   const [staff, setStaff] = useState(false);
+  const [confirmStaff, setConfirmStaff] = useState(false);
   const [outcomes, setOutcomes] = useState<ReadonlyMap<number, DeskOutcome>>(new Map());
   const [shown, setShown] = useState<number>();
   const [waiting, setWaiting] = useState<number[]>([]);
@@ -198,8 +199,15 @@ export function PartyDesk(props: PartyDeskProps) {
       <div className="row">
         <FullscreenButton />
         {staff ? <button type="button" onClick={() => { setStaff(false); setMode("AUTO"); }}>{t.backToAuto}</button>
-          : <button type="button" className="party-staff-button" onClick={() => { if (window.confirm(t.staffConfirm)) setStaff(true); }}>{t.staff}</button>}
+          : !confirmStaff ? <button type="button" className="party-staff-button" onClick={() => setConfirmStaff(true)}>{t.staff}</button> : null}
       </div>
+      {confirmStaff && !staff ? <div className="notice" role="region" aria-label={t.staff} data-testid="party-staff-confirm">
+        <p>{t.staffConfirm}</p>
+        <div className="row">
+          <button type="button" className="primary" onClick={() => { setConfirmStaff(false); setStaff(true); }}>{t.staffOpen}</button>
+          <button type="button" onClick={() => setConfirmStaff(false)}>{t.cancel}</button>
+        </div>
+      </div> : null}
       {staff ? <>
         <fieldset className="party-modes"><legend>{t.modeLabel}</legend>
           {(["AUTO", "CHECK_IN", "BUY", "CHECK_OUT"] as const).map(value => <button key={value} type="button"
@@ -246,16 +254,21 @@ function Outcome({ outcome, item, knowledge, timeZone, onRename }: { outcome: De
 function FullscreenButton() {
   const t = useTexts(partyText, partyTextEn);
   const [active, setActive] = useState(false);
+  const [error, setError] = useState<string>();
   useEffect(() => {
     const change = () => setActive(document.fullscreenElement !== null);
     document.addEventListener("fullscreenchange", change);
     return () => document.removeEventListener("fullscreenchange", change);
   }, []);
   if (typeof document === "undefined" || !document.fullscreenEnabled) return null;
-  return <button type="button" onClick={() => {
-    const done = active ? document.exitFullscreen() : document.documentElement.requestFullscreen();
-    done.catch((error: unknown) => window.alert(error instanceof Error ? error.message : String(error)));
-  }}>{active ? t.exitFullscreen : t.fullscreen}</button>;
+  return <>
+    <button type="button" onClick={() => {
+      setError(undefined);
+      const done = active ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+      done.catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
+    }}>{active ? t.exitFullscreen : t.fullscreen}</button>
+    {error ? <p className="notice" role="alert" data-testid="fullscreen-error">{error}</p> : null}
+  </>;
 }
 
 /** Övningsstationen för en fest: en påhittad bricka som stämplas på varornas koder och läses ut. */

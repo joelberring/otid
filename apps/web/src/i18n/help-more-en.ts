@@ -10,7 +10,7 @@ export const accountHelpArticlesEn: readonly HelpArticle[] = [
       "An account is needed to create events and get access. It is created with the email address, which you confirm with a link.",
       [
         "Choose ”No account? Create one” at sign-in and write your name and email address.",
-        "Write the password in both ”Password” and ”Repeat the password”. If they differ, the page says so at once.",
+        "Write the password in both ”Password” and ”Confirm password”. If they differ, the page says so at once.",
         "The eye by the field (”Show the password”) shows what you have typed.",
         "Press ”Create account”. The link in the email works in any browser, for example on your phone.",
         "Behind the link you choose the password (the same or a new one) and press ”Confirm and sign in”."

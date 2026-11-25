@@ -11,7 +11,7 @@
 .small { font-size: var(--text-sm); }
 
 .line { margin: 0; padding: 4px 8px; background: var(--surface); font-size: var(--text-sm); border-left: 4px solid rgb(26, 115, 232); }
-.line[data-problem="true"] { border-left-color: var(--danger, #b00020); font-weight: 600; }
+.line[data-problem="true"] { border-left-color: var(--mp, #b00020); font-weight: 600; }
 
 /* Bred skärm: knapparna på kartan (steg 66: placeras av arbetsytan, under verktygsraden). */
 .tools { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px; max-width: calc(100% - 72px); }
@@ -25,8 +25,8 @@
   background: var(--surface); }
 .barHead { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; }
 .status { padding: 2px 8px; border: 1px solid var(--line-strong); border-radius: 999px; font-size: var(--text-sm); white-space: nowrap; }
-.status[data-status="failed"], .status[data-status="conflict"], .status[data-status="too-large"] { border-color: var(--danger, #b00020);
-  color: var(--danger, #b00020); font-weight: 700; }
+.status[data-status="failed"], .status[data-status="conflict"], .status[data-status="too-large"] { border-color: var(--mp, #b00020);
+  color: var(--mp, #b00020); font-weight: 700; }
 .barRow { display: flex; gap: 6px; }
 .barRow > * { flex: 1 1 0; }
 .barRow .arrows { flex: 3 1 0; }

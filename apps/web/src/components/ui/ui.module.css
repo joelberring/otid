@@ -1,12 +1,23 @@
 /* Gemensamma komponenter (ADR-0170 beslut 2). Platta ytor, 1 px linjer, radie bara på knappar och fält. */
 
-/* Knappar: en primär per vy, sekundär med kant, tyst som text. */
+/* Knappar: en primär per vy, sekundär med kant, tyst som text, eller destruktiv (danger). */
 .button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
 .secondary { border-color: var(--line-strong); background: var(--surface); color: var(--ink); }
 .secondary:hover:not(:disabled) { border-color: var(--ink); background: var(--surface); }
 .quiet { min-height: var(--control); padding: 0 6px; border-color: transparent; background: transparent; color: var(--ink);
   font-weight: 500; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: .18em; }
 .quiet:hover:not(:disabled) { background: transparent; text-decoration-color: currentcolor; }
+.danger { border-color: var(--mp); background: var(--mp); color: var(--surface); }
+.danger:hover:not(:disabled) { border-color: var(--mp-hover); background: var(--mp-hover); }
+
+/* Bekräftelse- och frågedialoger (ConfirmDialog / PromptDialog): platt yta, 1 px kant, inre behållare för säker bakgrundsstängning. */
+.dialog { width: min(440px, calc(100vw - 32px)); max-width: 100%; padding: 0; border: 1px solid var(--line-strong);
+  border-radius: var(--radius); background: var(--surface); color: var(--ink); }
+.dialog::backdrop { background: rgb(26 29 27 / 0.45); }
+.dialogBody { display: grid; gap: 14px; padding: 20px; }
+.dialogTitle { font-size: var(--text-md); }
+.dialogMessage { color: var(--muted); white-space: pre-line; overflow-wrap: anywhere; }
+.dialogActions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; padding-top: 4px; }
 
 /* Fält */
 .field { display: grid; gap: 4px; min-width: 0; font-size: var(--text-xs); font-weight: 500; }

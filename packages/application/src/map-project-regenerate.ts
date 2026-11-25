@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { regenerableMissingSchema, type RegenerableMissing } from "@o-tid/contracts";
-import { schema, type Database } from "@o-tid/database";
+import { schema, type Database, type Pool, type PoolClient } from "@o-tid/database";
 import type { ClubFailure, ClubProof } from "./club-access";
 import { requireMapProject, sessionGate } from "./map-project-access";
 import { createJob, type GeoJobFailure } from "./map-project-geo-jobs";
@@ -53,31 +53,49 @@ type Regenerated = GeoJobFailure | { status: "queued"; jobId: string; replayed: 
 /**
  * «Återskapa»: kör om en klar laserkörning vars resultat tagits bort ur förrådet, med samma begäran, på det egna kontots
  * uppgifter till Lantmäteriet (Föreslå eller mer, projektet öppet). En omkörning som redan väntar eller pågår ges tillbaka.
+ * Serialiseras per projekt med rådgivande sessionslås så att samtidiga klick inte lägger dubbla jobb i kön.
  */
 export async function regenerateGeoJob(db: Database, input: ClubProof & { projectId: string; jobId: string }, runtime: LaserRuntime, now = new Date())
   : Promise<Regenerated> {
-  if (!UUID_PATTERN.test(input.jobId)) return { status: "not-found" };
-  const prior = await db.transaction(async tx => {
-    const access = await requireMapProject(tx, input, now, "propose", true);
-    if (access.status !== "ok") return access;
-    const [job] = await tx.select().from(jobs).where(and(eq(jobs.id, input.jobId), eq(jobs.projectId, access.project.id)));
-    if (!job || job.kind !== "PULLAUTIN" || job.status !== "DONE") return { status: "not-found" } as const;
-    const [running] = await tx.select({ id: jobs.id }).from(jobs).where(and(eq(jobs.projectId, access.project.id), inArray(jobs.status, ["QUEUED", "RUNNING", "DONE"]),
-      sql`${jobs.request}->>'regenerates' = ${job.id}`));
-    if (running) return { status: "running", jobId: running.id } as const;
-    const [gone] = (await tx.execute(sql`select 1 from map_project_geo_output o join map_content c on c.sha256 = o.content_sha256
-      where o.job_id = ${job.id}::uuid and c.stored_in = 'GONE' limit 1`)).rows;
-    if (!gone) return { status: "conflict" } as const;
-    return { status: "found", job } as const;
-  });
-  if (prior.status === "running") return { status: "queued", jobId: prior.jobId, replayed: true };
-  if (prior.status !== "found") return prior;
-  const request = prior.job.request as { name?: string; settings?: unknown; cliffs?: unknown; moisture?: unknown; vegetation?: unknown };
-  const body = { formatVersion: 1, requestId: randomUUID(), kind: "PULLAUTIN", name: (request.name ?? "Karttapullautin").slice(0, 80), rerunOf: prior.job.id,
-    settings: request.settings ?? {}, ...(request.cliffs ? { cliffs: request.cliffs } : {}), ...(request.moisture ? { moisture: request.moisture } : {}),
-    ...(request.vegetation ? { vegetation: request.vegetation } : {}) };
-  const created = await createJob(db, sessionGate(input, now), body, runtime, now, prior.job.id);
-  return created.status === "created" ? { status: "queued", jobId: created.job.jobId, replayed: false } : created;
+  if (!UUID_PATTERN.test(input.jobId) || !UUID_PATTERN.test(input.projectId)) return { status: "not-found" };
+  const lockKey = `map-project-regenerate:${input.projectId}`;
+  const pool = (db as unknown as { $client?: Pool }).$client;
+  const run = async (): Promise<Regenerated> => {
+    const prior = await db.transaction(async tx => {
+      const access = await requireMapProject(tx, input, now, "propose", true);
+      if (access.status !== "ok") return access;
+      const [job] = await tx.select().from(jobs).where(and(eq(jobs.id, input.jobId), eq(jobs.projectId, access.project.id)));
+      if (!job || job.kind !== "PULLAUTIN" || job.status !== "DONE") return { status: "not-found" } as const;
+      const [running] = await tx.select({ id: jobs.id }).from(jobs).where(and(eq(jobs.projectId, access.project.id), inArray(jobs.status, ["QUEUED", "RUNNING", "DONE"]),
+        sql`${jobs.request}->>'regenerates' = ${job.id}`));
+      if (running) return { status: "running", jobId: running.id } as const;
+      const [gone] = (await tx.execute(sql`select 1 from map_project_geo_output o join map_content c on c.sha256 = o.content_sha256
+        where o.job_id = ${job.id}::uuid and c.stored_in = 'GONE' limit 1`)).rows;
+      if (!gone) return { status: "conflict" } as const;
+      return { status: "found", job } as const;
+    });
+    if (prior.status === "running") return { status: "queued", jobId: prior.jobId, replayed: true };
+    if (prior.status !== "found") return prior;
+    const request = prior.job.request as { name?: string; settings?: unknown; cliffs?: unknown; moisture?: unknown; vegetation?: unknown };
+    const body = { formatVersion: 1, requestId: randomUUID(), kind: "PULLAUTIN", name: (request.name ?? "Karttapullautin").slice(0, 80), rerunOf: prior.job.id,
+      settings: request.settings ?? {}, ...(request.cliffs ? { cliffs: request.cliffs } : {}), ...(request.moisture ? { moisture: request.moisture } : {}),
+      ...(request.vegetation ? { vegetation: request.vegetation } : {}) };
+    const created = await createJob(db, sessionGate(input, now), body, runtime, now, prior.job.id);
+    return created.status === "created" ? { status: "queued", jobId: created.job.jobId, replayed: false } : created;
+  };
+  if (!pool || typeof pool.connect !== "function") return run();
+  const client: PoolClient = await pool.connect();
+  try {
+    await client.query("select pg_advisory_lock(hashtextextended($1, 0))", [lockKey]);
+    return await run();
+  } finally {
+    try {
+      await client.query("select pg_advisory_unlock(hashtextextended($1, 0))", [lockKey]);
+      client.release();
+    } catch {
+      client.release(true);
+    }
+  }
 }
 
 /**

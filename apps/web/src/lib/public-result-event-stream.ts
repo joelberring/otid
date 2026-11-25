@@ -136,7 +136,9 @@ export function createPublicResultEventStream(
         if (heartbeat) clearInterval(heartbeat);
         unsubscribe?.();
         request.signal.removeEventListener("abort", onAbort);
-        if (closeController) controller.close();
+        if (closeController) {
+          try { controller.close(); } catch { /* Strömmen är redan stängd. */ }
+        }
       };
       const stopIfClosed = () => {
         if (closed) return true;
@@ -146,6 +148,14 @@ export function createPublicResultEventStream(
         }
         return false;
       };
+      const enqueue = (chunk: Uint8Array) => {
+        if (stopIfClosed()) return;
+        try {
+          controller.enqueue(chunk);
+        } catch {
+          close?.(false);
+        }
+      };
       request.signal.addEventListener("abort", onAbort, { once: true });
       if (stopIfClosed()) return;
       try {
@@ -154,17 +164,17 @@ export function createPublicResultEventStream(
         unsubscribe = subscribe(raceId, (eventSequence) => {
           if (stopIfClosed()) return;
           if (eventSequence === null) { close?.(); return; }
-          controller.enqueue(formatPublicResultEvent("refresh", eventSequence));
+          enqueue(formatPublicResultEvent("refresh", eventSequence));
         });
         const state = await publicResultEventStreamStatus(raceId, lastEventId);
         if (stopIfClosed()) return;
         if (state.status === "ready" && lastEventId !== null) {
-          for (const eventSequence of state.eventSequences) controller.enqueue(formatPublicResultEvent("refresh", eventSequence));
+          for (const eventSequence of state.eventSequences) enqueue(formatPublicResultEvent("refresh", eventSequence));
         } else {
-          controller.enqueue(formatPublicResultEvent("reset"));
+          enqueue(formatPublicResultEvent("reset"));
         }
         heartbeat = setInterval(() => {
-          if (!stopIfClosed()) controller.enqueue(new TextEncoder().encode(": keep-alive\n\n"));
+          enqueue(new TextEncoder().encode(": keep-alive\n\n"));
         }, 25_000);
       } catch {
         close?.();

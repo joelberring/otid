@@ -2,7 +2,8 @@ import React from "react";
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { LocalVerdict } from "./evaluate";
-import { Verdict } from "./verdict-panel";
+import { RecentRow, Verdict } from "./verdict-panel";
+import type { QueuedReadout } from "./store";
 
 // Komponenterna använder JSX utan att importera React (Next); testet ger dem React (vitest kompilerar klassiskt).
 (globalThis as { React?: typeof React }).React = React;
@@ -34,5 +35,19 @@ describe("beskedet för en lånad bricka", () => {
     expect(html).toContain("OKÄND BRICKA");
     expect(html).toContain("Brickan är inte kopplad till någon deltagare. Anmäl löparen nedan.");
     expect(html).not.toContain("LÅNAD");
+  });
+});
+
+describe("RecentRow", () => {
+  const item: QueuedReadout = {
+    raceId: "r1", deviceId: "d1", sessionId: "s1", localSequence: 4, packageVersion: 1,
+    stationReceivedAt: "2026-11-25T10:00:00.000Z", contentHash: "abc", status: "stored",
+    payload: { cardNumber: "7505442", cardType: "SI10", punches: [], untimedPunchCodes: [], frames: [], simulated: false }
+  };
+
+  it("renderas som en klickbar knapp och markerar vald rad med aria-current", () => {
+    const html = renderToStaticMarkup(<RecentRow item={item} pkg={undefined} local={[]} registration={undefined} selected />);
+    expect(html).toContain("<button type=\"button\" class=\"recent-row\" aria-current=\"true\"");
+    expect(html).toContain("7505442");
   });
 });

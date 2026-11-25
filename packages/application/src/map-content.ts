@@ -214,6 +214,11 @@ export async function clubMapQuotaBytes(tx: DbExecutor, clubId: string): Promise
   return (row?.map_quota_mb ?? DEFAULT_CLUB_MAP_QUOTA_MB) * MB;
 }
 
+/** Serialiserar klubbens kvotkontroller och skrivningar (import, kartuppladdning och inlyft ur tävling). */
+export async function lockClubQuota(tx: DbExecutor, clubId: string): Promise<void> {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`club-quota:${clubId}`}, 0))`);
+}
+
 /**
  * Ryms det i klubbens gräns att lägga innehållen `sha256s` (som redan finns i `map_content`) och `newBytes` nytt material i
  * klubbarkivet? Innehåll som redan ligger i klubbens arkiv kostar ingenting. Innehåll som ett konto laddat upp till ett eget
@@ -332,6 +337,7 @@ export async function storeMapContent(tx: DbExecutor, input: MapContentInput, ac
     }
   }
   // Uppladdningarna köas här: kvoten räknas och nytt innehåll sparas en i taget (bara databasen, det går fort).
+  if (options.clubId) await lockClubQuota(tx, options.clubId);
   await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended('otid.map-content', 0))`);
   const existing = (await tx.execute<{ content_id: string; stored_in: string; regenerable: boolean }>(sql`select content_id, stored_in, regenerable
     from map_content where sha256 = ${sha256} for key share`)).rows[0];

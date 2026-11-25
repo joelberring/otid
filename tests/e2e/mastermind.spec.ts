@@ -72,8 +72,8 @@ test("Mastermind med kontroller: från träningen, övningsstationen, en gissnin
   await expect(hub.getByTestId("mastermind-board").locator("tbody tr")).toHaveCount(2);
 
   // Arrangören avbryter besökarens spel från spelsidan: det försvinner ur ställningen, också på tävlingssidan.
-  owner.once("dialog", dialog => void dialog.accept());
   await owner.getByRole("button", { name: "Avbryt spelet för Bricka 7000002" }).click({ timeout: 30_000 });
+  await owner.getByTestId("mastermind-abort-confirm").getByRole("button", { name: "Avbryt spelet" }).click();
   await expect(owner.getByText("Spelet för Bricka 7000002 är avbrutet")).toBeVisible();
   await expect(async () => {
     await visitor.reload();

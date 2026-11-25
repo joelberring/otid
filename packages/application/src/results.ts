@@ -169,14 +169,10 @@ export async function changeEntryClassAsAdmin(
   input: AuthenticatedEntryClassChangeInput,
   now = new Date()
 ): Promise<AuthenticatedEntryClassChangeResult> {
-  const idempotencyKey = entryClassChangeIdempotencyKeySchema.safeParse(input.idempotencyKey);
-  const request = entryClassChangeRequestSchema.safeParse(input.request);
-  if (!idempotencyKey.success || !request.success || !UUID_PATTERN.test(input.entryId)) {
-    return { status: "invalid-request" };
-  }
-  const requestId = idempotencyKey.data.slice("entry-class-change:".length);
   const changedAt = new Date(now);
   if (!Number.isFinite(changedAt.getTime())) throw new Error("Ändringstiden är ogiltig");
+  const idempotencyKey = entryClassChangeIdempotencyKeySchema.safeParse(input.idempotencyKey);
+  const request = entryClassChangeRequestSchema.safeParse(input.request);
 
   return db.transaction(async (tx) => {
     const authorization = await requireRaceRole(tx, {
@@ -188,6 +184,10 @@ export async function changeEntryClassAsAdmin(
       requireCsrf: true
     }, changedAt, "update");
     if (authorization.status !== "authenticated") return authorization;
+    if (!idempotencyKey.success || !request.success || !UUID_PATTERN.test(input.entryId)) {
+      return { status: "invalid-request" };
+    }
+    const requestId = idempotencyKey.data.slice("entry-class-change:".length);
 
     const race = await lockRaceForMutation(tx, authorization.principal.raceId);
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${requestId}, 0))`);

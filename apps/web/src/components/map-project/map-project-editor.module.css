@@ -11,10 +11,23 @@
 .bareToggle { flex: none; min-height: 28px; padding: 0 8px; border: 1px solid var(--line); border-radius: 6px; background: none; font: inherit;
   font-size: var(--text-sm, .9rem); color: inherit; cursor: pointer; white-space: nowrap; }
 .bareToggle[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
-/* Ägaren 2026-11-10: sparandet är en liten prick (fylld = sparat, tom ring = ändringar väntar) och text först när något är fel. */
-.sync { flex: none; margin: 0; display: grid; place-items: center; width: 20px; height: 20px; }
-.syncDot { width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--muted, #888); background: var(--muted, #888); }
-.syncDot[data-waiting] { background: none; }
+.modePill { flex: none; min-height: 28px; padding: 0 10px; border: 1px solid var(--attention, #b45309); border-radius: 999px;
+  background: var(--attention-bg, #fff4ce); color: var(--ink, #222); font: inherit; font-size: var(--text-xs, .8rem); font-weight: 600;
+  cursor: pointer; white-space: nowrap; }
+.modePill:hover, .modePill:focus-visible { border-color: var(--ink); }
+.viewMenu { position: relative; flex: none; }
+.viewMenuList { position: absolute; right: 0; top: calc(100% + 4px); z-index: 30; display: grid; gap: 6px; width: 260px; max-width: calc(100vw - 16px);
+  padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface, #fff);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 18%); }
+.viewMenuItem { display: flex; align-items: flex-start; gap: 8px; font-size: var(--text-sm, .9rem); font-weight: 600; cursor: pointer; }
+.viewMenuItem input { width: 18px; height: 18px; margin-top: 2px; flex: none; }
+.viewMenuHelp { margin: 0; color: var(--muted); font-size: var(--text-xs, .8rem); line-height: 1.35; }
+/* Tydlig synkstatus: diskret bock när allt är sparat, tydlig text/räknare när ändringar väntar, och stark varning vid fel/offline. */
+.sync { flex: none; margin: 0; display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border: 1px solid var(--line); border-radius: 999px;
+  color: var(--muted); font-size: var(--text-xs, .8rem); white-space: nowrap; }
+.sync[data-waiting] { border-style: dashed; border-color: var(--line-strong); color: var(--ink); font-weight: 600; }
+.syncIcon { font-weight: 700; line-height: 1; }
+.syncText { line-height: 1.2; }
 .syncLoud { flex: 0 1 auto; min-width: 0; margin: 0; padding: 2px 8px; border-radius: 6px; background: var(--attention-bg, #fff4ce); color: var(--ink, #222);
   font-size: var(--text-sm, .9rem); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .notice { padding: 6px 12px 0; }
@@ -37,13 +50,16 @@
 .objectBar button { min-height: 30px; padding-block: 0; }
 .hint { flex: 1; min-width: 0; margin: 0; color: var(--muted); font-size: var(--text-sm, .9rem); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mapArea { grid-column: 2; grid-row: 2; position: relative; min-width: 0; min-height: 0; overflow: hidden; }
-/* Kartvyn fyller rutan på alla bredder (banläggningens telefonregel för kartans ram gäller inte här). */
+/* Kartvyn fyller rutan på alla bredder; zoomknapparna placeras ovanför fältknapparna på datorn utan att ärva banläggningens 700–900px-regel. */
+.frame { --map-zoom-top: auto; --map-zoom-right: 10px; --map-zoom-bottom: 10px; }
+.frame[data-has-field="true"] { --map-zoom-bottom: 64px; }
 .frame, .frame > div { position: absolute; inset: 0; }
 .loading { position: absolute; inset: auto 0 50% 0; text-align: center; color: var(--muted); z-index: 1; }
 .sidebar { grid-column: 3; grid-row: 1 / span 3; overflow: auto; border-left: 1px solid var(--line); padding: 0 10px 24px; display: grid;
   align-content: start; gap: 8px; grid-template-columns: minmax(0, 1fr); }
 .sidebar > * { min-width: 0; }
-.sidebarClose { display: none; }
+.sidebarControls { display: none; }
+.sidebarClose, .sidebarExpand { display: none; }
 .sidebarGrip { grid-column: 3; grid-row: 1 / span 3; justify-self: start; width: 7px; margin-left: -4px; z-index: 2; cursor: col-resize; touch-action: none; }
 .sidebarGrip:hover, .sidebarGrip:focus-visible { background: var(--accent, #3b6ea5); opacity: .5; outline: none; }
 .workspace[data-bare="true"] > .sidebarGrip { display: none; }
@@ -154,25 +170,38 @@
     line-height: 1; color: var(--ink); text-decoration: none; }
   .backText { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .title h1 { font-size: var(--text-md, 1rem); }
+  .sync:not([data-waiting]) .syncText { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .syncLoud { font-size: var(--text-xs, .8rem); max-width: 50vw; }
-  .bareToggle { display: none; }
-  /* Verktygen på en rad överst som rullar i sidled, kartan, och tipset på en rad under (hela texten i title). */
-  .statusRow { grid-column: 1; grid-row: 3; padding: 0 8px; }
+  .bareToggle, .viewMenu { display: none; }
+  .frame, .frame[data-has-field="true"] { --map-zoom-top: 8px; --map-zoom-right: 8px; --map-zoom-bottom: auto; }
+  /* Verktygen på en rad överst som rullar i sidled, kartan, och tipset/aktivt verktyg synligt även när objektets knappar visas. */
+  .statusRow { grid-column: 1; grid-row: 3; height: auto; min-height: 38px; flex-wrap: wrap; padding: 4px 8px; gap: 2px .6rem; }
   .objectBar { max-width: 100%; }
-  .objectBar + .hint { display: none; }
+  .objectBar + .hint { flex: 1 1 100%; }
   .mapArea { grid-column: 1; grid-row: 2; }
   .workspace, .workspace[data-bare="true"] { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; position: relative; }
   .workspace[data-bare="true"] > [role="toolbar"] { display: flex; }
   .sidebarGrip { display: none; }
-  /* Panelen ligger över kartans nedre del när den är öppen. */
+  /* Panelen ligger över kartans nedre del när den är öppen, och kan växlas mellan halvt och nästan helt blad. */
   .sidebar, .workspace[data-bare="true"] > .sidebar { display: grid; position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; grid-column: 1; grid-row: 1 / span 3; max-height: 45dvh; border-left: 0;
     border-top: 1px solid var(--line-strong); background: var(--surface); box-shadow: 0 -4px 16px rgb(0 0 0 / 12%); }
+  .sidebar[data-expanded="true"], .workspace[data-bare="true"] > .sidebar[data-expanded="true"] { max-height: 85dvh; height: 85dvh; }
   .sidebar[data-open="false"], .workspace[data-bare="true"] > .sidebar[data-open="false"] { display: none; }
-  /* Ägaren 2026-11-22: panelen stängs i sitt eget hörn (inte bara med verktygsradens knapp); flikraden lämnar plats åt den. */
-  .sidebar > .tabsWrap { padding-right: 48px; }
-  .sidebarClose { display: grid; position: sticky; top: 4px; justify-self: end; margin: -44px -4px 4px 0; z-index: 2; place-items: center; width: 40px; height: 40px; padding: 0;
+  /* Ägaren 2026-11-22: panelen förstoras eller stängs i sitt eget hörn; flikraden lämnar plats åt knapparna. */
+  .sidebar > .tabsWrap { padding-right: 92px; }
+  .sidebarControls { display: flex; gap: 4px; position: sticky; top: 4px; justify-self: end; margin: -44px -4px 4px 0; z-index: 2; }
+  .sidebarClose, .sidebarExpand { display: grid; place-items: center; width: 40px; height: 40px; padding: 0;
     border: 1px solid var(--line-strong); border-radius: 20px; background: var(--surface); color: var(--ink); font: inherit; cursor: pointer; }
   .hint { font-size: var(--text-xs, .8rem); }
+}
+@media (min-width: 761px) {
+  .recentRow { display: none; }
+}
+@media (pointer: coarse) {
+  .objectBar button { min-height: 44px; }
+  .tabs button { min-height: 44px; }
+  .sidebarClose, .sidebarExpand { width: 44px; height: 44px; border-radius: 22px; }
+  .sidebar > .tabsWrap { padding-right: 100px; }
 }
 .importLayers { display: grid; gap: 6px; border: 0; padding: 0; margin: 0; }
 .importLayers label { display: grid; gap: 2px; }

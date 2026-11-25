@@ -40,6 +40,8 @@ export const partyText = {
   // Personal.
   staff: "Personal",
   staffConfirm: "Öppna personalens läge? Skärmen går tillbaka till automatiskt läge efter 30 sekunder.",
+  staffOpen: "Öppna personalläge",
+  cancel: "Avbryt",
   modes: { AUTO: "Automatiskt", CHECK_IN: "Checka in", BUY: "Köp/verifiera", CHECK_OUT: "Checka ut" },
   modeLabel: "Läge",
   modeActive: (mode: string) => `Personalens läge: ${mode}. Nästa bricka gäller det läget.`,

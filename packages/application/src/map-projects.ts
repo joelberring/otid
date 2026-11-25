@@ -7,7 +7,7 @@ import {
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { MAP_READER_VERSION } from "@o-tid/map-file";
-import { requireClubRole, type ClubFailure, type ClubProof } from "./club-access";
+import { requireClubArea, type ClubFailure, type ClubProof } from "./club-access";
 import { openMapProjectJoinLinks } from "./map-project-join";
 import { deliverPrepared, invitationSentTimes, prepareIfMail, replayedOutcome, type InvitationMailer } from "./invitation-links";
 import {
@@ -107,7 +107,7 @@ export async function createMapProject(db: Database, input: ClubProof & { reques
   if (!parsed.success) return { status: "invalid-request" };
   const { requestId, clubId, baseVersionId, name } = parsed.data;
   return db.transaction(async tx => {
-    const member = await requireClubRole(tx, { ...input, clubId }, "READER", now, true);
+    const member = await requireClubArea(tx, { ...input, clubId }, "MAP_BANK", now, true);
     if (member.status !== "ok") return member;
     const [prior] = await tx.select().from(schema.mapProjects).where(eq(schema.mapProjects.requestId, requestId));
     if (prior) {

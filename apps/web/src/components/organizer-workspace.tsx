@@ -28,7 +28,7 @@ import { useLanguage, useTexts } from "./language-provider";
 import { useRouter } from "next/navigation";
 import { Logo } from "./brand/logo";
 import { LanguageSwitch } from "./language-switch";
-import { COURSE_TAB_HASH } from "../lib/app-tabs";
+import { COURSE_TAB_HASH, OPEN_COURSE_EVENT } from "../lib/app-tabs";
 import { sv } from "../i18n/sv";
 import { formErrorsSv } from "../i18n/form-errors-sv";
 import { formErrorsEn } from "../i18n/workspace-small-en";
@@ -62,6 +62,7 @@ import { NewPasswordFields, PasswordInput, passwordsReady } from "./password-fie
 import { HubChoices, HubNewHere } from "./organizer-hub/hub-choices";
 import { HubStartCard } from "./organizer-hub/hub-start-card";
 import { QuickCourse } from "./organizer-hub/quick-course";
+import { TodayRaceCard } from "./organizer-hub/today-race-card";
 import { createSubmitLabel, myClubHref } from "../lib/hub-start";
 import { todayIn } from "../lib/my-events-order";
 import type { ClubSummary, RaceType } from "@o-tid/contracts";
@@ -134,6 +135,9 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
   const onClubs = (clubs: readonly ClubSummary[]) => setClubSpaces(clubs);
   /** Översynen 2026-11-17: panelen Lägg banor och vald typ i formuläret (knappens namn). */
   const [quickOpen, setQuickOpen] = useState(false);
+  /** I mobilbredd fälls Skapa-formuläret ihop när kontot redan har tävlingar; på datorn står det i högerspalten. */
+  const [createExpanded, setCreateExpanded] = useState(false);
+  const [compactViewport, setCompactViewport] = useState(false);
   const [createType, setCreateType] = useState<RaceType>("TRAINING");
   const [sessionChecked, setSessionChecked] = useState(false);
   const [email, setEmail] = useState("");
@@ -233,18 +237,27 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
   }, []);
 
   /**
-   * Förslag B: flikraden når navet med ankare. `#lagg-banor` öppnar panelen Lägg banor (också när navet redan är öppet; ankaret
-   * tas sedan bort så att fliken fungerar igen), och `#dina-tavlingar` rullar till listan när den har kommit.
+   * Förslag B: flikraden når navet med ankare. `#lagg-banor` (och händelsen `otid:open-course`) öppnar panelen Lägg banor,
+   * `#skapa` / `#organizer-create-event` fäller ut Skapa-formuläret, och `#dina-tavlingar` rullar till listan när den har kommit.
    */
   useEffect(() => {
-    const openCourse = () => {
-      if (window.location.hash !== COURSE_TAB_HASH) return;
-      setQuickOpen(true);
-      window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}`);
+    const query = window.matchMedia("(max-width: 700px)");
+    const updateViewport = () => setCompactViewport(query.matches);
+    updateViewport();
+    query.addEventListener("change", updateViewport);
+    const onHash = () => {
+      if (window.location.hash === COURSE_TAB_HASH) setQuickOpen(true);
+      if (window.location.hash === "#skapa" || window.location.hash === "#organizer-create-event") setCreateExpanded(true);
     };
-    openCourse();
-    window.addEventListener("hashchange", openCourse);
-    return () => window.removeEventListener("hashchange", openCourse);
+    const onOpenCourse = () => setQuickOpen(true);
+    onHash();
+    window.addEventListener("hashchange", onHash);
+    window.addEventListener(OPEN_COURSE_EVENT, onOpenCourse);
+    return () => {
+      query.removeEventListener("change", updateViewport);
+      window.removeEventListener("hashchange", onHash);
+      window.removeEventListener(OPEN_COURSE_EVENT, onOpenCourse);
+    };
   }, []);
   useEffect(() => {
     if (eventsLoaded && window.location.hash === "#dina-tavlingar") document.getElementById("dina-tavlingar")?.scrollIntoView({ block: "start" });
@@ -444,7 +457,7 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
   }
 
   /** Kontots session gäller tävlingen direkt (ADR-0173 beslut 4): arbetsytan öppnas utan eget steg. */
-  function enterRace(raceId: string, page: "manage" | "course-setting" | "course-setting/map-errors" = "manage") {
+  function enterRace(raceId: string, page: "manage" | "readout" | "course-setting" | "course-setting/map-errors" = "manage") {
     setEnteringRaceId(raceId);
     setMessage(copy.openingRace);
     window.location.assign(`/admin/${encodeURIComponent(raceId)}/${page}`);
@@ -513,60 +526,69 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
 
     {/* Ägaren 2026-11-22: rutan om vad ett konto ger står bredvid formuläret (under det i mobilen). */}
     {sessionChecked && !session && <div className={styles.loginLayout}>
-    {sessionChecked && !session && mode === "login" && <section className={`${styles.panel} ${styles.narrow} ${styles.loginPanel}`}>
-      <h2>{copy.login}</h2>
-      <p className={styles.muted}>{copy.loginHint}</p>
-      <form className={styles.form} onSubmit={(event) => void login(event)}>
-        <label>{copy.email}
-          <input type="email" autoComplete="username" autoCapitalize="none" spellCheck={false} value={email}
-            onChange={(event) => setEmail(event.target.value)} required />
-        </label>
-        <PasswordInput label={copy.password} value={password} onChange={setPassword} autoComplete="current-password" />
-        <div className={styles.remember}>
-          <label><input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} /> {copy.remember}</label>
-          <p className={styles.muted}>{copy.rememberHint}</p>
-        </div>
-        <button type="submit" disabled={busy || !email || !password} aria-busy={busy}>{copy.login}</button>
-        {message && <p className={styles.loginMessage} role={loginProblems(copy).has(message) ? "alert" : "status"} aria-live="polite">{message}</p>}
-      </form>
-      {googleEnabled && <GoogleLogin remember={remember} copy={copy} />}
-      <nav className={styles.loginLinks} aria-label={copy.accountHelp}>
-        <button type="button" className={styles.secondary} onClick={() => { setMode("register"); setMessage(""); setRepeat(""); }}>{copy.toRegister}</button>
-        <Link href="/recover">{copy.forgotPassword}</Link>
-      </nav>
-    </section>}
-
-    {sessionChecked && !session && mode === "register" && <section className={`${styles.panel} ${styles.narrow} ${styles.loginPanel}`}>
-      <h2>{copy.register}</h2>
-      <p className={styles.muted}>{copy.registerHint}</p>
-      <form className={styles.form} onSubmit={(event) => void register(event)}>
-        <label>{copy.displayName}
-          <input autoComplete="name" value={displayName} maxLength={120}
-            onChange={(event) => setDisplayName(event.target.value)} required />
-        </label>
-        <label>{copy.email}
-          <input type="email" autoComplete="email" autoCapitalize="none" spellCheck={false} value={email} maxLength={254}
-            readOnly={lockedEmail} onChange={(event) => setEmail(event.target.value)} required aria-describedby="register-eventor-email" />
-        </label>
-        <p id="register-eventor-email" className={styles.muted}>{copy.registerEventorEmail}</p>
-        <NewPasswordFields password={password} repeat={repeat} onPassword={setPassword} onRepeat={setRepeat} />
-        <p className={styles.muted}>{copy.registerPrivacy} <Link href="/integritet">{copy.privacyLink}</Link></p>
-        <button type="submit" disabled={busy || !email || !displayName.trim() || !passwordsReady(password, repeat)} aria-busy={busy}>{copy.register}</button>
-        {message && <p className={styles.loginMessage} role={message === copy.registering ? "status" : "alert"} aria-live="polite">{message}</p>}
-      </form>
-      {googleEnabled && <GoogleLogin remember={false} copy={copy} />}
-      <nav className={styles.loginLinks} aria-label={copy.accountHelp}>
-        <button type="button" className={styles.secondary} onClick={() => { setMode("login"); setMessage(""); setRepeat(""); }}>{copy.toLogin}</button>
-      </nav>
-    </section>}
+    <section className={`${styles.panel} ${styles.narrow} ${styles.loginPanel}`}>
+      <div className={hubStyles.authTabs} role="tablist" aria-label={copy.accountHelp}>
+        <button type="button" role="tab" aria-selected={mode === "login"} onClick={() => { setMode("login"); setMessage(""); setRepeat(""); }}>
+          {copy.login}</button>
+        <button type="button" role="tab" aria-selected={mode === "register"} onClick={() => { setMode("register"); setMessage(""); setRepeat(""); }}>
+          {copy.register}</button>
+      </div>
+      {mode === "login" && <>
+        <h2>{copy.login}</h2>
+        <p className={styles.muted}>{copy.loginHint}</p>
+        <form className={styles.form} onSubmit={(event) => void login(event)}>
+          <label>{copy.email}
+            <input type="email" autoComplete="username" autoCapitalize="none" spellCheck={false} value={email}
+              onChange={(event) => setEmail(event.target.value)} required />
+          </label>
+          <PasswordInput label={copy.password} value={password} onChange={setPassword} autoComplete="current-password" />
+          <div className={styles.remember}>
+            <label><input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} /> {copy.remember}</label>
+            <p className={styles.muted}>{copy.rememberHint}</p>
+          </div>
+          <button type="submit" disabled={busy || !email || !password} aria-busy={busy}>{copy.login}</button>
+          {message && <p className={styles.loginMessage} role={loginProblems(copy).has(message) ? "alert" : "status"} aria-live="polite">{message}</p>}
+        </form>
+        {googleEnabled && <GoogleLogin remember={remember} copy={copy} />}
+        <nav className={styles.loginLinks} aria-label={copy.accountHelp}>
+          <button type="button" className={styles.secondary} onClick={() => { setMode("register"); setMessage(""); setRepeat(""); }}>{copy.toRegister}</button>
+          <Link href="/recover">{copy.forgotPassword}</Link>
+        </nav>
+      </>}
+      {mode === "register" && <>
+        <h2>{copy.register}</h2>
+        <p className={styles.muted}>{copy.registerHint}</p>
+        <form className={styles.form} onSubmit={(event) => void register(event)}>
+          <label>{copy.displayName}
+            <input autoComplete="name" value={displayName} maxLength={120}
+              onChange={(event) => setDisplayName(event.target.value)} required />
+          </label>
+          <label>{copy.email}
+            <input type="email" autoComplete="email" autoCapitalize="none" spellCheck={false} value={email} maxLength={254}
+              readOnly={lockedEmail} onChange={(event) => setEmail(event.target.value)} required aria-describedby="register-eventor-email" />
+          </label>
+          <p id="register-eventor-email" className={styles.muted}>{copy.registerEventorEmail}</p>
+          <NewPasswordFields password={password} repeat={repeat} onPassword={setPassword} onRepeat={setRepeat} />
+          <p className={styles.muted}>{copy.registerPrivacy} <Link href="/integritet">{copy.privacyLink}</Link></p>
+          <button type="submit" disabled={busy || !email || !displayName.trim() || !passwordsReady(password, repeat)} aria-busy={busy}>{copy.register}</button>
+          {message && <p className={styles.loginMessage} role={message === copy.registering ? "status" : "alert"} aria-live="polite">{message}</p>}
+        </form>
+        {googleEnabled && <GoogleLogin remember={false} copy={copy} />}
+        <nav className={styles.loginLinks} aria-label={copy.accountHelp}>
+          <button type="button" className={styles.secondary} onClick={() => { setMode("login"); setMessage(""); setRepeat(""); }}>{copy.toLogin}</button>
+        </nav>
+      </>}
+    </section>
     <AccountBenefits />
     </div>}
 
+    {/* Dagens tävling: snabbkort överst när kontot har ett lopp i dag. */}
+    {session && eventsLoaded && !eventsError && <TodayRaceCard events={events} busy={busy} enteringRaceId={enteringRaceId} onOpen={enterRace} />}
     {/* ADR-0209: "Vilken klubb tillhör du?" efter registreringen (valfritt, tills det är besvarat). */}
     {/* Användartest 2026-11-12: klubbfrågan bara för den som inte redan är med i en klubbyta, och remsan upprepar den inte. */}
     {/* Översynen 2026-11-17: fyra val överst; Lägg banor öppnar panelen under valen. */}
     {session && <HubChoices clubHref={myClubHref(clubSpaces)} courseOpen={quickOpen} onCourse={() => setQuickOpen(open => !open)}
-      onCreate={() => createHeadingRef.current?.focus({ preventScroll: true })} />}
+      onCreate={() => { setCreateExpanded(true); createHeadingRef.current?.focus({ preventScroll: true }); }} />}
     {session && <HubNewHere />}
     {session && quickOpen && !attempt && <QuickCourse events={events} busy={busy || enteringRaceId !== undefined}
       onOpen={raceId => enterRace(raceId, "course-setting")} onCreate={(name, organisationId) => void createQuick(name, organisationId)}
@@ -607,7 +629,12 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
 
       <section id="organizer-create-event" className={`${styles.panel} ${styles.createPanel}`}>
         <h2 ref={createHeadingRef} tabIndex={-1}>{copy.createEvent}</h2>
-        {!attempt && <><p className={styles.muted}>{copy.createHint}</p>
+        {!attempt && compactViewport && eventsLoaded && events.length > 0 && !createExpanded && <div className={hubStyles.createCollapsed}>
+          <p className={styles.muted}>{copy.createHint}</p>
+          <button type="button" className={hubStyles.createToggle} onClick={() => setCreateExpanded(true)} data-testid="expand-create-event">
+            {copy.createEvent}</button>
+        </div>}
+        {!attempt && (!compactViewport || !eventsLoaded || events.length === 0 || createExpanded) && <><p className={styles.muted}>{copy.createHint}</p>
           <form className={`${styles.form} ${styles.createForm}`} noValidate onSubmit={(event) => void create(event)}>
             <Field label={copy.eventName} error={createErrors.eventName}><input name="eventName" maxLength={160} disabled={busy}
               onChange={() => createErrors.eventName && setCreateErrors({ ...createErrors, eventName: undefined })} /></Field>

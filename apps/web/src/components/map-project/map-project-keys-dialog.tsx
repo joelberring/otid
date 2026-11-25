@@ -21,9 +21,7 @@ export function useMapProjectKeys(): [KeyMap, (keys: KeyMap) => void] {
  * kommandon och deras tangenter. Ett klick på en rad och sedan en tangent byter; hade ett annat kommando tangenten står det
  * utan tangent efteråt, och det sägs i klartext. Sparas i webbläsaren.
  */
-export function MapProjectKeysDialog({ keys, onKeys, onClose, contextRow, onContextRow }: { keys: KeyMap; onKeys: (keys: KeyMap) => void; onClose: () => void;
-  /** Ägaren 2026-11-23: åtgärdsraden vid det markerade (av som förval). */
-  contextRow: boolean; onContextRow: (on: boolean) => void }) {
+export function MapProjectKeysDialog({ keys, onKeys, onClose }: { keys: KeyMap; onKeys: (keys: KeyMap) => void; onClose: () => void }) {
   const text = useTexts(mapProjectKeysSv, mapProjectKeysEn);
   const title = useId();
   const dialog = useRef<HTMLDialogElement>(null);
@@ -36,10 +34,10 @@ export function MapProjectKeysDialog({ keys, onKeys, onClose, contextRow, onCont
       if (event.key === "Escape") { setListening(undefined); return; }
       const binding = bindingOf(event);
       if (!binding) return;
-      if (isReserved(binding)) { setMessage(text.reserved(keyLabel(binding, text.space))); return; }
+      if (isReserved(binding)) { setMessage(text.reserved(keyLabel(binding, text.space, text.section))); return; }
       const result = withBinding(keys, listening, binding);
       onKeys(result.keys);
-      setMessage(result.displaced ? text.displaced(text.commands[result.displaced], keyLabel(binding, text.space)) : undefined);
+      setMessage(result.displaced ? text.displaced(text.commands[result.displaced], keyLabel(binding, text.space, text.section)) : undefined);
       setListening(undefined);
     };
     window.addEventListener("keydown", onKey, true);
@@ -50,15 +48,12 @@ export function MapProjectKeysDialog({ keys, onKeys, onClose, contextRow, onCont
     <div className={styles.body} data-testid="map-project-keys">
       <h2 id={title}>{text.title}</h2>
       <p className={styles.help}>{text.help}</p>
-      <label className={styles.setting}><input type="checkbox" checked={contextRow} onChange={event => onContextRow(event.target.checked)}
-        data-testid="map-project-context-setting" /> {text.contextRow}</label>
-      <p className={styles.fixed}>{text.contextRowHelp}</p>
       <ul className={styles.list}>
         {KEY_COMMANDS.map(command => <li key={command}>
           <span>{text.commands[command]}</span>
           <button type="button" className={styles.key} aria-pressed={listening === command} data-testid={`map-project-key-${command}`}
             aria-label={text.change(text.commands[command])} onClick={() => { setMessage(undefined); setListening(listening === command ? undefined : command); }}>
-            {listening === command ? text.press : keys[command] ? keyLabel(keys[command], text.space) : text.none}
+            {listening === command ? text.press : keys[command] ? keyLabel(keys[command], text.space, text.section) : text.none}
           </button>
         </li>)}
       </ul>

@@ -24,14 +24,17 @@ export function useReadoutSound() {
 
 export function useVerdictSound({ sound, soundOn, current, verdict, pkgRef }: { sound: MutableRefObject<ReadoutSound>; soundOn: boolean;
   current: Current | undefined; verdict: LocalVerdict | undefined; pkgRef: MutableRefObject<ReadoutPackage | undefined> }) {
-  // Ett ljud per besked: dur när det är godkänt, moll vid felstämplat, maxtid, okänd bricka och fel i avläsningen.
+  // Ett ljud per besked: dur när det är godkänt, frågande vid okänd bricka, moll vid felstämplat/maxtid/fel och neutralt utan paket.
   const played = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (!current || current.phase === "reading") return;
+    if (current.phase === "done" && current.fromRecent) return;
     const key = current.phase === "done" ? `done:${current.localSequence}` : `failed:${current.at}`;
     if (played.current === key) return;
     played.current = key;
-    const kind = soundForVerdict(current.phase === "failed" || (current.phase === "done" && current.invalid) ? "FAILED" : verdict?.status);
+    const status = current.phase === "failed" || (current.phase === "done" && current.invalid)
+      ? "FAILED" : verdict?.status ?? "NO_PACKAGE";
+    const kind = soundForVerdict(status);
     // Bardisken (steg 40) spelar sina egna ljud; bara fel i avläsningen låter här.
     if (pkgRef.current?.party && current.phase !== "failed") return;
     if (soundOn && kind) sound.current.play(kind);

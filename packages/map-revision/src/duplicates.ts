@@ -15,6 +15,7 @@ import { codeParts } from "./map-norm";
  */
 export const DUPLICATE_SHARE = 0.9;
 const LINE_TOLERANCE_MM = 0.15, POINT_TOLERANCE_MM = 0.05;
+const MAX_SEGMENT_STEPS = 500;
 /** Det kapslade gröna, ljusast först. */
 const NESTED_GREEN = [406, 408, 410] as const;
 
@@ -68,7 +69,7 @@ function distanceTo(point: Point, lines: readonly (readonly Point[])[]): number 
 function shareNear(lines: readonly (readonly Point[])[], other: readonly (readonly Point[])[]): number {
   let inside = 0, all = 0;
   for (const line of lines) for (let i = 1; i < line.length; i += 1) {
-    const a = line[i - 1]!, b = line[i]!, steps = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 0.2));
+    const a = line[i - 1]!, b = line[i]!, steps = Math.min(MAX_SEGMENT_STEPS, Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 0.2)));
     for (let k = i === 1 ? 0 : 1; k <= steps; k += 1) {
       const t = k / steps;
       all += 1;
@@ -96,14 +97,19 @@ export function duplicatePlan(rows: readonly DuplicateRow[]): DuplicatePlan {
   const shapes = rows.flatMap(row => shapeOf(row) ?? []);
   const removed = new Set<string>();
   const bySymbol = new Map<string, Shape[]>();
-  for (const shape of shapes) bySymbol.set(shape.row.object.symbol, [...(bySymbol.get(shape.row.object.symbol) ?? []), shape]);
+  for (const shape of shapes) {
+    let list = bySymbol.get(shape.row.object.symbol);
+    if (!list) { list = []; bySymbol.set(shape.row.object.symbol, list); }
+    list.push(shape);
+  }
   for (const group of bySymbol.values()) {
     // Svep längs x; av två dubbletter står den största (längsta) kvar.
     const sorted = [...group].sort((a, b) => a.box.minX - b.box.minX);
     for (let i = 0; i < sorted.length; i += 1) {
       const a = sorted[i]!;
       if (removed.has(a.row.key)) continue;
-      for (let j = i + 1; j < sorted.length && sorted[j]!.box.minX <= a.box.maxX + POINT_TOLERANCE_MM; j += 1) {
+      const pad = a.points ? LINE_TOLERANCE_MM : POINT_TOLERANCE_MM;
+      for (let j = i + 1; j < sorted.length && sorted[j]!.box.minX <= a.box.maxX + pad; j += 1) {
         const b = sorted[j]!;
         if (removed.has(b.row.key) || !near(a.box, b.box, LINE_TOLERANCE_MM) || !same(a, b)) continue;
         const drop = b.size > a.size ? a : b;
@@ -112,15 +118,23 @@ export function duplicatePlan(rows: readonly DuplicateRow[]): DuplicatePlan {
       }
     }
   }
-  // Kapslat grönt: den ljusare tas bort när en mörkare täcker minst 90 % av den.
+  // Kapslat grönt: den ljusare tas bort när en mörkare täcker minst 90 % av den (svep längs x).
   const green = (shape: Shape) => { const { main, sub } = codeParts(shape.row.code); return sub === 0 ? NESTED_GREEN.indexOf(main as (typeof NESTED_GREEN)[number]) : -1; };
-  const greens = shapes.filter(shape => shape.polygon && green(shape) >= 0 && !removed.has(shape.row.key));
-  for (const light of greens) {
-    const level = green(light);
-    for (const dark of greens) {
-      if (green(dark) <= level || removed.has(dark.row.key) || !near(light.box, dark.box, 0)) continue;
+  const greens = shapes.filter(shape => shape.polygon && green(shape) >= 0 && !removed.has(shape.row.key))
+    .map(shape => ({ shape, level: green(shape) }))
+    .sort((a, b) => a.shape.box.minX - b.shape.box.minX);
+  for (let i = 0; i < greens.length; i += 1) {
+    const a = greens[i]!;
+    if (removed.has(a.shape.row.key)) continue;
+    for (let j = i + 1; j < greens.length && greens[j]!.shape.box.minX <= a.shape.box.maxX; j += 1) {
+      const b = greens[j]!;
+      if (a.level === b.level || removed.has(b.shape.row.key) || !near(a.shape.box, b.shape.box, 0)) continue;
+      const [light, dark] = a.level < b.level ? [a.shape, b.shape] : [b.shape, a.shape];
       if (boxOverlap(light.box, dark.box) < DUPLICATE_SHARE * light.size) continue;
-      if (intersection(light.polygon!, dark.polygon!) >= DUPLICATE_SHARE * light.size) { removed.add(light.row.key); break; }
+      if (intersection(light.polygon!, dark.polygon!) >= DUPLICATE_SHARE * light.size) {
+        removed.add(light.row.key);
+        if (light === a.shape) break;
+      }
     }
   }
   const counts: Record<string, number> = {};

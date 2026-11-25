@@ -3,8 +3,8 @@ import { loadSoundEnabled, saveSoundEnabled, soundForVerdict, soundTones } from 
 
 /** Steg 35: ljud vid avläsning. */
 describe("ljud vid avläsning", () => {
-  it("glad treklang i dur uppåt vid godkänt och moll nedåt vid fel, under 0,4 s", () => {
-    for (const kind of ["ok", "fail"] as const) {
+  it("glad treklang i dur uppåt vid godkänt, moll nedåt vid fel och stigande fråga vid okänd bricka, under 0,4 s", () => {
+    for (const kind of ["ok", "fail", "unknown", "neutral"] as const) {
       const tones = soundTones(kind);
       const last = tones.at(-1)!;
       expect(last.start + last.duration).toBeLessThan(0.4);
@@ -16,11 +16,16 @@ describe("ljud vid avläsning", () => {
     const minor = soundTones("fail");
     expect(minor[1]!.frequency).toBeLessThan(minor[0]!.frequency);
     expect(minor[2]!.frequency * 2 ** (3 / 12)).toBeCloseTo(minor[1]!.frequency, 0); // liten ters i botten
+    const unknown = soundTones("unknown");
+    expect(unknown).toHaveLength(2);
+    expect(unknown[1]!.frequency).toBeGreaterThan(unknown[0]!.frequency);
   });
 
   it("väljer ljud efter beskedet", () => {
     expect(soundForVerdict("OK")).toBe("ok");
-    for (const status of ["MP", "OVERTIME", "UNKNOWN_CARD", "FAILED"]) expect(soundForVerdict(status)).toBe("fail");
+    expect(soundForVerdict("UNKNOWN_CARD")).toBe("unknown");
+    for (const status of ["MP", "OVERTIME", "DNF", "FAILED"]) expect(soundForVerdict(status)).toBe("fail");
+    expect(soundForVerdict("NO_PACKAGE")).toBe("neutral");
     expect(soundForVerdict(undefined)).toBeUndefined();
   });
 

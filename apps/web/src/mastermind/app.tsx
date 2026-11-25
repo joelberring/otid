@@ -116,16 +116,23 @@ function Board({ game, t, language }: { game: CardGame; t: MastermindTexts; lang
 
 function SettingsPanel({ settings, onChange, t, language }: { settings: GameSettings; onChange: (settings: GameSettings) => void; t: MastermindTexts; language: Language }) {
   const [draft, setDraft] = useState(settings);
+  const [savedNotice, setSavedNotice] = useState(false);
   // Inställningarna ändras utifrån (serverns träning eller en annan flik): utkastet följer med när de skiljer sig.
   const settingsJson = JSON.stringify(settings);
   useEffect(() => { setDraft(current => JSON.stringify(current) === settingsJson ? current : JSON.parse(settingsJson) as GameSettings); }, [settingsJson]);
   const problems = settingsProblems(draft);
-  const update = (next: GameSettings) => { setDraft(next); if (settingsProblems(next).length === 0) onChange(next); };
+  const dirty = JSON.stringify(draft) !== settingsJson;
+  const update = (next: GameSettings) => { setDraft(next); setSavedNotice(false); };
   const setColors = (count: number) => {
     const codes = Array.from({ length: count }, (_, index) => draft.codes[index] ?? (draft.codes.at(-1) ?? 30) + index - draft.codes.length + 1);
     update({ ...draft, codes });
   };
   const number = (value: string) => Number.parseInt(value, 10);
+  const save = () => {
+    if (problems.length > 0 || !dirty) return;
+    onChange(draft);
+    setSavedNotice(true);
+  };
   return (
     <details className="mm-panel">
       <summary>{t.settings}</summary>
@@ -161,6 +168,11 @@ function SettingsPanel({ settings, onChange, t, language }: { settings: GameSett
         ))}
       </div>
       {problems.length > 0 && <ul className="mm-problems" role="alert">{problems.map((p) => <li key={p}>{t.problems[p as keyof MastermindTexts["problems"]]}</li>)}</ul>}
+      <div className="mm-actions mm-settings-actions">
+        <button type="button" className="mm-button mm-primary" disabled={problems.length > 0 || !dirty} onClick={save}
+          data-testid="mastermind-save-settings">{t.saveSettings}</button>
+        {savedNotice && !dirty && <span className="mm-muted" role="status">{t.settingsSaved}</span>}
+      </div>
     </details>
   );
 }
@@ -255,8 +267,18 @@ export function MastermindApp({ language, raceId, station: publicStation = false
   const [training, setTraining] = useState<string>();
   const [viewing, setViewing] = useState<number | undefined>(() => state.games.at(-1)?.cardNumber);
   const [message, setMessage] = useState<{ tone: Tone; text: string } | undefined>(undefined);
+  const [confirmNewGame, setConfirmNewGame] = useState(false);
+  const [confirmAbortId, setConfirmAbortId] = useState<string>();
+  const [confirmForget, setConfirmForget] = useState(false);
   const sound = useRef(new ReadoutSound());
   const stateRef = useRef(state);
+
+  useEffect(() => {
+    if (!confirmNewGame) return;
+    const timer = setTimeout(() => setConfirmNewGame(false), 5_000);
+    return () => clearTimeout(timer);
+  }, [confirmNewGame]);
+  useEffect(() => { setConfirmNewGame(false); }, [viewing]);
 
   /** En ändring på den här datorn: versionen räknas upp så att den skickas till servern. */
   const commit = useCallback((next: MastermindState) => {
@@ -313,17 +335,26 @@ export function MastermindApp({ language, raceId, station: publicStation = false
     return t.won(game.guesses.length) + (duration === undefined ? "" : ` ${t.wonTime(formatDuration(duration))}`);
   }
 
-  /** Arrangörens dator: avbryter ett spel som pågår, efter en bekräftelse. Når servern och andra datorer som vanligt. */
-  function abort(gameId: string) {
+  /** Arrangörens dator: avbryter ett spel som pågår, efter en inline-bekräftelse. Når servern och andra datorer som vanligt. */
+  function requestAbort(gameId: string) {
     const current = stateRef.current;
     const target = current.games.find((item) => item.id === gameId);
     if (!target || !isPlaying(target)) return;
+    setConfirmAbortId(gameId);
+  }
+  function confirmAbort() {
+    if (!confirmAbortId) return;
+    const current = stateRef.current;
+    const target = current.games.find((item) => item.id === confirmAbortId);
+    setConfirmAbortId(undefined);
+    if (!target || !isPlaying(target)) return;
     const team = teamName(current.names, target.cardNumber) ?? t.card(target.cardNumber);
-    if (!window.confirm(t.abortConfirm(team))) return;
     commit({ ...current, games: upsertGame(current.games, abandonGame(target, new Date())) });
     setMessage({ tone: "info", text: t.aborted(team) });
   }
   const canAbort = raceId !== undefined && !publicStation;
+  const abortTarget = confirmAbortId ? state.games.find((item) => item.id === confirmAbortId && isPlaying(item)) : undefined;
+  const abortTargetName = abortTarget ? (teamName(state.names, abortTarget.cardNumber) ?? t.card(abortTarget.cardNumber)) : undefined;
 
   function setName(cardNumber: number, name: string) {
     const current = stateRef.current;
@@ -351,7 +382,12 @@ export function MastermindApp({ language, raceId, station: publicStation = false
   return (
     <main className="mm-app">
       <header className="mm-header">
-        <h1>{t.title}</h1>
+        <div className="mm-header-title">
+          <h1>{t.title}</h1>
+          <span className="mm-mode-badge" data-mode={publicStation ? "station" : raceId ? "training" : "local"} data-testid="mastermind-mode-badge">
+            {publicStation ? t.modePublicStation : raceId ? t.modeTraining : t.modeLocal}
+          </span>
+        </div>
         <a className="mm-language" href={languageHref(language === "en" ? "sv" : "en", "/mastermind/")}
           // Träningen (`#<tävling>`) och den publika stationen (`#spela:<tävling>`) ligger i adressens fragment, som servern inte ser.
           onClick={(event) => { const link = event.currentTarget; link.href = languageHref(language === "en" ? "sv" : "en", `/mastermind/${window.location.hash}`); }}>{t.language}</a>
@@ -403,15 +439,24 @@ export function MastermindApp({ language, raceId, station: publicStation = false
                 </label>
               </div>
               <div className="mm-actions">
-              <button type="button" className="mm-button" onClick={() => {
+              <button type="button" className={confirmNewGame ? "mm-button mm-primary" : "mm-button"} data-testid="mastermind-new-game" onClick={() => {
+                if (isPlaying(game) && !confirmNewGame) { setConfirmNewGame(true); return; }
+                setConfirmNewGame(false);
                 const current = stateRef.current;
                 const { previous, next } = restart(game, current.settings, new Date());
                 commit({ ...current, games: upsertGame(upsertGame(current.games, previous), next) });
                 setMessage(undefined);
-              }}>{t.newGame}</button>
-              {canAbort && isPlaying(game) && <button type="button" className="mm-button" onClick={() => abort(game.id)}>{t.abortGame}</button>}
+              }}>{confirmNewGame ? t.newGameConfirm : t.newGame}</button>
+              {canAbort && isPlaying(game) && <button type="button" className="mm-button" onClick={() => requestAbort(game.id)}>{t.abortGame}</button>}
               </div>
             </div>
+            {abortTarget && abortTargetName && game.id === abortTarget.id && <div className="mm-confirm" role="alert" data-testid="mastermind-abort-confirm">
+              <p>{t.abortConfirm(abortTargetName)}</p>
+              <div className="mm-actions">
+                <button type="button" className="mm-button mm-primary" onClick={confirmAbort}>{t.abortGame}</button>
+                <button type="button" className="mm-button" onClick={() => setConfirmAbortId(undefined)}>{t.cancel}</button>
+              </div>
+            </div>}
             <GameClock game={game} t={t} />
             {message && <p className={`mm-message mm-message-${message.tone}`}>{message.text}</p>}
             <Board game={game} t={t} language={language} />
@@ -431,11 +476,24 @@ export function MastermindApp({ language, raceId, station: publicStation = false
         <h2 id="mm-results-title">{t.results}</h2>
         <p className="mm-muted">{t.resultsNote}</p>
         <StandingsTable rows={rows} names={names} viewing={viewing} t={t}
-          onSelect={(cardNumber) => setViewing(cardNumber)} onAbort={canAbort ? abort : undefined} />
+          onSelect={(cardNumber) => setViewing(cardNumber)} onAbort={canAbort ? requestAbort : undefined} />
+        {abortTarget && abortTargetName && (!game || game.id !== abortTarget.id) && <div className="mm-confirm" role="alert" data-testid="mastermind-abort-confirm">
+          <p>{t.abortConfirm(abortTargetName)}</p>
+          <div className="mm-actions">
+            <button type="button" className="mm-button mm-primary" onClick={confirmAbort}>{t.abortGame}</button>
+            <button type="button" className="mm-button" onClick={() => setConfirmAbortId(undefined)}>{t.cancel}</button>
+          </div>
+        </div>}
         {/* Från en träning finns spelen på servern (också andra datorers), så de glöms inte här; gallringen tar bort dem. */}
-        {!raceId && rows.length > 0 && <button type="button" className="mm-button mm-small" onClick={() => {
-          if (window.confirm(t.forgetConfirm)) { commit({ ...stateRef.current, games: [] }); setViewing(undefined); setMessage(undefined); }
-        }}>{t.forget}</button>}
+        {!raceId && rows.length > 0 && (confirmForget ? <div className="mm-confirm" role="alert" data-testid="mastermind-forget-confirm">
+          <p>{t.forgetConfirm}</p>
+          <div className="mm-actions">
+            <button type="button" className="mm-button mm-primary" onClick={() => {
+              commit({ ...stateRef.current, games: [] }); setViewing(undefined); setMessage(undefined); setConfirmForget(false);
+            }}>{t.forget}</button>
+            <button type="button" className="mm-button" onClick={() => setConfirmForget(false)}>{t.cancel}</button>
+          </div>
+        </div> : <button type="button" className="mm-button mm-small" onClick={() => setConfirmForget(true)}>{t.forget}</button>)}
       </section>
       {raceId && !publicStation && <RaceSwitch raceId={raceId} connected={connected} onContext={(context) =>
         setTraining(context.raceName === context.eventName ? context.eventName : `${context.eventName} – ${context.raceName}`)}

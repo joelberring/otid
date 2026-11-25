@@ -101,5 +101,7 @@ describe("ritlägets tangenter", () => {
     expect(keyLabel("Shift+E", "Mellanslag")).toBe("⇧E");
     expect(keyLabel("Space", "Mellanslag")).toBe("Mellanslag");
     expect(keyLabel("Shift+Space", "Mellanslag")).toBe("⇧Mellanslag");
+    expect(keyLabel("§", "Mellanslag", "§")).toBe("§");
+    expect(keyLabel("Shift+§", "Space", "`")).toBe("⇧`");
   });
 });

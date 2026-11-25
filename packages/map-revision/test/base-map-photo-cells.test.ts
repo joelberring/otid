@@ -58,6 +58,24 @@ describe("Fyll ytor ur flygbilden: klassningen", () => {
     expect(classify(raster(() => [120, 122, 124]), undefined, PHOTO_MAX_AUTO_M2 + 1).reason).toBe("large");
     expect(classify(raster(() => undefined)).reason).toBe("no-photo");
   });
+  it("kolumn 0 jämförs aldrig med föregående rads högerkant i texturberäkningen", () => {
+    // Varje kolumn har konstant ljushet längs y, men vänster kant är ljus och höger kant är mörk.
+    // En smal ruta i kolumn 0 och en i kolumn 39: kolumn 0 får inte ärva föregående rads kolumn 39.
+    const width = 4, height = 4, data = new Uint8ClampedArray(width * height * 4);
+    for (let y = 0; y < height; y += 1) {
+      data.set([200, 200, 200, 255], (y * width + 0) * 4);
+      data.set([20, 20, 20, 255], (y * width + 3) * 4);
+    }
+    const img: PhotoRaster = { width, height, data, minX: 0, maxY: 4, step: 1 };
+    // Två separata ringar: kolumn 0 (x 0..1) och kolumn 3 (x 3..4). Ingen granne inom samma rad, lika vertikalt -> textur = 0.
+    const rings: Point[][] = [
+      [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 4 }, { x: 0, y: 4 }],
+      [{ x: 3, y: 0 }, { x: 4, y: 0 }, { x: 4, y: 4 }, { x: 3, y: 4 }]
+    ];
+    const stats = photoCellStats(img, rings);
+    expect(stats.valid).toBe(8);
+    expect(stats.texture).toBe(0);
+  });
 });
 
 const symbol = (id: string, code: string): MapSymbol => ({ id, kind: "AREA", hidden: false, name: code,
@@ -107,5 +125,19 @@ describe("Fyll ytor ur flygbilden: rutorna och inläggningen", () => {
     // Berghällen är en markyta: den klipps bort helt under gatan.
     expect(cuts.find(cut => cut.index === 5)!.objects).toHaveLength(0);
     expect(cuts.filter(cut => cut.index === 4)).toHaveLength(1);
+  });
+
+  it("avbryter tidigt när maxSegments överskrids och blandar inte ihop byggda polygoner när en ruta saknar giltig ring", () => {
+    expect(photoFillCells(map, box, { includeGround: true }, 2)).toBeUndefined();
+    // En ogiltig (tom) ruta före den hårdgjorda rutan får inte förskjuta indexet för built-maskningen.
+    const withRock = [...objects, area("rock", [[10, 19], [14, 19], [14, 21], [10, 21]])];
+    const rockMap = { ...map, objects: withRock, boxes: withRock.map(objectBox) };
+    const cells = photoFillCells(rockMap, box, { includeGround: true })!;
+    const street = cells.find(cell => cell.at.y > 18 && cell.at.y < 22)!;
+    const cuts = photoFillCuts(rockMap, [
+      { rings: [[{ x: 0, y: 0 }, { x: 1, y: 0 }]], symbol: "open" },
+      { rings: street.rings, symbol: "paved" }
+    ]);
+    expect(cuts.find(cut => cut.index === 5)?.objects).toEqual([]);
   });
 });

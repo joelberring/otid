@@ -7,7 +7,7 @@ import type { MapProjectAiMode, MapProjectAreaStatus, MapProjectMode, MapProject
 import { mapProjectEditorSv } from "../../i18n/map-project-editor-sv";
 import { mapProjectSplitEn } from "../../i18n/map-project-split-en";
 import { mapProjectSplitSv } from "../../i18n/map-project-split-sv";
-import { Button, Notice } from "../ui";
+import { Button, ConfirmDialog, Notice } from "../ui";
 import type { useMapProjectCollaboration } from "./use-map-project-collaboration";
 import { STAGE_COLORS, type StageAge } from "../../lib/map-project-overlay";
 import styles from "./map-project-editor.module.css";
@@ -175,17 +175,24 @@ function ProposalRow({ proposal, collab, canDecide, mine, shown, onShow }: {
 function DecideAll({ collab, count }: { collab: Collaboration; count: number }) {
   const text = useTexts(mapProjectEditorSv.collab, mapProjectEditorEn.collab);
   const [status, setStatus] = useState<string>();
+  const [confirmAction, setConfirmAction] = useState<"ACCEPT" | "REJECT">();
   const run = async (action: "ACCEPT" | "REJECT") => {
-    if (!window.confirm(action === "ACCEPT" ? text.acceptAllConfirm(count) : text.rejectAllConfirm(count))) return;
+    setConfirmAction(undefined);
     const result = await collab.decideAll(action, (done, left) => setStatus(text.decidingAll(done, left)));
     setStatus(result ? text.decidedAll(result.done, result.conflicts) : undefined);
   };
   return <div data-testid="map-project-decide-all">
     <span className={styles.actions}>
-      <Button disabled={collab.busy} onClick={() => void run("ACCEPT")}>{text.acceptAll(count)}</Button>
-      <Button variant="secondary" disabled={collab.busy} onClick={() => void run("REJECT")}>{text.rejectAll}</Button>
+      <Button disabled={collab.busy} onClick={() => setConfirmAction("ACCEPT")}>{text.acceptAll(count)}</Button>
+      <Button variant="secondary" disabled={collab.busy} onClick={() => setConfirmAction("REJECT")}>{text.rejectAll}</Button>
     </span>
     {status && <p className={styles.muted} role="status">{status}</p>}
+    {confirmAction && <ConfirmDialog
+      title={confirmAction === "ACCEPT" ? text.acceptAll(count) : text.rejectAll}
+      message={confirmAction === "ACCEPT" ? text.acceptAllConfirm(count) : text.rejectAllConfirm(count)}
+      confirmLabel={confirmAction === "ACCEPT" ? text.acceptAll(count) : text.rejectAll}
+      danger={confirmAction === "REJECT"} busy={collab.busy}
+      onConfirm={() => void run(confirmAction)} onCancel={() => setConfirmAction(undefined)} />}
   </div>;
 }
 

@@ -1,5 +1,5 @@
-import { cloneElement, isValidElement, useId, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes,
-  type TableHTMLAttributes } from "react";
+import { cloneElement, isValidElement, useId, type AriaRole, type ButtonHTMLAttributes, type HTMLAttributes, type InputHTMLAttributes,
+  type ReactNode, type SelectHTMLAttributes, type TableHTMLAttributes } from "react";
 import { useLanguage } from "../language-provider";
 import styles from "./ui.module.css";
 
@@ -10,11 +10,11 @@ import styles from "./ui.module.css";
 
 const join = (...names: (string | false | undefined)[]) => names.filter(Boolean).join(" ");
 
-/** Primär (en per vy), sekundär (kant) eller tyst (text). */
+/** Primär (en per vy), sekundär (kant), tyst (text) eller destruktiv (danger). */
 export function Button({ variant = "primary", className, type = "button", ...props }:
-  ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "quiet" }) {
+  ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "quiet" | "danger" }) {
   return <button type={type} className={join(styles.button, variant === "secondary" && `secondary ${styles.secondary}`,
-    variant === "quiet" && styles.quiet, className)} {...props} />;
+    variant === "quiet" && styles.quiet, variant === "danger" && styles.danger, className)} {...props} />;
 }
 
 /**
@@ -93,9 +93,13 @@ export function Section({ title, help, actions, children, id, label, headingLeve
 export type Tone = "info" | "ok" | "attention" | "error";
 const symbols: Record<Tone, string> = { info: "i", ok: "✓", attention: "!", error: "✗" };
 
-/** Ett besked: symbol och ord, färgen förstärker bara. `role` styr hur skärmläsare får beskedet. */
-export function Notice({ tone = "info", children, role }: { tone?: Tone | undefined; children: ReactNode; role?: "status" | "alert" | undefined }) {
-  return <div className={styles.notice} data-tone={tone} role={role}>
+/** Ett besked: symbol och ord, färgen förstärker bara. `role` styr hur skärmläsare får beskedet (`null` stänger av live-regionen). */
+export function Notice({ tone = "info", children, role, className, ...props }: Omit<HTMLAttributes<HTMLDivElement>, "role" | "children"> &
+  { tone?: Tone | undefined; children: ReactNode; role?: AriaRole | null | undefined }) {
+  const effectiveRole = role === undefined
+    ? (tone === "error" ? "alert" : tone === "ok" || tone === "attention" ? "status" : undefined)
+    : role ?? undefined;
+  return <div {...props} className={join(styles.notice, className)} data-tone={tone} role={effectiveRole}>
     <span aria-hidden="true">{symbols[tone]}</span><div>{children}</div>
   </div>;
 }
@@ -135,4 +139,4 @@ export function Hint({ children, id, className }: { children: ReactNode; id?: st
   return <span className={join(styles.hint, className)} id={id}>{children}</span>;
 }
 
-export { CopyButton, copyText, Dialog, Explain } from "./interactive";
+export { ConfirmDialog, CopyButton, copyText, Dialog, Explain, PromptDialog } from "./interactive";

@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { Button } from "./index";
+import React, { useEffect, useId, useRef, useState, type FormEvent, type ReactNode, type RefObject } from "react";
+import { Button, Field } from "./index";
 import styles from "./ui.module.css";
 import { useLanguage } from "../language-provider";
 
@@ -26,16 +26,112 @@ export function CopyButton({ value, onResult, variant = "primary", disabled, chi
  * En modal dialog: `<dialog>` som öppnas med showModal när den visas. Esc och `close()` anropar `onClose`. `dialogRef` ger
  * vyn tillgång till elementet (t.ex. Avbryt-knappens `close()`); `closeOnBackdrop` stänger vid klick utanför innehållet.
  */
-export function Dialog({ dialogRef, className, labelledBy, onClose, closeOnBackdrop, children }: {
-  dialogRef?: RefObject<HTMLDialogElement | null> | undefined; className?: string | undefined; labelledBy: string; onClose: () => void;
-  closeOnBackdrop?: boolean | undefined; children: ReactNode }) {
+export function Dialog({ dialogRef, className, labelledBy, describedBy, onClose, closeOnBackdrop, testId, children }: {
+  dialogRef?: RefObject<HTMLDialogElement | null> | undefined; className?: string | undefined; labelledBy: string;
+  describedBy?: string | undefined; onClose: () => void; closeOnBackdrop?: boolean | undefined; testId?: string | undefined; children: ReactNode }) {
   const own = useRef<HTMLDialogElement>(null);
   const ref = dialogRef ?? own;
   useEffect(() => { const dialog = ref.current; if (dialog && !dialog.open) dialog.showModal?.(); }, [ref]);
-  return <dialog ref={ref} className={className} aria-labelledby={labelledBy} onClose={onClose}
+  return <dialog ref={ref} className={className} aria-labelledby={labelledBy} aria-describedby={describedBy} data-testid={testId} onClose={onClose}
     onClick={closeOnBackdrop ? event => { if (event.target === event.currentTarget) event.currentTarget.close(); } : undefined}>
     {children}
   </dialog>;
+}
+
+/**
+ * Gemensam bekräftelsedialog (ersätter `window.confirm`). Använder `<Dialog>` med en inre behållare så klick på bakgrunden
+ * bara stänger utanför innehållet och Esc anropar `onCancel` exakt en gång.
+ */
+export function ConfirmDialog({ title, message, confirmLabel, cancelLabel, danger = false, busy = false, onConfirm, onCancel, testId }: {
+  title: ReactNode; message?: ReactNode; confirmLabel: string; cancelLabel?: string | undefined; danger?: boolean | undefined;
+  busy?: boolean | undefined; onConfirm: () => void; onCancel: () => void; testId?: string | undefined }) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const closedRef = useRef(false);
+  const titleId = useId();
+  const messageId = useId();
+  const english = useLanguage() === "en";
+  const finishCancel = () => {
+    if (closedRef.current) return;
+    closedRef.current = true;
+    onCancel();
+  };
+  const closeByCancel = () => {
+    const element = dialogRef.current;
+    if (element?.open && typeof element.close === "function") element.close();
+    else finishCancel();
+  };
+  const handleConfirm = () => {
+    if (closedRef.current || busy) return;
+    closedRef.current = true;
+    onConfirm();
+  };
+  return <Dialog dialogRef={dialogRef} className={styles.dialog} labelledBy={titleId} describedBy={message ? messageId : undefined}
+    onClose={finishCancel} closeOnBackdrop={!busy} testId={testId}>
+    <div className={styles.dialogBody}>
+      <h2 id={titleId} className={styles.dialogTitle}>{title}</h2>
+      {message && <div id={messageId} className={styles.dialogMessage}>{message}</div>}
+      <div className={styles.dialogActions}>
+        <Button variant="secondary" disabled={busy} onClick={closeByCancel}>{cancelLabel ?? (english ? "Cancel" : "Avbryt")}</Button>
+        <Button variant={danger ? "danger" : "primary"} disabled={busy} onClick={handleConfirm}>{confirmLabel}</Button>
+      </div>
+    </div>
+  </Dialog>;
+}
+
+/**
+ * Gemensam frågedialog med textfält (ersätter `window.prompt`). Enter skickar formuläret, Esc eller Avbryt stänger utan att
+ * dubbelanropa `onCancel`.
+ */
+export function PromptDialog({ title, message, label, defaultValue = "", placeholder, maxLength, required = true, confirmLabel, cancelLabel,
+  danger = false, busy = false, onConfirm, onCancel, testId }: {
+  title: ReactNode; message?: ReactNode; label: string; defaultValue?: string | undefined; placeholder?: string | undefined;
+  maxLength?: number | undefined; required?: boolean | undefined; confirmLabel: string; cancelLabel?: string | undefined;
+  danger?: boolean | undefined; busy?: boolean | undefined; onConfirm: (value: string) => void; onCancel: () => void; testId?: string | undefined }) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const closedRef = useRef(false);
+  const titleId = useId();
+  const messageId = useId();
+  const english = useLanguage() === "en";
+  const [value, setValue] = useState(defaultValue);
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
+    input.focus();
+    if (defaultValue) input.select();
+  }, [defaultValue]);
+  const finishCancel = () => {
+    if (closedRef.current) return;
+    closedRef.current = true;
+    onCancel();
+  };
+  const closeByCancel = () => {
+    const element = dialogRef.current;
+    if (element?.open && typeof element.close === "function") element.close();
+    else finishCancel();
+  };
+  const handleSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    const trimmed = value.trim();
+    if (closedRef.current || busy || (required && !trimmed)) return;
+    closedRef.current = true;
+    onConfirm(trimmed);
+  };
+  return <Dialog dialogRef={dialogRef} className={styles.dialog} labelledBy={titleId} describedBy={message ? messageId : undefined}
+    onClose={finishCancel} closeOnBackdrop={!busy} testId={testId}>
+    <form className={styles.dialogBody} noValidate onSubmit={handleSubmit}>
+      <h2 id={titleId} className={styles.dialogTitle}>{title}</h2>
+      {message && <div id={messageId} className={styles.dialogMessage}>{message}</div>}
+      <Field label={label}>
+        <input ref={inputRef} value={value} placeholder={placeholder} maxLength={maxLength} disabled={busy}
+          onChange={event => setValue(event.target.value)} />
+      </Field>
+      <div className={styles.dialogActions}>
+        <Button variant="secondary" disabled={busy} onClick={closeByCancel}>{cancelLabel ?? (english ? "Cancel" : "Avbryt")}</Button>
+        <Button type="submit" variant={danger ? "danger" : "primary"} disabled={busy || (required && !value.trim())}>{confirmLabel}</Button>
+      </div>
+    </form>
+  </Dialog>;
 }
 
 /**

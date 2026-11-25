@@ -43,6 +43,7 @@ const SPRINT_ONLY_CODES = ["501.1", "501.2", "509.1", "509.2", "512.1", "512.2",
  */
 export function detectPressNorm(map: { readonly scale?: number | undefined; readonly codes?: Iterable<string> | undefined }): PressNorm {
   if (map.scale === 4000 || map.scale === 5000) return "ISSPROM";
+  if (map.scale !== undefined && map.scale >= 15000) return "ISOM";
   const codes = new Set(map.codes ?? []);
   const sprint = SPRINT_ONLY_CODES.filter(code => codes.has(code) || [...codes].some(item => item.startsWith(`${code}.`)));
   return sprint.length >= 2 ? "ISSPROM" : "ISOM";
@@ -120,24 +121,40 @@ const OVER_KINDS: Readonly<Record<PressNorm, ReadonlySet<PressColorKind>>> = {
  */
 export function pressOrder(colors: readonly SourceMapColor[], norm: PressNorm): { readonly over: ReadonlySet<number>; readonly classes: readonly PressColorClass[] } {
   const kinds = colors.map(color => ({ color, kind: pressColorKind(color) }));
-  // En svart väg- eller sidlinjefärg som i kartfilen ligger under en skärmfärg (t.ex. vägfyllning i brunt 50 %) får
-  // aldrig lyftas över banan, annars ritas vägkanterna ovanpå asfalten i korsningar i det övre lagret.
-  const highestScreen = Math.max(-Infinity, ...kinds.filter(item => item.kind === "SCREEN").map(item => item.color.drawOrder));
+  const hasUsage = colors.some(color => color.usage !== undefined);
+  const isUsed = (color: SourceMapColor) => !hasUsage || (color.usage !== undefined && color.usage.objects > 0);
+  // En svart väg- eller sidlinjefärg som i kartfilen ligger under en använd skärmfärg (t.ex. vägfyllning i brunt 50 %)
+  // får aldrig lyftas över banan, annars ritas vägkanterna ovanpå asfalten i korsningar i det övre lagret.
+  const highestScreen = Math.max(
+    -Infinity,
+    ...kinds.filter(item => item.kind === "SCREEN" && isUsed(item.color)).map(item => item.color.drawOrder)
+  );
   const isOver = (item: { readonly color: SourceMapColor; readonly kind: PressColorKind }) => {
     if (!OVER_KINDS[norm].has(item.kind)) return false;
     if ((item.kind === "BLACK" || item.kind === "BLACK_ROAD_EDGE") && item.color.drawOrder < highestScreen) return false;
     return true;
   };
-  const overOrders = kinds.filter(isOver).map(item => item.color.drawOrder);
-  const blackOrders = kinds.filter(item => item.kind === "BLACK" && isOver(item)).map(item => item.color.drawOrder);
+  const overItems = kinds.filter(isOver);
+  const overOrders = overItems.map(item => item.color.drawOrder);
+  const blackOrders = overItems.filter(item => item.kind === "BLACK").map(item => item.color.drawOrder);
   // Vitt över banan: ligger över minst en svart färg över banan (eller över den lägsta färgen över banan när svart
-  // saknas) och ingen färg under banan ritas över det i filen. Då bevaras t.ex. järnvägens vita streck över nedre svart.
+  // saknas) och ingen färg under banan ritas över det i filen — eller ligger direkt över en färg över banan i samma
+  // symbol (t.ex. 418 buskes vita mitt över grönt, eller järnvägens vita streck över svart).
   const upperFrom = blackOrders.length > 0 ? Math.min(...blackOrders) : Math.min(...overOrders);
-  const underOrders = kinds.filter(item => item.kind !== "WHITE" && !isOver(item)).map(item => item.color.drawOrder);
+  const underOrders = kinds.filter(item => item.kind !== "WHITE" && !isOver(item) && isUsed(item.color)).map(item => item.color.drawOrder);
   const highestUnder = Math.max(-Infinity, ...underOrders);
+  const sharesSymbolWithLowerOver = (white: SourceMapColor) => {
+    const codes = white.usage?.codes;
+    if (!codes || codes.length === 0) return false;
+    const codeSet = new Set(codes);
+    return overItems.some(other =>
+      other.color.drawOrder < white.drawOrder &&
+      (other.color.usage?.codes.some(code => codeSet.has(code)) ?? false)
+    );
+  };
   const classes = kinds.map((item): PressColorClass => {
     const over = item.kind === "WHITE"
-      ? overOrders.length > 0 && item.color.drawOrder > upperFrom && item.color.drawOrder > highestUnder
+      ? (overOrders.length > 0 && item.color.drawOrder > upperFrom && item.color.drawOrder > highestUnder) || sharesSymbolWithLowerOver(item.color)
       : isOver(item);
     return { ocadId: item.color.ocadId, name: item.color.name, kind: item.kind, side: over ? "OVER" : "UNDER" };
   });

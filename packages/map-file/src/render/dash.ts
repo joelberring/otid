@@ -24,7 +24,8 @@ export function dashIntervals(
   length: number,
   spec: DashSpec,
   startInterior = false,
-  endInterior = false
+  endInterior = false,
+  minGaps = 1
 ): [number, number][] {
   if (!(length > EPSILON)) return [];
   let mainLength = spec.mainLength;
@@ -39,10 +40,12 @@ export function dashIntervals(
   const openEndLength = spec.endLength > 0 ? spec.endLength : mainLength;
   const startLen = startInterior ? mainLength / 2 : openEndLength;
   const endLen = endInterior ? mainLength / 2 : openEndLength;
-  if (length <= startLen + endLen + EPSILON) return [[0, length]];
+  const minCount = Math.max(1, minGaps);
+  if (minCount <= 1 && length <= startLen + endLen + EPSILON) return [[0, length]];
+  if (minCount > 1 && length <= mainGap * minCount + EPSILON) return [[0, length]];
 
   // För n mellanrum: T(n) = startLen + endLen + (n − 1)·mainLength + n·mainGap.
-  const gaps = Math.max(1, Math.round((length - startLen - endLen + mainLength) / (mainLength + mainGap)));
+  const gaps = Math.max(minCount, Math.round((length - startLen - endLen + mainLength) / (mainLength + mainGap)));
   const nominal = startLen + endLen + (gaps - 1) * mainLength + gaps * mainGap;
   if (!(nominal > 0)) return [[0, length]];
   const scale = length / nominal;
@@ -63,13 +66,14 @@ export function dashIntervals(
     }
   };
 
-  pushDash(0, start, false);
+  const fullOpenEnd = openEndLength >= mainLength - EPSILON;
+  pushDash(0, start, !startInterior && fullOpenEnd);
   let pos = start + gap;
   for (let k = 0; k < gaps - 1; k += 1) {
     pushDash(pos, pos + full, true);
     pos += full + gap;
   }
-  pushDash(Math.max(0, length - end), length, false);
+  pushDash(Math.max(0, length - end), length, !endInterior && fullOpenEnd);
   return out;
 }
 
@@ -149,7 +153,9 @@ export function dashPolylines(paths: readonly Path[], spec: DashSpec, offset?: n
         const total = cum[cum.length - 1]!;
         const startInterior = closed || s > 1;
         const endInterior = closed || s < stops.length - 1;
-        const intervals = dashIntervals(total, spec, startInterior, endInterior);
+        // En sluten slinga utan (eller med bara en) styrpunkt får minst två streck/mellanrum så att små knölar inte ser ut som heldragna höjdkurvor.
+        const minGaps = closed && stops.length === 2 ? 2 : 1;
+        const intervals = dashIntervals(total, spec, startInterior, endInterior, minGaps);
         let endedAtStop = false;
 
         for (let k = 0; k < intervals.length; k += 1) {

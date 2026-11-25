@@ -265,4 +265,26 @@ describe("anpassad streckning i hörn- och streckpunkter (styrpunkter)", () => {
     // Strecket över P0 (0, 0) är hopfogat: (0, 1) → (0, 0) → (1, 0).
     expect(pieces[0]).toEqual([{ x: 0, y: 1 }, { x: 0, y: 0 }, { x: 1, y: 0 }]);
   });
+
+  it("ger en liten sluten hjälpkurveknöl (1 styrpunkt, 2,4 mm omkrets) minst två streck och två mellanrum", () => {
+    const spec = { mainLength: 2, mainGap: 0.2, endLength: 2 };
+    const knoll: Path = [
+      { type: "M", x: 0, y: 0, dash: true },
+      { type: "L", x: 0.8, y: 0 },
+      { type: "L", x: 0.8, y: 0.4 },
+      { type: "L", x: 0, y: 0.4 },
+      { type: "L", x: 0, y: 0 }
+    ];
+    const pieces = dashPolylines([knoll], spec);
+    // Omkrets 2,4 mm: får 2 jämna streck och 2 mellanrum i stället för att kollapsa till en heldragen ring.
+    expect(pieces).toHaveLength(2);
+  });
+
+  it("delar även öppna ändstreck med sekundärt mellanrum när endLength == mainLength (t.ex. 507.0)", () => {
+    const spec = { mainLength: 2.25, mainGap: 0.8, endLength: 2.25, secondaryGap: 0.25 };
+    // 2,25 + 0,8 + 2,25 = 5,3 mm → scale = 1, båda öppna ändstrecken delas i [1,0 + 0,25 + 1,0].
+    near(dashIntervals(5.3, spec, false, false).flat(), [0, 1, 1.25, 2.25, 3.05, 4.05, 4.3, 5.3]);
+    // Inre halvt streck delas aldrig av sekundärt mellanrum.
+    near(dashIntervals(3.05, spec, true, true).flat(), [0, 1.125, 1.925, 3.05]);
+  });
 });

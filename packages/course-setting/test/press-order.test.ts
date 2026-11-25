@@ -155,15 +155,38 @@ describe("ordningen per norm (pressOrder)", () => {
     const over = pressOrder(colors, "ISOM").over;
     expect([...over].sort()).toEqual([1, 2, 3]);
   });
+
+  it("oanvända skärmfärger överst i färgtabellen sänker inte Svart 100%, och vitt över grönt i samma symbol (418.0) följer med över", () => {
+    order = 0;
+    const colors = [
+      color("Svart 100% - Vägar", [0, 0, 0, 100], usage(["LINE"], [502, 505])),
+      color("Brun 50% - Vägfyllning", [10, 35, 50, 0], usage(["LINE"], [502])),
+      color("Grön 100% - Punktobjekt", [80, 0, 100, 0], usage(["POINT"], [418])),
+      color("Svart 100%", [0, 0, 0, 100], usage(["LINE", "POINT"], [201])),
+      // Oanvända färger överst i OCAD-tabellen (saknar `usage`): får inte trycka ned Svart 100%.
+      color("Alla färgseparationer", [100, 100, 100, 100]),
+      color("vit", [0, 0, 0, 0], usage(["POINT"], [418])),
+      color("Gul 50%", [0, 14, 40, 0]),
+      color("Röd", [0, 100, 100, 0], usage(["LINE"], [305]))
+    ];
+    const isom = pressOrder(colors, "ISOM").over;
+    expect(isom.has(0)).toBe(false); // Svart 100% - Vägar under vägfyllning → UNDER
+    expect(isom.has(3)).toBe(true);  // Svart 100% över använd vägfyllning → OVER (trots oanvänd Gul 50% överst)
+
+    const sprint = pressOrder(colors, "ISSPROM").over;
+    expect(sprint.has(2)).toBe(true); // Grön 100% - Punktobjekt → OVER i ISSprOM
+    expect(sprint.has(5)).toBe(true); // vit (418) över Grön 100% (418) → måste vara OVER så att mittpunkten inte täcks
+  });
 });
 
 describe("normen ur kartan (detectPressNorm)", () => {
-  it("1:4 000 och 1:5 000 är sprint, annars sprintens egna symbolnummer", () => {
+  it("1:4 000 och 1:5 000 är sprint, 1:15 000 är alltid skog (ISOM), annars sprintens egna symbolnummer", () => {
     expect(detectPressNorm({ scale: 4000 })).toBe("ISSPROM");
     expect(detectPressNorm({ scale: 5000 })).toBe("ISSPROM");
     expect(detectPressNorm({ scale: 10000, codes: ["101", "505"] })).toBe("ISOM");
     expect(detectPressNorm({ scale: 10000, codes: ["501.1", "509.2", "101"] })).toBe("ISSPROM");
     expect(detectPressNorm({ scale: 15000, codes: ["541"] })).toBe("ISOM");
+    expect(detectPressNorm({ scale: 15000, codes: ["501.1", "509.1", "521.1", "103"] })).toBe("ISOM");
   });
 });
 

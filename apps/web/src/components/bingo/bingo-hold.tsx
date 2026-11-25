@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ConfirmDialog } from "../ui";
 import styles from "./bingo.module.css";
 
 const HOLD_MS = 2000;
@@ -12,16 +13,21 @@ const HOLD_MS = 2000;
 export function HoldButton({ label, hold, confirmText, onDone, testId }: { label: string; hold: string; confirmText: string; onDone: () => void;
   testId: string }) {
   const [holding, setHolding] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const timer = useRef<number | undefined>(undefined);
   const stop = () => { window.clearTimeout(timer.current); timer.current = undefined; setHolding(false); };
   useEffect(() => () => window.clearTimeout(timer.current), []);
-  return <button type="button" className={styles.hold} data-holding={holding || undefined} data-testid={testId}
-    onPointerDown={event => { event.preventDefault(); setHolding(true); timer.current = window.setTimeout(() => { stop(); onDone(); }, HOLD_MS); }}
-    onPointerUp={stop} onPointerLeave={stop} onPointerCancel={stop} onContextMenu={event => event.preventDefault()}
-    onClick={event => { if (event.detail === 0 && window.confirm(confirmText)) onDone(); }}>
-    <span>{label}</span><span className={styles.holdHelp}>{hold}</span>
-    <span className={styles.holdBar} aria-hidden="true" />
-  </button>;
+  return <>
+    <button type="button" className={styles.hold} data-holding={holding || undefined} data-testid={testId}
+      onPointerDown={event => { event.preventDefault(); setHolding(true); timer.current = window.setTimeout(() => { stop(); onDone(); }, HOLD_MS); }}
+      onPointerUp={stop} onPointerLeave={stop} onPointerCancel={stop} onContextMenu={event => event.preventDefault()}
+      onClick={event => { if (event.detail === 0) setConfirming(true); }}>
+      <span>{label}</span><span className={styles.holdHelp}>{hold}</span>
+      <span className={styles.holdBar} aria-hidden="true" />
+    </button>
+    {confirming && <ConfirmDialog title={confirmText} confirmLabel={label} danger
+      onConfirm={() => { setConfirming(false); onDone(); }} onCancel={() => setConfirming(false)} />}
+  </>;
 }
 
 /** Klockan varje sekund medan `active`. */

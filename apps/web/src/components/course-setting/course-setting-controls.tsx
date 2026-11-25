@@ -14,7 +14,7 @@ import { courseSettingUxSv } from "../../i18n/course-setting-ux-sv";
 import { courseTree, type TreeBranch, type TreeRow } from "../../lib/course-setting-forks";
 import { ALL_CONTROLS } from "../../lib/course-setting-hit";
 import { controlLabel } from "../../lib/course-setting-text";
-import { Button } from "../ui";
+import { Button, ConfirmDialog } from "../ui";
 import styles from "./course-setting-ux.module.css";
 
 /**
@@ -56,6 +56,7 @@ function CourseControls({ document, summary, name, view, variant, branch, select
   const props = useTexts(coursePropertiesSv, coursePropertiesEn);
   const ux = useTexts(courseSettingUxSv, courseSettingUxEn);
   const text = useTexts(courseSettingSv, courseSettingEn);
+  const [removingBranch, setRemovingBranch] = useState<{ start: string; letter: string; count: number }>();
   const tree = useMemo(() => { try { return courseTree(document, view); } catch (error) { console.error("Banans träd", error); return []; } },
     [document, view]);
   const variants = summary?.variants ?? [];
@@ -82,11 +83,9 @@ function CourseControls({ document, summary, name, view, variant, branch, select
               aria-label={ux.forks.work(item.letter)} onClick={() => onBranch(item)}>{item.letter}</button>
             {item.rows.length === 0 ? <p className={styles.empty}>{ux.forks.emptyBranch}</p> : <ul className={styles.tree}>{renderRows(item.rows)}</ul>}
             {/* Ägaren 2026-11-17: ta bort en gren (med två grenar blir den andra kvar utan gaffling). */}
-            {!readOnly && <button type="button" className={styles.forkTool} data-testid="course-setting-remove-branch" onClick={() => {
-              if (window.confirm(ux.forks.removeBranchConfirm(item.letter, countControls(item.rows)))) {
-                onEdits([{ type: "REMOVE_COURSE_CONTROL", course: view, courseControl: item.start }]);
-              }
-            }}>{ux.forks.removeBranch(item.letter)}</button>}
+            {!readOnly && <button type="button" className={styles.forkTool} data-testid="course-setting-remove-branch"
+              onClick={() => setRemovingBranch({ start: item.start, letter: item.letter, count: countControls(item.rows) })}>
+              {ux.forks.removeBranch(item.letter)}</button>}
           </div>;
         })}
       </div>
@@ -125,6 +124,11 @@ function CourseControls({ document, summary, name, view, variant, branch, select
         </button></li>)}
       </ul>
     </>}
+    {removingBranch && <ConfirmDialog title={ux.forks.removeBranch(removingBranch.letter)}
+      message={ux.forks.removeBranchConfirm(removingBranch.letter, removingBranch.count)}
+      confirmLabel={ux.forks.removeBranch(removingBranch.letter)} danger
+      onConfirm={() => { onEdits([{ type: "REMOVE_COURSE_CONTROL", course: view, courseControl: removingBranch.start }]); setRemovingBranch(undefined); }}
+      onCancel={() => setRemovingBranch(undefined)} />}
   </section>;
 }
 

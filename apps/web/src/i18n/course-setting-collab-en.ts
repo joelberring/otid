@@ -140,6 +140,7 @@ export const collaborationEn: Texts<typeof collaborationSv> = {
 
 export const offlineEn: Texts<typeof offlineSv> = {
   more: "More",
+  tools: "Tools",
   status: {
     offline: (waiting: number) => waiting === 0 ? "No network" : `No network – ${changes(waiting)} waiting`,
     loggedOut: (waiting: number) => `Signed out – ${changes(waiting)} waiting on the phone`,

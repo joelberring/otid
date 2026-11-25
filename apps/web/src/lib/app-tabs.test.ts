@@ -7,6 +7,10 @@ describe("flikraden (förslag B)", () => {
   it("markerar fliken som hör till sidan", () => {
     expect(activeAppTab("/organizer")).toBe("home");
     expect(activeAppTab("/organizer/")).toBe("home");
+    expect(activeAppTab("/organizer", "#lagg-banor")).toBe("courses");
+    expect(activeAppTab("/organizer", "#dina-tavlingar")).toBe("events");
+    expect(activeAppTab("/organizer", "#mina-klubbar")).toBe("club");
+    expect(activeAppTab("/organizer#dina-tavlingar")).toBe("events");
     expect(activeAppTab("/organizer/map-projects")).toBe("maps");
     expect(activeAppTab("/organizer/map-projects/abc")).toBe("maps");
     expect(activeAppTab("/organizer/clubs/abc")).toBe("club");

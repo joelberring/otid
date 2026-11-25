@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { MapProjectCheckList, MapProjectCheckView, MapProjectTrackList, MapProjectTrackPoints, MapProjectTrackView, MapProjectView } from "@o-tid/contracts";
+import { MAP_PROJECT_TRACK_MAX_PARTS, type MapProjectCheckList, type MapProjectCheckView, type MapProjectTrackList, type MapProjectTrackPoints, type MapProjectTrackView, type MapProjectView } from "@o-tid/contracts";
 import type { MapGeoreference } from "@o-tid/map-file";
 import {
   areaProgress, checkStillValid, DEFAULT_RECON, type AreaProgress, type ObjectKey, type ReconSettings, type RevisionClientState, type TrackPoint
@@ -23,6 +23,107 @@ const RECOMPUTE_MS = 400;
 const SAVE_EVERY_MS = 5000;
 
 export type ReconLayer = "STATUS" | "COVERAGE" | "TRACKS";
+
+export interface ReconFlushDeps {
+  readonly base: string;
+  readonly projectId: string;
+  readonly accountId: string;
+  readonly request: typeof clubRequest;
+  readonly listLocal: typeof localTracks;
+  readonly putLocal: typeof putLocalTrack;
+  readonly deleteLocal: typeof deleteLocalTrack;
+  readonly getRecording: () => LocalTrack | undefined;
+  readonly setRecordingLive: (track: LocalTrack) => void;
+  readonly ended: Map<string, LocalTrack>;
+  readonly discarded: Set<string>;
+  readonly endedSent: Set<string>;
+}
+
+/** Skickar lokala spår till servern en omgång; garanterar att `endedAt` kvitteras (eller att tomt skapat spår raderas) före lokal borttagning. */
+export async function flushReconTracks(deps: ReconFlushDeps): Promise<void> {
+  const freshest = (track: LocalTrack): LocalTrack => {
+    const rec = deps.getRecording();
+    const live = rec?.trackId === track.trackId ? rec : deps.ended.get(track.trackId);
+    return live ? withServerProgress(live, track) : track;
+  };
+  try {
+    for (const stored of await deps.listLocal(deps.projectId, deps.accountId)) {
+      const rec = deps.getRecording();
+      let track = stored.trackId === rec?.trackId ? rec : deps.ended.get(stored.trackId) ?? stored;
+      if (!track.created) {
+        const created = await deps.request(`${deps.base}/tracks`, "POST", { formatVersion: 1, trackId: track.trackId, name: track.name, source: track.source,
+          startedAt: track.startedAt });
+        if (created.status !== 200 && created.status !== 201) { await deps.putLocal({ ...freshest(track), problem: created.status }); continue; }
+        track = { ...track, created: true, problem: undefined };
+      }
+      while (track.sent < track.parts.length) {
+        const seq = track.sent;
+        const current = freshest(track);
+        const last = seq === current.parts.length - 1 && current.endedAt !== undefined;
+        const sent = await deps.request(`${deps.base}/tracks/${encodeURIComponent(track.trackId)}/parts`, "POST", { formatVersion: 1, seq,
+          points: track.parts[seq], ...(last ? { endedAt: current.endedAt } : {}) });
+        if (sent.status !== 200) { track = { ...track, problem: sent.status }; break; }
+        if (last) deps.endedSent.add(track.trackId);
+        track = { ...track, sent: seq + 1, problem: undefined };
+      }
+      const emptyEnded = track.endedAt !== undefined && track.parts.length === 0 && deps.getRecording()?.trackId !== track.trackId;
+      if (deps.discarded.has(track.trackId) || emptyEnded) {
+        if (track.created) {
+          const removed = await deps.request(`${deps.base}/tracks/${encodeURIComponent(track.trackId)}`, "DELETE");
+          if (removed.status !== 200 && removed.status !== 404) { await deps.putLocal({ ...track, problem: removed.status }); continue; }
+        }
+        deps.discarded.delete(track.trackId);
+        deps.ended.delete(track.trackId);
+        deps.endedSent.delete(track.trackId);
+        await deps.deleteLocal(track.trackId);
+        continue;
+      }
+      // Inspelningen kan ha fått nya punkter (eller ha stoppats) under tiden: dess eget läge vinner, med det som skickats.
+      if (deps.getRecording()?.trackId === track.trackId) {
+        track = freshest(track);
+        deps.setRecordingLive(track);
+      } else if (deps.ended.has(track.trackId)) {
+        track = freshest(track);
+        deps.ended.set(track.trackId, track);
+      }
+      // Om alla delar redan skickats men `endedAt` ännu inte kvitterats (t.ex. stopp under pågående POST /parts), skicka slutet nu.
+      if (track.endedAt !== undefined && !deps.endedSent.has(track.trackId) && track.sent >= track.parts.length && track.created) {
+        if (track.parts.length === 0) {
+          const removed = await deps.request(`${deps.base}/tracks/${encodeURIComponent(track.trackId)}`, "DELETE");
+          if (removed.status === 200 || removed.status === 404) {
+            deps.discarded.delete(track.trackId);
+            deps.ended.delete(track.trackId);
+            await deps.deleteLocal(track.trackId);
+            continue;
+          }
+          track = { ...track, problem: removed.status };
+        } else if (track.parts.length < MAP_PROJECT_TRACK_MAX_PARTS) {
+          const lastPoint = track.parts[track.parts.length - 1]?.at(-1);
+          if (lastPoint) {
+            const seq = track.parts.length;
+            const sent = await deps.request(`${deps.base}/tracks/${encodeURIComponent(track.trackId)}/parts`, "POST", { formatVersion: 1, seq,
+              points: [lastPoint], endedAt: track.endedAt });
+            if (sent.status === 200) {
+              deps.endedSent.add(track.trackId);
+              track = { ...track, parts: [...track.parts, [lastPoint]], sent: seq + 1, problem: undefined };
+            } else {
+              track = { ...track, problem: sent.status };
+            }
+          } else {
+            deps.endedSent.add(track.trackId);
+          }
+        } else {
+          deps.endedSent.add(track.trackId);
+        }
+      }
+      if (track.endedAt !== undefined && deps.endedSent.has(track.trackId) && track.sent >= track.parts.length && track.created) {
+        await deps.deleteLocal(track.trackId);
+        deps.ended.delete(track.trackId);
+        deps.endedSent.delete(track.trackId);
+      } else await deps.putLocal(track);
+    }
+  } catch { /* Utan nät: nästa försök. */ }
+}
 
 /**
  * ADR-0219 tillägget om rekningen (K3): rekningen i editorn. Projektets spår (servern och telefonens som ännu inte skickats),
@@ -83,65 +184,24 @@ export function useMapProjectRecon(input: { view: MapProjectView; session: MapPr
   const endedRef = useRef(new Map<string, LocalTrack>());
   /** Tomma spår som kastats vid stopp: ett flush som redan höll på att skapa dem på servern får inte återuppliva dem i telefonen. */
   const discardedRef = useRef(new Set<string>());
-  /** Det färskaste läget för spåret (pågående inspelning eller nyss avslutat) med det som skickats hittills. */
-  const freshest = (track: LocalTrack): LocalTrack => {
-    const live = recordingRef.current?.trackId === track.trackId ? recordingRef.current : endedRef.current.get(track.trackId);
-    return live ? withServerProgress(live, track) : track;
-  };
+  /** Spår vars `endedAt` servern har kvitterat; ett avslutat spår tas aldrig bort lokalt innan detta är sant. */
+  const endedSentRef = useRef(new Set<string>());
   const flush = useCallback(async () => {
     if (flushing.current) { flushAgain.current = true; return; }
     flushing.current = true;
     try {
       do {
         flushAgain.current = false;
-        await flushOnce();
+        await flushReconTracks({
+          base, projectId: view.projectId, accountId, request: clubRequest, listLocal: localTracks, putLocal: putLocalTrack,
+          deleteLocal: deleteLocalTrack, getRecording: () => recordingRef.current,
+          setRecordingLive: (next) => { recordingRef.current = next; setRecording(next); },
+          ended: endedRef.current, discarded: discardedRef.current, endedSent: endedSentRef.current
+        });
       } while (flushAgain.current);
     } finally { flushing.current = false; }
     await loadLocal();
     await loadServer();
-    async function flushOnce() {
-    try {
-      for (const stored of await localTracks(view.projectId, accountId)) {
-        let track = stored.trackId === recordingRef.current?.trackId ? recordingRef.current : endedRef.current.get(stored.trackId) ?? stored;
-        if (!track.created) {
-          const created = await clubRequest(`${base}/tracks`, "POST", { formatVersion: 1, trackId: track.trackId, name: track.name, source: track.source,
-            startedAt: track.startedAt });
-          if (created.status !== 200 && created.status !== 201) { await putLocalTrack({ ...freshest(track), problem: created.status }); continue; }
-          track = { ...track, created: true, problem: undefined };
-        }
-        while (track.sent < track.parts.length) {
-          const seq = track.sent;
-          const last = seq === track.parts.length - 1 && track.endedAt !== undefined;
-          const sent = await clubRequest(`${base}/tracks/${encodeURIComponent(track.trackId)}/parts`, "POST", { formatVersion: 1, seq,
-            points: track.parts[seq], ...(last ? { endedAt: track.endedAt } : {}) });
-          if (sent.status !== 200) { track = { ...track, problem: sent.status }; break; }
-          track = { ...track, sent: seq + 1, problem: undefined };
-        }
-        if (discardedRef.current.has(track.trackId)) {
-          if (track.created) {
-            const removed = await clubRequest(`${base}/tracks/${encodeURIComponent(track.trackId)}`, "DELETE");
-            if (removed.status !== 200 && removed.status !== 404) { await putLocalTrack({ ...track, problem: removed.status }); continue; }
-          }
-          discardedRef.current.delete(track.trackId);
-          await deleteLocalTrack(track.trackId);
-          continue;
-        }
-        // Inspelningen kan ha fått nya punkter (eller ha stoppats) under tiden: dess eget läge vinner, med det som skickats.
-        if (recordingRef.current?.trackId === track.trackId) {
-          recordingRef.current = freshest(track);
-          track = recordingRef.current;
-          setRecording(track);
-        } else if (endedRef.current.has(track.trackId)) {
-          track = freshest(track);
-          endedRef.current.set(track.trackId, track);
-        }
-        if (track.endedAt !== undefined && track.sent >= track.parts.length && track.created) {
-          await deleteLocalTrack(track.trackId);
-          endedRef.current.delete(track.trackId);
-        } else await putLocalTrack(track);
-      }
-    } catch { /* Utan nät: nästa försök. */ }
-    }
   }, [base, view.projectId, accountId, loadLocal, loadServer]);
 
   useEffect(() => {
@@ -197,7 +257,18 @@ export function useMapProjectRecon(input: { view: MapProjectView; session: MapPr
     recordingRef.current = undefined;
     setRecording(undefined);
     const ended = closeParts({ ...track, endedAt: new Date().toISOString() }, true);
-    if (ended.parts.length === 0 && !ended.created) { discardedRef.current.add(ended.trackId); await deleteLocalTrack(ended.trackId).catch(() => undefined); await loadLocal(); return; }
+    if (ended.parts.length === 0) {
+      discardedRef.current.add(ended.trackId);
+      if (!ended.created && !flushing.current) {
+        discardedRef.current.delete(ended.trackId);
+        await deleteLocalTrack(ended.trackId).catch(() => undefined);
+        await loadLocal();
+        return;
+      }
+      await putLocalTrack(ended).catch(() => undefined);
+      await flush();
+      return;
+    }
     endedRef.current.set(ended.trackId, ended);
     await putLocalTrack(ended).catch(() => setProblem("noStore"));
     await flush();

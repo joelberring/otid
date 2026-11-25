@@ -14,22 +14,46 @@ import { VISITOR_STEPS, visitorHash, type VisitorDay, type VisitorStep } from ".
 const DAY = 24 * 60 * 60_000;
 /** Antalen per dag och steg sparas så här länge. */
 const VISITOR_KEEP_DAYS = 400;
+/** Minnesbegränsat dubblett- och frekvensskydd mot att en enskild IP som roterar User-Agent fyller `visitor_hit`. */
+const MAX_HITS_PER_ADDRESS_PER_DAY = 32;
+const MAX_GUARD_ENTRIES = 10_000;
 
 const today = (now: Date) => localRaceDate(now, TIME_ZONE);
 const shiftDay = (day: string, days: number) => new Date(Date.parse(`${day}T00:00:00Z`) + days * DAY).toISOString().slice(0, 10);
 
-/** Dygnets salt i den här processen (en fråga per dygn och process); de tre webbinstanserna delar saltet via tabellen. */
-const globalSalt = globalThis as typeof globalThis & { oTidVisitorSalt?: { day: string; salt: string } };
+interface DaySaltCache {
+  readonly day: string;
+  readonly salt: string;
+  readonly seen: Set<string>;
+  readonly byAddress: Map<string, number>;
+}
 
-async function daySalt(db: DbExecutor, day: string): Promise<{ salt: string; fresh: boolean }> {
+/** Dygnets salt i den här processen (en fråga per dygn och process); de tre webbinstanserna delar saltet via tabellen. */
+const globalSalt = globalThis as typeof globalThis & {
+  oTidVisitorSalt?: DaySaltCache;
+  oTidVisitorSaltFlight?: { day: string; promise: Promise<DaySaltCache> };
+};
+
+async function daySalt(db: DbExecutor, day: string): Promise<{ cache: DaySaltCache; fresh: boolean }> {
   const cached = globalSalt.oTidVisitorSalt;
-  if (cached?.day === day) return { salt: cached.salt, fresh: false };
-  await db.execute(sql`insert into visitor_day_salt (day, salt) values (${day}::date, ${randomBytes(32).toString("hex")})
-    on conflict (day) do nothing`);
-  const [row] = (await db.execute<{ salt: string }>(sql`select salt from visitor_day_salt where day = ${day}::date`)).rows;
-  if (!row) throw new Error("Dygnets salt för besöksstatistiken saknas");
-  globalSalt.oTidVisitorSalt = { day, salt: row.salt };
-  return { salt: row.salt, fresh: true };
+  if (cached?.day === day) return { cache: cached, fresh: false };
+  const inFlight = globalSalt.oTidVisitorSaltFlight;
+  if (inFlight?.day === day) return { cache: await inFlight.promise, fresh: false };
+  const promise = (async (): Promise<DaySaltCache> => {
+    await db.execute(sql`insert into visitor_day_salt (day, salt) values (${day}::date, ${randomBytes(32).toString("hex")})
+      on conflict (day) do nothing`);
+    const [row] = (await db.execute<{ salt: string }>(sql`select salt from visitor_day_salt where day = ${day}::date`)).rows;
+    if (!row) throw new Error("Dygnets salt för besöksstatistiken saknas");
+    const entry: DaySaltCache = { day, salt: row.salt, seen: new Set(), byAddress: new Map() };
+    globalSalt.oTidVisitorSalt = entry;
+    return entry;
+  })();
+  globalSalt.oTidVisitorSaltFlight = { day, promise };
+  try {
+    return { cache: await promise, fresh: true };
+  } finally {
+    if (globalSalt.oTidVisitorSaltFlight?.promise === promise) delete globalSalt.oTidVisitorSaltFlight;
+  }
 }
 
 /**
@@ -39,15 +63,26 @@ async function daySalt(db: DbExecutor, day: string): Promise<{ salt: string; fre
 export async function recordVisit(db: DbExecutor, input: { step: VisitorStep; address: string; userAgent: string; now?: Date }): Promise<void> {
   const now = input.now ?? new Date();
   const day = today(now);
-  const { salt, fresh } = await daySalt(db, day);
+  const { cache, fresh } = await daySalt(db, day);
   if (fresh) await rollupVisitorDays(db, now);
-  await db.execute(sql`insert into visitor_hit (day, step, hash) values (${day}::date, ${input.step}, ${visitorHash(salt, input.address, input.userAgent)})
+  const hash = visitorHash(cache.salt, input.address, input.userAgent);
+  const dedupKey = `${input.step}:${hash}`;
+  if (cache.seen.has(dedupKey)) return;
+  const addressCount = cache.byAddress.get(input.address) ?? 0;
+  if (addressCount >= MAX_HITS_PER_ADDRESS_PER_DAY) return;
+  await db.execute(sql`insert into visitor_hit (day, step, hash) values (${day}::date, ${input.step}, ${hash})
     on conflict do nothing`);
+  if (cache.seen.size < MAX_GUARD_ENTRIES) cache.seen.add(dedupKey);
+  if (cache.byAddress.has(input.address) || cache.byAddress.size < MAX_GUARD_ENTRIES) {
+    cache.byAddress.set(input.address, addressCount + 1);
+  }
 }
 
 /**
- * Räknar ihop dygnen före i dag till antal per dag och steg och tar bort deras hashar och salt; antal äldre än
- * `VISITOR_KEEP_DAYS` tas bort. Hasharna tas bort och räknas i samma sats, så två instanser räknar aldrig samma rad två gånger.
+ * Räknar ihop dygnen före i dag till antal per dag och steg och tar bort deras hashar och gamla salt; antal äldre än
+ * `VISITOR_KEEP_DAYS` tas bort. Gårdagens salt behålls ett dygn så att klockskillnad kring midnatt mellan webbinstanser aldrig
+ * tar bort ett salt som en annan instans just läser. Hasharna tas bort och räknas i samma sats, så två instanser räknar aldrig
+ * samma rad två gånger.
  */
 export async function rollupVisitorDays(db: DbExecutor, now: Date): Promise<{ days: number; hits: number }> {
   const day = today(now);
@@ -60,7 +95,7 @@ export async function rollupVisitorDays(db: DbExecutor, now: Date): Promise<{ da
       returning day
     )
     select (select count(distinct day)::int from counted) as days, (select count(*)::int from moved) as hits`)).rows[0];
-  await db.execute(sql`delete from visitor_day_salt where day < ${day}::date`);
+  await db.execute(sql`delete from visitor_day_salt where day < ${shiftDay(day, -1)}::date`);
   await db.execute(sql`delete from visitor_day_count where day < ${shiftDay(day, -VISITOR_KEEP_DAYS)}::date`);
   return { days: moved?.days ?? 0, hits: moved?.hits ?? 0 };
 }

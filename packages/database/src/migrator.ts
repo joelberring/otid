@@ -60,8 +60,8 @@ type AppliedRow = { id: number; hash: string; created_at: string | number | null
  * tagg) dess `when` i `created_at` eller dess hash. Sådana äldre rader får
  * taggen ifylld. Hashen räcker inte ensam: baslinjen ändrades i steg 28.
  *
- * Ett samtidigt index (`CREATE INDEX CONCURRENTLY`) byggs före filens transaktion och kan därför inte bero på en tabell eller
- * kolumn som samma fil skapar; lägg det i en egen, senare migration.
+ * Ett samtidigt index (`CREATE INDEX CONCURRENTLY`) byggs efter filens DDL-transaktion (utanför transaktionen), så samma
+ * migration kan skapa en tabell eller kolumn och sedan ett samtidigt index på den.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function migrate(db: NodePgDatabase<any>, options: MigrateOptions): Promise<void> {
@@ -136,20 +136,34 @@ async function migrateUnlocked(db: NodePgDatabase<any>, options: MigrateOptions)
         await db.execute(sql.raw(match));
       }
     }
-    for (const statement of split.flatMap((part) => part.concurrent)) {
-      // Ett avbrutet bygge lämnar ett ogiltigt index som `IF NOT EXISTS` annars hoppar över: ta bort det först.
-      const name = CONCURRENT_INDEX_NAME.exec(statement)![1]!;
-      const invalid = await db.execute(sql`select 1 from pg_index i join pg_class c on c.oid = i.indexrelid
-        where c.relname = ${name} and not i.indisvalid`);
-      if (invalid.rows.length > 0) await db.execute(sql.raw(`DROP INDEX CONCURRENTLY IF EXISTS "${name}"`));
-      await db.execute(sql.raw(statement));
-    }
-    await db.transaction(async (tx) => {
-      for (const statement of statements) {
-        if (!onlyComments(statement)) await tx.execute(sql.raw(statement));
+    const concurrent = split.flatMap((part) => part.concurrent);
+    const hasDdl = statements.some((statement) => !onlyComments(statement));
+    if (concurrent.length === 0) {
+      await db.transaction(async (tx) => {
+        for (const statement of statements) {
+          if (!onlyComments(statement)) await tx.execute(sql.raw(statement));
+        }
+        await tx.execute(sql`insert into "drizzle"."__drizzle_migrations" ("hash", "created_at", "tag")
+          values (${migration.hash}, ${migration.folderMillis}, ${tag})`);
+      });
+    } else {
+      if (hasDdl) {
+        await db.transaction(async (tx) => {
+          for (const statement of statements) {
+            if (!onlyComments(statement)) await tx.execute(sql.raw(statement));
+          }
+        });
       }
-      await tx.execute(sql`insert into "drizzle"."__drizzle_migrations" ("hash", "created_at", "tag")
+      for (const statement of concurrent) {
+        // Ett avbrutet bygge lämnar ett ogiltigt index som `IF NOT EXISTS` annars hoppar över: ta bort det först.
+        const name = CONCURRENT_INDEX_NAME.exec(statement)![1]!;
+        const invalid = await db.execute(sql`select 1 from pg_index i join pg_class c on c.oid = i.indexrelid
+          where c.relname = ${name} and not i.indisvalid`);
+        if (invalid.rows.length > 0) await db.execute(sql.raw(`DROP INDEX CONCURRENTLY IF EXISTS "${name}"`));
+        await db.execute(sql.raw(statement));
+      }
+      await db.execute(sql`insert into "drizzle"."__drizzle_migrations" ("hash", "created_at", "tag")
         values (${migration.hash}, ${migration.folderMillis}, ${tag})`);
-    });
+    }
   }
 }

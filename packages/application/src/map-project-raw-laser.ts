@@ -138,16 +138,18 @@ export interface RawLaserCleanup { readonly removed: number; readonly errors: re
  * bort ur objektlagringen; raden står kvar som REMOVED. Ett fel prövas igen nästa varv.
  */
 export async function removeExpiredRawLaser(db: Database, store: RawLaserStore, now = new Date()): Promise<RawLaserCleanup> {
-  const due = await db.select({ id: raws.id, key: raws.objectKey }).from(raws).where(and(isNull(raws.removedAt), or(
+  const cutoff = new Date(now.getTime() - PENDING_MS);
+  const isDue = and(isNull(raws.removedAt), or(
     lt(raws.expiresAt, now),
-    and(eq(raws.status, "PENDING"), lt(raws.createdAt, new Date(now.getTime() - PENDING_MS)))))).limit(500);
+    and(inArray(raws.status, ["PENDING", "FAILED"]), lt(raws.createdAt, cutoff))));
+  const due = await db.select({ id: raws.id, key: raws.objectKey }).from(raws).where(isDue).limit(500);
   let removed = 0;
   const errors: string[] = [];
   for (const row of due) {
     try {
       await store.remove(row.key);
-      await db.update(raws).set({ status: "REMOVED", removedAt: now }).where(eq(raws.id, row.id));
-      removed += 1;
+      const updated = await db.update(raws).set({ status: "REMOVED", removedAt: now }).where(and(eq(raws.id, row.id), isDue)).returning({ id: raws.id });
+      if (updated.length > 0) removed += 1;
     } catch (error) {
       errors.push(error instanceof Error ? error.message : String(error));
     }

@@ -11,9 +11,10 @@ import styles from "./map-project-bars.module.css";
  * K8b V4: med Fyll i telefonen «+ ruta» (varje tryck lägger till en ruta) och «Lägg in» när rutor är samlade.
  * K8b V7: Fyll över ytor (⇧G) bredvid Glapp, med vad Magisk fyll fyller över just nu («Fyller över 3 ytor (403, 520)»).
  */
-export function MapProjectModeSwitches({ snap, onSnap, snapKey, snapState, angle, unfilled, gapM, onGap, cells, over, text }: {
+export function MapProjectModeSwitches({ snap, onSnap, snapKey, snapState, angle, unfilled, gap, cells, over, text }: {
   snap: boolean; onSnap: () => void; snapKey: string | undefined; snapState?: string | undefined; angle: boolean;
-  unfilled?: { readonly state: UnfilledState; readonly onNext: () => void } | undefined; gapM: number; onGap: (meters: number) => void;
+  unfilled?: { readonly state: UnfilledState; readonly onNext: () => void } | undefined;
+  gap?: { readonly meters: number; readonly onChange: (meters: number) => void } | undefined;
   cells?: { readonly on: boolean; readonly onToggle: () => void; readonly count: number; readonly onCommit: () => void;
     readonly text: { readonly mode: string; readonly help: string; readonly commit: (count: number) => string } } | undefined;
   over?: { readonly on: boolean; readonly onToggle: () => void; readonly key: string | undefined; readonly note?: string | undefined } | undefined;
@@ -31,11 +32,11 @@ export function MapProjectModeSwitches({ snap, onSnap, snapKey, snapState, angle
     {unfilled && unfilled.state.kind !== "off" && <button type="button" className={styles.switch} disabled={!shown?.count} title={text.unfilledNext}
       onClick={unfilled.onNext} data-testid="map-project-unfilled-count">
       {shown ? text.unfilledCount(shown.count) : unfilled.state.kind === "zoomIn" ? text.unfilledZoom : text.unfilledBusy}</button>}
-    <label className={styles.gap} title={text.gapHelp}>{text.gap}
-      <select value={gapM} onChange={event => onGap(Number(event.target.value))} data-testid="map-project-gap">
+    {gap && <label className={styles.gap} title={text.gapHelp}>{text.gap}
+      <select value={gap.meters} onChange={event => gap.onChange(Number(event.target.value))} data-testid="map-project-gap">
         {GAP_STEPS_M.map(step => <option key={step} value={step}>{text.gapOption(step)}</option>)}
       </select>
-    </label>
+    </label>}
     {over && <button type="button" className={styles.switch} aria-pressed={over.on} title={text.fillOverHelp} onClick={over.onToggle} data-testid="map-project-fill-over">
       {text.fillOver}{over.key && <kbd aria-hidden="true">{over.key}</kbd>}</button>}
     {over?.on && over.note && <span className={styles.snapState} data-testid="map-project-fill-over-state">{over.note}</span>}

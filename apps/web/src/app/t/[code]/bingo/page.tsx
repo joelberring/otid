@@ -34,24 +34,27 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
  * träningsdagen (arrangören och funktionären kan prova alla dagar). Indexeras aldrig.
  */
 export default async function BingoPage({ params }: Params) {
-  const raceId = await raceIdForShortCode(db, (await params).code);
+  const { code } = await params;
+  const raceId = await raceIdForShortCode(db, code);
   if (!raceId) notFound();
   await requirePublicRace(raceId);
   const read = await readBingoPublic(db, { raceId, staff: await raceStaff(raceId) });
   const language = await currentLanguage();
   const text = language === "en" ? bingoEn.runner : bingoSv.runner;
+  const hubHref = raceHubPath(code);
   // Översynen 2026-11-17: tävlingen syns för den som frågar (grinden ovan), men ingen övning är påslagen. Säg det i stället för
   // "Tävlingen är inte publicerad"; den som inte får se tävlingen har redan fått 404 av grinden.
   if (read.status === "not-found") return <main className={styles.page} data-testid="bingo-not-running"><h1>{text.title}</h1>
     <p role="status">{text.notRunning}</p>
-    <p><Link href={raceHubPath((await params).code)}>{text.racePage}</Link></p></main>;
+    <p><Link href={hubHref}>{text.racePage}</Link></p></main>;
   if (read.status === "closed") {
     return <main className={styles.page}><h1>{read.mode === "SHIPS" ? (language === "en" ? bingoEn : bingoSv).ships.title
       : read.mode === "CONTROLS" ? (language === "en" ? bingoEn : bingoSv).virtual.title : text.title}</h1><p className={styles.kicker}>{raceTitle(read.eventName, read.raceName)}</p>
-      <p role="status">{text.closed(formatRaceDate(read.raceDate, undefined, LOCALE[language]))}</p></main>;
+      <p role="status">{text.closed(formatRaceDate(read.raceDate, undefined, LOCALE[language]))}</p>
+      <p><Link href={hubHref}>{text.racePage}</Link></p></main>;
   }
   // ADR-0226: virtuella kontroller har en egen löparsida; Bingo och Sänka skepp är oförändrade.
-  if (read.race.mode === "CONTROLS") return <VirtualRunner raceId={raceId} title={raceTitle(read.race.eventName, read.race.raceName)}
+  if (read.race.mode === "CONTROLS") return <VirtualRunner raceId={raceId} title={raceTitle(read.race.eventName, read.race.raceName)} hubHref={hubHref}
     courses={read.setup.courses} settings={read.setup.settings} georeference={read.setup.georeference} mapScale={read.setup.mapScale}
     image={read.setup.image} initialBoard={read.leaderboard} />;
   return <BingoRunner raceId={raceId} mode={read.race.mode} title={raceTitle(read.race.eventName, read.race.raceName)} groups={read.setup.groups}

@@ -15,7 +15,7 @@ import { coursePropertiesSv } from "../../i18n/course-setting-properties-sv";
 import { iofCourseFile } from "../../lib/course-setting-iof";
 import { courseSettingBase, downloadText, fetchCourseSettingRevisions, labelCourseSettingRevision } from "../../lib/course-setting-api";
 import { paperImageBase64 } from "../../lib/course-setting-paper-api";
-import { Button, Notice } from "../ui";
+import { Button, ConfirmDialog, Notice, PromptDialog } from "../ui";
 import styles from "./course-setting.module.css";
 
 export interface ReadFile { readonly document: CourseSettingDocument; readonly warnings: readonly PpenReadWarning[]; readonly fileName: string;
@@ -77,13 +77,21 @@ export function FilePanel({ raceId, document, original, busy, onImport, onRestor
   const text = useTexts(courseSettingSv, courseSettingEn);
   const [revisions, setRevisions] = useState<CourseSettingRevisions["revisions"]>();
   const [message, setMessage] = useState<{ tone: "ok" | "error" | "attention"; text: string }>();
+  const [naming, setNaming] = useState<{ version?: number | undefined; defaultValue: string }>();
+  const [unnaming, setUnnaming] = useState<{ version: number; label: string }>();
+  const [restoring, setRestoring] = useState<number>();
+  const [pendingImport, setPendingImport] = useState<ReadFile>();
   async function showRevisions() {
     try { setRevisions((await fetchCourseSettingRevisions(raceId)).revisions); } catch { setMessage({ tone: "error", text: text.loadFailed }); }
   }
   // Ägaren 2026-11-17: spara en version med namn och tidpunkt (den nuvarande, eller ge en tidigare ett namn).
-  async function name(version?: number) {
+  function openName(version?: number) {
     const time = new Date().toLocaleString(locale, { dateStyle: "short", timeStyle: "short" });
-    const label = window.prompt(text.revisions.namePrompt, version === undefined ? text.revisions.defaultName(time) : "")?.trim().slice(0, 80);
+    setNaming({ version, defaultValue: version === undefined ? text.revisions.defaultName(time) : "" });
+  }
+  async function saveName(raw: string, version?: number) {
+    const label = raw.trim().slice(0, 80);
+    setNaming(undefined);
     if (!label) return;
     if (version === undefined && flush && !await flush()) { setMessage({ tone: "error", text: text.revisions.unsaved }); return; }
     const outcome = await labelCourseSettingRevision(raceId, label, version).catch(() => "failed" as const);
@@ -91,11 +99,17 @@ export function FilePanel({ raceId, document, original, busy, onImport, onRestor
       : { tone: "error", text: outcome === "full" ? text.revisions.full : text.revisions.nameFailed });
     if (outcome === "ok") await showRevisions();
   }
-  async function unname(version: number, label: string) {
-    if (!window.confirm(text.revisions.unnameConfirm(label))) return;
+  async function confirmUnname(version: number) {
+    setUnnaming(undefined);
     const outcome = await labelCourseSettingRevision(raceId, null, version).catch(() => "failed" as const);
     setMessage(outcome === "ok" ? { tone: "ok", text: text.revisions.unnamed } : { tone: "error", text: text.revisions.nameFailed });
     if (outcome === "ok") await showRevisions();
+  }
+  async function confirmRestore(version: number) {
+    setRestoring(undefined);
+    const ok = await onRestore(version);
+    setMessage(ok ? { tone: "ok", text: text.revisions.restored(version) } : { tone: "error", text: text.revisions.failed });
+    if (ok) await showRevisions();
   }
   async function download() {
     const title = document.event.title.trim().replace(/[^\p{L}\p{N} ._-]/gu, "_") || "banlaggning";
@@ -127,7 +141,7 @@ export function FilePanel({ raceId, document, original, busy, onImport, onRestor
   }
   return <section className={styles.panel} aria-labelledby="course-setting-file">
     <h2 id="course-setting-file">{text.file.heading}</h2>
-    <PpenImport onRead={onImport} busy={busy} />
+    <PpenImport onRead={async file => { setPendingImport(file); }} busy={busy} />
     <p className={styles.muted}>{text.file.importHelp}</p>
     <div className={styles.row}>
       <Button variant="secondary" onClick={() => void download()}>{text.file.download}</Button>
@@ -139,7 +153,7 @@ export function FilePanel({ raceId, document, original, busy, onImport, onRestor
     <p className={styles.muted}>{propsText.iof.help}</p>
     <p className={styles.muted}>{propsText.iof.ocad}</p>
     <div className={styles.row}>
-      <Button variant="secondary" disabled={busy} onClick={() => void name()} data-testid="course-setting-save-named">{text.revisions.saveNamed}</Button>
+      <Button variant="secondary" disabled={busy} onClick={() => openName()} data-testid="course-setting-save-named">{text.revisions.saveNamed}</Button>
       {!revisions && <Button variant="quiet" onClick={() => void showRevisions()}>{text.revisions.show}</Button>}
     </div>
     <p className={styles.muted}>{text.revisions.saveNamedHelp}</p>
@@ -149,18 +163,23 @@ export function FilePanel({ raceId, document, original, busy, onImport, onRestor
         {revisions.map(revision => <li key={revision.version}>
           <span>{revision.label ? <strong>{revision.label}: </strong> : `${text.revisions.kind[revision.kind]}: `}{text.revisions.row(revision.version, new Date(revision.createdAt).toLocaleString(locale,
             { dateStyle: "short", timeStyle: "short" }), revision.createdBy.displayName, revision.courses, revision.controls)}</span>
-          <Button variant="quiet" disabled={busy} onClick={() => void (async () => {
-            if (!window.confirm(text.revisions.restoreConfirm(revision.version))) return;
-            const ok = await onRestore(revision.version);
-            setMessage(ok ? { tone: "ok", text: text.revisions.restored(revision.version) } : { tone: "error", text: text.revisions.failed });
-            if (ok) await showRevisions();
-          })()}>{text.revisions.restore}</Button>
+          <Button variant="quiet" disabled={busy} onClick={() => setRestoring(revision.version)}>{text.revisions.restore}</Button>
           {revision.label
-            ? <Button variant="quiet" disabled={busy} onClick={() => void unname(revision.version, revision.label!)}>{text.revisions.unname}</Button>
-            : <Button variant="quiet" disabled={busy} onClick={() => void name(revision.version)}>{text.revisions.name}</Button>}
+            ? <Button variant="quiet" disabled={busy} onClick={() => setUnnaming({ version: revision.version, label: revision.label! })}>{text.revisions.unname}</Button>
+            : <Button variant="quiet" disabled={busy} onClick={() => openName(revision.version)}>{text.revisions.name}</Button>}
         </li>)}
       </ul>}
     </>}
     {message && <Notice tone={message.tone} role={message.tone === "error" ? "alert" : "status"}>{message.text}</Notice>}
+    {pendingImport && <ConfirmDialog title={text.file.import} message={text.file.replaceConfirm} confirmLabel={text.file.import} danger busy={busy}
+      onConfirm={() => { const chosen = pendingImport; setPendingImport(undefined); void onImport(chosen); }}
+      onCancel={() => setPendingImport(undefined)} />}
+    {naming && <PromptDialog title={naming.version === undefined ? text.revisions.saveNamed : text.revisions.name} label={text.revisions.namePrompt}
+      defaultValue={naming.defaultValue} maxLength={80} required confirmLabel={naming.version === undefined ? text.revisions.saveNamed : text.revisions.name} busy={busy}
+      onConfirm={value => void saveName(value, naming.version)} onCancel={() => setNaming(undefined)} />}
+    {unnaming && <ConfirmDialog title={text.revisions.unname} message={text.revisions.unnameConfirm(unnaming.label)} confirmLabel={text.revisions.unname} danger busy={busy}
+      onConfirm={() => void confirmUnname(unnaming.version)} onCancel={() => setUnnaming(undefined)} />}
+    {restoring !== undefined && <ConfirmDialog title={text.revisions.restore} message={text.revisions.restoreConfirm(restoring)} confirmLabel={text.revisions.restore} danger busy={busy}
+      onConfirm={() => void confirmRestore(restoring)} onCancel={() => setRestoring(undefined)} />}
   </section>;
 }

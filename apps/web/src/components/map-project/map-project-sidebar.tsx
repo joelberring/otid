@@ -10,7 +10,9 @@ import { mapProjectQuickSv } from "../../i18n/map-project-quick-sv";
 import { mapProjectSymbolLayersSv } from "../../i18n/map-project-symbol-layers-sv";
 import { SymbolIcon } from "./map-project-symbol-icon";
 import { MapProjectSidebarGrip } from "./map-project-sidebar-grip";
-import type { Conflict, ObjectKey } from "@o-tid/map-revision";
+import { usePhoneWidth } from "./map-project-context-bar";
+import { objectBox, type Conflict, type ObjectKey } from "@o-tid/map-revision";
+import type { Point } from "@o-tid/map-file";
 import { mapProjectEditorSv } from "../../i18n/map-project-editor-sv";
 import { layerRows, type LayerState } from "../../lib/map-project-layer-model";
 import type { CatalogSymbol } from "../../lib/map-project-protocol";
@@ -29,7 +31,7 @@ export type SidebarTab = "basemap" | "symbols" | "layers" | "review" | "process"
  * Översynen av första kartan 2026-11-17 (K1): Grundkarta först, med arbetsgången för en ny karta, så att Lager bara är lager.
  */
 export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, recent, standardSymbols, layerState, basemap, layers, review, process, conflicts, symbols,
-  onResolve, canEdit, tab, onTab, onClose, onTextSymbol }: {
+  onResolve, onFocusConflict, canEdit, tab, onTab, onClose, onTextSymbol }: {
   /** K8b V6: högerklick på en textsymbol öppnar Ändra textsymbol. */
   onTextSymbol?: ((id: string) => void) | undefined;
   /** Telefonen: panelen visas bara när den är öppnad (på större skärmar alltid, om den inte är gömd). */
@@ -49,12 +51,15 @@ export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, recent, s
   /** Fliken Bearbeta: generalisera och rätta. */
   process: ReactNode;
   conflicts: readonly Conflict[]; symbols: ReadonlyMap<string, CatalogSymbol>; onResolve: (key: ObjectKey, keep: "MINE" | "THEIRS") => void;
+  onFocusConflict?: ((point: Point) => void) | undefined;
   canEdit: boolean;
   tab: SidebarTab; onTab: (tab: SidebarTab) => void;
 }) {
   const text = useTexts(mapProjectEditorSv, mapProjectEditorEn);
   const quick = useTexts(mapProjectQuickSv, mapProjectQuickEn);
   const groupText = useTexts(mapProjectSymbolLayersSv, mapProjectSymbolLayersEn);
+  const phone = usePhoneWidth();
+  const [expanded, setExpanded] = useState(false);
   const [query, setQuery] = useState("");
   // Ägaren 2026-11-09 och 2026-11-10: symbolerna som rutor (förvalet) eller som lista; valet sparas i webbläsaren.
   const [grid, setGrid] = useState(true);
@@ -86,15 +91,21 @@ export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, recent, s
       : grid ? null : <span><strong>{entry.code}</strong> {entry.name}</span>}
   </button>;
 
-  return <><MapProjectSidebarGrip label={quick.sidebarWidth} /><aside id="map-project-sidebar" className={styles.sidebar} data-open={open}>
+  return <><MapProjectSidebarGrip label={quick.sidebarWidth} /><aside id="map-project-sidebar" className={styles.sidebar} data-open={open}
+    data-expanded={expanded || undefined}>
     <ScrollRow className={styles.tabsWrap} rowClassName={styles.tabs} role="tablist" aria-label={quick.tabsLabel} active={current}>
       {tabs.map(id => <button key={id} type="button" role="tab" id={`map-project-tab-${id}`} aria-selected={id === current}
         aria-controls={`map-project-tabpanel-${id}`} data-testid={`map-project-tab-${id}`} onClick={() => onTab(id)}>
         {quick.tabs[id]}{id === "review" && conflicts.length > 0 && <span className={styles.tabCount}> {conflicts.length}</span>}
       </button>)}
     </ScrollRow>
-    {onClose && <button type="button" className={styles.sidebarClose} onClick={onClose} aria-label={quick.closePanel} title={quick.closePanel}
-      data-testid="map-project-sidebar-close">✕</button>}
+    {onClose && <div className={styles.sidebarControls}>
+      <button type="button" className={styles.sidebarExpand} aria-expanded={expanded}
+        aria-label={expanded ? quick.collapsePanel : quick.expandPanel} title={expanded ? quick.collapsePanel : quick.expandPanel}
+        data-testid="map-project-sidebar-expand" onClick={() => setExpanded(value => !value)}>{expanded ? "▾" : "▴"}</button>
+      <button type="button" className={styles.sidebarClose} onClick={onClose} aria-label={quick.closePanel} title={quick.closePanel}
+        data-testid="map-project-sidebar-close">✕</button>
+    </div>}
 
     {canEdit && basemap && <div role="tabpanel" id="map-project-tabpanel-basemap" aria-labelledby="map-project-tab-basemap" hidden={current !== "basemap"}
       className={styles.tabPanel}>
@@ -116,7 +127,7 @@ export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, recent, s
           </div>
         </div>
         <p className={styles.chosen} data-testid="map-project-symbol-chosen">{chosen ? text.symbols.selected(chosen.code, chosen.name) : text.tools.noSymbol}</p>
-        {recent.length > 0 && !query.trim() && <ul className={styles.recentRow} aria-label={quick.recent} data-testid="map-project-symbols-recent">
+        {phone && recent.length > 0 && !query.trim() && <ul className={styles.recentRow} aria-label={quick.recent} data-testid="map-project-symbols-recent">
           {recent.map((entry, index) => <li key={entry.id}>{tile(entry, index)}</li>)}</ul>}
         {/* Ägaren 2026-11-10: rutorna i ett enda tätt rutnät i normens ordning (utan rubriker, som i Mapper), så att allt syns utan
             att rulla. Listan har gruppernas rubriker. */}
@@ -141,10 +152,14 @@ export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, recent, s
         <h2 id="map-project-conflicts">{text.conflicts.title(conflicts.length)}</h2>
         <p className={styles.muted}>{text.sync.conflict}</p>
         <ul className={styles.rows}>{conflicts.map(conflict => {
-          const symbol = conflict.mine.kind === "OBJECT" ? symbols.get(conflict.mine.object.symbol)
-            : conflict.theirs.state.kind === "OBJECT" ? symbols.get(conflict.theirs.state.object.symbol) : undefined;
+          const object = conflict.mine.kind === "OBJECT" ? conflict.mine.object
+            : conflict.theirs.state.kind === "OBJECT" ? conflict.theirs.state.object : undefined;
+          const symbol = object ? symbols.get(object.symbol) : undefined;
+          const box = object ? objectBox(object) : undefined;
+          const center = box ? { x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 } : undefined;
           return <li key={conflict.key}><span>{text.conflicts.object(symbol?.code ?? "?")}</span>
             <span className={styles.actions}>
+              {center && onFocusConflict && <Button variant="quiet" onClick={() => onFocusConflict(center)}>{text.conflicts.showOnMap}</Button>}
               <Button variant="secondary" onClick={() => onResolve(conflict.key, "MINE")}>{text.conflicts.mine}</Button>
               <Button variant="secondary" onClick={() => onResolve(conflict.key, "THEIRS")}>{text.conflicts.theirs}</Button>
             </span></li>;

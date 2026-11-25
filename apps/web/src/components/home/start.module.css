@@ -27,11 +27,11 @@
 .slideImage { display: block; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: #f3f3f3; }
 .slideImage img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; user-select: none; }
 .slide h2 { margin-top: 6px; font-size: var(--text-md); font-weight: 600; }
-.slide p { margin: 0; color: var(--muted); font-size: var(--text-sm); line-height: 1.35; }
+.slide p { margin: 0; min-height: calc(3 * 1.35em); color: var(--muted); font-size: var(--text-sm); line-height: 1.35; }
 .slideControls { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
 .slideControls > button { min-width: max(36px, var(--tap)); min-height: max(36px, var(--tap)); padding: 0 10px; font-size: var(--text-md); }
 .slideControls > .slidePause { margin-left: auto; font-size: var(--text-xs); }
-.slideDots { display: flex; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.slideDots { display: flex; flex-wrap: wrap; gap: 2px; margin: 0; padding: 0; list-style: none; }
 .slideDots button, .slideDots button:hover { display: grid; place-items: center; width: max(24px, var(--tap)); min-width: 0; min-height: max(28px, var(--tap)); padding: 0;
   border: 0; background: none; }
 .slideDots button::before { content: ""; width: 10px; height: 10px; border: 1.5px solid var(--muted); border-radius: 50%; }
@@ -60,6 +60,11 @@
   .page { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "lead media" "races races" "side side"; gap: 32px; }
   .side { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); align-items: start; }
 }
+@media (max-width: 1000px) {
+  /* Surfplatta och smala skärmar: 9 punkter (44 px på pekskärm) ryms inte bredvid pilarna, visa «3 av 9». */
+  .slideDots { display: none; }
+  .slideCount { display: inline; }
+}
 @media (max-width: 640px) {
   .page { grid-template-columns: minmax(0, 1fr); grid-template-areas: "lead" "races" "media" "side"; gap: 24px; padding: 16px 0.75rem 32px; }
   .lead { gap: 14px; }
@@ -69,8 +74,5 @@
   .painting img { width: 100%; max-height: none; border-radius: 0; }
   .painting figcaption { padding-inline: 0.75rem; }
   .slideImage { margin-inline: -0.75rem; border-inline: 0; border-radius: 0; }
-  /* Nio punkter med 44 px tryckyta ryms inte i 390 px: «3 av 9» mellan pilarna i stället. */
-  .slideDots { display: none; }
-  .slideCount { display: inline; }
   .side { grid-template-columns: minmax(0, 1fr); }
 }

@@ -94,4 +94,10 @@ describe("kvar i skogen-rapporten", () => {
     expect(hidden).not.toContain("Syntetisk Löpare");
     expect(data).toEqual(original);
   });
+  it("lägger radknapparna i en egen behållare åtskild från löparnamnet", () => {
+    const html = renderToStaticMarkup(<ForestWatchReport data={data} classId="" stale={false} onOpenHistory={() => undefined} onChoose={() => undefined} />);
+    expect(html).toContain("Journal");
+    expect(html).toContain("Välj");
+    expect(html).toMatch(/<strong>Syntetisk Löpare<\/strong><div[^>]*><button/);
+  });
 });

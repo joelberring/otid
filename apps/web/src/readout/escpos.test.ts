@@ -15,17 +15,17 @@ const receipt: Receipt = {
 const text = { noSplits: "Inga sträcktider.", scan: "Skanna för dina resultat", footer: "O-Tid" };
 
 /** Textraderna i utskriften (styrkoder och QR-kommandot borttagna), avkodade som Windows-1252. */
+const CP1252_80_9F = "€\x81‚ƒ„…†‡ˆ‰Š‹Œ\x8dŽ\x8f\x90‘’“”•–—˜™š›œ\x9džŸ";
 function printedLines(bytes: Uint8Array): string[] {
-  const decoder = new TextDecoder("windows-1252");
-  const out: number[] = [];
+  const out: string[] = [];
   for (let i = 0; i < bytes.length; i++) {
     const b = bytes[i]!;
     if (b === 0x1b || b === 0x1c) { i += b === 0x1c ? 1 : bytes[i + 1] === 0x40 ? 1 : bytes[i + 1] === 0x74 || bytes[i + 1] === 0x64 || bytes[i + 1] === 0x61 || bytes[i + 1] === 0x45 ? 2 : 1; continue; }
     if (b === 0x1d && bytes[i + 1] === 0x21) { i += 2; continue; }
     if (b === 0x1d && bytes[i + 1] === 0x28) { i += 4 + bytes[i + 3]! + (bytes[i + 4]! << 8); continue; }
-    out.push(b);
+    out.push(b >= 0x80 && b <= 0x9f ? CP1252_80_9F[b - 0x80]! : String.fromCharCode(b));
   }
-  return decoder.decode(Uint8Array.from(out)).split("\n");
+  return out.join("").split("\n");
 }
 
 describe("receiptToEscPos", () => {

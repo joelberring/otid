@@ -28,3 +28,6 @@
   .action { min-height: 32px; padding: 0 7px; font-size: .82rem; }
   .key { display: none; }
 }
+@media (pointer: coarse) {
+  .action, .menuButton { min-height: 44px; }
+}

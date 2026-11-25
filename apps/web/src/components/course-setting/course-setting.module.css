@@ -6,7 +6,7 @@
 .back { color: var(--muted); font-size: var(--text-sm); white-space: nowrap; }
 @media (pointer: coarse) { .back { display: inline-flex; align-items: center; justify-content: center; gap: .25em; min-width: 44px; min-height: 44px; } }
 .status { margin: 0; padding: 3px 10px; border: 1px solid var(--line-strong); border-radius: 999px; font-size: var(--text-sm); white-space: nowrap; }
-.status[data-status="too-large"], .status[data-status="stopped"] { border-color: var(--danger, #b00020); color: var(--danger, #b00020); font-weight: 700; }
+.status[data-status="too-large"], .status[data-status="stopped"] { border-color: var(--mp, #b00020); color: var(--mp, #b00020); font-weight: 700; }
 .status[data-status="failed"] { border-color: var(--attention); }
 .status[data-status="pending"], .status[data-status="saving"] { border-style: dashed; }
 
@@ -20,6 +20,7 @@
 .topbar { display: flex; align-items: center; gap: 6px; min-height: 48px; padding: 4px 10px; border-bottom: 1px solid var(--line-strong);
   background: var(--surface); overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
 .topbar button, .topbar select { min-height: 36px; white-space: nowrap; }
+@media (pointer: coarse) { .topbar button { min-width: 44px; min-height: 44px; } }
 .topbar select { max-width: 220px; padding: 2px 6px; font: inherit; }
 /* Översynen 2026-11-17: banväljaren krymper inte till «Alla k…» på datorn; Ångra och Gör om visar bara pilen när raden är trång. */
 @media (min-width: 700px) { .topbar .viewPicker select { flex: 0 0 auto; min-width: 9.5em; } .viewPicker { flex: 0 0 auto; } }
@@ -34,7 +35,7 @@
 .menuList { position: fixed; z-index: 30; display: grid; min-width: 220px; max-width: calc(100vw - 8px); padding: 4px; border: 1px solid var(--line-strong);
   background: var(--surface); box-shadow: 0 6px 20px rgba(0, 0, 0, .18); }
 .menuList button { padding: 10px 12px; border: none; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
-.menuList button:hover, .menuList button:focus-visible { background: var(--surface-strong, rgba(0, 0, 0, .06)); }
+.menuList button:hover, .menuList button:focus-visible { background: var(--subtle, rgba(0, 0, 0, .06)); }
 
 .stage { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; min-height: 0; }
 .mapArea { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
@@ -42,7 +43,7 @@
 .map { position: absolute; inset: 0; overflow: hidden; background: #fff; touch-action: none; user-select: none; }
 .map:focus-visible { outline: 3px solid var(--ink); outline-offset: -3px; }
 .layer { position: absolute; inset: 0; width: 100%; height: 100%; }
-.zoom { position: absolute; right: 10px; bottom: 10px; display: grid; gap: 4px; }
+.zoom { position: absolute; top: var(--map-zoom-top, auto); right: var(--map-zoom-right, 10px); bottom: var(--map-zoom-bottom, 10px); display: grid; gap: 4px; }
 .zoom button { min-width: 40px; min-height: 40px; padding: 0; font-size: 1.2rem; box-shadow: 0 2px 8px rgba(0, 0, 0, .2); }
 
 /* Bred skärm: verktygen i en lodrät list längs kartans vänsterkant (ovansidan är fri för fältets knappar och beskeden). */
@@ -51,7 +52,7 @@
   background: var(--surface); box-shadow: 0 2px 10px rgba(0, 0, 0, .2); }
 .tool { position: relative; display: grid; justify-items: center; gap: 1px; min-width: 60px; min-height: 48px; padding: 4px 6px; border: 2px solid transparent;
   border-radius: 6px; background: none; color: inherit; font: inherit; font-size: 0.75rem; cursor: pointer; }
-.tool:hover:not(:disabled, [aria-disabled="true"]) { background: var(--surface-strong, rgba(0, 0, 0, .06)); }
+.tool:hover:not(:disabled, [aria-disabled="true"]) { background: var(--subtle, rgba(0, 0, 0, .06)); }
 /* Också vid hovring: annars vinner hovringsregeln ovan och det valda verktyget blir ljust med vit text. */
 .tool[aria-pressed="true"], .tool[aria-pressed="true"]:hover:not(:disabled) { border-color: var(--ink); background: var(--ink); color: var(--surface); font-weight: 700; }
 .tool:disabled, .tool[aria-disabled="true"] { opacity: .4; cursor: default; }
@@ -59,6 +60,9 @@
 /* Etiketten tar ingen egen bredd (spalten följer de andra verktygen) och radbryts vid det mjuka bindestrecket. */
 .toolLabel { width: 0; min-width: 100%; text-align: center; line-height: 1.15; hyphens: manual; }
 .key { position: absolute; top: 2px; right: 3px; font: inherit; font-size: 0.6rem; line-height: 1; opacity: .65; }
+.toolHint { position: absolute; left: 92px; bottom: 10px; z-index: 3; margin: 0; max-width: min(460px, calc(100% - 170px)); padding: 4px 10px;
+  border: 1px solid var(--line); border-radius: 6px; background: rgb(255 255 255 / 92%); color: var(--muted); font-size: var(--text-xs, .8rem);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
 /* Skärmlagret (krysset i vald kontrolls mitt) följer aldrig med vid utskrift. */
 @media print { .screenOnly { display: none; } }
 
@@ -88,11 +92,12 @@
 .resize { cursor: col-resize; background: var(--line); touch-action: none; }
 .resize:hover, .resize:focus-visible { background: var(--ink); outline: none; }
 .sheetHandle, .sheetClose { display: none; }
-.tabs { display: flex; flex-direction: column; gap: 2px; padding: 4px 2px; border-right: 1px solid var(--line); overflow-y: auto; }
+.tabsRail { display: flex; flex-direction: column; gap: 2px; padding: 4px 2px; border-right: 1px solid var(--line); overflow-y: auto; }
+.tabs { display: flex; flex-direction: column; gap: 2px; }
 .collapse, .tab { position: relative; display: grid; justify-items: center; gap: 2px; min-height: 48px; padding: 4px 2px; border: none;
   border-radius: 6px; background: none; color: inherit; font: inherit; font-size: 0.65rem; cursor: pointer; }
 .tab[aria-selected="true"] { background: var(--ink); color: var(--surface); font-weight: 700; }
-.tab:hover:not([aria-selected="true"]), .collapse:hover { background: var(--surface-strong, rgba(0, 0, 0, .06)); }
+.tab:hover:not([aria-selected="true"]), .collapse:hover { background: var(--subtle, rgba(0, 0, 0, .06)); }
 .tabIcon { font-size: 1.1rem; }
 /* ADR-0188: hela namnet under ikonen (inte avkortat). */
 .tabLabel { max-width: 80px; line-height: 1.15; text-align: center; overflow-wrap: anywhere; }
@@ -103,7 +108,7 @@
   border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); box-shadow: 0 4px 16px rgba(0, 0, 0, .22); }
 .tabMenu > button { min-height: 40px; padding: 6px 10px; border: none; border-radius: 6px; background: none; color: inherit; font: inherit;
   text-align: left; cursor: pointer; }
-.tabMenu > button:hover { background: var(--surface-strong, rgba(0, 0, 0, .06)); }
+.tabMenu > button:hover { background: var(--subtle, rgba(0, 0, 0, .06)); }
 .badge { position: absolute; top: 2px; right: 2px; min-width: 18px; padding: 0 4px; border-radius: 9px; background: var(--attention, #c60);
   color: #fff; font-size: 0.65rem; font-weight: 700; line-height: 18px; }
 .tabpanel { display: grid; align-content: start; gap: 10px; min-height: 0; padding: 10px; overflow-y: auto; overscroll-behavior: contain; }
@@ -131,7 +136,7 @@
 .segmented button[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--surface); }
 .courses { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
 .course { display: grid; width: 100%; padding: 6px 8px; border: 1px solid transparent; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
-.course[aria-pressed="true"] { border-color: var(--ink); background: var(--surface-strong, rgba(0, 0, 0, .05)); }
+.course[aria-pressed="true"] { border-color: var(--ink); background: var(--subtle, rgba(0, 0, 0, .05)); }
 .course span { color: var(--muted); font-size: var(--text-sm); }
 /* ADR-0190: banornas ordning (dra, eller upp och ned) och banans egenskaper. */
 .courseRow { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px; border-top: 2px solid transparent; }
@@ -189,7 +194,7 @@ fieldset.row legend { width: 100%; padding: 0; font-weight: 600; }
 .inspectionList button { display: flex; gap: 10px; align-items: center; width: 100%; min-height: 44px; padding: 4px 8px; border: none;
   background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .inspectionList strong { min-width: 2.5em; font-size: 1.1rem; }
-.inspectionList button:hover, .inspectionList button:focus-visible { background: var(--surface-strong, rgba(0, 0, 0, .05)); color: inherit; }
+.inspectionList button:hover, .inspectionList button:focus-visible { background: var(--subtle, rgba(0, 0, 0, .05)); color: inherit; }
 .panel .segmented button[aria-pressed="true"]:hover:not(:disabled), .panel .segmented button[aria-pressed="true"]:focus { background: var(--ink); color: var(--surface);
   border-color: var(--ink); }
 .noteHead { display: grid; gap: 2px; width: 100%; padding: 6px 8px; border: none; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
@@ -197,7 +202,7 @@ fieldset.row legend { width: 100%; padding: 0; font-weight: 600; }
 .noteText { white-space: pre-wrap; }
 .thread { display: grid; gap: 6px; padding: 0 8px 8px; }
 .notePhoto { max-width: 100%; max-height: 240px; border: 1px solid var(--line); }
-.replies li { padding: 4px 6px; background: var(--surface-strong, rgba(0, 0, 0, .04)); }
+.replies li { padding: 4px 6px; background: var(--subtle, rgba(0, 0, 0, .04)); }
 .replies p { margin: 0; white-space: pre-wrap; }
 .draft { display: grid; gap: 6px; padding: 8px; border: 2px dashed rgb(0, 120, 90); }
 .suggestionList > li { display: grid; gap: 6px; padding: 6px 8px; border: 1px solid var(--line); }
@@ -205,7 +210,7 @@ fieldset.row legend { width: 100%; padding: 0; font-weight: 600; }
 .reviewBox { display: grid; gap: 6px; }
 .quote { margin: 0; padding: 4px 8px; border-left: 3px solid var(--line-strong); white-space: pre-wrap; }
 .editList { display: grid; gap: 4px; margin: 0; padding: 6px 8px; border: 1px solid var(--line); }
-.editList label[data-rejected] { color: var(--danger, #b00020); }
+.editList label[data-rejected] { color: var(--mp, #b00020); }
 
 /* Steg 63: kontrollbeskrivningen och väljaren. */
 .description { border: 1px solid var(--line); background: #fff; }
@@ -246,7 +251,8 @@ fieldset.row legend { width: 100%; padding: 0; font-weight: 600; }
   .resize, .collapse { display: none; }
   .sheetHandle { display: grid; place-items: center; min-height: 18px; padding: 0; border: none; background: none; cursor: pointer; touch-action: none; }
   .sheetHandle span { width: 56px; height: 5px; border-radius: 3px; background: var(--muted, #777); }
-  .tabs { flex-direction: row; padding: 0 4px 4px; border-right: none; overflow-x: auto; overflow-y: hidden; }
+  .tabsRail { flex-direction: row; padding: 0 4px 4px; border-right: none; overflow-x: auto; overflow-y: hidden; }
+  .tabs { flex-direction: row; flex: 1 1 auto; gap: 2px; }
   .tab { flex: 1 0 auto; min-width: 48px; min-height: 32px; grid-auto-flow: column; align-items: center; gap: 4px; font-size: 0.75rem; }
   .tabLabel { max-width: none; }
   .drawer:not([data-sheet-open]) .tabpanel { display: none; }
@@ -257,8 +263,9 @@ fieldset.row legend { width: 100%; padding: 0; font-weight: 600; }
   .tool { min-width: 48px; flex: 0 0 auto; }
   .toolLabel { width: auto; min-width: 0; }
   .key { display: none; }
+  .toolHint { display: none; }
   .fieldTools { top: 8px; left: 8px; max-width: calc(100% - 60px); }
-  .zoom { bottom: 136px; right: 8px; }
+  .zoom { top: var(--map-zoom-top, auto); bottom: var(--map-zoom-bottom, 136px); right: var(--map-zoom-right, 8px); }
   .card { bottom: 136px; width: calc(100% - 72px); left: 8px; transform: none; }
   .toasts { top: 8px; left: 8px; right: 60px; width: auto; min-width: 0; }
 }
@@ -269,13 +276,14 @@ fieldset.row legend { width: 100%; padding: 0; font-weight: 600; }
   .mapArea { display: grid; grid-template-rows: minmax(0, 1fr) auto; padding-bottom: 50px; }
   .mapFrame { position: relative; inset: auto; min-height: 0; }
   .bottomStack { position: static; padding-top: 4px; background: var(--surface); }
-  .zoom { top: 8px; bottom: auto; }
+  .zoom { top: var(--map-zoom-top, 8px); bottom: var(--map-zoom-bottom, auto); }
   /* Den smala raden: banväljaren först och tydlig, knapparna utan text. */
   .topbar { gap: 3px; padding: 4px 6px; }
   .topbar select { flex: 0 1 auto; min-width: 7.5em; max-width: 45vw; }
   .topbar button { min-width: 36px; padding-inline: 6px; }
   .toasts { right: 56px; }
   /* ADR-0188: de vanligaste flikarna med namn, vald flik och resten under "Mer". */
+  .tabsRail { gap: 0; overflow: visible; }
   .tabs { gap: 0; overflow: visible; }
   .tab { flex: 1 1 auto; min-width: 32px; padding-inline: 4px; }
   .tab[data-phone-more]:not([aria-selected="true"]) { display: none; }

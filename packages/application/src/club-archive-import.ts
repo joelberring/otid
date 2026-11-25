@@ -9,7 +9,7 @@ import { schema, type ClubCourseFileSummary, type Database } from "@o-tid/databa
 import { decodeIofXml, parseIofXml } from "@o-tid/iof-xml";
 import { clubJournal, clubMembership, clubRoleAtLeast, requireClubRole, type ClubProof, type ClubTransaction } from "./club-access";
 import { importTokenHash } from "./clubs";
-import { clubArchiveQuotaProblem, discardStagedMapContent, mapStorageQuota, stageMapContent, storeMapContent, type MapQuotaExceeded,
+import { clubArchiveQuotaProblem, discardStagedMapContent, lockClubQuota, mapStorageQuota, stageMapContent, storeMapContent, type MapQuotaExceeded,
   type MapStorageQuota } from "./map-content";
 import { mapFileFormatOf } from "./race-map-source";
 import { UUID_PATTERN, sha256Hex } from "./serialization";
@@ -88,7 +88,7 @@ export async function importCheck(db: Database, input: ImportCaller & { clubId: 
     if (!parsed.success) return { status: "invalid-request" } as const;
     const wanted = [...new Set(parsed.data.sha256)];
     const known = wanted.length === 0 ? [] : (await tx.execute<{ sha256: string }>(sql`select c.sha256 from map_content c
-      where c.sha256 = any(${sql.param(wanted)}::text[]) and (c.uploaded_by = ${importer.accountId}::uuid or exists (select 1 from club_map_version v
+      where c.sha256 = any(${sql.param(wanted)}::text[]) and c.stored_in <> 'GONE' and (c.uploaded_by = ${importer.accountId}::uuid or exists (select 1 from club_map_version v
         where v.club_id = ${importer.clubId}::uuid and v.content_sha256 = c.sha256))`)).rows.map(row => row.sha256);
     const response: ClubImportCheckResponse = { formatVersion: 1, clubId: importer.clubId, clubName: importer.clubName, known };
     const keys = [...new Set(parsed.data.importKeys ?? [])];
@@ -122,7 +122,27 @@ export async function importMapContent(db: Database, input: ImportCaller & { clu
     return await db.transaction(async tx => {
       const importer = await authenticateImporter(tx, input, now);
       if (importer.status !== "ok") return importer;
-      const existed = (await tx.execute(sql`select 1 from map_content where sha256 = ${staged.sha256}`)).rows.length > 0;
+      await lockClubQuota(tx, importer.clubId);
+      const existed = (await tx.execute(sql`select 1 from map_content where sha256 = ${staged.sha256} and stored_in <> 'GONE'`)).rows.length > 0;
+      if (!existed) {
+        // Oknutet innehåll som kontot redan laddat upp i importen räknas med mot klubbens gräns, så att upprepade uppladdningar utan importBatch inte kan kringgå både klubb- och kontokvot.
+        const [unattached] = (await tx.execute<{ bytes: string }>(sql`select coalesce(sum(c.byte_length), 0)::text as bytes from map_content c
+          where c.uploaded_by = ${importer.accountId}::uuid and c.stored_in <> 'GONE'
+            and not exists (select 1 from club_map_version where content_sha256 = c.sha256)
+            and not exists (select 1 from race_map where content_sha256 = c.sha256)
+            and not exists (select 1 from race_map_source where content_sha256 = c.sha256)
+            and not exists (select 1 from training_group_map where content_sha256 = c.sha256)
+            and not exists (select 1 from training_group_map_source where content_sha256 = c.sha256)
+            and not exists (select 1 from map_project where base_sha256 = c.sha256)
+            and not exists (select 1 from map_project_output where content_sha256 = c.sha256)
+            and not exists (select 1 from map_project_layer where content_sha256 = c.sha256)
+            and not exists (select 1 from map_project_geo_output where content_sha256 = c.sha256)`)).rows;
+        const unattachedBytes = Number(unattached?.bytes ?? 0);
+        if (unattachedBytes > 0) {
+          const clubFull = await clubArchiveQuotaProblem(tx, importer.clubId, { newBytes: unattachedBytes + staged.byteLength });
+          if (clubFull) return { status: "quota", quota: clubFull } as const;
+        }
+      }
       // PLAN.md steg M7: det som importeras till klubbarkivet räknas mot klubbens gräns.
       const stored = await storeMapContent(tx, staged, importer.accountId, now, input.quota ?? mapStorageQuota(), { clubId: importer.clubId });
       if (stored.status === "quota") return { status: "quota", quota: stored.quota } as const;
@@ -222,14 +242,18 @@ export async function importBatch(db: Database, input: ImportCaller & { clubId: 
     const clubId = importer.clubId;
     // Importerna i en klubb körs en i taget (två körningar samtidigt ska inte göra två kartor av samma namn).
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`club-import:${clubId}`}, 0))`);
+    await lockClubQuota(tx, clubId);
     const response: ClubImportBatchResponse = { formatVersion: 1, maps: { created: 0, versionsAdded: 0 },
       entries: { created: 0, existing: 0, courseFilesAdded: 0 }, missingContent: [] };
     for (const map of batch.maps) {
       const existingVersions = await versionIdsBySha(tx, clubId, map.versions.map(version => version.sha256));
       const fresh = map.versions.filter(version => !existingVersions.has(version.sha256));
       if (fresh.length === 0) continue;
-      const present = new Set((await tx.select({ sha: schema.mapContents.sha256 }).from(schema.mapContents)
-        .where(inArray(schema.mapContents.sha256, fresh.map(version => version.sha256)))).map(row => row.sha));
+      const freshShas = fresh.map(version => version.sha256);
+      const present = new Set((await tx.execute<{ sha: string }>(sql`select c.sha256 as sha from map_content c
+        where c.sha256 = any(${sql.param(freshShas)}::text[]) and c.stored_in <> 'GONE'
+          and (c.uploaded_by = ${importer.accountId}::uuid or exists (select 1 from club_map_version v
+            where v.club_id = ${clubId}::uuid and v.content_sha256 = c.sha256))`)).rows.map(row => row.sha));
       const missing = fresh.filter(version => !present.has(version.sha256));
       response.missingContent.push(...missing.map(version => version.sha256));
       const toAdd = fresh.filter(version => present.has(version.sha256));

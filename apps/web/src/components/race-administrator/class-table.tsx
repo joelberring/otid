@@ -15,7 +15,7 @@ import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import { courseVariantsSv } from "../../i18n/course-variants-sv";
 import { relaySv } from "../../i18n/relay-sv";
 import { classTableStatus } from "../../lib/class-table-status";
-import { Button, EmptyState, Field, Notice, Section, Table, numeric } from "../ui";
+import { Button, ConfirmDialog, EmptyState, Field, Notice, Section, Table, numeric } from "../ui";
 import { RemovalReview } from "./removal-review";
 import { removalSv } from "../../i18n/removal-sv";
 import type { Workspace } from "./workspace-state";
@@ -138,11 +138,13 @@ function ClassEditor({ ws, row }: { ws: Workspace; row: ClassRow }) {
   const [clock, setClock] = useState(current);
   const [massBusy, setMassBusy] = useState(false);
   const [massMessage, setMassMessage] = useState<{ ok: boolean; text: string }>();
+  const [massConfirm, setMassConfirm] = useState<(ok: boolean) => void>();
   async function save() {
     // Masstarten sparas när den är ny eller har en ny tid; annat i raden sparas som vanligt.
     if (!mass || clock.trim() === current) { void saveClassEdit(); return; }
     setMassMessage(undefined); setMassBusy(true);
-    const outcome = await saveClassMassStart(ws, row.classId, clock.trim(), text.massStartConfirm);
+    const outcome = await saveClassMassStart(ws, row.classId, clock.trim(),
+      () => new Promise<boolean>(resolve => setMassConfirm(() => resolve)));
     setMassBusy(false);
     if (outcome.kind === "SAVED") { setClock(outcome.clock); setMassMessage({ ok: true, text: text.massStartSaved(outcome.clock) }); }
     else if (outcome.kind === "INVALID") setMassMessage({ ok: false, text: text.massStartInvalid });
@@ -200,5 +202,8 @@ function ClassEditor({ ws, row }: { ws: Workspace; row: ClassRow }) {
       <Button type="submit" disabled={busy || massBusy}>{text.save}</Button>
       {!classEditAttempt && <Button variant="quiet" disabled={busy} onClick={cancelClassEdit}>{text.cancel}</Button>}
     </div>
+    {massConfirm && <ConfirmDialog title={text.massStart} message={text.massStartConfirm} confirmLabel={text.save}
+      onConfirm={() => { massConfirm(true); setMassConfirm(undefined); }}
+      onCancel={() => { massConfirm(false); setMassConfirm(undefined); }} />}
   </form>;
 }

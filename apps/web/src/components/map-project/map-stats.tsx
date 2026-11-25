@@ -27,7 +27,7 @@ export function StatsNumbers({ stats, testId }: { stats: MapStatsSummary; testId
 export function SeasonSelect({ value, onChange }: { value: number | undefined; onChange: (season: number | undefined) => void }) {
   const text = useTexts(mapStatsSv, mapStatsEn);
   const year = new Date().getFullYear();
-  return <label className={styles.inline}>{text.season}{" "}
+  return <label className={styles.inlineLabel}>{text.season}{" "}
     <select value={value ?? ""} onChange={event => onChange(event.target.value ? Number(event.target.value) : undefined)} data-testid="map-stats-season">
       <option value="">{text.allTime}</option>
       {[0, 1, 2, 3, 4].map(back => <option key={back} value={year - back}>{year - back}</option>)}
@@ -44,7 +44,7 @@ export function Leaderboard({ rows }: { rows: readonly MapProjectLeaderboardRow[
   const sorted = [...rows].sort((a, b) => value(b) - value(a));
   let anonymous = 0;
   return <>
-    <label className={styles.inline}>{text.sortBy}{" "}
+    <label className={styles.inlineLabel}>{text.sortBy}{" "}
       <select value={sort} onChange={event => setSort(event.target.value as SortKey)}>
         {SORTS.map(key => <option key={key} value={key}>{text.sorts[key]}</option>)}
       </select></label>

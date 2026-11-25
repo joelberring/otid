@@ -23,11 +23,13 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const language = await currentLanguage();
   // Hjälppanelen (en klientkomponent) visar länkarna till filmerna när adresserna finns; de läses här vid förfrågan.
   return <html lang={language}><body data-intro-film={introFilmUrl(process.env, language)} data-map-film={mapFilmUrl(process.env, language)}>
+    <a className="skip-link" href="#main">{language === "en" ? "Skip to main content" : "Hoppa till huvudinnehåll"}</a>
     <header className="site-header">
       <Link href="/"><Logo size={28} className="site-header-logo" />{sv.appName}</Link>
       <span className="site-header-tagline"><span aria-hidden="true">·</span> {language === "en" ? siteEn.tagline : sv.tagline}</span>
       <LanguageSwitch language={language} className="site-header-language" />
     </header>
+    <span id="main" tabIndex={-1} className="skip-target" />
     {children}
     <SiteFooter language={language} />
   </body></html>;

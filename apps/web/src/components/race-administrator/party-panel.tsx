@@ -9,7 +9,7 @@ import styles from "../race-administrator-workspace.module.css";
 import local from "./party.module.css";
 import { partySv } from "../../i18n/party-sv";
 import { readAccountCsrfCookie } from "../../lib/organizer-account-cookies";
-import { Button, Notice, Section, Table, numeric, DateInput, Explain } from "../ui";
+import { Button, ConfirmDialog, Notice, PromptDialog, Section, Table, numeric, DateInput, Explain } from "../ui";
 import type { Workspace } from "./workspace-state";
 import { PartyThemeForm } from "./party-theme-form";
 import { CENTRUM_PRESET } from "../../lib/party-theme-style";
@@ -50,6 +50,9 @@ function PartyWorkspace({ raceId, admin, ws }: { raceId: string; admin: boolean;
   const [problem, setProblem] = useState<string>();
   const [saved, setSaved] = useState<string>();
   const [busy, setBusy] = useState(false);
+  const [pendingPreset, setPendingPreset] = useState<{ items: readonly (typeof CENTRUM_PRESET.items)[number][]; message: string }>();
+  const [pendingRemoveGuest, setPendingRemoveGuest] = useState<{ cardNumber: string; name: string }>();
+  const [pendingVoid, setPendingVoid] = useState<PartyStateResponse["purchases"][number]>();
   const base = `/api/admin/races/${encodeURIComponent(raceId)}/administrator`;
   const load = useCallback(async () => {
     const response = await fetch(`${base}/party`, { credentials: "same-origin", cache: "no-store" });
@@ -82,12 +85,15 @@ function PartyWorkspace({ raceId, admin, ws }: { raceId: string; admin: boolean;
     finally { setBusy(false); }
   }
   /** Förinställningens varor: bara de koder som saknas läggs till, efter bekräftelse. Befintliga varor ändras aldrig. */
-  async function addPresetItems() {
+  function requestPresetItems() {
     if (!state) return;
     const taken = new Set(state.items.map(item => item.code));
     const missing = CENTRUM_PRESET.items.filter(item => !taken.has(item.code));
     if (missing.length === 0) { setSaved(text.presetNone); return; }
-    if (!window.confirm(text.presetConfirm(missing.map(item => `${item.code} ${item.name} ${formatPartyKronor(item.priceOre)} kr`).join("\n")))) return;
+    setPendingPreset({ items: missing, message: text.presetConfirm(missing.map(item => `${item.code} ${item.name} ${formatPartyKronor(item.priceOre)} kr`).join("\n")) });
+  }
+  async function confirmPresetItems(missing: readonly (typeof CENTRUM_PRESET.items)[number][]) {
+    setPendingPreset(undefined);
     let added = 0;
     for (const item of missing) {
       if (await change({ kind: "item-add", code: item.code, name: item.name, priceOre: item.priceOre, group: item.group })) added += 1;
@@ -157,7 +163,7 @@ function PartyWorkspace({ raceId, admin, ws }: { raceId: string; admin: boolean;
       </Table>}
       {admin && <AddItemForm busy={busy} onAdd={(code, name, priceOre, group) => change({ kind: "item-add", code, name, priceOre, group })} />}
       <div className={styles.actions}>
-        {admin && <Button variant="secondary" disabled={busy} onClick={() => void addPresetItems()}>{text.presetItems}</Button>}
+        {admin && <Button variant="secondary" disabled={busy} onClick={requestPresetItems}>{text.presetItems}</Button>}
         <a className={local.secondaryLink} href={`/admin/${raceId}/party-labels`} target="_blank" rel="noopener">{text.labels}</a>
       </div>
       <p className={styles.workflowHelp}>{text.labelsHelp}</p>
@@ -175,11 +181,8 @@ function PartyWorkspace({ raceId, admin, ws }: { raceId: string; admin: boolean;
           <td><GuestName guest={guest} busy={busy} onSave={(name, club, displayName) => saveGuest(guest.cardNumber, name, club, displayName)} />
             {guest.selfRegistered ? <span className={local.tag}>{text.selfRegistered}</span> : null}
             {admin && guest.name ? <button type="button" className={local.linkButton} disabled={busy}
-              aria-label={text.removeGuestLabel(guest.cardNumber)} onClick={() => {
-                if (window.confirm(text.removeGuestConfirm(guest.cardNumber, guest.name ?? ""))) {
-                  void change({ kind: "guest-remove", cardNumber: guest.cardNumber }, text.guestRemoved);
-                }
-              }}>{text.removeGuest}</button> : null}
+              aria-label={text.removeGuestLabel(guest.cardNumber)} onClick={() => setPendingRemoveGuest({ cardNumber: guest.cardNumber, name: guest.name ?? "" })}>
+              {text.removeGuest}</button> : null}
             {partyMemoryWarning(guest.memory) && guest.memory ? <span className={local.warning}>
               <Explain text={text.memoryHelp}>! {text.nearlyFull(guest.memory.punches, guest.memory.capacity)}</Explain></span> : null}</td>
           <td>{partyDisplayName(guest) ?? ""}</td>
@@ -211,10 +214,7 @@ function PartyWorkspace({ raceId, admin, ws }: { raceId: string; admin: boolean;
             {row.voided ? <small className={local.flag}> {text.voided(row.voided.reason)}</small> : null}</td>
           <td className={numeric}>{formatPartyKronor(row.priceOre)}</td>
           {admin && <td>{!row.voided && <Button variant="secondary" disabled={busy} aria-label={text.voidLabel(row.itemName, row.cardNumber)}
-            onClick={() => {
-              const reason = window.prompt(text.voidReason)?.trim();
-              if (reason) void change({ kind: "void", cardNumber: row.cardNumber, code: row.code, punchedAt: row.punchedAt, reason: reason.slice(0, 300) });
-            }}>{text.void}</Button>}</td>}
+            onClick={() => setPendingVoid(row)}>{text.void}</Button>}</td>}
         </tr>)}</tbody>
       </Table>}
     </Section>
@@ -225,6 +225,17 @@ function PartyWorkspace({ raceId, admin, ws }: { raceId: string; admin: boolean;
         <Button variant="secondary" onClick={() => download(`fest-kop-${stamp}.csv`, partyPurchasesCsv(ledger, state.timeZone))}>{text.exportPurchases}</Button>
       </div>
     </Section>
+    {pendingPreset && <ConfirmDialog title={text.presetItems} message={pendingPreset.message} confirmLabel={text.presetItems} busy={busy}
+      onConfirm={() => void confirmPresetItems(pendingPreset.items)} onCancel={() => setPendingPreset(undefined)} />}
+    {pendingRemoveGuest && <ConfirmDialog title={text.removeGuest}
+      message={text.removeGuestConfirm(pendingRemoveGuest.cardNumber, pendingRemoveGuest.name)} confirmLabel={text.removeGuest} danger busy={busy}
+      onConfirm={() => { const card = pendingRemoveGuest.cardNumber; setPendingRemoveGuest(undefined); void change({ kind: "guest-remove", cardNumber: card }, text.guestRemoved); }}
+      onCancel={() => setPendingRemoveGuest(undefined)} />}
+    {pendingVoid && <PromptDialog title={text.void} label={text.voidReason} maxLength={300} confirmLabel={text.void} danger busy={busy}
+      onConfirm={reason => {
+        const row = pendingVoid; setPendingVoid(undefined);
+        void change({ kind: "void", cardNumber: row.cardNumber, code: row.code, punchedAt: row.punchedAt, reason: reason.slice(0, 300) });
+      }} onCancel={() => setPendingVoid(undefined)} />}
   </div>;
 }
 
@@ -338,6 +349,11 @@ function GuestName({ guest, busy, onSave }: { guest: PartyStateResponse["guests"
 /** Steg 44: "Ta bort incheckning" / "Ta bort utcheckning" för en gäst, efter bekräftelse. */
 function PresenceRemove({ label, text: buttonText, confirm, busy, onRemove }: { label: string; text: string; confirm: string;
   busy: boolean; onRemove: () => Promise<boolean> }) {
-  return <button type="button" className={local.linkButton} disabled={busy} aria-label={label}
-    onClick={() => { if (window.confirm(confirm)) void onRemove(); }}>{buttonText}</button>;
+  const [confirming, setConfirming] = useState(false);
+  return <>
+    <button type="button" className={local.linkButton} disabled={busy} aria-label={label}
+      onClick={() => setConfirming(true)}>{buttonText}</button>
+    {confirming && <ConfirmDialog title={buttonText} message={confirm} confirmLabel={buttonText} danger busy={busy}
+      onConfirm={() => { setConfirming(false); void onRemove(); }} onCancel={() => setConfirming(false)} />}
+  </>;
 }

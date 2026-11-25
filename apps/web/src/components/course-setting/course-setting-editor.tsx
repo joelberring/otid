@@ -493,7 +493,6 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
   const mapProject = useCourseSettingMapProject({ raceId, say, flush, onReload });
 
   async function onImport(file: ReadFile) {
-    if (!window.confirm(text.file.replaceConfirm)) return;
     setBusy(true);
     try {
       await sync.flush();
@@ -719,7 +718,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
         data-testid="course-setting-status">{shownStatus}</p>}
       access={access.level === "EDIT" ? "" : copy.access[access.level]} presence={copy.presence(others)}
       canUndo={canUndo(editor) && !readOnly} canRedo={canRedo(editor) && !readOnly} onUndo={() => edit(undo)} onRedo={() => edit(redo)} menu={menu}
-      admin={access.admin} onTransfer={access.admin && canTransfer(state.raceType) ? () => setDialog("transfer") : undefined} help={courseSettingHelpViews(tab, field.narrow || field.position !== undefined)}
+      admin={access.admin} onTransfer={access.admin && canTransfer(state.raceType) ? () => setDialog("transfer") : undefined} onBack={flush} help={courseSettingHelpViews(tab, field.narrow || field.position !== undefined)}
       tabs={<CourseSettingTabs raceId={raceId} current="SETTING" className={styles.tabsWide} onLeave={href => void flush().finally(() => router.push(href))} />} />
     {/* Telefonen: verktygen och flikarna (även Objekt och Utskrift) bakom "Mer"; medan ett specialobjekt ritas syns
         verktygsraden och fliken Objekt (Klar och Avbryt). */}

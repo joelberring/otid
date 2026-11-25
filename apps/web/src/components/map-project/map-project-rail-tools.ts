@@ -32,7 +32,7 @@ export interface RailState {
  * och Gör om i raden överst (i telefonen ligger de kvar fästa i spaltens rad).
  */
 export function railTools(state: RailState): RailTool[] {
-  const { keys, text, labels } = state, key = (command: keyof KeyMap) => keys[command] ? keyLabel(keys[command], "␣") : undefined;
+  const { keys, text, labels } = state, key = (command: keyof KeyMap) => keys[command] ? keyLabel(keys[command], "␣", text.section) : undefined;
   const tool = (id: Exclude<RailPick, "area">, icon: RailTool["icon"], label: string, help: string, extra: Partial<RailTool> = {}): RailTool =>
     ({ id, label, icon, key: key(id), help, active: state.tool === id, onPick: () => state.pick(id), ...extra });
   const review: RailTool[] = [

@@ -60,4 +60,12 @@ describe("stora ytor delas (ägaren 2026-11-23: «ytorna inte sitter ihop i supe
     expect(plan.map(row => row.key)).toEqual(["k"]);
     expect(plan[0]!.areaM2).toBeCloseTo(120 * 120 * 16, 0);
   });
+
+  it("korrupta jättekoordinater låser inte rutnätsloopen", () => {
+    const giant = area("406", [[0, 0], [1e9, 0], [1e9, 100], [0, 100], [0, 0]]);
+    const started = performance.now();
+    const pieces = splitArea(giant, sprint);
+    expect(performance.now() - started).toBeLessThan(2000);
+    expect(pieces.length).toBeGreaterThanOrEqual(1);
+  });
 });

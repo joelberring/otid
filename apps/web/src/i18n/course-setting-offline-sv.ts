@@ -15,6 +15,7 @@ const reason = (status: number) => status === 409 ? "kontrollen eller banan finn
 
 export const offlineSv = {
   more: "Mer",
+  tools: "Verktyg",
   status: {
     offline: (waiting: number) => waiting === 0 ? "Utan nät" : `Utan nät – ${plural(waiting, "ändring", "ändringar")} väntar`,
     loggedOut: (waiting: number) => `Utloggad – ${plural(waiting, "ändring", "ändringar")} väntar i telefonen`,

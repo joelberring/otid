@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import type { BingoLeaderboard, VirtualCourseView, VirtualSettings } from "@o-tid/contracts";
 import type { MapGeoreference } from "@o-tid/map-file";
 import { bingoEn } from "../../i18n/bingo-en";
@@ -22,8 +23,8 @@ const DUEL = /^[A-Z0-9]{2,12}$/;
  * fickläget med banans kontroller (utan karta och position), notiser när någon annan i duellen tar en kontroll, och efter
  * målgången mellantiderna, kartan med spåret och topplistan.
  */
-export function VirtualRunner({ raceId, title, courses, settings, georeference, mapScale, image, initialBoard }: {
-  raceId: string; title: string; courses: readonly VirtualCourseView[]; settings: VirtualSettings; georeference: MapGeoreference | null; mapScale: number;
+export function VirtualRunner({ raceId, title, hubHref, courses, settings, georeference, mapScale, image, initialBoard }: {
+  raceId: string; title: string; hubHref?: string; courses: readonly VirtualCourseView[]; settings: VirtualSettings; georeference: MapGeoreference | null; mapScale: number;
   image: Omit<VirtualMapImage, "href"> | null; initialBoard: BingoLeaderboard;
 }) {
   const text = useTexts(bingoSv.runner, bingoEn.runner);
@@ -69,6 +70,7 @@ export function VirtualRunner({ raceId, title, courses, settings, georeference, 
     const ready = trimmed && course && duelOk && georeference !== null && courses.length > 0;
     const go = () => { saveBingoName(trimmed); virtual.start(trimmed.slice(0, 60), course!, code || undefined, team.trim().slice(0, 60) || undefined); };
     return <main className={styles.page} data-testid="virtual-signup">
+      {hubHref && <p><Link href={hubHref}>{text.racePage}</Link></p>}
       <h1>{vk.title}</h1>
       <p className={styles.kicker}>{title}</p>
       <p>{vk.intro}</p>
@@ -142,6 +144,7 @@ export function VirtualRunner({ raceId, title, courses, settings, georeference, 
   }
 
   return <main className={styles.page} data-testid="bingo-done">
+    {hubHref && <p><Link href={hubHref}>{text.racePage}</Link></p>}
     <h1>{run.status === "FINISHED" ? text.finished : text.abandoned}</h1>
     <p className={styles.kicker}>{title} · {view.name}</p>
     <div className={styles.result}>

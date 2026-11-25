@@ -4,16 +4,17 @@
  * (OscillatorNode), utan ljudfil. Webbläsaren spelar inget förrän användaren har klickat på sidan, så ljudet låses upp
  * vid första klicket (anslutknappen räcker). Valet "Ljud vid avläsning" sparas per webbläsare.
  */
-/** "neutral" (steg 40, bardisken): två lika toner när inget nytt hänt, t.ex. "Inga nya köp". */
-export type ReadoutSoundKind = "ok" | "fail" | "neutral";
+/** "neutral" (steg 40, bardisken): två lika toner när inget nytt hänt; "unknown": två stigande frågetoner vid okänd bricka. */
+export type ReadoutSoundKind = "ok" | "fail" | "unknown" | "neutral";
 
 export interface Tone { readonly frequency: number; readonly start: number; readonly duration: number }
 
 const NOTE = 0.1;
-/** C-dur uppåt (C5, E5, G5) och a-moll nedåt (E5, C5, A4): 3 × 0,1 s. */
+/** C-dur uppåt (C5, E5, G5), a-moll nedåt (E5, C5, A4), frågande kvart uppåt (A4, D5) och neutrala toner. */
 const TONES: Record<ReadoutSoundKind, readonly number[]> = {
   ok: [523.25, 659.25, 783.99],
   fail: [659.25, 523.25, 440],
+  unknown: [440, 587.33],
   neutral: [587.33, 587.33]
 };
 
@@ -21,10 +22,12 @@ export function soundTones(kind: ReadoutSoundKind): Tone[] {
   return TONES[kind].map((frequency, index) => ({ frequency, start: index * NOTE, duration: NOTE }));
 }
 
-/** Ljudet för ett besked: godkänt låter glatt; felstämplat, maxtid, okänd bricka och fel låter moll. Annars inget. */
+/** Ljudet för ett besked: godkänt låter glatt; okänd bricka låter frågande; felstämplat, maxtid, DNF och fel låter moll; utan paket neutralt. */
 export function soundForVerdict(status: string | undefined): ReadoutSoundKind | undefined {
   if (status === "OK") return "ok";
-  if (status === "MP" || status === "OVERTIME" || status === "UNKNOWN_CARD" || status === "FAILED") return "fail";
+  if (status === "UNKNOWN_CARD") return "unknown";
+  if (status === "MP" || status === "OVERTIME" || status === "DNF" || status === "FAILED") return "fail";
+  if (status === "NO_PACKAGE") return "neutral";
   return undefined;
 }
 
@@ -77,8 +80,8 @@ export class ReadoutSound {
       // Kort in- och urtoning så att det inte knäpper.
       const start = now + tone.start, end = start + tone.duration;
       gain.gain.setValueAtTime(0, start);
-      gain.gain.linearRampToValueAtTime(0.25, start + 0.01);
-      gain.gain.setValueAtTime(0.25, end - 0.02);
+      gain.gain.linearRampToValueAtTime(0.5, start + 0.01);
+      gain.gain.setValueAtTime(0.5, end - 0.02);
       gain.gain.linearRampToValueAtTime(0, end);
       oscillator.connect(gain).connect(context.destination);
       oscillator.start(start);

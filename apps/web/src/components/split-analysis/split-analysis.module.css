@@ -30,7 +30,10 @@
   text-decoration: underline; text-underline-offset: .18em; }
 .linkButton:hover:not(:disabled) { background: transparent; }
 
-.scroll { position: relative; min-width: 0; max-width: 100%; overflow-x: auto; border-bottom: 1px solid var(--line); }
+.scroll { position: relative; min-width: 0; max-width: 100%; overflow-x: auto; border-bottom: 1px solid var(--line);
+  background:
+    linear-gradient(to left, var(--canvas) 30%, transparent) right / 24px 100% no-repeat local,
+    linear-gradient(to left, rgba(0, 0, 0, .1), transparent) right / 12px 100% no-repeat scroll; }
 .table { width: 100%; border-collapse: separate; border-spacing: 0; font-variant-numeric: tabular-nums; }
 .table :is(th, td) { padding: 5px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; white-space: nowrap; }
 .table thead th { background: var(--canvas); color: var(--muted); font-family: var(--font-dense); font-size: var(--text-xs); font-weight: 600;
@@ -69,7 +72,7 @@ tr[data-status="DNF"] .status, tr[data-status="DNS"] .status, tr[data-status="OO
 .route { display: inline-block; margin-top: 2px; font-family: var(--font-ui); font-size: var(--text-xs); font-weight: 600; }
 
 @media (max-width: 760px) {
-  .toolbar { gap: 8px; }
+  .toolbar { position: static; gap: 8px; }
   .classPicker { flex: 1 1 10rem; }
   .table :is(th, td) { padding: 4px 6px; }
   .stick { min-width: 7.5rem; max-width: 8.5rem; }

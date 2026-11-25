@@ -25,15 +25,27 @@ import { Button, Notice } from "../ui";
 export function ReadoutControlView({ ws }: { ws: Workspace }) {
   const text = useTexts(raceAdministratorSv, raceAdministratorEn);
   const { authenticated, busy, data, disabled, forestData, forestStale, functionary, loadRaceDayAttention, operation, pending, profile, raceId,
-    openCorrection, shows, workflowLocked } = ws;
+    openCorrection, setEntryId, setForestOpen, shows, unknownReadoutAttempt, workflowLocked } = ws;
   // PLAN.md steg 24: läget läses in av sig självt när steget visas (en gång; sedan finns Uppdatera).
   const attempted = useRef(false);
+  const [autoRefresh, setAutoRefresh] = useState(false);
   const visible = shows("READOUT");
   useEffect(() => {
     if (!visible || !authenticated || !data || busy || operation.current || pending.current || forestData || attempted.current) return;
     attempted.current = true;
     void loadRaceDayAttention();
   }, [visible, authenticated, data, busy, forestData]);
+  useEffect(() => {
+    if (!autoRefresh || !visible || !authenticated) return;
+    const timer = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      if (busy || operation.current || pending.current || unknownReadoutAttempt || workflowLocked) return;
+      const active = typeof document !== "undefined" ? document.activeElement : null;
+      if (active && /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName) && active.closest(`#unknown-readout-${raceId}`)) return;
+      void loadRaceDayAttention();
+    }, 15_000);
+    return () => clearInterval(timer);
+  }, [autoRefresh, visible, authenticated, busy, unknownReadoutAttempt, workflowLocked, raceId]);
   const notLoaded = busy || !attempted.current ? text.controlNotLoaded : text.controlLoadFailed;
   const remaining = forestData ? inForest(forestData.entries, forestData) : undefined;
   const awaiting = forestData ? awaitingStart(forestData.entries, forestData).length : 0;
@@ -46,10 +58,12 @@ export function ReadoutControlView({ ws }: { ws: Workspace }) {
         <p className={workspaceStyles.workflowHelp}>{text.openReadoutHelp}</p>
       </div>
       <div className={styles.controlActions}>
-        <a className={styles.openReadout} href={`/admin/${raceId}/readout`}>{text.openReadout}</a>
+        <a className={styles.openReadout} href={`/admin/${raceId}/readout`} target="_blank" rel="noopener">{text.openReadout}</a>
         <a href={`/admin/${raceId}/stations`}>{text.openStations}</a>
         <Button variant="secondary" disabled={busy || workflowLocked} onClick={() => void loadRaceDayAttention()}>{text.controlRefresh}</Button>
-        {forestData && <span className={styles.readAt}>{text.controlReadAt(formatClockTime(forestData.generatedAt, forestData.timeZone))}</span>}
+        <label className={styles.autoRefresh}><input type="checkbox" checked={autoRefresh} disabled={workflowLocked}
+          onChange={event => setAutoRefresh(event.target.checked)} data-testid="control-auto-refresh" />{text.controlAutoRefresh}</label>
+        {forestData && <span className={styles.readAt} data-testid="control-read-at">{text.controlReadAt(formatClockTime(forestData.generatedAt, forestData.timeZone))}</span>}
       </div>
     </div>
     <div className={styles.controlGrid}>
@@ -62,13 +76,20 @@ export function ReadoutControlView({ ws }: { ws: Workspace }) {
           {conflicts > 0 && <Notice tone="attention">{text.controlConflicts(conflicts)}</Notice>}
           {notStarted ? <p data-testid="in-forest-not-started">{text.controlForestNotStarted}</p>
             : remaining.length === 0 ? awaiting === 0 && <p>{text.controlForestEmpty}</p> : <ul className={styles.controlList}>
-            {remaining.map(row => <li key={row.entryId} className={functionary ? undefined : styles.controlRowAction}>
+            {remaining.map(row => <li key={row.entryId} className={styles.controlRowAction}>
               <span><strong>{row.displayName}</strong>
                 <span>{[row.organisationName ?? text.none, row.className,
                   row.cardNumber ? `${text.rosterCard} ${row.cardNumber}` : text.rosterNoActiveCard].join(" · ")}</span></span>
-              {/* Steg 35: deltagarkortet direkt ur kvar i skogen (t.ex. "Deltog utan tid" för den som sprang utan bricka). */}
-              {!functionary && <Button variant="secondary" disabled={disabled} aria-label={text.controlOpenFor(row.displayName)}
-                onClick={() => openCorrection(row.entryId)}>{text.controlOpen}</Button>}
+              {/* Steg 35: deltagarkortet direkt ur kvar i skogen; funktionären hoppar direkt till manuell återkomst. */}
+              {functionary
+                ? <Button variant="secondary" disabled={disabled} aria-label={text.controlReturnFor(row.displayName)}
+                  onClick={() => {
+                    setEntryId(row.entryId);
+                    setForestOpen(true);
+                    requestAnimationFrame(() => document.getElementById(`forest-return-${raceId}`)?.scrollIntoView?.({ behavior: "smooth", block: "nearest" }));
+                  }}>{text.controlReturn}</Button>
+                : <Button variant="secondary" disabled={disabled} aria-label={text.controlOpenFor(row.displayName)}
+                  onClick={() => openCorrection(row.entryId)}>{text.controlOpen}</Button>}
             </li>)}
           </ul>}
           {!notStarted && awaiting > 0 && <p data-testid="awaiting-start-count">{text.controlAwaitingStart(awaiting)}</p>}

@@ -45,10 +45,11 @@ function eventorIds(pkg: ReadoutPackage, fields: Fields, chosen: RunnerSuggestio
  * föreslår löpare och klubbfältet klubbar. Allt fungerar offline mot paketet; `search` (när nätet finns och hela landet
  * ligger på servern) kompletterar. Funktionären väljer alltid själv.
  */
-export function RegistrationForm({ pkg, cardNumber, payload, items, registrations, search, onSubmit, onLink }: {
+export function RegistrationForm({ pkg, cardNumber, payload, items, registrations, search, onSubmit, onLink, onDirtyChange }: {
   pkg: ReadoutPackage; cardNumber: string; payload: Pick<SportidentReadoutPayload, "punches">; items: readonly QueuedReadout[];
   registrations: readonly QueuedRegistration[]; search: ((request: RunnerSearchRequest) => Promise<RunnerSearchResponse | undefined>) | undefined;
-  onSubmit: (fields: RegistrationFields) => Promise<void>; onLink: (entry: EntrySuggestion) => Promise<void> }) {
+  onSubmit: (fields: RegistrationFields) => Promise<void>; onLink: (entry: EntrySuggestion) => Promise<void>;
+  onDirtyChange?: ((dirty: boolean) => void) | undefined }) {
   const t = useTexts(readoutText, readoutTextEn);
   const formErrorText = useTexts(formErrorsSv, formErrorsEn);
   const classes = useMemo(() => registrationClasses(pkg), [pkg]);
@@ -108,14 +109,14 @@ export function RegistrationForm({ pkg, cardNumber, payload, items, registration
   const clubs = runnerIndex(pkg).clubs;
 
   const set = (key: keyof Fields) => (event: { target: { value: string } }) => {
-    edited.current = true;
+    if (!edited.current) { edited.current = true; onDirtyChange?.(true); }
     if (key === "classId") classChosen.current = true;
     if (key === "givenName" || key === "familyName") setTyping(true);
     setFields((value) => ({ ...value, [key]: event.target.value }));
     setErrors((value) => ({ ...value, [key]: undefined }));
   };
   function choose(row: RunnerSuggestion) {
-    edited.current = true;
+    if (!edited.current) { edited.current = true; onDirtyChange?.(true); }
     setChosen(row); setTyping(false);
     setFields((value) => fromRunner(row, value.classId));
     setErrors({});
@@ -127,12 +128,12 @@ export function RegistrationForm({ pkg, cardNumber, payload, items, registration
     const first = (Object.keys(found) as (keyof Fields)[]).find((key) => found[key]);
     if (first) { document.getElementById(`register-${first}`)?.focus(); return; }
     setSaving(true);
-    try { await onSubmit({ ...fields, ...eventorIds(pkg, fields, chosen) }); setFields(EMPTY); }
+    try { await onSubmit({ ...fields, ...eventorIds(pkg, fields, chosen) }); edited.current = false; onDirtyChange?.(false); setFields(EMPTY); }
     finally { setSaving(false); }
   }
   async function link(entry: EntrySuggestion) {
     setSaving(true);
-    try { await onLink(entry); } finally { setSaving(false); }
+    try { await onLink(entry); edited.current = false; onDirtyChange?.(false); } finally { setSaving(false); }
   }
   const field = (key: keyof Fields, label: string, control: ReactElement) => <div className="field">
     <label htmlFor={`register-${key}`}>{label}</label>

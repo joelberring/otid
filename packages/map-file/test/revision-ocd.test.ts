@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyMapRevision, objectRefOf, readMapFile, sha256Hex, type MapObject, type MapRevisionChange, type ObjectRef, type ParsedMap
 } from "../src";
+import { applyOcdRevision } from "../src/revision/ocd-write";
 import { buildOcd, buildOcd8, ocdCoord } from "./ocd-builder";
 import { SPEC } from "./ocd-spec";
 
@@ -104,5 +105,26 @@ describe("OCAD-revidering (K7)", () => {
     expect(run(bytes, sha, [{ ...meta, kind: "modify", ref: contour, symbol: "105100" }])).toMatchObject({ ok: false, refusals: [{ code: "INVALID_CHANGE" }] });
     expect(run(bytes, sha, [{ ...meta, kind: "add", id: "t", symbol: "902000", geometry: { kind: "text", at: { x: 0, y: 0 } }, text: "Hej" }]))
       .toMatchObject({ ok: false, refusals: [{ code: "INVALID_CHANGE" }] });
+  });
+
+  it("deduplicerar upprepade ändringar på samma objekt (sista ändringen vinner)", () => {
+    const { bytes, sha, ref } = setup(2018);
+    const dot = ref(object => object.kind === "point");
+    const forest = ref(object => object.kind === "area");
+    const result = applyOcdRevision(bytes, {
+      baseFileSha256: sha,
+      format: "OCD",
+      changes: [
+        { ...meta, kind: "modify", ref: dot, geometry: { kind: "point", at: { x: 1, y: 2 } }, angle: 10 },
+        { ...meta, kind: "modify", ref: dot, geometry: { kind: "point", at: { x: 7, y: 8 } }, angle: 90 },
+        { ...meta, kind: "modify", ref: forest, angle: 15 },
+        { ...meta, kind: "delete", ref: forest }
+      ]
+    }, sha);
+    if (!result.ok) throw new Error(JSON.stringify(result.refusals));
+    expect(result.report).toMatchObject({ modified: 1, deleted: 1, added: 0 });
+    const after = reread(result.bytes);
+    expect(after.objects.find(object => object.kind === "point" && object.symbol === "105100")).toMatchObject({ at: { x: 7, y: 8 }, angle: 90 });
+    expect(after.objects.filter(object => object.kind === "area")).toHaveLength(0);
   });
 });

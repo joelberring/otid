@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { mcpToolInputSchemas } from "@o-tid/contracts";
 import type { MapObject } from "@o-tid/map-file";
 import { createMapJobCanvas, loadMapJobImage } from "../../../scripts/map-job-canvas";
 import { rgbaPng } from "../src/map-project-job-labels";
@@ -63,5 +64,32 @@ describe("classify_cells: kartjobbet", () => {
     expect((runPhotoCellsJob(loaded, { area }, { createCanvas: createMapJobCanvas, rgb: [], ir: [] }, now) as { result: { errors: string[] } }).result.errors[0]).toContain("ortofoton");
     expect((runPhotoCellsJob(loaded, { area: { minX: 0, minY: 0, maxX: 60, maxY: 60 } }, { createCanvas: createMapJobCanvas, rgb: await photo(), ir: [] }, now) as
       { result: { errors: string[] } }).result.errors[0]).toContain("större än");
+  });
+
+  it("tillåter tom answers-lista med accept_confident: true och sluter ringarna på kontaktkartan", async () => {
+    const baseInput = { project_id: "00000000-0000-4000-8000-000000000001", area: { min_x: 0, min_y: 0, max_x: 10, max_y: 10 } };
+    expect(mcpToolInputSchemas.classify_cells.safeParse({ ...baseInput, answers: [], accept_confident: true }).success).toBe(true);
+    expect(mcpToolInputSchemas.classify_cells.safeParse({ ...baseInput, answers: [] }).success).toBe(false);
+
+    // Två säkra gräsrutor (båda vänster/gräs): tom answers med acceptConfident: true lägger in båda.
+    const allGrassPixels = new Uint8Array(220 * 220 * 4);
+    for (let i = 0; i < 220 * 220; i += 1) allGrassPixels.set([95, 150, 60, 255], i * 4);
+    const allGrass = [{ image: await loadMapJobImage(rgbaPng(220, 220, allGrassPixels)), toMap: underlayToMap(layer, fixture.base.georeference!) }];
+    const accepted = runPhotoCellsJob(loaded, { area, answers: [], acceptConfident: true }, { createCanvas: createMapJobCanvas, rgb: allGrass, ir: [] }, now) as
+      { result: { summary: { areas: number; byClass: Record<string, number> }; edits: unknown[] } };
+    expect(accepted.result.summary).toEqual({ areas: 2, byClass: { grass: 2 }, cut: 0 });
+    expect(accepted.result.edits).toHaveLength(2);
+
+    // Kontaktkartan stänger varje rutring med closePath().
+    let closedPaths = 0;
+    const trackingCanvas = (width: number, height: number) => {
+      const canvas = createMapJobCanvas(width, height);
+      const ctx = canvas.context as unknown as { closePath?: () => void };
+      const originalClose = ctx.closePath?.bind(ctx);
+      ctx.closePath = () => { closedPaths += 1; originalClose?.(); };
+      return canvas;
+    };
+    runPhotoCellsJob(loaded, { area }, { createCanvas: trackingCanvas, rgb: await photo(true), ir: [] }, now);
+    expect(closedPaths).toBeGreaterThanOrEqual(1);
   });
 });

@@ -215,15 +215,14 @@ export function applyOcdRevision(original: Uint8Array, changeSet: MapRevisionCha
     return { block: locator.block, slot: locator.slot, at, position: locator.offset, length: bytes.i32(at + ENTRY.length) };
   };
 
+  const byTarget = new Map<string, { kind: "delete"; entry: Entry } | { kind: "modify"; entry: Entry; built: Built }>();
   const changes = changeSet.changes;
   for (let number = 0; number < changes.length; number++) {
     const change = changes[number]!;
     if (change.kind === "delete") {
       const entry = located(change, number);
       if ("ok" in entry) return entry;
-      writes.push({ at: entry.at + ENTRY.status, bytes: Uint8Array.of(STATUS_DELETED), what: "index-status" });
-      expected.push({ block: entry.block, slot: entry.slot, object: null });
-      deleted += 1;
+      byTarget.set(`${entry.block}:${entry.slot}`, { kind: "delete", entry });
       continue;
     }
     if (change.kind === "modify") {
@@ -231,24 +230,35 @@ export function applyOcdRevision(original: Uint8Array, changeSet: MapRevisionCha
       if ("ok" in entry) return entry;
       const built = modifyRecord(bytes, variant, entry, bySlot.get(`${entry.block}:${entry.slot}`)!, change, number, map);
       if ("ok" in built) return built;
-      if (built.record.length <= entry.length) {
-        writes.push({ at: entry.position, bytes: built.record, what: "object" });
-      } else {
-        append(built.record, "append-object", at => {
-          writes.push({ at: entry.at + ENTRY.position, bytes: i32(at), what: "index-position" });
-          writes.push({ at: entry.at + ENTRY.length, bytes: i32(built.record.length), what: "index-length" });
-        });
-      }
-      writes.push({ at: entry.at + ENTRY.rect, bytes: rect(built.points), what: "index-rect" });
-      writes.push({ at: entry.at + ENTRY.symbol, bytes: i32(built.symbol), what: "index-symbol" });
-      expected.push({ block: entry.block, slot: entry.slot, object: built.object });
-      modified += 1;
+      byTarget.set(`${entry.block}:${entry.slot}`, { kind: "modify", entry, built });
       continue;
     }
     const built = addRecord(bytes, variant, change, number, map, template);
     if ("ok" in built) return built;
     added += 1;
     addedRecords.push({ change, built });
+  }
+  for (const target of byTarget.values()) {
+    const { entry } = target;
+    if (target.kind === "delete") {
+      writes.push({ at: entry.at + ENTRY.status, bytes: Uint8Array.of(STATUS_DELETED), what: "index-status" });
+      expected.push({ block: entry.block, slot: entry.slot, object: null });
+      deleted += 1;
+      continue;
+    }
+    const { built } = target;
+    if (built.record.length <= entry.length) {
+      writes.push({ at: entry.position, bytes: built.record, what: "object" });
+    } else {
+      append(built.record, "append-object", at => {
+        writes.push({ at: entry.at + ENTRY.position, bytes: i32(at), what: "index-position" });
+        writes.push({ at: entry.at + ENTRY.length, bytes: i32(built.record.length), what: "index-length" });
+      });
+    }
+    writes.push({ at: entry.at + ENTRY.rect, bytes: rect(built.points), what: "index-rect" });
+    writes.push({ at: entry.at + ENTRY.symbol, bytes: i32(built.symbol), what: "index-symbol" });
+    expected.push({ block: entry.block, slot: entry.slot, object: built.object });
+    modified += 1;
   }
 
   // Lediga indexposter för de nya objekten, sedan nya block.

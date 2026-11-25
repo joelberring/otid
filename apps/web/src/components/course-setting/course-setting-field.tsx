@@ -379,8 +379,8 @@ export function useFieldMode(input: FieldInput): FieldMode {
       {!readOnly && selected && moveButton}
       {!readOnly && selected && <button type="button" className={css.big} disabled={selectedPoint?.kind !== "NORMAL"}
         onClick={() => setDetails(true)}>{text.details}</button>}
-      <button type="button" className={css.big} aria-expanded={expanded} aria-label={copy.more} title={copy.more}
-        data-testid="course-setting-field-more" onClick={() => setExpanded(value => !value)}>{expanded ? "✕" : "⋯"}</button>
+      <button type="button" className={css.big} aria-expanded={expanded} aria-label={copy.tools} title={copy.tools}
+        data-testid="course-setting-field-more" onClick={() => setExpanded(value => !value)}>{expanded ? "✕" : copy.tools}</button>
     </div>
     {selected && <div className={css.compactRow}>
       {!readOnly && arrows}

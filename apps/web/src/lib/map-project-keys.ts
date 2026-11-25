@@ -102,7 +102,7 @@ export function serializeKeys(keys: KeyMap): string {
   return JSON.stringify({ v: 2, keys: own });
 }
 
-/** Tangenten som den visas: "⇧E", "Mellanslag". */
-export function keyLabel(binding: string, space: string): string {
-  return binding.replace(/^Shift\+/, "⇧").replace("Space", space);
+/** Tangenten som den visas: "⇧E", "Mellanslag" (på engelska visas ` i stället för §). */
+export function keyLabel(binding: string, space: string, section = "§"): string {
+  return binding.replace(/^Shift\+/, "⇧").replace("Space", space).replace("§", section);
 }

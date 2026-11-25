@@ -14,6 +14,7 @@ export const mapProjectKeysSv = {
   press: "Tryck en tangent …",
   none: "Ingen",
   space: "Mellanslag",
+  section: "§",
   fixed: "Fasta: Esc avbryter (en gång till: Markera), Enter avslutar, Delete tar bort, Backsteg tar bort sista punkten medan du ritar, 1–8 väljer de senaste symbolerna utan att byta verktyg, [ och ] byter Glapp, Alt+1–6 tänder och släcker normens grupper (Alt+Skift: bara den gruppen), Alt+0 tänder allt. Håll Markeras tangent för att markera en stund; när du släpper är du tillbaka i verktyget du hade.",
   contextRow: "Visa åtgärdsraden vid det markerade",
   contextRowHelp: "Av: åtgärderna nås med högerklick (hjulet), tangenterna och «Åtgärder» i statusraden. I telefonen ligger raden alltid nederst.",

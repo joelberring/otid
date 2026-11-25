@@ -45,3 +45,9 @@
   .key { display: none; }
   .tip { display: none; }
 }
+@media (pointer: coarse) {
+  .tool { min-width: 44px; min-height: 44px; width: 44px; height: 44px; }
+}
+@media (max-width: 760px) and (pointer: coarse) {
+  .tool[data-pin="first"] { right: 44px; }
+}

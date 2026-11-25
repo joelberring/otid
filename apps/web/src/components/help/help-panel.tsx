@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { helpArticles, helpSv, helpSynonyms, type HelpArticle, type HelpView } from "../../i18n/help-sv";
-import { helpArticlesFor, helpEn, helpSynonymsEn } from "../../i18n/help-en";
+import { helpArticlesEnById, helpArticlesFor, helpEn, helpSynonymsEn } from "../../i18n/help-en";
 import { useLanguage } from "../language-provider";
 import { PROGRAM_CONTACT_EMAIL } from "../../lib/contact";
 import { helpTextParts, listHelpArticles } from "../../lib/help-search";
@@ -96,8 +96,9 @@ function HelpDialog({ views, first: initialFirst, onClose }: { views: Views; fir
   const { here, rest } = listHelpArticles(articles, views, query, { first, synonyms });
   const count = here.length + rest.length;
   const follow = (id: string) => { setQuery(""); setTarget(current => ({ id, count: (current?.count ?? 1) + 1 })); };
+  const en = useLanguage() === "en";
   const article = (row: HelpArticle) => <Article key={`${row.id}-${searching}-${row.id === first ? target?.count : 0}`} article={row}
-    open={searching || row.id === first} onFollow={follow} />;
+    open={searching || row.id === first} lang={en && !helpArticlesEnById.has(row.id) ? "sv" : undefined} onFollow={follow} />;
   return <dialog ref={dialog} className={styles.dialog} aria-labelledby={titleId} data-testid="help-panel"
     onClose={onClose} onClick={event => { if (event.target === event.currentTarget) event.currentTarget.close(); }}
     // Esc stänger direkt, även när sökfältet har text (annars tömmer det första Esc bara fältet).
@@ -145,8 +146,8 @@ function Text({ value, onFollow }: { value: string; onFollow: (id: string) => vo
 }
 
 /** En artikel som går att fälla ut. Vid sökning är träffarna utfällda, och en efterfrågad artikel också. */
-function Article({ article, open, onFollow }: { article: HelpArticle; open: boolean; onFollow: (id: string) => void }) {
-  return <details className={styles.article} open={open} data-help-article={article.id} id={`hjalp-${article.id}`}>
+function Article({ article, open, lang, onFollow }: { article: HelpArticle; open: boolean; lang?: string | undefined; onFollow: (id: string) => void }) {
+  return <details className={styles.article} open={open} lang={lang} data-help-article={article.id} id={`hjalp-${article.id}`}>
     <summary>{article.title}</summary>
     <div className={styles.body}>
       {article.body.map((block, index) => typeof block === "string"

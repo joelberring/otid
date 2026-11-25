@@ -532,28 +532,19 @@ export const controlMapEn: Texts<typeof controlMapSv> = {
 
 /** Engelska, arbetsytan del 12: läsa ut och ställa in enheter. */
 export const stationsEn: Texts<typeof stationsSv> = {
-  title: "Read out units",
-  back: "To the event",
-  trial: "Being tested: the readout is built from open descriptions of the protocol but not tried against real units yet. "
-    + "Nothing is written to the unit. Download the raw log and send it if something looks wrong.",
-  howTo: "Connect a master station (BSM7/BSM8) by USB. Put it in remote mode or let O-Tid do it, place the unit against the master station and press Read out. "
-    + "The master station is set back to direct mode afterwards.",
+  title: "Read out units", back: "To the event",
+  trial: "Being tested: the readout is built from open descriptions of the protocol but not tried against real units yet. Nothing is written to the unit. Download the raw log and send it if something looks wrong.",
+  howTo: "Connect a master station (BSM7/BSM8) by USB. Put it in remote mode or let O-Tid do it, place the unit against the master station and press Read out. The master station is set back to direct mode afterwards.",
   serialUnsupported: "The browser cannot reach the station. Use Chrome or Edge on a computer.",
-  connect: "Connect master station",
-  connected: "The master station is connected.",
-  disconnect: "Disconnect",
-  remote: "Read the unit lying against the master station (remote)",
-  direct: "Read the master station itself",
-  read: "Read out",
-  reading: (done, total) => total ? `Reading the backup memory: ${done} of ${total} …` : "Reading …",
+  connect: "Connect master station", connecting: "Connecting to master station …",
+  connected: "The master station is connected.", disconnect: "Disconnect",
+  remote: "Read the unit lying against the master station (remote)", direct: "Read the master station itself",
+  read: "Read out", reading: (done, total) => total ? `Reading the backup memory: ${done} of ${total} …` : "Reading …",
   problems: {
     "no-station": "No unit answered. Place the unit against the master station (or wake it with a card) and try again.",
-    timeout: "The unit stopped answering. Try again.",
-    nak: "The unit refused the reading.",
-    unexpected: "The unit answered unexpectedly. Download the raw log.",
-    transport: "The contact with the master station was lost.",
-    open: "The port could not be opened. Close other tabs using the station.",
-    "invalid-plan": "Choose what to set (the code 1–511)."
+    timeout: "The unit stopped answering. Try again.", nak: "The unit refused the reading.",
+    unexpected: "The unit answered unexpectedly. Download the raw log.", transport: "The contact with the master station was lost.",
+    open: "The port could not be opened. Close other tabs using the station.", "invalid-plan": "Choose what to set (the code 1–511)."
   },
   facts: {
     serial: "Serial number", model: "Model", firmware: "Firmware", code: "Code", mode: "Mode", battery: "Battery changed",
@@ -563,23 +554,21 @@ export const stationsEn: Texts<typeof stationsSv> = {
   },
   modes: { CONTROL: "Control", START: "Start", FINISH: "Finish", READOUT: "Readout", CLEAR: "Clear", CHECK: "Check",
     BEACON_CONTROL: "Control (Air+)", BEACON_START: "Start (Air+)", BEACON_FINISH: "Finish (Air+)" },
-  punches: "Punches in the backup memory",
-  truncated: "Only the latest 4,000 punches are shown.",
-  none: "No punches.",
+  punches: "Punches in the backup memory", truncated: "Only the latest 4,000 punches are shown.", none: "No punches.",
   card: "Card", time: "Time (12 h)", runner: "Runner", unknownCard: "Not in the event",
   controlInRace: (code, used) => used ? `Code ${code} is on the event's courses.` : `Code ${code} is not on the event's courses.`,
-  csv: "Download the punches (CSV)",
-  rawLog: "Download raw log",
+  csv: "Download the punches (CSV)", rawLog: "Download raw log",
   noPackage: "The event's participants could not be fetched; the cards are shown without names.",
   write: {
     title: "Set up the unit",
     help: "The clock from the computer, the code and the mode. Nothing else changes; the backup memory is not touched. Afterwards the unit is read again so that you see that the change went through.",
-    time: "Set the clock from the computer",
-    code: "Code (leave empty to not change)",
-    mode: "Mode",
-    keepMode: "Do not change",
-    submit: "Set up",
+    time: "Set the clock from the computer", code: "Code (leave empty to not change)", mode: "Mode", keepMode: "Do not change",
+    submit: "Set up", readFirst: "Read the unit first so that the serial number and current settings are shown before writing.",
     confirm: serial => `Set up the unit ${serial}? The clock, the code and the mode are written to the unit.`,
+    confirmAction: "Confirm and write", cancel: "Cancel",
+    diffCode: (before, after) => `Code: ${before} → ${after}`, diffMode: (before, after) => `Mode: ${before} → ${after}`,
+    diffClock: diff => diff === undefined ? "Clock: set from computer"
+      : `Clock: set from computer (currently ${Math.abs(diff) < 2 ? "matches" : `${diff > 0 ? "ahead" : "behind"} by ${Math.abs(Math.round(diff))} s`})`,
     done: "Done. The unit read again:",
     codeResult: (before, after, ok) => `Code ${before} → ${after}${ok ? "" : " (the change did not go through)"}`,
     modeResult: (before, after, ok) => `Mode ${before} → ${after}${ok ? "" : " (the change did not go through)"}`,
@@ -587,9 +576,7 @@ export const stationsEn: Texts<typeof stationsSv> = {
     noClock: "The clock could not be read afterwards."
   },
   register: {
-    label: "Save in the club's unit register",
-    none: "Do not save",
-    saved: club => `Saved in ${club}'s unit register.`,
+    label: "Save in the club's unit register", none: "Do not save", saved: club => `Saved in ${club}'s unit register.`,
     failed: "Could not save in the unit register.",
     help: "Every unit read out or set up is saved with serial number, code, battery and clock (you need to be a leader or administrator in the club)."
   }

@@ -60,7 +60,7 @@ export function ProjectStatsSection({ base, canDecide }: { base: string; canDeci
       <StatsNumbers stats={view.mine} testId="map-stats-mine" />
       <OptIn value={view.optedIn} onChanged={() => void load()} />
       <h3>{text.leaderboard}</h3>
-      {canDecide && <label className={styles.inline}>{text.leaderboardSetting}{" "}
+      {canDecide && <label className={styles.inlineLabel}>{text.leaderboardSetting}{" "}
         <select value={view.leaderboard ?? ""} data-testid="map-stats-setting" onChange={event => {
           const value = event.target.value || null;
           void clubRequest(base, "PUT", { formatVersion: 1, leaderboard: value }).then(result => {

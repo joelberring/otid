@@ -26,7 +26,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px soli
 input, select, textarea { width: 100%; min-height: var(--control); padding: 0 10px; border: 1px solid var(--line-strong); border-radius: var(--radius);
   background: var(--surface); font-size: var(--text-sm); }
 textarea { padding: 8px 10px; }
-input:focus-visible, select:focus-visible, textarea:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid transparent; outline-offset: 2px; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 input[type="checkbox"], input[type="radio"] { width: 18px; height: 18px; min-height: 0; margin: 0; padding: 0; accent-color: var(--ink); }
 label { display: grid; gap: 4px; font-size: var(--text-xs); font-weight: 500; color: var(--ink); }
 summary { cursor: pointer; }
@@ -79,6 +79,10 @@ body:has(> [data-site-head]) > .site-footer:not([data-home-footer]) { display: n
 body:has(> [data-site-head]) > .site-footer { padding-inline: max(16px, calc((100vw - 1280px) / 2 + 32px)); }
 body:has(.race-admin-manage-page [data-authenticated="true"]) > header { display: none; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.skip-link { position: absolute; left: -9999px; top: 8px; z-index: 1000; padding: 8px 14px; border: 2px solid var(--accent);
+  border-radius: var(--radius); background: var(--surface); color: var(--ink); font-weight: 600; text-decoration: none; }
+.skip-link:focus { left: 8px; }
+.skip-target:focus { outline: none; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 0.75rem; box-shadow: none; }
 .participant-claim-admin { max-width: 42rem; }
@@ -170,7 +174,6 @@ td { font-variant-numeric: tabular-nums; }
 .pairing-revoked, .pairing-expired { color: #81291e; }
 .pairing-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1rem; }
 .pairing-message { min-height: 1.5rem; font-weight: 700; }
-button.danger { border-color: #81291e; color: #81291e; }
 .import-admin button { min-height: 52px; }
 .import-security-note { border-left: 6px solid var(--attention); }
 .import-heading-actions { display: flex; align-items: start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }

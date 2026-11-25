@@ -10,7 +10,7 @@ import { raceTypeSv } from "../../i18n/race-type-sv";
 import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
 import { readAccountCsrfCookie } from "../../lib/organizer-account-cookies";
-import { Button, Field, Notice, Section } from "../ui";
+import { Button, ConfirmDialog, Field, Notice, Section } from "../ui";
 import styles from "./people-section.module.css";
 import workspaceStyles from "../race-administrator-workspace.module.css";
 import type { Workspace } from "./workspace-state";
@@ -51,6 +51,7 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
   const [busy, setBusy] = useState(false);
   const [emailError, setEmailError] = useState("");
   const [message, setMessage] = useState<Message>();
+  const [pendingRemove, setPendingRemove] = useState<Pick<RacePerson, "grantId" | "displayName">>();
 
   const load = useCallback(async () => {
     setLoadFailed(false);
@@ -114,7 +115,7 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
   }
 
   async function remove(person: Pick<RacePerson, "grantId" | "displayName">) {
-    if (busy || !window.confirm(text.confirmRemove(person.displayName))) return;
+    if (busy) return;
     const requestId = crypto.randomUUID();
     setBusy(true); onPendingChange(true); setMessage(undefined);
     try {
@@ -169,7 +170,7 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
         {roleCell(person, person.role, removable(person))}
         <span className={styles.action}>{removable(person) &&
           <Button variant="secondary" disabled={locked} aria-label={text.removeLabel(person.displayName)}
-            onClick={() => void remove(person)}>{text.remove}</Button>}</span>
+            onClick={() => setPendingRemove(person)}>{text.remove}</Button>}</span>
       </li>)}
       {data.invitations.map(invitation => <li key={invitation.invitationId} data-testid="person-invitation">
         <span className={styles.who}>
@@ -182,7 +183,7 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
             mailEnabled={mailEnabled} disabled={locked} onSent={load}
             endpoint={`${base}/invitations/${encodeURIComponent(invitation.invitationId)}`} />
           <Button variant="secondary" disabled={locked} aria-label={text.removeLabel(invitation.displayName ?? invitation.email)}
-            onClick={() => void remove({ grantId: invitation.invitationId, displayName: invitation.displayName ?? invitation.email })}>
+            onClick={() => setPendingRemove({ grantId: invitation.invitationId, displayName: invitation.displayName ?? invitation.email })}>
             {text.remove}</Button></>}</span>
       </li>)}
     </ul>}
@@ -206,5 +207,8 @@ export function PeopleSection({ raceId, disabled, onPendingChange }: { raceId: s
     </form>}
     {/* ADR-0209: "Från klubben" med rollen som är vald ovan. */}
     {data && <FromClubPicker context={{ kind: "RACE", id: raceId }} role={role} roleLabel={text.roles[role]} disabled={locked} onInvited={load} />}
+    {pendingRemove && <ConfirmDialog title={text.remove} message={text.confirmRemove(pendingRemove.displayName)} confirmLabel={text.remove}
+      danger busy={busy} onConfirm={() => { const target = pendingRemove; setPendingRemove(undefined); void remove(target); }}
+      onCancel={() => setPendingRemove(undefined)} />}
   </Section>;
 }

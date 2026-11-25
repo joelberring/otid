@@ -1,11 +1,12 @@
 "use client";
 
 import { workspacePath } from "../../lib/race-sections";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { collaborationEn } from "../../i18n/course-setting-collab-en";
 import { courseSettingEn } from "../../i18n/course-setting-en";
 import { useTexts } from "../language-provider";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { CourseSettingDocument, CourseSummary } from "@o-tid/course-setting";
 import { courseSettingSv } from "../../i18n/course-setting-sv";
 import { collaborationSv } from "../../i18n/course-setting-collaboration-sv";
@@ -15,6 +16,7 @@ import { ALL_CONTROLS } from "../../lib/course-setting-hit";
 import { HelpButton } from "../help/help-panel";
 import { AccountMenu } from "../account-menu";
 import { Button } from "../ui";
+import { Dialog as UiDialog } from "../ui/interactive";
 import styles from "./course-setting.module.css";
 
 /**
@@ -34,10 +36,13 @@ export type TopBarProps = {
   help: readonly HelpView[];
   /** Ägaren 2026-11-16: «Överför banor till tävling» som egen knapp överst (finns också under Fil). */
   onTransfer?: (() => void) | undefined;
+  /** Skickar osparade ändringar innan tillbakalänken lämnar redigeraren. */
+  onBack?: (() => Promise<unknown>) | undefined;
 };
 
 export function TopBar({ raceId, document, summaries, view, variant, onView, status, access, presence, canUndo, canRedo, onUndo, onRedo, menu, admin,
-  help, tabs, onTransfer }: TopBarProps) {
+  help, tabs, onTransfer, onBack }: TopBarProps) {
+  const router = useRouter();
   const copy = useTexts(collaborationSv, collaborationEn);
   const text = useTexts(courseSettingSv, courseSettingEn);
   const [open, setOpen] = useState(false);
@@ -58,10 +63,15 @@ export function TopBar({ raceId, document, summaries, view, variant, onView, sta
   }, [open]);
   const courses = [...document.courses].sort((a, b) => a.order - b.order);
   const variants = summaries.find(row => row.course === view)?.variants ?? [];
+  const backHref = admin ? workspacePath(raceId, "COURSES") : "/organizer";
   return <header className={styles.topbar}>
     {/* Tillbaka tydligt (ägaren 2026-11-03): pilen och vart den går, kort på telefonen. */}
-    <Link className={styles.back} href={admin ? workspacePath(raceId, "COURSES") : "/organizer"} title={admin ? text.back : text.backToEvents}
-      data-testid="course-setting-back"><span aria-hidden="true">←</span> <span className={styles.backLabel}>{admin ? text.backShort : text.backShortEvents}</span></Link>
+    <Link className={styles.back} href={backHref} title={admin ? text.back : text.backToEvents}
+      data-testid="course-setting-back" onClick={event => {
+        if (!onBack) return;
+        event.preventDefault();
+        void onBack().finally(() => router.push(backHref));
+      }}><span aria-hidden="true">←</span> <span className={styles.backLabel}>{admin ? text.backShort : text.backShortEvents}</span></Link>
     {tabs}
     <label className={`${styles.inline} ${styles.viewPicker}`}><span className={styles.srOnly}>{copy.topbar.course}</span>
       <select value={view} onChange={event => onView(event.target.value)} data-testid="course-setting-view">
@@ -125,7 +135,7 @@ export function ToolBar({ tool, tools, onTool, onFork, inCourse, help, onTrainin
   const text = useTexts(courseSettingSv, courseSettingEn);
   const blocked = (item: string) => !inCourse && (item === "INSERT_EXISTING" || item === "ADD_BEND" || item === "FORK");
   const why = (label: string) => text.tools.needsCourse(label);
-  return <div className={styles.toolbar} role="toolbar" aria-label={text.tools.heading} title={help} data-map-overlay="">
+  return <><div className={styles.toolbar} role="toolbar" aria-label={text.tools.heading} data-map-overlay="">
     {tools.map(item => <button key={item} type="button" className={styles.tool} aria-pressed={tool === item} aria-label={text.tools[item]}
       title={blocked(item) ? why(text.tools[item]) : text.tools.withKey(text.tools.title[item] ?? text.tools[item], text.tools.shortcut[item] ?? "")}
       aria-disabled={blocked(item) || undefined} onClick={() => { if (blocked(item)) onBlocked?.(why(text.tools[item])); else onTool(item); }}>
@@ -140,7 +150,8 @@ export function ToolBar({ tool, tools, onTool, onFork, inCourse, help, onTrainin
     {onTraining && <button type="button" className={styles.tool} aria-label={copy.drawer.tabs.training} aria-pressed={trainingOpen === true}
       title={copy.drawer.tabs.training} onClick={onTraining} data-testid="course-setting-training-tool">
       <span aria-hidden="true" className={styles.toolIcon}>{TAB_ICON.training}</span><span aria-hidden="true" className={styles.toolLabel}>{copy.drawer.trainingShort}</span></button>}
-  </div>;
+  </div>
+  {help && <p className={styles.toolHint} role="status" aria-live="polite" data-testid="course-setting-tool-hint" title={help}>{help}</p>}</>;
 }
 
 export type DrawerTab = "courses" | "description" | "selected" | "objects" | "training" | "print" | "checks" | "notes" | "inspections" | "suggestions" | "settings";
@@ -224,21 +235,23 @@ export function Drawer({ tab, onTab, counts, children, reveal }: { tab: DrawerTa
       onClick={event => { if (event.detail === 0) setSheetOpen(value => !value); }}><span aria-hidden="true" /></button>
     {sheetOpen && <button type="button" className={styles.sheetClose} aria-label={copy.drawer.collapse} title={copy.drawer.collapse}
       data-testid="course-setting-sheet-close" onClick={() => setSheet("closed")}>✕</button>}
-    <div className={styles.tabs} role="tablist" aria-label={copy.drawer.label}>
+    <div className={styles.tabsRail}>
       <button type="button" className={styles.collapse} aria-label={collapsed ? copy.drawer.expand : copy.drawer.collapse}
         title={collapsed ? copy.drawer.expand : copy.drawer.collapse} onClick={() => setCollapsed(value => !value)}>{collapsed ? "«" : "»"}</button>
-      {tabs.map(item => {
-        const count = counts[item] ?? 0;
-        const label = copy.drawer.tabs[item];
-        return <button key={item} type="button" role="tab" id={`course-setting-tab-${item}`} aria-selected={tab === item}
-          aria-controls="course-setting-tabpanel" title={copy.drawer.count(label, count)} className={styles.tab} data-count={count}
-          data-phone-more={PHONE_TABS.includes(item) ? undefined : "true"}
-          onClick={() => { onTab(item); setCollapsed(false); setSheetOpen(true); }}>
-          <span aria-hidden="true" className={styles.tabIcon}>{TAB_ICON[item]}</span>
-          <span className={styles.tabLabel}>{label}</span>
-          {count > 0 && <span className={styles.badge} aria-label={copy.drawer.count(label, count)}>{count}</span>}
-        </button>;
-      })}
+      <div className={styles.tabs} role="tablist" aria-label={copy.drawer.label}>
+        {tabs.map(item => {
+          const count = counts[item] ?? 0;
+          const label = copy.drawer.tabs[item];
+          return <button key={item} type="button" role="tab" id={`course-setting-tab-${item}`} aria-selected={tab === item}
+            aria-controls="course-setting-tabpanel" title={copy.drawer.count(label, count)} className={styles.tab} data-count={count}
+            data-phone-more={PHONE_TABS.includes(item) ? undefined : "true"}
+            onClick={() => { onTab(item); setCollapsed(false); setSheetOpen(true); }}>
+            <span aria-hidden="true" className={styles.tabIcon}>{TAB_ICON[item]}</span>
+            <span className={styles.tabLabel}>{label}</span>
+            {count > 0 && <span className={styles.badge} aria-label={copy.drawer.count(label, count)}>{count}</span>}
+          </button>;
+        })}
+      </div>
       <div className={styles.tabMore} ref={moreRef}>
         <button type="button" className={styles.tab} aria-haspopup="menu" aria-expanded={moreOpen} data-testid="course-setting-tab-more"
           onClick={() => setMoreOpen(value => !value)}>
@@ -258,13 +271,10 @@ export function Drawer({ tab, onTab, counts, children, reveal }: { tab: DrawerTa
 /** En dialog ovanpå arbetsytan (fil och versioner, överföringen, arbetssättet). */
 export function Dialog({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   const copy = useTexts(collaborationSv, collaborationEn);
+  const titleId = useId();
   const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const dialog = ref.current;
-    if (dialog && !dialog.open) dialog.showModal?.();
-  }, []);
-  return <dialog ref={ref} className={styles.dialog} aria-label={title} onClose={onClose} onCancel={onClose}>
-    <div className={styles.dialogHead}><h2>{title}</h2><Button variant="quiet" onClick={onClose}>{copy.topbar.close}</Button></div>
+  return <UiDialog dialogRef={ref} className={styles.dialog} labelledBy={titleId} onClose={onClose} closeOnBackdrop>
+    <div className={styles.dialogHead}><h2 id={titleId}>{title}</h2><Button variant="quiet" onClick={() => ref.current?.close()}>{copy.topbar.close}</Button></div>
     <div className={styles.dialogBody}>{children}</div>
-  </dialog>;
+  </UiDialog>;
 }

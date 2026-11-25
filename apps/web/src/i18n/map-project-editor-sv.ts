@@ -77,6 +77,7 @@ export const mapProjectEditorSv = {
       AUTONOMOUS: "AI:ns ändringar införs direkt i kartan. De står i historiken som godkända AI-förslag och går att ångra där. Grundfilen ändras aldrig."
     },
     suggestHint: "Du har rollen Föreslå: det du ritar blir förslag som en ägare godkänner.",
+    proposePill: "Förslagsläge",
     proposals: (count: number) => count === 0 ? "Förslag" : `Förslag (${plural(count, "öppet", "öppna")})`,
     noProposals: "Inga förslag.",
     proposalBy: (name: string, count: number) => `${name} · ${plural(count, "ändring", "ändringar")}`,
@@ -120,6 +121,7 @@ export const mapProjectEditorSv = {
     title: (count: number) => plural(count, "krock", "krockar"),
     mine: "Behåll min",
     theirs: "Behåll deras",
+    showOnMap: "Visa på kartan",
     object: (code: string) => `Objekt ${code}`
   }
 };

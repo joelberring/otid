@@ -18,7 +18,7 @@ import { placementLinesEn, placementTextEn } from "./placement-text-en";
 export type Current =
   | { readonly phase: "reading"; readonly cardNumber: number }
   | { readonly phase: "failed"; readonly message: string; readonly at: number }
-  | { readonly phase: "done"; readonly cardNumber: string; readonly localSequence: number; readonly verdict?: LocalVerdict; readonly invalid?: boolean };
+  | { readonly phase: "done"; readonly cardNumber: string; readonly localSequence: number; readonly verdict?: LocalVerdict; readonly invalid?: boolean; readonly fromRecent?: boolean };
 
 /** Serverns status för avläsningen; en okänd bricka som sedan direktanmälts har anmälans bedömning (PLAN.md steg 25). */
 function serverStatus(item: QueuedReadout | undefined, registration: QueuedRegistration | undefined) {
@@ -107,8 +107,9 @@ function Placement({ item, online }: { item: QueuedReadout | undefined; online: 
     {placement.lines.map((line) => <span key={line}>{line}</span>)}
   </div>;
 }
-export function RecentRow({ item, pkg, local, registration }: { item: QueuedReadout; pkg: ReadoutPackage | undefined;
-  local: readonly QueuedReadout["payload"][]; registration: QueuedRegistration | undefined }) {
+export function RecentRow({ item, pkg, local, registration, selected, onSelect }: { item: QueuedReadout; pkg: ReadoutPackage | undefined;
+  local: readonly QueuedReadout["payload"][]; registration: QueuedRegistration | undefined;
+  selected?: boolean | undefined; onSelect?: ((item: QueuedReadout) => void) | undefined }) {
   const t = useTexts(readoutText, readoutTextEn);
   // Bedöms om bara när avläsningen, paketet eller de tidigare avläsningarna ändras (inte vid varje stationshändelse).
   const verdict = useMemo(() => pkg ? evaluateLocally(item.payload, pkg, local, item.stationReceivedAt) : undefined,
@@ -119,10 +120,13 @@ export function RecentRow({ item, pkg, local, registration }: { item: QueuedRead
   const queue = item.status === "pending" ? t.statusPending : item.status === "stored" ? t.statusStored
     : item.status === "duplicate" ? t.statusDuplicate : t.statusRejected;
   return <li data-sequence={item.localSequence}>
-    <span className="card">{item.payload.cardNumber}</span>
-    <span>{borrowed ? "" : verdict?.name ?? ""}</span>
-    <span>{borrowed ? t.borrowedStatus : status ? t.verdict[status] : ""}</span>
-    <span className="queue">{queue}</span>
+    <button type="button" className="recent-row" aria-current={selected ? "true" : undefined}
+      aria-label={t.recentSelect(item.payload.cardNumber)} onClick={() => onSelect?.(item)}>
+      <span className="card">{item.payload.cardNumber}</span>
+      <span>{borrowed ? "" : verdict?.name ?? ""}</span>
+      <span>{borrowed ? t.borrowedStatus : status ? t.verdict[status] : ""}</span>
+      <span className="queue">{queue}</span>
+    </button>
   </li>;
 }
 

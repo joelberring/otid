@@ -205,6 +205,13 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
     alive.current = true;
     return () => { alive.current = false; if (sendTimer.current) clearTimeout(sendTimer.current); };
   }, []);
+  const pendingCount = client?.state.pending.length ?? 0;
+  useEffect(() => {
+    if (pendingCount === 0) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [pendingCount]);
 
   /** En egen ändring: i kön, i historiken (Ångra) och snart till servern. Falskt när objektet väntar på ett val efter en krock. */
   const commit = useCallback((change: ObjectChange): boolean => {

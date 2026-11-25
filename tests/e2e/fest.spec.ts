@@ -47,8 +47,11 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
   await expect(owner.getByText("Loggan är sparad.")).toBeVisible();
 
   // Jubileumsbarens prislista: bara koderna som saknas läggs till (31 och 32 finns redan), efter bekräftelse.
-  owner.once("dialog", dialog => { expect(dialog.message()).toContain("33 Cuba libre 35,00 kr"); expect(dialog.message()).not.toContain("31 "); void dialog.accept(); });
   await owner.getByRole("button", { name: "Lägg in Jubileumsbarens varor" }).click();
+  const presetDialog = owner.getByRole("dialog");
+  await expect(presetDialog).toContainText("33 Cuba libre 35,00 kr");
+  await expect(presetDialog).not.toContainText("31 ");
+  await presetDialog.getByRole("button", { name: "Lägg in Jubileumsbarens varor" }).click();
   await expect(owner.getByText("6 varor är tillagda.")).toBeVisible();
   await expect(owner.getByLabel("Vara 31: Namn")).toHaveValue("Öl");
   await expect(owner.getByLabel("Vara 34: Grupp")).toHaveValue("Drink");
@@ -156,14 +159,16 @@ test("fest: bardisken checkar in, verifierar köp och checkar ut med mål", asyn
   expect(csv).toMatch(/Festa Påhittsson;Festa P;Påhittade OK;\d+;2;100,00;[^;]+;[^;]+;Mål/);
 
   // Ångra ett köp med orsak: summan räknas om.
-  owner.once("dialog", dialog => void dialog.accept("Fel enhet"));
   await owner.getByRole("button", { name: /^Ångra Öl på bricka/ }).click();
+  const voidDialog = owner.getByRole("dialog");
+  await voidDialog.getByRole("textbox").fill("Fel enhet");
+  await voidDialog.getByRole("button", { name: "Ångra" }).click();
   await expect(owner.getByTestId("party-totals")).toContainText("1 köp · 60,00 kr");
   await expect(owner.getByTestId("party-purchases")).toContainText("ångrat: Fel enhet");
 
   // Steg 44: "Ta bort utcheckning" (här via mål): samma målstämpling räknas inte igen, en senare gör det.
-  owner.once("dialog", dialog => void dialog.accept());
   await owner.getByRole("button", { name: `Ta bort utcheckning för bricka ${festaCard}` }).click();
+  await owner.getByRole("dialog").getByRole("button", { name: "Ta bort utcheckning" }).click();
   await expect(owner.getByText("Utcheckningen är borttagen.")).toBeVisible();
   await expect(owner.getByTestId("party-totals")).toContainText("2 incheckade · 0 utcheckade");
   const festaRow = owner.locator("tr[data-card]").filter({ hasText: "Festa Påhittsson" });

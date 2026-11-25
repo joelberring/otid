@@ -1,6 +1,7 @@
 "use client";
 
 import type { CatalogSymbol } from "../../lib/map-project-protocol";
+import { usePhoneWidth } from "./map-project-context-bar";
 import { SymbolIcon } from "./map-project-symbol-icon";
 import { RailIconImage } from "./map-project-tool-rail";
 import styles from "./map-project-bars.module.css";
@@ -18,6 +19,7 @@ export function MapProjectTopBar({ recent, symbolId, onSymbol, text, undo, redo 
   undo: { readonly label: string; readonly key: string | undefined; readonly disabled: boolean; readonly onPick: () => void };
   redo: { readonly label: string; readonly key: string | undefined; readonly disabled: boolean; readonly onPick: () => void };
 }) {
+  const phone = usePhoneWidth();
   const shown = recent.slice(0, RECENT_SHOWN);
   const history = (entry: typeof undo, icon: "undo" | "redo") => <button type="button" aria-label={entry.label} aria-keyshortcuts={entry.key?.replace("⇧", "Shift+")}
     title={entry.key ? `${entry.label} (${entry.key})` : entry.label} disabled={entry.disabled} onClick={entry.onPick} data-testid={`map-project-${icon}`}>
@@ -26,7 +28,7 @@ export function MapProjectTopBar({ recent, symbolId, onSymbol, text, undo, redo 
   return <div className={styles.top} data-testid="map-project-top">
     <h2>{text.recent}</h2>
     {shown.length === 0 ? <p className={styles.empty}>{text.recentEmpty}</p>
-      : <ul className={styles.recent} aria-label={text.recent}>
+      : <ul className={styles.recent} aria-label={text.recent} data-testid={!phone ? "map-project-symbols-recent" : undefined}>
         {shown.map((symbol, index) => <li key={symbol.id}>
           <button type="button" className={styles.tile} aria-pressed={symbol.id === symbolId} aria-keyshortcuts={String(index + 1)}
             title={text.recentPick(index + 1, symbol.code, symbol.name)} aria-label={`${symbol.code} ${symbol.name}`} data-testid="map-project-recent" data-code={symbol.code}

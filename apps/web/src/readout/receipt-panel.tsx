@@ -121,23 +121,32 @@ export function ReceiptPanel({ printable, pkg, settings, onSettings }: {
   return <section className="receipt-panel" aria-label={t.region}>
     <div className="receipt-actions">
       {canPrint ? <button type="button" className="print" onClick={() => print(printable.localSequence)}>{t.print}</button> : null}
-      <label className="toggle"><input type="checkbox" checked={settings.auto} onChange={(event) => change({ auto: event.target.checked })} />
-        <span>{t.auto}</span></label>
-      <label className="toggle"><input type="checkbox" checked={settings.showQr} onChange={(event) => change({ showQr: event.target.checked })} />
-        <span>{t.showQr}</span></label>
-      <label className="paper">{t.paper}
-        <select value={settings.paperMm} onChange={(event) => change({ paperMm: event.target.value === "58" ? 58 : 80 })}>
-          {[80, 58].map((millimetres) => <option key={millimetres} value={millimetres}>{t.paperOption(millimetres)}</option>)}
-        </select></label>
-      {bluetooth ? <label className="paper">{t.printer}
-        <select value={settings.printer} onChange={(event) => change({ printer: event.target.value === "bluetooth" ? "bluetooth" : "browser" })}>
-          <option value="browser">{t.printerBrowser}</option>
-          <option value="bluetooth">{t.printerBluetooth}</option>
-        </select></label> : null}
-      {useBluetooth ? <>
-        <button type="button" onClick={() => { void connectPrinter(); }}>{printer ? t.changePrinter : t.connectPrinter}</button>
-        <span data-testid="printer-status">{printer ? t.printerConnected(printer.name) : t.printerNone}</span>
+      {useBluetooth && !printer ? <>
+        <button type="button" onClick={() => { void connectPrinter(); }}>{t.connectPrinter}</button>
+        <span data-testid="printer-status">{t.printerNone}</span>
       </> : null}
+      <details className="receipt-options">
+        <summary>{t.options}</summary>
+        <div className="receipt-options-body">
+          <label className="toggle"><input type="checkbox" checked={settings.auto} onChange={(event) => change({ auto: event.target.checked })} />
+            <span>{t.auto}</span></label>
+          <label className="toggle"><input type="checkbox" checked={settings.showQr} onChange={(event) => change({ showQr: event.target.checked })} />
+            <span>{t.showQr}</span></label>
+          <label className="paper">{t.paper}
+            <select value={settings.paperMm} onChange={(event) => change({ paperMm: event.target.value === "58" ? 58 : 80 })}>
+              {[80, 58].map((millimetres) => <option key={millimetres} value={millimetres}>{t.paperOption(millimetres)}</option>)}
+            </select></label>
+          {bluetooth ? <label className="paper">{t.printer}
+            <select value={settings.printer} onChange={(event) => change({ printer: event.target.value === "bluetooth" ? "bluetooth" : "browser" })}>
+              <option value="browser">{t.printerBrowser}</option>
+              <option value="bluetooth">{t.printerBluetooth}</option>
+            </select></label> : null}
+          {useBluetooth && printer ? <>
+            <button type="button" onClick={() => { void connectPrinter(); }}>{t.changePrinter}</button>
+            <span data-testid="printer-status">{t.printerConnected(printer.name)}</span>
+          </> : null}
+        </div>
+      </details>
     </div>
     {printerProblem ? <p className="notice" role="alert">{printerProblem}</p> : null}
     {receipt ? <div className="receipt-preview" data-paper={settings.paperMm}>

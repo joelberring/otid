@@ -15,7 +15,7 @@ import { autoArchiveRow, autoArchiveView, markAutoArchived, setAutoArchive } fro
 import { coursesArePublic } from "./course-secrecy";
 import { organisationById, organisationSummary } from "./organisations";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
-import { clubArchiveQuotaProblem, type MapQuotaExceeded } from "./map-content";
+import { clubArchiveQuotaProblem, lockClubQuota, type MapQuotaExceeded } from "./map-content";
 import type { DbExecutor } from "./snapshot";
 
 /**
@@ -225,6 +225,7 @@ export async function liftInTransaction(tx: DbExecutor, input: { raceId: string;
 
   // PLAN.md steg M7: allt i klubbarkivet räknas mot klubbens gräns (också den automatiska arkiveringen). Kartfilen kostar bara
   // om den inte redan ligger i klubbens arkiv; tävlingens egen kopia räknas inte en gång till (samma innehåll sparas en gång).
+  await lockClubQuota(tx, clubId);
   const courseBytes = files.reduce((sum, file) => sum + (file.bytes.byteLength > CLUB_ARCHIVE_COURSE_FILE_MAX_BYTES ? 0 : file.bytes.byteLength), 0);
   const full = await clubArchiveQuotaProblem(tx, clubId, { sha256s: source?.contentSha256 ? [source.contentSha256] : [], newBytes: courseBytes });
   if (full) return { status: "club-full", quota: full } as const;

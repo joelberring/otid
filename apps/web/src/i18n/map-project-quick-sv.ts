@@ -3,6 +3,9 @@ export const mapProjectQuickSv = {
   wheel: "Verktygshjul",
   sidebarWidth: "Spaltens bredd: dra eller använd piltangenterna, dubbelklicka för förvalet",
   closePanel: "Stäng panelen",
+  expandPanel: "Förstora panelen",
+  collapsePanel: "Minska panelen",
+  viewMenu: "Vy",
   tools: { select: "Markera", draw: "Rita", circle: "Cirkel", cut: "Sax", note: "Notis", rectangle: "Rektangel", fill: "Fyll", repeat: "Gör igen", point: "Punkt (lägg till eller ta bort)" },
   /** Raden under kartan när pekaren står på något i hjulet (ägaren 2026-11-15). */
   wheelHover: (label: string, key: string | undefined, help: string | undefined) => `Hjulet: ${label}${key ? ` (${key})` : ""}${help ? ` – ${help}` : ""}`,

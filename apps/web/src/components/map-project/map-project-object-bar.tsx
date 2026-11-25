@@ -17,8 +17,14 @@ export function MapProjectObjectBar(props: {
   /** Det markerade objektets slag i Markera, annars inget. */
   selectedKind: MapObject["kind"] | undefined; activeVertex: boolean;
   moveWhole: boolean; onMoveWhole: (next: (value: boolean) => boolean) => void; rotating: boolean; onRotating: (next: (value: boolean) => boolean) => void;
+  /** Styrpunkter för markerad streckad linje. */
+  dash?: {
+    readonly selectedDashed: boolean; readonly activeVertexDash: boolean; readonly mode: boolean; readonly busy: boolean;
+    readonly onToggleVertex: () => void; readonly onToggleMode: () => void; readonly onAuto: () => void;
+    readonly labels: { readonly toggleVertex: string; readonly toggleVertexHelp: string; readonly modeButton: string; readonly modeHelp: string; readonly autoButton: string; readonly autoHelp: string };
+  } | undefined;
 }) {
-  const { work, workText, tools, selectedKind } = props;
+  const { work, workText, tools, selectedKind, dash } = props;
   if (!work.drawingLayer && !props.drafting && selectedKind !== "line" && selectedKind !== "point") return null;
   return <div className={styles.objectBar} role="group" aria-label={props.label} data-testid="map-project-object-bar">
     {work.drawingLayer && <>
@@ -33,6 +39,14 @@ export function MapProjectObjectBar(props: {
     </>}
     {selectedKind === "line" && !props.activeVertex && <Button variant={props.moveWhole ? "primary" : "secondary"} aria-pressed={props.moveWhole}
       title={tools.moveWholeHelp} onClick={() => props.onMoveWhole(value => !value)} data-testid="map-project-move-whole">{tools.moveWhole}</Button>}
+    {selectedKind === "line" && dash?.selectedDashed && <>
+      {props.activeVertex && <Button variant={dash.activeVertexDash ? "primary" : "secondary"} aria-pressed={dash.activeVertexDash}
+        title={dash.labels.toggleVertexHelp} onClick={dash.onToggleVertex} data-testid="map-project-object-dash-vertex">{dash.labels.toggleVertex}</Button>}
+      <Button variant={dash.mode ? "primary" : "secondary"} aria-pressed={dash.mode}
+        title={dash.labels.modeHelp} onClick={dash.onToggleMode} data-testid="map-project-object-dash-mode">{dash.labels.modeButton}</Button>
+      <Button variant="secondary" disabled={dash.busy}
+        title={dash.labels.autoHelp} onClick={dash.onAuto} data-testid="map-project-object-dash-auto">{dash.labels.autoButton}</Button>
+    </>}
     {selectedKind === "point" && <Button variant={props.rotating ? "primary" : "secondary"} aria-pressed={props.rotating}
       title={tools.rotateHelp} onClick={() => props.onRotating(value => !value)}>{tools.rotate}</Button>}
   </div>;

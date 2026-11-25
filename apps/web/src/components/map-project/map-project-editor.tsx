@@ -21,6 +21,8 @@ import { coverageImage, drawCoverage, drawNormIssues, drawNotes, drawReconMarker
 import { MapProjectNormPanel } from "./map-project-norm-panel";
 import { MapProjectSymbolNormPanel } from "./map-project-symbol-norm-panel";
 import { MapProjectGeneralizePanel } from "./map-project-generalize-panel";
+import { MapProjectDashPanel } from "./map-project-dash-panel";
+import { useMapProjectDashPoints } from "./use-map-project-dash-points";
 import { useMapProjectGeneralize } from "./use-map-project-generalize";
 import { useMapProjectRectify } from "./use-map-project-rectify";
 import { MapProjectRectifyPanel } from "./map-project-rectify-panel";
@@ -306,9 +308,10 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   };
   // Tangenterna (`use-map-project-shortcuts.ts`).
   const rectCorners = useRef<Point[]>([]);
+  const dash = useMapProjectDashPoints({ session, canEdit, tool, selected, multi: multi.items, activeVertex, symbols, hidden: hiddenSymbols, save, commitMany: editor.commitMany, updateSelected: setSelected, setFlash });
   // K8b V1: det som går att göra med det markerade (kontextraden, hjulets lista, tangenterna och Gör igen).
   const { contextList, doAction, keyAction, repeat, repeatLabel } = useMapProjectActions({ canEdit, tool, keys, keysText, quick, multi, selected, symbol, symbolId,
-    activeVertex, recon, symbols, catalog, save, reshape, commit, setFlash, chooseSymbol, removeSelected, joinMm: JOIN_MM, scale: editor.scale ?? georeference?.scale, outlines, stairs: repair,
+    activeVertex, recon, symbols, catalog, save, reshape, commit, setFlash, chooseSymbol, removeSelected, joinMm: JOIN_MM, scale: editor.scale ?? georeference?.scale, outlines, stairs: repair, dash,
     text: { labels: textUi.labels, edit: () => { if (selected?.object.kind === "text") textUi.edit({ ...selected, object: selected.object }); }, rotate: () => setRotating(true), style: () => textUi.styles.setOpen(selected?.object.symbol) } });
   useMapProjectShortcuts({ keys, blocked: keysOpen, canEdit, canNote: notes.canWrite, tool, hasSelection: !!selected, drafting: draft.length > 0,
     multiCount: multi.items.length, panKey, undo: textUi.undo, redo: textUi.redo, toggleBare: () => setBare(value => !value),
@@ -320,7 +323,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     recentKey: digit => { const chosen = symbols.get(recent[digit - 1] ?? ""); if (chosen) { setSymbolId(chosen.id); setFlash(keysText.picked(chosen.code)); } },
     openWheel,
     // Esc avbryter det pågående; en gång till (inget pågår) ger Markera.
-    escape: () => { if (fill.escape()) return; if (draft.length || circleCenter || rectCorners.current.length) { cancelDraft(); rectCorners.current.length = 0; }
+    escape: () => { if (dash.escape() || fill.escape()) return; if (draft.length || circleCenter || rectCorners.current.length) { cancelDraft(); rectCorners.current.length = 0; }
       else if (selected || multi.items.length) { deselect(); multi.clear(); } else if (tool !== "select") setTool("select"); }, finishDraft,
     dropDraftPoint: () => setDraft(points => points.slice(0, -1)), remove: () => { if (multi.items.length) multi.remove(); else removeSelected(); } });
 
@@ -405,6 +408,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         if (nearestVertex(selected.object, point, tolerance)) return;
       }
       if (selected && selected.object.kind !== "point" && selected.object.kind !== "text") {
+        if (dash.tapLine(point, tolerance)) return;
         const vertex = nearestVertex(selected.object, point, tolerance);
         if (vertex) { setActiveVertex({ part: vertex.part, index: vertex.index }); return; }
         // K3: ett klick på den markerade linjens kant behåller markeringen (dubbelklick för en ny punkt ska inte byta objekt);
@@ -625,7 +629,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     if (multi.moving) for (const object of multi.shown) drawPreview(ctx, current, object, symbols.get(object.symbol));
     if (multi.box && multi.items.length) drawMultiSelection(ctx, current, multi.shown, multi.box, multi.cuts);
     if (multi.marquee) drawMarquee(ctx, current, multi.marquee);
-    fill.draw(ctx, current); unfilled.draw(ctx, current); photoFill.draw(ctx, current);
+    fill.draw(ctx, current); unfilled.draw(ctx, current); photoFill.draw(ctx, current); dash.draw(ctx, current);
     snap.draw(ctx, current); placeTextField(textField.current, textUi.draft, textUi.draftStyle, current);
     placeContextRow(contextRow.current, multi.items.length ? multi.box : shown && tool === "select" && selected ? objectBox(shown) : undefined, current, multi.items.length > 0);
     if (shown && tool === "select" && selected) {
@@ -636,7 +640,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   }, [preview, selected, nearVertex, symbols, tool, symbol, draft, cursor, circleCenter, activeVertex, areaDrawings, proposedOpen, proposedShown, view.area, coverage, recon.layers,
     recon.trackLines, reconResult, walk, gapMm, notes.notes, shownNote, noteDraft, drawnLayers, focused, candidates, normIssues, shownIssue,
     control.active, control.markers, rectify.shown, rectify.markers, sketchLayers, work.dragging, work.drawingLayer, work.stroke,
-    multi.moving, multi.shown, multi.box, multi.cuts, multi.items.length, multi.marquee, fill.preview, fill.bridges, fill.gaps, fill.pending, fill.shown, fill.proposals.candidates, fill.proposals.override, contextKey, snap.mark, assist.via, unfilled.on, unfilled.result, photoFill.cells, photoFill.taken, editor.renderKey, hiddenSymbols, textUi.draft, textUi.draftStyle]);
+    multi.moving, multi.shown, multi.box, multi.cuts, multi.items.length, multi.marquee, fill.preview, fill.bridges, fill.gaps, fill.pending, fill.shown, fill.proposals.candidates, fill.proposals.override, contextKey, snap.mark, assist.via, unfilled.on, unfilled.result, photoFill.cells, photoFill.taken, dash.draw, editor.renderKey, hiddenSymbols, textUi.draft, textUi.draftStyle]);
 
   const hint = tool === "split" ? split.hint : tool === "bucket" && canEdit ? fill.hint : toolHint({ canEdit, closed: view.status === "CLOSED", tool, multiCount: multi.items.length, rotating: multi.zone === "rotate", symbol,
     text, notes: notesText, keys: keysText, quick, textHint: textUi.hint });
@@ -644,10 +648,8 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   const hintLine = control.active ? (control.pending ? layersText.control.hintMap : layersText.control.hintImage)
     : rectify.picking ? (rectify.pending ? rectifyText.hintTo : rectifyText.hintFrom)
     : work.drawingLayer ? workText.hint(work.drawingLayer.name)
-    // Ägaren 2026-11-15 («att det står längst ner vilken funktion i hjulet man använder»): det pekaren står på i hjulet, annars
-    // det valda verktygets namn först på raden.
     : wheel && wheelHover ? wheelHover
-    : flash ?? `${canEdit && activeToolName ? `${activeToolName} · ` : ""}${selectedSymbol && tool === "select" ? selectionLabel(selectedSymbol, selected?.object, editor.scale ?? georeference?.scale, keysText) : ""}${hint}`;
+    : flash ?? dash.hint ?? `${canEdit && activeToolName ? `${activeToolName} · ` : ""}${selectedSymbol && tool === "select" ? selectionLabel(selectedSymbol, selected?.object, editor.scale ?? georeference?.scale, keysText) : ""}${hint}`;
   const pickTool = (next: Tool) => () => { if (next !== "select") deselect(); cancelDraft(); rectCorners.current.length = 0; setTool(next); };
   // Saxen och punkterna som i spalten: det markerade släpps inte (man klipper ofta linjen man just markerat).
   const railPick = (next: "select" | "draw" | "circle" | "rectangle" | "bucket" | "text" | "addPoint" | "removePoint" | "cut" | "area" | "note") => {
@@ -700,7 +702,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         {editor.mapStatus === "failed" && <Notice tone="error" role="alert">{text.failed}</Notice>}
         {/* Kartvyn visas när kartan är läst: då har rutan sin storlek och hela kartan passas in. */}
         {editor.bounds && <div className={styles.frame} data-has-field={editor.mapStatus === "ready" && georeference ? "true" : undefined}><CourseSettingMap session={session} mapBounds={editor.bounds} primitives={[]} faded={[]} marks={NO_MARKS} analysis={undefined}
-          label={text.mapLabel} cursor={tool === "draw" || tool === "circle" || tool === "bucket" || tool === "rectangle" || tool === "addPoint" || tool === "removePoint" || tool === "cut" ? "crosshair" : "default"} handlers={handlers} overlayExtra={overlay}
+          label={text.mapLabel} cursor={dash.mode || tool === "draw" || tool === "circle" || tool === "bucket" || tool === "rectangle" || tool === "addPoint" || tool === "removePoint" || tool === "cut" ? "crosshair" : "default"} handlers={handlers} overlayExtra={overlay}
           cursorAt={tool === "select" && multi.items.length ? (point, tolerance) => {
             const zone = multi.zoneAt(point, tolerance);
             return zone === "move" ? "move" : zone === "rotate" ? ROTATE_CURSOR : undefined;
@@ -730,7 +732,8 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         {/* Det som görs med det markerade: «Åtgärder ▾» här (eller raden vid det markerade); dessutom utkastet, skisslagret och flytta hela/vrid. */}
         {canEdit && <MapProjectObjectBar label={quick.actions} work={work} workText={workText} tools={text.tools} drafting={draft.length > 0} onFinish={finishDraft} onCancel={cancelDraft}
           selectedKind={selected && tool === "select" ? selected.object.kind : undefined} activeVertex={!!activeVertex} moveWhole={moveWhole} onMoveWhole={setMoveWhole}
-          rotating={rotating} onRotating={setRotating} />}
+          rotating={rotating} onRotating={setRotating} dash={{ selectedDashed: dash.isSelectedDashed, activeVertexDash: dash.activeVertexDash, mode: dash.mode, busy: dash.busy,
+            onToggleVertex: dash.toggleActiveVertex, onToggleMode: dash.toggleMode, onAuto: dash.applySelected, labels: dash.text }} />}
         {!floatingRow && <MapProjectActionsMenu label={quick.actionsMenu} actions={contextList} onAction={doAction} spaceLabel={keysText.space} />}
         <p className={styles.hint} aria-live="polite" data-testid="map-project-hint" title={hintLine}>{hintLine}</p>
         {canEdit && <MapProjectModeSwitches snap={modes.snap} onSnap={() => modes.setSnap(value => !value)} snapKey={keyOf("snap")} snapState={snap.mark && keysText.snapAt(snap.mark.kind)}
@@ -778,6 +781,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
           <MapProjectToExport projectId={view.projectId} />
         </>}
         process={<>
+          <MapProjectDashPanel dash={dash} />
           <MapProjectGeneralizePanel generalize={generalizer} areas={collab.areas} />
           {georeference && <MapProjectRectifyPanel rectify={rectify} areas={collab.areas} scale={georeference.scale} />}
         </>} />

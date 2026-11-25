@@ -43,3 +43,16 @@ export * from "./duplicates";
 export { sprintLayerSymbol, sprintSymbolForCode, type SprintNorm } from "./sprint-layers";
 export * from "./warp";
 export * from "./vector-fit";
+export {
+  autoDashPointsPlan,
+  isDashedLineSymbol,
+  toggleDashPoint,
+  toggleOrInsertDashPoint,
+  type AutoDashPointsPlan,
+  type DashPointCounts,
+  type DashPointEntry,
+  type DashPointOptions,
+  type DashPointPlacement,
+  type DashPointReason,
+  type ToggleDashPointResult
+} from "./dash-points";

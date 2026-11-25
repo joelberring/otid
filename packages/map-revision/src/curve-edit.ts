@@ -84,10 +84,12 @@ function withParts(object: MapObject, parts: readonly Path[]): MapObject {
   return object;
 }
 
-/** Ytans stängande sträcka blir ett eget kommando (som slutar i första punkten), så att den kan bli en kurva. */
+/** Ytans stängande sträcka blir ett eget kommando (som slutar i första punkten), så att den kan bli en kurva; stängningens lucka flyttas med. */
 function explicitClosing(part: Path): PathCommand[] {
   const first = part[0]!;
-  return [...part, { type: "L", x: first.x, y: first.y }];
+  if (first.gap === undefined) return [...part, { type: "L", x: first.x, y: first.y }];
+  const head: PathCommand = { type: "M", x: first.x, y: first.y, ...(first.corner ? { corner: true as const } : {}), ...(first.dash ? { dash: true as const } : {}) };
+  return [head, ...part.slice(1), { type: "L", x: first.x, y: first.y, gap: first.gap }];
 }
 
 /**
@@ -103,14 +105,15 @@ export function insertOnSegment(object: MapObject, address: VertexAddress, t: nu
   if (found.implicit) part = explicitClosing(part);
   const next = [...part];
   const end = next[address.index + 1]!;
+  const halfGap = end.gap !== undefined ? { gap: end.gap } : {};
   if (found.cubic) {
     const [p0, p1, p2, p3] = found.cubic;
     const a = lerp(p0, p1, t), b = lerp(p1, p2, t), c = lerp(p2, p3, t), d = lerp(a, b, t), e = lerp(b, c, t), m = lerp(d, e, t);
-    next.splice(address.index + 1, 1, { type: "C", x1: a.x, y1: a.y, x2: d.x, y2: d.y, x: m.x, y: m.y },
+    next.splice(address.index + 1, 1, { type: "C", x1: a.x, y1: a.y, x2: d.x, y2: d.y, x: m.x, y: m.y, ...halfGap },
       { type: "C", x1: e.x, y1: e.y, x2: c.x, y2: c.y, x: p3.x, y: p3.y, ...flagsOf(end) });
   } else {
     const m = lerp(found.from, found.to, t);
-    next.splice(address.index + 1, 0, { type: "L", x: m.x, y: m.y });
+    next.splice(address.index + 1, 0, { type: "L", x: m.x, y: m.y, ...halfGap });
   }
   parts[address.part] = next;
   return { object: withParts(object, parts), address: { part: address.part, index: address.index + 1 } };

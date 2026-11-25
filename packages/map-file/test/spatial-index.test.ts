@@ -66,7 +66,8 @@ describe("rumsligt index (ADR-0218)", () => {
       ]
     }), "test.ocd");
     const boxes = objectBoxes(map);
-    expect([...boxes.subarray(0, 4)]).toEqual([7, 7, 13, 13]);
+    // Ringens mittlinjediameter är 6 mm och linjebredden 0,2 mm → yttre radie 3,1 mm runt (10, 10).
+    expect([...boxes.subarray(0, 4)]).toEqual([6.9, 6.9, 13.1, 13.1]);
     expect([...boxes.subarray(4, 8)]).toEqual([-1, -1, 21, 1]);
     // Texten: åtminstone tio tecken à 4 mm åt alla håll.
     expect(boxes[10]!).toBeGreaterThanOrEqual(40);

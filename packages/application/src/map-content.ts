@@ -486,13 +486,14 @@ export async function sweepMapContent(tx: DbExecutor, now: Date): Promise<{ cont
       and not exists (select 1 from race_map_source where content_sha256 = c.sha256)
       and not exists (select 1 from training_group_map where content_sha256 = c.sha256)
       and not exists (select 1 from training_group_map_source where content_sha256 = c.sha256)
-      and not exists (select 1 from club_map_version where content_sha256 = c.sha256)
+      and not exists (select 1 from club_map_version where content_sha256 = c.sha256 or preview_content_sha256 = c.sha256)
       and not exists (select 1 from map_project where base_sha256 = c.sha256)
       and not exists (select 1 from map_project_output where content_sha256 = c.sha256)
       and not exists (select 1 from map_project_layer where content_sha256 = c.sha256)
       and not exists (select 1 from map_project_geo_output where content_sha256 = c.sha256)
+      and not exists (select 1 from public_map_listing where content_sha256 = c.sha256 or preview_content_sha256 = c.sha256)
     limit 100`)).rows;
-  // Samma tabeller som i `otid_map_content_release` (0103): saknas en här fastnar sökningen på samma hundra levande rader.
+  // Samma tabeller som i `otid_map_content_release` (0145): saknas en här fastnar sökningen på samma hundra levande rader.
   let released = 0;
   for (const row of contents) {
     await tx.execute(sql`select otid_map_content_release(${row.sha256})`);

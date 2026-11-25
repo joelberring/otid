@@ -109,6 +109,7 @@ export const COURSE_SETTING_ROUTES: Readonly<Record<string, Readonly<Record<stri
   "course-setting-paper-image": { GET: "COMMENT" },
   "course-setting-paper-library": { GET: "EDIT", POST: "EDIT" },
   "course-setting-paper-library-item": { DELETE: "EDIT" },
+  "race-map-image": { GET: "MAP" },
   "race-map-source": { GET: "MAP" },
   // Ägarens plan 2026-11-13: vilket kartprojekt kartan kommer ur läser alla som läser banläggningen.
   "race-map-project": { GET: "COMMENT" }

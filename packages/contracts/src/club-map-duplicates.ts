@@ -84,6 +84,10 @@ export interface UsableClubMap {
   map: ClubMapView;
   /** Villkoren att säga till om ("Avtalet har gått ut", "Bara träning", "Avgift per utskrift"). */
   issues: ("EXPIRED" | "TRAINING_ONLY" | "FEE_PER_PRINT")[];
+  /** Etapp 3.2: om kartan får användas för den valda tävlingen enligt användningsbegränsningen. */
+  usableForRace?: boolean;
+  /** Etapp 3.2: orsak om kartan är spärrad för den valda tävlingen. */
+  blockedReason?: "CLUB_ACTIVITIES_ONLY" | "ADMIN_ONLY" | null;
 }
 
 export interface UsableClubMapsResponse {

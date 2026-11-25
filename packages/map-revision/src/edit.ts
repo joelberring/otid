@@ -13,6 +13,8 @@ export type ObjectKind = MapObject["kind"];
 
 const near = (a: Point, b: Point) => Math.abs(a.x - b.x) < 1e-9 && Math.abs(a.y - b.y) < 1e-9;
 const endOf = (command: PathCommand): Point => ({ x: command.x, y: command.y });
+const flagsOf = (command: PathCommand) => ({ ...(command.corner ? { corner: true as const } : {}), ...(command.dash ? { dash: true as const } : {}),
+  ...(command.gap !== undefined ? { gap: command.gap } : {}) });
 
 /** Linjens delar (en per M) eller ytans ringar. */
 export function objectParts(object: MapObject): Path[] {
@@ -20,7 +22,7 @@ export function objectParts(object: MapObject): Path[] {
   if (object.kind !== "line") return [];
   const parts: PathCommand[][] = [];
   for (const command of object.path) {
-    if (command.type === "M" || parts.length === 0) parts.push([command.type === "M" ? command : { type: "M", x: command.x, y: command.y }]);
+    if (command.type === "M" || parts.length === 0) parts.push([command.type === "M" ? command : { type: "M", x: command.x, y: command.y, ...flagsOf(command) }]);
     else parts[parts.length - 1]!.push(command);
   }
   return parts;
@@ -101,7 +103,8 @@ export function insertVertex(object: MapObject, address: VertexAddress, at: Poin
   if (following?.type === "C") return undefined;
   if (!following && object.kind !== "area") return undefined;
   const next = [...part];
-  next.splice(address.index + 1, 0, { type: "L", x: at.x, y: at.y });
+  const segmentGap = following ? following.gap : part[0]!.gap;
+  next.splice(address.index + 1, 0, { type: "L", x: at.x, y: at.y, ...(segmentGap !== undefined ? { gap: segmentGap } : {}) });
   parts[address.part] = next;
   return withParts(object, parts);
 }
@@ -123,7 +126,9 @@ export function deleteVertex(object: MapObject, address: VertexAddress): MapObje
   let next = [...part];
   if (address.index === 0) {
     const second = next[1]!;
-    next = [{ type: "M", x: second.x, y: second.y, ...(second.corner ? { corner: true as const } : {}) }, ...next.slice(2)];
+    const closingGap = object.kind === "area" ? part[0]!.gap : undefined;
+    next = [{ type: "M", x: second.x, y: second.y, ...(second.corner ? { corner: true as const } : {}),
+      ...(second.dash ? { dash: true as const } : {}), ...(closingGap !== undefined ? { gap: closingGap } : {}) }, ...next.slice(2)];
     if (closing) {
       const last = next[next.length - 1]!;
       next[next.length - 1] = { ...last, x: second.x, y: second.y };
@@ -136,8 +141,8 @@ export function deleteVertex(object: MapObject, address: VertexAddress): MapObje
       const from = next[address.index - 1]!;
       const merged: PathCommand = incoming.type === "C" || outgoing.type === "C"
         ? { type: "C", x1: incoming.type === "C" ? incoming.x1 : from.x, y1: incoming.type === "C" ? incoming.y1 : from.y,
-            x2: outgoing.type === "C" ? outgoing.x2 : outgoing.x, y2: outgoing.type === "C" ? outgoing.y2 : outgoing.y, x: outgoing.x, y: outgoing.y }
-        : { type: "L", x: outgoing.x, y: outgoing.y };
+            x2: outgoing.type === "C" ? outgoing.x2 : outgoing.x, y2: outgoing.type === "C" ? outgoing.y2 : outgoing.y, x: outgoing.x, y: outgoing.y, ...flagsOf(outgoing) }
+        : { type: "L", x: outgoing.x, y: outgoing.y, ...flagsOf(outgoing) };
       next.splice(address.index, 2, merged);
     }
   }

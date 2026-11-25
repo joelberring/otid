@@ -11,6 +11,8 @@ import { myPlacesSv } from "../i18n/my-places-sv";
 import { myPlacesEn } from "../i18n/my-places-en";
 import { clubArchiveSv } from "../i18n/club-archive-sv";
 import { mapProjectSv } from "../i18n/map-project-sv";
+import { mapBankEn } from "../i18n/map-bank-en";
+import { mapBankSv } from "../i18n/map-bank-sv";
 import { trainingGroupSv } from "../i18n/training-group-sv";
 import { clubRequest } from "../lib/club-archive-client";
 import { groupRequest } from "../lib/training-group-client";
@@ -35,6 +37,7 @@ export function MyPlacesStrip({ onClubs, clubQuestionShown = false }: {
   const trainingGroupText = useTexts(trainingGroupSv, trainingGroupEn);
   const clubArchiveText = useTexts(clubArchiveSv, clubArchiveEn);
   const mapProjectText = useTexts(mapProjectSv, mapProjectEn);
+  const mapBankText = useTexts(mapBankSv, mapBankEn);
   const [clubs, setClubs] = useState<ClubSummary[]>();
   const [groups, setGroups] = useState<GroupSummary[]>();
   const [creating, setCreating] = useState<"club" | "group">();
@@ -102,16 +105,20 @@ export function MyPlacesStrip({ onClubs, clubQuestionShown = false }: {
     <section id="mina-kartprojekt" className={styles.place} aria-labelledby="my-map-projects-heading">
       <h2 id="my-map-projects-heading"><Link href="/organizer/map-projects">{mapProjectText.list.title}</Link></h2>
       {projects.length === 0 && <p className={styles.empty}>{text.noMapProjects}{" "}
-        <Link href="/organizer/map-projects#nytt-kartprojekt" data-testid="my-places-new-map-project">{text.newMapProject}</Link></p>}
-      {projects.length > 0 && <ul className={styles.chips}>
-        {projects.map(project => <li key={project.projectId}>
-          <Link className={styles.chip} href={`/organizer/map-projects/${encodeURIComponent(project.projectId)}`}>
-            <strong>{project.name}</strong>
-            <span>{mapProjectText.roles[project.role]} · {mapProjectText.list.changed(project.changedObjects)}</span>
-            <ChevronIcon className={styles.chevron} />
-          </Link>
-        </li>)}
-      </ul>}
+        <Link href="/organizer/map-projects#nytt-kartprojekt" data-testid="my-places-new-map-project">{text.newMapProject}</Link>{" · "}
+        <Link href="/kartbank" data-testid="my-places-map-bank">{mapBankText.navLinkFull}</Link></p>}
+      {projects.length > 0 && <>
+        <ul className={styles.chips}>
+          {projects.map(project => <li key={project.projectId}>
+            <Link className={styles.chip} href={`/organizer/map-projects/${encodeURIComponent(project.projectId)}`}>
+              <strong>{project.name}</strong>
+              <span>{mapProjectText.roles[project.role]} · {mapProjectText.list.changed(project.changedObjects)}</span>
+              <ChevronIcon className={styles.chevron} />
+            </Link>
+          </li>)}
+        </ul>
+        <p className={styles.empty}><Link href="/kartbank" data-testid="my-places-map-bank">{mapBankText.navLinkFull}</Link></p>
+      </>}
     </section>
     {!loaded && <p className={styles.none} role="status">{text.loading}</p>}
   </div>;

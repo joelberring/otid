@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import {
-  RACE_MAP_MAX_BYTES, RACE_MAP_SOURCE_MAX_BYTES, raceMapSourceMetadataSchema, type AdminRaceMapSource, type RaceMapProblem
+  RACE_MAP_MAX_BYTES, RACE_MAP_SOURCE_MAX_BYTES, raceMapSourceMetadataSchema, type AdminRaceMapSource, type MapUsageScope, type RaceMapProblem
 } from "@o-tid/contracts";
 import { deriveRasterGeoreference, RasterGeoreferenceError } from "@o-tid/domain";
 import { schema, type Database } from "@o-tid/database";
@@ -66,6 +66,14 @@ export interface RaceMapSourceUpload {
   readonly metadata: unknown;
   /** Kvoten (förval ur miljön, ADR-0189 beslut 3). */
   readonly quota?: MapStorageQuota;
+  /** Etapp 3.2: ursprung från klubbarkiv eller publik kartbank samt nedladdningsspärr. */
+  readonly origin?: {
+    readonly clubMapId?: string | null;
+    readonly clubMapVersionId?: string | null;
+    readonly publicListingId?: string | null;
+    readonly sourceDownloadLocked?: boolean;
+    readonly usageScope?: MapUsageScope;
+  };
   /** Mer som sparas i samma transaktion som kartan (t.ex. kartavtalet vid "Använd igen"); ett fel rullar tillbaka allt. */
   readonly alsoSave?: (tx: Transaction) => Promise<void>;
 }
@@ -120,7 +128,12 @@ export async function saveRaceMapSourceAsAdmin(db: Database, input: RaceSessionP
     await tx.insert(schema.raceMaps).values({ raceId, ...map }).onConflictDoUpdate({ target: schema.raceMaps.raceId, set: map });
     const source = { fileName, format: metadata.data.format, version: metadata.data.version, file: null, contentSha256: fileHash,
       sha256: fileHash, byteLength: contentLength(input.file), scale: metadata.data.scale, bounds, georeference: metadata.data.georeference,
-      render, summary: metadata.data.summary, uploadedAt: now };
+      render, summary: metadata.data.summary, uploadedAt: now,
+      clubMapId: input.origin?.clubMapId ?? null,
+      clubMapVersionId: input.origin?.clubMapVersionId ?? null,
+      publicListingId: input.origin?.publicListingId ?? null,
+      sourceDownloadLocked: input.origin?.sourceDownloadLocked ?? false,
+      usageScope: input.origin?.usageScope ?? "ANY" as const };
     await tx.insert(schema.raceMapSources).values({ raceId, ...source }).onConflictDoUpdate({ target: schema.raceMapSources.raceId, set: source });
     await audit(tx, raceId, actorId, "RACE_MAP_SOURCE_SAVED", { fileName, format: source.format, version: source.version, sha256: fileHash,
       byteLength: source.byteLength, scale: source.scale, image: { sha256: imageHash, width: image.width, height: image.height },
@@ -162,8 +175,11 @@ export async function readRaceMapSourceFileAsAdmin(db: Database, input: Omit<Rac
     const auth = await requireCourseSettingAccess(tx, { ...input, required: "MAP" }, now, "share");
     if (auth.status !== "authenticated") return auth;
     const [row] = await tx.select({ fileName: schema.raceMapSources.fileName, format: schema.raceMapSources.format, sha256: schema.raceMapSources.sha256,
-      contentSha256: schema.raceMapSources.contentSha256 }).from(schema.raceMapSources).where(eq(schema.raceMapSources.raceId, input.raceId));
+      contentSha256: schema.raceMapSources.contentSha256, sourceDownloadLocked: schema.raceMapSources.sourceDownloadLocked })
+      .from(schema.raceMapSources).where(eq(schema.raceMapSources.raceId, input.raceId));
     if (!row) return { status: "not-found" as const };
+    // Etapp 3.2: nedladdningsspärrad källfil lämnas aldrig ut till webbläsaren.
+    if (row.sourceDownloadLocked) return { status: "forbidden" as const };
     // ADR-0218: webbläsaren har redan samma fil (behörigheten är prövad ovan); innehållet läses inte.
     if (options.ifNoneMatch === row.sha256) return { status: "not-modified" as const, sha256: row.sha256 };
     const inline = row.contentSha256 ? null : (await tx.select({ file: schema.raceMapSources.file }).from(schema.raceMapSources)
@@ -178,12 +194,14 @@ export async function readAdminRaceMapSource(tx: Transaction, raceId: string, ge
   : Promise<AdminRaceMapSource | null> {
   const [row] = await tx.select({ fileName: schema.raceMapSources.fileName, format: schema.raceMapSources.format,
     version: schema.raceMapSources.version, byteLength: schema.raceMapSources.byteLength, scale: schema.raceMapSources.scale,
-    georeference: schema.raceMapSources.georeference, summary: schema.raceMapSources.summary, uploadedAt: schema.raceMapSources.uploadedAt })
+    georeference: schema.raceMapSources.georeference, summary: schema.raceMapSources.summary, uploadedAt: schema.raceMapSources.uploadedAt,
+    sourceDownloadLocked: schema.raceMapSources.sourceDownloadLocked })
     .from(schema.raceMapSources).where(eq(schema.raceMapSources.raceId, raceId));
   if (!row) return null;
   return { fileName: row.fileName, format: row.format, version: row.version, byteLength: row.byteLength, scale: row.scale,
     crs: row.georeference?.crs ?? null,
     // Georefererad ur filen: georeferensen sattes i samma transaktion som kartfilen (inte för hand efteråt).
     georeferencedFromFile: georeferencedAt !== null && georeferencedAt.getTime() === row.uploadedAt.getTime(),
-    summary: row.summary, uploadedAt: row.uploadedAt.toISOString() };
+    summary: row.summary, uploadedAt: row.uploadedAt.toISOString(),
+    sourceDownloadLocked: row.sourceDownloadLocked };
 }

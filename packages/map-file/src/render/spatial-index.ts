@@ -106,7 +106,8 @@ export class SpatialIndex {
 function elementsReach(elements: readonly PointElement[] | undefined): number {
   let reach = 0;
   for (const element of elements ?? []) {
-    if (element.kind === "circle" || element.kind === "dot") reach = Math.max(reach, Math.hypot(element.center.x, element.center.y) + element.diameter / 2);
+    if (element.kind === "circle") reach = Math.max(reach, Math.hypot(element.center.x, element.center.y) + (element.diameter + element.lineWidth) / 2);
+    else if (element.kind === "dot") reach = Math.max(reach, Math.hypot(element.center.x, element.center.y) + element.diameter / 2);
     else if (element.kind === "line") reach = Math.max(reach, pathReach([element.path]) + element.width / 2);
     else reach = Math.max(reach, pathReach(element.rings));
   }

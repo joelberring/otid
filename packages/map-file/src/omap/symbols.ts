@@ -1,6 +1,6 @@
 /** Mapper-symboler (`<symbol type=…>`) → modellens symboler. Mått i Mapper är 0,001 mm. */
 import { moveCommand, moveElement, NO_CODE, normalizeAngle, normalizeHatchAngle, parseSymbolCode } from "../geometry";
-import type { AreaSymbol, HatchStyle, LineSymbol, MapSymbol, PointElement, StrokeStyle, TextSymbol } from "../model";
+import type { AreaSymbol, DashSpec, HatchStyle, LineSymbol, MapSymbol, PointElement, StrokeStyle, TextSymbol } from "../model";
 import type { WarningCollector } from "../warnings";
 import { coordsToParts, parseCoordText } from "./coords";
 import { asArray, attr, bool, child, num, text, type XmlNode } from "./xml";
@@ -98,14 +98,25 @@ function lineSymbol(line: XmlNode | undefined): Pick<LineSymbol, "strokes" | "re
   const join = joinOf(line);
   if (main !== null && width > 0) {
     let dash: number[] | undefined;
+    let dashSpec: DashSpec | undefined;
     if (bool(line, "dashed")) {
       const length = num(line, "dash_length", 4000) * UM;
       const gap = num(line, "break_length", 1000) * UM;
-      dash = num(line, "dashes_in_group", 1) >= 2
-        ? [length, num(line, "in_group_break_length", 500) * UM, length, gap]
-        : [length, gap];
+      const grouped = num(line, "dashes_in_group", 1) >= 2;
+      const inGroup = num(line, "in_group_break_length", 500) * UM;
+      dash = grouped ? [length, inGroup, length, gap] : [length, gap];
+      const mainLength = grouped ? 2 * length + inGroup : length;
+      const halfOuter = bool(line, "half_outer_dashes");
+      if (mainLength > 0 && gap > 0) {
+        dashSpec = {
+          mainLength,
+          mainGap: gap,
+          endLength: halfOuter ? mainLength / 2 : mainLength,
+          ...(grouped && inGroup > 0 ? { secondaryGap: inGroup } : {})
+        };
+      }
     }
-    strokes.push({ color: main, width, cap, join, dash });
+    strokes.push({ color: main, width, cap, join, dash, ...(dashSpec ? { dashSpec } : {}) });
   }
   // En kantlinje gäller båda sidor; två kantlinjer är vänster och höger. Kantlinjens mitt ligger halva linjebredden plus
   // "shift" från linjens mitt (Mapper: `LineSymbol::shiftCoordinates`, positivt utåt; 0 = mitt på linjens kant).

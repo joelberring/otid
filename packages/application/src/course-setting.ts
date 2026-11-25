@@ -135,7 +135,8 @@ export async function store(tx: Transaction, input: { raceId: string; actorId: s
 
 export async function loadMapFile(tx: Transaction, raceId: string) {
   const [row] = await tx.select({ sha256: schema.raceMapSources.sha256, fileName: schema.raceMapSources.fileName, scale: schema.raceMapSources.scale,
-    bounds: schema.raceMapSources.bounds, georeference: schema.raceMapSources.georeference }).from(schema.raceMapSources)
+    bounds: schema.raceMapSources.bounds, georeference: schema.raceMapSources.georeference,
+    sourceDownloadLocked: schema.raceMapSources.sourceDownloadLocked, render: schema.raceMapSources.render }).from(schema.raceMapSources)
     .where(eq(schema.raceMapSources.raceId, raceId));
   return row;
 }
@@ -178,7 +179,8 @@ export async function readCourseSettingAsAdmin(db: Database, input: ReadProof & 
       setting: row ? { version: row.version, updatedAt: row.updatedAt.toISOString(), updatedBy: actor(names, row.updatedBy), mode: row.mode,
         document: row.document } : null,
       original: row?.originalFileName && row.originalImportedAt ? { fileName: row.originalFileName, importedAt: row.originalImportedAt.toISOString() } : null,
-      mapFile: map ? { sha256: map.sha256, fileName: map.fileName, scale: map.scale, bounds: map.bounds, georeferenced: map.georeference !== null } : null,
+      mapFile: map ? { sha256: map.sha256, fileName: map.fileName, scale: map.scale, bounds: map.bounds, georeferenced: map.georeference !== null,
+        sourceDownloadLocked: map.sourceDownloadLocked, render: map.render } : null,
       ...(race ? { raceType: race.raceType } : {}), ...(title ? { raceTitle: title.slice(0, 500) } : {}),
       ...(paperLinks ? { paperLinks } : {}) }) };
   });

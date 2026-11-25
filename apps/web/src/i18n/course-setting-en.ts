@@ -27,6 +27,7 @@ export const courseSettingEn: Texts<typeof courseSettingSv> = {
   readingMap: "Reading the map file …",
   readingMapProgress: (percent: number) => `Reading the map file … ${percent}\u00a0%`,
   mapFailed: "The map file could not be read in the browser. The courses can still be changed.",
+  mapLocked: "The source map file is download-locked – course setting and print PDF work as usual, while automatic symbol suggestions are not used.",
   mapSaved: "The map file is saved.",
   start: {
     heading: "No course setting yet",

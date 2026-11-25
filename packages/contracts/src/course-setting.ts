@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { uuidSchema as uuid, sha256HexSchema } from "./ids";
-import { raceMapSourceBoundsSchema } from "./race-map-source";
+import { raceMapSourceBoundsSchema, raceMapSourceRenderSchema } from "./race-map-source";
 import { raceTypeSchema } from "./race-settings";
 
 /**
@@ -88,7 +88,9 @@ export const courseSettingStateSchema = z.object({
   /** Den senast inlästa .ppen-filen orörd (hämtas med `course-setting/original`). */
   original: z.object({ fileName, importedAt: instant }).strict().nullable(),
   mapFile: z.object({ sha256: sha256HexSchema, fileName, scale: z.number().int().min(100).max(1_000_000),
-    bounds: raceMapSourceBoundsSchema, georeferenced: z.boolean() }).strict().nullable(),
+    bounds: raceMapSourceBoundsSchema, georeferenced: z.boolean(),
+    sourceDownloadLocked: z.boolean().optional(),
+    render: raceMapSourceRenderSchema.optional() }).strict().nullable(),
   /** Tävlingens typ: rogaining (poängbanor) och fest (inga banor i tävlingen) förklaras i editorn. Saknas i äldre svar. */
   raceType: raceTypeSchema.optional(),
   /** Tävlingens namn i O-Tid (`raceTitle`): rubriken på kartorna i utskriften (användartestet 2026-11-12). Saknas i äldre svar. */

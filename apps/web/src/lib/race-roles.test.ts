@@ -79,6 +79,7 @@ const COURSE_SETTING: Record<string, Record<string, CourseSettingRequirement>> =
   "admin/races/[raceId]/administrator/course-setting/paper-images/[sha256]": { GET: "COMMENT" },
   "admin/races/[raceId]/administrator/course-setting/paper-library": { GET: "EDIT", POST: "EDIT" },
   "admin/races/[raceId]/administrator/course-setting/paper-library/[templateId]": { DELETE: "EDIT" },
+  "admin/races/[raceId]/administrator/map/image": { GET: "MAP" },
   "admin/races/[raceId]/administrator/map/source": { GET: "MAP" },
   "admin/races/[raceId]/administrator/map/source/[sha256]": { GET: "MAP" },
   "admin/races/[raceId]/administrator/map/project": { GET: "COMMENT" }
@@ -216,7 +217,8 @@ describe("behörighet per adminroute (ADR-0172 beslut 3)", () => {
       }
     }
     expect(reached.sort()).toEqual(["DELETE admin/races/[raceId]/administrator/course-setting/notes/[noteId]/replies/[replyId]",
-      "GET admin/races/[raceId]/administrator/course-setting/notes", "GET admin/races/[raceId]/administrator/map/source",
+      "GET admin/races/[raceId]/administrator/course-setting/notes", "GET admin/races/[raceId]/administrator/map/image",
+      "GET admin/races/[raceId]/administrator/map/source",
       "GET admin/races/[raceId]/administrator/map/source/[sha256]",
       "PATCH admin/races/[raceId]/administrator/course-setting/notes/[noteId]/replies/[replyId]",
       "POST admin/races/[raceId]/administrator/course-setting/notes/[noteId]/replies",

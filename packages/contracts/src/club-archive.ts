@@ -5,6 +5,7 @@ import { trainingLevelsSchema, trainingMomentsSchema, type TrainingLevel, type T
 import type { ClubEntryThumbnailSource, ClubEntryThumbnailView, ClubMapCheckView } from "./club-archive-checks";
 import type { ClubMapMergeView } from "./club-map-duplicates";
 import { mapAgreementSchema, type MapAgreement } from "./training-group";
+import { mapUsageScopeSchema, sourceDownloadPolicySchema, type MapUsageScope, type SourceDownloadPolicy } from "./public-map-catalog";
 
 /**
  * ADR-0194: klubben och klubbarkivet. Skrivningar som skapar en rad är idempotenta på `requestId`; importens anrop är
@@ -53,7 +54,9 @@ export const clubArchiveEntryUpdateRequestSchema = z.object({
 /** ADR-0210: `description` och `maker` (valfria; utelämnade = oförändrade) sätts en gång på kartan. */
 export const clubMapUpdateRequestSchema = z.object({
   formatVersion: z.literal(1), name: clubNameSchema, agreement: mapAgreementSchema, description: optionalText(2000).optional(),
-  maker: optionalText(200).optional()
+  maker: optionalText(200).optional(),
+  sourceDownloadPolicy: sourceDownloadPolicySchema.optional(),
+  usageScope: mapUsageScopeSchema.optional()
 }).strict();
 
 /** Flytta en version till en annan karta, eller till en ny karta med namnet. */
@@ -203,6 +206,9 @@ export interface ClubMapView extends MapAgreement {
   mapId: string; name: string; versions: ClubMapVersionView[]; latestVersionId: string | null; trainings: number;
   /** ADR-0210: beskrivning och kartritare, första och sista versionens år, och sammanslagningarna in i kartan. */
   description: string | null; maker: string | null; years: { from: number; to: number } | null; merges: ClubMapMergeView[];
+  /** Etapp 3.1: nedladdningsspärr och tillåtet användningsområde. */
+  sourceDownloadPolicy?: SourceDownloadPolicy;
+  usageScope?: MapUsageScope;
 }
 
 /** ADR-0209 beslut C: vad den inloggade får se och använda ("Vem ser vad"; ägare och administratörer alltid allt). */

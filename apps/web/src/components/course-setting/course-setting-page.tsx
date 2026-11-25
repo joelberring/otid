@@ -156,6 +156,7 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
       </> : <p className={styles.muted}>{copy.waitForMap}</p>}
     </section>}
     {message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}</Notice>}
+    {state.mapFile?.sourceDownloadLocked && <Notice tone="attention" role="status">{text.mapLocked}</Notice>}
     {state.mapFile && <section className={styles.panel} aria-labelledby="course-setting-start">
       <h2 id="course-setting-start">{text.start.heading}</h2>
       {state.access.level === "EDIT" ? <>

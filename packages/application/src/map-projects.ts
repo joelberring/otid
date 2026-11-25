@@ -7,7 +7,7 @@ import {
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { MAP_READER_VERSION } from "@o-tid/map-file";
-import { requireClubArea, type ClubFailure, type ClubProof } from "./club-access";
+import { clubRoleAtLeast, requireClubArea, type ClubFailure, type ClubProof } from "./club-access";
 import { openMapProjectJoinLinks } from "./map-project-join";
 import { deliverPrepared, invitationSentTimes, prepareIfMail, replayedOutcome, type InvitationMailer } from "./invitation-links";
 import {
@@ -114,9 +114,16 @@ export async function createMapProject(db: Database, input: ClubProof & { reques
       if (prior.clubId !== clubId || prior.baseVersionId !== baseVersionId) return { status: "conflict" } as const;
       return { status: "created", replayed: true, projectId: prior.id } as const;
     }
-    const [version] = await tx.select().from(schema.clubMapVersions)
+    const [versionRow] = await tx.select({ version: schema.clubMapVersions, sourceDownloadPolicy: schema.clubMaps.sourceDownloadPolicy })
+      .from(schema.clubMapVersions)
+      .innerJoin(schema.clubMaps, eq(schema.clubMaps.id, schema.clubMapVersions.mapId))
       .where(and(eq(schema.clubMapVersions.id, baseVersionId), eq(schema.clubMapVersions.clubId, clubId)));
-    if (!version) return { status: "not-found" } as const;
+    if (!versionRow) return { status: "not-found" } as const;
+    // Etapp 3.2: nedladdningsspärrade klubbkartor får inte extraheras via ett nytt kartprojekt av icke-admin.
+    if (versionRow.sourceDownloadPolicy === "CUSTODIANS_ONLY" && !clubRoleAtLeast(member.role, "ADMIN")) {
+      return { status: "forbidden" } as const;
+    }
+    const version = versionRow.version;
     const projectId = randomUUID();
     await tx.insert(schema.mapProjects).values({ id: projectId, clubId, name, baseVersionId, baseSource: "ARCHIVE", baseSha256: version.contentSha256,
       baseFormat: version.format, readerVersion: MAP_READER_VERSION, status: "OPEN", seq: 0, createdBy: member.accountId, createdAt: now, requestId });

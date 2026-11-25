@@ -27,6 +27,7 @@ export const courseSettingSv = {
   /** ADR-0218: medan en stor kartfil hämtas. */
   readingMapProgress: (percent: number) => `Läser kartfilen … ${percent}\u00a0%`,
   mapFailed: "Kartfilen kunde inte läsas i webbläsaren. Banorna går ändå att ändra.",
+  mapLocked: "Källfilen är nedladdningsspärrad – banläggning och tryck-PDF fungerar som vanligt, medan automatiska symbolförslag inte används.",
   mapSaved: "Kartfilen är sparad.",
   start: {
     heading: "Ingen banläggning än",

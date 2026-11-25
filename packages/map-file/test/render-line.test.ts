@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { drawMap, GAP, type LineSymbol, type MapColor, type MapObject, type MapSymbol, type ParsedMap, type Path, type PointElement } from "../src";
 import { cornerPlacements, markedLines, spacedDistances, spacedPlacements } from "../src/render/along";
+import { dashIntervals, dashPolylines } from "../src/render/dash";
 import { closeRing, withoutGaps } from "../src/render/geometry";
 import { fakeContext, type Call } from "./fake-canvas";
 
@@ -140,5 +141,44 @@ describe("luckor i linjer", () => {
     const calls = draw(border, [{ kind: "area", symbol: "a", angle: 0, rings: [[{ type: "M", x: 0, y: 0 }, { type: "L", x: 4, y: 0 }, { type: "L", x: 4, y: 4 }]] }]);
     // Ytan fylls (tre punkter) och kanten ritas runt hela, tillbaka till början.
     expect(args(calls, "lineTo").slice(-3)).toEqual([[4, 0], [4, 4], [0, 0]]);
+  });
+});
+
+describe("anpassad streckning i hörn- och streckpunkter (styrpunkter)", () => {
+  it("skalar streck och mellanrum jämnt och ritar korta delsträckor heldragna", () => {
+    // Halvt ändstreck (1 mm) + gap (0,5 mm) + helt (2 mm) + gap (0,5 mm) + halvt ändstreck (1 mm) = 5 mm.
+    expect(dashIntervals(5, { mainLength: 2, mainGap: 0.5, endLength: 1 })).toEqual([[0, 1], [1.5, 3.5], [4, 5]]);
+    // Kort delsträcka (<= 2 * endLength): ett enda heldraget streck utan mellanrum.
+    expect(dashIntervals(1.8, { mainLength: 2, mainGap: 0.5, endLength: 1 })).toEqual([[0, 1.8]]);
+    // Sekundärt mellanrum delar mittstrecken.
+    expect(dashIntervals(5, { mainLength: 2, mainGap: 0.5, endLength: 1, secondaryGap: 0.4 })).toEqual([[0, 1], [1.5, 2.3], [2.7, 3.5], [4, 5]]);
+  });
+
+  it("delar linjen i styrpunkter så att varje brytpunkt och ände hamnar på ett heldraget streck", () => {
+    const path: Path = [
+      { type: "M", x: 0, y: 0 },
+      { type: "L", x: 5, y: 0, dash: true },
+      { type: "L", x: 5, y: 2.5, corner: true },
+      { type: "L", x: 10, y: 2.5 }
+    ];
+    const spec = { mainLength: 2, mainGap: 0.5, endLength: 1 };
+    const pieces = dashPolylines([path], spec);
+    // Del 1 (0..5): [0..1], [1.5..3.5], [4..5] → landar på (5, 0).
+    // Del 2 (0..2,5 längs y): [0..1], [1.5..2.5] → startar i (5, 0) och landar i (5, 2.5).
+    // Del 3 (5..10 längs x): [5..6], [6.5..8.5], [9..10] → startar i (5, 2.5) och landar i (10, 2.5).
+    expect(pieces).toHaveLength(8);
+    expect(pieces[0]![0]).toEqual({ x: 0, y: 0 });
+    expect(pieces[2]!.at(-1)).toEqual({ x: 5, y: 0 });
+    expect(pieces[3]![0]).toEqual({ x: 5, y: 0 });
+    expect(pieces[4]!.at(-1)).toEqual({ x: 5, y: 2.5 });
+    expect(pieces[5]![0]).toEqual({ x: 5, y: 2.5 });
+    expect(pieces[7]!.at(-1)).toEqual({ x: 10, y: 2.5 });
+
+    // `drawMap` ritar delstrecken med tom setLineDash så att Canvas och PDF ger exakt samma geometri.
+    const dashedLine = line({ strokes: [{ color: 1, width: 0.25, dash: [2, 0.5], dashSpec: spec }] });
+    const calls = draw(dashedLine, [{ kind: "line", symbol: "l", path }]);
+    const strokeCall = calls.find(call => call.op === "stroke");
+    expect(strokeCall?.state.lineDash).toEqual([]);
+    expect(args(calls, "moveTo")).toHaveLength(8);
   });
 });

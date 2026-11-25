@@ -110,6 +110,19 @@ describe("drawMap", () => {
     expect(report.parts).toBe(1);
   });
 
+  it("ritar punktsymbolens cirkel (t.ex. 418 buske) med mittlinjens radie så att mitten förblir ihålig", () => {
+    const symbols: MapSymbol[] = [
+      { id: "bush", kind: "POINT", code: code("418"), name: "Buske", hidden: false,
+        elements: [{ kind: "circle", color: 4, center: { x: 0, y: 0 }, diameter: 0.4, lineWidth: 0.18 }] }
+    ];
+    const { ctx, calls } = fakeContext();
+    drawMap(ctx, map(symbols, [{ kind: "point", symbol: "bush", at: { x: 10, y: 10 }, angle: 0 }]), { pxPerMm: 8, origin: { x: 0, y: 30 } });
+    const arc = calls.find(call => call.op === "arc");
+    // diameter = 0,40 mm (mittlinjens diameter) → radie = 0,20 mm, linjebredd 0,18 mm → ihåligt centrum med radie 0,11 mm.
+    expect(arc?.args.slice(0, 3)).toEqual([0, 0, 0.2]);
+    expect(strokes(calls)).toEqual([{ style: "rgba(77, 204, 77, 1)", width: 0.18, dash: [] }]);
+  });
+
   it("ritar raster (hatch) klippt till ytan, punktmönster och tonad yta när mönstret är för tätt", () => {
     const symbols: MapSymbol[] = [
       { id: "marsh", kind: "AREA", code: code("308"), name: "Sank mark", hidden: false, hatches: [{ color: 2, width: 0.1, spacing: 0.4, angle: 0 }] },

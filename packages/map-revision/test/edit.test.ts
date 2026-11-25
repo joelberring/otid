@@ -37,6 +37,17 @@ describe("redigeringen", () => {
     // En punkt mellan en kurva och en rak sträcka: en kurva med de yttre styrpunkterna.
     const merged = deleteVertex(curved, { part: 0, index: 1 });
     expect(merged?.kind === "line" && merged.path[1]).toEqual({ type: "C", x1: 2, y1: 2, x2: 20, y2: 0, x: 20, y: 0 });
+    // Styrpunkter (dash), hörn (corner) och luckor (gap) bevaras när punkter tas bort eller läggs till.
+    const flagged: MapObject = { kind: "line", symbol: "5", path: [
+      { type: "M", x: 0, y: 0 }, { type: "L", x: 5, y: 0, dash: true }, { type: "L", x: 10, y: 0 },
+      { type: "L", x: 15, y: 0, corner: true, dash: true, gap: 3 }
+    ] };
+    const dropFirst = deleteVertex(flagged, { part: 0, index: 0 })!;
+    expect(dropFirst.kind === "line" && dropFirst.path[0]).toEqual({ type: "M", x: 5, y: 0, dash: true });
+    const dropMid = deleteVertex(flagged, { part: 0, index: 2 })!;
+    expect(dropMid.kind === "line" && dropMid.path[2]).toEqual({ type: "L", x: 15, y: 0, corner: true, dash: true, gap: 3 });
+    const addedOnGap = insertVertex(flagged, { part: 0, index: 2 }, { x: 12.5, y: 0 })!;
+    expect(addedOnGap.kind === "line" && addedOnGap.path[3]).toEqual({ type: "L", x: 12.5, y: 0, gap: 3 });
   });
 
   it("gör nya objekt, byter symbol och prövar objekt", () => {
@@ -108,6 +119,17 @@ describe("kartan med ändringarna och exporten", () => {
     expect(read.georeference).toEqual(map.georeference);
     const point = read.objects.find(object => object.kind === "point");
     expect(point?.kind === "point" && point.at.x).toBeCloseTo(pointObject.at.x + 5, 3);
+    // GeoJSON samplar Bézierkurvor (inte bara kordor) och .xmap bevarar dash-flaggor som streckpunkt (32).
+    const curveChange = [{ kind: "ADD" as const, id: "c1", author: "a", at: "2026-11-25T10:00:00Z", object: {
+      kind: "line" as const, symbol: map.objects[firstLine]!.symbol, path: [
+        { type: "M" as const, x: 0, y: 0 }, { type: "C" as const, x1: 0, y1: 10, x2: 10, y2: 10, x: 10, y: 0, dash: true as const }
+      ]
+    } }];
+    const curveGeo = changesGeoJson(map, curveChange) as { features: { geometry: { coordinates: number[][][] } }[] };
+    expect(curveGeo.features[0]!.geometry.coordinates[0]!.length).toBeGreaterThan(2);
+    const curveXmap = mapperChangesFile(text, map, curveChange)!;
+    const curveRead = readMapFile(new TextEncoder().encode(curveXmap));
+    expect(curveRead.objects[0]!.kind === "line" && curveRead.objects[0]!.path[1]!.corner).toBe(true);
   });
 
   it("vet vilket slags objekt varje symbol ritar", () => {

@@ -72,7 +72,9 @@ export const adminRaceMapSourceSchema = z.object({
   /** Bilden georefererades automatiskt ur filen vid uppladdningen. */
   georeferencedFromFile: z.boolean(),
   summary: raceMapSourceSummarySchema,
-  uploadedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
+  uploadedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+  /** Etapp 3.2: kartfilen får inte laddas ned av banläggaren (serverrenderad rasterkarta används). */
+  sourceDownloadLocked: z.boolean().optional()
 }).strict();
 
 export type RaceMapSourceMetadata = z.infer<typeof raceMapSourceMetadataSchema>;

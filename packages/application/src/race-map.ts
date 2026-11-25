@@ -8,6 +8,7 @@ import { deriveRasterGeoreference, layoutControlMap, projectRoute, RasterGeorefe
 import { schema, type Database } from "@o-tid/database";
 import { GpxValidationError, parseGpxTrack } from "@o-tid/iof-xml";
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
+import { requireCourseSettingAccess } from "./course-setting-access";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { publicResultTimings, type PublicResultTiming } from "./results";
 import { coursePoints, loadCourseMapPositions, loadCoursePositions } from "./course-positions";
@@ -109,10 +110,13 @@ export async function readRaceMapStateAsAdmin(db: Database, input: Authenticatio
   });
 }
 
-/** Kartbilden för georeferensen i arbetsytan (även innan den är georefererad). */
+/** Kartbilden för georeferensen i arbetsytan samt för nedladdningsspärrad banläggning (även för banläggningsbehöriga). */
 export async function readRaceMapImageAsAdmin(db: Database, input: Authentication, now = new Date())
   : Promise<Failure | { status: "ok"; mediaType: string; image: Buffer }> {
-  return adminRead(db, input, now, async tx => {
+  if (!uuid.test(input.raceId)) return { status: "invalid-request" };
+  return db.transaction(async tx => {
+    const auth = await requireCourseSettingAccess(tx, { ...input, required: "MAP" }, now, "share");
+    if (auth.status !== "authenticated") return auth;
     const [map] = await tx.select({ mediaType: schema.raceMaps.mediaType, inline: schema.raceMaps.image, contentSha256: schema.raceMaps.contentSha256 })
       .from(schema.raceMaps).where(eq(schema.raceMaps.raceId, input.raceId));
     const image = map ? await rowContent(tx, map) : undefined;

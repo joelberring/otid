@@ -271,7 +271,7 @@ describe("ADR-0194: klubbarkivet", { timeout: 120_000 }, () => {
     png.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]);
     new DataView(png.buffer).setUint32(16, 992); new DataView(png.buffer).setUint32(20, 832);
     const proof = { ...reader.proof, clubId, versionId: list.status === "ok" ? list.list.maps.find(map => map.name === "Älvsjöskogen")!.latestVersionId! : "" };
-    expect(await saveClubMapVersionToRace(db, { ...proof, raceId, image: png, metadata }, NOW)).toEqual({ status: "ok", georeferenced: false });
+    expect(await saveClubMapVersionToRace(db, { ...proof, raceId, image: png, metadata }, NOW)).toEqual({ status: "ok", georeferenced: false, sourceDownloadLocked: false });
     expect((await pool.query<{ n: number }>("select count(*)::int as n from map_content")).rows[0]?.n).toBe(contentsBefore + 1);
     const raceProof = { raceId, sessionToken: reader.proof.sessionToken, csrfCookie: reader.proof.csrfCookie, csrfHeader: reader.proof.csrfHeader };
     const file = await readRaceMapSourceFileAsAdmin(db, raceProof, NOW);
@@ -323,7 +323,7 @@ describe("ADR-0194: klubbarkivet", { timeout: 120_000 }, () => {
     expect(await saved()).toEqual(before);
     expect(before).toMatchObject({ maps: 0, sources: 0, agreements: 0 });
     // Utan felet sparas båda.
-    expect(await saveClubMapVersionToRace(db, input, NOW)).toEqual({ status: "ok", georeferenced: false });
+    expect(await saveClubMapVersionToRace(db, input, NOW)).toEqual({ status: "ok", georeferenced: false, sourceDownloadLocked: false });
     expect(await saved()).toMatchObject({ maps: 1, sources: 1, agreements: 1 });
   });
 

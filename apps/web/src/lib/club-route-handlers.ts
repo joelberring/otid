@@ -412,6 +412,9 @@ export async function clubMapVersionTargetRoute(db: Database, request: Request, 
       if (target === "race") {
         const result = await saveClubMapVersionToRace(db, { ...input.proof, clubId, versionId, raceId: targetId, image: rendered.image,
           metadata: rendered.metadata });
+        if (result.status === "club-activity-only") {
+          return privateJson({ formatVersion: 1, error: "CLUB_ACTIVITIES_ONLY", message: "Kartan får endast användas på klubbens egna aktiviteter." }, 403);
+        }
         if (result.status === "problem") return problem(result.problem, result.quota);
         return result.status === "ok" ? privateJson({ formatVersion: 1, georeferenced: result.georeferenced }) : failure(result.status);
       }

@@ -3,15 +3,16 @@ import { readStoredMapContentHead, streamStoredMapContent } from "./map-cache";
 import { randomUUID } from "node:crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import {
-  CLUB_ARCHIVE_MAP_MAX_BYTES, clubMapUpdateRequestSchema, clubMapVersionMoveRequestSchema, clubMapVersionUpdateRequestSchema,
+  attachClubMapToRaceRequestSchema, CLUB_ARCHIVE_MAP_MAX_BYTES, clubMapUpdateRequestSchema, clubMapVersionMoveRequestSchema, clubMapVersionUpdateRequestSchema,
   RACE_MAP_MAX_BYTES, raceMapSourceMetadataSchema, type MapAgreement, type RaceMapProblem
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { deriveRasterGeoreference, RasterGeoreferenceError, swedishToday } from "@o-tid/domain";
-import { clubJournal, requireClubArea, requireClubRole, type ClubFailure, type ClubProof, type ClubTransaction } from "./club-access";
-import { mayUseClubMap } from "./club-map-use";
+import { clubJournal, clubRoleAtLeast, requireClubArea, requireClubRole, type ClubFailure, type ClubProof, type ClubTransaction } from "./club-access";
+import { mayUseClubMap, raceBelongsToClub, usageScopeBlockedReason } from "./club-map-use";
 import { clubLinkFacts } from "./club-affiliation-access";
 import { imageDimensions } from "./image-dimensions";
+import { renderMapContentToPng, type ServerCanvasFactory } from "./map-render-server";
 import {
   contentHead, contentLength, discardStagedMapContent, MAP_CONTENT_HEAD_BYTES, mapStorageQuota, stageMapContent, storeMapContent, storedMapContent,
   type MapContentInput, type MapQuotaExceeded, type StagedMapContent
@@ -48,7 +49,9 @@ export async function updateClubMap(db: Database, input: ClubProof & { clubId: s
     const agreement = parsed.data.agreement.ownership === "CLUB" ? { ...parsed.data.agreement, ownerKind: parsed.data.agreement.ownerKind ?? "CLUB" }
       : parsed.data.agreement;
     const texts = { ...(parsed.data.description !== undefined ? { description: parsed.data.description } : {}),
-      ...(parsed.data.maker !== undefined ? { maker: parsed.data.maker } : {}) };
+      ...(parsed.data.maker !== undefined ? { maker: parsed.data.maker } : {}),
+      ...(parsed.data.sourceDownloadPolicy !== undefined ? { sourceDownloadPolicy: parsed.data.sourceDownloadPolicy } : {}),
+      ...(parsed.data.usageScope !== undefined ? { usageScope: parsed.data.usageScope } : {}) };
     const [row] = await tx.update(schema.clubMaps).set({ name: parsed.data.name, ...agreement, ...texts, updatedAt: now })
       .where(and(eq(schema.clubMaps.id, input.mapId), eq(schema.clubMaps.clubId, input.clubId))).returning({ id: schema.clubMaps.id });
     if (!row) return { status: "not-found" } as const;
@@ -190,10 +193,18 @@ export async function readClubMapVersionHead(db: Database, input: ClubProof & { 
     const member = await requireClubArea(tx, input, "MAP_BANK", now, false);
     if (member.status !== "ok") return member;
     const [row] = await tx.select({ fileName: schema.clubMapVersions.fileName, format: schema.clubMapVersions.format,
-      byteLength: schema.clubMapVersions.byteLength, contentId: schema.mapContents.contentId, sha256: schema.clubMapVersions.contentSha256 })
-      .from(schema.clubMapVersions).innerJoin(schema.mapContents, eq(schema.mapContents.sha256, schema.clubMapVersions.contentSha256))
+      byteLength: schema.clubMapVersions.byteLength, contentId: schema.mapContents.contentId, sha256: schema.clubMapVersions.contentSha256,
+      sourceDownloadPolicy: schema.clubMaps.sourceDownloadPolicy })
+      .from(schema.clubMapVersions)
+      .innerJoin(schema.clubMaps, eq(schema.clubMaps.id, schema.clubMapVersions.mapId))
+      .innerJoin(schema.mapContents, eq(schema.mapContents.sha256, schema.clubMapVersions.contentSha256))
       .where(and(eq(schema.clubMapVersions.id, input.versionId), eq(schema.clubMapVersions.clubId, input.clubId)));
-    return row ? { status: "ok", ...row } as const : { status: "not-found" } as const;
+    if (!row) return { status: "not-found" } as const;
+    // Etapp 3.2: nedladdningsspärr — bara kartansvariga (ADMIN/OWNER) får ladda ned rå .ocd/.omap.
+    if (row.sourceDownloadPolicy === "CUSTODIANS_ONLY" && !clubRoleAtLeast(member.role, "ADMIN")) {
+      return { status: "forbidden" } as const;
+    }
+    return { status: "ok", fileName: row.fileName, format: row.format, byteLength: row.byteLength, contentId: row.contentId, sha256: row.sha256 } as const;
   });
 }
 
@@ -258,8 +269,8 @@ export const agreementOf = (map: typeof schema.clubMaps.$inferSelect): MapAgreem
   ownerName: map.ownerName, agreement: map.agreement, validUntil: map.validUntil, contact: map.contact, trainingOnly: map.trainingOnly,
   feePerPrint: map.feePerPrint, noPublicDisplay: map.noPublicDisplay });
 
-export type ClubMapToRaceResult = ClubFailure | { status: "problem"; problem: RaceMapProblem; quota?: MapQuotaExceeded }
-  | { status: "ok"; georeferenced: boolean };
+export type ClubMapToRaceResult = ClubFailure | { status: "club-activity-only" } | { status: "problem"; problem: RaceMapProblem; quota?: MapQuotaExceeded }
+  | { status: "ok"; georeferenced: boolean; sourceDownloadLocked?: boolean };
 
 /**
  * "Använd igen" (beslut 4): klubbens kartversion blir tävlingens kartfil. Webbläsaren har ritat bilden ur arkivets fil;
@@ -277,6 +288,11 @@ export async function saveClubMapVersionToRace(db: Database, input: ClubProof & 
     // ADR-0210 beslut 7: samma beslut som "Välj karta från klubbarkivet".
     if (!mayUseClubMap({ role: member.role, clubId: input.clubId, mapBank: (await clubLinkFacts(tx, input.clubId)).access.MAP_BANK },
       { mapId: row.map.id, ...agreementOf(row.map) })) return { status: "forbidden" } as const;
+    // Etapp 3.2: användningsbegränsning (ADMIN_ONLY / CLUB_ACTIVITIES_ONLY).
+    const belongsToClub = row.map.usageScope === "CLUB_ACTIVITIES_ONLY" ? await raceBelongsToClub(tx, input.clubId, input.raceId) : undefined;
+    const blocked = usageScopeBlockedReason(member.role, row.map.usageScope, belongsToClub);
+    if (blocked === "ADMIN_ONLY") return { status: "forbidden" } as const;
+    if (blocked === "CLUB_ACTIVITIES_ONLY") return { status: "club-activity-only" } as const;
     return { status: "ok", row } as const;
   });
   if (found.status !== "ok") return found;
@@ -284,12 +300,80 @@ export async function saveClubMapVersionToRace(db: Database, input: ClubProof & 
   if (!file) return { status: "not-found" };
   // Kartan och kartavtalet i samma transaktion: misslyckas avtalet sparas inte kartan heller.
   const values = { sourceMapId: null, mapName: found.row.map.name, ...agreementOf(found.row.map), updatedAt: now };
-  return saveRaceMapSourceAsAdmin(db, { raceId: input.raceId, sessionToken: input.sessionToken, csrfCookie: input.csrfCookie ?? null,
+  const sourceDownloadLocked = found.row.map.sourceDownloadPolicy === "CUSTODIANS_ONLY";
+  const result = await saveRaceMapSourceAsAdmin(db, { raceId: input.raceId, sessionToken: input.sessionToken, csrfCookie: input.csrfCookie ?? null,
     csrfHeader: input.csrfHeader ?? null, file, fileName: found.row.version.fileName, image: input.image, metadata: input.metadata,
+    origin: { clubMapId: found.row.map.id, clubMapVersionId: found.row.version.id, sourceDownloadLocked, usageScope: found.row.map.usageScope },
     alsoSave: async tx => {
       await tx.insert(schema.raceMapAgreements).values({ raceId: input.raceId, ...values })
         .onConflictDoUpdate({ target: schema.raceMapAgreements.raceId, set: { ...values, publicUseAcknowledgedAt: null, publicUseAcknowledgedBy: null } });
     } }, now);
+  return result.status === "ok" ? { ...result, sourceDownloadLocked } : result;
+}
+
+/**
+ * Etapp 3.2: serverrenderad koppling av klubbkarta till tävling (för nedladdningsspärrade kartor).
+ * Rå `.ocd`/`.omap` lämnar aldrig servern; servern ritar en högupplöst PNG och sparar `race_map` + `race_map_source`
+ * med `sourceDownloadLocked` i samma transaktion.
+ */
+export async function attachClubMapVersionToRaceServerSide(
+  db: Database,
+  input: ClubProof & { clubId: string; versionId: string; request: unknown },
+  now = new Date(),
+  options: { readonly createCanvas?: ServerCanvasFactory } = {}
+): Promise<ClubMapToRaceResult> {
+  const parsed = attachClubMapToRaceRequestSchema.safeParse(input.request);
+  const found = await db.transaction(async tx => {
+    const member = await requireClubArea(tx, input, "MAP_BANK", now, true);
+    if (member.status !== "ok") return member;
+    // Inloggning och klubbbehörighet prövas före kroppen (städrundan 2026-11-07): obehörig får 401/403, inte 400.
+    if (!parsed.success || !validId(input.versionId)) return { status: "invalid-request" } as const;
+    const raceId = parsed.data.raceId;
+    const row = await versionWithMap(tx, input.clubId, input.versionId);
+    if (!row) return { status: "not-found" } as const;
+    if (!mayUseClubMap({ role: member.role, clubId: input.clubId, mapBank: (await clubLinkFacts(tx, input.clubId)).access.MAP_BANK },
+      { mapId: row.map.id, ...agreementOf(row.map) })) return { status: "forbidden" } as const;
+    const belongsToClub = row.map.usageScope === "CLUB_ACTIVITIES_ONLY" ? await raceBelongsToClub(tx, input.clubId, raceId) : undefined;
+    const blocked = usageScopeBlockedReason(member.role, row.map.usageScope, belongsToClub);
+    if (blocked === "ADMIN_ONLY") return { status: "forbidden" } as const;
+    if (blocked === "CLUB_ACTIVITIES_ONLY") return { status: "club-activity-only" } as const;
+    return { status: "ok", row, raceId } as const;
+  });
+  if (found.status !== "ok") return found;
+  const raceId = found.raceId;
+  const file = await existingContent(db, found.row.version.contentSha256);
+  if (!file) return { status: "not-found" };
+  let rendered;
+  try {
+    rendered = await renderMapContentToPng(db, found.row.version.contentSha256, found.row.version.fileName,
+      { mode: "race", createCanvas: options.createCanvas });
+  } catch {
+    return { status: "problem", problem: "INVALID_MAP_FILE" };
+  }
+  if (!rendered) return { status: "not-found" };
+  const values = { sourceMapId: null, mapName: found.row.map.name, ...agreementOf(found.row.map), updatedAt: now };
+  const sourceDownloadLocked = found.row.map.sourceDownloadPolicy === "CUSTODIANS_ONLY";
+  const result = await saveRaceMapSourceAsAdmin(db, {
+    raceId,
+    sessionToken: input.sessionToken,
+    csrfCookie: input.csrfCookie ?? null,
+    csrfHeader: input.csrfHeader ?? null,
+    file,
+    fileName: found.row.version.fileName,
+    image: rendered.rendered.png,
+    metadata: rendered.sourceMetadata,
+    origin: {
+      clubMapId: found.row.map.id,
+      clubMapVersionId: found.row.version.id,
+      sourceDownloadLocked,
+      usageScope: found.row.map.usageScope
+    },
+    alsoSave: async tx => {
+      await tx.insert(schema.raceMapAgreements).values({ raceId, ...values })
+        .onConflictDoUpdate({ target: schema.raceMapAgreements.raceId, set: { ...values, publicUseAcknowledgedAt: null, publicUseAcknowledgedBy: null } });
+    }
+  }, now);
+  return result.status === "ok" ? { ...result, sourceDownloadLocked } : result;
 }
 
 export type ClubMapToGroupResult = ClubFailure | { status: "problem"; problem: RaceMapProblem } | { status: "quota"; quota: MapQuotaExceeded }
@@ -322,6 +406,12 @@ export async function saveClubMapToGroupLibrary(db: Database, input: ClubProof &
     if (!await leaderMembership(tx, { accountId: member.accountId, groupId: input.groupId }, "update")) return { status: "not-found" } as const;
     const row = await versionWithMap(tx, input.clubId, input.versionId);
     if (!row) return { status: "not-found" } as const;
+    if (row.map.usageScope === "ADMIN_ONLY" && !clubRoleAtLeast(member.role, "ADMIN")) return { status: "forbidden" } as const;
+    if (row.map.usageScope === "CLUB_ACTIVITIES_ONLY") {
+      const [group] = await tx.select({ clubId: schema.trainingGroups.clubId }).from(schema.trainingGroups)
+        .where(eq(schema.trainingGroups.id, input.groupId));
+      if (!group || group.clubId !== input.clubId) return { status: "forbidden" } as const;
+    }
     if (row.version.format !== metadata.data.format) return { status: "invalid-request" } as const;
     const stored = await storeMapContent(tx, input.image, member.accountId, now, mapStorageQuota());
     if (stored.status === "quota") return { status: "quota", quota: stored.quota } as const;
@@ -347,11 +437,12 @@ export async function saveClubMapToGroupLibrary(db: Database, input: ClubProof &
           null, ${row.map.id}, ${now}, ${member.accountId}, ${now}, ${randomUUID()})`);
     }
     const m = metadata.data;
+    const sourceDownloadLocked = row.map.sourceDownloadPolicy === "CUSTODIANS_ONLY";
     await tx.execute(sql`insert into training_group_map_source (map_id, file_name, format, version, file, content_sha256, sha256, byte_length, scale,
-        bounds, georeference, render, summary)
+        bounds, georeference, render, summary, club_map_id, club_map_version_id, source_download_locked, usage_scope)
       values (${mapId}, ${row.version.fileName}, ${row.version.format}, ${m.version}, null, ${row.version.contentSha256}, ${row.version.contentSha256},
         ${row.version.byteLength}, ${m.scale}, ${JSON.stringify(m.bounds)}::jsonb, ${m.georeference ? JSON.stringify(m.georeference) : null}::jsonb,
-        ${JSON.stringify(m.render)}::jsonb, ${JSON.stringify(m.summary)}::jsonb)`);
+        ${JSON.stringify(m.render)}::jsonb, ${JSON.stringify(m.summary)}::jsonb, ${row.map.id}, ${row.version.id}, ${sourceDownloadLocked}, ${row.map.usageScope})`);
     await clubJournal(tx, { clubId: input.clubId, action: existing ? "CLUB_MAP_GROUP_UPDATED" : "CLUB_MAP_ADDED_TO_GROUP", actorAccountId: member.accountId,
       details: { mapId: row.map.id, versionId: row.version.id, groupId: input.groupId }, now });
     return { status: "saved", mapId, updated: existing !== undefined } as const;

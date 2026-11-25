@@ -294,3 +294,8 @@ export { markRawLaserMailed, rawLaserFileName, rawLaserRunKey, recordRawLaserSte
 export type { RawLaserCleanup, RawLaserMail, RawLaserStep } from "./map-project-raw-laser";
 export { memoryRawLaserStore, presignS3, RAW_LASER_PREFIX, rawLaserAvailable, rawLaserStore, s3RawLaserStore, setRawLaserStore } from "./raw-laser-store";
 export type { RawLaserStore } from "./raw-laser-store";
+export {
+  createRaceFromPublicMapListing, downloadPublicMapSource, listPublicMapListings, readClubMapCatalogStatus, readMapProjectCatalogStatus,
+  readPublicMapListing, readPublicMapPreview, removeClubMapCatalogListing, removeMapProjectCatalogListing,
+  upsertClubMapCatalogListing, upsertMapProjectCatalogListing
+} from "./public-map-catalog";

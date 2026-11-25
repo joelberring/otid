@@ -6,6 +6,7 @@ import { mapProjectSv } from "../../i18n/map-project-sv";
 import type { AreaInput } from "../../lib/map-project-area-input";
 import { NOMINATIM_URL, OSM_TILE_URL, OVERPASS_URL, osmAreaChoices, overpassContaining, project, TILE, unproject,
   type OsmAreaChoice } from "../../lib/osm-area";
+import { clampZoom, visibleTiles } from "../../lib/osm-tiles";
 import { useLocale, useTexts } from "../language-provider";
 import { Button } from "../ui";
 import styles from "./map-project.module.css";
@@ -42,7 +43,7 @@ export function AreaMapPicker({ value, onChange }: { value: AreaInput | undefine
     // Hjulet zoomar kartan, inte sidan (lyssnaren får inte vara passiv för att kunna hindra sidan från att rulla).
     const wheel = (event: WheelEvent) => {
       event.preventDefault();
-      setView(current => ({ ...current, zoom: Math.max(3, Math.min(18, current.zoom + (event.deltaY < 0 ? 1 : -1))) }));
+      setView(current => ({ ...current, zoom: clampZoom(current.zoom + (event.deltaY < 0 ? 1 : -1), 3, 18) }));
     };
     element.addEventListener("wheel", wheel, { passive: false });
     return () => { observer.disconnect(); element.removeEventListener("wheel", wheel); };
@@ -52,7 +53,7 @@ export function AreaMapPicker({ value, onChange }: { value: AreaInput | undefine
   const left = center.x - width / 2, top = center.y - HEIGHT / 2;
   const toScreen = ([lon, lat]: [number, number]) => { const p = project(lon, lat, view.zoom); return [p.x - left, p.y - top] as const; };
   const toLonLat = (x: number, y: number) => unproject(left + x, top + y, view.zoom);
-  const zoomBy = (step: number) => setView(current => ({ ...current, zoom: Math.max(3, Math.min(18, current.zoom + step)) }));
+  const zoomBy = (step: number) => setView(current => ({ ...current, zoom: clampZoom(current.zoom + step, 3, 18) }));
 
   async function pick(lon: number, lat: number) {
     setStatus(text.searching); setChoices(undefined);
@@ -106,14 +107,7 @@ export function AreaMapPicker({ value, onChange }: { value: AreaInput | undefine
     onChange({ crs: "WGS84", rings: [drawn] });
   }
 
-  const tiles: { key: string; x: number; y: number; url: string }[] = [];
-  const count = 2 ** view.zoom;
-  for (let tx = Math.floor(left / TILE); tx <= Math.floor((left + width) / TILE); tx++) {
-    for (let ty = Math.floor(top / TILE); ty <= Math.floor((top + HEIGHT) / TILE); ty++) {
-      if (ty < 0 || ty >= count) continue;
-      tiles.push({ key: `${view.zoom}/${tx}/${ty}`, x: tx * TILE - left, y: ty * TILE - top, url: OSM_TILE_URL(view.zoom, ((tx % count) + count) % count, ty) });
-    }
-  }
+  const tiles = visibleTiles(view, width, HEIGHT, OSM_TILE_URL);
   const shown = value?.crs === "WGS84" ? value.rings : [];
   const path = (ring: readonly [number, number][]) => ring.map((point, index) => `${index ? "L" : "M"}${toScreen(point).join(",")}`).join("") + "Z";
 

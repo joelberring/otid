@@ -120,16 +120,26 @@ const OVER_KINDS: Readonly<Record<PressNorm, ReadonlySet<PressColorKind>>> = {
  */
 export function pressOrder(colors: readonly SourceMapColor[], norm: PressNorm): { readonly over: ReadonlySet<number>; readonly classes: readonly PressColorClass[] } {
   const kinds = colors.map(color => ({ color, kind: pressColorKind(color) }));
-  const isOver = (kind: PressColorKind) => OVER_KINDS[norm].has(kind);
-  const overOrders = kinds.filter(item => isOver(item.kind)).map(item => item.color.drawOrder);
-  const blackOrders = kinds.filter(item => item.kind === "BLACK" && isOver(item.kind)).map(item => item.color.drawOrder);
-  // Vitt över banan måste ligga över den översta svarta (finns ingen: över den översta färgen över banan).
-  const upperFrom = Math.max(...(blackOrders.length > 0 ? blackOrders : overOrders));
-  const underOrders = kinds.filter(item => item.kind !== "WHITE" && !isOver(item.kind)).map(item => item.color.drawOrder);
+  // En svart väg- eller sidlinjefärg som i kartfilen ligger under en skärmfärg (t.ex. vägfyllning i brunt 50 %) får
+  // aldrig lyftas över banan, annars ritas vägkanterna ovanpå asfalten i korsningar i det övre lagret.
+  const highestScreen = Math.max(-Infinity, ...kinds.filter(item => item.kind === "SCREEN").map(item => item.color.drawOrder));
+  const isOver = (item: { readonly color: SourceMapColor; readonly kind: PressColorKind }) => {
+    if (!OVER_KINDS[norm].has(item.kind)) return false;
+    if ((item.kind === "BLACK" || item.kind === "BLACK_ROAD_EDGE") && item.color.drawOrder < highestScreen) return false;
+    return true;
+  };
+  const overOrders = kinds.filter(isOver).map(item => item.color.drawOrder);
+  const blackOrders = kinds.filter(item => item.kind === "BLACK" && isOver(item)).map(item => item.color.drawOrder);
+  // Vitt över banan: ligger över minst en svart färg över banan (eller över den lägsta färgen över banan när svart
+  // saknas) och ingen färg under banan ritas över det i filen. Då bevaras t.ex. järnvägens vita streck över nedre svart.
+  const upperFrom = blackOrders.length > 0 ? Math.min(...blackOrders) : Math.min(...overOrders);
+  const underOrders = kinds.filter(item => item.kind !== "WHITE" && !isOver(item)).map(item => item.color.drawOrder);
   const highestUnder = Math.max(-Infinity, ...underOrders);
-  const classes = kinds.map(({ color, kind }): PressColorClass => {
-    const over = kind === "WHITE" ? overOrders.length > 0 && color.drawOrder > upperFrom && color.drawOrder > highestUnder : isOver(kind);
-    return { ocadId: color.ocadId, name: color.name, kind, side: over ? "OVER" : "UNDER" };
+  const classes = kinds.map((item): PressColorClass => {
+    const over = item.kind === "WHITE"
+      ? overOrders.length > 0 && item.color.drawOrder > upperFrom && item.color.drawOrder > highestUnder
+      : isOver(item);
+    return { ocadId: item.color.ocadId, name: item.color.name, kind: item.kind, side: over ? "OVER" : "UNDER" };
   });
   return { over: new Set(classes.filter(item => item.side === "OVER").map(item => item.ocadId)), classes };
 }

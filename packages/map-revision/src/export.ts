@@ -1,4 +1,4 @@
-import { mapPointToProjected, type MapGeoreference, type MapObject, type ParsedMap, type Path, type Point } from "@o-tid/map-file";
+import { flattenPath, mapPointToProjected, type MapGeoreference, type MapObject, type ParsedMap, type Path, type Point } from "@o-tid/map-file";
 import { objectRefKey, objectsByKey, type ObjectChange } from "./contract";
 
 /**
@@ -26,7 +26,7 @@ export function exportedChanges(base: ParsedMap, changes: readonly ObjectChange[
   });
 }
 
-const flat = (path: Path): number[][] => path.map(command => [command.x, command.y]);
+const flat = (path: Path): number[][] => flattenPath(path).flat().map(point => [point.x, point.y]);
 
 export function changesGeoJson(base: ParsedMap, changes: readonly ObjectChange[], name = "kartrevidering"): object {
   const georeference: MapGeoreference | null = base.georeference;
@@ -80,7 +80,7 @@ function mapperCoords(parts: readonly Path[], closed: boolean): string[] {
         out[out.length - 1]!.flags |= CURVE_START;
         out.push({ x: command.x1, y: command.y1, flags: 0 }, { x: command.x2, y: command.y2, flags: 0 });
       }
-      out.push({ x: command.x, y: command.y, flags: command.corner ? DASH_POINT : 0 });
+      out.push({ x: command.x, y: command.y, flags: command.corner || command.dash ? DASH_POINT : 0 });
     }
     if (closed) {
       const first = out[start]!, last = out[out.length - 1]!;

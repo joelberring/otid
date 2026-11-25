@@ -115,7 +115,13 @@ export const trainingGroupMapSources = pgTable("training_group_map_source", {
   fileName: text("file_name").notNull(),
   format: text("format").notNull(),
   scale: integer("scale").notNull(),
-  contentSha256: text("content_sha256")
+  contentSha256: text("content_sha256"),
+  /** Etapp 3.1 (migration 0145): ursprung från klubbarkiv eller publik kartbank samt nedladdningsspärr. */
+  clubMapId: uuid("club_map_id"),
+  clubMapVersionId: uuid("club_map_version_id"),
+  publicListingId: uuid("public_listing_id"),
+  sourceDownloadLocked: boolean("source_download_locked").notNull().default(false),
+  usageScope: text("usage_scope").$type<"ANY" | "CLUB_ACTIVITIES_ONLY" | "ADMIN_ONLY">().notNull().default("ANY")
 });
 
 export const trainingGroupMapCourseSettings = pgTable("training_group_map_course_setting", {

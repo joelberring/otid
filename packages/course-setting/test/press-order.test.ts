@@ -126,6 +126,35 @@ describe("ordningen per norm (pressOrder)", () => {
     const colors = [color("Vit för grön", [0, 0, 0, 0], usage(["AREA"], [406])), color("Svart 100%", [0, 0, 0, 100], usage(["LINE"], [505]))];
     expect([...pressOrder(colors, "ISOM").over]).toEqual([1]);
   });
+
+  it("svart vägkant under asfaltsfyllning stannar under banan så att kanter inte skär genom korsningar", () => {
+    order = 0;
+    const colors = [
+      color("Gul 100%", [0, 27, 79, 0], usage(["AREA"], [401])),
+      // Namnet saknar ordet "vägkant" men ligger under vägfyllningen (Brun 50%) i kartfilen.
+      color("Svart 100% under väg", [0, 0, 0, 100], usage(["LINE"], [502])),
+      color("Brun 50% väg", [0, 28, 45, 12], usage(["LINE"], [502])),
+      color("Svart 100%", [0, 0, 0, 100], usage(["LINE"], [505]))
+    ];
+    for (const norm of ["ISOM", "ISSPROM"] as const) {
+      const over = pressOrder(colors, norm).over;
+      expect(over.has(1), norm).toBe(false);
+      expect(over.has(2), norm).toBe(false);
+      expect(over.has(3), norm).toBe(true);
+    }
+  });
+
+  it("järnvägens vita streck över nedre svart (men under övre svart) stannar över nedre svart", () => {
+    order = 0;
+    const colors = [
+      color("Gul 100%", [0, 27, 79, 0], usage(["AREA"], [401])),
+      color("Svart järnväg", [0, 0, 0, 100], usage(["LINE"], [509])),
+      color("Vit järnväg", [0, 0, 0, 0], usage(["LINE"], [509])),
+      color("Svart 100%", [0, 0, 0, 100], usage(["LINE"], [505]))
+    ];
+    const over = pressOrder(colors, "ISOM").over;
+    expect([...over].sort()).toEqual([1, 2, 3]);
+  });
 });
 
 describe("normen ur kartan (detectPressNorm)", () => {

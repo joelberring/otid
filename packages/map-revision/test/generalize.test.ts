@@ -31,6 +31,15 @@ describe("generaliseringen", () => {
     const curve = { kind: "line", symbol: "101", path: [{ type: "M", x: 0, y: 0 }, { type: "C", x1: 1, y1: 1, x2: 2, y2: 1, x: 3, y: 0 }] } as MapObject;
     expect(simplifyObject(curve, 0.1)).toBeUndefined();
     expect(simplifyObject(area("c", "401", [[0, 0], [1, 0.001], [2, 0], [0, 0]]).object, 1)).toBeUndefined();
+    // Styrpunkter (dash), hörn (corner) och luckor (gap) låses och följer med vid simplifyObject.
+    const flaggedLine: MapObject = { kind: "line", symbol: "101", path: [
+      { type: "M", x: 0, y: 0 }, { type: "L", x: 2, y: 0.005 }, { type: "L", x: 5, y: 0, dash: true },
+      { type: "L", x: 8, y: 0.005 }, { type: "L", x: 10, y: 0, corner: true, gap: 1 }
+    ] };
+    const keptLine = simplifyObject(flaggedLine, 0.05)!;
+    expect(keptLine.object.kind === "line" && keptLine.object.path).toEqual([
+      { type: "M", x: 0, y: 0 }, { type: "L", x: 5, y: 0, dash: true }, { type: "L", x: 10, y: 0, corner: true, gap: 1 }
+    ]);
   });
 
   it("tar bort det som är mindre än normen och förenklar resten, inom en ruta", () => {

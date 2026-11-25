@@ -3,6 +3,7 @@ import {
   type Point, type PointElement, type StrokeStyle, type TextSymbol
 } from "../model";
 import { lineDecorations, type Placement } from "./along";
+import { dashPolylines } from "./dash";
 import { closeRing, flattenPath, offsetPolyline, pathsBox, withoutGaps, type Polyline } from "./geometry";
 import { clamp01, rgbFromCmyk } from "../color";
 import { spatialIndexOf } from "./spatial-index";
@@ -188,7 +189,8 @@ function strokeStyle(ctx: MapCanvasContext, stroke: StrokeStyle, color: MapColor
 function drawElement(ctx: MapCanvasContext, element: PointElement, color: MapColor) {
   ctx.beginPath();
   if (element.kind === "circle") {
-    ctx.arc(element.center.x, element.center.y, Math.max(0, (element.diameter - element.lineWidth) / 2), 0, Math.PI * 2);
+    // `diameter` är mittlinjens diameter (innerDiameter + lineWidth i både OCAD och Mapper).
+    ctx.arc(element.center.x, element.center.y, element.diameter / 2, 0, Math.PI * 2);
     ctx.strokeStyle = css(color); ctx.lineWidth = element.lineWidth; ctx.setLineDash([]);
     ctx.stroke();
   } else if (element.kind === "dot") {
@@ -250,6 +252,17 @@ function planStroke(plan: Plan, stroke: StrokeStyle, input: readonly Path[]) {
   if (!(stroke.width > 0)) return;
   const bit = stroke.offset && stroke.offset > 0 ? GAP.left : stroke.offset && stroke.offset < 0 ? GAP.right : GAP.main;
   const paths = input.map(path => withoutGaps(path, bit));
+  if (stroke.dashSpec) {
+    const dashed = dashPolylines(paths, stroke.dashSpec, stroke.offset);
+    if (dashed.length === 0) return;
+    plan.add(stroke.color, (ctx, color) => {
+      ctx.beginPath();
+      tracePolylines(ctx, dashed);
+      strokeStyle(ctx, { ...stroke, dash: undefined }, color);
+      ctx.stroke();
+    });
+    return;
+  }
   plan.add(stroke.color, (ctx, color) => {
     ctx.beginPath();
     if (stroke.offset) tracePolylines(ctx, paths.flatMap(path => flattenPath(path).map(line => offsetPolyline(line, stroke.offset!))));

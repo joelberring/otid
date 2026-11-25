@@ -42,10 +42,19 @@ describe("kurvorna (K3)", () => {
     expect(path[1]).toMatchObject({ type: "C", x: 10, y: 0, dash: true });
     const hit = nearestSegment(bent, { x: 5, y: 3 }, 0.01);
     expect(hit?.t).toBeCloseTo(0.5, 2);
-    // Ytans stängande sträcka kan också böjas.
-    const area = bendSegment(square, { part: 0, index: 3 }, 0.5, { x: -2, y: 0 });
+    // Ytans stängande sträcka kan också böjas, och stängningens lucka följer med till stängningskommandot.
+    const gappedSquare: MapObject = { kind: "area", symbol: "401", angle: 0, rings: [[
+      { type: "M", x: 0, y: 0, gap: 1 }, { type: "L", x: 10, y: 0 }, { type: "L", x: 10, y: 10 }, { type: "L", x: 0, y: 10 }
+    ]] };
+    const area = bendSegment(gappedSquare, { part: 0, index: 3 }, 0.5, { x: -2, y: 0 });
     expect(pathOf(area)).toHaveLength(5);
+    expect(pathOf(area)[0]!.gap).toBeUndefined();
+    expect(pathOf(area)[4]!.gap).toBe(1);
     expect(nearestSegment(area, { x: -2, y: 5 }, 0.01)).toBeDefined();
+    // Dela en sträcka med lucka: båda halvorna behåller luckan.
+    const splitGap = insertOnSegment(area, { part: 0, index: 3 }, 0.5)!;
+    expect(pathOf(splitGap.object)[4]!.gap).toBe(1);
+    expect(pathOf(splitGap.object)[5]!.gap).toBe(1);
   });
 
   it("styrpunkterna: en mjuk punkt håller kurvan jämn, ett hörn flyttar bara den ena", () => {

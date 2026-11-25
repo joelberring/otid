@@ -67,6 +67,32 @@ describe("OCAD-linjesymbolernas punktsymboler", () => {
     expect((map.symbols.get("510000") as LineSymbol).corner).toBeUndefined();
     expect(map.warnings.some(w => w.code === "BROKEN_SYMBOL")).toBe(true);
   });
+
+  it("läser streckad linjes ändlängd, ramens stil (FrStyle) och dubbellinjens strecklägen (DblMode 2–4)", () => {
+    // Streckad huvudlinje med EndLength = 1,00 mm + ram med FrStyle = 4 (butt/miter).
+    const dashed = ocdSymbol(103000, lineBody({ 798: 14, 806: 225, 808: 100, 810: 25, 854: 2, 856: 40, 858: 4 }, 0, {}));
+    expect(dashed.strokes[0]).toMatchObject({ color: 2, width: 0.4, cap: "butt", join: "miter" });
+    expect(dashed.strokes[1]).toMatchObject({ color: 2, width: 0.14, dash: [2.25, 0.25], dashSpec: { mainLength: 2.25, mainGap: 0.25, endLength: 1 } });
+
+    // Dubbellinje med DblMode = 4 (allt streckat inkl. fyllning) och DblLength = 1,50 mm, DblGap = 1,50 mm.
+    const rail = ocdSymbol(509000, lineBody({
+      796: -1, 798: 0, 822: 4, 824: 1, 826: 2, 828: 2, 830: 2, 832: 25, 834: 10, 836: 10, 838: 150, 840: 150
+    }, 0, {}));
+    expect(rail.strokes).toHaveLength(3);
+    for (const s of rail.strokes) expect(s.dashSpec).toEqual({ mainLength: 1.5, mainGap: 1.5, endLength: 0.75 });
+
+    // DblMode = 2: bara vänster kantlinje streckad; DblMode = 3: båda kanter streckade, heldragen fyllning.
+    const leftOnly = ocdSymbol(509001, lineBody({
+      796: -1, 798: 0, 822: 2, 824: 1, 826: 2, 828: 2, 830: 2, 832: 30, 834: 10, 836: 10, 838: 100, 840: 50
+    }, 0, {}));
+    expect(leftOnly.strokes[0]!.dashSpec).toBeUndefined();
+    expect(leftOnly.strokes[1]!.dashSpec).toEqual({ mainLength: 1, mainGap: 0.5, endLength: 0.5 });
+    expect(leftOnly.strokes[2]!.dashSpec).toBeUndefined();
+
+    // Negativ färg (-1) hoppas över utan att ge färgnummer 65535.
+    const noColor = ocdSymbol(509002, lineBody({ 796: -1, 798: 20, 854: -1, 856: 40 }, 0, {}));
+    expect(noColor.strokes).toEqual([]);
+  });
 });
 
 describe("OCAD-koordinaternas flaggor", () => {

@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   applyMapRevision, objectRefOf, readMapFile, sha256Hex, type MapObject, type MapRevisionChange, type ObjectRef, type ParsedMap
 } from "../src";
+import { moveCommand } from "../src/geometry";
 import { applyOcdRevision } from "../src/revision/ocd-write";
-import { buildOcd, buildOcd8, ocdCoord } from "./ocd-builder";
+import { buildOcd, buildOcd8, ocdCoord, symbolBody } from "./ocd-builder";
 import { SPEC } from "./ocd-spec";
 
 /** ADR-0219 K7: OCAD-filer (version 9+) lappas bakom flaggan `ocad`. */
@@ -126,5 +127,115 @@ describe("OCAD-revidering (K7)", () => {
     const after = reread(result.bytes);
     expect(after.objects.find(object => object.kind === "point" && object.symbol === "105100")).toMatchObject({ at: { x: 7, y: 8 }, angle: 90 });
     expect(after.objects.filter(object => object.kind === "area")).toHaveLength(0);
+  });
+
+  it("behåller styrpunkter (dash) och okända flaggbitar även när punkter läggs till före dem", () => {
+    const { bytes, sha, map } = setup(2018, [{ symbol: 101000, type: 2,
+      coords: [ocdCoord(0, 6000, 0, 8), ocdCoord(100, 6000, 16, 32 | 8), ocdCoord(200, 6000, 64, 1)] }]);
+    const object = map.objects.find(row => row.kind === "line" && row.path[0]!.y === 60)!;
+    const ref = objectRefOf(sha, object)!;
+    // Lägg in en ny punkt först (skiftar alla efterföljande index).
+    const result = run(bytes, sha, [{ ...meta, kind: "modify", ref, geometry: { kind: "line", path: [
+      { type: "M", x: -1, y: 60 }, { type: "L", x: 0, y: 60, dash: true }, { type: "L", x: 1, y: 60, dash: true }, { type: "L", x: 2, y: 60, corner: true }
+    ] } }]);
+    if (!result.ok) throw new Error(JSON.stringify(result.refusals));
+    const after = reread(result.bytes);
+    const updated = after.objects.find(row => row.kind === "line" && row.path[0]!.y === 60)!;
+    expect(updated.kind === "line" && updated.path.map(c => [c.x, Boolean(c.dash), Boolean(c.corner)])).toEqual([
+      [-1, false, false], [0, true, false], [1, true, false], [2, false, true]
+    ]);
+    const at = updated.source?.locator.format === "OCD" ? updated.source.locator.offset : 0;
+    const view = new DataView(result.bytes.buffer, result.bytes.byteOffset);
+    // Punkt 2 (x=100) och punkt 3 (x=200) har kvar sina höga flaggbitar (16/32 resp. 64).
+    expect(view.getInt32(at + 56 + 16, true) & 0xff).toBe(16);
+    expect(view.getInt32(at + 56 + 20, true) & 0xff).toBe(32 | 8);
+    expect(view.getInt32(at + 56 + 24, true) & 0xff).toBe(64);
+  });
+
+  it("vägrar v12-objekt med nDatabaseString > 0 och nollställer objekt-specifika fält på nya objekt", () => {
+    const { bytes, ref } = setup(2018);
+    const contour = ref(object => object.kind === "line" && object.symbol === "101000");
+    const withDb = bytes.slice();
+    const at = contour.locator.format === "OCD" ? contour.locator.offset : 0;
+    const view = new DataView(withDb.buffer, withDb.byteOffset);
+    view.setUint16(at + 52, 1, true); // nDatabaseString = 1
+    const dbSha = sha256Hex(withDb);
+    const dbRef = objectRefOf(dbSha, reread(withDb).objects.find(object => object.kind === "line" && object.symbol === "101000")!)!;
+    expect(run(withDb, dbSha, [{ ...meta, kind: "delete", ref: dbRef }])).toMatchObject({ ok: false, refusals: [{ code: "UNSAFE_FILE" }] });
+
+    // Sätt ServerObjectId, MultirepresentationId och LineWidth på mallobjektet och lägg till ett nytt objekt.
+    const dirty = bytes.slice();
+    const dv = new DataView(dirty.buffer, dirty.byteOffset);
+    dv.setInt16(at + 12, 42, true);
+    dv.setInt32(at + 16, 9999, true);
+    dv.setUint32(at + 32, 777, true);
+    const added = run(dirty, sha256Hex(dirty), [{ ...meta, kind: "add", id: "ren", symbol: "101000",
+      geometry: { kind: "line", path: [{ type: "M", x: 1, y: 1 }, { type: "L", x: 2, y: 2 }] } }]);
+    if (!added.ok) throw new Error(JSON.stringify(added.refusals));
+    const newLoc = added.report.addedObjects[0]!.locator;
+    const newAt = newLoc.format === "OCD" ? newLoc.offset : 0;
+    const nv = new DataView(added.bytes.buffer, added.bytes.byteOffset);
+    expect(nv.getInt16(newAt + 12, true)).toBe(0);
+    expect(nv.getInt32(newAt + 16, true)).toBe(0);
+    expect(nv.getUint32(newAt + 32, true)).toBe(0);
+    expect(nv.getUint16(newAt + 52, true)).toBe(0);
+  });
+
+  it("sätter icke-tom bbox för punktobjekt, undviker dubblett-stängningspunkt på raka ytor och nollställer överskott vid krympning", () => {
+    const { bytes, sha, ref } = setup(2018, [{ symbol: 101000, type: 7,
+      coords: [ocdCoord(0, 0), ocdCoord(100, 0), ocdCoord(100, 100), ocdCoord(0, 100)] }]);
+    const rectObj = ref(object => object.kind === "line" && object.path.length === 4);
+    const result = run(bytes, sha, [
+      // Lägg till ett punktobjekt: indexets bbox ska inte vara 0×0.
+      { ...meta, kind: "add", id: "p1", symbol: "105100", geometry: { kind: "point", at: { x: 5, y: 5 } } },
+      // Lägg till en rak yta med 3 punkter: exakt 3 koordinater i OCAD (ingen extra dubblettpunkt).
+      { ...meta, kind: "add", id: "a1", symbol: "406000", geometry: { kind: "area", rings: [[{ type: "M", x: 0, y: 0 }, { type: "L", x: 10, y: 0 }, { type: "L", x: 10, y: 10 }]] } },
+      // Ändra rektangelns (type=7) geometri och krymp från 4 till 2 punkter: type blir 2 (line) och restbytes nollas.
+      { ...meta, kind: "modify", ref: rectObj, geometry: { kind: "line", path: [{ type: "M", x: 0, y: 0 }, { type: "L", x: 10, y: 0 }] } }
+    ]);
+    if (!result.ok) throw new Error(JSON.stringify(result.refusals));
+    const view = new DataView(result.bytes.buffer, result.bytes.byteOffset);
+    const firstBlock = view.getUint32(12, true);
+    const pLoc = result.report.addedObjects.find(r => r.id === "p1")!.locator;
+    if (pLoc.format !== "OCD") throw new Error();
+    const pEntry = firstBlock + 4 + pLoc.slot * 40;
+    expect(view.getInt32(pEntry + 8, true) >> 8).toBeGreaterThan(view.getInt32(pEntry, true) >> 8);
+    expect(view.getInt32(pEntry + 12, true) >> 8).toBeGreaterThan(view.getInt32(pEntry + 4, true) >> 8);
+    const aLoc = result.report.addedObjects.find(r => r.id === "a1")!.locator;
+    if (aLoc.format !== "OCD") throw new Error();
+    expect(view.getUint32(aLoc.offset + 44, true)).toBe(3);
+    // Rektangel → linje (type = 2) och krympt plats har nollställda överskottsbytes.
+    if (rectObj.locator.format !== "OCD") throw new Error();
+    const rEntry = firstBlock + 4 + rectObj.locator.slot * 40;
+    expect(view.getUint8(rEntry + 28)).toBe(2);
+    expect(view.getUint8(rectObj.locator.offset + 4)).toBe(2);
+    expect(result.bytes.subarray(rectObj.locator.offset + 56 + 16, rectObj.locator.offset + rectObj.locator.length).every(b => b === 0)).toBe(true);
+    // moveCommand behåller flaggor (corner, dash, gap).
+    expect(moveCommand({ type: "L", x: 1, y: 2, corner: true, dash: true, gap: 3 }, 5, -1))
+      .toEqual({ type: "L", x: 6, y: 1, corner: true, dash: true, gap: 3 });
+  });
+
+  it("uppdaterar indexets färg och v12-huvudets färg vid symbolbyte och nytt objekt utan mall", () => {
+    const purpleLine = { number: 102000, type: 2, body: symbolBody(80, { 796: 54, 798: 25, 800: 1 }) };
+    const bytes = buildOcd({ ...SPEC, version: 2018, symbols: [...SPEC.symbols!, purpleLine] });
+    const map = readMapFile(bytes, "karta.ocd", { sources: true });
+    const sha = sha256Hex(bytes);
+    const contour = objectRefOf(sha, map.objects.find(o => o.kind === "line" && o.symbol === "101000")!)!;
+    const result = run(bytes, sha, [
+      { ...meta, kind: "modify", ref: contour, symbol: "102000" },
+      { ...meta, kind: "add", id: "ny-lila", symbol: "102000", geometry: { kind: "line", path: [{ type: "M", x: 1, y: 1 }, { type: "L", x: 3, y: 1 }] } }
+    ]);
+    if (!result.ok) throw new Error(JSON.stringify(result.refusals));
+    const view = new DataView(result.bytes.buffer, result.bytes.byteOffset);
+    const firstBlock = view.getUint32(12, true);
+    if (contour.locator.format !== "OCD") throw new Error();
+    const modEntry = firstBlock + 4 + contour.locator.slot * 40;
+    expect(view.getInt16(modEntry + 32, true)).toBe(54);
+    expect(view.getInt32(contour.locator.offset + 8, true)).toBe(54);
+    const addLoc = result.report.addedObjects[0]!.locator;
+    if (addLoc.format !== "OCD") throw new Error();
+    const addEntry = firstBlock + 4 + addLoc.slot * 40;
+    expect(view.getInt16(addEntry + 32, true)).toBe(54);
+    expect(view.getInt32(addLoc.offset + 8, true)).toBe(54);
   });
 });

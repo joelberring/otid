@@ -1,4 +1,4 @@
-import { maxOf, minOf, type MapObject, type Path, type PathCommand, type Point } from "@o-tid/map-file";
+import { GAP, maxOf, minOf, type MapObject, type Path, type PathCommand, type Point } from "@o-tid/map-file";
 import type { NormObject } from "./norm-check";
 import type { ObjectKey } from "./state";
 
@@ -22,15 +22,21 @@ const end = (path: Path): Point => ({ x: path[path.length - 1]!.x, y: path[path.
 const near = (a: Point, b: Point, tolerance: number) => Math.hypot(a.x - b.x, a.y - b.y) <= tolerance;
 const singlePart = (line: Line) => line.path.length >= 2 && line.path.slice(1).every(command => command.type !== "M");
 
-/** Vägen baklänges (kurvornas styrpunkter byter plats); flaggorna följer sina punkter. */
+function flippedGap(gap: number | undefined): { gap?: number } {
+  if (!gap) return {};
+  return { gap: (gap & GAP.main) | (gap & GAP.left ? GAP.right : 0) | (gap & GAP.right ? GAP.left : 0) };
+}
+
+/** Vägen baklänges (kurvornas styrpunkter byter plats); flaggorna följer sina punkter och luckorna sina sträckor. */
 export function reversePath(path: Path): PathCommand[] {
   const out: PathCommand[] = [];
   for (let i = path.length - 1; i >= 0; i -= 1) {
     const here = path[i]!, after = path[i + 1];
     const flags = { ...(here.corner ? { corner: true as const } : {}), ...(here.dash ? { dash: true as const } : {}) };
     if (i === path.length - 1) { out.push({ type: "M", x: here.x, y: here.y, ...flags }); continue; }
-    out.push(after?.type === "C" ? { type: "C", x1: after.x2, y1: after.y2, x2: after.x1, y2: after.y1, x: here.x, y: here.y, ...flags }
-      : { type: "L", x: here.x, y: here.y, ...flags });
+    const gap = flippedGap(after?.gap);
+    out.push(after?.type === "C" ? { type: "C", x1: after.x2, y1: after.y2, x2: after.x1, y2: after.y1, x: here.x, y: here.y, ...flags, ...gap }
+      : { type: "L", x: here.x, y: here.y, ...flags, ...gap });
   }
   return out;
 }

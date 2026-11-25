@@ -1,0 +1,518 @@
+/* Publik kartbank (/kartbank) — återhållsamt formspråk (ADR-0170), 390 px mobilvänlig, 44 px tryckytor på pekskärm. */
+
+.page {
+  width: min(100%, 1320px);
+  max-width: none;
+  margin-inline: auto;
+  padding: 16px 16px 40px;
+  display: grid;
+  gap: 14px;
+}
+
+.header {
+  display: grid;
+  gap: 4px;
+}
+
+.kicker {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.intro {
+  margin: 0;
+  color: var(--muted);
+  max-width: 68ch;
+}
+
+/* Filterrad */
+.filterBar {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.mobileToolbar {
+  display: none;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.switcher {
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--canvas);
+}
+
+.switchButton {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.switchButton:where(:hover:not(:disabled)) {
+  background: var(--subtle);
+  color: var(--ink);
+}
+
+.switchButton[aria-pressed="true"],
+.switchButton[aria-pressed="true"]:where(:hover:not(:disabled)) {
+  background: var(--ink);
+  color: var(--surface);
+}
+
+.filterToggle {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.filterToggle:where(:hover:not(:disabled)) {
+  border-color: var(--ink);
+  background: var(--subtle);
+}
+
+.filtersGrid {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.4fr) minmax(180px, 1.2fr) repeat(3, minmax(140px, 1fr)) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.filterField {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.filterField label {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.municipalityCombo {
+  position: relative;
+}
+
+.municipalityDropdown {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 12%);
+  padding: 4px;
+  display: grid;
+  gap: 2px;
+}
+
+.municipalityOption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: max(36px, var(--tap));
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  font-weight: 500;
+  font-size: var(--text-sm);
+}
+
+.municipalityOption:where(:hover:not(:disabled)) {
+  background: var(--subtle);
+  color: var(--ink);
+}
+
+.municipalityOption[data-selected="true"] {
+  background: var(--subtle);
+  font-weight: 700;
+}
+
+.municipalityMeta {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.municipalityCount {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--subtle);
+  border: 1px solid var(--line-strong);
+  color: var(--ink);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.clearButton {
+  min-height: var(--control);
+  white-space: nowrap;
+}
+
+.activeBboxBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--subtle);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+/* Split view på dator (>= 900px) */
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(340px, 0.85fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.mapPane {
+  display: grid;
+  gap: 8px;
+  position: sticky;
+  top: 12px;
+}
+
+.mapCanvas {
+  height: min(68vh, 640px);
+  min-height: 420px;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legendSwatch {
+  width: 14px;
+  height: 14px;
+  display: inline-block;
+  flex: none;
+  background: var(--surface);
+}
+
+.legendSwatch[data-tone="open"] {
+  border-radius: 999px;
+  border: 2.5px solid var(--ok);
+  background: rgb(30 122 68 / 16%);
+}
+
+.legendSwatch[data-tone="otid"] {
+  border-radius: 3px;
+  border: 2.5px solid var(--accent);
+  background: rgb(142 42 128 / 16%);
+}
+
+.legendSwatch[data-tone="info"] {
+  border-radius: 3px;
+  border: 2px dashed var(--attention);
+  background: rgb(168 70 8 / 12%);
+}
+
+/* Högerkolumn: lista och detaljvy */
+.listPane {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.listMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: var(--text-xs);
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cardButton {
+  width: 100%;
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 400;
+}
+
+.cardButton:where(:hover:not(:disabled)) {
+  border-color: var(--ink);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.cardButton[data-selected="true"] {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.cardButton[data-hovered="true"] {
+  border-color: var(--ink);
+}
+
+.cardHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cardTitle {
+  font-size: var(--text-md);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.cardMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+/* Statusbrickor: tydlig text + form/ram så status aldrig bara bärs av färg. */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex: none;
+}
+
+.badge[data-mode="OPEN_DOWNLOAD"] {
+  border-color: var(--ok);
+  color: var(--ok);
+  background: rgb(30 122 68 / 8%);
+}
+
+.badge[data-mode="USE_IN_OTID_LOCKED"] {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgb(142 42 128 / 8%);
+}
+
+.badge[data-mode="INFO_ONLY"] {
+  border-color: var(--attention);
+  border-style: dashed;
+  color: var(--attention);
+  background: var(--attention-tint);
+}
+
+/* Detaljkort */
+.detailCard {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+}
+
+.detailHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.detailTitleGroup {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.detailTitleGroup h2 {
+  overflow-wrap: anywhere;
+}
+
+.previewWrap {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #f6f5f0;
+}
+
+.previewImage {
+  display: block;
+  width: 100%;
+  max-height: 320px;
+  object-fit: contain;
+}
+
+.description {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 14px;
+  margin: 0;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--text-sm);
+}
+
+.facts dt {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.actionLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: max(40px, var(--tap));
+  padding: 0 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.actionLink:hover {
+  border-color: var(--ink);
+}
+
+.infoBox {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--attention);
+  border-radius: 4px;
+  background: var(--attention-tint);
+  font-size: var(--text-sm);
+}
+
+.infoBox strong {
+  font-weight: 600;
+}
+
+.emptyState {
+  display: grid;
+  gap: 6px;
+  padding: 20px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+@media (max-width: 899px) {
+  .page {
+    padding: 12px 12px 32px;
+  }
+
+  .mobileToolbar {
+    display: flex;
+  }
+
+  .filtersGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .filtersCollapsed {
+    display: none;
+  }
+
+  .split {
+    grid-template-columns: 1fr;
+  }
+
+  .mapPane {
+    position: static;
+  }
+
+  .mapCanvas {
+    height: 380px;
+    min-height: 320px;
+  }
+
+  .paneHidden {
+    display: none;
+  }
+}

@@ -17,6 +17,15 @@ describe("formen på ett objekt", () => {
     const curved = smoothShape(simple)!;
     expect(simplifyShape(curved, 0.5)).toBeDefined();
     expect(simplifyShape({ kind: "point", symbol: "1", at: { x: 0, y: 0 }, angle: 0 }, 0.1)).toBeUndefined();
+    // Styrpunkter (dash) och hörn (corner) låses och bevaras vid förenkling.
+    const withDash: MapObject = { kind: "line", symbol: "101", path: [
+      { type: "M", x: 0, y: 0 }, { type: "L", x: 2, y: 0.01 }, { type: "L", x: 5, y: 0, dash: true },
+      { type: "L", x: 8, y: 0.01 }, { type: "L", x: 10, y: 0, corner: true }
+    ] };
+    const kept = simplifyShape(withDash, 0.5)!;
+    expect(kept.kind === "line" && kept.path).toEqual([
+      { type: "M", x: 0, y: 0 }, { type: "L", x: 5, y: 0, dash: true }, { type: "L", x: 10, y: 0, corner: true }
+    ]);
   });
 
   it("gör en linje mjuk genom samma punkter, hörnen förblir hörn, och rak igen", () => {

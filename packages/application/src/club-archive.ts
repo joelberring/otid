@@ -107,7 +107,8 @@ function mapView(map: MapRow, versions: VersionRow[], uses: Map<string, number>,
     validUntil: map.validUntil, contact: map.contact, trainingOnly: map.trainingOnly, feePerPrint: map.feePerPrint,
     noPublicDisplay: map.noPublicDisplay, versions: views, latestVersionId: views[0]?.versionId ?? null,
     trainings: views.reduce((sum, version) => sum + version.trainings, 0), description: map.description, maker: map.maker,
-    years: versionYearSpan(views.map(version => version.year)), merges };
+    years: versionYearSpan(views.map(version => version.year)), merges,
+    sourceDownloadPolicy: map.sourceDownloadPolicy, usageScope: map.usageScope };
 }
 
 type StoredSummary = typeof schema.clubArchiveCourseFiles.$inferSelect["summary"];

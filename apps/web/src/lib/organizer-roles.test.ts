@@ -163,7 +163,14 @@ const ROUTES: Record<string, Partial<Record<Method, Rule>>> = {
   // "Använd igen": läsare i klubben (kartbanken) och därefter admin på tävlingen eller ledare i gruppen; här finns varken
   // tävlingen eller gruppen, så den som får når 404 efter klubbens kontroll.
   "organizer/clubs/[clubId]/map-versions/[versionId]/race": { POST: { allow: CLUB_MEMBERS, ...multipart({ "x-otid-race-id": "10000000-0000-4000-8000-000000000009" }) } },
+  "organizer/clubs/[clubId]/map-versions/[versionId]/attach-race": { POST: { allow: CLUB_MEMBERS, body: { formatVersion: 1, raceId: "10000000-0000-4000-8000-000000000009" } } },
   "organizer/clubs/[clubId]/map-versions/[versionId]/group": { POST: { allow: CLUB_MEMBERS, ...multipart({ "x-otid-group-id": "10000000-0000-4000-8000-000000000009" }) } },
+  // Etapp 3.2: publicera/uppdatera/avpublicera klubbkarta i publika kartbanken (endast klubbadmin/ägare).
+  "organizer/clubs/[clubId]/maps/[mapId]/catalog": {
+    GET: { allow: CLUB_ADMINS },
+    PUT: { allow: CLUB_ADMINS, body: { formatVersion: 1, title: "Karta", accessMode: "INFO_ONLY", showPreview: false } },
+    DELETE: { allow: CLUB_ADMINS }
+  },
   // Ägaren 2026-11-08: klubbens enhetsregister.
   "organizer/clubs/[clubId]/devices": {
     GET: { allow: CLUB_MEMBERS },

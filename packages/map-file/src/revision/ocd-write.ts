@@ -14,7 +14,7 @@
  * Objekt med objektsträngar (databasattribut, version 12+), krypterade objekt och version 8 vägras.
  */
 import { maxOf, minOf, normalizeAngle, openRing } from "../geometry";
-import { MapFileError, type MapObject, type ParsedMap, type PathCommand } from "../model";
+import { MapFileError, type MapObject, type MapSymbol, type ParsedMap, type PathCommand } from "../model";
 import { Bytes, indexBlocks } from "../ocd/bytes";
 import { HEADER, OBJECT_TYPE, STATUS_NORMAL, variantFor, type OcdVariant } from "../ocd/layout";
 import { readOcd } from "../ocd/read";
@@ -29,8 +29,8 @@ import { sha256Hex } from "./sha256";
 const STATUS_DELETED = 0;
 /** v12+: indexpostens fält. */
 const ENTRY = { rect: 0, position: 16, length: 20, symbol: 24, type: 28, encrypted: 29, status: 30, view: 31, color: 32 } as const;
-/** v12+: objekthuvudets datum (Delphis TDateTime) och antal objektsträngar. */
-const V12 = { created: 24, modified: 36, objectStrings: 50 } as const;
+/** v12+: objekthuvudets färg, överstyrningar, datum (Delphis TDateTime) och antal objekt-/databassträngar. */
+const V12 = { color: 8, lineWidth: 12, serverIdEnd: 24, created: 24, multiRep: 32, modified: 36, objectStrings: 50, databaseStrings: 52 } as const;
 const OCD_LIMIT = (1 << 23) - 1;
 
 const fail = (code: MapRevisionRefusal["code"], message: string, change?: number): MapRevisionApplyResult =>
@@ -55,7 +55,8 @@ const MODELED = 0x0f;
 export function ocdPoints(geometry: RevisionGeometry): Raw[] {
   const out: { x: number; y: number; xf: number; yf: number }[] = [];
   const area = geometry.kind === "area";
-  geometryParts(geometry).forEach((part, ringIndex) => {
+  geometryParts(geometry).forEach((rawPart, ringIndex) => {
+    const part = area ? openRing(rawPart) : rawPart;
     let anchor = -1;
     const push = (x: number, y: number, xf = 0, yf = 0) => { out.push({ x: unit(x), y: unit(y), xf, yf }); return out.length - 1; };
     const marks = (command: PathCommand) => (command.corner ? 1 : 0) | (command.dash ? 8 : 0);
@@ -70,11 +71,9 @@ export function ocdPoints(geometry: RevisionGeometry): Raw[] {
       anchor = push(command.x, command.y, 0, marks(command));
     }
     if (!area) return;
-    const first = part[0]!, last = part[part.length - 1]!;
-    const closing = first.gap ?? 0;
-    // Ytans ring sluts med första punkten igen; den stängande sträckans lucka hör till sista punkten före.
+    const closing = part[0]!.gap ?? 0;
+    // OCAD sluter raka ytringar implicit utan extra dubblettpunkt; stängningssträckans lucka hör till sista punkten före.
     if (closing && anchor >= 0) { out[anchor]!.xf |= GAP_X(closing); out[anchor]!.yf |= GAP_Y(closing); }
-    if (unit(last.x) !== unit(first.x) || unit(last.y) !== unit(first.y)) push(first.x, first.y);
   });
   return out;
 }
@@ -120,15 +119,63 @@ function record(variant: OcdVariant, header: Uint8Array | undefined, symbol: num
   return out.bytes;
 }
 
+/** Symbolens huvudfärg för OCAD:s indexpost och v12-huvud, när ingen mall finns. */
+function symbolColor(symbol: MapSymbol | undefined): number {
+  switch (symbol?.kind) {
+    case "POINT": return symbol.elements[0]?.color ?? 0;
+    case "LINE": return symbol.strokes[0]?.color ?? symbol.repeated?.elements[0]?.color ?? 0;
+    case "AREA": return symbol.fill ?? symbol.hatches[0]?.color ?? symbol.pattern?.elements[0]?.color ?? symbol.border?.[0]?.color ?? 0;
+    case "TEXT": return symbol.color;
+    default: return 0;
+  }
+}
+
+/** Punktsymbolens utsträckning i OCAD-enheter (0,01 mm) så att indexets omslutande rektangel aldrig blir 0×0. */
+function pointExtent(symbol: MapSymbol | undefined): { minX: number; minY: number; maxX: number; maxY: number } {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  const grow = (x: number, y: number) => {
+    const ux = Math.round(x * 100), uy = Math.round(y * 100);
+    if (ux < minX) minX = ux;
+    if (ux > maxX) maxX = ux;
+    if (uy < minY) minY = uy;
+    if (uy > maxY) maxY = uy;
+  };
+  if (symbol?.kind === "POINT") {
+    for (const element of symbol.elements) {
+      if (element.kind === "circle" || element.kind === "dot") {
+        const half = (element.diameter + (element.kind === "circle" ? element.lineWidth : 0)) / 2;
+        grow(element.center.x - half, element.center.y - half);
+        grow(element.center.x + half, element.center.y + half);
+      } else {
+        const paths = element.kind === "line" ? [element.path] : element.rings;
+        const pad = element.kind === "line" ? element.width / 2 : 0;
+        for (const path of paths) for (const cmd of path) {
+          grow(cmd.x - pad, cmd.y - pad);
+          grow(cmd.x + pad, cmd.y + pad);
+          if (cmd.type === "C") { grow(cmd.x1, cmd.y1); grow(cmd.x2, cmd.y2); }
+        }
+      }
+    }
+  }
+  if (!Number.isFinite(minX) || minX === maxX || minY === maxY) return { minX: -100, minY: -100, maxX: 100, maxY: 100 };
+  return { minX, minY, maxX, maxY };
+}
+
 /** Indexpostens omslutande rektangel (nedre vänstra och övre högra hörnet som OCAD-koordinater). */
-function rect(points: readonly Raw[]): Uint8Array {
+function rect(points: readonly Raw[], symbol?: MapSymbol): Uint8Array {
   const out = new Out(new Uint8Array(16));
   const xs = points.map(point => point.x), ys = points.map(point => point.y);
-  out.view.setInt32(0, minOf(xs) << 8, true); out.view.setInt32(4, minOf(ys) << 8, true);
-  out.view.setInt32(8, maxOf(xs) << 8, true); out.view.setInt32(12, maxOf(ys) << 8, true);
+  let x0 = minOf(xs), y0 = minOf(ys), x1 = maxOf(xs), y1 = maxOf(ys);
+  if (points.length === 1 && symbol?.kind === "POINT") {
+    const ext = pointExtent(symbol);
+    x0 += ext.minX; y0 += ext.minY; x1 += ext.maxX; y1 += ext.maxY;
+  }
+  out.view.setInt32(0, x0 << 8, true); out.view.setInt32(4, y0 << 8, true);
+  out.view.setInt32(8, x1 << 8, true); out.view.setInt32(12, y1 << 8, true);
   return out.bytes;
 }
 
+const i16 = (value: number) => { const out = new Out(new Uint8Array(2)); out.view.setInt16(0, value, true); return out.bytes; };
 const i32 = (value: number) => { const out = new Out(new Uint8Array(4)); out.view.setInt32(0, value, true); return out.bytes; };
 
 function readRaw(bytes: Bytes, at: number, count: number): Raw[] {
@@ -140,11 +187,17 @@ function readRaw(bytes: Bytes, at: number, count: number): Raw[] {
   return out;
 }
 
-/** Punkter som inte ändrats (samma plats i ordningen, samma heltal och samma kända flaggor) får originalets alla flaggbitar. */
-const keepOriginal = (points: readonly Raw[], original: readonly Raw[]) => points.map((point, i) => {
-  const old = original[i];
-  return old && old.x === point.x && old.y === point.y && (old.xf & MODELED) === point.xf && (old.yf & MODELED) === point.yf ? old : point;
-});
+/** Punkter som inte ändrats (samma heltal och samma kända flaggor) får originalets alla flaggbitar, även när punkter lagts till eller tagits bort. */
+function keepOriginal(points: readonly Raw[], original: readonly Raw[]): Raw[] {
+  const queue = new Map<string, Raw[]>();
+  for (const old of original) {
+    const key = `${old.x},${old.y},${old.xf & MODELED},${old.yf & MODELED}`;
+    const list = queue.get(key);
+    if (list) list.push(old);
+    else queue.set(key, [old]);
+  }
+  return points.map(point => queue.get(`${point.x},${point.y},${point.xf},${point.yf}`)?.shift() ?? point);
+}
 
 function objectType(kind: MapObject["kind"]): number {
   return kind === "point" ? OBJECT_TYPE.point : kind === "line" ? OBJECT_TYPE.line : kind === "area" ? OBJECT_TYPE.area : OBJECT_TYPE.text;
@@ -209,8 +262,8 @@ export function applyOcdRevision(original: Uint8Array, changeSet: MapRevisionCha
       return fail("OBJECT_MISMATCH", "Objektet har ändrats i filen sedan ändringen gjordes.", number);
     }
     if (bytes.u8(at + ENTRY.encrypted) !== 0) return fail("UNSAFE_FILE", "Objektet är krypterat.", number);
-    if (variant.version >= 12 && bytes.u16(locator.offset + V12.objectStrings) !== 0) {
-      return fail("UNSAFE_FILE", "Objekt med objektsträngar (databasattribut) skrivs inte än.", number);
+    if (variant.version >= 12 && (bytes.u16(locator.offset + V12.objectStrings) !== 0 || bytes.u16(locator.offset + V12.databaseStrings) !== 0)) {
+      return fail("UNSAFE_FILE", "Objekt med objekt- eller databassträngar skrivs inte än.", number);
     }
     return { block: locator.block, slot: locator.slot, at, position: locator.offset, length: bytes.i32(at + ENTRY.length) };
   };
@@ -228,7 +281,7 @@ export function applyOcdRevision(original: Uint8Array, changeSet: MapRevisionCha
     if (change.kind === "modify") {
       const entry = located(change, number);
       if ("ok" in entry) return entry;
-      const built = modifyRecord(bytes, variant, entry, bySlot.get(`${entry.block}:${entry.slot}`)!, change, number, map);
+      const built = modifyRecord(bytes, variant, entry, bySlot.get(`${entry.block}:${entry.slot}`)!, change, number, map, template, blocks);
       if ("ok" in built) return built;
       byTarget.set(`${entry.block}:${entry.slot}`, { kind: "modify", entry, built });
       continue;
@@ -248,15 +301,20 @@ export function applyOcdRevision(original: Uint8Array, changeSet: MapRevisionCha
     }
     const { built } = target;
     if (built.record.length <= entry.length) {
-      writes.push({ at: entry.position, bytes: built.record, what: "object" });
+      const padded = built.record.length < entry.length ? new Uint8Array(entry.length) : built.record;
+      if (padded !== built.record) padded.set(built.record);
+      writes.push({ at: entry.position, bytes: padded, what: "object" });
     } else {
       append(built.record, "append-object", at => {
         writes.push({ at: entry.at + ENTRY.position, bytes: i32(at), what: "index-position" });
         writes.push({ at: entry.at + ENTRY.length, bytes: i32(built.record.length), what: "index-length" });
       });
     }
-    writes.push({ at: entry.at + ENTRY.rect, bytes: rect(built.points), what: "index-rect" });
+    writes.push({ at: entry.at + ENTRY.rect, bytes: rect(built.points, map.symbols.get(built.object.symbol)), what: "index-rect" });
     writes.push({ at: entry.at + ENTRY.symbol, bytes: i32(built.symbol), what: "index-symbol" });
+    if (built.typeChanged) writes.push({ at: entry.at + ENTRY.type, bytes: Uint8Array.of(built.type), what: "index-type" });
+    if (built.entryView !== undefined) writes.push({ at: entry.at + ENTRY.view, bytes: Uint8Array.of(built.entryView), what: "index-view" });
+    if (built.entryColor !== undefined) writes.push({ at: entry.at + ENTRY.color, bytes: i16(built.entryColor), what: "index-color" });
     expected.push({ block: entry.block, slot: entry.slot, object: built.object });
     modified += 1;
   }
@@ -292,13 +350,18 @@ export function applyOcdRevision(original: Uint8Array, changeSet: MapRevisionCha
     const target = slot;
     const recordAt = append(built.record, "append-object", () => undefined);
     const entry = new Out(new Uint8Array(index.entrySize));
-    entry.bytes.set(rect(built.points), ENTRY.rect);
+    entry.bytes.set(rect(built.points, map.symbols.get(built.object.symbol)), ENTRY.rect);
     entry.view.setInt32(ENTRY.position, recordAt, true);
     entry.view.setInt32(ENTRY.length, built.record.length, true);
     entry.view.setInt32(ENTRY.symbol, built.symbol, true);
     entry.view.setUint8(ENTRY.type, built.type);
     entry.view.setUint8(ENTRY.status, STATUS_NORMAL);
-    if (built.templateEntry) { entry.view.setUint8(ENTRY.view, built.templateEntry.view); entry.view.setInt16(ENTRY.color, built.templateEntry.color, true); }
+    if (built.templateEntry) {
+      entry.view.setUint8(ENTRY.view, built.templateEntry.view);
+      entry.view.setInt16(ENTRY.color, built.templateEntry.color, true);
+    } else if (built.entryColor !== undefined) {
+      entry.view.setInt16(ENTRY.color, built.entryColor, true);
+    }
     const inNew = newBlocks.find(block => target.at >= block.at && target.at < block.at + index.blockSize);
     if (inNew) inNew.data.set(entry.bytes, target.at - inNew.at);
     else writes.push({ at: target.at, bytes: entry.bytes, what: "index-entry" });
@@ -333,6 +396,7 @@ export function applyOcdRevision(original: Uint8Array, changeSet: MapRevisionCha
 interface Built {
   readonly record: Uint8Array; readonly points: readonly Raw[]; readonly symbol: number; readonly type: number; readonly object: MapObject;
   readonly templateEntry?: { readonly view: number; readonly color: number } | undefined;
+  readonly entryColor?: number | undefined; readonly entryView?: number | undefined; readonly typeChanged?: boolean | undefined;
 }
 const refuse = (message: string, change: number): MapRevisionApplyResult => fail("INVALID_CHANGE", message, change);
 
@@ -341,22 +405,32 @@ function symbolNumber(id: string): number | undefined {
   return Number.isInteger(value) && value > 0 ? value : undefined;
 }
 
-function modifyRecord(bytes: Bytes, variant: OcdVariant, entry: Entry, original: MapObject, change: ModifyChange, number: number, map: ParsedMap)
-  : Built | MapRevisionApplyResult {
+function modifyRecord(bytes: Bytes, variant: OcdVariant, entry: Entry, original: MapObject, change: ModifyChange, number: number, map: ParsedMap,
+  template: ReadonlyMap<string, MapObject>, blocks: readonly number[]): Built | MapRevisionApplyResult {
   const layout = variant.object;
   const at = entry.position;
-  const header = bytes.bytes.subarray(at, at + layout.coords);
+  const header = bytes.bytes.slice(at, at + layout.coords);
   const count = bytes.u32(at + layout.coordCount), textWords = bytes.u16(at + layout.textCount);
   const raw = readRaw(bytes, at + layout.coords, count);
   let textData: Uint8Array = bytes.bytes.slice(at + layout.coords + count * 8, at + layout.coords + (count + textWords) * 8);
   let object = stripSource(original);
   let symbol = bytes.i32(at);
+  let entryColor: number | undefined, entryView: number | undefined;
   if (change.symbol !== undefined && change.symbol !== original.symbol) {
     const kind = symbolObjectKind(map.symbols, change.symbol), value = symbolNumber(change.symbol);
     if (!kind || value === undefined) return refuse(`symbolen ${change.symbol} finns inte i kartfilen.`, number);
     if (kind !== original.kind) return refuse(`symbolen ${change.symbol} passar inte objektets slag.`, number);
     symbol = value;
     object = { ...object, symbol: change.symbol };
+    const like = template.get(change.symbol)?.source?.locator;
+    if (like?.format === "OCD" && blocks[like.block] !== undefined) {
+      const likeEntry = blocks[like.block]! + 4 + like.slot * variant.index.entrySize;
+      entryView = bytes.u8(likeEntry + ENTRY.view);
+      entryColor = bytes.i16(likeEntry + ENTRY.color);
+    } else {
+      entryColor = symbolColor(map.symbols.get(change.symbol));
+    }
+    if (variant.version >= 12) new Out(header).view.setInt32(V12.color, entryColor, true);
   }
   let angle = bytes.i16(at + layout.angle);
   if (change.angle !== undefined) {
@@ -386,8 +460,10 @@ function modifyRecord(bytes: Bytes, variant: OcdVariant, entry: Entry, original:
     textData = textBytes(change.text);
     object = { ...object, text: change.text } as MapObject;
   }
-  const type = bytes.u8(at + layout.type);
-  return { record: record(variant, header, symbol, type, angle, points, textData, change.at, false), points, symbol, type, object };
+  const originalType = bytes.u8(at + layout.type);
+  const type = originalType === OBJECT_TYPE.rectangle && change.geometry ? OBJECT_TYPE.line : originalType;
+  return { record: record(variant, header, symbol, type, angle, points, textData, change.at, false), points, symbol, type, object,
+    entryColor, entryView, typeChanged: type !== originalType };
 }
 
 function addRecord(bytes: Bytes, variant: OcdVariant, change: AddChange, number: number, map: ParsedMap, template: ReadonlyMap<string, MapObject>)
@@ -407,21 +483,31 @@ function addRecord(bytes: Bytes, variant: OcdVariant, change: AddChange, number:
   }
   const angle = change.geometry.kind === "line" ? 0 : angleUnits(change.angle ?? 0);
   const type = objectType(kind);
-  // Huvudet från ett objekt med samma symbol (utom datum och objektsträngar), annars nollor.
+  // Huvudet från ett objekt med samma symbol (utom objekt-specifika fält, datum och strängar), annars symbolens färg.
   const like = template.get(change.symbol)?.source?.locator;
-  let header: Uint8Array | undefined, templateEntry: Built["templateEntry"];
+  let header: Uint8Array | undefined, templateEntry: Built["templateEntry"], entryColor: number | undefined;
   if (like?.format === "OCD") {
     header = bytes.bytes.slice(like.offset, like.offset + variant.object.coords);
-    if (variant.version >= 12) new Out(header).view.setUint16(V12.objectStrings, 0, true);
+    if (variant.version >= 12) {
+      header.fill(0, V12.lineWidth, V12.serverIdEnd);
+      header.fill(0, V12.multiRep, V12.modified);
+      header.fill(0, V12.objectStrings, variant.object.coords);
+    }
     const blocks = indexBlocks(bytes, bytes.u32(HEADER.firstObjectBlock), variant.index.blockSize);
     const entry = blocks[like.block]! + 4 + like.slot * variant.index.entrySize;
     templateEntry = { view: bytes.u8(entry + ENTRY.view), color: bytes.i16(entry + ENTRY.color) };
+  } else {
+    entryColor = symbolColor(map.symbols.get(change.symbol));
+    if (variant.version >= 12 && entryColor !== 0) {
+      header = new Uint8Array(variant.object.coords);
+      new Out(header).view.setInt32(V12.color, entryColor, true);
+    }
   }
   const geometry = change.geometry;
   const object: MapObject = geometry.kind === "point" ? { kind: "point", symbol: change.symbol, at: geometry.at, angle: normalizeAngle(change.angle ?? 0) }
     : geometry.kind === "line" ? { kind: "line", symbol: change.symbol, path: geometry.path }
     : { kind: "area", symbol: change.symbol, rings: (geometry).rings.map(ring => openRing(ring)),
       angle: normalizeAngle(change.angle ?? 0) };
-  return { record: record(variant, header, symbol, type, angle, points, new Uint8Array(0), change.at, true), points, symbol, type, object, templateEntry };
+  return { record: record(variant, header, symbol, type, angle, points, new Uint8Array(0), change.at, true), points, symbol, type, object, templateEntry, entryColor };
 }
 

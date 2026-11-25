@@ -56,9 +56,10 @@ describe("gamla dokument utan layouter (ADR-0217 beslut 9)", () => {
 
   // 2026-11-15: ny hash när randningen förankrades i kartans nät (1c4a682); layouterna ändrar fortfarande ingenting.
   // 2026-11-17: ny hash när hela kartan ritas under banan och färgerna över banan en gång till (ADR-0211 beslut 14).
+  // 2026-11-25: ny hash efter OCAD/OMAP-ritfixar (cirkelradie, anpassade styrpunkter och tryckordning i Etapp 3).
   it("PDF:en är byte för byte densamma som före layouterna", async () => {
-    expect(await pdfHash("kartfil.ppen")).toBe("03620cd12b3b1ae8fe2e96f4dd162cb44050a4837df042b04645c459f72f0571");
-    expect(await pdfHash("kartbyte.ppen")).toBe("13966256b6fc132aaa14674658ec2b8834210728d293d115aa2e841d04949c13");
+    expect(await pdfHash("kartfil.ppen")).toBe("8255e208a657b92853257d436ce41ca8079b8f9473f72b1703b52f7d17455b81");
+    expect(await pdfHash("kartbyte.ppen")).toBe("bc55bbd45063c17c85234f5bf6393eeed5965ac927ede75fde0b38f6aec18f3b");
   });
 });
 

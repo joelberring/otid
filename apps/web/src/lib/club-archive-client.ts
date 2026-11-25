@@ -75,6 +75,13 @@ export async function renderMapVersion(clubId: string, versionId: string, fileNa
   return renderMapFile(createWorker, { bytes, fileName, ...(maxSide ? { maxSide } : {}) }, onStage, signal);
 }
 
+/** Kopplar en nedladdningsspärrad kartversion till en tävling på servern utan att skicka råa kartbytes till webbläsaren. */
+export async function attachMapVersionToRace(clubId: string, versionId: string, raceId: string)
+  : Promise<{ status: number; json: unknown }> {
+  return clubRequest(`${clubBase(clubId)}/map-versions/${encodeURIComponent(versionId)}/attach-race`, "POST",
+    { formatVersion: 1, raceId });
+}
+
 /** Bilden och metadata som multipart till kartversionens mål ("race" eller "group"). */
 export async function sendRenderedMap(clubId: string, versionId: string, target: "race" | "group", targetId: string, rendered: { png: Blob; metadata: RaceMapSourceMetadata })
   : Promise<{ status: number; json: unknown }> {

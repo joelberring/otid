@@ -31,8 +31,8 @@ describe("generaliseringens topologi", () => {
   });
 
   it("vänder kurvor med styrpunkterna och tar bort ytor inuti en likadan yta", () => {
-    const curve: PathCommand[] = [{ type: "M", x: 0, y: 0 }, { type: "C", x1: 1, y1: 1, x2: 2, y2: 1, x: 3, y: 0, corner: true }];
-    expect(reversePath(curve)).toEqual([{ type: "M", x: 3, y: 0, corner: true }, { type: "C", x1: 2, y1: 1, x2: 1, y2: 1, x: 0, y: 0 }]);
+    const curve: PathCommand[] = [{ type: "M", x: 0, y: 0 }, { type: "C", x1: 1, y1: 1, x2: 2, y2: 1, x: 3, y: 0, corner: true, gap: 2 }];
+    expect(reversePath(curve)).toEqual([{ type: "M", x: 3, y: 0, corner: true }, { type: "C", x1: 2, y1: 1, x2: 1, y2: 1, x: 0, y: 0, gap: 4 }]);
     const square = (x: number, y: number, side: number): [number, number][] => [[x, y], [x + side, y], [x + side, y + side], [x, y + side]];
     const objects = [area("b:big", "406", [square(0, 0, 10), square(6, 6, 3)]), area("b:in", "406", [square(1, 1, 2)]),
       area("b:hole", "406", [square(6.5, 6.5, 1)]), area("b:other", "408", [square(2, 2, 1)]), area("b:out", "406", [square(9, 9, 3)])];

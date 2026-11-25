@@ -53,6 +53,7 @@ export async function exportRaceAsAdmin(db: Database, input: Omit<RaceSessionPro
     /** Innehåll som inte ligger i databasen (förrådet, arkivet): hämtas när transaktionen är klar. */
     const later: { table: string; rowIndex: number; column: string; sha256: string }[] = [];
     const uuids = new Set<string>();
+    let sourceOmittedReason: "DOWNLOAD_LOCKED" | undefined;
     for (const table of RACE_BACKUP_TABLES) {
       const { columns, primaryKey } = catalog.get(table.name)!;
       const omit = new Set(table.omit ?? []);
@@ -70,7 +71,14 @@ export async function exportRaceAsAdmin(db: Database, input: Omit<RaceSessionPro
       const results = (await tx.execute<Record<string, unknown> & { row: Row }>(query)).rows;
       const rows = results.map((result, rowIndex) => {
         const row = result.row;
+        const lockedSource = table.name === "race_map_source" && row.source_download_locked === true;
+        if (lockedSource) sourceOmittedReason = "DOWNLOAD_LOCKED";
         binary.forEach((column, index) => {
+          if (lockedSource && column.name === "file") {
+            // Etapp 3.2: utelämna rå .ocd/.omap ur säkerhetskopian vid nedladdningsspärr (rasterkartan finns kvar).
+            row[column.name] = null;
+            return;
+          }
           const value = result[`b${index}`];
           const ref = result[`s${index}`];
           if ((value === null || value === undefined) && typeof ref === "string") {
@@ -137,7 +145,7 @@ export async function exportRaceAsAdmin(db: Database, input: Omit<RaceSessionPro
       where r.race_id = ${raceId} and r.basis_hash is not null and r.basis_hash is distinct from otid_result_basis_hash(r.entry_id)
       order by r.id`);
 
-    return { status: "ok", race, raceId, accountId, tables, files, later, people,
+    return { status: "ok", race, raceId, accountId, tables, files, later, people, sourceOmittedReason,
       staleCount: stale.rows[0]?.count ?? 0, staleRevisionIds: staleRevisions.rows.map(row => row.id) } as const;
   }, { isolationLevel: "repeatable read" });
   if (snapshot.status !== "ok") return snapshot;
@@ -174,7 +182,8 @@ export async function exportRaceAsAdmin(db: Database, input: Omit<RaceSessionPro
     counts: counted(tables, files.size, people.size), staleResults: snapshot.staleCount,
     staleResultRevisions: snapshot.staleRevisionIds, tables: tableEntries,
     people: { sha256: sha256Hex(peopleBytes), bytes: peopleBytes.byteLength },
-    files: fileEntries.map(([sha, data]) => ({ sha256: sha, bytes: data.byteLength }))
+    files: fileEntries.map(([sha, data]) => ({ sha256: sha, bytes: data.byteLength })),
+    ...(snapshot.sourceOmittedReason ? { sourceOmittedReason: snapshot.sourceOmittedReason } : {})
   });
   const bytes = writeZip([{ name: BACKUP_MANIFEST_PATH, data: new TextEncoder().encode(JSON.stringify(manifest, null, 2)) },
     { name: BACKUP_PEOPLE_PATH, data: peopleBytes }, ...entries]);

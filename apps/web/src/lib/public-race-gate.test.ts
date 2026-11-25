@@ -34,7 +34,9 @@ const routes = [...routeFiles(join(api, "public")), ...routeFiles(join(api, "rac
   // ADR-0214: kartritarens länk är inte tävlingens publika sida: nyckeln är behörigheten (också för en opublicerad tävling).
   // Routes med nyckel prövas i race-roles.test.ts ("routes med kartritarens länk").
   // ADR-0230: nyhetens bild hör inte till en tävling; vem som ser den prövas i readNewsImage (integrationstestet adr-0230-nyheter).
-  .filter(route => route.path !== "races/[raceId]/imports" && !route.path.includes("[token]") && !route.path.startsWith("public/news/")).sort((a, b) => a.path.localeCompare(b.path));
+  // Etapp 3.2: publika kartbanken (/api/public/map-bank/**) hör inte till en tävling; prövas i public-map-bank-route-handlers.test.ts.
+  .filter(route => route.path !== "races/[raceId]/imports" && !route.path.includes("[token]") && !route.path.startsWith("public/news/")
+    && route.path !== "public/map-bank" && !route.path.startsWith("public/map-bank/")).sort((a, b) => a.path.localeCompare(b.path));
 const raceId = "10000000-0000-4000-8000-000000000001";
 
 async function call(route: { file: string; path: string }) {

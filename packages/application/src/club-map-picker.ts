@@ -4,7 +4,7 @@ import { schema, type Database } from "@o-tid/database";
 import { clubAreaAllowed, swedishToday } from "@o-tid/domain";
 import { acceptClubInvitations, type ClubFailure, type ClubProof, type ClubRole } from "./club-access";
 import { clubMapViewsByClub } from "./club-archive";
-import { clubMapUseIssues, mayUseClubMap } from "./club-map-use";
+import { clubMapUseIssues, mayUseClubMap, raceBelongsToClub, usageScopeBlockedReason } from "./club-map-use";
 import { applyEventorMemberships, clubLinkFactsMany, derivedClubIds } from "./club-affiliation-access";
 import type { DbExecutor } from "./snapshot";
 import { UUID_PATTERN } from "./serialization";
@@ -55,12 +55,18 @@ export async function listUsableClubMaps(db: Database, proof: ClubProof, now = n
     const links = await clubLinkFactsMany(tx, clubs.map(club => club.clubId));
     const open = clubs.filter(club => clubAreaAllowed(club.role, links.get(club.clubId)!.access.MAP_BANK));
     const views = await clubMapViewsByClub(tx, open.map(club => club.clubId), undefined, { merges: false });
+    const validRaceId = raceId && UUID_PATTERN.test(raceId) ? raceId : undefined;
     for (const club of open) {
       // Kartbanken stängd för rollen: inga kartor att läsa in (klubben är inte med i `open`).
       const facts = { role: club.role, clubId: club.clubId, mapBank: links.get(club.clubId)!.access.MAP_BANK };
-      for (const map of views.get(club.clubId) ?? []) {
+      const clubMaps = views.get(club.clubId) ?? [];
+      const needsClubCheck = validRaceId !== undefined && clubMaps.some(m => m.usageScope === "CLUB_ACTIVITIES_ONLY");
+      const belongsToClub = needsClubCheck ? await raceBelongsToClub(tx, club.clubId, validRaceId) : undefined;
+      for (const map of clubMaps) {
         if (map.versions.length === 0 || !mayUseClubMap(facts, map)) continue;
-        maps.push({ clubId: club.clubId, clubName: club.name, map, issues: clubMapUseIssues(map, today) });
+        const blockedReason = usageScopeBlockedReason(club.role, map.usageScope, belongsToClub);
+        maps.push({ clubId: club.clubId, clubName: club.name, map, issues: clubMapUseIssues(map, today),
+          usableForRace: blockedReason === null, blockedReason });
       }
     }
     // ADR-0221: tävlingen skapades ur klubbens terminsplan med en vald karta; den visas först (bara om kontot får använda den).

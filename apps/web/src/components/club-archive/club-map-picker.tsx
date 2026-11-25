@@ -8,7 +8,7 @@ import type { UsableClubMap, UsableClubMapsResponse } from "@o-tid/contracts";
 import { clubMapDuplicatesSv } from "../../i18n/club-map-duplicates-sv";
 import { raceMapSv } from "../../i18n/race-map-sv";
 import { raceMapEn } from "../../i18n/workspace-small-en";
-import { clubRequest, renderMapVersion, sendRenderedMap } from "../../lib/club-archive-client";
+import { attachMapVersionToRace, clubRequest, renderMapVersion, sendRenderedMap } from "../../lib/club-archive-client";
 import { Button, Notice } from "../ui";
 import { MapThumbnail } from "./map-check";
 import styles from "./map-duplicates.module.css";
@@ -17,15 +17,26 @@ import styles from "./map-duplicates.module.css";
  * ADR-0210 beslut 7: "Välj karta från klubbarkivet" i stället för att ladda upp kartfilen. Kartorna i kontots klubbar med
  * bild, namn och "5 versioner, 2014–2023"; senaste versionen är förvald. Kartan blir tävlingens kartfil på samma sätt som
  * "Använd igen": versionen ritas i webbläsaren och tävlingen pekar på arkivets innehåll (ADR-0189), bara bilden skickas,
- * och kartans rättigheter följer med. Vem som får använda kartan avgör servern (`mayUseClubMap`).
+ * och kartans rättigheter följer med. För nedladdningsspärrade kartor (`CUSTODIANS_ONLY`) kopplas kartan direkt på servern.
  */
-export type ClubMapChoice = { clubId: string; versionId: string; fileName: string; mapName: string; year: number };
+export type ClubMapChoice = {
+  clubId: string; versionId: string; fileName: string; mapName: string; year: number;
+  sourceDownloadLocked?: boolean | undefined;
+};
 type Stage = keyof typeof clubMapDuplicatesSv.picker.working;
 
-/** Kartversionen ritas och sparas som tävlingens kartfil. Ger felets text, eller undefined när det gick. */
+/** Kartversionen ritas och sparas som tävlingens kartfil (eller kopplas på servern om den är nedladdningsspärrad). */
 export async function applyClubMap(choice: ClubMapChoice, raceId: string, onStage: (stage: Stage) => void,
-  text: Pick<Texts<typeof clubMapDuplicatesSv.picker>, "tooLarge" | "failed"> = clubMapDuplicatesSv.picker,
+  text: Pick<Texts<typeof clubMapDuplicatesSv.picker>, "tooLarge" | "failed"> & { clubActivitiesOnly?: string } = clubMapDuplicatesSv.picker,
   mapErrors: Texts<typeof raceMapSv.mapFile.errors> = raceMapSv.mapFile.errors): Promise<string | undefined> {
+  if (choice.sourceDownloadLocked) {
+    onStage("saving");
+    const attached = await attachMapVersionToRace(choice.clubId, choice.versionId, raceId);
+    if (attached.status === 200) return undefined;
+    const body = attached.json as { error?: string; message?: string } | undefined;
+    if (body?.error === "CLUB_ACTIVITIES_ONLY") return body.message ?? text.clubActivitiesOnly ?? clubMapDuplicatesSv.picker.clubActivitiesOnly;
+    return body?.error === "MAP_FILE_TOO_LARGE" || body?.error === "STORAGE_QUOTA_EXCEEDED" ? text.tooLarge : text.failed;
+  }
   onStage("reading");
   const rendered = await renderMapVersion(choice.clubId, choice.versionId, choice.fileName, stage => onStage(stage));
   if (rendered.type === "error") return mapErrors[rendered.code];
@@ -62,20 +73,32 @@ function PickerItem({ item, multipleClubs, raceType, busy, onUse }: { item: Usab
   const { map } = item;
   const [versionId, setVersionId] = useState(map.latestVersionId ?? "");
   const version = map.versions.find(candidate => candidate.versionId === versionId) ?? map.versions[0]!;
+  const locked = map.sourceDownloadPolicy === "CUSTODIANS_ONLY";
+  const clubActivitiesOnly = map.usageScope === "CLUB_ACTIVITIES_ONLY";
+  const adminOnly = map.usageScope === "ADMIN_ONLY";
+  const unusable = item.usableForRace === false;
+  const blockedText = unusable ? (item.blockedReason === "ADMIN_ONLY" ? text.adminOnly : text.clubActivitiesOnly) : undefined;
   return <li className={styles.pickerItem} data-testid="club-map-choice">
     <MapThumbnail clubId={item.clubId} version={version} name={map.name} />
     <h4>{map.name}</h4>
     {multipleClubs && <span className={styles.meta}>{text.club(item.clubName)}</span>}
     <span className={styles.meta} data-testid="club-map-choice-summary">{clubMapDuplicatesText.versions.summary(map.versions.length, map.years)}</span>
+    {(locked || clubActivitiesOnly || adminOnly) && <div className={styles.badges}>
+      {locked && <span className={styles.badge} data-testid="club-map-badge-locked">{text.badges.locked}</span>}
+      {clubActivitiesOnly && <span className={styles.badge} data-testid="club-map-badge-club-only">{text.badges.clubActivitiesOnly}</span>}
+      {adminOnly && <span className={styles.badge} data-testid="club-map-badge-admin-only">{text.badges.adminOnly}</span>}
+    </div>}
     {item.issues.map(issue => <span key={issue} className={styles.issue}>{text.issues[issue]}</span>)}
     {raceType && raceType !== "TRAINING" && item.issues.includes("TRAINING_ONLY") && <span className={styles.issue}>{text.trainingOnlyRace}</span>}
+    {blockedText && <span className={styles.issue} data-testid="club-map-blocked-reason">{blockedText}</span>}
     {map.versions.length > 1 && <label className={styles.meta}>{text.version}
       <select value={version.versionId} onChange={event => setVersionId(event.target.value)}>
         {map.versions.map(candidate => <option key={candidate.versionId} value={candidate.versionId}>
           {text.versionLabel(candidate.year, candidate.fileName, candidate.versionId === map.latestVersionId)}</option>)}
       </select></label>}
-    <Button variant="secondary" disabled={busy} aria-label={text.useMap(map.name)}
-      onClick={() => onUse({ clubId: item.clubId, versionId: version.versionId, fileName: version.fileName, mapName: map.name, year: version.year })}>
+    <Button variant="secondary" disabled={busy || unusable} aria-label={text.useMap(map.name)}
+      onClick={() => onUse({ clubId: item.clubId, versionId: version.versionId, fileName: version.fileName, mapName: map.name, year: version.year,
+        sourceDownloadLocked: locked })}>
       {text.use}</Button>
   </li>;
 }

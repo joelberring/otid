@@ -1,6 +1,6 @@
 /** OCAD-symboler → modellens symboler. Mått i OCAD är 0,01 mm, vinklar 0,1 grad, textstorlek 0,1 punkt. */
 import { moveElement, normalizeAngle, normalizeHatchAngle, ocdSymbolCode } from "../geometry";
-import type { AreaSymbol, HatchStyle, LineSymbol, MapSymbol, PointElement, StrokeStyle, TextSymbol } from "../model";
+import type { AreaSymbol, DashSpec, HatchStyle, LineSymbol, MapSymbol, PointElement, StrokeStyle, TextSymbol } from "../model";
 import type { WarningCollector } from "../warnings";
 import { indexBlocks, type Bytes } from "./bytes";
 import { coordsToParts, readCoords } from "./coords";
@@ -175,26 +175,62 @@ function lineSymbol(
 ): Pick<LineSymbol, "strokes" | "repeated" | "between" | "corner" | "start" | "end"> {
   const strokes: StrokeStyle[] = [];
   const style = styleOf(bytes.u16(at + LINE.style));
+  const framingColor = bytes.i16(at + LINE.framingColor);
   const framingWidth = bytes.i16(at + LINE.framingWidth) * UNIT;
-  if (framingWidth > 0) strokes.push({ color: bytes.u16(at + LINE.framingColor), width: framingWidth, join: "round", cap: "round" });
-
-  if (bytes.u16(at + LINE.doubleMode) !== 0) {
-    const doubleWidth = bytes.i16(at + LINE.doubleWidth) * UNIT;
-    if ((bytes.u16(at + LINE.doubleFlags) & 1) !== 0 && doubleWidth > 0) {
-      strokes.push({ color: bytes.u16(at + LINE.doubleColor), width: doubleWidth, join: style.join });
-    }
-    const left = bytes.i16(at + LINE.doubleLeftWidth) * UNIT;
-    const right = bytes.i16(at + LINE.doubleRightWidth) * UNIT;
-    if (left > 0) strokes.push({ color: bytes.u16(at + LINE.doubleLeftColor), width: left, offset: doubleWidth / 2, join: style.join });
-    if (right > 0) strokes.push({ color: bytes.u16(at + LINE.doubleRightColor), width: right, offset: -doubleWidth / 2, join: style.join });
+  if (framingColor >= 0 && framingWidth > 0) {
+    strokes.push({ color: framingColor, width: framingWidth, ...styleOf(bytes.u16(at + LINE.framingStyle)) });
   }
 
+  // Dubbellinje: läge 1 = heldragna kanter, 2 = vänster streckad, 3 = båda kanter streckade, 4 = allt (även fyllning)
+  // streckat med DblLength/DblGap. DblFlags bit 0 = fyllning på, bit 1 = streckad bakgrund/fyllning.
+  // DblWidth är bredden mellan kantlinjernas mittlinjer (fyllningens bredd; total yttre bredd = DblWidth + (left + right)/2).
+  const doubleMode = bytes.u16(at + LINE.doubleMode);
+  if (doubleMode !== 0) {
+    const doubleFlags = bytes.u16(at + LINE.doubleFlags);
+    const doubleWidth = bytes.i16(at + LINE.doubleWidth) * UNIT;
+    const doubleLength = bytes.i16(at + LINE.doubleLength) * UNIT;
+    const doubleGap = bytes.i16(at + LINE.doubleGap) * UNIT;
+    const hasDoubleDash = doubleLength > 0 && doubleGap > 0;
+    const doubleDash = hasDoubleDash ? [doubleLength, doubleGap] : undefined;
+    const doubleDashSpec: DashSpec | undefined = hasDoubleDash
+      ? { mainLength: doubleLength, mainGap: doubleGap, endLength: doubleLength / 2 } : undefined;
+    const fillColor = bytes.i16(at + LINE.doubleColor);
+    if ((doubleFlags & 1) !== 0 && fillColor >= 0 && doubleWidth > 0) {
+      const fillDashed = doubleMode === 4 || (doubleFlags & 2) !== 0;
+      strokes.push({
+        color: fillColor, width: doubleWidth, cap: style.cap, join: style.join,
+        ...(fillDashed && doubleDash ? { dash: doubleDash, dashSpec: doubleDashSpec } : {})
+      });
+    }
+    const leftColor = bytes.i16(at + LINE.doubleLeftColor);
+    const rightColor = bytes.i16(at + LINE.doubleRightColor);
+    const left = bytes.i16(at + LINE.doubleLeftWidth) * UNIT;
+    const right = bytes.i16(at + LINE.doubleRightWidth) * UNIT;
+    if (leftColor >= 0 && left > 0) {
+      const leftDashed = doubleMode >= 2;
+      strokes.push({
+        color: leftColor, width: left, offset: doubleWidth / 2, cap: style.cap, join: style.join,
+        ...(leftDashed && doubleDash ? { dash: doubleDash, dashSpec: doubleDashSpec } : {})
+      });
+    }
+    if (rightColor >= 0 && right > 0) {
+      const rightDashed = doubleMode >= 3;
+      strokes.push({
+        color: rightColor, width: right, offset: -doubleWidth / 2, cap: style.cap, join: style.join,
+        ...(rightDashed && doubleDash ? { dash: doubleDash, dashSpec: doubleDashSpec } : {})
+      });
+    }
+  }
+
+  const lineColor = bytes.i16(at + LINE.color);
   const width = bytes.i16(at + LINE.width) * UNIT;
-  if (width > 0) {
+  if (lineColor >= 0 && width > 0) {
     const mainLength = bytes.i16(at + LINE.mainLength) * UNIT;
+    const endLength = bytes.i16(at + LINE.endLength) * UNIT;
     const mainGap = bytes.i16(at + LINE.mainGap) * UNIT;
     const secondaryGap = bytes.i16(at + LINE.secondaryGap) * UNIT;
     let dash: number[] | undefined;
+    let dashSpec: DashSpec | undefined;
     if (mainLength > 0 && (mainGap > 0 || secondaryGap > 0)) {
       if (secondaryGap > 0) {
         const half = Math.max((mainLength - secondaryGap) / 2, 0.01);
@@ -202,8 +238,14 @@ function lineSymbol(
       } else {
         dash = [mainLength, mainGap];
       }
+      dashSpec = {
+        mainLength,
+        mainGap: Math.max(0, mainGap),
+        endLength: endLength > 0 ? endLength : mainLength,
+        ...(secondaryGap > 0 ? { secondaryGap } : {})
+      };
     }
-    strokes.push({ color: bytes.u16(at + LINE.color), width, ...style, dash });
+    strokes.push({ color: lineColor, width, ...style, dash, ...(dashSpec ? { dashSpec } : {}) });
   }
 
   return { strokes, ...lineDecorations(bytes, at, end, variant, warnings) };

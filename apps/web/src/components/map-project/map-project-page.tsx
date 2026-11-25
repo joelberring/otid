@@ -19,6 +19,9 @@ import { ProjectStatsSection } from "./map-stats-sections";
 import { MapProjectNextSteps } from "./map-project-next-steps";
 import { mapProjectSteps } from "../../lib/map-project-next-steps";
 import { InvitationActions, invitationSentText } from "../invitation-actions";
+import { mapBankEn } from "../../i18n/map-bank-en";
+import { mapBankSv } from "../../i18n/map-bank-sv";
+import { MapSharingPanel } from "../map-bank/map-sharing-panel";
 import { Button, Field, Notice, Select } from "../ui";
 import styles from "./map-project.module.css";
 
@@ -153,6 +156,8 @@ export function MapProjectPage({ projectId }: { projectId: string }) {
 
       <ProjectStatsSection base={base} canDecide={project.viewer.canDecide} />
 
+      {manage && <ProjectSharingSection projectId={projectId} projectName={project.name} />}
+
       {manage && <ProjectSettings view={project} base={base} busy={busy} run={run} />}
 
       {manage && <DeleteProject view={project} base={base} />}
@@ -234,6 +239,17 @@ function MembersSection({ view, base, busy, mailEnabled, run, onChanged, onMessa
     </form>}
     {manage && <ClubMemberPicker base={base} busy={busy} onChanged={onChanged} onMessage={onMessage} />}
     {manage && <JoinLinks base={base} links={view.joinLinks} busy={busy} onChanged={onChanged} onMessage={onMessage} />}
+  </section>;
+}
+
+function ProjectSharingSection({ projectId, projectName }: { projectId: string; projectName: string }) {
+  const text = useTexts(mapBankSv.sharing, mapBankEn.sharing);
+  const [open, setOpen] = useState(false);
+  return <section aria-labelledby="map-project-sharing">
+    <details onToggle={event => setOpen(event.currentTarget.open)}>
+      <summary id="map-project-sharing">{text.projectPanelTitle}</summary>
+      {open && <MapSharingPanel kind="map-project" projectId={projectId} projectName={projectName} />}
+    </details>
   </section>;
 }
 

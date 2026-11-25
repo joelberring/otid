@@ -64,12 +64,18 @@ const perpendicular = (p: Point, a: Point, b: Point) => {
   return length === 0 ? Math.hypot(p.x - a.x, p.y - a.y) : Math.abs(dy * p.x - dx * p.y + b.x * a.y - b.y * a.x) / length;
 };
 
-/** Douglas–Peucker (iterativt): punkterna som behålls, första och sista alltid. */
-export function simplifyPoints(points: readonly Point[], tolerance: number): Point[] {
-  if (points.length <= 2 || tolerance <= 0) return [...points];
+/** Douglas–Peucker (iterativt): indexen som behålls, första, sista och eventuella `pinned` (t.ex. hörn- och streckpunkter) alltid. */
+export function simplifyIndices(points: readonly Point[], tolerance: number, pinned?: ReadonlySet<number>): number[] {
+  if (points.length <= 2 || tolerance <= 0) return points.map((_, i) => i);
   const keep = new Uint8Array(points.length);
   keep[0] = 1; keep[points.length - 1] = 1;
-  const stack: [number, number][] = [[0, points.length - 1]];
+  const anchors = [0];
+  if (pinned?.size) {
+    for (let i = 1; i < points.length - 1; i += 1) if (pinned.has(i)) { keep[i] = 1; anchors.push(i); }
+  }
+  anchors.push(points.length - 1);
+  const stack: [number, number][] = [];
+  for (let a = 0; a + 1 < anchors.length; a += 1) if (anchors[a + 1]! - anchors[a]! > 1) stack.push([anchors[a]!, anchors[a + 1]!]);
   while (stack.length) {
     const [first, last] = stack.pop()!;
     let worst = -1, index = -1;
@@ -79,17 +85,33 @@ export function simplifyPoints(points: readonly Point[], tolerance: number): Poi
     }
     if (worst > tolerance && index > 0) { keep[index] = 1; stack.push([first, index], [index, last]); }
   }
-  return points.filter((_, i) => keep[i] === 1);
+  const out: number[] = [];
+  for (let i = 0; i < points.length; i += 1) if (keep[i] === 1) out.push(i);
+  return out;
+}
+
+/** Douglas–Peucker (iterativt): punkterna som behålls, första och sista alltid. */
+export function simplifyPoints(points: readonly Point[], tolerance: number, pinned?: ReadonlySet<number>): Point[] {
+  return simplifyIndices(points, tolerance, pinned).map(i => points[i]!);
 }
 
 const isStraight = (part: Path) => part.every(command => command.type === "M" || command.type === "L");
 const pointsOf = (part: Path): Point[] => part.map(command => ({ x: command.x, y: command.y }));
-const pathOf = (points: readonly Point[]): PathCommand[] => points.map((point, index) => ({ type: index === 0 ? "M" : "L", x: point.x, y: point.y }));
+const flagsOf = (command: PathCommand | undefined) => !command ? {} : ({
+  ...(command.corner ? { corner: true as const } : {}),
+  ...(command.dash ? { dash: true as const } : {}),
+  ...(command.gap !== undefined ? { gap: command.gap } : {})
+});
+const pinnedIn = (part: Path): Set<number> => {
+  const out = new Set<number>();
+  part.forEach((command, i) => { if (command.corner || command.dash || command.gap !== undefined) out.add(i); });
+  return out;
+};
 
 /**
  * En ring förenklas med sin längsta diagonal som fasta punkter (en ring har ingen början). Mindre än tre punkter kvar: orörd.
  */
-function simplifyRing(points: readonly Point[], tolerance: number): Point[] | undefined {
+function simplifyRingIndices(points: readonly Point[], tolerance: number, pinned?: ReadonlySet<number>): { indices: number[]; closed: boolean } | undefined {
   const closed = points.length > 1 && points[0]!.x === points[points.length - 1]!.x && points[0]!.y === points[points.length - 1]!.y;
   const ring = closed ? points.slice(0, -1) : [...points];
   if (ring.length < 4) return undefined;
@@ -98,11 +120,14 @@ function simplifyRing(points: readonly Point[], tolerance: number): Point[] | un
     const distance = Math.hypot(ring[i]!.x - ring[0]!.x, ring[i]!.y - ring[0]!.y);
     if (distance > best) { best = distance; far = i; }
   }
-  const one = simplifyPoints(ring.slice(0, far + 1), tolerance);
-  const two = simplifyPoints([...ring.slice(far), ring[0]!], tolerance);
-  const result = [...one, ...two.slice(1, -1)];
+  const pinOne = pinned?.size ? new Set([...pinned].filter(i => i > 0 && i < far)) : undefined;
+  const secondPoints = [...ring.slice(far), ring[0]!];
+  const pinTwo = pinned?.size ? new Set([...pinned].filter(i => i > far && i < ring.length).map(i => i - far)) : undefined;
+  const one = simplifyIndices(ring.slice(0, far + 1), tolerance, pinOne);
+  const two = simplifyIndices(secondPoints, tolerance, pinTwo).slice(1, -1).map(i => i + far);
+  const result = [...one, ...two];
   if (result.length < 3) return undefined;
-  return closed ? [...result, result[0]!] : result;
+  return { indices: result, closed };
 }
 
 /** Objektet förenklat, eller inget om inget ändras (kurvor, punkter, texter och för få punkter lämnas). */
@@ -114,10 +139,25 @@ export function simplifyObject(object: MapObject, tolerance: number): { object: 
   const next: Path[] = [];
   for (const part of parts) {
     const points = pointsOf(part);
+    const pinned = pinnedIn(part);
     before += points.length;
-    const simplified = object.kind === "area" ? simplifyRing(points, tolerance) ?? points : simplifyPoints(points, tolerance);
-    after += simplified.length;
-    next.push(pathOf(simplified));
+    if (object.kind === "area") {
+      const simplified = simplifyRingIndices(points, tolerance, pinned);
+      if (!simplified) { after += points.length; next.push([...part]); continue; }
+      const cmds: PathCommand[] = simplified.indices.map((origIdx, idx) => ({
+        type: idx === 0 ? "M" : "L", x: points[origIdx]!.x, y: points[origIdx]!.y, ...flagsOf(part[origIdx])
+      }));
+      if (simplified.closed) {
+        const lastOrig = part[part.length - 1];
+        cmds.push({ type: "L", x: points[simplified.indices[0]!]!.x, y: points[simplified.indices[0]!]!.y, ...flagsOf(lastOrig) });
+      }
+      after += cmds.length;
+      next.push(cmds);
+    } else {
+      const indices = simplifyIndices(points, tolerance, pinned);
+      after += indices.length;
+      next.push(indices.map((origIdx, idx) => ({ type: idx === 0 ? "M" : "L", x: points[origIdx]!.x, y: points[origIdx]!.y, ...flagsOf(part[origIdx]) })));
+    }
   }
   if (after >= before) return undefined;
   return { object: object.kind === "area" ? { ...object, rings: next } : { ...object, path: next.flat() }, before, after };

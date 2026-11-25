@@ -65,7 +65,9 @@ export const raceBackupManifestSchema = z.object({
   tables: z.array(z.object({ name: z.string().regex(BACKUP_TABLE_NAME), rows: count, sha256: sha256HexSchema, bytes: count }).strict())
     .max(200),
   people: z.object({ sha256: sha256HexSchema, bytes: count }).strict(),
-  files: z.array(z.object({ sha256: sha256HexSchema, bytes: count }).strict()).max(RACE_BACKUP_MAX_ENTRIES)
+  files: z.array(z.object({ sha256: sha256HexSchema, bytes: count }).strict()).max(RACE_BACKUP_MAX_ENTRIES),
+  /** Etapp 3.2: sätts när rå OCAD/OMAP-fil utelämnats p.g.a. nedladdningsspärr (rasterkartan finns kvar). */
+  sourceOmittedReason: z.literal("DOWNLOAD_LOCKED").optional()
 }).strict();
 export type RaceBackupManifest = z.infer<typeof raceBackupManifestSchema>;
 

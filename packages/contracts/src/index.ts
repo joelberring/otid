@@ -317,3 +317,4 @@ export * from "./geo-jobs";
 export * from "./map-project-wms";
 export * from "./race-navigation";
 export * from "./news";
+export * from "./public-map-catalog";

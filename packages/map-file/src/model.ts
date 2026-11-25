@@ -45,6 +45,19 @@ export interface SymbolCode {
   readonly sub: number;
 }
 
+/**
+ * Streckmönster ur OCAD eller Mapper som anpassas per delsträcka mellan hörn- och streckpunkter (styrpunkter), så att
+ * ändar och skarpa brytpunkter alltid hamnar på ett heldraget streck. Mått i mm.
+ */
+export interface DashSpec {
+  readonly mainLength: number;
+  readonly mainGap: number;
+  /** Längd på första och sista strecket på varje delsträcka (t.ex. halvt streck så att två möts till ett helt). */
+  readonly endLength: number;
+  /** Sekundärt mellanrum mitt i varje helt streck (OCAD:s `SecGap`, Mappers `in_group_break_length`). */
+  readonly secondaryGap?: number | undefined;
+}
+
 /** Ett streck: en linje som ritas längs objektets väg (huvudlinje, kantlinje, ram …). Mått i mm. */
 export interface StrokeStyle {
   readonly color: number;
@@ -55,9 +68,14 @@ export interface StrokeStyle {
   readonly join?: "miter" | "round" | "bevel" | undefined;
   /** Streck och mellanrum i mm, upprepas. Saknas = heldragen. */
   readonly dash?: readonly number[] | undefined;
+  /** Anpassad streckning mellan hörn- och streckpunkter (går före `dash` vid ritning). */
+  readonly dashSpec?: DashSpec | undefined;
 }
 
-/** Del av en punktsymbol. Koordinaterna är relativa symbolens mittpunkt, i mm med y uppåt. */
+/**
+ * Del av en punktsymbol. Koordinaterna är relativa symbolens mittpunkt, i mm med y uppåt.
+ * För `circle` är `diameter` mittlinjens diameter (`innerDiameter + lineWidth`, som i både OCAD och Mapper).
+ */
 export type PointElement =
   | { readonly kind: "circle"; readonly color: number; readonly center: Point; readonly diameter: number; readonly lineWidth: number }
   | { readonly kind: "dot"; readonly color: number; readonly center: Point; readonly diameter: number }

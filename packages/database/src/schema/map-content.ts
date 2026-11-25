@@ -59,7 +59,13 @@ export const raceMapSources = pgTable("race_map_source", {
   georeference: jsonb("georeference").$type<RaceMapSourceGeoreference>(),
   render: jsonb("render").$type<RaceMapSourceRender>().notNull(),
   summary: jsonb("summary").$type<RaceMapSourceSummary>().notNull(),
-  uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull()
+  uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull(),
+  /** Etapp 3.1 (migration 0145): ursprung från klubbarkiv eller publik kartbank samt nedladdningsspärr. */
+  clubMapId: uuid("club_map_id"),
+  clubMapVersionId: uuid("club_map_version_id"),
+  publicListingId: uuid("public_listing_id"),
+  sourceDownloadLocked: boolean("source_download_locked").notNull().default(false),
+  usageScope: text("usage_scope").$type<"ANY" | "CLUB_ACTIVITIES_ONLY" | "ADMIN_ONLY">().notNull().default("ANY")
 });
 
 /**

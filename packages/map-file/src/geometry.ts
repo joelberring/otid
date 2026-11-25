@@ -56,8 +56,8 @@ export function moveElement(element: PointElement, dx: number, dy: number): Poin
 }
 
 export function moveCommand(command: PathCommand, dx: number, dy: number): PathCommand {
-  if (command.type !== "C") return { type: command.type, x: command.x + dx, y: command.y + dy };
-  return { type: "C", x1: command.x1 + dx, y1: command.y1 + dy, x2: command.x2 + dx, y2: command.y2 + dy, x: command.x + dx, y: command.y + dy };
+  if (command.type !== "C") return { ...command, x: command.x + dx, y: command.y + dy };
+  return { ...command, x1: command.x1 + dx, y1: command.y1 + dy, x2: command.x2 + dx, y2: command.y2 + dy, x: command.x + dx, y: command.y + dy };
 }
 
 type Bounds = NonNullable<ParsedMap["bounds"]>;

@@ -1,7 +1,8 @@
 import { sql } from "drizzle-orm";
-import { bigint, boolean, check, date, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, check, date, doublePrecision, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import type { MapFingerprint } from "@o-tid/domain";
 import { userAccounts } from "./accounts";
+import { mapContents } from "./map-content";
 import { bytea } from "./types";
 
 /**
@@ -13,6 +14,8 @@ export type ClubRole = "OWNER" | "ADMIN" | "LEADER" | "READER";
 export type ClubMapFormat = "OCD" | "OMAP";
 export type ClubCourseFileKind = "PPEN" | "COURSE_DATA";
 export type ClubMapResolution = "FOLDER" | "NAME" | "MANUAL" | "MISSING" | "NONE";
+export type SourceDownloadPolicy = "ALLOWED" | "CUSTODIANS_ONLY";
+export type MapUsageScope = "ANY" | "CLUB_ACTIVITIES_ONLY" | "ADMIN_ONLY";
 
 export const clubs = pgTable("club", {
   id: uuid("id").primaryKey(),
@@ -91,8 +94,14 @@ export const clubMaps = pgTable("club_map", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   /** ADR-0210 (migration 0077): beskrivning och kartritare, satta en gång på kartan. */
   description: text("description"),
-  maker: text("maker")
-});
+  maker: text("maker"),
+  /** Etapp 3.1 (migration 0145): nedladdningsspärr för kartfilen och tillåtet användningsområde. */
+  sourceDownloadPolicy: text("source_download_policy").$type<SourceDownloadPolicy>().notNull().default("ALLOWED"),
+  usageScope: text("usage_scope").$type<MapUsageScope>().notNull().default("ANY")
+}, (table) => [
+  check("club_map_source_download_policy_check", sql`${table.sourceDownloadPolicy} IN ('ALLOWED', 'CUSTODIANS_ONLY')`),
+  check("club_map_usage_scope_check", sql`${table.usageScope} IN ('ANY', 'CLUB_ACTIVITIES_ONLY', 'ADMIN_ONLY')`)
+]);
 
 export const clubMapVersions = pgTable("club_map_version", {
   id: uuid("id").primaryKey(),
@@ -109,8 +118,19 @@ export const clubMapVersions = pgTable("club_map_version", {
   sourcePath: text("source_path"),
   /** ADR-0210: året som någon skrivit in (annars gissas det), och versionens kartritare. */
   versionYear: integer("version_year"),
-  maker: text("maker")
-});
+  maker: text("maker"),
+  /** Etapp 3.1 (migration 0145): geografisk utbredning, skala, norm och lågupplöst förhandsvisningsbild. */
+  minLon: doublePrecision("min_lon"),
+  maxLon: doublePrecision("max_lon"),
+  minLat: doublePrecision("min_lat"),
+  maxLat: doublePrecision("max_lat"),
+  footprint: jsonb("footprint").$type<[number, number][]>(),
+  scale: integer("scale"),
+  norm: text("norm"),
+  previewContentSha256: text("preview_content_sha256").references(() => mapContents.sha256, { onDelete: "set null" })
+}, (table) => [
+  index("club_map_version_preview_idx").on(table.previewContentSha256)
+]);
 
 export const clubArchiveEntries = pgTable("club_archive_entry", {
   id: uuid("id").primaryKey(),

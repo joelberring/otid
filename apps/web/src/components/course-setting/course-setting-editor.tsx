@@ -94,8 +94,6 @@ import { carryOnImport } from "../../lib/course-setting-import-carry";
 import { useCourseSettingKeys } from "./use-course-setting-keys";
 import styles from "./course-setting.module.css";
 
-
-
 type Drag = { kind: "control"; control: string; dx: number; dy: number; courseControl?: string | undefined } | { kind: "number"; courseControl: string } | { kind: "rotate" }
   | { kind: "bend"; from: string; to: string; index: number }
   /** Steg 64: ett specialobjekt (helt eller ett hörn) och tryckytans ram. */
@@ -158,6 +156,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
     return () => clearTimeout(timer);
   }, []);
   const [busy, setBusy] = useState(false);
+  const [lockedDismissed, setLockedDismissed] = useState(false);
   const [dialog, setDialog] = useState<"file" | "transfer" | "map">();
   // Översynen 2026-11-17: `?flik=traning` öppnar fliken Träning (bingo-ledarens sida och arbetsytans "Övning i mobilen").
   const [linkedTab] = useState(() => typeof window === "undefined" ? undefined : linkedCourseSettingTab(window.location.search));
@@ -215,7 +214,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
   }, resume);
 
   // Steg 67: kön utan nät (notiser och bockar), åtgärderna i telefonen och "Spara för offline".
-  const offline = useCourseSettingOffline({ raceId, state, store, sync, version, status, mapSha256: state.mapFile?.sha256, say,
+  const offline = useCourseSettingOffline({ raceId, state, store, sync, version, status, mapSha256: state.mapFile?.sourceDownloadLocked ? undefined : state.mapFile?.sha256, say,
     notes: collaboration.notes, inspections: collaboration.inspections,
     onAccessGone: () => { say({ tone: "error", text: offlineText.accessGone }); onReload(); },
     describe: (item: QueuedItem, code: number) => item.kind !== "inspection" ? rejectedNoteText(item, code, offlineText, notesText)
@@ -235,7 +234,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
 
   // Kartfilen: en Worker ritar kartan; vägvalens Worker startas först när en sträcka väljs (`useRouteChoiceWorker`).
   const mapFile = useCourseSettingMapFile({ raceId, mapFile: state.mapFile, storage: offline.storage, say });
-  const { session: mapSession, bounds: mapBounds, status: mapStatus, georeference, bytes: mapBytes } = mapFile;
+  const { session: mapSession, vectorSession, locked: mapLocked, bounds: mapBounds, status: mapStatus, georeference, bytes: mapBytes } = mapFile;
 
   const { document, view, selection } = editor;
   const course = document.courses.find(row => row.id === view);
@@ -245,12 +244,12 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
   const variant = ux.variant;
   // En delad kontroll flyttad långt i en bana: flytta i alla banor eller ny kontroll bara här (som Purple Pen).
   const moveShared = useMoveShared({ raceId, store, apply, edit, poke: () => sync.poke(), say });
-  const cutting = useDetailGaps(mapSession, document);
+  const cutting = useDetailGaps(vectorSession, document);
   // ADR-0180 beslut 13: förslag på kontrollbeskrivning ur kartfilen; objektet markeras när man pekar på ett förslag.
-  const suggestions = useDescriptionSuggestions(mapSession, document, view, variant, selection?.kind === "control" ? selection.control : undefined);
+  const suggestions = useDescriptionSuggestions(vectorSession, document, view, variant, selection?.kind === "control" ? selection.control : undefined);
   const [suggestionHover, setSuggestionHover] = useState<Parameters<typeof drawSuggestionHighlight>[2]>();
   // ADR-0192: träningsläget (kartans pass, verktygen och fliken Träning).
-  const training = useCourseSettingTraining({ document, view, variant, session: mapSession, mapReady: mapStatus === "ready", mapBounds, readOnly, say,
+  const training = useCourseSettingTraining({ document, view, variant, session: vectorSession, mapReady: mapStatus === "ready", mapBounds, readOnly, say,
     onEdits: edits => edit(current => applySteps(current, edits, applyEdit)), onView: course => apply(current => setView(current, course)),
     bingoRaceId: access.admin ? raceId : undefined,
     bingoPhone: access.admin ? <BingoPhone raceId={raceId} georeferenced={state.mapFile?.georeferenced === true} /> : undefined });
@@ -320,7 +319,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
   const input = selection?.kind === "leg" && view !== ALL_CONTROLS ? legInput(document, selection.from, selection.to, legCourseControls, view) : undefined;
   const inputKey = input?.key;
   const [lengthWanted, setLengthWanted] = useState(false);
-  const routeWorker = useRouteChoiceWorker({ raceId, mapSha256: state.mapFile?.sha256, admin: access.admin, storage: offline.storage,
+  const routeWorker = useRouteChoiceWorker({ raceId, mapSha256: mapLocked ? undefined : state.mapFile?.sha256, admin: access.admin, storage: offline.storage,
     wanted: input !== undefined || lengthWanted || forbidden.wanted || levelStore.wanted });
   const routes = routeWorker.session, routeReady = routeWorker.ready;
   useRouteHints({ session: routes, ready: routeReady, enabled: !readOnly, edit });
@@ -681,7 +680,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
         <p className={styles.muted}>{text.tools.keys}</p>
       </section>
       {mapProject.panel}
-      <OfflinePanel info={offline.mapInfo} mapSha256={state.mapFile?.sha256} mapBytes={mapBytes} busy={offline.busy} message={offline.panelMessage}
+      <OfflinePanel info={offline.mapInfo} mapSha256={mapLocked ? undefined : state.mapFile?.sha256} mapBytes={mapBytes} busy={offline.busy} message={offline.panelMessage}
         waiting={offline.waiting} onSave={() => void offline.saveOffline()} onRemove={() => void offline.removeOffline()} onSend={offline.retry} />
       {!readOnly && moveShared.settings(document.event.mapScale)}
       {!readOnly && <CircleCuttingPanel document={document} cutting={cutting} onEdits={edits => edit(current => applySteps(current, edits, applyEdit))} />}
@@ -740,6 +739,10 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
         {ux.elements}
         <div className={styles.toasts}>
           {ux.toasts}
+          {mapLocked && !lockedDismissed && <div className={styles.toastBox} data-testid="course-setting-map-locked">
+            <Notice tone="attention" role="status"><p>{text.mapLocked}</p></Notice>
+            <Button variant="quiet" aria-label={copy.topbar.close} onClick={() => setLockedDismissed(true)}>×</Button>
+          </div>}
           {mapStatus === "reading" && <p role="status" className={styles.toast}>{mapFile.progress === undefined ? text.readingMap
             : text.readingMapProgress(Math.round(mapFile.progress * 100))}</p>}
           {mapStatus === "failed" && <Notice tone="attention">{text.mapFailed}</Notice>}
@@ -782,7 +785,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
     </Dialog>}
     {moveShared.dialog}
     {offlineDialog && <Dialog title={offlineText.panel.heading} onClose={() => setOfflineDialog(false)}>
-      <OfflinePanel info={offline.mapInfo} mapSha256={state.mapFile?.sha256} mapBytes={mapBytes} busy={offline.busy} message={offline.panelMessage}
+      <OfflinePanel info={offline.mapInfo} mapSha256={mapLocked ? undefined : state.mapFile?.sha256} mapBytes={mapBytes} busy={offline.busy} message={offline.panelMessage}
         waiting={offline.waiting} onSave={() => void offline.saveOffline()} onRemove={() => void offline.removeOffline()} onSend={offline.retry}
         heading={false} />
     </Dialog>}

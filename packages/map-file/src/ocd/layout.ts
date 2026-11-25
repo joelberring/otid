@@ -33,11 +33,11 @@ export const ELEMENT = { type: 0, color: 4, lineWidth: 6, diameter: 8, coordCoun
 export const ELEMENT_TYPE = { line: 1, area: 2, circle: 3, dot: 4 } as const;
 
 export const LINE = {
-  color: 796, width: 798, style: 800, mainLength: 806, endLength: 808, mainGap: 810, secondaryGap: 812,
+  color: 796, width: 798, style: 800, mainLength: 806, endLength: 808, mainGap: 810, secondaryGap: 812, endGap: 814,
   minimumSymbols: 816, symbolCount: 818, symbolDistance: 820,
   doubleMode: 822, doubleFlags: 824, doubleColor: 826, doubleLeftColor: 828, doubleRightColor: 830,
-  doubleWidth: 832, doubleLeftWidth: 834, doubleRightWidth: 836,
-  framingColor: 854, framingWidth: 856,
+  doubleWidth: 832, doubleLeftWidth: 834, doubleRightWidth: 836, doubleLength: 838, doubleGap: 840,
+  framingColor: 854, framingWidth: 856, framingStyle: 858,
   primaryDataSize: 860, secondaryDataSize: 862, cornerDataSize: 864, startDataSize: 866, endDataSize: 868,
   useSymbolFlags: 870, elements: 872
 } as const;

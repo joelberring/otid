@@ -54,6 +54,7 @@ export async function mapLinkMapRoute(db: Database, request: Request, token: str
       const tag = /^"([a-f0-9]{64})"$/.exec(request.headers.get("if-none-match")?.trim() ?? "")?.[1];
       const result = await services.mapFile(db, { token, clientKey: clientAddress(request), ifNoneMatch: tag });
       if (result.status === "invalid" || result.status === "rate-limited") return linkFailure(result.status);
+      if (result.status === "forbidden") return failure(403, "FORBIDDEN");
       if (result.status === "not-found") return failure(404, "NOT_FOUND");
       const cache = { ...privateHeaders, "cache-control": "private, no-cache", etag: `"${result.sha256}"` };
       if (result.status === "not-modified") return new Response(null, { status: 304, headers: cache });

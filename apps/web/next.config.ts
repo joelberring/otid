@@ -13,6 +13,7 @@ import { NO_INDEX_HEADER, NO_INDEX_HEADER_SOURCES } from "./src/lib/no-index";
  */
 const nextConfig: NextConfig = {
   output: "standalone",
+  serverExternalPackages: ["@napi-rs/canvas"],
   allowedDevOrigins: ["127.0.0.1"],
   // O-Tid använder inte next/image. Utan optimering svarar /_next/image 404, så bildoptimeringens angreppsyta (SSRF,
   // GHSA för Image Optimization) finns inte alls. Playwright sakerhetshuvuden kontrollerar det.

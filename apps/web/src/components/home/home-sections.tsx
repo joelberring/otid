@@ -3,6 +3,8 @@ import Link from "next/link";
 import type { GroupSummary, MapProjectSummary } from "@o-tid/contracts";
 import { homeSv } from "../../i18n/home-sv";
 import { homeEn } from "../../i18n/public-en";
+import { mapBankEn } from "../../i18n/map-bank-en";
+import { mapBankSv } from "../../i18n/map-bank-sv";
 import type { Language } from "../../lib/language";
 import type { JoinCodeProblem } from "../../lib/join-code";
 import styles from "./home.module.css";
@@ -30,10 +32,15 @@ function Group({ title, items, all, more }: { title: string; items: readonly Ite
 /** Den inloggades klubbar, grupper och kartprojekt (idéerna 2026-11-08). */
 export function HomePersonal({ personal, language }: { personal: Personal; language: Language }) {
   const text = texts(language);
+  const mapBankText = language === "en" ? mapBankEn : mapBankSv;
   return <section className={styles.personal} aria-labelledby="home-personal" data-testid="home-personal">
     <h2 id="home-personal">{text.personalTitle}</h2>
     <div className={styles.personalGroups}>
-      <section className={styles.personalGroup}><h3>{text.myRaces}</h3><Link href="/organizer">{text.showAll}</Link></section>
+      <section className={styles.personalGroup}>
+        <h3>{text.myRaces}</h3>
+        <Link href="/organizer">{text.showAll}</Link>
+        <Link href="/kartbank">{mapBankText.navLinkFull}</Link>
+      </section>
       <Group title={text.clubs} items={personal.clubs.map(club => ({ href: `/organizer/clubs/${club.clubId}`, name: club.name }))} all="/organizer"
         more={text.more} />
       <Group title={text.groups} items={personal.groups.map(group => ({ href: `/organizer/groups/${group.groupId}`, name: group.name }))}
@@ -72,11 +79,13 @@ export function JoinCode({ language, problem }: { language: Language; problem?: 
  */
 export function OrganizerStart({ language, film }: { language: Language; film?: string | undefined }) {
   const text = texts(language);
+  const mapBankText = language === "en" ? mapBankEn : mapBankSv;
   return <section className={styles.organizer} data-testid="home-organizer" aria-labelledby="home-organizer-title">
     <h2 id="home-organizer-title">{text.organizerTitle}</h2>
     <p>{text.organizerText}</p>
     <p className={styles.organizerLinks}>
       <Link href="/organizer">{text.organizerStart}</Link>
+      <Link href="/kartbank">{mapBankText.navLinkFull}</Link>
       {film && <a href={film}>{text.organizerFilm}</a>}
     </p>
     <p className={styles.organizerHint}>{text.organizerStartHint}</p>

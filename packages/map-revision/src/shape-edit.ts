@@ -1,7 +1,7 @@
 import type { MapObject, Path, PathCommand, Point } from "@o-tid/map-file";
 import { objectParts } from "./edit";
 import { objectBox } from "./hit";
-import { simplifyPoints } from "./generalize";
+import { simplifyIndices } from "./generalize";
 
 /**
  * Ägaren 2026-11-09 ("en höjdkurva med för många punkter"): formen på ett markerat objekt i ett grepp, som i Mapper och
@@ -25,23 +25,37 @@ function withParts(object: MapObject, parts: readonly Path[]): MapObject {
   return object;
 }
 
-/** Delens punkter med kurvorna utplattade. */
-function flatten(part: Path): Point[] {
-  const out: Point[] = [];
+/** Delens punkter med kurvorna utplattade, samt flaggorna på originalets ankarpunkter. */
+function flattenWithFlags(part: Path): { points: Point[]; flags: (ReturnType<typeof flagsOf> | undefined)[]; pinned: Set<number> } {
+  const points: Point[] = [];
+  const flags: (ReturnType<typeof flagsOf> | undefined)[] = [];
+  const pinned = new Set<number>();
   for (const command of part) {
-    const previous = out[out.length - 1];
+    const previous = points[points.length - 1];
     if (command.type === "C" && previous) {
       for (let step = 1; step <= CURVE_STEPS; step += 1) {
         const t = step / CURVE_STEPS, u = 1 - t;
-        out.push({ x: u * u * u * previous.x + 3 * u * u * t * command.x1 + 3 * u * t * t * command.x2 + t * t * t * command.x,
+        points.push({ x: u * u * u * previous.x + 3 * u * u * t * command.x1 + 3 * u * t * t * command.x2 + t * t * t * command.x,
           y: u * u * u * previous.y + 3 * u * u * t * command.y1 + 3 * u * t * t * command.y2 + t * t * t * command.y });
+        if (step === CURVE_STEPS) {
+          const f = flagsOf(command);
+          flags.push(f);
+          if (command.corner || command.dash || command.gap !== undefined) pinned.add(points.length - 1);
+        } else {
+          flags.push(undefined);
+        }
       }
-    } else out.push({ x: command.x, y: command.y });
+    } else {
+      points.push({ x: command.x, y: command.y });
+      flags.push(flagsOf(command));
+      if (command.corner || command.dash || command.gap !== undefined) pinned.add(points.length - 1);
+    }
   }
-  return out;
+  return { points, flags, pinned };
 }
 
-const straightPath = (points: readonly Point[]): PathCommand[] => points.map((point, index) => ({ type: index === 0 ? "M" : "L", x: point.x, y: point.y }));
+/** Delens punkter med kurvorna utplattade. */
+const flatten = (part: Path): Point[] => flattenWithFlags(part).points;
 
 /** Antalet punkter (kurvornas ändpunkter räknas, inte styrpunkterna). */
 export function vertexCount(object: MapObject): number {
@@ -50,24 +64,35 @@ export function vertexCount(object: MapObject): number {
 
 /**
  * Objektet med färre punkter (Douglas–Peucker, `tolerance` i kartans mm). Kurvor plattas ut först och blir raka sträckor
- * (gör det mjukt efteråt vid behov). En ring behåller minst tre punkter, en linje sina ändar. Undefined om antalet punkter
- * inte minskar.
+ * (gör det mjukt efteråt vid behov). Hörn- och streckpunkter (styrpunkter) behålls. En ring behåller minst tre punkter,
+ * en linje sina ändar. Undefined om antalet punkter inte minskar.
  */
 export function simplifyShape(object: MapObject, tolerance: number): MapObject | undefined {
   if (tolerance <= 0 || (object.kind !== "line" && object.kind !== "area")) return undefined;
   const before = vertexCount(object);
   const parts = objectParts(object).map(part => {
-    const points = flatten(part);
-    if (object.kind !== "area") return straightPath(simplifyPoints(points, tolerance));
+    const { points, flags, pinned } = flattenWithFlags(part);
+    const build = (indices: readonly number[], closedEnd?: number): PathCommand[] => {
+      const out: PathCommand[] = indices.map((origIdx, idx) => ({
+        type: idx === 0 ? "M" : "L", x: points[origIdx]!.x, y: points[origIdx]!.y, ...(flags[origIdx] ?? {})
+      }));
+      if (closedEnd !== undefined) out.push({ type: "L", x: points[indices[0]!]!.x, y: points[indices[0]!]!.y, ...(flags[closedEnd] ?? {}) });
+      return out;
+    };
+    if (object.kind !== "area") return build(simplifyIndices(points, tolerance, pinned));
     const closed = points.length > 1 && same(points[0]!, points[points.length - 1]!);
     const ring = closed ? points.slice(0, -1) : points;
     if (ring.length < 4) return [...part];
     // Ringen delas vid punkten längst från den första (en ring har ingen början).
     let far = 0, best = -1;
     ring.forEach((point, index) => { const d = Math.hypot(point.x - ring[0]!.x, point.y - ring[0]!.y); if (d > best) { best = d; far = index; } });
-    const result = [...simplifyPoints(ring.slice(0, far + 1), tolerance), ...simplifyPoints([...ring.slice(far), ring[0]!], tolerance).slice(1, -1)];
+    const pinOne = pinned.size ? new Set([...pinned].filter(i => i > 0 && i < far)) : undefined;
+    const pinTwo = pinned.size ? new Set([...pinned].filter(i => i > far && i < ring.length).map(i => i - far)) : undefined;
+    const one = simplifyIndices(ring.slice(0, far + 1), tolerance, pinOne);
+    const two = simplifyIndices([...ring.slice(far), ring[0]!], tolerance, pinTwo).slice(1, -1).map(i => i + far);
+    const result = [...one, ...two];
     if (result.length < 3) return [...part];
-    return straightPath(closed ? [...result, result[0]!] : result);
+    return build(result, closed ? points.length - 1 : undefined);
   });
   const next = withParts(object, parts);
   return vertexCount(next) < before ? next : undefined;

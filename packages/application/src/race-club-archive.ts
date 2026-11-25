@@ -122,7 +122,7 @@ export async function readRaceClubArchiveAsAdmin(db: Database, input: ReadProof,
 
 /** Arrangörsklubben (eller ingen). Bara tävlingens administratörer; auditpost på tävlingen. */
 export async function setRaceOrganiserAsAdmin(db: Database, input: RaceSessionProof & { request: unknown }, now = new Date())
-  : Promise<Failure | { status: "ok"; view: RaceClubArchiveView }> {
+  : Promise<Failure | { status: "club-map-locked" } | { status: "ok"; view: RaceClubArchiveView }> {
   const parsed = raceOrganiserRequestSchema.safeParse(input.request);
   if (!parsed.success) return { status: "invalid-request" };
   return db.transaction(async tx => {
@@ -130,6 +130,20 @@ export async function setRaceOrganiserAsAdmin(db: Database, input: RaceSessionPr
     if (auth.status !== "authenticated") return auth;
     const { raceId, accountId } = auth.principal;
     const organisationId = parsed.data.organisationId;
+    // Etapp 3.2: hindra att arrangörsklubben byts bort medan en klubbkarta med CLUB_ACTIVITIES_ONLY är kopplad.
+    const [lockedMap] = await tx.select({ clubMapId: schema.raceMapSources.clubMapId, usageScope: schema.raceMapSources.usageScope })
+      .from(schema.raceMapSources).where(eq(schema.raceMapSources.raceId, raceId));
+    if (lockedMap?.usageScope === "CLUB_ACTIVITIES_ONLY" && lockedMap.clubMapId) {
+      const [clubMap] = await tx.select({ clubId: schema.clubMaps.clubId }).from(schema.clubMaps)
+        .where(eq(schema.clubMaps.id, lockedMap.clubMapId));
+      if (clubMap) {
+        const [setting] = await tx.select({ organisationId: schema.clubSettings.organisationId }).from(schema.clubSettings)
+          .where(eq(schema.clubSettings.clubId, clubMap.clubId));
+        if (setting?.organisationId && organisationId !== setting.organisationId) {
+          return { status: "club-map-locked" } as const;
+        }
+      }
+    }
     if (organisationId) {
       const organisation = await organisationById(tx, organisationId);
       if (!organisation || organisation.removedAt) return { status: "not-found" } as const;

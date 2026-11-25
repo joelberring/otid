@@ -209,13 +209,16 @@ export async function readMapLinkView(db: Database, input: MapLinkInput, now = n
 
 /** Kartfilen som sidan ritar (bara med en giltig länk). `ifNoneMatch` = hashen webbläsaren redan har. */
 export async function readMapLinkMapFile(db: Database, input: MapLinkInput & { ifNoneMatch?: string | undefined }, now = new Date())
-  : Promise<MapLinkFailure | { status: "not-found" } | { status: "not-modified"; sha256: string }
+  : Promise<MapLinkFailure | { status: "not-found" } | { status: "forbidden" } | { status: "not-modified"; sha256: string }
     | { status: "ok"; sha256: string; format: "OCD" | "OMAP"; file: Buffer }> {
   return withLink(db, input, now, async (tx, link) => {
     const [row] = await tx.select({ format: schema.raceMapSources.format, sha256: schema.raceMapSources.sha256,
-      inline: schema.raceMapSources.file, contentSha256: schema.raceMapSources.contentSha256 }).from(schema.raceMapSources)
+      inline: schema.raceMapSources.file, contentSha256: schema.raceMapSources.contentSha256,
+      sourceDownloadLocked: schema.raceMapSources.sourceDownloadLocked }).from(schema.raceMapSources)
       .where(eq(schema.raceMapSources.raceId, link.raceId));
     if (!row) return { status: "not-found" as const };
+    // Etapp 3.2: nedladdningsspärrad kartfil lämnas aldrig ut via kartritarens länk.
+    if (row.sourceDownloadLocked) return { status: "forbidden" as const };
     if (input.ifNoneMatch === row.sha256) return { status: "not-modified" as const, sha256: row.sha256 };
     const file = await rowContent(tx, row);
     // Filens namn lämnas inte ut (det kan säga något om banorna); bara formatet, som Workern behöver.

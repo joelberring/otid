@@ -43,10 +43,6 @@ export function DuringRaceOverview({ ws }: { ws: Workspace }) {
     forestStale, functionary, loadForest, prepareReturn, prepareStartCorrection, printPrivate, raceId, select, setEntryId, setForestAutoRefresh,
     setForestClass, setForestOpen, setForestQuery, setForestSortByAge, setTargetStartState, shows, targetStartState, profile } = ws;
   const selectedForest = forestData?.entries.find(row => row.entryId === entryId);
-  const returnDisclosureRef = useRef<HTMLDetailsElement>(null);
-  useEffect(() => {
-    if (functionary && forestOpen && entryId && returnDisclosureRef.current) returnDisclosureRef.current.open = true;
-  }, [functionary, forestOpen, entryId]);
   return <>
     <section className={styles.workflowGroup} id={`workflow-${raceId}-readout`} aria-label={navigationText.steps.READOUT}
       hidden={!shows("READOUT")}>
@@ -75,7 +71,7 @@ export function DuringRaceOverview({ ws }: { ws: Workspace }) {
           <label className={styles.check}><input type="checkbox" checked={forestSortByAge} disabled={disabled}
             onChange={event => setForestSortByAge(event.target.checked)} />{forestText.ageSort}</label>
         </div>
-        <details ref={returnDisclosureRef} id={`forest-return-${raceId}`} className={styles.disclosure}>
+        <details id={`forest-return-${raceId}`} className={styles.disclosure}>
           <summary>{text.returnSelected}: {selectedForest?.displayName ?? text.returnChoose}</summary>
           <div className={styles.toolbarRow}>
             <Button disabled={disabled || forestStale || !forestData.entries.some(row => row.entryId === entryId && !row.manualReturnRegistered)}

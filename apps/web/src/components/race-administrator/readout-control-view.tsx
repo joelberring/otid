@@ -86,7 +86,11 @@ export function ReadoutControlView({ ws }: { ws: Workspace }) {
                   onClick={() => {
                     setEntryId(row.entryId);
                     setForestOpen(true);
-                    requestAnimationFrame(() => document.getElementById(`forest-return-${raceId}`)?.scrollIntoView?.({ behavior: "smooth", block: "nearest" }));
+                    requestAnimationFrame(() => {
+                      const details = document.getElementById(`forest-return-${raceId}`);
+                      if (details instanceof HTMLDetailsElement) details.open = true;
+                      details?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
+                    });
                   }}>{text.controlReturn}</Button>
                 : <Button variant="secondary" disabled={disabled} aria-label={text.controlOpenFor(row.displayName)}
                   onClick={() => openCorrection(row.entryId)}>{text.controlOpen}</Button>}

@@ -450,7 +450,7 @@ export function MastermindApp({ language, raceId, station: publicStation = false
               {canAbort && isPlaying(game) && <button type="button" className="mm-button" onClick={() => requestAbort(game.id)}>{t.abortGame}</button>}
               </div>
             </div>
-            {abortTarget && abortTargetName && <div className="mm-confirm" role="alert" data-testid="mastermind-abort-confirm">
+            {abortTarget && abortTargetName && game.id === abortTarget.id && <div className="mm-confirm" role="alert" data-testid="mastermind-abort-confirm">
               <p>{t.abortConfirm(abortTargetName)}</p>
               <div className="mm-actions">
                 <button type="button" className="mm-button mm-primary" onClick={confirmAbort}>{t.abortGame}</button>

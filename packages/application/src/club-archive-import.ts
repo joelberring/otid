@@ -155,9 +155,8 @@ export async function importMapContent(db: Database, input: ImportCaller & { clu
       const stored = await storeMapContent(tx, staged, importer.accountId, now, input.quota ?? mapStorageQuota(), { clubId: importer.clubId });
       if (stored.status === "quota") return { status: "quota", quota: stored.quota } as const;
       if (existed) {
-        // Samma innehåll redan i ett klubbarkiv påverkar ingen kontokvot (`NOT_IN_CLUB_ARCHIVE` är falskt): uppdatera `uploaded_by` så `importBatch` på andra webbinstanser också ser uppladdningen.
-        await tx.execute(sql`update map_content set uploaded_by = ${importer.accountId}::uuid
-          where sha256 = ${stored.sha256} and exists (select 1 from club_map_version v where v.content_sha256 = map_content.sha256)`);
+        // Samma innehåll som klubben nyss laddade upp hela filen för: sätt `uploaded_by` så `importBatch` (också på en annan webbinstans) ser att uppladdningen tillhör anroparen.
+        await tx.execute(sql`update map_content set uploaded_by = ${importer.accountId}::uuid where sha256 = ${stored.sha256}`);
       }
       rememberClubImport(importer.clubId, stored.sha256);
       return { status: "ok", response: { formatVersion: 1, sha256: stored.sha256, byteLength: staged.byteLength,

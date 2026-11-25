@@ -226,6 +226,10 @@ export function ReadoutApp(props: { store?: ReadoutStore; partyStore?: PartyActi
   const { register, linkEntry, searchServer } = useReadoutRegistration({ raceId, current, storeRef, reload, sync, online, pkg });
   useVerdictSound({ sound, soundOn, current, verdict, pkgRef });
   const playParty = useCallback((kind: ReadoutSoundKind) => { if (soundOn) sound.current.play(kind); }, [soundOn]);
+  const showRegistration = current?.phase === "done" && !!effectivePkg &&
+    (verdict?.status === "UNKNOWN_CARD" || currentRegistration?.status === "rejected") &&
+    (!currentRegistration || currentRegistration.status === "rejected");
+  useEffect(() => { if (!showRegistration) formDirtyRef.current = false; }, [showRegistration]);
 
   if (!raceId) return <main className="readout"><div className="readout-head"><h1>{t.title}</h1><HelpButton view="READOUT_PAGE" large /></div>
     <p className="notice">{t.noRace}</p></main>;
@@ -375,12 +379,6 @@ export function ReadoutApp(props: { store?: ReadoutStore; partyStore?: PartyActi
     {!connected ? controls : null}
     {raceId ? <ReadoutRaceSwitch raceId={raceId} party connected={connected} /> : null}
   </main>;
-
-  const showRegistration = current?.phase === "done" && !!effectivePkg &&
-    (verdict?.status === "UNKNOWN_CARD" || currentRegistration?.status === "rejected") &&
-    (!currentRegistration || currentRegistration.status === "rejected");
-
-  useEffect(() => { if (!showRegistration) formDirtyRef.current = false; }, [showRegistration]);
 
   function selectRecent(item: QueuedReadout) {
     formDirtyRef.current = false;

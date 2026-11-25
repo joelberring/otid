@@ -75,12 +75,12 @@ test("översynen: kartprojektens nästa steg och banläggningens namn", async ({
   await owner.getByRole("button", { name: "Läs in .ppen" }).click();
   await expect(owner.getByTestId("course-setting-course").first()).toBeVisible({ timeout: 60_000 });
 
-  // Samma ord betyder samma sak: Utskrift är sidan (fliken överst), panelfliken heter Utsnitt.
+  // Samma ord betyder samma sak: Utskrift är sidan (fliken överst), panelfliken heter Tryckyta.
   await expect(owner.getByTestId("course-setting-tab-print")).toHaveText("Utskrift");
-  await expect(owner.getByRole("tab", { name: "Utsnitt" })).toBeVisible();
+  await expect(owner.getByRole("tab", { name: "Tryckyta" })).toBeVisible();
   await expect(owner.getByRole("tab", { name: "Träningsformer" })).toBeVisible();
   await expect(owner.getByRole("tab", { name: /^.?Utskrift$/ })).toHaveCount(0);
-  await owner.getByRole("tab", { name: "Utsnitt" }).click();
+  await owner.getByRole("tab", { name: "Tryckyta" }).click();
   await expect(owner.getByRole("heading", { name: /^Utsnitt: / })).toBeVisible();
 
   // Banväljaren visar hela «Alla kontroller» på datorn.

@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import type { OrganizerMyEventsResponse } from "@o-tid/contracts";
 import { organizerEn } from "../../i18n/organizer-en";
 import { organizerSv } from "../../i18n/organizer-sv";
@@ -51,6 +52,8 @@ export function TodayRaceCard({ events, busy, enteringRaceId, onOpen }: {
 }) {
   const copy = useTexts(organizerSv, organizerEn);
   const cardText = useTexts(todayCardSv, todayCardEn);
+  // Med bara ett arrangemang på kontot står det redan ensamt i listan; snabbkortet behövs när kontot har flera.
+  if (events.length <= 1) return null;
   const items = todaysRaces(events, new Date());
   if (items.length === 0) return null;
 

@@ -756,9 +756,10 @@ test("kartprojekt: delområde, förslag från Föreslå och godkännande", async
   expect((await serverObjects(owner, projectId, baseURL!)).filter(object => object.state.kind === "DELETED")).toHaveLength(1);
 
   // Arbetssättet: Huvudkartritare (i utfällningen «Arbetssätt och AI-kopplingen» sist under Granska).
-  await owner.getByTestId("map-project-collab-settings").getByText("Arbetssätt och AI-kopplingen").click();
-  await owner.getByRole("button", { name: "Huvudkartritare" }).click();
-  await expect(owner.getByRole("button", { name: "Huvudkartritare" })).toHaveAttribute("aria-pressed", "true");
+  const collabSettings = owner.getByTestId("map-project-collab-settings");
+  await collabSettings.getByText("Arbetssätt och AI-kopplingen").click();
+  await collabSettings.getByRole("button", { name: "Huvudkartritare" }).click();
+  await expect(collabSettings.getByRole("button", { name: "Huvudkartritare" })).toHaveAttribute("aria-pressed", "true");
   const project = await (await owner.request.get(api)).json() as { mode: string };
   expect(project.mode).toBe("LEAD");
 });

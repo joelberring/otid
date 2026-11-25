@@ -79,8 +79,9 @@ body:has(> [data-site-head]) > .site-footer:not([data-home-footer]) { display: n
 body:has(> [data-site-head]) > .site-footer { padding-inline: max(16px, calc((100vw - 1280px) / 2 + 32px)); }
 body:has(.race-admin-manage-page [data-authenticated="true"]) > header { display: none; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.skip-link { position: absolute; left: -9999px; top: 8px; z-index: 1000; padding: 8px 14px; border: 2px solid var(--accent);
-  border-radius: var(--radius); background: var(--surface); color: var(--ink); font-weight: 600; text-decoration: none; }
+.skip-link { position: absolute; left: -9999px; top: 8px; z-index: 1000; display: inline-flex; align-items: center; min-height: 44px;
+  padding: 8px 14px; border: 2px solid var(--accent); border-radius: var(--radius); background: var(--surface); color: var(--ink);
+  font-weight: 600; text-decoration: none; }
 .skip-link:focus { left: 8px; }
 .skip-target:focus { outline: none; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }

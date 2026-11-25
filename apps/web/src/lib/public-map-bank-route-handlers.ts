@@ -4,7 +4,7 @@ import {
   removeClubMapCatalogListing, removeMapProjectCatalogListing, streamMapContentParts,
   upsertClubMapCatalogListing, upsertMapProjectCatalogListing
 } from "@o-tid/application";
-import { attachClubMapToRaceRequestSchema, UUID_PATTERN } from "@o-tid/contracts";
+import { UUID_PATTERN } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
 import { attachment, failure, guarded, mutation, problem, readProof, type ClubEnvironment } from "./club-route-handlers";
 import { publicBusyResponse, publicLoad } from "./public-load";
@@ -225,14 +225,12 @@ export async function clubMapVersionAttachRaceRoute(
   if (!validId(clubId) || !validId(versionId)) return failure("not-found");
   const input = await mutation(request, environment, "json");
   if ("response" in input) return input.response;
-  const parsed = attachClubMapToRaceRequestSchema.safeParse(input.body);
-  if (!parsed.success) return failure("invalid-request");
   return guarded(async () => {
     const result = await attachClubMapVersionToRaceServerSide(db, {
       ...input.proof,
       clubId,
       versionId,
-      raceId: parsed.data.raceId
+      request: input.body
     });
     if (result.status === "club-activity-only") {
       return privateJson({

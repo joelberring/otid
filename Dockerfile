@@ -32,6 +32,7 @@ COPY --chown=node:node --from=build /src/apps/web/.next/superadmin.mjs ./superad
 # Steg 65: utskriftsarbetaren (tjänsten print-worker: node print-worker.mjs) och typsnitten för PDF:en (Roboto, OFL 1.1).
 COPY --chown=node:node --from=build /src/apps/web/.next/print-worker.mjs ./print-worker.mjs
 COPY --chown=node:node --from=build /src/apps/web/.next/fonts ./fonts
+RUN rm -rf ./node_modules/@napi-rs
 COPY --chown=node:node --from=build /canvas/node_modules/@napi-rs ./node_modules/@napi-rs
 COPY --chown=node:node --from=build /src/packages/database/migrations ./migrations
 USER node

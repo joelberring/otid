@@ -182,7 +182,7 @@ function lineSymbol(
   }
 
   // Dubbellinje: läge 1 = heldragna kanter, 2 = vänster streckad, 3 = båda kanter streckade, 4 = allt (även fyllning)
-  // streckat med DblLength/DblGap. DblFlags bit 0 = fyllning på, bit 1 = streckad bakgrund/fyllning.
+  // streckat med DblLength/DblGap. DblFlags bit 0 = fyllning på, bit 1 = bakgrundsfärg på (inte streckad fyllning).
   // DblWidth är bredden mellan kantlinjernas mittlinjer (fyllningens bredd; total yttre bredd = DblWidth + (left + right)/2).
   const doubleMode = bytes.u16(at + LINE.doubleMode);
   if (doubleMode !== 0) {
@@ -196,7 +196,7 @@ function lineSymbol(
       ? { mainLength: doubleLength, mainGap: doubleGap, endLength: doubleLength / 2 } : undefined;
     const fillColor = bytes.i16(at + LINE.doubleColor);
     if ((doubleFlags & 1) !== 0 && fillColor >= 0 && doubleWidth > 0) {
-      const fillDashed = doubleMode === 4 || (doubleFlags & 2) !== 0;
+      const fillDashed = doubleMode === 4;
       strokes.push({
         color: fillColor, width: doubleWidth, cap: style.cap, join: style.join,
         ...(fillDashed && doubleDash ? { dash: doubleDash, dashSpec: doubleDashSpec } : {})

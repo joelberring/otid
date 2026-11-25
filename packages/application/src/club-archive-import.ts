@@ -104,6 +104,14 @@ export async function importCheck(db: Database, input: ImportCaller & { clubId: 
 export type ImportContentResult = ImportFailure | { status: "problem"; problem: "TOO_LARGE" | "HASH_MISMATCH" | "INVALID_MAP_FILE" | "EMPTY" }
   | { status: "quota"; quota: MapQuotaExceeded } | { status: "ok"; response: ClubImportContentResponse };
 
+/** Minnesbegränsat bevis på att en klubb just laddade upp hela filen i `importMapContent` (för dubbletter mot annat konto). */
+const MAX_IMPORTED_PROOFS = 10_000;
+const importedByClub = new Set<string>();
+const rememberClubImport = (clubId: string, sha256: string) => {
+  if (importedByClub.size >= MAX_IMPORTED_PROOFS) importedByClub.clear();
+  importedByClub.add(`${clubId}:${sha256}`);
+};
+
 /**
  * En kartfil som ström: delarna skrivs till databasen medan sha256 räknas (ADR-0189 beslut 2), och innehållet sparas först när
  * hashen stämmer med adressen och filen ser ut som OCAD eller Mapper. Nyckeln kontrolleras före och efter strömmen.
@@ -146,6 +154,12 @@ export async function importMapContent(db: Database, input: ImportCaller & { clu
       // PLAN.md steg M7: det som importeras till klubbarkivet räknas mot klubbens gräns.
       const stored = await storeMapContent(tx, staged, importer.accountId, now, input.quota ?? mapStorageQuota(), { clubId: importer.clubId });
       if (stored.status === "quota") return { status: "quota", quota: stored.quota } as const;
+      if (existed) {
+        // Samma innehåll redan i ett klubbarkiv påverkar ingen kontokvot (`NOT_IN_CLUB_ARCHIVE` är falskt): uppdatera `uploaded_by` så `importBatch` på andra webbinstanser också ser uppladdningen.
+        await tx.execute(sql`update map_content set uploaded_by = ${importer.accountId}::uuid
+          where sha256 = ${stored.sha256} and exists (select 1 from club_map_version v where v.content_sha256 = map_content.sha256)`);
+      }
+      rememberClubImport(importer.clubId, stored.sha256);
       return { status: "ok", response: { formatVersion: 1, sha256: stored.sha256, byteLength: staged.byteLength,
         stored: existed ? "existing" : "new" } } as const;
     });
@@ -250,10 +264,12 @@ export async function importBatch(db: Database, input: ImportCaller & { clubId: 
       const fresh = map.versions.filter(version => !existingVersions.has(version.sha256));
       if (fresh.length === 0) continue;
       const freshShas = fresh.map(version => version.sha256);
+      const provenShas = freshShas.filter(sha => importedByClub.has(`${clubId}:${sha}`));
       const present = new Set((await tx.execute<{ sha: string }>(sql`select c.sha256 as sha from map_content c
         where c.sha256 = any(${sql.param(freshShas)}::text[]) and c.stored_in <> 'GONE'
-          and (c.uploaded_by = ${importer.accountId}::uuid or exists (select 1 from club_map_version v
-            where v.club_id = ${clubId}::uuid and v.content_sha256 = c.sha256))`)).rows.map(row => row.sha));
+          and (c.uploaded_by = ${importer.accountId}::uuid
+            or c.sha256 = any(${sql.param(provenShas)}::text[])
+            or exists (select 1 from club_map_version v where v.club_id = ${clubId}::uuid and v.content_sha256 = c.sha256))`)).rows.map(row => row.sha));
       const missing = fresh.filter(version => !present.has(version.sha256));
       response.missingContent.push(...missing.map(version => version.sha256));
       const toAdd = fresh.filter(version => present.has(version.sha256));

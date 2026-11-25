@@ -125,10 +125,10 @@ describe("luckor i linjer", () => {
     expect(right!.lines.map(([x]) => x)).toEqual([10, 20, 30]);
   });
 
-  it("tar bort sträckor med luckan och tomma flyttningar", () => {
-    const path: Path = [{ type: "M", x: 0, y: 0 }, { type: "L", x: 1, y: 0, gap: GAP.main }, { type: "L", x: 2, y: 0, gap: GAP.main },
+  it("tar bort sträckor med luckan och tomma flyttningar, men behåller hörn- och streckflaggor", () => {
+    const path: Path = [{ type: "M", x: 0, y: 0 }, { type: "L", x: 1, y: 0, gap: GAP.main }, { type: "L", x: 2, y: 0, gap: GAP.main, corner: true, dash: true },
       { type: "L", x: 3, y: 0 }];
-    expect(withoutGaps(path, GAP.main)).toEqual([{ type: "M", x: 2, y: 0 }, { type: "L", x: 3, y: 0 }]);
+    expect(withoutGaps(path, GAP.main)).toEqual([{ type: "M", x: 2, y: 0, corner: true, dash: true }, { type: "L", x: 3, y: 0 }]);
     expect(withoutGaps(path, GAP.left)).toBe(path);
   });
 
@@ -154,7 +154,7 @@ describe("anpassad streckning i hörn- och streckpunkter (styrpunkter)", () => {
     expect(dashIntervals(5, { mainLength: 2, mainGap: 0.5, endLength: 1, secondaryGap: 0.4 })).toEqual([[0, 1], [1.5, 2.3], [2.7, 3.5], [4, 5]]);
   });
 
-  it("delar linjen i styrpunkter så att varje brytpunkt och ände hamnar på ett heldraget streck", () => {
+  it("delar linjen i styrpunkter och syr ihop halva streck till ett enda streck runt varje brytpunkt", () => {
     const path: Path = [
       { type: "M", x: 0, y: 0 },
       { type: "L", x: 5, y: 0, dash: true },
@@ -163,22 +163,106 @@ describe("anpassad streckning i hörn- och streckpunkter (styrpunkter)", () => {
     ];
     const spec = { mainLength: 2, mainGap: 0.5, endLength: 1 };
     const pieces = dashPolylines([path], spec);
-    // Del 1 (0..5): [0..1], [1.5..3.5], [4..5] → landar på (5, 0).
-    // Del 2 (0..2,5 längs y): [0..1], [1.5..2.5] → startar i (5, 0) och landar i (5, 2.5).
-    // Del 3 (5..10 längs x): [5..6], [6.5..8.5], [9..10] → startar i (5, 2.5) och landar i (10, 2.5).
-    expect(pieces).toHaveLength(8);
+    // Del 1 (0..5): [0..1], [1.5..3.5], [4..5] → sys ihop med del 2:s [0..1] vid (5, 0).
+    // Del 2 (0..2,5 längs y): [0..1], [1.5..2.5] → sys ihop med del 3:s [5..6] vid (5, 2.5).
+    // Del 3 (5..10 längs x): [5..6], [6.5..8.5], [9..10].
+    expect(pieces).toHaveLength(6);
     expect(pieces[0]![0]).toEqual({ x: 0, y: 0 });
-    expect(pieces[2]!.at(-1)).toEqual({ x: 5, y: 0 });
-    expect(pieces[3]![0]).toEqual({ x: 5, y: 0 });
-    expect(pieces[4]!.at(-1)).toEqual({ x: 5, y: 2.5 });
-    expect(pieces[5]![0]).toEqual({ x: 5, y: 2.5 });
-    expect(pieces[7]!.at(-1)).toEqual({ x: 10, y: 2.5 });
+    expect(pieces[2]).toEqual([{ x: 4, y: 0 }, { x: 5, y: 0 }, { x: 5, y: 1 }]);
+    expect(pieces[3]).toEqual([{ x: 5, y: 1.5 }, { x: 5, y: 2.5 }, { x: 6, y: 2.5 }]);
+    expect(pieces[5]!.at(-1)).toEqual({ x: 10, y: 2.5 });
 
     // `drawMap` ritar delstrecken med tom setLineDash så att Canvas och PDF ger exakt samma geometri.
     const dashedLine = line({ strokes: [{ color: 1, width: 0.25, dash: [2, 0.5], dashSpec: spec }] });
     const calls = draw(dashedLine, [{ kind: "line", symbol: "l", path }]);
     const strokeCall = calls.find(call => call.op === "stroke");
     expect(strokeCall?.state.lineDash).toEqual([]);
-    expect(args(calls, "moveTo")).toHaveLength(8);
+    expect(args(calls, "moveTo")).toHaveLength(6);
+  });
+
+  it("ger inre styrpunkt ett halvt streck (mainLength/2) på vardera sidan, hopfogat till ett streck med längd ~mainLength", () => {
+    // Typisk hjälpkurva: mainLength = 2, mainGap = 0.2, endLength = 2 (fullt streck i öppna ändar).
+    const spec = { mainLength: 2, mainGap: 0.2, endLength: 2 };
+    const path: Path = [
+      { type: "M", x: 0, y: 0 },
+      { type: "L", x: 5.4, y: 0, corner: true },
+      { type: "L", x: 5.4, y: 5.4 }
+    ];
+    const pieces = dashPolylines([path], spec);
+    // Varje delsträcka 5,4 mm: openEnd(2) + gap(0,2) + full(2) + gap(0,2) + half(1) = 5,4 mm → scale = 1.
+    // Styrpunkten (5,4, 0) får ETT hopfogat streck: (4,4, 0) → (5,4, 0) → (5,4, 1,0), totallängd 2,0 mm, med mellanrum på båda sidor.
+    expect(pieces).toHaveLength(5);
+    expect(pieces[0]).toEqual([{ x: 0, y: 0 }, { x: 2, y: 0 }]);
+    const bend = pieces[2]!;
+    expect(bend).toHaveLength(3);
+    expect(bend[0]!.x).toBeCloseTo(4.4, 6);
+    expect(bend[0]!.y).toBeCloseTo(0, 6);
+    expect(bend[1]).toEqual({ x: 5.4, y: 0 });
+    expect(bend[2]!.x).toBeCloseTo(5.4, 6);
+    expect(bend[2]!.y).toBeCloseTo(1, 6);
+    expect(pieces[4]![0]!.y).toBeCloseTo(3.4, 6);
+    expect(pieces[4]!.at(-1)).toEqual({ x: 5.4, y: 5.4 });
+  });
+
+  it("lägger ett mellanrum mitt på en kort delsträcka (2,2 mm) mellan två styrpunkter", () => {
+    const spec = { mainLength: 2, mainGap: 0.2, endLength: 2 };
+    near(dashIntervals(2.2, spec, true, true).flat(), [0, 1, 1.2, 2.2]);
+    const path: Path = [
+      { type: "M", x: 0, y: 0 },
+      { type: "L", x: 5.4, y: 0, dash: true },
+      { type: "L", x: 7.6, y: 0, dash: true },
+      { type: "L", x: 13.0, y: 0 }
+    ];
+    const pieces = dashPolylines([path], spec);
+    // Del 2 (5,4..7,6 = 2,2 mm) får [5,4..6,4] och [6,6..7,6] → ett tydligt mellanrum [6,4..6,6] i mitten!
+    expect(pieces).toHaveLength(6);
+    expect(pieces[2]![0]!.x).toBeCloseTo(4.4, 6);
+    expect(pieces[2]!.at(-1)!.x).toBeCloseTo(6.4, 6);
+    expect(pieces[3]![0]!.x).toBeCloseTo(6.6, 6);
+    expect(pieces[3]!.at(-1)!.x).toBeCloseTo(8.6, 6);
+  });
+
+  it("streckar sluten slinga (knöl/sänka) med två styrpunkter så att båda får hopfogade streck utan skarv vid P0", () => {
+    // Rektangel 4,4 × 2,2 mm (omkrets 13,2 mm), styrpunkter i två motstående hörn (ej P0!).
+    const spec = { mainLength: 2, mainGap: 0.2, endLength: 2 };
+    const loop: Path = [
+      { type: "M", x: 0, y: 0 },
+      { type: "L", x: 4.4, y: 0, corner: true },
+      { type: "L", x: 4.4, y: 2.2 },
+      { type: "L", x: 0, y: 2.2, corner: true },
+      { type: "L", x: 0, y: 0 }
+    ];
+    const pieces = dashPolylines([loop], spec);
+    // Två delsträckor om 6,6 mm (= 3 perioder à 2,2 mm) → 6 streck totalt, båda hörnen (4,4, 0) och (0, 2,2) centrerade i varsitt hopfogat streck.
+    expect(pieces).toHaveLength(6);
+    const lengthOf = (poly: readonly { x: number; y: number }[]) =>
+      poly.slice(1).reduce((sum, p, i) => sum + Math.hypot(p.x - poly[i]!.x, p.y - poly[i]!.y), 0);
+    for (const poly of pieces) expect(lengthOf(poly)).toBeCloseTo(2, 5);
+    const atCorner1 = pieces.filter(poly => poly.some(p => Math.abs(p.x - 4.4) < 1e-6 && Math.abs(p.y - 0) < 1e-6));
+    const atCorner2 = pieces.filter(poly => poly.some(p => Math.abs(p.x - 0) < 1e-6 && Math.abs(p.y - 2.2) < 1e-6));
+    expect(atCorner1).toHaveLength(1);
+    expect(atCorner2).toHaveLength(1);
+    // Hörn 1 ligger mitt i sitt streck (varken första eller sista punkt).
+    expect(atCorner1[0]!.length).toBeGreaterThanOrEqual(3);
+    expect(atCorner2[0]!.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("streckar sluten slinga utan styrpunkter jämnt runt hela ringen och syr ihop över P0", () => {
+    // Kvadrat 2,5 × 2,5 mm (omkrets 10 mm), mainLength = 2, mainGap = 0,5 → 4 lika streck om 2,0 mm.
+    const spec = { mainLength: 2, mainGap: 0.5, endLength: 2 };
+    const loop: Path = [
+      { type: "M", x: 0, y: 0 },
+      { type: "L", x: 2.5, y: 0 },
+      { type: "L", x: 2.5, y: 2.5 },
+      { type: "L", x: 0, y: 2.5 },
+      { type: "L", x: 0, y: 0 }
+    ];
+    const pieces = dashPolylines([loop], spec);
+    expect(pieces).toHaveLength(4);
+    const lengthOf = (poly: readonly { x: number; y: number }[]) =>
+      poly.slice(1).reduce((sum, p, i) => sum + Math.hypot(p.x - poly[i]!.x, p.y - poly[i]!.y), 0);
+    for (const poly of pieces) expect(lengthOf(poly)).toBeCloseTo(2, 5);
+    // Strecket över P0 (0, 0) är hopfogat: (0, 1) → (0, 0) → (1, 0).
+    expect(pieces[0]).toEqual([{ x: 0, y: 1 }, { x: 0, y: 0 }, { x: 1, y: 0 }]);
   });
 });

@@ -107,7 +107,15 @@ export function withoutGaps(path: Path, bit: number): Path {
   const out: PathCommand[] = [];
   for (const command of path) {
     const gapped = command.type !== "M" && ((command.gap ?? 0) & bit) !== 0;
-    out.push(gapped ? { type: "M", x: command.x, y: command.y } : command);
+    out.push(gapped
+      ? {
+          type: "M",
+          x: command.x,
+          y: command.y,
+          ...(command.corner ? { corner: true } : {}),
+          ...(command.dash ? { dash: true } : {})
+        }
+      : command);
   }
   // Flyttningar som inte följs av någon sträcka behövs inte.
   return out.filter((command, index) => command.type !== "M" || (out[index + 1] !== undefined && out[index + 1]!.type !== "M"));

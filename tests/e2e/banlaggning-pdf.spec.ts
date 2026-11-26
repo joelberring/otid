@@ -108,7 +108,7 @@ test("banläggning-pdf: PDF för tryck och för kontorsskrivare ur förhandsvisn
   await expect(sheet.first().getByTestId("print-map-over").first()).toHaveCSS("mix-blend-mode", "darken");
   const officeRequest = owner.waitForRequest(request => request.method() === "POST" && /\/print-jobs$/.test(request.url()));
   await panel.getByTestId("print-pdf-office").click();
-  expect((await officeRequest).postDataJSON()).toMatchObject({ kind: "OFFICE", profileId: "office", profile: { id: "office", courseLayer: "REFERENCE" } });
+  expect((await officeRequest).postDataJSON()).toMatchObject({ kind: "OFFICE", profileId: "map-own", profile: { id: "map-own", courseLayer: "REFERENCE", mapColors: [] } });
   await expect(panel.locator("[data-testid=print-job][data-kind=OFFICE]")).toHaveCount(2, { timeout: 30_000 });
   const layered = panel.locator("[data-testid=print-job][data-kind=OFFICE]").first();
   await expect(layered).toHaveAttribute("data-status", "DONE", { timeout: 180_000 });

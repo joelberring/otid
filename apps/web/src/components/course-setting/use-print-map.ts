@@ -94,6 +94,55 @@ export function usePrintColors(document: CourseSettingDocument | null | undefine
   return { savedProfiles, profile, adjust, pressLayers, pressNorm, colorsKey, courseColor: cssOfCmyk(profile.course.cmyk) };
 }
 
+/**
+ * Ritar kartbilder (hela kartan + varje OVER-band i exakt rank-ordning) för ramar som ännu inte påbörjats.
+ * När en nyckel väl påbörjats (`started.add(key)`) slutförs alla band och `onFrame` anropas även om en ny
+ * effektkörning hunnit starta för samma `session` (t.ex. när `paper-clip-outside` växlar till `FADED` och
+ * dokumentet sparas/läses om medan första bilden ritas — den nya körningen hoppar då över nyckeln via `started`).
+ */
+export async function renderMissingSheetImages(input: {
+  readonly sheets: readonly { readonly sheet: Sheet }[];
+  readonly adjust: Readonly<Record<number, MapColorAdjust>>;
+  readonly colorsKey: string;
+  readonly pressLayers: ReturnType<typeof usePrintColors>["pressLayers"];
+  readonly started: Set<string>;
+  readonly renderImage: RenderImage;
+  readonly isCancelled: () => boolean;
+  readonly isSameSession: () => boolean;
+  readonly onUrl: (url: string) => void;
+  readonly onFrame: (entries: Readonly<Record<string, string>>) => void;
+}): Promise<void> {
+  const { sheets, adjust, colorsKey, pressLayers, started, renderImage, isCancelled, isSameSession, onUrl, onFrame } = input;
+  for (const { sheet } of sheets) for (const frame of sheet.frames) {
+    const key = frameImageKey(frame, colorsKey);
+    if (isCancelled()) return;
+    if (started.has(key)) continue;
+    started.add(key);
+    try {
+      const request = { ...mapRenderRequest(frame), ...(Object.keys(adjust).length > 0 ? { colorAdjust: adjust } : {}) };
+      // Normens ordning: hela kartan underst och varje OVER-band i exakt rank-ordning (INK med Darken, WHITE som slår ut).
+      const url = await renderImage(request, 0);
+      onUrl(url);
+      const bandUrls: Record<string, string> = {};
+      if (pressLayers) {
+        for (let i = 0; i < pressLayers.overBands.length; i += 1) {
+          const band = pressLayers.overBands[i]!;
+          if (!isSameSession()) return;
+          const bandUrl = await renderImage({ ...request, onlyColors: band.ids, background: false }, 0);
+          onUrl(bandUrl);
+          bandUrls[overBandImageKey(key, i)] = bandUrl;
+        }
+      }
+      if (!isSameSession()) return;
+      // Bilden gäller sin nyckel även om arken ändrats under tiden (en senare körning hoppar över nyckeln medan den ritas).
+      onFrame({ ...bandUrls, [key]: url });
+    } catch (error) {
+      if (isSameSession()) started.delete(key);
+      console.error("Kartan kunde inte ritas", error);
+    }
+  }
+}
+
 /** Kartbilderna per utsnitt och färger (samma utsnitt, skala och profil ritas en gång). */
 export function useSheetImages(map: PrintMap, sheets: readonly { readonly sheet: Sheet }[], colors: ReturnType<typeof usePrintColors>): Readonly<Record<string, string>> {
   const { session, renderImage } = map;
@@ -106,35 +155,17 @@ export function useSheetImages(map: PrintMap, sheets: readonly { readonly sheet:
     if (sessionRef.current !== session) {
       sessionRef.current = session;
       started.current.clear();
+      setImages({});
     }
     if (!session) return;
     let cancelled = false;
-    void (async () => {
-      for (const { sheet } of sheets) for (const frame of sheet.frames) {
-        const key = frameImageKey(frame, colorsKey);
-        if (cancelled) return;
-        if (started.current.has(key)) continue;
-        started.current.add(key);
-        try {
-          const request = { ...mapRenderRequest(frame), ...(Object.keys(adjust).length > 0 ? { colorAdjust: adjust } : {}) };
-          // Normens ordning: hela kartan underst och varje OVER-band i exakt rank-ordning (INK med Darken, WHITE som slår ut).
-          const url = await renderImage(request, 0);
-          urls.current.push(url);
-          const bandUrls: Record<string, string> = {};
-          if (pressLayers) {
-            for (let i = 0; i < pressLayers.overBands.length; i += 1) {
-              const band = pressLayers.overBands[i]!;
-              if (cancelled) { started.current.delete(key); return; }
-              const bandUrl = await renderImage({ ...request, onlyColors: band.ids, background: false }, 0);
-              urls.current.push(bandUrl);
-              bandUrls[overBandImageKey(key, i)] = bandUrl;
-            }
-          }
-          // Bilden gäller sin nyckel även om arken ändrats under tiden (en senare körning hoppar över nyckeln medan den ritas).
-          setImages(current => ({ ...current, ...bandUrls, [key]: url }));
-        } catch (error) { started.current.delete(key); console.error("Kartan kunde inte ritas", error); }
-      }
-    })();
+    void renderMissingSheetImages({
+      sheets, adjust, colorsKey, pressLayers, started: started.current, renderImage,
+      isCancelled: () => cancelled || sessionRef.current !== session,
+      isSameSession: () => sessionRef.current === session,
+      onUrl: url => { urls.current.push(url); },
+      onFrame: entries => setImages(current => ({ ...current, ...entries }))
+    });
     return () => { cancelled = true; };
   }, [session, sheets, adjust, colorsKey, renderImage, pressLayers]);
   useEffect(() => () => { for (const url of urls.current) if (url.startsWith("blob:")) URL.revokeObjectURL(url); }, []);

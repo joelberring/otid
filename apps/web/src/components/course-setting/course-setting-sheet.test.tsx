@@ -5,6 +5,7 @@ import { applyEdit, emptyDocument, layoutCoursePage, sheetOfPage, type CourseSet
 import { overBandImageKey } from "../../lib/course-setting-press-layers";
 import { pageNodes } from "../../lib/course-setting-print";
 import { frameImageKey, SheetView } from "./course-setting-sheet";
+import { renderMissingSheetImages } from "./use-print-map";
 
 /**
  * Städrundan 2026-11-07 + Etapp 1C: normens färgordning, bandade OVER-lager i exakt rank-ordning,
@@ -109,5 +110,71 @@ describe("arket med normens färgordning (förhandsvisningen)", () => {
     const html = renderToStaticMarkup(<SheetView sheet={printed} index={0} symbols={new Map()} images={{}} colorsKey="c" label="Ark" />);
     expect(html).not.toContain("data-layer=");
     expect(html).not.toContain("<mask");
+  });
+
+  it("renderMissingSheetImages slutför alla band till data-map=\"ready\" även när effektkörningen avbryts mitt i en FADED-övergång", async () => {
+    const { sheet: printed } = sheet();
+    const clipRegion = [[{ x: 10, y: 10 }, { x: 90, y: 10 }, { x: 90, y: 90 }, { x: 10, y: 90 }]];
+    const fadedSheet: Sheet = {
+      ...printed,
+      frames: [{
+        ...printed.frames[0]!,
+        mapPasses: [
+          { within: [clipRegion], without: [], filters: [] },
+          { within: [], without: [clipRegion], filters: [], lighten: 0.75 }
+        ]
+      }]
+    };
+    const layers = {
+      norm: "ISOM" as const, numbersOnTop: false, over: [6, 2, 1],
+      overBands: [{ kind: "INK" as const, ids: [6] }, { kind: "WHITE" as const, ids: [2] }, { kind: "INK" as const, ids: [1] }],
+      overWhite: [2], overInk: [6, 1], under: [7]
+    };
+    const started = new Set<string>();
+    const images: Record<string, string> = {};
+    const urls: string[] = [];
+    let cancelled1 = false;
+    let releaseBase!: (url: string) => void;
+    let call = 0;
+    const renderImage = () => {
+      call += 1;
+      if (call === 1) return new Promise<string>(resolve => { releaseBase = resolve; });
+      return Promise.resolve(`blob:band-${call}`);
+    };
+    // Körning 1 startar ritning för FADED-ramen (optimistiskt utkast).
+    const run1 = renderMissingSheetImages({
+      sheets: [{ sheet: fadedSheet }], adjust: {}, colorsKey: "c", pressLayers: layers, started, renderImage,
+      isCancelled: () => cancelled1, isSameSession: () => true,
+      onUrl: url => urls.push(url), onFrame: entries => Object.assign(images, entries)
+    });
+    // Servern svarar på sparningen medan grundbilden ritas: körning 1 avbryts och körning 2 startar för samma frameImageKey.
+    cancelled1 = true;
+    const run2 = renderMissingSheetImages({
+      sheets: [{ sheet: fadedSheet }], adjust: {}, colorsKey: "c", pressLayers: layers, started, renderImage,
+      isCancelled: () => false, isSameSession: () => true,
+      onUrl: url => urls.push(url), onFrame: entries => Object.assign(images, entries)
+    });
+    releaseBase("blob:base");
+    await Promise.all([run1, run2]);
+    // Trots att körning 1 markerades cancelled slutförs alla 3 OVER-band och SheetView blir data-map="ready".
+    expect(call).toBe(4);
+    const html = renderToStaticMarkup(<SheetView sheet={fadedSheet} index={0} symbols={new Map()} images={images} colorsKey="c" label="Ark" pressLayers={layers} />);
+    expect(html).toContain('data-map="ready"');
+
+    // Vid session-byte skrivs inga gamla bilder över det nya tillståndet.
+    const oldSessionImages: Record<string, string> = {};
+    const freshStarted = new Set<string>();
+    let sameSession = true;
+    let releaseStale!: (url: string) => void;
+    const staleRun = renderMissingSheetImages({
+      sheets: [{ sheet: fadedSheet }], adjust: {}, colorsKey: "c", pressLayers: layers, started: freshStarted,
+      renderImage: () => new Promise<string>(resolve => { releaseStale = resolve; }),
+      isCancelled: () => !sameSession, isSameSession: () => sameSession,
+      onUrl: () => undefined, onFrame: entries => Object.assign(oldSessionImages, entries)
+    });
+    sameSession = false;
+    releaseStale("blob:old");
+    await staleRun;
+    expect(oldSessionImages).toEqual({});
   });
 });

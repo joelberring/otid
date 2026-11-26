@@ -45,6 +45,7 @@ export * from "./warp";
 export * from "./vector-fit";
 export {
   autoDashPointsPlan,
+  isDashPointCommand,
   isDashedLineSymbol,
   toggleDashPoint,
   toggleOrInsertDashPoint,

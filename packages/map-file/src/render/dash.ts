@@ -41,7 +41,7 @@ export function dashIntervals(
   const startLen = startInterior ? mainLength / 2 : openEndLength;
   const endLen = endInterior ? mainLength / 2 : openEndLength;
   const minCount = Math.max(1, minGaps);
-  if (minCount <= 1 && length <= startLen + endLen + EPSILON) return [[0, length]];
+  if (minCount <= 1 && length <= (startLen + endLen) / 2 + EPSILON) return [[0, length]];
   if (minCount > 1 && length <= mainGap * minCount + EPSILON) return [[0, length]];
 
   // För n mellanrum: T(n) = startLen + endLen + (n − 1)·mainLength + n·mainGap.

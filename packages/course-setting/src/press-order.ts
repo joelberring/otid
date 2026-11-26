@@ -95,7 +95,9 @@ export function pressColorKind(color: Pick<SourceMapColor, "name" | "cmyk" | "us
       // ISOM 412 odlad mark (och 413, 414): svarta prickar i en yta, ett raster som ritas med skärmarna.
       if (PATTERN_WORDS.test(name) || (only(usage, "AREA") && allMains(usage, [412, 413, 414]))) return "BLACK_PATTERN";
       return "BLACK";
-    case "BLUE": return only(usage, "AREA") || (!usage && AREA_WORDS.test(name)) ? "BLUE_AREA" : "BLUE_LINE";
+    case "BLUE":
+      return only(usage, "AREA") || AREA_WORDS.test(name) || (usage?.kinds.includes("AREA") && allMains(usage, [301, 302, 307, 308, 310]))
+        ? "BLUE_AREA" : "BLUE_LINE";
     case "BROWN": return "BROWN";
     case "GREEN": return only(usage, "POINT") || (!usage && POINT_WORDS.test(name)) ? "GREEN_POINT" : "GREEN";
     case "MAGENTA": return "MAGENTA";
@@ -123,15 +125,15 @@ export function pressOrder(colors: readonly SourceMapColor[], norm: PressNorm): 
   const kinds = colors.map(color => ({ color, kind: pressColorKind(color) }));
   const hasUsage = colors.some(color => color.usage !== undefined);
   const isUsed = (color: SourceMapColor) => !hasUsage || (color.usage !== undefined && color.usage.objects > 0);
-  // En svart väg- eller sidlinjefärg som i kartfilen ligger under en använd skärmfärg (t.ex. vägfyllning i brunt 50 %)
-  // får aldrig lyftas över banan, annars ritas vägkanterna ovanpå asfalten i korsningar i det övre lagret.
+  // En färg (svart, brunt, blått) som i kartfilen ligger under en använd skärmfärg (t.ex. vägfyllning i brunt 50 %
+  // eller stora byggnader) får aldrig lyftas över banan, annars ritas kurvor/vattendrag/vägkanter ovanpå vägar och hus.
   const highestScreen = Math.max(
     -Infinity,
     ...kinds.filter(item => item.kind === "SCREEN" && isUsed(item.color)).map(item => item.color.drawOrder)
   );
   const isOver = (item: { readonly color: SourceMapColor; readonly kind: PressColorKind }) => {
     if (!OVER_KINDS[norm].has(item.kind)) return false;
-    if ((item.kind === "BLACK" || item.kind === "BLACK_ROAD_EDGE") && item.color.drawOrder < highestScreen) return false;
+    if ((item.kind === "BLACK" || item.kind === "BLACK_ROAD_EDGE" || item.kind === "BROWN" || item.kind === "BLUE_LINE") && item.color.drawOrder < highestScreen) return false;
     return true;
   };
   const overItems = kinds.filter(isOver);

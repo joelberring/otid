@@ -1,5 +1,5 @@
 import type { MapObject, Path, Point } from "@o-tid/map-file";
-import { objectParts, vertices, type VertexAddress } from "@o-tid/map-revision";
+import { isDashPointCommand, objectParts, vertices, type VertexAddress } from "@o-tid/map-revision";
 import { toScreen, type Viewport } from "./course-setting-viewport";
 import { lineEnds, type EndMark } from "./map-project-cut-marks";
 import type { CatalogSymbol } from "./map-project-protocol";
@@ -189,7 +189,9 @@ export function shownHandles(points: readonly { readonly x: number; readonly y: 
 
 export function drawSelection(ctx: Context, view: Viewport, object: MapObject, activeVertex: VertexAddress | undefined,
   /** Punkten som pekaren är nära: den har alltid ett handtag. */
-  nearVertex?: VertexAddress) {
+  nearVertex?: VertexAddress,
+  /** OMAP/Mapper lagrar styrpunkter som `corner: true` på streckade linjer. */
+  treatCornerAsDash = false) {
   ctx.save();
   if (object.kind === "point" || object.kind === "text") {
     const at = toScreen(view, object.at);
@@ -205,7 +207,10 @@ export function drawSelection(ctx: Context, view: Viewport, object: MapObject, a
   ctx.strokeStyle = "#fff"; ctx.lineWidth = 5; ctx.stroke();
   ctx.strokeStyle = SELECT; ctx.lineWidth = 2; ctx.setLineDash([6, 4]); ctx.stroke(); ctx.setLineDash([]);
   const all = vertices(object), parts = objectParts(object), screen = all.map(vertex => ({ ...toScreen(view, vertex.at), part: vertex.part }));
-  const isDash = all.map(vertex => parts[vertex.part]?.[vertex.index]?.dash === true);
+  const isDash = all.map(vertex => {
+    const cmd = parts[vertex.part]?.[vertex.index];
+    return !!cmd && isDashPointCommand(cmd, treatCornerAsDash);
+  });
   const is = (address: VertexAddress | undefined, index: number) => !!address && address.part === all[index]!.part && address.index === all[index]!.index;
   const { shown, dense } = shownHandles(screen, index => is(activeVertex, index) || is(nearVertex, index) || isDash[index] === true);
   all.forEach((vertex, index) => {

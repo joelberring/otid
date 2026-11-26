@@ -52,7 +52,7 @@ export interface MapDrawingContext {
   clip(fillRule?: CanvasFillRule): void;
   fillRect(x: number, y: number, w: number, h: number): void;
   fillText(text: string, x: number, y: number): void;
-  /** Textens kontur (K8b V6); PDF:en ritar den inte. */
+  /** Textens kontur (K8b V6, OCAD `FrMode = 2`). */
   strokeText?(text: string, x: number, y: number): void;
 }
 
@@ -199,7 +199,7 @@ function drawElement(ctx: MapCanvasContext, element: PointElement, color: MapCol
     ctx.fill();
   } else if (element.kind === "line") {
     trace(ctx, element.path);
-    ctx.strokeStyle = css(color); ctx.lineWidth = element.width; ctx.lineCap = "butt"; ctx.lineJoin = "miter"; ctx.setLineDash([]);
+    ctx.strokeStyle = css(color); ctx.lineWidth = element.width; ctx.lineCap = element.cap ?? "butt"; ctx.lineJoin = element.join ?? "miter"; ctx.setLineDash([]);
     ctx.stroke();
   } else {
     for (const ring of element.rings) trace(ctx, ring);
@@ -353,6 +353,14 @@ function coverage(parts: readonly PointElement[], dx: number, dy: number): numbe
   return Math.min(1, Math.max(0.1, area / (dx * dy)));
 }
 
+/** Deterministisk hash i [-1, 1] per rutcell och del, för OCAD:s oregelbundna ytmönster (`StructDraw = 3`). */
+function cellJitter(i: number, j: number, salt: number): number {
+  let h = (Math.imul(i, 374761393) + Math.imul(j, 668265263) + Math.imul(salt, 2147483647)) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h ^= h >>> 16;
+  return (h >>> 0) / 0x7fffffff - 1;
+}
+
 function planArea(plan: Plan, symbol: AreaSymbol, rings: readonly Path[], angleDegrees: number, maxInstances: number) {
   if (rings.length === 0) return;
   if (symbol.fill !== undefined) plan.add(symbol.fill, (ctx, color) => fillRings(ctx, rings, css(color)));
@@ -378,13 +386,22 @@ function planArea(plan: Plan, symbol: AreaSymbol, rings: readonly Path[], angleD
           plan.add(colorId, (ctx, color) => fillRings(ctx, rings, css(color, alpha)));
         }
       } else {
+        const irregular = pattern.irregular;
         for (const [colorId, parts] of groups) {
           plan.add(colorId, (ctx, color) => {
             ctx.save();
             clipTo(ctx, rings);
             if (rotation !== 0) ctx.rotate(rotation);
             for (let i = i0; i <= i1; i += 1) for (let j = j0; j <= j1; j += 1) {
-              placed(ctx, { x: i * pattern.dx, y: j * pattern.dy }, 0, () => { for (const part of parts) drawElement(ctx, part, color); });
+              if (irregular) {
+                parts.forEach((part, partIndex) => {
+                  const jx = cellJitter(i, j, partIndex * 2 + 1) * irregular.jitterX;
+                  const jy = cellJitter(i, j, partIndex * 2 + 2) * irregular.jitterY;
+                  placed(ctx, { x: i * pattern.dx + jx, y: j * pattern.dy + jy }, 0, () => drawElement(ctx, part, color));
+                });
+              } else {
+                placed(ctx, { x: i * pattern.dx, y: j * pattern.dy }, 0, () => { for (const part of parts) drawElement(ctx, part, color); });
+              }
             }
             ctx.restore();
           });
@@ -392,14 +409,15 @@ function planArea(plan: Plan, symbol: AreaSymbol, rings: readonly Path[], angleD
       }
     }
   }
-  if (symbol.border) {
+  if (symbol.border || symbol.borderDecorations) {
     const closed = rings.map(closeRing);
-    for (const stroke of symbol.border) planStroke(plan, stroke, closed);
+    planLine(plan, { ...symbol, kind: "LINE", strokes: symbol.border ?? [], ...symbol.borderDecorations }, closed);
   }
 }
 
 function planText(plan: Plan, symbol: TextSymbol, object: Extract<MapObject, { kind: "text" }>, options: DrawMapOptions) {
   if (!object.text.trim() || !(symbol.size > 0)) return;
+  const lineStep = symbol.lineSpacing ?? 1.15;
   const draw = (ctx: MapCanvasContext, paint: (line: string, y: number) => void) => {
     // Texten ritas i bildens pixlar (y nedåt) så att typsnittet inte speglas och får sin storlek i px.
     const px = (object.at.x - options.origin.x) * options.pxPerMm, py = (options.origin.y - object.at.y) * options.pxPerMm;
@@ -409,8 +427,8 @@ function planText(plan: Plan, symbol: TextSymbol, object: Extract<MapObject, { k
     if (object.angle !== 0) ctx.rotate(-object.angle * DEGREES);
     ctx.font = `${symbol.italic ? "italic " : ""}${symbol.bold ? "bold " : ""}${Math.round(size * 10) / 10}px ${fontFamily(symbol.fontFamily)}`;
     ctx.textAlign = symbol.align ?? "left";
-    ctx.textBaseline = "alphabetic";
-    object.text.split(/\r?\n/).forEach((line, index) => paint(line, index * size * 1.15));
+    ctx.textBaseline = symbol.baseline ?? "alphabetic";
+    object.text.split(/\r?\n/).forEach((line, index) => paint(line, index * size * lineStep));
     ctx.restore();
   };
   // K8b V6: konturen (Mappers framing) under texten, i sin egen färg.

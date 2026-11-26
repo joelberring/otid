@@ -177,6 +177,28 @@ describe("ordningen per norm (pressOrder)", () => {
     expect(sprint.has(2)).toBe(true); // Grön 100% - Punktobjekt → OVER i ISSprOM
     expect(sprint.has(5)).toBe(true); // vit (418) över Grön 100% (418) → måste vara OVER så att mittpunkten inte täcks
   });
+
+  it("Högdalen: Blå 100% Ytobjekt (AREA+POINT) är BLUE_AREA (UNDER), och brunt/blått under vägfyllning stannar UNDER", () => {
+    order = 0;
+    const colors = [
+      color("Blå 100% - Ytobjekt", [100, 0, 0, 0], usage(["AREA", "POINT"], [301, 308, 310])),
+      color("Blå 100% sankmark utan nyckelord", [100, 0, 0, 0], usage(["AREA", "POINT"], [308, 310])),
+      color("Brun 100%", [0, 56, 100, 18], usage(["LINE", "POINT"], [101, 103])),
+      color("Blå 100%", [100, 0, 0, 0], usage(["LINE", "POINT"], [304, 305])),
+      color("Svart 100% - Vägar", [0, 0, 0, 100], usage(["LINE"], [502, 505])),
+      color("Brun 50% - Vägfyllning", [0, 28, 45, 12], usage(["LINE"], [502])),
+      color("Svart 100%", [0, 0, 0, 100], usage(["LINE", "POINT"], [201]))
+    ];
+    expect(pressColorKind(colors[0]!)).toBe("BLUE_AREA");
+    expect(pressColorKind(colors[1]!)).toBe("BLUE_AREA");
+    const isom = pressOrder(colors, "ISOM").over;
+    expect(isom.has(0)).toBe(false); // Blå 100% Ytobjekt → UNDER (aldrig över vägar/hus)
+    expect(isom.has(1)).toBe(false); // Blå AREA+POINT (308/310) → UNDER
+    expect(isom.has(2)).toBe(false); // Brun 100% under vägfyllning → UNDER (skär inte över vägar/byggnader)
+    expect(isom.has(3)).toBe(false); // Blå 100% under vägfyllning → UNDER
+    expect(isom.has(4)).toBe(false); // Svart vägar under vägfyllning → UNDER
+    expect(isom.has(6)).toBe(true);  // Övre Svart 100% över vägfyllning → OVER
+  });
 });
 
 describe("normen ur kartan (detectPressNorm)", () => {

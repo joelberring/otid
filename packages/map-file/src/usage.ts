@@ -45,6 +45,10 @@ function symbolColors(symbol: MapSymbol, symbols: ParsedMap["symbols"], depth = 
       for (const hatch of symbol.hatches) add(hatch.color, "AREA");
       if (symbol.pattern) elementsUse(add, symbol.pattern.elements, "AREA");
       for (const border of symbol.border ?? []) add(border.color, "LINE");
+      if (symbol.borderDecorations) {
+        const dec = symbol.borderDecorations;
+        for (const part of [dec.repeated, dec.between, dec.corner, dec.start, dec.end]) if (part) elementsUse(add, part.elements, "LINE");
+      }
       break;
     case "TEXT": add(symbol.color, "TEXT"); break;
     case "COMBINED":

@@ -187,16 +187,40 @@ function readRaw(bytes: Bytes, at: number, count: number): Raw[] {
   return out;
 }
 
-/** Punkter som inte ändrats (samma heltal och samma kända flaggor) får originalets alla flaggbitar, även när punkter lagts till eller tagits bort. */
+/** Punkter som inte ändrats får originalets alla flaggbitar; om bara kända flaggor växlats behålls övre nibbeln (0xf0). */
 function keepOriginal(points: readonly Raw[], original: readonly Raw[]): Raw[] {
-  const queue = new Map<string, Raw[]>();
-  for (const old of original) {
+  const exact = new Map<string, number[]>();
+  for (let i = 0; i < original.length; i++) {
+    const old = original[i]!;
     const key = `${old.x},${old.y},${old.xf & MODELED},${old.yf & MODELED}`;
-    const list = queue.get(key);
-    if (list) list.push(old);
-    else queue.set(key, [old]);
+    const list = exact.get(key);
+    if (list) list.push(i);
+    else exact.set(key, [i]);
   }
-  return points.map(point => queue.get(`${point.x},${point.y},${point.xf},${point.yf}`)?.shift() ?? point);
+  const used = new Uint8Array(original.length);
+  const matched: (Raw | undefined)[] = points.map(point => {
+    const idx = exact.get(`${point.x},${point.y},${point.xf & MODELED},${point.yf & MODELED}`)?.shift();
+    if (idx === undefined) return undefined;
+    used[idx] = 1;
+    return original[idx]!;
+  });
+  const byCoord = new Map<string, number[]>();
+  for (let i = 0; i < original.length; i++) {
+    if (used[i]) continue;
+    const old = original[i]!;
+    const key = `${old.x},${old.y}`;
+    const list = byCoord.get(key);
+    if (list) list.push(i);
+    else byCoord.set(key, [i]);
+  }
+  return points.map((point, i) => {
+    const exactMatch = matched[i];
+    if (exactMatch) return exactMatch;
+    const idx = byCoord.get(`${point.x},${point.y}`)?.shift();
+    if (idx === undefined) return point;
+    const old = original[idx]!;
+    return { x: point.x, y: point.y, xf: (old.xf & ~MODELED) | (point.xf & MODELED), yf: (old.yf & ~MODELED) | (point.yf & MODELED) };
+  });
 }
 
 function objectType(kind: MapObject["kind"]): number {

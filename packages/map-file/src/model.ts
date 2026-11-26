@@ -79,7 +79,7 @@ export interface StrokeStyle {
 export type PointElement =
   | { readonly kind: "circle"; readonly color: number; readonly center: Point; readonly diameter: number; readonly lineWidth: number }
   | { readonly kind: "dot"; readonly color: number; readonly center: Point; readonly diameter: number }
-  | { readonly kind: "line"; readonly color: number; readonly width: number; readonly path: Path }
+  | { readonly kind: "line"; readonly color: number; readonly width: number; readonly path: Path; readonly cap?: StrokeStyle["cap"] | undefined; readonly join?: StrokeStyle["join"] | undefined }
   | { readonly kind: "area"; readonly color: number; readonly rings: readonly Path[] };
 
 export interface Point { readonly x: number; readonly y: number }
@@ -166,10 +166,19 @@ export interface AreaSymbol extends SymbolBase {
   /**
    * Punktmönster i rutnät (t.ex. stenig mark): elementen upprepas var `dx` mm längs raden och var `dy` mm mellan raderna.
    * Förskjutna rader ligger som extra element i samma ruta. `angle` är rutnätets vinkel i grader moturs (0 när den saknas).
+   * `irregular` (OCAD `StructDraw = 3`): deterministisk slumpförskjutning (±`jitterX`, ±`jitterY` mm) per cell.
    */
-  readonly pattern?: { readonly elements: readonly PointElement[]; readonly dx: number; readonly dy: number; readonly angle?: number | undefined } | undefined;
+  readonly pattern?: {
+    readonly elements: readonly PointElement[];
+    readonly dx: number;
+    readonly dy: number;
+    readonly angle?: number | undefined;
+    readonly irregular?: { readonly jitterX: number; readonly jitterY: number; readonly minDist?: number | undefined } | undefined;
+  } | undefined;
   /** Kantlinje som ritas längs ytans ytterkant. */
   readonly border?: readonly StrokeStyle[] | undefined;
+  /** Eventuella punktsymboler från kantlinjens linjesymbol (OCAD `BorderSym`). */
+  readonly borderDecorations?: Pick<LineSymbol, "repeated" | "between" | "corner" | "start" | "end"> | undefined;
 }
 
 export interface TextSymbol extends SymbolBase {
@@ -180,12 +189,13 @@ export interface TextSymbol extends SymbolBase {
   readonly fontFamily: string;
   readonly bold: boolean;
   readonly italic: boolean;
-  /**
-   * K8b V6: justeringen kring ankaret (vänster när den saknas). Läses inte ur filen: i Mapper hör justeringen till varje
-   * objekt (`h_align`), och sätts bara av kartprojektets ändrade textsymbol, som då skriver den på objekten.
-   */
+  /** Horisontell justering kring ankaret (vänster när den saknas). */
   readonly align?: "left" | "center" | "right" | undefined;
-  /** K8b V6: kontur runt tecknen (Mappers `framing` med linje): färgen och linjens hela bredd i mm. */
+  /** Vertikal ankarpunkt (baslinje/`alphabetic` när den saknas; OCAD `Alignment` bitar 2–3). */
+  readonly baseline?: "alphabetic" | "middle" | "top" | undefined;
+  /** Radavstånd som multipel av teckenhöjden (OCAD `LineSpace` i procent; 1,15 när den saknas). */
+  readonly lineSpacing?: number | undefined;
+  /** K8b V6: kontur runt tecknen (Mappers `framing` med linje, OCAD `FrMode = 2`): färgen och linjens hela bredd i mm. */
   readonly framing?: { readonly color: number; readonly width: number } | undefined;
 }
 

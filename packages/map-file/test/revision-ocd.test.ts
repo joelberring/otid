@@ -215,6 +215,49 @@ describe("OCAD-revidering (K7)", () => {
       .toEqual({ type: "L", x: 6, y: 1, corner: true, dash: true, gap: 3 });
   });
 
+  it("behåller övre flaggnibbeln (0xf0) på en punkt vars styrpunktsflagga (dash) växlas", () => {
+    const { bytes, sha, map } = setup(2018, [{
+      symbol: 101000,
+      type: 2,
+      coords: [ocdCoord(0, 7000), ocdCoord(100, 7000, 0x20, 0x40), ocdCoord(200, 7000)]
+    }]);
+    const object = map.objects.find(row => row.kind === "line" && row.path[0]!.y === 70)!;
+    const ref = objectRefOf(sha, object)!;
+    // Växla dash på mittpunkten utan att flytta dess koordinat (1, 70).
+    const toggledOn = run(bytes, sha, [{
+      ...meta,
+      kind: "modify",
+      ref,
+      geometry: {
+        kind: "line",
+        path: [{ type: "M", x: 0, y: 70 }, { type: "L", x: 1, y: 70, dash: true }, { type: "L", x: 2, y: 70 }]
+      }
+    }]);
+    if (!toggledOn.ok) throw new Error(JSON.stringify(toggledOn.refusals));
+    const at = ref.locator.format === "OCD" ? ref.locator.offset : 0;
+    const viewOn = new DataView(toggledOn.bytes.buffer, toggledOn.bytes.byteOffset);
+    expect(viewOn.getInt32(at + 56 + 8, true) & 0xff).toBe(0x20);
+    expect(viewOn.getInt32(at + 56 + 12, true) & 0xff).toBe(0x48);
+
+    // Växla av dash igen: övre nibbeln (0x20, 0x40) är fortfarande kvar.
+    const sha2 = sha256Hex(toggledOn.bytes);
+    const reloaded = reread(toggledOn.bytes).objects.find(row => row.kind === "line" && row.path[0]!.y === 70)!;
+    const ref2 = objectRefOf(sha2, reloaded)!;
+    const toggledOff = run(toggledOn.bytes, sha2, [{
+      ...meta,
+      kind: "modify",
+      ref: ref2,
+      geometry: {
+        kind: "line",
+        path: [{ type: "M", x: 0, y: 70 }, { type: "L", x: 1, y: 70 }, { type: "L", x: 2, y: 70 }]
+      }
+    }]);
+    if (!toggledOff.ok) throw new Error(JSON.stringify(toggledOff.refusals));
+    const viewOff = new DataView(toggledOff.bytes.buffer, toggledOff.bytes.byteOffset);
+    expect(viewOff.getInt32(at + 56 + 8, true) & 0xff).toBe(0x20);
+    expect(viewOff.getInt32(at + 56 + 12, true) & 0xff).toBe(0x40);
+  });
+
   it("uppdaterar indexets färg och v12-huvudets färg vid symbolbyte och nytt objekt utan mall", () => {
     const purpleLine = { number: 102000, type: 2, body: symbolBody(80, { 796: 54, 798: 25, 800: 1 }) };
     const bytes = buildOcd({ ...SPEC, version: 2018, symbols: [...SPEC.symbols!, purpleLine] });

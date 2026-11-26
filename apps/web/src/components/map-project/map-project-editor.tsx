@@ -308,7 +308,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
   };
   // Tangenterna (`use-map-project-shortcuts.ts`).
   const rectCorners = useRef<Point[]>([]);
-  const dash = useMapProjectDashPoints({ session, canEdit, tool, selected, multi: multi.items, activeVertex, symbols, hidden: hiddenSymbols, save, commitMany: editor.commitMany, updateSelected: setSelected, setFlash });
+  const dash = useMapProjectDashPoints({ session, canEdit, tool, selected, multi: multi.items, activeVertex, symbols, hidden: hiddenSymbols, treatCornerAsDash: view.base.format === "OMAP", save, commitMany: editor.commitMany, updateSelected: setSelected, setFlash });
   // K8b V1: det som går att göra med det markerade (kontextraden, hjulets lista, tangenterna och Gör igen).
   const { contextList, doAction, keyAction, repeat, repeatLabel } = useMapProjectActions({ canEdit, tool, keys, keysText, quick, multi, selected, symbol, symbolId,
     activeVertex, recon, symbols, catalog, save, reshape, commit, setFlash, chooseSymbol, removeSelected, joinMm: JOIN_MM, scale: editor.scale ?? georeference?.scale, outlines, stairs: repair, dash,
@@ -633,14 +633,14 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     snap.draw(ctx, current); placeTextField(textField.current, textUi.draft, textUi.draftStyle, current);
     placeContextRow(contextRow.current, multi.items.length ? multi.box : shown && tool === "select" && selected ? objectBox(shown) : undefined, current, multi.items.length > 0);
     if (shown && tool === "select" && selected) {
-      drawSelection(ctx, current, shown, activeVertex, nearVertex);
+      drawSelection(ctx, current, shown, activeVertex, nearVertex, view.base.format === "OMAP" && dash.isSelectedDashed);
       const handles = activeVertex ? vertexHandles(shown, activeVertex) : undefined;
       if (handles) drawHandles(ctx, current, handles);
     }
-  }, [preview, selected, nearVertex, symbols, tool, symbol, draft, cursor, circleCenter, activeVertex, areaDrawings, proposedOpen, proposedShown, view.area, coverage, recon.layers,
+  }, [preview, selected, nearVertex, symbols, tool, symbol, draft, cursor, circleCenter, activeVertex, areaDrawings, proposedOpen, proposedShown, view.area, view.base.format, coverage, recon.layers,
     recon.trackLines, reconResult, walk, gapMm, notes.notes, shownNote, noteDraft, drawnLayers, focused, candidates, normIssues, shownIssue,
     control.active, control.markers, rectify.shown, rectify.markers, sketchLayers, work.dragging, work.drawingLayer, work.stroke,
-    multi.moving, multi.shown, multi.box, multi.cuts, multi.items.length, multi.marquee, fill.preview, fill.bridges, fill.gaps, fill.pending, fill.shown, fill.proposals.candidates, fill.proposals.override, contextKey, snap.mark, assist.via, unfilled.on, unfilled.result, photoFill.cells, photoFill.taken, dash.draw, editor.renderKey, hiddenSymbols, textUi.draft, textUi.draftStyle]);
+    multi.moving, multi.shown, multi.box, multi.cuts, multi.items.length, multi.marquee, fill.preview, fill.bridges, fill.gaps, fill.pending, fill.shown, fill.proposals.candidates, fill.proposals.override, contextKey, snap.mark, assist.via, unfilled.on, unfilled.result, photoFill.cells, photoFill.taken, dash.draw, dash.isSelectedDashed, editor.renderKey, hiddenSymbols, textUi.draft, textUi.draftStyle]);
 
   const hint = tool === "split" ? split.hint : tool === "bucket" && canEdit ? fill.hint : toolHint({ canEdit, closed: view.status === "CLOSED", tool, multiCount: multi.items.length, rotating: multi.zone === "rotate", symbol,
     text, notes: notesText, keys: keysText, quick, textHint: textUi.hint });

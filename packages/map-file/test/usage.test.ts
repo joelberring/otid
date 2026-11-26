@@ -71,4 +71,14 @@ describe("colorUsage (BL-förslaget)", () => {
     expect(usage.get(4)).toMatchObject({ objects: 1, kinds: ["TEXT"], codes: ["602"] });
     expect(usage.has(3)).toBe(false);
   });
+
+  it("memoizerar resultatet per ParsedMap-instans i WeakMap och räknar om för nytt objekt", () => {
+    const first = colorUsage(map);
+    const second = colorUsage(map);
+    expect(second).toBe(first);
+    const clone: ParsedMap = { ...map };
+    const third = colorUsage(clone);
+    expect(third).not.toBe(first);
+    expect(third).toEqual(first);
+  });
 });

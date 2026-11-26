@@ -236,6 +236,15 @@ function withPlaceholders(frame: SheetFrame | undefined, options: SheetOptions):
   return frame && options.runnerPlaceholders ? { ...frame, runnerPlaceholders: true } as SheetFrame : frame;
 }
 
+const boundsCache = new WeakMap<readonly OverprintPrimitive[], MapRect | undefined>();
+
+function cachedFigureBounds(figures: readonly OverprintPrimitive[]): MapRect | undefined {
+  if (boundsCache.has(figures)) return boundsCache.get(figures);
+  const bounds = figureBounds(figures);
+  boundsCache.set(figures, bounds);
+  return bounds;
+}
+
 /** Kartramen för en bana: utsnittet lika stort som ramen i utskriftsskalan, kring banans tryckyta (eller automatiskt). */
 function frameFor(document: CourseSettingDocument, item: SheetItem, rect: TemplateRect, options: SheetOptions): SheetFrame {
   const course = item.course;
@@ -245,10 +254,10 @@ function frameFor(document: CourseSettingDocument, item: SheetItem, rect: Templa
   const printScale = printScaleOf(document, course, item.printScale);
   const ratio = printScale / document.event.mapScale;
   const part = item.part !== undefined && !item.training && countCourseParts(document, course, variant) > 1 ? item.part : undefined;
-  const figures: OverprintPrimitive[] = layout(document, { course, ...(variant ? { variant } : {}), printScale, ...(options.detailGaps ? { detailGaps: options.detailGaps } : {}),
+  const figures = layout(document, { course, ...(variant ? { variant } : {}), printScale, ...(options.detailGaps ? { detailGaps: options.detailGaps } : {}),
     ...(options.numberObstacles ? { numberObstacles: options.numberObstacles } : {}), ...(item.training ? { training: item.training } : {}), ...(part !== undefined ? { part, overlap: paperLayoutOf(document, course).overlap } : {}) });
   const area = item.training?.section ? { automatic: true, restrictToPageSize: true } : item.printArea ?? printAreaOf(document, course, part);
-  const mapArea = printRectangle({ ...area, restrictToPageSize: true }, { width: rect.width * ratio, height: rect.height * ratio }, figureBounds(figures), options.mapBounds);
+  const mapArea = printRectangle({ ...area, restrictToPageSize: true }, { width: rect.width * ratio, height: rect.height * ratio }, cachedFigureBounds(figures), options.mapBounds);
   const scale = 1 / ratio;
   const name = found?.name ?? "Alla kontroller";
   const base = variant ? `${name} – ${variant}` : name;
@@ -300,6 +309,7 @@ export function sheetLayoutSheets(document: CourseSettingDocument, template: She
   if ((options.mode ?? "FILL") === "REPEAT") for (const item of items) groups.push(rects.map(() => item));
   else for (let index = 0; index < items.length; index += rects.length) groups.push(items.slice(index, index + rects.length));
   const sheets: Sheet[] = [];
+  const cutMarks = template.cutMarks ? cutMarksFor(paper, rects, margin) : [];
   for (const group of groups) {
     const frames = group.map((item, index) => frameFor(document, item, rects[index]!, options));
     const texts: SheetText[] = template.texts.map(text => ({
@@ -326,7 +336,7 @@ export function sheetLayoutSheets(document: CourseSettingDocument, template: She
       : sheetPaperItems(document, frame, index, { page, date: options.date, pageItems: index === 0, runnerPlaceholders: options.runnerPlaceholders,
         links: options.paperLinks }));
     const sheet: Sheet = { paper, frames, texts, images: template.images.map(image => ({ ...image })), descriptions, boxes,
-      cutMarks: template.cutMarks ? cutMarksFor(paper, rects, margin) : [], ...(items.length > 0 ? { paperItems: items } : {}) };
+      cutMarks, ...(items.length > 0 ? { paperItems: items } : {}) };
     sheets.push(sheet);
     const runner = frames[0]?.runner;
     // ADR-0213: baksidan är ett eget ark med papperets element (förvalet som Kartor till startens baksida).

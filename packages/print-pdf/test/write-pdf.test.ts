@@ -10,6 +10,7 @@ import {
 } from "@o-tid/course-setting";
 import { readMapFile, type ParsedMap } from "@o-tid/map-file";
 import { PDF_CAPABILITIES, plateName, writeSheetsPdf, type PdfMode } from "../src";
+import { num } from "../src/content";
 import { fixture, fontFiles, parsePdf, spaceFor } from "./helpers";
 import { evaluateType4 } from "./postscript";
 import { SPOT_OMAP } from "./spot-map";
@@ -204,5 +205,55 @@ describe("PDF för tryck (steg 65)", () => {
 function hasGhostscript(): boolean {
   try { execFileSync("gs", ["--version"], { stdio: "ignore" }); return true; } catch { return false; }
 }
+
+describe("PDF-motor bit-identitet (Etapp P2)", () => {
+  it("content.num() ger exakt samma sträng som toFixed(3) för heltal, decimaler, -0, avrundningsgränser och stora tal", () => {
+    const legacy = (value: number): string => {
+      if (!Number.isFinite(value)) return "0";
+      const rounded = Math.round(value * 1000) / 1000;
+      if (rounded === 0) return "0";
+      return rounded.toFixed(3).replace(/\.?0+$/, "");
+    };
+    const edgeCases = [
+      0, -0, NaN, Infinity, -Infinity,
+      0.0001, -0.0001, 0.0004, -0.0004, 0.0005, -0.0005, 0.0006, -0.0006,
+      0.001, -0.001, 0.01, -0.01, 0.05, -0.05, 0.1, -0.1, 0.100, 0.250, 0.9994, 0.9995, -0.9995, -0.9996,
+      1, -1, 10, -10, 123.4, -123.45, 123.456, -123.4564, -123.4566,
+      999_999_999.999, -999_999_999.999, 1e9, -1e9, 1e12, -1e12, 1e15, -1e15, 1e20, -1e20, 1e308, -1e308
+    ];
+    for (const v of edgeCases) expect(num(v), `edge ${String(v)}`).toBe(legacy(v));
+    for (let i = -2500; i <= 2500; i += 1) {
+      expect(num(i / 1000)).toBe(legacy(i / 1000));
+      expect(num((i + 0.5) / 1000)).toBe(legacy((i + 0.5) / 1000));
+    }
+  });
+
+  it("dubblettsidor och unika sidor delar Pg-XObject utan extra deflate och behåller korrekt sid- och resursstruktur", async () => {
+    const template = BUILT_IN_SHEET_LAYOUTS.find(item => item.id === "a4-one")!;
+    const items = [
+      { course: courses[0]!.id, runner: { kind: "RUNNER" as const, name: "A1", club: "OK", className: "D21", startTime: "10:00", startNumber: 1 } },
+      { course: courses[0]!.id, runner: { kind: "RUNNER" as const, name: "A2", club: "OK", className: "D21", startTime: "10:01", startNumber: 2 } },
+      { course: courses[1]!.id, runner: { kind: "RUNNER" as const, name: "B1", club: "OK", className: "H21", startTime: "10:02", startNumber: 3 } },
+      { course: courses[1]!.id, runner: { kind: "RUNNER" as const, name: "B2", club: "OK", className: "H21", startTime: "10:03", startNumber: 4 } },
+      { course: courses[0]!.id, runner: { kind: "RUNNER" as const, name: "A3", club: "OK", className: "D21", startTime: "10:04", startNumber: 5 } }
+    ];
+    const sheets = items.flatMap(item => sheetLayoutSheets(document, template, [item], { duplexBacks: true, mapBounds: ocd.bounds ?? undefined }));
+    const { result, pdf } = await write(ocd, "OFFICE", profile("office"), sheets);
+    expect(result.pages).toBe(10);
+    expect(result.sharedPages).toBe(2);
+    expect(pdf.pages[0]!.content).toBe("/Pg1 Do");
+    expect(pdf.pages[2]!.content).toBe("/Pg1 Do");
+    expect(pdf.pages[8]!.content).toBe("/Pg1 Do");
+    expect(pdf.pages[4]!.content).toBe("/Pg2 Do");
+    expect(pdf.pages[6]!.content).toBe("/Pg2 Do");
+    // Unika baksidor skrivs direkt (ej Do).
+    for (const backIdx of [1, 3, 5, 7, 9]) {
+      expect(pdf.pages[backIdx]!.content).not.toMatch(/\/Pg\d+ Do/);
+      expect(pdf.pages[backIdx]!.content).toContain("Tj");
+    }
+    expect(pdf.forms.get("Pg1")).toMatch(/\/Fm\d+ Do/);
+    expect(pdf.forms.get("Pg2")).toMatch(/\/Fm\d+ Do/);
+  });
+});
 
 

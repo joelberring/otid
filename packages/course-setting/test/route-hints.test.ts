@@ -53,4 +53,25 @@ describe("vägvalens vägar nära kontrollerna", () => {
     expect(() => applyEdit(b.document, { type: "SET_ROUTE_HINTS", hints: { k: { from: { x: Number.NaN, y: 0 }, to: { x: 1, y: 1 }, lines: [] } } }))
       .toThrow();
   });
+
+  it("routeSegmentsNear med keys slår upp direkt och ignorerar okända/prototypnycklar samt ogiltiga och avlägsna vägar", () => {
+    const { b, control, start } = setup();
+    const validKey = routeHintKey(start.at, control.at);
+    const hints: Record<string, { from: Point; to: Point; lines: Point[][] }> = {
+      [validKey]: { from: start.at, to: control.at, lines: [[start.at, { x: control.at.x - 1, y: control.at.y }, control.at]] }
+    };
+    // Många extra vägar långt bort som inte ska skannas när keys anges.
+    for (let i = 0; i < 600; i++) {
+      const fx = 500 + i * 2, fy = 500;
+      const tx = fx + 10, ty = fy + 10;
+      hints[routeHintKey({ x: fx, y: fy }, { x: tx, y: ty })] = { from: { x: fx, y: fy }, to: { x: tx, y: ty }, lines: [[{ x: fx, y: fy }, { x: tx, y: ty }]] };
+    }
+    const document = applyEdit(b.document, { type: "SET_ROUTE_HINTS", hints }).document;
+    const keys = new Set([validKey, "saknas", "toString", "constructor"]);
+    const withKeys = routeSegmentsNear(document, control.at, ROUTE_HINT_LIMITS.reachMm, keys);
+    const withoutKeys = routeSegmentsNear(document, control.at, ROUTE_HINT_LIMITS.reachMm);
+    expect(withKeys).toEqual(withoutKeys);
+    expect(withKeys).toHaveLength(1);
+    expect(routeSegmentsNear(document, control.at, ROUTE_HINT_LIMITS.reachMm, new Set(["toString", "saknas"]))).toEqual([]);
+  });
 });

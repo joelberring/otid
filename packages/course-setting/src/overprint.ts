@@ -270,13 +270,43 @@ function labelBox(at: Point, text: string, height: number): Box {
 function segmentHitsBox(a: Point, b: Point, box: Box, margin: number): boolean {
   const minX = box.cx - box.w / 2 - margin, maxX = box.cx + box.w / 2 + margin;
   const minY = box.cy - box.h / 2 - margin, maxY = box.cy + box.h / 2 + margin;
+  if ((a.x < minX && b.x < minX) || (a.x > maxX && b.x > maxX) || (a.y < minY && b.y < minY) || (a.y > maxY && b.y > maxY)) return false;
   let t0 = 0, t1 = 1;
-  const dx = b.x - a.x, dy = b.y - a.y;
-  for (const [p, q] of [[-dx, a.x - minX], [dx, maxX - a.x], [-dy, a.y - minY], [dy, maxY - a.y]] as const) {
-    if (p === 0) { if (q < 0) return false; continue; }
-    const r = q / p;
-    if (p < 0) { if (r > t1) return false; if (r > t0) t0 = r; }
-    else { if (r < t0) return false; if (r < t1) t1 = r; }
+  const dx = b.x - a.x;
+  if (dx === 0) {
+    if (a.x < minX || a.x > maxX) return false;
+  } else {
+    const r0 = (a.x - minX) / -dx;
+    const r1 = (maxX - a.x) / dx;
+    if (dx > 0) {
+      if (r0 > t1) return false;
+      if (r0 > t0) t0 = r0;
+      if (r1 < t0) return false;
+      if (r1 < t1) t1 = r1;
+    } else {
+      if (r0 < t0) return false;
+      if (r0 < t1) t1 = r0;
+      if (r1 > t1) return false;
+      if (r1 > t0) t0 = r1;
+    }
+  }
+  const dy = b.y - a.y;
+  if (dy === 0) {
+    if (a.y < minY || a.y > maxY) return false;
+  } else {
+    const r2 = (a.y - minY) / -dy;
+    const r3 = (maxY - a.y) / dy;
+    if (dy > 0) {
+      if (r2 > t1) return false;
+      if (r2 > t0) t0 = r2;
+      if (r3 < t0) return false;
+      if (r3 < t1) t1 = r3;
+    } else {
+      if (r2 < t0) return false;
+      if (r2 < t1) t1 = r2;
+      if (r3 > t1) return false;
+      if (r3 > t0) t0 = r3;
+    }
   }
   return true;
 }
@@ -353,19 +383,51 @@ export function printScaleOf(document: CourseSettingDocument, course: string, pr
   return findCourse(document, course).printScale ?? document.event.mapScale;
 }
 
+/** Sentinel för utelämnad `detailGaps`/`numberObstacles` i nästlade WeakMap-cacher (läcker aldrig). */
+const NO_REF: object = Object.freeze({});
+const layoutCache = new WeakMap<CourseSettingDocument, WeakMap<object, WeakMap<object, Map<string, readonly OverprintPrimitive[]>>>>();
+const wholeNumbersCache = new WeakMap<CourseSettingDocument, WeakMap<object, Map<string, ReadonlyMap<string, Point>>>>();
+
+const encodeOptString = (value: string | undefined): string => value === undefined ? "-" : `${value.length}:${value}`;
+const encodeOptNumber = (value: number | undefined): string => value === undefined ? "-" : String(value);
+
+function layoutCacheKey(options: OverprintOptions, printScale: number): string {
+  const t = options.training;
+  const trainingKey = t === undefined ? "-"
+    : `${t.off ? 1 : 0}|${t.view ?? ""}|${t.pairMap ?? ""}|${t.section ? `${t.section.from}:${t.section.to}` : ""}`;
+  return `${options.course.length}:${options.course}|${encodeOptString(options.variant)}|${printScale}|${encodeOptNumber(options.part)}|${options.overlap ?? ""}|${trainingKey}`;
+}
+
+function layoutMapFor(document: CourseSettingDocument, detailGaps: object, numberObstacles: object): Map<string, readonly OverprintPrimitive[]> {
+  let byDetail = layoutCache.get(document);
+  if (!byDetail) { byDetail = new WeakMap(); layoutCache.set(document, byDetail); }
+  let byObstacles = byDetail.get(detailGaps);
+  if (!byObstacles) { byObstacles = new WeakMap(); byDetail.set(detailGaps, byObstacles); }
+  let byKey = byObstacles.get(numberObstacles);
+  if (!byKey) { byKey = new Map(); byObstacles.set(numberObstacles, byKey); }
+  return byKey;
+}
+
 /**
  * Banpåtrycket för en bana (eller alla kontroller) med specialobjekten som syns där (steg 64), i målningsordning. Som i
- * Purple Pen kommer specialobjekten före banans figurer inom samma färg.
+ * Purple Pen kommer specialobjekten före banans figurer inom samma färg. Memoizeras per dokument och alternativ så att
+ * upprepade löparark delar samma utlagda figurer.
  */
-export function layout(document: CourseSettingDocument, options: OverprintOptions): OverprintPrimitive[] {
+export function layout(document: CourseSettingDocument, options: OverprintOptions): readonly OverprintPrimitive[] {
   const printScale = printScaleOf(document, options.course, options.printScale);
+  const cache = layoutMapFor(document, options.detailGaps ?? NO_REF, options.numberObstacles ?? NO_REF);
+  const key = layoutCacheKey(options, printScale);
+  const cached = cache.get(key);
+  if (cached) return cached;
   const course = options.course === "ALL_CONTROLS" ? allControls(document, printScale, options) : layoutCourse(document, options, printScale);
   const context = { document, course: options.course, variant: options.variant, printScale, sizes: sizesFor(document, printScale) };
   // Kontrollbeskrivningen hör till papperet (`paper-layout.ts`), inte kartan: Purple Pens `descriptions` ritas inte här.
   const specials = document.specialObjects.filter(special => special.kind !== "descriptions" && specialVisible(special, options.course, options.part))
     .flatMap(special => specialPrimitives(context, special));
   // Träningsläget (ADR-0192 beslut 7): sista säkra, markeringar, kepsens etiketter, linjen och avsnittet.
-  return withTraining(document, options, inPaintOrder([...specials, ...course]), printScale);
+  const result = withTraining(document, options, inPaintOrder([...specials, ...course]), printScale);
+  cache.set(key, result);
+  return result;
 }
 
 /** Överlappets andel av banans färg vid ett kartbyte (ADR-0203). */
@@ -558,8 +620,16 @@ function layoutCourse(document: CourseSettingDocument, options: OverprintOptions
   return out;
 }
 
-/** Numrens lägen för hela banan (alla varianter, ingen del), per kontroll. */
-function wholeCourseNumbers(document: CourseSettingDocument, options: OverprintOptions, printScale: number): Map<string, Point> {
+/** Numrens lägen för hela banan (alla varianter, ingen del), per kontroll. Memoizeras per dokument, hinder, bana och skala. */
+function wholeCourseNumbers(document: CourseSettingDocument, options: OverprintOptions, printScale: number): ReadonlyMap<string, Point> {
+  const obstacleRef = options.numberObstacles ?? NO_REF;
+  let byObstacles = wholeNumbersCache.get(document);
+  if (!byObstacles) { byObstacles = new WeakMap(); wholeNumbersCache.set(document, byObstacles); }
+  let byKey = byObstacles.get(obstacleRef);
+  if (!byKey) { byKey = new Map(); byObstacles.set(obstacleRef, byKey); }
+  const key = `${options.course.length}:${options.course}|${printScale}`;
+  const cached = byKey.get(key);
+  if (cached) return cached;
   const whole: OverprintOptions = { ...options, variant: undefined, part: undefined };
   const out = new Map<string, Point>();
   for (const figure of layoutCourse(document, whole, printScale)) {
@@ -567,5 +637,6 @@ function wholeCourseNumbers(document: CourseSettingDocument, options: OverprintO
     const control = document.courseControls[figure.ref]?.control;
     if (control && !out.has(control)) out.set(control, figure.at);
   }
+  byKey.set(key, out);
   return out;
 }

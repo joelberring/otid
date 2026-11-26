@@ -97,19 +97,31 @@ export function spacedDistances(length: number, spacing: number, endLength: numb
   return Array.from({ length: count }, (_, index) => first + index * actual);
 }
 
-/** Polylinjen mellan två index, med längderna längs vägen. */
-function piece(points: Polyline, from: number, to: number): { points: Polyline; lengths: number[]; total: number } {
+/** Polylinjen mellan två index, med längderna och kumulativa avstånd längs vägen. */
+function piece(points: Polyline, from: number, to: number): { points: Polyline; lengths: number[]; cum: number[]; total: number } {
   const part = points.slice(from, to + 1);
-  const lengths = part.slice(1).map((point, index) => Math.hypot(point.x - part[index]!.x, point.y - part[index]!.y));
-  return { points: part, lengths, total: lengths.reduce((sum, value) => sum + value, 0) };
+  const segCount = Math.max(0, part.length - 1);
+  const lengths = new Array<number>(segCount);
+  const cum = new Array<number>(segCount + 1);
+  cum[0] = 0;
+  for (let i = 0; i < segCount; i += 1) {
+    const len = Math.hypot(part[i + 1]!.x - part[i]!.x, part[i + 1]!.y - part[i]!.y);
+    lengths[i] = len;
+    cum[i + 1] = cum[i]! + len;
+  }
+  return { points: part, lengths, cum, total: cum[segCount]! };
 }
 
-function pointAt(part: ReturnType<typeof piece>, distance: number): Placement {
+function pointAt(part: ReturnType<typeof piece>, distance: number, cursor: { segment: number }): Placement {
   const target = Math.min(Math.max(distance, 0), part.total);
-  let start = 0, segment = 0;
-  while (segment < part.lengths.length - 1 && start + part.lengths[segment]! < target) { start += part.lengths[segment]!; segment += 1; }
+  const maxSeg = part.lengths.length - 1;
+  let segment = cursor.segment;
+  while (segment > 0 && part.cum[segment]! >= target) segment -= 1;
+  while (segment < maxSeg && part.cum[segment + 1]! < target) segment += 1;
+  cursor.segment = segment;
   const from = part.points[segment]!, to = part.points[segment + 1]!;
-  const t = part.lengths[segment]! > 0 ? (target - start) / part.lengths[segment]! : 0;
+  const len = part.lengths[segment]!;
+  const t = len > 0 ? (target - part.cum[segment]!) / len : 0;
   return { at: { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t }, angle: Math.atan2(to.y - from.y, to.x - from.x), stretch: 1 };
 }
 
@@ -129,8 +141,9 @@ export function spacedPlacements(line: MarkedLine, symbol: RepeatedSymbol, betwe
     // Minsta antalet gäller hela linjen och läggs på den längsta delen, som OCAD gör.
     let distances = spacedDistances(part.total, symbol.spacing, endLength, index === longest ? (symbol.minimum ?? 1) : 0);
     if (between) distances = distances.slice(1).map((distance, k) => (distance + distances[k]!) / 2);
+    const cursor = { segment: 0 };
     for (const distance of distances) {
-      for (let k = 0; k < count && out.length < limit; k += 1) out.push(pointAt(part, distance + (k - (count - 1) / 2) * groupSpacing));
+      for (let k = 0; k < count && out.length < limit; k += 1) out.push(pointAt(part, distance + (k - (count - 1) / 2) * groupSpacing, cursor));
     }
   });
   return out;
@@ -138,9 +151,28 @@ export function spacedPlacements(line: MarkedLine, symbol: RepeatedSymbol, betwe
 
 /** Alla punktsymboler i en linjesymbol för en väg, var för sig med sina element. */
 export function lineDecorations(symbol: LineSymbol, paths: readonly Path[], limit: number): { elements: readonly PointElement[]; places: Placement[] }[] {
-  const lines = paths.flatMap(markedLines);
+  const needsActive = Boolean(
+    (symbol.repeated && symbol.repeated.spacing > 0) ||
+    (symbol.between && symbol.between.spacing > 0) ||
+    symbol.corner
+  );
+  const needsEnds = Boolean(symbol.start || symbol.end);
+  if (!needsActive && !needsEnds) return [];
   // Upprepade symboler och hörnsymboler ritas inte över luckor i huvudlinjen (`GAP.main`); start/slut behåller ursprungsvägen.
-  const activeLines = paths.map(path => withoutGaps(path, GAP.main)).flatMap(markedLines);
+  let activeLines: MarkedLine[] = [];
+  let lines: MarkedLine[] = [];
+  if (needsActive && needsEnds) {
+    for (const path of paths) {
+      const activePath = withoutGaps(path, GAP.main);
+      const active = markedLines(activePath);
+      activeLines.push(...active);
+      lines.push(...(activePath === path ? active : markedLines(path)));
+    }
+  } else if (needsActive) {
+    activeLines = paths.flatMap(path => markedLines(withoutGaps(path, GAP.main)));
+  } else {
+    lines = paths.flatMap(markedLines);
+  }
   const out: { elements: readonly PointElement[]; places: Placement[] }[] = [];
   const add = (elements: readonly PointElement[] | undefined, places: Placement[]) => {
     if (elements && elements.length > 0 && places.length > 0) out.push({ elements, places: places.slice(0, limit) });

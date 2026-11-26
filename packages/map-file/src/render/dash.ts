@@ -78,7 +78,7 @@ export function dashIntervals(
 }
 
 /** Klipper ut polylinjen mellan avstånden `from` och `to` längs `points` (med kumulativa längder `cum`). */
-function slicePolyline(points: Polyline, cum: readonly number[], from: number, to: number): Polyline {
+function slicePolyline(points: Polyline, cum: readonly number[], from: number, to: number, cursor: { seg: number }): Polyline {
   const out: Point[] = [];
   const add = (point: Point) => {
     const last = out[out.length - 1];
@@ -90,14 +90,17 @@ function slicePolyline(points: Polyline, cum: readonly number[], from: number, t
     const a = points[segment]!, b = points[segment + 1]!;
     return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
   };
-  let seg = 0;
-  while (seg < cum.length - 2 && cum[seg + 1]! < from - EPSILON) seg += 1;
+  const maxSeg = cum.length - 2;
+  let seg = cursor.seg;
+  while (seg > 0 && cum[seg]! >= from - EPSILON) seg -= 1;
+  while (seg < maxSeg && cum[seg + 1]! < from - EPSILON) seg += 1;
   add(at(from, seg));
-  while (seg < cum.length - 2 && cum[seg + 1]! < to - EPSILON) {
+  while (seg < maxSeg && cum[seg + 1]! < to - EPSILON) {
     seg += 1;
     add(points[seg]!);
   }
   add(at(to, seg));
+  cursor.seg = seg;
   return out;
 }
 
@@ -146,9 +149,10 @@ export function dashPolylines(paths: readonly Path[], spec: DashSpec, offset?: n
         const end = stops[s] ?? last;
         const piece = points.slice(start, end + 1);
         if (piece.length < 2) continue;
-        const cum: number[] = [0];
+        const cum = new Array<number>(piece.length);
+        cum[0] = 0;
         for (let i = 1; i < piece.length; i += 1) {
-          cum.push(cum[i - 1]! + Math.hypot(piece[i]!.x - piece[i - 1]!.x, piece[i]!.y - piece[i - 1]!.y));
+          cum[i] = cum[i - 1]! + Math.hypot(piece[i]!.x - piece[i - 1]!.x, piece[i]!.y - piece[i - 1]!.y);
         }
         const total = cum[cum.length - 1]!;
         const startInterior = closed || s > 1;
@@ -157,10 +161,11 @@ export function dashPolylines(paths: readonly Path[], spec: DashSpec, offset?: n
         const minGaps = closed && stops.length === 2 ? 2 : 1;
         const intervals = dashIntervals(total, spec, startInterior, endInterior, minGaps);
         let endedAtStop = false;
+        const cursor = { seg: 0 };
 
         for (let k = 0; k < intervals.length; k += 1) {
           const [d0, d1] = intervals[k]!;
-          const dashed = slicePolyline(piece, cum, d0, d1);
+          const dashed = slicePolyline(piece, cum, d0, d1, cursor);
           if (dashed.length < 2) continue;
 
           const prev = lineDashes[lineDashes.length - 1];

@@ -147,19 +147,24 @@ function symbolReach(symbols: ParsedMap["symbols"], id: string, depth = 0): numb
   }
 }
 
-/** Textens största utbredning från ankarpunkten (mm): en fyrkant per tecken och radavståndet, i alla riktningar. */
+/** Textens största utbredning från ankarpunkten (mm): en fyrkant per tecken, radavståndet och ev. textram, i alla riktningar. */
 function textReach(map: ParsedMap, object: Extract<MapObject, { kind: "text" }>): number {
   let size = 0;
+  let lineSpacing = 1.15;
+  let framing = 0;
   const visit = (id: string, depth: number) => {
     const symbol = map.symbols.get(id);
     if (!symbol || depth > 8) return;
-    if (symbol.kind === "TEXT") size = Math.max(size, symbol.size);
-    else if (symbol.kind === "COMBINED") for (const part of symbol.parts) visit(part, depth + 1);
+    if (symbol.kind === "TEXT") {
+      size = Math.max(size, symbol.size);
+      lineSpacing = Math.max(lineSpacing, symbol.lineSpacing ?? 1.15);
+      if (symbol.framing && symbol.framing.width > 0) framing = Math.max(framing, symbol.framing.width);
+    } else if (symbol.kind === "COMBINED") for (const part of symbol.parts) visit(part, depth + 1);
   };
   visit(object.symbol, 0);
   const lines = object.text.split(/\r?\n/);
   const longest = lines.reduce((most, line) => Math.max(most, line.length), 0);
-  return Math.hypot(longest * size, (lines.length + 1) * size * 1.15);
+  return Math.hypot(longest * size, (lines.length + 1) * size * lineSpacing) + framing;
 }
 
 /** Varje objekts ruta (mm) med det symbolen ritar utanför geometrin: fyra tal per objekt i kartans ordning. */

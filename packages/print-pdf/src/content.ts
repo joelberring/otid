@@ -4,13 +4,25 @@
  */
 import type { Cmyk, Ink, Paint } from "./paint";
 
+const FRAC_STR: readonly string[] = Array.from({ length: 1000 }, (_, i) => {
+  if (i === 0) return "";
+  if (i % 100 === 0) return `.${i / 100}`;
+  if (i % 10 === 0) return i < 100 ? `.0${i / 10}` : `.${i / 10}`;
+  return i < 10 ? `.00${i}` : i < 100 ? `.0${i}` : `.${i}`;
+});
+
 /** Tal i PDF: högst tre decimaler (tusendels punkt), aldrig exponentform. */
 export function num(value: number): string {
   if (!Number.isFinite(value)) return "0";
-  const rounded = Math.round(value * 1000) / 1000;
-  if (rounded === 0) return "0";
-  const text = rounded.toFixed(3);
-  return text.replace(/\.?0+$/, "");
+  const scaled = Math.round(value * 1000);
+  if (scaled === 0) return "0";
+  if (scaled >= 1e12 || scaled <= -1e12) return (scaled / 1000).toFixed(3).replace(/\.?0+$/, "");
+  const negative = scaled < 0;
+  const abs = negative ? -scaled : scaled;
+  const frac = abs % 1000;
+  const whole = (abs - frac) / 1000;
+  if (frac === 0) return negative ? `-${whole}` : String(whole);
+  return negative ? `-${whole}${FRAC_STR[frac]!}` : `${whole}${FRAC_STR[frac]!}`;
 }
 
 /** En färgrymd för dekorfärger: plåtarnas namn och CMYK-alternativ (en plåt = /Separation, flera = /DeviceN). */

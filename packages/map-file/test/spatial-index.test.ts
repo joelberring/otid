@@ -92,4 +92,29 @@ describe("rumsligt index (ADR-0218)", () => {
     expect(drawMap(fakeContext(width, height).ctx, map, options).parts).toBeGreaterThan(map.objects.length * 0.9);
     expect(spatialIndexOf(map)).toBe(spatialIndexOf(map));
   });
+
+  it("textReach inkluderar stort radavstånd (lineSpacing) och textram (framing.width) vid cull: true", () => {
+    const baseText = {
+      id: "t", kind: "TEXT" as const, code: { text: "602", main: 602, sub: 0 }, name: "Text", hidden: false,
+      color: 1, size: 3, fontFamily: "Arial", bold: false, italic: false
+    };
+    const makeMap = (extra: Partial<typeof baseText> & { lineSpacing?: number; framing?: { color: number; width: number } }): ParsedMap => ({
+      format: "OMAP", version: "9", scale: 10_000, georeference: null, bounds: { minX: 0, minY: 0, maxX: 100, maxY: 100 }, warnings: [],
+      colors: [{ id: 1, name: "Svart", rank: 0, cmyk: { c: 0, m: 0, y: 0, k: 1 }, rgb: { r: 0, g: 0, b: 0 }, opacity: 1 }],
+      symbols: new Map([["t", { ...baseText, ...extra }]]),
+      objects: [{ kind: "text", symbol: "t", at: { x: 50, y: 50 }, angle: 0, text: "A\nB\nC" }]
+    });
+    const plain = objectBoxes(makeMap({}));
+    const spaced = objectBoxes(makeMap({ lineSpacing: 2.5, framing: { color: 1, width: 4 } }));
+    const plainReach = plain[2]! - 50;
+    const spacedReach = spaced[2]! - 50;
+    expect(plainReach).toBeCloseTo(Math.hypot(3, 4 * 3 * 1.15), 6);
+    expect(spacedReach).toBeCloseTo(Math.hypot(3, 4 * 3 * 2.5) + 4, 6);
+    expect(spacedReach).toBeGreaterThan(plainReach + 15);
+    // Vy strax utanför plainReach men innanför spacedReach måste inkludera texten vid cull: true.
+    const viewOriginX = 50 + plainReach + 5;
+    const { ctx, calls } = fakeContext(100, 100);
+    drawMap(ctx, makeMap({ lineSpacing: 2.5, framing: { color: 1, width: 4 } }), { pxPerMm: 2, origin: { x: viewOriginX, y: 60 }, cull: true, background: false });
+    expect(calls.filter(c => c.op === "fillText")).toHaveLength(3);
+  });
 });

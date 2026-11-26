@@ -235,6 +235,67 @@ describe("drawMap", () => {
     const fonts = calls.filter(call => call.op === "fillText").map(call => call.state.font);
     expect(fonts).toEqual(['1.75px "Arial", sans-serif', '1.235px "Arial", sans-serif']);
   });
+
+  it("tidig färgfiltrering (onlyColors/excludeColors) bevarar parts, saknad-färg-notis och ger bit-identiska anrop per färg", () => {
+    const symbols: MapSymbol[] = [
+      {
+        id: "combo-line", kind: "LINE", code: code("505"), name: "Tvåfärgad linje", hidden: false,
+        strokes: [{ color: 1, width: 0.25 }, { color: 3, width: 0.15, dashSpec: { mainLength: 2, mainGap: 0.5, endLength: 1 } }],
+        repeated: { spacing: 3, elements: [{ kind: "dot", color: 2, center: { x: 0, y: 0 }, diameter: 0.2 }] }
+      },
+      {
+        id: "combo-area", kind: "AREA", code: code("401"), name: "Yta med mönster och kant", hidden: false,
+        fill: 3, hatches: [{ color: 2, width: 0.1, spacing: 1, angle: 45 }],
+        pattern: { dx: 2, dy: 2, elements: [{ kind: "dot", color: 4, center: { x: 0, y: 0 }, diameter: 0.2 }] },
+        border: [{ color: 1, width: 0.18 }]
+      },
+      { id: "missing", kind: "LINE", code: code("999"), name: "Saknad färg", hidden: false, strokes: [{ color: 99, width: 0.5 }] },
+      { id: "txt", kind: "TEXT", code: code("602"), name: "Text", hidden: false, color: 1, size: 2, fontFamily: "Arial", bold: false, italic: false, framing: { color: 4, width: 0.2 } }
+    ];
+    const objects: MapObject[] = [
+      { kind: "line", symbol: "combo-line", path: [{ type: "M", x: 0, y: 0 }, { type: "L", x: 10, y: 0 }] },
+      { kind: "area", symbol: "combo-area", rings: [square(2, 2, 6)], angle: 0 },
+      { kind: "line", symbol: "missing", path: [{ type: "M", x: 0, y: 5 }, { type: "L", x: 5, y: 5 }] },
+      { kind: "text", symbol: "txt", at: { x: 1, y: 15 }, angle: 0, text: "Test" }
+    ];
+    const m = map(symbols, objects);
+    const full = fakeContext();
+    const fullReport = drawMap(full.ctx, m, { pxPerMm: 8, origin: { x: 0, y: 30 }, background: false });
+    expect(fullReport.parts).toBe(4);
+    expect(fullReport.simplifications).toContain("Delar i färger som saknas i färgtabellen (t.ex. passmärken) ritas inte");
+
+    // Endast färg 1: samma parts-räkning (4), ingen saknad-färg-notis (99 ej i onlyColors), bara färg 1 ritas.
+    const onlyBlack = fakeContext();
+    const blackReport = drawMap(onlyBlack.ctx, m, { pxPerMm: 8, origin: { x: 0, y: 30 }, background: false, onlyColors: new Set([1]) });
+    expect(blackReport.parts).toBe(4);
+    expect(blackReport.simplifications).not.toContain("Delar i färger som saknas i färgtabellen (t.ex. passmärken) ritas inte");
+    expect(fills(onlyBlack.calls)).toEqual([]);
+    expect(strokes(onlyBlack.calls).every(s => s.style === "rgba(0, 0, 0, 1)")).toBe(true);
+    expect(onlyBlack.calls.filter(c => c.op === "fillText")).toHaveLength(1);
+    expect(onlyBlack.calls.filter(c => c.op === "strokeText")).toHaveLength(0);
+
+    // Endast färg 99 (saknas i färgtabellen): bevarar saknad-färg-notisen!
+    const onlyMissing = fakeContext();
+    const missingReport = drawMap(onlyMissing.ctx, m, { pxPerMm: 8, origin: { x: 0, y: 30 }, background: false, onlyColors: new Set([99]) });
+    expect(missingReport.parts).toBe(4);
+    expect(missingReport.simplifications).toContain("Delar i färger som saknas i färgtabellen (t.ex. passmärken) ritas inte");
+
+    // Alla fyra kända färger ritade var för sig med onlyColors ger sammanlagt exakt lika många fill/stroke/text som full!
+    let splitFills = 0, splitStrokes = 0, splitFillTexts = 0, splitStrokeTexts = 0;
+    for (const id of [3, 4, 2, 1]) {
+      const part = fakeContext();
+      const rep = drawMap(part.ctx, m, { pxPerMm: 8, origin: { x: 0, y: 30 }, background: false, onlyColors: new Set([id]) });
+      expect(rep.parts).toBe(4);
+      splitFills += fills(part.calls).length;
+      splitStrokes += strokes(part.calls).length;
+      splitFillTexts += part.calls.filter(c => c.op === "fillText").length;
+      splitStrokeTexts += part.calls.filter(c => c.op === "strokeText").length;
+    }
+    expect(splitFills).toBe(fills(full.calls).length);
+    expect(splitStrokes).toBe(strokes(full.calls).length);
+    expect(splitFillTexts).toBe(full.calls.filter(c => c.op === "fillText").length);
+    expect(splitStrokeTexts).toBe(full.calls.filter(c => c.op === "strokeText").length);
+  });
 });
 
 describe("färgjustering för utskrift (steg 64)", () => {

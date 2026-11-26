@@ -228,3 +228,70 @@ describe("fasta avbrott i sträckan och mellanrummet vid ringen (ISOM 705, ADR-0
     }
   });
 });
+
+describe("memoizering av layoutOverprint", () => {
+  it("återanvänder exakt samma figurer för samma alternativ och skiljer på varje fält i OverprintOptions", () => {
+    const { b, course, controls } = lineCourse(3, { mapScale: 10000 });
+    b.edit({ type: "SET_EVENT", changes: { circleCutting: { overlap: false, details: true } } });
+    const c0 = controls[0]!;
+
+    // Grundanrop och likvärdigt anrop med explicit banans skala delar cache-post.
+    const base = layoutOverprint(b.document, { course });
+    expect(layoutOverprint(b.document, { course })).toBe(base);
+    expect(layoutOverprint(b.document, { course, printScale: 10000 })).toBe(base);
+
+    // Annan utskriftsskala ger ny utdata.
+    const scaled = layoutOverprint(b.document, { course, printScale: 15000 });
+    expect(scaled).not.toBe(base);
+
+    // Referenslikhet på detailGaps och numberObstacles: samma referens träffar cachen, ny referens räknas om.
+    const gapsA = { [c0]: [{ startDegrees: 10, endDegrees: 40 }] };
+    const gapsB = { [c0]: [{ startDegrees: 100, endDegrees: 140 }] };
+    const withGapsA = layoutOverprint(b.document, { course, detailGaps: gapsA });
+    expect(layoutOverprint(b.document, { course, detailGaps: gapsA })).toBe(withGapsA);
+    const withGapsB = layoutOverprint(b.document, { course, detailGaps: gapsB });
+    expect(withGapsB).not.toBe(withGapsA);
+    expect(circles(withGapsA).find(c => c.ref === b.cc(course, c0))!.gaps).not.toEqual(circles(withGapsB).find(c => c.ref === b.cc(course, c0))!.gaps);
+
+    const numBefore = texts(base).find(t => t.ref === b.cc(course, c0))!.at;
+    const obsA = { [c0]: { areas: [[{ x: numBefore.x - 4, y: numBefore.y - 4 }, { x: numBefore.x + 4, y: numBefore.y - 4 }, { x: numBefore.x + 4, y: numBefore.y + 4 }, { x: numBefore.x - 4, y: numBefore.y + 4 }]], lines: [] } };
+    const obsB = { [c0]: { areas: [], lines: [] } };
+    const withObsA = layoutOverprint(b.document, { course, numberObstacles: obsA });
+    expect(layoutOverprint(b.document, { course, numberObstacles: obsA })).toBe(withObsA);
+    const withObsB = layoutOverprint(b.document, { course, numberObstacles: obsB });
+    expect(withObsB).not.toBe(withObsA);
+    expect(texts(withObsA).find(t => t.ref === b.cc(course, c0))!.at).not.toEqual(texts(withObsB).find(t => t.ref === b.cc(course, c0))!.at);
+
+    // Likvärdiga training-objekt (ny objektreferens, samma värden) delar cache, medan skilda fält hålls isär.
+    const withLine = applyEdit(b.document, {
+      type: "PUT_TRAINING",
+      courses: { [course]: { outside: { kind: "FULL" }, sections: [], line: { points: [{ x: 0, y: 0 }, { x: 40, y: 0 }] } } }
+    }).document;
+    const tRun1 = layoutOverprint(withLine, { course, training: { view: "RUNNER", section: { from: 0, to: 2 } } });
+    const tRun2 = layoutOverprint(withLine, { course, training: { view: "RUNNER", section: { from: 0, to: 2 } } });
+    const tCtrl = layoutOverprint(withLine, { course, training: { view: "CONTROLLER", section: { from: 0, to: 2 } } });
+    const tOff = layoutOverprint(withLine, { course, training: { off: true } });
+    const tSec = layoutOverprint(withLine, { course, training: { view: "RUNNER", section: { from: 1, to: 3 } } });
+    expect(tRun2).toBe(tRun1);
+    expect(tCtrl).not.toEqual(tRun1);
+    expect(tOff).not.toEqual(tRun1);
+    expect(tSec).not.toEqual(tRun1);
+
+    // Kartbyte: part och overlap ingår i nyckeln.
+    const exBuilder = new Builder({ mapScale: 10000 });
+    const exCourse = exBuilder.course("K");
+    for (const id of [
+      exBuilder.control("START", -20, 0), exBuilder.control("NORMAL", 0, 0, "31"), exBuilder.control("NORMAL", 20, 0, "32"),
+      exBuilder.control("MAP_EXCHANGE", 40, 0), exBuilder.control("NORMAL", 60, 0, "33"), exBuilder.control("FINISH", 80, 0)
+    ]) exBuilder.insert(exCourse, id);
+    const exchange = exBuilder.document;
+    const part0 = layoutOverprint(exchange, { course: exCourse, part: 0 });
+    const part1None = layoutOverprint(exchange, { course: exCourse, part: 1, overlap: "NONE" });
+    const part1Last = layoutOverprint(exchange, { course: exCourse, part: 1, overlap: "LAST_LEG" });
+    const part1Prev = layoutOverprint(exchange, { course: exCourse, part: 1, overlap: "PREVIOUS_PART" });
+    expect(part0).not.toEqual(part1None);
+    expect(part1None).not.toEqual(part1Last);
+    expect(part1Last).not.toEqual(part1Prev);
+    expect(layoutOverprint(exchange, { course: exCourse, part: 1, overlap: "LAST_LEG" })).toBe(part1Last);
+  });
+});

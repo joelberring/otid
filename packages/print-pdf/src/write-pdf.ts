@@ -121,18 +121,37 @@ function pathBox(path: Path, box: number[]): void {
   }
 }
 
-/** Kartan med bara objekten som kan synas i utsnittet (rutan plus marginal; texter med extra marginal). */
-function cullMap(map: ParsedMap, area: SheetFrame["mapArea"]): ParsedMap {
-  const objects = map.objects.filter((object: MapObject) => {
-    const box = [Infinity, Infinity, -Infinity, -Infinity];
+/** Förberäknade gränsrutor (inkl. utsnittsmarginal) en gång per karta: 4 tal per objekt, NaN om objektet saknar geometri. */
+function mapCullBoxes(map: ParsedMap): Float64Array {
+  const boxes = new Float64Array(map.objects.length * 4);
+  const box = [0, 0, 0, 0];
+  for (let i = 0; i < map.objects.length; i += 1) {
+    const object = map.objects[i]!;
+    box[0] = Infinity; box[1] = Infinity; box[2] = -Infinity; box[3] = -Infinity;
     let margin = CULL_MARGIN_MM;
     if (object.kind === "point") { box[0] = box[2] = object.at.x; box[1] = box[3] = object.at.y; }
     else if (object.kind === "text") { box[0] = box[2] = object.at.x; box[1] = box[3] = object.at.y; margin = 200; }
     else if (object.kind === "line") pathBox(object.path, box);
     else for (const ring of object.rings) pathBox(ring, box);
-    if (!Number.isFinite(box[0]!)) return false;
-    return box[0]! - margin <= area.maxX && box[2]! + margin >= area.minX && box[1]! - margin <= area.maxY && box[3]! + margin >= area.minY;
-  });
+    if (!Number.isFinite(box[0])) { boxes.fill(Number.NaN, 4 * i, 4 * i + 4); continue; }
+    boxes[4 * i] = box[0] - margin;
+    boxes[4 * i + 1] = box[1] - margin;
+    boxes[4 * i + 2] = box[2] + margin;
+    boxes[4 * i + 3] = box[3] + margin;
+  }
+  return boxes;
+}
+
+/** Kartan med bara objekten som kan synas i utsnittet (rutan plus marginal; texter med extra marginal). */
+function cullMap(map: ParsedMap, boxes: Float64Array, area: SheetFrame["mapArea"]): ParsedMap {
+  const objects: MapObject[] = [];
+  const { minX, minY, maxX, maxY } = area;
+  for (let i = 0; i < map.objects.length; i += 1) {
+    const off = 4 * i;
+    if (boxes[off]! <= maxX && boxes[off + 2]! >= minX && boxes[off + 1]! <= maxY && boxes[off + 3]! >= minY) {
+      objects.push(map.objects[i]!);
+    }
+  }
   return { ...map, objects };
 }
 
@@ -167,7 +186,8 @@ function neededFonts(sheets: readonly Sheet[], map: ParsedMap | null): Set<FontV
         for (const part of symbol.parts) visit(part, depth + 1, next);
       }
     };
-    const used = new Set(map.objects.filter(object => object.kind === "text").map(object => object.symbol));
+    const used = new Set<string>();
+    for (const object of map.objects) if (object.kind === "text") used.add(object.symbol);
     for (const id of used) visit(id, 0, new Set());
   }
   return out;
@@ -325,6 +345,20 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
     readonly skipEmpty?: boolean | undefined;
   }
 
+  const hasMapText = input.map ? input.map.objects.some(object => object.kind === "text") : false;
+  let cullBoxes: Float64Array | undefined;
+  const culledMaps = new Map<string, ParsedMap>();
+  const culledMapFor = (area: SheetFrame["mapArea"]): ParsedMap => {
+    const areaKey = `${area.minX},${area.minY},${area.maxX},${area.maxY}`;
+    let culled = culledMaps.get(areaKey);
+    if (!culled) {
+      cullBoxes ??= mapCullBoxes(input.map!);
+      culled = cullMap(input.map!, cullBoxes, area);
+      culledMaps.set(areaKey, culled);
+    }
+    return culled;
+  };
+
   const buildMapForm = (frame: SheetFrame, spec: MapFormSpec) => {
     const key = `${frameKey(frame)}|${spec.suffix}`;
     if (forms.has(key)) return forms.get(key) ?? undefined;
@@ -345,7 +379,7 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
       }
     });
     // Träningsläget (ADR-0192 beslut 9): kartan i pass med klippning och filter; dolda färger filtreras före ritning.
-    const report = drawTrainingMap(canvas, cullMap(input.map, frame.mapArea), {
+    const report = drawTrainingMap(canvas, culledMapFor(frame.mapArea), {
       pxPerMm: frame.transform.scale,
       origin: { x: frame.mapArea.minX, y: frame.mapArea.maxY },
       beforeColor: canvas.beforeColor,
@@ -358,7 +392,7 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
       if (/Dekorfärger och övertryck|standardtypsnitt/.test(text)) continue;
       notes.add(`Kartan: ${text}.`);
     }
-    if (input.map.objects.some(object => object.kind === "text")) notes.add("Kartans texter skrivs med Roboto (inbäddat), vänsterställda som på skärmen.");
+    if (hasMapText) notes.add("Kartans texter skrivs med Roboto (inbäddat), vänsterställda som på skärmen.");
     if (spec.skipEmpty && canvas.painted === 0) {
       forms.set(key, null);
       return undefined;
@@ -607,11 +641,11 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
     if (pageHasTransparency) {
       page.node.set(PDFName.of("Group"), document.context.obj({ S: PDFName.of("Transparency"), CS: PDFName.of("DeviceCMYK") }));
     }
-    // Innehållet registreras här som förut (samma objektordning, så att en fil utan återkommande sidor är byte för byte
-    // densamma som tidigare); en sida som visar sig återkomma får sitt innehåll utbytt nedan.
-    const ref = document.context.register(document.context.flateStream(content.text()));
+    // Referensen reserveras här (samma objektordning som förut, byte för byte), medan deflate körs nedan en gång per unik sida.
+    const text = content.text();
+    const ref = document.context.nextRef();
     page.node.set(PDFName.of("Contents"), ref);
-    pageTexts.push({ page, ref, text: content.text(), key: `${num(W)}x${num(H)}:${content.text()}` });
+    pageTexts.push({ page, ref, text, key: `${num(W)}x${num(H)}:${text}` });
   }
   // Ägaren 2026-11-13 («skrivaren verkar behöva hantera varje sida för sig i stället för att skriva ut samma flera gånger»):
   // med en baksida per löpare är framsidan densamma på många ark. En sida vars innehåll återkommer läggs en enda gång i filen
@@ -621,7 +655,10 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
   for (const { key } of pageTexts) repeats.set(key, (repeats.get(key) ?? 0) + 1);
   const pageForms = new Map<string, { name: string; ref: PDFRef; stream: ReturnType<typeof document.context.flateStream> }>();
   for (const { page, ref, text, key } of pageTexts) {
-    if ((repeats.get(key) ?? 0) < 2) continue;
+    if ((repeats.get(key) ?? 0) < 2) {
+      document.context.assign(ref, document.context.flateStream(text));
+      continue;
+    }
     let form = pageForms.get(key);
     if (!form) {
       const { width, height } = page.getSize();

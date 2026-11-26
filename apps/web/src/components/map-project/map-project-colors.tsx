@@ -33,12 +33,13 @@ export function MapProjectColors({ colors, saved, canChange, ocad, onShow, onSav
   </section>;
 }
 
-function ColorsDialog({ colors, saved, canChange, ocad, onShow, onSave, onClose }: {
+export function ColorsDialog({ colors, saved, canChange, ocad, onShow, onSave, onClose }: {
   colors: readonly MapColor[]; saved: readonly MapColorChange[]; canChange: boolean; ocad: boolean;
   onShow: (changes: readonly MapColorChange[]) => void; onSave: (changes: readonly MapColorChange[]) => Promise<boolean>; onClose: () => void }) {
   const text = useTexts(mapProjectColorsSv, mapProjectColorsEn);
   const title = useId();
   const dialog = useRef<HTMLDialogElement>(null);
+  const editable = canChange && !ocad;
   const [draft, setDraft] = useState<readonly MapColorChange[]>(() => effectiveColorChanges(colors, saved));
   // Det som står i fälten medan man skriver (t.ex. "12," på väg mot "12,5").
   const [typing, setTyping] = useState<Readonly<Record<string, string>>>({});
@@ -49,6 +50,7 @@ function ColorsDialog({ colors, saved, canChange, ocad, onShow, onSave, onClose 
   const dirty = JSON.stringify(draft) !== JSON.stringify(effectiveColorChanges(colors, saved));
   const apply = (next: readonly MapColorChange[]) => { const clean = effectiveColorChanges(colors, next); setDraft(clean); setMessage(undefined); onShow(clean); };
   const set = (color: MapColor, part: typeof PARTS[number], raw: string) => {
+    if (!editable) return;
     setTyping(current => ({ ...current, [`${color.id}${part}`]: raw }));
     const value = Number(raw.trim().replace(",", "."));
     if (raw.trim() === "" || !Number.isFinite(value) || value < 0 || value > 100) return;
@@ -60,8 +62,7 @@ function ColorsDialog({ colors, saved, canChange, ocad, onShow, onSave, onClose 
   return <Dialog dialogRef={dialog} className={styles.dialog} labelledBy={title} onClose={close} closeOnBackdrop={!dirty}>
     <div className={styles.body} data-testid="map-project-colors">
       <h2 id={title}>{text.title}</h2>
-      <p className={styles.help}>{canChange ? text.help : text.readOnly}</p>
-      {ocad && <p className={styles.help}>{text.ocad}</p>}
+      <p className={styles.help}>{ocad ? text.ocad : editable ? text.help : text.readOnly}</p>
       <div className={styles.scroll}>
         <table className={styles.table}>
           <thead><tr><th scope="col" colSpan={2}>{text.color}</th>{PARTS.map(part => <th key={part} scope="col">{text[part]}</th>)}<th /></tr></thead>
@@ -72,10 +73,10 @@ function ColorsDialog({ colors, saved, canChange, ocad, onShow, onSave, onClose 
                 <td><span className={styles.swatch} style={{ background: css(color.rgb) }} />{changed && <span className={styles.swatch} style={{ background: css(now.rgb) }}
                   data-testid="map-project-color-new" />}</td>
                 <th scope="row">{name}{color.spot && <small>{text.spot}</small>}{changed && <small>{text.changed}</small>}</th>
-                {PARTS.map(part => <td key={part}><input inputMode="decimal" aria-label={text.field(name, text[part])} disabled={!canChange || !!color.spot || busy}
+                {PARTS.map(part => <td key={part}><input inputMode="decimal" aria-label={text.field(name, text[part])} disabled={!editable || !!color.spot || busy}
                   value={typing[`${color.id}${part}`] ?? percent(now.cmyk[part])} onChange={event => set(color, part, event.target.value)}
                   onBlur={() => setTyping(current => Object.fromEntries(Object.entries(current).filter(([key]) => key !== `${color.id}${part}`)))} /></td>)}
-                <td>{changed && canChange && <button type="button" className={styles.reset} aria-label={text.reset(name)} title={text.reset(name)} disabled={busy}
+                <td>{changed && editable && <button type="button" className={styles.reset} aria-label={text.reset(name)} title={text.reset(name)} disabled={busy}
                   onClick={() => { setTyping({}); apply(draft.filter(row => row.id !== color.id)); }}><RailIconImage icon="undo" size={16} /></button>}</td>
               </tr>;
             })}
@@ -84,11 +85,11 @@ function ColorsDialog({ colors, saved, canChange, ocad, onShow, onSave, onClose 
       </div>
       <p className={styles.message} role="status" data-testid="map-project-colors-message">{message}</p>
       <div className={styles.actions}>
-        {canChange && <Button variant="secondary" disabled={busy || draft.length === 0} onClick={() => { setTyping({}); apply([]); }}
+        {editable && <Button variant="secondary" disabled={busy || draft.length === 0} onClick={() => { setTyping({}); apply([]); }}
           data-testid="map-project-colors-reset">{text.resetAll}</Button>}
         <span className={styles.spacer} />
         <Button variant="secondary" onClick={() => dialog.current?.close()}>{dirty ? text.cancel : text.close}</Button>
-        {canChange && <Button disabled={busy || !dirty} data-testid="map-project-colors-save" onClick={() => {
+        {editable && <Button disabled={busy || !dirty} data-testid="map-project-colors-save" onClick={() => {
           setBusy(true);
           void onSave(draft).then(ok => { setBusy(false); setMessage(ok ? text.saved(draft.length) : text.failed); });
         }}>{text.save}</Button>}

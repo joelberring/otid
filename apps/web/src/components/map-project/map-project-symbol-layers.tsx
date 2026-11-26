@@ -41,7 +41,7 @@ export function MapProjectSymbolLayers({ catalog, standard, standardSymbols, sta
   // Markerade symboler (id) för ett gemensamt färgbyte, och symbolerna som dialogen visas för.
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
   const [coloring, setColoring] = useState<readonly CatalogSymbol[]>();
-  const pickable = symbolColors?.canChange === true;
+  const pickable = symbolColors?.canChange === true && !symbolColors.ocad;
   const pickSymbol = (row: (typeof rows)[number], index: number, on: boolean, shift: boolean) => {
     const range = shift && last?.list === row.id ? row.symbols.slice(Math.min(last.index, index), Math.max(last.index, index) + 1) : [row.symbols[index]!];
     setPicked(current => { const next = new Set(current); for (const symbol of range) { if (on) next.add(symbol.id); else next.delete(symbol.id); } return next; });

@@ -23,6 +23,7 @@ export class Bytes {
   i16(offset: number): number { this.check(offset, 2, "tal"); return this.view.getInt16(offset, true); }
   u32(offset: number): number { this.check(offset, 4, "tal"); return this.view.getUint32(offset, true); }
   i32(offset: number): number { this.check(offset, 4, "tal"); return this.view.getInt32(offset, true); }
+  f64(offset: number): number { this.check(offset, 8, "tal"); return this.view.getFloat64(offset, true); }
 
   /** UTF-16LE fram till första nolltecknet, högst `maxBytes`. */
   utf16(offset: number, maxBytes: number): string {

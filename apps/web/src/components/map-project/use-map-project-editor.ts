@@ -300,12 +300,13 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
   }, [session]);
   /** Spara färgändringarna i projektet (ägarna); kartan ritas med dem. Falskt när servern säger nej. */
   const saveColors = useCallback(async (changes: readonly MapColorChange[]): Promise<boolean> => {
+    if (view.base.format === "OCD" && changes.length > 0) return false;
     const result = await clubRequest(base, "PUT", { formatVersion: 1, colors: changes }).catch(() => ({ status: 0 }));
     if (result.status !== 200 && result.status !== 204) return false;
     setColorChanges(changes);
     showColors(changes);
     return true;
-  }, [base, showColors]);
+  }, [base, showColors, view.base.format]);
 
   /** Rita kartan med de här symbolfärgerna (utan att spara dem); symbolernas rutor i panelen ritas också om. */
   const showSymbolColors = useCallback((changes: readonly MapSymbolColorChange[]) => {
@@ -316,16 +317,17 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
   }, [session]);
   /** Spara symbolfärgerna i projektet (ägarna); kartan ritas med dem. Falskt när servern säger nej. */
   const saveSymbolColors = useCallback(async (changes: readonly MapSymbolColorChange[]): Promise<boolean> => {
+    if (view.base.format === "OCD" && changes.length > 0) return false;
     const result = await clubRequest(base, "PUT", { formatVersion: 1, symbolColors: changes }).catch(() => ({ status: 0 }));
     if (result.status !== 200 && result.status !== 204) return false;
     setSymbolColorChanges(changes);
     showSymbolColors(changes);
     return true;
-  }, [base, showSymbolColors]);
+  }, [base, showSymbolColors, view.base.format]);
 
   /** Symbollistans färgbyte (ägaren 2026-11-13): kartans färger med projektets ändringar, de sparade byten och vad som får ändras. */
   const symbolColors = useMemo<SymbolColorsControl>(() => ({ colors: withColorChanges(colors, colorChanges), saved: symbolColorChanges,
-    canChange: view.viewer.canDecide, ocad: view.base.format === "OCD", onShow: showSymbolColors, onSave: saveSymbolColors }),
+    canChange: view.viewer.canDecide && view.base.format !== "OCD", ocad: view.base.format === "OCD", onShow: showSymbolColors, onSave: saveSymbolColors }),
   [colors, colorChanges, symbolColorChanges, view.viewer.canDecide, view.base.format, showSymbolColors, saveSymbolColors]);
 
   /** K8b V6: rita kartan med textsymbolerna och läs paletten igen (sparas i `use-map-project-text-symbols.ts`). */

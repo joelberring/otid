@@ -355,6 +355,6 @@ export const mapProjectColorsEn: Texts<typeof mapProjectColorsSv> = {
   close: "Close",
   saved: (n: number) => n === 0 ? "The map has the file's own colours." : n === 1 ? "1 colour is changed." : `${n} colours are changed.`,
   failed: "The colours could not be saved. Try again.",
-  ocad: "The map is an OCAD file: the colours are shown here, but cannot be written in a new map version yet.",
+  ocad: "The map is an OCAD file: the colour table is shown here, but cannot be changed or written back to the OCAD file yet.",
   summary: (n: number) => n === 0 ? "The file's own colours" : n === 1 ? "1 changed colour" : `${n} changed colours`
 };

@@ -49,7 +49,13 @@ export function readOcdSymbols(bytes: Bytes, first: number, warnings: WarningCol
       const description = variant.description.kind === "UTF16"
         ? bytes.utf16(position + variant.description.at, SYMBOL.descriptionBytes)
         : bytes.pascal(position + variant.description.at, 31);
-      const base = { id, code: ocdSymbolCode(number), name: description, hidden: (bytes.u8(position + SYMBOL.status) & 2) !== 0 };
+      const rawExtent = variant.symbolHeader === "V9" ? bytes.i32(position + SYMBOL.extent) : 0;
+      const extent = rawExtent > 0 ? rawExtent * UNIT : undefined;
+      const base = {
+        id, code: ocdSymbolCode(number), name: description,
+        hidden: (bytes.u8(position + SYMBOL.status) & 2) !== 0,
+        ...(extent !== undefined ? { extent } : {})
+      };
       // Symbolen ryms i filen (kontrollerat ovan). Är den kortare än typens fasta fält ritas den inte, men objekten behålls.
       const minimum = minimumSize(type, variant);
       const at = position + shift;
@@ -99,16 +105,16 @@ function minimumSize(type: number, variant: OcdVariant): number | undefined {
   }
 }
 
-type Base = Pick<MapSymbol, "id" | "code" | "name" | "hidden">;
+type Base = Pick<MapSymbol, "id" | "code" | "name" | "hidden" | "extent">;
 
 function emptySymbol(type: number, base: Base): MapSymbol | null {
   switch (type) {
     case SYMBOL_TYPE.point: return { ...base, kind: "POINT", elements: [] };
-    case SYMBOL_TYPE.line:
-    case SYMBOL_TYPE.rectangle: return { ...base, kind: "LINE", strokes: [] };
+    case SYMBOL_TYPE.line: return { ...base, kind: "LINE", strokes: [] };
+    case SYMBOL_TYPE.rectangle: return { ...base, kind: "LINE", strokes: [], rectangle: true };
     case SYMBOL_TYPE.area: return { ...base, kind: "AREA", hatches: [] };
-    case SYMBOL_TYPE.text:
-    case SYMBOL_TYPE.lineText: return { ...base, kind: "TEXT", color: 0, size: 2, fontFamily: "Arial", bold: false, italic: false };
+    case SYMBOL_TYPE.text: return { ...base, kind: "TEXT", color: 0, size: 2, fontFamily: "Arial", bold: false, italic: false };
+    case SYMBOL_TYPE.lineText: return { ...base, kind: "TEXT", color: 0, size: 2, fontFamily: "Arial", bold: false, italic: false, lineText: true };
     default: return null;
   }
 }
@@ -123,12 +129,12 @@ function convert(
     }
     case SYMBOL_TYPE.line: return { ...base, kind: "LINE", ...lineSymbol(bytes, at, end, variant, warnings) };
     case SYMBOL_TYPE.area: return { ...base, kind: "AREA", ...areaSymbol(bytes, at, end, variant, warnings) };
-    case SYMBOL_TYPE.text:
-    case SYMBOL_TYPE.lineText: return { ...base, kind: "TEXT", ...textSymbol(bytes, at, end, type) };
+    case SYMBOL_TYPE.text: return { ...base, kind: "TEXT", ...textSymbol(bytes, at, end, type) };
+    case SYMBOL_TYPE.lineText: return { ...base, kind: "TEXT", ...textSymbol(bytes, at, end, type), lineText: true };
     case SYMBOL_TYPE.rectangle: {
       const width = bytes.i16(at + RECTANGLE.width) * UNIT;
       const strokes: StrokeStyle[] = width > 0 ? [{ color: bytes.u16(at + RECTANGLE.color), width, join: "miter" }] : [];
-      return { ...base, kind: "LINE", strokes };
+      return { ...base, kind: "LINE", strokes, rectangle: true };
     }
     default: return null;
   }

@@ -120,9 +120,9 @@ export const mapProjectUpdateRequestSchema = z.object({
   recon: mapProjectReconSettingsSchema.nullable().optional(),
   /** Topplistan (K3b): null = av. */
   leaderboard: mapProjectLeaderboardSchema.nullable().optional(),
-  /** Färgtabellens ändringar; tom lista = filens egna färger. */
+  /** Färgtabellens ändringar; tom lista = filens egna färger (bara Mapper-kartor i Steg 1). */
   colors: mapProjectColorsSchema.optional(),
-  /** Symbolernas färger; tom lista = symbolernas egna färger. */
+  /** Symbolernas färger; tom lista = symbolernas egna färger (bara Mapper-kartor i Steg 1). */
   symbolColors: mapProjectSymbolColorsSchema.optional(),
   /** K8b V6: textsymbolernas stil och nya textsymboler; tom lista = filens egna (bara Mapper-kartor). */
   textSymbols: mapProjectTextSymbolsSchema.optional(),
@@ -288,7 +288,8 @@ export interface MapProjectInvitationView { invitationId: string; email: string;
 export interface MapProjectView extends MapProjectSummary {
   formatVersion: 1;
   /**
-   * `canWriteVersion` = får skapa en ny version i projektet (ägarna); `canArchive` = får också lägga den i klubbarkivet
+   * `canWriteVersion` = får skapa en ny version i projektet (ägarna, när servern kan skriva grundfilens format:
+   * `.omap` alltid och `.ocd` när `OTID_OCAD_WRITE=1`); `canArchive` = får också lägga den i klubbarkivet
    * (projektet hör till en klubb och kontot är administratör där); `canDownloadSource` = får ladda ner rå källfil (`/source`),
    * resultatfiler (`/outputs/:id`) och Mapper-export (`/export?format=omap`).
    */

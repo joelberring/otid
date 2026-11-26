@@ -14,10 +14,11 @@
  * Objekt med objektsträngar (databasattribut, version 12+), krypterade objekt och version 8 vägras.
  */
 import { maxOf, minOf, normalizeAngle, openRing } from "../geometry";
-import { MapFileError, type MapObject, type MapSymbol, type ParsedMap, type PathCommand } from "../model";
+import { MapFileError, type MapObject, type MapSymbol, type ParsedMap, type PathCommand, type StrokeStyle } from "../model";
 import { Bytes, indexBlocks } from "../ocd/bytes";
 import { HEADER, OBJECT_TYPE, STATUS_NORMAL, variantFor, type OcdVariant } from "../ocd/layout";
 import { readOcd } from "../ocd/read";
+import { linkedStringObjectIndices } from "../ocd/strings";
 import type {
   AddChange, ByteEdit, MapRevisionApplyResult, MapRevisionChangeSet, MapRevisionRefusal, ModifyChange, OcdObjectLocator, RevisionGeometry
 } from "./change-set";
@@ -29,9 +30,12 @@ import { sha256Hex } from "./sha256";
 const STATUS_DELETED = 0;
 /** v12+: indexpostens fält. */
 const ENTRY = { rect: 0, position: 16, length: 20, symbol: 24, type: 28, encrypted: 29, status: 30, view: 31, color: 32 } as const;
+/** v9–11: objekthuvudets `nObjectString` (v10–11), färg och objekt-specifika fält (40 byte). */
+const V9 = { objectStrings: 14, color: 16, lineWidth: 20 } as const;
 /** v12+: objekthuvudets färg, överstyrningar, datum (Delphis TDateTime) och antal objekt-/databassträngar. */
 const V12 = { color: 8, lineWidth: 12, serverIdEnd: 24, created: 24, multiRep: 32, modified: 36, objectStrings: 50, databaseStrings: 52 } as const;
 const OCD_LIMIT = (1 << 23) - 1;
+const MAX_TEXT_WORDS = 0xffff;
 
 const fail = (code: MapRevisionRefusal["code"], message: string, change?: number): MapRevisionApplyResult =>
   ({ ok: false, refusals: [{ code, message, ...(change !== undefined ? { change } : {}) }] });
@@ -78,17 +82,23 @@ export function ocdPoints(geometry: RevisionGeometry): Raw[] {
   return out;
 }
 
-/** OCAD:s text: UTF-16 med avslutande noll, utfylld till hela 8 byte. */
+/** OCAD:s text: UTF-16 med avslutande noll, utfylld till hela 8 byte. Normaliserar radbrytningar innan \r\n skrivs. */
 function textBytes(text: string): Uint8Array {
-  const value = `${text.replace(/\n/g, "\r\n")}\0`;
+  const value = `${text.replace(/\r\n?/g, "\n").replace(/\n/g, "\r\n")}\0`;
   const out = new Uint8Array(Math.ceil(value.length * 2 / 8) * 8);
   for (let i = 0; i < value.length; i++) { out[2 * i] = value.charCodeAt(i) & 0xff; out[2 * i + 1] = value.charCodeAt(i) >> 8; }
   return out;
 }
 
-/** Delphis TDateTime: dagar sedan 1899-12-30. */
-const delphiDate = (iso: string) => (Date.parse(iso) - Date.UTC(1899, 11, 30)) / 86_400_000;
+/** Delphis TDateTime: dagar sedan 1899-12-30. Ogiltigt datum faller tillbaka på nu (skriver aldrig NaN). */
+function delphiDate(iso: string): number {
+  const parsed = Date.parse(iso);
+  const ms = Number.isFinite(parsed) ? parsed : Date.now();
+  return (ms - Date.UTC(1899, 11, 30)) / 86_400_000;
+}
 const angleUnits = (degrees: number) => Math.round(normalizeAngle(degrees) * 10) % 3600;
+const clampOcd = (value: number): number => Math.max(-OCD_LIMIT, Math.min(OCD_LIMIT, Math.round(value)));
+const ceilUnits = (mm: number): number => Math.ceil(mm * 100 - 1e-9);
 
 class Out {
   readonly view: DataView;
@@ -130,8 +140,28 @@ function symbolColor(symbol: MapSymbol | undefined): number {
   }
 }
 
+interface Box { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number }
+
+/** Roterar hörnen av en lokal ruta moturs med `angleDegrees` och returnerar omslutande axelparallell ruta. */
+function rotateBox(box: Box, angleDegrees: number): Box {
+  const angle = normalizeAngle(angleDegrees);
+  if (angle === 0) return { minX: Math.floor(box.minX), minY: Math.floor(box.minY), maxX: Math.ceil(box.maxX), maxY: Math.ceil(box.maxY) };
+  const rad = (angle * Math.PI) / 180;
+  const cos = Math.cos(rad), sin = Math.sin(rad);
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const [x, y] of [[box.minX, box.minY], [box.maxX, box.minY], [box.maxX, box.maxY], [box.minX, box.maxY]] as const) {
+    const rx = x * cos - y * sin;
+    const ry = x * sin + y * cos;
+    if (rx < minX) minX = rx;
+    if (rx > maxX) maxX = rx;
+    if (ry < minY) minY = ry;
+    if (ry > maxY) maxY = ry;
+  }
+  return { minX: Math.floor(minX + 1e-9), minY: Math.floor(minY + 1e-9), maxX: Math.ceil(maxX - 1e-9), maxY: Math.ceil(maxY - 1e-9) };
+}
+
 /** Punktsymbolens utsträckning i OCAD-enheter (0,01 mm) så att indexets omslutande rektangel aldrig blir 0×0. */
-function pointExtent(symbol: MapSymbol | undefined): { minX: number; minY: number; maxX: number; maxY: number } {
+function pointExtent(symbol: MapSymbol | undefined): Box {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   const grow = (x: number, y: number) => {
     const ux = Math.round(x * 100), uy = Math.round(y * 100);
@@ -157,21 +187,114 @@ function pointExtent(symbol: MapSymbol | undefined): { minX: number; minY: numbe
       }
     }
   }
-  if (!Number.isFinite(minX) || minX === maxX || minY === maxY) return { minX: -100, minY: -100, maxX: 100, maxY: 100 };
+  if (!Number.isFinite(minX) || minX === maxX || minY === maxY) {
+    const ext = symbol?.extent !== undefined && symbol.extent > 0 ? Math.round(symbol.extent * 100) : 100;
+    return { minX: -ext, minY: -ext, maxX: ext, maxY: ext };
+  }
+  // Inkludera ankarpunkten (0, 0) så att klick på punktens läge alltid träffar indexets rektangel.
+  return { minX: Math.min(0, minX), minY: Math.min(0, minY), maxX: Math.max(0, maxX), maxY: Math.max(0, maxY) };
+}
+
+/** Oformaterad text: ungefärlig lokal textruta i OCAD-enheter (0,01 mm) kring ankaret (0, 0). */
+function textLocalBox(symbol: MapSymbol | undefined, text: string): Box {
+  const sizeMm = symbol?.kind === "TEXT" && symbol.size > 0 ? symbol.size : 2.5;
+  const h = Math.max(10, Math.round(sizeMm * 100));
+  const lineStep = symbol?.kind === "TEXT" && symbol.lineSpacing && symbol.lineSpacing > 0 ? symbol.lineSpacing : 1.15;
+  const align = symbol?.kind === "TEXT" ? symbol.align ?? "left" : "left";
+  const baseline = symbol?.kind === "TEXT" ? symbol.baseline ?? "alphabetic" : "alphabetic";
+  const lines = text.replace(/\r\n?/g, "\n").split("\n");
+  const lineCount = Math.max(1, lines.length);
+  const maxChars = Math.max(1, ...lines.map(line => line.length));
+  const width = Math.max(h, Math.ceil(maxChars * h * 0.7));
+  const minX = align === "center" ? -Math.ceil(width / 2) : align === "right" ? -width : 0;
+  const maxX = align === "center" ? Math.ceil(width / 2) : align === "right" ? 0 : width;
+  let minY: number, maxY: number;
+  if (baseline === "top") {
+    maxY = Math.ceil(0.1 * h);
+    minY = -Math.ceil(((lineCount - 1) * lineStep + 1.3) * h);
+  } else if (baseline === "middle") {
+    maxY = Math.ceil(0.65 * h);
+    minY = -Math.ceil(((lineCount - 1) * lineStep + 0.65) * h);
+  } else {
+    maxY = Math.ceil(1.1 * h);
+    minY = -Math.ceil(((lineCount - 1) * lineStep + 0.3) * h);
+  }
   return { minX, minY, maxX, maxY };
 }
 
+/** OCAD:s 5 punkter för oformaterad text (`ObjType = 4`): ankare + textrutans fyra roterade hörn (NV, NH, ÖH, ÖV). */
+function textBoxPoints(anchor: Raw, symbol: MapSymbol | undefined, text: string, angleDegrees: number): Raw[] {
+  const local = textLocalBox(symbol, text);
+  const rad = (normalizeAngle(angleDegrees) * Math.PI) / 180;
+  const cos = Math.cos(rad), sin = Math.sin(rad);
+  const corner = (lx: number, ly: number): Raw => ({
+    x: clampOcd(anchor.x + lx * cos - ly * sin),
+    y: clampOcd(anchor.y + lx * sin + ly * cos),
+    xf: 0,
+    yf: 0
+  });
+  return [
+    anchor,
+    corner(local.minX, local.minY),
+    corner(local.maxX, local.minY),
+    corner(local.maxX, local.maxY),
+    corner(local.minX, local.maxY)
+  ];
+}
+
+function strokeHalfWidthUnits(strokes: readonly StrokeStyle[] | undefined): number {
+  if (!strokes) return 0;
+  let maxHalf = 0;
+  for (const stroke of strokes) {
+    const reach = Math.abs(stroke.offset ?? 0) + stroke.width / 2;
+    if (reach > maxHalf) maxHalf = reach;
+  }
+  return maxHalf > 0 ? ceilUnits(maxHalf) : 0;
+}
+
+/** Marginal (i 0,01 mm) för linjer/ytor: i första hand `TBaseSym.Extent`, annars halv linjebredd (aldrig 0 på rak linje). */
+function lineOrAreaMargin(symbol: MapSymbol | undefined, degenerate: boolean): number {
+  if (symbol?.extent !== undefined && symbol.extent > 0) return Math.round(symbol.extent * 100);
+  if (symbol?.kind === "LINE") {
+    const half = strokeHalfWidthUnits(symbol.strokes);
+    return half > 0 ? half : degenerate ? 10 : 0;
+  }
+  if (symbol?.kind === "AREA") {
+    const half = strokeHalfWidthUnits(symbol.border);
+    return half > 0 ? half : degenerate ? 10 : 0;
+  }
+  return degenerate ? 10 : 0;
+}
+
 /** Indexpostens omslutande rektangel (nedre vänstra och övre högra hörnet som OCAD-koordinater). */
-function rect(points: readonly Raw[], symbol?: MapSymbol): Uint8Array {
+function rect(points: readonly Raw[], symbol: MapSymbol | undefined, object: MapObject, type: number): Uint8Array {
   const out = new Out(new Uint8Array(16));
   const xs = points.map(point => point.x), ys = points.map(point => point.y);
   let x0 = minOf(xs), y0 = minOf(ys), x1 = maxOf(xs), y1 = maxOf(ys);
-  if (points.length === 1 && symbol?.kind === "POINT") {
-    const ext = pointExtent(symbol);
-    x0 += ext.minX; y0 += ext.minY; x1 += ext.maxX; y1 += ext.maxY;
+  const symExtent = symbol?.extent !== undefined && symbol.extent > 0 ? Math.round(symbol.extent * 100) : 0;
+  if (object.kind === "point") {
+    const rotated = rotateBox(pointExtent(symbol), object.angle);
+    x0 += rotated.minX; y0 += rotated.minY; x1 += rotated.maxX; y1 += rotated.maxY;
+  } else if (object.kind === "text") {
+    const framingPad = symbol?.kind === "TEXT" && symbol.framing && symbol.framing.width > 0 ? ceilUnits(symbol.framing.width / 2) : 0;
+    const pad = Math.max(symExtent, framingPad);
+    if (type === OBJECT_TYPE.text) {
+      const anchor = points[0]!;
+      const rotated = rotateBox(textLocalBox(symbol, object.text), object.angle);
+      x0 = Math.min(x0, anchor.x + rotated.minX) - pad;
+      y0 = Math.min(y0, anchor.y + rotated.minY) - pad;
+      x1 = Math.max(x1, anchor.x + rotated.maxX) + pad;
+      y1 = Math.max(y1, anchor.y + rotated.maxY) + pad;
+    } else {
+      const extra = pad > 0 ? pad : x0 === x1 || y0 === y1 ? 10 : 0;
+      x0 -= extra; y0 -= extra; x1 += extra; y1 += extra;
+    }
+  } else {
+    const margin = lineOrAreaMargin(symbol, x0 === x1 || y0 === y1);
+    x0 -= margin; y0 -= margin; x1 += margin; y1 += margin;
   }
-  out.view.setInt32(0, x0 << 8, true); out.view.setInt32(4, y0 << 8, true);
-  out.view.setInt32(8, x1 << 8, true); out.view.setInt32(12, y1 << 8, true);
+  out.view.setInt32(0, clampOcd(x0) << 8, true); out.view.setInt32(4, clampOcd(y0) << 8, true);
+  out.view.setInt32(8, clampOcd(x1) << 8, true); out.view.setInt32(12, clampOcd(y1) << 8, true);
   return out.bytes;
 }
 
@@ -230,6 +353,7 @@ function objectType(kind: MapObject["kind"]): number {
 /** Lappar en OCAD-fil (version 9+) med ändringssatsen och kontrollerar den. Anropas av `applyMapRevision` när flaggan är på. */
 export function applyOcdRevision(original: Uint8Array, changeSet: MapRevisionChangeSet, baseSha: string): MapRevisionApplyResult {
   const bytes = new Bytes(original);
+  if (!bytes.has(0, HEADER.size)) return fail("UNSAFE_FILE", "OCAD-filen är för kort för att ha ett filhuvud.");
   const version = bytes.u16(HEADER.version);
   const variant = variantFor(version);
   if (!variant || variant.version < 9) return fail("UNSUPPORTED_VERSION", `OCAD ${version} kan inte revideras här; spara kartan i OCAD 9 eller senare.`);
@@ -240,6 +364,17 @@ export function applyOcdRevision(original: Uint8Array, changeSet: MapRevisionCha
     if (error instanceof MapFileError) return fail("UNSAFE_FILE", error.message);
     throw error;
   }
+  const fileType = bytes.u16(HEADER.fileType);
+  if (fileType !== 0) {
+    const baseType = fileType & 0xff;
+    const detail = baseType === 1 ? "en banläggningsfil (FileType 1)"
+      : baseType === 8 ? "en OCAD Server-fil (FileType 8)"
+      : `en OCAD-specialfil (FileType ${fileType})`;
+    return fail("UNSAFE_FILE", `OCAD-filen är ${detail} och kan inte revideras här.`);
+  }
+  if (variant.version >= 12 && bytes.i32(HEADER.offlineSyncSerial) !== 0) {
+    return fail("UNSAFE_FILE", "OCAD-filen är kopplad till OCAD Server (OfflineSyncSerial) och kan inte revideras här.");
+  }
   const report = { format: "OCD" as const, version: map.version, baseFileSha256: baseSha };
   if (changeSet.changes.length === 0) {
     return { ok: true, bytes: original.slice(), report: { ...report, resultSha256: baseSha, modified: 0, added: 0, deleted: 0, addedObjects: [],
@@ -248,6 +383,7 @@ export function applyOcdRevision(original: Uint8Array, changeSet: MapRevisionCha
 
   const index = variant.index;
   const blocks = indexBlocks(bytes, bytes.u32(HEADER.firstObjectBlock), index.blockSize);
+  const linkedStrings = linkedStringObjectIndices(bytes, bytes.u32(HEADER.firstStringBlock));
   const entryAt = (block: number, slot: number) => blocks[block] === undefined || slot < 0 || slot > 255 ? undefined : blocks[block] + 4 + slot * index.entrySize;
   const bySlot = new Map<string, MapObject>();
   for (const object of map.objects) {
@@ -289,6 +425,12 @@ export function applyOcdRevision(original: Uint8Array, changeSet: MapRevisionCha
     if (variant.version >= 12 && (bytes.u16(locator.offset + V12.objectStrings) !== 0 || bytes.u16(locator.offset + V12.databaseStrings) !== 0)) {
       return fail("UNSAFE_FILE", "Objekt med objekt- eller databassträngar skrivs inte än.", number);
     }
+    if (variant.version >= 10 && variant.version < 12 && bytes.u16(locator.offset + V9.objectStrings) !== 0) {
+      return fail("UNSAFE_FILE", "Objekt med objektsträngar skrivs inte än.", number);
+    }
+    if (linkedStrings.has(locator.block * 256 + locator.slot + 1)) {
+      return fail("UNSAFE_FILE", "Objektet har knutna strängposter (TStringIndex.ObjIndex) och kan inte ändras eller tas bort här.", number);
+    }
     return { block: locator.block, slot: locator.slot, at, position: locator.offset, length: bytes.i32(at + ENTRY.length) };
   };
 
@@ -310,7 +452,7 @@ export function applyOcdRevision(original: Uint8Array, changeSet: MapRevisionCha
       byTarget.set(`${entry.block}:${entry.slot}`, { kind: "modify", entry, built });
       continue;
     }
-    const built = addRecord(bytes, variant, change, number, map, template);
+    const built = addRecord(bytes, variant, change, number, map, template, blocks);
     if ("ok" in built) return built;
     added += 1;
     addedRecords.push({ change, built });
@@ -334,12 +476,12 @@ export function applyOcdRevision(original: Uint8Array, changeSet: MapRevisionCha
         writes.push({ at: entry.at + ENTRY.length, bytes: i32(built.record.length), what: "index-length" });
       });
     }
-    writes.push({ at: entry.at + ENTRY.rect, bytes: rect(built.points, map.symbols.get(built.object.symbol)), what: "index-rect" });
+    writes.push({ at: entry.at + ENTRY.rect, bytes: rect(built.points, map.symbols.get(built.object.symbol), built.object, built.type), what: "index-rect" });
     writes.push({ at: entry.at + ENTRY.symbol, bytes: i32(built.symbol), what: "index-symbol" });
     if (built.typeChanged) writes.push({ at: entry.at + ENTRY.type, bytes: Uint8Array.of(built.type), what: "index-type" });
     if (built.entryView !== undefined) writes.push({ at: entry.at + ENTRY.view, bytes: Uint8Array.of(built.entryView), what: "index-view" });
     if (built.entryColor !== undefined) writes.push({ at: entry.at + ENTRY.color, bytes: i16(built.entryColor), what: "index-color" });
-    expected.push({ block: entry.block, slot: entry.slot, object: built.object });
+    expected.push({ block: entry.block, slot: entry.slot, object: built.object, type: built.type });
     modified += 1;
   }
 
@@ -348,7 +490,9 @@ export function applyOcdRevision(original: Uint8Array, changeSet: MapRevisionCha
   blocks.forEach((block, b) => {
     for (let slot = 0; slot < 256; slot++) {
       const at = block + 4 + slot * index.entrySize;
-      if (bytes.i32(at + ENTRY.position) === 0 && bytes.i32(at + ENTRY.length) === 0) free.push({ block: b, slot, at });
+      if (bytes.i32(at + ENTRY.position) === 0 && bytes.i32(at + ENTRY.length) === 0 && !linkedStrings.has(b * 256 + slot + 1)) {
+        free.push({ block: b, slot, at });
+      }
     }
   });
   let lastBlock = blocks[blocks.length - 1];
@@ -374,7 +518,7 @@ export function applyOcdRevision(original: Uint8Array, changeSet: MapRevisionCha
     const target = slot;
     const recordAt = append(built.record, "append-object", () => undefined);
     const entry = new Out(new Uint8Array(index.entrySize));
-    entry.bytes.set(rect(built.points, map.symbols.get(built.object.symbol)), ENTRY.rect);
+    entry.bytes.set(rect(built.points, map.symbols.get(built.object.symbol), built.object, built.type), ENTRY.rect);
     entry.view.setInt32(ENTRY.position, recordAt, true);
     entry.view.setInt32(ENTRY.length, built.record.length, true);
     entry.view.setInt32(ENTRY.symbol, built.symbol, true);
@@ -389,7 +533,7 @@ export function applyOcdRevision(original: Uint8Array, changeSet: MapRevisionCha
     const inNew = newBlocks.find(block => target.at >= block.at && target.at < block.at + index.blockSize);
     if (inNew) inNew.data.set(entry.bytes, target.at - inNew.at);
     else writes.push({ at: target.at, bytes: entry.bytes, what: "index-entry" });
-    expected.push({ block: target.block, slot: target.slot, object: built.object });
+    expected.push({ block: target.block, slot: target.slot, object: built.object, type: built.type });
     addedObjects.push({ id: change.id, locator: { format: "OCD", block: target.block, slot: target.slot, offset: recordAt, length: built.record.length } });
   }
 
@@ -434,16 +578,27 @@ function modifyRecord(bytes: Bytes, variant: OcdVariant, entry: Entry, original:
   const layout = variant.object;
   const at = entry.position;
   const header = bytes.bytes.slice(at, at + layout.coords);
+  const originalType = bytes.u8(at + layout.type);
   const count = bytes.u32(at + layout.coordCount), textWords = bytes.u16(at + layout.textCount);
   const raw = readRaw(bytes, at + layout.coords, count);
   let textData: Uint8Array = bytes.bytes.slice(at + layout.coords + count * 8, at + layout.coords + (count + textWords) * 8);
   let object = stripSource(original);
   let symbol = bytes.i32(at);
+  let type = originalType;
   let entryColor: number | undefined, entryView: number | undefined;
   if (change.symbol !== undefined && change.symbol !== original.symbol) {
     const kind = symbolObjectKind(map.symbols, change.symbol), value = symbolNumber(change.symbol);
     if (!kind || value === undefined) return refuse(`symbolen ${change.symbol} finns inte i kartfilen.`, number);
     if (kind !== original.kind) return refuse(`symbolen ${change.symbol} passar inte objektets slag.`, number);
+    const targetSym = map.symbols.get(change.symbol);
+    if (original.kind === "text" && targetSym?.kind === "TEXT") {
+      const isLineText = originalType === OBJECT_TYPE.lineText;
+      if (Boolean(targetSym.lineText) !== isLineText) return refuse("kan inte byta mellan vanlig text och linjetext.", number);
+    }
+    if (original.kind === "line" && targetSym?.kind === "LINE") {
+      if (targetSym.rectangle) type = OBJECT_TYPE.rectangle;
+      else if (originalType === OBJECT_TYPE.rectangle) type = OBJECT_TYPE.line;
+    }
     symbol = value;
     object = { ...object, symbol: change.symbol };
     const like = template.get(change.symbol)?.source?.locator;
@@ -452,9 +607,9 @@ function modifyRecord(bytes: Bytes, variant: OcdVariant, entry: Entry, original:
       entryView = bytes.u8(likeEntry + ENTRY.view);
       entryColor = bytes.i16(likeEntry + ENTRY.color);
     } else {
-      entryColor = symbolColor(map.symbols.get(change.symbol));
+      entryColor = symbolColor(targetSym);
     }
-    if (variant.version >= 12) new Out(header).view.setInt32(V12.color, entryColor, true);
+    new Out(header).view.setInt32(variant.version >= 12 ? V12.color : V9.color, entryColor, true);
   }
   let angle = bytes.i16(at + layout.angle);
   if (change.angle !== undefined) {
@@ -469,9 +624,14 @@ function modifyRecord(bytes: Bytes, variant: OcdVariant, entry: Entry, original:
     try {
       checkGeometry(change.geometry);
       if (change.geometry.kind === "point" || change.geometry.kind === "text") {
-        // Textens ruta (och en punkts eventuella fler punkter) flyttas med ankaret.
-        const dx = unit(change.geometry.at.x) - raw[0]!.x, dy = unit(change.geometry.at.y) - raw[0]!.y;
-        points = raw.map(point => ({ ...point, x: point.x + dx, y: point.y + dy }));
+        // Formaterad text (typ 5) har ankaret i hörn 3 (övre vänstra), precis som läsaren (`read.ts:130`).
+        const anchor = originalType === OBJECT_TYPE.formattedText && raw.length >= 4 ? raw[3]! : raw[0]!;
+        const dx = unit(change.geometry.at.x) - anchor.x, dy = unit(change.geometry.at.y) - anchor.y;
+        points = raw.map(point => {
+          const x = point.x + dx, y = point.y + dy;
+          if (Math.abs(x) > OCD_LIMIT || Math.abs(y) > OCD_LIMIT) throw new GeometryError("Geometrin ligger utanför det område som OCAD kan lagra.");
+          return { ...point, x, y };
+        });
       } else points = keepOriginal(ocdPoints(change.geometry), raw);
     } catch (error) {
       if (error instanceof GeometryError) return refuse(error.message, number);
@@ -481,32 +641,52 @@ function modifyRecord(bytes: Bytes, variant: OcdVariant, entry: Entry, original:
   }
   if (change.text !== undefined) {
     if (original.kind !== "text") return refuse("bara textobjekt har text.", number);
-    textData = textBytes(change.text);
-    object = { ...object, text: change.text } as MapObject;
+    const normalized = change.text.replace(/\r\n?/g, "\n");
+    textData = textBytes(normalized);
+    if (textData.length / 8 > MAX_TEXT_WORDS) return refuse("texten är för lång för OCAD.", number);
+    object = { ...object, text: normalized } as MapObject;
   }
-  const originalType = bytes.u8(at + layout.type);
-  const type = originalType === OBJECT_TYPE.rectangle && change.geometry ? OBJECT_TYPE.line : originalType;
+  // Uppdatera textrutans fyra hörn för 5-punkts oformaterad text när text, vinkel eller symbol ändrats.
+  if (originalType === OBJECT_TYPE.text && raw.length === 5 && object.kind === "text" &&
+      (change.text !== undefined || change.angle !== undefined || change.symbol !== undefined)) {
+    points = textBoxPoints(points[0]!, map.symbols.get(object.symbol), object.text, object.angle);
+  }
   return { record: record(variant, header, symbol, type, angle, points, textData, change.at, false), points, symbol, type, object,
     entryColor, entryView, typeChanged: type !== originalType };
 }
 
-function addRecord(bytes: Bytes, variant: OcdVariant, change: AddChange, number: number, map: ParsedMap, template: ReadonlyMap<string, MapObject>)
-  : Built | MapRevisionApplyResult {
+function addRecord(bytes: Bytes, variant: OcdVariant, change: AddChange, number: number, map: ParsedMap,
+  template: ReadonlyMap<string, MapObject>, blocks: readonly number[]): Built | MapRevisionApplyResult {
   const kind = symbolObjectKind(map.symbols, change.symbol), symbol = symbolNumber(change.symbol);
   if (!kind || symbol === undefined) return refuse(`symbolen ${change.symbol} finns inte i kartfilen.`, number);
-  if (change.geometry.kind === "text" || kind === "text") return refuse("nya textobjekt stöds inte än.", number);
   if (kind !== change.geometry.kind) return refuse(`symbolen ${change.symbol} passar inte geometrins slag.`, number);
+  const targetSym = map.symbols.get(change.symbol);
+  if (targetSym?.kind === "TEXT" && targetSym.lineText) return refuse("linjetextsymboler stöds inte för nya textobjekt.", number);
   if (change.angle !== undefined && !Number.isFinite(change.angle)) return refuse("vinkeln är inte ett tal.", number);
+  let textData: Uint8Array = new Uint8Array(0);
+  let normalizedText = "";
+  if (change.geometry.kind === "text") {
+    const rawText = change.text ?? "";
+    if (!rawText.trim()) return refuse("en ny text får inte vara tom.", number);
+    normalizedText = rawText.replace(/\r\n?/g, "\n");
+    textData = textBytes(normalizedText);
+    if (textData.length / 8 > MAX_TEXT_WORDS) return refuse("texten är för lång för OCAD.", number);
+  }
+  const normalizedAngle = normalizeAngle(change.angle ?? 0);
   let points: Raw[];
   try {
     checkGeometry(change.geometry);
-    points = change.geometry.kind === "point" ? [{ x: unit(change.geometry.at.x), y: unit(change.geometry.at.y), xf: 0, yf: 0 }] : ocdPoints(change.geometry);
+    if (change.geometry.kind === "point") points = [{ x: unit(change.geometry.at.x), y: unit(change.geometry.at.y), xf: 0, yf: 0 }];
+    else if (change.geometry.kind === "text") {
+      const anchor: Raw = { x: unit(change.geometry.at.x), y: unit(change.geometry.at.y), xf: 0, yf: 0 };
+      points = textBoxPoints(anchor, targetSym, normalizedText, normalizedAngle);
+    } else points = ocdPoints(change.geometry);
   } catch (error) {
     if (error instanceof GeometryError) return refuse(error.message, number);
     throw error;
   }
   const angle = change.geometry.kind === "line" ? 0 : angleUnits(change.angle ?? 0);
-  const type = objectType(kind);
+  const type = targetSym?.kind === "LINE" && targetSym.rectangle ? OBJECT_TYPE.rectangle : objectType(kind);
   // Huvudet från ett objekt med samma symbol (utom objekt-specifika fält, datum och strängar), annars symbolens färg.
   const like = template.get(change.symbol)?.source?.locator;
   let header: Uint8Array | undefined, templateEntry: Built["templateEntry"], entryColor: number | undefined;
@@ -516,22 +696,29 @@ function addRecord(bytes: Bytes, variant: OcdVariant, change: AddChange, number:
       header.fill(0, V12.lineWidth, V12.serverIdEnd);
       header.fill(0, V12.multiRep, V12.modified);
       header.fill(0, V12.objectStrings, variant.object.coords);
+    } else {
+      header.fill(0, V9.objectStrings, V9.color);
+      header.fill(0, V9.lineWidth, variant.object.coords);
     }
-    const blocks = indexBlocks(bytes, bytes.u32(HEADER.firstObjectBlock), variant.index.blockSize);
-    const entry = blocks[like.block]! + 4 + like.slot * variant.index.entrySize;
-    templateEntry = { view: bytes.u8(entry + ENTRY.view), color: bytes.i16(entry + ENTRY.color) };
+    if (blocks[like.block] !== undefined) {
+      const entry = blocks[like.block]! + 4 + like.slot * variant.index.entrySize;
+      templateEntry = { view: bytes.u8(entry + ENTRY.view), color: bytes.i16(entry + ENTRY.color) };
+    }
   } else {
-    entryColor = symbolColor(map.symbols.get(change.symbol));
-    if (variant.version >= 12 && entryColor !== 0) {
+    entryColor = symbolColor(targetSym);
+    if (entryColor !== 0) {
       header = new Uint8Array(variant.object.coords);
-      new Out(header).view.setInt32(V12.color, entryColor, true);
+      new Out(header).view.setInt32(variant.version >= 12 ? V12.color : V9.color, entryColor, true);
     }
   }
   const geometry = change.geometry;
-  const object: MapObject = geometry.kind === "point" ? { kind: "point", symbol: change.symbol, at: geometry.at, angle: normalizeAngle(change.angle ?? 0) }
-    : geometry.kind === "line" ? { kind: "line", symbol: change.symbol, path: geometry.path }
-    : { kind: "area", symbol: change.symbol, rings: (geometry).rings.map(ring => openRing(ring)),
-      angle: normalizeAngle(change.angle ?? 0) };
-  return { record: record(variant, header, symbol, type, angle, points, new Uint8Array(0), change.at, true), points, symbol, type, object, templateEntry, entryColor };
+  const object: MapObject = geometry.kind === "point"
+    ? { kind: "point", symbol: change.symbol, at: geometry.at, angle: normalizedAngle }
+    : geometry.kind === "text"
+    ? { kind: "text", symbol: change.symbol, at: geometry.at, angle: normalizedAngle, text: normalizedText }
+    : geometry.kind === "line"
+    ? { kind: "line", symbol: change.symbol, path: geometry.path }
+    : { kind: "area", symbol: change.symbol, rings: geometry.rings.map(ring => openRing(ring)), angle: normalizedAngle };
+  return { record: record(variant, header, symbol, type, angle, points, textData, change.at, true), points, symbol, type, object, templateEntry, entryColor };
 }
 

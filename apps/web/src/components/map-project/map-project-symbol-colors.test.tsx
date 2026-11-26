@@ -4,11 +4,13 @@ import { describe, expect, it, vi } from "vitest";
 import type { MapColor } from "@o-tid/map-file";
 import { EMPTY_LAYERS, standardSymbols } from "../../lib/map-project-layer-model";
 import type { CatalogSymbol } from "../../lib/map-project-protocol";
+import { LanguageProvider } from "../language-provider";
 import type { SymbolColorsControl } from "./map-project-symbol-colors";
 
 // Testerna byggs med den klassiska JSX-omvandlingen, som letar efter React globalt (komponenterna importerar det inte);
 // komponenterna läses därför in efter att React lagts globalt (ikonerna i listan är JSX på modulnivå).
 (globalThis as { React?: typeof React }).React = React;
+const { ColorsDialog } = await import("./map-project-colors");
 const { SymbolColorsDialog } = await import("./map-project-symbol-colors");
 const { MapProjectSymbolLayers } = await import("./map-project-symbol-layers");
 
@@ -30,8 +32,8 @@ describe("färg per symbol i symbollistan", () => {
     expect(html).toContain('aria-label="Färg för 521.1 Kant, byggnad"');
     expect(html).toContain('aria-label="Markera 521 Byggnad"');
   });
-  it("visar ingenting för den som inte får ändra färgerna, eller utan färgstyrning", () => {
-    for (const html of [list(control(false)), list()]) {
+  it("visar ingenting för den som inte får ändra färgerna, eller utan färgstyrning, eller på OCAD-projekt", () => {
+    for (const html of [list(control(false)), list({ ...control(true), ocad: true }), list()]) {
       expect(html).not.toContain("Färg för 521");
       expect(html).not.toContain("map-project-layer-pick");
     }
@@ -59,9 +61,43 @@ describe("dialogen för symbolens färger", () => {
     expect(html).toContain("disabled");
     expect(html).not.toContain("map-project-symbol-colors-save");
   });
+  it("låser rullistorna och döljer Spara och Återställ på OCAD-projekt med tydlig förklaring", () => {
+    const html = dialog([catalog[0]!], { ...control(true), ocad: true });
+    expect(html).toContain("kan inte ändras eller skrivas tillbaka till OCAD-filen ännu");
+    expect(html).toContain('disabled=""');
+    expect(html).not.toContain("map-project-symbol-colors-save");
+    expect(html).not.toContain("map-project-symbol-colors-reset");
+  });
   it("visar ett sparat byte som valt och ändrat", () => {
     const html = dialog([catalog[1]!], { ...control(true), saved: [{ symbol: "521.1", from: 1, to: 0 }] });
     expect(html).toContain('data-changed="true"');
     expect(html).toMatch(/<option value="0" selected="">Svart<\/option>/);
+  });
+});
+
+describe("dialogen för kartans färgtabell (OCAD Steg 1 läsläge)", () => {
+  it("låser CMYK-fälten och döljer Spara och Återställ på OCAD-projekt (sv och en), men håller dem öppna på Mapper", () => {
+    const omapHtml = renderToStaticMarkup(
+      <ColorsDialog colors={colors} saved={[]} canChange ocad={false} onShow={vi.fn()} onSave={vi.fn(async () => true)} onClose={() => undefined} />
+    );
+    expect(omapHtml).toContain('data-testid="map-project-colors-save"');
+    expect(omapHtml).toContain('data-testid="map-project-colors-reset"');
+    expect(omapHtml).toMatch(/<input(?![^>]*\bdisabled\b)[^>]*aria-label="Svart, C i procent"/);
+
+    const ocdSvHtml = renderToStaticMarkup(
+      <ColorsDialog colors={colors} saved={[]} canChange ocad onShow={vi.fn()} onSave={vi.fn(async () => true)} onClose={() => undefined} />
+    );
+    expect(ocdSvHtml).toContain("färgtabellen visas här, men kan inte ändras eller skrivas tillbaka till OCAD-filen ännu");
+    expect(ocdSvHtml).not.toContain('data-testid="map-project-colors-save"');
+    expect(ocdSvHtml).not.toContain('data-testid="map-project-colors-reset"');
+    expect(ocdSvHtml).toMatch(/<input[^>]*disabled=""[^>]*aria-label="Svart, C i procent"|<input[^>]*aria-label="Svart, C i procent"[^>]*disabled=""/);
+
+    const ocdEnHtml = renderToStaticMarkup(
+      <LanguageProvider language="en">
+        <ColorsDialog colors={colors} saved={[]} canChange ocad onShow={vi.fn()} onSave={vi.fn(async () => true)} onClose={() => undefined} />
+      </LanguageProvider>
+    );
+    expect(ocdEnHtml).toContain("cannot be changed or written back to the OCAD file yet");
+    expect(ocdEnHtml).not.toContain('data-testid="map-project-colors-save"');
   });
 });

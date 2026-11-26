@@ -10,6 +10,8 @@ export interface OcdSymbolSpec {
   readonly type: number;
   readonly description?: string;
   readonly status?: number;
+  /** `TBaseSym.Extent` i OCAD-enheter (0,01 mm), offset 16 i v9+. */
+  readonly extent?: number;
   /** Bytes från position 796 och framåt (version 12:s layout). */
   readonly body?: Uint8Array;
 }
@@ -26,7 +28,11 @@ export interface OcdObjectSpec {
 export interface OcdSpec {
   readonly version?: number;
   readonly subversion?: number;
-  readonly strings?: readonly { readonly type: number; readonly value: string }[];
+  /** `TFileHeader.FileType` (0 = normal karta, 1 = banläggning, 8 = OCAD Server). */
+  readonly fileType?: number;
+  /** `TFileHeader.OfflineSyncSerial` (offset 16 i v12+). */
+  readonly offlineSyncSerial?: number;
+  readonly strings?: readonly { readonly type: number; readonly value: string; readonly objIndex?: number }[];
   readonly symbols?: readonly OcdSymbolSpec[];
   readonly objects?: readonly OcdObjectSpec[];
 }
@@ -106,8 +112,10 @@ export function buildOcd(spec: OcdSpec & { readonly encoding?: StringEncoding })
   const w = new Writer();
   const header = w.reserve(64);
   w.u16(header, 0x0cad);
+  if (spec.fileType !== undefined) w.u16(header + 2, spec.fileType);
   w.u16(header + 4, version);
   w.u8(header + 6, spec.subversion ?? 8);
+  if (spec.offlineSyncSerial !== undefined) w.i32(header + 16, spec.offlineSyncSerial);
 
   const symbols = spec.symbols ?? [];
   if (symbols.length > 0) {
@@ -123,6 +131,7 @@ export function buildOcd(spec: OcdSpec & { readonly encoding?: StringEncoding })
       w.i32(at + 4, symbol.number);
       w.u8(at + 8, symbol.type);
       w.u8(at + 11, symbol.status ?? 0);
+      if (symbol.extent !== undefined) w.i32(at + 16, symbol.extent);
       const description = symbol.description ?? `Symbol ${symbol.number}`;
       if (version <= 10) { w.u8(at + 56, description.length); w.bytes(at + 57, latin1(description)); }
       else w.bytes(at + 56, utf16(description));
@@ -169,6 +178,7 @@ export function buildOcd(spec: OcdSpec & { readonly encoding?: StringEncoding })
       w.i32(block + 4 + index * 16, at);
       w.i32(block + 8 + index * 16, data.length + 1);
       w.i32(block + 12 + index * 16, entry.type);
+      if (entry.objIndex !== undefined) w.i32(block + 16 + index * 16, entry.objIndex);
     });
   }
   return w.result();

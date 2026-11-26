@@ -291,14 +291,14 @@ export interface SourceMapColor { readonly ocadId: number; readonly name: string
   readonly usage?: ColorUsage | undefined }
 
 /** Kartfilens färger i ritordning (underst först, som `drawMap` ritar dem), med användningen när den är känd. */
-export function sourceMapColors(colors: readonly Pick<MapColor, "id" | "name" | "rank" | "cmyk" | "spot">[],
+export function sourceMapColors(colors: readonly Pick<MapColor, "id" | "name" | "rank" | "cmyk" | "spot" | "overprint">[],
   usage?: ReadonlyMap<number, ColorUsage>): SourceMapColor[] {
   const order = [...colors].sort((left, right) => right.rank - left.rank || left.id - right.id);
   const round = (value: number) => Math.round(value * 100_000) / 1000;
   return order.map((color, drawOrder) => {
     const used = usage?.get(color.id);
     return { ocadId: color.id, name: color.name, cmyk: { c: round(color.cmyk.c), m: round(color.cmyk.m), y: round(color.cmyk.y), k: round(color.cmyk.k) },
-      overprint: color.spot?.overprint ?? false, drawOrder, ...(used ? { usage: used } : {}) };
+      overprint: color.overprint ?? color.spot?.overprint ?? false, drawOrder, ...(used ? { usage: used } : {}) };
   });
 }
 
@@ -364,7 +364,7 @@ export function mapColorAdjust(profile: PrintProfile | undefined, colors: readon
  * utelämnas, CMYK räknas efter egen CMYK / BL-beslut + `lighten`, och `overprint` speglar `adjust.spot`.
  */
 export function effectiveSourceMapColors(
-  colors: readonly Pick<MapColor, "id" | "name" | "rank" | "cmyk" | "spot">[],
+  colors: readonly Pick<MapColor, "id" | "name" | "rank" | "cmyk" | "spot" | "overprint">[],
   usage?: ReadonlyMap<number, ColorUsage>,
   adjust?: Readonly<Record<number, MapColorAdjust>>
 ): SourceMapColor[] {
@@ -376,7 +376,7 @@ export function effectiveSourceMapColors(
     const source = setting?.cmyk ?? color.cmyk;
     const amount = Math.max(-1, Math.min(1, Number.isFinite(setting?.lighten) ? setting!.lighten! : 0));
     const ink = (value: number) => roundPercent(clamp01(value * (1 - amount)));
-    const overprint = setting?.spot === null ? false : setting?.spot ? setting.spot.overprint : (color.spot?.overprint ?? false);
+    const overprint = setting?.spot === null ? false : setting?.spot ? setting.spot.overprint : (color.overprint ?? color.spot?.overprint ?? false);
     const used = usage?.get(color.id);
     return {
       ocadId: color.id,

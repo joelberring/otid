@@ -150,9 +150,11 @@ export function mapPaints(map: Pick<ParsedMap, "colors">, options: PaintOptions,
     if (options.mode === "OFFICE") { out.set(color.id, paintOf({ kind: "CMYK", cmyk }, false)); continue; }
     const separations = separationsOf(color);
     if (separations.length > 0) spotsInFile = true;
+    // Kartfilens egen övertrycksflagga (gäller även rena CMYK-färger med OCAD `o1`).
+    const fileOverprint = color.overprint ?? color.spot?.overprint ?? false;
     // I PROCESS (inkl. BL): aldrig /Separation-plåtar, inte ens om profilen har `setting.spot`.
     if (options.mode === "PROCESS") {
-      const overprint = setting?.spot === null ? false : (setting?.spot?.overprint ?? color.spot?.overprint ?? false);
+      const overprint = setting?.spot === null ? false : (setting?.spot?.overprint ?? fileOverprint);
       out.set(color.id, paintOf({ kind: "CMYK", cmyk }, overprint));
       continue;
     }
@@ -171,7 +173,7 @@ export function mapPaints(map: Pick<ParsedMap, "colors">, options: PaintOptions,
       continue;
     }
     if (separations.length === 0 || setting?.cmyk) {
-      out.set(color.id, paintOf({ kind: "CMYK", cmyk }, color.spot?.overprint ?? false));
+      out.set(color.id, paintOf({ kind: "CMYK", cmyk }, fileOverprint));
       continue;
     }
     const names: string[] = [], alternates: Cmyk[] = [], tints: number[] = [];
@@ -185,7 +187,7 @@ export function mapPaints(map: Pick<ParsedMap, "colors">, options: PaintOptions,
         y: clamp01(color.cmyk.y / separation.factor), k: clamp01(color.cmyk.k / separation.factor) } : color.cmyk);
       names.push(name); alternates.push(plates.define(name, own, `"${color.name}"`)); tints.push(tint);
     }
-    out.set(color.id, paintOf({ kind: "SPOT", names, alternates, tints }, color.spot?.overprint ?? false));
+    out.set(color.id, paintOf({ kind: "SPOT", names, alternates, tints }, fileOverprint));
   }
   if (options.mode === "PROCESS" && spotsInFile) notes.add("Kartans dekorfärger skrivs som CMYK (kartfärgernas egna CMYK-värden) med filens övertryck.");
   return out;

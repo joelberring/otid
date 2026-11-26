@@ -83,6 +83,7 @@ export function readColors(strings: readonly ParameterString[]): MapColor[] {
     const known = separations.filter(part => part.name !== "" && (spotNumbers.size === 0 || spotNumbers.has(part.name)));
     const name = spotName(known);
     const opacity = numberField(pairs, "t");
+    const overprint = numberField(pairs, "o") === 1;
     colors.push({
       id,
       name: first,
@@ -90,7 +91,8 @@ export function readColors(strings: readonly ParameterString[]): MapColor[] {
       cmyk,
       rgb: rgbFromCmyk(cmyk),
       opacity: opacity === undefined ? 1 : clamp01(opacity / 100),
-      spot: name ? { name, overprint: numberField(pairs, "o") === 1,
+      ...(overprint ? { overprint: true } : {}),
+      spot: name ? { name, overprint,
         separations: known.map(part => ({ name: part.name, factor: part.factor, ...(spotCmyk.has(part.name) ? { cmyk: spotCmyk.get(part.name)! } : {}) })) } : undefined
     });
   }

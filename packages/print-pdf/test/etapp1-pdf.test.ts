@@ -191,11 +191,11 @@ describe("Etapp 1B: OFFICE isolerad CMYK-transparensgrupp, PRESS egna övertryck
     expect(pageContent.slice(whiteQ, whitePlaced)).not.toContain("/GOP gs");
   });
 
-  it("PRESS med OVER: tvingar inte overprint: true på OVER-färger som är knockout i filen", async () => {
+  it("PRESS med OVER: enpass UNDER → LOWER → OVER (inga dubblerade OVER-vektorer) med kartfilens egna övertrycksflaggor", async () => {
     const map: ParsedMap = {
       format: "OMAP", version: "9", scale: 10000, georeference: null, bounds: { minX: 0, minY: 0, maxX: 60, maxY: 60 }, warnings: [],
       colors: [
-        { id: 1, name: "Svart 100%", rank: 0, cmyk: { c: 0, m: 0, y: 0, k: 1 }, rgb: { r: 0, g: 0, b: 0 }, opacity: 1,
+        { id: 1, name: "Svart 100%", rank: 0, cmyk: { c: 0, m: 0, y: 0, k: 1 }, rgb: { r: 0, g: 0, b: 0 }, opacity: 1, overprint: true,
           spot: { name: "Process Black", overprint: true, separations: [{ name: "Process Black", factor: 1, cmyk: { c: 0, m: 0, y: 0, k: 1 } }] } },
         { id: 2, name: "Blå 100% linje", rank: 1, cmyk: { c: 0.95, m: 0.3, y: 0, k: 0 }, rgb: { r: 0, g: 0.5, b: 1 }, opacity: 1,
           spot: { name: "PMS299_Blue", overprint: false, separations: [{ name: "PMS299_Blue", factor: 1, cmyk: { c: 0.95, m: 0.3, y: 0, k: 0 } }] } },
@@ -214,9 +214,15 @@ describe("Etapp 1B: OFFICE isolerad CMYK-transparensgrupp, PRESS egna övertryck
     };
     const result = await writeSheetsPdf({ sheets: simpleSheet(map), map, profile: mapOwn, mode: "PRESS", fonts });
     const pdf = await parsePdf(result.bytes);
+    const underForm = pdf.forms.get("Fm0")!;
     const overForm = pdf.forms.get("Fm1")!;
     const blueSpace = [...pdf.colorSpaces].find(([, s]) => s.names[0] === "PMS299_Blue")![0];
     const blackSpace = [...pdf.colorSpaces].find(([, s]) => s.names[0] === "Black")![0];
+    // Ren enpass-ordning som OCAD: UNDER innehåller bara gult (inga dubblerade OVER-objekt).
+    expect(underForm).toContain("0 0.27 0.79 0 k");
+    expect(underForm).not.toContain(`/${blueSpace} CS 1 SCN`);
+    expect(underForm).not.toContain(`/${blackSpace} CS 1 SCN`);
+    expect(overForm).not.toContain("0 0.27 0.79 0 k");
     const blueAt = overForm.indexOf(`/${blueSpace} CS 1 SCN`);
     const blackAt = overForm.indexOf(`/${blackSpace} CS 1 SCN`);
     expect(blueAt).toBeGreaterThan(-1);
@@ -225,6 +231,46 @@ describe("Etapp 1B: OFFICE isolerad CMYK-transparensgrupp, PRESS egna övertryck
     expect(overForm.lastIndexOf("/GOP gs", blueAt) === -1 || overForm.lastIndexOf("/GKO gs", blueAt) > overForm.lastIndexOf("/GOP gs", blueAt)).toBe(true);
     // Svart 100% (overprint: true i filen) ska behålla övertryck i OVER.
     expect(overForm.lastIndexOf("/GOP gs", blackAt)).toBeGreaterThan(overForm.lastIndexOf("/GKO gs", blackAt));
+  });
+
+  it("ren CMYK-färg med OCAD o1 (color.overprint: true utan spot) bevarar övertryck i PRESS och PROCESS, men vitt tvingas alltid till knockout", async () => {
+    const map: ParsedMap = {
+      format: "OCD", version: "OCAD 2018.8", scale: 10000, georeference: null, bounds: { minX: 0, minY: 0, maxX: 60, maxY: 60 }, warnings: [],
+      colors: [
+        { id: 1, name: "Vit CMYK o1", rank: 0, cmyk: { c: 0, m: 0, y: 0, k: 0 }, rgb: { r: 1, g: 1, b: 1 }, opacity: 1, overprint: true },
+        { id: 2, name: "Svart CMYK o1", rank: 1, cmyk: { c: 0, m: 0, y: 0, k: 1 }, rgb: { r: 0, g: 0, b: 0 }, opacity: 1, overprint: true },
+        { id: 3, name: "Gul", rank: 2, cmyk: { c: 0, m: 0.27, y: 0.79, k: 0 }, rgb: { r: 1, g: 0.8, b: 0 }, opacity: 1 }
+      ],
+      symbols: new Map([
+        ["1", { id: "1", code: { text: "401.1", main: 401, sub: 1 }, name: "Vit", hidden: false, kind: "AREA", fill: 1, hatches: [] }],
+        ["2", { id: "2", code: { text: "505.0", main: 505, sub: 0 }, name: "Stig", hidden: false, kind: "LINE", strokes: [{ color: 2, width: 0.35 }] }],
+        ["3", { id: "3", code: { text: "401.0", main: 401, sub: 0 }, name: "Öppen mark", hidden: false, kind: "AREA", fill: 3, hatches: [] }]
+      ]),
+      objects: [
+        { kind: "area", symbol: "3", angle: 0, rings: [[{ type: "M", x: 0, y: 0 }, { type: "L", x: 60, y: 0 }, { type: "L", x: 60, y: 60 }, { type: "L", x: 0, y: 60 }]] },
+        { kind: "line", symbol: "2", path: [{ type: "M", x: 5, y: 20 }, { type: "L", x: 55, y: 20 }] },
+        { kind: "area", symbol: "1", angle: 0, rings: [[{ type: "M", x: 10, y: 10 }, { type: "L", x: 20, y: 10 }, { type: "L", x: 20, y: 20 }, { type: "L", x: 10, y: 20 }]] }
+      ]
+    };
+    const sheets = simpleSheet(map);
+    // I PRESS och PROCESS (utan OVER-split, courseLayer TOP): Svart CMYK o1 får /GOP gs, Vit CMYK o1 tvingas till knockout (/GKO).
+    for (const mode of ["PRESS", "PROCESS"] as const) {
+      const pdf = await parsePdf((await writeSheetsPdf({ sheets, map, profile: asFile, mode, fonts })).bytes);
+      const form = [...pdf.forms.values()][0]!;
+      const blackAt = form.indexOf("0 0 0 1 K");
+      expect(blackAt).toBeGreaterThan(-1);
+      expect(form.lastIndexOf("/GOP gs", blackAt)).toBeGreaterThan(form.lastIndexOf("/GKO gs", blackAt));
+      const whiteAt = form.lastIndexOf("0 0 0 0 k");
+      expect(whiteAt).toBeGreaterThan(blackAt);
+      expect(form.lastIndexOf("/GKO gs", whiteAt)).toBeGreaterThan(form.lastIndexOf("/GOP gs", whiteAt));
+    }
+    // Med spot: null i profilen stängs även ren CMYK o1 av till knockout.
+    const disabled: PrintProfile = { ...asFile, id: "no-op", mapColors: [{ match: { names: ["Svart CMYK o1"] }, spot: null }] };
+    const offPdf = await parsePdf((await writeSheetsPdf({ sheets, map, profile: disabled, mode: "PRESS", fonts })).bytes);
+    expect([...offPdf.forms.values()][0]!).not.toContain("/GOP gs");
+    // I OFFICE är det alltid knockout utan övertryck.
+    const officePdf = await parsePdf((await writeSheetsPdf({ sheets, map, profile: asFile, mode: "OFFICE", fonts })).bytes);
+    expect([...officePdf.forms.values()][0]!).not.toContain("/GOP gs");
   });
 
   it("dolda färger utelämnas ur colorsOverCourse, notes och ritning (inga tomma q/Q/W* n)", async () => {

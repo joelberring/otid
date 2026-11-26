@@ -300,7 +300,7 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
   // - OFFICE: ALL (knockout) → LOWER → OVER i sammanhängande INK/WHITE-band (varje INK-band är en isolerad
   //   DeviceCMYK-transparensgrupp med knockout inuti, placerad med /BM /Darken; WHITE-band placeras med knockout).
   // - PROCESS (inkl. BL): ren enpass-ordning UNDER → LOWER → OVER med knockout (noll 308–375 % TAC-blödning).
-  // - PRESS: ALL → LOWER → OVER med kartfilens egna övertrycksflaggor (vitt alltid knockout).
+  // - PRESS: ren enpass-ordning UNDER → LOWER → OVER med kartfilens egna övertrycksflaggor (som OCAD, vitt alltid knockout).
   const over = input.map ? colorsOverCourse(input.map, input.profile) : undefined;
   const overBands: readonly OverColorBand[] = input.map && over && mode === "OFFICE"
     ? overColorBands(input.map.colors, over, adjust) : [];
@@ -311,7 +311,7 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
     const how = mode === "OFFICE" ? "(lila syns genom dem, som övertryck)" : mode === "PROCESS" ? "(ren CMYK-ordning utan övertryck)" : "med kartans övertryck";
     notes.add(`Banan ligger i färgordningen enligt ${norm === "ISSPROM" ? "ISSprOM 2019-2" : "ISOM 2017-2"}: undre lila under ${names.length} kartfärger (${names.slice(0, 5).join(", ")}${names.length > 5 ? " m.fl." : ""}) ${how}, ${norm === "ISSPROM" || numbersOnTop ? "nummer och markeringar överst" : "numren i undre lila, markeringar överst"}.`);
   }
-  const underIds = input.map && over && mode === "PROCESS"
+  const underIds = input.map && over && mode !== "OFFICE"
     ? new Set(input.map.colors.filter(color => !over.has(color.id) && !hiddenColors.has(color.id)).map(color => color.id)) : undefined;
   const overIds = input.map && over
     ? new Set(input.map.colors.filter(color => over.has(color.id) && !hiddenColors.has(color.id)).map(color => color.id)) : undefined;
@@ -463,9 +463,9 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
         const beneath = frame.figures.filter(figure => layer(figure) === "BENEATH");
         const covers = beneath.map(figure => ({ ref: figure.ref, path: coverPath(figure, mapMatrix) })).filter(cover => cover.path !== "");
         const unmarkedCoverClips = covers.filter(cover => !marked.has(cover.ref ?? "")).map(cover => `${frameRect} ${cover.path} W* n`);
-        const baseForm = mode === "PROCESS"
+        const baseForm = mode !== "OFFICE"
           ? buildMapForm(frame, { suffix: "UNDER", onlyColors: underIds, background: true, forceKnockout: false, isolatedGroup: false })
-          : buildMapForm(frame, { suffix: "ALL", background: true, forceKnockout: mode === "OFFICE", isolatedGroup: false });
+          : buildMapForm(frame, { suffix: "ALL", background: true, forceKnockout: true, isolatedGroup: false });
         place(baseForm);
         paintWhite();
         figures(beneath);

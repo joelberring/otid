@@ -130,7 +130,9 @@ function readColors(colorsNode: XmlNode | undefined): MapColor[] {
       const name = spotName(separations);
       if (name) spot = { name, overprint: attr(spotNode, "knockout") !== "true", separations: separations.filter(part => part.name !== "") };
     }
-    return { id, name: attr(node, "name") ?? "", rank: index, cmyk, rgb, opacity: clamp01(num(node, "opacity", 1)), spot };
+    const overprint = spot?.overprint ?? (attr(node, "overprint") === "true");
+    return { id, name: attr(node, "name") ?? "", rank: index, cmyk, rgb, opacity: clamp01(num(node, "opacity", 1)),
+      ...(overprint ? { overprint: true } : {}), spot };
   });
   // Mapper skriver färgerna i prioritetsordning; sortera ändå så att rank följer prioriteten.
   colors.sort((a, b) => a.id - b.id);

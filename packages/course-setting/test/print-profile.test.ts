@@ -55,6 +55,19 @@ describe("utskriftsprofilen (steg 64, ADR-0183)", () => {
     expect(mapColorAdjust(withZombie, map)[2]).toEqual({ cmyk: { c: 0.76, m: 0, y: 0.91, k: 0 } });
   });
 
+  it("sourceMapColors och effectiveSourceMapColors bevarar ren CMYK-overprint (OCAD o1) och låter spot: null stänga av den", () => {
+    const cmykOverprint = [
+      { id: 1, name: "Svart CMYK o1", rank: 0, cmyk: { c: 0, m: 0, y: 0, k: 1 }, overprint: true },
+      { id: 2, name: "Brun CMYK knockout", rank: 1, cmyk: { c: 0, m: 0.56, y: 1, k: 0.18 } }
+    ];
+    const src = sourceMapColors(cmykOverprint);
+    expect(src.find(item => item.ocadId === 1)?.overprint).toBe(true);
+    expect(src.find(item => item.ocadId === 2)?.overprint).toBe(false);
+    const eff = effectiveSourceMapColors(cmykOverprint, undefined, { 1: { spot: null } });
+    expect(eff.find(item => item.ocadId === 1)?.overprint).toBe(false);
+    expect(effectiveSourceMapColors(cmykOverprint).find(item => item.ocadId === 1)?.overprint).toBe(true);
+  });
+
   it("inbyggda kontorsprofilen ljusar bara gröna/gula ytor, aldrig Olivgrön, Mörkgrön, Punktobjekt, Grön+Svart eller Vit för grön/gul", () => {
     const office = BUILT_IN_PRINT_PROFILES.find(profile => profile.id === "office")!;
     const names = [

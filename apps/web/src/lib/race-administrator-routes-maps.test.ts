@@ -242,4 +242,48 @@ describe("administratörsroutes: kartfilen", () => {
     expect((await raceAdministratorRoute(db, remove, id, action, services, environment)).status).toBe(403);
     expect(services.authenticate.mock.calls[0]![1]).toMatchObject({ role: "ADMIN" });
   });
+
+  it("Etapp 2: PATCH växlar nedladdningsspärr för tävlingsadmin och vidarebefordrar 403 vid ärvd spärr", async () => {
+    const raceMapSourceUpdateLock = vi.fn<typeof Application.updateRaceMapSourceLockAsAdmin>()
+      .mockResolvedValue({ status: "ok", sourceDownloadLocked: true, sourceDownloadLockedByOrigin: false });
+    const services = { ...dependencies(), raceMapSourceUpdateLock };
+    const patch = (body: string) => new Request("https://otid.example/api/admin", {
+      method: "PATCH", body,
+      headers: {
+        origin: environment.O_TID_PUBLIC_ORIGIN, "content-type": "application/json", "x-otid-csrf": csrf,
+        cookie: `__Host-otid-organizer-session=${token}; __Host-otid-organizer-csrf=${csrf}`
+      }
+    });
+
+    const ok = await raceAdministratorRoute(db, patch(JSON.stringify({ formatVersion: 1, sourceDownloadLocked: true })), id, action, services, environment);
+    expect(ok.status).toBe(200);
+    expect(await ok.json()).toEqual({ formatVersion: 1, sourceDownloadLocked: true, sourceDownloadLockedByOrigin: false });
+    expect(raceMapSourceUpdateLock).toHaveBeenCalledTimes(1);
+
+    raceMapSourceUpdateLock.mockResolvedValueOnce({ status: "forbidden" });
+    const locked = await raceAdministratorRoute(db, patch(JSON.stringify({ formatVersion: 1, sourceDownloadLocked: false })), id, action, services, environment);
+    expect(locked.status).toBe(403);
+
+    const broken = await raceAdministratorRoute(db, patch("{trasig"), id, action, services, environment);
+    expect(broken.status).toBe(400);
+
+    // SHA-adresserad källa tillåter bara GET (405 på PATCH).
+    const shaPatch = await raceAdministratorRoute(db, patch(JSON.stringify({ formatVersion: 1, sourceDownloadLocked: false })), id,
+      { kind: "race-map-source", sha256: "a".repeat(64) }, services, environment);
+    expect(shaPatch.status).toBe(405);
+  });
+
+  it("Etapp 2: POST vidarebefordrar sourceDownloadLocked i metadata till saveRaceMapSourceAsAdmin", async () => {
+    const raceMapSourceSave = vi.fn<typeof Application.saveRaceMapSourceAsAdmin>().mockResolvedValue({ status: "ok", georeferenced: true });
+    const staging = memoryStaging();
+    const lockedMeta = JSON.stringify({ formatVersion: 1, sourceDownloadLocked: true });
+    const { body, contentType } = await multipart(
+      { metadata: new Blob([lockedMeta]), file: new Blob([new Uint8Array([0xad, 0x0c])]), image: new Blob([new Uint8Array([0x89, 0x50])]) },
+      { file: "karta.ocd" }
+    );
+    const response = await raceAdministratorRoute(db, upload(body, contentType), id, action,
+      { ...dependencies(), ...staging.services, raceMapSourceSave }, environment);
+    expect(response.status).toBe(204);
+    expect(raceMapSourceSave.mock.calls[0]![1].metadata).toEqual({ formatVersion: 1, sourceDownloadLocked: true });
+  });
 });

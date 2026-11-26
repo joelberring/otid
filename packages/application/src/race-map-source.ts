@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import {
-  RACE_MAP_MAX_BYTES, RACE_MAP_SOURCE_MAX_BYTES, raceMapSourceMetadataSchema, type AdminRaceMapSource, type MapUsageScope, type RaceMapProblem
+  RACE_MAP_MAX_BYTES, RACE_MAP_SOURCE_MAX_BYTES, raceMapSourceMetadataSchema, raceMapSourceUpdateRequestSchema,
+  type AdminRaceMapSource, type MapUsageScope, type RaceMapProblem
 } from "@o-tid/contracts";
 import { deriveRasterGeoreference, RasterGeoreferenceError } from "@o-tid/domain";
 import { schema, type Database } from "@o-tid/database";
@@ -132,12 +133,14 @@ export async function saveRaceMapSourceAsAdmin(db: Database, input: RaceSessionP
       clubMapId: input.origin?.clubMapId ?? null,
       clubMapVersionId: input.origin?.clubMapVersionId ?? null,
       publicListingId: input.origin?.publicListingId ?? null,
-      sourceDownloadLocked: input.origin?.sourceDownloadLocked ?? false,
+      sourceDownloadLocked: Boolean(input.origin?.sourceDownloadLocked) || Boolean(metadata.data.sourceDownloadLocked),
       usageScope: input.origin?.usageScope ?? "ANY" as const };
     await tx.insert(schema.raceMapSources).values({ raceId, ...source }).onConflictDoUpdate({ target: schema.raceMapSources.raceId, set: source });
+    // Rensa eventuell tidigare kartprojektkoppling innan `alsoSave` ev. skriver en ny koppling.
+    await tx.delete(schema.raceMapProjectLinks).where(eq(schema.raceMapProjectLinks.raceId, raceId));
     await audit(tx, raceId, actorId, "RACE_MAP_SOURCE_SAVED", { fileName, format: source.format, version: source.version, sha256: fileHash,
-      byteLength: source.byteLength, scale: source.scale, image: { sha256: imageHash, width: image.width, height: image.height },
-      tiePoints: map.tiePoints });
+      byteLength: source.byteLength, scale: source.scale, sourceDownloadLocked: source.sourceDownloadLocked,
+      image: { sha256: imageHash, width: image.width, height: image.height }, tiePoints: map.tiePoints });
     if (input.alsoSave) await input.alsoSave(tx);
     return { status: "ok" as const, georeferenced: transform !== null };
   }).catch((error: unknown) => {
@@ -189,19 +192,99 @@ export async function readRaceMapSourceFileAsAdmin(db: Database, input: Omit<Rac
   });
 }
 
+/**
+ * Etapp 2: avgör om tävlingens kartfil ärver nedladdningsspärr från klubbarkivet, publika kartbanken eller ett
+ * spärrat kartprojekt (och därför inte får låsas upp av tävlingsadmin).
+ */
+export async function isRaceMapSourceLockedByOrigin(
+  tx: Pick<Database, "select">,
+  raceId: string,
+  row: Pick<typeof schema.raceMapSources.$inferSelect, "clubMapId" | "publicListingId" | "sha256" | "sourceDownloadLocked">
+): Promise<boolean> {
+  if (row.clubMapId) {
+    const [clubMap] = await tx.select({ policy: schema.clubMaps.sourceDownloadPolicy })
+      .from(schema.clubMaps).where(eq(schema.clubMaps.id, row.clubMapId));
+    if (!clubMap ? row.sourceDownloadLocked : clubMap.policy === "CUSTODIANS_ONLY") return true;
+  }
+  if (row.publicListingId) {
+    const [listing] = await tx.select({ accessMode: schema.publicMapListings.accessMode })
+      .from(schema.publicMapListings).where(eq(schema.publicMapListings.id, row.publicListingId));
+    if (!listing ? row.sourceDownloadLocked : listing.accessMode !== "OPEN_DOWNLOAD") return true;
+  }
+  const [projectLink] = await tx.select({ projectId: schema.raceMapProjectLinks.projectId, sha256: schema.raceMapProjectLinks.sha256 })
+    .from(schema.raceMapProjectLinks).where(eq(schema.raceMapProjectLinks.raceId, raceId));
+  if (projectLink && projectLink.sha256 === row.sha256) {
+    const [project] = await tx.select({
+      sourceDownloadPolicy: schema.mapProjects.sourceDownloadPolicy,
+      baseVersionId: schema.mapProjects.baseVersionId
+    }).from(schema.mapProjects).where(eq(schema.mapProjects.id, projectLink.projectId));
+    if (project) {
+      if (project.sourceDownloadPolicy === "CUSTODIANS_ONLY") return true;
+      if (project.baseVersionId) {
+        const [clubMap] = await tx.select({ policy: schema.clubMaps.sourceDownloadPolicy })
+          .from(schema.clubMapVersions)
+          .innerJoin(schema.clubMaps, eq(schema.clubMaps.id, schema.clubMapVersions.mapId))
+          .where(eq(schema.clubMapVersions.id, project.baseVersionId));
+        if (clubMap?.policy === "CUSTODIANS_ONLY") return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Etapp 2: tävlingsadmin kan slå på/av nedladdningsspärr på tävlingens kartfil.
+ * Om kartan kommer från en spärrad klubbkarta, kartbank eller spärrat kartprojekt vägras upplåsning (403).
+ */
+export async function updateRaceMapSourceLockAsAdmin(db: Database, input: RaceSessionProof & { request: unknown }, now = new Date())
+  : Promise<Failure | { status: "ok"; sourceDownloadLocked: boolean; sourceDownloadLockedByOrigin: boolean }> {
+  const parsed = raceMapSourceUpdateRequestSchema.safeParse(input.request);
+  return adminWrite(db, input, now, async (tx, actorId) => {
+    // Inloggning och behörighet prövas före kroppen (utloggad får 401, inte 400).
+    if (!parsed.success) return { status: "invalid-request" as const };
+    const [row] = await tx.select({
+      clubMapId: schema.raceMapSources.clubMapId,
+      publicListingId: schema.raceMapSources.publicListingId,
+      sha256: schema.raceMapSources.sha256,
+      sourceDownloadLocked: schema.raceMapSources.sourceDownloadLocked
+    }).from(schema.raceMapSources).where(eq(schema.raceMapSources.raceId, input.raceId));
+    if (!row) return { status: "not-found" as const };
+    const lockedByOrigin = await isRaceMapSourceLockedByOrigin(tx, input.raceId, row);
+    if (!parsed.data.sourceDownloadLocked && lockedByOrigin) {
+      return { status: "forbidden" as const };
+    }
+    await tx.update(schema.raceMapSources)
+      .set({ sourceDownloadLocked: parsed.data.sourceDownloadLocked })
+      .where(eq(schema.raceMapSources.raceId, input.raceId));
+    const effectiveLockedByOrigin = parsed.data.sourceDownloadLocked && lockedByOrigin;
+    await audit(tx, input.raceId, actorId, "RACE_MAP_SOURCE_LOCK_CHANGED", {
+      sourceDownloadLocked: parsed.data.sourceDownloadLocked,
+      sourceDownloadLockedByOrigin: effectiveLockedByOrigin
+    });
+    return {
+      status: "ok" as const,
+      sourceDownloadLocked: parsed.data.sourceDownloadLocked,
+      sourceDownloadLockedByOrigin: effectiveLockedByOrigin
+    };
+  });
+}
+
 /** Kartfilen i arbetsytans kartläge (utan originalet). */
 export async function readAdminRaceMapSource(tx: Transaction, raceId: string, georeferencedAt: Date | null)
   : Promise<AdminRaceMapSource | null> {
   const [row] = await tx.select({ fileName: schema.raceMapSources.fileName, format: schema.raceMapSources.format,
     version: schema.raceMapSources.version, byteLength: schema.raceMapSources.byteLength, scale: schema.raceMapSources.scale,
     georeference: schema.raceMapSources.georeference, summary: schema.raceMapSources.summary, uploadedAt: schema.raceMapSources.uploadedAt,
+    sha256: schema.raceMapSources.sha256, clubMapId: schema.raceMapSources.clubMapId, publicListingId: schema.raceMapSources.publicListingId,
     sourceDownloadLocked: schema.raceMapSources.sourceDownloadLocked })
     .from(schema.raceMapSources).where(eq(schema.raceMapSources.raceId, raceId));
   if (!row) return null;
+  const sourceDownloadLockedByOrigin = row.sourceDownloadLocked && await isRaceMapSourceLockedByOrigin(tx, raceId, row);
   return { fileName: row.fileName, format: row.format, version: row.version, byteLength: row.byteLength, scale: row.scale,
     crs: row.georeference?.crs ?? null,
     // Georefererad ur filen: georeferensen sattes i samma transaktion som kartfilen (inte för hand efteråt).
     georeferencedFromFile: georeferencedAt !== null && georeferencedAt.getTime() === row.uploadedAt.getTime(),
     summary: row.summary, uploadedAt: row.uploadedAt.toISOString(),
-    sourceDownloadLocked: row.sourceDownloadLocked };
+    sourceDownloadLocked: row.sourceDownloadLocked,
+    sourceDownloadLockedByOrigin };
 }

@@ -144,7 +144,7 @@ export const archiveHelpArticles: readonly HelpArticle[] = [
       [
         "”Ny karta” och ”Ladda upp ny version”: OCAD (.ocd) eller Mapper (.omap, .xmap), högst 75 MB.",
         "”Slå ihop markerade” eller ”Möjliga dubbletter” gör flera kartor till en. ”Flytta versionen till …” flyttar en version.",
-        "”Ändra rättigheter”: klubbens eller extern karta, ägare, avtal, bara träning, avgift per utskrift och publik visning.",
+        "”Rättigheter, skydd & delning”: nedladdningsspärr, användningsrätt, ägare, avtal och publik kartbank.",
         "Rättigheterna gäller alla versioner och följer med när kartan används i en grupp eller tävling.",
         "”Lägg i gruppens kartbibliotek” lägger senaste versionen i en träningsgrupp."
       ],

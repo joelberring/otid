@@ -9,6 +9,7 @@ import { adminRaceMapStateSchema, PARTICIPANT_ROUTE_CONTENT_TYPE, participantRou
 import { raceMapSv } from "../../i18n/race-map-sv";
 import { Button, Field, Notice, Section } from "../ui";
 import { MapFileSummary, MapFileUpload } from "./map-file-upload";
+import { RaceMapProtectionPanel } from "../course-setting/race-map-protection";
 import { MapGeoreference } from "./map-georeference";
 import { RaceMapAgreementNotice } from "../training-group/race-map-agreement";
 import type { Message } from "./source-sync-actions";
@@ -159,6 +160,8 @@ export function MapRoutesSection({ ws }: { ws: Workspace }) {
           {/* Steg 68: kartans avtal (ur träningsgruppens kartbibliotek) och spärren för publik visning. */}
           {map && <RaceMapAgreementNotice raceId={raceId} version={map.uploadedAt} />}
           {state.source && <MapFileSummary source={state.source} downloadHref={`/api/admin/races/${raceId}/administrator/map/source`} />}
+          {state.source && <RaceMapProtectionPanel raceId={raceId} locked={Boolean(state.source.sourceDownloadLocked)}
+            lockedByOrigin={Boolean(state.source.sourceDownloadLockedByOrigin)} admin headingLevel="h3" onChanged={() => load(true)} />}
           <MapFileUpload disabled={busy} hasMap={!!state.source} upload={uploadMapFile} onMessage={setMessage} />
           <form className={styles.inlineForm} onSubmit={event => { event.preventDefault(); void uploadMap(); }}>
             <Field label={text.map.file} help={state.source ? `${text.map.fileHelp} ${text.map.replacesMapFile}` : text.map.fileHelp}>

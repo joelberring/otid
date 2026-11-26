@@ -33,7 +33,7 @@ interface SuggestedCatalogMeta {
   readonly latestVersionId?: string | null;
 }
 
-interface CatalogStatusResponse {
+export interface CatalogStatusResponse {
   readonly formatVersion: 1;
   readonly listing: PublicMapListingDetail | null;
   readonly suggested: SuggestedCatalogMeta;
@@ -44,15 +44,22 @@ export type MapSharingPanelProps =
       readonly kind: "club-map";
       readonly clubId: string;
       readonly map: ClubMapView;
-      readonly onSaved?: () => Promise<void> | void;
-      readonly initialCatalog?: CatalogStatusResponse;
+      readonly onSaved?: (() => Promise<void> | void) | undefined;
+      readonly initialCatalog?: CatalogStatusResponse | undefined;
+      /** Döljer skyddsformuläret när det redan visas som block 1 i den enade rättighetspanelen. */
+      readonly hideProtection?: boolean | undefined;
+      readonly catalogHeadingOverride?: string | undefined;
+      readonly onCatalogStatusChange?: ((published: boolean) => void) | undefined;
     }
   | {
       readonly kind: "map-project";
       readonly projectId: string;
       readonly projectName: string;
-      readonly onSaved?: () => Promise<void> | void;
-      readonly initialCatalog?: CatalogStatusResponse;
+      readonly onSaved?: (() => Promise<void> | void) | undefined;
+      readonly initialCatalog?: CatalogStatusResponse | undefined;
+      readonly hideProtection?: boolean | undefined;
+      readonly catalogHeadingOverride?: string | undefined;
+      readonly onCatalogStatusChange?: ((published: boolean) => void) | undefined;
     };
 
 function agreementOf(map: ClubMapView): MapAgreement {
@@ -151,6 +158,7 @@ export function MapSharingPanel(props: MapSharingPanelProps) {
       const sug = data.suggested ?? {};
       setListingId(src?.id ?? null);
       setPublished(Boolean(src));
+      props.onCatalogStatusChange?.(Boolean(src));
       setAccessMode(src?.accessMode ?? "INFO_ONLY");
       setShowPreview(src?.showPreview ?? false);
       setMunicipalityCodes([...(src?.municipalityCodes ?? sug.municipalityCodes ?? [])]);
@@ -204,6 +212,7 @@ export function MapSharingPanel(props: MapSharingPanelProps) {
         const result = await clubRequest(catalogPath, "DELETE");
         if (result.status >= 200 && result.status < 300) {
           setListingId(null);
+          props.onCatalogStatusChange?.(false);
           setMessage({ tone: "ok", text: text.unpublished });
           await props.onSaved?.();
         } else {
@@ -231,6 +240,7 @@ export function MapSharingPanel(props: MapSharingPanelProps) {
       if (result.status >= 200 && result.status < 300) {
         const saved = (result.json as { listing?: PublicMapListingDetail } | undefined)?.listing;
         setListingId(saved?.id ?? listingId);
+        props.onCatalogStatusChange?.(true);
         setMessage({ tone: "ok", text: text.published });
         await props.onSaved?.();
       } else {
@@ -249,6 +259,7 @@ export function MapSharingPanel(props: MapSharingPanelProps) {
       if (result.status >= 200 && result.status < 300) {
         setListingId(null);
         setPublished(false);
+        props.onCatalogStatusChange?.(false);
         setMessage({ tone: "ok", text: text.unpublished });
         await props.onSaved?.();
       } else {
@@ -260,16 +271,17 @@ export function MapSharingPanel(props: MapSharingPanelProps) {
   }
 
   const fieldPrefix = props.kind === "club-map" ? `club-map-${props.map.mapId}` : `map-project-${props.projectId}`;
+  const embedded = Boolean(props.hideProtection);
 
   return (
-    <div className={styles.panel} data-testid="map-sharing-panel">
+    <div className={embedded ? styles.embeddedPanel : styles.panel} data-testid="map-sharing-panel">
       {message && (
         <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>
           {message.text}
         </Notice>
       )}
 
-      {props.kind === "club-map" && (
+      {props.kind === "club-map" && !props.hideProtection && (
         <form className={`${styles.section} ${styles.form}`} onSubmit={event => void saveProtection(event)} data-testid="club-map-protection-form">
           <h4>{text.protectionHeading}</h4>
           <Select
@@ -298,7 +310,7 @@ export function MapSharingPanel(props: MapSharingPanelProps) {
       )}
 
       <section className={styles.section} data-testid="public-catalog-form-section">
-        <h4>{text.catalogHeading}</h4>
+        <h4>{props.catalogHeadingOverride ?? text.catalogHeading}</h4>
         <p className={styles.help}>{text.catalogHelp}</p>
 
         {loading && <p className={styles.help} aria-live="polite">{text.loading}</p>}

@@ -7,7 +7,7 @@ import { type ClubFailure, type ClubProof } from "./club-access";
 import { agreementOf } from "./club-maps";
 import { courseSettingRead, loadMapFile, type ReadProof } from "./course-setting";
 import type { MapContentInput, MapQuotaExceeded } from "./map-content";
-import { mapProjectRoleOf, requireMapProject, type MapProjectRow } from "./map-project-access";
+import { mapProjectCanDownloadSource, mapProjectRoleOf, requireMapProject, type MapProjectRow } from "./map-project-access";
 import { applyProjectColors, baseFile, hasProjectColors, ocadWriteEnabled, readBase, savedChanges, type BaseFile } from "./map-project-output";
 import { mapFileFormatOf, saveRaceMapSourceAsAdmin } from "./race-map-source";
 import { sha256Hex, UUID_PATTERN } from "./serialization";
@@ -60,12 +60,13 @@ export function composeMapProjectSnapshot({ project, base, changes }: SnapshotIn
 export type MapProjectCurrentFile = ClubFailure | { status: "refused"; refusals: Refusal[] }
   | { status: "ok"; fileName: string; format: "OCD" | "OMAP"; seq: number; sha256: string; bytes: Uint8Array };
 
-/** Projektets aktuella karta (grundfilen med införda ändringar) för alla som får läsa projektet. Ändrar ingenting. */
+/** Projektets aktuella karta (grundfilen med införda ändringar) för medlemmar med nedladdningsrättighet. Ändrar ingenting. */
 export async function readMapProjectCurrentFile(db: Database, input: ClubProof & { projectId: string }, now = new Date())
   : Promise<MapProjectCurrentFile> {
   const loaded = await db.transaction(async tx => {
     const access = await requireMapProject(tx, input, now, "view", false);
     if (access.status !== "ok") return access;
+    if (!await mapProjectCanDownloadSource(tx, access.accountId, access.role, access.project)) return { status: "forbidden" } as const;
     const inputs = await snapshotInputs(tx, access.project);
     return inputs ? { status: "ready", inputs } as const : { status: "not-found" } as const;
   });
@@ -104,10 +105,18 @@ export async function saveMapProjectSnapshotToRace(db: Database, input: ClubProo
   if (snapshot.sha256 !== input.sha256) return { status: "conflict" };
   const { project, base } = loaded.inputs;
   const { raceId } = input;
+  const sourceDownloadLocked = project.sourceDownloadPolicy === "CUSTODIANS_ONLY"
+    || loaded.clubMap?.sourceDownloadPolicy === "CUSTODIANS_ONLY";
   const link = { projectId: project.id, seq: project.seq, sha256: snapshot.sha256, colorsChangedAt: project.colorsChangedAt, linkedBy: loaded.accountId,
     linkedAt: now };
   const saved = await saveRaceMapSourceAsAdmin(db, { raceId, sessionToken: input.sessionToken, csrfCookie: input.csrfCookie ?? null,
     csrfHeader: input.csrfHeader ?? null, file: snapshot.bytes, fileName: base.fileName, image: input.image, metadata: input.metadata,
+    origin: {
+      clubMapId: loaded.clubMap?.id ?? null,
+      clubMapVersionId: project.baseVersionId ?? null,
+      sourceDownloadLocked,
+      usageScope: loaded.clubMap?.usageScope ?? "ANY"
+    },
     alsoSave: async tx => {
       await tx.insert(schema.raceMapProjectLinks).values({ raceId, ...link }).onConflictDoUpdate({ target: schema.raceMapProjectLinks.raceId, set: link });
       if (loaded.clubMap) {

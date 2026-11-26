@@ -1,6 +1,7 @@
-import { bigint, date, doublePrecision, index, integer, jsonb, pgTable, primaryKey, real, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { bigint, check, date, doublePrecision, index, integer, jsonb, pgTable, primaryKey, real, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { userAccounts } from "./accounts";
-import { clubMapVersions, clubs } from "./clubs";
+import { clubMapVersions, clubs, type SourceDownloadPolicy } from "./clubs";
 import { races } from "./core";
 import { mapContents } from "./map-content";
 import { bytea } from "./types";
@@ -67,8 +68,12 @@ export const mapProjects = pgTable("map_project", {
   /** Vad AI-kopplingen får göra (0116): READ, PROPOSE (förval) eller AUTONOMOUS. */
   aiMode: text("ai_mode").$type<"READ" | "PROPOSE" | "AUTONOMOUS">().notNull().default("PROPOSE"),
   /** När projektet senast användes av någon med behörighet (0119, högst en skrivning i timmen); null = inte sedan kolumnen kom till. */
-  lastOpenedAt: timestamp("last_opened_at", { withTimezone: true })
-});
+  lastOpenedAt: timestamp("last_opened_at", { withTimezone: true }),
+  /** Etapp 2 (migration 0147): nedladdningsspärr för kartprojektets råa källfil och genererade fullkartor. */
+  sourceDownloadPolicy: text("source_download_policy").$type<SourceDownloadPolicy>().notNull().default("ALLOWED")
+}, (table) => [
+  check("map_project_source_download_policy_check", sql`${table.sourceDownloadPolicy} IN ('ALLOWED', 'CUSTODIANS_ONLY')`)
+]);
 
 export const mapProjectMembers = pgTable("map_project_member", {
   projectId: uuid("project_id").notNull().references(() => mapProjects.id),

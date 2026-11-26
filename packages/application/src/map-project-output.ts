@@ -9,7 +9,7 @@ import {
 } from "@o-tid/map-revision";
 import { type ClubFailure, type ClubProof } from "./club-access";
 import { mapStorageQuota, readMapContent, storeMapContent } from "./map-content";
-import { mapProjectBaseFileName, mapProjectCanArchive, mapProjectJournal, requireMapProject, type MapProjectRow } from "./map-project-access";
+import { mapProjectBaseFileName, mapProjectCanArchive, mapProjectCanDownloadSource, mapProjectJournal, requireMapProject, type MapProjectRow } from "./map-project-access";
 import { mapFileFormatOf } from "./race-map-source";
 import type { DbExecutor } from "./snapshot";
 import { swedishToday } from "@o-tid/domain";
@@ -226,6 +226,10 @@ export async function exportMapProjectChanges(db: Database, input: ClubProof & {
   const loaded = await db.transaction(async tx => {
     const access = await requireMapProject(tx, input, now, "view", false);
     if (access.status !== "ok") return access;
+    // Etapp 2: Mapper-export (`.xmap`/`.omap`) blockeras vid nedladdningsspärr för icke-ägare; GeoJSON-ändringar tillåts.
+    if (input.format === "omap" && !await mapProjectCanDownloadSource(tx, access.accountId, access.role, access.project)) {
+      return { status: "forbidden" } as const;
+    }
     if (input.format === "omap" && access.project.baseFormat !== "OMAP") return { status: "invalid-request" } as const;
     const file = await baseFile(tx, access.project);
     if (!file) return { status: "not-found" } as const;
@@ -249,12 +253,13 @@ export async function exportMapProjectChanges(db: Database, input: ClubProof & {
 }
 
 
-/** Ett resultat i projektet (alla medlemmar): innehållets id för strömmen och filnamnet. */
+/** Ett resultat i projektet (medlemmar med nedladdningsrättighet): innehållets id för strömmen och filnamnet. */
 export async function readMapProjectOutput(db: Database, input: ClubProof & { projectId: string; outputId: string }, now = new Date())
   : Promise<ClubFailure | { status: "ok"; fileName: string; byteLength: number; contentId: string; sha256: string }> {
   return db.transaction(async tx => {
     const access = await requireMapProject(tx, input, now, "view", false);
     if (access.status !== "ok") return access;
+    if (!await mapProjectCanDownloadSource(tx, access.accountId, access.role, access.project)) return { status: "forbidden" } as const;
     const outputs = schema.mapProjectOutputs;
     const [output] = await tx.select().from(outputs).where(eq(outputs.id, input.outputId));
     if (!output || output.projectId !== access.project.id) return { status: "not-found" } as const;

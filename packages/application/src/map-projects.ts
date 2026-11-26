@@ -11,8 +11,8 @@ import { clubRoleAtLeast, requireClubArea, type ClubFailure, type ClubProof } fr
 import { openMapProjectJoinLinks } from "./map-project-join";
 import { deliverPrepared, invitationSentTimes, prepareIfMail, replayedOutcome, type InvitationMailer } from "./invitation-links";
 import {
-  addMapProjectMember, mapProjectAllows, mapProjectBaseFileName, mapProjectCanArchive, mapProjectJournal, mapProjectRoleOf, openMapProjectInvitations,
-  requireMapProject, type MapProjectRow
+  addMapProjectMember, mapProjectAllows, mapProjectBaseFileName, mapProjectCanArchive, mapProjectCanDownloadSource,
+  mapProjectEffectiveDownloadPolicy, mapProjectJournal, mapProjectRoleOf, openMapProjectInvitations, requireMapProject, type MapProjectRow
 } from "./map-project-access";
 import { clearAreaAssignee, mapProjectAreaViews } from "./map-project-areas";
 import { openProposalCount } from "./map-project-proposals";
@@ -35,7 +35,7 @@ async function summaries(tx: DbExecutor, rows: readonly MapProjectRow[], roles: 
   const versionIds = [...new Set(rows.flatMap(row => row.baseVersionId ? [row.baseVersionId] : []))];
   const versions = new Map(versionIds.length === 0 ? [] : (await tx.select({ id: schema.clubMapVersions.id, mapId: schema.clubMapVersions.mapId,
     fileName: schema.clubMapVersions.fileName, format: schema.clubMapVersions.format, versionDate: schema.clubMapVersions.versionDate,
-    mapName: schema.clubMaps.name })
+    mapName: schema.clubMaps.name, sourceDownloadPolicy: schema.clubMaps.sourceDownloadPolicy })
     .from(schema.clubMapVersions).innerJoin(schema.clubMaps, eq(schema.clubMaps.id, schema.clubMapVersions.mapId))
     .where(inArray(schema.clubMapVersions.id, versionIds))).map(row => [row.id, row]));
   const clubIds = [...new Set(rows.flatMap(row => row.clubId ? [row.clubId] : []))];
@@ -62,12 +62,15 @@ async function summaries(tx: DbExecutor, rows: readonly MapProjectRow[], roles: 
         versionDate: version.versionDate, sha256: row.baseSha256 }
       : { source: row.baseSource === "NEW" ? "NEW" : "UPLOAD", versionId: null, mapId: null, mapName: row.name, fileName: row.baseFileName ?? "",
         format: row.baseFormat, versionDate: null, sha256: row.baseSha256 };
+    const sourceDownloadLockedByArchive = version?.sourceDownloadPolicy === "CUSTODIANS_ONLY";
+    const effectiveSourceDownloadPolicy = mapProjectEffectiveDownloadPolicy(row, sourceDownloadLockedByArchive);
     return [{ projectId: row.id, name: row.name, status: row.status, role,
       club: row.clubId ? { clubId: row.clubId, name: clubs.get(row.clubId) ?? "" } : null, base,
       createdAt: row.createdAt.toISOString(), closedAt: row.closedAt?.toISOString() ?? null,
       lastActiveAt: new Date(Math.max(row.createdAt.getTime(), row.closedAt?.getTime() ?? 0, row.lastOpenedAt?.getTime() ?? 0)).toISOString(), changedObjects: changed.get(row.id) ?? 0,
       outputs: outputs.filter(output => output.projectId === row.id).map(output => ({ outputId: output.id, versionId: output.versionId,
-        fileName: output.fileName ?? output.versionFileName ?? "", changes: output.changes, createdAt: output.createdAt.toISOString() })) }];
+        fileName: output.fileName ?? output.versionFileName ?? "", changes: output.changes, createdAt: output.createdAt.toISOString() })),
+      sourceDownloadPolicy: row.sourceDownloadPolicy, sourceDownloadLockedByArchive, effectiveSourceDownloadPolicy }];
   });
 }
 
@@ -190,13 +193,18 @@ export async function readMapProject(db: Database, input: ClubProof & { projectI
     const [summary] = await summaries(tx, [project], new Map([[project.id, role]]));
     if (!summary) return { status: "not-found" } as const;
     const canManage = mapProjectAllows(role, project, "manage");
+    const canArchive = canManage && await mapProjectCanArchive(tx, accountId, project);
+    const canDownloadSource = await mapProjectCanDownloadSource(tx, accountId, role, project, summary.sourceDownloadLockedByArchive);
+    const [listing] = await tx.select({ id: schema.publicMapListings.id, accessMode: schema.publicMapListings.accessMode })
+      .from(schema.publicMapListings).where(eq(schema.publicMapListings.mapProjectId, project.id)).limit(1);
     const open = canManage ? await openMapProjectInvitations(tx, project.id) : [];
     const sent = await invitationSentTimes(tx, "MAP_PROJECT", open.map(row => row.id));
     const links = canManage ? await openMapProjectJoinLinks(tx, project.id, now) : [];
     return { status: "ok", view: { ...summary, formatVersion: 1,
       viewer: { accountId, canEdit: mapProjectAllows(role, project, "edit"), canManage, canWriteVersion: canManage,
-        canArchive: canManage && await mapProjectCanArchive(tx, accountId, project), canPropose: mapProjectAllows(role, project, "propose"),
-        canDecide: canManage },
+        canArchive, canPropose: mapProjectAllows(role, project, "propose"),
+        canDecide: canManage, canDownloadSource },
+      publishedInCatalog: listing !== undefined, publicListingId: listing?.id ?? null, publicListingAccessMode: listing?.accessMode ?? null,
       mode: project.mode ?? "SHARED", area: project.area ?? null,
       recon: (project.recon as MapProjectView["recon"] | null) ?? null, leaderboard: project.leaderboard ?? null, colors: project.colors ?? [], symbolColors: project.symbolColors ?? [], textSymbols: project.textSymbols ?? [], normSymbols: project.normSymbols ?? { replace: [], add: [] }, aiMode: project.aiMode, areas: await mapProjectAreaViews(tx, project.id), openProposals: await openProposalCount(tx, project.id),
       storage: await mapProjectStorage(tx, project.id),
@@ -231,7 +239,7 @@ export async function updateMapProject(db: Database, input: ClubProof & { projec
     const access = await requireMapProject(tx, input, now, "manage", true);
     if (access.status !== "ok") return access;
     if (!parsed.success) return { status: "invalid-request" } as const;
-    const { name, status, mode, recon, leaderboard, colors, symbolColors, textSymbols, normSymbols, aiMode } = parsed.data;
+    const { name, status, mode, recon, leaderboard, colors, symbolColors, textSymbols, normSymbols, aiMode, sourceDownloadPolicy } = parsed.data;
     // K8b V6: textsymbolerna skrivs bara i Mapper-filer (OCAD-filen får inte riskeras).
     if (textSymbols?.length && access.project.baseFormat !== "OMAP") return { status: "invalid-request" } as const;
     // Normens symboler skrivs också bara i Mapper-filer.
@@ -247,14 +255,18 @@ export async function updateMapProject(db: Database, input: ClubProof & { projec
       ...(textSymbols !== undefined ? { textSymbols: textSymbols.length ? textSymbols : null } : {}),
       ...(normSymbols !== undefined ? { normSymbols: normed ? { replace: [...new Set(normed.replace)], add: [...new Set(normed.add)] } : null } : {}),
       ...(recolored ? { colorsChangedAt: now } : {}), ...(aiMode ? { aiMode } : {}),
+      ...(sourceDownloadPolicy !== undefined ? { sourceDownloadPolicy } : {}),
       ...(closing === "CLOSED" ? { status: "CLOSED", closedAt: now, closedBy: access.accountId } : {}),
       ...(closing === "OPEN" ? { status: "OPEN", closedAt: null, closedBy: null } : {}) }).where(eq(schema.mapProjects.id, access.project.id));
     await mapProjectJournal(tx, access.project, { action: closing === "CLOSED" ? "MAP_PROJECT_CLOSED" : closing === "OPEN"
       ? "MAP_PROJECT_REOPENED" : name ? "MAP_PROJECT_RENAMED" : mode ? "MAP_PROJECT_MODE_CHANGED" : recon !== undefined ? "MAP_PROJECT_RECON_CHANGED"
-      : textSymbols !== undefined ? "MAP_PROJECT_TEXT_SYMBOLS_CHANGED" : normSymbols !== undefined ? "MAP_PROJECT_NORM_SYMBOLS_CHANGED" : recolored ? "MAP_PROJECT_COLORS_CHANGED" : aiMode ? "MAP_PROJECT_AI_MODE_CHANGED" : "MAP_PROJECT_LEADERBOARD_CHANGED", actorAccountId: access.accountId,
+      : textSymbols !== undefined ? "MAP_PROJECT_TEXT_SYMBOLS_CHANGED" : normSymbols !== undefined ? "MAP_PROJECT_NORM_SYMBOLS_CHANGED"
+      : recolored ? "MAP_PROJECT_COLORS_CHANGED" : aiMode ? "MAP_PROJECT_AI_MODE_CHANGED"
+      : sourceDownloadPolicy !== undefined ? "MAP_PROJECT_DOWNLOAD_POLICY_CHANGED" : "MAP_PROJECT_LEADERBOARD_CHANGED", actorAccountId: access.accountId,
       details: { projectId: access.project.id, ...(mode ? { mode } : {}), ...(colors !== undefined ? { colors: colors.length } : {}),
         ...(symbolColors !== undefined ? { symbolColors: symbolColors.length } : {}), ...(textSymbols !== undefined ? { textSymbols: textSymbols.length } : {}),
-        ...(normed ? { normSymbols: { replace: normed.replace.length, add: normed.add.length } } : {}), ...(aiMode ? { aiMode } : {}) }, now });
+        ...(normed ? { normSymbols: { replace: normed.replace.length, add: normed.add.length } } : {}), ...(aiMode ? { aiMode } : {}),
+        ...(sourceDownloadPolicy !== undefined ? { sourceDownloadPolicy } : {}) }, now });
     return { status: "ok" } as const;
   });
 }
@@ -358,13 +370,14 @@ export async function removeMapProjectMember(db: Database, input: ClubProof & { 
   });
 }
 
-/** Grundfilen (innehållets id för strömmen) för projektets medlemmar. */
+/** Grundfilen (innehållets id för strömmen) för projektets medlemmar med nedladdningsrättighet. */
 export async function readMapProjectSource(db: Database, input: ClubProof & { projectId: string }, now = new Date())
   : Promise<ClubFailure | { status: "ok"; fileName: string; format: "OCD" | "OMAP"; byteLength: number; contentId: string; sha256: string }> {
   return db.transaction(async tx => {
     const access = await requireMapProject(tx, input, now, "view", false);
     if (access.status !== "ok") return access;
     const { project } = access;
+    if (!await mapProjectCanDownloadSource(tx, access.accountId, access.role, project)) return { status: "forbidden" } as const;
     const [content] = await tx.select({ byteLength: schema.mapContents.byteLength, contentId: schema.mapContents.contentId,
       sha256: schema.mapContents.sha256 }).from(schema.mapContents).where(eq(schema.mapContents.sha256, project.baseSha256));
     const fileName = await mapProjectBaseFileName(tx, project);

@@ -30,7 +30,7 @@ import { loadStartDrawSetupAsAdmin, previewStartDrawAsAdmin, commitStartDrawAsAd
   previewRogainingChangeAsAdmin, changeRogainingAsAdmin,
   readRaceMapStateAsAdmin, readRaceMapImageAsAdmin, saveRaceMapAsAdmin, georeferenceRaceMapAsAdmin,
   removeRaceMapAsAdmin, saveParticipantRouteAsAdmin, removeParticipantRouteAsAdmin,
-  saveRaceMapSourceAsAdmin, readRaceMapSourceFileAsAdmin, readRaceMapProjectLink, removeRaceMapSourceAsAdmin, stageMapContent, discardStagedMapContent,
+  saveRaceMapSourceAsAdmin, readRaceMapSourceFileAsAdmin, readRaceMapProjectLink, removeRaceMapSourceAsAdmin, updateRaceMapSourceLockAsAdmin, stageMapContent, discardStagedMapContent,
   readRouteChoiceAsAdmin, saveRouteChoiceSettingsAsAdmin, publishRouteChoiceAsAdmin, readRouteChoiceCalibrationAsAdmin,
   readCourseSettingAsAdmin, saveCourseSettingAsAdmin, importCourseSettingAsAdmin, listCourseSettingRevisionsAsAdmin,
   requireCourseSettingAccess, saveCourseSettingEditsAsAdmin, setCourseSettingModeAsAdmin, listCourseSettingNotesAsAdmin,
@@ -117,8 +117,9 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   changes: listAdministratorEntryChanges,
   raceMapState: readRaceMapStateAsAdmin, raceMapImage: readRaceMapImageAsAdmin, raceMapSave: saveRaceMapAsAdmin,
   raceMapGeoreference: georeferenceRaceMapAsAdmin, raceMapRemove: removeRaceMapAsAdmin,
-  // Steg 59: kartfilen (OCAD eller Mapper).
+  // Steg 59: kartfilen (OCAD eller Mapper) samt Etapp 2 nedladdningsspärr.
   raceMapSourceSave: saveRaceMapSourceAsAdmin, raceMapSourceFile: readRaceMapSourceFileAsAdmin, raceMapSourceRemove: removeRaceMapSourceAsAdmin,
+  raceMapSourceUpdateLock: updateRaceMapSourceLockAsAdmin,
   // Ägarens plan 2026-11-13: kartprojektet som banläggningens karta kommer ur.
   raceMapProjectLink: readRaceMapProjectLink,
   // ADR-0189 beslut 2: kartfilen och bilden strömmas till databasen innan de sparas.

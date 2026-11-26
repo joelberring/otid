@@ -79,11 +79,17 @@ export const mapBankSv = {
     clubActivitiesOnly: "Endast klubbaktiviteter",
     adminOnly: "Endast klubbadmin",
     publicCatalog: "Publik kartbank",
-    downloadLockedNote: "Källfilen (.ocd/.omap) är nedladdningsspärrad – endast kartansvariga/klubbadmin kan ladda ned den."
+    publishedInCatalog: "Publicerad i Kartbanken",
+    notPublishedInCatalog: "Ej publicerad",
+    downloadLockedNote: "Källfilen (.ocd/.omap) är nedladdningsspärrad – endast kartansvariga/klubbadmin kan ladda ned den, men kartan kan fortfarande användas i O-Tid."
   },
   sharing: {
-    clubPanelTitle: "Delning & skydd",
-    projectPanelTitle: "Dela i publika kartbanken",
+    clubPanelTitle: "Rättigheter, skydd & delning",
+    projectPanelTitle: "Delning & skydd",
+    whoCanUseHeading: "1. Vem får ladda ner & använda kartfilen",
+    ownerAndAgreementHeading: "2. Ägare & avtal",
+    catalogBlockHeading: "3. Publik kartbank (/kartbank)",
+    closePanel: "Stäng",
     loading: "Hämtar delningsinställningar …",
     loadError: "Kunde inte läsa delningsinställningar.",
     saved: "Inställningarna sparades.",
@@ -127,6 +133,29 @@ export const mapBankSv = {
     saveCatalog: "Spara i publika kartbanken",
     unpublishButton: "Avpublicera från kartbanken",
     viewInCatalog: "Öppna i kartbanken"
+  },
+  projectProtection: {
+    heading: "Nedladdningsspärr för kartfilen",
+    help: "Spärren blockerar nedladdning av rå .ocd/.omap och direkt vektorredigering för icke-ägare. Kopplade tävlingar kan fortfarande lägga banor på kartan (via serverrenderad bild utan källfil), och medlemmar ser projektöversikt, ändringshistorik, GeoJSON och PDF.",
+    policyAllowed: "Tillåt nedladdning av kartfil (.ocd/.omap) för projektets medlemmar",
+    policyLocked: "Spärra nedladdning – endast projektägare och klubbadmin",
+    inheritedFromArchive: "Nedladdningsspärren är ärvd från grundkartan i klubbarkivet och kan bara ändras i klubbarkivet.",
+    lockedForMember: "Kartfilen (.ocd/.omap) är nedladdningsspärrad av projektägaren eller klubben. Nedladdning av källfil, fullkartor och direkt vektorredigering är låsta för icke-ägare, men du ser projektöversikt, statistik, GeoJSON-export och kan använda kopplade kartor i tävlingars banläggning.",
+    exportMapperLocked: "Full Mapper-export är spärrad eftersom kartfilen är nedladdningsspärrad. GeoJSON-export av ändringarna fungerar ändå.",
+    readOnlyAllowed: "Nedladdning av källfilen är tillåten för projektets medlemmar.",
+    readOnlyLocked: "Nedladdning av källfilen är spärrad – endast projektägare och klubbadmin kan ladda ner kartfilen och öppna vektorredigeraren."
+  },
+  raceMapLock: {
+    heading: "Nedladdningsspärr för tävlingskarta",
+    uploadCheckbox: "Spärra nedladdning av kartfil (.ocd/.omap) för övriga",
+    uploadHelp: "Banläggning och tryck-PDF fungerar som vanligt utan att rå kartfil lämnas ut.",
+    statusAllowed: "Nedladdning tillåten",
+    toggleLabel: "Spärra nedladdning av kartfil (.ocd/.omap) för övriga",
+    inheritedFromOrigin: "Spärren är ärvd från klubbarkivet, kartprojektet eller publika kartbanken och kan inte låsas upp i tävlingen.",
+    saved: "Nedladdningsspärren är uppdaterad.",
+    saveError: "Nedladdningsspärren kunde inte uppdateras.",
+    readOnlyLocked: "Källfilen (.ocd/.omap) är nedladdningsspärrad – banläggning och tryck-PDF fungerar via serverrenderad karta.",
+    readOnlyAllowed: "Källfilen (.ocd/.omap) är inte nedladdningsspärrad."
   },
   navLink: "Kartbank",
   navLinkFull: "Publik kartbank"

@@ -5,7 +5,7 @@ import { trainingLevelsSchema, trainingMomentsSchema, type TrainingLevel, type T
 import type { ClubEntryThumbnailSource, ClubEntryThumbnailView, ClubMapCheckView } from "./club-archive-checks";
 import type { ClubMapMergeView } from "./club-map-duplicates";
 import { mapAgreementSchema, type MapAgreement } from "./training-group";
-import { mapUsageScopeSchema, sourceDownloadPolicySchema, type MapUsageScope, type SourceDownloadPolicy } from "./public-map-catalog";
+import { mapUsageScopeSchema, sourceDownloadPolicySchema, type MapUsageScope, type PublicMapAccessMode, type SourceDownloadPolicy } from "./public-map-catalog";
 
 /**
  * ADR-0194: klubben och klubbarkivet. Skrivningar som skapar en rad är idempotenta på `requestId`; importens anrop är
@@ -209,6 +209,10 @@ export interface ClubMapView extends MapAgreement {
   /** Etapp 3.1: nedladdningsspärr och tillåtet användningsområde. */
   sourceDownloadPolicy?: SourceDownloadPolicy;
   usageScope?: MapUsageScope;
+  /** Etapp 2: status i den publika kartbanken (`public_map_listing`), utan extra `/catalog`-anrop. */
+  publishedInCatalog?: boolean;
+  publicListingId?: string | null;
+  publicListingAccessMode?: PublicMapAccessMode | null;
 }
 
 /** ADR-0209 beslut C: vad den inloggade får se och använda ("Vem ser vad"; ägare och administratörer alltid allt). */

@@ -21,7 +21,8 @@ import { mapProjectSteps } from "../../lib/map-project-next-steps";
 import { InvitationActions, invitationSentText } from "../invitation-actions";
 import { mapBankEn } from "../../i18n/map-bank-en";
 import { mapBankSv } from "../../i18n/map-bank-sv";
-import { MapSharingPanel } from "../map-bank/map-sharing-panel";
+import type { CatalogStatusResponse } from "../map-bank/map-sharing-panel";
+import { MapProjectPolicyBadges, MapProjectSharingSection } from "./map-project-sharing-section";
 import { Button, Field, Notice, Select } from "../ui";
 import styles from "./map-project.module.css";
 
@@ -34,17 +35,27 @@ const day = (iso: string) => iso.slice(0, 10);
  * och "Skapa ny kartversion" (i projektet, och i klubbens kartbank när projektet hör till en klubb). Att rita kommer i K1.
  * Behörigheten avgörs av API:et (404 för den som inte är med).
  */
-export function MapProjectPage({ projectId }: { projectId: string }) {
+export function MapProjectPage({
+  projectId,
+  initialView,
+  initialCatalog
+}: {
+  projectId: string;
+  initialView?: MapProjectView | undefined;
+  initialCatalog?: CatalogStatusResponse | undefined;
+}) {
   const failure = useMapProjectFailure();
   const text = useTexts(mapProjectSv, mapProjectEn);
   const mapProjectEditorText = useTexts(mapProjectEditorSv, mapProjectEditorEn);
+  const mapBankText = useTexts(mapBankSv, mapBankEn);
   const locale = useLocale();
-  const [view, setView] = useState<MapProjectView>();
-  const [state, setState] = useState<"loading" | "ok" | "missing">("loading");
+  const [view, setView] = useState<MapProjectView | undefined>(initialView);
+  const [state, setState] = useState<"loading" | "ok" | "missing">(initialView ? "ok" : "loading");
   const [problem, setProblem] = useState("");
   const [message, setMessage] = useState<Message>();
   const [busy, setBusy] = useState(false);
   const [archive, setArchive] = useState(true);
+  const [catalogPublished, setCatalogPublished] = useState<boolean>();
   const base = mapProjectBase(projectId);
 
   async function load() {
@@ -52,7 +63,7 @@ export function MapProjectPage({ projectId }: { projectId: string }) {
     if (result.status === 200) { setView(result.json as MapProjectView); setState("ok"); return; }
     setState("missing"); setProblem(failure(result.status));
   }
-  useEffect(() => { void load(); }, [projectId]);
+  useEffect(() => { if (!initialView) void load(); }, [projectId, initialView]);
 
   async function run(action: () => Promise<{ status: number; json: unknown }>, ok: string, conflict?: string) {
     setBusy(true); setMessage(undefined);
@@ -87,14 +98,16 @@ export function MapProjectPage({ projectId }: { projectId: string }) {
 
   const project = view;
   const manage = project.viewer.canManage;
+  const canDownloadSource = project.viewer.canDownloadSource;
   const mailEnabled = project.mailEnabled ?? false;
   const showNextSteps = project.status === "OPEN" && (project.viewer.canEdit || project.viewer.canPropose);
-  const openInNextSteps = showNextSteps && ["base", "draw"].includes(mapProjectSteps(project).next);
+  const openInNextSteps = showNextSteps && canDownloadSource && ["base", "draw"].includes(mapProjectSteps(project).next);
   return <main className={styles.page}>
     <header className={styles.header}>
       <div>
         <p className={styles.kicker}><Link href="/organizer/map-projects">{text.list.title}</Link> · {project.club?.name ?? text.page.ownProject}</p>
         <h1>{project.name}</h1>
+        <MapProjectPolicyBadges project={project} publishedInCatalog={catalogPublished} />
       </div>
       <AccountMenu />
     </header>
@@ -116,13 +129,19 @@ export function MapProjectPage({ projectId }: { projectId: string }) {
             byteSize(project.storage.totalBytes, locale))}</dd>
         </dl>
         {/* K7 (översynen av första kartan): en «Öppna kartan»; när Nästa steg visar den står den bara där. */}
-        {!openInNextSteps && <><div className={styles.actions}><Link className={styles.buttonLink} href={`/organizer/map-projects/${encodeURIComponent(projectId)}/map`}
+        {canDownloadSource && !openInNextSteps && <><div className={styles.actions}><Link className={styles.buttonLink} href={`/organizer/map-projects/${encodeURIComponent(projectId)}/map`}
           data-testid="map-project-open-map">{mapProjectEditorText.openMap}</Link></div>
         <p className={styles.muted}>{mapProjectEditorText.openMapHelp}</p></>}
         {project.base.format === "OCD" && <p className={styles.muted}>{text.page.ocadLater}</p>}
-        <div className={styles.actions}>
-          <a className={styles.buttonLink} href={`${base}/source`} download>{text.page.download}</a>
-        </div>
+        {canDownloadSource ? (
+          <div className={styles.actions}>
+            <a className={styles.buttonLink} href={`${base}/source`} download>{text.page.download}</a>
+          </div>
+        ) : (
+          <Notice tone="attention" role="status">
+            <span data-testid="map-project-source-locked-notice">{mapBankText.projectProtection.lockedForMember}</span>
+          </Notice>
+        )}
       </section>
 
       <section aria-labelledby="map-project-version" id="exportera">
@@ -141,22 +160,37 @@ export function MapProjectPage({ projectId }: { projectId: string }) {
         <h3>{text.page.exportChanges}</h3>
         <p className={styles.muted}>{text.page.exportHelp}</p>
         <div className={styles.actions}>
-          {project.base.format === "OMAP" && <a className={styles.buttonLink} href={`${base}/export?format=omap`} download>{text.page.exportMapper}</a>}
+          {project.base.format === "OMAP" && canDownloadSource && <a className={styles.buttonLink} href={`${base}/export?format=omap`} download>{text.page.exportMapper}</a>}
           <a className={styles.buttonLink} href={`${base}/export?format=geojson`} download>{text.page.exportGeojson}</a>
         </div>
+        {project.base.format === "OMAP" && !canDownloadSource && (
+          <p className={styles.muted} data-testid="map-project-export-locked-note">{mapBankText.projectProtection.exportMapperLocked}</p>
+        )}
         <h3>{text.page.outputs}</h3>
         {project.outputs.length === 0 ? <p className={styles.muted}>{text.page.noOutputs}</p>
           : <ul className={styles.list} data-testid="map-project-outputs">{project.outputs.map(output => <li key={output.outputId}>
             <div><span>{text.page.outputLine(output.fileName, output.changes, day(output.createdAt))}{output.versionId ? ` · ${text.page.inArchive}` : ""}</span></div>
-            <div className={styles.actions}><a className={styles.buttonLink} href={`${base}/outputs/${encodeURIComponent(output.outputId)}`} download
-              aria-label={text.page.downloadOutput(output.fileName)}>{text.page.downloadShort}</a></div></li>)}</ul>}
+            <div className={styles.actions}>
+              {canDownloadSource
+                ? <a className={styles.buttonLink} href={`${base}/outputs/${encodeURIComponent(output.outputId)}`} download
+                  aria-label={text.page.downloadOutput(output.fileName)}>{text.page.downloadShort}</a>
+                : <span className={styles.muted} data-testid="map-project-output-locked">{mapBankText.badges.downloadLocked}</span>}
+            </div></li>)}</ul>}
       </section>
+
+      <MapProjectSharingSection
+        project={project}
+        base={base}
+        busy={busy}
+        run={run}
+        onSaved={load}
+        onCatalogStatusChange={setCatalogPublished}
+        initialCatalog={initialCatalog}
+      />
 
       <MembersSection view={project} base={base} busy={busy} mailEnabled={mailEnabled} run={run} onChanged={load} onMessage={setMessage} />
 
       <ProjectStatsSection base={base} canDecide={project.viewer.canDecide} />
-
-      {manage && <ProjectSharingSection projectId={projectId} projectName={project.name} />}
 
       {manage && <ProjectSettings view={project} base={base} busy={busy} run={run} />}
 
@@ -239,17 +273,6 @@ function MembersSection({ view, base, busy, mailEnabled, run, onChanged, onMessa
     </form>}
     {manage && <ClubMemberPicker base={base} busy={busy} onChanged={onChanged} onMessage={onMessage} />}
     {manage && <JoinLinks base={base} links={view.joinLinks} busy={busy} onChanged={onChanged} onMessage={onMessage} />}
-  </section>;
-}
-
-function ProjectSharingSection({ projectId, projectName }: { projectId: string; projectName: string }) {
-  const text = useTexts(mapBankSv.sharing, mapBankEn.sharing);
-  const [open, setOpen] = useState(false);
-  return <section aria-labelledby="map-project-sharing">
-    <details onToggle={event => setOpen(event.currentTarget.open)}>
-      <summary id="map-project-sharing">{text.projectPanelTitle}</summary>
-      {open && <MapSharingPanel kind="map-project" projectId={projectId} projectName={projectName} />}
-    </details>
   </section>;
 }
 

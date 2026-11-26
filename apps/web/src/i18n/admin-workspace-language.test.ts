@@ -70,6 +70,8 @@ const adminFiles = [
   "access-sv.ts",
   // ADR-0227 tillägg 2026-11-18: tävlingsraden i telefonbredd (växeln i arbetsytan).
   "race-tabs-sv.ts",
+  // Etapp 2: nedladdningsspärr & delning för kartor i tävlingens kartinställningar.
+  "map-bank-sv.ts",
   // Den gemensamma plural(): "1 bana", "3 banor".
   "plural.ts"
 ];

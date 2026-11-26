@@ -1,5 +1,5 @@
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
-import type { MapProjectRole } from "@o-tid/contracts";
+import type { MapProjectRole, SourceDownloadPolicy } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { clubJournal, clubMembership, clubRoleAtLeast, type ClubFailure, type ClubProof } from "./club-access";
 import { UUID_PATTERN } from "./serialization";
@@ -86,6 +86,44 @@ export async function mapProjectCanArchive(tx: DbExecutor, accountId: string, pr
   if (!project.clubId) return false;
   const club = await clubMembership(tx, { accountId, clubId: project.clubId }, "none");
   return !!club && clubRoleAtLeast(club.role, "ADMIN");
+}
+
+/** Etapp 2: sant när projektets grundkarta i klubbarkivet har nedladdningsspärr (`CUSTODIANS_ONLY`). */
+export async function mapProjectArchiveLocked(tx: DbExecutor, project: Pick<MapProjectRow, "baseVersionId">): Promise<boolean> {
+  if (!project.baseVersionId) return false;
+  const [row] = await tx.select({ policy: schema.clubMaps.sourceDownloadPolicy })
+    .from(schema.clubMapVersions)
+    .innerJoin(schema.clubMaps, eq(schema.clubMaps.id, schema.clubMapVersions.mapId))
+    .where(eq(schema.clubMapVersions.id, project.baseVersionId));
+  return row?.policy === "CUSTODIANS_ONLY";
+}
+
+/** Etapp 2: effektiv nedladdningspolicy för ett kartprojekt (egen policy kombinerad med ev. klubbarkivspärr). */
+export function mapProjectEffectiveDownloadPolicy(
+  project: Pick<MapProjectRow, "sourceDownloadPolicy">,
+  archiveLocked: boolean
+): SourceDownloadPolicy {
+  return archiveLocked || project.sourceDownloadPolicy === "CUSTODIANS_ONLY" ? "CUSTODIANS_ONLY" : "ALLOWED";
+}
+
+/**
+ * Etapp 2: får kontot ladda ner projektets råa källfil (`/source`), resultatfiler (`/outputs/:id`), aktuell fil
+ * (`/current-file`) eller Mapper-export (`/export?format=omap`)?
+ * - Spärrad grundkarta i klubbarkivet: endast klubbens administratörer/ägare.
+ * - Projektets egen policy `CUSTODIANS_ONLY`: endast projektets ägare (inkl. klubbens administratörer/ägare).
+ * - Annars (`ALLOWED`): alla medlemmar i projektet.
+ */
+export async function mapProjectCanDownloadSource(
+  tx: DbExecutor,
+  accountId: string,
+  role: MapProjectRole,
+  project: Pick<MapProjectRow, "clubId" | "baseVersionId" | "sourceDownloadPolicy">,
+  archiveLocked?: boolean
+): Promise<boolean> {
+  const lockedByArchive = archiveLocked ?? await mapProjectArchiveLocked(tx, project);
+  if (lockedByArchive) return mapProjectCanArchive(tx, accountId, project);
+  if (project.sourceDownloadPolicy === "CUSTODIANS_ONLY") return role === "OWNER";
+  return true;
 }
 
 /** Vad rollen får i projektet (Föreslå och Ändra bara när projektet är öppet). */

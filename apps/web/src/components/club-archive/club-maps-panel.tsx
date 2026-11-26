@@ -16,11 +16,9 @@ import { clubArchiveChecksSv } from "../../i18n/club-archive-checks-sv";
 import { clubMapDuplicatesSv } from "../../i18n/club-map-duplicates-sv";
 import { mapBankEn } from "../../i18n/map-bank-en";
 import { mapBankSv } from "../../i18n/map-bank-sv";
-import { MapSharingPanel } from "../map-bank/map-sharing-panel";
-import sharingStyles from "../map-bank/map-sharing-panel.module.css";
 import { MapCheckChip, MapThumbnail } from "./map-check";
 import { defaultKeep, DuplicatesCard, MergeChooser } from "./map-duplicates";
-import { MapRightsEditor } from "./map-rights-editor";
+import { ClubMapPolicyBadges, MapRightsEditor } from "./map-rights-editor";
 import { MapMakerToVersions, MergeHistory, VersionDetails } from "./map-versions";
 import duplicates from "./map-duplicates.module.css";
 import type { useArchiveChecks } from "./use-archive-checks";
@@ -89,7 +87,7 @@ function MapCard({ clubId, map, maps, admin, mapBank, groups, selected, onSelect
   const [description, setDescription] = useState(map.description ?? "");
   const [maker, setMaker] = useState(map.maker ?? "");
   const [busy, setBusy] = useState("");
-  const [sharingOpen, setSharingOpen] = useState(false);
+  const [catalogPublished, setCatalogPublished] = useState<boolean>();
   const [pendingMoveNew, setPendingMoveNew] = useState<string>();
   const others = maps.filter(other => other.mapId !== map.mapId);
   const downloadLocked = map.sourceDownloadPolicy === "CUSTODIANS_ONLY";
@@ -126,17 +124,14 @@ function MapCard({ clubId, map, maps, admin, mapBank, groups, selected, onSelect
         <p className={styles.small} data-testid="map-summary">{clubMapDuplicatesText.versions.summary(map.versions.length, map.years)} · {text.trainings(map.trainings)}</p>
         {map.description && <p className={styles.small}>{map.description}</p>}
         {map.maker && <p className={styles.small}>{clubMapDuplicatesText.versions.makerLabel(map.maker)}</p>}
-        {(downloadLocked || map.usageScope === "CLUB_ACTIVITIES_ONLY" || map.usageScope === "ADMIN_ONLY") && (
-          <div className={sharingStyles.policyBadges} data-testid="club-map-policy-badges">
-            {downloadLocked && <span className={sharingStyles.policyBadge} data-tone="locked">{mapBankText.badges.downloadLocked}</span>}
-            {map.usageScope === "CLUB_ACTIVITIES_ONLY" && <span className={sharingStyles.policyBadge}>{mapBankText.badges.clubActivitiesOnly}</span>}
-            {map.usageScope === "ADMIN_ONLY" && <span className={sharingStyles.policyBadge} data-tone="locked">{mapBankText.badges.adminOnly}</span>}
-          </div>
+        <ClubMapPolicyBadges map={map} publishedInCatalog={catalogPublished} />
+        {!admin && downloadLocked && (
+          <p className={styles.small} data-testid="club-map-download-locked-note">{mapBankText.badges.downloadLockedNote}</p>
         )}
         {admin && <label className={duplicates.select}><input type="checkbox" checked={selected} onChange={event => onSelect(event.target.checked)} />
           {clubMapDuplicatesText.duplicates.selection.select(map.name)}</label>}
         <MapAgreementSummary agreement={agreementOf(map)} />
-        {admin && <MapRightsEditor clubId={clubId} map={map} onSaved={onChanged} />}
+        {admin && <MapRightsEditor clubId={clubId} map={map} onSaved={onChanged} onCatalogStatusChange={setCatalogPublished} />}
       </div>
     </div>
     <ul className={styles.versions}>
@@ -189,13 +184,6 @@ function MapCard({ clubId, map, maps, admin, mapBank, groups, selected, onSelect
           <Button type="submit" disabled={busy !== "" || !name.trim()}>{clubArchiveText.entry.save}</Button>
         </form>
         <MapMakerToVersions clubId={clubId} map={map} onChanged={onChanged} onMessage={onMessage} />
-      </details>
-      <details
-        className={styles.details}
-        onToggle={event => setSharingOpen(event.currentTarget.open)}
-      >
-        <summary>{mapBankText.sharing.clubPanelTitle}</summary>
-        {sharingOpen && <MapSharingPanel kind="club-map" clubId={clubId} map={map} onSaved={onChanged} />}
       </details>
     </>}
     <MergeHistory clubId={clubId} map={map} admin={admin} onChanged={onChanged} onMessage={onMessage} />

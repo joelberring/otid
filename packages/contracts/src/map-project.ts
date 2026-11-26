@@ -3,6 +3,7 @@ import { accountEmailSchema } from "./account";
 import { uuidSchema } from "./ids";
 import type { MapProjectJoinLinkView } from "./map-project-join";
 import { mapProjectLeaderboardSchema, mapProjectReconSettingsSchema, type MapProjectReconSettings } from "./map-project-recon";
+import { sourceDownloadPolicySchema, type PublicMapAccessMode, type SourceDownloadPolicy } from "./public-map-catalog";
 
 /**
  * ADR-0219: kartprojekten. Skrivningar som skapar en rad är idempotenta på `requestId`. Synkens ändringar valideras i
@@ -128,10 +129,12 @@ export const mapProjectUpdateRequestSchema = z.object({
   /** Symbolerna rättade efter normen (bara Mapper-kartor). */
   normSymbols: mapProjectNormSymbolsSchema.optional(),
   /** AI-kopplingens läge i projektet. */
-  aiMode: mapProjectAiModeSchema.optional()
+  aiMode: mapProjectAiModeSchema.optional(),
+  /** Etapp 2: nedladdningsspärr för kartprojektets råa källfil och genererade fullkartor (endast projektägare/klubbadmin). */
+  sourceDownloadPolicy: sourceDownloadPolicySchema.optional()
 }).strict().refine(value => value.name !== undefined || value.status !== undefined || value.mode !== undefined || value.recon !== undefined
   || value.leaderboard !== undefined || value.colors !== undefined || value.symbolColors !== undefined || value.textSymbols !== undefined
-  || value.normSymbols !== undefined || value.aiMode !== undefined);
+  || value.normSymbols !== undefined || value.aiMode !== undefined || value.sourceDownloadPolicy !== undefined);
 
 export const mapProjectInviteRequestSchema = z.object({
   formatVersion: z.literal(1), requestId: uuidSchema, email: accountEmailSchema, role: mapProjectRoleSchema
@@ -271,6 +274,12 @@ export interface MapProjectSummary {
   /** Objekt som inte är som i grundfilen (nya som tagits bort igen räknas inte). */
   changedObjects: number;
   outputs: MapProjectOutputView[];
+  /** Etapp 2: projektets egen nedladdningspolicy för rå källfil och fullkartor. */
+  sourceDownloadPolicy: SourceDownloadPolicy;
+  /** Etapp 2: sant när grundkartan i klubbarkivet har nedladdningsspärr (`CUSTODIANS_ONLY`). */
+  sourceDownloadLockedByArchive: boolean;
+  /** Etapp 2: effektiv nedladdningspolicy (`CUSTODIANS_ONLY` om projektet eller klubbarkivet är spärrat). */
+  effectiveSourceDownloadPolicy: SourceDownloadPolicy;
 }
 
 export interface MapProjectMemberView { accountId: string; name: string; role: MapProjectRole; lastSeenAt: string | null; edits: number }
@@ -280,13 +289,20 @@ export interface MapProjectView extends MapProjectSummary {
   formatVersion: 1;
   /**
    * `canWriteVersion` = får skapa en ny version i projektet (ägarna); `canArchive` = får också lägga den i klubbarkivet
-   * (projektet hör till en klubb och kontot är administratör där).
+   * (projektet hör till en klubb och kontot är administratör där); `canDownloadSource` = får ladda ner rå källfil (`/source`),
+   * resultatfiler (`/outputs/:id`) och Mapper-export (`/export?format=omap`).
    */
   viewer: { accountId: string; canEdit: boolean; canManage: boolean; canWriteVersion: boolean; canArchive: boolean;
     /** Får rita förslag (Föreslå eller mer, projektet öppet). */
     canPropose: boolean;
     /** Får godkänna och avvisa förslag, byta arbetssätt och hantera delområden (ägarna). */
-    canDecide: boolean };
+    canDecide: boolean;
+    /** Etapp 2: får ladda ner rå källfil och fullkartor. */
+    canDownloadSource: boolean };
+  /** Etapp 2: status i den publika kartbanken (`public_map_listing`), utan extra `/catalog`-anrop. */
+  publishedInCatalog?: boolean;
+  publicListingId?: string | null;
+  publicListingAccessMode?: PublicMapAccessMode | null;
   /** Arbetssättet (K1). */
   mode: MapProjectMode;
   /** Kartans område för en ny karta (kartans mm, y uppåt, första ringen ytterkant); null för en befintlig karta. */

@@ -12,9 +12,11 @@ import { levelsFromCourseNames } from "../../lib/club-archive-filter";
 import { MomentBadges, MomentPicker, tagsFromText } from "../training-moments/moment-picker";
 import { Button, DateInput, Field, Notice } from "../ui";
 import { MapAgreementSummary } from "../training-group/map-agreement";
+import { mapBankEn } from "../../i18n/map-bank-en";
+import { mapBankSv } from "../../i18n/map-bank-sv";
 import { CoursePreview, useRenderedVersion } from "./course-preview";
 import { MapCheckChip } from "./map-check";
-import { MapRightsEditor } from "./map-rights-editor";
+import { ClubMapPolicyBadges, MapRightsEditor } from "./map-rights-editor";
 import { ReuseDialog } from "./reuse-dialog";
 import { usePpen } from "./use-ppen";
 import { HelpButton } from "../help/help-panel";
@@ -75,11 +77,12 @@ const agreementOf = (map: ClubArchiveEntryView["maps"][number]): MapAgreement =>
  * gjordes med, banfilerna med deras karta, kartans rättigheter, originalen och "Använd igen". Administratörer ändrar
  * rubrik, datum, ledare, taggar och anteckning och väljer karta för hand.
  */
-export function ArchiveEntryPage({ clubId, entryId }: { clubId: string; entryId: string }) {
+export function ArchiveEntryPage({ clubId, entryId, initialView }: { clubId: string; entryId: string; initialView?: ClubArchiveEntryView | undefined }) {
   const failure = useClubFailure();
   const clubArchiveText = useTexts(clubArchiveSv, clubArchiveEn);
   const text = useTexts(clubArchiveSv.entry, clubArchiveEn.entry);
-  const [view, setView] = useState<ClubArchiveEntryView>();
+  const mapBankText = useTexts(mapBankSv, mapBankEn);
+  const [view, setView] = useState<ClubArchiveEntryView | undefined>(initialView);
   const [failed, setFailed] = useState(false);
   const [editing, setEditing] = useState(false);
   const [message, setMessage] = useState<Message>();
@@ -92,7 +95,7 @@ export function ArchiveEntryPage({ clubId, entryId }: { clubId: string; entryId:
     if (result.status !== 200) { setFailed(true); return; }
     setView(result.json as ClubArchiveEntryView);
   }, [clubId, entryId]);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { if (!initialView) void load(); }, [initialView, load]);
 
   const file = view?.courseFiles.find(candidate => candidate.courseFileId === fileId) ?? view?.courseFiles.find(candidate => candidate.mapVersion)
     ?? view?.courseFiles[0];
@@ -204,19 +207,34 @@ export function ArchiveEntryPage({ clubId, entryId }: { clubId: string; entryId:
           </div>
         </div>)}
         <h2 className={styles.nextHeading}>{text.rights}</h2>
-        {view.maps.map(map => <div key={map.mapId}>
-          <MapAgreementSummary agreement={agreementOf(map)} title={map.name} />
-          {admin && <MapRightsEditor clubId={clubId} map={map} onSaved={load} />}
-          <ul className={styles.versionList} aria-label={`${text.mapVersion}: ${map.name}`}>{map.versions.map(version => <li key={version.versionId}>
-            <span className={styles.versionDate}>{version.versionDate ?? "–"}</span>
-            <span className={styles.versionFile}>
-              {mapBank ? <a href={`${clubBase(clubId)}/map-versions/${version.versionId}`} download>{version.fileName}</a> : <span>{version.fileName}</span>}
-              {usedVersionIds.has(version.versionId) && <span className={styles.small}>{text.usedHere}</span>}
-              <MapCheckChip check={version.check} />
-            </span>
-            {version.versionId === map.latestVersionId ? <span className={styles.latest}>{clubArchiveText.maps.latest}</span> : <span />}
-          </li>)}</ul>
-        </div>)}
+        {view.maps.map(map => {
+          const downloadLocked = map.sourceDownloadPolicy === "CUSTODIANS_ONLY";
+          const canDownloadSource = mapBank && (!downloadLocked || admin);
+          return <div key={map.mapId} data-testid="archive-map-rights">
+            <MapAgreementSummary agreement={agreementOf(map)} title={map.name} />
+            <ClubMapPolicyBadges map={map} />
+            {downloadLocked && !admin && (
+              <Notice tone="attention" role="status">
+                <span data-testid="archive-map-download-locked-notice">{mapBankText.badges.downloadLockedNote}</span>
+              </Notice>
+            )}
+            {admin && <MapRightsEditor clubId={clubId} map={map} onSaved={load} />}
+            <ul className={styles.versionList} aria-label={`${text.mapVersion}: ${map.name}`}>{map.versions.map(version => <li key={version.versionId}>
+              <span className={styles.versionDate}>{version.versionDate ?? "–"}</span>
+              <span className={styles.versionFile}>
+                {canDownloadSource
+                  ? <a href={`${clubBase(clubId)}/map-versions/${version.versionId}`} download>{version.fileName}</a>
+                  : <span>{version.fileName}</span>}
+                {mapBank && downloadLocked && !admin && (
+                  <span className={styles.small} data-testid="archive-map-version-download-locked">{mapBankText.badges.downloadLocked}</span>
+                )}
+                {usedVersionIds.has(version.versionId) && <span className={styles.small}>{text.usedHere}</span>}
+                <MapCheckChip check={version.check} />
+              </span>
+              {version.versionId === map.latestVersionId ? <span className={styles.latest}>{clubArchiveText.maps.latest}</span> : <span />}
+            </li>)}</ul>
+          </div>;
+        })}
         {admin && <p><Button variant="quiet" onClick={() => void remove()}>{text.remove}</Button></p>}
       </section>
     </div>

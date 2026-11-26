@@ -9,6 +9,17 @@
   background: var(--canvas);
 }
 
+.embeddedPanel {
+  display: grid;
+  gap: 10px;
+}
+
+.panelHeading {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
 .section {
   display: grid;
   gap: 10px;
@@ -201,4 +212,10 @@
   border-color: var(--ok);
   color: var(--ok);
   background: rgb(30 122 68 / 8%);
+}
+
+.policyBadge[data-tone="muted"] {
+  border-color: var(--line);
+  color: var(--muted);
+  background: var(--canvas);
 }

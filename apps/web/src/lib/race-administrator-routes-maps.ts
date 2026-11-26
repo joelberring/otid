@@ -1,7 +1,7 @@
 import {
   adminRaceMapStateSchema, controlMapResponseSchema, runnerControlMapSchema, PARTICIPANT_ROUTE_CONTENT_TYPE, PARTICIPANT_ROUTE_MAX_BYTES, participantRouteUploadResponseSchema, RACE_MAP_MAX_BYTES,
   RACE_MAP_MEDIA_TYPES, raceMapProjectLinkStateSchema, RACE_MAP_SOURCE_MAX_BYTES, RACE_MAP_SOURCE_PARTS, RACE_MAP_SOURCE_UPLOAD_MAX_BYTES, raceMapProblemSchema,
-  type RaceMapProblem
+  raceMapSourceUpdateResponseSchema, type RaceMapProblem
 } from "@o-tid/contracts";
 import { forEachMultipartPart, MultipartError, multipartBoundary, partBytes } from "./multipart";
 import {
@@ -135,6 +135,14 @@ export async function handleMapRoute(context: RaceAdministratorRouteContext): Pr
         return new Response(new Uint8Array(result.file), { headers: { ...headers, "content-type": "application/octet-stream",
           "content-disposition": `attachment; filename="karta.${extension}"; filename*=UTF-8''${encodeURIComponent(`${name}.${extension}`)}`,
           "content-length": String(result.file.byteLength) } });
+      }
+      if (request.method === "PATCH") {
+        let body: unknown;
+        try { body = await readJsonBody(request); } catch { return failure(400, "INVALID_REQUEST"); }
+        const result = await dependencies.raceMapSourceUpdateLock(db, { ...input, request: body });
+        if (result.status !== "ok") return resultFailure(result.status);
+        return json(raceMapSourceUpdateResponseSchema.parse({ formatVersion: 1,
+          sourceDownloadLocked: result.sourceDownloadLocked, sourceDownloadLockedByOrigin: result.sourceDownloadLockedByOrigin }));
       }
       if (request.method === "DELETE") {
         if (!await hasNoRequestBody(request)) return failure(400, "INVALID_REQUEST");

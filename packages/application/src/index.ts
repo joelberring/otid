@@ -121,7 +121,7 @@ export {
   DEFAULT_RETENTION_MONTHS, anonymizeRace, retentionCutoff, retentionSettings, retentionSettingsProblems, runMaintenance, runRetention
 } from "./retention";
 export type { RetentionRun, RetentionSettings } from "./retention";
-export { mapFileFormatOf, readRaceMapSourceFileAsAdmin, removeRaceMapSourceAsAdmin, saveRaceMapSourceAsAdmin } from "./race-map-source";
+export { mapFileFormatOf, readRaceMapSourceFileAsAdmin, removeRaceMapSourceAsAdmin, saveRaceMapSourceAsAdmin, updateRaceMapSourceLockAsAdmin } from "./race-map-source";
 export { courseLegKeys, publishRouteChoiceAsAdmin, readRouteChoiceAsAdmin, readRouteChoiceCalibrationAsAdmin, saveRouteChoiceSettingsAsAdmin }
   from "./route-choice";
 export {

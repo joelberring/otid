@@ -6,7 +6,7 @@ describe("demoläget: det gästen inte får", () => {
   it("utskrift, nedladdning, uppladdning och tjänster utanför O-Tid är stängda", () => {
     for (const [kind, method] of [["race-export", "GET"], ["result-export", "GET"], ["start-list-export", "GET"], ["map-print", "POST"],
       ["course-setting-print-jobs", "POST"], ["course-setting-print-job-pdf", "GET"], ["course-setting-original", "GET"],
-      ["course-setting-import", "POST"], ["race-map", "PUT"], ["race-map-source", "POST"], ["eventor", "GET"], ["runner-search", "POST"],
+      ["course-setting-import", "POST"], ["race-map", "PUT"], ["race-map-source", "POST"], ["race-map-source", "PATCH"], ["eventor", "GET"], ["runner-search", "POST"],
       ["radio-fetch", "POST"]] as const) {
       expect(guestMayUse(kind, method), `${kind} ${method}`).toBe(false);
     }

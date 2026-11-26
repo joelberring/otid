@@ -58,7 +58,9 @@ export const raceMapSourceMetadataSchema = z.object({
   render: raceMapSourceRenderSchema,
   summary: raceMapSourceSummarySchema,
   /** Tre punkter (pixel → WGS 84) ur kartfilens georeferens; null = arrangören sätter dem för hand. */
-  tiePoints: z.tuple([tiePoint, tiePoint, tiePoint]).nullable()
+  tiePoints: z.tuple([tiePoint, tiePoint, tiePoint]).nullable(),
+  /** Etapp 2: tävlingsadmin kan spärra nedladdning av egen uppladdad kartfil (`.ocd`/`.omap`) för övriga. */
+  sourceDownloadLocked: z.boolean().optional()
 }).strict();
 
 /** Kartfilen i arbetsytans kartläge (utan originalet). */
@@ -74,7 +76,21 @@ export const adminRaceMapSourceSchema = z.object({
   summary: raceMapSourceSummarySchema,
   uploadedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
   /** Etapp 3.2: kartfilen får inte laddas ned av banläggaren (serverrenderad rasterkarta används). */
-  sourceDownloadLocked: z.boolean().optional()
+  sourceDownloadLocked: z.boolean().optional(),
+  /** Etapp 2: sant när spärren är ärvd från klubbarkiv, publik kartbank eller spärrat kartprojekt och inte kan låsas upp i tävlingen. */
+  sourceDownloadLockedByOrigin: z.boolean().optional()
+}).strict();
+
+/** Etapp 2: slå på/av nedladdningsspärr på tävlingens kartfil (bara tävlingsadmin; ärvd spärr går inte att låsa upp). */
+export const raceMapSourceUpdateRequestSchema = z.object({
+  formatVersion: z.literal(1),
+  sourceDownloadLocked: z.boolean()
+}).strict();
+
+export const raceMapSourceUpdateResponseSchema = z.object({
+  formatVersion: z.literal(1),
+  sourceDownloadLocked: z.boolean(),
+  sourceDownloadLockedByOrigin: z.boolean()
 }).strict();
 
 export type RaceMapSourceMetadata = z.infer<typeof raceMapSourceMetadataSchema>;

@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Database } from "@o-tid/database";
 import { usageScopeBlockedReason } from "../src/club-map-use";
+import { mapProjectCanDownloadSource, mapProjectEffectiveDownloadPolicy } from "../src/map-project-access";
 import { downloadPublicMapSource, readPublicMapPreview } from "../src/public-map-catalog";
-import { readRaceMapSourceFileAsAdmin } from "../src/race-map-source";
+import { isRaceMapSourceLockedByOrigin, readRaceMapSourceFileAsAdmin } from "../src/race-map-source";
 import { readMapLinkMapFile } from "../src/course-setting-map-link";
 
 vi.mock("../src/course-setting-access", () => ({
@@ -138,5 +139,132 @@ describe("download lock enforcement", () => {
   it("hides preview image when showPreview is false even if previewContentSha256 exists", async () => {
     const db = mockSelectDb([{ showPreview: false, previewContentSha256: "c".repeat(64) }]);
     expect(await readPublicMapPreview(db, id)).toEqual({ status: "not-found" });
+  });
+});
+
+/** Sekventiell mock där varje `select()`-anrop returnerar nästa radlista i ordning. */
+function mockSequentialSelectDb(results: unknown[][]): Database {
+  let index = 0;
+  const db = {
+    select: () => {
+      const rows = results[index++] ?? [];
+      const chain = {
+        from: () => chain,
+        innerJoin: () => chain,
+        leftJoin: () => chain,
+        where: () => chain,
+        orderBy: () => chain,
+        limit: () => chain,
+        for: () => chain,
+        then: (resolve: (value: unknown[]) => unknown) => Promise.resolve(resolve(rows))
+      };
+      return chain;
+    },
+    transaction: async <T>(fn: (tx: unknown) => Promise<T>) => fn(db)
+  };
+  return db as unknown as Database;
+}
+
+describe("Etapp 2: mapProjectEffectiveDownloadPolicy & mapProjectCanDownloadSource", () => {
+  const accountId = "33333333-3333-4333-8333-333333333333";
+  const clubId = "44444444-4444-4444-8444-444444444444";
+  const versionId = "55555555-5555-4555-8555-555555555555";
+
+  it("beräknar effektiv policy från projektets policy och arkivspärren", () => {
+    expect(mapProjectEffectiveDownloadPolicy({ sourceDownloadPolicy: "ALLOWED" }, false)).toBe("ALLOWED");
+    expect(mapProjectEffectiveDownloadPolicy({ sourceDownloadPolicy: "CUSTODIANS_ONLY" }, false)).toBe("CUSTODIANS_ONLY");
+    expect(mapProjectEffectiveDownloadPolicy({ sourceDownloadPolicy: "ALLOWED" }, true)).toBe("CUSTODIANS_ONLY");
+    expect(mapProjectEffectiveDownloadPolicy({ sourceDownloadPolicy: "CUSTODIANS_ONLY" }, true)).toBe("CUSTODIANS_ONLY");
+  });
+
+  it("tillåter alla medlemmar när varken projekt eller arkiv är spärrat", async () => {
+    const db = mockSequentialSelectDb([]);
+    const project = { clubId: null, baseVersionId: null, sourceDownloadPolicy: "ALLOWED" as const };
+    for (const role of ["OWNER", "EDIT", "SUGGEST", "READ"] as const) {
+      expect(await mapProjectCanDownloadSource(db, accountId, role, project, false)).toBe(true);
+    }
+  });
+
+  it("tillåter endast OWNER när projektet självt har CUSTODIANS_ONLY", async () => {
+    const db = mockSequentialSelectDb([]);
+    const project = { clubId: null, baseVersionId: null, sourceDownloadPolicy: "CUSTODIANS_ONLY" as const };
+    expect(await mapProjectCanDownloadSource(db, accountId, "OWNER", project, false)).toBe(true);
+    expect(await mapProjectCanDownloadSource(db, accountId, "EDIT", project, false)).toBe(false);
+    expect(await mapProjectCanDownloadSource(db, accountId, "SUGGEST", project, false)).toBe(false);
+    expect(await mapProjectCanDownloadSource(db, accountId, "READ", project, false)).toBe(false);
+  });
+
+  it("kräver klubb-ADMIN/OWNER när grundkartan i klubbarkivet är CUSTODIANS_ONLY", async () => {
+    const project = { clubId, baseVersionId: versionId, sourceDownloadPolicy: "ALLOWED" as const };
+    // 1. club_member ADMIN (addedBy === accountId → behöver ingen extra e-postkoll)
+    const adminDb = mockSequentialSelectDb([[{ role: "ADMIN", addedBy: accountId }]]);
+    expect(await mapProjectCanDownloadSource(adminDb, accountId, "OWNER", project, true)).toBe(true);
+    // 2. club_member READER som är projekt-OWNER → spärrad eftersom klubbarkivets karta är CUSTODIANS_ONLY!
+    const readerDb = mockSequentialSelectDb([[{ role: "READER", addedBy: accountId }]]);
+    expect(await mapProjectCanDownloadSource(readerDb, accountId, "OWNER", project, true)).toBe(false);
+  });
+});
+
+describe("Etapp 2: isRaceMapSourceLockedByOrigin", () => {
+  const raceId = "11111111-1111-4111-8111-111111111111";
+  const clubMapId = "22222222-2222-4222-8222-222222222222";
+  const listingId = "33333333-3333-4333-8333-333333333333";
+  const projectId = "44444444-4444-4444-8444-444444444444";
+  const sha = "a".repeat(64);
+
+  it("returnerar false för manuellt uppladdad egen karta utan ursprung", async () => {
+    const db = mockSequentialSelectDb([[]]);
+    expect(await isRaceMapSourceLockedByOrigin(db, raceId, {
+      clubMapId: null, publicListingId: null, sha256: sha, sourceDownloadLocked: true
+    })).toBe(false);
+  });
+
+  it("returnerar true för spärrad klubbkarta och false för öppen klubbkarta", async () => {
+    expect(await isRaceMapSourceLockedByOrigin(
+      mockSequentialSelectDb([[{ policy: "CUSTODIANS_ONLY" }]]),
+      raceId,
+      { clubMapId, publicListingId: null, sha256: sha, sourceDownloadLocked: true }
+    )).toBe(true);
+
+    expect(await isRaceMapSourceLockedByOrigin(
+      mockSequentialSelectDb([[{ policy: "ALLOWED" }], []]),
+      raceId,
+      { clubMapId, publicListingId: null, sha256: sha, sourceDownloadLocked: true }
+    )).toBe(false);
+  });
+
+  it("returnerar true för USE_IN_OTID_LOCKED i kartbanken och false för OPEN_DOWNLOAD", async () => {
+    expect(await isRaceMapSourceLockedByOrigin(
+      mockSequentialSelectDb([[{ accessMode: "USE_IN_OTID_LOCKED" }]]),
+      raceId,
+      { clubMapId: null, publicListingId: listingId, sha256: sha, sourceDownloadLocked: true }
+    )).toBe(true);
+
+    expect(await isRaceMapSourceLockedByOrigin(
+      mockSequentialSelectDb([[{ accessMode: "OPEN_DOWNLOAD" }], []]),
+      raceId,
+      { clubMapId: null, publicListingId: listingId, sha256: sha, sourceDownloadLocked: true }
+    )).toBe(false);
+  });
+
+  it("returnerar true för kopplat kartprojekt med egen eller ärvd CUSTODIANS_ONLY-spärr", async () => {
+    expect(await isRaceMapSourceLockedByOrigin(
+      mockSequentialSelectDb([
+        [{ projectId, sha256: sha }],
+        [{ sourceDownloadPolicy: "CUSTODIANS_ONLY", baseVersionId: null }]
+      ]),
+      raceId,
+      { clubMapId: null, publicListingId: null, sha256: sha, sourceDownloadLocked: true }
+    )).toBe(true);
+
+    expect(await isRaceMapSourceLockedByOrigin(
+      mockSequentialSelectDb([
+        [{ projectId, sha256: sha }],
+        [{ sourceDownloadPolicy: "ALLOWED", baseVersionId: "55555555-5555-4555-8555-555555555555" }],
+        [{ policy: "CUSTODIANS_ONLY" }]
+      ]),
+      raceId,
+      { clubMapId: null, publicListingId: null, sha256: sha, sourceDownloadLocked: true }
+    )).toBe(true);
   });
 });

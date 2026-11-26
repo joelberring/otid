@@ -157,7 +157,7 @@ export const clubHelpArticlesEn: readonly HelpArticle[] = [
       [
         "”New map” and ”Upload new version”: OCAD (.ocd) or Mapper (.omap, .xmap), at most 75 MB.",
         "”Merge marked” or ”Possible duplicates” makes several maps into one. ”Move the version to …” moves one version.",
-        "”Change rights”: the club's own or an external map, owner, agreement, training only, fee per print and public display.",
+        "”Rights, protection & sharing”: download lock, usage scope, owner, agreement and public map bank.",
         "The rights apply to all versions and follow the map when it is used in a group or an event.",
         "”Put in the group's map library” puts the latest version in a training group."
       ],

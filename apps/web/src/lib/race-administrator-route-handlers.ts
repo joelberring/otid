@@ -166,7 +166,7 @@ const ROUTE_METHODS: Readonly<Partial<Record<Action["kind"], readonly string[]>>
   "uninterpreted-readouts-reread": ["POST"], party: ["GET", "POST"], "party-logo": ["PUT", "DELETE"], "party-guests": ["POST"],
   "party-desk-events": ["POST"], radio: ["GET", "PUT"], "radio-fetch": ["POST"], "race-publication": ["PUT", "DELETE"],
   "course-secrecy": ["PUT", "DELETE", "PATCH"], "race-map": ["GET", "PUT", "DELETE"], "race-map-image": ["GET"],
-  "race-map-georeference": ["POST"], "race-map-source": ["GET", "POST", "DELETE"], "route-choice": ["GET"],
+  "race-map-georeference": ["POST"], "race-map-source": ["GET", "POST", "PATCH", "DELETE"], "route-choice": ["GET"],
   "route-choice-calibration": ["GET"], "route-choice-settings": ["POST"], "route-choice-published": ["POST"],
   "course-setting": ["GET", "PUT"], "course-setting-revisions": ["GET", "POST"], "course-setting-revision": ["GET"],
   "course-setting-original": ["GET"], "course-setting-import": ["POST"], "course-setting-restore": ["POST"],

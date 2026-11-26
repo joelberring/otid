@@ -28,9 +28,10 @@ export function MapProjectNextSteps({ view }: { view: MapProjectView }) {
     export: text.export.help,
     courses: text.courses.help
   };
+  const canDownloadSource = view.viewer.canDownloadSource;
   const action: Record<MapProjectStep, ReactNode> = {
-    base: <Link className={styles.primaryLink} href={mapHref} data-testid="map-project-open-map">{text.openMap}</Link>,
-    draw: <Link className={styles.primaryLink} href={mapHref} data-testid="map-project-open-map">{text.openMap}</Link>,
+    base: canDownloadSource ? <Link className={styles.primaryLink} href={mapHref} data-testid="map-project-open-map">{text.openMap}</Link> : null,
+    draw: canDownloadSource ? <Link className={styles.primaryLink} href={mapHref} data-testid="map-project-open-map">{text.openMap}</Link> : null,
     export: <a className={styles.primaryLink} href="#exportera">{text.export.action}</a>,
     courses: <Link className={styles.primaryLink} href="/organizer">{text.courses.action}</Link>
   };
@@ -47,7 +48,7 @@ export function MapProjectNextSteps({ view }: { view: MapProjectView }) {
               {done ? step === "draw" ? text.started : text.done : next ? text.next : text.later}</span></h3>
             <p className={start.small}>{help[step]}</p>
             {step === "base" && needsLaser && <LantmaterietStatus view={credential} />}
-            {next && <div className={start.actions}>{action[step]}</div>}
+            {next && action[step] && <div className={start.actions}>{action[step]}</div>}
           </div>
         </li>;
       })}

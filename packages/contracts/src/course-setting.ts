@@ -90,6 +90,7 @@ export const courseSettingStateSchema = z.object({
   mapFile: z.object({ sha256: sha256HexSchema, fileName, scale: z.number().int().min(100).max(1_000_000),
     bounds: raceMapSourceBoundsSchema, georeferenced: z.boolean(),
     sourceDownloadLocked: z.boolean().optional(),
+    sourceDownloadLockedByOrigin: z.boolean().optional(),
     render: raceMapSourceRenderSchema.optional() }).strict().nullable(),
   /** Tävlingens typ: rogaining (poängbanor) och fest (inga banor i tävlingen) förklaras i editorn. Saknas i äldre svar. */
   raceType: raceTypeSchema.optional(),

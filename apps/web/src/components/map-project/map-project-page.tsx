@@ -132,7 +132,9 @@ export function MapProjectPage({
         {canDownloadSource && !openInNextSteps && <><div className={styles.actions}><Link className={styles.buttonLink} href={`/organizer/map-projects/${encodeURIComponent(projectId)}/map`}
           data-testid="map-project-open-map">{mapProjectEditorText.openMap}</Link></div>
         <p className={styles.muted}>{mapProjectEditorText.openMapHelp}</p></>}
-        {project.base.format === "OCD" && <p className={styles.muted}>{text.page.ocadLater}</p>}
+        {project.base.format === "OCD" && !project.viewer.canWriteVersion && (
+          <p className={styles.muted} data-testid="map-project-ocad-note">{text.page.ocadLater}</p>
+        )}
         {canDownloadSource ? (
           <div className={styles.actions}>
             <a className={styles.buttonLink} href={`${base}/source`} download>{text.page.download}</a>
@@ -149,13 +151,16 @@ export function MapProjectPage({
         <p className={styles.muted}>{text.version.help}</p>
         <h3>{text.version.newVersion}</h3>
         <p className={styles.muted}>{text.version.newVersionHelp}</p>
-        {project.viewer.canWriteVersion ? <>
+        {project.viewer.canManage || project.viewer.canWriteVersion ? <>
           {project.viewer.canArchive && <label className={styles.check}>
-            <input type="checkbox" checked={archive} disabled={busy} onChange={event => setArchive(event.target.checked)} />
+            <input type="checkbox" checked={archive} disabled={busy || !project.viewer.canWriteVersion} onChange={event => setArchive(event.target.checked)} />
             <span>{text.version.archive}<small className={styles.muted}> {text.version.archiveHelp}</small></span>
           </label>}
-          <Button disabled={busy || project.base.format !== "OMAP"} onClick={() => void writeVersion(project.viewer.canArchive && archive)}>
+          <Button disabled={busy || !project.viewer.canWriteVersion} onClick={() => void writeVersion(project.viewer.canArchive && archive)}>
             {text.version.button}</Button>
+          {project.base.format === "OCD" && !project.viewer.canWriteVersion && (
+            <p className={styles.muted} data-testid="map-project-ocad-version-disabled">{text.version.ocadDisabled}</p>
+          )}
         </> : <p className={styles.muted}>{text.version.notOwner}</p>}
         <h3>{text.page.exportChanges}</h3>
         <p className={styles.muted}>{text.page.exportHelp}</p>

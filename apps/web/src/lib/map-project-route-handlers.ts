@@ -75,7 +75,11 @@ export async function mapProjectRoute(db: Database, request: Request, projectId:
   if ("response" in input) return input.response;
   return guarded(async () => {
     const result = await updateMapProject(db, { ...input.proof, projectId, request: input.body });
-    return result.status === "ok" ? privateJson({ formatVersion: 1, status: "ok" }) : failure(result.status);
+    if (result.status === "ok") return privateJson({ formatVersion: 1, status: "ok" });
+    if (result.status === "invalid-request" && "message" in result && result.message) {
+      return privateJson({ formatVersion: 1, error: "INVALID_REQUEST", message: result.message }, 400);
+    }
+    return failure(result.status);
   });
 }
 

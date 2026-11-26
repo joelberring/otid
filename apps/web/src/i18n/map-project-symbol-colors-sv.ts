@@ -9,7 +9,7 @@ export const mapProjectSymbolColorsSv = {
   title: (symbols: string) => `Färg för ${symbols}`,
   help: "Välj vilken av kartans färger symbolen ritas med. Det gäller bara den här symbolen; färgen i Kartans färger ändras inte. Kartan ritas om direkt och färgerna skrivs i nästa kartversion.",
   readOnly: "Bara projektets ägare kan ändra symbolernas färger.",
-  ocad: "Kartan är en OCAD-fil: färgerna visas här, men kan inte skrivas i en ny kartversion än.",
+  ocad: "Kartan är en OCAD-fil: symbolernas färger visas här, men kan inte ändras eller skrivas tillbaka till OCAD-filen ännu.",
   slot: (color: string) => `Symbolens färg ${color}`,
   usedBy: (symbols: string) => `i ${symbols}`,
   drawnWith: "ritas med",

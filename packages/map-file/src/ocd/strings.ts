@@ -36,6 +36,23 @@ export function readParameterStrings(bytes: Bytes, first: number): ParameterStri
   return strings;
 }
 
+/** 1-baserade objektindex (`block * 256 + slot + 1`) som har minst en aktiv (ej borttagen) parametersträng knuten till sig. */
+export function linkedStringObjectIndices(bytes: Bytes, first: number): Set<number> {
+  const linked = new Set<number>();
+  if (first === 0) return linked;
+  for (const block of indexBlocks(bytes, first, STRING_BLOCK_SIZE)) {
+    for (let index = 0; index < 256; index++) {
+      const entry = block + 4 + index * 16;
+      const position = bytes.i32(entry);
+      const length = bytes.i32(entry + 4);
+      const type = bytes.i32(entry + 8);
+      const objIndex = bytes.i32(entry + 12);
+      if (position > 0 && length > 0 && type >= 0 && objIndex > 0) linked.add(objIndex);
+    }
+  }
+  return linked;
+}
+
 interface Fields { readonly first: string; readonly pairs: readonly (readonly [string, string])[] }
 
 function fields(value: string): Fields {

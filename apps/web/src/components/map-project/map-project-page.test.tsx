@@ -185,3 +185,71 @@ describe("MapProjectPage (Delning & skydd och nedladdningsspärr)", () => {
     expect(html).toContain("GeoJSON change export still works");
   });
 });
+
+describe("MapProjectPage (Etapp 3B: OCAD Skapa ny kartversion upplåst via viewer.canWriteVersion)", () => {
+  function makeOcdProject(viewerOverrides: Partial<MapProjectView["viewer"]> = {}): MapProjectView {
+    const base = makeProject();
+    return {
+      ...base,
+      name: "Högdalen revidering",
+      base: {
+        ...base.base,
+        mapName: "Högdalen",
+        fileName: "hogdalen.ocd",
+        format: "OCD"
+      },
+      viewer: {
+        ...base.viewer,
+        ...viewerOverrides
+      }
+    };
+  }
+
+  it("låser upp knappen Skapa ny kartversion och döljer OCAD-spärrtexter när viewer.canWriteVersion är true", () => {
+    const html = renderToStaticMarkup(
+      <MapProjectPage projectId={PROJECT_ID} initialView={makeOcdProject({ canManage: true, canWriteVersion: true, canArchive: true })} />
+    );
+    expect(html).toMatch(/<button(?![^>]*\bdisabled\b)[^>]*>Skapa ny kartversion<\/button>/);
+    expect(html).toContain("Lägg också den nya versionen i klubbarkivet");
+    expect(html).not.toContain('data-testid="map-project-ocad-note"');
+    expect(html).not.toContain('data-testid="map-project-ocad-version-disabled"');
+  });
+
+  it("inaktiverar Skapa ny kartversion med tydlig förklaring för OCAD-ägare när viewer.canWriteVersion är false", () => {
+    const html = renderToStaticMarkup(
+      <MapProjectPage projectId={PROJECT_ID} initialView={makeOcdProject({ canManage: true, canWriteVersion: false, canArchive: true })} />
+    );
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Skapa ny kartversion<\/button>/);
+    expect(html).toContain('data-testid="map-project-ocad-note"');
+    expect(html).toContain('data-testid="map-project-ocad-version-disabled"');
+    expect(html).toContain("avstängt i serverns inställningar");
+    expect(html).not.toContain("Bara projektets ägare skapar nya kartversioner.");
+  });
+
+  it("visar ägarbesked (inte knappen) för icke-ägare i OCAD-projekt samt engelsk text för inaktiverad OCAD-skrivning", () => {
+    const nonOwnerHtml = renderToStaticMarkup(
+      <MapProjectPage projectId={PROJECT_ID} initialView={makeOcdProject({ canManage: false, canWriteVersion: false, canArchive: false })} />
+    );
+    expect(nonOwnerHtml).toContain("Bara projektets ägare skapar nya kartversioner.");
+    expect(nonOwnerHtml).not.toContain(">Skapa ny kartversion</button>");
+    expect(nonOwnerHtml).toContain('data-testid="map-project-ocad-note"');
+
+    const enLockedHtml = renderToStaticMarkup(
+      <LanguageProvider language="en">
+        <MapProjectPage projectId={PROJECT_ID} initialView={makeOcdProject({ canManage: true, canWriteVersion: false, canArchive: false })} />
+      </LanguageProvider>
+    );
+    expect(enLockedHtml).toMatch(/<button[^>]*disabled=""[^>]*>Create new map version<\/button>/);
+    expect(enLockedHtml).toContain("Creating a new OCAD version is turned off in the server settings.");
+    expect(enLockedHtml).toContain("Creating a new OCAD version requires owner permission and OCAD writing enabled in the server settings");
+
+    const enUnlockedHtml = renderToStaticMarkup(
+      <LanguageProvider language="en">
+        <MapProjectPage projectId={PROJECT_ID} initialView={makeOcdProject({ canManage: true, canWriteVersion: true, canArchive: false })} />
+      </LanguageProvider>
+    );
+    expect(enUnlockedHtml).toMatch(/<button(?![^>]*\bdisabled\b)[^>]*>Create new map version<\/button>/);
+    expect(enUnlockedHtml).not.toContain('data-testid="map-project-ocad-note"');
+    expect(enUnlockedHtml).not.toContain('data-testid="map-project-ocad-version-disabled"');
+  });
+});

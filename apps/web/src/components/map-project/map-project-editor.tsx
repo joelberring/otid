@@ -755,7 +755,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
             control={control} scale={georeference.scale} area={editor.bounds ?? undefined} />}
           <MapProjectSettingsDetails>
             {georeference && <MapProjectNorthPanel georeference={georeference} northLines={editor.northLines} bounds={editor.bounds ?? undefined} importer={importer} symbols={symbols} />}
-            <MapProjectColors colors={editor.colors} saved={editor.colorChanges} canChange={canDecide} ocad={view.base.format === "OCD"} onShow={editor.showColors} onSave={editor.saveColors} />
+            <MapProjectColors colors={editor.colors} saved={editor.colorChanges} canChange={canDecide && view.base.format !== "OCD"} ocad={view.base.format === "OCD"} onShow={editor.showColors} onSave={editor.saveColors} />
           </MapProjectSettingsDetails>
         </>}
         basemap={georeference ? <MapProjectBaseMapPanel view={view} georeference={georeference} bounds={editor.bounds ?? undefined} areas={collab.areas}

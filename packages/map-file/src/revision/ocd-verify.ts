@@ -5,10 +5,18 @@
  */
 import { normalizeAngle, openRing } from "../geometry";
 import { MapFileError, type MapObject, type ParsedMap, type Path, type PathCommand } from "../model";
+import { Bytes, indexBlocks } from "../ocd/bytes";
+import { HEADER, STATUS_NORMAL, variantFor } from "../ocd/layout";
 import { readOcd } from "../ocd/read";
 import type { ByteEdit } from "./change-set";
 
-export interface Expected { readonly block: number; readonly slot: number; readonly object: MapObject | null }
+export interface Expected {
+  readonly block: number;
+  readonly slot: number;
+  readonly object: MapObject | null;
+  /** Förväntad OCAD `ObjType` i index- och objektpost (t.ex. 4 för ny text, 7 för bevarad rektangel). */
+  readonly type?: number | undefined;
+}
 type VerifyResult = { readonly ok: true; readonly untouched: number; readonly checked: number } | { readonly ok: false; readonly message: string };
 
 const TOLERANCE = 0.0051;
@@ -79,10 +87,49 @@ export function verifyOcd(original: Uint8Array, result: Uint8Array, map: ParsedM
     }
     untouched += 1;
   }
+  const bytes = new Bytes(result);
+  const variant = variantFor(bytes.u16(HEADER.version));
+  if (!variant || variant.version < 9) return { ok: false, message: "Den nya filen har en OCAD-version som inte kan verifieras." };
+  const blocks = indexBlocks(bytes, bytes.u32(HEADER.firstObjectBlock), variant.index.blockSize);
+
   for (const row of expected) {
     const now = after.get(`${row.block}:${row.slot}`);
     if (row.object === null) { if (now) return { ok: false, message: `Ett borttaget objekt (block ${row.block}, plats ${row.slot}) finns kvar.` }; continue; }
     if (!now || !sameOcdObject(row.object, now)) return { ok: false, message: `Objektet i block ${row.block}, plats ${row.slot} läses inte tillbaka som beställt.` };
+    const blockAt = blocks[row.block];
+    const locator = now.source?.locator;
+    if (blockAt === undefined || locator?.format !== "OCD") {
+      return { ok: false, message: `Indexposten för block ${row.block}, plats ${row.slot} saknas.` };
+    }
+    const entry = blockAt + 4 + row.slot * variant.index.entrySize;
+    const pos = bytes.i32(entry + 16);
+    if (pos !== locator.offset || bytes.u8(entry + 30) !== STATUS_NORMAL) {
+      return { ok: false, message: `Indexposten i block ${row.block}, plats ${row.slot} stämmer inte med objektet.` };
+    }
+    const entryType = bytes.u8(entry + 28);
+    const recordType = bytes.u8(pos + variant.object.type);
+    if (entryType !== recordType || (row.type !== undefined && entryType !== row.type)) {
+      return { ok: false, message: `Objekttypen i block ${row.block}, plats ${row.slot} (${entryType}/${recordType}) stämmer inte.` };
+    }
+    if (bytes.i32(entry + 24) !== bytes.i32(pos)) {
+      return { ok: false, message: `Symbolnumret i index och post i block ${row.block}, plats ${row.slot} stämmer inte.` };
+    }
+    const x0 = bytes.i32(entry) >> 8, y0 = bytes.i32(entry + 4) >> 8, x1 = bytes.i32(entry + 8) >> 8, y1 = bytes.i32(entry + 12) >> 8;
+    if (x0 >= x1 || y0 >= y1) {
+      return { ok: false, message: `Omslutande rektangel (rc) i block ${row.block}, plats ${row.slot} är tom eller ogiltig.` };
+    }
+    if (row.object.kind === "point" || row.object.kind === "text") {
+      const ax = Math.round(row.object.at.x * 100), ay = Math.round(row.object.at.y * 100);
+      if (ax < x0 || ax > x1 || ay < y0 || ay > y1) {
+        return { ok: false, message: `Omslutande rektangel (rc) i block ${row.block}, plats ${row.slot} omsluter inte ankarpunkten.` };
+      }
+    }
+    if (row.object.kind === "text" && row.object.text.length > 0 && bytes.u16(pos + variant.object.textCount) === 0) {
+      return { ok: false, message: `Textobjektet i block ${row.block}, plats ${row.slot} saknar textdata.` };
+    }
+    if (variant.version >= 12 && (!Number.isFinite(bytes.f64(pos + 24)) || !Number.isFinite(bytes.f64(pos + 36)))) {
+      return { ok: false, message: `Objektet i block ${row.block}, plats ${row.slot} har ogiltigt datum (NaN).` };
+    }
   }
   const removed = expected.filter(row => row.object === null).length;
   const touchedBefore = map.objects.filter(object => object.source?.locator.format === "OCD" && touched.has(`${object.source.locator.block}:${object.source.locator.slot}`)).length;

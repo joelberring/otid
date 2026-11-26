@@ -112,6 +112,8 @@ interface SymbolBase {
   readonly name: string;
   /** Dold i filen (ritas inte, men finns för analys). */
   readonly hidden: boolean;
+  /** OCAD `TBaseSym.Extent` i mm: hur långt symbolen når utanför objektets koordinater, för indexets `rc`-rektangel. */
+  readonly extent?: number | undefined;
 }
 
 export interface PointSymbol extends SymbolBase { readonly kind: "POINT"; readonly elements: readonly PointElement[] }
@@ -156,6 +158,8 @@ export interface LineSymbol extends SymbolBase {
   /** Symbol i linjens början och slut (t.ex. brons vingar). */
   readonly start?: { readonly elements: readonly PointElement[] } | undefined;
   readonly end?: { readonly elements: readonly PointElement[] } | undefined;
+  /** OCAD `TRectSym` (symboltyp 7): objekt med denna symbol behåller `ObjType = 7` vid revidering. */
+  readonly rectangle?: true | undefined;
 }
 
 /** Linjemönster (raster) i en yta. Mått i mm, vinkel i grader moturs från x-axeln. */
@@ -199,6 +203,8 @@ export interface TextSymbol extends SymbolBase {
   readonly lineSpacing?: number | undefined;
   /** K8b V6: kontur runt tecknen (Mappers `framing` med linje, OCAD `FrMode = 2`): färgen och linjens hela bredd i mm. */
   readonly framing?: { readonly color: number; readonly width: number } | undefined;
+  /** OCAD linjetextsymbol (symboltyp 6): kräver linjegeometri och kan inte skapas som oformaterad text (`ObjType = 4`). */
+  readonly lineText?: true | undefined;
 }
 
 /** Mapper: en symbol som består av andra symboler (t.ex. yta med kantlinje). */

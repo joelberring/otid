@@ -492,10 +492,24 @@ describe("ADR-0219 kartprojekt", () => {
     await sync(owner.proof, projectId, [{ editId: randomUUID(), key: baseKey(ref), ref, base: null, kind: "MOVE", at: NOW.toISOString(),
       state: { kind: "OBJECT", object: { ...point, at: { x: point.at.x + 2, y: point.at.y } } } }]);
     const write = () => writeMapProjectVersion(db, { ...owner.proof, projectId, request: { formatVersion: 1, requestId: randomUUID() } }, NOW);
+    const beforeFlag = await readMapProject(db, { ...owner.proof, projectId }, NOW);
+    expect(beforeFlag.status === "ok" && beforeFlag.view.viewer).toMatchObject({ canManage: true, canWriteVersion: false });
+    // Etapp 3B (Steg 1): färg- och symbolfärgsändringar spärras på OCAD-projekt tills Steg 2.
+    const ocdColor = ocdMap.colors[0]!;
+    const badColor = await updateMapProject(db, { ...owner.proof, projectId,
+      request: { formatVersion: 1, colors: [{ id: ocdColor.id, cmyk: { c: 0.1, m: 0.8, y: 0.2, k: 0 } }] } }, NOW);
+    expect(badColor.status).toBe("invalid-request");
+    expect("message" in badColor ? badColor.message : "").toContain("OCAD");
+    const badSymbolColor = await updateMapProject(db, { ...owner.proof, projectId,
+      request: { formatVersion: 1, symbolColors: [{ symbol: "521", from: ocdColor.id, to: ocdColor.id }] } }, NOW);
+    expect(badSymbolColor.status).toBe("invalid-request");
+    expect("message" in badSymbolColor ? badSymbolColor.message : "").toContain("OCAD");
     const refused = await write();
     expect(refused.status === "ok" && refused.response).toMatchObject({ status: "refused", refusals: [{ code: "UNSUPPORTED_VERSION" }] });
     process.env.OTID_OCAD_WRITE = "1";
     try {
+      const withFlag = await readMapProject(db, { ...owner.proof, projectId }, NOW);
+      expect(withFlag.status === "ok" && withFlag.view.viewer).toMatchObject({ canManage: true, canWriteVersion: true });
       const written = await write();
       if (written.status !== "ok" || written.response.status !== "created") throw new Error(JSON.stringify(written));
       expect(written.response).toMatchObject({ fileName: "Ocad reviderad 2026-11-07.ocd", changes: 1 });

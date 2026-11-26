@@ -15,6 +15,6 @@ export const mapProjectColorsSv = {
   close: "Stäng",
   saved: (count: number) => count === 0 ? "Kartan har filens egna färger." : count === 1 ? "1 färg är ändrad." : `${count} färger är ändrade.`,
   failed: "Färgerna kunde inte sparas. Försök igen.",
-  ocad: "Kartan är en OCAD-fil: färgerna visas här, men kan inte skrivas i en ny kartversion än.",
+  ocad: "Kartan är en OCAD-fil: färgtabellen visas här, men kan inte ändras eller skrivas tillbaka till OCAD-filen ännu.",
   summary: (count: number) => count === 0 ? "Filens egna färger" : count === 1 ? "1 ändrad färg" : `${count} ändrade färger`
 };

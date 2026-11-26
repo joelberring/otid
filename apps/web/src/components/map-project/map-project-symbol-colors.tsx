@@ -41,6 +41,7 @@ export function SymbolColorsDialog({ symbols, control, onClose }: { symbols: rea
   const [draft, setDraft] = useState<readonly MapSymbolColorChange[]>(control.saved);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string>();
+  const editable = control.canChange && !control.ocad;
   const codes = useMemo(() => new Set(symbols.map(symbol => symbol.code)), [symbols]);
   const byId = useMemo(() => new Map(control.colors.map(color => [color.id, color])), [control.colors]);
   const slots = useMemo(() => [...new Set(symbols.flatMap(symbol => symbol.colors))].map(from => ({ from, users: symbols.filter(symbol => symbol.colors.includes(from)) })), [symbols]);
@@ -50,6 +51,7 @@ export function SymbolColorsDialog({ symbols, control, onClose }: { symbols: rea
   const valueOf = (from: number, users: readonly CatalogSymbol[]) => draft.find(change => change.symbol === users[0]!.code && change.from === from)?.to ?? from;
   const apply = (next: readonly MapSymbolColorChange[]) => { setDraft(next); setMessage(undefined); control.onShow(next); };
   const choose = (from: number, users: readonly CatalogSymbol[], to: number) => {
+    if (!editable) return;
     const rest = draft.filter(change => !(change.from === from && users.some(user => user.code === change.symbol)));
     apply(to === from ? rest : [...rest, ...users.map(user => ({ symbol: user.code, from, to }))]);
   };
@@ -59,8 +61,7 @@ export function SymbolColorsDialog({ symbols, control, onClose }: { symbols: rea
   return <Dialog dialogRef={dialog} className={colorStyles.dialog} labelledBy={title} onClose={close} closeOnBackdrop={!dirty}>
     <div className={colorStyles.body} data-testid="map-project-symbol-colors">
       <h2 id={title}>{text.title(symbols.map(label).join(", "))}</h2>
-      <p className={colorStyles.help}>{control.canChange ? text.help : text.readOnly}</p>
-      {control.ocad && <p className={colorStyles.help}>{text.ocad}</p>}
+      <p className={colorStyles.help}>{control.ocad ? text.ocad : editable ? text.help : text.readOnly}</p>
       {slots.length === 0 && <p className={colorStyles.help}>{text.none}</p>}
       <ul className={styles.slots}>
         {slots.map(({ from, users }) => {
@@ -70,7 +71,7 @@ export function SymbolColorsDialog({ symbols, control, onClose }: { symbols: rea
             <span className={styles.slotName}>{text.slot(nameOf(from))}{symbols.length > 1 && <small>{text.usedBy(users.map(user => user.code).join(", "))}</small>}</span>
             <label className={styles.pick}>
               <span>{text.drawnWith}</span>
-              <select value={to} disabled={!control.canChange || busy} data-testid="map-project-symbol-color-select"
+              <select value={to} disabled={!editable || busy} data-testid="map-project-symbol-color-select"
                 aria-label={`${text.slot(nameOf(from))} ${text.drawnWith}`} onChange={event => choose(from, users, Number(event.target.value))}>
                 {rows.map(color => <option key={color.id} value={color.id}>{color.id === from ? text.asInFile(color.name || String(color.id)) : color.name || String(color.id)}</option>)}
               </select>
@@ -81,11 +82,11 @@ export function SymbolColorsDialog({ symbols, control, onClose }: { symbols: rea
       </ul>
       <p className={colorStyles.message} role="status" data-testid="map-project-symbol-colors-message">{message}</p>
       <div className={colorStyles.actions}>
-        {control.canChange && <Button variant="secondary" disabled={busy || !draft.some(change => codes.has(change.symbol))}
+        {editable && <Button variant="secondary" disabled={busy || !draft.some(change => codes.has(change.symbol))}
           onClick={() => apply(draft.filter(change => !codes.has(change.symbol)))} data-testid="map-project-symbol-colors-reset">{text.reset}</Button>}
         <span className={colorStyles.spacer} />
         <Button variant="secondary" onClick={() => dialog.current?.close()}>{dirty ? text.cancel : text.close}</Button>
-        {control.canChange && <Button disabled={busy || !dirty} data-testid="map-project-symbol-colors-save" onClick={() => {
+        {editable && <Button disabled={busy || !dirty} data-testid="map-project-symbol-colors-save" onClick={() => {
           setBusy(true);
           void control.onSave(draft).then(ok => { setBusy(false); setMessage(ok ? text.saved(draft.length) : text.failed); });
         }}>{text.save}</Button>}

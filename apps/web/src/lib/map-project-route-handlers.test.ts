@@ -112,4 +112,12 @@ describe("Etapp 2: kartprojektens API-rutter för nedladdningsspärr", () => {
       projectId, request: { formatVersion: 1, sourceDownloadPolicy: "CUSTODIANS_ONLY" }
     });
   });
+
+  it("PUT på kartprojektet vidarebefordrar tydligt felmeddelande med HTTP 400 när OCAD-färger avvisas", async () => {
+    const message = "Färgtabellen kan inte ändras i OCAD-projekt ännu. Spara kartan i Mapper (.omap) för att ändra färger.";
+    mocks.updateMapProject.mockResolvedValueOnce({ status: "invalid-request", message });
+    const response = await mapProjectRoute(db, putReq({ formatVersion: 1, colors: [{ id: 1, cmyk: { c: 0.1, m: 0.2, y: 0.3, k: 0 } }] }), projectId, env);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ formatVersion: 1, error: "INVALID_REQUEST", message });
+  });
 });

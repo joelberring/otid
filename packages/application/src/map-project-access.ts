@@ -134,6 +134,18 @@ export function mapProjectAllows(role: MapProjectRole, project: Pick<MapProjectR
   return role === "OWNER";
 }
 
+/**
+ * Etapp 3B: får kontot skapa en ny kartversion i projektet? Matchar serverns faktiska kontroll i `writeMapProjectVersion`:
+ * kräver projektägare (`manage`) OCH att servern kan skriva grundfilens format (`.omap` alltid; `.ocd` när `OTID_OCAD_WRITE=1`).
+ */
+export function mapProjectCanWriteVersion(
+  role: MapProjectRole,
+  project: Pick<MapProjectRow, "status" | "baseFormat">,
+  ocadWrite: boolean
+): boolean {
+  return mapProjectAllows(role, project, "manage") && (project.baseFormat === "OMAP" || ocadWrite);
+}
+
 /** Inloggad medlem med projektet (låst för uppdatering när `write`), eller felet. */
 export async function requireMapProject(tx: MapProjectTransaction, proof: ClubProof & { projectId: string }, now: Date, need: MapProjectNeed,
   write: boolean): Promise<ClubFailure | { status: "ok"; accountId: string; role: MapProjectRole; project: MapProjectRow }> {

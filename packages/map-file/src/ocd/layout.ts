@@ -9,7 +9,7 @@ export const MIN_VERSION = 8;
 
 export const HEADER = {
   mark: 0, fileType: 2, version: 4, subversion: 6, subsubversion: 7,
-  firstSymbolBlock: 8, firstObjectBlock: 12, firstStringBlock: 32, size: 48
+  firstSymbolBlock: 8, firstObjectBlock: 12, offlineSyncSerial: 16, firstStringBlock: 32, size: 48
 } as const;
 
 export const SYMBOL_BLOCK_SIZE = 4 + 256 * 4;
@@ -20,7 +20,7 @@ export const STATUS_NORMAL = 1;
 
 /** Symbolens gemensamma början (796 byte). */
 export const SYMBOL = {
-  size: 0, number: 4, type: 8, flags: 9, status: 11, description: 56, descriptionBytes: 128, end: 796
+  size: 0, number: 4, type: 8, flags: 9, status: 11, extent: 16, description: 56, descriptionBytes: 128, end: 796
 } as const;
 
 export const SYMBOL_TYPE = { point: 1, line: 2, area: 3, text: 4, lineText: 6, rectangle: 7 } as const;

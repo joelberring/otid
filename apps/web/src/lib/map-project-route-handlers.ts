@@ -222,13 +222,29 @@ export async function mapProjectExportRoute(db: Database, request: Request, proj
  * Ägaren 2026-11-15: hela kartan som PDF. POST lägger jobbet (202 med `jobId`, 429 när kontot har för många jobb);
  * GET `?job=` svarar 202 medan det pågår, 422 när det misslyckats och PDF:en när den är klar.
  */
+function parseMapPdfOptions(body: unknown): { mode?: "OFFICE" | "PRESS"; lightenForOffice?: boolean } | null {
+  if (body === undefined) return {};
+  if (typeof body !== "object" || body === null || Array.isArray(body)) return null;
+  const record = body as Record<string, unknown>;
+  for (const key of Object.keys(record)) if (key !== "mode" && key !== "lightenForOffice") return null;
+  if (record.mode !== undefined && record.mode !== "OFFICE" && record.mode !== "PRESS") return null;
+  if (record.lightenForOffice !== undefined && typeof record.lightenForOffice !== "boolean") return null;
+  return {
+    ...(record.mode !== undefined ? { mode: record.mode } : {}),
+    ...(record.lightenForOffice !== undefined ? { lightenForOffice: record.lightenForOffice } : {})
+  };
+}
+
 export async function mapProjectPdfRoute(db: Database, request: Request, projectId: string, environment: Environment = process.env): Promise<Response> {
   if (!validId(projectId)) return failure("not-found");
   if (request.method === "POST") {
-    const input = await mutation(request, environment, "none");
+    const hasContentType = request.headers.get("content-type") !== null;
+    const input = await mutation(request, environment, hasContentType ? "json" : "none");
     if ("response" in input) return input.response;
+    const options = parseMapPdfOptions(input.body);
+    if (!options) return failure("invalid-request");
     return guarded(async () => {
-      const result = await startMapProjectPdf(db, { ...input.proof, projectId });
+      const result = await startMapProjectPdf(db, { ...input.proof, projectId, ...options });
       if (result.status === "throttled") return privateJson({ formatVersion: 1, error: "throttled" }, 429);
       return result.status === "ok" ? privateJson({ formatVersion: 1, jobId: result.jobId }, 202) : failure(result.status);
     });

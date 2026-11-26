@@ -32,7 +32,10 @@ function similarity(m: Matrix): number | undefined {
   return sx;
 }
 
-type Segment = { readonly op: "m" | "l"; readonly x: number; readonly y: number } | { readonly op: "c"; readonly p: readonly [number, number, number, number, number, number] };
+type Segment =
+  | { readonly op: "m" | "l"; readonly x: number; readonly y: number }
+  | { readonly op: "c"; readonly p: readonly [number, number, number, number, number, number] }
+  | { readonly op: "h" };
 
 interface CanvasState {
   ctm: Matrix; fillStyle: string; strokeStyle: string; lineWidth: number; lineCap: CanvasLineCap; lineJoin: CanvasLineJoin; dash: number[];
@@ -42,10 +45,10 @@ interface CanvasState {
 const CAP = { butt: 0, round: 1, square: 2 } as const;
 const JOIN = { miter: 0, round: 1, bevel: 2 } as const;
 
-/** Alfa ur `rgba(r, g, b, a)` (1 för andra former). */
-function alphaOf(style: string): number {
+/** Alfa ur `rgba(r, g, b, a)` (`undefined` för andra former utan alfa-kanal). */
+function alphaOf(style: string): number | undefined {
   const match = /^rgba\([^,]+,[^,]+,[^,]+,\s*([\d.]+)\s*\)$/.exec(style);
-  return match ? Math.min(1, Math.max(0, Number(match[1]))) : 1;
+  return match ? Math.min(1, Math.max(0, Number(match[1]))) : undefined;
 }
 
 export interface PdfCanvasOptions {
@@ -158,6 +161,7 @@ export class PdfCanvas implements MapDrawingContext {
         x + radius * c1, y + radius * s1);
       angle = next;
     }
+    if (Math.abs(sweep) >= 2 * Math.PI - 1e-6) this.path.push({ op: "h" });
   }
 
   private emitPath(transform?: Matrix): boolean {
@@ -165,7 +169,9 @@ export class PdfCanvas implements MapDrawingContext {
     const out: string[] = [];
     const map = transform ? (x: number, y: number) => apply(transform, x, y) : (x: number, y: number): [number, number] => [x, y];
     for (const segment of this.path) {
-      if (segment.op === "c") {
+      if (segment.op === "h") {
+        out.push("h");
+      } else if (segment.op === "c") {
         const [ax, ay] = map(segment.p[0], segment.p[1]), [bx, by] = map(segment.p[2], segment.p[3]), [cx, cy] = map(segment.p[4], segment.p[5]);
         out.push(`${num(ax)} ${num(ay)} ${num(bx)} ${num(by)} ${num(cx)} ${num(cy)} c`);
       } else {
@@ -179,7 +185,8 @@ export class PdfCanvas implements MapDrawingContext {
 
   private paintWith(style: string): Paint | null {
     if (!this.paint) return null;
-    const alpha = alphaOf(style) / this.colorOpacity;
+    // `drawMap` skickar `rgba(..., color.opacity * trainingTint * patternAlpha)`: bevara kartfärgens egen opacity < 1.
+    const alpha = alphaOf(style) ?? this.colorOpacity;
     return alpha >= 0.9995 ? this.paint : tinted(this.paint, alpha);
   }
 
@@ -248,7 +255,9 @@ export class PdfCanvas implements MapDrawingContext {
     const font = this.options.fonts.get(variantForFamily(family, /\bbold\b/.test(this.state.font), /\bitalic\b/.test(this.state.font)));
     const width = font.font.widthOfTextAtSize(clean, size);
     const dx = this.state.textAlign === "center" ? -width / 2 : this.state.textAlign === "right" || this.state.textAlign === "end" ? -width : 0;
-    const dy = this.state.textBaseline === "middle" ? (font.ascent + font.descent) / 2 * size : this.state.textBaseline === "top" ? font.ascent * size : 0;
+    const dy = this.state.textBaseline === "middle" ? (font.ascent + font.descent) / 2 * size
+      : this.state.textBaseline === "top" ? font.ascent * size
+      : this.state.textBaseline === "bottom" ? font.descent * size : 0;
     const matrix = multiply(multiply(this.options.device, this.state.ctm), [size, 0, 0, -size, x + dx, y + dy]);
     return { font, clean, matrix };
   }

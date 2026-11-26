@@ -7,12 +7,13 @@ import type { MapColorAdjust, PressNorm, PrintProfile, SheetFrame } from "@o-tid
 import type { MapColor } from "@o-tid/map-file";
 import { blProposalSv } from "../../i18n/course-setting-bl-proposal-sv";
 import { afterViews, compareDpi, compareFrame, cssOfCmyk, layerStack, type Layer, type ProposalState } from "../../lib/course-setting-bl-proposal";
+import type { SymbolLookup } from "../../lib/course-setting-description-draw";
+import { mapRenderRequest } from "../../lib/course-setting-print";
+import { FrameView, type OverBandImage } from "./course-setting-sheet";
+import styles from "./course-setting-bl-proposal.module.css";
 
 /** Jämförelsen står överst i förslaget och ritas före kartbitarna (2) och arken (0). */
 const COMPARE_PRIORITY = 3;
-import type { SymbolLookup } from "../../lib/course-setting-description-draw";
-import { mapRenderRequest, pageNodes } from "../../lib/course-setting-print";
-import styles from "./course-setting-bl-proposal.module.css";
 
 /** En kartbild ur Workern (bild-URL) för ett utsnitt, med färgerna och eventuellt bara vissa färger. */
 export interface RenderView {
@@ -28,20 +29,21 @@ const PURPLE_PEN = { c: 20, m: 100, y: 0, k: 0 };
 
 /**
  * Hela kartan före och efter på ett utsnitt av den riktiga kartan (första arkets ram): före = kartfilens färger med banan
- * överst, efter = BL:s färger med banan i BL:s ordning (kartan under banan, banan, kartan över). Ett reglage visar gränsen.
+ * överst, efter = BL:s färger med banan i BL:s ordning (kartan under banan, BENEATH/LOWER, bandade OVER-bilder och UPPER).
  */
 export function BlCompare({ frame: sheetFrame, profile, state, colors, symbols, render, norm }: {
   frame: SheetFrame; profile: PrintProfile; state: ProposalState; colors: readonly MapColor[]; symbols: SymbolLookup; render: RenderImage; norm: PressNorm;
 }) {
   const text = useTexts(blProposalSv, blProposalEn);
   // Samma utsnitt efter varje sparning (dokumentet läses om): nyckeln håller bilderna kvar.
-  const frameKey = JSON.stringify([sheetFrame.mapArea, sheetFrame.clip, sheetFrame.transform, sheetFrame.figures.length]);
+  const frameKey = JSON.stringify([sheetFrame.mapArea, sheetFrame.clip, sheetFrame.transform, sheetFrame.figures.length,
+    sheetFrame.mirror, sheetFrame.whiteAreas, sheetFrame.markingClip]);
   const frame = useMemo(() => compareFrame(sheetFrame), [frameKey]);
   const view = useMemo(() => mapRenderRequest(frame, compareDpi(frame.clip)), [frame]);
   const after = useMemo(() => afterViews(profile, state, colors, norm), [profile, state, colors, norm]);
   const afterKey = JSON.stringify(after);
   const [before, setBefore] = useState<string>();
-  const [images, setImages] = useState<{ key: string; under: string; over?: string | undefined; overWhite?: string | undefined }>();
+  const [images, setImages] = useState<{ key: string; under: string; bands: readonly OverBandImage[] }>();
   const [split, setSplit] = useState(50);
   useEffect(() => {
     let live = true;
@@ -51,38 +53,35 @@ export function BlCompare({ frame: sheetFrame, profile, state, colors, symbols, 
   useEffect(() => {
     let live = true;
     void (async () => {
-      // Hela kartan underst (som PDF:en, ADR-0211 beslut 14): färgerna över banan blandas då bara med lilan.
+      // Hela kartan underst och varje OVER-band i exakt rank-ordning (som SheetView och PDF:en).
       const under = await render({ ...view, colorAdjust: after.adjust }, COMPARE_PRIORITY);
-      const over = after.over && after.over.length > 0 ? await render({ ...view, colorAdjust: after.adjust, onlyColors: after.over, background: false }, COMPARE_PRIORITY) : undefined;
-      const overWhite = after.overWhite && after.overWhite.length > 0
-        ? await render({ ...view, colorAdjust: after.adjust, onlyColors: after.overWhite, background: false }, COMPARE_PRIORITY) : undefined;
-      if (live) setImages({ key: afterKey, under, over, overWhite });
+      const bands: OverBandImage[] = [];
+      for (const band of after.overBands) {
+        if (!live) return;
+        const url = await render({ ...view, colorAdjust: after.adjust, onlyColors: band.ids, background: false }, COMPARE_PRIORITY);
+        bands.push({ kind: band.kind, url });
+      }
+      if (live) setImages({ key: afterKey, under, bands });
     })().catch(error => console.error("Kartbiten kunde inte ritas", error));
     return () => { live = false; };
   }, [view, after, afterKey, render]);
   const { clip } = frame;
   const viewBox = `${clip.x} ${clip.y} ${clip.width} ${clip.height}`;
-  const courseSvg = (cmyk: { c: number; m: number; y: number; k: number }) => <svg viewBox={viewBox} preserveAspectRatio="none" aria-hidden="true">
-    {pageNodes(frame, symbols, cssOfCmyk(cmyk)).map((node, index) => node.tag === "path"
-      ? <path key={index} d={node.d} fill={node.fill ?? "none"} fillRule="evenodd" stroke={node.stroke} strokeWidth={node.width} strokeDasharray={node.dash}
-        strokeLinecap={node.cap} opacity={node.opacity} />
-      : node.tag === "text" ? <text key={index} x={node.x} y={node.y} fontSize={node.size} fill={node.fill} textAnchor={node.anchor} dominantBaseline="middle"
-        fontFamily={node.family}>{node.text}</text> : null)}
-  </svg>;
+  const afterLayers = after.overBands.length > 0 ? { norm, numbersOnTop: profile.numbersOnTop ?? false } : undefined;
   const ready = before && images;
   return <section className={styles.compare} aria-labelledby="bl-compare">
     <h3 id="bl-compare">{text.compare}</h3>
     <p className={styles.muted}>{text.compareHelp}</p>
     <div className={styles.stageLabels}><span>{text.showBefore}</span><span>{text.showAfter}</span></div>
     <div className={styles.stage} style={{ aspectRatio: `${clip.width} / ${clip.height}` }} data-testid="bl-compare" data-ready={ready ? "yes" : "no"}>
-      {before && <img src={before} alt="" />}
-      {courseSvg(PURPLE_PEN)}
+      <svg viewBox={viewBox} preserveAspectRatio="none" aria-hidden="true" data-testid="bl-compare-before">
+        <FrameView id="bl-before" frame={frame} symbols={symbols} image={before} courseColor={cssOfCmyk(PURPLE_PEN)} markTestIds={false} />
+      </svg>
       {images && <div className={styles.after} style={{ clipPath: `inset(0 0 0 ${split}%)` }} data-testid="bl-compare-after">
-        <img src={images.under} alt="" />
-        {courseSvg(profile.course.cmyk)}
-        {/* Färgerna över banan en gång till med Darken: så ser övertrycket ut på tryck (ADR-0211 beslut 3 och 14). */}
-        {images.overWhite && <img src={images.overWhite} alt="" />}
-        {images.over && <img src={images.over} alt="" style={{ mixBlendMode: "darken" }} />}
+        <svg viewBox={viewBox} preserveAspectRatio="none" aria-hidden="true">
+          <FrameView id="bl-after" frame={frame} symbols={symbols} image={images.under} overBandImages={images.bands} layers={afterLayers}
+            courseColor={cssOfCmyk(profile.course.cmyk)} markTestIds={false} />
+        </svg>
       </div>}
       {images && <span className={styles.divider} style={{ left: `${split}%` }} title={text.compareDivider} aria-hidden="true" />}
     </div>
@@ -97,7 +96,8 @@ function LayerList({ title, layers, wrong }: { title: string; layers: readonly L
   if (layers.length === 0) return null;
   return <>
     <li className={styles.group}>{title}</li>
-    {layers.map(layer => <li key={layer.name} data-wrong={wrong.has(layer.name) ? "yes" : undefined}>
+    {layers.map((layer, index) => <li key={layer.ocadId !== undefined ? `${layer.ocadId}-${index}` : `${index}-${layer.name}`}
+      data-wrong={wrong.has(layer.name) ? "yes" : undefined}>
       <span className={styles.band} style={{ background: layer.css }} aria-hidden="true" />{layer.name}
       {wrong.has(layer.name) && <span className={styles.wrong}>{text.layerWrongSide}</span>}</li>)}
   </>;
@@ -118,9 +118,10 @@ export function BlLayers({ profile, state, norm }: { profile: PrintProfile; stat
   const ring = <circle cx="90" cy="60" r="26" fill="none" stroke={stack.course.css} strokeWidth="6" />;
   const contour = <path d="M0 60 C40 48 70 72 180 58" fill="none" stroke={brown} strokeWidth="5" />;
   const wrong = new Set(stack.conflicts);
+  const help = text.layersHelp(cmykLabel(profile), norm, Boolean(profile.numbersOnTop));
   return <section aria-labelledby="bl-layers" data-testid="bl-layers" data-on-top={stack.onTop ? "yes" : "no"}>
     <h3 id="bl-layers">{text.layers}</h3>
-    <p className={styles.muted}>{text.layersHelp(cmykLabel(profile), norm)}</p>
+    <p className={styles.muted}>{help}</p>
     {stack.onTop && <p className={styles.muted}>{text.layersOnTop}</p>}
     <div className={styles.layers}>
       <ol className={styles.stack} aria-label={text.layers}>
@@ -129,7 +130,7 @@ export function BlLayers({ profile, state, norm }: { profile: PrintProfile; stat
           {text.layerCourse}: {stack.course.name}</li>
         <LayerList title={text.layerUnder} layers={stack.under} wrong={wrong} />
       </ol>
-      <svg className={styles.figure} viewBox="0 0 180 120" role="img" aria-label={stack.onTop ? text.layersOnTop : text.layersHelp(cmykLabel(profile), norm)}>
+      <svg className={styles.figure} viewBox="0 0 180 120" role="img" aria-label={stack.onTop ? text.layersOnTop : help}>
         <rect width="180" height="120" fill={ground} />
         <rect x="100" y="70" width="80" height="50" fill={lake} />
         {stack.onTop ? <>{contour}{ring}</> : <>{ring}{contour}</>}

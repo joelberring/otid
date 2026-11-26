@@ -29,6 +29,20 @@ describe("OCAD-läsaren", () => {
     expect(colors[2]!.spot).toEqual({ name: "Purple 0 %", overprint: false, separations: [{ name: "Purple", factor: 0, cmyk: { c: 0.35, m: 0.85, y: 0, k: 0 } }] });
   });
 
+  it("läser OCAD:s övertrycksflagga o1 även på rena CMYK-färger utan dekorfärg", () => {
+    const map = read({
+      ...SPEC,
+      strings: [
+        { type: 9, value: "Svart CMYK övertryck\tn1\tc0\tm0\ty0\tk100\to1\tt100" },
+        { type: 9, value: "Brun CMYK knockout\tn2\tc0\tm56\ty100\tk18\to0\tt100" },
+        GEOREF
+      ]
+    });
+    expect(map.colors[0]!.spot).toBeUndefined();
+    expect(map.colors[0]!.overprint).toBe(true);
+    expect(map.colors[1]!.overprint).toBeUndefined();
+  });
+
   it("läser symbolnummer som OCAD visar dem", () => {
     const map = read();
     expect(map.symbols.get("101000")?.code).toEqual({ text: "101.0", main: 101, sub: 0 });

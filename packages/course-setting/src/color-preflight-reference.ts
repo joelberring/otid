@@ -6,15 +6,37 @@
  * - ordningen: färger som enligt tabellen ska ligga över banan men ligger under den i kartan (och tvärtom) när banan läggs
  *   i tabellens ordning; uttryckliga regler i källan som varning, övriga som information.
  */
-import { coursePlacement, decisionFor, pendingProposals, proposeColorMatches, staleDecisions } from "./color-match";
-import { referenceRow, type ReferenceTable } from "./print-reference";
-import type { PreflightFinding, PrintProfile, SourceMapColor } from "./print-profile";
+import type { ColorUsage } from "@o-tid/map-file";
+import { decisionFor, pendingProposals, proposeColorMatches, staleDecisions } from "./color-match";
+import { pressOrder, type PressColorKind, type PressNorm } from "./press-order";
+import { referenceRow, referenceSide, type ReferenceTable } from "./print-reference";
+import { effectiveSourceMapColors, mapColorAdjust, type PreflightFinding, type PrintProfile, type SourceMapColor } from "./print-profile";
 
 /** Fyndet om färger som inte är godkända i förslaget; sidan visar det på en egen rad och upprepar det inte i listan. */
 export const UNCONFIRMED_RULE = "unconfirmed-colors";
 
 const cmykText = (cmyk: { c: number; m: number; y: number; k: number }) => `${cmyk.c}/${cmyk.m}/${cmyk.y}/${cmyk.k}`;
 const listText = (names: readonly string[]) => names.length <= 6 ? names.join(", ") : `${names.slice(0, 6).join(", ")} och ${names.length - 6} till`;
+
+const NORM_OVER_KINDS: Readonly<Record<PressNorm, ReadonlySet<PressColorKind>>> = {
+  ISOM: new Set(["BLACK", "BLUE_LINE", "BROWN", "MAGENTA"]),
+  ISSPROM: new Set(["BLACK", "BLACK_BUILDING", "BLACK_ROAD_EDGE", "GREEN_POINT", "MAGENTA"])
+};
+
+function effectiveFromSource(profile: PrintProfile, colors: readonly SourceMapColor[]): SourceMapColor[] {
+  const adjust = mapColorAdjust(profile, colors.map(color => ({ id: color.ocadId, name: color.name })));
+  const usage = new Map<number, ColorUsage>();
+  for (const color of colors) if (color.usage) usage.set(color.ocadId, color.usage);
+  const maxOrder = colors.reduce((max, color) => Math.max(max, color.drawOrder), 0);
+  const mapColors = colors.map(color => ({
+    id: color.ocadId,
+    name: color.name,
+    rank: maxOrder - color.drawOrder,
+    cmyk: { c: color.cmyk.c / 100, m: color.cmyk.m / 100, y: color.cmyk.y / 100, k: color.cmyk.k / 100 },
+    ...(color.overprint ? { spot: { name: color.name, overprint: true } } : {})
+  }));
+  return effectiveSourceMapColors(mapColors, usage.size > 0 ? usage : undefined, adjust);
+}
 
 export function referencePreflight(profile: PrintProfile, table: ReferenceTable, colors: readonly SourceMapColor[]): { findings: PreflightFinding[]; unconfirmed: string[] } {
   const findings: PreflightFinding[] = [];
@@ -51,14 +73,29 @@ export function referencePreflight(profile: PrintProfile, table: ReferenceTable,
   }
 
   if (profile.courseLayer === "REFERENCE") {
-    const rowOf = (color: SourceMapColor) => decisionFor(decisions, color)?.row;
-    const placement = coursePlacement(table, colors, rowOf);
-    if (placement.position === null) findings.push({ severity: "INFO", rule: "order", text: "Banan ritas överst tills kartans färger är godkända (ordningen går efter dem)." });
-    const explicit = new Set([...table.courseBelow, ...table.courseAbove]);
-    for (const conflict of placement.conflicts) {
-      if (!conflict.color.usage && known) continue;
-      findings.push({ severity: explicit.has(conflict.row.id) ? "WARNING" : "INFO", rule: "order",
-        text: `”${conflict.color.name}” (BL: ${conflict.row.name}) ska ligga ${conflict.wanted === "OVER" ? "över" : "under"} banan men ligger ${conflict.wanted === "OVER" ? "under" : "över"} den i kartans färgordning; kartfilen ändras inte.` });
+    const norm: PressNorm = profile.pressNorm ?? (table.kind === "SPRINT" ? "ISSPROM" : "ISOM");
+    const effective = effectiveFromSource(profile, colors);
+    const order = pressOrder(effective, norm);
+    if (order.over.size === 0) {
+      findings.push({ severity: "INFO", rule: "order", text: "Banan ritas överst eftersom ingen använd kartfärg hamnar över banan i normens ordning." });
+    } else {
+      const explicit = new Set([...table.courseBelow, ...table.courseAbove]);
+      const byId = new Map(order.classes.map(item => [item.ocadId, item]));
+      for (const color of effective) {
+        if (!color.usage && known) continue;
+        const cls = byId.get(color.ocadId);
+        if (!cls || cls.kind === "WHITE") continue;
+        const normSide = NORM_OVER_KINDS[norm].has(cls.kind) ? "OVER" : "UNDER";
+        // Färger som ligger på normens rätta sida (t.ex. blått och brunt under banan i ISSprOM) är aldrig ordningsfel.
+        if (cls.side === normSide) continue;
+        const rowId = decisionFor(decisions, color)?.row;
+        const row = rowId ? referenceRow(table, rowId) : undefined;
+        if (!row) continue;
+        const wanted = referenceSide(table, row);
+        if (wanted === "COURSE" || wanted === cls.side) continue;
+        findings.push({ severity: explicit.has(row.id) ? "WARNING" : "INFO", rule: "order",
+          text: `”${color.name}” (BL: ${row.name}) ska ligga ${wanted === "OVER" ? "över" : "under"} banan men ligger ${cls.side === "OVER" ? "över" : "under"} den i kartans färgordning; kartfilen ändras inte.` });
+      }
     }
   } else if (table.courseBelow.length > 0) {
     findings.push({ severity: "INFO", rule: "order", text: `Banan ritas överst. ${table.title} vill ha den under ${table.courseBelow.map(id => referenceRow(table, id)?.name ?? id).join(", ")}.` });

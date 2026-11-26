@@ -9,15 +9,16 @@
  */
 import { Duplex, PDFDocument, PDFName, type PDFRawStream, type PDFRef } from "pdf-lib";
 import {
-  cmykOfHex, courseLayerOf, descriptionSymbols, detectPressNorm, drawTrainingMap, passesKey, PDF_PRINT_CAPABILITIES, pressOrder, sourceMapColors, usageCodes,
-  type DescriptionStandard, type OverprintPrimitive, type PressNorm, type PrintProfile, type Sheet, type SheetFrame
+  cmykOfHex, courseLayerOf, descriptionSymbols, detectPressNorm, drawTrainingMap, effectiveSourceMapColors, mapColorAdjust, overColorBands, passesKey,
+  PDF_PRINT_CAPABILITIES, pressOrder, usageCodes,
+  type DescriptionStandard, type OverColorBand, type OverprintPrimitive, type PressNorm, type PrintProfile, type Sheet, type SheetFrame
 } from "@o-tid/course-setting";
 import { colorUsage, type MapColor, type MapObject, type ParsedMap, type Path } from "@o-tid/map-file";
 import { ColorSpaces, Content, GS_KNOCKOUT, GS_OVERPRINT, num } from "./content";
 import { descriptionOps, figureOps, textOps, type FigureContext, type Matrix } from "./figures";
 import { Fonts, fontVariant, paperFontVariant, variantForFamily, type FontFiles, type FontVariant } from "./fonts";
 import { PdfCanvas } from "./pdf-canvas";
-import { BLACK, coursePaint, mapPaints, Plates, registrationPaint, WHITE, type Cmyk, type Paint, type PdfMode } from "./paint";
+import { BLACK, coursePaint, isWhiteInk, mapPaints, Plates, registrationPaint, WHITE, type Cmyk, type Paint, type PdfMode } from "./paint";
 
 /** 1 mm i PDF-punkter. */
 export const PT_PER_MM = 72 / 25.4;
@@ -75,7 +76,8 @@ export function pressNormFor(map: Pick<ParsedMap, "colors" | "scale"> & Partial<
 export function colorsOverCourse(map: Pick<ParsedMap, "colors" | "scale"> & Partial<Pick<ParsedMap, "objects" | "symbols">>, profile: PrintProfile): ReadonlySet<number> | undefined {
   if (profile.courseLayer !== "REFERENCE") return undefined;
   const usage = map.objects && map.symbols ? colorUsage(map as ParsedMap) : undefined;
-  const over = pressOrder(sourceMapColors(map.colors, usage), pressNormFor(map, profile)).over;
+  const adjust = mapColorAdjust(profile, map.colors);
+  const over = pressOrder(effectiveSourceMapColors(map.colors, usage, adjust), pressNormFor(map, profile)).over;
   return over.size === 0 ? undefined : over;
 }
 
@@ -155,11 +157,18 @@ function neededFonts(sheets: readonly Sheet[], map: ParsedMap | null): Set<FontV
     for (const frame of sheet.frames) figures(frame.figures);
   }
   if (map) {
-    const used = new Set(map.objects.filter(object => object.kind === "text").map(object => object.symbol));
-    for (const id of used) {
+    const visit = (id: string, depth: number, seen: ReadonlySet<string>) => {
+      if (depth > 8 || seen.has(id)) return;
       const symbol = map.symbols.get(id);
-      if (symbol?.kind === "TEXT") out.add(variantForFamily(symbol.fontFamily, symbol.bold, symbol.italic));
-    }
+      if (!symbol) return;
+      if (symbol.kind === "TEXT") out.add(variantForFamily(symbol.fontFamily, symbol.bold, symbol.italic));
+      else if (symbol.kind === "COMBINED") {
+        const next = new Set(seen).add(id);
+        for (const part of symbol.parts) visit(part, depth + 1, next);
+      }
+    };
+    const used = new Set(map.objects.filter(object => object.kind === "text").map(object => object.symbol));
+    for (const id of used) visit(id, 0, new Set());
   }
   return out;
 }
@@ -187,13 +196,24 @@ function tintFunction(document: PDFDocument, alternates: readonly Cmyk[]): PDFRe
     Range: [0, 1, 0, 1, 0, 1, 0, 1] }));
 }
 
-/** Papperets färg (#rrggbb) som CMYK utan övertryck. */
-/** Vitt (alla plåtar 0): ska aldrig tryckas med övertryck eller blandas, då syns det inte. */
-function isWhitePaint(paint: Paint): boolean {
-  return paint.ink.kind === "CMYK" ? Math.max(paint.ink.cmyk.c, paint.ink.cmyk.m, paint.ink.cmyk.y, paint.ink.cmyk.k) <= 0.02
-    : paint.ink.tints.every(tint => tint <= 0.02);
+const PDF_NAME_DELIMITERS = new Set([0x23, 0x28, 0x29, 0x3c, 0x3e, 0x5b, 0x5d, 0x7b, 0x7d, 0x2f, 0x25]);
+const UTF8_ENCODER = new TextEncoder();
+
+/**
+ * UTF-8-säkert PDF-namn för dekorfärger enligt ISO 32000-1 §7.3.5: bytes < 0x21, > 0x7e eller PDF-delimiters kodas
+ * med 2-siffrig `#XX`-hex så att `pdf-lib` inte skriver Latin-1 eller ogiltiga 4-hex-escapes (`#2013`).
+ */
+function pdfSpotName(name: string): PDFName {
+  let encoded = "";
+  for (const byte of UTF8_ENCODER.encode(name)) {
+    encoded += byte < 0x21 || byte > 0x7e || PDF_NAME_DELIMITERS.has(byte)
+      ? `#${byte.toString(16).toUpperCase().padStart(2, "0")}`
+      : String.fromCharCode(byte);
+  }
+  return PDFName.of(encoded);
 }
 
+/** Papperets färg (#rrggbb) som CMYK utan övertryck. */
 const hexPaint = (hex: string): Paint => ({ ink: { kind: "CMYK", cmyk: cmykOfHex(hex) }, overprint: false });
 
 /** Rektangel med rundade hörn (papperets mm, y nedåt) som väg i punkter. */
@@ -268,54 +288,87 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
   const spaces = new ColorSpaces();
   const symbols = new Map(descriptionSymbols(input.descriptionStandard ?? "2018").map(symbol => [symbol.id, symbol]));
   let overprintUsed = false;
-  let blendUsed = false;
+  let mapBlendUsed = false;
 
   // Kartans utsnitt som Form XObject (koordinater: punkter från ramens nedre vänstra hörn).
-  const forms = new Map<string, { name: string; stream: PDFRawStream; ref: PDFRef }>();
-  // Banan i färgordningen: kartan i två utsnitt per ram, hela kartan under banan (med papperets vitt) och en gång till
-  // färgerna över banan.
+  const forms = new Map<string, { name: string; stream: PDFRawStream; ref: PDFRef } | null>();
+  let formCount = 0;
+  const adjust = input.map ? mapColorAdjust(input.profile, input.map.colors) : undefined;
+  const hiddenColors = new Set<number>();
+  for (const [id, paint] of paints) if (paint === null) hiddenColors.add(id);
+  // Banan i färgordningen:
+  // - OFFICE: ALL (knockout) → LOWER → OVER i sammanhängande INK/WHITE-band (varje INK-band är en isolerad
+  //   DeviceCMYK-transparensgrupp med knockout inuti, placerad med /BM /Darken; WHITE-band placeras med knockout).
+  // - PROCESS (inkl. BL): ren enpass-ordning UNDER → LOWER → OVER med knockout (noll 308–375 % TAC-blödning).
+  // - PRESS: ren enpass-ordning UNDER → LOWER → OVER med kartfilens egna övertrycksflaggor (som OCAD, vitt alltid knockout).
   const over = input.map ? colorsOverCourse(input.map, input.profile) : undefined;
+  const overBands: readonly OverColorBand[] = input.map && over && mode === "OFFICE"
+    ? overColorBands(input.map.colors, over, adjust) : [];
   const norm: PressNorm = input.map ? pressNormFor(input.map, input.profile) : "ISOM";
   const numbersOnTop = input.profile.numbersOnTop ?? false;
   if (input.map && over) {
-    const names = input.map.colors.filter(color => over.has(color.id)).sort((a, b) => a.rank - b.rank).map(color => color.name);
-    notes.add(`Banan ligger i färgordningen enligt ${norm === "ISSPROM" ? "ISSprOM 2019-2" : "ISOM 2017-2"}: undre lila under ${names.length} kartfärger (${names.slice(0, 5).join(", ")}${names.length > 5 ? " m.fl." : ""}) ${mode === "OFFICE" ? "(lila syns genom dem, som övertryck)" : "med övertryck"}, ${norm === "ISSPROM" || numbersOnTop ? "nummer och markeringar överst" : "numren i undre lila, markeringar överst"}.`);
+    const names = input.map.colors.filter(color => over.has(color.id) && !hiddenColors.has(color.id)).sort((a, b) => a.rank - b.rank).map(color => color.name);
+    const how = mode === "OFFICE" ? "(lila syns genom dem, som övertryck)" : mode === "PROCESS" ? "(ren CMYK-ordning utan övertryck)" : "med kartans övertryck";
+    notes.add(`Banan ligger i färgordningen enligt ${norm === "ISSPROM" ? "ISSprOM 2019-2" : "ISOM 2017-2"}: undre lila under ${names.length} kartfärger (${names.slice(0, 5).join(", ")}${names.length > 5 ? " m.fl." : ""}) ${how}, ${norm === "ISSPROM" || numbersOnTop ? "nummer och markeringar överst" : "numren i undre lila, markeringar överst"}.`);
   }
-  const mapForm = (frame: SheetFrame, part: "ALL" | "OVER" = "ALL") => {
-    const key = `${frameKey(frame)}|${part}`;
-    const known = forms.get(key);
-    if (known || !input.map) return known;
+  const underIds = input.map && over && mode !== "OFFICE"
+    ? new Set(input.map.colors.filter(color => !over.has(color.id) && !hiddenColors.has(color.id)).map(color => color.id)) : undefined;
+  const overIds = input.map && over
+    ? new Set(input.map.colors.filter(color => over.has(color.id) && !hiddenColors.has(color.id)).map(color => color.id)) : undefined;
+
+  interface MapFormSpec {
+    readonly suffix: string;
+    readonly onlyColors?: ReadonlySet<number> | undefined;
+    readonly background: boolean;
+    readonly forceKnockout: boolean;
+    readonly isolatedGroup: boolean;
+    readonly skipEmpty?: boolean | undefined;
+  }
+
+  const buildMapForm = (frame: SheetFrame, spec: MapFormSpec) => {
+    const key = `${frameKey(frame)}|${spec.suffix}`;
+    if (forms.has(key)) return forms.get(key) ?? undefined;
+    if (!input.map) return undefined;
     const content = new Content(spaces);
     const w = frame.clip.width, h = frame.clip.height;
-    // Färgerna över banans lila trycks med övertryck (ADR-0211 beslut 3): lila syns genom dem som i normens tryck; utan
-    // övertryck slog de ut lila under sig. Övertrycket ska bara gälla lilan, inte kartan (ADR-0211 beslut 14): hela kartan
-    // ritas därför först som i filen (ALL, färgerna slår ut varandra), sedan banan, och sist färgerna över banan en gång
-    // till (OVER). Där ingen bana ligger trycks en färg då över sig själv och ingenting ändras; förut trycktes den över
-    // gult och grönt, så att en blå bäck blev grön på öppen mark. Kontorsskrivaren kan inte övertryck: där ritas de med
-    // /BM /Darken (GOP), som ger samma färg över sig själv och det mörkaste per kanal över lilan, i alla visare. Vitt slår
-    // alltid ut: vitt med övertryck eller blandning syns inte alls (ett känt fel i tryckfiler), och ett vitt över banan
-    // är en mask.
-    const overprintOver = part === "OVER";
-    const canvas = new PdfCanvas({ device: [PT_PER_MM, 0, 0, -PT_PER_MM, 0, h * PT_PER_MM], width: w, height: h, content, fonts,
+    const canvas = new PdfCanvas({
+      device: [PT_PER_MM, 0, 0, -PT_PER_MM, 0, h * PT_PER_MM],
+      width: w,
+      height: h,
+      content,
+      fonts,
       paintFor: (color: MapColor) => {
         const paint = paints.get(color.id) ?? null;
-        return paint && overprintOver && !isWhitePaint(paint) ? { ...paint, overprint: true } : paint;
-      } });
-    const onlyColors = part === "ALL" || !over ? undefined
-      : new Set(input.map.colors.filter(color => over.has(color.id)).map(color => color.id));
-    // Träningsläget (ADR-0192 beslut 9): kartan i pass med klippning och filter, i båda delarna när banan ligger i färgordningen.
-    const report = drawTrainingMap(canvas, cullMap(input.map, frame.mapArea), { pxPerMm: frame.transform.scale, origin: { x: frame.mapArea.minX, y: frame.mapArea.maxY },
-      beforeColor: canvas.beforeColor, maxPatternInstances: input.maxPatternInstances ?? PDF_MAX_PATTERN_INSTANCES,
-      ...(onlyColors ? { onlyColors } : {}), ...(part === "OVER" ? { background: false } : {}) }, frame.mapPasses);
+        if (!paint) return null;
+        if (spec.forceKnockout || isWhiteInk(paint.ink)) return paint.overprint ? { ...paint, overprint: false } : paint;
+        return paint;
+      }
+    });
+    // Träningsläget (ADR-0192 beslut 9): kartan i pass med klippning och filter; dolda färger filtreras före ritning.
+    const report = drawTrainingMap(canvas, cullMap(input.map, frame.mapArea), {
+      pxPerMm: frame.transform.scale,
+      origin: { x: frame.mapArea.minX, y: frame.mapArea.maxY },
+      beforeColor: canvas.beforeColor,
+      maxPatternInstances: input.maxPatternInstances ?? PDF_MAX_PATTERN_INSTANCES,
+      ...(spec.onlyColors ? { onlyColors: spec.onlyColors } : {}),
+      ...(hiddenColors.size > 0 ? { excludeColors: hiddenColors } : {}),
+      ...(spec.background ? {} : { background: false })
+    }, frame.mapPasses);
     for (const text of report.simplifications) {
       if (/Dekorfärger och övertryck|standardtypsnitt/.test(text)) continue;
       notes.add(`Kartan: ${text}.`);
     }
     if (input.map.objects.some(object => object.kind === "text")) notes.add("Kartans texter skrivs med Roboto (inbäddat), vänsterställda som på skärmen.");
-    if (mode === "OFFICE") blendUsed ||= content.overprintUsed;
-    else overprintUsed ||= content.overprintUsed;
-    const stream = document.context.flateStream(content.text(), { Type: "XObject", Subtype: "Form", BBox: [0, 0, w * PT_PER_MM, h * PT_PER_MM] });
-    const created = { name: `Fm${forms.size}`, stream, ref: document.context.register(stream) };
+    if (spec.skipEmpty && canvas.painted === 0) {
+      forms.set(key, null);
+      return undefined;
+    }
+    if (mode !== "OFFICE") overprintUsed ||= content.overprintUsed;
+    const stream = document.context.flateStream(content.text(), {
+      Type: "XObject", Subtype: "Form", BBox: [0, 0, w * PT_PER_MM, h * PT_PER_MM],
+      ...(spec.isolatedGroup ? { Group: document.context.obj({ S: PDFName.of("Transparency"), CS: PDFName.of("DeviceCMYK"), I: true }) } : {})
+    });
+    const created = { name: `Fm${formCount++}`, stream, ref: document.context.register(stream) };
     forms.set(key, created);
     return created;
   };
@@ -328,6 +381,7 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
     page.setTrimBox(0, 0, W * PT_PER_MM, H * PT_PER_MM);
     pages.push(page);
     const content = new Content(spaces);
+    let pageHasTransparency = false;
     const figureContext: FigureContext = { content, fonts, course, symbols, image: imageFor, notes };
     // Papperets mm (y nedåt) → punkter (y uppåt).
     const paperMatrix: Matrix = [PT_PER_MM, 0, 0, -PT_PER_MM, 0, H * PT_PER_MM];
@@ -335,24 +389,27 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
       `${num(x * PT_PER_MM)} ${num((H - y - h) * PT_PER_MM)} ${num(w * PT_PER_MM)} ${num(h * PT_PER_MM)} re`;
     for (const frame of sheet.frames) {
       const { clip } = frame;
-      // "Vitt på utskriften" (ADR-0211 beslut 8): ytorna som vägar i punkter; `outsideWhite` klipper bort dem jämn–udda.
+      const frameRect = rect(clip.x, clip.y, clip.width, clip.height);
+      // "Vitt på utskriften" (ADR-0211 beslut 8): en separat `frameRect wp W* n` per polygon så överlappande ytor aldrig tar ut varandra.
       const whitePaths = (frame.whiteAreas ?? []).map(polygon =>
         `${polygon.map((p, index) => `${num(p.x * PT_PER_MM)} ${num((H - p.y) * PT_PER_MM)} ${index === 0 ? "m" : "l"}`).join(" ")} h`);
-      const outsideWhite = whitePaths.length > 0 ? `${rect(clip.x, clip.y, clip.width, clip.height)} ${whitePaths.join(" ")} W* n` : "";
+      const outsideWhiteClips = whitePaths.map(wp => `${frameRect} ${wp} W* n`);
       const paintWhite = () => {
         if (whitePaths.length === 0) return;
         content.save();
-        content.op(`${rect(clip.x, clip.y, clip.width, clip.height)} W n`);
+        content.op(`${frameRect} W n`);
         content.fill(WHITE);
-        content.op(`${whitePaths.join(" ")} f`);
+        for (const wp of whitePaths) content.op(`${wp} f`);
         content.restore();
       };
-      const place = (form: { name: string } | undefined, excludeWhite = false, clips: readonly string[] = []) => {
+      const place = (form: { name: string } | undefined, excludeWhite = false, clips: readonly string[] = [], blend = false) => {
         if (!form) return;
         content.save();
-        content.op(`${rect(clip.x, clip.y, clip.width, clip.height)} W n`);
-        if (excludeWhite && outsideWhite) content.op(outsideWhite);
+        content.op(`${frameRect} W n`);
+        if (excludeWhite) for (const clipOp of outsideWhiteClips) content.op(clipOp);
         for (const extra of clips) content.op(extra);
+        content.setOverprint(blend);
+        if (blend && mode === "OFFICE") { mapBlendUsed = true; pageHasTransparency = true; }
         // Spegelorientering (ADR-0192 beslut 12): kartbilden vänds kring ramens mitt; figurerna är redan speglade.
         const a = frame.mirror ? -1 : 1, x0 = frame.mirror ? clip.x + clip.width : clip.x;
         content.op(`${a} 0 0 1 ${num(x0 * PT_PER_MM)} ${num((H - clip.y - clip.height) * PT_PER_MM)} cm /${form.name} Do`);
@@ -361,35 +418,40 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
       // Kartans mm (y uppåt) → sidans mm (y nedåt) → punkter: x = K(s·x + tx), y = K(H − (−s·y + ty)).
       const s = frame.transform.scale;
       const mapMatrix: Matrix = [PT_PER_MM * s, 0, 0, PT_PER_MM * s, PT_PER_MM * frame.transform.translateX, PT_PER_MM * (H - frame.transform.translateY)];
-      // Papperets klippning (ADR-0197): specialobjekten i `markingClip.refs` ritas klippta till polygonen, i målningsordning.
+      // Papperets klippning (ADR-0197): gruppera på exakt par `(inMarked, inWhite)` så omarkerade specialobjekt aldrig klipps av `markingPath`.
       const marked = new Set(frame.markingClip?.refs ?? []);
       const isSpecial = (figure: OverprintPrimitive) => figure.role === "SPECIAL" && figure.kind !== "description" && figure.ref !== undefined;
-      const isMarking = (figure: OverprintPrimitive) => (isSpecial(figure) && marked.has(figure.ref!)) || (outsideWhite !== "" && isSpecial(figure));
       const markingPolygon = frame.markingClip
         ? `${frame.markingClip.polygon.map((p, index) => `${num(p.x * PT_PER_MM)} ${num((H - p.y) * PT_PER_MM)} ${index === 0 ? "m" : "l"}`).join(" ")} h` : "";
       const markingPath = markingPolygon ? `${markingPolygon} W n` : "";
+      const hasWhiteClips = outsideWhiteClips.length > 0;
+      const clipKey = (figure: OverprintPrimitive): string => {
+        if (!isSpecial(figure)) return "0:0";
+        const inMarked = markingPath !== "" && marked.has(figure.ref!);
+        return `${inMarked ? 1 : 0}:${hasWhiteClips ? 1 : 0}`;
+      };
       const figures = (list: readonly OverprintPrimitive[]) => {
         if (list.length === 0) return;
         content.save();
-        content.op(`${rect(clip.x, clip.y, clip.width, clip.height)} W n`);
-        if (marked.size === 0 && !outsideWhite) figureOps(figureContext, mapMatrix, list);
+        content.op(`${frameRect} W n`);
+        if (marked.size === 0 && !hasWhiteClips) figureOps(figureContext, mapMatrix, list);
         else {
-          let run: OverprintPrimitive[] = [], runMarked = false;
+          let run: OverprintPrimitive[] = [], runKey = "0:0";
           const flush = () => {
             if (run.length === 0) return;
-            if (runMarked) {
+            if (runKey !== "0:0") {
+              const [inMarked, inWhite] = runKey.split(":");
               content.save();
-              if (markingPath && run.some(figure => marked.has(figure.ref ?? ""))) content.op(markingPath);
-              if (outsideWhite) content.op(outsideWhite);
+              if (inMarked === "1" && markingPath) content.op(markingPath);
+              if (inWhite === "1") for (const clipOp of outsideWhiteClips) content.op(clipOp);
               figureOps(figureContext, mapMatrix, run);
               content.restore();
-            }
-            else figureOps(figureContext, mapMatrix, run);
+            } else figureOps(figureContext, mapMatrix, run);
             run = [];
           };
           for (const figure of list) {
-            const m = isMarking(figure);
-            if (m !== runMarked) { flush(); runMarked = m; }
+            const key = clipKey(figure);
+            if (key !== runKey) { flush(); runKey = key; }
             run.push(figure);
           }
           flush();
@@ -397,25 +459,52 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
         content.restore();
       };
       if (over) {
-        // Normens ordning (ADR-0211 beslut 3 och 14): hela kartan, vita specialobjekt och bilder (`beneathCourse`), undre lila,
-        // kartans färger över banan en gång till med övertryck (inte i de vita ytorna och bilderna: de ligger över hela
-        // kartan), sist övre lila.
         const layer = (figure: OverprintPrimitive) => courseLayerOf(figure, norm, numbersOnTop);
         const beneath = frame.figures.filter(figure => layer(figure) === "BENEATH");
-        const frameRect = rect(clip.x, clip.y, clip.width, clip.height);
         const covers = beneath.map(figure => ({ ref: figure.ref, path: coverPath(figure, mapMatrix) })).filter(cover => cover.path !== "");
-        place(mapForm(frame, "ALL"));
+        const unmarkedCoverClips = covers.filter(cover => !marked.has(cover.ref ?? "")).map(cover => `${frameRect} ${cover.path} W* n`);
+        const baseForm = mode !== "OFFICE"
+          ? buildMapForm(frame, { suffix: "UNDER", onlyColors: underIds, background: true, forceKnockout: false, isolatedGroup: false })
+          : buildMapForm(frame, { suffix: "ALL", background: true, forceKnockout: true, isolatedGroup: false });
+        place(baseForm);
         paintWhite();
         figures(beneath);
         figures(frame.figures.filter(figure => layer(figure) === "LOWER"));
-        const overForm = mapForm(frame, "OVER");
+        const placeOver = (excludeWhite: boolean, clips: readonly string[]) => {
+          if (mode === "OFFICE") {
+            overBands.forEach((band, index) => {
+              const form = buildMapForm(frame, {
+                suffix: `BAND:${index}:${band.kind}`,
+                onlyColors: new Set(band.ids),
+                background: false,
+                forceKnockout: true,
+                isolatedGroup: band.kind === "INK",
+                skipEmpty: true
+              });
+              place(form, excludeWhite, clips, band.kind === "INK");
+            });
+          } else {
+            const overForm = buildMapForm(frame, {
+              suffix: "OVER",
+              onlyColors: overIds,
+              background: false,
+              forceKnockout: mode === "PROCESS",
+              isolatedGroup: false
+            });
+            place(overForm, excludeWhite, clips, false);
+          }
+        };
         // En täckning per klippning (jämn–udda mot ramen): överlappande ytor tar då inte ut varandra.
-        place(overForm, true, covers.map(cover => `${frameRect} ${cover.path} W* n`));
-        // En täckning som papperets klippning skär (ADR-0197) syns bara innanför: utanför ritas kartan över banan som vanligt.
-        for (const cover of covers) if (markingPolygon && marked.has(cover.ref ?? "")) place(overForm, true, [`${cover.path} W* n`, `${frameRect} ${markingPolygon} W* n`]);
+        placeOver(true, covers.map(cover => `${frameRect} ${cover.path} W* n`));
+        // En täckning som papperets klippning skär (ADR-0197) syns bara innanför: utanför ritas kartan över banan (men inte i övriga omarkerade täckningar).
+        for (const cover of covers) {
+          if (markingPolygon && marked.has(cover.ref ?? "")) {
+            placeOver(true, [`${cover.path} W* n`, `${frameRect} ${markingPolygon} W* n`, ...unmarkedCoverClips]);
+          }
+        }
         figures(frame.figures.filter(figure => layer(figure) === "UPPER"));
       } else {
-        place(mapForm(frame));
+        place(buildMapForm(frame, { suffix: "ALL", background: true, forceKnockout: mode === "OFFICE", isolatedGroup: false }));
         paintWhite();
         figures(frame.figures);
       }
@@ -486,6 +575,7 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
             const name = `GA${Math.round(part.opacity * 100)}`;
             opacities.set(name, Math.round(part.opacity * 100) / 100);
             content.op(`/${name} gs`);
+            pageHasTransparency = true;
           }
           content.op(`${num(part.width * PT_PER_MM)} 0 0 ${num(part.height * PT_PER_MM)} ${num(part.x * PT_PER_MM)} ${num((H - part.y - part.height) * PT_PER_MM)} cm /${embedded.name} Do`);
           content.restore();
@@ -509,7 +599,14 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
       content.lineStyle(0.15 * PT_PER_MM, 0, 0);
       content.op(`${sheet.cutMarks.map(mark => `${num(mark.x1 * PT_PER_MM)} ${num((H - mark.y1) * PT_PER_MM)} m ${num(mark.x2 * PT_PER_MM)} ${num((H - mark.y2) * PT_PER_MM)} l`).join(" ")} S`);
     }
-    overprintUsed ||= content.overprintUsed;
+    if (mode === "OFFICE") {
+      if (content.overprintUsed) pageHasTransparency = true;
+    } else {
+      overprintUsed ||= content.overprintUsed;
+    }
+    if (pageHasTransparency) {
+      page.node.set(PDFName.of("Group"), document.context.obj({ S: PDFName.of("Transparency"), CS: PDFName.of("DeviceCMYK") }));
+    }
     // Innehållet registreras här som förut (samma objektordning, så att en fil utan återkommande sidor är byte för byte
     // densamma som tidigare); en sida som visar sig återkomma får sitt innehåll utbytt nedan.
     const ref = document.context.register(document.context.flateStream(content.text()));
@@ -541,8 +638,8 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
   for (const entry of spaces.spaces) {
     const fn = tintFunction(document, entry.space.alternates);
     const value = entry.space.names.length === 1
-      ? context.obj([PDFName.of("Separation"), PDFName.of(entry.space.names[0]!), PDFName.of("DeviceCMYK"), fn])
-      : context.obj([PDFName.of("DeviceN"), entry.space.names.map(name => PDFName.of(name)), PDFName.of("DeviceCMYK"), fn]);
+      ? context.obj([PDFName.of("Separation"), pdfSpotName(entry.space.names[0]!), PDFName.of("DeviceCMYK"), fn])
+      : context.obj([PDFName.of("DeviceN"), entry.space.names.map(name => pdfSpotName(name)), PDFName.of("DeviceCMYK"), fn]);
     colorSpaces[entry.name] = context.register(value);
   }
   const extGState = {
@@ -558,7 +655,7 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
     Font: context.register(context.obj(fontDict)), ProcSet: [PDFName.of("PDF"), PDFName.of("Text"), PDFName.of("ImageB"), PDFName.of("ImageC")] };
   const formResources = context.register(context.obj(shared));
   const xobjects: Record<string, PDFRef> = {};
-  for (const form of forms.values()) { form.stream.dict.set(PDFName.of("Resources"), formResources); xobjects[form.name] = form.ref; }
+  for (const form of forms.values()) { if (!form) continue; form.stream.dict.set(PDFName.of("Resources"), formResources); xobjects[form.name] = form.ref; }
   for (const image of images.values()) if (image) xobjects[image.name] = image.ref;
   for (const image of paperImages.values()) if (image) xobjects[image.name] = image.ref;
   // De återanvända sidorna ritar kartutsnitt och bilder själva; sidorna som pekar på dem behöver bara sidblocket.
@@ -573,7 +670,7 @@ export async function writeSheetsPdf(input: WritePdfInput): Promise<WritePdfResu
   if (edge) document.catalog.getOrCreateViewerPreferences().setDuplex(edge === "LONG" ? Duplex.DuplexFlipLongEdge : Duplex.DuplexFlipShortEdge);
 
   const bytes = await document.save({ useObjectStreams: false });
-  if (blendUsed) notes.add("Kontorsskrivaren: kartans färger över banan ritas så att lila syns genom dem som på tryck.");
-  return { bytes, pages: pages.length, plates: spaces.plates().filter(name => name !== "All"), overprint: overprintUsed, mapForms: forms.size, sharedPages: pageForms.size,
+  if (mapBlendUsed) notes.add("Kontorsskrivaren: kartans färger över banan ritas så att lila syns genom dem som på tryck.");
+  return { bytes, pages: pages.length, plates: spaces.plates().filter(name => name !== "All"), overprint: overprintUsed, mapForms: formCount, sharedPages: pageForms.size,
     notes: [...notes], overCourse: over ? [...over] : [] };
 }

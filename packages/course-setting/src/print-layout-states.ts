@@ -61,6 +61,7 @@ export function restoreLayoutState(document: CourseSettingDocument, state: Layou
   if (state.allControlsArea) event.printArea = state.allControlsArea;
   else delete event.printArea;
   if (state.printProfileId) event.printProfileId = state.printProfileId;
+  else delete event.printProfileId;
   // Lägets egna profiler som de var; profiler som gjorts efter läget står kvar.
   if (state.printProfiles && state.printProfiles.length > 0) {
     const saved = new Map(state.printProfiles.map(profile => [profile.id, profile]));

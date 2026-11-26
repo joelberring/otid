@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  applyEdit, RUNNER_BACK, BUILT_IN_PRINT_PROFILES, BUILT_IN_SHEET_LAYOUTS, colorPreflight, CourseSettingEditError, fillPlaceholders, gridTemplate, sheetLayoutSheets,
-  mapColorAdjust, parseSheetLayout, parsePrintProfile, readPpen, sourceMapColors, toPage, writePpen, type PrintProfile
+  applyEdit, RUNNER_BACK, BUILT_IN_PRINT_PROFILES, BUILT_IN_SHEET_LAYOUTS, colorPreflight, CourseSettingEditError, effectiveSourceMapColors, fillPlaceholders,
+  gridTemplate, sheetLayoutSheets, mapColorAdjust, parseSheetLayout, parsePrintProfile, readPpen, sourceMapColors, toPage, validatePrintProfile, writePpen,
+  type PrintProfile
 } from "../src";
 import { lineCourse } from "./build";
 
@@ -11,20 +12,93 @@ const color = (id: number, name: string, rank: number, cmyk: [number, number, nu
 describe("utskriftsprofilen (steg 64, ADR-0183)", () => {
   const forest = BUILT_IN_PRINT_PROFILES.find(profile => profile.id === "bl-forest-2026-08-27")!;
 
-  it("avvisar okänd schemaVersion och går fram och tillbaka som JSON", () => {
+  it("avvisar okänd schemaVersion, för långt id (>64) och går fram och tillbaka som JSON (inkl. spot: null och lighten: 0)", () => {
     expect(parsePrintProfile(JSON.stringify(forest))).toEqual(forest);
     expect(() => parsePrintProfile(JSON.stringify({ ...forest, schemaVersion: 2 }))).toThrow(CourseSettingEditError);
     expect(() => parsePrintProfile("{")).toThrow(/inte JSON/);
+    expect(() => validatePrintProfile({ ...forest, id: "a".repeat(65) })).toThrow(/64/);
+    expect(validatePrintProfile({ ...forest, id: "a".repeat(64) }).id).toHaveLength(64);
+    const withNullSpot: PrintProfile = { ...forest, id: "utan-spot", mapColors: [{ match: { ocadIds: [1] }, spot: null, lighten: 0 }] };
+    expect(parsePrintProfile(JSON.stringify(withNullSpot))).toEqual(withNullSpot);
   });
 
-  it("rättar kartans färger utan att kartfilen ändras: dölj, CMYK, ljusare och dekorfärg", () => {
+  it("rättar kartans färger utan att kartfilen ändras: dölj, CMYK, ljusare, dekorfärg och sammanslagning med BL-beslut", () => {
     const map = [color(1, "Svart", 0, [0, 0, 0, 100]), color(2, "Grön 100%", 5, [76, 0, 91, 0]), color(3, "Gul 100%", 6, [0, 27, 94, 0])];
     const office = BUILT_IN_PRINT_PROFILES.find(profile => profile.id === "office")!;
+    expect(office.courseLayer).toBe("REFERENCE");
     expect(mapColorAdjust(office, map)).toEqual({ 2: { lighten: 0.3 }, 3: { lighten: 0.15 } });
     const own: PrintProfile = { ...office, id: "egen", mapColors: [{ match: { ocadIds: [1] }, hidden: true }, { match: { names: ["grön 100%"] }, cmyk: { c: 60, m: 0, y: 80, k: 0 },
       spot: { name: "PMS 361", overprint: true } }] };
     expect(mapColorAdjust(own, map)).toEqual({ 1: { hidden: true }, 2: { cmyk: { c: 0.6, m: 0, y: 0.8, k: 0 }, spot: { name: "PMS 361", overprint: true } } });
     expect(map[1]!.cmyk.c).toBe(0.76);
+
+    // BL-beslut bevaras när en rad bara ändrar lighten/spot; specifik rad med lighten: 0 upphäver mönsterregel; tom zombierad slår inte ut BL-beslut.
+    const blForest = BUILT_IN_PRINT_PROFILES.find(profile => profile.id === "bl-forest-2026-11-02")!;
+    const merged: PrintProfile = {
+      ...blForest,
+      id: "bl-kombo",
+      colorDecisions: [
+        { ocadId: 2, name: "Grön 100%", cmyk: { c: 80, m: 0, y: 100, k: 0 }, row: "green-100" },
+        { ocadId: 3, name: "Gul 100%", cmyk: { c: 0, m: 25, y: 95, k: 0 }, row: "yellow-100" }
+      ],
+      mapColors: [
+        ...office.mapColors,
+        { match: { ocadIds: [2] }, lighten: 15, spot: null },
+        { match: { ocadIds: [3] }, lighten: 0 }
+      ]
+    };
+    expect(mapColorAdjust(merged, map)).toEqual({
+      2: { cmyk: { c: 0.76, m: 0, y: 0.91, k: 0 }, lighten: 0.15, spot: null },
+      3: { cmyk: { c: 0, m: 0.27, y: 0.94, k: 0 }, lighten: 0 }
+    });
+    const withZombie: PrintProfile = { ...blForest, id: "bl-zombie", colorDecisions: merged.colorDecisions, mapColors: [{ match: { ocadIds: [2] } }] };
+    expect(mapColorAdjust(withZombie, map)[2]).toEqual({ cmyk: { c: 0.76, m: 0, y: 0.91, k: 0 } });
+  });
+
+  it("sourceMapColors och effectiveSourceMapColors bevarar ren CMYK-overprint (OCAD o1) och låter spot: null stänga av den", () => {
+    const cmykOverprint = [
+      { id: 1, name: "Svart CMYK o1", rank: 0, cmyk: { c: 0, m: 0, y: 0, k: 1 }, overprint: true },
+      { id: 2, name: "Brun CMYK knockout", rank: 1, cmyk: { c: 0, m: 0.56, y: 1, k: 0.18 } }
+    ];
+    const src = sourceMapColors(cmykOverprint);
+    expect(src.find(item => item.ocadId === 1)?.overprint).toBe(true);
+    expect(src.find(item => item.ocadId === 2)?.overprint).toBe(false);
+    const eff = effectiveSourceMapColors(cmykOverprint, undefined, { 1: { spot: null } });
+    expect(eff.find(item => item.ocadId === 1)?.overprint).toBe(false);
+    expect(effectiveSourceMapColors(cmykOverprint).find(item => item.ocadId === 1)?.overprint).toBe(true);
+  });
+
+  it("inbyggda kontorsprofilen ljusar bara gröna/gula ytor, aldrig Olivgrön, Mörkgrön, Punktobjekt, Grön+Svart eller Vit för grön/gul", () => {
+    const office = BUILT_IN_PRINT_PROFILES.find(profile => profile.id === "office")!;
+    const names = [
+      "Grön 100% - Ytobjekt", "Grön 50% - Ytobjekt", "Grön 20% - Ytobjekt", "Grön 100% - Hindrande markvegetation",
+      "Grön 60 %", "Grön 30 %", "Grön", "Gul 100% - Ytobjekt", "Gul 50 %", "Gul",
+      "Olivgrön", "Mörkgrön", "Dark green", "Grön 100% - Punktobjekt", "Grön 100% + 50% Svart - Ytobjekt",
+      "Gul 100% + Grön 50%", "Vit för Grön", "Vit för Gul", "Vit över grön", "Vit över gul"
+    ];
+    const adj = mapColorAdjust(office, names.map((name, index) => ({ id: index + 1, name })));
+    const lightened = names.filter((_, index) => adj[index + 1]?.lighten !== undefined);
+    expect(lightened).toEqual([
+      "Grön 100% - Ytobjekt", "Grön 50% - Ytobjekt", "Grön 20% - Ytobjekt", "Grön 100% - Hindrande markvegetation",
+      "Grön 60 %", "Grön 30 %", "Grön", "Gul 100% - Ytobjekt", "Gul 50 %", "Gul"
+    ]);
+  });
+
+  it("effectiveSourceMapColors filtrerar dolda färger och uppdaterar CMYK och overprint efter adjust", () => {
+    const map = [
+      color(1, "Svart", 0, [0, 0, 0, 100], true),
+      color(2, "Grön 100%", 1, [80, 0, 100, 0], true),
+      color(3, "Gul 100%", 2, [0, 25, 95, 0], false)
+    ];
+    const effective = effectiveSourceMapColors(map, undefined, {
+      1: { spot: null },
+      2: { cmyk: { c: 0.76, m: 0, y: 0.91, k: 0 }, lighten: 0.5 },
+      3: { hidden: true }
+    });
+    expect(effective).toEqual([
+      { ocadId: 2, name: "Grön 100%", cmyk: { c: 38, m: 0, y: 45.5, k: 0 }, overprint: true, drawOrder: 0 },
+      { ocadId: 1, name: "Svart", cmyk: { c: 0, m: 0, y: 0, k: 100 }, overprint: false, drawOrder: 1 }
+    ]);
   });
 
   it("förhandskontrollen: träff, avvikande CMYK, behöver bekräftas, tvetydig och fel ordning", () => {

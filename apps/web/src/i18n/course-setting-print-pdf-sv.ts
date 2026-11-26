@@ -14,6 +14,7 @@ export const printPdfSv = {
   mapProcess: "CMYK (kartfärgernas egna värden)",
   press: "Skapa PDF för tryckeriet",
   office: "Skapa PDF för kontorsskrivare",
+  officeLighten: "Ljusa upp grönt och gult för kontorsskrivare (+30 % / +15 %)",
   overprintViewer: "Övertrycket syns i Acrobat med ”Simulera övertryck”; Förhandsvisning på Mac visar lila heltäckande.",
   preflight: "Förhandskontroll för PDF:en",
   preflightOk: "inga hinder",

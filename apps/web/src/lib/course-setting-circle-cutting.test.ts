@@ -26,6 +26,10 @@ describe("ringklipp i editorn", () => {
     expect(request.sprint).toBe(false);
     expect(detailRequest(applyEdit(document, { type: "UPDATE_COURSE", course: "k", changes: { name: "Kort" } }).document).key).toBe(request.key);
     expect(detailRequest(applyEdit(document, { type: "MOVE_CONTROL", control: "a", at: { x: 11, y: 0 } }).document).key).not.toBe(request.key);
+    // Alternativa layouters skalor (extraScales) ger egna ringar i beställningen så förhandsvisningen matchar PDF:en.
+    const withExtra = detailRequest(document, [7500]);
+    expect(withExtra.circles.length).toBeGreaterThan(request.circles.length);
+    expect(withExtra.key).not.toBe(request.key);
   });
 
   it("en flyttad kontroll ritas hel tills gapen räknats om", () => {

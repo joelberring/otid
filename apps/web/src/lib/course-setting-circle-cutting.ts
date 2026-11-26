@@ -33,8 +33,8 @@ export interface DetailRequest {
 const ringKey = (circle: DetailCircle) =>
   `${circle.id}:${circle.at.x.toFixed(3)},${circle.at.y.toFixed(3)}:${circle.radiusMm.toFixed(3)}:${(circle.blockedDegrees ?? []).map(angle => angle.toFixed(1)).join("/")}`;
 
-export function detailRequest(document: CourseSettingDocument): DetailRequest {
-  const circles = detailCircleCenters(document);
+export function detailRequest(document: CourseSettingDocument, extraScales: readonly number[] = []): DetailRequest {
+  const circles = detailCircleCenters(document, extraScales);
   const sprint = document.event.overprintStandard === "ISSPROM2019";
   return { circles, sprint, key: `${sprint ? "S" : "F"}|${circles.map(ringKey).join("|")}` };
 }

@@ -1,14 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react";
 import { printColorsEn } from "../../i18n/course-setting-print-more-en";
 import { printPdfEn } from "../../i18n/course-setting-print-more-en";
 import { useTexts } from "../language-provider";
 import type { PrintJob, PrintJobKind, PrintJobs } from "@o-tid/contracts";
-import { officePrintProfile, UNCONFIRMED_RULE, type PrintProfile } from "@o-tid/course-setting";
+import { mapColorAdjust, officePrintProfile, UNCONFIRMED_RULE, type PrintProfile } from "@o-tid/course-setting";
 import type { ColorUsage, MapColor } from "@o-tid/map-file";
 import { printPdfSv } from "../../i18n/course-setting-print-pdf-sv";
 import { printColorsSv } from "../../i18n/course-setting-print-colors-sv";
+import { colorModeOf } from "../../lib/course-setting-print-colors-mode";
 import {
   createPrintJob, deletePrintJob, fetchPrintJobs, pdfAllowed, pdfPreflight, printJobPdfUrl, printJobRequest, type PrintJobSelection
 } from "../../lib/course-setting-print-jobs";
@@ -37,13 +38,23 @@ export function PdfPanel({ raceId, selection, profile, colors, usage, disabled, 
   const [confirmed, setConfirmed] = useState<ReadonlySet<string>>(new Set());
   const [warningsConfirmed, setWarningsConfirmed] = useState(false);
   const [mapSpots, setMapSpots] = useState(true);
+  const [lightenForOffice, setLightenForOffice] = useState(false);
   const [jobs, setJobs] = useState<PrintJobs>();
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
   const [busy, setBusy] = useState(false);
   const report = useMemo(() => colors.length > 0 ? pdfPreflight(profile, colors, confirmed, usage) : undefined, [profile, colors, confirmed, usage]);
-  // BL-profilerna vill ha CMYK: då finns inget val för kartans dekorfärger.
-  const hasSpots = colors.some(color => color.spot) && !profile.processColors;
-  useEffect(() => { setWarningsConfirmed(false); setConfirmed(new Set()); }, [profile.id]);
+  const adjust = useMemo(() => mapColorAdjust(profile, colors), [profile, colors]);
+  // BL-profilerna vill ha CMYK: då finns inget val för kartans dekorfärger. Inkludera egna `mapColors[].spot` (och respektera `spot: null`).
+  const hasSpots = !profile.processColors && (
+    colors.some(color => {
+      const setting = adjust[color.id];
+      if (setting?.hidden) return false;
+      if (setting?.spot !== undefined) return setting.spot !== null;
+      return Boolean(color.spot);
+    }) || profile.mapColors.some(row => Boolean(row.spot))
+  );
+  const profileSignature = useMemo(() => JSON.stringify(profile), [profile]);
+  useEffect(() => { setWarningsConfirmed(false); setConfirmed(new Set()); }, [profileSignature]);
 
   const load = useCallback(async () => {
     try { setJobs(await fetchPrintJobs(raceId)); } catch (error) { console.error("PDF-jobben kunde inte läsas", error); }
@@ -60,9 +71,10 @@ export function PdfPanel({ raceId, selection, profile, colors, usage, disabled, 
     setBusy(true);
     setMessage(undefined);
     try {
-      // Kontorsskrivaren: dess färger med tävlingsprofilens färgordning (ADR-0211 beslut 11).
+      // Kontorsskrivaren: behåller tävlingsprofilens valda färger/BL-beslut/banfärg och lägger bara till ljusning när användaren väljer det.
+      const officeProfile = kind === "OFFICE" ? officePrintProfile(profile, { lighten: lightenForOffice }) : undefined;
       const request = kind === "OFFICE"
-        ? printJobRequest(selection, kind, "office", { warnings: true, rules: [] }, undefined, officePrintProfile(profile))
+        ? printJobRequest(selection, kind, officeProfile!.id, { warnings: true, rules: [] }, undefined, officeProfile)
         : printJobRequest(selection, kind, profile.id, { warnings: warningsConfirmed, rules: [...confirmed] });
       const result = await createPrintJob(raceId, request);
       setMessage(result.kind === "ok" ? { tone: "ok", text: text.created } : { tone: "error", text: result.problem.message });
@@ -75,6 +87,20 @@ export function PdfPanel({ raceId, selection, profile, colors, usage, disabled, 
 
   async function remove(job: PrintJob) {
     try { await deletePrintJob(raceId, job.id); await load(); } catch (error) { console.error("PDF-jobbet kunde inte tas bort", error); }
+  }
+
+  const proposalHref = colorModeOf(profile) === "BL" ? "#bl-doubtful" : "#bl-proposal";
+  function goToProposal(event: MouseEvent<HTMLAnchorElement>) {
+    const proposal = window.document.getElementById("bl-proposal");
+    if (proposal) { event.preventDefault(); proposal.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+    const doubtfulEl = window.document.getElementById("bl-doubtful");
+    if (doubtfulEl) { event.preventDefault(); doubtfulEl.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+    const details = window.document.querySelector<HTMLDetailsElement>('[data-testid="print-colors-advanced"]');
+    if (details) {
+      event.preventDefault();
+      if (!details.open) details.querySelector("summary")?.click();
+      window.setTimeout(() => window.document.getElementById("bl-proposal")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+    }
   }
 
   const allowed = pdfAllowed(report, warningsConfirmed);
@@ -90,7 +116,7 @@ export function PdfPanel({ raceId, selection, profile, colors, usage, disabled, 
       data-unconfirmed={report.unconfirmed?.length ?? ""}>
       <h3>{text.preflight}: {report.canPrint ? text.preflightOk : text.preflightBlocked}</h3>
       {report.unconfirmed !== undefined && <p data-testid="print-pdf-unconfirmed"><strong>{report.unconfirmed.length === 0 ? text.allConfirmed
-        : text.unconfirmed(report.unconfirmed.length, report.unconfirmed)}</strong>{report.unconfirmed.length > 0 && <> <a href="#bl-proposal">{text.toProposal}</a></>}</p>}
+        : text.unconfirmed(report.unconfirmed.length, report.unconfirmed)}</strong>{report.unconfirmed.length > 0 && <> <a href={proposalHref} onClick={goToProposal} data-testid="print-pdf-to-proposal">{text.toProposal}</a></>}</p>}
       {report.findings.length === 0 ? <p className={styles.muted}>{text.noFindings}</p>
         : listed.length > 0 && <ul className={styles.findings}>{listed.map((finding, index) => <li key={index} data-severity={finding.severity}>
           <strong>{colorsText.severity[finding.severity]}</strong> {finding.text}
@@ -105,6 +131,10 @@ export function PdfPanel({ raceId, selection, profile, colors, usage, disabled, 
       <label className={styles.check}><input type="radio" name="pdf-map-colors" checked={mapSpots} onChange={() => setMapSpots(true)} />{text.mapSpots}</label>
       <label className={styles.check}><input type="radio" name="pdf-map-colors" checked={!mapSpots} onChange={() => setMapSpots(false)} />{text.mapProcess}</label>
     </div>}
+    <label className={styles.check}>
+      <input type="checkbox" checked={lightenForOffice} onChange={event => setLightenForOffice(event.target.checked)} data-testid="print-pdf-office-lighten" />
+      {text.officeLighten}
+    </label>
     <div className={styles.row}>
       <Button onClick={() => void create(mapSpots ? "PRESS" : "PROCESS")} disabled={disabled || busy || !allowed} data-testid="print-pdf-press">{text.press}</Button>
       <Button variant="secondary" onClick={() => void create("OFFICE")} disabled={disabled || busy} data-testid="print-pdf-office">{text.office}</Button>

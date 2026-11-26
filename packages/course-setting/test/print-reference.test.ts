@@ -85,11 +85,28 @@ describe("BL-tabellerna och versionerna (ADR-0183 beslut 7)", () => {
 });
 
 describe("förslaget: kartans färger mot BL:s rader", () => {
-  it("läser färgord och andel ur namnen", () => {
+  it("läser färgord (inkl. sammansatta/böjda svenska ord) och andel ur namnen utan att förväxla färgnummer med procent", () => {
     expect(colorComponents("Grön 100% + 50% Svart - Ytobjekt")).toEqual([{ hue: "green", percent: 100 }, { hue: "black", percent: 50 }]);
     expect(colorComponents("Gul 100%/grön 50%")).toEqual([{ hue: "yellow", percent: 100 }, { hue: "green", percent: 50 }]);
     expect(colorComponents("Brun för höjdkurvor mm")).toEqual([{ hue: "brown", percent: 100 }]);
     expect(colorComponents("Undre brun 30")).toEqual([{ hue: "brown", percent: 30 }]);
+    expect(colorComponents("Violett 52")).toEqual([{ hue: "violet", percent: 100 }]);
+    expect(colorComponents("Violett 50")).toEqual([{ hue: "violet", percent: 100 }]);
+    expect(colorComponents("Violett 50%")).toEqual([{ hue: "violet", percent: 50 }]);
+    expect(colorComponents("Brun 15")).toEqual([{ hue: "brown", percent: 100 }]);
+    expect(colorComponents("Mörkgrön")).toEqual([{ hue: "green", percent: 100 }]);
+    expect(colorComponents("Ljusgrön")).toEqual([{ hue: "green", percent: 50 }]);
+    expect(colorComponents("Ljusblå")).toEqual([{ hue: "blue", percent: 50 }]);
+    expect(colorComponents("Ljusbrunt")).toEqual([{ hue: "brown", percent: 50 }]);
+    expect(colorComponents("Olivgrön")).toEqual([{ hue: "yellow", percent: 100 }, { hue: "green", percent: 50 }]);
+    expect(colorComponents("Svarta")).toEqual([{ hue: "black", percent: 100 }]);
+    expect(colorComponents("Vita")).toEqual([{ hue: "white", percent: 100 }]);
+    expect(colorComponents("Gröna")).toEqual([{ hue: "green", percent: 100 }]);
+    expect(colorComponents("Gula")).toEqual([{ hue: "yellow", percent: 100 }]);
+    expect(colorComponents("Bruna")).toEqual([{ hue: "brown", percent: 100 }]);
+    // Olivgrön (520 tomtmark) matchar BL:s Gul 100%/grön 50% säkert.
+    const olive = proposeColorMatches(BL_FOREST_2026_11_02, [color(11, "Olivgrön", [35, 0, 100, 50], use(["520"], ["AREA"]))]);
+    expect(olive[0]).toMatchObject({ row: "yellow-green", confidence: "SAFE" });
   });
 
   it("säker, behöver bekräftas, tvetydig och oanvänd, med skäl", () => {
@@ -153,12 +170,36 @@ describe("förslaget: kartans färger mot BL:s rader", () => {
     const withGreen = withDecision(decisions, colors[4]!, "green-100");
     const report = colorPreflight({ ...forest, colorDecisions: withGreen }, colors, PDF_PRINT_CAPABILITIES);
     expect(report.findings.find(finding => finding.rule === "order" && finding.text.includes("Grön 100%"))?.severity).toBe("INFO");
-    // Brunt under blå 70 %: uttrycklig regel i källan, alltså varning.
+    // Brunt under blå 70 %: monoton snittpunkt vid Brun drar med Blå 50/70 % över banan, uttrycklig regel → varning.
     order = 0;
     const wrong = [colors[2]!, colors[0]!, colors[1]!].map(item => ({ ...item, drawOrder: order++ }));
     const wrongReport = colorPreflight({ ...forest, colorDecisions: acceptSafe([], proposeColorMatches(BL_FOREST_2026_11_02, wrong)).concat(
       withDecision([], wrong[0]!, "brown-contours")) }, wrong, PDF_PRINT_CAPABILITIES);
-    expect(wrongReport.findings.some(finding => finding.severity === "WARNING" && /Brun för höjdkurvor mm.*ska ligga över banan/.test(finding.text))).toBe(true);
+    expect(wrongReport.findings.some(finding => finding.severity === "WARNING" && /Blå 70%.*ska ligga under banan/.test(finding.text))).toBe(true);
+  });
+
+  it("förhandskontrollen följer faktiska pressOrder: inget falskt påstående om banan överst och inga falska sprint-varningar på blått/brunt", () => {
+    const colors = forestMap();
+    const unapproved = colorPreflight(forest, colors, PDF_PRINT_CAPABILITIES);
+    expect(unapproved.findings.some(finding => /Banan ritas överst tills kartans färger är godkända/.test(finding.text))).toBe(false);
+    // BL sprint: blått och brunt ligger under banan enligt ISSprOM utan att ge falska ordningsvarningar.
+    order = 0;
+    const sprintColors = [
+      color(32, "Gul", [0, 28, 95, 0], use(["401"], ["AREA"])),
+      color(15, "Brun", [0, 80, 100, 25], use(["101"], ["LINE"])),
+      color(14, "Blå", [100, 0, 0, 0], use(["304"], ["LINE"])),
+      color(6, "Grön punkt", [76, 0, 91, 0], use(["417"], ["POINT"])),
+      color(2, "Svart", [0, 0, 0, 100], use(["505"], ["LINE"]))
+    ];
+    const sprintDecisions = [
+      { ocadId: 32, name: "Gul", cmyk: { c: 0, m: 28, y: 95, k: 0 }, row: "yellow" },
+      { ocadId: 15, name: "Brun", cmyk: { c: 0, m: 80, y: 100, k: 25 }, row: "brown" },
+      { ocadId: 14, name: "Blå", cmyk: { c: 100, m: 0, y: 0, k: 0 }, row: "blue" },
+      { ocadId: 6, name: "Grön punkt", cmyk: { c: 76, m: 0, y: 91, k: 0 }, row: "green-point" },
+      { ocadId: 2, name: "Svart", cmyk: { c: 0, m: 0, y: 0, k: 100 }, row: "black" }
+    ];
+    const sprintReport = colorPreflight({ ...sprint, colorDecisions: sprintDecisions }, sprintColors, PDF_PRINT_CAPABILITIES);
+    expect(sprintReport.findings.filter(finding => finding.rule === "order")).toEqual([]);
   });
 
   it("förhandskontrollen: obekräftade färger, passmärket och banans violett", () => {

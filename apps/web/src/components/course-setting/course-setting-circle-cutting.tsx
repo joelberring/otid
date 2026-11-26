@@ -35,9 +35,11 @@ const pointsKey = (points: readonly { id: string; at: { x: number; y: number } }
  * beställning ger kartans hinder för numren (alltid, när kartan finns), så att numren placeras likadant i editorn,
  * förhandsvisningen och PDF:en.
  */
-export function useDetailGaps(session: MapRenderSession | undefined, document: CourseSettingDocument | null | undefined): DetailGapsState {
+export function useDetailGaps(session: MapRenderSession | undefined, document: CourseSettingDocument | null | undefined,
+  extraScales: readonly number[] = []): DetailGapsState {
   const on = document ? circleCuttingOf(document).details : false;
-  const request = useMemo(() => on && document ? detailRequest(document) : undefined, [document, on]);
+  const scalesKey = extraScales.join(",");
+  const request = useMemo(() => on && document ? detailRequest(document, extraScales) : undefined, [document, on, scalesKey]);
   const points = useMemo(() => document ? numberObstaclePoints(document) : [], [document]);
   const pointKey = pointsKey(points);
   const latest = useRef(request);

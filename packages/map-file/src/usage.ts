@@ -50,7 +50,10 @@ function symbolColors(symbol: MapSymbol, symbols: ParsedMap["symbols"], depth = 
         for (const part of [dec.repeated, dec.between, dec.corner, dec.start, dec.end]) if (part) elementsUse(add, part.elements, "LINE");
       }
       break;
-    case "TEXT": add(symbol.color, "TEXT"); break;
+    case "TEXT":
+      add(symbol.color, "TEXT");
+      if (symbol.framing && symbol.framing.width > 0) add(symbol.framing.color, "TEXT");
+      break;
     case "COMBINED":
       if (depth > 8) break;
       for (const id of symbol.parts) {

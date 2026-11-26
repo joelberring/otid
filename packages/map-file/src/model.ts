@@ -20,6 +20,8 @@ export interface MapColor {
   readonly rgb: { readonly r: number; readonly g: number; readonly b: number };
   /** 0–1. */
   readonly opacity: number;
+  /** Övertryck i kartfilen (OCAD `o1`, Mapper `<spotcolors>` utan `knockout="true"`), gäller även rena CMYK-färger. */
+  readonly overprint?: boolean | undefined;
   /**
    * Färgen är (eller bygger på) en dekorfärg. Används inte för skärm. Steg 65: `separations` är dekorfärgerna som färgen
    * består av med andel (0–1, även 0 %: färgen slår då ut den plåten) och dekorfärgens egen CMYK ur filen (OCAD:s

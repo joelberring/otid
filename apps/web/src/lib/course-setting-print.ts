@@ -16,7 +16,7 @@ export type PrintNode =
       readonly anchor: "start" | "middle"; readonly family: string; readonly bold: boolean; readonly italic: boolean; readonly ref?: string | undefined;
       readonly role: string; readonly opacity?: number | undefined }
   | { readonly tag: "image"; readonly x: number; readonly y: number; readonly width: number; readonly height: number; readonly href: string;
-      readonly ref?: string | undefined }
+      readonly ref?: string | undefined; readonly role: string }
   /** Beskrivningen: noderna i kartans mm (y nedåt) flyttade och skalade till sidan. */
   | { readonly tag: "description"; readonly x: number; readonly y: number; readonly scale: number; readonly nodes: readonly SvgNode[];
       readonly ref?: string | undefined };
@@ -59,7 +59,7 @@ export function pageNodes(page: FrameLike, symbols: SymbolLookup, courseColor?: 
     if (primitive.kind === "image") {
       const corner = toPage(page, { x: primitive.rect.minX, y: primitive.rect.maxY });
       return { tag: "image", x: r3(corner.x), y: r3(corner.y), width: r3((primitive.rect.maxX - primitive.rect.minX) * s),
-        height: r3((primitive.rect.maxY - primitive.rect.minY) * s), href: `data:${primitive.mediaType};base64,${primitive.data}`, ref: primitive.ref };
+        height: r3((primitive.rect.maxY - primitive.rect.minY) * s), href: `data:${primitive.mediaType};base64,${primitive.data}`, ref: primitive.ref, role: primitive.role };
     }
     const color = courseColor && (primitive.color === "COURSE" || primitive.color === "COURSE_LOWER") ? courseColor : screenColor(primitive);
     // Tonad figur (överlappet vid ett kartbyte, ADR-0203).

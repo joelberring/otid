@@ -33,15 +33,25 @@ export const BLACK: Paint = { ink: { kind: "CMYK", cmyk: { c: 0, m: 0, y: 0, k: 
 
 const PROCESS_NAMES: Readonly<Record<string, string>> = { cyan: "Cyan", magenta: "Magenta", yellow: "Yellow", black: "Black" };
 
+/** Vitt bläck (0 % på alla kanaler/plåtar, eller dekorfärg vars CMYK-alternativ är vitt): ska aldrig ha övertryck. */
+export function isWhiteInk(ink: Ink): boolean {
+  const cmykWhite = (cmyk: Cmyk) => Math.max(cmyk.c, cmyk.m, cmyk.y, cmyk.k) <= 0.02;
+  return ink.kind === "CMYK" ? cmykWhite(ink.cmyk)
+    : ink.tints.every(tint => tint <= 0.02) || ink.alternates.every(cmykWhite);
+}
+
 /**
  * Plåtens namn i PDF:en. OCAD kallar processplåtarna "Process Black" m.fl.; i PDF heter de Cyan, Magenta, Yellow och
- * Black och hamnar då på processplåten i stället för en egen extra plåt.
+ * Black och hamnar då på processplåten i stället för en egen extra plåt. Reserverade PDF-namn (`All`, `None`) spärras.
  */
 export function plateName(name: string): string {
   const trimmed = name.trim();
   const process = /^process\s+(cyan|magenta|yellow|black)$/i.exec(trimmed);
   if (process) return PROCESS_NAMES[process[1]!.toLowerCase()]!;
-  return trimmed === "" ? "Spot" : trimmed;
+  if (trimmed === "") return "Spot";
+  if (/^all$/i.test(trimmed)) return "Spot_All";
+  if (/^none$/i.test(trimmed)) return "Spot_None";
+  return trimmed;
 }
 
 /** Bläcket med andelen `factor` (rastrerad yta, mönster som tonad yta): CMYK skalas, dekorfärgernas andelar likaså. */
@@ -89,20 +99,20 @@ export interface PaintOptions {
 
 /**
  * Banans färg (COURSE och COURSE_LOWER): profilens dekorfärg med övertryck, eller CMYK på kontorsskrivaren. BL-profilerna
- * (`course.process`) ger banan som CMYK-processfärg med profilens övertryck (BL:s tabeller anger bara CMYK).
+ * (`course.process` eller `processColors`) ger banan som CMYK-processfärg med profilens övertryck.
  */
 export function coursePaint(options: PaintOptions, plates: Plates): Paint {
   const cmyk = fromPercent(options.profile.course.cmyk);
   if (options.mode === "OFFICE") return { ink: { kind: "CMYK", cmyk }, overprint: false };
-  if (options.profile.course.process) return { ink: { kind: "CMYK", cmyk }, overprint: options.profile.course.overprint };
+  if (options.profile.course.process || options.profile.processColors) return { ink: { kind: "CMYK", cmyk }, overprint: options.profile.course.overprint };
   const name = plateName(options.profile.course.spotName || "Purple");
   const alternate = plates.define(name, cmyk, "banans färg i profilen");
   return { ink: { kind: "SPOT", names: [name], alternates: [alternate], tints: [1] }, overprint: options.profile.course.overprint };
 }
 
-/** Passmärken och skärmarker: registerfärgen (/All, alla plåtar) i tryck, svart på kontorsskrivaren. */
+/** Passmärken och skärmarker: registerfärgen (/All, alla plåtar) i dekorfärgstryck, process-svart på kontorsskrivare och CMYK/BL-profiler. */
 export function registrationPaint(options: PaintOptions): Paint {
-  if (options.mode === "OFFICE") return BLACK;
+  if (options.mode === "OFFICE" || options.profile.reference !== undefined || options.profile.processColors === true) return BLACK;
   return { ink: { kind: "SPOT", names: ["All"], alternates: [{ c: 1, m: 1, y: 1, k: 1 }], tints: [1] }, overprint: false };
 }
 
@@ -130,23 +140,40 @@ const lightened = (value: number, lighten: number | undefined) => clamp01(value 
 export function mapPaints(map: Pick<ParsedMap, "colors">, options: PaintOptions, plates: Plates, notes: Set<string>): Map<number, Paint | null> {
   const adjust = mapColorAdjust(options.profile, map.colors);
   const out = new Map<number, Paint | null>();
+  const paintOf = (ink: Ink, overprint: boolean): Paint => ({ ink, overprint: isWhiteInk(ink) ? false : overprint });
   let spotsInFile = false;
   for (const color of map.colors) {
     const setting = adjust[color.id];
     if (setting?.hidden) { out.set(color.id, null); continue; }
     const adjusted = adjustedColor(color, setting);
     const cmyk: Cmyk = adjusted.cmyk;
-    if (options.mode === "OFFICE") { out.set(color.id, { ink: { kind: "CMYK", cmyk }, overprint: false }); continue; }
-    if (setting?.spot) {
-      const name = plateName(setting.spot.name);
-      const alternate = plates.define(name, cmyk, `profilens rad för "${color.name}"`);
-      out.set(color.id, { ink: { kind: "SPOT", names: [name], alternates: [alternate], tints: [1] }, overprint: setting.spot.overprint });
-      continue;
-    }
+    if (options.mode === "OFFICE") { out.set(color.id, paintOf({ kind: "CMYK", cmyk }, false)); continue; }
     const separations = separationsOf(color);
     if (separations.length > 0) spotsInFile = true;
-    if (options.mode === "PROCESS" || separations.length === 0 || setting?.cmyk) {
-      out.set(color.id, { ink: { kind: "CMYK", cmyk }, overprint: options.mode === "PROCESS" && (color.spot?.overprint ?? false) });
+    // Kartfilens egen övertrycksflagga (gäller även rena CMYK-färger med OCAD `o1`).
+    const fileOverprint = color.overprint ?? color.spot?.overprint ?? false;
+    // I PROCESS (inkl. BL): aldrig /Separation-plåtar, inte ens om profilen har `setting.spot`.
+    if (options.mode === "PROCESS") {
+      const overprint = setting?.spot === null ? false : (setting?.spot?.overprint ?? fileOverprint);
+      out.set(color.id, paintOf({ kind: "CMYK", cmyk }, overprint));
+      continue;
+    }
+    // `spot: null` stänger av kartfilens dekorfärg och övertryck även i PRESS.
+    if (setting?.spot === null) {
+      out.set(color.id, paintOf({ kind: "CMYK", cmyk }, false));
+      continue;
+    }
+    if (setting?.spot) {
+      const name = plateName(setting.spot.name);
+      // Plåtens CMYK-alternativ ur o-ljusad färg; `lighten` styr plåtens andel (`tints`).
+      const baseCmyk: Cmyk = setting.cmyk ?? color.cmyk;
+      const alternate = plates.define(name, baseCmyk, `profilens rad för "${color.name}"`);
+      const tint = lightened(1, setting.lighten);
+      out.set(color.id, paintOf({ kind: "SPOT", names: [name], alternates: [alternate], tints: [tint] }, setting.spot.overprint));
+      continue;
+    }
+    if (separations.length === 0 || setting?.cmyk) {
+      out.set(color.id, paintOf({ kind: "CMYK", cmyk }, fileOverprint));
       continue;
     }
     const names: string[] = [], alternates: Cmyk[] = [], tints: number[] = [];
@@ -160,7 +187,7 @@ export function mapPaints(map: Pick<ParsedMap, "colors">, options: PaintOptions,
         y: clamp01(color.cmyk.y / separation.factor), k: clamp01(color.cmyk.k / separation.factor) } : color.cmyk);
       names.push(name); alternates.push(plates.define(name, own, `"${color.name}"`)); tints.push(tint);
     }
-    out.set(color.id, { ink: { kind: "SPOT", names, alternates, tints }, overprint: color.spot?.overprint ?? false });
+    out.set(color.id, paintOf({ kind: "SPOT", names, alternates, tints }, fileOverprint));
   }
   if (options.mode === "PROCESS" && spotsInFile) notes.add("Kartans dekorfärger skrivs som CMYK (kartfärgernas egna CMYK-värden) med filens övertryck.");
   return out;

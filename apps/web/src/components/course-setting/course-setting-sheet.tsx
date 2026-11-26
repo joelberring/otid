@@ -1,10 +1,10 @@
 "use client";
 
-import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { coursePrintEn } from "../../i18n/course-setting-print-en";
 import { useTexts } from "../language-provider";
-import { courseLayerOf, passesKey, type PaperRect, type Sheet, type SheetDescription, type SheetFrame } from "@o-tid/course-setting";
-import type { PressLayers } from "../../lib/course-setting-press-layers";
+import { courseLayerOf, passesKey, type OverColorBand, type PaperRect, type PressNorm, type Sheet, type SheetDescription, type SheetFrame } from "@o-tid/course-setting";
+import { overBandImageKey, type PressLayers } from "../../lib/course-setting-press-layers";
 import { coursePrintSv } from "../../i18n/course-setting-print-sv";
 import { DESCRIPTION_FONT, descriptionNodes, type SymbolLookup } from "../../lib/course-setting-description-draw";
 import { pageName, pageNodes, type PrintNode } from "../../lib/course-setting-print";
@@ -16,6 +16,11 @@ import styles from "./course-setting-print-page.module.css";
 export function frameImageKey(frame: Pick<SheetFrame, "mapArea" | "clip" | "transform" | "mapPasses">, colors: string): string {
   return `${frame.mapArea.minX.toFixed(3)},${frame.mapArea.maxY.toFixed(3)},${frame.clip.width.toFixed(2)},${frame.clip.height.toFixed(2)},`
     + `${frame.transform.scale.toFixed(6)}|${colors}${frame.mapPasses ? `|${passesKey(frame.mapPasses)}` : ""}`;
+}
+
+export interface OverBandImage {
+  readonly kind: OverColorBand["kind"];
+  readonly url: string | undefined;
 }
 
 /**
@@ -30,24 +35,30 @@ export function SheetView({ sheet, index, symbols, images, colorsKey, courseColo
   onPlace?: ((description: SheetDescription, frame: SheetFrame, rect: PaperRect, boxMm: number) => void) | undefined;
   /** Papperets element (ADR-0197): markeras, dras och ändras här. */
   paper?: PaperInteraction | undefined;
-  /** Normens färgordning (ADR-0211 beslut 3): kartan i två bilder med banans undre lila mellan och övre lila överst. */
+  /** Normens färgordning (ADR-0211 beslut 3): kartan med bandade OVER-lager i exakt rank-ordning, banans undre lila mellan och övre lila överst. */
   pressLayers?: PressLayers | undefined;
   /** Översiktens små bilder har ett eget testid (inte "print-sheet"). */
   testId?: string | undefined;
 }) {
   const text = useTexts(coursePrintSv, coursePrintEn);
   const sheetPaper = sheet.paper;
-  const ready = sheet.frames.every(frame => images[frameImageKey(frame, colorsKey)] && (!pressLayers || (images[`${frameImageKey(frame, colorsKey)}|OVER`]
-    && (pressLayers.overWhite.length === 0 || images[`${frameImageKey(frame, colorsKey)}|OVERWHITE`]))));
+  const ready = sheet.frames.every(frame => {
+    const baseKey = frameImageKey(frame, colorsKey);
+    return Boolean(images[baseKey]) && (!pressLayers || pressLayers.overBands.every((_, bandIndex) => Boolean(images[overBandImageKey(baseKey, bandIndex)])));
+  });
   return <svg className={styles.sheet} role="img" aria-label={label} data-testid={testId} data-back={sheet.back ? "" : undefined}
     data-course={sheet.frames[0]?.course} data-variant={sheet.frames[0]?.variant ?? ""} data-frames={sheet.frames.length}
     data-map={ready ? "ready" : "waiting"} data-scale={sheet.frames[0]?.printScale}
     width={`${sheetPaper.widthMm}mm`} height={`${sheetPaper.heightMm}mm`} viewBox={`0 0 ${sheetPaper.widthMm} ${sheetPaper.heightMm}`} style={{ page: pageName(sheet) }}>
     <rect width={sheetPaper.widthMm} height={sheetPaper.heightMm} fill="#fff" />
-    {sheet.frames.map((frame, frameIndex) => <FrameView key={frameIndex} id={`s${index}f${frameIndex}`} frame={frame} symbols={symbols}
-      image={images[frameImageKey(frame, colorsKey)]} overImage={pressLayers ? images[`${frameImageKey(frame, colorsKey)}|OVER`] : undefined}
-      overWhiteImage={pressLayers ? images[`${frameImageKey(frame, colorsKey)}|OVERWHITE`] : undefined}
-      layers={pressLayers} courseColor={courseColor} />)}
+    {sheet.frames.map((frame, frameIndex) => {
+      const baseKey = frameImageKey(frame, colorsKey);
+      const overBandImages = pressLayers
+        ? pressLayers.overBands.map((band, bandIndex) => ({ kind: band.kind, url: images[overBandImageKey(baseKey, bandIndex)] }))
+        : undefined;
+      return <FrameView key={frameIndex} id={`s${index}f${frameIndex}`} frame={frame} symbols={symbols}
+        image={images[baseKey]} overBandImages={overBandImages} layers={pressLayers} courseColor={courseColor} />;
+    })}
     {sheet.boxes.map((box, boxIndex) => <rect key={boxIndex} x={box.x} y={box.y} width={box.width} height={box.height} fill="#fff"
       stroke={box.border ? "#000" : undefined} strokeWidth={box.border ? 0.25 : undefined} data-testid="print-strip" />)}
     {sheet.images.map((image, imageIndex) => <image key={imageIndex} href={`data:${image.mediaType};base64,${image.data}`} x={image.x} y={image.y}
@@ -67,11 +78,21 @@ export function SheetView({ sheet, index, symbols, images, colorsKey, courseColo
   </svg>;
 }
 
-function FrameView({ id, frame, symbols, image, overImage, overWhiteImage, layers, courseColor }: { id: string; frame: SheetFrame; symbols: SymbolLookup;
-  image: string | undefined; overImage?: string | undefined; overWhiteImage?: string | undefined; layers?: PressLayers | undefined; courseColor?: string | undefined }) {
+/**
+ * En kartram i SVG (delas mellan `SheetView` och `BlCompare`): kartan, `whiteAreas`, `BENEATH` (white-out/bilder),
+ * `LOWER`, bandade `OVER`-bilder i exakt `rank`-ordning med `mask` direkt på `<image>` (ingen isolerande `<g mask>` runt
+ * `mix-blend-mode: darken`) och `UPPER` överst.
+ */
+export function FrameView({ id, frame, symbols, image, overBandImages, layers, courseColor, markTestIds = true }: {
+  id: string; frame: SheetFrame; symbols: SymbolLookup; image: string | undefined;
+  overBandImages?: readonly OverBandImage[] | undefined;
+  layers?: { readonly norm: PressNorm; readonly numbersOnTop: boolean } | undefined;
+  courseColor?: string | undefined;
+  markTestIds?: boolean;
+}) {
   const { clip } = frame;
   const nodes = pageNodes(frame, symbols, courseColor);
-  // Figurerna och noderna står i samma ordning (`pageNodes`): vita specialobjekt och bilder och undre lila mellan kartans två
+  // Figurerna och noderna står i samma ordning (`pageNodes`): vita specialobjekt och bilder och undre lila mellan kartans
   // bilder, övre lila överst (som PDF:en, `courseLayerOf`).
   const layer = layers ? frame.figures.map(figure => courseLayerOf(figure, layers.norm, layers.numbersOnTop)) : undefined;
   // Papperets klippning (ADR-0197): specialobjekten i `markingClip.refs` klipps till polygonen; banan står hel.
@@ -79,44 +100,62 @@ function FrameView({ id, frame, symbols, image, overImage, overWhiteImage, layer
   const white = frame.whiteAreas ?? [];
   const isSpecial = (node: PrintNode) => node.tag !== "description" && "role" in node && node.role === "SPECIAL" && node.ref !== undefined;
   const isMarking = (node: PrintNode) => isSpecial(node) && marked.has(node.ref!);
-  // "Vitt på utskriften" (ADR-0211 beslut 8): ytorna vita över kartan; kartan över banan och markeringarna klipps bort där.
-  const whitePath = white.map(polygon => `M${polygon.map(p => `${p.x} ${p.y}`).join(" L")} Z`).join(" ");
+  // "Vitt på utskriften" (ADR-0211 beslut 8): varje polygon klipps/maskas för sig så överlappande vita ytor aldrig tar ut varandra.
+  const whitePaths = white.map(polygon => `M${polygon.map(p => `${p.x} ${p.y}`).join(" L")} Z`);
   // Ytorna som vita specialobjekt och bilder täcker (papperets klippning gäller dem också).
   const covers = layer ? nodes.flatMap((node, index) => layer[index] === "BENEATH" ? [{ node, index }] : []) : [];
+  const hasOverMask = layer !== undefined && (covers.length > 0 || whitePaths.length > 0);
   const mirror = frame.mirror ? `translate(${2 * clip.x + clip.width} 0) scale(-1 1)` : undefined;
+  const tid = (name: string) => markTestIds ? name : undefined;
+  const clipOutsideWhite = (content: ReactNode, key: number): ReactNode => {
+    let wrapped = content;
+    for (let wi = whitePaths.length - 1; wi >= 0; wi -= 1) {
+      wrapped = <g key={wi === 0 ? key : undefined} clipPath={`url(#${id}w${wi})`} data-testid={wi === 0 ? tid("print-marking-white") : undefined}>{wrapped}</g>;
+    }
+    return wrapped;
+  };
   const draw = (keep: (index: number) => boolean) => nodes.map((node, index) => {
     if (!keep(index)) return null;
-    const inner = isMarking(node) ? <g clipPath={`url(#${id}m)`} data-testid="print-marking-clipped"><Node node={node} /></g> : <Node node={node} />;
-    return white.length > 0 && isSpecial(node) ? <g key={index} clipPath={`url(#${id}w)`} data-testid="print-marking-white">{inner}</g>
-      : isMarking(node) ? <g key={index} clipPath={`url(#${id}m)`} data-testid="print-marking-clipped"><Node node={node} /></g> : <Node key={index} node={node} />;
+    const inner = isMarking(node) ? <g clipPath={`url(#${id}m)`} data-testid={tid("print-marking-clipped")}><Node node={node} /></g> : <Node node={node} />;
+    return whitePaths.length > 0 && isSpecial(node) ? clipOutsideWhite(inner, index)
+      : isMarking(node) ? <g key={index} clipPath={`url(#${id}m)`} data-testid={tid("print-marking-clipped")}><Node node={node} /></g> : <Node key={index} node={node} />;
   });
-  return <g data-testid="print-frame" data-course={frame.course} data-marking-clip={frame.markingClip ? "" : undefined} data-norm={layers?.norm}>
+  return <g data-testid={tid("print-frame")} data-course={frame.course} data-marking-clip={frame.markingClip ? "" : undefined} data-norm={layers?.norm}>
     <defs><clipPath id={id}><rect x={clip.x} y={clip.y} width={clip.width} height={clip.height} /></clipPath>
       {frame.markingClip && <clipPath id={`${id}m`}><polygon points={frame.markingClip.polygon.map(p => `${p.x},${p.y}`).join(" ")} /></clipPath>}
-      {white.length > 0 && <clipPath id={`${id}w`}><path clipRule="evenodd" d={`M${clip.x} ${clip.y} h${clip.width} v${clip.height} h${-clip.width} Z ${whitePath}`} /></clipPath>}
-      {covers.length > 0 && <mask id={`${id}c`} maskUnits="userSpaceOnUse" x={clip.x} y={clip.y} width={clip.width} height={clip.height}>
+      {whitePaths.map((wp, wi) => <clipPath key={`w${wi}`} id={`${id}w${wi}`}>
+        <path clipRule="evenodd" d={`M${clip.x} ${clip.y} h${clip.width} v${clip.height} h${-clip.width} Z ${wp}`} />
+      </clipPath>)}
+      {hasOverMask && <mask id={`${id}c`} maskUnits="userSpaceOnUse" x={clip.x} y={clip.y} width={clip.width} height={clip.height}>
         <rect x={clip.x} y={clip.y} width={clip.width} height={clip.height} fill="#fff" />
-        {covers.map(({ node, index }) => {
-          const shape = node.tag === "image" ? <rect x={node.x} y={node.y} width={node.width} height={node.height} fill="#000" />
-            : node.tag === "path" ? <path d={node.d} fill="#000" fillRule="evenodd" /> : null;
-          return <g key={index} clipPath={isMarking(node) ? `url(#${id}m)` : undefined}>{shape}</g>;
-        })}</mask>}</defs>
-    {image && <image href={image} x={clip.x} y={clip.y} width={clip.width} height={clip.height} preserveAspectRatio="none" data-testid="print-map"
+        <g transform={mirror}>
+          {whitePaths.map((wp, wi) => <path key={`mw${wi}`} d={wp} fill="#000" />)}
+          {covers.map(({ node, index }) => {
+            const shape = node.tag === "image" ? <rect x={node.x} y={node.y} width={node.width} height={node.height} fill="#000" />
+              : node.tag === "path" ? <path d={node.d} fill="#000" fillRule="evenodd" /> : null;
+            return <g key={`mc${index}`} clipPath={isMarking(node) ? `url(#${id}m)` : undefined}>{shape}</g>;
+          })}
+        </g>
+      </mask>}</defs>
+    {image && <image href={image} x={clip.x} y={clip.y} width={clip.width} height={clip.height} preserveAspectRatio="none" data-testid={tid("print-map")}
       data-mirror={frame.mirror ? "" : undefined} transform={mirror} />}
-    {white.length > 0 && <path d={whitePath} fill="#fff" clipPath={`url(#${id})`} data-testid="print-white-area" />}
+    {whitePaths.length > 0 && <g clipPath={`url(#${id})`} data-testid={tid("print-white-area")}>
+      {whitePaths.map((wp, wi) => <path key={wi} d={wp} fill="#fff" />)}
+    </g>}
     {layer ? <>
-      {/* Vita specialobjekt och bilder under banan (ligger över hela kartan: kartans bild över banan maskas bort i dem). */}
-      {covers.length > 0 && <g clipPath={`url(#${id})`} data-testid="print-overprint-beneath" data-layer="beneath">{draw(index => layer[index] === "BENEATH")}</g>}
-      <g clipPath={`url(#${id})`} data-testid="print-overprint" data-layer="lower">{draw(index => layer[index] === "LOWER")}</g>
-      {/* Kartans färger över banan en gång till med Darken över hela kartan: lila syns genom dem som på tryck, kartan ändras inte. Vitt över banan slår ut. */}
-      <g mask={covers.length > 0 ? `url(#${id}c)` : undefined} data-testid="print-map-over-layer">
-        {overWhiteImage && <g clipPath={white.length > 0 ? `url(#${id}w)` : undefined}><image href={overWhiteImage} x={clip.x} y={clip.y} width={clip.width}
-          height={clip.height} preserveAspectRatio="none" data-testid="print-map-over-white" transform={mirror} /></g>}
-        {overImage && <g clipPath={white.length > 0 ? `url(#${id}w)` : undefined}><image href={overImage} x={clip.x} y={clip.y} width={clip.width} height={clip.height}
-          preserveAspectRatio="none" data-testid="print-map-over" style={{ mixBlendMode: "darken" }} transform={mirror} /></g>}
-      </g>
-      <g clipPath={`url(#${id})`} data-testid="print-overprint-upper" data-layer="upper">{draw(index => layer[index] === "UPPER")}</g>
-    </> : <g clipPath={`url(#${id})`} data-testid="print-overprint">{draw(() => true)}</g>}
+      {/* Vita specialobjekt och bilder under banan (ligger över hela kartan: kartans OVER-band maskas bort i dem). */}
+      {covers.length > 0 && <g clipPath={`url(#${id})`} data-testid={tid("print-overprint-beneath")} data-layer="beneath">{draw(index => layer[index] === "BENEATH")}</g>}
+      <g clipPath={`url(#${id})`} data-testid={tid("print-overprint")} data-layer="lower">{draw(index => layer[index] === "LOWER")}</g>
+      {/* Kartans OVER-band i exakt rank-ordning med mask direkt på <image> (utan isolerande <g mask>), så Darken blandar mot banan även med white-out/vita ytor. */}
+      {overBandImages?.map((band, bandIndex) => band.url ? <image key={`ob${bandIndex}`} href={band.url} x={clip.x} y={clip.y}
+        width={clip.width} height={clip.height} preserveAspectRatio="none"
+        data-testid={tid(band.kind === "WHITE" ? "print-map-over-white" : "print-map-over")}
+        data-band={bandIndex}
+        mask={hasOverMask ? `url(#${id}c)` : undefined}
+        style={band.kind === "INK" ? { mixBlendMode: "darken" } : undefined}
+        transform={mirror} /> : null)}
+      <g clipPath={`url(#${id})`} data-testid={tid("print-overprint-upper")} data-layer="upper">{draw(index => layer[index] === "UPPER")}</g>
+    </> : <g clipPath={`url(#${id})`} data-testid={tid("print-overprint")}>{draw(() => true)}</g>}
   </g>;
 }
 
@@ -126,7 +165,7 @@ function Node({ node }: { node: PrintNode }) {
       strokeLinecap={node.cap} strokeLinejoin="round" opacity={node.opacity} data-ref={node.ref} data-role={node.role} />;
     case "text": return <text x={node.x} y={node.y} fontSize={node.size} fill={node.fill} textAnchor={node.anchor} dominantBaseline="middle" opacity={node.opacity}
       fontFamily={node.family} fontWeight={node.bold ? "bold" : undefined} fontStyle={node.italic ? "italic" : undefined} data-ref={node.ref} data-role={node.role}>{node.text}</text>;
-    case "image": return <image href={node.href} x={node.x} y={node.y} width={node.width} height={node.height} preserveAspectRatio="none" data-ref={node.ref} />;
+    case "image": return <image href={node.href} x={node.x} y={node.y} width={node.width} height={node.height} preserveAspectRatio="none" data-ref={node.ref} data-role={node.role} />;
     case "description": return <g transform={`translate(${node.x} ${node.y}) scale(${node.scale})`} data-ref={node.ref} data-role="SPECIAL" data-testid="print-description">
       <DescriptionShapes nodes={node.nodes} /></g>;
   }

@@ -46,4 +46,29 @@ describe("colorUsage (BL-förslaget)", () => {
     expect(calls.filter(call => call.op === "stroke")).toHaveLength(1);
     expect(calls.filter(call => call.op === "fill" || call.op === "fillRect")).toHaveLength(0);
   });
+
+  it("räknar in textens konturfärg (framing.color) som TEXT-användning", () => {
+    const haloSymbol: MapSymbol = {
+      id: "label", kind: "TEXT", code: code("602"), name: "Text med gloria", hidden: false,
+      color: 1, size: 2.5, fontFamily: "Arial", bold: false, italic: false,
+      framing: { color: 4, width: 0.25 }
+    };
+    const noWidthSymbol: MapSymbol = {
+      id: "plain", kind: "TEXT", code: code("603"), name: "Text utan konturbredd", hidden: false,
+      color: 1, size: 2, fontFamily: "Arial", bold: false, italic: false,
+      framing: { color: 3, width: 0 }
+    };
+    const textMap: ParsedMap = {
+      ...map,
+      symbols: new Map([...map.symbols, [haloSymbol.id, haloSymbol], [noWidthSymbol.id, noWidthSymbol]]),
+      objects: [
+        { kind: "text", symbol: "label", at: { x: 10, y: 10 }, angle: 0, text: "Höjd" },
+        { kind: "text", symbol: "plain", at: { x: 12, y: 12 }, angle: 0, text: "Sjö" }
+      ]
+    };
+    const usage = colorUsage(textMap);
+    expect(usage.get(1)).toMatchObject({ objects: 2, kinds: ["TEXT"], codes: ["602", "603"] });
+    expect(usage.get(4)).toMatchObject({ objects: 1, kinds: ["TEXT"], codes: ["602"] });
+    expect(usage.has(3)).toBe(false);
+  });
 });

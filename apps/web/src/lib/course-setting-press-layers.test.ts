@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { BUILT_IN_PRINT_PROFILES, type PrintProfile } from "@o-tid/course-setting";
 import type { ColorUsage, MapColor } from "@o-tid/map-file";
-import { pressLayersFor } from "./course-setting-press-layers";
+import { overBandImageKey, pressLayersFor } from "./course-setting-press-layers";
 
 /** Kartfärg med rank (0 = överst) och CMYK i procent. */
 const color = (id: number, name: string, rank: number, cmyk: [number, number, number, number]): MapColor =>
@@ -20,12 +20,28 @@ const usage = new Map<number, ColorUsage>([[1, used(["709"], ["AREA"])], [2, use
 const profile: PrintProfile = { ...BUILT_IN_PRINT_PROFILES[0]!, courseLayer: "REFERENCE" };
 
 describe("förhandsvisningens lager (pressLayersFor)", () => {
-  it("gloria och ring under banan; vitt för rött över banan i en egen bild som slår ut", () => {
+  it("monoton snittpunkt och bandad OVER-ordning i exakt rank-ordning (övre vitt över svart/brunt och under rött)", () => {
     const layers = pressLayersFor(profile, colors, usage, 10000)!;
     expect(layers.norm).toBe("ISOM");
-    expect(layers.under).toEqual([3, 4, 7]);
-    expect(layers.overWhite).toEqual([2]);
-    expect(layers.overInk).toEqual([1, 5, 6]);
+    expect(layers.under).toEqual([7]);
+    expect(layers.overBands).toEqual([
+      { kind: "INK", ids: [6, 5] },
+      { kind: "WHITE", ids: [4] },
+      { kind: "INK", ids: [3] },
+      { kind: "WHITE", ids: [2] },
+      { kind: "INK", ids: [1] }
+    ]);
+    expect(layers.overWhite).toEqual([4, 2]);
+    expect(layers.overInk).toEqual([6, 5, 3, 1]);
+    expect(overBandImageKey("k", 2)).toBe("k|OVER:2");
+  });
+
+  it("dolda färger utelämnas ur både overBands och under", () => {
+    const hidden = { ...profile, mapColors: [{ match: { ocadIds: [2] }, hidden: true }, { match: { ocadIds: [7] }, hidden: true }] };
+    const layers = pressLayersFor(hidden, colors, usage, 10000)!;
+    expect(layers.over).not.toContain(2);
+    expect(layers.under).not.toContain(7);
+    expect(layers.overBands.map(band => band.ids)).toEqual([[6, 5], [4], [3, 1]]);
   });
 
   it("numren i undre lila i skog om inte \"Kontrollnummer och texter överst\" är valt", () => {

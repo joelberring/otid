@@ -86,9 +86,10 @@ export async function renderPrintJob(input: RenderPrintJobInput): Promise<WriteP
   const { document, request } = input;
   const profile = printProfileFor(document, request);
   const map = input.map ? readMapFile(input.map.bytes, input.map.fileName) : null;
-  // Förhandskontrollen igen i servern, mot kartans färger och PDF:ens förmåga (ColorPreflight).
+  // Förhandskontrollen igen i servern för tryckfiler, mot kartans färger och PDF:ens förmåga (ColorPreflight).
+  // Kontorsutskrift (OFFICE) behåller profilens BL-färgbeslut (`reference`) utan att stoppas av tryckeriregler.
   const preflight: string[] = [];
-  if (map) {
+  if (map && request.kind !== "OFFICE") {
     const report = colorPreflight(profile, sourceMapColors(map.colors, colorUsage(map)), PDF_CAPABILITIES, new Set(request.confirmedRules ?? []));
     const blocking = report.findings.filter(finding => finding.severity === "BLOCKING");
     if (blocking.length > 0) throw new PrintJobError(`Förhandskontrollen stoppar: ${blocking.map(finding => finding.text).join(" ")}`);

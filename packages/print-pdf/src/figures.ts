@@ -7,7 +7,7 @@ import { circleArcs, type DescriptionLayout, type DescriptionSymbol, type Overpr
 import { num, type Content } from "./content";
 import { fontVariant, printable, variantForFamily, type Fonts } from "./fonts";
 import { multiply } from "./pdf-canvas";
-import { BLACK, customPaint, tinted, WHITE, type Paint } from "./paint";
+import { BLACK, customPaint, isWhiteInk, tinted, WHITE, type Paint } from "./paint";
 
 export type Matrix = readonly [number, number, number, number, number, number];
 type Pt = { readonly x: number; readonly y: number };
@@ -180,9 +180,11 @@ export function figureOps(context: FigureContext, m: Matrix, figures: readonly O
       content.restore();
       continue;
     }
-    // Tonad figur (överlappet vid ett kartbyte, ADR-0203): samma dekorfärg med lägre andel.
+    // Tonad figur (överlappet vid ett kartbyte, ADR-0203) eller 714-yta (`tint`): syns genom till kartan under
+    // via /GOP (/BM /Darken i OFFICE, /OP /OPM 1 i tryck) även när banan annars är knockout (utom för vitt).
     const own = paintOf(context, primitive);
-    const paint = primitive.fade !== undefined && primitive.fade < 1 ? tinted(own, primitive.fade) : own;
+    const translucent = (p: Paint): Paint => !p.overprint && !isWhiteInk(p.ink) ? { ...p, overprint: true } : p;
+    const paint = primitive.fade !== undefined && primitive.fade < 1 ? translucent(tinted(own, primitive.fade)) : own;
     switch (primitive.kind) {
       case "circle": {
         const r = primitive.diameter / 2;
@@ -197,10 +199,12 @@ export function figureOps(context: FigureContext, m: Matrix, figures: readonly O
         content.lineStyle(primitive.width * s, primitive.cap === "round" ? 1 : 0, 1, (primitive.dash ?? []).map(value => value * s));
         content.op(`${polyline(m, primitive.points, primitive.closed === true)} S`);
         break;
-      case "polygon":
-        content.fill(primitive.tint !== undefined ? tinted(paint, primitive.tint) : paint);
+      case "polygon": {
+        const fill = primitive.tint !== undefined && primitive.tint < 1 ? translucent(tinted(paint, primitive.tint)) : paint;
+        content.fill(fill);
         content.op(`${primitive.rings.map(ring => polyline(m, ring, true)).join(" ")} f*`);
         break;
+      }
       case "text": {
         // `at.y` är mitten av em-rutan (canvas "middle"): baslinjen ligger (över + under) / 2 lägre.
         const variant = primitive.font ? variantForFamily(primitive.font.family, primitive.font.bold, primitive.font.italic) : "regular";

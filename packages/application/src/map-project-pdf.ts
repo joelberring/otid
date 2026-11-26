@@ -10,11 +10,19 @@ import type { MapPdfResult } from "./map-project-job-pdf";
  * Ägaren 2026-11-15: «Skriv ut PDF» i kartläget. Webben lägger ett jobb (MAP_PDF) i kartjobbskön och frågar sedan efter det;
  * utskriftsarbetaren ritar hela kartan med sparade ändringar. Den som får se projektet får skriva ut det.
  */
-export async function startMapProjectPdf(db: Database, input: ClubProof & { projectId: string }, now = new Date())
-  : Promise<ClubFailure | { status: "throttled" } | { status: "ok"; jobId: string }> {
+export async function startMapProjectPdf(
+  db: Database,
+  input: ClubProof & { projectId: string; mode?: "OFFICE" | "PRESS" | undefined; lightenForOffice?: boolean | undefined },
+  now = new Date()
+): Promise<ClubFailure | { status: "throttled" } | { status: "ok"; jobId: string }> {
   const access = await db.transaction(tx => requireMapProject(tx, input, now, "view", true));
   if (access.status !== "ok") return access;
-  const jobId = await queueMapJob(db, { accountId: access.accountId, projectId: access.project.id, kind: "MAP_PDF", request: { title: access.project.name } }, now);
+  const request: Record<string, unknown> = {
+    title: access.project.name,
+    ...(input.mode === "PRESS" || input.mode === "OFFICE" ? { mode: input.mode } : {}),
+    ...(input.lightenForOffice === true ? { lightenForOffice: true } : {})
+  };
+  const jobId = await queueMapJob(db, { accountId: access.accountId, projectId: access.project.id, kind: "MAP_PDF", request }, now);
   return jobId ? { status: "ok", jobId } : { status: "throttled" };
 }
 

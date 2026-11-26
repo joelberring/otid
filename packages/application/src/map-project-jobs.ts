@@ -218,14 +218,17 @@ export async function runMapJob(db: Database, job: ClaimedMapJob, deps: { worker
   : Promise<"DONE" | "FAILED"> {
   if (job.kind === "COURSE_RENDER" || job.kind === "COURSE_LEVEL") return runCourseRenderJob(db, job, deps, now);
   if (!job.projectId) { await failMapJob(db, job.id, deps.worker, "Jobbet saknar kartprojekt"); return "FAILED"; }
-  const [project] = await db.select({ baseSha256: schema.mapProjects.baseSha256, baseFormat: schema.mapProjects.baseFormat, area: schema.mapProjects.area })
+  const [project] = await db.select({ baseSha256: schema.mapProjects.baseSha256, baseFormat: schema.mapProjects.baseFormat, area: schema.mapProjects.area,
+    colors: schema.mapProjects.colors, symbolColors: schema.mapProjects.symbolColors, textSymbols: schema.mapProjects.textSymbols, normSymbols: schema.mapProjects.normSymbols })
     .from(schema.mapProjects).where(eq(schema.mapProjects.id, job.projectId));
   if (!project) { await failMapJob(db, job.id, deps.worker, "Projektet finns inte"); return "FAILED"; }
   const bytes = await readMapContent(db, project.baseSha256);
   if (!bytes) { await failMapJob(db, job.id, deps.worker, "Grundfilen saknas"); return "FAILED"; }
   const rows = await db.select({ objectKey: schema.mapProjectObjects.objectKey, ref: schema.mapProjectObjects.ref, state: schema.mapProjectObjects.state,
     lastEditId: schema.mapProjectObjects.lastEditId }).from(schema.mapProjectObjects).where(eq(schema.mapProjectObjects.projectId, job.projectId));
-  const loaded = loadProjectMap(new Uint8Array(bytes), project.baseFormat === "OCD" ? "grund.ocd" : "grund.omap", project.baseSha256, rows);
+  const loaded = loadProjectMap(new Uint8Array(bytes), project.baseFormat === "OCD" ? "grund.ocd" : "grund.omap", project.baseSha256, rows, {
+    colors: project.colors, symbolColors: project.symbolColors, textSymbols: project.textSymbols, normSymbols: project.normSymbols
+  });
   const request = job.request;
   const area = project.area ?? null;
   let output: { result: unknown; image?: Uint8Array | null } | { error: string };

@@ -190,9 +190,9 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
   // ADR-0217 (fas 3): papperet redigeras i Layout; här bara vad, antal, färger och PDF/skrivare.
   const document = loaded;
 
-  // Ringklippen över detaljer (ADR-0211 beslut 1): samma gap som i editorn, räknade av kartans Worker. Saknades förut, så
-  // förhandsvisningen och PDF:en ritade hela ringar där editorn visade avbrott.
-  const mapAids = useDetailGaps(session, document).options;
+  // Ringklippen över detaljer (ADR-0211 beslut 1): samma gap som i editorn, räknade av kartans Worker för alla layouters skalor.
+  const extraScales = useMemo(() => [...new Set((document?.event.layouts ?? []).map(layout => layout.scale))].sort((a, b) => a - b), [document]);
+  const mapAids = useDetailGaps(session, document, extraScales).options;
 
   const standard = document?.event.descriptionStandard ?? "2018";
   const symbols = useMemo(() => {

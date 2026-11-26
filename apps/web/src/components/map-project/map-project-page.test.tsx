@@ -252,4 +252,37 @@ describe("MapProjectPage (Etapp 3B: OCAD Skapa ny kartversion upplåst via viewe
     expect(enUnlockedHtml).not.toContain('data-testid="map-project-ocad-note"');
     expect(enUnlockedHtml).not.toContain('data-testid="map-project-ocad-version-disabled"');
   });
+
+  it("visar Exportera ändringar (.ocd) för OCAD-projekt när canDownloadSource är true och döljer den med låsnotis när false (sv + en)", () => {
+    const allowedSv = renderToStaticMarkup(
+      <MapProjectPage projectId={PROJECT_ID} initialView={makeOcdProject({ canDownloadSource: true })} />
+    );
+    expect(allowedSv).toContain(`/api/organizer/map-projects/${PROJECT_ID}/export?format=ocd`);
+    expect(allowedSv).toContain("Exportera ändringar (.ocd)");
+    expect(allowedSv).not.toContain(`/api/organizer/map-projects/${PROJECT_ID}/export?format=omap`);
+    expect(allowedSv).toContain(`/api/organizer/map-projects/${PROJECT_ID}/export?format=geojson`);
+    expect(allowedSv).not.toContain('data-testid="map-project-export-locked-note"');
+
+    const lockedSv = renderToStaticMarkup(
+      <MapProjectPage projectId={PROJECT_ID} initialView={makeOcdProject({ canManage: false, canWriteVersion: false, canDownloadSource: false })} />
+    );
+    expect(lockedSv).not.toContain(`/api/organizer/map-projects/${PROJECT_ID}/export?format=ocd`);
+    expect(lockedSv).toContain('data-testid="map-project-export-locked-note"');
+    expect(lockedSv).toContain("OCAD-export av ändringarna är spärrad");
+    expect(lockedSv).toContain(`/api/organizer/map-projects/${PROJECT_ID}/export?format=geojson`);
+
+    const allowedEn = renderToStaticMarkup(
+      <LanguageProvider language="en">
+        <MapProjectPage projectId={PROJECT_ID} initialView={makeOcdProject({ canDownloadSource: true })} />
+      </LanguageProvider>
+    );
+    expect(allowedEn).toContain("Export changes (.ocd)");
+
+    const lockedEn = renderToStaticMarkup(
+      <LanguageProvider language="en">
+        <MapProjectPage projectId={PROJECT_ID} initialView={makeOcdProject({ canManage: false, canWriteVersion: false, canDownloadSource: false })} />
+      </LanguageProvider>
+    );
+    expect(lockedEn).toContain("OCAD change export is locked");
+  });
 });

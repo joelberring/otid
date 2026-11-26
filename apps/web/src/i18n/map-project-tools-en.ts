@@ -347,7 +347,7 @@ export const mapProjectColorsEn: Texts<typeof mapProjectColorsSv> = {
   color: "Colour", c: "C", m: "M", y: "Y", k: "K",
   field: (name: string, part: string) => `${name}, ${part} in per cent`,
   changed: "Changed",
-  spot: "Spot colour (changed in the mapping program)",
+  spot: "Spot colour",
   reset: (name: string) => `Restore ${name}`,
   resetAll: "Restore the file's colours",
   save: "Save",
@@ -355,6 +355,5 @@ export const mapProjectColorsEn: Texts<typeof mapProjectColorsSv> = {
   close: "Close",
   saved: (n: number) => n === 0 ? "The map has the file's own colours." : n === 1 ? "1 colour is changed." : `${n} colours are changed.`,
   failed: "The colours could not be saved. Try again.",
-  ocad: "The map is an OCAD file: the colour table is shown here, but cannot be changed or written back to the OCAD file yet.",
   summary: (n: number) => n === 0 ? "The file's own colours" : n === 1 ? "1 changed colour" : `${n} changed colours`
 };

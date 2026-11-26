@@ -17,7 +17,6 @@ export interface SymbolColorsControl {
   /** De sparade färgbytena. */
   readonly saved: readonly MapSymbolColorChange[];
   readonly canChange: boolean;
-  readonly ocad: boolean;
   /** Rita kartan med de här byten utan att spara. */
   readonly onShow: (changes: readonly MapSymbolColorChange[]) => void;
   readonly onSave: (changes: readonly MapSymbolColorChange[]) => Promise<boolean>;
@@ -41,7 +40,7 @@ export function SymbolColorsDialog({ symbols, control, onClose }: { symbols: rea
   const [draft, setDraft] = useState<readonly MapSymbolColorChange[]>(control.saved);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string>();
-  const editable = control.canChange && !control.ocad;
+  const editable = control.canChange;
   const codes = useMemo(() => new Set(symbols.map(symbol => symbol.code)), [symbols]);
   const byId = useMemo(() => new Map(control.colors.map(color => [color.id, color])), [control.colors]);
   const slots = useMemo(() => [...new Set(symbols.flatMap(symbol => symbol.colors))].map(from => ({ from, users: symbols.filter(symbol => symbol.colors.includes(from)) })), [symbols]);
@@ -61,7 +60,7 @@ export function SymbolColorsDialog({ symbols, control, onClose }: { symbols: rea
   return <Dialog dialogRef={dialog} className={colorStyles.dialog} labelledBy={title} onClose={close} closeOnBackdrop={!dirty}>
     <div className={colorStyles.body} data-testid="map-project-symbol-colors">
       <h2 id={title}>{text.title(symbols.map(label).join(", "))}</h2>
-      <p className={colorStyles.help}>{control.ocad ? text.ocad : editable ? text.help : text.readOnly}</p>
+      <p className={colorStyles.help}>{editable ? text.help : text.readOnly}</p>
       {slots.length === 0 && <p className={colorStyles.help}>{text.none}</p>}
       <ul className={styles.slots}>
         {slots.map(({ from, users }) => {

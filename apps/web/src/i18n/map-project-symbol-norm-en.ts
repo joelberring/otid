@@ -75,7 +75,6 @@ export const mapProjectSymbolNormEn: Texts<typeof mapProjectSymbolNormSv> = {
   outlinesHint: "The outline is drawn as lines around connected buildings: Add outline around buildings.",
   cannotFix: "O-Tid's template does not fix this; change the symbol in Mapper.",
   onlyOwner: "Only the project's owners can fix the symbols.",
-  ocad: "Symbols are not written to OCAD files here. Save the map in Mapper (.omap) to fix them.",
   failed: "Could not save. Try again.",
   source: "Source",
   missing: (n: number) => `${count(n, "symbol", "symbols")} from the norm missing in the map:`,

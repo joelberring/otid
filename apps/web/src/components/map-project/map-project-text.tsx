@@ -105,7 +105,7 @@ function TextSymbolDialog({ symbol, ui, colors, catalog, fileIds, chooseSymbol, 
   return <Dialog dialogRef={dialog} className={colorStyles.dialog} labelledBy={title} onClose={close} closeOnBackdrop={!dirty}>
     <div className={colorStyles.body} data-testid="map-project-text-symbol">
       <h2 id={title}>{text.title(symbol.code, symbol.name)}</h2>
-      <p className={colorStyles.help}>{control.ocad ? text.ocad : control.canChange ? text.help : text.readOnly}</p>
+      <p className={colorStyles.help}>{control.canChange ? text.help : text.readOnly}</p>
       <div className={styles.grid}>
         <label>{text.font}<input list={fonts} value={style.fontFamily} disabled={disabled} maxLength={80} data-testid="map-project-text-font"
           onChange={event => change({ fontFamily: event.target.value })} /></label>

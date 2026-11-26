@@ -16,12 +16,12 @@ const percent = (value: number) => String(Math.round(value * 1000) / 10).replace
 /**
  * Ägaren 2026-11-10 («ställa in färger i kartan … färgtabell»): knappen under Lager och dialogen med kartans färgtabell.
  * Varje färg visas i ritordning med filens färg och den nya bredvid; CMYK ändras i procent och kartan ritas om medan man
- * ändrar (`onShow`). Spara lägger ändringarna i projektet (`onSave`); Avbryt visar det sparade igen. Dekorfärger visas men
- * ändras inte här.
+ * ändrar (`onShow`). Spara lägger ändringarna i projektet (`onSave`); Avbryt visar det sparade igen. Dekorfärgers CMYK kan
+ * också ändras medan dekorfärgsmetadata bevaras i kartfilen.
  */
-export function MapProjectColors({ colors, saved, canChange, ocad, onShow, onSave }: {
+export function MapProjectColors({ colors, saved, canChange, onShow, onSave }: {
   /** Filens färgtabell. */
-  colors: readonly MapColor[]; saved: readonly MapColorChange[]; canChange: boolean; ocad: boolean;
+  colors: readonly MapColor[]; saved: readonly MapColorChange[]; canChange: boolean;
   onShow: (changes: readonly MapColorChange[]) => void; onSave: (changes: readonly MapColorChange[]) => Promise<boolean> }) {
   const text = useTexts(mapProjectColorsSv, mapProjectColorsEn);
   const [open, setOpen] = useState(false);
@@ -29,17 +29,17 @@ export function MapProjectColors({ colors, saved, canChange, ocad, onShow, onSav
   return <section className={styles.entry}>
     <Button variant="secondary" onClick={() => setOpen(true)} disabled={colors.length === 0} data-testid="map-project-colors-open">{text.open}</Button>
     <span className={styles.muted} data-testid="map-project-colors-summary">{text.summary(count)}</span>
-    {open && <ColorsDialog colors={colors} saved={saved} canChange={canChange} ocad={ocad} onShow={onShow} onSave={onSave} onClose={() => setOpen(false)} />}
+    {open && <ColorsDialog colors={colors} saved={saved} canChange={canChange} onShow={onShow} onSave={onSave} onClose={() => setOpen(false)} />}
   </section>;
 }
 
-export function ColorsDialog({ colors, saved, canChange, ocad, onShow, onSave, onClose }: {
-  colors: readonly MapColor[]; saved: readonly MapColorChange[]; canChange: boolean; ocad: boolean;
+export function ColorsDialog({ colors, saved, canChange, onShow, onSave, onClose }: {
+  colors: readonly MapColor[]; saved: readonly MapColorChange[]; canChange: boolean;
   onShow: (changes: readonly MapColorChange[]) => void; onSave: (changes: readonly MapColorChange[]) => Promise<boolean>; onClose: () => void }) {
   const text = useTexts(mapProjectColorsSv, mapProjectColorsEn);
   const title = useId();
   const dialog = useRef<HTMLDialogElement>(null);
-  const editable = canChange && !ocad;
+  const editable = canChange;
   const [draft, setDraft] = useState<readonly MapColorChange[]>(() => effectiveColorChanges(colors, saved));
   // Det som står i fälten medan man skriver (t.ex. "12," på väg mot "12,5").
   const [typing, setTyping] = useState<Readonly<Record<string, string>>>({});
@@ -62,7 +62,7 @@ export function ColorsDialog({ colors, saved, canChange, ocad, onShow, onSave, o
   return <Dialog dialogRef={dialog} className={styles.dialog} labelledBy={title} onClose={close} closeOnBackdrop={!dirty}>
     <div className={styles.body} data-testid="map-project-colors">
       <h2 id={title}>{text.title}</h2>
-      <p className={styles.help}>{ocad ? text.ocad : editable ? text.help : text.readOnly}</p>
+      <p className={styles.help}>{editable ? text.help : text.readOnly}</p>
       <div className={styles.scroll}>
         <table className={styles.table}>
           <thead><tr><th scope="col" colSpan={2}>{text.color}</th>{PARTS.map(part => <th key={part} scope="col">{text[part]}</th>)}<th /></tr></thead>
@@ -73,7 +73,7 @@ export function ColorsDialog({ colors, saved, canChange, ocad, onShow, onSave, o
                 <td><span className={styles.swatch} style={{ background: css(color.rgb) }} />{changed && <span className={styles.swatch} style={{ background: css(now.rgb) }}
                   data-testid="map-project-color-new" />}</td>
                 <th scope="row">{name}{color.spot && <small>{text.spot}</small>}{changed && <small>{text.changed}</small>}</th>
-                {PARTS.map(part => <td key={part}><input inputMode="decimal" aria-label={text.field(name, text[part])} disabled={!editable || !!color.spot || busy}
+                {PARTS.map(part => <td key={part}><input inputMode="decimal" aria-label={text.field(name, text[part])} disabled={!editable || busy}
                   value={typing[`${color.id}${part}`] ?? percent(now.cmyk[part])} onChange={event => set(color, part, event.target.value)}
                   onBlur={() => setTyping(current => Object.fromEntries(Object.entries(current).filter(([key]) => key !== `${color.id}${part}`)))} /></td>)}
                 <td>{changed && editable && <button type="button" className={styles.reset} aria-label={text.reset(name)} title={text.reset(name)} disabled={busy}

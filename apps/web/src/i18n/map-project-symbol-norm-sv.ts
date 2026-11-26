@@ -74,7 +74,6 @@ export const mapProjectSymbolNormSv = {
   outlinesHint: "Kanten ritas som linjer runt sammanhängande hus: Lägg kant runt husen.",
   cannotFix: "O-Tids mall rättar inte det här; ändra symbolen i Mapper.",
   onlyOwner: "Bara projektets ägare kan rätta symbolerna.",
-  ocad: "Symbolerna skrivs inte i OCAD-filer här. Spara kartan i Mapper (.omap) för att rätta dem.",
   failed: "Det gick inte att spara. Försök igen.",
   source: "Källa",
   missing: (count: number) => `${plural(count, "symbol", "symboler")} ur normen saknas i kartan:`,

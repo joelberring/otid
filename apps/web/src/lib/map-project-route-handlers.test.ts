@@ -113,11 +113,29 @@ describe("Etapp 2: kartprojektens API-rutter för nedladdningsspärr", () => {
     });
   });
 
-  it("PUT på kartprojektet vidarebefordrar tydligt felmeddelande med HTTP 400 när OCAD-färger avvisas", async () => {
-    const message = "Färgtabellen kan inte ändras i OCAD-projekt ännu. Spara kartan i Mapper (.omap) för att ändra färger.";
-    mocks.updateMapProject.mockResolvedValueOnce({ status: "invalid-request", message });
+  it("/export?format=ocd returnerar 403 vid spärr och 200 binär OCAD-fil när tillåtet samt 400 vid okänt format", async () => {
+    mocks.exportMapProjectChanges.mockResolvedValueOnce({ status: "forbidden" });
+    const blocked = await mapProjectExportRoute(db, getReq("/export?format=ocd"), projectId, env);
+    expect(blocked.status).toBe(403);
+
+    const ocdBytes = new Uint8Array([0xad, 0x0c, 0x00, 0x00, 0x0c, 0x00]);
+    mocks.exportMapProjectChanges.mockResolvedValueOnce({
+      status: "ok", fileName: "Skogen ändringar.ocd", contentType: "application/octet-stream", body: ocdBytes
+    });
+    const allowed = await mapProjectExportRoute(db, getReq("/export?format=ocd"), projectId, env);
+    expect(allowed.status).toBe(200);
+    expect(allowed.headers.get("content-type")).toBe("application/octet-stream");
+    expect(allowed.headers.get("content-disposition")).toContain(".ocd");
+    expect([...new Uint8Array(await allowed.arrayBuffer())]).toEqual([...ocdBytes]);
+
+    const invalid = await mapProjectExportRoute(db, getReq("/export?format=svg"), projectId, env);
+    expect(invalid.status).toBe(400);
+  });
+
+  it("PUT på kartprojektet vidarebefordrar colors på OCAD-projekt och returnerar 200", async () => {
+    mocks.updateMapProject.mockResolvedValueOnce({ status: "ok" });
     const response = await mapProjectRoute(db, putReq({ formatVersion: 1, colors: [{ id: 1, cmyk: { c: 0.1, m: 0.2, y: 0.3, k: 0 } }] }), projectId, env);
-    expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({ formatVersion: 1, error: "INVALID_REQUEST", message });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ formatVersion: 1, status: "ok" });
   });
 });

@@ -88,7 +88,7 @@ export type MapProjectSymbolColorChange = z.infer<typeof mapProjectSymbolColorsS
  * id med `copyOf`, nummer och namn), typsnitt, storlek i mm, kartans färg, fet/kursiv, justering och kontur. Hela stilen varje gång.
  */
 export const mapProjectTextSymbolsSchema = z.array(z.object({
-  id: z.string().regex(/^\d{1,6}$/), copyOf: z.string().regex(/^\d{1,6}$/).optional(), code: z.string().regex(/^\d{1,4}(\.\d{1,4})?$/).optional(),
+  id: z.string().regex(/^\d{1,9}$/), copyOf: z.string().regex(/^\d{1,9}$/).optional(), code: z.string().regex(/^\d{1,4}(\.\d{1,4})?$/).optional(),
   name: z.string().max(120).optional(), fontFamily: z.string().trim().min(1).max(80).refine(value => !/["<>&]/.test(value) && [...value].every(char => char.charCodeAt(0) >= 32)),
   size: z.number().min(0.1).max(100), color: z.number().int().min(0).max(100_000), bold: z.boolean(), italic: z.boolean(),
   align: z.enum(["left", "center", "right"]).optional(),
@@ -120,13 +120,13 @@ export const mapProjectUpdateRequestSchema = z.object({
   recon: mapProjectReconSettingsSchema.nullable().optional(),
   /** Topplistan (K3b): null = av. */
   leaderboard: mapProjectLeaderboardSchema.nullable().optional(),
-  /** Färgtabellens ändringar; tom lista = filens egna färger (bara Mapper-kartor i Steg 1). */
+  /** Färgtabellens ändringar; tom lista = filens egna färger. */
   colors: mapProjectColorsSchema.optional(),
-  /** Symbolernas färger; tom lista = symbolernas egna färger (bara Mapper-kartor i Steg 1). */
+  /** Symbolernas färger; tom lista = symbolernas egna färger. */
   symbolColors: mapProjectSymbolColorsSchema.optional(),
-  /** K8b V6: textsymbolernas stil och nya textsymboler; tom lista = filens egna (bara Mapper-kartor). */
+  /** K8b V6: textsymbolernas stil och nya textsymboler; tom lista = filens egna. */
   textSymbols: mapProjectTextSymbolsSchema.optional(),
-  /** Symbolerna rättade efter normen (bara Mapper-kartor). */
+  /** Symbolerna rättade efter normen. */
   normSymbols: mapProjectNormSymbolsSchema.optional(),
   /** AI-kopplingens läge i projektet. */
   aiMode: mapProjectAiModeSchema.optional(),
@@ -200,6 +200,10 @@ export const mapProjectProposalDecisionRequestSchema = z.object({
 export const mapProjectOutputRequestSchema = z.object({
   formatVersion: z.literal(1), requestId: uuidSchema, note: z.string().trim().max(500).optional(), archive: z.boolean().optional()
 }).strict();
+
+/** Format för "Exportera bara ändringarna": Mapper (.xmap), OCAD (.ocd) eller GeoJSON. */
+export const mapProjectExportFormatSchema = z.enum(["omap", "ocd", "geojson"]);
+export type MapProjectExportFormat = z.infer<typeof mapProjectExportFormatSchema>;
 
 export type MapProjectRole = z.infer<typeof mapProjectRoleSchema>;
 export type MapProjectMode = z.infer<typeof mapProjectModeSchema>;
@@ -291,7 +295,7 @@ export interface MapProjectView extends MapProjectSummary {
    * `canWriteVersion` = får skapa en ny version i projektet (ägarna, när servern kan skriva grundfilens format:
    * `.omap` alltid och `.ocd` när `OTID_OCAD_WRITE=1`); `canArchive` = får också lägga den i klubbarkivet
    * (projektet hör till en klubb och kontot är administratör där); `canDownloadSource` = får ladda ner rå källfil (`/source`),
-   * resultatfiler (`/outputs/:id`) och Mapper-export (`/export?format=omap`).
+   * resultatfiler (`/outputs/:id`) och kartexport (`/export?format=omap|ocd`).
    */
   viewer: { accountId: string; canEdit: boolean; canManage: boolean; canWriteVersion: boolean; canArchive: boolean;
     /** Får rita förslag (Föreslå eller mer, projektet öppet). */

@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { desc, eq, inArray } from "drizzle-orm";
-import { CLUB_ARCHIVE_MAP_MAX_BYTES, mapProjectOutputRequestSchema, type MapProjectOutputResponse } from "@o-tid/contracts";
+import { CLUB_ARCHIVE_MAP_MAX_BYTES, mapProjectOutputRequestSchema, type MapProjectExportFormat, type MapProjectOutputResponse } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { applyMapColors, applyMapRevisionWithSymbols, applyMapSymbolColors, applyMapSymbolReplacements, applyMapTextSymbols, MapFileError, readMapFile, type MapColorsResult, type ParsedMap } from "@o-tid/map-file";
+import { applyMapColors, applyMapRevision, applyMapRevisionWithSymbols, applyMapSymbolColors, applyMapSymbolReplacements, applyMapTextSymbols, MapFileError, ocdChangesFile, readMapFile, type MapColorsResult, type ParsedMap } from "@o-tid/map-file";
 import {
   changeCounts, changeList, changesGeoJson, mapperChangesFile, normSymbolAdditions, normSymbolFixes, parseObjectRef, toChangeSet, validState, type KeyedState, type ObjectChange,
   type ObjectKey
@@ -64,7 +64,7 @@ export function applyProjectColors(bytes: Uint8Array, project: Pick<MapProjectRo
   const setting = project.normSymbols;
   if (!setting?.replace.length) return { ...symbols, changed: colored.changed + symbols.changed };
   let map: ParsedMap;
-  try { map = readMapFile(symbols.bytes, "karta.omap"); } catch (error) {
+  try { map = readMapFile(symbols.bytes, symbols.bytes[0] === 0xad && symbols.bytes[1] === 0x0c ? "karta.ocd" : "karta.omap"); } catch (error) {
     return { ok: false, message: error instanceof MapFileError ? error.message : "Kartfilen går inte att läsa." };
   }
   const normed = applyMapSymbolReplacements(symbols.bytes, normSymbolFixes(map.symbols, setting));
@@ -163,23 +163,49 @@ export async function writeMapProjectVersion(db: Database, input: ClubProof & { 
     response: { formatVersion: 1, status: "refused", refusals: [{ code, message }] } });
   const map = readBase(bytes, base.fileName);
   if (!map) return refused("UNSAFE_FILE", "Grundfilen går inte att läsa.");
-  // K8b V6: ändrade och nya textsymboler skrivs i samma kontrollerade väg som objekten (bara Mapper; OCAD vägras).
-  const written = applyMapRevisionWithSymbols(bytes, toChangeSet(map, project.baseSha256, project.baseFormat, changes), project.textSymbols ?? [],
-    normSymbolAdditions(map, project.normSymbols?.add ?? []), { ocad: ocadWriteEnabled() });
-  if (!written.ok) {
-    return { status: "ok", replayed: false, response: { formatVersion: 1, status: "refused",
-      refusals: written.refusals.slice(0, 50).map(refusal => ({ code: refusal.code, message: refusal.message })) } };
+  const changeSet = toChangeSet(map, project.baseSha256, project.baseFormat, changes);
+  const additions = normSymbolAdditions(map, project.normSymbols?.add ?? []);
+  const replacements = project.normSymbols?.replace.length ? normSymbolFixes(map.symbols, project.normSymbols) : [];
+  let outputBytes: Uint8Array;
+  let report: Extract<ReturnType<typeof applyMapRevision>, { ok: true }>["report"];
+  let colorChangesCount: number;
+  if (project.baseFormat === "OCD" && hasProjectColors(project)) {
+    // Etapp 4 (OCAD Steg 2): enkelpass genom den förlustfria OcdDocument-serialiseraren med objekt + färger + symboler.
+    const written = applyMapRevision(bytes, changeSet, {
+      ocad: ocadWriteEnabled(),
+      ocdStyle: {
+        colors: project.colors ?? [],
+        symbolColors: project.symbolColors ?? [],
+        textSymbols: project.textSymbols ?? [],
+        normAdditions: additions,
+        normReplacements: replacements
+      }
+    });
+    if (!written.ok) {
+      return { status: "ok", replayed: false, response: { formatVersion: 1, status: "refused",
+        refusals: written.refusals.slice(0, 50).map(refusal => ({ code: refusal.code, message: refusal.message })) } };
+    }
+    outputBytes = written.bytes;
+    report = written.report;
+    colorChangesCount = (project.colors?.length ?? 0) + (project.symbolColors?.length ?? 0) + replacements.length;
+  } else {
+    const written = applyMapRevisionWithSymbols(bytes, changeSet, project.textSymbols ?? [], additions, { ocad: ocadWriteEnabled() });
+    if (!written.ok) {
+      return { status: "ok", replayed: false, response: { formatVersion: 1, status: "refused",
+        refusals: written.refusals.slice(0, 50).map(refusal => ({ code: refusal.code, message: refusal.message })) } };
+    }
+    // Färgtabellens ändringar (ägaren 2026-11-10) skrivs som ett eget kontrollerat steg efter objekten.
+    const colored = applyProjectColors(written.bytes, project);
+    if (!colored.ok) return refused("VERIFY_FAILED", colored.message);
+    outputBytes = colored.bytes;
+    report = written.report;
+    colorChangesCount = colored.changed;
   }
-  // Färgtabellens ändringar (ägaren 2026-11-10) skrivs som ett eget kontrollerat steg efter objekten.
-  const colored = applyProjectColors(written.bytes, project);
-  if (!colored.ok) return refused("VERIFY_FAILED", colored.message);
-  const outputBytes = colored.bytes;
   if (outputBytes.byteLength === 0 || outputBytes.byteLength > CLUB_ARCHIVE_MAP_MAX_BYTES ||
     mapFileFormatOf(outputBytes.subarray(0, 4096)) !== project.baseFormat) {
     return refused("VERIFY_FAILED", "Den skrivna filen är inte en kartfil i samma format som grundfilen.");
   }
   const counts = changeCounts(changes);
-  const report = written.report;
   const note = revisionNote(names, counts.total);
   const date = swedishToday(now);
   const fileName = revisedFileName(base.fileName, date, project.baseFormat).slice(0, 200);
@@ -209,31 +235,41 @@ export async function writeMapProjectVersion(db: Database, input: ClubProof & { 
       requestId: parsed.success ? parsed.data.requestId : randomUUID() });
     await mapProjectJournal(tx, project, { action: "MAP_PROJECT_VERSION_CREATED", actorAccountId: access.accountId,
       details: { projectId: project.id, baseVersionId: project.baseVersionId, outputId, versionId, changes: counts.total, edits: report.edits.length,
-        identicalBytes: report.verification.identicalBytes, colors: colored.changed }, now });
+        identicalBytes: report.verification.identicalBytes, colors: colorChangesCount }, now });
     return { status: "ok", replayed: false, response: { formatVersion: 1, status: "created", outputId, versionId, fileName, changes: counts.total,
       added: report.added, modified: report.modified, deleted: report.deleted } };
   });
 }
 
-export type MapProjectExportFormat = "omap" | "geojson";
+export type { MapProjectExportFormat };
+
+export type MapProjectExportResult<F extends MapProjectExportFormat = MapProjectExportFormat> =
+  | ClubFailure
+  | (F extends "ocd"
+    ? { status: "ok"; fileName: string; contentType: string; body: Uint8Array }
+    : { status: "ok"; fileName: string; contentType: string; body: string });
 
 /**
- * Ändringarna som en liten egen fil: Mapper-fil med bara ändrade och nya objekt (när grundfilen är en Mapper-fil) eller
- * GeoJSON. Alla medlemmar får exportera. Inga namn på dem som ändrade.
+ * Ändringarna som en liten egen fil: Mapper-fil (.xmap) när grundfilen är Mapper, OCAD-fil (.ocd) när grundfilen är OCAD,
+ * eller GeoJSON. Källfilsformaten (.xmap/.ocd) kräver nedladdningsrättighet (`canDownloadSource`); GeoJSON tillåts alltid
+ * för medlemmar. Inga namn på dem som ändrade.
  */
-export async function exportMapProjectChanges(db: Database, input: ClubProof & { projectId: string; format: MapProjectExportFormat }, now = new Date())
-  : Promise<ClubFailure | { status: "ok"; fileName: string; contentType: string; body: string }> {
+export async function exportMapProjectChanges<F extends MapProjectExportFormat>(db: Database,
+  input: ClubProof & { projectId: string; format: F }, now = new Date()): Promise<MapProjectExportResult<F>> {
   const loaded = await db.transaction(async tx => {
     const access = await requireMapProject(tx, input, now, "view", false);
     if (access.status !== "ok") return access;
-    // Etapp 2: Mapper-export (`.xmap`/`.omap`) blockeras vid nedladdningsspärr för icke-ägare; GeoJSON-ändringar tillåts.
-    if (input.format === "omap" && !await mapProjectCanDownloadSource(tx, access.accountId, access.role, access.project)) {
+    // Etapp 2 & 4: Mapper- och OCAD-export blockeras vid nedladdningsspärr för icke-ägare; GeoJSON-ändringar tillåts.
+    if ((input.format === "omap" || input.format === "ocd") && !await mapProjectCanDownloadSource(tx, access.accountId, access.role, access.project)) {
       return { status: "forbidden" } as const;
     }
     if (input.format === "omap" && access.project.baseFormat !== "OMAP") return { status: "invalid-request" } as const;
+    if (input.format === "ocd" && access.project.baseFormat !== "OCD") return { status: "invalid-request" } as const;
     const file = await baseFile(tx, access.project);
     if (!file) return { status: "not-found" } as const;
-    return { status: "ready", project: access.project, fileName: file.fileName, bytes: file.bytes, textSymbols: access.project.textSymbols ?? [],
+    return { status: "ready", project: access.project, fileName: file.fileName, bytes: file.bytes,
+      colors: access.project.colors ?? [], symbolColors: access.project.symbolColors ?? [],
+      textSymbols: access.project.textSymbols ?? [], normSymbols: access.project.normSymbols ?? null,
       changes: (await savedChanges(tx, access.project)).changes } as const;
   });
   if (loaded.status !== "ready") return loaded;
@@ -242,14 +278,28 @@ export async function exportMapProjectChanges(db: Database, input: ClubProof & {
   const stem = loaded.fileName.replace(/\.[A-Za-z0-9]{2,5}$/, "").slice(0, 120) || "karta";
   if (input.format === "geojson") {
     return { status: "ok", fileName: `${stem} ändringar.geojson`, contentType: "application/geo+json",
-      body: JSON.stringify(changesGeoJson(map, loaded.changes, stem)) };
+      body: JSON.stringify(changesGeoJson(map, loaded.changes, stem)) } as MapProjectExportResult<F>;
+  }
+  if (input.format === "ocd") {
+    const normSymbols = [
+      ...normSymbolAdditions(map, loaded.normSymbols?.add ?? []),
+      ...(loaded.normSymbols?.replace.length ? normSymbolFixes(map.symbols, loaded.normSymbols) : [])
+    ];
+    const exported = ocdChangesFile(loaded.bytes, toChangeSet(map, loaded.project.baseSha256, "OCD", loaded.changes), {
+      colors: loaded.colors,
+      symbolColors: loaded.symbolColors,
+      textSymbols: loaded.textSymbols,
+      normSymbols
+    });
+    if (!exported.ok) return { status: "not-found" };
+    return { status: "ok", fileName: `${stem} ändringar.ocd`, contentType: "application/octet-stream", body: exported.bytes } as MapProjectExportResult<F>;
   }
   // K8b V6: filens huvud med projektets textsymboler, så att nya texter med en ny textsymbol har sin symbol.
   const symbols = applyMapTextSymbols(loaded.bytes, loaded.textSymbols);
   const text = new TextDecoder("utf-8").decode(symbols.ok ? symbols.bytes : loaded.bytes).replace(/^\uFEFF/, "");
   const body = mapperChangesFile(text, map, loaded.changes);
-  return body === undefined ? { status: "not-found" }
-    : { status: "ok", fileName: `${stem} ändringar.xmap`, contentType: "application/xml", body };
+  return (body === undefined ? { status: "not-found" }
+    : { status: "ok", fileName: `${stem} ändringar.xmap`, contentType: "application/xml", body }) as MapProjectExportResult<F>;
 }
 
 

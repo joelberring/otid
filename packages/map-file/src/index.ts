@@ -17,6 +17,7 @@ export type { ColorUsage, ColorUseKind } from "./usage";
 export { rgbFromCmyk } from "./color";
 export * from "./revision/change-set";
 export { applyMapRevision } from "./revision/apply";
+export { ocdChangesFile } from "./ocd/writer";
 export { applyMapColors, effectiveColorChanges, withColorChanges, type MapColorChange, type MapColorsResult } from "./revision/colors";
 export { applyMapSymbolColors, effectiveSymbolColorChanges, symbolColorIds, withSymbolColorChanges, type MapSymbolColorChange } from "./revision/symbol-colors";
 export { sha256Hex } from "./revision/sha256";

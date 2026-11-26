@@ -139,10 +139,11 @@ export const mapProjectEn: Texts<typeof mapProjectSv> = {
     size: "Size",
     sizes: (mapFile: string, total: string) => `map file ${mapFile} · whole project ${total}`,
     closed: "The project is closed. Nobody can change the map until it is reopened.",
-    ocadLater: "The base file is an OCAD file. Creating a new OCAD version requires owner permission and OCAD writing enabled in the server settings; otherwise the changes can be exported as GeoJSON.",
+    ocadLater: "The base file is an OCAD file. Creating a new OCAD version requires owner permission and OCAD writing enabled in the server settings; otherwise the changes can be exported as .ocd or GeoJSON.",
     download: "Download the base file",
     downloadShort: "Download",
     exportMapper: "Export the changes (Mapper)",
+    exportOcd: "Export changes (.ocd)",
     exportGeojson: "Export the changes (GeoJSON)",
     exportChanges: "Only the changes",
     exportHelp: "A small file of its own with only the changed and new objects, to put into the map by hand.",
@@ -194,7 +195,7 @@ export const mapProjectEn: Texts<typeof mapProjectSv> = {
     refused: "The changes could not be written into the map file. Export them instead:",
     conflict: "Someone changed the map while the file was being written. Try again.",
     notOwner: "Only the project's owners create new map versions.",
-    ocadDisabled: "Creating a new OCAD version is turned off in the server settings. Enable OCAD writing on the server, or export the changes as GeoJSON below."
+    ocadDisabled: "Creating a new OCAD version is turned off in the server settings. Enable OCAD writing on the server, or export the changes (.ocd or GeoJSON) below."
   },
   members: {
     title: "Members",

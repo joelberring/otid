@@ -1,8 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { mapProjectUpdateRequestSchema, type MapProjectView } from "../src";
+import { mapProjectExportFormatSchema, mapProjectUpdateRequestSchema, type MapProjectExportFormat, type MapProjectView } from "../src";
 
-describe("Etapp 3B: kontrakt för OCAD Steg 1 (canWriteVersion & färgfält)", () => {
-  it("mapProjectUpdateRequestSchema accepterar giltiga colors och symbolColors och avvisar ogiltiga", () => {
+describe("Etapp 3B / 4B: kontrakt för OCAD (canWriteVersion, färgfält & exportformat)", () => {
+  it("mapProjectExportFormatSchema accepterar omap, ocd och geojson och avvisar okända format", () => {
+    const formats: MapProjectExportFormat[] = ["omap", "ocd", "geojson"];
+    for (const format of formats) expect(mapProjectExportFormatSchema.parse(format)).toBe(format);
+    expect(mapProjectExportFormatSchema.safeParse("pdf").success).toBe(false);
+    expect(mapProjectExportFormatSchema.safeParse(null).success).toBe(false);
+  });
+
+  it("mapProjectUpdateRequestSchema accepterar giltiga colors, symbolColors och 7-siffriga OCAD textSymbols-id:n", () => {
+    expect(mapProjectUpdateRequestSchema.parse({
+      formatVersion: 1,
+      textSymbols: [{ id: "1000001", copyOf: "999000", code: "1000.1", fontFamily: "Arial", size: 3, color: 1, bold: false, italic: false, framing: null }]
+    })).toMatchObject({ formatVersion: 1 });
     expect(mapProjectUpdateRequestSchema.parse({
       formatVersion: 1,
       colors: [{ id: 1, cmyk: { c: 0.1, m: 0.2, y: 0.3, k: 0.4 } }]

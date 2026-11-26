@@ -755,7 +755,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
             control={control} scale={georeference.scale} area={editor.bounds ?? undefined} />}
           <MapProjectSettingsDetails>
             {georeference && <MapProjectNorthPanel georeference={georeference} northLines={editor.northLines} bounds={editor.bounds ?? undefined} importer={importer} symbols={symbols} />}
-            <MapProjectColors colors={editor.colors} saved={editor.colorChanges} canChange={canDecide && view.base.format !== "OCD"} ocad={view.base.format === "OCD"} onShow={editor.showColors} onSave={editor.saveColors} />
+            <MapProjectColors colors={editor.colors} saved={editor.colorChanges} canChange={canDecide} onShow={editor.showColors} onSave={editor.saveColors} />
           </MapProjectSettingsDetails>
         </>}
         basemap={georeference ? <MapProjectBaseMapPanel view={view} georeference={georeference} bounds={editor.bounds ?? undefined} areas={collab.areas}
@@ -767,7 +767,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
               och arbetssättet och AI-kopplingen (sällan ändrade) i en utfällning sist. */}
           {(["proposals", "norm", "notes", "recon", "areas", "settings"] as const).map(part => part === "norm"
             ? <Fragment key={part}><MapProjectNormPanel norm={norm} onShow={issue => { setShownIssue(issue.at); setPanelOpen(false); mapHandle.current?.focus(issue.at); }} />
-              <MapProjectSymbolNormPanel session={session} canDecide={view.viewer.canDecide} ocad={view.base.format === "OCD"} saved={editor.normSymbols}
+              <MapProjectSymbolNormPanel session={session} canDecide={view.viewer.canDecide} saved={editor.normSymbols}
                 onSave={editor.saveNormSymbols} outlines={outlines} repair={repair} onMark={items => { const box = objectBox(items[0]!.object); deselect(); cancelDraft(); setTool("select");
                   multi.showCut(items, []); setPanelOpen(false); mapHandle.current?.focus({ x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 }); }} /></Fragment>
             : part === "notes" ? <NotesPanel key={part} notes={notes.notes} problem={notes.problem} onShow={note => { setShownNote(note.noteId); setPanelOpen(false); mapHandle.current?.focus(note.at); }} />

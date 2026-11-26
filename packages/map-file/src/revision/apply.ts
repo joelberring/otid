@@ -1,9 +1,12 @@
 /**
- * ADR-0219: skriv en ändringssats till en ny fil och kontrollera den. Det här är den enda vägen som appen använder för att
- * lämna ut en reviderad fil: `applyMapRevision` skriver och kontrollerar, och vägrar om kontrollen hittar något.
- * Mapper (.omap/.xmap) skrivs; OCAD (version 9+) bara med `ocad: true` (K7, bakom en flagga tills det är prövat i riktiga OCAD).
+ * ADR-0219 / Etapp 4: skriv en ändringssats till en ny fil och kontrollera den. Det här är den enda vägen som appen använder
+ * för att lämna ut en reviderad fil: `applyMapRevision` skriver och kontrollerar, och vägrar om kontrollen hittar något.
+ * Mapper (.omap/.xmap) skrivs alltid; OCAD (version 9+) med `ocad: true` — rena objektändringar använder den härdade
+ * kirurgiska skrivaren (`applyOcdRevision`), medan kompaktering eller färg-/symbol-/text-/norm-/georeferensändringar routas
+ * genom den förlustfria `OcdDocument`-serialiseraren (`applyOcdFullRevision`).
  */
 import { MapFileError } from "../model";
+import { applyOcdFullRevision, type OcdFullRevisionOptions } from "../ocd/writer";
 import { readOmap } from "../omap/read";
 import { findConflicts, type ByteEdit, type MapRevisionApplyResult, type MapRevisionChangeSet, type MapRevisionRefusal } from "./change-set";
 import { scanParts, ScanError } from "./omap-scan";
@@ -11,6 +14,20 @@ import { verifyOmap } from "./omap-verify";
 import { planOmapRevision, type PlannedEdit } from "./omap-write";
 import { applyOcdRevision } from "./ocd-write";
 import { sha256Hex } from "./sha256";
+
+export interface ApplyMapRevisionOptions {
+  readonly ocad?: boolean;
+  /** Kompaktera/packa om OCAD-filen via `OcdDocument` även utan stiländringar. */
+  readonly compact?: boolean;
+  /** Färg-, symbolfärg-, textsymbol-, normsymbol- eller georeferensändringar för OCAD (routar genom `OcdDocument`). */
+  readonly ocdStyle?: OcdFullRevisionOptions | undefined;
+}
+
+const hasOcdStyle = (style: OcdFullRevisionOptions | undefined): boolean => !!style && (
+  !!style.colors?.length || !!style.symbolColors?.length || !!style.textSymbols?.length
+  || !!style.normAdditions?.length || !!style.normReplacements?.length
+  || style.georeference !== undefined || style.scale !== undefined
+);
 
 const fail = (code: MapRevisionRefusal["code"], message: string): MapRevisionApplyResult => ({ ok: false, refusals: [{ code, message }] });
 const isOcd = (bytes: Uint8Array) => bytes.length >= 2 && bytes[0] === 0xad && bytes[1] === 0x0c;
@@ -52,7 +69,7 @@ function applyEdits(text: string, edits: readonly PlannedEdit[], offset: number)
  * Lappar `original` med ändringarna och kontrollerar resultatet. `original` ändras aldrig; de nya bytesen sparas som en ny
  * kartversion bredvid originalet. En tom sats ger en kopia som är byte för byte lik originalet.
  */
-export function applyMapRevision(original: Uint8Array, changeSet: MapRevisionChangeSet, options: { readonly ocad?: boolean } = {}): MapRevisionApplyResult {
+export function applyMapRevision(original: Uint8Array, changeSet: MapRevisionChangeSet, options: ApplyMapRevisionOptions = {}): MapRevisionApplyResult {
   const baseSha = sha256Hex(original);
   if (baseSha !== changeSet.baseFileSha256) return fail("BASE_MISMATCH", "Filen är inte grundfilen som ändringarna gjordes på.");
   if ((changeSet.format === "OCD") !== isOcd(original)) return fail("BASE_MISMATCH", "Filen har inte ändringssatsens format.");
@@ -62,8 +79,13 @@ export function applyMapRevision(original: Uint8Array, changeSet: MapRevisionCha
       message: `Ändring ${second + 1} gäller samma objekt som ändring ${first + 1}.` })) };
   }
   if (changeSet.format === "OCD") {
-    return options.ocad ? applyOcdRevision(original, changeSet, baseSha)
-      : fail("UNSUPPORTED_VERSION", "OCAD-kartor kan inte skrivas här än. Spara kartan i Mapper (.omap) eller exportera ändringarna.");
+    if (!options.ocad) {
+      return fail("UNSUPPORTED_VERSION", "OCAD-kartor kan inte skrivas här än. Spara kartan i Mapper (.omap) eller exportera ändringarna.");
+    }
+    if (options.compact || hasOcdStyle(options.ocdStyle)) {
+      return applyOcdFullRevision(original, changeSet, options.ocdStyle);
+    }
+    return applyOcdRevision(original, changeSet, baseSha);
   }
 
   const bom = original.length >= 3 && original[0] === 0xef && original[1] === 0xbb && original[2] === 0xbf ? 3 : 0;

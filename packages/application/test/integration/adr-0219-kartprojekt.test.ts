@@ -391,7 +391,7 @@ describe("ADR-0219 kartprojekt", () => {
     expect(await write(later(6))).toMatchObject({ status: "ok", response: { status: "empty" } });
   });
 
-  it("K8b V6: textsymbolerna – ägaren ändrar och duplicerar, en ny text med kopian skrivs i den nya kartversionen; OCAD-kartor spärras", async () => {
+  it("K8b V6 / Etapp 4: textsymbolerna – ägaren ändrar och duplicerar på både Mapper- och OCAD-kartor, ny text med kopian skrivs i kartversionen", async () => {
     const owner = await registerTestAccount(db, undefined, NOW);
     const other = await registerTestAccount(db, undefined, NOW);
     const created = await createMapProjectFromUpload(db, { ...owner.proof, metadata: { formatVersion: 1, requestId: randomUUID(), name: "Text",
@@ -422,13 +422,13 @@ describe("ADR-0219 kartprojekt", () => {
     expect(reread.symbols.get(nextId)).toMatchObject({ kind: "TEXT", code: { text: "999.1" }, name: "Liten", size: 2 });
     expect(reread.objects.filter(object => object.kind === "text" && object.symbol === nextId)).toMatchObject([{ text: "Älvsjö\nskogen", angle: 45 }]);
     expect(reread.objects).toHaveLength(parsed.objects.length + 1);
-    // OCAD: textsymbolerna går inte att ändra.
+    // Etapp 4: även OCAD-projekt tillåter textsymboländringar.
     const ocd = new Uint8Array(await readFile(new URL("../../../../fixtures/maps/kartfil.ocd", import.meta.url)));
     const ocad = await createMapProjectFromUpload(db, { ...owner.proof, metadata: { formatVersion: 1, requestId: randomUUID(), name: "Ocad text",
       fileName: "Ocad.ocd" }, file: ocd }, NOW);
     if (ocad.status !== "created") throw new Error(ocad.status);
     expect((await updateMapProject(db, { ...owner.proof, projectId: ocad.projectId, request: { formatVersion: 1, textSymbols } }, later(3))).status)
-      .toBe("invalid-request");
+      .toBe("ok");
   });
 
   it("symbolerna efter ISSprOM: ägaren rättar byggnad och trappa och lägger till lyktstolpen; en ny lyktstolpe skrivs i kartversionen", async () => {
@@ -469,16 +469,16 @@ describe("ADR-0219 kartprojekt", () => {
       .toEqual([["Brun 30 % (trappa)", 0.4, undefined], [expect.any(String), 0.1, 0.25], [expect.any(String), 0.1, -0.25]]);
     expect(reread.symbols.get(lampId)?.code.text).toBe("545");
     expect(reread.objects.filter(object => object.symbol === lampId)).toHaveLength(1);
-    // OCAD-kartor spärras.
+    // Etapp 4: även OCAD-projekt tillåter normsymboländringar.
     const ocd = new Uint8Array(await readFile(new URL("../../../../fixtures/maps/kartfil.ocd", import.meta.url)));
     const ocad = await createMapProjectFromUpload(db, { ...owner.proof, metadata: { formatVersion: 1, requestId: randomUUID(), name: "Ocad norm",
       fileName: "Ocad.ocd" }, file: ocd }, NOW);
     if (ocad.status !== "created") throw new Error(ocad.status);
     expect((await updateMapProject(db, { ...owner.proof, projectId: ocad.projectId, request: { formatVersion: 1, normSymbols: setting } }, later(3))).status)
-      .toBe("invalid-request");
+      .toBe("ok");
   });
 
-  it("K7: en ny version av en OCAD-karta skrivs bara med flaggan OTID_OCAD_WRITE", async () => {
+  it("K7 / Etapp 4: OCAD-projekt skriver ny version (med objekt, färger, symbolfärger, textsymboler och normsymboler) med OTID_OCAD_WRITE=1 och exporterar .ocd-ändringar", async () => {
     const ocd = new Uint8Array(await readFile(new URL("../../../../fixtures/maps/kartfil.ocd", import.meta.url)));
     const ocdSha = sha256Hex(ocd);
     const ocdMap = readMapFile(ocd, "Ocad.ocd", { sources: true });
@@ -489,35 +489,58 @@ describe("ADR-0219 kartprojekt", () => {
     const projectId = created.projectId;
     const point = ocdMap.objects.find(object => object.kind === "point") as Extract<MapObject, { kind: "point" }>;
     const ref = objectRefFor(ocdSha, point)!;
-    await sync(owner.proof, projectId, [{ editId: randomUUID(), key: baseKey(ref), ref, base: null, kind: "MOVE", at: NOW.toISOString(),
-      state: { kind: "OBJECT", object: { ...point, at: { x: point.at.x + 2, y: point.at.y } } } }]);
+    const ocdText = [...ocdMap.symbols.values()].find((symbol): symbol is Extract<typeof symbol, { kind: "TEXT" }> => symbol.kind === "TEXT")!;
+    const green = ocdMap.colors.find(color => color.name === "Grön")!.id;
+    const blue = ocdMap.colors.find(color => color.name === "Blå")!.id;
+    const ocdColor = ocdMap.colors[0]!;
+    const nextCmyk = { c: 0.1, m: 0.8, y: 0.2, k: 0 };
+    const textSymbols = [
+      { id: ocdText.id, fontFamily: "Verdana", size: 4.5, color: ocdText.color, bold: true, italic: false, align: "center" as const, framing: null },
+      { id: "999991", copyOf: ocdText.id, code: "999.1", name: "Namn liten", fontFamily: "Arial", size: 2.5, color: ocdText.color, bold: false, italic: true, align: "left" as const, framing: null }
+    ];
+    // Full paritet i Etapp 4: färger, symbolfärger, textsymboler och normsymboler sparas på OCAD-projektet.
+    expect(await updateMapProject(db, { ...owner.proof, projectId,
+      request: { formatVersion: 1, colors: [{ id: ocdColor.id, cmyk: nextCmyk }], symbolColors: [{ symbol: "406", from: green, to: blue }],
+        textSymbols, normSymbols: { replace: ["406"], add: ["545"] } } }, NOW)).toEqual({ status: "ok" });
+    await sync(owner.proof, projectId, [
+      { editId: randomUUID(), key: baseKey(ref), ref, base: null, kind: "MOVE", at: NOW.toISOString(),
+        state: { kind: "OBJECT", object: { ...point, at: { x: point.at.x + 2, y: point.at.y } } } },
+      { editId: randomUUID(), key: newKey(randomUUID()), ref: null, base: null, kind: "ADD", at: NOW.toISOString(),
+        state: { kind: "OBJECT", object: { kind: "text", symbol: "999991", at: { x: 12, y: 18 }, angle: 0, text: "OCAD-text" } } }
+    ]);
     const write = () => writeMapProjectVersion(db, { ...owner.proof, projectId, request: { formatVersion: 1, requestId: randomUUID() } }, NOW);
     const beforeFlag = await readMapProject(db, { ...owner.proof, projectId }, NOW);
     expect(beforeFlag.status === "ok" && beforeFlag.view.viewer).toMatchObject({ canManage: true, canWriteVersion: false });
-    // Etapp 3B (Steg 1): färg- och symbolfärgsändringar spärras på OCAD-projekt tills Steg 2.
-    const ocdColor = ocdMap.colors[0]!;
-    const badColor = await updateMapProject(db, { ...owner.proof, projectId,
-      request: { formatVersion: 1, colors: [{ id: ocdColor.id, cmyk: { c: 0.1, m: 0.8, y: 0.2, k: 0 } }] } }, NOW);
-    expect(badColor.status).toBe("invalid-request");
-    expect("message" in badColor ? badColor.message : "").toContain("OCAD");
-    const badSymbolColor = await updateMapProject(db, { ...owner.proof, projectId,
-      request: { formatVersion: 1, symbolColors: [{ symbol: "521", from: ocdColor.id, to: ocdColor.id }] } }, NOW);
-    expect(badSymbolColor.status).toBe("invalid-request");
-    expect("message" in badSymbolColor ? badSymbolColor.message : "").toContain("OCAD");
     const refused = await write();
     expect(refused.status === "ok" && refused.response).toMatchObject({ status: "refused", refusals: [{ code: "UNSUPPORTED_VERSION" }] });
+    // Exportera ändringarna som kompakt .ocd fungerar även utan OTID_OCAD_WRITE.
+    const diffOcd = await exportMapProjectChanges(db, { ...owner.proof, projectId, format: "ocd" }, NOW);
+    expect(diffOcd.status).toBe("ok");
+    if (diffOcd.status === "ok") {
+      expect(diffOcd.fileName).toBe("Ocad ändringar.ocd");
+      const diffMap = readMapFile(diffOcd.body, diffOcd.fileName);
+      expect(diffMap.objects).toHaveLength(2);
+      expect(diffMap.colors.find(color => color.id === ocdColor.id)?.cmyk).toEqual(nextCmyk);
+    }
     process.env.OTID_OCAD_WRITE = "1";
     try {
       const withFlag = await readMapProject(db, { ...owner.proof, projectId }, NOW);
       expect(withFlag.status === "ok" && withFlag.view.viewer).toMatchObject({ canManage: true, canWriteVersion: true });
       const written = await write();
       if (written.status !== "ok" || written.response.status !== "created") throw new Error(JSON.stringify(written));
-      expect(written.response).toMatchObject({ fileName: "Ocad reviderad 2026-11-07.ocd", changes: 1 });
+      expect(written.response).toMatchObject({ fileName: "Ocad reviderad 2026-11-07.ocd", changes: 2, added: 1, modified: 1 });
       const output = await readMapProjectOutput(db, { ...owner.proof, projectId, outputId: written.response.outputId }, NOW);
       if (output.status !== "ok") throw new Error(output.status);
       const reread = readMapFile(new Uint8Array((await readMapContent(db, output.sha256))!), output.fileName);
-      expect(reread.objects).toHaveLength(ocdMap.objects.length);
+      expect(reread.objects).toHaveLength(ocdMap.objects.length + 1);
       expect(reread.objects.some(object => object.kind === "point" && Math.abs(object.at.x - point.at.x - 2) < 0.006)).toBe(true);
+      expect(reread.objects.some(object => object.kind === "text" && object.text === "OCAD-text")).toBe(true);
+      expect(reread.colors.find(color => color.id === ocdColor.id)?.cmyk).toEqual(nextCmyk);
+      const rereadText = reread.symbols.get(ocdText.id);
+      expect(rereadText).toMatchObject({ kind: "TEXT", fontFamily: "Verdana", bold: true });
+      expect(rereadText?.kind === "TEXT" ? rereadText.size : 0).toBeCloseTo(4.5, 1);
+      expect([...reread.symbols.values()].some(symbol => symbol.kind === "TEXT" && symbol.code.text === "999.1")).toBe(true);
+      expect([...reread.symbols.values()].some(symbol => symbol.code.main === 545)).toBe(true);
     } finally { delete process.env.OTID_OCAD_WRITE; }
   });
 });

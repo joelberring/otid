@@ -262,7 +262,6 @@ export const mapProjectSymbolColorsEn: Texts<typeof mapProjectSymbolColorsSv> = 
   title: (symbols: string) => `Colour for ${symbols}`,
   help: "Choose which of the map's colours the symbol is drawn with. It applies to this symbol only; the colour in Map colours is not changed. The map is redrawn at once and the colours are written in the next map version.",
   readOnly: "Only the owners of the project can change the colours of symbols.",
-  ocad: "The map is an OCAD file: the symbols' colours are shown here, but cannot be changed or written back to the OCAD file yet.",
   slot: (color: string) => `The symbol's colour ${color}`,
   usedBy: (symbols: string) => `in ${symbols}`,
   drawnWith: "is drawn with",

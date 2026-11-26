@@ -14,13 +14,14 @@ const { ColorsDialog } = await import("./map-project-colors");
 const { SymbolColorsDialog } = await import("./map-project-symbol-colors");
 const { MapProjectSymbolLayers } = await import("./map-project-symbol-layers");
 
-const color = (id: number, name: string, rank: number, grey: number): MapColor =>
-  ({ id, name, rank, cmyk: { c: 0, m: 0, y: 0, k: 1 - grey }, rgb: { r: grey, g: grey, b: grey }, opacity: 1 });
+const color = (id: number, name: string, rank: number, grey: number, spot?: MapColor["spot"]): MapColor =>
+  ({ id, name, rank, cmyk: { c: 0, m: 0, y: 0, k: 1 - grey }, rgb: { r: grey, g: grey, b: grey }, opacity: 1, ...(spot ? { spot } : {}) });
 const colors = [color(0, "Svart", 0, 0), color(1, "Grå", 1, 0.6)];
+const spotColors = [color(0, "Svart", 0, 0, { name: "BLACK", overprint: true, separations: [{ name: "BLACK", factor: 1 }] })];
 const symbol = (id: string, code: string, name: string, kind: CatalogSymbol["kind"], palette: number[]): CatalogSymbol =>
   ({ id, code, name, kind, count: 3, group: "OTHER", icon: undefined, colors: palette });
 const catalog = [symbol("a", "521", "Byggnad", "area", [1, 0]), symbol("b", "521.1", "Kant, byggnad", "line", [1])];
-const control = (canChange: boolean): SymbolColorsControl => ({ colors, saved: [], canChange, ocad: false, onShow: vi.fn(), onSave: vi.fn(async () => true) });
+const control = (canChange: boolean): SymbolColorsControl => ({ colors, saved: [], canChange, onShow: vi.fn(), onSave: vi.fn(async () => true) });
 
 describe("färg per symbol i symbollistan", () => {
   const list = (symbolColors?: SymbolColorsControl) => renderToStaticMarkup(<MapProjectSymbolLayers catalog={catalog} standard="ISOM" standardSymbols={standardSymbols("ISOM")}
@@ -32,8 +33,8 @@ describe("färg per symbol i symbollistan", () => {
     expect(html).toContain('aria-label="Färg för 521.1 Kant, byggnad"');
     expect(html).toContain('aria-label="Markera 521 Byggnad"');
   });
-  it("visar ingenting för den som inte får ändra färgerna, eller utan färgstyrning, eller på OCAD-projekt", () => {
-    for (const html of [list(control(false)), list({ ...control(true), ocad: true }), list()]) {
+  it("visar ingenting för den som inte får ändra färgerna eller utan färgstyrning", () => {
+    for (const html of [list(control(false)), list()]) {
       expect(html).not.toContain("Färg för 521");
       expect(html).not.toContain("map-project-layer-pick");
     }
@@ -61,13 +62,6 @@ describe("dialogen för symbolens färger", () => {
     expect(html).toContain("disabled");
     expect(html).not.toContain("map-project-symbol-colors-save");
   });
-  it("låser rullistorna och döljer Spara och Återställ på OCAD-projekt med tydlig förklaring", () => {
-    const html = dialog([catalog[0]!], { ...control(true), ocad: true });
-    expect(html).toContain("kan inte ändras eller skrivas tillbaka till OCAD-filen ännu");
-    expect(html).toContain('disabled=""');
-    expect(html).not.toContain("map-project-symbol-colors-save");
-    expect(html).not.toContain("map-project-symbol-colors-reset");
-  });
   it("visar ett sparat byte som valt och ändrat", () => {
     const html = dialog([catalog[1]!], { ...control(true), saved: [{ symbol: "521.1", from: 1, to: 0 }] });
     expect(html).toContain('data-changed="true"');
@@ -75,29 +69,31 @@ describe("dialogen för symbolens färger", () => {
   });
 });
 
-describe("dialogen för kartans färgtabell (OCAD Steg 1 läsläge)", () => {
-  it("låser CMYK-fälten och döljer Spara och Återställ på OCAD-projekt (sv och en), men håller dem öppna på Mapper", () => {
-    const omapHtml = renderToStaticMarkup(
-      <ColorsDialog colors={colors} saved={[]} canChange ocad={false} onShow={vi.fn()} onSave={vi.fn(async () => true)} onClose={() => undefined} />
+describe("dialogen för kartans färgtabell (full paritet för både OMAP/OCAD och dekorfärger)", () => {
+  it("håller CMYK-fälten och Spara öppna för ägare (även för dekorfärger) och låser för icke-ägare (sv och en)", () => {
+    const editableHtml = renderToStaticMarkup(
+      <ColorsDialog colors={spotColors} saved={[]} canChange onShow={vi.fn()} onSave={vi.fn(async () => true)} onClose={() => undefined} />
     );
-    expect(omapHtml).toContain('data-testid="map-project-colors-save"');
-    expect(omapHtml).toContain('data-testid="map-project-colors-reset"');
-    expect(omapHtml).toMatch(/<input(?![^>]*\bdisabled\b)[^>]*aria-label="Svart, C i procent"/);
+    expect(editableHtml).toContain('data-testid="map-project-colors-save"');
+    expect(editableHtml).toContain('data-testid="map-project-colors-reset"');
+    expect(editableHtml).toContain("Dekorfärg");
+    expect(editableHtml).toMatch(/<input(?![^>]*\bdisabled\b)[^>]*aria-label="Svart, C i procent"/);
 
-    const ocdSvHtml = renderToStaticMarkup(
-      <ColorsDialog colors={colors} saved={[]} canChange ocad onShow={vi.fn()} onSave={vi.fn(async () => true)} onClose={() => undefined} />
+    const readOnlySvHtml = renderToStaticMarkup(
+      <ColorsDialog colors={colors} saved={[]} canChange={false} onShow={vi.fn()} onSave={vi.fn(async () => true)} onClose={() => undefined} />
     );
-    expect(ocdSvHtml).toContain("färgtabellen visas här, men kan inte ändras eller skrivas tillbaka till OCAD-filen ännu");
-    expect(ocdSvHtml).not.toContain('data-testid="map-project-colors-save"');
-    expect(ocdSvHtml).not.toContain('data-testid="map-project-colors-reset"');
-    expect(ocdSvHtml).toMatch(/<input[^>]*disabled=""[^>]*aria-label="Svart, C i procent"|<input[^>]*aria-label="Svart, C i procent"[^>]*disabled=""/);
+    expect(readOnlySvHtml).toContain("Bara projektets ägare kan ändra färgerna.");
+    expect(readOnlySvHtml).not.toContain('data-testid="map-project-colors-save"');
+    expect(readOnlySvHtml).not.toContain('data-testid="map-project-colors-reset"');
+    expect(readOnlySvHtml).toMatch(/<input[^>]*disabled=""[^>]*aria-label="Svart, C i procent"|<input[^>]*aria-label="Svart, C i procent"[^>]*disabled=""/);
 
-    const ocdEnHtml = renderToStaticMarkup(
+    const readOnlyEnHtml = renderToStaticMarkup(
       <LanguageProvider language="en">
-        <ColorsDialog colors={colors} saved={[]} canChange ocad onShow={vi.fn()} onSave={vi.fn(async () => true)} onClose={() => undefined} />
+        <ColorsDialog colors={spotColors} saved={[]} canChange={false} onShow={vi.fn()} onSave={vi.fn(async () => true)} onClose={() => undefined} />
       </LanguageProvider>
     );
-    expect(ocdEnHtml).toContain("cannot be changed or written back to the OCAD file yet");
-    expect(ocdEnHtml).not.toContain('data-testid="map-project-colors-save"');
+    expect(readOnlyEnHtml).toContain("Only the owners of the project can change the colours.");
+    expect(readOnlyEnHtml).toContain("Spot colour");
+    expect(readOnlyEnHtml).not.toContain('data-testid="map-project-colors-save"');
   });
 });

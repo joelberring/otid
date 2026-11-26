@@ -166,10 +166,13 @@ export function MapProjectPage({
         <p className={styles.muted}>{text.page.exportHelp}</p>
         <div className={styles.actions}>
           {project.base.format === "OMAP" && canDownloadSource && <a className={styles.buttonLink} href={`${base}/export?format=omap`} download>{text.page.exportMapper}</a>}
+          {project.base.format === "OCD" && canDownloadSource && <a className={styles.buttonLink} href={`${base}/export?format=ocd`} download>{text.page.exportOcd}</a>}
           <a className={styles.buttonLink} href={`${base}/export?format=geojson`} download>{text.page.exportGeojson}</a>
         </div>
-        {project.base.format === "OMAP" && !canDownloadSource && (
-          <p className={styles.muted} data-testid="map-project-export-locked-note">{mapBankText.projectProtection.exportMapperLocked}</p>
+        {!canDownloadSource && (
+          <p className={styles.muted} data-testid="map-project-export-locked-note">
+            {project.base.format === "OCD" ? mapBankText.projectProtection.exportOcdLocked : mapBankText.projectProtection.exportMapperLocked}
+          </p>
         )}
         <h3>{text.page.outputs}</h3>
         {project.outputs.length === 0 ? <p className={styles.muted}>{text.page.noOutputs}</p>

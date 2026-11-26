@@ -23,6 +23,8 @@ export interface DashPointOptions {
   readonly keepExisting?: boolean;
   readonly bendAngleDeg?: number;
   readonly minSpacingMm?: number;
+  /** OMAP/Mapper lagrar både hörn och styrpunkter i samma flagga (`32`, inläst som `corner: true`). */
+  readonly treatCornerAsDash?: boolean;
 }
 export interface AutoDashPointsPlan { readonly entries: readonly DashPointEntry[]; readonly counts: DashPointCounts }
 export interface ToggleDashPointResult { readonly path: Path; readonly action: "added" | "removed" | "inserted"; readonly point: Point }
@@ -82,8 +84,14 @@ const flagsOf = (cmd: PathCommand) => ({
   ...(cmd.gap !== undefined ? { gap: cmd.gap } : {})
 });
 
-function withDash(cmd: PathCommand, dash: boolean): PathCommand {
-  const base = { ...(cmd.corner ? { corner: true as const } : {}), ...(dash ? { dash: true as const } : {}), ...(cmd.gap !== undefined ? { gap: cmd.gap } : {}) };
+/** Sant om kommandot är en styrpunkt (`dash: true`, eller även `corner: true` när `treatCornerAsDash` används för OMAP). */
+export function isDashPointCommand(command: PathCommand, treatCornerAsDash = false): boolean {
+  return command.dash === true || (treatCornerAsDash && command.corner === true);
+}
+
+function withDash(cmd: PathCommand, dash: boolean, clearCorner = false): PathCommand {
+  const keepCorner = cmd.corner && !(clearCorner && !dash);
+  const base = { ...(keepCorner ? { corner: true as const } : {}), ...(dash ? { dash: true as const } : {}), ...(cmd.gap !== undefined ? { gap: cmd.gap } : {}) };
   return cmd.type === "C"
     ? { type: "C", x1: cmd.x1, y1: cmd.y1, x2: cmd.x2, y2: cmd.y2, x: cmd.x, y: cmd.y, ...base }
     : { type: cmd.type, x: cmd.x, y: cmd.y, ...base };
@@ -178,11 +186,11 @@ export function isDashedLineSymbol(symbol: MapSymbol | undefined): symbol is Lin
 }
 
 /** Växlar styrpunktsflaggan (`dash`) på ankarpunkten `commandIndex`, med bibehållna hörn-, luck- och Béziervärden. */
-export function toggleDashPoint(path: Path, commandIndex: number): Path {
+export function toggleDashPoint(path: Path, commandIndex: number, treatCornerAsDash = false): Path {
   const cmd = path[commandIndex];
   if (!cmd) return path;
   const next = [...path];
-  next[commandIndex] = withDash(cmd, !cmd.dash);
+  next[commandIndex] = withDash(cmd, !isDashPointCommand(cmd, treatCornerAsDash), treatCornerAsDash);
   return next;
 }
 
@@ -190,7 +198,7 @@ export function toggleDashPoint(path: Path, commandIndex: number): Path {
  * Växlar en styrpunkt på befintlig nod inom `snapMm`, eller delar närmaste raka sträcka / kubiska Bézier
  * (via de Casteljau) och sätter `dash: true` på den nya punkten.
  */
-export function toggleOrInsertDashPoint(path: Path, at: Point, snapMm = 0.45): ToggleDashPointResult {
+export function toggleOrInsertDashPoint(path: Path, at: Point, snapMm = 0.45, treatCornerAsDash = false): ToggleDashPointResult {
   if (path.length === 0) return { path, action: "removed", point: at };
 
   let bestVertexIdx = -1, bestVertexDist = Infinity;
@@ -199,12 +207,14 @@ export function toggleOrInsertDashPoint(path: Path, at: Point, snapMm = 0.45): T
     if (d <= snapMm && d < bestVertexDist) { bestVertexDist = d; bestVertexIdx = i; }
   }
   if (bestVertexIdx >= 0) {
-    const cmd = path[bestVertexIdx]!, removing = Boolean(cmd.dash), next = [...path];
-    next[bestVertexIdx] = withDash(cmd, !removing);
+    const cmd = path[bestVertexIdx]!, removing = isDashPointCommand(cmd, treatCornerAsDash), next = [...path];
+    next[bestVertexIdx] = withDash(cmd, !removing, treatCornerAsDash);
     if (removing) {
       const p = cmdPoint(cmd);
       for (let i = 0; i < next.length; i += 1) {
-        if (i !== bestVertexIdx && next[i]!.dash && dist(cmdPoint(next[i]!), p) <= SAME_POINT_EPS) next[i] = withDash(next[i]!, false);
+        if (i !== bestVertexIdx && isDashPointCommand(next[i]!, treatCornerAsDash) && dist(cmdPoint(next[i]!), p) <= SAME_POINT_EPS) {
+          next[i] = withDash(next[i]!, false, treatCornerAsDash);
+        }
       }
     }
     return { path: next, action: removing ? "removed" : "added", point: cmdPoint(cmd) };
@@ -220,11 +230,11 @@ export function toggleOrInsertDashPoint(path: Path, at: Point, snapMm = 0.45): T
   }
   if (!bestSeg) {
     const only = path[0]!;
-    return { path: toggleDashPoint(path, 0), action: only.dash ? "removed" : "added", point: cmdPoint(only) };
+    return { path: toggleDashPoint(path, 0, treatCornerAsDash), action: isDashPointCommand(only, treatCornerAsDash) ? "removed" : "added", point: cmdPoint(only) };
   }
   if (bestSeg.t <= 1e-4 || bestSeg.t >= 1 - 1e-4) {
     const idx = bestSeg.t <= 1e-4 ? bestSeg.index - 1 : bestSeg.index, cmd = path[idx]!;
-    return { path: toggleDashPoint(path, idx), action: cmd.dash ? "removed" : "added", point: cmdPoint(cmd) };
+    return { path: toggleDashPoint(path, idx, treatCornerAsDash), action: isDashPointCommand(cmd, treatCornerAsDash) ? "removed" : "added", point: cmdPoint(cmd) };
   }
 
   const end = path[bestSeg.index]!, start = cmdPoint(path[bestSeg.index - 1]!), halfGap = end.gap !== undefined ? { gap: end.gap } : {}, next = [...path];
@@ -435,7 +445,12 @@ function pathsEqual(a: Path, b: Path): boolean {
   return true;
 }
 
-function applyAcceptedCandidates(basePath: Path, ranges: readonly SubpathRange[], accepted: readonly Candidate[]): { path: Path; placements: DashPointPlacement[] } {
+function applyAcceptedCandidates(
+  basePath: Path,
+  ranges: readonly SubpathRange[],
+  accepted: readonly Candidate[],
+  treatCornerAsDash: boolean
+): { path: Path; placements: DashPointPlacement[] } {
   const markVertices = new Set<number>();
   const splitsBySeg = new Map<number, { t: number; at: Point; reason: DashPointReason }[]>();
   const placements: DashPointPlacement[] = [];
@@ -450,7 +465,7 @@ function applyAcceptedCandidates(basePath: Path, ranges: readonly SubpathRange[]
     if (snappedVertex !== undefined) {
       if (!range.closed && (snappedVertex === range.start || snappedVertex === range.end)) continue;
       const canonical = range.closed && snappedVertex === range.end ? range.start : snappedVertex;
-      if (!basePath[canonical]!.dash && !markVertices.has(canonical)) {
+      if (!isDashPointCommand(basePath[canonical]!, treatCornerAsDash) && !markVertices.has(canonical)) {
         markVertices.add(canonical);
         placements.push({ at: cmdPoint(basePath[canonical]!), reason: cand.reason });
       }
@@ -505,6 +520,7 @@ export function autoDashPointsPlan(
 ): AutoDashPointsPlan {
   const enableBends = options?.bends !== false, enableSlopeTags = options?.slopeTags !== false;
   const enableJunctions = options?.junctions !== false, keepExisting = options?.keepExisting !== false;
+  const treatCornerAsDash = options?.treatCornerAsDash === true;
   const { lines: indexedLines, grid } = buildSpatialGrid(allObjects, symbols, enableSlopeTags, enableJunctions);
 
   const entries: DashPointEntry[] = [];
@@ -516,7 +532,9 @@ export function autoDashPointsPlan(
     const info = dashSymbolInfo(symbols.get(target.symbol));
     if (!info) continue;
 
-    const basePath: Path = keepExisting ? target.path : target.path.map(cmd => (cmd.dash ? withDash(cmd, false) : cmd));
+    const basePath: Path = keepExisting
+      ? target.path
+      : target.path.map(cmd => (isDashPointCommand(cmd, treatCornerAsDash) ? withDash(cmd, false, treatCornerAsDash) : cmd));
     const ranges = subpathRanges(basePath), sampled = ranges.map(range => sampleSubpath(basePath, range));
     const bendThreshold = options?.bendAngleDeg ?? (info.isPath ? 40 : 35);
     const minSpacing = options?.minSpacingMm ?? Math.max(0.8, (info.mainLength + info.mainGap) * 0.65);
@@ -622,7 +640,7 @@ export function autoDashPointsPlan(
       if (keepExisting) {
         const lastIdx = range.closed ? range.end - 1 : range.end;
         for (let i = range.start; i <= lastIdx; i += 1) {
-          if ((basePath[i]!.dash || basePath[i]!.corner) && (range.closed || (i !== range.start && i !== range.end))) {
+          if (isDashPointCommand(basePath[i]!, treatCornerAsDash) && (range.closed || (i !== range.start && i !== range.end))) {
             occupiedS.push(data.vertexArcLengths.get(i) ?? 0);
           }
         }
@@ -668,7 +686,7 @@ export function autoDashPointsPlan(
       }
     }
 
-    const { path: nextPath, placements } = applyAcceptedCandidates(basePath, ranges, accepted);
+    const { path: nextPath, placements } = applyAcceptedCandidates(basePath, ranges, accepted, treatCornerAsDash);
     if (pathsEqual(target.path, nextPath)) continue;
     const after: MapObject = { ...target, path: nextPath };
     entries.push({ id: target.source ? `b:${locatorKey(target.source.locator)}` : `x:${targetIdx}`, before: target, after, points: placements });

@@ -1,5 +1,5 @@
-import type { LineSymbol, Path, Point, PointElement, RepeatedSymbol } from "../model";
-import { flattenPath, type Polyline } from "./geometry";
+import { GAP, type LineSymbol, type Path, type Point, type PointElement, type RepeatedSymbol } from "../model";
+import { flattenPath, withoutGaps, type Polyline } from "./geometry";
 
 /**
  * Linjesymbolernas punktsymboler för skärmen: var de ligger längs objektets väg (hörn, början, slut och med jämna
@@ -139,13 +139,15 @@ export function spacedPlacements(line: MarkedLine, symbol: RepeatedSymbol, betwe
 /** Alla punktsymboler i en linjesymbol för en väg, var för sig med sina element. */
 export function lineDecorations(symbol: LineSymbol, paths: readonly Path[], limit: number): { elements: readonly PointElement[]; places: Placement[] }[] {
   const lines = paths.flatMap(markedLines);
+  // Upprepade symboler och hörnsymboler ritas inte över luckor i huvudlinjen (`GAP.main`); start/slut behåller ursprungsvägen.
+  const activeLines = paths.map(path => withoutGaps(path, GAP.main)).flatMap(markedLines);
   const out: { elements: readonly PointElement[]; places: Placement[] }[] = [];
   const add = (elements: readonly PointElement[] | undefined, places: Placement[]) => {
     if (elements && elements.length > 0 && places.length > 0) out.push({ elements, places: places.slice(0, limit) });
   };
-  if (symbol.repeated && symbol.repeated.spacing > 0) add(symbol.repeated.elements, lines.flatMap(line => spacedPlacements(line, symbol.repeated!, false, limit)));
-  if (symbol.between && symbol.between.spacing > 0) add(symbol.between.elements, lines.flatMap(line => spacedPlacements(line, symbol.between!, true, limit)));
-  if (symbol.corner) add(symbol.corner.elements, lines.flatMap(line => cornerPlacements(line, symbol.corner!.stretch, symbol.corner!.skipEnds ?? false)));
+  if (symbol.repeated && symbol.repeated.spacing > 0) add(symbol.repeated.elements, activeLines.flatMap(line => spacedPlacements(line, symbol.repeated!, false, limit)));
+  if (symbol.between && symbol.between.spacing > 0) add(symbol.between.elements, activeLines.flatMap(line => spacedPlacements(line, symbol.between!, true, limit)));
+  if (symbol.corner) add(symbol.corner.elements, activeLines.flatMap(line => cornerPlacements(line, symbol.corner!.stretch, symbol.corner!.skipEnds ?? false)));
   if (symbol.start) add(symbol.start.elements, lines.map(line => endPlacement(line, "start")));
   if (symbol.end) add(symbol.end.elements, lines.map(line => endPlacement(line, "end")));
   return out;

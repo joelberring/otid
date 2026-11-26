@@ -65,11 +65,23 @@ export function readOcdSymbols(bytes: Bytes, first: number, warnings: WarningCol
       }
     }
   }
-  // Kantlinjen är en egen linjesymbol; den kopieras in när alla symboler är lästa.
+  // Kantlinjen är en egen linjesymbol; streck och eventuella punktsymboler kopieras in när alla symboler är lästa.
   for (const [id, border] of borders) {
     const area = symbols.get(id);
     const line = symbols.get(String(border));
-    if (area?.kind === "AREA" && line?.kind === "LINE") symbols.set(id, { ...area, border: line.strokes });
+    if (area?.kind === "AREA" && line?.kind === "LINE") {
+      const hasDec = Boolean(line.repeated || line.between || line.corner || line.start || line.end);
+      const borderDecorations = hasDec
+        ? {
+            ...(line.repeated ? { repeated: line.repeated } : {}),
+            ...(line.between ? { between: line.between } : {}),
+            ...(line.corner ? { corner: line.corner } : {}),
+            ...(line.start ? { start: line.start } : {}),
+            ...(line.end ? { end: line.end } : {})
+          }
+        : undefined;
+      symbols.set(id, { ...area, border: line.strokes, ...(borderDecorations ? { borderDecorations } : {}) });
+    }
   }
   return symbols;
 }
@@ -112,7 +124,7 @@ function convert(
     case SYMBOL_TYPE.line: return { ...base, kind: "LINE", ...lineSymbol(bytes, at, end, variant, warnings) };
     case SYMBOL_TYPE.area: return { ...base, kind: "AREA", ...areaSymbol(bytes, at, end, variant, warnings) };
     case SYMBOL_TYPE.text:
-    case SYMBOL_TYPE.lineText: return { ...base, kind: "TEXT", ...textSymbol(bytes, at) };
+    case SYMBOL_TYPE.lineText: return { ...base, kind: "TEXT", ...textSymbol(bytes, at, end, type) };
     case SYMBOL_TYPE.rectangle: {
       const width = bytes.i16(at + RECTANGLE.width) * UNIT;
       const strokes: StrokeStyle[] = width > 0 ? [{ color: bytes.u16(at + RECTANGLE.color), width, join: "miter" }] : [];
@@ -130,6 +142,7 @@ function readElements(bytes: Bytes, start: number, words: number, end: number, w
   let position = start;
   while (position + ELEMENT.header <= stop) {
     const type = bytes.u16(position + ELEMENT.type);
+    const stFlags = bytes.u16(position + ELEMENT.flags);
     const color = bytes.u16(position + ELEMENT.color);
     const lineWidth = bytes.i16(position + ELEMENT.lineWidth) * UNIT;
     const diameter = bytes.i16(position + ELEMENT.diameter) * UNIT;
@@ -141,7 +154,9 @@ function readElements(bytes: Bytes, start: number, words: number, end: number, w
     position = coordsAt + count * 8;
     switch (type) {
       case ELEMENT_TYPE.line:
-        if (lineWidth > 0 && count >= 2) elements.push({ kind: "line", color, width: lineWidth, path: coordsToParts(coords).flat() });
+        if (lineWidth > 0 && count >= 2) {
+          elements.push({ kind: "line", color, width: lineWidth, path: coordsToParts(coords).flat(), ...(stFlags !== 0 ? styleOf(stFlags) : {}) });
+        }
         break;
       case ELEMENT_TYPE.area: {
         const rings = coordsToParts(coords);
@@ -274,11 +289,13 @@ function lineDecorations(
   const [primary, secondary, corner, start, finish] = groups as [PointElement[], PointElement[], PointElement[], PointElement[], PointElement[]];
   const mainLength = bytes.i16(at + LINE.mainLength) * UNIT;
   const mainGap = Math.max(0, bytes.i16(at + LINE.mainGap) * UNIT);
+  const secondaryGap = Math.max(0, bytes.i16(at + LINE.secondaryGap) * UNIT);
+  const gapOffset = mainGap > 0 ? mainGap / 2 : secondaryGap > 0 ? secondaryGap / 2 : 0;
   const spacing = mainLength + mainGap;
   const count = bytes.i16(at + LINE.symbolCount);
   const along = {
     spacing,
-    endLength: Math.max(0, bytes.i16(at + LINE.endLength) * UNIT) + mainGap / 2,
+    endLength: Math.max(0, bytes.i16(at + LINE.endLength) * UNIT) + gapOffset,
     // OCAD lägger alltid minst en symbol, även när filen säger noll.
     minimum: Math.max(1, bytes.i16(at + LINE.minimumSymbols) + 1)
   };
@@ -325,21 +342,62 @@ function areaSymbol(
     const dy = bytes.u16(at + AREA.structureHeight + shift) * UNIT;
     const elements = readElements(bytes, at + variant.areaData.elements, bytes.u16(at + variant.areaData.dataSize), end, warnings);
     const angle = normalizeAngle(bytes.i16(at + AREA.structureAngle + shift) / 10);
+    let irregular: NonNullable<AreaSymbol["pattern"]>["irregular"];
+    if (!variant.areaV8 && variant.areaData.dataSize >= AREA.dataSize && bytes.u8(at + AREA.structureDraw) === 3) {
+      const varX = bytes.u8(at + AREA.structureVarX);
+      const varY = bytes.u8(at + AREA.structureVarY);
+      const minDist = bytes.u16(at + AREA.structureMinDist) * UNIT;
+      if (varX > 0 || varY > 0) {
+        irregular = {
+          jitterX: (varX / 100) * dx / 2,
+          jitterY: (varY / 100) * dy / 2,
+          ...(minDist > 0 ? { minDist } : {})
+        };
+      }
+    }
     if (elements.length > 0 && dx > 0 && dy > 0) {
       pattern = structureMode === 1
-        ? { elements, dx, dy, angle }
-        : { elements: [...elements, ...elements.map(element => moveElement(element, dx / 2, -dy))], dx, dy: 2 * dy, angle };
+        ? { elements, dx, dy, angle, ...(irregular ? { irregular } : {}) }
+        : { elements: [...elements, ...elements.map(element => moveElement(element, dx / 2, -dy))], dx, dy: 2 * dy, angle, ...(irregular ? { irregular } : {}) };
     }
   }
   return { fill, hatches, pattern };
 }
 
-function textSymbol(bytes: Bytes, at: number): Pick<TextSymbol, "color" | "size" | "fontFamily" | "bold" | "italic"> {
+function textSymbol(
+  bytes: Bytes, at: number, end: number, type: number
+): Pick<TextSymbol, "color" | "size" | "fontFamily" | "bold" | "italic" | "align" | "baseline" | "lineSpacing" | "framing"> {
+  let align: TextSymbol["align"];
+  let baseline: TextSymbol["baseline"];
+  if (at + TEXT.alignment + 2 <= end) {
+    const raw = bytes.u16(at + TEXT.alignment);
+    const h = raw & 3;
+    const v = (raw >> 2) & 3;
+    if (h === 1) align = "center";
+    else if (h === 2) align = "right";
+    if (v === 1) baseline = "middle";
+    else if (v === 2) baseline = "top";
+  }
+  let lineSpacing: number | undefined;
+  if (at + TEXT.lineSpace + 2 <= end) {
+    const raw = bytes.i16(at + TEXT.lineSpace);
+    if (raw > 0) lineSpacing = raw / 100;
+  }
+  let framing: TextSymbol["framing"];
+  if (type === SYMBOL_TYPE.text && at + TEXT.framingEnd <= end && bytes.u8(at + TEXT.frMode) === 2) {
+    const frColor = bytes.i16(at + TEXT.frColor);
+    const frWidth = bytes.i16(at + TEXT.frWidth) * UNIT;
+    if (frColor >= 0 && frWidth > 0) framing = { color: frColor, width: 2 * frWidth };
+  }
   return {
     color: bytes.u16(at + TEXT.color),
     size: (bytes.u16(at + TEXT.fontSize) / 10) * POINT_PER_PT,
     fontFamily: bytes.pascal(at + TEXT.fontName, TEXT.fontNameCapacity) || "Arial",
     bold: bytes.u16(at + TEXT.fontWeight) >= 600,
-    italic: bytes.u8(at + TEXT.italic) !== 0
+    italic: bytes.u8(at + TEXT.italic) !== 0,
+    ...(align ? { align } : {}),
+    ...(baseline ? { baseline } : {}),
+    ...(lineSpacing !== undefined ? { lineSpacing } : {}),
+    ...(framing ? { framing } : {})
   };
 }

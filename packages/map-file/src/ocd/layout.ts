@@ -29,7 +29,7 @@ export const SYMBOL_TYPE = { point: 1, line: 2, area: 3, text: 4, lineText: 6, r
 export const POINT = { dataSize: 796, elements: 800 } as const;
 
 /** Element i punkt-, linje- och ytsymboler: 16 byte huvud följt av koordinater om 8 byte. */
-export const ELEMENT = { type: 0, color: 4, lineWidth: 6, diameter: 8, coordCount: 10, header: 16 } as const;
+export const ELEMENT = { type: 0, flags: 2, color: 4, lineWidth: 6, diameter: 8, coordCount: 10, header: 16 } as const;
 export const ELEMENT_TYPE = { line: 1, area: 2, circle: 3, dot: 4 } as const;
 
 export const LINE = {
@@ -47,11 +47,15 @@ export const LINE_SYMBOL_FLAG = { end: 1, start: 2, corner: 4, secondary: 8 } as
 
 export const AREA = {
   borderSymbol: 796, fillColor: 800, hatchMode: 802, hatchColor: 804, hatchWidth: 806, hatchDistance: 808,
-  hatchAngle1: 810, hatchAngle2: 812, fillOn: 814, borderOn: 815, structureMode: 816,
-  structureWidth: 818, structureHeight: 820, structureAngle: 822, dataSize: 830, elements: 832
+  hatchAngle1: 810, hatchAngle2: 812, fillOn: 814, borderOn: 815, structureMode: 816, structureDraw: 817,
+  structureWidth: 818, structureHeight: 820, structureAngle: 822,
+  structureVarX: 824, structureVarY: 825, structureMinDist: 826, dataSize: 830, elements: 832
 } as const;
 
-export const TEXT = { fontName: 796, fontNameCapacity: 31, color: 828, fontSize: 830, fontWeight: 832, italic: 834 } as const;
+export const TEXT = {
+  fontName: 796, fontNameCapacity: 31, color: 828, fontSize: 830, fontWeight: 832, italic: 834,
+  alignment: 840, lineSpace: 842, frMode: 990, frColor: 1004, frWidth: 1006, framingEnd: 1008
+} as const;
 
 export const RECTANGLE = { color: 796, width: 798 } as const;
 

@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { GAP, type LineSymbol, type MapObject, type MapSymbol, type Path, type Point } from "@o-tid/map-file";
+import {
+  applyMapRevision, GAP, objectRefOf, readMapFile, sha256Hex,
+  type LineSymbol, type MapObject, type MapSymbol, type Path, type Point
+} from "@o-tid/map-file";
 import {
   autoDashPointsPlan,
+  isDashPointCommand,
   isDashedLineSymbol,
   toggleDashPoint,
   toggleOrInsertDashPoint
@@ -345,5 +349,124 @@ describe("autoDashPointsPlan", () => {
     const elapsed = performance.now() - start;
     expect(plan.counts.objects).toBeGreaterThanOrEqual(0);
     expect(elapsed).toBeLessThan(1000);
+  });
+});
+
+describe("OMAP/Mapper styrpunkter round-trip (treatCornerAsDash)", () => {
+  const OMAP_DASHED = `<?xml version="1.0" encoding="UTF-8"?>
+<map xmlns="http://openorienteering.org/apps/mapper/xml/v2" version="9">
+<georeferencing scale="10000"><ref_point x="0" y="0"/></georeferencing>
+<colors count="1">
+<color priority="0" name="Brun" c="0" m="0.56" y="1" k="0.18" opacity="1"><cmyk method="custom"/><rgb method="custom" r="0.82" g="0.36" b="0"/></color>
+</colors>
+<barrier version="6" required="0.6.0">
+<symbols count="1" id="test">
+<symbol type="2" id="0" code="103.0" name="Hjälpkurva"><line_symbol color="0" line_width="100" dashed="true" dash_length="2000" break_length="400" dashes_in_group="1" half_outer_dashes="true"/></symbol>
+</symbols>
+<parts count="1" current="0">
+<part name="Karta"><objects count="1">
+<object type="1" symbol="0"><coords count="4">0 0;5000 0;15000 0;15000 -10000;</coords></object>
+</objects></part>
+</parts>
+<templates count="0" first_front_template="0"/>
+</barrier>
+</map>
+`;
+
+  it("skiljer på corner och dash i OCAD men hanterar corner som styrpunkt i OMAP", () => {
+    const cornerOnly = { type: "L" as const, x: 5, y: 0, corner: true as const };
+    const dashOnly = { type: "L" as const, x: 5, y: 0, dash: true as const };
+    expect(isDashPointCommand(cornerOnly)).toBe(false);
+    expect(isDashPointCommand(cornerOnly, true)).toBe(true);
+    expect(isDashPointCommand(dashOnly)).toBe(true);
+    expect(isDashPointCommand(dashOnly, true)).toBe(true);
+
+    // OCAD (default): toggleDashPoint leaves corner untouched
+    const ocdPath: Path = [{ type: "M", x: 0, y: 0 }, cornerOnly, { type: "L", x: 10, y: 0 }];
+    const ocdOn = toggleDashPoint(ocdPath, 1);
+    expect(ocdOn[1]).toEqual({ type: "L", x: 5, y: 0, corner: true, dash: true });
+    const ocdOff = toggleDashPoint(ocdOn, 1);
+    expect(ocdOff[1]).toEqual({ type: "L", x: 5, y: 0, corner: true });
+
+    // OMAP (treatCornerAsDash = true): toggling off clears both corner and dash
+    const omapOff = toggleDashPoint(ocdPath, 1, true);
+    expect(omapOff[1]).toEqual({ type: "L", x: 5, y: 0 });
+    expect("corner" in omapOff[1]!).toBe(false);
+    expect("dash" in omapOff[1]!).toBe(false);
+  });
+
+  it("klarar full OMAP round-trip: lägg till -> spara -> läs tillbaka -> växla bort -> flags 32 borta, samt keepExisting: false", () => {
+    const encoder = new TextEncoder();
+    const decoder = new TextDecoder();
+    const meta = { author: "test", at: "2026-11-26T00:00:00Z" } as const;
+
+    // 1. Read initial OMAP and add a dash point on vertex 1 (5, 0)
+    const bytes0 = encoder.encode(OMAP_DASHED);
+    const sha0 = sha256Hex(bytes0);
+    const map0 = readMapFile(bytes0, "karta.omap", { sources: true });
+    const line0 = map0.objects[0]!;
+    expect(line0.kind).toBe("line");
+    if (line0.kind !== "line") throw new Error("expected line");
+
+    const added = toggleOrInsertDashPoint(line0.path, { x: 5, y: 0 }, 0.45, true);
+    expect(added.action).toBe("added");
+    expect(added.path[1]!.dash).toBe(true);
+
+    // 2. Save via applyMapRevision and verify flags="32" is written
+    const rev1 = applyMapRevision(bytes0, {
+      baseFileSha256: sha0,
+      format: "OMAP",
+      changes: [{ ...meta, kind: "modify", ref: objectRefOf(sha0, line0)!, geometry: { kind: "line", path: added.path } }]
+    });
+    if (!rev1.ok) throw new Error(JSON.stringify(rev1.refusals));
+    expect(decoder.decode(rev1.bytes)).toContain("5000 0 32;");
+
+    // 3. Reload OMAP: Mapper reads flags="32" back as corner: true
+    const sha1 = sha256Hex(rev1.bytes);
+    const map1 = readMapFile(rev1.bytes, "karta.omap", { sources: true });
+    const line1 = map1.objects[0]!;
+    if (line1.kind !== "line") throw new Error("expected line");
+    expect(line1.path[1]!.corner).toBe(true);
+    expect(isDashPointCommand(line1.path[1]!, true)).toBe(true);
+
+    // 4. Toggle OFF via toggleOrInsertDashPoint(..., true) -> both corner and dash cleared
+    const removed = toggleOrInsertDashPoint(line1.path, { x: 5, y: 0 }, 0.45, true);
+    expect(removed.action).toBe("removed");
+    expect(removed.path[1]!.corner).toBeUndefined();
+    expect(removed.path[1]!.dash).toBeUndefined();
+
+    // 5. Save again and verify flags="32" is completely GONE
+    const rev2 = applyMapRevision(rev1.bytes, {
+      baseFileSha256: sha1,
+      format: "OMAP",
+      changes: [{ ...meta, kind: "modify", ref: objectRefOf(sha1, line1)!, geometry: { kind: "line", path: removed.path } }]
+    });
+    if (!rev2.ok) throw new Error(JSON.stringify(rev2.refusals));
+    expect(decoder.decode(rev2.bytes)).not.toContain(" 32;");
+    const map2 = readMapFile(rev2.bytes, "karta.omap", { sources: true });
+    const line2 = map2.objects[0]!;
+    if (line2.kind !== "line") throw new Error("expected line");
+    expect(isDashPointCommand(line2.path[1]!, true)).toBe(false);
+
+    // 6. On reloaded map1 (with corner: true at straight vertex 1), autoDashPointsPlan with keepExisting: false strips it
+    const resetPlan = autoDashPointsPlan([line1], [line1], map1.symbols, { keepExisting: false, treatCornerAsDash: true });
+    expect(resetPlan.counts.objects).toBe(1);
+    const resetLine = resetPlan.entries[0]!.after;
+    if (resetLine.kind !== "line") throw new Error("expected line");
+    expect(resetLine.path[1]!.corner).toBeUndefined();
+    expect(resetLine.path[1]!.dash).toBeUndefined();
+    // 90° bend at vertex 2 (15, 0) gets a fresh dash point
+    expect(resetLine.path[2]!.dash).toBe(true);
+
+    const rev3 = applyMapRevision(rev1.bytes, {
+      baseFileSha256: sha1,
+      format: "OMAP",
+      changes: [{ ...meta, kind: "modify", ref: objectRefOf(sha1, line1)!, geometry: { kind: "line", path: resetLine.path } }]
+    });
+    if (!rev3.ok) throw new Error(JSON.stringify(rev3.refusals));
+    const xml3 = decoder.decode(rev3.bytes);
+    expect(xml3).toContain(";5000 0;");
+    expect(xml3).not.toContain(";5000 0 32;");
+    expect(xml3).toContain(";15000 0 32;");
   });
 });

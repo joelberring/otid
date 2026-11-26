@@ -137,7 +137,11 @@ function symbolReach(symbols: ParsedMap["symbols"], id: string, depth = 0): numb
     case "POINT": return elementsReach(symbol.elements);
     case "LINE": return Math.max(strokesReach(symbol.strokes), elementsReach(symbol.repeated?.elements), elementsReach(symbol.between?.elements),
       elementsReach(symbol.corner?.elements) * CORNER_STRETCH, elementsReach(symbol.start?.elements), elementsReach(symbol.end?.elements));
-    case "AREA": return strokesReach(symbol.border);
+    case "AREA": {
+      const dec = symbol.borderDecorations;
+      return Math.max(strokesReach(symbol.border), elementsReach(dec?.repeated?.elements), elementsReach(dec?.between?.elements),
+        elementsReach(dec?.corner?.elements) * CORNER_STRETCH, elementsReach(dec?.start?.elements), elementsReach(dec?.end?.elements));
+    }
     case "TEXT": return 0;
     case "COMBINED": return symbol.parts.reduce((reach, part) => Math.max(reach, symbolReach(symbols, part, depth + 1)), 0);
   }

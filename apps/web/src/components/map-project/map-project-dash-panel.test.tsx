@@ -181,5 +181,28 @@ describe("styrpunkts-hjälpfunktioner & kontextåtgärder", () => {
     drawDashPreview(ctx, view, [{ x: 2, y: 0 }, { x: 8, y: 0 }]);
     expect(strokes).toContain("#0f766e");
     expect(closePath).toHaveBeenCalled();
+
+    // OMAP-inläst styrpunkt (`corner: true` på streckad linje): ritas som turkos romb när treatCornerAsDash = true, inte för OCAD
+    const omapDashedLine: MapObject = {
+      kind: "line",
+      symbol: "103",
+      path: [
+        { type: "M", x: 0, y: 0 },
+        { type: "L", x: 5, y: 0, corner: true },
+        { type: "L", x: 10, y: 0 }
+      ]
+    };
+    expect(isVertexDash(omapDashedLine, { part: 0, index: 1 }, false)).toBe(false);
+    expect(isVertexDash(omapDashedLine, { part: 0, index: 1 }, true)).toBe(true);
+    const omapToggled = toggleLineVertexDash(omapDashedLine, { part: 0, index: 1 }, true);
+    expect(isVertexDash(omapToggled, { part: 0, index: 1 }, true)).toBe(false);
+
+    fills.length = 0;
+    drawSelection(ctx, view, omapDashedLine, undefined, undefined, false);
+    expect(fills).not.toContain("#0d9488");
+
+    fills.length = 0;
+    drawSelection(ctx, view, omapDashedLine, undefined, undefined, true);
+    expect(fills).toContain("#0d9488");
   });
 });

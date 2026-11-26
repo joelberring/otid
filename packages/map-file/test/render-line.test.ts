@@ -148,8 +148,10 @@ describe("anpassad streckning i hörn- och streckpunkter (styrpunkter)", () => {
   it("skalar streck och mellanrum jämnt och ritar korta delsträckor heldragna", () => {
     // Halvt ändstreck (1 mm) + gap (0,5 mm) + helt (2 mm) + gap (0,5 mm) + halvt ändstreck (1 mm) = 5 mm.
     expect(dashIntervals(5, { mainLength: 2, mainGap: 0.5, endLength: 1 })).toEqual([[0, 1], [1.5, 3.5], [4, 5]]);
-    // Kort delsträcka (<= 2 * endLength): ett enda heldraget streck utan mellanrum.
-    expect(dashIntervals(1.8, { mainLength: 2, mainGap: 0.5, endLength: 1 })).toEqual([[0, 1.8]]);
+    // Kort delsträcka (<= (startLen + endLen) / 2): ett enda heldraget streck utan mellanrum.
+    expect(dashIntervals(0.9, { mainLength: 2, mainGap: 0.5, endLength: 1 })).toEqual([[0, 0.9]]);
+    // Delsträcka > (startLen + endLen) / 2 men <= startLen + endLen får fortfarande ett skalat mellanrum.
+    near(dashIntervals(1.8, { mainLength: 2, mainGap: 0.5, endLength: 1 }).flat(), [0, 0.72, 1.08, 1.8]);
     // Sekundärt mellanrum delar mittstrecken.
     expect(dashIntervals(5, { mainLength: 2, mainGap: 0.5, endLength: 1, secondaryGap: 0.4 })).toEqual([[0, 1], [1.5, 2.3], [2.7, 3.5], [4, 5]]);
   });
@@ -286,5 +288,21 @@ describe("anpassad streckning i hörn- och streckpunkter (styrpunkter)", () => {
     near(dashIntervals(5.3, spec, false, false).flat(), [0, 1, 1.25, 2.25, 3.05, 4.05, 4.3, 5.3]);
     // Inre halvt streck delas aldrig av sekundärt mellanrum.
     near(dashIntervals(3.05, spec, true, true).flat(), [0, 1.125, 1.925, 3.05]);
+  });
+
+  it("streckar korta 507.0/506.0/505.0/103.0-delsträckor över (startLen + endLen) / 2 i stället för att göra dem heldragna", () => {
+    // 507.0 (3,72 mm O-O): 1 huvudmellanrum + 2 sekundära mellanrum = 4 streck.
+    const spec507 = { mainLength: 2.25, mainGap: 0.8, endLength: 2.25, secondaryGap: 0.25 };
+    expect(dashIntervals(3.72, spec507, false, false)).toHaveLength(4);
+    // 505.0 (2,94 mm O-O) och 506.0 (1,93 mm O-O): 2 streck (1 mellanrum).
+    expect(dashIntervals(2.94, { mainLength: 2, mainGap: 0.25, endLength: 2 }, false, false)).toHaveLength(2);
+    expect(dashIntervals(1.93, { mainLength: 1, mainGap: 0.25, endLength: 1 }, false, false)).toHaveLength(2);
+    // 103.0: I-I över 1,0 mm får mellanrum, under 1,0 mm hålls heldragna; O-O under 2,0 mm hålls heldragen; I-O över 1,5 mm får mellanrum.
+    const spec103 = { mainLength: 2, mainGap: 0.2, endLength: 2 };
+    expect(dashIntervals(1.13, spec103, true, true)).toHaveLength(2);
+    expect(dashIntervals(1.78, spec103, true, true)).toHaveLength(2);
+    expect(dashIntervals(0.92, spec103, true, true)).toHaveLength(1);
+    expect(dashIntervals(1.86, spec103, true, false)).toHaveLength(2);
+    expect(dashIntervals(1.46, spec103, false, false)).toHaveLength(1);
   });
 });

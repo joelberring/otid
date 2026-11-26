@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MapObject, Point } from "@o-tid/map-file";
 import {
-  nearestSegment, objectParts, toggleDashPoint, toggleOrInsertDashPoint,
+  isDashPointCommand, nearestSegment, objectParts, toggleDashPoint, toggleOrInsertDashPoint,
   type Box, type DashPointCounts, type DashPointOptions, type EditKind, type ObjectKey, type ObjectRef, type VertexAddress
 } from "@o-tid/map-revision";
 import { mapProjectDashEn } from "../../i18n/map-project-dash-en";
@@ -27,19 +27,20 @@ export function isDashedObject(object: MapObject | undefined, symbols: ReadonlyM
   return !!object && object.kind === "line" && symbols.get(object.symbol)?.dashed === true;
 }
 
-/** Sant om vald brytpunkt på en linje har styrpunktsflaggan (`dash: true`). */
-export function isVertexDash(object: MapObject | undefined, address: VertexAddress | undefined): boolean {
+/** Sant om vald brytpunkt på en linje har styrpunktsflaggan (`dash: true`, eller `corner: true` i OMAP). */
+export function isVertexDash(object: MapObject | undefined, address: VertexAddress | undefined, treatCornerAsDash = false): boolean {
   if (!object || object.kind !== "line" || !address) return false;
-  return objectParts(object)[address.part]?.[address.index]?.dash === true;
+  const cmd = objectParts(object)[address.part]?.[address.index];
+  return !!cmd && isDashPointCommand(cmd, treatCornerAsDash);
 }
 
-/** Växlar `dash` på en brytpunkt i en linje (stöder flera delar) och ger ett nytt objekt. */
-export function toggleLineVertexDash(object: MapObject, address: VertexAddress): MapObject | undefined {
+/** Växlar styrpunktsflaggan på en brytpunkt i en linje (stöder flera delar) och ger ett nytt objekt. */
+export function toggleLineVertexDash(object: MapObject, address: VertexAddress, treatCornerAsDash = false): MapObject | undefined {
   if (object.kind !== "line") return undefined;
   const parts = objectParts(object);
   const part = parts[address.part];
   if (!part || !part[address.index]) return undefined;
-  parts[address.part] = toggleDashPoint(part, address.index);
+  parts[address.part] = toggleDashPoint(part, address.index, treatCornerAsDash);
   return { ...object, path: parts.flat() };
 }
 
@@ -56,12 +57,14 @@ export function useMapProjectDashPoints(input: {
   activeVertex: VertexAddress | undefined;
   symbols: ReadonlyMap<string, CatalogSymbol>;
   hidden: readonly string[];
+  treatCornerAsDash?: boolean | undefined;
   save: (key: ObjectKey, ref: ObjectRef | null, object: MapObject | undefined, kind: EditKind) => boolean;
   commitMany: (changes: readonly ObjectChange[]) => number;
   updateSelected: (next: Selected) => void;
   setFlash: (message: string) => void;
 }) {
   const { session, canEdit, tool, selected, multi, activeVertex, symbols, hidden, save, commitMany, updateSelected, setFlash } = input;
+  const treatCornerAsDash = input.treatCornerAsDash === true;
   const text = useTexts(mapProjectDashSv, mapProjectDashEn);
   const [mode, setMode] = useState(false);
   const [scope, setScope] = useState<DashScope>("view");
@@ -85,8 +88,11 @@ export function useMapProjectDashPoints(input: {
     if (!isSelectedDashed && mode) setMode(false);
   }, [isSelectedDashed, mode]);
 
-  const activeVertexDash = isSelectedDashed && isVertexDash(selected?.object, activeVertex);
-  const options: DashPointOptions = useMemo(() => ({ bends, slopeTags, junctions, keepExisting }), [bends, slopeTags, junctions, keepExisting]);
+  const activeVertexDash = isSelectedDashed && isVertexDash(selected?.object, activeVertex, treatCornerAsDash);
+  const options: DashPointOptions = useMemo(
+    () => ({ bends, slopeTags, junctions, keepExisting, ...(treatCornerAsDash ? { treatCornerAsDash: true } : {}) }),
+    [bends, slopeTags, junctions, keepExisting, treatCornerAsDash]
+  );
   const previewPoints = useMemo<readonly Point[]>(() => plan?.entries.flatMap(entry => entry.points.map(point => point.at)) ?? [], [plan]);
 
   const applyEntries = useCallback((result: DashPointsResult) => {
@@ -108,23 +114,23 @@ export function useMapProjectDashPoints(input: {
 
   const toggleActiveVertex = useCallback(() => {
     if (!canEdit || !selected || !activeVertex || !isSelectedDashed) return;
-    const wasDash = isVertexDash(selected.object, activeVertex);
-    const next = toggleLineVertexDash(selected.object, activeVertex);
+    const wasDash = isVertexDash(selected.object, activeVertex, treatCornerAsDash);
+    const next = toggleLineVertexDash(selected.object, activeVertex, treatCornerAsDash);
     if (!next) return;
     if (save(selected.key, selected.ref, next, "RESHAPE")) setFlash(wasDash ? text.vertexRemoved : text.vertexAdded);
-  }, [canEdit, selected, activeVertex, isSelectedDashed, save, setFlash, text]);
+  }, [canEdit, selected, activeVertex, isSelectedDashed, treatCornerAsDash, save, setFlash, text]);
 
   const tapLine = useCallback((point: Point, tolerance: number): boolean => {
     if (!mode || !canEdit || !selected || !isSelectedDashed || selected.object.kind !== "line") return false;
     const hit = nearestVertex(selected.object, point, tolerance) || nearestSegment(selected.object, point, tolerance);
     if (!hit) return false;
-    const result = toggleOrInsertDashPoint(selected.object.path, point, tolerance);
+    const result = toggleOrInsertDashPoint(selected.object.path, point, tolerance, treatCornerAsDash);
     const next: MapObject = { ...selected.object, path: result.path };
     if (save(selected.key, selected.ref, next, "RESHAPE")) {
       setFlash(result.action === "removed" ? text.vertexRemoved : text.vertexAdded);
     }
     return true;
-  }, [mode, canEdit, selected, isSelectedDashed, save, setFlash, text]);
+  }, [mode, canEdit, selected, isSelectedDashed, treatCornerAsDash, save, setFlash, text]);
 
   const escape = useCallback((): boolean => {
     if (!mode) return false;

@@ -126,7 +126,9 @@ function readObject(
     case OBJECT_TYPE.lineText: {
       if (type === OBJECT_TYPE.lineText) warnings.add("LINE_TEXT");
       const text = textCount > 0 ? objectText(bytes, at + layout.coords + count * 8, textCount * 8, variant, at) : "";
-      return { kind: "text", symbol, at: first, angle, text: text.replace(/\r\n?/g, "\n") };
+      // Formaterad text (typ 5) sparar 4 hörnpunkter för textrutan (0 = nedre vänstra, 3 = övre vänstra).
+      const anchor = type === OBJECT_TYPE.formattedText && count >= 4 ? { x: coords.x[3]!, y: coords.y[3]! } : first;
+      return { kind: "text", symbol, at: anchor, angle, text: text.replace(/\r\n?/g, "\n") };
     }
     case OBJECT_TYPE.line:
     case OBJECT_TYPE.rectangle: {

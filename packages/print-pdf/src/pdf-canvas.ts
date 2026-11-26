@@ -239,11 +239,9 @@ export class PdfCanvas implements MapDrawingContext {
     this.options.content.op(`${corners.map(([px, py], index) => `${num(px)} ${num(py)} ${index === 0 ? "m" : "l"}`).join(" ")} h f`);
   }
 
-  /** Text med Roboto i kanvasens storlek (`font`: "bold 12px …"), baslinjen i (x, y) och y nedåt som canvas. */
-  fillText(text: string, x: number, y: number): void {
-    const paint = this.paintWith(this.state.fillStyle);
+  private textLayout(text: string, x: number, y: number): { readonly font: ReturnType<Fonts["get"]>; readonly clean: string; readonly matrix: Matrix } | null {
     const clean = printable(text);
-    if (!paint || clean.trim() === "") return;
+    if (clean.trim() === "") return null;
     const match = /(\d+(?:\.\d+)?)px/.exec(this.state.font);
     const size = match ? Number(match[1]) : 10;
     const family = /px\s+"?([^",]+)/.exec(this.state.font)?.[1];
@@ -252,8 +250,29 @@ export class PdfCanvas implements MapDrawingContext {
     const dx = this.state.textAlign === "center" ? -width / 2 : this.state.textAlign === "right" || this.state.textAlign === "end" ? -width : 0;
     const dy = this.state.textBaseline === "middle" ? (font.ascent + font.descent) / 2 * size : this.state.textBaseline === "top" ? font.ascent * size : 0;
     const matrix = multiply(multiply(this.options.device, this.state.ctm), [size, 0, 0, -size, x + dx, y + dy]);
+    return { font, clean, matrix };
+  }
+
+  /** Text med Roboto i kanvasens storlek (`font`: "bold 12px …"), baslinjen i (x, y) och y nedåt som canvas. */
+  fillText(text: string, x: number, y: number): void {
+    const paint = this.paintWith(this.state.fillStyle);
+    const layout = paint ? this.textLayout(text, x, y) : null;
+    if (!paint || !layout) return;
     this.options.content.fill(paint);
-    this.options.content.op(`BT /${font.name} 1 Tf ${matrix.map(num).join(" ")} Tm ${font.font.encodeText(clean).toString()} Tj ET`);
+    this.options.content.op(`BT /${layout.font.name} 1 Tf ${layout.matrix.map(num).join(" ")} Tm ${layout.font.font.encodeText(layout.clean).toString()} Tj ET`);
+    this.painted += 1;
+  }
+
+  /** Textens kontur (OCAD `FrMode = 2`, Mappers `framing`) med PDF-textläge `1 Tr` (endast linje). */
+  strokeText(text: string, x: number, y: number): void {
+    const paint = this.paintWith(this.state.strokeStyle);
+    const layout = paint ? this.textLayout(text, x, y) : null;
+    if (!paint || !layout) return;
+    const m = multiply(this.options.device, this.state.ctm);
+    const factor = similarity(m) ?? Math.hypot(m[0], m[1]);
+    this.options.content.stroke(paint);
+    this.options.content.lineStyle(this.state.lineWidth * factor, CAP[this.state.lineCap], JOIN[this.state.lineJoin]);
+    this.options.content.op(`BT 1 Tr /${layout.font.name} 1 Tf ${layout.matrix.map(num).join(" ")} Tm ${layout.font.font.encodeText(layout.clean).toString()} Tj 0 Tr ET`);
     this.painted += 1;
   }
 }

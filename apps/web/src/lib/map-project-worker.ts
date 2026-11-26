@@ -492,7 +492,11 @@ self.onmessage = (event: MessageEvent<MapProjectRequest>) => {
       targets.push(object);
       indexByObject.set(object, index);
     });
-    const plan = autoDashPointsPlan(targets, visibleAll, map.symbols, request.query.options);
+    const treatCornerAsDash = request.query.options.treatCornerAsDash ?? (map.format === "OMAP");
+    const plan = autoDashPointsPlan(targets, visibleAll, map.symbols, {
+      ...request.query.options,
+      ...(treatCornerAsDash ? { treatCornerAsDash: true } : {})
+    });
     const entries = plan.entries.flatMap(entry => {
       const idx = indexByObject.get(entry.before);
       if (idx === undefined) return [];

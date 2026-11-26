@@ -11,7 +11,7 @@ import { controlledWorker } from "../../lib/course-setting-worker";
 import { fetchMapSource } from "../../lib/route-choice-api";
 import { cachedMapFile, mapFileCache } from "../../lib/map-file-cache";
 import { cssOfCmyk, RenderQueue } from "../../lib/course-setting-bl-proposal";
-import { pressLayersFor, pressNormOf } from "../../lib/course-setting-press-layers";
+import { overBandImageKey, pressLayersFor, pressNormOf } from "../../lib/course-setting-press-layers";
 import type { RenderImage, RenderView } from "./course-setting-bl-compare";
 import { frameImageKey } from "./course-setting-sheet";
 import { inLanguage } from "../../lib/in-language";
@@ -89,7 +89,8 @@ export function usePrintColors(document: CourseSettingDocument | null | undefine
   // Normens färgordning (ADR-0211 beslut 3): hela kartan, banans undre lila, kartans färger över banan en gång till (Darken), övre lila.
   const pressLayers = useMemo(() => pressLayersFor(profile, map.colors, map.usage, map.mapScale), [profile, map.colors, map.usage, map.mapScale]);
   const pressNorm = pressNormOf(profile, map.mapScale, map.usage);
-  const colorsKey = useMemo(() => JSON.stringify(adjust) + (pressLayers ? `|${pressLayers.over.join(",")}` : ""), [adjust, pressLayers]);
+  const colorsKey = useMemo(() => JSON.stringify(adjust)
+    + (pressLayers ? `|${pressLayers.overBands.map(band => `${band.kind}:${band.ids.join(",")}`).join(";")}` : ""), [adjust, pressLayers]);
   return { savedProfiles, profile, adjust, pressLayers, pressNorm, colorsKey, courseColor: cssOfCmyk(profile.course.cmyk) };
 }
 
@@ -100,7 +101,12 @@ export function useSheetImages(map: PrintMap, sheets: readonly { readonly sheet:
   const [images, setImages] = useState<Readonly<Record<string, string>>>({});
   const urls = useRef<string[]>([]);
   const started = useRef(new Set<string>());
+  const sessionRef = useRef(session);
   useEffect(() => {
+    if (sessionRef.current !== session) {
+      sessionRef.current = session;
+      started.current.clear();
+    }
     if (!session) return;
     let cancelled = false;
     void (async () => {
@@ -111,16 +117,21 @@ export function useSheetImages(map: PrintMap, sheets: readonly { readonly sheet:
         started.current.add(key);
         try {
           const request = { ...mapRenderRequest(frame), ...(Object.keys(adjust).length > 0 ? { colorAdjust: adjust } : {}) };
-          // Normens ordning: två bilder, hela kartan som i filen och färgerna över banan en gång till (utan vit bakgrund).
-          // Hela kartan ligger underst så att färgerna över banan bara blandas med lilan, inte med gult och grönt (beslut 14).
+          // Normens ordning: hela kartan underst och varje OVER-band i exakt rank-ordning (INK med Darken, WHITE som slår ut).
           const url = await renderImage(request, 0);
-          const over = pressLayers ? await renderImage({ ...request, onlyColors: pressLayers.overInk, background: false }, 0) : undefined;
-          // Vitt över banan slår ut (som i PDF:en): en egen bild utan blandning.
-          const overWhite = pressLayers && pressLayers.overWhite.length > 0
-            ? await renderImage({ ...request, onlyColors: pressLayers.overWhite, background: false }, 0) : undefined;
-          urls.current.push(url, ...(over ? [over] : []), ...(overWhite ? [overWhite] : []));
+          urls.current.push(url);
+          const bandUrls: Record<string, string> = {};
+          if (pressLayers) {
+            for (let i = 0; i < pressLayers.overBands.length; i += 1) {
+              const band = pressLayers.overBands[i]!;
+              if (cancelled) { started.current.delete(key); return; }
+              const bandUrl = await renderImage({ ...request, onlyColors: band.ids, background: false }, 0);
+              urls.current.push(bandUrl);
+              bandUrls[overBandImageKey(key, i)] = bandUrl;
+            }
+          }
           // Bilden gäller sin nyckel även om arken ändrats under tiden (en senare körning hoppar över nyckeln medan den ritas).
-          setImages(current => ({ ...current, ...(over ? { [`${key}|OVER`]: over } : {}), ...(overWhite ? { [`${key}|OVERWHITE`]: overWhite } : {}), [key]: url }));
+          setImages(current => ({ ...current, ...bandUrls, [key]: url }));
         } catch (error) { started.current.delete(key); console.error("Kartan kunde inte ritas", error); }
       }
     })();

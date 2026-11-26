@@ -6,12 +6,13 @@ import {
 import { areaMinus } from "@o-tid/map-revision/base-map";
 import { sourcePointToMap } from "@o-tid/map-revision";
 import {
-  drawMap, mapPointToWgs84, readMapFile, type MapDrawingContext, type MapObject, type MapSymbol, type ParsedMap, type Path, type PathCommand,
-  type Point
+  drawMap, mapPointToWgs84, readMapFile, withColorChanges, withSymbolColorChanges, withSymbolReplacements, withTextSymbolChanges,
+  type MapColorChange, type MapDrawingContext, type MapObject, type MapSymbol, type MapSymbolColorChange, type MapTextSymbolChange, type ParsedMap, type Path,
+  type PathCommand, type Point
 } from "@o-tid/map-file";
 import {
-  baseKeys, editedObjects, newKey, newObject, objectBox, objectRefFor, parseObjectRef, symbolObjectKind, validState, withSymbol,
-  type KeyedState, type ObjectKey, type RevisionEdit
+  baseKeys, editedObjects, newKey, newObject, normSymbolAdditions, normSymbolFixes, objectBox, objectRefFor, parseObjectRef, symbolObjectKind, validState,
+  withSymbol, type KeyedState, type NormSymbolSetting, type ObjectKey, type RevisionEdit
 } from "@o-tid/map-revision";
 
 /**
@@ -31,6 +32,14 @@ export type CreateMapJobCanvas = (width: number, height: number) => MapJobCanvas
 
 export interface StoredObjectRow { objectKey: string; ref: unknown; state: unknown; lastEditId: string }
 
+/** Projektets sparade ändringar av färgtabell, symbolfärger, textsymboler och normsymboler (appliceras i minnet som i editorn). */
+export interface ProjectMapStyle {
+  readonly colors?: readonly MapColorChange[] | null | undefined;
+  readonly symbolColors?: readonly MapSymbolColorChange[] | null | undefined;
+  readonly textSymbols?: readonly MapTextSymbolChange[] | null | undefined;
+  readonly normSymbols?: NormSymbolSetting | null | undefined;
+}
+
 export interface LoadedProjectMap {
   readonly base: ParsedMap;
   readonly baseSha256: string;
@@ -47,8 +56,26 @@ const MAP_JOB_MAX_SIDE_PX = MCP_MAX_IMAGE_SIDE_PX, PROPOSAL_MAX_SIDE_M = MCP_PRO
 
 export const symbolCode = (symbol: MapSymbol) => symbol.code.main > 0 ? `${symbol.code.main}${symbol.code.sub ? `.${symbol.code.sub}` : ""}` : "";
 
-export function loadProjectMap(bytes: Uint8Array, fileName: string, baseSha256: string, rows: readonly StoredObjectRow[]): LoadedProjectMap {
-  const base = readMapFile(bytes, fileName, { sources: true });
+function applyProjectStyle(map: ParsedMap, style: ProjectMapStyle | undefined): ParsedMap {
+  if (!style) return map;
+  const colorChanges = style.colors ?? [];
+  const symbolColorChanges = style.symbolColors ?? [];
+  const textSymbolChanges = style.textSymbols ?? [];
+  const normSetting: NormSymbolSetting = style.normSymbols ?? { replace: [], add: [] };
+  if (colorChanges.length === 0 && symbolColorChanges.length === 0 && textSymbolChanges.length === 0
+    && normSetting.add.length === 0 && normSetting.replace.length === 0) return map;
+  // Samma ordning som editorns worker och filskrivaren: normens tillägg, textsymboler, symbolfärger, färgtabell och sist normens byten.
+  const file = { colors: map.colors, symbols: map.symbols };
+  const added = normSetting.add.length ? withSymbolReplacements(file, normSymbolAdditions(file, normSetting.add)) : file;
+  const withText = textSymbolChanges.length ? withTextSymbolChanges(added.symbols, added.colors, textSymbolChanges) : added.symbols;
+  const symbols = symbolColorChanges.length ? withSymbolColorChanges(withText, added.colors, symbolColorChanges) : withText;
+  const colors = colorChanges.length ? withColorChanges(added.colors, colorChanges) : added.colors;
+  const fixed = normSetting.replace.length ? withSymbolReplacements({ colors, symbols }, normSymbolFixes(symbols, normSetting)) : { colors, symbols };
+  return { ...map, colors: fixed.colors, symbols: fixed.symbols };
+}
+
+export function loadProjectMap(bytes: Uint8Array, fileName: string, baseSha256: string, rows: readonly StoredObjectRow[], style?: ProjectMapStyle): LoadedProjectMap {
+  const base = applyProjectStyle(readMapFile(bytes, fileName, { sources: true }), style);
   const states = new Map<ObjectKey, KeyedState & { lastEditId: string }>();
   for (const row of rows) {
     const ref = row.ref === null ? null : parseObjectRef(row.ref) ?? null;

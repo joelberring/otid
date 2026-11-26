@@ -83,19 +83,18 @@ describe("normens färgordning i PDF:en (ADR-0211 beslut 3)", () => {
     expect(pdf.at.under).toBeGreaterThan(-1);
     expect(pdf.at.circle).toBeGreaterThan(pdf.at.under);
     expect(pdf.at.over).toBeGreaterThan(pdf.at.circle);
-    // Under banan: hela kartan som i filen (beslut 14), alltså asfalten (fyllning 0/28/45/12), byggnadens svarta fyllning och
-    // också färgerna över banan utan övertryck; över: stigen (svart linje) och brunt en gång till med övertryck.
+    // Ren enpass-ordning i PROCESS (Alternativ A): UNDER innehåller asfalten och byggnadens svarta fyllning (inte stig/kurvor),
+    // OVER innehåller stigen och brunt 100 % med knockout (noll /GOP gs, noll TAC-blödning).
     expect(pdf.under).toContain("0 0.28 0.45 0.12 k");
     expect(pdf.under).toContain("0 0 0 1 k");
-    expect(pdf.under).toContain("0 0 0 1 K");
-    expect(pdf.under).toContain("0 0.56 1 0.18 K");
+    expect(pdf.under).not.toContain("0 0 0 1 K");
+    expect(pdf.under).not.toContain("0 0.56 1 0.18 K");
     expect(pdf.under).not.toMatch(/\/GOP gs/);
     expect(pdf.over).not.toContain("0 0.28 0.45 0.12 k");
     expect(pdf.over).not.toContain("0 0 0 1 k");
     expect(pdf.over).toContain("0 0 0 1 K");
     expect(pdf.over).toContain("0 0.56 1 0.18 K");
-    // Färgerna över banan med övertryck, så att lila syns genom dem på tryck.
-    expect(pdf.over).toMatch(/\/GOP gs/);
+    expect(pdf.over).not.toMatch(/\/GOP gs/);
     // Numret i undre lila (bilagan, förval i skog) före kartans färger över banan: kurvorna och stigen korsar det.
     expect(pdf.at.number).toBeLessThan(pdf.at.over);
     // "Kontrollnummer och texter överst": efter kartans färger över banan.

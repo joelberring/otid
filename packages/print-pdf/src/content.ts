@@ -81,6 +81,9 @@ export class Content {
     this.state.gs = wanted;
   }
 
+  /** Växlar övertryck/blandning (/GOP) eller knockout (/GKO) t.ex. före placering av en Form XObject. */
+  setOverprint(overprint: boolean): void { this.gs(overprint); }
+
   fill(paint: Paint): void {
     this.gs(paint.overprint);
     const ops = this.colorOps(paint.ink, false);

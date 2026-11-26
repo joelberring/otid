@@ -126,9 +126,11 @@ export const blProposalEn: Texts<typeof blProposalSv> = {
   showBefore: "Before",
   showAfter: "After",
   layers: "The order in print",
-  layersHelp: (course: string, norm: "ISOM" | "ISSPROM") => norm === "ISSPROM"
+  layersHelp: (course: string, norm: "ISOM" | "ISSPROM", numbersOnTop = false) => norm === "ISSPROM"
     ? `Sprint (ISSprOM 2019-2): circles, lines, start and finish (${course}) lie below black 100 % and green for points, above everything else; numbers and markings lie on top. The map's colours above the course are printed with overprint. The list starts with what lies on top.`
-    : `Forest (ISOM 2017-2): circles, lines, start and finish (${course}) lie below black, brown 100 % and blue 100 % for lines and points, above asphalt, the fill of large buildings and all screened colours; numbers and markings lie on top. The map's colours above the course are printed with overprint. The list starts with what lies on top.`,
+    : numbersOnTop
+      ? `Forest (ISOM 2017-2): circles, lines, start and finish (${course}) lie below black, brown 100 % and blue 100 % for lines and points, above asphalt, the fill of large buildings and all screened colours; numbers and markings lie on top. The map's colours above the course are printed with overprint. The list starts with what lies on top.`
+      : `Forest (ISOM 2017-2): circles, lines, numbers, start and finish (${course}) lie below black, brown 100 % and blue 100 % for lines and points, above asphalt, the fill of large buildings and all screened colours; markings lie on top. The map's colours above the course are printed with overprint. The list starts with what lies on top.`,
   layersOnTop: "The course is drawn on top (chosen in the profile or nothing approved to go by).",
   layerOver: "Above the course",
   layerCourse: "The course",

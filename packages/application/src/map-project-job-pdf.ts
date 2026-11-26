@@ -1,4 +1,4 @@
-import { BUILT_IN_PRINT_PROFILES, type Sheet } from "@o-tid/course-setting";
+import { BUILT_IN_PRINT_PROFILES, MAP_OWN_PRINT_PROFILE_ID, officePrintProfile, type Sheet } from "@o-tid/course-setting";
 import { objectBox } from "@o-tid/map-revision";
 import { paperFor, PAPER_MARGIN, PAPERS } from "@o-tid/map-revision/base-map";
 import { writeSheetsPdf, type FontFiles } from "@o-tid/print-pdf";
@@ -10,7 +10,11 @@ import type { LoadedProjectMap } from "./map-project-job-run";
  * eller liggande) som rymmer allt med 10 mm marginal. Större än A0: ett eget papper med samma marginal. Kartan har sin ram
  * och sitt namn som kartobjekt när den gjorts i O-Tid; annars blir det bara kartan.
  */
-export interface MapPdfRequest { readonly title?: string | undefined }
+export interface MapPdfRequest {
+  readonly title?: string | undefined;
+  readonly mode?: "OFFICE" | "PRESS" | undefined;
+  readonly lightenForOffice?: boolean | undefined;
+}
 export interface MapPdfResult { readonly pages: number; readonly paper: string; readonly size: string | null; readonly landscape: boolean; readonly widthMm: number; readonly heightMm: number; readonly notes: readonly string[] }
 
 /** Det papper (mm, med riktning) som rymmer en ruta på `width` × `height` mm med marginalen. */
@@ -44,8 +48,14 @@ export async function runMapPdf(loaded: LoadedProjectMap, request: MapPdfRequest
       transform: { scale: 1, translateX: clip.x - mapArea.minX, translateY: clip.y + mapArea.maxY }, figures: [] }],
     texts: [], images: [], descriptions: [], boxes: [], cutMarks: []
   };
-  const profile = BUILT_IN_PRINT_PROFILES.find(item => item.id === "office")!;
-  const written = await writeSheetsPdf({ sheets: [sheet], map: { ...loaded.base, objects: [...loaded.objects] }, profile, mode: "OFFICE", fonts,
+  const mapOwn = BUILT_IN_PRINT_PROFILES.find(item => item.id === MAP_OWN_PRINT_PROFILE_ID)!;
+  const mode = request.mode === "PRESS" ? "PRESS" : "OFFICE";
+  const baseProfile = mode === "OFFICE" && request.lightenForOffice === true
+    ? officePrintProfile(mapOwn, { lighten: true })
+    : mapOwn;
+  // Fristående kartutskrift har ingen bana; ren vektor-PDF utan banlagerdelning.
+  const profile = { ...baseProfile, courseLayer: "TOP" as const };
+  const written = await writeSheetsPdf({ sheets: [sheet], map: { ...loaded.base, objects: [...loaded.objects] }, profile, mode, fonts,
     title: request.title?.slice(0, 200) || "Karta", now });
   return { pdf: written.bytes, result: { pages: written.pages, paper: paper.name, size: paper.size, landscape: paper.landscape, widthMm: paper.widthMm, heightMm: paper.heightMm, notes: written.notes } };
 }

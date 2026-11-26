@@ -14,9 +14,9 @@
  * (`colorDecisions`), men platsen går efter normen: BL:s regel "under brunt, svart och 100 % blå" sade inget om skärmar,
  * så asfalt (brunt 50 %) och stora byggnaders svarta fyllning kunde hamna över banan och dölja ringar och nummer.
  */
-import type { ColorUsage } from "@o-tid/map-file";
+import type { ColorUsage, MapColor } from "@o-tid/map-file";
 import { colorComponents, normalizeColorName } from "./color-match";
-import { BUILT_IN_PRINT_PROFILES, type Cmyk100, type PrintProfile, type SourceMapColor } from "./print-profile";
+import { BUILT_IN_PRINT_PROFILES, type Cmyk100, type MapColorAdjust, type PrintProfile, type SourceMapColor } from "./print-profile";
 import type { OverprintPrimitive } from "./types";
 
 export type PressNorm = "ISOM" | "ISSPROM";
@@ -34,15 +34,21 @@ export interface PressColorClass {
   readonly side: "OVER" | "UNDER";
 }
 
+/** Ett sammanhängande band av färger i `OVER` (ritordning): bläck som kan blandas/övertrycka, eller vitt som alltid slår ut. */
+export interface OverColorBand {
+  readonly kind: "INK" | "WHITE";
+  readonly ids: readonly number[];
+}
+
 /** ISSprOM 2019-2-symboler som inte finns i ISOM 2017-2 (för att känna igen en sprintkarta). */
-const SPRINT_ONLY_CODES = ["501.1", "501.2", "509.1", "509.2", "512.1", "512.2", "520.1", "520.2", "521.1", "522.1", "528.1", "541", "542", "543", "544", "545"];
+const SPRINT_ONLY_CODES = ["501.2", "509.1", "509.2", "512.1", "512.2", "520.1", "520.2", "522.1", "528.1", "541", "542", "543", "544", "545"];
 
 /**
- * Normen för en karta: sprint (ISSprOM) om kartan är i 1:4 000 eller 1:5 000 eller har minst två av sprintnormens egna
+ * Normen för en karta: sprint (ISSprOM) om kartan är i 1:3 000, 1:4 000 eller 1:5 000 eller har minst två av sprintnormens egna
  * symbolnummer, annars skog (ISOM).
  */
 export function detectPressNorm(map: { readonly scale?: number | undefined; readonly codes?: Iterable<string> | undefined }): PressNorm {
-  if (map.scale === 4000 || map.scale === 5000) return "ISSPROM";
+  if (map.scale === 3000 || map.scale === 4000 || map.scale === 5000) return "ISSPROM";
   if (map.scale !== undefined && map.scale >= 15000) return "ISOM";
   const codes = new Set(map.codes ?? []);
   const sprint = SPRINT_ONLY_CODES.filter(code => codes.has(code) || [...codes].some(item => item.startsWith(`${code}.`)));
@@ -66,13 +72,16 @@ const PATTERN_WORDS = /\b(odlad|odlade|åker|cultivated|cultivation|mönster|pat
 
 const only = (usage: ColorUsage | undefined, kind: ColorUsage["kinds"][number]) => usage !== undefined && usage.kinds.length > 0 && usage.kinds.every(item => item === kind);
 const allMains = (usage: ColorUsage | undefined, mains: readonly number[]) => usage !== undefined && usage.mains.length > 0 && usage.mains.every(main => mains.includes(main));
+const hasAnyMain = (usage: ColorUsage | undefined, mains: readonly number[]) => usage !== undefined && usage.mains.some(main => mains.includes(main));
 
 /** Färgens grundslag ur CMYK (procent): full styrka eller skärm. */
 function inkOf(cmyk: Cmyk100): "WHITE" | "BLACK" | "BLUE" | "BROWN" | "GREEN" | "MAGENTA" | "SCREEN" {
   const { c, m, y, k } = cmyk;
   if (Math.max(c, m, y, k) <= 2) return "WHITE";
   if (k >= 90 && c <= 15 && m <= 15 && y <= 15) return "BLACK";
-  if (c >= 90 && m <= 35 && y <= 15 && k <= 15) return "BLUE";
+  if (c >= 85 && m <= 35 && y <= 15 && k <= 15) return "BLUE";
+  // Ren röd (t.ex. 0/100/100/0 förbjudet / röd linje) ligger över banan i båda normerna, inte som brunt.
+  if (m >= 85 && y >= 85 && c <= 15 && k <= 15) return "MAGENTA";
   if (m >= 40 && y >= 90 && c <= 30) return "BROWN";
   if (c >= 60 && y >= 80 && m <= 15 && k <= 15) return "GREEN";
   if (m >= 85 && y <= 15 && k <= 15) return "MAGENTA";
@@ -99,80 +108,79 @@ export function pressColorKind(color: Pick<SourceMapColor, "name" | "cmyk" | "us
       return only(usage, "AREA") || AREA_WORDS.test(name) || (usage?.kinds.includes("AREA") && allMains(usage, [301, 302, 307, 308, 310]))
         ? "BLUE_AREA" : "BLUE_LINE";
     case "BROWN": return "BROWN";
-    case "GREEN": return only(usage, "POINT") || (!usage && POINT_WORDS.test(name)) ? "GREEN_POINT" : "GREEN";
+    case "GREEN":
+      return only(usage, "POINT")
+        || (usage !== undefined && !usage.kinds.includes("AREA") && hasAnyMain(usage, [417, 418, 419]))
+        || (!usage && POINT_WORDS.test(name))
+        ? "GREEN_POINT" : "GREEN";
     case "MAGENTA": return "MAGENTA";
     default: return "SCREEN";
   }
 }
 
-/** Färgslagen över banans (undre) lila per norm; vitt bestäms av sin plats i kartans ordning. */
+/** Färgslagen över banans (undre) lila per norm. */
 const OVER_KINDS: Readonly<Record<PressNorm, ReadonlySet<PressColorKind>>> = {
   ISOM: new Set(["BLACK", "BLUE_LINE", "BROWN", "MAGENTA"]),
   ISSPROM: new Set(["BLACK", "BLACK_BUILDING", "BLACK_ROAD_EDGE", "GREEN_POINT", "MAGENTA"])
 };
 
 /**
- * Kartans färger över och under banan enligt normen. Normen bestämmer bara *sidan*; inom varje sida ritas färgerna i
- * kartfilens egen ordning (PDF:en och förhandsvisningen ritar varje sida med `onlyColors`).
- *
- * Vitt har ingen egen plats i normen utom "vitt (övre)". Ett vitt i kartfilen är nästan alltid en gloria eller en
- * grundlinje under en annan färg i samma symbol (vitt under ett grönt träd, vit linje under järnvägens svarta streck,
- * vit vägfyllning mellan svarta kanter). Det ligger därför över banan bara när kartfilen ritar det över all svart (den
- * översta svarta färgen över banan) och ingen färg under banan ritas över det i kartfilen (äkta övre vitt, masker).
- * Annars under banan: allt som kartfilen ritar över vitet ritas då fortfarande efter det, oavsett sida.
+ * Kartans färger över och under banan enligt normen med en enda monoton snittpunkt i kartfilens ritordning (`drawOrder`).
+ * Snittpunkten ligger vid den lägsta använda färgen bland normens övre färger; alla färger från och med snittpunkten hamnar
+ * `OVER` i exakt ursprunglig `rank`-ordning så att ingen symbol tappar sin inbördes ritordning (t.ex. vägfyllning över
+ * vägkanter eller gröna träd över sin vita gloria). Enda undantaget är solida svarta byggnadsytor (`BLACK_BUILDING`, K ≥ 90)
+ * i ISOM som hålls `UNDER` så att 100 % svarta byggnader inte döljer lila.
  */
 export function pressOrder(colors: readonly SourceMapColor[], norm: PressNorm): { readonly over: ReadonlySet<number>; readonly classes: readonly PressColorClass[] } {
   const kinds = colors.map(color => ({ color, kind: pressColorKind(color) }));
   const hasUsage = colors.some(color => color.usage !== undefined);
   const isUsed = (color: SourceMapColor) => !hasUsage || (color.usage !== undefined && color.usage.objects > 0);
-  // En färg (svart, brunt, blått) som i kartfilen ligger under en använd skärmfärg (t.ex. vägfyllning i brunt 50 %
-  // eller stora byggnader) får aldrig lyftas över banan, annars ritas kurvor/vattendrag/vägkanter ovanpå vägar och hus.
-  const highestScreen = Math.max(
-    -Infinity,
-    ...kinds.filter(item => item.kind === "SCREEN" && isUsed(item.color)).map(item => item.color.drawOrder)
-  );
-  const isOver = (item: { readonly color: SourceMapColor; readonly kind: PressColorKind }) => {
-    if (!OVER_KINDS[norm].has(item.kind)) return false;
-    if ((item.kind === "BLACK" || item.kind === "BLACK_ROAD_EDGE" || item.kind === "BROWN" || item.kind === "BLUE_LINE") && item.color.drawOrder < highestScreen) return false;
-    return true;
-  };
-  const overItems = kinds.filter(isOver);
-  const overOrders = overItems.map(item => item.color.drawOrder);
-  const blackOrders = overItems.filter(item => item.kind === "BLACK").map(item => item.color.drawOrder);
-  // Vitt över banan: ligger över minst en svart färg över banan (eller över den lägsta färgen över banan när svart
-  // saknas) och ingen färg under banan ritas över det i filen — eller ligger direkt över en färg över banan i samma
-  // symbol (t.ex. 418 buskes vita mitt över grönt, eller järnvägens vita streck över svart).
-  const upperFrom = blackOrders.length > 0 ? Math.min(...blackOrders) : Math.min(...overOrders);
-  const underOrders = kinds.filter(item => item.kind !== "WHITE" && !isOver(item) && isUsed(item.color)).map(item => item.color.drawOrder);
-  const highestUnder = Math.max(-Infinity, ...underOrders);
-  const sharesSymbolWithLowerOver = (white: SourceMapColor) => {
-    const codes = white.usage?.codes;
-    if (!codes || codes.length === 0) return false;
-    const codeSet = new Set(codes);
-    return overItems.some(other =>
-      other.color.drawOrder < white.drawOrder &&
-      (other.color.usage?.codes.some(code => codeSet.has(code)) ?? false)
-    );
-  };
+  const anchors = kinds.filter(item => OVER_KINDS[norm].has(item.kind) && isUsed(item.color));
+  const cutpoint = anchors.length > 0 ? Math.min(...anchors.map(item => item.color.drawOrder)) : Infinity;
   const classes = kinds.map((item): PressColorClass => {
-    const over = item.kind === "WHITE"
-      ? (overOrders.length > 0 && item.color.drawOrder > upperFrom && item.color.drawOrder > highestUnder) || sharesSymbolWithLowerOver(item.color)
-      : isOver(item);
+    const solidIsomBuilding = norm === "ISOM" && item.kind === "BLACK_BUILDING" && item.color.cmyk.k >= 90;
+    const over = item.color.drawOrder >= cutpoint && !solidIsomBuilding;
     return { ocadId: item.color.ocadId, name: item.color.name, kind: item.kind, side: over ? "OVER" : "UNDER" };
   });
   return { over: new Set(classes.filter(item => item.side === "OVER").map(item => item.ocadId)), classes };
 }
 
 /**
+ * `OVER`-färgerna i kartfilens ritordning (högst `rank` först → `rank 0` sist, utan `hidden`), uppdelade i sammanhängande
+ * `INK`- och `WHITE`-band (vit = efterjusterad CMYK med maxkanal ≤ 0,02).
+ */
+export function overColorBands(
+  colors: readonly Pick<MapColor, "id" | "rank" | "cmyk">[],
+  over: ReadonlySet<number>,
+  adjust?: Readonly<Record<number, MapColorAdjust>>
+): OverColorBand[] {
+  const ordered = [...colors].sort((left, right) => right.rank - left.rank || left.id - right.id);
+  const bands: { kind: OverColorBand["kind"]; ids: number[] }[] = [];
+  for (const color of ordered) {
+    if (!over.has(color.id)) continue;
+    const setting = adjust?.[color.id];
+    if (setting?.hidden) continue;
+    const source = setting?.cmyk ?? color.cmyk;
+    const amount = Math.max(-1, Math.min(1, Number.isFinite(setting?.lighten) ? setting!.lighten! : 0));
+    const ink = (value: number) => Math.max(0, Math.min(1, value * (1 - amount)));
+    const kind: OverColorBand["kind"] = Math.max(ink(source.c), ink(source.m), ink(source.y), ink(source.k)) <= 0.02 ? "WHITE" : "INK";
+    const last = bands.at(-1);
+    if (last && last.kind === kind) last.ids.push(color.id);
+    else bands.push({ kind, ids: [color.id] });
+  }
+  return bands;
+}
+
+/**
  * Banans figurer i undre lila: 701 start, 703 ring, 705 linje, 706 mål, 708 snitslad väg och 710.1 passage (ISSprOM:s
- * lista; ISOM delar på samma sätt). Allt annat (nummer, markeringar, texter) är övre lila och ritas över kartans färger.
- * I ISOM ligger numren enligt bilagan i undre lila (förval), så att svart, brunt och blått 100 % korsar dem och de ser lite
- * genomsiktliga ut; `numbersOnTop` lägger dem i övre lila som i sprint. ISSprOM har alltid numren i övre lila (704 finns
- * inte i listan för undre lila).
+ * lista; ISOM delar på samma sätt), samt alla figurer uttryckligen märkta med `COURSE_LOWER`. Allt annat (nummer,
+ * markeringar, texter) är övre lila och ritas över kartans färger. I ISOM ligger numren enligt bilagan i undre lila (förval),
+ * så att svart, brunt och blått 100 % korsar dem; `numbersOnTop` lägger dem i övre lila som i sprint.
  */
 export function lowerPurple(figure: OverprintPrimitive, norm: PressNorm, numbersOnTop = false): boolean {
   if (figure.kind === "image" || figure.kind === "description") return false;
-  if (figure.color !== "COURSE" && figure.color !== "COURSE_LOWER") return false;
+  if (figure.color === "COURSE_LOWER") return true;
+  if (figure.color !== "COURSE") return false;
   switch (figure.role) {
     case "START": case "CONTROL": case "FINISH": case "CROSSING_POINT": case "MAP_EXCHANGE": case "LEG": case "FLAGGING": case "OVERLAP": case "TRAINING":
       return figure.kind !== "text" || (norm === "ISOM" && !numbersOnTop);
@@ -197,12 +205,19 @@ export function courseLayerOf(figure: OverprintPrimitive, norm: PressNorm, numbe
 }
 
 /**
- * Profilen för "Skapa PDF för kontorsskrivare": kontorsskrivarens färger (ljusare grönt och gult) med tävlingsprofilens
- * färgordning (normen, banan i färgordningen och numren), så att kontors-PDF:en har samma lager som förhandsvisningen och
- * trycket. Övertrycket blir blandningen Darken i kontorsskrivarens PDF (ADR-0211 beslut 11 och 14).
+ * Profilen för "Skapa PDF för kontorsskrivare": bevarar hela tävlingsprofilen (banfärg, BL-beslut, egna färgjusteringar,
+ * norm, lagerordning och `reference`) men rensar tryckerikrav (`requirements`) och gamla regelblockeringar (`rules`).
+ * När `options?.lighten === true` läggs den skärpta kontorsljusningen för gröna/gula ytor till som fallback efter egna rader.
  */
-export function officePrintProfile(from: Pick<PrintProfile, "courseLayer" | "pressNorm" | "numbersOnTop">): PrintProfile {
+export function officePrintProfile(from: PrintProfile, options?: { readonly lighten?: boolean | undefined }): PrintProfile {
+  const base: PrintProfile = {
+    ...from,
+    rules: [],
+    requirements: { pdfX: false, icc: false, trueOverprint: false }
+  };
+  if (options?.lighten !== true) return base;
   const office = BUILT_IN_PRINT_PROFILES.find(item => item.id === "office")!;
-  return { ...office, ...(from.courseLayer ? { courseLayer: from.courseLayer } : {}), ...(from.pressNorm ? { pressNorm: from.pressNorm } : {}),
-    ...(from.numbersOnTop !== undefined ? { numbersOnTop: from.numbersOnTop } : {}) };
+  const existingPatterns = new Set(from.mapColors.map(item => item.match.namePattern).filter((pattern): pattern is string => pattern !== undefined));
+  const fallback = office.mapColors.filter(item => item.match.namePattern === undefined || !existingPatterns.has(item.match.namePattern));
+  return fallback.length === 0 ? base : { ...base, mapColors: [...from.mapColors, ...fallback] };
 }

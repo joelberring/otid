@@ -1,6 +1,6 @@
 import {
-  acceptSafe, decisionFor, pressOrder, mapColorAdjust, proposeColorMatches, referenceRow, referenceSide, sourceMapColors, withDecision, type Cmyk100,
-  type ColorDecision, type ColorProposal, type CourseSettingEdit, type MapColorAdjust, type PressNorm, type PrintProfile, type ReferenceColor, type ReferenceTable,
+  acceptSafe, decisionFor, effectiveSourceMapColors, overColorBands, pressOrder, mapColorAdjust, proposeColorMatches, referenceRow, referenceSide, sourceMapColors, withDecision, type Cmyk100,
+  type ColorDecision, type ColorProposal, type CourseSettingEdit, type MapColorAdjust, type OverColorBand, type PressNorm, type PrintProfile, type ReferenceColor, type ReferenceTable,
   type SheetFrame, type SourceMapColor
 } from "@o-tid/course-setting";
 import { rgbFromCmyk, type ColorUsage, type MapColor } from "@o-tid/map-file";
@@ -124,7 +124,7 @@ export function previewProfile(profile: PrintProfile, state: ProposalState): Pri
   return { ...profile, colorDecisions: decisions };
 }
 
-export interface Layer { readonly name: string; readonly css: string; readonly row: string | null }
+export interface Layer { readonly ocadId?: number | undefined; readonly name: string; readonly css: string; readonly row: string | null }
 
 /**
  * Lagren för bilden av ordningen: kartans färger över banan (överst först), banan, färgerna under, enligt normen (ADR-0211
@@ -139,7 +139,7 @@ export function layerStack(profile: PrintProfile, state: ProposalState, norm: Pr
   const layer = (color: SourceMapColor): Layer => {
     const item = state.rows.find(row => row.proposal.color.ocadId === color.ocadId)!;
     const id = rowOf(color) ?? null;
-    return { name: color.name, css: id && referenceRow(state.table, id)?.cmyk ? cssOfCmyk(referenceRow(state.table, id)!.cmyk!) : item.before, row: id };
+    return { ocadId: color.ocadId, name: color.name, css: id && referenceRow(state.table, id)?.cmyk ? cssOfCmyk(referenceRow(state.table, id)!.cmyk!) : item.before, row: id };
   };
   const onTop = profile.courseLayer !== "REFERENCE" || above.size === 0;
   const over = onTop ? [] : used.filter(color => above.has(color.ocadId)).map(layer);
@@ -174,20 +174,28 @@ export function thumbnailView(center: { x: number; y: number }, sizeMm = 24, px 
   return { width: px, height: px, pxPerMm: px / sizeMm, origin: { x: center.x - sizeMm / 2, y: center.y + sizeMm / 2 } };
 }
 
-/** Mapcolor-justeringen för "efter" (beslut + förslag) och delarna under och över banan enligt normen. */
+/** Mapcolor-justeringen för "efter" (beslut + förslag) och delarna under och över banan (bandade i exakt rank-ordning) enligt normen. */
 export function afterViews(profile: PrintProfile, state: ProposalState, colors: readonly MapColor[], norm: PressNorm = "ISOM"):
-  { adjust: Record<number, MapColorAdjust>; over: number[] | undefined; overWhite: number[] | undefined; under: number[] | undefined } {
+  { adjust: Record<number, MapColorAdjust>; overBands: OverColorBand[]; over: number[] | undefined; overWhite: number[] | undefined; under: number[] | undefined } {
   const preview = previewProfile(profile, state);
   const adjust = mapColorAdjust(preview, colors);
-  if (profile.courseLayer !== "REFERENCE") return { adjust, over: undefined, overWhite: undefined, under: undefined };
-  const order = pressOrder(state.colors, norm);
+  if (profile.courseLayer !== "REFERENCE") return { adjust, overBands: [], over: undefined, overWhite: undefined, under: undefined };
+  const usageMap = new Map(state.colors.flatMap(color => color.usage ? [[color.ocadId, color.usage] as const] : []));
+  const source = effectiveSourceMapColors(colors, usageMap.size > 0 ? usageMap : undefined, adjust);
+  const order = pressOrder(source, norm);
   const above = order.over;
-  if (above.size === 0) return { adjust, over: undefined, overWhite: undefined, under: undefined };
-  // Vitt över banan slår ut (som i PDF:en) och ritas utan blandning; de andra färgerna över banan ritas en gång till med Darken över hela kartan.
-  const white = new Set(order.classes.filter(item => item.kind === "WHITE").map(item => item.ocadId));
-  const ids = colors.map(color => color.id);
-  return { adjust, over: ids.filter(id => above.has(id) && !white.has(id)), overWhite: ids.filter(id => above.has(id) && white.has(id)),
-    under: ids.filter(id => !above.has(id)) };
+  if (above.size === 0) return { adjust, overBands: [], over: undefined, overWhite: undefined, under: undefined };
+  const overBands = overColorBands(colors, above, adjust);
+  if (overBands.length === 0) return { adjust, overBands: [], over: undefined, overWhite: undefined, under: undefined };
+  const overIds = overBands.flatMap(band => band.ids);
+  const overSet = new Set(overIds);
+  return {
+    adjust,
+    overBands,
+    over: overBands.filter(band => band.kind === "INK").flatMap(band => band.ids),
+    overWhite: overBands.filter(band => band.kind === "WHITE").flatMap(band => band.ids),
+    under: colors.filter(color => !overSet.has(color.id) && !adjust[color.id]?.hidden).map(color => color.id)
+  };
 }
 
 /**
@@ -223,7 +231,7 @@ export function compareDpi(clip: { readonly width: number; readonly height: numb
   return Math.min(220, COMPARE_MAX_PX / Math.max(1, clip.width, clip.height) * 25.4);
 }
 
-type FrameLike = Pick<SheetFrame, "clip" | "transform" | "mapArea" | "figures">;
+type FrameLike = Pick<SheetFrame, "clip" | "transform" | "mapArea" | "figures"> & { readonly mirror?: boolean | undefined };
 
 /**
  * Utsnittet för "hela kartan före och efter": banans figurer med marginal (kartans mm), inom ramens kartyta, som en ram
@@ -239,6 +247,8 @@ export function compareFrame<T extends FrameLike>(frame: T, marginMm = 12): T {
     else if (figure.kind === "polyline") figure.points.forEach(point => add(point));
     else if (figure.kind === "polygon") figure.rings.forEach(ring => ring.forEach(point => add(point)));
     else if (figure.kind === "text") add(figure.at);
+    else if (figure.kind === "image") { add({ x: figure.rect.minX, y: figure.rect.minY }); add({ x: figure.rect.maxX, y: figure.rect.maxY }); }
+    else if (figure.kind === "description") { add(figure.topLeft); add({ x: figure.topLeft.x + figure.layout.widthMm, y: figure.topLeft.y - figure.layout.heightMm }); }
   }
   if (!Number.isFinite(minX)) return frame;
   const area = { minX: Math.max(frame.mapArea.minX, minX - marginMm), minY: Math.max(frame.mapArea.minY, minY - marginMm),
@@ -246,5 +256,9 @@ export function compareFrame<T extends FrameLike>(frame: T, marginMm = 12): T {
   if (area.maxX <= area.minX || area.maxY <= area.minY) return frame;
   const s = frame.transform.scale;
   const corner = { x: s * area.minX + frame.transform.translateX, y: -s * area.maxY + frame.transform.translateY };
-  return { ...frame, mapArea: area, clip: { x: corner.x, y: corner.y, width: (area.maxX - area.minX) * s, height: (area.maxY - area.minY) * s } };
+  const axis = (frame.mapArea.minX + frame.mapArea.maxX) / 2;
+  const mapArea = frame.mirror
+    ? { minX: 2 * axis - area.maxX, maxX: 2 * axis - area.minX, minY: area.minY, maxY: area.maxY }
+    : area;
+  return { ...frame, mapArea, clip: { x: corner.x, y: corner.y, width: (area.maxX - area.minX) * s, height: (area.maxY - area.minY) * s } };
 }

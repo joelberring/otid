@@ -201,6 +201,40 @@ describe("drawMap", () => {
     expect(report.parts).toBe(1);
     expect(report.simplifications).toContain("Delar i färger som saknas i färgtabellen (t.ex. passmärken) ritas inte");
   });
+
+  it("excludeColors hoppar över dolda färger i både planering och ritning (inga tomma klipp eller mönsternotiser)", () => {
+    const symbols: MapSymbol[] = [
+      { id: "marsh", kind: "AREA", code: code("308"), name: "Sank mark", hidden: false, hatches: [{ color: 2, width: 0.1, spacing: 0.4, angle: 0 }] },
+      { id: "dense", kind: "AREA", code: code("412"), name: "Odlad mark", hidden: false, hatches: [],
+        pattern: { dx: 0.05, dy: 0.05, elements: [{ kind: "dot", color: 4, center: { x: 0, y: 0 }, diameter: 0.02 }] } },
+      { id: "path", kind: "LINE", code: code("505"), name: "Stig", hidden: false, strokes: [{ color: 1, width: 0.25 }] }
+    ];
+    const seen: number[] = [];
+    const { ctx, calls } = fakeContext();
+    const report = drawMap(ctx, map(symbols, [
+      { kind: "area", symbol: "marsh", rings: [square(0, 0, 4)], angle: 0 },
+      { kind: "area", symbol: "dense", rings: [square(20, 0, 20)], angle: 0 },
+      { kind: "line", symbol: "path", path: [{ type: "M", x: 1, y: 1 }, { type: "L", x: 10, y: 1 }] }
+    ]), { pxPerMm: 8, origin: { x: 0, y: 30 }, excludeColors: new Set([2, 4]), beforeColor: c => seen.push(c.id) });
+    expect(seen).toEqual([1]);
+    expect(calls.filter(call => call.op === "clip")).toHaveLength(0);
+    expect(strokes(calls)).toEqual([{ style: "rgba(0, 0, 0, 1)", width: 0.25, dash: [] }]);
+    expect(report.simplifications.some(text => text.includes("412"))).toBe(false);
+  });
+
+  it("bevarar 3 decimaler i ctx.font-storleken (undviker 0,1 mm textkvantisering i PdfCanvas)", () => {
+    const symbols: MapSymbol[] = [
+      { id: "small", kind: "TEXT", code: code("999"), name: "Liten", hidden: false, color: 1, size: 1.75, fontFamily: "Arial", bold: false, italic: false },
+      { id: "tiny", kind: "TEXT", code: code("998"), name: "Exakt", hidden: false, color: 1, size: 1.2346, fontFamily: "Arial", bold: false, italic: false }
+    ];
+    const { ctx, calls } = fakeContext();
+    drawMap(ctx, map(symbols, [
+      { kind: "text", symbol: "small", at: { x: 1, y: 10 }, angle: 0, text: "A" },
+      { kind: "text", symbol: "tiny", at: { x: 2, y: 10 }, angle: 0, text: "B" }
+    ]), { pxPerMm: 1, origin: { x: 0, y: 30 } });
+    const fonts = calls.filter(call => call.op === "fillText").map(call => call.state.font);
+    expect(fonts).toEqual(['1.75px "Arial", sans-serif', '1.235px "Arial", sans-serif']);
+  });
 });
 
 describe("färgjustering för utskrift (steg 64)", () => {

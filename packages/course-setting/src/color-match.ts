@@ -37,10 +37,18 @@ type Hue = "black" | "brown" | "blue" | "green" | "yellow" | "white" | "violet" 
 interface Component { readonly hue: Hue; readonly percent: number }
 
 const HUES: readonly [RegExp, Hue][] = [
-  [/^(svart|black|grå|grått|grey|gray)$/, "black"], [/^(brun|brunt|brown)$/, "brown"], [/^(blå|blått|blue|cyan)$/, "blue"],
-  [/^(grön|grönt|green)$/, "green"], [/^(gul|gult|yellow)$/, "yellow"], [/^(vit|vitt|white)$/, "white"],
-  [/^(violett|lila|purple|magenta)$/, "violet"], [/^(röd|rött|red)$/, "red"], [/^(alla|all)$/, "all"]
+  [/^(svart|svarta|black|grå|grått|gråa|grey|gray)$/, "black"],
+  [/^(brun|brunt|bruna|ljusbrun|ljusbrunt|mörkbrun|mörkbrunt|brown)$/, "brown"],
+  [/^(blå|blått|blåa|ljusblå|ljusblått|mörkblå|mörkblått|blue|cyan)$/, "blue"],
+  [/^(grön|grönt|gröna|mörkgrön|mörkgrönt|ljusgrön|ljusgrönt|green)$/, "green"],
+  [/^(gul|gult|gula|ljusgul|ljusgult|yellow)$/, "yellow"],
+  [/^(vit|vitt|vita|white)$/, "white"],
+  [/^(violett|violetta|lila|purple|magenta)$/, "violet"],
+  [/^(röd|rött|röda|red)$/, "red"],
+  [/^(alla|all)$/, "all"]
 ];
+
+const OLIVE_WORD = /^(olivgrön|olivgrönt|olivgröna)$/;
 
 /** Namnet i gemener med "%" intill talet och ord avskilda med mellanslag. */
 export function normalizeColorName(name: string): string {
@@ -48,11 +56,20 @@ export function normalizeColorName(name: string): string {
 }
 
 const tokensOf = (name: string) => normalizeColorName(name).split(" ").filter(Boolean);
-const percentOf = (token: string | undefined): number | undefined => {
-  const match = token ? /^(\d+(?:[.,]\d+)?)%?$/.exec(token) : null;
-  if (!match) return undefined;
-  const value = Number(match[1]!.replace(",", "."));
-  return value >= 0 && value <= 100 ? value : undefined;
+const percentOf = (token: string | undefined, hue?: Hue): number | undefined => {
+  if (!token) return undefined;
+  const withSign = /^(\d+(?:[.,]\d+)?)%$/.exec(token);
+  if (withSign) {
+    const value = Number(withSign[1]!.replace(",", "."));
+    return value >= 0 && value <= 100 ? value : undefined;
+  }
+  // Utan "%": godta bara vanliga rastersteg (20–100 i tiotal) på kartfärger (t.ex. BL:s "Undre brun 30"),
+  // så att OCAD-färgnummer som "Violett 52", "Violett 50" eller "Brun 15" aldrig tolkas som procent.
+  if (hue === "violet" || hue === "white") return undefined;
+  const bare = /^(\d+)$/.exec(token);
+  if (!bare) return undefined;
+  const value = Number(bare[1]);
+  return value >= 20 && value <= 100 && value % 10 === 0 ? value : undefined;
 };
 
 /** Färgorden med andel ur ett namn: "Grön 100% + 50% Svart" = grön 100, svart 50; utan tal 100 %. */
@@ -61,14 +78,20 @@ export function colorComponents(name: string): Component[] {
   const out: Component[] = [];
   const claimed = new Set<number>();
   tokens.forEach((token, index) => {
+    if (OLIVE_WORD.test(token)) {
+      if (!out.some(component => component.hue === "yellow")) out.push({ hue: "yellow", percent: 100 });
+      if (!out.some(component => component.hue === "green")) out.push({ hue: "green", percent: 50 });
+      return;
+    }
     const hue = HUES.find(([pattern]) => pattern.test(token))?.[1];
     if (!hue) return;
     let percent: number | undefined;
-    const after = percentOf(tokens[index + 1]);
-    const before = percentOf(tokens[index - 1]);
+    const after = percentOf(tokens[index + 1], hue);
+    const before = tokens[index - 1]?.endsWith("%") ? percentOf(tokens[index - 1], hue) : undefined;
     if (after !== undefined && !claimed.has(index + 1)) { percent = after; claimed.add(index + 1); }
-    else if (before !== undefined && /%$/.test(tokens[index - 1]!) && !claimed.has(index - 1)) { percent = before; claimed.add(index - 1); }
-    if (!out.some(component => component.hue === hue)) out.push({ hue, percent: percent ?? (/^(grå|grått|grey|gray)$/.test(token) ? 30 : 100) });
+    else if (before !== undefined && !claimed.has(index - 1)) { percent = before; claimed.add(index - 1); }
+    const fallback = /^(grå|grått|gråa|grey|gray)$/.test(token) ? 30 : token.startsWith("ljus") ? 50 : 100;
+    if (!out.some(component => component.hue === hue)) out.push({ hue, percent: percent ?? fallback });
   });
   return out;
 }

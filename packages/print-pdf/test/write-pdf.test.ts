@@ -109,14 +109,16 @@ describe("PDF för tryck (steg 65)", () => {
     expect(result.notes.join(" ")).toContain("skrivs som CMYK");
   });
 
-  it("kontorsskrivare: bara CMYK, inga dekorfärger och inget övertryck, profilens ljusare grönt", async () => {
+  it("kontorsskrivare: bara CMYK, inga dekorfärger och inget övertryck, profilens ljusare grönt och isolerade OVER-band med Darken", async () => {
     const { result, pdf } = await write(ocd, "OFFICE");
     expect(pdf.colorSpaces.size).toBe(0);
     expect(result.plates).toEqual([]);
     expect(result.overprint).toBe(false);
-    for (const page of pdf.pages) expect(page.content).not.toContain("/GOP gs");
+    // Inbyggda office-profilen har nu courseLayer: REFERENCE → /GOP är /BM /Darken (inte /OP), och inga kartutsnitt har /GOP inuti.
+    expect(pdf.extGStates.get("GOP")).toMatchObject({ BM: "/Darken" });
+    expect(pdf.extGStates.get("GOP")).not.toHaveProperty("OP");
+    for (const form of pdf.forms.values()) expect(form).not.toContain("/GOP gs");
     const form = [...pdf.forms.values()][0]!;
-    expect(form).not.toContain("/GOP gs");
     // Grön 76/0/91/0 30 % ljusare = 53,2/0/63,7/0; banans lila i CMYK.
     expect(form).toContain("0.532 0 0.637 0 k");
     expect(pdf.pages[0]!.content).toContain("0.2 1 0 0 K");

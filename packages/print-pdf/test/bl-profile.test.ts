@@ -65,21 +65,21 @@ describe("PDF med BL-profilen", () => {
     expect(ring).toBeGreaterThan(under);
     expect(over).toBeGreaterThan(ring);
     const forms = [...pdf.forms.values()];
-    // Under: hela kartan som i filen (ADR-0211 beslut 14), BL:s gul 100 % (0/27/94/0), blå 50 % och även brunt, svart och blå
-    // linje utan övertryck; över: BL:s brun (0/75/100/33), svart och blå linje 100/0/0/0 en gång till med övertryck.
+    // Ren enpass-ordning i PROCESS/BL (Alternativ A): UNDER innehåller bara under-färgerna (BL:s gul 0/27/94/0 och blå 50 %),
+    // OVER innehåller bara över-färgerna (BL:s brun 0/75/100/33, svart och blå 100/0/0/0) med knockout (noll 308–375 % TAC-blödning).
     expect(forms[0]).toContain("0 0.27 0.94 0 k");
     expect(forms[0]).toContain("0.5 0 0 0 k");
-    expect(forms[0]).toContain("0 0.75 1 0.33 K");
-    expect(forms[0]).toContain("1 0 0 0 K");
+    expect(forms[0]).not.toContain("0 0.75 1 0.33 K");
+    expect(forms[0]).not.toContain("1 0 0 0 K");
     expect(forms[1]).toContain("0 0.75 1 0.33 K");
     expect(forms[1]).toContain("1 0 0 0 K");
     expect(forms[1]).not.toContain("0 0.27 0.94 0 k");
     expect(result.overCourse).toHaveLength(3);
     expect(result.notes.join(" ")).toMatch(/vill ha CMYK/);
     expect(result.notes.join(" ")).toMatch(/under 3 kartfärger/);
-    // Färgerna över banan med övertryck (/GOP), färgerna under utan.
-    expect(forms[1]).toMatch(/\/GOP gs/);
+    // Både UNDER och OVER kör ren knockout (inga /GOP gs, ingen CMYK OPM 1-blödning).
     expect(forms[0]).not.toMatch(/\/GOP gs/);
+    expect(forms[1]).not.toMatch(/\/GOP gs/);
   });
 
   it("valet i profilen: banan överst som förr (ett utsnitt, banan sist)", async () => {
@@ -92,9 +92,9 @@ describe("PDF med BL-profilen", () => {
   });
 
   // Ordningen i trycket: Ghostscript renderar sidan i CMYK (bitcmyk, 8 bitar per plåt). Där höjdkurvan korsar ringen ligger
-  // BL:s brun 0/75/100/33 över violetten 35/95/0/0 med övertryck (ADR-0211 beslut 3): violettens cyan finns kvar under det
-  // bruna och brunets gula plåt ligger på; med banan överst (utan övertryck) slår violetten ut brunt.
-  it.skipIf(!hasGhostscript())("Ghostscript: höjdkurvan ligger över ringen med övertryck med BL-profilen, under den med banan överst", async () => {
+  // BL:s brun 0/75/100/33 skarpt över violetten 35/95/0/0 (ren enpass-ordning med knockout, noll TAC-blödning); med banan
+  // överst slår violetten ut brunt.
+  it.skipIf(!hasGhostscript())("Ghostscript: höjdkurvan ligger skarpt över ringen med BL-profilen (noll TAC-blödning), under den med banan överst", async () => {
     const { sheets: list } = sheets();
     const frame = list[0]!.frames[0]!;
     const ring = list[0]!.frames[0]!.figures.find(figure => figure.kind === "circle" && figure.role === "CONTROL");
@@ -108,7 +108,7 @@ describe("PDF med BL-profilen", () => {
     };
     const bl = await sample(approved());
     const top = await sample({ ...approved(), courseLayer: "TOP" });
-    expect(bl.c).toBeGreaterThan(0.3);
+    expect(bl.c).toBeLessThan(0.05);
     expect(bl.y).toBeGreaterThan(0.9);
     expect(bl.k).toBeGreaterThan(0.25);
     expect(top.c).toBeGreaterThan(0.3);

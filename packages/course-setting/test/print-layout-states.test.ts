@@ -58,6 +58,17 @@ describe("sparade lägen", () => {
     expect(apply(edited, { type: "RESTORE_LAYOUT_STATE", id: "s1" }).event.printProfiles![0]!.name).toBe("Egen");
   });
 
+  it("återställning av läge utan printProfileId tar bort ett senare valt printProfileId", () => {
+    const { b } = lineCourse(2);
+    const saved = apply(b.document, { type: "SAVE_LAYOUT_STATE", id: "default", name: "Standard", savedAt: "2026-11-07T10:00:00Z" });
+    expect(saved.event.printProfileId).toBeUndefined();
+    const switched = apply(saved, { type: "SET_EVENT", changes: { printProfileId: "office" } });
+    expect(switched.event.printProfileId).toBe("office");
+    const restored = apply(switched, { type: "RESTORE_LAYOUT_STATE", id: "default" });
+    expect(restored.event.printProfileId).toBeUndefined();
+    expect(compareLayoutState(restored, saved.event.layoutStates![0]!)).toEqual([]);
+  });
+
   it("\"Från Purple Pen\" ersätter det förra automatiska läget och står bredvid de egna", () => {
     const { document } = setup();
     const own = apply(document, { type: "SAVE_LAYOUT_STATE", id: "s1", name: "Eget", savedAt: "2026-11-07T10:00:00Z" });

@@ -75,6 +75,8 @@ export interface DrawMapOptions {
    * banan först, banan, sedan färgerna över (utan bakgrund). Saknas = alla färger.
    */
   readonly onlyColors?: ReadonlySet<number> | undefined;
+  /** Färger (id) som hoppas över helt (t.ex. dolda i profilen), utan planering, klipp eller mönsternotiser. */
+  readonly excludeColors?: ReadonlySet<number> | undefined;
   /** Träningsläget (ADR-0192): rita bara inom klippningen (kartans mm). Saknas = hela bilden. */
   readonly clip?: MapClip | undefined;
   /** Träningsläget: objekt med dessa symboler (id) ritas inte. */
@@ -220,8 +222,21 @@ function placed(ctx: MapCanvasContext, at: Point, angleRadians: number, draw: ()
 /** Samlar ritningen per färg. */
 class Plan {
   readonly byColor = new Map<number, Drawer[]>();
-  constructor(readonly colors: ReadonlyMap<number, MapColor>, readonly simplifications: Simplifications) {}
+  constructor(
+    readonly colors: ReadonlyMap<number, MapColor>,
+    readonly simplifications: Simplifications,
+    readonly excludeColors?: ReadonlySet<number> | undefined,
+    readonly onlyColors?: ReadonlySet<number> | undefined
+  ) {}
+  wants(colorId: number): boolean {
+    if (this.excludeColors?.has(colorId)) return false;
+    if (this.onlyColors && !this.onlyColors.has(colorId)) return false;
+    const color = this.colors.get(colorId);
+    return color !== undefined && color.opacity > 0;
+  }
   add(colorId: number, drawer: (ctx: MapCanvasContext, color: MapColor) => void) {
+    if (this.excludeColors?.has(colorId)) return;
+    if (this.onlyColors && !this.onlyColors.has(colorId)) return;
     const color = this.colors.get(colorId);
     // En färg som inte finns i färgtabellen (t.ex. Mappers registerfärg för passmärken) ritas inte.
     if (!color) { this.simplifications.add("Delar i färger som saknas i färgtabellen (t.ex. passmärken) ritas inte"); return; }
@@ -277,7 +292,9 @@ function planLine(plan: Plan, symbol: LineSymbol, paths: readonly Path[]) {
   for (const stroke of symbol.strokes) planStroke(plan, stroke, paths);
   if (!symbol.repeated && !symbol.between && !symbol.corner && !symbol.start && !symbol.end) return;
   for (const { elements, places } of lineDecorations(symbol, paths, MAX_REPEATS)) {
-    if (places.length >= MAX_REPEATS) plan.simplifications.add(`Upprepade tecken längs ${symbol.code.text} ritas bara delvis`);
+    if (places.length >= MAX_REPEATS && elements.some(element => plan.wants(element.color))) {
+      plan.simplifications.add(`Upprepade tecken längs ${symbol.code.text} ritas bara delvis`);
+    }
     planPlacements(plan, elements, places);
   }
 }
@@ -380,7 +397,7 @@ function planArea(plan: Plan, symbol: AreaSymbol, rings: readonly Path[], angleD
       const instances = (i1 - i0 + 1) * (j1 - j0 + 1);
       const groups = elementsByColor(pattern.elements);
       if (instances > maxInstances) {
-        plan.simplifications.pattern(symbol.code.text);
+        if ([...groups.keys()].some(colorId => plan.wants(colorId))) plan.simplifications.pattern(symbol.code.text);
         for (const [colorId, parts] of groups) {
           const alpha = coverage(parts, pattern.dx, pattern.dy);
           plan.add(colorId, (ctx, color) => fillRings(ctx, rings, css(color, alpha)));
@@ -425,7 +442,7 @@ function planText(plan: Plan, symbol: TextSymbol, object: Extract<MapObject, { k
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, px, py);
     if (object.angle !== 0) ctx.rotate(-object.angle * DEGREES);
-    ctx.font = `${symbol.italic ? "italic " : ""}${symbol.bold ? "bold " : ""}${Math.round(size * 10) / 10}px ${fontFamily(symbol.fontFamily)}`;
+    ctx.font = `${symbol.italic ? "italic " : ""}${symbol.bold ? "bold " : ""}${Math.round(size * 1000) / 1000}px ${fontFamily(symbol.fontFamily)}`;
     ctx.textAlign = symbol.align ?? "left";
     ctx.textBaseline = symbol.baseline ?? "alphabetic";
     object.text.split(/\r?\n/).forEach((line, index) => paint(line, index * size * lineStep));
@@ -497,7 +514,7 @@ export function drawMap(ctx: MapCanvasContext, map: ParsedMap, options: DrawMapO
   const colors = new Map(map.colors.map(color => [color.id, adjustedColor(color, options.colorAdjust?.[color.id])]));
   const ink = options.tint === undefined ? 1 : clamp01(options.tint);
   const drawColors = ink < 1 ? new Map([...colors].map(([id, color]) => [id, { ...color, opacity: color.opacity * ink }])) : colors;
-  const plan = new Plan(drawColors, simplifications);
+  const plan = new Plan(drawColors, simplifications, options.excludeColors, options.onlyColors);
   let parts = 0;
   if (options.cull) {
     // Bildens yta i kartans mm med en liten marginal (kantutjämning och avrundning).
@@ -526,6 +543,7 @@ export function drawMap(ctx: MapCanvasContext, map: ParsedMap, options: DrawMapO
   }
   const order = [...map.colors].sort((left, right) => right.rank - left.rank || left.id - right.id);
   for (const color of order) {
+    if (options.excludeColors?.has(color.id)) continue;
     if (options.onlyColors && !options.onlyColors.has(color.id)) continue;
     const drawers = plan.byColor.get(color.id);
     if (!drawers || drawers.length === 0) continue;

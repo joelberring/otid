@@ -4,9 +4,14 @@
  * B7: servern skriver aldrig ut en bortvald variant, också om klientens lista har den.
  */
 import { readFileSync } from "node:fs";
+import { inflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import type { PrintJobRequest } from "@o-tid/contracts";
-import { allCourseVariants, applyEdit, readPpen, type OverprintPrimitive, type Sheet } from "@o-tid/course-setting";
+import {
+  acceptSafe, allCourseVariants, applyEdit, BL_FOREST_2026_11_02, BUILT_IN_PRINT_PROFILES, emptyDocument, officePrintProfile, proposeColorMatches,
+  readPpen, sourceMapColors, type OverprintPrimitive, type PrintProfile, type Sheet
+} from "@o-tid/course-setting";
+import { colorUsage, readMapFile } from "@o-tid/map-file";
 import { FONT_FILE_NAMES, FONT_VARIANTS, type FontFiles } from "@o-tid/print-pdf";
 import { printJobSheets, PrintJobError, renderPrintJob } from "../src/course-setting-print-render";
 
@@ -83,5 +88,79 @@ describe("PDF-jobbet: rubriken på kartorna", () => {
     expect(sheets).not.toContain("Gafflingsurval på kartfilen");
     const chosen = applyEdit(document, { type: "SET_EVENT", changes: { printFileTitle: true } }).document;
     expect(JSON.stringify(printJobSheets(chosen, headed(), undefined, undefined, undefined, "Natt 2"))).toContain("Gafflingsurval på kartfilen");
+  });
+});
+
+function inflatePdfStreams(bytes: Uint8Array): string {
+  const buf = Buffer.from(bytes);
+  const parts: string[] = [];
+  let pos = 0;
+  while (pos < buf.length) {
+    const start = buf.indexOf("stream\n", pos, "latin1");
+    if (start < 0) break;
+    const end = buf.indexOf("\nendstream", start + 7, "latin1");
+    if (end < 0) break;
+    try { parts.push(inflateSync(buf.subarray(start + 7, end)).toString("latin1")); } catch { /* icke-flate */ }
+    pos = end + 10;
+  }
+  return parts.join("\n");
+}
+
+describe("PDF-jobbet: kontorsskrivare med BL-profil och passmärkesfärg (Etapp 1 regression)", () => {
+  const regMapXml = `<?xml version="1.0" encoding="UTF-8"?>
+<map xmlns="http://openorienteering.org/apps/mapper/xml/v2" version="9">
+<georeferencing scale="10000"><projected_crs id="Local"/></georeferencing>
+<colors count="3">
+<color priority="0" name="Passmärkesfärg" c="1" m="1" y="1" k="1" opacity="1"><cmyk method="custom"/></color>
+<color priority="1" name="Brun 100%" c="0.2" m="0.7" y="1" k="0" opacity="1"><cmyk method="custom"/></color>
+<color priority="2" name="Gul 100%" c="0" m="0.25" y="0.95" k="0" opacity="1"><cmyk method="custom"/></color>
+</colors>
+<barrier version="6" required="0.6.0">
+<symbols count="3" id="reg">
+<symbol type="2" id="0" code="505.0" name="Passmärke"><line_symbol color="0" line_width="300" join_style="2" cap_style="0"/></symbol>
+<symbol type="2" id="1" code="101.0" name="Höjdkurva"><line_symbol color="1" line_width="140" join_style="2" cap_style="0"/></symbol>
+<symbol type="4" id="2" code="401.0" name="Öppen mark"><area_symbol inner_color="2" patterns="0"/></symbol>
+</symbols>
+<parts count="1" current="0"><part name="del"><objects count="3">
+<object type="1" symbol="2"><coords count="5">0 0;60000 0;60000 -60000;0 -60000;0 0 18;</coords></object>
+<object type="1" symbol="1"><coords count="2">0 -30000;60000 -30000;</coords></object>
+<object type="1" symbol="0"><coords count="2">10000 -10000;20000 -10000;</coords></object>
+</objects></part></parts>
+</barrier></map>`;
+
+  it("OFFICE med officePrintProfile(blForest) lyckas trots passmärkesfärg-objekt och bevarar godkända BL-beslut, medan PRESS stoppas", async () => {
+    const mapBytes = new TextEncoder().encode(regMapXml);
+    const parsedMap = readMapFile(mapBytes, "reg.omap");
+    const blForest = BUILT_IN_PRINT_PROFILES.find(item => item.id === "bl-forest-2026-11-02")!;
+    const proposals = proposeColorMatches(BL_FOREST_2026_11_02, sourceMapColors(parsedMap.colors, colorUsage(parsedMap)));
+    const blApproved: PrintProfile = { ...blForest, id: "bl-godkand", basedOn: blForest.id, colorDecisions: acceptSafe([], proposals) };
+    let doc = emptyDocument({ title: "BL Office", mapScale: 10000 });
+    const start = applyEdit(doc, { type: "ADD_CONTROL", kind: "START", at: { x: 15, y: 15 } }); doc = start.document;
+    const finish = applyEdit(doc, { type: "ADD_CONTROL", kind: "FINISH", at: { x: 45, y: 45 } }); doc = finish.document;
+    const course = applyEdit(doc, { type: "ADD_COURSE", name: "A" }); doc = course.document;
+    doc = applyEdit(doc, { type: "INSERT_COURSE_CONTROL", course: course.created!, control: start.created! }).document;
+    doc = applyEdit(doc, { type: "INSERT_COURSE_CONTROL", course: course.created!, control: finish.created! }).document;
+    const map = { bytes: mapBytes, fileName: "reg.omap", bounds: { minX: 0, minY: 0, maxX: 60, maxY: 60 } };
+
+    // OFFICE ska inte stoppas av BL:s passmärkesfärg-spärr eller obekräftade varningar, och ska behålla BL:s CMYK.
+    const officeResult = await renderPrintJob({
+      document: doc, map, fonts: fonts(), maxPages: 10, title: "Office BL", now: new Date("2026-11-26T10:00:00Z"),
+      request: { formatVersion: 1, requestId: crypto.randomUUID(), kind: "OFFICE", profileId: blApproved.id,
+        profile: officePrintProfile(blApproved), layout: { kind: "PAGES", header: false }, perRunner: false, duplex: false,
+        items: [{ course: course.created! }], warningsConfirmed: false }
+    });
+    expect(officeResult.pages).toBe(1);
+    expect(officeResult.preflight).toEqual([]);
+    const streams = inflatePdfStreams(officeResult.bytes);
+    expect(streams).toContain("0 0.75 1 0.33 K");
+    expect(streams).toContain("0 0.27 0.94 0 k");
+
+    // PRESS med samma BL-profil ska däremot fortfarande stoppas av förhandskontrollen.
+    await expect(renderPrintJob({
+      document: doc, map, fonts: fonts(), maxPages: 10, title: "Press BL", now: new Date("2026-11-26T10:00:00Z"),
+      request: { formatVersion: 1, requestId: crypto.randomUUID(), kind: "PRESS", profileId: blApproved.id,
+        profile: blApproved, layout: { kind: "PAGES", header: false }, perRunner: false, duplex: false,
+        items: [{ course: course.created! }], warningsConfirmed: true }
+    })).rejects.toThrow(PrintJobError);
   });
 });

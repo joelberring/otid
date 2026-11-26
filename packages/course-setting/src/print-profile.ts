@@ -29,8 +29,8 @@ export interface MapColorSetting {
   readonly hidden?: boolean | undefined;
   readonly lighten?: number | undefined;
   readonly cmyk?: Cmyk100 | undefined;
-  /** Dekorfärg med eller utan övertryck (steg 65 skriver den som egen separation). */
-  readonly spot?: { readonly name: string; readonly overprint: boolean } | undefined;
+  /** Dekorfärg med eller utan övertryck (steg 65 skriver den som egen separation); `null` = stäng av filens dekorfärg uttryckligen. */
+  readonly spot?: { readonly name: string; readonly overprint: boolean } | null | undefined;
 }
 
 /** En regel i förhandskontrollen (macpurplepens PrintProfileColorRule). */
@@ -131,7 +131,11 @@ export const BUILT_IN_PRINT_PROFILES: readonly PrintProfile[] = [
     schemaVersion: 1, id: "office", name: "Kontorsskrivare (ljusare grönt)",
     description: "Kontorsskrivare trycker grönt och gult för mörkt: gröna ytor 30 % ljusare, gula 15 %.",
     course: { cmyk: { c: 20, m: 100, y: 0, k: 0 }, spotName: "Purple", overprint: false },
-    mapColors: [{ match: { namePattern: "grön|green" }, lighten: 30 }, { match: { namePattern: "gul|yellow" }, lighten: 15 }],
+    courseLayer: "REFERENCE",
+    mapColors: [
+      { match: { namePattern: "^(?!.*(\\boliv|\\bmörk|\\bdark|\\bpunkt|\\bpoint|\\bsvart|\\bblack|\\bvit|\\bwhite|tomt|\\bgul|\\byellow|\\bskid|\\bski)).*(grön|green)" }, lighten: 30 },
+      { match: { namePattern: "^(?!.*(\\bvit|\\bwhite|\\boliv|tomt|\\bgrön|\\bgreen|\\bpunkt|\\bpoint|\\bsvart|\\bblack)).*(gul|yellow)" }, lighten: 15 }
+    ],
     rules: [], requirements: NO_REQUIREMENTS
   },
   {
@@ -216,15 +220,19 @@ export function validatePrintProfile(value: unknown): PrintProfile {
   const profile = value as PrintProfile;
   if (profile.schemaVersion !== PRINT_PROFILE_SCHEMA_VERSION) throw invalid(`schemaVersion ${String(profile.schemaVersion)} stöds inte`);
   if (typeof profile.id !== "string" || profile.id === "" || typeof profile.name !== "string" || profile.name.trim() === "") throw invalid("saknar id eller namn");
+  if (profile.id.length > 64) throw invalid("id får vara högst 64 tecken");
   if (!profile.course || !isCmyk(profile.course.cmyk) || typeof profile.course.spotName !== "string" || typeof profile.course.overprint !== "boolean") {
     throw invalid("banans färg är inte CMYK 0–100 med dekorfärg och övertryck");
   }
   if (!Array.isArray(profile.mapColors) || profile.mapColors.length > 500) throw invalid("kartans färger saknas");
   (profile.mapColors as readonly MapColorSetting[]).forEach((setting, index) => {
     checkMatch(setting.match, `rad ${index + 1}`);
+    if (setting.hidden !== undefined && typeof setting.hidden !== "boolean") throw invalid(`rad ${index + 1}: dold anges som ja eller nej`);
     if (setting.lighten !== undefined && !(Number.isFinite(setting.lighten) && Math.abs(setting.lighten) <= 100)) throw invalid(`rad ${index + 1}: ljusare −100…100`);
     if (setting.cmyk !== undefined && !isCmyk(setting.cmyk)) throw invalid(`rad ${index + 1}: CMYK 0–100`);
-    if (setting.spot !== undefined && !(typeof setting.spot.name === "string" && typeof setting.spot.overprint === "boolean")) throw invalid(`rad ${index + 1}: dekorfärgen`);
+    if (setting.spot !== undefined && setting.spot !== null && (typeof setting.spot !== "object" || typeof setting.spot.name !== "string" || typeof setting.spot.overprint !== "boolean")) {
+      throw invalid(`rad ${index + 1}: dekorfärgen`);
+    }
   });
   if (!Array.isArray(profile.rules) || profile.rules.length > 500) throw invalid("reglerna saknas");
   for (const item of profile.rules as readonly PreflightRule[]) {
@@ -300,33 +308,85 @@ function matches(match: ColorMatch, color: { ocadId: number; name: string }): bo
   return match.namePattern !== undefined && new RegExp(match.namePattern, "i").test(color.name);
 }
 
-/** Justeringen per kartfärg (id) för `drawMap` och PDF:en: dold, CMYK 0–1 och ljusare (andel). */
-export interface MapColorAdjust { readonly hidden?: boolean; readonly cmyk?: { c: number; m: number; y: number; k: number }; readonly lighten?: number;
-  readonly spot?: { readonly name: string; readonly overprint: boolean } }
+/** Justeringen per kartfärg (id) för `drawMap` och PDF:en: dold, CMYK 0–1, ljusare (andel) och dekorfärg (`null` = av). */
+export interface MapColorAdjust {
+  readonly hidden?: boolean | undefined;
+  readonly cmyk?: { c: number; m: number; y: number; k: number } | undefined;
+  readonly lighten?: number | undefined;
+  readonly spot?: { readonly name: string; readonly overprint: boolean } | null | undefined;
+}
+
+const isSpecificMatch = (match: ColorMatch) => (match.ocadIds?.length ?? 0) > 0 || (match.names?.length ?? 0) > 0;
+const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
+const roundPercent = (value: number) => Math.round(value * 100_000) / 1000;
 
 /**
- * Profilens ändringar av kartans färger; färger som ingen rad gäller är som i filen. Ett godkänt förslag (BL) ger
- * tabellradens CMYK; en egen rad i `mapColors` för samma färg går före.
+ * Profilens ändringar av kartans färger; färger som ingen rad gäller är som i filen. Utgår från ett godkänt BL-beslut
+ * (`colorDecisions`) och slår ihop fält från matchande rader i `mapColors` (specifika `ocadIds`/`names`-rader går före
+ * `namePattern`-rader, och tidigare rader före senare inom samma grupp).
  */
 export function mapColorAdjust(profile: PrintProfile | undefined, colors: readonly Pick<MapColor, "id" | "name">[]): Record<number, MapColorAdjust> {
   const out: Record<number, MapColorAdjust> = {};
   if (!profile) return out;
   for (const color of colors) {
-    const setting = profile.mapColors.find(item => matches(item.match, { ocadId: color.id, name: color.name }));
-    if (!setting) {
-      const decision = profile.reference ? decisionFor(profile.colorDecisions, { ocadId: color.id, name: color.name }) : undefined;
-      const target = decision?.row ? referenceRow(profile.reference!, decision.row)?.cmyk : undefined;
-      if (target) out[color.id] = { cmyk: { c: target.c / 100, m: target.m / 100, y: target.y / 100, k: target.k / 100 } };
-      continue;
+    let hidden: boolean | undefined;
+    let cmyk: { c: number; m: number; y: number; k: number } | undefined;
+    let lighten: number | undefined;
+    let spot: { readonly name: string; readonly overprint: boolean } | null | undefined;
+    if (profile.reference) {
+      const decision = decisionFor(profile.colorDecisions, { ocadId: color.id, name: color.name });
+      const target = decision?.row ? referenceRow(profile.reference, decision.row)?.cmyk : undefined;
+      if (target) cmyk = { c: target.c / 100, m: target.m / 100, y: target.y / 100, k: target.k / 100 };
     }
-    out[color.id] = {
-      ...(setting.hidden ? { hidden: true } : {}),
-      ...(setting.cmyk ? { cmyk: { c: setting.cmyk.c / 100, m: setting.cmyk.m / 100, y: setting.cmyk.y / 100, k: setting.cmyk.k / 100 } } : {}),
-      ...(setting.lighten ? { lighten: setting.lighten / 100 } : {}),
-      ...(setting.spot ? { spot: setting.spot } : {})
-    };
+    const matching = profile.mapColors.filter(item => matches(item.match, { ocadId: color.id, name: color.name }));
+    const patterns = matching.filter(item => !isSpecificMatch(item.match)).reverse();
+    const specifics = matching.filter(item => isSpecificMatch(item.match)).reverse();
+    for (const setting of [...patterns, ...specifics]) {
+      if (setting.hidden !== undefined) hidden = setting.hidden;
+      if (setting.cmyk !== undefined) cmyk = { c: setting.cmyk.c / 100, m: setting.cmyk.m / 100, y: setting.cmyk.y / 100, k: setting.cmyk.k / 100 };
+      if (setting.lighten !== undefined) lighten = setting.lighten / 100;
+      if (setting.spot !== undefined) spot = setting.spot;
+    }
+    if (hidden || cmyk !== undefined || lighten !== undefined || spot !== undefined) {
+      out[color.id] = {
+        ...(hidden ? { hidden: true } : {}),
+        ...(cmyk !== undefined ? { cmyk } : {}),
+        ...(lighten !== undefined ? { lighten } : {}),
+        ...(spot !== undefined ? { spot } : {})
+      };
+    }
   }
   return out;
+}
+
+/**
+ * Kartfilens synliga färger i ritordning efter profilens justering (`mapColorAdjust`): dolda färger (`hidden: true`)
+ * utelämnas, CMYK räknas efter egen CMYK / BL-beslut + `lighten`, och `overprint` speglar `adjust.spot`.
+ */
+export function effectiveSourceMapColors(
+  colors: readonly Pick<MapColor, "id" | "name" | "rank" | "cmyk" | "spot">[],
+  usage?: ReadonlyMap<number, ColorUsage>,
+  adjust?: Readonly<Record<number, MapColorAdjust>>
+): SourceMapColor[] {
+  const order = [...colors]
+    .sort((left, right) => right.rank - left.rank || left.id - right.id)
+    .filter(color => !adjust?.[color.id]?.hidden);
+  return order.map((color, drawOrder) => {
+    const setting = adjust?.[color.id];
+    const source = setting?.cmyk ?? color.cmyk;
+    const amount = Math.max(-1, Math.min(1, Number.isFinite(setting?.lighten) ? setting!.lighten! : 0));
+    const ink = (value: number) => roundPercent(clamp01(value * (1 - amount)));
+    const overprint = setting?.spot === null ? false : setting?.spot ? setting.spot.overprint : (color.spot?.overprint ?? false);
+    const used = usage?.get(color.id);
+    return {
+      ocadId: color.id,
+      name: color.name,
+      cmyk: { c: ink(source.c), m: ink(source.m), y: ink(source.y), k: ink(source.k) },
+      overprint,
+      drawOrder,
+      ...(used ? { usage: used } : {})
+    };
+  });
 }
 
 export type PreflightSeverity = "INFO" | "WARNING" | "BLOCKING";

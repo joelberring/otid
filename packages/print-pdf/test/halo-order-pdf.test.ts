@@ -47,19 +47,18 @@ const WHITE_FILL = "0 0 0 0 k", WHITE_STROKE = "0 0 0 0 K", GREEN_RING = "0.76 0
 const names = (ids: ReadonlySet<number> | undefined) => map.colors.filter(color => ids?.has(color.id)).map(color => color.name);
 
 describe("kartfilens ordning inom varje sida av banan (ägarens provtryck)", () => {
-  it("över banan: bara äkta övre vitt (vitt för rött överst), svart, brunt och rött; gloria, järnvägens vitt och odlad mark under", () => {
-    expect(names(colorsOverCourse(map, profile))).toEqual(["Röd", "Vit för röd", "Svart 100%", "Brun 100%"]);
+  it("över banan: monoton snittpunkt från Brun 100% uppåt (inkl. vit gloria + grön ring i obruten ordning); järnväg och odlad mark under", () => {
+    expect(names(colorsOverCourse(map, profile))).toEqual(["Röd", "Vit för röd", "Grön 100% – Punktobjekt", "Vit över grön", "Svart 100%", "Brun 100%"]);
   });
 
-  it("den gröna ringen ritas efter sin vita gloria, båda under banan", async () => {
+  it("den gröna ringen ritas efter sin vita gloria i obruten ritordning över banan", async () => {
     const { under, over } = await write();
-    expect(under).toContain(GREEN_RING);
-    // Hela kartan ligger under banan (beslut 14), så det övre vitet (vitt för rött) kommer senare i samma utsnitt; glorian
-    // är det vita närmast före ringen.
-    const halo = under.lastIndexOf(WHITE_FILL, under.indexOf(GREEN_RING));
+    expect(over).toContain(GREEN_RING);
+    expect(under).not.toContain(GREEN_RING);
+    // Vit över grön ligger direkt före Grön 100% – Punktobjekt i OVER, och efter svart/brunt.
+    const halo = over.lastIndexOf(WHITE_FILL, over.indexOf(GREEN_RING));
     expect(halo).toBeGreaterThan(-1);
-    expect(under.indexOf("0 0 0 1 K")).toBeLessThan(halo);
-    expect(over).not.toContain(GREEN_RING);
+    expect(over.indexOf(BLACK_STROKE)).toBeLessThan(halo);
   });
 
   it("järnvägens svarta streck ritas efter den vita linjen under dem", async () => {
@@ -70,18 +69,13 @@ describe("kartfilens ordning inom varje sida av banan (ägarens provtryck)", () 
     expect(over).not.toContain(WHITE_STROKE);
   });
 
-  it("vitt trycks aldrig med övertryck (det syns inte då); vitt för rött över banan slår ut", async () => {
+  it("vitt trycks aldrig med övertryck (det syns inte då); ren knockout i PROCESS utan TAC-blödning", async () => {
     const { over, under } = await write();
     for (const form of [over, under]) {
-      for (let at = form.indexOf(WHITE_FILL); at >= 0; at = form.indexOf(WHITE_FILL, at + 1)) {
-        // Innehållet börjar i knockout (GKO); efter ett GOP måste ett GKO komma före vitt.
-        const overprint = form.lastIndexOf("/GOP gs", at);
-        expect(overprint === -1 || form.lastIndexOf("/GKO gs", at) > overprint).toBe(true);
-      }
+      expect(form).not.toContain("/GOP gs");
     }
     expect(over).toContain(WHITE_FILL);
-    // Rött och svart över banan med övertryck.
-    expect(over.lastIndexOf("/GOP gs", over.indexOf(BLACK_STROKE))).toBeGreaterThan(over.lastIndexOf("/GKO gs", over.indexOf(BLACK_STROKE)));
+    expect(over).toContain(BLACK_STROKE);
   });
 
   it("ISOM: numret i undre lila före kartans färger över banan; \"Kontrollnummer och texter överst\" lägger det efter", async () => {
@@ -95,16 +89,27 @@ describe("kartfilens ordning inom varje sida av banan (ägarens provtryck)", () 
     expect(sprint.content.lastIndexOf(number)).toBeGreaterThan(sprint.content.indexOf("/Fm1 Do"));
   });
 
-  it("kontorsskrivaren: samma lager, kartans färger över banan med Darken (inget övertryck i filen), vitt slår ut", async () => {
-    const { pdf, over, result } = await write({ mode: "OFFICE", profile: officePrintProfile(profile) });
+  it("kontorsskrivaren: samma lager, isolerade INK-band med Darken på sidan (noll intern blödning), WHITE-band med knockout", async () => {
+    const { pdf, content, result } = await write({ mode: "OFFICE", profile: officePrintProfile(profile) });
     expect(pdf.extGStates.get("GOP")).toMatchObject({ BM: "/Darken" });
     expect(pdf.extGStates.get("GOP")).not.toHaveProperty("OP");
-    expect(over).toMatch(/\/GOP gs/);
     expect(result.overprint).toBe(false);
     expect(result.notes.some(note => /lila syns genom dem/.test(note))).toBe(true);
-    const white = over.indexOf(WHITE_FILL);
-    const multiply = over.lastIndexOf("/GOP gs", white);
-    expect(multiply === -1 || over.lastIndexOf("/GKO gs", white) > multiply).toBe(true);
+    // Inuti alla kartutsnitt råder knockout (inga /GOP gs inuti Form XObjects → noll TAC-blödning).
+    for (const form of pdf.forms.values()) expect(form).not.toContain("/GOP gs");
+    // På sidan placeras isolerade INK-band med /GOP gs (/BM /Darken) och WHITE-band utan /GOP gs (knockout).
+    const isolated = [...pdf.formGroups.entries()].filter(([, g]) => g.S === "/Transparency" && g.CS === "/DeviceCMYK" && g.I === "true");
+    expect(isolated.length).toBeGreaterThanOrEqual(2);
+    for (const [name] of isolated) {
+      const at = content.indexOf(`/${name} Do`);
+      expect(content.slice(content.lastIndexOf("\nq\n", at), at)).toContain("/GOP gs");
+    }
+    const whiteBands = [...pdf.forms.entries()].filter(([name, body]) => name !== "Fm0" && !pdf.formGroups.has(name) && body.includes(WHITE_FILL));
+    expect(whiteBands.length).toBeGreaterThanOrEqual(1);
+    for (const [name] of whiteBands) {
+      const at = content.indexOf(`/${name} Do`);
+      expect(content.slice(content.lastIndexOf("\nq\n", at), at)).not.toContain("/GOP gs");
+    }
   });
 
   it("tryck-PDF:en har ingen genomskinlighet (bara /OP och /OPM)", async () => {
@@ -125,9 +130,8 @@ describe("kartfilens ordning inom varje sida av banan (ägarens provtryck)", () 
     let black = 0;
     for (let x = HALO_RAILWAY.from.x + 1; x < HALO_RAILWAY.to.x - 1; x += 0.1) if (at({ x, y: HALO_RAILWAY.from.y }).k > 0.9) black += 1;
     expect(black).toBeGreaterThan(100);
-    // Numret: bildpunkter där brunt ligger över lila med övertryck (cyan från lila, gult och svart från brunt) blir fler med
-    // numren i undre lila; överst slår numret ut brunt (banans lila utan övertryck, som BL).
-    const mixed = async (options: Partial<WritePdfInput>) => {
+    // Numret: i ren PROCESS-enpassordning skär bruna kurvor (y > 0,8, k > 0,1) skarpt över undre lila; överst täcker numret kurvorna.
+    const brownPixels = async (options: Partial<WritePdfInput>) => {
       const written = await write(options);
       const label = written.sheets[0]!.frames[0]!.figures.find(figure => figure.kind === "text" && figure.role === "NUMBER");
       if (!label || label.kind !== "text") throw new Error("inget nummer");
@@ -136,12 +140,12 @@ describe("kartfilens ordning inom varje sida av banan (ägarens provtryck)", () 
       for (let dx = -label.heightMm; dx <= label.heightMm; dx += 0.05) {
         for (let dy = -label.heightMm; dy <= label.heightMm; dy += 0.05) {
           const pixel = box.at(toPage(frame, { x: label.at.x + dx, y: label.at.y + dy }));
-          if (pixel.c > 0.1 && pixel.y > 0.8 && pixel.k > 0.1) count += 1;
+          if (pixel.y > 0.8 && pixel.k > 0.1) count += 1;
         }
       }
       return count;
     };
-    expect(await mixed({})).toBeGreaterThan(await mixed({ profile: { ...profile, numbersOnTop: true } }) + 20);
+    expect(await brownPixels({})).toBeGreaterThan(await brownPixels({ profile: { ...profile, numbersOnTop: true } }) + 20);
   });
 });
 

@@ -1,8 +1,8 @@
 import React from "react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { PublicLiveResponse } from "@o-tid/contracts";
-import { PublicLive } from "./public-live";
+import { createLiveReader, PublicLive } from "./public-live";
 
 /** PLAN.md steg 30: Live-sidan som besökaren ser den vid första ritningen (innan webbläsarens följval läses). */
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
@@ -35,5 +35,27 @@ describe("Live-sidan", () => {
     expect(html).toContain("Inga målgångar än – sidan uppdateras av sig själv.");
     expect(html).not.toContain("Ledare per klass");
     expect(html).not.toContain("Följer");
+  });
+
+  describe("klient-304 med svag ETag", () => {
+    afterEach(() => { vi.unstubAllGlobals(); });
+
+    it("skickar If-None-Match och återanvänder befintligt Live-objekt vid 304", async () => {
+      const seen: (string | null)[] = [];
+      let count = 0;
+      vi.stubGlobal("fetch", async (_url: string, init?: RequestInit) => {
+        seen.push(new Headers(init?.headers).get("if-none-match"));
+        count += 1;
+        if (count === 1) return new Response(JSON.stringify(live), { status: 200, headers: { etag: 'W/"live-1"' } });
+        return new Response(null, { status: 304, headers: { etag: 'W/"live-1"', "x-otid-stale": "1" } });
+      });
+      const read = createLiveReader();
+      const first = await read(raceId);
+      const onStale = vi.fn();
+      const second = await read(raceId, onStale);
+      expect(seen).toEqual([null, 'W/"live-1"']);
+      expect(second).toBe(first);
+      expect(onStale).toHaveBeenCalledTimes(1);
+    });
   });
 });

@@ -17,14 +17,28 @@ import { FollowStar } from "../follow-star";
 import styles from "./public-live.module.css";
 import { inLanguage } from "../../lib/in-language";
 
-async function readLive(raceId: string, onStale: (retryMs?: number) => void): Promise<PublicLiveResponse> {
-  const response = await fetch(`/api/public/races/${encodeURIComponent(raceId)}/live`, { cache: "no-store" });
-  throwIfBusy(response);
-  if (!response.ok) throw new Error(`Live svarade ${response.status}`);
-  if (anyStale(response)) onStale(staleRetryMs(response));
-  const live = publicLiveResponseSchema.parse(await response.json());
-  if (live.raceId !== raceId) throw new Error(inLanguage("Live gäller en annan tävling", "Live belongs to a different race"));
-  return live;
+export function createLiveReader() {
+  let cached: { url: string; etag: string; value: PublicLiveResponse } | undefined;
+  return async (raceId: string, onStale: (retryMs?: number) => void = () => undefined): Promise<PublicLiveResponse> => {
+    const url = `/api/public/races/${encodeURIComponent(raceId)}/live`;
+    const response = await fetch(url, cached && cached.url === url
+      ? { cache: "no-store", headers: { "if-none-match": cached.etag } }
+      : { cache: "no-store" });
+    throwIfBusy(response);
+    if (response.status === 304 && cached && cached.url === url) {
+      if (anyStale(response)) onStale(staleRetryMs(response));
+      const nextEtag = response.headers.get("etag");
+      if (nextEtag) cached = { ...cached, etag: nextEtag };
+      return cached.value;
+    }
+    if (!response.ok) throw new Error(`Live svarade ${response.status}`);
+    if (anyStale(response)) onStale(staleRetryMs(response));
+    const live = publicLiveResponseSchema.parse(await response.json());
+    if (live.raceId !== raceId) throw new Error(inLanguage("Live gäller en annan tävling", "Live belongs to a different race"));
+    const etag = response.headers.get("etag");
+    cached = etag ? { url, etag, value: live } : undefined;
+    return live;
+  };
 }
 
 type Runner = { publicResultId: string; givenName: string; familyName: string; organisationName: string | null; className: string;
@@ -144,6 +158,7 @@ function Following({ live, raceId, star, clubs }: { live: PublicLiveResponse; ra
  */
 export function PublicLive({ raceId, initial }: { raceId: string; initial: PublicLiveResponse }) {
   const text = useTexts(liveSv, liveEn);
+  const [readLive] = useState(() => createLiveReader());
   const { data, failed, online } = usePublicRaceData(raceId, readLive, initial);
   const live = data ?? initial;
   const follows = useFollows();

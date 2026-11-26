@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { cachedJsonResponse, createPublicRaceCache, isRetryableReadConflict, onlyNewResults } from "./public-race-cache";
+import type { PublicResultListResponse } from "@o-tid/contracts";
+import { cachedJsonResponse, compactResultsEntry, createPublicRaceCache, etagJsonResponse, isRetryableReadConflict, onlyNewResults } from "./public-race-cache";
 
 const race = "10000000-0000-4000-8000-000000000001";
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -84,6 +85,91 @@ describe("steg 51: publika listor en gång per tävlingsversion", () => {
     const same = cachedJsonResponse(new Request("http://127.0.0.1/", { headers: { "if-none-match": entry.etag } }), entry, "no-store");
     expect(same.status).toBe(304);
     expect(await same.text()).toBe("");
+    // Caddy gör om starka ETag till svaga W/"..." vid zstd/gzip: svag jämförelse (RFC 9110) ger 304.
+    const weak = cachedJsonResponse(new Request("http://127.0.0.1/", { headers: { "if-none-match": `W/${entry.etag}` } }), entry, "public, max-age=2");
+    expect(weak.status).toBe(304);
+    const list = cachedJsonResponse(new Request("http://127.0.0.1/", { headers: { "if-none-match": `"annan", W/${entry.etag}` } }), entry, "public, max-age=2");
+    expect(list.status).toBe(304);
+    const star = cachedJsonResponse(new Request("http://127.0.0.1/", { headers: { "if-none-match": "*" } }), entry, "public, max-age=2");
+    expect(star.status).toBe(304);
+    // Förkodad UTF-8-buffert bevarar svenska tecken utan ny kodning.
+    expect(entry.body).toBeInstanceOf(Uint8Array);
+    expect(new TextDecoder().decode(entry.body)).toBe(JSON.stringify(entry.value));
+  });
+
+  it("etagJsonResponse ger ETag och 304 på svag W/ och kommaseparerad If-None-Match", async () => {
+    const payload = { formatVersion: 1, result: { givenName: "Åsa", familyName: "Öberg" } };
+    const first = etagJsonResponse(new Request("http://127.0.0.1/"), payload, "public, max-age=2");
+    expect(first.status).toBe(200);
+    const etag = first.headers.get("etag")!;
+    expect(etag).toMatch(/^"[A-Za-z0-9_-]{27}"$/);
+    expect(await first.json()).toEqual(payload);
+    const weak304 = etagJsonResponse(new Request("http://127.0.0.1/", { headers: { "if-none-match": `W/${etag}` } }), payload, "public, max-age=2",
+      { "x-otid-stale": "1" });
+    expect(weak304.status).toBe(304);
+    expect(weak304.headers.get("x-otid-stale")).toBe("1");
+    expect(await weak304.text()).toBe("");
+  });
+
+  it("compactResultsEntry härleder kompakt variant (?splits=0) ur samma cachade objekt med egen ETag och buffert", async () => {
+    const cache = createPublicRaceCache({ version: async () => "v1" });
+    const fullPayload: PublicResultListResponse = {
+      formatVersion: 7,
+      results: [
+        {
+          className: "H21", givenName: "Alva", familyName: "Ek", organisationName: "Centrum OK",
+          publicResultId: "10000000-0000-4000-8000-000000000011", revision: 1, status: "OK", reason: "COMPLETE",
+          elapsedMs: 120_000, splits: [{ controlCode: 31, occurrence: 1, elapsedMs: 60_000, legMs: 60_000 }],
+          missingControls: [], extraPunches: [], rankingState: "RANKED", position: 1, timeBehindMs: 0
+        },
+        {
+          className: "Öppen", givenName: "Bo", familyName: "Ek", organisationName: null,
+          publicResultId: "10000000-0000-4000-8000-000000000012", revision: 1, status: "NT", reason: "WITHOUT_TIMING",
+          rankingState: "NOT_RANKABLE_STATUS", splits: [{ controlCode: 31, occurrence: 1, elapsedMs: 60_000, legMs: 60_000 }]
+        }
+      ]
+    };
+    const full = await cache.read(race, "results", async () => fullPayload);
+    const compact1 = compactResultsEntry(full);
+    const compact2 = compactResultsEntry({ ...full, stale: true });
+    expect(compact1.etag).not.toBe(full.etag);
+    expect(compact2.etag).toBe(compact1.etag);
+    expect(compact2.body).toBe(compact1.body);
+    expect(compact2.stale).toBe(true);
+    expect(compact1.body.byteLength).toBeLessThan(full.body.byteLength);
+    expect(compact1.value.results[0]).toMatchObject({ splits: [], hasSplits: true });
+    expect(compact1.value.results[1]).toMatchObject({ hasSplits: true });
+    expect("splits" in compact1.value.results[1]!).toBe(false);
+    // Fullt svar förblir helt oförändrat.
+    expect(full.value.results[0]!.splits).toHaveLength(1);
+    const hit304 = cachedJsonResponse(new Request("http://127.0.0.1/", { headers: { "if-none-match": `W/${compact1.etag}` } }), compact1, "public, max-age=2");
+    expect(hit304.status).toBe(304);
+  });
+
+  it("stöder egen versionsnyckel per kind (för cachad readPublicRouteIndex) utan att störa standardversionen", async () => {
+    let baseVersion = "v1", routeVersion = "v1:routes:0:-:d41:V:sha1.100";
+    let routeComputes = 0, resultComputes = 0;
+    const cache = createPublicRaceCache({ version: async () => baseVersion, minIntervalMs: 0, versionTtlMs: 0, serveStaleMs: 0 });
+    await cache.read(race, "results", async () => ++resultComputes);
+    const first = await cache.read(race, "route-index", async () => ({ legs: { r1: ["S-31.1"] }, n: ++routeComputes }), {
+      exact: true, version: async () => routeVersion
+    });
+    const again = await cache.read(race, "route-index", async () => ({ legs: {}, n: ++routeComputes }), {
+      exact: true, version: async () => routeVersion
+    });
+    expect(again).toBe(first);
+    expect(routeComputes).toBe(1);
+    // Ändrat spårantal/uppladdningstid/kartsynlighet räknar om route-index utan att ogiltigförklara results.
+    routeVersion = "v1:routes:1:1700000000000:abc:V:sha1.100";
+    const updated = await cache.read(race, "route-index", async () => ({ legs: { r1: ["S-31.1", "31.1-F"] }, n: ++routeComputes }), {
+      exact: true, version: async () => routeVersion
+    });
+    expect(updated.value.n).toBe(2);
+    expect(routeComputes).toBe(2);
+    expect((await cache.read(race, "results", async () => ++resultComputes)).value).toBe(1);
+    expect(resultComputes).toBe(1);
+    baseVersion = "v2";
+    expect((await cache.read(race, "results", async () => ++resultComputes)).value).toBe(2);
   });
 
   it("läser versionen högst en gång per versionTtlMs och tävling", async () => {

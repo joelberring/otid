@@ -8,6 +8,7 @@ import {
 import { CLUB_ARCHIVE_MAP_MAX_BYTES, CLUB_IMPORT_BATCH_MAX_BYTES, RACE_MAP_MAX_BYTES, RACE_MAP_SOURCE_PARTS, UUID_PATTERN } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
 import { mailAvailable, routeMailer } from "./invitation-route-handlers";
+import { bufferView, matchesIfNoneMatch } from "./http-etag";
 import { forEachMultipartPart, MultipartError, multipartBoundary, partBytes } from "./multipart";
 import {
   SecurityConfigurationError, accountFailure, hasExpectedOrigin, hasNoRequestBody, privateHeaders, privateJson, readJsonBody, securityPolicy,
@@ -124,6 +125,34 @@ export const attachment = (fileName: string, fallback: string) => {
   const safe = fileName.replace(/[^\p{L}\p{N} ._()-]/gu, "_") || fallback;
   return `attachment; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(safe)}`;
 };
+
+/** Privat cache för innehållsadresserade filer: `immutable` när `?v=` matchar `sha256`, annars `private, no-cache`. */
+export function privateContentCacheHeaders(request: Request, sha256: string): Record<string, string> {
+  const version = new URL(request.url).searchParams.get("v");
+  const immutable = version === sha256 || version === sha256.slice(0, 16);
+  return {
+    ...privateHeaders,
+    "cache-control": immutable ? "private, max-age=86400, immutable" : "private, no-cache",
+    etag: `"${sha256}"`,
+    vary: "Cookie"
+  };
+}
+
+/** Konverterar `streamMapContentParts` (1 MiB-delar) till en `ReadableStream` utan buffring i Node-heapen. */
+export function contentPartStream(parts: AsyncGenerator<Uint8Array>, scope: string, action: string): ReadableStream<Uint8Array> {
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const next = await parts.next();
+        if (next.done) controller.close(); else controller.enqueue(next.value);
+      } catch (error) {
+        logServerError(scope, action, error);
+        controller.error(error);
+      }
+    },
+    async cancel() { await parts.return(undefined); }
+  });
+}
 
 // --- Klubben ------------------------------------------------------------------------------------------------------------
 
@@ -258,7 +287,7 @@ export async function clubCourseFileRoute(db: Database, request: Request, clubId
       const result = await readClubCourseFile(db, { ...input.proof, clubId, courseFileId });
       if (result.status !== "ok") return failure(result.status);
       const fallback = result.kind === "PPEN" ? "banor.ppen" : "banor.xml";
-      return new Response(new Uint8Array(result.content), { headers: { ...privateHeaders,
+      return new Response(bufferView(result.content), { headers: { ...privateHeaders,
         "content-type": result.kind === "PPEN" ? "application/octet-stream" : "application/xml",
         "content-disposition": attachment(result.fileName, fallback), "content-length": String(result.content.byteLength) } });
     });
@@ -316,22 +345,14 @@ export async function clubMapVersionRoute(db: Database, request: Request, clubId
     return guarded(async () => {
       const head = await readClubMapVersionHead(db, { ...input.proof, clubId, versionId });
       if (head.status !== "ok") return failure(head.status);
-      const parts = streamMapContentParts(db, head.contentId);
-      const stream = new ReadableStream<Uint8Array>({
-        async pull(controller) {
-          try {
-            const next = await parts.next();
-            if (next.done) controller.close(); else controller.enqueue(next.value);
-          } catch (error) {
-            logServerError("club", "map-download", error);
-            controller.error(error);
-          }
-        },
-        async cancel() { await parts.return(undefined); }
-      });
-      return new Response(stream, { headers: { ...privateHeaders, "content-type": "application/octet-stream",
-        "content-disposition": attachment(head.fileName, head.format === "OCD" ? "karta.ocd" : "karta.omap"), "content-length": String(head.byteLength),
-        etag: `"${head.sha256}"` } });
+      const cache = privateContentCacheHeaders(request, head.sha256);
+      if (matchesIfNoneMatch(request.headers.get("if-none-match"), `"${head.sha256}"`)) {
+        return new Response(null, { status: 304, headers: cache });
+      }
+      const stream = contentPartStream(streamMapContentParts(db, head.contentId), "club", "map-download");
+      return new Response(stream, { headers: { ...cache, "content-type": "application/octet-stream",
+        "content-disposition": attachment(head.fileName, head.format === "OCD" ? "karta.ocd" : "karta.omap"),
+        "content-length": String(head.byteLength) } });
     });
   }
   const input = await mutation(request, environment);

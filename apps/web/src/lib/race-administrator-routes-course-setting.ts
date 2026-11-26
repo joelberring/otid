@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   COURSE_SETTING_EDITS_MAX, COURSE_SETTING_EDITS_MAX_BYTES, COURSE_SETTING_IMPORT_MAX_BYTES, COURSE_SETTING_NOTE_MAX_BYTES, COURSE_SETTING_SAVE_MAX_BYTES,
   courseSettingConflictSchema, courseSettingEditsSavedSchema, courseSettingForkLettersSchema, courseSettingInspectionsSchema, courseSettingModeRequestSchema, courseSettingNoteSchema, courseSettingNotesSchema,
@@ -7,6 +8,7 @@ import {
 } from "@o-tid/contracts";
 import { createCourseSettingEventStream, publishCourseSettingEvent } from "./course-setting-events";
 import { RACE_PRINT_FILE_LIMITS } from "@o-tid/application";
+import { bufferView, matchesIfNoneMatch } from "./http-etag";
 import { adminFailure as failure, privateHeaders, privateJson as json, readBoundedBytes, readJsonBody, RequestBodyError, validDeclaredLength } from "./security-policy";
 import { resultFailure, type RaceAdministratorRouteContext } from "./race-administrator-route-context";
 import { requestPublicOrigin } from "./public-origin-request";
@@ -205,9 +207,20 @@ export async function handleCourseSettingRoute(context: RaceAdministratorRouteCo
     case "course-setting-note-photo": {
       const result = await dependencies.courseSettingNotePhoto(db, { ...input, noteId: action.noteId });
       if (result.status !== "ok") return resultFailure(result.status);
-      return new Response(new Uint8Array(result.photo), { headers: { ...privateHeaders, "content-type": result.mediaType,
-        "content-length": String(result.photo.byteLength), "x-content-type-options": "nosniff",
-        "content-security-policy": "default-src 'none'; sandbox" } });
+      const etag = `"${createHash("sha256").update(result.photo).digest("hex")}"`;
+      const headers = {
+        ...privateHeaders,
+        "cache-control": "private, max-age=86400, immutable",
+        etag,
+        vary: "Cookie",
+        "x-content-type-options": "nosniff",
+        "content-security-policy": "default-src 'none'; sandbox"
+      };
+      if (matchesIfNoneMatch(request.headers.get("if-none-match"), etag)) {
+        return new Response(null, { status: 304, headers });
+      }
+      return new Response(bufferView(result.photo), { headers: { ...headers, "content-type": result.mediaType,
+        "content-length": String(result.photo.byteLength) } });
     }
     case "course-setting-suggestions": {
       if (request.method === "GET") {
@@ -333,10 +346,21 @@ export async function handleCourseSettingRoute(context: RaceAdministratorRouteCo
     case "course-setting-paper-image": {
       const result = await dependencies.paperImage(db, { ...input, sha256: action.sha256 });
       if (result.status !== "ok") return resultFailure(result.status);
+      const etag = `"${action.sha256}"`;
+      const headers = {
+        ...privateHeaders,
+        "cache-control": "private, max-age=86400, immutable",
+        etag,
+        vary: "Cookie",
+        "x-content-type-options": "nosniff",
+        "content-security-policy": "default-src 'none'; sandbox"
+      };
+      if (matchesIfNoneMatch(request.headers.get("if-none-match"), etag)) {
+        return new Response(null, { status: 304, headers });
+      }
       // Innehållet ändras aldrig för samma sha256: får sparas privat i webbläsaren.
-      return new Response(new Uint8Array(result.image), { headers: { ...privateHeaders, "cache-control": "private, max-age=86400, immutable",
-        "content-type": result.mediaType, "content-length": String(result.image.byteLength), "x-content-type-options": "nosniff",
-        "content-security-policy": "default-src 'none'; sandbox" } });
+      return new Response(bufferView(result.image), { headers: { ...headers,
+        "content-type": result.mediaType, "content-length": String(result.image.byteLength) } });
     }
     case "course-setting-paper-library": {
       if (request.method === "GET") {

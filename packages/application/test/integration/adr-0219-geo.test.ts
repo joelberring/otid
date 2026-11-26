@@ -11,6 +11,7 @@ import {
   removeGeoJob, storeGeoOutput
 , GEO_JOB_COUNTS, pruneGeoJobs , splitClip, stageReach } from "../../src/map-project-geo-jobs";
 import { mergeGeoStages, readGeoStageOutput } from "../../src/map-project-geo-merge";
+import { streamMapContentParts } from "../../src/club-maps";
 import { listMapProjectLayers } from "../../src/map-project-layers";
 import { fetchMapProjectMoisture, moistureRequestBox } from "../../src/map-project-moisture";
 import { saveMapSourceCredential } from "../../src/map-source-credentials";
@@ -387,7 +388,11 @@ describe("ADR-0219 K5: geo-arbetaren", () => {
       { jobId: stageIds[0], clip: { ...island, maxY: 6524680 }, outputs: ["karta.pgw", "karta.png", "kurvor.dxf"] },
       { jobId: stageIds[1], clip: { ...island, minY: 6524680 }, outputs: ["karta.pgw", "karta.png", "kurvor.dxf"] }] } });
     // Etappernas filer går bara till arbetaren som kör sammanläggningen, och bara för jobbets egna etapper.
-    expect((await readGeoStageOutput(db, merging!.jobId, "geo-1", stageIds[1]!, "kurvor.dxf"))?.toString("utf8")).toBe("0\nEOF\n1");
+    const stageHead = await readGeoStageOutput(db, merging!.jobId, "geo-1", stageIds[1]!, "kurvor.dxf");
+    expect(stageHead).toBeDefined();
+    const stageChunks: Uint8Array[] = [];
+    for await (const chunk of streamMapContentParts(db, stageHead!.contentId)) stageChunks.push(chunk);
+    expect(Buffer.concat(stageChunks).toString("utf8")).toBe("0\nEOF\n1");
     expect(await readGeoStageOutput(db, merging!.jobId, "geo-2", stageIds[1]!, "kurvor.dxf")).toBeUndefined();
     expect(await readGeoStageOutput(db, merging!.jobId, "geo-1", merging!.jobId, "kurvor.dxf")).toBeUndefined();
     expect(await readGeoStageOutput(db, stageIds[0]!, "geo-1", stageIds[1]!, "kurvor.dxf")).toBeUndefined();

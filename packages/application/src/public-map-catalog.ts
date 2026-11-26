@@ -7,6 +7,7 @@ import {
 import { schema, type Database } from "@o-tid/database";
 import { countiesForMunicipalities, deriveRasterGeoreference, municipalitiesForBounds, RasterGeoreferenceError, swedishToday } from "@o-tid/domain";
 import { clubJournal, requireClubRole, type ClubFailure, type ClubProof } from "./club-access";
+import { matchesIfNoneMatch } from "./http-etag";
 import { mapProjectBaseFileName, mapProjectCanDownloadSource, mapProjectJournal, requireMapProject } from "./map-project-access";
 import { mapStorageQuota, readMapContent, storeMapContent, type MapQuotaExceeded } from "./map-content";
 import {
@@ -52,6 +53,7 @@ function toSummary(row: ListingRow): PublicMapListingSummary {
     accessMode: row.accessMode,
     showPreview: row.showPreview,
     hasPreview: row.showPreview && row.previewContentSha256 !== null,
+    previewSha: row.showPreview && row.previewContentSha256 ? row.previewContentSha256.slice(0, 16) : null,
     scale: row.scale,
     norm: row.norm,
     mapYear: row.mapYear,
@@ -169,15 +171,21 @@ export async function readPublicMapListing(db: Database, listingId: string)
   return row ? { status: "ok", listing: toDetail(row) } : { status: "not-found" };
 }
 
-/** Publik förhandsvisningsbild (PNG) — endast när `showPreview === true` och förhandsvisningen finns. */
-export async function readPublicMapPreview(db: Database, listingId: string)
-  : Promise<{ status: "not-found" } | { status: "ok"; png: Buffer; sha256: string }> {
+/** Publik förhandsvisningsbild (PNG) — endast när `showPreview === true` och förhandsvisningen finns; prövar ETag före läsning. */
+export async function readPublicMapPreview(
+  db: Database,
+  listingId: string,
+  options: { readonly ifNoneMatch?: string | null } = {}
+): Promise<{ status: "not-found" } | { status: "not-modified"; sha256: string } | { status: "ok"; png: Buffer; sha256: string }> {
   if (!validId(listingId)) return { status: "not-found" };
   const [row] = await db.select({
     showPreview: schema.publicMapListings.showPreview,
     previewContentSha256: schema.publicMapListings.previewContentSha256
   }).from(schema.publicMapListings).where(eq(schema.publicMapListings.id, listingId));
   if (!row || !row.showPreview || !row.previewContentSha256) return { status: "not-found" };
+  if (matchesIfNoneMatch(options.ifNoneMatch, `"${row.previewContentSha256}"`)) {
+    return { status: "not-modified", sha256: row.previewContentSha256 };
+  }
   const png = await readMapContent(db, row.previewContentSha256);
   if (!png) return { status: "not-found" };
   return { status: "ok", png, sha256: row.previewContentSha256 };

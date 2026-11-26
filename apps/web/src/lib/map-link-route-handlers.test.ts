@@ -52,6 +52,15 @@ describe("kartritarens länk i routes (ADR-0214)", () => {
     const cached = await mapLinkMapRoute(db, new Request(`${origin}/x`, { headers: { "if-none-match": `"${sha256}"` } }), token,
       services({ mapFile: async (_db, input) => { asked = input.ifNoneMatch; return { status: "not-modified", sha256 }; } }));
     expect([cached.status, asked]).toEqual([304, sha256]);
+    // Svag W/-ETag (Caddy zstd/gzip) normaliseras likadant.
+    let askedWeak: string | undefined;
+    const cachedWeak = await mapLinkMapRoute(db, new Request(`${origin}/x`, { headers: { "if-none-match": `W/"${sha256}"` } }), token,
+      services({ mapFile: async (_db, input) => { askedWeak = input.ifNoneMatch; return { status: "not-modified", sha256 }; } }));
+    expect([cachedWeak.status, askedWeak]).toEqual([304, sha256]);
+    // Kommaseparerad lista eller * ger också 304.
+    const cachedList = await mapLinkMapRoute(db, new Request(`${origin}/x`, { headers: { "if-none-match": `"${"b".repeat(64)}", W/"${sha256}"` } }), token,
+      services({ mapFile: async () => ({ status: "ok", sha256, format: "OCD", file: Buffer.from([1, 2, 3]) }) }));
+    expect(cachedList.status).toBe(304);
   });
 
   it("skriver bara från samma ursprung med kartritarens huvud och säger till öppna editorer", async () => {

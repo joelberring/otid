@@ -9,16 +9,36 @@ ARG OTID_SKIP_BUILD_CHECKS=1
 ENV CI=1 NEXT_TELEMETRY_DISABLED=1 OTID_SKIP_BUILD_CHECKS=${OTID_SKIP_BUILD_CHECKS} NODE_OPTIONS=--max-old-space-size=1536
 RUN corepack enable
 WORKDIR /src
-COPY . .
+# Kopiera manifest och alla workspace-package.json före installationen så att kodändringar inte kastar bort beroendelagren.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/mobile/package.json apps/mobile/
+COPY apps/si-tools/package.json apps/si-tools/
+COPY apps/web/package.json apps/web/
+COPY packages/application/package.json packages/application/
+COPY packages/club-archive/package.json packages/club-archive/
+COPY packages/contracts/package.json packages/contracts/
+COPY packages/course-setting/package.json packages/course-setting/
+COPY packages/database/package.json packages/database/
+COPY packages/device-transport/package.json packages/device-transport/
+COPY packages/domain/package.json packages/domain/
+COPY packages/eventor/package.json packages/eventor/
+COPY packages/iof-xml/package.json packages/iof-xml/
+COPY packages/map-file/package.json packages/map-file/
+COPY packages/map-revision/package.json packages/map-revision/
+COPY packages/print-pdf/package.json packages/print-pdf/
+COPY packages/roc/package.json packages/roc/
+COPY packages/route-choice/package.json packages/route-choice/
+COPY packages/sportident/package.json packages/sportident/
 # BuildKit-cacher (finns bara på byggdatorn, inte i avbildningen): pnpm:s paketlager och Nexts byggcache (Turbopack). Ett nytt
 # bygge på samma dator laddar inte ner paketen igen och kompilerar bara det som ändrats.
 RUN --mount=type=cache,id=otid-pnpm-store,target=/pnpm-store,sharing=locked \
   pnpm install --frozen-lockfile --store-dir /pnpm-store
-RUN --mount=type=cache,id=otid-next-cache,target=/src/apps/web/.next/cache,sharing=locked \
-  pnpm --filter @o-tid/web build
 # ADR-0219 (K2): kartjobben i utskriftsarbetaren ritar med @napi-rs/canvas (inbyggd modul, samma version som i package.json).
 RUN mkdir -p /canvas && cd /canvas && npm init -y >/dev/null \
   && npm install --omit=dev --no-audit --no-fund "@napi-rs/canvas@$(node -p "require('/src/package.json').dependencies['@napi-rs/canvas']")"
+COPY . .
+RUN --mount=type=cache,id=otid-next-cache,target=/src/apps/web/.next/cache,sharing=locked \
+  pnpm --filter @o-tid/web build
 
 FROM node:24-bookworm-slim
 ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0 NEXT_TELEMETRY_DISABLED=1 MIGRATIONS_DIR=/app/migrations

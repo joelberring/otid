@@ -36,9 +36,11 @@ export function BingoLeader({ raceId }: { raceId: string }) {
         if (!stopped) { setView(next); setFailed(false); }
       } catch (error) { console.warn("Bingons läge kunde inte hämtas", error); if (!stopped) setFailed(true); }
     };
+    const onVisible = () => { if (document.visibilityState === "visible") void load(); };
     void load();
-    const timer = window.setInterval(() => void load(), REFRESH_MS);
-    return () => { stopped = true; window.clearInterval(timer); };
+    const timer = window.setInterval(onVisible, REFRESH_MS);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { stopped = true; window.clearInterval(timer); document.removeEventListener("visibilitychange", onVisible); };
   }, [raceId]);
 
   if (!view) return <main className={styles.leader}><LeaderBack raceId={raceId} /><h1>{text.title}</h1>{failed ? <Notice tone="error" role="alert">{text.failed}</Notice>

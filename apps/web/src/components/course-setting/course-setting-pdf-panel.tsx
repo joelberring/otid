@@ -63,8 +63,10 @@ export function PdfPanel({ raceId, selection, profile, colors, usage, disabled, 
   const pending = jobs?.jobs.some(job => job.status === "QUEUED" || job.status === "RUNNING") ?? false;
   useEffect(() => {
     if (!pending) return;
-    const timer = window.setInterval(() => { void load(); }, 2000);
-    return () => window.clearInterval(timer);
+    const onVisible = () => { if (document.visibilityState === "visible") void load(); };
+    const timer = window.setInterval(onVisible, 2000);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { window.clearInterval(timer); document.removeEventListener("visibilitychange", onVisible); };
   }, [pending, load]);
 
   async function create(kind: PrintJobKind) {

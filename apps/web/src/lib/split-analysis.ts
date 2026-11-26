@@ -13,7 +13,7 @@ import type { ResultListModel } from "./lists/result-list-model";
 
 /** Individuella klasser med sträcktider. Rogaining har inga sträckor och stafetten stöds inte än. */
 export function analysisClassNames(model: ResultListModel): string[] {
-  return model.classes.filter(raceClass => !raceClass.scored && raceClass.rows.some(row => row.splits.length > 0)).map(raceClass => raceClass.name);
+  return model.classes.filter(raceClass => !raceClass.scored && raceClass.rows.some(row => row.hasSplits ?? row.splits.length > 0)).map(raceClass => raceClass.name);
 }
 
 /** En punkt i en sträcka: "S" start, "F" mål, annars "kod.förekomst". */

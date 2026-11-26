@@ -208,8 +208,19 @@ describe("administratörsroutes: samarbetet (steg 66)", () => {
     const photo = await raceAdministratorRoute(db, get(), id, { kind: "course-setting-note-photo", noteId: id }, services, environment);
     expect(photo.status).toBe(200);
     expect(photo.headers.get("content-type")).toBe("image/jpeg");
-    expect(photo.headers.get("cache-control")).toBe("private, no-store");
+    expect(photo.headers.get("cache-control")).toBe("private, max-age=86400, immutable");
+    expect(photo.headers.get("vary")).toBe("Cookie");
     expect(photo.headers.get("x-content-type-options")).toBe("nosniff");
+    const photoEtag = photo.headers.get("etag");
+    expect(photoEtag).toMatch(/^"[a-f0-9]{64}"$/);
+    const photo304 = await raceAdministratorRoute(
+      db,
+      new Request("https://otid.example/api/admin", { headers: { cookie: `__Host-otid-organizer-session=${token}`, "if-none-match": `W/${photoEtag}` } }),
+      id, { kind: "course-setting-note-photo", noteId: id }, services, environment
+    );
+    expect(photo304.status).toBe(304);
+    expect(photo304.headers.get("etag")).toBe(photoEtag);
+    expect(photo304.headers.get("vary")).toBe("Cookie");
     expect((await raceAdministratorRoute(db, get(), id, { kind: "course-setting-note-photo", noteId: "inte-ett-id" }, services, environment)).status)
       .toBe(400);
     const controller = new AbortController();

@@ -140,6 +140,14 @@ describe("download lock enforcement", () => {
     const db = mockSelectDb([{ showPreview: false, previewContentSha256: "c".repeat(64) }]);
     expect(await readPublicMapPreview(db, id)).toEqual({ status: "not-found" });
   });
+
+  it("returns not-modified on readPublicMapPreview before reading map_content when weak ETag matches", async () => {
+    const sha = "c".repeat(64);
+    const execute = vi.fn(() => { throw new Error("readMapContent ska inte anropas vid 304"); });
+    const db = { ...mockSelectDb([{ showPreview: true, previewContentSha256: sha }]), execute } as unknown as Database;
+    expect(await readPublicMapPreview(db, id, { ifNoneMatch: `W/"${sha}"` })).toEqual({ status: "not-modified", sha256: sha });
+    expect(execute).not.toHaveBeenCalled();
+  });
 });
 
 /** Sekventiell mock där varje `select()`-anrop returnerar nästa radlista i ordning. */

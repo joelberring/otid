@@ -68,4 +68,54 @@ describe("steg 51: resultatlistans hämtning", () => {
     await createResultListReader(() => 0)(raceId, (ms) => waits.push(ms));
     expect(waits).toEqual([5_000]);
   });
+
+  it("skickar If-None-Match och återanvänder befintligt objekt utan JSON.parse/Zod vid 304 (inkl. svag W/)", async () => {
+    let clock = 0;
+    const seenHeaders: (string | null)[] = [];
+    let calls = 0;
+    vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
+      if (url.includes("/results")) seenHeaders.push(headers.get("if-none-match"));
+      calls += 1;
+      if (calls <= 3) {
+        const body = url.includes("/results") ? results : url.endsWith("/relay-results") ? noRelay : radioOff;
+        return new Response(JSON.stringify(body), { status: 200, headers: { etag: `W/"tag-${url.split("/").at(-1)}"` } });
+      }
+      // 304 har ingen kropp; skulle läsaren anropa .json() kastas fel.
+      return new Response(null, { status: 304, headers: { etag: 'W/"tag-results"' } });
+    });
+    const read = createResultListReader(() => clock);
+    const first = await read(raceId);
+    expect(seenHeaders).toEqual([null]);
+    clock = 5_000;
+    const second = await read(raceId);
+    expect(seenHeaders).toEqual([null, 'W/"tag-results"']);
+    expect(second).toBe(first);
+  });
+
+  it("hämtar /results?splits=0 vid kompakt läge och tömmer If-None-Match vid byte till fullt /results", async () => {
+    let wantSplits = false;
+    const requests: { url: string; inm: string | null }[] = [];
+    vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
+      if (url.includes("/results")) requests.push({ url, inm: headers.get("if-none-match") });
+      const body = url.includes("/results") ? results : url.endsWith("/relay-results") ? noRelay : radioOff;
+      const tag = url.includes("splits=0") ? 'W/"compact"' : 'W/"full"';
+      if (headers.get("if-none-match") === tag) return new Response(null, { status: 304, headers: { etag: tag } });
+      return new Response(JSON.stringify(body), { status: 200, headers: { etag: tag } });
+    });
+    const read = createResultListReader(() => 0, { splits: () => wantSplits });
+    const first = await read(raceId);
+    const second = await read(raceId);
+    expect(second).toBe(first);
+    // Användaren öppnar Sträcktider-fliken → URL ändras till fullt /results, ingen gammal ETag skickas!
+    wantSplits = true;
+    const full = await read(raceId);
+    expect(full).not.toBe(first);
+    expect(requests).toEqual([
+      { url: `/api/public/races/${raceId}/results?splits=0`, inm: null },
+      { url: `/api/public/races/${raceId}/results?splits=0`, inm: 'W/"compact"' },
+      { url: `/api/public/races/${raceId}/results`, inm: null }
+    ]);
+  });
 });

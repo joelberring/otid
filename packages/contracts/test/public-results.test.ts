@@ -63,6 +63,16 @@ describe("publicResultListResponseSchema", () => {
     expect(accepts(dns)).toBe(true);
     expect(accepts({ ...dns, elapsedMs: 1 })).toBe(false);
     expect(accepts({ ...dns, splits: ranked.splits })).toBe(false);
+    expect(accepts({ ...dns, hasSplits: true })).toBe(false);
+  });
+
+  it("accepterar valfritt hasSplits på kompakta rader (?splits=0) men behåller fulla rader oförändrade", () => {
+    const compact = { ...ranked, splits: [], hasSplits: true };
+    expect(publicResultListResponseSchema.parse({ formatVersion: 7, results: [compact] }).results[0]).toEqual(compact);
+    const ntCompact = { className: "H21", givenName: "Ada", familyName: "Löpare", organisationName: "Centrum OK",
+      publicResultId, revision: 4, status: "NT" as const, reason: "WITHOUT_TIMING" as const,
+      rankingState: "NOT_RANKABLE_STATUS" as const, hasSplits: true };
+    expect(publicResultListResponseSchema.parse({ formatVersion: 7, results: [ntCompact] }).results[0]).toEqual(ntCompact);
   });
 });
 

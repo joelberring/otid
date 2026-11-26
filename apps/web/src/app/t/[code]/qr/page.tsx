@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
 type Params = { params: Promise<{ code: string }> };
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
-  const hub = await loadRaceHub((await params).code);
+  const hub = await loadRaceHub((await params).code, { includeRoutes: false });
   const qrTitle = await currentLanguage() === "en" ? qrEn.title : publicRaceSv.qr.title;
   return { title: hub ? `${qrTitle}: ${hub.eventName} – ${sv.appName}` : `${(await currentLanguage() === "en" ? notPublishedEn : publicRaceSv.notPublished).title} – ${sv.appName}`,
     robots: NO_INDEX_ROBOTS };
@@ -30,7 +30,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
  * i text. Koden skapas på servern med biblioteket `qrcode` (felkorrigering M) som SVG.
  */
 export default async function RaceQrPage({ params }: Params) {
-  const hub = await requireRaceHub((await params).code);
+  const hub = await requireRaceHub((await params).code, { includeRoutes: false });
   const path = raceHubPath(hub.shortCode);
   const origin = await publicOrigin();
   const url = new URL(path, origin).toString();

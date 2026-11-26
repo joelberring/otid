@@ -17,7 +17,7 @@ type Params = { params: Promise<{ code: string }> };
 const robots = { index: false, follow: false, noarchive: true, nosnippet: true, noimageindex: true } as const;
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
-  const hub = await loadRaceHub((await params).code);
+  const hub = await loadRaceHub((await params).code, { includeRoutes: false });
   const text = await currentLanguage() === "en" ? partyPublicEn : partyPublicSv;
   if (!hub) return { title: `${(await currentLanguage() === "en" ? notPublishedEn : publicRaceSv.notPublished).title} – ${sv.appName}`, robots };
   return { title: `${text.metaTitle(hub.eventName)} – ${sv.appName}`, robots };
@@ -28,7 +28,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
  * statistiken och namnen hämtas i webbläsaren, så att en robot utan JavaScript inte ser några namn.
  */
 export default async function PartyPage({ params }: Params) {
-  const hub = await requireRaceHub((await params).code);
+  const hub = await requireRaceHub((await params).code, { includeRoutes: false });
   if (hub.raceType !== "PARTY") redirect(`/t/${hub.shortCode}`);
   return <>
     <PreviewBanner access={hub.access} />

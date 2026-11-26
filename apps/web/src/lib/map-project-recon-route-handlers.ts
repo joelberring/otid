@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   addMapProjectTrackPart, changeMapProjectChecks, createMapProjectNote, createMapProjectTrack, deleteMapProjectNote, deleteMapProjectTrack,
   listMapProjectChecks, listMapProjectNotes, listMapProjectTracks, mapProjectTrackPoints, readMapProjectNotePhoto, readMapProjectStats, readMyMapStats,
@@ -6,6 +7,7 @@ import {
 import { mapStatsOptInRequestSchema, UUID_PATTERN } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
 import { failure, guarded, mutation, readProof, type ClubEnvironment } from "./club-route-handlers";
+import { bufferView, matchesIfNoneMatch } from "./http-etag";
 import { privateHeaders, privateJson } from "./security-policy";
 
 /**
@@ -142,7 +144,7 @@ export async function mapProjectNoteRoute(db: Database, request: Request, projec
   });
 }
 
-/** GET notisens foto (alla medlemmar), som banläggningens notiser: privat, ingen typgissning, sandlåda. */
+/** GET notisens foto (alla medlemmar), engångsskrivet: privat, oföränderligt med ETag/304, ingen typgissning, sandlåda. */
 export async function mapProjectNotePhotoRoute(db: Database, request: Request, projectId: string, noteId: string,
   environment: Environment = process.env): Promise<Response> {
   if (!validId(projectId) || !validId(noteId)) return failure("not-found");
@@ -151,8 +153,20 @@ export async function mapProjectNotePhotoRoute(db: Database, request: Request, p
   return guarded(async () => {
     const result = await readMapProjectNotePhoto(db, { ...input.proof, projectId, noteId });
     if (result.status !== "ok") return failure(result.status);
-    return new Response(new Uint8Array(result.photo), { headers: { ...privateHeaders, "content-type": result.mediaType,
-      "content-length": String(result.photo.byteLength), "x-content-type-options": "nosniff", "content-security-policy": "default-src 'none'; sandbox" } });
+    const etag = `"${createHash("sha256").update(result.photo).digest("hex")}"`;
+    const headers = {
+      ...privateHeaders,
+      "cache-control": "private, max-age=86400, immutable",
+      etag,
+      vary: "Cookie",
+      "x-content-type-options": "nosniff",
+      "content-security-policy": "default-src 'none'; sandbox"
+    };
+    if (matchesIfNoneMatch(request.headers.get("if-none-match"), etag)) {
+      return new Response(null, { status: 304, headers });
+    }
+    return new Response(bufferView(result.photo), { headers: { ...headers, "content-type": result.mediaType,
+      "content-length": String(result.photo.byteLength) } });
   });
 }
 

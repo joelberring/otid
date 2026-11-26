@@ -1,12 +1,13 @@
 import {
-  coursesArePublic, getPublicStartList, publicRaceContentVersion, publicRelayResults, publicResultDetailFrom, publicResults, raceGroupNameDisplay,
-  readPublicLiveFrom, readPublicRadio
+  coursesArePublic, getPublicStartList, publicRaceContentVersion, publicRelayResults, publicResultDetailFrom, publicResults,
+  publicRouteIndexVersion, raceGroupNameDisplay, readPublicLiveFrom, readPublicRadio, readPublicRouteIndex
 } from "@o-tid/application";
 import { maskPublicNames } from "@o-tid/domain";
 import { publicDb as db } from "./db";
 import { instanceRole } from "./instance-role";
 import { raceChangeGeneration } from "./race-change-generation";
 import { createPublicRaceCache, onlyNewResults } from "./public-race-cache";
+export { PUBLIC_PAGE_INLINE_ROWS } from "./public-race-cache";
 import { publicLoad } from "./public-load";
 import { publicStartListValue } from "./public-start-list-route";
 
@@ -116,6 +117,19 @@ export const cachedPublicStartList = (raceId: string, read: Read = {}) => cache.
 export const cachedCoursesArePublic = (raceId: string, read: Read = {}) =>
   cache.read(raceId, "courses-public", () => db.transaction(tx => coursesArePublic(tx, raceId)), read);
 
+/**
+ * Vilka sträckor som har GPS-vägval, cachat per tävlingsversion + antal spår + max(uploaded_at) + kartans synlighet/sha.
+ * Används av `/t/[code]` och `/results/[raceId]/splits` (Live/QR/Fest hoppar över den helt).
+ */
+export const cachedPublicRouteIndex = (raceId: string, options: Read = {}) =>
+  cache.read(raceId, "route-index", () => readPublicRouteIndex(db, raceId), {
+    ...options,
+    version: async (id) => {
+      const version = await publicRouteIndexVersion(db, id);
+      return version === null ? null : `${version}:g${raceChangeGeneration(id)}`;
+    }
+  });
+
 /** En deltagares rad ur den cachade resultatlistan; `stale` som i `CachedPublic`. */
 export async function cachedPublicResultDetail(raceId: string, publicResultId: string, read: Read & { staff?: boolean } = {}) {
   if (read.staff) {
@@ -125,14 +139,4 @@ export async function cachedPublicResultDetail(raceId: string, publicResultId: s
   const [results, coursesPublic] = await Promise.all([cachedPublicResults(raceId, read), cachedCoursesArePublic(raceId, read)]);
   return { ...publicResultDetailFrom(results.value, publicResultId, coursesPublic.value),
     stale: results.stale === true || coursesPublic.stale === true, retryMs: results.retryMs };
-}
-
-/**
- * Steg 51: hur många rader en publik lista får ha och ändå skickas med sidan. En större lista (3 000 löpare ger flera MB
- * HTML och sekunder av serverns tid per besök) hämtas av sidan direkt från det cachade API:et i stället.
- */
-export const PUBLIC_PAGE_INLINE_ROWS = 400;
-
-export function publicPageRows(results: { results: readonly unknown[] }, relay: { classes: readonly { teams: readonly { legs: readonly unknown[] }[] }[] }): number {
-  return results.results.length + relay.classes.reduce((sum, row) => sum + row.teams.reduce((teams, team) => teams + team.legs.length, 0), 0);
 }

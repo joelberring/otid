@@ -3,6 +3,7 @@ import {
   RACE_MAP_MEDIA_TYPES, raceMapProjectLinkStateSchema, RACE_MAP_SOURCE_MAX_BYTES, RACE_MAP_SOURCE_PARTS, RACE_MAP_SOURCE_UPLOAD_MAX_BYTES, raceMapProblemSchema,
   raceMapSourceUpdateResponseSchema, type RaceMapProblem
 } from "@o-tid/contracts";
+import { bufferView, ifNoneMatchSha256, matchesIfNoneMatch } from "./http-etag";
 import { forEachMultipartPart, MultipartError, multipartBoundary, partBytes } from "./multipart";
 import {
   RequestBodyError,
@@ -34,20 +35,16 @@ function problem(error: RaceMapProblem, quota?: MapQuotaExceeded): Response {
 const MAP_SOURCE_MAX_AGE_SECONDS = 24 * 60 * 60;
 const SHA256 = /^[a-f0-9]{64}$/;
 
-/** Värdet i If-None-Match (`"sha"` eller `W/"sha"`), eller undefined när det inte är en sha256. */
-function etagValue(header: string | null): string | undefined {
-  const value = /^(?:W\/)?"([a-f0-9]{64})"$/.exec((header ?? "").trim())?.[1];
-  return value && SHA256.test(value) ? value : undefined;
-}
-
 /**
  * ADR-0218: kartfilen är oföränderlig när adressen bär dess sha256 (`map/source/<sha256>` lika med filens). Då får webbläsaren behålla
  * den (`private`: aldrig i en delad cache; `immutable`: ingen ny fråga under tiden) med ETag, och bara för samma kakor
- * (`Vary: Cookie`, en annan inloggning i samma webbläsare hämtar och prövas på nytt). Utan sha256 eller med en annan (filen
- * har bytts) sparas inget, som förut.
+ * (`Vary: Cookie`, en annan inloggning i samma webbläsare hämtar och prövas på nytt). Utan sha256 i adressen används
+ * `private, no-cache` + ETag + `Vary: Cookie` (alltid ny behörighetskontroll, men 304 utan fil när den inte ändrats).
+ * När adressen bar en annan sha256 (filen har bytts) sparas inget (`private, no-store`).
  */
 function mapSourceCacheHeaders(requested: string | null, sha256: string): Record<string, string> {
-  if (requested === null || !SHA256.test(requested) || requested !== sha256) return { ...privateHeaders };
+  if (requested === null) return { ...privateHeaders, "cache-control": "private, no-cache", etag: `"${sha256}"`, vary: "Cookie" };
+  if (!SHA256.test(requested) || requested !== sha256) return { ...privateHeaders };
   return { ...privateHeaders, "cache-control": `private, max-age=${MAP_SOURCE_MAX_AGE_SECONDS}, immutable`, etag: `"${sha256}"`, vary: "Cookie" };
 }
 
@@ -112,9 +109,17 @@ export async function handleMapRoute(context: RaceAdministratorRouteContext): Pr
       } finally { await dependencies.mapContentDiscard(db, staged.contentId); }
     }
     case "race-map-image": {
-      const result = await dependencies.raceMapImage(db, input);
-      if (result.status !== "ok") return resultFailure(result.status);
-      return new Response(new Uint8Array(result.image), { headers: { ...privateHeaders, "content-type": result.mediaType } });
+      const ifNoneMatch = request.headers.get("if-none-match");
+      const result = await dependencies.raceMapImage(db, input, undefined, { ifNoneMatch });
+      if (result.status !== "ok" && result.status !== "not-modified") return resultFailure(result.status);
+      const etag = `"${result.sha256}"`;
+      const cache = { ...privateHeaders, "cache-control": "private, no-cache", etag, vary: "Cookie" };
+      if (result.status === "not-modified" || matchesIfNoneMatch(ifNoneMatch, etag)) {
+        return new Response(null, { status: 304, headers: cache });
+      }
+      return new Response(bufferView(result.image), {
+        headers: { ...cache, "content-type": result.mediaType, "content-length": String(result.image.byteLength) }
+      });
     }
     case "race-map-georeference": {
       let body: unknown;
@@ -126,13 +131,16 @@ export async function handleMapRoute(context: RaceAdministratorRouteContext): Pr
     // Steg 59 (ADR-0179): kartfilen (OCAD eller Mapper) med bilden ritad i webbläsaren, i en uppladdning.
     case "race-map-source": {
       if (request.method === "GET") {
-        const result = await dependencies.raceMapSourceFile(db, input, undefined, { ifNoneMatch: etagValue(request.headers.get("if-none-match")) });
+        const ifNoneMatch = request.headers.get("if-none-match");
+        const result = await dependencies.raceMapSourceFile(db, input, undefined, { ifNoneMatch: ifNoneMatchSha256(ifNoneMatch) });
         if (result.status !== "ok" && result.status !== "not-modified") return resultFailure(result.status);
         const headers = mapSourceCacheHeaders(action.sha256 ?? null, result.sha256);
-        if (result.status === "not-modified") return new Response(null, { status: 304, headers });
+        if (result.status === "not-modified" || matchesIfNoneMatch(ifNoneMatch, `"${result.sha256}"`)) {
+          return new Response(null, { status: 304, headers });
+        }
         const extension = result.format === "OCD" ? "ocd" : "omap";
         const name = result.fileName.replace(/[^\p{L}\p{N} ._-]/gu, "_").replace(/\.(ocd|omap|xmap)$/i, "") || "karta";
-        return new Response(new Uint8Array(result.file), { headers: { ...headers, "content-type": "application/octet-stream",
+        return new Response(bufferView(result.file), { headers: { ...headers, "content-type": "application/octet-stream",
           "content-disposition": `attachment; filename="karta.${extension}"; filename*=UTF-8''${encodeURIComponent(`${name}.${extension}`)}`,
           "content-length": String(result.file.byteLength) } });
       }

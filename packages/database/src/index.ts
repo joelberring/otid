@@ -16,6 +16,7 @@ export type Database = ReturnType<typeof createDatabase>["db"];
  */
 export type DatabaseOptions = {
   readonly max?: number;
+  readonly connectionTimeoutMillis?: number;
   readonly statementTimeoutMs?: number;
   readonly lockTimeoutMs?: number;
   readonly idleInTransactionTimeoutMs?: number;
@@ -25,10 +26,16 @@ export type DatabaseOptions = {
 export function createDatabase(connectionString: string, options: DatabaseOptions = {}) {
   const pool = new Pool({ connectionString,
     ...(options.max !== undefined ? { max: options.max } : {}),
+    ...(options.connectionTimeoutMillis !== undefined ? { connectionTimeoutMillis: options.connectionTimeoutMillis } : {}),
     ...(options.statementTimeoutMs !== undefined ? { statement_timeout: options.statementTimeoutMs } : {}),
     ...(options.lockTimeoutMs !== undefined ? { lock_timeout: options.lockTimeoutMs } : {}),
     ...(options.idleInTransactionTimeoutMs !== undefined ? { idle_in_transaction_session_timeout: options.idleInTransactionTimeoutMs } : {}),
     ...(options.applicationName !== undefined ? { application_name: options.applicationName } : {}) });
+  // Fångar oväntade fel på vilande anslutningar (t.ex. vid PostgreSQL-omstart) så Node-processen inte kraschar på unhandled error.
+  pool.on("error", (error: Error) => {
+    const label = options.applicationName ?? "otid";
+    console.error(`[database:${label}] Fel på vilande databasanslutning:`, error.message);
+  });
   const db = drizzle(pool, { schema });
   retryTopLevelTransactions(db);
   return { db, pool };

@@ -10,5 +10,6 @@ export const PUBLIC_PATHS = [
   "/", "/om", "/integritet", "/sprak", "/kod", "/kartbank",
   "/results", "/results/*", "/starts", "/starts/*", "/t/*", "/fest/*", "/g/*", "/kartfel/*",
   "/api/public/*", "/api/races/*/start-list", "/api/races/*/start-list/*", "/api/mcp", "/.well-known/*",
-  "/_next/static/*", "/favicon.ico", "/icon.svg", "/apple-icon.png", "/manifest.webmanifest", "/icons/*", "/robots.txt"
+  "/_next/static/*", "/bildspel/*", "/malningar/*", "/spel/*",
+  "/favicon.ico", "/icon.svg", "/apple-icon.png", "/manifest.webmanifest", "/icons/*", "/robots.txt"
 ] as const;

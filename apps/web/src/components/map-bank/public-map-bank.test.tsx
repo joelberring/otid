@@ -106,10 +106,10 @@ describe("PublicMapBank", () => {
 
 describe("PublicMapBankDetail", () => {
   it("visar förhandsvisning, Använd i ny träning och nedladdningslänk för OPEN_DOWNLOAD när showPreview är sant", () => {
-    const detail = makeDetail(BASE_SUMMARY);
+    const detail = { ...makeDetail(BASE_SUMMARY), previewSha: "0123456789abcdef" };
     const html = renderToStaticMarkup(<PublicMapBankDetail listing={detail} loading={false} onClose={() => undefined} />);
     expect(html).toContain('data-testid="map-bank-preview"');
-    expect(html).toContain(`/api/public/map-bank/${detail.id}/preview`);
+    expect(html).toContain(`/api/public/map-bank/${detail.id}/preview?v=0123456789abcdef`);
     expect(html).toContain('data-testid="map-bank-use-button"');
     expect(html).toContain("Använd i ny träning");
     expect(html).toContain('data-testid="map-bank-download-link"');

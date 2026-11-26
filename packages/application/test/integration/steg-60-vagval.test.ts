@@ -10,7 +10,7 @@ import { registerUserAccount } from "../../src/user-account";
 import { applySyncAsAdmin, previewCourseFileAsAdmin } from "../../src/source-sync";
 import { registerEntryAsAdmin } from "../../src/entry-registration";
 import { ingestReadoutsAsAdmin } from "../../src/readout-station";
-import { readPublicLegRoutes, saveParticipantRouteAsAdmin } from "../../src/race-map";
+import { publicRouteIndexVersion, readPublicLegRoutes, readPublicRaceMapImageHead, readRaceMapImageAsAdmin, saveParticipantRouteAsAdmin } from "../../src/race-map";
 import { saveRaceMapSourceAsAdmin } from "../../src/race-map-source";
 import { courseLegKeys, publishRouteChoiceAsAdmin, readRouteChoiceAsAdmin, readRouteChoiceCalibrationAsAdmin,
   saveRouteChoiceSettingsAsAdmin } from "../../src/route-choice";
@@ -190,7 +190,20 @@ describe("steg 60: vägvalsanalysen", () => {
     const bo = await register(proof, "Bo", "7202");
     await readout(proof, "7201", PUNCHES, 2000);
     await readout(proof, "7202", PUNCHES.map(([code, seconds]) => [code, seconds + 20]), 2050);
+    const versionBeforeRoute = await publicRouteIndexVersion(db, proof.raceId);
     expect((await saveParticipantRouteAsAdmin(db, { ...proof, entryId: anna, bytes: await gpx("anna"), fileName: "anna.gpx" })).status).toBe("ok");
+    const versionAfterRoute = await publicRouteIndexVersion(db, proof.raceId);
+    expect(versionBeforeRoute).toBeTruthy();
+    expect(versionAfterRoute).toBeTruthy();
+    expect(versionAfterRoute).not.toBe(versionBeforeRoute);
+    const adminImage = await readRaceMapImageAsAdmin(db, proof);
+    expect(adminImage.status).toBe("ok");
+    if (adminImage.status !== "ok") throw new Error("Kartbilden saknas");
+    expect(await readRaceMapImageAsAdmin(db, proof, new Date(), { ifNoneMatch: `W/"${adminImage.sha256}"` }))
+      .toEqual({ status: "not-modified", sha256: adminImage.sha256 });
+    const publicHead = await readPublicRaceMapImageHead(db, proof.raceId);
+    expect(publicHead).toMatchObject({ mediaType: "image/png", sha256: adminImage.sha256 });
+    expect(publicHead!.contentId).toBeTruthy();
     const late = await register(proof, "Cia", "7203");
 
     // Publicering: fel kartfil, okänd sträcka och okänd bana avvisas; funktionären får inte.

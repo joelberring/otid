@@ -18,9 +18,10 @@ function databaseUrl(): string {
 }
 
 /**
- * Steg 54 (ADR-0177): separata pooler. Tävlingens pool (arbetsytan, avläsningen, funktionärerna) har inga tidsgränser
- * och tar högst `OTID_DB_POOL_MAX` (10) anslutningar. Publikens pool (de publika listorna och, i `web-public`, allt)
- * tar högst `OTID_PUBLIC_DB_POOL_MAX` (8 i web-public, annars 3) och avbryter frågor efter
+ * Steg 54 (ADR-0177): separata pooler. Tävlingens pool (arbetsytan, avläsningen, funktionärerna) har inga frågetidsgränser
+ * (bara `idleInTransactionTimeoutMs: 60 s` mot fastnade transaktioner) och tar högst `OTID_DB_POOL_MAX` (10) anslutningar.
+ * Publikens pool (de publika listorna och, i `web-public`, allt) tar högst `OTID_PUBLIC_DB_POOL_MAX` (8 i web-public,
+ * annars 3), ger upp anslutningsväntan efter `OTID_PUBLIC_CONNECTION_TIMEOUT_MS` (8 s) och avbryter frågor efter
  * `OTID_PUBLIC_STATEMENT_TIMEOUT_MS` (5 s) och väntan på lås efter 2 s. Publiken kan därför aldrig ta tävlingens
  * anslutningar, och en seg publik fråga håller inte databasen. Summan i drift (10 + 3 + 8 + radio och backup) ligger
  * långt under PostgreSQL:s 100 anslutningar.
@@ -29,6 +30,7 @@ const role = instanceRole();
 function publicPool() {
   return createDatabase(databaseUrl(), {
     max: environmentNumber(process.env, "OTID_PUBLIC_DB_POOL_MAX", role === "public" ? 8 : 3),
+    connectionTimeoutMillis: environmentNumber(process.env, "OTID_PUBLIC_CONNECTION_TIMEOUT_MS", 8_000),
     statementTimeoutMs: environmentNumber(process.env, "OTID_PUBLIC_STATEMENT_TIMEOUT_MS", 5_000),
     lockTimeoutMs: 2_000, idleInTransactionTimeoutMs: 10_000, applicationName: "otid-public" });
 }
@@ -36,7 +38,8 @@ function publicPool() {
 export const publicDatabase = globalDatabase.oTidPublicDatabase ?? publicPool();
 /** I `web-public` är publikens pool den enda; annars tävlingens. */
 export const database = role === "public" ? publicDatabase : globalDatabase.oTidDatabase ?? createDatabase(databaseUrl(), {
-  max: environmentNumber(process.env, "OTID_DB_POOL_MAX", 10), applicationName: role === "competition" ? "otid-web" : "otid" });
+  max: environmentNumber(process.env, "OTID_DB_POOL_MAX", 10), idleInTransactionTimeoutMs: 60_000,
+  applicationName: role === "competition" ? "otid-web" : "otid" });
 if (process.env.NODE_ENV !== "production") {
   globalDatabase.oTidDatabase = database;
   globalDatabase.oTidPublicDatabase = publicDatabase;

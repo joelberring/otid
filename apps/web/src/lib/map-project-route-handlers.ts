@@ -6,11 +6,12 @@ import {
 import { CLUB_ARCHIVE_MAP_MAX_BYTES, MAP_PROJECT_SYNC_MAX_BYTES, mapProjectExportFormatSchema, UUID_PATTERN } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
 import {
-  attachment, failure, guarded, headerText, mutation, problem, readProof, requireStreamSession, streamChunks, type ClubEnvironment
+  attachment, contentPartStream, failure, guarded, headerText, mutation, privateContentCacheHeaders, problem, readProof, requireStreamSession, streamChunks,
+  type ClubEnvironment
 } from "./club-route-handlers";
+import { matchesIfNoneMatch } from "./http-etag";
 import { mailAvailable, routeMailer } from "./invitation-route-handlers";
 import { privateHeaders, privateJson, validDeclaredLength } from "./security-policy";
-import { logServerError } from "./server-error-log";
 
 /**
  * ADR-0219: kartprojektens anrop under /api/organizer/map-projects. Samma skydd som klubbens (exakt Origin och CSRF på
@@ -141,27 +142,19 @@ export async function mapProjectOutputRoute(db: Database, request: Request, proj
   return guarded(async () => {
     const head = await readMapProjectOutput(db, { ...input.proof, projectId, outputId });
     if (head.status !== "ok") return failure(head.status);
-    return contentResponse(db, head, head.fileName.toLowerCase().endsWith(".ocd") ? "karta.ocd" : "karta.omap");
+    return contentResponse(db, request, head, head.fileName.toLowerCase().endsWith(".ocd") ? "karta.ocd" : "karta.omap");
   });
 }
 
-/** Innehållet som en ström (privat, med filnamn och storlek). */
-function contentResponse(db: Database, head: { contentId: string; fileName: string; byteLength: number; sha256: string }, fallback: string): Response {
-  const parts = streamMapContentParts(db, head.contentId);
-  const stream = new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      try {
-        const next = await parts.next();
-        if (next.done) controller.close(); else controller.enqueue(next.value);
-      } catch (error) {
-        logServerError("map-project", "content", error);
-        controller.error(error);
-      }
-    },
-    async cancel() { await parts.return(undefined); }
-  });
-  return new Response(stream, { headers: { ...privateHeaders, "content-type": "application/octet-stream",
-    "content-disposition": attachment(head.fileName, fallback), "content-length": String(head.byteLength), etag: `"${head.sha256}"` } });
+/** Innehållet som en ström (privat, med filnamn, storlek och ETag/304 före läsning av delar). */
+function contentResponse(db: Database, request: Request, head: { contentId: string; fileName: string; byteLength: number; sha256: string }, fallback: string): Response {
+  const cache = privateContentCacheHeaders(request, head.sha256);
+  if (matchesIfNoneMatch(request.headers.get("if-none-match"), `"${head.sha256}"`)) {
+    return new Response(null, { status: 304, headers: cache });
+  }
+  const stream = contentPartStream(streamMapContentParts(db, head.contentId), "map-project", "content");
+  return new Response(stream, { headers: { ...cache, "content-type": "application/octet-stream",
+    "content-disposition": attachment(head.fileName, fallback), "content-length": String(head.byteLength) } });
 }
 
 /** GET grundfilen (strömmas, oföränderlig per sha256). */
@@ -173,7 +166,7 @@ export async function mapProjectSourceRoute(db: Database, request: Request, proj
   return guarded(async () => {
     const head = await readMapProjectSource(db, { ...input.proof, projectId });
     if (head.status !== "ok") return failure(head.status);
-    return contentResponse(db, head, head.format === "OCD" ? "karta.ocd" : "karta.omap");
+    return contentResponse(db, request, head, head.format === "OCD" ? "karta.ocd" : "karta.omap");
   });
 }
 

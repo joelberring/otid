@@ -19,7 +19,7 @@ import { RadioLive } from "../radio/radio-live";
 import styles from "./split-analysis.module.css";
 
 type View = "SPLITS" | "LOSS";
-type Props = { raceId: string; initial: ResultListData; routeLegs: Record<string, string[]>; initialClass: string | null };
+type Props = { raceId: string; initial?: ResultListData | undefined; routeLegs: Record<string, string[]>; initialClass: string | null };
 
 const duration = (ms: number | null | undefined) => ms === null || ms === undefined ? "" : formatDuration(ms);
 const slug = (value: string) => value.replace(/\W+/g, "-");
@@ -142,18 +142,20 @@ function LossTable({ group, raceId, title }: { group: SplitGroup; raceId: string
 export function SplitAnalysis({ raceId, initial, routeLegs, initialClass }: Props) {
   const text = useSplitTexts(), listTexts = useListTexts(), forking = useTexts(forkingSv, forkingEn);
   const { data, failed } = useResultListData(raceId, initial);
-  const model = useMemo(() => resultListFromPublic((data ?? initial).results, (data ?? initial).relay, (data ?? initial).radio), [data, initial]);
+  const current = data ?? initial;
+  const model = useMemo(() => current ? resultListFromPublic(current.results, current.relay, current.radio) : undefined, [current]);
   // Klasser med sträcktider, och (ADR-0172 beslut 5) klasser där någon passerat en radiokontroll.
-  const classNames = useMemo(() => [...new Set([...analysisClassNames(model),
-    ...model.classes.filter(row => row.radio && !row.scored).map(row => row.name)])].sort((a, b) => a.localeCompare(b, "sv")), [model]);
+  const classNames = useMemo(() => model ? [...new Set([...analysisClassNames(model),
+    ...model.classes.filter(row => row.radio && !row.scored).map(row => row.name)])].sort((a, b) => a.localeCompare(b, "sv")) : [], [model]);
   const [chosen, setChosen] = useState(initialClass ?? "");
   const [view, setView] = useState<View>("SPLITS");
   const className = classNames.includes(chosen) ? chosen : classNames[0] ?? "";
-  const raceClass = model.classes.find(row => row.name === className);
+  const raceClass = model?.classes.find(row => row.name === className);
   // Steg 49: en gafflad klass jämförs per sträcka (förval) eller per variant.
   const [byVariant, setByVariant] = useState(false);
   const legGroup = useMemo(() => raceClass ? legSplitGroup(raceClass) : undefined, [raceClass]);
   const variantGroups = useMemo(() => raceClass ? splitGroups(raceClass) : [], [raceClass]);
+  if (!model) return <p className={styles.notice} role="status">{failed ? listTexts.results.refreshFailed : listTexts.results.loading}</p>;
   const groups = legGroup && !byVariant ? [legGroup] : variantGroups;
   const relayClasses = model.relayClasses.map(row => row.name);
   const choose = (name: string) => {

@@ -41,26 +41,40 @@ export function SpeakerPage({ raceId }: { raceId: string }) {
   const [classFilter, setClassFilter] = useState("");
   const [online, setOnline] = useState(true);
   const loading = useRef(false), again = useRef(false);
+  const etagCache = useRef(new Map<string, { etag: string; value: unknown }>());
   const base = `/api/admin/races/${encodeURIComponent(raceId)}/administrator`;
 
   const load = useCallback(async () => {
     if (loading.current) { again.current = true; return; }
     loading.current = true;
     try {
-      const get = async (url: string) => {
-        const response = await fetch(url, { credentials: "same-origin", cache: "no-store" });
+      const get = async <T,>(url: string, parse: (value: unknown) => T): Promise<T> => {
+        const cached = etagCache.current.get(url);
+        const response = await fetch(url, {
+          credentials: "same-origin",
+          cache: "no-store",
+          ...(cached ? { headers: { "if-none-match": cached.etag } } : {})
+        });
         if (response.status === 401 || response.status === 403) throw new Unauthorized();
+        if (response.status === 304 && cached) {
+          const nextEtag = response.headers.get("etag");
+          if (nextEtag) etagCache.current.set(url, { etag: nextEtag, value: cached.value });
+          return cached.value as T;
+        }
         if (!response.ok) throw new Error(`Speakerunderlaget svarade ${response.status}`);
-        return response.json() as Promise<unknown>;
+        const value = parse(await response.json());
+        const etag = response.headers.get("etag");
+        if (etag) etagCache.current.set(url, { etag, value });
+        return value;
       };
       // Kontots session gäller speakern direkt (ADR-0173 beslut 4).
-      const board: SpeakerBoardResponse = speakerBoardResponseSchema.parse(await get(`${base}/speaker-board`));
+      const board: SpeakerBoardResponse = await get(`${base}/speaker-board`, value => speakerBoardResponseSchema.parse(value));
       if (board.raceId !== raceId) throw new Error(inLanguage("Speakerunderlaget gäller en annan tävling", "The speaker data belongs to a different race"));
       const [results, forest, relay, radio] = await Promise.all([
-        get(`/api/public/races/${encodeURIComponent(raceId)}/results`).then(value => publicResultListResponseV7Schema.parse(value)),
-        get(`${base}/forest-watch`).then(value => administratorForestWatchResponseSchema.parse(value)),
-        get(`${base}/relay`).then(value => relayOverviewSchema.parse(value)),
-        get(`/api/public/races/${encodeURIComponent(raceId)}/radio`).then(value => publicRadioResponseSchema.parse(value))
+        get(`/api/public/races/${encodeURIComponent(raceId)}/results?splits=0`, value => publicResultListResponseV7Schema.parse(value)),
+        get(`${base}/forest-watch`, value => administratorForestWatchResponseSchema.parse(value)),
+        get(`${base}/relay`, value => relayOverviewSchema.parse(value)),
+        get(`/api/public/races/${encodeURIComponent(raceId)}/radio`, value => publicRadioResponseSchema.parse(value))
       ]);
       setData({ board, results, forest, relay, radio, at: new Date().toISOString() });
       setProblem(undefined);

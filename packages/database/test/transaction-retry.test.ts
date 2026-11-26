@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { isTransactionConflict, OutsideTransactionWork, retryTopLevelTransactions } from "../src/index";
+import { describe, expect, it, vi } from "vitest";
+import { createDatabase, isTransactionConflict, OutsideTransactionWork, retryTopLevelTransactions } from "../src/index";
 
 /** Översynen 2026-11-02: poolens transaktioner görs om vid 40001 och 40P01. */
 describe("transaktioner som PostgreSQL avbröt", () => {
@@ -55,5 +55,27 @@ describe("transaktioner som PostgreSQL avbröt", () => {
     await expect(db.transaction(async () => { throw new OutsideTransactionWork(async () => { rounds += 1; }); }))
       .rejects.toThrow("för många gånger");
     expect(rounds).toBe(6);
+  });
+});
+
+describe("createDatabase pool-härdning", () => {
+  it("fångar vilande poolfel utan unhandled error och skickar vidare tidsgränser", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { pool } = createDatabase("postgresql://test:test@127.0.0.1:1/test", {
+      max: 5,
+      connectionTimeoutMillis: 8_000,
+      idleInTransactionTimeoutMs: 60_000,
+      applicationName: "otid-test"
+    });
+    try {
+      expect(pool.listenerCount("error")).toBeGreaterThanOrEqual(1);
+      expect(pool.options.connectionTimeoutMillis).toBe(8_000);
+      expect(pool.options.idle_in_transaction_session_timeout).toBe(60_000);
+      expect(() => pool.emit("error", new Error("terminating connection due to administrator command"))).not.toThrow();
+      expect(spy).toHaveBeenCalledWith("[database:otid-test] Fel på vilande databasanslutning:", "terminating connection due to administrator command");
+    } finally {
+      spy.mockRestore();
+      await pool.end();
+    }
   });
 });

@@ -72,6 +72,7 @@ export const publicMapListingSummarySchema = z.object({
   accessMode: publicMapAccessModeSchema,
   showPreview: z.boolean(),
   hasPreview: z.boolean(),
+  previewSha: z.string().regex(/^[a-f0-9]{16,64}$/).nullable().optional(),
   scale: z.number().int().nullable(),
   norm: publicMapNormSchema,
   mapYear: z.number().int().nullable(),

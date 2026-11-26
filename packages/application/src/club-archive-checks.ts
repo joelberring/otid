@@ -6,6 +6,7 @@ import {
 import { schema, type Database } from "@o-tid/database";
 import { clubAreaAccess, clubJournal, requireClubArea, requireClubRole, type ClubFailure, type ClubProof } from "./club-access";
 import { courseFileSummary } from "./club-archive-import";
+import { matchesIfNoneMatch } from "./http-etag";
 import { imageDimensions } from "./image-dimensions";
 import { UUID_PATTERN } from "./serialization";
 import type { DbExecutor } from "./snapshot";
@@ -103,30 +104,66 @@ export async function saveClubEntryThumbnail(db: Database, input: ClubProof & { 
   });
 }
 
-export type ThumbnailRead = ClubFailure | { status: "ok"; png: Buffer; etag: string };
+export type ThumbnailRead =
+  | ClubFailure
+  | { status: "ok"; png: Buffer; etag: string; stamp: string }
+  | { status: "not-modified"; etag: string; stamp: string };
 
-export async function readClubMapVersionThumbnail(db: Database, input: ClubProof & { clubId: string; versionId: string }, now = new Date())
-  : Promise<ThumbnailRead> {
+export async function readClubMapVersionThumbnail(
+  db: Database,
+  input: ClubProof & { clubId: string; versionId: string; ifNoneMatch?: string | null },
+  now = new Date()
+): Promise<ThumbnailRead> {
   if (!validId(input.versionId)) return { status: "not-found" };
   return db.transaction(async tx => {
     const member = await requireClubArea(tx, input, "ARCHIVE", now, false);
     if (member.status !== "ok") return member;
+    const condition = and(eq(schema.clubMapVersionChecks.versionId, input.versionId), eq(schema.clubMapVersionChecks.clubId, input.clubId));
+    if (input.ifNoneMatch) {
+      // Pröva ETag på metadata först så 304 aldrig hämtar bytea-tumnageln ur DB.
+      const [meta] = await tx.select({
+        hasPng: sql<boolean>`${schema.clubMapVersionChecks.thumbnail} is not null`,
+        checkedAt: schema.clubMapVersionChecks.checkedAt
+      }).from(schema.clubMapVersionChecks).where(condition);
+      if (!meta?.hasPng) return { status: "not-found" } as const;
+      const etag = `"${input.versionId}-${meta.checkedAt.getTime()}"`;
+      const stamp = meta.checkedAt.toISOString();
+      if (matchesIfNoneMatch(input.ifNoneMatch, etag)) return { status: "not-modified", etag, stamp } as const;
+    }
     const [row] = await tx.select({ png: schema.clubMapVersionChecks.thumbnail, checkedAt: schema.clubMapVersionChecks.checkedAt })
-      .from(schema.clubMapVersionChecks)
-      .where(and(eq(schema.clubMapVersionChecks.versionId, input.versionId), eq(schema.clubMapVersionChecks.clubId, input.clubId)));
-    return row?.png ? { status: "ok", png: row.png, etag: `"${input.versionId}-${row.checkedAt.getTime()}"` } as const : { status: "not-found" } as const;
+      .from(schema.clubMapVersionChecks).where(condition);
+    return row?.png
+      ? { status: "ok", png: row.png, etag: `"${input.versionId}-${row.checkedAt.getTime()}"`, stamp: row.checkedAt.toISOString() } as const
+      : { status: "not-found" } as const;
   });
 }
 
-export async function readClubEntryThumbnail(db: Database, input: ClubProof & { clubId: string; entryId: string }, now = new Date()): Promise<ThumbnailRead> {
+export async function readClubEntryThumbnail(
+  db: Database,
+  input: ClubProof & { clubId: string; entryId: string; ifNoneMatch?: string | null },
+  now = new Date()
+): Promise<ThumbnailRead> {
   if (!validId(input.entryId)) return { status: "not-found" };
   return db.transaction(async tx => {
     const member = await requireClubArea(tx, input, "ARCHIVE", now, false);
     if (member.status !== "ok") return member;
+    const condition = and(eq(schema.clubArchiveEntryThumbnails.entryId, input.entryId), eq(schema.clubArchiveEntryThumbnails.clubId, input.clubId));
+    if (input.ifNoneMatch) {
+      // Pröva ETag på metadata först så 304 aldrig hämtar bytea-tumnageln ur DB.
+      const [meta] = await tx.select({
+        hasPng: sql<boolean>`${schema.clubArchiveEntryThumbnails.image} is not null`,
+        createdAt: schema.clubArchiveEntryThumbnails.createdAt
+      }).from(schema.clubArchiveEntryThumbnails).where(condition);
+      if (!meta?.hasPng) return { status: "not-found" } as const;
+      const etag = `"${input.entryId}-${meta.createdAt.getTime()}"`;
+      const stamp = meta.createdAt.toISOString();
+      if (matchesIfNoneMatch(input.ifNoneMatch, etag)) return { status: "not-modified", etag, stamp } as const;
+    }
     const [row] = await tx.select({ png: schema.clubArchiveEntryThumbnails.image, createdAt: schema.clubArchiveEntryThumbnails.createdAt })
-      .from(schema.clubArchiveEntryThumbnails)
-      .where(and(eq(schema.clubArchiveEntryThumbnails.entryId, input.entryId), eq(schema.clubArchiveEntryThumbnails.clubId, input.clubId)));
-    return row?.png ? { status: "ok", png: row.png, etag: `"${input.entryId}-${row.createdAt.getTime()}"` } as const : { status: "not-found" } as const;
+      .from(schema.clubArchiveEntryThumbnails).where(condition);
+    return row?.png
+      ? { status: "ok", png: row.png, etag: `"${input.entryId}-${row.createdAt.getTime()}"`, stamp: row.createdAt.toISOString() } as const
+      : { status: "not-found" } as const;
   });
 }
 

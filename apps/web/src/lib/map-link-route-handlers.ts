@@ -2,6 +2,7 @@ import { readMapLinkMapFile, readMapLinkView, replyViaMapLink, setVerdictViaMapL
 import { mapLinkErrorResponseSchema, mapLinkViewSchema, type MapLinkErrorCode } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
 import { publishCourseSettingEvent } from "./course-setting-events";
+import { bufferView, ifNoneMatchSha256, matchesIfNoneMatch } from "./http-etag";
 import { publicBusyResponse, publicLoad } from "./public-load";
 import {
   SecurityConfigurationError, clientAddress, hasExpectedOrigin, privateHeaders, readJsonBody, securityPolicy
@@ -51,15 +52,17 @@ export async function mapLinkViewRoute(db: Database, request: Request, token: st
 export async function mapLinkMapRoute(db: Database, request: Request, token: string, services: MapLinkServices = mapLinkServices): Promise<Response> {
   return admitted(async () => {
     try {
-      const tag = /^"([a-f0-9]{64})"$/.exec(request.headers.get("if-none-match")?.trim() ?? "")?.[1];
+      const ifNoneMatch = request.headers.get("if-none-match");
+      const tag = ifNoneMatchSha256(ifNoneMatch);
       const result = await services.mapFile(db, { token, clientKey: clientAddress(request), ifNoneMatch: tag });
       if (result.status === "invalid" || result.status === "rate-limited") return linkFailure(result.status);
       if (result.status === "forbidden") return failure(403, "FORBIDDEN");
       if (result.status === "not-found") return failure(404, "NOT_FOUND");
-      const cache = { ...privateHeaders, "cache-control": "private, no-cache", etag: `"${result.sha256}"` };
-      if (result.status === "not-modified") return new Response(null, { status: 304, headers: cache });
+      const etag = `"${result.sha256}"`;
+      const cache = { ...privateHeaders, "cache-control": "private, no-cache", etag };
+      if (result.status === "not-modified" || matchesIfNoneMatch(ifNoneMatch, etag)) return new Response(null, { status: 304, headers: cache });
       const extension = result.format === "OCD" ? "ocd" : "omap";
-      return new Response(new Uint8Array(result.file), { headers: { ...cache, "content-type": "application/octet-stream",
+      return new Response(bufferView(result.file), { headers: { ...cache, "content-type": "application/octet-stream",
         "content-disposition": `attachment; filename="karta.${extension}"`, "content-length": String(result.file.byteLength) } });
     } catch (error) { logServerError("map-link", "map", error); return failure(500, "INTERNAL_ERROR"); }
   });

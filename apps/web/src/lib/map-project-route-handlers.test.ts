@@ -67,7 +67,27 @@ describe("Etapp 2: kartprojektens API-rutter för nedladdningsspärr", () => {
     mocks.streamMapContentParts.mockReturnValueOnce(singleChunk(bytes));
     const allowed = await mapProjectSourceRoute(db, getReq("/source"), projectId, env);
     expect(allowed.status).toBe(200);
+    expect(allowed.headers.get("cache-control")).toBe("private, no-cache");
+    expect(allowed.headers.get("vary")).toBe("Cookie");
+    expect(allowed.headers.get("etag")).toBe(`"${"a".repeat(64)}"`);
     expect([...new Uint8Array(await allowed.arrayBuffer())]).toEqual([0xad, 0x0c, 1, 2]);
+    expect(mocks.streamMapContentParts).toHaveBeenCalledTimes(1);
+
+    // 304 på svag ETag före streamMapContentParts.
+    mocks.readMapProjectSource.mockResolvedValueOnce({
+      status: "ok", fileName: "Skogen.ocd", format: "OCD", byteLength: bytes.byteLength, contentId, sha256: "a".repeat(64)
+    });
+    const notMod = await mapProjectSourceRoute(
+      db,
+      new Request(`${base}/source?v=${"a".repeat(64)}`, {
+        headers: { cookie: `__Host-otid-organizer-session=${session}`, "if-none-match": `W/"${"a".repeat(64)}"` }
+      }),
+      projectId, env
+    );
+    expect(notMod.status).toBe(304);
+    expect(notMod.headers.get("cache-control")).toBe("private, max-age=86400, immutable");
+    expect(notMod.headers.get("vary")).toBe("Cookie");
+    expect(mocks.streamMapContentParts).toHaveBeenCalledTimes(1);
   });
 
   it("/outputs/:outputId returnerar 403 vid spärr för icke-ägare och 200 för ägare", async () => {
@@ -82,7 +102,22 @@ describe("Etapp 2: kartprojektens API-rutter för nedladdningsspärr", () => {
     mocks.streamMapContentParts.mockReturnValueOnce(singleChunk(bytes));
     const allowed = await mapProjectOutputRoute(db, getReq(`/outputs/${outputId}`), projectId, outputId, env);
     expect(allowed.status).toBe(200);
+    expect(allowed.headers.get("cache-control")).toBe("private, no-cache");
+    expect(allowed.headers.get("vary")).toBe("Cookie");
     expect([...new Uint8Array(await allowed.arrayBuffer())]).toEqual([1, 2, 3]);
+
+    mocks.readMapProjectOutput.mockResolvedValueOnce({
+      status: "ok", fileName: "Skogen reviderad.omap", byteLength: bytes.byteLength, contentId, sha256: "b".repeat(64)
+    });
+    const cached = await mapProjectOutputRoute(
+      db,
+      new Request(`${base}/outputs/${outputId}`, {
+        headers: { cookie: `__Host-otid-organizer-session=${session}`, "if-none-match": `W/"${"b".repeat(64)}"` }
+      }),
+      projectId, outputId, env
+    );
+    expect(cached.status).toBe(304);
+    expect(mocks.streamMapContentParts).toHaveBeenCalledTimes(1);
   });
 
   it("/export?format=omap ger 403 vid spärr för icke-ägare och 200 för ägare samt för geojson", async () => {

@@ -102,7 +102,7 @@ export function PublicMapBankDetail({ listing, loading, error, onClose }: Public
       {listing.showPreview && listing.hasPreview && (
         <div className={styles.previewWrap} data-testid="map-bank-preview">
           <img
-            src={`/api/public/map-bank/${encodeURIComponent(listing.id)}/preview`}
+            src={`/api/public/map-bank/${encodeURIComponent(listing.id)}/preview${listing.previewSha ? `?v=${encodeURIComponent(listing.previewSha)}` : ""}`}
             alt={text.detail.previewAlt(listing.title)}
             className={styles.previewImage}
             loading="lazy"

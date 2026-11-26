@@ -17,7 +17,6 @@ export const mapProjectTextEn: Texts<typeof mapProjectTextSv> = {
   title: (code, name) => `Text symbol ${code} ${name}`,
   help: "Font, size and colour belong to the symbol and apply to every text with it. The change shows at once and is kept with Save; Undo takes it back.",
   readOnly: "Only the project's owners can change text symbols. Suggest the change in a note.",
-  ocad: "The map is an OCAD file. The text symbols cannot be written back to the OCAD file safely here, so they cannot be changed. Save the map in Mapper (.omap/.xmap) and start the project from it to change them.",
   font: "Font",
   fallback: "shown with a substitute font (the font is not on this computer)",
   size: "Size (mm on the map)",

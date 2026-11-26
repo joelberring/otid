@@ -142,6 +142,7 @@ export const mapBankSv = {
     inheritedFromArchive: "Nedladdningsspärren är ärvd från grundkartan i klubbarkivet och kan bara ändras i klubbarkivet.",
     lockedForMember: "Kartfilen (.ocd/.omap) är nedladdningsspärrad av projektägaren eller klubben. Nedladdning av källfil, fullkartor och direkt vektorredigering är låsta för icke-ägare, men du ser projektöversikt, statistik, GeoJSON-export och kan använda kopplade kartor i tävlingars banläggning.",
     exportMapperLocked: "Full Mapper-export är spärrad eftersom kartfilen är nedladdningsspärrad. GeoJSON-export av ändringarna fungerar ändå.",
+    exportOcdLocked: "OCAD-export av ändringarna är spärrad eftersom kartfilen är nedladdningsspärrad. GeoJSON-export av ändringarna fungerar ändå.",
     readOnlyAllowed: "Nedladdning av källfilen är tillåten för projektets medlemmar.",
     readOnlyLocked: "Nedladdning av källfilen är spärrad – endast projektägare och klubbadmin kan ladda ner kartfilen och öppna vektorredigeraren."
   },

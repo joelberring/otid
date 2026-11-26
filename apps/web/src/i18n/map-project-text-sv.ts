@@ -16,7 +16,6 @@ export const mapProjectTextSv = {
   title: (code: string, name: string) => `Textsymbol ${code} ${name}`,
   help: "Typsnitt, storlek och färg hör till symbolen och gäller alla texter med den. Ändringen visas direkt och sparas med Spara; Ångra tar tillbaka den.",
   readOnly: "Bara projektets ägare kan ändra textsymboler. Föreslå ändringen i en notis.",
-  ocad: "Kartan är en OCAD-fil. Textsymbolerna kan inte skrivas tillbaka till OCAD-filen säkert här, så de går inte att ändra. Spara kartan i Mapper (.omap/.xmap) och starta projektet från den för att ändra dem.",
   font: "Typsnitt",
   fallback: "visas med ersättningstypsnitt (typsnittet finns inte på den här datorn)",
   size: "Storlek (mm på kartan)",

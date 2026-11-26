@@ -134,10 +134,11 @@ export const mapProjectSv = {
     size: "Storlek",
     sizes: (mapFile: string, total: string) => `kartfilen ${mapFile} · hela projektet ${total}`,
     closed: "Projektet är avslutat. Ingen kan ändra kartan förrän det öppnas igen.",
-    ocadLater: "Grundfilen är en OCAD-fil. För att skapa en ny OCAD-version krävs ägarbehörighet och att OCAD-skrivning är aktiverad i serverns inställningar; annars går ändringarna att exportera som GeoJSON.",
+    ocadLater: "Grundfilen är en OCAD-fil. För att skapa en ny OCAD-version krävs ägarbehörighet och att OCAD-skrivning är aktiverad i serverns inställningar; annars går ändringarna att exportera som .ocd eller GeoJSON.",
     download: "Ladda ner grundfilen",
     downloadShort: "Ladda ner",
     exportMapper: "Exportera ändringarna (Mapper)",
+    exportOcd: "Exportera ändringar (.ocd)",
     exportGeojson: "Exportera ändringarna (GeoJSON)",
     exportChanges: "Bara ändringarna",
     exportHelp: "En liten egen fil med bara de ändrade och nya objekten, att lägga in i kartan för hand.",
@@ -189,7 +190,7 @@ export const mapProjectSv = {
     refused: "Ändringarna kunde inte skrivas in i kartfilen. Exportera dem i stället:",
     conflict: "Någon ändrade kartan medan filen skrevs. Försök igen.",
     notOwner: "Bara projektets ägare skapar nya kartversioner.",
-    ocadDisabled: "Att skapa en ny OCAD-version är avstängt i serverns inställningar. Aktivera OCAD-skrivning på servern, eller exportera ändringarna som GeoJSON nedan."
+    ocadDisabled: "Att skapa en ny OCAD-version är avstängt i serverns inställningar. Aktivera OCAD-skrivning på servern, eller exportera ändringarna (.ocd eller GeoJSON) nedan."
   },
   members: {
     title: "Medlemmar",

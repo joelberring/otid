@@ -66,10 +66,20 @@ describe("symbolernas färger i Mapper-filen", () => {
     expect(lines(result.bytes).filter((line, index) => line !== lines(bytes)[index])).toHaveLength(2);
   });
 
-  it("inga verksamma ändringar ger samma bytes, och en OCAD-fil vägras", () => {
+  it("inga verksamma ändringar ger samma bytes, och en OCAD-fil byter symbolfärg med rundtur", () => {
     expect(applyMapSymbolColors(bytes, [])).toEqual({ ok: true, bytes, changed: 0 });
     expect(applyMapSymbolColors(bytes, [{ symbol: "521", from: blue, to: black }])).toEqual({ ok: true, bytes, changed: 0 });
     const ocad = new Uint8Array(readFileSync(join(import.meta.dirname, "../../../fixtures/maps/kartfil.ocd")));
-    expect(applyMapSymbolColors(ocad, [{ symbol: "521", from: brown, to: black }]).ok).toBe(false);
+    const ocdBefore = readMapFile(ocad, "kartfil.ocd");
+    const green = ocdBefore.colors.find(color => color.name === "Grön")!.id;
+    const ocdBlue = ocdBefore.colors.find(color => color.name === "Blå")!.id;
+    const ocdRes = applyMapSymbolColors(ocad, [{ symbol: "406", from: green, to: ocdBlue }]);
+    if (!ocdRes.ok) throw new Error(ocdRes.message);
+    expect(ocdRes.changed).toBe(1);
+    const ocdAfter = readMapFile(ocdRes.bytes, "kartfil.ocd");
+    const forest = byCode(ocdAfter.symbols, "406.0");
+    expect(forest.kind === "AREA" && forest.fill).toBe(ocdBlue);
+    expect(ocdAfter.colors).toEqual(ocdBefore.colors);
+    expect(ocdAfter.objects).toHaveLength(ocdBefore.objects.length);
   });
 });

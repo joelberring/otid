@@ -145,6 +145,7 @@ export const mapBankEn: Texts<typeof mapBankSv> = {
     inheritedFromArchive: "This download lock is inherited from the base map in the club archive and can only be changed in the club archive.",
     lockedForMember: "The map file (.ocd/.omap) is download-locked by the project owner or club. Downloading the source file, full maps, and direct vector editing are locked for non-owners, while you can still view project overview, statistics, GeoJSON export, and use linked maps in event course setting.",
     exportMapperLocked: "Full Mapper export is locked because the map file is download-locked. GeoJSON change export still works.",
+    exportOcdLocked: "OCAD change export is locked because the map file is download-locked. GeoJSON change export still works.",
     readOnlyAllowed: "Downloading the source file is allowed for project members.",
     readOnlyLocked: "Downloading the source file is locked – only project owners and club admins can download the map file and open the vector editor."
   },

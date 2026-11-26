@@ -3,7 +3,7 @@ import { mapProjectExportRoute } from "../../../../../../lib/map-project-route-h
 
 type Context = { params: Promise<{ projectId: string }> };
 
-/** ADR-0219: ändringarna som egen fil (?format=omap eller geojson). */
+/** ADR-0219 / Etapp 4: ändringarna som egen fil (?format=omap, ocd eller geojson). */
 export async function GET(request: Request, context: Context): Promise<Response> {
   const { projectId } = await context.params;
   return mapProjectExportRoute(db, request, projectId);

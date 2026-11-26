@@ -57,8 +57,7 @@ export function useMapProjectText(input: {
 
   // Projektets textsymboler.
   const base = mapProjectBase(view.projectId);
-  const ocad = view.base.format === "OCD";
-  const canChange = view.viewer.canDecide && !ocad;
+  const canChange = view.viewer.canDecide;
   const [saved, setSaved] = useState<readonly MapTextSymbolChange[]>(view.textSymbols);
   const savedRef = useRef(saved);
   const [history, setHistory] = useState<StyleHistory>(EMPTY_STYLE_HISTORY);
@@ -96,7 +95,7 @@ export function useMapProjectText(input: {
   return {
     draft, draftStyle: draft ? symbols.get(draft.symbol)?.text : undefined, start, place, edit, commit, cancel: () => setDraft(undefined),
     hint: input.symbol?.kind === "text" ? text.hint(input.symbol.code) : text.noTextSymbol,
-    styles: { saved, canChange, ocad, open, setOpen, save: saveStyles, show },
+    styles: { saved, canChange, open, setOpen, save: saveStyles, show },
     undo: () => step("undo"), redo: () => step("redo"),
     canUndo: input.objects.undo > 0 || history.undo.length > 0, canRedo: input.objects.redo > 0 || history.redo.length > 0,
     labels: { edit: text.edit, rotate: text.rotate, style: text.style, switchTo: text.switchTo }

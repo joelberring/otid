@@ -363,4 +363,39 @@ describe("Etapp 2: kartprojektens nedladdningsspärr och tävlingsarv", () => {
     }, NOW)).toEqual({ status: "ok", sourceDownloadLocked: true, sourceDownloadLockedByOrigin: false });
     expect(await readRaceMapSourceFileAsAdmin(db, { ...owner.proof, raceId }, NOW)).toEqual({ status: "forbidden" });
   });
+
+  it("Etapp 4B: spärrar /export?format=ocd med 403 för icke-ägare på OCAD-projekt vid CUSTODIANS_ONLY men tillåter ägare och GeoJSON", async () => {
+    const ocdBytes = new Uint8Array(await readFile(new URL("../../../../fixtures/maps/kartfil.ocd", import.meta.url)));
+    const owner = await registerTestAccount(db, undefined, NOW);
+    const editor = await registerTestAccount(db, undefined, NOW);
+    const created = await createMapProjectFromUpload(db, {
+      ...owner.proof,
+      metadata: { formatVersion: 1, requestId: randomUUID(), name: "Låst OCAD", fileName: "Skogen.ocd" },
+      file: ocdBytes
+    }, NOW);
+    if (created.status !== "created") throw new Error(created.status);
+    const projectId = created.projectId;
+    expect((await inviteMapProjectMember(db, {
+      ...owner.proof, projectId,
+      request: { formatVersion: 1, requestId: randomUUID(), email: editor.email, role: "EDIT" }
+    }, NOW)).status).toBe("invited");
+    await db.transaction(tx => acceptAllInvitations(tx, editor.accountId, NOW));
+
+    expect(await updateMapProject(db, {
+      ...owner.proof, projectId, request: { formatVersion: 1, sourceDownloadPolicy: "CUSTODIANS_ONLY" }
+    }, NOW)).toEqual({ status: "ok" });
+
+    // Icke-ägare blockeras från format=ocd men får fortfarande exportera geojson.
+    expect(await exportMapProjectChanges(db, { ...editor.proof, projectId, format: "ocd" }, NOW)).toEqual({ status: "forbidden" });
+    expect((await exportMapProjectChanges(db, { ...editor.proof, projectId, format: "geojson" }, NOW)).status).toBe("ok");
+
+    // Ägaren får en giltig binär .ocd-fil.
+    const ownerExport = await exportMapProjectChanges(db, { ...owner.proof, projectId, format: "ocd" }, NOW);
+    expect(ownerExport.status).toBe("ok");
+    if (ownerExport.status === "ok") {
+      expect(ownerExport.fileName).toBe("Skogen ändringar.ocd");
+      expect(ownerExport.body[0]).toBe(0xad);
+      expect(ownerExport.body[1]).toBe(0x0c);
+    }
+  });
 });

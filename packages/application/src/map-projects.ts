@@ -235,29 +235,14 @@ async function mapProjectStorage(tx: DbExecutor, projectId: string): Promise<{ m
 
 /** Byt namn, avsluta eller öppna igen, byt arbetssätt eller rekningens inställningar (projektets ägare). */
 export async function updateMapProject(db: Database, input: ClubProof & { projectId: string; request: unknown }, now = new Date())
-  : Promise<ClubFailure | { status: "invalid-request"; message: string } | { status: "ok" }> {
+  : Promise<ClubFailure | { status: "ok" }> {
   const parsed = mapProjectUpdateRequestSchema.safeParse(input.request);
   return db.transaction(async tx => {
     const access = await requireMapProject(tx, input, now, "manage", true);
     if (access.status !== "ok") return access;
     if (!parsed.success) return { status: "invalid-request" } as const;
     const { name, status, mode, recon, leaderboard, colors, symbolColors, textSymbols, normSymbols, aiMode, sourceDownloadPolicy } = parsed.data;
-    // Etapp 3B (OCAD Steg 1): färgtabell och symbolfärger skrivs inte i OCAD-filer än (lyfts i Etapp 4 / Steg 2).
-    if (colors?.length && access.project.baseFormat !== "OMAP") {
-      return { status: "invalid-request", message: "Färgtabellen kan inte ändras i OCAD-projekt ännu. Spara kartan i Mapper (.omap) för att ändra färger." } as const;
-    }
-    if (symbolColors?.length && access.project.baseFormat !== "OMAP") {
-      return { status: "invalid-request", message: "Symbolernas färger kan inte ändras i OCAD-projekt ännu. Spara kartan i Mapper (.omap) för att ändra symbolfärger." } as const;
-    }
-    // K8b V6: textsymbolerna skrivs bara i Mapper-filer (OCAD-filen får inte riskeras).
-    if (textSymbols?.length && access.project.baseFormat !== "OMAP") {
-      return { status: "invalid-request", message: "Textsymboler kan inte ändras i OCAD-projekt ännu. Spara kartan i Mapper (.omap) för att ändra textsymboler." } as const;
-    }
-    // Normens symboler skrivs också bara i Mapper-filer.
     const normed = normSymbols && (normSymbols.replace.length || normSymbols.add.length) ? normSymbols : undefined;
-    if (normed && access.project.baseFormat !== "OMAP") {
-      return { status: "invalid-request", message: "Normsymboler kan inte bytas ut i OCAD-projekt ännu. Spara kartan i Mapper (.omap) för att ändra normsymboler." } as const;
-    }
     const recolored = colors !== undefined || symbolColors !== undefined || textSymbols !== undefined || normSymbols !== undefined;
     const closing = status && status !== access.project.status ? status : undefined;
     // Gemensamt lagras som null (rader från före 0091 har null).

@@ -8,10 +8,12 @@
  *    och kopiorna läggs sist i `<symbols>`; allt före och efter tabellen står kvar tecken för tecken;
  * 2. objekten med den vanliga skrivaren (`applyMapRevision`), med referenserna flyttade lika långt som tabellen växte;
  * 3. justeringen: i Mapper hör den till varje textobjekt (`h_align`), så den skrivs på symbolens alla textobjekt.
- * OCAD-filer skrivs inte (vägras med ett besked); grundfilen ändras aldrig.
+ * OCAD-filer skrivs via den förlustfria `OcdDocument`-serialiseraren (`applyOcdTextSymbolChanges` / `applyOcdFullRevision`);
+ * grundfilen ändras aldrig.
  */
 import { parseSymbolCode } from "../geometry";
 import { MapFileError, type MapColor, type MapSymbol, type ParsedMap, type TextSymbol } from "../model";
+import { applyOcdFullRevision, applyOcdTextSymbolChanges } from "../ocd/writer";
 import { findTag, readOmap } from "../omap/read";
 import { applyMapRevision } from "./apply";
 import type { MapRevisionApplyResult, MapRevisionChangeSet } from "./change-set";
@@ -82,7 +84,7 @@ export function effectiveTextSymbolChanges(symbols: ReadonlyMap<string, MapSymbo
   for (const change of changes) {
     const copy = change.copyOf !== undefined;
     const source = textSymbolOf(symbols, copy ? change.copyOf : change.id);
-    if (!source || (copy && (symbols.has(change.id) || !/^\d{1,6}$/.test(change.id) || !CODE.test(change.code ?? "")))) continue;
+    if (!source || (copy && (symbols.has(change.id) || !/^\d{1,9}$/.test(change.id) || !CODE.test(change.code ?? "")))) continue;
     if (!known.has(change.color) || !fontOk(change.fontFamily.trim()) || !(change.size >= 0.1 && change.size <= 100)) continue;
     if (change.framing && (!known.has(change.framing.color) || !(change.framing.width > 0 && change.framing.width <= 10))) continue;
     if (change.align !== undefined && change.align !== "left" && change.align !== "center" && change.align !== "right") continue;
@@ -183,7 +185,7 @@ const withoutAlign = (symbols: ReadonlyMap<string, MapSymbol>) =>
 export function applyMapTextSymbols(original: Uint8Array, changes: readonly MapTextSymbolChange[])
   : TextSymbolsResult & { readonly shift?: number } {
   if (changes.length === 0) return { ok: true, bytes: original, changed: 0, shift: 0 };
-  if (isOcd(original)) return fail("Textsymbolerna kan inte skrivas i en OCAD-fil här. Spara kartan i Mapper (.omap/.xmap) först.");
+  if (isOcd(original)) return applyOcdTextSymbolChanges(original, changes);
   const decoded = decode(original);
   if (!decoded) return fail("Mapper-filen är inte giltig UTF-8.");
   const { bom, text } = decoded;
@@ -290,7 +292,12 @@ export function applyMapRevisionWithTextSymbols(original: Uint8Array, changeSet:
   const refuse = (code: "BASE_MISMATCH" | "UNSUPPORTED_VERSION" | "VERIFY_FAILED", message: string): MapRevisionApplyResult => ({ ok: false, refusals: [{ code, message }] });
   const baseSha = sha256Hex(original);
   if (baseSha !== changeSet.baseFileSha256) return refuse("BASE_MISMATCH", "Filen är inte grundfilen som ändringarna gjordes på.");
-  if (isOcd(original)) return refuse("UNSUPPORTED_VERSION", "Ändrade textsymboler kan inte skrivas i en OCAD-fil här. Spara kartan i Mapper (.omap/.xmap) först.");
+  if (isOcd(original)) {
+    if (!options.ocad) {
+      return refuse("UNSUPPORTED_VERSION", "OCAD-kartor kan inte skrivas här än. Spara kartan i Mapper (.omap) eller exportera ändringarna.");
+    }
+    return applyOcdFullRevision(original, changeSet, { textSymbols });
+  }
   const symbols = applyMapTextSymbols(original, textSymbols);
   if (!symbols.ok) return refuse("VERIFY_FAILED", symbols.message);
   const sha = symbols.changed > 0 ? sha256Hex(symbols.bytes) : baseSha;

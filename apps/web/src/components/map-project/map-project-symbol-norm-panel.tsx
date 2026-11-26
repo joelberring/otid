@@ -21,8 +21,8 @@ import styles from "./map-project-editor.module.css";
  * 5. kärr och bäckar i bebyggt, 6. stigar i vägar, 7. små kantringar (`sprint-clean.ts`, ägaren 2026-11-23), 8. dubbletter
  * (`duplicates.ts`) och 9. dela stora markytor (`area-split.ts`); 8–9 gäller också skogskartor.
  */
-export function MapProjectSymbolNormPanel({ session, canDecide, ocad, saved, onSave, outlines, repair, onMark }: {
-  session: MapProjectSession | undefined; canDecide: boolean; ocad: boolean; saved: MapProjectNormSymbols;
+export function MapProjectSymbolNormPanel({ session, canDecide, saved, onSave, outlines, repair, onMark }: {
+  session: MapProjectSession | undefined; canDecide: boolean; saved: MapProjectNormSymbols;
   onSave: (setting: MapProjectNormSymbols) => Promise<boolean>; outlines: ReturnType<typeof useMapProjectBuildingOutlines>;
   repair: ReturnType<typeof useMapProjectSprintRepair>; onMark: (items: readonly MultiItem[]) => void;
 }) {
@@ -39,7 +39,7 @@ export function MapProjectSymbolNormPanel({ session, canDecide, ocad, saved, onS
     await repair.search();
     setBusy(false);
   };
-  const canFix = canDecide && !ocad;
+  const canFix = canDecide;
   const save = async (setting: MapProjectNormSymbols, message: string) => {
     setTold(undefined);
     const ok = await onSave({ replace: [...new Set(setting.replace)], add: [...new Set(setting.add)] });
@@ -77,7 +77,6 @@ export function MapProjectSymbolNormPanel({ session, canDecide, ocad, saved, onS
           data-testid="map-project-symbol-norm-add">{text.addMissing(result.missing.length)}</Button>}
       </>}
       {!canDecide && (result.issues.length > 0 || result.missing.length > 0) && <p className={styles.muted}>{text.onlyOwner}</p>}
-      {canDecide && ocad && <p className={styles.muted}>{text.ocad}</p>}
     </>}
     {canDecide && saved.replace.length > 0 && <Button variant="quiet" onClick={() => void save({ replace: [], add: saved.add }, text.fixed)}>{text.undone}</Button>}
 

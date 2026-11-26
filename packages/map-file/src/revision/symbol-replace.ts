@@ -5,12 +5,12 @@
  * byggnaden) läggs den in i färgtabellen där mallen har den: närmast ovanför den första av mallens följande färger som kartan har.
  *
  * - `withSymbolReplacements`: modellen (ritläget). Nya färger får nya id efter filens och en rang mellan grannarna.
- * - `applyMapSymbolReplacements`: Mapper-filen, som ett eget steg sist (efter objekten, färgerna och textsymbolerna). Nya färger
- *   kräver att färgernas prioritet räknas om; alla symbolers färgreferenser flyttas lika mycket. Filen läses om och jämförs:
- *   färgerna i samma ordning med samma värden, övriga symboler oförändrade (utom flyttade färgreferenser), lika många objekt.
- *   OCAD-filer vägras.
+ * - `applyMapSymbolReplacements`: skriver ändringarna i både Mapper-filer (prioriteter och färgreferenser flyttas, `<spotcolors>`
+ *   bevaras) och OCAD-filer (via den förlustfria `OcdDocument`-serialiseraren med 22×22-ikoner och saknade färger på rätt IOF-rang).
  */
+import { parseSymbolCode } from "../geometry";
 import { MapFileError, type MapColor, type MapSymbol, type ParsedMap } from "../model";
+import { applyOcdFullRevision, applyOcdSymbolReplacementChanges } from "../ocd/writer";
 import { findTag, readOmap } from "../omap/read";
 import { SymbolWriter } from "../template/new-map";
 import type { ColorDef, ElementDef, SymbolDef } from "../template/symbol-def";
@@ -36,7 +36,7 @@ export interface SymbolReplacement {
 
 const close = (a: number, b: number) => Math.abs(a - b) < 0.011;
 const sameCmyk = (color: MapColor, def: ColorDef) =>
-  !color.spot && close(color.cmyk.c, def.cmyk[0]) && close(color.cmyk.m, def.cmyk[1]) && close(color.cmyk.y, def.cmyk[2]) && close(color.cmyk.k, def.cmyk[3]);
+  close(color.cmyk.c, def.cmyk[0]) && close(color.cmyk.m, def.cmyk[1]) && close(color.cmyk.y, def.cmyk[2]) && close(color.cmyk.k, def.cmyk[3]);
 
 function elementKeys(elements: readonly ElementDef[] | undefined): string[] { return (elements ?? []).map(element => element.color); }
 /** Färgnycklarna symbolen använder. */
@@ -97,8 +97,15 @@ function parseSymbols(xml: readonly string[]): ReadonlyMap<string, MapSymbol> {
   return readOmap(doc).symbols;
 }
 
+function codeMatches(symbol: MapSymbol, code: string): boolean {
+  if (code === "") return false;
+  if (symbol.code.text === code) return true;
+  const parsed = parseSymbolCode(code);
+  return parsed.main > 0 && symbol.code.main === parsed.main && symbol.code.sub === parsed.sub;
+}
+
 const symbolsWithCode = (symbols: ReadonlyMap<string, MapSymbol>, code: string) =>
-  [...symbols.values()].filter(symbol => symbol.code.text === code && code !== "");
+  [...symbols.values()].filter(symbol => codeMatches(symbol, code));
 const privateParts = (symbols: ReadonlyMap<string, MapSymbol>, id: string) => [...symbols.keys()].filter(key => key.startsWith(`${id}.`));
 
 function symbolXml(keyIds: ReadonlyMap<string, number>, replacement: SymbolReplacement, symbol: MapSymbol): string {
@@ -163,7 +170,7 @@ function colorXml(def: ColorDef, priority: number): string {
 export function applyMapSymbolReplacements(original: Uint8Array, replacements: readonly SymbolReplacement[]): MapColorsResult {
   if (replacements.length === 0) return { ok: true, bytes: original, changed: 0 };
   if (original.length >= 2 && original[0] === 0xad && original[1] === 0x0c) {
-    return fail("Symbolerna kan inte skrivas om i en OCAD-fil här. Spara kartan i Mapper (.omap) först.");
+    return applyOcdSymbolReplacementChanges(original, replacements);
   }
   const bom = original.length >= 3 && original[0] === 0xef && original[1] === 0xbb && original[2] === 0xbf ? 3 : 0;
   let text: string, before: ParsedMap;
@@ -214,7 +221,7 @@ export function applyMapSymbolReplacements(original: Uint8Array, replacements: r
     const tag = text.slice(open, text.indexOf(">", open) + 1);
     const id = /\sid="([^"]*)"/.exec(tag)?.[1] ?? "";
     const symbol = before.symbols.get(id);
-    const replacement = symbol ? wanted.find(row => row.code === symbol.code.text) : undefined;
+    const replacement = symbol ? wanted.find(row => codeMatches(symbol, row.code)) : undefined;
     symbolsXml += text.slice(at, open).replace(COLOR_ATTRIBUTE, (_all, head: string, value: string, tail: string) => `${head}${moved(value)}${tail}`);
     if (symbol && replacement) {
       let xml = symbolXml(keyIds, replacement, symbol);
@@ -249,7 +256,8 @@ export function applyMapSymbolReplacements(original: Uint8Array, replacements: r
   const colorsOk = after.colors.length === order.length && order.every((row, priority) => {
     const color = after.colors[priority]!;
     if ("add" in row) return color.name === row.add.def.name && sameCmyk(color, row.add.def);
-    return color.id === priority && color.name === row.old.name && JSON.stringify(color.cmyk) === JSON.stringify(row.old.cmyk) && color.opacity === row.old.opacity;
+    return color.id === priority && color.name === row.old.name && JSON.stringify(color.cmyk) === JSON.stringify(row.old.cmyk)
+      && color.opacity === row.old.opacity && JSON.stringify(color.spot) === JSON.stringify(row.old.spot);
   });
   const othersOk = [...before.symbols].every(([id, symbol]) => replacedIds.has(id)
     || JSON.stringify(after.symbols.get(id)) === JSON.stringify(recolor(symbol, remapId)));
@@ -270,10 +278,16 @@ export function applyMapSymbolReplacements(original: Uint8Array, replacements: r
 export function applyMapRevisionWithSymbols(original: Uint8Array, changeSet: MapRevisionChangeSet, textSymbols: readonly MapTextSymbolChange[],
   additions: readonly SymbolReplacement[], options: { readonly ocad?: boolean } = {}): MapRevisionApplyResult {
   if (additions.length === 0) return applyMapRevisionWithTextSymbols(original, changeSet, textSymbols, options);
-  const refuse = (code: "BASE_MISMATCH" | "VERIFY_FAILED", message: string): MapRevisionApplyResult => ({ ok: false, refusals: [{ code, message }] });
+  const refuse = (code: "BASE_MISMATCH" | "UNSUPPORTED_VERSION" | "VERIFY_FAILED", message: string): MapRevisionApplyResult => ({ ok: false, refusals: [{ code, message }] });
   const baseSha = sha256Hex(original);
   if (baseSha !== changeSet.baseFileSha256) return refuse("BASE_MISMATCH", "Filen är inte grundfilen som ändringarna gjordes på.");
   if (additions.some(row => !row.add)) return refuse("VERIFY_FAILED", "Bara nya symboler läggs in före objekten.");
+  if (original.length >= 2 && original[0] === 0xad && original[1] === 0x0c) {
+    if (!options.ocad) {
+      return refuse("UNSUPPORTED_VERSION", "OCAD-kartor kan inte skrivas här än. Spara kartan i Mapper (.omap) eller exportera ändringarna.");
+    }
+    return applyOcdFullRevision(original, changeSet, { textSymbols, normAdditions: additions });
+  }
   let before: ParsedMap;
   try { before = readOmap(new TextDecoder("utf-8").decode(original).replace(/^\uFEFF/, "")); } catch { return refuse("VERIFY_FAILED", "Grundfilen går inte att läsa."); }
   if (planColors(before.colors, effective(before.symbols, additions)).added.length > 0) return refuse("VERIFY_FAILED", "Normens nya symboler kräver färger som kartan saknar.");

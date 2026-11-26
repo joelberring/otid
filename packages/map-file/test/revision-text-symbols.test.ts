@@ -2,8 +2,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-  applyMapRevisionWithTextSymbols, applyMapTextSymbols, effectiveTextSymbolChanges, nextTextSymbolCode, nextTextSymbolId, objectRefOf, readMapFile,
-  sha256Hex, withTextSymbolChanges, type MapObject, type MapRevisionChange, type MapTextSymbolChange, type TextSymbol
+  applyMapRevision, applyMapRevisionWithTextSymbols, applyMapTextSymbols, effectiveTextSymbolChanges, nextTextSymbolCode, nextTextSymbolId, objectRefOf,
+  ocdChangesFile, readMapFile, sha256Hex, withTextSymbolChanges, type MapObject, type MapRevisionChange, type MapTextSymbolChange, type TextSymbol
 } from "../src";
 import { drawMap } from "../src/render";
 import { fakeContext } from "./fake-canvas";
@@ -106,12 +106,47 @@ describe("textsymbolerna i Mapper-filen", () => {
     expect(result.map.symbols.get("2")).toEqual(text("2"));
   });
 
-  it("en OCAD-fil vägras och inga ändringar ger samma bytes", () => {
-    const ocad = new Uint8Array(readFileSync(join(import.meta.dirname, "../../../fixtures/maps/kartfil.ocd")));
-    expect(applyMapTextSymbols(ocad, [style("1", { size: 4 })]).ok).toBe(false);
+  it("inga ändringar ger samma bytes, och OCAD Steg 2 skriver textsymboler + kopior + ändringsexport (.ocd) med rundtur", () => {
     expect(applyMapTextSymbols(bytes, [style("1")])).toMatchObject({ ok: true, bytes, changed: 0 });
-    const set = { baseFileSha256: sha256Hex(ocad), format: "OCD" as const, changes: [] };
-    expect(applyMapRevisionWithTextSymbols(ocad, set, [style("1", { size: 4 })], { ocad: true })).toMatchObject({ ok: false, refusals: [{ code: "UNSUPPORTED_VERSION" }] });
+    const ocad = new Uint8Array(readFileSync(join(import.meta.dirname, "../../../fixtures/maps/kartfil.ocd")));
+    const ocdMap = readMapFile(ocad, "kartfil.ocd", { sources: true });
+    const ocdText = [...ocdMap.symbols.values()].find((symbol): symbol is TextSymbol => symbol.kind === "TEXT")!;
+    const ocdChanges: MapTextSymbolChange[] = [
+      { id: ocdText.id, fontFamily: "Verdana", size: 4.5, color: ocdText.color, bold: true, italic: false, align: "center", framing: null },
+      { id: "999991", copyOf: ocdText.id, code: "999.1", name: "Namn liten", fontFamily: "Arial", size: 2.5, color: ocdText.color, bold: false, italic: true, align: "left", framing: null }
+    ];
+    const textOnly = applyMapTextSymbols(ocad, ocdChanges);
+    if (!textOnly.ok) throw new Error(textOnly.message);
+    const afterText = readMapFile(textOnly.bytes, "kartfil.ocd");
+    const edited = afterText.symbols.get(ocdText.id) as TextSymbol | undefined;
+    expect(edited).toMatchObject({ kind: "TEXT", fontFamily: "Verdana", bold: true });
+    expect(edited?.size).toBeCloseTo(4.5, 1);
+    const copied = [...afterText.symbols.values()].find((symbol): symbol is TextSymbol => symbol.kind === "TEXT" && symbol.code.text === "999.1");
+    expect(copied).toMatchObject({ kind: "TEXT", name: "Namn liten", italic: true });
+    expect(copied?.size).toBeCloseTo(2.5, 1);
+
+    const set = {
+      baseFileSha256: sha256Hex(ocad),
+      format: "OCD" as const,
+      changes: [{ kind: "add" as const, id: "ocd-txt-1", ...meta, symbol: "999991", geometry: { kind: "text" as const, at: { x: 15, y: 25 } }, text: "Höjdpunkt", angle: 0 }]
+    };
+    expect(applyMapRevisionWithTextSymbols(ocad, set, ocdChanges, { ocad: false })).toMatchObject({ ok: false, refusals: [{ code: "UNSUPPORTED_VERSION" }] });
+    const full = applyMapRevisionWithTextSymbols(ocad, set, ocdChanges, { ocad: true });
+    if (!full.ok) throw new Error(JSON.stringify(full.refusals));
+    const fullMap = readMapFile(full.bytes, "kartfil.ocd");
+    expect(fullMap.objects).toHaveLength(ocdMap.objects.length + 1);
+    const addedText = fullMap.objects.find(object => object.kind === "text" && object.text === "Höjdpunkt");
+    expect(addedText && fullMap.symbols.get(addedText.symbol)?.code.text).toBe("999.1");
+
+    // Kompakterad applyMapRevision med ocdStyle + kompakt ocdChangesFile.
+    const compactRes = applyMapRevision(ocad, set, { ocad: true, compact: true, ocdStyle: { textSymbols: ocdChanges } });
+    expect(compactRes.ok).toBe(true);
+    const diffOcd = ocdChangesFile(ocad, set, { textSymbols: ocdChanges });
+    if (!diffOcd.ok) throw new Error(JSON.stringify(diffOcd.refusals));
+    expect(diffOcd.added).toBe(1);
+    const diffMap = readMapFile(diffOcd.bytes, "andringar.ocd");
+    expect(diffMap.objects).toHaveLength(1);
+    expect(diffMap.objects[0]).toMatchObject({ kind: "text", text: "Höjdpunkt" });
   });
 });
 

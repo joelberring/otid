@@ -3,7 +3,7 @@ import {
   readMapProject, readMapProjectOutput, readMapProjectPdf, readMapProjectSource, startMapProjectPdf, removeMapProjectMember, setMapProjectMemberRole, stageMapContent, streamMapContentParts,
   syncMapProject, updateMapProject, writeMapProjectVersion
 } from "@o-tid/application";
-import { CLUB_ARCHIVE_MAP_MAX_BYTES, MAP_PROJECT_SYNC_MAX_BYTES, UUID_PATTERN } from "@o-tid/contracts";
+import { CLUB_ARCHIVE_MAP_MAX_BYTES, MAP_PROJECT_SYNC_MAX_BYTES, mapProjectExportFormatSchema, UUID_PATTERN } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
 import {
   attachment, failure, guarded, headerText, mutation, problem, readProof, requireStreamSession, streamChunks, type ClubEnvironment
@@ -75,11 +75,7 @@ export async function mapProjectRoute(db: Database, request: Request, projectId:
   if ("response" in input) return input.response;
   return guarded(async () => {
     const result = await updateMapProject(db, { ...input.proof, projectId, request: input.body });
-    if (result.status === "ok") return privateJson({ formatVersion: 1, status: "ok" });
-    if (result.status === "invalid-request" && "message" in result && result.message) {
-      return privateJson({ formatVersion: 1, error: "INVALID_REQUEST", message: result.message }, 400);
-    }
-    return failure(result.status);
+    return result.status === "ok" ? privateJson({ formatVersion: 1, status: "ok" }) : failure(result.status);
   });
 }
 
@@ -206,17 +202,22 @@ export async function mapProjectVersionRoute(db: Database, request: Request, pro
   });
 }
 
-/** GET ändringarna som en liten egen fil (`?format=omap` eller `geojson`). */
+/** GET ändringarna som en liten egen fil (`?format=omap`, `ocd` eller `geojson`). */
 export async function mapProjectExportRoute(db: Database, request: Request, projectId: string, environment: Environment = process.env)
   : Promise<Response> {
   if (!validId(projectId)) return failure("not-found");
-  const format = new URL(request.url).searchParams.get("format");
-  if (format !== "omap" && format !== "geojson") return failure("invalid-request");
+  const parsedFormat = mapProjectExportFormatSchema.safeParse(new URL(request.url).searchParams.get("format"));
+  if (!parsedFormat.success) return failure("invalid-request");
+  const format = parsedFormat.data;
   const input = await readProof(request, environment);
   if ("response" in input) return input.response;
   return guarded(async () => {
     const result = await exportMapProjectChanges(db, { ...input.proof, projectId, format });
     if (result.status !== "ok") return failure(result.status);
+    if (result.body instanceof Uint8Array) {
+      return new Response(Buffer.from(result.body), { headers: { ...privateHeaders, "content-type": result.contentType,
+        "content-disposition": attachment(result.fileName, "andringar.ocd") } });
+    }
     return new Response(result.body, { headers: { ...privateHeaders, "content-type": `${result.contentType}; charset=utf-8`,
       "content-disposition": attachment(result.fileName, format === "omap" ? "andringar.xmap" : "andringar.geojson") } });
   });

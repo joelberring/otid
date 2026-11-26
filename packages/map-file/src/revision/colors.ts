@@ -3,12 +3,12 @@
  * ändras; ordningen och namnen står kvar (symbolerna pekar ut färgerna med ordningstalet i Mapper). Skärmfärgen räknas om ur
  * CMYK som för alla andra färger.
  *
- * `applyMapColors` skriver ändringarna i en Mapper-fil som ett eget steg efter objektens ändringar: bara `<color>`-elementens
- * c, m, y, k och deras `<cmyk>` och `<rgb>` byts, och filen läses om och jämförs (alla andra färger, symbolerna och antalet
- * objekt ska vara som förut). OCAD-filer skrivs inte här än.
+ * `applyMapColors` skriver ändringarna i både Mapper-filer (bara `<color>`-elementens c, m, y, k, `<cmyk>` och `<rgb>` byts,
+ * `<spotcolors>` bevaras rent) och OCAD-filer (via den förlustfria `OcdDocument`-serialiseraren, med bevarade dekorfärger).
  */
 import { clamp01, rgbFromCmyk } from "../color";
 import { MapFileError, type MapColor, type ParsedMap } from "../model";
+import { applyOcdColorChanges } from "../ocd/writer";
 import { findTag, readOmap } from "../omap/read";
 import { elementEnd } from "./omap-scan";
 
@@ -19,12 +19,12 @@ const close = (a: number, b: number) => Math.abs(a - b) < 0.0006;
 const sameCmyk = (a: MapColor["cmyk"], b: MapColor["cmyk"]) => close(a.c, b.c) && close(a.m, b.m) && close(a.y, b.y) && close(a.k, b.k);
 const tidy = (cmyk: MapColor["cmyk"]): MapColor["cmyk"] => ({ c: clamp01(cmyk.c), m: clamp01(cmyk.m), y: clamp01(cmyk.y), k: clamp01(cmyk.k) });
 
-/** Ändringarna som gäller för tabellen: okända färger, dekorfärger och värden som är som filens hoppas över. */
+/** Ändringarna som gäller för tabellen: okända färger och värden som är som filens hoppas över. Dekorfärgers CMYK kan ändras medan `<spotcolors>`/dekorfärgsmetadata bevaras. */
 export function effectiveColorChanges(colors: readonly MapColor[], changes: readonly MapColorChange[]): MapColorChange[] {
   const out = new Map<number, MapColorChange>();
   for (const change of changes) {
     const color = colors.find(row => row.id === change.id);
-    if (!color || color.spot || sameCmyk(color.cmyk, tidy(change.cmyk))) continue;
+    if (!color || sameCmyk(color.cmyk, tidy(change.cmyk))) continue;
     out.set(change.id, { id: change.id, cmyk: tidy(change.cmyk) });
   }
   return [...out.values()].sort((a, b) => a.id - b.id);
@@ -40,12 +40,20 @@ const number = (value: number) => String(Math.round(value * 1000) / 1000);
 const isOcd = (bytes: Uint8Array) => bytes.length >= 2 && bytes[0] === 0xad && bytes[1] === 0x0c;
 const fail = (message: string): MapColorsResult => ({ ok: false, message });
 
+/** Kontrollerar att dekorfärgens struktur (namn, övertryck, separationer och andelar) bevaras när CMYK ändras. */
+function sameSpotMeta(a: MapColor["spot"], b: MapColor["spot"]): boolean {
+  if (!a || !b) return !a && !b;
+  if (a.name !== b.name || a.overprint !== b.overprint) return false;
+  const sa = a.separations ?? [], sb = b.separations ?? [];
+  return sa.length === sb.length && sa.every((part, index) => part.name === sb[index]!.name && Math.abs(part.factor - sb[index]!.factor) < 0.0006);
+}
+
 /** Det som inte får ändras av färgbytet: symbolerna och objektens antal. */
 const fingerprint = (map: ParsedMap) => JSON.stringify([[...map.symbols.values()], map.objects.length, map.scale]);
 
 export function applyMapColors(original: Uint8Array, changes: readonly MapColorChange[]): MapColorsResult {
   if (changes.length === 0) return { ok: true, bytes: original, changed: 0 };
-  if (isOcd(original)) return fail("Färgerna kan inte skrivas i en OCAD-fil här än. Spara kartan i Mapper (.omap) först.");
+  if (isOcd(original)) return applyOcdColorChanges(original, changes);
   const bom = original.length >= 3 && original[0] === 0xef && original[1] === 0xbb && original[2] === 0xbf ? 3 : 0;
   let text: string, before: ParsedMap;
   try {
@@ -90,8 +98,9 @@ export function applyMapColors(original: Uint8Array, changes: readonly MapColorC
   const expected = withColorChanges(before.colors, wanted);
   const same = after.colors.length === expected.length && after.colors.every((color, i) => {
     const want = expected[i]!;
-    return color.id === want.id && color.name === want.name && color.opacity === want.opacity && sameCmyk(color.cmyk, want.cmyk)
-      && (byId.has(color.id) || JSON.stringify(color) === JSON.stringify(want));
+    return color.id === want.id && color.name === want.name && color.opacity === want.opacity
+      && color.overprint === want.overprint && sameCmyk(color.cmyk, want.cmyk) && sameSpotMeta(color.spot, want.spot)
+      && (byId.has(color.id) || (color.spot ? JSON.stringify(color.rgb) === JSON.stringify(want.rgb) : JSON.stringify(color) === JSON.stringify(want)));
   });
   if (!same || fingerprint(after) !== fingerprint(before)) return fail("Kontrollen efter färgbytet: något annat än färgerna ändrades.");
   const encoded = new TextEncoder().encode(result), bytes = new Uint8Array(bom + encoded.length);

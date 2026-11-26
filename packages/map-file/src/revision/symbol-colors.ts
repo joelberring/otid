@@ -11,7 +11,9 @@
  * `applyMapSymbolColors` skriver ändringarna i en Mapper-fil som ett eget steg efter färgtabellen, och filen läses om och
  * jämförs med modellen som `withSymbolColorChanges` ger.
  */
+import { parseSymbolCode } from "../geometry";
 import { MapFileError, type MapColor, type MapSymbol, type ParsedMap, type PointElement, type StrokeStyle } from "../model";
+import { applyOcdSymbolColorChanges } from "../ocd/writer";
 import { findTag, readOmap } from "../omap/read";
 import type { MapColorsResult } from "./colors";
 import { elementEnd } from "./omap-scan";
@@ -61,8 +63,15 @@ export function recolor(symbol: MapSymbol, remap: Remap): MapSymbol {
   }
 }
 
+function codeMatches(symbol: MapSymbol, code: string): boolean {
+  if (code === "") return false;
+  if (symbol.code.text === code) return true;
+  const parsed = parseSymbolCode(code);
+  return parsed.main > 0 && symbol.code.main === parsed.main && symbol.code.sub === parsed.sub;
+}
+
 const symbolsWithCode = (symbols: ReadonlyMap<string, MapSymbol>, code: string) =>
-  [...symbols.values()].filter(symbol => symbol.code.text === code && code !== "");
+  [...symbols.values()].filter(symbol => codeMatches(symbol, code));
 
 /**
  * Ändringarna som gäller för kartan: okända symboler, färger som symbolen inte har, färger som inte finns i tabellen och
@@ -88,7 +97,7 @@ export function withSymbolColorChanges(symbols: ReadonlyMap<string, MapSymbol>, 
   const out = new Map(symbols);
   if (wanted.length === 0) return out;
   for (const symbol of symbols.values()) {
-    const mine = wanted.filter(change => change.symbol === symbol.code.text);
+    const mine = wanted.filter(change => codeMatches(symbol, change.symbol));
     if (mine.length === 0) continue;
     const byFrom = new Map(mine.map(change => [change.from, change.to]));
     const remap: Remap = color => byFrom.get(color) ?? color;
@@ -104,7 +113,7 @@ const fail = (message: string): MapColorsResult => ({ ok: false, message });
 export function applyMapSymbolColors(original: Uint8Array, changes: readonly MapSymbolColorChange[]): MapColorsResult {
   if (changes.length === 0) return { ok: true, bytes: original, changed: 0 };
   if (original.length >= 2 && original[0] === 0xad && original[1] === 0x0c) {
-    return fail("Symbolernas färger kan inte skrivas i en OCAD-fil här än. Spara kartan i Mapper (.omap) först.");
+    return applyOcdSymbolColorChanges(original, changes);
   }
   const bom = original.length >= 3 && original[0] === 0xef && original[1] === 0xbb && original[2] === 0xbf ? 3 : 0;
   let text: string, before: ParsedMap;
@@ -124,7 +133,8 @@ export function applyMapSymbolColors(original: Uint8Array, changes: readonly Map
     if (stop < 0) return fail("Mapper-filens symboltabell är avkortad.");
     const tagEnd = text.indexOf(">", open) + 1;
     const code = /\scode="([^"]*)"/.exec(text.slice(open, tagEnd))?.[1] ?? "";
-    const mine = wanted.filter(change => change.symbol === code);
+    const mine = wanted.filter(change => code === change.symbol || (code !== "" && parseSymbolCode(code).main > 0
+      && parseSymbolCode(code).main === parseSymbolCode(change.symbol).main && parseSymbolCode(code).sub === parseSymbolCode(change.symbol).sub));
     if (mine.length > 0) {
       const byFrom = new Map(mine.map(change => [String(change.from), String(change.to)]));
       const body = text.slice(open, stop).replace(COLOR_ATTRIBUTE, (all, head: string, value: string, tail: string) => {

@@ -17,6 +17,7 @@ captures
 .DS_Store
 backups/
 deploy/backup-ssh/
+map-cache/
 media/
 status/
 apps/web/public/map-project-sw.js

@@ -159,7 +159,7 @@ function ClassBlock({ raceClass, context }: { raceClass: ResultClass; context: C
     <div className={styles.blockHead}><h3 id={id}>{raceClass.name}</h3>
       {raceClass.course && <p className={styles.course}>{courseLine(raceClass.course, course, locale)}</p>}
       <p>{raceClass.rows.length === 0 && raceClass.radio ? radioText.live.noneFinished : t.runners(raceClass.rows.length)}</p>
-      {raceClass.rows.some(row => row.splits.length > 0) && <AnalysisLink className={raceClass.name} context={context} />}
+      {raceClass.rows.some(row => row.hasSplits ?? row.splits.length > 0) && <AnalysisLink className={raceClass.name} context={context} />}
       {forking && raceClass.rows.some(row => row.variant) && <button type="button" className={styles.toggle} aria-pressed={showForking}
         aria-label={`${forkingText.showForking}: ${raceClass.name}`} onClick={() => setShowForking(!showForking)}>{forkingText.showForking}</button>}</div>
     {raceClass.mixedCourses && <p className={styles.notice}>{t.mixedCourses}</p>}
@@ -227,6 +227,12 @@ function RelayBlock({ raceClass, context }: { raceClass: RelayClass; context: Co
 
 function SplitsBlock({ raceClass, context }: { raceClass: ResultClass; context: Context }) {
   const t = useListTexts().results;
+  if (raceClass.rows.some(row => row.hasSplits && row.splits.length === 0)) {
+    return <section className={styles.block} aria-label={raceClass.name}>
+      <div className={styles.blockHead}><h3>{raceClass.name}</h3></div>
+      <p className={styles.empty} role="status">{t.loading}</p>
+    </section>;
+  }
   if (raceClass.scored) return <ScoredControlsBlock raceClass={raceClass} context={context} />;
   const groups = splitGroups(raceClass);
   if (groups.length === 0) return <section className={styles.block} aria-label={raceClass.name}>
@@ -359,15 +365,18 @@ function ClubSummary({ model, onClub }: { model: ResultListModel; onClub: (club:
  * sträcklöpare och sträckresultat. Samma komponent i arbetsytan och på den publika sidan (där namnen länkar
  * till löparens resultatsida).
  */
-export function ResultLists({ model, raceId, race, raceDate, links, iof, status, notes, follow }: {
+export function ResultLists({ model, raceId, race, raceDate, links, iof, status, notes, follow, onViewChange }: {
   model: ResultListModel; raceId: string; race: string; raceDate: string; links: boolean; iof?: IofExport | undefined; status?: ReactNode;
   /** Arbetsytans märkning per publikt resultat-id (PLAN.md steg 25). */
   notes?: ReadonlyMap<string, ResultRowNote> | undefined;
   /** Den publika listan: följ löpare och klubb (PLAN.md steg 30). */
   follow?: ResultListFollow | undefined;
+  /** Anropas vid vybyte (t.ex. så listläsaren kan hämta fulla sträcktider först när Sträcktider öppnas). */
+  onViewChange?: ((view: ResultView) => void) | undefined;
 }) {
   const text = useListTexts(), t = text.results;
   const [view, setView] = useState<ResultView>("CLASS");
+  const selectView = (next: ResultView) => { setView(next); onViewChange?.(next); };
   const [query, setQuery] = useState("");
   const [className, setClassName] = useState("");
   const [club, setClub] = useClubFilter(links);
@@ -382,7 +391,7 @@ export function ResultLists({ model, raceId, race, raceDate, links, iof, status,
   const views = (["CLASS", "SPLITS", "CLUB", "CLUBS"] as const).map(id => ({ id, label: t.views[id] }));
   const empty = model.classes.length === 0 && model.relayClasses.every(row => row.teams.length === 0);
   return <ListFrame title={t.titles[view]} race={race} toolbar={{
-    views, view, onView: setView, query, onQuery: setQuery, searchPlaceholder: text.searchPlaceholder,
+    views, view, onView: selectView, query, onQuery: setQuery, searchPlaceholder: text.searchPlaceholder,
     classes: classNames, className: selected, onClass: setClassName, clubs, club: selectedClub, onClub: setClub,
     count: [count > 0 && t.runners(count), teams > 0 && t.teams(teams)].filter(Boolean).join(" · ") || t.runners(0), iof,
     onCsv: () => download(`${text.csv.files.results[view]}${selectedClub ? `-${selectedClub.replace(/\W+/g, "-")}` : ""}-${raceDate}.csv`,
@@ -399,7 +408,7 @@ export function ResultLists({ model, raceId, race, raceDate, links, iof, status,
             {shown.relayClasses.map(raceClass => <RelayLegs key={raceClass.name} raceClass={raceClass} />)}
             {shown.classes.map(raceClass => <SplitsBlock key={raceClass.name} raceClass={raceClass} context={context} />)}</>
             : view === "CLUB" ? <ByClub model={shown} context={context} />
-              : <ClubSummary model={shown} onClub={value => { setClub(value); setView("CLUB"); }} />}
+              : <ClubSummary model={shown} onClub={value => { setClub(value); selectView("CLUB"); }} />}
   </ListFrame>;
 }
 

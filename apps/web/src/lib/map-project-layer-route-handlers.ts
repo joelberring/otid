@@ -4,9 +4,9 @@ import {
 } from "@o-tid/application";
 import { MAP_PROJECT_LAYER_MAX_BYTES, UUID_PATTERN } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
-import { failure, guarded, headerText, mutation, problem, readProof, requireStreamSession, streamChunks, type ClubEnvironment } from "./club-route-handlers";
-import { privateHeaders, privateJson, validDeclaredLength } from "./security-policy";
-import { logServerError } from "./server-error-log";
+import { contentPartStream, failure, guarded, headerText, mutation, privateContentCacheHeaders, problem, readProof, requireStreamSession, streamChunks, type ClubEnvironment } from "./club-route-handlers";
+import { matchesIfNoneMatch } from "./http-etag";
+import { privateJson, validDeclaredLength } from "./security-policy";
 
 /**
  * ADR-0219 tillägget om underlagen (K4a): projektets egna underlag under /api/organizer/map-projects/[projectId]/layers. Samma
@@ -89,20 +89,15 @@ export async function mapProjectLayerImageRoute(db: Database, request: Request, 
   return guarded(async () => {
     const head = await readMapProjectLayerImage(db, { ...input.proof, projectId, layerId });
     if (head.status !== "ok") return failure(head.status);
-    const parts = streamMapContentParts(db, head.contentId);
-    const stream = new ReadableStream<Uint8Array>({
-      async pull(controller) {
-        try {
-          const next = await parts.next();
-          if (next.done) controller.close(); else controller.enqueue(next.value);
-        } catch (error) {
-          logServerError("map-project", "layer", error);
-          controller.error(error);
-        }
-      },
-      async cancel() { await parts.return(undefined); }
-    });
-    return new Response(stream, { headers: { ...privateHeaders, "content-type": head.mediaType, "content-length": String(head.byteLength),
-      etag: `"${head.sha256}"`, "x-content-type-options": "nosniff", "content-security-policy": "default-src 'none'; sandbox" } });
+    const cache = {
+      ...privateContentCacheHeaders(request, head.sha256),
+      "x-content-type-options": "nosniff",
+      "content-security-policy": "default-src 'none'; sandbox"
+    };
+    if (matchesIfNoneMatch(request.headers.get("if-none-match"), `"${head.sha256}"`)) {
+      return new Response(null, { status: 304, headers: cache });
+    }
+    const stream = contentPartStream(streamMapContentParts(db, head.contentId), "map-project", "layer");
+    return new Response(stream, { headers: { ...cache, "content-type": head.mediaType, "content-length": String(head.byteLength) } });
   });
 }

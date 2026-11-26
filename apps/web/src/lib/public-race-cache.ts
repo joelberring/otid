@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import type { PublicResultListResponse } from "@o-tid/contracts";
+import { matchesIfNoneMatch } from "./http-etag";
 import { PUBLIC_STALE_HEADER, PUBLIC_STALE_RETRY_HEADER } from "./public-stale";
 import { retryReadConflicts } from "./read-conflict";
 
@@ -24,7 +26,9 @@ export { isRetryableReadConflict } from "./read-conflict";
  */
 export type CachedPublic<T> = { readonly key: string; readonly at: number;
   /** Steg 57: när uträkningen började; allt som sparats före det finns med i listan. */
-  readonly startedAt: number; readonly value: T; readonly json: string;
+  readonly startedAt: number; readonly value: T;
+  /** Förkodade UTF-8-bytes av JSON-svaret (undviker UTF-16→UTF-8-omkodning på varje anrop). */
+  readonly body: Uint8Array<ArrayBuffer>;
   readonly etag: string; readonly stale?: boolean;
   /** Steg 54: under tryck – sidan hämtar igen först efter så här lång tid (i stället för 1,5–2,5 s). */
   readonly retryMs?: number };
@@ -60,6 +64,41 @@ type Slot = { entry?: CachedPublic<unknown>; inflight?: Promise<CachedPublic<unk
 const COMPUTE_SHARE = 3;
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+const utf8Encoder = new TextEncoder();
+
+function encodeJsonUtf8(value: unknown): Uint8Array<ArrayBuffer> {
+  return utf8Encoder.encode(JSON.stringify(value));
+}
+
+function etagForBytes(bytes: Uint8Array): string {
+  return `"${createHash("sha256").update(bytes).digest("base64url").slice(0, 27)}"`;
+}
+
+type DerivedCachedBody<U> = { readonly value: U; readonly body: Uint8Array<ArrayBuffer>; readonly etag: string };
+
+/**
+ * Härleder en sekundär cachad variant (t.ex. kompakt `/results?splits=0`) ur samma beräknade objekt med egen förkodad
+ * UTF-8-buffert och egen ETag, memoizerad via `WeakMap` på `entry.value` så att även stale-svar återanvänder bufferten.
+ */
+function deriveCachedPublic<T extends object, U>(
+  entry: CachedPublic<T>,
+  derivedCache: WeakMap<object, DerivedCachedBody<U>>,
+  derive: (value: T) => U
+): CachedPublic<U> {
+  let derived = derivedCache.get(entry.value);
+  if (!derived) {
+    const value = derive(entry.value);
+    const body = encodeJsonUtf8(value);
+    derived = { value, body, etag: etagForBytes(body) };
+    derivedCache.set(entry.value, derived);
+  }
+  return {
+    key: entry.key, at: entry.at, startedAt: entry.startedAt,
+    value: derived.value, body: derived.body, etag: derived.etag,
+    ...(entry.stale ? { stale: entry.stale } : {}),
+    ...(entry.retryMs !== undefined ? { retryMs: entry.retryMs } : {})
+  };
+}
 
 
 /**
@@ -112,18 +151,18 @@ export function createPublicRaceCache(options: PublicRaceCacheOptions) {
     return slot;
   }
 
-  async function build<T>(raceId: string, slot: Slot, compute: () => Promise<T>, minIntervalMs: number): Promise<CachedPublic<T>> {
+  async function build<T>(raceId: string, slot: Slot, compute: () => Promise<T>, minIntervalMs: number,
+    customVersion?: (raceId: string) => Promise<string | null>): Promise<CachedPublic<T>> {
     const delay = slot.lastStart + Math.max(minIntervalMs, computeShare * slot.lastDuration) - now();
     if (delay > 0) await sleep(delay);
     const startedAt = slot.lastStart = now();
     // Nyckeln läses före uträkningen: ändras något under tiden räknas listan om vid nästa anrop.
-    const key = await options.version(raceId) ?? "okänd";
-    versions.set(raceId, { at: now(), value: Promise.resolve(key === "okänd" ? null : key) });
+    const key = await (customVersion ?? options.version)(raceId) ?? "okänd";
+    if (!customVersion) versions.set(raceId, { at: now(), value: Promise.resolve(key === "okänd" ? null : key) });
     const value = await retryReadConflicts(compute);
-    const json = JSON.stringify(value);
+    const body = encodeJsonUtf8(value);
     slot.lastDuration = now() - slot.lastStart;
-    const entry: CachedPublic<T> = { key, at: now(), startedAt, value, json,
-      etag: `"${createHash("sha256").update(json).digest("base64url").slice(0, 27)}"` };
+    const entry: CachedPublic<T> = { key, at: now(), startedAt, value, body, etag: etagForBytes(body) };
     slot.entry = entry;
     return entry;
   }
@@ -135,7 +174,8 @@ export function createPublicRaceCache(options: PublicRaceCacheOptions) {
    * Ett svar för en äldre version än den aktuella har `stale` satt; webbläsaren hämtar då igen strax (`x-otid-stale`).
    */
   async function read<T>(raceId: string, kind: string, compute: () => Promise<T>,
-    overrides: { maxAgeMs?: number; minIntervalMs?: number; fresh?: boolean; exact?: boolean } = {}): Promise<CachedPublic<T>> {
+    overrides: { maxAgeMs?: number; minIntervalMs?: number; fresh?: boolean; exact?: boolean;
+      version?: (raceId: string) => Promise<string | null> } = {}): Promise<CachedPublic<T>> {
     const busy = pressure();
     const maxAgeMs = overrides.maxAgeMs ?? defaults.maxAgeMs;
     const minIntervalMs = Math.max(overrides.minIntervalMs ?? defaults.minIntervalMs, busy ? pressureIntervalMs : 0);
@@ -145,10 +185,12 @@ export function createPublicRaceCache(options: PublicRaceCacheOptions) {
       readAt.delete(raceId); readAt.set(raceId, now());
       while (readAt.size > maxEntries) readAt.delete(readAt.keys().next().value!);
     }
-    const key = overrides.fresh || overrides.exact ? await options.version(raceId) : await versionOf(raceId);
+    const key = overrides.version
+      ? await overrides.version(raceId)
+      : overrides.fresh || overrides.exact ? await options.version(raceId) : await versionOf(raceId);
     const cached = slot.entry as CachedPublic<T> | undefined;
     if (cached && key !== null && cached.key === key && now() - cached.at < maxAgeMs) return cached;
-    const start = () => (slot.inflight ??= build(raceId, slot, compute, minIntervalMs)
+    const start = () => (slot.inflight ??= build(raceId, slot, compute, minIntervalMs, overrides.version)
       .finally(() => { slot.inflight = undefined; })) as Promise<CachedPublic<T>>;
     const mark = (entry: CachedPublic<T>): CachedPublic<T> => key !== null && entry.key !== key
       ? { ...entry, stale: true, ...(busy ? { retryMs: pressureRetryMs } : {}) } : entry;
@@ -210,7 +252,57 @@ export function cachedJsonResponse(request: Request, entry: CachedPublic<unknown
   const headers: Record<string, string> = { "content-type": "application/json", "cache-control": entry.stale ? "no-store" : cacheControl,
     etag: entry.etag, vary: "accept-encoding", ...(entry.stale ? { [PUBLIC_STALE_HEADER]: "1" } : {}),
     ...(entry.stale && entry.retryMs !== undefined ? { [PUBLIC_STALE_RETRY_HEADER]: String(Math.ceil(entry.retryMs / 1000)) } : {}) };
-  const match = request.headers.get("if-none-match");
-  if (match !== null && match.split(",").some((tag) => tag.trim() === entry.etag)) return new Response(null, { status: 304, headers });
-  return new Response(entry.json, { headers });
+  if (matchesIfNoneMatch(request.headers.get("if-none-match"), entry.etag)) return new Response(null, { status: 304, headers });
+  return new Response(entry.body, { headers });
+}
+
+/** Ett JSON-svar med ETag och weak-normaliserad `If-None-Match` → `304 Not Modified`. */
+export function etagJsonResponse(request: Request, value: unknown, cacheControl: string,
+  extraHeaders: Record<string, string> = {}): Response {
+  const body = encodeJsonUtf8(value);
+  const etag = etagForBytes(body);
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+    "cache-control": cacheControl,
+    etag,
+    vary: "accept-encoding",
+    ...extraHeaders
+  };
+  if (matchesIfNoneMatch(request.headers.get("if-none-match"), etag)) return new Response(null, { status: 304, headers });
+  return new Response(body, { headers });
+}
+
+/** Kompakt resultatlista (`?splits=0`): tar bort `splits` men bevarar `hasSplits` så standardvyer och Speaker slipper ~75–80 % JSON. */
+function stripPublicResultSplits(response: PublicResultListResponse): PublicResultListResponse {
+  return {
+    ...response,
+    results: response.results.map((row) => {
+      const hasSplits = (row.splits?.length ?? 0) > 0;
+      if (row.status === "NT") {
+        if (!hasSplits && row.splits === undefined) return row;
+        const rest = { ...row };
+        delete rest.splits;
+        return hasSplits ? { ...rest, hasSplits: true } : rest;
+      }
+      if (!hasSplits && row.splits.length === 0) return row;
+      return { ...row, splits: [], hasSplits: true };
+    })
+  };
+}
+
+const compactResultsCache = new WeakMap<object, DerivedCachedBody<PublicResultListResponse>>();
+
+/** Kompakt cachad variant (`?splits=0`) härledd ur samma beräknade resultatlista, med egen förkodad UTF-8-buffert och ETag. */
+export function compactResultsEntry(entry: CachedPublic<PublicResultListResponse>): CachedPublic<PublicResultListResponse> {
+  return deriveCachedPublic(entry, compactResultsCache, stripPublicResultSplits);
+}
+
+/**
+ * Steg 51: hur många rader en publik lista får ha och ändå skickas med sidan. En större lista (3 000 löpare ger flera MB
+ * HTML och sekunder av serverns tid per besök) hämtas av sidan direkt från det cachade API:et i stället.
+ */
+export const PUBLIC_PAGE_INLINE_ROWS = 400;
+
+export function publicPageRows(results: { results: readonly unknown[] }, relay: { classes: readonly { teams: readonly { legs: readonly unknown[] }[] }[] }): number {
+  return results.results.length + relay.classes.reduce((sum, row) => sum + row.teams.reduce((teams, team) => teams + team.legs.length, 0), 0);
 }

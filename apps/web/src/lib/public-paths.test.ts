@@ -51,10 +51,10 @@ const NOT_PUBLIC_API = ["account", "admin", "club-import", "demo", "geo-worker",
 const PUBLIC_API = ["public", "mcp"];
 
 describe("publika sökvägar (ADR-0177): en lista i koden och i deploy/Caddyfile", () => {
-  it("matchern @public i Caddyfile har exakt sökvägarna i PUBLIC_PATHS", () => {
+  it("matchern @public i Caddyfile har exakt sökvägarna i PUBLIC_PATHS i samma ordning", () => {
     const fromCaddy = caddyPublicPaths();
     expect(new Set(fromCaddy).size).toBe(fromCaddy.length);
-    expect([...fromCaddy].sort()).toEqual([...PUBLIC_PATHS].sort());
+    expect(fromCaddy).toEqual([...PUBLIC_PATHS]);
   });
 
   it("matchern gäller bara den som saknar sessionskaka", () => {
@@ -97,6 +97,9 @@ describe("publika sökvägar (ADR-0177): en lista i koden och i deploy/Caddyfile
       if (file) expect(isPublic(file), file).toBe(true);
     }
     for (const name of readdirSync(path.join(webRoot, "public/icons"))) expect(isPublic(`/icons/${name}`), name).toBe(true);
+    for (const dir of ["bildspel", "malningar", "spel"]) {
+      for (const name of readdirSync(path.join(webRoot, "public", dir))) expect(isPublic(`/${dir}/${name}`), `${dir}/${name}`).toBe(true);
+    }
     expect(isPublic("/_next/static/chunks/a.js")).toBe(true);
   });
 

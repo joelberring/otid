@@ -339,17 +339,34 @@ function skippedSteps(summary: unknown): string[] {
   return typeof value === "string" ? value.split(",").filter(Boolean) : [];
 }
 
-/** En resultatfil för den som ser projektet (kurvorna läses in som kandidater i webbläsaren). */
+/** Metadata för en resultatfil för strömning via `streamMapContentParts` (upp till 200 MB utan att buffra i Node-heapen). */
 export async function readGeoOutput(db: Database, input: ClubProof & { projectId: string; jobId: string; name: string }, now = new Date())
-  : Promise<ClubFailure | { status: "ok"; bytes: Buffer; mediaType: string }> {
+  : Promise<ClubFailure | { status: "ok"; contentId: string; sha256: string; byteLength: number; mediaType: string; immutable: boolean }> {
   return db.transaction(async tx => {
     const access = await requireMapProject(tx, input, now, "view", false);
     if (access.status !== "ok") return access;
     if (!UUID_PATTERN.test(input.jobId) || !GEO_OUTPUT_NAME.test(input.name)) return { status: "not-found" } as const;
-    const [file] = await tx.select({ sha: outputs.contentSha256, mediaType: outputs.mediaType }).from(outputs).innerJoin(jobs, eq(jobs.id, outputs.jobId))
+    const [file] = await tx.select({
+      contentId: schema.mapContents.contentId,
+      sha256: outputs.contentSha256,
+      byteLength: schema.mapContents.byteLength,
+      storedIn: schema.mapContents.storedIn,
+      mediaType: outputs.mediaType,
+      jobStatus: jobs.status
+    })
+      .from(outputs)
+      .innerJoin(jobs, eq(jobs.id, outputs.jobId))
+      .innerJoin(schema.mapContents, eq(schema.mapContents.sha256, outputs.contentSha256))
       .where(and(eq(outputs.jobId, input.jobId), eq(outputs.name, input.name), eq(jobs.projectId, access.project.id)));
-    const bytes = file ? await readMapContent(tx, file.sha) : undefined;
-    return bytes ? { status: "ok", bytes, mediaType: file!.mediaType } as const : { status: "not-found" } as const;
+    if (!file || file.storedIn === "GONE") return { status: "not-found" } as const;
+    return {
+      status: "ok",
+      contentId: file.contentId,
+      sha256: file.sha256,
+      byteLength: file.byteLength,
+      mediaType: file.mediaType,
+      immutable: file.jobStatus === "DONE"
+    } as const;
   });
 }
 

@@ -184,8 +184,20 @@ describe("administratörsroutes: kartfilen", () => {
     const file = await raceAdministratorRoute(db, get, id, action, services, environment);
     expect(file.status).toBe(200);
     expect(file.headers.get("content-disposition")).toBe(`attachment; filename="karta.ocd"; filename*=UTF-8''${encodeURIComponent("Djurgården 2025.ocd")}`);
-    expect(file.headers.get("cache-control")).toBe("private, no-store");
+    expect(file.headers.get("cache-control")).toBe("private, no-cache");
+    expect(file.headers.get("vary")).toBe("Cookie");
+    expect(file.headers.get("etag")).toBe(`"${"a".repeat(64)}"`);
     expect([...new Uint8Array(await file.arrayBuffer())]).toEqual([0xad, 0x0c, 7]);
+    // Svag If-None-Match på oadresserad race-map-source → 304.
+    raceMapSourceFile.mockResolvedValueOnce({ status: "not-modified", sha256: "a".repeat(64) });
+    const cachedUnaddressed = await raceAdministratorRoute(
+      db,
+      new Request("https://otid.example/api/admin", { headers: { cookie: `__Host-otid-organizer-session=${token}`, "if-none-match": `W/"${"a".repeat(64)}"` } }),
+      id, action, services, environment
+    );
+    expect(cachedUnaddressed.status).toBe(304);
+    expect(cachedUnaddressed.headers.get("cache-control")).toBe("private, no-cache");
+    expect(cachedUnaddressed.headers.get("vary")).toBe("Cookie");
     const remove = new Request("https://otid.example/api/admin", { method: "DELETE", headers: { origin: environment.O_TID_PUBLIC_ORIGIN,
       "x-otid-csrf": csrf, cookie: `__Host-otid-organizer-session=${token}; __Host-otid-organizer-csrf=${csrf}` } });
     expect((await raceAdministratorRoute(db, remove, id, action, services, environment)).status).toBe(204);
@@ -285,5 +297,34 @@ describe("administratörsroutes: kartfilen", () => {
       { ...dependencies(), ...staging.services, raceMapSourceSave }, environment);
     expect(response.status).toBe(204);
     expect(raceMapSourceSave.mock.calls[0]![1].metadata).toEqual({ formatVersion: 1, sourceDownloadLocked: true });
+  });
+
+  it("race-map-image ger ETag, private, no-cache + Vary: Cookie och 304 före bildläsning på svag ETag", async () => {
+    const sha = "f".repeat(64);
+    const raceMapImage = vi.fn<typeof Application.readRaceMapImageAsAdmin>()
+      .mockResolvedValue({ status: "ok", mediaType: "image/png", image: Buffer.from([0x89, 0x50, 0x4e, 0x47]), sha256: sha });
+    const services = { ...dependencies(), raceMapImage };
+    const ok = await raceAdministratorRoute(
+      db,
+      new Request("https://otid.example/api/admin", { headers: { cookie: `__Host-otid-organizer-session=${token}` } }),
+      id, { kind: "race-map-image" }, services, environment
+    );
+    expect(ok.status).toBe(200);
+    expect(ok.headers.get("content-type")).toBe("image/png");
+    expect(ok.headers.get("cache-control")).toBe("private, no-cache");
+    expect(ok.headers.get("vary")).toBe("Cookie");
+    expect(ok.headers.get("etag")).toBe(`"${sha}"`);
+    expect(raceMapImage.mock.calls[0]![3]).toEqual({ ifNoneMatch: null });
+
+    raceMapImage.mockResolvedValueOnce({ status: "not-modified", sha256: sha });
+    const cached = await raceAdministratorRoute(
+      db,
+      new Request("https://otid.example/api/admin", { headers: { cookie: `__Host-otid-organizer-session=${token}`, "if-none-match": `W/"${sha}"` } }),
+      id, { kind: "race-map-image" }, services, environment
+    );
+    expect(cached.status).toBe(304);
+    expect(cached.headers.get("etag")).toBe(`"${sha}"`);
+    expect(cached.headers.get("vary")).toBe("Cookie");
+    expect(raceMapImage.mock.calls[1]![3]).toEqual({ ifNoneMatch: `W/"${sha}"` });
   });
 });

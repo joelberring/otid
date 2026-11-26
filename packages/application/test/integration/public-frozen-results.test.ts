@@ -75,6 +75,22 @@ describe("TASK127 publik fryst resultatprojektion", () => {
     await db.update(schema.events).set({ name: "Senare live-namn" }).where(eq(schema.events.id, f.eventId));
     expect(await readPublicFrozenRaceResults(db, f.raceId, f.finalizationId)).toEqual(before);
     expect(await readLatestPublicFrozenRaceFinalization(db, f.raceId)).toEqual({ status: "ok", finalizationId: f.finalizationId });
+    // Upprepad läsning träffar den verifierade LRU-cachen för samma oföränderliga finalizationId.
+    expect(await readLatestPublicFrozenRaceFinalization(db, f.raceId)).toEqual({ status: "ok", finalizationId: f.finalizationId });
+  });
+
+  it("avvisar manipulerad finalisering med conflict utan att cacha den i LRU:n", async () => {
+    const f = await fixture();
+    const tamperedId = randomUUID();
+    const raceProjection = { formatVersion: 9 as const, scope: "RACE" as const, raceId: f.raceId, snapshotVersion: 1,
+      basisSha256: hash, eventName: "Manipulerad", classes: [] };
+    await db.insert(schema.resultFinalizations).values({
+      id: tamperedId, requestId: randomUUID(), raceId: f.raceId, scope: "RACE", classId: null, scopeRevision: 2,
+      sourceSnapshotVersion: 1, sourceHash: hash, frozenProjection: raceProjection, completeXml,
+      completeXmlHash: "b".repeat(64), actorAccountId: randomUUID(), finalizedAt
+    });
+    expect(await readLatestPublicFrozenRaceFinalization(db, f.raceId)).toEqual({ status: "conflict" });
+    expect(await readLatestPublicFrozenRaceFinalization(db, f.raceId)).toEqual({ status: "conflict" });
   });
 
   it("stänger vid fel race, saknad rad och CLASS-finalisering utan live-fallback", async () => {

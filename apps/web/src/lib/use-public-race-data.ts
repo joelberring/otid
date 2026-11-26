@@ -48,20 +48,22 @@ export function serialRefresh(run: () => Promise<"done" | "busy">): (wake?: bool
  * ligger kvar; nästa försök sker vid nästa intervall eller väckning. `online` följer webbläsarens nätstatus.
  * `active` false pausar hämtningen (arbetsytan när Resultat inte visas).
  */
-export function usePublicRaceData<T>(raceId: string, read: PublicRead<T>, initial?: T, active = true, intervalMs = 5_000) {
+export function usePublicRaceData<T>(raceId: string, read: PublicRead<T>, initial?: T, active = true, intervalMs = 5_000,
+  refreshTrigger = 0) {
   const [data, setData] = useState<T | undefined>(initial);
   const [failed, setFailed] = useState(false);
   const [online, setOnline] = useState(true);
   const warned = useRef(false), streamOpen = useRef(false), lastFetch = useRef(0);
   const reader = useRef(read);
   reader.current = read;
+  const refreshRef = useRef<((wake?: boolean) => Promise<void>) | undefined>(undefined);
   useEffect(() => {
-    if (!active) return;
+    if (!active) { refreshRef.current = undefined; return; }
     let stopped = false;
     let retry: number | undefined;
     const retryStale = (retryMs?: number) => {
       if (retry !== undefined || stopped) return;
-      retry = window.setTimeout(() => { retry = undefined; void refresh(); },
+      retry = window.setTimeout(() => { retry = undefined; if (document.visibilityState === "visible") void refresh(); },
         (retryMs ?? STALE_RETRY_MS.minMs) + Math.random() * STALE_RETRY_MS.spreadMs);
     };
     const refresh = serialRefresh(async () => {
@@ -82,6 +84,7 @@ export function usePublicRaceData<T>(raceId: string, read: PublicRead<T>, initia
       }
       return "done";
     });
+    refreshRef.current = refresh;
     if (initial === undefined) void refresh();
     const timer = window.setInterval(() => {
       if (document.visibilityState === "hidden") return;
@@ -89,19 +92,30 @@ export function usePublicRaceData<T>(raceId: string, read: PublicRead<T>, initia
       void refresh();
     }, intervalMs);
     const stopStream = typeof window.EventSource === "function"
-      ? startPublicResultEventStream(raceId, window.EventSource, () => { void refresh(true); }, undefined, (open) => { streamOpen.current = open; })
+      ? startPublicResultEventStream(raceId, window.EventSource, () => {
+          if (document.visibilityState === "visible") void refresh(true);
+        }, undefined, (open) => { streamOpen.current = open; })
       : undefined;
+    const onVisible = () => { if (document.visibilityState === "visible") void refresh(true); };
     const network = () => {
       setOnline(navigator.onLine);
-      if (navigator.onLine) void refresh(true);
+      if (navigator.onLine && document.visibilityState === "visible") void refresh(true);
     };
     setOnline(navigator.onLine);
+    document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("online", network); window.addEventListener("offline", network);
     return () => {
-      stopped = true; window.clearInterval(timer); window.clearTimeout(retry); stopStream?.();
+      stopped = true; refreshRef.current = undefined; window.clearInterval(timer); window.clearTimeout(retry); stopStream?.();
+      document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("online", network); window.removeEventListener("offline", network);
     };
     // `initial` är bara startvärdet: effekten startas om bara för en annan tävling, paus eller ett annat intervall.
   }, [raceId, active, intervalMs]);
+  const prevTrigger = useRef(refreshTrigger);
+  useEffect(() => {
+    if (prevTrigger.current === refreshTrigger) return;
+    prevTrigger.current = refreshTrigger;
+    if (active) void refreshRef.current?.(true);
+  }, [refreshTrigger, active]);
   return { data, failed, online };
 }

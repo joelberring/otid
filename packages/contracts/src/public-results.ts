@@ -37,6 +37,8 @@ const publicResultCommonFields = {
   revision: z.number().int().positive(),
   elapsedMs: safeMillisecondsSchema.optional(),
   splits: z.array(publicResultSplitSchema).max(256),
+  /** Vid kompakt svar (`?splits=0`): anger om raden har sträcktider trots att `splits` utelämnats. */
+  hasSplits: z.boolean().optional(),
   rankingState: z.enum(["RANKED", "NOT_RANKABLE_STATUS", "MIXED_COURSE_VERSIONS"]),
   position: z.number().int().positive().max(10_000).optional(),
   timeBehindMs: safeMillisecondsSchema.optional()
@@ -47,6 +49,7 @@ interface PublicResultValidationValue {
   reason: string;
   elapsedMs?: number | undefined;
   splits: readonly { elapsedMs: number }[];
+  hasSplits?: boolean | undefined;
   rankingState: "RANKED" | "NOT_RANKABLE_STATUS" | "MIXED_COURSE_VERSIONS";
   position?: number | undefined;
   timeBehindMs?: number | undefined;
@@ -79,7 +82,7 @@ function validatePublicResult(result: PublicResultValidationValue, context: z.Re
     context.addIssue({ code: "custom", message: "DSQ kräver manuell orsak och får inte ha ranking" });
   }
   if (result.status === "DNS" &&
-      (result.reason !== "DID_NOT_START" || result.elapsedMs !== undefined || result.splits.length > 0 ||
+      (result.reason !== "DID_NOT_START" || result.elapsedMs !== undefined || result.splits.length > 0 || result.hasSplits === true ||
        hasPosition || hasTimeBehind)) {
     context.addIssue({ code: "custom", message: "DNS måste vara status-only utan tid, splits eller ranking" });
   }
@@ -156,7 +159,9 @@ const publicWithoutTimingResultV7Schema = z.object({
   reason: z.literal("WITHOUT_TIMING"),
   rankingState: z.literal("NOT_RANKABLE_STATUS"),
   /** Steg 38: med avläsning sträcktiderna fram till sista stämplade kontrollen (aldrig tid). */
-  splits: z.array(publicResultSplitSchema).max(256).optional()
+  splits: z.array(publicResultSplitSchema).max(256).optional(),
+  /** Vid kompakt svar (`?splits=0`): anger om raden har sträcktider trots att `splits` utelämnats. */
+  hasSplits: z.boolean().optional()
 }).strict();
 
 export const publicResultV7Schema = z.union([

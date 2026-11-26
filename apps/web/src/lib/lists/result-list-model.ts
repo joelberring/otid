@@ -18,7 +18,10 @@ export type ResultRow = {
   /** Länk till löparens resultatsida; saknas i äldre format. */
   publicResultId: string | null;
   name: string; club: string | null; className: string; place: number | null; timeMs: number | null; behindMs: number | null;
-  status: ResultStatus; reason: string; variant: string | null; splits: ResultSplit[]; missingControls: number[];
+  status: ResultStatus; reason: string; variant: string | null; splits: ResultSplit[];
+  /** Vid kompakt hämtning (`?splits=0`): anger om löparen har sträcktider trots att `splits` är tom. */
+  hasSplits?: boolean | undefined;
+  missingControls: number[];
   score: ResultScore | null;
 };
 /** Mellantider vid klassens radiokontroller (ADR-0172 beslut 5). */
@@ -52,6 +55,7 @@ function row(result: PublicRow): ResultRow {
     status: result.status, reason: result.reason,
     variant: "courseVariantCode" in result ? result.courseVariantCode ?? null : null,
     splits: "splits" in result ? (result.splits ?? []).map(split => ({ ...split })) : [],
+    ...("hasSplits" in result && result.hasSplits !== undefined ? { hasSplits: result.hasSplits } : {}),
     missingControls: "missingControls" in result ? [...result.missingControls] : [],
     score: "rogaining" in result && result.rogaining ? { controlPoints: result.rogaining.controlPoints, penalty: result.rogaining.penalty,
       total: result.rogaining.total, controls: result.rogaining.controls.map(control => ({ ...control })) } : null

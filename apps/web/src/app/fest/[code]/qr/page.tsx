@@ -22,7 +22,7 @@ type Params = { params: Promise<{ code: string }> };
 const robots = { index: false, follow: false, noarchive: true, nosnippet: true, noimageindex: true } as const;
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
-  const hub = await loadRaceHub((await params).code);
+  const hub = await loadRaceHub((await params).code, { includeRoutes: false });
   const text = await currentLanguage() === "en" ? partyPublicEn : partyPublicSv;
   if (!hub) return { title: `${(await currentLanguage() === "en" ? notPublishedEn : publicRaceSv.notPublished).title} – ${sv.appName}`, robots };
   return { title: `${text.qr.title}: ${hub.eventName} – ${sv.appName}`, robots };
@@ -34,7 +34,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
  * hämtas. Koden skapas på servern med `qrcode` (felkorrigering M) som SVG.
  */
 export default async function PartyQrPage({ params }: Params) {
-  const hub = await requireRaceHub((await params).code);
+  const hub = await requireRaceHub((await params).code, { includeRoutes: false });
   if (hub.raceType !== "PARTY") redirect(`/t/${hub.shortCode}/qr`);
   const party = await readPublicParty(db, hub.raceId);
   const path = `/fest/${hub.shortCode}`;

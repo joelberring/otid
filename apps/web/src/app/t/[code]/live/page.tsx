@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
 type Params = { params: Promise<{ code: string }> };
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
-  const hub = await loadRaceHub((await params).code);
+  const hub = await loadRaceHub((await params).code, { includeRoutes: false });
   if (!hub) return { title: `${(await currentLanguage() === "en" ? notPublishedEn : publicRaceSv.notPublished).title} – ${sv.appName}`, robots: NO_INDEX_ROBOTS };
   const text = await currentLanguage() === "en" ? liveEn : liveSv;
   return { title: `${text.metaTitle(hub.eventName)} – ${sv.appName}`, robots: NO_INDEX_ROBOTS };
@@ -31,7 +31,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
  * löpare och klubbar som besökaren följer. Samma grind som tävlingssidan (opublicerad eller dold ger samma 404).
  */
 export default async function LivePage({ params }: Params) {
-  const hub = await requireRaceHub((await params).code);
+  const hub = await requireRaceHub((await params).code, { includeRoutes: false });
   const initial = (await cachedPublicLive(hub.raceId, { exact: true })).value;
   const language = await currentLanguage(), en = language === "en";
   const text = en ? liveEn : liveSv, hubText = en ? hubEn : publicRaceSv.hub;

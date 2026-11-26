@@ -62,9 +62,11 @@ function PartyWorkspace({ raceId, admin, ws }: { raceId: string; admin: boolean;
   useEffect(() => {
     let stopped = false;
     const run = () => load().then(() => { if (!stopped) setProblem(undefined); }, () => { if (!stopped) setProblem(text.loadError); });
+    const onVisible = () => { if (document.visibilityState === "visible") void run(); };
     void run();
-    const timer = setInterval(() => { void run(); }, POLL_MS);
-    return () => { stopped = true; clearInterval(timer); };
+    const timer = setInterval(onVisible, POLL_MS);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { stopped = true; clearInterval(timer); document.removeEventListener("visibilitychange", onVisible); };
   }, [load]);
 
   async function post(path: string, body: unknown): Promise<Response> {

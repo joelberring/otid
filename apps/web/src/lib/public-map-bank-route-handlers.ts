@@ -6,7 +6,8 @@ import {
 } from "@o-tid/application";
 import { UUID_PATTERN } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
-import { attachment, failure, guarded, mutation, problem, readProof, type ClubEnvironment } from "./club-route-handlers";
+import { attachment, contentPartStream, failure, guarded, mutation, problem, readProof, type ClubEnvironment } from "./club-route-handlers";
+import { bufferView, matchesIfNoneMatch } from "./http-etag";
 import { publicBusyResponse, publicLoad } from "./public-load";
 import { privateJson } from "./security-policy";
 import { logServerError } from "./server-error-log";
@@ -66,20 +67,35 @@ export async function publicMapBankDetailRoute(db: Database, listingId: string):
   });
 }
 
-/** GET /api/public/map-bank/[listingId]/preview — PNG-förhandsvisning endast när `showPreview === true`. */
-export async function publicMapBankPreviewRoute(db: Database, listingId: string): Promise<Response> {
+/** GET /api/public/map-bank/[listingId]/preview — PNG-förhandsvisning endast när `showPreview === true` (304 före läsning). */
+export async function publicMapBankPreviewRoute(db: Database, listingId: string, request?: Request): Promise<Response> {
   if (!validId(listingId)) return failure("not-found");
   return admitted(async () => {
     try {
-      const result = await readPublicMapPreview(db, listingId);
-      if (result.status !== "ok") return failure(result.status);
-      return new Response(new Uint8Array(result.png), {
+      const ifNoneMatch = request?.headers.get("if-none-match") ?? undefined;
+      const result = await readPublicMapPreview(db, listingId, ifNoneMatch ? { ifNoneMatch } : undefined);
+      if (result.status !== "ok" && result.status !== "not-modified") return failure(result.status);
+      const etag = `"${result.sha256}"`;
+      const version = request ? new URL(request.url).searchParams.get("v") : null;
+      const versioned = version !== null && (version === result.sha256 || version === result.sha256.slice(0, 16));
+      const cacheControl = versioned ? "public, max-age=31536000, immutable" : "public, max-age=300";
+      if (result.status === "not-modified" || matchesIfNoneMatch(ifNoneMatch, etag)) {
+        return new Response(null, {
+          status: 304,
+          headers: {
+            "x-content-type-options": "nosniff",
+            "cache-control": cacheControl,
+            etag
+          }
+        });
+      }
+      return new Response(bufferView(result.png), {
         headers: {
           "content-type": "image/png",
           "x-content-type-options": "nosniff",
-          "cache-control": "public, max-age=300",
+          "cache-control": cacheControl,
           "content-length": String(result.png.byteLength),
-          etag: `"${result.sha256}"`
+          etag
         }
       });
     } catch (error) {
@@ -90,25 +106,24 @@ export async function publicMapBankPreviewRoute(db: Database, listingId: string)
 }
 
 /** GET /api/public/map-bank/[listingId]/download — rå .ocd/.omap ENDAST när `accessMode === "OPEN_DOWNLOAD"`. */
-export async function publicMapBankDownloadRoute(db: Database, listingId: string): Promise<Response> {
+export async function publicMapBankDownloadRoute(db: Database, listingId: string, request?: Request): Promise<Response> {
   if (!validId(listingId)) return failure("not-found");
   return admitted(async () => {
     try {
       const head = await downloadPublicMapSource(db, listingId);
       if (head.status !== "ok") return failure(head.status);
-      const parts = streamMapContentParts(db, head.contentId);
-      const stream = new ReadableStream<Uint8Array>({
-        async pull(controller) {
-          try {
-            const next = await parts.next();
-            if (next.done) controller.close(); else controller.enqueue(next.value);
-          } catch (error) {
-            logServerError("public-map-bank", "download-stream", error);
-            controller.error(error);
+      const etag = `"${head.sha256}"`;
+      if (matchesIfNoneMatch(request?.headers.get("if-none-match"), etag)) {
+        return new Response(null, {
+          status: 304,
+          headers: {
+            "x-content-type-options": "nosniff",
+            "cache-control": "public, max-age=300",
+            etag
           }
-        },
-        async cancel() { await parts.return(undefined); }
-      });
+        });
+      }
+      const stream = contentPartStream(streamMapContentParts(db, head.contentId), "public-map-bank", "download-stream");
       return new Response(stream, {
         headers: {
           "content-type": "application/octet-stream",
@@ -116,7 +131,7 @@ export async function publicMapBankDownloadRoute(db: Database, listingId: string
           "content-length": String(head.byteLength),
           "x-content-type-options": "nosniff",
           "cache-control": "public, max-age=300",
-          etag: `"${head.sha256}"`
+          etag
         }
       });
     } catch (error) {

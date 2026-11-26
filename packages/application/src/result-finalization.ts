@@ -348,6 +348,33 @@ function publicFrozenRaceResultsFromRow(row: ResultFinalizationRow): PublicFroze
 }
 
 /**
+ * Begränsad LRU (max 256 verifierade oföränderliga RACE-finaliseringar, ~20 KB RAM) så upprepade `/results/[raceId]`-besök
+ * slipper detoasta och dubbel-hasha flera MB `completeXml` + `frozenProjection`. Raderna i `result_finalization` är
+ * skrivskyddade med trigger i databasen; varje ny finalisering eller processomstart verifierar fullständigt först.
+ */
+const VERIFIED_RACE_FINALIZATIONS_MAX = 256;
+const verifiedPublicRaceFinalizations = new Set<string>();
+
+function verifiedFinalizationKey(raceId: string, row: { id: string; sourceHash: string; completeXmlHash: string | null }): string {
+  return `${raceId}:${row.id}:${row.sourceHash}:${row.completeXmlHash ?? ""}`;
+}
+
+function hasVerifiedPublicRaceFinalization(key: string): boolean {
+  if (!verifiedPublicRaceFinalizations.has(key)) return false;
+  verifiedPublicRaceFinalizations.delete(key);
+  verifiedPublicRaceFinalizations.add(key);
+  return true;
+}
+
+function rememberVerifiedPublicRaceFinalization(key: string): void {
+  verifiedPublicRaceFinalizations.delete(key);
+  verifiedPublicRaceFinalizations.add(key);
+  while (verifiedPublicRaceFinalizations.size > VERIFIED_RACE_FINALIZATIONS_MAX) {
+    verifiedPublicRaceFinalizations.delete(verifiedPublicRaceFinalizations.values().next().value!);
+  }
+}
+
+/**
  * Reads exactly one immutable RACE finalization. This must never call the
  * live public result projection: later result revisions are intentionally
  * unrelated to an already shared finalization URL.
@@ -366,7 +393,9 @@ export async function readPublicFrozenRaceResults(
         eq(schema.resultFinalizations.scope, "RACE")
       ));
       if (!row) return { status: "not-found" } as const;
-      return { status: "ok", response: publicFrozenRaceResultsFromRow(row) } as const;
+      const response = publicFrozenRaceResultsFromRow(row);
+      rememberVerifiedPublicRaceFinalization(verifiedFinalizationKey(raceId, row));
+      return { status: "ok", response } as const;
     }, { isolationLevel: "repeatable read" });
   } catch (error) {
     if (error instanceof StoredFinalizationConflict) return { status: "conflict" };
@@ -382,11 +411,19 @@ export async function readLatestPublicFrozenRaceFinalization(
   if (!UUID_PATTERN.test(raceId)) return { status: "not-found" };
   try {
     return await db.transaction(async (tx) => {
-      const [row] = await tx.select({ id: schema.resultFinalizations.id }).from(schema.resultFinalizations).where(and(
+      const [row] = await tx.select({
+        id: schema.resultFinalizations.id,
+        sourceHash: schema.resultFinalizations.sourceHash,
+        completeXmlHash: schema.resultFinalizations.completeXmlHash
+      }).from(schema.resultFinalizations).where(and(
         eq(schema.resultFinalizations.raceId, raceId),
         eq(schema.resultFinalizations.scope, "RACE")
       )).orderBy(desc(schema.resultFinalizations.scopeRevision)).limit(1);
       if (!row) return { status: "not-found" } as const;
+      const key = verifiedFinalizationKey(raceId, row);
+      if (hasVerifiedPublicRaceFinalization(key)) {
+        return { status: "ok", finalizationId: row.id } as const;
+      }
       const exact = await tx.select().from(schema.resultFinalizations).where(and(
         eq(schema.resultFinalizations.id, row.id),
         eq(schema.resultFinalizations.raceId, raceId),
@@ -395,6 +432,7 @@ export async function readLatestPublicFrozenRaceFinalization(
       const finalization = exact[0];
       if (!finalization) return { status: "not-found" } as const;
       publicFrozenRaceResultsFromRow(finalization);
+      rememberVerifiedPublicRaceFinalization(key);
       return { status: "ok", finalizationId: finalization.id } as const;
     }, { isolationLevel: "repeatable read" });
   } catch (error) {

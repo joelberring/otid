@@ -76,8 +76,10 @@ export function useMapProjectLaser({ view, layers, importer, georeference, bound
   const active = list?.jobs.some(job => LASER_ACTIVE.has(job.status)) ?? false;
   useEffect(() => {
     if (!active) return;
-    const timer = window.setInterval(() => void load(), 10_000);
-    return () => window.clearInterval(timer);
+    const onVisible = () => { if (document.visibilityState === "visible") void load(); };
+    const timer = window.setInterval(onVisible, 10_000);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { window.clearInterval(timer); document.removeEventListener("visibilitychange", onVisible); };
   }, [active, load]);
   const doneCount = list?.jobs.filter(job => job.status === "DONE").length ?? 0;
   const reloadLayers = layers.reload;

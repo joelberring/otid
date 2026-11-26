@@ -42,22 +42,35 @@ export function PublicResultDetail({ raceId, publicResultId, initial }: {
   const refreshInFlight = useRef(false);
   useEffect(() => {
     let disposed = false;
+    let cached: { url: string; etag: string; value: PublicResultDetailResponse } | undefined;
+    const url = `/api/public/races/${raceId}/results/${publicResultId}`;
     const refresh = async () => {
       if (disposed || refreshInFlight.current) return;
       refreshInFlight.current = true;
       lastFetch = Date.now();
       try {
-        const result = await fetch(`/api/public/races/${raceId}/results/${publicResultId}`, { cache: "no-store" });
+        const result = await fetch(url, cached && cached.url === url
+          ? { cache: "no-store", headers: { "if-none-match": cached.etag } }
+          : { cache: "no-store" });
         // Steg 54: många besökare (503) – raden som visas ligger kvar, nytt försök efter Retry-After.
         const busy = result.status === 503 ? (Number(result.headers.get("retry-after")) || 3) * 1_000 : undefined;
-        if (busy === undefined && !result.ok) { if (!disposed) setUnavailable(true); return; }
+        const notModified = result.status === 304 && cached !== undefined && cached.url === url;
+        if (busy === undefined && !notModified && !result.ok) { cached = undefined; if (!disposed) setUnavailable(true); return; }
         if ((busy !== undefined || anyStale(result)) && retry === undefined) {
-          retry = window.setTimeout(() => { retry = undefined; void refresh(); },
+          retry = window.setTimeout(() => { retry = undefined; if (document.visibilityState === "visible") void refresh(); },
             (busy ?? staleRetryMs(result) ?? STALE_RETRY_MS.minMs) + Math.random() * STALE_RETRY_MS.spreadMs);
         }
         if (busy !== undefined) return;
+        if (notModified) {
+          const nextEtag = result.headers.get("etag");
+          if (nextEtag && cached) cached = { ...cached, etag: nextEtag };
+          if (!disposed) setUnavailable(false);
+          return;
+        }
         const parsed = publicResultDetailResponseSchema.safeParse(await result.json());
-        if (!parsed.success) { if (!disposed) setUnavailable(true); return; }
+        if (!parsed.success) { cached = undefined; if (!disposed) setUnavailable(true); return; }
+        const etag = result.headers.get("etag");
+        cached = etag ? { url, etag, value: parsed.data } : undefined;
         if (disposed) return;
         setResponse(parsed.data); setUnavailable(false);
       } catch {
@@ -68,13 +81,19 @@ export function PublicResultDetail({ raceId, publicResultId, initial }: {
     };
     // Steg 51: med öppen resultatström hämtar sidan av sig själv bara som reserv (`timerShouldFetch`).
     let streamOpen = false, lastFetch = 0, retry: number | undefined;
-    const timer = window.setInterval(() => { if (timerShouldFetch(streamOpen, lastFetch, Date.now(), 5_000)) void refresh(); }, 5_000);
+    const onVisible = () => { if (document.visibilityState === "visible") void refresh(); };
+    const timer = window.setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      if (timerShouldFetch(streamOpen, lastFetch, Date.now(), 5_000)) void refresh();
+    }, 5_000);
     const stopEventStream = typeof window.EventSource === "function"
-      ? startPublicResultEventStream(raceId, window.EventSource, () => { void refresh(); }, undefined, (open) => { streamOpen = open; })
+      ? startPublicResultEventStream(raceId, window.EventSource, onVisible, undefined, (open) => { streamOpen = open; })
       : undefined;
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       disposed = true;
       window.clearInterval(timer); window.clearTimeout(retry);
+      document.removeEventListener("visibilitychange", onVisible);
       stopEventStream?.();
     };
   }, [raceId, publicResultId]);

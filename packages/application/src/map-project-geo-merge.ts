@@ -3,7 +3,6 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { GEO_OUTPUT_NAME } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import type { ClubFailure, ClubProof } from "./club-access";
-import { readMapContent } from "./map-content";
 import { mapProjectAllows, requireMapProject } from "./map-project-access";
 import { UUID_PATTERN } from "./serialization";
 import type { DbExecutor } from "./snapshot";
@@ -71,14 +70,24 @@ export async function claimedStages(db: DbExecutor, merge: GeoMerge): Promise<{ 
   return merge.stages.map(stage => ({ jobId: stage.jobId, clip: stage.clip, outputs: files.filter(file => file.jobId === stage.jobId).map(file => file.name).sort() }));
 }
 
-/** En etapps resultatfil för geo-arbetaren som kör sammanläggningen (bara etapper som jobbet lägger ihop). */
-export async function readGeoStageOutput(db: Database, jobId: string, worker: string, stageId: string, name: string): Promise<Buffer | undefined> {
+/** Metadata för en etapps resultatfil för geo-arbetaren (strömmas med `streamMapContentParts` utan OOM-buffring). */
+export async function readGeoStageOutput(db: Database, jobId: string, worker: string, stageId: string, name: string)
+  : Promise<{ contentId: string; sha256: string; byteLength: number } | undefined> {
   if (!UUID_PATTERN.test(jobId) || !UUID_PATTERN.test(stageId) || !GEO_OUTPUT_NAME.test(name)) return undefined;
   const [job] = await db.select().from(jobs).where(and(eq(jobs.id, jobId), eq(jobs.worker, worker), eq(jobs.status, "RUNNING")));
   if (!job || !geoMergeOf(job)?.stages.some(stage => stage.jobId === stageId)) return undefined;
-  const [file] = await db.select({ sha: outputs.contentSha256 }).from(outputs).innerJoin(jobs, eq(jobs.id, outputs.jobId))
+  const [file] = await db.select({
+    contentId: schema.mapContents.contentId,
+    sha256: outputs.contentSha256,
+    byteLength: schema.mapContents.byteLength,
+    storedIn: schema.mapContents.storedIn
+  })
+    .from(outputs)
+    .innerJoin(jobs, eq(jobs.id, outputs.jobId))
+    .innerJoin(schema.mapContents, eq(schema.mapContents.sha256, outputs.contentSha256))
     .where(and(eq(outputs.jobId, stageId), eq(outputs.name, name), eq(jobs.projectId, job.projectId)));
-  return file ? readMapContent(db, file.sha) : undefined;
+  if (!file || file.storedIn === "GONE") return undefined;
+  return { contentId: file.contentId, sha256: file.sha256, byteLength: file.byteLength };
 }
 
 /**

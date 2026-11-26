@@ -77,12 +77,37 @@ describe("public-map-bank-route-handlers", () => {
 
   it("serves PNG preview with nosniff and public cache headers when allowed", async () => {
     const png = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
-    mocks.readPublicMapPreview.mockResolvedValue({ status: "ok", png, sha256: "a".repeat(64) });
+    const sha = "a".repeat(64);
+    mocks.readPublicMapPreview.mockResolvedValue({ status: "ok", png, sha256: sha });
     const res = await publicMapBankPreviewRoute(fakeDb, validUuid);
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("image/png");
     expect(res.headers.get("x-content-type-options")).toBe("nosniff");
     expect(res.headers.get("cache-control")).toBe("public, max-age=300");
+
+    // Versionerad förhandsvisning (?v=<16-teckens previewSha>) får 1 års immutable cache.
+    const versioned = await publicMapBankPreviewRoute(
+      fakeDb,
+      validUuid,
+      new Request(`https://otid.se/api/public/map-bank/${validUuid}/preview?v=${sha.slice(0, 16)}`)
+    );
+    expect(versioned.status).toBe(200);
+    expect(versioned.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+    expect(versioned.headers.get("etag")).toBe(`"${sha}"`);
+
+    // 304 på svag W/-ETag före byte-läsning.
+    mocks.readPublicMapPreview.mockResolvedValueOnce({ status: "not-modified", sha256: sha });
+    const notMod = await publicMapBankPreviewRoute(
+      fakeDb,
+      validUuid,
+      new Request(`https://otid.se/api/public/map-bank/${validUuid}/preview?v=${sha.slice(0, 16)}`, {
+        headers: { "if-none-match": `W/"${sha}"` }
+      })
+    );
+    expect(notMod.status).toBe(304);
+    expect(notMod.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+    expect(notMod.headers.get("etag")).toBe(`"${sha}"`);
+    expect(mocks.readPublicMapPreview).toHaveBeenLastCalledWith(fakeDb, validUuid, { ifNoneMatch: `W/"${sha}"` });
   });
 
   it("returns 403 on download when accessMode is not OPEN_DOWNLOAD", async () => {
@@ -91,14 +116,15 @@ describe("public-map-bank-route-handlers", () => {
     expect(res.status).toBe(403);
   });
 
-  it("streams attachment on download when OPEN_DOWNLOAD", async () => {
+  it("streams attachment on download when OPEN_DOWNLOAD and returns 304 before streaming on If-None-Match", async () => {
+    const sha = "b".repeat(64);
     mocks.downloadPublicMapSource.mockResolvedValue({
       status: "ok",
       fileName: "Nackareservatet.omap",
       format: "OMAP",
       byteLength: 4,
       contentId: validUuid2,
-      sha256: "b".repeat(64)
+      sha256: sha
     });
     mocks.streamMapContentParts.mockImplementation(async function* () {
       yield new Uint8Array([1, 2, 3, 4]);
@@ -107,6 +133,18 @@ describe("public-map-bank-route-handlers", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("content-disposition")).toContain("attachment;");
     expect(new Uint8Array(await res.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3, 4]));
+    expect(mocks.streamMapContentParts).toHaveBeenCalledTimes(1);
+
+    const notMod = await publicMapBankDownloadRoute(
+      fakeDb,
+      validUuid,
+      new Request(`https://otid.se/api/public/map-bank/${validUuid}/download`, {
+        headers: { "if-none-match": `W/"${sha}"` }
+      })
+    );
+    expect(notMod.status).toBe(304);
+    expect(notMod.headers.get("etag")).toBe(`"${sha}"`);
+    expect(mocks.streamMapContentParts).toHaveBeenCalledTimes(1);
   });
 
   it("enforces Origin and auth on usePublicMapListingRoute and returns 201 on success", async () => {

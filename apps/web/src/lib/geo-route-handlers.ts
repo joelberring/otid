@@ -2,12 +2,13 @@ import {
   retireGeoServer,
   authenticateGeoWorker, fetchMapProjectForestImage, fetchMapProjectMoisture, forestImageRuntimeFromEnvironment, moistureRuntimeFromEnvironment,
   type ForestImageRuntime, type MoistureRuntime, claimGeoJob, createGeoJob, discardStagedMapContent, finishGeoJob, geoServerView, heartbeatGeoJob, laserRuntimeFromEnvironment,
-  lantmaterietRuntimeFromEnvironment, listGeoJobs, markRawLaserMailed, recordRawLaserStep, mergeGeoStages, openGeoJobLaser, projectRegenerableMissing, pruneGeoJobs, regenerateGeoJob, readGeoOutput, readGeoStageOutput, removeGeoJob, searchMapProjectLaser, stageMapContent, storeGeoOutput,
+  lantmaterietRuntimeFromEnvironment, listGeoJobs, markRawLaserMailed, recordRawLaserStep, mergeGeoStages, openGeoJobLaser, projectRegenerableMissing, pruneGeoJobs, regenerateGeoJob, readGeoOutput, readGeoStageOutput, removeGeoJob, searchMapProjectLaser, stageMapContent, storeGeoOutput, streamMapContentParts,
   type LaserRuntime
 } from "@o-tid/application";
 import { GEO_OUTPUT_MAX_BYTES, GEO_OUTPUT_NAME, GEO_WORKER_VERSION, UUID_PATTERN, geoJobPruneResponseSchema } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
-import { failure, guarded, mutation, problem, readProof, streamChunks, type ClubEnvironment } from "./club-route-handlers";
+import { contentPartStream, failure, guarded, mutation, problem, readProof, streamChunks, type ClubEnvironment } from "./club-route-handlers";
+import { bufferView, matchesIfNoneMatch } from "./http-etag";
 import { mailErrorSummary, runInBackground } from "./mail";
 import { sendRawLaserMail } from "./raw-laser-mail";
 import { privateHeaders, privateJson, validDeclaredLength } from "./security-policy";
@@ -68,7 +69,7 @@ async function imageRoute(request: Request, projectId: string, environment: Club
     headers.set("content-type", "image/png");
     headers.set("x-otid-world", encodeURIComponent(result.world));
     headers.set("x-otid-crs", String(result.crs));
-    return new Response(new Uint8Array(result.png), { status: 200, headers });
+    return new Response(bufferView(result.png), { status: 200, headers });
   });
 }
 
@@ -156,19 +157,34 @@ export async function geoJobMergeRoute(db: Database, request: Request, projectId
   });
 }
 
-/** GET en resultatfil (kurvor m.m. som DXF, bilden, världsfilen). */
+/** GET en resultatfil (kurvor m.m. som DXF, bilden, världsfilen), strömmad utan OOM-buffring med ETag/304. */
 export async function geoOutputRoute(db: Database, request: Request, projectId: string, jobId: string, name: string, environment: ClubEnvironment = process.env)
   : Promise<Response> {
   if (!UUID_PATTERN.test(projectId) || !UUID_PATTERN.test(jobId) || !GEO_OUTPUT_NAME.test(name)) return failure("not-found");
   const input = await readProof(request, environment);
   if ("response" in input) return input.response;
   return guarded(async () => {
-    const result = await readGeoOutput(db, { ...input.proof, projectId, jobId, name });
-    if (result.status !== "ok") return failure(result.status);
-    const headers = new Headers(privateHeaders);
-    headers.set("content-type", result.mediaType === "application/dxf" ? "application/dxf" : result.mediaType);
-    headers.set("content-length", String(result.bytes.byteLength));
-    return new Response(new Uint8Array(result.bytes), { status: 200, headers });
+    const head = await readGeoOutput(db, { ...input.proof, projectId, jobId, name });
+    if (head.status !== "ok") return failure(head.status);
+    const etag = `"${head.sha256}"`;
+    const cache = {
+      ...privateHeaders,
+      "cache-control": head.immutable ? "private, max-age=86400, immutable" : "private, no-cache",
+      etag,
+      vary: "Cookie"
+    };
+    if (matchesIfNoneMatch(request.headers.get("if-none-match"), etag)) {
+      return new Response(null, { status: 304, headers: cache });
+    }
+    const stream = contentPartStream(streamMapContentParts(db, head.contentId), "geo", "output");
+    return new Response(stream, {
+      status: 200,
+      headers: {
+        ...cache,
+        "content-type": head.mediaType === "application/dxf" ? "application/dxf" : head.mediaType,
+        "content-length": String(head.byteLength)
+      }
+    });
   });
 }
 
@@ -229,18 +245,24 @@ export async function geoWorkerLaserRoute(db: Database, request: Request, jobId:
   });
 }
 
-/** GET /api/geo-worker/jobs/[jobId]/stages/[stageId]/[name]: en etapps resultatfil, för jobbet som lägger ihop etapperna. */
+/** GET /api/geo-worker/jobs/[jobId]/stages/[stageId]/[name]: en etapps resultatfil (strömmad för sammanläggningen). */
 export async function geoWorkerStageRoute(db: Database, request: Request, jobId: string, stageId: string, fileName: string,
   environment: Record<string, string | undefined> = process.env): Promise<Response> {
   const name = await worker(db, request, environment);
   if (typeof name !== "string") return name;
   return guarded(async () => {
-    const bytes = await readGeoStageOutput(db, jobId, name, stageId, fileName);
-    if (!bytes) return failure("not-found");
-    const headers = new Headers(privateHeaders);
-    headers.set("content-type", "application/octet-stream");
-    headers.set("content-length", String(bytes.byteLength));
-    return new Response(new Uint8Array(bytes), { status: 200, headers });
+    const head = await readGeoStageOutput(db, jobId, name, stageId, fileName);
+    if (!head) return failure("not-found");
+    const etag = `"${head.sha256}"`;
+    const cache = { ...privateHeaders, "cache-control": "private, no-cache", etag, vary: "Authorization" };
+    if (matchesIfNoneMatch(request.headers.get("if-none-match"), etag)) {
+      return new Response(null, { status: 304, headers: cache });
+    }
+    const stream = contentPartStream(streamMapContentParts(db, head.contentId), "geo", "stage");
+    return new Response(stream, {
+      status: 200,
+      headers: { ...cache, "content-type": "application/octet-stream", "content-length": String(head.byteLength) }
+    });
   });
 }
 

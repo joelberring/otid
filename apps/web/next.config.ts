@@ -13,6 +13,9 @@ import { NO_INDEX_HEADER, NO_INDEX_HEADER_SOURCES } from "./src/lib/no-index";
  */
 const nextConfig: NextConfig = {
   output: "standalone",
+  // I drift packar flerkärnig Go Caddy med zstd/gzip (deploy/Caddyfile); avlastar enkeltrådad Node.
+  // Sätt OTID_NEXT_COMPRESS=1 vid fristående körning utan reverse proxy.
+  compress: process.env.OTID_NEXT_COMPRESS === "1",
   serverExternalPackages: ["@napi-rs/canvas"],
   allowedDevOrigins: ["127.0.0.1"],
   // O-Tid använder inte next/image. Utan optimering svarar /_next/image 404, så bildoptimeringens angreppsyta (SSRF,
@@ -59,6 +62,11 @@ const nextConfig: NextConfig = {
       // Mastermind med kontroller: samma statiska skal och samma rätt till stationen som avläsningen.
       { source: "/mastermind/:path*", headers: [{ key: "Cache-Control", value: "no-cache" },
         { key: "Content-Security-Policy", value: READOUT_SHELL_CSP }, { key: "Referrer-Policy", value: "no-referrer" }, readout] },
+      // Statiska bilder och ikoner för startsidan och appen: lång cache i webbläsaren, skickas till web-public.
+      ...["/bildspel/:path*", "/malningar/:path*", "/icons/:path*"].map((source) => ({
+        source,
+        headers: [{ key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" }]
+      })),
       // Fristående spel (nyheten om Fel trapphus): egen CSP utan anrop till O-Tid; ?ladda=1 sparar filen i stället.
       { source: "/spel/:path*", headers: [{ key: "Cache-Control", value: "public, max-age=3600" },
         { key: "Content-Security-Policy", value: GAME_FILE_CSP }, { key: "Referrer-Policy", value: "no-referrer" }] },

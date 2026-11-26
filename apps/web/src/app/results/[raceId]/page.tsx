@@ -1,5 +1,6 @@
 import { publicRaceSummary, publicStartListPublished, readLatestPublicFrozenRaceFinalization } from "@o-tid/application";
-import { cachedPublicRadio, cachedPublicRelayResults, cachedPublicResults, cachedStaffResults, PUBLIC_PAGE_INLINE_ROWS, publicPageRows } from "../../../lib/public-race-data";
+import { PUBLIC_PAGE_INLINE_ROWS, publicPageRows } from "../../../lib/public-race-cache";
+import { cachedPublicRadio, cachedPublicRelayResults, cachedPublicResults, cachedStaffResults } from "../../../lib/public-race-data";
 import { db } from "../../../lib/db";
 import { PublicResultLists } from "../../../components/public-result-lists";
 import { PublicRaceNavigation } from "../../../components/public-race-navigation";

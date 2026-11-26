@@ -9,10 +9,11 @@ describe("sträcktidsanalysen på webben", () => {
   it("har analys för individuella klasser med sträcktider, inte för rogaining eller klasser utan sträcktider", () => {
     const model: ResultListModel = { relayClasses: [], classes: [
       { name: "H21", rows: [row([{ controlCode: 31, occurrence: 1, legMs: 10_000, elapsedMs: 10_000 }])], scored: false, mixedCourses: false },
+      { name: "D21", rows: [{ ...row([]), hasSplits: true }], scored: false, mixedCourses: false },
       { name: "Öppen", rows: [row([])], scored: false, mixedCourses: false },
       { name: "Rogaining 60", rows: [row([{ controlCode: 31, occurrence: 1, legMs: 10_000, elapsedMs: 10_000 }])], scored: true, mixedCourses: false }
     ] };
-    expect(analysisClassNames(model)).toEqual(["H21"]);
+    expect(analysisClassNames(model)).toEqual(["H21", "D21"]);
   });
 
   it("skriver sträckor med start, mål och upprepad kontroll", () => {

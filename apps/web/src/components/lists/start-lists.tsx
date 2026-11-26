@@ -207,8 +207,10 @@ export function StartLists({ model, onSelectEntry, disabled, iof, exportable = t
   useEffect(() => {
     if (view !== "TIME") return;
     setNow(Date.now());
-    const timer = setInterval(() => setNow(Date.now()), 15_000);
-    return () => clearInterval(timer);
+    const onVisible = () => { if (document.visibilityState === "visible") setNow(Date.now()); };
+    const timer = setInterval(onVisible, 15_000);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { clearInterval(timer); document.removeEventListener("visibilitychange", onVisible); };
   }, [view]);
   const classNames = useMemo(() => model.classes.map(row => row.name), [model.classes]);
   const selected = classNames.includes(className) ? className : "";

@@ -6,7 +6,7 @@ import { useResultListData, type ResultListData } from "./lists/use-result-list-
 import { resultListFromPublic } from "../lib/lists/result-list-model";
 import { followStore, useFollows } from "../lib/follow-store";
 import { FollowStar } from "./follow-star";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import styles from "./lists/lists.module.css";
 
 /**
@@ -16,7 +16,8 @@ import styles from "./lists/lists.module.css";
  */
 export function PublicResultLists({ raceId, initial, race, raceDate }: { raceId: string; initial?: ResultListData | undefined; race: string; raceDate: string }) {
   const text = useListTexts();
-  const { data, failed } = useResultListData(raceId, initial);
+  const [needSplits, setNeedSplits] = useState(false);
+  const { data, failed } = useResultListData(raceId, initial, true, 5_000, { splits: needSplits });
   const current = data ?? initial;
   const model = useMemo(() => current ? resultListFromPublic(current.results, current.relay, current.radio) : undefined, [current]);
   const follows = useFollows();
@@ -29,6 +30,7 @@ export function PublicResultLists({ raceId, initial, race, raceDate }: { raceId:
   // Steg 51: en stor tävling skickas inte med sidan; listan hämtas direkt (samma cachade svar som uppdateringarna).
   if (!model) return <p className={styles.notice} role="status">{failed ? text.results.refreshFailed : text.results.loading}</p>;
   return <ResultLists model={model} raceId={raceId} race={race} raceDate={raceDate} links follow={follow}
+    onViewChange={view => setNeedSplits(view === "SPLITS")}
     iof={{ href: `/api/public/races/${encodeURIComponent(raceId)}/iof-results` }}
     status={failed ? <p className={styles.notice} role="alert">{text.results.refreshFailed}</p> : undefined} />;
 }

@@ -30,18 +30,23 @@ export function PartyPublic({ raceId, eventName }: { raceId: string; eventName: 
   const [party, setParty] = useState<PublicPartyResponse>();
   const [failed, setFailed] = useState(false);
   useEffect(() => {
-    let stopped = false;
+    let stopped = false, running = false;
     const load = async () => {
+      if (running || stopped) return;
+      running = true;
       try {
         const response = await fetch(`/api/public/parties/${raceId}`, { cache: "no-store" });
         if (!response.ok) throw new Error(String(response.status));
         const value = publicPartyResponseSchema.parse(await response.json());
         if (!stopped) { setParty(value); setFailed(false); }
       } catch { if (!stopped) setFailed(true); }
+      finally { running = false; }
     };
+    const onVisible = () => { if (document.visibilityState === "visible") void load(); };
     void load();
-    const timer = setInterval(() => { void load(); }, POLL_MS);
-    return () => { stopped = true; clearInterval(timer); };
+    const timer = setInterval(onVisible, POLL_MS);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { stopped = true; clearInterval(timer); document.removeEventListener("visibilitychange", onVisible); };
   }, [raceId]);
 
   const zone = party?.timeZone ?? "Europe/Stockholm";

@@ -56,6 +56,27 @@ services:
     # Vanlig PostgreSQL för alla arkitekturer (steg 28), fast version (ADR-0186); samma datakatalog som förut.
     image: postgres:17.11-trixie
     restart: unless-stopped
+    # Prestanda (Etapp P1A): NVMe-anpassning för PostgreSQL 17 inom mem_limit 1g och shm_size 256m; full ACID (synchronous_commit=on).
+    command:
+      - postgres
+      - -c
+      - random_page_cost=1.1
+      - -c
+      - effective_io_concurrency=100
+      - -c
+      - shared_buffers=192MB
+      - -c
+      - effective_cache_size=768MB
+      - -c
+      - work_mem=8MB
+      - -c
+      - maintenance_work_mem=128MB
+      - -c
+      - jit=off
+      - -c
+      - wal_compression=zstd
+      - -c
+      - synchronous_commit=on
     environment:
       POSTGRES_USER: otid
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Sätt POSTGRES_PASSWORD i .env}

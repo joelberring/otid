@@ -23,7 +23,7 @@ import { useResultListData } from "../lists/use-result-list-data";
 import { resultListFromPublic } from "../../lib/lists/result-list-model";
 import { listsSv as listText } from "../../i18n/lists-sv";
 import listStyles from "../lists/lists.module.css";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { startRuleSv } from "../../i18n/start-rule-sv";
 import { startPunchText } from "../../lib/start-punch-text";
 import type { ResultRowNote } from "../lists/result-lists";
@@ -44,7 +44,8 @@ import { joinRaceParts, raceTitle } from "@o-tid/domain";
 function AdminResultLists({ ws }: { ws: Workspace }) {
   const startRule = useTexts(startRuleSv, startRuleEn);
   const { authenticated, data, disabled, downloadResults, raceId, shows } = ws;
-  const { data: lists, failed } = useResultListData(raceId, undefined, authenticated && shows("RESULTS"), 15_000);
+  const [needSplits, setNeedSplits] = useState(false);
+  const { data: lists, failed } = useResultListData(raceId, undefined, authenticated && shows("RESULTS"), 15_000, { splits: needSplits });
   const model = useMemo(() => lists ? resultListFromPublic(lists.results, lists.relay, lists.radio) : undefined, [lists]);
   // PLAN.md steg 25: startstämplingens varning och diskens orsak märks bara i arbetsytans lista.
   const notes = useMemo(() => {
@@ -60,7 +61,7 @@ function AdminResultLists({ ws }: { ws: Workspace }) {
   }, [data]);
   if (!model || !data) return <p className={styles.muted} role="status">{failed ? listText.results.refreshFailed : listText.results.loading}</p>;
   return <ResultLists model={model} raceId={raceId} race={joinRaceParts([raceTitle(data.eventName, data.raceName), data.raceDate])} raceDate={data.raceDate}
-    links={false} iof={{ onSelect: () => void downloadResults(), disabled }} notes={notes}
+    links={false} onViewChange={view => setNeedSplits(view === "SPLITS")} iof={{ onSelect: () => void downloadResults(), disabled }} notes={notes}
     status={failed ? <p className={listStyles.notice} role="alert">{listText.results.refreshFailed}</p> : undefined} />;
 }
 

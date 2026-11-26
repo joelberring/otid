@@ -4,7 +4,7 @@ import { publicMapBankDownloadRoute } from "../../../../../../lib/public-map-ban
 type Context = { params: Promise<{ listingId: string }> };
 
 /** Etapp 3.2: nedladdning av rå .ocd/.omap — endast när `accessMode === "OPEN_DOWNLOAD"`. */
-export async function GET(_request: Request, context: Context): Promise<Response> {
+export async function GET(request: Request, context: Context): Promise<Response> {
   const { listingId } = await context.params;
-  return publicMapBankDownloadRoute(db, listingId);
+  return publicMapBankDownloadRoute(db, listingId, request);
 }

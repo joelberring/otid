@@ -28,19 +28,33 @@ export function PublicStartList({ raceId, initial }: { raceId: string; initial: 
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     let stopped = false, running = false;
+    let cached: { url: string; etag: string; value: PublicStartListResponse } | undefined;
+    const url = `/api/races/${encodeURIComponent(raceId)}/start-list`;
     async function refresh() {
       if (running || stopped) return;
       running = true;
       const controller = new AbortController();
       const timeout = window.setTimeout(() => controller.abort(), 10_000);
       try {
-        const response = await fetch(`/api/races/${encodeURIComponent(raceId)}/start-list`, { cache: "no-store", credentials: "same-origin",
-          signal: controller.signal });
-        if (response.status === 404) { if (!stopped) { setData(null); setFailed(false); } return; }
+        const response = await fetch(url, {
+          cache: "no-store",
+          credentials: "same-origin",
+          signal: controller.signal,
+          ...(cached && cached.url === url ? { headers: { "if-none-match": cached.etag } } : {})
+        });
+        if (response.status === 304 && cached && cached.url === url) {
+          const nextEtag = response.headers.get("etag");
+          if (nextEtag) cached = { ...cached, etag: nextEtag };
+          if (!stopped) setFailed(false);
+          return;
+        }
+        if (response.status === 404) { cached = undefined; if (!stopped) { setData(null); setFailed(false); } return; }
         // Steg 54: många besökare (503) – listan som visas ligger kvar utan felbesked; nästa försök om fem sekunder.
         if (response.status === 503) return;
         if (!response.ok) throw new Error(inLanguage("Startlistan kunde inte hämtas", "The start list could not be loaded"));
         const result = publicStartListResponseSchema.parse(await response.json());
+        const etag = response.headers.get("etag");
+        cached = etag ? { url, etag, value: result } : undefined;
         if (!stopped) {
           setFailed(false);
           // ADR-0186: med dolda varianter ändras listan när starttiderna passerar, utan ny revision.
@@ -53,8 +67,8 @@ export function PublicStartList({ raceId, initial }: { raceId: string; initial: 
       } finally { window.clearTimeout(timeout); running = false; }
     }
     if (initial === undefined) void refresh();
-    const timer = window.setInterval(() => { void refresh(); }, 5_000);
     const onVisible = () => { if (document.visibilityState === "visible") void refresh(); };
+    const timer = window.setInterval(onVisible, 5_000);
     document.addEventListener("visibilitychange", onVisible);
     return () => { stopped = true; window.clearInterval(timer); document.removeEventListener("visibilitychange", onVisible); };
   }, [raceId]);

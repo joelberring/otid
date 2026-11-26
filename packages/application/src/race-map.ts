@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import {
   adminRaceMapStateSchema, publicLegRoutesSchema, raceMapGeoreferenceRequestSchema, participantRouteUploadResponseSchema,
   legKeySchema, type AdminRaceMapState, type ParticipantRouteUploadResponse, type PublicLegRoutes, type RaceMapProblem
@@ -10,6 +10,7 @@ import { GpxValidationError, parseGpxTrack } from "@o-tid/iof-xml";
 import { lockRaceForMutation, lockRaceForSnapshot } from "./concurrency";
 import { requireCourseSettingAccess } from "./course-setting-access";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
+import { publicRaceContentVersion } from "./public-race-version";
 import { publicResultTimings, type PublicResultTiming } from "./results";
 import { coursePoints, loadCourseMapPositions, loadCoursePositions } from "./course-positions";
 import { loadMapFileFrame } from "./map-file-frame";
@@ -22,7 +23,7 @@ import { racePublicMapBlocked } from "./training-group-maps";
 import { publicMapAllowedNow } from "./public-before-start";
 import { UUID_PATTERN as uuid, sha256Hex as sha256 } from "./serialization";
 import {
-  contentHead, contentLength, contentSha256, mapStorageQuota, rowContent, storeMapContent, type MapContentInput, type MapQuotaExceeded,
+  contentHead, contentLength, contentSha256, mapStorageQuota, readMapContent, rowContent, storeMapContent, type MapContentInput, type MapQuotaExceeded,
   type MapStorageQuota
 } from "./map-content";
 import { pinRaceContentNow } from "./map-pin";
@@ -110,17 +111,43 @@ export async function readRaceMapStateAsAdmin(db: Database, input: Authenticatio
   });
 }
 
+function matchesSha256(ifNoneMatch: string | null | undefined, expectedSha256: string): boolean {
+  if (!ifNoneMatch) return false;
+  const trimmed = ifNoneMatch.trim();
+  if (trimmed === "*" || trimmed === expectedSha256) return true;
+  return trimmed.split(",").some((raw) => {
+    const tag = raw.trim().replace(/^W\//, "");
+    return tag === "*" || tag === `"${expectedSha256}"` || tag === expectedSha256;
+  });
+}
+
 /** Kartbilden för georeferensen i arbetsytan samt för nedladdningsspärrad banläggning (även för banläggningsbehöriga). */
-export async function readRaceMapImageAsAdmin(db: Database, input: Authentication, now = new Date())
-  : Promise<Failure | { status: "ok"; mediaType: string; image: Buffer }> {
+export async function readRaceMapImageAsAdmin(
+  db: Database,
+  input: Authentication,
+  now = new Date(),
+  options: { readonly ifNoneMatch?: string | null } = {}
+): Promise<Failure | { status: "not-modified"; sha256: string } | { status: "ok"; mediaType: string; image: Buffer; sha256: string }> {
   if (!uuid.test(input.raceId)) return { status: "invalid-request" };
   return db.transaction(async tx => {
     const auth = await requireCourseSettingAccess(tx, { ...input, required: "MAP" }, now, "share");
     if (auth.status !== "authenticated") return auth;
-    const [map] = await tx.select({ mediaType: schema.raceMaps.mediaType, inline: schema.raceMaps.image, contentSha256: schema.raceMaps.contentSha256 })
-      .from(schema.raceMaps).where(eq(schema.raceMaps.raceId, input.raceId));
-    const image = map ? await rowContent(tx, map) : undefined;
-    return map && image ? { status: "ok" as const, mediaType: map.mediaType, image } : { status: "not-found" as const };
+    const [meta] = await tx.select({
+      mediaType: schema.raceMaps.mediaType,
+      sha256: schema.raceMaps.sha256,
+      contentSha256: schema.raceMaps.contentSha256,
+      hasInline: sql<boolean>`${schema.raceMaps.image} is not null`
+    }).from(schema.raceMaps).where(eq(schema.raceMaps.raceId, input.raceId));
+    if (!meta || (!meta.contentSha256 && !meta.hasInline)) return { status: "not-found" as const };
+    if (matchesSha256(options.ifNoneMatch, meta.sha256)) return { status: "not-modified" as const, sha256: meta.sha256 };
+    let image: Buffer | undefined;
+    if (meta.contentSha256) {
+      image = await readMapContent(tx, meta.contentSha256);
+    } else {
+      const [row] = await tx.select({ inline: schema.raceMaps.image }).from(schema.raceMaps).where(eq(schema.raceMaps.raceId, input.raceId));
+      image = row?.inline ?? undefined;
+    }
+    return image ? { status: "ok" as const, mediaType: meta.mediaType, image, sha256: meta.sha256 } : { status: "not-found" as const };
   });
 }
 
@@ -263,6 +290,41 @@ async function georeferencedMap(tx: DatabaseTransaction, raceId: string) {
   return map?.transform ? { ...map, transform: map.transform } : undefined;
 }
 
+/** Metadata för publik kartbild utan byte-läsning (för 304 före läsning och strömning via `streamMapContentParts`). */
+export type PublicRaceMapImageHead = {
+  readonly mediaType: string;
+  readonly sha256: string;
+  readonly byteLength: number;
+  /** När bilden ligger i `map_content` (ADR-0189): strömmas del för del utan 60 MB heap-topp; annars inline-fallback. */
+  readonly contentId: string | null;
+};
+
+/**
+ * Metadata för den publika kartbilden utan att läsa bildens bytes ur databasen.
+ * Samma synlighets- och georeferensregler som `readPublicRaceMapImage`.
+ */
+export async function readPublicRaceMapImageHead(db: Database, raceId: string): Promise<PublicRaceMapImageHead | undefined> {
+  return publicRead(db, raceId, async tx => {
+    if (await publicMapHidden(tx, raceId)) return undefined;
+    const [map] = await tx.select({
+      mediaType: schema.raceMaps.mediaType,
+      sha256: schema.raceMaps.sha256,
+      byteLength: schema.raceMaps.byteLength,
+      contentId: schema.mapContents.contentId,
+      storedIn: schema.mapContents.storedIn,
+      hasTransform: sql<boolean>`${schema.raceMaps.transform} is not null`,
+      hasInline: sql<boolean>`${schema.raceMaps.image} is not null`
+    })
+      .from(schema.raceMaps)
+      .leftJoin(schema.mapContents, eq(schema.mapContents.sha256, schema.raceMaps.contentSha256))
+      .where(eq(schema.raceMaps.raceId, raceId));
+    if (!map || !map.hasTransform) return undefined;
+    const contentId = map.storedIn === "GONE" ? null : map.contentId;
+    if (!contentId && !map.hasInline) return undefined;
+    return { mediaType: map.mediaType, sha256: map.sha256, byteLength: map.byteLength, contentId };
+  });
+}
+
 /**
  * Kartbilden publikt, bara när den är georefererad (annars finns inga vägval att visa). Steg 68 (ADR-0182 beslut 4): inte
  * när kartans avtal har gått ut eller inte tillåter publik visning, om inte admin medvetet valt att visa den ändå. ADR-0186:
@@ -280,6 +342,32 @@ export async function readPublicRaceMapImage(db: Database, raceId: string)
     const image = await rowContent(tx, map);
     return image ? { mediaType: map.mediaType, image, sha256: map.sha256 } : undefined;
   });
+}
+
+/**
+ * Lättviktsnyckel för cachens `readPublicRouteIndex`: tävlingsversion + antal GPS-spår + senaste `uploaded_at` + spårdigest
+ * + kartans synlighet och sha256/georeferens. Undviker att läsa och projicera GPS-punkter på varje besök.
+ */
+export async function publicRouteIndexVersion(db: Database, raceId: string): Promise<string | null> {
+  if (!uuid.test(raceId)) return null;
+  const base = await publicRaceContentVersion(db, raceId);
+  if (base === null) return null;
+  const meta = await db.transaction(async tx => {
+    const hidden = await publicMapHidden(tx, raceId);
+    const [map] = await tx.select({
+      sha256: schema.raceMaps.sha256,
+      georeferencedAt: schema.raceMaps.georeferencedAt,
+      hasTransform: sql<boolean>`${schema.raceMaps.transform} is not null`
+    }).from(schema.raceMaps).where(eq(schema.raceMaps.raceId, raceId));
+    const [routes] = (await tx.execute<{ count: string; latest_ms: string | null; digest: string }>(sql`
+      select count(*)::text as count,
+        (extract(epoch from max(uploaded_at)) * 1000)::bigint::text as latest_ms,
+        md5(coalesce(string_agg(sha256, ',' order by entry_id), '')) as digest
+      from participant_route where race_id = ${raceId}`)).rows;
+    const mapKey = map?.hasTransform ? `${map.sha256}.${map.georeferencedAt ? map.georeferencedAt.getTime() : "0"}` : "-";
+    return `${routes?.count ?? "0"}:${routes?.latest_ms ?? "-"}:${routes?.digest ?? "-"}:${hidden ? "H" : "V"}:${mapKey}`;
+  });
+  return `${base}:routes:${meta}`;
 }
 
 /** Vilka sträckor varje löpare (publikt resultat-id) har vägval på. Tomt utan georefererad karta. */
@@ -362,7 +450,7 @@ export async function readPublicLegRoutes(db: Database, raceId: string, publicRe
     const timings = new Map((await publicResultTimings(tx, raceId, { includeRelay: true })).map(timing => [timing.entryId, timing]));
     const classes = new Map((await tx.select({ id: schema.classes.id, name: schema.classes.name }).from(schema.classes)
       .where(eq(schema.classes.raceId, raceId))).map(row => [row.id, row.name]));
-    const runners = routes.flatMap(route => {
+    const candidates = routes.flatMap(route => {
       const timing = timings.get(route.entryId);
       if (!timing || timing.startMs === null) return [];
       const match = runnerLegs(timing.splits, timing.elapsedMs).find(candidate => candidate.leg === leg);
@@ -370,11 +458,13 @@ export async function readPublicLegRoutes(db: Database, raceId: string, publicRe
       if (!match || segment.length < 2) return [];
       return [{ publicResultId: timing.publicResultId, name: `${timing.givenName} ${timing.familyName}`,
         className: classes.get(timing.classId) ?? "", legMs: match.toElapsedMs - match.fromElapsedMs,
-        selected: timing.publicResultId === publicResultId, points: projectRoute(map.transform, segment) }];
+        selected: timing.publicResultId === publicResultId, segment }];
     });
-    const selected = runners.find(runner => runner.selected);
+    const selected = candidates.find(runner => runner.selected);
     if (!selected) return undefined;
-    const others = runners.filter(runner => !runner.selected).sort((a, b) => a.legMs - b.legMs).slice(0, MAX_COMPARED_ROUTES);
+    const others = candidates.filter(runner => !runner.selected).sort((a, b) => a.legMs - b.legMs).slice(0, MAX_COMPARED_ROUTES);
+    // Projicera först efter urvalet till högst MAX_COMPARED_ROUTES + 1 (sparar WGS84→pixel för bortklippta spår).
+    const projected = [selected, ...others].map(({ segment, ...runner }) => ({ ...runner, points: projectRoute(map.transform, segment) }));
     const timing = [...timings.values()].find(row => row.publicResultId === publicResultId);
     // Steg 52 (ADR-0176): banan med kontrollägena bara när banorna är publika (eller för arrangören och funktionärerna).
     const showCourse = options.staff === true || await coursesArePublic(tx, raceId);
@@ -383,7 +473,7 @@ export async function readPublicLegRoutes(db: Database, raceId: string, publicRe
     const runnerCourse = timing && showCourse ? await runnerCourseOf(tx, raceId, timing.entryId) : undefined;
     const bestRoute = runnerCourse ? await loadPublishedBestRoute(tx, raceId, runnerCourse, leg) : undefined;
     return publicLegRoutesSchema.parse({ formatVersion: 1, raceId, leg, map: { width: map.width, height: map.height,
-      version: map.sha256.slice(0, 16) }, runners: [selected, ...others], ...(course ? { course } : {}),
+      version: map.sha256.slice(0, 16) }, runners: projected, ...(course ? { course } : {}),
       ...(bestRoute && bestRoute.length >= 2 ? { bestRoute: { points: bestRoute } } : {}) });
   });
 }

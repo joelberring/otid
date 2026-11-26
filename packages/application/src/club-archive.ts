@@ -78,6 +78,13 @@ export async function clubMapViewsByClub(tx: DbExecutor, clubIds: readonly strin
     group by version_id`)).rows.map(row => [row.version_id, Number(row.trainings)]));
   const checks = await mapChecks(tx, versions.map(version => version.id));
   const names = await accountNames(tx, versions.map(version => version.uploadedBy));
+  const listings = new Map(
+    (await tx.select({ clubMapId: schema.publicMapListings.clubMapId, id: schema.publicMapListings.id,
+      accessMode: schema.publicMapListings.accessMode })
+      .from(schema.publicMapListings)
+      .where(inArray(schema.publicMapListings.clubMapId, maps.map(map => map.id))))
+      .flatMap(row => row.clubMapId ? [[row.clubMapId, { id: row.id, accessMode: row.accessMode }] as const] : [])
+  );
   const versionsOf = new Map<string, VersionRow[]>();
   for (const version of versions) {
     const list = versionsOf.get(version.mapId);
@@ -88,13 +95,14 @@ export async function clubMapViewsByClub(tx: DbExecutor, clubIds: readonly strin
       : await mapMergeHistory(tx, clubId, clubMaps, clubMaps.flatMap(map => versionsOf.get(map.id) ?? []));
     // Svensk ordning (Å, Ä, Ö sist) oberoende av databasens sortering.
     result.set(clubId, [...clubMaps].sort((a, b) => a.name.localeCompare(b.name, "sv"))
-      .map(map => mapView(map, [...versionsOf.get(map.id) ?? []].sort(versionOrder), uses, checks, merges.get(map.id) ?? [], names)));
+      .map(map => mapView(map, [...versionsOf.get(map.id) ?? []].sort(versionOrder), uses, checks, merges.get(map.id) ?? [], names, listings.get(map.id))));
   }
   return result;
 }
 
 function mapView(map: MapRow, versions: VersionRow[], uses: Map<string, number>, checks: Map<string, ClubMapVersionView["check"] & object>,
-  merges: ClubMapView["merges"], names: Map<string, string>): ClubMapView {
+  merges: ClubMapView["merges"], names: Map<string, string>,
+  listing?: { readonly id: string; readonly accessMode: ClubMapView["publicListingAccessMode"] }): ClubMapView {
   const views: ClubMapVersionView[] = versions.map(version => {
     const year = versionYearOf(version);
     return { versionId: version.id, mapId: version.mapId, fileName: version.fileName,
@@ -108,7 +116,8 @@ function mapView(map: MapRow, versions: VersionRow[], uses: Map<string, number>,
     noPublicDisplay: map.noPublicDisplay, versions: views, latestVersionId: views[0]?.versionId ?? null,
     trainings: views.reduce((sum, version) => sum + version.trainings, 0), description: map.description, maker: map.maker,
     years: versionYearSpan(views.map(version => version.year)), merges,
-    sourceDownloadPolicy: map.sourceDownloadPolicy, usageScope: map.usageScope };
+    sourceDownloadPolicy: map.sourceDownloadPolicy, usageScope: map.usageScope,
+    publishedInCatalog: listing !== undefined, publicListingId: listing?.id ?? null, publicListingAccessMode: listing?.accessMode ?? null };
 }
 
 type StoredSummary = typeof schema.clubArchiveCourseFiles.$inferSelect["summary"];

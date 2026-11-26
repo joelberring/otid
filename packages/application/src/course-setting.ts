@@ -13,6 +13,7 @@ import { schema, type Database } from "@o-tid/database";
 import { courseSettingProjection } from "./course-setting-transfer";
 import { lockForkLettersOnRead } from "./course-setting-fork-letters";
 import { requireCourseSettingAccess, type CourseSettingPrincipal, type CourseSettingRequirement } from "./course-setting-access";
+import { isRaceMapSourceLockedByOrigin } from "./race-map-source";
 import type { RaceSessionProof } from "./race-session";
 import { UUID_PATTERN as uuid } from "./serialization";
 import { previewCourseFileProjectionAsAdmin } from "./source-sync";
@@ -136,6 +137,7 @@ export async function store(tx: Transaction, input: { raceId: string; actorId: s
 export async function loadMapFile(tx: Transaction, raceId: string) {
   const [row] = await tx.select({ sha256: schema.raceMapSources.sha256, fileName: schema.raceMapSources.fileName, scale: schema.raceMapSources.scale,
     bounds: schema.raceMapSources.bounds, georeference: schema.raceMapSources.georeference,
+    clubMapId: schema.raceMapSources.clubMapId, publicListingId: schema.raceMapSources.publicListingId,
     sourceDownloadLocked: schema.raceMapSources.sourceDownloadLocked, render: schema.raceMapSources.render }).from(schema.raceMapSources)
     .where(eq(schema.raceMapSources.raceId, raceId));
   return row;
@@ -170,6 +172,7 @@ export async function readCourseSettingAsAdmin(db: Database, input: ReadProof & 
   return courseSettingRead(db, input, now, async (tx, raceId, principal) => {
     const row = await loadRow(tx, raceId);
     const map = await loadMapFile(tx, raceId);
+    const mapLockedByOrigin = map ? (map.sourceDownloadLocked && await isRaceMapSourceLockedByOrigin(tx, raceId, map)) : false;
     const [race] = await tx.select({ raceType: schema.races.raceType }).from(schema.races).where(eq(schema.races.id, raceId));
     const names = await actors(tx, row ? [row.updatedBy] : []);
     const title = await loadRaceTitle(tx, raceId);
@@ -180,7 +183,7 @@ export async function readCourseSettingAsAdmin(db: Database, input: ReadProof & 
         document: row.document } : null,
       original: row?.originalFileName && row.originalImportedAt ? { fileName: row.originalFileName, importedAt: row.originalImportedAt.toISOString() } : null,
       mapFile: map ? { sha256: map.sha256, fileName: map.fileName, scale: map.scale, bounds: map.bounds, georeferenced: map.georeference !== null,
-        sourceDownloadLocked: map.sourceDownloadLocked, render: map.render } : null,
+        sourceDownloadLocked: map.sourceDownloadLocked, sourceDownloadLockedByOrigin: mapLockedByOrigin, render: map.render } : null,
       ...(race ? { raceType: race.raceType } : {}), ...(title ? { raceTitle: title.slice(0, 500) } : {}),
       ...(paperLinks ? { paperLinks } : {}) }) };
   });

@@ -54,7 +54,7 @@ import { AppearancePanel, LabelPanel } from "./course-setting-appearance";
 import { CircleCuttingPanel, useDetailGaps } from "./course-setting-circle-cutting";
 import { useFieldMode, useLockedPage } from "./course-setting-field";
 import { FilePanel, type ReadFile } from "./course-setting-file";
-import { MapReplacePanel } from "./course-setting-map-replace";
+import { MapReplacePanel } from "./course-setting-map-replace"; import { RaceMapProtectionPanel } from "./race-map-protection";
 import { mapReplaceSv } from "../../i18n/course-setting-map-replace-sv";
 import { mapReplaceEn } from "../../i18n/course-setting-map-replace-en";
 import { importedImageHashes } from "../../lib/course-setting-paper-api";
@@ -679,7 +679,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
         <p className={styles.muted}>{copy.access[access.level]}</p>
         <p className={styles.muted}>{text.tools.keys}</p>
       </section>
-      {mapProject.panel}
+      {mapProject.panel}{state.mapFile && <RaceMapProtectionPanel raceId={raceId} locked={Boolean(state.mapFile.sourceDownloadLocked)} lockedByOrigin={Boolean(state.mapFile.sourceDownloadLockedByOrigin)} admin={access.admin} headingLevel="h2" onChanged={() => onReload()} />}
       <OfflinePanel info={offline.mapInfo} mapSha256={mapLocked ? undefined : state.mapFile?.sha256} mapBytes={mapBytes} busy={offline.busy} message={offline.panelMessage}
         waiting={offline.waiting} onSave={() => void offline.saveOffline()} onRemove={() => void offline.removeOffline()} onSend={offline.retry} />
       {!readOnly && moveShared.settings(document.event.mapScale)}
@@ -778,7 +778,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
         onRestore={onRestore} mapBounds={mapBounds} georeference={georeference} flush={flush} />
     </Dialog>}
     {dialog === "map" && access.admin && <Dialog title={mapReplaceText.heading} onClose={() => setDialog(undefined)}>
-      <MapReplacePanel raceId={raceId} mapFile={state.mapFile} document={document} flush={flush} onReplaced={next => { setDialog(undefined); onReload(next); }} />
+      <MapReplacePanel raceId={raceId} mapFile={state.mapFile} document={document} flush={flush} onReplaced={next => { setDialog(undefined); onReload(next); }} onLockChanged={() => { setDialog(undefined); onReload(); }} />
     </Dialog>}
     {dialog === "transfer" && access.admin && <Dialog title={text.transfer.heading} onClose={() => setDialog(undefined)}>
       <TransferPanel raceId={raceId} ready={!busy} flush={flush} version={() => sync.version} />

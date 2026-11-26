@@ -22,6 +22,7 @@ import { uploadCourseSettingMap } from "../../lib/course-setting-map-upload";
 import { MapFileUpload } from "../race-administrator/map-file-upload";
 import { ClubMapToRace } from "../club-archive/club-map-picker";
 import { MapProjectToRace } from "./course-setting-map-project";
+import { RaceMapProtectionPanel } from "./race-map-protection";
 import type { Message } from "../race-administrator/source-sync-actions";
 import { Button, Notice } from "../ui";
 import { CourseSettingEditor } from "./course-setting-editor";
@@ -157,6 +158,9 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
     </section>}
     {message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}</Notice>}
     {state.mapFile?.sourceDownloadLocked && <Notice tone="attention" role="status">{text.mapLocked}</Notice>}
+    {state.mapFile && <RaceMapProtectionPanel raceId={raceId} locked={Boolean(state.mapFile.sourceDownloadLocked)}
+      lockedByOrigin={Boolean(state.mapFile.sourceDownloadLockedByOrigin)} admin={state.access.admin} headingLevel="h2"
+      onChanged={async () => { await load(); }} />}
     {state.mapFile && <section className={styles.panel} aria-labelledby="course-setting-start">
       <h2 id="course-setting-start">{text.start.heading}</h2>
       {state.access.level === "EDIT" ? <>

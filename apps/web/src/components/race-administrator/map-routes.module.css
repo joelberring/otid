@@ -46,3 +46,6 @@
 /* Steg 59: kartfilen. Förloppet och sammanfattningen i vanlig text, ingen extra färg. */
 .progress { grid-column: 1 / -1; color: var(--muted); font-size: var(--text-sm); }
 .sourceSummary { display: grid; gap: 4px; min-width: 0; }
+.lockOption { grid-column: 1 / -1; display: flex; align-items: flex-start; gap: 8px; min-height: max(36px, var(--tap)); font-size: var(--text-sm); font-weight: 600; cursor: pointer; }
+.lockOption input { width: 20px; height: 20px; margin-top: 2px; flex: none; }
+.lockOption small { display: block; font-weight: 400; }

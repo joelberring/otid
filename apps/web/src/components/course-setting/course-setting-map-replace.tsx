@@ -12,15 +12,20 @@ import { useTexts } from "../language-provider";
 import { MapFileUpload } from "../race-administrator/map-file-upload";
 import type { Message } from "../race-administrator/source-sync-actions";
 import { Notice } from "../ui";
+import { RaceMapProtectionPanel } from "./race-map-protection";
 import styles from "./course-setting.module.css";
 
 /**
  * Byt kartfil direkt i banläggningen (ägaren 2026-11-17), i menyn bredvid Fil och versioner, för den som är admin. Det osparade
  * skickas först; efter bytet läses banläggningen på nytt med beskedet (och hur många kontroller som hamnade utanför kartan).
  */
-export function MapReplacePanel({ raceId, mapFile, document, flush, onReplaced }: {
-  raceId: string; mapFile: { fileName: string; scale: number } | null; document: CourseSettingDocument;
-  flush: () => Promise<boolean>; onReplaced: (notice: string) => void;
+export function MapReplacePanel({ raceId, mapFile, document, flush, onReplaced, onLockChanged }: {
+  raceId: string;
+  mapFile: { fileName: string; scale: number; sourceDownloadLocked?: boolean | undefined; sourceDownloadLockedByOrigin?: boolean | undefined } | null;
+  document: CourseSettingDocument;
+  flush: () => Promise<boolean>;
+  onReplaced: (notice: string) => void;
+  onLockChanged?: (() => void) | undefined;
 }) {
   const text = useTexts(mapReplaceSv, mapReplaceEn);
   const raceMapText = useTexts(raceMapSv, raceMapEn);
@@ -38,6 +43,8 @@ export function MapReplacePanel({ raceId, mapFile, document, flush, onReplaced }
   return <section className={styles.panel} aria-labelledby="course-setting-map-replace">
     <h2 id="course-setting-map-replace">{text.heading}</h2>
     {mapFile && <p>{text.current(mapFile.fileName, mapFile.scale.toLocaleString("sv-SE"))}</p>}
+    {mapFile && <RaceMapProtectionPanel raceId={raceId} locked={Boolean(mapFile.sourceDownloadLocked)}
+      lockedByOrigin={Boolean(mapFile.sourceDownloadLockedByOrigin)} admin headingLevel="h3" onChanged={() => onLockChanged?.()} />}
     <p className={styles.muted}>{text.help}</p>
     <MapFileUpload disabled={false} hasMap={mapFile !== null} upload={upload} onMessage={setMessage} />
     {message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}</Notice>}

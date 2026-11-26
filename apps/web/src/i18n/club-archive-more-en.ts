@@ -49,7 +49,7 @@ export const clubArchiveChecksEn: Texts<typeof clubArchiveChecksSv> = {
   stopped: "The check was stopped. What was finished is saved.",
   summariesFailed: "The course files' summaries could not be recalculated.",
   rights: {
-    edit: "Change rights",
+    edit: "Rights, protection & sharing",
     title: (name: string) => `The map's rights: ${name}`,
     save: "Save the rights",
     cancel: "Cancel",

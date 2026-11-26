@@ -44,7 +44,7 @@ export const clubArchiveChecksSv = {
   stopped: "Kontrollen avbröts. Det som hann bli klart är sparat.",
   summariesFailed: "Banfilernas sammanfattningar kunde inte räknas om.",
   rights: {
-    edit: "Ändra rättigheter",
+    edit: "Rättigheter, skydd & delning",
     title: (name: string) => `Kartans rättigheter: ${name}`,
     save: "Spara rättigheterna",
     cancel: "Avbryt",

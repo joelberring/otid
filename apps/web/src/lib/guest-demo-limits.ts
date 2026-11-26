@@ -15,7 +15,7 @@ const BLOCKED: Readonly<Partial<Record<RaceAdministratorAction["kind"], readonly
   "course-setting-print-jobs": ["POST"], "course-setting-print-job-pdf": "ALL",
   "course-setting-print-files": ["POST"], "course-setting-print-file": ["GET"],
   "course-setting-paper-images": "ALL", "course-setting-paper-library": ["POST"],
-  "race-map": ["PUT", "DELETE"], "race-map-source": ["POST", "DELETE"], "race-map-georeference": "ALL",
+  "race-map": ["PUT", "DELETE"], "race-map-source": ["POST", "PATCH", "DELETE"], "race-map-georeference": "ALL",
   "party-logo": "ALL",
   eventor: "ALL", "eventor-events": "ALL", "eventor-event": "ALL", "eventor-test": "ALL", "eventor-sync-preview": "ALL",
   "runner-database": "ALL", "runner-search": "ALL", radio: ["PUT"], "radio-fetch": "ALL"

@@ -1,4 +1,6 @@
-import { RACE_MAP_SOURCE_PARTS, raceMapProblemSchema, raceMapSourceMetadataSchema } from "@o-tid/contracts";
+import {
+  RACE_MAP_SOURCE_PARTS, raceMapProblemSchema, raceMapSourceMetadataSchema, raceMapSourceUpdateResponseSchema
+} from "@o-tid/contracts";
 import type { CourseSettingDocument } from "@o-tid/course-setting";
 import type { raceMapSv } from "../i18n/race-map-sv";
 import type { Texts } from "./language";
@@ -31,6 +33,29 @@ export async function uploadCourseSettingMap(raceId: string, form: FormData, tex
     }
     return { tone: "ok", text: "" };
   } catch { return { tone: "error", text: text.mapFile.failed }; }
+}
+
+/** Slår på/av nedladdningsspärren på tävlingens uppladdade kartfil (`PATCH map/source`, bara tävlingsadmin). */
+export async function updateRaceMapDownloadLock(
+  raceId: string,
+  sourceDownloadLocked: boolean
+): Promise<{ ok: true; sourceDownloadLocked: boolean; sourceDownloadLockedByOrigin: boolean } | { ok: false; status: number }> {
+  const csrf = readAccountCsrfCookie(document.cookie, new URL(window.location.href));
+  if (!csrf) return { ok: false, status: 401 };
+  try {
+    const response = await fetchUntilReached(`${courseSettingBase(raceId)}/map/source`, {
+      method: "PATCH",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json", "x-otid-csrf": csrf },
+      body: JSON.stringify({ formatVersion: 1, sourceDownloadLocked })
+    });
+    if (!response.ok) return { ok: false, status: response.status };
+    const parsed = raceMapSourceUpdateResponseSchema.safeParse(await response.json());
+    if (!parsed.success) return { ok: false, status: 500 };
+    return { ok: true, sourceDownloadLocked: parsed.data.sourceDownloadLocked, sourceDownloadLockedByOrigin: parsed.data.sourceDownloadLockedByOrigin };
+  } catch {
+    return { ok: false, status: 0 };
+  }
 }
 
 /** Kontrollerna (start, mål, kontroller och passager) som ligger utanför kartfilens yta i formuläret. */

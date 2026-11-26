@@ -128,7 +128,7 @@ test("klubbarkivets kartor: OCAD 11 fungerar, OCAD 7 säger varför, bilder, ban
   await expect(gammalCard.getByTestId("map-thumbnail-missing")).toHaveText("OCAD 7 stöds inte");
 
   // Rättigheterna ändras direkt i kartans kort.
-  await skogenCard.getByRole("button", { name: "Ändra rättigheter: Skogen" }).click();
+  await skogenCard.getByRole("button", { name: "Rättigheter, skydd & delning: Skogen" }).click();
   const rights = owner.getByRole("form", { name: "Kartans rättigheter: Skogen" });
   await rights.getByLabel("Extern", { exact: true }).check();
   await rights.getByRole("combobox", { name: "Ägare", exact: true }).selectOption({ label: "Kommun" });
@@ -160,7 +160,7 @@ test("klubbarkivets kartor: OCAD 11 fungerar, OCAD 7 säger varför, bilder, ban
   await owner.getByTestId("archive-entries").getByRole("link").filter({ hasText: "Skogen gul" }).click();
   await expect(owner.getByTestId("course-file")).toContainText("Gul 3 kontroller 2,1 km");
   await expect(owner.getByTestId("course-preview")).toHaveAttribute("data-ready", "true", { timeout: 60_000 });
-  await owner.getByRole("button", { name: "Ändra rättigheter: Skogen" }).click();
+  await owner.getByRole("button", { name: "Rättigheter, skydd & delning: Skogen" }).click();
   const entryRights = owner.getByRole("form", { name: "Kartans rättigheter: Skogen" });
   await expect(entryRights.getByLabel("Ägarens namn")).toHaveValue("Stockholms stad");
   await entryRights.getByLabel("Kontaktperson").fill("Kartansvarig i klubben");

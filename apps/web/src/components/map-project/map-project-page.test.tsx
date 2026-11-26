@@ -1,0 +1,187 @@
+import React from "react";
+import { describe, expect, it } from "vitest";
+import { renderToStaticMarkup } from "react-dom/server";
+import type { MapProjectView } from "@o-tid/contracts";
+import { LanguageProvider } from "../language-provider";
+import { MapProjectPage } from "./map-project-page";
+
+(globalThis as { React?: typeof React }).React = React;
+
+const PROJECT_ID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+const OUTPUT_ID = "99999999-9999-4999-8999-999999999999";
+
+function makeProject(overrides: Partial<MapProjectView> = {}): MapProjectView {
+  return {
+    formatVersion: 1,
+    projectId: PROJECT_ID,
+    name: "Kungshatt revidering",
+    status: "OPEN",
+    role: "OWNER",
+    club: { clubId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", name: "Mälarö OK" },
+    base: {
+      source: "ARCHIVE",
+      versionId: "11111111-1111-4111-8111-111111111111",
+      mapId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      mapName: "Kungshatt",
+      fileName: "kungshatt.omap",
+      format: "OMAP",
+      versionDate: "2026-03-01",
+      sha256: "c".repeat(64)
+    },
+    createdAt: "2026-03-10T10:00:00Z",
+    closedAt: null,
+    lastActiveAt: "2026-04-01T10:00:00Z",
+    changedObjects: 12,
+    outputs: [{
+      outputId: OUTPUT_ID,
+      versionId: null,
+      fileName: "kungshatt-v2.omap",
+      changes: 12,
+      createdAt: "2026-04-01T10:00:00Z"
+    }],
+    sourceDownloadPolicy: "ALLOWED",
+    sourceDownloadLockedByArchive: false,
+    effectiveSourceDownloadPolicy: "ALLOWED",
+    publishedInCatalog: false,
+    publicListingId: null,
+    publicListingAccessMode: null,
+    viewer: {
+      accountId: "55555555-5555-4555-8555-555555555555",
+      canEdit: true,
+      canManage: true,
+      canWriteVersion: true,
+      canArchive: true,
+      canPropose: true,
+      canDecide: true,
+      canDownloadSource: true
+    },
+    mode: "SHARED",
+    area: null,
+    recon: null,
+    leaderboard: null,
+    colors: [],
+    symbolColors: [],
+    textSymbols: [],
+    normSymbols: { replace: [], add: [] },
+    aiMode: "PROPOSE",
+    areas: [],
+    openProposals: 0,
+    storage: { mapFileBytes: 1_500_000, totalBytes: 2_000_000 },
+    readerVersion: 1,
+    seq: 12,
+    members: [{
+      accountId: "55555555-5555-4555-8555-555555555555",
+      name: "Stina",
+      role: "OWNER",
+      lastSeenAt: null,
+      edits: 12
+    }],
+    invitations: [],
+    joinLinks: [],
+    ...overrides
+  };
+}
+
+describe("MapProjectPage (Delning & skydd och nedladdningsspärr)", () => {
+  it("lyfter upp synlig Delning & skydd-sektion direkt efter Exportera med lokal spärrväxlare och Kartbanken", () => {
+    const html = renderToStaticMarkup(
+      <MapProjectPage
+        projectId={PROJECT_ID}
+        initialView={makeProject()}
+        initialCatalog={{ formatVersion: 1, listing: null, suggested: { title: "Kungshatt" } }}
+      />
+    );
+    expect(html).toContain('data-testid="map-project-sharing-section"');
+    expect(html).toContain('<h2 id="map-project-sharing">Delning &amp; skydd</h2>');
+    expect(html).not.toContain('<summary id="map-project-sharing">');
+    expect(html.indexOf('id="exportera"')).toBeGreaterThan(-1);
+    expect(html.indexOf('id="delning-skydd"')).toBeGreaterThan(html.indexOf('id="exportera"'));
+    expect(html.indexOf('id="map-project-members"')).toBeGreaterThan(html.indexOf('id="delning-skydd"'));
+    expect(html).toContain('data-testid="map-project-protection-form"');
+    expect(html).toContain('data-testid="map-project-download-policy-select"');
+    expect(html).toContain('data-testid="public-catalog-form-section"');
+    expect(html).toContain(`/api/organizer/map-projects/${PROJECT_ID}/source`);
+    expect(html).toContain(`/api/organizer/map-projects/${PROJECT_ID}/export?format=omap`);
+    expect(html).toContain(`/api/organizer/map-projects/${PROJECT_ID}/outputs/${OUTPUT_ID}`);
+  });
+
+  it("visar tydlig ärvd-arkivspärr-förklaring och inaktiverar växlaren när spärren kommer från klubbarkivet", () => {
+    const html = renderToStaticMarkup(
+      <MapProjectPage
+        projectId={PROJECT_ID}
+        initialView={makeProject({
+          sourceDownloadPolicy: "ALLOWED",
+          sourceDownloadLockedByArchive: true,
+          effectiveSourceDownloadPolicy: "CUSTODIANS_ONLY",
+          publishedInCatalog: true
+        })}
+        initialCatalog={{ formatVersion: 1, listing: null, suggested: { title: "Kungshatt" } }}
+      />
+    );
+    expect(html).toContain('data-testid="map-project-download-locked-badge"');
+    expect(html).toContain('data-testid="map-project-catalog-published"');
+    expect(html).toContain('data-testid="map-project-archive-lock-note"');
+    expect(html).toContain("ärvd från grundkartan i klubbarkivet");
+    expect(html).toMatch(/disabled=""[^>]*data-testid="map-project-download-policy-select"|data-testid="map-project-download-policy-select"[^>]*disabled=""/);
+  });
+
+  it("döljer råa nedladdningsknappar och vektorredigerarlänk men behåller GeoJSON-export när !viewer.canDownloadSource", () => {
+    const html = renderToStaticMarkup(
+      <MapProjectPage
+        projectId={PROJECT_ID}
+        initialView={makeProject({
+          role: "EDIT",
+          sourceDownloadPolicy: "CUSTODIANS_ONLY",
+          effectiveSourceDownloadPolicy: "CUSTODIANS_ONLY",
+          viewer: {
+            accountId: "66666666-6666-4666-8666-666666666666",
+            canEdit: true,
+            canManage: false,
+            canWriteVersion: false,
+            canArchive: false,
+            canPropose: true,
+            canDecide: false,
+            canDownloadSource: false
+          }
+        })}
+      />
+    );
+    expect(html).toContain('data-testid="map-project-download-locked-badge"');
+    expect(html).toContain('data-testid="map-project-source-locked-notice"');
+    expect(html).toContain('data-testid="map-project-export-locked-note"');
+    expect(html).toContain('data-testid="map-project-output-locked"');
+    expect(html).toContain('data-testid="map-project-protection-readonly"');
+    expect(html).not.toContain(`/api/organizer/map-projects/${PROJECT_ID}/source`);
+    expect(html).not.toContain(`/api/organizer/map-projects/${PROJECT_ID}/export?format=omap`);
+    expect(html).not.toContain(`/api/organizer/map-projects/${PROJECT_ID}/outputs/${OUTPUT_ID}`);
+    expect(html).not.toContain('data-testid="map-project-open-map"');
+    expect(html).toContain(`/api/organizer/map-projects/${PROJECT_ID}/export?format=geojson`);
+  });
+
+  it("renderar engelska texter korrekt under LanguageProvider", () => {
+    const html = renderToStaticMarkup(
+      <LanguageProvider language="en">
+        <MapProjectPage
+          projectId={PROJECT_ID}
+          initialView={makeProject({
+            sourceDownloadPolicy: "CUSTODIANS_ONLY",
+            effectiveSourceDownloadPolicy: "CUSTODIANS_ONLY",
+            viewer: {
+              accountId: "66666666-6666-4666-8666-666666666666",
+              canEdit: false,
+              canManage: false,
+              canWriteVersion: false,
+              canArchive: false,
+              canPropose: false,
+              canDecide: false,
+              canDownloadSource: false
+            }
+          })}
+        />
+      </LanguageProvider>
+    );
+    expect(html).toContain("Sharing &amp; protection");
+    expect(html).toContain("Download locked");
+    expect(html).toContain("GeoJSON change export still works");
+  });
+});

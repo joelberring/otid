@@ -7,7 +7,7 @@ import {
 import { schema, type Database } from "@o-tid/database";
 import { countiesForMunicipalities, deriveRasterGeoreference, municipalitiesForBounds, RasterGeoreferenceError, swedishToday } from "@o-tid/domain";
 import { clubJournal, requireClubRole, type ClubFailure, type ClubProof } from "./club-access";
-import { mapProjectBaseFileName, mapProjectJournal, requireMapProject } from "./map-project-access";
+import { mapProjectBaseFileName, mapProjectCanDownloadSource, mapProjectJournal, requireMapProject } from "./map-project-access";
 import { mapStorageQuota, readMapContent, storeMapContent, type MapQuotaExceeded } from "./map-content";
 import {
   boundsAndMunicipalitiesFromProjected, detectMapNorm, extractMapMetadata, renderMapContentToPng, type ServerCanvasFactory
@@ -481,6 +481,7 @@ export async function upsertMapProjectCatalogListing(
   const prep = await db.transaction(async tx => {
     const access = await requireMapProject(tx, input, now, "manage", true);
     if (access.status !== "ok") return access;
+    if (!await mapProjectCanDownloadSource(tx, access.accountId, access.role, access.project)) return { status: "forbidden" } as const;
     const parsed = upsertPublicMapListingInputSchema.safeParse(input.request);
     if (!parsed.success) return { status: "invalid-request" } as const;
     const { project, accountId } = access;

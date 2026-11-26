@@ -82,11 +82,17 @@ export const mapBankEn: Texts<typeof mapBankSv> = {
     clubActivitiesOnly: "Club activities only",
     adminOnly: "Club admins only",
     publicCatalog: "Public map bank",
-    downloadLockedNote: "The source file (.ocd/.omap) is download-locked – only map custodians/club admins can download it."
+    publishedInCatalog: "Published in Map bank",
+    notPublishedInCatalog: "Not published",
+    downloadLockedNote: "The source file (.ocd/.omap) is download-locked – only map custodians/club admins can download it, while the map can still be used in O-Tid."
   },
   sharing: {
-    clubPanelTitle: "Sharing & protection",
-    projectPanelTitle: "Share in public map bank",
+    clubPanelTitle: "Rights, protection & sharing",
+    projectPanelTitle: "Sharing & protection",
+    whoCanUseHeading: "1. Who can download & use the map file",
+    ownerAndAgreementHeading: "2. Owner & agreement",
+    catalogBlockHeading: "3. Public map bank (/kartbank)",
+    closePanel: "Close",
     loading: "Loading sharing settings …",
     loadError: "Could not load sharing settings.",
     saved: "Settings saved.",
@@ -130,6 +136,29 @@ export const mapBankEn: Texts<typeof mapBankSv> = {
     saveCatalog: "Save to public map bank",
     unpublishButton: "Unpublish from map bank",
     viewInCatalog: "Open in map bank"
+  },
+  projectProtection: {
+    heading: "Map file download lock",
+    help: "The lock blocks downloading raw .ocd/.omap files and direct vector editing for non-owners. Linked events can still set courses on the map (via a server-rendered image without the source file), and members see project overview, history, GeoJSON, and PDF.",
+    policyAllowed: "Allow map file download (.ocd/.omap) for project members",
+    policyLocked: "Lock download – project owners and club admins only",
+    inheritedFromArchive: "This download lock is inherited from the base map in the club archive and can only be changed in the club archive.",
+    lockedForMember: "The map file (.ocd/.omap) is download-locked by the project owner or club. Downloading the source file, full maps, and direct vector editing are locked for non-owners, while you can still view project overview, statistics, GeoJSON export, and use linked maps in event course setting.",
+    exportMapperLocked: "Full Mapper export is locked because the map file is download-locked. GeoJSON change export still works.",
+    readOnlyAllowed: "Downloading the source file is allowed for project members.",
+    readOnlyLocked: "Downloading the source file is locked – only project owners and club admins can download the map file and open the vector editor."
+  },
+  raceMapLock: {
+    heading: "Event map download lock",
+    uploadCheckbox: "Lock map file download (.ocd/.omap) for others",
+    uploadHelp: "Course setting and print PDF work as usual without sharing the raw map file.",
+    statusAllowed: "Download allowed",
+    toggleLabel: "Lock map file download (.ocd/.omap) for others",
+    inheritedFromOrigin: "This lock is inherited from the club archive, map project, or public map bank and cannot be unlocked in this event.",
+    saved: "Download lock updated.",
+    saveError: "Could not update the download lock.",
+    readOnlyLocked: "The source file (.ocd/.omap) is download-locked – course setting and print PDF use a server-rendered map.",
+    readOnlyAllowed: "The source file (.ocd/.omap) is not download-locked."
   },
   navLink: "Map bank",
   navLinkFull: "Public map bank"

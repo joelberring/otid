@@ -454,21 +454,28 @@ function buildLineBody(symbol: LineSymbol, variant: OcdVariant): Uint8Array {
   const rightStroke = symbol.strokes.find(s => (s.offset ?? 0) < 0);
   const centerStrokes = symbol.strokes.filter(s => !s.offset);
   const hasDouble = Boolean(leftStroke || rightStroke);
-  const dblWidthMm = leftStroke && rightStroke ? Math.abs(leftStroke.offset!) + Math.abs(rightStroke.offset!)
-    : leftStroke ? Math.abs(leftStroke.offset!) * 2
-    : rightStroke ? Math.abs(rightStroke.offset!) * 2 : 0;
+  const leftInner = leftStroke ? Math.max(0, Math.abs(leftStroke.offset!) - leftStroke.width / 2) : 0;
+  const rightInner = rightStroke ? Math.max(0, Math.abs(rightStroke.offset!) - rightStroke.width / 2) : 0;
+  const dblWidthMm = leftStroke && rightStroke ? leftInner + rightInner
+    : leftStroke ? leftInner * 2
+    : rightStroke ? rightInner * 2 : 0;
 
-  // Om dubbellinje finns och en mittlinje har exakt samma bredd som dubbellinjen blir den `DblFillColor`; annars `LineColor`.
+  // Om dubbellinje finns: en mittlinje med samma bredd som det inre avståndet blir `DblFillColor`,
+  // en bredare före den blir `FrColor`/`FrWidth` (t.ex. 502.2 vägbotten) och en kvarvarande efteråt blir `LineColor` (t.ex. 502.0 mittlinje).
   let mainStroke: StrokeStyle | undefined;
   let fillStroke: StrokeStyle | undefined;
   let framingStroke: StrokeStyle | undefined;
   if (hasDouble && centerStrokes.length > 0) {
-    const first = centerStrokes[0]!;
-    if (Math.abs(first.width - dblWidthMm) < 0.005) {
-      fillStroke = first;
+    const fillIdx = dblWidthMm > 0 ? centerStrokes.findIndex(s => Math.abs(s.width - dblWidthMm) < 0.005) : -1;
+    if (fillIdx >= 0) {
+      fillStroke = centerStrokes[fillIdx];
+      framingStroke = fillIdx > 0 ? centerStrokes[0] : undefined;
+      mainStroke = centerStrokes[fillIdx + 1];
+    } else if (centerStrokes.length >= 2) {
+      framingStroke = centerStrokes[0];
       mainStroke = centerStrokes[1];
     } else {
-      mainStroke = first;
+      mainStroke = centerStrokes[0];
     }
   } else if (centerStrokes.length >= 2) {
     framingStroke = centerStrokes[0];

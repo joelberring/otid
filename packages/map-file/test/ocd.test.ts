@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MapFileError, mapPointToWgs84, readMapFile, wgs84ToMapPoint, type ParsedMap } from "../src";
-import { buildOcd, ocdCoord, seededRandom, type OcdSpec } from "./ocd-builder";
+import { buildOcd, ocdCoord, seededRandom, symbolBody, type OcdSpec } from "./ocd-builder";
 import { COLORS, GEOREF, SPEC } from "./ocd-spec";
 
 function read(spec: OcdSpec = SPEC): ParsedMap {
@@ -60,6 +60,68 @@ describe("OCAD-läsaren", () => {
     const text = map.symbols.get("902000");
     expect(text).toMatchObject({ kind: "TEXT", color: 2, fontFamily: "Arial", bold: true, italic: false });
     expect(text?.kind === "TEXT" && text.size).toBeCloseTo(8 * 25.4 / 72, 9);
+  });
+
+  it("placerar OCAD-dubbellinjers kantlinjer utanför DblWidth (inre fyllningsbredd)", () => {
+    // 502.2 Bred väg 5–7 m: framing 0,44 mm (färg 34), DblWidth 0,30 mm (färg 34), vänster/höger 0,14 mm (färg 2).
+    // Kantlinjernas mittlinjer ska ligga på ±(0,30 + 0,14) / 2 = ±0,22 mm (ytterkant ±0,29 mm = TBaseSym.Extent).
+    const road = {
+      number: 502002,
+      type: 2,
+      body: symbolBody(80, {
+        800: 1, // LineStyle
+        822: 1, // DblMode = heldragna kanter
+        824: 1, // DblFlags = fyllning på
+        826: 34, // DblFillColor
+        828: 2, // DblLeftColor
+        830: 2, // DblRightColor
+        832: 30, // DblWidth = 0,30 mm (inre bredd)
+        834: 14, // DblLeftWidth = 0,14 mm
+        836: 14, // DblRightWidth = 0,14 mm
+        854: 34, // FrColor
+        856: 44 // FrWidth = 0,44 mm
+      })
+    };
+    // Asymmetrisk dubbellinje + DblMode=4 med DblFlags bit 1 (fast bakgrundsfyllning trots streckade kanter).
+    const asym = {
+      number: 502009,
+      type: 2,
+      body: symbolBody(80, {
+        800: 0,
+        822: 4, // DblMode = allt streckat
+        824: 3, // DblFlags bit 0 (fyllning) + bit 1 (bakgrundsfärg på => ej streckad fyllning)
+        826: 34,
+        828: 2,
+        830: 2,
+        832: 40, // 0,40 mm inre
+        834: 20, // vänster 0,20 mm => offset +(0,40+0,20)/2 = +0,30 mm
+        836: 10, // höger 0,10 mm => offset -(0,40+0,10)/2 = -0,25 mm
+        838: 100, // DblLength 1,0 mm
+        840: 50 // DblGap 0,5 mm
+      })
+    };
+    const map = read({ ...SPEC, symbols: [...SPEC.symbols!, road, asym] });
+    const s502 = map.symbols.get("502002");
+    expect(s502?.kind).toBe("LINE");
+    if (s502?.kind === "LINE") {
+      expect(s502.strokes).toHaveLength(4);
+      expect(s502.strokes[0]).toMatchObject({ color: 34, width: 0.44 });
+      expect(s502.strokes[1]).toMatchObject({ color: 34, width: 0.3 });
+      expect(s502.strokes[2]!.width).toBeCloseTo(0.14, 6);
+      expect(s502.strokes[2]!.offset).toBeCloseTo(0.22, 6);
+      expect(s502.strokes[3]!.width).toBeCloseTo(0.14, 6);
+      expect(s502.strokes[3]!.offset).toBeCloseTo(-0.22, 6);
+    }
+    const sAsym = map.symbols.get("502009");
+    expect(sAsym?.kind).toBe("LINE");
+    if (sAsym?.kind === "LINE") {
+      expect(sAsym.strokes[0]).toMatchObject({ color: 34, width: 0.4 });
+      expect(sAsym.strokes[0]!.dash).toBeUndefined();
+      expect(sAsym.strokes[1]!.offset).toBeCloseTo(0.3, 6);
+      expect(sAsym.strokes[1]!.dash).toEqual([1, 0.5]);
+      expect(sAsym.strokes[2]!.offset).toBeCloseTo(-0.25, 6);
+      expect(sAsym.strokes[2]!.dash).toEqual([1, 0.5]);
+    }
   });
 
   it("läser bézierkurvor ur koordinaternas flaggor (y uppåt, ingen omvändning)", () => {

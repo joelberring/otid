@@ -204,7 +204,9 @@ function lineSymbol(
 
   // Dubbellinje: läge 1 = heldragna kanter, 2 = vänster streckad, 3 = båda kanter streckade, 4 = allt (även fyllning)
   // streckat med DblLength/DblGap. DblFlags bit 0 = fyllning på, bit 1 = bakgrundsfärg på (inte streckad fyllning).
-  // DblWidth är bredden mellan kantlinjernas mittlinjer (fyllningens bredd; total yttre bredd = DblWidth + (left + right)/2).
+  // DblWidth är det inre fria avståndet mellan vänster och höger kantlinje (fyllningens bredd); kantlinjernas mittlinjer
+  // ligger därför på +(DblWidth + left) / 2 respektive −(DblWidth + right) / 2 (total yttre bredd = DblWidth + left + right,
+  // vilket motsvarar TBaseSym.Extent = DblWidth/2 + max(left, right) i OCAD).
   const doubleMode = bytes.u16(at + LINE.doubleMode);
   if (doubleMode !== 0) {
     const doubleFlags = bytes.u16(at + LINE.doubleFlags);
@@ -217,7 +219,7 @@ function lineSymbol(
       ? { mainLength: doubleLength, mainGap: doubleGap, endLength: doubleLength / 2 } : undefined;
     const fillColor = bytes.i16(at + LINE.doubleColor);
     if ((doubleFlags & 1) !== 0 && fillColor >= 0 && doubleWidth > 0) {
-      const fillDashed = doubleMode === 4;
+      const fillDashed = doubleMode === 4 && (doubleFlags & 2) === 0;
       strokes.push({
         color: fillColor, width: doubleWidth, cap: style.cap, join: style.join,
         ...(fillDashed && doubleDash ? { dash: doubleDash, dashSpec: doubleDashSpec } : {})
@@ -230,14 +232,14 @@ function lineSymbol(
     if (leftColor >= 0 && left > 0) {
       const leftDashed = doubleMode >= 2;
       strokes.push({
-        color: leftColor, width: left, offset: doubleWidth / 2, cap: style.cap, join: style.join,
+        color: leftColor, width: left, offset: (doubleWidth + left) / 2, cap: style.cap, join: style.join,
         ...(leftDashed && doubleDash ? { dash: doubleDash, dashSpec: doubleDashSpec } : {})
       });
     }
     if (rightColor >= 0 && right > 0) {
       const rightDashed = doubleMode >= 3;
       strokes.push({
-        color: rightColor, width: right, offset: -doubleWidth / 2, cap: style.cap, join: style.join,
+        color: rightColor, width: right, offset: -(doubleWidth + right) / 2, cap: style.cap, join: style.join,
         ...(rightDashed && doubleDash ? { dash: doubleDash, dashSpec: doubleDashSpec } : {})
       });
     }

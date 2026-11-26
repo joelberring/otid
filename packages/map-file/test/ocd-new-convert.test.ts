@@ -385,4 +385,54 @@ describe("Etapp 5B: convertMapToOcd() och convertMapToOmap() — fullkartekonver
     expect(reread.georeference?.crs).toEqual(enrichedMap.georeference?.crs);
     expect(reread.georeference?.refPoint.easting).toBeCloseTo(enrichedMap.georeference!.refPoint.easting, 1);
   });
+
+  it("bevarar dubbellinjebredd och kantlinje-offset exakt i newOcdFile och encodeOcdSymbol (502, 511, 502.0/502.2)", () => {
+    const ocdMap = readMapFile(newOcdFile({ symbolSet: "ISOM2017-2", scale: 15000, refPoint: KUNGSHATT }), "ny.ocd");
+    const omapMap = readMapFile(newMapFile({ symbolSet: "ISOM2017-2", scale: 15000, refPoint: KUNGSHATT }), "ny.omap");
+
+    for (const main of [502, 511] as const) {
+      const sOcd = [...ocdMap.symbols.values()].find((s): s is LineSymbol => s.kind === "LINE" && s.code.main === main && s.code.sub === 0)!;
+      const sOmap = [...omapMap.symbols.values()].find((s): s is LineSymbol => s.kind === "LINE" && s.code.main === main && s.code.sub === 0)!;
+      expect(sOcd.strokes.map(st => ({ width: Number(st.width.toFixed(3)), offset: Number((st.offset ?? 0).toFixed(3)) }))).toEqual(
+        sOmap.strokes.map(st => ({ width: Number(st.width.toFixed(3)), offset: Number((st.offset ?? 0).toFixed(3)) }))
+      );
+    }
+
+    // Round-trip av OCAD 502.0 (framing 1,26 + DblFill 1,14 + vänster/höger 0,14 på ±0,64 + mittlinje 0,14).
+    const doc = createEmptyOcdV12Document();
+    applyOcdColors(doc, [
+      { kind: "add", id: 2, name: "Svart", cmyk: { c: 0, m: 0, y: 0, k: 1 } },
+      { kind: "add", id: 8, name: "Vägfyllning", cmyk: { c: 0.1, m: 0.35, y: 0.5, k: 0 } },
+      { kind: "add", id: 19, name: "Vägbotten", cmyk: { c: 0.1, m: 0.35, y: 0.5, k: 0 } }
+    ]);
+    expect(documentColors(doc)).toHaveLength(3);
+    const motorway: LineSymbol = {
+      id: "502000",
+      code: { text: "502.0", main: 502, sub: 0 },
+      name: "Motorväg",
+      hidden: false,
+      kind: "LINE",
+      strokes: [
+        { color: 19, width: 1.26, cap: "butt", join: "round" },
+        { color: 8, width: 1.14, cap: "butt", join: "round" },
+        { color: 2, width: 0.14, offset: 0.64, cap: "butt", join: "round" },
+        { color: 2, width: 0.14, offset: -0.64, cap: "butt", join: "round" },
+        { color: 2, width: 0.14, cap: "butt", join: "round" }
+      ]
+    };
+    doc.symbols.push(encodeOcdSymbol(motorway, { number: 502000, variant: doc.variant, colors: documentColors(doc) }));
+    const roundTripped = readMapFile(packOcdDocument(doc).bytes, "motorvag.ocd").symbols.get("502000") as LineSymbol;
+    expect(roundTripped.extent).toBeCloseTo(0.71, 4);
+    expect(roundTripped.strokes.map(st => ({
+      color: st.color,
+      width: Number(st.width.toFixed(3)),
+      offset: Number((st.offset ?? 0).toFixed(3))
+    }))).toEqual([
+      { color: 19, width: 1.26, offset: 0 },
+      { color: 8, width: 1.14, offset: 0 },
+      { color: 2, width: 0.14, offset: 0.64 },
+      { color: 2, width: 0.14, offset: -0.64 },
+      { color: 2, width: 0.14, offset: 0 }
+    ]);
+  });
 });

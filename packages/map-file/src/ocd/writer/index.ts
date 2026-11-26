@@ -89,3 +89,28 @@ export {
   type OcdChangesExportOptions,
   type OcdChangesExportResult
 } from "./ocd-changes-export";
+
+export {
+  appendDefaultOcdViewStrings,
+  createEmptyOcdV12Document,
+  DISPLAY_STRING_TYPE,
+  newOcdFile
+} from "./new-ocd";
+
+export {
+  ConversionWarningCollector,
+  type ConvertMapResult,
+  type MapConversionReport,
+  type MapConversionWarning,
+  type MapConversionWarningCode
+} from "./convert-report";
+
+export {
+  convertMapToOcd,
+  type ConvertToOcdOptions
+} from "./convert";
+
+export {
+  convertMapToOmap,
+  type ConvertToOmapOptions
+} from "./omap-convert";

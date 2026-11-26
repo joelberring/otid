@@ -45,7 +45,7 @@ test("översynen: kartstegen i ordning, huvudsteg skilda från valen under dem",
   expect(names.indexOf("Kartan")).toBeGreaterThan(names.indexOf("Nästa steg"));
   expect(names.indexOf("Exportera")).toBe(names.indexOf("Kartan") + 1);
   const exporting = owner.locator("#exportera");
-  await expect(exporting.getByRole("heading", { level: 3 })).toHaveText(["Ny kartversion", "Bara ändringarna", "Versioner ur projektet"]);
+  await expect(exporting.getByRole("heading", { level: 3 })).toHaveText(["Ny kartversion", "Bara ändringarna", "Konvertera hela kartan", "Versioner ur projektet"]);
   await expect(exporting.getByRole("link", { name: "Exportera ändringarna (GeoJSON)" })).toBeVisible();
 
   // Kartredigeraren, fliken Grundkarta.

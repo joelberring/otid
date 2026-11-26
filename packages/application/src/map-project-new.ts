@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { MAP_PROJECT_NEW_MAX_SIDE_M, mapProjectNewRequestSchema } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import {
-  MAP_READER_VERSION, declinationAt, newMapFile, projectedToMapPoint, projectedToWgs84, readMapFile, wgs84ToProjected, type ProjectedPoint
+  MAP_READER_VERSION, declinationAt, newMapFile, newOcdFile, projectedToMapPoint, projectedToWgs84, readMapFile, wgs84ToProjected, type ProjectedPoint
 } from "@o-tid/map-file";
 import { areaPolygonProblem } from "@o-tid/map-revision";
 import type { ClubFailure, ClubProof } from "./club-access";
@@ -56,18 +56,23 @@ async function newProject(tx: Parameters<Parameters<Database["transaction"]>[0]>
     if (!(maxE - minE > 0 && maxN - minN > 0)) return { status: "invalid-request" } as const;
     if (maxE - minE > MAP_PROJECT_NEW_MAX_SIDE_M || maxN - minN > MAP_PROJECT_NEW_MAX_SIDE_M) return { status: "area-too-large" } as const;
     const refPoint = { easting: Math.round((minE + maxE) / 2), northing: Math.round((minN + maxN) / 2) };
+    const format = request.format ?? "OMAP";
+    const extension = format === "OCD" ? ".ocd" : ".omap";
     let bytes: Uint8Array;
     try {
       // ADR-0223: utan angiven missvisning dagens enligt World Magnetic Model i områdets mitt.
       const center = projectedToWgs84({ kind: "EPSG", code: 3006 }, refPoint.easting, refPoint.northing);
       const declination = request.declination ?? declinationAt(center.latitude, center.longitude, now);
-      bytes = newMapFile({ symbolSet: request.symbolSet, scale: request.scale, refPoint, declinationDegrees: declination,
-        notes: `${request.name}. Ny karta från O-Tid.` });
+      const mapOptions = {
+        symbolSet: request.symbolSet, scale: request.scale, refPoint, declinationDegrees: declination,
+        notes: `${request.name}. Ny karta från O-Tid.`
+      };
+      bytes = format === "OCD" ? newOcdFile(mapOptions) : newMapFile(mapOptions);
     } catch {
       // Utanför Sverige eller en skala normen inte har.
       return { status: "invalid-request" } as const;
     }
-    const georef = readMapFile(bytes, "ny.omap").georeference!;
+    const georef = readMapFile(bytes, `ny${extension}`).georeference!;
     const area = projected.map(ring => ring.map(point => {
       const at = projectedToMapPoint(georef, point);
       return { x: Math.round(at.x * 1000) / 1000, y: Math.round(at.y * 1000) / 1000 };
@@ -77,7 +82,7 @@ async function newProject(tx: Parameters<Parameters<Database["transaction"]>[0]>
     if (stored.status === "quota") return stored;
     const projectId = randomUUID();
     await tx.insert(schema.mapProjects).values({ id: projectId, clubId: null, name: request.name, baseVersionId: null,
-      baseFileName: `${fileStem(request.name)}.omap`, baseSource: "NEW", baseSha256: stored.sha256, baseFormat: "OMAP",
+      baseFileName: `${fileStem(request.name)}${extension}`, baseSource: "NEW", baseSha256: stored.sha256, baseFormat: format,
       readerVersion: MAP_READER_VERSION, status: "OPEN", seq: 0, createdBy: accountId, createdAt: now, requestId: request.requestId, area });
     await addMapProjectMember(tx, { projectId, accountId, role: "OWNER", addedBy: accountId, now });
     return { status: "created", replayed: false, projectId } as const;

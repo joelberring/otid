@@ -56,13 +56,19 @@ export const mapProjectAreaInputSchema = z.object({
   rings: z.array(z.array(z.tuple([finite, finite])).min(3).max(2000)).min(1).max(20)
 }).strict();
 
+/** Format för nya kartor: Mapper (.omap, förval) eller OCAD 12 (.ocd). */
+export const mapProjectNewFormatSchema = z.enum(["OMAP", "OCD"]);
+export type MapProjectNewFormat = z.infer<typeof mapProjectNewFormatSchema>;
+
 /**
- * Nytt projekt med en ny tom karta (K1, alla inloggade, ingen klubb): O-Tids symbolset för normen, skalan, kartans
- * område och den magnetiska missvisningen (grader, östlig positiv; kartan vrids mot magnetisk nord).
+ * Nytt projekt med en ny tom karta (K1 / Etapp 5B, alla inloggade, ingen klubb): O-Tids symbolset för normen, skalan,
+ * valfritt filformat (`OMAP` som förval eller `OCD`), kartans område och den magnetiska missvisningen (grader, östlig
+ * positiv; kartan vrids mot magnetisk nord).
  */
 export const mapProjectNewRequestSchema = z.object({
   formatVersion: z.literal(1), requestId: uuidSchema, name: mapProjectNameSchema,
   symbolSet: z.enum(["ISOM2017-2", "ISSPROM2019-2"]), scale: z.number().int(),
+  format: mapProjectNewFormatSchema.optional(),
   declination: z.number().finite().min(-30).max(30).optional(),
   area: mapProjectAreaInputSchema
 }).strict().refine(value => (MAP_PROJECT_NEW_SCALES[value.symbolSet] as readonly number[]).includes(value.scale), { path: ["scale"] });
@@ -201,9 +207,29 @@ export const mapProjectOutputRequestSchema = z.object({
   formatVersion: z.literal(1), requestId: uuidSchema, note: z.string().trim().max(500).optional(), archive: z.boolean().optional()
 }).strict();
 
-/** Format för "Exportera bara ändringarna": Mapper (.xmap), OCAD (.ocd) eller GeoJSON. */
-export const mapProjectExportFormatSchema = z.enum(["omap", "ocd", "geojson"]);
+/** Format för export: bara ändringarna (`omap`, `ocd`, `geojson`) eller konverterad fullkarta (`ocd-full`, `omap-full`). */
+export const mapProjectExportFormatSchema = z.enum(["omap", "ocd", "geojson", "ocd-full", "omap-full"]);
 export type MapProjectExportFormat = z.infer<typeof mapProjectExportFormatSchema>;
+
+/** Formatgapsvarning vid fullkartekonvertering (`.omap` ↔ `.ocd`). */
+export interface MapConversionWarningView {
+  readonly code: string;
+  readonly count: number;
+  readonly message: string;
+}
+
+/** Rapport över fullkartekonvertering (`.omap` ↔ `.ocd`), skickas som JSON (`?report=1`) och som header vid nedladdning. */
+export interface MapConversionReportView {
+  readonly formatVersion: 1;
+  readonly sourceFormat: "OCD" | "OMAP";
+  readonly targetFormat: "OCD" | "OMAP";
+  readonly fileName: string;
+  readonly colors: number;
+  readonly symbols: number;
+  readonly objects: number;
+  readonly skippedObjects: number;
+  readonly warnings: readonly MapConversionWarningView[];
+}
 
 export type MapProjectRole = z.infer<typeof mapProjectRoleSchema>;
 export type MapProjectMode = z.infer<typeof mapProjectModeSchema>;

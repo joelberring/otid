@@ -243,4 +243,52 @@ describe("Mapper: lagernamn från en DWG-import och dolda symboler (skisslager, 
     const map = readMapFile(file(objects), "a.xmap");
     expect([...map.symbols.values()].map(symbol => [symbol.code.text, symbol.hidden])).toEqual([["501.1", false], ["990.501.1", true]]);
   });
+
+  it("klarar självstängande <parts count=\"0\"/> och läser grid_scale_factor × auxiliary_scale_factor", () => {
+    const empty = encode(`<?xml version="1.0" encoding="UTF-8"?>
+<map xmlns="http://openorienteering.org/apps/mapper/xml/v2" version="9">
+<georeferencing scale="4000" grid_scale_factor="0.9996" auxiliary_scale_factor="1.0002" grivation="1.5">
+  <ref_point x="0" y="0"/>
+  <projected_crs id="EPSG"><spec language="PROJ.4">EPSG:3006</spec><parameter>3006</parameter><ref_point x="670000" y="6580000"/></projected_crs>
+</georeferencing>
+<colors count="0"/>
+<barrier version="6" required="0.6.0"><symbols count="0"/><parts count="0"/></barrier>
+</map>`);
+    const map = readMapFile(empty, "tom.omap");
+    expect(map.objects).toEqual([]);
+    expect(map.georeference?.combinedScaleFactor).toBeCloseTo(0.9996 * 1.0002, 7);
+  });
+
+  it("läser stora Mapper-filer med tusentals ytor utan <pattern>/<tags> i linjär O(N)-tid", () => {
+    const build = (count: number) => {
+      const items: string[] = [];
+      for (let i = 0; i < count; i += 1) {
+        const x = (i % 100) * 10000, y = -Math.floor(i / 100) * 10000;
+        items.push(`<object type="1" symbol="0"><coords count="5">${x} ${y};${x + 5000} ${y};${x + 5000} ${y - 5000};${x} ${y - 5000};${x} ${y} 18;</coords></object>`);
+      }
+      return encode(`<?xml version="1.0" encoding="UTF-8"?>
+<map xmlns="http://openorienteering.org/apps/mapper/xml/v2" version="9">
+<georeferencing scale="15000"/>
+<colors count="1"><color priority="0" name="Gul" c="0" m="0.27" y="0.79" k="0" opacity="1"><cmyk method="custom"/><rgb method="cmyk" r="1" g="0.73" b="0.21"/></color></colors>
+<barrier version="6" required="0.6.0">
+<symbols count="1"><symbol type="4" id="0" code="401" name="Öppen mark"><area_symbol inner_color="0" min_area="0" patterns="0"/></symbol></symbols>
+<parts count="1" current="0"><part name="del"><objects count="${count}">${items.join("\n")}</objects></part></parts>
+</barrier>
+</map>`);
+    };
+    const small = build(1000), large = build(6000);
+    // Värm upp JIT-kompileringen.
+    expect(readMapFile(small, "small.omap").objects).toHaveLength(1000);
+    const t0 = performance.now();
+    const resSmall = readMapFile(small, "small.omap", { sources: true, layerTags: true });
+    const dtSmall = Math.max(1, performance.now() - t0);
+    const t1 = performance.now();
+    const resLarge = readMapFile(large, "large.omap", { sources: true, layerTags: true });
+    const dtLarge = performance.now() - t1;
+    expect(resSmall.objects).toHaveLength(1000);
+    expect(resLarge.objects).toHaveLength(6000);
+    // 6× fler ytor utan <pattern>/<tags>/<coord>: O(N) ligger runt ~6× (kvadratisk O(N²) vore ~36× och flera sekunder).
+    expect(dtLarge).toBeLessThan(1500);
+    expect(dtLarge / dtSmall).toBeLessThan(15);
+  });
 });

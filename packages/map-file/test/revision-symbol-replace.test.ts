@@ -81,12 +81,13 @@ describe("normens symboler i en Mapper-karta", () => {
     }
   });
 
-  it("O-Tids sprintmall: trappans färg direkt under de bruna linjerna, ovanför brunt 50 %, husen, olivgrönt, grönt och gult", () => {
+  it("O-Tids sprintmall: trappans färg under svart och ovanför alla ytfärger (512.3, husen, skärmtak, brunt 50/30 %, olivgrönt, grönt och gult)", () => {
     const names = SPRINT.colors.map(color => color.name);
     const at = names.indexOf("Brun 30 % (trappa)");
-    expect(at).toBe(names.indexOf("Brun") + 1);
-    for (const below of ["Brun 50 %", "Brun 30 %", "Svart 50 %", "Svart 20 %", "Olivgrön", "Mörkgrön", "Grön", "Gul", "Gul 50 %"]) expect(names.indexOf(below), below).toBeGreaterThan(at);
     expect(names.indexOf("Svart")).toBeLessThan(at);
+    for (const below of ["Vit (lägre nivå)", "Svart 50 %", "Svart 20 %", "Brun", "Brun 50 %", "Brun 30 %", "Olivgrön", "Mörkgrön", "Grön", "Gul", "Gul 50 %"]) {
+      expect(names.indexOf(below), below).toBeGreaterThan(at);
+    }
   });
 
   it("lägger till en symbol som saknas (nytt id sist), aldrig en som finns", () => {

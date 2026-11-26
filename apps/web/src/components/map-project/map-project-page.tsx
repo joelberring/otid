@@ -7,7 +7,7 @@ import { mapProjectEn } from "../../i18n/map-project-en";
 import { mapProjectEditorEn } from "../../i18n/map-project-en";
 import { useLocale, useTexts } from "../language-provider";
 import Link from "next/link";
-import { invitationMailOutcomeSchema, type MapProjectOutputResponse, type MapProjectRole, type MapProjectView } from "@o-tid/contracts";
+import { invitationMailOutcomeSchema, type MapConversionReportView, type MapProjectOutputResponse, type MapProjectRole, type MapProjectView } from "@o-tid/contracts";
 import { mapProjectSv } from "../../i18n/map-project-sv";
 import { mapProjectEditorSv } from "../../i18n/map-project-editor-sv";
 import { invitationMailNote } from "../../i18n/invitation-sv";
@@ -23,6 +23,7 @@ import { mapBankEn } from "../../i18n/map-bank-en";
 import { mapBankSv } from "../../i18n/map-bank-sv";
 import type { CatalogStatusResponse } from "../map-bank/map-sharing-panel";
 import { MapProjectPolicyBadges, MapProjectSharingSection } from "./map-project-sharing-section";
+import { MapProjectConvertExport } from "./map-project-convert-export";
 import { Button, Field, Notice, Select } from "../ui";
 import styles from "./map-project.module.css";
 
@@ -38,11 +39,13 @@ const day = (iso: string) => iso.slice(0, 10);
 export function MapProjectPage({
   projectId,
   initialView,
-  initialCatalog
+  initialCatalog,
+  initialConversionReport
 }: {
   projectId: string;
   initialView?: MapProjectView | undefined;
   initialCatalog?: CatalogStatusResponse | undefined;
+  initialConversionReport?: MapConversionReportView | undefined;
 }) {
   const failure = useMapProjectFailure();
   const text = useTexts(mapProjectSv, mapProjectEn);
@@ -174,6 +177,12 @@ export function MapProjectPage({
             {project.base.format === "OCD" ? mapBankText.projectProtection.exportOcdLocked : mapBankText.projectProtection.exportMapperLocked}
           </p>
         )}
+        <MapProjectConvertExport
+          base={base}
+          sourceFormat={project.base.format}
+          canDownloadSource={canDownloadSource}
+          initialReport={initialConversionReport}
+        />
         <h3>{text.page.outputs}</h3>
         {project.outputs.length === 0 ? <p className={styles.muted}>{text.page.noOutputs}</p>
           : <ul className={styles.list} data-testid="map-project-outputs">{project.outputs.map(output => <li key={output.outputId}>

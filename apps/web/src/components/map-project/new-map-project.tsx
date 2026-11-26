@@ -4,7 +4,7 @@ import { useMapProjectFailure } from "./use-map-project-failure";
 import { useState, type FormEvent } from "react";
 import { mapProjectEn } from "../../i18n/map-project-en";
 import { useLanguage, useTexts, useLocale } from "../language-provider";
-import { MAP_PROJECT_NEW_SCALES } from "@o-tid/contracts";
+import { MAP_PROJECT_NEW_SCALES, type MapProjectNewFormat } from "@o-tid/contracts";
 import { mapProjectSv } from "../../i18n/map-project-sv";
 import { clubRequest } from "../../lib/club-archive-client";
 import { areaCenterWgs84, areaFromCenter, areaFromGeoJson, parseLatLon, type AreaInput } from "../../lib/map-project-area-input";
@@ -28,6 +28,7 @@ export function NewMapProject() {
   const [name, setName] = useState("");
   const [norm, setNorm] = useState<Norm>("ISOM2017-2");
   const [scale, setScale] = useState<number>(MAP_PROJECT_NEW_SCALES["ISOM2017-2"][0]);
+  const [format, setFormat] = useState<MapProjectNewFormat>("OMAP");
   const [source, setSource] = useState<"map" | "file" | "center">("map");
   const [mapArea, setMapArea] = useState<AreaInput>();
   const [fileArea, setFileArea] = useState<AreaInput>();
@@ -60,7 +61,7 @@ export function NewMapProject() {
     setBusy(true); setMessage("");
     try {
       const value = declination.trim() ? Number(declination.replace(",", ".")) : undefined;
-      const result = await clubRequest(`${mapProjectsBase}/new`, "POST", { formatVersion: 1, requestId, name: name.trim(), symbolSet: norm, scale,
+      const result = await clubRequest(`${mapProjectsBase}/new`, "POST", { formatVersion: 1, requestId, name: name.trim(), symbolSet: norm, scale, format,
         ...(value !== undefined && Number.isFinite(value) ? { declination: value } : {}), area: chosen });
       if (result.status === 200 || result.status === 201) {
         window.location.assign(`/organizer/map-projects/${encodeURIComponent((result.json as { projectId: string }).projectId)}/map`);
@@ -86,6 +87,14 @@ export function NewMapProject() {
       <Field label={text.scale}><select value={scale} onChange={event => setScale(Number(event.target.value))}>
         {MAP_PROJECT_NEW_SCALES[norm].map(entry => <option key={entry} value={entry}>1:{entry.toLocaleString(locale)}</option>)}
       </select></Field>
+      <fieldset className={styles.choice} data-testid="new-map-format">
+        <legend>{text.format}</legend>
+        <label><input type="radio" name="map-format" value="OMAP" checked={format === "OMAP"} onChange={() => setFormat("OMAP")}
+          data-testid="new-map-format-omap" /> {text.formats.OMAP}</label>
+        <label><input type="radio" name="map-format" value="OCD" checked={format === "OCD"} onChange={() => setFormat("OCD")}
+          data-testid="new-map-format-ocd" /> {text.formats.OCD}</label>
+        <p className={styles.muted}>{text.formatHelp}</p>
+      </fieldset>
       <fieldset className={styles.choice}>
         <legend>{text.area}</legend>
         <label><input type="radio" name="area-source" checked={source === "map"} onChange={() => setSource("map")} /> {text.areaMap}</label>

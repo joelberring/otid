@@ -1,8 +1,9 @@
 import React from "react";
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { MapProjectView } from "@o-tid/contracts";
+import type { MapConversionReportView, MapProjectView } from "@o-tid/contracts";
 import { LanguageProvider } from "../language-provider";
+import { decodeConversionReportHeader } from "./map-project-convert-export";
 import { MapProjectPage } from "./map-project-page";
 
 (globalThis as { React?: typeof React }).React = React;
@@ -284,5 +285,75 @@ describe("MapProjectPage (Etapp 3B: OCAD Skapa ny kartversion upplåst via viewe
       </LanguageProvider>
     );
     expect(lockedEn).toContain("OCAD change export is locked");
+  });
+
+  it("Etapp 5B: visar fullkarta-konvertering (.omap <-> .ocd) bara när canDownloadSource är true samt visar formatgapsvarningar (sv + en)", () => {
+    const omapAllowed = renderToStaticMarkup(<MapProjectPage projectId={PROJECT_ID} initialView={makeProject()} />);
+    expect(omapAllowed).toContain('data-testid="map-project-export-ocd-full"');
+    expect(omapAllowed).toContain("Exportera som OCAD (.ocd)");
+    expect(omapAllowed).not.toContain('data-testid="map-project-export-omap-full"');
+
+    const ocdAllowed = renderToStaticMarkup(
+      <MapProjectPage projectId={PROJECT_ID} initialView={makeOcdProject({ canDownloadSource: true })} />
+    );
+    expect(ocdAllowed).toContain('data-testid="map-project-export-omap-full"');
+    expect(ocdAllowed).toContain("Exportera som Mapper (.omap)");
+    expect(ocdAllowed).not.toContain('data-testid="map-project-export-ocd-full"');
+
+    // Säkerhetsspärr: döljs helt när !canDownloadSource på både OMAP och OCD.
+    const omapLocked = renderToStaticMarkup(
+      <MapProjectPage projectId={PROJECT_ID} initialView={makeProject({
+        viewer: { ...makeProject().viewer, canManage: false, canWriteVersion: false, canDownloadSource: false }
+      })} />
+    );
+    expect(omapLocked).not.toContain('data-testid="map-project-export-ocd-full"');
+
+    const ocdLocked = renderToStaticMarkup(
+      <MapProjectPage projectId={PROJECT_ID} initialView={makeOcdProject({ canManage: false, canWriteVersion: false, canDownloadSource: false })} />
+    );
+    expect(ocdLocked).not.toContain('data-testid="map-project-export-omap-full"');
+
+    // Formatgapsrapport renderas tydligt på både svenska och engelska.
+    const reportWithWarnings: MapConversionReportView = {
+      formatVersion: 1,
+      sourceFormat: "OMAP",
+      targetFormat: "OCD",
+      fileName: "kungshatt.ocd",
+      colors: 19,
+      symbols: 110,
+      objects: 420,
+      skippedObjects: 0,
+      warnings: [
+        { code: "PRECISION_ROUNDED", count: 15, message: "15 objekt avrundades." },
+        { code: "COMBINED_SPLIT", count: 2, message: "2 sammansatta symboler delades." }
+      ]
+    };
+    const warningsSv = renderToStaticMarkup(
+      <MapProjectPage projectId={PROJECT_ID} initialView={makeProject()} initialConversionReport={reportWithWarnings} />
+    );
+    expect(warningsSv).toContain('data-testid="map-project-conversion-warnings"');
+    expect(warningsSv).toContain("kungshatt.ocd exporterad (420 objekt) med 2 formatnoteringar:");
+    expect(warningsSv).toContain("15 objekt avrundades från 0,001 mm till OCAD:s 0,01 mm-upplösning.");
+
+    const warningsEn = renderToStaticMarkup(
+      <LanguageProvider language="en">
+        <MapProjectPage projectId={PROJECT_ID} initialView={makeProject()} initialConversionReport={reportWithWarnings} />
+      </LanguageProvider>
+    );
+    expect(warningsEn).toContain("Export as OCAD (.ocd)");
+    expect(warningsEn).toContain("kungshatt.ocd exported (420 objects) with 2 format notes:");
+    expect(warningsEn).toContain("15 objects were rounded from 0.001 mm to OCAD&#x27;s 0.01 mm precision.");
+
+    const cleanReport: MapConversionReportView = { ...reportWithWarnings, warnings: [] };
+    const cleanHtml = renderToStaticMarkup(
+      <MapProjectPage projectId={PROJECT_ID} initialView={makeProject()} initialConversionReport={cleanReport} />
+    );
+    expect(cleanHtml).toContain('data-testid="map-project-conversion-ok"');
+
+    // decodeConversionReportHeader avkodar UTF-8 base64-header (inkl. åäö) säkert.
+    const header = Buffer.from(JSON.stringify({ ...reportWithWarnings, fileName: "Älvsjö.ocd" }), "utf8").toString("base64");
+    expect(decodeConversionReportHeader(header)).toMatchObject({ fileName: "Älvsjö.ocd", objects: 420 });
+    expect(decodeConversionReportHeader("not-valid-base64!!!")).toBeUndefined();
+    expect(decodeConversionReportHeader(null)).toBeUndefined();
   });
 });

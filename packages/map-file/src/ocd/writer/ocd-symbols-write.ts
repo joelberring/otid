@@ -377,7 +377,11 @@ function defColorKeys(def: SymbolDef): string[] {
   switch (def.kind) {
     case "point": return elementDefKeys(def.elements);
     case "text": return [def.color];
-    case "line": return [...(def.color ? [def.color] : []), ...(def.border ? [def.border.color] : []), ...elementDefKeys(def.mid?.elements)];
+    case "line": return [
+      ...(def.color ? [def.color] : []), ...(def.border ? [def.border.color] : []),
+      ...elementDefKeys(def.mid?.elements), ...elementDefKeys(def.corner?.elements),
+      ...elementDefKeys(def.start), ...elementDefKeys(def.end)
+    ];
     case "area": return [
       ...(def.fill ? [def.fill] : []), ...(def.hatches ?? []).map(h => h.color),
       ...elementDefKeys(def.dots?.elements), ...(def.border ? [def.border.color] : [])

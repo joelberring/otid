@@ -59,9 +59,9 @@ export function newMapFile(options: NewMapOptions): Uint8Array {
     `<?xml version="1.0" encoding="UTF-8"?>`,
     `<map xmlns="http://openorienteering.org/apps/mapper/xml/v2" version="9">`,
     `<notes>${escapeXml(options.notes ?? `Ny karta från O-Tid, ${set.name} 1:${options.scale}.`)}</notes>`,
-    `<georeferencing scale="${options.scale}" auxiliary_scale_factor="1" declination="${round(declination, 2)}" grivation="${grivation}">` +
+    `<georeferencing scale="${options.scale}" grid_scale_factor="1" auxiliary_scale_factor="1" declination="${round(declination, 2)}" grivation="${grivation}">` +
       `<ref_point x="0" y="0"/>` +
-      `<projected_crs id="EPSG"><spec language="PROJ.4">+init=epsg:3006</spec><parameter>3006</parameter>` +
+      `<projected_crs id="EPSG"><spec language="PROJ.4">EPSG:3006</spec><parameter>3006</parameter>` +
       `<ref_point x="${round(easting, 2)}" y="${round(northing, 2)}"/></projected_crs>` +
       `<geographic_crs id="Geographic coordinates"><spec language="PROJ.4">+proj=latlong +datum=WGS84</spec>` +
       `<ref_point_deg lat="${round(deg.latitude, 8)}" lon="${round(deg.longitude, 8)}"/></geographic_crs></georeferencing>`,
@@ -131,7 +131,7 @@ export class SymbolWriter {
           `${part(2, this.lineSymbol({ color: symbol.border.color, width: symbol.border.width, join: "miter" }))}</combined_symbol></symbol>`;
       }
       case "text":
-        return `<symbol ${head}><text_symbol icon_text="A"><font family="Arial" size="${this.um(symbol.size)}"` +
+        return `<symbol ${head}><text_symbol icon_text="A" rotatable="true"><font family="Arial" size="${this.um(symbol.size)}"` +
           `${symbol.bold ? ` bold="true"` : ""}${symbol.italic ? ` italic="true"` : ""}/>` +
           `<text color="${this.color(symbol.color)}" line_spacing="1" paragraph_spacing="0" character_spacing="0"/></text_symbol></symbol>`;
     }
@@ -141,7 +141,8 @@ export class SymbolWriter {
   private point(elements: readonly ElementDef[], rotatable: boolean): string {
     const [only] = elements;
     if (elements.length === 1 && only && (only.kind === "dot" || only.kind === "ring") && !only.at) {
-      const inner = only.kind === "dot" ? this.um(only.diameter / 2) : this.um((only.diameter - only.width) / 2);
+      // `ring(color, diameter, width)` anger ytterdiameter: inre radie = diameter / 2 - width (inte (diameter - width) / 2).
+      const inner = only.kind === "dot" ? this.um(only.diameter / 2) : this.um(Math.max(0, only.diameter / 2 - only.width));
       return `<point_symbol rotatable="${rotatable}" inner_radius="${inner}" inner_color="${only.kind === "dot" ? this.color(only.color) : -1}" ` +
         `outer_width="${only.kind === "ring" ? this.um(only.width) : 0}" outer_color="${only.kind === "ring" ? this.color(only.color) : -1}" elements="0"/>`;
     }
@@ -170,28 +171,45 @@ export class SymbolWriter {
   }
 
   private lineSymbol(line: { color?: string | undefined; width?: number | undefined; dash?: readonly [number, number] | undefined;
+    dashGroup?: { readonly count: number; readonly breakLength: number } | undefined;
+    halfOuterDashes?: boolean | undefined;
     cap?: "butt" | "round" | "square" | undefined; join?: "miter" | "round" | "bevel" | undefined;
     border?: { color: string; width: number; dash?: readonly [number, number] | undefined; shift?: number | undefined } | undefined;
-    mid?: { elements: readonly ElementDef[]; spacing: number; end?: number | undefined; minimum?: number | undefined } | undefined }): string {
+    mid?: { elements: readonly ElementDef[]; spacing: number; end?: number | undefined; minimum?: number | undefined;
+      count?: number | undefined; groupSpacing?: number | undefined } | undefined;
+    corner?: { readonly elements: readonly ElementDef[]; readonly stretch?: boolean | undefined; readonly skipEnds?: boolean | undefined } | undefined;
+    start?: readonly ElementDef[] | undefined; end?: readonly ElementDef[] | undefined }): string {
     const dashed = !!line.dash;
+    const halfOuter = dashed && (line.halfOuterDashes ?? true);
+    const dashesInGroup = dashed ? (line.dashGroup?.count ?? 1) : 1;
+    const inGroupBreak = dashed && line.dashGroup ? this.um(line.dashGroup.breakLength) : 500;
     const attributes = [
       // Bredden också utan färg: en dubbellinjes kantlinjer ligger efter den (Mapper räknar så).
       `color="${this.color(line.color)}"`, `line_width="${line.color || line.border ? this.um(line.width ?? 0) : 0}"`, `minimum_length="0"`,
       `join_style="${JOIN[line.join ?? "miter"]}"`, `cap_style="${CAP[line.cap ?? "butt"]}"`, `start_offset="0"`, `end_offset="0"`,
       ...(dashed ? [`dashed="true"`] : []),
+      ...(halfOuter ? [`half_outer_dashes="true"`] : []),
       `segment_length="${line.mid ? this.um(line.mid.spacing) : 0}"`, `end_length="${line.mid ? this.um(line.mid.end ?? line.mid.spacing / 2) : 0}"`,
       `show_at_least_one_symbol="true"`, `minimum_mid_symbol_count="${line.mid?.minimum ?? 0}"`, `minimum_mid_symbol_count_when_closed="0"`,
       `dash_length="${dashed ? this.um(line.dash![0]) : 4000}"`, `break_length="${dashed ? this.um(line.dash![1]) : 1000}"`,
-      `dashes_in_group="1"`, `in_group_break_length="500"`, `mid_symbols_per_spot="1"`, `mid_symbol_distance="0"`,
+      `dashes_in_group="${dashesInGroup}"`, `in_group_break_length="${inGroupBreak}"`,
+      `mid_symbols_per_spot="${line.mid?.count ?? 1}"`, `mid_symbol_distance="${line.mid?.groupSpacing ? this.um(line.mid.groupSpacing) : 0}"`,
+      ...(line.corner?.stretch === false ? [`scale_dash_symbol="false"`] : []),
+      ...(line.corner?.skipEnds ? [`suppress_dash_symbol_at_ends="true"`] : []),
       ...(line.border ? [`have_border_lines="true"`] : [])
     ];
-    const mid = line.mid ? `<mid_symbol><symbol type="1">${this.point(line.mid.elements, true)}</symbol></mid_symbol>` : "";
+    const sub = (tag: string, elements: readonly ElementDef[] | undefined) =>
+      elements && elements.length > 0 ? `<${tag}><symbol type="1">${this.point(elements, true)}</symbol></${tag}>` : "";
+    const start = sub("start_symbol", line.start);
+    const mid = sub("mid_symbol", line.mid?.elements);
+    const end = sub("end_symbol", line.end);
+    const corner = sub("dash_symbol", line.corner?.elements);
     const border = line.border
       ? `<borders><border color="${this.color(line.border.color)}" width="${this.um(line.border.width)}" shift="${this.um(line.border.shift ?? line.border.width / 2)}" ` +
         `dashed="${!!line.border.dash}" dash_length="${line.border.dash ? this.um(line.border.dash[0]) : 2000}" ` +
         `break_length="${line.border.dash ? this.um(line.border.dash[1]) : 1000}"/></borders>`
       : "";
-    return `<line_symbol ${attributes.join(" ")}>${mid}${border}</line_symbol>`;
+    return `<line_symbol ${attributes.join(" ")}>${start}${mid}${end}${corner}${border}</line_symbol>`;
   }
 
   private area(symbol: Extract<SymbolDef, { kind: "area" }>): string {

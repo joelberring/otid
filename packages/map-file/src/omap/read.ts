@@ -28,11 +28,13 @@ export function readOmap(textContent: string, options: ReadOptions = {}): Parsed
     throw new MapFileError("INVALID", "Mapper-filen innehåller en DOCTYPE- eller ENTITY-deklaration, som inte stöds.");
   }
   const partsStart = findTag(textContent, "<parts", 0);
-  const partsEnd = partsStart < 0 ? -1 : textContent.indexOf("</parts>", partsStart);
-  if (partsStart >= 0 && partsEnd < 0) throw new MapFileError("TRUNCATED", "Mapper-filen är avkortad (objekten tar slut mitt i).");
+  const partsTagEnd = partsStart < 0 ? -1 : textContent.indexOf(">", partsStart);
+  const selfClosingParts = partsTagEnd > partsStart && textContent.charCodeAt(partsTagEnd - 1) === 47;
+  const partsEnd = partsStart < 0 ? -1 : selfClosingParts ? partsTagEnd : textContent.indexOf("</parts>", partsTagEnd);
+  if (partsStart >= 0 && (partsTagEnd < 0 || partsEnd < 0)) throw new MapFileError("TRUNCATED", "Mapper-filen är avkortad (objekten tar slut mitt i).");
   const header = partsStart < 0
     ? textContent
-    : textContent.slice(0, partsStart) + textContent.slice(partsEnd + "</parts>".length);
+    : textContent.slice(0, partsStart) + textContent.slice(selfClosingParts ? partsTagEnd + 1 : partsEnd + "</parts>".length);
 
   const map = parseHeader(header);
   const version = attr(map, "version");
@@ -41,7 +43,9 @@ export function readOmap(textContent: string, options: ReadOptions = {}): Parsed
   const barrier = child(map, "barrier") ?? map;
   const { symbols, isArea } = readOmapSymbols(asArray(child(barrier, "symbols")?.symbol), warnings);
   const layers: (string | undefined)[] | undefined = options.layerTags ? [] : undefined;
-  const objects = partsStart < 0 ? [] : readObjects(textContent, partsStart, partsEnd, symbols, isArea, warnings, options.sources === true, layers);
+  const objects = partsStart < 0 || selfClosingParts
+    ? []
+    : readObjects(textContent, partsStart, partsEnd, symbols, isArea, warnings, options.sources === true, layers);
   const { scale, georeference } = readGeoreference(child(map, "georeferencing"), warnings);
   return {
     format: "OMAP",
@@ -150,7 +154,9 @@ function readGeoreference(node: XmlNode | undefined, warnings: WarningCollector)
   const mapRef = child(node, "ref_point");
   const crs = crsFromEpsg(epsgOf(projected), describeCrs(projected));
   if (crs.kind === "UNKNOWN") warnings.add("CRS_UNKNOWN");
-  const factor = num(node, "auxiliary_scale_factor", num(node, "grid_scale_factor", 1));
+  const aux = num(node, "auxiliary_scale_factor", 1);
+  const grid = num(node, "grid_scale_factor", 1);
+  const factor = (aux > 0 ? aux : 1) * (grid > 0 ? grid : 1);
   return {
     scale,
     georeference: {
@@ -209,10 +215,12 @@ function readObjects(
     if (close < 0 || close > end) throw new MapFileError("TRUNCATED", "Mapper-filen är avkortad mitt i ett objekt.");
     position = selfClosing ? tagEnd + 1 : close + "</object>".length;
     const attributes = tagAttributes(content.slice(open, tagEnd));
-    const object = readObject(content, tagEnd + 1, selfClosing ? tagEnd + 1 : close, attributes, symbols, isArea, warnings);
+    // Skiva objektets kropp en gång: förhindrar O(N²)-skanning till EOF när `<coord`, `<pattern`, `<tags` eller `<text` saknas.
+    const body = selfClosing ? "" : content.slice(tagEnd + 1, close);
+    const object = readObject(body, attributes, symbols, isArea, warnings);
     const index = ordinal++;
     if (!object) continue;
-    if (layers) layers.push(selfClosing ? undefined : layerTag(content, tagEnd + 1, close));
+    if (layers) layers.push(selfClosing ? undefined : layerTag(body));
     if (!sources) { objects.push(object); continue; }
     const locator = { format: "OMAP" as const, part: Math.max(part, 0), ordinal: index, start: open, end: position };
     objects.push({ ...object, source: { locator, objectHash: sha256OfText(content, open, position) } });
@@ -222,51 +230,52 @@ function readObjects(
 
 const LAYER_TAG = '<t k="Layer">';
 /** Objektets tagg `Layer` (lagret i en DWG/DXF som Mapper läst in), om den finns. */
-function layerTag(content: string, from: number, to: number): string | undefined {
-  const tags = content.indexOf("<tags", from);
-  if (tags < 0 || tags >= to) return undefined;
-  const open = content.indexOf(LAYER_TAG, tags);
-  if (open < 0 || open >= to) return undefined;
-  const close = content.indexOf("</t>", open);
-  if (close < 0 || close > to) return undefined;
-  return decodeEntities(content.slice(open + LAYER_TAG.length, close)).trim() || undefined;
+function layerTag(body: string): string | undefined {
+  const tags = body.indexOf("<tags");
+  if (tags < 0) return undefined;
+  const open = body.indexOf(LAYER_TAG, tags);
+  if (open < 0) return undefined;
+  const close = body.indexOf("</t>", open);
+  if (close < 0) return undefined;
+  return decodeEntities(body.slice(open + LAYER_TAG.length, close)).trim() || undefined;
 }
 
 function readObject(
-  content: string, from: number, to: number, attributes: Map<string, string>, symbols: ReadonlyMap<string, MapSymbol>,
+  body: string, attributes: Map<string, string>, symbols: ReadonlyMap<string, MapSymbol>,
   isArea: (id: string) => boolean, warnings: WarningCollector
 ): MapObject | null {
   const type = attributes.get("type");
   const symbol = attributes.get("symbol") ?? "-1";
   if (type !== "0" && type !== "1" && type !== "4") { warnings.add("UNKNOWN_OBJECT_TYPE"); return null; }
   if (!symbols.has(symbol)) { warnings.add(symbol.startsWith("-") ? "OBJECT_WITHOUT_SYMBOL" : "UNKNOWN_SYMBOL"); return null; }
-  const triples = readCoords(content, from, to);
+  const triples = readCoords(body, 0, body.length);
   if (!triples || triples.length < 3) { warnings.add("BROKEN_OBJECT"); return null; }
   const rotation = normalizeAngle((Number(attributes.get("rotation") ?? "0") || 0) * (180 / Math.PI));
   const at = { x: triples[0]! / 1000, y: (0 - triples[1]!) / 1000 };
   if (type === "0") return { kind: "point", symbol, at, angle: rotation };
-  if (type === "4") return { kind: "text", symbol, at, angle: rotation, text: readText(content, from, to) };
+  if (type === "4") return { kind: "text", symbol, at, angle: rotation, text: readText(body) };
   const parts = coordsToParts(triples);
   if (parts.length === 0) { warnings.add("BROKEN_OBJECT"); return null; }
-  if (isArea(symbol)) return { kind: "area", symbol, rings: parts.map(openRing), angle: patternRotation(content, from, to) };
+  if (isArea(symbol)) return { kind: "area", symbol, rings: parts.map(openRing), angle: patternRotation(body) };
   return { kind: "line", symbol, path: joinParts(parts) };
 }
 
 export function readCoords(content: string, from: number, to: number): number[] | null {
-  const open = content.indexOf("<coords", from);
-  if (open < 0 || open >= to) return null;
-  const tagEnd = content.indexOf(">", open);
-  if (tagEnd < 0 || tagEnd >= to) return null;
-  if (content.charCodeAt(tagEnd - 1) === 47) return [];
-  const close = content.indexOf("</coords>", tagEnd);
-  if (close < 0 || close > to) return null;
-  const inner = content.indexOf("<coord", tagEnd);
-  if (inner < 0 || inner > close) return parseCoordText(content, tagEnd + 1, close);
+  const slice = from === 0 && to === content.length ? content : content.slice(from, to);
+  const open = slice.indexOf("<coords");
+  if (open < 0) return null;
+  const tagEnd = slice.indexOf(">", open);
+  if (tagEnd < 0) return null;
+  if (slice.charCodeAt(tagEnd - 1) === 47) return [];
+  const close = slice.indexOf("</coords>", tagEnd);
+  if (close < 0) return null;
+  const inner = slice.indexOf("<coord", tagEnd);
+  if (inner < 0 || inner > close) return parseCoordText(slice, tagEnd + 1, close);
   // Äldre skrivsätt: <coord x="…" y="…" flags="…"/>.
   const out: number[] = [];
   const pattern = /<coord\b([^>]*)\/?>/g;
   pattern.lastIndex = inner;
-  for (let match = pattern.exec(content); match && match.index < close; match = pattern.exec(content)) {
+  for (let match = pattern.exec(slice); match && match.index < close; match = pattern.exec(slice)) {
     const coord = tagAttributes(match[1]!);
     const x = Number(coord.get("x")), y = Number(coord.get("y")), flags = Number(coord.get("flags") ?? "0");
     if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
@@ -275,20 +284,20 @@ export function readCoords(content: string, from: number, to: number): number[] 
   return out;
 }
 
-function readText(content: string, from: number, to: number): string {
-  const open = content.indexOf("<text", from);
-  if (open < 0 || open >= to) return "";
-  const tagEnd = content.indexOf(">", open);
-  if (tagEnd < 0 || tagEnd >= to || content.charCodeAt(tagEnd - 1) === 47) return "";
-  const close = content.indexOf("</text>", tagEnd);
-  return close < 0 || close > to ? "" : decodeEntities(content.slice(tagEnd + 1, close));
+function readText(body: string): string {
+  const open = body.indexOf("<text");
+  if (open < 0) return "";
+  const tagEnd = body.indexOf(">", open);
+  if (tagEnd < 0 || body.charCodeAt(tagEnd - 1) === 47) return "";
+  const close = body.indexOf("</text>", tagEnd);
+  return close < 0 ? "" : decodeEntities(body.slice(tagEnd + 1, close));
 }
 
-function patternRotation(content: string, from: number, to: number): number {
-  const open = content.indexOf("<pattern", from);
-  if (open < 0 || open >= to) return 0;
-  const tagEnd = content.indexOf(">", open);
-  if (tagEnd < 0 || tagEnd > to) return 0;
-  const rotation = Number(tagAttributes(content.slice(open, tagEnd)).get("rotation") ?? "0");
+function patternRotation(body: string): number {
+  const open = body.indexOf("<pattern");
+  if (open < 0) return 0;
+  const tagEnd = body.indexOf(">", open);
+  if (tagEnd < 0) return 0;
+  const rotation = Number(tagAttributes(body.slice(open, tagEnd)).get("rotation") ?? "0");
   return Number.isFinite(rotation) ? normalizeAngle(rotation * (180 / Math.PI)) : 0;
 }

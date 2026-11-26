@@ -9,18 +9,27 @@ export const ISOM_COLORS: readonly ColorDef[] = [
   { key: "purple", name: "Violett (bana)", cmyk: [0.35, 0.85, 0, 0] },
   { key: "white-course", name: "Vit för bana", cmyk: [0, 0, 0, 0] },
   { key: "black", name: "Svart", cmyk: [0, 0, 0, 1] },
+  // Järnvägens vita band (509) under de svarta strecken och över kurvor/bäckar/ytor.
+  { key: "white-rail", name: "Vit (järnväg)", cmyk: [0, 0, 0, 0], distinct: true },
+  // Punktsymboler för enstaka träd/buskar (417–419): separat från ytgrönt så de ligger över byggnader, skärmtak, asfalt och kurvor.
+  { key: "greenPoint", name: "Grön 100 % (punkt)", cmyk: [0.76, 0, 0.91, 0], distinct: true },
+  // Vit mittpunkt i 417/418 direkt under grön punkt så ringen täcker kanten rent.
+  { key: "white", name: "Vit", cmyk: [0, 0, 0, 0] },
+  // Blå linjer & punkter (bäckar 304–306, vattenhål, brunn, källa) — separat från kärr-/vattenytor (`blueArea`).
   { key: "blue", name: "Blå", cmyk: [1, 0, 0, 0] },
   { key: "brown", name: "Brun", cmyk: [0, 0.56, 1, 0.18] },
-  { key: "brown50", name: "Brun 50 %", cmyk: [0, 0.28, 0.5, 0.09] },
   { key: "black65", name: "Svart 65 %", cmyk: [0, 0, 0, 0.65] },
+  // Skärmtak (522) och berghäll (214) ovanför hårdgjord yta (`brown50`).
   { key: "black20", name: "Svart 20 %", cmyk: [0, 0, 0, 0.2] },
+  { key: "brown50", name: "Brun 50 %", cmyk: [0, 0.28, 0.5, 0.09] },
+  // Blå 100 % för sankmark (307/308/310) under kurvor, skärmtak och hårdgjord yta (och UNDER banlila i tryck).
+  { key: "blueArea", name: "Blå (yta)", cmyk: [1, 0, 0, 0], distinct: true },
   { key: "blue70", name: "Blå 70 %", cmyk: [0.7, 0, 0, 0] },
   { key: "blue30", name: "Blå 30 %", cmyk: [0.3, 0, 0, 0] },
-  { key: "white", name: "Vit", cmyk: [0, 0, 0, 0] },
-  // Ägaren 2026-11-11 («tomtmarken ska ta över och ligga ovanför tät skog»): olivgrönt (520) över grönskan.
-  { key: "olive", name: "Olivgrön", cmyk: [0.35, 0, 1, 0.5] },
+  // Ägaren 2026-11-11 («tomtmarken ska ta över och ligga ovanför tät skog»): olivgrönt (520) i IOF CMYK 38/27/100/0.
+  { key: "olive", name: "Olivgrön", cmyk: [0.38, 0.27, 1, 0] },
   // Ägaren 2026-11-16: de vita prickarna i 402 och 404 under olivgrönt (tomten), annars syns de på tomterna.
-  { key: "white-dots", name: "Vit (prickar)", cmyk: [0, 0, 0, 0] },
+  { key: "white-dots", name: "Vit (prickar)", cmyk: [0, 0, 0, 0], distinct: true },
   { key: "green", name: "Grön", cmyk: [0.76, 0, 0.91, 0] },
   { key: "green60", name: "Grön 60 %", cmyk: [0.46, 0, 0.55, 0] },
   { key: "green30", name: "Grön 30 %", cmyk: [0.23, 0, 0.27, 0] },
@@ -31,6 +40,11 @@ export const ISOM_COLORS: readonly ColorDef[] = [
 
 const tag = (color: string, width: number, length: number) => [stroke(color, width, [0, 0], [0, -length])];
 const tick = (color: string, width: number, length: number) => [stroke(color, width, [0, length / 2], [0, -length / 2])];
+const fenceTag = (color: string, width: number, size: number) => [stroke(color, width, [0, 0], [size, -size])];
+const bridgeWings = (width: number, halfSpan: number, wing: number, side: -1 | 1) => [
+  stroke("black", width, [0, halfSpan], [side * wing, halfSpan + wing]),
+  stroke("black", width, [0, -halfSpan], [side * wing, -(halfSpan + wing)])
+];
 
 /**
  * Ägaren 2026-11-14 («om alla nya kartor som skapas ska märkas»): symbolerna för kartans märkning – ramen i loggans färg,
@@ -68,14 +82,15 @@ export const ISOM_SYMBOLS: readonly SymbolDef[] = [
   { code: "101.1", name: "Lutningsstreck", kind: "point", rotatable: true, elements: tag("brown", 0.14, 0.5) },
   { code: "102.1", name: "Kurvsiffra", kind: "text", color: "brown", size: 1.5 },
   { code: "104", name: "Jordbrant", kind: "line", color: "brown", width: 0.37, mid: { elements: tag("brown", 0.18, 0.6), spacing: 1.5 } },
-  { code: "105", name: "Jordvall", kind: "line", color: "brown", width: 0.37, cap: "round" },
-  { code: "106", name: "Raserad jordvall", kind: "line", color: "brown", width: 0.25, dash: [1.5, 0.25] },
+  { code: "105", name: "Jordvall", kind: "line", color: "brown", width: 0.18, mid: { elements: [dot("brown", 0.45)], spacing: 2.5, end: 1.25 } },
+  { code: "106", name: "Raserad jordvall", kind: "line", color: "brown", width: 0.18, dash: [1.7, 0.25], halfOuterDashes: false,
+    mid: { elements: [dot("brown", 0.45)], spacing: 1.95, end: 0.85 } },
   { code: "107", name: "Erosionsravin", kind: "line", color: "brown", width: 0.37, cap: "round" },
   { code: "108", name: "Liten erosionsravin", kind: "line", mid: { elements: [dot("brown", 0.37)], spacing: 0.6 } },
   { code: "109", name: "Liten kulle", kind: "point", elements: [dot("brown", 0.75)] },
   { code: "110", name: "Liten avlång kulle", kind: "point", rotatable: true, elements: [ellipse("brown", 1.2, 0.75)] },
-  { code: "111", name: "Liten grop", kind: "point", rotatable: true, elements: [arc("brown", 0.9, 0.18, "up")] },
-  { code: "112", name: "Grop", kind: "point", rotatable: true, elements: [stroke("brown", 0.18, [-0.4, 0.4], [0, -0.3], [0.4, 0.4])] },
+  { code: "111", name: "Liten grop", kind: "point", elements: [arc("brown", 0.9, 0.18, "up")] },
+  { code: "112", name: "Grop", kind: "point", elements: [stroke("brown", 0.18, [-0.4, 0.4], [0, -0.3], [0.4, 0.4])] },
   { code: "113", name: "Gropig mark", kind: "area", dots: { elements: [dot("brown", 0.25)], dx: 1.2, dy: 1.2, staggered: true } },
   { code: "114", name: "Mycket gropig mark", kind: "area", dots: { elements: [dot("brown", 0.25)], dx: 0.7, dy: 0.7, staggered: true } },
   { code: "115", name: "Speciell terrängform", kind: "point", elements: cross("brown", 0.8, 0.18) },
@@ -88,7 +103,7 @@ export const ISOM_SYMBOLS: readonly SymbolDef[] = [
   { code: "204", name: "Sten", kind: "point", elements: [dot("black", 0.4)] },
   { code: "205", name: "Stor sten", kind: "point", elements: [dot("black", 0.6)] },
   { code: "206", name: "Jättesten", kind: "area", fill: "black" },
-  { code: "207", name: "Stengrupp", kind: "point", rotatable: true, elements: [triangle("black", 0.8)] },
+  { code: "207", name: "Stengrupp", kind: "point", elements: [triangle("black", 0.8)] },
   { code: "208", name: "Blockterräng", kind: "area", dots: { elements: [triangle("black", 0.6)], dx: 2.0, dy: 2.0, staggered: true } },
   { code: "209", name: "Tät blockterräng", kind: "area", dots: { elements: [triangle("black", 0.6)], dx: 1.2, dy: 1.2, staggered: true } },
   { code: "210", name: "Stenig mark, löpbar", kind: "area", dots: { elements: [dot("black", 0.18)], dx: 1.5, dy: 1.5, staggered: true } },
@@ -103,14 +118,14 @@ export const ISOM_SYMBOLS: readonly SymbolDef[] = [
   { code: "301.1", name: "Strandlinje", kind: "line", color: "black", width: 0.18, join: "round" },
   { code: "302", name: "Grunt vatten", kind: "area", fill: "blue30" },
   { code: "302.1", name: "Strandlinje, grunt vatten", kind: "line", color: "blue", width: 0.1 },
-  { code: "303", name: "Vattenhål", kind: "point", elements: [triangle("blue", 0.8)] },
+  { code: "303", name: "Vattenhål", kind: "point", elements: [stroke("blue", 0.18, [-0.35, 0.4], [0, -0.4], [0.35, 0.4])] },
   { code: "304", name: "Bäck, överkomlig", kind: "line", color: "blue", width: 0.3, cap: "round", join: "round" },
   { code: "305", name: "Liten bäck", kind: "line", color: "blue", width: 0.18, cap: "round", join: "round" },
   { code: "306", name: "Dike eller torr bäckfåra", kind: "line", color: "blue", width: 0.18, dash: [1.0, 0.25] },
-  { code: "307", name: "Sankmark, oöverkomlig", kind: "area", hatches: [{ color: "blue", width: 0.15, spacing: 0.3 }] },
-  { code: "308", name: "Sankmark", kind: "area", hatches: [{ color: "blue", width: 0.12, spacing: 0.5 }] },
+  { code: "307", name: "Sankmark, oöverkomlig", kind: "area", hatches: [{ color: "blueArea", width: 0.15, spacing: 0.3 }], border: { color: "black", width: 0.14 } },
+  { code: "308", name: "Sankmark", kind: "area", hatches: [{ color: "blueArea", width: 0.12, spacing: 0.42 }] },
   { code: "309", name: "Smal sankmark", kind: "line", color: "blue", width: 0.25, dash: [0.6, 0.25] },
-  { code: "310", name: "Otydlig sankmark", kind: "area", hatches: [{ color: "blue", width: 0.12, spacing: 0.9 }] },
+  { code: "310", name: "Otydlig sankmark", kind: "area", dots: { elements: [stroke("blueArea", 0.12, [-0.5, 0], [0.5, 0])], dx: 1.6, dy: 0.42, staggered: true } },
   { code: "311", name: "Brunn eller källa med kant", kind: "point", elements: [ring("blue", 0.9, 0.18)] },
   { code: "312", name: "Källa", kind: "point", rotatable: true, elements: [arc("blue", 0.9, 0.18, "down")] },
   { code: "313", name: "Speciellt vattenföremål", kind: "point", elements: cross("blue", 0.8, 0.18) },
@@ -132,9 +147,9 @@ export const ISOM_SYMBOLS: readonly SymbolDef[] = [
   { code: "414", name: "Vinodling", kind: "area", fill: "yellow", hatches: [{ color: "green", width: 0.3, spacing: 1.2, angle: 90 }] },
   { code: "415", name: "Tydlig odlingsgräns", kind: "line", color: "black", width: 0.14 },
   { code: "416", name: "Tydlig vegetationsgräns", kind: "line", mid: { elements: [dot("black", 0.2)], spacing: 0.45 } },
-  { code: "417", name: "Speciellt stort träd", kind: "point", elements: [ring("green", 1.2, 0.3)] },
-  { code: "418", name: "Speciell buske eller träd", kind: "point", elements: [dot("green", 0.6)] },
-  { code: "419", name: "Speciellt vegetationsföremål", kind: "point", elements: cross("green", 0.8, 0.25) },
+  { code: "417", name: "Speciellt stort träd", kind: "point", elements: [dot("white", 0.56), ring("greenPoint", 0.9, 0.18)] },
+  { code: "418", name: "Speciell buske eller träd", kind: "point", elements: [dot("white", 0.2), ring("greenPoint", 0.5, 0.17)] },
+  { code: "419", name: "Speciellt vegetationsföremål", kind: "point", elements: cross("greenPoint", 0.8, 0.18) },
 
   // Anläggningar (svart, brunt, grått).
   { code: "501", name: "Hårdgjord yta", kind: "area", fill: "brown50" },
@@ -144,32 +159,44 @@ export const ISOM_SYMBOLS: readonly SymbolDef[] = [
   { code: "504", name: "Körväg", kind: "line", color: "black", width: 0.35, dash: [3.0, 0.25] },
   { code: "505", name: "Stig", kind: "line", color: "black", width: 0.25, dash: [2.0, 0.25] },
   { code: "506", name: "Liten stig", kind: "line", color: "black", width: 0.18, dash: [1.0, 0.25] },
-  { code: "507", name: "Otydlig liten stig", kind: "line", color: "black", width: 0.18, dash: [1.0, 1.0] },
+  { code: "507", name: "Otydlig liten stig", kind: "line", color: "black", width: 0.18, dash: [1.0, 0.75], dashGroup: { count: 2, breakLength: 0.25 } },
   { code: "508", name: "Smal rågång", kind: "line", color: "black", width: 0.14, dash: [1.5, 0.5] },
-  { code: "509", name: "Järnväg", kind: "line", color: "black", width: 0.4, mid: { elements: tick("black", 0.14, 0.8), spacing: 3.0 } },
-  { code: "510", name: "Kraftledning", kind: "line", color: "black", width: 0.14, mid: { elements: tick("black", 0.14, 0.8), spacing: 6.0 } },
-  { code: "511", name: "Stor kraftledning", kind: "line", color: "black", width: 0.14, border: { color: "black", width: 0.14 },
-    mid: { elements: tick("black", 0.14, 1.2), spacing: 6.0 } },
-  { code: "512", name: "Bro eller tunnel", kind: "line", color: "black", width: 0.14, border: { color: "black", width: 0.14 } },
-  { code: "513", name: "Stenmur", kind: "line", color: "black", width: 0.14, mid: { elements: [dot("black", 0.45)], spacing: 1.5 } },
-  { code: "514", name: "Raserad stenmur", kind: "line", color: "black", width: 0.14, dash: [1.0, 0.5], mid: { elements: [dot("black", 0.45)], spacing: 3.0 } },
-  { code: "515", name: "Oöverstiglig mur", kind: "line", color: "black", width: 0.5 },
-  { code: "516", name: "Staket", kind: "line", color: "black", width: 0.14, mid: { elements: tag("black", 0.14, 0.4), spacing: 1.5 } },
-  { code: "517", name: "Raserat staket", kind: "line", color: "black", width: 0.14, dash: [1.0, 0.5], mid: { elements: tag("black", 0.14, 0.4), spacing: 3.0 } },
-  { code: "518", name: "Oöverstigligt staket", kind: "line", color: "black", width: 0.25, mid: { elements: tick("black", 0.14, 0.8), spacing: 1.5 } },
-  { code: "519", name: "Passage", kind: "point", rotatable: true, elements: [stroke("black", 0.18, [-0.4, -0.5], [-0.4, 0.5]), stroke("black", 0.18, [0.4, -0.5], [0.4, 0.5])] },
+  { code: "509", name: "Järnväg", kind: "line", color: "white-rail", width: 0.25, border: { color: "black", width: 0.1, shift: 0 },
+    mid: { elements: [fill("black", [-0.5, -0.125], [0.5, -0.125], [0.5, 0.125], [-0.5, 0.125])], spacing: 2.0, end: 0.5 } },
+  { code: "510", name: "Kraftledning", kind: "line", color: "black", width: 0.14, corner: { elements: tick("black", 0.14, 0.7), stretch: false } },
+  { code: "511", name: "Stor kraftledning", kind: "line", width: 0.5, border: { color: "black", width: 0.14, shift: 0 },
+    corner: { elements: tick("black", 0.14, 1.0), stretch: false }, mid: { elements: tick("black", 0.14, 0.5), spacing: 6.0 } },
+  { code: "512", name: "Bro eller tunnel", kind: "line", width: 0.5, border: { color: "black", width: 0.14, shift: 0 },
+    start: bridgeWings(0.14, 0.25, 0.25, -1), end: bridgeWings(0.14, 0.25, 0.25, 1) },
+  { code: "513", name: "Stenmur", kind: "line", color: "black", width: 0.14, mid: { elements: [dot("black", 0.45)], spacing: 2.5, end: 1.25 } },
+  { code: "514", name: "Raserad stenmur", kind: "line", color: "black", width: 0.14, dash: [1.7, 0.25], halfOuterDashes: false,
+    mid: { elements: [dot("black", 0.45)], spacing: 1.95, end: 0.85 } },
+  { code: "515", name: "Oöverstiglig mur", kind: "line", color: "black", width: 0.25, mid: { elements: [dot("black", 0.5)], spacing: 2.5, end: 1.25 } },
+  { code: "516", name: "Staket", kind: "line", color: "black", width: 0.14, mid: { elements: fenceTag("black", 0.14, 0.35), spacing: 2.0, end: 1.0 } },
+  { code: "517", name: "Raserat staket", kind: "line", color: "black", width: 0.14, dash: [1.7, 0.25], halfOuterDashes: false,
+    mid: { elements: fenceTag("black", 0.14, 0.35), spacing: 1.95, end: 0.85 } },
+  { code: "518", name: "Oöverstigligt staket", kind: "line", color: "black", width: 0.18,
+    mid: { elements: fenceTag("black", 0.14, 0.35), spacing: 1.8, end: 0.9, count: 2, groupSpacing: 0.35 } },
+  { code: "519", name: "Passage", kind: "point", rotatable: true, elements: [
+    stroke("black", 0.18, [-0.5, 0.4], [-0.25, 0.15], [-0.25, -0.15], [-0.5, -0.4]),
+    stroke("black", 0.18, [0.5, 0.4], [0.25, 0.15], [0.25, -0.15], [0.5, -0.4])
+  ] },
   { code: "520", name: "Område som inte får beträdas", kind: "area", fill: "olive" },
   // Normens 521 är svart (ägaren 2026-11-12: «hus ska väl vara helt svarta på skogskartor»); grått får bara mycket stora hus i tätort.
   { code: "521", name: "Byggnad", kind: "area", fill: "black" },
   { code: "521.1", name: "Kant, byggnad", kind: "line", color: "black", width: 0.14 },
   { code: "522", name: "Skärmtak", kind: "area", fill: "black20" },
   { code: "523", name: "Ruin", kind: "line", color: "black", width: 0.14, dash: [0.8, 0.3] },
-  { code: "524", name: "Högt torn", kind: "point", elements: [ring("black", 1.4, 0.35), dot("black", 0.3)] },
-  { code: "525", name: "Litet torn", kind: "point", elements: [fill("black", [-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5])] },
-  { code: "526", name: "Röse", kind: "point", elements: [ring("black", 0.7, 0.18)] },
-  { code: "527", name: "Foderhäck", kind: "point", rotatable: true, elements: [stroke("black", 0.18, [-0.5, -0.3], [0, 0.4], [0.5, -0.3]), stroke("black", 0.18, [0, 0.4], [0, -0.5])] },
+  { code: "524", name: "Högt torn", kind: "point", elements: [stroke("black", 0.25, [-0.7, 0.7], [0.7, 0.7]), stroke("black", 0.25, [0, 0.7], [0, -0.7])] },
+  { code: "525", name: "Litet torn", kind: "point", elements: [stroke("black", 0.18, [-0.5, 0.5], [0.5, 0.5]), stroke("black", 0.18, [0, 0.5], [0, -0.5])] },
+  { code: "526", name: "Röse", kind: "point", elements: [ring("black", 0.8, 0.18), dot("black", 0.2)] },
+  { code: "527", name: "Foderhäck", kind: "point", elements: [
+    stroke("black", 0.18, [-0.45, 0.05], [0, 0.45], [0.45, 0.05]),
+    stroke("black", 0.18, [-0.25, 0.22], [-0.25, -0.45]),
+    stroke("black", 0.18, [0.25, 0.22], [0.25, -0.45])
+  ] },
   { code: "528", name: "Speciellt linjeföremål", kind: "line", color: "black", width: 0.25 },
-  { code: "529", name: "Speciellt oöverstigligt linjeföremål", kind: "line", color: "black", width: 0.5 },
+  { code: "529", name: "Speciellt oöverstigligt linjeföremål", kind: "line", color: "black", width: 0.4, mid: { elements: tick("black", 0.14, 0.8), spacing: 2.5, end: 1.25 } },
   { code: "530", name: "Speciellt föremål, ring", kind: "point", elements: [ring("black", 0.8, 0.18)] },
   { code: "531", name: "Speciellt föremål, kryss", kind: "point", elements: cross("black", 0.8, 0.18) },
   // 532 Trappa: stegen generaliserade tvärs gångriktningen, minsta bredd 0,4 mm och minst tre grafiska steg (normen).

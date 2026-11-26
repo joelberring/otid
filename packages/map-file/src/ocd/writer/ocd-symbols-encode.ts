@@ -6,7 +6,7 @@
  */
 import { normalizeAngle, ocdSymbolCode, openRing, parseSymbolCode } from "../../geometry";
 import type {
-  AreaSymbol, HatchStyle, LineSymbol, MapColor, MapSymbol, Path, PointElement, PointSymbol, StrokeStyle, TextSymbol
+  AreaSymbol, DashSpec, HatchStyle, LineSymbol, MapColor, MapSymbol, Path, PointElement, PointSymbol, StrokeStyle, TextSymbol
 } from "../../model";
 import type { ElementDef, SymbolDef } from "../../template/symbol-def";
 import {
@@ -215,6 +215,27 @@ export function symbolDefToMapSymbol(
     const strokes: StrokeStyle[] = [];
     const cap = def.cap ?? "butt";
     const join = def.join ?? "miter";
+    const buildDash = (
+      rawDash: readonly [number, number] | undefined,
+      dashGroup?: { readonly count: number; readonly breakLength: number },
+      halfOuterDashes?: boolean
+    ): { dash?: readonly number[]; dashSpec?: DashSpec } => {
+      if (!rawDash) return {};
+      const dashLen = s(rawDash[0]);
+      const gap = s(rawDash[1]);
+      const grouped = (dashGroup?.count ?? 1) >= 2;
+      const inGroup = dashGroup ? s(dashGroup.breakLength) : 0;
+      const mainLength = grouped ? 2 * dashLen + inGroup : dashLen;
+      const halfOuter = halfOuterDashes ?? true;
+      const dash = grouped ? [dashLen, inGroup, dashLen, gap] : [dashLen, gap];
+      const dashSpec: DashSpec = {
+        mainLength,
+        mainGap: gap,
+        endLength: halfOuter ? mainLength / 2 : mainLength,
+        ...(grouped && inGroup > 0 ? { secondaryGap: inGroup } : {})
+      };
+      return { dash, dashSpec };
+    };
     if (def.border) {
       const bandWidth = s(def.width ?? 0);
       const shift = s(def.border.shift ?? def.border.width / 2);
@@ -222,26 +243,47 @@ export function symbolDefToMapSymbol(
       const bWidth = s(def.border.width);
       const bDash = def.border.dash ? [s(def.border.dash[0]), s(def.border.dash[1])] as const : undefined;
       if (def.color && bandWidth > 0) {
-        strokes.push({ color: col(def.color), width: bandWidth, cap, join });
+        strokes.push({ color: col(def.color), width: bandWidth, cap, join, ...buildDash(def.dash, def.dashGroup, def.halfOuterDashes) });
       }
       strokes.push(
         { color: col(def.border.color), width: bWidth, offset: dblWidth / 2, cap, join, ...(bDash ? { dash: bDash } : {}) },
         { color: col(def.border.color), width: bWidth, offset: -dblWidth / 2, cap, join, ...(bDash ? { dash: bDash } : {}) }
       );
     } else if (def.color && def.width && def.width > 0) {
-      const dash = def.dash ? [s(def.dash[0]), s(def.dash[1])] as const : undefined;
-      strokes.push({ color: col(def.color), width: s(def.width), cap, join, ...(dash ? { dash } : {}) });
+      strokes.push({ color: col(def.color), width: s(def.width), cap, join, ...buildDash(def.dash, def.dashGroup, def.halfOuterDashes) });
     }
     const repeated = def.mid
       ? {
           elements: def.mid.elements.map(el => elementDefToPointElement(el, factor, colorIds)),
           spacing: s(def.mid.spacing),
           endLength: s(def.mid.end ?? def.mid.spacing / 2),
-          count: 1,
+          count: Math.max(1, def.mid.count ?? 1),
+          ...(def.mid.groupSpacing ? { groupSpacing: s(def.mid.groupSpacing) } : {}),
           minimum: Math.max(1, def.mid.minimum ?? 1)
         }
       : undefined;
-    const symbol: LineSymbol = { ...base, kind: "LINE", strokes, ...(repeated ? { repeated } : {}) };
+    const corner = def.corner && def.corner.elements.length > 0
+      ? {
+          elements: def.corner.elements.map(el => elementDefToPointElement(el, factor, colorIds)),
+          stretch: def.corner.stretch !== false,
+          ...(def.corner.skipEnds ? { skipEnds: true as const } : {})
+        }
+      : undefined;
+    const start = def.start && def.start.length > 0
+      ? { elements: def.start.map(el => elementDefToPointElement(el, factor, colorIds)) }
+      : undefined;
+    const end = def.end && def.end.length > 0
+      ? { elements: def.end.map(el => elementDefToPointElement(el, factor, colorIds)) }
+      : undefined;
+    const symbol: LineSymbol = {
+      ...base,
+      kind: "LINE",
+      strokes,
+      ...(repeated ? { repeated } : {}),
+      ...(corner ? { corner } : {}),
+      ...(start ? { start } : {}),
+      ...(end ? { end } : {})
+    };
     return { symbol, rotatable: false, staggered: false };
   }
 

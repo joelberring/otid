@@ -10,14 +10,18 @@ export {
   projectedToWgs84, transverseMercatorFor, wgs84ToMapPoint, wgs84ToProjected
 } from "./georef";
 export type { ProjectedPoint, TransverseMercator, Wgs84Point } from "./georef";
-export { maxOf, minOf, ocdSymbolCode, parseSymbolCode } from "./geometry";
+export { boundsOf, maxOf, minOf, ocdSymbolCode, parseSymbolCode } from "./geometry";
 export { distance, distanceToSegment, nearestOnSegment, polylineLength } from "./plane";
 export { colorUsage, usageSymbolsText } from "./usage";
 export type { ColorUsage, ColorUseKind } from "./usage";
 export { rgbFromCmyk } from "./color";
 export * from "./revision/change-set";
 export { applyMapRevision } from "./revision/apply";
-export { ocdChangesFile } from "./ocd/writer";
+export {
+  convertMapToOcd, convertMapToOmap, newOcdFile, ocdChangesFile,
+  type ConvertMapResult, type ConvertToOcdOptions, type ConvertToOmapOptions,
+  type MapConversionReport, type MapConversionWarning, type MapConversionWarningCode
+} from "./ocd/writer";
 export { applyMapColors, effectiveColorChanges, withColorChanges, type MapColorChange, type MapColorsResult } from "./revision/colors";
 export { applyMapSymbolColors, effectiveSymbolColorChanges, symbolColorIds, withSymbolColorChanges, type MapSymbolColorChange } from "./revision/symbol-colors";
 export { sha256Hex } from "./revision/sha256";

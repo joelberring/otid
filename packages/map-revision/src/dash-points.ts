@@ -9,7 +9,8 @@ import { objectBox, type Box } from "./hit";
  * - Manuell redigering: växla styrpunkt på befintlig nod eller lägg in ny nod på rak sträcka eller kubisk Bézier
  *   (exakt de Casteljau-delning som bevarar kurvformen, hörnflaggor och luckor).
  * - Automatisk placering: skarpa böjar (noder och krökningstoppar på mjuka Bézierkurvor), slutna hjälpkurveslingor
- *   (minst 2 motsatta toppar), lutningsstreck (104.*) och korsningar/förgreningar mellan stigar och vägar.
+ *   (minst 2 motsatta toppar), lutningsstreck (101.1 punktsymboler och korta lutningsstreckslinjer, aldrig 104 Jordbrant)
+ *   och korsningar/förgreningar mellan stigar och vägar.
  */
 
 export type DashPointReason = "bend" | "slopeTag" | "junction";
@@ -33,7 +34,6 @@ interface DashSymbolInfo {
   readonly mainLength: number;
   readonly mainGap: number;
   readonly isFormLine: boolean;
-  readonly isSlopeTag: boolean;
   readonly isPath: boolean;
   readonly strokeColors: ReadonlySet<number>;
 }
@@ -177,7 +177,7 @@ function dashSymbolInfo(symbol: MapSymbol | undefined): DashSymbolInfo | undefin
   }
   if (!hasDash) return undefined;
   const main = symbol.code.main;
-  return { mainLength, mainGap, isFormLine: main === 103, isSlopeTag: main === 104, isPath: main >= 501 && main <= 508, strokeColors: new Set(symbol.strokes.map(s => s.color)) };
+  return { mainLength, mainGap, isFormLine: main === 103, isPath: main >= 501 && main <= 508, strokeColors: new Set(symbol.strokes.map(s => s.color)) };
 }
 
 /** Sant om symbolen är en linjesymbol med minst ett streckat streck (`dashSpec` eller icke-tom `dash`). */
@@ -372,17 +372,84 @@ function segmentIntersection(a: Point, b: Point, c: Point, d: Point): { u: numbe
   return { u: cu, at: { x: a.x + cu * rX, y: a.y + cu * rY } };
 }
 
+const EARTH_BANK_NAME = /jordbrant|earth\s*bank/i;
+const SLOPE_TAG_NAME = /lutningsstreck|slope\s*(?:line|tag)/i;
+
+/** Sant om punktsymbolen är ett lutningsstreck (ISOM/ISSprOM 101.1, 103.1, äldre punkt-104 eller namngivet lutningsstreck). */
+function isPointSlopeTagSymbol(sym: MapSymbol): boolean {
+  if (sym.kind !== "POINT" || sym.hidden) return false;
+  const { main, sub } = sym.code;
+  if ((main === 101 || main === 103) && sub >= 1) return true;
+  if (main === 104 && sub === 0 && !EARTH_BANK_NAME.test(sym.name)) return true;
+  return SLOPE_TAG_NAME.test(sym.name);
+}
+
+/** Sant om linjesymbolen kan vara ett ritat lutningsstreck (aldrig 104 Jordbrant med tvärstreck eller namn). */
+function isLineSlopeTagSymbol(sym: MapSymbol, dashed: boolean): boolean {
+  if (sym.kind !== "LINE" || sym.hidden || dashed) return false;
+  if (sym.repeated || EARTH_BANK_NAME.test(sym.name)) return false;
+  const { main } = sym.code;
+  return (main >= 101 && main <= 104) || SLOPE_TAG_NAME.test(sym.name) || sym.strokes.length > 0;
+}
+
+/** Punkter där en punktsymbol för lutningsstreck kan nudda hjälpkurvan (ankarpunkten + ev. linjeelements ändpunkter). */
+function pointSlopeTagEndpoints(obj: Extract<MapObject, { kind: "point" }>, sym: Extract<MapSymbol, { kind: "POINT" }>): Point[] {
+  const out: Point[] = [obj.at];
+  const rad = (obj.angle * Math.PI) / 180, cos = Math.cos(rad), sin = Math.sin(rad);
+  for (const el of sym.elements) {
+    if (el.kind !== "line" || el.path.length < 2) continue;
+    for (const cmd of [el.path[0]!, el.path[el.path.length - 1]!]) {
+      if (Math.hypot(cmd.x, cmd.y) <= SAME_POINT_EPS) continue;
+      out.push({ x: obj.at.x + cmd.x * cos - cmd.y * sin, y: obj.at.y + cmd.x * sin + cmd.y * cos });
+    }
+  }
+  return out;
+}
+
+function insertIntoGrid(grid: Map<string, number[]>, box: Box, idx: number): void {
+  for (let cx = Math.floor(box.minX / GRID_CELL_MM); cx <= Math.floor(box.maxX / GRID_CELL_MM); cx += 1) {
+    for (let cy = Math.floor(box.minY / GRID_CELL_MM); cy <= Math.floor(box.maxY / GRID_CELL_MM); cy += 1) {
+      const key = `${cx},${cy}`;
+      let bucket = grid.get(key);
+      if (!bucket) { bucket = []; grid.set(key, bucket); }
+      bucket.push(idx);
+    }
+  }
+}
+
 function buildSpatialGrid(allObjects: readonly MapObject[], symbols: ReadonlyMap<string, MapSymbol>, needSlopeTags: boolean, needJunctions: boolean) {
   const lines: IndexedLine[] = [];
   const grid = new Map<string, number[]>();
   if (!needSlopeTags && !needJunctions) return { lines, grid };
 
   for (const obj of allObjects) {
-    if (obj.kind !== "line" || obj.path.length < 2) continue;
     const sym = symbols.get(obj.symbol);
-    if (!sym || sym.hidden || sym.kind !== "LINE") continue;
+    if (!sym || sym.hidden) continue;
+
+    if (obj.kind === "point") {
+      if (!needSlopeTags || sym.kind !== "POINT" || !isPointSlopeTagSymbol(sym)) continue;
+      const endpoints = pointSlopeTagEndpoints(obj, sym);
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const p of endpoints) {
+        if (p.x < minX) minX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y > maxY) maxY = p.y;
+      }
+      const box: Box = { minX, minY, maxX, maxY };
+      const idx = lines.length;
+      lines.push({
+        object: obj, locator: obj.source ? locatorKey(obj.source.locator) : undefined, symbol: sym, box,
+        isSlopeTagCandidate: true, isJunctionCandidate: false, isFormLine: false,
+        strokeColors: new Set(sym.elements.map(e => e.color)), endpoints, totalLength: 0, polylines: []
+      });
+      insertIntoGrid(grid, box, idx);
+      continue;
+    }
+
+    if (obj.kind !== "line" || obj.path.length < 2 || sym.kind !== "LINE") continue;
     const main = sym.code.main, dashed = dashSymbolInfo(sym) !== undefined;
-    const maybeSlopeTag = needSlopeTags && (main === 104 || (!dashed && ((main >= 101 && main <= 115) || sym.strokes.length > 0)));
+    const maybeSlopeTag = needSlopeTags && isLineSlopeTagSymbol(sym, dashed);
     const maybeJunction = needJunctions && ((main >= 501 && main <= 509) || dashed);
     if (!maybeSlopeTag && !maybeJunction) continue;
 
@@ -394,7 +461,7 @@ function buildSpatialGrid(allObjects: readonly MapObject[], symbols: ReadonlyMap
       endpoints.push(pl[0]!, pl[pl.length - 1]!);
       for (let i = 1; i < pl.length; i += 1) totalLength += dist(pl[i - 1]!, pl[i]!);
     }
-    const isSlopeTagCandidate = needSlopeTags && (main === 104 || (!dashed && totalLength <= SLOPE_TAG_MAX_LEN_MM));
+    const isSlopeTagCandidate = maybeSlopeTag && totalLength <= SLOPE_TAG_MAX_LEN_MM;
     if (!isSlopeTagCandidate && !maybeJunction) continue;
 
     const box = objectBox(obj), idx = lines.length;
@@ -403,14 +470,7 @@ function buildSpatialGrid(allObjects: readonly MapObject[], symbols: ReadonlyMap
       isSlopeTagCandidate, isJunctionCandidate: maybeJunction, isFormLine: main === 103,
       strokeColors: new Set(sym.strokes.map(s => s.color)), endpoints, totalLength, polylines
     });
-    for (let cx = Math.floor(box.minX / GRID_CELL_MM); cx <= Math.floor(box.maxX / GRID_CELL_MM); cx += 1) {
-      for (let cy = Math.floor(box.minY / GRID_CELL_MM); cy <= Math.floor(box.maxY / GRID_CELL_MM); cy += 1) {
-        const key = `${cx},${cy}`;
-        let bucket = grid.get(key);
-        if (!bucket) { bucket = []; grid.set(key, bucket); }
-        bucket.push(idx);
-      }
-    }
+    insertIntoGrid(grid, box, idx);
   }
   return { lines, grid };
 }
@@ -510,7 +570,7 @@ function applyAcceptedCandidates(
 
 /**
  * Beräknar automatiska styrpunkter för `targets` (streckade linjer) med hänsyn till skarpa böjar,
- * lutningsstreck (104.*) och korsningar/förgreningar mot övriga objekt i `allObjects`.
+ * lutningsstreck (101.1 punkt och korta lutningsstreckslinjer) och korsningar/förgreningar mot övriga objekt i `allObjects`.
  */
 export function autoDashPointsPlan(
   targets: readonly MapObject[],
@@ -579,8 +639,10 @@ export function autoDashPointsPlan(
         if (other.object === target || (targetLocator && other.locator === targetLocator) || !boxesOverlap(targetBox, other.box, JUNCTION_TOUCH_MM)) continue;
 
         if (enableSlopeTags && info.isFormLine && other.isSlopeTagCandidate && boxesOverlap(targetBox, other.box, SLOPE_TAG_TOUCH_MM)) {
-          const isContourBrown = (other.symbol.code.main >= 101 && other.symbol.code.main <= 115) || [...other.strokeColors].some(c => info.strokeColors.has(c));
-          if (other.symbol.code.main === 104 || (other.totalLength <= SLOPE_TAG_MAX_LEN_MM && isContourBrown)) {
+          const isPointTag = other.object.kind === "point";
+          const isContourBrown = (other.symbol.code.main >= 101 && other.symbol.code.main <= 104)
+            || [...other.strokeColors].some(c => info.strokeColors.has(c));
+          if (isPointTag || (other.totalLength <= SLOPE_TAG_MAX_LEN_MM && isContourBrown)) {
             let bestTouch: { rIdx: number; segIdx: number; t: number; at: Point; distance: number } | undefined;
             for (const ep of other.endpoints) for (let rIdx = 0; rIdx < ranges.length; rIdx += 1) {
               const hit = nearestOnSubpath(basePath, ranges[rIdx]!, ep);

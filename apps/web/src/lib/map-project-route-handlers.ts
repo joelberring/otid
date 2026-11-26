@@ -202,23 +202,39 @@ export async function mapProjectVersionRoute(db: Database, request: Request, pro
   });
 }
 
-/** GET ändringarna som en liten egen fil (`?format=omap`, `ocd` eller `geojson`). */
+/** GET ändringarna (`?format=omap|ocd|geojson`) eller konverterad fullkarta (`?format=ocd-full|omap-full`, `&report=1` för JSON-rapport). */
 export async function mapProjectExportRoute(db: Database, request: Request, projectId: string, environment: Environment = process.env)
   : Promise<Response> {
   if (!validId(projectId)) return failure("not-found");
-  const parsedFormat = mapProjectExportFormatSchema.safeParse(new URL(request.url).searchParams.get("format"));
+  const url = new URL(request.url);
+  const parsedFormat = mapProjectExportFormatSchema.safeParse(url.searchParams.get("format"));
   if (!parsedFormat.success) return failure("invalid-request");
   const format = parsedFormat.data;
+  const reportOnly = url.searchParams.get("report") === "1";
+  if (reportOnly && format !== "ocd-full" && format !== "omap-full") return failure("invalid-request");
   const input = await readProof(request, environment);
   if ("response" in input) return input.response;
   return guarded(async () => {
     const result = await exportMapProjectChanges(db, { ...input.proof, projectId, format });
     if (result.status !== "ok") return failure(result.status);
-    if (result.body instanceof Uint8Array) {
-      return new Response(Buffer.from(result.body), { headers: { ...privateHeaders, "content-type": result.contentType,
-        "content-disposition": attachment(result.fileName, "andringar.ocd") } });
+    const conversionReport = "report" in result ? { formatVersion: 1 as const, fileName: result.fileName, ...result.report } : undefined;
+    if (reportOnly) {
+      if (!conversionReport) return failure("invalid-request");
+      return privateJson(conversionReport);
     }
-    return new Response(result.body, { headers: { ...privateHeaders, "content-type": `${result.contentType}; charset=utf-8`,
+    const reportHeaders: Record<string, string> = {};
+    if (conversionReport) {
+      reportHeaders["x-otid-conversion-warnings"] = String(conversionReport.warnings.length);
+      const encoded = Buffer.from(JSON.stringify(conversionReport), "utf8").toString("base64");
+      if (encoded.length <= 8192) reportHeaders["x-otid-conversion-report"] = encoded;
+    }
+    if (result.body instanceof Uint8Array) {
+      const contentType = format === "omap-full" ? `${result.contentType}; charset=utf-8` : result.contentType;
+      const fallback = format === "omap-full" ? "karta.omap" : format === "ocd-full" ? "karta.ocd" : "andringar.ocd";
+      return new Response(Buffer.from(result.body), { headers: { ...privateHeaders, ...reportHeaders, "content-type": contentType,
+        "content-disposition": attachment(result.fileName, fallback) } });
+    }
+    return new Response(result.body, { headers: { ...privateHeaders, ...reportHeaders, "content-type": `${result.contentType}; charset=utf-8`,
       "content-disposition": attachment(result.fileName, format === "omap" ? "andringar.xmap" : "andringar.geojson") } });
   });
 }

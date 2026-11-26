@@ -66,7 +66,7 @@ describe("symbolerna mot ISSprOM 2019-2", () => {
     if (!written.ok) throw new Error(written.message);
     const map = readMapFile(written.bytes, "liljeholmen.omap");
     const issue = checkSymbolNorm({ ...map, counts: used(map) }, true).find(row => row.code === "532");
-    expect(issue?.problems).toEqual([{ kind: "STAIR_ORDER", above: ["501", "501.3"] }]);
+    expect(issue?.problems).toEqual([{ kind: "STAIR_ORDER", above: ["501", "501.3", "512.3", "521", "522"] }]);
     expect(issue?.fixable).toBe(true);
     const fixed = withSymbolReplacements(map, normSymbolFixes(map.symbols, { replace: ["532"] }));
     expect(checkSymbolNorm({ ...fixed, counts: used(map) }, true).find(row => row.code === "532")).toBeUndefined();
@@ -79,8 +79,8 @@ describe("symbolerna mot ISSprOM 2019-2", () => {
     expect(missing).not.toContain("509.1");
     expect(missing).not.toContain("521");
     const added = withSymbolReplacements(forest, normSymbolAdditions(forest, missing));
-    // Ett tillägg lägger aldrig in färger: 501.3 (brunt 30 %) och 509.2 (svart 50 %) väntar tills en rättning lagt in dem.
-    expect(missingNormSymbols(added.symbols).map(row => row.code)).toEqual(["501.3", "509.2"]);
+    // Ett tillägg lägger aldrig in färger: 501.3 (brunt 30 %), 509.2 (svart 50 %) och 512.3 (vit lägre nivå) väntar tills en rättning lagt in dem.
+    expect(missingNormSymbols(added.symbols).map(row => row.code)).toEqual(["501.3", "509.2", "512.3"]);
     expect(added.symbols.size).toBeGreaterThan(forest.symbols.size);
   });
 

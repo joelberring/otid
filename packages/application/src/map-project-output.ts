@@ -2,7 +2,11 @@ import { randomUUID } from "node:crypto";
 import { desc, eq, inArray } from "drizzle-orm";
 import { CLUB_ARCHIVE_MAP_MAX_BYTES, mapProjectOutputRequestSchema, type MapProjectExportFormat, type MapProjectOutputResponse } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
-import { applyMapColors, applyMapRevision, applyMapRevisionWithSymbols, applyMapSymbolColors, applyMapSymbolReplacements, applyMapTextSymbols, MapFileError, ocdChangesFile, readMapFile, type MapColorsResult, type ParsedMap } from "@o-tid/map-file";
+import {
+  applyMapColors, applyMapRevision, applyMapRevisionWithSymbols, applyMapSymbolColors, applyMapSymbolReplacements, applyMapTextSymbols,
+  boundsOf, convertMapToOcd, convertMapToOmap, MapFileError, ocdChangesFile, readMapFile,
+  type MapColorsResult, type MapConversionReport, type ParsedMap
+} from "@o-tid/map-file";
 import {
   changeCounts, changeList, changesGeoJson, mapperChangesFile, normSymbolAdditions, normSymbolFixes, parseObjectRef, toChangeSet, validState, type KeyedState, type ObjectChange,
   type ObjectKey
@@ -10,6 +14,7 @@ import {
 import { type ClubFailure, type ClubProof } from "./club-access";
 import { mapStorageQuota, readMapContent, storeMapContent } from "./map-content";
 import { mapProjectBaseFileName, mapProjectCanArchive, mapProjectCanDownloadSource, mapProjectJournal, requireMapProject, type MapProjectRow } from "./map-project-access";
+import { loadProjectMap, type StoredObjectRow } from "./map-project-job-run";
 import { mapFileFormatOf } from "./race-map-source";
 import type { DbExecutor } from "./snapshot";
 import { swedishToday } from "@o-tid/domain";
@@ -245,37 +250,90 @@ export type { MapProjectExportFormat };
 
 export type MapProjectExportResult<F extends MapProjectExportFormat = MapProjectExportFormat> =
   | ClubFailure
-  | (F extends "ocd"
+  | (F extends "ocd-full" | "omap-full"
+    ? { status: "ok"; fileName: string; contentType: string; body: Uint8Array; report: MapConversionReport }
+    : F extends "ocd"
     ? { status: "ok"; fileName: string; contentType: string; body: Uint8Array }
     : { status: "ok"; fileName: string; contentType: string; body: string });
 
 /**
- * Ändringarna som en liten egen fil: Mapper-fil (.xmap) när grundfilen är Mapper, OCAD-fil (.ocd) när grundfilen är OCAD,
- * eller GeoJSON. Källfilsformaten (.xmap/.ocd) kräver nedladdningsrättighet (`canDownloadSource`); GeoJSON tillåts alltid
- * för medlemmar. Inga namn på dem som ändrade.
+ * Exporterar projektets ändringar (`omap`, `ocd`, `geojson`) eller hela kartan konverterad till det andra formatet
+ * (`ocd-full` på Mapper-projekt, `omap-full` på OCAD-projekt inkl. formatgapsrapport).
+ * Säkerhetsspärr: samtliga kartfilsformat (`omap`, `ocd`, `ocd-full`, `omap-full`) blockeras med `forbidden` (403) för
+ * icke-ägare när `CUSTODIANS_ONLY` gäller; endast GeoJSON-ändringar tillåts alltid för medlemmar.
  */
 export async function exportMapProjectChanges<F extends MapProjectExportFormat>(db: Database,
   input: ClubProof & { projectId: string; format: F }, now = new Date()): Promise<MapProjectExportResult<F>> {
+  const isFullConvert = input.format === "ocd-full" || input.format === "omap-full";
   const loaded = await db.transaction(async tx => {
     const access = await requireMapProject(tx, input, now, "view", false);
     if (access.status !== "ok") return access;
-    // Etapp 2 & 4: Mapper- och OCAD-export blockeras vid nedladdningsspärr för icke-ägare; GeoJSON-ändringar tillåts.
-    if ((input.format === "omap" || input.format === "ocd") && !await mapProjectCanDownloadSource(tx, access.accountId, access.role, access.project)) {
+    // Etapp 2, 4 & 5B: alla kartfilsexporter (ändringar & fullkartekonvertering) blockeras vid CUSTODIANS_ONLY för icke-ägare.
+    if (input.format !== "geojson" && !await mapProjectCanDownloadSource(tx, access.accountId, access.role, access.project)) {
       return { status: "forbidden" } as const;
     }
-    if (input.format === "omap" && access.project.baseFormat !== "OMAP") return { status: "invalid-request" } as const;
-    if (input.format === "ocd" && access.project.baseFormat !== "OCD") return { status: "invalid-request" } as const;
+    if ((input.format === "omap" || input.format === "ocd-full") && access.project.baseFormat !== "OMAP") {
+      return { status: "invalid-request" } as const;
+    }
+    if ((input.format === "ocd" || input.format === "omap-full") && access.project.baseFormat !== "OCD") {
+      return { status: "invalid-request" } as const;
+    }
     const file = await baseFile(tx, access.project);
     if (!file) return { status: "not-found" } as const;
+    const objectRows: StoredObjectRow[] = isFullConvert
+      ? await tx.select({
+          objectKey: schema.mapProjectObjects.objectKey,
+          ref: schema.mapProjectObjects.ref,
+          state: schema.mapProjectObjects.state,
+          lastEditId: schema.mapProjectObjects.lastEditId
+        }).from(schema.mapProjectObjects).where(eq(schema.mapProjectObjects.projectId, access.project.id))
+      : [];
+    const changes = isFullConvert ? [] : (await savedChanges(tx, access.project)).changes;
     return { status: "ready", project: access.project, fileName: file.fileName, bytes: file.bytes,
       colors: access.project.colors ?? [], symbolColors: access.project.symbolColors ?? [],
       textSymbols: access.project.textSymbols ?? [], normSymbols: access.project.normSymbols ?? null,
-      changes: (await savedChanges(tx, access.project)).changes } as const;
+      changes, objectRows } as const;
   });
   if (loaded.status !== "ready") return loaded;
+  const stem = loaded.fileName.replace(/\.[A-Za-z0-9]{2,5}$/, "").slice(0, 120) || "karta";
+  if (isFullConvert) {
+    let loadedMap: ReturnType<typeof loadProjectMap>;
+    try {
+      loadedMap = loadProjectMap(loaded.bytes, loaded.fileName, loaded.project.baseSha256, loaded.objectRows, {
+        colors: loaded.colors, symbolColors: loaded.symbolColors, textSymbols: loaded.textSymbols, normSymbols: loaded.normSymbols
+      });
+    } catch (error) {
+      if (error instanceof MapFileError) return { status: "not-found" };
+      throw error;
+    }
+    const currentMap: ParsedMap = {
+      ...loadedMap.base,
+      objects: [...loadedMap.objects],
+      bounds: boundsOf(loadedMap.objects)
+    };
+    if (input.format === "ocd-full") {
+      const rawText = new TextDecoder("utf-8", { fatal: false }).decode(loaded.bytes);
+      const sourcePartCount = (rawText.match(/<part\b/g) ?? []).length;
+      const converted = convertMapToOcd(currentMap, { sourcePartCount, at: now.toISOString() });
+      return {
+        status: "ok",
+        fileName: `${stem}.ocd`,
+        contentType: "application/octet-stream",
+        body: converted.bytes,
+        report: converted.report
+      } as MapProjectExportResult<F>;
+    }
+    const converted = convertMapToOmap(currentMap);
+    return {
+      status: "ok",
+      fileName: `${stem}.omap`,
+      contentType: "application/xml",
+      body: converted.bytes,
+      report: converted.report
+    } as MapProjectExportResult<F>;
+  }
   const map = readBase(loaded.bytes, loaded.fileName);
   if (!map) return { status: "not-found" };
-  const stem = loaded.fileName.replace(/\.[A-Za-z0-9]{2,5}$/, "").slice(0, 120) || "karta";
   if (input.format === "geojson") {
     return { status: "ok", fileName: `${stem} ändringar.geojson`, contentType: "application/geo+json",
       body: JSON.stringify(changesGeoJson(map, loaded.changes, stem)) } as MapProjectExportResult<F>;

@@ -34,6 +34,10 @@ export type SymbolDef = Base & (
     readonly kind: "line"; readonly color?: string; readonly width?: number;
     /** Streck och mellanrum (mm). */
     readonly dash?: readonly [number, number];
+    /** Grupperade streck (t.ex. 507 dubbelstreck): antal streck i gruppen och mellanrum inom gruppen (mm). */
+    readonly dashGroup?: { readonly count: number; readonly breakLength: number };
+    /** Halva ändstreck på streckade linjer (`half_outer_dashes`); förval `true` när `dash` är satt. */
+    readonly halfOuterDashes?: boolean;
     readonly cap?: "butt" | "round" | "square"; readonly join?: "miter" | "round" | "bevel";
     /**
      * Kantlinjer på båda sidor (dubbellinje), `width` är då ytan mellan dem. `shift` som i Mapper: kantlinjens mitt ligger
@@ -42,9 +46,17 @@ export type SymbolDef = Base & (
     readonly border?: { readonly color: string; readonly width: number; readonly dash?: readonly [number, number]; readonly shift?: number };
     /**
      * Upprepad punktsymbol längs linjen, `spacing` mm isär (för en streckad linje: mitt i strecken); `end` från ändarna
-     * (utelämnat: halva avståndet) och minst `minimum` symboler.
+     * (utelämnat: halva avståndet), minst `minimum` symboler samt valfritt antal per grupp (`count`, `groupSpacing`).
      */
-    readonly mid?: { readonly elements: readonly ElementDef[]; readonly spacing: number; readonly end?: number; readonly minimum?: number };
+    readonly mid?: {
+      readonly elements: readonly ElementDef[]; readonly spacing: number; readonly end?: number; readonly minimum?: number;
+      readonly count?: number; readonly groupSpacing?: number;
+    };
+    /** Hörn-/strecksymbol (`<dash_symbol>` i Mapper, `Corner` i OCAD — t.ex. kraftledningsstolpar i 510/511). */
+    readonly corner?: { readonly elements: readonly ElementDef[]; readonly stretch?: boolean; readonly skipEnds?: boolean };
+    /** Start- och slutsymbol (`<start_symbol>`/`<end_symbol>` — t.ex. brovingar i 512/512.1). */
+    readonly start?: readonly ElementDef[];
+    readonly end?: readonly ElementDef[];
   }
   | { readonly kind: "area"; readonly fill?: string; readonly hatches?: readonly HatchDef[]; readonly dots?: DotPatternDef;
     /** Kantlinje runt ytan (som Mappers kombinerade symbol: ytan och linjen i samma symbol, t.ex. sprintnormens byggnad). */
@@ -92,3 +104,75 @@ export const arc = (color: string, diameter: number, width: number, opening: "up
     return [Math.cos(angle) * diameter / 2, sign * Math.sin(angle) * diameter / 2];
   }));
 };
+
+const scaled = (value: number, factor: number): number => Math.round(value * factor * 10000) / 10000;
+const scalePoint = ([x, y]: XY, factor: number): XY => [scaled(x, factor), scaled(y, factor)];
+const scaleDash = (dash: readonly [number, number], factor: number): readonly [number, number] => [scaled(dash[0], factor), scaled(dash[1], factor)];
+
+function scaleElement(element: ElementDef, factor: number): ElementDef {
+  switch (element.kind) {
+    case "dot":
+      return { ...element, diameter: scaled(element.diameter, factor), ...(element.at ? { at: scalePoint(element.at, factor) } : {}) };
+    case "ring":
+      return {
+        ...element, diameter: scaled(element.diameter, factor), width: scaled(element.width, factor),
+        ...(element.at ? { at: scalePoint(element.at, factor) } : {})
+      };
+    case "line":
+      return { ...element, width: scaled(element.width, factor), points: element.points.map(point => scalePoint(point, factor)) };
+    case "area":
+      return { ...element, points: element.points.map(point => scalePoint(point, factor)) };
+  }
+}
+
+/** Skalar alla geometriska mått i en `SymbolDef` med `factor` (t.ex. 1,5× för ärvda ISOM-symboler i ISSprOM 1:4 000). */
+export function scaleSymbolDef(symbol: SymbolDef, factor: number): SymbolDef {
+  if (factor === 1) return symbol;
+  switch (symbol.kind) {
+    case "point":
+      return { ...symbol, elements: symbol.elements.map(element => scaleElement(element, factor)) };
+    case "text":
+      return { ...symbol, size: scaled(symbol.size, factor) };
+    case "line":
+      return {
+        ...symbol,
+        ...(symbol.width !== undefined ? { width: scaled(symbol.width, factor) } : {}),
+        ...(symbol.dash ? { dash: scaleDash(symbol.dash, factor) } : {}),
+        ...(symbol.dashGroup ? { dashGroup: { count: symbol.dashGroup.count, breakLength: scaled(symbol.dashGroup.breakLength, factor) } } : {}),
+        ...(symbol.border ? {
+          border: {
+            ...symbol.border,
+            width: scaled(symbol.border.width, factor),
+            ...(symbol.border.dash ? { dash: scaleDash(symbol.border.dash, factor) } : {}),
+            ...(symbol.border.shift !== undefined ? { shift: scaled(symbol.border.shift, factor) } : {})
+          }
+        } : {}),
+        ...(symbol.mid ? {
+          mid: {
+            ...symbol.mid,
+            elements: symbol.mid.elements.map(element => scaleElement(element, factor)),
+            spacing: scaled(symbol.mid.spacing, factor),
+            ...(symbol.mid.end !== undefined ? { end: scaled(symbol.mid.end, factor) } : {}),
+            ...(symbol.mid.groupSpacing !== undefined ? { groupSpacing: scaled(symbol.mid.groupSpacing, factor) } : {})
+          }
+        } : {}),
+        ...(symbol.corner ? { corner: { ...symbol.corner, elements: symbol.corner.elements.map(element => scaleElement(element, factor)) } } : {}),
+        ...(symbol.start ? { start: symbol.start.map(element => scaleElement(element, factor)) } : {}),
+        ...(symbol.end ? { end: symbol.end.map(element => scaleElement(element, factor)) } : {})
+      };
+    case "area":
+      return {
+        ...symbol,
+        ...(symbol.hatches ? { hatches: symbol.hatches.map(hatch => ({ ...hatch, width: scaled(hatch.width, factor), spacing: scaled(hatch.spacing, factor) })) } : {}),
+        ...(symbol.dots ? {
+          dots: {
+            ...symbol.dots,
+            elements: symbol.dots.elements.map(element => scaleElement(element, factor)),
+            dx: scaled(symbol.dots.dx, factor),
+            dy: scaled(symbol.dots.dy, factor)
+          }
+        } : {}),
+        ...(symbol.border ? { border: { ...symbol.border, width: scaled(symbol.border.width, factor) } } : {})
+      };
+  }
+}

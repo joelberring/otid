@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  applyMapRevision, GAP, objectRefOf, readMapFile, sha256Hex,
-  type LineSymbol, type MapObject, type MapSymbol, type Path, type Point
+  applyMapRevision, GAP, newMapFile, objectRefOf, readMapFile, sha256Hex,
+  type LineSymbol, type MapObject, type MapSymbol, type Path, type Point, type PointSymbol
 } from "@o-tid/map-file";
 import {
   autoDashPointsPlan,
@@ -349,6 +349,47 @@ describe("autoDashPointsPlan", () => {
     const elapsed = performance.now() - start;
     expect(plan.counts.objects).toBeGreaterThanOrEqual(0);
     expect(elapsed).toBeLessThan(1000);
+  });
+
+  it("hittar O-Tids 101.1-lutningsstreck (POINT) vid hjälpkurva och ignorerar 104 Jordbrant (ISOM 2017-2)", () => {
+    const templateMap = readMapFile(newMapFile({ symbolSet: "ISOM2017-2", scale: 15000, refPoint: { easting: 670_000, northing: 6_580_000 } }), "ny.omap");
+    const byCode = (code: string) => [...templateMap.symbols.values()].find(symbol => symbol.code.text === code)!;
+    const s103 = byCode("103");
+    const s101_1 = byCode("101.1") as PointSymbol;
+    const s104 = byCode("104") as LineSymbol;
+    expect(s101_1.kind).toBe("POINT");
+    expect(s104.kind).toBe("LINE");
+    expect(s104.repeated).toBeDefined();
+
+    const formLine: MapObject = {
+      kind: "line",
+      symbol: s103.id,
+      path: [{ type: "M", x: 0, y: 0 }, { type: "L", x: 20, y: 0 }]
+    };
+    // 101.1 punktsymbol med ankare på hjälpkurvan vid (6, 0) samt en andra vriden så spetsen nuddar vid (14, 0).
+    const pointTagAtOrigin: MapObject = { kind: "point", symbol: s101_1.id, at: { x: 6, y: 0.05 }, angle: 0 };
+    const pointTagAtTip: MapObject = { kind: "point", symbol: s101_1.id, at: { x: 14, y: 0.5 }, angle: 0 };
+    // 104 Jordbrant (både lång 8 mm och kort 1,5 mm med tvärstreck): ska INTE skapa lutningsstrecks-styrpunkter!
+    const longEarthBank: MapObject = {
+      kind: "line",
+      symbol: s104.id,
+      path: [{ type: "M", x: 10, y: 0 }, { type: "L", x: 10, y: -8 }]
+    };
+    const shortEarthBank: MapObject = {
+      kind: "line",
+      symbol: s104.id,
+      path: [{ type: "M", x: 17, y: 0 }, { type: "L", x: 17, y: -1.5 }]
+    };
+
+    const plan = autoDashPointsPlan([formLine], [formLine, pointTagAtOrigin, pointTagAtTip, longEarthBank, shortEarthBank], templateMap.symbols);
+    expect(plan.counts.objects).toBe(1);
+    expect(plan.counts.slopeTags).toBe(2);
+    const xs = plan.entries[0]!.points.filter(p => p.reason === "slopeTag").map(p => p.at.x).sort((a, b) => a - b);
+    expect(xs).toHaveLength(2);
+    expect(xs[0]).toBeCloseTo(6, 1);
+    expect(xs[1]).toBeCloseTo(14, 1);
+    // Inga styrpunkter vid 104 Jordbrant (x = 10 eller x = 17).
+    expect(plan.entries[0]!.points.some(p => Math.abs(p.at.x - 10) < 0.5 || Math.abs(p.at.x - 17) < 0.5)).toBe(false);
   });
 });
 

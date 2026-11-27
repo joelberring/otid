@@ -21,7 +21,9 @@ pub struct PreparedDem {
     pub wet: Vec<u8>,
     /// Local slope in degrees at 1 m resolution.
     pub slope_deg: Vec<f32>,
-    /// 40 m window mean slope in degrees (O(1) integral table) for flat-terrain filtering.
+    /// 16 m window mean slope in degrees (O(1) integral table) for edge-accurate flat detection.
+    pub mean_slope_16m: Vec<f32>,
+    /// 40 m window mean slope in degrees (O(1) integral table) for regional flat-terrain filtering.
     pub mean_slope_40m: Vec<f32>,
     /// Height relative to 16 m local mean (`raw_z - mean_16m`), positive on small ridges/noses/spurs.
     pub convex_16m: Vec<f32>,
@@ -38,6 +40,11 @@ impl PreparedDem {
     #[inline]
     pub fn sample_slope(&self, x: f64, y: f64) -> Option<f32> {
         sample_bilinear(&self.slope_deg, self.width, self.height, &self.world, x, y)
+    }
+
+    #[inline]
+    pub fn sample_mean_slope_16m(&self, x: f64, y: f64) -> Option<f32> {
+        sample_bilinear(&self.mean_slope_16m, self.width, self.height, &self.world, x, y)
     }
 
     #[inline]
@@ -623,41 +630,21 @@ fn build_wet_mask(
 }
 
 /// Prepares all smooth, raw, slope, convexity, exterior, and wetness surfaces from a 1 m `DemGrid`.
+///
+/// Uses two-scale terrain-adaptive smoothing: blends a crisp hilly detail surface (`z_detail`,
+/// sigma = `config.smooth_m`) with a calm flat-ground surface (`z_flat`, sigma =
+/// `config.effective_flat_smooth_m()`) via a Gaussian-blurred smoothstep weight `w_flat(x, y)`
+/// from regional slope, locally relaxed where a genuine readable mound or pit protrudes
+/// (`convex_16m`). The result is a single C^∞ scalar field, preserving 0 crossings & 0 selfX.
 pub fn prepare_dem(dem: &DemGrid, config: &EngineConfig) -> PreparedDem {
     let filled = fill_dem_gaps(dem);
     let (w, h, cell) = (dem.width, dem.height, dem.world.cell);
     let raw_sigma = (0.75 / cell) as f32;
     let raw_z = gaussian_blur_f32(&filled, w, h, raw_sigma);
 
-    let smooth_sigma = (config.smooth_m / cell).max(0.0) as f32;
-    let base_z = gaussian_blur_f32(&filled, w, h, smooth_sigma);
-
-    let contour_z = if config.curviness > 1e-4 && smooth_sigma >= 0.4 {
-        // Asymmetric ridge-preserving DoG boost: sharpens noses/ridges/small hills without deepening
-        // micro-concavities into artificial depression loops.
-        let fine_sigma = (smooth_sigma * 0.66).max(0.5);
-        let fine_z = gaussian_blur_f32(&filled, w, h, fine_sigma);
-        drop(filled);
-        let curv = config.curviness.clamp(0.0, 0.8) as f32;
-        let max_boost = (0.20 * config.interval) as f32;
-        let out: Vec<f32> = base_z
-            .par_iter()
-            .zip(fine_z.par_iter())
-            .map(|(&b, &f)| {
-                let detail = f - b;
-                let weight = if detail >= 0.0 { 1.0 } else { 0.55 };
-                b + curv * weight * max_boost * (detail / max_boost).tanh()
-            })
-            .collect();
-        drop(base_z);
-        drop(fine_z);
-        out
-    } else {
-        drop(filled);
-        base_z
-    };
-
     let slope_deg = compute_slope_deg(&raw_z, w, h, cell);
+    let r_med = (8.0 / cell).round().max(1.0) as usize;
+    let mean_slope_16m = box_mean_f32(&slope_deg, w, h, r_med);
     let r_flat = (20.0 / cell).round().max(1.0) as usize;
     let mean_slope_40m = box_mean_f32(&slope_deg, w, h, r_flat);
 
@@ -677,6 +664,89 @@ pub fn prepare_dem(dem: &DemGrid, config: &EngineConfig) -> PreparedDem {
         .map(|(&z, &m)| z - m)
         .collect();
 
+    let sprint = config.interval <= 3.0;
+    let detail_sigma = (config.smooth_m / cell).max(0.0) as f32;
+    let flat_sigma = ((config.effective_flat_smooth_m() / cell) as f32).max(detail_sigma);
+    let z_detail = gaussian_blur_f32(&filled, w, h, detail_sigma);
+    let use_two_scale = (flat_sigma - detail_sigma) > 0.12 && detail_sigma > 0.0;
+
+    let contour_z = if use_two_scale {
+        let z_flat = gaussian_blur_f32(&filled, w, h, flat_sigma);
+        let s_lo = if sprint { 1.8f32 } else { 2.0f32 };
+        let s_hi = if sprint { 4.8f32 } else { 5.5f32 };
+        let mound_lo = if sprint { 0.32f32 } else { 0.45f32 };
+        let mound_span = if sprint { 0.48f32 } else { 0.65f32 };
+        let pit_lo = if sprint { 0.50f32 } else { 0.70f32 };
+        let pit_span = if sprint { 0.50f32 } else { 0.70f32 };
+
+        let w_raw: Vec<f32> = mean_slope_40m
+            .par_iter()
+            .zip(mean_slope_16m.par_iter())
+            .zip(convex_16m.par_iter())
+            .map(|((&s40, &s16), &c16)| {
+                let s = 0.55 * s40 + 0.45 * s16;
+                let u = ((s_hi - s) / (s_hi - s_lo)).clamp(0.0, 1.0);
+                let w_slope = u * u * (3.0 - 2.0 * u);
+                let m = ((c16 - mound_lo) / mound_span).clamp(0.0, 1.0);
+                let p = ((-c16 - pit_lo) / pit_span).clamp(0.0, 1.0);
+                let k = m.max(p);
+                let keep_detail = k * k * (3.0 - 2.0 * k);
+                w_slope * (1.0 - 0.85 * keep_detail)
+            })
+            .collect();
+        let w_sigma = (5.0 / cell).max(1.5) as f32;
+        let w_flat = gaussian_blur_f32(&w_raw, w, h, w_sigma);
+
+        if config.curviness > 1e-4 && detail_sigma >= 0.35 {
+            // Asymmetric ridge-preserving DoG boost modulated by (1 - w_flat):
+            // sharpens noses/ridges/small hills in hilly terrain without amplifying flat-ground noise.
+            let fine_sigma = (detail_sigma * 0.62).max(0.35);
+            let fine_z = gaussian_blur_f32(&filled, w, h, fine_sigma);
+            drop(filled);
+            let curv = config.curviness.clamp(0.0, 0.8) as f32;
+            let max_boost = (0.20 * config.interval) as f32;
+            z_detail
+                .par_iter()
+                .zip(z_flat.par_iter())
+                .zip(fine_z.par_iter())
+                .zip(w_flat.par_iter())
+                .map(|(((&zd, &zf), &fnz), &wf)| {
+                    let b = zd + wf * (zf - zd);
+                    let detail = fnz - zd;
+                    let asym = if detail >= 0.0 { 1.0 } else { 0.55 };
+                    let hill_w = (1.0 - wf).clamp(0.0, 1.0);
+                    b + hill_w * curv * asym * max_boost * (detail / max_boost).tanh()
+                })
+                .collect()
+        } else {
+            drop(filled);
+            z_detail
+                .par_iter()
+                .zip(z_flat.par_iter())
+                .zip(w_flat.par_iter())
+                .map(|((&zd, &zf), &wf)| zd + wf * (zf - zd))
+                .collect()
+        }
+    } else if config.curviness > 1e-4 && detail_sigma >= 0.35 {
+        let fine_sigma = (detail_sigma * 0.62).max(0.35);
+        let fine_z = gaussian_blur_f32(&filled, w, h, fine_sigma);
+        drop(filled);
+        let curv = config.curviness.clamp(0.0, 0.8) as f32;
+        let max_boost = (0.20 * config.interval) as f32;
+        z_detail
+            .par_iter()
+            .zip(fine_z.par_iter())
+            .map(|(&b, &f)| {
+                let detail = f - b;
+                let weight = if detail >= 0.0 { 1.0 } else { 0.55 };
+                b + curv * weight * max_boost * (detail / max_boost).tanh()
+            })
+            .collect()
+    } else {
+        drop(filled);
+        z_detail
+    };
+
     let max_hole_cells = (22.0 / cell).round().max(4.0) as usize;
     let drawable = build_drawable_mask(&dem.valid, &dem.water, w, h, max_hole_cells);
     let exterior = build_exterior_mask(&dem.valid, &dem.water, w, h);
@@ -692,6 +762,7 @@ pub fn prepare_dem(dem: &DemGrid, config: &EngineConfig) -> PreparedDem {
         exterior,
         wet,
         slope_deg,
+        mean_slope_16m,
         mean_slope_40m,
         convex_16m,
         convex_60m,

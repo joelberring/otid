@@ -9,6 +9,38 @@ use crate::types::{ContourLine, EngineConfig, KnollKind, KnollPoint};
 
 const MARSH_MIN_RISE_M: f64 = 1.5;
 const ELONGATED_ASPECT_MIN: f64 = 1.65;
+const CLIFF_SLOPE_DEG: f32 = 32.0;
+const STEEP_WALL_DEG: f32 = 16.0;
+
+/// Returns the maximum local terrain slope (degrees) within Euclidean radius `rad_cells` of `(r0, c0)`.
+fn max_slope_within(dem: &PreparedDem, r0: usize, c0: usize, rad_cells: isize) -> f32 {
+    let (w, h) = (dem.width, dem.height);
+    let r0i = r0 as isize;
+    let c0i = c0 as isize;
+    let r2 = rad_cells * rad_cells;
+    let mut best = 0.0f32;
+    for dr in -rad_cells..=rad_cells {
+        let nr = r0i + dr;
+        if nr < 0 || (nr as usize) >= h {
+            continue;
+        }
+        let base = nr as usize * w;
+        for dc in -rad_cells..=rad_cells {
+            if dr * dr + dc * dc > r2 {
+                continue;
+            }
+            let nc = c0i + dc;
+            if nc < 0 || (nc as usize) >= w {
+                continue;
+            }
+            let s = dem.slope_deg[base + nc as usize];
+            if s > best {
+                best = s;
+            }
+        }
+    }
+    best
+}
 
 struct FootShape {
     area_m2: f64,
@@ -185,6 +217,17 @@ pub fn promote_small_loop_to_knoll(
 
     let c0 = dem.world.x_to_col_f(cx).round().clamp(0.0, (dem.width - 1) as f64) as usize;
     let r0 = dem.world.y_to_row_f(cy).round().clamp(0.0, (dem.height - 1) as f64) as usize;
+    let cliff_rad = ((if sprint { 4.0 } else { 5.0 }) / dem.world.cell).round().max(2.0) as isize;
+    let cliff_lim = if sprint { CLIFF_SLOPE_DEG + 2.0 } else { CLIFF_SLOPE_DEG };
+    let max_slp_near = max_slope_within(dem, r0, c0, cliff_rad);
+    let local_slp = dem.slope_deg[r0 * dem.width + c0];
+    // Suppress tiny contour slivers pinched on steep cliff rims/walls.
+    if (max_slp_near > cliff_lim && share < 0.92)
+        || (local_slp > STEEP_WALL_DEG && rel < min_rel + 0.30)
+    {
+        return None;
+    }
+
     let half_z = (med + rel * 0.5) as f32;
     let max_rad = (8.0 / dem.world.cell).round().max(4.0) as isize;
     let shape = analyze_foot_shape(dem, r0, c0, half_z, false, max_rad);
@@ -252,9 +295,12 @@ pub fn detect_knolls_and_pits(
 
     let enclose_max = if sprint { 220.0 } else { 550.0 };
     let loops = collect_enclosing_loops(contours, formlines, enclose_max);
-    // Distance grid to all drawn 101/102 contours so knolls never sit directly on top of a contour line.
+    // Distance grid to all drawn 101/102 contours so knolls never sit on top of a contour bend.
     let dist_contour = build_line_distance_grid(dem, contours);
-    let contour_touch_m = if sprint { 1.1f32 } else { 2.2f32 };
+    let contour_touch_m = if sprint { 1.25f32 } else { 3.0f32 };
+    let contour_hilltop_min_m = if sprint { 0.95f32 } else { 2.0f32 };
+    let cliff_rad = ((if sprint { 4.0 } else { 5.0 }) / cell).round().max(2.0) as isize;
+    let cliff_lim = if sprint { CLIFF_SLOPE_DEG + 2.0 } else { CLIFF_SLOPE_DEG };
     let min_foot_m2 = if sprint { 8.0 } else { 15.0 };
     let max_foot_m2 = config.knoll_max_foot_m2;
     let min_rise = config.knoll_min_rise_m;
@@ -262,14 +308,32 @@ pub fn detect_knolls_and_pits(
     let pit_min_depth = if sprint { 0.50 } else { 0.68 };
     let pit_max_foot = if sprint { 45.0 } else { 85.0 };
 
+    let dist_contour_at = |x: f64, y: f64| -> f32 {
+        let c = dem.world.x_to_col_f(x).round() as isize;
+        let r = dem.world.y_to_row_f(y).round() as isize;
+        if c >= 0 && r >= 0 && (c as usize) < w && (r as usize) < h {
+            dist_contour[r as usize * w + c as usize]
+        } else {
+            999.0
+        }
+    };
+
     let mut hill_cands: Vec<(f64, KnollPoint)> = promoted
         .iter()
-        .filter(|k| !k.is_depression() && !is_enclosed(k.x, k.y, &loops))
+        .filter(|k| {
+            !k.is_depression()
+                && !is_enclosed(k.x, k.y, &loops)
+                && dist_contour_at(k.x, k.y) >= contour_hilltop_min_m
+        })
         .map(|&k| (10.0 + k.z * 1e-4, k))
         .collect();
     let mut pit_cands: Vec<(f64, KnollPoint)> = promoted
         .iter()
-        .filter(|k| k.is_depression() && !is_enclosed(k.x, k.y, &loops))
+        .filter(|k| {
+            k.is_depression()
+                && !is_enclosed(k.x, k.y, &loops)
+                && dist_contour_at(k.x, k.y) >= contour_hilltop_min_m
+        })
         .map(|&k| (10.0 - k.z * 1e-4, k))
         .collect();
 
@@ -332,38 +396,53 @@ pub fn detect_knolls_and_pits(
                         let drop_tol = (rise * 0.25).max(0.15) as f32;
                         let lower = ring_s.iter().filter(|&&zr| zr <= here - drop_tol).count() as f64 / n_ok as f64;
                         if lower >= min_share {
-                            let half_z = med + (here - med) * 0.5;
-                            let shape = analyze_foot_shape(dem, r, c, half_z, false, max_rad);
-                            if shape.area_m2 >= min_foot_m2 && shape.area_m2 <= max_foot_m2 {
-                                // Reject sharp steep-sided boulders (tiny foot + >= 72% drop within 2 m).
-                                let mut is_boulder = false;
-                                if shape.area_m2 <= 20.0 {
-                                    let mut near = [0.0f32; 8];
-                                    let mut nn = 0usize;
-                                    for k in 0..8 {
-                                        let ang = k as f64 * std::f64::consts::TAU / 8.0;
-                                        if let Some(zn) = dem.sample_raw(x + 2.0 * ang.cos(), y + 2.0 * ang.sin()) {
-                                            near[nn] = zn;
-                                            nn += 1;
+                            let clear_hilltop = lower >= 0.875 && rise >= req_rise + 0.15;
+                            let local_slp = dem.slope_deg[idx];
+                            let max_slp_near = max_slope_within(dem, r, c, cliff_rad);
+
+                            // Suppress false knolls on steep walls (>16° without strong isolation),
+                            // cliff rims (>32° drop within 4-5 m), and contour bends (<3.0 m in forest unless clear hilltop).
+                            let bad_cliff = max_slp_near > cliff_lim
+                                && !(lower >= 0.93 && rise >= req_rise + 0.40);
+                            let bad_steep = local_slp > STEEP_WALL_DEG
+                                && !(lower >= 0.88 && rise >= req_rise + 0.30);
+                            let req_contour_dist = if clear_hilltop {
+                                contour_hilltop_min_m
+                            } else {
+                                contour_touch_m
+                            };
+
+                            if !bad_cliff && !bad_steep && dist_contour[idx] >= req_contour_dist {
+                                let half_z = med + (here - med) * 0.5;
+                                let shape = analyze_foot_shape(dem, r, c, half_z, false, max_rad);
+                                if shape.area_m2 >= min_foot_m2 && shape.area_m2 <= max_foot_m2 {
+                                    // Reject sharp steep-sided boulders (tiny foot + >= 72% drop within 2 m).
+                                    let mut is_boulder = false;
+                                    if shape.area_m2 <= 20.0 {
+                                        let mut near = [0.0f32; 8];
+                                        let mut nn = 0usize;
+                                        for k in 0..8 {
+                                            let ang = k as f64 * std::f64::consts::TAU / 8.0;
+                                            if let Some(zn) = dem.sample_raw(x + 2.0 * ang.cos(), y + 2.0 * ang.sin()) {
+                                                near[nn] = zn;
+                                                nn += 1;
+                                            }
+                                        }
+                                        if nn >= 6 {
+                                            let ns = &mut near[..nn];
+                                            ns.sort_by(|a, b| a.total_cmp(b));
+                                            if f64::from(here - ns[nn / 2]) >= 0.72 * rise {
+                                                is_boulder = true;
+                                            }
                                         }
                                     }
-                                    if nn >= 6 {
-                                        let ns = &mut near[..nn];
-                                        ns.sort_by(|a, b| a.total_cmp(b));
-                                        if f64::from(here - ns[nn / 2]) >= 0.72 * rise {
-                                            is_boulder = true;
-                                        }
+                                    if !is_boulder && !is_enclosed(x, y, &loops) {
+                                        let (kind, angle_deg) = classify_hill_kind(&shape);
+                                        hill_cands.push((
+                                            rise,
+                                            KnollPoint { kind, x, y, z: f64::from(here), angle_deg },
+                                        ));
                                     }
-                                }
-                                if !is_boulder
-                                    && dist_contour[idx] >= contour_touch_m
-                                    && !is_enclosed(x, y, &loops)
-                                {
-                                    let (kind, angle_deg) = classify_hill_kind(&shape);
-                                    hill_cands.push((
-                                        rise,
-                                        KnollPoint { kind, x, y, z: f64::from(here), angle_deg },
-                                    ));
                                 }
                             }
                         }

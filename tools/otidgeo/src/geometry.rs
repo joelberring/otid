@@ -95,7 +95,50 @@ pub fn is_depression_ring(pts: &[[f64; 2]], level: f64, dem: &PreparedDem) -> bo
     area < 0.0
 }
 
-/// Area-preserving Taubin smoothing (`lambda > 0`, `mu < 0`) with strict elevation clamping.
+/// Measures `raw_z` prominence of an enclosed closed contour loop (peak height above `elev`,
+/// or pit depth below `elev`). Used to distinguish real small hills/pits from flat ghost rings.
+pub fn closed_loop_raw_prominence(pts: &[[f64; 2]], elev: f64, is_dep: bool, dem: &PreparedDem) -> f64 {
+    if pts.len() < 3 {
+        return 0.0;
+    }
+    let mut min_x = f64::INFINITY;
+    let mut max_x = f64::NEG_INFINITY;
+    let mut min_y = f64::INFINITY;
+    let mut max_y = f64::NEG_INFINITY;
+    let (mut sx, mut sy) = (0.0, 0.0);
+    for &[x, y] in pts {
+        min_x = min_x.min(x);
+        max_x = max_x.max(x);
+        min_y = min_y.min(y);
+        max_y = max_y.max(y);
+        sx += x;
+        sy += y;
+    }
+    let cx = sx / pts.len() as f64;
+    let cy = sy / pts.len() as f64;
+    let mut best = 0.0f64;
+    if let Some(zc) = dem.sample_raw(cx, cy) {
+        best = best.max(if is_dep { elev - f64::from(zc) } else { f64::from(zc) - elev });
+    }
+    let step = ((max_x - min_x).max(max_y - min_y) / 10.0).max(2.0);
+    let mut y = min_y + 0.5 * step;
+    while y < max_y {
+        let mut x = min_x + 0.5 * step;
+        while x < max_x {
+            if point_in_ring([x, y], pts) {
+                if let Some(z) = dem.sample_raw(x, y) {
+                    best = best.max(if is_dep { elev - f64::from(z) } else { f64::from(z) - elev });
+                }
+            }
+            x += step;
+        }
+        y += step;
+    }
+    best
+}
+
+/// Slope-adaptive area-preserving Taubin smoothing (`lambda > 0`, `mu < 0`) with strict elevation clamping.
+/// Gentle on hilly noses/hilltops (`slope > 6°`) so small hills and spurs stay sharp, full strength on flat ground (`< 3.5°`).
 pub fn taubin_smooth(
     pts: &[[f64; 2]],
     closed: bool,
@@ -108,6 +151,21 @@ pub fn taubin_smooth(
     if n < 4 {
         return pts.to_vec();
     }
+    let small_ring = closed && n <= 24;
+    let weights: Vec<f64> = pts
+        .iter()
+        .map(|&[x, y]| {
+            let slope = dem.sample_slope(x, y).unwrap_or(8.0);
+            let conv16 = dem.sample_convex_16m(x, y).unwrap_or(0.0);
+            let t = ((7.0 - f64::from(slope)) / 3.5).clamp(0.0, 1.0);
+            let mut w = 0.42 + 0.58 * t;
+            if small_ring || conv16 > 0.45 {
+                w = w.min(0.45);
+            }
+            w
+        })
+        .collect();
+
     let mut cur = pts.to_vec();
     let mut next = cur.clone();
     let steps = [0.34f64, -0.35f64];
@@ -123,9 +181,10 @@ pub fn taubin_smooth(
                 let succ = cur[(i + 1) % n];
                 let mid_x = 0.5 * (prev[0] + succ[0]);
                 let mid_y = 0.5 * (prev[1] + succ[1]);
+                let f = factor * weights[i];
                 let cand = [
-                    cur[i][0] + factor * (mid_x - cur[i][0]),
-                    cur[i][1] + factor * (mid_y - cur[i][1]),
+                    cur[i][0] + f * (mid_x - cur[i][0]),
+                    cur[i][1] + f * (mid_y - cur[i][1]),
                 ];
                 let ok = dem
                     .sample_raw(cand[0], cand[1])
@@ -138,8 +197,8 @@ pub fn taubin_smooth(
     cur
 }
 
-/// Gentle slope-adaptive Gaussian smoothing along the curve on flat ground (`< 6.5 deg`),
-/// clamped to `max_rise` so neighboring contours never merge. Preserves vertex count 1-to-1.
+/// Slope-adaptive Gaussian smoothing along the curve ONLY on flat ground (`< 4.5 deg`),
+/// clamped to `max_rise` so neighboring contours never merge. Leaves hilly noses/ridges untouched.
 pub fn calm_flat_curve(
     pts: &[[f64; 2]],
     closed: bool,
@@ -157,13 +216,24 @@ pub fn calm_flat_curve(
             continue;
         }
         let p = pts[i];
-        let slope = dem.sample_slope(p[0], p[1]).unwrap_or(15.0);
-        if slope >= 6.5 {
+        let local_slp = dem.sample_slope(p[0], p[1]).unwrap_or(15.0);
+        let med_slp = dem.sample_mean_slope_16m(p[0], p[1]).unwrap_or(local_slp);
+        let eff_slp = local_slp.max(0.75 * med_slp);
+        if eff_slp >= 4.5 {
             continue;
         }
-        let alpha = ((6.5 - f64::from(slope)) / 4.5).clamp(0.0, 1.0);
-        let reach = 4usize;
-        let sigma = 2.0 * alpha + 0.5;
+        let mut alpha = ((4.5 - f64::from(eff_slp)) / 2.7).clamp(0.0, 1.0);
+        if let Some(conv16) = dem.sample_convex_16m(p[0], p[1]) {
+            if conv16 > 0.40 {
+                let m = ((f64::from(conv16) - 0.40) / 0.55).clamp(0.0, 1.0);
+                alpha *= 1.0 - 0.80 * m;
+            }
+        }
+        if alpha < 0.05 {
+            continue;
+        }
+        let reach = 6usize;
+        let sigma = 2.6 * alpha + 0.5;
         let mut sx = 0.0;
         let mut sy = 0.0;
         let mut sw = 0.0;

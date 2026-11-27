@@ -8,6 +8,10 @@
  * Bara Nodes egna moduler (filen körs direkt av geo-arbetaren).
  */
 import { crc32, deflateSync, inflateSync } from "node:zlib";
+import {
+  hasSeamEdge, isNearSeam, joinSeamLines, lineLength, LINE_SEAM_TOLERANCE_M, mergeSeamPolygons, mergeSeamRings,
+  orientStageRings, SEAM_TOLERANCE_M, stageSeams, type SeamPolygon, type SeamRing
+} from "./geo-merge-seams.ts";
 
 export interface Box { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number }
 type Pair = readonly [number, number];
@@ -39,6 +43,7 @@ export function clipLine(points: readonly Pair[], box: Box): [number, number][][
     }
     if (outside) { end(); continue; }
     const a: [number, number] = t0 === 0 ? [x0, y0] : [x0 + dx * t0, y0 + dy * t0], b: [number, number] = t1 === 1 ? [x1, y1] : [x0 + dx * t1, y0 + dy * t1];
+    if (Math.hypot(b[0] - a[0], b[1] - a[1]) <= 1e-9) { end(); continue; }
     if (piece.length === 0) piece.push(a);
     else if (t0 > 0) { end(); piece.push(a); }
     piece.push(b);
@@ -160,12 +165,202 @@ export function dxfFrame(text: string): { head: string; tail: string } {
 
 /** DXF-filer vars slutna linjer är ytor (klipps som ytor, inte till öppna bitar). */
 export const AREA_DXF: ReadonlySet<string> = new Set(["vegetation.dxf", "fukt.dxf", "berg.dxf", "belagt.dxf"]);
+/** DXF-filer med korta råa streck eller rena punkter som inte ska fogas som linjer. */
+const NO_JOIN_DXF: ReadonlySet<string> = new Set(["branter.dxf", "stup.dxf", "knollar.dxf"]);
+/** Riktade brantlager (nedåt till höger): får aldrig vändas baklänges vid skarvfogning. */
+const DIRECTED_LAYER = /^(brant|cliff)/i;
+/** Kurv- och formlinjelager som sluts igen när en klippt kurvring möts över skarven. */
+const CONTOUR_LAYER = /contour|formline|depression|kurv|formlin/i;
+
+export interface DxfMergeOptions {
+  readonly areas?: boolean | undefined;
+  readonly joinLines?: boolean | undefined;
+  readonly directed?: boolean | undefined;
+  readonly allowClose?: boolean | undefined;
+  readonly lineTolerance?: number | undefined;
+  readonly seamTolerance?: number | undefined;
+}
+
+/** Sammanläggningsregler per DXF-filnamn för geo-arbetaren. */
+export function dxfMergeOptions(name: string): DxfMergeOptions {
+  return {
+    areas: AREA_DXF.has(name),
+    joinLines: !NO_JOIN_DXF.has(name),
+    directed: name === "brantlinjer.dxf",
+    allowClose: name === "kurvor.dxf" || name === "formlinjer.dxf"
+  };
+}
+
+const groupValue = (groups: readonly Group[], code: string) => groups.find(group => group[0] === code)?.[1];
+const dxfElevation = (header: readonly Group[], firstVertex?: readonly Group[]): number | undefined => {
+  for (const body of [header, firstVertex]) {
+    if (!body) continue;
+    const raw = groupValue(body, "38") ?? groupValue(body, "30");
+    if (raw !== undefined) {
+      const value = Number(raw);
+      if (Number.isFinite(value)) return value;
+    }
+  }
+  return undefined;
+};
+const openRingOf = (points: readonly Pair[]): [number, number][] => {
+  const first = points[0], last = points[points.length - 1];
+  const slice = first && last && points.length > 1 && first[0] === last[0] && first[1] === last[1] ? points.slice(0, -1) : points;
+  return slice.map(([x, y]) => [x, y]);
+};
+
+/**
+ * Strömmande DXF-sammanslagning över etapper (Etapp G5): objekt som inte nuddar någon inre etappskarv skrivs direkt per etapp
+ * (minimal RAM-åtgång), medan enbart skarvnära ytor (samma lager) och öppna linjer (samma lager & höjd) buffras och fogas
+ * rent i `finish()`. Brantlinjer fogas med strikt riktningsskydd (vänds aldrig baklänges).
+ */
+export function createDxfMerger(boxes: readonly Box[], union: Box, options: DxfMergeOptions = {}) {
+  const seams = stageSeams(boxes, union);
+  const hasSeams = seams.xs.length > 0 || seams.ys.length > 0;
+  const areas = options.areas === true;
+  const joinLines = options.joinLines !== false;
+  const seamTol = options.seamTolerance ?? SEAM_TOLERANCE_M;
+  const lineTol = options.lineTolerance ?? LINE_SEAM_TOLERANCE_M;
+
+  type EmitPolyline = (out: string[], points: readonly Pair[], closed: boolean) => void;
+  const areaByLayer = new Map<string, { rings: SeamRing[]; emit: EmitPolyline }>();
+  const linesByKey = new Map<string, { layer: string; lines: { points: [number, number][]; stage: number; data: { emit: EmitPolyline } }[] }>();
+
+  const addStage = (text: string, box: Box, stageIndex: number): string[] => {
+    const first = stageIndex === 0;
+    if (!hasSeams) return clipDxfEntities(text, box, union, { areas, first });
+    const { entities } = sections(groupsOf(text)), out: string[] = [];
+    const stageAreas = new Map<string, { rings: SeamRing[]; emit: EmitPolyline }>();
+    let i = 0;
+    const body = () => { const from = i; i += 1; while (i < entities.length && entities[i]![0] !== "0") i += 1; return entities.slice(from, i); };
+
+    const handlePolyline = (
+      layer: string, elevation: number | undefined, points: readonly Pair[], closed: boolean,
+      emit: EmitPolyline, verbatim: () => void
+    ) => {
+      if (points.length === 0) return;
+      const allInside = points.every(point => within(box, point));
+      if (closed && areas) {
+        const ring = allInside ? openRingOf(points) : clipRing(openRingOf(points), box);
+        if (ring.length < 3) return;
+        if (hasSeamEdge(ring, seams, seamTol)) {
+          const entry = stageAreas.get(layer);
+          if (entry) entry.rings.push(ring); else stageAreas.set(layer, { rings: [ring], emit });
+        } else if (allInside) verbatim();
+        else emit(out, ring, true);
+        return;
+      }
+      if (closed && allInside) { verbatim(); return; }
+      const pieces: [number, number][][] = allInside
+        ? [points.map(([x, y]) => [x, y])]
+        : clipLine(closed ? [...points, points[0]!] : points, box);
+      for (const piece of pieces) {
+        if (piece.length < 2) continue;
+        if (joinLines && (isNearSeam(piece[0]!, seams, lineTol) || isNearSeam(piece[piece.length - 1]!, seams, lineTol))) {
+          const key = `${layer}\u0000${elevation ?? ""}`;
+          const entry = linesByKey.get(key);
+          const item = { points: piece, stage: stageIndex, data: { emit } };
+          if (entry) entry.lines.push(item); else linesByKey.set(key, { layer, lines: [item] });
+        } else if (allInside && pieces.length === 1) verbatim();
+        else emit(out, piece, false);
+      }
+    };
+
+    while (i < entities.length) {
+      const type = entities[i]![1], header = body();
+      if (type === "POLYLINE") {
+        const vertices: Group[][] = [];
+        while (i < entities.length && entities[i]![1] === "VERTEX") vertices.push(body());
+        const seqend = i < entities.length && entities[i]![1] === "SEQEND" ? body() : [["0", "SEQEND"] as Group];
+        const points = vertices.map(vertex => [numberOf(vertex, "10"), numberOf(vertex, "20")] as const).filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y));
+        const flags = numberOf(header, "70"), closed = Number.isFinite(flags) && (flags & 1) === 1;
+        const layer = groupValue(header, "8") ?? groupValue(vertices[0] ?? [], "8") ?? "0";
+        const elevation = dxfElevation(header, vertices[0]);
+        const extra = (vertices[0] ?? []).filter(([code]) => code !== "0" && code !== "10" && code !== "20");
+        const headerRest = header.filter(([code]) => code !== "70");
+        const flagsBase = (Number.isFinite(flags) ? flags : 0) & ~1;
+        const emit: EmitPolyline = (target, piece, pieceClosed) => {
+          write(target, headerRest);
+          target.push("70", String(flagsBase | (pieceClosed ? 1 : 0)));
+          for (const [x, y] of piece) { target.push("0", "VERTEX"); write(target, extra); target.push("10", fixed(x), "20", fixed(y)); }
+          write(target, seqend);
+        };
+        handlePolyline(layer, elevation, points, closed, emit, () => {
+          write(out, header); for (const vertex of vertices) write(out, vertex); write(out, seqend);
+        });
+      } else if (type === "LWPOLYLINE") {
+        const points: [number, number][] = [];
+        for (let k = 0; k < header.length; k += 1) if (header[k]![0] === "10" && header[k + 1]?.[0] === "20") points.push([Number(header[k]![1]), Number(header[k + 1]![1])]);
+        const flags = numberOf(header, "70"), closed = Number.isFinite(flags) && (flags & 1) === 1;
+        const layer = groupValue(header, "8") ?? "0";
+        const elevation = dxfElevation(header);
+        const rest = header.filter(([code]) => !["10", "20", "40", "41", "42", "70", "90"].includes(code));
+        const flagsBase = (Number.isFinite(flags) ? flags : 0) & ~1;
+        const emit: EmitPolyline = (target, piece, pieceClosed) => {
+          write(target, rest);
+          target.push("90", String(piece.length), "70", String(flagsBase | (pieceClosed ? 1 : 0)));
+          for (const [x, y] of piece) target.push("10", fixed(x), "20", fixed(y));
+        };
+        handlePolyline(layer, elevation, points, closed, emit, () => write(out, header));
+      } else if (type === "LINE") {
+        const a = [numberOf(header, "10"), numberOf(header, "20")] as const, b = [numberOf(header, "11"), numberOf(header, "21")] as const;
+        if (within(box, a) && within(box, b)) { write(out, header); continue; }
+        const [piece] = clipLine([a, b], box);
+        if (!piece) continue;
+        write(out, header.filter(([code]) => !["10", "20", "11", "21"].includes(code)));
+        out.push("10", fixed(piece[0]![0]), "20", fixed(piece[0]![1]), "11", fixed(piece[1]![0]), "21", fixed(piece[1]![1]));
+      } else {
+        const at = [numberOf(header, "10"), numberOf(header, "20")] as const;
+        if (Number.isFinite(at[0]) && Number.isFinite(at[1]) ? ownsPoint(box, union, at) : first) write(out, header);
+      }
+    }
+
+    // Normalisera omloppsriktningen för etappens skarv-berörande ytringar (yttre moturs, hål medurs) innan global eliminering.
+    for (const [layer, entry] of stageAreas) {
+      const oriented = orientStageRings(entry.rings);
+      const target = areaByLayer.get(layer);
+      if (target) target.rings.push(...oriented);
+      else areaByLayer.set(layer, { rings: oriented, emit: entry.emit });
+    }
+    return out;
+  };
+
+  const finish = (): string[] => {
+    const out: string[] = [];
+    for (const entry of areaByLayer.values()) {
+      const merged = mergeSeamRings(entry.rings, seams, seamTol) ?? entry.rings;
+      for (const ring of merged) entry.emit(out, ring, true);
+    }
+    for (const entry of linesByKey.values()) {
+      const directed = options.directed === true || DIRECTED_LAYER.test(entry.layer);
+      const allowClose = !directed && (options.allowClose === true || (options.allowClose !== false && CONTOUR_LAYER.test(entry.layer)));
+      const chains = joinSeamLines(entry.lines, seams, { directed, allowClose, tolerance: lineTol });
+      for (const chain of chains) chain.items[0]!.data.emit(out, chain.points, chain.closed);
+    }
+    return out;
+  };
+
+  return { addStage, finish };
+}
 
 // --- GeoJSON --------------------------------------------------------------------------------------------------------------
 
 interface Feature { type: "Feature"; geometry: { type: string; coordinates: unknown } | null; properties?: unknown; [key: string]: unknown }
 const pairOf = (value: unknown): Pair => [Number((value as number[])[0]), Number((value as number[])[1])];
 const round = ([x, y]: Pair): [number, number] => [Math.round(x * 100) / 100, Math.round(y * 100) / 100];
+const roundNum = (value: number) => Math.round(value * 100) / 100;
+
+function propsRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+}
+function isCliffProps(props: Record<string, unknown> | undefined): props is Record<string, unknown> & { drop3: number; drop6: number; length?: number } {
+  return !!props && typeof props.drop3 === "number" && typeof props.drop6 === "number";
+}
+function canonicalPropsKey(props: Record<string, unknown> | undefined): string {
+  if (!props) return "";
+  const keys = Object.keys(props).sort();
+  return JSON.stringify(keys.map(k => [k, props[k]]));
+}
 
 /** En ring (med upprepad första punkt, som i GeoJSON) klippt till rutan; `undefined` när inget blir kvar. */
 function clipGeoRing(ring: readonly unknown[], box: Box): [number, number][] | undefined {
@@ -188,7 +383,8 @@ export function clipGeoJsonFeatures(features: readonly Feature[], box: Box, unio
     const geometry = feature.geometry;
     if (!geometry) continue;
     const coordinates = geometry.coordinates as unknown[];
-    const withGeometry = (type: string, value: unknown) => out.push({ ...feature, geometry: { ...geometry, type, coordinates: value } });
+    const withGeometry = (type: string, value: unknown, properties: unknown = feature.properties) =>
+      out.push({ ...feature, ...(properties !== undefined ? { properties } : {}), geometry: { ...geometry, type, coordinates: value } });
     if (geometry.type === "Point") { if (ownsPoint(box, union, pairOf(coordinates))) out.push(feature); }
     else if (geometry.type === "MultiPoint") {
       const kept = coordinates.filter(point => ownsPoint(box, union, pairOf(point)));
@@ -196,7 +392,12 @@ export function clipGeoJsonFeatures(features: readonly Feature[], box: Box, unio
     } else if (geometry.type === "LineString" || geometry.type === "MultiLineString") {
       const lines = (geometry.type === "LineString" ? [coordinates] : coordinates as unknown[][]).map(line => line.map(pairOf));
       if (lines.every(line => line.every(point => within(box, point)))) { out.push(feature); continue; }
-      for (const piece of lines.flatMap(line => clipLine(line, box))) withGeometry("LineString", piece.map(round));
+      const props = propsRecord(feature.properties);
+      const cliff = isCliffProps(props) && typeof props.length === "number";
+      for (const piece of lines.flatMap(line => clipLine(line, box))) {
+        const rounded = piece.map(round);
+        withGeometry("LineString", rounded, cliff ? { ...props, length: roundNum(lineLength(rounded)) } : feature.properties);
+      }
     } else if (geometry.type === "Polygon") {
       const polygon = clipGeoPolygon(coordinates as unknown[][], box);
       if (polygon) withGeometry("Polygon", polygon);
@@ -208,16 +409,102 @@ export function clipGeoJsonFeatures(features: readonly Feature[], box: Box, unio
   return out;
 }
 
-/** Etappernas GeoJSON som en fil; övriga uppgifter (koordinatsystemet) tas ur den första. */
+/**
+ * Etappernas GeoJSON som en fil (Etapp G5): övriga uppgifter (koordinatsystemet) tas ur den första, polygoner av samma lager
+ * (t.ex. `vatten.geojson`) unioneras över etappskarvar med bevarade ö-hål, och öppna linjer (t.ex. `brantlinjer.geojson`)
+ * fogas över skarven med strikt riktningsskydd och viktade brantmått (`drop3`, `drop6`, `length`).
+ */
 export function mergeGeoJson(stages: readonly { readonly text: string; readonly box: Box }[], union: Box): string {
   let frame: Record<string, unknown> | undefined;
-  const features: Feature[] = [];
-  for (const stage of stages) {
+  const seams = stageSeams(stages.map(stage => stage.box), union);
+  const hasSeams = seams.xs.length > 0 || seams.ys.length > 0;
+  const kept: Feature[] = [];
+  const polyGroups = new Map<string, { template: Feature; polygons: SeamPolygon[] }>();
+  const lineGroups = new Map<string, {
+    directed: boolean; allowClose: boolean; cliff: boolean;
+    lines: { points: [number, number][]; stage: number; data: Feature }[];
+  }>();
+
+  for (let stageIndex = 0; stageIndex < stages.length; stageIndex += 1) {
+    const stage = stages[stageIndex]!;
     const parsed = JSON.parse(stage.text) as { features?: Feature[] } & Record<string, unknown>;
     frame ??= parsed;
-    features.push(...clipGeoJsonFeatures(Array.isArray(parsed.features) ? parsed.features : [], stage.box, union));
+    const clipped = clipGeoJsonFeatures(Array.isArray(parsed.features) ? parsed.features : [], stage.box, union);
+    if (!hasSeams) { kept.push(...clipped); continue; }
+    for (const feature of clipped) {
+      const geometry = feature.geometry;
+      if (!geometry) continue;
+      if (geometry.type === "Polygon" || geometry.type === "MultiPolygon") {
+        const rawPolys = geometry.type === "Polygon" ? [geometry.coordinates as unknown[][]] : geometry.coordinates as unknown[][][];
+        const key = canonicalPropsKey(propsRecord(feature.properties));
+        const group = polyGroups.get(key) ?? { template: feature, polygons: [] };
+        for (const rings of rawPolys) {
+          const open = rings.map(ring => openRingOf(ring.map(pairOf))).filter(ring => ring.length >= 3);
+          if (open.length > 0) group.polygons.push(open);
+        }
+        polyGroups.set(key, group);
+      } else if (geometry.type === "LineString" || geometry.type === "MultiLineString") {
+        const lines = (geometry.type === "LineString" ? [geometry.coordinates as unknown[]] : geometry.coordinates as unknown[][])
+          .map(line => line.map(pairOf).map(([x, y]) => [x, y] as [number, number]));
+        const props = propsRecord(feature.properties);
+        const cliff = isCliffProps(props);
+        const layer = typeof props?.layer === "string" ? props.layer : "";
+        const key = cliff ? "__cliff_candidate__" : `layer:${layer}`;
+        const directed = cliff || DIRECTED_LAYER.test(layer);
+        const allowClose = !directed && CONTOUR_LAYER.test(layer);
+        const group = lineGroups.get(key) ?? { directed, allowClose, cliff, lines: [] };
+        for (const pts of lines) {
+          if (pts.length < 2) continue;
+          if (isNearSeam(pts[0]!, seams, LINE_SEAM_TOLERANCE_M) || isNearSeam(pts[pts.length - 1]!, seams, LINE_SEAM_TOLERANCE_M)) {
+            group.lines.push({ points: pts, stage: stageIndex, data: feature });
+          } else {
+            kept.push({ ...feature, geometry: { type: "LineString", coordinates: pts.map(round) } });
+          }
+        }
+        if (group.lines.length > 0) lineGroups.set(key, group);
+      } else {
+        kept.push(feature);
+      }
+    }
   }
-  return JSON.stringify({ ...(frame ?? { type: "FeatureCollection" }), features });
+
+  for (const group of polyGroups.values()) {
+    const merged = mergeSeamPolygons(group.polygons, seams, SEAM_TOLERANCE_M);
+    for (const poly of merged) {
+      const closedRings = poly.map(ring => {
+        const pts = ring.map(round);
+        return [...pts, pts[0]!];
+      });
+      kept.push({ ...group.template, geometry: { type: "Polygon", coordinates: closedRings } });
+    }
+  }
+
+  for (const group of lineGroups.values()) {
+    const chains = joinSeamLines(group.lines, seams, { directed: group.directed, allowClose: group.allowClose, tolerance: LINE_SEAM_TOLERANCE_M });
+    for (const chain of chains) {
+      const base = chain.items[0]!.data;
+      const coords = chain.closed ? [...chain.points.map(round), round(chain.points[0]!)] : chain.points.map(round);
+      if (group.cliff && chain.items.length > 1) {
+        const totalWeight = chain.items.reduce((sum, item) => sum + item.length, 0) || 1;
+        let wDrop3 = 0, wDrop6 = 0;
+        for (const item of chain.items) {
+          const p = propsRecord(item.data.properties);
+          wDrop3 += (typeof p?.drop3 === "number" ? p.drop3 : 0) * item.length;
+          wDrop6 += (typeof p?.drop6 === "number" ? p.drop6 : 0) * item.length;
+        }
+        const baseProps = propsRecord(base.properties) ?? {};
+        kept.push({
+          ...base,
+          properties: { ...baseProps, drop3: roundNum(wDrop3 / totalWeight), drop6: roundNum(wDrop6 / totalWeight), length: roundNum(lineLength(chain.points)) },
+          geometry: { type: "LineString", coordinates: coords }
+        });
+      } else {
+        kept.push({ ...base, geometry: { type: "LineString", coordinates: coords } });
+      }
+    }
+  }
+
+  return JSON.stringify({ ...(frame ?? { type: "FeatureCollection" }), features: kept });
 }
 
 // --- PNG ------------------------------------------------------------------------------------------------------------------

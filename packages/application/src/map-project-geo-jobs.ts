@@ -47,10 +47,11 @@ const SERVER_FAULT = /kunde inte skickas|fick inte plats|lagring för kartfiler|
 const faultOf = (error: string): { fault: "SERVER" } | null => SERVER_FAULT.test(error) ? { fault: "SERVER" } : null;
 /**
  * Ägaren 2026-11-13 (hela Järflotta, 30 km², dog två gånger; norra halvan, 15 km², gick på tre minuter): ett område som är
- * större än servern klarar delas i etapper som körs efter varandra, i stället för att starta och misslyckas. Gränsen är
- * klipprutans yta i km² (`OTID_GEO_SPLIT_KM2`, förval 16; 0 = dela aldrig).
+ * större än servern klarar delas i etapper som körs efter varandra, i stället för att starta och misslyckas. Etapp G5: med
+ * `otidgeo` + bildmotorfri `pullautin` + Rust `otidgeo rasters` klarar 8 GB nu 25 km² i ett enda skarvfri klipp. Gränsen är
+ * klipprutans yta i km² (`OTID_GEO_SPLIT_KM2`, förval 25; 0 = dela aldrig).
  */
-const DEFAULT_SPLIT_KM2 = 16;
+const DEFAULT_SPLIT_KM2 = 25;
 const MAX_SPLIT_PARTS = 8;
 export function geoSplitKm2(environment: Record<string, string | undefined> = process.env): number {
   const value = environment.OTID_GEO_SPLIT_KM2?.trim();

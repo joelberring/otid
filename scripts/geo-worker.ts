@@ -115,7 +115,7 @@ export function keepsRawTicks(job: { readonly cliffs?: { readonly rawTicks?: boo
   return job.cliffs?.rawTicks === true || !hasCliffLines;
 }
 /** Arbetarens version (samma som `GEO_WORKER_VERSION` i contracts; servern ger inga jobb till en äldre). */
-export const WORKER_VERSION = 43;
+export const WORKER_VERSION = 44;
 
 async function sendFailure(name: string, response: Response): Promise<string> {
   const error = (await response.json().catch(() => undefined) as { error?: string } | undefined)?.error;

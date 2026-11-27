@@ -16,7 +16,7 @@ import {
   type CliffRules, type GroundGrid
 } from "./geo-cliffs.ts";
 import { dwgFeatures, dwgObjects } from "./geo-dwg.ts";
-import { AREA_DXF, clipDxfEntities, decodePng, dxfFrame, encodeRawPng, mergeGeoJson, mosaicPng, readWorld, writeWorld, type Box } from "./geo-merge.ts";
+import { createDxfMerger, decodePng, dxfFrame, dxfMergeOptions, encodeRawPng, mergeGeoJson, mosaicPng, readWorld, writeWorld, type Box } from "./geo-merge.ts";
 import { downsampleGroundTo2m, moistureDxf, moistureFromHeightMaps, readHeightMap } from "./geo-moisture.ts";
 import { vegetationFromClassPng } from "./geo-otidgeo.ts";
 import {
@@ -270,15 +270,20 @@ export async function runMergeJobHelper(job: MergeJobInput, deps: HelperDeps): P
           let size = 0, first = true;
           const out = createWriteStream(target);
           const writeOut = (text: string) => new Promise<void>((resolve, reject) => { size += Buffer.byteLength(text); out.write(text, error => error ? reject(error) : resolve()); });
-          for (const stage of having) {
+          const writeLines = async (lines: readonly string[]) => {
+            for (let at = 0; at < lines.length; at += 200_000) await writeOut(`${lines.slice(at, at + 200_000).join("\n")}\n`);
+          };
+          const merger = createDxfMerger(having.map(stage => stage.clip), union, dxfMergeOptions(name));
+          for (let stageIndex = 0; stageIndex < having.length; stageIndex += 1) {
+            const stage = having[stageIndex]!;
             const raw = (await read(stage, name)).toString("utf8");
             // Redan slimmade etapp-DXF:er (centimeteravrundade utan indenterade koder) behöver inte köras genom slimDxf igen.
             const text = isAlreadySlimDxf(raw) ? raw : slimDxf(raw);
             if (first) await writeOut(dxfFrame(text).head);
-            const lines = clipDxfEntities(text, stage.clip, union, { areas: AREA_DXF.has(name), first });
-            for (let at = 0; at < lines.length; at += 200_000) await writeOut(`${lines.slice(at, at + 200_000).join("\n")}\n`);
+            await writeLines(merger.addStage(text, stage.clip, stageIndex));
             first = false;
           }
+          await writeLines(merger.finish());
           await writeOut("0\nENDSEC\n0\nEOF\n");
           await new Promise<void>((resolve, reject) => out.end((error?: Error | null) => error ? reject(error) : resolve()));
           if (size > deps.outputMaxBytes) { skipped.push(name); continue; }

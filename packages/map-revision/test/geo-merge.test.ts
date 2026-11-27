@@ -61,7 +61,7 @@ describe("GeoJSON ur etapperna som en fil", () => {
     expect(merged.crs).toBeTruthy();
     expect(merged.features.filter(feature => feature.geometry.type === "Point").map(feature => (feature.geometry.coordinates as number[])[0])).toEqual([40, 100, 130]);
     const lakes = merged.features.filter(feature => feature.geometry.type === "Polygon").map(feature => (feature.geometry.coordinates as number[][][])[0]!);
-    expect(lakes.map(ring => [Math.min(...ring.map(p => p[0]!)), Math.max(...ring.map(p => p[0]!))])).toEqual([[50, 100], [100, 150]]);
+    expect(lakes.map(ring => [Math.min(...ring.map(p => p[0]!)), Math.max(...ring.map(p => p[0]!))])).toEqual([[50, 150]]);
     expect(lakes.every(ring => ring[0]![0] === ring.at(-1)![0] && ring[0]![1] === ring.at(-1)![1])).toBe(true);
   });
 });

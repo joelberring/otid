@@ -26,7 +26,7 @@ import { osmOutsidePrimary, type PrimaryForMerge, type PrimaryOutcome } from "./
  *   `oppen_mark_laser` och föreslås som ödemark (403); marktäckets sankmark och den uträknade fuktigheten kommer båda med,
  * - en opasserbar brant som är för kort för två taggar blir en brant (ägaren 2026-11-11: «det ska alltid vara minst två
  *   taggar på taggbranter»),
- * - kurvorna och formlinjerna fogas över laserrutornas skarvar (`joinSeams`),
+ * - kurvor, formlinjer, brantlinjer (med bevarad taggriktning), diken, fuktstråk och spår fogas över skarvar (`joinSeams`),
  * - laserns små kullar (`dotknoll_laser`) ersätter Karttapullautins knollar när de finns,
  * - slutna kurvor under ISOM:s minsta mått blir små kullar eller gropar (`smallRingsToPoints`),
  * - Skogsstyrelsens hyggen efter ålder och deras kanter (`clearCutFeatures`), utan laserns vegetation i nyare hyggen,
@@ -187,13 +187,18 @@ export function mergeBaseMap(parts: readonly { readonly name: string; readonly d
   const laserWater = parts.find(part => part.name === "vatten.geojson")?.data.features ?? [];
   const deduplicated = parts.map(part => part.name !== "marktacke.geojson" || laserWater.length === 0 ? part
     : { ...part, data: { ...part.data, features: withoutDuplicateWater(part.data.features, laserWater, extent) } });
+  const SEAM_LINE_PARTS = /^(kurvor|formlinjer|brantlinjer|diken|fukt|spar)\.dxf$|^marktacke\.geojson$/;
   const joined = deduplicated.map(part => {
     if (part.data.features.some(feature => feature.layer === "vatten")) part = { ...part, data: { ...part.data, features: smoothWater(part.data.features, extent) } };
     if (part.name === LASER_PAVED_FILE) return { ...part, data: { ...part.data, features: laserPavedAreas(part.data.features) } };
-    if (!/^(kurvor|formlinjer)\.dxf$/.test(part.name)) return part;
+    if (!SEAM_LINE_PARTS.test(part.name)) return part;
+    const isContour = /^(kurvor|formlinjer)\.dxf$/.test(part.name);
     // Ägaren 2026-11-15 (Grövelsjön): Karttapullautins små gropar (bågar i `small_depression`) blir gropsymboler (111).
-    const list = joinSeams(smallDepressionPoints(part.data.features, parts.flatMap(other => other === part ? [] : other.data.features.filter(feature => feature.geometry.kind === "point"))));
-    for (const feature of list) if (feature.geometry.kind === "line") contours.add(feature);
+    const prepared = isContour
+      ? smallDepressionPoints(part.data.features, parts.flatMap(other => other === part ? [] : other.data.features.filter(feature => feature.geometry.kind === "point")))
+      : part.data.features;
+    const list = joinSeams(prepared);
+    if (isContour) for (const feature of list) if (feature.geometry.kind === "line") contours.add(feature);
     return { ...part, data: { ...part.data, features: list } };
   });
   // Sänkornas kurvor (Karttapullautins lager «depression») får ett lutningsstreck inåt, annars läses de som höjder.

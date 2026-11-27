@@ -282,8 +282,9 @@ export async function accountRegenerable(tx: DbExecutor, accountId: string, now 
 
 /** Laserkörningens recept för en resultatfil (jobbets begäran är hela receptet; här det som visas och söks på). */
 export function laserRecipe(job: { id: string; request: Record<string, unknown> }, output: string, now: Date): StoredRecipe {
-  const request = job.request as { tiles?: { datetime?: unknown }[]; clip?: { minX: number; minY: number; maxX: number; maxY: number }; settings?: Record<string, number> };
+  const request = job.request as { engine?: unknown; tiles?: { datetime?: unknown }[]; clip?: { minX: number; minY: number; maxX: number; maxY: number }; settings?: Record<string, number> };
   const dates = (request.tiles ?? []).map(tile => tile.datetime).filter((date): date is string => typeof date === "string" && /^\d{4}-\d{2}-\d{2}/.test(date));
-  return { source: "LASER", jobId: job.id, output, tiles: request.tiles?.length ?? 0, clip: request.clip ?? null,
+  const engine = request.engine === "otidgeo" || request.engine === "pullautin" ? request.engine : undefined;
+  return { source: "LASER", jobId: job.id, output, ...(engine ? { engine } : {}), tiles: request.tiles?.length ?? 0, clip: request.clip ?? null,
     scannedAt: dates.length ? dates.map(date => date.slice(0, 10)).sort().at(-1)! : null, settings: request.settings ?? {}, createdAt: now.toISOString() };
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { GEO_JOB_MAX_TILES, newestLaserTiles, type MapProjectView } from "@o-tid/contracts";
+import { GEO_JOB_ENGINES, GEO_JOB_MAX_TILES, newestLaserTiles, type GeoJobEngine, type MapProjectView } from "@o-tid/contracts";
 import { LASER_SEARCH_LIMITS } from "@o-tid/map-revision";
 import { mapGuideEn } from "../../i18n/map-guide-en";
 import { mapGuideSv } from "../../i18n/map-guide-sv";
@@ -36,6 +36,14 @@ function readContours(projectId: string): ContourStyle {
     const value = localStorage.getItem(contoursKey(projectId));
     return (CONTOUR_STYLES as readonly string[]).includes(value ?? "") ? value as ContourStyle : "normal";
   } catch { return "normal"; }
+}
+/** Motor som valdes senast för kartan (förval O-Tids egen motor `otidgeo`). */
+const engineKey = (projectId: string) => `otid-map-guide-engine:${projectId}`;
+function readEngine(projectId: string): GeoJobEngine {
+  try {
+    const value = localStorage.getItem(engineKey(projectId));
+    return (GEO_JOB_ENGINES as readonly string[]).includes(value ?? "") ? value as GeoJobEngine : "otidgeo";
+  } catch { return "otidgeo"; }
 }
 
 /**
@@ -73,6 +81,12 @@ export function MapProjectGuide({ view, laser, importer, areas, onSplit, onAreas
   const chooseContours = (style: ContourStyle) => {
     setContours(style);
     try { localStorage.setItem(contoursKey(view.projectId), style); } catch { /* utan lagring: bara den här sidan */ }
+  };
+  const [engine, setEngine] = useState<GeoJobEngine>("otidgeo");
+  useEffect(() => { setEngine(readEngine(view.projectId)); }, [view.projectId]);
+  const chooseEngine = (next: GeoJobEngine) => {
+    setEngine(next);
+    try { localStorage.setItem(engineKey(view.projectId), next); } catch { /* utan lagring: bara den här sidan */ }
   };
   const [openChoice, setOpenChoice] = useState<boolean>();
   const [cancelling, setCancelling] = useState(false);
@@ -119,7 +133,7 @@ export function MapProjectGuide({ view, laser, importer, areas, onSplit, onAreas
     const tiles = newestLaserTiles(found.items);
     if (tiles.length === 0) { laser.tell("guide", "error", text.run.noTiles); return; }
     if (tiles.length > GEO_JOB_MAX_TILES) { setCounted({ where, tiles: tiles.length }); return; }
-    await laser.start(defaultLaserJob(laserText.defaultName(area?.name), { tiles, clip: laser.clipOf(area), areaId: area?.areaId, extras: found.extras }, importer.sprint, contours), "guide", text.run.starting);
+    await laser.start(defaultLaserJob(laserText.defaultName(area?.name), { tiles, clip: laser.clipOf(area), areaId: area?.areaId, extras: found.extras }, importer.sprint, contours, engine), "guide", text.run.starting);
   }
   const restart = () => { if (job) setIgnore(job.jobId); setOpenChoice(true); laser.clear(); };
 
@@ -150,6 +164,11 @@ export function MapProjectGuide({ view, laser, importer, areas, onSplit, onAreas
         {state.detail === "unusable" && <p className={styles.problem}>{text.run.unusable}</p>}
         <p>{text.run.help(area?.name)}</p>
         <p className={styles.muted}>{text.run.automatic}</p>
+        <label>{laserText.engine}
+          <select value={engine} disabled={laser.busy} onChange={event => chooseEngine(event.target.value as GeoJobEngine)} data-testid="map-project-guide-engine">
+            {GEO_JOB_ENGINES.map(value => <option key={value} value={value}>{laserText.engineOptions[value]}</option>)}
+          </select></label>
+        {engine === "pullautin" && <p className={styles.muted}>{laserText.pullautinNoOverview}</p>}
         <label>{text.run.contours}
           <select value={contours} disabled={laser.busy} onChange={event => chooseContours(event.target.value as ContourStyle)} data-testid="map-project-guide-contours">
             {CONTOUR_STYLES.map(style => <option key={style} value={style}>{text.run.contourStyles[style]}</option>)}

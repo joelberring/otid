@@ -6,20 +6,27 @@ import { z } from "zod";
  * och filer med kurvor, branter och formlinjer som kan läsas in som kandidater.
  */
 export const GEO_JOB_MAX_TILES = 25;
-/** Karttapullautins inställningar som får ändras (pullauta.ini), med rimliga gränser. */
+/** Motor för kurvor, formlinjer och vegetation: O-Tids egen motor (`otidgeo`, förval) eller Karttapullautin utan bildmotor (`pullautin`). */
+export const GEO_JOB_ENGINES = ["otidgeo", "pullautin"] as const;
+export type GeoJobEngine = typeof GEO_JOB_ENGINES[number];
+/** Karttapullautins och O-Tid-motorns inställningar som får ändras, med rimliga gränser. */
 export const PULLAUTIN_SETTINGS = {
-  contour_interval: [1, 10], formline: [0, 2], formlinesteepness: [0, 2], smoothing: [0.2, 3], curviness: [0, 3], knolls: [0, 3],
+  contour_interval: [1, 10], formline: [0, 3], formlinesteepness: [0, 2], smoothing: [0.2, 3], curviness: [0, 3], knolls: [0, 3],
   cliff1: [0.5, 5], cliff2: [0.5, 10], cliffsteepfactor: [0, 2], yellowheight: [0, 3], greenground: [0, 3], greenhigh: [0, 10],
   undergrowth: [0, 2],
   // Ägaren 2026-11-11 («tror inställningarna för gröna ytor blir fel»): hur mycket kronorna väger in i grönt, och en faktor
-  // på Karttapullautins gränser för grönt (`greenshades`, skrivs av geo-arbetaren; större faktor ger mindre grönt).
+  // på gränserna för grönt (`greenshades` i Karttapullautin, inverterad i otidgeo; större faktor ger mindre grönt i båda).
   topweight: [0, 1], greenscale: [0.3, 3],
   // Ägaren 2026-11-11–12 (reglage för värdena som lärts av kartorna; inte Karttapullautins, läses av geo-arbetaren):
-  // andelen låg vegetation för gult (förval 0,5), andelen träffar 1–3 m för grönt (0,08), andelen av ringen som ska ligga
+  // andelen låg vegetation för gult (förval 0,5 i KP / 0,63 i otidgeo), andelen träffar 1–3 m för grönt (0,08), andelen av ringen som ska ligga
   // lägre än en liten kulle (0,8), och berg i dagen ur lasern: 0 tas inte med, 1 utan förslag (förval), 2 föreslås som 214.
   openshare: [0.2, 0.9], denseshare: [0.02, 0.3], knollshare: [0.5, 1], rock: [0, 2],
   // Ägaren 2026-11-13 (sprintkartor): belagd yta ur laserns intensitet (`belagt.dxf`); 0 tas inte med (förval), 1 tas med.
-  paved: [0, 1]
+  paved: [0, 1],
+  // Etapp G4B: O-Tids egen motor (`otidgeo`): fysikalisk höjdutjämning, Taubin-pass, minsta kurvring/avstånd, formlinjeregler,
+  // vegetationsutjämning och valfri 2 m översiktsbild (`overview`: 1 = på, förval i otidgeo; 0 = av).
+  smooth_m: [0.5, 5], taubin: [0, 6], min_loop_area: [5, 300], min_clearance: [0, 4],
+  formline_gap: [2, 20], formline_max_slope: [6, 35], veg_smooth: [0, 3], overview: [0, 1]
 } as const satisfies Record<string, readonly [number, number]>;
 
 const settingsSchema = z.record(z.string(), z.number().finite()).superRefine((value, context) => {
@@ -63,6 +70,7 @@ export const geoJobCreateRequestSchema = z.object({
   formatVersion: z.literal(1),
   requestId: z.string().uuid(),
   kind: z.literal("PULLAUTIN"),
+  engine: z.enum(GEO_JOB_ENGINES).optional(),
   name: z.string().trim().min(1).max(80),
   tiles: z.array(tileSchema).min(1).max(GEO_JOB_MAX_TILES).optional(),
   settings: settingsSchema.default({}),
@@ -117,6 +125,8 @@ export function newestLaserTiles<T extends { readonly id: string; readonly bbox:
 export type GeoJobStatusView = "QUEUED" | "RUNNING" | "DONE" | "FAILED" | "CANCELLED";
 export interface GeoJobView {
   readonly jobId: string; readonly name: string; readonly kind: "PULLAUTIN" | "DWG"; readonly status: GeoJobStatusView;
+  /** Motor som körde eller ska köra laserjobbet (`otidgeo` eller `pullautin`); utelämnat för DWG. */
+  readonly engine?: GeoJobEngine | undefined;
   readonly tiles: number; readonly settings: Readonly<Record<string, number>>;
   /** Laserdatan klipptes till den här rutan (SWEREF 99 TM, med marginal); null = hela rutorna bearbetades. */
   readonly clip: GeoClip | null;
@@ -186,7 +196,7 @@ export const geoWorkerFinishSchema = z.discriminatedUnion("status", [
  * skickar den i `x-otid-geo-version`; en äldre arbetare får inga jobb, och en server som O-Tid startat raderas. Höjs när
  * `scripts/geo-worker.ts` får något som jobben räknar med (samma tal står där; ett test håller dem lika).
  */
-export const GEO_WORKER_VERSION = 42;
+export const GEO_WORKER_VERSION = 43;
 
 /** PLAN.md M6: hur länge zip-filen med rå laserdata och dess länk finns (7 dygn, det längsta en försignerad länk får gälla). */
 export const RAW_LASER_DAYS = 7;

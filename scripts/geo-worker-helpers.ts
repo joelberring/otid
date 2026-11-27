@@ -6,20 +6,27 @@
  * Bara Nodes egna moduler (körs direkt av Node i `deploy/geo.Dockerfile` utan transpilering).
  */
 import { createReadStream, createWriteStream } from "node:fs";
-import { mkdir, open, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { totalmem } from "node:os";
 import { join } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import { createGroundAccumulator, readGroundGrid, type GroundGrid } from "./geo-cliffs.ts";
+import {
+  cliffsFromTicks, createGroundAccumulator, heightPng, hillshade, readGroundGrid, readTicks, steepAt,
+  type CliffRules, type GroundGrid
+} from "./geo-cliffs.ts";
 import { dwgFeatures, dwgObjects } from "./geo-dwg.ts";
 import { AREA_DXF, clipDxfEntities, decodePng, dxfFrame, encodeRawPng, mergeGeoJson, mosaicPng, readWorld, writeWorld, type Box } from "./geo-merge.ts";
-import { createPointStatsAccumulator, readPointStats, type PointStats } from "./geo-points.ts";
+import { downsampleGroundTo2m, moistureDxf, moistureFromHeightMaps, readHeightMap } from "./geo-moisture.ts";
+import { vegetationFromClassPng } from "./geo-otidgeo.ts";
+import {
+  createPointStatsAccumulator, groundShareAt, pointImages, readPointStats, vegetationSignals,
+  type PointStats, type VegetationSignals
+} from "./geo-points.ts";
 import { slimDxf } from "./geo-slim.ts";
-import type { WaterGrid } from "./geo-water.ts";
-
-/** Karttapullautins renderingstäthet vid `scalefactor=1` (600 dpi i 1:10 000 = 600 / 254 px/m). */
-const PULLAUTA_PX_PER_M = 600 / 254;
+import { maskOf, runStep, shareBytes, shareGround, stepPoolConcurrency, StepSkipped, STEP_TIMEOUT_MS, type StepInput, type StepName } from "./geo-steps.ts";
+import { decodeGrayPng, readWorldFile, vegetationFromTiles, type VegetationTile } from "./geo-vegetation.ts";
+import { waterFromGrids, type WaterGrid } from "./geo-water.ts";
 
 interface BinHeader { readonly minX: number; readonly minY: number; readonly cell: number; readonly width: number; readonly height: number }
 
@@ -122,17 +129,6 @@ export async function readPngSize(path: string, parseSize: (bytes: Uint8Array) =
     const { bytesRead } = await handle.read(head, 0, 32, 0);
     return parseSize(head.subarray(0, bytesRead));
   } finally { await handle.close(); }
-}
-
-/** Räknar ut initial `pngmerge`-skala direkt ur klipprutans mått (`<= maxPixels`), i stället för att alltid gissa `scale = 1`. */
-export function initialPngMergeScale(box: Box | null | undefined, tileCount: number, maxPixels: number): number {
-  if (!box) return tileCount > 4 ? 2 : 1;
-  const sidePx = Math.max(box.maxX - box.minX, box.maxY - box.minY) * PULLAUTA_PX_PER_M;
-  let scale = 1;
-  while (sidePx / scale > maxPixels && scale < 8) scale *= 2;
-  const areaKm2 = Math.max(0, box.maxX - box.minX) * Math.max(0, box.maxY - box.minY) / 1e6;
-  if (areaKm2 > 25 && scale < 2) scale = 2;
-  return scale;
 }
 
 /**
@@ -352,4 +348,221 @@ export async function runDwgJobHelper(job: { readonly jobId: string }, deps: Hel
     clearInterval(timer);
     await rm(dir, { recursive: true, force: true }).catch(() => undefined);
   }
+}
+
+export interface JsRastersFallbackInput {
+  readonly dir: string;
+  readonly groundFiles: readonly string[];
+  readonly waterFiles: readonly string[];
+  readonly pointFiles: readonly string[];
+  readonly otidgeoVegReady: boolean;
+  readonly rules: CliffRules;
+  readonly rockMode: number;
+  readonly job: {
+    readonly clip?: Box | null | undefined;
+    readonly settings: Readonly<Record<string, number>>;
+    readonly cliffs?: { readonly tags?: boolean } | null | undefined;
+    readonly moisture?: { readonly channelHa: number; readonly wetMeters: number; readonly moistMeters: number } | null | undefined;
+    readonly vegetation?: { readonly minAreaM2: number } | null | undefined;
+  };
+  readonly signal: AbortSignal;
+  readonly telemetry: { phase: (next?: string) => void };
+  readonly set: (step: string, done: number, total: number) => Promise<void>;
+  readonly createStopped: () => Error;
+}
+
+/** Automatisk JS-fallback för branter, skuggning, vatten, fukt, vegetation och terrängsteg när `otidgeo rasters` inte används. */
+export async function runJsRastersFallback(input: JsRastersFallbackInput): Promise<{
+  readonly water?: ReturnType<typeof waterFromGrids> | undefined;
+  readonly pointStats?: PointStats | undefined;
+  readonly cliffSummary: Record<string, number>;
+  readonly moistureSummary: Record<string, number>;
+  readonly vegetationSummary: Record<string, number>;
+  readonly ditchSummary: Record<string, number>;
+  readonly rockSummary: Record<string, number>;
+  readonly stepTimings: Record<string, number>;
+  readonly skippedSteps: string[];
+}> {
+  const { dir, groundFiles, waterFiles, pointFiles, otidgeoVegReady, rules, rockMode, job, signal, telemetry, set, createStopped } = input;
+  let cliffSummary: Record<string, number> = {}, moistureSummary: Record<string, number> = {};
+  let vegetationSummary: Record<string, number> = {}, ditchSummary: Record<string, number> = {}, rockSummary: Record<string, number> = {};
+  const stepTimings: Record<string, number> = {}, skippedSteps: string[] = [];
+  let water: ReturnType<typeof waterFromGrids> | undefined, pointStats: PointStats | undefined;
+  let groundShare: ((x: number, y: number) => number | undefined) | undefined, signals: VegetationSignals | undefined;
+
+  telemetry.phase("msCliffs");
+  const ticksOf = async (name: string) => readTicks(await readFile(join(dir, name), "utf8").catch(() => ""));
+  const ground = await streamMergeGroundFiles(dir, groundFiles);
+  const cliffs = cliffsFromTicks(await ticksOf("merged_c3g.dxf"), await ticksOf("merged_c2g.dxf"), undefined, ground, rules, job.cliffs?.tags === true);
+  if (cliffs.candidates.length) {
+    const round = (value: number) => Math.round(value * 100) / 100;
+    await writeFile(join(dir, "brantlinjer.geojson"), JSON.stringify({ type: "FeatureCollection", crs: { type: "name", properties: { name: "EPSG:3006" } },
+      features: cliffs.candidates.map(cliff => ({ type: "Feature", geometry: { type: "LineString", coordinates: cliff.line.map(([x, y]) => [Math.round(x * 10) / 10, Math.round(y * 10) / 10]) },
+        properties: { drop3: round(cliff.drop3), drop6: round(cliff.drop6), length: round(cliff.length) } })) }));
+  }
+  if (cliffs.summary.cliffs201 + cliffs.summary.cliffs202 > 0) {
+    await writeFile(join(dir, "brantlinjer.dxf"), cliffs.dxf);
+    cliffSummary = cliffs.summary;
+  }
+  telemetry.phase();
+
+  if (ground) {
+    telemetry.phase("msGroundImages"); await set("Ritar terrängskuggningen", 0, 1);
+    const shade = hillshade(ground);
+    await writeFile(join(dir, "skuggning.png"), shade.png);
+    await writeFile(join(dir, "skuggning.pgw"), shade.world);
+    const stats = await streamMergePointFiles(dir, pointFiles);
+    if (stats) {
+      pointStats = stats;
+      groundShare = groundShareAt(stats); signals = vegetationSignals(stats, job.settings.openshare, job.settings.denseshare);
+      const images = pointImages(stats);
+      for (const [name, bytes] of [["lasveg", images.veg], ["lasmark", images.ground], ["laskron", images.canopy]] as const) {
+        await writeFile(join(dir, `${name}.png`), bytes);
+        await writeFile(join(dir, `${name}.pgw`), images.world);
+      }
+    }
+    const heights = heightPng(ground);
+    await writeFile(join(dir, "hojd.png"), heights.png);
+    await writeFile(join(dir, "hojd.pgw"), heights.world); telemetry.phase();
+  }
+
+  if (waterFiles.length > 0) {
+    telemetry.phase("msWater"); await set("Letar upp vattnet", 0, 1);
+    const mergedWater = await streamMergeWaterFiles(dir, waterFiles);
+    if (mergedWater) {
+      water = waterFromGrids([mergedWater]);
+      if (water.summary.waterAreas > 0) await writeFile(join(dir, "vatten.geojson"), water.geojson);
+    }
+    telemetry.phase();
+  }
+
+  let wetAt: ((x: number, y: number) => boolean) | undefined;
+  if (job.moisture) {
+    telemetry.phase("msMoisture"); await set("Räknar fuktigheten", 0, 1);
+    const grids = [];
+    if (job.clip && ground) {
+      grids.push(downsampleGroundTo2m(ground));
+    } else {
+      const folders = (await readdir(dir)).filter(name => /^temp_.+_dir$/.test(name)).sort();
+      for (const folder of folders) {
+        const bytes = await readFile(join(dir, folder, "xyz2.hmap")).catch(() => undefined);
+        if (bytes) grids.push(readHeightMap(new Uint8Array(bytes)));
+      }
+    }
+    if (grids.length === 0) throw new Error("Inget höjdraster för fuktigheten");
+    const moisture = moistureFromHeightMaps(grids, job.moisture, water?.at, groundShare);
+    await writeFile(join(dir, "fukt.png"), moisture.png);
+    await writeFile(join(dir, "fukt.pgw"), moisture.world);
+    await writeFile(join(dir, "fukt.dxf"), moisture.dxf);
+    await writeFile(join(dir, "fuktdjup.png"), moisture.depthPng);
+    moistureSummary = { wetHa: moisture.summary.wetHa, moistHa: moisture.summary.moistHa, channels: moisture.summary.channels };
+    wetAt = moisture.wetAt; telemetry.phase();
+  }
+
+  let openAt: ((x: number, y: number) => boolean) | undefined, forestAt: ((x: number, y: number) => boolean) | undefined;
+  if (job.vegetation) {
+    telemetry.phase("msVegetation"); await set("Räknar vegetationen", 0, 1);
+    if (otidgeoVegReady) {
+      const veg = vegetationFromClassPng(
+        new Uint8Array(await readFile(join(dir, "vegetationsklasser.png"))),
+        await readFile(join(dir, "vegetationsklasser.pgw"), "utf8"),
+        { vegSmooth: job.settings.veg_smooth }, water?.at
+      );
+      await writeFile(join(dir, "vegetation.dxf"), veg.dxf);
+      vegetationSummary = veg.summary; openAt = veg.openAt; forestAt = veg.forestAt;
+    } else {
+      const out = join(dir, "out"), names = (await readdir(out)).filter(name => name.endsWith("_vege_bit.png")).sort();
+      const tiles: VegetationTile[] = [];
+      for (const name of names) {
+        const stem = name.slice(0, -"_vege_bit.png".length);
+        const world = await readFile(join(out, `${stem}_vege_bit.pgw`), "utf8").catch(() => undefined);
+        if (!world) continue;
+        const undergrowth = await readFile(join(out, `${stem}_undergrowth_bit.png`)).catch(() => undefined);
+        tiles.push({ vege: decodeGrayPng(new Uint8Array(await readFile(join(out, name)))), world: readWorldFile(world),
+          ...(undergrowth ? { undergrowth: decodeGrayPng(new Uint8Array(undergrowth)) } : {}) });
+      }
+      if (tiles.length === 0) throw new Error("Karttapullautin gav inga klassbilder för vegetationen");
+      const steep = ground ? steepAt(ground, 35) : undefined;
+      const blocked = water || steep ? (x: number, y: number) => !!water?.at(x, y) || !!steep?.(x, y) : undefined;
+      const vegetation = vegetationFromTiles(tiles, job.vegetation, blocked, signals);
+      await writeFile(join(dir, "vegetation.dxf"), vegetation.dxf);
+      await writeFile(join(dir, "vegetationsklasser.png"), vegetation.classPng);
+      await writeFile(join(dir, "vegetationsklasser.pgw"), vegetation.world);
+      vegetationSummary = vegetation.summary; openAt = vegetation.openAt; forestAt = vegetation.forestAt;
+    }
+    telemetry.phase();
+  }
+
+  const step = async <K extends StepName>(name: K, stepInput: StepInput, skippedNames: readonly string[] = [name]) => {
+    const km2 = stepInput.ground.width * stepInput.ground.height * stepInput.ground.cell ** 2 / 1e6;
+    try { return await runStep(name, stepInput, signal, Math.max(STEP_TIMEOUT_MS, km2 * 30_000)); }
+    catch (error) {
+      if (signal.aborted) throw createStopped();
+      if (!(error instanceof StepSkipped)) throw error;
+      console.error(`Steget hoppas över, ${error.message}`);
+      skippedSteps.push(...skippedNames);
+      return undefined;
+    }
+  };
+  if (ground) {
+    telemetry.phase("msTerrainSteps"); await set("Analyserar terrängformen", 0, 1);
+    const sharedGround = shareGround(ground);
+    const wetMask = wetAt ? maskOf(sharedGround, wetAt) : undefined;
+    const openMask = openAt ? maskOf(sharedGround, openAt) : undefined;
+    const forestMask = forestAt ? maskOf(sharedGround, forestAt) : undefined;
+    const waterData = water ? { grid: { ...water.grid, cells: shareBytes(water.grid.cells) }, mask: shareBytes(water.mask) } : undefined;
+    let stones: { stones: { name: "sten" | "stort_block"; at: [number, number]; height: number }[]; capped: number } = { stones: [], capped: 0 };
+    let hills: { knolls: [number, number][]; capped: number; candidates: { at: [number, number]; rise: number; share: number; footM2: number; wet?: boolean | undefined }[] } = { knolls: [], capped: 0, candidates: [] };
+    let rock: [number, number][][] = [];
+
+    const tasks: (() => Promise<void>)[] = [
+      async () => {
+        const t0 = Date.now();
+        const found = await step("ditchesAndTracks", { ground: sharedGround, water: waterData, wet: wetMask }, ["ditches", "tracks"]);
+        stepTimings.msDitchesTracks = Date.now() - t0;
+        if (!found) return;
+        await writeFile(join(dir, "relief.png"), found.png);
+        await writeFile(join(dir, "relief.pgw"), found.world);
+        const of = (name: string) => found.lines.filter(line => line.name === name).map(line => line.points);
+        if (found.lines.length) await writeFile(join(dir, "diken.dxf"), moistureDxf([{ name: "dike", closed: false, parts: of("dike") },
+          { name: "fuktstrak_terrang", closed: false, parts: of("fuktstrak_terrang") }]));
+        if (found.tracks.length) await writeFile(join(dir, "spar.dxf"), moistureDxf([{ name: "spar_laser", closed: false, parts: found.tracks }]));
+        ditchSummary = { ditches: of("dike").length, terrainChannels: of("fuktstrak_terrang").length, ...(found.tracks.length ? { tracks: found.tracks.length } : {}) };
+      },
+      async () => {
+        const t0 = Date.now();
+        stones = (await step("stones", { ground: sharedGround, water: waterData })) ?? stones;
+        stepTimings.msStones = Date.now() - t0;
+        const t1 = Date.now();
+        hills = (await step("knolls", { ground: sharedGround, water: waterData, stones: stones.stones, knollShare: job.settings.knollshare, wet: wetMask })) ?? hills;
+        stepTimings.msKnolls = Date.now() - t1;
+        if (hills.candidates.length) {
+          await writeFile(join(dir, "kullar.geojson"), JSON.stringify({ type: "FeatureCollection", crs: { type: "name", properties: { name: "EPSG:3006" } },
+            features: hills.candidates.map(knoll => ({ type: "Feature", geometry: { type: "Point", coordinates: [Math.round(knoll.at[0] * 10) / 10, Math.round(knoll.at[1] * 10) / 10] },
+              properties: { rise: Math.round(knoll.rise * 100) / 100, share: Math.round(knoll.share * 1000) / 1000, foot: Math.round(knoll.footM2), ...(knoll.wet ? { wet: 1 } : {}) } })) }));
+        }
+      },
+      ...(openMask ? [async () => {
+        const t0 = Date.now();
+        if (rockMode > 0) {
+          const combined = await step("rockAndMap", { ground: sharedGround, water: waterData, open: openMask, forest: forestMask, includeRock: true }, ["rock", "rockmap"]);
+          if (combined) { rock = combined.rock; await writeFile(join(dir, "berg.png"), combined.png); await writeFile(join(dir, "berg.pgw"), combined.world); }
+        } else {
+          const rockMap = await step("rockmap", { ground: sharedGround, water: waterData, open: openMask });
+          if (rockMap) { await writeFile(join(dir, "berg.png"), rockMap.png); await writeFile(join(dir, "berg.pgw"), rockMap.world); }
+        }
+        stepTimings.msRock = Date.now() - t0;
+      }] : [])
+    ];
+    await runPool(tasks, stepPoolConcurrency(), task => task());
+    if (stones.stones.length || rock.length || hills.knolls.length) {
+      await writeFile(join(dir, "berg.dxf"), moistureDxf([{ name: rockMode >= 2 ? "berg_i_dagen" : "berg_i_dagen_laser", closed: true, parts: rock },
+        ...(["sten", "stort_block"] as const).map(name => ({ name, closed: false, points: stones.stones.filter(stone => stone.name === name).map(stone => stone.at), parts: [] })),
+        { name: "dotknoll_laser", closed: false, points: hills.knolls, parts: [] }]));
+    }
+    rockSummary = { boulders: stones.stones.length, knolls: hills.knolls.length, bareRockAreas: rock.length,
+      ...(stones.capped + hills.capped ? { cappedPoints: stones.capped + hills.capped } : {}) };
+    telemetry.phase();
+  }
+  return { water, pointStats, cliffSummary, moistureSummary, vegetationSummary, ditchSummary, rockSummary, stepTimings, skippedSteps };
 }

@@ -121,21 +121,27 @@ describe("guidens körning med förvalen", () => {
   const tile = { id: "24E001_658_67_2550", datetime: "2024-05-20T00:00:00Z", href: "https://exempel.se/a.laz", bbox: null, bytes: 123, epsg: 3006 };
   const clip = { minX: 1, minY: 2, maxX: 3, maxY: 4 };
 
-  it("är samma begäran som laserpanelens förval: fuktighet, vegetation, marktäcke och byggnader", () => {
+  it("är samma begäran som laserpanelens förval: motor otidgeo, fuktighet, vegetation, marktäcke och byggnader", () => {
     const extras = [{ kind: "LAND_COVER" as const, id: "m", href: "https://exempel.se/m.zip" }, { kind: "BUILDINGS" as const, id: "b", href: "https://exempel.se/b.zip" }];
-    expect(defaultLaserJob("Karttapullautin Del 2", { tiles: [tile], clip, areaId: STAGE, extras })).toEqual({ formatVersion: 1, kind: "PULLAUTIN", name: "Karttapullautin Del 2",
+    expect(defaultLaserJob("Karttapullautin Del 2", { tiles: [tile], clip, areaId: STAGE, extras })).toEqual({ formatVersion: 1, kind: "PULLAUTIN", engine: "otidgeo", name: "Karttapullautin Del 2",
       settings: { contour_interval: 5, formline: 2 }, tiles: [{ id: tile.id, href: tile.href, bbox: null, epsg: 3006, datetime: tile.datetime }], clip, areaId: STAGE, extras,
       moisture: { channelHa: 1, wetMeters: 0.25, moistMeters: 0.4 }, vegetation: { minAreaM2: 300 } });
   });
 
-  it("en sprintkarta körs med ekvidistansen 2,5 m och belagd yta ur lasern, och 2 m går att välja", () => {
+  it("en sprintkarta körs med ekvidistansen 2,5 m och belagd yta ur lasern, och 5 kurvprofiler mappas per motor", () => {
     expect(defaultLaserJob("Karttapullautin hela kartan", { tiles: [tile], clip, areaId: undefined, extras: [] }, true).settings).toEqual({ contour_interval: 2.5, formline: 2, paved: 1 });
-    // Kurvbilden (ägaren 2026-11-13): fyra lägen före körningen; «normal» är Karttapullautins förval.
     const target = { tiles: [tile], clip, areaId: undefined, extras: [] };
+    // O-Tids egen motor (förval): 5 profiler för skog (5 m) och sprint (2,5 m).
     expect(defaultLaserJob("K", target, false, "normal").settings).toEqual({ contour_interval: 5, formline: 2 });
-    expect(defaultLaserJob("K", target, false, "detailed").settings).toMatchObject({ smoothing: 0.5, curviness: 1.3 });
-    expect(defaultLaserJob("K", target, false, "generalized").settings).toMatchObject({ smoothing: 1.2, curviness: 0.9 });
-    expect(defaultLaserJob("K", target, true, "veryGeneralized").settings).toEqual({ contour_interval: 2.5, formline: 2, paved: 1, smoothing: 2, curviness: 0.7, knolls: 0.85 });
+    expect(defaultLaserJob("K", target, false, "veryDetailed").settings).toMatchObject({ smooth_m: 1.0, taubin: 1, curviness: 0.24, min_loop_area: 20, min_clearance: 1.0 });
+    expect(defaultLaserJob("K", target, false, "detailed").settings).toMatchObject({ smooth_m: 1.35, taubin: 2, curviness: 0.20, min_loop_area: 30, min_clearance: 1.4 });
+    expect(defaultLaserJob("K", target, false, "generalized").settings).toMatchObject({ smooth_m: 2.3, taubin: 3, curviness: 0.13, min_loop_area: 65, min_clearance: 2.1 });
+    expect(defaultLaserJob("K", target, true, "veryGeneralized").settings).toEqual({ contour_interval: 2.5, formline: 2, paved: 1, smooth_m: 2.2, taubin: 4, curviness: 0.08, min_loop_area: 40, min_clearance: 1.5 });
+    // Karttapullautin: klassiska kurvprofiler.
+    expect(defaultLaserJob("K", target, false, "veryDetailed", "pullautin")).toMatchObject({ engine: "pullautin", settings: { smoothing: 0.3, curviness: 1.5 } });
+    expect(defaultLaserJob("K", target, false, "detailed", "pullautin").settings).toMatchObject({ smoothing: 0.5, curviness: 1.3 });
+    expect(defaultLaserJob("K", target, false, "generalized", "pullautin").settings).toMatchObject({ smoothing: 1.2, curviness: 0.9 });
+    expect(defaultLaserJob("K", target, true, "veryGeneralized", "pullautin").settings).toEqual({ contour_interval: 2.5, formline: 2, paved: 1, smoothing: 2, curviness: 0.7, knolls: 0.85 });
     // Laserpanelen: en handskriven inställning går före förvalet, och en skogskarta får ingen belagd yta.
     const panel = (sprint: boolean, typed: Record<string, number> = {}) => laserJobBody({ name: "Prov", interval: 2, formline: 2, sprint, chosen: { settings: typed, cliffs: undefined },
       target: { tiles: [tile], clip, extras: [] } }).settings;

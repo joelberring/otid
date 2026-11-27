@@ -1,5 +1,9 @@
-import { GEO_JOB_DEFAULTS, type GeoClip, type GeoExtraKind } from "@o-tid/contracts";
-import { choiceSettings, DEFAULT_CHOICES, type CliffStyle, type LaserChoices } from "./map-project-laser-choices";
+import { GEO_JOB_DEFAULTS, type GeoClip, type GeoExtraKind, type GeoJobEngine } from "@o-tid/contracts";
+import {
+  choiceSettings, CONTOUR_STYLES, contourStyleSettings, DEFAULT_CHOICES, type CliffStyle, type ContourStyle, type LaserChoices, type VegSmoothLevel
+} from "./map-project-laser-choices";
+
+export { CONTOUR_STYLES, contourStyleSettings, type ContourStyle };
 
 /** En laserruta och en av Lantmäteriets vektorprodukter som sökningen gav. */
 export interface LaserItem { id: string; datetime: string | null; href: string; bbox: [number, number, number, number] | null; bytes: number | null; epsg: number | null }
@@ -9,10 +13,16 @@ export interface LaserExtra { kind: GeoExtraKind; id: string; href: string }
  * Laserformulärets förval, på ett ställe: laserpanelen börjar med dem och guiden «Ny grundkarta» kör med dem. Ägaren
  * 2026-11-11: fuktigheten och vegetationen är förvalda, så att kärr och grönt alltid kommer med i grundkartan.
  */
-export const LASER_FORM_DEFAULTS: { readonly interval: number; readonly formline: number; readonly choices: LaserChoices; readonly cliffStyle: CliffStyle;
-  readonly cliffTags: boolean; readonly moisture: boolean; readonly channelHa: number; readonly wetMeters: number; readonly vegetation: boolean; readonly minAreaM2: number } = {
-  interval: GEO_JOB_DEFAULTS.contourInterval, formline: GEO_JOB_DEFAULTS.formline, choices: DEFAULT_CHOICES, cliffStyle: "few", cliffTags: false,
-  moisture: true, channelHa: GEO_JOB_DEFAULTS.channelHa, wetMeters: GEO_JOB_DEFAULTS.wetMeters, vegetation: true, minAreaM2: GEO_JOB_DEFAULTS.minAreaM2
+export const LASER_FORM_DEFAULTS: {
+  readonly engine: GeoJobEngine; readonly interval: number; readonly formline: number; readonly contours: ContourStyle;
+  readonly choices: LaserChoices; readonly cliffStyle: CliffStyle; readonly cliffTags: boolean;
+  readonly moisture: boolean; readonly channelHa: number; readonly wetMeters: number;
+  readonly vegetation: boolean; readonly minAreaM2: number; readonly vegSmooth: VegSmoothLevel; readonly overview: boolean;
+} = {
+  engine: "otidgeo", interval: GEO_JOB_DEFAULTS.contourInterval, formline: GEO_JOB_DEFAULTS.formline, contours: "normal",
+  choices: DEFAULT_CHOICES, cliffStyle: "few", cliffTags: false,
+  moisture: true, channelHa: GEO_JOB_DEFAULTS.channelHa, wetMeters: GEO_JOB_DEFAULTS.wetMeters,
+  vegetation: true, minAreaM2: GEO_JOB_DEFAULTS.minAreaM2, vegSmooth: "normal", overview: true
 };
 
 /**
@@ -32,7 +42,9 @@ export const defaultLaserInterval = (sprint: boolean): number => sprint ? SPRINT
 const pavedSetting = (sprint: boolean | undefined): { paved?: 1 } => sprint ? { paved: 1 } : {};
 
 export interface LaserJobInput {
-  readonly name: string; readonly interval: number; readonly formline: number;
+  readonly name: string;
+  readonly engine?: GeoJobEngine | undefined;
+  readonly interval: number; readonly formline: number;
   /** Kartan är en sprintkarta: belagd yta ur lasern tas med. */
   readonly sprint?: boolean | undefined;
   /** Valen som värden (`choiceSettings`): inställningarna och branternas trösklar. */
@@ -49,7 +61,8 @@ export interface LaserJobInput {
 /** Begäran som startar en körning (POST geo-jobs), utan `requestId`. Samma för laserpanelen och guiden. */
 export function laserJobBody(input: LaserJobInput) {
   const { target } = input;
-  return { formatVersion: 1, kind: "PULLAUTIN", name: input.name, settings: { contour_interval: input.interval, formline: input.formline, ...pavedSetting(input.sprint), ...input.chosen.settings },
+  return { formatVersion: 1, kind: "PULLAUTIN", engine: input.engine ?? LASER_FORM_DEFAULTS.engine, name: input.name,
+    settings: { contour_interval: input.interval, formline: input.formline, ...pavedSetting(input.sprint), ...input.chosen.settings },
     ...(input.chosen.cliffs ? { cliffs: input.chosen.cliffs } : {}),
     ...("rerunOf" in target ? { rerunOf: target.rerunOf, ...(target.clip ? { clip: target.clip } : {}) } : {
       tiles: target.tiles.map(item => ({ id: item.id, href: item.href, bbox: item.bbox, epsg: item.epsg, datetime: item.datetime })),
@@ -60,28 +73,13 @@ export function laserJobBody(input: LaserJobInput) {
     ...(input.vegetation ? { vegetation: { minAreaM2: input.vegetation.minAreaM2 } } : {}), ...(input.rawLaser ? { rawLaser: true } : {}) } as const;
 }
 
-/**
- * Kurvbilden i guiden (ägaren 2026-11-13: «kurvbilden ser rätt bra ut på Järflotta men är ganska detaljerad … fyra lägen är
- * bra och att man inte måste [välja] för varje»). Utjämningen görs på höjdmodellen i körningen, så valet görs före. Värdena är
- * Karttapullautins `smoothing` (större = slätare) och `curviness` (större = mer överdrivna böjar); «normal» är dess förval.
- * «Detaljerad» och «Generaliserad» är samma som laserpanelens «mer» och «mindre» för kurvorna.
- */
-export const CONTOUR_STYLES = ["detailed", "normal", "generalized", "veryGeneralized"] as const;
-export type ContourStyle = typeof CONTOUR_STYLES[number];
-const CONTOUR_STYLE_SETTINGS: Readonly<Record<ContourStyle, Readonly<Record<string, number>>>> = {
-  detailed: { smoothing: 0.5, curviness: 1.3 },
-  normal: {},
-  generalized: { smoothing: 1.2, curviness: 0.9 },
-  // Också färre knollar: i flack terräng är de flesta små kullar brus.
-  veryGeneralized: { smoothing: 2, curviness: 0.7, knolls: 0.85 }
-};
-export const contourStyleSettings = (style: ContourStyle): Readonly<Record<string, number>> => CONTOUR_STYLE_SETTINGS[style];
-
 /** Körningen med förvalen (guiden): alla hittade produkter, förvalda inställningar, fuktighet och vegetation; `sprint` ger sprintkartans ekvidistans och belagd yta ur lasern. */
-export function defaultLaserJob(name: string, target: Extract<LaserJobInput["target"], { tiles: unknown }>, sprint = false, contours: ContourStyle = "normal") {
+export function defaultLaserJob(name: string, target: Extract<LaserJobInput["target"], { tiles: unknown }>, sprint = false,
+  contours: ContourStyle = "normal", engine: GeoJobEngine = LASER_FORM_DEFAULTS.engine) {
   const d = LASER_FORM_DEFAULTS;
-  return laserJobBody({ name, interval: defaultLaserInterval(sprint), formline: d.formline, sprint,
-    chosen: choiceSettings(d.choices, contourStyleSettings(contours), d.cliffStyle, d.cliffTags),
+  const interval = defaultLaserInterval(sprint);
+  return laserJobBody({ name, engine, interval, formline: d.formline, sprint,
+    chosen: choiceSettings(d.choices, {}, d.cliffStyle, d.cliffTags, false, { engine, contours, sprint: interval <= 3, vegSmooth: d.vegSmooth, overview: d.overview }),
     moisture: d.moisture ? { channelHa: d.channelHa, wetMeters: d.wetMeters } : undefined,
     vegetation: d.vegetation ? { minAreaM2: d.minAreaM2 } : undefined, target });
 }

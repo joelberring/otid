@@ -120,13 +120,13 @@ export const mapSourcesSv = {
     added: "Markfuktigheten är tillagd som underlag.",
     attribution: "Markfuktighetskarta SLU, Skogsstyrelsen."
   },
-  /** K5: laserdata och Karttapullautin på geo-servern. */
+  /** K5 + G4B: laserdata med O-Tids egen motor (`otidgeo`) eller bildmotorfri Karttapullautin på geo-servern. */
   laser: {
     heading: "Laserkörningar (avancerat)",
-    help: "Sök laserrutor (2,5 × 2,5 km) för hela kartan eller ett delområde med dina egna uppgifter till Lantmäteriet. Geo-servern kör "
-      + "Karttapullautin: bilden läggs till som underlag, och kurvor, formlinjer, branter och knollar kan läsas in som utkast. "
+    help: "Sök laserrutor (2,5 × 2,5 km) för hela kartan eller ett delområde med dina egna uppgifter till Lantmäteriet. Geo-servern bearbetar "
+      + "lasern med O-Tids egen motor (förval) eller bildmotorfri Karttapullautin: skuggning, relief, fukt och valfri översiktsbild blir underlag, och kurvor, formlinjer, branter, knollar och vegetation kan läsas in som utkast. "
       + "Laserdatan klipps till kartans område (eller delområdet) med 50 m marginal innan den bearbetas.",
-    attribution: "Laserdata Nedladdning, skog © Lantmäteriet, CC BY 4.0 (bearbetad med Karttapullautin, GPL-3).",
+    attribution: "Laserdata Nedladdning, skog © Lantmäteriet, CC BY 4.0 (bearbetad med O-Tid eller Karttapullautin, GPL-3).",
     search: "Sök laserrutor",
     searching: "Söker …",
     none: "Inga laserrutor hittades för området.",
@@ -134,14 +134,27 @@ export const mapSourcesSv = {
       [when?.slice(0, 10), id, bytes ? `${Math.round(bytes / 1_000_000)} MB` : null].filter(Boolean).join(" · "),
     name: "Namn på resultatet",
     defaultName: (area?: string) => `Karttapullautin ${area ?? "hela kartan"}`.slice(0, 80),
+    engine: "Motor",
+    engineOptions: {
+      otidgeo: "O-Tid (egen motor — snabb, skarvfri, styrbar)",
+      pullautin: "Karttapullautin (utan bildmotor — klassiska kurvor)"
+    } as Record<string, string>,
+    engineShort: { otidgeo: "O-Tid", pullautin: "Karttapullautin" } as Record<string, string>,
+    pullautinNoOverview: "Karttapullautins bildmotor hoppas över — du får terrängskuggning, relief och alla vektorer snabbare utan översiktsbilden.",
     interval: "Ekvidistans",
     intervalOption: (meters: number) => `${String(meters).replace(".", ",")} m`,
     formlines: "Stödkurvor",
-    formlineOptions: { 0: "Inga stödkurvor", 1: "Kurvor på halva ekvidistansen", 2: "Stödkurvor där de behövs" } as Record<number, string>,
+    formlineOptions: { 0: "Av", 1: "Sparsam", 2: "Normal", 3: "Riklig" } as Record<number, string>,
+    contours: "Kurvprofil",
+    contourStyles: {
+      veryDetailed: "Mycket detaljerad", detailed: "Detaljerad", normal: "Normal", generalized: "Generaliserad", veryGeneralized: "Mycket generaliserad"
+    } as Record<string, string>,
     choicesHeading: "Inställningar",
     cliffStyle: "Opasserbara branter",
     cliffStyles: { few: "Bara höga stup (från 4,5 m, minst 20 m)", most: "De flesta branter (från 3,5 m, minst 10 m)" } as Record<string, string>,
     cliffTags: "Föreslå passerbara branter med taggar",
+    overview: "Skapa 2 m översiktsbild (karta.webp)",
+    overviewHelp: "Förval på i O-Tids motor. Ger en snabb översiktsbild som underlag; stäng av om du bara vill ha skuggning, relief och vektorer.",
     rawTicks: "Spara Karttapullautins råa brantstreck (branter.dxf, stup.dxf)",
     rawTicksHelp: "Behövs sällan: grundkartan använder brantlinjerna. De råa strecken blir stora filer, ofta flera tiotals MB.",
     /** PLAN.md M6 (ägaren 2026-11-22): rå laserdata sparas aldrig, utom i en zip med hämtningslänk när man kryssar i det. */
@@ -154,14 +167,14 @@ export const mapSourcesSv = {
     rawLaserUntil: (date: string) => `gäller till ${date}`,
     rawLaserOthers: "bara den som startade körningen kan hämta",
     rawLaserMissing: "Rå laserdata begärdes, men ingen zip-fil finns (geo-servern packade den inte, eller filen är redan borttagen).",
-    choiceLabels: { cliffs: "Branter", contours: "Kurvor", knolls: "Knollar", green: "Grönt", undergrowth: "Undervegetation", open: "Gult", rock: "Berg i dagen" } as Record<string, string>,
+    choiceLabels: { cliffs: "Branter", knolls: "Knollar", green: "Grönt", undergrowth: "Undervegetation", open: "Gult", rock: "Berg i dagen" } as Record<string, string>,
     choiceLevels: {
-      cliffs: { less: "Färre", default: "Som förval", more: "Fler" }, contours: { less: "Slätare", default: "Som förval", more: "Detaljrikare" },
+      cliffs: { less: "Färre", default: "Som förval", more: "Fler" },
       knolls: { less: "Färre", default: "Som förval", more: "Fler" }, green: { less: "Mindre", default: "Som förval", more: "Mer" },
       undergrowth: { less: "Mindre", default: "Som förval", more: "Mer" },
       open: { less: "Mindre", default: "Som förval", more: "Mer" }, rock: { less: "Ta inte med", default: "Utan förslag", more: "Föreslå som berg i dagen" }
     } as Record<string, Record<"less" | "default" | "more", string>>,
-    choicesHelp: "Grönt mäts av Karttapullautin som andelen laserträffar 1–2,65 m över marken (buskskiktet) mot träffarna på marken, och väger in trädkronorna. Prova på ett delområde först, eller kör om ett klart jobb och jämför.",
+    choicesHelp: "Grönt mäts ur andelen laserträffar i buskskiktet (1–3 m) och trädkronornas täthet. Prova på ett delområde först, eller kör om ett klart jobb och jämför.",
     rerun: "Kör om med andra inställningar",
     rerunHeading: (name: string) => `Kör om ${name} med samma rutor och område:`,
     rerunName: (name: string) => `${name} (ny)`.slice(0, 80),
@@ -171,10 +184,14 @@ export const mapSourcesSv = {
     sampleMiddle: "Provruta 250 × 250 m i mitten",
     sampleArea: (name: string) => `Provruta 250 × 250 m i ${name}`,
     sampleSuffix: " (provruta)",
-    more: "Avancerat: värden i Karttapullautin",
-    moreHelp: "Värdena skrivs i Karttapullautins pullauta.ini (namnet står inom parentes). Lämna ett fält tomt för Karttapullautins förval. "
-      + "Prova på ett litet delområde först och jämför bilderna.",
+    more: { otidgeo: "Avancerat: finjustering för O-Tid-motorn", pullautin: "Avancerat: värden i Karttapullautin" } as Record<string, string>,
+    moreHelp: {
+      otidgeo: "Fysikaliska parametrar för O-Tids egen motor (flaggans nyckel står inom parentes). Lämna tomt för kurvprofilens förval.",
+      pullautin: "Värdena skrivs i Karttapullautins pullauta.ini (namnet står inom parentes). Lämna ett fält tomt för Karttapullautins förval. Prova på ett litet delområde först och jämför."
+    } as Record<string, string>,
     settingLabels: {
+      smooth_m: "Höjdutjämning (meter)", taubin: "Kurvutjämning (Taubin-pass)", min_loop_area: "Minsta kurvring (m²)", min_clearance: "Minsta avstånd mellan kurvor (m)",
+      formline_gap: "Minsta lucka för stödkurva (m)", formline_max_slope: "Maxlutning för stödkurva (°)", veg_smooth: "Vegetationsutjämning",
       smoothing: "Kurvornas utjämning", curviness: "Kurvornas formrikedom", knolls: "Knollar", formlinesteepness: "Formlinjer efter lutning",
       cliff1: "Branter, tröskel 1", cliff2: "Branter, tröskel 2", cliffsteepfactor: "Branter, lutningsfaktor",
       yellowheight: "Öppen mark, högsta höjd", greenground: "Grönt, markskiktets höjd", greenhigh: "Grönt, högsta höjd", undergrowth: "Undervegetation",
@@ -189,6 +206,19 @@ export const mapSourcesSv = {
       yellowheight: "Förval 0,9 m.", greenground: "Förval 0,9 m.", greenhigh: "Förval 2 m.",
       undergrowth: "Förval 0,35. Lägre värde ger mer undervegetation.",
       topweight: "Förval 0,8. Lägre värde gör att grönt under täta kronor inte räknas upp.", greenscale: "Förval 1. Större värde ger mindre grönt."
+    } as Record<string, string>,
+    otidgeoSettingHints: {
+      smooth_m: "Förval 1,65 m (1,2 m sprint). Lägre behåller småformer, högre slätar ut markmodellen.",
+      taubin: "Förval 2 pass (0–6). 0 behåller rå kurvgeometri, fler pass ger rundare kurvor utan krympning.",
+      min_loop_area: "Förval 40 m² (17 m² sprint). Mindre slutna ringar filtreras bort eller blir punkthöjder.",
+      min_clearance: "Förval 1,7 m (1,0 m sprint). Minsta avstånd mellan grannkurvor i trånga partier.",
+      curviness: "Förval 0,17 (0–0,8 i motorn). Högre förstärker små ryggar och sänkor.",
+      formline_gap: "Förval 7,8 m (4,6 m sprint). Minsta avstånd mellan huvudkurvor för att en stödkurva ska ritas.",
+      formline_max_slope: "Förval 16,5° (14,5° sprint). Brantare slänter hålls rena från inklämda stödkurvor.",
+      veg_smooth: "Förval 1,05 (0,65 detaljerad, 1,6 lugna ytor). Styr hur mycket grönt och öppet jämnas ihop.",
+      greenscale: "Förval 1. Större värde ger mindre grönt, lägre värde ger mer grönt.",
+      topweight: "Förval 0,34. Hur mycket täta trädkronor väger in i grönt.",
+      undergrowth: "Förval 0,058. Lägre värde ger mer undervegetation i skog."
     } as Record<string, string>,
     settingField: (label: string, key: string, low: number, high: number) => `${label} (${key}, ${String(low).replace(".", ",")}–${String(high).replace(".", ",")})`,
     settingDefault: "förval",
@@ -206,8 +236,13 @@ export const mapSourcesSv = {
     vegetation: "Gör också ytor av vegetationen (öppen mark, grönt och undervegetation ur laserns returer)",
     minArea: "Minsta yta",
     minAreaOption: (m2: number) => `${m2} m²`,
+    vegSmooth: "Vegetationsutjämning",
+    vegSmoothOptions: { detailed: "Detaljerad (0,65)", normal: "Normal (1,05)", calm: "Lugna ytor (1,6)" } as Record<string, string>,
     tooManyTiles: (count: number, most: number) => `${count} rutor är valda; ett jobb tar högst ${most}. Välj ett delområde eller bocka ur rutor.`,
-    start: (count: number) => count === 1 ? "Kör Karttapullautin på 1 ruta" : `Kör Karttapullautin på ${count} rutor`,
+    start: (count: number, engine: string) => {
+      const label = engine === "otidgeo" ? "O-Tid" : "Karttapullautin";
+      return count === 1 ? `Kör ${label} på 1 ruta` : `Kör ${label} på ${count} rutor`;
+    },
     started: "Jobbet ligger i kön.",
     startedSplit: (parts: number) => `Området är för stort för en körning och har delats i ${parts} etapper. De ligger i kön och körs efter varandra.`,
     jobs: "Jobben",

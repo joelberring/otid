@@ -8,6 +8,9 @@ import { cliffLines, cliffsFromTicks, DEFAULT_CLIFF_RULES, hillshade, measureCli
 import { moistureFromHeightMaps, readHeightMap } from "../../../scripts/geo-moisture";
 import { decodeGrayPng, readWorldFile, vegetationFromTiles } from "../../../scripts/geo-vegetation";
 import { mergeWaterGrids, polygonsOf, readWaterGrid, waterFromGrids, waterMask, type WaterGrid } from "../../../scripts/geo-water";
+import {
+  otidgeoRastersArgs, otidgeoRunArgs, otidgeoVegArgs, vegetationFromClassPng
+} from "../../../scripts/geo-otidgeo";
 import { iniWith } from "../../../scripts/geo-worker";
 import { importLayers, importObjects, suggestSymbol } from "../src/vector-import";
 import { parseDxf, parseGeoJson, type SourceData } from "../src/vector-parse";
@@ -328,6 +331,94 @@ describe.skipIf(!tools.lasclip || !tools.pullauta || !tools.ini || !existsSync(t
       expect(water.summary.waterAreas).toBeGreaterThan(0);
       expect(water.at(665_070, 6_576_504)).toBe(true);
       expect(water.at(664_950, 6_576_650)).toBe(false);
+    } finally { rmSync(work, { recursive: true, force: true }); }
+  }, 120_000);
+});
+
+/**
+ * Etapp G4B: riktig E2E-kedja mot kompilerade `tools/lasclip` + `tools/otidgeo` (`run`, `veg` och `rasters`) på Kungshatt.
+ * Hittar binärerna antingen via `OTID_LASCLIP`/`OTID_OTIDGEO` eller lokala `target/release`-byggen; hoppas över om de inte är byggda.
+ */
+const realBin = (envKey: string, relPath: string) => {
+  const fromEnv = process.env[envKey];
+  if (fromEnv && existsSync(fromEnv)) return fromEnv;
+  const local = join(import.meta.dirname, "../../..", relPath);
+  return existsSync(local) ? local : undefined;
+};
+const realLasclip = realBin("OTID_LASCLIP", "tools/lasclip/target/release/lasclip");
+const realOtidgeo = realBin("OTID_OTIDGEO", "tools/otidgeo/target/release/otidgeo");
+describe.skipIf(!realLasclip || !realOtidgeo)("hela kedjan med riktiga lasclip och otidgeo (run, veg, rasters)", () => {
+  it("klipper Kungshatt och kör otidgeo run, veg och rasters med kompletta utdata", () => {
+    const work = mkdtempSync(join(tmpdir(), "otid-otidgeo-real-"));
+    try {
+      mkdirSync(join(work, "in"));
+      copyFileSync(join(dir, "kungshatt-300m.laz"), join(work, "ruta.laz"));
+      const clip = { minX: 664_830, minY: 6_576_500, maxX: 665_080, maxY: 6_576_750 };
+      const kept = execFileSync(realLasclip!, [
+        "ruta.laz", "in/ruta00.las", ...Object.values(clip).map(String),
+        "vatten0.bin", "mark0.bin", "punkter0.bin"
+      ], { cwd: work }).toString().trim();
+      expect(Number(kept)).toBeGreaterThan(80_000);
+
+      // 1. `otidgeo run` (kurvor, formlinjer, knollar, vegetation, översikt).
+      execFileSync(realOtidgeo!, otidgeoRunArgs(["in/ruta00.las"], "out-run", {
+        settings: { contour_interval: 5, formline: 2, veg_smooth: 0.65 },
+        vegetation: { minAreaM2: 300 },
+        clip
+      }), { cwd: work, stdio: "ignore" });
+      const contours = parseDxf(readFileSync(join(work, "out-run/kurvor.dxf"), "utf8"));
+      expect(contours.features.length).toBeGreaterThan(5);
+      expect(existsSync(join(work, "out-run/formlinjer.dxf"))).toBe(true);
+      expect(existsSync(join(work, "out-run/knollar.dxf"))).toBe(true);
+      expect(existsSync(join(work, "out-run/karta.png"))).toBe(true);
+      expect(existsSync(join(work, "out-run/karta.pgw"))).toBe(true);
+      expect(existsSync(join(work, "out-run/vegetationsklasser.png"))).toBe(true);
+
+      const vegFromRun = vegetationFromClassPng(
+        new Uint8Array(readFileSync(join(work, "out-run/vegetationsklasser.png"))),
+        readFileSync(join(work, "out-run/vegetationsklasser.pgw"), "utf8"),
+        { vegSmooth: 0.65 }
+      );
+      expect(vegFromRun.hasData).toBe(true);
+      expect(parseDxf(vegFromRun.dxf).features.length).toBeGreaterThan(0);
+
+      // 2. `otidgeo veg` (fristående vegetationspass för bildmotorfri pullautin).
+      execFileSync(realOtidgeo!, otidgeoVegArgs(["in/ruta00.las"], "out-veg", {
+        settings: { greenscale: 1, veg_smooth: 0.65 },
+        vegetation: { minAreaM2: 300 },
+        clip
+      }, true), { cwd: work, stdio: "ignore" });
+      expect(existsSync(join(work, "out-veg/vegetationsklasser.png"))).toBe(true);
+      expect(existsSync(join(work, "out-veg/vegetationsklasser.pgw"))).toBe(true);
+
+      // 3. `otidgeo rasters` (delad multi-trådad Rust-rastermotor).
+      copyFileSync(join(work, "out-run/vegetationsklasser.png"), join(work, "vegetationsklasser.png"));
+      copyFileSync(join(work, "out-run/vegetationsklasser.pgw"), join(work, "vegetationsklasser.pgw"));
+      execFileSync(realOtidgeo!, otidgeoRastersArgs({
+        groundFiles: ["mark0.bin"],
+        waterFiles: ["vatten0.bin"],
+        pointFiles: ["punkter0.bin"],
+        vegPng: "vegetationsklasser.png",
+        outDir: "out-rasters",
+        heightRasters: true,
+        pointImages: true,
+        waterGeoJson: true,
+        moisture: { channelHa: 1, wetMeters: 0.25, moistMeters: 0.4 },
+        cliffs: { minDrop: 1.3, impassableDrop: 4.5, impassableLength: 20 },
+        ditchesTracks: true,
+        rock: { mode: 1, knolls: true }
+      }), { cwd: work, stdio: "ignore" });
+      for (const file of [
+        "hojd.png", "hojd.pgw", "skuggning.png", "skuggning.pgw", "relief.png", "relief.pgw",
+        "fukt.png", "fukt.pgw", "fukt.dxf", "fuktdjup.png", "fuktdjup.pgw",
+        "brantlinjer.dxf", "berg.png", "berg.pgw", "vatten.geojson", "rasters-summary.json"
+      ]) {
+        expect(existsSync(join(work, "out-rasters", file)), `saknar out-rasters/${file}`).toBe(true);
+      }
+      const rastersSummary = JSON.parse(readFileSync(join(work, "out-rasters/rasters-summary.json"), "utf8")) as Record<string, number>;
+      expect(rastersSummary.waterAreas).toBeGreaterThan(0);
+      expect((rastersSummary.cliffs201 ?? 0) + (rastersSummary.cliffs202 ?? 0)).toBeGreaterThan(0);
+      expect(rastersSummary.wetHa).toBeGreaterThan(0);
     } finally { rmSync(work, { recursive: true, force: true }); }
   }, 120_000);
 });

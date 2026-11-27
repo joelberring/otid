@@ -132,7 +132,7 @@ export function cliffRulesForJob(job: { readonly settings: Readonly<Record<strin
   };
 }
 /** Arbetarens version (samma som `GEO_WORKER_VERSION` i contracts; servern ger inga jobb till en äldre). */
-export const WORKER_VERSION = 44;
+export const WORKER_VERSION = 45;
 
 async function sendFailure(name: string, response: Response): Promise<string> {
   const error = (await response.json().catch(() => undefined) as { error?: string } | undefined)?.error;

@@ -13,7 +13,7 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import {
   cliffsFromTicks, createGroundAccumulator, heightPng, hillshade, readGroundGrid, readTicks, steepAt,
-  type CliffRules, type GroundGrid
+  type CliffCandidate, type CliffRules, type GroundGrid
 } from "./geo-cliffs.ts";
 import { dwgFeatures, dwgObjects } from "./geo-dwg.ts";
 import { createDxfMerger, decodePng, dxfFrame, dxfMergeOptions, encodeRawPng, mergeGeoJson, mosaicPng, readWorld, writeWorld, type Box } from "./geo-merge.ts";
@@ -23,6 +23,7 @@ import {
   createPointStatsAccumulator, groundShareAt, pointImages, readPointStats, vegetationSignals,
   type PointStats, type VegetationSignals
 } from "./geo-points.ts";
+import type { KnollCandidate } from "./geo-rock.ts";
 import { slimDxf } from "./geo-slim.ts";
 import { maskOf, runStep, shareBytes, shareGround, stepPoolConcurrency, StepSkipped, STEP_TIMEOUT_MS, type StepInput, type StepName } from "./geo-steps.ts";
 import { decodeGrayPng, readWorldFile, vegetationFromTiles, type VegetationTile } from "./geo-vegetation.ts";
@@ -376,6 +377,58 @@ export interface JsRastersFallbackInput {
   readonly createStopped: () => Error;
 }
 
+function roundJsonOpt(value: number | undefined, scale: number): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  const rounded = Math.round(value * scale) / scale;
+  return rounded === 0 ? 0 : rounded;
+}
+
+/** Formaterar `brantlinjer.geojson` med paritet mot `tools/otidgeo/src/rasters/cliffs.rs` (`write_cliffs_geojson`). */
+export function cliffsGeoJson(candidates: readonly CliffCandidate[]): string {
+  const features = candidates.flatMap(cliff => {
+    if (cliff.line.length < 2 || !cliff.line.every(([x, y]) => Number.isFinite(x) && Number.isFinite(y))) return [];
+    return [{
+      type: "Feature",
+      geometry: {
+        type: "LineString",
+        coordinates: cliff.line.map(([x, y]) => [Math.round(x * 10) / 10, Math.round(y * 10) / 10])
+      },
+      properties: {
+        drop3: roundJsonOpt(cliff.drop3, 100),
+        drop6: roundJsonOpt(cliff.drop6, 100),
+        length: roundJsonOpt(cliff.length, 100),
+        slope: roundJsonOpt(cliff.slope, 10),
+        sharpness: roundJsonOpt(cliff.sharpness, 100)
+      }
+    }];
+  });
+  return JSON.stringify({ type: "FeatureCollection", crs: { type: "name", properties: { name: "EPSG:3006" } }, features });
+}
+
+/** Formaterar `kullar.geojson` med paritet mot `tools/otidgeo/src/rasters/knolls.rs` (`write_knolls_geojson`). */
+export function knollsGeoJson(candidates: readonly KnollCandidate[]): string {
+  const features = candidates.map(knoll => {
+    const aspect = typeof knoll.aspect === "number" && Number.isFinite(knoll.aspect)
+      ? Math.round(Math.max(1, knoll.aspect) * 100) / 100 : 1;
+    const rawAngle = typeof knoll.angle === "number" && Number.isFinite(knoll.angle)
+      ? Math.round((((knoll.angle % 180) + 180) % 180) * 10) / 10 : 0;
+    const angle = rawAngle >= 180 || rawAngle === 0 ? 0 : rawAngle;
+    return {
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [Math.round(knoll.at[0] * 10) / 10, Math.round(knoll.at[1] * 10) / 10] },
+      properties: {
+        rise: Math.round(knoll.rise * 100) / 100,
+        share: Math.round(knoll.share * 1000) / 1000,
+        foot: Math.round(knoll.footM2),
+        ...(knoll.wet ? { wet: 1 } : {}),
+        aspect,
+        angle
+      }
+    };
+  });
+  return JSON.stringify({ type: "FeatureCollection", crs: { type: "name", properties: { name: "EPSG:3006" } }, features });
+}
+
 /** Automatisk JS-fallback för branter, skuggning, vatten, fukt, vegetation och terrängsteg när `otidgeo rasters` inte används. */
 export async function runJsRastersFallback(input: JsRastersFallbackInput): Promise<{
   readonly water?: ReturnType<typeof waterFromGrids> | undefined;
@@ -400,10 +453,7 @@ export async function runJsRastersFallback(input: JsRastersFallbackInput): Promi
   const ground = await streamMergeGroundFiles(dir, groundFiles);
   const cliffs = cliffsFromTicks(await ticksOf("merged_c3g.dxf"), await ticksOf("merged_c2g.dxf"), undefined, ground, rules, job.cliffs?.tags === true);
   if (cliffs.candidates.length) {
-    const round = (value: number) => Math.round(value * 100) / 100;
-    await writeFile(join(dir, "brantlinjer.geojson"), JSON.stringify({ type: "FeatureCollection", crs: { type: "name", properties: { name: "EPSG:3006" } },
-      features: cliffs.candidates.map(cliff => ({ type: "Feature", geometry: { type: "LineString", coordinates: cliff.line.map(([x, y]) => [Math.round(x * 10) / 10, Math.round(y * 10) / 10]) },
-        properties: { drop3: round(cliff.drop3), drop6: round(cliff.drop6), length: round(cliff.length) } })) }));
+    await writeFile(join(dir, "brantlinjer.geojson"), cliffsGeoJson(cliffs.candidates));
   }
   if (cliffs.summary.cliffs201 + cliffs.summary.cliffs202 > 0) {
     await writeFile(join(dir, "brantlinjer.dxf"), cliffs.dxf);
@@ -517,7 +567,7 @@ export async function runJsRastersFallback(input: JsRastersFallbackInput): Promi
     const forestMask = forestAt ? maskOf(sharedGround, forestAt) : undefined;
     const waterData = water ? { grid: { ...water.grid, cells: shareBytes(water.grid.cells) }, mask: shareBytes(water.mask) } : undefined;
     let stones: { stones: { name: "sten" | "stort_block"; at: [number, number]; height: number }[]; capped: number } = { stones: [], capped: 0 };
-    let hills: { knolls: [number, number][]; capped: number; candidates: { at: [number, number]; rise: number; share: number; footM2: number; wet?: boolean | undefined }[] } = { knolls: [], capped: 0, candidates: [] };
+    let hills: { knolls: [number, number][]; capped: number; candidates: KnollCandidate[] } = { knolls: [], capped: 0, candidates: [] };
     let rock: [number, number][][] = [];
 
     const tasks: (() => Promise<void>)[] = [
@@ -542,9 +592,7 @@ export async function runJsRastersFallback(input: JsRastersFallbackInput): Promi
         hills = (await step("knolls", { ground: sharedGround, water: waterData, stones: stones.stones, knollShare: job.settings.knollshare, wet: wetMask })) ?? hills;
         stepTimings.msKnolls = Date.now() - t1;
         if (hills.candidates.length) {
-          await writeFile(join(dir, "kullar.geojson"), JSON.stringify({ type: "FeatureCollection", crs: { type: "name", properties: { name: "EPSG:3006" } },
-            features: hills.candidates.map(knoll => ({ type: "Feature", geometry: { type: "Point", coordinates: [Math.round(knoll.at[0] * 10) / 10, Math.round(knoll.at[1] * 10) / 10] },
-              properties: { rise: Math.round(knoll.rise * 100) / 100, share: Math.round(knoll.share * 1000) / 1000, foot: Math.round(knoll.footM2), ...(knoll.wet ? { wet: 1 } : {}) } })) }));
+          await writeFile(join(dir, "kullar.geojson"), knollsGeoJson(hills.candidates));
         }
       },
       ...(openMask ? [async () => {

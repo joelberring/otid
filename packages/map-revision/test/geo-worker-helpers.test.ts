@@ -10,9 +10,11 @@ import { slimDxf } from "../../../scripts/geo-slim.ts";
 import { waterFromGrids } from "../../../scripts/geo-water.ts";
 import { iniWith, pngSize } from "../../../scripts/geo-worker.ts";
 import {
-  isAlreadySlimDxf, readPngSize, runPool,
+  cliffsGeoJson, isAlreadySlimDxf, knollsGeoJson, readPngSize, runPool,
   streamMergeGroundFiles, streamMergePointFiles, streamMergeWaterFiles
 } from "../../../scripts/geo-worker-helpers.ts";
+import { readCliffCandidates } from "../src/base-map/cliff-choice";
+import { isElongatedKnollCandidate, readKnollCandidates } from "../src/base-map/knoll-choice";
 
 function writeHeader(buf: Buffer, minX: number, minY: number, cell: number, width: number, height: number): void {
   buf.writeDoubleLE(minX, 0);
@@ -160,5 +162,34 @@ describe("geo-arbetarens hjälpare (Etapp G2A)", () => {
     expect(peak).toBeLessThanOrEqual(3);
     expect(peak).toBeGreaterThanOrEqual(2);
     expect(seen.sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+  });
+
+  it("cliffsGeoJson och knollsGeoJson vidarebefordrar slope/sharpness samt aspect/angle med Rust-paritet", () => {
+    const cliffJson = cliffsGeoJson([
+      { line: [[664780.14, 6576500.26], [664790.04, 6576505.84]], drop3: 4.126, drop6: 5.504, length: 18.456, slope: 42.34, sharpness: 0.7496 },
+      { line: [[664800, 6576510], [664810, 6576515]], drop3: 2.1, drop6: Number.NaN, length: 11.18, slope: Number.NaN, sharpness: Number.NaN },
+      { line: [[Number.NaN, 6576510], [664810, 6576515]], drop3: 2.0, drop6: 2.5, length: 10 }
+    ]);
+    const parsedCliffs = JSON.parse(cliffJson) as { features: { properties: Record<string, unknown> }[] };
+    expect(parsedCliffs.features).toHaveLength(2);
+    expect(parsedCliffs.features[0]!.properties).toEqual({ drop3: 4.13, drop6: 5.5, length: 18.46, slope: 42.3, sharpness: 0.75 });
+    expect(parsedCliffs.features[1]!.properties).toEqual({ drop3: 2.1, drop6: null, length: 11.18, slope: null, sharpness: null });
+    const roundTrippedCliffs = readCliffCandidates(parsedCliffs);
+    expect(roundTrippedCliffs).toHaveLength(2);
+    expect(roundTrippedCliffs[0]).toMatchObject({ drop3: 4.13, drop6: 5.5, length: 18.46, slope: 42.3, sharpness: 0.75 });
+    expect(Number.isNaN(roundTrippedCliffs[1]!.drop6)).toBe(true);
+    expect(roundTrippedCliffs[1]!.slope).toBeUndefined();
+
+    const knollJson = knollsGeoJson([
+      { at: [664780.14, 6576500.26], rise: 1.456, share: 0.9123, footM2: 32.4, aspect: 2.136, angle: 179.96 },
+      { at: [664790.5, 6576510.5], rise: 1.8, share: 0.95, footM2: 14.2, wet: true, aspect: 0.8, angle: -15 }
+    ]);
+    const parsedKnolls = JSON.parse(knollJson) as { features: { properties: Record<string, unknown> }[] };
+    expect(parsedKnolls.features[0]!.properties).toEqual({ rise: 1.46, share: 0.912, foot: 32, aspect: 2.14, angle: 0 });
+    expect(parsedKnolls.features[1]!.properties).toEqual({ rise: 1.8, share: 0.95, foot: 14, wet: 1, aspect: 1, angle: 165 });
+    const roundTrippedKnolls = readKnollCandidates(parsedKnolls);
+    expect(roundTrippedKnolls).toHaveLength(2);
+    expect(isElongatedKnollCandidate(roundTrippedKnolls[0]!)).toBe(true);
+    expect(isElongatedKnollCandidate(roundTrippedKnolls[1]!)).toBe(false);
   });
 });

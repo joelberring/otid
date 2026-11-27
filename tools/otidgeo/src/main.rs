@@ -3,6 +3,7 @@
 //! Subcommands:
 //! - `otidgeo run --input <file.laz|.las> [--input ...] --out <dir> [flags]`
 //! - `otidgeo veg --input <file.laz|.las> [--input ...] --out <dir> [veg flags]`
+//! - `otidgeo rasters --ground <mark.bin> --out <dir> [raster flags]`
 //! - `otidgeo bench-map --dir <map_dir> --out <dir> [flags]`
 
 mod bench_io;
@@ -15,6 +16,7 @@ mod geometry;
 mod knolls;
 mod lidar;
 mod overview;
+mod rasters;
 mod types;
 mod vegetation;
 
@@ -115,7 +117,7 @@ fn execute(cli: CliArgs) -> Result<RunSummary, String> {
             let (d, v) = load_bench_map(&dir)?;
             ("bench-map".to_string(), d, v, 0)
         }
-        Mode::Veg { .. } => unreachable!(),
+        Mode::Veg { .. } | Mode::Rasters(_) => unreachable!(),
     };
     let ms_lidar = t_io.elapsed().as_secs_f64() * 1000.0;
 
@@ -240,27 +242,27 @@ fn execute(cli: CliArgs) -> Result<RunSummary, String> {
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    match parse_args(&args).and_then(execute) {
-        Ok(summary) => {
-            println!(
-                "otidgeo {}: {:.1} ha, {} contours ({} index, {} depr), {} formlines, {} knolls ({} elong, {} pits), {:.0} ms total",
-                summary.mode,
-                summary.area_ha,
-                summary.contours,
-                summary.index_contours,
-                summary.depressions,
-                summary.formlines,
-                summary.knolls,
-                summary.elongated_knolls,
-                summary.pits,
-                summary.ms_total
-            );
+    let cli = match parse_args(&args) {
+        Ok(c) => c,
+        Err(err) => { eprintln!("otidgeo error: {err}"); return ExitCode::FAILURE; }
+    };
+    if let Mode::Rasters(cfg) = cli.mode {
+        return match crate::rasters::execute_rasters(&cfg) {
+            Ok(s) => {
+                println!("otidgeo rasters: wet {:.2} ha, cliffs {}/{}, ditches {}, tracks {}, boulders {}, knolls {}, rock {}, {:.0} ms total",
+                    s.wet_ha, s.cliffs201, s.cliffs202, s.ditches, s.tracks, s.boulders, s.knolls, s.bare_rock_areas, s.ms_total);
+                ExitCode::SUCCESS
+            }
+            Err(err) => { eprintln!("otidgeo error: {err}"); ExitCode::FAILURE }
+        };
+    }
+    match execute(cli) {
+        Ok(s) => {
+            println!("otidgeo {}: {:.1} ha, {} contours ({} index, {} depr), {} formlines, {} knolls ({} elong, {} pits), {:.0} ms total",
+                s.mode, s.area_ha, s.contours, s.index_contours, s.depressions, s.formlines, s.knolls, s.elongated_knolls, s.pits, s.ms_total);
             ExitCode::SUCCESS
         }
-        Err(err) => {
-            eprintln!("otidgeo error: {err}");
-            ExitCode::FAILURE
-        }
+        Err(err) => { eprintln!("otidgeo error: {err}"); ExitCode::FAILURE }
     }
 }
 

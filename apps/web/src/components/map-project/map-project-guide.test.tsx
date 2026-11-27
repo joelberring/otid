@@ -40,6 +40,10 @@ describe("guiden Ny grundkarta på sidan", () => {
     expect(html).toContain('data-step="run"');
     expect(html.match(/data-testid="map-project-guide-step-/g)).toHaveLength(4);
     expect(html).toContain('data-testid="map-project-guide-run"');
+    expect(html).toContain('data-testid="map-project-guide-engine"');
+    expect(html).toContain("O-Tid (egen motor — snabb, skarvfri, styrbar)");
+    expect(html).toContain("Karttapullautin (utan bildmotor — klassiska kurvor)");
+    expect(html).toContain("Mycket detaljerad");
     expect(html).toContain("OpenStreetMap (stigar, vägar, hus) och Skogsstyrelsens hyggen behöver du inte hämta själv");
     expect(html).toContain("Ungefär 5,3 km², 1 laserruta");
     // Bara en åtgärd i taget: inga knappar från de andra stegen.

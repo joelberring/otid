@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { GeoJobEngine } from "./geo-jobs";
 import { UUID_SOURCE as canonicalUuidPattern } from "./ids";
 
 /**
@@ -35,7 +36,7 @@ export const LAYER_RECIPE_PATHS: Readonly<Record<Exclude<LayerRecipeSource, "LM_
 
 /** Laserkörningens recept: körningen (dess begäran är hela receptet), filen, rutorna, klipprutan och skanningens datum. */
 export interface LaserRecipe {
-  readonly source: "LASER"; readonly jobId: string; readonly output: string; readonly tiles: number;
+  readonly source: "LASER"; readonly jobId: string; readonly output: string; readonly engine?: GeoJobEngine | undefined; readonly tiles: number;
   readonly clip: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number } | null;
   readonly scannedAt: string | null; readonly settings: Readonly<Record<string, number>>;
 }

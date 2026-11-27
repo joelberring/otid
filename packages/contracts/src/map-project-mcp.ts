@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { GEO_JOB_ENGINES } from "./geo-jobs";
 
 /**
  * ADR-0219 (K2): MCP-verktygens argument. Koordinater i kartans mm med y uppåt; områden som min/max. Gränserna gäller både
@@ -110,6 +111,7 @@ export const mcpToolInputSchemas = {
   list_laser_jobs: z.object({ project_id: idSchema }),
   start_laser_job: z.object({
     project_id: idSchema, area_id: idSchema.optional(), name: z.string().trim().min(1).max(80).optional(),
+    engine: z.enum(GEO_JOB_ENGINES).optional(),
     contour_interval: z.number().min(1).max(10).optional(), settings: z.record(z.string().max(40), z.number().finite()).optional(),
     clip: swerefClipSchema.optional(), rerun_of: idSchema.optional(), cliffs: mcpCliffsSchema.optional(),
     moisture: mcpMoistureSchema.optional(), vegetation: mcpVegetationSchema.optional(), raw_laser: z.boolean().optional()

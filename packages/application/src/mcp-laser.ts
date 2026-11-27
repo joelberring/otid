@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
-  GEO_JOB_DEFAULTS, GEO_JOB_MAX_TILES, MCP_LASER_OUTPUT_MAX_BYTES, MCP_LASER_OUTPUT_MAX_OBJECTS, MCP_LASER_OUTPUT_MAX_POINTS,
+  GEO_JOB_DEFAULTS, GEO_JOB_ENGINES, GEO_JOB_MAX_TILES, MCP_LASER_OUTPUT_MAX_BYTES, MCP_LASER_OUTPUT_MAX_OBJECTS, MCP_LASER_OUTPUT_MAX_POINTS,
   MCP_LASER_OUTPUT_MAX_POINTS_PER_OBJECT, newestLaserTiles, type GeoClip, type GeoJobView
 } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
@@ -26,16 +26,17 @@ const toolError = (message: string): ToolResult => ({ content: [text(message)], 
 
 const projectId = { project_id: { type: "string", description: "Kartprojektets id (från list_map_projects)" } };
 export const MCP_LASER_TOOLS = [
-  { name: "list_laser_jobs", title: "Laserkörningarna i ett kartprojekt", description: "Projektets laserkörningar (geo-jobb), nyast först: id, namn, status (QUEUED, RUNNING, DONE, FAILED, CANCELLED), förloppet medan jobbet körs, starttid (startedAt), försök (attempts), geo-arbetarens version, etappen (areaId, null = hela kartan), klipprutan i SWEREF 99 TM, inställningar (settings, cliffs, moisture, vegetation, extras, mergedStages), sammanfattning (summary med bl.a. stegtider i ms och topp-RAM) och resultatfilerna med storlek. Också etapperna (delområdena) med id, om rå laserdata finns (rawLaserAvailable) och geo-serverns läge. En körning tar ofta 10–60 minuter; fråga igen i stället för att vänta.",
+  { name: "list_laser_jobs", title: "Laserkörningarna i ett kartprojekt", description: "Projektets laserkörningar (geo-jobb), nyast först: id, namn, motor (engine: otidgeo eller pullautin), status (QUEUED, RUNNING, DONE, FAILED, CANCELLED), förloppet medan jobbet körs, starttid (startedAt), försök (attempts), geo-arbetarens version, etappen (areaId, null = hela kartan), klipprutan i SWEREF 99 TM, inställningar (settings, cliffs, moisture, vegetation, extras, mergedStages), sammanfattning (summary med bl.a. stegtider i ms och topp-RAM) och resultatfilerna med storlek. Också etapperna (delområdena) med id, om rå laserdata finns (rawLaserAvailable) och geo-serverns läge. En körning tar ofta några minuter; fråga igen i stället för att vänta.",
     inputSchema: { type: "object", properties: { ...projectId }, required: ["project_id"] }, annotations: { readOnlyHint: true } },
-  { name: "start_laser_job", title: "Starta en laserkörning", description: `Köar en laserkörning (Karttapullautin och O-Tids egna steg på Lantmäteriets laserdata) för hela kartområdet, en etapp (area_id från list_laser_jobs), en egen provruta i SWEREF 99 TM (clip, 20–12 000 m per sida) eller som omkörning av ett tidigare jobb (rerun_of, utan ny Lantmäteriet-sökning; kan kombineras med clip för en mindre provruta). Laserrutorna söks med kontots egna uppgifter till Lantmäteriet, den nyaste skanningen per ruta väljs och laserdatan klipps till området. Förvalen är O-Tids (ekvidistans ${GEO_JOB_DEFAULTS.contourInterval} m, fuktighet och vegetation med, och på en sprintkarta belagd yta ur laserns intensitet, settings paved); contour_interval, settings, cliffs, moisture och vegetation ändrar dem, och raw_laser packar klippta LAZ-filer i 7 dygn när rawLaserAvailable är sant. En körning ändrar inte kartan, den skapar bara underlag, och tillåts därför när projektets AI-läge är PROPOSE eller AUTONOMOUS men inte READ; kontot ska ha rollen Föreslå eller högre i ett öppet projekt. Gränser: högst ${GEO_JOB_MAX_TILES} laserrutor och 12 km i sida per körning (dela annars i etapper), två körningar samtidigt per konto, kontots månadskvot av rutor och 30 sökningar i timmen. Resultatet läses med list_laser_jobs, read_laser_output och training_raster.`,
+  { name: "start_laser_job", title: "Starta en laserkörning", description: `Köar en laserkörning (O-Tids egen motor otidgeo som förval, eller bildmotorfri Karttapullautin via engine: pullautin, plus O-Tids rastersteg på Lantmäteriets laserdata) för hela kartområdet, en etapp (area_id från list_laser_jobs), en egen provruta i SWEREF 99 TM (clip, 20–12 000 m per sida) eller som omkörning av ett tidigare jobb (rerun_of, utan ny Lantmäteriet-sökning; kan kombineras med clip för en mindre provruta). Laserrutorna söks med kontots egna uppgifter till Lantmäteriet, den nyaste skanningen per ruta väljs och laserdatan klipps till området. Förvalen är O-Tids (motor otidgeo, ekvidistans ${GEO_JOB_DEFAULTS.contourInterval} m, formline 2, fuktighet och vegetation med, och på en sprintkarta belagd yta ur laserns intensitet, settings paved); engine, contour_interval, settings (inkl. formline 0–3, smooth_m, taubin, min_loop_area, min_clearance, formline_gap, formline_max_slope, veg_smooth, overview), cliffs, moisture och vegetation ändrar dem, och raw_laser packar klippta LAZ-filer i 7 dygn när rawLaserAvailable är sant. En körning ändrar inte kartan, den skapar bara underlag, och tillåts därför när projektets AI-läge är PROPOSE eller AUTONOMOUS men inte READ; kontot ska ha rollen Föreslå eller högre i ett öppet projekt. Gränser: högst ${GEO_JOB_MAX_TILES} laserrutor och 12 km i sida per körning (dela annars i etapper), två körningar samtidigt per konto, kontots månadskvot av rutor och 30 sökningar i timmen. Resultatet läses med list_laser_jobs, read_laser_output och training_raster.`,
     inputSchema: { type: "object", properties: { ...projectId, area_id: { type: "string", description: "Etappens id; utelämnat = hela kartområdet (kan inte kombineras med clip eller rerun_of)" },
       clip: { type: "object", description: "Egen klippruta i SWEREF 99 TM (meter, 20–12 000 m per sida), t.ex. en snabb 1×1 km provruta utan delområde",
         properties: { min_x: { type: "number" }, min_y: { type: "number" }, max_x: { type: "number" }, max_y: { type: "number" } }, required: ["min_x", "min_y", "max_x", "max_y"] },
       rerun_of: { type: "string", description: "Jobb-id (från list_laser_jobs) att köra om med nya inställningar utan ny sökning hos Lantmäteriet; kan kombineras med clip" },
       name: { type: "string", maxLength: 80, description: "Körningens namn (förval: Karttapullautin och området)" },
+      engine: { type: "string", enum: [...GEO_JOB_ENGINES], description: "Motor för kurvor, formlinjer och vegetation: otidgeo (förval — O-Tids egen motor, snabb, skarvfri, med 2 m översiktsbild) eller pullautin (Karttapullautin utan bildmotor, klassiska kurvor). Utelämnas engine vid rerun_of ärvs föregående jobbs motor." },
       contour_interval: { type: "number", minimum: 1, maximum: 10, description: `Ekvidistans i meter (förval ${GEO_JOB_DEFAULTS.contourInterval}, sprintkartor 2,5)` },
-      settings: { type: "object", additionalProperties: { type: "number" }, description: "Karttapullautins och geo-arbetarens inställningar, samma namn och gränser som i O-Tid" },
+      settings: { type: "object", additionalProperties: { type: "number" }, description: "Motorns och geo-arbetarens inställningar (t.ex. formline 0–3, smooth_m, taubin, min_loop_area, min_clearance, curviness, formline_gap, formline_max_slope, veg_smooth, overview, greenscale, openshare, topweight, undergrowth, knollshare, smoothing, knolls), samma namn och gränser som i O-Tid" },
       cliffs: { type: "object", description: "Branternas trösklar i markrastret (meter fall över ±3 m); utelämnat = förvalet",
         properties: { min_drop: { type: "number", minimum: 0.5, maximum: 5 }, impassable_drop: { type: "number", minimum: 1, maximum: 10 },
           impassable_length: { type: "number", minimum: 5, maximum: 60 }, tags: { type: "boolean" }, raw_ticks: { type: "boolean" } },
@@ -86,7 +87,8 @@ function refusal(result: { status: string; detail?: string }): string {
   }
 }
 
-const jobView = (job: GeoJobView, workerVersion: number | null) => ({ jobId: job.jobId, name: job.name, kind: job.kind, status: job.status, progress: job.progress,
+const jobView = (job: GeoJobView, workerVersion: number | null) => ({ jobId: job.jobId, name: job.name, kind: job.kind,
+  ...(job.engine ? { engine: job.engine } : {}), status: job.status, progress: job.progress,
   error: job.error, workerVersion, areaId: job.areaId, clip: job.clip, tiles: job.tiles, scannedAt: job.scannedAt, settings: job.settings,
   cliffs: job.cliffs, moisture: job.moisture, vegetation: job.vegetation, extras: job.extras,
   ...(job.skippedSteps.length ? { skippedSteps: job.skippedSteps } : {}),
@@ -116,6 +118,7 @@ export async function callMcpLaserTool(db: Database, accountId: string, name: st
     if (allowed.status !== "ok") return toolError(refusal(allowed));
     const customClip = input.clip as GeoClip | undefined;
     const rerunOf = typeof input.rerun_of === "string" ? input.rerun_of : undefined;
+    const engine = input.engine === "otidgeo" || input.engine === "pullautin" ? input.engine : undefined;
     const cliffs = input.cliffs as GeoJobView["cliffs"] | undefined;
     const moisture = (input.moisture as GeoJobView["moisture"] | undefined)
       ?? { channelHa: GEO_JOB_DEFAULTS.channelHa, wetMeters: GEO_JOB_DEFAULTS.wetMeters, moistMeters: Math.round(GEO_JOB_DEFAULTS.wetMeters * 160) / 100 };
@@ -123,9 +126,9 @@ export async function callMcpLaserTool(db: Database, accountId: string, name: st
     const rawLaser = input.raw_laser === true ? true : undefined;
     let requestBody: Record<string, unknown>;
     if (rerunOf) {
-      // Omkörning av tidigare jobb (ev. med en mindre provruta i clip): rutor och extras ärvs utan ny sökning hos Lantmäteriet.
+      // Omkörning av tidigare jobb (ev. med en mindre provruta i clip): rutor, motor (om ej angiven) och extras ärvs utan ny sökning hos Lantmäteriet.
       requestBody = {
-        formatVersion: 1, requestId: randomUUID(), kind: "PULLAUTIN",
+        formatVersion: 1, requestId: randomUUID(), kind: "PULLAUTIN", ...(engine ? { engine } : {}),
         name: (typeof input.name === "string" ? input.name : customClip ? "Karttapullautin provruta" : "Karttapullautin omkörning").slice(0, 80),
         settings: { contour_interval: typeof input.contour_interval === "number" ? input.contour_interval : GEO_JOB_DEFAULTS.contourInterval,
           formline: GEO_JOB_DEFAULTS.formline, ...(input.settings as Record<string, number> | undefined) },
@@ -152,7 +155,7 @@ export async function callMcpLaserTool(db: Database, accountId: string, name: st
       if (tiles.length === 0) return toolError("Lantmäteriet har inga laserrutor för området.");
       if (tiles.length > GEO_JOB_MAX_TILES) return toolError(`Området täcker ${tiles.length} laserrutor; en körning tar högst ${GEO_JOB_MAX_TILES}. Dela kartan i etapper och kör en etapp i taget (area_id eller clip).`);
       requestBody = {
-        formatVersion: 1, requestId: randomUUID(), kind: "PULLAUTIN",
+        formatVersion: 1, requestId: randomUUID(), kind: "PULLAUTIN", engine: engine ?? "otidgeo",
         name: (typeof input.name === "string" ? input.name : customClip ? "Karttapullautin provruta" : `Karttapullautin ${stage?.name ?? "hela kartan"}`).slice(0, 80),
         settings: { contour_interval: typeof input.contour_interval === "number" ? input.contour_interval : sprint ? 2.5 : GEO_JOB_DEFAULTS.contourInterval,
           formline: GEO_JOB_DEFAULTS.formline,

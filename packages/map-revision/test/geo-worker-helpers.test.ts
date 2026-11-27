@@ -10,7 +10,7 @@ import { slimDxf } from "../../../scripts/geo-slim.ts";
 import { waterFromGrids } from "../../../scripts/geo-water.ts";
 import { iniWith, pngSize } from "../../../scripts/geo-worker.ts";
 import {
-  initialPngMergeScale, isAlreadySlimDxf, readPngSize, runPool,
+  isAlreadySlimDxf, readPngSize, runPool,
   streamMergeGroundFiles, streamMergePointFiles, streamMergeWaterFiles
 } from "../../../scripts/geo-worker-helpers.ts";
 
@@ -44,13 +44,23 @@ describe("geo-arbetarens hjälpare (Etapp G2A)", () => {
     } finally { await rm(dir, { recursive: true, force: true }); }
   });
 
-  it("initialPngMergeScale väljer skala direkt ur klipprutans mått", () => {
-    expect(initialPngMergeScale({ minX: 0, minY: 0, maxX: 2000, maxY: 2000 }, 6, 30_000)).toBe(1);
-    expect(initialPngMergeScale({ minX: 0, minY: 0, maxX: 6000, maxY: 6000 }, 9, 30_000)).toBe(2);
-    expect(initialPngMergeScale({ minX: 0, minY: 0, maxX: 15_000, maxY: 2000 }, 4, 30_000)).toBe(2);
-    expect(initialPngMergeScale({ minX: 0, minY: 0, maxX: 30_000, maxY: 2000 }, 4, 30_000)).toBe(4);
-    expect(initialPngMergeScale(null, 2, 30_000)).toBe(1);
-    expect(initialPngMergeScale(null, 6, 30_000)).toBe(2);
+  it("iniWith stöder contoursonly=1, formline=3 -> formline=2 + formlinesteepness=0.25 och filtrerar otidgeo-nycklar", () => {
+    const base = "output_dxf=1\ncontoursonly=0\nformline=2\nformlinesteepness=0.37\n";
+    const out = iniWith(base, {
+      formline: 3, smooth_m: 1.0, taubin: 1, min_loop_area: 20, min_clearance: 1.0,
+      formline_gap: 5, formline_max_slope: 20, veg_smooth: 0.65, overview: 0
+    }, false, false, 2, false, true);
+    expect(out).toContain("contoursonly=1");
+    expect(out).toContain("formline=2");
+    expect(out).toContain("formlinesteepness=0.25");
+    expect(out).not.toContain("smooth_m=");
+    expect(out).not.toContain("taubin=");
+    expect(out).not.toContain("min_loop_area=");
+    expect(out).not.toContain("veg_smooth=");
+    expect(out).not.toContain("overview=");
+    // Uttrycklig formlinesteepness vinner över 0.25-förvalet för formline=3.
+    const explicit = iniWith(base, { formline: 3, formlinesteepness: 0.18 }, false, false, 1, true, true);
+    expect(explicit).toContain("formlinesteepness=0.18");
   });
 
   it("isAlreadySlimDxf skiljer slimmade/egna DXF från råa Karttapullautin-DXF", () => {

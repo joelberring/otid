@@ -1,0 +1,687 @@
+//! Clean-room MIT cliff detection & orientation engine (exact port of `scripts/geo-cliffs.ts`):
+//! 38 deg slope ridge extraction on 1-2-1 smoothed 1 m ground grid, optional raw tick augmentation,
+//! +/-3 m and +/-6 m median drop measurement, local gradient orientation with saddle splitting,
+//! 2 m dense top-edge snapping, 1-2-1 smoothing, `brantlinjer.dxf`, and `brantlinjer.geojson`.
+
+use crate::rasters::geom::simplify;
+use crate::rasters::grid_io::{js_round, write_moisture_dxf, DxfLayer, GroundGrid};
+use crate::rasters::skeleton::{close_4, paths, thin};
+use rayon::prelude::*;
+use std::collections::HashSet;
+use std::fs::File;
+use std::io::{BufWriter, Write};
+use std::path::Path;
+
+pub const CLIFF_LOOSE_DROP: f64 = 0.8;
+const SLOPE_CLIFF_MIN_DEG: f64 = 38.0;
+const SLOPE_CLIFF_MIN_LEN_M: f64 = 6.0;
+const TICK_CELL: f64 = 1.0;
+
+#[derive(Clone, Copy, Debug)]
+pub struct CliffRules {
+    pub min_drop: f64,
+    pub impassable_drop3: f64,
+    pub impassable_drop6: f64,
+    pub impassable_length: f64,
+    pub tags: bool,
+}
+
+impl Default for CliffRules {
+    fn default() -> Self {
+        Self {
+            min_drop: 1.3,
+            impassable_drop3: 4.5,
+            impassable_drop6: 4.5,
+            impassable_length: 20.0,
+            tags: false,
+        }
+    }
+}
+
+pub struct CliffSummary {
+    pub cliffs_201: usize,
+    pub cliffs_202: usize,
+    pub cliff_meters_201: usize,
+    pub cliff_meters_202: usize,
+    pub cliffs_dropped: usize,
+}
+
+struct CliffCandidate {
+    line: Vec<[f64; 2]>,
+    drop3: f64,
+    drop6: f64,
+    length: f64,
+}
+
+type Tick = [f64; 4];
+
+fn median_sorted(values: &mut [f64]) -> f64 {
+    if values.is_empty() {
+        return f64::NAN;
+    }
+    values.sort_by(|a, b| a.total_cmp(b));
+    values[values.len() / 2]
+}
+
+fn line_length(line: &[[f64; 2]]) -> f64 {
+    let mut total = 0.0f64;
+    for i in 1..line.len() {
+        total += (line[i][0] - line[i - 1][0]).hypot(line[i][1] - line[i - 1][1]);
+    }
+    total
+}
+
+fn sample_line(line: &[[f64; 2]], step_m: f64) -> Vec<[f64; 2]> {
+    if line.is_empty() {
+        return Vec::new();
+    }
+    let mut out = vec![line[0]];
+    for i in 1..line.len() {
+        let [ax, ay] = line[i - 1];
+        let [bx, by] = line[i];
+        let len = (bx - ax).hypot(by - ay);
+        let steps = (len / step_m).ceil().max(1.0) as usize;
+        for k in 1..=steps {
+            let t = k as f64 / steps as f64;
+            out.push([ax + (bx - ax) * t, ay + (by - ay) * t]);
+        }
+    }
+    out
+}
+
+/// Parses 2-vertex cliff ticks from Karttapullautin DXF (`scripts/geo-cliffs.ts` `readTicks`).
+pub fn read_ticks(path: &Path) -> Result<Vec<Tick>, String> {
+    let text = std::fs::read_to_string(path)
+        .map_err(|e| format!("Failed reading {}: {e}", path.display()))?;
+    let lines: Vec<&str> = text.lines().collect();
+    let mut ticks = Vec::new();
+    let mut pts = Vec::<f64>::new();
+    let mut in_vertex = false;
+    let mut i = 0usize;
+    while i + 1 < lines.len() {
+        let code = lines[i].trim();
+        let value = lines[i + 1].trim();
+        if code == "0" {
+            if value == "SEQEND" {
+                if pts.len() >= 4 {
+                    let n = pts.len();
+                    let t = [pts[0], pts[1], pts[n - 2], pts[n - 1]];
+                    if t.iter().all(|v| v.is_finite()) {
+                        ticks.push(t);
+                    }
+                }
+                pts.clear();
+            }
+            in_vertex = value == "VERTEX";
+        } else if in_vertex && (code == "10" || code == "20") {
+            pts.push(value.parse::<f64>().unwrap_or(f64::NAN));
+        }
+        i += 2;
+    }
+    Ok(ticks)
+}
+
+fn cliff_lines_from_ticks(ticks: &[Tick], min_length_m: f64) -> Vec<Vec<[f64; 2]>> {
+    if ticks.is_empty() {
+        return Vec::new();
+    }
+    let mut min_x = f64::INFINITY;
+    let mut min_y = f64::INFINITY;
+    let mut max_x = f64::NEG_INFINITY;
+    let mut max_y = f64::NEG_INFINITY;
+    for &[x1, y1, x2, y2] in ticks {
+        min_x = min_x.min(x1).min(x2);
+        max_x = max_x.max(x1).max(x2);
+        min_y = min_y.min(y1).min(y2);
+        max_y = max_y.max(y1).max(y2);
+    }
+    min_x = min_x.floor() - 3.0;
+    min_y = min_y.floor() - 3.0;
+    let width = (max_x - min_x).ceil() as usize + 4;
+    let height = (max_y - min_y).ceil() as usize + 4;
+    if width.saturating_mul(height) > 80_000_000 {
+        return Vec::new();
+    }
+    let mut mask = vec![0u8; width * height];
+    let mut dx = vec![0.0f32; width * height];
+    let mut dy = vec![0.0f32; width * height];
+    for &[x1, y1, x2, y2] in ticks {
+        let raw_len = (x2 - x1).hypot(y2 - y1);
+        let len = if raw_len == 0.0 { 1.0 } else { raw_len };
+        let ux = (x2 - x1) / len;
+        let uy = (y2 - y1) / len;
+        let mut step = 0.0f64;
+        while step <= len {
+            let cx = ((x1 + ux * step - min_x) / TICK_CELL).floor() as usize;
+            let cy = ((y1 + uy * step - min_y) / TICK_CELL).floor() as usize;
+            let idx = cx * height + cy;
+            mask[idx] = 1;
+            dx[idx] += ux as f32;
+            dy[idx] += uy as f32;
+            step += 0.5;
+        }
+    }
+    let skeleton = thin(&close_4(&mask, width, height), width, height);
+    let min_cells = js_round(min_length_m / TICK_CELL / std::f64::consts::SQRT_2).max(3.0) as usize;
+    let mut lines = Vec::new();
+    for path in paths(&skeleton, width, height, min_cells, usize::MAX) {
+        let mut points: Vec<[f64; 2]> = path
+            .iter()
+            .map(|&i| {
+                let x = i / height;
+                let y = i - x * height;
+                [min_x + (x as f64 + 0.5) * TICK_CELL, min_y + (y as f64 + 0.5) * TICK_CELL]
+            })
+            .collect();
+        let mut length = 0.0f64;
+        let mut along = 0.0f64;
+        for k in 1..points.len() {
+            let tx = points[k][0] - points[k - 1][0];
+            let ty = points[k][1] - points[k - 1][1];
+            length += tx.hypot(ty);
+            let x = (path[k] / height) as isize;
+            let y = (path[k] - x as usize * height) as isize;
+            for ax in -1..=1isize {
+                for ay in -1..=1isize {
+                    let i = (x + ax) * height as isize + y + ay;
+                    if i >= 0 && (i as usize) < dx.len() {
+                        along += tx * f64::from(dx[i as usize]) + ty * f64::from(dy[i as usize]);
+                    }
+                }
+            }
+        }
+        if length < min_length_m {
+            continue;
+        }
+        if along > 0.0 {
+            points.reverse();
+        }
+        let line = simplify(&points, 1.1);
+        if line.len() >= 2 {
+            lines.push(line);
+        }
+    }
+    lines
+}
+
+/// Splits and orients cliff segments locally so downhill is to the right (`geo-cliffs.ts` `orientSegments`).
+fn orient_segments(points: &[[f64; 2]], scores: &[f64], min_length_m: f64) -> Vec<Vec<[f64; 2]>> {
+    let n = points.len();
+    if n < 2 {
+        return Vec::new();
+    }
+    let mut smooth = vec![0.0f64; n];
+    let mut total = 0.0f64;
+    for i in 0..n {
+        total += scores[i];
+        let lo = i.saturating_sub(3);
+        let hi = (n - 1).min(i + 3);
+        let mut sum = 0.0f64;
+        for &s in &scores[lo..=hi] {
+            sum += s;
+        }
+        smooth[i] = sum / (hi - lo + 1) as f64;
+    }
+
+    #[derive(Clone, Copy)]
+    struct Run {
+        from: usize,
+        to: usize,
+        sign: i8,
+        length: f64,
+        sum: f64,
+    }
+
+    let mut runs = Vec::<Run>::new();
+    let (mut start, mut sign) = (0usize, 0i8);
+    for i in 0..n {
+        let s = if smooth[i].abs() > 1e-4 { if smooth[i] > 0.0 { 1 } else { -1 } } else { sign };
+        if sign == 0 { sign = s; continue; }
+        if s != 0 && s != sign {
+            runs.push(Run { from: start, to: i, sign, length: line_length(&points[start..=i]), sum: scores[start..=i].iter().sum() });
+            start = i;
+            sign = s;
+        }
+    }
+    let final_sign = if sign != 0 { sign } else if total < 0.0 { -1 } else { 1 };
+    runs.push(Run { from: start, to: n - 1, sign: final_sign, length: line_length(&points[start..n]), sum: scores[start..n].iter().sum() });
+
+    if !(runs.iter().any(|r| r.length >= min_length_m && r.sign > 0) && runs.iter().any(|r| r.length >= min_length_m && r.sign < 0)) {
+        let mut copy = points.to_vec();
+        if total < 0.0 { copy.reverse(); }
+        return vec![copy];
+    }
+
+    let mut merged = Vec::<Run>::new();
+    for run in runs {
+        if let Some(prev) = merged.last_mut() {
+            if run.length < min_length_m || prev.sign == run.sign {
+                prev.to = run.to;
+                prev.length += run.length;
+                prev.sum += run.sum;
+                continue;
+            }
+        }
+        merged.push(run);
+    }
+    if merged.len() > 1 && merged[0].length < min_length_m {
+        let first = merged.remove(0);
+        merged[0].from = first.from;
+        merged[0].length += first.length;
+        merged[0].sum += first.sum;
+    }
+
+    merged
+        .into_iter()
+        .filter_map(|run| {
+            let mut slice = points[run.from..=run.to].to_vec();
+            if line_length(&slice) < min_length_m { return None; }
+            if run.sum < 0.0 { slice.reverse(); }
+            Some(slice)
+        })
+        .collect()
+}
+
+/// Extracts cliff centerlines from the 1 m ground grid (`scripts/geo-cliffs.ts` `slopeLines`).
+pub fn slope_lines(ground: &GroundGrid) -> Vec<Vec<[f64; 2]>> {
+    let (w, h, cell) = (ground.width, ground.height, ground.cell);
+    if w < 3 || h < 3 {
+        return Vec::new();
+    }
+    let mut smooth = vec![f32::NAN; w * h];
+    smooth.par_chunks_mut(h).enumerate().for_each(|(x, dst_col)| {
+        if x == 0 || x + 1 >= w {
+            return;
+        }
+        for y in 1..(h - 1) {
+            if !ground.z[x * h + y].is_finite() {
+                continue;
+            }
+            let mut sum = 0.0f64;
+            let mut weight = 0.0f64;
+            for ax in -1..=1isize {
+                let wx = if ax != 0 { 1.0 } else { 2.0 };
+                let col_base = (x as isize + ax) as usize * h;
+                for ay in -1..=1isize {
+                    let v = ground.z[col_base + (y as isize + ay) as usize];
+                    if !v.is_finite() {
+                        continue;
+                    }
+                    let wt = wx * if ay != 0 { 1.0 } else { 2.0 };
+                    sum += f64::from(v) * wt;
+                    weight += wt;
+                }
+            }
+            if weight > 0.0 {
+                dst_col[y] = (sum / weight) as f32;
+            }
+        }
+    });
+
+    let limit = (SLOPE_CLIFF_MIN_DEG * std::f64::consts::PI / 180.0).tan();
+    let mut mask = vec![0u8; w * h];
+    let mut gx = vec![0.0f32; w * h];
+    let mut gy = vec![0.0f32; w * h];
+
+    mask.par_chunks_mut(h)
+        .zip(gx.par_chunks_mut(h))
+        .zip(gy.par_chunks_mut(h))
+        .enumerate()
+        .for_each(|(x, ((m_col, gx_col), gy_col))| {
+            if x == 0 || x + 1 >= w {
+                return;
+            }
+            let base = x * h;
+            for y in 1..(h - 1) {
+                let i = base + y;
+                let dx = (f64::from(smooth[i + h]) - f64::from(smooth[i - h])) / (2.0 * cell);
+                let dy = (f64::from(smooth[i + 1]) - f64::from(smooth[i - 1])) / (2.0 * cell);
+                if !dx.is_finite() || !dy.is_finite() {
+                    continue;
+                }
+                gx_col[y] = dx as f32;
+                gy_col[y] = dy as f32;
+                if dx.hypot(dy) >= limit {
+                    m_col[y] = 1;
+                }
+            }
+        });
+
+    let skeleton = thin(&close_4(&mask, w, h), w, h);
+    let min_cells = js_round(SLOPE_CLIFF_MIN_LEN_M / cell / std::f64::consts::SQRT_2).max(3.0) as usize;
+    let mut lines = Vec::new();
+    for path in paths(&skeleton, w, h, min_cells, 50_000) {
+        let points: Vec<[f64; 2]> = path
+            .iter()
+            .map(|&i| {
+                let x = i / h;
+                let y = i - x * h;
+                ground.cell_center(x, y)
+            })
+            .collect();
+        if line_length(&points) < SLOPE_CLIFF_MIN_LEN_M {
+            continue;
+        }
+        let n = points.len();
+        let scores: Vec<f64> = (0..n)
+            .map(|k| {
+                let a = points[k.saturating_sub(2)];
+                let b = points[(n - 1).min(k + 2)];
+                let tx = b[0] - a[0];
+                let ty = b[1] - a[1];
+                let raw_len = tx.hypot(ty);
+                let len = if raw_len == 0.0 { 1.0 } else { raw_len };
+                let idx = path[k];
+                (ty * -f64::from(gx[idx]) + -tx * -f64::from(gy[idx])) / len
+            })
+            .collect();
+        for oriented in orient_segments(&points, &scores, SLOPE_CLIFF_MIN_LEN_M) {
+            let line = simplify(&oriented, 1.1);
+            if line.len() >= 2 {
+                lines.push(line);
+            }
+        }
+    }
+    lines
+}
+
+/// Measures median elevation drops across +/-3 m and +/-6 m normal to the line (`geo-cliffs.ts` `measureCliff`).
+pub fn measure_cliff(line: &[[f64; 2]], ground: &GroundGrid) -> (f64, f64, f64) {
+    let mut drops3 = Vec::new();
+    let mut drops6 = Vec::new();
+    let mut length = 0.0f64;
+    for i in 1..line.len() {
+        let [ax, ay] = line[i - 1];
+        let [bx, by] = line[i];
+        let seg = (bx - ax).hypot(by - ay);
+        if seg == 0.0 {
+            continue;
+        }
+        let rx = (by - ay) / seg;
+        let ry = -(bx - ax) / seg;
+        let mut step = 0.5f64;
+        while step < seg {
+            let x = ax + (bx - ax) * step / seg;
+            let y = ay + (by - ay) * step / seg;
+            let u3 = ground.height_at(x - rx * 3.0, y - ry * 3.0);
+            let d3 = ground.height_at(x + rx * 3.0, y + ry * 3.0);
+            if u3.is_finite() && d3.is_finite() {
+                drops3.push(u3 - d3);
+            }
+            let u6 = ground.height_at(x - rx * 6.0, y - ry * 6.0);
+            let d6 = ground.height_at(x + rx * 6.0, y + ry * 6.0);
+            if u6.is_finite() && d6.is_finite() {
+                drops6.push(u6 - d6);
+            }
+            step += 1.0;
+        }
+        length += seg;
+    }
+    (median_sorted(&mut drops3), median_sorted(&mut drops6), length)
+}
+
+/// Shifts a cliff polyline onto its upper breakline (2 m dense sampling, exact `toTopEdge`).
+fn to_top_edge(line: &[[f64; 2]], ground: &GroundGrid, up: f64) -> Vec<[f64; 2]> {
+    if line.len() < 2 {
+        return line.to_vec();
+    }
+    let dense = sample_line(line, 2.0);
+    let n = dense.len();
+    let normals: Vec<[f64; 2]> = (0..n)
+        .map(|i| {
+            let [ax, ay] = dense[i.saturating_sub(1)];
+            let [bx, by] = dense[(n - 1).min(i + 1)];
+            let raw_len = (bx - ax).hypot(by - ay);
+            let len = if raw_len == 0.0 { 1.0 } else { raw_len };
+            [(by - ay) / len, -(bx - ax) / len]
+        })
+        .collect();
+
+    let steps_count = ((2.5 + up) / 0.5).floor() as usize + 1;
+    let mut profile = Vec::<f64>::with_capacity(steps_count);
+    let mut shifts = Vec::<f64>::with_capacity(n);
+    let mut any_nonzero = false;
+
+    for i in 0..n {
+        let [x, y] = dense[i];
+        let [rx, ry] = normals[i];
+        profile.clear();
+        let mut t = -up;
+        while t <= 2.5 + 1e-9 {
+            profile.push(ground.height_at(x + rx * t, y + ry * t));
+            t += 0.5;
+        }
+        let mut best = 0.0f64;
+        let mut best_curve = f64::INFINITY;
+        for k in 1..profile.len().saturating_sub(1) {
+            let tk = -up + k as f64 * 0.5;
+            if tk > 2.0 + 1e-9 {
+                break;
+            }
+            let curve = profile[k - 1] - 2.0 * profile[k] + profile[k + 1];
+            if curve.is_finite() && curve < best_curve {
+                best_curve = curve;
+                best = tk;
+            }
+        }
+        let s = if best_curve.is_finite() && best_curve < -0.1 {
+            best.clamp(1.5 - up, 3.0)
+        } else {
+            0.0
+        };
+        if s != 0.0 {
+            any_nonzero = true;
+        }
+        shifts.push(s);
+    }
+    if !any_nonzero {
+        return line.to_vec();
+    }
+
+    let mut med = vec![0.0f64; n];
+    let mut win = [0.0f64; 5];
+    for i in 0..n {
+        let lo = i.saturating_sub(2);
+        let hi = (n - 1).min(i + 2);
+        let cnt = hi - lo + 1;
+        win[..cnt].copy_from_slice(&shifts[lo..=hi]);
+        win[..cnt].sort_by(|a, b| a.total_cmp(b));
+        med[i] = win[cnt / 2];
+    }
+
+    let mut out = Vec::with_capacity(n);
+    for i in 0..n {
+        let smooth_s = if i == 0 || i + 1 == n {
+            med[i]
+        } else {
+            (med[i - 1] + 2.0 * med[i] + med[i + 1]) * 0.25
+        };
+        let [x, y] = dense[i];
+        let [rx, ry] = normals[i];
+        out.push([x + rx * smooth_s, y + ry * smooth_s]);
+    }
+    out
+}
+
+/// Two 1-2-1 smoothing passes on interior vertices + 1.5 m Douglas–Peucker (`geo-cliffs.ts` `evenLine`).
+fn even_line(line: &[[f64; 2]]) -> Vec<[f64; 2]> {
+    let mut pts = line.to_vec();
+    if pts.len() < 3 {
+        return pts;
+    }
+    let mut next = vec![[0.0, 0.0]; pts.len()];
+    for _ in 0..2 {
+        let n = pts.len();
+        next[0] = pts[0];
+        next[n - 1] = pts[n - 1];
+        for i in 1..(n - 1) {
+            next[i] = [
+                (pts[i - 1][0] + 2.0 * pts[i][0] + pts[i + 1][0]) * 0.25,
+                (pts[i - 1][1] + 2.0 * pts[i][1] + pts[i + 1][1]) * 0.25,
+            ];
+        }
+        std::mem::swap(&mut pts, &mut next);
+    }
+    simplify(&pts, 1.5)
+}
+
+fn orient_by_ground(line: &[[f64; 2]], ground: &GroundGrid, min_length_m: f64) -> Vec<Vec<[f64; 2]>> {
+    if line.len() < 2 {
+        return Vec::new();
+    }
+    let dense = sample_line(line, 2.0);
+    let n = dense.len();
+    let mut measured = 0usize;
+    let scores: Vec<f64> = (0..n)
+        .map(|i| {
+            let [ax, ay] = dense[i.saturating_sub(1)];
+            let [bx, by] = dense[(n - 1).min(i + 1)];
+            let raw_len = (bx - ax).hypot(by - ay);
+            let len = if raw_len == 0.0 { 1.0 } else { raw_len };
+            let rx = (by - ay) / len;
+            let ry = -(bx - ax) / len;
+            let [x, y] = dense[i];
+            let up = ground.height_at(x - rx * 3.0, y - ry * 3.0);
+            let down = ground.height_at(x + rx * 3.0, y + ry * 3.0);
+            if !up.is_finite() || !down.is_finite() {
+                return 0.0;
+            }
+            measured += 1;
+            up - down
+        })
+        .collect();
+    if measured == 0 {
+        return vec![line.to_vec()];
+    }
+    orient_segments(&dense, &scores, min_length_m)
+}
+
+fn write_cliffs_geojson(path: &Path, candidates: &[CliffCandidate]) -> Result<(), String> {
+    let file = File::create(path).map_err(|e| format!("Failed creating {}: {e}", path.display()))?;
+    let mut w = BufWriter::with_capacity(64 * 1024, file);
+    write!(
+        w,
+        "{{\"type\":\"FeatureCollection\",\"crs\":{{\"type\":\"name\",\"properties\":{{\"name\":\"EPSG:3006\"}}}},\"features\":["
+    )
+    .map_err(|e| e.to_string())?;
+    for (ci, c) in candidates.iter().enumerate() {
+        if ci > 0 {
+            write!(w, ",").map_err(|e| e.to_string())?;
+        }
+        write!(
+            w,
+            "{{\"type\":\"Feature\",\"geometry\":{{\"type\":\"LineString\",\"coordinates\":["
+        )
+        .map_err(|e| e.to_string())?;
+        for (vi, &[x, y]) in c.line.iter().enumerate() {
+            if vi > 0 {
+                write!(w, ",").map_err(|e| e.to_string())?;
+            }
+            let rx = js_round(x * 10.0) / 10.0;
+            let ry = js_round(y * 10.0) / 10.0;
+            write!(w, "[{rx},{ry}]").map_err(|e| e.to_string())?;
+        }
+        let d3 = js_round(c.drop3 * 100.0) / 100.0;
+        let d6 = js_round(c.drop6 * 100.0) / 100.0;
+        let ln = js_round(c.length * 100.0) / 100.0;
+        write!(
+            w,
+            "]}},\"properties\":{{\"drop3\":{d3},\"drop6\":{d6},\"length\":{ln}}}}}"
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    write!(w, "]}}").map_err(|e| e.to_string())?;
+    w.flush().map_err(|e| e.to_string())
+}
+
+/// Runs the complete cliff pipeline and writes `brantlinjer.dxf` and `brantlinjer.geojson` when non-empty.
+pub fn run_cliffs(
+    ground: &GroundGrid,
+    rules: CliffRules,
+    c3g_path: Option<&Path>,
+    c2g_path: Option<&Path>,
+    out_dir: &Path,
+) -> Result<CliffSummary, String> {
+    let mut ticks = Vec::<Tick>::new();
+    for p in [c3g_path, c2g_path].into_iter().flatten() {
+        if p.exists() { ticks.extend(read_ticks(p)?); }
+    }
+
+    let own = slope_lines(ground);
+    let mut entries: Vec<(Vec<[f64; 2]>, bool)> = own.iter().cloned().map(|l| (l, true)).collect();
+
+    if !ticks.is_empty() {
+        let mut taken = HashSet::<(i64, i64)>::new();
+        for line in &own {
+            for [x, y] in sample_line(line, 3.0) {
+                let (gx, gy) = ((x / 6.0).floor() as i64, (y / 6.0).floor() as i64);
+                for ax in -1..=1 { for ay in -1..=1 { taken.insert((gx + ax, gy + ay)); } }
+            }
+        }
+        for line in cliff_lines_from_ticks(&ticks, SLOPE_CLIFF_MIN_LEN_M) {
+            let samples = sample_line(&line, 3.0);
+            let hits = samples.iter().filter(|&&[x, y]| taken.contains(&((x / 6.0).floor() as i64, (y / 6.0).floor() as i64))).count();
+            if hits * 2 < samples.len() {
+                for oriented in orient_by_ground(&line, ground, SLOPE_CLIFF_MIN_LEN_M) {
+                    entries.push((oriented, false));
+                }
+            }
+        }
+    }
+
+    let loose_min = rules.min_drop.min(CLIFF_LOOSE_DROP);
+    enum Eval { NoData(Vec<[f64; 2]>), Dropped, Candidate { cand: CliffCandidate, kind: Option<bool> } }
+    let evaluated: Vec<Eval> = entries
+        .into_par_iter()
+        .map(|(line, from_ground)| {
+            let (drop3, drop6, length) = measure_cliff(&line, ground);
+            if !drop3.is_finite() { return Eval::NoData(line); }
+            if drop3 < loose_min { return Eval::Dropped; }
+            let top = even_line(&to_top_edge(&line, ground, if from_ground { 8.5 } else { 4.5 }));
+            let kind = if drop3 < rules.min_drop {
+                None
+            } else if drop3 >= rules.impassable_drop3 && drop6 >= rules.impassable_drop6 && length >= rules.impassable_length {
+                Some(true)
+            } else {
+                Some(false)
+            };
+            Eval::Candidate { cand: CliffCandidate { line: top, drop3, drop6, length }, kind }
+        })
+        .collect();
+
+    let (mut high, mut low, mut candidates, mut dropped) = (Vec::new(), Vec::new(), Vec::new(), 0usize);
+    for ev in evaluated {
+        match ev {
+            Eval::NoData(line) => low.push(line),
+            Eval::Dropped => dropped += 1,
+            Eval::Candidate { cand, kind } => {
+                let top_line = cand.line.clone();
+                candidates.push(cand);
+                match kind { Some(true) => high.push(top_line), Some(false) => low.push(top_line), None => dropped += 1 }
+            }
+        }
+    }
+
+    if !candidates.is_empty() {
+        write_cliffs_geojson(&out_dir.join("brantlinjer.geojson"), &candidates)?;
+    }
+    if !high.is_empty() || !low.is_empty() {
+        let low_layer = if rules.tags { "brant_passerbar_taggar" } else { "brant_passerbar" };
+        let layers = [
+            DxfLayer { name: "brant_opasserbar", closed: false, parts: &high, points: &[] },
+            DxfLayer { name: low_layer, closed: false, parts: &low, points: &[] },
+        ];
+        write_moisture_dxf(&out_dir.join("brantlinjer.dxf"), &layers)?;
+    }
+
+    let total_meters = |lines: &[Vec<[f64; 2]>]| -> usize {
+        js_round(lines.iter().map(|l| line_length(l)).sum::<f64>()) as usize
+    };
+    Ok(CliffSummary {
+        cliffs_201: high.len(),
+        cliffs_202: low.len(),
+        cliff_meters_201: total_meters(&high),
+        cliff_meters_202: total_meters(&low),
+        cliffs_dropped: dropped,
+    })
+}

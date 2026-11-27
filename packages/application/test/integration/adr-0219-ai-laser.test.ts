@@ -376,4 +376,47 @@ describe("ADR-0219: AI-kopplingens laserverktyg", () => {
     expect(await db.transaction(tx => mapProjectCanDownloadSource(tx, reader.accountId, "READ", projRow!))).toBe(false);
     expect(failed(await mcp(reader.accountId, call("start_laser_job", { project_id: projectId, clip: testClip, raw_laser: true }), runtime))).toBe(true);
   }, 60_000);
+
+  it("Etapp G4B: start_laser_job och list_laser_jobs stödjer engine (otidgeo förval, pullautin valbar) och nya inställningar", async () => {
+    const { owner, projectId } = await project();
+    const { runtime } = fakeLantmateriet();
+    await saveMapSourceCredential(db, { ...owner.proof, request: { formatVersion: 1, method: "BASIC", id: "geotorget-anna", secret: "hemligt" } }, environment);
+    await db.update(schema.mapProjectGeoJobs).set({ status: "CANCELLED" });
+    const testClip = { min_x: 665000, min_y: 6576000, max_x: 666000, max_y: 6577000 };
+
+    // 1. Förval utan engine → otidgeo + nya inställningar.
+    const otidRes = await mcp(owner.accountId, call("start_laser_job", {
+      project_id: projectId, clip: testClip,
+      settings: { formline: 3, smooth_m: 1.0, taubin: 1, min_loop_area: 20, min_clearance: 1.0, veg_smooth: 0.65, overview: 0 }
+    }), runtime);
+    expect(failed(otidRes)).toBe(false);
+    const otidJob = jsonOf(otidRes);
+    expect(otidJob).toMatchObject({ engine: "otidgeo", settings: { formline: 3, smooth_m: 1.0, taubin: 1, veg_smooth: 0.65, overview: 0 } });
+    const otidClaim = await claimGeoJob(db, "geo-g4b-mcp");
+    expect(otidClaim?.engine).toBe("otidgeo");
+    await finishGeoJob(db, otidClaim!.jobId, "geo-g4b-mcp", { status: "DONE" });
+
+    // 2. Explicit engine: "pullautin" + rerun_of ärver "pullautin" om engine utelämnas.
+    const kpRes = await mcp(owner.accountId, call("start_laser_job", {
+      project_id: projectId, clip: testClip, engine: "pullautin", settings: { formline: 3, smoothing: 0.5 }
+    }), runtime);
+    expect(failed(kpRes)).toBe(false);
+    const kpJob = jsonOf(kpRes);
+    expect(kpJob).toMatchObject({ engine: "pullautin", settings: { formline: 3, smoothing: 0.5 } });
+    const kpClaim = await claimGeoJob(db, "geo-g4b-mcp");
+    expect(kpClaim?.engine).toBe("pullautin");
+    await finishGeoJob(db, kpClaim!.jobId, "geo-g4b-mcp", { status: "DONE" });
+
+    const rerunKp = jsonOf(await mcp(owner.accountId, call("start_laser_job", {
+      project_id: projectId, rerun_of: kpJob.jobId
+    }), runtime));
+    expect(rerunKp.engine).toBe("pullautin");
+
+    const listed = jsonOf(await mcp(owner.accountId, call("list_laser_jobs", { project_id: projectId }), runtime));
+    const engines = (listed.jobs as { jobId: string; engine?: string }[]).map(j => [j.jobId, j.engine]);
+    expect(engines).toEqual(expect.arrayContaining([[otidJob.jobId, "otidgeo"], [kpJob.jobId, "pullautin"], [rerunKp.jobId, "pullautin"]]));
+
+    // Ogiltig engine avvisas av MCP-schemat.
+    expect(failed(await mcp(owner.accountId, call("start_laser_job", { project_id: projectId, engine: "annan" }), runtime))).toBe(true);
+  }, 60_000);
 });

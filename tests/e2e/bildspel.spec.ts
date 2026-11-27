@@ -118,7 +118,7 @@ function runGeoWorker(origin: string, dir: string): Promise<{ code: number | nul
   return new Promise(resolve => {
     const child = spawn(process.execPath, [join(root, "scripts/geo-worker.ts")], { cwd: work, env: { ...process.env, OTID_GEO_ORIGIN: origin,
       OTID_GEO_WORKER_TOKEN: E2E_GEO_WORKER_TOKEN, OTID_GEO_WORKER_NAME: "bildspel-geo", OTID_GEO_ONCE: "1",
-      OTID_PULLAUTA: join(root, "tests/e2e/bildspel-pullauta.mjs"), OTID_BILDSPEL_LASER: dir, OTID_DWGREAD: join(root, "tests/e2e/fake-dwgread.mjs"),
+      OTID_OTIDGEO: join(root, "tests/e2e/fake-otidgeo.mjs"), OTID_PULLAUTA: join(root, "tests/e2e/bildspel-pullauta.mjs"), OTID_BILDSPEL_LASER: dir, OTID_DWGREAD: join(root, "tests/e2e/fake-dwgread.mjs"),
       OTID_LASCLIP: join(root, "tests/e2e/fake-lasclip.mjs"), OTID_PULLAUTA_INI: ini, OTID_GEO_WORKDIR: join(work, "jobb"),
       NODE_TLS_REJECT_UNAUTHORIZED: "0", NODE_NO_WARNINGS: "1" } });
     let output = "";

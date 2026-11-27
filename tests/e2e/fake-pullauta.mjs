@@ -27,15 +27,17 @@ const png = (w, h, colorType, channels, pixel) => {
 };
 if (command === "") {
   mkdirSync("out", { recursive: true });
-  // Med vege_bitmode=1 (vegetationen, K5c del 3): klassbilderna per ruta, öppen mark i väster och grönt i öster.
-  if (/^vege_bitmode=1$/m.test(readFileSync("pullauta.ini", "utf8"))) {
+  const ini = readFileSync("pullauta.ini", "utf8");
+  const contoursOnly = /^contoursonly=1$/m.test(ini);
+  // Med vege_bitmode=1 (utan contoursonly=1): klassbilderna per ruta, öppen mark i väster och grönt i öster.
+  if (!contoursOnly && /^vege_bitmode=1$/m.test(ini)) {
     const size = Math.max(1, Math.ceil((box.maxE - box.minE) / 300)), w = Math.ceil((box.maxE - box.minE) / size), h = Math.ceil((box.maxN - box.minN) / size);
     writeFileSync("out/ruta00_vege_bit.png", png(w, h, 0, 1, x => [x < w / 3 ? 1 : x > w / 2 ? 8 : 0]));
     writeFileSync("out/ruta00_undergrowth_bit.png", png(w, h, 0, 1, () => [0]));
     writeFileSync("out/ruta00_vege_bit.pgw", [size, 0, 0, -size, box.minE + size / 2, box.maxN - size / 2].join("\r\n") + "\r\n");
   }
   // Med savetempfolders=1 (fuktigheten, K5c): ett höjdraster på 2 m, som Karttapullautins xyz2.hmap.
-  if (/^savetempfolders=1$/m.test(readFileSync("pullauta.ini", "utf8"))) {
+  if (/^savetempfolders=1$/m.test(ini)) {
     const cell = 2, width = Math.floor((box.maxE - box.minE) / cell) + 1, height = Math.floor((box.maxN - box.minN) / cell) + 1;
     const bytes = Buffer.alloc(40 + width * height * 8);
     bytes.writeDoubleLE(box.minE, 0); bytes.writeDoubleLE(box.minN, 8); bytes.writeDoubleLE(cell, 16);
@@ -60,13 +62,14 @@ if (command === "pngmerge") {
   process.exit(0);
 }
 if (command === "dxfmerge") {
+  const contoursOnly = /^contoursonly=1$/m.test(readFileSync("pullauta.ini", "utf8"));
   const cx = (box.minE + box.maxE) / 2, cy = (box.minN + box.maxN) / 2, r = (box.maxE - box.minE) / 6;
   const ring = Array.from({ length: 24 }, (_, i) => [cx + r * Math.cos(i / 24 * 2 * Math.PI), cy + r * Math.sin(i / 24 * 2 * Math.PI)]);
   const polyline = (layer, points) => ["0", "POLYLINE", "8", layer, "66", "1", "70", "1",
     ...points.flatMap(([x, y]) => ["0", "VERTEX", "8", layer, "10", String(x), "20", String(y)]), "0", "SEQEND"];
   const dxf = (entities) => ["0", "SECTION", "2", "ENTITIES", ...entities, "0", "ENDSEC", "0", "EOF"].join("\n");
   writeFileSync("merged_contours.dxf", dxf([...polyline("contour", ring), ...polyline("contour_index", ring.map(([x, y]) => [cx + (x - cx) * 2, cy + (y - cy) * 2]))]));
-  writeFileSync("merged_c2g.dxf", dxf(polyline("cliff2", [[cx - r, cy - r * 2], [cx + r, cy - r * 2]])));
+  if (!contoursOnly) writeFileSync("merged_c2g.dxf", dxf(polyline("cliff2", [[cx - r, cy - r * 2], [cx + r, cy - r * 2]])));
   process.exit(0);
 }
 process.exit(2);

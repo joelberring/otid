@@ -2,7 +2,7 @@ import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { and, asc, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import {
   geoJobCreateRequestSchema, geoWorkerFinishSchema, GEO_CLIP_MARGIN_M, geoWorkerProgressSchema, GEO_OUTPUT_MAX_BYTES, GEO_OUTPUT_NAME, MAP_PROJECT_LAYER_MAX_BYTES,
-  type GeoJobList, type GeoJobView, type GeoServerView
+  type GeoJobEngine, type GeoJobList, type GeoJobView, type GeoServerView
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { gridToGeodetic, transverseMercatorFor } from "@o-tid/map-file";
@@ -144,12 +144,17 @@ function summaryOf(value: unknown): Readonly<Record<string, number | string>> | 
     .filter((entry): entry is [string, number | string] => typeof entry[1] === "number" || typeof entry[1] === "string");
   return entries.length ? Object.fromEntries(entries) : null;
 }
+/** Äldre historiska jobb i databasen saknar `request.engine` och räknas som Karttapullautin. */
+const engineOf = (value: unknown): GeoJobEngine | undefined => value === "otidgeo" || value === "pullautin" ? value : undefined;
+
 function toView(row: Awaited<ReturnType<typeof rows>>[number], viewer: string): GeoJobView {
-  const job = row.job, request = job.request as { name?: string; tiles?: unknown[]; settings?: Record<string, number>; clip?: GeoJobView["clip"]; areaId?: string; extras?: { kind: GeoJobView["extras"][number] }[]; cliffs?: GeoJobView["cliffs"];
+  const job = row.job, request = job.request as { name?: string; engine?: unknown; tiles?: unknown[]; settings?: Record<string, number>; clip?: GeoJobView["clip"]; areaId?: string; extras?: { kind: GeoJobView["extras"][number] }[]; cliffs?: GeoJobView["cliffs"];
     moisture?: GeoJobView["moisture"]; vegetation?: GeoJobView["vegetation"] };
   const progress = job.progress as GeoJobView["progress"] | null;
   const dates = (request.tiles ?? []).map(tile => (tile as { datetime?: unknown }).datetime).filter((date): date is string => typeof date === "string" && /^\d{4}-\d{2}-\d{2}/.test(date));
-  return { jobId: job.id, scannedAt: dates.length ? dates.map(date => date.slice(0, 10)).sort().at(-1)! : null, name: request.name ?? "Karttapullautin", kind: job.kind, status: job.status, tiles: request.tiles?.length ?? 0,
+  return { jobId: job.id, scannedAt: dates.length ? dates.map(date => date.slice(0, 10)).sort().at(-1)! : null, name: request.name ?? "Karttapullautin", kind: job.kind, status: job.status,
+    ...(job.kind === "PULLAUTIN" ? { engine: engineOf(request.engine) ?? "pullautin" } : {}),
+    tiles: request.tiles?.length ?? 0,
     settings: request.settings ?? {}, clip: request.clip ?? null, areaId: request.areaId ?? null, extras: (request.extras ?? []).map(extra => extra.kind), cliffs: request.cliffs ?? null, progress: job.status === "RUNNING" ? progress : null, error: job.error,
     layerId: typeof job.result?.layerId === "string" ? job.result.layerId : null, skippedSteps: skippedSteps(job.result?.summary),
     moistureLayerId: typeof job.result?.moistureLayerId === "string" ? job.result.moistureLayerId : null, moisture: request.moisture ?? null,
@@ -228,17 +233,19 @@ export async function createJob(db: Database, gate: MapProjectGate, body: unknow
     if (access.status !== "ok") return access;
     if (!parsed.success) return { status: "invalid-request" } as const;
     let request = parsed.data;
-    // G6: «Kör om med andra inställningar» tar rutorna, klipprutan och Lantmäteriets produkter från ett jobb i samma projekt.
+    // G6: «Kör om med andra inställningar» tar rutorna, klipprutan, motorn (om ingen ny anges) och Lantmäteriets produkter från ett jobb i samma projekt.
     if (request.rerunOf) {
       const [source] = await tx.select({ request: jobs.request, kind: jobs.kind }).from(jobs)
         .where(and(eq(jobs.id, request.rerunOf), eq(jobs.projectId, access.project.id)));
-      const prior = source?.kind === "PULLAUTIN" ? source.request as { tiles?: typeof request.tiles; clip?: typeof request.clip; areaId?: string; extras?: typeof request.extras } : undefined;
+      const prior = source?.kind === "PULLAUTIN" ? source.request as { engine?: unknown; tiles?: typeof request.tiles; clip?: typeof request.clip; areaId?: string; extras?: typeof request.extras } : undefined;
       if (!prior?.tiles?.length) return { status: "not-found" } as const;
       // En provruta (en egen, mindre klippruta) tar bara rutorna som når den, så att den går fort och tar lite av kvoten.
       const tiles = request.clip ? prior.tiles.filter(tile => reaches(tile.bbox, request.clip!)) : prior.tiles;
-      request = { ...request, tiles: tiles.length ? tiles : prior.tiles, clip: request.clip ?? prior.clip, extras: request.extras ?? prior.extras,
+      request = { ...request, engine: request.engine ?? engineOf(prior.engine) ?? "pullautin", tiles: tiles.length ? tiles : prior.tiles,
+        clip: request.clip ?? prior.clip, extras: request.extras ?? prior.extras,
         ...(prior.areaId && !request.clip ? { areaId: prior.areaId } : {}) };
     }
+    const engine: GeoJobEngine = request.engine ?? "otidgeo";
     const tileList = request.tiles ?? [];
     if (tileList.length === 0 || [...tileList, ...(request.extras ?? [])].some(item => !allowedLaserUrl(item.href, runtime))) return { status: "invalid-request" } as const;
     const [prior] = await tx.select().from(jobs).where(eq(jobs.requestId, request.requestId));
@@ -277,7 +284,7 @@ export async function createJob(db: Database, gate: MapProjectGate, body: unknow
     if (!regenerates && tiles + wanted > (limits?.own ?? geoTilesPerMonth(runtime.environment))) return { status: "quota" } as const;
     for (const part of partJobs) {
       await tx.insert(jobs).values({ id: part.id, projectId: access.project.id, accountId: access.accountId, kind: "PULLAUTIN", status: "QUEUED",
-        request: { name: part.name, tiles: part.tiles, settings: request.settings, ...(part.split ? { split: part.split } : {}), ...(request.cliffs ? { cliffs: request.cliffs } : {}), ...(part.clip ? { clip: part.clip } : {}), ...(part.reach ? { reach: part.reach } : {}), ...(request.areaId ? { areaId: request.areaId } : {}), ...(request.extras?.length ? { extras: request.extras } : {}),
+        request: { name: part.name, engine, tiles: part.tiles, settings: request.settings, ...(part.split ? { split: part.split } : {}), ...(request.cliffs ? { cliffs: request.cliffs } : {}), ...(part.clip ? { clip: part.clip } : {}), ...(part.reach ? { reach: part.reach } : {}), ...(request.areaId ? { areaId: request.areaId } : {}), ...(request.extras?.length ? { extras: request.extras } : {}),
         ...(request.moisture ? { moisture: request.moisture } : {}),
         ...(request.vegetation ? { vegetation: request.vegetation } : {}), ...(regenerates ? { regenerates } : {}),
         // PLAN.md M6: bara när förrådet är i bruk; annars visar panelen inte rutan.
@@ -461,6 +468,8 @@ export async function authenticateGeoWorker(db: Database, authorization: string 
 
 export interface ClaimedGeoJob {
   readonly jobId: string; readonly kind: "PULLAUTIN" | "DWG"; readonly attempt: number;
+  /** Motor som ska köra laserjobbet (`otidgeo` eller `pullautin`); utelämnat för DWG. */
+  readonly engine?: GeoJobEngine | undefined;
   readonly tiles: readonly { readonly index: number; readonly id: string; readonly epsg: number | null }[];
   readonly settings: Readonly<Record<string, number>>;
   /** Grundkartan G1: laserdatan klipps till rutan (SWEREF 99 TM) före körningen. */
@@ -495,7 +504,7 @@ export async function releaseStaleGeoJobs(db: DbExecutor, now: Date): Promise<vo
 
 export async function claimGeoJob(db: Database, worker: string, now = new Date()): Promise<ClaimedGeoJob | undefined> {
   await releaseStaleGeoJobs(db, now);
-  const result = await db.execute<{ id: string; kind: "PULLAUTIN" | "DWG"; request: { tiles?: { id: string; epsg: number | null }[]; settings?: Record<string, number>;
+  const result = await db.execute<{ id: string; kind: "PULLAUTIN" | "DWG"; request: { engine?: unknown; tiles?: { id: string; epsg: number | null }[]; settings?: Record<string, number>;
     clip?: ClaimedGeoJob["clip"]; reach?: ClaimedGeoJob["clip"]; extras?: { kind: "LAND_COVER" | "BUILDINGS" | "PARCELS" }[]; cliffs?: ClaimedGeoJob["cliffs"]; moisture?: ClaimedGeoJob["moisture"]; vegetation?: ClaimedGeoJob["vegetation"]; rawLaser?: boolean }; attempts: number }>(sql`
     update map_project_geo_job set status = 'RUNNING', started_at = ${now}, heartbeat_at = ${now}, attempts = attempts + 1, worker = ${worker},
       progress = null
@@ -509,6 +518,7 @@ export async function claimGeoJob(db: Database, worker: string, now = new Date()
   const merge = geoMergeOf(row);
   return { ...(merge ? { merge: { stages: await claimedStages(db, merge) } } : {}), ...((row.request as { split?: unknown }).split ? { stage: true } : {}),
     ...(row.request.rawLaser === true && !merge && row.kind === "PULLAUTIN" ? { rawLaser: true } : {}),
+    ...(row.kind === "PULLAUTIN" ? { engine: engineOf(row.request.engine) ?? "pullautin" } : {}),
     jobId: row.id, kind: row.kind, attempt: row.attempts, settings: row.request.settings ?? {}, clip: row.request.clip ?? null,
     ...(row.request.reach ? { reach: row.request.reach } : {}), extras: (row.request.extras ?? []).map((extra, index) => ({ index, kind: extra.kind })), cliffs: row.request.cliffs ?? null, moisture: row.request.moisture ?? null,
     vegetation: row.request.vegetation ?? null, tiles: (row.request.tiles ?? []).map((tile, index) => ({ index, id: tile.id, epsg: tile.epsg ?? null })) };

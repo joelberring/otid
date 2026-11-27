@@ -504,5 +504,94 @@ describe("ADR-0219 K5: geo-arbetaren", () => {
     expect(list.status === "ok" && list.list.jobs.find(job => job.jobId === created.jobId)).toMatchObject({ kind: "DWG", name: "Baskarta", status: "DONE",
       outputs: [{ name: "indata.dwg" }, { name: "ritning.dxf" }] });
     expect((await readGeoOutput(db, { ...reader.proof, projectId, jobId: created.jobId, name: "ritning.dxf" }, NOW)).status).toBe("ok");
+    // DWG-jobb har inget motorfält.
+    expect(list.status === "ok" && list.list.jobs.find(job => job.jobId === created.jobId)?.engine).toBeUndefined();
+    expect(claimed?.engine).toBeUndefined();
+  });
+
+  it("G4B: dubbelmotor (förval otidgeo, arv vid rerunOf, äldre jobb = pullautin) och slutförande/sammanläggning utan karta.png", async () => {
+    await db.update(schema.mapProjectGeoJobs).set({ status: "CANCELLED" }).where(sql`status in ('QUEUED', 'RUNNING')`);
+    const { owner, reader, projectId } = await project();
+    const { runtime } = fakeLantmateriet();
+    await saveMapSourceCredential(db, { ...owner.proof, request: { formatVersion: 1, method: "BASIC", id: "geotorget-anna", secret: "hemligt" } }, environment, NOW);
+    const tile = { id: "24A001_65775_6575_25", href: LAZ, bbox: [18, 59.29, 18.04, 59.31] as [number, number, number, number], epsg: 3006 };
+
+    // 1. Nytt jobb utan engine får förvalet "otidgeo" och godtar alla nya G4B-inställningar.
+    const defaultCreated = await createGeoJob(db, { ...owner.proof, projectId, request: {
+      formatVersion: 1, requestId: randomUUID(), kind: "PULLAUTIN", name: "O-Tid test", tiles: [tile],
+      settings: { contour_interval: 5, formline: 3, smooth_m: 1.35, taubin: 2, min_loop_area: 30, min_clearance: 1.4, formline_gap: 6, formline_max_slope: 18, veg_smooth: 0.65, overview: 0 }
+    } }, runtime, NOW);
+    if (defaultCreated.status !== "created") throw new Error(defaultCreated.status);
+    expect(defaultCreated.job.engine).toBe("otidgeo");
+    const claimedOtid = await claimGeoJob(db, "geo-g4b", NOW);
+    expect(claimedOtid?.engine).toBe("otidgeo");
+    // overview: 0 → ingen karta.png/karta.webp; finishGeoJob ska ge layerId: null utan fel, men ändå skapa övriga underlag (skuggning).
+    const pgw = new TextEncoder().encode("2\n0\n0\n-2\n665001\n6576999\n");
+    for (const [name, mediaType, file] of [
+      ["kurvor.dxf", "application/dxf", new TextEncoder().encode("0\nEOF\n")],
+      ["skuggning.png", "image/png", png(80, 80)], ["skuggning.pgw", "text/plain", pgw]
+    ] as const) {
+      expect(await storeGeoOutput(db, { jobId: defaultCreated.job.jobId, worker: "geo-g4b", name, mediaType, file }, NOW)).toEqual({ status: "stored" });
+    }
+    expect(await finishGeoJob(db, defaultCreated.job.jobId, "geo-g4b", { status: "DONE", summary: { engine: "otidgeo", msOtidgeo: 420 } }, NOW))
+      .toEqual({ status: "ok", layerId: null });
+    const layersNoOverview = await listMapProjectLayers(db, { ...reader.proof, projectId }, NOW);
+    expect(layersNoOverview.status === "ok" && layersNoOverview.list.layers.map(l => l.name)).toEqual(["O-Tid test – terrängskuggning"]);
+
+    // 2. Äldre historiskt jobb i DB utan request.engine exponeras som "pullautin" och ärvs som "pullautin" vid rerunOf.
+    const legacyId = randomUUID();
+    await db.insert(schema.mapProjectGeoJobs).values({
+      id: legacyId, projectId, accountId: owner.accountId, kind: "PULLAUTIN", status: "DONE",
+      request: { name: "Äldre jobb", tiles: [tile], settings: { contour_interval: 5 } },
+      createdAt: new Date(NOW.getTime() - 10_000), finishedAt: new Date(NOW.getTime() - 5_000), requestId: randomUUID()
+    });
+    const listedLegacy = await listGeoJobs(db, { ...owner.proof, projectId }, server, NOW);
+    if (listedLegacy.status !== "ok") throw new Error(listedLegacy.status);
+    expect(listedLegacy.list.jobs.find(j => j.jobId === legacyId)?.engine).toBe("pullautin");
+
+    const rerunLegacy = await createGeoJob(db, { ...owner.proof, projectId, request: {
+      formatVersion: 1, requestId: randomUUID(), kind: "PULLAUTIN", name: "Omkörning äldre", rerunOf: legacyId, settings: {}
+    } }, runtime, NOW);
+    if (rerunLegacy.status !== "created") throw new Error(rerunLegacy.status);
+    expect(rerunLegacy.job.engine).toBe("pullautin");
+    expect((await claimGeoJob(db, "geo-g4b", NOW))?.engine).toBe("pullautin");
+    await finishGeoJob(db, rerunLegacy.job.jobId, "geo-g4b", { status: "DONE" }, NOW);
+
+    // 3. rerunOf på ett otidgeo-jobb ärver "otidgeo" om engine utelämnas, och kan byta till "pullautin" om engine anges.
+    const rerunInherit = await createGeoJob(db, { ...owner.proof, projectId, request: {
+      formatVersion: 1, requestId: randomUUID(), kind: "PULLAUTIN", name: "Omkörning ärv", rerunOf: defaultCreated.job.jobId, settings: {}
+    } }, runtime, NOW);
+    const rerunSwitch = await createGeoJob(db, { ...owner.proof, projectId, request: {
+      formatVersion: 1, requestId: randomUUID(), kind: "PULLAUTIN", name: "Omkörning byt", rerunOf: defaultCreated.job.jobId, engine: "pullautin", settings: {}
+    } }, runtime, NOW);
+    if (rerunInherit.status !== "created" || rerunSwitch.status !== "created") throw new Error("rerun misslyckades");
+    expect(rerunInherit.job.engine).toBe("otidgeo");
+    expect(rerunSwitch.job.engine).toBe("pullautin");
+    for (const id of [rerunInherit.job.jobId, rerunSwitch.job.jobId]) {
+      await claimGeoJob(db, "geo-g4b", NOW);
+      await finishGeoJob(db, id, "geo-g4b", { status: "DONE" }, NOW);
+    }
+
+    // 4. Delad körning med bildmotorfri pullautin (ingen karta.png): etapper + sammanläggning bevarar engine och går rent med layerId: null.
+    await db.update(schema.userAccounts).set({ geoTilesPerMonth: 50 }).where(eq(schema.userAccounts.id, owner.accountId));
+    const island = { minX: 664000, minY: 6522000, maxX: 668000, maxY: 6527360 };
+    const south = { id: "s1", href: LAZ, bbox: [17.86, 58.79, 17.95, 58.82] as [number, number, number, number], epsg: 3006 };
+    const north = { id: "n1", href: LAZ.replace(".laz", "-n.laz"), bbox: [17.86, 58.84, 17.95, 58.87] as [number, number, number, number], epsg: 3006 };
+    const splitPullautin = await createGeoJob(db, { ...owner.proof, projectId, request: {
+      formatVersion: 1, requestId: randomUUID(), kind: "PULLAUTIN", engine: "pullautin", name: "Delad KP",
+      tiles: [south, north], settings: { formline: 3 }, clip: island
+    } }, runtime, NOW);
+    expect(splitPullautin).toMatchObject({ status: "created", split: { total: 2 }, job: { engine: "pullautin" } });
+    for (let stage = 0; stage < 2; stage += 1) {
+      const claimed = await claimGeoJob(db, "geo-g4b", NOW);
+      expect(claimed?.engine).toBe("pullautin");
+      await storeGeoOutput(db, { jobId: claimed!.jobId, worker: "geo-g4b", name: "kurvor.dxf", mediaType: "application/dxf", file: new TextEncoder().encode("0\nEOF\n") }, NOW);
+      expect(await finishGeoJob(db, claimed!.jobId, "geo-g4b", { status: "DONE" }, NOW)).toEqual({ status: "ok", layerId: null });
+    }
+    const mergedClaim = await claimGeoJob(db, "geo-g4b", NOW);
+    expect(mergedClaim?.engine).toBe("pullautin");
+    expect(mergedClaim?.merge?.stages.map(s => s.outputs)).toEqual([["kurvor.dxf"], ["kurvor.dxf"]]);
+    await storeGeoOutput(db, { jobId: mergedClaim!.jobId, worker: "geo-g4b", name: "kurvor.dxf", mediaType: "application/dxf", file: new TextEncoder().encode("0\nEOF\n") }, NOW);
+    expect(await finishGeoJob(db, mergedClaim!.jobId, "geo-g4b", { status: "DONE" }, NOW)).toEqual({ status: "ok", layerId: null });
   });
 });

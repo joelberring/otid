@@ -22,6 +22,7 @@ on:
       - scripts/geo-*.ts
       - packages/map-revision/src/base-map/vegetation-shapes.ts
       - tools/lasclip/**
+      - tools/otidgeo/**
       - apps/web/next.config.ts
       - package.json
       - pnpm-lock.yaml

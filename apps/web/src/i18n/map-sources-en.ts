@@ -44,10 +44,10 @@ export const mapSourcesMoistureEn: Texts<Sources["moisture"]> = {
 
 export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
   heading: "Laser runs (advanced)",
-  help: "Search laser tiles (2.5 × 2.5 km) for the whole map or a sub-area with your own credentials for Lantmäteriet. The geo server runs "
-    + "Karttapullautin: the image is added as a base layer, and contours, form lines, cliffs and knolls can be loaded as a draft. "
+  help: "Search laser tiles (2.5 × 2.5 km) for the whole map or a sub-area with your own credentials for Lantmäteriet. The geo server processes "
+    + "the laser data with O-Tid's built-in engine (default) or Karttapullautin without its image renderer: hillshade, relief, moisture and an optional overview image are added as base layers, and contours, form lines, cliffs, knolls and vegetation can be loaded as a draft. "
     + "The laser data is clipped to the map's area (or the sub-area) with a 50 m margin before it is processed.",
-  attribution: "Laserdata Nedladdning, skog © Lantmäteriet, CC BY 4.0 (processed with Karttapullautin, GPL-3).",
+  attribution: "Laserdata Nedladdning, skog © Lantmäteriet, CC BY 4.0 (processed with O-Tid or Karttapullautin, GPL-3).",
   search: "Search laser tiles",
   searching: "Searching …",
   none: "No laser tiles were found for the area.",
@@ -55,14 +55,27 @@ export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
     [when?.slice(0, 10), id, bytes ? `${Math.round(bytes / 1_000_000)} MB` : null].filter(Boolean).join(" · "),
   name: "Name of the result",
   defaultName: (area?: string) => `Karttapullautin ${area ?? "whole map"}`.slice(0, 80),
+  engine: "Engine",
+  engineOptions: {
+    otidgeo: "O-Tid (built-in engine — fast, seamless, controllable)",
+    pullautin: "Karttapullautin (without image renderer — classic contours)"
+  },
+  engineShort: { otidgeo: "O-Tid", pullautin: "Karttapullautin" },
+  pullautinNoOverview: "Karttapullautin's image renderer is skipped — you still get hillshade, relief and all vectors faster without the overview image.",
   interval: "Contour interval",
   intervalOption: (meters: number) => `${meters} m`,
   formlines: "Form lines",
-  formlineOptions: { 0: "No form lines", 1: "Contours at half the interval", 2: "Form lines where needed" },
+  formlineOptions: { 0: "Off", 1: "Sparse", 2: "Normal", 3: "Dense" },
+  contours: "Contour profile",
+  contourStyles: {
+    veryDetailed: "Very detailed", detailed: "Detailed", normal: "Normal", generalized: "Generalised", veryGeneralized: "Very generalised"
+  },
     choicesHeading: "Settings",
     cliffStyle: "Impassable cliffs",
     cliffStyles: { few: "Only high cliffs (from 4.5 m, at least 20 m)", most: "Most cliffs (from 3.5 m, at least 10 m)" },
     cliffTags: "Suggest passable cliffs with tags",
+    overview: "Generate 2 m overview image (karta.webp)",
+    overviewHelp: "On by default in O-Tid's engine. Creates a fast overview base layer; untick if you only want hillshade, relief and vectors.",
     rawTicks: "Keep Karttapullautin's raw cliff ticks (branter.dxf, stup.dxf)",
     rawTicksHelp: "Rarely needed: the base map uses the cliff lines. The raw ticks make large files, often tens of MB.",
     rawLaser: "Also save the raw laser data for me",
@@ -74,14 +87,14 @@ export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
     rawLaserUntil: (date: string) => `valid until ${date}`,
     rawLaserOthers: "only whoever started the run can download it",
     rawLaserMissing: "Raw laser data was requested, but there is no zip file (the geo server did not pack it, or the file has already been removed).",
-    choiceLabels: { cliffs: "Cliffs", contours: "Contours", knolls: "Knolls", green: "Green", undergrowth: "Undergrowth", open: "Yellow", rock: "Bare rock" },
+    choiceLabels: { cliffs: "Cliffs", knolls: "Knolls", green: "Green", undergrowth: "Undergrowth", open: "Yellow", rock: "Bare rock" },
     choiceLevels: {
-      cliffs: { less: "Fewer", default: "Default", more: "More" }, contours: { less: "Smoother", default: "Default", more: "More detailed" },
+      cliffs: { less: "Fewer", default: "Default", more: "More" },
       knolls: { less: "Fewer", default: "Default", more: "More" }, green: { less: "Less", default: "Default", more: "More" },
       undergrowth: { less: "Less", default: "Default", more: "More" },
       open: { less: "Less", default: "Default", more: "More" }, rock: { less: "Leave out", default: "Without suggestion", more: "Suggest as bare rock" }
     },
-    choicesHelp: "Karttapullautin measures green as the share of laser hits 1–2.65 m above ground (the shrub layer) against the hits on the ground, and weighs in the tree crowns. Try a stage first, or run a finished job again and compare.",
+    choicesHelp: "Green is measured from the share of laser hits in the shrub layer (1–3 m) and canopy density. Try a stage first, or run a finished job again and compare.",
     rerun: "Run again with other settings",
     rerunHeading: (name: string) => `Run ${name} again with the same tiles and area:`,
     rerunName: (name: string) => `${name} (new)`.slice(0, 80),
@@ -91,10 +104,14 @@ export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
     sampleMiddle: "Sample square 250 × 250 m in the middle",
     sampleArea: (name: string) => `Sample square 250 × 250 m in ${name}`,
     sampleSuffix: " (sample)",
-    more: "Advanced: values in Karttapullautin",
-    moreHelp: "The values are written to Karttapullautin's pullauta.ini (the name is in brackets). Leave a field empty for Karttapullautin's default. "
-      + "Try a small sub-area first and compare the images.",
+    more: { otidgeo: "Advanced: fine-tuning for O-Tid engine", pullautin: "Advanced: values in Karttapullautin" },
+    moreHelp: {
+      otidgeo: "Physical parameters for O-Tid's built-in engine (the setting key is in brackets). Leave empty for the contour profile's default.",
+      pullautin: "The values are written to Karttapullautin's pullauta.ini (the name is in brackets). Leave a field empty for Karttapullautin's default. Try a small sub-area first and compare."
+    },
     settingLabels: {
+      smooth_m: "Elevation smoothing (metres)", taubin: "Contour smoothing (Taubin passes)", min_loop_area: "Minimum contour loop (m²)", min_clearance: "Minimum contour clearance (m)",
+      formline_gap: "Minimum gap for form line (m)", formline_max_slope: "Maximum slope for form line (°)", veg_smooth: "Vegetation smoothing",
       smoothing: "Contour smoothing", curviness: "Contour curviness", knolls: "Knolls", formlinesteepness: "Form lines by steepness",
       cliff1: "Cliffs, threshold 1", cliff2: "Cliffs, threshold 2", cliffsteepfactor: "Cliffs, steepness factor",
       yellowheight: "Open land, maximum height", greenground: "Green, height of the ground layer", greenhigh: "Green, maximum height", undergrowth: "Undergrowth",
@@ -108,6 +125,19 @@ export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
       yellowheight: "Default 0.9 m.", greenground: "Default 0.9 m.", greenhigh: "Default 2 m.",
       undergrowth: "Default 0.35. A lower value gives more undergrowth.",
       topweight: "Default 0.8. A lower value means that green under dense crowns is not counted up.", greenscale: "Default 1. A larger value gives less green."
+    },
+    otidgeoSettingHints: {
+      smooth_m: "Default 1.65 m (1.2 m sprint). Lower keeps micro-relief, higher smooths the terrain model.",
+      taubin: "Default 2 passes (0–6). 0 keeps raw contour geometry, more passes give rounder curves without shrinking.",
+      min_loop_area: "Default 40 m² (17 m² sprint). Smaller closed rings are removed or promoted to knolls.",
+      min_clearance: "Default 1.7 m (1.0 m sprint). Minimum distance between adjacent contours in tight terrain.",
+      curviness: "Default 0.17 (0–0.8 in the engine). Higher accentuates small spurs and re-entrants.",
+      formline_gap: "Default 7.8 m (4.6 m sprint). Minimum spacing between main contours for a form line to be drawn.",
+      formline_max_slope: "Default 16.5° (14.5° sprint). Steeper slopes stay clean without squeezed form lines.",
+      veg_smooth: "Default 1.05 (0.65 detailed, 1.6 calm areas). Controls how strongly green and open areas are smoothed.",
+      greenscale: "Default 1. A larger value gives less green, a smaller value gives more green.",
+      topweight: "Default 0.34. How much dense tree crowns weigh into green.",
+      undergrowth: "Default 0.058. A lower value gives more undergrowth in forest."
     },
     settingField: (label: string, key: string, low: number, high: number) => `${label} (${key}, ${low}–${high})`,
     settingDefault: "default",
@@ -125,8 +155,13 @@ export const mapSourcesLaserEn: Texts<Sources["laser"]> = {
   vegetation: "Also make areas of the vegetation (open land, green and undergrowth from the laser returns)",
   minArea: "Smallest area",
   minAreaOption: (m2: number) => `${m2} m²`,
+  vegSmooth: "Vegetation smoothing",
+  vegSmoothOptions: { detailed: "Detailed (0.65)", normal: "Normal (1.05)", calm: "Calm areas (1.6)" },
   tooManyTiles: (n: number, most: number) => `${n} tiles are selected; one job takes at most ${most}. Choose a sub-area or untick tiles.`,
-  start: (n: number) => n === 1 ? "Run Karttapullautin on 1 tile" : `Run Karttapullautin on ${n} tiles`,
+  start: (n: number, engine: string) => {
+    const label = engine === "otidgeo" ? "O-Tid" : "Karttapullautin";
+    return n === 1 ? `Run ${label} on 1 tile` : `Run ${label} on ${n} tiles`;
+  },
   startedSplit: (parts: number) => `The area is too large for one run and has been split into ${parts} stages. They are in the queue and run one after another.`,
   started: "The job is in the queue.",
   jobs: "The jobs",

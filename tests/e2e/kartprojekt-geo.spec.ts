@@ -27,7 +27,8 @@ function runGeoWorker(origin: string): Promise<{ code: number | null; output: st
   writeFileSync(ini, "batch=0\nprocesses=2\n");
   return new Promise(resolve => {
     const child = spawn(process.execPath, [join(root, "scripts/geo-worker.ts")], { cwd: work, env: { ...process.env, OTID_GEO_ORIGIN: origin,
-      OTID_GEO_WORKER_TOKEN: E2E_GEO_WORKER_TOKEN, OTID_GEO_WORKER_NAME: "e2e-geo", OTID_GEO_ONCE: "1", OTID_PULLAUTA: join(root, "tests/e2e/fake-pullauta.mjs"),
+      OTID_GEO_WORKER_TOKEN: E2E_GEO_WORKER_TOKEN, OTID_GEO_WORKER_NAME: "e2e-geo", OTID_GEO_ONCE: "1",
+      OTID_OTIDGEO: join(root, "tests/e2e/fake-otidgeo.mjs"), OTID_PULLAUTA: join(root, "tests/e2e/fake-pullauta.mjs"),
       OTID_DWGREAD: join(root, "tests/e2e/fake-dwgread.mjs"), OTID_LASCLIP: join(root, "tests/e2e/fake-lasclip.mjs"),
       OTID_PULLAUTA_INI: ini, OTID_GEO_WORKDIR: join(work, "jobb"), NODE_TLS_REJECT_UNAUTHORIZED: "0", NODE_NO_WARNINGS: "1" } });
     let output = "";
@@ -215,8 +216,10 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   expect(again.code, again.output).toBe(0);
   await expect(second).toContainText("Klart", { timeout: 30_000 });
   await expect(second.getByTestId("map-project-laser-base-map")).toBeVisible();
-  // G6 provrutan: samma jobb igen, bara 250 × 250 m i mitten av området (snabbt att jämföra inställningar).
+  // G6 provrutan: samma jobb igen som bildmotorfri Karttapullautin, bara 250 × 250 m i mitten av området (ingen karta.webp).
   await second.getByTestId("map-project-laser-rerun-start").click();
+  await laser.getByTestId("map-project-laser-engine").selectOption("pullautin");
+  await expect(laser.getByTestId("map-project-laser-pullautin-note")).toBeVisible();
   await laser.getByTestId("map-project-laser-sample").selectOption("middle");
   await laser.getByTestId("map-project-laser-start").click();
   const sample = laser.getByTestId("map-project-laser-job").filter({ hasText: "(provruta)" });
@@ -224,6 +227,7 @@ test("kartprojekt: markfuktighet och laserdata med Karttapullautin på geo-serve
   const third = await runGeoWorker(baseURL!);
   expect(third.code, third.output).toBe(0);
   await expect(sample).toContainText("Klart", { timeout: 30_000 });
+  await expect(sample).not.toContainText("Bilden är tillagd som underlag.");
 
   // K6b: en DWG-ritning läses på geo-servern (vägen och huset, en skraffyr) och läses in som kandidater.
   await warmRoute(owner, `${api}/geo-jobs/dwg`, "POST");

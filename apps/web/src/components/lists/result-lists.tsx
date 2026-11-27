@@ -227,14 +227,15 @@ function RelayBlock({ raceClass, context }: { raceClass: RelayClass; context: Co
 
 function SplitsBlock({ raceClass, context }: { raceClass: ResultClass; context: Context }) {
   const t = useListTexts().results;
-  if (raceClass.rows.some(row => row.hasSplits && row.splits.length === 0)) {
+  const pendingSplits = raceClass.rows.some(row => row.hasSplits && row.splits.length === 0);
+  const groups = useMemo(() => pendingSplits || raceClass.scored ? [] : splitGroups(raceClass), [raceClass, pendingSplits]);
+  if (pendingSplits) {
     return <section className={styles.block} aria-label={raceClass.name}>
       <div className={styles.blockHead}><h3>{raceClass.name}</h3></div>
       <p className={styles.empty} role="status">{t.loading}</p>
     </section>;
   }
   if (raceClass.scored) return <ScoredControlsBlock raceClass={raceClass} context={context} />;
-  const groups = splitGroups(raceClass);
   if (groups.length === 0) return <section className={styles.block} aria-label={raceClass.name}>
     <div className={styles.blockHead}><h3>{raceClass.name}</h3></div>
     {raceClass.radio ? <ClassRadio raceClass={raceClass} context={context} /> : <p className={styles.empty}>{t.noSplits}</p>}</section>;

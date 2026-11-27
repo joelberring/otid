@@ -87,6 +87,19 @@ export interface NewEdit {
   readonly point?: Point | undefined;
 }
 
+export interface AddedEdit {
+  readonly edit: RevisionEdit;
+  /** Objektets läge precis före den här ändringen (för historikens `before`). */
+  readonly before: ObjectState;
+}
+
+export interface AddEditsOutcome {
+  readonly state: RevisionClientState;
+  readonly edits: readonly RevisionEdit[];
+  /** De tillagda ändringarna med läget före varje ändring, i samma ordning som `edits`. */
+  readonly entries: readonly AddedEdit[];
+}
+
 /**
  * En egen ändring läggs i kön, byggd på objektets senaste kända ändring. Ett objekt som väntar på ett val efter en krock
  * ändras inte (undefined); valet görs först.
@@ -96,6 +109,32 @@ export function addEdit(state: RevisionClientState, input: NewEdit): { state: Re
   const { point, ...rest } = input;
   const edit: RevisionEdit = { ...rest, ...(point ? { point } : {}), base: lastEditId(state, input.key) };
   return { state: { ...state, pending: [...state.pending, edit] }, edit };
+}
+
+/**
+ * Många egna ändringar i ett svep (O(P + M) i stället för O(M²)): varje ändring bygger på objektets senaste kända ändring
+ * (inklusive tidigare ändringar i samma bunt) och objekt i krock hoppas över. Returnerar oförändrad `state` när inget lades till.
+ */
+export function addEdits(state: RevisionClientState, inputs: readonly NewEdit[]): AddEditsOutcome {
+  if (inputs.length === 0) return { state, edits: [], entries: [] };
+  const latest = new Map<ObjectKey, RevisionEdit>();
+  for (const row of state.pending) latest.set(row.key, row);
+  const edits: RevisionEdit[] = [];
+  const entries: AddedEdit[] = [];
+  for (const input of inputs) {
+    if (state.conflicts[input.key]) continue;
+    const prev = latest.get(input.key);
+    const serverObject = prev ? undefined : state.server[input.key];
+    const base = prev ? prev.editId : (serverObject?.lastEditId ?? null);
+    const before = prev ? prev.state : (serverObject?.state ?? (isNewKey(input.key) ? DELETED : UNCHANGED));
+    const { point, ...rest } = input;
+    const edit: RevisionEdit = { ...rest, ...(point ? { point } : {}), base };
+    latest.set(input.key, edit);
+    edits.push(edit);
+    entries.push({ edit, before });
+  }
+  if (edits.length === 0) return { state, edits, entries };
+  return { state: { ...state, pending: state.pending.concat(edits) }, edits, entries };
 }
 
 
@@ -114,40 +153,81 @@ export interface AcknowledgeOutcome {
  * ändringar ur kön (de byggde på varandra) och den sista blir "mitt läge" i krocken. Ändringar utan svar ligger kvar.
  */
 export function acknowledge(state: RevisionClientState, results: readonly EditResult[]): AcknowledgeOutcome {
-  let pending = [...state.pending];
-  const server = { ...state.server };
-  const conflicts = { ...state.conflicts };
-  const proposed = { ...state.proposed };
+  if (results.length === 0) {
+    return { state: state.proposed ? state : { ...state, proposed: {} }, conflicted: [], rejected: [], proposed: [] };
+  }
+  const byId = new Map<string, RevisionEdit>();
+  for (const row of state.pending) if (!byId.has(row.editId)) byId.set(row.editId, row);
+  let byKey: Map<ObjectKey, RevisionEdit[]> | undefined;
+  let server: Record<ObjectKey, ServerObject> | undefined;
+  let conflicts: Record<ObjectKey, Conflict> | undefined;
+  let proposed: Record<ObjectKey, ProposedEdit> | undefined;
+  const removedIds = new Set<string>();
+  const removedKeys = new Set<ObjectKey>();
   const conflicted: ObjectKey[] = [], rejected: { edit: RevisionEdit; reason: string }[] = [], suggested: ObjectKey[] = [];
   for (const result of results) {
-    const edit = pending.find(row => row.editId === result.editId);
-    if (!edit) continue;
+    const edit = byId.get(result.editId);
+    if (!edit || removedIds.has(result.editId) || removedKeys.has(edit.key)) continue;
     if (result.status === "APPLIED" || result.status === "DUPLICATE") {
-      pending = pending.filter(row => row.editId !== result.editId);
-      const known = server[edit.key];
-      if (!known || known.seq <= result.object.seq) server[edit.key] = result.object;
+      removedIds.add(result.editId);
+      const known = (server ?? state.server)[edit.key];
+      if (!known || known.seq <= result.object.seq) {
+        if (!server) server = { ...state.server };
+        server[edit.key] = result.object;
+      }
       continue;
     }
     if (result.status === "PROPOSED") {
-      pending = pending.filter(row => row.editId !== result.editId);
+      removedIds.add(result.editId);
+      if (!proposed) proposed = { ...state.proposed };
       proposed[edit.key] = { proposalId: result.proposalId, state: edit.state, ref: edit.ref };
       suggested.push(edit.key);
       continue;
     }
     if (result.status === "REJECTED") {
-      pending = pending.filter(row => row.editId !== result.editId);
+      removedIds.add(result.editId);
       rejected.push({ edit, reason: result.reason });
       continue;
     }
-    const mine = effectiveState({ ...state, pending }, edit.key);
-    pending = pending.filter(row => row.key !== edit.key);
+    if (!byKey) {
+      byKey = new Map();
+      for (const row of state.pending) {
+        let list = byKey.get(row.key);
+        if (!list) { list = []; byKey.set(row.key, list); }
+        list.push(row);
+      }
+    }
+    const keyEdits = byKey.get(edit.key)!;
+    let mine: ObjectState = edit.state;
+    for (let index = keyEdits.length - 1; index >= 0; index -= 1) {
+      const row = keyEdits[index]!;
+      if (!removedIds.has(row.editId)) { mine = row.state; break; }
+    }
+    removedKeys.add(edit.key);
     if (result.status === "CONFLICT" && result.current) {
+      if (!server) server = { ...state.server };
+      if (!conflicts) conflicts = { ...state.conflicts };
       server[edit.key] = result.current;
       conflicts[edit.key] = { key: edit.key, ref: edit.ref, mine, theirs: result.current };
     }
     conflicted.push(edit.key);
   }
-  return { state: { ...state, server, pending, conflicts, proposed }, conflicted, rejected, proposed: suggested };
+  if (removedIds.size === 0 && removedKeys.size === 0) {
+    return { state: state.proposed ? state : { ...state, proposed: {} }, conflicted, rejected, proposed: suggested };
+  }
+  const pending = state.pending.filter(row => !removedIds.has(row.editId) && !removedKeys.has(row.key));
+  return {
+    state: {
+      ...state,
+      server: server ?? state.server,
+      pending,
+      conflicts: conflicts ?? state.conflicts,
+      proposed: proposed ?? state.proposed ?? {}
+    },
+    conflicted,
+    rejected,
+    proposed: suggested
+  };
 }
 
 /**
@@ -155,22 +235,46 @@ export function acknowledge(state: RevisionClientState, results: readonly EditRe
  * gick förlorat): de egna ändringarna till och med den tas ur kön. Ett objekt i en krock får det nya "deras läge".
  */
 export function mergePulled(state: RevisionClientState, objects: readonly ServerObject[], seq: number): RevisionClientState {
-  const server = { ...state.server };
-  const conflicts = { ...state.conflicts };
-  let pending = state.pending;
-  for (const object of objects) {
-    const known = server[object.key];
-    if (known && known.seq >= object.seq) continue;
-    server[object.key] = object;
-    const own = pending.findIndex(edit => edit.editId === object.lastEditId);
-    if (own >= 0) {
-      const done = new Set(pending.slice(0, own + 1).filter(edit => edit.key === object.key).map(edit => edit.editId));
-      pending = pending.filter(edit => !done.has(edit.editId));
+  const nextSeq = Math.max(state.seq, seq);
+  if (objects.length === 0) return nextSeq === state.seq ? state : { ...state, seq: nextSeq };
+  let server: Record<ObjectKey, ServerObject> | undefined;
+  let conflicts: Record<ObjectKey, Conflict> | undefined;
+  let pendingIndex: Map<string, number> | undefined;
+  if (state.pending.length > 0) {
+    pendingIndex = new Map();
+    for (let index = 0; index < state.pending.length; index += 1) {
+      const editId = state.pending[index]!.editId;
+      if (!pendingIndex.has(editId)) pendingIndex.set(editId, index);
     }
-    const conflict = conflicts[object.key];
-    if (conflict) conflicts[object.key] = { ...conflict, theirs: object };
   }
-  return { ...state, seq: Math.max(state.seq, seq), server, pending, conflicts };
+  let dropUpTo: Map<ObjectKey, number> | undefined;
+  for (const object of objects) {
+    const known = (server ?? state.server)[object.key];
+    if (known && known.seq >= object.seq) continue;
+    if (!server) server = { ...state.server };
+    server[object.key] = object;
+    const own = pendingIndex?.get(object.lastEditId);
+    if (own !== undefined) {
+      const prev = dropUpTo?.get(object.key);
+      if (prev === undefined || own > prev) {
+        if (!dropUpTo) dropUpTo = new Map();
+        dropUpTo.set(object.key, own);
+      }
+    }
+    const conflict = (conflicts ?? state.conflicts)[object.key];
+    if (conflict) {
+      if (!conflicts) conflicts = { ...state.conflicts };
+      conflicts[object.key] = { ...conflict, theirs: object };
+    }
+  }
+  if (!server && nextSeq === state.seq) return state;
+  const pending = dropUpTo
+    ? state.pending.filter((edit, index) => {
+        const cut = dropUpTo.get(edit.key);
+        return cut === undefined || index > cut;
+      })
+    : state.pending;
+  return { ...state, seq: nextSeq, server: server ?? state.server, pending, conflicts: conflicts ?? state.conflicts };
 }
 
 /**

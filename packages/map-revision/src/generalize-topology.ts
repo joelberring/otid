@@ -1,4 +1,4 @@
-import { GAP, maxOf, minOf, type MapObject, type Path, type PathCommand, type Point } from "@o-tid/map-file";
+import { GAP, type MapObject, type Path, type PathCommand, type Point } from "@o-tid/map-file";
 import type { NormObject } from "./norm-check";
 import type { ObjectKey } from "./state";
 
@@ -55,7 +55,11 @@ export interface JoinChange { readonly keep: ObjectKey; readonly object: MapObje
 export function joinTouchingLines(objects: readonly NormObject[], tolerance = JOIN_MM, taken: ReadonlySet<ObjectKey> = new Set()): JoinChange[] {
   const lines = objects.filter((row): row is NormObject & { object: Line } => row.object.kind === "line" && singlePart(row.object) && !taken.has(row.key));
   const bySymbol = new Map<string, (NormObject & { object: Line })[]>();
-  for (const row of lines) bySymbol.set(row.object.symbol, [...(bySymbol.get(row.object.symbol) ?? []), row]);
+  for (const row of lines) {
+    let bucket = bySymbol.get(row.object.symbol);
+    if (!bucket) { bucket = []; bySymbol.set(row.object.symbol, bucket); }
+    bucket.push(row);
+  }
   const changes: JoinChange[] = [];
   for (const group of bySymbol.values()) {
     if (group.length < 2) continue;
@@ -66,7 +70,10 @@ export function joinTouchingLines(objects: readonly NormObject[], tolerance = JO
     for (const row of group) {
       for (const which of ["start", "end"] as const) {
         const point = which === "start" ? start(row.object.path) : end(row.object.path);
-        grid.set(cellOf(point), [...(grid.get(cellOf(point)) ?? []), { row, which }]);
+        const key = cellOf(point);
+        let bucket = grid.get(key);
+        if (!bucket) { bucket = []; grid.set(key, bucket); }
+        bucket.push({ row, which });
       }
     }
     const partner = (point: Point, self: ObjectKey) => {
@@ -89,9 +96,20 @@ export function joinTouchingLines(objects: readonly NormObject[], tolerance = JO
       const absorbed: ObjectKey[] = [];
       while (absorbed.length < JOIN_MAX_PARTS) {
         const atEnd = partner(end(path), row.key);
-        if (atEnd) { used.add(atEnd.row.key); absorbed.push(atEnd.row.key); path = append(path, atEnd.which === "start" ? atEnd.row.object.path : reversePath(atEnd.row.object.path)); continue; }
+        if (atEnd) {
+          used.add(atEnd.row.key);
+          absorbed.push(atEnd.row.key);
+          const next = atEnd.which === "start" ? atEnd.row.object.path : reversePath(atEnd.row.object.path);
+          for (let i = 1; i < next.length; i += 1) path.push(next[i]!);
+          continue;
+        }
         const atStart = partner(start(path), row.key);
-        if (atStart) { used.add(atStart.row.key); absorbed.push(atStart.row.key); path = append(atStart.which === "end" ? [...atStart.row.object.path] : reversePath(atStart.row.object.path), path); continue; }
+        if (atStart) {
+          used.add(atStart.row.key);
+          absorbed.push(atStart.row.key);
+          path = append(atStart.which === "end" ? atStart.row.object.path : reversePath(atStart.row.object.path), path);
+          continue;
+        }
         break;
       }
       if (absorbed.length === 0) continue;
@@ -128,21 +146,44 @@ export interface InsideChange { readonly key: ObjectKey; readonly code: string; 
  * av dess hål). Bara ytor utan egna hål prövas; den större ytan måste vara minst dubbelt så stor.
  */
 export function areasInsideSameSymbol(objects: readonly NormObject[], taken: ReadonlySet<ObjectKey> = new Set()): InsideChange[] {
-  const areas = objects.filter(row => row.object.kind === "area" && !taken.has(row.key)).map(row => {
-    const area = row.object as Extract<MapObject, { kind: "area" }>;
-    const outer = ringPoints(area.rings[0] ?? []);
-    const xs = outer.map(point => point.x), ys = outer.map(point => point.y);
-    return { row, outer, holes: area.rings.slice(1).map(ringPoints), size: ringArea(outer),
-      box: { minX: minOf(xs), minY: minOf(ys), maxX: maxOf(xs), maxY: maxOf(ys) } };
-  }).filter(entry => entry.outer.length >= 3);
+  const areas: {
+    row: NormObject; outer: Point[]; holes: Point[][]; size: number;
+    box: { minX: number; minY: number; maxX: number; maxY: number };
+  }[] = [];
+  for (const row of objects) {
+    if (row.object.kind !== "area" || taken.has(row.key)) continue;
+    const outer = ringPoints(row.object.rings[0] ?? []);
+    if (outer.length < 3) continue;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const point of outer) {
+      if (point.x < minX) minX = point.x; if (point.x > maxX) maxX = point.x;
+      if (point.y < minY) minY = point.y; if (point.y > maxY) maxY = point.y;
+    }
+    areas.push({ row, outer, holes: row.object.rings.slice(1).map(ringPoints), size: ringArea(outer), box: { minX, minY, maxX, maxY } });
+  }
+  const bySymbol = new Map<string, typeof areas>();
+  for (const entry of areas) {
+    let bucket = bySymbol.get(entry.row.object.symbol);
+    if (!bucket) { bucket = []; bySymbol.set(entry.row.object.symbol, bucket); }
+    bucket.push(entry);
+  }
+  for (const bucket of bySymbol.values()) bucket.sort((a, b) => b.size - a.size);
   const out: InsideChange[] = [];
   const removed = new Set<ObjectKey>();
-  const bySize = [...areas].sort((a, b) => b.size - a.size);
   for (const small of [...areas].sort((a, b) => a.size - b.size)) {
     if (small.holes.length > 0) continue;
-    const container = bySize.find(big => big.row.key !== small.row.key && !removed.has(big.row.key) && big.row.object.symbol === small.row.object.symbol
-      && big.size >= small.size * 2 && big.box.minX <= small.box.minX && big.box.minY <= small.box.minY && big.box.maxX >= small.box.maxX
-      && big.box.maxY >= small.box.maxY && small.outer.every(point => pointInRing(point, big.outer) && !big.holes.some(hole => pointInRing(point, hole))));
+    const candidates = bySymbol.get(small.row.object.symbol);
+    if (!candidates || candidates.length < 2) continue;
+    let container: (typeof areas)[number] | undefined;
+    for (const big of candidates) {
+      if (big.size < small.size * 2) break;
+      if (big.row.key === small.row.key || removed.has(big.row.key)) continue;
+      if (big.box.minX > small.box.minX || big.box.minY > small.box.minY || big.box.maxX < small.box.maxX || big.box.maxY < small.box.maxY) continue;
+      if (small.outer.every(point => pointInRing(point, big.outer) && !big.holes.some(hole => pointInRing(point, hole)))) {
+        container = big;
+        break;
+      }
+    }
     if (!container) continue;
     removed.add(small.row.key);
     out.push({ key: small.row.key, code: small.row.code, at: small.outer[0]!, container: container.row.key });

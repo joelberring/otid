@@ -33,6 +33,114 @@ export type LaserArea = BoxArea & { areaId: string };
 /** Vem som bad om något: laserpanelen eller guiden «Ny grundkarta». Var och en visar sina egna besked. */
 export type LaserAsker = "panel" | "guide";
 export const LASER_ACTIVE: ReadonlySet<string> = new Set(["QUEUED", "RUNNING"]);
+const LASER_FETCH_CONCURRENCY = 5;
+
+/** Kör oberoende asynkrona uppgifter med begränsad parallellitet (bevarar resultatens ordning). */
+export async function mapWithConcurrency<T, R>(items: readonly T[], limit: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  if (items.length === 0) return results;
+  let next = 0;
+  const workers = Array.from({ length: Math.min(Math.max(1, limit), items.length) }, async () => {
+    while (true) {
+      const index = next++;
+      if (index >= items.length) return;
+      results[index] = await fn(items[index]!, index);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+type GeoResponse = { readonly status: number; readonly json: unknown };
+
+/**
+ * Hämtar laserkörningens resultatfiler och rasterbilder (fuktdjup, berg, höjd) med begränsad parallellitet samtidigt
+ * som de fyra oberoende geokällorna (OSM, Skogsstyrelsen, SGU, NMD) körs i `Promise.all`.
+ */
+export async function fetchLaserCandidateSources(input: {
+  readonly jobsToRead: readonly GeoJobView[];
+  readonly filesOf: (row: GeoJobView) => readonly string[];
+  readonly depths: readonly GeoJobView[];
+  readonly rocks: readonly GeoJobView[];
+  readonly heights: readonly GeoJobView[];
+  readonly hasBox: boolean;
+  readonly readOutput: (row: GeoJobView, output: string) => Promise<string | number>;
+  readonly readSlope: (row: GeoJobView) => Promise<Awaited<ReturnType<typeof jobSlope>>>;
+  readonly readRock: (row: GeoJobView) => Promise<Awaited<ReturnType<typeof jobRock>>>;
+  readonly readHeight: (row: GeoJobView) => Promise<Awaited<ReturnType<typeof jobHeights>>>;
+  readonly fetchGeo: (path: "osm" | "avverkningar" | "jordarter" | "marktacke-nmd") => Promise<GeoResponse>;
+  readonly onProgress?: () => void;
+  readonly concurrency?: number;
+}): Promise<
+  | { readonly kind: "failed"; readonly status: number }
+  | {
+      readonly kind: "ok";
+      readonly read: { readonly job: GeoJobView; readonly parts: { readonly name: string; readonly body: string }[] }[];
+      readonly slopes: Map<string, Awaited<ReturnType<typeof jobSlope>>>;
+      readonly rockImages: Map<string, Awaited<ReturnType<typeof jobRock>>>;
+      readonly heightParts: HeightPart[];
+      readonly geo?: { readonly osm: GeoResponse; readonly cuts: GeoResponse; readonly soil: GeoResponse; readonly landCover: GeoResponse } | undefined;
+    }
+> {
+  type Task =
+    | { readonly kind: "output"; readonly jobIndex: number; readonly outputIndex: number; readonly row: GeoJobView; readonly output: string }
+    | { readonly kind: "slope"; readonly order: number; readonly row: GeoJobView }
+    | { readonly kind: "rock"; readonly order: number; readonly row: GeoJobView }
+    | { readonly kind: "height"; readonly order: number; readonly row: GeoJobView };
+  const tasks: Task[] = [];
+  const outputCounts = input.jobsToRead.map(row => input.filesOf(row).length);
+  input.jobsToRead.forEach((row, jobIndex) => {
+    input.filesOf(row).forEach((output, outputIndex) => tasks.push({ kind: "output", jobIndex, outputIndex, row, output }));
+  });
+  input.depths.forEach((row, order) => tasks.push({ kind: "slope", order, row }));
+  input.rocks.forEach((row, order) => tasks.push({ kind: "rock", order, row }));
+  input.heights.forEach((row, order) => tasks.push({ kind: "height", order, row }));
+
+  const safeGeo = (path: "osm" | "avverkningar" | "jordarter" | "marktacke-nmd") =>
+    input.fetchGeo(path).catch(() => ({ status: 0, json: undefined })).then(response => { input.onProgress?.(); return response; });
+  const geoPromise = input.hasBox
+    ? Promise.all([safeGeo("osm"), safeGeo("avverkningar"), safeGeo("jordarter"), safeGeo("marktacke-nmd")])
+    : undefined;
+
+  const partGrid = outputCounts.map(count => new Array<{ readonly name: string; readonly body: string }>(count));
+  const slopeSlots = new Array<Awaited<ReturnType<typeof jobSlope>>>(input.depths.length);
+  const rockSlots = new Array<Awaited<ReturnType<typeof jobRock>>>(input.rocks.length);
+  const heightSlots = new Array<Awaited<ReturnType<typeof jobHeights>>>(input.heights.length);
+  let failedStatus: number | undefined;
+
+  await mapWithConcurrency(tasks, input.concurrency ?? LASER_FETCH_CONCURRENCY, async task => {
+    if (failedStatus !== undefined) return;
+    if (task.kind === "output") {
+      const body = await input.readOutput(task.row, task.output);
+      input.onProgress?.();
+      if (typeof body === "number") { if (failedStatus === undefined) failedStatus = body; return; }
+      partGrid[task.jobIndex]![task.outputIndex] = { name: task.output, body };
+    } else if (task.kind === "slope") {
+      slopeSlots[task.order] = await input.readSlope(task.row);
+      input.onProgress?.();
+    } else if (task.kind === "rock") {
+      rockSlots[task.order] = await input.readRock(task.row);
+      input.onProgress?.();
+    } else {
+      heightSlots[task.order] = await input.readHeight(task.row);
+      input.onProgress?.();
+    }
+  });
+  if (failedStatus !== undefined) return { kind: "failed", status: failedStatus };
+
+  const geoTuple = geoPromise ? await geoPromise : undefined;
+  const read = input.jobsToRead.map((job, index) => ({ job, parts: partGrid[index]! }));
+  const slopes = new Map<string, Awaited<ReturnType<typeof jobSlope>>>();
+  input.depths.forEach((row, index) => slopes.set(row.jobId, slopeSlots[index]));
+  const rockImages = new Map<string, Awaited<ReturnType<typeof jobRock>>>();
+  input.rocks.forEach((row, index) => rockImages.set(row.jobId, rockSlots[index]));
+  const heightParts: HeightPart[] = [];
+  for (const part of heightSlots) if (part && part !== "failed") heightParts.push(part);
+  return {
+    kind: "ok", read, slopes, rockImages, heightParts,
+    ...(geoTuple ? { geo: { osm: geoTuple[0], cuts: geoTuple[1], soil: geoTuple[2], landCover: geoTuple[3] } } : {})
+  };
+}
 
 /**
  * ADR-0219 K5, utbrutet ur laserpanelen (ägaren 2026-11-13, guiden «Ny grundkarta»): uppgifterna till Lantmäteriet, listan
@@ -167,62 +275,49 @@ export function useMapProjectLaser({ view, layers, importer, georeference, bound
     // Ägaren 2026-11-14 («Tydligare kurvbild»): med grundkartan läses körningens höjd, och reglagens förval läggs på direkt.
     const heights = jobsToRead.filter(row => baseMap && row.outputs.some(output => output.name === HEIGHT_IMAGE));
     const filesOf = (row: GeoJobView) => stages ? baseMapFiles(row) : outputs;
-    const total = jobsToRead.reduce((sum, row) => sum + filesOf(row).length, 0) + depths.length + rocks.length + heights.length + (box ? 2 : 0);
+    const total = jobsToRead.reduce((sum, row) => sum + filesOf(row).length, 0) + depths.length + rocks.length + heights.length + (box ? 4 : 0);
     let fetched = 0;
     const step = (stepText: string) => setBusy({ from, text: stepText });
-    step(text.steps.fetching(1, total));
+    step(text.steps.fetching(1, Math.max(1, total)));
     try {
-      const read_: { job: GeoJobView; parts: { name: string; body: string }[] }[] = [];
-      for (const row of jobsToRead) {
-        const parts: { name: string; body: string }[] = [];
-        for (const output of filesOf(row)) {
-          step(text.steps.fetching(++fetched, total));
-          const body = await read(row, output);
-          if (typeof body === "number") { say(from, body); return; }
-          parts.push({ name: output, body });
-        }
-        read_.push({ job: row, parts });
-      }
+      const loaded = await fetchLaserCandidateSources({
+        jobsToRead, filesOf, depths, rocks, heights, hasBox: Boolean(box),
+        readOutput: read,
+        readSlope: row => jobSlope(base, row),
+        readRock: row => jobRock(base, row),
+        readHeight: row => jobHeights(base, row),
+        fetchGeo: path => clubRequest(`${base}/sources/${path}`, "POST", { formatVersion: 1, box }),
+        onProgress: () => step(text.steps.fetching(Math.min(++fetched, Math.max(1, total)), Math.max(1, total)))
+      });
+      if (loaded.kind === "failed") { say(from, loaded.status); return; }
+      const { read: read_, slopes, rockImages, heightParts, geo } = loaded;
       const parts = read_[0]!.parts;
-      // Hjälpkurvor och små ringar på flack mark tas bort med förvalet när körningen har fuktdjupet; reglaget ändrar det sedan.
-      const slopes = new Map<string, Awaited<ReturnType<typeof jobSlope>>>();
-      for (const row of depths) { step(text.steps.fetching(++fetched, total)); slopes.set(row.jobId, await jobSlope(base, row)); }
-      const rockImages = new Map<string, Awaited<ReturnType<typeof jobRock>>>();
-      for (const row of rocks) { step(text.steps.fetching(++fetched, total)); rockImages.set(row.jobId, await jobRock(base, row)); }
-      const heightParts: HeightPart[] = [];
-      for (const row of heights) { step(text.steps.fetching(++fetched, total)); const part = await jobHeights(base, row); if (part && part !== "failed") heightParts.push(part); }
       const rock = rockImages.get(job.jobId);
       const found = [...slopes.values()].find(value => value && value !== "failed");
       const slope = found ?? (slopes.size > 0 ? "failed" as const : undefined);
       // G8: OpenStreetMap (stigar, vägar, hus, ledningar) för jobbets ruta följer med i grundkartan; går det inte sägs det.
       let osm: SourceData | undefined, osmMissing = false;
-      if (box) {
-        step(text.steps.fetching(total - 1, total));
-        const response = await clubRequest(`${base}/sources/osm`, "POST", { formatVersion: 1, box }).catch(() => ({ status: 0, json: undefined }));
-        osm = response.status === 200 ? (response.json as { data?: SourceData } | undefined)?.data : undefined;
+      if (geo) {
+        osm = geo.osm.status === 200 ? (geo.osm.json as { data?: SourceData } | undefined)?.data : undefined;
         osmMissing = !osm;
       }
       // Skogsstyrelsens hyggen (ägaren 2026-11-11) efter ålder i dag och jämfört med laserskanningen.
       let cuts: ReturnType<typeof clearCutFeatures> | undefined;
-      if (box) {
-        step(text.steps.fetching(total, total));
-        const response = await clubRequest(`${base}/sources/avverkningar`, "POST", { formatVersion: 1, box }).catch(() => ({ status: 0, json: undefined }));
-        const listed = response.status === 200 ? response.json as MapProjectClearCutList | undefined : undefined;
+      if (geo) {
+        const listed = geo.cuts.status === 200 ? geo.cuts.json as MapProjectClearCutList | undefined : undefined;
         if (listed) cuts = clearCutFeatures(listed.cuts, new Date().toISOString().slice(0, 10), job.scannedAt);
       }
       // SGU:s jordartskarta (ägaren 2026-11-13): ingen sankmark på sand och grus. Går hämtningen fel läses grundkartan in som förut.
       let soil: MapProjectSoilArea[] | undefined;
-      if (box) {
-        const response = await clubRequest(`${base}/sources/jordarter`, "POST", { formatVersion: 1, box }).catch(() => ({ status: 0, json: undefined }));
-        const listed = response.status === 200 ? response.json as MapProjectSoilList | undefined : undefined;
+      if (geo) {
+        const listed = geo.soil.status === 200 ? geo.soil.json as MapProjectSoilList | undefined : undefined;
         if (listed && Array.isArray(listed.areas)) soil = soilForMarsh(listed.areas);
       }
       // Naturvårdsverkets marktäckedata (ägaren 2026-11-17): öppen våtmark som sankmark där lasern inte har någon. Går
       // hämtningen fel läses grundkartan in utan den.
       let landCover: ReturnType<typeof landCoverFeatures> | undefined;
-      if (box) {
-        const response = await clubRequest(`${base}/sources/marktacke-nmd`, "POST", { formatVersion: 1, box }).catch(() => ({ status: 0, json: undefined }));
-        const grid = response.status === 200 ? response.json as MapProjectLandCover | undefined : undefined;
+      if (geo) {
+        const grid = geo.landCover.status === 200 ? geo.landCover.json as MapProjectLandCover | undefined : undefined;
         const codes = grid && typeof grid.codes === "string" ? landCoverCodesFromBase64(grid.codes, grid.width * grid.height) : undefined;
         if (grid && codes) landCover = landCoverFeatures({ minX: grid.minX, maxY: grid.maxY, cell: grid.cell, width: grid.width, height: grid.height, codes }, georeference?.scale || 15_000);
       }

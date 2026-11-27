@@ -510,4 +510,29 @@ describe("OMAP/Mapper styrpunkter round-trip (treatCornerAsDash)", () => {
     expect(xml3).not.toContain(";5000 0 32;");
     expect(xml3).toContain(";15000 0 32;");
   });
+
+  it("beskär Bézier- och polylinjebboxar korrekt på långa kurvor med korsningar och lutningsstreck", () => {
+    // Bygg en lång hjälpkurva med 80 Bézier-segment och 30 lutningsstreck + 10 korsande stigar.
+    const path: Path = [
+      { type: "M", x: 0, y: 0 },
+      ...Array.from({ length: 80 }, (_, i) => {
+        const x0 = i * 3, x1 = (i + 1) * 3;
+        return { type: "C" as const, x1: x0 + 1, y1: i % 2 === 0 ? 0.6 : -0.6, x2: x0 + 2, y2: i % 2 === 0 ? 0.6 : -0.6, x: x1, y: 0 };
+      })
+    ];
+    const formLine: MapObject = { kind: "line", symbol: SYM_FORM_LINE.id, path };
+    const tags: MapObject[] = [];
+    for (let i = 2; i < 78; i += 4) {
+      tags.push({ kind: "line", symbol: SYM_SLOPE_TAG.id, path: [{ type: "M", x: i * 3, y: 0 }, { type: "L", x: i * 3, y: -1.0 }] });
+    }
+    const trail: MapObject = { kind: "line", symbol: SYM_TRAIL.id, path: [{ type: "M", x: 0, y: 20 }, { type: "L", x: 240, y: 20 }] };
+    const crossTrails: MapObject[] = Array.from({ length: 10 }, (_, k): MapObject => ({
+      kind: "line", symbol: SYM_SMALL_PATH.id, path: [{ type: "M", x: 20 + k * 20, y: 15 }, { type: "L", x: 20 + k * 20, y: 25 }]
+    }));
+    const allObjects = [formLine, ...tags, trail, ...crossTrails];
+    const plan = autoDashPointsPlan([formLine, trail], allObjects, makeSymbols(), { bends: false });
+    expect(plan.counts.objects).toBe(2);
+    expect(plan.counts.slopeTags).toBe(tags.length);
+    expect(plan.counts.junctions).toBe(crossTrails.length);
+  });
 });

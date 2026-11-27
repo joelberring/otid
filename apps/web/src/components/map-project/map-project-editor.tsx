@@ -100,7 +100,10 @@ import { useMapProjectText } from "./use-map-project-text";
 import { MapProjectTextLayer, placeTextField } from "./map-project-text";
 import styles from "./map-project-editor.module.css";
 
+import type { OverprintPrimitive } from "@o-tid/course-setting";
 import { DOUBLE_TAP_MS, JOIN_MM, NO_MARKS, SHOWN_STATUSES, TOUCH_HOLD_MS, degreesTo, type Drag, type Selected, type Tool } from "./map-project-editor-types";
+
+const NO_PRIMITIVES: readonly OverprintPrimitive[] = [];
 
 /**
  * ADR-0219 (K1): kartprojektets karta med ritverktygen. Kartan ritas i Workern med alla ändringar; markeringen, objektet som
@@ -658,7 +661,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
     else if (next === "note") { cancelDraft(); setTool(tool === "note" ? "select" : "note"); } else pickTool(next)();
   };
   const pending = editor.state?.pending.length ?? 0;
-  const conflicts = editor.state ? Object.values(editor.state.conflicts) : [];
+  const conflicts = useMemo(() => editor.state ? Object.values(editor.state.conflicts) : [], [editor.state?.conflicts]);
 
   const wheelTools = wheelToolsOf({ keys, space: keysText.space, tool, canNote: notes.canWrite, labels: quick.tools, repeat: repeatLabel, onRepeat: repeat,
     help: { select: text.hints.select, rectangle: keysText.tips.rectangle, bucket: keysText.tips.bucket, cut: keysText.tips.cut, point: keysText.addPointHint, note: keysText.tips.note,
@@ -701,7 +704,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         {editor.mapStatus === "loading" && <p className={styles.loading}>{text.loading}</p>}
         {editor.mapStatus === "failed" && <Notice tone="error" role="alert">{text.failed}</Notice>}
         {/* Kartvyn visas när kartan är läst: då har rutan sin storlek och hela kartan passas in. */}
-        {editor.bounds && <div className={styles.frame} data-has-field={editor.mapStatus === "ready" && georeference ? "true" : undefined}><CourseSettingMap session={session} mapBounds={editor.bounds} primitives={[]} faded={[]} marks={NO_MARKS} analysis={undefined}
+        {editor.bounds && <div className={styles.frame} data-has-field={editor.mapStatus === "ready" && georeference ? "true" : undefined}><CourseSettingMap session={session} mapBounds={editor.bounds} primitives={NO_PRIMITIVES} faded={NO_PRIMITIVES} marks={NO_MARKS} analysis={undefined}
           label={text.mapLabel} cursor={dash.mode || tool === "draw" || tool === "circle" || tool === "bucket" || tool === "rectangle" || tool === "addPoint" || tool === "removePoint" || tool === "cut" ? "crosshair" : "default"} handlers={handlers} overlayExtra={overlay}
           cursorAt={tool === "select" && multi.items.length ? (point, tolerance) => {
             const zone = multi.zoneAt(point, tolerance);

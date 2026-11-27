@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { buildCostModel, calibrateSpeeds, DEFAULT_SPEED_BY_CLASS, legGrid, type CalibrationSample } from "../src";
+import { preparedOf } from "../src/cost-model";
+import { boxFrame, rasterize } from "../src/raster";
+import { search, SearchWorkspace, type SearchGrid } from "../src/search";
 import { forest, MM, rect } from "./synthetic";
 
 /** Ett deterministiskt slumptal (så att testet alltid ger samma svar). */
@@ -118,5 +121,128 @@ describe("calibrateSpeeds", () => {
     expect(result.reliability).toBe("NONE");
     expect(result.speedByClass).toEqual(DEFAULT_SPEED_BY_CLASS);
     expect(calibrateSpeeds(model, []).reliability).toBe("NONE");
+  });
+
+  it("paritet: kombinerat raster och chunk-fallback (> 2 000 000 celler) ger konsekventa kalibreringsresultat", () => {
+    // 1) Två geografiskt åtskilda kluster i 1:10 000 (4 km isär i både x och y → > 6 M celler ihop → chunk-fallback).
+    const bigMap = forest(6000)
+      .area("406", rect(-1000, 0, 1000, 200))
+      .line("506", 0.18, [-1000, 300], [1000, 300])
+      .area("406", rect(3000, 4000, 5000, 4200))
+      .line("506", 0.18, [3000, 4300], [5000, 4300])
+      .build();
+    const bigModel = buildCostModel(bigMap);
+    const baseSamples = samples(2, 4);
+    // Andra klustret flyttat (+4000 m, +4000 m) med identisk lokal terräng (tvingar > 2M celler ihop).
+    const shifted = baseSamples.map(s => ({
+      ...s,
+      key: `${s.key}-ne`,
+      points: s.points.map(p => ({ x: p.x + 4000 * MM, y: p.y + 4000 * MM, ms: p.ms }))
+    }));
+    const singleCluster = calibrateSpeeds(bigModel, baseSamples);
+    const multiCluster = calibrateSpeeds(bigModel, [...baseSamples, ...shifted]);
+    // Exakt samma underliggande sanna farter i båda klustren → identiska skattningar (med 2× så många segment).
+    expect(multiCluster.speedByClass.SLOW).toBeCloseTo(singleCluster.speedByClass.SLOW, 2);
+    expect(multiCluster.speedByClass.FAST).toBeCloseTo(singleCluster.speedByClass.FAST, 2);
+    expect(multiCluster.segmentsUsed).toBeGreaterThanOrEqual(singleCluster.segmentsUsed * 1.9);
+
+    // 2) Ett uteliggande GPS-spår 5 km bort tvingar chunk-fallback utan att ändra huvudklustrets resultat alls!
+    const farSample: CalibrationSample = {
+      key: "far",
+      runner: "99",
+      points: [{ x: 5000 * MM, y: 5000 * MM, ms: 0 }, { x: 5010 * MM, y: 5000 * MM, ms: 3000 }]
+    };
+    const withOutlier = calibrateSpeeds(bigModel, [...baseSamples, farSample]);
+    expect(withOutlier).toEqual(singleCluster);
+  });
+});
+
+describe("rasterize och SearchWorkspace byte-paritet", () => {
+  it("rasterize ger 100 % byte-identiskt raster med spatialt rutnät (>= 256 objekt) och partiell utom-ramen-markering", () => {
+    const builder = forest(400);
+    // Lägg till 320 små objekt så att FeatureGrid (>= 256) aktiveras.
+    for (let i = 0; i < 160; i += 1) {
+      const x = -350 + (i % 20) * 35, y = -350 + Math.floor(i / 20) * 85;
+      builder.area("406", rect(x, y, x + 20, y + 40));
+      builder.line("101", 0.14, [x - 5, y + 10], [x + 25, y + 30]);
+    }
+    const map = builder.build();
+    const prepared = preparedOf(buildCostModel(map));
+    expect(prepared.features.length).toBeGreaterThanOrEqual(256);
+
+    // Testa flera ramar: helt inuti, delvis utanför åt alla håll, samt helt utanför bounds.
+    const frames = [
+      boxFrame({ minX: -20, minY: -20, maxX: 20, maxY: 20 }, prepared.scale),
+      boxFrame({ minX: -55, minY: -55, maxX: 55, maxY: 55 }, prepared.scale),
+      boxFrame({ minX: -60, minY: -10, maxX: 10, maxY: 60 }, prepared.scale),
+      boxFrame({ minX: 60, minY: 60, maxX: 80, maxY: 80 }, prepared.scale)
+    ];
+
+    const sameArray = (a: ArrayLike<number>, b: ArrayLike<number>) => {
+      if (a.length !== b.length) return false;
+      for (let i = 0; i < a.length; i += 1) if (a[i] !== b[i]) return false;
+      return true;
+    };
+
+    for (const frame of frames) {
+      const fast = rasterize(prepared, frame, DEFAULT_SPEED_BY_CLASS);
+      const bounds = prepared.bounds!;
+      let outsideMismatch = 0, insideBlocked = 0;
+      for (let row = 0; row < frame.height; row += 1) {
+        const y = frame.yTop - (row + 0.5) * frame.cellMm;
+        for (let col = 0; col < frame.width; col += 1) {
+          const x = frame.x0 + (col + 0.5) * frame.cellMm;
+          const idx = row * frame.width + col;
+          const outside = x < bounds.minX || x > bounds.maxX || y < bounds.minY || y > bounds.maxY;
+          if (outside && fast.ground[idx] !== 5) outsideMismatch += 1;
+          else if (!outside && fast.ground[idx] === 5) insideBlocked += 1;
+        }
+      }
+      expect(outsideMismatch).toBe(0);
+      expect(insideBlocked).toBe(0);
+      const again = rasterize(prepared, frame, DEFAULT_SPEED_BY_CLASS);
+      expect(sameArray(fast.ground, again.ground)).toBe(true);
+      expect(sameArray(fast.track, again.track)).toBe(true);
+      expect(sameArray(fast.contour, again.contour)).toBe(true);
+      expect(sameArray(fast.barrier, again.barrier)).toBe(true);
+      expect(sameArray(fast.steep, again.steep)).toBe(true);
+    }
+
+    // Direkt jämförelse: liten sub-ram som skär < 50 objekt — filtrerad feature-lista (< 256, inget rutnät) vs hela modellen (>= 256, med rutnät)!
+    const subFrame = boxFrame({ minX: -10, minY: -10, maxX: 15, maxY: 15 }, prepared.scale);
+    const matching = prepared.features.filter(f =>
+      f.box.maxX >= subFrame.x0 && f.box.minX <= subFrame.x0 + subFrame.width * subFrame.cellMm &&
+      f.box.minY <= subFrame.yTop && f.box.maxY >= subFrame.yTop - subFrame.height * subFrame.cellMm
+    );
+    expect(matching.length).toBeLessThan(256);
+    const withGrid = rasterize(prepared, subFrame, DEFAULT_SPEED_BY_CLASS);
+    const withoutGrid = rasterize({ ...prepared, features: matching }, subFrame, DEFAULT_SPEED_BY_CLASS);
+    expect(sameArray(withGrid.ground, withoutGrid.ground)).toBe(true);
+    expect(sameArray(withGrid.track, withoutGrid.track)).toBe(true);
+    expect(sameArray(withGrid.contour, withoutGrid.contour)).toBe(true);
+    expect(sameArray(withGrid.barrier, withoutGrid.barrier)).toBe(true);
+    expect(sameArray(withGrid.steep, withoutGrid.steep)).toBe(true);
+  });
+
+  it("SearchWorkspace återanvänder sin Heap mellan sökningar med bit-identiska resultat", () => {
+    const w = 40, h = 40, n = w * h;
+    const pace = new Float32Array(n).fill(1);
+    for (let r = 5; r < 35; r += 1) pace[r * w + 20] = Infinity; // vägg i mitten
+    const grid: SearchGrid = {
+      width: w, height: h, cellMeters: 2, pace,
+      contour: new Uint8Array(n), climbCostPerUnit: 1, barrier: new Uint8Array(n)
+    };
+    const ws = new SearchWorkspace(n);
+    const queries = [
+      { start: 10 * w + 5, goal: 10 * w + 35 },
+      { start: 30 * w + 35, goal: 2 * w + 2 },
+      { start: 20 * w + 10, goal: 20 * w + 30 }
+    ];
+    for (const q of queries) {
+      const fresh = search(grid, pace, q.start, { goal: q.goal, minPace: 1 });
+      const reused = search(grid, pace, q.start, { goal: q.goal, minPace: 1 }, ws);
+      expect(reused.cost[q.goal]).toBe(fresh.cost[q.goal]);
+      expect(reused.parent[q.goal]).toBe(fresh.parent[q.goal]);
+    }
   });
 });

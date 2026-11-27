@@ -15,7 +15,7 @@ let map: ParsedMap | undefined;
 let queued: Extract<MapRenderRequest, { type: "render" }> | undefined;
 let drawing = false;
 
-function render(request: Extract<MapRenderRequest, { type: "render" }>) {
+async function render(request: Extract<MapRenderRequest, { type: "render" }>) {
   if (!map) return;
   const width = Math.max(1, Math.min(MAX_RENDER_SIDE, Math.round(request.width)));
   const height = Math.max(1, Math.min(MAX_RENDER_SIDE, Math.round(request.height)));
@@ -26,6 +26,11 @@ function render(request: Extract<MapRenderRequest, { type: "render" }>) {
   // ADR-0218: bara objekten som når in i bilden planeras och ritas (rumsligt index, byggt en gång per karta).
   drawTrainingMap(context, map, { pxPerMm: request.pxPerMm, origin: request.origin, cull: true, ...(request.colorAdjust ? { colorAdjust: request.colorAdjust } : {}),
     ...(request.onlyColors ? { onlyColors: new Set(request.onlyColors) } : {}), ...(request.background === false ? { background: false } : {}) }, request.passes);
+  if (request.asPng) {
+    const blob = await canvas.convertToBlob({ type: "image/png" });
+    post({ type: "renderedPng", id: request.id, blob });
+    return;
+  }
   const bitmap = canvas.transferToImageBitmap();
   post({ type: "rendered", id: request.id, bitmap }, [bitmap]);
 }
@@ -35,17 +40,19 @@ function drain() {
   if (drawing) return;
   drawing = true;
   setTimeout(() => {
-    try {
-      const next = queued;
-      queued = undefined;
-      if (next) render(next);
-    } catch (error) {
-      console.error("Kartan kunde inte ritas", error);
-      post({ type: "error", code: "FAILED" });
-    } finally {
-      drawing = false;
-      if (queued) drain();
-    }
+    void (async () => {
+      try {
+        const next = queued;
+        queued = undefined;
+        if (next) await render(next);
+      } catch (error) {
+        console.error("Kartan kunde inte ritas", error);
+        post({ type: "error", code: "FAILED" });
+      } finally {
+        drawing = false;
+        if (queued) drain();
+      }
+    })();
   }, 0);
 }
 

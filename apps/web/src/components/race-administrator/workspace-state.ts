@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
 import { classTableEn, participantCardEn, raceAdministratorEn } from "../../i18n/workspace-admin-en";
 import { forestWatchEn, startDrawEn, startListPublicationEn, courseVariantsEn, removalEn, resultsOfficialEn } from "../../i18n/workspace-tools-en";
@@ -32,7 +33,7 @@ import { checkinHistoryEn } from "../../i18n/workspace-small-en";
 import { useOperationState, useOperations, type Operations } from "./operations";
 import { createMobileNavigation, createWorkflowNavigation, deriveSections, useNavigationState } from "./navigation";
 import { createRaceDataActions, useRaceDataState } from "./race-data";
-import { createParticipantActions, deriveRoster, useRosterState } from "./participant-roster";
+import { createParticipantActions, deriveRoster, useRosterState, type Roster } from "./participant-roster";
 import { createEntryActions, deriveEntryActions, useEntryActionState } from "./entry-actions";
 import { createResultDecisionActions, useResultDecisionState } from "./result-decisions";
 import { createCoursePreparationActions, useCoursePreparationState } from "./course-preparation";
@@ -89,8 +90,8 @@ export function useWorkspaceState(raceId: string) {
 export type WorkspaceState = ReturnType<typeof useWorkspaceState>;
 
 /** Värden som räknas fram ur tillståndet vid varje rendering. */
-export function deriveWorkspace(s: WorkspaceState) {
-  const roster = deriveRoster(s);
+export function deriveWorkspace(s: WorkspaceState, precomputedRoster?: Roster) {
+  const roster = precomputedRoster ?? deriveRoster(s);
   const during = deriveDuringRace(s);
   const editing = during.correctionPending || s.peoplePending ||
     !!s.reviewAttempt || !!s.startCorrection || !!s.returnAttempt || !!s.publicationAttempt ||
@@ -132,7 +133,11 @@ export type Base = WorkspaceState & Derived & Operations;
 export function useWorkspace(raceId: string) {
   const s = useWorkspaceState(raceId);
   const operations = useOperations(s);
-  const base: Base = { ...s, ...deriveWorkspace(s), ...operations };
+  const roster = useMemo(() => deriveRoster(s), [
+    s.data, s.entryId, s.role, s.step, s.query, s.olderResultsOnly, s.rentalCardsOnly,
+    s.resultState, s.rosterClassId, s.missingFixedStartOnly, s.rosterOrder, s.page, s.pageSize
+  ]);
+  const base: Base = { ...s, ...deriveWorkspace(s, roster), ...operations };
   const withNavigation = { ...base, ...createMobileNavigation(base) };
   const withData = { ...withNavigation, ...createRaceDataActions(withNavigation) };
   const withRelayBase = { ...withData, ...createRelayActions(withData) };

@@ -61,7 +61,7 @@ export function useCourseSettingUx({ editor, store, apply, edit, readOnly, radiu
 }) {
   const ux = useTexts(courseSettingUxSv, courseSettingUxEn);
   const text = useTexts(courseSettingSv, courseSettingEn);
-  const { document, view, selection, tool } = editor;
+  const { document, view, selection, tool } = editor, settledDocument = editor.dragBase ?? document;
   const [palette, setPalette] = useState(false);
   const [forkPicker, setForkPicker] = useState(false);
   const [forceNew, setForceNew] = useState(false);
@@ -90,7 +90,7 @@ export function useCourseSettingUx({ editor, store, apply, edit, readOnly, radiu
   const adding = inCourse && ADD_TOOLS.includes(tool) && !readOnly;
   const others = useMemo(() => showOthers && inCourse ? safe(() => otherCoursesPrimitives(document, view), [] as OverprintPrimitive[]) : [],
     [document, view, showOthers, inCourse]);
-  const unused = useMemo(() => safe(() => unusedControls(document), [] as string[]), [document]);
+  const unused = useMemo(() => safe(() => unusedControls(settledDocument), [] as string[]), [settledDocument]);
   const unusedShown = showUnused && view === ALL_CONTROLS && unused.length > 0;
   const unusedRefs = useMemo(() => new Set(unusedShown ? unused : []), [unusedShown, unused]);
   const snapKind = tool === "INSERT_EXISTING" ? "ANY" as const : toolControlKind(tool);

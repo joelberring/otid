@@ -1,6 +1,6 @@
 import { addEdit, effectiveState, type RevisionClientState } from "./client-log";
 import type { ObjectRef } from "./contract";
-import { sameState, type ObjectKey, type ObjectState, type RevisionEdit } from "./state";
+import { isNewKey, sameState, type ObjectKey, type ObjectState, type RevisionEdit } from "./state";
 
 /**
  * ADR-0219 beslut 5: Ångra och Gör om för den egna sessionen. Ett steg är en ändring av ett objekt (läget före och efter).
@@ -75,3 +75,70 @@ function step(state: RevisionClientState, history: RevisionHistory, direction: "
 
 export const undoStep = (state: RevisionClientState, history: RevisionHistory, editId: string, at: string) => step(state, history, "undo", editId, at);
 export const redoStep = (state: RevisionClientState, history: RevisionHistory, editId: string, at: string) => step(state, history, "redo", editId, at);
+
+const UNCHANGED: ObjectState = { kind: "UNCHANGED" };
+const DELETED: ObjectState = { kind: "DELETED" };
+
+export interface GroupHistoryOutcome {
+  readonly state: RevisionClientState;
+  readonly history: RevisionHistory;
+  readonly edits: readonly RevisionEdit[];
+  /** Sant när minst ett steg inte gick att ångra/göra om (ändrat av någon annan eller i krock) och togs bort. */
+  readonly changed: boolean;
+}
+
+/**
+ * Ångrar eller gör om ett steg (eller en hel grupp av steg med samma `group`) i O(P + G) i stället för O(G²),
+ * med samma regel som `undoStep`/`redoStep` (skriver aldrig över någon annans ändring).
+ */
+function stepGroup(
+  state: RevisionClientState,
+  history: RevisionHistory,
+  direction: "undo" | "redo",
+  nextEditId: () => string,
+  at: string
+): GroupHistoryOutcome {
+  const from = direction === "undo" ? history.undo : history.redo;
+  const top = from[from.length - 1];
+  if (!top) return { state, history, edits: [], changed: false };
+  const group = top.group;
+  let start = from.length - 1;
+  while (group && start > 0 && from[start - 1]!.group === group) start -= 1;
+
+  const latest = new Map<ObjectKey, RevisionEdit>();
+  for (const row of state.pending) latest.set(row.key, row);
+
+  const edits: RevisionEdit[] = [];
+  const moved: HistoryStep[] = [];
+  let changed = false;
+  const kind = direction === "undo" ? "UNDO" : "REDO";
+  for (let index = from.length - 1; index >= start; index -= 1) {
+    const item = from[index]!;
+    const expected = direction === "undo" ? item.after : item.before;
+    const target = direction === "undo" ? item.before : item.after;
+    const prev = latest.get(item.key);
+    const serverObject = prev ? undefined : state.server[item.key];
+    const current = prev ? prev.state : (serverObject?.state ?? (isNewKey(item.key) ? DELETED : UNCHANGED));
+    if (!sameState(current, expected) || state.conflicts[item.key]) {
+      changed = true;
+      continue;
+    }
+    const base = prev ? prev.editId : (serverObject?.lastEditId ?? null);
+    const edit: RevisionEdit = { editId: nextEditId(), key: item.key, ref: item.ref, state: target, kind, at, base };
+    latest.set(item.key, edit);
+    edits.push(edit);
+    moved.push(item);
+  }
+
+  const rest = from.slice(0, start);
+  const nextHistory: RevisionHistory = direction === "undo"
+    ? { undo: rest, redo: moved.length ? history.redo.concat(moved) : history.redo }
+    : { undo: moved.length ? history.undo.concat(moved) : history.undo, redo: rest };
+  const nextState = edits.length ? { ...state, pending: state.pending.concat(edits) } : state;
+  return { state: nextState, history: nextHistory, edits, changed };
+}
+
+export const undoGroup = (state: RevisionClientState, history: RevisionHistory, nextEditId: () => string, at: string) =>
+  stepGroup(state, history, "undo", nextEditId, at);
+export const redoGroup = (state: RevisionClientState, history: RevisionHistory, nextEditId: () => string, at: string) =>
+  stepGroup(state, history, "redo", nextEditId, at);

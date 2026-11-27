@@ -63,9 +63,22 @@ interface IndexedLine {
   readonly endpoints: readonly Point[];
   readonly totalLength: number;
   readonly polylines: readonly (readonly Point[])[];
+  readonly polylineBoxes: readonly Box[];
 }
 
 type Cubic = readonly [Point, Point, Point, Point];
+
+function pointToBoxDist(p: Point, box: Box): number {
+  const dx = p.x < box.minX ? box.minX - p.x : p.x > box.maxX ? p.x - box.maxX : 0;
+  const dy = p.y < box.minY ? box.minY - p.y : p.y > box.maxY ? p.y - box.maxY : 0;
+  return Math.hypot(dx, dy);
+}
+
+function segmentBox(prev: Point, cmd: PathCommand): Box {
+  return cmd.type === "C"
+    ? { minX: Math.min(prev.x, cmd.x1, cmd.x2, cmd.x), minY: Math.min(prev.y, cmd.y1, cmd.y2, cmd.y), maxX: Math.max(prev.x, cmd.x1, cmd.x2, cmd.x), maxY: Math.max(prev.y, cmd.y1, cmd.y2, cmd.y) }
+    : { minX: Math.min(prev.x, cmd.x), minY: Math.min(prev.y, cmd.y), maxX: Math.max(prev.x, cmd.x), maxY: Math.max(prev.y, cmd.y) };
+}
 
 const EPS = 1e-6;
 const SAME_POINT_EPS = 1e-4;
@@ -99,26 +112,17 @@ function withDash(cmd: PathCommand, dash: boolean, clearCorner = false): PathCom
 
 function cubicPoint([p0, p1, p2, p3]: Cubic, t: number): Point {
   const u = 1 - t;
-  return {
-    x: u * u * u * p0.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t * t * t * p3.x,
-    y: u * u * u * p0.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * p3.y
-  };
+  return { x: u * u * u * p0.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t * t * t * p3.x, y: u * u * u * p0.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * p3.y };
 }
 
 function cubicDeriv1([p0, p1, p2, p3]: Cubic, t: number): Point {
   const u = 1 - t;
-  return {
-    x: 3 * u * u * (p1.x - p0.x) + 6 * u * t * (p2.x - p1.x) + 3 * t * t * (p3.x - p2.x),
-    y: 3 * u * u * (p1.y - p0.y) + 6 * u * t * (p2.y - p1.y) + 3 * t * t * (p3.y - p2.y)
-  };
+  return { x: 3 * u * u * (p1.x - p0.x) + 6 * u * t * (p2.x - p1.x) + 3 * t * t * (p3.x - p2.x), y: 3 * u * u * (p1.y - p0.y) + 6 * u * t * (p2.y - p1.y) + 3 * t * t * (p3.y - p2.y) };
 }
 
 function cubicDeriv2([p0, p1, p2, p3]: Cubic, t: number): Point {
   const u = 1 - t;
-  return {
-    x: 6 * u * (p2.x - 2 * p1.x + p0.x) + 6 * t * (p3.x - 2 * p2.x + p1.x),
-    y: 6 * u * (p2.y - 2 * p1.y + p0.y) + 6 * t * (p3.y - 2 * p2.y + p1.y)
-  };
+  return { x: 6 * u * (p2.x - 2 * p1.x + p0.x) + 6 * t * (p3.x - 2 * p2.x + p1.x), y: 6 * u * (p2.y - 2 * p1.y + p0.y) + 6 * t * (p3.y - 2 * p2.y + p1.y) };
 }
 
 function cubicCurvature(cubic: Cubic, t: number): number {
@@ -225,6 +229,7 @@ export function toggleOrInsertDashPoint(path: Path, at: Point, snapMm = 0.45, tr
     const cmd = path[i]!;
     if (cmd.type === "M") continue;
     const prev = cmdPoint(path[i - 1]!);
+    if (bestSeg && pointToBoxDist(at, segmentBox(prev, cmd)) > bestSeg.distance + 1e-9) continue;
     const hit = cmd.type === "C" ? nearestOnCubic([prev, { x: cmd.x1, y: cmd.y1 }, { x: cmd.x2, y: cmd.y2 }, cmdPoint(cmd)], at) : nearestOnLine(prev, cmdPoint(cmd), at);
     if (!bestSeg || hit.distance < bestSeg.distance) bestSeg = { index: i, ...hit };
   }
@@ -296,11 +301,16 @@ function sampleSubpath(path: Path, range: SubpathRange) {
   const samples: SamplePoint[] = [];
   const vertexArcLengths = new Map<number, number>([[range.start, 0]]);
   const segCumStart = new Map<number, number>(), segLength = new Map<number, number>();
-  const microSegs: MicroSeg[] = [];
+  const microSegs: MicroSeg[] = [], segBoxes: Box[] = [];
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   let s = 0;
 
   for (let i = range.start + 1; i <= range.end; i += 1) {
     const cmd = path[i]!, p0 = cmdPoint(path[i - 1]!), pEnd = cmdPoint(cmd), segStartS = s;
+    const sb = segmentBox(p0, cmd);
+    segBoxes.push(sb);
+    if (sb.minX < minX) minX = sb.minX; if (sb.minY < minY) minY = sb.minY;
+    if (sb.maxX > maxX) maxX = sb.maxX; if (sb.maxY > maxY) maxY = sb.maxY;
     segCumStart.set(i, s);
     if (cmd.type === "C") {
       const cubic: Cubic = [p0, { x: cmd.x1, y: cmd.y1 }, { x: cmd.x2, y: cmd.y2 }, pEnd];
@@ -325,7 +335,7 @@ function sampleSubpath(path: Path, range: SubpathRange) {
     segLength.set(i, s - segStartS);
     vertexArcLengths.set(i, s);
   }
-  return { samples, vertexArcLengths, segCumStart, segLength, microSegs, totalLength: s };
+  return { samples, vertexArcLengths, segCumStart, segLength, microSegs, segBoxes, box: { minX, minY, maxX, maxY }, totalLength: s };
 }
 
 function arcLengthAt(path: Path, segIdx: number, t: number, segCumStart: ReadonlyMap<number, number>, segLength: ReadonlyMap<number, number>): number {
@@ -417,7 +427,7 @@ function insertIntoGrid(grid: Map<string, number[]>, box: Box, idx: number): voi
   }
 }
 
-function buildSpatialGrid(allObjects: readonly MapObject[], symbols: ReadonlyMap<string, MapSymbol>, needSlopeTags: boolean, needJunctions: boolean) {
+function buildSpatialGrid(allObjects: readonly MapObject[], symbols: ReadonlyMap<string, MapSymbol>, dashInfoOf: (sym: MapSymbol | undefined) => DashSymbolInfo | undefined, needSlopeTags: boolean, needJunctions: boolean) {
   const lines: IndexedLine[] = [];
   const grid = new Map<string, number[]>();
   if (!needSlopeTags && !needJunctions) return { lines, grid };
@@ -431,24 +441,21 @@ function buildSpatialGrid(allObjects: readonly MapObject[], symbols: ReadonlyMap
       const endpoints = pointSlopeTagEndpoints(obj, sym);
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       for (const p of endpoints) {
-        if (p.x < minX) minX = p.x;
-        if (p.y < minY) minY = p.y;
-        if (p.x > maxX) maxX = p.x;
-        if (p.y > maxY) maxY = p.y;
+        if (p.x < minX) minX = p.x; if (p.y < minY) minY = p.y;
+        if (p.x > maxX) maxX = p.x; if (p.y > maxY) maxY = p.y;
       }
-      const box: Box = { minX, minY, maxX, maxY };
-      const idx = lines.length;
+      const box: Box = { minX, minY, maxX, maxY }, idx = lines.length;
       lines.push({
         object: obj, locator: obj.source ? locatorKey(obj.source.locator) : undefined, symbol: sym, box,
         isSlopeTagCandidate: true, isJunctionCandidate: false, isFormLine: false,
-        strokeColors: new Set(sym.elements.map(e => e.color)), endpoints, totalLength: 0, polylines: []
+        strokeColors: new Set(sym.elements.map(e => e.color)), endpoints, totalLength: 0, polylines: [], polylineBoxes: []
       });
       insertIntoGrid(grid, box, idx);
       continue;
     }
 
     if (obj.kind !== "line" || obj.path.length < 2 || sym.kind !== "LINE") continue;
-    const main = sym.code.main, dashed = dashSymbolInfo(sym) !== undefined;
+    const main = sym.code.main, dashed = dashInfoOf(sym) !== undefined;
     const maybeSlopeTag = needSlopeTags && isLineSlopeTagSymbol(sym, dashed);
     const maybeJunction = needJunctions && ((main >= 501 && main <= 509) || dashed);
     if (!maybeSlopeTag && !maybeJunction) continue;
@@ -456,10 +463,17 @@ function buildSpatialGrid(allObjects: readonly MapObject[], symbols: ReadonlyMap
     const polylines = flattenPath(obj.path).filter(p => p.length >= 2);
     if (polylines.length === 0) continue;
     let totalLength = 0;
-    const endpoints: Point[] = [];
+    const endpoints: Point[] = [], polylineBoxes: Box[] = [];
     for (const pl of polylines) {
       endpoints.push(pl[0]!, pl[pl.length - 1]!);
-      for (let i = 1; i < pl.length; i += 1) totalLength += dist(pl[i - 1]!, pl[i]!);
+      let minX = pl[0]!.x, minY = pl[0]!.y, maxX = minX, maxY = minY;
+      for (let i = 1; i < pl.length; i += 1) {
+        const pt = pl[i]!;
+        totalLength += dist(pl[i - 1]!, pt);
+        if (pt.x < minX) minX = pt.x; if (pt.x > maxX) maxX = pt.x;
+        if (pt.y < minY) minY = pt.y; if (pt.y > maxY) maxY = pt.y;
+      }
+      polylineBoxes.push({ minX, minY, maxX, maxY });
     }
     const isSlopeTagCandidate = maybeSlopeTag && totalLength <= SLOPE_TAG_MAX_LEN_MM;
     if (!isSlopeTagCandidate && !maybeJunction) continue;
@@ -468,7 +482,7 @@ function buildSpatialGrid(allObjects: readonly MapObject[], symbols: ReadonlyMap
     lines.push({
       object: obj, locator: obj.source ? locatorKey(obj.source.locator) : undefined, symbol: sym, box,
       isSlopeTagCandidate, isJunctionCandidate: maybeJunction, isFormLine: main === 103,
-      strokeColors: new Set(sym.strokes.map(s => s.color)), endpoints, totalLength, polylines
+      strokeColors: new Set(sym.strokes.map(s => s.color)), endpoints, totalLength, polylines, polylineBoxes
     });
     insertIntoGrid(grid, box, idx);
   }
@@ -485,12 +499,18 @@ function queryGrid(grid: ReadonlyMap<string, readonly number[]>, box: Box, pad: 
   return out;
 }
 
-function nearestOnSubpath(path: Path, range: SubpathRange, target: Point) {
+function nearestOnSubpath(path: Path, range: SubpathRange, target: Point, segBoxes: readonly Box[], subpathBox: Box, maxDist = Infinity) {
+  if (pointToBoxDist(target, subpathBox) > maxDist + 1e-9) return undefined;
   let best: { segIdx: number; t: number; at: Point; distance: number } | undefined;
+  let limit = maxDist;
   for (let i = range.start + 1; i <= range.end; i += 1) {
+    if (pointToBoxDist(target, segBoxes[i - range.start - 1]!) > limit + 1e-9) continue;
     const cmd = path[i]!, prev = cmdPoint(path[i - 1]!);
     const hit = cmd.type === "C" ? nearestOnCubic([prev, { x: cmd.x1, y: cmd.y1 }, { x: cmd.x2, y: cmd.y2 }, cmdPoint(cmd)], target) : nearestOnLine(prev, cmdPoint(cmd), target);
-    if (!best || hit.distance < best.distance) best = { segIdx: i, ...hit };
+    if (!best || hit.distance < best.distance) {
+      best = { segIdx: i, ...hit };
+      if (hit.distance < limit) limit = hit.distance;
+    }
   }
   return best;
 }
@@ -505,12 +525,7 @@ function pathsEqual(a: Path, b: Path): boolean {
   return true;
 }
 
-function applyAcceptedCandidates(
-  basePath: Path,
-  ranges: readonly SubpathRange[],
-  accepted: readonly Candidate[],
-  treatCornerAsDash: boolean
-): { path: Path; placements: DashPointPlacement[] } {
+function applyAcceptedCandidates(basePath: Path, ranges: readonly SubpathRange[], accepted: readonly Candidate[], treatCornerAsDash: boolean): { path: Path; placements: DashPointPlacement[] } {
   const markVertices = new Set<number>();
   const splitsBySeg = new Map<number, { t: number; at: Point; reason: DashPointReason }[]>();
   const placements: DashPointPlacement[] = [];
@@ -572,16 +587,17 @@ function applyAcceptedCandidates(
  * Beräknar automatiska styrpunkter för `targets` (streckade linjer) med hänsyn till skarpa böjar,
  * lutningsstreck (101.1 punkt och korta lutningsstreckslinjer) och korsningar/förgreningar mot övriga objekt i `allObjects`.
  */
-export function autoDashPointsPlan(
-  targets: readonly MapObject[],
-  allObjects: readonly MapObject[],
-  symbols: ReadonlyMap<string, MapSymbol>,
-  options?: DashPointOptions
-): AutoDashPointsPlan {
+export function autoDashPointsPlan(targets: readonly MapObject[], allObjects: readonly MapObject[], symbols: ReadonlyMap<string, MapSymbol>, options?: DashPointOptions): AutoDashPointsPlan {
   const enableBends = options?.bends !== false, enableSlopeTags = options?.slopeTags !== false;
   const enableJunctions = options?.junctions !== false, keepExisting = options?.keepExisting !== false;
   const treatCornerAsDash = options?.treatCornerAsDash === true;
-  const { lines: indexedLines, grid } = buildSpatialGrid(allObjects, symbols, enableSlopeTags, enableJunctions);
+  const dashInfoCache = new Map<string, DashSymbolInfo | undefined>();
+  const dashInfoOf = (sym: MapSymbol | undefined): DashSymbolInfo | undefined => {
+    if (!sym) return undefined;
+    if (!dashInfoCache.has(sym.id)) dashInfoCache.set(sym.id, dashSymbolInfo(sym));
+    return dashInfoCache.get(sym.id);
+  };
+  const { lines: indexedLines, grid } = buildSpatialGrid(allObjects, symbols, dashInfoOf, enableSlopeTags, enableJunctions);
 
   const entries: DashPointEntry[] = [];
   let totalAdded = 0, totalBends = 0, totalSlopeTags = 0, totalJunctions = 0;
@@ -589,7 +605,7 @@ export function autoDashPointsPlan(
   for (let targetIdx = 0; targetIdx < targets.length; targetIdx += 1) {
     const target = targets[targetIdx]!;
     if (target.kind !== "line" || target.path.length < 2) continue;
-    const info = dashSymbolInfo(symbols.get(target.symbol));
+    const info = dashInfoOf(symbols.get(target.symbol));
     if (!info) continue;
 
     const basePath: Path = keepExisting
@@ -645,7 +661,8 @@ export function autoDashPointsPlan(
           if (isPointTag || (other.totalLength <= SLOPE_TAG_MAX_LEN_MM && isContourBrown)) {
             let bestTouch: { rIdx: number; segIdx: number; t: number; at: Point; distance: number } | undefined;
             for (const ep of other.endpoints) for (let rIdx = 0; rIdx < ranges.length; rIdx += 1) {
-              const hit = nearestOnSubpath(basePath, ranges[rIdx]!, ep);
+              const data = sampled[rIdx]!;
+              const hit = nearestOnSubpath(basePath, ranges[rIdx]!, ep, data.segBoxes, data.box, bestTouch ? bestTouch.distance : SLOPE_TAG_TOUCH_MM);
               if (hit && hit.distance <= SLOPE_TAG_TOUCH_MM && (!bestTouch || hit.distance < bestTouch.distance)) bestTouch = { rIdx, ...hit };
             }
             if (bestTouch) {
@@ -661,9 +678,9 @@ export function autoDashPointsPlan(
 
         if (enableJunctions && other.isJunctionCandidate && (info.isFormLine ? other.isFormLine : !other.isFormLine)) {
           for (const ep of other.endpoints) for (let rIdx = 0; rIdx < ranges.length; rIdx += 1) {
-            const hit = nearestOnSubpath(basePath, ranges[rIdx]!, ep);
+            const data = sampled[rIdx]!;
+            const hit = nearestOnSubpath(basePath, ranges[rIdx]!, ep, data.segBoxes, data.box, JUNCTION_TOUCH_MM);
             if (hit && hit.distance <= JUNCTION_TOUCH_MM) {
-              const data = sampled[rIdx]!;
               candidates.push({
                 subpathIdx: rIdx, segIdx: hit.segIdx, t: hit.t,
                 s: arcLengthAt(basePath, hit.segIdx, hit.t, data.segCumStart, data.segLength),
@@ -674,20 +691,29 @@ export function autoDashPointsPlan(
           if (boxesOverlap(targetBox, other.box, 0)) {
             for (let rIdx = 0; rIdx < ranges.length; rIdx += 1) {
               const data = sampled[rIdx]!;
+              if (!boxesOverlap(data.box, other.box, 0)) continue;
+              const overlapPls: number[] = [];
+              for (let pIdx = 0; pIdx < other.polylines.length; pIdx += 1) if (boxesOverlap(data.box, other.polylineBoxes[pIdx]!, 0)) overlapPls.push(pIdx);
+              if (overlapPls.length === 0) continue;
               for (const ms of data.microSegs) {
                 if (ms.maxX < other.box.minX || ms.minX > other.box.maxX || ms.maxY < other.box.minY || ms.minY > other.box.maxY) continue;
-                for (const pl of other.polylines) for (let k = 1; k < pl.length; k += 1) {
-                  const c = pl[k - 1]!, d = pl[k]!;
-                  if (Math.max(c.x, d.x) < ms.minX || Math.min(c.x, d.x) > ms.maxX || Math.max(c.y, d.y) < ms.minY || Math.min(c.y, d.y) > ms.maxY) continue;
-                  const hit = segmentIntersection(ms.a, ms.b, c, d);
-                  if (!hit) continue;
-                  const t = ms.t0 + (ms.t1 - ms.t0) * hit.u, cmd = basePath[ms.segIdx]!;
-                  const exactAt = cmd.type === "C" ? cubicPoint([cmdPoint(basePath[ms.segIdx - 1]!), { x: cmd.x1, y: cmd.y1 }, { x: cmd.x2, y: cmd.y2 }, cmdPoint(cmd)], t) : hit.at;
-                  candidates.push({
-                    subpathIdx: rIdx, segIdx: ms.segIdx, t,
-                    s: arcLengthAt(basePath, ms.segIdx, t, data.segCumStart, data.segLength),
-                    at: exactAt, reason: "junction", priority: 2, score: 600
-                  });
+                for (const pIdx of overlapPls) {
+                  const pb = other.polylineBoxes[pIdx]!;
+                  if (ms.maxX < pb.minX || ms.minX > pb.maxX || ms.maxY < pb.minY || ms.minY > pb.maxY) continue;
+                  const pl = other.polylines[pIdx]!;
+                  for (let k = 1; k < pl.length; k += 1) {
+                    const c = pl[k - 1]!, d = pl[k]!;
+                    if (Math.max(c.x, d.x) < ms.minX || Math.min(c.x, d.x) > ms.maxX || Math.max(c.y, d.y) < ms.minY || Math.min(c.y, d.y) > ms.maxY) continue;
+                    const hit = segmentIntersection(ms.a, ms.b, c, d);
+                    if (!hit) continue;
+                    const t = ms.t0 + (ms.t1 - ms.t0) * hit.u, cmd = basePath[ms.segIdx]!;
+                    const exactAt = cmd.type === "C" ? cubicPoint([cmdPoint(basePath[ms.segIdx - 1]!), { x: cmd.x1, y: cmd.y1 }, { x: cmd.x2, y: cmd.y2 }, cmdPoint(cmd)], t) : hit.at;
+                    candidates.push({
+                      subpathIdx: rIdx, segIdx: ms.segIdx, t,
+                      s: arcLengthAt(basePath, ms.segIdx, t, data.segCumStart, data.segLength),
+                      at: exactAt, reason: "junction", priority: 2, score: 600
+                    });
+                  }
                 }
               }
             }

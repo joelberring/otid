@@ -180,14 +180,15 @@ describe("kandidaterna i Workern", () => {
 
 /** En Worker i samma tråd: meddelandena hanteras efter en kort paus, som i webbläsaren. */
 function fakeWorker() {
-  const store: CandidateStore = new Map(), requests: CandidateRequest[] = [];
+  const store: CandidateStore = new Map(), requests: CandidateRequest[] = [], transfers: (readonly Transferable[] | undefined)[] = [];
   const worker = { onmessage: null as ((event: MessageEvent<CandidateResponse>) => void) | null, onerror: null as unknown,
     terminate: () => undefined,
-    postMessage(request: CandidateRequest) {
+    postMessage(request: CandidateRequest, transfer?: Transferable[]) {
       requests.push(request);
+      transfers.push(transfer);
       setTimeout(() => handleCandidateRequest(store, request, response => worker.onmessage?.({ data: response } as MessageEvent<CandidateResponse>)), 0);
     } };
-  return { worker: worker as unknown as Worker, requests, store };
+  return { worker: worker as unknown as Worker, requests, transfers, store };
 }
 
 describe("kandidaternas Worker från sidan", () => {
@@ -227,5 +228,41 @@ describe("kandidaternas Worker från sidan", () => {
   it("ger `VectorParseError` för en fil som inte går att tolka", async () => {
     const session = new CandidateSession(() => fakeWorker().worker);
     await expect(session.baseMap({ parts: [{ name: "kurvor.dxf", body: "x\ny" }], merge: false }, () => undefined)).rejects.toThrow(/DXF/);
+  });
+
+  it("överför bara förbrukade lutnings-/bergbuffertar (deduplicerade) och ALDRIG clear/heightParts (säkerhetskritiskt)", async () => {
+    const fake = fakeWorker(), session = new CandidateSession(() => fake.worker);
+    const body = JSON.stringify({ type: "FeatureCollection", features: [{ type: "Feature", properties: { layer: "stenar" }, geometry: { type: "Point", coordinates: at(10, 10) } }] });
+    const affine = [1, 0, 0, 0, -1, 10] as const;
+    const sharedSlope = new Uint8Array(16);
+    const stage2Slope = new Uint8Array(16);
+    const topRock = new Uint8ClampedArray(16);
+    const stageRock = new Uint8ClampedArray(16);
+    const heightMeters = new Float32Array(16);
+    await session.baseMap({
+      parts: [],
+      merge: false,
+      calm: { grid: { columns: 4, rows: 4, steps: sharedSlope }, affine, level: 3 },
+      rock: { pixels: { width: 2, height: 2, data: topRock }, affine, level: 5 },
+      clear: { parts: [{ grid: { columns: 4, rows: 4, meters: heightMeters }, affine }] },
+      stages: [
+        // Etapp 1 delar `sharedSlope` med `calm` (precis som `use-map-project-laser.ts`): får inte dupliceras i transfer-listan!
+        { box: { minX: 0, minY: 0, maxX: 100, maxY: 100 }, parts: [{ name: "s1.geojson", body }],
+          slope: { grid: { columns: 4, rows: 4, steps: sharedSlope }, affine },
+          rock: { pixels: { width: 2, height: 2, data: stageRock }, affine } },
+        { box: { minX: 100, minY: 0, maxX: 200, maxY: 100 }, parts: [{ name: "s2.geojson", body }],
+          slope: { grid: { columns: 4, rows: 4, steps: stage2Slope }, affine } }
+      ]
+    }, () => undefined);
+    expect(fake.transfers).toHaveLength(1);
+    const transferred = fake.transfers[0] ?? [];
+    expect(transferred).toHaveLength(4);
+    expect(new Set(transferred).size).toBe(4);
+    expect(transferred).toContain(sharedSlope.buffer);
+    expect(transferred).toContain(stage2Slope.buffer);
+    expect(transferred).toContain(topRock.buffer);
+    expect(transferred).toContain(stageRock.buffer);
+    // SÄKERHET: `heightParts` (`clear.parts[i].grid.meters.buffer`) används efter `baseMap` på huvudtråden och får ALDRIG överföras!
+    expect(transferred).not.toContain(heightMeters.buffer);
   });
 });

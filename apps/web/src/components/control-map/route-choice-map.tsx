@@ -25,6 +25,11 @@ export function RouteChoiceMap({ render, image, leg, analysis, metersPerUnit }: 
   const bounds = useMemo(() => legBounds(render, leg, analysis), [render, leg, analysis]);
   const view = useMemo(() => controlMapView(bounds, image ? { width: image.width, height: image.height } : null), [bounds, image]);
   const corridor = useMemo(() => analysis?.corridor ? corridorPath(render, analysis.corridor) : "", [render, analysis]);
+  const labels = useMemo(() => analysis && view ? alternativeLabels(analysis, view.radius * 3 / render.pxPerMm, text) : [], [analysis, view, render.pxPerMm, text]);
+  const lines = useMemo(() => ({
+    best: analysis?.best ? polyline(render, analysis.best.points) : undefined,
+    alternatives: (analysis?.alternatives ?? []).map((alternative, index) => ({ alternative, index, points: polyline(render, alternative.points) })).reverse()
+  }), [render, analysis]);
   if (!view || !leg.input) return <p className={styles.muted}>{text.noPlaces}</p>;
   const [fromKey = "", toKey = ""] = leg.key.split("-");
   const ends: DrawnControl[] = ([[fromKey, leg.input.from], [toKey, leg.input.to]] as const).flatMap(([key, point]) => {
@@ -35,21 +40,19 @@ export function RouteChoiceMap({ render, image, leg, analysis, metersPerUnit }: 
   const start = fromKey === "S" ? [{ key: "s", at: mmToPixel(render, leg.input.from), kind: "START" as const, tone: "course" as const }] : [];
   const finish = toKey === "F" ? [{ key: "f", at: mmToPixel(render, leg.input.to), kind: "FINISH" as const, tone: "course" as const }] : [];
   const stroke = view.radius * 0.45;
-  const labels = analysis ? alternativeLabels(analysis, view.radius * 3 / render.pxPerMm, text) : [];
-  const alternatives = analysis?.alternatives ?? [];
   return <ControlMapSvg view={view} image={image} controls={ends} lines={[]} ends={[...start, ...finish]} metersPerUnit={metersPerUnit}
     label={text.map(legName(leg.key, text))} underlay={<g className={styles.routes} data-testid="route-choice-lines">
       {corridor && <path className={styles.corridor} d={corridor} data-testid="route-choice-corridor" />}
-      {alternatives.map((alternative, index) => ({ alternative, index })).reverse().map(({ alternative, index }) => <g key={index}
+      {lines.alternatives.map(({ alternative, index, points }) => <g key={index}
         data-testid="route-choice-alternative">
         <title>{text.alternative(index, Math.round((alternative.timeRatio - 1) * 100))}</title>
-        <polyline className={styles.halo} points={polyline(render, alternative.points)} style={{ strokeWidth: stroke * 1.9 }} />
-        <polyline className={styles.alternative} points={polyline(render, alternative.points)}
+        <polyline className={styles.halo} points={points} style={{ strokeWidth: stroke * 1.9 }} />
+        <polyline className={styles.alternative} points={points}
           style={{ stroke: alternativeColor(index), strokeWidth: stroke, strokeDasharray: `${stroke * 2.6} ${stroke * 1.5}` }} />
       </g>)}
-      {analysis?.best && <g data-testid="route-choice-best">
-        <polyline className={styles.halo} points={polyline(render, analysis.best.points)} style={{ strokeWidth: stroke * 2.2 }} />
-        <polyline className={styles.best} points={polyline(render, analysis.best.points)} style={{ stroke: ROUTE_CHOICE_COLORS.best, strokeWidth: stroke * 1.25 }} />
+      {lines.best !== undefined && <g data-testid="route-choice-best">
+        <polyline className={styles.halo} points={lines.best} style={{ strokeWidth: stroke * 2.2 }} />
+        <polyline className={styles.best} points={lines.best} style={{ stroke: ROUTE_CHOICE_COLORS.best, strokeWidth: stroke * 1.25 }} />
       </g>}
       {labels.map(label => { const at = mmToPixel(render, label.at), size = view.radius * 0.9, width = size * (label.text.length * 0.62 + 0.8);
         return <g key={label.index} className={styles.label} data-testid="route-choice-label">

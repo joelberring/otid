@@ -16,9 +16,12 @@ describe("grundkartan", () => {
   });
 
   it("laserns små kullar ersätter Karttapullautins knollar, groparna finns kvar (ägaren 2026-11-11)", () => {
-    const knolls = { name: "knollar.dxf", data: data("dotknoll", "udepression") };
-    expect(mergeBaseMap([knolls]).features.map(feature => feature.layer)).toEqual(["dotknoll", "udepression"]);
-    expect(mergeBaseMap([knolls, { name: "berg.dxf", data: data("dotknoll_laser") }]).features.map(feature => feature.layer)).toEqual(["udepression", "dotknoll_laser"]);
+    const knolls = { name: "knollar.dxf", data: data("dotknoll", "dotknoll_avlang", "udepression") };
+    expect(mergeBaseMap([knolls]).features.map(feature => feature.layer)).toEqual(["dotknoll", "dotknoll_avlang", "udepression"]);
+    expect(mergeBaseMap([knolls, { name: "berg.dxf", data: data("dotknoll_laser") }]).features.map(feature => feature.layer)).toEqual(["dotknoll_avlang", "udepression", "dotknoll_laser"]);
+    // Har berg.dxf egna formklassade avlånga kullar ersätter de även knollar.dxf:s avlånga.
+    expect(mergeBaseMap([knolls, { name: "berg.dxf", data: data("dotknoll_laser", "dotknoll_avlang") }]).features.map(feature => feature.layer))
+      .toEqual(["udepression", "dotknoll_laser", "dotknoll_avlang"]);
   });
 
   it("laserns stenar läggs inte i grundkartan (ägaren 2026-11-15: de låg nästan aldrig där kartritarna har stenar)", () => {

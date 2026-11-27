@@ -12,7 +12,7 @@ use std::io::{BufWriter, Write};
 use std::path::Path;
 
 fn write_header<W: Write>(w: &mut W, min_x: f64, min_y: f64, max_x: f64, max_y: f64) -> std::io::Result<()> {
-    writeln!(w, "0\nSECTION\n2\nHEADER")?;
+    writeln!(w, "0\nSECTION\n2\nHEADER\n999\notidgeo")?;
     if min_x.is_finite() && max_x.is_finite() {
         writeln!(w, "9\n$EXTMIN\n10\n{min_x:.2}\n20\n{min_y:.2}")?;
         writeln!(w, "9\n$EXTMAX\n10\n{max_x:.2}\n20\n{max_y:.2}")?;

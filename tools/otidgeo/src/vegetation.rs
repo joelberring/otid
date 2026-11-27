@@ -99,79 +99,83 @@ impl Integral2D {
     }
 }
 
-/// Fast 3-pass separable box blur approximating a Gaussian with standard deviation `sigma`.
-fn box_gaussian_blur(src: &[f32], w: usize, h: usize, sigma: f32) -> Vec<f32> {
-    if sigma <= 0.35 || w < 2 || h < 2 {
+/// Separable continuous-sigma 1D Gaussian blur (accurate for small sprint sigmas like 0.45 as well as 1.4+).
+fn gaussian_blur(src: &[f32], w: usize, h: usize, sigma: f32) -> Vec<f32> {
+    if sigma <= 0.25 || w < 2 || h < 2 {
         return src.to_vec();
     }
-    let radius = (((4.0 * sigma * sigma + 1.0).sqrt() - 1.0) * 0.5).round().max(1.0) as usize;
-    let inv = 1.0 / (2 * radius + 1) as f32;
-    let mut a = src.to_vec();
-    let mut b = vec![0.0f32; w * h];
-    let mut col_sums = vec![0.0f32; w];
+    let radius = (sigma * 2.5).ceil().max(1.0) as usize;
+    let inv_2s2 = 1.0 / (2.0 * sigma * sigma);
+    let mut kernel = Vec::with_capacity(2 * radius + 1);
+    let mut ksum = 0.0f32;
+    for k in -(radius as isize)..=(radius as isize) {
+        let wt = (-(k * k) as f32 * inv_2s2).exp();
+        kernel.push(wt);
+        ksum += wt;
+    }
+    for wt in &mut kernel {
+        *wt /= ksum;
+    }
 
-    for _ in 0..3 {
-        // Horizontal pass.
-        for r in 0..h {
-            let base = r * w;
-            let mut sum = 0.0f32;
-            for k in -(radius as isize)..=(radius as isize) {
-                sum += a[base + k.clamp(0, w as isize - 1) as usize];
+    let mut tmp = vec![0.0f32; w * h];
+    for r in 0..h {
+        let base = r * w;
+        for c in 0..w {
+            let mut acc = 0.0f32;
+            for (ki, &kw) in kernel.iter().enumerate() {
+                let sc = (c as isize + ki as isize - radius as isize).clamp(0, w as isize - 1) as usize;
+                acc += src[base + sc] * kw;
             }
-            for c in 0..w {
-                b[base + c] = sum * inv;
-                let add = (c + radius + 1).min(w - 1);
-                let drop = c.saturating_sub(radius);
-                sum += a[base + add] - a[base + drop];
-            }
+            tmp[base + c] = acc;
         }
-        // Vertical pass (row-sequential memory access).
-        col_sums.fill(0.0);
-        for k in -(radius as isize)..=(radius as isize) {
-            let sr = k.clamp(0, h as isize - 1) as usize;
-            let base = sr * w;
+    }
+
+    let mut out = vec![0.0f32; w * h];
+    for r in 0..h {
+        let dst = r * w;
+        for (ki, &kw) in kernel.iter().enumerate() {
+            let sr = (r as isize + ki as isize - radius as isize).clamp(0, h as isize - 1) as usize;
+            let src_row = &tmp[sr * w..(sr + 1) * w];
             for c in 0..w {
-                col_sums[c] += b[base + c];
-            }
-        }
-        for r in 0..h {
-            let dst = r * w;
-            let add_row = (r + radius + 1).min(h - 1) * w;
-            let drop_row = r.saturating_sub(radius) * w;
-            for c in 0..w {
-                let s = col_sums[c];
-                a[dst + c] = s * inv;
-                col_sums[c] = s + b[add_row + c] - b[drop_row + c];
+                out[dst + c] += src_row[c] * kw;
             }
         }
     }
-    a
+    out
 }
 
-/// Nested soft-majority filter over the vegetation partition (preserves crisp, non-overlapping levels).
-fn soft_majority(labels: &[u8], w: usize, h: usize, sigma: f32) -> Vec<u8> {
+/// Nested soft-majority filter over the vegetation partition.
+/// Uses `sigma` for calm open/semi/406 boundaries and tighter `dense_sigma` for compact 408/410 thickets.
+fn soft_majority(labels: &[u8], w: usize, h: usize, sigma: f32, dense_sigma: f32) -> Vec<u8> {
     if sigma <= 0.25 {
         return labels.to_vec();
     }
     let n = labels.len();
     let known: Vec<f32> = labels.iter().map(|&v| if v != LAB_NONE { 1.0 } else { 0.0 }).collect();
-    let weight = box_gaussian_blur(&known, w, h, sigma);
+    let weight = gaussian_blur(&known, w, h, sigma);
+    let d_sig = dense_sigma.clamp(0.0, sigma);
+    let d_weight = if (d_sig - sigma).abs() < 1e-3 {
+        None
+    } else {
+        Some(gaussian_blur(&known, w, h, d_sig))
+    };
 
-    let blur_pred = |pred: fn(u8) -> bool| -> Vec<f32> {
+    let blur_pred = |pred: fn(u8) -> bool, sig: f32, wt_slice: &[f32]| -> Vec<f32> {
         let mask: Vec<f32> = labels.iter().map(|&v| if pred(v) { 1.0 } else { 0.0 }).collect();
-        let blurred = box_gaussian_blur(&mask, w, h, sigma);
+        let blurred = gaussian_blur(&mask, w, h, sig);
         blurred
             .into_iter()
-            .zip(weight.iter())
+            .zip(wt_slice.iter())
             .map(|(v, &wt)| v / (wt + 1e-6))
             .collect()
     };
 
-    let g406 = blur_pred(|v| v >= LAB_GREEN_406);
-    let g408 = blur_pred(|v| v >= LAB_GREEN_408);
-    let g410 = blur_pred(|v| v >= LAB_GREEN_410);
-    let open = blur_pred(|v| v == LAB_OPEN);
-    let semi = blur_pred(|v| v == LAB_SEMI);
+    let g406 = blur_pred(|v| v >= LAB_GREEN_406, sigma, &weight);
+    let d_wt = d_weight.as_deref().unwrap_or(&weight);
+    let g408 = blur_pred(|v| v >= LAB_GREEN_408, d_sig, d_wt);
+    let g410 = blur_pred(|v| v >= LAB_GREEN_410, d_sig, d_wt);
+    let open = blur_pred(|v| v == LAB_OPEN, sigma, &weight);
+    let semi = blur_pred(|v| v == LAB_SEMI, sigma, &weight);
 
     let mut out = vec![LAB_NONE; n];
     for i in 0..n {
@@ -179,22 +183,26 @@ fn soft_majority(labels: &[u8], w: usize, h: usize, sigma: f32) -> Vec<u8> {
             continue;
         }
         let mut lab = if g406[i] > 0.5 {
-            if g410[i] > 0.5 {
+            if g410[i] > 0.44 {
                 LAB_GREEN_410
-            } else if g408[i] > 0.5 {
+            } else if g408[i] > 0.46 {
                 LAB_GREEN_408
             } else {
                 LAB_GREEN_406
             }
+        } else if g410[i] > 0.46 {
+            LAB_GREEN_410
+        } else if g408[i] > 0.50 {
+            LAB_GREEN_408
         } else {
             LAB_FOREST
         };
         let o = open[i];
         let s = semi[i];
-        if s > 0.5 && s > g406[i] {
+        if s > 0.5 && s > g406[i] && lab < LAB_GREEN_408 {
             lab = LAB_SEMI;
         }
-        if o > 0.5 && o > g406[i] {
+        if o > 0.5 && o > g406[i] && lab < LAB_GREEN_408 {
             lab = LAB_OPEN;
         }
         if lab == LAB_FOREST && o + s > 0.5 {
@@ -252,10 +260,10 @@ fn remove_small_islands(labels: &[u8], w: usize, h: usize, min_cells: usize) -> 
                     }
                 }
             }
-            // Use slightly smaller threshold for dense 408/410 pockets so sharp thickets survive.
+            // Use slightly smaller thresholds for dense 408/410 pockets so compact thickets survive.
             let thresh = match lab {
-                LAB_GREEN_410 => (min_cells / 2).max(6),
-                LAB_GREEN_408 => (min_cells * 2 / 3).max(8),
+                LAB_GREEN_410 => (min_cells / 2).max(4),
+                LAB_GREEN_408 => ((min_cells * 2) / 3).max(5),
                 LAB_FOREST => min_cells,
                 _ => min_cells,
             };
@@ -296,8 +304,8 @@ fn clean_undergrowth(raw: &[u8], valid: &[u8], w: usize, h: usize, min_cells: us
     } else {
         let m1: Vec<f32> = raw.iter().map(|&v| if v >= 1 { 1.0 } else { 0.0 }).collect();
         let m2: Vec<f32> = raw.iter().map(|&v| if v >= 2 { 1.0 } else { 0.0 }).collect();
-        let b1 = box_gaussian_blur(&m1, w, h, sigma);
-        let b2 = box_gaussian_blur(&m2, w, h, sigma);
+        let b1 = gaussian_blur(&m1, w, h, sigma);
+        let b2 = gaussian_blur(&m2, w, h, sigma);
 
         for i in 0..n {
             if valid[i] != 0 && b1[i] > 0.45 {
@@ -362,17 +370,33 @@ pub fn classify_vegetation(feat: &VegFeatures, config: &EngineConfig) -> VegResu
 
     let open_h = config.open_max_height_m as f32;
     let open_cell_bits: Vec<u8> = (0..n)
-        .map(|i| u8::from(active[i] != 0 && feat.vegh[i] < open_h && feat.high_share[i] < 0.08))
+        .map(|i| {
+            u8::from(
+                active[i] != 0
+                    && feat.vegh[i] < open_h
+                    && feat.high_share[i] < 0.08
+                    && feat.mid_share[i] < 0.08,
+            )
+        })
         .collect();
     let tree_cell_bits: Vec<u8> = (0..n)
         .map(|i| u8::from(active[i] != 0 && feat.vegh[i] > 3.0))
         .collect();
+    // Woody (non-open) cells: used so adjacent open lawns/meadows never dilute forest/park-edge thickets in 5x5/11x11 means.
+    let woody_bits: Vec<u8> = (0..n)
+        .map(|i| u8::from(active[i] != 0 && open_cell_bits[i] == 0))
+        .collect();
     let it_open_cell = Integral2D::from_binary(&open_cell_bits, w, h);
     let it_tree_cell = Integral2D::from_binary(&tree_cell_bits, w, h);
+    let it_wcnt = Integral2D::from_binary(&woody_bits, w, h);
+    let it_wgnd = Integral2D::from_masked(&feat.ground_share, &woody_bits, w, h);
+    let it_wmid = Integral2D::from_masked(&feat.mid_share, &woody_bits, w, h);
+    let it_whigh = Integral2D::from_masked(&feat.high_share, &woody_bits, w, h);
 
     let mut raw_land = vec![LAB_NONE; n];
     let mut raw_und = vec![0u8; n];
 
+    let sprint = config.interval <= 3.0 || config.scale <= 5_000;
     let steep_cut = config.steep_cutoff_deg as f32;
     let g_scale = config.green_scale;
     let c_wt = config.canopy_weight;
@@ -388,10 +412,17 @@ pub fn classify_vegetation(feat: &VegFeatures, config: &EngineConfig) -> VegResu
             if active[i] == 0 {
                 continue;
             }
+            let c3 = it_cnt.box_sum(c, r, 1).max(1.0);
             let c5 = it_cnt.box_sum(c, r, 2).max(1.0);
             let c7 = it_cnt.box_sum(c, r, 3).max(1.0);
             let c9 = it_cnt.box_sum(c, r, 4).max(1.0);
             let c11 = it_cnt.box_sum(c, r, 5).max(1.0);
+
+            let vegh_m3 = it_vegh.box_sum(c, r, 1) / c3;
+            let gnd_m3 = it_gnd.box_sum(c, r, 1) / c3;
+            let low_m3 = it_low.box_sum(c, r, 1) / c3;
+            let mid_m3 = it_mid.box_sum(c, r, 1) / c3;
+            let high_m3 = it_high.box_sum(c, r, 1) / c3;
 
             let vegh_m5 = it_vegh.box_sum(c, r, 2) / c5;
             let gnd_m5 = it_gnd.box_sum(c, r, 2) / c5;
@@ -411,45 +442,105 @@ pub fn classify_vegetation(feat: &VegFeatures, config: &EngineConfig) -> VegResu
             let slope = feat.slope_deg[i];
             let is_steep = slope.is_finite() && slope > steep_cut;
 
+            // Detect compact dense low shrubs/bushes (0.8-2.0 m, low ground share, strong low+mid returns)
+            // so park/edge thickets and sprint hedges classify as green instead of yellow open land.
+            let bush_sig = mid_m3 + (if sprint { 0.65 } else { 0.45 }) * low_m3;
+            let is_low_bush = !is_steep
+                && vegh_m3 >= if sprint { 0.8 } else { 1.0 }
+                && gnd_m3 < 0.65
+                && bush_sig >= if sprint { 0.085 } else { 0.14 };
+
             // 1. Open (401/403) and Semi-open (402/404) classification.
-            let local_open = f64::from(feat.vegh[i]) < config.open_max_height_m
+            let local_open = !is_low_bush
+                && f64::from(feat.vegh[i]) < config.open_max_height_m
                 && f64::from(feat.high_share[i]) < 0.07
                 && gnd_m5 >= open_gnd_min;
-            let patch_open = open_frac7 >= 0.52
+            let patch_open = !is_low_bush
+                && open_frac7 >= 0.52
                 && vegh_m5 < config.open_max_height_m * 1.45
                 && high_m5 < 0.12
                 && gnd_m5 >= open_gnd_min;
             let is_open = local_open || patch_open;
 
-            let is_semi = (open_frac9 >= 0.46
-                && tree_frac9 >= 0.22
-                && tree_frac9 <= 0.56
-                && gnd_m5 >= open_gnd_min - 0.06
-                && mid_m5 < 0.085)
-                || (is_open && tree_frac9 >= 0.30 && high_m5 >= 0.07);
+            let is_semi = !is_low_bush
+                && ((open_frac9 >= 0.46
+                    && tree_frac9 >= 0.22
+                    && tree_frac9 <= 0.56
+                    && gnd_m5 >= open_gnd_min - 0.06
+                    && mid_m5 < 0.085)
+                    || (is_open && tree_frac9 >= 0.30 && high_m5 >= 0.07));
 
             if is_semi {
                 raw_land[i] = LAB_SEMI;
             } else if is_open {
                 raw_land[i] = LAB_OPEN;
-            } else if !is_steep && vegh_m5 >= 1.8 {
-                // 2. Green (406/408/410): combines 1-3 m shrub density + Beer-Lambert canopy closure.
-                let shrub = 0.65 * mid_m5 + 0.35 * mid_m11;
-                let g_mix = (0.60 * gnd_m5 + 0.40 * gnd_m11).clamp(0.06, 1.0);
-                let lai_excess = (-g_mix.ln() - 0.74).max(0.0) * 0.22;
-                let high_excess = (0.60 * high_m5 + 0.40 * high_m11 - 0.42).max(0.0);
-                let canopy_closure = 0.55 * lai_excess + 0.45 * high_excess;
-                let green_score = (shrub + c_wt * canopy_closure) * g_scale;
+            } else if !is_steep && (if sprint { vegh_m3 >= 0.8 } else { vegh_m5 >= 1.8 || is_low_bush }) {
+                if sprint {
+                    // Sprint (1:4000): compact 3x3/5x5 shrub + light canopy closure so narrow hedges/thickets
+                    // survive without over-greening tall open park trees.
+                    let shrub = 0.60 * mid_m3
+                        + 0.40 * mid_m5
+                        + 0.65 * (0.60 * low_m3 + 0.40 * low_m5);
+                    let g_mix = (0.55 * gnd_m3 + 0.45 * gnd_m5).clamp(0.06, 1.0);
+                    let lai_excess = (-g_mix.ln() - 0.74).max(0.0) * 0.22;
+                    let high_excess = (0.55 * high_m3 + 0.45 * high_m5 - 0.42).max(0.0);
+                    let canopy_closure = 0.55 * lai_excess + 0.45 * high_excess;
+                    let score = (shrub + (c_wt * 0.25) * canopy_closure) * g_scale;
 
-                raw_land[i] = if green_score >= g_hi {
-                    LAB_GREEN_410
-                } else if green_score >= g_med {
-                    LAB_GREEN_408
-                } else if green_score >= g_lo {
-                    LAB_GREEN_406
+                    raw_land[i] = if score >= g_hi * 0.72 {
+                        LAB_GREEN_410
+                    } else if score >= g_med * 0.68 {
+                        LAB_GREEN_408
+                    } else if score >= g_lo * 0.62 {
+                        LAB_GREEN_406
+                    } else {
+                        LAB_FOREST
+                    };
                 } else {
-                    LAB_FOREST
-                };
+                    // Forest (1:10k-1:15k): keep continuous pine/spruce forest unmasked & calm, and only
+                    // de-dilute woody cells next to genuine open meadows/lawns (open_frac11 > 0.18).
+                    let open_frac11 = it_open_cell.box_sum(c, r, 5) / c11;
+                    let wc5 = it_wcnt.box_sum(c, r, 2);
+                    let wc11 = it_wcnt.box_sum(c, r, 5);
+                    let edge_w = ((open_frac11 - 0.18) / 0.25).clamp(0.0, 1.0)
+                        * (wc5 / 6.0).clamp(0.0, 1.0);
+                    let blend_edge = |all_v: f64, w_sum: f64, wc: f64| -> f64 {
+                        if edge_w > 0.0 && wc >= 1.0 {
+                            let wv = w_sum / wc;
+                            all_v + edge_w * (wv - all_v)
+                        } else {
+                            all_v
+                        }
+                    };
+                    let em5 = blend_edge(mid_m5, it_wmid.box_sum(c, r, 2), wc5);
+                    let em11 = blend_edge(mid_m11, it_wmid.box_sum(c, r, 5), wc11);
+                    let eg5 = blend_edge(gnd_m5, it_wgnd.box_sum(c, r, 2), wc5);
+                    let eg11 = blend_edge(gnd_m11, it_wgnd.box_sum(c, r, 5), wc11);
+                    let eh5 = blend_edge(high_m5, it_whigh.box_sum(c, r, 2), wc5);
+                    let eh11 = blend_edge(high_m11, it_whigh.box_sum(c, r, 5), wc11);
+
+                    let shrub_calm = 0.65 * em5 + 0.35 * em11;
+                    let g_mix = (0.60 * eg5 + 0.40 * eg11).clamp(0.06, 1.0);
+                    let lai_excess = (-g_mix.ln() - 0.74).max(0.0) * 0.22;
+                    let high_excess = (0.60 * eh5 + 0.40 * eh11 - 0.42).max(0.0);
+                    let canopy_calm = 0.55 * lai_excess + 0.45 * high_excess;
+                    let base_score = (shrub_calm + c_wt * canopy_calm) * g_scale;
+
+                    // Eye-level foliage ratio mid/(mid+high) separates dense 408/410 thickets (even leaf-off
+                    // deciduous shrubs) from tall clear-trunk 405/406 spruce/oak stands without over-greening white forest.
+                    let mid_frac = em5 / (em5 + eh5 + 0.05);
+                    let score_408 = base_score + 1.8 * em5 * (mid_frac - 0.16).max(0.0) * g_scale;
+
+                    raw_land[i] = if score_408 >= g_hi {
+                        LAB_GREEN_410
+                    } else if score_408 >= g_med {
+                        LAB_GREEN_408
+                    } else if base_score >= g_lo || (is_low_bush && mid_m3 >= g_lo) {
+                        LAB_GREEN_406
+                    } else {
+                        LAB_FOREST
+                    };
+                }
             } else {
                 raw_land[i] = LAB_FOREST;
             }
@@ -472,11 +563,30 @@ pub fn classify_vegetation(feat: &VegFeatures, config: &EngineConfig) -> VegResu
         }
     }
 
-    // Spatial generalization: controllable soft-majority pass + connected-component island filtering.
+    // Spatial generalization: scale-aware soft-majority (tighter for dense 408/410 & sprint) + island filter.
     let cell_area = feat.world.cell * feat.world.cell;
-    let min_cells = (config.min_veg_area_m2 / cell_area).round().max(2.0) as usize;
-    let veg_sigma = (config.veg_smooth as f32).clamp(0.0, 3.0);
-    let smoothed = soft_majority(&raw_land, w, h, veg_sigma);
+    let eff_min_area_m2 = if sprint && config.min_veg_area_m2 >= 250.0 {
+        50.0
+    } else {
+        config.min_veg_area_m2
+    };
+    let min_cells = (eff_min_area_m2 / cell_area).round().max(2.0) as usize;
+    let raw_sigma = (config.veg_smooth as f32).clamp(0.0, 3.0);
+    let veg_sigma = if raw_sigma <= 0.25 {
+        0.0
+    } else if sprint {
+        (raw_sigma * 0.45).clamp(0.35, 0.70)
+    } else {
+        (raw_sigma * 1.34).clamp(0.45, 3.0)
+    };
+    let dense_sigma = if veg_sigma <= 0.25 {
+        0.0
+    } else if sprint {
+        veg_sigma
+    } else {
+        (raw_sigma * 1.08).clamp(0.40, 2.2)
+    };
+    let smoothed = soft_majority(&raw_land, w, h, veg_sigma, dense_sigma);
     let land = remove_small_islands(&smoothed, w, h, min_cells);
 
     let und_valid: Vec<u8> = (0..n)
@@ -555,4 +665,99 @@ pub fn write_vegetation_png(out_dir: &Path, veg: &VegResult) -> Result<(), Strin
     write_rgba_png(&out_dir.join("vegetationsklasser.png"), veg.width, veg.height, &rgba)?;
     std::fs::write(out_dir.join("vegetationsklasser.pgw"), veg.world.to_pgw())
         .map_err(|e| format!("Failed to write vegetationsklasser.pgw: {e}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn blank_features(w: usize, h: usize) -> VegFeatures {
+        let n = w * h;
+        VegFeatures {
+            width: w,
+            height: h,
+            world: WorldTransform { cell: 2.0, x0: 1001.0, y0: 2000.0 + (h as f64) * 2.0 - 1.0 },
+            valid: vec![1; n],
+            water: vec![0; n],
+            vegh: vec![12.0; n],
+            ground_share: vec![0.48; n],
+            low_share: vec![0.0; n],
+            mid_share: vec![0.01; n],
+            high_share: vec![0.45; n],
+            return_ratio: vec![0.52; n],
+            npts: vec![12.0; n],
+            ground_intensity: vec![4000.0; n],
+            spread: vec![0.04; n],
+            slope_deg: vec![4.0; n],
+        }
+    }
+
+    #[test]
+    fn forest_preserves_compact_410_thicket_in_open_park_and_keeps_mature_forest_white() {
+        let (w, h) = (50, 50);
+        let mut feat = blank_features(w, h);
+        // Left half: open park meadow. Right half: mature white forest.
+        for r in 0..h {
+            for c in 0..25 {
+                let i = r * w + c;
+                feat.vegh[i] = 0.1;
+                feat.ground_share[i] = 0.95;
+                feat.mid_share[i] = 0.0;
+                feat.high_share[i] = 0.0;
+            }
+        }
+        // Compact 14x14 m (7x7 cells) dense thicket (vegh=4.5m, mid=0.24, gnd=0.38) right inside open park!
+        for r in 18..25 {
+            for c in 9..16 {
+                let i = r * w + c;
+                feat.vegh[i] = 4.5;
+                feat.ground_share[i] = 0.38;
+                feat.low_share[i] = 0.06;
+                feat.mid_share[i] = 0.24;
+                feat.high_share[i] = 0.25;
+            }
+        }
+        let cfg = EngineConfig::defaults_for_interval(5.0);
+        let res = classify_vegetation(&feat, &cfg);
+        assert!(
+            res.land[21 * w + 12] >= LAB_GREEN_408,
+            "Compact dense park thicket must survive as 408/410, got {}",
+            res.land[21 * w + 12]
+        );
+        assert_eq!(res.land[25 * w + 40], LAB_FOREST, "Mature open-understory forest must stay white");
+        assert_eq!(res.land[5 * w + 5], LAB_OPEN, "Open meadow must stay open");
+    }
+
+    #[test]
+    fn sprint_detects_compact_low_dense_shrub_as_green_not_open() {
+        let (w, h) = (40, 40);
+        let mut feat = blank_features(w, h);
+        // Open lawn background.
+        for i in 0..(w * h) {
+            feat.vegh[i] = 0.1;
+            feat.ground_share[i] = 0.96;
+            feat.mid_share[i] = 0.0;
+            feat.low_share[i] = 0.0;
+            feat.high_share[i] = 0.0;
+        }
+        // Small 10x10 m (5x5 cells = 100 m²) dense low bush/hedge (vegh=1.3m, gnd=0.45, mid=0.14, low=0.12).
+        for r in 15..20 {
+            for c in 15..20 {
+                let i = r * w + c;
+                feat.vegh[i] = 1.3;
+                feat.ground_share[i] = 0.45;
+                feat.low_share[i] = 0.12;
+                feat.mid_share[i] = 0.14;
+                feat.high_share[i] = 0.02;
+            }
+        }
+        let cfg = EngineConfig::defaults_for_interval(2.5);
+        let res = classify_vegetation(&feat, &cfg);
+        assert!(
+            res.land[17 * w + 17] >= LAB_GREEN_406,
+            "Sprint low dense bush (100 m²) must classify as green, got {}",
+            res.land[17 * w + 17]
+        );
+        assert_eq!(res.land[5 * w + 5], LAB_OPEN, "Surrounding sprint lawn must stay open");
+    }
 }

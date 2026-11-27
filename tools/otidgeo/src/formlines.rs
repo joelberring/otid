@@ -9,8 +9,8 @@
 use crate::contours::trace_level;
 use crate::dem::PreparedDem;
 use crate::geometry::{
-    has_self_intersection, is_depression_ring, point_in_ring, polyline_length, rdp_simplify,
-    signed_area, smooth_and_simplify_safe,
+    closed_loop_raw_prominence, has_self_intersection, is_depression_ring, polyline_length,
+    rdp_simplify, signed_area, smooth_and_simplify_safe,
 };
 use crate::types::{ContourLayer, ContourLine, ContourProfile, EngineConfig, FormlineMode};
 use rayon::prelude::*;
@@ -154,46 +154,6 @@ fn form_between_contours(dem: &PreparedDem, x: f64, y: f64, interval: f64, offse
     (up - down) / (up + down)
 }
 
-/// Measures `raw_z` prominence of an enclosed closed formline loop (peak height above `elev`,
-/// or pit depth below `elev`). Used by the ridge/knoll boost to verify genuine small hills/pits.
-fn closed_loop_raw_prominence(pts: &[[f64; 2]], elev: f64, is_dep: bool, dem: &PreparedDem) -> f64 {
-    let mut min_x = f64::INFINITY;
-    let mut max_x = f64::NEG_INFINITY;
-    let mut min_y = f64::INFINITY;
-    let mut max_y = f64::NEG_INFINITY;
-    let (mut sx, mut sy) = (0.0, 0.0);
-    for &[x, y] in pts {
-        min_x = min_x.min(x);
-        max_x = max_x.max(x);
-        min_y = min_y.min(y);
-        max_y = max_y.max(y);
-        sx += x;
-        sy += y;
-    }
-    let cx = sx / pts.len() as f64;
-    let cy = sy / pts.len() as f64;
-    let mut best = 0.0f64;
-    if let Some(zc) = dem.sample_raw(cx, cy) {
-        best = best.max(if is_dep { elev - f64::from(zc) } else { f64::from(zc) - elev });
-    }
-    // Sample interior grid points (step 2 m, capped to <= 12x12) so crescent/elongated peaks are found.
-    let step = ((max_x - min_x).max(max_y - min_y) / 10.0).max(2.0);
-    let mut y = min_y + 0.5 * step;
-    while y < max_y {
-        let mut x = min_x + 0.5 * step;
-        while x < max_x {
-            if point_in_ring([x, y], pts) {
-                if let Some(z) = dem.sample_raw(x, y) {
-                    best = best.max(if is_dep { elev - f64::from(z) } else { f64::from(z) - elev });
-                }
-            }
-            x += step;
-        }
-        y += step;
-    }
-    best
-}
-
 /// Resamples a polyline to uniform spacing `step_m`.
 fn resample(pts: &[[f64; 2]], closed: bool, step_m: f64) -> Vec<[f64; 2]> {
     let mut path = pts.to_vec();
@@ -271,43 +231,172 @@ pub fn extract_formlines(
     let min_slope = config.formline_min_slope_deg as f32;
     let max_slope = config.formline_max_slope_deg as f32;
     let min_len = config.formline_min_length_m;
-    let min_cut_len = 14.0f64;
+    let min_cut_len = if sprint { 8.0f64 } else { 12.0f64 };
     let taubin_passes = config.taubin_passes;
 
-    // Ridge / small-hill boost parameters (preserve real 2-3.5 m hills & distinct noses in 3-8° terrain).
-    let detailed_profile = matches!(config.profile, ContourProfile::VeryDetailed | ContourProfile::Detailed);
-    let boost_loop_area_m2: f64 = match config.formline_mode {
+    // Monotonic ridge / small-hill boost parameters (preserve real small hills & distinct noses).
+    let boost_loop_area_m2 = match config.formline_mode {
         FormlineMode::Off => return Vec::new(),
-        FormlineMode::Sparse => if sprint { 28.0 } else { 65.0 },
-        FormlineMode::Normal => {
-            if detailed_profile {
-                if sprint { 10.0 } else { 20.0 }
-            } else if sprint {
-                16.0
-            } else {
-                35.0
-            }
-        }
-        FormlineMode::Dense => if sprint { 10.0 } else { 20.0 },
+        FormlineMode::Sparse => (config.formline_min_loop_area_m2 * 0.75).max(if sprint { 18.0 } else { 44.0 }),
+        FormlineMode::Normal => (config.formline_min_loop_area_m2 * 0.52).max(if sprint { 8.0 } else { 16.0 }),
+        FormlineMode::Dense => (config.formline_min_loop_area_m2 * 0.48).max(if sprint { 7.0 } else { 14.0 }),
+    }
+    .min(config.formline_min_loop_area_m2);
+    let boost_min_prominence = match config.formline_mode {
+        FormlineMode::Sparse => if sprint { 0.55 } else { 0.85 },
+        _ => if sprint { 0.35 } else { 0.50 },
     };
-    let boost_loop_area_m2 = boost_loop_area_m2.min(config.formline_min_loop_area_m2);
-    let boost_min_prominence = if sprint { 0.45 } else { 0.70 };
-    let boost_open_gap = (if sprint { 2.8f32 } else { 4.5f32 }).min(min_gap);
+    let hard_clearance_floor = (config.min_clearance_m as f32 * 1.30).max(if sprint { 1.25 } else { 2.20 });
+    let boost_open_gap = (min_gap * 0.80).max(hard_clearance_floor).min(min_gap);
 
-    // Mode-dependent terrain-form selectivity (convexity / shelf preference).
-    let (min_convex, min_form, allow_steep_shelf) = match config.formline_mode {
+    // Profile- and mode-dependent terrain-form selectivity (convexity / shelf preference).
+    // Omits concave valley footslopes and featureless steep walls while keeping ridges,
+    // noses, spurs, hilltops, saddles, and distinct benches/terraces cleanly.
+    let (min_convex, min_form, allow_steep_shelf, selective_slope, form_scale) = match config.formline_mode {
         FormlineMode::Off => return Vec::new(),
-        FormlineMode::Sparse => (0.25f32, 0.22f64, false),
-        FormlineMode::Normal => (-0.80f32, -0.18f64, true),
-        FormlineMode::Dense => (-9.0f32, -1.0f64, true),
+        FormlineMode::Sparse => (0.25f32, 0.25f64, false, if sprint { 5.0f32 } else { 7.5f32 }, 1.45f32),
+        FormlineMode::Dense => (-9.0f32, -1.0f64, true, 90.0f32, 0.0f32),
+        FormlineMode::Normal => match config.profile {
+            ContourProfile::VeryDetailed => (
+                -2.5f32,
+                -0.45f64,
+                true,
+                if sprint { 11.0f32 } else { 16.0f32 },
+                if sprint { 0.55f32 } else { 0.42f32 },
+            ),
+            ContourProfile::Detailed => (
+                -1.8f32,
+                -0.35f64,
+                true,
+                if sprint { 8.5f32 } else { 14.2f32 },
+                if sprint { 0.78f32 } else { 0.55f32 },
+            ),
+            ContourProfile::Normal => (
+                if sprint { -0.80f32 } else { -1.40f32 },
+                if sprint { -0.15f64 } else { -0.30f64 },
+                true,
+                if sprint { 6.8f32 } else { 13.0f32 },
+                if sprint { 0.95f32 } else { 0.68f32 },
+            ),
+            ContourProfile::Generalized => (
+                0.05f32,
+                0.12f64,
+                true,
+                if sprint { 5.0f32 } else { 9.8f32 },
+                if sprint { 1.25f32 } else { 1.05f32 },
+            ),
+            ContourProfile::VeryGeneralized => (
+                0.25f32,
+                0.25f64,
+                false,
+                if sprint { 3.8f32 } else { 7.5f32 },
+                if sprint { 1.55f32 } else { 1.40f32 },
+            ),
+        },
     };
 
-    let sample_step = 4.0;
+    let sample_step = if sprint { 2.5 } else { 3.5 };
+    let max_intact_ring_area = if sprint { 600.0f64 } else { 2200.0f64 };
+    let flat_mound_c16 = if sprint { 0.34f32 } else { 0.42f32 };
+    let nose_c16 = if sprint { 0.10f32 } else { 0.12f32 };
+    let nose_c60 = if sprint { 0.28f32 } else { 0.36f32 };
+    let steep_cap = max_slope + if config.formline_mode == FormlineMode::Dense { 7.0 } else { 4.5 };
+
     let per_level: Vec<Vec<ContourLine>> = levels
         .par_iter()
         .map(|&elev| {
             let chains = trace_level(dem, elev);
             let mut out = Vec::new();
+
+            // Evaluates per-sample keep/drop flags along any resampled half-contour (open or cyclic).
+            let eval_samples = |pts: &[[f64; 2]]| -> (Vec<bool>, Vec<bool>, Vec<f32>, Vec<f32>) {
+                let mut drop = vec![false; pts.len()];
+                let mut hard_gap = vec![false; pts.len()];
+                let mut med_slopes = vec![5.0f32; pts.len()];
+                let mut conv16s = vec![0.0f32; pts.len()];
+
+                for (i, &[x, y]) in pts.iter().enumerate() {
+                    let d = dist_at(x, y);
+                    let local_slp = dem.sample_slope(x, y).unwrap_or(5.0);
+                    let med_slp = dem.sample_mean_slope_16m(x, y).unwrap_or(local_slp);
+                    let flat_slp = dem.sample_mean_slope(x, y).unwrap_or(med_slp);
+                    let conv16 = dem.sample_convex_16m(x, y).unwrap_or(0.0);
+                    let conv60 = dem.sample_convex(x, y).unwrap_or(0.0);
+                    med_slopes[i] = med_slp;
+                    conv16s[i] = conv16;
+
+                    // 1. Suppress wandering ghost formlines on flat ground (0-2.5°), including flat park lawns
+                    // immediately adjacent to steep hills (detected cleanly via `med_slp` and `local_slp`).
+                    let eff_flat = flat_slp.min(med_slp);
+                    let flat_local_floor = if sprint { min_slope * 0.88 } else { min_slope * 0.84 };
+                    if eff_flat < min_slope || local_slp < flat_local_floor {
+                        if !(conv16 >= flat_mound_c16 && local_slp >= 2.1) {
+                            drop[i] = true;
+                            continue;
+                        }
+                    }
+
+                    // 2. Ridge / nose / spur detection across readable hilly slopes.
+                    let is_ridge_nose = config.formline_mode != FormlineMode::Sparse
+                        && local_slp >= 2.2
+                        && local_slp <= max_slope + 3.5
+                        && (conv16 >= nose_c16 || conv60 >= nose_c60);
+                    let eff_gap = if is_ridge_nose { boost_open_gap } else { min_gap };
+                    let hard_min = (eff_gap * 0.74).max(hard_clearance_floor);
+
+                    if d < hard_min {
+                        drop[i] = true;
+                        hard_gap[i] = true;
+                        continue;
+                    }
+
+                    // 3. Steep slopes (> max_slope or close to main contour): keep ONLY distinct shelves & strong noses.
+                    if local_slp > max_slope || d < eff_gap {
+                        if allow_steep_shelf && local_slp <= steep_cap && d >= hard_min {
+                            let form = form_between_contours(dem, x, y, iv, config.level_offset);
+                            let req_steep_c16 = (if sprint { 0.18 } else { 0.24 }) * form_scale.max(0.6);
+                            let req_steep_form = (0.34 * f64::from(form_scale.max(0.6))).min(0.55);
+                            let strong_nose = is_ridge_nose && conv16 >= req_steep_c16 && form >= 0.08;
+                            if form < req_steep_form && !strong_nose {
+                                drop[i] = true;
+                            }
+                        } else {
+                            drop[i] = true;
+                        }
+                        continue;
+                    }
+
+                    // 4. Slope-progressive form selectivity above `selective_slope` (10.5° forest, 6.2° sprint):
+                    // drop smooth uniform walls where 101 contours already define the slope,
+                    // while keeping ridges, noses, spurs, gullies/saddles, and distinct benches/shelves!
+                    if form_scale > 0.0 && local_slp > selective_slope {
+                        let t = ((local_slp - selective_slope) / (max_slope - selective_slope).max(3.0)).clamp(0.0, 1.0);
+                        let req_c16 = ((if sprint { 0.09 } else { 0.11 }) + (if sprint { 0.14 } else { 0.17 }) * t) * form_scale;
+                        let req_c60 = ((if sprint { 0.30 } else { 0.42 }) + (if sprint { 0.38 } else { 0.45 }) * t) * form_scale;
+                        let has_convex = conv16 >= req_c16 || conv60 >= req_c60;
+                        if !has_convex {
+                            let form = form_between_contours(dem, x, y, iv, config.level_offset);
+                            let req_form = ((if sprint { 0.22 } else { 0.16 }) + (if sprint { 0.22 } else { 0.24 }) * f64::from(t))
+                                * f64::from(form_scale);
+                            if form < req_form {
+                                drop[i] = true;
+                                continue;
+                            }
+                        }
+                    }
+
+                    // 5. Gentle/moderate slope form selectivity for concave footslopes & generalized profiles.
+                    if config.formline_mode != FormlineMode::Dense && !is_ridge_nose {
+                        if conv60 < min_convex {
+                            let form = form_between_contours(dem, x, y, iv, config.level_offset);
+                            if form < min_form {
+                                drop[i] = true;
+                            }
+                        }
+                    }
+                }
+                (drop, hard_gap, med_slopes, conv16s)
+            };
 
             for ch in chains {
                 if ch.closed {
@@ -316,60 +405,216 @@ pub fn extract_formlines(
                         continue;
                     }
                     let is_dep = is_depression_ring(&ch.points, elev, dem);
-                    let raw_prom = closed_loop_raw_prominence(&ch.points, elev, is_dep, dem);
+                    let raw_prom = if area <= max_intact_ring_area {
+                        closed_loop_raw_prominence(&ch.points, elev, is_dep, dem)
+                    } else {
+                        boost_min_prominence + 1.0
+                    };
                     let verified_hill = raw_prom >= boost_min_prominence;
 
                     if area < config.formline_min_loop_area_m2 && !verified_hill {
                         continue;
                     }
 
-                    let mut mean_slp = 0.0f64;
-                    let mut local_slp_sum = 0.0f64;
-                    let mut min_d = f32::INFINITY;
-                    let mut n_ok = 0usize;
-                    for &[x, y] in &ch.points {
-                        if let Some(s) = dem.sample_mean_slope(x, y) {
-                            mean_slp += f64::from(s);
-                            n_ok += 1;
+                    // Small/medium closed hilltops & depressions: try intact closed ring first!
+                    if area <= max_intact_ring_area {
+                        let mut mean_slp = 0.0f64;
+                        let mut med_slp_sum = 0.0f64;
+                        let mut local_slp_sum = 0.0f64;
+                        let mut min_d = f32::INFINITY;
+                        let mut dists: Vec<f32> = Vec::with_capacity(ch.points.len());
+                        let mut n_ok = 0usize;
+                        for &[x, y] in &ch.points {
+                            if let Some(s) = dem.sample_mean_slope(x, y) {
+                                mean_slp += f64::from(s);
+                                n_ok += 1;
+                            }
+                            if let Some(ms) = dem.sample_mean_slope_16m(x, y) {
+                                med_slp_sum += f64::from(ms);
+                            }
+                            if let Some(ls) = dem.sample_slope(x, y) {
+                                local_slp_sum += f64::from(ls);
+                            }
+                            let dv = dist_at(x, y);
+                            min_d = min_d.min(dv);
+                            dists.push(dv);
                         }
-                        if let Some(ls) = dem.sample_slope(x, y) {
-                            local_slp_sum += f64::from(ls);
+                        let avg_slp = if n_ok > 0 { (mean_slp / n_ok as f64) as f32 } else { 5.0 };
+                        let avg_med = if n_ok > 0 { (med_slp_sum / n_ok as f64) as f32 } else { avg_slp };
+                        let avg_local = if n_ok > 0 { (local_slp_sum / n_ok as f64) as f32 } else { 5.0 };
+                        let cx = ch.points.iter().map(|p| p[0]).sum::<f64>() / ch.points.len() as f64;
+                        let cy = ch.points.iter().map(|p| p[1]).sum::<f64>() / ch.points.len() as f64;
+                        let cen_med = dem.sample_mean_slope_16m(cx, cy).unwrap_or(avg_med);
+                        dists.sort_by(|a, b| a.total_cmp(b));
+                        let med_d = dists[dists.len() / 2];
+
+                        // Keep flat ground (< 2.6°) free of ghost 103 rings: only allow genuinely prominent hills/pits.
+                        if avg_med.min(cen_med) < 2.6 || avg_slp < 2.5 {
+                            let flat_prom_req = if is_dep {
+                                if sprint { 0.65 } else { 0.85 }
+                            } else if sprint {
+                                0.82
+                            } else {
+                                0.95
+                            };
+                            if raw_prom < flat_prom_req || area < config.formline_min_loop_area_m2 {
+                                continue;
+                            }
+                        } else {
+                            let loop_min_slope = if is_dep || verified_hill { 1.0 } else { min_slope * 0.70 };
+                            if avg_slp.min(avg_med) < loop_min_slope {
+                                continue;
+                            }
                         }
-                        min_d = min_d.min(dist_at(x, y));
+
+                        let hard_loop_gap = if verified_hill {
+                            (config.min_clearance_m as f32 * 0.80).max(if sprint { 0.78 } else { 1.45 })
+                        } else {
+                            (config.min_clearance_m as f32 * 0.90).max(if sprint { 0.95 } else { 1.75 })
+                        };
+                        let loop_med_gap = if config.formline_mode == FormlineMode::Dense {
+                            hard_loop_gap
+                        } else if verified_hill {
+                            (min_gap * 0.44).max(hard_loop_gap + 0.25)
+                        } else {
+                            (min_gap * 0.65).max(hard_loop_gap + 0.6)
+                        };
+                        if avg_local <= max_slope + 6.0 && min_d >= hard_loop_gap && med_d >= loop_med_gap {
+                            let smoothed = smooth_and_simplify_safe(
+                                &ch.points,
+                                true,
+                                dem,
+                                elev,
+                                max_rise,
+                                config.simplify_m,
+                                taubin_passes,
+                            );
+                            out.push(ContourLine {
+                                layer: ContourLayer::Formline,
+                                elevation: elev,
+                                closed: true,
+                                points: smoothed,
+                            });
+                            continue;
+                        }
+                        // If a medium hilltop/bench only failed on one steep side, let the cyclic cutter keep
+                        // the readable side rather than deleting the entire hill!
+                        if polyline_length(&ch.points, true) < min_len * 1.5 {
+                            continue;
+                        }
                     }
-                    let avg_slp = if n_ok > 0 { (mean_slp / n_ok as f64) as f32 } else { 5.0 };
-                    let avg_local = if n_ok > 0 { (local_slp_sum / n_ok as f64) as f32 } else { 5.0 };
-                    // Verified small hills/depressions survive down to gentler background slopes.
-                    let loop_min_slope = if is_dep || verified_hill { 0.5 } else { min_slope * 0.6 };
-                    if avg_slp < loop_min_slope {
-                        continue;
-                    }
-                    let norm_floor = if sprint { 1.3f32 } else { 2.4f32 };
-                    let loop_min_gap = if config.formline_mode == FormlineMode::Dense {
-                        (config.min_clearance_m as f32 * 0.9).max(norm_floor * 0.85)
-                    } else if verified_hill {
-                        (min_gap * 0.40).min(4.5).max(norm_floor)
-                    } else {
-                        (min_gap * 0.45).max(config.min_clearance_m as f32).max(norm_floor)
-                    };
-                    if avg_local > max_slope + 4.5 || min_d < loop_min_gap {
-                        continue;
-                    }
+
+                    // Large closed half-contour rings (or partially pinched medium rings):
+                    // evaluate per-point cyclically so steep cliffs & flat meadows are cleanly cut out
+                    // while all readable noses, ridges, saddles, and benches survive!
                     let smoothed = smooth_and_simplify_safe(
                         &ch.points,
                         true,
                         dem,
                         elev,
                         max_rise,
-                        config.simplify_m,
+                        config.simplify_m * 0.7,
                         taubin_passes,
                     );
-                    out.push(ContourLine {
-                        layer: ContourLayer::Formline,
-                        elevation: elev,
-                        closed: true,
-                        points: smoothed,
-                    });
+                    let samples = resample(&smoothed, true, sample_step);
+                    let m = samples.len().saturating_sub(1);
+                    if m < 4 {
+                        continue;
+                    }
+                    let ring_pts = &samples[..m];
+                    let total_len = polyline_length(&samples, false);
+                    let step = total_len / m as f64;
+                    let (drop, hard_gap, med_slopes, conv16s) = eval_samples(ring_pts);
+
+                    let Some(keep_anchor) = drop.iter().position(|&d| !d) else {
+                        continue; // Entire ring dropped.
+                    };
+                    let mut cut = vec![false; m];
+                    let mut off = 0usize;
+                    while off < m {
+                        let idx = (keep_anchor + off) % m;
+                        if !drop[idx] {
+                            off += 1;
+                            continue;
+                        }
+                        let run_start = off;
+                        let mut hard_viol = hard_gap[idx];
+                        while off + 1 < m && drop[(keep_anchor + off + 1) % m] {
+                            off += 1;
+                            if hard_gap[(keep_anchor + off) % m] {
+                                hard_viol = true;
+                            }
+                        }
+                        if ((off - run_start + 1) as f64) * step >= min_cut_len || hard_viol {
+                            for k in run_start..=off {
+                                cut[(keep_anchor + k) % m] = true;
+                            }
+                        }
+                        off += 1;
+                    }
+
+                    if let Some(cut_anchor) = cut.iter().position(|&c| c) {
+                        let mut pos = 0usize;
+                        while pos < m {
+                            if cut[(cut_anchor + pos) % m] {
+                                pos += 1;
+                                continue;
+                            }
+                            let run_start = pos;
+                            while pos + 1 < m && !cut[(cut_anchor + pos + 1) % m] {
+                                pos += 1;
+                            }
+                            let cnt = pos - run_start + 1;
+                            let piece_len = ((cnt - 1) as f64) * step;
+                            if piece_len >= min_len && cnt >= 2 {
+                                let mut slp_sum = 0.0f32;
+                                let mut max_c16 = f32::NEG_INFINITY;
+                                let mut raw_piece = Vec::with_capacity(cnt);
+                                for k in run_start..=pos {
+                                    let idx = (cut_anchor + k) % m;
+                                    slp_sum += med_slopes[idx];
+                                    max_c16 = max_c16.max(conv16s[idx]);
+                                    raw_piece.push(ring_pts[idx]);
+                                }
+                                if (slp_sum / cnt as f32) >= min_slope * 0.92 || max_c16 >= flat_mound_c16 {
+                                    let piece = rdp_simplify(&raw_piece, false, config.simplify_m);
+                                    if piece.len() >= 2 && !has_self_intersection(&piece, false) {
+                                        out.push(ContourLine {
+                                            layer: ContourLayer::Formline,
+                                            elevation: elev,
+                                            closed: false,
+                                            points: piece,
+                                        });
+                                    }
+                                }
+                            }
+                            pos += 1;
+                        }
+                    } else {
+                        // Entire ring passed per-point filter cleanly -> verify not a flat ghost ring, then keep intact!
+                        let avg_med_slp = med_slopes.iter().sum::<f32>() / m as f32;
+                        let max_c16 = conv16s.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+                        let cx = ch.points.iter().map(|p| p[0]).sum::<f64>() / ch.points.len() as f64;
+                        let cy = ch.points.iter().map(|p| p[1]).sum::<f64>() / ch.points.len() as f64;
+                        let cen_med = dem.sample_mean_slope_16m(cx, cy).unwrap_or(avg_med_slp);
+                        let flat_ok = if avg_med_slp.min(cen_med) < 2.6 && area <= 5000.0 {
+                            closed_loop_raw_prominence(&ch.points, elev, is_dep, dem)
+                                >= if sprint { 0.72 } else { 0.95 }
+                        } else {
+                            avg_med_slp >= min_slope || max_c16 >= flat_mound_c16
+                        };
+                        if flat_ok {
+                            let simp = rdp_simplify(&smoothed, true, config.simplify_m);
+                            if simp.len() >= 3 && !has_self_intersection(&simp, true) {
+                                out.push(ContourLine {
+                                    layer: ContourLayer::Formline,
+                                    elevation: elev,
+                                    closed: true,
+                                    points: simp,
+                                });
+                            }
+                        }
+                    }
                     continue;
                 }
 
@@ -392,55 +637,7 @@ pub fn extract_formlines(
                 }
                 let total_len = polyline_length(&samples, false);
                 let step = total_len / (samples.len() - 1) as f64;
-
-                let mut drop = vec![false; samples.len()];
-                let mut hard_gap = vec![false; samples.len()];
-                for (i, &[x, y]) in samples.iter().enumerate() {
-                    let d = dist_at(x, y);
-                    let local_slp = dem.sample_slope(x, y).unwrap_or(5.0);
-                    let flat_slp = dem.sample_mean_slope(x, y).unwrap_or(local_slp);
-                    let conv16 = dem.sample_convex_16m(x, y).unwrap_or(0.0);
-                    let conv60 = dem.sample_convex(x, y).unwrap_or(0.0);
-
-                    // Ridge / nose boost in 2.5-10° terrain (keeps distinct convex spurs & small ridges).
-                    let is_ridge_nose = config.formline_mode != FormlineMode::Sparse
-                        && local_slp >= 2.0
-                        && local_slp <= 11.0
-                        && (conv16 >= 0.16 || conv60 >= 0.42);
-                    let eff_gap = if is_ridge_nose { boost_open_gap } else { min_gap };
-
-                    if d < eff_gap * 0.78 {
-                        drop[i] = true;
-                        hard_gap[i] = true;
-                        continue;
-                    }
-                    if flat_slp < min_slope {
-                        if !((conv16 >= 0.22 || conv60 >= 0.45) && local_slp >= 1.5) {
-                            drop[i] = true;
-                            continue;
-                        }
-                    }
-                    // Steep slopes (> max_slope or close to main contour): keep ONLY distinct shelves/noses.
-                    if local_slp > max_slope || d < eff_gap {
-                        if allow_steep_shelf && local_slp <= max_slope + 3.5 && d >= eff_gap * 0.80 {
-                            let form = form_between_contours(dem, x, y, iv, config.level_offset);
-                            if form < 0.42 && !is_ridge_nose {
-                                drop[i] = true;
-                            }
-                        } else {
-                            drop[i] = true;
-                        }
-                        continue;
-                    }
-                    if config.formline_mode != FormlineMode::Dense && !is_ridge_nose {
-                        if conv60 < min_convex {
-                            let form = form_between_contours(dem, x, y, iv, config.level_offset);
-                            if form < min_form {
-                                drop[i] = true;
-                            }
-                        }
-                    }
-                }
+                let (drop, hard_gap, med_slopes, conv16s) = eval_samples(&samples);
 
                 // Cut runs of dropped samples >= min_cut_len (or always cut if violating hard clearance).
                 let mut cut = vec![false; samples.len()];
@@ -466,7 +663,7 @@ pub fn extract_formlines(
                     i = j + 1;
                 }
 
-                // Collect surviving pieces >= min_len.
+                // Collect surviving pieces >= min_len, rejecting stray flat-ground slivers.
                 let mut i = 0;
                 while i < samples.len() {
                     if cut[i] {
@@ -479,6 +676,13 @@ pub fn extract_formlines(
                     }
                     let piece_len = ((j - i) as f64) * step;
                     if piece_len >= min_len && j > i {
+                        let cnt = (j - i + 1) as f32;
+                        let avg_med_slp = med_slopes[i..=j].iter().sum::<f32>() / cnt;
+                        let max_c16 = conv16s[i..=j].iter().copied().fold(f32::NEG_INFINITY, f32::max);
+                        if avg_med_slp < min_slope * 0.92 && max_c16 < flat_mound_c16 {
+                            i = j + 1;
+                            continue;
+                        }
                         let piece = rdp_simplify(&samples[i..=j], false, config.simplify_m);
                         if piece.len() >= 2 && !has_self_intersection(&piece, false) {
                             out.push(ContourLine {

@@ -72,9 +72,9 @@ describe("Etapp G1C: MCP laser- och rasterkontrakt", () => {
     expect(base.engine).toBeUndefined();
   });
 
-  it("Etapp G4B/G5: dubbelmotor (otidgeo/pullautin), nya detaljreglage och GEO_WORKER_VERSION = 44", () => {
+  it("Etapp G4B/G5/v45: dubbelmotor (otidgeo/pullautin), nya detaljreglage och GEO_WORKER_VERSION = 45", () => {
     expect(GEO_JOB_ENGINES).toEqual(["otidgeo", "pullautin"]);
-    expect(GEO_WORKER_VERSION).toBe(44);
+    expect(GEO_WORKER_VERSION).toBe(45);
     expect(PULLAUTIN_SETTINGS.formline).toEqual([0, 3]);
     expect(PULLAUTIN_SETTINGS.smooth_m).toEqual([0.5, 5]);
     expect(PULLAUTIN_SETTINGS.taubin).toEqual([0, 6]);

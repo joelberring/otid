@@ -587,15 +587,11 @@ export function toTopEdge(line: readonly (readonly [number, number])[], ground: 
  * streck gav en fjärdedel av kartans brantlinje (träff F 0,25–0,39); alla sammanhängande stråk brantare än 38° ger F 0,56–0,66
  * med 1,2–2,3 gånger kartans längd. Vid 35° blir det dubbelt så mycket linje, vid 40° tappas var femte brant.
  */
-export const SLOPE_CLIFFS = { minDegrees: 38, minLengthM: 6 };
+export const SLOPE_CLIFFS = { minDegrees: 35, minLengthM: 4.5 };
 
-/**
- * Brantlinjer ur markrastret: celler brantare än `minDegrees` (på lätt utjämnad mark) tunnas till mittlinjer, riktade så att
- * nedför är till höger. Fallet och sorten avgörs sedan som för strecken (measureCliff).
- */
-export function slopeLines(ground: GroundGrid, settings: { readonly minDegrees: number; readonly minLengthM: number } = SLOPE_CLIFFS): [number, number][][] {
-  const { width, height, cell, z } = ground;
-  // Utjämning 1-2-1 åt båda håll (ungefär en halv cells spridning), så att enstaka punkter inte ger branter.
+/** 1-2-1-utjämnat markraster (delas mellan brantlinjer och mittlinjens lutningsmått). */
+function smoothGround121(ground: GroundGrid): Float32Array {
+  const { width, height, z } = ground;
   const smooth = new Float32Array(z.length).fill(NaN);
   for (let x = 1; x < width - 1; x += 1) for (let y = 1; y < height - 1; y += 1) {
     let sum = 0, weight = 0;
@@ -607,6 +603,38 @@ export function slopeLines(ground: GroundGrid, settings: { readonly minDegrees: 
     }
     if (weight > 0 && Number.isFinite(z[x * height + y]!)) smooth[x * height + y] = sum / weight;
   }
+  return smooth;
+}
+
+function measureCliffSlopeDeg(line: readonly (readonly [number, number])[], ground: GroundGrid, smooth: Float32Array): number {
+  const { width, height, cell } = ground;
+  if (width < 3 || height < 3) return NaN;
+  const slopes: number[] = [];
+  for (let i = 1; i < line.length; i += 1) {
+    const [ax, ay] = line[i - 1]!, [bx, by] = line[i]!, segment = Math.hypot(bx - ax, by - ay);
+    if (segment === 0) continue;
+    for (let step = 0.5; step < segment; step += 1) {
+      const x = ax + (bx - ax) * step / segment, y = ay + (by - ay) * step / segment;
+      const gx = Math.floor((x - ground.minX) / cell), gy = Math.floor((y - ground.minY) / cell);
+      if (gx >= 1 && gy >= 1 && gx < width - 1 && gy < height - 1) {
+        const idx = gx * height + gy;
+        const dx = (smooth[idx + height]! - smooth[idx - height]!) / (2 * cell);
+        const dy = (smooth[idx + 1]! - smooth[idx - 1]!) / (2 * cell);
+        if (Number.isFinite(dx) && Number.isFinite(dy)) slopes.push(Math.atan(Math.hypot(dx, dy)) * 180 / Math.PI);
+      }
+    }
+  }
+  return median(slopes);
+}
+
+/**
+ * Brantlinjer ur markrastret: celler brantare än `minDegrees` (på lätt utjämnad mark) tunnas till mittlinjer, riktade så att
+ * nedför är till höger. Fallet och sorten avgörs sedan som för strecken (measureCliff).
+ */
+export function slopeLines(ground: GroundGrid, settings: { readonly minDegrees: number; readonly minLengthM: number } = SLOPE_CLIFFS, preSmoothed?: Float32Array): [number, number][][] {
+  const { width, height, cell, z } = ground;
+  // Utjämning 1-2-1 åt båda håll (ungefär en halv cells spridning), så att enstaka punkter inte ger branter.
+  const smooth = preSmoothed ?? smoothGround121(ground);
   const limit = Math.tan(settings.minDegrees * Math.PI / 180), mask = new Uint8Array(z.length);
   const gx = new Float32Array(z.length), gy = new Float32Array(z.length);
   for (let x = 1; x < width - 1; x += 1) for (let y = 1; y < height - 1; y += 1) {
@@ -653,8 +681,9 @@ export function evenLine(line: readonly (readonly [number, number])[]): [number,
   return simplify(points, 1.5);
 }
 
-/** En brant med sina mått: fallet inom 3 och 6 m (m) och längden (m). Linjen ligger i överkanten med nedför till höger. */
-export interface CliffCandidate { readonly line: [number, number][]; readonly drop3: number; readonly drop6: number; readonly length: number }
+/** En brant med sina mått: fallet inom 3 och 6 m (m), längden (m), mittlinjelutning (grader) och brantkantsskärpa (`drop3/drop6`). Linjen ligger i överkanten med nedför till höger. */
+export interface CliffCandidate { readonly line: [number, number][]; readonly drop3: number; readonly drop6: number; readonly length: number;
+  readonly slope?: number | undefined; readonly sharpness?: number | undefined }
 /** Den lösa gränsen för `branter.geojson` (ägaren 2026-11-12: ändra utan ny körning): allt från 0,8 m fall sparas. */
 export const CLIFF_LOOSE_DROP = 0.8;
 /** Vad en brant blir med reglerna: opasserbar, passerbar eller ingen alls. Samma regel i webbläsaren. */
@@ -690,7 +719,8 @@ export function cliffsFromTicks(impassable: readonly Tick[], passable: readonly 
     high = []; low = [];
     // Branterna ur markrastret först; Karttapullautins streck fyller bara på där rastret inte gav någon linje inom 6 m.
     // Markera `taken` längs hela segmenten (var 3 m), inte bara förenklade hörn, så dubbla branter inte läggs ovanpå.
-    const own = slopeLines(ground), taken = new Set<string>();
+    const smooth = smoothGround121(ground);
+    const own = slopeLines(ground, SLOPE_CLIFFS, smooth), taken = new Set<string>();
     for (const line of own) for (const [x, y] of sampleLine(line, 3)) {
       for (let ax = -1; ax <= 1; ax += 1) for (let ay = -1; ay <= 1; ay += 1) taken.add(`${Math.floor(x / 6) + ax},${Math.floor(y / 6) + ay}`);
     }
@@ -706,10 +736,12 @@ export function cliffsFromTicks(impassable: readonly Tick[], passable: readonly 
       const { drop3, drop6, length } = measureCliff(line, ground);
       if (!Number.isFinite(drop3)) { low.push(line); continue; }
       if (drop3 < Math.min(rules.minDrop, CLIFF_LOOSE_DROP)) { dropped += 1; continue; }
+      const slope = measureCliffSlopeDeg(line, ground, smooth);
+      const sharpness = Number.isFinite(drop6) && drop6 > 0.1 ? drop3 / drop6 : NaN;
       // Fallet mäts kring brantens mitt; linjen samplas tätt och ritas sedan i överkanten.
       const top = evenLine(toTopEdge(line, ground, fromGround ? 8.5 : 4.5));
       // Alla branter från den lösa gränsen sparas med sina mått, så att reglagen i webbläsaren väljer utan ny körning.
-      candidates.push({ line: top, drop3, drop6, length });
+      candidates.push({ line: top, drop3, drop6, length, slope, sharpness });
       const kind = classifyCliff({ drop3, drop6, length }, rules);
       if (!kind) { dropped += 1; continue; }
       if (kind === "impassable") high.push(top); else low.push(top);

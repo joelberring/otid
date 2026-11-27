@@ -1,7 +1,7 @@
 import { parseDxf, parseGeoJson, VectorParseError, type MapNorm, type SourceData, type SourceFeature } from "@o-tid/map-revision";
 import {
-  calmFlatContours, choosePits, clearContours, computeCandidates, suggestedClear, DEFAULT_HILL_LEVEL, DEFAULT_HILL_LIMITS, DEFAULT_PIT_LEVEL, DEFAULT_ROCK_LEVEL, findHills, findPits, flatLimitsAt, marshOnFloor, flatSlopeFrom, heightFieldFrom, joinStages, mergeBaseMap,
-  pitFeatures, pitLimitsAt, settleHills, tickDepressions, unionWater, rockAreasOfJob, withRockAreas, type HillCandidate, type HillLimits, type PitCandidate, type PitLimits, type PrimaryForMerge, type PrimaryOutcome,
+  calmFlatContours, choosePits, clearContours, computeCandidates, detectBaseMapEngine, suggestedClear, DEFAULT_HILL_LEVEL, DEFAULT_HILL_LIMITS, DEFAULT_PIT_LEVEL, DEFAULT_ROCK_LEVEL, findHills, findPits, flatLimitsAt, marshOnFloor, flatSlopeFrom, heightFieldFrom, joinStages, mergeBaseMap,
+  pitFeatures, pitLimitsAt, settleHills, tickDepressions, unionWater, rockAreasOfJob, withRockAreas, type BaseMapEngine, type HillCandidate, type HillLimits, type PitCandidate, type PitLimits, type PrimaryForMerge, type PrimaryOutcome,
   type CandidateInput, type CandidateResult, type clearCutFeatures, type ClearResult, type ClearSettings, type FlatContourResult, type HeightGrid, type PhotoPixels, type PixelAffine, type SlopeGrid, type SoilArea, type SoilOutcome, type StageBox
 } from "@o-tid/map-revision/base-map";
 
@@ -68,6 +68,8 @@ export type CandidateRequest =
       readonly stages?: readonly BaseMapStage[] | undefined;
       /** Filerna är etapper som geo-servern lagt ihop (ägaren 2026-11-14): sjöar som klippts i snittet slås ihop igen. */
       readonly joined?: boolean | undefined;
+      /** Motorn som skapade kurvorna (`otidgeo` eller `pullautin`); utelämnat = känns igen ur DXF (`999\notidgeo`). */
+      readonly engine?: BaseMapEngine | undefined;
       readonly osm?: SourceData | undefined; readonly scale?: number | undefined; readonly cuts?: Cuts | undefined;
       /** Kartans norm (`mapNorm`): på en sprintkarta blir OpenStreetMaps belagda vägar ytor. */
       readonly norm?: MapNorm | undefined; readonly calm?: BaseMapCalm | undefined;
@@ -112,6 +114,7 @@ export function handleCandidateRequest(store: CandidateStore, request: Candidate
   const { id } = request;
   try {
     const stages: readonly { box: StageBox | undefined; parts: readonly BaseMapPart[]; rock?: BaseMapStage["rock"] }[] = request.stages ?? [{ box: undefined, parts: request.parts }];
+    const engine: BaseMapEngine = request.engine ?? detectBaseMapEngine(stages.flatMap(stage => stage.parts)) ?? "pullautin";
     const total = stages.reduce((sum, stage) => sum + stage.parts.length, 0);
     let done = 0;
     const rock = { level: request.rock?.level ?? DEFAULT_ROCK_LEVEL, areas: 0, hectares: 0 };
@@ -135,18 +138,20 @@ export function handleCandidateRequest(store: CandidateStore, request: Candidate
     const merged: SourceData & { readonly primary?: readonly PrimaryOutcome[] } = request.merge ? mergeBaseMap(read, request.osm, request.scale, request.cuts, request.norm,
       request.soil && { areas: request.soil, report: outcome => { soil = outcome; } }, request.landCover, request.primary) : { ...read[0]!.data };
     // Hjälpkurvor och små ringar på flack mark tas bort direkt (förvalet), när körningen har fuktdjupet med lutningen.
+    // För `otidgeo` börjar reglaget på 0 (motorn lugnar redan flack mark terrängadaptivt); manuella reglage fungerar fullt ut.
     const calm = request.merge && request.calm ? request.calm : undefined;
+    const effectiveCalmLevel = calm ? (engine === "otidgeo" ? 0 : calm.level) : 0;
     // Med etapper: varje etapps lutning där den har en, annars den gemensamma.
     const slopes = (request.stages ?? []).flatMap(stage => stage.slope ? [flatSlopeFrom(stage.slope.grid, stage.slope.affine)] : []);
     const slopeAt = calm && (slopes.length > 0
       ? (x: number, y: number) => { for (const at of slopes) { const value = at(x, y); if (value !== undefined) return value; } return undefined; }
       : flatSlopeFrom(calm.grid, calm.affine));
-    const calmed = calm && slopeAt && calmFlatContours(merged.features, slopeAt, flatLimitsAt(calm.level));
+    const calmed = calm && slopeAt && calmFlatContours(merged.features, slopeAt, flatLimitsAt(effectiveCalmLevel));
     const calmData = calmed ? { ...merged, features: calmed.features } : merged;
     // «Tydligare kurvbild» med förvalen ovanpå de lugnade kurvorna, när körningen har markens höjd.
     const clear = request.merge && request.clear && request.clear.parts.length > 0 ? request.clear : undefined;
     const clearField = clear && heightFieldFrom(clear.parts);
-    const clearSettings = clear && clearField && (clear.settings ?? suggestedClear(calmData.features, clearField));
+    const clearSettings = clear && clearField && (clear.settings ?? suggestedClear(calmData.features, clearField, engine));
     const cleared = clearField && clearSettings && clearContours(calmData.features, clearField, clearSettings);
     const clearData = cleared ? { ...calmData, features: cleared.features } : calmData;
     // Negativ kurvbild (ägaren 2026-11-15), sist så att strecken sitter på kurvorna som de blev: sänkorna som grundkartan inte
@@ -174,7 +179,7 @@ export function handleCandidateRequest(store: CandidateStore, request: Candidate
     const { primary: skippedOsm, ...plain } = data;
     post({ type: "base-map", id, dataId: request.dataId, data: plain, ...(skippedOsm ? { primary: skippedOsm } : {}), ...(rockUsed ? { rock } : {}), ...(soil ? { soil } : {}), ...(pits ? { pits } : {}), ...(hills ? { hills } : {}),
       ...(cleared && clearSettings ? { clear: { ...cleared, settings: clearSettings, ...(clear?.settings ? {} : { suggested: clearSettings }) } } : {}),
-      ...(calm && calmed ? { calm: { removed: calmed.removed, added: calmed.added, formlineMeters: calmed.formlineMeters, rings: calmed.rings, level: calm.level } } : {}) });
+      ...(calm && calmed ? { calm: { removed: calmed.removed, added: calmed.added, formlineMeters: calmed.formlineMeters, rings: calmed.rings, level: effectiveCalmLevel } } : {}) });
   } catch (error) {
     post({ type: "error", id, parse: error instanceof VectorParseError, message: error instanceof Error ? error.message : String(error) });
   }

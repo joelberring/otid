@@ -3,7 +3,8 @@
 
 use crate::dem::PreparedDem;
 use crate::geometry::{
-    guard_and_simplify_all, is_depression_ring, polyline_length, signed_area, smooth_curve_safe,
+    closed_loop_raw_prominence, guard_and_simplify_all, is_depression_ring, polyline_length,
+    signed_area, smooth_curve_safe,
 };
 use crate::knolls::promote_small_loop_to_knoll;
 use crate::types::{ContourLayer, ContourLine, EngineConfig, KnollPoint};
@@ -307,10 +308,24 @@ pub fn extract_contours(dem: &PreparedDem, config: &EngineConfig) -> (Vec<Contou
                     }
                     let cx = ch.points.iter().map(|p| p[0]).sum::<f64>() / ch.points.len() as f64;
                     let cy = ch.points.iter().map(|p| p[1]).sum::<f64>() / ch.points.len() as f64;
-                    if area < config.min_loop_area_m2 * 3.5
-                        && dem.sample_mean_slope(cx, cy).is_some_and(|s| s < 1.0)
-                    {
-                        continue;
+                    let s40 = dem.sample_mean_slope(cx, cy).unwrap_or(5.0);
+                    let s16 = dem.sample_mean_slope_16m(cx, cy).unwrap_or(s40);
+                    let flat_slp = s40.min(s16);
+                    let max_ghost_area = if iv <= 3.0 { 1200.0 } else { 2500.0 };
+                    // Suppress flat-ground ghost loops (< 2.6°) lacking real vertical prominence,
+                    // while preserving genuine small hills/pits protruding above/below flat ground.
+                    if flat_slp < 2.6 && area < max_ghost_area {
+                        let prom = closed_loop_raw_prominence(&ch.points, elev, is_dep, dem);
+                        let min_prom = if flat_slp < 1.6 {
+                            if iv <= 3.0 { 0.62 } else { 0.85 }
+                        } else if iv <= 3.0 {
+                            0.52
+                        } else {
+                            0.72
+                        };
+                        if prom < min_prom {
+                            continue;
+                        }
                     }
                     let smoothed = smooth_curve_safe(&ch.points, true, dem, elev, max_rise, taubin_passes);
                     let perim = polyline_length(&smoothed, true);

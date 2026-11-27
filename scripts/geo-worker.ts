@@ -114,8 +114,25 @@ export const RAW_TICK_OUTPUTS: ReadonlySet<string> = new Set(["branter.dxf", "st
 export function keepsRawTicks(job: { readonly cliffs?: { readonly rawTicks?: boolean } | null | undefined }, hasCliffLines: boolean): boolean {
   return job.cliffs?.rawTicks === true || !hasCliffLines;
 }
+/** Skalanpassade förval för brantklassning i geo-arbetaren (synkade med `cliff-choice.ts`). */
+export const FOREST_CLIFF_RULES = { ...DEFAULT_CLIFF_RULES, minDrop: 1.3, impassableDrop3: 4.0, impassableDrop6: 4.0, impassableLength: 16 } as const;
+export const SPRINT_CLIFF_RULES = { ...DEFAULT_CLIFF_RULES, minDrop: 1.3, impassableDrop3: 3.0, impassableDrop6: 3.0, impassableLength: 8 } as const;
+export function isSprintJob(job: { readonly settings: Readonly<Record<string, number>> }): boolean {
+  return (job.settings.contour_interval ?? 5) <= 3 || job.settings.paved === 1;
+}
+export function cliffRulesForJob(job: { readonly settings: Readonly<Record<string, number>>; readonly cliffs?: Job["cliffs"] }) {
+  const base = isSprintJob(job) ? SPRINT_CLIFF_RULES : FOREST_CLIFF_RULES;
+  if (!job.cliffs) return base;
+  return {
+    ...base,
+    minDrop: job.cliffs.minDrop,
+    impassableDrop3: job.cliffs.impassableDrop,
+    impassableDrop6: job.cliffs.impassableDrop * base.impassableDrop6 / base.impassableDrop3,
+    impassableLength: job.cliffs.impassableLength ?? base.impassableLength
+  };
+}
 /** Arbetarens version (samma som `GEO_WORKER_VERSION` i contracts; servern ger inga jobb till en äldre). */
-export const WORKER_VERSION = 44;
+export const WORKER_VERSION = 45;
 
 async function sendFailure(name: string, response: Response): Promise<string> {
   const error = (await response.json().catch(() => undefined) as { error?: string } | undefined)?.error;
@@ -338,9 +355,7 @@ async function runJob(job: Job): Promise<void> {
     const groundFiles = dirNames.filter(name => /^mark\d+\.bin$/.test(name)).sort();
     const waterFiles = dirNames.filter(name => /^vatten\d+\.bin$/.test(name)).sort();
     const pointFiles = dirNames.filter(name => /^punkter\d+\.bin$/.test(name)).sort();
-    const rules = job.cliffs ? { ...DEFAULT_CLIFF_RULES, minDrop: job.cliffs.minDrop, impassableDrop3: job.cliffs.impassableDrop,
-      impassableDrop6: job.cliffs.impassableDrop * DEFAULT_CLIFF_RULES.impassableDrop6 / DEFAULT_CLIFF_RULES.impassableDrop3,
-      impassableLength: job.cliffs.impassableLength ?? DEFAULT_CLIFF_RULES.impassableLength } : DEFAULT_CLIFF_RULES;
+    const rules = cliffRulesForJob(job);
     const rockMode = job.settings.rock ?? 1;
 
     let cliffSummary: Record<string, number> = {}, moistureSummary: Record<string, number> = {};
@@ -402,7 +417,7 @@ async function runJob(job: Job): Promise<void> {
         const veg = vegetationFromClassPng(
           new Uint8Array(await readFile(join(dir, "vegetationsklasser.png"))),
           await readFile(join(dir, "vegetationsklasser.pgw"), "utf8"),
-          { vegSmooth: job.settings.veg_smooth }, water?.at
+          { vegSmooth: job.settings.veg_smooth, scale: isSprintJob(job) ? 4_000 : 15_000 }, water?.at
         );
         await writeFile(join(dir, "vegetation.dxf"), veg.dxf);
         vegetationSummary = veg.summary;

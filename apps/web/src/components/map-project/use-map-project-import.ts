@@ -22,7 +22,7 @@ import type { BaseMapStep, CalmOutcome, ClearOutcome, CandidateInput, CandidateR
 import { CandidateSession } from "../../lib/map-project-candidates-client";
 import { controlledWorker } from "../../lib/course-setting-worker";
 import {
-  calmFlatContours, choosePits, clearContours, extendAreas, flatLimitsAt, mergeCandidates, PIT_LAYERS, pitFeatures, restoreFlatContours, settleHills, snapTicks, sprintOsm, suggestedMapping, tickDepressions, unsettleHills,
+  calmFlatContours, choosePits, clearContours, deduplicateKnollFeatures, extendAreas, flatLimitsAt, KNOLL_DEDUP_METERS, maxSummitRingArea, mergeCandidates, PIT_LAYERS, pitFeatures, restoreFlatContours, settleHills, snapTicks, sprintOsm, suggestedMapping, tickDepressions, unsettleHills,
   type ClearSettings, type HeightField, type HillLimits, type PitLimits
 } from "@o-tid/map-revision/base-map";
 import { readVectorFiles } from "../../lib/map-project-vector-files";
@@ -51,6 +51,14 @@ const NO_CANDIDATES: readonly MapObject[] = [];
 const NO_PAVED: BuiltPaved = { roads: [], edges: [] };
 const toRing = (ring: readonly (readonly [number, number])[]) => ring.map(([x, y]) => ({ x, y }));
 const toRings = (polygon: readonly (readonly (readonly [number, number])[])[]) => polygon.map(toRing);
+
+/** Byter reglagets lager (`own`) i det som visas; punkthöjder avdubbletteras (≤ 6 m & små 101-toppringar) som i `assembleBaseMap`. */
+export function mergeRefinedCandidates(bare: SourceData, data: SourceData, own: RegExp, scale?: number): SourceData {
+  if (!own.test("dotknoll_laser")) return mergeCandidates(bare, data, own);
+  const surviving = bare.features.filter(feature => !own.test(feature.layer));
+  const deduped = deduplicateKnollFeatures(data.features, surviving, KNOLL_DEDUP_METERS, maxSummitRingArea(scale ?? 15_000));
+  return mergeCandidates(bare, { ...data, features: deduped }, own);
+}
 
 export function useMapProjectImport(view: MapProjectView, georeference: MapGeoreference | undefined, bounds: Bounds | undefined,
   symbols: ReadonlyMap<string, CatalogSymbol>, onSent: () => void, session?: MapProjectSession,
@@ -447,7 +455,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     if (!file) { openData(fileName, data, true); return; }
     // Höjdernas ringar väljs om mot de nya objekten: en punkthöjd som en ring ersatte hör till det gamla valet i sitt lager.
     const found = hillsWith.current, bare = found ? { ...file.data, features: unsettleHills(file.data.features, found.hidden.filter(feature => !own.test(feature.layer))) } : file.data;
-    const swapped = mergeCandidates(bare, data, own), settled = found && settleHills(swapped.features, found.candidates, found.limits, found.scale);
+    const swapped = mergeRefinedCandidates(bare, data, own, georeference?.scale), settled = found && settleHills(swapped.features, found.candidates, found.limits, found.scale);
     const merged = settled ? { ...swapped, features: settled.features } : swapped;
     if (found && settled) { hillsWith.current = { ...found, rings: settled.rings, contours: settled.contours, hidden: settled.hidden }; setHills(hillsWith.current); }
     const layersNow = importLayers(merged);
@@ -456,7 +464,7 @@ export function useMapProjectImport(view: MapProjectView, georeference: MapGeore
     // Nya lager får förslag ur namnen; de som redan hade en symbol behåller den.
     setMapping(current => new Map([...layersNow.flatMap(layer => { const id = suggestSymbol(layer, symbolList, norm); return id ? [[layer.name, id] as const] : []; }),
       ...[...current].filter(([layer]) => layersNow.some(row => row.name === layer))]));
-  }, [file, openData, symbolList, norm]);
+  }, [file, openData, symbolList, norm, georeference?.scale]);
   /** Det som visas utan höjdernas ringar och med punkthöjderna de ersatte, inför en omräkning av kurvorna. */
   const withoutHills = useCallback((features: readonly SourceFeature[]): readonly SourceFeature[] => {
     const found = hillsWith.current;

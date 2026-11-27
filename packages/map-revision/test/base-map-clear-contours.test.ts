@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SourceFeature } from "../src";
-import { clearContours, DEFAULT_CLEAR, flatTerrainShare, formBetweenContours, suggestedClear, formlineLimitsAt, heightFieldFrom, heightGridOf, ringLimitAt, smoothLimitsAt, type HeightField } from "../src/base-map/clear-contours";
+import { clearContours, DEFAULT_CLEAR, detectBaseMapEngine, flatTerrainShare, formBetweenContours, OTIDGEO_DEFAULT_CLEAR, suggestedClear, formlineLimitsAt, heightFieldFrom, heightGridOf, ringLimitAt, smoothLimitsAt, type HeightField } from "../src/base-map/clear-contours";
 import { restoreFlatContours } from "../src/base-map/flat-contours";
 
 type Position = [number, number];
@@ -169,5 +169,9 @@ describe("tydligare kurvbild: förvalen efter terrängen", () => {
     // 30 % flackt: hjälpkurvorna en nivå ner, ringarna och utjämningen som förvalet.
     expect(suggestedClear(contours(10), split(150))).toEqual({ smooth: 5, formlines: 3, rings: 5 });
     expect(suggestedClear([], plane(0.02))).toEqual(DEFAULT_CLEAR);
+    // För otidgeo lämnas clearContours avstängt som förval (ingen dubbelklippning).
+    expect(suggestedClear(contours(10), plane(0.3), "otidgeo")).toEqual(OTIDGEO_DEFAULT_CLEAR);
+    expect(detectBaseMapEngine([{ name: "kurvor.dxf", body: "0\nSECTION\n2\nHEADER\n999\notidgeo\n0\nENDSEC\n" }])).toBe("otidgeo");
+    expect(detectBaseMapEngine([{ name: "kurvor.dxf", body: "0\nSECTION\n2\nENTITIES\n0\nENDSEC\n" }])).toBeUndefined();
   });
 });

@@ -111,6 +111,17 @@ describe("kandidaterna i Workern", () => {
     const auto = run({ clear: { parts: clear.parts } });
     expect(auto.clear!.settings).toEqual({ smooth: 5, formlines: 4, rings: 5 });
     expect(auto.clear!.suggested).toEqual(auto.clear!.settings);
+    // För otidgeo (autodetekterat via 999\notidgeo i kurvor.dxf) är förvalen avstängda (0/0/0 och calm level 0),
+    // men manuella inställningar fungerar fortfarande om de anges.
+    const otidgeoParts = [{ name: "kurvor.dxf", body: `0\nSECTION\n2\nHEADER\n999\notidgeo\n0\nENDSEC\n${parts[0]!.body}` }, parts[1]!];
+    const steps = new Uint8Array(size * size).fill(2);
+    const otidgeoAuto = run({ parts: otidgeoParts, calm: { grid: { columns: size, rows: size, steps }, affine: [1, 0, 0.5, 0, -1, 299.5] as const, level: 3 }, clear: { parts: clear.parts } });
+    expect(otidgeoAuto.calm).toMatchObject({ level: 0, formlineMeters: 0, rings: 0 });
+    expect(otidgeoAuto.clear!.settings).toEqual({ smooth: 0, formlines: 0, rings: 0 });
+    expect(otidgeoAuto.clear!.suggested).toEqual({ smooth: 0, formlines: 0, rings: 0 });
+    const otidgeoManual = run({ parts: otidgeoParts, clear });
+    expect(otidgeoManual.clear!.settings).toEqual(clear.settings);
+    expect(otidgeoManual.clear!.formlineMeters).toBeGreaterThan(20);
     expect(run({ merge: false, clear }).clear).toBeUndefined();
   });
 

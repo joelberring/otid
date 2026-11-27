@@ -26,6 +26,8 @@ const MAX_HEIGHT_CELLS = 16_000_000;
 export interface BaseMapJobRequest {
   /** Laserjobbet och valen, för att hitta kartjobbet igen (`reusableProjectJob`). */
   readonly hash: string;
+  /** Motorn som körde laserjobbet (`otidgeo` eller `pullautin`); utelämnat = autodetekteras ur DXF eller `"pullautin"`. */
+  readonly engine?: BaseMapAssemblyInput["engine"];
   readonly files: readonly { readonly name: string; readonly sha256: string }[];
   readonly knolls?: { readonly level: number; readonly sha256: string } | undefined;
   readonly cliffs?: { readonly level: number; readonly sha256: string } | undefined;
@@ -79,6 +81,7 @@ export function runBaseMap(loaded: LoadedProjectMap, area: Polygon | null, reque
   const heightFits = !!height && height.width * height.height <= MAX_HEIGHT_CELLS;
   const heightAffine = height && heightFits && request.height ? worldFileAffine(texts.get(request.height.world) ?? "") : undefined;
   const assembled = assembleBaseMap({
+    ...(request.engine ? { engine: request.engine } : {}),
     ...(rock && rockAffine ? { rock: { pixels: rock, affine: rockAffine } } : {}),
     ...(height && heightAffine ? { height: { grid: heightGridOf(height), affine: heightAffine } } : {}),
     flat: depth && affine ? { level: DEFAULT_FLAT_LEVEL, grid: slopeGridOf(depth), affine } : undefined,

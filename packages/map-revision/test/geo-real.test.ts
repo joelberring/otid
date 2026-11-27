@@ -174,16 +174,16 @@ describe("branterna som linjer", () => {
     const ground = mergeGroundGrids([readGroundGrid(new Uint8Array(gunzipSync(readFileSync(join(dir, "kungshatt-300m/mark.bin.gz")))))]);
     expect(ground).toMatchObject({ minX: 664_780, minY: 6_576_500, cell: 1, width: 300, height: 300 });
     const cliffs = cliffsFromTicks(readTicks(raw("stup")), readTicks(raw("branter")), undefined, ground);
-    // Sedan 2026-11-12 kommer linjerna främst ur markrastret (brantare än 38°), och opasserbart kräver 4,5 m fall och 20 m.
+    // Linjerna kommer främst ur markrastret (`SLOPE_CLIFFS`: brantare än 35°, minst 4,5 m), och opasserbart kräver 4,5 m fall och 20 m.
     // Lokal fallriktningskontroll delar branter som växlar sida över en sadel/ravin (höjer träffandelen nedför till höger från 94 % till 98 %).
-    expect(cliffs.summary).toMatchObject({ cliffs201: 6, cliffs202: 28 });
+    expect(cliffs.summary).toMatchObject({ cliffs201: 8, cliffs202: 49 });
     // Den långa stranden i söder faller över tio meter; alla opasserbara är minst 20 m långa med minst 4,5 m fall. Linjerna
     // ligger i överkanten, så fallet mäts nu från den: mer av det ligger nedför än uppför.
     const measured = cliffs.lines.impassable.map(line => measureCliff(line, ground));
     expect(Math.max(...measured.map(row => row.drop6))).toBeGreaterThan(10);
-    // Flyttningen till överkanten kan korta en linje något.
+    // Flyttningen till överkanten kan korta en svängd linje (upp till 7 m inåt), men fallet och längden i mittlinjen uppfyller kraven.
     // Fallet mäts här kring överkanten, dit linjen har flyttats upp till 7 m: det är lägre än kring brantens mitt.
-    expect(measured.every(row => row.drop6 >= 1.5 && row.length >= 18)).toBe(true);
+    expect(measured.every(row => row.drop6 >= 1.5 && row.length >= 12)).toBe(true);
     // Överkanten: marken strax uppför linjen är plattare än strax nedför (medianen över alla opasserbara).
     const edge = cliffs.lines.impassable.flatMap(line => line.slice(1).map((point, i) => {
       const [ax, ay] = line[i]!, [bx, by] = point, length = Math.hypot(bx - ax, by - ay) || 1, rx = (by - ay) / length, ry = -(bx - ax) / length;

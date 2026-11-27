@@ -9,28 +9,28 @@ describe("enkla val och kurvprofiler för O-Tid-motorn och Karttapullautin", () 
     expect(choiceSettings(DEFAULT_CHOICES)).toEqual({ settings: {}, cliffs: undefined });
     const chosenOtid = choiceSettings({ ...DEFAULT_CHOICES, cliffs: "more", green: "less", open: "less", undergrowth: "more", knolls: "more" }, {}, "few", false, false, { engine: "otidgeo" });
     expect(chosenOtid.settings).toEqual({ cliff1: 0.95, cliff2: 1.7, knollshare: 0.7, openshare: 0.75, greenscale: 1.5, undergrowth: 0.035 });
-    expect(chosenOtid.cliffs).toEqual({ minDrop: 1, impassableDrop: 3.5, impassableLength: 20 });
+    expect(chosenOtid.cliffs).toEqual({ minDrop: 1, impassableDrop: 3, impassableLength: 16 });
 
     const chosenKp = choiceSettings({ ...DEFAULT_CHOICES, cliffs: "more", green: "less" }, {}, "few", false, false, { engine: "pullautin", contours: "generalized" });
     expect(chosenKp.settings).toEqual({ cliff1: 0.95, cliff2: 1.7, smoothing: 1.2, curviness: 0.9, greenscale: 1.5, denseshare: 0.12 });
-    expect(choiceSettings({ ...DEFAULT_CHOICES, cliffs: "less" }).cliffs).toEqual({ minDrop: 1.8, impassableDrop: 5.5, impassableLength: 20 });
+    expect(choiceSettings({ ...DEFAULT_CHOICES, cliffs: "less" }).cliffs).toEqual({ minDrop: 1.8, impassableDrop: 5, impassableLength: 16 });
   });
 
   it("5 kurvprofiler för otidgeo (5 m och sprint) samt pullautin med exakt återställning i Kör om", () => {
     expect(CONTOUR_STYLES).toEqual(["veryDetailed", "detailed", "normal", "generalized", "veryGeneralized"]);
 
-    // otidgeo 5 m
-    expect(contourStyleSettings("veryDetailed", "otidgeo", false)).toEqual({ smooth_m: 1.0, taubin: 1, curviness: 0.24, min_loop_area: 20, min_clearance: 1.0 });
-    expect(contourStyleSettings("detailed", "otidgeo", false)).toEqual({ smooth_m: 1.35, taubin: 2, curviness: 0.20, min_loop_area: 30, min_clearance: 1.4 });
+    // otidgeo 5 m (synkade med tools/otidgeo/src/types.rs)
+    expect(contourStyleSettings("veryDetailed", "otidgeo", false)).toEqual({ smooth_m: 0.72, taubin: 1, curviness: 0.26, min_loop_area: 18, min_clearance: 0.95, formline_gap: 3.2, formline_max_slope: 23 });
+    expect(contourStyleSettings("detailed", "otidgeo", false)).toEqual({ smooth_m: 0.88, taubin: 2, curviness: 0.22, min_loop_area: 26, min_clearance: 1.25, formline_gap: 3.6, formline_max_slope: 21.5 });
     expect(contourStyleSettings("normal", "otidgeo", false)).toEqual({});
-    expect(contourStyleSettings("generalized", "otidgeo", false)).toEqual({ smooth_m: 2.3, taubin: 3, curviness: 0.13, min_loop_area: 65, min_clearance: 2.1 });
-    expect(contourStyleSettings("veryGeneralized", "otidgeo", false)).toEqual({ smooth_m: 3.2, taubin: 4, curviness: 0.08, min_loop_area: 105, min_clearance: 2.5 });
+    expect(contourStyleSettings("generalized", "otidgeo", false)).toEqual({ smooth_m: 1.5, taubin: 3, curviness: 0.13, min_loop_area: 62, min_clearance: 2, formline_gap: 5.6, formline_max_slope: 17 });
+    expect(contourStyleSettings("veryGeneralized", "otidgeo", false)).toEqual({ smooth_m: 2.15, taubin: 4, curviness: 0.08, min_loop_area: 105, min_clearance: 2.4, formline_gap: 7.6, formline_max_slope: 13.5 });
 
     // otidgeo sprint (<= 3 m)
-    expect(contourStyleSettings("veryDetailed", "otidgeo", true)).toEqual({ smooth_m: 0.8, taubin: 1, curviness: 0.24, min_loop_area: 10, min_clearance: 0.6 });
-    expect(contourStyleSettings("detailed", "otidgeo", true)).toEqual({ smooth_m: 1.0, taubin: 2, curviness: 0.20, min_loop_area: 14, min_clearance: 0.85 });
-    expect(contourStyleSettings("generalized", "otidgeo", true)).toEqual({ smooth_m: 1.6, taubin: 3, curviness: 0.13, min_loop_area: 26, min_clearance: 1.2 });
-    expect(contourStyleSettings("veryGeneralized", "otidgeo", true)).toEqual({ smooth_m: 2.2, taubin: 4, curviness: 0.08, min_loop_area: 40, min_clearance: 1.5 });
+    expect(contourStyleSettings("veryDetailed", "otidgeo", true)).toEqual({ smooth_m: 0.52, taubin: 1, curviness: 0.26, min_loop_area: 9, min_clearance: 0.55, formline_gap: 2.2, formline_max_slope: 22.5 });
+    expect(contourStyleSettings("detailed", "otidgeo", true)).toEqual({ smooth_m: 0.65, taubin: 2, curviness: 0.22, min_loop_area: 12, min_clearance: 0.75, formline_gap: 2.7, formline_max_slope: 21 });
+    expect(contourStyleSettings("generalized", "otidgeo", true)).toEqual({ smooth_m: 1.1, taubin: 3, curviness: 0.13, min_loop_area: 25, min_clearance: 1.2, formline_gap: 4.4, formline_max_slope: 16.5 });
+    expect(contourStyleSettings("veryGeneralized", "otidgeo", true)).toEqual({ smooth_m: 1.55, taubin: 4, curviness: 0.08, min_loop_area: 40, min_clearance: 1.5, formline_gap: 5.8, formline_max_slope: 13 });
 
     // pullautin
     expect(contourStyleSettings("veryDetailed", "pullautin")).toEqual({ smoothing: 0.3, curviness: 1.5 });
@@ -56,8 +56,8 @@ describe("enkla val och kurvprofiler för O-Tid-motorn och Karttapullautin", () 
     expect(vegSmoothOf({ veg_smooth: 0.4 })).toBe("normal");
 
     const otidNoOverview = choiceSettings(DEFAULT_CHOICES, {}, "few", false, false, { engine: "otidgeo", contours: "detailed", vegSmooth: "calm", overview: false });
-    expect(otidNoOverview.settings).toEqual({ smooth_m: 1.35, taubin: 2, curviness: 0.2, min_loop_area: 30, min_clearance: 1.4, veg_smooth: 1.6, overview: 0 });
-    expect(typedOf(otidNoOverview.settings, DEFAULT_CHOICES, ["smooth_m", "taubin", "curviness", "min_loop_area", "min_clearance", "veg_smooth"],
+    expect(otidNoOverview.settings).toEqual({ smooth_m: 0.88, taubin: 2, curviness: 0.22, min_loop_area: 26, min_clearance: 1.25, formline_gap: 3.6, formline_max_slope: 21.5, veg_smooth: 1.6, overview: 0 });
+    expect(typedOf(otidNoOverview.settings, DEFAULT_CHOICES, ["smooth_m", "taubin", "curviness", "min_loop_area", "min_clearance", "formline_gap", "formline_max_slope", "veg_smooth"],
       { engine: "otidgeo", contours: "detailed", vegSmooth: "calm", overview: false })).toEqual({});
 
     // overview: false ger inte overview: 0 för pullautin (bildmotorn hoppas ändå över).
@@ -74,17 +74,26 @@ describe("enkla val och kurvprofiler för O-Tid-motorn och Karttapullautin", () 
       .toEqual({ cliff1: "1,1", cliff2: "2,4", greenhigh: "3" });
   });
 
-  it("brantvalen: Gömmarens sätt ger lägre gräns och kortare minsta längd; taggar följer med; rawTicks bara på pullautin", () => {
+  it("brantvalen: skalanpassade förval (skog vs sprint), Gömmarens sätt, taggar och rawTicks bara på pullautin", () => {
     expect(choiceSettings(DEFAULT_CHOICES).cliffs).toBeUndefined();
     expect(choiceSettings(DEFAULT_CHOICES, {}, "most").cliffs).toEqual({ minDrop: 1.3, impassableDrop: 3.5, impassableLength: 10 });
     expect(choiceSettings({ ...DEFAULT_CHOICES, cliffs: "less" }, {}, "most", true).cliffs).toEqual({ minDrop: 1.8, impassableDrop: 4.5, impassableLength: 10, tags: true });
-    expect(choiceSettings(DEFAULT_CHOICES, {}, "few", true).cliffs).toEqual({ minDrop: 1.3, impassableDrop: 4.5, impassableLength: 20, tags: true });
+    expect(choiceSettings(DEFAULT_CHOICES, {}, "few", true).cliffs).toEqual({ minDrop: 1.3, impassableDrop: 4, impassableLength: 16, tags: true });
+    // Sprint (ekvidistans <= 3 m): skickar sprintanpassade förval (3,0 m / 8 m för few, 2,5 m / 6 m för most).
+    expect(choiceSettings(DEFAULT_CHOICES, {}, "few", false, false, { sprint: true }).cliffs).toEqual({ minDrop: 1.3, impassableDrop: 3, impassableLength: 8 });
+    expect(choiceSettings(DEFAULT_CHOICES, {}, "most", false, false, { sprint: true }).cliffs).toEqual({ minDrop: 1.3, impassableDrop: 2.5, impassableLength: 6 });
+    expect(choiceSettings({ ...DEFAULT_CHOICES, cliffs: "more" }, {}, "most", false, false, { sprint: true }).cliffs).toEqual({ minDrop: 1, impassableDrop: 2, impassableLength: 6 });
+    expect(choiceSettings({ ...DEFAULT_CHOICES, cliffs: "less" }, {}, "few", true, false, { sprint: true }).cliffs).toEqual({ minDrop: 1.8, impassableDrop: 3.5, impassableLength: 8, tags: true });
+    // Kör om-rundtur för både skog och sprint (även utan sprint-parametern, som laserpanelen anropar cliffChoicesOf).
     expect(cliffChoicesOf(null)).toEqual({ level: "default", style: "few", tags: false, rawTicks: false });
     expect(cliffChoicesOf({ minDrop: 1, impassableLength: 10, tags: true })).toEqual({ level: "more", style: "most", tags: true, rawTicks: false });
+    expect(cliffChoicesOf({ minDrop: 1.3, impassableLength: 8 })).toEqual({ level: "default", style: "few", tags: false, rawTicks: false });
+    expect(cliffChoicesOf({ minDrop: 1, impassableLength: 6, tags: true })).toEqual({ level: "more", style: "most", tags: true, rawTicks: false });
+    expect(cliffChoicesOf({ minDrop: 1.8, impassableLength: 16 })).toEqual({ level: "less", style: "few", tags: false, rawTicks: false });
     // Äldre jobb har ingen minsta längd: de räknas som «few».
     expect(cliffChoicesOf({ minDrop: 1.8 })).toEqual({ level: "less", style: "few", tags: false, rawTicks: false });
     // Råa brantstreck (Karttapullautin) skickas bara när motorn är pullautin.
-    expect(choiceSettings(DEFAULT_CHOICES, {}, "few", false, true, { engine: "pullautin" }).cliffs).toEqual({ minDrop: 1.3, impassableDrop: 4.5, impassableLength: 20, rawTicks: true });
+    expect(choiceSettings(DEFAULT_CHOICES, {}, "few", false, true, { engine: "pullautin" }).cliffs).toEqual({ minDrop: 1.3, impassableDrop: 4, impassableLength: 16, rawTicks: true });
     expect(choiceSettings(DEFAULT_CHOICES, {}, "few", false, true, { engine: "otidgeo" }).cliffs).toBeUndefined();
     expect(cliffChoicesOf({ minDrop: 1.3, rawTicks: true }).rawTicks).toBe(true);
   });

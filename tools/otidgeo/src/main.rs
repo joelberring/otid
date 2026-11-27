@@ -335,13 +335,13 @@ mod tests {
     #[test]
     fn profiles_and_flag_override_precedence_work() {
         let cases = [
-            ("very-detailed", ContourProfile::VeryDetailed, 1.0, 1, 0.24, 20.0, 1.0, 0.14, 0.65),
-            ("detailed", ContourProfile::Detailed, 1.35, 2, 0.20, 30.0, 1.4, 0.18, 0.65),
-            ("normal", ContourProfile::Normal, 1.65, 2, 0.17, 40.0, 1.7, 0.20, 1.05),
-            ("generalized", ContourProfile::Generalized, 2.3, 3, 0.13, 65.0, 2.1, 0.25, 1.35),
-            ("very-generalized", ContourProfile::VeryGeneralized, 3.2, 4, 0.08, 105.0, 2.5, 0.32, 1.60),
+            ("very-detailed", ContourProfile::VeryDetailed, 0.72, 1, 0.26, 18.0, 0.95, 0.14, 0.65, 3.2, 23.0),
+            ("detailed", ContourProfile::Detailed, 0.88, 2, 0.22, 26.0, 1.25, 0.17, 0.65, 3.6, 21.5),
+            ("normal", ContourProfile::Normal, 1.08, 2, 0.18, 36.0, 1.55, 0.20, 1.05, 4.1, 20.5),
+            ("generalized", ContourProfile::Generalized, 1.50, 3, 0.13, 62.0, 2.00, 0.25, 1.35, 5.6, 17.0),
+            ("very-generalized", ContourProfile::VeryGeneralized, 2.15, 4, 0.08, 105.0, 2.40, 0.32, 1.60, 7.6, 13.5),
         ];
-        for (name, prof, sm, tb, cv, area, clr, simp, vs) in cases {
+        for (name, prof, sm, tb, cv, area, clr, simp, vs, fgap, fmax) in cases {
             let args: Vec<String> = vec![
                 "run", "--input", "a.laz", "--out", "/tmp/o", "--profile", name,
             ]
@@ -357,6 +357,8 @@ mod tests {
             assert!((c.min_clearance_m - clr).abs() < 1e-9, "{name} min_clearance");
             assert!((c.simplify_m - simp).abs() < 1e-9, "{name} simplify");
             assert!((c.veg_smooth - vs).abs() < 1e-9, "{name} veg_smooth");
+            assert!((c.formline_min_gap_m - fgap).abs() < 1e-9, "{name} formline_min_gap_m");
+            assert!((c.formline_max_slope_deg - fmax).abs() < 1e-9, "{name} formline_max_slope_deg");
         }
         // Individual flags specified BEFORE `--profile` must still override the profile!
         let args: Vec<String> = vec![
@@ -378,6 +380,7 @@ mod tests {
         assert!((c.knoll_min_rise_m - 1.1).abs() < 1e-9);
         // Non-overridden sprint profile fields came from very-generalized @ 2.5m.
         assert!((c.min_loop_area_m2 - 40.0).abs() < 1e-9);
+        assert!((c.formline_min_gap_m - 5.8).abs() < 1e-9);
     }
 
     #[test]
@@ -478,16 +481,143 @@ mod tests {
         let ang = elongs[0].angle_deg.expect("Elongated knoll must carry angle_deg");
         assert!((ang - 45.0).abs() < 12.0, "Expected ~45 deg NE-SW orientation, got {ang:.1}");
 
-        // Verify DXF output writes dotknoll_avlang with group 50 rotation.
+        // Verify DXF output writes 999\notidgeo header marker and dotknoll_avlang with group 50 rotation.
         let out = temp_out("knoll-dxf");
         let dxf_path = out.join("knollar.dxf");
         write_knolls_dxf(&dxf_path, &knolls).unwrap();
         let text = std::fs::read_to_string(&dxf_path).unwrap();
+        assert!(text.starts_with("0\nSECTION\n2\nHEADER\n999\notidgeo\n"));
         assert!(text.contains("dotknoll\n"));
         assert!(text.contains("dotknoll_avlang\n"));
         assert!(text.contains("udepression\n"));
         assert!(text.contains("\n50\n"));
         let _ = std::fs::remove_dir_all(&out);
+    }
+
+    #[test]
+    fn two_scale_dem_calms_flat_ripples_while_keeping_hilly_peaks_crisp() {
+        let (w, h) = (160, 120);
+        let mut z = vec![50.0f32; w * h];
+        for r in 0..h {
+            for c in 0..w {
+                let x = c as f64;
+                let y = r as f64;
+                // Left half (x < 75): flat ground (<2° mean slope) with 0.12 m micro-undulations.
+                let ripple = if x < 75.0 { 0.12 * (x * 0.70).sin() * (y * 0.70).cos() } else { 0.0 };
+                // Right half (x ~ 115): steep hilly terrain with a crisp small ridge/nose.
+                let hill = 18.0 * (-(((x - 115.0).powi(2) + (y - 60.0).powi(2)) / (2.0 * 14.0 * 14.0))).exp();
+                let nose = 2.5 * (-(((x - 102.0).powi(2) + (y - 60.0).powi(2)) / (2.0 * 2.5 * 2.5))).exp();
+                z[r * w + c] = (50.0 + ripple + hill + nose) as f32;
+            }
+        }
+        let dem = DemGrid {
+            width: w,
+            height: h,
+            world: WorldTransform { cell: 1.0, x0: 500_000.5, y0: 6_500_119.5 },
+            z,
+            valid: vec![1u8; w * h],
+            water: vec![0u8; w * h],
+            wet: vec![0u8; w * h],
+        };
+        let cfg = EngineConfig::defaults_for_interval(5.0);
+        let prepared = prepare_dem(&dem, &cfg);
+        let mut cfg_uniform = cfg.clone();
+        cfg_uniform.flat_smooth_m = Some(cfg.smooth_m);
+        let prepared_uniform = prepare_dem(&dem, &cfg_uniform);
+
+        // Flat ground ripples should be calmed far more strongly than uniform detail smoothing.
+        let mut flat_max_dev = 0.0f32;
+        let mut unif_max_dev = 0.0f32;
+        for r in 25..95 {
+            for c in 20..55 {
+                flat_max_dev = flat_max_dev.max((prepared.contour_z[r * w + c] - 50.0).abs());
+                unif_max_dev = unif_max_dev.max((prepared_uniform.contour_z[r * w + c] - 50.0).abs());
+            }
+        }
+        assert!(
+            flat_max_dev < 0.04 && flat_max_dev < unif_max_dev * 0.25,
+            "Flat ripples must be calmed strongly by z_flat: adaptive={flat_max_dev:.3} vs uniform={unif_max_dev:.3}"
+        );
+
+        // Hilly peak at (115, 60) should remain just as crisp as uniform z_detail.
+        let peak_z = prepared.contour_z[60 * w + 115];
+        let peak_unif = prepared_uniform.contour_z[60 * w + 115];
+        assert!(
+            peak_z > 67.5 && (peak_z - peak_unif).abs() < 0.10,
+            "Hilly peak must remain crisp via z_detail + DoG: adaptive={peak_z:.2} vs uniform={peak_unif:.2}"
+        );
+    }
+
+    #[test]
+    fn profiles_are_monotonic_on_101_and_103_with_zero_crossings() {
+        let dem = synthetic_dem(160, 160);
+        let profiles = [
+            ContourProfile::VeryDetailed,
+            ContourProfile::Detailed,
+            ContourProfile::Normal,
+            ContourProfile::Generalized,
+            ContourProfile::VeryGeneralized,
+        ];
+        let mut prev_c = f64::INFINITY;
+        let mut prev_f = f64::INFINITY;
+        for prof in profiles {
+            let mut cfg = EngineConfig::defaults_for_interval(5.0);
+            cfg.apply_profile(prof);
+            let prepared = prepare_dem(&dem, &cfg);
+            let (contours, _) = extract_contours(&prepared, &cfg);
+            let formlines = extract_formlines(&prepared, &contours, &cfg);
+            assert_eq!(count_crossings(&contours), 0, "Crossings on {prof:?}");
+            for l in contours.iter().chain(formlines.iter()) {
+                assert!(!has_self_intersection(&l.points, l.closed), "SelfX on {prof:?}");
+            }
+            let c_len: f64 = contours.iter().map(|l| crate::geometry::polyline_length(&l.points, l.closed)).sum();
+            let f_len: f64 = formlines.iter().map(|l| crate::geometry::polyline_length(&l.points, l.closed)).sum();
+            assert!(c_len <= prev_c + 1.0, "101 length not monotonic at {prof:?}: {c_len:.1} > {prev_c:.1}");
+            assert!(f_len <= prev_f + 1.0, "103 length not monotonic at {prof:?}: {f_len:.1} > {prev_f:.1}");
+            prev_c = c_len;
+            prev_f = f_len;
+        }
+    }
+
+    #[test]
+    fn knolls_suppress_cliff_rim_fp_while_keeping_isolated_knoll() {
+        let (w, h) = (120, 120);
+        let mut z = vec![51.2f32; w * h];
+        for r in 0..h {
+            for c in 0..w {
+                let x = c as f64;
+                let y = r as f64;
+                // 1. Genuine isolated knoll at (30, 60): rise ~1.7 m.
+                let real_knoll = 1.7 * (-(((x - 30.0).powi(2) + (y - 60.0).powi(2)) / (2.0 * 3.2 * 3.2))).exp();
+                // 2. Steep cliff step at x = 80 (8 m vertical drop over 4 m -> > 55° slope) with a small lip bump at (78, 60).
+                let cliff = 8.0 / (1.0 + ((x - 81.0) / 1.4).exp());
+                let rim_lip = 0.6 * (-(((x - 77.0).powi(2) + (y - 60.0).powi(2)) / (2.0 * 2.5 * 2.5))).exp();
+                z[r * w + c] = (51.2 + real_knoll + cliff + rim_lip) as f32;
+            }
+        }
+        let dem = DemGrid {
+            width: w,
+            height: h,
+            world: WorldTransform { cell: 1.0, x0: 500_000.5, y0: 6_500_119.5 },
+            z,
+            valid: vec![1u8; w * h],
+            water: vec![0u8; w * h],
+            wet: vec![0u8; w * h],
+        };
+        let cfg = EngineConfig::defaults_for_interval(5.0);
+        let prepared = prepare_dem(&dem, &cfg);
+        let (contours, promoted) = extract_contours(&prepared, &cfg);
+        let formlines = extract_formlines(&prepared, &contours, &cfg);
+        let knolls = detect_knolls_and_pits(&prepared, &contours, &formlines, &promoted, &cfg);
+        let hills: Vec<_> = knolls.iter().filter(|k| !k.is_depression()).collect();
+        assert!(
+            hills.iter().any(|k| (k.x - 500_030.5).hypot(k.y - 6_500_059.5) < 4.0),
+            "Genuine isolated knoll must be preserved, got {hills:?}"
+        );
+        assert!(
+            !hills.iter().any(|k| (k.x - 500_077.5).hypot(k.y - 6_500_059.5) < 6.0),
+            "Cliff-rim lip FP must be suppressed, got {hills:?}"
+        );
     }
 
     #[test]

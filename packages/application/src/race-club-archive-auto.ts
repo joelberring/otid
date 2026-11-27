@@ -90,14 +90,23 @@ export async function maybeAutoArchive(tx: DbExecutor, raceId: string, now: Date
   return lifted.status === "lifted" ? "archived" : "none";
 }
 
-/** Billig förkontroll (utan sparpunkt): är automatisk arkivering avstängd eller redan gjord på tävlingen? */
-async function autoArchiveInactive(tx: DbExecutor, raceId: string): Promise<boolean> {
-  const [row] = await tx.select({ raceType: schema.races.raceType, enabled: auto.enabled, archivedAt: auto.archivedAt })
-    .from(schema.races)
-    .leftJoin(auto, eq(auto.raceId, schema.races.id))
-    .where(eq(schema.races.id, raceId))
-    .limit(1);
-  return !row || row.archivedAt !== null || !(row.enabled ?? autoArchiveDefault(row.raceType));
+/**
+ * Billig förkontroll (utan sparpunkt): är automatisk arkivering avstängd, redan gjord, eller saknas tabellen i en äldre
+ * databas under uppgradering (steg 28)? Returnerar "table-missing" utan att cacha så att en uppgradering i samma process
+ * ser tabellen direkt efter migrering.
+ */
+async function autoArchivePrecheck(tx: DbExecutor, raceId: string): Promise<"active" | "inactive" | "table-missing"> {
+  const [race] = await tx.select({
+    raceType: schema.races.raceType,
+    hasTable: sql<boolean>`to_regclass('public.race_club_archive_auto') is not null`
+  }).from(schema.races).where(eq(schema.races.id, raceId)).limit(1);
+  if (!race) return "inactive";
+  if (!race.hasTable) return "table-missing";
+  const [row] = await tx.select({ enabled: auto.enabled, archivedAt: auto.archivedAt })
+    .from(auto).where(eq(auto.raceId, raceId)).limit(1);
+  return (row?.archivedAt ?? null) !== null || !(row?.enabled ?? autoArchiveDefault(race.raceType))
+    ? "inactive"
+    : "active";
 }
 
 /**
@@ -107,7 +116,9 @@ async function autoArchiveInactive(tx: DbExecutor, raceId: string): Promise<bool
  */
 export async function autoArchiveAfterResult(tx: Transaction, raceId: string, now: Date): Promise<void> {
   if (isAutoArchiveCachedInactive(raceId)) return;
-  if (await autoArchiveInactive(tx, raceId)) {
+  const state = await autoArchivePrecheck(tx, raceId);
+  if (state === "table-missing") return;
+  if (state === "inactive") {
     cacheAutoArchiveInactive(raceId);
     return;
   }

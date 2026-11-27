@@ -110,6 +110,7 @@ export async function loadRaceSnapshot(db: DbExecutor, raceId: string, scope?: R
     name: schema.races.name,
     raceDate: schema.races.raceDate,
     snapshotVersion: schema.races.snapshotVersion,
+    raceType: schema.races.raceType,
     eventExists: schema.events.id
   }).from(schema.races)
     .leftJoin(schema.events, eq(schema.events.id, schema.races.eventId))
@@ -122,13 +123,21 @@ export async function loadRaceSnapshot(db: DbExecutor, raceId: string, scope?: R
     courseVersionId: schema.classes.courseVersionId, startRule: schema.classes.startRule,
     rogainingTimeLimitSeconds: schema.classes.rogainingTimeLimitSeconds,
     rogainingPenaltyPointsPerMinute: schema.classes.rogainingPenaltyPointsPerMinute, maxTimeMinutes: schema.classes.maxTimeMinutes,
-    relayReadoutMode: schema.classes.relayReadoutMode,
     externalId: schema.classes.externalId }).from(schema.classes)
     .where(eq(schema.classes.raceId, raceId))
     .orderBy(asc(schema.classes.id));
-  // Steg 47: stafettsträckor med egen bana; sträcklöparen bär banan i paketet.
-  const legCourseRows = await db.select({ classId: schema.relayLegs.classId, leg: schema.relayLegs.leg,
-    courseVersionId: schema.relayLegs.courseVersionId, fixedVariant: schema.relayLegs.courseVariantCode }).from(schema.relayLegs)
+  // Steg 47/48: stafettsträckor med egen bana och ev. teamsprintläge; för icke-stafett kollas `relay_leg.leg` först
+  // så att en äldre databas under uppgradering (steg 28, före 0021/0024) inte frågar efter senare kolumner.
+  const hasRelayLegs = raceRow.raceType === "RELAY" || (await db.select({ leg: schema.relayLegs.leg }).from(schema.relayLegs)
+    .where(eq(schema.relayLegs.raceId, raceId)).limit(1))[0] !== undefined;
+  const legCourseRows = !hasRelayLegs ? [] : await db.select({
+    classId: schema.relayLegs.classId,
+    leg: schema.relayLegs.leg,
+    courseVersionId: schema.relayLegs.courseVersionId,
+    fixedVariant: schema.relayLegs.courseVariantCode,
+    relayReadoutMode: schema.classes.relayReadoutMode
+  }).from(schema.relayLegs)
+    .innerJoin(schema.classes, eq(schema.classes.id, schema.relayLegs.classId))
     .where(eq(schema.relayLegs.raceId, raceId));
   const referencedVersionIds = scope
     ? [...new Set([
@@ -196,8 +205,8 @@ export async function loadRaceSnapshot(db: DbExecutor, raceId: string, scope?: R
   // Sträckans fasta variant gäller en sträcklöpare som saknar egen (som Kartor till starten).
   const legFixedVariant = new Map(legCourseRows.flatMap((row) => row.fixedVariant ? [[`${row.classId}:${row.leg}`, row.fixedVariant] as const] : []));
   // Steg 48: teamsprint – varje sträcklöpares del av brickan (löparens sträckor i ordning, växlingskontrollen).
-  const hasTeamSprint = classRows.some((row) => row.relayReadoutMode !== null);
-  const teamSprint = legCourseRows.length === 0 || !hasTeamSprint
+  const hasTeamSprint = legCourseRows.some((row) => row.relayReadoutMode !== null);
+  const teamSprint = !hasTeamSprint
     ? new Map<string, NonNullable<RaceSnapshot["entries"][number]["teamSprint"]>>()
     : await loadTeamSprintParts(db, raceId, scoped);
   const assignmentRows = scoped !== undefined && scoped.length === 0 && scope?.cardNumber === undefined ? [] : await db.select().from(schema.cardAssignments)

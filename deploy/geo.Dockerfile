@@ -24,7 +24,7 @@ RUN set -eu; \
     *) echo "Okänd plattform ${TARGETARCH}"; exit 1 ;; \
   esac; \
   rustup target add "${target}"; \
-  RUSTFLAGS='-C target-feature=+crt-static -C strip=symbols' cargo build --release --locked --target "${target}"; \
+  RUSTFLAGS='-C target-feature=+crt-static -C strip=symbols' cargo build --release --locked --no-default-features --target "${target}"; \
   cp "target/${target}/release/pullauta" /pullauta
 
 # Grundkartan G1: lasclip (O-Tids eget lilla program, tools/lasclip) klipper laserfilerna till kartans område. Byggs på samma
@@ -80,7 +80,7 @@ RUN echo "Karttapullautin ${PULLAUTIN_TAG}, GPL-3. Källkoden: https://github.co
   && echo "LibreDWG ${LIBREDWG_VERSION}, GPL-3. Källkoden: https://github.com/LibreDWG/libredwg/releases/tag/${LIBREDWG_VERSION}" > /opt/libredwg/KALLA.txt \
   && mkdir -p /work /app && chown node:node /work
 # Geo-arbetaren och fuktigheten (K5c) körs direkt av Node (typerna tas bort); package.json gör dem till ES-moduler.
-COPY --chown=node:node scripts/geo-worker.ts scripts/geo-moisture.ts scripts/geo-vegetation.ts scripts/geo-water.ts scripts/geo-cliffs.ts scripts/geo-ditches.ts scripts/geo-tracks.ts scripts/geo-rock.ts scripts/geo-steps.ts scripts/geo-cache.ts scripts/geo-generalize.ts scripts/geo-points.ts scripts/geo-paved.ts scripts/geo-paved-generalize.ts scripts/geo-paved-contour.ts scripts/geo-gpkg.ts scripts/geo-dwg.ts scripts/geo-merge.ts scripts/geo-slim.ts scripts/geo-raw-zip.ts /app/
+COPY --chown=node:node scripts/geo-worker.ts scripts/geo-worker-helpers.ts scripts/geo-moisture.ts scripts/geo-vegetation.ts scripts/geo-water.ts scripts/geo-cliffs.ts scripts/geo-ditches.ts scripts/geo-tracks.ts scripts/geo-rock.ts scripts/geo-steps.ts scripts/geo-cache.ts scripts/geo-generalize.ts scripts/geo-points.ts scripts/geo-paved.ts scripts/geo-paved-generalize.ts scripts/geo-paved-contour.ts scripts/geo-gpkg.ts scripts/geo-dwg.ts scripts/geo-merge.ts scripts/geo-slim.ts scripts/geo-raw-zip.ts /app/
 # Ägaren 2026-11-17: vegetationens generalisering delas med webbläsaren och ligger i map-revision; geo-vegetation.ts importerar
 # den med den relativa sökvägen ../packages/…, som från /app blir /packages/….
 COPY --chown=node:node packages/map-revision/src/base-map/vegetation-shapes.ts /packages/map-revision/src/base-map/

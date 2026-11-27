@@ -1,25 +1,15 @@
-import { inflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import type { GroundGrid } from "../../../scripts/geo-cliffs";
+import { decodePng } from "../../../scripts/geo-merge";
 import { distanceToMask, rockImage, roughnessGrid } from "../../../scripts/geo-rock";
 import { rockAreasOfJob, worldFileAffine } from "../src/base-map";
 
-/** PNG (RGBA, 8 bitar, utan radfilter, som geo-arbetarens `encodePng` skriver den) som råa bildpunkter radvis uppifrån. */
+/** PNG (RGBA, 8 bitar, inkl. Sub/Up-filter från `encodePng`) som råa bildpunkter radvis uppifrån. */
 function decodeRgbaPng(bytes: Uint8Array): { width: number; height: number; data: Uint8Array } {
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength), parts: Uint8Array[] = [];
-  let offset = 8, width = 0, height = 0;
-  while (offset + 12 <= bytes.byteLength) {
-    const length = view.getUint32(offset), type = String.fromCharCode(...bytes.subarray(offset + 4, offset + 8));
-    if (type === "IHDR") { width = view.getUint32(offset + 8); height = view.getUint32(offset + 12); }
-    else if (type === "IDAT") parts.push(bytes.subarray(offset + 8, offset + 8 + length));
-    offset += 12 + length;
-  }
-  const raw = inflateSync(Buffer.concat(parts)), data = new Uint8Array(width * height * 4);
-  for (let row = 0; row < height; row += 1) {
-    expect(raw[row * (width * 4 + 1)]).toBe(0);
-    data.set(raw.subarray(row * (width * 4 + 1) + 1, (row + 1) * (width * 4 + 1)), row * width * 4);
-  }
-  return { width, height, data };
+  const png = decodePng(bytes);
+  expect(png.colorType).toBe(6);
+  expect(png.bitDepth).toBe(8);
+  return { width: png.width, height: png.height, data: png.data };
 }
 
 /** 60 × 40 m: ojämn häll (x 5–30), slät mark, och vatten vid x ≥ 50. */

@@ -26,49 +26,40 @@ import { cpus, hostname, totalmem } from "node:os";
 import { join } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import { createReadStream } from "node:fs";
 import { clearLeftovers, fromCache, toCache } from "./geo-cache.ts";
-import { saveRawLaser } from "./geo-raw-zip.ts";
-import { cliffsFromTicks, DEFAULT_CLIFF_RULES, hillshade, mergeGroundGrids, readGroundGrid, readTicks, steepAt, heightPng } from "./geo-cliffs.ts";
+import { cliffsFromTicks, DEFAULT_CLIFF_RULES, hillshade, readTicks, steepAt, heightPng } from "./geo-cliffs.ts";
 import { buildingLayer, featuresGeoJson, gpkgBytes, landCoverLayer, parcelLayer, readGpkgFeatures, type Geometry } from "./geo-gpkg.ts";
-import { dwgFeatures, dwgObjects } from "./geo-dwg.ts";
-import { AREA_DXF, clipDxfEntities, decodePng, dxfFrame, encodeRawPng, mergeGeoJson, mosaicPng, readWorld, writeWorld, type Box } from "./geo-merge.ts";
-import { moistureDxf, moistureFromHeightMaps, readHeightMap } from "./geo-moisture.ts";
-import { slimDxf } from "./geo-slim.ts";
+import type { Box } from "./geo-merge.ts";
+import { downsampleGroundTo2m, moistureDxf, moistureFromHeightMaps, readHeightMap } from "./geo-moisture.ts";
 import { pavedFromPoints } from "./geo-paved.ts";
-import { groundShareAt, vegetationSignals, type VegetationSignals, mergePointStats, pointImages, readPointStats, type PointStats } from "./geo-points.ts";
-import { maskOf, runStep, StepSkipped, STEP_TIMEOUT_MS, type StepInput, type StepName } from "./geo-steps.ts";
+import { groundShareAt, pointImages, vegetationSignals, type PointStats, type VegetationSignals } from "./geo-points.ts";
+import { saveRawLaser } from "./geo-raw-zip.ts";
+import { slimDxf } from "./geo-slim.ts";
+import { maskOf, runStep, shareBytes, shareGround, stepPoolConcurrency, StepSkipped, STEP_TIMEOUT_MS, type StepInput, type StepName } from "./geo-steps.ts";
 import { decodeGrayPng, readWorldFile, vegetationFromTiles, type VegetationTile } from "./geo-vegetation.ts";
-import { readWaterGrid, waterFromGrids } from "./geo-water.ts";
+import { waterFromGrids } from "./geo-water.ts";
+import {
+  initialPngMergeScale, readPngSize, runDwgJobHelper, runMergeJobHelper, runPool,
+  streamMergeGroundFiles, streamMergePointFiles, streamMergeWaterFiles, type HelperDeps
+} from "./geo-worker-helpers.ts";
 
 interface Job {
   readonly jobId: string; readonly kind: "PULLAUTIN" | "DWG"; readonly attempt: number;
   readonly tiles: readonly { readonly index: number; readonly id: string; readonly epsg: number | null }[];
   readonly settings: Readonly<Record<string, number>>;
-  /** Grundkartan G1: laserdatan klipps till rutan (SWEREF 99 TM, med marginal) innan Karttapullautin körs. */
   readonly clip?: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number } | null;
-  /** En etapp räknas på sin klippruta med marginal mot grannetapperna (ägaren 2026-11-17, skarvar i reliefen); den äger bara klipprutan. */
   readonly reach?: Job["clip"];
-  /** G8: Lantmäteriets vektorprodukter (Marktäcke, Byggnad) att läsa till kandidater. */
   readonly extras?: readonly { readonly index: number; readonly kind: "LAND_COVER" | "BUILDINGS" | "PARCELS" }[];
-  /** G4: branternas trösklar (null = Kungshatt-kedjans förval). */
   readonly cliffs?: { readonly minDrop: number; readonly impassableDrop: number; readonly impassableLength?: number; readonly tags?: boolean; readonly rawTicks?: boolean } | null;
-  /** K5c del 2: fuktigheten ur markmodellen (Karttapullautins höjdraster per ruta). */
   readonly moisture?: { readonly channelHa: number; readonly wetMeters: number; readonly moistMeters: number } | null;
-  /** K5c del 3: vegetationen ur returerna som ytor (Karttapullautins klassbilder per ruta). */
   readonly vegetation?: { readonly minAreaM2: number } | null;
-  /** Jobbet är en etapp i en delad körning: bilderna skickas som PNG, så att sammanläggningen kan läsa dem. */
   readonly stage?: boolean;
-  /** PLAN.md M6: laserfilerna packas i en zip som laddas upp till förrådet («Spara även rå laserdata åt mig»). */
   readonly rawLaser?: boolean;
-  /** Ägaren 2026-11-14: jobbet lägger ihop en delad körnings etapper (inga rutor körs); filerna hämtas från O-Tid. */
   readonly merge?: { readonly stages: readonly { readonly jobId: string; readonly clip: Box; readonly outputs: readonly string[] }[] } | null;
 }
 
 const env = process.env;
-/** Rutan som laserdatan klipps till: etappens ruta med marginal, annars klipprutan. */
 const reachOf = (job: Job) => job.reach ?? job.clip;
-/** Laserrutornas förråd på serverns disk (lever så länge behållaren lever). */
 const CACHE_DIR = env.OTID_GEO_CACHE_DIR ?? "/tmp/otid-laserrutor";
 const origin = (env.OTID_GEO_ORIGIN ?? "").replace(/\/$/, "");
 const token = env.OTID_GEO_WORKER_TOKEN ?? "";
@@ -81,14 +72,17 @@ const cwebp = env.OTID_CWEBP || "cwebp";
 const workdir = env.OTID_GEO_WORKDIR || "/tmp/otid-geo";
 const once = env.OTID_GEO_ONCE === "1";
 const exitIdleMs = Math.max(0, Number(env.OTID_GEO_EXIT_IDLE_MIN ?? 0)) * 60_000;
-/** Största bilden som blir ett underlag (samma som serverns gräns för underlag). */
 const LAYER_MAX_BYTES = 40 * 1024 * 1024;
 const LAYER_MAX_PIXELS = 30_000;
-/** Resultatfilerna: namnet hos O-Tid → Karttapullautins sammanslagna fil. */
+const UPLOAD_CONCURRENCY = 4;
 const VECTOR_OUTPUTS: readonly (readonly [string, string])[] = [
   ["kurvor.dxf", "merged_contours.dxf"], ["formlinjer.dxf", "merged_formlines.dxf"], ["branter.dxf", "merged_c2g.dxf"],
   ["stup.dxf", "merged_c3g.dxf"], ["knollar.dxf", "merged_dotknolls.dxf"]
 ];
+/** O-Tids egna DXF-filer (redan förenklade ≥ 0,75 m och avrundade till centimeter av `moistureDxf`). */
+const OWN_DXF_OUTPUTS: ReadonlySet<string> = new Set([
+  "fukt.dxf", "vegetation.dxf", "brantlinjer.dxf", "diken.dxf", "spar.dxf", "berg.dxf", "belagt.dxf"
+]);
 
 class Stopped extends Error {}
 
@@ -98,6 +92,7 @@ export function jobMemoryGb(job: { readonly clip?: Job["clip"]; readonly tiles: 
   return areaKm2 <= 8 ? 4 : areaKm2 <= 45 ? 8 : 16;
 }
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 /** Mäter väggklockstid (ms) per fas och högsta observerade RSS (MB) under ett geo-jobb. */
 export function createJobTelemetry(now = () => Date.now(), rssBytes = () => process.memoryUsage().rss) {
   const started = now(), phases: Record<string, number> = {};
@@ -110,29 +105,20 @@ export function createJobTelemetry(now = () => Date.now(), rssBytes = () => proc
   };
   return { sample, phase, summary: (): Record<string, number> => { phase(); return { ...phases, msTotal: Math.max(0, Math.round(now() - started)), peakRssMb }; } };
 }
-/**
- * Ägaren 2026-11-22: Karttapullautins råa brantstreck (branter.dxf, stup.dxf) blev 77 MB per etapp och föll ibland bort.
- * Grundkartan använder brantlinjerna (brantlinjer.dxf), så de råa strecken skickas bara när användaren kryssat i dem
- * (`cliffs.rawTicks`) eller när det inte blev några brantlinjer.
- */
+
 export const RAW_TICK_OUTPUTS: ReadonlySet<string> = new Set(["branter.dxf", "stup.dxf"]);
-export function keepsRawTicks(job: Pick<Job, "cliffs">, hasCliffLines: boolean): boolean {
+export function keepsRawTicks(job: { readonly cliffs?: { readonly rawTicks?: boolean } | null | undefined }, hasCliffLines: boolean): boolean {
   return job.cliffs?.rawTicks === true || !hasCliffLines;
 }
 /** Arbetarens version (samma som `GEO_WORKER_VERSION` i contracts; servern ger inga jobb till en äldre). */
-export const WORKER_VERSION = 41;
+export const WORKER_VERSION = 42;
 
-/**
- * Ägarens sprintkörningar 2026-11-13 föll med «stup.dxf kunde inte skickas (422)»: kontots kvot för kartfiler var full.
- * Beskedet säger nu varför och vad man gör.
- */
 async function sendFailure(name: string, response: Response): Promise<string> {
   const error = (await response.json().catch(() => undefined) as { error?: string } | undefined)?.error;
   if (error === "STORAGE_QUOTA_EXCEEDED") return `${name} fick inte plats: kontots lagring för kartfiler är full. Ta bort äldre körningar eller höj OTID_MAP_QUOTA_ACCOUNT_MB på servern`;
   if (error === "MAP_FILE_TOO_LARGE") return `${name} är för stor för att sparas`;
   return `${name} kunde inte skickas (${response.status})`;
 }
-/** Serverns gräns för en resultatfil (GEO_OUTPUT_MAX_BYTES i @o-tid/contracts). */
 const OUTPUT_MAX_BYTES = 100 * 1024 * 1024;
 const headers = (extra: Record<string, string> = {}) => ({ authorization: `Bearer ${token}`, "x-otid-geo-worker": workerName,
   "x-otid-geo-version": String(WORKER_VERSION), ...extra });
@@ -142,27 +128,20 @@ async function call(path: string, init: RequestInit = {}): Promise<Response> {
     signal: init.signal ?? AbortSignal.timeout(60_000) });
 }
 
-/**
- * Hur många laserrutor som körs samtidigt (ägaren 2026-11-11–12: «flera rutor per kärna, så har jag gjort förut när jag kört
- * karttap själv»): en per kärna, men inte fler än minnet räcker till. Varje ruta räknas till 1,5 GB och 2 GB hålls undan för
- * resten av arbetaren; måtten är satta med marginal, inte uppmätta. Andra försöket kör en i taget: dog det första kan det
- * ha varit minnet.
- */
 export function parallelTiles(tiles: number, cores: number, memoryGb: number, attempt = 1): number {
   if (attempt > 1) return 1;
   return Math.max(1, Math.min(tiles, cores, Math.floor((memoryGb * 0.85 - 2) / 1.5)));
 }
 
-/** Grundinställningarna med jobbets ändringar och det som geo-arbetaren kräver (rutorna i `processes` samtidiga, filerna sparas). */
-export function iniWith(base: string, settings: Readonly<Record<string, number>>, keepTemp = false, vegetationClasses = false, processes = 1): string {
-  // `greenscale` är O-Tids egen: en faktor på Karttapullautins gränser för grönt (`greenshades`), inte en rad i filen.
-  // Geo-arbetarens egna (gult, grönt, kullar, berg i dagen, belagd yta) skrivs inte heller i filen.
+/** Grundinställningarna med jobbets ändringar och det som geo-arbetaren kräver (tvåstegs `outputDxf`: 0 i batch, 1 inför dxfmerge). */
+export function iniWith(base: string, settings: Readonly<Record<string, number>>, keepTemp = false, vegetationClasses = false, processes = 1, outputDxf = true): string {
   const OWN = new Set(["greenscale", "openshare", "denseshare", "knollshare", "rock", "paved"]);
   const greenscale = settings.greenscale, pullautin = Object.fromEntries(Object.entries(settings).filter(([key]) => !OWN.has(key)));
   const shades = greenscale && greenscale !== 1 ? /^\s*greenshades\s*=\s*([^\r\n#]+)/m.exec(base)?.[1]?.split("|").map(Number) : undefined;
   const fixed: Record<string, string | number> = { ...pullautin, ...(shades?.every(Number.isFinite)
-    ? { greenshades: shades.map(value => value >= 99 ? value : Math.round(value * greenscale! * 1000) / 1000).join("|") } : {}), batch: 1, processes, lazfolder: "./in", batchoutfolder: "./out", savetempfiles: 1,
-    savetempfolders: keepTemp ? 1 : 0, output_dxf: 1, ...(vegetationClasses ? { vege_bitmode: 1 } : {}) };
+    ? { greenshades: shades.map(value => value >= 99 ? value : Math.round(value * greenscale! * 1000) / 1000).join("|") } : {}),
+    batch: 1, processes, lazfolder: "./in", batchoutfolder: "./out", savetempfiles: 1,
+    savetempfolders: keepTemp ? 1 : 0, output_dxf: outputDxf ? 1 : 0, ...(vegetationClasses ? { vege_bitmode: 1 } : {}) };
   const seen = new Set<string>();
   const lines = base.split(/\r?\n/).map(line => {
     const match = /^\s*([A-Za-z0-9_]+)\s*=/.exec(line);
@@ -181,17 +160,13 @@ export function pngSize(bytes: Uint8Array): { width: number; height: number } | 
   return { width: view.getUint32(16), height: view.getUint32(20) };
 }
 
-/**
- * Miljön för programmen som tolkar opålitliga filer (pullauta, lasclip, cwebp, dwgread): utan arbetarens nyckel och andra
- * hemligheter, som de inte behöver.
- */
+/** Miljön för programmen som tolkar opålitliga filer (pullauta, lasclip, cwebp, dwgread): utan arbetarens nyckel och hemligheter. */
 export function childEnvironment(source: NodeJS.ProcessEnv = env): NodeJS.ProcessEnv {
   const clean: NodeJS.ProcessEnv = { ...source, RUST_LOG: "warn" };
   for (const key of Object.keys(clean)) if (/^OTID_.*(TOKEN|SECRET|PASSWORD|KEY)/.test(key)) delete clean[key];
   return clean;
 }
 
-/** Längsta tid för Karttapullautin på ett jobb (minuter). Geo-servern rivs efter OTID_GEO_MAX_HOURS (förval 8), så jobbet ska fela före det. */
 const pullautaTimeoutMs = Math.max(1, Number(env.OTID_GEO_PULLAUTA_TIMEOUT_MIN) || 360) * 60_000;
 
 function run(args: readonly string[], cwd: string, signal: AbortSignal, program = pullauta): Promise<void> {
@@ -204,50 +179,47 @@ function run(args: readonly string[], cwd: string, signal: AbortSignal, program 
     child.on("error", reject);
     child.on("close", code => {
       signal.removeEventListener("abort", abort);
+      const label = program === pullauta ? "Karttapullautin" : program === lasclip ? "lasclip" : program === cwebp ? "cwebp" : "dwgread";
       if (signal.aborted) {
-        // En tidsgräns är ett fel som jobbet ska rapportera; ett avbrott (control.abort) är ett stopp och rapporteras inte.
-        if ((signal.reason as { name?: string } | undefined)?.name === "TimeoutError") reject(new Error(`${program === pullauta ? "Karttapullautin" : program === lasclip ? "lasclip" : program === cwebp ? "cwebp" : "dwgread"} avbröts efter tidsgränsen`));
+        if ((signal.reason as { name?: string } | undefined)?.name === "TimeoutError") reject(new Error(`${label} avbröts efter tidsgränsen`));
         else reject(new Stopped());
       } else if (code === 0) resolve();
-      else reject(new Error(`${program === pullauta ? "Karttapullautin" : program === lasclip ? "lasclip" : program === cwebp ? "cwebp" : "dwgread"} avslutades med kod ${code}: ${tail.trim().split("\n").slice(-3).join(" ")}`));
+      else reject(new Error(`${label} avslutades med kod ${code}: ${tail.trim().split("\n").slice(-3).join(" ")}`));
     });
   });
 }
 
-/**
- * Ägaren 2026-11-14 («om det gör det snabbare är det bra»): bilderna att titta på (kartbilden, terrängskuggningen och reliefen)
- * skickas som WebP, som är ungefär fem gånger mindre än PNG (mätt på Ornö södra: 4,1 MB blev 0,75 MB). Mätvärdena (fuktdjup,
- * vegetationsklasser, berg, höjd och laserns raster) förblir PNG, eftersom reglagen läser talen i dem.
- */
 export const WEBP_OUTPUTS: ReadonlySet<string> = new Set(["karta.png", "skuggning.png", "relief.png"]);
-/** WebP rymmer högst så här många bildpunkter per sida. */
 const WEBP_MAX_SIDE = 16_383;
 
-/** PNG-filen som WebP bredvid sig, eller inget (för stor, cwebp saknas eller gick fel; då skickas PNG som förut). */
 async function toWebp(dir: string, source: string, signal: AbortSignal): Promise<string | undefined> {
-  const size = pngSize(await readFile(join(dir, source)).then(bytes => bytes.subarray(0, 24)));
+  const size = await readPngSize(join(dir, source), pngSize);
   if (!size || size.width > WEBP_MAX_SIDE || size.height > WEBP_MAX_SIDE) return undefined;
   const target = source.replace(/\.png$/, ".webp");
   try {
     await run(["-quiet", "-q", "80", "-alpha_q", "100", "-m", "4", source, "-o", target], dir, AbortSignal.any([signal, AbortSignal.timeout(10 * 60_000)]), cwebp);
-    // Blir den inte mindre (en bild med få färger packas bäst som PNG) skickas PNG.
     const bytes = (await stat(join(dir, target))).size;
     return bytes > 0 && bytes < (await stat(join(dir, source))).size ? target : undefined;
   } catch (error) {
-    // Avbrutet jobb stoppar; allt annat (också tidsgränsen) ger PNG som förut.
     if (signal.aborted) throw new Stopped();
     console.error(`${source} blev inte WebP: ${error instanceof Error ? error.message : String(error)}`);
     return undefined;
   }
 }
 
-/** GeoJSON-objekten i `text` läggs till filen (fastighetsindelningens rutor blir en fil). */
 async function appendGeoJson(path: string, text: string): Promise<void> {
   const before = await readFile(path, "utf8").then(old => JSON.parse(old) as { features: unknown[] }).catch(() => undefined);
   if (!before) { await writeFile(path, text); return; }
   const added = JSON.parse(text) as { features: unknown[] };
   await writeFile(path, JSON.stringify({ type: "FeatureCollection", features: [...before.features, ...added.features] }));
 }
+
+const helperDeps: HelperDeps = {
+  workdir, dwgread, workerVersion: WORKER_VERSION, outputMaxBytes: OUTPUT_MAX_BYTES,
+  webpOutputs: WEBP_OUTPUTS, rawTickOutputs: RAW_TICK_OUTPUTS,
+  call, run, toWebp, sendFailure, jobMemoryGb, keepsRawTicks, createTelemetry: createJobTelemetry,
+  isStopped: error => error instanceof Stopped, createStopped: () => new Stopped(),
+};
 
 async function runJob(job: Job): Promise<void> {
   const dir = join(workdir, job.jobId), telemetry = createJobTelemetry();
@@ -260,77 +232,74 @@ async function runJob(job: Job): Promise<void> {
       body: JSON.stringify(progress) }).catch(() => undefined);
     const body = response?.ok ? await response.json().catch(() => undefined) as { action?: string } | undefined : undefined;
     if (body?.action === "stop") control.abort();
-    // Minnet i loggen vid varje livstecken, så att orsaken syns om arbetaren dör (docker logs på geoservern).
     console.log(`${job.jobId.slice(0, 8)} ${progress.step} ${progress.done}/${progress.total} ${telemetry.sample()} MB`);
   };
   const timer = setInterval(() => void beat(), 60_000);
   const set = async (step: string, done: number, total: number) => { progress = { step, done, total }; await beat(); if (control.signal.aborted) throw new Stopped(); };
   try {
-    // Servern väljs efter jobbets storlek, men ett stort jobb kan köas medan en liten server redan är igång. Då sägs det
-    // direkt, i stället för att minnet tar slut mitt i jobbet (serverns minne är lite mindre än det nominella, därav 0,85).
     const needGb = jobMemoryGb(job), haveGb = totalmem() / 2 ** 30;
     if (haveGb < needGb * 0.85) {
       throw new Error(`Området är för stort för geo-servern som är igång (${Math.round(haveGb)} GB minne, området behöver ${needGb} GB). `
         + "Kör om jobbet om en halvtimme, när servern har stängts av, eller dela området i etapper.");
     }
     telemetry.phase("msFetchClip"); await set("Hämtar laserdata", 0, job.tiles.length);
-    // Rutorna hämtas och klipps flera samtidigt (en per kärna, så långt minnet räcker); Karttapullautin kör dem likadant.
     const together = parallelTiles(job.tiles.length, cpus().length, totalmem() / 2 ** 30, job.attempt);
     let fetched = 0;
-    const fetchTile = async (tile: Job["tiles"][number]) => {
-      const file = `ruta${String(tile.index).padStart(2, "0")}.laz`, target = join(dir, job.clip ? file : join("in", file));
-      // Rutan finns kanske kvar på serverns disk från en tidigare körning (scripts/geo-cache.ts).
+    await runPool(job.tiles, together, async tile => {
+      const stem = `ruta${String(tile.index).padStart(2, "0")}`;
+      const file = `${stem}.laz`, target = join(dir, job.clip ? file : join("in", file));
       if (!await fromCache(CACHE_DIR, tile.id, target)) {
-      const response = await call(`/api/geo-worker/jobs/${job.jobId}/laser/${tile.index}`, { signal: AbortSignal.any([control.signal, AbortSignal.timeout(20 * 60_000)]) });
-      if (!response.ok || !response.body) {
-        const detail = await response.json().catch(() => undefined) as { error?: string; detail?: string } | undefined;
-        throw new Error(`Laserrutan ${tile.id} kunde inte hämtas (${detail?.error ?? response.status}${detail?.detail ? `, ${detail.detail}` : ""})`);
+        const response = await call(`/api/geo-worker/jobs/${job.jobId}/laser/${tile.index}`, { signal: AbortSignal.any([control.signal, AbortSignal.timeout(20 * 60_000)]) });
+        if (!response.ok || !response.body) {
+          const detail = await response.json().catch(() => undefined) as { error?: string; detail?: string } | undefined;
+          throw new Error(`Laserrutan ${tile.id} kunde inte hämtas (${detail?.error ?? response.status}${detail?.detail ? `, ${detail.detail}` : ""})`);
+        }
+        await pipeline(Readable.fromWeb(response.body as import("node:stream/web").ReadableStream), createWriteStream(target));
+        await toCache(CACHE_DIR, tile.id, target);
       }
-      await pipeline(Readable.fromWeb(response.body as import("node:stream/web").ReadableStream), createWriteStream(target));
-      await toCache(CACHE_DIR, tile.id, target);
-      }
-      // Grundkartan G1: rutan klipps till kartans område direkt efter hämtningen; en ruta helt utanför ger ingen fil.
       if (job.clip) {
-        await run([file, join("in", file), ...[reachOf(job)!.minX, reachOf(job)!.minY, reachOf(job)!.maxX, reachOf(job)!.maxY].map(String), `vatten${tile.index}.bin`, `mark${tile.index}.bin`, `punkter${tile.index}.bin`], dir,
+        // Okomprimerad .las mellan lasclip och pullauta när rå laserdata inte sparas (3× snabbare); behåll .laz vid rawLaser.
+        const clipped = `${stem}.${job.rawLaser ? "laz" : "las"}`;
+        await run([file, join("in", clipped), ...[reachOf(job)!.minX, reachOf(job)!.minY, reachOf(job)!.maxX, reachOf(job)!.maxY].map(String),
+          `vatten${tile.index}.bin`, `mark${tile.index}.bin`, `punkter${tile.index}.bin`], dir,
           AbortSignal.any([control.signal, AbortSignal.timeout(20 * 60_000)]), lasclip);
         await rm(join(dir, file), { force: true });
       }
       fetched += 1;
       await set("Hämtar laserdata", fetched, job.tiles.length);
-        };
-    const waiting = [...job.tiles];
-    await Promise.all(Array.from({ length: together }, async () => {
-      for (let tile = waiting.shift(); tile; tile = waiting.shift()) await fetchTile(tile);
-    }));
+    });
     if (job.clip && (await readdir(join(dir, "in"))).length === 0) throw new Error("Kartans område ligger utanför laserrutorna");
     if (job.rawLaser) {
       telemetry.phase("msRawLaser"); await set("Sparar rå laserdata", 0, 1);
       await saveRawLaser({ jobId: job.jobId, tiles: job.tiles, clip: job.clip ?? null, reach: reachOf(job) ?? null }, join(dir, "in"), call, control.signal)
         .catch(error => { if (control.signal.aborted) throw new Stopped(); throw error; });
     }
-    telemetry.phase("msPullauta"); await writeFile(join(dir, "pullauta.ini"), iniWith(await readFile(defaultIni, "utf8"), job.settings, !!job.moisture, !!job.vegetation, together));
+    // Tvåstegs output_dxf: batch körs med output_dxf=0 (slipper 15 oanvända ASCII-DXF/ruta); output_dxf=1 slås på inför dxfmerge.
+    // Klippta jobb räknar fuktigheten direkt ur 1 m mark*.bin och behöver inte savetempfolders=1.
+    const baseIni = await readFile(defaultIni, "utf8");
+    const keepTemp = !!job.moisture && !job.clip;
+    telemetry.phase("msPullauta");
+    await writeFile(join(dir, "pullauta.ini"), iniWith(baseIni, job.settings, keepTemp, !!job.vegetation, together, false));
     await set("Karttapullautin", 0, 1);
     await run([], dir, AbortSignal.any([control.signal, AbortSignal.timeout(pullautaTimeoutMs)]));
     telemetry.phase("msPngMerge"); await set("Slår ihop rutorna", 0, 1);
-    let scale = job.tiles.length > 4 ? 2 : 1;
+    let scale = initialPngMergeScale(reachOf(job), job.tiles.length, LAYER_MAX_PIXELS);
     for (;;) {
       await run(["pngmerge", String(scale)], dir, AbortSignal.any([control.signal, AbortSignal.timeout(60 * 60_000)]));
-      const head = new Uint8Array(await readFile(join(dir, "merged.png")).then(bytes => bytes.subarray(0, 32)));
-      const size = pngSize(head), bytes = (await stat(join(dir, "merged.png"))).size;
+      const size = await readPngSize(join(dir, "merged.png"), pngSize), bytes = (await stat(join(dir, "merged.png"))).size;
       if ((size && Math.max(size.width, size.height) <= LAYER_MAX_PIXELS && bytes <= LAYER_MAX_BYTES) || scale >= 8) break;
       scale *= 2;
     }
-    telemetry.phase("msDxfMerge"); await run(["dxfmerge"], dir, AbortSignal.any([control.signal, AbortSignal.timeout(60 * 60_000)]));
-    // Grundkartan G4: branternas korta streck blir linjer med nedför till höger (geo-cliffs.ts). Med lasclips markraster
-    // (1 m) mäts fallet över varje linje, och det avgör om den är opasserbar, passerbar eller ingen brant.
+    telemetry.phase("msDxfMerge");
+    await writeFile(join(dir, "pullauta.ini"), iniWith(baseIni, job.settings, keepTemp, !!job.vegetation, together, true));
+    await run(["dxfmerge"], dir, AbortSignal.any([control.signal, AbortSignal.timeout(60 * 60_000)]));
+
     telemetry.phase("msCliffs"); let cliffSummary: Record<string, number> = {};
     let groundShare: ((x: number, y: number) => number | undefined) | undefined, signals: VegetationSignals | undefined;
     let pointStats: PointStats | undefined;
     const ticksOf = async (name: string) => readTicks(await readFile(join(dir, name), "utf8").catch(() => ""));
     const groundFiles = (await readdir(dir)).filter(name => /^mark\d+\.bin$/.test(name)).sort();
-    const grounds = [];
-    for (const name of groundFiles) grounds.push(readGroundGrid(new Uint8Array(await readFile(join(dir, name)))));
-    const ground = grounds.length ? mergeGroundGrids(grounds) : undefined;
+    const ground = await streamMergeGroundFiles(dir, groundFiles);
     const rules = job.cliffs ? { ...DEFAULT_CLIFF_RULES, minDrop: job.cliffs.minDrop, impassableDrop3: job.cliffs.impassableDrop,
       impassableDrop6: job.cliffs.impassableDrop * DEFAULT_CLIFF_RULES.impassableDrop6 / DEFAULT_CLIFF_RULES.impassableDrop3,
       impassableLength: job.cliffs.impassableLength ?? DEFAULT_CLIFF_RULES.impassableLength } : DEFAULT_CLIFF_RULES;
@@ -346,19 +315,15 @@ async function runJob(job: Job): Promise<void> {
       cliffSummary = cliffs.summary;
     }
     telemetry.phase();
-    // Terrängskuggningen ur samma markraster, som ett underlag att tona.
+
     if (ground) {
       telemetry.phase("msGroundImages"); await set("Ritar terrängskuggningen", 0, 1);
       const shade = hillshade(ground);
       await writeFile(join(dir, "skuggning.png"), shade.png);
       await writeFile(join(dir, "skuggning.pgw"), shade.world);
-      // Ägaren 2026-11-11 (lära av en väl ritad karta): markens höjd som bild, träningsdata via AI-kopplingen.
-      // Egna beräkningar ur punktmolnet (geo-points.ts): vegetationens höjd, skikten, markträffarnas andel och intensitet.
       const pointFiles = (await readdir(dir)).filter(name => /^punkter\d+\.bin$/.test(name)).sort();
-      if (pointFiles.length) {
-        const tiles = [];
-        for (const name of pointFiles) tiles.push(readPointStats(new Uint8Array(await readFile(join(dir, name)))));
-        const stats = mergePointStats(tiles);
+      const stats = await streamMergePointFiles(dir, pointFiles);
+      if (stats) {
         pointStats = stats;
         groundShare = groundShareAt(stats); signals = vegetationSignals(stats, job.settings.openshare, job.settings.denseshare);
         const images = pointImages(stats);
@@ -371,19 +336,19 @@ async function runJob(job: Job): Promise<void> {
       await writeFile(join(dir, "hojd.png"), heights.png);
       await writeFile(join(dir, "hojd.pgw"), heights.world); telemetry.phase();
     }
-    // Grundkartan: vattnet ur lasclips raster (geo-water.ts), så att sjön varken blir blöt mark eller öppen mark.
+
     let water: ReturnType<typeof waterFromGrids> | undefined;
     const waterFiles = (await readdir(dir)).filter(name => /^vatten\d+\.bin$/.test(name)).sort();
     if (waterFiles.length > 0) {
       telemetry.phase("msWater"); await set("Letar upp vattnet", 0, 1);
-      const grids = [];
-      for (const name of waterFiles) grids.push(readWaterGrid(new Uint8Array(await readFile(join(dir, name)))));
-      water = waterFromGrids(grids);
-      if (water.summary.waterAreas > 0) await writeFile(join(dir, "vatten.geojson"), water.geojson);
+      const mergedWater = await streamMergeWaterFiles(dir, waterFiles);
+      if (mergedWater) {
+        water = waterFromGrids([mergedWater]);
+        if (water.summary.waterAreas > 0) await writeFile(join(dir, "vatten.geojson"), water.geojson);
+      }
       telemetry.phase();
     }
-    // G8: Lantmäteriets Marktäcke och Byggnad (zip med GeoPackage per kommun) inom rutan, som GeoJSON med importens lagernamn.
-    // En produkt som kontot inte kommer åt hoppas över (jobbet går vidare) och sägs i sammanfattningen.
+
     const extraSummary: Record<string, number | string> = {};
     if (job.clip && job.extras?.length) telemetry.phase("msExtras");
     for (const extra of job.clip ? job.extras ?? [] : []) {
@@ -398,12 +363,10 @@ async function runJob(job: Job): Promise<void> {
       try {
         const found = gpkgBytes(new Uint8Array(await response.arrayBuffer()));
         if (!found) { extraSummary[label] = "ingen GeoPackage"; continue; }
-        // Fastighetsindelningen kommer i flera rutor: var fil får ett eget namn och lagren läggs ihop nedan.
         const path = join(dir, `${label}-${extra.index}.gpkg`);
         await writeFile(path, found);
         const features = await readGpkgFeatures(path, reachOf(job)!);
         await rm(path, { force: true });
-        // Sjön och havet finns redan ur lasern (skarpare strand); av marktäckets vatten tas bara det lasern inte har (gölar).
         const inLaserWater = (geometry: Geometry) => {
           if (!water || geometry.kind !== "area") return false;
           const ring = geometry.rings[0] ?? [];
@@ -416,16 +379,20 @@ async function runJob(job: Job): Promise<void> {
       } catch (error) { extraSummary[label] = (error instanceof Error ? error.message : "fel").slice(0, 60); }
     }
     telemetry.phase();
-    // K5c del 2: fuktigheten ur rutornas höjdraster (Karttapullautin sparar dem i temp_<ruta>_dir med savetempfolders).
+
     let moistureSummary: Record<string, number> = {};
     let wetAt: ((x: number, y: number) => boolean) | undefined;
     if (job.moisture) {
       telemetry.phase("msMoisture"); await set("Räknar fuktigheten", 0, 1);
-      const folders = (await readdir(dir)).filter(name => /^temp_.+_dir$/.test(name)).sort();
       const grids = [];
-      for (const folder of folders) {
-        const bytes = await readFile(join(dir, folder, "xyz2.hmap")).catch(() => undefined);
-        if (bytes) grids.push(readHeightMap(new Uint8Array(bytes)));
+      if (job.clip && ground) {
+        grids.push(downsampleGroundTo2m(ground));
+      } else {
+        const folders = (await readdir(dir)).filter(name => /^temp_.+_dir$/.test(name)).sort();
+        for (const folder of folders) {
+          const bytes = await readFile(join(dir, folder, "xyz2.hmap")).catch(() => undefined);
+          if (bytes) grids.push(readHeightMap(new Uint8Array(bytes)));
+        }
       }
       if (grids.length === 0) throw new Error("Karttapullautin gav inget höjdraster för fuktigheten");
       const moisture = moistureFromHeightMaps(grids, job.moisture, water?.at, groundShare);
@@ -436,44 +403,7 @@ async function runJob(job: Job): Promise<void> {
       moistureSummary = { wetHa: moisture.summary.wetHa, moistHa: moisture.summary.moistHa, channels: moisture.summary.channels };
       wetAt = moisture.wetAt; telemetry.phase();
     }
-    // Ägaren 2026-11-11: diken ur terrängformen (geo-ditches.ts) och reliefen som underlag; de krokiga sänkorna behålls bara
-    // där fuktigheten säger fuktigt.
-    // Stegen nedan körs i egna trådar med tidsgräns (geo-steps.ts): ett steg som går över hoppas över, resten blir klart.
-    const skippedSteps: string[] = [];
-    const step = async <K extends StepName>(name: K, label: string, input: StepInput) => {
-      await set(label, 0, 1);
-      // Stora områden får längre tid per steg (ägaren 2026-11-12: «låta den köra längre»): 10 minuter upp till 20 km², sedan en halv minut per km².
-      const km2 = input.ground.width * input.ground.height * input.ground.cell ** 2 / 1e6;
-      try { return await runStep(name, input, control.signal, Math.max(STEP_TIMEOUT_MS, km2 * 30_000)); }
-      catch (error) {
-        if (control.signal.aborted) throw new Stopped();
-        if (!(error instanceof StepSkipped)) throw error;
-        console.error(`Steget hoppas över, ${error.message}`);
-        skippedSteps.push(name);
-        return undefined;
-      }
-    };
-    const waterData = water ? { grid: water.grid, mask: water.mask } : undefined;
-    let ditchSummary: Record<string, number> = {};
-    if (ground) {
-      telemetry.phase("msDitches"); const found = await step("ditches", "Letar diken i terrängformen", { ground, water: waterData, wet: wetAt ? maskOf(ground, wetAt) : undefined });
-      if (found) {
-        await writeFile(join(dir, "relief.png"), found.png);
-        await writeFile(join(dir, "relief.pgw"), found.world);
-        const of = (name: string) => found.lines.filter(line => line.name === name).map(line => line.points);
-        if (found.lines.length) await writeFile(join(dir, "diken.dxf"), moistureDxf([{ name: "dike", closed: false, parts: of("dike") },
-          { name: "fuktstrak_terrang", closed: false, parts: of("fuktstrak_terrang") }]));
-        ditchSummary = { ditches: of("dike").length, terrainChannels: of("fuktstrak_terrang").length };
-      }
-      // Ägaren 2026-11-17: släpstigar och spår ur reliefen (geo-tracks.ts), som OpenStreetMaps stigar flyttas till i grundkartan.
-      telemetry.phase("msTracks"); const tracks = await step("tracks", "Letar släpstigar och spår", { ground, water: waterData, wet: wetAt ? maskOf(ground, wetAt) : undefined });
-      if (tracks?.lines.length) {
-        await writeFile(join(dir, "spar.dxf"), moistureDxf([{ name: "spar_laser", closed: false, parts: tracks.lines }]));
-        ditchSummary = { ...ditchSummary, tracks: tracks.lines.length };
-      }
-      telemetry.phase();
-    }
-    // K5c del 3: vegetationen ur klassbilderna i ./out (<ruta>_vege_bit.png, _undergrowth_bit.png och världsfilen).
+
     let vegetationSummary: Record<string, number> = {};
     let openAt: ((x: number, y: number) => boolean) | undefined, forestAt: ((x: number, y: number) => boolean) | undefined;
     if (job.vegetation) {
@@ -489,7 +419,6 @@ async function runJob(job: Job): Promise<void> {
           ...(undergrowth ? { undergrowth: decodeGrayPng(new Uint8Array(undergrowth)) } : {}) });
       }
       if (tiles.length === 0) throw new Error("Karttapullautin gav inga klassbilder för vegetationen");
-      // Grönt spärras i stup och branta sluttningar (> 35°): lövlös laser ger falskt grönt där (Kungshatt-kedjan).
       const steep = ground ? steepAt(ground, 35) : undefined;
       const blocked = water || steep ? (x: number, y: number) => !!water?.at(x, y) || !!steep?.(x, y) : undefined;
       const vegetation = vegetationFromTiles(tiles, job.vegetation, blocked, signals);
@@ -499,38 +428,84 @@ async function runJob(job: Job): Promise<void> {
       vegetationSummary = vegetation.summary;
       openAt = vegetation.openAt; forestAt = vegetation.forestAt; telemetry.phase();
     }
-    // Stenar ur markrastret, och berg i dagen där vegetationen är öppen (geo-rock.ts).
-    let rockSummary: Record<string, number> = {};
+
+    const skippedSteps: string[] = [];
+    const step = async <K extends StepName>(name: K, input: StepInput, skippedNames: readonly string[] = [name]) => {
+      const km2 = input.ground.width * input.ground.height * input.ground.cell ** 2 / 1e6;
+      try { return await runStep(name, input, control.signal, Math.max(STEP_TIMEOUT_MS, km2 * 30_000)); }
+      catch (error) {
+        if (control.signal.aborted) throw new Stopped();
+        if (!(error instanceof StepSkipped)) throw error;
+        console.error(`Steget hoppas över, ${error.message}`);
+        skippedSteps.push(...skippedNames);
+        return undefined;
+      }
+    };
+    let ditchSummary: Record<string, number> = {}, rockSummary: Record<string, number> = {};
+    const stepTimings: Record<string, number> = {};
     if (ground) {
-      telemetry.phase("msStones"); const stones = (await step("stones", "Letar stenar", { ground, water: waterData })) ?? { stones: [], capped: 0 };
-      // Berg i dagen: 0 tas inte med, 2 heter «berg_i_dagen» och föreslås som 214, annars utan förslag (förvalet, lärt av Högdalen).
-      telemetry.phase("msRock"); const rockMode = job.settings.rock ?? 1;
-      const rock = openAt && rockMode > 0 ? (await step("rock", "Letar berg i dagen", { ground, water: waterData, open: maskOf(ground, openAt),
-        forest: forestAt ? maskOf(ground, forestAt) : undefined }))?.rock ?? [] : [];
-      // Ägaren 2026-11-13 («reglage att klassa fler/färre områden som berg»): bergbilden för reglaget i webbläsaren, även när
-      // berg.dxf lämnar berget utanför (inställningen `rock` 0). Utan vegetationen (som anger öppenheten) skrivs ingen bild.
-      const rockMap = openAt ? await step("rockmap", "Skriver bergbilden", { ground, water: waterData, open: maskOf(ground, openAt) }) : undefined;
-      if (rockMap) {
-        await writeFile(join(dir, "berg.png"), rockMap.png);
-        await writeFile(join(dir, "berg.pgw"), rockMap.world);
-      }
-      telemetry.phase("msKnolls"); const hills = (await step("knolls", "Letar små kullar", { ground, water: waterData, stones: stones.stones, knollShare: job.settings.knollshare,
-        wet: wetAt ? maskOf(ground, wetAt) : undefined })) ?? { knolls: [], capped: 0, candidates: [] };
-      // Ägaren 2026-11-12: alla möjliga kullar med sina mått, så att reglagen i webbläsaren väljer utan ny körning.
-      if (hills.candidates.length) {
-        await writeFile(join(dir, "kullar.geojson"), JSON.stringify({ type: "FeatureCollection", crs: { type: "name", properties: { name: "EPSG:3006" } },
-          features: hills.candidates.map(knoll => ({ type: "Feature", geometry: { type: "Point", coordinates: [Math.round(knoll.at[0] * 10) / 10, Math.round(knoll.at[1] * 10) / 10] },
-            properties: { rise: Math.round(knoll.rise * 100) / 100, share: Math.round(knoll.share * 1000) / 1000, foot: Math.round(knoll.footM2), ...(knoll.wet ? { wet: 1 } : {}) } })) }));
-      }
+      telemetry.phase("msTerrainSteps"); await set("Analyserar terrängformen", 0, 1);
+      const sharedGround = shareGround(ground);
+      // Maskerna räknas en enda gång (tidigare 3× för wet och 2× för open) och delas via SharedArrayBuffer.
+      const wetMask = wetAt ? maskOf(sharedGround, wetAt) : undefined;
+      const openMask = openAt ? maskOf(sharedGround, openAt) : undefined;
+      const forestMask = forestAt ? maskOf(sharedGround, forestAt) : undefined;
+      const waterData = water ? { grid: { ...water.grid, cells: shareBytes(water.grid.cells) }, mask: shareBytes(water.mask) } : undefined;
+      const rockMode = job.settings.rock ?? 1;
+      let stones: { stones: { name: "sten" | "stort_block"; at: [number, number]; height: number }[]; capped: number } = { stones: [], capped: 0 };
+      let hills: { knolls: [number, number][]; capped: number; candidates: { at: [number, number]; rise: number; share: number; footM2: number; wet?: boolean | undefined }[] } = { knolls: [], capped: 0, candidates: [] };
+      let rock: [number, number][][] = [];
+
+      const tasks: (() => Promise<void>)[] = [
+        async () => {
+          const t0 = Date.now();
+          const found = await step("ditchesAndTracks", { ground: sharedGround, water: waterData, wet: wetMask }, ["ditches", "tracks"]);
+          stepTimings.msDitchesTracks = Date.now() - t0;
+          if (!found) return;
+          await writeFile(join(dir, "relief.png"), found.png);
+          await writeFile(join(dir, "relief.pgw"), found.world);
+          const of = (name: string) => found.lines.filter(line => line.name === name).map(line => line.points);
+          if (found.lines.length) await writeFile(join(dir, "diken.dxf"), moistureDxf([{ name: "dike", closed: false, parts: of("dike") },
+            { name: "fuktstrak_terrang", closed: false, parts: of("fuktstrak_terrang") }]));
+          if (found.tracks.length) await writeFile(join(dir, "spar.dxf"), moistureDxf([{ name: "spar_laser", closed: false, parts: found.tracks }]));
+          ditchSummary = { ditches: of("dike").length, terrainChannels: of("fuktstrak_terrang").length, ...(found.tracks.length ? { tracks: found.tracks.length } : {}) };
+        },
+        async () => {
+          const t0 = Date.now();
+          stones = (await step("stones", { ground: sharedGround, water: waterData })) ?? stones;
+          stepTimings.msStones = Date.now() - t0;
+          const t1 = Date.now();
+          hills = (await step("knolls", { ground: sharedGround, water: waterData, stones: stones.stones, knollShare: job.settings.knollshare, wet: wetMask })) ?? hills;
+          stepTimings.msKnolls = Date.now() - t1;
+          if (hills.candidates.length) {
+            await writeFile(join(dir, "kullar.geojson"), JSON.stringify({ type: "FeatureCollection", crs: { type: "name", properties: { name: "EPSG:3006" } },
+              features: hills.candidates.map(knoll => ({ type: "Feature", geometry: { type: "Point", coordinates: [Math.round(knoll.at[0] * 10) / 10, Math.round(knoll.at[1] * 10) / 10] },
+                properties: { rise: Math.round(knoll.rise * 100) / 100, share: Math.round(knoll.share * 1000) / 1000, foot: Math.round(knoll.footM2), ...(knoll.wet ? { wet: 1 } : {}) } })) }));
+          }
+        },
+        ...(openMask ? [async () => {
+          const t0 = Date.now();
+          if (rockMode > 0) {
+            const combined = await step("rockAndMap", { ground: sharedGround, water: waterData, open: openMask, forest: forestMask, includeRock: true }, ["rock", "rockmap"]);
+            if (combined) { rock = combined.rock; await writeFile(join(dir, "berg.png"), combined.png); await writeFile(join(dir, "berg.pgw"), combined.world); }
+          } else {
+            const rockMap = await step("rockmap", { ground: sharedGround, water: waterData, open: openMask });
+            if (rockMap) { await writeFile(join(dir, "berg.png"), rockMap.png); await writeFile(join(dir, "berg.pgw"), rockMap.world); }
+          }
+          stepTimings.msRock = Date.now() - t0;
+        }] : [])
+      ];
+      await runPool(tasks, stepPoolConcurrency(), task => task());
       if (stones.stones.length || rock.length || hills.knolls.length) {
         await writeFile(join(dir, "berg.dxf"), moistureDxf([{ name: rockMode >= 2 ? "berg_i_dagen" : "berg_i_dagen_laser", closed: true, parts: rock },
           ...(["sten", "stort_block"] as const).map(name => ({ name, closed: false, points: stones.stones.filter(stone => stone.name === name).map(stone => stone.at), parts: [] })),
           { name: "dotknoll_laser", closed: false, points: hills.knolls, parts: [] }]));
       }
       rockSummary = { boulders: stones.stones.length, knolls: hills.knolls.length, bareRockAreas: rock.length,
-        ...(stones.capped + hills.capped ? { cappedPoints: stones.capped + hills.capped } : {}) }; telemetry.phase();
+        ...(stones.capped + hills.capped ? { cappedPoints: stones.capped + hills.capped } : {}) };
+      telemetry.phase();
     }
-    // Sprintkartor (ägaren 2026-11-13, inställningen `paved`): belagd yta ur markträffarnas intensitet (geo-paved.ts).
+
     let pavedSummary: Record<string, number> = {};
     if (job.settings.paved === 1 && pointStats) {
       telemetry.phase("msPaved"); await set("Letar belagd yta", 0, 1);
@@ -538,6 +513,7 @@ async function runJob(job: Job): Promise<void> {
       if (paved.rings.length) await writeFile(join(dir, "belagt.dxf"), moistureDxf([{ name: "belagd_yta_laser", closed: true, parts: paved.rings }]));
       pavedSummary = { pavedHa: paved.pavedHa, ...(paved.limit !== undefined ? { pavedLimit: paved.limit } : {}) };
     }
+
     telemetry.phase("msUpload"); const files = new Set(await readdir(dir));
     const uploads: (readonly [string, string, string])[] = [["karta.png", "merged.png", "image/png"], ["karta.pgw", "merged.pgw", "text/plain"],
       ...VECTOR_OUTPUTS.filter(([name, source]) => files.has(source) && (!RAW_TICK_OUTPUTS.has(name) || keepsRawTicks(job, files.has("brantlinjer.dxf")))).map(([name, source]) => [name, source, "application/dxf"] as const),
@@ -557,191 +533,35 @@ async function runJob(job: Job): Promise<void> {
       ...(files.has("belagt.dxf") ? [["belagt.dxf", "belagt.dxf", "application/dxf"]] as const : []),
       ...["marktacke.geojson", "byggnader.geojson", "fastigheter.geojson", "kullar.geojson", "brantlinjer.geojson"].filter(name => files.has(name)).map(name => [name, name, "application/geo+json"] as const),
       ...(files.has("vatten.geojson") ? [["vatten.geojson", "vatten.geojson", "application/geo+json"]] as const : [])];
-    let done = 0;
-    // En fil över serverns gräns (Karttapullautins råa brantstreck för många rutor blir över 100 MB) hoppas över i stället för
-    // att hela jobbet faller; bara kartbilden måste med. Namnen står i jobbets sammanfattning.
+    await set("Skickar resultatet", 0, uploads.length);
+    let done = 0, lastBeatAt = Date.now();
     const skippedOutputs: string[] = [];
-    for (const [pngName, pngSource, pngType] of uploads) {
-      await set("Skickar resultatet", done, uploads.length);
+    await runPool(uploads, UPLOAD_CONCURRENCY, async ([pngName, pngSource, pngType]) => {
+      if (control.signal.aborted) throw new Stopped();
       if (!files.has(pngSource)) throw new Error(`Karttapullautin gav ingen ${pngSource}`);
-      // Bilderna att titta på som WebP, utom i en etapp (sammanläggningen läser PNG och gör om dem sedan).
       const webp = !job.stage && WEBP_OUTPUTS.has(pngName) ? await toWebp(dir, pngSource, control.signal) : undefined;
-      // Ägaren 2026-11-22: linjerna förenklas (0,2 m) och skrivs med centimeter, så att filerna blir ungefär en fjärdedel.
-      if (pngType === "application/dxf") await writeFile(join(dir, `${pngSource}.slim`), slimDxf(await readFile(join(dir, pngSource), "utf8")));
+      const needsSlim = pngType === "application/dxf" && !OWN_DXF_OUTPUTS.has(pngName);
+      if (needsSlim) await writeFile(join(dir, `${pngSource}.slim`), slimDxf(await readFile(join(dir, pngSource), "utf8")));
       const put = async (name: string, given: string, mediaType: string): Promise<Response | "skipped"> => {
-        const source = mediaType === "application/dxf" ? `${given}.slim` : given;
+        const source = needsSlim ? `${given}.slim` : given;
         if ((await stat(join(dir, source))).size > OUTPUT_MAX_BYTES && !name.startsWith("karta.")) return "skipped";
         const bytes = await readFile(join(dir, source));
         return call(`/api/geo-worker/jobs/${job.jobId}/outputs/${name}`, { method: "PUT", body: new Uint8Array(bytes),
           headers: { "content-type": mediaType, "content-length": String(bytes.byteLength) }, signal: AbortSignal.any([control.signal, AbortSignal.timeout(10 * 60_000)]) });
       };
       let name: string = pngName, response = webp ? await put(pngName.replace(/\.png$/, ".webp"), webp, "image/webp") : undefined;
-      // Ägarens körning 2026-11-14 föll med «karta.webp kunde inte skickas (400)»: webbservern var äldre än arbetaren och tog
-      // inte emot WebP. Då skickas PNG som förut.
       if (response === undefined || (response !== "skipped" && response.status === 400)) response = await put(pngName, pngSource, pngType);
       else name = pngName.replace(/\.png$/, ".webp");
-      if (response === "skipped") { skippedOutputs.push(name); done += 1; continue; }
-      if (!response.ok) throw new Error(await sendFailure(name, response));
+      if (response === "skipped") skippedOutputs.push(name);
+      else if (!response.ok) throw new Error(await sendFailure(name, response));
       done += 1;
-    }
+      progress = { step: "Skickar resultatet", done, total: uploads.length };
+      if (Date.now() - lastBeatAt >= 5_000) { lastBeatAt = Date.now(); void beat(); }
+    });
+    if (control.signal.aborted) throw new Stopped();
     const finished = await call(`/api/geo-worker/jobs/${job.jobId}/finish`, { method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ status: "DONE", summary: { worker: WORKER_VERSION, tiles: job.tiles.length, scale, memoryMb: telemetry.sample(), serverMemoryMb: Math.round(totalmem() / 1e6), cores: cpus().length, parallelTiles: together, ...telemetry.summary(), ...(skippedOutputs.length ? { skippedOutputs: skippedOutputs.length } : {}), ...(skippedSteps.length ? { skippedSteps: skippedSteps.join(",") } : {}), ...(water ? { waterHa: water.summary.waterHa } : {}), ...cliffSummary, ...extraSummary, ...moistureSummary, ...ditchSummary, ...vegetationSummary, ...rockSummary, ...pavedSummary } }) });
+      body: JSON.stringify({ status: "DONE", summary: { worker: WORKER_VERSION, tiles: job.tiles.length, scale, memoryMb: telemetry.sample(), serverMemoryMb: Math.round(totalmem() / 1e6), cores: cpus().length, parallelTiles: together, ...telemetry.summary(), ...stepTimings, ...(skippedOutputs.length ? { skippedOutputs: skippedOutputs.length } : {}), ...(skippedSteps.length ? { skippedSteps: skippedSteps.join(",") } : {}), ...(water ? { waterHa: water.summary.waterHa } : {}), ...cliffSummary, ...extraSummary, ...moistureSummary, ...ditchSummary, ...vegetationSummary, ...rockSummary, ...pavedSummary } }) });
     console.log(`Geo-jobb ${job.jobId}: klart (${job.tiles.length} rutor, skala ${scale}, svar ${finished.status})`);
-  } finally {
-    clearInterval(timer);
-    await rm(dir, { recursive: true, force: true }).catch(() => undefined);
-  }
-}
-
-/**
- * Ägaren 2026-11-14: en körning som delades i etapper läggs ihop till en (geo-merge.ts). Etappernas filer hämtas från
- * O-Tid en sort i taget, läggs ihop och skickas tillbaka under den sammanlagda körningen; servern tar sedan bort etapperna.
- * En fil som inte går att lägga ihop hoppas över (namnen står i sammanfattningen), utom kartbilden.
- */
-async function runMergeJob(job: Job): Promise<void> {
-  const stages = job.merge!.stages, dir = join(workdir, job.jobId), telemetry = createJobTelemetry();
-  await rm(dir, { recursive: true, force: true });
-  await mkdir(dir, { recursive: true });
-  const control = new AbortController();
-  let progress = { step: "Lägger ihop etapperna", done: 0, total: 1 };
-  const beat = async () => {
-    const response = await call(`/api/geo-worker/jobs/${job.jobId}/heartbeat`, { method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify(progress) }).catch(() => undefined);
-    const body = response?.ok ? await response.json().catch(() => undefined) as { action?: string } | undefined : undefined;
-    if (body?.action === "stop") control.abort();
-    console.log(`${job.jobId.slice(0, 8)} ${progress.step} ${progress.done}/${progress.total} ${telemetry.sample()} MB`);
-  };
-  const timer = setInterval(() => void beat(), 60_000);
-  const set = async (done: number, total: number) => { progress = { step: "Lägger ihop etapperna", done, total }; await beat(); if (control.signal.aborted) throw new Stopped(); };
-  try {
-    const needGb = jobMemoryGb(job), haveGb = totalmem() / 2 ** 30;
-    if (haveGb < needGb * 0.85) {
-      throw new Error(`Etapperna är för stora att lägga ihop på geo-servern som är igång (${Math.round(haveGb)} GB minne, det behövs ${needGb} GB). `
-        + "Välj «Lägg ihop etapperna» igen om en halvtimme, när servern har stängts av.");
-    }
-    const union: Box = job.clip ?? { minX: Math.min(...stages.map(stage => stage.clip.minX)), minY: Math.min(...stages.map(stage => stage.clip.minY)),
-      maxX: Math.max(...stages.map(stage => stage.clip.maxX)), maxY: Math.max(...stages.map(stage => stage.clip.maxY)) };
-    const names = [...new Set(stages.flatMap(stage => stage.outputs))].filter(name => !name.endsWith(".pgw") && !name.startsWith("indata.")).sort();
-    const read = async (stage: typeof stages[number], name: string): Promise<Buffer> => {
-      const response = await call(`/api/geo-worker/jobs/${job.jobId}/stages/${stage.jobId}/${name}`, { signal: AbortSignal.any([control.signal, AbortSignal.timeout(10 * 60_000)]) });
-      if (!response.ok) throw new Error(`${name} kunde inte hämtas från etappen (${response.status})`);
-      return Buffer.from(await response.arrayBuffer());
-    };
-    const put = (name: string, bytes: Uint8Array, mediaType: string) => call(`/api/geo-worker/jobs/${job.jobId}/outputs/${name}`, { method: "PUT", body: new Uint8Array(bytes),
-      headers: { "content-type": mediaType, "content-length": String(bytes.byteLength) }, signal: AbortSignal.any([control.signal, AbortSignal.timeout(10 * 60_000)]) });
-    const send = async (name: string, bytes: Uint8Array, mediaType: string) => {
-      const response = await put(name, bytes, mediaType);
-      if (!response.ok) throw new Error(await sendFailure(name, response));
-    };
-    const skipped: string[] = [];
-    let done = 0;
-    for (const name of names) {
-      await set(done, names.length);
-      done += 1;
-      const having = stages.filter(stage => stage.outputs.includes(name));
-      if (RAW_TICK_OUTPUTS.has(name) && !keepsRawTicks(job, stages.every(stage => stage.outputs.includes("brantlinjer.dxf")))) continue;
-      telemetry.phase(name.endsWith(".png") ? "msPngMerge" : name.endsWith(".dxf") ? "msDxfMerge" : name.endsWith(".geojson") ? "msGeoJsonMerge" : undefined);
-      try {
-        if (name.endsWith(".png")) {
-          const world = name.replace(/\.png$/, ".pgw");
-          const parts = [];
-          for (const stage of having) {
-            if (!stage.outputs.includes(world)) continue;
-            parts.push({ image: decodePng(await read(stage, name)), world: readWorld((await read(stage, world)).toString("utf8")), box: stage.clip });
-          }
-          if (parts.length === 0) continue;
-          const merged = mosaicPng(parts, union), png = encodeRawPng(merged.image);
-          await writeFile(join(dir, name), png);
-          const webp = WEBP_OUTPUTS.has(name) ? await toWebp(dir, name, control.signal) : undefined;
-          if (!webp && png.byteLength > OUTPUT_MAX_BYTES) { skipped.push(name); continue; }
-          // En webbserver som är äldre än arbetaren tar inte emot WebP (400): då skickas PNG, om den får plats.
-          const sent = webp ? await put(name.replace(/\.png$/, ".webp"), await readFile(join(dir, webp)), "image/webp") : undefined;
-          if (sent && !sent.ok && sent.status !== 400) throw new Error(await sendFailure(name.replace(/\.png$/, ".webp"), sent));
-          if (!sent?.ok) { if (png.byteLength > OUTPUT_MAX_BYTES) { skipped.push(name); continue; } await send(name, png, "image/png"); }
-          await rm(join(dir, name), { force: true });
-          await send(world, Buffer.from(writeWorld(merged.world)), "text/plain");
-        } else if (name.endsWith(".dxf")) {
-          const target = join(dir, name);
-          let size = 0, first = true;
-          const out = createWriteStream(target);
-          const put = (text: string) => new Promise<void>((resolve, reject) => { size += Buffer.byteLength(text); out.write(text, error => error ? reject(error) : resolve()); });
-          for (const stage of having) {
-            // Äldre etapper skickades utan förenkling. En redan förenklad fil kan flytta högst 0,2 m till, vilket inte syns.
-            const text = slimDxf((await read(stage, name)).toString("utf8"));
-            if (first) await put(dxfFrame(text).head);
-            const lines = clipDxfEntities(text, stage.clip, union, { areas: AREA_DXF.has(name), first });
-            // I omgångar: en rad per kod och värde, många miljoner för de största filerna.
-            for (let at = 0; at < lines.length; at += 200_000) await put(`${lines.slice(at, at + 200_000).join("\n")}\n`);
-            first = false;
-          }
-          await put("0\nENDSEC\n0\nEOF\n");
-          await new Promise<void>((resolve, reject) => out.end((error?: Error | null) => error ? reject(error) : resolve()));
-          if (size > OUTPUT_MAX_BYTES) { skipped.push(name); continue; }
-          await send(name, await readFile(target), "application/dxf");
-          await rm(target, { force: true });
-        } else if (name.endsWith(".geojson")) {
-          const parts = [];
-          for (const stage of having) parts.push({ text: (await read(stage, name)).toString("utf8"), box: stage.clip });
-          const bytes = Buffer.from(mergeGeoJson(parts, union));
-          if (bytes.byteLength > OUTPUT_MAX_BYTES) { skipped.push(name); continue; }
-          await send(name, bytes, "application/geo+json");
-        }
-      } catch (error) {
-        if (error instanceof Stopped || control.signal.aborted) throw new Stopped();
-        // Kartbilden måste med, och ett fel när filen skickas (lagringen full) gäller alla filer.
-        if (name.startsWith("karta.") || /fick inte plats|kunde inte skickas|är för stor/.test(error instanceof Error ? error.message : "")) throw error;
-        console.error(`Geo-jobb ${job.jobId}: ${name} lades inte ihop: ${error instanceof Error ? error.message : String(error)}`);
-        skipped.push(name);
-      } finally { telemetry.phase(); }
-    }
-    await set(names.length, names.length);
-    const finished = await call(`/api/geo-worker/jobs/${job.jobId}/finish`, { method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ status: "DONE", summary: { worker: WORKER_VERSION, mergedStages: stages.length, memoryMb: telemetry.sample(), ...telemetry.summary(),
-        ...(skipped.length ? { skippedOutputs: skipped.length, skippedOutputNames: skipped.join(",").slice(0, 400) } : {}) } }) });
-    console.log(`Geo-jobb ${job.jobId}: ${stages.length} etapper ihoplagda (svar ${finished.status})`);
-  } finally {
-    clearInterval(timer);
-    await rm(dir, { recursive: true, force: true }).catch(() => undefined);
-  }
-}
-
-/**
- * K6b: en DWG-ritning läses med LibreDWG (`dwgread -O JSON`, som får med skraffyrerna där baskartans ytor ligger) och blir
- * GeoJSON med lagrens namn (`geo-dwg.ts`). Resultatet skickas tillbaka som `ritning.geojson` och läses in som kandidater.
- */
-async function runDwgJob(job: Job): Promise<void> {
-  const dir = join(workdir, job.jobId);
-  await rm(dir, { recursive: true, force: true });
-  await mkdir(dir, { recursive: true });
-  const control = new AbortController();
-  let step = "Hämtar ritningen";
-  const beat = async (next: string = step) => {
-    step = next;
-    const response = await call(`/api/geo-worker/jobs/${job.jobId}/heartbeat`, { method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ step, done: 0, total: 1 }) }).catch(() => undefined);
-    const body = response?.ok ? await response.json().catch(() => undefined) as { action?: string } | undefined : undefined;
-    if (body?.action === "stop") { control.abort(); throw new Stopped(); }
-  };
-  // dwgread kan ta upp till 20 minuter: utan livstecken räknar servern jobbet som övergivet, och ett stopp märks inte förrän det är klart.
-  // Ett stopp avbryter dwgread via `control`; felet från beat behöver därför inte kastas vidare härifrån.
-  const timer = setInterval(() => void beat().catch((error: unknown) => { if (!(error instanceof Stopped)) console.warn("Livstecknet för DWG-jobbet misslyckades", error); }), 60_000);
-  try {
-    await beat("Hämtar ritningen");
-    const input = await call(`/api/geo-worker/jobs/${job.jobId}/input`, { signal: AbortSignal.any([control.signal, AbortSignal.timeout(10 * 60_000)]) });
-    if (!input.ok || !input.body) throw new Error(`Ritningen kunde inte hämtas (${input.status})`);
-    await pipeline(Readable.fromWeb(input.body as import("node:stream/web").ReadableStream), createWriteStream(join(dir, "ritning.dwg")));
-    await beat("Läser ritningen");
-    await run(["-O", "JSON", "-o", "ritning.json", "ritning.dwg"], dir, AbortSignal.any([control.signal, AbortSignal.timeout(20 * 60_000)]), dwgread);
-    const read = await dwgFeatures(dwgObjects(createReadStream(join(dir, "ritning.json"), { encoding: "utf8", highWaterMark: 1 << 20 }) as AsyncIterable<string>));
-    if (read.features.length === 0) throw new Error("Ritningen har inga linjer, ytor eller punkter i modellrymden");
-    const bytes = Buffer.from(JSON.stringify({ type: "FeatureCollection", features: read.features }));
-    await beat("Skickar resultatet");
-    const response = await call(`/api/geo-worker/jobs/${job.jobId}/outputs/ritning.geojson`, { method: "PUT", body: new Uint8Array(bytes),
-      headers: { "content-type": "application/geo+json", "content-length": String(bytes.byteLength) }, signal: AbortSignal.any([control.signal, AbortSignal.timeout(10 * 60_000)]) });
-    if (!response.ok) throw new Error(await sendFailure("ritning.geojson", response));
-    const finished = await call(`/api/geo-worker/jobs/${job.jobId}/finish`, { method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ status: "DONE", summary: { features: read.features.length, skipped: read.skipped } }) });
-    console.log(`Geo-jobb ${job.jobId}: DWG klart (svar ${finished.status})`);
   } finally {
     clearInterval(timer);
     await rm(dir, { recursive: true, force: true }).catch(() => undefined);
@@ -773,7 +593,7 @@ async function main(): Promise<void> {
     if (response.status === 401) throw new Error("O-Tid tog inte emot geo-arbetarens nyckel");
     if (response.status === 200) {
       const { job } = await response.json() as { job: Job };
-      try { await (job.kind === "DWG" ? runDwgJob(job) : job.merge ? runMergeJob(job) : runJob(job)); }
+      try { await (job.kind === "DWG" ? runDwgJobHelper(job, helperDeps) : job.merge ? runMergeJobHelper({ ...job, merge: job.merge }, helperDeps) : runJob(job)); }
       catch (error) { if (!(error instanceof Stopped)) await fail(job, error); else console.log(`Geo-jobb ${job.jobId}: avbrutet`); }
       idleSince = Date.now();
       if (once) return;

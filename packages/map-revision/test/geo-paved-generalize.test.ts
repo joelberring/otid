@@ -148,5 +148,19 @@ describe("de belagda ytornas kant och generalisering (ägaren 2026-11-13)", () =
     const box = boundingRectangle([[0, 0], [10, 10], [0, 20], [-10, 10]])!;
     expect(box.area).toBeCloseTo(200, 6);
     expect(generalizePavedRing([[0, 0], [2, 0], [2, 2]])).toEqual([[0, 0], [2, 0], [2, 2]]);
+    // Konvext hölje + roterande skjutmått: paritet på konkav vriden polygon och snabbhet på 2 000 hörn.
+    const turn = rotate(37, 50, 50);
+    const lShape = ([[0, 0], [40, 0], [40, 10], [10, 10], [10, 30], [0, 30]] as Point[]).map(turn.to);
+    const lBox = boundingRectangle(lShape)!;
+    expect(lBox.area).toBeCloseTo(40 * 30, 4);
+    const many: Point[] = Array.from({ length: 2000 }, (_, k) => {
+      const a = 2 * Math.PI * k / 2000, r = 50 + 5 * Math.sin(7 * a);
+      return [r * Math.cos(a) * 2, r * Math.sin(a)];
+    });
+    const t0 = performance.now();
+    const bigBox = boundingRectangle(many)!;
+    expect(performance.now() - t0).toBeLessThan(100);
+    expect(bigBox.area).toBeGreaterThan(20_000);
+    expect(bigBox.area).toBeLessThan(48_000);
   });
 });

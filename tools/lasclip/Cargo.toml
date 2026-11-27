@@ -7,7 +7,7 @@ description = "Klipper en LAS- eller LAZ-fil till en ruta (O-Tids geo-arbetare)"
 publish = false
 
 [dependencies]
-las = { version = "0.11", features = ["laz"] }
+las = { version = "0.11", features = ["laz", "laz-parallel"] }
 
 [profile.release]
 strip = "symbols"

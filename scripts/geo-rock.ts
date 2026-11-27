@@ -90,23 +90,43 @@ export function boulders(ground: GroundGrid, settings: RockSettings = DEFAULT_RO
   return kept;
 }
 
-/** Ojämnheten per cell: medelavvikelsen (m) från utjämningen över 5 × 5 celler. NaN i kanten och där färre än 13 celler har data. */
+export interface RockPrecomputed { readonly rough?: Float32Array | undefined; readonly broad?: Float32Array | undefined }
+
+/** Ojämnheten per cell: medelavvikelsen (m) från utjämningen över 5 × 5 celler via O(1) 2D-integraltabell. NaN i kanten och där < 13 celler har data. */
 export function roughnessGrid(ground: GroundGrid, fine: Float32Array = localRelief(ground, ground.cell)): Float32Array {
   const { width, height } = ground;
   const out = new Float32Array(width * height).fill(Number.NaN);
-  for (let x = 2; x < width - 2; x += 1) for (let y = 2; y < height - 2; y += 1) {
-    let sum = 0, count = 0;
-    for (let dx = -2; dx <= 2; dx += 1) for (let dy = -2; dy <= 2; dy += 1) { const value = fine[(x + dx) * height + y + dy]!; if (Number.isFinite(value)) { sum += Math.abs(value); count += 1; } }
-    if (count >= 13) out[x * height + y] = sum / count;
+  if (width < 5 || height < 5) return out;
+  const stride = height + 1, tableLen = (width + 1) * stride;
+  const sumTable = new Float64Array(tableLen), cntTable = new Int32Array(tableLen);
+  for (let x = 0; x < width; x += 1) {
+    const srcBase = x * height, dstBase = (x + 1) * stride, leftBase = x * stride;
+    for (let y = 0; y < height; y += 1) {
+      const value = fine[srcBase + y]!, fin = Number.isFinite(value);
+      const i = dstBase + y + 1, left = leftBase + y + 1, below = dstBase + y, corner = leftBase + y;
+      sumTable[i] = (fin ? Math.abs(value) : 0) + sumTable[left]! + sumTable[below]! - sumTable[corner]!;
+      cntTable[i] = (fin ? 1 : 0) + cntTable[left]! + cntTable[below]! - cntTable[corner]!;
+    }
+  }
+  for (let x = 2; x < width - 2; x += 1) {
+    const outBase = x * height, hiX = (x + 3) * stride, loX = (x - 2) * stride;
+    for (let y = 2; y < height - 2; y += 1) {
+      const hiY = y + 3, loY = y - 2;
+      const count = cntTable[hiX + hiY]! - cntTable[loX + hiY]! - cntTable[hiX + loY]! + cntTable[loX + loY]!;
+      if (count >= 13) {
+        const sum = sumTable[hiX + hiY]! - sumTable[loX + hiY]! - sumTable[hiX + loY]! + sumTable[loX + loY]!;
+        out[outBase + y] = sum / count;
+      }
+    }
   }
   return out;
 }
 
 /** Berg i dagen som ringar (meter). `openAt` säger om vegetationen är öppen i punkten. */
 export function bareRock(ground: GroundGrid, openAt: (x: number, y: number) => boolean, settings: RockSettings = DEFAULT_ROCK,
-  blockedAt?: (x: number, y: number) => boolean, forestAt?: (x: number, y: number) => boolean): [number, number][][] {
+  blockedAt?: (x: number, y: number) => boolean, forestAt?: (x: number, y: number) => boolean, precomputed?: RockPrecomputed): [number, number][][] {
   const { width, height, cell } = ground;
-  const rough = roughnessGrid(ground), broad = localRelief(ground, 8);
+  const rough = precomputed?.rough ?? roughnessGrid(ground), broad = precomputed?.broad ?? localRelief(ground, 8);
   const at = (values: Float32Array | Float64Array, x: number, y: number) => x < 0 || y < 0 || x >= width || y >= height ? Number.NaN : values[x * height + y]!;
   const slopeLimit = Math.tan(8 * Math.PI / 180);
   const mask = new Uint8Array(width * height);
@@ -177,6 +197,50 @@ export function chooseKnolls(candidates: readonly KnollCandidate[], limits: { mi
   return kept;
 }
 
+/** Separerbar 1D monoton-kö-max över ±`radius` celler i (höjd, x + y)-ordning (exakt samma lokala toppar och lika-brytning). */
+function localMaxMask(z: Float32Array, width: number, height: number, radius: number, outer: number): Uint8Array {
+  const size = width * height, isTop = new Uint8Array(size);
+  if (width <= 2 * outer || height <= 2 * outer) return isTop;
+  const rowMaxVal = new Float32Array(size), rowMaxSum = new Int32Array(size);
+  const yDqPos = new Int32Array(height), yDqVal = new Float32Array(height);
+  const xMin = outer - radius, xMax = width - outer + radius;
+  // Pass 1: längs y (inom varje kolumn), max över (z, y); NaN räknas som -Infinity.
+  for (let x = xMin; x < xMax; x += 1) {
+    const base = x * height;
+    let head = 0, tail = 0;
+    const pushY = (y: number) => {
+      const raw = z[base + y]!, v = Number.isFinite(raw) ? raw : Number.NEGATIVE_INFINITY;
+      while (tail > head && yDqVal[tail - 1]! <= v) tail -= 1;
+      yDqPos[tail] = y; yDqVal[tail] = v; tail += 1;
+    };
+    for (let y = outer - radius; y < outer + radius; y += 1) pushY(y);
+    for (let y = outer; y < height - outer; y += 1) {
+      pushY(y + radius);
+      while (yDqPos[head]! < y - radius) head += 1;
+      rowMaxVal[base + y] = yDqVal[head]!;
+      rowMaxSum[base + y] = x + yDqPos[head]!;
+    }
+  }
+  // Pass 2: längs x (per rad), max över (rowMaxVal, x + bestY).
+  const xDqPos = new Int32Array(width), xDqVal = new Float32Array(width), xDqSum = new Int32Array(width);
+  for (let y = outer; y < height - outer; y += 1) {
+    let head = 0, tail = 0;
+    const pushX = (x: number) => {
+      const idx = x * height + y, v = rowMaxVal[idx]!, s = rowMaxSum[idx]!;
+      while (tail > head && (xDqVal[tail - 1]! < v || (xDqVal[tail - 1]! === v && xDqSum[tail - 1]! <= s))) tail -= 1;
+      xDqPos[tail] = x; xDqVal[tail] = v; xDqSum[tail] = s; tail += 1;
+    };
+    for (let x = outer - radius; x < outer + radius; x += 1) pushX(x);
+    for (let x = outer; x < width - outer; x += 1) {
+      pushX(x + radius);
+      while (xDqPos[head]! < x - radius) head += 1;
+      const idx = x * height + y, here = z[idx]!;
+      if (Number.isFinite(here) && here === xDqVal[head]! && x + y === xDqSum[head]!) isTop[idx] = 1;
+    }
+  }
+  return isTop;
+}
+
 /** Alla lokala toppar som klarar gränserna, med sina mått (inte utglesade). */
 export function knollCandidates(ground: GroundGrid, stones: readonly { at: readonly [number, number] }[], blockedAt?: (x: number, y: number) => boolean,
   minRise: number = KNOLL_LOOSE.minRise, lowerShare: number = KNOLL_LOOSE.lowerShare, maxFootM2: number = KNOLL_LOOSE.maxFootM2,
@@ -188,15 +252,10 @@ export function knollCandidates(ground: GroundGrid, stones: readonly { at: reado
   const found: KnollCandidate[] = [];
   const stoneNear = nearIndex(4);
   for (const stone of stones) stoneNear.add(stone.at[0], stone.at[1]);
+  const isTop = localMaxMask(z, width, height, top, outer);
   for (let x = outer; x < width - outer; x += 1) for (let y = outer; y < height - outer; y += 1) {
-    const here = at(x, y);
-    if (!Number.isFinite(here)) continue;
-    let highest = true;
-    for (let dx = -top; dx <= top && highest; dx += 1) for (let dy = -top; dy <= top; dy += 1) {
-      const value = at(x + dx, y + dy);
-      if ((dx || dy) && (value > here || (value === here && dx + dy > 0))) { highest = false; break; }
-    }
-    if (!highest) continue;
+    if (!isTop[x * height + y]) continue;
+    const here = z[x * height + y]!;
     const ring: number[] = [];
     for (let dx = -outer; dx <= outer; dx += 1) for (let dy = -outer; dy <= outer; dy += 1) {
       const d = Math.max(Math.abs(dx), Math.abs(dy)), value = at(x + dx, y + dy);
@@ -256,16 +315,18 @@ export function encodeRockCell(roughness: number, open: boolean, rise: number, w
  * Bergbilden `berg.png` med världsfil (samma form som `hojd.png`): en bildpunkt per markcell, genomskinligt där ojämnheten
  * saknas (kanten, utan markdata) och i vatten. `open` och `water` är masker på markrastrets celler (index x · höjd + y).
  */
-export function rockImage(ground: GroundGrid, open: Uint8Array | undefined, water: Uint8Array | undefined): { png: Buffer; world: string } {
+export function rockImage(ground: GroundGrid, open: Uint8Array | undefined, water: Uint8Array | undefined, precomputed?: RockPrecomputed): { png: Buffer; world: string } {
   const { width, height, cell } = ground;
-  const rough = roughnessGrid(ground), broad = localRelief(ground, 8);
+  const rough = precomputed?.rough ?? roughnessGrid(ground), broad = precomputed?.broad ?? localRelief(ground, 8);
   const toWater = water ? distanceToMask(water, width, height, cell) : undefined;
-  const png = encodePng(width, height, (column, line) => {
+  const png = encodePng(width, height, (column, line, out, o) => {
     const i = column * height + (height - 1 - line), roughness = rough[i]!;
-    if (!Number.isFinite(roughness) || water?.[i]) return [0, 0, 0, 0];
-    const rise = broad[i]!;
-    const [r, g, b] = encodeRockCell(roughness, open?.[i] === 1, Number.isFinite(rise) ? rise : 0, toWater?.[i] ?? Number.POSITIVE_INFINITY);
-    return [r, g, b, 255];
+    if (!Number.isFinite(roughness) || water?.[i]) { out[o] = 0; out[o + 1] = 0; out[o + 2] = 0; out[o + 3] = 0; return; }
+    const rise = broad[i]!, waterMeters = toWater?.[i] ?? Number.POSITIVE_INFINITY;
+    out[o] = Math.min(255, Math.max(0, Math.round(roughness * 1000)));
+    out[o + 1] = (open?.[i] === 1 ? 128 : 0) + Math.min(127, Math.max(0, Math.round((Number.isFinite(rise) ? rise : 0) * 10)));
+    out[o + 2] = Number.isFinite(waterMeters) && waterMeters <= 254 ? Math.round(waterMeters) : 255;
+    out[o + 3] = 255;
   });
   return { png, world: `${cell}\n0\n0\n${-cell}\n${ground.minX + cell / 2}\n${ground.minY + (height - 0.5) * cell}\n` };
 }

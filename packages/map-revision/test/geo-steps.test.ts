@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { GroundGrid } from "../../../scripts/geo-cliffs";
 import { knolls } from "../../../scripts/geo-rock";
-import { maskOf, pointCap, runStep, StepSkipped, STEPS } from "../../../scripts/geo-steps";
+import { maskOf, pointCap, runStep, shareGround, stepPoolConcurrency, StepSkipped, STEPS } from "../../../scripts/geo-steps";
 
 const file = fileURLToPath(new URL("../../../scripts/geo-steps.ts", import.meta.url));
 
@@ -61,6 +61,28 @@ describe("geo-arbetarens steg i egna trådar", () => {
   it("har ett tak för antalet punkter per km²", () => {
     expect(pointCap(hilly(1000))).toBe(400);
     expect(pointCap(hilly(100))).toBe(50);
+  });
+  it("delar markrastret och masker via SharedArrayBuffer och ger exakt samma resultat för sammanslagna steg", async () => {
+    const ground = shareGround(hilly(80));
+    expect(ground.z.buffer).toBeInstanceOf(SharedArrayBuffer);
+    const open = maskOf(ground, x => x < 1040);
+    const wet = maskOf(ground, (_x, y) => y < 2040);
+    expect(open.buffer).toBeInstanceOf(SharedArrayBuffer);
+    const [combinedDitches, separateDitches, separateTracks, combinedRock, separateRock, separateMap] = await Promise.all([
+      runStep("ditchesAndTracks", { ground, wet }, undefined, 60_000, file),
+      runStep("ditches", { ground, wet }, undefined, 60_000, file),
+      runStep("tracks", { ground, wet }, undefined, 60_000, file),
+      runStep("rockAndMap", { ground, open, includeRock: true }, undefined, 60_000, file),
+      runStep("rock", { ground, open }, undefined, 60_000, file),
+      runStep("rockmap", { ground, open }, undefined, 60_000, file),
+    ]);
+    expect(combinedDitches.lines).toEqual(separateDitches.lines);
+    expect(combinedDitches.tracks).toEqual(separateTracks.lines);
+    expect(Buffer.from(combinedDitches.png).equals(Buffer.from(separateDitches.png))).toBe(true);
+    expect(combinedRock.rock).toEqual(separateRock.rock);
+    expect(Buffer.from(combinedRock.png).equals(Buffer.from(separateMap.png))).toBe(true);
+    expect(combinedRock.world).toBe(separateMap.world);
+    expect([stepPoolConcurrency(1), stepPoolConcurrency(2), stepPoolConcurrency(4), stepPoolConcurrency(16)]).toEqual([1, 2, 3, 3]);
   });
   // Regeln mot nästa steg som växer för fort (Djurgården och Nåttarö 2026-11-11): alla stegen på bebyggelse i kartstorlek.
   it("klarar bebyggelse på 2,5 × 2,5 km inom rimlig tid", () => {

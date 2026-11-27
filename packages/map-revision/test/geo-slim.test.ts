@@ -45,4 +45,10 @@ describe("förenklade DXF-filer från geo-servern", () => {
     expect(coordinates(area!.geometry)).toEqual([[0, 0], [10, 0], [10, 10], [0, 10]]);
     expect(coordinates(tick!.geometry)).toEqual([[1.12, 2], [3, 4.99]]);
   });
+  it("hanterar CRLF, LF och saknad avslutande radbrytning identiskt med indexbaserad radskanning", () => {
+    const lf = ["0", "SECTION", "2", "ENTITIES", "0", "POINT", "8", "sten", "10", "12.3456", "20", "78.9012", "0", "ENDSEC", "0", "EOF"].join("\n");
+    const crlf = lf.replace(/\n/g, "\r\n") + "\r\n";
+    expect(slimDxf(crlf)).toBe(slimDxf(lf));
+    expect(slimDxf("")).toBe("\n");
+  });
 });

@@ -9,7 +9,7 @@
  *
  * Bara Nodes egna moduler (filen körs direkt av Node i avbildningen `otid-geo`).
  */
-import { crc32, deflateSync } from "node:zlib";
+import { constants as zlibConstants, crc32, deflateSync } from "node:zlib";
 
 /** Ett rutnät med cellernas mitt i (minX + cell·x, minY + cell·y), y uppåt (norr); NaN = ingen data. Index x·height + y. */
 export interface Grid { readonly minX: number; readonly minY: number; readonly cell: number; readonly width: number; readonly height: number; readonly z: Float64Array }
@@ -89,6 +89,40 @@ export function readHeightMap(bytes: Uint8Array): Grid {
   return { minX, minY, cell, width, height, z };
 }
 
+/** Downsamplar ett markraster (typiskt 1 m `mark*.bin`) till 2 m `Grid` för `moistureFromHeightMaps` (cellens mitt i minX/minY). */
+export function downsampleGroundTo2m(ground: {
+  readonly minX: number; readonly minY: number; readonly cell: number;
+  readonly width: number; readonly height: number; readonly z: Float32Array;
+}): Grid {
+  if (ground.cell >= 2) {
+    const z = new Float64Array(ground.width * ground.height);
+    for (let i = 0; i < z.length; i += 1) {
+      const value = ground.z[i]!;
+      z[i] = Number.isFinite(value) && value > -1000 && value < 10000 ? value : Number.NaN;
+    }
+    return { minX: ground.minX + ground.cell / 2, minY: ground.minY + ground.cell / 2, cell: ground.cell, width: ground.width, height: ground.height, z };
+  }
+  const factor = Math.max(1, Math.round(2 / ground.cell)), targetCell = ground.cell * factor;
+  const width = Math.ceil(ground.width / factor), height = Math.ceil(ground.height / factor);
+  const z = new Float64Array(width * height);
+  for (let cx = 0; cx < width; cx += 1) {
+    const x0 = cx * factor, x1 = Math.min(ground.width, x0 + factor);
+    for (let cy = 0; cy < height; cy += 1) {
+      const y0 = cy * factor, y1 = Math.min(ground.height, y0 + factor);
+      let sum = 0, n = 0;
+      for (let x = x0; x < x1; x += 1) {
+        const base = x * ground.height;
+        for (let y = y0; y < y1; y += 1) {
+          const value = ground.z[base + y]!;
+          if (Number.isFinite(value) && value > -1000 && value < 10000) { sum += value; n += 1; }
+        }
+      }
+      z[cx * height + cy] = n > 0 ? sum / n : Number.NaN;
+    }
+  }
+  return { minX: ground.minX + targetCell / 2, minY: ground.minY + targetCell / 2, cell: targetCell, width, height, z };
+}
+
 /** Rutnäten (samma cellstorlek) i ett; där de överlappar gäller det första. */
 export function mosaic(grids: readonly Grid[]): Grid {
   if (grids.length === 0) throw new Error("Inga höjdraster");
@@ -118,6 +152,7 @@ const DX = [1, 1, 0, -1, -1, -1, 0, 1], DY = [0, 1, 1, 1, 0, -1, -1, -1];
 class Heap {
   private items: Uint32Array; private keys: Float64Array; size = 0;
   constructor(capacity: number) { this.items = new Uint32Array(Math.max(16, capacity)); this.keys = new Float64Array(Math.max(16, capacity)); }
+  peekKey(): number { return this.keys[0]!; }
   push(item: number, key: number) {
     if (this.size === this.items.length) {
       const items = new Uint32Array(this.size * 2), keys = new Float64Array(this.size * 2);
@@ -146,7 +181,7 @@ class Heap {
   }
 }
 
-/** Sänkorna fyllda (priority flood med ε, Barnes m.fl. 2014): från kanten och cellerna intill data som saknas. */
+/** Sänkorna fyllda (Priority-Flood + ε med Barnes m.fl. 2014 FIFO-gropkö): från kanten och cellerna intill data som saknas. */
 export function fillDepressions(grid: Grid, epsilon = 1e-4): Float64Array {
   const { width, height, z } = grid;
   const filled = new Float64Array(z.length).fill(Number.NaN);
@@ -161,16 +196,23 @@ export function fillDepressions(grid: Grid, epsilon = 1e-4): Float64Array {
       if (edge) { filled[i] = z[i]!; done[i] = 1; heap.push(i, z[i]!); }
     }
   }
-  while (heap.size > 0) {
-    const i = heap.pop(), x = Math.floor(i / height), y = i - x * height;
+  // Celler i sänkor (z[n] <= filled[i] + ε) läggs i en FIFO-kö som förblir sorterad eftersom min(kö, hög) är monotont växande.
+  const pit = new Uint32Array(z.length);
+  let pitHead = 0, pitTail = 0;
+  while (heap.size > 0 || pitHead < pitTail) {
+    let i: number;
+    if (pitHead < pitTail && (heap.size === 0 || filled[pit[pitHead]!]! <= heap.peekKey())) i = pit[pitHead++]!;
+    else i = heap.pop();
+    const level = filled[i]! + epsilon, x = Math.floor(i / height), y = i - x * height;
     for (let k = 0; k < 8; k += 1) {
       const nx = x + DX[k]!, ny = y + DY[k]!;
       if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
       const n = nx * height + ny;
       if (done[n]) continue;
       done[n] = 1;
-      filled[n] = Math.max(z[n]!, filled[i]! + epsilon);
-      heap.push(n, filled[n]);
+      const elev = z[n]!;
+      if (elev <= level) { filled[n] = level; pit[pitTail++] = n; }
+      else { filled[n] = elev; heap.push(n, elev); }
     }
   }
   return filled;
@@ -245,24 +287,60 @@ export function moistureClasses(hand: Float32Array, settings: MoistureSettings, 
   return classes;
 }
 
-/** PNG med rader norrifrån (RGBA). */
-export function encodePng(width: number, height: number, pixel: (column: number, row: number) => readonly [number, number, number, number]): Buffer {
-  const raw = Buffer.alloc(height * (1 + width * 4));
+export type PngPixelWriter = (column: number, row: number, out: Uint8Array, offset: number) => readonly [number, number, number, number] | void;
+
+/**
+ * PNG med rader norrifrån (RGBA, 8 bitar). Skriver allokeringsfritt till radbuffert (stödjer både `(c, r, out, o) => void`
+ * och bakåtkompatibla `(c, r) => [r, g, b, a]`), med PNG-filter typ 1 (Sub) som standard och CRC32 på plats utan Buffer.concat.
+ */
+export function encodePng(width: number, height: number, pixel: PngPixelWriter, filter: 0 | 1 | 2 = 1): Buffer {
+  const stride = width * 4, rowStride = 1 + stride;
+  const raw = Buffer.allocUnsafe(height * rowStride);
+  let rowBuf = new Uint8Array(stride), prevBuf = filter === 2 ? new Uint8Array(stride) : undefined;
   for (let row = 0; row < height; row += 1) {
-    const offset = row * (1 + width * 4);
-    for (let column = 0; column < width; column += 1) raw.set(pixel(column, row), offset + 1 + column * 4);
+    for (let column = 0; column < width; column += 1) {
+      const offset = column * 4;
+      const px = pixel(column, row, rowBuf, offset);
+      if (px !== undefined) {
+        rowBuf[offset] = px[0]; rowBuf[offset + 1] = px[1]; rowBuf[offset + 2] = px[2]; rowBuf[offset + 3] = px[3];
+      }
+    }
+    const dst = row * rowStride;
+    if (filter === 0) {
+      raw[dst] = 0;
+      raw.set(rowBuf, dst + 1);
+    } else if (filter === 1) {
+      raw[dst] = 1;
+      for (let i = 0; i < Math.min(4, stride); i += 1) raw[dst + 1 + i] = rowBuf[i]!;
+      for (let i = 4; i < stride; i += 1) raw[dst + 1 + i] = (rowBuf[i]! - rowBuf[i - 4]!) & 0xff;
+    } else if (row === 0) {
+      raw[dst] = 0;
+      raw.set(rowBuf, dst + 1);
+    } else {
+      raw[dst] = 2;
+      for (let i = 0; i < stride; i += 1) raw[dst + 1 + i] = (rowBuf[i]! - prevBuf![i]!) & 0xff;
+    }
+    if (prevBuf) { const tmp = prevBuf; prevBuf = rowBuf; rowBuf = tmp; }
   }
-  const chunk = (type: string, data: Buffer) => {
-    const head = Buffer.alloc(8);
-    head.writeUInt32BE(data.length, 0); head.write(type, 4, "ascii");
-    const crc = Buffer.alloc(4);
-    crc.writeUInt32BE(crc32(Buffer.concat([head.subarray(4), data])) >>> 0, 0);
-    return Buffer.concat([head, data, crc]);
-  };
-  const header = Buffer.alloc(13);
-  header.writeUInt32BE(width, 0); header.writeUInt32BE(height, 4); header.set([8, 6, 0, 0, 0], 8);
-  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", header), chunk("IDAT", deflateSync(raw, { level: 6 })),
-    chunk("IEND", Buffer.alloc(0))]);
+  const idat = deflateSync(raw, filter === 0 ? { level: 6 } : { level: 4, strategy: zlibConstants.Z_FILTERED });
+  // En enda slutbuffert: 8 (signatur) + 25 (IHDR) + (12 + idat.length) (IDAT) + 12 (IEND).
+  const out = Buffer.allocUnsafe(57 + idat.length);
+  out.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0);
+  // IHDR
+  out.writeUInt32BE(13, 8); out.write("IHDR", 12, "ascii");
+  out.writeUInt32BE(width, 16); out.writeUInt32BE(height, 20);
+  out[24] = 8; out[25] = 6; out[26] = 0; out[27] = 0; out[28] = 0;
+  out.writeUInt32BE(crc32(out.subarray(12, 29)) >>> 0, 29);
+  // IDAT
+  out.writeUInt32BE(idat.length, 33); out.write("IDAT", 37, "ascii");
+  idat.copy(out, 41);
+  const idatEnd = 41 + idat.length;
+  out.writeUInt32BE(crc32(out.subarray(37, idatEnd)) >>> 0, idatEnd);
+  // IEND
+  const iend = idatEnd + 4;
+  out.writeUInt32BE(0, iend); out.write("IEND", iend + 4, "ascii");
+  out.writeUInt32BE(crc32(out.subarray(iend + 4, iend + 8)) >>> 0, iend + 8);
+  return out;
 }
 
 /** Världsfilen för rutnätet (bildens översta rad är den nordligaste). */
@@ -275,9 +353,9 @@ type Ring = [number, number][];
 
 /**
  * Masken utan små öar (`< minCells`) och med bara små inre hål fyllda (`< minHoleCells`, förval `minCells`), 4-grannar.
- * Större torra kullar och öar mitt i ett kärr lämnas som hål i stället för att sväljas.
+ * Större torra kullar och öar mitt i ett kärr lämnas som hål i stället för att sväljas; celler i `blocked` (vatten) fylls aldrig.
  */
-export function cleanMask(mask: Uint8Array, width: number, height: number, minCells: number, minHoleCells = minCells): Uint8Array {
+export function cleanMask(mask: Uint8Array, width: number, height: number, minCells: number, minHoleCells = minCells, blocked?: Uint8Array): Uint8Array {
   // Kön är ett fält i stället för listor av tal: över stora områden (Djurgården, Nåttarö 2026-11-11) tog listorna allt minne.
   const out = new Uint8Array(mask.length), seen = new Uint8Array(mask.length), queue = new Int32Array(mask.length);
   /** Fyller den sammanhängande delen från `start`; cellerna ligger sedan först i `queue`. Ger antalet. */
@@ -299,7 +377,7 @@ export function cleanMask(mask: Uint8Array, width: number, height: number, minCe
     const count = component(i, n => mask[n] === 1);
     if (count >= minCells) for (let k = 0; k < count; k += 1) out[queue[k]!] = 1;
   }
-  // Hålen: det som inte är mask och inte når kanten. Bara små hål (< minHoleCells) fylls; större kullar och öar står kvar.
+  // Hålen: det som inte är mask och inte når kanten eller vatten (`blocked`). Bara små hål (< minHoleCells) fylls.
   if (minHoleCells > 0) {
     seen.fill(0);
     for (let x = 0; x < width; x += 1) {
@@ -307,6 +385,9 @@ export function cleanMask(mask: Uint8Array, width: number, height: number, minCe
     }
     for (let y = 0; y < height; y += 1) {
       for (const x of [0, width - 1]) { const i = x * height + y; if (!out[i] && !seen[i]) component(i, n => !out[n]); }
+    }
+    if (blocked) {
+      for (let i = 0; i < out.length; i += 1) if (blocked[i] && !out[i] && !seen[i]) component(i, n => !out[n]);
     }
     for (let i = 0; i < out.length; i += 1) {
       if (out[i] || seen[i]) continue;
@@ -501,35 +582,34 @@ export function moistureFromHeightMaps(grids: readonly Grid[], settings: Moistur
     if (value >= OPEN_GROUND_SHARE && !shore?.[i]) classes[i] = 0;
   }
   const minCells = Math.max(4, Math.round(400 / (grid.cell * grid.cell)));
-  const clean = (mask: Uint8Array) => blocked ? cleanMask(dry(cleanMask(dry(mask), grid.width, grid.height, minCells)), grid.width, grid.height, minCells)
-    : cleanMask(mask, grid.width, grid.height, minCells);
-  const wetMask = dry(clean(classes.map(value => value === 2 ? 1 : 0)));
-  const moistMask = dry(clean(classes.map(value => value >= 1 ? 1 : 0)));
+  const wetMask = cleanMask(dry(classes.map(value => value === 2 ? 1 : 0)), grid.width, grid.height, minCells, minCells, blocked);
+  const moistMask = cleanMask(dry(classes.map(value => value >= 1 ? 1 : 0)), grid.width, grid.height, minCells, minCells, blocked);
   const tolerance = grid.cell * 0.75;
   const wet = maskRings(wetMask, grid).map(ring => simplify(ring, tolerance)).filter(ring => ring.length >= 4);
   const moist = maskRings(moistMask, grid).map(ring => simplify(ring, tolerance)).filter(ring => ring.length >= 4);
   const lineCells = Math.max(channelCells, Math.round((settings.channelLineHa ?? CHANNEL_LINE_HA) * 10_000 / (grid.cell * grid.cell)));
   const channels = channelLines(grid, down, accumulation, lineCells, 50, blocked);
   const isChannel = (i: number) => accumulation[i]! >= channelCells && !blocked?.[i];
-  const png = encodePng(grid.width, grid.height, (column, row) => {
+  const png = encodePng(grid.width, grid.height, (column, row, out, o) => {
     const i = column * grid.height + (grid.height - 1 - row);
-    if (isChannel(i)) return [10, 40, 160, 230];
-    if (wetMask[i]) return [40, 110, 230, 170];
-    if (moistMask[i]) return [120, 180, 240, 110];
-    return [0, 0, 0, 0];
+    if (isChannel(i)) { out[o] = 10; out[o + 1] = 40; out[o + 2] = 160; out[o + 3] = 230; }
+    else if (wetMask[i]) { out[o] = 40; out[o + 1] = 110; out[o + 2] = 230; out[o + 3] = 170; }
+    else if (moistMask[i]) { out[o] = 120; out[o + 1] = 180; out[o + 2] = 240; out[o + 3] = 110; }
+    else { out[o] = 0; out[o + 1] = 0; out[o + 2] = 0; out[o + 3] = 0; }
   });
   // Ägaren 2026-11-11 («dra i markfuktighetslagren»): höjden över närmaste fuktstråk som bild, så att gränserna för blött och
   // fuktigt kan dras i webbläsaren utan en ny körning. Rött och grönt = höjden i steg om 2 cm (0–5,08 m), blått 255; utan
   // data eller i vatten genomskinligt. Lågt blir blått, högt vitt. Blå kanal: lutningen i steg om 0,1° (0–25,4°), för att
   // webbläsaren ska kunna kräva flack mark som här.
-  const depthPng = encodePng(grid.width, grid.height, (column, row) => {
+  const depthPng = encodePng(grid.width, grid.height, (column, row, out, o) => {
     const i = column * grid.height + (grid.height - 1 - row);
     const value = hand[i]!;
-    if (!Number.isFinite(value) || blocked?.[i]) return [0, 0, 0, 0];
+    if (!Number.isFinite(value) || blocked?.[i]) { out[o] = 0; out[o + 1] = 0; out[o + 2] = 0; out[o + 3] = 0; return; }
     const step = Math.min(254, Math.max(0, Math.round(value / DEPTH_STEP_METERS)));
     const steep = slope[i]!;
     // Grön kanal: markträffarnas andel (0–254 = 0–100 %, 255 okänd) när punktstatistiken finns; annars som röd (äldre format).
-    return [step, groundShare ? share[i]! : step, Number.isFinite(steep) ? Math.min(254, Math.round(steep / SLOPE_STEP_DEGREES)) : 255, 255];
+    out[o] = step; out[o + 1] = groundShare ? share[i]! : step;
+    out[o + 2] = Number.isFinite(steep) ? Math.min(254, Math.round(steep / SLOPE_STEP_DEGREES)) : 255; out[o + 3] = 255;
   });
   const dxf = moistureDxf([{ name: "blott", closed: true, parts: wet }, { name: "fuktigt", closed: true, parts: moist },
     { name: "fuktstrak", closed: false, parts: channels }]);

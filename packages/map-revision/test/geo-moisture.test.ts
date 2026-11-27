@@ -1,8 +1,14 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { gunzipSync, inflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
+import { heightPng, mergeGroundGrids, readGroundGrid } from "../../../scripts/geo-cliffs";
+import { decodePng } from "../../../scripts/geo-merge";
 import {
-  cleanMask, fillDepressions, flowAccumulation, flowDirections, heightAboveDrainage, maskRings, moistureFromHeightMaps, mosaic, readHeightMap,
-  ringArea, worldFile, type Grid
+  cleanMask, downsampleGroundTo2m, encodePng, fillDepressions, flowAccumulation, flowDirections, heightAboveDrainage, maskRings,
+  moistureFromHeightMaps, mosaic, readHeightMap, ringArea, worldFile, type Grid
 } from "../../../scripts/geo-moisture";
+import { rockImage } from "../../../scripts/geo-rock";
 import { nestRings } from "../src/ring-nesting";
 import { parseDxf } from "../src/vector-parse";
 
@@ -114,5 +120,134 @@ describe("fuktigheten ur höjdrastret", () => {
     expect(wetRings.some(ring => ringArea(ring) < 0)).toBe(true);
     const nested = nestRings(wetRings.map(ring => ring.map(([x, y]) => ({ x, y }))));
     expect(nested.some(polygon => polygon.length >= 2)).toBe(true);
+  });
+
+  it("fillDepressions med Barnes (2014) FIFO-gropkö ger exakt samma fyllda höjder som ren min-heap (inkl. dubbla utlopp)", () => {
+    // Referens-Priority-Flood (ren min-heap utan FIFO-kö).
+    const pureHeapFill = (g: Grid, eps = 1e-4): Float64Array => {
+      const { width, height, z } = g, filled = new Float64Array(z.length).fill(Number.NaN), done = new Uint8Array(z.length);
+      const DX = [1, 1, 0, -1, -1, -1, 0, 1], DY = [0, 1, 1, 1, 0, -1, -1, -1];
+      const items: number[] = [], keys: number[] = [];
+      const push = (item: number, key: number) => {
+        let i = items.length; items.push(item); keys.push(key);
+        while (i > 0) { const p = (i - 1) >> 1; if (keys[p]! <= key) break; items[i] = items[p]!; keys[i] = keys[p]!; i = p; }
+        items[i] = item; keys[i] = key;
+      };
+      const pop = () => {
+        const top = items[0]!, item = items.pop()!, key = keys.pop()!;
+        if (items.length) {
+          let i = 0;
+          for (;;) {
+            let c = i * 2 + 1; if (c >= items.length) break;
+            if (c + 1 < items.length && keys[c + 1]! < keys[c]!) c += 1;
+            if (keys[c]! >= key) break;
+            items[i] = items[c]!; keys[i] = keys[c]!; i = c;
+          }
+          items[i] = item; keys[i] = key;
+        }
+        return top;
+      };
+      for (let x = 0; x < width; x += 1) for (let y = 0; y < height; y += 1) {
+        const i = x * height + y;
+        if (Number.isNaN(z[i]!)) { done[i] = 1; continue; }
+        let edge = x === 0 || y === 0 || x === width - 1 || y === height - 1;
+        for (let k = 0; !edge && k < 8; k += 1) edge = Number.isNaN(z[(x + DX[k]!) * height + y + DY[k]!]!);
+        if (edge) { filled[i] = z[i]!; done[i] = 1; push(i, z[i]!); }
+      }
+      while (items.length) {
+        const i = pop(), x = Math.floor(i / height), y = i - x * height;
+        for (let k = 0; k < 8; k += 1) {
+          const nx = x + DX[k]!, ny = y + DY[k]!;
+          if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+          const n = nx * height + ny;
+          if (done[n]) continue;
+          done[n] = 1; const v = Math.max(z[n]!, filled[i]! + eps); filled[n] = v; push(n, v);
+        }
+      }
+      return filled;
+    };
+    // Stor sänka med två trösklar på nästan samma höjd (testar att FIFO-kön jämförs mot heap-toppen).
+    const basin = grid(60, 40, (x, y) => {
+      if (x === 0 && y === 20) return 10;
+      if (x === 59 && y === 20) return 10.001;
+      if (x === 0 || y === 0 || x === 59 || y === 39) return 20;
+      return 5 + 0.01 * Math.sin(x * 0.4) * Math.cos(y * 0.3);
+    });
+    const hmapReal = readHeightMap(new Uint8Array(gunzipSync(readFileSync(join(import.meta.dirname, "../../../fixtures/laser/kungshatt-300m/xyz2.hmap.gz")))));
+    for (const sample of [grid(50, 50, valley), basin, hmapReal]) {
+      const fast = fillDepressions(sample), ref = pureHeapFill(sample);
+      expect(fast.length).toBe(ref.length);
+      for (let i = 0; i < ref.length; i += 1) {
+        if (Number.isNaN(ref[i]!)) expect(Number.isNaN(fast[i]!)).toBe(true);
+        else expect(Math.abs(fast[i]! - ref[i]!)).toBeLessThan(1e-9);
+      }
+    }
+  });
+
+  it("encodePng med Sub-filter (typ 1) rundreser exakt i decodePng och krymper hojd.png och berg.png kraftigt mot filter 0", () => {
+    const w = 64, h = 48;
+    const rawPixels = new Uint8Array(w * h * 4);
+    for (let y = 0; y < h; y += 1) for (let x = 0; x < w; x += 1) {
+      const o = (y * w + x) * 4;
+      rawPixels[o] = (x * 3 + y) & 255; rawPixels[o + 1] = (y * 5 + 17) & 255; rawPixels[o + 2] = (x + y * 2) & 255; rawPixels[o + 3] = (x + y) % 7 === 0 ? 0 : 255;
+    }
+    for (const filter of [0, 1, 2] as const) {
+      const png = encodePng(w, h, (c, r, out, o) => {
+        const s = (r * w + c) * 4;
+        out[o] = rawPixels[s]!; out[o + 1] = rawPixels[s + 1]!; out[o + 2] = rawPixels[s + 2]!; out[o + 3] = rawPixels[s + 3]!;
+      }, filter);
+      const decoded = decodePng(png);
+      expect(decoded.width).toBe(w);
+      expect(decoded.height).toBe(h);
+      expect(decoded.colorType).toBe(6);
+      expect(decoded.data).toEqual(rawPixels);
+    }
+    // Verifiera att standardfiltret är typ 1 (Sub) och krymper kontinuerliga raster (`hojd.png` och `berg.png`) på kungshatt-300m.
+    const mark = mergeGroundGrids([readGroundGrid(new Uint8Array(gunzipSync(readFileSync(join(import.meta.dirname, "../../../fixtures/laser/kungshatt-300m/mark.bin.gz")))))]);
+    const hojdSub = heightPng(mark).png;
+    const hojdNone = encodePng(mark.width, mark.height, (c, r, out, o) => {
+      const z = mark.z[c * mark.height + (mark.height - 1 - r)]!;
+      if (!Number.isFinite(z)) { out[o] = 0; out[o + 1] = 0; out[o + 2] = 0; out[o + 3] = 0; return; }
+      const v = Math.max(0, Math.min(0xffffff, Math.round(z * 100) + 10_000));
+      out[o] = v >> 16; out[o + 1] = (v >> 8) & 255; out[o + 2] = v & 255; out[o + 3] = 255;
+    }, 0);
+    // Kontrollera filterbyte 1 i IDAT på hojdSub.
+    const idatPos = hojdSub.indexOf("IDAT"), idatLen = hojdSub.readUInt32BE(idatPos - 4);
+    expect(inflateSync(hojdSub.subarray(idatPos + 4, idatPos + 4 + idatLen))[0]).toBe(1);
+    expect(decodePng(hojdSub).data).toEqual(decodePng(hojdNone).data);
+    expect(hojdSub.byteLength).toBeLessThan(hojdNone.byteLength * 0.85);
+
+    const open = new Uint8Array(mark.width * mark.height).fill(1);
+    const bergSub = rockImage(mark, open, undefined).png;
+    const bergDecoded = decodePng(bergSub);
+    const bergNone = encodePng(mark.width, mark.height, (c, r, out, o) => {
+      const s = (r * mark.width + c) * 4;
+      out[o] = bergDecoded.data[s]!; out[o + 1] = bergDecoded.data[s + 1]!; out[o + 2] = bergDecoded.data[s + 2]!; out[o + 3] = bergDecoded.data[s + 3]!;
+    }, 0);
+    expect(bergSub.byteLength).toBeLessThan(bergNone.byteLength * 0.92);
+
+    // Kontinuerlig höjdmodell (256 × 256) krymper > 50 % med Sub-filter + Z_FILTERED mot ofiltrerad filter 0.
+    const sw = 256, sh = 256;
+    const smoothSub = encodePng(sw, sh, (c, r, out, o) => {
+      const v = Math.round((30 + 8 * Math.sin(c * 0.03) + 6 * Math.cos(r * 0.03)) * 100) + 10_000;
+      out[o] = v >> 16; out[o + 1] = (v >> 8) & 255; out[o + 2] = v & 255; out[o + 3] = 255;
+    }, 1);
+    const smoothNone = encodePng(sw, sh, (c, r, out, o) => {
+      const v = Math.round((30 + 8 * Math.sin(c * 0.03) + 6 * Math.cos(r * 0.03)) * 100) + 10_000;
+      out[o] = v >> 16; out[o + 1] = (v >> 8) & 255; out[o + 2] = v & 255; out[o + 3] = 255;
+    }, 0);
+    expect(decodePng(smoothSub).data).toEqual(decodePng(smoothNone).data);
+    expect(smoothSub.byteLength).toBeLessThan(smoothNone.byteLength * 0.5);
+  }, 15_000);
+
+  it("downsampleGroundTo2m ger 2 m Grid med fuktighet i paritet med xyz2.hmap på kungshatt-300m", () => {
+    const dir = join(import.meta.dirname, "../../../fixtures/laser/kungshatt-300m");
+    const mark = mergeGroundGrids([readGroundGrid(new Uint8Array(gunzipSync(readFileSync(join(dir, "mark.bin.gz")))))]);
+    const down = downsampleGroundTo2m(mark);
+    expect(down).toMatchObject({ cell: 2, width: 150, height: 150, minX: 664_781, minY: 6_576_501 });
+    const fromMark = moistureFromHeightMaps([down]);
+    const fromHmap = moistureFromHeightMaps([readHeightMap(new Uint8Array(gunzipSync(readFileSync(join(dir, "xyz2.hmap.gz")))))]);
+    expect(Math.abs(fromMark.summary.wetHa - fromHmap.summary.wetHa)).toBeLessThan(0.15);
+    expect(Math.abs(fromMark.summary.moistHa - fromHmap.summary.moistHa)).toBeLessThan(0.15);
   });
 });

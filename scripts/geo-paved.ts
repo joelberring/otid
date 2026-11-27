@@ -102,10 +102,9 @@ const ringsArea = (rings: readonly (readonly (readonly [number, number])[])[]) =
 
 /**
  * Maskens ytor som ringar i meter (ytterkanter moturs, hål medurs). Kanten jämnas ut och dras mellan cellerna
- * (geo-paved-contour.ts), förenklas, och ringar under minsta ytan eller med färre än fyra punkter tas bort; sedan räta
- * vinklar och rektanglar där ytan är sådan (geo-paved-generalize.ts). Skydd på helheten: avviker ringarnas sammanlagda yta
- * mer än 10 % från maskens används ringarna utan räta vinklar och rektanglar («smoothed»), och avviker också de används
- * rasterkanten («raster», som berg i dagen). `minX`, `minY` är mitten av cellen (0, 0).
+ * (geo-paved-contour.ts), förenklas, och generaliseras per ring (geo-paved-generalize.ts). Fallback sker **per ring**
+ * (generaliserad → utjämnad) och vid >10 % total areaavvikelse **per komponent** (utjämnad → rasterkant) så en smal remsa
+ * eller en enskild problemring aldrig förstör generaliseringen för resten av kartan. `minX`, `minY` är mitten av cellen (0, 0).
  */
 export function pavedRings(mask: Uint8Array, grid: { readonly minX: number; readonly minY: number; readonly cell: number; readonly width: number; readonly height: number },
   settings: Pick<PavedSettings, "minAreaM2"> = DEFAULT_PAVED): { rings: [number, number][][]; source: PavedRingSource; maskM2: number } {
@@ -115,13 +114,107 @@ export function pavedRings(mask: Uint8Array, grid: { readonly minX: number; read
   if (cells === 0) return { rings: [], source: "generalized", maskM2 };
   const close = (rings: readonly (readonly (readonly [number, number])[])[]) => Math.abs(ringsArea(rings) - maskM2) <= PAVED_AREA_TOLERANCE * maskM2;
   const smooth = smoothMaskRings(mask, grid);
-  for (const source of ["generalized", "smoothed"] as const) {
-    const rings = smooth.map(ring => generalizePavedRing(ring, undefined, source === "generalized"))
-      .filter(ring => ring.length >= 4 && Math.abs(signedArea(ring)) >= settings.minAreaM2);
-    if (close(rings)) return { rings, source, maskM2 };
+  // Steg 1: per-ring fallback från `generalized` → `smoothed` om en enskild ring tappar eller ändrar area > 10 %.
+  const entries: { ring: [number, number][]; kind: "generalized" | "smoothed"; area: number }[] = [];
+  for (const raw of smooth) {
+    const rawArea = Math.abs(signedArea(raw));
+    const gen = generalizePavedRing(raw, undefined, true), genArea = Math.abs(signedArea(gen));
+    if (gen.length >= 4 && genArea >= settings.minAreaM2 && rawArea > 0 && Math.abs(genArea - rawArea) <= PAVED_AREA_TOLERANCE * rawArea) {
+      entries.push({ ring: gen, kind: "generalized", area: signedArea(gen) });
+      continue;
+    }
+    const sm = generalizePavedRing(raw, undefined, false), smArea = Math.abs(signedArea(sm));
+    if (sm.length >= 4 && smArea >= settings.minAreaM2 && rawArea > 0 && Math.abs(smArea - rawArea) <= PAVED_AREA_TOLERANCE * rawArea) {
+      entries.push({ ring: sm, kind: "smoothed", area: signedArea(sm) });
+    } else if (raw.length >= 4 && rawArea >= settings.minAreaM2) {
+      entries.push({ ring: raw, kind: "smoothed", area: signedArea(raw) });
+    }
   }
-  const raster = maskRings(mask, { ...grid, z: new Float64Array(0) }).map(ring => simplify(ring, grid.cell * 0.75)).filter(ring => ring.length >= 4);
-  return { rings: raster, source: "raster", maskM2 };
+  const chosen = entries.map(entry => entry.ring);
+  if (close(chosen)) {
+    const hasGen = entries.some(entry => entry.kind === "generalized");
+    return { rings: chosen, source: hasGen ? "generalized" : "smoothed", maskM2 };
+  }
+  // Steg 2: per-komponent fallback till rasterkant endast för delar som utjämningen tappade/förvrängde (> 10 % areafel).
+  const { width, height, cell } = grid, cellM2 = cell * cell;
+  const compOf = new Int32Array(mask.length);
+  const compCells: number[][] = [[]], compBounds: [number, number, number, number][] = [[0, 0, 0, 0]];
+  components(mask, width, height, 1, (queue, count) => {
+    const id = compCells.length;
+    const list: number[] = [];
+    let minX = width, maxX = 0, minY = height, maxY = 0;
+    for (let k = 0; k < count; k += 1) {
+      const idx = queue[k]!, x = Math.floor(idx / height), y = idx - x * height;
+      compOf[idx] = id; list.push(idx);
+      if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y;
+    }
+    compCells.push(list); compBounds.push([minX, maxX, minY, maxY]);
+  });
+  const parent = Array.from({ length: compCells.length }, (_, k) => k);
+  const find = (k: number): number => { while (parent[k] !== k) { parent[k] = parent[parent[k]!]!; k = parent[k]!; } return k; };
+  const unite = (a: number, b: number) => { const ra = find(a), rb = find(b); if (ra !== rb) parent[ra] = rb; };
+  const ringOwner = new Int32Array(entries.length);
+  for (let ei = 0; ei < entries.length; ei += 1) {
+    const ring = entries[ei]!.ring, step = Math.max(1, Math.floor(ring.length / 8));
+    let owner = 0;
+    for (let k = 0; k < ring.length; k += step) {
+      const gx = Math.round((ring[k]![0] - grid.minX) / cell), gy = Math.round((ring[k]![1] - grid.minY) / cell);
+      for (let r = 0; r <= 2; r += 1) {
+        let hit = 0;
+        for (let dx = -r; dx <= r; dx += 1) for (let dy = -r; dy <= r; dy += 1) {
+          const nx = gx + dx, ny = gy + dy;
+          if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+          const cid = compOf[nx * height + ny]!;
+          if (cid > 0) { if (owner === 0) owner = cid; else unite(owner, cid); hit = cid; }
+        }
+        if (hit > 0) break;
+      }
+    }
+    ringOwner[ei] = owner;
+  }
+  const groupM2 = new Map<number, number>(), groupEntries = new Map<number, number[]>(), groupComps = new Map<number, number[]>();
+  for (let id = 1; id < compCells.length; id += 1) {
+    const g = find(id);
+    groupM2.set(g, (groupM2.get(g) ?? 0) + compCells[id]!.length * cellM2);
+    let list = groupComps.get(g); if (!list) { list = []; groupComps.set(g, list); } list.push(id);
+  }
+  for (let ei = 0; ei < entries.length; ei += 1) {
+    const cid = ringOwner[ei]!;
+    if (cid <= 0) continue;
+    const g = find(cid);
+    let list = groupEntries.get(g); if (!list) { list = []; groupEntries.set(g, list); } list.push(ei);
+  }
+  const out: [number, number][][] = [];
+  let keptGen = 0, keptSmooth = 0;
+  for (const [g, areaM2] of groupM2) {
+    const idxs = groupEntries.get(g) ?? [];
+    const net = idxs.reduce((sum, ei) => sum + entries[ei]!.area, 0);
+    if (idxs.length > 0 && Math.abs(net - areaM2) <= PAVED_AREA_TOLERANCE * areaM2) {
+      for (const ei of idxs) {
+        const entry = entries[ei]!;
+        out.push(entry.ring);
+        if (entry.kind === "generalized") keptGen += 1; else keptSmooth += 1;
+      }
+    } else {
+      const ids = groupComps.get(g)!;
+      let minX = width, maxX = 0, minY = height, maxY = 0;
+      for (const id of ids) {
+        const [bx0, bx1, by0, by1] = compBounds[id]!;
+        if (bx0 < minX) minX = bx0; if (bx1 > maxX) maxX = bx1; if (by0 < minY) minY = by0; if (by1 > maxY) maxY = by1;
+      }
+      const lw = maxX - minX + 1, lh = maxY - minY + 1, local = new Uint8Array(lw * lh);
+      for (const id of ids) for (const idx of compCells[id]!) {
+        const x = Math.floor(idx / height), y = idx - x * height;
+        local[(x - minX) * lh + (y - minY)] = 1;
+      }
+      const localGrid = { minX: grid.minX + minX * cell, minY: grid.minY + minY * cell, cell, width: lw, height: lh, z: new Float64Array(0) };
+      for (const ring of maskRings(local, localGrid)) {
+        const simple = simplify(ring, cell * 0.75);
+        if (simple.length >= 4) out.push(simple);
+      }
+    }
+  }
+  return { rings: out, source: keptGen > 0 ? "generalized" : keptSmooth > 0 ? "smoothed" : "raster", maskM2 };
 }
 
 export interface PavedResult {
@@ -166,8 +259,27 @@ export function pavedFromPoints(stats: PointStats, water?: (x: number, y: number
   if (chosen.limit === undefined) return { rings: [], source: "generalized", mask: new Uint8Array(size), pavedHa: 0, openCells, reason: chosen.reason };
   const raw = new Uint8Array(size);
   for (let i = 0; i < size; i += 1) if (open[i] && filtered[i]! <= chosen.limit) raw[i] = 1;
-  // Ett steg öppning tar bort enstaka celler; sedan fylls små hål och små ytor tas bort.
+  // Ett steg öppning tar bort enstaka celler; sedan återvinns asfalt under angränsande gatuträd via region-growing.
   const mask = openMask(raw, width, height, 1), area = cell * cell;
+  const maxTreeSteps = Math.max(1, Math.round(12 / cell));
+  const growQueue = new Int32Array(size), growDist = new Int16Array(size).fill(-1);
+  let gHead = 0, gTail = 0;
+  for (let i = 0; i < size; i += 1) if (mask[i]) { growDist[i] = 0; growQueue[gTail++] = i; }
+  while (gHead < gTail) {
+    const i = growQueue[gHead++]!, d = growDist[i]!;
+    if (d >= maxTreeSteps) continue;
+    const x = Math.floor(i / height), y = i - x * height;
+    for (let dir = 0; dir < 4; dir += 1) {
+      const nx = dir === 0 ? x - 1 : dir === 1 ? x + 1 : x, ny = dir === 2 ? y - 1 : dir === 3 ? y + 1 : y;
+      if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+      const n = nx * height + ny;
+      if (mask[n] || open[n] || intensity[n]! < 0 || intensity[n]! > chosen.limit) continue;
+      const o = n * POINT_BANDS;
+      if (!(values[o + 2]! >= 1) || !(Number.isFinite(values[o]!) && values[o]! > settings.maxHeightM)) continue;
+      if (water?.(stats.minX + (nx + 0.5) * cell, stats.minY + (ny + 0.5) * cell)) continue;
+      mask[n] = 1; growDist[n] = d + 1; growQueue[gTail++] = n;
+    }
+  }
   components(mask, width, height, 0, (queue, count, edge) => {
     if (!edge && count * area < settings.fillHoleM2) for (let k = 0; k < count; k += 1) mask[queue[k]!] = 1;
   });

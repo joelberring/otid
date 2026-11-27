@@ -48,6 +48,7 @@ const length = (points: readonly Pair[]) => { let sum = 0; for (let k = 1; k < p
 
 /** Reliefen som medel över celler om `factor` × `factor` (NaN där ingen mark finns). Index x·höjd + y. */
 function coarse(relief: Float32Array, width: number, height: number, factor: number): { grid: Float32Array; w: number; h: number } {
+  if (factor === 1) return { grid: relief, w: width, h: height };
   const w = Math.floor(width / factor), h = Math.floor(height / factor), grid = new Float32Array(w * h);
   for (let x = 0; x < w; x += 1) for (let y = 0; y < h; y += 1) {
     let sum = 0, n = 0;
@@ -63,30 +64,122 @@ function coarse(relief: Float32Array, width: number, height: number, factor: num
 /** Linjefiltrets svar (störst över riktningarna) per cell; 0 vid kanten och där marken saknas. */
 export function trackResponse(grid: Float32Array, w: number, h: number, sideCells: readonly number[], reachCells: number): Float32Array {
   const best = new Float32Array(w * h), profile = new Float32Array(w * h);
+  const margin = reachCells + 1;
+  if (w <= 2 * margin || h <= 2 * margin || sideCells.length === 0) return best;
+  const shift = new Int32Array(Math.max(w, h));
+  const xEndLim = w - margin - 1, yEndLim = h - margin - 1;
   for (let d = 0; d < DIRECTIONS; d += 1) {
     const angle = Math.PI * d / DIRECTIONS, ux = Math.cos(angle), uy = Math.sin(angle);
-    const normals = sideCells.map(side => [Math.round(-uy * side), Math.round(ux * side)] as const);
-    const far = Math.max(...normals.map(([nx, ny]) => Math.max(Math.abs(nx), Math.abs(ny))));
+    const nxList = sideCells.map(side => Math.round(-uy * side));
+    const nyList = sideCells.map(side => Math.round(ux * side));
+    let far = 0;
+    for (let s = 0; s < sideCells.length; s += 1) far = Math.max(far, Math.abs(nxList[s]!), Math.abs(nyList[s]!));
+    if (w <= 2 * far || h <= 2 * far) continue;
     // Tvärprofilen: den lägsta sidopunkten minus mitten (positivt i en fåra). Båda sidorna måste ligga högre (en kant eller
     // en slänts fot ger inget), och med en inre sida också nära mitten (en bred dalbotten mellan hällar ger inget).
-    for (let x = 0; x < w; x += 1) for (let y = 0; y < h; y += 1) {
-      const i = x * h + y;
-      if (x < far || y < far || x >= w - far || y >= h - far) { profile[i] = 0; continue; }
-      let low = Number.POSITIVE_INFINITY;
-      for (const [nx, ny] of normals) low = Math.min(low, grid[(x + nx) * h + y + ny]!, grid[(x - nx) * h + y - ny]!);
-      const value = low - grid[i]!;
-      profile[i] = Number.isFinite(value) ? value : 0;
+    for (let x = 0; x < far; x += 1) { profile.fill(0, x * h, (x + 1) * h); profile.fill(0, (w - 1 - x) * h, (w - x) * h); }
+    for (let x = far; x < w - far; x += 1) {
+      const base = x * h;
+      for (let y = 0; y < far; y += 1) { profile[base + y] = 0; profile[base + h - 1 - y] = 0; }
     }
-    // Medel längs riktningen.
-    const offsets: number[] = [], steps: Pair[] = [];
-    for (let t = -reachCells; t <= reachCells; t += 1) { const ox = Math.round(t * ux), oy = Math.round(t * uy); steps.push([ox, oy]); offsets.push(ox * h + oy); }
-    const margin = reachCells + 1;
-    for (let x = margin; x < w - margin; x += 1) for (let y = margin; y < h - margin; y += 1) {
-      const i = x * h + y;
-      let sum = 0;
-      for (const offset of offsets) sum += profile[i + offset]!;
-      const value = sum / offsets.length;
-      if (value > best[i]!) best[i] = value;
+    if (sideCells.length === 2) {
+      const off0 = nxList[0]! * h + nyList[0]!, off1 = nxList[1]! * h + nyList[1]!;
+      for (let x = far; x < w - far; x += 1) {
+        const base = x * h;
+        for (let y = far; y < h - far; y += 1) {
+          const i = base + y;
+          const low = Math.min(Math.min(grid[i + off0]!, grid[i - off0]!), Math.min(grid[i + off1]!, grid[i - off1]!));
+          const value = low - grid[i]!;
+          profile[i] = Number.isFinite(value) ? value : 0;
+        }
+      }
+    } else {
+      const offs = sideCells.map((_, s) => nxList[s]! * h + nyList[s]!);
+      for (let x = far; x < w - far; x += 1) {
+        const base = x * h;
+        for (let y = far; y < h - far; y += 1) {
+          const i = base + y;
+          let low = Number.POSITIVE_INFINITY;
+          for (let s = 0; s < offs.length; s += 1) {
+            const off = offs[s]!;
+            low = Math.min(low, grid[i + off]!, grid[i - off]!);
+          }
+          const value = low - grid[i]!;
+          profile[i] = Number.isFinite(value) ? value : 0;
+        }
+      }
+    }
+    // O(1) glidande medel längs strålriktningen på parallella heltalslinjer som partitionerar rutnätet utan överlapp.
+    if (Math.abs(ux) >= Math.abs(uy)) {
+      const slope = uy / ux, r = Math.max(1, Math.round(reachCells * Math.abs(ux))), inv = 1 / (2 * r + 1);
+      for (let x = 0; x < w; x += 1) shift[x] = Math.round(x * slope);
+      const s0 = shift[margin]!, s1 = shift[xEndLim]!;
+      const cMin = margin - Math.max(s0, s1), cMax = yEndLim - Math.min(s0, s1);
+      for (let c = cMin; c <= cMax; c += 1) {
+        let x0: number, x1: number;
+        if (slope === 0) { x0 = margin; x1 = xEndLim; }
+        else if (slope > 0) {
+          x0 = Math.max(margin, Math.min(xEndLim + 1, Math.floor((margin - c - 0.5) / slope)));
+          x1 = Math.max(margin - 1, Math.min(xEndLim, Math.ceil((yEndLim - c + 0.5) / slope)));
+          while (x0 <= xEndLim && c + shift[x0]! < margin) x0 += 1;
+          while (x0 > margin && c + shift[x0 - 1]! >= margin) x0 -= 1;
+          while (x1 >= margin && c + shift[x1]! > yEndLim) x1 -= 1;
+          while (x1 < xEndLim && c + shift[x1 + 1]! <= yEndLim) x1 += 1;
+        } else {
+          x0 = Math.max(margin, Math.min(xEndLim + 1, Math.floor((yEndLim - c + 0.5) / slope)));
+          x1 = Math.max(margin - 1, Math.min(xEndLim, Math.ceil((margin - c - 0.5) / slope)));
+          while (x0 <= xEndLim && c + shift[x0]! > yEndLim) x0 += 1;
+          while (x0 > margin && c + shift[x0 - 1]! <= yEndLim) x0 -= 1;
+          while (x1 >= margin && c + shift[x1]! < margin) x1 -= 1;
+          while (x1 < xEndLim && c + shift[x1 + 1]! >= margin) x1 += 1;
+        }
+        if (x0 > x1) continue;
+        let sum = 0;
+        for (let k = x0 - r; k <= x0 + r; k += 1) sum += profile[k * h + c + shift[k]!]!;
+        for (let x = x0; ;) {
+          const i = x * h + c + shift[x]!, value = sum * inv;
+          if (value > best[i]!) best[i] = value;
+          if (x === x1) break;
+          const add = x + r + 1, drop = x - r;
+          sum += profile[add * h + c + shift[add]!]! - profile[drop * h + c + shift[drop]!]!;
+          x += 1;
+        }
+      }
+    } else {
+      const slope = ux / uy, r = Math.max(1, Math.round(reachCells * uy)), inv = 1 / (2 * r + 1);
+      for (let y = 0; y < h; y += 1) shift[y] = Math.round(y * slope);
+      const s0 = shift[margin]!, s1 = shift[yEndLim]!;
+      const cMin = margin - Math.max(s0, s1), cMax = xEndLim - Math.min(s0, s1);
+      for (let c = cMin; c <= cMax; c += 1) {
+        let y0: number, y1: number;
+        if (slope === 0) { y0 = margin; y1 = yEndLim; }
+        else if (slope > 0) {
+          y0 = Math.max(margin, Math.min(yEndLim + 1, Math.floor((margin - c - 0.5) / slope)));
+          y1 = Math.max(margin - 1, Math.min(yEndLim, Math.ceil((xEndLim - c + 0.5) / slope)));
+          while (y0 <= yEndLim && c + shift[y0]! < margin) y0 += 1;
+          while (y0 > margin && c + shift[y0 - 1]! >= margin) y0 -= 1;
+          while (y1 >= margin && c + shift[y1]! > xEndLim) y1 -= 1;
+          while (y1 < yEndLim && c + shift[y1 + 1]! <= xEndLim) y1 += 1;
+        } else {
+          y0 = Math.max(margin, Math.min(yEndLim + 1, Math.floor((xEndLim - c + 0.5) / slope)));
+          y1 = Math.max(margin - 1, Math.min(yEndLim, Math.ceil((margin - c - 0.5) / slope)));
+          while (y0 <= yEndLim && c + shift[y0]! > xEndLim) y0 += 1;
+          while (y0 > margin && c + shift[y0 - 1]! <= xEndLim) y0 -= 1;
+          while (y1 >= margin && c + shift[y1]! < margin) y1 -= 1;
+          while (y1 < yEndLim && c + shift[y1 + 1]! >= margin) y1 += 1;
+        }
+        if (y0 > y1) continue;
+        let sum = 0;
+        for (let k = y0 - r; k <= y0 + r; k += 1) sum += profile[(c + shift[k]!) * h + k]!;
+        for (let y = y0; ;) {
+          const i = (c + shift[y]!) * h + y, value = sum * inv;
+          if (value > best[i]!) best[i] = value;
+          if (y === y1) break;
+          const add = y + r + 1, drop = y - r;
+          sum += profile[(c + shift[add]!) * h + add]! - profile[(c + shift[drop]!) * h + drop]!;
+          y += 1;
+        }
+      }
     }
   }
   return best;
@@ -133,7 +226,12 @@ export function trackLines(ground: GroundGrid, relief: Float32Array, settings: T
   for (const path of paths(thin(closeMask(mask, w, h, Math.round(settings.join / cell)), w, h), w, h, Math.max(3, Math.round(settings.minPiece / cell / Math.SQRT2)))) {
     for (const piece of straightPieces(simplify(path.map(centre), cell * 0.75), settings.minPiece)) {
       if (blockedAt && piece.some(point => blockedAt(...point))) continue;
-      if (wetAt && densify(piece, cell).filter(point => wetAt(...point)).length * 2 > densify(piece, cell).length) continue;
+      if (wetAt) {
+        const dense = densify(piece, cell);
+        let wet = 0;
+        for (let k = 0; k < dense.length; k += 1) if (wetAt(dense[k]![0], dense[k]![1])) wet += 1;
+        if (wet * 2 > dense.length) continue;
+      }
       pieces.push(piece);
     }
   }
@@ -208,7 +306,12 @@ export function linkTracks(pieces: readonly Pair[][], settings: Pick<TrackSettin
   const cos = Math.cos(settings.maxAngle * Math.PI / 180), candidates: { gap: number; a: number; b: number }[] = [];
   // Ändarna i rutor om glappets storlek, så att bara grannar jämförs.
   const buckets = new Map<string, number[]>(), key = (x: number, y: number) => `${Math.floor(x / settings.maxGap)},${Math.floor(y / settings.maxGap)}`;
-  ends.forEach((end, k) => { const id = key(...end.at); buckets.set(id, [...buckets.get(id) ?? [], k]); });
+  ends.forEach((end, k) => {
+    const id = key(...end.at);
+    let list = buckets.get(id);
+    if (!list) { list = []; buckets.set(id, list); }
+    list.push(k);
+  });
   ends.forEach((a, k) => {
     const bx = Math.floor(a.at[0] / settings.maxGap), by = Math.floor(a.at[1] / settings.maxGap);
     for (let ax = -1; ax <= 1; ax += 1) for (let ay = -1; ay <= 1; ay += 1) for (const m of buckets.get(`${bx + ax},${by + ay}`) ?? []) {
@@ -231,11 +334,16 @@ export function linkTracks(pieces: readonly Pair[][], settings: Pick<TrackSettin
   const used = new Uint8Array(pieces.length), out: Pair[][] = [];
   for (let k = 0; k < ends.length; k += 1) {
     if (partner[k]! >= 0 || used[ends[k]!.piece]) continue;
-    let line: Pair[] = [], end = k;
+    const line: Pair[] = [];
+    let end = k;
     while (end >= 0 && !used[ends[end]!.piece]) {
       const piece = ends[end]!.piece, points = pieces[piece]!;
       used[piece] = 1;
-      line = line.concat(ends[end]!.start ? points : [...points].reverse());
+      if (ends[end]!.start) {
+        for (let p = 0; p < points.length; p += 1) line.push(points[p]!);
+      } else {
+        for (let p = points.length - 1; p >= 0; p -= 1) line.push(points[p]!);
+      }
       const other = end ^ 1;
       end = partner[other]!;
     }

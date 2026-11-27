@@ -186,7 +186,7 @@ export const geoWorkerFinishSchema = z.discriminatedUnion("status", [
  * skickar den i `x-otid-geo-version`; en äldre arbetare får inga jobb, och en server som O-Tid startat raderas. Höjs när
  * `scripts/geo-worker.ts` får något som jobben räknar med (samma tal står där; ett test håller dem lika).
  */
-export const GEO_WORKER_VERSION = 41;
+export const GEO_WORKER_VERSION = 42;
 
 /** PLAN.md M6: hur länge zip-filen med rå laserdata och dess länk finns (7 dygn, det längsta en försignerad länk får gälla). */
 export const RAW_LASER_DAYS = 7;

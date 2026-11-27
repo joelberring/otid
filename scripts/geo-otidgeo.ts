@@ -40,6 +40,52 @@ export async function hasExecutable(path: string): Promise<boolean> {
 export const FORMLINE_MODES = ["off", "sparse", "normal", "dense"] as const;
 export type FormlineModeName = typeof FORMLINE_MODES[number];
 
+export const OTIDGEO_PROFILES = ["very-detailed", "detailed", "normal", "generalized", "very-generalized"] as const;
+export type OtidgeoProfileName = typeof OTIDGEO_PROFILES[number];
+
+interface OtidgeoProfileSpec {
+  readonly smooth_m: number;
+  readonly taubin: number;
+  readonly curviness: number;
+  readonly min_loop_area: number;
+  readonly min_clearance: number;
+  readonly formline_gap: number;
+  readonly formline_max_slope: number;
+}
+
+/**
+ * De 4 icke-normala kurvprofilerna i `tools/otidgeo/src/types.rs` (synkade med `contourStyleSettings` i webben), så att
+ * `otidgeoRunArgs` kan skicka `--profile <namn>` och hålla inre profilfält (t.ex. `simplify_m`, `formline_min_slope_deg`)
+ * i full synk.
+ */
+const OTIDGEO_PROFILE_SPECS: Readonly<Record<"forest" | "sprint", Readonly<Record<Exclude<OtidgeoProfileName, "normal">, OtidgeoProfileSpec>>>> = {
+  forest: {
+    "very-detailed": { smooth_m: 0.72, taubin: 1, curviness: 0.26, min_loop_area: 18, min_clearance: 0.95, formline_gap: 3.2, formline_max_slope: 23 },
+    "detailed": { smooth_m: 0.88, taubin: 2, curviness: 0.22, min_loop_area: 26, min_clearance: 1.25, formline_gap: 3.6, formline_max_slope: 21.5 },
+    "generalized": { smooth_m: 1.5, taubin: 3, curviness: 0.13, min_loop_area: 62, min_clearance: 2, formline_gap: 5.6, formline_max_slope: 17 },
+    "very-generalized": { smooth_m: 2.15, taubin: 4, curviness: 0.08, min_loop_area: 105, min_clearance: 2.4, formline_gap: 7.6, formline_max_slope: 13.5 }
+  },
+  sprint: {
+    "very-detailed": { smooth_m: 0.52, taubin: 1, curviness: 0.26, min_loop_area: 9, min_clearance: 0.55, formline_gap: 2.2, formline_max_slope: 22.5 },
+    "detailed": { smooth_m: 0.65, taubin: 2, curviness: 0.22, min_loop_area: 12, min_clearance: 0.75, formline_gap: 2.7, formline_max_slope: 21 },
+    "generalized": { smooth_m: 1.1, taubin: 3, curviness: 0.13, min_loop_area: 25, min_clearance: 1.2, formline_gap: 4.4, formline_max_slope: 16.5 },
+    "very-generalized": { smooth_m: 1.55, taubin: 4, curviness: 0.08, min_loop_area: 40, min_clearance: 1.5, formline_gap: 5.8, formline_max_slope: 13 }
+  }
+};
+
+/** Känner igen vilken av de 4 icke-normala kurvprofilerna som jobbets inställningar motsvarar (för `--profile`). */
+export function inferOtidgeoProfile(settings: Readonly<Record<string, number>>): Exclude<OtidgeoProfileName, "normal"> | undefined {
+  const table = isNum(settings.contour_interval) && settings.contour_interval <= 3 ? OTIDGEO_PROFILE_SPECS.sprint : OTIDGEO_PROFILE_SPECS.forest;
+  for (const name of ["very-detailed", "detailed", "generalized", "very-generalized"] as const) {
+    const spec = table[name];
+    if (settings.smooth_m === spec.smooth_m && settings.taubin === spec.taubin && settings.curviness === spec.curviness
+      && settings.min_loop_area === spec.min_loop_area && settings.min_clearance === spec.min_clearance) {
+      return name;
+    }
+  }
+  return undefined;
+}
+
 /** Mappar `settings.formline` (`0..3`) till `otidgeo --formline-mode`. */
 export function formlineModeOf(value: number | undefined): FormlineModeName | undefined {
   if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
@@ -64,10 +110,14 @@ export interface OtidgeoJobOptions {
  */
 export function otidgeoRunArgs(inputs: readonly string[], outDir: string, job: OtidgeoJobOptions): string[] {
   const s = job.settings;
+  const sprint = isNum(s.contour_interval) && s.contour_interval <= 3;
+  const profile = inferOtidgeoProfile(s);
+  const profileSpec = profile ? OTIDGEO_PROFILE_SPECS[sprint ? "sprint" : "forest"][profile] : undefined;
   const args: string[] = ["run"];
   for (const input of inputs) args.push("--input", input);
   args.push("--out", outDir);
   if (isNum(s.contour_interval)) args.push("--interval", String(s.contour_interval));
+  if (profile) args.push("--profile", profile);
   if (isNum(s.smooth_m)) args.push("--smooth-m", String(s.smooth_m));
   if (isNum(s.taubin)) args.push("--taubin-passes", String(Math.round(s.taubin)));
   if (isNum(s.curviness)) args.push("--curviness", String(s.curviness));
@@ -75,14 +125,24 @@ export function otidgeoRunArgs(inputs: readonly string[], outDir: string, job: O
   if (isNum(s.min_clearance)) args.push("--min-clearance-m", String(s.min_clearance));
   const fl = formlineModeOf(s.formline);
   if (fl) args.push("--formline-mode", fl);
-  if (isNum(s.formline_gap)) args.push("--formline-min-gap-m", String(s.formline_gap));
-  if (isNum(s.formline_max_slope)) args.push("--formline-max-slope-deg", String(s.formline_max_slope));
+  // När `--profile` känns igen och `--formline-mode` är `sparse` eller `dense` låter vi otidgeos Pass 3 skala
+  // profilens hjälpkurveförval, såvida inte användaren skrivit in ett avvikande handvärde.
+  const scaledFormlineMode = fl === "sparse" || fl === "dense";
+  if (isNum(s.formline_gap) && !(profileSpec && scaledFormlineMode && s.formline_gap === profileSpec.formline_gap)) {
+    args.push("--formline-min-gap-m", String(s.formline_gap));
+  }
+  if (isNum(s.formline_max_slope) && !(profileSpec && scaledFormlineMode && s.formline_max_slope === profileSpec.formline_max_slope)) {
+    args.push("--formline-max-slope-deg", String(s.formline_max_slope));
+  }
   if (isNum(s.veg_smooth)) args.push("--veg-smooth", String(s.veg_smooth));
   if (isNum(s.greenscale) && s.greenscale > 0) args.push("--green-scale", String(round4(1 / s.greenscale)));
   if (isNum(s.openshare)) args.push("--open-share", String(s.openshare));
   if (isNum(s.topweight)) args.push("--canopy-weight", String(s.topweight));
   if (isNum(s.undergrowth)) args.push("--undergrowth-thresh", String(s.undergrowth));
-  if (isNum(job.vegetation?.minAreaM2)) args.push("--min-veg-area-m2", String(job.vegetation.minAreaM2));
+  // Webben skickar alltid GEO_JOB_DEFAULTS.minAreaM2 = 300; i sprint låter vi otidgeo använda sitt sprintanpassade förval.
+  if (isNum(job.vegetation?.minAreaM2) && !(sprint && job.vegetation.minAreaM2 === 300)) {
+    args.push("--min-veg-area-m2", String(job.vegetation.minAreaM2));
+  }
   if (isNum(s.knollshare)) args.push("--knoll-share", String(s.knollshare));
   if (s.overview !== 0) args.push("--overview");
   if (job.clip) args.push("--clip", `${job.clip.minX},${job.clip.minY},${job.clip.maxX},${job.clip.maxY}`);
@@ -98,12 +158,16 @@ export function otidgeoVegArgs(inputs: readonly string[], outDir: string, job: O
   const args: string[] = ["veg"];
   for (const input of inputs) args.push("--input", input);
   args.push("--out", outDir);
+  if (isNum(s.contour_interval)) args.push("--interval", String(s.contour_interval));
   if (isNum(s.veg_smooth)) args.push("--veg-smooth", String(s.veg_smooth));
   if (isNum(s.greenscale) && s.greenscale > 0) args.push("--green-scale", String(round4(1 / s.greenscale)));
   if (isNum(s.openshare)) args.push("--open-share", String(s.openshare));
   if (isNum(s.topweight)) args.push("--canopy-weight", String(fromPullautin ? round4(s.topweight * (0.34 / 0.8)) : s.topweight));
   if (isNum(s.undergrowth)) args.push("--undergrowth-thresh", String(fromPullautin ? round4(s.undergrowth * (0.058 / 0.35)) : s.undergrowth));
-  if (isNum(job.vegetation?.minAreaM2)) args.push("--min-veg-area-m2", String(job.vegetation.minAreaM2));
+  const sprint = isNum(s.contour_interval) && s.contour_interval <= 3;
+  if (isNum(job.vegetation?.minAreaM2) && !(sprint && job.vegetation.minAreaM2 === 300)) {
+    args.push("--min-veg-area-m2", String(job.vegetation.minAreaM2));
+  }
   if (job.clip) args.push("--clip", `${job.clip.minX},${job.clip.minY},${job.clip.maxX},${job.clip.maxY}`);
   return args;
 }

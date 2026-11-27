@@ -32,6 +32,8 @@ export const INDEX_DEP_MIN_PERIM_MM = 10, INDEX_DEP_MIN_AREA_MM2 = 6;
 export const INDEX_OPEN_MIN_MM = 4;
 /** Terrängskala enligt ISOM 2017-2: 1:10 000 är en förstoring av 1:15 000, så måtten i terrängen är desamma; sprint räknas för sig. */
 const terrainScale = (scale: number) => scale <= 5000 ? scale : Math.max(scale, 15000);
+/** Största yta (m²) för en sluten 101-toppring som dämpar laserns egen punkthöjd inuti den (motsvarar 3 000 m² i 1:15 000, ~213 m² i 1:4 000 sprint). */
+export const maxSummitRingArea = (scale: number) => 3000 * (terrainScale(scale) / 15000) ** 2;
 type Ring = readonly (readonly [number, number])[];
 
 const lineLengthOf = (points: Ring, closed: boolean): number => {
@@ -394,10 +396,12 @@ export function smallRingsToPoints(input: readonly SourceFeature[], scale: numbe
     });
   const ringsGrid = new BoxGrid(rings);
   const marksGrid = new PointGrid<true>(Math.max(meters(ISOM_RINGS.depression[0]), 15));
+  const knollMarksGrid = new PointGrid<true>(6);
   for (const feature of features) {
     if (feature.geometry.kind === "point" && /DOTKNOLL|DEPRESSION/i.test(feature.layer)) {
       const [x, y] = (feature.geometry as { at: readonly [number, number] }).at;
       marksGrid.add(x, y, true);
+      if (/DOTKNOLL/i.test(feature.layer)) knollMarksGrid.add(x, y, true);
     }
   }
   const replaced = new Map<SourceFeature, SourceFeature | undefined>(), added: SourceFeature[] = [];
@@ -472,7 +476,12 @@ export function smallRingsToPoints(input: readonly SourceFeature[], scale: numbe
     const meta = metaOf(ring);
     if (marksGrid.someInBox(meta.box, (x, y) => inside(ring, x, y))) continue;
     const centre = meta.centre;
+    if (knoll && knollMarksGrid.someInBox({ minX: centre[0] - 6, minY: centre[1] - 6, maxX: centre[0] + 6, maxY: centre[1] + 6 }, (kx, ky) => {
+      const dx = kx - centre[0], dy = ky - centre[1];
+      return dx * dx + dy * dy <= 36;
+    })) continue;
     marksGrid.add(centre[0], centre[1], true);
+    if (knoll) knollMarksGrid.add(centre[0], centre[1], true);
     // En avlång liten kulle blir en avlång punkthöjd (110), vriden efter kurvan (ägaren 2026-11-15).
     const long = knoll ? elongatedAngle(ring) : undefined;
     added.push(long !== undefined ? elongatedKnoll(centre, long) : { layer: knoll ? "dotknoll" : "udepression", geometry: { kind: "point", at: centre } });
@@ -481,11 +490,12 @@ export function smallRingsToPoints(input: readonly SourceFeature[], scale: numbe
   // eller där en kvarvarande sluten höjdkurva (under 3 000 m²) redan visar toppen. Alla kvarvarande slutna 101-toppringar
   // skyddas här så att `oneMarkPerKnoll` inte raderar verkliga små 101-höjder (16–37 m) till förmån för en punkthöjd.
   const kept = features.flatMap(feature => !replaced.has(feature) ? [feature] : replaced.get(feature) ? [replaced.get(feature)!] : []);
+  const summitMaxArea = maxSummitRingArea(scale);
   const summits: { ring: Ring; box: Box }[] = [];
   for (const feature of kept) {
     if (feature.geometry.kind !== "line" || !feature.geometry.closed || !CONTOUR.test(feature.layer)) continue;
     const ring = ringOf(feature), meta = metaOf(ring);
-    if (meta.area >= 3000) continue;
+    if (meta.area >= summitMaxArea) continue;
     summits.push({ ring, box: meta.box });
   }
   const summitGrid = new BoxGrid(summits);
@@ -508,7 +518,7 @@ export function smallRingsToPoints(input: readonly SourceFeature[], scale: numbe
     const [x, y] = feature.geometry.at;
     const nearOther = othersGrid.someInBox({ minX: x - 6, minY: y - 6, maxX: x + 6, maxY: y + 6 }, (ox, oy) => {
       const dx = ox - x, dy = oy - y;
-      return dx * dx + dy * dy < 36;
+      return dx * dx + dy * dy <= 36;
     });
     if (nearOther) return false;
     return !summitGrid.someInBox({ minX: x, minY: y, maxX: x, maxY: y }, row => inside(row.ring, x, y));

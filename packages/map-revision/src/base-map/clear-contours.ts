@@ -37,6 +37,24 @@ export interface ClearSettings { readonly smooth: number; readonly formlines: nu
  * 129 km mot O-Tids 52.
  */
 export const DEFAULT_CLEAR: ClearSettings = { smooth: 5, formlines: 4, rings: 5 };
+/**
+ * Förvalet för O-Tids egen motor (`otidgeo`): terrängadaptiv utjämning och hjälpkurveurval är redan gjorda efter vald
+ * profil, så `clearContours` lämnas avstängt tills användaren själv drar i reglagen.
+ */
+export const OTIDGEO_DEFAULT_CLEAR: ClearSettings = { smooth: 0, formlines: 0, rings: 0 };
+export type BaseMapEngine = "otidgeo" | "pullautin";
+
+const OTIDGEO_DXF_MARKER = /^\s*999\r?\n\s*otidgeo\b/m;
+const CONTOUR_DXF_PART = /^(kurvor|formlinjer)\.dxf$/;
+
+/** Känner igen om kurvfilerna kommer från `otidgeo` via DXF-huvudets kommentar (`999\notidgeo`). */
+export function detectBaseMapEngine(parts: readonly { readonly name: string; readonly body: string }[]): BaseMapEngine | undefined {
+  for (const part of parts) {
+    if (!CONTOUR_DXF_PART.test(part.name)) continue;
+    if (OTIDGEO_DXF_MARKER.test(part.body.slice(0, 2048))) return "otidgeo";
+  }
+  return undefined;
+}
 
 /**
  * Förvalen efter terrängen (ägaren 2026-11-14, Arboga: «en annan typ av terräng»). I flack terräng med små former bär
@@ -59,7 +77,8 @@ export function flatTerrainShare(features: readonly SourceFeature[], field: Heig
   }
   return known >= 50 ? flat / known : undefined;
 }
-export function suggestedClear(features: readonly SourceFeature[], field: HeightField): ClearSettings {
+export function suggestedClear(features: readonly SourceFeature[], field: HeightField, engine?: BaseMapEngine): ClearSettings {
+  if (engine === "otidgeo") return OTIDGEO_DEFAULT_CLEAR;
   const share = flatTerrainShare(features, field);
   if (share === undefined) return DEFAULT_CLEAR;
   const ramp = (from: number, to: number, start: number, end: number) => Math.round(from + (to - from) * Math.min(1, Math.max(0, (share - start) / (end - start))));

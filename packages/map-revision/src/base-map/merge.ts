@@ -216,12 +216,15 @@ export function mergeBaseMap(parts: readonly { readonly name: string; readonly d
     return feature;
   }).filter((feature): feature is SourceFeature => !!feature);
   // Ägaren 2026-11-11 (Högdalen som facit: 282 punkthöjder mot kartritarens 153, många i sluttningar): finns laserns egna
-  // små kullar (berg.dxf, prövade mot markmodellen) ersätter de Karttapullautins knollar; groparna behålls.
+  // små kullar (berg.dxf, prövade mot markmodellen) ersätter de Karttapullautins/otidgeos runda knollar; har berg.dxf även
+  // formklassade avlånga kullar (`dotknoll_avlang`) ersätter de också knollar.dxf:s avlånga. Groparna behålls.
   const laserKnolls = features.some(feature => feature.layer === "dotknoll_laser");
+  const laserElongated = features.some(feature => feature.layer === "dotknoll_avlang" && partOf.get(feature) === "berg.dxf");
   // Ägaren 2026-11-15 («ta bort stenar om de är så fel»): laserns stenar (geo-rock.ts) låg nästan aldrig där kartritarna har
   // en sten: 0 av 126 i Tyresta och 2 av 35 i Högdalen inom 6 m. De läggs inte i grundkartan.
   const knolls = features.filter(feature => !(feature.geometry.kind === "point" && (STONE_LAYER.test(feature.layer)
-    || (laserKnolls && feature.layer === "dotknoll"))));
+    || (laserKnolls && feature.layer === "dotknoll")
+    || (laserElongated && feature.layer === "dotknoll_avlang" && partOf.get(feature) !== "berg.dxf"))));
   // Skogsstyrelsens hyggen efter ålder; laserns vegetation i ett hygge som är yngre än skanningen tas bort.
   // Ägaren 2026-11-16: små fastigheter med hus blir tomter (`parcelYards`), före sankmarken som inte ska ligga på tomter.
   // Ägaren 2026-11-17: OpenStreetMaps stigar flyttas till laserns fåror (path-snap.ts); fårorna som blir kvar är nya spår.

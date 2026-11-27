@@ -327,7 +327,7 @@ export function useMapProjectLaser({ view, layers, importer, georeference, bound
         return { box: row.clip!, parts: rowParts, ...(own && own !== "failed" ? { slope: { grid: own.grid, affine: own.affine } } : {}),
           ...(ownRock && ownRock !== "failed" ? { rock: ownRock } : {}) };
       });
-      const { data, calm, clear, rock: rocky, soil: soiled, pits, hills, primary } = await importer.readBaseMap({ parts: stageParts ? [] : parts, stages: stageParts, joined: !stages && !!job.mergedStages, merge: baseMap, osm, scale: georeference?.scale,
+      const { data, calm, clear, rock: rocky, soil: soiled, pits, hills, primary } = await importer.readBaseMap({ parts: stageParts ? [] : parts, stages: stageParts, joined: !stages && !!job.mergedStages, merge: baseMap, ...(job.engine ? { engine: job.engine } : {}), osm, scale: georeference?.scale,
         // K4c: inom projektets huvudkällor hoppas OpenStreetMaps objekt av källornas slag över.
         primary: baseMap ? importer.primary.forBaseMap() : undefined,
         cuts: cuts && { features: cuts.features, afterScan: cuts.afterScan }, soil, landCover, calm: slope === "failed" ? undefined : slope,

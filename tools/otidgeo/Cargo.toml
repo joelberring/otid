@@ -1,0 +1,20 @@
+[package]
+name = "otidgeo"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Clean-room MIT terrain, contour, formline, and vegetation engine for O-Tid"
+publish = false
+
+[dependencies]
+las = { version = "0.11", features = ["laz", "laz-parallel"] }
+png = "0.18"
+rayon = "1.10"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = "symbols"

@@ -219,7 +219,7 @@ export function assembleBaseMap(input: BaseMapAssemblyInput): { objects: MapObje
     // Ett enda utjämnat höjdraster delas mellan `findHills` och `findPits`.
     const smoothed = smoothedHeights(input.height.grid);
     const hillLevel = input.height.hills ?? DEFAULT_HILL_LEVEL, hillCandidates = findHills(input.height.grid, input.height.affine, smoothed);
-    const settled = settleHills(data.features, hillCandidates, hillLimitsAt(hillLevel), scale);
+    const settled = settleHills(data.features, hillCandidates, hillLimitsAt(hillLevel), scale, isSprintNorm(norm) ? 2.5 : undefined);
     data = { ...data, features: settled.features };
     hills = { level: hillLevel, rings: settled.rings, contours: settled.contours, dots: settled.hidden.length, candidates: hillCandidates.length };
     const level = input.height.pits ?? DEFAULT_PIT_LEVEL, candidates = findPits(input.height.grid, input.height.affine, smoothed);

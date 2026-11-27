@@ -76,7 +76,7 @@ export const mapPitsEn: Texts<typeof mapPitsSv> = {
 /** English: small hills as a ring that follows the shape, instead of a dot knoll. */
 export const mapHillsEn: Texts<typeof mapHillsSv> = {
   heading: "Small hills as a ring (101, 103)",
-  help: "When the base map is read, every hill with its own top is found in the ground height, also those that lie between the contour levels. A hill that is high enough and holds the standard's smallest knoll gets a ring at half its height: a contour when the next level lies just above the top, otherwise a form line. Dot knolls inside the ring are removed. Hills that the contours already show are left out. The default (1 m) is measured against a mapper's map of Högdalen.",
+  help: "When the base map is read, every hill with its own top is found in the ground height, also those that lie between the contour levels. A hill that is high enough and holds the standard's smallest knoll gets a ring at half its height: a contour when the next level lies just above the top, otherwise a form line. Dot knolls inside the ring are removed. Hills that the contours already show are left out. The default (0.8 m) is measured against five Swedish mappers' maps.",
   none: "No hills have been searched for in the draft. Read the base map from a laser job that has the ground height saved (hojd.png).",
   ringRise: (meters: string) => `Ring from: ${meters} m high (lower hills become dot knolls or are left out)`,
   done: (rings: number, contours: number, dots: number, all: number) => `${rings === 1 ? "1 ring" : `${rings} rings`} (${contours} contours, ${rings - contours} form lines) of ${all} possible hills; ${dots === 1 ? "1 dot knoll was" : `${dots} dot knolls were`} replaced by a ring.`,

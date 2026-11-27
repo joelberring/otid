@@ -144,11 +144,12 @@ const KEYWORDS: readonly { readonly words: RegExp; readonly line?: string; reado
   // Grundkartans strandlinje (ägaren 2026-11-12: «sjöar och vatten begränsas av heldragen linje»): normens 301 har en svart kantlinje.
   { words: /STRANDLINJE/, line: "301.1" },
   { words: /VATTEN|SJO|LAKE|WATER/, area: "301" },
-  // Karttapullautins lager (K5), före de vanliga kurvorna. «_intermed» är varje kurva på halva ekvidistansen, inte
-  // stödkurvorna (de ligger i formline): lagret hoppas över, annars blir hela kartan streckad.
+  // Karttapullautins och otidgeos lager (K5/G4), före de vanliga kurvorna. «_intermed» är varje kurva på halva ekvidistansen,
+  // inte hjälpkurvorna (de ligger i `formline`): lagret hoppas över, annars blir hela kartan streckad.
+  // Svenska ISOM 2017-2-namn: 102 = stödkurva (indexkurva), 103 = hjälpkurva (formline).
   { words: /CONTOUR_INTERMED|DEPRESSION_INTERMED/ },
-  { words: /CONTOUR_INDEX|INDEXKURVA/, line: "102" },
-  { words: /FORMLINE|STODKURVA/, line: "103" },
+  { words: /(CONTOUR|DEPRESSION)_INDEX|INDEXKURVA|STODKURVA/, line: "102" },
+  { words: /FORMLINE|HJALPKURVA/, line: "103" },
   { words: /SLOPE_LINE/, line: "104" },
   // Geo-arbetarens brantlinjer (G4), före Karttapullautins streck.
   { words: /BRANT_OPASSERBAR|STUP/, line: "201" },

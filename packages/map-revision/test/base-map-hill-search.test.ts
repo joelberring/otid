@@ -70,11 +70,12 @@ describe("valet bland höjderna", () => {
     expect(hillRingMinM2(10_000)).toBeCloseTo(95.4, 1);
     expect(hillRingMinM2(4_000)).toBeCloseTo(6.8, 1);
   });
-  it("en höjd på minst 1 m vars ring rymmer normens minsta höjd blir en ring; lägre och mindre höjder lämnas", () => {
-    const chosen = chooseHills([hill(0, 0, 1.6, 43, 8), hill(100, 0, 0.8, 43, 8), hill(200, 0, 1.6, 43, 4)], DEFAULT_HILL_LIMITS, 15_000);
-    expect(chosen.rings).toHaveLength(1);
+  it("en höjd på minst 0,8 m vars ring rymmer normens minsta höjd blir en ring; lägre och mindre höjder lämnas", () => {
+    const chosen = chooseHills([hill(0, 0, 1.6, 43, 8), hill(100, 0, 0.65, 43, 8), hill(200, 0, 1.6, 43, 4), hill(300, 0, 0.85, 43, 8)], DEFAULT_HILL_LIMITS, 15_000);
+    expect(chosen.rings).toHaveLength(2);
     expect(chosen.rings[0]!.points[0]![0]).toBeCloseTo(8, 5);
-    expect(chooseHills([hill(100, 0, 0.8, 43, 8)], hillLimitsAt(10), 15_000).rings).toHaveLength(1);
+    expect(chosen.rings[1]!.points[0]![0]).toBeCloseTo(308, 5);
+    expect(chooseHills([hill(100, 0, 0.65, 43, 8)], hillLimitsAt(10), 15_000).rings).toHaveLength(1);
     expect(chooseHills([hill(0, 0, 1.6, 43, 8)], hillLimitsAt(1), 15_000).rings).toHaveLength(0);
   });
   it("ringen är en höjdkurva när nivån ligger högst en fjärdedel av ekvidistansen över toppen, annars en hjälpkurva", () => {
@@ -117,5 +118,17 @@ describe("höjdernas ringar i grundkartan", () => {
     const layer = (name: string) => ({ name, count: 1, points: 0, lines: 0, closedLines: 1, areas: 0 });
     expect(suggestSymbol(layer("contour_hojd"), symbols)).toBe("s101");
     expect(suggestSymbol(layer("formline_hojd"), symbols)).toBe("s103");
+  });
+  it("sprintekvidistans (2,5 m) i settleHills klassar höjdringar mot 2,5 m-nivåer, och hjälpkurvor gömmer bara punkthöjder rakt på linjen", () => {
+    // Toppen 42,0 m med sadel 40,5 m: närmaste 2,5 m-nivå över sadeln är 42,5 m (0,5 m <= 0,625 m -> höjdkurva), men för 5 m-nivå är 45 m för långt bort (-> hjälpkurva).
+    const sprintHill = hill(0, 0, 1.5, 42.0, 4);
+    expect(settleHills([], [sprintHill], DEFAULT_HILL_LIMITS, 4_000, 2.5).contours).toBe(1);
+    expect(settleHills([], [sprintHill], DEFAULT_HILL_LIMITS, 4_000, 5).contours).toBe(0);
+    // Punkthöjd 3 m från en streckad hjälpkurva (1:15 000: > 2,1 m) står kvar; rakt på hjälpkurvan (1 m) eller nära höjdkurva (3 m <= 4,2 m) göms.
+    const formline: SourceFeature = { layer: "formline", geometry: { kind: "line", closed: false, points: [[0, 0], [100, 0]] } };
+    const contour: SourceFeature = { layer: "contour", geometry: { kind: "line", closed: false, points: [[0, 50], [100, 50]] } };
+    const settled = settleHills([formline, contour, dot("dotknoll_laser", 50, 3), dot("dotknoll_laser", 60, 1), dot("dotknoll_laser", 50, 53)], [], { ringRise: 9 }, 15_000);
+    expect(settled.features.filter(f => f.layer === "dotknoll_laser").map(f => (f.geometry as { at: readonly [number, number] }).at)).toEqual([[50, 3]]);
+    expect(settled.hidden).toHaveLength(2);
   });
 });

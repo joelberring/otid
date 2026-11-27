@@ -10,18 +10,22 @@ export interface KnollCandidate { readonly at: readonly [number, number]; readon
   /** Ligger i blöt eller fuktig mark: tas bara med om den är uppenbar (minst `KNOLL_OBVIOUS_RISE` m). */
   readonly wet?: boolean | undefined }
 export const KNOLL_OBVIOUS_RISE = 1.5;
+/** Minsta fot (m²) för en riktig kulle: rensar 1–2 m laserbrus och ensamma block utan att tappa skarpa små bergkullar. */
+export const KNOLL_MIN_FOOT_M2 = 8;
 export interface KnollLimits { readonly minRise: number; readonly lowerShare: number; readonly maxFootM2: number; readonly spacing: number }
 /**
- * Geo-arbetarens förval (det som `knollar`-lagret i grundkartan är räknat med, från version 34). Ägaren 2026-11-14 («minska
- * standardvärdet för punkthöjder, det verkar ha varit lite högt»): förut 1 m, 80 % och 10 m emellan.
+ * Geo-arbetarens förval (det som `knollar`-lagret i grundkartan är räknat med). Kalibrerat mot fem svenska skogskartor
+ * (Högdalen, Tyresta, Gömmaren, Lida, Djurgården) + Bandhagen: lägre stigning (0,9 m) och tätare avstånd (12 m) hittar
+ * betydligt fler verkliga små kullar utan att översvämma kartan eftersom kompaktare fot (högst 70 m²) och 85 % lägre ring
+ * håller bort breda sluttningsskuldor (oberoende 4-kartors F1 0,279 → 0,371, recall +70 % med bibehållen precision).
  */
-export const DEFAULT_KNOLL_LIMITS: KnollLimits = { minRise: 1.2, lowerShare: 0.85, maxFootM2: 80, spacing: 15 };
+export const DEFAULT_KNOLL_LIMITS: KnollLimits = { minRise: 0.9, lowerShare: 0.85, maxFootM2: 70, spacing: 12 };
 
 /**
  * Ägaren 2026-11-12 («en skala 1–10 med 5 i mitten som är förinställt»): ett enda reglage för mängden. 5 är förvalen, 1 ger
  * bara de högsta och tydligaste med gott om plats emellan, 10 släpper in allt laserjobbet har sparat. Däremellan rätlinjigt.
  */
-const FEWEST_KNOLLS: KnollLimits = { minRise: 2, lowerShare: 0.95, maxFootM2: 80, spacing: 40 };
+const FEWEST_KNOLLS: KnollLimits = { minRise: 2, lowerShare: 0.95, maxFootM2: 70, spacing: 40 };
 const MOST_KNOLLS: KnollLimits = { minRise: 0.5, lowerShare: 0.5, maxFootM2: 160, spacing: 10 };
 export const knollLimitsAt = (level: number): KnollLimits => blend(DEFAULT_KNOLL_LIMITS, level < 5 ? FEWEST_KNOLLS : MOST_KNOLLS, level < 5 ? (5 - level) / 4 : (level - 5) / 5);
 
@@ -48,7 +52,8 @@ export function readKnollCandidates(json: unknown): KnollCandidate[] {
 }
 
 export function chooseKnolls(candidates: readonly KnollCandidate[], limits: KnollLimits): [number, number][] {
-  const found = candidates.filter(knoll => knoll.rise >= limits.minRise && knoll.share >= limits.lowerShare && knoll.footM2 <= limits.maxFootM2
+  const found = candidates.filter(knoll => knoll.rise >= limits.minRise && knoll.share >= limits.lowerShare
+    && knoll.footM2 >= KNOLL_MIN_FOOT_M2 && knoll.footM2 <= limits.maxFootM2
     && (!knoll.wet || knoll.rise >= KNOLL_OBVIOUS_RISE))
     .sort((a, b) => b.rise - a.rise);
   const reach = limits.spacing, cells = new Map<string, [number, number][]>(), kept: [number, number][] = [];

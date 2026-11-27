@@ -201,7 +201,17 @@ export function parseDxf(text: string): SourceData {
     const layer = layerOfBody(body);
     if (type === "POINT" || type === "INSERT" || type === "CIRCLE") {
       const at = coordinates(body, 10, 20)[0];
-      if (at) features.push({ layer, geometry: { kind: "point", at } }); else skipped += 1;
+      if (!at) { skipped += 1; continue; }
+      // DXF-grupp 50 på POINT/INSERT: vinkel i grader moturs från öster (+X), t.ex. avlång punkthöjd (`dotknoll_avlang`, 110).
+      // Kodas som `toward` precis som `elongatedKnoll`, så att både symbolvinkeln och kartans meridiankonvergens följer med.
+      const anglePair = type === "CIRCLE" ? undefined : body.find(([c]) => c === 50);
+      const deg = anglePair ? Number(anglePair[1]) : Number.NaN;
+      if (Number.isFinite(deg)) {
+        const rad = deg * Math.PI / 180;
+        features.push({ layer, geometry: { kind: "point", at, toward: [at[0] + Math.sin(rad) * 5, at[1] - Math.cos(rad) * 5] } });
+      } else {
+        features.push({ layer, geometry: { kind: "point", at } });
+      }
     } else if (type === "LINE") {
       const a = coordinates(body, 10, 20)[0], b = coordinates(body, 11, 21)[0];
       if (a && b) features.push({ layer, geometry: { kind: "line", points: [a, b], closed: false } }); else skipped += 1;

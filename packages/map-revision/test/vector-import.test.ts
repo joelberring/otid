@@ -59,6 +59,23 @@ describe("vektorunderlagen (K4b)", () => {
     expect(() => parseDxf("AutoCAD Binary DXF\r\n")).toThrow(VectorParseError);
   });
 
+  it("läser DXF-grupp 50 (vinkel i grader moturs från öster) på dotknoll_avlang och vrider symbol 110 rätt", () => {
+    const data = parseDxf(dxf([
+      ["0", "POINT", "8", "dotknoll_avlang", "10", "675010", "20", "6580010", "30", "0", "50", "0"],
+      ["0", "POINT", "8", "dotknoll_avlang", "10", "675020", "20", "6580020", "30", "0", "50", "90"],
+      ["0", "POINT", "8", "dotknoll_avlang", "10", "675030", "20", "6580030", "30", "0", "50", "135"],
+      ["0", "POINT", "8", "dotknoll", "10", "675040", "20", "6580040", "30", "0"]
+    ]));
+    expect(data.features).toHaveLength(4);
+    expect(data.features[3]!.geometry).toEqual({ kind: "point", at: [675040, 6580040] });
+    const isom = [{ id: "s109", code: "109", kind: "point" }, { id: "s110", code: "110", kind: "point" }];
+    expect(suggestSymbol({ name: "dotknoll_avlang", count: 3, points: 3, lines: 0, closedLines: 0, areas: 0 }, isom)).toBe("s110");
+    const imported = importObjects(data.features, { toMap,
+      mapping: new Map([["dotknoll_avlang", { symbol: "s110", kind: "point" as const }], ["dotknoll", { symbol: "s109", kind: "point" as const }]]) });
+    const angles = imported.objects.filter(o => o.kind === "point" && o.symbol === "s110").map(o => o.kind === "point" ? Math.round(o.angle) : -1);
+    expect(angles).toEqual([0, 90, 135]);
+  });
+
   it("känner igen Stockholms lokala zon (SWEREF 99 18 00) med kartans georeferens, och hoppar över punkter i origo (ägaren 2026-11-10)", () => {
     const data = parseDxf(dxf([
       ["0", "POINT", "8", "RAM", "10", "0", "20", "0", "30", "0"],
@@ -85,9 +102,9 @@ describe("vektorunderlagen (K4b)", () => {
     // Karttapullautins lager (K5).
     const isom = ["101", "102", "103", "104", "201", "202"].map(code => ({ id: `s${code}`, code, kind: "line" }))
       .concat([{ id: "s109", code: "109", kind: "point" }, { id: "s111", code: "111", kind: "point" }]);
-    expect(Object.fromEntries(["contour", "contour_index", "contour_intermed", "depression_intermed", "formline", "slope_line", "cliff2", "cliff3"]
-      .map(name => [name, suggestSymbol(layer(name, { lines: 2 }), isom)]))).toEqual({ contour: "s101", contour_index: "s102",
-      contour_intermed: undefined, depression_intermed: undefined, formline: "s103", slope_line: "s104", cliff2: "s202", cliff3: "s201" });
+    expect(Object.fromEntries(["contour", "contour_index", "depression_index", "stodkurva", "contour_intermed", "depression_intermed", "formline", "hjalpkurva", "slope_line", "cliff2", "cliff3"]
+      .map(name => [name, suggestSymbol(layer(name, { lines: 2 }), isom)]))).toEqual({ contour: "s101", contour_index: "s102", depression_index: "s102", stodkurva: "s102",
+      contour_intermed: undefined, depression_intermed: undefined, formline: "s103", hjalpkurva: "s103", slope_line: "s104", cliff2: "s202", cliff3: "s201" });
     expect(suggestSymbol(layer("dotknoll", { points: 2 }), isom)).toBe("s109");
     // De osäkra knollarna och groparna föreslås inte (ägaren 2026-11-11).
     expect(suggestSymbol(layer("uglydotknoll", { points: 2 }), isom)).toBeUndefined();

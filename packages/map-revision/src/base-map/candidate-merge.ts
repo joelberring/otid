@@ -14,7 +14,7 @@ export function mergeCandidates(current: SourceData, next: SourceData, own: RegE
     return [point.easting, point.northing];
   } : undefined;
   const moved = (geometry: SourceGeometry): SourceGeometry => !move ? geometry
-    : geometry.kind === "point" ? { kind: "point", at: move(geometry.at) }
+    : geometry.kind === "point" ? { kind: "point", at: move(geometry.at), ...(geometry.toward ? { toward: move(geometry.toward) } : {}) }
     : geometry.kind === "line" ? { ...geometry, points: geometry.points.map(move) } : { kind: "area", rings: geometry.rings.map(ring => ring.map(move)) };
   const added: SourceFeature[] = next.features.map(feature => ({ ...feature, geometry: moved(feature.geometry) }));
   return { ...current, features: [...current.features.filter(feature => !own.test(feature.layer)), ...added] };

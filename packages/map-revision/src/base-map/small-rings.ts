@@ -21,7 +21,76 @@ const ANY = /^(contour|depression)(_index|_intermed)?$/;
 const NEAR_METERS = 40;
 /** Minsta längd och bredd i mm för kulle och grop. */
 export const ISOM_RINGS = { knoll: [0.9, 0.6], depression: [1.1, 0.7], formline: [1.1, 0] } as const;
+/**
+ * ISOM 2017-2 § 102 (stödkurva): små slutna kullar, gropar och korta isolerade öppna snuttar ritas som vanlig kurva (101).
+ * Mätt mot fyra RH2000-facitkartor (Högdalen, Tyresta, Gömmaren, Djurgården): slutna kullar under 6,5 mm omkrets (97,5 m i
+ * 1:15 000/1:10 000) eller 2,5 mm² yta (562 m²), slutna sänkor under 10 mm / 6 mm², samt isolerade öppna snuttar under 4 mm
+ * (60 m) som inte når utsnittets kant nedgraderas till vanlig kurva.
+ */
+export const INDEX_MIN_PERIM_MM = 6.5, INDEX_MIN_AREA_MM2 = 2.5;
+export const INDEX_DEP_MIN_PERIM_MM = 10, INDEX_DEP_MIN_AREA_MM2 = 6;
+export const INDEX_OPEN_MIN_MM = 4;
+/** Terrängskala enligt ISOM 2017-2: 1:10 000 är en förstoring av 1:15 000, så måtten i terrängen är desamma; sprint räknas för sig. */
+const terrainScale = (scale: number) => scale <= 5000 ? scale : Math.max(scale, 15000);
 type Ring = readonly (readonly [number, number])[];
+
+const lineLengthOf = (points: Ring, closed: boolean): number => {
+  let sum = 0;
+  for (let i = 1; i < points.length; i += 1) sum += Math.hypot(points[i]![0] - points[i - 1]![0], points[i]![1] - points[i - 1]![1]);
+  if (closed && points.length > 2) sum += Math.hypot(points[0]![0] - points[points.length - 1]![0], points[0]![1] - points[points.length - 1]![1]);
+  return sum;
+};
+
+const isMultipleOf = (value: number, step: number): boolean => Math.abs(value / step - Math.round(value / step)) * step <= 0.02;
+
+/**
+ * Kontrollerar att stödkurvors höjd stämmer med kurvornas ekvidistans (var 5:e kurva från havsnivå, eller var 4:e om en
+ * sprintfil genomgående använder 10 m på 2,5 m-ekvidistans). Vid färre än tre olika kurvnivåer prövas inte höjden.
+ */
+function validIndexElevation(features: readonly SourceFeature[]): (elevation: number | undefined) => boolean {
+  const levelSet = new Set<number>();
+  const indexElevs: number[] = [];
+  for (const feature of features) {
+    if (feature.geometry.kind !== "line" || feature.elevation === undefined || !CONTOUR.test(feature.layer)) continue;
+    levelSet.add(Math.round(feature.elevation * 100) / 100);
+    if (/_index$/.test(feature.layer)) indexElevs.push(feature.elevation);
+  }
+  const levels = [...levelSet].sort((a, b) => a - b);
+  if (levels.length < 3 || indexElevs.length === 0) return () => true;
+  const gaps = new Map<number, number>();
+  for (let i = 1; i < levels.length; i += 1) {
+    const gap = Math.round((levels[i]! - levels[i - 1]!) * 100) / 100;
+    if (gap >= 0.5) gaps.set(gap, (gaps.get(gap) ?? 0) + 1);
+  }
+  let interval = 0, bestCount = 0;
+  for (const [gap, count] of gaps) {
+    if (count > bestCount || (count === bestCount && gap < interval)) { bestCount = count; interval = gap; }
+  }
+  if (!(interval >= 0.5)) return () => true;
+  const step5 = 5 * interval, step4 = 4 * interval;
+  let match5 = 0, match4 = 0;
+  for (const z of indexElevs) {
+    if (isMultipleOf(z, step5)) match5 += 1;
+    if (isMultipleOf(z, step4)) match4 += 1;
+  }
+  const expectedStep = match4 > match5 ? step4 : step5;
+  return elevation => elevation === undefined || (isMultipleOf(elevation, interval) && isMultipleOf(elevation, expectedStep));
+}
+
+/** Om en ändpunkt på en öppen kurva når kurvornas yttre utbredningskant (kurvan fortsätter utanför utsnittet). */
+function dataEdgeTest(features: readonly SourceFeature[], openMin: number): (point: readonly [number, number]) => boolean {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const feature of features) {
+    if (feature.geometry.kind !== "line") continue;
+    for (const [x, y] of feature.geometry.points) {
+      if (x < minX) minX = x; if (x > maxX) maxX = x;
+      if (y < minY) minY = y; if (y > maxY) maxY = y;
+    }
+  }
+  if (!Number.isFinite(minX) || (maxX - minX < openMin * 3 && maxY - minY < openMin * 3)) return () => false;
+  const eps = 2;
+  return ([x, y]) => Math.abs(x - minX) <= eps || Math.abs(x - maxX) <= eps || Math.abs(y - minY) <= eps || Math.abs(y - maxY) <= eps;
+}
 
 type Box = { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number };
 interface RingMeta {
@@ -225,7 +294,7 @@ class PointGrid<T> {
  * och högst en tredjedel av längden) sluts.
  */
 export function closeFormlineHooks(features: readonly SourceFeature[], scale: number): SourceFeature[] {
-  const mm = (value: number) => value * scale / 1000;
+  const mm = (value: number) => value * terrainScale(scale) / 1000;
   return features.map(feature => {
     const geometry = feature.geometry;
     if (!FORMLINE.test(feature.layer) || geometry.kind !== "line" || geometry.closed || geometry.points.length < 4) return feature;
@@ -237,8 +306,8 @@ export function closeFormlineHooks(features: readonly SourceFeature[], scale: nu
 }
 
 const POINT_AT = (feature: SourceFeature) => (feature.geometry as { at: readonly [number, number] }).at;
-/** Punkthöjder (109) i grundkartan: Karttapullautins och laserns. */
-const KNOLL_POINT = /^dotknoll(_laser)?$/i;
+/** Punkthöjder (109, 110) i grundkartan: Karttapullautins, otidgeos och laserns. */
+const KNOLL_POINT = /^dotknoll(_laser|_avlang)?$/i;
 const STONE = /^(sten|stort_block)$/;
 
 /**
@@ -250,7 +319,7 @@ const STONE = /^(sten|stort_block)$/;
  *   höjd) vinner över stenen; stenen vinner över Karttapullautins knoll, som också tar små block.
  */
 export function oneMarkPerKnoll(features: readonly SourceFeature[], scale: number): SourceFeature[] {
-  const mm = (value: number) => value * scale / 1000;
+  const mm = (value: number) => value * terrainScale(scale) / 1000;
   const knolls = features.filter(feature => feature.geometry.kind === "point" && KNOLL_POINT.test(feature.layer));
   const stones = features.filter(feature => feature.geometry.kind === "point" && STONE.test(feature.layer));
   const stoneRadius = mm(0.4), stoneRadiusSq = stoneRadius * stoneRadius;
@@ -306,7 +375,9 @@ export function oneMarkPerKnoll(features: readonly SourceFeature[], scale: numbe
 /** `scale` är kartans skala (t.ex. 10000); kurvorna i meter. */
 export function smallRingsToPoints(input: readonly SourceFeature[], scale: number, generalize = GENERALIZE): SourceFeature[] {
   const features = closeFormlineHooks(input, scale);
-  const meters = (mm: number) => mm * generalize * scale / 1000;
+  const tScale = terrainScale(scale);
+  const mapMm = (mm: number) => mm * tScale / 1000;
+  const meters = (mm: number) => mm * generalize * tScale / 1000;
   const ringOf = (feature: SourceFeature) => (feature.geometry as { points: Ring }).points;
   const levelled = features
     .filter(feature => feature.geometry.kind === "line" && ANY.test(feature.layer) && feature.elevation !== undefined)
@@ -330,6 +401,11 @@ export function smallRingsToPoints(input: readonly SourceFeature[], scale: numbe
     }
   }
   const replaced = new Map<SourceFeature, SourceFeature | undefined>(), added: SourceFeature[] = [];
+  const indexLevelOk = validIndexElevation(features);
+  const openMin = mapMm(INDEX_OPEN_MIN_MM);
+  const onDataEdge = dataEdgeTest(features, openMin);
+  const closedIndexMinPerim = mapMm(INDEX_MIN_PERIM_MM), closedIndexMinArea = mapMm(1) * mapMm(1) * INDEX_MIN_AREA_MM2;
+  const depIndexMinPerim = mapMm(INDEX_DEP_MIN_PERIM_MM), depIndexMinArea = mapMm(1) * mapMm(1) * INDEX_DEP_MIN_AREA_MM2;
 
   /** Kulle (sant), grop (falskt) eller okänt. */
   const isKnoll = (feature: SourceFeature, ring: Ring): boolean | undefined => {
@@ -361,17 +437,34 @@ export function smallRingsToPoints(input: readonly SourceFeature[], scale: numbe
   };
 
   for (const feature of features) {
-    if (feature.geometry.kind !== "line" || !feature.geometry.closed || feature.geometry.points.length < 3) continue;
+    if (feature.geometry.kind !== "line" || feature.geometry.points.length < 2) continue;
     const contour = CONTOUR.test(feature.layer), formline = FORMLINE.test(feature.layer);
     if (!contour && !formline) continue;
+    const pts = feature.geometry.points;
+    if (!feature.geometry.closed) {
+      // Korta isolerade öppna stödkurvesnuttar (eller på fel höjdnivå) nedgraderas till vanlig höjdkurva (ISOM 102).
+      if (/_index$/.test(feature.layer)) {
+        const touchesEdge = onDataEdge(pts[0]!) || onDataEdge(pts[pts.length - 1]!);
+        if (!indexLevelOk(feature.elevation) || (!touchesEdge && lineLengthOf(pts, false) < openMin)) {
+          replaced.set(feature, { ...feature, layer: feature.layer.replace(/_index$/, "") });
+        }
+      }
+      continue;
+    }
+    if (pts.length < 3) continue;
     const ring = ringOf(feature);
     const { length, width } = extentCached(ring);
     if (formline) { if (length < meters(ISOM_RINGS.formline[0])) replaced.set(feature, undefined); continue; }
     const knoll = isKnoll(feature, ring);
     const [minLength, minWidth] = knoll === false ? ISOM_RINGS.depression : ISOM_RINGS.knoll;
     if (length >= meters(minLength) && width >= meters(minWidth)) {
-      // En stödkurva runt en liten kulle eller grop (kortare än 2,2 mm) blir en vanlig höjdkurva (ISOM 102).
-      if (/_index$/.test(feature.layer) && length < meters(2 * ISOM_RINGS.depression[0])) replaced.set(feature, { ...feature, layer: feature.layer.replace(/_index$/, "") });
+      // Stödkurva (ISOM 102) runt en liten kulle, en liten/medelstor grop eller på fel höjdnivå blir en vanlig höjdkurva (101).
+      if (/_index$/.test(feature.layer)) {
+        const perim = lineLengthOf(ring, true), area = metaOf(ring).area;
+        const isDep = /^depression/.test(feature.layer);
+        const tooSmall = isDep ? (perim < depIndexMinPerim || area < depIndexMinArea) : (perim < closedIndexMinPerim || area < closedIndexMinArea);
+        if (!indexLevelOk(feature.elevation) || tooSmall) replaced.set(feature, { ...feature, layer: feature.layer.replace(/_index$/, "") });
+      }
       continue;
     }
     if (knoll === undefined) continue;
@@ -384,16 +477,15 @@ export function smallRingsToPoints(input: readonly SourceFeature[], scale: numbe
     const long = knoll ? elongatedAngle(ring) : undefined;
     added.push(long !== undefined ? elongatedKnoll(centre, long) : { layer: knoll ? "dotknoll" : "udepression", geometry: { kind: "point", at: centre } });
   }
-  // Laserns egna små kullar (scripts/geo-rock.ts, `dotknoll_laser`) tas bort där Karttapullautin redan har en inom 6 m eller
-  // där en kvarvarande liten höjdkurva (under 3 000 m²) redan visar toppen.
+  // Laserns egna små kullar (scripts/geo-rock.ts, `dotknoll_laser`) tas bort där Karttapullautin/otidgeo redan har en inom 6 m
+  // eller där en kvarvarande sluten höjdkurva (under 3 000 m²) redan visar toppen. Alla kvarvarande slutna 101-toppringar
+  // skyddas här så att `oneMarkPerKnoll` inte raderar verkliga små 101-höjder (16–37 m) till förmån för en punkthöjd.
   const kept = features.flatMap(feature => !replaced.has(feature) ? [feature] : replaced.get(feature) ? [replaced.get(feature)!] : []);
-  const smallLimit = scale * 2.5 / 1000;
   const summits: { ring: Ring; box: Box }[] = [];
   for (const feature of kept) {
     if (feature.geometry.kind !== "line" || !feature.geometry.closed || !CONTOUR.test(feature.layer)) continue;
     const ring = ringOf(feature), meta = metaOf(ring);
     if (meta.area >= 3000) continue;
-    if (extentCached(ring).length <= smallLimit) continue;
     summits.push({ ring, box: meta.box });
   }
   const summitGrid = new BoxGrid(summits);

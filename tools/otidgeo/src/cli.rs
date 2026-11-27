@@ -1,0 +1,301 @@
+//! Command-line argument parsing for `otidgeo` (`run`, `bench-map`, `veg`).
+
+use crate::types::{ContourProfile, EngineConfig, FormlineMode};
+use std::path::PathBuf;
+
+pub enum Mode {
+    Run { inputs: Vec<PathBuf> },
+    BenchMap { dir: PathBuf },
+    Veg { inputs: Vec<PathBuf> },
+}
+
+pub struct CliArgs {
+    pub mode: Mode,
+    pub out_dir: PathBuf,
+    pub config: EngineConfig,
+}
+
+fn parse_f64(flag: &str, val: Option<&String>) -> Result<f64, String> {
+    let s = val.ok_or_else(|| format!("Missing value for {flag}"))?;
+    let v = s.parse::<f64>().map_err(|_| format!("Invalid number for {flag}: {s}"))?;
+    if !v.is_finite() {
+        return Err(format!("Non-finite number for {flag}: {s}"));
+    }
+    Ok(v)
+}
+
+fn parse_profile(val: &str) -> Result<ContourProfile, String> {
+    match val.to_ascii_lowercase().as_str() {
+        "very-detailed" | "very_detailed" => Ok(ContourProfile::VeryDetailed),
+        "detailed" => Ok(ContourProfile::Detailed),
+        "normal" => Ok(ContourProfile::Normal),
+        "generalized" => Ok(ContourProfile::Generalized),
+        "very-generalized" | "very_generalized" => Ok(ContourProfile::VeryGeneralized),
+        other => Err(format!(
+            "Invalid --profile '{other}' (expected very-detailed|detailed|normal|generalized|very-generalized)"
+        )),
+    }
+}
+
+fn parse_formline_mode(val: &str) -> Result<FormlineMode, String> {
+    match val.to_ascii_lowercase().as_str() {
+        "off" => Ok(FormlineMode::Off),
+        "sparse" => Ok(FormlineMode::Sparse),
+        "normal" => Ok(FormlineMode::Normal),
+        "dense" => Ok(FormlineMode::Dense),
+        other => Err(format!(
+            "Invalid --formline-mode '{other}' (expected off|sparse|normal|dense)"
+        )),
+    }
+}
+
+pub fn parse_args(args: &[String]) -> Result<CliArgs, String> {
+    if args.is_empty() || args[0] == "-h" || args[0] == "--help" {
+        return Err(usage());
+    }
+    let sub = args[0].as_str();
+    let sub_kind = match sub {
+        "run" => 0u8,
+        "bench-map" => 1u8,
+        "veg" => 2u8,
+        other => return Err(format!("Unknown subcommand '{other}'.\n\n{}", usage())),
+    };
+
+    // Pass 1: pre-scan `--interval` so interval-dependent defaults initialize first.
+    let mut interval = 5.0f64;
+    let mut i = 1;
+    while i < args.len() {
+        if args[i] == "--interval" {
+            interval = parse_f64("--interval", args.get(i + 1))?;
+            i += 2;
+        } else {
+            i += 1;
+        }
+    }
+
+    let mut config = EngineConfig::defaults_for_interval(interval);
+
+    // Pass 2: apply `--profile` before individual overrides.
+    let mut p = 1;
+    while p < args.len() {
+        if args[p] == "--profile" {
+            let val = args.get(p + 1).ok_or("Missing value for --profile")?;
+            config.apply_profile(parse_profile(val)?);
+            p += 2;
+        } else {
+            p += 1;
+        }
+    }
+
+    // Pass 3: apply `--formline-mode` before explicit `--formline-*` overrides.
+    let mut j = 1;
+    while j < args.len() {
+        if args[j] == "--formline-mode" {
+            let val = args.get(j + 1).ok_or("Missing value for --formline-mode")?;
+            config.apply_formline_mode(parse_formline_mode(val)?);
+            j += 2;
+        } else {
+            j += 1;
+        }
+    }
+
+    let mut inputs: Vec<PathBuf> = Vec::new();
+    let mut bench_dir: Option<PathBuf> = None;
+    let mut out_dir: Option<PathBuf> = None;
+
+    // Pass 4: individual flags always override profile & mode presets.
+    let mut k = 1;
+    while k < args.len() {
+        let flag = args[k].as_str();
+        match flag {
+            "--input" => {
+                let v = args.get(k + 1).ok_or("Missing value for --input")?;
+                inputs.push(PathBuf::from(v));
+                k += 2;
+            }
+            "--dir" => {
+                let v = args.get(k + 1).ok_or("Missing value for --dir")?;
+                bench_dir = Some(PathBuf::from(v));
+                k += 2;
+            }
+            "--out" => {
+                let v = args.get(k + 1).ok_or("Missing value for --out")?;
+                out_dir = Some(PathBuf::from(v));
+                k += 2;
+            }
+            "--interval" | "--profile" | "--formline-mode" => {
+                k += 2; // Already applied in passes 1–3.
+            }
+            "--index-every" => {
+                config.index_every = parse_f64(flag, args.get(k + 1))?.round() as i32;
+                k += 2;
+            }
+            "--level-offset" => {
+                config.level_offset = parse_f64(flag, args.get(k + 1))?;
+                k += 2;
+            }
+            "--scale" => {
+                config.scale = parse_f64(flag, args.get(k + 1))?.round().max(500.0) as u32;
+                k += 2;
+            }
+            "--smooth-m" => {
+                config.smooth_m = parse_f64(flag, args.get(k + 1))?.max(0.0);
+                k += 2;
+            }
+            "--taubin-passes" => {
+                let raw = args.get(k + 1).ok_or("Missing value for --taubin-passes")?;
+                let n = raw
+                    .parse::<usize>()
+                    .map_err(|_| format!("Invalid integer for --taubin-passes: {raw} (expected 0..=6)"))?;
+                if n > 6 {
+                    return Err(format!("--taubin-passes must be in 0..=6, got {n}"));
+                }
+                config.taubin_passes = n;
+                k += 2;
+            }
+            "--curviness" => {
+                config.curviness = parse_f64(flag, args.get(k + 1))?.clamp(0.0, 0.8);
+                k += 2;
+            }
+            "--min-loop-area-m2" => {
+                config.min_loop_area_m2 = parse_f64(flag, args.get(k + 1))?.max(0.0);
+                k += 2;
+            }
+            "--min-clearance-m" => {
+                config.min_clearance_m = parse_f64(flag, args.get(k + 1))?.max(0.0);
+                k += 2;
+            }
+            "--simplify-m" => {
+                config.simplify_m = parse_f64(flag, args.get(k + 1))?.max(0.0);
+                k += 2;
+            }
+            "--knoll-min-rise" => {
+                config.knoll_min_rise_m = parse_f64(flag, args.get(k + 1))?.max(0.2);
+                k += 2;
+            }
+            "--knoll-share" => {
+                config.knoll_lower_share = parse_f64(flag, args.get(k + 1))?.clamp(0.3, 1.0);
+                k += 2;
+            }
+            "--knoll-spacing" => {
+                config.knoll_spacing_m = parse_f64(flag, args.get(k + 1))?.max(2.0);
+                k += 2;
+            }
+            "--knoll-max-foot-m2" => {
+                config.knoll_max_foot_m2 = parse_f64(flag, args.get(k + 1))?.max(15.0);
+                k += 2;
+            }
+            "--formline-min-gap-m" => {
+                config.formline_min_gap_m = parse_f64(flag, args.get(k + 1))?;
+                k += 2;
+            }
+            "--formline-min-slope-deg" => {
+                config.formline_min_slope_deg = parse_f64(flag, args.get(k + 1))?;
+                k += 2;
+            }
+            "--formline-max-slope-deg" => {
+                config.formline_max_slope_deg = parse_f64(flag, args.get(k + 1))?;
+                k += 2;
+            }
+            "--formline-min-length-m" => {
+                config.formline_min_length_m = parse_f64(flag, args.get(k + 1))?;
+                k += 2;
+            }
+            "--formline-min-loop-area-m2" => {
+                config.formline_min_loop_area_m2 = parse_f64(flag, args.get(k + 1))?;
+                k += 2;
+            }
+            "--veg-smooth" => {
+                config.veg_smooth = parse_f64(flag, args.get(k + 1))?.clamp(0.0, 3.0);
+                k += 2;
+            }
+            "--open-max-height-m" => {
+                config.open_max_height_m = parse_f64(flag, args.get(k + 1))?;
+                k += 2;
+            }
+            "--open-min-ground-share" | "--open-share" => {
+                config.open_min_ground_share = parse_f64(flag, args.get(k + 1))?.clamp(0.0, 1.0);
+                k += 2;
+            }
+            "--green-scale" => {
+                config.green_scale = parse_f64(flag, args.get(k + 1))?;
+                k += 2;
+            }
+            "--green-low-thresh" => {
+                config.green_low_thresh = parse_f64(flag, args.get(k + 1))?;
+                k += 2;
+            }
+            "--green-med-thresh" => {
+                config.green_med_thresh = parse_f64(flag, args.get(k + 1))?;
+                k += 2;
+            }
+            "--green-high-thresh" => {
+                config.green_high_thresh = parse_f64(flag, args.get(k + 1))?;
+                k += 2;
+            }
+            "--undergrowth-thresh" => {
+                config.undergrowth_thresh = parse_f64(flag, args.get(k + 1))?;
+                k += 2;
+            }
+            "--canopy-weight" => {
+                config.canopy_weight = parse_f64(flag, args.get(k + 1))?;
+                k += 2;
+            }
+            "--steep-cutoff-deg" => {
+                config.steep_cutoff_deg = parse_f64(flag, args.get(k + 1))?;
+                k += 2;
+            }
+            "--min-veg-area-m2" => {
+                config.min_veg_area_m2 = parse_f64(flag, args.get(k + 1))?;
+                k += 2;
+            }
+            "--bbox" => {
+                let s = args.get(k + 1).ok_or("Missing value for --bbox")?;
+                let parts: Vec<f64> = s
+                    .split(',')
+                    .map(|p| p.trim().parse::<f64>().map_err(|_| format!("Invalid --bbox number: {p}")))
+                    .collect::<Result<_, _>>()?;
+                if parts.len() != 4 {
+                    return Err("--bbox requires 4 comma-separated numbers: minx,miny,maxx,maxy".into());
+                }
+                config.bbox = Some([parts[0], parts[1], parts[2], parts[3]]);
+                k += 2;
+            }
+            "--overview" => {
+                config.overview = true;
+                k += 1;
+            }
+            "--include-intermed" => {
+                config.include_intermed = true;
+                k += 1;
+            }
+            other => return Err(format!("Unknown flag '{other}'.\n\n{}", usage())),
+        }
+    }
+
+    let out_dir = out_dir.ok_or("Missing required --out <dir>")?;
+    let mode = match sub_kind {
+        0 => {
+            if inputs.is_empty() {
+                return Err("Subcommand 'run' requires at least one --input <file.laz|.las>".into());
+            }
+            Mode::Run { inputs }
+        }
+        1 => {
+            let dir = bench_dir.ok_or("Subcommand 'bench-map' requires --dir <map_dir>")?;
+            Mode::BenchMap { dir }
+        }
+        _ => {
+            if inputs.is_empty() {
+                return Err("Subcommand 'veg' requires at least one --input <file.laz|.las>".into());
+            }
+            Mode::Veg { inputs }
+        }
+    };
+
+    Ok(CliArgs { mode, out_dir, config })
+}
+
+pub fn usage() -> String {
+    "Usage:\n  otidgeo run --input <file.laz|.las> [--input ...] --out <dir> [options]\n  otidgeo veg --input <file.laz|.las> [--input ...] --out <dir> [veg options]\n  otidgeo bench-map --dir <map_dir> --out <dir> [options]\n\nProfiles (individual flags always override profile):\n  --profile very-detailed|detailed|normal|generalized|very-generalized (default normal)\n\nKey contour & knoll options:\n  --interval <m> (default 5.0; 2.5 for sprint)   --level-offset <m> (0.0)\n  --smooth-m <m> (1.65 / 1.2)                    --taubin-passes <0..6> (2)\n  --curviness <0..0.8> (0.17)                    --min-loop-area-m2 <m2> (40 / 17)\n  --min-clearance-m <m> (1.7 / 1.0)              --simplify-m <m> (0.20)\n  --knoll-min-rise <m> (0.95 / 0.75)             --knoll-share <0.3..1> (0.80)\n  --knoll-spacing <m> (13 / 9)                   --knoll-max-foot-m2 <m2> (135 / 80)\n  --formline-mode off|sparse|normal|dense        --formline-min-gap-m <m>\n  --formline-min-slope-deg <deg>                 --formline-max-slope-deg <deg>\n  --formline-min-length-m <m>                    --formline-min-loop-area-m2 <m2>\n\nKey vegetation options:\n  --veg-smooth <0..3> (1.05; 0.65 detailed)      --open-share <0..1> (0.63)\n  --open-max-height-m <m> (1.5)                  --green-scale <mult> (1.0)\n  --canopy-weight <f> (0.34)                     --undergrowth-thresh <f> (0.058)\n  --green-low-thresh <f>                         --green-med-thresh <f>\n  --green-high-thresh <f>                        --steep-cutoff-deg <deg> (35.0)\n  --min-veg-area-m2 <m2> (300)                   --bbox <minx,miny,maxx,maxy> --overview".into()
+}

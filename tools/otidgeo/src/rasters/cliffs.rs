@@ -13,8 +13,8 @@ use std::io::{BufWriter, Write};
 use std::path::Path;
 
 pub const CLIFF_LOOSE_DROP: f64 = 0.8;
-const SLOPE_CLIFF_MIN_DEG: f64 = 38.0;
-const SLOPE_CLIFF_MIN_LEN_M: f64 = 6.0;
+const SLOPE_CLIFF_MIN_DEG: f64 = 35.0;
+const SLOPE_CLIFF_MIN_LEN_M: f64 = 4.5;
 const TICK_CELL: f64 = 1.0;
 
 #[derive(Clone, Copy, Debug)]
@@ -46,11 +46,13 @@ pub struct CliffSummary {
     pub cliffs_dropped: usize,
 }
 
-struct CliffCandidate {
-    line: Vec<[f64; 2]>,
-    drop3: f64,
-    drop6: f64,
-    length: f64,
+pub(crate) struct CliffCandidate {
+    pub(crate) line: Vec<[f64; 2]>,
+    pub(crate) drop3: f64,
+    pub(crate) drop6: f64,
+    pub(crate) length: f64,
+    pub(crate) slope_deg: f64,
+    pub(crate) sharpness: f64,
 }
 
 type Tick = [f64; 4];
@@ -282,13 +284,13 @@ fn orient_segments(points: &[[f64; 2]], scores: &[f64], min_length_m: f64) -> Ve
         .collect()
 }
 
-/// Extracts cliff centerlines from the 1 m ground grid (`scripts/geo-cliffs.ts` `slopeLines`).
-pub fn slope_lines(ground: &GroundGrid) -> Vec<Vec<[f64; 2]>> {
-    let (w, h, cell) = (ground.width, ground.height, ground.cell);
-    if w < 3 || h < 3 {
-        return Vec::new();
-    }
+/// Computes 1-2-1 smoothed 1 m ground surface (shared by slope extraction & centerline slope measurement).
+fn smooth_ground_121(ground: &GroundGrid) -> Vec<f32> {
+    let (w, h) = (ground.width, ground.height);
     let mut smooth = vec![f32::NAN; w * h];
+    if w < 3 || h < 3 {
+        return smooth;
+    }
     smooth.par_chunks_mut(h).enumerate().for_each(|(x, dst_col)| {
         if x == 0 || x + 1 >= w {
             return;
@@ -317,6 +319,21 @@ pub fn slope_lines(ground: &GroundGrid) -> Vec<Vec<[f64; 2]>> {
             }
         }
     });
+    smooth
+}
+
+/// Extracts cliff centerlines from the 1 m ground grid (`scripts/geo-cliffs.ts` `slopeLines`).
+#[allow(dead_code)]
+pub fn slope_lines(ground: &GroundGrid) -> Vec<Vec<[f64; 2]>> {
+    let smooth = smooth_ground_121(ground);
+    slope_lines_with_smooth(ground, &smooth)
+}
+
+fn slope_lines_with_smooth(ground: &GroundGrid, smooth: &[f32]) -> Vec<Vec<[f64; 2]>> {
+    let (w, h, cell) = (ground.width, ground.height, ground.cell);
+    if w < 3 || h < 3 {
+        return Vec::new();
+    }
 
     let limit = (SLOPE_CLIFF_MIN_DEG * std::f64::consts::PI / 180.0).tan();
     let mut mask = vec![0u8; w * h];
@@ -556,7 +573,52 @@ fn orient_by_ground(line: &[[f64; 2]], ground: &GroundGrid, min_length_m: f64) -
     orient_segments(&dense, &scores, min_length_m)
 }
 
-fn write_cliffs_geojson(path: &Path, candidates: &[CliffCandidate]) -> Result<(), String> {
+/// Measures median smoothed slope in degrees along the cliff centerline (prior to top-edge snapping).
+fn measure_cliff_slope_deg(line: &[[f64; 2]], ground: &GroundGrid, smooth: &[f32]) -> f64 {
+    let (w, h, cell) = (ground.width, ground.height, ground.cell);
+    if w < 3 || h < 3 {
+        return f64::NAN;
+    }
+    let mut slopes = Vec::new();
+    for i in 1..line.len() {
+        let [ax, ay] = line[i - 1];
+        let [bx, by] = line[i];
+        let seg = (bx - ax).hypot(by - ay);
+        if seg == 0.0 {
+            continue;
+        }
+        let mut step = 0.5f64;
+        while step < seg {
+            let x = ax + (bx - ax) * step / seg;
+            let y = ay + (by - ay) * step / seg;
+            let gx = ((x - ground.min_x) / cell).floor() as isize;
+            let gy = ((y - ground.min_y) / cell).floor() as isize;
+            if gx >= 1 && gy >= 1 && (gx as usize) + 1 < w && (gy as usize) + 1 < h {
+                let idx = gx as usize * h + gy as usize;
+                let dx = (f64::from(smooth[idx + h]) - f64::from(smooth[idx - h])) / (2.0 * cell);
+                let dy = (f64::from(smooth[idx + 1]) - f64::from(smooth[idx - 1])) / (2.0 * cell);
+                if dx.is_finite() && dy.is_finite() {
+                    slopes.push(dx.hypot(dy).atan().to_degrees());
+                }
+            }
+            step += 1.0;
+        }
+    }
+    median_sorted(&mut slopes)
+}
+
+#[inline]
+fn write_json_opt_f64<W: Write>(w: &mut W, value: f64, scale: f64) -> std::io::Result<()> {
+    if value.is_finite() {
+        let rounded = js_round(value * scale) / scale;
+        let clean = if rounded == 0.0 { 0.0 } else { rounded };
+        write!(w, "{clean}")
+    } else {
+        write!(w, "null")
+    }
+}
+
+pub(crate) fn write_cliffs_geojson(path: &Path, candidates: &[CliffCandidate]) -> Result<(), String> {
     let file = File::create(path).map_err(|e| format!("Failed creating {}: {e}", path.display()))?;
     let mut w = BufWriter::with_capacity(64 * 1024, file);
     write!(
@@ -564,10 +626,15 @@ fn write_cliffs_geojson(path: &Path, candidates: &[CliffCandidate]) -> Result<()
         "{{\"type\":\"FeatureCollection\",\"crs\":{{\"type\":\"name\",\"properties\":{{\"name\":\"EPSG:3006\"}}}},\"features\":["
     )
     .map_err(|e| e.to_string())?;
-    for (ci, c) in candidates.iter().enumerate() {
-        if ci > 0 {
+    let mut written = 0usize;
+    for c in candidates {
+        if c.line.len() < 2 || !c.line.iter().all(|&[x, y]| x.is_finite() && y.is_finite()) {
+            continue;
+        }
+        if written > 0 {
             write!(w, ",").map_err(|e| e.to_string())?;
         }
+        written += 1;
         write!(
             w,
             "{{\"type\":\"Feature\",\"geometry\":{{\"type\":\"LineString\",\"coordinates\":["
@@ -581,14 +648,17 @@ fn write_cliffs_geojson(path: &Path, candidates: &[CliffCandidate]) -> Result<()
             let ry = js_round(y * 10.0) / 10.0;
             write!(w, "[{rx},{ry}]").map_err(|e| e.to_string())?;
         }
-        let d3 = js_round(c.drop3 * 100.0) / 100.0;
-        let d6 = js_round(c.drop6 * 100.0) / 100.0;
-        let ln = js_round(c.length * 100.0) / 100.0;
-        write!(
-            w,
-            "]}},\"properties\":{{\"drop3\":{d3},\"drop6\":{d6},\"length\":{ln}}}}}"
-        )
-        .map_err(|e| e.to_string())?;
+        write!(w, "]}},\"properties\":{{\"drop3\":").map_err(|e| e.to_string())?;
+        write_json_opt_f64(&mut w, c.drop3, 100.0).map_err(|e| e.to_string())?;
+        write!(w, ",\"drop6\":").map_err(|e| e.to_string())?;
+        write_json_opt_f64(&mut w, c.drop6, 100.0).map_err(|e| e.to_string())?;
+        write!(w, ",\"length\":").map_err(|e| e.to_string())?;
+        write_json_opt_f64(&mut w, c.length, 100.0).map_err(|e| e.to_string())?;
+        write!(w, ",\"slope\":").map_err(|e| e.to_string())?;
+        write_json_opt_f64(&mut w, c.slope_deg, 10.0).map_err(|e| e.to_string())?;
+        write!(w, ",\"sharpness\":").map_err(|e| e.to_string())?;
+        write_json_opt_f64(&mut w, c.sharpness, 100.0).map_err(|e| e.to_string())?;
+        write!(w, "}}}}").map_err(|e| e.to_string())?;
     }
     write!(w, "]}}").map_err(|e| e.to_string())?;
     w.flush().map_err(|e| e.to_string())
@@ -607,7 +677,8 @@ pub fn run_cliffs(
         if p.exists() { ticks.extend(read_ticks(p)?); }
     }
 
-    let own = slope_lines(ground);
+    let smooth = smooth_ground_121(ground);
+    let own = slope_lines_with_smooth(ground, &smooth);
     let mut entries: Vec<(Vec<[f64; 2]>, bool)> = own.iter().cloned().map(|l| (l, true)).collect();
 
     if !ticks.is_empty() {
@@ -637,6 +708,8 @@ pub fn run_cliffs(
             let (drop3, drop6, length) = measure_cliff(&line, ground);
             if !drop3.is_finite() { return Eval::NoData(line); }
             if drop3 < loose_min { return Eval::Dropped; }
+            let slope_deg = measure_cliff_slope_deg(&line, ground, &smooth);
+            let sharpness = if drop6.is_finite() && drop6 > 0.1 { drop3 / drop6 } else { f64::NAN };
             let top = even_line(&to_top_edge(&line, ground, if from_ground { 8.5 } else { 4.5 }));
             let kind = if drop3 < rules.min_drop {
                 None
@@ -645,7 +718,7 @@ pub fn run_cliffs(
             } else {
                 Some(false)
             };
-            Eval::Candidate { cand: CliffCandidate { line: top, drop3, drop6, length }, kind }
+            Eval::Candidate { cand: CliffCandidate { line: top, drop3, drop6, length, slope_deg, sharpness }, kind }
         })
         .collect();
 

@@ -2,12 +2,12 @@
 
 use crate::bench_io::read_rgba_png;
 use crate::cli::{parse_args, Mode};
-use crate::rasters::cliffs::{measure_cliff, slope_lines};
+use crate::rasters::cliffs::{measure_cliff, run_cliffs, slope_lines, write_cliffs_geojson, CliffCandidate, CliffRules};
 use crate::rasters::execute_rasters;
 use crate::rasters::geom::clean_mask;
 use crate::rasters::grid_io::{write_sub_png, GroundGrid};
 use crate::rasters::height::{shade_value, write_height_png};
-use crate::rasters::knolls::{choose_knolls, knoll_candidates, KNOLL_LOWER_SHARE};
+use crate::rasters::knolls::{choose_knolls, knoll_candidates, write_knolls_geojson, KNOLL_LOWER_SHARE};
 use crate::rasters::moisture::{fill_depressions, flow_accumulation, flow_directions, height_above_drainage, Grid2m};
 use crate::rasters::rock::detect_boulders;
 use crate::rasters::skeleton::thin;
@@ -308,5 +308,117 @@ fn synthetic_cliffs_boulders_knolls_and_full_rasters_pipeline() {
     ] {
         assert!(val.get(key).is_some(), "rasters-summary.json missing key {key}");
     }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn edge_cliff_with_empty_drops6_writes_valid_json_null() {
+    // 1. Construct a real DEM with a cliff 4 m from the south raster border (y = 4):
+    //    ±3 m samples stay inside the grid (finite drop3), while ±6 m falls outside (empty drops6 -> NaN!).
+    let (w, h) = (40, 24);
+    let mut z = vec![10.0f32; w * h];
+    for x in 0..w {
+        for y in 0..h {
+            // North side (y >= 6) is high (15 m), south side (y <= 3) is low (10 m); cliff centered at y = 4..5.
+            z[x * h + y] = if y >= 6 {
+                15.0
+            } else if y <= 3 {
+                10.0
+            } else {
+                10.0 + (y - 3) as f32 * (5.0 / 3.0)
+            };
+        }
+    }
+    let ground = GroundGrid { min_x: 660_000.0, min_y: 6_570_000.0, cell: 1.0, width: w, height: h, z };
+    let lines = slope_lines(&ground);
+    assert!(!lines.is_empty(), "Expected edge cliff line near y=4");
+    let (d3, d6, _len) = measure_cliff(&lines[0], &ground);
+    assert!(d3.is_finite() && d3 > 2.0, "Expected finite drop3, got {d3}");
+    assert!(d6.is_nan(), "Expected NaN drop6 on edge cliff where -6 m leaves raster, got {d6}");
+
+    let dir = temp_dir("edge-cliff-nan");
+    run_cliffs(&ground, CliffRules::default(), None, None, &dir).unwrap();
+    let geo_path = dir.join("brantlinjer.geojson");
+    let text = std::fs::read_to_string(&geo_path).unwrap();
+    assert!(!text.contains("NaN"), "brantlinjer.geojson must never contain NaN: {text}");
+    assert!(!text.contains("Infinity"), "brantlinjer.geojson must never contain Infinity: {text}");
+    let parsed: serde_json::Value = serde_json::from_str(&text)
+        .expect("brantlinjer.geojson must parse as strict RFC 8259 JSON");
+    let feats = parsed["features"].as_array().unwrap();
+    assert!(!feats.is_empty());
+    let props = &feats[0]["properties"];
+    assert!(props["drop3"].as_f64().is_some_and(|v| v > 2.0), "Expected numeric drop3, got {props}");
+    assert!(props["drop6"].is_null(), "Non-finite drop6 must serialize as JSON null, got {props}");
+    assert!(props["sharpness"].is_null(), "Non-finite sharpness must serialize as JSON null, got {props}");
+    assert!(props["slope"].as_f64().is_some_and(|v| v >= 35.0), "Expected numeric slope, got {props}");
+
+    // 2. Direct write_cliffs_geojson stress test with NaN / +/-Infinity across all numeric properties.
+    let direct_path = dir.join("direct.geojson");
+    let direct_cands = vec![CliffCandidate {
+        line: vec![[660_001.0, 6_570_002.0], [660_010.0, 6_570_002.0]],
+        drop3: f64::NAN,
+        drop6: f64::INFINITY,
+        length: f64::NEG_INFINITY,
+        slope_deg: f64::NAN,
+        sharpness: f64::INFINITY,
+    }];
+    write_cliffs_geojson(&direct_path, &direct_cands).unwrap();
+    let direct_text = std::fs::read_to_string(&direct_path).unwrap();
+    let direct_val: serde_json::Value = serde_json::from_str(&direct_text)
+        .expect("Direct NaN/Infinity candidate must serialize as valid JSON");
+    let dp = &direct_val["features"][0]["properties"];
+    assert!(dp["drop3"].is_null() && dp["drop6"].is_null() && dp["length"].is_null() && dp["slope"].is_null() && dp["sharpness"].is_null());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn knolls_export_inertia_elongation_and_suppress_cliff_lip() {
+    let (w, h) = (120, 120);
+    let mut z = vec![20.0f32; w * h];
+    for x in 0..w {
+        for y in 0..h {
+            let mut elev = 20.0f64;
+            // 1. Round standalone knoll at (30, 30): +1.6 m, sigma=3.0 m.
+            let dr = (x as f64 - 30.0).powi(2) + (y as f64 - 30.0).powi(2);
+            elev += 1.6 * (-dr / (2.0 * 3.0 * 3.0)).exp();
+            // 2. Elongated NE-SW (45 deg CCW from East +X) knoll at (80, 35): sigma_long=5.0, sigma_short=1.8.
+            let dx = x as f64 - 80.0;
+            let dy = y as f64 - 35.0; // GroundGrid +y is North!
+            let u = (dx + dy) * std::f64::consts::FRAC_1_SQRT_2;
+            let v = (-dx + dy) * std::f64::consts::FRAC_1_SQRT_2;
+            elev += 2.0 * (-(u * u / (2.0 * 5.0 * 5.0) + v * v / (2.0 * 1.8 * 1.8))).exp();
+            // 3. Steep 6 m east-west cliff at y = 85 (high for y <= 84, low for y >= 88) + fake 1.1 m bump right on cliff lip at (55, 81).
+            if y <= 84 {
+                elev += 6.0;
+            } else if y < 88 {
+                elev += 6.0 * (88 - y) as f64 / 4.0;
+            }
+            let dlip = (x as f64 - 55.0).powi(2) + (y as f64 - 81.0).powi(2);
+            elev += 1.1 * (-dlip / (2.0 * 2.5 * 2.5)).exp();
+            z[x * h + y] = elev as f32;
+        }
+    }
+    let ground = GroundGrid { min_x: 660_000.0, min_y: 6_570_000.0, cell: 1.0, width: w, height: h, z };
+    let cands = knoll_candidates(&ground, None, None);
+
+    let round = cands.iter().find(|c| (c.at[0] - 660_030.5).abs() < 2.5 && (c.at[1] - 6_570_030.5).abs() < 2.5);
+    let elong = cands.iter().find(|c| (c.at[0] - 660_080.5).abs() < 2.5 && (c.at[1] - 6_570_035.5).abs() < 2.5);
+    let lip = cands.iter().find(|c| (c.at[0] - 660_055.5).abs() < 3.5 && (c.at[1] - 6_570_081.5).abs() < 3.5);
+    assert!(round.is_some(), "Standalone round knoll must be detected");
+    assert!(round.unwrap().aspect < 1.35, "Round knoll should have low aspect, got {}", round.unwrap().aspect);
+    assert!(elong.is_some(), "Elongated NE-SW knoll must be detected");
+    let e = elong.unwrap();
+    assert!(e.aspect >= 1.65, "Elongated knoll must have aspect >= 1.65, got {}", e.aspect);
+    assert!((e.angle_deg - 45.0).abs() < 15.0, "Expected ~45 deg CCW from +X, got {}", e.angle_deg);
+    assert!(lip.is_none(), "Cliff-lip false knoll must be suppressed, got {lip:?}");
+
+    let dir = temp_dir("knolls-geo");
+    let geo_path = dir.join("kullar.geojson");
+    write_knolls_geojson(&geo_path, &cands).unwrap();
+    let text = std::fs::read_to_string(&geo_path).unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&text).expect("kullar.geojson must be valid JSON");
+    let feats = parsed["features"].as_array().unwrap();
+    assert!(feats.iter().any(|f| f["properties"]["aspect"].as_f64().is_some_and(|a| a >= 1.65)
+        && f["properties"]["angle"].as_f64().is_some_and(|ang| (ang - 45.0).abs() < 15.0)));
     let _ = std::fs::remove_dir_all(&dir);
 }

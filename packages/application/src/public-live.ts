@@ -45,16 +45,22 @@ const passageOf = (row: PublicRadioPassage): PublicRadioPassage => ({ ...runnerO
   passedAt: row.passedAt, elapsedMs: row.elapsedMs, place: row.place, finished: row.finished,
   ...(row.relay ? { relay: { teamNumber: row.relay.teamNumber, teamName: row.relay.teamName, leg: row.relay.leg } } : {}) });
 
+const svCollator = new Intl.Collator("sv");
+
 const byName = (a: { className: string; familyName: string; givenName: string }, b: typeof a) =>
-  a.className.localeCompare(b.className, "sv") || a.familyName.localeCompare(b.familyName, "sv") || a.givenName.localeCompare(b.givenName, "sv");
+  svCollator.compare(a.className, b.className) || svCollator.compare(a.familyName, b.familyName) || svCollator.compare(a.givenName, b.givenName);
 
 /** Ren projektion (enhetstestad): resultat + ankomsttider + radio → Live. */
 export function projectPublicLive(input: PublicLiveInput): PublicLiveResponse {
   const now = input.now.getTime();
   if (!Number.isFinite(now)) throw new Error("Lästiden är ogiltig");
   if (input.results.formatVersion !== 7) throw new Error("Live kräver resultatformat 7");
-  const struck = new Set(input.arrivals.filter(row => row.struckAt !== null).map(row => row.publicResultId));
-  const arrivedAt = new Map(input.arrivals.filter(row => row.struckAt === null).map(row => [row.publicResultId, row.arrivedAt]));
+  const struck = new Set<string>();
+  const arrivedAt = new Map<string, Date>();
+  for (const row of input.arrivals) {
+    if (row.struckAt !== null) struck.add(row.publicResultId);
+    else arrivedAt.set(row.publicResultId, row.arrivedAt);
+  }
   const rows = input.results.results.filter(row => !struck.has(row.publicResultId));
 
   const finishes: { row: PublicLiveFinish; at: number }[] = [];

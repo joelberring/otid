@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, inArray } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, lte, or } from "drizzle-orm";
 import { mapProjectSyncRequestSchema, type MapProjectSyncResponse } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { editPoints, editRoute, type EditResult, type EditRole, type RevisionEdit, type ServerObject } from "@o-tid/map-revision";
@@ -25,6 +25,8 @@ import type { DbExecutor } from "./snapshot";
  * exportera dem) i stället för att tappa dem.
  */
 const PULL_LIMIT = 2000;
+/** Hur ofta `last_seen_at` skrivs som tätast per medlem (minskar skrivlås och tupelbloat vid bakgrundspollar). */
+const LAST_SEEN_INTERVAL_MS = 30_000;
 
 /** Allt som ändrats sedan `since`, i löpnummerordning, högst `PULL_LIMIT` (då `more`). */
 async function pull(tx: DbExecutor, projectId: string, since: number, seq: number): Promise<{ objects: ServerObject[]; seq: number; more: boolean }> {
@@ -41,13 +43,22 @@ export async function syncMapProject(db: Database, input: ClubProof & { projectI
   const parsed = mapProjectSyncRequestSchema.safeParse(input.request);
   return db.transaction(async tx => {
     const wantsEdit = parsed.success && parsed.data.edits.length > 0;
-    const access = await requireMapProject(tx, input, now, "view", true);
+    // Tomma bakgrundspollar tar delat lås (FOR SHARE) i stället för exklusivt FOR UPDATE; ändringar serialiseras med FOR UPDATE.
+    const access = await requireMapProject(tx, input, now, "view", true, wantsEdit ? "update" : "share");
     if (access.status !== "ok") return access;
     if (!parsed.success) return { status: "invalid-request" } as const;
     const { clientId, since, edits } = parsed.data;
-    const { project, accountId } = access;
-    await tx.update(schema.mapProjectMembers).set({ lastSeenAt: now })
-      .where(and(eq(schema.mapProjectMembers.projectId, project.id), eq(schema.mapProjectMembers.accountId, accountId)));
+    const { project, accountId, memberLastSeenAt } = access;
+    const seenStaleMs = now.getTime() - LAST_SEEN_INTERVAL_MS;
+    if (memberLastSeenAt !== undefined && (memberLastSeenAt === null || memberLastSeenAt.getTime() <= seenStaleMs)) {
+      const seenStale = new Date(seenStaleMs);
+      await tx.update(schema.mapProjectMembers).set({ lastSeenAt: now })
+        .where(and(
+          eq(schema.mapProjectMembers.projectId, project.id),
+          eq(schema.mapProjectMembers.accountId, accountId),
+          or(isNull(schema.mapProjectMembers.lastSeenAt), lte(schema.mapProjectMembers.lastSeenAt, seenStale))
+        ));
+    }
     const respond = async (results: EditResult[], seq: number) => {
       const pulled = await pull(tx, project.id, since, seq);
       return { status: "ok", response: { formatVersion: 1, seq: pulled.seq, status: project.status, results, objects: pulled.objects,

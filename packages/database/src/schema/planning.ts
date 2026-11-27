@@ -104,7 +104,8 @@ export const startDrawSlots = pgTable("start_draw_slot", {
   entryId: uuid("entry_id").references(() => entries.id)
 }, table => [
   primaryKey({ columns: [table.drawId, table.classId, table.position] }),
-  foreignKey({ name: "start_draw_slot_class_fk", columns: [table.drawId, table.classId], foreignColumns: [startDrawClasses.drawId, startDrawClasses.classId] })
+  foreignKey({ name: "start_draw_slot_class_fk", columns: [table.drawId, table.classId], foreignColumns: [startDrawClasses.drawId, startDrawClasses.classId] }),
+  index("start_draw_slot_entry_idx").on(table.entryId).where(sql`${table.entryId} IS NOT NULL`)
 ]);
 
 /** Ändrad variant på en löpare (ENTRY) och "Fördela gafflingar" i en klass (CLASS), migration 0093. */

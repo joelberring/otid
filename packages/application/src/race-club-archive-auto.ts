@@ -4,7 +4,9 @@ import { localRaceDate, raceFinishedForArchive, swedishToday } from "@o-tid/doma
 import { clubMembership, clubRoleAtLeast } from "./club-access";
 import { coursesArePublic } from "./course-secrecy";
 import { liftInTransaction, liftOf, lockRaceClubArchive } from "./race-club-archive";
-import { autoArchiveDefault, recordAutoArchiveProblem } from "./race-club-archive-auto-state";
+import {
+  autoArchiveDefault, cacheAutoArchiveInactive, isAutoArchiveCachedInactive, recordAutoArchiveProblem
+} from "./race-club-archive-auto-state";
 import { activeEventAdministrationGrant } from "./race-session";
 import type { DbExecutor } from "./snapshot";
 
@@ -89,13 +91,40 @@ export async function maybeAutoArchive(tx: DbExecutor, raceId: string, now: Date
 }
 
 /**
- * Efter en sparad avläsning eller ett beslut, sist i samma transaktion. Allt (också det billiga villkoret) körs i en sparpunkt:
- * ett fel där får aldrig stoppa avläsningen. Det loggas (utan namn), sparas som `FAILED` när det går och görs om av
- * underhållsvarvet.
+ * Billig förkontroll (utan sparpunkt): är automatisk arkivering avstängd, redan gjord, eller saknas tabellen i en äldre
+ * databas under uppgradering (steg 28)? Returnerar "table-missing" utan att cacha så att en uppgradering i samma process
+ * ser tabellen direkt efter migrering.
+ */
+async function autoArchivePrecheck(tx: DbExecutor, raceId: string): Promise<"active" | "inactive" | "table-missing"> {
+  const [race] = await tx.select({
+    raceType: schema.races.raceType,
+    hasTable: sql<boolean>`to_regclass('public.race_club_archive_auto') is not null`
+  }).from(schema.races).where(eq(schema.races.id, raceId)).limit(1);
+  if (!race) return "inactive";
+  if (!race.hasTable) return "table-missing";
+  const [row] = await tx.select({ enabled: auto.enabled, archivedAt: auto.archivedAt })
+    .from(auto).where(eq(auto.raceId, raceId)).limit(1);
+  return (row?.archivedAt ?? null) !== null || !(row?.enabled ?? autoArchiveDefault(race.raceType))
+    ? "inactive"
+    : "active";
+}
+
+/**
+ * Efter en sparad avläsning eller ett beslut, sist i samma transaktion. Tävlingar där auto-arkiv inte är aktivt hoppas över
+ * utan Postgres-sparpunkt och cachas kortlivat; själva arkiveringen körs i en sparpunkt så att ett fel aldrig stoppar
+ * avläsningen.
  */
 export async function autoArchiveAfterResult(tx: Transaction, raceId: string, now: Date): Promise<void> {
+  if (isAutoArchiveCachedInactive(raceId)) return;
+  const state = await autoArchivePrecheck(tx, raceId);
+  if (state === "table-missing") return;
+  if (state === "inactive") {
+    cacheAutoArchiveInactive(raceId);
+    return;
+  }
   try {
-    await tx.transaction(savepoint => maybeAutoArchive(savepoint, raceId, now));
+    const outcome = await tx.transaction(savepoint => maybeAutoArchive(savepoint, raceId, now));
+    if (outcome === "archived") cacheAutoArchiveInactive(raceId);
   } catch (error) {
     console.error(`Automatisk arkivering av tävlingen ${raceId} misslyckades: ${error instanceof Error ? error.message : String(error)}`);
     // Också problemet i en sparpunkt (tabellen kan saknas i en databas som inte är migrerad än).

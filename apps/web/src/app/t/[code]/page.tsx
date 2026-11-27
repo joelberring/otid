@@ -56,18 +56,22 @@ export default async function RaceHubPage({ params }: Params) {
   const hub = await requireRaceHub((await params).code);
   // PLAN.md steg 40: en fest har en egen sida under /fest/, så att den kan stängas för robotar utan att röra tävlingarna.
   if (hub.raceType === "PARTY") redirect(`/fest/${hub.shortCode}`);
-  const language = await currentLanguage(), en = language === "en";
+  const path = raceHubPath(hub.shortCode);
+  const [language, origin, names, bingoBoard, mastermindBoard] = await Promise.all([
+    currentLanguage(),
+    publicOrigin(),
+    raceGroupNameDisplay(db, hub.raceId),
+    // ADR-0225: bingons topplista (bara på träningsdagen).
+    hub.bingo ? readBingoLeaderboard(db, { raceId: hub.raceId, staff: false }) : undefined,
+    // ADR-0228: Mastermind med kontroller (bara en träning, bara på träningsdagen och när något spel finns).
+    hub.raceType === "TRAINING" ? readMastermindStandings(db, { raceId: hub.raceId, staff: false }) : undefined
+  ]);
+  const en = language === "en";
   const text = en ? hubEn : publicRaceSv.hub;
   const bingoText = en ? bingoEn.runner : bingoSv.runner;
-  const path = raceHubPath(hub.shortCode);
   // Besöksstatistiken (ägaren 2026-11-22): demotävlingen (OTID_DEMO_RACE) öppnad av en besökare utan inloggning.
   if (path === demoRacePath() && !await accountSessionToken()) countVisit("DEMO_RACE", await headers());
-  const address = displayAddress(await publicOrigin(), path);
-  const names = await raceGroupNameDisplay(db, hub.raceId);
-  // ADR-0225: bingons topplista (bara på träningsdagen).
-  const bingoBoard = hub.bingo ? await readBingoLeaderboard(db, { raceId: hub.raceId, staff: false }) : undefined;
-  // ADR-0228: Mastermind med kontroller (bara en träning, bara på träningsdagen och när något spel finns).
-  const mastermindBoard = hub.raceType === "TRAINING" ? await readMastermindStandings(db, { raceId: hub.raceId, staff: false }) : undefined;
+  const address = displayAddress(origin, path);
   const hasStartSection = raceTypeProfile(hub.raceType).course.some(section => section.id === "START");
   const details = [shownRaceName(hub.eventName, hub.raceName), formatRaceDate(hub.raceDate, undefined, LOCALE[language]),
     en ? raceTypeNamesEn[hub.raceType] : raceTypeSv.types[hub.raceType].name]

@@ -67,15 +67,25 @@ export function SpeakerPage({ raceId }: { raceId: string }) {
         if (etag) etagCache.current.set(url, { etag, value });
         return value;
       };
-      // Kontots session gäller speakern direkt (ADR-0173 beslut 4).
-      const board: SpeakerBoardResponse = await get(`${base}/speaker-board`, value => speakerBoardResponseSchema.parse(value));
-      if (board.raceId !== raceId) throw new Error(inLanguage("Speakerunderlaget gäller en annan tävling", "The speaker data belongs to a different race"));
-      const [results, forest, relay, radio] = await Promise.all([
+      // Kontots session gäller speakern direkt (ADR-0173 beslut 4); alla fem oberoende anrop körs parallellt.
+      const settled = await Promise.allSettled([
+        get(`${base}/speaker-board`, value => speakerBoardResponseSchema.parse(value)),
         get(`/api/public/races/${encodeURIComponent(raceId)}/results?splits=0`, value => publicResultListResponseV7Schema.parse(value)),
         get(`${base}/forest-watch`, value => administratorForestWatchResponseSchema.parse(value)),
         get(`${base}/relay`, value => relayOverviewSchema.parse(value)),
         get(`/api/public/races/${encodeURIComponent(raceId)}/radio`, value => publicRadioResponseSchema.parse(value))
       ]);
+      const rejected = settled.filter((item): item is PromiseRejectedResult => item.status === "rejected");
+      if (rejected.length > 0) {
+        const unauthorized = rejected.find(item => item.reason instanceof Unauthorized);
+        throw unauthorized ? unauthorized.reason : rejected[0]!.reason;
+      }
+      const board = (settled[0] as PromiseFulfilledResult<SpeakerBoardResponse>).value;
+      if (board.raceId !== raceId) throw new Error(inLanguage("Speakerunderlaget gäller en annan tävling", "The speaker data belongs to a different race"));
+      const results = (settled[1] as PromiseFulfilledResult<PublicResultListResponseV7>).value;
+      const forest = (settled[2] as PromiseFulfilledResult<AdministratorForestWatchResponse>).value;
+      const relay = (settled[3] as PromiseFulfilledResult<RelayOverview>).value;
+      const radio = (settled[4] as PromiseFulfilledResult<PublicRadioResponse>).value;
       setData({ board, results, forest, relay, radio, at: new Date().toISOString() });
       setProblem(undefined);
     } catch (error) {

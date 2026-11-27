@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import {
   CLUB_ARCHIVE_MAP_MAX_BYTES, mapProjectCreateRequestSchema, mapProjectInviteRequestSchema, mapProjectMemberRemoveRequestSchema,
   mapProjectMemberRoleRequestSchema, mapProjectUpdateRequestSchema, mapProjectUploadMetadataSchema, type InvitationMailOutcome, type MapProjectList,
@@ -12,7 +12,7 @@ import { openMapProjectJoinLinks } from "./map-project-join";
 import { deliverPrepared, invitationSentTimes, prepareIfMail, replayedOutcome, type InvitationMailer } from "./invitation-links";
 import {
   addMapProjectMember, mapProjectAllows, mapProjectBaseFileName, mapProjectCanArchive, mapProjectCanDownloadSource, mapProjectCanWriteVersion,
-  mapProjectEffectiveDownloadPolicy, mapProjectJournal, mapProjectRoleOf, openMapProjectInvitations, requireMapProject, type MapProjectRow
+  mapProjectEffectiveDownloadPolicy, mapProjectJournal, openMapProjectInvitations, requireMapProject, type MapProjectRow
 } from "./map-project-access";
 import { clearAreaAssignee, mapProjectAreaViews } from "./map-project-areas";
 import { ocadWriteEnabled } from "./map-project-output";
@@ -29,17 +29,20 @@ import type { DbExecutor } from "./snapshot";
  */
 const LIST_LIMIT = 200;
 const ROLE_ORDER: Record<MapProjectRole, number> = { OWNER: 0, EDIT: 1, SUGGEST: 2, READ: 3 };
+const higherRole = (a: MapProjectRole | undefined, b: MapProjectRole | undefined): MapProjectRole | undefined =>
+  !a ? b : !b ? a : ROLE_ORDER[a] <= ROLE_ORDER[b] ? a : b;
 
 async function summaries(tx: DbExecutor, rows: readonly MapProjectRow[], roles: ReadonlyMap<string, MapProjectRole>): Promise<MapProjectSummary[]> {
-  if (rows.length === 0) return [];
-  const ids = rows.map(row => row.id);
-  const versionIds = [...new Set(rows.flatMap(row => row.baseVersionId ? [row.baseVersionId] : []))];
+  const visible = rows.filter(row => roles.has(row.id));
+  if (visible.length === 0) return [];
+  const ids = visible.map(row => row.id);
+  const versionIds = [...new Set(visible.flatMap(row => row.baseVersionId ? [row.baseVersionId] : []))];
   const versions = new Map(versionIds.length === 0 ? [] : (await tx.select({ id: schema.clubMapVersions.id, mapId: schema.clubMapVersions.mapId,
     fileName: schema.clubMapVersions.fileName, format: schema.clubMapVersions.format, versionDate: schema.clubMapVersions.versionDate,
     mapName: schema.clubMaps.name, sourceDownloadPolicy: schema.clubMaps.sourceDownloadPolicy })
     .from(schema.clubMapVersions).innerJoin(schema.clubMaps, eq(schema.clubMaps.id, schema.clubMapVersions.mapId))
     .where(inArray(schema.clubMapVersions.id, versionIds))).map(row => [row.id, row]));
-  const clubIds = [...new Set(rows.flatMap(row => row.clubId ? [row.clubId] : []))];
+  const clubIds = [...new Set(visible.flatMap(row => row.clubId ? [row.clubId] : []))];
   const clubs = new Map(clubIds.length === 0 ? [] : (await tx.select({ id: schema.clubs.id, name: schema.clubs.name }).from(schema.clubs)
     .where(inArray(schema.clubs.id, clubIds))).map(row => [row.id, row.name]));
   // Nya objekt som tagits bort igen och objekt som är tillbaka som i grundfilen räknas inte.
@@ -54,7 +57,13 @@ async function summaries(tx: DbExecutor, rows: readonly MapProjectRow[], roles: 
     fileName: schema.mapProjectOutputs.fileName, versionFileName: schema.clubMapVersions.fileName })
     .from(schema.mapProjectOutputs).leftJoin(schema.clubMapVersions, eq(schema.clubMapVersions.id, schema.mapProjectOutputs.versionId))
     .where(inArray(schema.mapProjectOutputs.projectId, ids)).orderBy(asc(schema.mapProjectOutputs.createdAt));
-  return rows.flatMap(row => {
+  const outputsByProject = new Map<string, (typeof outputs)[number][]>();
+  for (const output of outputs) {
+    let list = outputsByProject.get(output.projectId);
+    if (!list) { list = []; outputsByProject.set(output.projectId, list); }
+    list.push(output);
+  }
+  return visible.flatMap(row => {
     const version = row.baseVersionId ? versions.get(row.baseVersionId) : undefined;
     const role = roles.get(row.id);
     if (!role || (row.baseVersionId && !version)) return [];
@@ -69,7 +78,7 @@ async function summaries(tx: DbExecutor, rows: readonly MapProjectRow[], roles: 
       club: row.clubId ? { clubId: row.clubId, name: clubs.get(row.clubId) ?? "" } : null, base,
       createdAt: row.createdAt.toISOString(), closedAt: row.closedAt?.toISOString() ?? null,
       lastActiveAt: new Date(Math.max(row.createdAt.getTime(), row.closedAt?.getTime() ?? 0, row.lastOpenedAt?.getTime() ?? 0)).toISOString(), changedObjects: changed.get(row.id) ?? 0,
-      outputs: outputs.filter(output => output.projectId === row.id).map(output => ({ outputId: output.id, versionId: output.versionId,
+      outputs: (outputsByProject.get(row.id) ?? []).map(output => ({ outputId: output.id, versionId: output.versionId,
         fileName: output.fileName ?? output.versionFileName ?? "", changes: output.changes, createdAt: output.createdAt.toISOString() })),
       sourceDownloadPolicy: row.sourceDownloadPolicy, sourceDownloadLockedByArchive, effectiveSourceDownloadPolicy }];
   });
@@ -86,16 +95,44 @@ export async function listMapProjects(db: Database, input: ClubProof, now = new 
 
 /** Kontots projekt (som medlem eller som administratör i projektets klubb), nyast först. Också för AI-kopplingen (K2). */
 export async function listMapProjectsForAccount(tx: DbExecutor, accountId: string): Promise<MapProjectList> {
-  const rows = (await tx.execute<{ id: string }>(sql`select p.id from map_project p where exists (
-      select 1 from map_project_member m where m.project_id = p.id and m.account_id = ${accountId})
-    or exists (select 1 from club_member c where c.club_id = p.club_id and c.account_id = ${accountId} and c.role in ('OWNER', 'ADMIN'))
-    order by p.created_at desc limit ${LIST_LIMIT}`)).rows.map(row => row.id);
-  const projects = rows.length ? await tx.select().from(schema.mapProjects).where(inArray(schema.mapProjects.id, rows))
-    .orderBy(desc(schema.mapProjects.createdAt)) : [];
+  const rows = await tx.select({
+    project: schema.mapProjects,
+    memberRole: schema.mapProjectMembers.role,
+    memberAddedBy: schema.mapProjectMembers.addedBy,
+    clubRole: schema.clubMembers.role,
+    clubAddedBy: schema.clubMembers.addedBy
+  }).from(schema.mapProjects)
+    .leftJoin(schema.mapProjectMembers, and(
+      eq(schema.mapProjectMembers.projectId, schema.mapProjects.id),
+      eq(schema.mapProjectMembers.accountId, accountId)
+    ))
+    .leftJoin(schema.clubMembers, and(
+      eq(schema.clubMembers.clubId, schema.mapProjects.clubId),
+      eq(schema.clubMembers.accountId, accountId),
+      inArray(schema.clubMembers.role, ["OWNER", "ADMIN"])
+    ))
+    .where(or(isNotNull(schema.mapProjectMembers.projectId), isNotNull(schema.clubMembers.id)))
+    .orderBy(desc(schema.mapProjects.createdAt))
+    .limit(LIST_LIMIT);
+  if (rows.length === 0) return { formatVersion: 1, projects: [] };
+  const needsAccountCheck = rows.some(row =>
+    (row.memberRole !== null && row.memberAddedBy !== accountId) ||
+    (row.clubRole !== null && row.clubAddedBy !== accountId)
+  );
+  const account = needsAccountCheck
+    ? (await tx.select({ verifiedAt: schema.userAccounts.emailVerifiedAt, blockedAt: schema.userAccounts.blockedAt })
+      .from(schema.userAccounts).where(eq(schema.userAccounts.id, accountId)))[0]
+    : undefined;
   const roles = new Map<string, MapProjectRole>();
-  for (const project of projects) {
-    const role = await mapProjectRoleOf(tx, accountId, project);
-    if (role) roles.set(project.id, role);
+  const projects: MapProjectRow[] = [];
+  for (const row of rows) {
+    projects.push(row.project);
+    const memberRole = row.memberRole !== null && (row.memberAddedBy === accountId || account?.verifiedAt != null)
+      ? row.memberRole : undefined;
+    const clubRole = row.clubRole !== null && (row.clubAddedBy === accountId || (account?.verifiedAt != null && account.blockedAt === null))
+      ? "OWNER" as const : undefined;
+    const role = higherRole(memberRole, clubRole);
+    if (role) roles.set(row.project.id, role);
   }
   // Senast använda först (ägaren 2026-11-13: listan växer snabbt med prov- och testprojekt).
   return { formatVersion: 1, projects: (await summaries(tx, projects, roles)).sort((a, b) => b.lastActiveAt.localeCompare(a.lastActiveAt)) };

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { publicRaceSummary } from "@o-tid/application";
 import { PUBLIC_PAGE_INLINE_ROWS, publicPageRows } from "../../../../lib/public-race-cache";
-import { cachedPublicRadio, cachedPublicRelayResults, cachedPublicResults, cachedPublicRouteIndex } from "../../../../lib/public-race-data";
+import { cachedPublicRadio, cachedPublicRelayResults, cachedPublicResults, cachedPublicRouteIndex, exactPublicRaceVersion } from "../../../../lib/public-race-data";
 import { db } from "../../../../lib/db";
 import { SplitAnalysis } from "../../../../components/split-analysis/split-analysis";
 import { splitAnalysisSv } from "../../../../i18n/split-analysis-sv";
@@ -17,15 +17,16 @@ export const dynamic = "force-dynamic";
 export default async function SplitAnalysisPage({ params, searchParams }: {
   params: Promise<{ raceId: string }>; searchParams: Promise<{ class?: string | string[] }>;
 }) {
-  const [{ raceId }, query] = await Promise.all([params, searchParams]);
+  const [{ raceId }, query, language] = await Promise.all([params, searchParams, currentLanguage()]);
   const access = await requirePublicRace(raceId);
+  const version = exactPublicRaceVersion(raceId);
+  const shared = { exact: true, knownVersion: version };
   const [summary, results, relay, routes, radio] = await Promise.all([publicRaceSummary(db, raceId),
-    cachedPublicResults(raceId, { exact: true }).then(entry => entry.value),
-    cachedPublicRelayResults(raceId, { exact: true }).then(entry => entry.value),
+    cachedPublicResults(raceId, shared).then(entry => entry.value),
+    cachedPublicRelayResults(raceId, shared).then(entry => entry.value),
     cachedPublicRouteIndex(raceId, { exact: true }).then(entry => entry.value),
-    cachedPublicRadio(raceId, { exact: true }).then(entry => entry.value)]);
+    cachedPublicRadio(raceId, shared).then(entry => entry.value)]);
   const className = typeof query.class === "string" ? query.class : null;
-  const language = await currentLanguage();
   const text = language === "en" ? splitAnalysisEn : splitAnalysisSv;
   // Samma SSR-gräns som /results/[raceId]: en stor tävling (> 400 rader) hämtas via det cachade API:et i stället för 7 MB HTML.
   const inline = publicPageRows(results, relay) <= PUBLIC_PAGE_INLINE_ROWS;

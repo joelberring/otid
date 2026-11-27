@@ -41,7 +41,10 @@ export * from "./public-result-event-stream";
 export * from "./stored-result-revision";
 export * from "./snapshot";
 export * from "./entry-start-time";
-export * from "./start-draw";
+export {
+  commitStartDrawAsAdmin, loadStartDrawSetupAsAdmin, previewStartDrawAsAdmin,
+  type StartDrawCommitResult, type StartDrawPreviewResult, type StartDrawSetupResult
+} from "./start-draw";
 export * from "./entry-card";
 export * from "./entry-registration";
 export * from "./start-list-publication";

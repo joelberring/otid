@@ -96,7 +96,9 @@ export const resultRevisions = pgTable("result_revision", {
     .on(table.id, table.shortenedCourseClassTransferId, table.raceId, table.entryId, table.revision),
   index("result_revision_public_idx").on(table.raceId, table.published),
   // Översynen 2026-11-02 (migration 0038, CONCURRENTLY).
-  index("result_revision_readout_idx").on(table.readoutId).where(sql`${table.readoutId} IS NOT NULL`)
+  index("result_revision_readout_idx").on(table.readoutId).where(sql`${table.readoutId} IS NOT NULL`),
+  // Etapp P5A (migration 0148, CONCURRENTLY).
+  index("result_revision_race_published_created_idx").on(table.raceId, table.createdAt.desc()).where(sql`${table.published}`)
 ]);
 
 /**

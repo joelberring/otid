@@ -13,6 +13,30 @@ import { hideUnstartedVariants, loadPublicVariantPolicy } from "./public-before-
 const MAX_CLASSES = 1000, MAX_ENTRIES = 10000;
 type Auth = RaceSessionProof;
 type Row = typeof schema.startListPublications.$inferSelect;
+const previewLatestColumns = {
+    revision: schema.startListPublications.revision,
+    action: schema.startListPublications.action,
+    decidedAt: schema.startListPublications.decidedAt,
+    sourceSnapshotVersion: schema.startListPublications.sourceSnapshotVersion,
+    sourceHash: schema.startListPublications.sourceHash
+};
+const decisionColumns = {
+    id: schema.startListPublications.id,
+    raceId: schema.startListPublications.raceId,
+    requestId: schema.startListPublications.requestId,
+    ...previewLatestColumns
+};
+const idempotencyColumns = {
+    ...decisionColumns,
+    actorAccountId: schema.startListPublications.actorAccountId,
+    intent: schema.startListPublications.intent
+};
+const lastDecisionColumns = {
+    revision: schema.startListPublications.revision,
+    action: schema.startListPublications.action,
+    sourceHash: schema.startListPublications.sourceHash
+};
+type DecisionRow = Pick<Row, "raceId" | "requestId" | "revision" | "action" | "decidedAt" | "sourceSnapshotVersion" | "sourceHash">;
 class SourceProjectionError extends Error {
 }
 const cmp = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
@@ -144,7 +168,7 @@ async function projection(tx: DbExecutor, race: {
         })
     };
 }
-function out(row: Row, replayed: boolean) {
+function out(row: DecisionRow, replayed: boolean) {
     return startListPublicationResponseSchema.parse({
         formatVersion: 1, raceId: row.raceId, requestId: row.requestId, replayed, revision: row.revision, action: row.action, decidedAt: row.decidedAt.toISOString(), sourceSnapshotVersion: row.sourceSnapshotVersion, sourceHash: row.sourceHash
     });
@@ -161,7 +185,7 @@ export async function getStartListPublicationPreviewAsAdmin(db: Database, input:
             return {
                 status: "not-found" as const
             };
-        const [latest] = await tx.select().from(schema.startListPublications).where(eq(schema.startListPublications.raceId, input.raceId)).orderBy(desc(schema.startListPublications.revision)).limit(1);
+        const [latest] = await tx.select(previewLatestColumns).from(schema.startListPublications).where(eq(schema.startListPublications.raceId, input.raceId)).orderBy(desc(schema.startListPublications.revision)).limit(1);
         try {
             const s = await projection(tx, race);
             return {
@@ -226,7 +250,7 @@ export async function decideStartListPublicationAsAdmin(db: Database, input: Aut
                 status: "not-found" as const
             };
         await tx.execute(sql `select pg_advisory_xact_lock(hashtextextended(${id},0))`);
-        const [old] = await tx.select().from(schema.startListPublications).where(eq(schema.startListPublications.requestId, id));
+        const [old] = await tx.select(idempotencyColumns).from(schema.startListPublications).where(eq(schema.startListPublications.requestId, id));
         if (old) {
             const oi = startListPublicationRequestSchema.safeParse(old.intent);
             if (old.raceId !== input.raceId || old.actorAccountId !== a.principal.accountId || !oi.success || JSON.stringify(oi.data) !== JSON.stringify(r.data))
@@ -237,7 +261,7 @@ export async function decideStartListPublicationAsAdmin(db: Database, input: Aut
                 status: "decided" as const, response: out(old, true)
             };
         }
-        const [last] = await tx.select().from(schema.startListPublications).where(eq(schema.startListPublications.raceId, input.raceId)).orderBy(desc(schema.startListPublications.revision)).limit(1);
+        const [last] = await tx.select(lastDecisionColumns).from(schema.startListPublications).where(eq(schema.startListPublications.raceId, input.raceId)).orderBy(desc(schema.startListPublications.revision)).limit(1);
         const rev = last?.revision ?? 0;
         if (rev >= 2147483647)
             return {
@@ -268,7 +292,7 @@ export async function decideStartListPublicationAsAdmin(db: Database, input: Aut
         const [saved] = await tx.insert(schema.startListPublications).values({
             iofStartListXml,
             requestId: id, raceId: race.id, actorAccountId: a.principal.accountId, revision: rev + 1, action: r.data.action, intent: r.data, sourceSnapshotVersion: race.snapshotVersion, sourceHash: hash, content, decidedAt: now
-        }).returning();
+        }).returning(decisionColumns);
         if (!saved)
             throw new Error("Beslut saknas");
         await tx.insert(schema.auditEvents).values({

@@ -16,4 +16,11 @@ describe("index som byggs utan lås", () => {
   it("kräver IF NOT EXISTS så att en omkörning är ofarlig", () => {
     expect(() => splitConcurrentIndexes("CREATE INDEX CONCURRENTLY a_idx ON a (b);")).toThrow(/IF NOT EXISTS/);
   });
+
+  it("0148_prestandaindex lyfter ut alla 11 CONCURRENTLY-index utan kvarvarande DDL", () => {
+    const file = readFileSync(new URL("../migrations/0148_prestandaindex.sql", import.meta.url), "utf8");
+    const split = splitConcurrentIndexes(file);
+    expect(split.concurrent).toHaveLength(11);
+    expect(split.rest.replace(/--[^\n]*/g, "").trim()).toBe("");
+  });
 });

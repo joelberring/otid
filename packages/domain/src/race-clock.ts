@@ -1,9 +1,32 @@
+const MAX_FORMATTER_CACHE = 128;
+const dateTimeFormatters = new Map<string, Intl.DateTimeFormat>();
+
+function cachedFormatter(key: string, options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  let formatter = dateTimeFormatters.get(key);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat("sv-SE", options);
+    if (dateTimeFormatters.size >= MAX_FORMATTER_CACHE) dateTimeFormatters.delete(dateTimeFormatters.keys().next().value!);
+    dateTimeFormatters.set(key, formatter);
+  }
+  return formatter;
+}
+
 /** Väggklockan i tidszonen för ett ögonblick, uttryckt som om den vore UTC (ms). */
 function wallClock(ms: number, timeZone: string): number {
-  const parts = new Intl.DateTimeFormat("sv-SE", { timeZone, year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).formatToParts(new Date(ms));
-  const value = (type: string) => Number(parts.find(part => part.type === type)?.value);
-  return Date.UTC(value("year"), value("month") - 1, value("day"), value("hour"), value("minute"), value("second"));
+  const parts = cachedFormatter(`wall:${timeZone}`, {
+    timeZone, year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23"
+  }).formatToParts(new Date(ms));
+  let year = 0, month = 0, day = 0, hour = 0, minute = 0, second = 0;
+  for (const part of parts) {
+    if (part.type === "year") year = Number(part.value);
+    else if (part.type === "month") month = Number(part.value);
+    else if (part.type === "day") day = Number(part.value);
+    else if (part.type === "hour") hour = Number(part.value);
+    else if (part.type === "minute") minute = Number(part.value);
+    else if (part.type === "second") second = Number(part.value);
+  }
+  return Date.UTC(year, month - 1, day, hour, minute, second);
 }
 
 /**
@@ -44,9 +67,14 @@ export function parseRaceClock(date: string, clock: string, timeZone: string): s
 
 /** Tävlingsdagens datum i tävlingens tidszon för ett ögonblick, som "ÅÅÅÅ-MM-DD". */
 export function localRaceDate(instant: Date, timeZone: string): string {
-  const parts = new Intl.DateTimeFormat("sv-SE", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(instant);
-  const value = (type: string) => parts.find(part => part.type === type)?.value ?? "";
-  return `${value("year")}-${value("month")}-${value("day")}`;
+  const parts = cachedFormatter(`date:${timeZone}`, { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(instant);
+  let year = "", month = "", day = "";
+  for (const part of parts) {
+    if (part.type === "year") year = part.value;
+    else if (part.type === "month") month = part.value;
+    else if (part.type === "day") day = part.value;
+  }
+  return `${year}-${month}-${day}`;
 }
 
 /**
@@ -121,8 +149,9 @@ function addDays(date: string, days: number): string {
 export function moveToRaceDate(instant: Date, fromDate: string, toDate: string, timeZone: string): Date | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(fromDate) || !/^\d{4}-\d{2}-\d{2}$/.test(toDate) || !Number.isFinite(instant.getTime())) return null;
   const localDate = localRaceDate(instant, timeZone);
-  const clock = new Intl.DateTimeFormat("sv-SE", { timeZone, hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" })
-    .format(instant);
+  const clock = cachedFormatter(`time:${timeZone}`, {
+    timeZone, hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23"
+  }).format(instant);
   const targetDate = addDays(toDate, daysBetween(fromDate, localDate));
   const moved = parseRaceClock(targetDate, clock, timeZone);
   if (moved) return new Date(Date.parse(moved) + instant.getMilliseconds());

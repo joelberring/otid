@@ -69,8 +69,22 @@ export function sortRaceSnapshotForPackage(snapshot: RaceSnapshot) {
  */
 export type RaceSnapshotScope = { readonly cardNumber?: string; readonly entryIds?: readonly string[] };
 
+const snapshotEntryColumns = {
+  id: schema.entries.id,
+  raceId: schema.entries.raceId,
+  classId: schema.entries.classId,
+  givenName: schema.entries.givenName,
+  familyName: schema.entries.familyName,
+  organisationName: schema.entries.organisationName,
+  fixedStartTime: schema.entries.fixedStartTime,
+  courseVariantCode: schema.entries.courseVariantCode,
+  teamId: schema.entries.teamId,
+  relayLeg: schema.entries.relayLeg,
+  externalId: schema.entries.externalId
+};
+
 /** Deltagarna i `scope` med lagkamrater (inte strukna), eller undefined för hela tävlingen. */
-async function scopedEntryIds(db: DbExecutor, raceId: string, scope: RaceSnapshotScope | undefined): Promise<string[] | undefined> {
+async function loadScopedEntries(db: DbExecutor, raceId: string, scope: RaceSnapshotScope | undefined) {
   if (!scope) return undefined;
   const seeds = new Set(scope.entryIds ?? []);
   if (scope.cardNumber !== undefined) {
@@ -81,18 +95,28 @@ async function scopedEntryIds(db: DbExecutor, raceId: string, scope: RaceSnapsho
   const ids = [...seeds];
   const team = db.select({ teamId: schema.entries.teamId }).from(schema.entries)
     .where(and(inUuids(schema.entries.id, ids), isNotNull(schema.entries.teamId)));
-  const rows = await db.select({ id: schema.entries.id }).from(schema.entries)
+  return db.select(snapshotEntryColumns).from(schema.entries)
     .where(and(eq(schema.entries.raceId, raceId), isNull(schema.entries.struckAt),
-      or(inUuids(schema.entries.id, ids), inArray(schema.entries.teamId, team))));
-  return rows.map((row) => row.id);
+      or(inUuids(schema.entries.id, ids), inArray(schema.entries.teamId, team))))
+    .orderBy(asc(schema.entries.id));
 }
 
 export async function loadRaceSnapshot(db: DbExecutor, raceId: string, scope?: RaceSnapshotScope): Promise<RaceSnapshot> {
-  const scoped = await scopedEntryIds(db, raceId, scope);
-  const [raceRow] = await db.select().from(schema.races).where(eq(schema.races.id, raceId));
+  const scopedEntries = await loadScopedEntries(db, raceId, scope);
+  const scoped = scopedEntries?.map((row) => row.id);
+  const [raceRow] = await db.select({
+    id: schema.races.id,
+    eventId: schema.races.eventId,
+    name: schema.races.name,
+    raceDate: schema.races.raceDate,
+    snapshotVersion: schema.races.snapshotVersion,
+    raceType: schema.races.raceType,
+    eventExists: schema.events.id
+  }).from(schema.races)
+    .leftJoin(schema.events, eq(schema.events.id, schema.races.eventId))
+    .where(eq(schema.races.id, raceId));
   if (!raceRow) throw new Error("Loppet finns inte");
-  const [eventRow] = await db.select().from(schema.events).where(eq(schema.events.id, raceRow.eventId));
-  if (!eventRow) throw new Error("Evenemanget finns inte");
+  if (!raceRow.eventExists) throw new Error("Evenemanget finns inte");
 
   // Uttryckliga kolumner: paketet behöver bara dessa (och en äldre databas under uppgradering saknar senare kolumner).
   const classRows = await db.select({ id: schema.classes.id, raceId: schema.classes.raceId, name: schema.classes.name,
@@ -102,10 +126,29 @@ export async function loadRaceSnapshot(db: DbExecutor, raceId: string, scope?: R
     externalId: schema.classes.externalId }).from(schema.classes)
     .where(eq(schema.classes.raceId, raceId))
     .orderBy(asc(schema.classes.id));
+  // Steg 47/48: stafettsträckor med egen bana och ev. teamsprintläge; för icke-stafett kollas `relay_leg.leg` först
+  // så att en äldre databas under uppgradering (steg 28, före 0021/0024) inte frågar efter senare kolumner.
+  const hasRelayLegs = raceRow.raceType === "RELAY" || (await db.select({ leg: schema.relayLegs.leg }).from(schema.relayLegs)
+    .where(eq(schema.relayLegs.raceId, raceId)).limit(1))[0] !== undefined;
+  const legCourseRows = !hasRelayLegs ? [] : await db.select({
+    classId: schema.relayLegs.classId,
+    leg: schema.relayLegs.leg,
+    courseVersionId: schema.relayLegs.courseVersionId,
+    fixedVariant: schema.relayLegs.courseVariantCode,
+    relayReadoutMode: schema.classes.relayReadoutMode
+  }).from(schema.relayLegs)
+    .innerJoin(schema.classes, eq(schema.classes.id, schema.relayLegs.classId))
+    .where(eq(schema.relayLegs.raceId, raceId));
+  const referencedVersionIds = scope
+    ? [...new Set([
+        ...classRows.map((row) => row.courseVersionId),
+        ...legCourseRows.flatMap((row) => row.courseVersionId ? [row.courseVersionId] : [])
+      ])]
+    : undefined;
   const courseRows = await db.select().from(schema.courses)
     .where(eq(schema.courses.raceId, raceId))
     .orderBy(asc(schema.courses.id));
-  const versionRows = await db.select({
+  const versionRows = referencedVersionIds && referencedVersionIds.length === 0 ? [] : await db.select({
     id: schema.courseVersions.id,
     courseId: schema.courseVersions.courseId,
     version: schema.courseVersions.version,
@@ -113,13 +156,15 @@ export async function loadRaceSnapshot(db: DbExecutor, raceId: string, scope?: R
     createdAt: schema.courseVersions.createdAt
   }).from(schema.courseVersions)
     .innerJoin(schema.courses, eq(schema.courseVersions.courseId, schema.courses.id))
-    .where(eq(schema.courses.raceId, raceId))
+    .where(and(eq(schema.courses.raceId, raceId),
+      ...(referencedVersionIds ? [inUuids(schema.courseVersions.id, referencedVersionIds)] : [])))
     .orderBy(
       asc(schema.courseVersions.courseId),
       asc(schema.courseVersions.version),
       asc(schema.courseVersions.id)
     );
-  const courseControlRows = await db.select({
+  const versionIds = versionRows.map((row) => row.id);
+  const courseControlRows = versionIds.length === 0 ? [] : await db.select({
     id: schema.courseControls.id,
     courseVersionId: schema.courseControls.courseVersionId,
     controlId: schema.courseControls.controlId,
@@ -128,23 +173,19 @@ export async function loadRaceSnapshot(db: DbExecutor, raceId: string, scope?: R
     points: schema.controls.points
   }).from(schema.courseControls)
     .innerJoin(schema.controls, eq(schema.courseControls.controlId, schema.controls.id))
-    .innerJoin(schema.courseVersions, eq(schema.courseControls.courseVersionId, schema.courseVersions.id))
-    .innerJoin(schema.courses, eq(schema.courseVersions.courseId, schema.courses.id))
-    .where(eq(schema.courses.raceId, raceId))
+    .where(inUuids(schema.courseControls.courseVersionId, versionIds))
     .orderBy(
       asc(schema.courseControls.courseVersionId),
       asc(schema.courseControls.sequence),
       asc(schema.courseControls.id)
     );
-  const variantRows = await db.select({
+  const variantRows = versionIds.length === 0 ? [] : await db.select({
     id: schema.courseVariants.id,
     courseVersionId: schema.courseVariants.courseVersionId,
     code: schema.courseVariants.code,
     sequence: schema.courseVariants.sequence
   }).from(schema.courseVariants)
-    .innerJoin(schema.courseVersions, eq(schema.courseVariants.courseVersionId, schema.courseVersions.id))
-    .innerJoin(schema.courses, eq(schema.courseVersions.courseId, schema.courses.id))
-    .where(eq(schema.courses.raceId, raceId))
+    .where(inUuids(schema.courseVariants.courseVersionId, versionIds))
     .orderBy(asc(schema.courseVariants.courseVersionId), asc(schema.courseVariants.sequence));
   const variantControlRows = variantRows.length === 0 ? [] : await db.select({
     id: schema.courseVariantControls.id,
@@ -154,34 +195,28 @@ export async function loadRaceSnapshot(db: DbExecutor, raceId: string, scope?: R
     controlCode: schema.controls.code
   }).from(schema.courseVariantControls)
     .innerJoin(schema.controls, eq(schema.courseVariantControls.controlId, schema.controls.id))
-    .innerJoin(schema.courseVariants, eq(schema.courseVariantControls.courseVariantId, schema.courseVariants.id))
-    .innerJoin(schema.courseVersions, eq(schema.courseVariants.courseVersionId, schema.courseVersions.id))
-    .innerJoin(schema.courses, eq(schema.courseVersions.courseId, schema.courses.id))
-    .where(eq(schema.courses.raceId, raceId))
+    .where(inUuids(schema.courseVariantControls.courseVariantId, variantRows.map((row) => row.id)))
     .orderBy(asc(schema.courseVariantControls.courseVariantId), asc(schema.courseVariantControls.sequence));
   // Strukna deltagare (PLAN.md steg 27) finns inte i paketet; deras bricka är släppt.
-  const entryRows = await db.select({ id: schema.entries.id, raceId: schema.entries.raceId, classId: schema.entries.classId,
-    givenName: schema.entries.givenName, familyName: schema.entries.familyName, organisationName: schema.entries.organisationName,
-    fixedStartTime: schema.entries.fixedStartTime, courseVariantCode: schema.entries.courseVariantCode, teamId: schema.entries.teamId,
-    relayLeg: schema.entries.relayLeg, externalId: schema.entries.externalId }).from(schema.entries)
-    .where(and(eq(schema.entries.raceId, raceId), isNull(schema.entries.struckAt),
-      ...(scoped ? [inUuids(schema.entries.id, scoped)] : [])))
+  const entryRows = scopedEntries ?? await db.select(snapshotEntryColumns).from(schema.entries)
+    .where(and(eq(schema.entries.raceId, raceId), isNull(schema.entries.struckAt)))
     .orderBy(asc(schema.entries.id));
-  // Steg 47: stafettsträckor med egen bana; sträcklöparen bär banan i paketet.
-  const [anyLeg] = await db.select({ leg: schema.relayLegs.leg }).from(schema.relayLegs).where(eq(schema.relayLegs.raceId, raceId)).limit(1);
-  const legCourseRows = !anyLeg ? [] : await db.select({ classId: schema.relayLegs.classId, leg: schema.relayLegs.leg,
-    courseVersionId: schema.relayLegs.courseVersionId, fixedVariant: schema.relayLegs.courseVariantCode }).from(schema.relayLegs)
-    .where(eq(schema.relayLegs.raceId, raceId));
   const legCourse = new Map(legCourseRows.flatMap((row) => row.courseVersionId ? [[`${row.classId}:${row.leg}`, row.courseVersionId] as const] : []));
   // Sträckans fasta variant gäller en sträcklöpare som saknar egen (som Kartor till starten).
   const legFixedVariant = new Map(legCourseRows.flatMap((row) => row.fixedVariant ? [[`${row.classId}:${row.leg}`, row.fixedVariant] as const] : []));
   // Steg 48: teamsprint – varje sträcklöpares del av brickan (löparens sträckor i ordning, växlingskontrollen).
-  const teamSprint = !anyLeg ? new Map<string, NonNullable<RaceSnapshot["entries"][number]["teamSprint"]>>()
+  const hasTeamSprint = legCourseRows.some((row) => row.relayReadoutMode !== null);
+  const teamSprint = !hasTeamSprint
+    ? new Map<string, NonNullable<RaceSnapshot["entries"][number]["teamSprint"]>>()
     : await loadTeamSprintParts(db, raceId, scoped);
-  const assignmentRows = await db.select().from(schema.cardAssignments)
-    .where(and(eq(schema.cardAssignments.raceId, raceId), ...(scoped ? [scope?.cardNumber !== undefined
-      ? or(inUuids(schema.cardAssignments.entryId, scoped), eq(schema.cardAssignments.cardNumber, scope.cardNumber))!
-      : inUuids(schema.cardAssignments.entryId, scoped)] : [])))
+  const assignmentRows = scoped !== undefined && scoped.length === 0 && scope?.cardNumber === undefined ? [] : await db.select().from(schema.cardAssignments)
+    .where(and(eq(schema.cardAssignments.raceId, raceId), ...(scoped ? [
+      scoped.length === 0
+        ? eq(schema.cardAssignments.cardNumber, scope!.cardNumber!)
+        : scope?.cardNumber !== undefined
+          ? or(inUuids(schema.cardAssignments.entryId, scoped), eq(schema.cardAssignments.cardNumber, scope.cardNumber))!
+          : inUuids(schema.cardAssignments.entryId, scoped)
+    ] : [])))
     .orderBy(asc(schema.cardAssignments.id));
   const correctionRows = await db.select().from(schema.raceStationCorrections)
     .where(and(eq(schema.raceStationCorrections.raceId, raceId), isNull(schema.raceStationCorrections.removedAt)))
@@ -191,6 +226,31 @@ export async function loadRaceSnapshot(db: DbExecutor, raceId: string, scope?: R
     : []);
   const controlsOutOfOrder = correctionRows.flatMap((row) => row.kind === "CONTROL_OUT_OF_ORDER" && row.controlCode !== null
     ? [{ id: row.id, controlCode: row.controlCode }] : []);
+
+  const versionsByCourse = new Map<string, typeof versionRows>();
+  for (const version of versionRows) {
+    let list = versionsByCourse.get(version.courseId);
+    if (!list) { list = []; versionsByCourse.set(version.courseId, list); }
+    list.push(version);
+  }
+  const controlsByVersion = new Map<string, typeof courseControlRows>();
+  for (const control of courseControlRows) {
+    let list = controlsByVersion.get(control.courseVersionId);
+    if (!list) { list = []; controlsByVersion.set(control.courseVersionId, list); }
+    list.push(control);
+  }
+  const variantsByVersion = new Map<string, typeof variantRows>();
+  for (const variant of variantRows) {
+    let list = variantsByVersion.get(variant.courseVersionId);
+    if (!list) { list = []; variantsByVersion.set(variant.courseVersionId, list); }
+    list.push(variant);
+  }
+  const controlsByVariant = new Map<string, typeof variantControlRows>();
+  for (const control of variantControlRows) {
+    let list = controlsByVariant.get(control.courseVariantId);
+    if (!list) { list = []; controlsByVariant.set(control.courseVariantId, list); }
+    list.push(control);
+  }
 
   return sortRaceSnapshotForPackage({
     race: {
@@ -218,10 +278,10 @@ export async function loadRaceSnapshot(db: DbExecutor, raceId: string, scope?: R
       raceId: course.raceId,
       name: course.name,
       ...(course.externalId ? { externalIdentity: { source: "iof" as const, externalId: course.externalId } } : {}),
-      versions: versionRows.filter((version) => version.courseId === course.id).map((version) => {
-        const variants = variantRows.filter((variant) => variant.courseVersionId === version.id).map((variant) => ({
+      versions: (versionsByCourse.get(course.id) ?? []).map((version) => {
+        const variants = (variantsByVersion.get(version.id) ?? []).map((variant) => ({
           ...variant,
-          controls: variantControlRows.filter((control) => control.courseVariantId === variant.id)
+          controls: controlsByVariant.get(variant.id) ?? []
         }));
         return {
           id: version.id,
@@ -229,7 +289,7 @@ export async function loadRaceSnapshot(db: DbExecutor, raceId: string, scope?: R
           version: version.version,
           createdAt: version.createdAt.toISOString(),
           // Ändrade rogainingpoäng följer med; NULL betyder förvalet.
-          controls: courseControlRows.filter((control) => control.courseVersionId === version.id)
+          controls: (controlsByVersion.get(version.id) ?? [])
             .map(({ points, ...control }) => points === null ? control : { ...control, points }),
           ...(variants.length > 0 ? { variants } : {}),
           // ADR-0198: bortvalda varianter för avläsningens besked.
@@ -292,7 +352,9 @@ export async function loadTeamSprintParts(db: DbExecutor, raceId: string, entryI
   const byRunner = new Map<string, typeof rows>();
   for (const row of rows) {
     const key = row.cardEntryId ?? row.id;
-    byRunner.set(key, [...byRunner.get(key) ?? [], row]);
+    let list = byRunner.get(key);
+    if (!list) { list = []; byRunner.set(key, list); }
+    list.push(row);
   }
   for (const legs of byRunner.values()) {
     const sorted = [...legs].sort((left, right) => (left.leg ?? 0) - (right.leg ?? 0));

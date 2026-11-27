@@ -1,4 +1,4 @@
-import { ingestReadoutsAsAdmin, readReadoutPackageAsAdmin, requireRaceRole } from "@o-tid/application";
+import { ingestReadoutsAsAdmin, readReadoutPackageAsAdmin, requireRaceRole, type RacePrincipal } from "@o-tid/application";
 import { deviceBatchAcknowledgementSchema, deviceBatchSchema, readoutPackageSchema, type DeviceBatchAcknowledgement } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
 import { DeviceBatchRequestError, readBoundedDeviceBatchJson } from "./readout-batch-body";
@@ -11,6 +11,7 @@ import {
   sessionProof
 } from "./security-policy";
 import { principalAllows, raceRoleFor } from "./race-roles";
+import { bumpReadoutGeneration } from "./race-change-generation";
 import { UUID_PATTERN as uuid } from "@o-tid/contracts";
 import { retryTransactionConflicts } from "./read-conflict";
 import { isDatabaseUnavailable, logServerError } from "./server-error-log";
@@ -57,7 +58,7 @@ export async function readoutPackageRoute(db: Database, request: Request, raceId
     const auth = await dependencies.authenticate(db, { ...proof, raceId, role });
     if (auth.status !== "authenticated") return authFailure(auth.status);
     if (!principalAllows(auth.principal, raceId, role)) return authFailure("forbidden");
-    const result = await dependencies.readPackage(db, { ...proof, raceId });
+    const result = await dependencies.readPackage(db, { ...proof, raceId, authorized: auth.principal });
     if (result.status !== "ok") return authFailure(result.status);
     return json(readoutPackageSchema.parse(result.response));
   } catch (error) {
@@ -74,11 +75,13 @@ export async function readoutIngestRoute(db: Database, request: Request, raceId:
   try { configured = policy(environment); } catch (error) { logServerError("readout", "security-policy", error); return failure(500, "INTERNAL_ERROR"); }
   if (!hasExpectedOrigin(request, configured)) return failure(403, "FORBIDDEN");
   const proof = sessionProof(request, configured, true);
+  let principal: RacePrincipal;
   try {
     const role = raceRoleFor("readouts", request.method);
     const auth = await dependencies.authenticate(db, { ...proof, raceId, role, requireCsrf: true });
     if (auth.status !== "authenticated") return authFailure(auth.status);
     if (!principalAllows(auth.principal, raceId, role)) return authFailure("forbidden");
+    principal = auth.principal;
   } catch (error) {
     logServerError("readout", "authenticate", error);
     return unavailableOrFailure(error);
@@ -95,8 +98,9 @@ export async function readoutIngestRoute(db: Database, request: Request, raceId:
   try {
     // Översynen 2026-11-02: mottagningen är idempotent (enhet, löpnummer, hash). En transaktion som PostgreSQL avbröt
     // (40001, 40P01) görs om i databaspoolen (`createDatabase`); kvarstår felet görs hela mottagningen om en gång till här.
-    const result = await retryTransactionConflicts(() => dependencies.ingest(db, { ...proof, raceId, batch: parsed.data }));
+    const result = await retryTransactionConflicts(() => dependencies.ingest(db, { ...proof, raceId, batch: parsed.data, authorized: principal }));
     if (result.status !== "ok") return authFailure(result.status);
+    if (result.response.acknowledgements.some(ack => ack.status !== "rejected")) bumpReadoutGeneration(raceId);
     return json(deviceBatchAcknowledgementSchema.parse(await dependencies.place(db, raceId, result.response)));
   } catch (error) {
     logServerError("readout", "ingest", error);

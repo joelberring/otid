@@ -52,19 +52,24 @@ const RECENT_FIRST = 8;
  * Sidan renderas vid varje förfrågan (`force-dynamic`), så målningen byts när veckan byts.
  */
 export default async function Home({ searchParams }: { searchParams: Promise<Query> }) {
-  const query = await searchParams;
-  const language = await currentLanguage();
+  const [query, language, token, requestHeaders] = await Promise.all([
+    searchParams, currentLanguage(), accountSessionToken(), headers()
+  ]);
   const text = language === "en" ? publicHomeEn : publicRaceSv.home;
   const search = typeof query.q === "string" ? query.q.trim().slice(0, 100) : "";
   const requested = typeof query.fler === "string" ? Number.parseInt(query.fler, 10) : NaN;
   const recentLimit = Number.isFinite(requested) ? Math.min(Math.max(requested, RECENT_FIRST), PUBLIC_RECENT_MAX) : RECENT_FIRST;
-  const token = await accountSessionToken();
   // Besöksstatistiken (ägaren 2026-11-22): besökare utan inloggning, räknas efter svaret.
-  if (!token) countVisit("HOME", await headers());
-  const [listing, account, news] = await Promise.all([listPublicRaces(db, { search, recentLimit }),
-    token ? authenticateUserAccountSession(db, { sessionToken: token }) : undefined, homeNewsFor(token)]);
+  if (!token) countVisit("HOME", requestHeaders);
+  const [listing, account, news, personalResult] = await Promise.all([
+    listPublicRaces(db, { search, recentLimit }),
+    token ? authenticateUserAccountSession(db, { sessionToken: token }) : undefined,
+    homeNewsFor(token),
+    // Vid sökning visas inte "Ditt O-Tid", så hoppa över personalFor helt och kör annars parallellt mot poolen.
+    token && !search ? personalFor(token) : undefined
+  ]);
   const signedIn = account?.status === "authenticated";
-  const personal = signedIn && token ? await personalFor(token) : undefined;
+  const personal = signedIn ? personalResult : undefined;
   const film = introFilmUrl(process.env, language), mapFilm = mapFilmUrl(process.env, language);
   const today = todayIn("Europe/Stockholm");
   const painting = signedIn ? paintingOfTheWeek(new Date()) : undefined;
@@ -92,7 +97,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Que
       </div>
     </header>
     <main className={start.page} suppressHydrationWarning>
-      <AppMark nonce={(await headers()).get("x-nonce") ?? undefined} />
+      <AppMark nonce={requestHeaders.get("x-nonce") ?? undefined} />
       <div className={start.lead}>
         <h1>{text.title}</h1>
         <p className={start.intro}>{text.intro}</p>

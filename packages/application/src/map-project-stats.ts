@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { MapProjectLeaderboardRow, MapProjectStatsView, MapStatsSummary, MyMapStatsView } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { addStats, coveredHectares, earnedBadges, EMPTY_STATS, nightStart, type MapStats, type StoredTrackPoint } from "@o-tid/map-revision";
@@ -6,6 +6,8 @@ import type { ClubFailure, ClubProof } from "./club-access";
 import { requireMapProject } from "./map-project-access";
 import { authenticateUserAccountSessionForMutation, authenticateUserAccountSessionForProtectedRead } from "./user-account";
 import type { DbExecutor } from "./snapshot";
+import { inUuids } from "./sql-ids";
+import { UUID_PATTERN } from "./serialization";
 
 /**
  * ADR-0219 tillägget om spelifieringen (K3b): statistiken och de frivilliga topplistorna. Allt räknas ur det som finns:
@@ -36,57 +38,126 @@ function bump(map: PerAccount, accountId: string | null, change: Partial<MapStat
   map.set(accountId, next);
 }
 
-/** Statistiken per konto i ett projekt (för de konton som gjort något). */
-async function projectStats(tx: DbExecutor, projectId: string, range: Range, accounts?: readonly string[]): Promise<PerAccount> {
-  const out: PerAccount = new Map();
-  const only = (column: Parameters<typeof sql>[1]) => accounts ? (accounts.length ? sql`${column} in (${sql.join(accounts.map(id => sql`${id}::uuid`), sql`, `)})` : sql`false`) : sql`true`;
-  const edits = await tx.execute<{ account: string; kind: string; total: string }>(sql`select e.author_account_id as account, e.kind, count(*) as total
+/** Statistiken per projekt och konto (för de projekt/konton som gjort något), batchad utan N+1. */
+async function projectStatsMany(
+  tx: DbExecutor,
+  projectIds: readonly string[],
+  range: Range,
+  accounts?: readonly string[]
+): Promise<Map<string, PerAccount>> {
+  const uniqueProjects = [...new Set(projectIds)];
+  const byProject = new Map<string, PerAccount>();
+  if (uniqueProjects.length === 0 || (accounts && accounts.length === 0)) return byProject;
+  const projectMap = (projectId: string): PerAccount => {
+    let map = byProject.get(projectId);
+    if (!map) { map = new Map(); byProject.set(projectId, map); }
+    return map;
+  };
+  const uuidLiteral = (ids: readonly string[]) => {
+    for (const id of ids) if (!UUID_PATTERN.test(id)) throw new Error("Ogiltigt id i statistikurvalet");
+    return `{${ids.join(",")}}`;
+  };
+  const projectFilter = (column: Parameters<typeof sql>[1]) =>
+    uniqueProjects.length === 1
+      ? sql`${column} = ${uniqueProjects[0]}::uuid`
+      : sql`${column} = any(${uuidLiteral(uniqueProjects)}::uuid[])`;
+  const only = (column: Parameters<typeof sql>[1]) => accounts
+    ? (accounts.length === 1
+      ? sql`${column} = ${accounts[0]}::uuid`
+      : sql`${column} = any(${uuidLiteral(accounts)}::uuid[])`)
+    : sql`true`;
+
+  const edits = await tx.execute<{ project_id: string; account: string; kind: string; total: string }>(sql`
+    select e.project_id, e.author_account_id as account, e.kind, count(*) as total
     from map_project_edit e left join map_project_proposal p on p.id = e.proposal_id
-    where e.project_id = ${projectId} and e.status = 'APPLIED' and (p.source is null or p.source not in ('AI', 'IMPORT', 'PROCESS')) and ${within(sql`e.received_at`, range)}
-      and ${only(sql`e.author_account_id`)}
-    group by e.author_account_id, e.kind`);
+    where ${projectFilter(sql`e.project_id`)} and e.status = 'APPLIED'
+      and (p.source is null or p.source not in ('AI', 'IMPORT', 'PROCESS'))
+      and ${within(sql`e.received_at`, range)} and ${only(sql`e.author_account_id`)}
+    group by e.project_id, e.author_account_id, e.kind`);
   for (const row of edits.rows) {
     const count = Number(row.total);
-    if (row.kind === "ADD") bump(out, row.account, { added: count });
-    else if (row.kind === "DELETE") bump(out, row.account, { deleted: count });
-    else if (["MOVE", "RESHAPE", "SYMBOL", "TEXT"].includes(row.kind)) bump(out, row.account, { changed: count });
+    if (row.kind === "ADD") bump(projectMap(row.project_id), row.account, { added: count });
+    else if (row.kind === "DELETE") bump(projectMap(row.project_id), row.account, { deleted: count });
+    else if (["MOVE", "RESHAPE", "SYMBOL", "TEXT"].includes(row.kind)) bump(projectMap(row.project_id), row.account, { changed: count });
   }
-  const proposals = await tx.execute<{ account: string; total: string }>(sql`select author_account_id as account, count(*) as total
-    from map_project_proposal where project_id = ${projectId} and status = 'ACCEPTED' and source = 'PERSON' and ${within(sql`decided_at`, range)}
-      and ${only(sql`author_account_id`)} group by author_account_id`);
-  for (const row of proposals.rows) bump(out, row.account, { proposalsAccepted: Number(row.total) });
-  const checks = await tx.execute<{ account: string; total: string }>(sql`select account_id as account, count(*) as total from map_project_check
-    where project_id = ${projectId} and ${within(sql`checked_at`, range)} and ${only(sql`account_id`)} group by account_id`);
-  for (const row of checks.rows) bump(out, row.account, { checked: Number(row.total) });
-  const written = await tx.execute<{ account: string; total: string }>(sql`select account_id as account, count(*) as total from map_project_note
-    where project_id = ${projectId} and ${within(sql`created_at`, range)} and ${only(sql`account_id`)} group by account_id`);
-  for (const row of written.rows) bump(out, row.account, { notesWritten: Number(row.total) });
-  const resolved = await tx.execute<{ account: string; total: string }>(sql`select resolved_by as account, count(*) as total from map_project_note
-    where project_id = ${projectId} and status = 'DONE' and resolved_by is not null and ${within(sql`resolved_at`, range)} and ${only(sql`resolved_by`)}
-    group by resolved_by`);
-  for (const row of resolved.rows) bump(out, row.account, { notesResolved: Number(row.total) });
-  const areas = await tx.execute<{ account: string; total: string }>(sql`select assignee_account_id as account, count(*) as total from map_project_area
-    where project_id = ${projectId} and status = 'DONE' and assignee_account_id is not null and ${within(sql`updated_at`, range)}
-      and ${only(sql`assignee_account_id`)} group by assignee_account_id`);
-  for (const row of areas.rows) bump(out, row.account, { areasDone: Number(row.total) });
-  // Spåren: antal, km, timmar och natt per konto; rekad yta ur punkterna (överlapp en gång per person och projekt).
-  const tracks = await tx.select({ id: schema.mapProjectTracks.id, account: schema.mapProjectTracks.accountId, lengthM: schema.mapProjectTracks.lengthM,
-    startedAt: schema.mapProjectTracks.startedAt, endedAt: schema.mapProjectTracks.endedAt }).from(schema.mapProjectTracks)
-    .where(and(eq(schema.mapProjectTracks.projectId, projectId), within(schema.mapProjectTracks.createdAt, range), only(schema.mapProjectTracks.accountId)));
-  const byAccount = new Map<string, string[]>();
+  const proposals = await tx.execute<{ project_id: string; account: string; total: string }>(sql`
+    select project_id, author_account_id as account, count(*) as total
+    from map_project_proposal
+    where ${projectFilter(sql`project_id`)} and status = 'ACCEPTED' and source = 'PERSON'
+      and ${within(sql`decided_at`, range)} and ${only(sql`author_account_id`)}
+    group by project_id, author_account_id`);
+  for (const row of proposals.rows) bump(projectMap(row.project_id), row.account, { proposalsAccepted: Number(row.total) });
+  const checks = await tx.execute<{ project_id: string; account: string; total: string }>(sql`
+    select project_id, account_id as account, count(*) as total from map_project_check
+    where ${projectFilter(sql`project_id`)} and ${within(sql`checked_at`, range)} and ${only(sql`account_id`)}
+    group by project_id, account_id`);
+  for (const row of checks.rows) bump(projectMap(row.project_id), row.account, { checked: Number(row.total) });
+  const written = await tx.execute<{ project_id: string; account: string; total: string }>(sql`
+    select project_id, account_id as account, count(*) as total from map_project_note
+    where ${projectFilter(sql`project_id`)} and ${within(sql`created_at`, range)} and ${only(sql`account_id`)}
+    group by project_id, account_id`);
+  for (const row of written.rows) bump(projectMap(row.project_id), row.account, { notesWritten: Number(row.total) });
+  const resolved = await tx.execute<{ project_id: string; account: string; total: string }>(sql`
+    select project_id, resolved_by as account, count(*) as total from map_project_note
+    where ${projectFilter(sql`project_id`)} and status = 'DONE' and resolved_by is not null
+      and ${within(sql`resolved_at`, range)} and ${only(sql`resolved_by`)}
+    group by project_id, resolved_by`);
+  for (const row of resolved.rows) bump(projectMap(row.project_id), row.account, { notesResolved: Number(row.total) });
+  const areas = await tx.execute<{ project_id: string; account: string; total: string }>(sql`
+    select project_id, assignee_account_id as account, count(*) as total from map_project_area
+    where ${projectFilter(sql`project_id`)} and status = 'DONE' and assignee_account_id is not null
+      and ${within(sql`updated_at`, range)} and ${only(sql`assignee_account_id`)}
+    group by project_id, assignee_account_id`);
+  for (const row of areas.rows) bump(projectMap(row.project_id), row.account, { areasDone: Number(row.total) });
+  // Spåren: antal, km, timmar och natt per projekt och konto; rekad yta ur alla spårdelar i en enda fråga.
+  const tracks = await tx.select({
+    id: schema.mapProjectTracks.id,
+    projectId: schema.mapProjectTracks.projectId,
+    account: schema.mapProjectTracks.accountId,
+    lengthM: schema.mapProjectTracks.lengthM,
+    startedAt: schema.mapProjectTracks.startedAt,
+    endedAt: schema.mapProjectTracks.endedAt
+  }).from(schema.mapProjectTracks)
+    .where(and(
+      inUuids(schema.mapProjectTracks.projectId, uniqueProjects),
+      within(schema.mapProjectTracks.createdAt, range),
+      only(schema.mapProjectTracks.accountId)
+    ));
+  const tracksByProjectAccount = new Map<string, { projectId: string; account: string; ids: string[] }>();
   for (const track of tracks) {
     const hours = track.startedAt && track.endedAt ? Math.max(0, (track.endedAt.getTime() - track.startedAt.getTime()) / 3_600_000) : 0;
-    bump(out, track.account, { tracks: 1, km: track.lengthM / 1000, hours, night: nightStart(track.startedAt?.toISOString() ?? null) });
-    byAccount.set(track.account, [...(byAccount.get(track.account) ?? []), track.id]);
+    bump(projectMap(track.projectId), track.account, { tracks: 1, km: track.lengthM / 1000, hours, night: nightStart(track.startedAt?.toISOString() ?? null) });
+    const key = `${track.projectId}:${track.account}`;
+    let group = tracksByProjectAccount.get(key);
+    if (!group) { group = { projectId: track.projectId, account: track.account, ids: [] }; tracksByProjectAccount.set(key, group); }
+    group.ids.push(track.id);
   }
-  for (const [account, ids] of byAccount) {
+  if (tracks.length > 0) {
+    const allTrackIds = tracks.map(track => track.id);
     const parts = await tx.select({ trackId: schema.mapProjectTrackParts.trackId, points: schema.mapProjectTrackParts.points })
-      .from(schema.mapProjectTrackParts).where(inArray(schema.mapProjectTrackParts.trackId, ids));
-    const lines = ids.map(id => parts.filter(part => part.trackId === id).flatMap(part => part.points as StoredTrackPoint[]));
-    bump(out, account, { hectares: coveredHectares(lines) });
+      .from(schema.mapProjectTrackParts)
+      .where(inUuids(schema.mapProjectTrackParts.trackId, allTrackIds))
+      .orderBy(asc(schema.mapProjectTrackParts.trackId), asc(schema.mapProjectTrackParts.seq));
+    const pointsByTrack = new Map<string, StoredTrackPoint[]>();
+    for (const part of parts) {
+      let pts = pointsByTrack.get(part.trackId);
+      if (!pts) { pts = []; pointsByTrack.set(part.trackId, pts); }
+      pts.push(...(part.points as StoredTrackPoint[]));
+    }
+    for (const { projectId, account, ids } of tracksByProjectAccount.values()) {
+      const lines = ids.map(id => pointsByTrack.get(id) ?? []);
+      bump(projectMap(projectId), account, { hectares: coveredHectares(lines) });
+    }
   }
-  for (const [account, stats] of out) out.set(account, { ...stats, projects: 1 });
-  return out;
+  for (const out of byProject.values()) {
+    for (const [account, stats] of out) out.set(account, { ...stats, projects: 1 });
+  }
+  return byProject;
+}
+
+/** Statistiken per konto i ett projekt (för de konton som gjort något). */
+async function projectStats(tx: DbExecutor, projectId: string, range: Range, accounts?: readonly string[]): Promise<PerAccount> {
+  return (await projectStatsMany(tx, [projectId], range, accounts)).get(projectId) ?? new Map();
 }
 
 const summary = (stats: MapStats): MapStatsSummary => ({ ...stats, km: round(stats.km, 1), hours: round(stats.hours, 1), hectares: round(stats.hectares, 1),
@@ -139,10 +210,11 @@ export async function readMyMapStats(db: Database, input: ClubProof & { season?:
     const range = seasonRange(input.season);
     const projects = await tx.select({ id: schema.mapProjects.id, name: schema.mapProjects.name }).from(schema.mapProjectMembers)
       .innerJoin(schema.mapProjects, eq(schema.mapProjects.id, schema.mapProjectMembers.projectId)).where(eq(schema.mapProjectMembers.accountId, accountId));
+    const statsByProject = await projectStatsMany(tx, projects.map(project => project.id), range, [accountId]);
     let total = EMPTY_STATS;
     const perProject: MyMapStatsView["projects"] = [];
     for (const project of projects) {
-      const stats = (await projectStats(tx, project.id, range, [accountId])).get(accountId);
+      const stats = statsByProject.get(project.id)?.get(accountId);
       if (!stats) continue;
       total = addStats(total, stats);
       perProject.push({ projectId: project.id, name: project.name, stats: summary(stats) });

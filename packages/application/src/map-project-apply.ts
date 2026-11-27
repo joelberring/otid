@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { schema } from "@o-tid/database";
 import { decideEdit, editProblem, type EditResult, type RevisionEdit, type ServerObject } from "@o-tid/map-revision";
 import type { MapProjectRow } from "./map-project-access";
@@ -14,8 +14,11 @@ import type { DbExecutor } from "./snapshot";
  */
 /** Så många gjorda ändringar får ett projekt ha (skydd mot en klient som skickar i en evig slinga). */
 const MAP_PROJECT_MAX_EDITS = 500_000;
+/** Max antal rader per chunk vid bulk-upsert/insert (väl under PostgreSQL:s 65 535-parametergräns). */
+const BULK_CHUNK_SIZE = 500;
 
 type ObjectRow = typeof schema.mapProjectObjects.$inferSelect;
+type LogInsertRow = typeof schema.mapProjectEdits.$inferInsert;
 
 export const wireObject = (row: ObjectRow): ServerObject => ({ key: row.objectKey, ref: (row.ref ?? null) as ServerObject["ref"],
   state: row.state as ServerObject["state"], lastEditId: row.lastEditId, version: row.version, seq: row.seq, authorId: row.authorAccountId,
@@ -42,15 +45,22 @@ export function validateEdits(edits: readonly unknown[], project: Pick<MapProjec
 
 /** Serverns nuvarande objekt för nycklarna. */
 export async function currentObjects(tx: DbExecutor, projectId: string, keys: readonly string[]): Promise<Map<string, ObjectRow>> {
-  if (keys.length === 0) return new Map();
+  const uniqueKeys = [...new Set(keys)];
+  const out = new Map<string, ObjectRow>();
+  if (uniqueKeys.length === 0) return out;
   const objects = schema.mapProjectObjects;
-  return new Map((await tx.select().from(objects)
-    .where(and(eq(objects.projectId, projectId), inArray(objects.objectKey, [...new Set(keys)])))).map(row => [row.objectKey, row]));
+  for (let offset = 0; offset < uniqueKeys.length; offset += BULK_CHUNK_SIZE) {
+    const chunk = uniqueKeys.slice(offset, offset + BULK_CHUNK_SIZE);
+    const rows = await tx.select().from(objects)
+      .where(and(eq(objects.projectId, projectId), inArray(objects.objectKey, chunk)));
+    for (const row of rows) out.set(row.objectKey, row);
+  }
+  return out;
 }
 
 /**
  * Gör ändringarna i ordning. Ger utfallet per ändring och projektets nya löpnummer (som också skrivs på projektet).
- * `project.seq` är löpnumret före anropet.
+ * `project.seq` är löpnumret före anropet. Skrivningar sker chunkat i bulk (500 rader per chunk) i stället för rad-för-rad.
  */
 export async function applyMapProjectEdits(tx: DbExecutor, input: { project: Pick<MapProjectRow, "id" | "seq">; authorId: string; clientId: string;
   edits: readonly RevisionEdit[]; now: Date; proposal?: { proposalId: string; acceptedBy: string } }): Promise<{ results: EditResult[]; seq: number }> {
@@ -60,10 +70,18 @@ export async function applyMapProjectEdits(tx: DbExecutor, input: { project: Pic
   if (edits.length === 0) return { results, seq };
   const objects = schema.mapProjectObjects, log = schema.mapProjectEdits;
   const current = await currentObjects(tx, project.id, edits.map(edit => edit.key));
-  const applied = new Set((await tx.select({ editId: log.editId }).from(log)
-    .where(and(eq(log.projectId, project.id), eq(log.status, "APPLIED"), inArray(log.editId, edits.map(edit => edit.editId)))))
-    .map(row => row.editId));
+  const applied = new Set<string>();
+  const uniqueEditIds = [...new Set(edits.map(edit => edit.editId))];
+  for (let offset = 0; offset < uniqueEditIds.length; offset += BULK_CHUNK_SIZE) {
+    const chunk = uniqueEditIds.slice(offset, offset + BULK_CHUNK_SIZE);
+    const rows = await tx.select({ editId: log.editId }).from(log)
+      .where(and(eq(log.projectId, project.id), eq(log.status, "APPLIED"), inArray(log.editId, chunk)));
+    for (const row of rows) applied.add(row.editId);
+  }
   const via = input.proposal ? { proposalId: input.proposal.proposalId, acceptedBy: input.proposal.acceptedBy } : {};
+  const objectUpserts = new Map<string, ObjectRow>();
+  const conflictLogs = new Map<string, LogInsertRow>();
+  const appliedLogs = new Map<string, LogInsertRow>();
   for (const edit of edits) {
     const row = current.get(edit.key);
     if (seq >= MAP_PROJECT_MAX_EDITS && !applied.has(edit.editId)) { results.push({ editId: edit.editId, status: "REJECTED", reason: "FULL" }); continue; }
@@ -75,22 +93,54 @@ export async function applyMapProjectEdits(tx: DbExecutor, input: { project: Pic
       continue;
     }
     if (decision === "CONFLICT") {
-      await tx.insert(log).values({ ...entry, status: "CONFLICT", seq: null }).onConflictDoNothing();
+      if (!conflictLogs.has(edit.editId)) conflictLogs.set(edit.editId, { ...entry, status: "CONFLICT", seq: null });
       results.push({ editId: edit.editId, status: "CONFLICT", current: row ? wireObject(row) : null });
       continue;
     }
     seq += 1;
     const next: ObjectRow = { projectId: project.id, objectKey: edit.key, ref: edit.ref, state: edit.state, lastEditId: edit.editId,
       version: (row?.version ?? 0) + 1, seq, authorAccountId: authorId, editedAt: new Date(edit.at), receivedAt: now };
-    await tx.insert(objects).values(next).onConflictDoUpdate({ target: [objects.projectId, objects.objectKey],
-      set: { state: next.state, lastEditId: next.lastEditId, version: next.version, seq: next.seq, authorAccountId: next.authorAccountId,
-        editedAt: next.editedAt, receivedAt: next.receivedAt } });
-    // Ett tidigare krockat försök med samma id blir den gjorda ändringen.
-    await tx.insert(log).values({ ...entry, status: "APPLIED", seq }).onConflictDoUpdate({ target: [log.projectId, log.editId],
-      set: { status: "APPLIED", seq, receivedAt: now, ...via } });
+    const earlierPending = objectUpserts.get(edit.key);
+    objectUpserts.set(edit.key, earlierPending ? { ...next, ref: earlierPending.ref } : next);
+    appliedLogs.set(edit.editId, { ...entry, status: "APPLIED", seq });
     current.set(edit.key, next);
     applied.add(edit.editId);
     results.push({ editId: edit.editId, status: "APPLIED", object: wireObject(next) });
+  }
+  const objectRows = [...objectUpserts.values()];
+  for (let offset = 0; offset < objectRows.length; offset += BULK_CHUNK_SIZE) {
+    const chunk = objectRows.slice(offset, offset + BULK_CHUNK_SIZE);
+    await tx.insert(objects).values(chunk).onConflictDoUpdate({
+      target: [objects.projectId, objects.objectKey],
+      set: {
+        state: sql`excluded.state`,
+        lastEditId: sql`excluded.last_edit_id`,
+        version: sql`excluded.version`,
+        seq: sql`excluded.seq`,
+        authorAccountId: sql`excluded.author_account_id`,
+        editedAt: sql`excluded.edited_at`,
+        receivedAt: sql`excluded.received_at`
+      }
+    });
+  }
+  const conflictRows = [...conflictLogs.values()];
+  for (let offset = 0; offset < conflictRows.length; offset += BULK_CHUNK_SIZE) {
+    const chunk = conflictRows.slice(offset, offset + BULK_CHUNK_SIZE);
+    await tx.insert(log).values(chunk).onConflictDoNothing();
+  }
+  const appliedRows = [...appliedLogs.values()];
+  for (let offset = 0; offset < appliedRows.length; offset += BULK_CHUNK_SIZE) {
+    const chunk = appliedRows.slice(offset, offset + BULK_CHUNK_SIZE);
+    // Ett tidigare krockat försök med samma id blir den gjorda ändringen.
+    await tx.insert(log).values(chunk).onConflictDoUpdate({
+      target: [log.projectId, log.editId],
+      set: {
+        status: sql`excluded.status`,
+        seq: sql`excluded.seq`,
+        receivedAt: sql`excluded.received_at`,
+        ...(input.proposal ? { proposalId: sql`excluded.proposal_id`, acceptedBy: sql`excluded.accepted_by` } : {})
+      }
+    });
   }
   if (seq !== project.seq) await tx.update(schema.mapProjects).set({ seq }).where(eq(schema.mapProjects.id, project.id));
   return { results, seq };

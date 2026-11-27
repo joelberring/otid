@@ -47,7 +47,11 @@ const swedish = (left: string, right: string) => collator.compare(left, right);
  * published heads. Keep this selection in one place: manual overlays can make
  * the effective head differ from the latest stored result revision.
  */
-async function selectPublishedPublicResultHeads(tx: DatabaseTransaction, raceId: string) {
+async function selectPublishedPublicResultHeads(
+  tx: DatabaseTransaction,
+  raceId: string,
+  options: { readonly includeRelay?: boolean } = {}
+) {
   const rows = await tx.selectDistinctOn([schema.resultRevisions.entryId], {
     id: schema.resultRevisions.id,
     raceId: schema.resultRevisions.raceId,
@@ -69,12 +73,14 @@ async function selectPublishedPublicResultHeads(tx: DatabaseTransaction, raceId:
     givenName: schema.entries.givenName,
     familyName: schema.entries.familyName,
     organisationName: schema.entries.organisationName,
+    courseVariantCode: schema.entries.courseVariantCode,
     teamId: schema.entries.teamId
   }).from(schema.resultRevisions)
     .innerJoin(schema.entries, and(
       eq(schema.resultRevisions.entryId, schema.entries.id),
       eq(schema.entries.raceId, raceId),
-      isNull(schema.entries.struckAt)
+      isNull(schema.entries.struckAt),
+      options.includeRelay === true ? undefined : isNull(schema.entries.teamId)
     ))
     .where(and(
       eq(schema.resultRevisions.raceId, raceId),
@@ -280,8 +286,8 @@ export type PublicResultsOptions = { readonly staff?: boolean };
 export async function publicResults(db: Database, raceId: string, options: PublicResultsOptions = {}): Promise<PublicResultListResponse> {
   return db.transaction(async (tx) => {
     await lockRaceForSnapshot(tx, raceId);
-    // Stafettens sträcklöpare visas i lagresultaten och sträckresultaten (publicRelayResults).
-    const rows = (await selectPublishedPublicResultHeads(tx, raceId)).filter((row) => row.teamId === null);
+    // Stafettens sträcklöpare filtreras bort i SQL (isNull(entries.teamId)); de visas i publicRelayResults.
+    const rows = await selectPublishedPublicResultHeads(tx, raceId);
 
     const headStates = await resolveStoredResultHeadStates(tx, raceId, rows);
     const activeStates = headStates.filter((state) =>
@@ -302,21 +308,19 @@ export async function publicResults(db: Database, raceId: string, options: Publi
     const classIds = [...new Set(parsedRows.map((row) => row.evaluation.classId))];
     if (classIds.length > 1_000) throw new Error("Publikresultatet innehåller för många klasser");
     const courseVersionIds = [...new Set(parsedRows.map((row) => row.courseVersionId))];
-    const [classRows, courseVersionRows] = await Promise.all([
-      classIds.length === 0 ? Promise.resolve([]) : tx.select({
-        id: schema.classes.id,
-        name: schema.classes.name
-      }).from(schema.classes).where(and(
-        eq(schema.classes.raceId, raceId),
-        inArray(schema.classes.id, classIds)
-      )),
-      courseVersionIds.length === 0 ? Promise.resolve([]) : tx.select({
-        id: schema.courseVersions.id,
-        raceId: schema.courses.raceId
-      }).from(schema.courseVersions)
-        .innerJoin(schema.courses, eq(schema.courseVersions.courseId, schema.courses.id))
-        .where(inArray(schema.courseVersions.id, courseVersionIds))
-    ]);
+    const classRows = classIds.length === 0 ? [] : await tx.select({
+      id: schema.classes.id,
+      name: schema.classes.name
+    }).from(schema.classes).where(and(
+      eq(schema.classes.raceId, raceId),
+      inArray(schema.classes.id, classIds)
+    ));
+    const courseVersionRows = courseVersionIds.length === 0 ? [] : await tx.select({
+      id: schema.courseVersions.id,
+      raceId: schema.courses.raceId
+    }).from(schema.courseVersions)
+      .innerJoin(schema.courses, eq(schema.courseVersions.courseId, schema.courses.id))
+      .where(inArray(schema.courseVersions.id, courseVersionIds));
     if (classRows.length !== classIds.length) throw new Error("Historisk resultatklass saknas i loppet");
     if (courseVersionRows.length !== courseVersionIds.length ||
         courseVersionRows.some((row) => row.raceId !== raceId)) {
@@ -324,15 +328,13 @@ export async function publicResults(db: Database, raceId: string, options: Publi
     }
 
     const classNameById = new Map(classRows.map((raceClass) => [raceClass.id, raceClass.name]));
-    // Gafflad bana: visa löparens variant när resultatets banversion har den.
+    // Gafflad bana: visa löparens variant när resultatets banversion har den (courseVariantCode projiceras redan i SQL).
     const variantsByVersion = await loadCourseVersionVariants(tx, courseVersionIds);
-    const entryVariantRows = variantsByVersion.size === 0 ? [] : await tx.select({ id: schema.entries.id,
-      code: schema.entries.courseVariantCode }).from(schema.entries).where(eq(schema.entries.raceId, raceId));
-    const entryVariant = new Map(entryVariantRows.map((row) => [row.id, row.code]));
-    const variantOf = (entryId: string, courseVersionId: string) => {
-      const code = entryVariant.get(entryId);
-      return code && (variantsByVersion.get(courseVersionId) ?? []).some((variant) => variant.code === code) ? code : undefined;
-    };
+    const variantCodesByVersion = new Map([...variantsByVersion].map(([versionId, variants]) =>
+      [versionId, new Set(variants.map((variant) => variant.code))]
+    ));
+    const variantOf = (code: string | null, courseVersionId: string) =>
+      code && variantCodesByVersion.get(courseVersionId)?.has(code) ? code : undefined;
     const rowsByClass = new Map<string, typeof parsedRows>();
     for (const row of parsedRows) {
       const classRowsForResult = rowsByClass.get(row.evaluation.classId) ?? [];
@@ -387,6 +389,7 @@ export async function publicResults(db: Database, raceId: string, options: Publi
           });
           continue;
         }
+        const courseVariantCode = variantOf(row.courseVariantCode, row.courseVersionId);
         results.push({
           className,
           publicResultId: row.publicResultId,
@@ -394,7 +397,7 @@ export async function publicResults(db: Database, raceId: string, options: Publi
           familyName: row.familyName,
           organisationName: row.organisationName,
           revision: row.revision,
-          ...(variantOf(row.entryId, row.courseVersionId) ? { courseVariantCode: variantOf(row.entryId, row.courseVersionId) } : {}),
+          ...(courseVariantCode ? { courseVariantCode } : {}),
           status: row.evaluation.status,
           reason: row.evaluation.reason,
           ...(row.elapsedMs === undefined ? {} : { elapsedMs: row.elapsedMs }),
@@ -507,7 +510,7 @@ export type PublicResultTiming = {
 export async function publicResultTimings(tx: DatabaseTransaction, raceId: string,
   options: { readonly includeRelay?: boolean } = {}): Promise<PublicResultTiming[]> {
   // Steg 47: radiokontrollerna, speakern och vägvalen tar med stafettens sträcklöpare.
-  const rows = (await selectPublishedPublicResultHeads(tx, raceId)).filter((row) => options.includeRelay === true || row.teamId === null);
+  const rows = await selectPublishedPublicResultHeads(tx, raceId, { includeRelay: options.includeRelay === true });
   const states = await resolveStoredResultHeadStates(tx, raceId, rows);
   return states.flatMap((state) => {
     if (state.state !== "ACTIVE_RESULT") return [];

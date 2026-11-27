@@ -216,7 +216,13 @@ export async function liftInTransaction(tx: DbExecutor, input: { raceId: string;
   if (prior) await tx.delete(schema.raceClubArchives).where(eq(schema.raceClubArchives.id, prior.lift.id));
   const title = raceTitle(facts.event.name, facts.race.name).slice(0, 200);
 
-  const [source] = await tx.select().from(schema.raceMapSources).where(eq(schema.raceMapSources.raceId, raceId));
+  const [source] = await tx.select({
+    fileName: schema.raceMapSources.fileName,
+    format: schema.raceMapSources.format,
+    contentSha256: schema.raceMapSources.contentSha256,
+    byteLength: schema.raceMapSources.byteLength,
+    bounds: schema.raceMapSources.bounds
+  }).from(schema.raceMapSources).where(eq(schema.raceMapSources.raceId, raceId));
   const [agreement] = await tx.select().from(schema.raceMapAgreements).where(eq(schema.raceMapAgreements.raceId, raceId));
   let versionId: string | null = null, createdMapId: string | null = null, createdVersionId: string | null = null;
   const mapName = (agreement?.mapName || (source ? stem(source.fileName) : "") || facts.event.name).slice(0, 120);

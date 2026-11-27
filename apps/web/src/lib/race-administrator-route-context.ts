@@ -59,7 +59,7 @@ import {
   type sessionProof
 } from "./security-policy";
 import type { Database } from "@o-tid/database";
-import { raceChangeGeneration } from "./race-change-generation";
+import { raceChangeGeneration, readoutGeneration } from "./race-change-generation";
 import { createSharedRead } from "./shared-read";
 
 /**
@@ -67,6 +67,7 @@ import { createSharedRead } from "./shared-read";
  * Nyckeln har tävlingens ändringsgeneration: efter en ändring i arbetsytan räknas listan om vid nästa läsning.
  */
 const sharedForestWatch = createSharedRead(2_000);
+const sharedRelayOverview = createSharedRead(2_000);
 
 /** Tjänsterna som administratörsroutes använder. Tester kan ersätta enskilda tjänster. */
 export const raceAdministratorServices = { conflictCandidate: readStartCheckinConflictReviewAsAdmin, reviewConflicts: reviewStartCheckinConflictsAsAdmin, checkinHistory: listCheckinHistoryAsAdmin, correctStart: correctAdministratorStart, withdrawReturn: withdrawAdministratorReturn, manualReturn: registerAdministratorReturn, forestWatch: (db: Database, input: Parameters<typeof listAdministratorForestWatch>[1]) =>
@@ -91,7 +92,10 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   classVariantDistribution: distributeClassVariantsAsAdmin, classVariantRebalancePreview: previewClassVariantRebalanceAsAdmin,
   // Steg 61: kartor till starten (tryckantal, kartbuntslistan, baksidorna).
   mapBundles: readMapBundlesAsAdmin, mapPrint: recordMapPrintAsAdmin, mapReserve: saveMapReserveAsAdmin,
-  relayOverview: getRelayOverviewAsAdmin, relayClass: createRelayClassAsAdmin, relayTeam: registerRelayTeamAsAdmin,
+  relayOverview: (db: Database, input: Parameters<typeof getRelayOverviewAsAdmin>[1]) =>
+    getRelayOverviewAsAdmin(db, input, new Date(), (raceId, compute) =>
+      sharedRelayOverview(`relay-overview:${raceId}:${raceChangeGeneration(raceId)}:${readoutGeneration(raceId)}`, compute)),
+  relayClass: createRelayClassAsAdmin, relayTeam: registerRelayTeamAsAdmin,
   relayLegRunner: changeRelayLegRunnerAsAdmin, relayStartTimes: setRelayStartTimesAsAdmin,
   relayClassEdit: editRelayClassAsAdmin, relayTeamEdit: editRelayTeamAsAdmin, relayTeamRemoval: removeRelayTeamAsAdmin,
   relayTeamDns: setRelayTeamDidNotStartAsAdmin, relayLegVariant: changeRelayLegVariantAsAdmin,

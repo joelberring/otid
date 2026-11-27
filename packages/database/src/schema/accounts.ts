@@ -238,7 +238,8 @@ export const eventAdministrationGrants = pgTable("event_administration_grant", {
   uniqueIndex("event_administration_grant_scope_uidx").on(table.id, table.accountId, table.eventId),
   uniqueIndex("event_administration_grant_owner_account_event_uidx").on(table.accountId, table.eventId)
     .where(sql`${table.role} = 'OWNER'`),
-  index("event_administration_grant_account_idx").on(table.accountId, table.grantedAt)
+  index("event_administration_grant_account_idx").on(table.accountId, table.grantedAt),
+  index("event_administration_grant_event_idx").on(table.eventId, table.grantedAt)
 ]);
 
 export const eventAdministrationAccessRequests = pgTable("event_administration_access_request", {

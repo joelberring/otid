@@ -9,7 +9,7 @@ import {
   acceptClubInvitations, clubJournal, clubRoleAtLeast, requireClubRole, type ClubFailure, type ClubProof, type ClubRole, type ClubTransaction
 } from "./club-access";
 import { withDerivedClubs } from "./club-affiliation-access";
-import { pendingClubAffiliations } from "./club-affiliations";
+import { pendingClubAffiliationsMany } from "./club-affiliations";
 import { clubSourcedInContext } from "./club-invite";
 import { deliverPrepared, invitationSentTimes, prepareIfMail, replayedOutcome, type InvitationMailer } from "./invitation-links";
 import { clubStorage } from "./club-storage";
@@ -66,8 +66,8 @@ export async function listMyClubs(db: Database, proof: ClubProof, now = new Date
       .where(inArray(schema.clubArchiveEntries.clubId, rows.map(row => row.clubId))).groupBy(schema.clubArchiveEntries.clubId))
       .map(row => [row.clubId, row.value]));
     // Ägaren 2026-11-04: ägare och administratörer ser hur många som väntar på bekräftelse, direkt i Mina tävlingar.
-    const pending = new Map<string, number>();
-    for (const row of rows) if (row.role === "OWNER" || row.role === "ADMIN") pending.set(row.clubId, await pendingClubAffiliations(tx, row.clubId));
+    const adminClubIds = rows.filter(row => row.role === "OWNER" || row.role === "ADMIN").map(row => row.clubId);
+    const pending = await pendingClubAffiliationsMany(tx, adminClubIds);
     return { status: "ok", clubs: rows.map(row => ({ clubId: row.clubId, name: row.name, role: row.role, entries: entries.get(row.clubId) ?? 0,
       ...(pending.has(row.clubId) ? { pending: pending.get(row.clubId)! } : {}) })) } as const;
   });

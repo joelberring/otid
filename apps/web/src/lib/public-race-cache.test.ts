@@ -274,6 +274,51 @@ describe("steg 51: publika listor en gång per tävlingsversion", () => {
     expect(isRetryableReadConflict(new Error("annat"))).toBe(false);
     expect(isRetryableReadConflict({ code: "40P01" })).toBe(true);
   });
+
+  it("delar en enda exactVersion-beräkning mellan parallella { exact: true }-läsningar vid SSR", async () => {
+    let version = "1:10:-:pub:0:-", versionCalls = 0, computed = 0;
+    const cache = createPublicRaceCache({
+      version: async () => { versionCalls += 1; await delay(10); return version; },
+      minIntervalMs: 0, versionTtlMs: 250, serveStaleMs: 0
+    });
+
+    // Kall SSR: 3 parallella listor delar 1 enda versionsläsning (inte 3 eller 6).
+    const firstVersion = cache.exactVersion(race);
+    const shared1 = { exact: true, knownVersion: firstVersion };
+    const [r1, relay1, radio1] = await Promise.all([
+      cache.read(race, "results", async () => ({ kind: "results", n: ++computed }), shared1),
+      cache.read(race, "relay", async () => ({ kind: "relay", n: ++computed }), shared1),
+      cache.read(race, "radio", async () => ({ kind: "radio", n: ++computed }), shared1)
+    ]);
+    expect(versionCalls).toBe(1);
+    expect(computed).toBe(3);
+    expect([r1.key, relay1.key, radio1.key]).toEqual([version, version, version]);
+
+    // Varm SSR: ny exactVersion körs exakt 1 gång, alla 3 träffar cachen utan omräkning.
+    const secondVersion = cache.exactVersion(race);
+    const shared2 = { exact: true, knownVersion: secondVersion };
+    const [r2, relay2, radio2] = await Promise.all([
+      cache.read(race, "results", async () => ({ kind: "results", n: ++computed }), shared2),
+      cache.read(race, "relay", async () => ({ kind: "relay", n: ++computed }), shared2),
+      cache.read(race, "radio", async () => ({ kind: "radio", n: ++computed }), shared2)
+    ]);
+    expect(versionCalls).toBe(2);
+    expect(computed).toBe(3);
+    expect([r2, relay2, radio2]).toEqual([r1, relay1, radio1]);
+
+    // Ändrad version på nästa SSR: exakt 1 versionsläsning och alla 3 räknas om med ny nyckel.
+    version = "2:10:-:pub:0:-";
+    const thirdVersion = cache.exactVersion(race);
+    const shared3 = { exact: true, knownVersion: thirdVersion };
+    const [r3, relay3, radio3] = await Promise.all([
+      cache.read(race, "results", async () => ({ kind: "results", n: ++computed }), shared3),
+      cache.read(race, "relay", async () => ({ kind: "relay", n: ++computed }), shared3),
+      cache.read(race, "radio", async () => ({ kind: "radio", n: ++computed }), shared3)
+    ]);
+    expect(versionCalls).toBe(3);
+    expect(computed).toBe(6);
+    expect([r3.key, relay3.key, radio3.key]).toEqual([version, version, version]);
+  });
 });
 
 describe("steg 57: den senast räknade listan för avläsningens placering", () => {

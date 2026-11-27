@@ -9,8 +9,8 @@ import { clubRequest } from "../../lib/club-request";
 import { mapProjectBase } from "../../lib/map-project-client";
 import { inClip, stageChoices } from "../../lib/map-project-stages";
 import {
-  chooseKnolls, cliffFeatures, cliffLimitsAt, DEFAULT_KNOLL_LIMITS, DEFAULT_PIT_LEVEL, DEFAULT_PIT_LIMITS, defaultCliffLimits, knollFeatures, knollLimitsAt, pitLimitsAt, readCliffCandidates,
-  readKnollCandidates, type CliffLimits, type KnollLimits, type PitLimits
+  chooseKnollCandidates, cliffFeatures, cliffLimitsAt, DEFAULT_KNOLL_LIMITS, DEFAULT_PIT_LEVEL, DEFAULT_PIT_LIMITS, defaultCliffLimits, knollFeatures, knollLimitsAt, pitLimitsAt, readCliffCandidates,
+  readKnollCandidates, type CliffLimits, type KnollCandidate, type KnollLimits, type PitLimits
 } from "@o-tid/map-revision/base-map";
 import { useTexts } from "../language-provider";
 import { Button } from "../ui";
@@ -30,7 +30,7 @@ function SavedChoicePanel<C, L extends object>({ view, importer, file, own, init
   position: (candidate: C) => readonly [number, number];
   /** Gränserna för en mängd på skalan 1–10 (5 = förvalen); `current` är det som är finjusterat. */
   atLevel: (level: number, current: L) => L;
-  view: MapProjectView; importer: Importer; file: string; own: RegExp; initial: L; read: (json: unknown) => C[];
+  view: MapProjectView; importer: Importer; file: string; own: RegExp | ((candidates: readonly C[]) => RegExp); initial: L; read: (json: unknown) => C[];
   choose: (candidates: readonly C[], limits: L) => { features: SourceFeature[]; message: string };
   heading: string; help: string; name: (job: string) => string; testId: string;
   controls: (limits: L, slider: Slider<L>, change: (patch: Partial<L>) => void) => ReactNode;
@@ -78,7 +78,8 @@ function SavedChoicePanel<C, L extends object>({ view, importer, file, own, init
     if (!loaded) return;
     const result = choose(loaded.candidates, limits);
     if (result.features.length === 0) { setMessage({ tone: "error", text: text.nothing }); return; }
-    importer.refine(name(loaded.name), { features: result.features, skipped: 0, crs: 3006 }, own);
+    const ownPattern = typeof own === "function" ? own(loaded.candidates) : own;
+    importer.refine(name(loaded.name), { features: result.features, skipped: 0, crs: 3006 }, ownPattern);
     setMessage({ tone: "ok", text: result.message });
   };
   useEffect(() => {
@@ -117,12 +118,18 @@ function SavedChoicePanel<C, L extends object>({ view, importer, file, own, init
   </details>;
 }
 
-/** Punkthöjderna (109) bland laserjobbets möjliga små kullar (`kullar.geojson`). */
+/** Vilka lager knollreglaget ersätter: även `dotknoll`/`dotknoll_avlang` när `kullar.geojson` bär egen formklassning (`aspect`/`angle`). */
+export function knollOwnPattern(candidates: readonly KnollCandidate[]): RegExp {
+  return candidates.some(candidate => candidate.aspect !== undefined && candidate.angle !== undefined)
+    ? /^dotknoll(_laser|_avlang)?$/i : /^dotknoll_laser$/;
+}
+
+/** Punkthöjderna (109, samt 110 när `kullar.geojson` bär `aspect`/`angle`) bland laserjobbets möjliga små kullar. */
 export function MapProjectKnollPanel({ view, importer }: { view: MapProjectView; importer: Importer }) {
   const text = useTexts(mapKnollsSv, mapKnollsEn).knolls;
-  return <SavedChoicePanel<Parameters<typeof chooseKnolls>[0][number], KnollLimits> view={view} importer={importer} file="kullar.geojson" own={/^dotknoll_laser$/}
+  return <SavedChoicePanel<KnollCandidate, KnollLimits> view={view} importer={importer} file="kullar.geojson" own={knollOwnPattern}
     initial={DEFAULT_KNOLL_LIMITS} atLevel={knollLimitsAt} position={candidate => candidate.at} read={readKnollCandidates} heading={text.heading} help={text.help} name={text.name} testId="map-project-knolls"
-    choose={(candidates, limits) => { const points = chooseKnolls(candidates, limits); return { features: knollFeatures(points), message: text.done(points.length, candidates.length) }; }}
+    choose={(candidates, limits) => { const picked = chooseKnollCandidates(candidates, limits); return { features: knollFeatures(picked), message: text.done(picked.length, candidates.length) }; }}
     controls={(limits, slider) => <>
       {slider("minRise", text.minRise(limits.minRise.toLocaleString("sv-SE", { minimumFractionDigits: 1 })), 0.5, 3, 0.1)}
       {slider("lowerShare", text.lowerShare(Math.round(limits.lowerShare * 100)), 0.5, 1, 0.05)}

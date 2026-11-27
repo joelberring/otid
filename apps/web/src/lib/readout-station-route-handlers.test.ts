@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { readoutGeneration } from "./race-change-generation";
 import { readoutIngestRoute, readoutPackageRoute } from "./readout-station-route-handlers";
 import { db, dependencies, environment, id, other, request } from "./race-administrator-route-test-helpers";
 
@@ -30,15 +31,26 @@ describe("readout-station-route-handlers: enkel behörighetskontroll", () => {
       packageUpdateRequired: false, acknowledgements: [{ localSequence: 1, contentHash: "a".repeat(64), status: "stored" as const, rawMessageId: id }] };
     const ingest = vi.fn<typeof import("@o-tid/application").ingestReadoutsAsAdmin>(async () => ({ status: "ok" as const, response: acknowledgement }));
     base.authenticate.mockClear();
+    const beforeReadoutGen = readoutGeneration(id);
     const resIngest = await readoutIngestRoute(db, request("POST", JSON.stringify(batch)), id,
       { authenticate: base.authenticate, ingest, place: async (_db, _race, ack) => ack }, environment);
     expect(resIngest.status).toBe(200);
+    expect(readoutGeneration(id)).toBe(beforeReadoutGen + 1);
     expect(base.authenticate).toHaveBeenCalledTimes(1);
     expect(ingest).toHaveBeenCalledTimes(1);
     const [ingestDb, ingestInput] = ingest.mock.calls[0]!;
     expect(ingestDb).toBe(db);
     expect(ingestInput.raceId).toBe(id);
     expect(ingestInput.authorized?.raceId).toBe(id);
+
+    // En avvisad batch ska inte räkna upp avläsningsgenerationen.
+    const rejectedAck = { ...acknowledgement, acknowledgements: [{ localSequence: 1, contentHash: "a".repeat(64),
+      status: "rejected" as const, reason: "CONTENT_HASH_MISMATCH" as const }] };
+    const ingestRejected = vi.fn<typeof import("@o-tid/application").ingestReadoutsAsAdmin>(async () => ({ status: "ok" as const, response: rejectedAck }));
+    const resRejected = await readoutIngestRoute(db, request("POST", JSON.stringify(batch)), id,
+      { authenticate: base.authenticate, ingest: ingestRejected, place: async (_db, _race, ack) => ack }, environment);
+    expect(resRejected.status).toBe(200);
+    expect(readoutGeneration(id)).toBe(beforeReadoutGen + 1);
   });
 
   it("nekar om principal gäller en annan tävling", async () => {

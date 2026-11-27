@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createPublicRaceCache, onlyNewResults } from "./public-race-cache";
-import { bumpRaceChangeGeneration, raceChangeGeneration, RESULT_WRITES } from "./race-change-generation";
+import { bumpRaceChangeGeneration, bumpReadoutGeneration, raceChangeGeneration, readoutGeneration, RESULT_WRITES } from "./race-change-generation";
 import { createSharedRead } from "./shared-read";
 
 const race = "10000000-0000-4000-8000-000000000154";
@@ -21,6 +21,18 @@ describe("steg 54: en ändring i arbetsytan syns direkt", () => {
     const read = () => shared(`forest-watch:${race}:${raceChangeGeneration(race)}`, async () => ++computed);
     expect([await read(), await read()]).toEqual([1, 1]);
     bumpRaceChangeGeneration(race);
+    expect(await read()).toBe(2);
+  });
+
+  it("delad lagöversikt invalideras direkt av avläsning utan att ändra raceChangeGeneration", async () => {
+    const relayRace = "10000000-0000-4000-8000-000000000156";
+    const beforeChange = raceChangeGeneration(relayRace);
+    let computed = 0;
+    const shared = createSharedRead(2_000);
+    const read = () => shared(`relay-overview:${relayRace}:${raceChangeGeneration(relayRace)}:${readoutGeneration(relayRace)}`, async () => ++computed);
+    expect([await read(), await read()]).toEqual([1, 1]);
+    bumpReadoutGeneration(relayRace);
+    expect(raceChangeGeneration(relayRace)).toBe(beforeChange);
     expect(await read()).toBe(2);
   });
 

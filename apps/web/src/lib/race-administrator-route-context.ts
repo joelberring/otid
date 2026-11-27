@@ -59,7 +59,7 @@ import {
   type sessionProof
 } from "./security-policy";
 import type { Database } from "@o-tid/database";
-import { raceChangeGeneration } from "./race-change-generation";
+import { raceChangeGeneration, readoutGeneration } from "./race-change-generation";
 import { createSharedRead } from "./shared-read";
 
 /**
@@ -94,7 +94,7 @@ export const raceAdministratorServices = { conflictCandidate: readStartCheckinCo
   mapBundles: readMapBundlesAsAdmin, mapPrint: recordMapPrintAsAdmin, mapReserve: saveMapReserveAsAdmin,
   relayOverview: (db: Database, input: Parameters<typeof getRelayOverviewAsAdmin>[1]) =>
     getRelayOverviewAsAdmin(db, input, new Date(), (raceId, compute) =>
-      sharedRelayOverview(`relay-overview:${raceId}:${raceChangeGeneration(raceId)}`, compute)),
+      sharedRelayOverview(`relay-overview:${raceId}:${raceChangeGeneration(raceId)}:${readoutGeneration(raceId)}`, compute)),
   relayClass: createRelayClassAsAdmin, relayTeam: registerRelayTeamAsAdmin,
   relayLegRunner: changeRelayLegRunnerAsAdmin, relayStartTimes: setRelayStartTimesAsAdmin,
   relayClassEdit: editRelayClassAsAdmin, relayTeamEdit: editRelayTeamAsAdmin, relayTeamRemoval: removeRelayTeamAsAdmin,

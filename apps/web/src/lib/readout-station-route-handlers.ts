@@ -11,6 +11,7 @@ import {
   sessionProof
 } from "./security-policy";
 import { principalAllows, raceRoleFor } from "./race-roles";
+import { bumpReadoutGeneration } from "./race-change-generation";
 import { UUID_PATTERN as uuid } from "@o-tid/contracts";
 import { retryTransactionConflicts } from "./read-conflict";
 import { isDatabaseUnavailable, logServerError } from "./server-error-log";
@@ -99,6 +100,7 @@ export async function readoutIngestRoute(db: Database, request: Request, raceId:
     // (40001, 40P01) görs om i databaspoolen (`createDatabase`); kvarstår felet görs hela mottagningen om en gång till här.
     const result = await retryTransactionConflicts(() => dependencies.ingest(db, { ...proof, raceId, batch: parsed.data, authorized: principal }));
     if (result.status !== "ok") return authFailure(result.status);
+    if (result.response.acknowledgements.some(ack => ack.status !== "rejected")) bumpReadoutGeneration(raceId);
     return json(deviceBatchAcknowledgementSchema.parse(await dependencies.place(db, raceId, result.response)));
   } catch (error) {
     logServerError("readout", "ingest", error);

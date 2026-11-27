@@ -26,4 +26,18 @@ describe("gropar i sankmark (ägaren 2026-11-15)", () => {
     const choice = choosePits([pit(10, 10, 0.6), pit(60, 60, 1.2), pit(150, 10, 0.6)], DEFAULT_PIT_LIMITS, 10_000, [marsh()]);
     expect(choice.points.map(([x]) => Math.round(x)).sort((a, b) => a - b)).toEqual([60, 150]);
   });
+  it("spatialt rutnätsindex i marshTest ger snabba och exakta uppslag bland hundratals kärr", () => {
+    const marshes: SourceFeature[] = [];
+    for (let i = 0; i < 300; i += 1) {
+      const x = (i % 20) * 150, y = Math.floor(i / 20) * 150;
+      marshes.push({ layer: "blott", geometry: { kind: "area", rings: [square(x, y, 80), square(x + 30, y + 30, 20)] } });
+    }
+    const test = marshTest(marshes);
+    for (let i = 0; i < 300; i += 1) {
+      const x = (i % 20) * 150, y = Math.floor(i / 20) * 150;
+      expect(test(x + 10, y + 10)).toBe(true);
+      expect(test(x + 40, y + 40)).toBe(false);
+      expect(test(x + 110, y + 10)).toBe(false);
+    }
+  });
 });

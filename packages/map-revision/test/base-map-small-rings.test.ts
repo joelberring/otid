@@ -72,4 +72,23 @@ describe("en markering per kulle (ägaren 2026-11-13)", () => {
     expect(closed!.geometry.kind === "line" && closed!.geometry.closed).toBe(true);
     expect(open!.geometry.kind === "line" && open!.geometry.closed).toBe(false);
   });
+
+  it("spatialt rutnät och förberäknad extentOf hanterar 500 toppkurvor, 1 000 laserkullar och 500 stenar snabbt och exakt", () => {
+    const features: SourceFeature[] = [];
+    for (let i = 0; i < 500; i += 1) {
+      const x = (i % 25) * 120, y = Math.floor(i / 25) * 120;
+      // Toppkurva med r = 20 m (area ~1 256 m² < 3 000 m², diameter 40 m > 25 m): täcker laserkullen i mitten.
+      features.push({ layer: "contour", elevation: 20, geometry: { kind: "line", closed: true, points: circle(x, y, 20) } });
+      features.push(point("dotknoll_laser", x, y));
+      // En laserkulle utanför toppkurvan (50 m bort) står kvar och slår ut stenen intill den.
+      features.push(point("dotknoll_laser", x + 50, y));
+      features.push(point("sten", x + 51, y));
+    }
+    const started = performance.now();
+    const out = smallRingsToPoints(features, 10_000, 1);
+    expect(performance.now() - started).toBeLessThan(2000);
+    expect(out.filter(f => f.layer === "dotknoll_laser")).toHaveLength(500);
+    expect(out.filter(f => f.layer === "sten")).toHaveLength(0);
+    expect(out.filter(f => f.layer === "contour")).toHaveLength(500);
+  });
 });

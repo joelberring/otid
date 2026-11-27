@@ -62,23 +62,61 @@ const inRing = (ring: Ring, x: number, y: number) => {
 const lengthOf = (points: readonly Point[]) => points.reduce((sum, point, i) => i === 0 ? 0 : sum + Math.hypot(point.x - points[i - 1]!.x, point.y - points[i - 1]!.y), 0);
 const ringArea = (ring: Ring) => Math.abs(ring.reduce((sum, point, i) => { const next = ring[(i + 1) % ring.length]!; return sum + point.x * next.y - next.x * point.y; }, 0)) / 2;
 
-/** Rutnät över föremål med en ruta, för att bara pröva det som ligger nära. */
+/** Stämpelbaserat rutnät utan `Set`- eller strängallokeringar per fråga. */
 class Grid<T> {
-  private readonly cells = new Map<string, T[]>();
+  private readonly items: T[] = [];
+  private readonly cells = new Map<number, number[]>();
+  private readonly overflow: number[] = [];
+  private seen = new Int32Array(0);
+  private stamp = 0;
+  private originX = 0;
+  private originY = 0;
+  private hasOrigin = false;
   constructor(private readonly cell: number) {}
   add(box: Box, item: T) {
-    for (let cx = Math.floor(box.minX / this.cell); cx <= Math.floor(box.maxX / this.cell); cx += 1)
-      for (let cy = Math.floor(box.minY / this.cell); cy <= Math.floor(box.maxY / this.cell); cy += 1) {
-        const key = `${cx},${cy}`, list = this.cells.get(key);
-        if (list) list.push(item); else this.cells.set(key, [item]);
-      }
+    if (!this.hasOrigin) { this.originX = box.minX; this.originY = box.minY; this.hasOrigin = true; }
+    const idx = this.items.length;
+    this.items.push(item);
+    const x0 = Math.floor((box.minX - this.originX) / this.cell), x1 = Math.floor((box.maxX - this.originX) / this.cell);
+    const y0 = Math.floor((box.minY - this.originY) / this.cell), y1 = Math.floor((box.maxY - this.originY) / this.cell);
+    if ((x1 - x0 + 1) * (y1 - y0 + 1) > 256 || Math.abs(x0) > 1e7 || Math.abs(x1) > 1e7 || Math.abs(y0) > 1e7 || Math.abs(y1) > 1e7) {
+      this.overflow.push(idx);
+      return;
+    }
+    for (let cx = x0; cx <= x1; cx += 1) for (let cy = y0; cy <= y1; cy += 1) {
+      const key = (cx + 0x1000000) * 0x2000000 + (cy + 0x1000000);
+      const list = this.cells.get(key);
+      if (list) list.push(idx); else this.cells.set(key, [idx]);
+    }
   }
-  near(x: number, y: number, radius: number): Set<T> {
-    const found = new Set<T>();
-    for (let cx = Math.floor((x - radius) / this.cell); cx <= Math.floor((x + radius) / this.cell); cx += 1)
-      for (let cy = Math.floor((y - radius) / this.cell); cy <= Math.floor((y + radius) / this.cell); cy += 1)
-        for (const item of this.cells.get(`${cx},${cy}`) ?? []) found.add(item);
-    return found;
+  someNear(x: number, y: number, radius: number, test: (item: T) => boolean): boolean {
+    if (this.items.length === 0) return false;
+    if (this.seen.length < this.items.length) this.seen = new Int32Array(this.items.length);
+    this.stamp += 1;
+    if (this.stamp === 0x7fffffff) { this.seen.fill(0); this.stamp = 1; }
+    const x0 = Math.floor((x - radius - this.originX) / this.cell), x1 = Math.floor((x + radius - this.originX) / this.cell);
+    const y0 = Math.floor((y - radius - this.originY) / this.cell), y1 = Math.floor((y + radius - this.originY) / this.cell);
+    if ((x1 - x0 + 1) * (y1 - y0 + 1) > 256 || Math.abs(x0) > 1e7 || Math.abs(x1) > 1e7 || Math.abs(y0) > 1e7 || Math.abs(y1) > 1e7) {
+      for (let i = 0; i < this.items.length; i += 1) if (test(this.items[i]!)) return true;
+      return false;
+    }
+    for (let cx = x0; cx <= x1; cx += 1) for (let cy = y0; cy <= y1; cy += 1) {
+      const list = this.cells.get((cx + 0x1000000) * 0x2000000 + (cy + 0x1000000));
+      if (!list) continue;
+      for (let i = 0; i < list.length; i += 1) {
+        const idx = list[i]!;
+        if (this.seen[idx] === this.stamp) continue;
+        this.seen[idx] = this.stamp;
+        if (test(this.items[idx]!)) return true;
+      }
+    }
+    for (let i = 0; i < this.overflow.length; i += 1) {
+      const idx = this.overflow[i]!;
+      if (this.seen[idx] === this.stamp) continue;
+      this.seen[idx] = this.stamp;
+      if (test(this.items[idx]!)) return true;
+    }
+    return false;
   }
 }
 
@@ -101,25 +139,23 @@ export class Proximity {
     for (const rings of shapes.polygons) {
       const outer = rings[0];
       if (!outer || outer.length < 3) continue;
-      this.polygons.add(boxOf(outer), { rings, box: boxOf(outer) });
+      const box = boxOf(outer);
+      this.polygons.add(box, { rings, box });
       for (const ring of rings) addLine([...ring, ring[0]!]);
     }
     for (const line of shapes.lines) addLine(line);
   }
 
   inside(x: number, y: number): boolean {
-    for (const { rings, box } of this.polygons.near(x, y, 0)) {
-      if (x < box.minX || x > box.maxX || y < box.minY || y > box.maxY) continue;
-      if (inRing(rings[0]!, x, y) && !rings.slice(1).some(hole => inRing(hole, x, y))) return true;
-    }
-    return false;
+    return this.polygons.someNear(x, y, 0, ({ rings, box }) =>
+      x >= box.minX && x <= box.maxX && y >= box.minY && y <= box.maxY
+      && inRing(rings[0]!, x, y) && !rings.slice(1).some(hole => inRing(hole, x, y)));
   }
 
   /** Inne i en yta eller högst `distance` från en kant eller linje. */
   near(x: number, y: number, distance: number): boolean {
     if (this.inside(x, y)) return true;
-    for (const segment of this.segments.near(x, y, distance)) if (segmentDistance(segment, x, y) <= distance) return true;
-    return false;
+    return this.segments.someNear(x, y, distance, segment => segmentDistance(segment, x, y) <= distance);
   }
 
   /**
@@ -127,18 +163,21 @@ export class Proximity {
    */
   along(x: number, y: number, dx: number, dy: number, side: number, half: number): boolean {
     let left = false, right = false;
-    for (const segment of this.segments.near(x, y, Math.max(side, half))) {
-      const sx = segment.bx - segment.ax, sy = segment.by - segment.ay, length = Math.hypot(sx, sy);
-      if (length === 0 || Math.abs((sx * dx + sy * dy) / length) < PARALLEL_COS) continue;
-      const distance = segmentDistance(segment, x, y);
+    return this.segments.someNear(x, y, Math.max(side, half), segment => {
+      const sx = segment.bx - segment.ax, sy = segment.by - segment.ay, lenSq = sx * sx + sy * sy;
+      if (lenSq === 0) return false;
+      const length = Math.sqrt(lenSq);
+      if (Math.abs((sx * dx + sy * dy) / length) < PARALLEL_COS) return false;
+      const t = Math.max(0, Math.min(1, ((x - segment.ax) * sx + (y - segment.ay) * sy) / lenSq));
+      const px = segment.ax + t * sx, py = segment.ay + t * sy;
+      const distance = Math.hypot(x - px, y - py);
       if (distance <= side) return true;
-      if (distance > half) continue;
-      // Vilken sida kanten ligger på, sett i stigens riktning.
-      const cross = dx * (segment.ay + sy / 2 - y) - dy * (segment.ax + sx / 2 - x);
+      if (distance > half) return false;
+      // Vilken sida kanten ligger på, sett i stigens riktning (mätt mot närmaste punkten på segmentet, inte mittpunkten).
+      const cross = dx * (py - y) - dy * (px - x);
       if (cross > 0) left = true; else right = true;
-      if (left && right) return true;
-    }
-    return false;
+      return left && right;
+    });
   }
 }
 const PARALLEL_COS = Math.cos(25 * Math.PI / 180);
@@ -200,32 +239,71 @@ function keptPieces(points: readonly Point[], keep: readonly boolean[], minLengt
   return pieces.filter(piece => lengthOf(piece) >= minLength);
 }
 
+/** Iterativ Douglas–Peucker-förenkling för klippta linjer så konstgjorda förtätningspunkter rensas bort. */
+function simplifyOpen(points: readonly Point[], tolerance: number): Point[] {
+  const n = points.length;
+  if (n <= 2) return points.slice();
+  const keep = new Uint8Array(n);
+  keep[0] = 1;
+  keep[n - 1] = 1;
+  const tolSq = tolerance * tolerance;
+  const stack: number[] = [0, n - 1];
+  while (stack.length) {
+    const end = stack.pop()!, start = stack.pop()!;
+    const a = points[start]!, b = points[end]!;
+    const dx = b.x - a.x, dy = b.y - a.y, lenSq = dx * dx + dy * dy;
+    let worst = -1, bestSq = tolSq;
+    for (let i = start + 1; i < end; i += 1) {
+      const p = points[i]!;
+      let dSq: number;
+      if (lenSq === 0) {
+        const rx = p.x - a.x, ry = p.y - a.y;
+        dSq = rx * rx + ry * ry;
+      } else {
+        const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq));
+        const rx = p.x - (a.x + t * dx), ry = p.y - (a.y + t * dy);
+        dSq = rx * rx + ry * ry;
+      }
+      if (dSq > bestSq) { bestSq = dSq; worst = i; }
+    }
+    if (worst >= 0) {
+      keep[worst] = 1;
+      stack.push(start, worst, worst, end);
+    }
+  }
+  const out: Point[] = [];
+  for (let i = 0; i < n; i += 1) if (keep[i]) out.push(points[i]!);
+  return out;
+}
+
 const asLine = (object: Extract<MapObject, { kind: "line" }>, points: readonly Point[]): MapObject =>
   ({ ...object, path: points.map((point, i) => ({ type: i === 0 ? "M" as const : "L" as const, x: point.x, y: point.y })) });
 
 /**
  * Linjerna klippta efter `keep` (punkt för punkt, var `step` mm): orörd när allt står kvar, borttagen när inget gör det.
- * `minLength` är kortaste bit som står kvar.
+ * Klippta bitar förenklas så att förtätningspunkter längs raka sträckor inte blir kvar. `minLength` är kortaste bit som står kvar.
  */
 function clipLines(rows: readonly CodedObject[], step: number, minLength: number,
   keepAt: (point: Point, direction: Point) => boolean, filter?: (keep: boolean[], points: readonly Point[]) => boolean[]): CleanPlan {
   const remove: string[] = [], replace: { key: string; objects: MapObject[] }[] = [];
+  const simplifyTolerance = Math.min(step * 0.05, 0.01);
   for (const row of rows) {
     const object = row.object;
     if (object.kind !== "line") continue;
-    const parts = linesOf(object).map(line => densify(line, step));
+    const rawParts = linesOf(object);
     let changed = false;
     const objects: MapObject[] = [];
-    for (const points of parts) {
+    for (const rawLine of rawParts) {
+      const points = densify(rawLine, step);
       let keep = points.map((point, i) => {
         const a = points[Math.max(0, i - 1)]!, b = points[Math.min(points.length - 1, i + 1)]!;
         const length = Math.hypot(b.x - a.x, b.y - a.y) || 1;
         return keepAt(point, { x: (b.x - a.x) / length, y: (b.y - a.y) / length });
       });
       if (filter) keep = filter(keep, points);
-      if (keep.every(Boolean)) { objects.push(asLine(object, points)); continue; }
+      if (keep.every(Boolean)) { objects.push(asLine(object, rawLine)); continue; }
       changed = true;
-      objects.push(...keptPieces(points, keep, minLength).map(piece => asLine(object, piece)));
+      objects.push(...keptPieces(points, keep, minLength).map(piece => asLine(object, simplifyOpen(piece, simplifyTolerance))));
     }
     if (!changed) continue;
     if (objects.length === 0) remove.push(row.key); else replace.push({ key: row.key, objects });
@@ -300,6 +378,7 @@ export function pathsInRoadsPlan(paths: readonly CodedObject[], roads: readonly 
     };
     points.forEach((point, i) => { if (keep[i] && alongAt.get(point)) { if (start < 0) start = i; } else close(i - 1); });
     close(points.length - 1);
+    alongAt.clear();
     return out;
   });
 }

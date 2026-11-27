@@ -49,8 +49,23 @@ function append(a: Path, b: Path): PathCommand[] {
 export interface JoinChange { readonly keep: ObjectKey; readonly object: MapObject; readonly absorbed: readonly ObjectKey[]; readonly code: string; readonly at: Point }
 
 /**
+ * Riktningskänsliga linjesymboler vars taggar/halvcirklar pekar åt höger (nedför) i ritriktningen och aldrig får vändas:
+ * ISOM/ISSprOM 104 jordbrant, 105 jordvall (inkl. 105.2 stödjande jordvall), 201 opasserbar brant, 202 brant (inkl. 202.1)
+ * samt ISSprOM 513.2 passerbar stödmur.
+ */
+const DIRECTIONAL_MAIN = new Set([104, 105, 201, 202]);
+function isDirectionalSymbol(code: string): boolean {
+  const [mainPart, subPart] = code.split(".");
+  const main = Number.parseInt(mainPart ?? "", 10);
+  if (DIRECTIONAL_MAIN.has(main)) return true;
+  const sub = subPart !== undefined ? Number.parseInt(subPart, 10) : 0;
+  return main === 513 && sub === 2;
+}
+
+/**
  * Linjerna med samma symbol vars ändar möts, ihopfogade (girigt: från en linje åt båda hållen så länge en ände möter en
- * annan linjes ände). Den första linjen behålls med den nya vägen, de andra tas bort.
+ * annan linjes ände). Den första linjen behålls med den nya vägen, de andra tas bort. Riktningskänsliga symboler (branter,
+ * jordbranter, stödmurar) vänds aldrig: de fogas bara ihop när riktningarna redan stämmer (slut → början).
  */
 export function joinTouchingLines(objects: readonly NormObject[], tolerance = JOIN_MM, taken: ReadonlySet<ObjectKey> = new Set()): JoinChange[] {
   const lines = objects.filter((row): row is NormObject & { object: Line } => row.object.kind === "line" && singlePart(row.object) && !taken.has(row.key));
@@ -63,6 +78,7 @@ export function joinTouchingLines(objects: readonly NormObject[], tolerance = JO
   const changes: JoinChange[] = [];
   for (const group of bySymbol.values()) {
     if (group.length < 2) continue;
+    const directional = group.some(row => isDirectionalSymbol(row.code));
     const used = new Set<ObjectKey>();
     // Ändarna i ett rutnät (cellen = toleransen), så att grannarna hittas utan att jämföra alla par.
     const cell = Math.max(tolerance, 1e-6), grid = new Map<string, { row: typeof group[number]; which: "start" | "end" }[]>();
@@ -76,12 +92,13 @@ export function joinTouchingLines(objects: readonly NormObject[], tolerance = JO
         bucket.push({ row, which });
       }
     }
-    const partner = (point: Point, self: ObjectKey) => {
+    const partner = (point: Point, self: ObjectKey, requiredWhich?: "start" | "end") => {
       const cx = Math.floor(point.x / cell), cy = Math.floor(point.y / cell);
       for (let dx = -1; dx <= 1; dx += 1) {
         for (let dy = -1; dy <= 1; dy += 1) {
           for (const entry of grid.get(`${cx + dx},${cy + dy}`) ?? []) {
             if (entry.row.key === self || used.has(entry.row.key)) continue;
+            if (requiredWhich && entry.which !== requiredWhich) continue;
             const other = entry.which === "start" ? start(entry.row.object.path) : end(entry.row.object.path);
             if (near(point, other, tolerance)) return entry;
           }
@@ -95,7 +112,7 @@ export function joinTouchingLines(objects: readonly NormObject[], tolerance = JO
       let path: PathCommand[] = [...row.object.path];
       const absorbed: ObjectKey[] = [];
       while (absorbed.length < JOIN_MAX_PARTS) {
-        const atEnd = partner(end(path), row.key);
+        const atEnd = partner(end(path), row.key, directional ? "start" : undefined);
         if (atEnd) {
           used.add(atEnd.row.key);
           absorbed.push(atEnd.row.key);
@@ -103,7 +120,7 @@ export function joinTouchingLines(objects: readonly NormObject[], tolerance = JO
           for (let i = 1; i < next.length; i += 1) path.push(next[i]!);
           continue;
         }
-        const atStart = partner(start(path), row.key);
+        const atStart = partner(start(path), row.key, directional ? "end" : undefined);
         if (atStart) {
           used.add(atStart.row.key);
           absorbed.push(atStart.row.key);

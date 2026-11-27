@@ -132,12 +132,12 @@ export function chaikin(ring: readonly Position[], rounds: number): [number, num
 
 /**
  * Alla slutna sänkor i höjdrastret som kandidater, djupast först. `affine` säger var rastret ligger (bildpunktens mitt till
- * koordinater, som `worldFileAffine`).
+ * koordinater, som `worldFileAffine`). Ett färdigutjämnat höjdraster (`smoothedHeights(grid)`) kan skickas med för återanvändning.
  */
-export function findPits(grid: HeightGrid, affine: PixelAffine): PitCandidate[] {
+export function findPits(grid: HeightGrid, affine: PixelAffine, smoothed?: Float32Array): PitCandidate[] {
   const { columns, rows } = grid;
   if (columns < 3 || rows < 3) return [];
-  const z = smoothedHeights(grid), filled = fillDepressions(z, columns, rows);
+  const z = smoothed ?? smoothedHeights(grid), filled = fillDepressions(z, columns, rows);
   const [a, b, c, d, e, f] = affine, cellM2 = Math.abs(a * e - b * d), cellM = Math.sqrt(cellM2);
   const toSource = (column: number, row: number): [number, number] => [a * column + b * row + c, d * column + e * row + f];
   const depthAt = (cell: number) => filled[cell]! - z[cell]!;

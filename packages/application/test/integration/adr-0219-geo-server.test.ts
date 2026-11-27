@@ -317,4 +317,51 @@ describe("ADR-0219 K5b: geo-servern hos Hetzner", () => {
     expect(mails).toHaveLength(0);
     expect(await geoServerProblem(db, at(2), environment)).toEqual({ problem: null });
   });
+
+  it("Etapp G1C: geoServerView utan OTID_HETZNER_TOKEN (web-public) läser registrerad serverstatus men ger NOT_CONFIGURED utan rader", async () => {
+    await clear();
+    // Utan Hetzner-nyckel, utan worker-token och utan rader i geo_server_state/geo_server → NOT_CONFIGURED (befintligt beteende).
+    expect(await geoServerView(db, {}, NOW)).toEqual({ state: "NOT_CONFIGURED", detail: null });
+
+    const { hetzner, created } = fakeHetzner(() => true);
+    const mail = async () => undefined;
+    // web-instansen har kört ett tomgångsvarv och sparat OFF i geo_server_state → web-public ser OFF, inte NOT_CONFIGURED.
+    await manageGeoServer(db, hetzner, settings, mail, NOW);
+    expect(await geoServerView(db, {}, NOW)).toEqual({ state: "OFF", detail: null });
+
+    // Startande server → STARTING även utan OTID_HETZNER_TOKEN.
+    await waitingJob();
+    await manageGeoServer(db, hetzner, settings, mail, at(1));
+    expect(await geoServerView(db, {}, at(1))).toEqual({ state: "STARTING", detail: null });
+
+    // Arbetaren hör av sig → READY även utan OTID_HETZNER_TOKEN.
+    const token = /OTID_GEO_WORKER_TOKEN='([0-9a-f]{64})'/.exec(created[0]!.userData)![1]!;
+    const name = await authenticateGeoWorker(db, `Bearer ${token}`, null, {}, at(2));
+    await claimGeoJob(db, name!, at(2));
+    await manageGeoServer(db, hetzner, settings, mail, at(3));
+    expect(await geoServerView(db, {}, at(3))).toEqual({ state: "READY", detail: null });
+
+    // BUDGET och UNAVAILABLE (med detail) läses också korrekt av web-public.
+    await clear();
+    await waitingJob();
+    await manageGeoServer(db, hetzner, { ...settings, budgetEur: 0.001 }, mail, at(4));
+    expect(await geoServerView(db, {}, at(4))).toEqual({ state: "BUDGET", detail: null });
+
+    await clear();
+    const bigJobId = await waitingJob();
+    await db.update(schema.mapProjectGeoJobs).set({ request: sql`request || '{"clip":{"minX":0,"minY":0,"maxX":4000,"maxY":5000}}'::jsonb` })
+      .where(eq(schema.mapProjectGeoJobs.id, bigJobId));
+    await manageGeoServer(db, hetzner, geoServerSettings({ ...environment, OTID_GEO_SERVER_TYPES: "cx23" })!, mail, at(5));
+    const unavailable = await geoServerView(db, {}, at(5));
+    expect(unavailable.state).toBe("UNAVAILABLE");
+    expect(unavailable.detail).toContain("minst 8 GB");
+
+    // Även om geo_server_state saknar 'server'-rad men en aktiv geo_server finns → STARTING/READY.
+    await db.delete(schema.geoServerStates);
+    await db.insert(schema.geoServers).values({
+      id: randomUUID(), providerId: 777, name: "otid-geo-aktiv", serverType: "cx33", location: "fsn1",
+      hourlyEur: 0.0128, tokenSha256: "a".repeat(64), status: "READY", createdAt: at(6)
+    });
+    expect(await geoServerView(db, {}, at(6))).toEqual({ state: "READY", detail: null });
+  });
 });

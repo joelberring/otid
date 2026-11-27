@@ -17,8 +17,8 @@ export const MCP_PROPOSAL_MAX_SIDE_M_AUTONOMOUS = 3000;
 export const MCP_OBJECTS_DEFAULT_POINTS = 40;
 export const MCP_OBJECTS_MAX_POINTS_PER_OBJECT = 2000;
 export const MCP_OBJECTS_MAX_POINTS = 6000;
-/** Laserkörningens raster som kan hämtas som träningsdata (jobbets filer `<namn>.png` och `<namn>.pgw`). */
-export const MCP_TRAINING_RASTERS = ["hojd", "fuktdjup", "vegetationsklasser", "relief", "skuggning", "lasveg", "lasmark", "laskron"] as const;
+/** Laserkörningens raster som kan hämtas som träningsdata (jobbets filer `<namn>.png`/`.webp` och `<namn>.pgw`). */
+export const MCP_TRAINING_RASTERS = ["hojd", "fuktdjup", "vegetationsklasser", "relief", "skuggning", "lasveg", "lasmark", "laskron", "berg", "fukt", "karta"] as const;
 
 /** read_laser_output: högst så många objekt per svar, punkter per objekt och punkter i hela svaret, och så stor fil som läses. */
 export const MCP_LASER_OUTPUT_MAX_OBJECTS = 500;
@@ -36,6 +36,38 @@ export const MCP_BASE_MAP_MAX_OBJECTS = 60_000;
 const boxSchema = z.object({ min_x: z.number().finite(), min_y: z.number().finite(), max_x: z.number().finite(), max_y: z.number().finite() })
   .refine(box => box.max_x > box.min_x && box.max_y > box.min_y, "max ska vara större än min")
   .transform(box => ({ minX: box.min_x, minY: box.min_y, maxX: box.max_x, maxY: box.max_y }));
+/** Klippruta i SWEREF 99 TM (meter, samma gränser som `geoJobCreateRequestSchema.clip`). */
+const swerefClipSchema = z.object({ min_x: z.number().finite(), min_y: z.number().finite(), max_x: z.number().finite(), max_y: z.number().finite() })
+  .refine(box => box.max_x - box.min_x >= 20 && box.max_y - box.min_y >= 20, "Klipprutan är för liten (minst 20 m per sida)")
+  .refine(box => box.max_x - box.min_x <= 12_000 && box.max_y - box.min_y <= 12_000, "Klipprutan är för stor (högst 12 000 m per sida)")
+  .transform(box => ({ minX: box.min_x, minY: box.min_y, maxX: box.max_x, maxY: box.max_y }));
+const mcpCliffsSchema = z.object({
+  min_drop: z.number().min(0.5).max(5),
+  impassable_drop: z.number().min(1).max(10),
+  impassable_length: z.number().min(5).max(60).optional(),
+  tags: z.boolean().optional(),
+  raw_ticks: z.boolean().optional()
+}).refine(value => value.impassable_drop > value.min_drop, "En opasserbar brant ska vara högre än en brant")
+  .transform(value => ({
+    minDrop: value.min_drop,
+    impassableDrop: value.impassable_drop,
+    ...(value.impassable_length !== undefined ? { impassableLength: value.impassable_length } : {}),
+    ...(value.tags !== undefined ? { tags: value.tags } : {}),
+    ...(value.raw_ticks !== undefined ? { rawTicks: value.raw_ticks } : {})
+  }));
+const mcpMoistureSchema = z.object({
+  channel_ha: z.number().min(0.25).max(10),
+  wet_meters: z.number().min(0.1).max(3),
+  moist_meters: z.number().min(0.2).max(5).optional()
+}).refine(value => value.moist_meters === undefined || value.moist_meters >= value.wet_meters, "Fuktigt ska vara minst lika högt som blött")
+  .transform(value => ({
+    channelHa: value.channel_ha,
+    wetMeters: value.wet_meters,
+    moistMeters: value.moist_meters ?? Math.min(5, Math.max(0.2, Math.round(value.wet_meters * 160) / 100))
+  }));
+const mcpVegetationSchema = z.object({
+  min_area_m2: z.number().int().min(50).max(5000)
+}).transform(value => ({ minAreaM2: value.min_area_m2 }));
 const idSchema = z.string().uuid();
 const keySchema = z.string().min(3).max(300);
 const codeSchema = z.string().min(1).max(12);
@@ -76,8 +108,14 @@ export const mcpToolInputSchemas = {
     brief: z.boolean().optional() }),
   // Ägaren 2026-11-13: AI-kopplingen startar och läser laserkörningar (etapp 1 av «AI:n tar fram ett kartblad»).
   list_laser_jobs: z.object({ project_id: idSchema }),
-  start_laser_job: z.object({ project_id: idSchema, area_id: idSchema.optional(), name: z.string().trim().min(1).max(80).optional(),
-    contour_interval: z.number().min(1).max(10).optional(), settings: z.record(z.string().max(40), z.number().finite()).optional() }),
+  start_laser_job: z.object({
+    project_id: idSchema, area_id: idSchema.optional(), name: z.string().trim().min(1).max(80).optional(),
+    contour_interval: z.number().min(1).max(10).optional(), settings: z.record(z.string().max(40), z.number().finite()).optional(),
+    clip: swerefClipSchema.optional(), rerun_of: idSchema.optional(), cliffs: mcpCliffsSchema.optional(),
+    moisture: mcpMoistureSchema.optional(), vegetation: mcpVegetationSchema.optional(), raw_laser: z.boolean().optional()
+  })
+    .refine(data => !(data.area_id && data.clip), "Ange area_id eller clip, inte båda")
+    .refine(data => !(data.area_id && data.rerun_of), "Ange area_id eller rerun_of, inte båda"),
   read_laser_output: z.object({ project_id: idSchema, file: z.string().regex(/^[a-z0-9_.-]{1,60}$/), job_id: idSchema.optional(), area: boxSchema.optional(),
     layers: z.array(z.string().min(1).max(120)).max(50).optional(), limit: z.number().int().min(1).max(MCP_LASER_OUTPUT_MAX_OBJECTS).optional(),
     offset: z.number().int().min(0).optional(), max_points: z.number().int().min(2).max(MCP_LASER_OUTPUT_MAX_POINTS_PER_OBJECT).optional() }),

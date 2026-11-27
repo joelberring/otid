@@ -258,7 +258,8 @@ export function vegetationFromTiles(tiles: readonly VegetationTile[], settings: 
     // Ägaren 2026-11-13 («finare gröna nyanser»): med punktmolnets signaler är grön kanal buskskiktets andel i tusendelar och
     // blå klassen före tillägget för tätt buskskikt, så att webbläsaren kan dra gränsen själv. Utan signaler: 160 och klassen.
     // Ägaren 2026-11-16: halvöppna celler har alfa 200 (äldre webbläsarkod ser bara «känd cell»), så att reglagen ser dem.
-    const alpha = semi[i] ? SEMI_ALPHA : 255;
+    // Skriv generaliserad `VEG_SEMI` (inte rå `semi`) när generaliseringen körts så webbreglaget stämmer med vegetation.dxf.
+    const alpha = (shaped ? shaped[i] === VEG_SEMI : semi[i] === 1) ? SEMI_ALPHA : 255;
     return value === 0 || blocked?.[i] ? [0, 0, 0, 0] : before && shares ? [value, shares[i]!, before[i]!, alpha] : [value, 160, value, alpha];
   });
   return { dxf: moistureDxf(parts), summary, openAt, forestAt, classPng, world: worldFile(full) };

@@ -4,6 +4,7 @@ import {
   MCP_LASER_OUTPUT_MAX_POINTS_PER_OBJECT, newestLaserTiles, type GeoClip, type GeoJobView
 } from "@o-tid/contracts";
 import type { Database } from "@o-tid/database";
+import { clipWgs84 } from "@o-tid/map-revision/base-map";
 import { aiGate } from "./map-project-access";
 import { mapProjectAreaViews } from "./map-project-areas";
 import { createGeoJobAsAi, findGeoVectorOutput, listGeoJobsForAccount } from "./map-project-geo-jobs";
@@ -25,13 +26,26 @@ const toolError = (message: string): ToolResult => ({ content: [text(message)], 
 
 const projectId = { project_id: { type: "string", description: "Kartprojektets id (från list_map_projects)" } };
 export const MCP_LASER_TOOLS = [
-  { name: "list_laser_jobs", title: "Laserkörningarna i ett kartprojekt", description: "Projektets laserkörningar (geo-jobb), nyast först: id, namn, status (QUEUED, RUNNING, DONE, FAILED, CANCELLED), förloppet medan jobbet körs, geo-arbetarens version, etappen (areaId, null = hela kartan), klipprutan i SWEREF 99 TM och resultatfilerna med storlek. Också etapperna (delområdena) med id och geo-serverns läge. En körning tar ofta 10–60 minuter; fråga igen i stället för att vänta.",
+  { name: "list_laser_jobs", title: "Laserkörningarna i ett kartprojekt", description: "Projektets laserkörningar (geo-jobb), nyast först: id, namn, status (QUEUED, RUNNING, DONE, FAILED, CANCELLED), förloppet medan jobbet körs, starttid (startedAt), försök (attempts), geo-arbetarens version, etappen (areaId, null = hela kartan), klipprutan i SWEREF 99 TM, inställningar (settings, cliffs, moisture, vegetation, extras, mergedStages), sammanfattning (summary med bl.a. stegtider i ms och topp-RAM) och resultatfilerna med storlek. Också etapperna (delområdena) med id, om rå laserdata finns (rawLaserAvailable) och geo-serverns läge. En körning tar ofta 10–60 minuter; fråga igen i stället för att vänta.",
     inputSchema: { type: "object", properties: { ...projectId }, required: ["project_id"] }, annotations: { readOnlyHint: true } },
-  { name: "start_laser_job", title: "Starta en laserkörning", description: `Köar en laserkörning (Karttapullautin och O-Tids egna steg på Lantmäteriets laserdata) för hela kartområdet eller en etapp (area_id från list_laser_jobs), på samma väg som i O-Tid: laserrutorna söks med kontots egna uppgifter till Lantmäteriet, den nyaste skanningen per ruta väljs och laserdatan klipps till området. Förvalen är O-Tids (ekvidistans ${GEO_JOB_DEFAULTS.contourInterval} m, fuktighet och vegetation med, och på en sprintkarta belagd yta ur laserns intensitet, settings paved); contour_interval och settings (pullauta.ini-värden som i O-Tid, t.ex. smoothing) ändrar dem. En körning ändrar inte kartan, den skapar bara underlag, och tillåts därför när projektets AI-läge är PROPOSE eller AUTONOMOUS men inte READ; kontot ska ha rollen Föreslå eller högre i ett öppet projekt. Gränser: högst ${GEO_JOB_MAX_TILES} laserrutor och 12 km i sida per körning (dela annars i etapper), två körningar samtidigt per konto, kontots månadskvot av rutor och 30 sökningar i timmen. Resultatet läses med list_laser_jobs, read_laser_output och training_raster.`,
-    inputSchema: { type: "object", properties: { ...projectId, area_id: { type: "string", description: "Etappens id; utelämnat = hela kartområdet" },
+  { name: "start_laser_job", title: "Starta en laserkörning", description: `Köar en laserkörning (Karttapullautin och O-Tids egna steg på Lantmäteriets laserdata) för hela kartområdet, en etapp (area_id från list_laser_jobs), en egen provruta i SWEREF 99 TM (clip, 20–12 000 m per sida) eller som omkörning av ett tidigare jobb (rerun_of, utan ny Lantmäteriet-sökning; kan kombineras med clip för en mindre provruta). Laserrutorna söks med kontots egna uppgifter till Lantmäteriet, den nyaste skanningen per ruta väljs och laserdatan klipps till området. Förvalen är O-Tids (ekvidistans ${GEO_JOB_DEFAULTS.contourInterval} m, fuktighet och vegetation med, och på en sprintkarta belagd yta ur laserns intensitet, settings paved); contour_interval, settings, cliffs, moisture och vegetation ändrar dem, och raw_laser packar klippta LAZ-filer i 7 dygn när rawLaserAvailable är sant. En körning ändrar inte kartan, den skapar bara underlag, och tillåts därför när projektets AI-läge är PROPOSE eller AUTONOMOUS men inte READ; kontot ska ha rollen Föreslå eller högre i ett öppet projekt. Gränser: högst ${GEO_JOB_MAX_TILES} laserrutor och 12 km i sida per körning (dela annars i etapper), två körningar samtidigt per konto, kontots månadskvot av rutor och 30 sökningar i timmen. Resultatet läses med list_laser_jobs, read_laser_output och training_raster.`,
+    inputSchema: { type: "object", properties: { ...projectId, area_id: { type: "string", description: "Etappens id; utelämnat = hela kartområdet (kan inte kombineras med clip eller rerun_of)" },
+      clip: { type: "object", description: "Egen klippruta i SWEREF 99 TM (meter, 20–12 000 m per sida), t.ex. en snabb 1×1 km provruta utan delområde",
+        properties: { min_x: { type: "number" }, min_y: { type: "number" }, max_x: { type: "number" }, max_y: { type: "number" } }, required: ["min_x", "min_y", "max_x", "max_y"] },
+      rerun_of: { type: "string", description: "Jobb-id (från list_laser_jobs) att köra om med nya inställningar utan ny sökning hos Lantmäteriet; kan kombineras med clip" },
       name: { type: "string", maxLength: 80, description: "Körningens namn (förval: Karttapullautin och området)" },
       contour_interval: { type: "number", minimum: 1, maximum: 10, description: `Ekvidistans i meter (förval ${GEO_JOB_DEFAULTS.contourInterval}, sprintkartor 2,5)` },
-      settings: { type: "object", additionalProperties: { type: "number" }, description: "Karttapullautins och geo-arbetarens inställningar, samma namn och gränser som i O-Tid" } },
+      settings: { type: "object", additionalProperties: { type: "number" }, description: "Karttapullautins och geo-arbetarens inställningar, samma namn och gränser som i O-Tid" },
+      cliffs: { type: "object", description: "Branternas trösklar i markrastret (meter fall över ±3 m); utelämnat = förvalet",
+        properties: { min_drop: { type: "number", minimum: 0.5, maximum: 5 }, impassable_drop: { type: "number", minimum: 1, maximum: 10 },
+          impassable_length: { type: "number", minimum: 5, maximum: 60 }, tags: { type: "boolean" }, raw_ticks: { type: "boolean" } },
+        required: ["min_drop", "impassable_drop"] },
+      moisture: { type: "object", description: `Fuktighetens trösklar (förval channel_ha ${GEO_JOB_DEFAULTS.channelHa}, wet_meters ${GEO_JOB_DEFAULTS.wetMeters}, moist_meters 1,6 × wet_meters)`,
+        properties: { channel_ha: { type: "number", minimum: 0.25, maximum: 10 }, wet_meters: { type: "number", minimum: 0.1, maximum: 3 },
+          moist_meters: { type: "number", minimum: 0.2, maximum: 5 } }, required: ["channel_ha", "wet_meters"] },
+      vegetation: { type: "object", description: `Vegetationens minsta yta i m² (förval ${GEO_JOB_DEFAULTS.minAreaM2})`,
+        properties: { min_area_m2: { type: "integer", minimum: 50, maximum: 5000 } }, required: ["min_area_m2"] },
+      raw_laser: { type: "boolean", description: "Spara även rå laserdata i 7 dygn (bara när rawLaserAvailable är sant i list_laser_jobs)" } },
       required: ["project_id"] }, annotations: { readOnlyHint: false, destructiveHint: false } },
   { name: "read_laser_output", title: "Läs en vektorfil ur en laserkörning", description: `Objekten i en vektorfil (DXF eller GeoJSON) ur projektets senaste klara laserkörning som har filen (eller job_id), omräknade till kartans mm med y uppåt (samma som list_objects och propose_changes). file är filens namn ur list_laser_jobs, t.ex. kurvor.dxf, formlinjer.dxf, brantlinjer.geojson, kullar.geojson, vatten.geojson, vegetation.dxf, fukt.dxf, diken.dxf, berg.dxf eller belagt.dxf (belagd yta ur laserns intensitet, sprintkartor); utan ändelse tas GeoJSON före DXF. Varje objekt har lager, slag (point, line, area), punkter ([x, y]; at för punkter, points för linjer, rings för ytor), höjd (elevation, kurvor) och egenskaper (properties, t.ex. kullarnas rise, share, foot och wet eller branternas drop3, drop6 och length). Ange area för ett utsnitt och layers för vissa lager; svaret räknar också objekten per lager. Högst ${MCP_LASER_OUTPUT_MAX_OBJECTS} objekt (limit, förval 100), ${MCP_LASER_OUTPUT_MAX_POINTS_PER_OBJECT} punkter per objekt (max_points, förval 50; längre linjer glesas jämnt och vertices säger hur många de hade) och ${MCP_LASER_OUTPUT_MAX_POINTS} punkter per svar; truncated och nextOffset säger att mer finns (fortsätt med offset). Filer över ${Math.round(MCP_LASER_OUTPUT_MAX_BYTES / (1024 * 1024))} MB läses inte.`,
     inputSchema: { type: "object", properties: { ...projectId, file: { type: "string", description: "Filens namn, t.ex. kurvor.dxf eller kullar" }, job_id: { type: "string" },
@@ -74,7 +88,12 @@ function refusal(result: { status: string; detail?: string }): string {
 
 const jobView = (job: GeoJobView, workerVersion: number | null) => ({ jobId: job.jobId, name: job.name, kind: job.kind, status: job.status, progress: job.progress,
   error: job.error, workerVersion, areaId: job.areaId, clip: job.clip, tiles: job.tiles, scannedAt: job.scannedAt, settings: job.settings,
-  ...(job.skippedSteps.length ? { skippedSteps: job.skippedSteps } : {}), createdAt: job.createdAt, finishedAt: job.finishedAt,
+  cliffs: job.cliffs, moisture: job.moisture, vegetation: job.vegetation, extras: job.extras,
+  ...(job.skippedSteps.length ? { skippedSteps: job.skippedSteps } : {}),
+  ...(job.mergedStages !== undefined ? { mergedStages: job.mergedStages } : {}),
+  createdAt: job.createdAt, startedAt: job.startedAt ?? null, finishedAt: job.finishedAt, attempts: job.attempts ?? 0,
+  summary: job.summary ?? null,
+  ...(job.rawLaserRequested ? { rawLaserRequested: true } : {}), ...(job.rawLaser ? { rawLaser: job.rawLaser } : {}),
   outputs: job.outputs.map(output => ({ name: output.name, bytes: output.byteSize })) });
 
 /** Ett av laserverktygen; argumenten är redan prövade mot verktygets schema och kontot får se projektet. */
@@ -87,34 +106,68 @@ export async function callMcpLaserTool(db: Database, accountId: string, name: st
     const listed = await listGeoJobsForAccount(db, { accountId, projectId: project }, runtime.environment, now);
     if (listed.status !== "ok") return toolError(refusal(listed));
     const areas = await db.transaction(tx => mapProjectAreaViews(tx, project));
-    return { content: [text({ server: listed.list.server, areas: areas.map(area => ({ areaId: area.areaId, name: area.name, status: area.status })),
+    return { content: [text({ server: listed.list.server, rawLaserAvailable: listed.list.rawLaserAvailable ?? false,
+      areas: areas.map(area => ({ areaId: area.areaId, name: area.name, status: area.status })),
       jobs: listed.list.jobs.map(view => jobView(view, listed.workerVersions.get(view.jobId) ?? null)) })] };
   }
   if (name === "start_laser_job") {
     // Prövas först, så att varken kartjobb eller sökning hos Lantmäteriet görs för ett projekt där AI:n bara får läsa.
     const allowed = await db.transaction(tx => aiGate(accountId, project, now)(tx, "propose", false));
     if (allowed.status !== "ok") return toolError(refusal(allowed));
-    const stage = typeof input.area_id === "string" ? (await db.transaction(tx => mapProjectAreaViews(tx, project))).find(area => area.areaId === input.area_id) : undefined;
-    if (typeof input.area_id === "string" && !stage) return toolError("Etappen finns inte i projektet (list_laser_jobs visar etapperna).");
-    const outcome = await job("LASER_AREA", stage ? { stage: stage.polygon } : {});
-    if (outcome.status !== "done") return jobFailure(outcome);
-    const boxes = outcome.result as { problem?: string; wgs84?: unknown; clip?: GeoClip | null; sprint?: boolean };
-    if (boxes.problem) return toolError(boxes.problem);
-    const found = await searchMapProjectLaserAsAi(db, { accountId, projectId: project, request: { formatVersion: 1, box: boxes.wgs84 } }, runtime, now);
-    if (found.status !== "ok") return toolError(refusal(found));
-    const tiles = newestLaserTiles(found.items).map(item => ({ id: item.id, href: item.href, bbox: item.bbox, epsg: item.epsg, datetime: item.datetime }));
-    if (tiles.length === 0) return toolError("Lantmäteriet har inga laserrutor för området.");
-    if (tiles.length > GEO_JOB_MAX_TILES) return toolError(`Området täcker ${tiles.length} laserrutor; en körning tar högst ${GEO_JOB_MAX_TILES}. Dela kartan i etapper och kör en etapp i taget (area_id).`);
-    const created = await createGeoJobAsAi(db, { accountId, projectId: project, request: { formatVersion: 1, requestId: randomUUID(), kind: "PULLAUTIN",
-      name: (typeof input.name === "string" ? input.name : `Karttapullautin ${stage?.name ?? "hela kartan"}`).slice(0, 80),
-      settings: { contour_interval: typeof input.contour_interval === "number" ? input.contour_interval : boxes.sprint ? 2.5 : GEO_JOB_DEFAULTS.contourInterval, formline: GEO_JOB_DEFAULTS.formline,
-        // Sprintkartor får belagd yta ur laserns intensitet (belagt.dxf) som förval; settings går före.
-        ...(boxes.sprint ? { paved: 1 } : {}), ...(input.settings as Record<string, number> | undefined) },
-      tiles, ...(boxes.clip ? { clip: boxes.clip } : {}), ...(stage ? { areaId: stage.areaId } : {}),
-      ...(boxes.clip && found.extras.length ? { extras: found.extras } : {}),
-      moisture: { channelHa: GEO_JOB_DEFAULTS.channelHa, wetMeters: GEO_JOB_DEFAULTS.wetMeters, moistMeters: Math.round(GEO_JOB_DEFAULTS.wetMeters * 160) / 100 },
-      vegetation: { minAreaM2: GEO_JOB_DEFAULTS.minAreaM2 } } }, runtime, now);
-    if (created.status !== "created") return toolError(refusal(created));
+    const customClip = input.clip as GeoClip | undefined;
+    const rerunOf = typeof input.rerun_of === "string" ? input.rerun_of : undefined;
+    const cliffs = input.cliffs as GeoJobView["cliffs"] | undefined;
+    const moisture = (input.moisture as GeoJobView["moisture"] | undefined)
+      ?? { channelHa: GEO_JOB_DEFAULTS.channelHa, wetMeters: GEO_JOB_DEFAULTS.wetMeters, moistMeters: Math.round(GEO_JOB_DEFAULTS.wetMeters * 160) / 100 };
+    const vegetation = (input.vegetation as GeoJobView["vegetation"] | undefined) ?? { minAreaM2: GEO_JOB_DEFAULTS.minAreaM2 };
+    const rawLaser = input.raw_laser === true ? true : undefined;
+    let requestBody: Record<string, unknown>;
+    if (rerunOf) {
+      // Omkörning av tidigare jobb (ev. med en mindre provruta i clip): rutor och extras ärvs utan ny sökning hos Lantmäteriet.
+      requestBody = {
+        formatVersion: 1, requestId: randomUUID(), kind: "PULLAUTIN",
+        name: (typeof input.name === "string" ? input.name : customClip ? "Karttapullautin provruta" : "Karttapullautin omkörning").slice(0, 80),
+        settings: { contour_interval: typeof input.contour_interval === "number" ? input.contour_interval : GEO_JOB_DEFAULTS.contourInterval,
+          formline: GEO_JOB_DEFAULTS.formline, ...(input.settings as Record<string, number> | undefined) },
+        rerunOf, ...(customClip ? { clip: customClip } : {}), ...(cliffs ? { cliffs } : {}), moisture, vegetation, ...(rawLaser ? { rawLaser: true } : {})
+      };
+    } else {
+      const stage = typeof input.area_id === "string" ? (await db.transaction(tx => mapProjectAreaViews(tx, project))).find(area => area.areaId === input.area_id) : undefined;
+      if (typeof input.area_id === "string" && !stage) return toolError("Etappen finns inte i projektet (list_laser_jobs visar etapperna).");
+      let searchWgs84: unknown, clip: GeoClip | null | undefined, sprint = false;
+      if (customClip) {
+        const box = clipWgs84(customClip);
+        if (!box || !Object.values(box).every(Number.isFinite)) return toolError("Klipprutan (SWEREF 99 TM) gick inte att räkna om till WGS 84.");
+        searchWgs84 = box; clip = customClip;
+      } else {
+        const outcome = await job("LASER_AREA", stage ? { stage: stage.polygon } : {});
+        if (outcome.status !== "done") return jobFailure(outcome);
+        const boxes = outcome.result as { problem?: string; wgs84?: unknown; clip?: GeoClip | null; sprint?: boolean };
+        if (boxes.problem) return toolError(boxes.problem);
+        searchWgs84 = boxes.wgs84; clip = boxes.clip; sprint = boxes.sprint === true;
+      }
+      const found = await searchMapProjectLaserAsAi(db, { accountId, projectId: project, request: { formatVersion: 1, box: searchWgs84 } }, runtime, now);
+      if (found.status !== "ok") return toolError(refusal(found));
+      const tiles = newestLaserTiles(found.items).map(item => ({ id: item.id, href: item.href, bbox: item.bbox, epsg: item.epsg, datetime: item.datetime }));
+      if (tiles.length === 0) return toolError("Lantmäteriet har inga laserrutor för området.");
+      if (tiles.length > GEO_JOB_MAX_TILES) return toolError(`Området täcker ${tiles.length} laserrutor; en körning tar högst ${GEO_JOB_MAX_TILES}. Dela kartan i etapper och kör en etapp i taget (area_id eller clip).`);
+      requestBody = {
+        formatVersion: 1, requestId: randomUUID(), kind: "PULLAUTIN",
+        name: (typeof input.name === "string" ? input.name : customClip ? "Karttapullautin provruta" : `Karttapullautin ${stage?.name ?? "hela kartan"}`).slice(0, 80),
+        settings: { contour_interval: typeof input.contour_interval === "number" ? input.contour_interval : sprint ? 2.5 : GEO_JOB_DEFAULTS.contourInterval,
+          formline: GEO_JOB_DEFAULTS.formline,
+          // Sprintkartor får belagd yta ur laserns intensitet (belagt.dxf) som förval; settings går före.
+          ...(sprint ? { paved: 1 } : {}), ...(input.settings as Record<string, number> | undefined) },
+        tiles, ...(clip ? { clip } : {}), ...(stage ? { areaId: stage.areaId } : {}),
+        ...(clip && found.extras.length ? { extras: found.extras } : {}),
+        ...(cliffs ? { cliffs } : {}), moisture, vegetation, ...(rawLaser ? { rawLaser: true } : {})
+      };
+    }
+    const created = await createGeoJobAsAi(db, { accountId, projectId: project, request: requestBody }, runtime, now);
+    if (created.status !== "created") {
+      if (created.status === "not-found" && rerunOf) return toolError("Körningen i rerun_of finns inte i projektet eller saknar laserrutor (list_laser_jobs visar jobben).");
+      return toolError(refusal(created));
+    }
     if (created.split) {
       return { content: [text({ ...jobView(created.job, null), stages: created.split.total, message: `Området är för stort för en körning och har delats i ${created.split.total} etapper, som ligger i kön och körs efter varandra (den här är den första). Följ dem med list_laser_jobs. Kartan ändras inte av körningarna.` })] };
     }

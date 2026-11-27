@@ -1,19 +1,30 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { mkdtemp, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
 import { GEO_CLIP_MARGIN_M, GEO_WORKER_VERSION } from "@o-tid/contracts";
 import { createDatabase, migrate, schema } from "@o-tid/database";
 import { mapPointToProjected, readMapFile } from "@o-tid/map-file";
 import { laserClip, objectBox } from "@o-tid/map-revision";
+import { clipWgs84 } from "@o-tid/map-revision/base-map";
 import { createMapJobCanvas } from "../../../../scripts/map-job-canvas";
+import { memoryArchiveStore, setMapArchiveStore } from "../../src/map-archive-store";
+import { setMapCacheDir } from "../../src/map-cache";
+import { mapProjectCanDownloadSource } from "../../src/map-project-access";
 import { createMapProjectArea } from "../../src/map-project-areas";
 import { claimGeoJob, finishGeoJob, storeGeoOutput } from "../../src/map-project-geo-jobs";
+import { rgbaPng } from "../../src/map-project-job-labels";
 import { claimMapJob, runMapJob } from "../../src/map-project-jobs";
 import { lantmaterietRuntimeFromEnvironment } from "../../src/map-project-lantmateriet";
 import { laserRuntimeFromEnvironment } from "../../src/map-project-laser";
+import { recordRawLaserStep } from "../../src/map-project-raw-laser";
 import { createMapProjectFromUpload, inviteMapProjectMember, readMapProject, updateMapProject } from "../../src/map-projects";
 import { saveMapSourceCredential } from "../../src/map-source-credentials";
+import { setMapStoreMode } from "../../src/map-store";
 import { handleMcpMessage } from "../../src/mcp";
+import { memoryRawLaserStore, setRawLaserStore } from "../../src/raw-laser-store";
 import { registerTestAccount } from "./accounts";
 
 /**
@@ -48,6 +59,7 @@ afterAll(async () => {
   await admin.pool.query(`DROP DATABASE "${databaseName}"`);
   await admin.pool.end();
 });
+afterEach(() => { setMapStoreMode(undefined); setMapArchiveStore(undefined); setMapCacheDir(undefined); setRawLaserStore(undefined); });
 
 /** Lantmäteriet: samma ruta från två år (den nyaste ska väljas) och en ruta på en främmande adress (ska väljas bort). */
 function fakeLantmateriet() {
@@ -234,5 +246,134 @@ describe("ADR-0219: AI-kopplingens laserverktyg", () => {
     expect(failed(await mcp(other.owner.accountId, call("read_laser_output", { project_id: other.projectId, file: "kullar", job_id: jobId }), runtime))).toBe(true);
     expect(failed(await mcp(other.owner.accountId, call("read_laser_output", { project_id: projectId, file: "kullar" }), runtime))).toBe(true);
     expect(failed(await mcp(owner.accountId, call("read_laser_output", { project_id: projectId, file: "../kullar" }), runtime))).toBe(true);
+  }, 60_000);
+
+  it("Etapp G1C: provruta (clip), omkörning (rerun_of), trösklar, raw_laser, telemetri, web-public geo-server och training_raster (berg/fukt/karta)", async () => {
+    const { owner, reader, projectId } = await project();
+    const { calls, runtime } = fakeLantmateriet();
+    await saveMapSourceCredential(db, { ...owner.proof, request: { formatVersion: 1, method: "BASIC", id: "geotorget-anna", secret: "hemligt" } }, environment);
+    await db.update(schema.mapProjectGeoJobs).set({ status: "CANCELLED" });
+
+    // Registrerad serverstatus från `web` i geo_server_state ska synas via list_laser_jobs även utan OTID_HETZNER_TOKEN (web-public).
+    await db.insert(schema.geoServerStates).values({
+      key: "server", value: { view: { state: "READY", detail: null }, mailed: {} }, updatedAt: new Date()
+    }).onConflictDoUpdate({ target: schema.geoServerStates.key, set: { value: { view: { state: "READY", detail: null }, mailed: {} }, updatedAt: new Date() } });
+
+    // 1. Provruta via clip (1×1 km SWEREF 99 TM) + anpassade cliffs, moisture, vegetation, utan att skapa delområde.
+    const testClip = { min_x: 665000, min_y: 6576000, max_x: 666000, max_y: 6577000 };
+    const expectedWgs84 = clipWgs84({ minX: testClip.min_x, minY: testClip.min_y, maxX: testClip.max_x, maxY: testClip.max_y })!;
+    const started = await mcp(owner.accountId, call("start_laser_job", {
+      project_id: projectId,
+      name: "Provruta 1x1",
+      clip: testClip,
+      cliffs: { min_drop: 1.5, impassable_drop: 4.5, impassable_length: 15, tags: true, raw_ticks: true },
+      moisture: { channel_ha: 0.75, wet_meters: 0.3 },
+      vegetation: { min_area_m2: 200 },
+      raw_laser: true
+    }), runtime);
+    expect(failed(started)).toBe(false);
+    const firstJob = jsonOf(started);
+    const firstJobId = firstJob.jobId as string;
+    expect(firstJob).toMatchObject({
+      status: "QUEUED", name: "Provruta 1x1", areaId: null,
+      clip: { minX: 665000, minY: 6576000, maxX: 666000, maxY: 6577000 },
+      cliffs: { minDrop: 1.5, impassableDrop: 4.5, impassableLength: 15, tags: true, rawTicks: true },
+      moisture: { channelHa: 0.75, wetMeters: 0.3, moistMeters: 0.48 },
+      vegetation: { minAreaM2: 200 }
+    });
+    // rawLaser store är av här → rawLaserRequested sätts inte.
+    expect(firstJob.rawLaserRequested).toBeUndefined();
+    // Sökningen mot Lantmäteriet använde WGS84 beräknat från clip (inte hela kartan).
+    const searchCall = JSON.parse(calls.find(entry => entry.url.endsWith("/search"))!.body!) as { bbox: number[] };
+    expect(searchCall.bbox[0]).toBeCloseTo(expectedWgs84.west, 5);
+    expect(searchCall.bbox[1]).toBeCloseTo(expectedWgs84.south, 5);
+    expect(searchCall.bbox[2]).toBeCloseTo(expectedWgs84.east, 5);
+    expect(searchCall.bbox[3]).toBeCloseTo(expectedWgs84.north, 5);
+
+    // Kör klart jobbet med telemetri i summary samt berg.png, fukt.png och karta.webp.
+    const claimed = await claimGeoJob(db, "geo-g1c");
+    expect(claimed?.jobId).toBe(firstJobId);
+    const tinyRgba = new Uint8Array(4 * 4 * 4);
+    for (let i = 0; i < 16; i += 1) tinyRgba.set([10 + i, 20, 30, 255], i * 4);
+    const tinyPng = rgbaPng(4, 4, tinyRgba);
+    const webp = new Uint8Array(40);
+    webp.set(new TextEncoder().encode("RIFF"), 0); webp.set(new TextEncoder().encode("WEBPVP8X"), 8);
+    new DataView(webp.buffer).setUint16(24, 3, true); new DataView(webp.buffer).setUint16(27, 3, true);
+    const pgw = new TextEncoder().encode("2\n0\n0\n-2\n665001\n6576999\n");
+    for (const [name, mediaType, file] of [
+      ["berg.png", "image/png", tinyPng], ["berg.pgw", "text/plain", pgw],
+      ["fukt.png", "image/png", tinyPng], ["fukt.pgw", "text/plain", pgw],
+      ["karta.webp", "image/webp", webp], ["karta.pgw", "text/plain", pgw]
+    ] as const) {
+      expect(await storeGeoOutput(db, { jobId: firstJobId, worker: "geo-g1c", name, mediaType, file })).toEqual({ status: "stored" });
+    }
+    const telemetrySummary = { worker: GEO_WORKER_VERSION, tiles: 1, msFetchClip: 120, msPullauta: 950, msUpload: 80, msTotal: 1400, peakRssMb: 512 };
+    expect((await finishGeoJob(db, firstJobId, "geo-g1c", { status: "DONE", summary: telemetrySummary })).status).toBe("ok");
+
+    // 2. list_laser_jobs exponerar startedAt, attempts, cliffs, moisture, vegetation, extras, summary och server=READY utan Hetzner-token.
+    const listed = jsonOf(await mcp(owner.accountId, call("list_laser_jobs", { project_id: projectId }), runtime));
+    expect(listed.server).toEqual({ state: "READY", detail: null });
+    expect(listed.rawLaserAvailable).toBe(false);
+    expect(listed.jobs).toMatchObject([{
+      jobId: firstJobId, status: "DONE", attempts: 1, startedAt: expect.any(String) as unknown,
+      cliffs: { minDrop: 1.5, impassableDrop: 4.5, impassableLength: 15, tags: true, rawTicks: true },
+      moisture: { channelHa: 0.75, wetMeters: 0.3, moistMeters: 0.48 },
+      vegetation: { minAreaM2: 200 }, extras: [], summary: telemetrySummary
+    }]);
+
+    // 3. training_raster stödjer berg (PNG + utsnitt), fukt (PNG) och karta (WebP; utsnitt avvisas för WebP).
+    type ImageReply = { result: { isError?: boolean; content: ({ type: "image"; data: string; mimeType: string } | { type: "text"; text: string })[] } };
+    const bergCrop = (await mcp(owner.accountId, call("training_raster", {
+      project_id: projectId, name: "berg", job_id: firstJobId, min_e: 665000, min_n: 6576994, max_e: 665006, max_n: 6577000
+    }), runtime)) as ImageReply;
+    expect(bergCrop.result.isError).toBeUndefined();
+    expect(bergCrop.result.content[0]).toMatchObject({ type: "image", mimeType: "image/png" });
+    const fukt = (await mcp(owner.accountId, call("training_raster", { project_id: projectId, name: "fukt", job_id: firstJobId }), runtime)) as ImageReply;
+    expect(fukt.result.isError).toBeUndefined();
+    expect(fukt.result.content[0]).toMatchObject({ type: "image", mimeType: "image/png" });
+    const karta = (await mcp(owner.accountId, call("training_raster", { project_id: projectId, name: "karta", job_id: firstJobId }), runtime)) as ImageReply;
+    expect(karta.result.isError).toBeUndefined();
+    expect(karta.result.content[0]).toMatchObject({ type: "image", mimeType: "image/webp" });
+    const kartaCrop = await mcp(owner.accountId, call("training_raster", {
+      project_id: projectId, name: "karta", job_id: firstJobId, min_e: 665000, min_n: 6576994, max_e: 665006, max_n: 6577000
+    }), runtime);
+    expect(failed(kartaCrop)).toBe(true);
+
+    // 4. rerun_of kör om samma rutor utan ny Lantmäteriet-sökning, och med raw_laser när förrådet är på.
+    const raw = memoryRawLaserStore();
+    setMapArchiveStore(memoryArchiveStore()); setMapStoreMode("on"); setMapCacheDir(await mkdtemp(join(tmpdir(), "otid-mcp-raw-"))); setRawLaserStore(raw);
+    calls.length = 0;
+    const subClip = { min_x: 665100, min_y: 6576100, max_x: 665600, max_y: 6576600 };
+    const rerun = await mcp(owner.accountId, call("start_laser_job", {
+      project_id: projectId, rerun_of: firstJobId, clip: subClip, settings: { smoothing: 1.5 }, raw_laser: true
+    }), runtime);
+    expect(failed(rerun)).toBe(false);
+    expect(calls).toHaveLength(0); // ingen ny Lantmäteriet-sökning!
+    const rerunJob = jsonOf(rerun);
+    expect(rerunJob).toMatchObject({
+      status: "QUEUED", tiles: 1, clip: { minX: 665100, minY: 6576100, maxX: 665600, maxY: 6576600 },
+      settings: { smoothing: 1.5 }, rawLaserRequested: true
+    });
+    // Rå laserdata-länk visas bara för den som startade körningen (inte för reader), och CUSTODIANS_ONLY bevaras intakt.
+    const claimedRerun = await claimGeoJob(db, "geo-g1c-raw");
+    expect(claimedRerun?.rawLaser).toBe(true);
+    const rawStart = await recordRawLaserStep(db, { jobId: claimedRerun!.jobId, worker: "geo-g1c-raw", body: { step: "start", byteLength: 512, files: 1 } });
+    if (rawStart.status !== "upload") throw new Error(rawStart.status);
+    raw.objects.set(rawStart.key, 512);
+    expect((await recordRawLaserStep(db, { jobId: claimedRerun!.jobId, worker: "geo-g1c-raw", body: { step: "done" } })).status).toBe("ready");
+    const ownerJobs = jsonOf(await mcp(owner.accountId, call("list_laser_jobs", { project_id: projectId }), runtime));
+    const readerJobs = jsonOf(await mcp(reader.accountId, call("list_laser_jobs", { project_id: projectId }), runtime));
+    expect(ownerJobs.rawLaserAvailable).toBe(true);
+    expect((ownerJobs.jobs as { jobId: string; rawLaser?: { url: string | null }[] }[]).find(j => j.jobId === claimedRerun!.jobId)?.rawLaser?.[0]?.url).toContain("memory://get/");
+    expect((readerJobs.jobs as { jobId: string; rawLaser?: { url: string | null }[] }[]).find(j => j.jobId === claimedRerun!.jobId)?.rawLaser?.[0]?.url).toBeNull();
+
+    // Okänt rerun_of och CUSTODIANS_ONLY-kontroll: grundfilen är fortsatt spärrad för reader.
+    const missingRerun = await mcp(owner.accountId, call("start_laser_job", { project_id: projectId, rerun_of: randomUUID() }), runtime);
+    expect(failed(missingRerun)).toBe(true);
+    expect(textOf(missingRerun)).toContain("rerun_of");
+    expect((await updateMapProject(db, { ...owner.proof, projectId, request: { formatVersion: 1, sourceDownloadPolicy: "CUSTODIANS_ONLY" } })).status).toBe("ok");
+    const [projRow] = await db.select().from(schema.mapProjects).where(eq(schema.mapProjects.id, projectId));
+    expect(await db.transaction(tx => mapProjectCanDownloadSource(tx, reader.accountId, "READ", projRow!))).toBe(false);
+    expect(failed(await mcp(reader.accountId, call("start_laser_job", { project_id: projectId, clip: testClip, raw_laser: true }), runtime))).toBe(true);
   }, 60_000);
 });

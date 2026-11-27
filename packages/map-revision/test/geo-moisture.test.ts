@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   cleanMask, fillDepressions, flowAccumulation, flowDirections, heightAboveDrainage, maskRings, moistureFromHeightMaps, mosaic, readHeightMap,
-  worldFile, type Grid
+  ringArea, worldFile, type Grid
 } from "../../../scripts/geo-moisture";
+import { nestRings } from "../src/ring-nesting";
+import { parseDxf } from "../src/vector-parse";
 
 /** ADR-0219 K5c del 2: fuktigheten ur Karttapullautins höjdraster i geo-arbetaren (scripts/geo-moisture.ts). */
 function grid(width: number, height: number, f: (x: number, y: number) => number, minX = 675_000, minY = 6_580_000): Grid {
@@ -87,5 +89,30 @@ describe("fuktigheten ur höjdrastret", () => {
     expect(result.summary.channels).toBeGreaterThan(0);
     expect(result.summary.wetAreas).toBeGreaterThan(0);
     expect(result.summary.moistHa).toBeGreaterThanOrEqual(result.summary.wetHa);
+  });
+
+  it("cleanMask fyller bara små hål men bevarar en torr kulle mitt i ett kärr, och vatten lämnar giltiga hålringar", () => {
+    // 20 × 20 kärr med ett litet 2-cellshål (< minCells = 6) och en torr kulle på 3 × 3 = 9 celler (>= minCells).
+    const width = 20, height = 20, mask = new Uint8Array(width * height);
+    for (let x = 1; x < 19; x += 1) for (let y = 1; y < 19; y += 1) mask[x * height + y] = 1;
+    mask[4 * height + 4] = 0; mask[4 * height + 5] = 0; // litet hål (2 celler)
+    for (let x = 10; x < 13; x += 1) for (let y = 10; y < 13; y += 1) mask[x * height + y] = 0; // torr kulle (9 celler)
+    const clean = cleanMask(mask, width, height, 6);
+    expect(clean[4 * height + 4]).toBe(1);
+    expect(clean[4 * height + 5]).toBe(1);
+    expect(clean[11 * height + 11]).toBe(0);
+    const rings = maskRings(clean, { minX: 0, minY: 0, cell: 2, width, height, z: new Float64Array(0) });
+    expect(rings).toHaveLength(2);
+    expect(rings.map(r => Math.sign(ringArea(r))).sort()).toEqual([-1, 1]);
+
+    // En sjö mitt i en flack dal ger en giltig hålring i DXF:en som `nestRings` kapslar i kärret.
+    const lake = (x: number, y: number) => Math.hypot(x - 675_100, y - 6_580_080) < 12;
+    const withLake = moistureFromHeightMaps([grid(101, 101, gentle)], { channelHa: 1, wetMeters: 0.8, moistMeters: 1.2, channelLineHa: 1 }, lake);
+    const wetFeatures = parseDxf(withLake.dxf).features.filter(feature => feature.layer === "blott");
+    const wetRings = wetFeatures.map(feature => (feature.geometry.kind === "line" ? feature.geometry.points : []));
+    expect(wetRings.some(ring => ringArea(ring) > 0)).toBe(true);
+    expect(wetRings.some(ring => ringArea(ring) < 0)).toBe(true);
+    const nested = nestRings(wetRings.map(ring => ring.map(([x, y]) => ({ x, y }))));
+    expect(nested.some(polygon => polygon.length >= 2)).toBe(true);
   });
 });

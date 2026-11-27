@@ -63,6 +63,22 @@ describe("generaliseringen", () => {
     expect(proposalBase(state, "n:b")).toBeUndefined();
     expect(proposalBase(state, "n:c")).toBeUndefined();
   });
+
+  it("removeSmall hittar alla storleksfel även när kartan har tusentals täta kurvor (CONTOUR_GAP)", () => {
+    const crowded: NormObject[] = Array.from({ length: 28 }, (_, k) =>
+      line(`c${k}`, "101", Array.from({ length: 60 }, (_, s) => [s * 2, k * 0.1] as [number, number])));
+    const objects: NormObject[] = [
+      ...crowded,
+      area("liten", "401", [[200, 0], [200.3, 0], [200.3, 0.3], [200, 0.3], [200, 0]]),
+      line("kort", "516", [[210, 0], [210.5, 0]]),
+      line("kulle", "101", [[220, 0], [220.4, 0], [220.4, 0.4], [220, 0.4], [220, 0]])
+    ];
+    const result = generalize(objects, 15000, { simplifyMm: 0, removeSmall: true });
+    expect(result.removed).toEqual({ SMALL_AREA: 1, SHORT_LINE: 1, SMALL_CLOSED: 1 });
+    expect(result.changes.map(change => [change.key, change.reason]).sort()).toEqual([
+      ["n:kort", "SHORT_LINE"], ["n:kulle", "SMALL_CLOSED"], ["n:liten", "SMALL_AREA"]
+    ]);
+  });
 });
 
 describe("kandidaterna generaliseras före Lägg in", () => {

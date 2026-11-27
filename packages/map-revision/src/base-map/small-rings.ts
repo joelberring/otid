@@ -1,5 +1,4 @@
 import { elongatedAngle, elongatedKnoll } from "./elongated-knolls";
-import { maxOf, minOf } from "@o-tid/map-file";
 import type { SourceFeature } from "../index";
 
 /**
@@ -24,9 +23,51 @@ const NEAR_METERS = 40;
 export const ISOM_RINGS = { knoll: [0.9, 0.6], depression: [1.1, 0.7], formline: [1.1, 0] } as const;
 type Ring = readonly (readonly [number, number])[];
 
+type Box = { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number };
+interface RingMeta {
+  readonly box: Box;
+  readonly area: number;
+  readonly centre: [number, number];
+  extent?: { length: number; width: number } | undefined;
+}
+const ringMetaCache = new WeakMap<Ring, RingMeta>();
+
+const boxOfPoints = (ring: Ring): Box => {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (let i = 0; i < ring.length; i += 1) {
+    const [x, y] = ring[i]!;
+    if (x < minX) minX = x;
+    if (y < minY) minY = y;
+    if (x > maxX) maxX = x;
+    if (y > maxY) maxY = y;
+  }
+  return { minX, minY, maxX, maxY };
+};
+const touchesBox = (a: Box, b: Box) => a.minX <= b.maxX && b.minX <= a.maxX && a.minY <= b.maxY && b.minY <= a.maxY;
+const containsBox = (outer: Box, inner: Box) => outer.minX <= inner.minX && outer.maxX >= inner.maxX && outer.minY <= inner.minY && outer.maxY >= inner.maxY;
+
 /** Ringens yta (i koordinaternas enhet i kvadrat). */
-export const ringArea = (ring: Ring) => Math.abs(ring.reduce((sum, [x, y], i) => { const [nx, ny] = ring[(i + 1) % ring.length]!; return sum + x * ny - nx * y; }, 0)) / 2;
-const centreOf = (ring: Ring): [number, number] => [ring.reduce((sum, p) => sum + p[0], 0) / ring.length, ring.reduce((sum, p) => sum + p[1], 0) / ring.length];
+export const ringArea = (ring: Ring) => {
+  let sum = 0;
+  for (let i = 0; i < ring.length; i += 1) {
+    const [x, y] = ring[i]!, [nx, ny] = ring[(i + 1) % ring.length]!;
+    sum += x * ny - nx * y;
+  }
+  return Math.abs(sum) / 2;
+};
+const centreOf = (ring: Ring): [number, number] => {
+  let sx = 0, sy = 0;
+  for (let i = 0; i < ring.length; i += 1) { sx += ring[i]![0]; sy += ring[i]![1]; }
+  return [sx / ring.length, sy / ring.length];
+};
+function metaOf(ring: Ring): RingMeta {
+  let meta = ringMetaCache.get(ring);
+  if (!meta) {
+    meta = { box: boxOfPoints(ring), area: ringArea(ring), centre: centreOf(ring) };
+    ringMetaCache.set(ring, meta);
+  }
+  return meta;
+}
 function inside(ring: Ring, x: number, y: number): boolean {
   let hit = false;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i, i += 1) {
@@ -35,16 +76,147 @@ function inside(ring: Ring, x: number, y: number): boolean {
   }
   return hit;
 }
+const EXTENT_DIRS: readonly (readonly [number, number])[] = Array.from({ length: 36 }, (_, i) => [
+  Math.cos(i * 5 * Math.PI / 180), Math.sin(i * 5 * Math.PI / 180)
+] as const);
+
 /** Längd och bredd: största och minsta utsträckning över riktningar var femte grad. */
 export function extentOf(ring: Ring): { length: number; width: number } {
   let length = 0, width = Infinity;
-  for (let degree = 0; degree < 180; degree += 5) {
-    const [c, s] = [Math.cos(degree * Math.PI / 180), Math.sin(degree * Math.PI / 180)];
-    const along = ring.map(([x, y]) => x * c + y * s);
-    const span = maxOf(along) - minOf(along);
-    length = Math.max(length, span); width = Math.min(width, span);
+  for (let d = 0; d < EXTENT_DIRS.length; d += 1) {
+    const [c, s] = EXTENT_DIRS[d]!;
+    let lo = Infinity, hi = -Infinity;
+    for (let i = 0; i < ring.length; i += 1) {
+      const p = ring[i]!;
+      const proj = p[0] * c + p[1] * s;
+      if (proj < lo) lo = proj;
+      if (proj > hi) hi = proj;
+    }
+    const span = hi - lo;
+    if (span > length) length = span;
+    if (span < width) width = span;
   }
   return { length, width };
+}
+function extentCached(ring: Ring): { length: number; width: number } {
+  const meta = metaOf(ring);
+  return (meta.extent ??= extentOf(ring));
+}
+
+/** Spatialt rutnät över objekt med bbox. */
+class BoxGrid<T extends { readonly box: Box }> {
+  private readonly cells = new Map<number, number[]>();
+  private readonly overflow: number[] = [];
+  private readonly seen: Int32Array;
+  private stamp = 0;
+  private readonly cell: number;
+  private readonly originX: number;
+  private readonly originY: number;
+  constructor(private readonly items: readonly T[], fixedCell?: number) {
+    this.seen = new Int32Array(items.length);
+    let sum = 0, ox = Infinity, oy = Infinity;
+    for (const item of items) {
+      sum += Math.max(item.box.maxX - item.box.minX, item.box.maxY - item.box.minY);
+      if (item.box.minX < ox) ox = item.box.minX;
+      if (item.box.minY < oy) oy = item.box.minY;
+    }
+    this.originX = Number.isFinite(ox) ? ox : 0;
+    this.originY = Number.isFinite(oy) ? oy : 0;
+    this.cell = fixedCell ?? (items.length ? Math.max(5, Math.min(250, sum / items.length)) : 20);
+    for (let i = 0; i < items.length; i += 1) {
+      const b = items[i]!.box;
+      const x0 = Math.floor((b.minX - this.originX) / this.cell), x1 = Math.floor((b.maxX - this.originX) / this.cell);
+      const y0 = Math.floor((b.minY - this.originY) / this.cell), y1 = Math.floor((b.maxY - this.originY) / this.cell);
+      if ((x1 - x0 + 1) * (y1 - y0 + 1) > 64 || Math.abs(x0) > 1e7 || Math.abs(x1) > 1e7 || Math.abs(y0) > 1e7 || Math.abs(y1) > 1e7) {
+        this.overflow.push(i);
+        continue;
+      }
+      for (let cx = x0; cx <= x1; cx += 1) for (let cy = y0; cy <= y1; cy += 1) {
+        const key = (cx + 0x1000000) * 0x2000000 + (cy + 0x1000000);
+        const list = this.cells.get(key);
+        if (list) list.push(i); else this.cells.set(key, [i]);
+      }
+    }
+  }
+  someInBox(box: Box, test: (item: T) => boolean): boolean {
+    if (this.items.length === 0) return false;
+    this.stamp += 1;
+    if (this.stamp === 0x7fffffff) { this.seen.fill(0); this.stamp = 1; }
+    const x0 = Math.floor((box.minX - this.originX) / this.cell), x1 = Math.floor((box.maxX - this.originX) / this.cell);
+    const y0 = Math.floor((box.minY - this.originY) / this.cell), y1 = Math.floor((box.maxY - this.originY) / this.cell);
+    if ((x1 - x0 + 1) * (y1 - y0 + 1) > 256 || Math.abs(x0) > 1e7 || Math.abs(x1) > 1e7 || Math.abs(y0) > 1e7 || Math.abs(y1) > 1e7) {
+      for (let i = 0; i < this.items.length; i += 1) {
+        const item = this.items[i]!;
+        if (touchesBox(item.box, box) && test(item)) return true;
+      }
+      return false;
+    }
+    for (let cx = x0; cx <= x1; cx += 1) for (let cy = y0; cy <= y1; cy += 1) {
+      const list = this.cells.get((cx + 0x1000000) * 0x2000000 + (cy + 0x1000000));
+      if (!list) continue;
+      for (let i = 0; i < list.length; i += 1) {
+        const idx = list[i]!;
+        if (this.seen[idx] === this.stamp) continue;
+        this.seen[idx] = this.stamp;
+        const item = this.items[idx]!;
+        if (touchesBox(item.box, box) && test(item)) return true;
+      }
+    }
+    for (let i = 0; i < this.overflow.length; i += 1) {
+      const idx = this.overflow[i]!;
+      if (this.seen[idx] === this.stamp) continue;
+      this.seen[idx] = this.stamp;
+      const item = this.items[idx]!;
+      if (touchesBox(item.box, box) && test(item)) return true;
+    }
+    return false;
+  }
+  forEachInBox(box: Box, visit: (item: T) => void) {
+    this.someInBox(box, item => { visit(item); return false; });
+  }
+}
+
+/** Dynamiskt punktrutnät för stenar, kullar och punkthöjder. */
+class PointGrid<T> {
+  private readonly cells = new Map<number, { x: number; y: number; item: T }[]>();
+  private readonly overflow: { x: number; y: number; item: T }[] = [];
+  private originX = 0;
+  private originY = 0;
+  private hasOrigin = false;
+  constructor(private readonly cell: number) {}
+  add(x: number, y: number, item: T) {
+    if (!this.hasOrigin) { this.originX = x; this.originY = y; this.hasOrigin = true; }
+    const cx = Math.floor((x - this.originX) / this.cell), cy = Math.floor((y - this.originY) / this.cell);
+    const entry = { x, y, item };
+    if (Math.abs(cx) > 1e7 || Math.abs(cy) > 1e7) { this.overflow.push(entry); return; }
+    const key = (cx + 0x1000000) * 0x2000000 + (cy + 0x1000000);
+    const list = this.cells.get(key);
+    if (list) list.push(entry); else this.cells.set(key, [entry]);
+  }
+  someInBox(box: Box, test: (x: number, y: number, item: T) => boolean): boolean {
+    if (!this.hasOrigin) return false;
+    const x0 = Math.floor((box.minX - this.originX) / this.cell), x1 = Math.floor((box.maxX - this.originX) / this.cell);
+    const y0 = Math.floor((box.minY - this.originY) / this.cell), y1 = Math.floor((box.maxY - this.originY) / this.cell);
+    if ((x1 - x0 + 1) * (y1 - y0 + 1) > 256 || Math.abs(x0) > 1e7 || Math.abs(x1) > 1e7 || Math.abs(y0) > 1e7 || Math.abs(y1) > 1e7) {
+      for (const list of this.cells.values()) for (const entry of list) {
+        if (entry.x >= box.minX && entry.x <= box.maxX && entry.y >= box.minY && entry.y <= box.maxY && test(entry.x, entry.y, entry.item)) return true;
+      }
+    } else {
+      for (let cx = x0; cx <= x1; cx += 1) for (let cy = y0; cy <= y1; cy += 1) {
+        const list = this.cells.get((cx + 0x1000000) * 0x2000000 + (cy + 0x1000000));
+        if (!list) continue;
+        for (let i = 0; i < list.length; i += 1) {
+          const entry = list[i]!;
+          if (entry.x >= box.minX && entry.x <= box.maxX && entry.y >= box.minY && entry.y <= box.maxY && test(entry.x, entry.y, entry.item)) return true;
+        }
+      }
+    }
+    for (let i = 0; i < this.overflow.length; i += 1) {
+      const entry = this.overflow[i]!;
+      if (entry.x >= box.minX && entry.x <= box.maxX && entry.y >= box.minY && entry.y <= box.maxY && test(entry.x, entry.y, entry.item)) return true;
+    }
+    return false;
+  }
 }
 
 /**
@@ -81,21 +253,51 @@ export function oneMarkPerKnoll(features: readonly SourceFeature[], scale: numbe
   const mm = (value: number) => value * scale / 1000;
   const knolls = features.filter(feature => feature.geometry.kind === "point" && KNOLL_POINT.test(feature.layer));
   const stones = features.filter(feature => feature.geometry.kind === "point" && STONE.test(feature.layer));
-  const near = (a: SourceFeature, b: SourceFeature) => { const [ax, ay] = POINT_AT(a), [bx, by] = POINT_AT(b); return Math.hypot(ax - bx, ay - by) <= mm(0.4); };
+  const stoneRadius = mm(0.4), stoneRadiusSq = stoneRadius * stoneRadius;
+  const knollGrid = new PointGrid<{ feature: SourceFeature; index: number }>(Math.max(stoneRadius, 1));
+  for (let i = 0; i < knolls.length; i += 1) {
+    const knoll = knolls[i]!, [x, y] = POINT_AT(knoll);
+    knollGrid.add(x, y, { feature: knoll, index: i });
+  }
   const dropped = new Set<SourceFeature>();
   for (const stone of stones) {
-    const hit = knolls.find(knoll => near(stone, knoll));
+    const [sx, sy] = POINT_AT(stone);
+    let bestIndex = Infinity;
+    let hit: SourceFeature | undefined;
+    knollGrid.someInBox({ minX: sx - stoneRadius, minY: sy - stoneRadius, maxX: sx + stoneRadius, maxY: sy + stoneRadius }, (kx, ky, entry) => {
+      const dx = kx - sx, dy = ky - sy;
+      if (dx * dx + dy * dy <= stoneRadiusSq && entry.index < bestIndex) {
+        bestIndex = entry.index;
+        hit = entry.feature;
+      }
+      return false;
+    });
     if (!hit) continue;
     dropped.add(/_laser$/i.test(hit.layer) ? stone : hit);
   }
-  const marks = knolls.filter(knoll => !dropped.has(knoll)).map(POINT_AT);
-  const rings = features.filter(feature => feature.geometry.kind === "line" && feature.geometry.closed && (CONTOUR.test(feature.layer) || FORMLINE.test(feature.layer)));
+  const maxRingLen = mm(2.5);
+  const marksGrid = new PointGrid<true>(Math.max(maxRingLen, 10));
+  for (const knoll of knolls) {
+    if (dropped.has(knoll)) continue;
+    const [x, y] = POINT_AT(knoll);
+    marksGrid.add(x, y, true);
+  }
   const ringOf = (feature: SourceFeature) => (feature.geometry as { points: Ring }).points;
-  for (const feature of rings) {
-    const ring = ringOf(feature);
-    if (extentOf(ring).length > mm(2.5) || !marks.some(([x, y]) => inside(ring, x, y))) continue;
+  const ringEntries = features
+    .filter(feature => feature.geometry.kind === "line" && feature.geometry.closed && (CONTOUR.test(feature.layer) || FORMLINE.test(feature.layer)))
+    .map(feature => {
+      const ring = ringOf(feature), meta = metaOf(ring);
+      return { feature, ring, box: meta.box };
+    });
+  const ringsGrid = new BoxGrid(ringEntries);
+  for (const entry of ringEntries) {
+    const { feature, ring, box } = entry;
+    if (box.maxX - box.minX > maxRingLen || box.maxY - box.minY > maxRingLen) continue;
+    if (extentCached(ring).length > maxRingLen) continue;
+    if (!marksGrid.someInBox(box, (x, y) => inside(ring, x, y))) continue;
     // En ring med en annan ring inuti är en del av en större form, inte en enskild liten kulle.
-    if (rings.some(other => other !== feature && ringOf(other).every(([x, y]) => inside(ring, x, y)))) continue;
+    if (ringsGrid.someInBox(box, other => other.feature !== feature && containsBox(box, other.box)
+      && other.ring.every(([x, y]) => inside(ring, x, y)))) continue;
     dropped.add(feature);
   }
   return features.filter(feature => !dropped.has(feature));
@@ -106,11 +308,27 @@ export function smallRingsToPoints(input: readonly SourceFeature[], scale: numbe
   const features = closeFormlineHooks(input, scale);
   const meters = (mm: number) => mm * generalize * scale / 1000;
   const ringOf = (feature: SourceFeature) => (feature.geometry as { points: Ring }).points;
-  const levelled = features.filter(feature => feature.geometry.kind === "line" && ANY.test(feature.layer) && feature.elevation !== undefined);
-  const rings = levelled.filter(feature => feature.geometry.kind === "line" && feature.geometry.closed)
-    .map(feature => ({ feature, ring: ringOf(feature), area: ringArea(ringOf(feature)) }));
-  const marks: (readonly [number, number])[] = features.filter(feature => feature.geometry.kind === "point" && /DOTKNOLL|DEPRESSION/i.test(feature.layer))
-    .map(feature => (feature.geometry as { at: readonly [number, number] }).at);
+  const levelled = features
+    .filter(feature => feature.geometry.kind === "line" && ANY.test(feature.layer) && feature.elevation !== undefined)
+    .map(feature => {
+      const ring = ringOf(feature);
+      return { feature, ring, box: boxOfPoints(ring) };
+    });
+  const levelledGrid = new BoxGrid(levelled, NEAR_METERS);
+  const rings = levelled
+    .filter(row => row.feature.geometry.kind === "line" && row.feature.geometry.closed)
+    .map(row => {
+      const meta = metaOf(row.ring);
+      return { feature: row.feature, ring: row.ring, area: meta.area, box: meta.box };
+    });
+  const ringsGrid = new BoxGrid(rings);
+  const marksGrid = new PointGrid<true>(Math.max(meters(ISOM_RINGS.depression[0]), 15));
+  for (const feature of features) {
+    if (feature.geometry.kind === "point" && /DOTKNOLL|DEPRESSION/i.test(feature.layer)) {
+      const [x, y] = (feature.geometry as { at: readonly [number, number] }).at;
+      marksGrid.add(x, y, true);
+    }
+  }
   const replaced = new Map<SourceFeature, SourceFeature | undefined>(), added: SourceFeature[] = [];
 
   /** Kulle (sant), grop (falskt) eller okänt. */
@@ -118,19 +336,26 @@ export function smallRingsToPoints(input: readonly SourceFeature[], scale: numbe
     if (/^depression/.test(feature.layer)) return false;
     const height = feature.elevation;
     if (height === undefined) return undefined;
-    const [cx, cy] = centreOf(ring), area = ringArea(ring);
-    const around = rings.filter(other => other.area > area && other.feature.elevation !== height && inside(other.ring, cx, cy))
-      .sort((a, b) => a.area - b.area)[0];
-    let outside = around?.feature.elevation;
-    if (outside === undefined) {
-      let best = NEAR_METERS;
-      for (const other of levelled) {
-        if (other.elevation === height) continue;
-        for (const [x, y] of ringOf(other)) {
-          const distance = Math.hypot(x - cx, y - cy);
-          if (distance < best) { best = distance; outside = other.elevation; }
-        }
+    const meta = metaOf(ring);
+    const [cx, cy] = meta.centre, area = meta.area;
+    let aroundArea = Infinity;
+    let outside: number | undefined;
+    ringsGrid.forEachInBox({ minX: cx, minY: cy, maxX: cx, maxY: cy }, other => {
+      if (other.area > area && other.area < aroundArea && other.feature.elevation !== height && inside(other.ring, cx, cy)) {
+        aroundArea = other.area;
+        outside = other.feature.elevation;
       }
+    });
+    if (outside === undefined) {
+      let bestSq = NEAR_METERS * NEAR_METERS;
+      levelledGrid.forEachInBox({ minX: cx - NEAR_METERS, minY: cy - NEAR_METERS, maxX: cx + NEAR_METERS, maxY: cy + NEAR_METERS }, other => {
+        if (other.feature.elevation === height) return;
+        const pts = other.ring;
+        for (let i = 0; i < pts.length; i += 1) {
+          const dx = pts[i]![0] - cx, dy = pts[i]![1] - cy, dSq = dx * dx + dy * dy;
+          if (dSq < bestSq) { bestSq = dSq; outside = other.feature.elevation; }
+        }
+      });
     }
     return outside === undefined ? undefined : outside < height;
   };
@@ -140,7 +365,7 @@ export function smallRingsToPoints(input: readonly SourceFeature[], scale: numbe
     const contour = CONTOUR.test(feature.layer), formline = FORMLINE.test(feature.layer);
     if (!contour && !formline) continue;
     const ring = ringOf(feature);
-    const { length, width } = extentOf(ring);
+    const { length, width } = extentCached(ring);
     if (formline) { if (length < meters(ISOM_RINGS.formline[0])) replaced.set(feature, undefined); continue; }
     const knoll = isKnoll(feature, ring);
     const [minLength, minWidth] = knoll === false ? ISOM_RINGS.depression : ISOM_RINGS.knoll;
@@ -151,9 +376,10 @@ export function smallRingsToPoints(input: readonly SourceFeature[], scale: numbe
     }
     if (knoll === undefined) continue;
     replaced.set(feature, undefined);
-    if (marks.some(([x, y]) => inside(ring, x, y))) continue;
-    const centre = centreOf(ring);
-    marks.push(centre);
+    const meta = metaOf(ring);
+    if (marksGrid.someInBox(meta.box, (x, y) => inside(ring, x, y))) continue;
+    const centre = meta.centre;
+    marksGrid.add(centre[0], centre[1], true);
     // En avlång liten kulle blir en avlång punkthöjd (110), vriden efter kurvan (ägaren 2026-11-15).
     const long = knoll ? elongatedAngle(ring) : undefined;
     added.push(long !== undefined ? elongatedKnoll(centre, long) : { layer: knoll ? "dotknoll" : "udepression", geometry: { kind: "point", at: centre } });
@@ -161,14 +387,38 @@ export function smallRingsToPoints(input: readonly SourceFeature[], scale: numbe
   // Laserns egna små kullar (scripts/geo-rock.ts, `dotknoll_laser`) tas bort där Karttapullautin redan har en inom 6 m eller
   // där en kvarvarande liten höjdkurva (under 3 000 m²) redan visar toppen.
   const kept = features.flatMap(feature => !replaced.has(feature) ? [feature] : replaced.get(feature) ? [replaced.get(feature)!] : []);
-  const summits = kept.filter(feature => feature.geometry.kind === "line" && feature.geometry.closed && CONTOUR.test(feature.layer) && ringArea(ringOf(feature)) < 3000).map(ringOf);
-  const others = [...kept, ...added].filter(feature => feature.geometry.kind === "point" && /DOTKNOLL/i.test(feature.layer) && feature.layer !== "dotknoll_laser")
-    .map(feature => (feature.geometry as { at: readonly [number, number] }).at);
+  const smallLimit = scale * 2.5 / 1000;
+  const summits: { ring: Ring; box: Box }[] = [];
+  for (const feature of kept) {
+    if (feature.geometry.kind !== "line" || !feature.geometry.closed || !CONTOUR.test(feature.layer)) continue;
+    const ring = ringOf(feature), meta = metaOf(ring);
+    if (meta.area >= 3000) continue;
+    if (extentCached(ring).length <= smallLimit) continue;
+    summits.push({ ring, box: meta.box });
+  }
+  const summitGrid = new BoxGrid(summits);
+  const othersGrid = new PointGrid<true>(6);
+  for (const feature of kept) {
+    if (feature.geometry.kind === "point" && /DOTKNOLL/i.test(feature.layer) && feature.layer !== "dotknoll_laser") {
+      const [x, y] = (feature.geometry as { at: readonly [number, number] }).at;
+      othersGrid.add(x, y, true);
+    }
+  }
+  for (const feature of added) {
+    if (feature.geometry.kind === "point" && /DOTKNOLL/i.test(feature.layer) && feature.layer !== "dotknoll_laser") {
+      const [x, y] = (feature.geometry as { at: readonly [number, number] }).at;
+      othersGrid.add(x, y, true);
+    }
+  }
   // Kvar: en liten kurva som har en punkthöjd i sig tas bort (punkten visar kullen), och sten eller punkthöjd väljs (`oneMarkPerKnoll`).
-  const small = (ring: Ring) => extentOf(ring).length <= scale * 2.5 / 1000;
   return oneMarkPerKnoll([...kept.filter(feature => {
     if (feature.layer !== "dotknoll_laser" || feature.geometry.kind !== "point") return true;
     const [x, y] = feature.geometry.at;
-    return !others.some(([ox, oy]) => Math.hypot(ox - x, oy - y) < 6) && !summits.some(ring => !small(ring) && inside(ring, x, y));
+    const nearOther = othersGrid.someInBox({ minX: x - 6, minY: y - 6, maxX: x + 6, maxY: y + 6 }, (ox, oy) => {
+      const dx = ox - x, dy = oy - y;
+      return dx * dx + dy * dy < 36;
+    });
+    if (nearOther) return false;
+    return !summitGrid.someInBox({ minX: x, minY: y, maxX: x, maxY: y }, row => inside(row.ring, x, y));
   }), ...added], scale);
 }

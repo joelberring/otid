@@ -89,15 +89,72 @@ function halves(piece: Polygon, axis: "x" | "y", c: number, box: Box): [MultiPol
   try { return [polygonClipping.intersection(piece, first), polygonClipping.intersection(piece, second)]; } catch { return undefined; }
 }
 
-/** Längden av snittet: summan av bitarnas kanter som ligger på linjen. */
-function cutLength(parts: MultiPolygon, axis: "x" | "y", c: number): number {
+/** Tecknad dubbel area för en ring (används för att bestämma orientering oberoende av med-/moturs). */
+function signedTwice(ring: readonly (readonly [number, number])[]): number {
   let sum = 0;
-  for (const piece of parts) for (const ring of piece) for (let i = 1; i < ring.length; i += 1) {
-    const [ax, ay] = ring[i - 1]!, [bx, by] = ring[i]!;
-    const [a, b, along] = axis === "x" ? [ax, bx, Math.abs(ay - by)] : [ay, by, Math.abs(ax - bx)];
-    if (Math.abs(a - c) < 1e-9 && Math.abs(b - c) < 1e-9) sum += along;
+  for (let i = 0; i < ring.length; i += 1) {
+    const [x, y] = ring[i]!, [nx, ny] = ring[(i + 1) % ring.length]!;
+    sum += x * ny - nx * y;
   }
   return sum;
+}
+
+/**
+ * O(V)-beräkning av area på den undre sidan (coord <= c) och snittets längd längs linjen `coord = c`:
+ * - Arean fås exakt med Greens sats i flyttat koordinatsystem (u = x − c resp. v = y − c), där slutkanterna längs snittet
+ *   bidrar med exakt 0.
+ * - Snittlängden är längden av `{ y : (c − ε, y) ∈ polygon }` (halvöppen skärning `(a < c) !== (b < c)`), samma längd som
+ *   snittkanterna i `halves(piece, axis, c)[0]`.
+ */
+function cutMetrics(piece: Polygon, ringSigns: readonly number[], axis: "x" | "y", c: number, totalArea: number, crossings: number[])
+  : { leftArea: number; rightArea: number; cutLen: number } {
+  let leftTwice = 0;
+  crossings.length = 0;
+  for (let r = 0; r < piece.length; r += 1) {
+    const ring = piece[r]!, sign = ringSigns[r]!;
+    let ringTwice = 0;
+    const n = ring.length;
+    if (axis === "x") {
+      for (let i = 0; i < n; i += 1) {
+        const [x1, y1] = ring[i]!, [x2, y2] = ring[(i + 1) % n]!;
+        const u1 = x1 - c, u2 = x2 - c;
+        if (u1 <= 0 && u2 <= 0) {
+          ringTwice += u1 * y2 - u2 * y1;
+        } else if (u1 <= 0 && u2 > 0) {
+          const yc = y1 + (y2 - y1) * (-u1) / (u2 - u1);
+          ringTwice += u1 * yc;
+        } else if (u1 > 0 && u2 <= 0) {
+          const yc = y1 + (y2 - y1) * (-u1) / (u2 - u1);
+          ringTwice -= u2 * yc;
+        }
+        if ((x1 < c) !== (x2 < c)) crossings.push(y1 + (y2 - y1) * (c - x1) / (x2 - x1));
+      }
+    } else {
+      for (let i = 0; i < n; i += 1) {
+        const [x1, y1] = ring[i]!, [x2, y2] = ring[(i + 1) % n]!;
+        const v1 = y1 - c, v2 = y2 - c;
+        if (v1 <= 0 && v2 <= 0) {
+          ringTwice += x1 * v2 - x2 * v1;
+        } else if (v1 <= 0 && v2 > 0) {
+          const xc = x1 + (x2 - x1) * (-v1) / (v2 - v1);
+          ringTwice -= xc * v1;
+        } else if (v1 > 0 && v2 <= 0) {
+          const xc = x1 + (x2 - x1) * (-v1) / (v2 - v1);
+          ringTwice += xc * v2;
+        }
+        if ((y1 < c) !== (y2 < c)) crossings.push(x1 + (x2 - x1) * (c - y1) / (y2 - y1));
+      }
+    }
+    leftTwice += sign * ringTwice;
+  }
+  const leftArea = Math.max(0, Math.min(totalArea, leftTwice / 2));
+  const rightArea = Math.max(0, totalArea - leftArea);
+  let cutLen = 0;
+  if (crossings.length >= 2) {
+    crossings.sort((a, b) => a - b);
+    for (let k = 0; k + 1 < crossings.length; k += 2) cutLen += crossings[k + 1]! - crossings[k]!;
+  }
+  return { leftArea, rightArea, cutLen };
 }
 
 /** Högst så många rutnätslinjer per axel och delningssteg (skyddar mot korrupta jättekoordinater). */
@@ -109,12 +166,15 @@ const MAX_SPLIT_PIECES = 5_000;
 function splitPolygon(polygon: Polygon, limit: AreaSplitLimit): Polygon[] | undefined {
   if (polygonArea(polygon) > limit.maxMm2 * MAX_SPLIT_PIECES) return undefined;
   const done: Polygon[] = [], queue: Polygon[] = [polygon];
+  const crossings: number[] = [];
   for (let guard = 0; queue.length; guard += 1) {
     if (guard > 10_000) return undefined;
     const piece = queue.pop()!, area = polygonArea(piece);
     if (area <= limit.maxMm2) { done.push(piece); continue; }
     const box = polygonBox(piece);
-    let best: { parts: [MultiPolygon, MultiPolygon]; score: number } | undefined;
+    const ringSigns = piece.map((ring, r) => (r === 0 ? 1 : -1) * (signedTwice(ring) >= 0 ? 1 : -1));
+    const sqrtArea = Math.sqrt(area);
+    const candidates: { axis: "x" | "y"; c: number; score: number }[] = [];
     for (const axis of ["x", "y"] as const) {
       const from = axis === "x" ? box.minX : box.minY, to = axis === "x" ? box.maxX : box.maxY, middle = (from + to) / 2;
       if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) continue;
@@ -125,18 +185,26 @@ function splitPolygon(polygon: Polygon, limit: AreaSplitLimit): Polygon[] | unde
       for (let k = firstK; k <= lastK; k += stride) {
         const c = k * limit.gridMm;
         if (!(c > from && c < to)) continue;
-        const parts = halves(piece, axis, c, box);
-        if (!parts) continue;
-        const a = multiArea(parts[0]), b = multiArea(parts[1]);
-        if (a <= 0 || b <= 0) continue;
+        const { leftArea, rightArea, cutLen } = cutMetrics(piece, ringSigns, axis, c, area, crossings);
+        if (leftArea <= 1e-12 || rightArea <= 1e-12) continue;
         // Smalast först (snittets längd mot bitens storlek), bara om båda delarna blir minst en femtedel; annars närmast mitten.
-        const balanced = Math.min(a, b) >= 0.2 * area;
-        const score = balanced ? cutLength(parts[0], axis, c) / Math.sqrt(area) : 1e6 + Math.abs(c - middle);
-        if (!best || score < best.score) best = { parts, score };
+        const balanced = Math.min(leftArea, rightArea) >= 0.2 * area;
+        const score = balanced ? cutLen / sqrtArea : 1e6 + Math.abs(c - middle);
+        candidates.push({ axis, c, score });
       }
     }
-    if (!best) { done.push(piece); continue; }
-    queue.push(...best.parts[0], ...best.parts[1]);
+    candidates.sort((a, b) => a.score - b.score);
+    let chosen: [MultiPolygon, MultiPolygon] | undefined;
+    // Anropa bara `polygonClipping.intersection` för det vinnande snittet (med fallback om det snittet vore degenererat).
+    for (const candidate of candidates) {
+      const parts = halves(piece, candidate.axis, candidate.c, box);
+      if (!parts) continue;
+      if (multiArea(parts[0]) <= 0 || multiArea(parts[1]) <= 0) continue;
+      chosen = parts;
+      break;
+    }
+    if (!chosen) { done.push(piece); continue; }
+    queue.push(...chosen[0], ...chosen[1]);
   }
   return done;
 }

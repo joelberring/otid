@@ -60,6 +60,24 @@ describe("formen på ett objekt", () => {
     expect(circleShape("line", "101", { x: 0, y: 0 }, 0.01)).toBeUndefined();
     expect(circleShape("line", "101", { x: 0, y: 0 }, 1)?.kind).toBe("line");
   });
+
+  it("centripetal Catmull–Rom med kordklampning ger inga öglor eller överslängar på ojämna segment", () => {
+    // Lång 10 mm-sträcka följd av en skarp 0,22 mm-vändning (typisk förenklad höjdkurva): uniform Catmull–Rom sköt ut 1,7 mm.
+    const hairpin = line([[0, 0], [10, 0], [10.2, 0.1], [0, 0.2]]);
+    const soft = smoothShape(hairpin)!;
+    if (soft.kind !== "line") throw new Error("expected line");
+    const turn = soft.path[2]! as Extract<PathCommand, { type: "C" }>;
+    const chord = Math.hypot(10.2 - 10, 0.1 - 0);
+    expect(Math.hypot(turn.x1 - 10, turn.y1 - 0)).toBeLessThanOrEqual(chord * 0.5 + 1e-9);
+    expect(Math.hypot(turn.x2 - 10.2, turn.y2 - 0.1)).toBeLessThanOrEqual(chord * 0.5 + 1e-9);
+    expect(Math.max(turn.x1, turn.x2)).toBeLessThan(10.35);
+    // Även en skarp sluten yta med korta och långa sträckor korsar inte sig själv efter smoothShape.
+    const thinNose: MapObject = { kind: "area", symbol: "406", angle: 0, rings: [[
+      { type: "M", x: 0, y: 0 }, { type: "L", x: 10, y: 0 }, { type: "L", x: 10.1, y: 0.15 },
+      { type: "L", x: 10, y: 0.3 }, { type: "L", x: 0, y: 0.3 }, { type: "L", x: 0, y: 0 }
+    ]] };
+    expect(areaSelfCrosses(smoothShape(thinNose)!)).toBe(false);
+  });
 });
 
 describe("förenkla stegvis (ägaren 2026-11-23)", () => {

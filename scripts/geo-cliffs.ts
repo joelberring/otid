@@ -263,19 +263,102 @@ export function measureCliff(line: readonly (readonly [number, number])[], groun
   return { drop3: median(drops3), drop6: median(drops6), length };
 }
 
+/** Punkter längs linjens segment med högst `stepM` meter mellan varandra (ursprungliga hörn bevaras). */
+function sampleLine(line: readonly (readonly [number, number])[], stepM: number): [number, number][] {
+  if (line.length === 0) return [];
+  const out: [number, number][] = [[line[0]![0], line[0]![1]]];
+  for (let i = 1; i < line.length; i += 1) {
+    const [ax, ay] = line[i - 1]!, [bx, by] = line[i]!, length = Math.hypot(bx - ax, by - ay);
+    const steps = Math.max(1, Math.ceil(length / stepM));
+    for (let k = 1; k <= steps; k += 1) out.push([ax + (bx - ax) * k / steps, ay + (by - ay) * k / steps]);
+  }
+  return out;
+}
+
+const lineLength = (line: readonly (readonly [number, number])[]): number => {
+  let total = 0;
+  for (let i = 1; i < line.length; i += 1) total += Math.hypot(line[i]![0] - line[i - 1]![0], line[i]![1] - line[i - 1]![1]);
+  return total;
+};
+
 /**
- * Brantlinjen flyttas till överkanten (ISOM: linjen ritas i brantens överkant, taggarna nedför). För varje punkt läses
- * markens profil tvärs linjen, 4 m uppför till 2 m nedför i halvmetersteg, och överkanten är där profilen bryter nedåt mest
- * (minsta andraderivatan). Förflyttningen jämnas ut längs linjen (median av tre) och är högst 3 m; utan mark lämnas punkten.
- * Linjer ur markrastret ligger mitt i branten, som kan vara bred: för dem söks överkanten längre uppför (`up` 8,5 m, högst 7 m).
+ * Delar och riktar en brantlinje lokalt efter tecknet i `scores` (positivt = nedför till höger): byter fallriktningen
+ * ihållande över minst `minLengthM` (t.ex. över en sadel mellan två motställda branter) delas linjen i bitar som vänds var
+ * för sig; annars vänds hela linjen bara om summan är negativ.
+ */
+function orientSegments(points: readonly (readonly [number, number])[], scores: readonly number[], minLengthM: number): [number, number][][] {
+  const n = points.length;
+  if (n < 2) return [];
+  // Löpande medelvärde över ±3 punkter så enstaka cellsteg/brus inte orsakar delningar.
+  const smooth = new Float64Array(n);
+  let total = 0;
+  for (let i = 0; i < n; i += 1) {
+    total += scores[i]!;
+    let sum = 0, count = 0;
+    for (let k = Math.max(0, i - 3); k <= Math.min(n - 1, i + 3); k += 1) { sum += scores[k]!; count += 1; }
+    smooth[i] = count > 0 ? sum / count : 0;
+  }
+  // Dela upp i sammanhängande sträckor med samma lokala tecken.
+  const runs: { from: number; to: number; sign: number; length: number; sum: number }[] = [];
+  let start = 0, sign = 0;
+  for (let i = 0; i < n; i += 1) {
+    const s = Math.abs(smooth[i]!) > 1e-4 ? Math.sign(smooth[i]!) : sign;
+    if (sign === 0) { sign = s; continue; }
+    if (s !== 0 && s !== sign) {
+      const piece = points.slice(start, i + 1);
+      let sum = 0; for (let k = start; k <= i; k += 1) sum += scores[k]!;
+      runs.push({ from: start, to: i, sign, length: lineLength(piece), sum });
+      start = i; sign = s;
+    }
+  }
+  {
+    const piece = points.slice(start);
+    let sum = 0; for (let k = start; k < n; k += 1) sum += scores[k]!;
+    runs.push({ from: start, to: n - 1, sign: sign || (total < 0 ? -1 : 1), length: lineLength(piece), sum });
+  }
+  // Slå ihop korta övergångar med föregående/närmaste sträcka; dela bara när minst två sträckor når `minLengthM` åt olika håll.
+  const significant = runs.filter(run => run.length >= minLengthM);
+  const hasFlip = significant.some(run => run.sign > 0) && significant.some(run => run.sign < 0);
+  if (!hasFlip) {
+    const copy = points.map(([x, y]) => [x, y] as [number, number]);
+    return [total < 0 ? copy.reverse() : copy];
+  }
+  const merged: typeof runs = [];
+  for (const run of runs) {
+    const prev = merged[merged.length - 1];
+    if (prev && (run.length < minLengthM || prev.sign === run.sign)) {
+      prev.to = run.to; prev.length += run.length; prev.sum += run.sum;
+    } else merged.push({ ...run });
+  }
+  if (merged.length > 1 && merged[0]!.length < minLengthM) {
+    merged[1]!.from = merged[0]!.from; merged[1]!.length += merged[0]!.length; merged[1]!.sum += merged[0]!.sum;
+    merged.shift();
+  }
+  const out: [number, number][][] = [];
+  for (const run of merged) {
+    const slice = points.slice(run.from, run.to + 1).map(([x, y]) => [x, y] as [number, number]);
+    if (lineLength(slice) < minLengthM) continue;
+    out.push(run.sum < 0 ? slice.reverse() : slice);
+  }
+  return out;
+}
+
+/**
+ * Brantlinjen flyttas till överkanten (ISOM: linjen ritas i brantens överkant, taggarna nedför). Linjen samplas först tätt
+ * (var 2 m) så förenklade långa segment ändå följer överkanten, och för varje punkt läses markens profil tvärs linjen, 4 m
+ * uppför till 2 m nedför i halvmetersteg; överkanten är där profilen bryter nedåt mest (minsta andraderivatan). Förflyttningen
+ * jämnas ut längs linjen (median av tre) och är högst 3 m; utan mark lämnas punkten. Linjer ur markrastret ligger mitt i
+ * branten, som kan vara bred: för dem söks överkanten längre uppför (`up` 8,5 m, högst 7 m).
  */
 export function toTopEdge(line: readonly (readonly [number, number])[], ground: GroundGrid, up = 4.5): [number, number][] {
-  const normals = line.map((_, i) => {
-    const [ax, ay] = line[Math.max(0, i - 1)]!, [bx, by] = line[Math.min(line.length - 1, i + 1)]!, length = Math.hypot(bx - ax, by - ay) || 1;
+  if (line.length < 2) return line.map(([x, y]) => [x, y]);
+  const dense = sampleLine(line, 2);
+  const normals = dense.map((_, i) => {
+    const [ax, ay] = dense[Math.max(0, i - 1)]!, [bx, by] = dense[Math.min(dense.length - 1, i + 1)]!, length = Math.hypot(bx - ax, by - ay) || 1;
     // Nedför till höger om färdriktningen.
     return [(by - ay) / length, -(bx - ax) / length] as const;
   });
-  const shifts = line.map(([x, y], i) => {
+  const shifts = dense.map(([x, y], i) => {
     const [rx, ry] = normals[i]!;
     const profile: number[] = [];
     for (let t = -up; t <= 2.5; t += 0.5) profile.push(heightAt(ground, x + rx * t, y + ry * t));
@@ -288,10 +371,18 @@ export function toTopEdge(line: readonly (readonly [number, number])[], ground: 
     }
     return Number.isFinite(bestCurve) && bestCurve < -0.1 ? Math.max(1.5 - up, Math.min(3, best)) : 0;
   });
-  return line.map(([x, y], i) => {
-    const near = [shifts[Math.max(0, i - 1)]!, shifts[i]!, shifts[Math.min(line.length - 1, i + 1)]!].sort((a, b) => a - b);
+  if (shifts.every(shift => shift === 0)) return line.map(([x, y]) => [x, y]);
+  // Median över ±2 täta punkter (~8 m fönster) + 1-2-1-utjämning så närliggande 2 m-punkter inte hoppar i sidled.
+  const med = shifts.map((_, i) => {
+    const window: number[] = [];
+    for (let k = Math.max(0, i - 2); k <= Math.min(shifts.length - 1, i + 2); k += 1) window.push(shifts[k]!);
+    window.sort((a, b) => a - b);
+    return window[Math.floor(window.length / 2)]!;
+  });
+  const smoothShift = med.map((s, i) => i === 0 || i === med.length - 1 ? s : (med[i - 1]! + 2 * s + med[i + 1]!) / 4);
+  return dense.map(([x, y], i) => {
     const [rx, ry] = normals[i]!;
-    return [x + rx * near[1]!, y + ry * near[1]!];
+    return [x + rx * smoothShift[i]!, y + ry * smoothShift[i]!];
   });
 }
 
@@ -331,16 +422,17 @@ export function slopeLines(ground: GroundGrid, settings: { readonly minDegrees: 
   const skeleton = thin(close(mask, width, height), width, height), lines: [number, number][][] = [];
   for (const path of paths(skeleton, width, height, Math.max(3, Math.round(settings.minLengthM / cell / Math.SQRT2)), 50_000)) {
     const points = path.map((i): [number, number] => { const x = Math.floor(i / height), y = i - x * height; return [ground.minX + (x + 0.5) * cell, ground.minY + (y + 0.5) * cell]; });
-    let length = 0, right = 0;
-    for (let k = 1; k < points.length; k += 1) {
-      const tx = points[k]![0] - points[k - 1]![0], ty = points[k]![1] - points[k - 1]![1];
-      length += Math.hypot(tx, ty);
-      // Nedför (mot lutningen) ska ligga till höger om färdriktningen: högernormalen är (ty, −tx).
-      right += ty * -gx[path[k]!]! + -tx * -gy[path[k]!]!;
+    if (lineLength(points) < settings.minLengthM) continue;
+    // Nedför (mot lutningen) ska ligga till höger om färdriktningen: lokalt längs linjen över ±2 steg.
+    const scores = points.map((_, k) => {
+      const a = points[Math.max(0, k - 2)]!, b = points[Math.min(points.length - 1, k + 2)]!;
+      const tx = b[0] - a[0], ty = b[1] - a[1], len = Math.hypot(tx, ty) || 1;
+      return (ty * -gx[path[k]!]! + -tx * -gy[path[k]!]!) / len;
+    });
+    for (const oriented of orientSegments(points, scores, settings.minLengthM)) {
+      const line = simplify(oriented, 1.1);
+      if (line.length >= 2) lines.push(line);
     }
-    if (length < settings.minLengthM) continue;
-    const line = simplify(right < 0 ? points.reverse() : points, 1.1);
-    if (line.length >= 2) lines.push(line);
   }
   return lines;
 }
@@ -375,6 +467,23 @@ export function classifyCliff(cliff: { drop3: number; drop6: number; length: num
   return cliff.drop3 >= rules.impassableDrop3 && cliff.drop6 >= rules.impassableDrop6 && cliff.length >= rules.impassableLength ? "impassable" : "passable";
 }
 
+/** Kontrollerar fallriktningen i markrastret längs en brantlinje och delar/vänder den om nedför ligger till vänster. */
+function orientByGround(line: readonly (readonly [number, number])[], ground: GroundGrid, minLengthM: number): [number, number][][] {
+  if (line.length < 2) return [];
+  const dense = sampleLine(line, 2);
+  let measured = 0;
+  const scores = dense.map(([x, y], i) => {
+    const [ax, ay] = dense[Math.max(0, i - 1)]!, [bx, by] = dense[Math.min(dense.length - 1, i + 1)]!, len = Math.hypot(bx - ax, by - ay) || 1;
+    const rx = (by - ay) / len, ry = -(bx - ax) / len;
+    const up = heightAt(ground, x - rx * 3, y - ry * 3), down = heightAt(ground, x + rx * 3, y + ry * 3);
+    if (!Number.isFinite(up) || !Number.isFinite(down)) return 0;
+    measured += 1;
+    return up - down;
+  });
+  if (measured === 0) return [line.map(([x, y]) => [x, y])];
+  return orientSegments(dense, scores, minLengthM);
+}
+
 export function cliffsFromTicks(impassable: readonly Tick[], passable: readonly Tick[], settings: CliffSettings = DEFAULT_CLIFFS, ground?: GroundGrid,
   rules: CliffRules = DEFAULT_CLIFF_RULES, tags = false) {
   const meters = (lines: [number, number][][]) => Math.round(lines.reduce((sum, line) => sum + line.reduce((part, point, i) =>
@@ -384,19 +493,25 @@ export function cliffsFromTicks(impassable: readonly Tick[], passable: readonly 
   if (ground) {
     high = []; low = [];
     // Branterna ur markrastret först; Karttapullautins streck fyller bara på där rastret inte gav någon linje inom 6 m.
+    // Markera `taken` längs hela segmenten (var 3 m), inte bara förenklade hörn, så dubbla branter inte läggs ovanpå.
     const own = slopeLines(ground), taken = new Set<string>();
-    for (const line of own) for (const [x, y] of line) {
+    for (const line of own) for (const [x, y] of sampleLine(line, 3)) {
       for (let ax = -1; ax <= 1; ax += 1) for (let ay = -1; ay <= 1; ay += 1) taken.add(`${Math.floor(x / 6) + ax},${Math.floor(y / 6) + ay}`);
     }
-    const extra = cliffLines([...impassable, ...passable], settings)
-      .filter(line => line.filter(([x, y]) => taken.has(`${Math.floor(x / 6)},${Math.floor(y / 6)}`)).length * 2 < line.length);
-    const fromGround = new Set(own);
-    for (const line of [...own, ...extra]) {
+    const extra = cliffLines([...impassable, ...passable], settings).filter(line => {
+      const samples = sampleLine(line, 3);
+      return samples.filter(([x, y]) => taken.has(`${Math.floor(x / 6)},${Math.floor(y / 6)}`)).length * 2 < samples.length;
+    });
+    const entries: { line: [number, number][]; fromGround: boolean }[] = [
+      ...own.map(line => ({ line, fromGround: true })),
+      ...extra.flatMap(line => orientByGround(line, ground, settings.minLengthM).map(oriented => ({ line: oriented, fromGround: false })))
+    ];
+    for (const { line, fromGround } of entries) {
       const { drop3, drop6, length } = measureCliff(line, ground);
       if (!Number.isFinite(drop3)) { low.push(line); continue; }
       if (drop3 < Math.min(rules.minDrop, CLIFF_LOOSE_DROP)) { dropped += 1; continue; }
-      // Fallet mäts kring Karttapullautins läge (mitt i branten); linjen ritas sedan i överkanten.
-      const top = evenLine(toTopEdge(line, ground, fromGround.has(line) ? 8.5 : 4.5));
+      // Fallet mäts kring brantens mitt; linjen samplas tätt och ritas sedan i överkanten.
+      const top = evenLine(toTopEdge(line, ground, fromGround ? 8.5 : 4.5));
       // Alla branter från den lösa gränsen sparas med sina mått, så att reglagen i webbläsaren väljer utan ny körning.
       candidates.push({ line: top, drop3, drop6, length });
       const kind = classifyCliff({ drop3, drop6, length }, rules);

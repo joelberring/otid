@@ -86,11 +86,27 @@ export function compactMask(mask: Uint8Array, columns: number, rows: number, min
 }
 
 type Ring = [number, number][];
-/** Maskens kanter som ringar i cellhörnens koordinater (kolumn, rad): ytterkanter och hål var för sig. */
+/**
+ * Maskens kanter som ringar i cellhörnens koordinater (kolumn, rad): ytterkanter och hål var för sig.
+ * Platta `Int32Array`-fält (högst två utgående kanter per hörn) och vänstersvängsregel i 4-gradiga sadelpunkter
+ * så diagonalt mötande celler ger två enkla ringar utan åtta-formade självskärningar.
+ */
 export function maskOutlines(mask: Uint8Array, columns: number, rows: number): Ring[] {
+  if (columns <= 0 || rows <= 0) return [];
   const at = (column: number, row: number) => column >= 0 && row >= 0 && column < columns && row < rows && mask[column * rows + row] === 1;
-  const key = (column: number, row: number) => column * (rows + 1) + row, next = new Map<number, number[]>();
-  const add = (c1: number, r1: number, c2: number, r2: number) => { const list = next.get(key(c1, r1)); if (list) list.push(key(c2, r2)); else next.set(key(c1, r1), [key(c2, r2)]); };
+  const stride = rows + 1, corners = (columns + 1) * stride;
+  const first = new Int32Array(corners).fill(-1), second = new Int32Array(corners).fill(-1), known = new Uint8Array(corners);
+  let order = new Int32Array(1024), ordered = 0;
+  const key = (column: number, row: number) => column * stride + row;
+  const add = (c1: number, r1: number, c2: number, r2: number) => {
+    const from = key(c1, r1), to = key(c2, r2);
+    if (!known[from]) {
+      known[from] = 1;
+      if (ordered === order.length) { const grown = new Int32Array(order.length * 2); grown.set(order); order = grown; }
+      order[ordered] = from; ordered += 1;
+    }
+    if (first[from]! < 0) first[from] = to; else second[from] = to;
+  };
   for (let c = 0; c < columns; c += 1) for (let r = 0; r < rows; r += 1) {
     if (!at(c, r)) continue;
     if (!at(c, r - 1)) add(c + 1, r, c, r);
@@ -98,17 +114,31 @@ export function maskOutlines(mask: Uint8Array, columns: number, rows: number): R
     if (!at(c, r + 1)) add(c, r + 1, c + 1, r + 1);
     if (!at(c - 1, r)) add(c, r, c, r + 1);
   }
-  const point = (k: number): [number, number] => [Math.floor(k / (rows + 1)), k % (rows + 1)];
+  const point = (k: number): [number, number] => [Math.floor(k / stride), k % stride];
   const rings: Ring[] = [];
-  for (const [start, targets] of next) {
-    while (targets.length) {
+  for (let n = 0; n < ordered; n += 1) {
+    const start = order[n]!;
+    while (first[start]! >= 0) {
       const ring = [start];
-      let current = targets.pop()!, guard = 0;
+      let previous = start;
+      let current: number;
+      if (second[start]! >= 0) { current = second[start]!; second[start] = -1; }
+      else { current = first[start]!; first[start] = -1; }
+      let guard = 0;
       while (current !== start && guard++ < 4_000_000) {
         ring.push(current);
-        const options = next.get(current);
-        if (!options?.length) break;
-        current = options.pop()!;
+        if (first[current]! < 0) break;
+        let choice = 0;
+        if (second[current]! >= 0) {
+          const px = Math.floor(previous / stride), py = previous - px * stride;
+          const cx = Math.floor(current / stride), cy = current - cx * stride;
+          const ox = Math.floor(first[current]! / stride), oy = first[current]! - ox * stride;
+          // Rad ökar nedåt: vänstersväng kring fylld cell har negativ kryssprodukt (c − p) × (o − c) < 0.
+          if ((cx - px) * (oy - cy) - (cy - py) * (ox - cx) > 0) choice = 1;
+        }
+        previous = current;
+        if (choice === 0) { current = first[current]!; first[previous] = second[previous]!; second[previous] = -1; }
+        else { current = second[current]!; second[previous] = -1; }
       }
       if (current === start && ring.length >= 4) rings.push(ring.map(point));
     }
@@ -116,22 +146,41 @@ export function maskOutlines(mask: Uint8Array, columns: number, rows: number): R
   return rings;
 }
 
-/** Douglas–Peucker för en sluten ring. */
-export function simplifyRing(ring: Ring, tolerance: number): Ring {
-  if (ring.length <= 4) return ring;
-  const keep = new Uint8Array(ring.length), stack: [number, number][] = [[0, ring.length - 1]];
-  keep[0] = 1; keep[ring.length - 1] = 1;
+/** Öppen Douglas–Peucker (iterativt) för en halva av en ring. */
+function simplifyOpen(points: Ring, tolerance: number): Ring {
+  if (points.length <= 2 || tolerance <= 0) return points.slice();
+  const keep = new Uint8Array(points.length), stack: [number, number][] = [[0, points.length - 1]];
+  keep[0] = 1; keep[points.length - 1] = 1;
   while (stack.length) {
     const [from, to] = stack.pop()!;
-    const [ax, ay] = ring[from]!, [bx, by] = ring[to]!, length = Math.hypot(bx - ax, by - ay) || 1;
+    const [ax, ay] = points[from]!, [bx, by] = points[to]!, length = Math.hypot(bx - ax, by - ay);
     let worst = -1, distance = tolerance;
     for (let i = from + 1; i < to; i += 1) {
-      const d = Math.abs((bx - ax) * (ay - ring[i]![1]) - (ax - ring[i]![0]) * (by - ay)) / length;
+      const [px, py] = points[i]!;
+      const d = length > 0 ? Math.abs((bx - ax) * (ay - py) - (ax - px) * (by - ay)) / length : Math.hypot(px - ax, py - ay);
       if (d > distance) { distance = d; worst = i; }
     }
     if (worst > 0) { keep[worst] = 1; stack.push([from, worst], [worst, to]); }
   }
-  return ring.filter((_, i) => keep[i] === 1);
+  return points.filter((_, i) => keep[i] === 1);
+}
+
+/** Douglas–Peucker för en sluten ring: delas vid punkten längst från startpunkten innan vardera halvan förenklas. */
+export function simplifyRing(ring: Ring, tolerance: number): Ring {
+  const closed = ring.length > 1 && ring[0]![0] === ring[ring.length - 1]![0] && ring[0]![1] === ring[ring.length - 1]![1];
+  const open = closed ? ring.slice(0, -1) : ring;
+  if (open.length <= 3 || tolerance <= 0) return ring.slice();
+  const [sx, sy] = open[0]!;
+  let far = 1, best = -1;
+  for (let i = 1; i < open.length; i += 1) {
+    const d = Math.hypot(open[i]![0] - sx, open[i]![1] - sy);
+    if (d > best) { best = d; far = i; }
+  }
+  const firstHalf = simplifyOpen(open.slice(0, far + 1), tolerance);
+  const secondHalf = simplifyOpen([...open.slice(far), open[0]!], tolerance);
+  const combined = [...firstHalf, ...secondHalf.slice(1, -1)];
+  if (combined.length < 3) return ring.slice();
+  return closed ? [...combined, combined[0]!] : combined;
 }
 
 /**

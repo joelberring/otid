@@ -19,18 +19,59 @@ function handle(value: unknown): number | undefined {
   const last: unknown = (value as unknown[])[value.length - 1];
   return typeof last === "number" ? last : undefined;
 }
-const xy = (value: unknown): Xy | undefined => Array.isArray(value) && typeof value[0] === "number" && typeof value[1] === "number"
-  && Number.isFinite(value[0]) && Number.isFinite(value[1]) ? [value[0], value[1]] : undefined;
+const xy = (value: unknown): Xy | undefined => {
+  if (Array.isArray(value) && typeof value[0] === "number" && typeof value[1] === "number" && Number.isFinite(value[0]) && Number.isFinite(value[1])) {
+    return [value[0], value[1]];
+  }
+  if (value && typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    if (typeof obj.x === "number" && typeof obj.y === "number" && Number.isFinite(obj.x) && Number.isFinite(obj.y)) return [obj.x, obj.y];
+    if (obj.point !== undefined) return xy(obj.point);
+  }
+  return undefined;
+};
 const number = (value: unknown, fallback = 0) => typeof value === "number" && Number.isFinite(value) ? value : fallback;
 
-/** Punkterna längs en båge från `start` till `end` (radianer, moturs), högst 10° mellan punkterna. */
+const ARC_SAGITTA = 0.02;
+const MAX_ARC_STEP = Math.PI / 4;
+const MAX_ARC_STEPS = 512;
+const MAX_SPLINE_POINTS = 512;
+
+/** Sagitta-adaptivt antal steg för en båge med svepet `sweep` och radien `radius`. */
+function arcSteps(sweep: number, radius: number, sagitta = ARC_SAGITTA): number {
+  const absSweep = Math.abs(sweep);
+  if (absSweep === 0) return 1;
+  let step = MAX_ARC_STEP;
+  if (radius > 0 && sagitta > 0) {
+    const cosHalf = 1 - sagitta / radius;
+    if (cosHalf > Math.cos(MAX_ARC_STEP / 2)) step = 2 * Math.acos(Math.min(1, cosHalf));
+  }
+  return Math.max(1, Math.min(MAX_ARC_STEPS, Math.ceil(absSweep / step)));
+}
+
+/** Punkterna längs en båge från `start` till `end` (radianer, moturs), sagitta-adaptivt delad. */
 function arcPoints(center: Xy, radius: number, start: number, end: number): Xy[] {
   let sweep = end - start;
   while (sweep <= 0) sweep += Math.PI * 2;
-  const steps = Math.max(2, Math.ceil(sweep / (Math.PI / 18)));
+  const steps = arcSteps(sweep, radius);
   return Array.from({ length: steps + 1 }, (_, i) => {
     const angle = start + sweep * i / steps;
     return [center[0] + radius * Math.cos(angle), center[1] + radius * Math.sin(angle)] as Xy;
+  });
+}
+
+/** Punkterna längs en ellipsbåge (radianer, moturs) med medelpunkt, storaxelvektor och axelkvot. */
+function ellipsePoints(center: Xy, major: Xy, ratio: number, start: number, end: number): Xy[] {
+  let sweep = end - start;
+  while (sweep <= 0) sweep += Math.PI * 2;
+  const majorLen = Math.hypot(major[0], major[1]);
+  const steps = arcSteps(sweep, Math.max(majorLen, majorLen * Math.abs(ratio)));
+  return Array.from({ length: steps + 1 }, (_, i) => {
+    const a = start + sweep * i / steps;
+    return [
+      center[0] + major[0] * Math.cos(a) - major[1] * ratio * Math.sin(a),
+      center[1] + major[1] * Math.cos(a) + major[0] * ratio * Math.sin(a)
+    ] as Xy;
   });
 }
 
@@ -46,12 +87,127 @@ export function bulgeSegment(a: Xy, b: Xy, bulge: number): Xy[] {
   const normal: Xy = [-(b[1] - a[1]) / chord * sign, (b[0] - a[0]) / chord * sign];
   const center: Xy = [middle[0] + normal[0] * toCenter, middle[1] + normal[1] * toCenter];
   const from = Math.atan2(a[1] - center[1], a[0] - center[0]);
-  const steps = Math.max(2, Math.ceil(Math.abs(angle) / (Math.PI / 18)));
+  const steps = arcSteps(Math.abs(angle), radius);
   return Array.from({ length: steps }, (_, i) => {
     if (i === steps - 1) return b;
     const t = from + angle * (i + 1) / steps;
     return [center[0] + radius * Math.cos(t), center[1] + radius * Math.sin(t)] as Xy;
   });
+}
+
+function clampedUniformKnots(count: number, degree: number): number[] {
+  const knots: number[] = [], spans = count - degree;
+  for (let i = 0; i <= degree; i += 1) knots.push(0);
+  for (let i = 1; i < spans; i += 1) knots.push(i / spans);
+  for (let i = 0; i <= degree; i += 1) knots.push(1);
+  return knots;
+}
+
+function validKnots(knots: readonly number[], count: number, degree: number): boolean {
+  if (knots.length !== count + degree + 1) return false;
+  for (let i = 1; i < knots.length; i += 1) {
+    if (!Number.isFinite(knots[i]!) || knots[i]! < knots[i - 1]!) return false;
+  }
+  return Number.isFinite(knots[0]!) && knots[count]! > knots[degree]!;
+}
+
+function deBoor(control: readonly Xy[], weights: readonly number[] | undefined, knots: readonly number[], degree: number, span: number, t: number): Xy {
+  const hx = new Float64Array(degree + 1), hy = new Float64Array(degree + 1), hw = new Float64Array(degree + 1);
+  for (let j = 0; j <= degree; j += 1) {
+    const idx = span - degree + j, w = weights ? (weights[idx] ?? 1) : 1, pt = control[idx]!;
+    hx[j] = pt[0] * w; hy[j] = pt[1] * w; hw[j] = w;
+  }
+  for (let r = 1; r <= degree; r += 1) {
+    for (let j = degree; j >= r; j -= 1) {
+      const i = span - degree + j;
+      const denom = knots[i + degree + 1 - r]! - knots[i]!;
+      const alpha = denom === 0 ? 0 : (t - knots[i]!) / denom, inv = 1 - alpha;
+      hx[j] = inv * hx[j - 1]! + alpha * hx[j]!;
+      hy[j] = inv * hy[j - 1]! + alpha * hy[j]!;
+      hw[j] = inv * hw[j - 1]! + alpha * hw[j]!;
+    }
+  }
+  const w = hw[degree]!;
+  return w !== 0 ? [hx[degree]! / w, hy[degree]! / w] : [hx[degree]!, hy[degree]!];
+}
+
+function pointToSegmentDistSq(p: Xy, a: Xy, b: Xy): number {
+  const dx = b[0] - a[0], dy = b[1] - a[1], lenSq = dx * dx + dy * dy;
+  if (lenSq === 0) { const rx = p[0] - a[0], ry = p[1] - a[1]; return rx * rx + ry * ry; }
+  const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / lenSq));
+  const rx = p[0] - (a[0] + t * dx), ry = p[1] - (a[1] + t * dy);
+  return rx * rx + ry * ry;
+}
+
+/** Evaluerar en B-spline/NURBS med De Boor + adaptiv sagitta-plattning (fristående utan paketimport). */
+function evaluateBSpline(control: readonly Xy[], rawDegree: number, rawKnots: readonly number[], rawWeights?: readonly number[], sagitta = ARC_SAGITTA): Xy[] {
+  const n = control.length;
+  if (n < 2) return control.slice();
+  const degree = Math.max(1, Math.min(Math.floor(rawDegree) || 3, n - 1));
+  if (degree === 1) return control.slice();
+  const knots = validKnots(rawKnots, n, degree) ? rawKnots : clampedUniformKnots(n, degree);
+  const weights = rawWeights && rawWeights.length === n && rawWeights.some(w => w !== 1) ? rawWeights : undefined;
+  const tolSq = sagitta * sagitta;
+  const out: Xy[] = [];
+  const push = (pt: Xy) => {
+    const last = out[out.length - 1];
+    if (!last || Math.hypot(last[0] - pt[0], last[1] - pt[1]) > 1e-9) out.push(pt);
+  };
+  const subdivide = (span: number, t0: number, p0: Xy, t1: number, p1: Xy, depth: number) => {
+    const tm = (t0 + t1) / 2;
+    const pm = deBoor(control, weights, knots, degree, span, tm);
+    if (out.length < MAX_SPLINE_POINTS && depth < 6 && (depth < 1 || pointToSegmentDistSq(pm, p0, p1) > tolSq)) {
+      subdivide(span, t0, p0, tm, pm, depth + 1);
+      subdivide(span, tm, pm, t1, p1, depth + 1);
+      return;
+    }
+    push(pm);
+    push(p1);
+  };
+  for (let span = degree; span < n; span += 1) {
+    const t0 = knots[span]!, t1 = knots[span + 1]!;
+    if (!(t1 > t0)) continue;
+    const p0 = deBoor(control, weights, knots, degree, span, t0);
+    const p1 = deBoor(control, weights, knots, degree, span, t1);
+    push(p0);
+    subdivide(span, t0, p0, t1, p1, 0);
+  }
+  return out.length >= 2 ? out : control.slice();
+}
+
+function extractControls(raw: unknown): { points: Xy[]; weights: number[] } {
+  const points: Xy[] = [], weights: number[] = [];
+  if (!Array.isArray(raw)) return { points, weights };
+  for (const entry of raw) {
+    const at = xy(entry);
+    if (!at) continue;
+    points.push(at);
+    let w = 1;
+    if (Array.isArray(entry) && typeof entry[3] === "number" && Number.isFinite(entry[3]) && entry[3] > 0) w = entry[3];
+    else if (entry && typeof entry === "object") {
+      const obj = entry as Record<string, unknown>;
+      const rawW = typeof obj.w === "number" ? obj.w : typeof obj.weight === "number" ? obj.weight : 1;
+      if (Number.isFinite(rawW) && rawW > 0) w = rawW;
+    }
+    weights.push(w);
+  }
+  return { points, weights };
+}
+
+function extractKnots(raw: unknown): number[] {
+  return Array.isArray(raw) ? (raw as unknown[]).filter((v): v is number => typeof v === "number" && Number.isFinite(v)) : [];
+}
+
+function splinePoints(source: Json, fitKey: string, ctrlKey: string): Xy[] {
+  const rawFit = source[fitKey];
+  const fit = Array.isArray(rawFit) ? (rawFit as unknown[]).flatMap(point => { const at = xy(point); return at ? [at] : []; }) : [];
+  if (fit.length >= 2) return fit;
+  const { points, weights } = extractControls(source[ctrlKey]);
+  if (points.length < 2) return points;
+  const degree = number(source.degree, 3);
+  const knots = extractKnots(source.knots);
+  const weighted = source.weighted === 1 || source.is_rational === 1 || weights.some(w => w !== 1);
+  return evaluateBSpline(points, degree, knots, weighted ? weights : undefined);
 }
 
 /** Punkterna med bågarna; sluten = tillbaka till den första. */
@@ -70,7 +226,7 @@ const ring = (points: Xy[]): Xy[] | undefined => {
   return first[0] === last[0] && first[1] === last[1] ? points : [...points, first];
 };
 
-/** En skraffyrs kant: polylinje (med bågar) eller kanter (raka och bågar). */
+/** En skraffyrs kant: polylinje (med bågar) eller kanter (raka, cirkelbågar, ellipsbågar och splines). */
 function hatchRing(path: Json): Xy[] | undefined {
   if (Array.isArray(path.polyline_paths)) {
     const points = (path.polyline_paths as Json[]).flatMap(point => { const at = xy(point.point); return at ? [{ at, bulge: number(point.bulge) }] : []; });
@@ -78,17 +234,33 @@ function hatchRing(path: Json): Xy[] | undefined {
   }
   if (!Array.isArray(path.segs)) return undefined;
   const out: Xy[] = [];
+  const append = (part: readonly Xy[]) => {
+    for (const pt of part) {
+      const last = out[out.length - 1];
+      if (!last || Math.hypot(last[0] - pt[0], last[1] - pt[1]) > 1e-9) out.push(pt);
+    }
+  };
   for (const segment of path.segs as Json[]) {
     if (segment.curve_type === 1) {
       const a = xy(segment.first_endpoint), b = xy(segment.second_endpoint);
-      if (a && b) { if (out.length === 0) out.push(a); out.push(b); }
+      if (a && b) append([a, b]);
     } else if (segment.curve_type === 2) {
       const center = xy(segment.center), radius = number(segment.radius);
       if (!center || !(radius > 0)) continue;
       const start = number(segment.start_angle), end = number(segment.end_angle);
       // Medurs: vinklarna är speglade i x-axeln (som i DXF), bågen går från −start till −end medurs.
       const points = segment.is_ccw === 0 ? arcPoints(center, radius, -end, -start).reverse() : arcPoints(center, radius, start, end);
-      out.push(...(out.length === 0 ? points : points.slice(1)));
+      append(points);
+    } else if (segment.curve_type === 3) {
+      const center = xy(segment.center), major = xy(segment.endpoint) ?? xy(segment.sm_axis);
+      if (!center || !major) continue;
+      const ratio = number(segment.minor_major_ratio, number(segment.axis_ratio, 1));
+      const start = number(segment.start_angle), end = number(segment.end_angle);
+      const points = segment.is_ccw === 0 ? ellipsePoints(center, major, ratio, -end, -start).reverse() : ellipsePoints(center, major, ratio, start, end);
+      append(points);
+    } else if (segment.curve_type === 4) {
+      const points = splinePoints(segment, "fitpts", "control_points");
+      if (points.length >= 2) append(points);
     }
   }
   return ring(out);
@@ -194,9 +366,21 @@ export async function dwgFeatures(objects: AsyncIterable<Json>): Promise<{ featu
           return points && points.length >= 4 ? { type: "Polygon", coordinates: [points] } : undefined; } });
         break;
       }
+      case "ELLIPSE": {
+        const center = xy(object.center), major = xy(object.sm_axis);
+        const ratio = number(object.axis_ratio, 1), start = number(object.start_angle, 0), end = number(object.end_angle, Math.PI * 2);
+        pending.push({ layer, build: () => center && major ? line(ellipsePoints(center, major, ratio, start, end)) : undefined });
+        break;
+      }
       case "SPLINE": {
-        const points = Array.isArray(object.fit_pts) ? (object.fit_pts as unknown[]).flatMap(point => { const at = xy(point); return at ? [at] : []; }) : [];
-        pending.push({ layer, build: () => line(points) });
+        const points = splinePoints(object, "fit_pts", "ctrl_pts");
+        const closed = number(object.closed_b) === 1 || (number(object.flag) & 1) !== 0;
+        pending.push({ layer, build: () => {
+          if (points.length < 2) return undefined;
+          const coords = closed && points.length >= 3 && (points[0]![0] !== points[points.length - 1]![0] || points[0]![1] !== points[points.length - 1]![1])
+            ? [...points, points[0]!] : points;
+          return line(coords);
+        } });
         break;
       }
       case "POINT": {

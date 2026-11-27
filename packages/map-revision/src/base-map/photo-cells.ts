@@ -80,7 +80,11 @@ export function isVegetationPixel(r: number, g: number, b: number, ndvi?: number
 /** Bildpunkternas spann (kolumn från–till) per rad inom ringarna (jämn–udda), i bildens rutnät. */
 function spans(raster: PhotoRaster, rings: readonly (readonly Point[])[], visit: (row: number, from: number, to: number) => void) {
   let minY = Infinity, maxY = -Infinity;
-  for (const point of rings[0] ?? []) { minY = Math.min(minY, point.y); maxY = Math.max(maxY, point.y); }
+  for (const ring of rings) for (const point of ring) {
+    if (point.y < minY) minY = point.y;
+    if (point.y > maxY) maxY = point.y;
+  }
+  if (!Number.isFinite(minY)) return;
   const firstRow = Math.max(0, Math.floor((raster.maxY - maxY) / raster.step)), lastRow = Math.min(raster.height - 1, Math.ceil((raster.maxY - minY) / raster.step));
   const xs: number[] = [];
   for (let row = firstRow; row <= lastRow; row += 1) {
@@ -104,11 +108,22 @@ function spans(raster: PhotoRaster, rings: readonly (readonly Point[])[], visit:
  */
 export function photoCellStats(rgb: PhotoRaster, rings: readonly (readonly Point[])[], ir?: PhotoRaster): PhotoCellStats {
   const width = rgb.width, data = rgb.data, irData = ir && ir.width === width && ir.height === rgb.height ? ir.data : undefined;
+  let minX = Infinity, maxX = -Infinity;
+  for (const ring of rings) for (const point of ring) {
+    if (point.x < minX) minX = point.x;
+    if (point.x > maxX) maxX = point.x;
+  }
+  const minCol = Number.isFinite(minX) ? Math.max(0, Math.ceil((minX - rgb.minX) / rgb.step - 0.5)) : 0;
+  const maxCol = Number.isFinite(maxX) ? Math.min(width - 1, Math.floor((maxX - rgb.minX) / rgb.step - 0.5)) : -1;
+  const localWidth = maxCol >= minCol ? maxCol - minCol + 1 : 0;
+  if (localWidth === 0) {
+    return { pixels: 0, valid: 0, shadow: 0, vegetation: 0, light: 0, saturation: 0, red: 0, green: 0, blue: 0, texture: 0 };
+  }
   let pixels = 0, valid = 0, shadow = 0, vegetation = 0, kept = 0, light = 0, saturation = 0, red = 0, green = 0, blue = 0, ndviSum = 0, ndviCount = 0;
   let textureSum = 0, textureCount = 0, allLight = 0;
-  // Ljusheten i rutans bildpunkter med bild, för texturen mot grannen ovanför och till vänster (två återanvända radbuffertar).
-  let prevRow = new Float32Array(width).fill(-1);
-  let currRow = new Float32Array(width).fill(-1);
+  // Ljusheten i rutans bildpunkter med bild, för texturen mot grannen ovanför och till vänster (lokala radbuffertar för rutans bredd).
+  let prevRow = new Float32Array(localWidth).fill(-1);
+  let currRow = new Float32Array(localWidth).fill(-1);
   let currentRow = -2;
   spans(rgb, rings, (row, from, to) => {
     if (row !== currentRow) {
@@ -133,13 +148,14 @@ export function photoCellStats(rgb: PhotoRaster, rings: readonly (readonly Point
       if (irData && irData[i + 3] !== 0) { const nir = irData[i]! / 255, rd = irData[i + 1]! / 255; ndvi = (nir - rd) / (nir + rd + 1e-6); }
       const p = pixel(r, g, b);
       allLight += p.light;
-      currRow[column] = p.light;
-      const light32 = currRow[column]!;
-      if (column > 0) {
-        const left = currRow[column - 1]!;
+      const local = column - minCol;
+      currRow[local] = p.light;
+      const light32 = currRow[local];
+      if (local > 0) {
+        const left = currRow[local - 1]!;
         if (left >= 0) { textureSum += Math.abs(light32 - left); textureCount += 1; }
       }
-      const up = prevRow[column]!;
+      const up = prevRow[local]!;
       if (up >= 0) { textureSum += Math.abs(light32 - up); textureCount += 1; }
       if (isShadowPixel(r, g, b, ndvi)) { shadow += 1; continue; }
       kept += 1; light += p.light; saturation += p.saturation; red += r; green += g; blue += b;

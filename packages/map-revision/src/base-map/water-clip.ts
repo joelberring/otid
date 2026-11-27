@@ -103,7 +103,7 @@ export function linesOutsideWater(features: readonly SourceFeature[], clipped: (
     if (piece.length >= 2) pieces.push(piece);
     if (!wet) return [feature];
     cut += 1;
-    return pieces.filter(part => lengthOf(part) >= MIN_PIECE_M).map(part => ({ layer: feature.layer, geometry: { kind: "line" as const, points: part, closed: false } }));
+    return pieces.filter(part => lengthOf(part) >= MIN_PIECE_M).map(part => ({ ...feature, geometry: { kind: "line" as const, points: part, closed: false } }));
   });
   return { features: out, cut };
 }

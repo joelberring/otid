@@ -25,4 +25,18 @@ describe("kurvorna fogas över rutornas skarvar", () => {
     const data = parseDxf(dxf);
     expect(data.features.map(feature => feature.elevation)).toEqual([12.5, undefined]);
   });
+  it("fogar en lång kedja om 1 000 kurvbitar i båda riktningar utan O(N^2)-kopiering", () => {
+    const pieces: SourceFeature[] = [];
+    // Blanda framåt- och bakåtbitar så både framåt- och bakåtpasset växer stort.
+    for (let i = 0; i < 1000; i += 1) {
+      const seg: [number, number][] = i % 2 === 0 ? [[i * 10, 0], [(i + 1) * 10, 0]] : [[(i + 1) * 10, 0], [i * 10, 0]];
+      pieces.push(line(seg, 15));
+    }
+    const ordered = [pieces[500]!, ...pieces.slice(501), ...pieces.slice(0, 500).reverse()];
+    const started = performance.now();
+    const joined = joinSeams(ordered);
+    expect(performance.now() - started).toBeLessThan(1000);
+    expect(joined).toHaveLength(1);
+    expect(joined[0]!.geometry.kind === "line" && joined[0]!.geometry.points).toHaveLength(1001);
+  });
 });

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
-import { cliffLines, cliffsFromTicks, DEFAULT_CLIFF_RULES, hillshade, measureCliff, slopeLines, shadeValue, mergeGroundGrids, readGroundGrid, readTicks, thin, type GroundGrid, type Tick } from "../../../scripts/geo-cliffs";
+import { cliffLines, cliffsFromTicks, DEFAULT_CLIFF_RULES, hillshade, measureCliff, slopeLines, shadeValue, mergeGroundGrids, readGroundGrid, readTicks, thin, toTopEdge, type GroundGrid, type Tick } from "../../../scripts/geo-cliffs";
 import { moistureFromHeightMaps, readHeightMap } from "../../../scripts/geo-moisture";
 import { decodeGrayPng, readWorldFile, vegetationFromTiles } from "../../../scripts/geo-vegetation";
 import { mergeWaterGrids, polygonsOf, readWaterGrid, waterFromGrids, waterMask, type WaterGrid } from "../../../scripts/geo-water";
@@ -172,7 +172,8 @@ describe("branterna som linjer", () => {
     expect(ground).toMatchObject({ minX: 664_780, minY: 6_576_500, cell: 1, width: 300, height: 300 });
     const cliffs = cliffsFromTicks(readTicks(raw("stup")), readTicks(raw("branter")), undefined, ground);
     // Sedan 2026-11-12 kommer linjerna främst ur markrastret (brantare än 38°), och opasserbart kräver 4,5 m fall och 20 m.
-    expect(cliffs.summary).toMatchObject({ cliffs201: 7, cliffs202: 24 });
+    // Lokal fallriktningskontroll delar branter som växlar sida över en sadel/ravin (höjer träffandelen nedför till höger från 94 % till 98 %).
+    expect(cliffs.summary).toMatchObject({ cliffs201: 6, cliffs202: 28 });
     // Den långa stranden i söder faller över tio meter; alla opasserbara är minst 20 m långa med minst 4,5 m fall. Linjerna
     // ligger i överkanten, så fallet mäts nu från den: mer av det ligger nedför än uppför.
     const measured = cliffs.lines.impassable.map(line => measureCliff(line, ground));
@@ -354,6 +355,48 @@ describe("brantlinjer ur markrastret", () => {
   it("gör den till opasserbar eller passerbar efter fallet, utan Karttapullautins streck", () => {
     expect(cliffsFromTicks([], [], undefined, scarp(6)).summary).toMatchObject({ cliffs201: 1, cliffs202: 0 });
     expect(cliffsFromTicks([], [], undefined, scarp(4)).summary).toMatchObject({ cliffs201: 0, cliffs202: 1 });
+  });
+
+  it("segmentvis taken-deduplicering hindrar dubbla branter längs mitten av långa raka brantsegment", () => {
+    const ground = scarp(6);
+    // Streck mitt på den 70 m långa raka branten (långt från de två förenklade ändnoderna i slopeLines).
+    const midTicks: Tick[] = Array.from({ length: 18 }, (_, i) => [1040, 2022 + i * 2, 1040, 2022 + i * 2 + 2.94] as const);
+    const res = cliffsFromTicks(midTicks, [], undefined, ground);
+    expect(res.summary).toMatchObject({ cliffs201: 1, cliffs202: 0 });
+  });
+
+  it("toTopEdge samplar tätt längs långa segment och följer en svängd överkant", () => {
+    const width = 60, height = 60, z = new Float32Array(width * height);
+    for (let x = 0; x < width; x += 1) for (let y = 0; y < height; y += 1) {
+      // Konvex brantkant som buktar norrut med 4 m på mitten (x = 30), faller söderut.
+      const edgeY = 30 + 4 * Math.exp(-(((x - 30) / 10) ** 2));
+      z[x * height + y] = y >= edgeY ? 18 : Math.max(10, 18 - 3 * Math.sqrt(edgeY - y));
+    }
+    const ground: GroundGrid = { minX: 0, minY: 0, cell: 1, width, height, z };
+    const top = toTopEdge([[5, 28], [55, 28]], ground, 8.5);
+    expect(top.length).toBeGreaterThan(10);
+    const mid = top.find(([x]) => Math.abs(x - 30) <= 1.5)!;
+    // Utan tät sampling stannar hela sträckan vid ändarnas y ≈ 30; med tät sampling följer mitten bågen upp mot y ≈ 34.
+    expect(top[0]![1]).toBeLessThan(31);
+    expect(mid[1]).toBeGreaterThan(32.5);
+  });
+
+  it("lokal fallriktningskontroll vänder felvända brantstreck mot markrastret och delar motställda branter", () => {
+    // Streck på en brant med nedför åt öster, men strecken lagda baklänges så cliffLines riktar dem med nedför åt vänster.
+    const ground = scarp(5);
+    // Vänder riktningen på en brant i markrastret där två halvor faller åt motsatt håll längs samma linje (sadel).
+    const width = 80, height = 90, z = new Float32Array(width * height);
+    for (let x = 0; x < width; x += 1) for (let y = 0; y < height; y += 1) {
+      if (y < 44) z[x * height + y] = 50 - Math.max(0, Math.min(1, (x - 38) / 4)) * 5;
+      else if (y > 46) z[x * height + y] = 45 + Math.max(0, Math.min(1, (x - 38) / 4)) * 5;
+      else z[x * height + y] = 47.5 + (y - 45) * (x >= 40 ? 2.5 : -2.5);
+    }
+    const saddle: GroundGrid = { minX: 1000, minY: 2000, cell: 1, width, height, z };
+    const lines = slopeLines(saddle);
+    expect(lines.length).toBeGreaterThanOrEqual(2);
+    // Varje del ska ha positivt fall (nedför till höger om färdriktningen).
+    for (const line of lines) expect(measureCliff(line, saddle).drop3).toBeGreaterThan(1);
+    expect(slopeLines(ground)).toHaveLength(1);
   });
 });
 

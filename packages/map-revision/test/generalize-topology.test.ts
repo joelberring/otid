@@ -48,4 +48,25 @@ describe("generaliseringens topologi", () => {
     expect(result.inside).toBe(1);
     expect(generalize(objects, 15000, { simplifyMm: 0, removeSmall: false }).changes).toEqual([]);
   });
+
+  it("vänder aldrig riktningskänsliga symboler (201, 202, 104, 105, 513.2) vid ihopfogning men fogar samman samma riktning", () => {
+    for (const code of ["201", "202", "202.1", "104", "105", "105.2", "513.2"]) {
+      // Motställda riktningar (ände mot ände och start mot start) får INTE vändas och fogas inte ihop.
+      expect(joinTouchingLines([line("b:1", code, [[0, 0], [5, 0]]), line("b:2", code, [[10, 0], [5, 0]])]), `${code} end-end`).toEqual([]);
+      expect(joinTouchingLines([line("b:1", code, [[5, 0], [0, 0]]), line("b:2", code, [[5, 0], [10, 0]])]), `${code} start-start`).toEqual([]);
+      // Samma riktning (slut möter start) fogas ihop utan vändning.
+      const sameDir = joinTouchingLines([line("b:1", code, [[0, 0], [5, 0]]), line("b:2", code, [[5, 0], [10, 0]])]);
+      expect(sameDir, `${code} same-dir`).toHaveLength(1);
+      expect(points(sameDir[0]!.object)).toEqual([[0, 0], [5, 0], [10, 0]]);
+    }
+    // Finns både en motställd och en likriktad linje i samma punkt väljs den likriktade.
+    const mixed = joinTouchingLines([
+      line("b:1", "201", [[0, 0], [5, 0]]),
+      line("b:opp", "201", [[10, 2], [5, 0]]),
+      line("b:ok", "201", [[5, 0], [10, -2]])
+    ]);
+    expect(mixed).toHaveLength(1);
+    expect(mixed[0]).toMatchObject({ keep: "b:1", absorbed: ["b:ok"] });
+    expect(points(mixed[0]!.object)).toEqual([[0, 0], [5, 0], [10, -2]]);
+  });
 });

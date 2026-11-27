@@ -47,11 +47,104 @@ const inRing = (ring: readonly (readonly [number, number])[], x: number, y: numb
   }
   return hit;
 };
-const boxOf = (polygon: Polygon) => {
+interface Box { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number }
+const boxOf = (polygon: Polygon): Box => {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  for (const [x, y] of polygon[0] ?? []) { minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y); }
+  for (const [x, y] of polygon[0] ?? []) {
+    if (x < minX) minX = x;
+    if (y < minY) minY = y;
+    if (x > maxX) maxX = x;
+    if (y > maxY) maxY = y;
+  }
   return { minX, minY, maxX, maxY };
 };
+const touchesBox = (a: Box, b: Box) => a.minX <= b.maxX && b.minX <= a.maxX && a.minY <= b.maxY && b.minY <= a.maxY;
+const inBox = (b: Box, x: number, y: number) => x >= b.minX && x <= b.maxX && y >= b.minY && y <= b.maxY;
+
+class BoxIndex<T extends { readonly box: Box }> {
+  private readonly cells = new Map<number, number[]>();
+  private readonly overflow: number[] = [];
+  private readonly seen: Int32Array;
+  private stamp = 0;
+  private readonly cell: number;
+  private readonly originX: number;
+  private readonly originY: number;
+  constructor(private readonly items: readonly T[]) {
+    this.seen = new Int32Array(items.length);
+    let sum = 0, ox = Infinity, oy = Infinity;
+    for (const item of items) {
+      sum += Math.max(item.box.maxX - item.box.minX, item.box.maxY - item.box.minY);
+      if (item.box.minX < ox) ox = item.box.minX;
+      if (item.box.minY < oy) oy = item.box.minY;
+    }
+    this.originX = Number.isFinite(ox) ? ox : 0;
+    this.originY = Number.isFinite(oy) ? oy : 0;
+    this.cell = items.length ? Math.max(1, Math.min(200, sum / items.length)) : 1;
+    for (let i = 0; i < items.length; i += 1) {
+      const b = items[i]!.box;
+      const x0 = Math.floor((b.minX - this.originX) / this.cell), x1 = Math.floor((b.maxX - this.originX) / this.cell);
+      const y0 = Math.floor((b.minY - this.originY) / this.cell), y1 = Math.floor((b.maxY - this.originY) / this.cell);
+      if ((x1 - x0 + 1) * (y1 - y0 + 1) > 64 || Math.abs(x0) > 1e7 || Math.abs(x1) > 1e7 || Math.abs(y0) > 1e7 || Math.abs(y1) > 1e7) {
+        this.overflow.push(i);
+        continue;
+      }
+      for (let cx = x0; cx <= x1; cx += 1) for (let cy = y0; cy <= y1; cy += 1) {
+        const key = (cx + 0x1000000) * 0x2000000 + (cy + 0x1000000);
+        const list = this.cells.get(key);
+        if (list) list.push(i); else this.cells.set(key, [i]);
+      }
+    }
+  }
+  someAt(x: number, y: number, test: (item: T) => boolean): boolean {
+    if (this.items.length === 0) return false;
+    const cx = Math.floor((x - this.originX) / this.cell), cy = Math.floor((y - this.originY) / this.cell);
+    if (Math.abs(cx) <= 1e7 && Math.abs(cy) <= 1e7) {
+      const list = this.cells.get((cx + 0x1000000) * 0x2000000 + (cy + 0x1000000));
+      if (list) for (let i = 0; i < list.length; i += 1) {
+        const item = this.items[list[i]!]!;
+        if (inBox(item.box, x, y) && test(item)) return true;
+      }
+    }
+    for (let i = 0; i < this.overflow.length; i += 1) {
+      const item = this.items[this.overflow[i]!]!;
+      if (inBox(item.box, x, y) && test(item)) return true;
+    }
+    return false;
+  }
+  queryBox(box: Box): T[] {
+    const out: T[] = [];
+    if (this.items.length === 0) return out;
+    this.stamp += 1;
+    if (this.stamp === 0x7fffffff) { this.seen.fill(0); this.stamp = 1; }
+    const x0 = Math.floor((box.minX - this.originX) / this.cell), x1 = Math.floor((box.maxX - this.originX) / this.cell);
+    const y0 = Math.floor((box.minY - this.originY) / this.cell), y1 = Math.floor((box.maxY - this.originY) / this.cell);
+    if ((x1 - x0 + 1) * (y1 - y0 + 1) > 256 || Math.abs(x0) > 1e7 || Math.abs(x1) > 1e7 || Math.abs(y0) > 1e7 || Math.abs(y1) > 1e7) {
+      for (let i = 0; i < this.items.length; i += 1) {
+        if (touchesBox(this.items[i]!.box, box)) out.push(this.items[i]!);
+      }
+      return out;
+    }
+    for (let cx = x0; cx <= x1; cx += 1) for (let cy = y0; cy <= y1; cy += 1) {
+      const list = this.cells.get((cx + 0x1000000) * 0x2000000 + (cy + 0x1000000));
+      if (!list) continue;
+      for (let i = 0; i < list.length; i += 1) {
+        const idx = list[i]!;
+        if (this.seen[idx] === this.stamp) continue;
+        this.seen[idx] = this.stamp;
+        const item = this.items[idx]!;
+        if (touchesBox(item.box, box)) out.push(item);
+      }
+    }
+    for (let i = 0; i < this.overflow.length; i += 1) {
+      const idx = this.overflow[i]!;
+      if (this.seen[idx] === this.stamp) continue;
+      this.seen[idx] = this.stamp;
+      const item = this.items[idx]!;
+      if (touchesBox(item.box, box)) out.push(item);
+    }
+    return out;
+  }
+}
 const ringArea = (ring: readonly (readonly [number, number])[]) => Math.abs(ring.reduce((sum, [x, y], i) => {
   const [nx, ny] = ring[(i + 1) % ring.length]!;
   return sum + x * ny - nx * y;
@@ -75,11 +168,9 @@ export function maskBuilt(candidates: readonly MapObject[], built: readonly Poly
 function maskWith(candidates: readonly MapObject[], built: readonly Polygon[], mainOf: (symbol: string) => number | undefined,
   masked: (main: number) => boolean): { objects: MapObject[]; removed: number; clipped: number } {
   if (built.length === 0) return { objects: [...candidates], removed: 0, clipped: 0 };
-  const boxes = built.map(boxOf);
-  const inside = (x: number, y: number) => built.some((polygon, i) => {
-    const box = boxes[i]!;
-    return x >= box.minX && x <= box.maxX && y >= box.minY && y <= box.maxY && inRing(polygon[0]!, x, y) && !polygon.slice(1).some(hole => inRing(hole, x, y));
-  });
+  const builtIndex = new BoxIndex(built.map(polygon => ({ polygon, box: boxOf(polygon) })));
+  const inside = (x: number, y: number) => builtIndex.someAt(x, y, ({ polygon }) =>
+    inRing(polygon[0]!, x, y) && !polygon.slice(1).some(hole => inRing(hole, x, y)));
   const objects: MapObject[] = [];
   let removed = 0, clipped = 0;
   for (const object of candidates) {
@@ -92,8 +183,9 @@ function maskWith(candidates: readonly MapObject[], built: readonly Polygon[], m
       if (points.length && points.filter(point => inside(point.x, point.y)).length * 2 >= points.length) removed += 1; else objects.push(object);
     } else {
       const polygon = polygonOf(object), box = boxOf(polygon);
-      const near = built.filter((_, i) => { const other = boxes[i]!; return other.minX <= box.maxX && other.maxX >= box.minX && other.minY <= box.maxY && other.maxY >= box.minY; });
-      if (near.length === 0 || polygon.length === 0) { objects.push(object); continue; }
+      if (polygon.length === 0) { objects.push(object); continue; }
+      const near = builtIndex.queryBox(box).map(item => item.polygon);
+      if (near.length === 0) { objects.push(object); continue; }
       let pieces: MultiPolygon;
       try { pieces = polygonClipping.difference(polygon, ...near); } catch { objects.push(object); continue; }
       const kept = pieces.filter(piece => piece[0] && ringArea(piece[0]) >= MIN_PIECE_MM2);
@@ -132,29 +224,53 @@ export function extendAreas<K>(candidates: readonly MapObject[], existing: reado
   : { adds: MapObject[]; removed: K[]; extended: number } {
   const adds: MapObject[] = [], removed: K[] = [];
   let extended = 0;
-  const olds = existing.flatMap(row => row.object.kind === "area" ? [{ id: row.id, object: row.object, polygon: polygonOf(row.object) }] : [])
-    .filter(row => row.polygon.length > 0).map(row => ({ ...row, box: boxOf(row.polygon) }));
+  const oldBySymbol = new Map<string, { id: K; object: Area; polygon: Polygon; box: Box }[]>();
+  for (const row of existing) {
+    if (row.object.kind !== "area") continue;
+    const polygon = polygonOf(row.object);
+    if (polygon.length === 0) continue;
+    const item = { id: row.id, object: row.object, polygon, box: boxOf(polygon) };
+    const list = oldBySymbol.get(row.object.symbol);
+    if (list) list.push(item); else oldBySymbol.set(row.object.symbol, [item]);
+  }
   const bySymbol = new Map<string, Area[]>();
   for (const object of candidates) {
     if (object.kind !== "area") { adds.push(object); continue; }
-    bySymbol.set(object.symbol, [...(bySymbol.get(object.symbol) ?? []), object]);
+    const list = bySymbol.get(object.symbol);
+    if (list) list.push(object); else bySymbol.set(object.symbol, [object]);
   }
   const overlaps = (a: Polygon, b: Polygon) => { try { return polygonClipping.intersection(a, b).length > 0; } catch { return false; } };
-  const near = (a: ReturnType<typeof boxOf>, b: ReturnType<typeof boxOf>) => a.minX <= b.maxX && b.minX <= a.maxX && a.minY <= b.maxY && b.minY <= a.maxY;
   for (const [symbol, areas] of bySymbol) {
-    const nodes = [...areas.map(object => ({ object, polygon: polygonOf(object), id: undefined as K | undefined, old: false })),
-      ...olds.filter(row => row.object.symbol === symbol).map(row => ({ object: row.object, polygon: row.polygon, id: row.id as K | undefined, old: true }))]
-      .filter(node => node.polygon.length > 0).map(node => ({ ...node, box: boxOf(node.polygon) }));
+    const oldRows = oldBySymbol.get(symbol) ?? [];
+    if (oldRows.length === 0) { adds.push(...areas); continue; }
+    const nodes: { object: Area; polygon: Polygon; box: Box; id: K | undefined; old: boolean; index: number }[] = [];
+    for (const object of areas) {
+      const polygon = polygonOf(object);
+      if (polygon.length === 0) continue;
+      nodes.push({ object, polygon, box: boxOf(polygon), id: undefined, old: false, index: nodes.length });
+    }
+    const newCount = nodes.length;
+    const oldNodes: typeof nodes = [];
+    for (const row of oldRows) {
+      const node = { object: row.object, polygon: row.polygon, box: row.box, id: row.id as K | undefined, old: true, index: nodes.length };
+      nodes.push(node);
+      oldNodes.push(node);
+    }
     // Grupper av ytor som överlappar (union–find); bara kandidater som rör en gammal yta slås ihop.
     const parent = nodes.map((_, i) => i);
     const root = (i: number): number => parent[i] === i ? i : (parent[i] = root(parent[i]!));
-    for (let i = 0; i < nodes.length; i += 1) for (let j = i + 1; j < nodes.length; j += 1) {
-      if (!nodes[i]!.old && !nodes[j]!.old) continue;
-      if (nodes[i]!.old && nodes[j]!.old) continue;
-      if (near(nodes[i]!.box, nodes[j]!.box) && overlaps(nodes[i]!.polygon, nodes[j]!.polygon)) parent[root(i)] = root(j);
+    const oldIndex = new BoxIndex(oldNodes);
+    for (let i = 0; i < newCount; i += 1) {
+      const candidate = nodes[i]!;
+      for (const oldNode of oldIndex.queryBox(candidate.box)) {
+        if (root(i) !== root(oldNode.index) && overlaps(candidate.polygon, oldNode.polygon)) parent[root(i)] = root(oldNode.index);
+      }
     }
     const groups = new Map<number, typeof nodes>();
-    nodes.forEach((node, i) => groups.set(root(i), [...(groups.get(root(i)) ?? []), node]));
+    for (let i = 0; i < nodes.length; i += 1) {
+      const r = root(i), list = groups.get(r);
+      if (list) list.push(nodes[i]!); else groups.set(r, [nodes[i]!]);
+    }
     for (const group of groups.values()) {
       const news = group.filter(node => !node.old), oldOnes = group.filter(node => node.old);
       if (news.length === 0) continue;

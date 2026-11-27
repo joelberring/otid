@@ -127,12 +127,12 @@ function hillsInTile(z: Float32Array, outside: Uint8Array, columns: number, rows
 
 /**
  * Alla höjder med egen topp som kandidater, högst stigning först. `affine` säger var rastret ligger (bildpunktens mitt till
- * koordinater, som `worldFileAffine`).
+ * koordinater, som `worldFileAffine`). Ett färdigutjämnat höjdraster (`smoothedHeights(grid)`) kan skickas med för återanvändning.
  */
-export function findHills(grid: HeightGrid, affine: PixelAffine): HillCandidate[] {
+export function findHills(grid: HeightGrid, affine: PixelAffine, smoothed?: Float32Array): HillCandidate[] {
   const { columns, rows } = grid;
   if (columns < 3 || rows < 3) return [];
-  const z = smoothedHeights(grid), outside = outsideCells(z, columns, rows);
+  const z = smoothed ?? smoothedHeights(grid), outside = outsideCells(z, columns, rows);
   const [a, b, c, d, e, f] = affine, cellM2 = Math.abs(a * e - b * d);
   const toSource = (column: number, row: number): [number, number] => [a * column + b * row + c, d * column + e * row + f];
   const maxCells = Math.ceil(RING_MAX_M2 / cellM2), round = (value: number) => Math.round(value * 100) / 100;

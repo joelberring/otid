@@ -33,20 +33,50 @@ export interface SoilMarshResult { readonly features: SourceFeature[]; readonly 
 const net = (polygon: Polygon) => polygon.reduce((sum, ring, i) => sum + (i === 0 ? 1 : -1) * ringArea(ring as Ring), 0);
 const near = (a: Box, b: Box, reach: number) => a.minX - reach <= b.maxX && b.minX - reach <= a.maxX && a.minY - reach <= b.maxY && b.minY - reach <= a.maxY;
 
+/** Hierarkisk batchad union (grupper om 8 i trädform) så långa kustlinjer kollapsar lokala överlapp direkt utan stall/OOM. */
+const UNION_BATCH = 8;
+
+function chunkedUnion(polygons: readonly Polygon[]): MultiPolygon {
+  if (polygons.length === 0) return [];
+  if (polygons.length === 1) return [polygons[0]!];
+  let current: MultiPolygon[] = [];
+  for (let i = 0; i < polygons.length; i += UNION_BATCH) {
+    const slice = polygons.slice(i, i + UNION_BATCH);
+    current.push(slice.length === 1 ? [slice[0]!] : polygonClipping.union(slice[0]!, ...slice.slice(1)));
+  }
+  while (current.length > 1) {
+    const next: MultiPolygon[] = [];
+    for (let i = 0; i < current.length; i += UNION_BATCH) {
+      const slice = current.slice(i, i + UNION_BATCH);
+      next.push(slice.length === 1 ? slice[0]! : polygonClipping.union(slice[0]!, ...slice.slice(1)));
+    }
+    current = next;
+  }
+  return current[0]!;
+}
+
 /** Vattnets kanter som rektanglar (bredd två gånger `reach`, förlängda i ändarna): en grov buffert, nära nog för 30 m. */
 function shoreBuffer(rings: readonly (readonly (readonly [number, number])[])[], targets: readonly Box[], reach: number): MultiPolygon {
+  if (targets.length === 0) return [];
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const t of targets) {
+    if (t.minX < minX) minX = t.minX;
+    if (t.minY < minY) minY = t.minY;
+    if (t.maxX > maxX) maxX = t.maxX;
+    if (t.maxY > maxY) maxY = t.maxY;
+  }
+  const allTargets: Box = { minX, minY, maxX, maxY };
   const pieces: Polygon[] = [];
   for (const ring of rings) for (let i = 0; i + 1 < ring.length; i += 1) {
     const [ax, ay] = ring[i]!, [bx, by] = ring[i + 1]!;
     const length = Math.hypot(bx - ax, by - ay);
     if (length < 1e-6) continue;
     const box = { minX: Math.min(ax, bx), minY: Math.min(ay, by), maxX: Math.max(ax, bx), maxY: Math.max(ay, by) };
-    if (!targets.some(target => near(box, target, reach))) continue;
+    if (!near(box, allTargets, reach) || !targets.some(target => near(box, target, reach))) continue;
     const ux = (bx - ax) / length, uy = (by - ay) / length, nx = -uy * reach, ny = ux * reach, ex = ux * reach, ey = uy * reach;
     pieces.push([[[ax - ex + nx, ay - ey + ny], [bx + ex + nx, by + ey + ny], [bx + ex - nx, by + ey - ny], [ax - ex - nx, ay - ey - ny], [ax - ex + nx, ay - ey + ny]]]);
   }
-  if (pieces.length === 0) return [];
-  return polygonClipping.union(pieces[0]!, ...pieces.slice(1));
+  return chunkedUnion(pieces);
 }
 
 /**
@@ -69,7 +99,8 @@ export function marshOffDrySoil(features: readonly SourceFeature[], soil: readon
     const waterRings = [...soil.filter(isSoilWater).flatMap(area => area.rings),
       ...(options.water ?? []).flatMap(feature => feature.layer.toLowerCase() === "vatten" ? (polygonOf(feature) ?? []) : [])];
     const buffer = shoreBuffer(waterRings, dry.map(row => row.box), SOIL_WATER_BUFFER_M);
-    const united = polygonClipping.union(dry[0]!.polygon, ...dry.slice(1).map(row => row.polygon));
+    const drySorted = [...dry].sort((a, b) => a.box.minX - b.box.minX);
+    const united = chunkedUnion(drySorted.map(row => row.polygon));
     const rest = buffer.length ? polygonClipping.difference(united, buffer) : united;
     effective = rest.map(polygon => ({ polygon, box: boxOf(polygon) }));
   } catch { return { features: [...features], removedHa: 0 }; }

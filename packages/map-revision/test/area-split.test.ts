@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import polygonClipping, { type MultiPolygon, type Polygon } from "polygon-clipping";
 import type { MapObject } from "@o-tid/map-file";
 import { AREA_SPLIT_TABLE, areaSplitLimit, largeAreaPlan, splitArea, splitLargeAreas } from "../src";
+import { areaPolygon, multiArea, polygonArea, polygonBox } from "../src/area-split";
 
 type Area = Extract<MapObject, { kind: "area" }>;
 const ring = (points: readonly [number, number][]) => points.map(([x, y], i) => ({ type: i === 0 ? "M" as const : "L" as const, x, y }));
@@ -67,5 +69,68 @@ describe("stora ytor delas (ägaren 2026-11-23: «ytorna inte sitter ihop i supe
     const pieces = splitArea(giant, sprint);
     expect(performance.now() - started).toBeLessThan(2000);
     expect(pieces.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("O(V)-snittberäkning ger samma delningar (paritet) som full polygonClipping-sökning på konkava ytor, hål och kanter längs rutnätet", () => {
+    // Referensimplementation som testar varje rutnätslinje med polygonClipping.intersection.
+    const refHalves = (piece: Polygon, axis: "x" | "y", c: number): [MultiPolygon, MultiPolygon] => {
+      const box = polygonBox(piece), pad = 1 + Math.max(box.maxX - box.minX, box.maxY - box.minY);
+      const lo = { minX: box.minX - pad, minY: box.minY - pad }, hi = { maxX: box.maxX + pad, maxY: box.maxY + pad };
+      const rect = (a: [number, number], b: [number, number], far: [number, number], farB: [number, number]): Polygon => [[a, b, farB, far, a]];
+      const first = axis === "x" ? rect([c, lo.minY], [c, hi.maxY], [lo.minX, lo.minY], [lo.minX, hi.maxY])
+        : rect([lo.minX, c], [hi.maxX, c], [lo.minX, lo.minY], [hi.maxX, lo.minY]);
+      const second = axis === "x" ? rect([c, lo.minY], [c, hi.maxY], [hi.maxX, lo.minY], [hi.maxX, hi.maxY])
+        : rect([lo.minX, c], [hi.maxX, c], [lo.minX, hi.maxY], [hi.maxX, hi.maxY]);
+      return [polygonClipping.intersection(piece, first), polygonClipping.intersection(piece, second)];
+    };
+    const refCutLength = (parts: MultiPolygon, axis: "x" | "y", c: number) => {
+      let sum = 0;
+      for (const piece of parts) for (const r of piece) for (let i = 1; i < r.length; i += 1) {
+        const [ax, ay] = r[i - 1]!, [bx, by] = r[i]!;
+        const [a, b, along] = axis === "x" ? [ax, bx, Math.abs(ay - by)] : [ay, by, Math.abs(ax - bx)];
+        if (Math.abs(a - c) < 1e-9 && Math.abs(b - c) < 1e-9) sum += along;
+      }
+      return sum;
+    };
+    const refSplit = (obj: Area): number[] => {
+      const done: Polygon[] = [], queue: Polygon[] = [areaPolygon(obj)];
+      while (queue.length) {
+        const piece = queue.pop()!, a0 = polygonArea(piece);
+        if (a0 <= sprint.maxMm2) { done.push(piece); continue; }
+        const box = polygonBox(piece);
+        let best: { parts: [MultiPolygon, MultiPolygon]; score: number } | undefined;
+        for (const axis of ["x", "y"] as const) {
+          const from = axis === "x" ? box.minX : box.minY, to = axis === "x" ? box.maxX : box.maxY, middle = (from + to) / 2;
+          for (let k = Math.floor(from / sprint.gridMm) + 1; k <= Math.ceil(to / sprint.gridMm) - 1; k += 1) {
+            const c = k * sprint.gridMm;
+            const parts = refHalves(piece, axis, c);
+            const a = multiArea(parts[0]), b = multiArea(parts[1]);
+            if (a <= 0 || b <= 0) continue;
+            const score = Math.min(a, b) >= 0.2 * a0 ? refCutLength(parts[0], axis, c) / Math.sqrt(a0) : 1e6 + Math.abs(c - middle);
+            if (!best || score < best.score) best = { parts, score };
+          }
+        }
+        if (!best) { done.push(piece); continue; }
+        queue.push(...best.parts[0], ...best.parts[1]);
+      }
+      return done.map(polygonArea).sort((x, y) => x - y);
+    };
+
+    const shapes: Area[] = [
+      // C-formad konkav yta med multipla snitt längs samma rutnätslinje.
+      area("406", [[0, 0], [120, 0], [120, 30], [35, 30], [35, 70], [120, 70], [120, 100], [0, 100], [0, 0]]),
+      // L-formad yta där en vertikal kant ligger exakt på rutnätslinjen x = 75.
+      area("406", [[0, 0], [130, 0], [130, 45], [75, 45], [75, 110], [0, 110], [0, 0]]),
+      // Yta med hål och sneda sidor.
+      area("406", [[5, 5], [140, 15], [135, 95], [10, 85], [5, 5]], [[50, 30], [90, 35], [85, 65], [45, 60], [50, 30]])
+    ];
+    for (const shape of shapes) {
+      const fastAreas = splitArea(shape, sprint).map(areaOf).sort((x, y) => x - y);
+      const refAreas = refSplit(shape);
+      expect(fastAreas).toHaveLength(refAreas.length);
+      for (let i = 0; i < refAreas.length; i += 1) {
+        expect(fastAreas[i]).toBeCloseTo(refAreas[i]!, 5);
+      }
+    }
   });
 });

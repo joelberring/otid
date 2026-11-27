@@ -51,4 +51,33 @@ describe("flygbildstolkning", () => {
     expect(maskOutlines(new Uint8Array(columns * rows), columns, rows)).toEqual([]);
     expect(compactMask(mask, columns, rows, 500).some(cell => cell === 1)).toBe(false);
   });
+
+  it("4-gradig sadelpunkt i maskOutlines ger två enkla ringar utan åtta-formad självskärning", () => {
+    for (const cells of [[[1, 1], [2, 2]], [[2, 1], [1, 2]]] as const) {
+      const columns = 5, rows = 5, mask = new Uint8Array(columns * rows);
+      for (const [c, r] of cells) mask[c * rows + r] = 1;
+      const rings = maskOutlines(mask, columns, rows);
+      expect(rings).toHaveLength(2);
+      for (const ring of rings) {
+        expect(ring).toHaveLength(4);
+        // Varje hörn besöks högst en gång i ringen (ingen åtta-form).
+        expect(new Set(ring.map(([c, r]) => `${c},${r}`)).size).toBe(ring.length);
+      }
+    }
+  });
+
+  it("simplifyRing bevarar sluten ringform utan kollaps (både med och utan upprepad slutpunkt)", () => {
+    const closedSquare: [number, number][] = [[0, 0], [5, 0], [10, 0], [10, 5], [10, 10], [5, 10], [0, 10], [0, 5], [0, 0]];
+    const simpleClosed = simplifyRing(closedSquare, 0.5);
+    expect(simpleClosed).toHaveLength(5);
+    expect(simpleClosed[0]).toEqual(simpleClosed[simpleClosed.length - 1]);
+    // En sluten cirkel utan upprepad slutpunkt förenklas symmetriskt och kollapsar aldrig under 3 punkter.
+    const circle: [number, number][] = Array.from({ length: 64 }, (_, i) => [10 * Math.cos(i * Math.PI / 32), 10 * Math.sin(i * Math.PI / 32)]);
+    const simpleCircle = simplifyRing(circle, 0.5);
+    expect(simpleCircle.length).toBeGreaterThanOrEqual(8);
+    expect(simpleCircle.length).toBeLessThan(32);
+    expect(Math.min(...simpleCircle.map(p => p[0]))).toBeLessThan(-9);
+    expect(Math.max(...simpleCircle.map(p => p[0]))).toBeGreaterThan(9);
+    expect(simplifyRing(circle, 1000).length).toBeGreaterThanOrEqual(3);
+  });
 });

@@ -153,9 +153,26 @@ async function writeState(db: DbExecutor, state: ServerState, now: Date): Promis
     .onConflictDoUpdate({ target: states.key, set: { value: state as unknown as Record<string, unknown>, updatedAt: now } });
 }
 
+const STORED_SERVER_STATES: ReadonlySet<GeoServerView["state"]> = new Set(["READY", "STARTING", "OFF", "UNAVAILABLE", "BUDGET"]);
+
 /** Läget som användarna ser (geo-jobbens lista). */
 export async function geoServerStateView(db: DbExecutor): Promise<GeoServerView> {
   return (await readState(db)).view;
+}
+
+/**
+ * Registrerat läge från geo-serverns bevakning i databasen (används t.ex. av `web-public` som saknar `OTID_HETZNER_TOKEN`
+ * men delar databas med `web`). Ger `undefined` när varken `geo_server_state` eller aktiva `geo_server`-rader finns.
+ */
+export async function storedGeoServerStateView(db: DbExecutor): Promise<GeoServerView | undefined> {
+  const [row] = await db.select({ value: states.value }).from(states).where(eq(states.key, "server"));
+  const view = (row?.value as Partial<ServerState> | undefined)?.view;
+  if (view && STORED_SERVER_STATES.has(view.state)) {
+    return { state: view.state, detail: typeof view.detail === "string" ? view.detail : null };
+  }
+  const active = await db.select({ status: servers.status }).from(servers).where(ne(servers.status, "DELETED"));
+  if (active.length > 0) return { state: active.some(server => server.status === "READY") ? "READY" : "STARTING", detail: null };
+  return undefined;
 }
 
 /** Månadens kostnad i euro: varje påbörjad timme som en server funnits under månaden. */

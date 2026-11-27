@@ -44,4 +44,30 @@ describe("kant runt husen", () => {
     expect(replaced.remove).toEqual(["old"]);
     expect(replaced.add).toHaveLength(2);
   });
+
+  it("klarar en mycket stor ring (20 000 hörn) utan stack overflow och matchar många hus med spatialt index", () => {
+    const n = 20_000;
+    const bigRing = Array.from({ length: n }, (_, i) => {
+      const a = (i / n) * Math.PI * 2;
+      return { x: Math.round(Math.cos(a) * 10 * 1000) / 1000, y: Math.round(Math.sin(a) * 10 * 1000) / 1000 };
+    });
+    const bigHouse = { key: "big", object: area(bigRing) };
+    const first = buildingOutlines([bigHouse], [], "edge");
+    expect(first.add).toHaveLength(1);
+    const second = buildingOutlines([bigHouse], [{ key: "e-big", object: first.add[0]! }], "edge");
+    expect(second).toMatchObject({ add: [], remove: [], houses: 1 });
+
+    // 400 fristående hus + 400 befintliga kanter: spatialt index håller det snabbt och idempotent.
+    const manyHouses = Array.from({ length: 400 }, (_, i) => ({
+      key: `h${i}`,
+      object: area(square((i % 20) * 5, Math.floor(i / 20) * 5, 2, 2))
+    }));
+    const initial = buildingOutlines(manyHouses, [], "edge");
+    expect(initial.add).toHaveLength(400);
+    const edges = initial.add.map((object, i) => ({ key: `e${i}`, object }));
+    const started = performance.now();
+    const rerun = buildingOutlines(manyHouses, edges, "edge");
+    expect(performance.now() - started).toBeLessThan(2000);
+    expect(rerun).toMatchObject({ add: [], remove: [], houses: 400 });
+  });
 });

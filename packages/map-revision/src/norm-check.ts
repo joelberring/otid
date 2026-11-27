@@ -64,8 +64,15 @@ const UNCROSSABLE = new Set(["201", "301", "307", "411", "515", "518", "520", "5
 const FENCES = new Set(["513", "515", "516", "518"]);
 export const SPRINT_PASSAGE_MM = 0.4;
 export const SPRINT_OPENING_MM = 1;
+export interface NormCheckOptions {
+  /** Kontrollera bara dessa regler (utelämnat = alla regler för normen). */
+  readonly rules?: ReadonlySet<NormRule> | readonly NormRule[] | undefined;
+  /** Högst så många fel per regel (förval `MAX_ISSUES_PER_RULE`; `Infinity` för obegränsat). */
+  readonly maxPerRule?: number | undefined;
+}
 /** Ett slutet kurvobjekt (kulle): minst 0,9 × 0,6 mm (101, 102); en formlinje minst 1,1 mm (103, yttermått). */
-const MAX_ISSUES = 2000;
+/** Per-regel-tak så en bullrig regel (t.ex. `CONTOUR_GAP`) inte svälter ut övriga regler. */
+const MAX_ISSUES_PER_RULE = 500;
 
 const mainOf = (code: string) => Number.parseInt(code, 10);
 /** Värdet för numret med undernummer (t.ex. 513.1), annars för huvudnumret. */
@@ -173,99 +180,121 @@ class SegmentGrid {
 }
 
 /** Kartans objekt mot normen. `scale` är kartans skala (t.ex. 10 000). */
-export function checkNorm(objects: readonly NormObject[], scale: number): NormResult {
+export function checkNorm(objects: readonly NormObject[], scale: number, options?: NormCheckOptions): NormResult {
   const { standard, factor } = normScale(scale);
   const sprint = standard === "ISSPROM";
   const minLength = (code: string) => sprint ? limitOf(SPRINT_LENGTH, code) : MIN_LENGTH[mainOf(code)];
   const minArea = (code: string) => sprint ? limitOf(SPRINT_AREA, code) : MIN_AREA[mainOf(code)];
   const minWidthOf = (code: string) => sprint ? limitOf(SPRINT_WIDTH, code) : MIN_WIDTH[mainOf(code)];
+  const ruleFilter = options?.rules ? (options.rules instanceof Set ? options.rules : new Set(options.rules)) : undefined;
+  const enabled = (rule: NormRule) => !ruleFilter || ruleFilter.has(rule);
+  const maxPerRule = options?.maxPerRule ?? MAX_ISSUES_PER_RULE;
   const issues: NormIssue[] = [];
-  const add = (issue: NormIssue) => { if (issues.length < MAX_ISSUES) issues.push(issue); };
-  const lines = objects.map(item => item.object.kind === "line" ? flattenPath(item.object.path).flat() : undefined);
+  const counts: Record<NormRule, number> = { CONTOUR_GAP: 0, SHORT_LINE: 0, SMALL_AREA: 0, THIN_AREA: 0, SMALL_CLOSED: 0, PASSAGE: 0, OPENING: 0 };
+  const capped: Record<NormRule, boolean> = { CONTOUR_GAP: false, SHORT_LINE: false, SMALL_AREA: false, THIN_AREA: false, SMALL_CLOSED: false, PASSAGE: false, OPENING: false };
+  let truncated = false;
+  const add = (issue: NormIssue) => {
+    if (!enabled(issue.rule)) return;
+    if (counts[issue.rule] >= maxPerRule) { capped[issue.rule] = true; truncated = true; return; }
+    counts[issue.rule] += 1;
+    issues.push(issue);
+  };
+  const needLines = enabled("CONTOUR_GAP") || enabled("SHORT_LINE") || enabled("SMALL_CLOSED") || (sprint && (enabled("PASSAGE") || enabled("OPENING")));
+  const lines = needLines ? objects.map(item => item.object.kind === "line" ? flattenPath(item.object.path).flat() : undefined) : objects.map(() => undefined);
 
   // Kurvorna: minst 0,15 mm mellan konturerna (mitt till mitt: 0,15 + halva bredderna).
-  const contours = objects.map((item, index) => ({ item, index, main: mainOf(item.code) }))
-    .filter(row => CONTOURS.has(row.main) && row.item.object.kind === "line" && (lines[row.index]?.length ?? 0) >= 2);
-  const widthOf = (row: { item: NormObject; main: number }) => row.item.lineWidth ?? CONTOUR_WIDTH[row.main]! * factor;
-  const maxLimit = MIN_GAP_MM * factor + Math.max(0, ...contours.map(widthOf));
-  const grid = new SegmentGrid(Math.max(maxLimit, 0.05));
-  for (const row of contours) {
-    const line = lines[row.index]!;
-    for (let at = 1; at < line.length; at += 1) grid.add({ owner: row.index, a: line[at - 1]!, b: line[at]! });
+  if (enabled("CONTOUR_GAP")) {
+    const contours = objects.map((item, index) => ({ item, index, main: mainOf(item.code) }))
+      .filter(row => CONTOURS.has(row.main) && row.item.object.kind === "line" && (lines[row.index]?.length ?? 0) >= 2);
+    const widthOf = (row: { item: NormObject; main: number }) => row.item.lineWidth ?? CONTOUR_WIDTH[row.main]! * factor;
+    const maxLimit = MIN_GAP_MM * factor + Math.max(0, ...contours.map(widthOf));
+    const grid = new SegmentGrid(Math.max(maxLimit, 0.05));
+    for (const row of contours) {
+      const line = lines[row.index]!;
+      for (let at = 1; at < line.length; at += 1) grid.add({ owner: row.index, a: line[at - 1]!, b: line[at]! });
+    }
+    const byIndex = new Map(contours.map(row => [row.index, row]));
+    const reported = new Map<string, Point[]>();
+    grid.pairs((s, t) => {
+      if (capped.CONTOUR_GAP || s.owner === t.owner || apart(s, t, maxLimit)) return;
+      const first = byIndex.get(Math.min(s.owner, t.owner))!, second = byIndex.get(Math.max(s.owner, t.owner))!;
+      const limit = MIN_GAP_MM * factor + (widthOf(first) + widthOf(second)) / 2;
+      const { distance, at } = segmentDistance(s.a, s.b, t.a, t.b);
+      if (distance >= limit) return;
+      // Ett fel per par och millimeter (i grundskalan).
+      const pair = `${first.index}|${second.index}`;
+      const seen = reported.get(pair) ?? [];
+      if (seen.some(point => Math.hypot(point.x - at.x, point.y - at.y) < factor)) return;
+      seen.push(at); reported.set(pair, seen);
+      add({ rule: "CONTOUR_GAP", key: first.item.key, other: second.item.key, code: first.item.code, at, value: distance, limit });
+    });
   }
-  const byIndex = new Map(contours.map(row => [row.index, row]));
-  const reported = new Map<string, Point[]>();
-  grid.pairs((s, t) => {
-    if (s.owner === t.owner || apart(s, t, maxLimit)) return;
-    const first = byIndex.get(Math.min(s.owner, t.owner))!, second = byIndex.get(Math.max(s.owner, t.owner))!;
-    const limit = MIN_GAP_MM * factor + (widthOf(first) + widthOf(second)) / 2;
-    const { distance, at } = segmentDistance(s.a, s.b, t.a, t.b);
-    if (distance >= limit) return;
-    // Ett fel per par och millimeter (i grundskalan).
-    const pair = `${first.index}|${second.index}`;
-    const seen = reported.get(pair) ?? [];
-    if (seen.some(point => Math.hypot(point.x - at.x, point.y - at.y) < factor)) return;
-    seen.push(at); reported.set(pair, seen);
-    add({ rule: "CONTOUR_GAP", key: first.item.key, other: second.item.key, code: first.item.code, at, value: distance, limit });
-  });
 
   // Fristående linjer som är för korta (ändarna rör ingen annan linje med samma nummer).
-  const ends = new SegmentGrid(Math.max(0.2 * factor, 0.05));
-  objects.forEach((item, index) => {
-    const line = lines[index];
-    // Sprint: en kort mur som stänger en passage mellan hus är tillåten, så också de oframkomliga objekten räknas.
-    const blocking = sprint && UNCROSSABLE.has(String(mainOf(item.code)));
-    if (!blocking && minLength(item.code) === undefined) return;
-    for (const ring of outlines(item, line)) for (let at = 1; at < ring.length; at += 1) ends.add({ owner: index, a: ring[at - 1]!, b: ring[at]! });
-  });
-  objects.forEach((item, index) => {
-    const line = lines[index], min = minLength(item.code);
-    if (!line || line.length < 2 || min === undefined) return;
-    const length = lengthOf(line);
-    if (length >= min * factor) return;
-    const joins = (other: string) => mainOf(other) === mainOf(item.code) || (sprint && UNCROSSABLE.has(String(mainOf(other))));
-    const touches = (point: Point) => ends.near(point).some(segment => segment.owner !== index && joins(objects[segment.owner]!.code)
-      && segmentDistance(point, point, segment.a, segment.b).distance <= 0.2 * factor);
-    if (touches(line[0]!) || touches(line[line.length - 1]!)) return;
-    add({ rule: "SHORT_LINE", key: item.key, code: item.code, at: line[Math.floor(line.length / 2)]!, value: length, limit: min * factor });
-  });
+  if (enabled("SHORT_LINE")) {
+    const ends = new SegmentGrid(Math.max(0.2 * factor, 0.05));
+    objects.forEach((item, index) => {
+      const line = lines[index];
+      // Sprint: en kort mur som stänger en passage mellan hus är tillåten, så också de oframkomliga objekten räknas.
+      const blocking = sprint && UNCROSSABLE.has(String(mainOf(item.code)));
+      if (!blocking && minLength(item.code) === undefined) return;
+      for (const ring of outlines(item, line)) for (let at = 1; at < ring.length; at += 1) ends.add({ owner: index, a: ring[at - 1]!, b: ring[at]! });
+    });
+    for (let index = 0; index < objects.length && !capped.SHORT_LINE; index += 1) {
+      const item = objects[index]!, line = lines[index], min = minLength(item.code);
+      if (!line || line.length < 2 || min === undefined) continue;
+      const length = lengthOf(line);
+      if (length >= min * factor) continue;
+      const joins = (other: string) => mainOf(other) === mainOf(item.code) || (sprint && UNCROSSABLE.has(String(mainOf(other))));
+      const touches = (point: Point) => ends.near(point).some(segment => segment.owner !== index && joins(objects[segment.owner]!.code)
+        && segmentDistance(point, point, segment.a, segment.b).distance <= 0.2 * factor);
+      if (touches(line[0]!) || touches(line[line.length - 1]!)) continue;
+      add({ rule: "SHORT_LINE", key: item.key, code: item.code, at: line[Math.floor(line.length / 2)]!, value: length, limit: min * factor });
+    }
+  }
 
   // Ytor: minsta yta och (ungefär) minsta bredd; slutna kurvor (kullar).
-  objects.forEach((item, index) => {
-    const main = mainOf(item.code);
-    if (item.object.kind === "area") {
-      const rings = item.object.rings.map(ring => flattenPath(ring).flat()).filter(ring => ring.length >= 3);
-      const outer = rings[0];
-      if (!outer) return;
-      const area = Math.max(0, ringArea(outer) - rings.slice(1).reduce((sum, ring) => sum + ringArea(ring), 0));
-      const perimeter = rings.reduce((sum, ring) => sum + ringPerimeter(ring), 0);
-      const center = { x: outer.reduce((sum, point) => sum + point.x, 0) / outer.length, y: outer.reduce((sum, point) => sum + point.y, 0) / outer.length };
-      const smallest = minArea(item.code), minWidth = minWidthOf(item.code);
-      if (smallest !== undefined && area < smallest * factor * factor) {
-        add({ rule: "SMALL_AREA", key: item.key, code: item.code, at: center, value: area, limit: smallest * factor * factor });
+  const checkAreas = enabled("SMALL_AREA") || enabled("THIN_AREA");
+  const checkClosed = enabled("SMALL_CLOSED");
+  if (checkAreas || checkClosed) {
+    objects.forEach((item, index) => {
+      const main = mainOf(item.code);
+      if (item.object.kind === "area") {
+        if (!checkAreas || (capped.SMALL_AREA && (!enabled("THIN_AREA") || capped.THIN_AREA))) return;
+        const rings = item.object.rings.map(ring => flattenPath(ring).flat()).filter(ring => ring.length >= 3);
+        const outer = rings[0];
+        if (!outer) return;
+        const area = Math.max(0, ringArea(outer) - rings.slice(1).reduce((sum, ring) => sum + ringArea(ring), 0));
+        const perimeter = rings.reduce((sum, ring) => sum + ringPerimeter(ring), 0);
+        const center = { x: outer.reduce((sum, point) => sum + point.x, 0) / outer.length, y: outer.reduce((sum, point) => sum + point.y, 0) / outer.length };
+        const smallest = minArea(item.code), minWidth = minWidthOf(item.code);
+        if (smallest !== undefined && area < smallest * factor * factor) {
+          add({ rule: "SMALL_AREA", key: item.key, code: item.code, at: center, value: area, limit: smallest * factor * factor });
+          return;
+        }
+        // 2·yta/omkrets är bredden för en smal remsa och halva bredden för en kompakt yta: bara tydligt smala remsor tas med.
+        if (enabled("THIN_AREA") && minWidth !== undefined && perimeter > 0 && 2 * area / perimeter < minWidth * factor / 2) {
+          add({ rule: "THIN_AREA", key: item.key, code: item.code, at: center, value: 2 * area / perimeter, limit: minWidth * factor });
+        }
         return;
       }
-      // 2·yta/omkrets är bredden för en smal remsa och halva bredden för en kompakt yta: bara tydligt smala remsor tas med.
-      if (minWidth !== undefined && perimeter > 0 && 2 * area / perimeter < minWidth * factor / 2) {
-        add({ rule: "THIN_AREA", key: item.key, code: item.code, at: center, value: 2 * area / perimeter, limit: minWidth * factor });
+      if (!checkClosed || capped.SMALL_CLOSED) return;
+      const line = lines[index];
+      if (!line || !(main === 101 || main === 102 || main === 103) || line.length < 3) return;
+      const first = line[0]!, last = line[line.length - 1]!;
+      if (Math.hypot(first.x - last.x, first.y - last.y) > 0.01) return;
+      const xs = line.map(point => point.x), ys = line.map(point => point.y);
+      const [minX, maxX, minY, maxY] = [minOf(xs), maxOf(xs), minOf(ys), maxOf(ys)];
+      const sides = [maxX - minX, maxY - minY].sort((a, b) => b - a) as [number, number];
+      const width = item.lineWidth ?? CONTOUR_WIDTH[main]! * factor;
+      const center = { x: (maxX + minX) / 2, y: (maxY + minY) / 2 };
+      if (main === 103 ? sides[0] + width < 1.1 * factor : sides[0] < 0.9 * factor || sides[1] < 0.6 * factor) {
+        add({ rule: "SMALL_CLOSED", key: item.key, code: item.code, at: center, value: sides[0], limit: (main === 103 ? 1.1 : 0.9) * factor });
       }
-      return;
-    }
-    const line = lines[index];
-    if (!line || !(main === 101 || main === 102 || main === 103) || line.length < 3) return;
-    const first = line[0]!, last = line[line.length - 1]!;
-    if (Math.hypot(first.x - last.x, first.y - last.y) > 0.01) return;
-    const xs = line.map(point => point.x), ys = line.map(point => point.y);
-    const [minX, maxX, minY, maxY] = [minOf(xs), maxOf(xs), minOf(ys), maxOf(ys)];
-    const sides = [maxX - minX, maxY - minY].sort((a, b) => b - a) as [number, number];
-    const width = item.lineWidth ?? CONTOUR_WIDTH[main]! * factor;
-    const center = { x: (maxX + minX) / 2, y: (maxY + minY) / 2 };
-    if (main === 103 ? sides[0] + width < 1.1 * factor : sides[0] < 0.9 * factor || sides[1] < 0.6 * factor) {
-      add({ rule: "SMALL_CLOSED", key: item.key, code: item.code, at: center, value: sides[0], limit: (main === 103 ? 1.1 : 0.9) * factor });
-    }
-  });
-  if (sprint) sprintPassages(objects, lines, add);
-  return { standard, factor, issues, truncated: issues.length >= MAX_ISSUES };
+    });
+  }
+  if (sprint && (enabled("PASSAGE") || enabled("OPENING"))) sprintPassages(objects, lines, add);
+  return { standard, factor, issues, truncated };
 }
 
 /** Objektets konturer: linjen, eller ytans ringar (slutna). */

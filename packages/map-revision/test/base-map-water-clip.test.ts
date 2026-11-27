@@ -22,6 +22,13 @@ describe("kurvor klipps mot vattnet", () => {
     const result = linesOutsideWater([lake, line("contour", [[95, 50], [300, 50]])], feature => feature.layer === "contour");
     expect(result.features.filter(feature => feature.layer === "contour")).toHaveLength(1);
   });
+  it("bevarar elevation på vattenklippta kurvor", () => {
+    const elevated: SourceFeature = { layer: "contour", elevation: 25, geometry: { kind: "line", points: [[0, 50], [300, 50]], closed: false } };
+    const result = linesOutsideWater([lake, elevated], feature => feature.layer === "contour");
+    const parts = result.features.filter(feature => feature.layer === "contour");
+    expect(parts).toHaveLength(2);
+    expect(parts.every(part => part.elevation === 25)).toBe(true);
+  });
 });
 
 describe("kurvor mot vattnet på ett helt kartblad", () => {

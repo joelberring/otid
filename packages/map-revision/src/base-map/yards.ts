@@ -1,4 +1,3 @@
-import { maxOf, minOf } from "@o-tid/map-file";
 import type { SourceFeature } from "../index";
 import { faceAt, facesFromLines } from "../faces";
 
@@ -73,28 +72,131 @@ export function yardRectangle(points: readonly Point[], margin: number): Point[]
   return [at(u0 - margin, v0 - margin), at(u1 + margin, v0 - margin), at(u1 + margin, v1 + margin), at(u0 - margin, v1 + margin)];
 }
 
+type Box = readonly [number, number, number, number];
+const boxOfPoints = (points: readonly Point[]): Box => {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (let i = 0; i < points.length; i += 1) {
+    const [x, y] = points[i]!;
+    if (x < minX) minX = x;
+    if (y < minY) minY = y;
+    if (x > maxX) maxX = x;
+    if (y > maxY) maxY = y;
+  }
+  return [minX, minY, maxX, maxY];
+};
+const touchesBox = (a: Box, b: Box) => a[0] <= b[2] && b[0] <= a[2] && a[1] <= b[3] && b[1] <= a[3];
+
+/** Spatialt rutnätsindex över rutor/punkter i meter för att slippa O(N^2)-skanningar. */
+class SpatialGrid<T extends { readonly box: Box }> {
+  private readonly cells = new Map<number, number[]>();
+  private readonly overflow: number[] = [];
+  private readonly seen: Int32Array;
+  private stamp = 0;
+  private readonly cell: number;
+  private readonly originX: number;
+  private readonly originY: number;
+  constructor(private readonly items: readonly T[], defaultCell = 50) {
+    this.seen = new Int32Array(items.length);
+    let sum = 0, ox = Infinity, oy = Infinity;
+    for (const item of items) {
+      sum += Math.max(item.box[2] - item.box[0], item.box[3] - item.box[1]);
+      if (item.box[0] < ox) ox = item.box[0];
+      if (item.box[1] < oy) oy = item.box[1];
+    }
+    this.originX = Number.isFinite(ox) ? ox : 0;
+    this.originY = Number.isFinite(oy) ? oy : 0;
+    this.cell = items.length ? Math.max(10, Math.min(250, sum / items.length || defaultCell)) : defaultCell;
+    for (let i = 0; i < items.length; i += 1) {
+      const b = items[i]!.box;
+      const x0 = Math.floor((b[0] - this.originX) / this.cell), x1 = Math.floor((b[2] - this.originX) / this.cell);
+      const y0 = Math.floor((b[1] - this.originY) / this.cell), y1 = Math.floor((b[3] - this.originY) / this.cell);
+      if ((x1 - x0 + 1) * (y1 - y0 + 1) > 64 || Math.abs(x0) > 1e7 || Math.abs(x1) > 1e7 || Math.abs(y0) > 1e7 || Math.abs(y1) > 1e7) {
+        this.overflow.push(i);
+        continue;
+      }
+      for (let cx = x0; cx <= x1; cx += 1) for (let cy = y0; cy <= y1; cy += 1) {
+        const key = (cx + 0x1000000) * 0x2000000 + (cy + 0x1000000);
+        const list = this.cells.get(key);
+        if (list) list.push(i); else this.cells.set(key, [i]);
+      }
+    }
+  }
+  someInBox(box: Box, test: (item: T) => boolean): boolean {
+    if (this.items.length === 0) return false;
+    this.stamp += 1;
+    if (this.stamp === 0x7fffffff) { this.seen.fill(0); this.stamp = 1; }
+    const x0 = Math.floor((box[0] - this.originX) / this.cell), x1 = Math.floor((box[2] - this.originX) / this.cell);
+    const y0 = Math.floor((box[1] - this.originY) / this.cell), y1 = Math.floor((box[3] - this.originY) / this.cell);
+    if ((x1 - x0 + 1) * (y1 - y0 + 1) > 256 || Math.abs(x0) > 1e7 || Math.abs(x1) > 1e7 || Math.abs(y0) > 1e7 || Math.abs(y1) > 1e7) {
+      for (let i = 0; i < this.items.length; i += 1) {
+        const item = this.items[i]!;
+        if (touchesBox(item.box, box) && test(item)) return true;
+      }
+      return false;
+    }
+    for (let cx = x0; cx <= x1; cx += 1) for (let cy = y0; cy <= y1; cy += 1) {
+      const list = this.cells.get((cx + 0x1000000) * 0x2000000 + (cy + 0x1000000));
+      if (!list) continue;
+      for (let i = 0; i < list.length; i += 1) {
+        const idx = list[i]!;
+        if (this.seen[idx] === this.stamp) continue;
+        this.seen[idx] = this.stamp;
+        const item = this.items[idx]!;
+        if (touchesBox(item.box, box) && test(item)) return true;
+      }
+    }
+    for (let i = 0; i < this.overflow.length; i += 1) {
+      const idx = this.overflow[i]!;
+      if (this.seen[idx] === this.stamp) continue;
+      this.seen[idx] = this.stamp;
+      const item = this.items[idx]!;
+      if (touchesBox(item.box, box) && test(item)) return true;
+    }
+    return false;
+  }
+  queryBox(box: Box): T[] {
+    const out: T[] = [];
+    this.someInBox(box, item => { out.push(item); return false; });
+    return out;
+  }
+}
+
 /** Tomterna kring husen i `features` (meter, SWEREF 99 TM eller annat metriskt system) som slutna linjer i lagret `tomtmark_hus`. */
 export function yardsOf(features: readonly SourceFeature[], settings: YardSettings = DEFAULT_YARDS): SourceFeature[] {
   // Hus som redan ligger i en tomt (OpenStreetMaps bostadsområde, marktäckets låga bebyggelse) får ingen egen tomt.
-  const yards = features.filter(feature => /^tomtmark_/.test(feature.layer)).map(outerRing).filter((ring): ring is Ring => !!ring && ring.length >= 3);
+  const yards = features.filter(feature => /^tomtmark_/.test(feature.layer)).map(outerRing)
+    .filter((ring): ring is Ring => !!ring && ring.length >= 3)
+    .map(ring => ({ ring, box: boxOfPoints(ring) }));
+  const yardGrid = new SpatialGrid(yards);
   const houses = features.filter(feature => BUILDING.test(feature.layer)).map(outerRing)
     .filter((ring): ring is Ring => !!ring && ring.length >= 3 && ringArea(ring) <= settings.maxBuilding)
-    .filter(ring => { const [x, y] = centroid(ring); return !yards.some(yard => inside(yard, x, y)); });
+    .filter(ring => {
+      const [x, y] = centroid(ring);
+      return !yardGrid.someInBox([x, y, x, y], yard => inside(yard.ring, x, y));
+    });
   if (!houses.length) return [];
-  const cuts: { points: Point[]; closed: boolean; box: [number, number, number, number] }[] = [];
+  const cuts: { points: Point[]; closed: boolean; box: Box }[] = [];
   for (const feature of features) {
     if (!CUT.test(feature.layer)) continue;
     const parts: { points: readonly Point[]; closed: boolean }[] = feature.geometry.kind === "line" ? [{ points: feature.geometry.points, closed: !!feature.geometry.closed }]
       : feature.geometry.kind === "area" ? feature.geometry.rings.map(ring => ({ points: ring, closed: true })) : [];
     for (const part of parts) {
       if (part.points.length < 2) continue;
-      const xs = part.points.map(p => p[0]), ys = part.points.map(p => p[1]);
-      cuts.push({ points: [...part.points], closed: part.closed, box: [minOf(xs), minOf(ys), maxOf(xs), maxOf(ys)] });
+      cuts.push({ points: [...part.points], closed: part.closed, box: boxOfPoints(part.points) });
     }
   }
-  const segments = (cut: (typeof cuts)[number]) => cut.points.map((point, i) => [point, cut.points[(i + 1) % cut.points.length]!] as const).slice(0, cut.closed ? undefined : -1);
-  const separated = (a: Point, b: Point) => cuts.some(cut => cut.box[0] <= Math.max(a[0], b[0]) && cut.box[2] >= Math.min(a[0], b[0]) && cut.box[1] <= Math.max(a[1], b[1])
-    && cut.box[3] >= Math.min(a[1], b[1]) && segments(cut).some(([c, d]) => crosses(a, b, c, d)));
+  const cutGrid = new SpatialGrid(cuts);
+  const cutCrosses = (cut: (typeof cuts)[number], a: Point, b: Point): boolean => {
+    const pts = cut.points, count = cut.closed ? pts.length : pts.length - 1;
+    for (let i = 0; i < count; i += 1) {
+      if (crosses(a, b, pts[i]!, pts[(i + 1) % pts.length]!)) return true;
+    }
+    return false;
+  };
+  const separated = (a: Point, b: Point) => cutGrid.someInBox(
+    [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])],
+    cut => cutCrosses(cut, a, b)
+  );
   const centers = houses.map(centroid);
   // Grannar utan väg emellan hör ihop (union–find; husen sorteras i x så att bara nära hus jämförs).
   const cluster = (indices: readonly number[], link: number): number[][] => {
@@ -106,7 +208,10 @@ export function yardsOf(features: readonly SourceFeature[], settings: YardSettin
       if (Math.hypot(b[0] - a[0], b[1] - a[1]) <= link && find(order[i]!) !== find(order[j]!) && !separated(a, b)) parent.set(find(order[i]!), find(order[j]!));
     }
     const groups = new Map<number, number[]>();
-    for (const i of order) groups.set(find(i), [...(groups.get(find(i)) ?? []), i]);
+    for (const i of order) {
+      const root = find(i), list = groups.get(root);
+      if (list) list.push(i); else groups.set(root, [i]);
+    }
     return [...groups.values()];
   };
   // En gles grupp (rektangeln mest tom mark, t.ex. hus i vinkel) delas i tätare grupper tills rektanglarna är fyllda.
@@ -125,8 +230,8 @@ export function yardsOf(features: readonly SourceFeature[], settings: YardSettin
   for (const members of groups) {
     if (!members.some(i => size[i]! >= settings.minBuilding)) continue;
     const rectangle = yardRectangle(members.flatMap(i => houses[i]!), settings.radius);
-    const xs = rectangle.map(p => p[0]), ys = rectangle.map(p => p[1]), box = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] as const;
-    const near = cuts.filter(cut => cut.box[0] <= box[2] && cut.box[2] >= box[0] && cut.box[1] <= box[3] && cut.box[3] >= box[1]);
+    const box = boxOfPoints(rectangle);
+    const near = cutGrid.queryBox(box);
     let rings: Point[][] = [rectangle];
     if (near.length) {
       const { faces } = facesFromLines([{ id: "tomt", points: rectangle.map(([x, y]) => ({ x, y })), closed: true },
@@ -150,15 +255,18 @@ export const PARCEL_MAX_M2 = 3500;
  */
 export function parcelYards(features: readonly SourceFeature[], settings: YardSettings = DEFAULT_YARDS): SourceFeature[] {
   if (!features.some(feature => feature.layer === "fastighet")) return [...features];
-  const centers = features.filter(feature => BUILDING.test(feature.layer)).map(outerRing)
-    .filter((ring): ring is Ring => !!ring && ring.length >= 3 && ringArea(ring) >= settings.minBuilding).map(centroid);
+  const centerGrid = new SpatialGrid(
+    features.filter(feature => BUILDING.test(feature.layer)).map(outerRing)
+      .filter((ring): ring is Ring => !!ring && ring.length >= 3 && ringArea(ring) >= settings.minBuilding)
+      .map(ring => { const at = centroid(ring); return { at, box: [at[0], at[1], at[0], at[1]] as Box }; }),
+    50
+  );
   return features.flatMap(feature => {
     if (feature.layer !== "fastighet") return [feature];
     const ring = outerRing(feature);
     if (!ring || ring.length < 3 || ringArea(ring) > PARCEL_MAX_M2) return [];
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const [x, y] of ring) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
-    const built = centers.some(([x, y]) => x >= minX && x <= maxX && y >= minY && y <= maxY && inside(ring, x, y));
+    const box = boxOfPoints(ring);
+    const built = centerGrid.someInBox(box, ({ at: [x, y] }) => inside(ring, x, y));
     return built ? [{ ...feature, layer: "tomtmark_fastighet" }] : [];
   });
 }
@@ -174,15 +282,17 @@ export function parcelYards(features: readonly SourceFeature[], settings: YardSe
 export function privateYardsOnly(features: readonly SourceFeature[], buildings: readonly SourceFeature[], settings: YardSettings = DEFAULT_YARDS): SourceFeature[] {
   const big = buildings.filter(feature => BUILDING.test(feature.layer)).map(outerRing)
     .filter((ring): ring is Ring => !!ring && ring.length >= 3 && ringArea(ring) > settings.maxBuilding)
-    .map(ring => { const xs = ring.map(p => p[0]), ys = ring.map(p => p[1]); return { ring, box: [minOf(xs), minOf(ys), maxOf(xs), maxOf(ys)] as const }; });
+    .map(ring => ({ ring, center: centroid(ring), box: boxOfPoints(ring) }));
   if (!big.length) return [...features];
+  const bigGrid = new SpatialGrid(big);
   return features.filter(feature => {
     if (!/^tomtmark_/.test(feature.layer)) return true;
     const yard = outerRing(feature);
     if (!yard || yard.length < 3) return true;
-    const xs = yard.map(p => p[0]), ys = yard.map(p => p[1]);
-    const box = [minOf(xs), minOf(ys), maxOf(xs), maxOf(ys)] as const;
-    return !big.some(house => house.box[0] <= box[2] && house.box[2] >= box[0] && house.box[1] <= box[3] && house.box[3] >= box[1]
-      && ([centroid(house.ring), ...house.ring].some(([x, y]) => inside(yard, x, y)) || yard.some(([x, y]) => inside(house.ring, x, y))));
+    const box = boxOfPoints(yard);
+    return !bigGrid.someInBox(box, house =>
+      inside(yard, house.center[0], house.center[1])
+      || house.ring.some(([x, y]) => inside(yard, x, y))
+      || yard.some(([x, y]) => inside(house.ring, x, y)));
   });
 }

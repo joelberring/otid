@@ -14,7 +14,7 @@ import { mapProjectSv } from "../i18n/map-project-sv";
 import { mapBankEn } from "../i18n/map-bank-en";
 import { mapBankSv } from "../i18n/map-bank-sv";
 import { trainingGroupSv } from "../i18n/training-group-sv";
-import { clubRequest } from "../lib/club-archive-client";
+import { clubRequest } from "../lib/club-request";
 import { groupRequest } from "../lib/training-group-client";
 import { NewClubForm } from "./club-archive/my-clubs";
 import { NewGroupForm } from "./training-group/my-groups";

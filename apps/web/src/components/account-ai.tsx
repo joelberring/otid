@@ -5,7 +5,7 @@ import { aiSv } from "../i18n/ai-sv";
 import { aiConnectionsEn } from "../i18n/account-en";
 import { useLanguage, useTexts } from "./language-provider";
 import { accountRequest } from "../lib/account-client";
-import { clubRequest } from "../lib/club-archive-client";
+import { clubRequest } from "../lib/club-request";
 import { Button, Notice, Section } from "./ui";
 import styles from "./account-pages.module.css";
 

@@ -8,7 +8,7 @@ import { useTexts } from "../language-provider";
 import type { ClubView } from "@o-tid/contracts";
 import { clubArchiveSv } from "../../i18n/club-archive-sv";
 import { clubWebImportSv } from "../../i18n/club-import-web-sv";
-import { clubBase, clubRequest } from "../../lib/club-archive-client";
+import { clubBase, clubRequest } from "../../lib/club-request";
 import { Button, Notice } from "../ui";
 import { HelpLink } from "../help/help-panel";
 import { ClubWebImport } from "./club-web-import";

@@ -13,7 +13,7 @@ import type {
 } from "@o-tid/contracts";
 import { mapBankEn } from "../../i18n/map-bank-en";
 import { mapBankSv } from "../../i18n/map-bank-sv";
-import { clubBase, clubRequest } from "../../lib/club-archive-client";
+import { clubBase, clubRequest } from "../../lib/club-request";
 import { mapProjectBase } from "../../lib/map-project-client";
 import { useTexts } from "../language-provider";
 import { Button, Field, Notice, Select } from "../ui";

@@ -8,7 +8,7 @@ import Link from "next/link";
 import type { ClubArchiveList, ClubView } from "@o-tid/contracts";
 import { clubArchiveSv } from "../../i18n/club-archive-sv";
 import type { HelpView } from "../../i18n/help-sv";
-import { clubBase, clubRequest } from "../../lib/club-archive-client";
+import { clubBase, clubRequest } from "../../lib/club-request";
 import { Notice } from "../ui";
 import { ArchiveList } from "./archive-list";
 import { ClubImportPanel } from "./club-import-panel";

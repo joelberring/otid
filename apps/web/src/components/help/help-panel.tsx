@@ -1,37 +1,76 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ComponentType } from "react";
 import { createPortal } from "react-dom";
-import { helpArticles, helpSv, helpSynonyms, type HelpArticle, type HelpView } from "../../i18n/help-sv";
-import { helpArticlesEnById, helpArticlesFor, helpEn, helpSynonymsEn } from "../../i18n/help-en";
+import type { HelpArticle } from "../../i18n/help-sv";
 import { useLanguage } from "../language-provider";
-import { PROGRAM_CONTACT_EMAIL } from "../../lib/contact";
-import { helpTextParts, listHelpArticles } from "../../lib/help-search";
-import styles from "./help-panel.module.css";
 import { inLanguage } from "../../lib/in-language";
+import type { HelpData, HelpDialogBodyProps, HelpViews } from "./help-dialog";
+import { findHelpMeta, HELP_ARTICLE_META, helpMetaText } from "./help-meta";
+import styles from "./help-panel.module.css";
 
-type Views = HelpView | readonly HelpView[];
+type HelpLang = "sv" | "en";
+type LoadedHelp = { Body: ComponentType<HelpDialogBodyProps>; data: HelpData };
 
-/** Panelens texter, artiklarna och synonymerna på sidans språk (engelska artiklar där de finns, annars svenska). */
-function useHelp() {
-  const en = useLanguage() === "en";
-  return en ? { text: helpEn, articles: englishArticles, synonyms: helpSynonymsEn }
-    : { text: helpSv, articles: helpArticles, synonyms: helpSynonyms };
+let cachedBody: ComponentType<HelpDialogBodyProps> | undefined;
+let bodyPromise: Promise<ComponentType<HelpDialogBodyProps>> | undefined;
+const cachedData: Partial<Record<HelpLang, HelpData>> = {};
+const dataPromises: Partial<Record<HelpLang, Promise<HelpData>>> = {};
+
+function loadDialogBody(): Promise<ComponentType<HelpDialogBodyProps>> {
+  if (cachedBody) return Promise.resolve(cachedBody);
+  if (!bodyPromise) {
+    bodyPromise = import("./help-dialog")
+      .then(mod => { cachedBody = mod.HelpDialogBody; return mod.HelpDialogBody; })
+      .catch(error => { bodyPromise = undefined; throw error; });
+  }
+  return bodyPromise;
 }
-const englishArticles = helpArticlesFor(helpArticles);
+
+/** Laddar enbart aktivt språks hjälpartiklar (`help-sv` eller `help-en`) dynamiskt först när hjälpen öppnas. */
+export function loadHelpData(en: boolean): Promise<HelpData> {
+  const lang: HelpLang = en ? "en" : "sv";
+  const existing = cachedData[lang];
+  if (existing) return Promise.resolve(existing);
+  if (!dataPromises[lang]) {
+    const promise: Promise<HelpData> = en ? (async () => {
+      const enMod = await import("../../i18n/help-en");
+      const ordered = HELP_ARTICLE_META.map(meta => enMod.helpArticlesEnById.get(meta.id));
+      if (ordered.every((article): article is HelpArticle => article !== undefined)) {
+        return { text: enMod.helpEn, articles: ordered, synonyms: enMod.helpSynonymsEn, englishIds: enMod.helpArticlesEnById };
+      }
+      const svMod = await import("../../i18n/help-sv");
+      return { text: enMod.helpEn, articles: enMod.helpArticlesFor(svMod.helpArticles), synonyms: enMod.helpSynonymsEn, englishIds: enMod.helpArticlesEnById };
+    })() : (async () => {
+      const svMod = await import("../../i18n/help-sv");
+      return { text: svMod.helpSv, articles: svMod.helpArticles, synonyms: svMod.helpSynonyms };
+    })();
+    dataPromises[lang] = promise
+      .then(data => { cachedData[lang] = data; return data; })
+      .catch(error => { delete dataPromises[lang]; throw error; });
+  }
+  return dataPromises[lang];
+}
+
+function getCachedHelp(en: boolean): LoadedHelp | undefined {
+  const data = cachedData[en ? "en" : "sv"];
+  return cachedBody && data ? { Body: cachedBody, data } : undefined;
+}
+
+function loadHelpBundle(en: boolean): Promise<LoadedHelp> {
+  return Promise.all([loadDialogBody(), loadHelpData(en)]).then(([Body, data]) => ({ Body, data }));
+}
 
 /**
  * Knappen Hjälp och hjälppanelen (PLAN.md steg 37, grenen hjalp-banlaggning). Panelen är en modal `<dialog>` vid sidans
  * högra kant (hela bredden på mobil): Esc och Stäng stänger, fokus stannar i panelen och går tillbaka till knappen
- * efteråt. Den visar först artiklarna för vyerna man står i (i vyernas ordning), sedan alla, och söker lokalt med
- * synonymer. Artiklarna länkar till varandra. Används i arbetsytan, Mina tävlingar, banläggningen, utskriftssidan,
- * klubbarkivet, kontrollkartan och på avläsningssidan (som byggs utan Next, därför vanliga länkar och inga inline-stilar:
- * avläsningens CSP tillåter dem inte).
+ * efteråt. Själva dialoginnehållet och aktivt språks hjälpartiklar laddas dynamiskt först när användaren öppnar panelen;
+ * används också på avläsningssidan (byggs utan Next av esbuild, därför ren `import()` och inga inline-stilar).
  *
  * `compact`: bara frågetecknet på smal skärm (banläggningens rad överst).
  */
-export function HelpButton({ view, large = false, compact = false }: { view: Views; large?: boolean; compact?: boolean }) {
-  const { text } = useHelp();
+export function HelpButton({ view, large = false, compact = false }: { view: HelpViews; large?: boolean; compact?: boolean }) {
+  const text = helpMetaText[useLanguage() === "en" ? "en" : "sv"];
   const [open, setOpen] = useState(false);
   const className = [styles.button, large ? styles.large : "", compact ? styles.compact : ""].filter(Boolean).join(" ");
   return <>
@@ -47,14 +86,15 @@ export function HelpButton({ view, large = false, compact = false }: { view: Vie
  * Ett litet "?" vid en knapp eller ruta som är svår att förstå. Öppnar panelen med artikeln först och utfälld; resten
  * av listan följer artikelns vyer (eller `view`).
  */
-export function HelpLink({ article, view, label: shownLabel }: { article: string; view?: Views | undefined;
+export function HelpLink({ article, view, label: shownLabel }: { article: string; view?: HelpViews | undefined;
   /** En textlänk i stället för "?" (t.ex. "Hur lägger man en gul bana?"). */
   label?: string | undefined }) {
   const [open, setOpen] = useState(false);
-  const { text, articles } = useHelp();
-  const found = articles.find(row => row.id === article);
+  const en = useLanguage() === "en";
+  const text = helpMetaText[en ? "en" : "sv"];
+  const found = findHelpMeta(article);
   if (!found) throw new Error(inLanguage(`Hjälpartikeln ${article} finns inte`, `The help article ${article} does not exist`));
-  const label = text.link(found.title);
+  const label = text.link(en ? found.en : found.sv);
   return <>
     {shownLabel
       ? <button type="button" className={styles.textLink} aria-haspopup="dialog" aria-expanded={open} title={label} data-help-link={article}
@@ -65,96 +105,54 @@ export function HelpLink({ article, view, label: shownLabel }: { article: string
   </>;
 }
 
-function HelpDialog({ views, first: initialFirst, onClose }: { views: Views; first?: string | undefined; onClose: () => void }) {
-  const { text, articles, synonyms } = useHelp();
+function HelpDialog({ views, first, onClose }: { views: HelpViews; first?: string | undefined; onClose: () => void }) {
+  const en = useLanguage() === "en";
+  const metaText = helpMetaText[en ? "en" : "sv"];
   const dialog = useRef<HTMLDialogElement>(null);
-  const input = useRef<HTMLInputElement>(null);
-  const list = useRef<HTMLDivElement>(null);
-  const [query, setQuery] = useState("");
-  // Artikeln som står först och är utfälld; räknaren gör att samma länk fäller ut artikeln igen.
-  const [target, setTarget] = useState<{ id: string; count: number } | undefined>(initialFirst ? { id: initialFirst, count: 1 } : undefined);
-  const [film, setFilm] = useState<string>();
-  const [mapFilm, setMapFilm] = useState<string>();
   const titleId = useId();
+  const [loaded, setLoaded] = useState<LoadedHelp | undefined>(() => getCachedHelp(en));
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+
   useEffect(() => {
     const element = dialog.current;
     if (element && !element.open) element.showModal();
-    // Filmerna: layouten sätter adresserna på body när variablerna finns (läses vid förfrågan, inte bygget).
-    setFilm(document.body.dataset.introFilm || undefined);
-    setMapFilm(document.body.dataset.mapFilm || undefined);
-    // Sökfältet först (showModal ger annars fokus till Stäng); från ett "?" artikeln som efterfrågades.
-    if (initialFirst) list.current?.querySelector<HTMLElement>(`[data-help-article='${initialFirst}'] > summary`)?.focus();
-    else input.current?.focus();
   }, []);
+
   useEffect(() => {
-    if (!target || target.count === 1) return;
-    list.current?.scrollTo({ top: 0 });
-    list.current?.querySelector<HTMLElement>(`[data-help-article='${target.id}'] > summary`)?.focus();
-  }, [target]);
-  const searching = query.trim() !== "";
-  const first = searching ? undefined : target?.id;
-  const { here, rest } = listHelpArticles(articles, views, query, { first, synonyms });
-  const count = here.length + rest.length;
-  const follow = (id: string) => { setQuery(""); setTarget(current => ({ id, count: (current?.count ?? 1) + 1 })); };
-  const en = useLanguage() === "en";
-  const article = (row: HelpArticle) => <Article key={`${row.id}-${searching}-${row.id === first ? target?.count : 0}`} article={row}
-    open={searching || row.id === first} lang={en && !helpArticlesEnById.has(row.id) ? "sv" : undefined} onFollow={follow} />;
+    const ready = getCachedHelp(en);
+    if (ready) { setLoaded(ready); setFailed(false); return; }
+    let cancelled = false;
+    setFailed(false);
+    void loadHelpBundle(en).then(
+      bundle => { if (!cancelled) setLoaded(bundle); },
+      () => { if (!cancelled) setFailed(true); }
+    );
+    return () => { cancelled = true; };
+  }, [en, attempt]);
+
+  const requestClose = () => {
+    if (dialog.current?.open) dialog.current.close();
+    else onClose();
+  };
+
   return <dialog ref={dialog} className={styles.dialog} aria-labelledby={titleId} data-testid="help-panel"
     onClose={onClose} onClick={event => { if (event.target === event.currentTarget) event.currentTarget.close(); }}
     // Esc stänger direkt, även när sökfältet har text (annars tömmer det första Esc bara fältet).
     onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); event.currentTarget.close(); } }}>
-    <div className={styles.panel}>
-      <header className={styles.head}>
-        <h2 id={titleId}>{text.title}</h2>
-        <button type="button" className={styles.close} onClick={() => dialog.current?.close()}>{text.close}</button>
-      </header>
-      <div className={styles.search} role="search">
-        <label>{text.search}
-          <input ref={input} type="search" value={query} autoComplete="off" placeholder={text.searchPlaceholder}
-            onChange={event => setQuery(event.target.value)} />
-        </label>
-        {searching && <p role="status" className={styles.hits}>{text.hits(count)}{count === 0 ? <> {text.noHits}</> : null}</p>}
-      </div>
-      <div className={styles.articles} ref={list}>
-        {here.length > 0 && <section aria-label={text.here}>
-          <h3>{text.here}</h3>
-          {here.map(article)}
-        </section>}
-        {rest.length > 0 && <section aria-label={here.length > 0 ? text.more : text.all}>
-          <h3>{here.length > 0 ? text.more : text.all}</h3>
-          {rest.map(article)}
-        </section>}
-      </div>
-      <footer className={styles.foot}>
-        <span className={styles.footLinks}>
-          <a href="/om" target="_blank" rel="noopener">{text.about}<span className={styles.hidden}> ({text.newTab})</span></a>
-          {film && <a href={film} target="_blank" rel="noopener">{text.film}<span className={styles.hidden}> ({text.newTab})</span></a>}
-          {mapFilm && <a href={mapFilm} target="_blank" rel="noopener">{text.mapFilm}<span className={styles.hidden}> ({text.newTab})</span></a>}
-        </span>
-        <span>{text.contact} <a href={`mailto:${PROGRAM_CONTACT_EMAIL}`}>{PROGRAM_CONTACT_EMAIL}</a></span>
-      </footer>
-    </div>
+    {loaded
+      ? <loaded.Body data={loaded.data} views={views} first={first} titleId={titleId} onRequestClose={requestClose} />
+      : <div className={styles.panel}>
+        <header className={styles.head}>
+          <h2 id={titleId}>{metaText.title}</h2>
+          <button type="button" className={styles.close} onClick={requestClose}>{metaText.close}</button>
+        </header>
+        <div className={styles.status}>
+          {failed ? <>
+            <p role="alert">{metaText.failed}</p>
+            <div><button type="button" className={styles.close} onClick={() => setAttempt(count => count + 1)}>{metaText.retry}</button></div>
+          </> : <p role="status">{metaText.loading}</p>}
+        </div>
+      </div>}
   </dialog>;
-}
-
-/** En text med länkar till andra artiklar (`[text](#id)`). */
-function Text({ value, onFollow }: { value: string; onFollow: (id: string) => void }) {
-  return <>{helpTextParts(value).map((part, index) => part.article
-    ? <a key={index} href={`#hjalp-${part.article}`} className={styles.link} data-help-target={part.article}
-      onClick={event => { event.preventDefault(); onFollow(part.article!); }}>{part.text}</a>
-    : <span key={index}>{part.text}</span>)}</>;
-}
-
-/** En artikel som går att fälla ut. Vid sökning är träffarna utfällda, och en efterfrågad artikel också. */
-function Article({ article, open, lang, onFollow }: { article: HelpArticle; open: boolean; lang?: string | undefined; onFollow: (id: string) => void }) {
-  return <details className={styles.article} open={open} lang={lang} data-help-article={article.id} id={`hjalp-${article.id}`}>
-    <summary>{article.title}</summary>
-    <div className={styles.body}>
-      {article.body.map((block, index) => typeof block === "string"
-        ? <p key={index}><Text value={block} onFollow={onFollow} /></p>
-        : "steps" in block
-          ? <ol key={index}>{block.steps.map(item => <li key={item}><Text value={item} onFollow={onFollow} /></li>)}</ol>
-          : <ul key={index}>{block.map(item => <li key={item}><Text value={item} onFollow={onFollow} /></li>)}</ul>)}
-    </div>
-  </details>;
 }

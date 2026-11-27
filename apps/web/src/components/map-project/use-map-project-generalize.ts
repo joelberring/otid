@@ -5,7 +5,7 @@ import { mapProjectGeneralizeEn } from "../../i18n/map-project-tools-en";
 import { useTexts } from "../language-provider";
 import { MAP_PROJECT_SYNC_MAX_EDITS, type MapProjectView } from "@o-tid/contracts";
 import { proposalBase, type GeneralizeOptions, type GeneralizeResult, type ObjectKey, type ObjectRef, type RevisionClientState, type RevisionEdit } from "@o-tid/map-revision";
-import { clubRequest } from "../../lib/club-archive-client";
+import { clubRequest } from "../../lib/club-request";
 import { mapProjectBase } from "../../lib/map-project-client";
 import type { MapProjectSession } from "../../lib/map-project-protocol";
 import { mapProjectGeneralizeSv } from "../../i18n/map-project-generalize-sv";

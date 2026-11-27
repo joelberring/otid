@@ -3,48 +3,15 @@ import type { CourseSettingDocument } from "@o-tid/course-setting";
 import type { Texts } from "./language";
 import { clubArchiveSv } from "../i18n/club-archive-sv";
 import type { MapGeoreference } from "@o-tid/map-file";
+import { clubBase, clubFailure, clubRequest, csrf } from "./club-request";
 import { importCourseSetting, saveCourseSetting } from "./course-setting-api";
 import { renderMapFile, type MapFileRenderError, type MapFileRenderResult } from "./map-file-worker-protocol";
-import { readOrganizerCsrf } from "./organizer-client";
 import { inLanguage } from "./in-language";
 
 /**
- * ADR-0194: klubbarkivets anrop från webbläsaren. "Använd igen" går de befintliga vägarna: Ny tävling
- * (`/api/organizer/events`), Lägg i grupp (`/api/organizer/races/…/group`), kartan ritad i kartfilens Worker och sparad som
- * tävlingens kartfil (arkivets innehåll, bara bilden skickas), och banfilen som i banläggningen (.ppen) eller som banfil
- * (CourseData, `/api/races/…/imports`).
+ * ADR-0194: klubbarkivets tunga anrop från webbläsaren (kartfils-Worker, uppladdning, "Använd igen").
+ * Lätta JSON/CSRF-anrop (`clubBase`, `csrf`, `clubRequest`, `clubFailure`) ligger i `club-request.ts`.
  */
-export const clubBase = (clubId: string) => `/api/organizer/clubs/${encodeURIComponent(clubId)}`;
-
-export function csrf(): string | undefined {
-  try { return readOrganizerCsrf(document.cookie, new URL(window.location.href)); } catch { return undefined; }
-}
-
-export async function clubRequest(path: string, method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" = "GET", body?: unknown)
-  : Promise<{ status: number; json: unknown }> {
-  const headers: Record<string, string> = {};
-  if (body !== undefined) headers["content-type"] = "application/json";
-  if (method !== "GET") {
-    const value = csrf();
-    if (!value) return { status: 401, json: undefined };
-    headers["x-otid-csrf"] = value;
-  }
-  const response = await fetch(path, { method, credentials: "same-origin", cache: "no-store", headers,
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
-  const text = await response.text();
-  let json: unknown;
-  try { json = text ? JSON.parse(text) as unknown : undefined; } catch { json = undefined; }
-  return { status: response.status, json };
-}
-
-export function clubFailure(status: number, errors: Texts<typeof clubArchiveSv.errors> = clubArchiveSv.errors): string {
-  if (status === 401) return errors.session;
-  if (status === 400) return errors.invalid;
-  if (status === 403) return errors.forbidden;
-  if (status === 404) return errors.notFound;
-  if (status === 409) return errors.conflict;
-  return errors.generic(status);
-}
 
 /** Kartversionens originalfil. */
 export async function fetchMapVersion(clubId: string, versionId: string, signal?: AbortSignal): Promise<ArrayBuffer> {

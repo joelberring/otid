@@ -71,12 +71,41 @@ import styles from "./organizer-workspace.module.css";
 
 type Session = { accountId: string; email: string; displayName: string; superadmin: boolean; expiresAt: string; emailVerified?: boolean | undefined };
 
-async function responseJson(copy: Copy, response: Response): Promise<unknown> {
+async function responseJson(copy: Pick<Copy, "invalidServerResponse">, response: Response): Promise<unknown> {
   try {
     return await response.json() as unknown;
   } catch {
     throw new Error(copy.invalidServerResponse);
   }
+}
+
+export type OrganizerMountResult =
+  | { kind: "signed-out" }
+  | { kind: "redirect"; session: Session; next: string }
+  | { kind: "signed-in"; session: Session; events: PromiseSettledResult<Response> };
+
+/** Hämtar `/session` och `/events` parallellt vid montering (sparar 1 RTT); ignorerar `/events` om inte inloggad. */
+export async function loadOrganizerSessionWithEvents(
+  copy: Pick<Copy, "sessionCheckError" | "invalidServerResponse" | "genericError">,
+  options: { fetchImpl?: typeof fetch; takeNext?: (email: string) => string | undefined } = {}
+): Promise<OrganizerMountResult> {
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const init: RequestInit = { credentials: "same-origin", cache: "no-store" };
+  const [sessionResult, eventsResult] = await Promise.allSettled([
+    fetchImpl("/api/organizer/session", init),
+    fetchImpl("/api/organizer/events", init)
+  ]);
+  if (sessionResult.status === "rejected") {
+    throw sessionResult.reason instanceof Error ? sessionResult.reason : new Error(copy.genericError);
+  }
+  const response = sessionResult.value;
+  if (response.status === 401 || response.status === 403) return { kind: "signed-out" };
+  if (!response.ok) throw new Error(copy.sessionCheckError(response.status));
+  const current = parseOrganizerSessionStatus(await responseJson(copy, response));
+  if (!current) return { kind: "signed-out" };
+  const next = options.takeNext ? options.takeNext(current.email) : (takeInvitationNext(current.email) ?? takeAfterLogin());
+  if (next) return { kind: "redirect", session: current, next };
+  return { kind: "signed-in", session: current, events: eventsResult };
 }
 
 function errorMessage(copy: Copy, error: unknown): string {
@@ -174,11 +203,19 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
     createHeadingRef.current?.scrollIntoView({ behavior: "auto", block: "start" });
   }, [session?.accountId, attempt?.requestId]);
 
-  async function loadEvents() {
+  async function loadEvents(prefetched?: PromiseSettledResult<Response>) {
     setEventsLoaded(false);
     setEventsError("");
     try {
-      const response = await fetch("/api/organizer/events", { credentials: "same-origin", cache: "no-store" });
+      let response: Response;
+      if (prefetched) {
+        if (prefetched.status === "rejected") {
+          throw prefetched.reason instanceof Error ? prefetched.reason : new Error(copy.genericError);
+        }
+        response = prefetched.value;
+      } else {
+        response = await fetch("/api/organizer/events", { credentials: "same-origin", cache: "no-store" });
+      }
       if (response.status === 401 || response.status === 403) {
         setSession(undefined);
         setEvents([]);
@@ -198,24 +235,16 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
 
   async function checkSession() {
     try {
-      const response = await fetch("/api/organizer/session", { credentials: "same-origin", cache: "no-store" });
-      if (response.status === 401 || response.status === 403) {
+      const mount = await loadOrganizerSessionWithEvents(copy);
+      if (mount.kind === "signed-out") {
         setSession(undefined);
         setEventSearch("");
         return;
       }
-      if (!response.ok) throw new Error(copy.sessionCheckError(response.status));
-      const current = parseOrganizerSessionStatus(await responseJson(copy, response));
-      if (!current) {
-        setSession(undefined);
-        setEventSearch("");
-        return;
-      }
-      setSession(current);
+      setSession(mount.session);
       // ADR-0206: redan inloggad med inbjudans adress – direkt till klubben eller tävlingen.
-      const next = takeInvitationNext(current.email) ?? takeAfterLogin();
-      if (next) { window.location.assign(next); return; }
-      await loadEvents();
+      if (mount.kind === "redirect") { window.location.assign(mount.next); return; }
+      await loadEvents(mount.events);
     } catch (error) {
       setMessage(errorMessage(copy, error));
     } finally {

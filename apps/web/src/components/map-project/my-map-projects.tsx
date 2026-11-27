@@ -7,7 +7,7 @@ import { useTexts } from "../language-provider";
 import Link from "next/link";
 import type { MapProjectList } from "@o-tid/contracts";
 import { mapProjectSv } from "../../i18n/map-project-sv";
-import { clubRequest, csrf } from "../../lib/club-archive-client";
+import { clubRequest, csrf } from "../../lib/club-request";
 import { mapProjectsBase } from "../../lib/map-project-client";
 import { AccountMenu } from "../account-menu";
 import { Button, Field, Notice } from "../ui";

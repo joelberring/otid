@@ -3,7 +3,7 @@
 import type { MapProjectSoilArea, MapProjectSoilList, MapProjectView } from "@o-tid/contracts";
 import type { MapGeoreference } from "@o-tid/map-file";
 import { useEffect, useRef, useState } from "react";
-import { clubRequest } from "../../lib/club-archive-client";
+import { clubRequest } from "../../lib/club-request";
 import type { Bounds } from "../../lib/course-setting-viewport";
 import { areaBox } from "../../lib/map-project-area-box";
 import { mapProjectBase } from "../../lib/map-project-client";

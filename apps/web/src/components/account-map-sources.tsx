@@ -6,7 +6,7 @@ import { mapSourcesSv } from "../i18n/map-sources-sv";
 import { mapSourcesAccountEn } from "../i18n/account-en";
 import { useLanguage, useTexts } from "./language-provider";
 import { accountRequest } from "../lib/account-client";
-import { clubRequest } from "../lib/club-archive-client";
+import { clubRequest } from "../lib/club-request";
 import { Button, Field, Notice, Section } from "./ui";
 import { LantmaterietProducts } from "./lantmateriet-connection";
 import styles from "./account-pages.module.css";

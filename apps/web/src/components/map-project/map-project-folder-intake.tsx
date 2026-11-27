@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import type { MapGeoreference } from "@o-tid/map-file";
 import { mapProjectIntakeEn } from "../../i18n/map-project-intake-en";
 import { mapProjectIntakeSv } from "../../i18n/map-project-intake-sv";
-import { clubRequest } from "../../lib/club-archive-client";
+import { clubRequest } from "../../lib/club-request";
 import type { Bounds } from "../../lib/course-setting-viewport";
 import { mapProjectBase } from "../../lib/map-project-client";
 import { sortIntake, vectorSketches, type IntakeDecision, type IntakeGroup, type IntakeReason } from "../../lib/map-project-folder-intake";

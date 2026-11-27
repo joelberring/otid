@@ -5,7 +5,7 @@ import type {
   MapProjectAreaList, MapProjectAreaStatus, MapProjectAiMode, MapProjectAreaView, MapProjectMode, MapProjectProposalList, MapProjectProposalView, MapProjectView
 } from "@o-tid/contracts";
 import type { Point } from "@o-tid/map-file";
-import { clubRequest } from "../../lib/club-archive-client";
+import { clubRequest } from "../../lib/club-request";
 import { mapProjectBase, mapProjectFailure } from "../../lib/map-project-client";
 
 /** Förslagen hämtas igen så här ofta (när sidan syns) och direkt efter en egen synk som gav förslag. */

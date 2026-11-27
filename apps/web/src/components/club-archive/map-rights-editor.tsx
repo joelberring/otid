@@ -6,7 +6,7 @@ import { clubArchiveChecksSv } from "../../i18n/club-archive-checks-sv";
 import { clubArchiveChecksEn } from "../../i18n/club-archive-more-en";
 import { mapBankEn } from "../../i18n/map-bank-en";
 import { mapBankSv } from "../../i18n/map-bank-sv";
-import { clubBase, clubRequest } from "../../lib/club-archive-client";
+import { clubBase, clubRequest } from "../../lib/club-request";
 import { useTexts } from "../language-provider";
 import { MapSharingPanel, type CatalogStatusResponse } from "../map-bank/map-sharing-panel";
 import sharingStyles from "../map-bank/map-sharing-panel.module.css";

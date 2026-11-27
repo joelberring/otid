@@ -1,5 +1,5 @@
 import { LAYER_RECIPE_PATHS, layerRecipeSchema, type LayerRecipe } from "@o-tid/contracts";
-import { csrf } from "./club-archive-client";
+import { csrf } from "./club-request";
 import { LayerFileError } from "./map-project-layer-file";
 
 /**

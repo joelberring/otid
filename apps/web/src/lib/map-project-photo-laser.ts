@@ -1,6 +1,6 @@
 import type { GeoJobList } from "@o-tid/contracts";
 import { mosaicGrids, worldFileAffine, type GridPart, type PhotoLaser } from "@o-tid/map-revision/base-map";
-import { clubRequest } from "./club-archive-client";
+import { clubRequest } from "./club-request";
 import { loadVegetation, type BasisJob } from "./map-project-drawing-basis";
 import { bitmapPixels } from "./map-project-flat-contours";
 import { DEPTH_STEP_METERS } from "./map-project-moisture-depth";

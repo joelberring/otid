@@ -7,7 +7,7 @@ import { useTexts } from "../language-provider";
 import Link from "next/link";
 import type { MapProjectStatsView, MyMapStatsView } from "@o-tid/contracts";
 import { mapStatsSv } from "../../i18n/map-stats-sv";
-import { clubRequest } from "../../lib/club-archive-client";
+import { clubRequest } from "../../lib/club-request";
 import { Notice } from "../ui";
 import { Leaderboard, SeasonSelect, StatsNumbers } from "./map-stats";
 import styles from "./map-project.module.css";

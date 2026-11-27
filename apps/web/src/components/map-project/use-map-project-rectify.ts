@@ -9,7 +9,7 @@ import { heightFieldFrom, terrainFitPlan, terrainFitSolve, terrainNodeCost } fro
 import {
   fitWarp, proposalBase, samplePath, type ObjectKey, type ObjectRef, type RevisionClientState, type RevisionEdit, type WarpChange, type WarpKind, type WarpPair
 } from "@o-tid/map-revision";
-import { clubRequest } from "../../lib/club-archive-client";
+import { clubRequest } from "../../lib/club-request";
 import { mapProjectBase } from "../../lib/map-project-client";
 import { HEIGHT_IMAGE, HEIGHT_WORLD, jobHeights } from "../../lib/map-project-clear-contours";
 import type { CatalogSymbol, MapProjectSession, SymbolObject } from "../../lib/map-project-protocol";

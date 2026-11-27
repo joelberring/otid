@@ -8,7 +8,7 @@ import type { UsableClubMap, UsableClubMapsResponse } from "@o-tid/contracts";
 import { clubMapDuplicatesSv } from "../../i18n/club-map-duplicates-sv";
 import { raceMapSv } from "../../i18n/race-map-sv";
 import { raceMapEn } from "../../i18n/workspace-small-en";
-import { attachMapVersionToRace, clubRequest, renderMapVersion, sendRenderedMap } from "../../lib/club-archive-client";
+import { clubRequest } from "../../lib/club-request";
 import { Button, Notice } from "../ui";
 import { MapThumbnail } from "./map-check";
 import styles from "./map-duplicates.module.css";
@@ -29,6 +29,7 @@ type Stage = keyof typeof clubMapDuplicatesSv.picker.working;
 export async function applyClubMap(choice: ClubMapChoice, raceId: string, onStage: (stage: Stage) => void,
   text: Pick<Texts<typeof clubMapDuplicatesSv.picker>, "tooLarge" | "failed"> & { clubActivitiesOnly?: string } = clubMapDuplicatesSv.picker,
   mapErrors: Texts<typeof raceMapSv.mapFile.errors> = raceMapSv.mapFile.errors): Promise<string | undefined> {
+  const { attachMapVersionToRace, renderMapVersion, sendRenderedMap } = await import("../../lib/club-archive-client");
   if (choice.sourceDownloadLocked) {
     onStage("saving");
     const attached = await attachMapVersionToRace(choice.clubId, choice.versionId, raceId);

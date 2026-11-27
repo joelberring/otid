@@ -1,0 +1,211 @@
+import { z } from "zod";
+import { sha256HexSchema } from "./ids";
+import { raceNameSchema } from "./race-name";
+
+export const createEventSchema = z.object({
+  name: z.string().trim().min(2).max(160),
+  raceName: raceNameSchema,
+  raceDate: z.iso.date(),
+  timeZone: z.string().trim().min(1).default("Europe/Stockholm")
+});
+
+const readoutPunchesSchema = z.array(z.object({
+  code: z.number().int().positive(),
+  punchedAt: z.iso.datetime({ offset: true })
+}).strict()).max(256);
+
+export const simulatorPayloadSchema = z.object({
+  cardNumber: z.string().trim().min(1).max(32),
+  startPunchedAt: z.iso.datetime({ offset: true }).optional(),
+  finishPunchedAt: z.iso.datetime({ offset: true }),
+  punches: readoutPunchesSchema
+}).strict();
+
+/**
+ * En avläsning från en SPORTident-station (steg 4, ADR-0168). Tiderna är redan
+ * tolkade i tävlingens tidszon; de råa ramarna sparas oförändrade som hex.
+ */
+export const sportidentReadoutPayloadSchema = z.object({
+  cardNumber: z.string().regex(/^[1-9][0-9]{0,8}$/),
+  cardType: z.enum(["SI5", "SI6", "SI8", "SI9", "SI10", "SI11", "SIAC", "pCard"]),
+  startPunchedAt: z.iso.datetime({ offset: true }).optional(),
+  finishPunchedAt: z.iso.datetime({ offset: true }).optional(),
+  checkPunchedAt: z.iso.datetime({ offset: true }).optional(),
+  clearPunchedAt: z.iso.datetime({ offset: true }).optional(),
+  punches: readoutPunchesSchema,
+  untimedPunchCodes: z.array(z.number().int().positive()).max(6),
+  // Detektering + högst åtta block (station som skickar alla åtta, steg 34) + uttagsramen; tolv ger marginal.
+  frames: z.array(z.string().regex(/^(?:[0-9a-f]{2}){1,300}$/)).min(1).max(12),
+  stationSerial: z.number().int().nonnegative().optional(),
+  /**
+   * Klockan som stämplingstiderna löstes mot (PLAN.md steg 22): avläsningsstationens
+   * (GET_TIME vid handskakningen) eller datorns när stationen inte svarade.
+   */
+  clockSource: z.enum(["station", "device"]).optional(),
+  /** Stationens klocka minus datorns vid handskakningen, i millisekunder. */
+  clockOffsetMs: z.number().int().min(-1_000_000_000_000).max(1_000_000_000_000).optional(),
+  /** Sant när avläsningen kom från den falska övningsstationen. */
+  simulated: z.boolean()
+}).strict();
+
+export type SportidentReadoutPayload = z.infer<typeof sportidentReadoutPayloadSchema>;
+
+const localSequenceSchema = z.number().int().positive();
+const stationReceivedAtSchema = z.iso.datetime({ offset: true });
+
+// Nyckelordningen (sekvens, tid, transport, nyttolast, hash) är en del av det
+// serialiserade formatet och får inte ändras.
+export const deviceEventSchema = z.discriminatedUnion("transport", [
+  z.object({ localSequence: localSequenceSchema, stationReceivedAt: stationReceivedAtSchema,
+    transport: z.literal("simulator"), payload: simulatorPayloadSchema, contentHash: sha256HexSchema }).strict(),
+  z.object({ localSequence: localSequenceSchema, stationReceivedAt: stationReceivedAtSchema,
+    transport: z.literal("sportident"), payload: sportidentReadoutPayloadSchema, contentHash: sha256HexSchema }).strict()
+]);
+
+export const deviceBatchSchema = z.object({
+  deviceId: z.uuid(),
+  sessionId: z.uuid(),
+  packageVersion: z.number().int().positive(),
+  firstSequence: z.number().int().positive(),
+  lastSequence: z.number().int().positive(),
+  events: z.array(deviceEventSchema).min(1).max(100)
+}).strict().superRefine((batch, context) => {
+  const sequences = batch.events.map((event) => event.localSequence);
+  if (Math.min(...sequences) !== batch.firstSequence || Math.max(...sequences) !== batch.lastSequence) {
+    context.addIssue({ code: "custom", message: "Sekvensintervallet matchar inte händelserna" });
+  }
+  if (new Set(sequences).size !== sequences.length) {
+    context.addIssue({ code: "custom", message: "Batchen innehåller dubbla sekvenser" });
+  }
+  if (batch.events.some((event, index) => event.localSequence !== batch.firstSequence + index) ||
+      batch.lastSequence !== batch.firstSequence + batch.events.length - 1) {
+    context.addIssue({
+      code: "custom",
+      message: "Batchens händelser måste bilda ett sammanhängande stigande sekvensintervall"
+    });
+  }
+});
+
+const serverResultVersionFields = {
+  engineVersion: z.string().trim().min(1),
+  snapshotVersion: z.number().int().positive(),
+  evaluationHash: sha256HexSchema
+};
+
+const persistedServerResultFields = {
+  resultRevisionId: z.uuid(),
+  revision: z.number().int().positive(),
+  courseVersionId: z.uuid(),
+  ...serverResultVersionFields
+};
+
+export const serverResultSummarySchema = z.discriminatedUnion("status", [
+  z.object({
+    status: z.literal("UNKNOWN_CARD"),
+    reason: z.literal("UNKNOWN_CARD"),
+    ...serverResultVersionFields
+  }).strict(),
+  z.object({
+    status: z.literal("OK"),
+    reason: z.literal("COMPLETE"),
+    ...persistedServerResultFields
+  }).strict(),
+  /** PLAN.md steg 25: godkänt men över klassens maxtid. */
+  z.object({
+    status: z.literal("OVERTIME"),
+    reason: z.literal("MAX_TIME_EXCEEDED"),
+    ...persistedServerResultFields
+  }).strict(),
+  z.object({
+    status: z.literal("MP"),
+    reason: z.enum([
+      "MISSING_START",
+      "MISSING_FINISH",
+      "MISSING_CONTROL",
+      "WRONG_ORDER",
+      "INVALID_TIME_ORDER"
+    ]),
+    ...persistedServerResultFields
+  }).strict()
+]);
+
+const standingMs = z.number().int().nonnegative().max(1_000 * 60 * 60 * 24 * 7);
+const readoutStandingSchema = z.object({
+  position: z.number().int().positive(),
+  tied: z.boolean(),
+  finished: z.number().int().positive(),
+  leader: z.object({ name: z.string().min(1).max(320), behindMs: standingMs.optional(),
+    pointsBehind: z.number().int().positive().optional() }).strict().optional(),
+  ahead: z.object({ ms: standingMs.optional(), points: z.number().int().positive().optional() }).strict().optional()
+}).strict();
+
+/**
+ * Steg 57: placeringen vid avläsningen, räknad på servern ur den cachade resultatlistan för tävlingsversionen med
+ * avläsningens resultat inlagt. Preliminär: bara de som hittills är godkända räknas. Sparas inte; skickas med kvittot
+ * (även för en dubblett, då med dagens ställning). Saknas när löparen inte är godkänd eller listan inte fanns.
+ */
+export const readoutPlacementSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("individual"), standing: readoutStandingSchema }).strict(),
+  z.object({ kind: z.literal("relay"), leg: z.number().int().min(1).max(30), team: readoutStandingSchema.optional(),
+    legTime: readoutStandingSchema.extend({ elapsedMs: standingMs }).strict().optional() }).strict()
+]);
+
+const acknowledgedDeviceEventSchema = z.object({
+  localSequence: z.number().int().positive(),
+  contentHash: sha256HexSchema,
+  rawMessageId: z.uuid(),
+  serverResult: serverResultSummarySchema.optional(),
+  placement: readoutPlacementSchema.optional()
+}).strict();
+
+export const deviceEventAcknowledgementSchema = z.discriminatedUnion("status", [
+  acknowledgedDeviceEventSchema.extend({ status: z.literal("stored") }),
+  acknowledgedDeviceEventSchema.extend({ status: z.literal("duplicate") }),
+  z.object({
+    localSequence: z.number().int().positive(),
+    contentHash: sha256HexSchema,
+    status: z.literal("rejected"),
+    reason: z.enum([
+      "CONTENT_HASH_MISMATCH",
+      "SEQUENCE_HASH_CONFLICT",
+      "SEQUENCE_CONTEXT_CONFLICT"
+    ])
+  }).strict()
+]);
+
+export const deviceBatchAcknowledgementSchema = z.object({
+  deviceId: z.uuid(),
+  highestContiguousSequence: z.number().int().nonnegative(),
+  currentPackageVersion: z.number().int().positive(),
+  packageVersionStatus: z.enum(["current", "stale", "ahead"]),
+  packageUpdateRequired: z.boolean(),
+  acknowledgements: z.array(deviceEventAcknowledgementSchema).min(1).max(100)
+}).strict().superRefine((acknowledgement, context) => {
+  if (acknowledgement.packageUpdateRequired !== (acknowledgement.packageVersionStatus === "stale")) {
+    context.addIssue({
+      code: "custom",
+      message: "Paketuppdatering får endast krävas för en stale paketversion"
+    });
+  }
+  const sequences = acknowledgement.acknowledgements.map((event) => event.localSequence);
+  if (new Set(sequences).size !== sequences.length) {
+    context.addIssue({
+      code: "custom",
+      message: "Kvittensen innehåller flera besked för samma lokala sekvens"
+    });
+  }
+  if (sequences.some((sequence, index) => index > 0 && sequence <= sequences[index - 1]!)) {
+    context.addIssue({
+      code: "custom",
+      message: "Kvittensbeskeden måste ligga i stigande sekvensordning"
+    });
+  }
+});
+
+export type CreateEventInput = z.infer<typeof createEventSchema>;
+export type DeviceBatch = z.infer<typeof deviceBatchSchema>;
+export type ServerResultSummary = z.infer<typeof serverResultSummarySchema>;
+export type ReadoutPlacement = z.infer<typeof readoutPlacementSchema>;
+export type ReadoutStandingSummary = z.infer<typeof readoutStandingSchema>;
+export type DeviceEventAcknowledgement = z.infer<typeof deviceEventAcknowledgementSchema>;
+export type DeviceBatchAcknowledgement = z.infer<typeof deviceBatchAcknowledgementSchema>;

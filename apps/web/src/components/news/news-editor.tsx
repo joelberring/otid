@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { newsListSchema, newsSaveResponseSchema, type NewsItem, type NewsList } from "@o-tid/contracts";
 import { newsEn } from "../../i18n/news-en";
 import { newsSv } from "../../i18n/news-sv";
-import { clubRequest } from "../../lib/club-archive-client";
+import { clubRequest } from "../../lib/club-request";
 import { prepareNewsImage, type NewsImageUpload } from "../../lib/news-image";
 import { useLocale, useTexts } from "../language-provider";
 import { Button, Field, Hint, Notice, Section } from "../ui";

@@ -7,7 +7,7 @@ import { useTexts } from "../language-provider";
 import type { Texts } from "../../lib/language";
 import type { ClubMapDuplicateCluster, ClubMapDuplicateReason, ClubMapDuplicatesResponse, ClubMapMergeResponse, ClubMapView } from "@o-tid/contracts";
 import { clubMapDuplicatesSv } from "../../i18n/club-map-duplicates-sv";
-import { clubBase, clubRequest } from "../../lib/club-archive-client";
+import { clubBase, clubRequest } from "../../lib/club-request";
 import { Button, Notice } from "../ui";
 import { MapThumbnail } from "./map-check";
 import styles from "./map-duplicates.module.css";

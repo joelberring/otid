@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { HelpArticle, HelpView } from "../i18n/help-sv";
-import { helpArticles } from "../i18n/help-sv";
+import { helpArticles, helpSynonyms } from "../i18n/help-sv";
 import { foldForSearch } from "@o-tid/domain";
 import { helpArticleText, helpTextParts, listHelpArticles } from "./help-search";
 
@@ -80,6 +80,14 @@ describe("sökningen i hjälpen", () => {
     // "Tryck på ”…”" (en knapp) räknas inte som tryck.
     expect(ids("tryck")).not.toContain("funktionarer");
     expect(ids("tryck")).not.toContain("skapa-tavling");
+    // Förvalda synonymer (utan options.synonyms) ska ge exakt samma träffar som helpSynonyms från help-sv.ts.
+    for (const group of helpSynonyms) {
+      for (const stem of group) {
+        expect(listHelpArticles(helpArticles, "EVENTS", stem)).toEqual(
+          listHelpArticles(helpArticles, "EVENTS", stem, { synonyms: helpSynonyms })
+        );
+      }
+    }
   });
 
   it("ställer träffar i rubriken före träffar på en synonym", () => {

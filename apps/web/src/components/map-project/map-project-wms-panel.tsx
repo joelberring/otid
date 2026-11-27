@@ -5,7 +5,7 @@ import type { MapProjectView, MapProjectWmsCapabilitiesResponse } from "@o-tid/c
 import type { MapGeoreference } from "@o-tid/map-file";
 import { GOTHENBURG_WMS, mapWmsSv } from "../../i18n/map-wms-sv";
 import { mapWmsEn } from "../../i18n/map-wms-en";
-import { csrf } from "../../lib/club-archive-client";
+import { csrf } from "../../lib/club-request";
 import type { Bounds } from "../../lib/course-setting-viewport";
 import { areaBox, type BoxArea } from "../../lib/map-project-area-box";
 import { mapProjectBase } from "../../lib/map-project-client";

@@ -5,7 +5,7 @@ import type { SourceFeature } from "@o-tid/map-revision";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { mapKnollsEn, mapPitsEn, mapSavedChoiceEn } from "../../i18n/map-knolls-en";
 import { mapKnollsSv, mapPitsSv, mapSavedChoiceSv } from "../../i18n/map-knolls-sv";
-import { clubRequest } from "../../lib/club-archive-client";
+import { clubRequest } from "../../lib/club-request";
 import { mapProjectBase } from "../../lib/map-project-client";
 import { inClip, stageChoices } from "../../lib/map-project-stages";
 import {

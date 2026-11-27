@@ -7,7 +7,7 @@ import type { MapProjectView, MapSourceCredentialView } from "@o-tid/contracts";
 import type { MapGeoreference } from "@o-tid/map-file";
 import { mapSourcesSv } from "../../i18n/map-sources-sv";
 import { accountRequest } from "../../lib/account-client";
-import { clubRequest } from "../../lib/club-archive-client";
+import { clubRequest } from "../../lib/club-request";
 import type { Bounds } from "../../lib/course-setting-viewport";
 import { areaBox, type BoxArea } from "../../lib/map-project-area-box";
 import { mapProjectBase } from "../../lib/map-project-client";

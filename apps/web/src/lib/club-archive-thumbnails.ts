@@ -1,11 +1,11 @@
 import {
   CLUB_MAP_CHECK_STATUSES, type ClubArchiveList, type ClubArchiveListItem, CLUB_THUMBNAIL_MAX_BYTES, type ClubArchiveSummariesResponse, type ClubEntryThumbnailRequest, type ClubMapCheckStatus,
-  type ClubMapCheckView, type ClubMapVersionCheckRequest
+  type ClubMapVersionCheckRequest
 } from "@o-tid/contracts";
 import { MAP_READER_VERSION } from "@o-tid/map-file";
 import { clubArchiveChecksSv } from "../i18n/club-archive-checks-sv";
 import type { Texts } from "./language";
-import { clubBase, clubRequest } from "./club-archive-client";
+import { clubBase, clubRequest } from "./club-request";
 import type { MapFileWorkerErrorCode } from "./map-file-worker-protocol";
 
 /**
@@ -24,24 +24,6 @@ export function checkStatusOf(code: MapFileWorkerErrorCode): ClubMapCheckStatus 
 export function renderFailureReason(code: MapFileWorkerErrorCode, message?: string | null, text: ChecksTexts = clubArchiveChecksSv): string {
   return message?.trim() || text.explain[checkStatusOf(code)];
 }
-
-/** Kort etikett till statusmärket: "Fungerar · OCAD 11.2", "OCAD 7 stöds inte", "Filen är skadad" … */
-export function checkLabel(check: ClubMapCheckView | null, text: ChecksTexts = clubArchiveChecksSv): string {
-  if (!check) return text.notChecked;
-  if (check.status === "OK") return text.works(check.fileVersion);
-  if (check.status === "UNSUPPORTED_VERSION" && check.detail) return check.detail.split(/\.\s/)[0]!.replace(/\.$/, "");
-  return text.status[check.status];
-}
-
-/** Hela förklaringen (title och text under märket). */
-export function checkExplanation(check: ClubMapCheckView | null, text: ChecksTexts = clubArchiveChecksSv): string {
-  if (!check || check.status === "OK") return "";
-  return check.detail ?? text.explain[check.status];
-}
-
-const thumbnailUrl = (clubId: string, path: string, stamp: string) => `${clubBase(clubId)}/${path}?v=${encodeURIComponent(stamp)}`;
-export const mapThumbnailUrl = (clubId: string, versionId: string, checkedAt: string) => thumbnailUrl(clubId, `map-versions/${versionId}/check`, checkedAt);
-export const entryThumbnailUrl = (clubId: string, entryId: string, createdAt: string) => thumbnailUrl(clubId, `archive/${entryId}/thumbnail`, createdAt);
 
 function base64(bytes: Uint8Array): string {
   let binary = "";

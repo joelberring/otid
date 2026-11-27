@@ -6,7 +6,7 @@ import { useTexts } from "../language-provider";
 import type { MapProjectView } from "@o-tid/contracts";
 import type { MapGeoreference } from "@o-tid/map-file";
 import { mapSourcesSv } from "../../i18n/map-sources-sv";
-import { csrf } from "../../lib/club-archive-client";
+import { csrf } from "../../lib/club-request";
 import type { Bounds } from "../../lib/course-setting-viewport";
 import { areaBox, type BoxArea } from "../../lib/map-project-area-box";
 import { mapProjectBase } from "../../lib/map-project-client";

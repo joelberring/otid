@@ -4,6 +4,7 @@ import { useState } from "react";
 import { administratorEffectiveResultResponseSchema, entryTransferCandidatesSchema, raceSessionStatusSchema,
   type AdministratorEffectiveResultResponse, type CourseSettingLevel, type EntryTransferCandidates } from "@o-tid/contracts";
 
+import { fetchUntilReached, fetchWithRetry } from "../../lib/retrying-fetch";
 import type { WorkspaceRole } from "../../lib/race-sections";
 import type { Operation } from "./types";
 import type { Base } from "./workspace-state";
@@ -27,9 +28,9 @@ export function useRaceDataState() {
 /** Session och dataladdning: inloggning med kontot, utloggning och ny läsning av ögonblicksbilden. */
 export function createRaceDataActions(ws: Base & MobileNavigation) {
   const text = ws.adminText;
-  const { raceId, entryId, pending, writingRef, deadline, setEffectiveResult, setEffectiveResultError, setData,
+  const { base, raceId, entryId, pending, writingRef, deadline, setEffectiveResult, setEffectiveResultError, setData,
     setEntryChanges, setIdentityCandidates, setSelectedClassId, setExpiresAt, setAuthenticated, setMobilePanel, setMessage,
-    setEntryId, setClassId, setPage, setNewCard, setRole, setCourseSetting, request, json, assertCurrent, current, begin, finish,
+    setEntryId, setClassId, setPage, setNewCard, setRole, setCourseSetting, lock, request, json, assertCurrent, current, begin, finish,
     requireSession, showMobilePanel } = ws;
   async function loadEffectiveResult(id: string, roster: EntryTransferCandidates, op: Operation) {
     setEffectiveResult(undefined); setEffectiveResultError(false);
@@ -46,10 +47,20 @@ export function createRaceDataActions(ws: Base & MobileNavigation) {
       setEffectiveResult(value);
     } catch { if (current(op)) { setEffectiveResult(undefined); setEffectiveResultError(true); } }
   }
-  async function load(op: Operation, selectedId = entryId) {
+  async function load(op: Operation, selectedId = entryId, prefetched?: PromiseSettledResult<Response>) {
     setEntryChanges(undefined);
     setIdentityCandidates(undefined);
-    const response = await request("/transfer-candidates", op);
+    let response: Response;
+    if (prefetched) {
+      if (prefetched.status === "rejected") {
+        throw prefetched.reason instanceof Error ? prefetched.reason : new Error("List unavailable");
+      }
+      response = prefetched.value;
+      assertCurrent(op);
+      if (response.status === 401 || response.status === 403) { lock(); throw new Error("Unauthorized"); }
+    } else {
+      response = await request("/transfer-candidates", op);
+    }
     if (!response.ok) throw new Error("List unavailable");
     const value = entryTransferCandidatesSchema.parse(await json(response, op));
     if (value.raceId !== raceId) throw new Error("Scope mismatch");
@@ -59,7 +70,20 @@ export function createRaceDataActions(ws: Base & MobileNavigation) {
     assertCurrent(op); return value;
   }
   async function session(op: Operation) {
-    const response = await request("/session", op);
+    // Kör `/session` och `/transfer-candidates` parallellt (sparar 1 RTT). `/transfer-candidates` går direkt via
+    // `fetchUntilReached` så att 401/403 inte låser eller avbryter `/session` för utloggade eller banläggare.
+    const [sessionResult, candidatesResult] = await Promise.allSettled([
+      request("/session", op),
+      fetchUntilReached(
+        `${base}/transfer-candidates`,
+        { credentials: "same-origin", cache: "no-store", signal: op.controller.signal },
+        { fetchImpl: fetchWithRetry }
+      )
+    ]);
+    if (sessionResult.status === "rejected") {
+      throw sessionResult.reason instanceof Error ? sessionResult.reason : new Error("Session unavailable");
+    }
+    const response = sessionResult.value;
     if (!response.ok) throw new Error("Session unavailable");
     // Kontots session och roll på tävlingen (ADR-0173 beslut 4).
     const value = raceSessionStatusSchema.parse(await json(response, op));
@@ -73,7 +97,7 @@ export function createRaceDataActions(ws: Base & MobileNavigation) {
     if (value.raceId !== raceId || Date.parse(value.expiresAt) <= Date.now()) throw new Error("Invalid session");
     deadline.current = Date.parse(value.expiresAt); setExpiresAt(value.expiresAt);
     setRole(value.role); setCourseSetting(value.courseSetting);
-    await load(op); assertCurrent(op); setAuthenticated(true); if (pending.current) setMobilePanel("WORK"); setMessage("");
+    await load(op, entryId, candidatesResult); assertCurrent(op); setAuthenticated(true); if (pending.current) setMobilePanel("WORK"); setMessage("");
   }
   async function refresh() {
     if (writingRef.current || pending.current || !requireSession()) return;

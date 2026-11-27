@@ -10,7 +10,7 @@ import { clearCutAgesAt } from "../../lib/map-project-amount";
 import { mapForestSv } from "../../i18n/map-forest-sv";
 import { mapSourcesEn } from "../../i18n/map-sources-en";
 import { mapSourcesSv } from "../../i18n/map-sources-sv";
-import { clubRequest, csrf } from "../../lib/club-archive-client";
+import { clubRequest, csrf } from "../../lib/club-request";
 import type { Bounds } from "../../lib/course-setting-viewport";
 import { areaBox, type BoxArea } from "../../lib/map-project-area-box";
 import { clearCutFeatures, DEFAULT_CLEAR_CUT_AGES, type ClearCutAges } from "@o-tid/map-revision/base-map";

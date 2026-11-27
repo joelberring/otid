@@ -1,4 +1,4 @@
-import { clubRequest } from "./club-archive-client";
+import { clubRequest } from "./club-request";
 
 /** ADR-0209: som `clubRequest`, men ett nätfel blir status 0 i stället för ett undantag (knapparna låses aldrig upp annars). */
 export async function affiliationRequest(path: string, method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" = "GET", body?: unknown)

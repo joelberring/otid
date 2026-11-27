@@ -12,7 +12,7 @@ import { formErrorsSv } from "../../i18n/form-errors-sv";
 import { invitationMailNote, invitationSummary, invitationSv } from "../../i18n/invitation-sv";
 import { fatalStatus, inviteAll, parseInvitationAddresses } from "../../lib/invitation-bulk";
 import { InvitationActions, invitationSentText } from "../invitation-actions";
-import { clubBase, clubRequest } from "../../lib/club-archive-client";
+import { clubBase, clubRequest } from "../../lib/club-request";
 import { Button, Field, Notice, Select } from "../ui";
 import styles from "./club-archive.module.css";
 import { FromClubPicker } from "../club-affiliation/from-club-picker";

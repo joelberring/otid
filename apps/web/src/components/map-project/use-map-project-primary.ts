@@ -5,7 +5,7 @@ import type { MapProjectOsmOriginView, MapProjectPrimarySourceView, MapProjectVi
 import type { MapGeoreference, MapObject } from "@o-tid/map-file";
 import { objectBox } from "@o-tid/map-revision";
 import { coverageArea, osmRemovals, primaryForMerge, primaryKindOfCode, primaryKinds, type PrimaryArea, type PrimaryForMerge, type PrimaryKind } from "@o-tid/map-revision/base-map";
-import { clubRequest } from "../../lib/club-archive-client";
+import { clubRequest } from "../../lib/club-request";
 import type { Bounds } from "../../lib/course-setting-viewport";
 import type { CatalogSymbol, MapProjectSession, SymbolObject } from "../../lib/map-project-protocol";
 import type { ObjectChange } from "./use-map-project-editor";

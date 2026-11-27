@@ -5,7 +5,7 @@ import { clubDevicesEn } from "../../i18n/club-archive-more-en";
 import { useTexts, useLocale } from "../language-provider";
 import type { ClubDeviceList } from "@o-tid/contracts";
 import { clubDevicesSv } from "../../i18n/club-devices-sv";
-import { clubRequest } from "../../lib/club-archive-client";
+import { clubRequest } from "../../lib/club-request";
 import { Button, Notice } from "../ui";
 import styles from "./club-archive.module.css";
 

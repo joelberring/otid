@@ -6,7 +6,7 @@ import { clubArchiveEn } from "../../i18n/club-archive-en";
 import { useTexts } from "../language-provider";
 import type { ClubSummary } from "@o-tid/contracts";
 import { clubArchiveSv } from "../../i18n/club-archive-sv";
-import { clubRequest } from "../../lib/club-archive-client";
+import { clubRequest } from "../../lib/club-request";
 import { Button, Field, Notice } from "../ui";
 import styles from "./club-archive.module.css";
 

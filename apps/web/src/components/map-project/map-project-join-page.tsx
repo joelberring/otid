@@ -10,7 +10,7 @@ import { mapProjectJoinEn } from "../../i18n/map-project-join-en";
 import { mapProjectJoinSv } from "../../i18n/map-project-join-sv";
 import { mapProjectSv } from "../../i18n/map-project-sv";
 import { accountRequest } from "../../lib/account-client";
-import { clubRequest } from "../../lib/club-archive-client";
+import { clubRequest } from "../../lib/club-request";
 import { tokenFromHash } from "../../lib/map-project-invite-link";
 import { parseOrganizerSessionStatus } from "../../lib/organizer-client";
 import { useLanguage, useTexts } from "../language-provider";
@@ -19,6 +19,33 @@ import styles from "../account-pages.module.css";
 
 type Valid = Extract<MapProjectJoinLinkInfo, { status: "valid" }>;
 type State = { kind: "checking" } | { kind: "no-token" } | { kind: "failed" } | { kind: "invalid" } | { kind: "valid"; view: Valid };
+
+export type MapProjectJoinMountResult =
+  | { state: { kind: "failed" } }
+  | { state: { kind: "invalid" } | { kind: "valid"; view: Valid }; signedIn: boolean; verified: boolean };
+
+/** Kör kartlänksuppslag och sessionskoll parallellt i `Promise.all` (sparar 1 RTT). */
+export async function loadMapProjectJoinMount(
+  token: string,
+  options: { request?: typeof accountRequest; fetchImpl?: typeof fetch } = {}
+): Promise<MapProjectJoinMountResult> {
+  const request = options.request ?? accountRequest;
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const [linkResult, sessionResult] = await Promise.all([
+    request("/api/map-project-link", { method: "POST", body: { formatVersion: 1, token } }).catch(() => undefined),
+    fetchImpl("/api/organizer/session", { credentials: "same-origin", cache: "no-store" })
+      .then(async response => response.ok ? parseOrganizerSessionStatus(await response.json() as unknown) : undefined)
+      .catch(() => undefined)
+  ]);
+  if (!linkResult) return { state: { kind: "failed" } };
+  const parsed = mapProjectJoinLinkViewSchema.safeParse(linkResult.json);
+  if (linkResult.status !== 200 || !parsed.success) return { state: { kind: "failed" } };
+  return {
+    state: parsed.data.status === "valid" ? { kind: "valid", view: parsed.data } : { kind: "invalid" },
+    signedIn: !!sessionResult?.email,
+    verified: sessionResult?.emailVerified !== false
+  };
+}
 
 /**
  * Sidan som tar emot länken från kartprojektets medlemmar (som /inbjudan för e-postinbjudningar): visar vem som bjudit in, till
@@ -40,22 +67,14 @@ export function MapProjectJoinPage() {
     const found = tokenFromHash(window.location.hash);
     if (!found) { setState(current => current.kind === "checking" ? { kind: "no-token" } : current); return; }
     setToken(found);
-    void (async () => {
-      try {
-        const response = await accountRequest("/api/map-project-link", { method: "POST", body: { formatVersion: 1, token: found } });
-        const parsed = mapProjectJoinLinkViewSchema.safeParse(response.json);
-        if (response.status !== 200 || !parsed.success) { setState({ kind: "failed" }); return; }
-        setState(parsed.data.status === "valid" ? { kind: "valid", view: parsed.data } : { kind: "invalid" });
-      } catch { setState({ kind: "failed" }); return; }
-      try {
-        const session = await fetch("/api/organizer/session", { credentials: "same-origin", cache: "no-store" });
-        const current = session.ok ? parseOrganizerSessionStatus(await session.json() as unknown) : undefined;
-        setSignedIn(!!current?.email);
-        setVerified(current?.emailVerified !== false);
-        // Inloggad: nyckeln behövs inte längre i adressfältet och historiken. Utloggad behålls den för att öppna om efter inloggningen.
-        if (current?.email) window.history.replaceState(null, "", window.location.pathname);
-      } catch { setSignedIn(false); }
-    })();
+    void loadMapProjectJoinMount(found).then(result => {
+      setState(result.state);
+      if (!("signedIn" in result)) return;
+      setSignedIn(result.signedIn);
+      setVerified(result.verified);
+      // Inloggad: nyckeln behövs inte längre i adressfältet och historiken. Utloggad behålls den för att öppna om efter inloggningen.
+      if (result.signedIn) window.history.replaceState(null, "", window.location.pathname);
+    });
   }, []);
 
   async function join() {

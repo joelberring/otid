@@ -8,7 +8,7 @@ import { useTexts, useLocale } from "../language-provider";
 import type { Texts } from "../../lib/language";
 import type { ClubAccessSettingsResponse, ClubAffiliationPerson, ClubAffiliationView, ClubAreaAccess } from "@o-tid/contracts";
 import { clubAffiliationSv } from "../../i18n/club-affiliation-sv";
-import { clubBase } from "../../lib/club-archive-client";
+import { clubBase } from "../../lib/club-request";
 import { affiliationRequest as clubRequest } from "../../lib/club-affiliation-client";
 import { Button, Field, Notice } from "../ui";
 import { EventorRequestDialog } from "../club-archive/club-start-card";

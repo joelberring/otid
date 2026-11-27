@@ -7,7 +7,7 @@ import { useTexts } from "../language-provider";
 import Link from "next/link";
 import type { ClubArchiveEntryView, MapAgreement, TrainingLevel, TrainingMoment } from "@o-tid/contracts";
 import { clubArchiveSv } from "../../i18n/club-archive-sv";
-import { clubBase, clubRequest } from "../../lib/club-archive-client";
+import { clubBase, clubRequest } from "../../lib/club-request";
 import { levelsFromCourseNames } from "../../lib/club-archive-filter";
 import { MomentBadges, MomentPicker, tagsFromText } from "../training-moments/moment-picker";
 import { Button, DateInput, Field, Notice } from "../ui";

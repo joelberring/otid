@@ -6,7 +6,7 @@ import { clubMapDuplicatesEn } from "../../i18n/club-space-en";
 import { useTexts } from "../language-provider";
 import type { ClubMapCopyField, ClubMapVersionView, ClubMapView } from "@o-tid/contracts";
 import { clubMapDuplicatesSv } from "../../i18n/club-map-duplicates-sv";
-import { clubBase, clubRequest } from "../../lib/club-archive-client";
+import { clubBase, clubRequest } from "../../lib/club-request";
 import { Button, Field } from "../ui";
 import { StartMapProject } from "../map-project/start-map-project";
 import styles from "./map-duplicates.module.css";

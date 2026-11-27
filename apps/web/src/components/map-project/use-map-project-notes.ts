@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { MapProjectNoteList, MapProjectNoteView, MapProjectView } from "@o-tid/contracts";
 import type { Point } from "@o-tid/map-file";
-import { clubRequest } from "../../lib/club-archive-client";
+import { clubRequest } from "../../lib/club-request";
 import { mapProjectBase } from "../../lib/map-project-client";
 import { deleteLocalNote, localNotes, putLocalNote, type LocalNote } from "../../lib/map-project-note-store";
 

@@ -1,5 +1,5 @@
 import { MAP_PROJECT_SNAPSHOT_HEADERS, RACE_MAP_SOURCE_PARTS, raceMapProjectLinkStateSchema, type MapProjectList, type RaceMapProjectLinkState } from "@o-tid/contracts";
-import { clubRequest, csrf } from "./club-archive-client";
+import { clubRequest, csrf } from "./club-request";
 import { courseSettingBase } from "./course-setting-api";
 import { renderMapFile, type MapFileWorkerErrorCode } from "./map-file-worker-protocol";
 import { mapProjectBase, mapProjectsBase } from "./map-project-client";

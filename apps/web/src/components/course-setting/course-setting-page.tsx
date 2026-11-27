@@ -48,6 +48,34 @@ async function phoneRecord(raceId: string): Promise<FieldRecord | undefined> {
     return undefined;
   }
 }
+
+export type CourseSettingLoadOutcome =
+  | { kind: "server"; state: CourseSettingState; pending?: FieldRecord | undefined }
+  | { kind: "phone"; record: FieldRecord }
+  | { kind: "failed"; reason: "login" | "role" | "other"; forgetPhone: boolean };
+
+/** Läser telefonkopian (IndexedDB) och serverläget parallellt med `Promise.allSettled`. */
+export async function loadCourseSettingMount(
+  raceId: string,
+  readPhone: (id: string) => Promise<FieldRecord | undefined> = phoneRecord,
+  fetchState: (id: string) => Promise<CourseSettingState> = fetchCourseSetting
+): Promise<CourseSettingLoadOutcome> {
+  const [recordResult, freshResult] = await Promise.allSettled([readPhone(raceId), fetchState(raceId)]);
+  const record = recordResult.status === "fulfilled" ? recordResult.value : undefined;
+  if (freshResult.status === "fulfilled") {
+    const fresh = freshResult.value;
+    // Med nät gäller serverns läge; posten används bara för åtgärder som väntar.
+    const pending = record && (record.log.length > 0 || record.inFlight) && fresh.setting ? record : undefined;
+    return { kind: "server", state: fresh, pending };
+  }
+  const error: unknown = freshResult.reason;
+  // Utan nät (eller utloggad) öppnas banläggningen ur telefonen.
+  const fromPhone = record && (!(error instanceof HttpError) || error.status === 401 || error.status >= 500);
+  if (fromPhone) return { kind: "phone", record };
+  // Ägaren 2026-11-17: beskedet säger varför. 401 = utloggad eller utan roll på tävlingen, 403 = en roll utan banläggning.
+  const reason = error instanceof HttpError && error.status === 401 ? "login" : error instanceof HttpError && error.status === 403 ? "role" : "other";
+  return { kind: "failed", reason, forgetPhone: error instanceof HttpError && error.status === 403 };
+}
 export function CourseSettingPage({ raceId }: { raceId: string }) {
   const raceMapText = useTexts(raceMapSv, raceMapEn);
   const courseDataText = useTexts(courseDataSv, courseDataEn);
@@ -66,26 +94,23 @@ export function CourseSettingPage({ raceId }: { raceId: string }) {
   /** Läser läget; `active` säger om svaret fortfarande gäller (en ny editor monteras för varje läsning som gäller). */
   const load = useCallback(async (active: () => boolean = () => true) => {
     setFailed(undefined);
-    const record = await phoneRecord(raceId);
-    try {
-      const fresh = await fetchCourseSetting(raceId);
-      if (!active()) return;
-      // Med nät gäller serverns läge; posten används bara för åtgärder som väntar.
-      const pending = record && (record.log.length > 0 || record.inFlight) && fresh.setting ? record : undefined;
-      setResume(pending ? { record: pending, fromPhone: false } : undefined);
-      setState(fresh); setGeneration(value => value + 1);
-    } catch (error) {
-      if (!active()) return;
-      // Utan nät (eller utloggad) öppnas banläggningen ur telefonen.
-      const fromPhone = record && (!(error instanceof HttpError) || error.status === 401 || error.status >= 500);
-      if (fromPhone) { setResume({ record, fromPhone: true }); setState(record.state); setGeneration(value => value + 1); return; }
-      // Översynen 2026-11-02: ingen tillgång längre (403) – telefonens kopia av banläggningen tas bort.
-      if (error instanceof HttpError && error.status === 403) {
-        await forgetCourseSettingCopy(raceId).catch(problem => console.error("Kopian i telefonen kunde inte tas bort", problem));
-      }
-      // Ägaren 2026-11-17: beskedet säger varför. 401 = utloggad eller utan roll på tävlingen, 403 = en roll utan banläggning.
-      setFailed(error instanceof HttpError && error.status === 401 ? "login" : error instanceof HttpError && error.status === 403 ? "role" : "other");
+    const outcome = await loadCourseSettingMount(raceId);
+    if (!active()) return;
+    if (outcome.kind === "server") {
+      setResume(outcome.pending ? { record: outcome.pending, fromPhone: false } : undefined);
+      setState(outcome.state); setGeneration(value => value + 1);
+      return;
     }
+    if (outcome.kind === "phone") {
+      setResume({ record: outcome.record, fromPhone: true });
+      setState(outcome.record.state); setGeneration(value => value + 1);
+      return;
+    }
+    // Översynen 2026-11-02: ingen tillgång längre (403) – telefonens kopia av banläggningen tas bort.
+    if (outcome.forgetPhone) {
+      await forgetCourseSettingCopy(raceId).catch(problem => console.error("Kopian i telefonen kunde inte tas bort", problem));
+    }
+    setFailed(outcome.reason);
   }, [raceId]);
   useEffect(() => { forgetCourseSettingNotice(raceId); }, [raceId]);
   useEffect(() => {

@@ -8,7 +8,7 @@ import { clubPlanningEn } from "../../i18n/club-planning-en";
 import { clubPlanningSv } from "../../i18n/club-planning-sv";
 import { trainingMomentsEn } from "../../i18n/training-moments-en";
 import { trainingMomentsSv } from "../../i18n/training-moments-sv";
-import { clubBase, clubRequest } from "../../lib/club-archive-client";
+import { clubBase, clubRequest } from "../../lib/club-request";
 import { archiveFacets, EMPTY_FILTER, filterArchive, type ArchiveFilter } from "../../lib/club-archive-filter";
 import { archiveSuggestions, sameWeeksEarlierYears } from "../../lib/club-plan-archive";
 import { planFailure, planningBase, planRequest } from "../../lib/club-planning-client";

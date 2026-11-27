@@ -5,6 +5,7 @@ import { GroupBackLink } from "./race-administrator/group-back-link";
 import { useEffect } from "react";
 import { raceAdministratorEn } from "../i18n/workspace-admin-en";
 import { useLanguage, useTexts } from "./language-provider";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { flushSync } from "react-dom";
 import { raceAdministratorSv } from "../i18n/race-administrator-sv";
@@ -16,20 +17,27 @@ import { Sidebar, TopBar } from "./race-administrator/shell";
 import { PreparationCourses } from "./race-administrator/preparation-courses";
 import { PreparationClasses } from "./race-administrator/preparation-classes";
 import { PreparationStartList } from "./race-administrator/preparation-start-list";
-import { AfterRacePanel } from "./race-administrator/after-race-panel";
 import { DuringRaceFollowUp, DuringRaceOverview } from "./race-administrator/during-race-panel";
 import { ParticipantsPanel, RentalPrint } from "./race-administrator/participants-panel";
-import { SettingsPanel } from "./race-administrator/settings-panel";
-import { PeoplePanel } from "./race-administrator/people-section";
-import { RogainingPanel } from "./race-administrator/rogaining-panel";
-import { PublishPanel } from "./race-administrator/race-publication-section";
-import { PartyPanel } from "./race-administrator/party-panel";
 import { Notice } from "./ui";
 import { AccessNotice } from "./race-administrator/access-notice";
 import { SiteFooter } from "./about/site-footer";
 import { useMobileExercise } from "./race-administrator/use-mobile-exercise";
 import { useRaceWorkspace } from "./app-tabs/race-nav";
 import { RaceModeSwitch } from "./app-tabs/race-tab-bar";
+
+function PanelLoading() {
+  const language = useLanguage();
+  return <p className={styles.muted} role="status">{language === "en" ? "Loading…" : "Hämtar…"}</p>;
+}
+
+const loading = () => <PanelLoading />;
+const AfterRacePanel = dynamic(() => import("./race-administrator/after-race-panel").then(m => m.AfterRacePanel), { ssr: false, loading });
+const SettingsPanel = dynamic(() => import("./race-administrator/settings-panel").then(m => m.SettingsPanel), { ssr: false, loading });
+const PeoplePanel = dynamic(() => import("./race-administrator/people-section").then(m => m.PeoplePanel), { ssr: false, loading });
+const RogainingPanel = dynamic(() => import("./race-administrator/rogaining-panel").then(m => m.RogainingPanel), { ssr: false, loading });
+const PublishPanel = dynamic(() => import("./race-administrator/race-publication-section").then(m => m.PublishPanel), { ssr: false, loading });
+const PartyPanel = dynamic(() => import("./race-administrator/party-panel").then(m => m.PartyPanel), { ssr: false, loading });
 
 /**
  * Adminarbetsytan för en tävling. Den här komponenten håller sessionen, laddar data och visar skalet:
@@ -103,22 +111,22 @@ export function RaceAdministratorWorkspace({ raceId }: { raceId: string }) {
         {navigationBlocked && navigationLocked && <Notice tone="attention" role="alert">{text.workflowHelp}</Notice>}
         {/* Funktionären (ADR-0172 beslut 3): bara Start och Avläsning. Servern nekar allt annat ändå. */}
         {!ws.functionary && <>
-          <RogainingPanel ws={ws} />
+          {ws.shows("ROGAINING") && <RogainingPanel ws={ws} />}
           <PreparationCourses ws={ws} />
           <PreparationClasses ws={ws} />
           <ParticipantsPanel ws={ws} />
           <RentalPrint ws={ws} />
         </>}
         {/* PLAN.md steg 40: festen (varor, köp, export); funktionären ser köpen men ändrar inte varor. */}
-        <PartyPanel ws={ws} />
+        {ws.shows("PARTY") && <PartyPanel ws={ws} />}
         <PreparationStartList ws={ws} />
-        {!ws.functionary && <PublishPanel ws={ws} />}
+        {!ws.functionary && ws.shows("PUBLISH") && !!ws.data && <PublishPanel ws={ws} />}
         <DuringRaceOverview ws={ws} />
         <DuringRaceFollowUp ws={ws} />
         {!ws.functionary && <>
-          <AfterRacePanel ws={ws} />
-          <PeoplePanel ws={ws} />
-          <SettingsPanel ws={ws} />
+          {ws.shows("RESULTS") && <AfterRacePanel ws={ws} />}
+          {ws.shows("PEOPLE") && <PeoplePanel ws={ws} />}
+          {ws.shows("SETTINGS") && !!ws.data && <SettingsPanel ws={ws} />}
         </>}
         {/* PLAN.md steg 37: sidfoten, länkarna i en ny flik så att inget osparat lämnas. */}
         <SiteFooter newTab className={styles.footer} language={language} />

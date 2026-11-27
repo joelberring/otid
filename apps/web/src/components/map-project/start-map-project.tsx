@@ -5,7 +5,7 @@ import { useState, type FormEvent } from "react";
 import { mapProjectEn } from "../../i18n/map-project-en";
 import { useTexts } from "../language-provider";
 import { mapProjectSv } from "../../i18n/map-project-sv";
-import { clubRequest } from "../../lib/club-archive-client";
+import { clubRequest } from "../../lib/club-request";
 import { mapProjectsBase } from "../../lib/map-project-client";
 import { Button, Field, Notice } from "../ui";
 import styles from "./map-project.module.css";

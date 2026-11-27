@@ -7,7 +7,6 @@ import { accountPageEn, type AccountPage as AccountPageTexts } from "../i18n/acc
 import { useTexts } from "./language-provider";
 import { accountMenuSv } from "../i18n/account-menu-sv";
 import { accountRequest } from "../lib/account-client";
-import { logOut, pendingOfflineChanges } from "../lib/account-logout";
 import { Button, Notice, Section } from "./ui";
 import styles from "./account-pages.module.css";
 
@@ -91,14 +90,18 @@ export function LogoutEverywhere() {
   async function leave() {
     setBusy(true); setProblem("");
     try {
+      const { logOut } = await import("../lib/account-logout");
       const result = await logOut({ everywhere: true });
       if (!result.ok) { setProblem(text.logoutAllFailed); setBusy(false); }
     } catch { setProblem(text.logoutAllFailed); setBusy(false); }
   }
   async function start() {
-    setBusy(true);
-    const counted = await pendingOfflineChanges();
-    if (counted.total > 0) { setPending(counted.total); setBusy(false); return; }
+    setBusy(true); setProblem("");
+    try {
+      const { pendingOfflineChanges } = await import("../lib/account-logout");
+      const counted = await pendingOfflineChanges();
+      if (counted.total > 0) { setPending(counted.total); setBusy(false); return; }
+    } catch { setProblem(text.logoutAllFailed); setBusy(false); return; }
     await leave();
   }
 

@@ -2,21 +2,27 @@
 
 import Link from "next/link";
 import { printWhatEn } from "../../i18n/course-setting-layout-en";
+import { runnerPrintEn } from "../../i18n/course-setting-print-more-en";
 import { useTexts } from "../language-provider";
 import type { LayoutEntry } from "@o-tid/course-setting";
 import { printWhatSv } from "../../i18n/course-setting-layout-sv";
+import { runnerPrintSv } from "../../i18n/course-setting-runner-print-sv";
 import type { PrintCount } from "../../lib/course-setting-print-what";
 import styles from "./course-setting-print-page.module.css";
+
+export type ClassBackMode = "NONE" | "DUPLEX";
 
 /**
  * ADR-0217 beslut 8: Utskrift-flikens urval. Layouten för "alla ark i en layout", klasserna och antalet (anmälda + reserver
  * eller eget). Papperet redigeras i Layout (länken).
  */
-export function PrintWhat({ raceId, mode, entries, layout, onLayout, count, onCount, classes, chosenClasses, onClasses }: {
+export function PrintWhat({ raceId, mode, entries, layout, onLayout, count, onCount, classes, chosenClasses, onClasses, backMode, onBackMode }: {
   raceId: string; mode: "COURSES" | "CLASSES" | "PROOF"; entries: readonly LayoutEntry[]; layout: string; onLayout: (layout: string) => void;
   count: PrintCount; onCount: (count: PrintCount) => void; classes: readonly string[]; chosenClasses: readonly string[]; onClasses: (classes: string[]) => void;
+  backMode: ClassBackMode; onBackMode: (mode: ClassBackMode) => void;
 }) {
   const text = useTexts(printWhatSv, printWhatEn);
+  const runnerText = useTexts(runnerPrintSv, runnerPrintEn);
   const toggle = (name: string, on: boolean) => onClasses(on ? [...chosenClasses, name] : chosenClasses.filter(item => item !== name));
   return <div className={styles.stack} data-testid="print-what">
     {mode === "COURSES" && <label className={styles.field}>{text.layout}
@@ -37,6 +43,15 @@ export function PrintWhat({ raceId, mode, entries, layout, onLayout, count, onCo
       {count.kind === "OWN" && <label className={styles.field}>{text.copies}<input type="number" min={1} max={500} value={count.copies} size={4}
         data-testid="print-copies" onChange={event => onCount({ kind: "OWN", copies: Math.max(1, Math.min(500, Number(event.target.value) || 1)) })} /></label>}
     </div>}
+    {mode === "CLASSES" && <>
+      <div className={styles.row}>
+        <label className={styles.field}>{text.back}<select value={backMode} data-testid="print-class-back-mode"
+          onChange={event => onBackMode(event.target.value as ClassBackMode)}>
+          {(["NONE", "DUPLEX"] as const).map(option => <option key={option} value={option}>{runnerText.backModes[option]}</option>)}
+        </select></label>
+      </div>
+      {backMode === "DUPLEX" && <p className={styles.muted}>{runnerText.backDuplexHelp}</p>}
+    </>}
     <Link href={`/admin/${raceId}/course-setting/layout`} className={styles.muted}>{text.layoutLink}</Link>
   </div>;
 }

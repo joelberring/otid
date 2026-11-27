@@ -99,6 +99,7 @@ export const coursePrintSv = {
     repeat: "Samma bana i alla ramar",
     order: "Ordning",
     orderBundle: "Buntordning (per variant)",
+    orderClass: "Klassordning (per klass)",
     orderStart: "Startordning",
     partsDuplex: "Dubbelsidigt: del 2 på baksidan av del 1 (kartbyte)",
     blankBack: "Baksida (tom)",

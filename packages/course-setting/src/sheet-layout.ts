@@ -94,6 +94,8 @@ export interface SheetItem {
   readonly training?: OverprintTraining | undefined;
   /** ADR-0217: arkets layout (bana × layout); saknas eller "MAIN" = huvudlayouten (banans skala, tryckyta och papper). */
   readonly layout?: string | undefined;
+  /** Klassen när ett ark skrivs ut per klass (utan löpare), för {klass} på fram- och baksidan. */
+  readonly className?: string | undefined;
 }
 
 export interface SheetText {
@@ -109,6 +111,7 @@ export interface SheetText {
 /** En kartram på arket: kartans utsnitt, transformen till papperet och banpåtrycket (som `CoursePage`). */
 export interface SheetFrame extends Pick<CoursePage, "course" | "variant" | "part" | "title" | "mapScale" | "printScale" | "mapArea" | "clip" | "transform" | "figures"> {
   readonly runner?: RunnerInfo | undefined;
+  readonly className?: string | undefined;
   /** Träningsläget (ADR-0192 beslut 9): kartan i pass med klippning och filter; saknas = kartan som vanligt. */
   readonly mapPasses?: readonly TrainingMapPass[] | undefined;
   /** Spegelorientering (ADR-0192 beslut 12): kartbilden vänds kring ramens lodräta mittlinje; figurerna är redan speglade. */
@@ -265,7 +268,7 @@ function frameFor(document: CourseSettingDocument, item: SheetItem, rect: Templa
     mapScale: document.event.mapScale, printScale, mapArea,
     clip: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
     transform: { scale, translateX: rect.x - mapArea.minX * scale, translateY: rect.y + mapArea.maxY * scale }, figures,
-    ...(item.runner ? { runner: item.runner } : {}) };
+    ...(item.runner ? { runner: item.runner } : {}), ...(item.className ? { className: item.className } : {}) };
 }
 
 /** Skärmarker i marginalen i ramarnas kantlinjer (inte där en ram går ut till papperets kant). */
@@ -338,9 +341,10 @@ export function sheetLayoutSheets(document: CourseSettingDocument, template: She
     const sheet: Sheet = { paper, frames, texts, images: template.images.map(image => ({ ...image })), descriptions, boxes,
       cutMarks, ...(items.length > 0 ? { paperItems: items } : {}) };
     sheets.push(sheet);
-    const runner = frames[0]?.runner;
-    // ADR-0213: baksidan är ett eget ark med papperets element (förvalet som Kartor till startens baksida).
-    if (options.duplexBacks && runner) sheets.push(runnerBackSheet(document, paper, frames[0]!, { date: options.date, links: options.paperLinks }));
+    const front = frames[0];
+    // ADR-0213: baksidan är ett eget ark med papperets element (förvalet som Kartor till startens baksida);
+    // gäller både En karta per löpare och dubbelsidiga klasskartor (utan löpare blir löparvariablerna tomma).
+    if (options.duplexBacks && front) sheets.push(runnerBackSheet(document, paper, front, { date: options.date, links: options.paperLinks }));
   }
   return sheets;
 }

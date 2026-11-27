@@ -101,6 +101,7 @@ export const coursePrintEn: Texts<typeof coursePrintSv> = {
     repeat: "The same course in all frames",
     order: "Order",
     orderBundle: "Bundle order (per variant)",
+    orderClass: "Class order (by class)",
     orderStart: "Start order",
     partsDuplex: "Double-sided: part 2 on the back of part 1 (map exchange)",
     blankBack: "Back (empty)",

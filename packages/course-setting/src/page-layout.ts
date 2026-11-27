@@ -57,6 +57,8 @@ export interface CoursePageOptions {
   readonly paperLinks?: PaperLinks | undefined;
   /** Kartbyten (ADR-0203): en del av banan (0, 1 …) med delens tryckyta, beskrivning och papper; saknas = hela banan. */
   readonly part?: number | undefined;
+  /** Klassen när ett ark skrivs ut per klass (utan löpare), för {klass} på papperet. */
+  readonly className?: string | undefined;
 }
 
 /** En text på sidan (mm, y nedåt): `at` = vänsterkant och baslinje, `heightMm` = em-höjden. */
@@ -249,7 +251,8 @@ export function layoutCoursePage(document: CourseSettingDocument, options: Cours
       ? placeDescription(document, { course, ...(variant !== undefined ? { variant } : {}), ...(part !== undefined ? { part } : {}), clip, transform, figures }, 0) : undefined;
     // Papperets element: första sidan, och de med "Alla sidor" på de följande (ägaren 2026-11-03).
     const paperItems = !options.training?.section && options.descriptions !== false
-      ? sheetPaperItems(document, { course, ...(variant !== undefined ? { variant } : {}), ...(part !== undefined ? { part } : {}), printScale, clip }, 0,
+      ? sheetPaperItems(document, { course, ...(variant !== undefined ? { variant } : {}), ...(part !== undefined ? { part } : {}),
+        ...(options.className ? { className: options.className } : {}), printScale, clip }, 0,
         { page: { x: 0, y: 0, width: widthMm, height: heightMm }, date: options.date, firstPage: pages.length === 0, runnerPlaceholders: options.runnerPlaceholders,
           links: options.paperLinks }) : [];
     pages.push({

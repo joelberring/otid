@@ -6,10 +6,10 @@
 import { readFileSync } from "node:fs";
 import { inflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
-import type { PrintJobRequest } from "@o-tid/contracts";
+import { printJobRequestSchema, type PrintJobRequest } from "@o-tid/contracts";
 import {
-  acceptSafe, allCourseVariants, applyEdit, BL_FOREST_2026_11_02, BUILT_IN_PRINT_PROFILES, emptyDocument, officePrintProfile, proposeColorMatches,
-  readPpen, sourceMapColors, type OverprintPrimitive, type PrintProfile, type Sheet
+  acceptSafe, allCourseVariants, applyEdit, BL_FOREST_2026_11_02, BUILT_IN_PRINT_PROFILES, BUILT_IN_SHEET_LAYOUTS, emptyDocument, officePrintProfile, printSheetGroups,
+  proposeColorMatches, readPpen, sourceMapColors, type OverprintPrimitive, type PrintProfile, type Sheet
 } from "@o-tid/course-setting";
 import { colorUsage, readMapFile } from "@o-tid/map-file";
 import { FONT_FILE_NAMES, FONT_VARIANTS, type FontFiles } from "@o-tid/print-pdf";
@@ -162,5 +162,45 @@ describe("PDF-jobbet: kontorsskrivare med BL-profil och passmärkesfärg (Etapp 
         profile: blApproved, layout: { kind: "PAGES", header: false }, perRunner: false, duplex: false,
         items: [{ course: course.created! }], warningsConfirmed: true }
     })).rejects.toThrow(PrintJobError);
+  });
+});
+
+describe("PDF-jobbet: dubbelsidig baksida per klass", () => {
+  const base = readPpen(read("fixtures/course-setting/gaffling-urval.ppen")).document;
+  const natt = base.courses.find(course => course.name === "Natt")!.id;
+
+  it("ger exakt samma sidor som förhandsvisningen, fyller i {klass}/{variant} utan löparplatshållare och respekterar klassens layout", async () => {
+    let document = applyEdit(base, { type: "ADD_LAYOUT", layout: { id: "elit", name: "Elit A3", scale: 15000,
+      page: { width: 1169, height: 1654, margins: 28, landscape: true } } }).document;
+    document = applyEdit(document, { type: "SET_RUNNER_BACK", back: { items: [
+      { id: "b1", kind: "TEXT", at: { corner: "TOP_RIGHT", x: 10, y: 10 }, relativeTo: "PAGE", text: "{klass} · {variant} · {bana}", sizeMm: 6, widthMm: 120 },
+      { id: "b2", kind: "TEXT", at: { corner: "TOP_RIGHT", x: 10, y: 20 }, relativeTo: "PAGE", text: "{tävling} · {datum}", sizeMm: 4, widthMm: 120 },
+      { id: "b3", kind: "TEXT", at: { corner: "TOP_RIGHT", x: 10, y: 30 }, relativeTo: "PAGE", text: "{namn} {klubb} {startnummer} {starttid}", sizeMm: 4, widthMm: 120 }
+    ] } }).document;
+
+    const jobRequest = printJobRequestSchema.parse({
+      formatVersion: 1, requestId: crypto.randomUUID(), kind: "OFFICE", profileId: "office",
+      layout: { kind: "TEMPLATE", template: "a4-one", fill: "FILL", ownPage: true },
+      perRunner: true, duplex: true, date: "2026-12-09", warningsConfirmed: true,
+      items: [{ course: natt, variant: "ACE", className: "H21", layout: "elit" }, { course: natt, variant: "ACE", className: "D21" }]
+    });
+
+    const a4One = BUILT_IN_SHEET_LAYOUTS.find(item => item.id === "a4-one")!;
+    const preview = printSheetGroups(document, { kind: "TEMPLATE", template: a4One, perRunner: true, duplex: true, fill: "FILL", ownPage: true },
+      jobRequest.items, { date: "2026-12-09", raceTitle: "Nattcup" }).flatMap(group => group.sheets);
+    const server = printJobSheets(document, jobRequest, undefined, undefined, undefined, "Nattcup");
+    expect(server).toEqual(preview);
+    expect(server.map(sheet => sheet.back === true)).toEqual([false, true, false, true]);
+    expect(Math.round(server[0]!.paper.widthMm)).toBe(420);
+    expect(server[1]!.paper).toEqual(server[0]!.paper);
+    const backTexts = (sheet: Sheet) => (sheet.paperItems ?? []).map(item => item.parts.flatMap(part => part.kind === "text" ? [part.text] : []).join(""));
+    expect(backTexts(server[1]!)).toEqual(["H21 · ACE · Natt", "Nattcup · 2026-12-09"]);
+    expect(backTexts(server[3]!)).toEqual(["D21 · ACE · Natt", "Nattcup · 2026-12-09"]);
+    expect(JSON.stringify(server)).not.toMatch(/\{namn\}|\{klubb\}|\{startnummer\}|\{starttid\}|Anna Lind/);
+
+    const rendered = await renderPrintJob({ document, request: jobRequest, map: null, fonts: fonts(), maxPages: 10,
+      title: "Klasser dubbelsidigt", raceTitle: "Nattcup", now: new Date("2026-11-27T10:00:00Z") });
+    expect(rendered.pages).toBe(4);
+    expect(Buffer.from(rendered.bytes).toString("latin1")).toContain("DuplexFlipLongEdge");
   });
 });

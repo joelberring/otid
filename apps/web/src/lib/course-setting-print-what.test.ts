@@ -29,10 +29,25 @@ describe("utskriftens urval", () => {
     expect(withCopies(document, bundles, [{ course: "k" }], { kind: "OWN", copies: 3 })).toHaveLength(3);
   });
 
-  it("klasser: klassens bana i klassens layout; provark: ett av varje ark", () => {
+  it("klasser: klassens bana i klassens layout med klassnamn; provark: ett av varje ark", () => {
     const document = setup();
-    expect(classItems(document, bundles, ["H70"], { kind: "OWN", copies: 1 })).toEqual([{ course: "k", layout: "aldre" }]);
-    expect(classItems(document, bundles, ["H21"], { kind: "ENTERED" })).toHaveLength(2);
+    expect(classItems(document, bundles, ["H70"], { kind: "OWN", copies: 1 })).toEqual([{ course: "k", layout: "aldre", className: "H70" }]);
+    expect(classItems(document, bundles, ["H21"], { kind: "ENTERED" })).toEqual([{ course: "k", className: "H21" }, { course: "k", className: "H21" }]);
     expect(proofItems(document, bundles)).toEqual([{ course: "k" }, { course: "k", layout: "aldre" }]);
+  });
+
+  it("klasser med gaffling och flera klasser: varje ark får sin klass, variant och layout", () => {
+    const document = setup();
+    const forked = {
+      ...bundles,
+      classes: [{ name: "H70", courseName: "Lång", variantCodes: ["A", "B"] }, { name: "H21", courseName: "Lång", variantCodes: ["A"] }],
+      rows: [{ className: "H70", courseName: "Lång", variantCode: "A" }, { className: "H70", courseName: "Lång", variantCode: "B" },
+        { className: "H21", courseName: "Lång", variantCode: "A" }]
+    } as unknown as Pick<MapBundleResponse, "classes" | "rows" | "reserve">;
+    expect(classItems(document, forked, ["H70", "H21"], { kind: "OWN", copies: 1 })).toEqual([
+      { course: "k", variant: "A", layout: "aldre", className: "H70" },
+      { course: "k", variant: "B", layout: "aldre", className: "H70" },
+      { course: "k", variant: "A", className: "H21" }
+    ]);
   });
 });

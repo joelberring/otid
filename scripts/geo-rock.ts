@@ -149,23 +149,23 @@ export function bareRock(ground: GroundGrid, openAt: (x: number, y: number) => b
 }
 
 /**
- * Andelen av ringen som måste ligga lägre än kullen. Högdalenkartan 2026-11-11: med hela ringen (1) hittas 14–16 % av kartans
- * punkthöjder, med 0,8 hittas 36–48 % med ungefär samma träffsäkerhet; en lägre tröskel för höjden gav inget.
+ * Andelen av ringen som måste ligga lägre än kullen (85 % håller bort sluttningsskuldor).
  */
 export const KNOLL_LOWER_SHARE = 0.85;
 /**
- * Ägaren 2026-11-14 («minska standardvärdet för punkthöjder, det verkar ha varit lite högt»): förvalet kräver 1,2 m över
- * omgivningen (förut 1), 85 % av ringen lägre (förut 80) och 15 m mellan två (förut 10). Samma som webbläsarens förval
- * (`DEFAULT_KNOLL_LIMITS`); alla möjliga kullar sparas som förut, så reglaget når de gamla värdena utan ny körning.
+ * Förvalet kalibrerat mot fem svenska skogskartor (Högdalen, Tyresta, Gömmaren, Lida, Djurgården) + Bandhagen: 0,9 m över
+ * omgivningen, 85 % lägre ring, kompakt fot 10–70 m² och 12 m emellan. Samma som webbläsarens förval (`DEFAULT_KNOLL_LIMITS`);
+ * alla möjliga kullar sparas med de lösa gränserna (`KNOLL_LOOSE`), så reglaget når övriga värden utan ny körning.
  */
-export const KNOLL_MIN_RISE = 1.2, KNOLL_SPACING = 15;
+export const KNOLL_MIN_RISE = 0.9, KNOLL_MAX_FOOT_M2 = 70, KNOLL_SPACING = 12, KNOLL_MIN_FOOT_M2 = 8;
 
 /**
  * Små kullar (109) ur markrastret (ägaren 2026-11-11: «punkthöjder i likvärdig terräng» som Högdalenkartan): den högsta
- * punkten inom 3 m som står minst `minRise` m över medianen i en ring 6–8 m bort, med en fot (celler över halva höjden inom
- * 6 m) som är för liten för en egen höjdkurva (högst `maxFootM2`), och inte en sten. Lagret `dotknoll_laser` föreslås som 109.
+ * punkten inom 3 m som står minst `minRise` m över medianen i en ring 6–8 m bort, med en kompakt fot (celler över halva
+ * höjden inom 6 m, mellan `KNOLL_MIN_FOOT_M2` och `maxFootM2`) som är för liten för en egen höjdkurva, och inte en sten.
+ * Lagret `dotknoll_laser` föreslås som 109.
  */
-export function knolls(ground: GroundGrid, stones: readonly { at: readonly [number, number] }[], minRise = KNOLL_MIN_RISE, maxFootM2 = 80,
+export function knolls(ground: GroundGrid, stones: readonly { at: readonly [number, number] }[], minRise = KNOLL_MIN_RISE, maxFootM2 = KNOLL_MAX_FOOT_M2,
   blockedAt?: (x: number, y: number) => boolean, lowerShare = KNOLL_LOWER_SHARE): [number, number][] {
   return chooseKnolls(knollCandidates(ground, stones, blockedAt, Math.min(minRise, KNOLL_LOOSE.minRise), Math.min(lowerShare, KNOLL_LOOSE.lowerShare),
     Math.max(maxFootM2, KNOLL_LOOSE.maxFootM2)), { minRise, lowerShare, maxFootM2, spacing: KNOLL_SPACING });
@@ -189,7 +189,8 @@ export const KNOLL_LOOSE = { minRise: 0.5, lowerShare: 0.5, maxFootM2: 160 } as 
 
 /** Valet bland kandidaterna: gränserna, och sedan de högsta först med minst `spacing` meter emellan. Samma regel i webbläsaren. */
 export function chooseKnolls(candidates: readonly KnollCandidate[], limits: { minRise: number; lowerShare: number; maxFootM2: number; spacing: number }): [number, number][] {
-  const found = candidates.filter(knoll => knoll.rise >= limits.minRise && knoll.share >= limits.lowerShare && knoll.footM2 <= limits.maxFootM2
+  const found = candidates.filter(knoll => knoll.rise >= limits.minRise && knoll.share >= limits.lowerShare
+    && knoll.footM2 >= KNOLL_MIN_FOOT_M2 && knoll.footM2 <= limits.maxFootM2
     && (!knoll.wet || knoll.rise >= KNOLL_OBVIOUS_RISE))
     .sort((a, b) => b.rise - a.rise);
   const kept: [number, number][] = [], near = nearIndex(limits.spacing);
@@ -270,11 +271,12 @@ export function knollCandidates(ground: GroundGrid, stones: readonly { at: reado
     if (lower < lowerShare * ring.length) continue;
     let foot = 0;
     for (let dx = -inner; dx <= inner; dx += 1) for (let dy = -inner; dy <= inner; dy += 1) if (at(x + dx, y + dy) > base + rise / 2) foot += 1;
-    if (foot > maxFoot) continue;
+    const footM2 = foot * cell * cell;
+    if (footM2 < KNOLL_MIN_FOOT_M2 || foot > maxFoot) continue;
     const point: [number, number] = [ground.minX + (x + 0.5) * cell, ground.minY + (y + 0.5) * cell];
     if (blockedAt?.(...point) || stoneNear.has(...point)) continue;
     // Andelen sparas som den minsta gräns kullen klarar (samma jämförelse som ovan), så att valet i efterhand blir lika.
-    found.push({ at: point, rise, share: lower / ring.length, footM2: foot * cell * cell, ...(wetAt?.(...point) ? { wet: true } : {}) });
+    found.push({ at: point, rise, share: lower / ring.length, footM2, ...(wetAt?.(...point) ? { wet: true } : {}) });
   }
   return found;
 }

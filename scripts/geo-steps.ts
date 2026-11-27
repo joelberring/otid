@@ -11,7 +11,7 @@ import { isMainThread, parentPort, Worker, workerData } from "node:worker_thread
 import type { GroundGrid } from "./geo-cliffs.ts";
 import { DEFAULT_DITCHES, ditchLines, localRelief, reliefImage } from "./geo-ditches.ts";
 import { trackLines } from "./geo-tracks.ts";
-import { bareRock, boulders, chooseKnolls, KNOLL_LOWER_SHARE, KNOLL_MIN_RISE, KNOLL_SPACING, knollCandidates, rockImage, roughnessGrid } from "./geo-rock.ts";
+import { bareRock, boulders, chooseKnolls, KNOLL_LOWER_SHARE, KNOLL_MAX_FOOT_M2, KNOLL_MIN_RISE, KNOLL_SPACING, knollCandidates, rockImage, roughnessGrid } from "./geo-rock.ts";
 import { waterAt, type WaterGrid } from "./geo-water.ts";
 
 /** Tidsgränsen per steg. En ruta på 2 × 2 km tar sekunder; tio minuter är långt över det rimliga även för 5 × 5 km. */
@@ -125,8 +125,10 @@ export const STEPS = {
   knolls(input: StepInput) {
     const water = input.water ? waterAt(input.water.grid, input.water.mask) : undefined;
     // Alla möjliga kullar med sina mått sparas (för reglagen i webbläsaren); jobbets egna kullar är valet med förvalen.
-    const candidates = knollCandidates(input.ground, input.stones ?? [], water, undefined, undefined, undefined, lookup(input.ground, input.wet)).sort((a, b) => b.rise - a.rise);
-    const all = chooseKnolls(candidates, { minRise: KNOLL_MIN_RISE, lowerShare: input.knollShare ?? KNOLL_LOWER_SHARE, maxFootM2: 80, spacing: KNOLL_SPACING }), cap = pointCap(input.ground);
+    // Laserns stenar läggs inte i grundkartan (`merge.ts`), så de blockerar inte skarpa bergkullar här — `KNOLL_MIN_FOOT_M2`
+    // (8 m²) rensar 1–2 m block och brus direkt utan att kasta bort skarpa riktiga kullar.
+    const candidates = knollCandidates(input.ground, [], water, undefined, undefined, undefined, lookup(input.ground, input.wet)).sort((a, b) => b.rise - a.rise);
+    const all = chooseKnolls(candidates, { minRise: KNOLL_MIN_RISE, lowerShare: input.knollShare ?? KNOLL_LOWER_SHARE, maxFootM2: KNOLL_MAX_FOOT_M2, spacing: KNOLL_SPACING }), cap = pointCap(input.ground);
     return { knolls: all.slice(0, cap), capped: Math.max(0, all.length - cap), candidates: candidates.slice(0, cap * 6) };
   },
 } as const;

@@ -31,11 +31,20 @@ describe("mängden på skalan 1–10", () => {
   it("ger förvalen på 5, bara de tydligaste på 1 och allt på 10", async () => {
     const { knollLimitsAt } = await import("../src/base-map/knoll-choice");
     expect(knollLimitsAt(5)).toEqual(DEFAULT_KNOLL_LIMITS);
-    expect(knollLimitsAt(1)).toEqual({ minRise: 2, lowerShare: 0.95, maxFootM2: 80, spacing: 40 });
+    expect(knollLimitsAt(1)).toEqual({ minRise: 2, lowerShare: 0.95, maxFootM2: 70, spacing: 40 });
     expect(knollLimitsAt(10)).toEqual({ minRise: 0.5, lowerShare: 0.5, maxFootM2: 160, spacing: 10 });
-    expect(knollLimitsAt(3).minRise).toBe(1.6);
-    // Förvalet före 2026-11-14 (1 m, 80 %, 10 m) ligger mellan 6 och 7.
-    expect(DEFAULT_KNOLL_LIMITS).toEqual({ minRise: 1.2, lowerShare: 0.85, maxFootM2: 80, spacing: 15 });
+    expect(knollLimitsAt(3).minRise).toBe(1.45);
+    // Kalibrerat mot 5 skogskartor + Bandhagen (F1 0,279 → 0,371 på 4 oberoende facitkartor, recall +70 %):
+    // 0,9 m stigning, 85 % lägre ring, kompakt fot 8–70 m², 12 m avstånd.
+    expect(DEFAULT_KNOLL_LIMITS).toEqual({ minRise: 0.9, lowerShare: 0.85, maxFootM2: 70, spacing: 12 });
+  });
+  it("rensar mikroskopiska laserbrus-toppar (< 8 m² fot) men behåller skarpa riktiga kullar", () => {
+    const items = [
+      { at: [0, 0] as [number, number], rise: 1.5, share: 0.95, footM2: 4 },
+      { at: [50, 0] as [number, number], rise: 0.95, share: 0.88, footM2: 14 },
+      { at: [100, 0] as [number, number], rise: 1.1, share: 0.9, footM2: 78 }
+    ];
+    expect(chooseKnolls(items, DEFAULT_KNOLL_LIMITS)).toEqual([[50, 0]]);
   });
 });
 

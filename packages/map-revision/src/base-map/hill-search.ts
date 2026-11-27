@@ -183,10 +183,10 @@ export interface HillLimits {
   readonly ringRise: number;
 }
 /**
- * Förvalet mätt mot kartritarens karta i Högdalen (två block om 0,36 km²): 11 respektive 3 nya ringar, och hon har en ring på
- * 7 respektive 3 av platserna; av 9 punkthöjder som ringarna ersatte har hon 3. Lägre gräns gav fler ringar utan fler träffar.
+ * Förvalet mätt mot fem svenska skogskartor (Högdalen, Tyresta, Gömmaren, Lida, Djurgården): 0,8 m stigning över sadeln ger
+ * fler riktiga små höjder mellan nivåerna (+28 ringar över 5 kartor, 93,4 % träff mot kartritarnas kurvor/hjälpkurvor/kullar).
  */
-export const DEFAULT_HILL_LIMITS: HillLimits = { ringRise: 1 };
+export const DEFAULT_HILL_LIMITS: HillLimits = { ringRise: 0.8 };
 export const DEFAULT_HILL_LEVEL = 5;
 const FEWEST_HILLS: HillLimits = { ringRise: 2.5 }, MOST_HILLS: HillLimits = { ringRise: RING_FROM_RISE };
 export const hillLimitsAt = (level: number): HillLimits => blend(DEFAULT_HILL_LIMITS, level < 5 ? FEWEST_HILLS : MOST_HILLS, level < 5 ? (5 - level) / 4 : (level - 5) / 5);
@@ -207,15 +207,19 @@ export const CONTOUR_INTERVAL = 5, CONTOUR_SHIFT = 0.25;
 export const HILL_CONTOUR_LAYER = "contour_hojd", HILL_FORMLINE_LAYER = "formline_hojd";
 /** Höjdsökningens egna lager i grundkartan (reglagen byter bara dem). */
 export const HILL_LAYERS = /^(contour_hojd|formline_hojd)$/;
-/** Kurvor och hjälpkurvor (också höjdernas egna ringar) som en ring eller punkthöjd inte ska ligga på. */
+/** Kurvor och hjälpkurvor (också höjdernas egna ringar) som en ring inte ska ligga på. */
 const LINE_LAYER = /^(contour|depression|formline)(_index|_hojd)?$/i;
+/** Höjdkurvor och höjdsökningens egna ringar, som en punkthöjd håller fullt avstånd (`KNOLL_TOUCH_MM`) till. */
+const KNOLL_CONTOUR_LAYER = /^(contour|depression)(_index|_hojd)?$|^formline_hojd$/i;
+const FORMLINE_LAYER = /^formline$/i;
 /** Hur nära (mm på kartan) en linje får ligga en annan, och andelen av en ring som får ligga så nära. */
 export const LINE_TOUCH_MM = 0.25, RING_ON_LINE_SHARE = 0.3;
 /**
- * En punkthöjd (109, 0,75 mm) rör en kurva när kurvan går närmare mitten än så (mm). Kartritarna (Högdalen, Djurgården,
- * Gömmaren, 223 punkthöjder) har 0–7 % av dem inom 4,2 m från en kurva, O-Tid 10–19 %; inom 6,3 m har de 12–40 %.
+ * En punkthöjd (109, 0,75 mm) rör en höjdkurva när kurvan går närmare mitten än så (mm). Mot en vanlig streckad hjälpkurva
+ * (103) krävs bara direkt träff (`KNOLL_FORMLINE_TOUCH_MM`), så att riktiga kullar som omges av en flank-hjälpkurva 3–4 m bort
+ * inte tappas i onödan.
  */
-export const KNOLL_TOUCH_MM = 0.28;
+export const KNOLL_TOUCH_MM = 0.28, KNOLL_FORMLINE_TOUCH_MM = 0.14;
 const SHOWN_RING = /^(contour|depression)(_index)?$|^formline$/i, KNOLL_POINT = /^dotknoll(_laser|_avlang)?$/i;
 
 function inside(ring: readonly Position[], x: number, y: number): boolean {
@@ -279,15 +283,17 @@ export interface HillSettled {
  * Grundkartan med höjdernas ringar: valet görs mot kurvorna som de är, ringarna läggs till i egna lager och punkthöjder inne i
  * en ring tas bort (ringen visar höjden). `features` ska vara utan tidigare ringar (`unsettleHills`).
  */
-export function settleHills(features: readonly SourceFeature[], candidates: readonly HillCandidate[], limits: HillLimits, scale: number): HillSettled {
-  const choice = chooseHills(candidates, limits, scale, features), hidden: SourceFeature[] = [];
-  // Ägaren 2026-11-15 (Ornö: «punkthöjder som ligger på kurvor på konstigt sätt»): en punkthöjd som rör en kurva eller
-  // hjälpkurva (också höjdernas nya ringar) tas bort; kurvan visar redan formen.
-  const touching = nearLines([...linesOf(features, LINE_LAYER), ...choice.rings.map(ring => ring.points)], KNOLL_TOUCH_MM * scale / 1000);
+export function settleHills(features: readonly SourceFeature[], candidates: readonly HillCandidate[], limits: HillLimits, scale: number,
+  interval = CONTOUR_INTERVAL): HillSettled {
+  const choice = chooseHills(candidates, limits, scale, features, interval), hidden: SourceFeature[] = [];
+  // Ägaren 2026-11-15 (Ornö: «punkthöjder som ligger på kurvor på konstigt sätt»): en punkthöjd som rör en höjdkurva eller
+  // höjdsökningens nya ring (eller sitter rakt på en streckad hjälpkurva) tas bort; kurvan visar redan formen.
+  const touchingContour = nearLines([...linesOf(features, KNOLL_CONTOUR_LAYER), ...choice.rings.map(ring => ring.points)], KNOLL_TOUCH_MM * scale / 1000);
+  const touchingFormline = nearLines(linesOf(features, FORMLINE_LAYER), KNOLL_FORMLINE_TOUCH_MM * scale / 1000);
   const kept = features.filter(feature => {
     if (feature.geometry.kind !== "point" || !KNOLL_POINT.test(feature.layer)) return true;
     const [x, y] = feature.geometry.at;
-    if (!choice.rings.some(ring => inside(ring.points, x, y)) && !touching(x, y)) return true;
+    if (!choice.rings.some(ring => inside(ring.points, x, y)) && !touchingContour(x, y) && !touchingFormline(x, y)) return true;
     hidden.push(feature);
     return false;
   });

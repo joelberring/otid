@@ -77,7 +77,7 @@ export const mapPitsSv = {
 /** Små höjder som ring efter formen (ägaren 2026-11-15: «färre punkthöjder och fler små höjder»). */
 export const mapHillsSv = {
   heading: "Små höjder som ring (101, 103)",
-  help: "När grundkartan läses in söks alla höjder med egen topp ur markens höjd, också de som ligger mellan nivåerna. En höjd som är hög nog och rymmer normens minsta höjd får en ring på halva höjden: en höjdkurva när nästa nivå ligger strax över toppen, annars en hjälpkurva. Punkthöjder inne i ringen tas bort. Höjder som kurvorna redan visar tas inte med. Förvalet (1 m) är mätt mot en kartritares karta i Högdalen.",
+  help: "När grundkartan läses in söks alla höjder med egen topp ur markens höjd, också de som ligger mellan nivåerna. En höjd som är hög nog och rymmer normens minsta höjd får en ring på halva höjden: en höjdkurva när nästa nivå ligger strax över toppen, annars en hjälpkurva. Punkthöjder inne i ringen tas bort. Höjder som kurvorna redan visar tas inte med. Förvalet (0,8 m) är mätt mot fem svenska kartritares kartor.",
   none: "Inga sökta höjder i utkastet. Läs in grundkartan från ett laserjobb som har markens höjd sparad (hojd.png).",
   ringRise: (meters: string) => `Ring från: ${meters} m hög (lägre höjder blir punkthöjder eller lämnas)`,
   done: (rings: number, contours: number, dots: number, all: number) => `${rings === 1 ? "1 ring" : `${rings} ringar`} (${contours} höjdkurvor, ${rings - contours} hjälpkurvor) av ${all} möjliga höjder; ${dots === 1 ? "1 punkthöjd" : `${dots} punkthöjder`} ersattes av en ring.`,

@@ -26,7 +26,7 @@ describe("panelen Små höjder som ring", () => {
     const html = render(importer({ candidates, rings: 7, contours: 4, hidden }));
     expect(html).toMatch(/<input type="range" min="1" max="10" step="1"[^>]*value="5"/);
     expect(html).toContain("Mängd: 5 av 10 (förval)");
-    expect(html).toContain("Ring från: 1,0 m hög");
+    expect(html).toContain("Ring från: 0,8 m hög");
     expect(html).toContain("7 ringar (4 höjdkurvor, 3 hjälpkurvor) av 30 möjliga höjder; 1 punkthöjd ersattes av en ring.");
   });
   it("visas inte för den som inte får föreslå", () => {

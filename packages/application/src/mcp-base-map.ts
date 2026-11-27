@@ -134,7 +134,7 @@ export async function callMcpBaseMapTool(db: Database, accountId: string, input:
     const rock = await geoRockOutputs(db, job.jobId);
     // Negativ kurvbild: har jobbet markens höjd söks sänkorna ur den och lutningsstrecken sätts efter höjden, som i webben.
     const height = await geoHeightOutputs(db, job.jobId);
-    const request: BaseMapJobRequest = { hash, files: parts.map(file => ({ name: file.name, sha256: file.sha256 })),
+    const request: BaseMapJobRequest = { hash, ...(job.engine ? { engine: job.engine } : {}), files: parts.map(file => ({ name: file.name, sha256: file.sha256 })),
       ...(knolls ? { knolls: { level: levels.knolls!, sha256: knolls.sha256 } } : {}), ...(cliffs ? { cliffs: { level: levels.cliffs!, sha256: cliffs.sha256 } } : {}),
       ...(osm ? { osm } : {}), ...(cuts ? { cuts } : {}), ...(soil ? { soil } : {}), ...(landCover ? { landCover } : {}), scannedAt: job.scannedAt, ...(depth ? { depth } : {}), ...(rock ? { rock } : {}), ...(height ? { height } : {}), ...(stage ? { stage } : {}), ...(only ? { only, replace } : {}),
       ...(primary.length > 0 ? { primary } : {}), missing };

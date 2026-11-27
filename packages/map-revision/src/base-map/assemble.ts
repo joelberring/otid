@@ -4,7 +4,7 @@ import { mergeCandidates } from "./candidate-merge";
 import { computeCandidates, suggestedMapping, type CandidateSymbol, type SprintCleanOutcome } from "./candidates";
 import { SPRINT_BUILT_METRES } from "../sprint-clean";
 import { splitLargeAreas } from "../area-split";
-import { clearContours, heightFieldFrom, suggestedClear, type ClearSettings, type HeightGrid } from "./clear-contours";
+import { clearContours, detectBaseMapEngine, heightFieldFrom, suggestedClear, type BaseMapEngine, type ClearSettings, type HeightGrid } from "./clear-contours";
 import { clearCutFeatures, type ClearCut } from "./clear-cuts";
 import { tickDepressions } from "./depressions";
 import { DEFAULT_HILL_LEVEL, findHills, hillLimitsAt, settleHills } from "./hill-search";
@@ -14,8 +14,9 @@ import type { SoilArea } from "./soil";
 import { landCoverFeatures, type LandCoverGrid } from "./land-cover";
 import { calmFlatContours, flatLimitsAt, flatSlopeFrom, type PixelAffine, type SlopeGrid } from "./flat-contours";
 import { cliffFeatures, cliffLimitsAt, defaultCliffLimits, readCliffCandidates } from "./cliff-choice";
-import { chooseKnolls, knollFeatures, knollLimitsAt, readKnollCandidates } from "./knoll-choice";
+import { chooseKnollCandidates, deduplicateKnollFeatures, KNOLL_DEDUP_METERS, knollFeatures, knollLimitsAt, readKnollCandidates } from "./knoll-choice";
 import { mergeBaseMap } from "./merge";
+import { maxSummitRingArea } from "./small-rings";
 import { primaryForMerge, type PrimaryArea, type PrimaryKind, type PrimaryOutcome } from "./primary-source";
 import { DEFAULT_ROCK_LEVEL, rockAreasOfJob, withRockAreas } from "./rock-choice";
 import type { PhotoPixels } from "./photo-interpret";
@@ -71,10 +72,18 @@ export interface BaseMapAssemblyInput {
   readonly knolls?: { readonly level: number; readonly body: string } | undefined;
   readonly cliffs?: { readonly level: number; readonly body: string } | undefined;
   /**
+   * Motorn som skapade kurvorna (`"otidgeo"` eller `"pullautin"`). Utelämnat = känns igen automatiskt ur `kurvor.dxf` /
+   * `formlinjer.dxf` (`999\notidgeo`) och faller annars tillbaka på `"pullautin"`. För `otidgeo` är terrängadaptiv
+   * utjämning och hjälpkurveurval redan utförda, så `clearContours` får förvalet avstängt och `calmFlatContours` hoppas över
+   * om det inte begärts uttryckligen.
+   */
+  readonly engine?: BaseMapEngine | undefined;
+  /**
    * «Lugna kurvor på flack mark» (ägaren 2026-11-13): nivån 0–10 med lutningen ur jobbets fuktdjup (`slopeGridOf`) och var
    * rutnätet ligger (`worldFileAffine`, SWEREF 99 TM). Utelämnat = jobbet har inget fuktdjup, och kurvorna lämnas som de är.
+   * För `otidgeo` hoppas steget över som förval om inte `explicit: true` anges.
    */
-  readonly flat?: { readonly level: number; readonly grid: SlopeGrid; readonly affine: PixelAffine } | undefined;
+  readonly flat?: { readonly level: number; readonly grid: SlopeGrid; readonly affine: PixelAffine; readonly explicit?: boolean | undefined } | undefined;
   /**
    * Berg i dagen (ägaren 2026-11-13): jobbets bergbild (`berg.png`, `rockAreasOfJob`) och var rutnätet ligger. Med den ersätter
    * regeln med förvalets nivå laserns berg i dagen i `berg.dxf` (stenar och kullar står kvar). Utelämnat = jobbet har ingen bergbild.
@@ -165,6 +174,16 @@ export function assembleBaseMap(input: BaseMapAssemblyInput): { objects: MapObje
   } catch (error) {
     return { problem: error instanceof VectorParseError ? error.message : "En av laserjobbets filer gick inte att läsa." };
   }
+  const engine: BaseMapEngine = input.engine ?? detectBaseMapEngine(input.parts) ?? "pullautin";
+  const knollCandidates = input.knolls ? readKnollCandidates(knollJson) : undefined;
+  const knollSelection = input.knolls && knollCandidates ? chooseKnollCandidates(knollCandidates, knollLimitsAt(input.knolls.level)) : undefined;
+  const knollsHaveShape = !!knollCandidates?.some(candidate => candidate.aspect !== undefined && candidate.angle !== undefined);
+  // När `kullar.geojson` bär egen formklassning (`aspect`/`angle`) och ger minst en kulle ersätter den både `dotknoll` och
+  // `dotknoll_avlang` från `knollar.dxf` (groparna behålls), så att 109 och 110 kommer ur en enda konfliktfri källa.
+  if (knollsHaveShape && knollSelection && knollSelection.length > 0) {
+    read = read.map(part => part.name !== "knollar.dxf" ? part
+      : { ...part, data: { ...part.data, features: part.data.features.filter(feature => !(feature.geometry.kind === "point" && /^dotknoll(_avlang)?$/i.test(feature.layer))) } });
+  }
   // Berg i dagen ur bergbilden i stället för berg.dxf:s (som webben när grundkartan läses in).
   let rock: BaseMapSummary["rock"];
   if (input.rock) {
@@ -182,19 +201,28 @@ export function assembleBaseMap(input: BaseMapAssemblyInput): { objects: MapObje
     (input.primary ?? []).flatMap(source => primaryForMerge(source, input.georeference) ?? []));
   const primary = data.primary;
   read = [];
-  // Hjälpkurvor och små ringar på flack mark tas bort, som när grundkartan läses in i webben.
+  // Hjälpkurvor och små ringar på flack mark tas bort, som när grundkartan läses in i webben (hoppas över för `otidgeo` om ej explicit).
   let flatContours: BaseMapSummary["flatContours"];
-  if (input.flat) {
+  if (input.flat && (engine !== "otidgeo" || input.flat.explicit)) {
     const calmed = calmFlatContours(data.features, flatSlopeFrom(input.flat.grid, input.flat.affine), flatLimitsAt(input.flat.level));
     data = { ...data, features: calmed.features };
     flatContours = { level: input.flat.level, formlineMeters: calmed.formlineMeters, rings: calmed.rings };
   }
   // Reglagen för punkthöjder och branter: bara de egna lagren byts, som i panelerna (ett val utan något objekt ändrar inget).
+  // Re-injicerade punkthöjder avdubbletteras alltid inom 6 m mot kvarvarande `dotknoll`/`dotknoll_avlang` och små 101-toppringar.
   let knolls: BaseMapSummary["knolls"], cliffs: BaseMapSummary["cliffs"];
-  if (input.knolls) {
-    const candidates = readKnollCandidates(knollJson), points = chooseKnolls(candidates, knollLimitsAt(input.knolls.level));
-    if (points.length > 0) data = mergeCandidates(data, { features: knollFeatures(points), skipped: 0, crs: SWEREF99TM }, /^dotknoll_laser$/);
-    knolls = { level: input.knolls.level, chosen: points.length, candidates: candidates.length };
+  if (input.knolls && knollCandidates && knollSelection) {
+    let keptCount = 0;
+    if (knollSelection.length > 0) {
+      const own = knollsHaveShape ? /^dotknoll_(laser|avlang)$/ : /^dotknoll_laser$/;
+      const surviving = data.features.filter(feature => !own.test(feature.layer));
+      const incoming = deduplicateKnollFeatures(knollFeatures(knollSelection), surviving, KNOLL_DEDUP_METERS, maxSummitRingArea(scale));
+      keptCount = incoming.length;
+      if (incoming.length > 0 || knollsHaveShape) {
+        data = mergeCandidates(data, { features: incoming, skipped: 0, crs: SWEREF99TM }, own);
+      }
+    }
+    knolls = { level: input.knolls.level, chosen: keptCount, candidates: knollCandidates.length };
   }
   if (input.cliffs) {
     const candidates = readCliffCandidates(cliffJson);
@@ -208,7 +236,7 @@ export function assembleBaseMap(input: BaseMapAssemblyInput): { objects: MapObje
   let clearedContours: BaseMapSummary["clearContours"];
   if (input.height) {
     const field = heightFieldFrom([input.height]);
-    const clearSettings = input.height.clear ?? suggestedClear(data.features, field);
+    const clearSettings = input.height.clear ?? suggestedClear(data.features, field, engine);
     const cleared = clearContours(data.features, field, clearSettings);
     data = { ...data, features: cleared.features };
     clearedContours = { settings: clearSettings, smoothedMeters: cleared.smoothedMeters, formlineMeters: cleared.formlineMeters, rings: cleared.rings };

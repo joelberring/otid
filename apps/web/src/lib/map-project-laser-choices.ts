@@ -48,10 +48,18 @@ export function contourStyleSettings(style: ContourStyle, engine: GeoJobEngine =
     }
   }
   switch (style) {
-    case "veryDetailed": return { smooth_m: sprint ? 0.8 : 1.0, taubin: 1, curviness: 0.24, min_loop_area: sprint ? 10 : 20, min_clearance: sprint ? 0.6 : 1.0 };
-    case "detailed": return { smooth_m: sprint ? 1.0 : 1.35, taubin: 2, curviness: 0.20, min_loop_area: sprint ? 14 : 30, min_clearance: sprint ? 0.85 : 1.4 };
-    case "generalized": return { smooth_m: sprint ? 1.6 : 2.3, taubin: 3, curviness: 0.13, min_loop_area: sprint ? 26 : 65, min_clearance: sprint ? 1.2 : 2.1 };
-    case "veryGeneralized": return { smooth_m: sprint ? 2.2 : 3.2, taubin: 4, curviness: 0.08, min_loop_area: sprint ? 40 : 105, min_clearance: sprint ? 1.5 : 2.5 };
+    case "veryDetailed": return sprint
+      ? { smooth_m: 0.52, taubin: 1, curviness: 0.26, min_loop_area: 9, min_clearance: 0.55, formline_gap: 2.2, formline_max_slope: 22.5 }
+      : { smooth_m: 0.72, taubin: 1, curviness: 0.26, min_loop_area: 18, min_clearance: 0.95, formline_gap: 3.2, formline_max_slope: 23 };
+    case "detailed": return sprint
+      ? { smooth_m: 0.65, taubin: 2, curviness: 0.22, min_loop_area: 12, min_clearance: 0.75, formline_gap: 2.7, formline_max_slope: 21 }
+      : { smooth_m: 0.88, taubin: 2, curviness: 0.22, min_loop_area: 26, min_clearance: 1.25, formline_gap: 3.6, formline_max_slope: 21.5 };
+    case "generalized": return sprint
+      ? { smooth_m: 1.1, taubin: 3, curviness: 0.13, min_loop_area: 25, min_clearance: 1.2, formline_gap: 4.4, formline_max_slope: 16.5 }
+      : { smooth_m: 1.5, taubin: 3, curviness: 0.13, min_loop_area: 62, min_clearance: 2, formline_gap: 5.6, formline_max_slope: 17 };
+    case "veryGeneralized": return sprint
+      ? { smooth_m: 1.55, taubin: 4, curviness: 0.08, min_loop_area: 40, min_clearance: 1.5, formline_gap: 5.8, formline_max_slope: 13 }
+      : { smooth_m: 2.15, taubin: 4, curviness: 0.08, min_loop_area: 105, min_clearance: 2.4, formline_gap: 7.6, formline_max_slope: 13.5 };
   }
 }
 
@@ -90,14 +98,17 @@ const OTIDGEO_PRESETS: ChoicePresets = {
 const presetsFor = (engine: GeoJobEngine): ChoicePresets => engine === "pullautin" ? PULLAUTIN_PRESETS : OTIDGEO_PRESETS;
 
 /**
- * Hur branterna redovisas (ägaren 2026-11-12): «few» är lärt av Högdalen (4,5 m fall, minst 20 m),
- * «most» av Gömmaren (3,5 m, minst 10 m).
+ * Hur branterna redovisas (ägaren 2026-11-12, kalibrerat mot 6 OCAD-kartor):
+ * - Skog: «few» = 4,0 m fall, minst 16 m; «most» = 3,5 m, minst 10 m.
+ * - Sprint (ekvidistans ≤ 3 m): «few» = 3,0 m fall, minst 8 m; «most» = 2,5 m, minst 6 m.
  */
 export const CLIFF_STYLES = ["few", "most"] as const;
 export type CliffStyle = typeof CLIFF_STYLES[number];
-const CLIFF_STYLE = { few: { impassableDrop: 4.5, impassableLength: 20 }, most: { impassableDrop: 3.5, impassableLength: 10 } } as const;
-/** «Färre» och «fler» branter: minsta fallet för en brant, och gränsen för opasserbar en meter upp eller ned. */
-const CLIFF_LEVEL = { less: { minDrop: 1.8, shift: 1 }, default: { minDrop: 1.3, shift: 0 }, more: { minDrop: 1, shift: -1 } } as const;
+const FOREST_CLIFF_STYLE = { few: { impassableDrop: 4.0, impassableLength: 16 }, most: { impassableDrop: 3.5, impassableLength: 10 } } as const;
+const SPRINT_CLIFF_STYLE = { few: { impassableDrop: 3.0, impassableLength: 8 }, most: { impassableDrop: 2.5, impassableLength: 6 } } as const;
+/** «Färre» och «fler» branter: minsta fallet för en brant, och gränsen för opasserbar upp eller ned (mjukare steg i sprint). */
+const FOREST_CLIFF_LEVEL = { less: { minDrop: 1.8, shift: 1 }, default: { minDrop: 1.3, shift: 0 }, more: { minDrop: 1, shift: -1 } } as const;
+const SPRINT_CLIFF_LEVEL = { less: { minDrop: 1.8, shift: 0.5 }, default: { minDrop: 1.3, shift: 0 }, more: { minDrop: 1, shift: -0.5 } } as const;
 
 export interface ChoiceOptions {
   readonly engine?: GeoJobEngine | undefined;
@@ -111,9 +122,10 @@ export interface ChoiceOptions {
 export function choiceSettings(choices: LaserChoices, typed: Readonly<Record<string, number>> = {}, style: CliffStyle = "few", tags = false, rawTicks = false,
   options: ChoiceOptions = {}) {
   const engine: GeoJobEngine = options.engine ?? "otidgeo";
+  const sprint = options.sprint ?? false;
   const presets = presetsFor(engine);
   const settings: Record<string, number> = {
-    ...contourStyleSettings(options.contours ?? "normal", engine, options.sprint ?? false)
+    ...contourStyleSettings(options.contours ?? "normal", engine, sprint)
   };
   for (const choice of LASER_CHOICES) {
     const level = choices[choice];
@@ -122,17 +134,26 @@ export function choiceSettings(choices: LaserChoices, typed: Readonly<Record<str
   if (options.vegSmooth) Object.assign(settings, vegSmoothSetting(options.vegSmooth));
   if (engine === "otidgeo" && options.overview === false) settings.overview = 0;
   const keepRawTicks = rawTicks && engine === "pullautin";
-  const level = CLIFF_LEVEL[choices.cliffs], base = CLIFF_STYLE[style];
-  const cliffs = choices.cliffs === "default" && style === "few" && !tags && !keepRawTicks ? undefined
+  const level = (sprint ? SPRINT_CLIFF_LEVEL : FOREST_CLIFF_LEVEL)[choices.cliffs];
+  const base = (sprint ? SPRINT_CLIFF_STYLE : FOREST_CLIFF_STYLE)[style];
+  const cliffs = !sprint && choices.cliffs === "default" && style === "few" && !tags && !keepRawTicks ? undefined
     : { minDrop: level.minDrop, impassableDrop: base.impassableDrop + level.shift, impassableLength: base.impassableLength, ...(tags ? { tags: true } : {}), ...(keepRawTicks ? { rawTicks: true } : {}) };
   return { settings: { ...settings, ...typed }, cliffs };
 }
 
 /** Brantvalen ur ett körts jobb (för «Kör om»). */
-export function cliffChoicesOf(cliffs: { readonly minDrop: number; readonly impassableLength?: number | undefined; readonly tags?: boolean | undefined; readonly rawTicks?: boolean | undefined } | null):
-  { level: ChoiceLevel; style: CliffStyle; tags: boolean; rawTicks: boolean } {
-  return { level: !cliffs || cliffs.minDrop === 1.3 ? "default" : cliffs.minDrop > 1.3 ? "less" : "more",
-    style: cliffs && (cliffs.impassableLength ?? 20) <= 10 ? "most" : "few", tags: cliffs?.tags === true, rawTicks: cliffs?.rawTicks === true };
+export function cliffChoicesOf(
+  cliffs: { readonly minDrop: number; readonly impassableLength?: number | undefined; readonly tags?: boolean | undefined; readonly rawTicks?: boolean | undefined } | null,
+  sprint?: boolean
+): { level: ChoiceLevel; style: CliffStyle; tags: boolean; rawTicks: boolean } {
+  const len = cliffs?.impassableLength;
+  const isMost = len !== undefined && (sprint === true ? len <= 6 : sprint === false ? len <= 10 : len === 10 || len <= 6);
+  return {
+    level: !cliffs || cliffs.minDrop === 1.3 ? "default" : cliffs.minDrop > 1.3 ? "less" : "more",
+    style: isMost ? "most" : "few",
+    tags: cliffs?.tags === true,
+    rawTicks: cliffs?.rawTicks === true
+  };
 }
 
 /** Valen ur ett körts jobbs inställningar (för «Kör om»): ett val som inte stämmer med något förval blir «default». */

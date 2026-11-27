@@ -67,28 +67,51 @@ function thin<T>(points: T[], max: number): T[] {
   return Array.from({ length: max }, (_, index) => points[Math.floor(index * every)]!);
 }
 
-/** Rutnät för närmaste punkt av samma sort. */
+/** Rutnät för närmaste punkt av samma sort (heltalsnycklar per sort och kvadrerade avstånd utan strängallokeringar). */
+const GRID_STRIDE = 2_000_003;
+const GRID_OFFSET = 1_000_000;
 class Grid {
-  private readonly cells = new Map<string, Point[]>();
+  private readonly byKind = new Map<FitClass, Map<number, Point[]>>();
   constructor(points: readonly FitPoint[], private readonly size: number) {
     for (const { at, kind } of points) {
-      const key = this.key(kind, Math.floor(at.x / size), Math.floor(at.y / size));
-      const cell = this.cells.get(key);
-      if (cell) cell.push(at); else this.cells.set(key, [at]);
+      let cells = this.byKind.get(kind);
+      if (!cells) { cells = new Map(); this.byKind.set(kind, cells); }
+      const key = this.key(Math.floor(at.x / size), Math.floor(at.y / size));
+      const cell = cells.get(key);
+      if (cell) cell.push(at); else cells.set(key, [at]);
     }
   }
-  private key(kind: string, i: number, j: number) { return `${kind}:${i}:${j}`; }
-  /** Närmaste punkt inom `radius` (högst rutnätets storlek), eller undefined. */
-  nearest(kind: FitClass, at: Point, radius: number): { at: Point; distance: number } | undefined {
-    const i = Math.floor(at.x / this.size), j = Math.floor(at.y / this.size);
-    let best: { at: Point; distance: number } | undefined;
+  private key(i: number, j: number) { return (i + GRID_OFFSET) * GRID_STRIDE + (j + GRID_OFFSET); }
+  /** Om någon punkt av samma sort finns inom `radius` (snabbare för grovsökning). */
+  hasWithin(kind: FitClass, x: number, y: number, radius: number): boolean {
+    const cells = this.byKind.get(kind);
+    if (!cells) return false;
+    const i = Math.floor(x / this.size), j = Math.floor(y / this.size), r2 = radius * radius;
     for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
-      for (const point of this.cells.get(this.key(kind, i + di, j + dj)) ?? []) {
-        const distance = Math.hypot(point.x - at.x, point.y - at.y);
-        if (distance <= radius && (!best || distance < best.distance)) best = { at: point, distance };
+      const list = cells.get(this.key(i + di, j + dj));
+      if (!list) continue;
+      for (let k = 0; k < list.length; k++) {
+        const p = list[k]!, dx = p.x - x, dy = p.y - y;
+        if (dx * dx + dy * dy <= r2) return true;
       }
     }
-    return best;
+    return false;
+  }
+  /** Närmaste punkt inom `radius` (högst rutnätets storlek), eller undefined. */
+  nearest(kind: FitClass, at: Point, radius: number): { at: Point; distance: number } | undefined {
+    const cells = this.byKind.get(kind);
+    if (!cells) return undefined;
+    const i = Math.floor(at.x / this.size), j = Math.floor(at.y / this.size);
+    let bestPoint: Point | undefined, bestD2 = radius * radius;
+    for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
+      const list = cells.get(this.key(i + di, j + dj));
+      if (!list) continue;
+      for (let k = 0; k < list.length; k++) {
+        const point = list[k]!, dx = point.x - at.x, dy = point.y - at.y, d2 = dx * dx + dy * dy;
+        if (d2 <= bestD2) { bestD2 = d2; bestPoint = point; }
+      }
+    }
+    return bestPoint ? { at: bestPoint, distance: Math.sqrt(bestD2) } : undefined;
   }
 }
 
@@ -127,7 +150,8 @@ export function fitToMap(source: readonly FitPoint[], target: readonly FitPoint[
   const allowScale = options.allowScale ?? true;
   const from = thin([...source], 3000);
   if (from.length < 10 || target.length < 10) return undefined;
-  const grid = new Grid(target, 2);
+  // Rutnätsstorleken 3 mm matchar max sökradie i `refine()` (3 mm), så punkter över cellgränser inte missas.
+  const grid = new Grid(target, 3);
   // Först utan vridning (det vanliga: en förskjutning och kanske en liten vridning som ICP tar). Räcker inte det prövas
   // vridningar var 2:a grad inom ±rotationDeg, och den som passar bäst gäller.
   const plain = refine(from, grid, coarse(from, grid, 0, searchMm, 300, 2).transform, allowScale);
@@ -182,8 +206,14 @@ function coarse(from: readonly FitPoint[], grid: Grid, degrees: number, searchMm
   // Vridningen kring mitten som transform kring origo; förskjutningen läggs till.
   const base = { scale: 1, rotation: degrees, dx: cx - (c * cx - sn * cy), dy: cy - (sn * cx + c * cy) };
   const sample = thin([...from], size).map(point => ({ kind: point.kind, at: applyFit(asFit(base), point.at) }));
-  const hits = (dx: number, dy: number, radius: number) => sample.reduce((count, point) =>
-    grid.nearest(point.kind, { x: point.at.x + dx, y: point.at.y + dy }, radius) ? count + 1 : count, 0);
+  const hits = (dx: number, dy: number, radius: number) => {
+    let count = 0;
+    for (let k = 0; k < sample.length; k++) {
+      const point = sample[k]!;
+      if (grid.hasWithin(point.kind, point.at.x + dx, point.at.y + dy, radius)) count += 1;
+    }
+    return count;
+  };
   let best = { dx: 0, dy: 0, hits: hits(0, 0, 1.5) };
   for (let dx = -searchMm; dx <= searchMm; dx += step) for (let dy = -searchMm; dy <= searchMm; dy += step) {
     const count = hits(dx, dy, 1.5);

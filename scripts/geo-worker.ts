@@ -98,6 +98,18 @@ export function jobMemoryGb(job: { readonly clip?: Job["clip"]; readonly tiles: 
   return areaKm2 <= 8 ? 4 : areaKm2 <= 45 ? 8 : 16;
 }
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+/** Mäter väggklockstid (ms) per fas och högsta observerade RSS (MB) under ett geo-jobb. */
+export function createJobTelemetry(now = () => Date.now(), rssBytes = () => process.memoryUsage().rss) {
+  const started = now(), phases: Record<string, number> = {};
+  let peakRssMb = Math.round(rssBytes() / 1e6), active: { key: string; at: number } | undefined;
+  const sample = () => { const mb = Math.round(rssBytes() / 1e6); if (mb > peakRssMb) peakRssMb = mb; return mb; };
+  const phase = (next?: string) => {
+    const t = now();
+    if (active) phases[active.key] = (phases[active.key] ?? 0) + Math.max(0, Math.round(t - active.at));
+    active = next ? { key: next, at: t } : undefined; sample();
+  };
+  return { sample, phase, summary: (): Record<string, number> => { phase(); return { ...phases, msTotal: Math.max(0, Math.round(now() - started)), peakRssMb }; } };
+}
 /**
  * Ägaren 2026-11-22: Karttapullautins råa brantstreck (branter.dxf, stup.dxf) blev 77 MB per etapp och föll ibland bort.
  * Grundkartan använder brantlinjerna (brantlinjer.dxf), så de råa strecken skickas bara när användaren kryssat i dem
@@ -238,7 +250,7 @@ async function appendGeoJson(path: string, text: string): Promise<void> {
 }
 
 async function runJob(job: Job): Promise<void> {
-  const dir = join(workdir, job.jobId);
+  const dir = join(workdir, job.jobId), telemetry = createJobTelemetry();
   await rm(dir, { recursive: true, force: true });
   await mkdir(join(dir, "in"), { recursive: true });
   const control = new AbortController();
@@ -249,7 +261,7 @@ async function runJob(job: Job): Promise<void> {
     const body = response?.ok ? await response.json().catch(() => undefined) as { action?: string } | undefined : undefined;
     if (body?.action === "stop") control.abort();
     // Minnet i loggen vid varje livstecken, så att orsaken syns om arbetaren dör (docker logs på geoservern).
-    console.log(`${job.jobId.slice(0, 8)} ${progress.step} ${progress.done}/${progress.total} ${Math.round(process.memoryUsage().rss / 1e6)} MB`);
+    console.log(`${job.jobId.slice(0, 8)} ${progress.step} ${progress.done}/${progress.total} ${telemetry.sample()} MB`);
   };
   const timer = setInterval(() => void beat(), 60_000);
   const set = async (step: string, done: number, total: number) => { progress = { step, done, total }; await beat(); if (control.signal.aborted) throw new Stopped(); };
@@ -261,7 +273,7 @@ async function runJob(job: Job): Promise<void> {
       throw new Error(`Området är för stort för geo-servern som är igång (${Math.round(haveGb)} GB minne, området behöver ${needGb} GB). `
         + "Kör om jobbet om en halvtimme, när servern har stängts av, eller dela området i etapper.");
     }
-    await set("Hämtar laserdata", 0, job.tiles.length);
+    telemetry.phase("msFetchClip"); await set("Hämtar laserdata", 0, job.tiles.length);
     // Rutorna hämtas och klipps flera samtidigt (en per kärna, så långt minnet räcker); Karttapullautin kör dem likadant.
     const together = parallelTiles(job.tiles.length, cpus().length, totalmem() / 2 ** 30, job.attempt);
     let fetched = 0;
@@ -292,14 +304,14 @@ async function runJob(job: Job): Promise<void> {
     }));
     if (job.clip && (await readdir(join(dir, "in"))).length === 0) throw new Error("Kartans område ligger utanför laserrutorna");
     if (job.rawLaser) {
-      await set("Sparar rå laserdata", 0, 1);
+      telemetry.phase("msRawLaser"); await set("Sparar rå laserdata", 0, 1);
       await saveRawLaser({ jobId: job.jobId, tiles: job.tiles, clip: job.clip ?? null, reach: reachOf(job) ?? null }, join(dir, "in"), call, control.signal)
         .catch(error => { if (control.signal.aborted) throw new Stopped(); throw error; });
     }
-    await writeFile(join(dir, "pullauta.ini"), iniWith(await readFile(defaultIni, "utf8"), job.settings, !!job.moisture, !!job.vegetation, together));
+    telemetry.phase("msPullauta"); await writeFile(join(dir, "pullauta.ini"), iniWith(await readFile(defaultIni, "utf8"), job.settings, !!job.moisture, !!job.vegetation, together));
     await set("Karttapullautin", 0, 1);
     await run([], dir, AbortSignal.any([control.signal, AbortSignal.timeout(pullautaTimeoutMs)]));
-    await set("Slår ihop rutorna", 0, 1);
+    telemetry.phase("msPngMerge"); await set("Slår ihop rutorna", 0, 1);
     let scale = job.tiles.length > 4 ? 2 : 1;
     for (;;) {
       await run(["pngmerge", String(scale)], dir, AbortSignal.any([control.signal, AbortSignal.timeout(60 * 60_000)]));
@@ -308,10 +320,10 @@ async function runJob(job: Job): Promise<void> {
       if ((size && Math.max(size.width, size.height) <= LAYER_MAX_PIXELS && bytes <= LAYER_MAX_BYTES) || scale >= 8) break;
       scale *= 2;
     }
-    await run(["dxfmerge"], dir, AbortSignal.any([control.signal, AbortSignal.timeout(60 * 60_000)]));
+    telemetry.phase("msDxfMerge"); await run(["dxfmerge"], dir, AbortSignal.any([control.signal, AbortSignal.timeout(60 * 60_000)]));
     // Grundkartan G4: branternas korta streck blir linjer med nedför till höger (geo-cliffs.ts). Med lasclips markraster
     // (1 m) mäts fallet över varje linje, och det avgör om den är opasserbar, passerbar eller ingen brant.
-    let cliffSummary: Record<string, number> = {};
+    telemetry.phase("msCliffs"); let cliffSummary: Record<string, number> = {};
     let groundShare: ((x: number, y: number) => number | undefined) | undefined, signals: VegetationSignals | undefined;
     let pointStats: PointStats | undefined;
     const ticksOf = async (name: string) => readTicks(await readFile(join(dir, name), "utf8").catch(() => ""));
@@ -329,9 +341,14 @@ async function runJob(job: Job): Promise<void> {
         features: cliffs.candidates.map(cliff => ({ type: "Feature", geometry: { type: "LineString", coordinates: cliff.line.map(([x, y]) => [Math.round(x * 10) / 10, Math.round(y * 10) / 10]) },
           properties: { drop3: round(cliff.drop3), drop6: round(cliff.drop6), length: round(cliff.length) } })) }));
     }
+    if (cliffs.summary.cliffs201 + cliffs.summary.cliffs202 > 0) {
+      await writeFile(join(dir, "brantlinjer.dxf"), cliffs.dxf);
+      cliffSummary = cliffs.summary;
+    }
+    telemetry.phase();
     // Terrängskuggningen ur samma markraster, som ett underlag att tona.
     if (ground) {
-      await set("Ritar terrängskuggningen", 0, 1);
+      telemetry.phase("msGroundImages"); await set("Ritar terrängskuggningen", 0, 1);
       const shade = hillshade(ground);
       await writeFile(join(dir, "skuggning.png"), shade.png);
       await writeFile(join(dir, "skuggning.pgw"), shade.world);
@@ -352,25 +369,23 @@ async function runJob(job: Job): Promise<void> {
       }
       const heights = heightPng(ground);
       await writeFile(join(dir, "hojd.png"), heights.png);
-      await writeFile(join(dir, "hojd.pgw"), heights.world);
-    }
-    if (cliffs.summary.cliffs201 + cliffs.summary.cliffs202 > 0) {
-      await writeFile(join(dir, "brantlinjer.dxf"), cliffs.dxf);
-      cliffSummary = cliffs.summary;
+      await writeFile(join(dir, "hojd.pgw"), heights.world); telemetry.phase();
     }
     // Grundkartan: vattnet ur lasclips raster (geo-water.ts), så att sjön varken blir blöt mark eller öppen mark.
     let water: ReturnType<typeof waterFromGrids> | undefined;
     const waterFiles = (await readdir(dir)).filter(name => /^vatten\d+\.bin$/.test(name)).sort();
     if (waterFiles.length > 0) {
-      await set("Letar upp vattnet", 0, 1);
+      telemetry.phase("msWater"); await set("Letar upp vattnet", 0, 1);
       const grids = [];
       for (const name of waterFiles) grids.push(readWaterGrid(new Uint8Array(await readFile(join(dir, name)))));
       water = waterFromGrids(grids);
       if (water.summary.waterAreas > 0) await writeFile(join(dir, "vatten.geojson"), water.geojson);
+      telemetry.phase();
     }
     // G8: Lantmäteriets Marktäcke och Byggnad (zip med GeoPackage per kommun) inom rutan, som GeoJSON med importens lagernamn.
     // En produkt som kontot inte kommer åt hoppas över (jobbet går vidare) och sägs i sammanfattningen.
     const extraSummary: Record<string, number | string> = {};
+    if (job.clip && job.extras?.length) telemetry.phase("msExtras");
     for (const extra of job.clip ? job.extras ?? [] : []) {
       const land = extra.kind === "LAND_COVER", label = land ? "marktacke" : extra.kind === "PARCELS" ? "fastigheter" : "byggnader";
       await set(land ? "Läser marktäcket" : extra.kind === "PARCELS" ? "Läser fastighetsindelningen" : "Läser byggnaderna", 0, 1);
@@ -400,11 +415,12 @@ async function runJob(job: Job): Promise<void> {
         extraSummary[label] = Number(extraSummary[label] ?? 0) + result.total;
       } catch (error) { extraSummary[label] = (error instanceof Error ? error.message : "fel").slice(0, 60); }
     }
+    telemetry.phase();
     // K5c del 2: fuktigheten ur rutornas höjdraster (Karttapullautin sparar dem i temp_<ruta>_dir med savetempfolders).
     let moistureSummary: Record<string, number> = {};
     let wetAt: ((x: number, y: number) => boolean) | undefined;
     if (job.moisture) {
-      await set("Räknar fuktigheten", 0, 1);
+      telemetry.phase("msMoisture"); await set("Räknar fuktigheten", 0, 1);
       const folders = (await readdir(dir)).filter(name => /^temp_.+_dir$/.test(name)).sort();
       const grids = [];
       for (const folder of folders) {
@@ -418,7 +434,7 @@ async function runJob(job: Job): Promise<void> {
       await writeFile(join(dir, "fukt.dxf"), moisture.dxf);
       await writeFile(join(dir, "fuktdjup.png"), moisture.depthPng);
       moistureSummary = { wetHa: moisture.summary.wetHa, moistHa: moisture.summary.moistHa, channels: moisture.summary.channels };
-      wetAt = moisture.wetAt;
+      wetAt = moisture.wetAt; telemetry.phase();
     }
     // Ägaren 2026-11-11: diken ur terrängformen (geo-ditches.ts) och reliefen som underlag; de krokiga sänkorna behålls bara
     // där fuktigheten säger fuktigt.
@@ -440,7 +456,7 @@ async function runJob(job: Job): Promise<void> {
     const waterData = water ? { grid: water.grid, mask: water.mask } : undefined;
     let ditchSummary: Record<string, number> = {};
     if (ground) {
-      const found = await step("ditches", "Letar diken i terrängformen", { ground, water: waterData, wet: wetAt ? maskOf(ground, wetAt) : undefined });
+      telemetry.phase("msDitches"); const found = await step("ditches", "Letar diken i terrängformen", { ground, water: waterData, wet: wetAt ? maskOf(ground, wetAt) : undefined });
       if (found) {
         await writeFile(join(dir, "relief.png"), found.png);
         await writeFile(join(dir, "relief.pgw"), found.world);
@@ -450,17 +466,18 @@ async function runJob(job: Job): Promise<void> {
         ditchSummary = { ditches: of("dike").length, terrainChannels: of("fuktstrak_terrang").length };
       }
       // Ägaren 2026-11-17: släpstigar och spår ur reliefen (geo-tracks.ts), som OpenStreetMaps stigar flyttas till i grundkartan.
-      const tracks = await step("tracks", "Letar släpstigar och spår", { ground, water: waterData, wet: wetAt ? maskOf(ground, wetAt) : undefined });
+      telemetry.phase("msTracks"); const tracks = await step("tracks", "Letar släpstigar och spår", { ground, water: waterData, wet: wetAt ? maskOf(ground, wetAt) : undefined });
       if (tracks?.lines.length) {
         await writeFile(join(dir, "spar.dxf"), moistureDxf([{ name: "spar_laser", closed: false, parts: tracks.lines }]));
         ditchSummary = { ...ditchSummary, tracks: tracks.lines.length };
       }
+      telemetry.phase();
     }
     // K5c del 3: vegetationen ur klassbilderna i ./out (<ruta>_vege_bit.png, _undergrowth_bit.png och världsfilen).
     let vegetationSummary: Record<string, number> = {};
     let openAt: ((x: number, y: number) => boolean) | undefined, forestAt: ((x: number, y: number) => boolean) | undefined;
     if (job.vegetation) {
-      await set("Räknar vegetationen", 0, 1);
+      telemetry.phase("msVegetation"); await set("Räknar vegetationen", 0, 1);
       const out = join(dir, "out"), names = (await readdir(out)).filter(name => name.endsWith("_vege_bit.png")).sort();
       const tiles: VegetationTile[] = [];
       for (const name of names) {
@@ -480,14 +497,14 @@ async function runJob(job: Job): Promise<void> {
       await writeFile(join(dir, "vegetationsklasser.png"), vegetation.classPng);
       await writeFile(join(dir, "vegetationsklasser.pgw"), vegetation.world);
       vegetationSummary = vegetation.summary;
-      openAt = vegetation.openAt; forestAt = vegetation.forestAt;
+      openAt = vegetation.openAt; forestAt = vegetation.forestAt; telemetry.phase();
     }
     // Stenar ur markrastret, och berg i dagen där vegetationen är öppen (geo-rock.ts).
     let rockSummary: Record<string, number> = {};
     if (ground) {
-      const stones = (await step("stones", "Letar stenar", { ground, water: waterData })) ?? { stones: [], capped: 0 };
+      telemetry.phase("msStones"); const stones = (await step("stones", "Letar stenar", { ground, water: waterData })) ?? { stones: [], capped: 0 };
       // Berg i dagen: 0 tas inte med, 2 heter «berg_i_dagen» och föreslås som 214, annars utan förslag (förvalet, lärt av Högdalen).
-      const rockMode = job.settings.rock ?? 1;
+      telemetry.phase("msRock"); const rockMode = job.settings.rock ?? 1;
       const rock = openAt && rockMode > 0 ? (await step("rock", "Letar berg i dagen", { ground, water: waterData, open: maskOf(ground, openAt),
         forest: forestAt ? maskOf(ground, forestAt) : undefined }))?.rock ?? [] : [];
       // Ägaren 2026-11-13 («reglage att klassa fler/färre områden som berg»): bergbilden för reglaget i webbläsaren, även när
@@ -497,7 +514,7 @@ async function runJob(job: Job): Promise<void> {
         await writeFile(join(dir, "berg.png"), rockMap.png);
         await writeFile(join(dir, "berg.pgw"), rockMap.world);
       }
-      const hills = (await step("knolls", "Letar små kullar", { ground, water: waterData, stones: stones.stones, knollShare: job.settings.knollshare,
+      telemetry.phase("msKnolls"); const hills = (await step("knolls", "Letar små kullar", { ground, water: waterData, stones: stones.stones, knollShare: job.settings.knollshare,
         wet: wetAt ? maskOf(ground, wetAt) : undefined })) ?? { knolls: [], capped: 0, candidates: [] };
       // Ägaren 2026-11-12: alla möjliga kullar med sina mått, så att reglagen i webbläsaren väljer utan ny körning.
       if (hills.candidates.length) {
@@ -511,17 +528,17 @@ async function runJob(job: Job): Promise<void> {
           { name: "dotknoll_laser", closed: false, points: hills.knolls, parts: [] }]));
       }
       rockSummary = { boulders: stones.stones.length, knolls: hills.knolls.length, bareRockAreas: rock.length,
-        ...(stones.capped + hills.capped ? { cappedPoints: stones.capped + hills.capped } : {}) };
+        ...(stones.capped + hills.capped ? { cappedPoints: stones.capped + hills.capped } : {}) }; telemetry.phase();
     }
     // Sprintkartor (ägaren 2026-11-13, inställningen `paved`): belagd yta ur markträffarnas intensitet (geo-paved.ts).
     let pavedSummary: Record<string, number> = {};
     if (job.settings.paved === 1 && pointStats) {
-      await set("Letar belagd yta", 0, 1);
+      telemetry.phase("msPaved"); await set("Letar belagd yta", 0, 1);
       const paved = pavedFromPoints(pointStats, water?.at);
       if (paved.rings.length) await writeFile(join(dir, "belagt.dxf"), moistureDxf([{ name: "belagd_yta_laser", closed: true, parts: paved.rings }]));
       pavedSummary = { pavedHa: paved.pavedHa, ...(paved.limit !== undefined ? { pavedLimit: paved.limit } : {}) };
     }
-    const files = new Set(await readdir(dir));
+    telemetry.phase("msUpload"); const files = new Set(await readdir(dir));
     const uploads: (readonly [string, string, string])[] = [["karta.png", "merged.png", "image/png"], ["karta.pgw", "merged.pgw", "text/plain"],
       ...VECTOR_OUTPUTS.filter(([name, source]) => files.has(source) && (!RAW_TICK_OUTPUTS.has(name) || keepsRawTicks(job, files.has("brantlinjer.dxf")))).map(([name, source]) => [name, source, "application/dxf"] as const),
       ...(job.moisture ? [["fukt.png", "fukt.png", "image/png"], ["fukt.pgw", "fukt.pgw", "text/plain"], ["fukt.dxf", "fukt.dxf", "application/dxf"],
@@ -568,7 +585,7 @@ async function runJob(job: Job): Promise<void> {
       done += 1;
     }
     const finished = await call(`/api/geo-worker/jobs/${job.jobId}/finish`, { method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ status: "DONE", summary: { worker: WORKER_VERSION, tiles: job.tiles.length, scale, memoryMb: Math.round(process.memoryUsage().rss / 1e6), serverMemoryMb: Math.round(totalmem() / 1e6), cores: cpus().length, parallelTiles: together, ...(skippedOutputs.length ? { skippedOutputs: skippedOutputs.length } : {}), ...(skippedSteps.length ? { skippedSteps: skippedSteps.join(",") } : {}), ...(water ? { waterHa: water.summary.waterHa } : {}), ...cliffSummary, ...extraSummary, ...moistureSummary, ...ditchSummary, ...vegetationSummary, ...rockSummary, ...pavedSummary } }) });
+      body: JSON.stringify({ status: "DONE", summary: { worker: WORKER_VERSION, tiles: job.tiles.length, scale, memoryMb: telemetry.sample(), serverMemoryMb: Math.round(totalmem() / 1e6), cores: cpus().length, parallelTiles: together, ...telemetry.summary(), ...(skippedOutputs.length ? { skippedOutputs: skippedOutputs.length } : {}), ...(skippedSteps.length ? { skippedSteps: skippedSteps.join(",") } : {}), ...(water ? { waterHa: water.summary.waterHa } : {}), ...cliffSummary, ...extraSummary, ...moistureSummary, ...ditchSummary, ...vegetationSummary, ...rockSummary, ...pavedSummary } }) });
     console.log(`Geo-jobb ${job.jobId}: klart (${job.tiles.length} rutor, skala ${scale}, svar ${finished.status})`);
   } finally {
     clearInterval(timer);
@@ -582,7 +599,7 @@ async function runJob(job: Job): Promise<void> {
  * En fil som inte går att lägga ihop hoppas över (namnen står i sammanfattningen), utom kartbilden.
  */
 async function runMergeJob(job: Job): Promise<void> {
-  const stages = job.merge!.stages, dir = join(workdir, job.jobId);
+  const stages = job.merge!.stages, dir = join(workdir, job.jobId), telemetry = createJobTelemetry();
   await rm(dir, { recursive: true, force: true });
   await mkdir(dir, { recursive: true });
   const control = new AbortController();
@@ -592,7 +609,7 @@ async function runMergeJob(job: Job): Promise<void> {
       body: JSON.stringify(progress) }).catch(() => undefined);
     const body = response?.ok ? await response.json().catch(() => undefined) as { action?: string } | undefined : undefined;
     if (body?.action === "stop") control.abort();
-    console.log(`${job.jobId.slice(0, 8)} ${progress.step} ${progress.done}/${progress.total} ${Math.round(process.memoryUsage().rss / 1e6)} MB`);
+    console.log(`${job.jobId.slice(0, 8)} ${progress.step} ${progress.done}/${progress.total} ${telemetry.sample()} MB`);
   };
   const timer = setInterval(() => void beat(), 60_000);
   const set = async (done: number, total: number) => { progress = { step: "Lägger ihop etapperna", done, total }; await beat(); if (control.signal.aborted) throw new Stopped(); };
@@ -623,6 +640,7 @@ async function runMergeJob(job: Job): Promise<void> {
       done += 1;
       const having = stages.filter(stage => stage.outputs.includes(name));
       if (RAW_TICK_OUTPUTS.has(name) && !keepsRawTicks(job, stages.every(stage => stage.outputs.includes("brantlinjer.dxf")))) continue;
+      telemetry.phase(name.endsWith(".png") ? "msPngMerge" : name.endsWith(".dxf") ? "msDxfMerge" : name.endsWith(".geojson") ? "msGeoJsonMerge" : undefined);
       try {
         if (name.endsWith(".png")) {
           const world = name.replace(/\.png$/, ".pgw");
@@ -674,11 +692,11 @@ async function runMergeJob(job: Job): Promise<void> {
         if (name.startsWith("karta.") || /fick inte plats|kunde inte skickas|är för stor/.test(error instanceof Error ? error.message : "")) throw error;
         console.error(`Geo-jobb ${job.jobId}: ${name} lades inte ihop: ${error instanceof Error ? error.message : String(error)}`);
         skipped.push(name);
-      }
+      } finally { telemetry.phase(); }
     }
     await set(names.length, names.length);
     const finished = await call(`/api/geo-worker/jobs/${job.jobId}/finish`, { method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ status: "DONE", summary: { worker: WORKER_VERSION, mergedStages: stages.length, memoryMb: Math.round(process.memoryUsage().rss / 1e6),
+      body: JSON.stringify({ status: "DONE", summary: { worker: WORKER_VERSION, mergedStages: stages.length, memoryMb: telemetry.sample(), ...telemetry.summary(),
         ...(skipped.length ? { skippedOutputs: skipped.length, skippedOutputNames: skipped.join(",").slice(0, 400) } : {}) } }) });
     console.log(`Geo-jobb ${job.jobId}: ${stages.length} etapper ihoplagda (svar ${finished.status})`);
   } finally {

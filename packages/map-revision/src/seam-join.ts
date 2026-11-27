@@ -25,7 +25,9 @@ export function joinSeams(features: readonly SourceFeature[], tolerance = 0.5, l
     const ends = new Map<string, { line: Open; start: boolean }[]>();
     for (const line of group.lines) for (const start of [true, false]) {
       const cell = cellOf(start ? line.points[0]! : line.points.at(-1)!);
-      ends.set(cell, [...ends.get(cell) ?? [], { line, start }]);
+      const bucket = ends.get(cell);
+      if (bucket) bucket.push({ line, start });
+      else ends.set(cell, [{ line, start }]);
     }
     const neighbour = (point: Position, self: Open) => {
       const [cx, cy] = [Math.floor(point[0] / tolerance), Math.floor(point[1] / tolerance)];
@@ -36,21 +38,34 @@ export function joinSeams(features: readonly SourceFeature[], tolerance = 0.5, l
       }
       return undefined;
     };
+    const appendPoints = (chain: Position[], pts: readonly Position[], fromStart: boolean) => {
+      if (fromStart) {
+        for (let i = 1; i < pts.length; i += 1) chain.push(pts[i]!);
+      } else {
+        for (let i = pts.length - 2; i >= 0; i -= 1) chain.push(pts[i]!);
+      }
+    };
     for (const line of group.lines) {
       if (line.used) continue;
       line.used = true;
-      let chain = [...line.points];
-      // Framåt från slutet, sedan bakåt från början.
-      for (const forward of [true, false]) {
-        for (;;) {
-          const tip = forward ? chain.at(-1)! : chain[0]!;
-          const next = neighbour(tip, line);
-          if (!next) break;
-          next.line.used = true;
-          const points = next.start === forward ? next.line.points : [...next.line.points].reverse();
-          chain = forward ? [...chain, ...points.slice(1)] : [...points.slice(0, -1), ...chain];
-        }
+      const chain = line.points.slice();
+      // Framåt från slutet med .push(), sedan bakåt från början (vänd en gång vid första bakåtträffen).
+      for (;;) {
+        const next = neighbour(chain[chain.length - 1]!, line);
+        if (!next) break;
+        next.line.used = true;
+        appendPoints(chain, next.line.points, next.start);
       }
+      let reversed = false;
+      for (;;) {
+        const tip = reversed ? chain[chain.length - 1]! : chain[0]!;
+        const next = neighbour(tip, line);
+        if (!next) break;
+        if (!reversed) { chain.reverse(); reversed = true; }
+        next.line.used = true;
+        appendPoints(chain, next.line.points, next.start);
+      }
+      if (reversed) chain.reverse();
       const closed = chain.length >= 4 && close(chain[0]!, chain.at(-1)!);
       keep.push({ layer: group.layer, ...(group.elevation !== undefined ? { elevation: group.elevation } : {}),
         geometry: { kind: "line", points: closed ? chain.slice(0, -1) : chain, closed } });

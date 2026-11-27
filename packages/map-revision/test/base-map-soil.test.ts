@@ -121,4 +121,20 @@ describe("fuktstråken på torr mark (ägaren 2026-11-14)", () => {
     const stream = line("fuktstrak", wiggle(10, 290, 50));
     expect(marshOffDrySoil([stream], [soil("dry", box(0, 0, 300, 100))], { streams: false }).features).toEqual([stream]);
   });
+
+  it("batchar långa kustlinjer (500+ segment) i shoreBuffer utan att stalla och bevarar strandkärret", () => {
+    // 520 kustsegment längs en slingrande strand vid x ≈ 0, y = 0..2600 m.
+    const coast: [number, number][] = [];
+    for (let i = 0; i <= 520; i += 1) coast.push([Math.sin(i * 0.2) * 3, i * 5]);
+    coast.push([-100, 2600], [-100, 0], coast[0]!);
+    const water: SourceFeature = { layer: "vatten", geometry: { kind: "area", rings: [coast] } };
+    const shoreMarsh = marsh("blott", box(5, 100, 25, 200));
+    const inlandMarsh = marsh("blott", box(120, 100, 200, 200));
+    const started = performance.now();
+    const result = marshOffDrySoil([water, shoreMarsh, inlandMarsh], [soil("dry", box(-200, -100, 400, 2700))], { water: [water] });
+    expect(performance.now() - started).toBeLessThan(3000);
+    const keptMarsh = result.features.filter(f => f.layer === "blott");
+    expect(keptMarsh).toHaveLength(1);
+    expect(areaOf(keptMarsh)).toBeGreaterThan(1500);
+  });
 });

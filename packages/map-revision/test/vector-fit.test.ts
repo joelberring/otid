@@ -39,4 +39,14 @@ describe("Passa in mot kartan (ägaren 2026-11-10)", () => {
     const other = move(town().map(point => ({ ...point, at: { x: 200 - point.at.y, y: point.at.x } })), 0, 500, 500);
     expect(fitToMap(other, map)).toBeUndefined();
   });
+
+  it("hittar par på 2–3 mm i refine även över cellgränser (rutnätsstorlek 3 mm)", () => {
+    // Med searchMm = 0 börjar refine() i origo: en ren förskjutning på 2,6 mm kräver att rutnätet når 3 mm över cellgränser.
+    const shifted = move(map, 0, 2.6, 0);
+    const fit = fitToMap(shifted, map, { searchMm: 0, rotationDeg: 0, allowScale: false });
+    expect(fit).toBeDefined();
+    expect(fit!.dx).toBeCloseTo(-2.6, 1);
+    expect(fit!.dy).toBeCloseTo(0, 1);
+    expect(fit!.share).toBeGreaterThan(0.95);
+  });
 });

@@ -1,4 +1,4 @@
-import { arcEntity, bulgedPoints, hatchAreas } from "./dxf-curves";
+import { arcEntity, bulgedPoints, hatchAreas, splineEntity } from "./dxf-curves";
 
 /**
  * ADR-0219 tillägget om vektorunderlagen (K4b): GeoJSON och DXF (text) läses till objekt per lager i källans koordinater. Inget
@@ -110,28 +110,57 @@ export function parseGeoJson(text: string, options: { readonly properties?: bool
 
 /**
  * DXF i textform: POINT, INSERT och CIRCLE (punkter), LINE, ARC, LWPOLYLINE och POLYLINE med VERTEX (bågarna i hörnens bulge
- * utplattade), SPLINE (anpassningspunkterna) och HATCH (gränsvägarna som ytor, med hål; `dxf-curves.ts`).
+ * utplattade), SPLINE (anpassningspunkterna eller De Boor-evaluerad B-spline) och HATCH (gränsvägarna som ytor, med hål;
+ * `dxf-curves.ts`). Läser rader med indexskanning (`indexOf("\n")`) utan full-fils `split` eller par-array över hela filen.
  */
 export function parseDxf(text: string): SourceData {
   if (text.startsWith("AutoCAD Binary DXF")) throw new VectorParseError("Binär DXF stöds inte; spara som DXF i textform.");
-  const lines = text.split(/\r?\n/);
-  const pairs: [number, string][] = [];
-  for (let index = 0; index + 1 < lines.length; index += 2) {
-    const code = Number(lines[index]!.trim());
+  const len = text.length;
+  let pos = 0, eof = false;
+  const nextLine = (): string | undefined => {
+    if (eof) return undefined;
+    const nl = text.indexOf("\n", pos);
+    if (nl < 0) {
+      eof = true;
+      const end = len > pos && text.charCodeAt(len - 1) === 13 ? len - 1 : len;
+      return text.slice(pos, end);
+    }
+    const end = nl > pos && text.charCodeAt(nl - 1) === 13 ? nl - 1 : nl;
+    const line = text.slice(pos, end);
+    pos = nl + 1;
+    return line;
+  };
+  const nextPair = (): [number, string] | undefined => {
+    const codeLine = nextLine();
+    if (codeLine === undefined) return undefined;
+    const valueLine = nextLine();
+    if (valueLine === undefined) return undefined;
+    const code = Number(codeLine.trim());
     if (!Number.isInteger(code)) throw new VectorParseError("Filen är inte DXF.");
-    pairs.push([code, lines[index + 1]!.trim()]);
+    return [code, valueLine.trim()];
+  };
+  // Hoppa fram till SECTION / ENTITIES utan att spara föregående sektioner i minnet.
+  let foundEntities = false;
+  let prevValue = "";
+  for (;;) {
+    const pair = nextPair();
+    if (!pair) break;
+    if (pair[0] === 2 && pair[1] === "ENTITIES" && prevValue === "SECTION") { foundEntities = true; break; }
+    prevValue = pair[1];
   }
-  const start = pairs.findIndex(([code, value], index) => code === 2 && value === "ENTITIES" && pairs[index - 1]?.[1] === "SECTION");
-  if (start < 0) throw new VectorParseError("DXF-filen saknar ENTITIES.");
+  if (!foundEntities) throw new VectorParseError("DXF-filen saknar ENTITIES.");
   const features: SourceFeature[] = [];
   let skipped = 0;
-  let index = start + 1;
+  let lookahead = nextPair();
   // En entitet: från dess 0-kod till nästa.
   const entity = () => {
-    const type = pairs[index]![1];
+    const type = lookahead![1];
     const body: [number, string][] = [];
-    index += 1;
-    while (index < pairs.length && pairs[index]![0] !== 0) { body.push(pairs[index]!); index += 1; }
+    lookahead = nextPair();
+    while (lookahead && lookahead[0] !== 0) {
+      body.push(lookahead);
+      lookahead = nextPair();
+    }
     return { type, body };
   };
   const layerOfBody = (body: [number, string][]) => body.find(([code]) => code === 8)?.[1] || "0";
@@ -164,10 +193,10 @@ export function parseDxf(text: string): SourceData {
     }
     return {};
   };
-  while (index < pairs.length) {
-    const [code, value] = pairs[index]!;
+  while (lookahead) {
+    const [code, value] = lookahead;
     if (code === 0 && value === "ENDSEC") break;
-    if (code !== 0) { index += 1; continue; }
+    if (code !== 0) { lookahead = nextPair(); continue; }
     const { type, body } = entity();
     const layer = layerOfBody(body);
     if (type === "POINT" || type === "INSERT" || type === "CIRCLE") {
@@ -184,24 +213,24 @@ export function parseDxf(text: string): SourceData {
       for (const rings of areas) features.push({ layer, geometry: { kind: "area", rings } });
       if (areas.length === 0) skipped += 1;
     } else if (type === "LWPOLYLINE") {
-      const points = bulged(body, (flags(body) & 1) === 1) ?? coordinates(body, 10, 20);
-      if (points.length >= 2) features.push({ layer, geometry: lineOf(points, (flags(body) & 1) === 1), ...elevationOf(body) }); else skipped += 1;
+      const closed = (flags(body) & 1) === 1;
+      const points = bulged(body, closed) ?? coordinates(body, 10, 20);
+      if (points.length >= 2) features.push({ layer, geometry: lineOf(points, closed), ...elevationOf(body) }); else skipped += 1;
     } else if (type === "SPLINE") {
-      const fit = coordinates(body, 11, 21);
-      const points = fit.length >= 2 ? fit : coordinates(body, 10, 20);
+      const points = splineEntity(body);
       if (points.length >= 2) features.push({ layer, geometry: { kind: "line", points, closed: (flags(body) & 1) === 1 } }); else skipped += 1;
     } else if (type === "POLYLINE") {
       const closed = (flags(body) & 1) === 1;
       let points: Position[] = [];
       const bulges: number[] = [];
       let first: [number, string][] | undefined;
-      while (index < pairs.length && pairs[index]![1] === "VERTEX") {
+      while (lookahead && lookahead[0] === 0 && lookahead[1] === "VERTEX") {
         const vertex = entity();
         first ??= vertex.body;
         const at = coordinates(vertex.body, 10, 20)[0];
-        if (at) { points.push(at); bulges.push(Number(vertex.body.find(([code]) => code === 42)?.[1] ?? 0) || 0); }
+        if (at) { points.push(at); bulges.push(Number(vertex.body.find(([c]) => c === 42)?.[1] ?? 0) || 0); }
       }
-      if (pairs[index]?.[1] === "SEQEND") entity();
+      if (lookahead && lookahead[0] === 0 && lookahead[1] === "SEQEND") entity();
       if (bulges.some(bulge => bulge !== 0)) points = bulgedPoints(points.map((at, k) => ({ at, bulge: bulges[k]! })), closed);
       if (points.length >= 2) features.push({ layer, geometry: lineOf(points, closed), ...elevationOf(body, first) }); else skipped += 1;
     } else skipped += 1;

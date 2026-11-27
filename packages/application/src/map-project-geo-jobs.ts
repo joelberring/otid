@@ -14,7 +14,7 @@ import { allowedLaserUrl, fetchLaserFile, type LaserRuntime } from "./map-projec
 import type { LantmaterietFailure } from "./map-project-lantmateriet";
 import { missingMapSourceCredential, openMapSourceCredential, type MapSourceCredentialGap } from "./map-source-credentials";
 import { claimedStages, completeStageMerge, geoMergeOf, queueStageMerge } from "./map-project-geo-merge";
-import { geoServerForToken, geoServerSettings, geoServerStateView, noteGeoServerJob } from "./geo-server";
+import { geoServerForToken, geoServerSettings, geoServerStateView, noteGeoServerJob, storedGeoServerStateView } from "./geo-server";
 import { adoptRegeneratedJob } from "./map-project-regenerate";
 import { afterRegenerableStored, laserRecipe } from "./map-regenerable";
 import { rawLaserViews } from "./map-project-raw-laser";
@@ -138,6 +138,12 @@ async function rows(tx: DbExecutor, projectId: string, jobId?: string) {
     .from(outputs).where(inArray(outputs.jobId, list.map(row => row.job.id))).orderBy(asc(outputs.name)) : [];
   return list.map(row => ({ ...row, files: files.filter(file => file.jobId === row.job.id) }));
 }
+function summaryOf(value: unknown): Readonly<Record<string, number | string>> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter((entry): entry is [string, number | string] => typeof entry[1] === "number" || typeof entry[1] === "string");
+  return entries.length ? Object.fromEntries(entries) : null;
+}
 function toView(row: Awaited<ReturnType<typeof rows>>[number], viewer: string): GeoJobView {
   const job = row.job, request = job.request as { name?: string; tiles?: unknown[]; settings?: Record<string, number>; clip?: GeoJobView["clip"]; areaId?: string; extras?: { kind: GeoJobView["extras"][number] }[]; cliffs?: GeoJobView["cliffs"];
     moisture?: GeoJobView["moisture"]; vegetation?: GeoJobView["vegetation"] };
@@ -149,7 +155,8 @@ function toView(row: Awaited<ReturnType<typeof rows>>[number], viewer: string): 
     moistureLayerId: typeof job.result?.moistureLayerId === "string" ? job.result.moistureLayerId : null, moisture: request.moisture ?? null,
     vegetation: request.vegetation ?? null, outputs: row.files.map(file => ({ name: file.name, mediaType: file.mediaType, byteSize: file.byteSize })),
     createdBy: { accountId: job.accountId ?? null, name: row.creator }, own: job.accountId === viewer, createdAt: job.createdAt.toISOString(),
-    finishedAt: job.finishedAt?.toISOString() ?? null, ...(geoMergeOf(job) ? { mergedStages: geoMergeOf(job)!.stages.length } : {}),
+    startedAt: job.startedAt?.toISOString() ?? null, finishedAt: job.finishedAt?.toISOString() ?? null, attempts: job.attempts,
+    summary: summaryOf(job.result?.summary), ...(geoMergeOf(job) ? { mergedStages: geoMergeOf(job)!.stages.length } : {}),
     ...((job.request as { rawLaser?: boolean }).rawLaser ? { rawLaserRequested: true } : {}) };
 }
 /** Jobben med zip-filerna med rå laserdata (PLAN.md M6). */
@@ -636,11 +643,14 @@ export async function finishGeoJob(db: Database, jobId: string, worker: string, 
 }
 
 /**
- * Geo-serverns läge som användaren ser det. Utan nyckel och utan Hetzner är geo-arbetaren inte inställd; ett jobb som
- * nyss hörts av betyder att servern är igång. Med den automatiska starten (K5b) gäller läget som den senast skrev.
+ * Geo-serverns läge som användaren ser det. Med den automatiska starten (K5b) gäller läget som `web` senast skrev i
+ * `geo_server_state` (gäller även instanser som `web-public` utan Hetzner-nyckel). Saknas både registrerad serverstatus och
+ * `OTID_GEO_WORKER_TOKEN` är geo-arbetaren inte inställd; annars visar nyss hörda jobb om en fristående arbetare är igång.
  */
 export async function geoServerView(db: DbExecutor, environment: Record<string, string | undefined> = process.env, now = new Date()): Promise<GeoServerView> {
   if (geoServerSettings(environment)) return geoServerStateView(db);
+  const stored = await storedGeoServerStateView(db);
+  if (stored) return stored;
   if (!environment.OTID_GEO_WORKER_TOKEN?.trim()) return { state: "NOT_CONFIGURED", detail: null };
   const [row] = await db.select({ value: sql<number>`count(*)::int` }).from(jobs)
     .where(and(eq(jobs.status, "RUNNING"), gte(jobs.heartbeatAt, new Date(now.getTime() - 3 * 60_000))));

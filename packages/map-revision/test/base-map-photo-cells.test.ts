@@ -76,6 +76,25 @@ describe("Fyll ytor ur flygbilden: klassningen", () => {
     expect(stats.valid).toBe(8);
     expect(stats.texture).toBe(0);
   });
+  it("lokala radbuffertar för face-bboxen ger identisk statistik långt ut i en bred bild", () => {
+    const width = 2000, height = 20, data = new Uint8ClampedArray(width * height * 4);
+    const fillTile = (colOffset: number) => {
+      for (let y = 0; y < 10; y += 1) for (let x = 0; x < 10; x += 1) {
+        const v = ((x + y) % 2 === 0) ? 180 : 90;
+        data.set([v, v, v, 255], (y * width + (colOffset + x)) * 4);
+      }
+    };
+    fillTile(0);
+    fillTile(1850);
+    // Sätt en kontrasterande kolumn precis före rutan vid 1849 så att vi verifierar att local = 0 inte läser utanför rutan.
+    for (let y = 0; y < 10; y += 1) data.set([10, 10, 10, 255], (y * width + 1849) * 4);
+    const img: PhotoRaster = { width, height, data, minX: 0, maxY: height, step: 1 };
+    const leftStats = photoCellStats(img, [[{ x: 0, y: 10 }, { x: 10, y: 10 }, { x: 10, y: 20 }, { x: 0, y: 20 }]]);
+    const rightStats = photoCellStats(img, [[{ x: 1850, y: 10 }, { x: 1860, y: 10 }, { x: 1860, y: 20 }, { x: 1850, y: 20 }]]);
+    expect(rightStats).toEqual(leftStats);
+    expect(rightStats.valid).toBe(100);
+    expect(rightStats.texture).toBeGreaterThan(0);
+  });
 });
 
 const symbol = (id: string, code: string): MapSymbol => ({ id, kind: "AREA", hidden: false, name: code,

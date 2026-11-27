@@ -76,10 +76,7 @@ export function cutRing(ring: Ring): [number, number][] | undefined {
   const columns = Math.ceil((maxX - minX + 2 * margin) / CUT_CELL), rows = Math.ceil((maxY - minY + 2 * margin) / CUT_CELL);
   if (columns * rows > 4_000_000) return ring.map(([x, y]) => [x, y]);
   const labels = new Uint8Array(columns * rows).fill(VEG_FOREST);
-  for (let column = 0; column < columns; column += 1) {
-    const x = left + (column + 0.5) * CUT_CELL;
-    for (let row = 0; row < rows; row += 1) if (inside(ring, x, top - (row + 0.5) * CUT_CELL)) labels[column * rows + row] = VEG_OPEN;
-  }
+  fillRingScanline(labels, ring, left, top, columns, rows, CUT_CELL, VEG_OPEN);
   const general = generalizeVegetation(labels, columns, rows, { cellMeters: CUT_CELL, scale: CUT_SCALE, level: CUT_LEVEL });
   const outlines = maskOutlines(vegetationLayerMask(general, columns, rows, VEG_OPEN), columns, rows);
   let best: [number, number][] | undefined, bestArea = 0;
@@ -182,6 +179,40 @@ function roundExcept(ring: readonly Point[], sharp: readonly boolean[], rounds: 
   return points;
 }
 
+/** Scanline-fyllning av `ring` i kolumn-major-rastret `labels` med exakt paritet mot `inside(ring, x, y)`. */
+export function fillRingScanline(labels: Uint8Array, ring: Ring, left: number, top: number, columns: number, rows: number, cell: number, fillValue: number) {
+  let minY = Infinity, maxY = -Infinity;
+  for (let i = 0; i < ring.length; i += 1) {
+    const y = ring[i]![1];
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  const firstRow = Math.max(0, Math.floor((top - maxY) / cell - 0.5));
+  const lastRow = Math.min(rows - 1, Math.ceil((top - minY) / cell - 0.5));
+  const xs: number[] = [];
+  for (let row = firstRow; row <= lastRow; row += 1) {
+    const y = top - (row + 0.5) * cell;
+    xs.length = 0;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i, i += 1) {
+      const [xi, yi] = ring[i]!, [xj, yj] = ring[j]!;
+      if ((yi > y) !== (yj > y)) xs.push((xj - xi) * (y - yi) / (yj - yi) + xi);
+    }
+    if (xs.length < 2) continue;
+    xs.sort((a, b) => a - b);
+    for (let k = 0; k + 1 < xs.length; k += 2) {
+      const xStart = xs[k]!, xEnd = xs[k + 1]!;
+      let start = Math.max(0, Math.ceil((xStart - left) / cell - 0.5));
+      let end = Math.min(columns - 1, Math.ceil((xEnd - left) / cell - 0.5) - 1);
+      // Exakt flyttalsjustering mot `x = left + (col + 0.5) * cell` så pariteten mot `x < cx` är bitexakt.
+      while (start > 0 && left + (start - 0.5) * cell >= xStart) start -= 1;
+      while (start < columns && left + (start + 0.5) * cell < xStart) start += 1;
+      while (end + 1 < columns && left + (end + 1.5) * cell < xEnd) end += 1;
+      while (end >= 0 && left + (end + 0.5) * cell >= xEnd) end -= 1;
+      for (let column = start; column <= end; column += 1) labels[column * rows + row] = fillValue;
+    }
+  }
+}
+
 function inside(ring: Ring, x: number, y: number): boolean {
   let hit = false;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i, i += 1) {
@@ -194,11 +225,16 @@ const VEGETATION = /^(oppen_mark|oppen_mark_laser|gron_|undervegetation_)/;
 /** Laserns vegetationsytor vars mitt ligger i ett hygge som är yngre än skanningen tas bort (skogen där är avverkad). */
 export function withoutCutVegetation(features: readonly SourceFeature[], afterScan: readonly Ring[]): SourceFeature[] {
   if (!afterScan.length) return [...features];
+  const cuts = afterScan.map(ring => {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const [x, y] of ring) { if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; }
+    return { ring, minX, minY, maxX, maxY };
+  });
   return features.filter(feature => {
     if (!VEGETATION.test(feature.layer)) return true;
     const ring = feature.geometry.kind === "area" ? feature.geometry.rings[0] : feature.geometry.kind === "line" ? feature.geometry.points : undefined;
     if (!ring?.length) return true;
     const x = ring.reduce((sum, point) => sum + point[0], 0) / ring.length, y = ring.reduce((sum, point) => sum + point[1], 0) / ring.length;
-    return !afterScan.some(cut => inside(cut, x, y));
+    return !cuts.some(cut => x >= cut.minX && x <= cut.maxX && y >= cut.minY && y <= cut.maxY && inside(cut.ring, x, y));
   });
 }

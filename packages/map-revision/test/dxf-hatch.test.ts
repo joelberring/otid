@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { arcSteps, evaluateBSpline } from "../src/dxf-curves";
 import { parseDxf, type SourceGeometry } from "../src/vector-parse";
 
 /** ADR-0219 K6b-tillägget 2026-11-23: HATCH-ytor (Stockholms byggnader och sjöar), bågar och buktiga polylinjer i DXF. */
@@ -56,7 +57,11 @@ describe("HATCH i DXF", () => {
       "10", 0, "20", 0, "10", 3, "20", 5, "10", 7, "20", 5, "10", 10, "20", 0, "72", 1, "10", 10, "20", 0, "11", 0, "21", 0, "97", 0];
     const [half, curve] = parseDxf(dxf(hatch("E", [ellipse]), hatch("S", [spline]))).features;
     expect(area(half!.geometry)).toBeCloseTo(Math.PI * 10 * 5 / 2, 0);
-    expect(curve!.geometry.kind === "area" ? curve!.geometry.rings[0]!.length : 0).toBe(4);
+    // Kubisk Bézier (0,0)-(3,5)-(7,5)-(10,0) stängd av kordan har exakt area 25,5 och topp i (5, 3,75).
+    expect(curve!.geometry.kind === "area" ? curve!.geometry.rings[0]!.length : 0).toBeGreaterThan(8);
+    expect(area(curve!.geometry)).toBeCloseTo(25.5, 1);
+    const ys = curve!.geometry.kind === "area" ? curve!.geometry.rings[0]!.map(([, y]) => y) : [];
+    expect(Math.max(...ys)).toBeCloseTo(3.75, 2);
   });
 
   it("gör en inre väg till ett hål och en väg bredvid till en egen yta", () => {
@@ -90,5 +95,53 @@ describe("bågar i DXF", () => {
     // Negativ bulge: medurs, alltså över linjen.
     expect(Math.max(...bulged!.map(([, y]) => y))).toBeCloseTo(5, 1);
     expect(bulged![bulged!.length - 1]).toEqual([10, 0]);
+  });
+
+  it("delar bågar adaptivt efter sagitta: glest på 0,2 m hörnradie, tätt och exakt på 200 m radie", () => {
+    expect(arcSteps(Math.PI / 2, 0.2)).toBeLessThanOrEqual(3);
+    expect(arcSteps(Math.PI / 2, 200)).toBeGreaterThanOrEqual(50);
+    const data = parseDxf(dxf(
+      ["0", "ARC", "8", "Liten", "10", 0, "20", 0, "40", 0.2, "50", 0, "51", 90],
+      ["0", "ARC", "8", "Stor", "10", 0, "20", 0, "40", 200, "50", 0, "51", 90]
+    ));
+    const [small, large] = data.features.map(f => f.geometry.kind === "line" ? f.geometry.points : []);
+    expect(small!.length).toBeLessThanOrEqual(4);
+    expect(large!.length).toBeGreaterThanOrEqual(50);
+    // Kontrollera att kordavvikelsen (sagitta) på den stora 200 m-bågen är <= 0,02 m överallt.
+    for (let i = 1; i < large!.length; i += 1) {
+      const a = large![i - 1]!, b = large![i]!;
+      const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+      expect(200 - Math.hypot(mx, my)).toBeLessThanOrEqual(0.0205);
+    }
+  });
+
+  it("evaluerar DXF SPLINE utan anpassningspunkter med De Boor (inkl. rationell NURBS-kvartscirkel och S-kurva)", () => {
+    // 1. Kubisk Bézier som SPLINE utan fit-punkter (11/21 saknas).
+    const cubic = ["0", "SPLINE", "8", "Kurva", "70", 0, "71", 3, "72", 8, "73", 4, "74", 0,
+      ...[0, 0, 0, 0, 1, 1, 1, 1].flatMap(k => ["40", k]),
+      "10", 0, "20", 0, "10", 3, "20", 5, "10", 7, "20", 5, "10", 10, "20", 0];
+    // 2. Rationell kvadratisk NURBS: exakt kvartscirkel med radie 10 (vikt cos(45°) = √2/2 på mittpunkten).
+    const quarterCircle = ["0", "SPLINE", "8", "Cirkel", "70", 4, "71", 2, "72", 6, "73", 3, "74", 0,
+      ...[0, 0, 0, 1, 1, 1].flatMap(k => ["40", k]),
+      "10", 10, "20", 0, "41", 1,
+      "10", 10, "20", 10, "41", Math.SQRT1_2,
+      "10", 0, "20", 10, "41", 1];
+    // 3. SPLINE med fit-punkter använder fortfarande fit-punkterna.
+    const withFit = ["0", "SPLINE", "8", "Fit", "70", 0, "71", 3, "11", 0, "21", 0, "11", 5, "21", 2, "11", 10, "21", 0];
+    const data = parseDxf(dxf(cubic, quarterCircle, withFit));
+    expect(data.features).toHaveLength(3);
+    const [ptsCubic, ptsCircle, ptsFit] = data.features.map(f => f.geometry.kind === "line" ? f.geometry.points : []);
+    expect(ptsCubic!.length).toBeGreaterThan(8);
+    expect(ptsCubic![0]).toEqual([0, 0]);
+    expect(ptsCubic![ptsCubic!.length - 1]).toEqual([10, 0]);
+    expect(Math.max(...ptsCubic!.map(([, y]) => y))).toBeCloseTo(3.75, 2);
+    expect(ptsCircle!.length).toBeGreaterThan(6);
+    for (const [x, y] of ptsCircle!) expect(Math.hypot(x, y)).toBeCloseTo(10, 4);
+    expect(ptsFit).toEqual([[0, 0], [5, 2], [10, 0]]);
+    // S-kurva med inflexionspunkt mitt på kordan måste fortfarande delas upp (inte kollapsa till rak linje).
+    const sCurve = evaluateBSpline([[0, 0], [1, 4], [2, -4], [3, 0]], 3, [0, 0, 0, 0, 1, 1, 1, 1]);
+    expect(sCurve.length).toBeGreaterThan(8);
+    expect(Math.max(...sCurve.map(([, y]) => y))).toBeGreaterThan(1);
+    expect(Math.min(...sCurve.map(([, y]) => y))).toBeLessThan(-1);
   });
 });

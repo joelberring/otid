@@ -197,4 +197,67 @@ describe("joinLines vid korsningar (ägaren 2026-11-15: raka streck ur OpenStree
     const points = result.lines.flat().map(point => `${point.x},${point.y}`);
     expect(points).toContain("0,0"); expect(points).toContain("20,0"); expect(points).toContain("10,50");
   });
+
+  it("hittar grannändpunkter över 0,01 mm-cellgränsen (3×3-sökning) utan att foga punkter längre isär", () => {
+    const p = (x: number, y: number) => ({ x, y });
+    // 0,0049 avrundas till cell 0 medan 0,0051 avrundas till cell 1, men avståndet är bara 0,0002 mm <= 0,01 mm.
+    const across = joinLines([[p(0, 0), p(0.0049, 0)], [p(0.0051, 0), p(10, 0)]]);
+    expect(across.joined).toBe(1);
+    expect(across.lines).toHaveLength(1);
+    expect(across.lines[0]).toHaveLength(3);
+    // Avstånd 0,0151 mm > 0,01 mm får inte fogas ihop.
+    const far = joinLines([[p(0, 0), p(0.0049, 0)], [p(0.02, 0), p(10, 0)]]);
+    expect(far.joined).toBe(0);
+    expect(far.lines).toHaveLength(2);
+  });
+
+  it("hanterar 10 000 slutna ringar (med hål) och långa hopslagna kedjor utan O(N^2)-inbromsning", () => {
+    const features = [];
+    // 5 000 yttre kvadrater + 5 000 hål inuti var sin kvadrat = 10 000 ringar.
+    for (let i = 0; i < 5000; i += 1) {
+      const col = i % 100, row = Math.floor(i / 100);
+      const x = 675000 + col * 20, y = 6580000 + row * 20;
+      features.push({
+        layer: "OPPEN",
+        geometry: { kind: "line" as const, closed: true, points: [[x, y], [x + 12, y], [x + 12, y + 12], [x, y + 12]] as [number, number][] }
+      });
+      features.push({
+        layer: "OPPEN",
+        geometry: { kind: "line" as const, closed: true, points: [[x + 3, y + 3], [x + 9, y + 3], [x + 9, y + 9], [x + 3, y + 9]] as [number, number][] }
+      });
+    }
+    const started = performance.now();
+    const imported = importObjects(features, { toMap, mapping: new Map([["OPPEN", { symbol: "s521", kind: "area" as const }]]) });
+    expect(performance.now() - started).toBeLessThan(3000);
+    expect(imported.objects).toHaveLength(5000);
+    expect(imported.objects.every(obj => obj.kind === "area" && obj.rings.length === 2)).toBe(true);
+
+    // 2 000 omkastade segment i en sammanhängande kedja slås ihop linjärt.
+    const chain = Array.from({ length: 2000 }, (_, i) => [{ x: i, y: 0 }, { x: i + 1, y: 0 }]);
+    const shuffled = [...chain.filter((_, i) => i % 2 === 0), ...chain.filter((_, i) => i % 2 === 1).reverse()];
+    const t0 = performance.now();
+    const joined = joinLines(shuffled);
+    expect(performance.now() - t0).toBeLessThan(1000);
+    expect(joined.joined).toBe(1999);
+    expect(joined.lines).toHaveLength(1);
+    expect(joined.lines[0]).toHaveLength(2001);
+  });
+
+  it("läser stor DXF med indexskanning över lång HEADER/TABLES-sektion samt både LF och CRLF", () => {
+    const headerLines = ["0", "SECTION", "2", "HEADER"];
+    for (let i = 0; i < 500; i += 1) headerLines.push("9", `$VAR${i}`, "70", String(i));
+    headerLines.push("0", "ENDSEC", "0", "SECTION", "2", "ENTITIES");
+    for (let i = 0; i < 1000; i += 1) {
+      headerLines.push("0", "LWPOLYLINE", "8", "HUS", "70", "1", "10", String(i * 10), "20", "0",
+        "10", String(i * 10 + 5), "20", "0", "10", String(i * 10 + 5), "20", "5");
+    }
+    headerLines.push("0", "ENDSEC", "0", "SECTION", "2", "OBJECTS", "0", "ENDSEC", "0", "EOF", "");
+    const crlf = parseDxf(headerLines.join("\r\n"));
+    const lf = parseDxf(headerLines.join("\n"));
+    expect(crlf.features).toHaveLength(1000);
+    expect(lf.features).toHaveLength(1000);
+    expect(crlf.skipped).toBe(0);
+    expect(() => parseDxf("inte-tal\nSECTION\n")).toThrow(VectorParseError);
+    expect(() => parseDxf("0\nSECTION\n2\nHEADER\n0\nENDSEC\n0\nEOF\n")).toThrow(VectorParseError);
+  });
 });

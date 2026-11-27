@@ -70,4 +70,22 @@ describe("utvidga befintliga ytor (ägaren 2026-11-18)", () => {
     expect(result.removed.sort()).toEqual([1, 2]);
     expect(result.adds).toHaveLength(1);
   });
+  it("spatialt index i maskBuilt och extendAreas ger exakt resultat för hundratals ytor", () => {
+    const manyBuilt = Array.from({ length: 200 }, (_, i) => area("520", (i % 20) * 10, Math.floor(i / 20) * 10, 4));
+    const builtPolys = builtPolygons(manyBuilt, mainOf);
+    const candidates = [
+      ...Array.from({ length: 200 }, (_, i) => point("109", (i % 20) * 10 + 2, Math.floor(i / 20) * 10 + 2)),
+      ...Array.from({ length: 200 }, (_, i) => point("109", (i % 20) * 10 + 7, Math.floor(i / 20) * 10 + 7))
+    ];
+    const masked = maskBuilt(candidates, builtPolys, mainOf);
+    expect(masked.removed).toBe(200);
+    expect(masked.objects).toHaveLength(200);
+
+    const existing = Array.from({ length: 200 }, (_, i) => ({ id: i, object: area("406", (i % 20) * 10, Math.floor(i / 20) * 10, 4) }));
+    const overlapping = Array.from({ length: 50 }, (_, i) => area("406", (i % 20) * 10 + 2, Math.floor(i / 20) * 10, 4));
+    const extended = extendAreas(overlapping, existing);
+    expect(extended.extended).toBe(50);
+    expect(extended.removed).toHaveLength(50);
+    expect(extended.adds).toHaveLength(50);
+  });
 });

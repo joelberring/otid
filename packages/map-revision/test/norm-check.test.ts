@@ -45,6 +45,33 @@ describe("normkontrollen", () => {
     expect(rules([line("kulle", "101.0", [[0, 0], [0.5, 0], [0.5, 0.5], [0, 0.5], [0, 0]])])).toEqual([["SMALL_CLOSED", "n:kulle"]]);
     expect(rules([line("kulle", "101.0", [[0, 0], [1, 0], [1, 0.7], [0, 0.7], [0, 0]])])).toEqual([]);
   });
+
+  it("per-regel-tak förhindrar att CONTOUR_GAP svälter ut SMALL_AREA, SHORT_LINE och SMALL_CLOSED, och rules-filtret väljer ut regler", () => {
+    // Många täta parallella kurvor med segment var 2 mm ger > 2 500 CONTOUR_GAP-fel (över gamla MAX_ISSUES = 2000).
+    const crowded: NormObject[] = [];
+    for (let k = 0; k < 28; k += 1) {
+      const pts: [number, number][] = Array.from({ length: 60 }, (_, s) => [s * 2, k * 0.1]);
+      crowded.push(line(`c${k}`, "101.0", pts));
+    }
+    const objects: NormObject[] = [
+      ...crowded,
+      area("liten", "521.0", [[200, 0], [200.4, 0], [200.4, 0.4], [200, 0.4]]),
+      line("kort", "505.0", [[210, 0], [213, 0]]),
+      line("kulle", "101.0", [[220, 0], [220.5, 0], [220.5, 0.5], [220, 0.5], [220, 0]])
+    ];
+    const all = checkNorm(objects, 15000);
+    expect(all.truncated).toBe(true);
+    expect(all.issues.filter(issue => issue.rule === "CONTOUR_GAP")).toHaveLength(500);
+    expect(all.issues.some(issue => issue.rule === "SMALL_AREA" && issue.key === "n:liten")).toBe(true);
+    expect(all.issues.some(issue => issue.rule === "SHORT_LINE" && issue.key === "n:kort")).toBe(true);
+    expect(all.issues.some(issue => issue.rule === "SMALL_CLOSED" && issue.key === "n:kulle")).toBe(true);
+    // Med `rules`-filtret skippas CONTOUR_GAP helt.
+    const onlySize = checkNorm(objects, 15000, { rules: ["SMALL_AREA", "SHORT_LINE", "SMALL_CLOSED"] });
+    expect(onlySize.truncated).toBe(false);
+    expect(onlySize.issues.map(issue => [issue.rule, issue.key]).sort()).toEqual([
+      ["SHORT_LINE", "n:kort"], ["SMALL_AREA", "n:liten"], ["SMALL_CLOSED", "n:kulle"]
+    ]);
+  });
 });
 
 /** ISSprOM 2019-2 (sprint, 1:4 000): symbolernas minimimått, passager och öppningar. */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SourceFeature } from "../src";
-import { clearCutFeatures, cutRing, withoutCutVegetation } from "../src/base-map/clear-cuts";
+import { clearCutFeatures, cutRing, fillRingScanline, withoutCutVegetation } from "../src/base-map/clear-cuts";
 
 const square = (x: number): [number, number][] => [[x, 0], [x + 100, 0], [x + 100, 100], [x, 100], [x, 0]];
 const cut = (x: number, date: string | null) => ({ rings: [square(x)], date, kind: "Slutavverkning" });
@@ -59,5 +59,46 @@ describe("hyggen efter ålder", () => {
     const smooth = cutRing(circle)!;
     // Ingen punkt utanför cirkeln med marginal (ett påhittat hörn i skärningen mellan två sidor skulle sticka ut).
     expect(Math.max(...smooth.map(([x, y]) => Math.hypot(x, y)))).toBeLessThan(108);
+  });
+  it("scanline-fyllningen har bitexakt paritet mot per-cell PIP på konkava polygoner och kantfall", () => {
+    const insideRef = (ring: readonly (readonly [number, number])[], x: number, y: number) => {
+      let hit = false;
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i, i += 1) {
+        const [xi, yi] = ring[i]!, [xj, yj] = ring[j]!;
+        if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) hit = !hit;
+      }
+      return hit;
+    };
+    // Konkav U-form + hörn exakt på cellmittpunkter (u = 1, 3, 5, ...) + horisontella och sneda sidor.
+    const shapes: [number, number][][] = [
+      [[1, 1], [31, 1], [31, 11], [15, 11], [15, 21], [31, 21], [31, 31], [1, 31], [1, 1]],
+      [[0, 0], [20, 5], [40, 0], [35, 15], [50, 25], [25, 20], [15, 35], [10, 17], [0, 20], [0, 0]],
+      [[5, 5], [15, 5], [15, 15], [25, 15], [25, 5], [35, 5], [35, 25], [5, 25], [5, 5]]
+    ];
+    for (const poly of shapes) {
+      const left = -10, top = 45, cols = 36, rows = 30, cell = 2;
+      const scanline = new Uint8Array(cols * rows);
+      const naive = new Uint8Array(cols * rows);
+      fillRingScanline(scanline, poly, left, top, cols, rows, cell, 1);
+      for (let c = 0; c < cols; c += 1) {
+        const x = left + (c + 0.5) * cell;
+        for (let r = 0; r < rows; r += 1) {
+          if (insideRef(poly, x, top - (r + 0.5) * cell)) naive[c * rows + r] = 1;
+        }
+      }
+      expect(scanline).toEqual(naive);
+    }
+    // Prestanda: 600 × 600 m polygon med 200 hörn.
+    const bigPoly: [number, number][] = Array.from({ length: 200 }, (_, i) => {
+      const a = (i / 200) * Math.PI * 2;
+      const r = 240 + (i % 5 === 0 ? 40 : 0);
+      return [300 + r * Math.cos(a), 300 + r * Math.sin(a)];
+    });
+    bigPoly.push(bigPoly[0]!);
+    const buf = new Uint8Array(320 * 320);
+    const started = performance.now();
+    fillRingScanline(buf, bigPoly, -20, 620, 320, 320, 2, 1);
+    expect(performance.now() - started).toBeLessThan(150);
+    expect(buf.reduce((s, v) => s + v, 0)).toBeGreaterThan(40_000);
   });
 });

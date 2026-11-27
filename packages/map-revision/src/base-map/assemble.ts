@@ -4,12 +4,12 @@ import { mergeCandidates } from "./candidate-merge";
 import { computeCandidates, suggestedMapping, type CandidateSymbol, type SprintCleanOutcome } from "./candidates";
 import { SPRINT_BUILT_METRES } from "../sprint-clean";
 import { splitLargeAreas } from "../area-split";
-import { heightFieldFrom, type HeightGrid } from "./clear-contours";
+import { clearContours, heightFieldFrom, suggestedClear, type ClearSettings, type HeightGrid } from "./clear-contours";
 import { clearCutFeatures, type ClearCut } from "./clear-cuts";
 import { tickDepressions } from "./depressions";
 import { DEFAULT_HILL_LEVEL, findHills, hillLimitsAt, settleHills } from "./hill-search";
 import { marshOnFloor } from "./marsh-floor";
-import { choosePits, DEFAULT_PIT_LEVEL, findPits, PIT_LAYERS, pitFeatures, pitLimitsAt } from "./pit-search";
+import { choosePits, DEFAULT_PIT_LEVEL, findPits, PIT_LAYERS, pitFeatures, pitLimitsAt, smoothedHeights } from "./pit-search";
 import type { SoilArea } from "./soil";
 import { landCoverFeatures, type LandCoverGrid } from "./land-cover";
 import { calmFlatContours, flatLimitsAt, flatSlopeFrom, type PixelAffine, type SlopeGrid } from "./flat-contours";
@@ -81,12 +81,15 @@ export interface BaseMapAssemblyInput {
    */
   readonly rock?: { readonly pixels: PhotoPixels; readonly affine: PixelAffine; readonly level?: number | undefined } | undefined;
   /**
-   * Negativ kurvbild (ägaren 2026-11-15): markens höjd ur jobbets `hojd.png` och var rutnätet ligger. Med den söks sänkorna
-   * (`findPits`, nivån 1–10 med förvalet 5) och lutningsstrecken sätts efter höjden. Utelämnat = strecken sätts efter lagrets namn.
+   * Negativ kurvbild och tydligare kurvbild (ägaren 2026-11-15): markens höjd ur jobbets `hojd.png` och var rutnätet ligger.
+   * Med den körs `clearContours` (förval `suggestedClear`), söks höjder (`findHills`) och sänkor (`findPits`) och sätts
+   * lutningsstrecken efter höjden. Utelämnat = strecken sätts efter lagrets namn.
    */
   readonly height?: { readonly grid: HeightGrid; readonly affine: PixelAffine; readonly pits?: number | undefined;
     /** Små höjder som ring (`findHills`), nivån 1–10 med förvalet 5. */
-    readonly hills?: number | undefined } | undefined;
+    readonly hills?: number | undefined;
+    /** Tydligare kurvbild (`clearContours`); utelämnat = terrängens förval (`suggestedClear`). */
+    readonly clear?: ClearSettings | undefined } | undefined;
   readonly georeference: MapGeoreference;
   readonly symbols: readonly CandidateSymbol[];
   readonly bounds: MapBox;
@@ -144,6 +147,8 @@ export interface BaseMapSummary {
   readonly sprintClean?: SprintCleanOutcome | undefined;
   /** Hjälpkurvor (meter) och små ringar som togs bort på flack mark (när jobbet har fuktdjupet). */
   readonly flatContours?: { readonly level: number; readonly formlineMeters: number; readonly rings: number } | undefined;
+  /** Tydligare kurvbild (`clearContours`, när jobbet har markens höjd): inställningar, utjämnade och borttagna meter samt små ringar. */
+  readonly clearContours?: { readonly settings: ClearSettings; readonly smoothedMeters: number; readonly formlineMeters: number; readonly rings: number } | undefined;
 }
 
 const SWEREF99TM = 3006;
@@ -197,23 +202,31 @@ export function assembleBaseMap(input: BaseMapAssemblyInput): { objects: MapObje
     if (chosen.features.length > 0) data = mergeCandidates(data, { features: chosen.features, skipped: 0, crs: SWEREF99TM }, /^brant_/);
     cliffs = { level: input.cliffs.level, impassable: chosen.impassable, passable: chosen.passable, candidates: candidates.length };
   }
-  // Små höjder som ring efter formen, sedan negativ kurvbild: sänkorna som grundkartan inte redan visar, och lutningsstreck
-  // på allt som är en sänka enligt höjden.
+  // Tydligare kurvbild, kärrens botten, små höjder som ring, sedan negativ kurvbild: sänkorna som grundkartan inte redan visar,
+  // och lutningsstreck på allt som är en sänka enligt höjden (samma ordning och förval som webben i `map-project-candidates.ts`).
   let pits: BaseMapSummary["pits"], slopeTicks: BaseMapSummary["slopeTicks"], hills: BaseMapSummary["hills"], marshFloor: BaseMapSummary["marshFloor"];
+  let clearedContours: BaseMapSummary["clearContours"];
   if (input.height) {
+    const field = heightFieldFrom([input.height]);
+    const clearSettings = input.height.clear ?? suggestedClear(data.features, field);
+    const cleared = clearContours(data.features, field, clearSettings);
+    data = { ...data, features: cleared.features };
+    clearedContours = { settings: clearSettings, smoothedMeters: cleared.smoothedMeters, formlineMeters: cleared.formlineMeters, rings: cleared.rings };
     // Kärren följer kurvbilden: laserns kärr klipps där marken ligger över kärrets botten (`marsh-floor.ts`).
     const floored = marshOnFloor(data.features, [input.height]);
     data = { ...data, features: floored.features };
     marshFloor = { changed: floored.changed, removedHa: Math.round(floored.removedM2 / 1000) / 10 };
-    const hillLevel = input.height.hills ?? DEFAULT_HILL_LEVEL, hillCandidates = findHills(input.height.grid, input.height.affine);
+    // Ett enda utjämnat höjdraster delas mellan `findHills` och `findPits`.
+    const smoothed = smoothedHeights(input.height.grid);
+    const hillLevel = input.height.hills ?? DEFAULT_HILL_LEVEL, hillCandidates = findHills(input.height.grid, input.height.affine, smoothed);
     const settled = settleHills(data.features, hillCandidates, hillLimitsAt(hillLevel), scale);
     data = { ...data, features: settled.features };
     hills = { level: hillLevel, rings: settled.rings, contours: settled.contours, dots: settled.hidden.length, candidates: hillCandidates.length };
-    const level = input.height.pits ?? DEFAULT_PIT_LEVEL, candidates = findPits(input.height.grid, input.height.affine);
+    const level = input.height.pits ?? DEFAULT_PIT_LEVEL, candidates = findPits(input.height.grid, input.height.affine, smoothed);
     const choice = choosePits(candidates, pitLimitsAt(level), scale, data.features);
     if (choice.points.length + choice.rings.length > 0) data = mergeCandidates(data, { features: pitFeatures(choice), skipped: 0, crs: SWEREF99TM }, PIT_LAYERS);
     pits = { level, points: choice.points.length, rings: choice.rings.length, candidates: candidates.length };
-    const ticked = tickDepressions(data.features, heightFieldFrom([input.height]));
+    const ticked = tickDepressions(data.features, field);
     data = { ...data, features: ticked.features };
     slopeTicks = { ticks: ticked.ticks, byHeight: ticked.byHeight };
   }
@@ -241,7 +254,7 @@ export function assembleBaseMap(input: BaseMapAssemblyInput): { objects: MapObje
       inBuilt: result.builtMask?.removed ?? 0, belowNorm: result.generalized?.removed ?? 0 },
     clipped: result.clipped, joined: result.joined, simplified: result.generalized?.simplified ?? 0,
     ...(cuts ? { clearCuts: cuts.counts } : {}), ...(soil ? { soil } : {}), ...(rock ? { rock } : {}), ...(knolls ? { knolls } : {}), ...(cliffs ? { cliffs } : {}),
-    ...(flatContours ? { flatContours } : {}), ...(hills ? { hills } : {}), ...(marshFloor ? { marshFloor } : {}), ...(pits ? { pits } : {}), ...(slopeTicks ? { slopeTicks } : {}),
+    ...(flatContours ? { flatContours } : {}), ...(clearedContours ? { clearContours: clearedContours } : {}), ...(hills ? { hills } : {}), ...(marshFloor ? { marshFloor } : {}), ...(pits ? { pits } : {}), ...(slopeTicks ? { slopeTicks } : {}),
     ...(primary ? { primary } : {}), ...(result.sprintClean ? { sprintClean: result.sprintClean } : {})
   } };
 }

@@ -98,9 +98,21 @@ export function simplifyShape(object: MapObject, tolerance: number): MapObject |
   return vertexCount(next) < before ? next : undefined;
 }
 
+/** Högsta styrhandtagets längd som andel av sträckans längd (klampning mot öglor och överslängar). */
+const MAX_HANDLE_SHARE = 0.5;
+
+function clampHandle(x: number, y: number, chord: number): Point {
+  if (chord <= 1e-12) return { x: 0, y: 0 };
+  const length = Math.hypot(x, y), limit = MAX_HANDLE_SHARE * chord;
+  if (length <= limit || length === 0) return { x, y };
+  const scale = limit / length;
+  return { x: x * scale, y: y * scale };
+}
+
 /**
- * Objektet mjukt: varje sträcka blir en kurva genom samma punkter (Catmull–Rom, styrpunkterna en sjättedel av grannarnas
- * avstånd). Hörnpunkter och linjens ändar får ingen tangent från andra sidan. Undefined om objektet saknar sträckor.
+ * Objektet mjukt: varje sträcka blir en kurva genom samma punkter (centripetal Catmull–Rom, α = 0,5, med kordklampning så
+ * ojämna punktavstånd efter förenkling inte ger öglor eller överslängar). Hörnpunkter och linjens ändar får ingen tangent från
+ * andra sidan. Undefined om objektet saknar sträckor.
  */
 export function smoothShape(object: MapObject): MapObject | undefined {
   if (object.kind !== "line" && object.kind !== "area") return undefined;
@@ -116,21 +128,35 @@ export function smoothShape(object: MapObject): MapObject | undefined {
       const index = closed ? ((i % n) + n) % n : Math.max(0, Math.min(n - 1, i));
       return { x: anchors[index]!.x, y: anchors[index]!.y };
     };
-    const tangent = (i: number): Point => {
-      if (!closed && (i <= 0 || i >= n - 1)) {
-        const a = p(i <= 0 ? 0 : n - 2), b = p(i <= 0 ? 1 : n - 1);
-        return { x: (b.x - a.x) / 2, y: (b.y - a.y) / 2 };
+    // Centripetal derivata Q'(t_i) med knutsteg h = √|P_{k+1} − P_k| (α = 0,5); samma riktning in och ut (G¹-kontinuitet).
+    const derivatives: Point[] = Array.from({ length: n }, (_, i) => {
+      if (anchors[i]!.corner) return { x: 0, y: 0 };
+      if (!closed && (i === 0 || i === n - 1)) {
+        const a = p(i === 0 ? 0 : n - 2), b = p(i === 0 ? 1 : n - 1);
+        const h = Math.sqrt(Math.hypot(b.x - a.x, b.y - a.y));
+        return h <= 1e-12 ? { x: 0, y: 0 } : { x: (b.x - a.x) / (2 * h), y: (b.y - a.y) / (2 * h) };
       }
-      if (anchors[((i % n) + n) % n]!.corner) return { x: 0, y: 0 };
-      const a = p(i - 1), b = p(i + 1);
-      return { x: (b.x - a.x) / 2, y: (b.y - a.y) / 2 };
-    };
+      const prev = p(i - 1), curr = p(i), next = p(i + 1);
+      const h0 = Math.sqrt(Math.hypot(curr.x - prev.x, curr.y - prev.y));
+      const h1 = Math.sqrt(Math.hypot(next.x - curr.x, next.y - curr.y));
+      if (h0 <= 1e-12 && h1 <= 1e-12) return { x: 0, y: 0 };
+      if (h0 <= 1e-12) return { x: (next.x - curr.x) / (2 * h1), y: (next.y - curr.y) / (2 * h1) };
+      if (h1 <= 1e-12) return { x: (curr.x - prev.x) / (2 * h0), y: (curr.y - prev.y) / (2 * h0) };
+      const sum = h0 + h1, w0 = h1 / sum, w1 = h0 / sum;
+      return {
+        x: w0 * (curr.x - prev.x) / h0 + w1 * (next.x - curr.x) / h1,
+        y: w0 * (curr.y - prev.y) / h0 + w1 * (next.y - curr.y) / h1
+      };
+    });
     const segments = closed ? n : n - 1;
     const out: PathCommand[] = [{ type: "M", x: anchors[0]!.x, y: anchors[0]!.y, ...flagsOf(anchors[0]!) }];
     for (let i = 0; i < segments; i += 1) {
-      const from = p(i), to = p(i + 1), t0 = tangent(i), t1 = tangent(i + 1);
+      const from = p(i), to = p(i + 1), chord = Math.hypot(to.x - from.x, to.y - from.y), h = Math.sqrt(chord);
+      const m0 = derivatives[i]!, m1 = derivatives[(i + 1) % n]!;
+      const c1 = clampHandle(m0.x * h / 3, m0.y * h / 3, chord);
+      const c2 = clampHandle(m1.x * h / 3, m1.y * h / 3, chord);
       const target = anchors[(i + 1) % n]!;
-      out.push({ type: "C", x1: from.x + t0.x / 3, y1: from.y + t0.y / 3, x2: to.x - t1.x / 3, y2: to.y - t1.y / 3, x: to.x, y: to.y,
+      out.push({ type: "C", x1: from.x + c1.x, y1: from.y + c1.y, x2: to.x - c2.x, y2: to.y - c2.y, x: to.x, y: to.y,
         ...(i + 1 < n ? flagsOf(target) : {}) });
       changed = true;
     }

@@ -58,4 +58,16 @@ describe("undervegetationen mot det gröna", () => {
     expect(areaOf(by("undervegetation_svarlopt")[0]!)).toBe(2500);
     expect(by("undervegetation_lattlopt").reduce((sum, feature) => sum + areaOf(feature), 0)).toBeCloseTo(5000);
   });
+  it("spatialt index i withoutOverlap klipper hundratals sankmarker snabbt och exakt", () => {
+    const features: SourceFeature[] = [];
+    for (let i = 0; i < 250; i += 1) {
+      const x = (i % 25) * 100, y = Math.floor(i / 25) * 100;
+      features.push(square("blott", x, y, 40), square("fuktigt", x + 20, y, 40));
+    }
+    const started = performance.now();
+    const result = singleMarsh(features);
+    expect(performance.now() - started).toBeLessThan(2000);
+    expect(result.clipped).toBe(250);
+    expect(result.features.filter(f => f.layer === "fuktigt").reduce((s, f) => s + areaOf(f), 0)).toBeCloseTo(250 * 800, 0);
+  });
 });

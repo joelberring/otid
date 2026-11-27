@@ -240,42 +240,95 @@ const length = (points: readonly Point[]) => points.reduce((sum, point, index) =
   point.y - points[index - 1]!.y), 0);
 const pathOf = (points: readonly Point[]): PathCommand[] => points.map((point, index) => ({ type: index === 0 ? "M" : "L", x: point.x, y: point.y }));
 const JOIN_MM = 0.01;
+const JOIN_MM_SQ = JOIN_MM * JOIN_MM;
 const same = (a: readonly Point[], b: readonly Point[]) => a.length === b.length && a.every((point, at) => point.x === b[at]!.x && point.y === b[at]!.y);
-const keyOf = (point: Point) => `${Math.round(point.x / JOIN_MM)},${Math.round(point.y / JOIN_MM)}`;
+const cellCoord = (value: number) => Math.round(value / JOIN_MM);
+const keyOf = (point: Point) => `${cellCoord(point.x)},${cellCoord(point.y)}`;
+const closeEnds = (a: Point, b: Point) => {
+  const dx = a.x - b.x, dy = a.y - b.y;
+  return dx * dx + dy * dy <= JOIN_MM_SQ;
+};
+const NEIGHBOR_OFFSETS = [0, -1, 1] as const;
 
 /** Öppna linjer med samma symbol som möts i ändarna slås ihop (baskartornas linjer i många bitar). Ger linjerna och antal hopslagningar. */
 export function joinLines(lines: readonly Point[][]): { lines: Point[][]; joined: number } {
-  const pending = lines.map(line => [...line]);
+  const pending = lines.map(line => line.slice());
   const alive = pending.map(() => true);
   const byEnd = new Map<string, number[]>();
-  const index = (line: Point[], at: number) => { for (const end of [line[0]!, line[line.length - 1]!]) byEnd.set(keyOf(end), [...(byEnd.get(keyOf(end)) ?? []), at]); };
-  pending.forEach(index);
+  const addEnd = (point: Point, at: number) => {
+    const key = keyOf(point);
+    const bucket = byEnd.get(key);
+    if (bucket) bucket.push(at);
+    else byEnd.set(key, [at]);
+  };
+  for (let at = 0; at < pending.length; at += 1) {
+    const line = pending[at]!;
+    if (line.length === 0) continue;
+    addEnd(line[0]!, at);
+    if (line.length > 1) addEnd(line[line.length - 1]!, at);
+  }
+  const findNeighbor = (at: number, end: Point): { index: number; forward: boolean } | undefined => {
+    // Kontrollera 3×3 angränsande celler runt Math.round(x / 0.01) så ändpunkter över cellgräns inte missas.
+    // Ägaren 2026-11-15 («stigar sluts och får raka streck över kartan»): bara en linje vars nuvarande ände ligger här får fogas på.
+    const gx = cellCoord(end.x), gy = cellCoord(end.y);
+    let bestIndex = -1, bestForward = true, bestDistSq = JOIN_MM_SQ + 1;
+    for (const dx of NEIGHBOR_OFFSETS) {
+      for (const dy of NEIGHBOR_OFFSETS) {
+        const bucket = byEnd.get(`${gx + dx},${gy + dy}`);
+        if (!bucket) continue;
+        for (let i = 0; i < bucket.length; i += 1) {
+          const candidate = bucket[i]!;
+          if (candidate === at || !alive[candidate]) continue;
+          const next = pending[candidate]!;
+          const first = next[0]!, last = next[next.length - 1]!;
+          const d0x = first.x - end.x, d0y = first.y - end.y, d0 = d0x * d0x + d0y * d0y;
+          if (d0 <= JOIN_MM_SQ && d0 < bestDistSq) {
+            bestDistSq = d0; bestIndex = candidate; bestForward = true;
+            if (d0 === 0) return { index: bestIndex, forward: true };
+          }
+          const d1x = last.x - end.x, d1y = last.y - end.y, d1 = d1x * d1x + d1y * d1y;
+          if (d1 <= JOIN_MM_SQ && d1 < bestDistSq) {
+            bestDistSq = d1; bestIndex = candidate; bestForward = false;
+            if (d1 === 0) return { index: bestIndex, forward: false };
+          }
+        }
+      }
+    }
+    return bestIndex >= 0 ? { index: bestIndex, forward: bestForward } : undefined;
+  };
+  const appendNext = (line: Point[], next: Point[], forward: boolean) => {
+    if (forward) {
+      for (let i = 1; i < next.length; i += 1) line.push(next[i]!);
+    } else {
+      for (let i = next.length - 2; i >= 0; i -= 1) line.push(next[i]!);
+    }
+  };
   let joined = 0;
   for (let at = 0; at < pending.length; at += 1) {
     if (!alive[at]) continue;
-    let grown = true;
-    while (grown) {
-      grown = false;
-      const line = pending[at]!;
-      for (const atStart of [false, true]) {
-        const end = atStart ? line[0]! : line[line.length - 1]!;
-        // Ägaren 2026-11-15 («stigar sluts och får raka streck över kartan»): uppslaget minns också ändar som en hopslagen linje
-        // inte längre har. Bara en linje vars nuvarande ände ligger här får fogas på, annars hoppar linjen rakt till dess ände.
-        const key = keyOf(end);
-        const other = (byEnd.get(key) ?? []).find(candidate => candidate !== at && alive[candidate]
-          && (keyOf(pending[candidate]![0]!) === key || keyOf(pending[candidate]![pending[candidate]!.length - 1]!) === key));
-        if (other === undefined) continue;
-        const next = pending[other]!;
-        const forward = keyOf(next[0]!) === keyOf(end);
-        const oriented = forward ? next : [...next].reverse();
-        pending[at] = atStart ? [...[...oriented].reverse(), ...line.slice(1)] : [...line, ...oriented.slice(1)];
-        alive[other] = false;
-        index(pending[at]!, at);
-        joined += 1;
-        grown = true;
-        break;
-      }
+    const line = pending[at]!;
+    if (line.length === 0) continue;
+    // Förläng först från slutet med .push() i O(1) per punkt; vänd sedan en gång för att förlänga från början.
+    for (;;) {
+      const hit = findNeighbor(at, line[line.length - 1]!);
+      if (!hit) break;
+      const next = pending[hit.index]!;
+      if (!closeEnds(hit.forward ? next[0]! : next[next.length - 1]!, line[line.length - 1]!)) break;
+      appendNext(line, next, hit.forward);
+      alive[hit.index] = false;
+      joined += 1;
     }
+    let reversed = false;
+    for (;;) {
+      const tip = reversed ? line[line.length - 1]! : line[0]!;
+      const hit = findNeighbor(at, tip);
+      if (!hit) break;
+      if (!reversed) { line.reverse(); reversed = true; }
+      appendNext(line, pending[hit.index]!, hit.forward);
+      alive[hit.index] = false;
+      joined += 1;
+    }
+    if (reversed) line.reverse();
   }
   return { lines: pending.filter((_, at) => alive[at]), joined };
 }
@@ -361,7 +414,11 @@ export function importObjects(features: readonly SourceFeature[], options: Impor
       stairLayerSymbol.set(layer, target.symbol);
       continue;
     }
-    if (target.kind === "area" && converted.kind === "line") { openAreas.set(target.symbol, [...(openAreas.get(target.symbol) ?? []), converted.points]); continue; }
+    if (target.kind === "area" && converted.kind === "line") {
+      const list = openAreas.get(target.symbol);
+      if (list) list.push(converted.points); else openAreas.set(target.symbol, [converted.points]);
+      continue;
+    }
     if (converted.kind === "point") {
       if (bounds && !within(bounds, converted.at)) { outside += 1; continue; }
       // Symbolens streck går mot (0, −1) i sin egen ruta; vinkeln vrider det mot punkten det ska peka på.
@@ -369,7 +426,8 @@ export function importObjects(features: readonly SourceFeature[], options: Impor
       objects.push({ kind: "point", symbol: target.symbol, at: converted.at, angle: (angle + 360) % 360 });
     } else if (converted.kind === "area" && geometry.kind === "line") {
       // En sluten linje i ett ytlager (DXF): ringarna läggs i varandra nedan, så att hål blir hål.
-      closedRings.set(target.symbol, [...(closedRings.get(target.symbol) ?? []), converted.rings[0]!]);
+      const list = closedRings.get(target.symbol);
+      if (list) list.push(converted.rings[0]!); else closedRings.set(target.symbol, [converted.rings[0]!]);
     } else if (converted.kind === "area") {
       const rings = bounds ? converted.rings.map(ring => clipRing(ring, bounds)) : converted.rings;
       if ((rings[0]?.length ?? 0) < 3) { outside += 1; continue; }

@@ -273,8 +273,11 @@ export function worldFile(grid: Grid): string {
 
 type Ring = [number, number][];
 
-/** Masken utan små öar och med hålen fyllda (4-grannar), så att ytorna blir hela ringar utan hål. */
-export function cleanMask(mask: Uint8Array, width: number, height: number, minCells: number): Uint8Array {
+/**
+ * Masken utan små öar (`< minCells`) och med bara små inre hål fyllda (`< minHoleCells`, förval `minCells`), 4-grannar.
+ * Större torra kullar och öar mitt i ett kärr lämnas som hål i stället för att sväljas.
+ */
+export function cleanMask(mask: Uint8Array, width: number, height: number, minCells: number, minHoleCells = minCells): Uint8Array {
   // Kön är ett fält i stället för listor av tal: över stora områden (Djurgården, Nåttarö 2026-11-11) tog listorna allt minne.
   const out = new Uint8Array(mask.length), seen = new Uint8Array(mask.length), queue = new Int32Array(mask.length);
   /** Fyller den sammanhängande delen från `start`; cellerna ligger sedan först i `queue`. Ger antalet. */
@@ -296,15 +299,21 @@ export function cleanMask(mask: Uint8Array, width: number, height: number, minCe
     const count = component(i, n => mask[n] === 1);
     if (count >= minCells) for (let k = 0; k < count; k += 1) out[queue[k]!] = 1;
   }
-  // Hålen: det som inte är mask och inte når kanten.
-  seen.fill(0);
-  for (let x = 0; x < width; x += 1) {
-    for (const y of [0, height - 1]) { const i = x * height + y; if (!out[i] && !seen[i]) component(i, n => !out[n]); }
+  // Hålen: det som inte är mask och inte når kanten. Bara små hål (< minHoleCells) fylls; större kullar och öar står kvar.
+  if (minHoleCells > 0) {
+    seen.fill(0);
+    for (let x = 0; x < width; x += 1) {
+      for (const y of [0, height - 1]) { const i = x * height + y; if (!out[i] && !seen[i]) component(i, n => !out[n]); }
+    }
+    for (let y = 0; y < height; y += 1) {
+      for (const x of [0, width - 1]) { const i = x * height + y; if (!out[i] && !seen[i]) component(i, n => !out[n]); }
+    }
+    for (let i = 0; i < out.length; i += 1) {
+      if (out[i] || seen[i]) continue;
+      const count = component(i, n => !out[n]);
+      if (count < minHoleCells) for (let k = 0; k < count; k += 1) out[queue[k]!] = 1;
+    }
   }
-  for (let y = 0; y < height; y += 1) {
-    for (const x of [0, width - 1]) { const i = x * height + y; if (!out[i] && !seen[i]) component(i, n => !out[n]); }
-  }
-  for (let i = 0; i < out.length; i += 1) if (!out[i] && !seen[i]) out[i] = 1;
   return out;
 }
 
@@ -473,9 +482,8 @@ export function moistureFromHeightMaps(grids: readonly Grid[], settings: Moistur
   groundShare?: (x: number, y: number) => number | undefined) {
   const grid = mosaic(grids);
   const blocked = blockedCells(grid, water);
-  // Ytorna utan vattnet; ett hål som vattnet lämnar mitt i en yta blir inte en egen yta (bara ytterkanterna tas med).
+  // Ytorna utan vattnet; giltiga hålringar (sjöar, öar och torra kullar) behålls i DXF:en och kapslas som hål av `ring-nesting.ts` (som i geo-vegetation.ts).
   const dry = (mask: Uint8Array) => { if (blocked) for (let i = 0; i < mask.length; i += 1) if (blocked[i]) mask[i] = 0; return mask; };
-  const outer = (rings: [number, number][][]) => blocked ? rings.filter(ring => ringArea(ring) > 0) : rings;
   const filled = fillDepressions(grid);
   const down = flowDirections(grid, filled);
   const { accumulation, order } = flowAccumulation(down, filled);
@@ -498,8 +506,8 @@ export function moistureFromHeightMaps(grids: readonly Grid[], settings: Moistur
   const wetMask = dry(clean(classes.map(value => value === 2 ? 1 : 0)));
   const moistMask = dry(clean(classes.map(value => value >= 1 ? 1 : 0)));
   const tolerance = grid.cell * 0.75;
-  const wet = outer(maskRings(wetMask, grid)).map(ring => simplify(ring, tolerance)).filter(ring => ring.length >= 4);
-  const moist = outer(maskRings(moistMask, grid)).map(ring => simplify(ring, tolerance)).filter(ring => ring.length >= 4);
+  const wet = maskRings(wetMask, grid).map(ring => simplify(ring, tolerance)).filter(ring => ring.length >= 4);
+  const moist = maskRings(moistMask, grid).map(ring => simplify(ring, tolerance)).filter(ring => ring.length >= 4);
   const lineCells = Math.max(channelCells, Math.round((settings.channelLineHa ?? CHANNEL_LINE_HA) * 10_000 / (grid.cell * grid.cell)));
   const channels = channelLines(grid, down, accumulation, lineCells, 50, blocked);
   const isChannel = (i: number) => accumulation[i]! >= channelCells && !blocked?.[i];
@@ -532,5 +540,6 @@ export function moistureFromHeightMaps(grids: readonly Grid[], settings: Moistur
     return column >= 0 && row >= 0 && column < grid.width && row < grid.height && hand[column * grid.height + row]! <= settings.moistMeters;
   };
   return { png, depthPng, wetAt, world: worldFile(grid), dxf, summary: { wetHa: Math.round(count(wetMask) * grid.cell * grid.cell / 100) / 100,
-    moistHa: Math.round(count(moistMask) * grid.cell * grid.cell / 100) / 100, wetAreas: wet.length, moistAreas: moist.length, channels: channels.length } };
+    moistHa: Math.round(count(moistMask) * grid.cell * grid.cell / 100) / 100, wetAreas: wet.filter(ring => ringArea(ring) > 0).length,
+    moistAreas: moist.filter(ring => ringArea(ring) > 0).length, channels: channels.length } };
 }

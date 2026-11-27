@@ -62,6 +62,36 @@ describe("stigar i vägar (sprint)", () => {
     expect(plan.remove).toEqual(["langs"]);
     expect(plan.replace).toEqual([]);
   });
+  it("avgör rätt sida med närmaste punkt på ett långt snett vägsegment (inte bara mittpunkten)", () => {
+    // Två långa parallella vägkanter (100 mm långa, 11° lutning) med 3 mm bredd (12 m i 1:4000):
+    // vid x = 10 ligger stigen på (10, 3,5), precis mellan kanterna y = 2 och y = 5, men båda segmentens
+    // mittpunkter ligger långt norrut vid y = 10 resp. y = 13 (båda på samma sida om stigen).
+    const slanted = [
+      row("k1", "501.1", line("501.1", [0, 0], [100, 20])),
+      row("k2", "501.1", line("501.1", [0, 3], [100, 23]))
+    ];
+    const middlePath = row("mitt", "505", line("505", [5, 2.5], [25, 6.5]));
+    const plan = pathsInRoadsPlan([middlePath], slanted, 4000);
+    expect(plan.remove).toEqual(["mitt"]);
+  });
+  it("förenklar linjer efter 0,5 m-klippningen så raka bitar inte får hundratals förtätningspunkter, medan riktiga böjar bevaras", () => {
+    const paved = row("yta", "501", rect("501", 20, -10, 20, 40));
+    const straight = row("rak", "507", line("507", [0, 10], [60, 10]));
+    const clipped = pathsInRoadsPlan([straight], [paved], 4000);
+    expect(clipped.replace).toHaveLength(1);
+    const pieces = clipped.replace[0]!.objects;
+    expect(pieces).toHaveLength(2);
+    // Varje rak klippt bit ska förenklas ned till 2 hörn i stället för ~160 förtätade punkter.
+    for (const piece of pieces) {
+      expect(piece.kind === "line" && piece.path.length).toBeLessThanOrEqual(3);
+    }
+    // En stig med en riktig 90°-sväng utanför vägen behåller hörnpunkten (10, 25).
+    const bent = row("svang", "507", line("507", [0, 10], [10, 25], [15, 10], [60, 10]));
+    const bentPlan = pathsInRoadsPlan([bent], [paved], 4000);
+    const leftPart = bentPlan.replace[0]!.objects[0]!;
+    expect(leftPart.kind === "line" && leftPart.path.some(c => Math.hypot(c.x - 10, c.y - 25) < 0.02)).toBe(true);
+    expect(leftPart.kind === "line" && leftPart.path.length).toBeLessThan(10);
+  });
 });
 
 describe("små kantringar", () => {

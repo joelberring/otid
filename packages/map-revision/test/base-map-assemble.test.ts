@@ -145,4 +145,24 @@ describe("grundkartan till kartans objekt", () => {
     expect(few.summary.hills).toEqual({ level: 1, rings: 0, contours: 0, dots: 0, candidates: 2 });
     expect(few.summary.layers.find(row => row.layer === "contour_hojd")).toBeUndefined();
   });
+
+  it("kör clearContours med samma förval som webben när markens höjd följer med (små hjälpkurveringar rensas)", () => {
+    // 400 × 300 m lutande sluttning (> 12 %, så DEFAULT_CLEAR gäller): en smal sluten hjälpkurva på 22 × 6 m
+    // (längd 22 m > small-rings 19,8 m, men yta ~104 m² < clearContours ringLimitAt(5) = 150 m²) tas bort av clearContours.
+    const columns = 400, rows = 300, meters = new Float32Array(columns * rows);
+    for (let row = 0; row < rows; row += 1) for (let column = 0; column < columns; column += 1) meters[row * columns + column] = 50 + column * 0.2;
+    const height = { grid: { columns, rows, meters }, affine: [1, 0, E - 199.5, 0, -1, N + 149.5] as const };
+    const contour = { name: "kurvor.dxf", body: dxf("contour", [[-180, -80], [0, -80], [180, -80]]) };
+    const smallRing = Array.from({ length: 24 }, (_, i) => [11 * Math.cos(i * Math.PI / 12), 3 * Math.sin(i * Math.PI / 12)] as [number, number]);
+    const formlines = { name: "formlinjer.dxf", body: dxf("formline", smallRing).replace("\n70\n0\n", "\n70\n1\n") };
+    const cleared = assembleBaseMap({ ...input, parts: [contour, formlines], height });
+    if ("problem" in cleared) throw new Error(cleared.problem);
+    expect(cleared.summary.clearContours).toMatchObject({ settings: { smooth: 5, formlines: 4, rings: 5 }, rings: 1 });
+    expect(cleared.summary.symbols.find(row => row.symbol === "103")).toBeUndefined();
+    // Stängs clearContours av explicit står den 104 m² stora hjälpkurveringen kvar.
+    const off = assembleBaseMap({ ...input, parts: [contour, formlines], height: { ...height, clear: { smooth: 0, formlines: 0, rings: 0 } } });
+    if ("problem" in off) throw new Error(off.problem);
+    expect(off.summary.clearContours).toMatchObject({ settings: { smooth: 0, formlines: 0, rings: 0 }, rings: 0 });
+    expect(off.summary.symbols.find(row => row.symbol === "103")).toMatchObject({ objects: 1 });
+  });
 });

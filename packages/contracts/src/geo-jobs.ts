@@ -140,6 +140,12 @@ export interface GeoJobView {
   /** `accountId` är null när skaparens konto tagits bort (körningen finns kvar i det delade projektet). */
   readonly createdBy: { readonly accountId: string | null; readonly name: string | null }; readonly own: boolean;
   readonly createdAt: string; readonly finishedAt: string | null;
+  /** När geo-arbetaren började köra jobbet (null innan start). */
+  readonly startedAt?: string | null | undefined;
+  /** Antalet försök geo-arbetaren gjort på jobbet. */
+  readonly attempts?: number | undefined;
+  /** Sammanfattning från geo-arbetaren när jobbet är klart (version, stegtider i ms, topp-RAM m.m.). */
+  readonly summary?: Readonly<Record<string, number | string>> | null | undefined;
   /** Ägaren 2026-11-14: antalet etapper som geo-servern lagt ihop till den här körningen, eller som den håller på att lägga ihop. */
   readonly mergedStages?: number | undefined;
   /** PLAN.md M6: körningen bad om rå laserdata. */

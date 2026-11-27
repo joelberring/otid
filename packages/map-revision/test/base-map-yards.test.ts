@@ -101,4 +101,18 @@ describe("sprintkartornas tomter (520 bara kring småhus)", () => {
     const features = [yard(0, 0, 50, "tomtmark_hus")];
     expect(privateYardsOnly(features, [house(10, 10, 10)])).toEqual(features);
   });
+  it("spatialt index i parcelYards och privateYardsOnly skalar till hundratals fastigheter och hus", () => {
+    const parcels: SourceFeature[] = [];
+    const homes: SourceFeature[] = [];
+    for (let i = 0; i < 200; i += 1) {
+      const x = (i % 20) * 80, y = Math.floor(i / 20) * 80;
+      parcels.push(house(x, y, 40, "fastighet"));
+      if (i % 2 === 0) homes.push(house(x + 10, y + 10, 10));
+    }
+    const out = parcelYards([...parcels, ...homes]);
+    expect(out.filter(f => f.layer === "tomtmark_fastighet")).toHaveLength(100);
+    const bigs = Array.from({ length: 50 }, (_, i) => house((i % 20) * 80 + 5, Math.floor(i / 20) * 80 + 5, 30, "OSM byggnad"));
+    const priv = privateYardsOnly(out, bigs);
+    expect(priv.filter(f => f.layer === "tomtmark_fastighet")).toHaveLength(75);
+  });
 });

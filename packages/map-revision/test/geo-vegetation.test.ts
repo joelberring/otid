@@ -2,7 +2,7 @@ import { deflateSync, inflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { suggestSymbol } from "../src";
 import { parseDxf } from "../src/vector-parse";
-import { decodeGrayPng, readWorldFile, vegetationFromTiles, vegetationMosaic, type ClassImage } from "../../../scripts/geo-vegetation";
+import { decodeGrayPng, readWorldFile, SEMI_ALPHA, vegetationFromTiles, vegetationMosaic, type ClassImage } from "../../../scripts/geo-vegetation";
 
 /** Arbetarens egna PNG (8 bitar RGBA, filter 0 på varje rad) som bildpunkter. */
 function decodeRgbaPng(bytes: Uint8Array): { width: number; data: Uint8Array } {
@@ -111,5 +111,29 @@ describe("vegetationen ur klassbilderna", () => {
       .toEqual(["area401", "area406", "area407", "area408", "area409", "area410"]);
     // G8: tomterna ur husen blir område som inte får beträdas.
     expect(suggestSymbol({ name: "tomtmark_osm", count: 1, points: 0, lines: 0, closedLines: 1, areas: 0 }, [{ id: "area520", code: "520", kind: "area" }])).toBe("area520");
+  });
+
+  it("alfakanalen i vegetationsklasser.png skriver generaliserad VEG_SEMI (inte rå semi) i paritet med vegetation.dxf", () => {
+    // 200 × 200 m skog med: (a) en stor halvöppen yta i väster (60 × 60 m) som överlever generaliseringen,
+    // och (b) en pytteliten rå halvöppen fläck (4 × 4 m) i öster som generaliseringen tar bort.
+    const vege = image(200, 200, () => 2);
+    const bigSemi = (x: number, y: number) => x >= 675_020 && x < 675_080 && y >= 6_580_860 && y < 6_580_920;
+    const tinySemi = (x: number, y: number) => x >= 675_160 && x < 675_164 && y >= 6_580_860 && y < 6_580_864;
+    const signals = {
+      openAt: () => false,
+      denseAt: () => false,
+      semiAt: (x: number, y: number) => bigSemi(x, y) || tinySemi(x, y)
+    };
+    const result = vegetationFromTiles([{ vege, world: world(675_000, 6_581_000) }], { minAreaM2: 100 }, undefined, signals);
+    expect(result.summary.ha404).toBeGreaterThan(0.2);
+    const png = decodeRgbaPng(result.classPng);
+    const height = png.data.length / 4 / png.width;
+    // Mitt i den stora halvöppna ytan (x ≈ 675 050 → kolumn 25, y ≈ 6 580 890 → rad från norr ≈ 55): alfa = SEMI_ALPHA.
+    const bigRow = Math.floor((6_581_000 - 6_580_890) / 2), bigCol = Math.floor((675_050 - 675_000) / 2);
+    expect(png.data[(bigRow * png.width + bigCol) * 4 + 3]).toBe(SEMI_ALPHA);
+    // Den lilla bortgeneraliserade fläcken (x ≈ 675 162 → kolumn 81, y ≈ 6 580 862 → rad ≈ 69): INTE SEMI_ALPHA (alfa = 255).
+    const tinyRow = Math.floor((6_581_000 - 6_580_862) / 2), tinyCol = Math.floor((675_162 - 675_000) / 2);
+    expect(tinyRow).toBeLessThan(height);
+    expect(png.data[(tinyRow * png.width + tinyCol) * 4 + 3]).toBe(255);
   });
 });

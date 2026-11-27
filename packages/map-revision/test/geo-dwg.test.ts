@@ -57,5 +57,63 @@ describe("DWG ur LibreDWG:s JSON", () => {
     expect(Math.min(...left.map(point => point[1]))).toBeCloseTo(-1, 1);
     expect(Math.max(...right.map(point => point[1]))).toBeCloseTo(1, 1);
     expect(bulgeSegment([0, 0], [2, 0], 0)).toEqual([[2, 0]]);
+    // Sagitta-adaptiv delning: 90°-hörn med radie 0,2 m ger få segment; radie 200 m ger tät kurva med sagitta <= 0,02 m.
+    const smallCorner = bulgeSegment([0.2, 0], [0, 0.2], Math.tan(Math.PI / 8));
+    expect(smallCorner.length).toBeLessThanOrEqual(3);
+    const largeCurve = bulgeSegment([200, 0], [0, 200], Math.tan(Math.PI / 8));
+    expect(largeCurve.length).toBeGreaterThanOrEqual(50);
+    const pts = [[200, 0] as [number, number], ...largeCurve];
+    for (let i = 1; i < pts.length; i += 1) {
+      const mx = (pts[i - 1]![0] + pts[i]![0]) / 2, my = (pts[i - 1]![1] + pts[i]![1]) / 2;
+      expect(200 - Math.hypot(mx, my)).toBeLessThanOrEqual(0.0205);
+    }
+  });
+
+  it("läser SPLINE ur ctrl_pts/knots (De Boor), ELLIPSE samt HATCH med ellips- och splinekanter", async () => {
+    const shoelace = (ring: readonly [number, number][]) =>
+      Math.abs(ring.reduce((sum, p, i) => { const q = ring[(i + 1) % ring.length]!; return sum + p[0] * q[1] - q[0] * p[1]; }, 0)) / 2;
+    const result = await read([
+      model, layer(40, "KURVA"), layer(41, "YTA"),
+      // SPLINE utan fit_pts: kubisk Bézier via ctrl_pts + knots.
+      { entity: "SPLINE", handle: [0, 1, 70], entmode: 2, layer: [5, 1, 40, 40], degree: 3,
+        knots: [0, 0, 0, 0, 1, 1, 1, 1], ctrl_pts: [[0, 0, 0, 1], [3, 5, 0, 1], [7, 5, 0, 1], [10, 0, 0, 1]] },
+      // ELLIPSE i modellrymden.
+      { entity: "ELLIPSE", handle: [0, 1, 71], entmode: 2, layer: [5, 1, 40, 40],
+        center: [0, 0, 0], sm_axis: [10, 0, 0], axis_ratio: 0.5, start_angle: 0, end_angle: Math.PI },
+      // HATCH med curve_type 3 (ellipsbåge) och linje.
+      { entity: "HATCH", handle: [0, 1, 72], entmode: 2, layer: [5, 1, 41, 41], paths: [{
+        flag: 0, segs: [
+          { curve_type: 3, center: [0, 0], endpoint: [10, 0], minor_major_ratio: 0.5, start_angle: 0, end_angle: Math.PI, is_ccw: 1 },
+          { curve_type: 1, first_endpoint: [-10, 0], second_endpoint: [10, 0] }
+        ] }] },
+      // HATCH med curve_type 4 (splinekant utan fitpts) och linje.
+      { entity: "HATCH", handle: [0, 1, 73], entmode: 2, layer: [5, 1, 41, 41], paths: [{
+        flag: 0, segs: [
+          { curve_type: 4, degree: 3, is_rational: 0, knots: [0, 0, 0, 0, 1, 1, 1, 1],
+            control_points: [{ point: [0, 0] }, { point: [3, 5] }, { point: [7, 5] }, { point: [10, 0] }] },
+          { curve_type: 1, first_endpoint: [10, 0], second_endpoint: [0, 0] }
+        ] }] }
+    ]);
+    expect(result.skipped).toBe(0);
+    expect(result.features).toHaveLength(4);
+    const [spline, ellipse, hatchEllipse, hatchSpline] = result.features;
+    expect(spline!.geometry.type).toBe("LineString");
+    if (spline!.geometry.type === "LineString") {
+      expect(spline!.geometry.coordinates.length).toBeGreaterThan(8);
+      expect(Math.max(...spline!.geometry.coordinates.map(([, y]) => y))).toBeCloseTo(3.75, 2);
+    }
+    expect(ellipse!.geometry.type).toBe("LineString");
+    if (ellipse!.geometry.type === "LineString") {
+      expect(ellipse!.geometry.coordinates[0]![0]).toBeCloseTo(10, 5);
+      expect(ellipse!.geometry.coordinates.at(-1)![0]).toBeCloseTo(-10, 5);
+    }
+    expect(hatchEllipse!.geometry.type).toBe("Polygon");
+    if (hatchEllipse!.geometry.type === "Polygon") {
+      expect(shoelace(hatchEllipse!.geometry.coordinates[0]!)).toBeCloseTo(Math.PI * 10 * 5 / 2, 0);
+    }
+    expect(hatchSpline!.geometry.type).toBe("Polygon");
+    if (hatchSpline!.geometry.type === "Polygon") {
+      expect(shoelace(hatchSpline!.geometry.coordinates[0]!)).toBeCloseTo(25.5, 1);
+    }
   });
 });

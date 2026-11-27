@@ -188,7 +188,7 @@ export function generalize(all: readonly NormObject[], scale: number, options: G
   const removed = { SMALL_AREA: 0, SHORT_LINE: 0, SMALL_CLOSED: 0 };
   const taken = new Set<ObjectKey>();
   if (options.removeSmall) {
-    for (const issue of checkNorm(objects, scale).issues) {
+    for (const issue of checkNorm(objects, scale, { rules: REMOVABLE_RULES, maxPerRule: Infinity }).issues) {
       if (!REMOVABLE_RULES.has(issue.rule) || taken.has(issue.key) || !inside(issue.at, options.within)) continue;
       taken.add(issue.key);
       const rule = issue.rule as keyof typeof removed;

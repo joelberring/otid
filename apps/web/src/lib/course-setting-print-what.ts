@@ -66,7 +66,7 @@ export function classItems(document: CourseSettingDocument, bundles: Bundles | u
       done.add(course.id);
       const variants = row.variantCodes.length > 0 ? row.variantCodes : [""];
       for (const variant of variants) {
-        const item: SheetItem = { course: course.id, ...(variant ? { variant } : {}), ...(layout !== MAIN_LAYOUT ? { layout } : {}) };
+        const item: SheetItem = { course: course.id, ...(variant ? { variant } : {}), ...(layout !== MAIN_LAYOUT ? { layout } : {}), className: name };
         out.push(...repeat(item, copiesOf(document, bundles, item, count, [name])));
       }
     }

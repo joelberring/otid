@@ -123,6 +123,45 @@ describe("en karta per löpare (steg 64)", () => {
     expect(result.items.map(item => item.runner?.kind)).toEqual(["VACANT", "RUNNER", "RESERVE"]);
   });
 
+  it("sorterar i klassordning (numerisk sv-SE per klass, starttid/startnummer/originalindex inom klass, reserver sist i buntordning)", () => {
+    const mixed: Bundles = {
+      missingVariant: [],
+      groups: [
+        {
+          courseVersionId: "00000000-0000-4000-8000-000000000001", courseName: "Lång", variantCode: null, runnerCount: 4, vacancyCount: 1, reserveCount: 1, printCount: 6,
+          items: [
+            { kind: "RUNNER", number: 20, entryId: "e1", name: "Erik", club: "OK", className: "H21", startTime: "2026-11-01T10:30:00.000Z" },
+            { kind: "RUNNER", number: 12, entryId: "e2", name: "Diana", club: "OK", className: "D10", startTime: "2026-11-01T10:05:00.000Z" },
+            { kind: "RUNNER", number: 30, entryId: "e3", name: "Örjan", club: "OK", className: "Öppen 1", startTime: null },
+            { kind: "RUNNER", number: 5, entryId: "e4", name: "Freja", club: "OK", className: "H21", startTime: null },
+            { kind: "VACANT", number: 2, className: "D2", startTime: "2026-11-01T10:10:00.000Z" }
+          ]
+        },
+        {
+          courseVersionId: "00000000-0000-4000-8000-000000000002", courseName: "Lång", variantCode: null, runnerCount: 3, vacancyCount: 0, reserveCount: 1, printCount: 4,
+          items: [
+            { kind: "RUNNER", number: 8, entryId: "e5", name: "Berit", club: "OK", className: "D2", startTime: "2026-11-01T10:15:00.000Z" },
+            { kind: "RUNNER", number: 10, entryId: "e6", name: "Carl", club: "OK", className: "H21", startTime: "2026-11-01T10:30:00.000Z" },
+            { kind: "RUNNER", number: 10, entryId: "e7", name: "David", club: "OK", className: "H21", startTime: "2026-11-01T10:30:00.000Z" }
+          ]
+        }
+      ]
+    } as unknown as Bundles;
+    const result = runnerPrintItems(testDocument(), mixed, clock, "CLASS");
+    expect(result.items.map(item => `${item.runner?.className ?? "RES"}:${item.runner?.name ?? item.runner?.kind}:${item.runner?.startNumber ?? ""}`)).toEqual([
+      "D2:VACANT:2",
+      "D2:Berit:8",
+      "D10:Diana:12",
+      "H21:Carl:10",
+      "H21:David:10",
+      "H21:Erik:20",
+      "H21:Freja:5",
+      "Öppen 1:Örjan:30",
+      "RES:RESERVE:",
+      "RES:RESERVE:"
+    ]);
+  });
+
   it("rogaining: poängbanan (ogafflad grupp) ger löparkartor utan problem", () => {
     const document = testDocument();
     const score = { ...document, courses: document.courses.map(course => ({ ...course, kind: "SCORE" as const, labelKind: "CODE" as const })) };

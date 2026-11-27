@@ -125,5 +125,6 @@ export const printWhatSv = {
   classes: "Klasser",
   allClasses: "Alla klasser",
   noClasses: "Klasserna läses från tävlingen.",
-  layoutLink: "Ändra papperet i Layout"
+  layoutLink: "Ändra papperet i Layout",
+  back: "Baksida"
 } as const;

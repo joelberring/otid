@@ -178,6 +178,7 @@ function sheetGroups(document: Parameters<typeof layoutCoursePage>[0], layout: P
   }
   items.forEach((item, index) => attempt(index, () => {
     const pages = layoutCoursePage(document, { course: item.course, ...(item.variant ? { variant: item.variant } : {}), ...(item.part !== undefined ? { part: item.part } : {}),
+      ...(item.className ? { className: item.className } : {}),
       ...(item.printScale ? { printScale: item.printScale } : {}), ...(item.printArea ? { printArea: item.printArea } : {}),
       mapBounds: options.mapBounds, header: layout.header, ...gaps, ...(item.training ? { training: item.training } : {}), ...(options.date ? { date: options.date } : {}),
       ...(options.runnerPlaceholders ? { runnerPlaceholders: true } : {}), ...(options.paperLinks ? { paperLinks: options.paperLinks } : {}) });
@@ -218,7 +219,7 @@ function duplexParts(groups: SheetGroup[], items: readonly SheetItem[]): SheetGr
   let key: string | undefined;
   for (const group of groups) {
     const item = group.item === undefined ? undefined : items[group.item];
-    const next = item ? `${item.course}|${item.variant ?? ""}|${item.runner ? JSON.stringify(item.runner) : ""}` : undefined;
+    const next = item ? `${item.course}|${item.variant ?? ""}|${item.className ?? ""}|${item.runner ? JSON.stringify(item.runner) : ""}` : undefined;
     if (next !== key) flush();
     key = next;
     run.push(group);

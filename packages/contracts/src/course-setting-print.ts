@@ -33,6 +33,8 @@ export const printJobItemSchema = z.object({
   part: z.number().int().min(0).max(50).optional(),
   /** ADR-0217: arkets layout (bana × layout); saknas = huvudlayouten. */
   layout: text(64).min(1).optional(),
+  /** Klassen när ett ark skrivs ut per klass (utan löpare), för {klass} på fram- och baksidan. */
+  className: text(200).optional(),
   printArea: z.object({ automatic: z.boolean(), restrictToPageSize: z.boolean(), rect: mapRect.optional(),
     page: z.object({ width: z.number().positive(), height: z.number().positive(), margins: z.number().min(0), landscape: z.boolean() }).strict().optional() })
     .strict().optional(),

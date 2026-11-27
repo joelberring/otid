@@ -28,7 +28,7 @@ import { pageStyles } from "../../lib/course-setting-print";
 import { ALL_CONTROLS } from "../../lib/course-setting-hit";
 import { safely } from "../../lib/course-setting-safely";
 import { trainingSv } from "../../i18n/course-setting-training-sv";
-import { runnerPrintItems, type RunnerPrint } from "../../lib/course-setting-runner-print";
+import { runnerPrintItems, type RunnerPrint, type RunnerPrintOrder } from "../../lib/course-setting-runner-print";
 import { ALL_RUNNERS, runnerCheckRows, runnerPages, selectRunnerItems, type CheckRow, type RunnerSelection } from "../../lib/course-setting-runner-select";
 import { runnerPrintSv } from "../../i18n/course-setting-runner-print-sv";
 import { RunnerControls, type BackMode } from "./course-setting-runner-panel";
@@ -39,7 +39,7 @@ import { layoutSv } from "../../i18n/course-setting-layout-sv";
 import { printWhatSv } from "../../i18n/course-setting-layout-sv";
 import { CourseSettingTabs } from "./course-setting-tabs";
 import { usePrintColors, usePrintMap, useSheetImages } from "./use-print-map";
-import { PrintWhat } from "./course-setting-print-what";
+import { PrintWhat, type ClassBackMode } from "./course-setting-print-what";
 import { pressNormOf } from "../../lib/course-setting-press-layers";
 import { Button, Notice } from "../ui";
 import { BlProposalPanel } from "./course-setting-bl-proposal";
@@ -107,10 +107,12 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
   const [mode, setMode] = useState<Mode>(initialMode);
   const [fill, setFill] = useState<"FILL" | "REPEAT">("FILL");
   const [profileId, setProfileId] = useState<string>();
-  const [order, setOrder] = useState<"BUNDLE" | "START">("BUNDLE");
+  const [order, setOrder] = useState<RunnerPrintOrder>("BUNDLE");
   // ADR-0213: baksidan (ingen, dubbelsidigt i samma PDF, separat körning) och vilka löpare som skrivs ut.
   const [backMode, setBackMode] = useState<BackMode>("NONE");
   const duplex = backMode === "DUPLEX";
+  const [classBackMode, setClassBackMode] = useState<ClassBackMode>("NONE");
+  const classDuplex = mode === "CLASSES" && classBackMode === "DUPLEX";
   const [selection, setSelection] = useState<RunnerSelection>(ALL_RUNNERS);
   // Träningsläget (ADR-0192): kartbitar och kontrollantens karta i linjeorienteringen.
   const [pieces, setPieces] = useState(false);
@@ -210,9 +212,11 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
     if (canEdit && id !== document?.event.printProfileId) void saveShown([{ type: "SET_EVENT", changes: { printProfileId: id } }]);
   }
 
-  // ADR-0217 (fas 3): "Kartor per ark" väljs i Layout (huvudlayoutens); en karta per löpare utan sådan får en karta per A4.
+  // ADR-0217 (fas 3): "Kartor per ark" väljs i Layout (huvudlayoutens); en karta per löpare och dubbelsidiga klasskartor utan sådan får en karta per A4.
   const mainTemplate = document ? sheetLayoutOfLayout(document, MAIN_LAYOUT) : undefined;
-  const template = mode === "RUNNERS" ? mainTemplate ?? BUILT_IN_SHEET_LAYOUTS.find(item => item.id === (duplex ? "a4-one" : "a4-strip")) : mainTemplate;
+  const template = mode === "RUNNERS"
+    ? mainTemplate ?? BUILT_IN_SHEET_LAYOUTS.find(item => item.id === (duplex ? "a4-one" : "a4-strip"))
+    : classDuplex ? mainTemplate ?? BUILT_IN_SHEET_LAYOUTS.find(item => item.id === "a4-one") : mainTemplate;
 
   const runners = useMemo<RunnerPrint | undefined>(() => document && bundles
     ? runnerPrintItems(document, bundles, clockIn(bundles.timeZone), order) : undefined, [document, bundles, order]);
@@ -258,15 +262,17 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
     const out: Printed[] = [], bad: string[] = mode === "RUNNERS" ? [] : [...variantErrors];
     if (!document) return { sheets: out, errors: bad, perItem: [] as number[] };
     const runnerMode = mode === "RUNNERS";
+    const perItemBack = runnerMode || classDuplex;
     if (runnerMode && (!runners || !template)) return { sheets: out, errors: bad, perItem: [] as number[] };
     const items: readonly SheetItem[] = runnerMode ? chosenRunners : courseItems;
     const perItem = items.map(() => 0);
     const nameOf = (course: string) => course === ALL_CONTROLS ? text.print.allControls : courses.find(item => item.id === course)?.name ?? course;
-    const layout = !runnerMode && pieces ? { kind: "PIECES" as const }
-      : template ? { kind: "TEMPLATE" as const, template, perRunner: runnerMode, duplex, fill, ...(runnerMode && !mainTemplate ? { ownPage: true } : {}) }
+    const layout = mode === "COURSES" && pieces ? { kind: "PIECES" as const }
+      : template ? { kind: "TEMPLATE" as const, template, perRunner: perItemBack, duplex: runnerMode ? duplex : classDuplex, fill, ...(perItemBack && !mainTemplate ? { ownPage: true } : {}) }
         : { kind: "COURSE" as const, header, duplex: partsDuplex };
-    // ADR-0213: banornas förhandsvisning visar löparens variabler som platshållare ({namn} …).
-    const groups = printSheetGroups(document, layout, items, { mapBounds, ...(bundles ? { date: bundles.raceDate } : {}), ...mapAids, runnerPlaceholders: !runnerMode, raceTitle,
+    // ADR-0213: banornas förhandsvisning visar löparens variabler som platshållare ({namn} …); i Klasser och En karta per löpare blir saknade löparvariabler tomma.
+    const groups = printSheetGroups(document, layout, items, { mapBounds, ...(bundles ? { date: bundles.raceDate } : {}), ...mapAids,
+      runnerPlaceholders: mode !== "RUNNERS" && mode !== "CLASSES", raceTitle,
       ...(paperLinks ? { paperLinks } : {}), onError: ({ item, error }) => {
         console.error("Utskriftslayouten misslyckades", error);
         const row = item === undefined ? undefined : items[item];
@@ -284,11 +290,15 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
         // En löpare per ark: remsan och baksidan gäller arkets löpare.
         else if (runnerMode && row) out.push({ key: `r${group.item}|${part}`, sheet,
           label: [sheet.frames[0]?.title ?? "", row.runner?.name ?? row.runner?.kind ?? ""].filter(Boolean).join(" – ") });
+        else if (classDuplex && row) out.push({ key: `${row.course}|${row.variant ?? ""}|${row.part ?? ""}|${row.layout ?? ""}|${group.item}|${part}`, sheet,
+          label: sheet.back
+            ? (sheet.paperItems?.length ?? 0) > 0 ? [row.className, whatText.back].filter(Boolean).join(" – ") : text.page.blankBack
+            : [row.className, sheet.frames[0]?.title].filter(Boolean).join(" – ") });
         else out.push({ key: `t${group.item ?? ""}|${part}`, sheet, label: sheet.frames.length === 0 ? text.page.blankBack : sheet.frames.map(frame => frame.title).join(", ") });
       });
     }
     return { sheets: out, errors: bad, perItem };
-  }, [document, courses, courseItems, variantErrors, header, mapBounds, mode, template, fill, runners, chosenRunners, duplex, bundles, pieces, partsDuplex, mapAids, raceTitle, paperLinks]);
+  }, [document, courses, courseItems, variantErrors, header, mapBounds, mode, template, mainTemplate, fill, runners, chosenRunners, duplex, classDuplex, bundles, pieces, partsDuplex, mapAids, raceTitle, paperLinks, whatText]);
 
   const images = useSheetImages(map, sheets, printColors);
   // Löparens ark ur kontrolltabellen (ADR-0213): markerat bland arken.
@@ -352,7 +362,8 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
             data-testid="print-mode-proof" />{whatText.modeProof}</label>
         </div>
         {mode !== "RUNNERS" && <PrintWhat raceId={raceId} mode={mode} entries={layoutEntries(document, layoutText.mainName)} layout={printLayout} onLayout={setPrintLayout}
-          count={count} onCount={setCount} classes={[...new Set((bundles?.classes ?? []).map(row => row.name))]} chosenClasses={chosenClasses} onClasses={setChosenClasses} />}
+          count={count} onCount={setCount} classes={[...new Set((bundles?.classes ?? []).map(row => row.name))]} chosenClasses={chosenClasses} onClasses={setChosenClasses}
+          backMode={classBackMode} onBackMode={setClassBackMode} />}
         {mode === "CLASSES" || mode === "PROOF" ? null : mode === "COURSES" ? <>
           <fieldset className={styles.courses}>
             <legend>{text.page.courses}</legend>
@@ -389,8 +400,9 @@ export function CoursePrintPage({ raceId, initialMode = "COURSES" }: { raceId: s
           <PdfPanel raceId={raceId} profile={profile} colors={colors} usage={usage} disabled={sheets.length === 0 || blocked || errors.length > 0}
             blockedText={blocked ? pdfText.runnerBlocked : undefined} heading={outputText.pdf} help={outputText.pdfHelp}
             selection={{ items: mode === "RUNNERS" ? chosenRunners.map(withoutEntry) : courseItems, template, templateIsDraft: false,
-              savedTemplateIds: (document.event.layoutTemplates ?? []).map(item => item.id), header, fill, perRunner: mode === "RUNNERS", duplex: mode === "RUNNERS" ? duplex : partsDuplex,
-              ...(mode === "RUNNERS" && !mainTemplate ? { ownPage: true } : {}),
+              savedTemplateIds: (document.event.layoutTemplates ?? []).map(item => item.id), header, fill, perRunner: mode === "RUNNERS" || classDuplex,
+              duplex: mode === "RUNNERS" ? duplex : classDuplex ? true : partsDuplex,
+              ...((mode === "RUNNERS" || classDuplex) && !mainTemplate ? { ownPage: true } : {}),
               pieces: mode === "COURSES" && pieces,
               ...(bundles ? { date: bundles.raceDate } : {}) }} onSaved={() => setSavedPrints(key => key + 1)} />
         </div>

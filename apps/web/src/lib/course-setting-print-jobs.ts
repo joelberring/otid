@@ -45,6 +45,7 @@ export function printJobRequest(selection: PrintJobSelection, kind: PrintJobKind
     // ADR-0217: arkets layout följer med (saknas = huvudlayouten).
     items: selection.items.map(item => ({ course: item.course, ...(item.variant ? { variant: item.variant } : {}), ...(item.part !== undefined ? { part: item.part } : {}),
       ...(item.layout && item.layout !== MAIN_LAYOUT ? { layout: item.layout } : {}),
+      ...(item.className ? { className: item.className } : {}),
       ...(item.printScale ? { printScale: item.printScale } : {}),
       ...(item.printArea ? { printArea: item.printArea } : {}), ...(item.runner ? { runner: { ...item.runner, club: item.runner.club ?? null } } : {}),
       ...(item.training ? { training: item.training } : {}) })),

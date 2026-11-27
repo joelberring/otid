@@ -10,6 +10,8 @@ export interface PaperTextFrame {
   /** Kartbyten (ADR-0203): delen av banan. */
   readonly part?: number | undefined;
   readonly printScale: number;
+  /** Klassen när ett ark skrivs ut per klass (utan löpare), för {klass} på fram- och baksidan. */
+  readonly className?: string | undefined;
   readonly runner?: { readonly kind: "RUNNER" | "VACANT" | "RESERVE"; readonly name: string | null; readonly club?: string | null | undefined;
     readonly className: string | null; readonly startTime: string | null; readonly startNumber: number | null;
     /** Stafett (ADR-0213): laget och sträckan. */
@@ -50,8 +52,8 @@ export function paperTextValues(document: CourseSettingDocument, frame: PaperTex
     datum: date ?? document.event.paperValues?.date ?? "",
     ekvidistans: document.event.paperValues?.contourInterval ?? "",
     klasser: classes,
-    // Klassen: löparens i en karta per löpare, annars banans klasser.
-    klass: runner ? runner.className ?? "" : classes,
+    // Klassen: löparens i en karta per löpare, klassens i Klasser, annars banans klasser.
+    klass: runner ? runner.className ?? "" : frame?.className ?? classes,
     ...runnerValues(frame)
   };
 }

@@ -127,5 +127,6 @@ export const printWhatEn: Texts<typeof printWhatSv> = {
   classes: "Classes",
   allClasses: "All classes",
   noClasses: "The classes are read from the event.",
-  layoutLink: "Change the paper in Layout"
+  layoutLink: "Change the paper in Layout",
+  back: "Back"
 };

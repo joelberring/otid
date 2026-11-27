@@ -68,8 +68,11 @@ const KIND_LABEL = { PRESS: "Tryckeri", PROCESS: "Tryckeri (kartan i CMYK)", OFF
 function labelFor(document: CourseSettingDocument, request: PrintJobRequest): string {
   const names = new Map(document.courses.map(course => [course.id, course.name]));
   const courses = [...new Set(request.items.map(item => item.course === "ALL_CONTROLS" ? "Alla kontroller" : names.get(item.course) ?? item.course))];
-  const what = request.perRunner ? `${request.items.length} kartor per löpare${request.duplex ? " med baksidor" : ""}`
-    : `${courses.slice(0, 4).join(", ")}${courses.length > 4 ? ` m.fl. (${courses.length})` : ""}`;
+  const classes = [...new Set(request.items.flatMap(item => item.className ? [item.className] : []))];
+  const hasRunners = request.items.some(item => item.runner !== undefined);
+  const what = request.perRunner && hasRunners ? `${request.items.length} kartor per löpare${request.duplex ? " med baksidor" : ""}`
+    : request.perRunner && classes.length > 0 ? `${classes.slice(0, 4).join(", ")}${classes.length > 4 ? ` m.fl. (${classes.length})` : ""}${request.duplex ? " med baksidor" : ""}`
+      : `${courses.slice(0, 4).join(", ")}${courses.length > 4 ? ` m.fl. (${courses.length})` : ""}${request.perRunner && request.duplex ? " med baksidor" : ""}`;
   return `${KIND_LABEL[request.kind]}: ${what}`.slice(0, 500);
 }
 

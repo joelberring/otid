@@ -32,13 +32,18 @@ export interface RunnerPrint {
 
 /** Startordningen: löpare och lediga med starttid först, fri start sedan, reserverna sist. */
 const rank = (item: SheetItem, at: string | null) => item.runner?.kind === "RESERVE" ? 2 : at === null ? 1 : 0;
+const isReserve = (item: SheetItem) => (item.runner?.kind === "RESERVE" ? 1 : 0);
+const missingClass = (item: SheetItem) => (item.runner?.className ? 0 : 1);
+
+export type RunnerPrintOrder = "BUNDLE" | "CLASS" | "START";
 
 /**
  * Kartorna med löparens uppgifter. BUNDLE = buntordning (per variant: löpare och lediga tider, sedan reserver);
+ * CLASS = klassordning (löpare och lediga grupperade per klass, inom varje klass efter starttid, sedan startnummer), reserverna sist i buntordning;
  * START = startordning över alla banor (starttid, sedan startnummer), reserverna sist i buntordning.
  */
 export function runnerPrintItems(document: CourseSettingDocument, bundles: Pick<MapBundleResponse, "groups" | "missingVariant">,
-  clock: (instant: string | null) => string, order: "BUNDLE" | "START" = "BUNDLE"): RunnerPrint {
+  clock: (instant: string | null) => string, order: RunnerPrintOrder = "BUNDLE"): RunnerPrint {
   const problems: RunnerPrintProblem[] = bundles.missingVariant.map(row => ({ kind: "MISSING_VARIANT", name: row.name, className: row.className }));
   const items: SheetItem[] = [];
   const counts = new Map<string, { courseName: string; variantCode: string | null; count: number; layout?: string }>();
@@ -98,8 +103,17 @@ export function runnerPrintItems(document: CourseSettingDocument, bundles: Pick<
     }
   }
   const ordered = order === "BUNDLE" ? items : items.map((item, index) => ({ item, index, at: instants[index] ?? null }))
-    .sort((a, b) => rank(a.item, a.at) - rank(b.item, b.at) || (a.at ?? "").localeCompare(b.at ?? "")
-      || (a.item.runner?.startNumber ?? Infinity) - (b.item.runner?.startNumber ?? Infinity) || a.index - b.index).map(row => row.item);
+    .sort((a, b) => order === "CLASS"
+      ? isReserve(a.item) - isReserve(b.item)
+        || (isReserve(a.item) ? a.index - b.index : 0)
+        || missingClass(a.item) - missingClass(b.item)
+        || (a.item.runner?.className ?? "").localeCompare(b.item.runner?.className ?? "", "sv-SE", { numeric: true })
+        || rank(a.item, a.at) - rank(b.item, b.at)
+        || (a.at ?? "").localeCompare(b.at ?? "")
+        || (a.item.runner?.startNumber ?? Infinity) - (b.item.runner?.startNumber ?? Infinity)
+        || a.index - b.index
+      : rank(a.item, a.at) - rank(b.item, b.at) || (a.at ?? "").localeCompare(b.at ?? "")
+        || (a.item.runner?.startNumber ?? Infinity) - (b.item.runner?.startNumber ?? Infinity) || a.index - b.index).map(row => row.item);
   return { items: ordered, excluded: excludedRunners, problems, counts: [...counts.values()] };
 }
 

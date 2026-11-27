@@ -50,11 +50,12 @@ export function runnerBackOf(document: CourseSettingDocument, relay = false): Ru
  * (första) ram: banan, varianten, skalan och löparen. En mening som blir tom (t.ex. klubben för en reserv) står inte.
  */
 export function runnerBackSheet(document: CourseSettingDocument, paper: Sheet["paper"],
-  front: { readonly course: string; readonly variant?: string | undefined; readonly printScale: number; readonly runner?: RunnerInfo | undefined },
+  front: { readonly course: string; readonly variant?: string | undefined; readonly printScale: number; readonly runner?: RunnerInfo | undefined; readonly className?: string | undefined },
   options: { readonly date?: string | undefined; readonly runnerPlaceholders?: boolean | undefined; readonly links?: PaperLinks | undefined } = {}): Sheet {
   const page = { x: 0, y: 0, width: paper.widthMm, height: paper.heightMm };
   const frame = { course: front.course, ...(front.variant ? { variant: front.variant } : {}), printScale: front.printScale,
-    ...(front.runner ? { runner: front.runner } : {}), ...(options.runnerPlaceholders && !front.variant ? { variantPlaceholder: true } : {}), clip: page };
+    ...(front.runner ? { runner: front.runner } : {}), ...(front.className ? { className: front.className } : {}),
+    ...(options.runnerPlaceholders && !front.variant ? { variantPlaceholder: true } : {}), clip: page };
   const paperItems: SheetPaperItem[] = [];
   for (const item of runnerBackOf(document, front.runner?.team !== undefined).items) {
     if (item.hide) continue;

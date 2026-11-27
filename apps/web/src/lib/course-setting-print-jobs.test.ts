@@ -35,6 +35,19 @@ describe("PDF för tryck: förfrågan och förhandskontrollen (steg 65)", () => 
     expect(printJobRequest({ ...selection, items: [{ course: "1", part: 1 }] }, "PRESS", "as-file", { warnings: true, rules: [] }).duplex).toBe(false);
   });
 
+  it("klasser med dubbelsidig baksida: className, layout, variant och ownPage följer med i förfrågan utan löpare", () => {
+    const a4One = BUILT_IN_SHEET_LAYOUTS.find(item => item.id === "a4-one")!;
+    const req = printJobRequest({
+      ...selection, template: a4One, perRunner: true, duplex: true, ownPage: true, date: "2026-12-09",
+      items: [{ course: "1", variant: "AB", layout: "aldre", className: "H70" }, { course: "1", className: "H21" }]
+    }, "PRESS", "as-file", { warnings: true, rules: [] });
+    expect(printJobRequestSchema.parse(req)).toMatchObject({
+      layout: { kind: "TEMPLATE", template: "a4-one", fill: "FILL", ownPage: true },
+      perRunner: true, duplex: true, date: "2026-12-09",
+      items: [{ course: "1", variant: "AB", layout: "aldre", className: "H70" }, { course: "1", className: "H21" }]
+    });
+  });
+
   it("förhandskontrollen mot PDF:en: övertryck går, PDF/X stoppar, varningar måste bekräftas", () => {
     const bl = BUILT_IN_PRINT_PROFILES.find(item => item.id === "bl-forest-2026-08-27")!;
     const colors = [color(1, "Svart", { c: 0, m: 0, y: 0, k: 0.9 })];

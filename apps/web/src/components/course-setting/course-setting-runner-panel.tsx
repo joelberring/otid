@@ -9,7 +9,7 @@ import Link from "next/link";
 import type { SheetItem } from "@o-tid/course-setting";
 import { coursePrintSv } from "../../i18n/course-setting-print-sv";
 import { runnerPrintSv } from "../../i18n/course-setting-runner-print-sv";
-import type { RunnerPrint, RunnerPrintProblem } from "../../lib/course-setting-runner-print";
+import type { RunnerPrint, RunnerPrintOrder, RunnerPrintProblem } from "../../lib/course-setting-runner-print";
 import { searchRunners, type RunnerSelection } from "../../lib/course-setting-runner-select";
 import { Button, Notice } from "../ui";
 import styles from "./course-setting-print-page.module.css";
@@ -33,7 +33,7 @@ function problemText(problem: RunnerPrintProblem, text: Texts<typeof coursePrint
  */
 export function RunnerControls({ bundlesState, runners, raceId, order, setOrder, backMode, setBackMode, selection, setSelection, chosen }: {
   bundlesState: "none" | "reading" | "ready" | "failed"; runners: RunnerPrint | undefined; raceId: string;
-  order: "BUNDLE" | "START"; setOrder: (order: "BUNDLE" | "START") => void;
+  order: RunnerPrintOrder; setOrder: (order: RunnerPrintOrder) => void;
   backMode: BackMode; setBackMode: (mode: BackMode) => void;
   selection: RunnerSelection; setSelection: (selection: RunnerSelection) => void;
   /** Antalet kartor i urvalet. */
@@ -45,8 +45,8 @@ export function RunnerControls({ bundlesState, runners, raceId, order, setOrder,
   if (bundlesState === "failed" || !runners) return <Notice tone="error">{text.page.runnersFailed}</Notice>;
   return <div className={styles.stack} data-testid="print-runners">
     <div className={styles.row}>
-      <label className={styles.field}>{text.page.order}<select value={order} onChange={event => setOrder(event.target.value as "BUNDLE" | "START")}>
-        <option value="BUNDLE">{text.page.orderBundle}</option><option value="START">{text.page.orderStart}</option></select></label>
+      <label className={styles.field}>{text.page.order}<select value={order} data-testid="print-runner-order" onChange={event => setOrder(event.target.value as RunnerPrintOrder)}>
+        <option value="BUNDLE">{text.page.orderBundle}</option><option value="CLASS">{text.page.orderClass}</option><option value="START">{text.page.orderStart}</option></select></label>
       <label className={styles.field}>{runnerText.back}<select value={backMode} data-testid="print-back-mode" onChange={event => setBackMode(event.target.value as BackMode)}>
         {(["NONE", "DUPLEX", "SEPARATE"] as const).map(mode => <option key={mode} value={mode}>{runnerText.backModes[mode]}</option>)}</select></label>
     </div>

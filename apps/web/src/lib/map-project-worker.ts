@@ -32,9 +32,12 @@ const post = (message: MapProjectResponse, transfer: Transferable[] = []) => sel
 let base: ParsedMap | undefined;
 let sha256 = "";
 let keys: ObjectKey[] = [];
+/** Grundfilens rutor, räknade en gång vid `"load"` och återanvända för orörda objekt i `rebuild()`. */
+let baseBoxes: Box[] = [];
+const baseIndexByKey = new Map<ObjectKey, number>();
 const refs = new Map<ObjectKey, ObjectRef>();
-/** Kartan med ändringarna, nycklarna i samma ordning och objektens rutor (för träffarna). */
-let current: { map: ParsedMap; keys: readonly ObjectKey[]; boxes: Box[] } | undefined;
+/** Kartan med ändringarna, nycklarna i samma ordning, uppslagsindex och objektens rutor (för träffarna). */
+let current: { map: ParsedMap; keys: readonly ObjectKey[]; keyIndex: Map<ObjectKey, number>; boxes: Box[] } | undefined;
 let queued: Extract<MapProjectRequest, { type: "render" }> | undefined;
 let drawing = false;
 
@@ -86,7 +89,16 @@ function rebuild(states: ReadonlyMap<ObjectKey, KeyedState>) {
   lastStates = states;
   refreshCandidates();
   const edited = editedObjects(base, states, keys);
-  current = { map: { ...base, objects: edited.objects }, keys: edited.keys, boxes: edited.objects.map(objectBox) };
+  const keyIndex = new Map<ObjectKey, number>();
+  const boxes = new Array<Box>(edited.objects.length);
+  for (let index = 0; index < edited.objects.length; index += 1) {
+    const key = edited.keys[index]!;
+    const object = edited.objects[index]!;
+    keyIndex.set(key, index);
+    const baseIdx = baseIndexByKey.get(key);
+    boxes[index] = baseIdx !== undefined && base.objects[baseIdx] === object ? baseBoxes[baseIdx]! : objectBox(object);
+  }
+  current = { map: { ...base, objects: edited.objects }, keys: edited.keys, keyIndex, boxes };
 }
 
 /** Fyll yta: sökaren minns fönstrets ytor mellan frågorna (kartan med ändringarna är en ny lista efter varje ändring). */
@@ -202,13 +214,13 @@ async function catalog(map: ParsedMap): Promise<CatalogSymbol[]> {
     perSymbol.set(layer, (perSymbol.get(layer) ?? 0) + 1);
     layerCounts.set(object.symbol, perSymbol);
   });
-  const out: CatalogSymbol[] = [];
+  const tasks: Promise<CatalogSymbol>[] = [];
   for (const symbol of map.symbols.values()) {
     // Symboler som är dolda i filen och inte används är bara rester; de som används blir skisslager.
     if (symbol.hidden && !counts.get(symbol.id)) continue;
     const layers = [...(layerCounts.get(symbol.id) ?? [])].sort((a, b) => b[1] - a[1]).slice(0, MAX_LAYERS).map(([name, count]) => ({ name, count }));
     const kind = symbolObjectKind(map, symbol);
-    let icon: Blob | undefined;
+    let iconPromise: Promise<Blob | undefined> | undefined;
     const object = sample(kind, symbol.id);
     if (object) {
       try {
@@ -217,18 +229,22 @@ async function catalog(map: ParsedMap): Promise<CatalogSymbol[]> {
         if (context) {
           drawMap(context, { ...map, objects: [object] }, { pxPerMm: ICON_PX / ICON_MM, origin: { x: -ICON_MM / 2, y: ICON_MM / 2 }, background: false,
             ...(symbol.hidden ? { showHiddenSymbols: new Set([symbol.id]) } : {}) });
-          icon = await canvas.convertToBlob({ type: "image/png" });
+          iconPromise = canvas.convertToBlob({ type: "image/png" }).catch(() => undefined);
         }
-      } catch { icon = undefined; }
+      } catch { iconPromise = undefined; }
     }
-    out.push({ id: symbol.id, code: symbol.code.text, name: symbol.name, kind, group: symbolGroup(symbol.code.main), ...previewStyle(map, symbol), icon,
+    const baseEntry: Omit<CatalogSymbol, "icon"> = {
+      id: symbol.id, code: symbol.code.text, name: symbol.name, kind, group: symbolGroup(symbol.code.main), ...previewStyle(map, symbol),
       ...(kind === "area" && hasOwnOutline(map.symbols, symbol) ? { outlined: true } : {}),
       ...(isDashedLineSymbol(symbol) ? { dashed: true } : {}),
       count: counts.get(symbol.id) ?? 0, colors: symbolColorIds(fileSymbols, fileSymbols.get(symbol.id) ?? symbol),
       ...(symbol.kind === "TEXT" ? { text: { fontFamily: symbol.fontFamily, size: symbol.size, color: symbol.color, bold: symbol.bold, italic: symbol.italic,
         ...(symbol.align ? { align: symbol.align } : {}), ...(symbol.framing ? { framing: symbol.framing } : {}) } } : {}),
-      ...(symbol.hidden ? { fileHidden: true } : {}), ...(layers.length ? { layers } : {}) });
+      ...(symbol.hidden ? { fileHidden: true } : {}), ...(layers.length ? { layers } : {})
+    };
+    tasks.push(iconPromise ? iconPromise.then(icon => ({ ...baseEntry, icon })) : Promise.resolve({ ...baseEntry, icon: undefined }));
   }
+  const out = await Promise.all(tasks);
   return out.sort((a, b) => a.code.localeCompare(b.code, "sv", { numeric: true }));
 }
 
@@ -294,6 +310,9 @@ self.onmessage = (event: MessageEvent<MapProjectRequest>) => {
     fileSymbols = base.symbols;
     sha256 = request.sha256;
     keys = baseKeys(base);
+    baseBoxes = base.objects.map(objectBox);
+    baseIndexByKey.clear();
+    keys.forEach((key, index) => baseIndexByKey.set(key, index));
     layerByKey.clear();
     base.objectLayers?.forEach((layer, index) => { if (layer) layerByKey.set(keys[index]!, layer); });
     refs.clear();
@@ -343,7 +362,7 @@ self.onmessage = (event: MessageEvent<MapProjectRequest>) => {
       const found = request.type === "hit" ? hitTest(input, request.point, request.tolerance)
         : boxTest(input, request.box).map(key => ({ key, distance: 0 }));
       for (const candidate of found) {
-        const hit = hitOf(current.keys.indexOf(candidate.key), candidate.distance);
+        const hit = hitOf(current.keyIndex.get(candidate.key) ?? -1, candidate.distance);
         if (hit) hits.push(hit);
       }
     }

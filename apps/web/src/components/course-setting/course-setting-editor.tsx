@@ -236,7 +236,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
   const mapFile = useCourseSettingMapFile({ raceId, mapFile: state.mapFile, storage: offline.storage, say });
   const { session: mapSession, vectorSession, locked: mapLocked, bounds: mapBounds, status: mapStatus, georeference, bytes: mapBytes } = mapFile;
 
-  const { document, view, selection } = editor;
+  const { document, view, selection } = editor, settledDocument = editor.dragBase ?? document;
   const course = document.courses.find(row => row.id === view);
   const radiusMm = 3 * (course?.printScale ?? document.event.mapScale) / document.event.mapScale;
   // ADR-0180 beslut 14: paletten, vridningen, befintliga kontroller, gafflingens grenar, kopia och oanvända kontroller.
@@ -244,9 +244,9 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
   const variant = ux.variant;
   // En delad kontroll flyttad långt i en bana: flytta i alla banor eller ny kontroll bara här (som Purple Pen).
   const moveShared = useMoveShared({ raceId, store, apply, edit, poke: () => sync.poke(), say });
-  const cutting = useDetailGaps(vectorSession, document);
+  const cutting = useDetailGaps(vectorSession, settledDocument);
   // ADR-0180 beslut 13: förslag på kontrollbeskrivning ur kartfilen; objektet markeras när man pekar på ett förslag.
-  const suggestions = useDescriptionSuggestions(vectorSession, document, view, variant, selection?.kind === "control" ? selection.control : undefined);
+  const suggestions = useDescriptionSuggestions(vectorSession, settledDocument, view, variant, selection?.kind === "control" ? selection.control : undefined);
   const [suggestionHover, setSuggestionHover] = useState<Parameters<typeof drawSuggestionHighlight>[2]>();
   // ADR-0192: träningsläget (kartans pass, verktygen och fliken Träning).
   const training = useCourseSettingTraining({ document, view, variant, session: vectorSession, mapReady: mapStatus === "ready", mapBounds, readOnly, say,
@@ -264,7 +264,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
     [document, view, variant, cutting.options, training.overprint, part]);
   const faded = useMemo(() => variant ? safely("Banpåtrycket", () => layoutOverprint(document, { course: view, ...cutting.options, training: training.overprint }),
     () => [] as readonly OverprintPrimitive[]) : [], [document, view, variant, cutting.options, training.overprint]);
-  const summaries = useMemo(() => safely("Banornas längder", () => courseSummaries(document), () => []), [document]);
+  const summaries = useMemo(() => safely("Banornas längder", () => courseSummaries(settledDocument), () => []), [settledDocument]);
   // Steg 64: symbolerna för beskrivningen på kartan.
   const standard = document.event.descriptionStandard;
   const symbols = useMemo(() => symbolLookup(safely("Symbolerna", () => descriptionSymbols(standard), () => [] as readonly DescriptionSymbol[])), [standard]);
@@ -272,7 +272,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
   const routeStore = useRouteResults();
   // ADR-0212: nivåstödet (bara på begäran); resultatet ger notiser i Varningar och märken på kartan.
   const levelStore = useLevelStore({ document, mapSha256: state.mapFile?.sha256 });
-  const forbidden = useForbiddenRoutes({ document, results: routeStore.results, hasMap: Boolean(state.mapFile), tabOpen: tab === "checks",
+  const forbidden = useForbiddenRoutes({ document: settledDocument, results: routeStore.results, hasMap: Boolean(state.mapFile), tabOpen: tab === "checks",
     numberObstacles: cutting.obstacles, levelChecks: levelStore.checks, levelText: levelStore.checkText });
   const checks = forbidden.checks, checked = forbidden.checked;
   const [flagged, setFlagged] = useState<CheckRow>();
@@ -315,7 +315,7 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
   const [legStatus, setLegStatus] = useState<LegStatus>("idle");
   const [highlighted, setHighlighted] = useState<number>();
   const legCourseControls = useMemo(() => view === ALL_CONTROLS ? [] : safely("Banans kontroller",
-    () => courseControlOrder(document, view, variant), () => [] as readonly string[]), [document, view, variant]);
+    () => courseControlOrder(settledDocument, view, variant), () => [] as readonly string[]), [settledDocument, view, variant]);
   const input = selection?.kind === "leg" && view !== ALL_CONTROLS ? legInput(document, selection.from, selection.to, legCourseControls, view) : undefined;
   const inputKey = input?.key;
   const [lengthWanted, setLengthWanted] = useState(false);
@@ -351,8 +351,8 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
   const highlightRoute = highlighted !== undefined ? routeRows[highlighted]?.points : undefined;
 
   // Notiser (ADR-0181 beslut 1 och 8): markeringar och ritningar, filter, ny notis, ritläget och borttagning (`useCourseSettingNotes`).
-  const controlsInView = useMemo(() => new Set(view === ALL_CONTROLS ? Object.keys(document.controls)
-    : legCourseControls.map(id => document.courseControls[id]?.control).filter((id): id is string => id !== undefined)), [document, view, legCourseControls]);
+  const controlsInView = useMemo(() => new Set(view === ALL_CONTROLS ? Object.keys(settledDocument.controls)
+    : legCourseControls.map(id => settledDocument.courseControls[id]?.control).filter((id): id is string => id !== undefined)), [settledDocument, view, legCourseControls]);
   const notes = useCourseSettingNotes({ raceId, document, view, allControls: ALL_CONTROLS, controlsInView, serverNotes: collaboration.notes,
     reloadNotes: collaboration.reloadNotes, offline, saved: id => Boolean(sync.document.controls[id]), access, say, map: mapHandle,
     readOnlyCourse: readOnly });
@@ -362,8 +362,8 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
   // Steg 67: kollad per kontroll – serverns bockar med de väntande i kön ovanpå.
   const inspections = useMemo(() => mergeInspections(collaboration.inspections,
     offline.queue.flatMap(item => item.kind === "inspection" ? [item.request] : []), me), [collaboration.inspections, offline.queue]);
-  const inspectionList = useMemo(() => inspectionRows(document, controlsInView, inspections), [document, controlsInView, inspections]);
-  const inspectedMarks = useMemo(() => inspectedPoints(document, controlsInView, inspections), [document, controlsInView, inspections]);
+  const inspectionList = useMemo(() => inspectionRows(settledDocument, controlsInView, inspections), [settledDocument, controlsInView, inspections]);
+  const inspectedMarks = useMemo(() => inspectedPoints(settledDocument, controlsInView, inspections), [settledDocument, controlsInView, inspections]);
   const [reveal, setReveal] = useState(linkedTab ? 1 : 0);
   const [offlineDialog, setOfflineDialog] = useState(false);
 
@@ -544,12 +544,12 @@ export function CourseSettingEditor({ raceId, state, notice, noticeStays, onRelo
   const router = useRouter();
   const [descriptionKind, setDescriptionKind] = useState<DescriptionSettings["kind"]>(() =>
     readDescriptionSettings(browserStorage(), raceId, initialDocument).kind);
-  const descriptionSettings = useMemo<DescriptionSettings>(() => ({ language: descriptionLanguageOf(document), kind: descriptionKind }),
-    [document, descriptionKind]);
+  const descriptionSettings = useMemo<DescriptionSettings>(() => ({ language: descriptionLanguageOf(settledDocument), kind: descriptionKind }),
+    [settledDocument, descriptionKind]);
   const selectedControl = selection?.kind === "control" ? selection.control : undefined;
   const describedControl = useMemo(() => selectedControl
-    ? safely("Textbeskrivningen", () => describeControl(document, selectedControl, descriptionSettings.language), () => "") : "",
-  [document, selectedControl, descriptionSettings.language]);
+    ? safely("Textbeskrivningen", () => describeControl(settledDocument, selectedControl, descriptionSettings.language), () => "") : "",
+  [settledDocument, selectedControl, descriptionSettings.language]);
 
   const suggesting = editor.suggesting !== undefined;
   const statusText = suggesting ? copy.suggestions.draftCount(editor.log.length) : statusTexts(text)[status];

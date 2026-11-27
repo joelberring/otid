@@ -98,4 +98,25 @@ describe("Fäst (K8b V3)", () => {
     expect(found).toBeGreaterThan(queries.length * 0.9);
     expect(perQuery).toBeLessThan(1);
   });
+
+  it("returnerar direkt vid nodträff (inkl. extra.points) utan att störa skärningar eller kanter", () => {
+    // Extra punkt närmare än indexets punkt vinner; segment/skärning vid samma plats ska inte skugga noden.
+    const extraCloser = snapAt(index, {
+      point: { x: 10.1, y: 0.1 },
+      reachMm: 1,
+      extra: { points: [{ x: 10.05, y: 0.05 }], segments: [[{ x: 0, y: 0 }, { x: 20, y: 0 }]] }
+    });
+    expect(extraCloser?.kind).toBe("vertex");
+    expect(extraCloser?.at).toEqual({ x: 10.05, y: 0.05 });
+
+    // Indexets punkt vinner över extra.points om den är närmare.
+    const indexCloser = snapAt(index, {
+      point: { x: 19.95, y: 0 },
+      reachMm: 1,
+      extra: { points: [{ x: 19.5, y: 0 }], segments: [] }
+    });
+    expect(indexCloser?.kind).toBe("vertex");
+    expect(indexCloser?.at).toEqual({ x: 20, y: 0 });
+    expect(indexCloser?.target.key).toBe("A");
+  });
 });

@@ -5,8 +5,8 @@ import { MAP_PROJECT_SYNC_MAX_EDITS, type MapProjectNormSymbols, type MapProject
 import { withColorChanges, type MapColor, type MapColorChange, type MapGeoreference, type MapObject, type MapSymbolColorChange, type MapTextSymbolChange, type Point } from "@o-tid/map-file";
 import type { SymbolColorsControl } from "./map-project-symbol-colors";
 import {
-  acknowledge, addEdit, effectiveObjects, effectiveState, emptyHistory, keepOpenProposals, mergePulled, recordStep, recordSteps, redoStep, resolveConflict, undoStep,
-  type EditKind, type EditResult, type KeyedState, type ObjectKey, type ObjectRef, type ObjectState, type RevisionHistory, type ServerObject
+  acknowledge, addEdit, addEdits, effectiveObjects, effectiveState, emptyHistory, keepOpenProposals, mergePulled, recordStep, recordSteps, redoGroup, resolveConflict, undoGroup,
+  type EditKind, type EditResult, type KeyedState, type ObjectKey, type ObjectRef, type ObjectState, type RevisionEdit, type RevisionHistory, type ServerObject
 } from "@o-tid/map-revision";
 import { areaBounds } from "@o-tid/map-revision/base-map";
 import { clubRequest } from "../../lib/club-archive-client";
@@ -55,6 +55,66 @@ export function sendBatch<T>(pending: readonly T[], maxChars = SEND_MAX_CHARS): 
     out.push(edit); size += length;
   }
   return out;
+}
+
+export interface MapProjectSyncRunner {
+  readonly canEdit: boolean;
+  readonly syncedOnce: { current: boolean };
+  readonly alive: { current: boolean };
+  readonly getClient: () => StoredClient | undefined;
+  readonly store: (next: StoredClient) => void;
+  readonly setSync: (updater: SyncState | ((previous: SyncState) => SyncState)) => void;
+  readonly setNotice: (notice: string) => void;
+  readonly onSynced?: ((proposed: boolean) => void) | undefined;
+  readonly request: (body: { formatVersion: 1; clientId: string; since: number; edits: readonly RevisionEdit[] }) => Promise<{ status: number; json: unknown }>;
+}
+
+/**
+ * Kör en synkomgång (upp till 200 rundor vid stora köer). Efter första lyckade synken undviks `setSync("syncing")`,
+ * IndexedDB-skrivning (`store`) och omritning när tomma 5-sekunderspollar ger `merged === latest.state`.
+ */
+export async function runMapProjectSync(runner: MapProjectSyncRunner): Promise<void> {
+  const initial = runner.getClient();
+  if (!initial) return;
+  const initialHasEdits = runner.canEdit && initial.state.pending.length > 0;
+  let showedSyncing = initialHasEdits || !runner.syncedOnce.current;
+  if (showedSyncing) runner.setSync(previous => previous.kind === "syncing" ? previous : { ...previous, kind: "syncing" });
+  let changed = false;
+  for (let round = 0; round < 200 && runner.alive.current; round += 1) {
+    const current = runner.getClient();
+    if (!current) return;
+    const edits = runner.canEdit ? sendBatch(current.state.pending) : [];
+    if (edits.length > 0 && !showedSyncing) {
+      showedSyncing = true;
+      runner.setSync(previous => previous.kind === "syncing" ? previous : { ...previous, kind: "syncing" });
+    }
+    let result: { status: number; json: unknown };
+    try {
+      result = await runner.request({ formatVersion: 1, clientId: current.clientId, since: current.state.seq, edits });
+    } catch { runner.setSync({ kind: "offline", at: Date.now() }); return; }
+    if (result.status !== 200) { runner.setSync({ kind: "error", status: result.status, at: Date.now() }); return; }
+    const response = result.json as MapProjectSyncResponse;
+    const latest = runner.getClient();
+    if (!latest) return;
+    const acked = acknowledge(latest.state, response.results as EditResult[]);
+    if (acked.conflicted.length) runner.setNotice("conflict");
+    if (acked.rejected.length) runner.setNotice("rejected");
+    if (acked.proposed.length) runner.setNotice("proposed");
+    const merged = keepOpenProposals(mergePulled(acked.state, response.objects as ServerObject[], response.seq), response.openProposals ?? []);
+    if (edits.length > 0 || response.objects.length > 0) runner.onSynced?.(acked.proposed.length > 0);
+    if (merged !== latest.state) {
+      runner.store({ ...latest, state: merged });
+      changed = true;
+    }
+    // Mer att hämta, eller egna ändringar som kom till under tiden (eller inte fick plats): en omgång till.
+    const sent = new Set(edits.map(edit => edit.editId));
+    const unsent = runner.canEdit && response.status === "OPEN" && merged.pending.some(edit => !sent.has(edit.editId));
+    if ((!response.more && !unsent) || !runner.alive.current) break;
+  }
+  const wasSynced = runner.syncedOnce.current;
+  runner.syncedOnce.current = true;
+  runner.setSync(previous => (previous.kind === "idle" && previous.at !== undefined && !changed && !showedSyncing && wasSynced)
+    ? previous : { kind: "idle", at: Date.now() });
 }
 
 export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: boolean) => void) {
@@ -120,7 +180,7 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
     let closed = false;
     void loadClient(view.projectId, view.viewer.accountId).catch(() => undefined).then(stored => {
       if (closed) return;
-      const value = stored ?? { state: { seq: 0, server: {}, pending: [], conflicts: {} }, clientId: crypto.randomUUID() };
+      const value = stored ?? { state: { seq: 0, server: {}, pending: [], conflicts: {}, proposed: {} }, clientId: crypto.randomUUID() };
       clientRef.current = value;
       setClient(value);
       if (!clientStoreAvailable()) setNotice("noStore");
@@ -149,36 +209,19 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
   }, [session, mapStatus, states]);
 
   // Synken.
-  const syncing = useRef(false), again = useRef(false), alive = useRef(true);
+  const syncing = useRef(false), again = useRef(false), alive = useRef(true), syncedOnce = useRef(false);
   const syncNow = useCallback(async () => {
     if (!clientRef.current) return;
     if (syncing.current) { again.current = true; return; }
     syncing.current = true;
-    setSync(previous => ({ ...previous, kind: "syncing" }));
     try {
-      for (let round = 0; round < 200 && alive.current; round += 1) {
-        const current = clientRef.current;
-        const edits = canEdit ? sendBatch(current.state.pending) : [];
-        let result: { status: number; json: unknown };
-        try {
-          result = await clubRequest(`${base}/sync`, "POST", { formatVersion: 1, clientId: current.clientId, since: current.state.seq, edits });
-        } catch { setSync({ kind: "offline", at: Date.now() }); return; }
-        if (result.status !== 200) { setSync({ kind: "error", status: result.status, at: Date.now() }); return; }
-        const response = result.json as MapProjectSyncResponse;
-        const latest = clientRef.current;
-        const acked = acknowledge(latest.state, response.results as EditResult[]);
-        if (acked.conflicted.length) setNotice("conflict");
-        if (acked.rejected.length) setNotice("rejected");
-        if (acked.proposed.length) setNotice("proposed");
-        const merged = keepOpenProposals(mergePulled(acked.state, response.objects as ServerObject[], response.seq), response.openProposals ?? []);
-        if (edits.length > 0 || response.objects.length > 0) syncedRef.current?.(acked.proposed.length > 0);
-        store({ ...latest, state: merged });
-        // Mer att hämta, eller egna ändringar som kom till under tiden (eller inte fick plats): en omgång till.
-        const sent = new Set(edits.map(edit => edit.editId));
-        const unsent = canEdit && response.status === "OPEN" && merged.pending.some(edit => !sent.has(edit.editId));
-        if ((!response.more && !unsent) || !alive.current) break;
-      }
-      setSync({ kind: "idle", at: Date.now() });
+      await runMapProjectSync({
+        canEdit, syncedOnce, alive,
+        getClient: () => clientRef.current,
+        store, setSync, setNotice,
+        onSynced: proposed => syncedRef.current?.(proposed),
+        request: body => clubRequest(`${base}/sync`, "POST", body)
+      });
     } finally {
       syncing.current = false;
       if (again.current) { again.current = false; void syncNow(); }
@@ -197,9 +240,10 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
     void syncNow();
     const timer = setInterval(() => { if (document.visibilityState === "visible") void syncNow(); }, POLL_MS);
     const online = () => void syncNow();
+    const onVisible = () => { if (document.visibilityState === "visible") void syncNow(); };
     window.addEventListener("online", online);
-    document.addEventListener("visibilitychange", online);
-    return () => { clearInterval(timer); window.removeEventListener("online", online); document.removeEventListener("visibilitychange", online); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { clearInterval(timer); window.removeEventListener("online", online); document.removeEventListener("visibilitychange", onVisible); };
   }, [ready, syncNow]);
   useEffect(() => {
     alive.current = true;
@@ -237,19 +281,15 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
     const current = clientRef.current;
     if (!current || !canEdit || changes.length === 0) return 0;
     const group = crypto.randomUUID(), at = new Date().toISOString();
-    let state = current.state;
-    const steps = [];
-    for (const change of changes) {
-      const before = effectiveState(state, change.key);
-      const added = addEdit(state, { editId: crypto.randomUUID(), key: change.key, ref: change.ref, state: change.after, kind: change.kind, at });
-      if (!added) continue;
-      state = added.state;
-      steps.push({ key: change.key, ref: change.ref, before, after: change.after, group });
-    }
-    if (steps.length === 0) return 0;
+    const added = addEdits(current.state, changes.map(change => ({
+      editId: crypto.randomUUID(), key: change.key, ref: change.ref, state: change.after, kind: change.kind, at,
+      ...(change.point ? { point: change.point } : {})
+    })));
+    if (added.entries.length === 0) return 0;
+    const steps = added.entries.map(({ edit, before }) => ({ key: edit.key, ref: edit.ref, before, after: edit.state, group }));
     historyRef.current = recordSteps(historyRef.current, steps);
     setHistory(historyRef.current);
-    store({ ...current, state });
+    store({ ...current, state: added.state });
     scheduleSend();
     return steps.length;
   }, [canEdit, store, scheduleSend]);
@@ -257,21 +297,13 @@ export function useMapProjectEditor(view: MapProjectView, onSynced?: (proposed: 
   const step = useCallback((direction: "undo" | "redo") => {
     const current = clientRef.current;
     if (!current || !canEdit) return;
-    const run = direction === "undo" ? undoStep : redoStep;
-    const top = (history: RevisionHistory) => (direction === "undo" ? history.undo : history.redo).at(-1);
-    // Steg i samma grupp (flera objekt flyttade på en gång) tas tillsammans.
-    const group = top(historyRef.current)?.group;
-    let state = current.state, changed = false, any = false;
-    do {
-      const outcome = run(state, historyRef.current, crypto.randomUUID(), new Date().toISOString());
-      if (outcome.kind === "empty") break;
-      historyRef.current = outcome.history;
-      if (outcome.kind === "changed") changed = true; else { state = outcome.state; any = true; }
-    } while (group && top(historyRef.current)?.group === group);
-    setHistory(historyRef.current);
-    if (changed) setNotice("changedByOther");
-    if (!any) return;
-    store({ ...current, state });
+    const run = direction === "undo" ? undoGroup : redoGroup;
+    const outcome = run(current.state, historyRef.current, () => crypto.randomUUID(), new Date().toISOString());
+    historyRef.current = outcome.history;
+    setHistory(outcome.history);
+    if (outcome.changed) setNotice("changedByOther");
+    if (outcome.edits.length === 0) return;
+    store({ ...current, state: outcome.state });
     scheduleSend();
   }, [canEdit, store, scheduleSend]);
 

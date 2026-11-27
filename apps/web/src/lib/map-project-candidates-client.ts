@@ -28,7 +28,10 @@ export class CandidateSession {
     };
   }
 
-  private post(message: CandidateRequest) { this.worker.postMessage(message); }
+  private post(message: CandidateRequest, transfer: Transferable[] = []) {
+    if (transfer.length > 0) this.worker.postMessage(message, transfer);
+    else this.worker.postMessage(message);
+  }
 
   /** Objekten finns i Workern; de äldsta glöms. */
   private remember(features: readonly SourceFeature[], dataId: number) {
@@ -68,7 +71,24 @@ export class CandidateSession {
         if (response.type === "base-map") { this.remember(response.data.features, response.dataId); resolve({ data: response.data, calm: response.calm, clear: response.clear, rock: response.rock, soil: response.soil, pits: response.pits, hills: response.hills, primary: response.primary }); }
         else if (response.type === "error") reject(response.parse ? new VectorParseError(response.message) : new Error(response.message));
       });
-      this.post({ type: "base-map", id, dataId, ...request });
+      // SÄKERHET: överför ENDAST förbrukade lutnings- och bergbuffertar (deduplicerade: `calm` kan dela buffert med
+      // en etapps `slope`). Överför ALDRIG `clear.parts[i].grid.meters.buffer` (`heightParts`): huvudtråden använder
+      // `heightParts` i `heightFieldFrom(heightParts)` efter att `baseMap` svarat (`use-map-project-laser.ts`).
+      const forbidden = new Set<ArrayBuffer>();
+      for (const part of request.clear?.parts ?? []) {
+        if (part.grid.meters.buffer instanceof ArrayBuffer) forbidden.add(part.grid.meters.buffer);
+      }
+      const transfers = new Set<ArrayBuffer>();
+      const addTransfer = (buffer: ArrayBufferLike | undefined) => {
+        if (buffer instanceof ArrayBuffer && !forbidden.has(buffer)) transfers.add(buffer);
+      };
+      addTransfer(request.calm?.grid.steps.buffer);
+      addTransfer(request.rock?.pixels.data.buffer);
+      for (const stage of request.stages ?? []) {
+        addTransfer(stage.slope?.grid.steps.buffer);
+        addTransfer(stage.rock?.pixels.data.buffer);
+      }
+      this.post({ type: "base-map", id, dataId, ...request }, [...transfers]);
     });
   }
 

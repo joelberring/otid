@@ -14,14 +14,21 @@ type Box = { x: number; y: number; w: number; h: number };
 type Runner = PublicLegRoutes["runners"][number];
 
 /** Rutans gränser runt punkterna, med marginal och en minsta storlek så att en kort sträcka inte blir för inzoomad. */
-function fit(runners: readonly Runner[], width: number, height: number): Box {
-  const xs = runners.flatMap(runner => runner.points.map(point => point[0]));
-  const ys = runners.flatMap(runner => runner.points.map(point => point[1]));
-  if (xs.length === 0) return { x: 0, y: 0, w: width, h: height };
+export function fitRouteBox(runners: readonly Runner[], width: number, height: number): Box {
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const runner of runners) {
+    for (const [x, y] of runner.points) {
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+  }
+  if (!Number.isFinite(minX)) return { x: 0, y: 0, w: width, h: height };
   const minSide = Math.max(width, height) / 12;
-  const w = Math.max(Math.max(...xs) - Math.min(...xs), minSide) * 1.3;
-  const h = Math.max(Math.max(...ys) - Math.min(...ys), minSide) * 1.3;
-  const cx = (Math.max(...xs) + Math.min(...xs)) / 2, cy = (Math.max(...ys) + Math.min(...ys)) / 2;
+  const w = Math.max(maxX - minX, minSide) * 1.3;
+  const h = Math.max(maxY - minY, minSide) * 1.3;
+  const cx = (maxX + minX) / 2, cy = (maxY + minY) / 2;
   return { x: cx - w / 2, y: cy - h / 2, w, h };
 }
 
@@ -42,10 +49,18 @@ export function RouteMap({ raceId, data }: { raceId: string; data: PublicLegRout
   const [highlight, setHighlight] = useState<string>();
   const [imageFailed, setImageFailed] = useState(false);
   const shown = useMemo(() => showOthers ? data.runners : [selected], [showOthers, data.runners, selected]);
-  const legBox = useMemo(() => fit(shown, width, height), [shown, width, height]);
-  const [box, setBox] = useState<Box>(() => fit(data.runners, width, height));
+  const legBox = useMemo(() => fitRouteBox(shown, width, height), [shown, width, height]);
+  const [box, setBox] = useState<Box>(() => fitRouteBox(data.runners, width, height));
+  const paths = useMemo(() => ({
+    course: data.course ? data.course.points.map(point => `${point.x},${point.y}`).join(" ") : undefined,
+    best: data.bestRoute ? path(data.bestRoute.points) : undefined,
+    selected: path(data.runners[0]!.points),
+    others: data.runners.slice(1).map(runner => ({ id: runner.publicResultId, points: path(runner.points) }))
+  }), [data]);
   const svg = useRef<SVGSVGElement>(null);
   const drag = useRef<{ x: number; y: number; box: Box; id: number }>(undefined);
+  const panRaf = useRef<number | undefined>(undefined);
+  const pendingPan = useRef<{ readonly start: { x: number; y: number; box: Box }; readonly clientX: number; readonly clientY: number } | undefined>(undefined);
 
   /** Kartpixlar per skärmpixel och den tomma kanten när rutan och SVG:n har olika form ("meet"). */
   const geometry = (current: Box) => {
@@ -78,6 +93,14 @@ export function RouteMap({ raceId, data }: { raceId: string; data: PublicLegRout
     element.addEventListener("wheel", onWheel, { passive: false });
     return () => element.removeEventListener("wheel", onWheel);
   }, []);
+  useEffect(() => () => { if (panRaf.current !== undefined) cancelAnimationFrame(panRaf.current); }, []);
+  const applyPendingPan = () => {
+    const pending = pendingPan.current;
+    pendingPan.current = undefined;
+    if (!pending || !svg.current) return;
+    const { scale } = geometry(pending.start.box);
+    setBox({ ...pending.start.box, x: pending.start.box.x - (pending.clientX - pending.start.x) * scale, y: pending.start.box.y - (pending.clientY - pending.start.y) * scale });
+  };
   const onPointerDown = (event: PointerEvent<SVGSVGElement>) => {
     if (event.button !== 0) return;
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -86,10 +109,16 @@ export function RouteMap({ raceId, data }: { raceId: string; data: PublicLegRout
   const onPointerMove = (event: PointerEvent<SVGSVGElement>) => {
     const start = drag.current;
     if (!start || start.id !== event.pointerId) return;
-    const { scale } = geometry(start.box);
-    setBox({ ...start.box, x: start.box.x - (event.clientX - start.x) * scale, y: start.box.y - (event.clientY - start.y) * scale });
+    pendingPan.current = { start, clientX: event.clientX, clientY: event.clientY };
+    if (panRaf.current === undefined) {
+      panRaf.current = requestAnimationFrame(() => { panRaf.current = undefined; applyPendingPan(); });
+    }
   };
-  const endDrag = () => { drag.current = undefined; };
+  const endDrag = () => {
+    if (panRaf.current !== undefined) { cancelAnimationFrame(panRaf.current); panRaf.current = undefined; }
+    applyPendingPan();
+    drag.current = undefined;
+  };
   const marker = box.w / 110;
   const first = selected.points[0]!, last = selected.points.at(-1)!;
 
@@ -110,8 +139,8 @@ export function RouteMap({ raceId, data }: { raceId: string; data: PublicLegRout
         <image href={`/api/public/races/${encodeURIComponent(raceId)}/map?v=${version}`} x={0} y={0} width={width} height={height}
           preserveAspectRatio="none" onError={() => setImageFailed(true)} />
         {/* Steg 49: löparens bana (variant) ur banfilens lägen, med den valda sträckan markerad. */}
-        {data.course && <g className={styles.course} data-testid="route-course">
-          <polyline points={data.course.points.map(point => `${point.x},${point.y}`).join(" ")} vectorEffect="non-scaling-stroke" />
+        {data.course && paths.course !== undefined && <g className={styles.course} data-testid="route-course">
+          <polyline points={paths.course} vectorEffect="non-scaling-stroke" />
           {data.course.points.map((point, index) => <g key={`${point.label}-${index}`} data-leg={point.leg || undefined}>
             <circle cx={point.x} cy={point.y} r={marker * 1.6} vectorEffect="non-scaling-stroke" />
             {point.label === "M" && <circle cx={point.x} cy={point.y} r={marker * 1.1} vectorEffect="non-scaling-stroke" />}
@@ -120,18 +149,18 @@ export function RouteMap({ raceId, data }: { raceId: string; data: PublicLegRout
           </g>)}
         </g>}
         {/* Steg 60: bästa vägvalet enligt kartan, som arrangören publicerat (bara när banorna är publika). */}
-        {data.bestRoute && <g className={styles.best} data-testid="best-route">
-          <polyline className={styles.halo} points={path(data.bestRoute.points)} vectorEffect="non-scaling-stroke" />
-          <polyline className={styles.line} points={path(data.bestRoute.points)} vectorEffect="non-scaling-stroke" />
+        {paths.best !== undefined && <g className={styles.best} data-testid="best-route">
+          <polyline className={styles.halo} points={paths.best} vectorEffect="non-scaling-stroke" />
+          <polyline className={styles.line} points={paths.best} vectorEffect="non-scaling-stroke" />
         </g>}
-        {showOthers && others.map(runner => <g key={runner.publicResultId} className={styles.other}
-          data-highlight={highlight === runner.publicResultId || undefined}>
-          <polyline className={styles.halo} points={path(runner.points)} vectorEffect="non-scaling-stroke" />
-          <polyline className={styles.line} points={path(runner.points)} vectorEffect="non-scaling-stroke" />
+        {showOthers && paths.others.map(runner => <g key={runner.id} className={styles.other}
+          data-highlight={highlight === runner.id || undefined}>
+          <polyline className={styles.halo} points={runner.points} vectorEffect="non-scaling-stroke" />
+          <polyline className={styles.line} points={runner.points} vectorEffect="non-scaling-stroke" />
         </g>)}
         <g className={styles.selected} data-testid="selected-route">
-          <polyline className={styles.halo} points={path(selected.points)} vectorEffect="non-scaling-stroke" />
-          <polyline className={styles.line} points={path(selected.points)} vectorEffect="non-scaling-stroke" />
+          <polyline className={styles.halo} points={paths.selected} vectorEffect="non-scaling-stroke" />
+          <polyline className={styles.line} points={paths.selected} vectorEffect="non-scaling-stroke" />
           <circle className={styles.end} cx={first[0]} cy={first[1]} r={marker} vectorEffect="non-scaling-stroke" />
           <circle className={styles.end} cx={last[0]} cy={last[1]} r={marker} vectorEffect="non-scaling-stroke" />
         </g>

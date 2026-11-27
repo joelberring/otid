@@ -155,6 +155,33 @@ export function facesFromLines(lines: readonly FaceLine[], options: FacesOptions
   return { faces, looseEnds, closedEnds, bridges };
 }
 
+interface FaceBox { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number }
+interface FaceBoxes { readonly outer: FaceBox; readonly holes: readonly FaceBox[] }
+const faceBoxCache = new WeakMap<Face, FaceBoxes>();
+
+function ringBox(ring: readonly FacePoint[]): FaceBox {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const point of ring) {
+    if (point.x < minX) minX = point.x;
+    if (point.x > maxX) maxX = point.x;
+    if (point.y < minY) minY = point.y;
+    if (point.y > maxY) maxY = point.y;
+  }
+  return { minX, minY, maxX, maxY };
+}
+
+function boxesOf(face: Face): FaceBoxes {
+  let cached = faceBoxCache.get(face);
+  if (!cached) {
+    cached = { outer: ringBox(face.outer), holes: face.holes.map(ringBox) };
+    faceBoxCache.set(face, cached);
+  }
+  return cached;
+}
+
+const inBox = (box: FaceBox, point: FacePoint) =>
+  point.x >= box.minX && point.x <= box.maxX && point.y >= box.minY && point.y <= box.maxY;
+
 function inRing(ring: readonly FacePoint[], point: FacePoint): boolean {
   let inside = false;
   for (let index = 0, previous = ring.length - 1; index < ring.length; previous = index, index += 1) {
@@ -166,7 +193,16 @@ function inRing(ring: readonly FacePoint[], point: FacePoint): boolean {
 
 /** Ytan som punkten ligger i (inte i ett hål), eller undefined utanför alla ytor. */
 export function faceAt(faces: readonly Face[], point: FacePoint): Face | undefined {
-  return faces.find(face => inRing(face.outer, point) && !face.holes.some(hole => inRing(hole, point)));
+  for (const face of faces) {
+    const boxes = boxesOf(face);
+    if (!inBox(boxes.outer, point) || !inRing(face.outer, point)) continue;
+    let inHole = false;
+    for (let index = 0; index < face.holes.length; index += 1) {
+      if (inBox(boxes.holes[index]!, point) && inRing(face.holes[index]!, point)) { inHole = true; break; }
+    }
+    if (!inHole) return face;
+  }
+  return undefined;
 }
 
 export { mergeFaceRings } from "./merge-faces";

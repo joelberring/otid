@@ -176,20 +176,41 @@ function closedFaceAt(window: { readonly faces: readonly Face[] }, point: Point)
   return face && !face.sources.includes(FILL_FRAME) ? face : undefined;
 }
 
-/** Den översta ytan på kartan (synlig, en gräns) som punkten ligger i; rutorna följer ytornas kanter, så den täcker hela rutan. */
-function coveringArea(input: FillInput, hidden: ReadonlySet<string>, point: Point): { index: number; symbol: string } | undefined {
+interface CachedArea {
+  readonly index: number;
+  readonly object: Extract<MapObject, { kind: "area" }>;
+  readonly box: Box | undefined;
+  rings?: Point[][];
+}
+
+/** Gränsytorna som överlappar fönstret, i överst-först-ordning (för snabb `coveringArea` vid hovring). */
+function windowBoundaryAreas(input: FillInput, hidden: ReadonlySet<string>, box: Box): CachedArea[] {
+  const out: CachedArea[] = [];
   for (let index = input.objects.length - 1; index >= 0; index -= 1) {
-    const object = input.objects[index]!, box = input.boxes[index];
-    if (object.kind !== "area" || (box && (point.x < box.minX || point.x > box.maxX || point.y < box.minY || point.y > box.maxY))) continue;
+    const object = input.objects[index]!;
+    if (object.kind !== "area") continue;
+    const bounds = input.boxes[index];
+    if (bounds && (bounds.maxX < box.minX || bounds.minX > box.maxX || bounds.maxY < box.minY || bounds.minY > box.maxY)) continue;
     if (!boundaryObject(input, object, hidden)) continue;
+    out.push({ index, object, box: bounds });
+  }
+  return out;
+}
+
+/** Den översta ytan på kartan (synlig, en gräns) som punkten ligger i; rutorna följer ytornas kanter, så den täcker hela rutan. */
+function coveringArea(areas: readonly CachedArea[], point: Point): { index: number; symbol: string } | undefined {
+  for (const area of areas) {
+    const box = area.box;
+    if (box && (point.x < box.minX || point.x > box.maxX || point.y < box.minY || point.y > box.maxY)) continue;
+    if (!area.rings) area.rings = area.object.rings.flatMap(path => flattenPath(path));
     let inside = false;
-    for (const path of object.rings) for (const ring of flattenPath(path)) {
+    for (const ring of area.rings) {
       for (let at = 0, previous = ring.length - 1; at < ring.length; previous = at, at += 1) {
         const a = ring[at]!, b = ring[previous]!;
         if ((a.y > point.y) !== (b.y > point.y) && point.x < (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x) inside = !inside;
       }
     }
-    if (inside) return { index, symbol: object.symbol };
+    if (inside) return { index: area.index, symbol: area.object.symbol };
   }
   return undefined;
 }
@@ -242,7 +263,10 @@ export function withoutStraightPoints(ring: readonly Point[]): Point[] {
  * Steg 2 (större glapp) räknas bara när rutan under punkten inte är sluten, en gång per fönster och glapp, med tidsgräns.
  */
 export function fillFinder(): (input: FillInput, query: FillQuery) => FillResult {
-  let cached: { objects: readonly MapObject[]; hiddenKey: string; center: Point; window: FillWindow; bridged: Map<number, FacesResult | null> } | undefined;
+  let cached: {
+    objects: readonly MapObject[]; symbols: ReadonlyMap<string, MapSymbol>; hiddenKey: string; center: Point;
+    window: FillWindow; areas: readonly CachedArea[]; bridged: Map<number, FacesResult | null>;
+  } | undefined;
   return (map, query) => {
     const input: FillInput = query.over ? { ...map, over: query.over } : map;
     const mmPerM = 1000 / input.scale, tolerance = FILL_GAP_M * mmPerM, half = FILL_WINDOW_M * mmPerM;
@@ -250,11 +274,12 @@ export function fillFinder(): (input: FillInput, query: FillQuery) => FillResult
     const { point } = query;
     // Fönstret duger så länge punkten ligger i dess inre halva.
     const reach = cached ? (cached.window.box.maxX - cached.window.box.minX) / 4 : 0;
-    if (!cached || cached.objects !== map.objects || cached.hiddenKey !== hiddenKey || Math.abs(point.x - cached.center.x) > reach
-      || Math.abs(point.y - cached.center.y) > reach) {
-      cached = { objects: map.objects, hiddenKey, center: point, window: fillWindow(input, hidden, point, half, tolerance), bridged: new Map() };
+    if (!cached || cached.objects !== map.objects || cached.symbols !== map.symbols || cached.hiddenKey !== hiddenKey
+      || Math.abs(point.x - cached.center.x) > reach || Math.abs(point.y - cached.center.y) > reach) {
+      const window = fillWindow(input, hidden, point, half, tolerance);
+      cached = { objects: map.objects, symbols: map.symbols, hiddenKey, center: point, window, areas: windowBoundaryAreas(input, hidden, window.box), bridged: new Map() };
     }
-    const covered = coveringArea(input, hidden, point);
+    const covered = coveringArea(cached.areas, point);
     const found = (face: Face, bridges: FillBridge[], large = false): FillResult => ({ status: "found", rings: [face.outer, ...face.holes].map(withoutStraightPoints),
       areaM2: face.area / (mmPerM * mmPerM), closed: face.closures.length, bridges, covered, ...(large ? { large } : {}) });
     const face = closedFaceAt(cached.window, point);

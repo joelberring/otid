@@ -187,13 +187,15 @@ export function snapAt(index: SnapIndex | undefined, query: SnapQuery): SnapHit 
     const distance = Math.hypot(at.x - p.x, at.y - p.y);
     if (distance <= reach && (!vertex || distance < vertex.distance)) vertex = { kind: "vertex", at, distance, target: target() };
   };
-  const near: Candidate[] = [];
+  let c0 = 1, c1 = 0, r0 = 1, r1 = 0;
   if (index) {
     const { minX, minY, cell, cols, rows } = index.grid;
-    const c0 = Math.max(0, Math.floor((p.x - reach - minX) / cell)), c1 = Math.min(cols - 1, Math.floor((p.x + reach - minX) / cell));
-    const r0 = Math.max(0, Math.floor((p.y - reach - minY) / cell)), r1 = Math.min(rows - 1, Math.floor((p.y + reach - minY) / cell));
+    c0 = Math.max(0, Math.floor((p.x - reach - minX) / cell));
+    c1 = Math.min(cols - 1, Math.floor((p.x + reach - minX) / cell));
+    r0 = Math.max(0, Math.floor((p.y - reach - minY) / cell));
+    r1 = Math.min(rows - 1, Math.floor((p.y + reach - minY) / cell));
     if (c0 <= c1 && r0 <= r1) {
-      const { points, pointInfo, pointCells, pointItems, segments, segmentInfo, segmentCells, segmentItems } = index;
+      const { points, pointInfo, pointCells, pointItems } = index;
       for (let r = r0; r <= r1; r += 1) for (let c = c0; c <= c1; c += 1) {
         const cellIndex = r * cols + c;
         for (let i = pointCells[cellIndex]!; i < pointCells[cellIndex + 1]!; i += 1) {
@@ -202,30 +204,37 @@ export function snapAt(index: SnapIndex | undefined, query: SnapQuery): SnapHit 
           consider({ x: points[item * 2]!, y: points[item * 2 + 1]! }, () => targetOf(object, pointInfo[item * 3 + 1]!, pointInfo[item * 3 + 2]!));
         }
       }
-      let stamp = stamps.get(index);
-      if (!stamp) { stamp = { marks: new Uint32Array(segments.length / 4), round: 0 }; stamps.set(index, stamp); }
-      stamp.round = (stamp.round + 1) >>> 0;
-      if (stamp.round === 0) { stamp.marks.fill(0); stamp.round = 1; }
-      const { marks, round } = stamp;
-      for (let r = r0; r <= r1; r += 1) for (let c = c0; c <= c1; c += 1) {
-        const cellIndex = r * cols + c;
-        for (let i = segmentCells[cellIndex]!; i < segmentCells[cellIndex + 1]!; i += 1) {
-          const item = segmentItems[i]!;
-          if (marks[item] === round) continue;
-          marks[item] = round;
-          const object = segmentInfo[item * 3]!;
-          if (skip(object)) continue;
-          const o = item * 4, a = { x: segments[o]!, y: segments[o + 1]! }, b = { x: segments[o + 2]!, y: segments[o + 3]! };
-          const hit = project(p, a, b);
-          if (hit.distance > reach) continue;
-          near.push({ a, b, distance: hit.distance, t: hit.t, object,
-            target: targetOf(object, segmentInfo[item * 3 + 1]!, segmentInfo[item * 3 + 2]!, { from: a, to: b }) });
-        }
-      }
     }
   }
   query.extra?.points.forEach((at, item) => consider(at, () => own(item)));
+  // Punkt vinner alltid över skärning och kant: hoppa över sträckloopen helt vid nodträff.
   if (vertex) return vertex;
+
+  const near: Candidate[] = [];
+  if (index && c0 <= c1 && r0 <= r1) {
+    const { cols } = index.grid;
+    const { segments, segmentInfo, segmentCells, segmentItems } = index;
+    let stamp = stamps.get(index);
+    if (!stamp) { stamp = { marks: new Uint32Array(segments.length / 4), round: 0 }; stamps.set(index, stamp); }
+    stamp.round = (stamp.round + 1) >>> 0;
+    if (stamp.round === 0) { stamp.marks.fill(0); stamp.round = 1; }
+    const { marks, round } = stamp;
+    for (let r = r0; r <= r1; r += 1) for (let c = c0; c <= c1; c += 1) {
+      const cellIndex = r * cols + c;
+      for (let i = segmentCells[cellIndex]!; i < segmentCells[cellIndex + 1]!; i += 1) {
+        const item = segmentItems[i]!;
+        if (marks[item] === round) continue;
+        marks[item] = round;
+        const object = segmentInfo[item * 3]!;
+        if (skip(object)) continue;
+        const o = item * 4, a = { x: segments[o]!, y: segments[o + 1]! }, b = { x: segments[o + 2]!, y: segments[o + 3]! };
+        const hit = project(p, a, b);
+        if (hit.distance > reach) continue;
+        near.push({ a, b, distance: hit.distance, t: hit.t, object,
+          target: targetOf(object, segmentInfo[item * 3 + 1]!, segmentInfo[item * 3 + 2]!, { from: a, to: b }) });
+      }
+    }
+  }
   query.extra?.segments.forEach(([a, b], item) => {
     const hit = project(p, a, b);
     if (hit.distance <= reach) near.push({ a, b, distance: hit.distance, t: hit.t, object: -1, target: own(item, { from: a, to: b }) });

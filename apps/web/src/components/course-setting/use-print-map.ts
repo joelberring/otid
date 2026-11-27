@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BUILT_IN_PRINT_PROFILES, mapColorAdjust, MAP_OWN_PRINT_PROFILE_ID, type CourseSettingDocument, type MapColorAdjust, type MapRect, type Sheet
 } from "@o-tid/course-setting";
-import type { ColorUsage, MapColor } from "@o-tid/map-file";
+import type { ColorUsage, MapColor, MapGeoreference } from "@o-tid/map-file";
 import { MapRenderSession } from "../../lib/course-setting-map-protocol";
 import { mapRenderRequest } from "../../lib/course-setting-print";
 import { controlledWorker } from "../../lib/course-setting-worker";
@@ -23,15 +23,35 @@ import { inLanguage } from "../../lib/in-language";
 // Steg 67: styrd av service workern när banläggningen är sparad för offline (`controlledWorker`).
 const createMapWorker = () => controlledWorker(() => new Worker(new URL("../../lib/course-setting-map-worker.ts", import.meta.url), { type: "module" }));
 
-/** En kartbild som bild-URL (ritad av Workern med `drawMap`). */
-async function renderView(session: MapRenderSession, request: RenderView): Promise<string> {
-  const bitmap = await new Promise<ImageBitmap>(resolve => session.render(request, (_id, image) => resolve(image)));
-  const canvas = window.document.createElement("canvas");
-  canvas.width = bitmap.width; canvas.height = bitmap.height;
-  canvas.getContext("2d")?.drawImage(bitmap, 0, 0);
-  bitmap.close();
-  const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, "image/png"));
-  return blob ? URL.createObjectURL(blob) : canvas.toDataURL("image/png");
+/** En kartbild som bild-URL (ritad och PNG-kodad direkt i Workern med `drawMap` + `convertToBlob`). */
+export async function renderPrintView(session: Pick<MapRenderSession, "renderPng">, request: RenderView): Promise<string> {
+  const blob = await new Promise<Blob>(resolve => session.renderPng(request, (_id, png) => resolve(png)));
+  return URL.createObjectURL(blob);
+}
+
+/** Startar kartworkern parallellt med karthämtningen/cachen så att workerns uppstart och filhämtningen överlappar. */
+export function startPrintMapSession<S extends Pick<MapRenderSession, "load" | "close">>(input: {
+  readonly createSession: (
+    onLoaded: (bounds: MapRect, scale: number, georeference: MapGeoreference | null, colors: readonly MapColor[], usage: ReadonlyMap<number, ColorUsage>) => void,
+    onError: () => void
+  ) => S;
+  readonly fetchFile: (signal: AbortSignal) => Promise<{ readonly bytes: ArrayBuffer; readonly fileName: string }>;
+  readonly onReady: (session: S, loaded: {
+    readonly bounds: MapRect; readonly scale: number; readonly colors: readonly MapColor[]; readonly usage: ReadonlyMap<number, ColorUsage>;
+  }) => void;
+  readonly onFailed: () => void;
+}): () => void {
+  const controller = new AbortController();
+  let closed = false;
+  const created = input.createSession((bounds, scale, _georeference, colors, usage) => {
+    if (closed) return;
+    input.onReady(created, { bounds, scale, colors, usage });
+  }, () => { if (!closed) input.onFailed(); });
+  void input.fetchFile(controller.signal).then(file => {
+    if (closed) return;
+    created.load(file.bytes, file.fileName);
+  }, () => { if (!closed && !controller.signal.aborted) input.onFailed(); });
+  return () => { closed = true; controller.abort(); created.close(); };
 }
 
 export interface PrintMap {
@@ -61,20 +81,19 @@ export function usePrintMap(raceId: string, map: boolean | string, onBounds: (bo
   boundsRef.current = onBounds;
   const renderImage = useCallback<RenderImage>((view, priority) => {
     if (!session) return Promise.reject(new Error(inLanguage("Kartan är inte inläst", "The map is not loaded")));
-    return queue.current.add(() => renderView(session, view), priority);
+    return queue.current.add(() => renderPrintView(session, view), priority);
   }, [session]);
   useEffect(() => {
     if (!hasMap) return;
-    const controller = new AbortController();
-    let created: MapRenderSession | undefined;
     setMapState("reading");
-    void cachedMapFile(mapFileCache, sha256, known => fetchMapSource(raceId, controller.signal, { sha256: known }), controller.signal).then(file => {
-      created = new MapRenderSession(createMapWorker, (bounds, scale, _georeference, mapColors, mapUsage) => {
-        boundsRef.current(bounds); setColors(mapColors); setUsage(mapUsage); setMapScale(scale); setSession(created); setMapState("ready");
-      }, () => setMapState("failed"));
-      created.load(file.bytes, file.fileName);
-    }, () => { if (!controller.signal.aborted) setMapState("failed"); });
-    return () => { controller.abort(); created?.close(); };
+    return startPrintMapSession({
+      createSession: (onLoaded, onError) => new MapRenderSession(createMapWorker, onLoaded, onError),
+      fetchFile: signal => cachedMapFile(mapFileCache, sha256, known => fetchMapSource(raceId, signal, { sha256: known }), signal),
+      onReady: (created, loaded) => {
+        boundsRef.current(loaded.bounds); setColors(loaded.colors); setUsage(loaded.usage); setMapScale(loaded.scale); setSession(created); setMapState("ready");
+      },
+      onFailed: () => setMapState("failed")
+    });
   }, [raceId, hasMap, sha256]);
   return { session, mapState, colors, usage, mapScale, renderImage };
 }

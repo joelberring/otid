@@ -92,6 +92,53 @@ const TAP_SLOP_PX = 5;
 /** Träffytan i skärmpixlar: större med finger än med mus. */
 const tolerancePx = (pointerType: string) => pointerType === "touch" ? 18 : 8;
 
+/** Sätter bara canvasens pixelmått när måttet faktiskt ändrats (annars nollställer och omallokerar webbläsaren hela GPU-ytan). */
+export function syncCanvasSize(canvas: { width: number; height: number }, widthCss: number, heightCss: number, ratio: number): boolean {
+  const w = Math.round(widthCss * ratio), h = Math.round(heightCss * ratio);
+  if (canvas.width === w && canvas.height === h) return false;
+  canvas.width = w;
+  canvas.height = h;
+  return true;
+}
+
+export interface ViewScheduler {
+  readonly schedule: (transform: (previous: Viewport) => Viewport) => void;
+  readonly flush: () => void;
+  readonly cancel: () => void;
+}
+
+/** Samlar snabba wheel-/pan-/pinch-uppdateringar till högst en React-uppdatering per bildruta (`requestAnimationFrame`). */
+export function createViewScheduler(
+  apply: (transform: (previous: Viewport | undefined) => Viewport | undefined) => void,
+  scheduleFrame: (callback: () => void) => number = callback => window.requestAnimationFrame(callback),
+  cancelFrame: (id: number) => void = id => window.cancelAnimationFrame(id)
+): ViewScheduler {
+  let pending: ((previous: Viewport) => Viewport)[] = [];
+  let frameId: number | undefined;
+  const flush = () => {
+    if (frameId !== undefined) { cancelFrame(frameId); frameId = undefined; }
+    if (pending.length === 0) return;
+    const batch = pending;
+    pending = [];
+    apply(previous => {
+      let next = previous;
+      for (const step of batch) if (next) next = step(next);
+      return next;
+    });
+  };
+  return {
+    schedule(transform) {
+      pending.push(transform);
+      if (frameId === undefined) frameId = scheduleFrame(() => { frameId = undefined; flush(); });
+    },
+    flush,
+    cancel() {
+      if (frameId !== undefined) { cancelFrame(frameId); frameId = undefined; }
+      pending = [];
+    }
+  };
+}
+
 /**
  * Steg 62: banläggningens karta. Kartfilen (Workern i `course-setting-map-worker.ts`) i ett lager och banpåtrycket,
  * markeringarna och vald sträckas vägval i ett eget lager ovanpå. Hjul och knappar zoomar, dra panorerar (eller drar det
@@ -169,7 +216,10 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
    * sidans stilar laddas efter första mätningen, eller telefonen vrids). Annars behålls mitten och skalan.
    */
   const untouched = useRef(true);
-  const setView: typeof setViewState = next => { untouched.current = false; setViewState(next); };
+  const viewScheduler = useRef<ViewScheduler | undefined>(undefined);
+  if (!viewScheduler.current) viewScheduler.current = createViewScheduler(setViewState);
+  const setView: typeof setViewState = next => { viewScheduler.current!.flush(); untouched.current = false; setViewState(next); };
+  const scheduleView = (transform: (previous: Viewport) => Viewport) => { untouched.current = false; viewScheduler.current!.schedule(transform); };
   const drawn = useRef<Drawn | undefined>(undefined);
   const unmounted = useRef(false);
   const overview = useRef<Drawn | undefined>(undefined);
@@ -287,6 +337,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
     unmounted.current = false;
     return () => {
       unmounted.current = true;
+      viewScheduler.current?.cancel();
       if (drawn.current && drawn.current !== overview.current) drawn.current.bitmap.close();
       overview.current?.bitmap.close();
     };
@@ -297,12 +348,13 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
     const canvas = base.current;
     if (!canvas || !view) return;
     const ratio = window.devicePixelRatio || 1;
-    canvas.width = Math.round(view.width * ratio); canvas.height = Math.round(view.height * ratio);
+    syncCanvasSize(canvas, view.width, view.height, ratio);
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = "#fff";
-    ctx.fillRect(0, 0, view.width, view.height);
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     const layers = overview.current === drawn.current ? [drawn.current] : [overview.current, drawn.current];
     for (const layer of layers) {
       if (!layer) continue;
@@ -316,11 +368,13 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
     const canvas = overlay.current;
     if (!canvas || !view) return;
     const ratio = window.devicePixelRatio || 1;
-    canvas.width = Math.round(view.width * ratio); canvas.height = Math.round(view.height * ratio);
+    syncCanvasSize(canvas, view.width, view.height, ratio);
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-    ctx.clearRect(0, 0, view.width, view.height);
     if (highlightRoute) drawHighlightedRoute(ctx, view, highlightRoute);
     if (analysis) drawRouteChoice(ctx, view, analysis);
     const onImage = () => setImageVersion(value => value + 1);
@@ -337,6 +391,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
     if (sketches?.draft) drawSketchShapes(ctx, atScreen, sketches.draft);
     if (position) drawPosition(ctx, view, position.position, position.heading);
     overlayExtra?.(ctx, view);
+    ctx.restore();
   }, [view, primitives, faded, ghosts, others, marks, analysis, suggestion, noteMarks, selectedNote, highlightRoute, position, inspected, symbols, imageVersion,
     overlayExtra, sketches]);
   // Skärmlagret: det stora krysset medan man drar (och fingrets linje). Aldrig i banpåtrycket, dolt vid utskrift.
@@ -345,13 +400,16 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
     const canvas = screen.current;
     if (!canvas || !view) return;
     const ratio = window.devicePixelRatio || 1;
-    canvas.width = Math.round(view.width * ratio); canvas.height = Math.round(view.height * ratio);
+    syncCanvasSize(canvas, view.width, view.height, ratio);
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-    ctx.clearRect(0, 0, view.width, view.height);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (crossX !== undefined && crossY !== undefined) {
+      ctx.save();
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
       drawDragGuide(ctx, view, { at: { x: crossX, y: crossY }, dragging: crossDragging ?? false }, radiusMm, finger);
+      ctx.restore();
     }
   }, [view, crossX, crossY, crossDragging, radiusMm, finger]);
   const followX = position?.follow ? position.position.at.x : undefined, followY = position?.follow ? position.position.at.y : undefined;
@@ -410,18 +468,23 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
 
   function onPointerMove(event: React.PointerEvent<HTMLDivElement>) {
     const current = gesture.current;
-    if (!current && view && cursorAt && event.pointerType === "mouse") {
-      const point = toMap(view, local(event));
-      const tolerance = tolerancePx(event.pointerType) / view.pxPerMm;
-      const overNote = (noteMarks && hitNoteMark(noteMarks, point, tolerance, noteMarkGeometry(view.pxPerMm)))
-        || (sketches && !sketches.draft && hitSketch(sketches.notes, point, tolerance));
-      setHoverCursor(overNote ? "pointer" : cursorAt(point, tolerance));
-    }
-    if (!current && view && event.pointerType === "mouse") handlers.onHover?.(toMap(view, local(event)), modifiersOf(event, view));
-    if (!current || !view || !pointers.current.has(event.pointerId)) return;
-    // Under en vridning med två fingrar styr det första fingret.
-    if (current.kind === "drag" && current.pointerId !== undefined && event.pointerId !== current.pointerId) return;
+    if (!view) return;
+    const needsHover = !current && event.pointerType === "mouse" && Boolean(cursorAt || handlers.onHover);
+    const needsGesture = !!current && pointers.current.has(event.pointerId) && !(current.kind === "drag" && current.pointerId !== undefined && event.pointerId !== current.pointerId);
+    if (!needsHover && !needsGesture) return;
     const at = local(event);
+    if (needsHover) {
+      const point = toMap(view, at);
+      if (cursorAt) {
+        const tolerance = tolerancePx(event.pointerType) / view.pxPerMm;
+        const overNote = (noteMarks && hitNoteMark(noteMarks, point, tolerance, noteMarkGeometry(view.pxPerMm)))
+          || (sketches && !sketches.draft && hitSketch(sketches.notes, point, tolerance));
+        setHoverCursor(overNote ? "pointer" : cursorAt(point, tolerance));
+      }
+      handlers.onHover?.(point, modifiersOf(event, view));
+      return;
+    }
+    if (!current) return;
     pointers.current.set(event.pointerId, at);
     if (current.kind === "pinch") {
       const distance = pinchDistance();
@@ -432,7 +495,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
         const center = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
         const factor = distance / current.distance;
         const dx = center.x - current.lastX, dy = center.y - current.lastY;
-        setView(previous => previous ? zoomAt(panBy(previous, dx, dy), factor, center) : previous);
+        scheduleView(previous => zoomAt(panBy(previous, dx, dy), factor, center));
         current.distance = distance;
         current.lastX = center.x; current.lastY = center.y;
       }
@@ -455,7 +518,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
       // Förflyttningen räknas nu, inte i uppdateringen: React kan köra den efter att `lastX`/`lastY` har flyttats fram
       // (då blev panoreringen noll, märkbart med fingret på telefonen).
       const dx = at.x - current.lastX, dy = at.y - current.lastY;
-      setView(previous => previous ? panBy(previous, dx, dy) : previous);
+      scheduleView(previous => panBy(previous, dx, dy));
     }
     current.lastX = at.x; current.lastY = at.y;
   }
@@ -465,9 +528,10 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
     const current = gesture.current;
     pointers.current.delete(event.pointerId);
     if (!current || !view) return;
-    if (current.kind === "pinch") { if (pointers.current.size === 0) gesture.current = undefined; return; }
+    if (current.kind === "pinch") { viewScheduler.current?.flush(); if (pointers.current.size === 0) gesture.current = undefined; return; }
     // Det andra fingret släpps under en vridning: dragningen fortsätter med det första.
     if (current.kind === "drag" && current.pointerId !== undefined && event.pointerId !== current.pointerId) return;
+    if (current.kind === "pan") viewScheduler.current?.flush();
     gesture.current = undefined;
     setGrabbing(false);
     setFinger(undefined);
@@ -491,8 +555,8 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
       event.preventDefault();
       const rect = element.getBoundingClientRect();
       const at = { x: event.clientX - rect.left, y: event.clientY - rect.top };
-      if (wheelAction(event) === "pan") setView(previous => previous ? panBy(previous, -event.deltaX, -event.deltaY) : previous);
-      else setView(previous => previous ? zoomAt(previous, wheelFactor(event.deltaY, event.deltaMode), at) : previous);
+      if (wheelAction(event) === "pan") scheduleView(previous => panBy(previous, -event.deltaX, -event.deltaY));
+      else scheduleView(previous => zoomAt(previous, wheelFactor(event.deltaY, event.deltaMode), at));
     };
     element.addEventListener("wheel", wheel, { passive: false });
     return () => element.removeEventListener("wheel", wheel);
@@ -541,7 +605,7 @@ export function CourseSettingMap({ session, mapBounds, primitives, faded, ghosts
       <Button variant="secondary" aria-label={text.zoomIn} title={text.zoomIn} onClick={() => zoom(1.5)}>+</Button>
       <Button variant="secondary" aria-label={text.zoomOut} title={text.zoomOut} onClick={() => zoom(1 / 1.5)}>−</Button>
       <Button variant="secondary" aria-label={text.fit} title={text.fit} disabled={!mapBounds}
-        onClick={() => { setViewState(previous => previous && mapBounds ? fitBounds(mapBounds, previous.width, previous.height, undefined, insets()) : previous);
+        onClick={() => { viewScheduler.current?.cancel(); setViewState(previous => previous && mapBounds ? fitBounds(mapBounds, previous.width, previous.height, undefined, insets()) : previous);
           untouched.current = true; }}>⤢</Button>
     </div>
   </div>;

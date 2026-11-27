@@ -100,20 +100,75 @@ export function polygonize(graph: Graph): RawFace[] {
   const box = (cycle: Cycle) => {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const node of cycle.nodes) {
-      minX = Math.min(minX, xs[node]!); maxX = Math.max(maxX, xs[node]!);
-      minY = Math.min(minY, ys[node]!); maxY = Math.max(maxY, ys[node]!);
+      const x = xs[node]!, y = ys[node]!;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
     }
     return { minX, minY, maxX, maxY };
   };
   const outers = traced.cycles.filter(cycle => cycle.area > 0).sort((a, b) => a.area - b.area)
     .map(cycle => ({ outer: cycle, holes: [] as Cycle[], box: box(cycle), part: find(cycle.nodes[0]!) }));
+
+  // Rumsligt rutnät över ytterytorna när det finns många, så att hålens omslutande yta hittas i O(1) i stället för O(F).
+  let gridMinX = Infinity, gridMinY = Infinity, gridMaxX = -Infinity, gridMaxY = -Infinity;
+  const useGrid = outers.length >= 64;
+  const gridSide = 16;
+  const cells: number[][] | undefined = useGrid ? Array.from({ length: gridSide * gridSide }, () => []) : undefined;
+  const largeOuters: number[] = [];
+  let cellW = 1, cellH = 1;
+  if (useGrid && cells) {
+    for (const face of outers) {
+      if (face.box.minX < gridMinX) gridMinX = face.box.minX;
+      if (face.box.maxX > gridMaxX) gridMaxX = face.box.maxX;
+      if (face.box.minY < gridMinY) gridMinY = face.box.minY;
+      if (face.box.maxY > gridMaxY) gridMaxY = face.box.maxY;
+    }
+    cellW = Math.max((gridMaxX - gridMinX) / gridSide, 1e-9);
+    cellH = Math.max((gridMaxY - gridMinY) / gridSide, 1e-9);
+    for (let index = 0; index < outers.length; index += 1) {
+      const b = outers[index]!.box;
+      const c0 = Math.max(0, Math.min(gridSide - 1, Math.floor((b.minX - gridMinX) / cellW)));
+      const c1 = Math.max(0, Math.min(gridSide - 1, Math.floor((b.maxX - gridMinX) / cellW)));
+      const r0 = Math.max(0, Math.min(gridSide - 1, Math.floor((b.minY - gridMinY) / cellH)));
+      const r1 = Math.max(0, Math.min(gridSide - 1, Math.floor((b.maxY - gridMinY) / cellH)));
+      if ((c1 - c0 + 1) * (r1 - r0 + 1) > 16) { largeOuters.push(index); continue; }
+      for (let r = r0; r <= r1; r += 1) for (let c = c0; c <= c1; c += 1) cells[r * gridSide + c]!.push(index);
+    }
+  }
+
   for (const cycle of traced.cycles) {
     if (cycle.area >= 0) continue;
-    const node = cycle.nodes[0]!, x = xs[node]!, y = ys[node]!, part = find(node);
-    // Minsta omslutande ytan (ytorna står i storleksordning).
-    const home = outers.find(face => face.part !== part && -cycle.area < face.outer.area && x >= face.box.minX && x <= face.box.maxX
-      && y >= face.box.minY && y <= face.box.maxY && insideRing(graph, face.outer.nodes, x, y));
-    home?.holes.push(cycle);
+    const node = cycle.nodes[0]!, x = xs[node]!, y = ys[node]!, part = find(node), holeArea = -cycle.area;
+    let homeIndex = -1;
+    if (useGrid && cells) {
+      const col = Math.max(0, Math.min(gridSide - 1, Math.floor((x - gridMinX) / cellW)));
+      const row = Math.max(0, Math.min(gridSide - 1, Math.floor((y - gridMinY) / cellH)));
+      const matches = (index: number) => {
+        const face = outers[index]!;
+        return face.part !== part && holeArea < face.outer.area && x >= face.box.minX && x <= face.box.maxX
+          && y >= face.box.minY && y <= face.box.maxY && insideRing(graph, face.outer.nodes, x, y);
+      };
+      for (const index of cells[row * gridSide + col]!) { if (matches(index)) { homeIndex = index; break; } }
+      for (const index of largeOuters) {
+        if (homeIndex >= 0 && index >= homeIndex) break;
+        if (matches(index)) { homeIndex = index; break; }
+      }
+    } else {
+      // Binärsök första ytan med större area än hålet (ytorna står i storleksordning).
+      let lo = 0, hi = outers.length;
+      while (lo < hi) { const mid = (lo + hi) >> 1; if (outers[mid]!.outer.area <= holeArea) lo = mid + 1; else hi = mid; }
+      for (let index = lo; index < outers.length; index += 1) {
+        const face = outers[index]!;
+        if (face.part !== part && x >= face.box.minX && x <= face.box.maxX
+          && y >= face.box.minY && y <= face.box.maxY && insideRing(graph, face.outer.nodes, x, y)) {
+          homeIndex = index;
+          break;
+        }
+      }
+    }
+    if (homeIndex >= 0) outers[homeIndex]!.holes.push(cycle);
   }
   return outers.map(({ outer, holes }) => ({ outer, holes }));
 }

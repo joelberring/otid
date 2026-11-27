@@ -152,4 +152,30 @@ describe("ytor ur linjer", () => {
     expect(faces.length).toBeGreaterThan(1000);
     expect(total(faces)).toBeCloseTo(1_000_000, 3);
   });
+
+  it("polygonize rumsligt rutnät (>= 64 ytor med hål) och cachad faceAt bbox ger exakta svar", () => {
+    // 9 × 9 = 81 separata kvarter, vart och ett med ett hus (hål) inuti: triggar rutnätet i polygonize (>= 64 ytterytor).
+    const lines: FaceLine[] = [];
+    const box = (id: string, x0: number, y0: number, x1: number, y1: number): FaceLine =>
+      ({ id, closed: true, points: [{ x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 }] });
+    for (let r = 0; r < 9; r += 1) {
+      for (let c = 0; c < 9; c += 1) {
+        const x = c * 20, y = r * 20;
+        lines.push(box(`yard-${r}-${c}`, x, y, x + 15, y + 15));
+        lines.push(box(`house-${r}-${c}`, x + 5, y + 5, x + 10, y + 10));
+      }
+    }
+    const { faces } = facesFromLines(lines, { gapTolerance: 0 });
+    expect(faces).toHaveLength(162);
+    // Varje gård har exakt 1 hål (huset) och yta 15*15 - 5*5 = 200.
+    const yard = faceAt(faces, { x: 82, y: 82 });
+    expect(yard?.holes).toHaveLength(1);
+    expect(yard?.area).toBeCloseTo(200, 6);
+    // Punkt inne i huset ger huset (yta 25), inte gården.
+    const house = faceAt(faces, { x: 87, y: 87 });
+    expect(house?.holes).toHaveLength(0);
+    expect(house?.area).toBeCloseTo(25, 6);
+    // Punkt i gatan mellan kvarteren ger undefined.
+    expect(faceAt(faces, { x: 17, y: 17 })).toBeUndefined();
+  });
 });

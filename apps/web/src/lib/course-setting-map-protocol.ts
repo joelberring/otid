@@ -22,7 +22,9 @@ export type MapRenderRequest =
       /** Ägaren 2026-11-09: låsta lager som visas nedtonade (symbolernas id); bara kartprojektets Worker läser det. */
       readonly dimmedSymbols?: readonly string[] | undefined;
       /** Kartprojektets skisslager (ägaren 2026-11-15): symboler som är dolda i kartfilen men ritas; bara kartprojektets Worker. */
-      readonly shownSymbols?: readonly string[] | undefined }
+      readonly shownSymbols?: readonly string[] | undefined;
+      /** Förhandsvisning/utskrift: koda bilden som PNG-Blob i Workern (`convertToBlob`) i stället för på huvudtråden. */
+      readonly asPng?: boolean | undefined }
   /** Träningsläget: kartans symboler med grupp och antal (symbolfiltrets val per symbol). */
   | { readonly type: "symbols"; readonly id: number }
   /** Ringklipp (ADR-0180 beslut 10): detaljgapen för ringarna, räknade på kartfilen som redan är inläst. */
@@ -44,6 +46,7 @@ export type MapRenderResponse =
       /** BL-förslaget: vad varje färg används till (`colorUsage`). */
       readonly usage?: ReadonlyMap<number, ColorUsage> | undefined }
   | { readonly type: "rendered"; readonly id: number; readonly bitmap: ImageBitmap }
+  | { readonly type: "renderedPng"; readonly id: number; readonly blob: Blob }
   /** Tomt när kartan inte är inläst; `failed` när uträkningen misslyckades (ringarna ritas då hela och editorn säger det). */
   | { readonly type: "detailGaps"; readonly id: number; readonly gaps: Readonly<Record<string, readonly CircleArc[]>>; readonly failed?: boolean;
       readonly obstacles?: Readonly<Record<string, NumberObstaclesData>> | undefined }
@@ -60,6 +63,7 @@ export class MapRenderSession {
   private readonly worker: Worker;
   private latest = 0;
   private onRendered: ((id: number, bitmap: ImageBitmap) => void) | undefined;
+  private onRenderedPng: ((id: number, blob: Blob) => void) | undefined;
   private latestGaps = 0;
   private onGaps: ((gaps: Readonly<Record<string, readonly CircleArc[]>>, failed: boolean, obstacles: Readonly<Record<string, NumberObstaclesData>>) => void) | undefined;
   private latestSuggest = 0;
@@ -78,6 +82,7 @@ export class MapRenderSession {
       else if (message.type === "detailGaps") { if (message.id === this.latestGaps) this.onGaps?.(message.gaps, message.failed === true, message.obstacles ?? {}); }
       else if (message.type === "suggestions") { if (message.id === this.latestSuggest) this.onSuggestions?.(message.suggestions, message.failed === true); }
       else if (message.type === "symbols") { if (message.id === this.latestSymbols) this.onSymbols?.(message.symbols); }
+      else if (message.type === "renderedPng") { if (message.id === this.latest && this.onRenderedPng) this.onRenderedPng(message.id, message.blob); }
       else if (message.id === this.latest && this.onRendered) this.onRendered(message.id, message.bitmap);
       else message.bitmap.close();
     };
@@ -88,8 +93,18 @@ export class MapRenderSession {
 
   render(request: Omit<Extract<MapRenderRequest, { type: "render" }>, "type" | "id">, onRendered: (id: number, bitmap: ImageBitmap) => void): number {
     const id = ++this.latest;
+    this.onRenderedPng = undefined;
     this.onRendered = onRendered;
     this.worker.postMessage({ type: "render", id, ...request } satisfies MapRenderRequest);
+    return id;
+  }
+
+  /** Ritar vyn och PNG-kodar den direkt i Workern (`asPng: true`) så huvudtråden slipper `<canvas>.toBlob`. */
+  renderPng(request: Omit<Extract<MapRenderRequest, { type: "render" }>, "type" | "id" | "asPng">, onRendered: (id: number, blob: Blob) => void): number {
+    const id = ++this.latest;
+    this.onRendered = undefined;
+    this.onRenderedPng = onRendered;
+    this.worker.postMessage({ type: "render", id, ...request, asPng: true } satisfies MapRenderRequest);
     return id;
   }
 
@@ -116,5 +131,5 @@ export class MapRenderSession {
     this.worker.postMessage({ type: "symbols", id } satisfies MapRenderRequest);
   }
 
-  close() { this.onSymbols = undefined; this.onRendered = undefined; this.onGaps = undefined; this.onSuggestions = undefined; this.worker.terminate(); }
+  close() { this.onSymbols = undefined; this.onRendered = undefined; this.onRenderedPng = undefined; this.onGaps = undefined; this.onSuggestions = undefined; this.worker.terminate(); }
 }

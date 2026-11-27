@@ -21,12 +21,14 @@ export function PublicResultLists({ raceId, initial, race, raceDate }: { raceId:
   const current = data ?? initial;
   const model = useMemo(() => current ? resultListFromPublic(current.results, current.relay, current.radio) : undefined, [current]);
   const follows = useFollows();
+  const followedRunners = useMemo(() => new Set(follows.runners.filter(runner => runner.raceId === raceId).map(runner => runner.publicResultId)), [follows.runners, raceId]);
+  const followedClubs = useMemo(() => new Set(follows.clubs), [follows.clubs]);
   const follow = useMemo<ResultListFollow>(() => ({
     runner: row => row.publicResultId && <FollowStar compact name={row.name}
-      followed={follows.runners.some(runner => runner.raceId === raceId && runner.publicResultId === row.publicResultId)}
+      followed={followedRunners.has(row.publicResultId)}
       onToggle={() => followStore.toggleRunner({ raceId, publicResultId: row.publicResultId!, name: row.name, club: row.club, className: row.className })} />,
-    club: club => <FollowStar compact name={club} followed={follows.clubs.includes(club)} onToggle={() => followStore.toggleClub(club)} />
-  }), [follows, raceId]);
+    club: club => <FollowStar compact name={club} followed={followedClubs.has(club)} onToggle={() => followStore.toggleClub(club)} />
+  }), [followedRunners, followedClubs, raceId]);
   // Steg 51: en stor tävling skickas inte med sidan; listan hämtas direkt (samma cachade svar som uppdateringarna).
   if (!model) return <p className={styles.notice} role="status">{failed ? text.results.refreshFailed : text.results.loading}</p>;
   return <ResultLists model={model} raceId={raceId} race={race} raceDate={raceDate} links follow={follow}

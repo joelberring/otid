@@ -1,7 +1,7 @@
 "use client";
 
 import { symbolWordMatches } from "../../lib/map-symbol-words";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { memo, useEffect, useMemo, useState, type ReactNode } from "react";
 import { mapProjectEditorEn } from "../../i18n/map-project-en";
 import { mapProjectSymbolLayersEn } from "../../i18n/map-project-more-en";
 import { mapProjectQuickEn } from "../../i18n/map-project-tools-en";
@@ -30,7 +30,7 @@ export type SidebarTab = "basemap" | "symbols" | "layers" | "review" | "process"
  * Flikarnas innehåll står kvar när man byter flik, så att en påbörjad uppladdning eller ett formulär inte går förlorat.
  * Översynen av första kartan 2026-11-17 (K1): Grundkarta först, med arbetsgången för en ny karta, så att Lager bara är lager.
  */
-export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, recent, standardSymbols, layerState, basemap, layers, review, process, conflicts, symbols,
+export const MapProjectSidebar = memo(function MapProjectSidebar({ open, catalog, symbolId, onSymbol, recent, standardSymbols, layerState, basemap, layers, review, process, conflicts, symbols,
   onResolve, onFocusConflict, canEdit, tab, onTab, onClose, onTextSymbol }: {
   /** K8b V6: högerklick på en textsymbol öppnar Ändra textsymbol. */
   onTextSymbol?: ((id: string) => void) | undefined;
@@ -174,4 +174,4 @@ export function MapProjectSidebar({ open, catalog, symbolId, onSymbol, recent, s
     </div>}
     {tip && <span className={styles.stripTip} role="tooltip" style={{ left: tip.x, top: tip.y }}>{tip.text}</span>}
   </aside></>;
-}
+});

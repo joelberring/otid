@@ -22,7 +22,7 @@
 import type { Point } from "@o-tid/map-file";
 import { preparedOf } from "./cost-model";
 import { climbCostPerUnit, RUNNABLE_CLASSES, resolveSettings, type RunnableClass } from "./defaults";
-import { boxFrame, BLOCKED, cellClass, cellOf, NO_TRACK, rasterize, type Grid } from "./raster";
+import { boxFrame, BLOCKED, cellClass, cellOf, NO_TRACK, rasterize, SPRINT_SCALE_LIMIT, type Grid } from "./raster";
 import type { CalibrationResult, CalibrationSample, CostModel, RouteChoiceSettings } from "./types";
 
 /** Segmentlängd i terrängen. */
@@ -68,11 +68,69 @@ interface Segment {
   used: boolean;
 }
 
-function frameFor(points: readonly Point[], scale: number) {
+const MAX_CALIBRATION_CELLS = 2_000_000;
+
+interface SampleBox { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number }
+interface PreparedSample {
+  readonly sampleIndex: number;
+  readonly group: string;
+  readonly points: readonly { x: number; y: number; ms: number }[];
+  readonly box: SampleBox;
+}
+
+function paddedBoxOf(points: readonly Point[], margin: number): SampleBox {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  for (const p of points) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y); }
-  const margin = 30 * 1000 / scale;
-  return boxFrame({ minX: minX - margin, minY: minY - margin, maxX: maxX + margin, maxY: maxY + margin }, scale, 2_000_000);
+  for (const p of points) {
+    if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+  }
+  return { minX: minX - margin, minY: minY - margin, maxX: maxX + margin, maxY: maxY + margin };
+}
+
+function unionBox(a: SampleBox, b: SampleBox): SampleBox {
+  return { minX: Math.min(a.minX, b.minX), minY: Math.min(a.minY, b.minY), maxX: Math.max(a.maxX, b.maxX), maxY: Math.max(a.maxY, b.maxY) };
+}
+
+function baseCellsFor(box: SampleBox, baseCellMm: number): number {
+  return Math.ceil((box.maxX - box.minX) / baseCellMm) * Math.ceil((box.maxY - box.minY) / baseCellMm);
+}
+
+/**
+ * Grupperar proven så att varje grupp rastreras en gång i full upplösning (högst `MAX_CALIBRATION_CELLS` celler).
+ * Normalt ryms alla tävlingsprov i en enda grupp = 1 rastrering totalt; bara mycket stora områden eller enstaka
+ * uteliggande GPS-spår delas upp i flera grupper.
+ */
+function groupCalibrationSamples(preparedSamples: readonly PreparedSample[], baseCellMm: number): { box: SampleBox; samples: PreparedSample[] }[] {
+  if (preparedSamples.length === 0) return [];
+  let all = preparedSamples[0]!.box;
+  for (let i = 1; i < preparedSamples.length; i += 1) all = unionBox(all, preparedSamples[i]!.box);
+  if (baseCellsFor(all, baseCellMm) <= MAX_CALIBRATION_CELLS) {
+    return [{ box: all, samples: [...preparedSamples] }];
+  }
+  const tileSpan = Math.sqrt(MAX_CALIBRATION_CELLS) * baseCellMm * 0.7;
+  const ordered = [...preparedSamples].sort((a, b) => {
+    const ay = Math.floor(((a.box.minY + a.box.maxY) * 0.5) / tileSpan);
+    const by = Math.floor(((b.box.minY + b.box.maxY) * 0.5) / tileSpan);
+    if (ay !== by) return ay - by;
+    return (a.box.minX + a.box.maxX) - (b.box.minX + b.box.maxX);
+  });
+  const chunks: { box: SampleBox; samples: PreparedSample[] }[] = [];
+  let currentBox = ordered[0]!.box;
+  let currentSamples: PreparedSample[] = [ordered[0]!];
+  for (let i = 1; i < ordered.length; i += 1) {
+    const next = ordered[i]!;
+    const merged = unionBox(currentBox, next.box);
+    if (baseCellsFor(merged, baseCellMm) <= MAX_CALIBRATION_CELLS) {
+      currentBox = merged;
+      currentSamples.push(next);
+    } else {
+      chunks.push({ box: currentBox, samples: currentSamples });
+      currentBox = next.box;
+      currentSamples = [next];
+    }
+  }
+  chunks.push({ box: currentBox, samples: currentSamples });
+  return chunks;
 }
 
 /** Meter och branta meter per klass längs polylinjen, stigningsenheter, passager och meter i ej passerbart. */
@@ -171,33 +229,52 @@ export function calibrateSpeeds(model: CostModel, samples: readonly CalibrationS
   const segments: Segment[] = [];
   let rejected = 0;
 
+  const margin = 30 * mmPerMeter;
+  const baseCellMm = (prepared.scale < SPRINT_SCALE_LIMIT ? 0.5 : 2) * mmPerMeter;
+  const preparedSamples: PreparedSample[] = [];
   samples.forEach((sample, sampleIndex) => {
     const points = smooth(sample.points.filter(p => Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.ms)), mmPerMeter);
     if (points.length < 2) return;
-    const grid = rasterize(prepared, frameFor(points, prepared.scale), speeds,
-      { trackRadiusMm: GPS_TRACK_METERS * mmPerMeter, contourIntervalMeters: resolved.contourIntervalMeters });
-    let start = 0, length = 0, jump = false;
-    for (let index = 1; index < points.length; index += 1) {
-      const a = points[index - 1]!, b = points[index]!;
-      const meters = Math.hypot(b.x - a.x, b.y - a.y) / mmPerMeter;
-      const seconds = (b.ms - a.ms) / 1000;
-      if (seconds <= 0 || meters / seconds > MAX_POINT_SPEED) jump = true;
-      length += meters;
-      if (length < SEGMENT_METERS && index < points.length - 1) continue;
-      const part = points.slice(start, index + 1);
-      const totalSeconds = (b.ms - points[start]!.ms) / 1000;
-      const speed = totalSeconds > 0 ? length / totalSeconds : Infinity;
-      if (length >= SEGMENT_METERS / 2) {
-        const measured = measure(grid, part, speeds, mmPerMeter);
-        if (jump || speed < MIN_SEGMENT_SPEED || speed > MAX_SEGMENT_SPEED || measured.blocked > MAX_BLOCKED_SHARE * length) rejected += 1;
-        else {
-          segments.push({ group: sample.runner ?? "", sample: sampleIndex, seconds: totalSeconds, meters: measured.meters, steep: measured.steep,
-            climbUnits: measured.climbUnits, crossing: measured.crossing, length, used: true });
-        }
-      }
-      start = index; length = 0; jump = false;
-    }
+    preparedSamples.push({ sampleIndex, group: sample.runner ?? "", points, box: paddedBoxOf(points, margin) });
   });
+
+  const rasterOptions = { trackRadiusMm: GPS_TRACK_METERS * mmPerMeter, contourIntervalMeters: resolved.contourIntervalMeters };
+  const bySample = new Array<{ segments: Segment[]; rejected: number } | undefined>(samples.length);
+  for (const chunk of groupCalibrationSamples(preparedSamples, baseCellMm)) {
+    const grid = rasterize(prepared, boxFrame(chunk.box, prepared.scale, MAX_CALIBRATION_CELLS), speeds, rasterOptions);
+    for (const item of chunk.samples) {
+      const { points, group, sampleIndex } = item;
+      const sampleSegments: Segment[] = [];
+      let sampleRejected = 0;
+      let start = 0, length = 0, jump = false;
+      for (let index = 1; index < points.length; index += 1) {
+        const a = points[index - 1]!, b = points[index]!;
+        const meters = Math.hypot(b.x - a.x, b.y - a.y) / mmPerMeter;
+        const seconds = (b.ms - a.ms) / 1000;
+        if (seconds <= 0 || meters / seconds > MAX_POINT_SPEED) jump = true;
+        length += meters;
+        if (length < SEGMENT_METERS && index < points.length - 1) continue;
+        const part = points.slice(start, index + 1);
+        const totalSeconds = (b.ms - points[start]!.ms) / 1000;
+        const speed = totalSeconds > 0 ? length / totalSeconds : Infinity;
+        if (length >= SEGMENT_METERS / 2) {
+          const measured = measure(grid, part, speeds, mmPerMeter);
+          if (jump || speed < MIN_SEGMENT_SPEED || speed > MAX_SEGMENT_SPEED || measured.blocked > MAX_BLOCKED_SHARE * length) sampleRejected += 1;
+          else {
+            sampleSegments.push({ group, sample: sampleIndex, seconds: totalSeconds, meters: measured.meters, steep: measured.steep,
+              climbUnits: measured.climbUnits, crossing: measured.crossing, length, used: true });
+          }
+        }
+        start = index; length = 0; jump = false;
+      }
+      bySample[sampleIndex] = { segments: sampleSegments, rejected: sampleRejected };
+    }
+  }
+  for (const entry of bySample) {
+    if (!entry) continue;
+    rejected += entry.rejected;
+    for (const segment of entry.segments) segments.push(segment);
+  }
 
   // Klasser med tillräckligt med data skattas; ankaret behåller sin fart.
   const totals = RUNNABLE_CLASSES.map((_, cls) => segments.reduce((sum, s) => sum + s.meters[cls]!, 0));

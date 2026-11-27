@@ -206,6 +206,87 @@ function intersects(frame: GridFrame, feature: Feature): boolean {
     box.minY <= frame.yTop && box.maxY >= frame.yTop - frame.height * frame.cellMm;
 }
 
+interface FeatureGrid {
+  readonly minX: number;
+  readonly minY: number;
+  readonly cellW: number;
+  readonly cellH: number;
+  readonly side: number;
+  readonly cells: readonly number[][];
+  readonly large: readonly number[];
+  readonly marks: Uint32Array;
+  round: number;
+}
+
+const FEATURE_GRID_THRESHOLD = 256;
+const FEATURE_GRID_SIDE = 32;
+const featureGrids = new WeakMap<readonly Feature[], FeatureGrid>();
+
+function featureGridOf(features: readonly Feature[]): FeatureGrid | undefined {
+  if (features.length < FEATURE_GRID_THRESHOLD) return undefined;
+  let cached = featureGrids.get(features);
+  if (cached) return cached;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const feature of features) {
+    const b = feature.box;
+    if (!Number.isFinite(b.minX)) continue;
+    if (b.minX < minX) minX = b.minX;
+    if (b.maxX > maxX) maxX = b.maxX;
+    if (b.minY < minY) minY = b.minY;
+    if (b.maxY > maxY) maxY = b.maxY;
+  }
+  const side = FEATURE_GRID_SIDE;
+  const cells: number[][] = Array.from({ length: side * side }, () => []);
+  const large: number[] = [];
+  const cellW = Number.isFinite(minX) ? Math.max((maxX - minX) / side, 1e-9) : 1;
+  const cellH = Number.isFinite(minY) ? Math.max((maxY - minY) / side, 1e-9) : 1;
+  if (Number.isFinite(minX)) {
+    for (let index = 0; index < features.length; index += 1) {
+      const b = features[index]!.box;
+      if (!Number.isFinite(b.minX)) continue;
+      const c0 = Math.max(0, Math.min(side - 1, Math.floor((b.minX - minX) / cellW)));
+      const c1 = Math.max(0, Math.min(side - 1, Math.floor((b.maxX - minX) / cellW)));
+      const r0 = Math.max(0, Math.min(side - 1, Math.floor((b.minY - minY) / cellH)));
+      const r1 = Math.max(0, Math.min(side - 1, Math.floor((b.maxY - minY) / cellH)));
+      if ((c1 - c0 + 1) * (r1 - r0 + 1) > 16) { large.push(index); continue; }
+      for (let r = r0; r <= r1; r += 1) for (let c = c0; c <= c1; c += 1) cells[r * side + c]!.push(index);
+    }
+  }
+  cached = { minX, minY, cellW, cellH, side, cells, large, marks: new Uint32Array(features.length), round: 0 };
+  featureGrids.set(features, cached);
+  return cached;
+}
+
+/** Returnerar matchande feature-index i exakt ursprunglig ordning (100 % byte-identiskt raster). */
+function queryFeatures(features: readonly Feature[], frame: GridFrame): readonly Feature[] {
+  const grid = featureGridOf(features);
+  if (!grid) return features;
+  const qMinX = frame.x0, qMaxX = frame.x0 + frame.width * frame.cellMm;
+  const qMaxY = frame.yTop, qMinY = frame.yTop - frame.height * frame.cellMm;
+  const { minX, minY, cellW, cellH, side, cells, large, marks } = grid;
+  const c0 = Math.max(0, Math.min(side - 1, Math.floor((qMinX - minX) / cellW)));
+  const c1 = Math.max(0, Math.min(side - 1, Math.floor((qMaxX - minX) / cellW)));
+  const r0 = Math.max(0, Math.min(side - 1, Math.floor((qMinY - minY) / cellH)));
+  const r1 = Math.max(0, Math.min(side - 1, Math.floor((qMaxY - minY) / cellH)));
+  grid.round = (grid.round + 1) >>> 0;
+  if (grid.round === 0) { marks.fill(0); grid.round = 1; }
+  const round = grid.round;
+  const indices: number[] = [];
+  for (let r = r0; r <= r1; r += 1) {
+    const rowBase = r * side;
+    for (let c = c0; c <= c1; c += 1) {
+      for (const index of cells[rowBase + c]!) {
+        if (marks[index] !== round) { marks[index] = round; indices.push(index); }
+      }
+    }
+  }
+  for (const index of large) {
+    if (marks[index] !== round) { marks[index] = round; indices.push(index); }
+  }
+  indices.sort((a, b) => a - b);
+  return indices.map(index => features[index]!);
+}
+
 function paint(frame: GridFrame, feature: Feature, visit: Visit): void {
   for (const polygon of feature.polygons) fillPolygon(frame, polygon, visit);
   for (const line of feature.lines) strokeLine(frame, line, feature.radius, visit);
@@ -295,7 +376,7 @@ export function rasterize(model: PreparedModel, frame: GridFrame, speeds: Readon
   const barrier = new Uint8Array(cells);
   const length = new Float32Array(cells);
   const speedOf = RUNNABLE_CLASSES.map(cls => speeds[cls]);
-  for (const feature of model.features) {
+  for (const feature of queryFeatures(model.features, frame)) {
     if (!intersects(frame, feature)) continue;
     switch (feature.layer) {
       case "AREA": {
@@ -331,15 +412,33 @@ export function rasterize(model: PreparedModel, frame: GridFrame, speeds: Readon
       }
     }
   }
-  // Utanför kartans yta finns ingen karta: spärrat.
+  // Utanför kartans yta finns ingen karta: spärrat (fyll bara kantbanden som sticker ut utanför `bounds`).
   const bounds = model.bounds;
-  if (bounds) {
-    for (let row = 0; row < frame.height; row += 1) {
-      const y = frame.yTop - (row + 0.5) * frame.cellMm;
-      const outsideRow = y < bounds.minY || y > bounds.maxY;
-      for (let col = 0; col < frame.width; col += 1) {
-        const x = frame.x0 + (col + 0.5) * frame.cellMm;
-        if (outsideRow || x < bounds.minX || x > bounds.maxX) block[row * frame.width + col] = 1;
+  if (bounds && frame.width > 0 && frame.height > 0) {
+    const { width, height, x0, yTop, cellMm } = frame;
+    let rowStart = Math.max(0, Math.min(height, Math.floor((yTop - bounds.maxY) / cellMm - 0.5)));
+    while (rowStart < height && yTop - (rowStart + 0.5) * cellMm > bounds.maxY) rowStart += 1;
+    while (rowStart > 0 && yTop - (rowStart - 0.5) * cellMm <= bounds.maxY) rowStart -= 1;
+
+    let rowEnd = Math.max(0, Math.min(height, Math.ceil((yTop - bounds.minY) / cellMm - 0.5)));
+    while (rowEnd > rowStart && yTop - (rowEnd - 0.5) * cellMm < bounds.minY) rowEnd -= 1;
+    while (rowEnd < height && yTop - (rowEnd + 0.5) * cellMm >= bounds.minY) rowEnd += 1;
+
+    let colStart = Math.max(0, Math.min(width, Math.floor((bounds.minX - x0) / cellMm - 0.5)));
+    while (colStart < width && x0 + (colStart + 0.5) * cellMm < bounds.minX) colStart += 1;
+    while (colStart > 0 && x0 + (colStart - 0.5) * cellMm >= bounds.minX) colStart -= 1;
+
+    let colEnd = Math.max(0, Math.min(width, Math.ceil((bounds.maxX - x0) / cellMm - 0.5)));
+    while (colEnd > colStart && x0 + (colEnd - 0.5) * cellMm > bounds.maxX) colEnd -= 1;
+    while (colEnd < width && x0 + (colEnd + 0.5) * cellMm <= bounds.maxX) colEnd += 1;
+
+    if (rowStart > 0) block.fill(1, 0, rowStart * width);
+    if (rowEnd < height) block.fill(1, rowEnd * width, height * width);
+    if (colStart > 0 || colEnd < width) {
+      for (let row = rowStart; row < rowEnd; row += 1) {
+        const base = row * width;
+        if (colStart > 0) block.fill(1, base, base + colStart);
+        if (colEnd < width) block.fill(1, base + colEnd, base + width);
       }
     }
   }

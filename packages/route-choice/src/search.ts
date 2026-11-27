@@ -38,6 +38,9 @@ function directions(): Direction[] {
 }
 
 const DIRECTIONS = directions();
+const DIR_DXS = Int32Array.from(DIRECTIONS, d => d.dx);
+const DIR_DYS = Int32Array.from(DIRECTIONS, d => d.dy);
+const DIR_KINDS = Uint8Array.from(DIRECTIONS, d => d.kind);
 
 /** Kostnaden för ett steg mellan två celler (vilket som helst av de 16), eller `Infinity`. Används utanför sökningen. */
 export function stepCost(grid: SearchGrid, pace: Float32Array, from: number, to: number): { cost: number; climbUnits: number; meters: number } {
@@ -147,9 +150,11 @@ export interface SearchResult {
   readonly parent: Int32Array;
 }
 
+const workspaceHeaps = new WeakMap<SearchWorkspace, Heap>();
+
 /**
  * Återanvändbara fält för många små sökningar i samma rutnät (T-testet för alternativen). Bara de celler som en sökning
- * rört återställs efteråt, så att en kort sökning inte kostar ett helt rutnät.
+ * rört återställs efteråt, så att en kort sökning inte kostar ett helt rutnät. Även min-högen återanvänds (`heap.size = 0`).
  */
 export class SearchWorkspace {
   readonly cost: Float64Array;
@@ -162,6 +167,7 @@ export class SearchWorkspace {
     this.parent = new Int32Array(cells).fill(-1);
     this.done = new Uint8Array(cells);
     this.touched = new Int32Array(1024);
+    workspaceHeaps.set(this, new Heap(Math.max(1024, Math.min(cells, 1 << 16))));
   }
   touch(index: number): void {
     if (this.count === this.touched.length) { const next = new Int32Array(this.count * 2); next.set(this.touched); this.touched = next; }
@@ -173,6 +179,8 @@ export class SearchWorkspace {
       this.cost[index] = Infinity; this.parent[index] = -1; this.done[index] = 0;
     }
     this.count = 0;
+    const heap = workspaceHeaps.get(this);
+    if (heap) heap.size = 0;
   }
 }
 
@@ -204,12 +212,11 @@ export function search(grid: SearchGrid, pace: Float32Array, start: number, opti
   const estimateScale = options.estimateScale ?? 1;
   const estimateOffset = options.estimateOffset ?? 0;
   const count = DIRECTIONS.length;
-  const dxs = Int32Array.from(DIRECTIONS, d => d.dx), dys = Int32Array.from(DIRECTIONS, d => d.dy);
+  const dxs = DIR_DXS, dys = DIR_DYS, kinds = DIR_KINDS;
   const offs = Int32Array.from(DIRECTIONS, d => d.dy * w + d.dx);
-  const kinds = Uint8Array.from(DIRECTIONS, d => d.kind);
   const lens = Float64Array.from(DIRECTIONS, d => d.length * grid.cellMeters);
   const m1 = Int32Array.from(DIRECTIONS, d => d.m1y * w + d.m1x), m2 = Int32Array.from(DIRECTIONS, d => d.m2y * w + d.m2x);
-  const heap = new Heap(Math.max(1024, Math.min(n, 1 << 16)));
+  const heap = workspace ? workspaceHeaps.get(workspace)! : new Heap(Math.max(1024, Math.min(n, 1 << 16)));
   if (!(pace[start]! < Infinity)) return { cost, parent };
   cost[start] = 0;
   workspace?.touch(start);

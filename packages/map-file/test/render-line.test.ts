@@ -305,4 +305,117 @@ describe("anpassad streckning i hörn- och streckpunkter (styrpunkter)", () => {
     expect(dashIntervals(1.86, spec103, true, false)).toHaveLength(2);
     expect(dashIntervals(1.46, spec103, false, false)).toHaveLength(1);
   });
+
+  it("linjär segmentpekare i dashPolylines och spacedPlacements ger bit-identisk utdata mot O(N*M)-referens", () => {
+    // Vågig polylinje med 180 segment, styrpunkter och noll-längdssegment på kurva.
+    const pts: { x: number; y: number }[] = [];
+    for (let i = 0; i <= 180; i += 1) pts.push({ x: i * 0.45, y: Math.sin(i * 0.25) * 2.5 });
+    const path: Path = pts.map((p, index) => ({
+      type: index === 0 ? "M" as const : "L" as const,
+      x: p.x,
+      y: p.y,
+      ...(index === 60 ? { dash: true as const } : {}),
+      ...(index === 120 ? { corner: true as const } : {})
+    }));
+    const spec = { mainLength: 2.25, mainGap: 0.6, endLength: 1.5, secondaryGap: 0.25 };
+
+    // Referensimplementation av slicePolyline med omstart från seg = 0 varje intervall.
+    const refDash = (input: Path): { x: number; y: number }[][] => {
+      const EPS = 1e-6;
+      const ml = markedLines(input)[0]!;
+      const stops = [0, ...ml.breaks.filter(i => i > 0 && i < ml.points.length - 1).sort((a, b) => a - b), ml.points.length - 1];
+      const out: { x: number; y: number }[][] = [];
+      let prevEndedAtStop = false;
+      for (let s = 1; s < stops.length; s += 1) {
+        const piece = ml.points.slice(stops[s - 1], stops[s]! + 1);
+        const cum: number[] = [0];
+        for (let i = 1; i < piece.length; i += 1) cum.push(cum[i - 1]! + Math.hypot(piece[i]!.x - piece[i - 1]!.x, piece[i]!.y - piece[i - 1]!.y));
+        const total = cum[cum.length - 1]!;
+        const intervals = dashIntervals(total, spec, s > 1, s < stops.length - 1, 1);
+        let endedAtStop = false;
+        for (let k = 0; k < intervals.length; k += 1) {
+          const [d0, d1] = intervals[k]!;
+          const sliced: { x: number; y: number }[] = [];
+          const pushPt = (p: { x: number; y: number }) => {
+            const last = sliced[sliced.length - 1];
+            if (!last || Math.hypot(p.x - last.x, p.y - last.y) > EPS) sliced.push(p);
+          };
+          const interp = (dist: number, seg: number) => {
+            const segLen = cum[seg + 1]! - cum[seg]!;
+            const t = segLen > 0 ? Math.min(1, Math.max(0, (dist - cum[seg]!) / segLen)) : 0;
+            const a = piece[seg]!, b = piece[seg + 1]!;
+            return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+          };
+          let seg = 0;
+          while (seg < cum.length - 2 && cum[seg + 1]! < d0 - EPS) seg += 1;
+          pushPt(interp(d0, seg));
+          while (seg < cum.length - 2 && cum[seg + 1]! < d1 - EPS) { seg += 1; pushPt(piece[seg]!); }
+          pushPt(interp(d1, seg));
+          if (sliced.length < 2) continue;
+          const prev = out[out.length - 1];
+          if (k === 0 && d0 <= EPS && prevEndedAtStop && prev && Math.hypot(prev[prev.length - 1]!.x - sliced[0]!.x, prev[prev.length - 1]!.y - sliced[0]!.y) <= EPS) {
+            prev.push(...sliced.slice(1));
+          } else {
+            out.push(sliced);
+          }
+          if (k === intervals.length - 1 && d1 >= total - EPS) endedAtStop = true;
+        }
+        prevEndedAtStop = endedAtStop;
+      }
+      return out;
+    };
+
+    expect(dashPolylines([path], spec)).toEqual(refDash(path));
+
+    // Referensimplementation av spacedPlacements med omstart från segment = 0 varje punkt, inkl. överlappande groupSpacing.
+    const ml = markedLines(path)[0]!;
+    for (const rep of [
+      { elements: [dot], spacing: 1.5, endLength: 0.75, count: 2, groupSpacing: 0.4, minimum: 1 },
+      { elements: [dot], spacing: 0.8, endLength: 0.2, count: 3, groupSpacing: 1.2, minimum: 1 },
+      { elements: [dot], spacing: 1.2, endLength: 0.5, count: 2, groupSpacing: -0.5, minimum: 1 }
+    ]) {
+      const actual = spacedPlacements(ml, rep, false, 10_000);
+      const stops = [0, ...ml.breaks.filter(i => i > 0 && i < ml.points.length - 1).sort((a, b) => a - b), ml.points.length - 1];
+      const parts = stops.slice(1).map((to, idx) => {
+        const part = ml.points.slice(stops[idx], to + 1);
+        const lengths = part.slice(1).map((p, i) => Math.hypot(p.x - part[i]!.x, p.y - part[i]!.y));
+        return { points: part, lengths, total: lengths.reduce((a, b) => a + b, 0) };
+      });
+      const longest = parts.reduce((best, p, i) => (p.total > parts[best]!.total ? i : best), 0);
+      const expected: { at: { x: number; y: number }; angle: number; stretch: number }[] = [];
+      parts.forEach((part, idx) => {
+        const distances = spacedDistances(part.total, rep.spacing, rep.endLength, idx === longest ? rep.minimum : 0);
+        for (const d of distances) {
+          for (let k = 0; k < rep.count; k += 1) {
+            const target = Math.min(Math.max(d + (k - (rep.count - 1) / 2) * rep.groupSpacing, 0), part.total);
+            let start = 0, seg = 0;
+            while (seg < part.lengths.length - 1 && start + part.lengths[seg]! < target) { start += part.lengths[seg]!; seg += 1; }
+            const a = part.points[seg]!, b = part.points[seg + 1]!;
+            const t = part.lengths[seg]! > 0 ? (target - start) / part.lengths[seg]! : 0;
+            expected.push({ at: { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }, angle: Math.atan2(b.y - a.y, b.x - a.x), stretch: 1 });
+          }
+        }
+      });
+      expect(actual).toEqual(expected);
+    }
+  });
+
+  it("lineDecorations bevarar start/slut över luckor och återanvänder vägen utan luckor", () => {
+    const sym = line({
+      repeated: { elements: [dot], spacing: 2, endLength: 1 },
+      start: { elements: [tick] },
+      end: { elements: [tick] }
+    });
+    const plainPath: Path = [{ type: "M", x: 0, y: 0 }, { type: "L", x: 10, y: 0 }];
+    const gappedPath: Path = [{ type: "M", x: 0, y: 0 }, { type: "L", x: 4, y: 0, gap: GAP.main }, { type: "L", x: 10, y: 0 }];
+    const callsPlain = draw(sym, [{ kind: "line", symbol: "l", path: plainPath }]);
+    const callsGapped = draw(sym, [{ kind: "line", symbol: "l", path: gappedPath }]);
+    // Start (0,0) och slut (10,0) ritas även när första delsträckan har GAP.main, medan upprepade bara ligger på 4..10.
+    const translatesGapped = args(callsGapped, "translate");
+    expect(translatesGapped).toContainEqual([0, 0]);
+    expect(translatesGapped).toContainEqual([10, 0]);
+    expect(translatesGapped.filter(([x]) => x! > 0 && x! < 4)).toHaveLength(0);
+    expect(args(callsPlain, "translate")).toContainEqual([0, 0]);
+    expect(args(callsPlain, "translate")).toContainEqual([10, 0]);
+  });
 });

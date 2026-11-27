@@ -82,6 +82,17 @@ export function setRouteHints(document: CourseSettingDocument, hints: Readonly<R
   return { ...document, event: Object.keys(next).length > 0 ? { ...event, routeHints: next } : event };
 }
 
+const controlPlacesCache = new WeakMap<CourseSettingDocument["controls"], readonly Point[]>();
+
+function controlPlaces(controls: CourseSettingDocument["controls"]): readonly Point[] {
+  let places = controlPlacesCache.get(controls);
+  if (!places) {
+    places = Object.values(controls).map(control => control.at);
+    controlPlacesCache.set(controls, places);
+  }
+  return places;
+}
+
 /**
  * Vägarnas sträckor nära en punkt (kartans mm), bara från vägar vars båda ändar står på en kontroll i dokumentet (en flyttad
  * kontroll gör vägen ogiltig tills den räknats igen).
@@ -90,14 +101,30 @@ export function routeSegmentsNear(document: CourseSettingDocument, at: Point, re
   keys?: ReadonlySet<string>): Point[][] {
   const hints = document.event.routeHints;
   if (!hints || keys?.size === 0) return [];
-  const places = Object.values(document.controls).map(control => control.at);
-  const onControl = (point: Point) => places.some(place => Math.abs(place.x - point.x) <= SAME_PLACE_MM && Math.abs(place.y - point.y) <= SAME_PLACE_MM);
+  let places: readonly Point[] | undefined;
+  const onControl = (point: Point): boolean => {
+    places ??= controlPlaces(document.controls);
+    for (let i = 0; i < places.length; i += 1) {
+      const place = places[i]!;
+      if (Math.abs(place.x - point.x) <= SAME_PLACE_MM && Math.abs(place.y - point.y) <= SAME_PLACE_MM) return true;
+    }
+    return false;
+  };
   const out: Point[][] = [];
-  for (const [key, hint] of Object.entries(hints)) {
-    if (keys && !keys.has(key)) continue;
-    if (Math.hypot(hint.from.x - at.x, hint.from.y - at.y) > reachMm * 3 && Math.hypot(hint.to.x - at.x, hint.to.y - at.y) > reachMm * 3) continue;
-    if (!onControl(hint.from) || !onControl(hint.to)) continue;
+  const maxDist = reachMm * 3;
+  const visit = (hint: RouteHint) => {
+    if (Math.hypot(hint.from.x - at.x, hint.from.y - at.y) > maxDist && Math.hypot(hint.to.x - at.x, hint.to.y - at.y) > maxDist) return;
+    if (!onControl(hint.from) || !onControl(hint.to)) return;
     for (const line of hint.lines) if (line.some(point => Math.hypot(point.x - at.x, point.y - at.y) <= reachMm)) out.push([...line]);
+  };
+  if (keys) {
+    for (const key of keys) {
+      if (!Object.prototype.hasOwnProperty.call(hints, key)) continue;
+      const hint = hints[key];
+      if (hint) visit(hint);
+    }
+  } else {
+    for (const hint of Object.values(hints)) visit(hint);
   }
   return out;
 }

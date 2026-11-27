@@ -69,6 +69,8 @@ export function printSheetGroups(source: Parameters<typeof layoutCoursePage>[0],
   if (!items.some(item => item.layout !== undefined && item.layout !== MAIN_LAYOUT)) return withMapPasses(document, sheetGroups(document, layout, items, options));
   // ADR-0217: arken per layout. Varje följd av kartor i samma layout läggs ut på dokumentet som utskriften ser det för
   // layouten (`layoutDocument`: layoutens skala och papper, arkets utsnitt, papper och justeringar) med layoutens "Kartor per ark".
+  // Projektionen återanvänds per layout-id så att varvade löparark delar samma `layout()`-memo.
+  const projectedByLayout = new Map<string, Parameters<typeof layoutCoursePage>[0]>();
   const out: SheetGroup[] = [];
   let start = 0;
   while (start < items.length) {
@@ -77,11 +79,16 @@ export function printSheetGroups(source: Parameters<typeof layoutCoursePage>[0],
     while (end < items.length && (items[end]!.layout ?? MAIN_LAYOUT) === id) end += 1;
     const run = items.slice(start, end), offset = start;
     start = end;
-    let projected: Parameters<typeof layoutCoursePage>[0];
-    try { projected = layoutDocument(document, id); } catch (error) {
-      if (!options.onError) throw error;
-      run.forEach((_, index) => options.onError!({ item: offset + index, error }));
-      continue;
+    let projected = projectedByLayout.get(id);
+    if (!projected) {
+      try {
+        projected = layoutDocument(document, id);
+        projectedByLayout.set(id, projected);
+      } catch (error) {
+        if (!options.onError) throw error;
+        run.forEach((_, index) => options.onError!({ item: offset + index, error }));
+        continue;
+      }
     }
     const onError = options.onError ? (failed: { item?: number | undefined; error: unknown }) =>
       options.onError!({ item: failed.item === undefined ? undefined : failed.item + offset, error: failed.error }) : undefined;

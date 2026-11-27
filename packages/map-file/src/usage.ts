@@ -88,8 +88,12 @@ export function usageSymbolsText(usage: Pick<ColorUsage, "codes" | "names">, max
   return items.slice(0, max).map(item => item.name ? `${item.name} (${item.code})` : item.code).join(", ") + (items.length > max ? " …" : "");
 }
 
+const usageCache = new WeakMap<Pick<ParsedMap, "symbols" | "objects">, Map<number, ColorUsage>>();
+
 /** Användningen per färgens id; färger som inget synligt objekt använder saknas. */
 export function colorUsage(map: Pick<ParsedMap, "symbols" | "objects">): Map<number, ColorUsage> {
+  const cached = usageCache.get(map);
+  if (cached) return cached;
   const bySymbol = new Map<string, Map<number, Set<ColorUseKind>>>();
   const collected = new Map<number, { objects: number; kinds: Set<ColorUseKind>; codes: Map<string, string>; mains: Set<number>; cells: Map<string, { count: number; x: number; y: number }> }>();
   for (const object of map.objects) {
@@ -129,5 +133,6 @@ export function colorUsage(map: Pick<ParsedMap, "symbols" | "objects">): Map<num
       ...(sample ? { sample } : {})
     });
   }
+  usageCache.set(map, out);
   return out;
 }

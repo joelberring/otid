@@ -38,7 +38,7 @@ type Segment =
   | { readonly op: "h" };
 
 interface CanvasState {
-  ctm: Matrix; fillStyle: string; strokeStyle: string; lineWidth: number; lineCap: CanvasLineCap; lineJoin: CanvasLineJoin; dash: number[];
+  ctm: Matrix; deviceCtm: Matrix; fillStyle: string; strokeStyle: string; lineWidth: number; lineCap: CanvasLineCap; lineJoin: CanvasLineJoin; dash: number[];
   font: string; textAlign: CanvasTextAlign; textBaseline: CanvasTextBaseline;
 }
 
@@ -64,11 +64,10 @@ export interface PdfCanvasOptions {
 
 export class PdfCanvas implements MapDrawingContext {
   readonly canvas: { width: number; height: number };
-  private state: CanvasState = { ctm: IDENTITY, fillStyle: "#000", strokeStyle: "#000", lineWidth: 1, lineCap: "butt", lineJoin: "miter", dash: [],
-    font: "10px sans-serif", textAlign: "start", textBaseline: "alphabetic" };
+  private state: CanvasState;
   private readonly stack: CanvasState[] = [];
   private path: Segment[] = [];
-  private current: [number, number] | undefined;
+  private hasCurrent = false;
   private paint: Paint | null = null;
   private colorOpacity = 1;
   /** Ritade delar (vägar och texter), för rapporten och testerna. */
@@ -76,6 +75,10 @@ export class PdfCanvas implements MapDrawingContext {
 
   constructor(private readonly options: PdfCanvasOptions) {
     this.canvas = { width: options.width, height: options.height };
+    this.state = {
+      ctm: IDENTITY, deviceCtm: multiply(options.device, IDENTITY), fillStyle: "#000", strokeStyle: "#000",
+      lineWidth: 1, lineCap: "butt", lineJoin: "miter", dash: [], font: "10px sans-serif", textAlign: "start", textBaseline: "alphabetic"
+    };
   }
 
   /** `drawMap`:s `beforeColor`. */
@@ -112,35 +115,48 @@ export class PdfCanvas implements MapDrawingContext {
     this.options.content.restore();
   }
 
-  setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void { this.state.ctm = [a, b, c, d, e, f]; }
-  translate(x: number, y: number): void { this.state.ctm = multiply(this.state.ctm, [1, 0, 0, 1, x, y]); }
+  setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void {
+    this.state.ctm = [a, b, c, d, e, f];
+    this.state.deviceCtm = multiply(this.options.device, this.state.ctm);
+  }
+  translate(x: number, y: number): void {
+    this.state.ctm = multiply(this.state.ctm, [1, 0, 0, 1, x, y]);
+    this.state.deviceCtm = multiply(this.options.device, this.state.ctm);
+  }
   rotate(angle: number): void {
     const cos = Math.cos(angle), sin = Math.sin(angle);
     this.state.ctm = multiply(this.state.ctm, [cos, sin, -sin, cos, 0, 0]);
+    this.state.deviceCtm = multiply(this.options.device, this.state.ctm);
   }
-  scale(x: number, y: number): void { this.state.ctm = multiply(this.state.ctm, [x, 0, 0, y, 0, 0]); }
+  scale(x: number, y: number): void {
+    this.state.ctm = multiply(this.state.ctm, [x, 0, 0, y, 0, 0]);
+    this.state.deviceCtm = multiply(this.options.device, this.state.ctm);
+  }
   setLineDash(segments: number[]): void { this.state.dash = segments.filter(value => Number.isFinite(value) && value >= 0); }
 
   private toDevice(x: number, y: number): [number, number] {
-    return apply(multiply(this.options.device, this.state.ctm), x, y);
+    return apply(this.state.deviceCtm, x, y);
   }
 
-  beginPath(): void { this.path = []; this.current = undefined; }
+  beginPath(): void { this.path = []; this.hasCurrent = false; }
   moveTo(x: number, y: number): void {
-    const [px, py] = this.toDevice(x, y);
-    this.path.push({ op: "m", x: px, y: py });
-    this.current = [px, py];
+    const m = this.state.deviceCtm;
+    this.path.push({ op: "m", x: m[0] * x + m[2] * y + m[4], y: m[1] * x + m[3] * y + m[5] });
+    this.hasCurrent = true;
   }
   lineTo(x: number, y: number): void {
-    const [px, py] = this.toDevice(x, y);
-    this.path.push({ op: this.current ? "l" : "m", x: px, y: py });
-    this.current = [px, py];
+    const m = this.state.deviceCtm;
+    this.path.push({ op: this.hasCurrent ? "l" : "m", x: m[0] * x + m[2] * y + m[4], y: m[1] * x + m[3] * y + m[5] });
+    this.hasCurrent = true;
   }
   bezierCurveTo(cp1x: number, cp1y: number, cp2x: number, cp2y: number, x: number, y: number): void {
-    if (!this.current) this.moveTo(cp1x, cp1y);
-    const [ax, ay] = this.toDevice(cp1x, cp1y), [bx, by] = this.toDevice(cp2x, cp2y), [cx, cy] = this.toDevice(x, y);
+    if (!this.hasCurrent) this.moveTo(cp1x, cp1y);
+    const m = this.state.deviceCtm;
+    const ax = m[0] * cp1x + m[2] * cp1y + m[4], ay = m[1] * cp1x + m[3] * cp1y + m[5];
+    const bx = m[0] * cp2x + m[2] * cp2y + m[4], by = m[1] * cp2x + m[3] * cp2y + m[5];
+    const cx = m[0] * x + m[2] * y + m[4], cy = m[1] * x + m[3] * y + m[5];
     this.path.push({ op: "c", p: [ax, ay, bx, by, cx, cy] });
-    this.current = [cx, cy];
+    this.hasCurrent = true;
   }
   /** Bågen som kubiska bézierkurvor (högst 90° per kurva) i användarens koordinater. */
   arc(x: number, y: number, radius: number, startAngle: number, endAngle: number, counterclockwise = false): void {
@@ -149,7 +165,7 @@ export class PdfCanvas implements MapDrawingContext {
     if (!counterclockwise) { if (sweep < 0 || sweep > 2 * Math.PI) sweep = sweep >= 2 * Math.PI ? 2 * Math.PI : ((sweep % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI); }
     else { if (sweep > 0 || sweep < -2 * Math.PI) sweep = sweep <= -2 * Math.PI ? -2 * Math.PI : -((((-sweep) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)); }
     const startX = x + radius * Math.cos(startAngle), startY = y + radius * Math.sin(startAngle);
-    if (this.current) this.lineTo(startX, startY); else this.moveTo(startX, startY);
+    if (this.hasCurrent) this.lineTo(startX, startY); else this.moveTo(startX, startY);
     const pieces = Math.max(1, Math.ceil(Math.abs(sweep) / (Math.PI / 2) - 1e-9));
     const step = sweep / pieces;
     const k = (4 / 3) * Math.tan(step / 4);
@@ -167,16 +183,30 @@ export class PdfCanvas implements MapDrawingContext {
   private emitPath(transform?: Matrix): boolean {
     if (this.path.length === 0) return false;
     const out: string[] = [];
-    const map = transform ? (x: number, y: number) => apply(transform, x, y) : (x: number, y: number): [number, number] => [x, y];
-    for (const segment of this.path) {
-      if (segment.op === "h") {
-        out.push("h");
-      } else if (segment.op === "c") {
-        const [ax, ay] = map(segment.p[0], segment.p[1]), [bx, by] = map(segment.p[2], segment.p[3]), [cx, cy] = map(segment.p[4], segment.p[5]);
-        out.push(`${num(ax)} ${num(ay)} ${num(bx)} ${num(by)} ${num(cx)} ${num(cy)} c`);
-      } else {
-        const [px, py] = map(segment.x, segment.y);
-        out.push(`${num(px)} ${num(py)} ${segment.op}`);
+    if (!transform) {
+      for (const segment of this.path) {
+        if (segment.op === "h") {
+          out.push("h");
+        } else if (segment.op === "c") {
+          const p = segment.p;
+          out.push(`${num(p[0])} ${num(p[1])} ${num(p[2])} ${num(p[3])} ${num(p[4])} ${num(p[5])} c`);
+        } else {
+          out.push(`${num(segment.x)} ${num(segment.y)} ${segment.op}`);
+        }
+      }
+    } else {
+      for (const segment of this.path) {
+        if (segment.op === "h") {
+          out.push("h");
+        } else if (segment.op === "c") {
+          const [ax, ay] = apply(transform, segment.p[0], segment.p[1]);
+          const [bx, by] = apply(transform, segment.p[2], segment.p[3]);
+          const [cx, cy] = apply(transform, segment.p[4], segment.p[5]);
+          out.push(`${num(ax)} ${num(ay)} ${num(bx)} ${num(by)} ${num(cx)} ${num(cy)} c`);
+        } else {
+          const [px, py] = apply(transform, segment.x, segment.y);
+          out.push(`${num(px)} ${num(py)} ${segment.op}`);
+        }
       }
     }
     this.options.content.op(out.join("\n"));
@@ -194,7 +224,7 @@ export class PdfCanvas implements MapDrawingContext {
     const paint = this.paintWith(this.state.strokeStyle);
     if (!paint || this.path.length === 0) return;
     const content = this.options.content;
-    const m = multiply(this.options.device, this.state.ctm);
+    const m = this.state.deviceCtm;
     const factor = similarity(m);
     content.stroke(paint);
     const cap = CAP[this.state.lineCap], join = JOIN[this.state.lineJoin];
@@ -258,7 +288,7 @@ export class PdfCanvas implements MapDrawingContext {
     const dy = this.state.textBaseline === "middle" ? (font.ascent + font.descent) / 2 * size
       : this.state.textBaseline === "top" ? font.ascent * size
       : this.state.textBaseline === "bottom" ? font.descent * size : 0;
-    const matrix = multiply(multiply(this.options.device, this.state.ctm), [size, 0, 0, -size, x + dx, y + dy]);
+    const matrix = multiply(this.state.deviceCtm, [size, 0, 0, -size, x + dx, y + dy]);
     return { font, clean, matrix };
   }
 
@@ -277,7 +307,7 @@ export class PdfCanvas implements MapDrawingContext {
     const paint = this.paintWith(this.state.strokeStyle);
     const layout = paint ? this.textLayout(text, x, y) : null;
     if (!paint || !layout) return;
-    const m = multiply(this.options.device, this.state.ctm);
+    const m = this.state.deviceCtm;
     const factor = similarity(m) ?? Math.hypot(m[0], m[1]);
     this.options.content.stroke(paint);
     this.options.content.lineStyle(this.state.lineWidth * factor, CAP[this.state.lineCap], JOIN[this.state.lineJoin]);

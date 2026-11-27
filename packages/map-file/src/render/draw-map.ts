@@ -219,9 +219,30 @@ function placed(ctx: MapCanvasContext, at: Point, angleRadians: number, draw: ()
   ctx.restore();
 }
 
+interface LinePlanInfo {
+  readonly active: boolean;
+  readonly strokes: readonly StrokeStyle[];
+  readonly decorationSymbol: LineSymbol | undefined;
+}
+
+interface AreaPlanInfo {
+  readonly active: boolean;
+  readonly fill: number | undefined;
+  readonly hatches: readonly HatchStyle[];
+  readonly patternActive: boolean;
+  readonly borderInfo: LinePlanInfo | undefined;
+}
+
 /** Samlar ritningen per färg. */
 class Plan {
   readonly byColor = new Map<number, Drawer[]>();
+  private readonly resolved = new Map<string, readonly MapSymbol[]>();
+  private readonly elementGroups = new Map<readonly PointElement[], Map<number, PointElement[]>>();
+  private readonly elementAccepts = new Map<readonly PointElement[], boolean>();
+  private readonly lineCache = new Map<LineSymbol, LinePlanInfo>();
+  private readonly areaCache = new Map<AreaSymbol, AreaPlanInfo>();
+  private readonly symbolActiveCache = new Map<MapSymbol, boolean>();
+
   constructor(
     readonly colors: ReadonlyMap<number, MapColor>,
     readonly simplifications: Simplifications,
@@ -233,6 +254,87 @@ class Plan {
     if (this.onlyColors && !this.onlyColors.has(colorId)) return false;
     const color = this.colors.get(colorId);
     return color !== undefined && color.opacity > 0;
+  }
+  /** Sann om färgen ska ritas eller saknas i färgtabellen (så att notisen om saknade färger bevaras). */
+  accepts(colorId: number): boolean {
+    if (this.excludeColors?.has(colorId)) return false;
+    if (this.onlyColors && !this.onlyColors.has(colorId)) return false;
+    const color = this.colors.get(colorId);
+    return color === undefined || color.opacity > 0;
+  }
+  resolve(symbols: ParsedMap["symbols"], id: string, showHidden: boolean): readonly MapSymbol[] {
+    let list = this.resolved.get(id);
+    if (list === undefined) {
+      list = resolveSymbols(symbols, id, 0, new Set(), showHidden);
+      this.resolved.set(id, list);
+    }
+    return list;
+  }
+  elementsByColor(elements: readonly PointElement[]): Map<number, PointElement[]> {
+    let groups = this.elementGroups.get(elements);
+    if (groups === undefined) {
+      groups = groupElementsByColor(elements);
+      this.elementGroups.set(elements, groups);
+    }
+    return groups;
+  }
+  acceptsAnyElement(elements: readonly PointElement[]): boolean {
+    let accepted = this.elementAccepts.get(elements);
+    if (accepted === undefined) {
+      accepted = false;
+      for (const colorId of this.elementsByColor(elements).keys()) {
+        if (this.accepts(colorId)) { accepted = true; break; }
+      }
+      this.elementAccepts.set(elements, accepted);
+    }
+    return accepted;
+  }
+  lineInfo(symbol: LineSymbol): LinePlanInfo {
+    let info = this.lineCache.get(symbol);
+    if (info !== undefined) return info;
+    const strokes = symbol.strokes.filter(stroke => stroke.width > 0 && this.accepts(stroke.color));
+    const repeated = symbol.repeated && symbol.repeated.spacing > 0 && this.acceptsAnyElement(symbol.repeated.elements) ? symbol.repeated : undefined;
+    const between = symbol.between && symbol.between.spacing > 0 && this.acceptsAnyElement(symbol.between.elements) ? symbol.between : undefined;
+    const corner = symbol.corner && this.acceptsAnyElement(symbol.corner.elements) ? symbol.corner : undefined;
+    const start = symbol.start && this.acceptsAnyElement(symbol.start.elements) ? symbol.start : undefined;
+    const end = symbol.end && this.acceptsAnyElement(symbol.end.elements) ? symbol.end : undefined;
+    let decorationSymbol: LineSymbol | undefined;
+    if (repeated || between || corner || start || end) {
+      decorationSymbol = repeated === symbol.repeated && between === symbol.between && corner === symbol.corner && start === symbol.start && end === symbol.end
+        ? symbol : { ...symbol, repeated, between, corner, start, end };
+    }
+    info = { active: strokes.length > 0 || decorationSymbol !== undefined, strokes, decorationSymbol };
+    this.lineCache.set(symbol, info);
+    return info;
+  }
+  areaInfo(symbol: AreaSymbol): AreaPlanInfo {
+    let info = this.areaCache.get(symbol);
+    if (info !== undefined) return info;
+    const fill = symbol.fill !== undefined && this.accepts(symbol.fill) ? symbol.fill : undefined;
+    const hatches = symbol.hatches.filter(hatch => hatch.spacing > 0 && hatch.width > 0 && this.accepts(hatch.color));
+    const pattern = symbol.pattern;
+    const patternActive = Boolean(pattern && pattern.elements.length > 0 && pattern.dx > 0 && pattern.dy > 0 && this.acceptsAnyElement(pattern.elements));
+    let borderInfo: LinePlanInfo | undefined;
+    if (symbol.border || symbol.borderDecorations) {
+      const candidate = this.lineInfo({ ...symbol, kind: "LINE", strokes: symbol.border ?? [], ...symbol.borderDecorations });
+      if (candidate.active) borderInfo = candidate;
+    }
+    info = { active: fill !== undefined || hatches.length > 0 || patternActive || borderInfo !== undefined, fill, hatches, patternActive, borderInfo };
+    this.areaCache.set(symbol, info);
+    return info;
+  }
+  symbolActive(symbol: MapSymbol): boolean {
+    let active = this.symbolActiveCache.get(symbol);
+    if (active !== undefined) return active;
+    switch (symbol.kind) {
+      case "POINT": active = this.acceptsAnyElement(symbol.elements); break;
+      case "LINE": active = this.lineInfo(symbol).active; break;
+      case "AREA": active = this.areaInfo(symbol).active; break;
+      case "TEXT": active = this.accepts(symbol.color) || Boolean(symbol.framing && symbol.framing.width > 0 && this.accepts(symbol.framing.color)); break;
+      case "COMBINED": active = false; break;
+    }
+    this.symbolActiveCache.set(symbol, active);
+    return active;
   }
   add(colorId: number, drawer: (ctx: MapCanvasContext, color: MapColor) => void) {
     if (this.excludeColors?.has(colorId)) return;
@@ -247,7 +349,7 @@ class Plan {
   }
 }
 
-function elementsByColor(elements: readonly PointElement[]): Map<number, PointElement[]> {
+function groupElementsByColor(elements: readonly PointElement[]): Map<number, PointElement[]> {
   const out = new Map<number, PointElement[]>();
   for (const element of elements) {
     const list = out.get(element.color);
@@ -257,14 +359,15 @@ function elementsByColor(elements: readonly PointElement[]): Map<number, PointEl
 }
 
 function planPoint(plan: Plan, elements: readonly PointElement[], at: Point, angleDegrees: number) {
-  for (const [colorId, parts] of elementsByColor(elements)) {
+  for (const [colorId, parts] of plan.elementsByColor(elements)) {
+    if (!plan.accepts(colorId)) continue;
     plan.add(colorId, (ctx, color) => placed(ctx, at, angleDegrees * DEGREES, () => { for (const part of parts) drawElement(ctx, part, color); }));
   }
 }
 
 /** Ett streck längs vägarna, utan luckorna för dess sida (vänster eller höger kantlinje, annars huvudlinjen). */
 function planStroke(plan: Plan, stroke: StrokeStyle, input: readonly Path[]) {
-  if (!(stroke.width > 0)) return;
+  if (!(stroke.width > 0) || !plan.accepts(stroke.color)) return;
   const bit = stroke.offset && stroke.offset > 0 ? GAP.left : stroke.offset && stroke.offset < 0 ? GAP.right : GAP.main;
   const paths = input.map(path => withoutGaps(path, bit));
   if (stroke.dashSpec) {
@@ -288,9 +391,10 @@ function planStroke(plan: Plan, stroke: StrokeStyle, input: readonly Path[]) {
 }
 
 /** Linjens streck och dess punktsymboler (upprepade, i hörnen, i början och i slutet). */
-function planLine(plan: Plan, symbol: LineSymbol, paths: readonly Path[]) {
-  for (const stroke of symbol.strokes) planStroke(plan, stroke, paths);
-  if (!symbol.repeated && !symbol.between && !symbol.corner && !symbol.start && !symbol.end) return;
+function planLine(plan: Plan, info: LinePlanInfo, paths: readonly Path[]) {
+  for (const stroke of info.strokes) planStroke(plan, stroke, paths);
+  const symbol = info.decorationSymbol;
+  if (!symbol) return;
   for (const { elements, places } of lineDecorations(symbol, paths, MAX_REPEATS)) {
     if (places.length >= MAX_REPEATS && elements.some(element => plan.wants(element.color))) {
       plan.simplifications.add(`Upprepade tecken längs ${symbol.code.text} ritas bara delvis`);
@@ -300,7 +404,8 @@ function planLine(plan: Plan, symbol: LineSymbol, paths: readonly Path[]) {
 }
 
 function planPlacements(plan: Plan, elements: readonly PointElement[], places: readonly Placement[]) {
-  for (const [colorId, parts] of elementsByColor(elements)) {
+  for (const [colorId, parts] of plan.elementsByColor(elements)) {
+    if (!plan.accepts(colorId)) continue;
     plan.add(colorId, (ctx, color) => {
       for (const place of places) {
         placed(ctx, place.at, place.angle, () => { for (const part of parts) drawElement(ctx, part, color); }, place.stretch);
@@ -378,15 +483,14 @@ function cellJitter(i: number, j: number, salt: number): number {
   return (h >>> 0) / 0x7fffffff - 1;
 }
 
-function planArea(plan: Plan, symbol: AreaSymbol, rings: readonly Path[], angleDegrees: number, maxInstances: number) {
+function planArea(plan: Plan, symbol: AreaSymbol, info: AreaPlanInfo, rings: readonly Path[], angleDegrees: number, maxInstances: number) {
   if (rings.length === 0) return;
-  if (symbol.fill !== undefined) plan.add(symbol.fill, (ctx, color) => fillRings(ctx, rings, css(color)));
-  for (const hatch of symbol.hatches) {
-    if (!(hatch.spacing > 0) || !(hatch.width > 0)) continue;
+  if (info.fill !== undefined) plan.add(info.fill, (ctx, color) => fillRings(ctx, rings, css(color)));
+  for (const hatch of info.hatches) {
     plan.add(hatch.color, (ctx, color) => drawHatch(ctx, rings, hatch, angleDegrees, color));
   }
   const pattern = symbol.pattern;
-  if (pattern && pattern.elements.length > 0 && pattern.dx > 0 && pattern.dy > 0) {
+  if (info.patternActive && pattern) {
     const box = pathsBox(rings);
     if (box) {
       // Rutnätets egen vinkel (symbolen) plus objektets vinkel; nätet förankras i kartans origo (`rotatedBox`).
@@ -395,16 +499,18 @@ function planArea(plan: Plan, symbol: AreaSymbol, rings: readonly Path[], angleD
       const i0 = Math.floor(minU / pattern.dx) - 1, i1 = Math.ceil(maxU / pattern.dx) + 1;
       const j0 = Math.floor(minV / pattern.dy) - 1, j1 = Math.ceil(maxV / pattern.dy) + 1;
       const instances = (i1 - i0 + 1) * (j1 - j0 + 1);
-      const groups = elementsByColor(pattern.elements);
+      const groups = plan.elementsByColor(pattern.elements);
       if (instances > maxInstances) {
         if ([...groups.keys()].some(colorId => plan.wants(colorId))) plan.simplifications.pattern(symbol.code.text);
         for (const [colorId, parts] of groups) {
+          if (!plan.accepts(colorId)) continue;
           const alpha = coverage(parts, pattern.dx, pattern.dy);
           plan.add(colorId, (ctx, color) => fillRings(ctx, rings, css(color, alpha)));
         }
       } else {
         const irregular = pattern.irregular;
         for (const [colorId, parts] of groups) {
+          if (!plan.accepts(colorId)) continue;
           plan.add(colorId, (ctx, color) => {
             ctx.save();
             clipTo(ctx, rings);
@@ -426,9 +532,9 @@ function planArea(plan: Plan, symbol: AreaSymbol, rings: readonly Path[], angleD
       }
     }
   }
-  if (symbol.border || symbol.borderDecorations) {
+  if (info.borderInfo) {
     const closed = rings.map(closeRing);
-    planLine(plan, { ...symbol, kind: "LINE", strokes: symbol.border ?? [], ...symbol.borderDecorations }, closed);
+    planLine(plan, info.borderInfo, closed);
   }
 }
 
@@ -450,7 +556,7 @@ function planText(plan: Plan, symbol: TextSymbol, object: Extract<MapObject, { k
   };
   // K8b V6: konturen (Mappers framing) under texten, i sin egen färg.
   const framing = symbol.framing;
-  if (framing && framing.width > 0) {
+  if (framing && framing.width > 0 && plan.accepts(framing.color)) {
     plan.add(framing.color, (ctx, color) => draw(ctx, (line, y) => {
       ctx.strokeStyle = css(color);
       ctx.lineWidth = framing.width * options.pxPerMm;
@@ -458,7 +564,9 @@ function planText(plan: Plan, symbol: TextSymbol, object: Extract<MapObject, { k
       ctx.strokeText?.(line, 0, y);
     }));
   }
-  plan.add(symbol.color, (ctx, color) => draw(ctx, (line, y) => { ctx.fillStyle = css(color); ctx.fillText(line, 0, y); }));
+  if (plan.accepts(symbol.color)) {
+    plan.add(symbol.color, (ctx, color) => draw(ctx, (line, y) => { ctx.fillStyle = css(color); ctx.fillText(line, 0, y); }));
+  }
 }
 
 const SERIF = /times|georgia|garamond|serif|roman|book|cambria|palatino/i;
@@ -483,21 +591,41 @@ function planObject(plan: Plan, map: ParsedMap, object: MapObject, options: Draw
   let parts = 0;
   if (options.hiddenSymbols?.has(object.symbol)) return 0;
   const maxInstances = options.maxPatternInstances ?? MAX_PATTERN_INSTANCES;
-  for (const symbol of resolveSymbols(map.symbols, object.symbol, 0, new Set(), options.showHiddenSymbols?.has(object.symbol) === true)) {
+  for (const symbol of plan.resolve(map.symbols, object.symbol, options.showHiddenSymbols?.has(object.symbol) === true)) {
     switch (object.kind) {
       case "point":
-        if (symbol.kind === "POINT") { planPoint(plan, symbol.elements, object.at, object.angle); parts += 1; }
+        if (symbol.kind === "POINT") {
+          parts += 1;
+          if (plan.symbolActive(symbol)) planPoint(plan, symbol.elements, object.at, object.angle);
+        }
         break;
       case "line":
-        if (symbol.kind === "LINE") { planLine(plan, symbol, [object.path]); parts += 1; }
-        else if (symbol.kind === "AREA") { planArea(plan, symbol, [object.path], 0, maxInstances); parts += 1; }
+        if (symbol.kind === "LINE") {
+          parts += 1;
+          const info = plan.lineInfo(symbol);
+          if (info.active) planLine(plan, info, [object.path]);
+        } else if (symbol.kind === "AREA") {
+          parts += 1;
+          const info = plan.areaInfo(symbol);
+          if (info.active) planArea(plan, symbol, info, [object.path], 0, maxInstances);
+        }
         break;
       case "area":
-        if (symbol.kind === "AREA") { planArea(plan, symbol, object.rings, object.angle, maxInstances); parts += 1; }
-        else if (symbol.kind === "LINE") { planLine(plan, symbol, object.rings.map(closeRing)); parts += 1; }
+        if (symbol.kind === "AREA") {
+          parts += 1;
+          const info = plan.areaInfo(symbol);
+          if (info.active) planArea(plan, symbol, info, object.rings, object.angle, maxInstances);
+        } else if (symbol.kind === "LINE") {
+          parts += 1;
+          const info = plan.lineInfo(symbol);
+          if (info.active) planLine(plan, info, object.rings.map(closeRing));
+        }
         break;
       case "text":
-        if (symbol.kind === "TEXT") { planText(plan, symbol, object, options); parts += 1; }
+        if (symbol.kind === "TEXT") {
+          parts += 1;
+          if (plan.symbolActive(symbol)) planText(plan, symbol, object, options);
+        }
         break;
     }
   }

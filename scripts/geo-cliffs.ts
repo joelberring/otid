@@ -74,75 +74,224 @@ function close(mask: Uint8Array, width: number, height: number): Uint8Array {
   return out;
 }
 
-/** Zhang–Suens tunning: ytan blir en mittlinje som är en cell bred. Bara cellerna i masken gås igenom. */
+const LITTLE_ENDIAN = new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
+
+/** 256-bytes bitmask-LUT för Zhang–Suens tunning (pass 0/1) och överflödiga 4-sammanhängande trappstegshörn i `paths`. */
+const [THIN_LUT_0, THIN_LUT_1, CORNER_LUT] = (() => {
+  const pass0 = new Uint8Array(256), pass1 = new Uint8Array(256), corner = new Uint8Array(256);
+  const rx = [0, 1, 1, 1, 0, -1, -1, -1], ry = [1, 1, 0, -1, -1, -1, 0, 1];
+  for (let m = 0; m < 256; m += 1) {
+    let count = 0, trans = 0;
+    for (let k = 0; k < 8; k += 1) { const a = (m >> k) & 1, b = (m >> ((k + 1) & 7)) & 1; count += a; if (!a && b) trans += 1; }
+    const n = m & 1, ne = (m >> 1) & 1, e = (m >> 2) & 1, se = (m >> 3) & 1, s = (m >> 4) & 1, sw = (m >> 5) & 1, w = (m >> 6) & 1, nw = (m >> 7) & 1;
+    if (count >= 2 && count <= 6 && trans === 1) {
+      if (n * e * s === 0 && e * s * w === 0) pass0[m] = 1;
+      if (n * e * w === 0 && n * s * w === 0) pass1[m] = 1;
+    }
+    if (count >= 2 && !(n && e && s && w) && ((n && e && !sw) || (e && s && !nw) || (s && w && !ne) || (w && n && !se))) {
+      const bits: number[] = [];
+      for (let k = 0; k < 8; k += 1) if ((m >> k) & 1) bits.push(k);
+      const vis = new Uint8Array(8), q = [bits[0]!]; vis[bits[0]!] = 1;
+      for (let h = 0; h < q.length; h += 1) for (const b of bits) if (!vis[b] && Math.abs(rx[q[h]!]! - rx[b]!) <= 1 && Math.abs(ry[q[h]!]! - ry[b]!) <= 1) { vis[b] = 1; q.push(b); }
+      if (q.length === bits.length) corner[m] = 1;
+    }
+  }
+  return [pass0, pass1, corner] as const;
+})();
+
+/** Zhang–Suens tunning: ytan blir en mittlinje som är en cell bred. Bara inre aktiva celler gås igenom, med 256-bytes LUT. */
 export function thin(mask: Uint8Array, width: number, height: number): Uint8Array {
-  const out = new Uint8Array(mask);
-  let active: number[] = [];
-  for (let i = 0; i < out.length; i += 1) if (out[i]) active.push(i);
-  // Grannarna P2…P9 medurs från norr (y uppåt): N, NO, O, SO, S, SV, V, NV.
-  const offsets = [1, height + 1, height, height - 1, -1, -height - 1, -height, -height + 1];
-  const at = (i: number) => (i >= 0 && i < out.length ? out[i]! : 0);
-  for (let changed = true; changed;) {
+  const out = new Uint8Array(mask.length);
+  let interior = 0;
+  for (let x = 0; x < width; x += 1) {
+    const base = x * height, innerX = x > 0 && x < width - 1;
+    for (let y = 0; y < height; y += 1) if (mask[base + y]) { out[base + y] = 1; if (innerX && y > 0 && y < height - 1) interior += 1; }
+  }
+  if (interior === 0) return out;
+  const active = new Int32Array(interior), remove = new Int32Array(interior), h1 = height + 1, hm1 = height - 1;
+  let activeCount = 0;
+  for (let x = 1; x < width - 1; x += 1) for (let y = 1; y < height - 1; y += 1) if (out[x * height + y]) active[activeCount++] = x * height + y;
+  for (let changed = true; changed && activeCount > 0;) {
     changed = false;
-    for (const pass of [0, 1]) {
-      const remove: number[] = [];
-      for (const i of active) {
-        const x = Math.floor(i / height), y = i - x * height;
-        if (x < 1 || y < 1 || x >= width - 1 || y >= height - 1) continue;
-        const p = offsets.map(offset => at(i + offset));
-        const count = p.reduce((sum, value) => sum + value, 0);
-        if (count < 2 || count > 6) continue;
-        let transitions = 0;
-        for (let k = 0; k < 8; k += 1) if (!p[k] && p[(k + 1) % 8]) transitions += 1;
-        if (transitions !== 1) continue;
-        const [n, , e, , s, , w] = p;
-        if (pass === 0 ? (n! * e! * s! === 0 && e! * s! * w! === 0) : (n! * e! * w! === 0 && n! * s! * w! === 0)) remove.push(i);
+    for (let pass = 0; pass < 2; pass += 1) {
+      const lut = pass === 0 ? THIN_LUT_0 : THIN_LUT_1;
+      let rem = 0;
+      for (let k = 0; k < activeCount; k += 1) {
+        const i = active[k]!;
+        const code = out[i + 1]! | (out[i + h1]! << 1) | (out[i + height]! << 2) | (out[i + hm1]! << 3)
+          | (out[i - 1]! << 4) | (out[i - h1]! << 5) | (out[i - height]! << 6) | (out[i - hm1]! << 7);
+        if (lut[code]) remove[rem++] = i;
       }
-      if (remove.length) { changed = true; for (const i of remove) out[i] = 0; active = active.filter(i => out[i]); }
+      if (rem > 0) {
+        changed = true;
+        for (let r = 0; r < rem; r += 1) out[remove[r]!] = 0;
+        let kept = 0;
+        for (let k = 0; k < activeCount; k += 1) if (out[active[k]!]) active[kept++] = active[k]!;
+        activeCount = kept;
+      }
     }
   }
   return out;
 }
 
+const DIR8_X = [-1, -1, -1, 0, 0, 1, 1, 1], DIR8_Y = [-1, 0, 1, -1, 1, -1, 0, 1];
+
 /**
- * Mittlinjens vägar: i varje sammanhängande del den längsta vägen först, sedan det som blir kvar, så länge delarna är långa nog.
- * En del med fler än `maxCells` celler hoppas över: i bebyggelse hänger smala sänkor ihop i nät över hela området, och där
- * växer arbetet med kvadraten på nätets storlek (Djurgården 2026-11-11: steget blev aldrig klart).
+ * Mittlinjens vägar med linjär O(C) skelettgraf-spårning: i varje sammanhängande del den längsta vägen först, sedan
+ * grenarna som är långa nog. Stora nät (> 2 000 celler) och träd spåras i O(C) via komprimerad skelettgraf.
  */
 export function paths(skeleton: Uint8Array, width: number, height: number, minCells: number, maxCells = Number.POSITIVE_INFINITY): number[][] {
-  const left = new Uint8Array(skeleton), out: number[][] = [];
-  // Föregångaren per cell (−2 = inte besökt) och kön som fält i stället för Map och listor: sökningen görs många gånger.
-  const from = new Int32Array(left.length).fill(-2), queue = new Int32Array(left.length);
-  const neighbours = (i: number) => {
-    const x = Math.floor(i / height), y = i - x * height, list: number[] = [];
-    for (let ax = -1; ax <= 1; ax += 1) for (let ay = -1; ay <= 1; ay += 1) {
-      if ((ax || ay) && x + ax >= 0 && y + ay >= 0 && x + ax < width && y + ay < height && left[(x + ax) * height + y + ay]) list.push((x + ax) * height + y + ay);
+  const size = width * height, left = new Uint8Array(skeleton), out: number[][] = [];
+  const from = new Int32Array(size).fill(-2), queue = new Int32Array(size), nodeId = new Int32Array(size).fill(-1), chainSeen = new Uint8Array(size);
+  const h1 = height + 1, hm1 = height - 1;
+  const for8 = (i: number, visit: (n: number) => void) => {
+    const x = Math.floor(i / height), y = i - x * height;
+    for (let d = 0; d < 8; d += 1) {
+      const nx = x + DIR8_X[d]!, ny = y + DIR8_Y[d]!;
+      if (nx >= 0 && ny >= 0 && nx < width && ny < height && left[nx * height + ny]) visit(nx * height + ny);
     }
-    return list;
   };
-  /** Bredden först från `start`: den avlägsnaste cellen, vägen dit och antalet besökta celler (de ligger först i `queue`). */
-  const farthest = (start: number) => {
-    from[start] = -1; queue[0] = start;
-    let head = 0, tail = 1;
-    while (head < tail) {
-      const i = queue[head]!; head += 1;
-      for (const n of neighbours(i)) if (from[n] === -2) { from[n] = i; queue[tail] = n; tail += 1; }
-    }
+  const degNow = (i: number) => { let c = 0; for8(i, () => { c += 1; }); return c; };
+  const pushEdge = (cells: readonly number[], rev: boolean, dst: number[]) => {
+    if (!rev) for (let k = 0; k < cells.length; k += 1) dst.push(cells[k]!);
+    else for (let k = cells.length - 1; k >= 0; k -= 1) dst.push(cells[k]!);
+  };
+  const bfsFarthest = (seed: number) => {
+    from[seed] = -1; queue[0] = seed; let head = 0, tail = 1;
+    while (head < tail) { const i = queue[head++]!; for8(i, n => { if (from[n] === -2) { from[n] = i; queue[tail++] = n; } }); }
     const end = queue[tail - 1]!, path: number[] = [];
     for (let i = end; i >= 0; i = from[i]!) path.push(i);
     for (let k = 0; k < tail; k += 1) from[queue[k]!] = -2;
     return { end, path, seen: tail };
   };
-  for (let start = 0; start < left.length; start += 1) {
+  const traceGraph = (comp: Int32Array, count: number, pruneCorners: boolean) => {
+    if (pruneCorners) {
+      for (let k = 0; k < count; k += 1) {
+        const i = comp[k]!, x = Math.floor(i / height), y = i - x * height;
+        if (x < 1 || y < 1 || x >= width - 1 || y >= height - 1 || !left[i]) continue;
+        const code = left[i + 1]! | (left[i + h1]! << 1) | (left[i + height]! << 2) | (left[i + hm1]! << 3)
+          | (left[i - 1]! << 4) | (left[i - h1]! << 5) | (left[i - height]! << 6) | (left[i - hm1]! << 7);
+        if (CORNER_LUT[code]) left[i] = 0;
+      }
+    }
+    const nodePixel: number[] = [];
+    for (let k = 0; k < count; k += 1) { const p = comp[k]!; if (left[p] && degNow(p) !== 2) { nodeId[p] = nodePixel.length; nodePixel.push(p); } }
+    const edgeU: number[] = [], edgeV: number[] = [], edgeLen: number[] = [], edgeCells: number[][] = [];
+    const adj: number[][] = Array.from({ length: nodePixel.length }, () => []);
+    for (let v = 0; v < nodePixel.length; v += 1) {
+      const p = nodePixel[v]!;
+      for8(p, n => {
+        const w = nodeId[n]!;
+        if (w >= 0) {
+          if (v < w) { const eid = edgeU.length; edgeU.push(v); edgeV.push(w); edgeLen.push(1); edgeCells.push([]); adj[v]!.push(eid); adj[w]!.push(eid); }
+        } else if (!chainSeen[n]) {
+          const cells: number[] = [];
+          let prev = p, cur = n;
+          while (nodeId[cur]! < 0) {
+            chainSeen[cur] = 1; cells.push(cur);
+            let nxt = -1; for8(cur, cand => { if (cand !== prev && nxt < 0) nxt = cand; });
+            if (nxt < 0) break; prev = cur; cur = nxt;
+          }
+          const endW = nodeId[cur]!;
+          if (endW >= 0) { const eid = edgeU.length; edgeU.push(v); edgeV.push(endW); edgeLen.push(cells.length + 1); edgeCells.push(cells); adj[v]!.push(eid); if (endW !== v) adj[endW]!.push(eid); }
+        }
+      });
+    }
+    const nv = nodePixel.length, ne = edgeU.length, compPaths: number[][] = [];
+    if (nv > 0 && ne === nv - 1) {
+      const treeBfs = (root: number) => {
+        const dist = new Int32Array(nv).fill(-1), parN = new Int32Array(nv).fill(-1), parE = new Int32Array(nv).fill(-1), ord = new Int32Array(nv);
+        let ordLen = 0, far = root, farD = 0; dist[root] = 0; ord[ordLen++] = root;
+        for (let oh = 0; oh < ordLen; oh += 1) {
+          const u = ord[oh]!, du = dist[u]!;
+          if (du > farD) { farD = du; far = u; }
+          for (const eid of adj[u]!) { const to = edgeU[eid] === u ? edgeV[eid]! : edgeU[eid]!; if (dist[to] === -1) { dist[to] = du + edgeLen[eid]!; parN[to] = u; parE[to] = eid; ord[ordLen++] = to; } }
+        }
+        return { far, parN, parE, ord, ordLen };
+      };
+      const root = treeBfs(0).far, tree = treeBfs(root);
+      const children: number[][] = Array.from({ length: nv }, () => []), childEdge: number[][] = Array.from({ length: nv }, () => []);
+      for (let k = 0; k < tree.ordLen; k += 1) { const u = tree.ord[k]!, par = tree.parN[u]!; if (par >= 0) { children[par]!.push(u); childEdge[par]!.push(tree.parE[u]!); } }
+      const bestDown = new Int32Array(nv), bestC = new Int32Array(nv).fill(-1), bestE = new Int32Array(nv).fill(-1);
+      for (let k = tree.ordLen - 1; k >= 0; k -= 1) {
+        const u = tree.ord[k]!, ch = children[u]!, ce = childEdge[u]!;
+        for (let j = 0; j < ch.length; j += 1) { const l = edgeLen[ce[j]!]! + bestDown[ch[j]!]!; if (l > bestDown[u]!) { bestDown[u] = l; bestC[u] = ch[j]!; bestE[u] = ce[j]!; } }
+      }
+      const pending: { node: number; from: number; edge: number }[] = [{ node: root, from: -1, edge: -1 }];
+      for (let pi = 0; pi < pending.length; pi += 1) {
+        const { node: r, from: fr, edge } = pending[pi]!, path: number[] = [];
+        if (edge >= 0) pushEdge(edgeCells[edge]!, edgeU[edge] !== fr, path);
+        path.push(nodePixel[r]!);
+        for (let cur = r; ;) {
+          const ch = children[cur]!, ce = childEdge[cur]!, bc = bestC[cur]!;
+          for (let j = 0; j < ch.length; j += 1) if (ch[j] !== bc) pending.push({ node: ch[j]!, from: cur, edge: ce[j]! });
+          if (bc < 0) break;
+          const eid = bestE[cur]!; pushEdge(edgeCells[eid]!, edgeU[eid] !== cur, path); path.push(nodePixel[bc]!); cur = bc;
+        }
+        if (path.length >= minCells) compPaths.push(path);
+      }
+    } else if (ne > 0) {
+      const order = Array.from({ length: ne }, (_, eid) => eid).sort((a, b) => edgeLen[b]! - edgeLen[a]!);
+      const usedEdge = new Uint8Array(ne), usedNode = new Uint8Array(nv);
+      const extend = (fromNode: number, dst: number[]) => {
+        for (let cur = fromNode; !usedNode[cur];) {
+          usedNode[cur] = 1;
+          let bestEid = -1, bestL = -1;
+          for (const eid of adj[cur]!) if (!usedEdge[eid] && edgeLen[eid]! > bestL) { bestL = edgeLen[eid]!; bestEid = eid; }
+          if (bestEid < 0) break;
+          usedEdge[bestEid] = 1;
+          const nxt = edgeU[bestEid] === cur ? edgeV[bestEid]! : edgeU[bestEid]!;
+          pushEdge(edgeCells[bestEid]!, edgeU[bestEid] !== cur, dst);
+          if (!usedNode[nxt]) dst.push(nodePixel[nxt]!);
+          cur = nxt;
+        }
+      };
+      for (const eid of order) {
+        if (usedEdge[eid]) continue;
+        usedEdge[eid] = 1;
+        const u = edgeU[eid]!, v = edgeV[eid]!, back: number[] = [], fwd: number[] = [];
+        if (!usedNode[u]) { back.push(nodePixel[u]!); extend(u, back); }
+        back.reverse(); pushEdge(edgeCells[eid]!, false, back);
+        if (!usedNode[v]) { fwd.push(nodePixel[v]!); extend(v, fwd); }
+        for (const p of fwd) back.push(p);
+        if (back.length >= minCells) compPaths.push(back);
+      }
+    }
+    compPaths.sort((a, b) => b.length - a.length);
+    for (const p of compPaths) out.push(p);
+    for (let k = 0; k < count; k += 1) { const p = comp[k]!; left[p] = 0; nodeId[p] = -1; chainSeen[p] = 0; }
+  };
+  for (let start = 0; start < size; start += 1) {
+    if (!left[start]) continue;
+    const first = bfsFarthest(start);
+    if (first.seen > maxCells || first.seen < minCells) { for (let k = 0; k < first.seen; k += 1) left[queue[k]!] = 0; continue; }
+    let maxDeg = 0, firstEnd = -1, degSum = 0;
+    for (let k = 0; k < first.seen; k += 1) { const p = queue[k]!, d = degNow(p); degSum += d; if (d > maxDeg) maxDeg = d; if (d === 1 && firstEnd < 0) firstEnd = p; }
+    if (maxDeg <= 2) {
+      const seq: number[] = [];
+      let cur = firstEnd >= 0 ? firstEnd : queue[0]!, prev = -1;
+      for (let step = 0; step < first.seen; step += 1) {
+        seq.push(cur);
+        let nxt = -1; for8(cur, n => { if (n !== prev && !(step > 0 && n === seq[0]) && nxt < 0) nxt = n; });
+        if (nxt < 0) break; prev = cur; cur = nxt;
+      }
+      if (firstEnd >= 0 || first.seen === 1) { if (seq.length >= minCells) out.push(seq); }
+      else { const half = Math.floor(seq.length / 2); if (half + 1 >= minCells) out.push(seq.slice(0, half + 1)); if (seq.length - half - 1 >= minCells) out.push(seq.slice(half + 1)); }
+      for (let k = 0; k < first.seen; k += 1) left[queue[k]!] = 0;
+      continue;
+    }
+    if (degSum / 2 === first.seen - 1 || first.seen > 2000) { traceGraph(queue, first.seen, first.seen > 2000); continue; }
+    let end = first.end;
     while (left[start]) {
-      const first = farthest(start);
-      if (first.seen > maxCells) { for (let k = 0; k < first.seen; k += 1) left[queue[k]!] = 0; break; }
-      const longest = farthest(first.end);
+      const longest = bfsFarthest(end);
       if (longest.path.length < minCells) { for (let k = 0; k < longest.seen; k += 1) left[queue[k]!] = 0; break; }
       out.push(longest.path);
-      // Vägen och cellerna intill den tas bort, så att grenarna blir egna delar utan att följa vägen en gång till.
-      for (const i of longest.path) { left[i] = 0; }
-      for (const i of longest.path) for (const n of neighbours(i)) if (neighbours(n).length <= 1) left[n] = 0;
+      for (const i of longest.path) left[i] = 0;
+      for (const i of longest.path) for8(i, n => { if (degNow(n) <= 1) left[n] = 0; });
+      if (!left[start]) break;
+      const again = bfsFarthest(start);
+      if (again.seen < minCells) { for (let k = 0; k < again.seen; k += 1) left[queue[k]!] = 0; break; }
+      end = again.end;
     }
   }
   return out;
@@ -178,46 +327,93 @@ export function cliffLines(ticks: readonly Tick[], settings: CliffSettings = DEF
 
 /** Markens höjd i 1 m-celler från `lasclip` (cellen (x, y) täcker minX + x … +1, y uppåt; index x·height + y; NaN = ingen markpunkt). */
 export interface GroundGrid { readonly minX: number; readonly minY: number; readonly cell: number; readonly width: number; readonly height: number; readonly z: Float32Array }
+export interface GroundBounds { readonly minX: number; readonly minY: number; readonly cell: number; readonly width: number; readonly height: number }
+export interface GroundAccumulator { add(grid: GroundGrid): void; finish(rounds?: number, shared?: boolean): GroundGrid }
 
 export function readGroundGrid(bytes: Uint8Array): GroundGrid {
   if (bytes.length < 40) throw new Error("Markrastret är för kort");
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const width = Number(view.getBigUint64(24, true)), height = Number(view.getBigUint64(32, true));
-  if (!(width > 0 && height > 0) || bytes.length !== 40 + width * height * 4) throw new Error("Markrastret har fel storlek");
-  const z = new Float32Array(width * height);
-  for (let i = 0; i < z.length; i += 1) z[i] = view.getFloat32(40 + i * 4, true);
+  const width = Number(view.getBigUint64(24, true)), height = Number(view.getBigUint64(32, true)), count = width * height;
+  if (!(width > 0 && height > 0) || bytes.length !== 40 + count * 4) throw new Error("Markrastret har fel storlek");
+  let z: Float32Array;
+  if (LITTLE_ENDIAN) {
+    const off = bytes.byteOffset + 40;
+    if ((off & 3) === 0) z = new Float32Array(bytes.buffer, off, count).slice();
+    else { const copy = new Uint8Array(count * 4); copy.set(bytes.subarray(40)); z = new Float32Array(copy.buffer); }
+  } else {
+    z = new Float32Array(count);
+    for (let i = 0; i < count; i += 1) z[i] = view.getFloat32(40 + i * 4, true);
+  }
   return { minX: view.getFloat64(0, true), minY: view.getFloat64(8, true), cell: view.getFloat64(16, true), width, height, z };
 }
 
-/** Rutornas raster över samma klippta område: medel där flera rutor har mark, och luckor fyllda från grannarna (högst `rounds` celler bort). */
+/** Strömmande ackumulator för beskurna eller helrutade `mark*.bin`-filer över samma globala rutnät. */
+export function createGroundAccumulator(bounds: GroundBounds): GroundAccumulator {
+  const { minX, minY, cell, width, height } = bounds, size = width * height;
+  const sum = new Float64Array(size), count = new Uint16Array(size);
+  return {
+    add(grid: GroundGrid) {
+      if (Math.abs(grid.cell - cell) > 1e-9) throw new Error("Markrastren har olika cellstorlek");
+      const dx = Math.round((grid.minX - minX) / cell), dy = Math.round((grid.minY - minY) / cell);
+      if (Math.abs(grid.minX - (minX + dx * cell)) > 1e-4 * cell || Math.abs(grid.minY - (minY + dy * cell)) > 1e-4 * cell) {
+        throw new Error("Markrastren täcker olika områden");
+      }
+      const gz = grid.z, x0 = Math.max(0, -dx), x1 = Math.min(grid.width, width - dx), y0 = Math.max(0, -dy), y1 = Math.min(grid.height, height - dy);
+      for (let x = x0; x < x1; x += 1) {
+        const srcBase = x * grid.height, dstBase = (x + dx) * height + dy;
+        for (let y = y0; y < y1; y += 1) {
+          const v = gz[srcBase + y]!;
+          if (Number.isFinite(v)) { const dst = dstBase + y; sum[dst] = sum[dst]! + v; count[dst] = count[dst]! + 1; }
+        }
+      }
+    },
+    finish(rounds = 4, shared = false): GroundGrid {
+      const targetBuffer = shared ? new SharedArrayBuffer(size * 4) : undefined;
+      let z: Float32Array = targetBuffer ? new Float32Array(targetBuffer) : new Float32Array(size), hasGap = false;
+      for (let i = 0; i < size; i += 1) if (count[i]) z[i] = sum[i]! / count[i]!; else { z[i] = Number.NaN; hasGap = true; }
+      if (hasGap && rounds > 0) {
+        let next: Float32Array = new Float32Array(size);
+        for (let round = 0; round < rounds; round += 1) {
+          next.set(z);
+          let filled = 0;
+          for (let x = 0; x < width; x += 1) for (let y = 0; y < height; y += 1) {
+            const i = x * height + y;
+            if (Number.isFinite(z[i]!)) continue;
+            let total = 0, n = 0;
+            for (let ax = -1; ax <= 1; ax += 1) for (let ay = -1; ay <= 1; ay += 1) {
+              const nx = x + ax, ny = y + ay;
+              if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+              const value = z[nx * height + ny]!;
+              if (Number.isFinite(value)) { total += value; n += 1; }
+            }
+            if (n >= 2) { next[i] = total / n; filled += 1; }
+          }
+          const tmp = z; z = next; next = tmp;
+          if (!filled) break;
+        }
+        if (targetBuffer && z.buffer !== targetBuffer) { const sharedView = new Float32Array(targetBuffer); sharedView.set(z); z = sharedView; }
+      }
+      return { minX, minY, cell, width, height, z };
+    }
+  };
+}
+
+/** Rutornas raster över det klippta området (stödjer även beskurna delrutor på samma cellrutnät): medel och luckfyllning. */
 export function mergeGroundGrids(grids: readonly GroundGrid[], rounds = 4): GroundGrid {
   const first = grids[0];
   if (!first) throw new Error("Inget markraster");
-  const { width, height } = first, sum = new Float64Array(width * height), count = new Uint16Array(width * height);
-  for (const grid of grids) {
-    if (grid.width !== width || grid.height !== height) throw new Error("Markrastren täcker olika områden");
-    for (let i = 0; i < sum.length; i += 1) if (Number.isFinite(grid.z[i]!)) { sum[i] = sum[i]! + grid.z[i]!; count[i] = count[i]! + 1; }
+  const cell = first.cell;
+  let minX = first.minX, minY = first.minY, maxX = first.minX + first.width * cell, maxY = first.minY + first.height * cell;
+  for (let k = 1; k < grids.length; k += 1) {
+    const g = grids[k]!;
+    if (Math.abs(g.cell - cell) > 1e-9) throw new Error("Markrastren har olika cellstorlek");
+    if (g.minX < minX) minX = g.minX;
+    if (g.minY < minY) minY = g.minY;
+    maxX = Math.max(maxX, g.minX + g.width * cell); maxY = Math.max(maxY, g.minY + g.height * cell);
   }
-  let z = Float32Array.from(sum, (value, i) => count[i] ? value / count[i] : NaN);
-  for (let round = 0; round < rounds; round += 1) {
-    const next = new Float32Array(z);
-    let filled = 0;
-    for (let x = 0; x < width; x += 1) for (let y = 0; y < height; y += 1) {
-      const i = x * height + y;
-      if (Number.isFinite(z[i]!)) continue;
-      let total = 0, n = 0;
-      for (let ax = -1; ax <= 1; ax += 1) for (let ay = -1; ay <= 1; ay += 1) {
-        const nx = x + ax, ny = y + ay;
-        if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
-        const value = z[nx * height + ny]!;
-        if (Number.isFinite(value)) { total += value; n += 1; }
-      }
-      if (n >= 2) { next[i] = total / n; filled += 1; }
-    }
-    z = next;
-    if (!filled) break;
-  }
-  return { ...first, z };
+  const acc = createGroundAccumulator({ minX, minY, cell, width: Math.round((maxX - minX) / cell), height: Math.round((maxY - minY) / cell) });
+  for (const grid of grids) acc.add(grid);
+  return acc.finish(rounds);
 }
 
 const heightAt = (grid: GroundGrid, x: number, y: number) => {
@@ -560,9 +756,10 @@ export function shadeValue(ground: GroundGrid, step: number, column: number, row
 export function hillshade(ground: GroundGrid, maxSide = 6000): { png: Buffer; world: string; width: number; height: number } {
   const step = Math.max(1, Math.ceil(Math.max(ground.width, ground.height) / maxSide));
   const width = Math.floor(ground.width / step), height = Math.floor(ground.height / step), size = ground.cell * step;
-  const png = encodePng(width, height, (column, line) => {
+  const png = encodePng(width, height, (column, line, out, o) => {
     const shade = shadeValue(ground, step, column, height - 1 - line);
-    return shade === undefined ? [0, 0, 0, 0] : [shade, shade, shade, 255];
+    if (shade === undefined) { out[o] = 0; out[o + 1] = 0; out[o + 2] = 0; out[o + 3] = 0; }
+    else { out[o] = shade; out[o + 1] = shade; out[o + 2] = shade; out[o + 3] = 255; }
   });
   return { png, world: `${size}\n0\n0\n${-size}\n${ground.minX + size / 2}\n${ground.minY + (height - 0.5) * size}\n`, width, height };
 }
@@ -573,11 +770,11 @@ export function hillshade(ground: GroundGrid, maxSide = 6000): { png: Buffer; wo
  */
 export function heightPng(ground: GroundGrid): { png: Buffer; world: string } {
   const { width, height, cell } = ground;
-  const png = encodePng(width, height, (column, line) => {
+  const png = encodePng(width, height, (column, line, out, o) => {
     const z = ground.z[column * height + (height - 1 - line)]!;
-    if (!Number.isFinite(z)) return [0, 0, 0, 0];
+    if (!Number.isFinite(z)) { out[o] = 0; out[o + 1] = 0; out[o + 2] = 0; out[o + 3] = 0; return; }
     const value = Math.max(0, Math.min(0xffffff, Math.round(z * 100) + 10_000));
-    return [value >> 16, (value >> 8) & 255, value & 255, 255];
+    out[o] = value >> 16; out[o + 1] = (value >> 8) & 255; out[o + 2] = value & 255; out[o + 3] = 255;
   });
   return { png, world: `${cell}\n0\n0\n${-cell}\n${ground.minX + cell / 2}\n${ground.minY + (height - 0.5) * cell}\n` };
 }

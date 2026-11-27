@@ -168,23 +168,70 @@ function squareUp(ring: Ring, settings: PavedGeneralizeSettings): Point[] | unde
   });
 }
 
-/** Den minsta omskrivna rektangeln (prövad i varje kants riktning): hörnen moturs och arean. */
+/** Konvext hölje (Andrew's monotone chain, strikt konvext moturs) i O(V log V). */
+function convexHull(ring: Ring): Point[] {
+  const sorted: Point[] = ring.map(([x, y]) => [x, y]);
+  sorted.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cross2 = (o: Point, a: Point, b: Point) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const lower: Point[] = [], upper: Point[] = [];
+  for (const p of sorted) {
+    if (lower.length > 0 && lower[lower.length - 1]![0] === p[0] && lower[lower.length - 1]![1] === p[1]) continue;
+    while (lower.length >= 2 && cross2(lower[lower.length - 2]!, lower[lower.length - 1]!, p) <= 0) lower.pop();
+    lower.push(p);
+  }
+  for (let i = sorted.length - 1; i >= 0; i -= 1) {
+    const p = sorted[i]!;
+    if (upper.length > 0 && upper[upper.length - 1]![0] === p[0] && upper[upper.length - 1]![1] === p[1]) continue;
+    while (upper.length >= 2 && cross2(upper[upper.length - 2]!, upper[upper.length - 1]!, p) <= 0) upper.pop();
+    upper.push(p);
+  }
+  if (lower.length <= 1) return lower;
+  lower.pop(); upper.pop();
+  return [...lower, ...upper];
+}
+
+/** Den minsta omskrivna rektangeln via konvext hölje + roterande skjutmått (O(V log V)): hörnen moturs och arean. */
 export function boundingRectangle(ring: Ring): { corners: Point[]; area: number } | undefined {
-  let best: { corners: Point[]; area: number } | undefined;
-  ring.forEach((from, i) => {
-    const to = ring[(i + 1) % ring.length]!, length = Math.hypot(to[0] - from[0], to[1] - from[1]);
-    if (length === 0) return;
-    const ux = (to[0] - from[0]) / length, uy = (to[1] - from[1]) / length;
-    let minU = Infinity, maxU = -Infinity, minV = Infinity, maxV = -Infinity;
-    for (const [x, y] of ring) {
-      const u = x * ux + y * uy, v = -x * uy + y * ux;
-      minU = Math.min(minU, u); maxU = Math.max(maxU, u); minV = Math.min(minV, v); maxV = Math.max(maxV, v);
+  const hull = convexHull(ring), m = hull.length;
+  if (m < 2) return undefined;
+  if (m === 2) {
+    const a = hull[0]!, b = hull[1]!, len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (len === 0) return undefined;
+    const ux = (b[0] - a[0]) / len, uy = (b[1] - a[1]) / len;
+    const u0 = a[0] * ux + a[1] * uy, u1 = b[0] * ux + b[1] * uy, v = -a[0] * uy + a[1] * ux;
+    const minU = Math.min(u0, u1), maxU = Math.max(u0, u1);
+    const at = (u: number, vv: number): Point => [u * ux - vv * uy, u * uy + vv * ux];
+    return { corners: [at(minU, v), at(maxU, v), at(maxU, v), at(minU, v)], area: 0 };
+  }
+  // Initiera extrempunkter för första höljeskanten (O(m)).
+  let right = 0, top = 0, left = 0;
+  {
+    const a = hull[0]!, b = hull[1]!, len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    const ux = (b[0] - a[0]) / len, uy = (b[1] - a[1]) / len;
+    let maxU = -Infinity, minU = Infinity, maxV = -Infinity;
+    for (let k = 0; k < m; k += 1) {
+      const u = hull[k]![0] * ux + hull[k]![1] * uy, v = -hull[k]![0] * uy + hull[k]![1] * ux;
+      if (u >= maxU) { maxU = u; right = k; }
+      if (v >= maxV) { maxV = v; top = k; }
+      if (u <= minU) { minU = u; left = k; }
     }
+  }
+  let best: { corners: Point[]; area: number } | undefined;
+  for (let i = 0; i < m; i += 1) {
+    const a = hull[i]!, b = hull[(i + 1) % m]!, len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (len === 0) continue;
+    const ux = (b[0] - a[0]) / len, uy = (b[1] - a[1]) / len;
+    const projU = (k: number) => hull[k]![0] * ux + hull[k]![1] * uy;
+    const projV = (k: number) => -hull[k]![0] * uy + hull[k]![1] * ux;
+    for (let steps = 0; steps < m && projU((right + 1) % m) >= projU(right); steps += 1) right = (right + 1) % m;
+    for (let steps = 0; steps < m && projV((top + 1) % m) >= projV(top); steps += 1) top = (top + 1) % m;
+    for (let steps = 0; steps < m && projU((left + 1) % m) <= projU(left); steps += 1) left = (left + 1) % m;
+    const minU = projU(left), maxU = projU(right), minV = projV(i), maxV = projV(top);
     const area = (maxU - minU) * (maxV - minV);
-    if (best && area >= best.area) return;
+    if (best && area >= best.area) continue;
     const at = (u: number, v: number): Point => [u * ux - v * uy, u * uy + v * ux];
     best = { corners: [at(minU, minV), at(maxU, minV), at(maxU, maxV), at(minU, maxV)], area };
-  });
+  }
   return best;
 }
 

@@ -7,7 +7,7 @@
  *
  * Bara Nodes egna moduler (filen körs direkt av geo-arbetaren).
  */
-import { deflateSync, inflateSync } from "node:zlib";
+import { crc32, deflateSync, inflateSync } from "node:zlib";
 
 export interface Box { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number }
 type Pair = readonly [number, number];
@@ -260,13 +260,21 @@ export function decodePng(bytes: Uint8Array): RawPng {
   for (let row = 0; row < height; row += 1) {
     const filter = raw[row * (stride + 1)]!, source = row * (stride + 1) + 1, target = row * stride;
     if (filter === 0) { data.set(raw.subarray(source, source + stride), target); continue; }
+    if (filter === 1) {
+      for (let i = 0; i < Math.min(bpp, stride); i += 1) data[target + i] = raw[source + i]!;
+      for (let i = bpp; i < stride; i += 1) data[target + i] = (raw[source + i]! + data[target + i - bpp]!) & 0xff;
+      continue;
+    }
+    if (filter === 2) {
+      if (row === 0) { data.set(raw.subarray(source, source + stride), target); continue; }
+      for (let i = 0; i < stride; i += 1) data[target + i] = (raw[source + i]! + data[target - stride + i]!) & 0xff;
+      continue;
+    }
     if (filter > 4) throw new Error("Bilden har ett okänt filter");
     for (let i = 0; i < stride; i += 1) {
       const left = i >= bpp ? data[target + i - bpp]! : 0, up = row > 0 ? data[target - stride + i]! : 0;
       let predicted: number;
-      if (filter === 1) predicted = left;
-      else if (filter === 2) predicted = up;
-      else if (filter === 3) predicted = (left + up) >> 1;
+      if (filter === 3) predicted = (left + up) >> 1;
       else {
         const corner = row > 0 && i >= bpp ? data[target - stride + i - bpp]! : 0;
         const p = left + up - corner, pa = Math.abs(p - left), pb = Math.abs(p - up), pc = Math.abs(p - corner);
@@ -278,13 +286,10 @@ export function decodePng(bytes: Uint8Array): RawPng {
   return { width, height, bitDepth, colorType: colorType as RawPng["colorType"], bpp, data, palette, transparency };
 }
 
-const CRC = (() => { const table = new Uint32Array(256); for (let n = 0; n < 256; n += 1) { let c = n; for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; table[n] = c >>> 0; } return table; })();
 function chunk(type: string, data: Uint8Array): Buffer {
-  const out = Buffer.alloc(12 + data.byteLength);
+  const out = Buffer.allocUnsafe(12 + data.byteLength);
   out.writeUInt32BE(data.byteLength, 0); out.write(type, 4, "latin1"); out.set(data, 8);
-  let crc = 0xffffffff;
-  for (let i = 4; i < 8 + data.byteLength; i += 1) crc = CRC[(crc ^ out[i]!) & 0xff]! ^ (crc >>> 8);
-  out.writeUInt32BE((crc ^ 0xffffffff) >>> 0, 8 + data.byteLength);
+  out.writeUInt32BE(crc32(out.subarray(4, 8 + data.byteLength)) >>> 0, 8 + data.byteLength);
   return out;
 }
 

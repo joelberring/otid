@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { vegetationSignals, groundShareAt, mergePointStats, pointImages, POINT_BANDS, readPointStats } from "../../../scripts/geo-points";
+import { createPointStatsAccumulator, vegetationSignals, groundShareAt, mergePointStats, pointImages, POINT_BANDS, readPointStats } from "../../../scripts/geo-points";
 
 /** 2 × 2 celler à 2 m med åtta värden per cell, som lasclip skriver. */
 function file(cells: number[][]): Uint8Array {
@@ -21,6 +21,25 @@ describe("punktmolnets statistik (ägaren 2026-11-11)", () => {
     expect(merged.values[6]).toBeCloseTo(5120, 0);
     expect(merged.values[POINT_BANDS]).toBe(0);
     expect(() => readPointStats(new Uint8Array(50))).toThrow();
+  });
+  it("hanterar ojusterad byteOffset i readPointStats och beskurna delrutor i mergePointStats och createPointStatsAccumulator", () => {
+    const rawA = file([[12, 10, 4, 1, 2, 3, 3200, 0.05], empty, empty, empty]);
+    const padded = new Uint8Array(rawA.length + 1);
+    padded.set(rawA, 1);
+    const a = readPointStats(padded.subarray(1));
+    // Beskuren delruta b startar en kolumn österut (minX = 1002, 2 × 2) så kolumn 1 överlappar kolumn 0 i b.
+    const rawB = file([[15, 10, 6, 0, 0, 4, 6400, 0.05], empty, [5, 4, 4, 0, 0, 0, 1280, 0.02], empty]);
+    new DataView(rawB.buffer).setFloat64(0, 1002, true);
+    const b = readPointStats(rawB);
+    const merged = mergePointStats([a, b]);
+    expect([merged.minX, merged.minY, merged.width, merged.height]).toEqual([1000, 2000, 3, 2]);
+    // Kolumn 0 (bara a): top 12; kolumn 1 (b:s kolumn 0): top 15; kolumn 2 (b:s kolumn 1): top 5.
+    expect(merged.values[0]).toBe(12);
+    expect(merged.values[2 * POINT_BANDS]).toBe(15);
+    expect(merged.values[4 * POINT_BANDS]).toBe(5);
+    const acc = createPointStatsAccumulator({ minX: 1000, minY: 2000, cell: 2, width: 3, height: 2 });
+    acc.add(a); acc.add(b);
+    expect([...acc.finish().values]).toEqual([...merged.values]);
   });
   it("skriver tre bilder med världsfil; celler utan punkter är genomskinliga", () => {
     const images = pointImages(readPointStats(file([[12, 10, 4, 1, 2, 3, 3200, 0.05], empty, empty, empty])));

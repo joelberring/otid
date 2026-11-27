@@ -68,4 +68,10 @@ describe("generalisering av vegetationen som en indelning", () => {
     // Trappan blir en rak diagonal: ingen punkt mer än en och en halv cell under den.
     for (const [x, y] of ring) expect(x - y).toBeLessThan(1.5);
   });
+  it("reassign väljer majoritetsgranne i stället för fast V/Ö/S/N-ordning", () => {
+    // En 1-cellsfläck 408 inne i skog med öppet endast i väster (1 granne) och skog i Ö/S/N (3 grannar) blir skog (majoritet), inte öppet.
+    const island = grid((x, y) => x < 48 ? VEG_OPEN : x === 48 && y === 50 ? VEG_DIFFICULT : VEG_FOREST);
+    const out = generalizeVegetation(island, columns, rows, { cellMeters: 2, scale: 15_000, level: 1 });
+    expect(at(out, 48, 50)).toBe(VEG_FOREST);
+  });
 });

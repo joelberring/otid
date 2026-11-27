@@ -114,4 +114,35 @@ describe("belagd yta ur laserns intensitet (ägaren 2026-11-13)", () => {
     expect(pavedLimit(histogram([23, 50], [130, 3000])).limit).toBeUndefined();
     expect(pavedLimit(histogram([23, 100], [130, 1000])).limit).toBeUndefined();
   });
+
+  it("återvinner asfalt under angränsande gatuträd via region-growing men lämnar isolerade trädkronor och vatten", () => {
+    // En gata (x=10..14) med ett överhängande gatuträd tvärs gatan (y=35..38: markträffar >= 1, höjd 8 m, asfaltsintensitet 23)
+    // plus en isolerad mörk trädkrona mitt i gräset (x=60..65, y=30..35) och vatten bredvid gatan (x=9).
+    const streetWithTree = (x: number, y: number): readonly number[] => {
+      if (within(x, y, 10, 35, 14, 38)) return [8, 10, 2, 0, 0, 8, 23 * 64, 0.02];
+      if (within(x, y, 8, 35, 9, 38)) return [8, 10, 2, 0, 0, 8, 23 * 64, 0.02]; // vatten vid x < 10
+      return town(x, y);
+    };
+    const result = pavedFromPoints(stats(80, 80, streetWithTree), x => x < 674_000 + 10 * 2);
+    const at = (x: number, y: number) => result.mask[x * 80 + y];
+    // Asfalten under gatuträdet återvinns så gatan hänger ihop utan hål; vatten och isolerad trädkrona förblir 0.
+    expect(at(12, 36)).toBe(1);
+    expect(at(9, 36)).toBe(0);
+    expect(at(62, 32)).toBe(0);
+  });
+
+  it("per-ring/komponent-fallback behåller generaliseringen för stora ytor även när smala remsor faller tillbaka till raster", () => {
+    const size = 120, grid = { minX: 1, minY: 1, cell: 2, width: size, height: size };
+    const mixed = new Uint8Array(size * size);
+    // Stor parkeringsplats (20 × 20 celler = 1 600 m²) i väster + 8 smala 2-cellsremsor (3 200 m²) i öster som utjämningen tappar.
+    for (let x = 5; x < 25; x += 1) for (let y = 5; y < 25; y += 1) mixed[x * size + y] = 1;
+    for (let x = 40; x < 115; x += 1) for (let y = 10; y < 90; y += 1) if (y % 10 < 2) mixed[x * size + y] = 1;
+    const res = pavedRings(mixed, grid);
+    expect(res.source).toBe("generalized");
+    // Parkeringsplatsen förblir en 4-hörns generaliserad rektangel, och de smala remsorna räddas som rasterringar!
+    expect(res.rings.some(ring => ring.length === 4 && Math.abs(ringArea(ring) - 1600) < 160)).toBe(true);
+    expect(res.rings.length).toBeGreaterThanOrEqual(9);
+    const net = res.rings.reduce((sum, ring) => sum + ringArea(ring), 0);
+    expect(Math.abs(net - res.maskM2)).toBeLessThanOrEqual(PAVED_AREA_TOLERANCE * res.maskM2);
+  });
 });

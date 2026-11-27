@@ -65,71 +65,91 @@ export function vegetationShapeSteps(options: VegetationShapeOptions) {
   };
 }
 
-/** Gauss ungefärligt som tre lådfilter (lika breda) åt varje håll; kanten upprepas. Tiden växer inte med sigma. */
-function blur(source: Float32Array, columns: number, rows: number, sigma: number): Float32Array {
-  if (sigma <= 0.3) return Float32Array.from(source);
+/** Gauss ungefärligt som tre lådfilter åt varje håll, på plats i två återanvända scratch-buffertar (`a` ut och in). */
+function blurInto(a: Float32Array, b: Float32Array, sums: Float32Array, columns: number, rows: number, sigma: number): Float32Array {
+  if (sigma <= 0.3) return a;
   // Bredden för tre lika lådor med samma varians som gaussen: w = sqrt(12 σ² / 3 + 1).
   const radius = Math.max(1, Math.round((Math.sqrt(4 * sigma * sigma + 1) - 1) / 2));
-  let a = Float32Array.from(source), b = new Float32Array(source.length);
   const size = 2 * radius + 1;
+  let src = a, dst = b;
   for (let pass = 0; pass < 3; pass += 1) {
     // Längs raderna (inom en kolumn: index i följd).
     for (let c = 0; c < columns; c += 1) {
       const base = c * rows;
       let sum = 0;
-      for (let k = -radius; k <= radius; k += 1) sum += a[base + Math.min(rows - 1, Math.max(0, k))]!;
+      for (let k = -radius; k <= radius; k += 1) sum += src[base + Math.min(rows - 1, Math.max(0, k))]!;
       for (let r = 0; r < rows; r += 1) {
-        b[base + r] = sum / size;
+        dst[base + r] = sum / size;
         const add = r + radius + 1, drop = r - radius;
-        sum += a[base + (add < rows ? add : rows - 1)]! - a[base + (drop > 0 ? drop : 0)]!;
+        sum += src[base + (add < rows ? add : rows - 1)]! - src[base + (drop > 0 ? drop : 0)]!;
       }
     }
-    [a, b] = [b, a];
+    [src, dst] = [dst, src];
     // Längs kolumnerna: en löpande summa per rad, så att minnet läses i följd.
-    const sums = new Float32Array(rows);
+    sums.fill(0);
     for (let k = -radius; k <= radius; k += 1) {
       const base = Math.min(columns - 1, Math.max(0, k)) * rows;
-      for (let r = 0; r < rows; r += 1) sums[r] = sums[r]! + a[base + r]!;
+      for (let r = 0; r < rows; r += 1) sums[r] = sums[r]! + src[base + r]!;
     }
     for (let c = 0; c < columns; c += 1) {
       const target = c * rows, add = Math.min(columns - 1, c + radius + 1) * rows, drop = Math.max(0, c - radius) * rows;
       for (let r = 0; r < rows; r += 1) {
         const sum = sums[r]!;
-        b[target + r] = sum / size;
-        sums[r] = sum + a[add + r]! - a[drop + r]!;
+        dst[target + r] = sum / size;
+        sums[r] = sum + src[add + r]! - src[drop + r]!;
       }
     }
-    [a, b] = [b, a];
+    [src, dst] = [dst, src];
   }
-  return a;
+  return src;
+}
+
+interface SoftScratch {
+  readonly a: Float32Array; readonly b: Float32Array;
+  readonly g0: Float32Array; readonly open: Float32Array;
+  readonly sums: Float32Array;
 }
 
 /**
  * Mjuk majoritet: grönt som kapslade nivåer, öppet och halvöppet som egna, alla utjämnade med samma gauss och tröskeln 0,5,
- * normerat med de kända cellerna (vatten drar inte ner andelen vid stranden).
+ * normerat med de kända cellerna (`weight`, förberäknad per sigma när `VEG_NONE` finns). Återanvänder två scratch-buffertar.
  */
-function softMajority(labels: Uint8Array, columns: number, rows: number, sigma: number): Uint8Array {
-  let any = false;
-  for (let i = 0; i < labels.length && !any; i += 1) if (!labels[i]) any = true;
-  const known = new Float32Array(labels.length);
-  for (let i = 0; i < labels.length; i += 1) known[i] = labels[i] ? 1 : 0;
-  // Utan celler utan yta är vikten 1 överallt.
-  const weight = any ? blur(known, columns, rows, sigma) : known;
-  const field = (test: (label: number) => boolean) => {
-    const m = new Float32Array(labels.length);
-    for (let i = 0; i < labels.length; i += 1) m[i] = test(labels[i]!) ? 1 : 0;
-    const out = blur(m, columns, rows, sigma);
-    for (let i = 0; i < out.length; i += 1) out[i] = out[i]! / (weight[i]! + 1e-6);
-    return out;
-  };
-  const open = field(label => label === VEG_OPEN), semi = field(label => label === VEG_SEMI);
-  const greens = [VEG_SLOW, VEG_DIFFICULT, VEG_FIGHT].map(level => field(label => label >= level));
-  const out = new Uint8Array(labels.length);
-  for (let i = 0; i < labels.length; i += 1) {
+function softMajority(labels: Uint8Array, columns: number, rows: number, sigma: number, scratch: SoftScratch, weight?: Float32Array): Uint8Array {
+  const { a, b, g0: g0Buf, open: openBuf, sums } = scratch, len = labels.length;
+  const out = new Uint8Array(len);
+  const invOne = 1 / (1 + 1e-6);
+  // 1. Grönt >= VEG_SLOW: ger både grundbeslutet (skog/406) och `g0Buf` för jämförelse med öppet/halvöppet.
+  for (let i = 0; i < len; i += 1) a[i] = labels[i]! >= VEG_SLOW ? 1 : 0;
+  blurInto(a, b, sums, columns, rows, sigma);
+  for (let i = 0; i < len; i += 1) {
     if (!labels[i]) continue;
-    const g0 = greens[0]![i]!, o = open[i]!, s = semi[i]!;
-    let label: number = VEG_FOREST;
-    if (g0 > 0.5) label = greens[2]![i]! > 0.5 ? VEG_FIGHT : greens[1]![i]! > 0.5 ? VEG_DIFFICULT : VEG_SLOW;
+    const v = weight ? a[i]! / (weight[i]! + 1e-6) : a[i]! * invOne;
+    g0Buf[i] = v;
+    out[i] = v > 0.5 ? VEG_SLOW : VEG_FOREST;
+  }
+  // 2. Grönt >= VEG_DIFFICULT (uppdaterar endast celler där g0 > 0,5).
+  for (let i = 0; i < len; i += 1) a[i] = labels[i]! >= VEG_DIFFICULT ? 1 : 0;
+  blurInto(a, b, sums, columns, rows, sigma);
+  for (let i = 0; i < len; i += 1) {
+    if (out[i] === VEG_SLOW && (weight ? a[i]! / (weight[i]! + 1e-6) : a[i]! * invOne) > 0.5) out[i] = VEG_DIFFICULT;
+  }
+  // 3. Grönt >= VEG_FIGHT.
+  for (let i = 0; i < len; i += 1) a[i] = labels[i]! >= VEG_FIGHT ? 1 : 0;
+  blurInto(a, b, sums, columns, rows, sigma);
+  for (let i = 0; i < len; i += 1) {
+    if (out[i]! >= VEG_SLOW && (weight ? a[i]! / (weight[i]! + 1e-6) : a[i]! * invOne) > 0.5) out[i] = VEG_FIGHT;
+  }
+  // 4. Öppen mark (401).
+  for (let i = 0; i < len; i += 1) a[i] = labels[i] === VEG_OPEN ? 1 : 0;
+  blurInto(a, b, sums, columns, rows, sigma);
+  for (let i = 0; i < len; i += 1) openBuf[i] = weight ? a[i]! / (weight[i]! + 1e-6) : a[i]! * invOne;
+  // 5. Halvöppet (404) och slutval.
+  for (let i = 0; i < len; i += 1) a[i] = labels[i] === VEG_SEMI ? 1 : 0;
+  blurInto(a, b, sums, columns, rows, sigma);
+  for (let i = 0; i < len; i += 1) {
+    if (!labels[i]) continue;
+    const g0 = g0Buf[i]!, o = openBuf[i]!, s = weight ? a[i]! / (weight[i]! + 1e-6) : a[i]! * invOne;
+    let label = out[i]!;
     if (s > 0.5 && s > g0) label = VEG_SEMI;
     if (o > 0.5 && o > g0) label = VEG_OPEN;
     // Blandat öppet och halvöppet utan grönt: det som är mest av dem.
@@ -225,6 +245,7 @@ const NEIGHBOURS = (i: number, columns: number, rows: number, visit: (n: number)
  */
 function reassign(labels: Uint8Array, candidate: Uint8Array, columns: number, rows: number): Uint8Array {
   const out = Uint8Array.from(labels), queue = new Int32Array(labels.length), owner = new Uint8Array(labels.length);
+  const counts = new Uint8Array(8);
   const list: number[] = [];
   for (let i = 0; i < labels.length; i += 1) if (candidate[i]) list.push(i);
   for (const label of LABELS) {
@@ -232,8 +253,16 @@ function reassign(labels: Uint8Array, candidate: Uint8Array, columns: number, ro
     for (const i of list) {
       if (labels[i] !== label) continue;
       any = true;
-      let best = 0;
-      NEIGHBOURS(i, columns, rows, n => { if (!best && !candidate[n] && labels[n] && labels[n] !== label) best = labels[n]!; });
+      let best = 0, bestCount = 0;
+      counts.fill(0);
+      NEIGHBOURS(i, columns, rows, n => {
+        const nl = labels[n]!;
+        if (!candidate[n] && nl && nl !== label) {
+          const c = counts[nl]! + 1;
+          counts[nl] = c;
+          if (c > bestCount) { bestCount = c; best = nl; }
+        }
+      });
       if (best) { owner[i] = best; queue[tail] = i; tail += 1; }
     }
     if (!any) continue;
@@ -298,11 +327,28 @@ function removeSmall(labels: Uint8Array, columns: number, rows: number, minCells
 /** Hela generaliseringen (punkterna 1–4 ovan). Etiketter 0 (ingen yta) rörs inte och tar inget. */
 export function generalizeVegetation(labels: Uint8Array, columns: number, rows: number, options: VegetationShapeOptions): Uint8Array {
   if (options.level <= 0 || columns < 3 || rows < 3) return labels;
-  const steps = vegetationShapeSteps(options);
-  let current = softMajority(labels, columns, rows, steps.sigma);
+  const steps = vegetationShapeSteps(options), size = labels.length;
+  const scratch: SoftScratch = {
+    a: new Float32Array(size), b: new Float32Array(size),
+    g0: new Float32Array(size), open: new Float32Array(size),
+    sums: new Float32Array(rows)
+  };
+  let anyZero = false;
+  for (let i = 0; i < size && !anyZero; i += 1) if (!labels[i]) anyZero = true;
+  // Kända celler (labels[i] !== 0) ändras aldrig under generaliseringen: blurra vikten högst en gång per sigma.
+  const weight = anyZero ? new Float32Array(size) : undefined;
+  const buildWeight = (sigma: number) => {
+    if (!weight) return;
+    for (let i = 0; i < size; i += 1) scratch.a[i] = labels[i] ? 1 : 0;
+    blurInto(scratch.a, scratch.b, scratch.sums, columns, rows, sigma);
+    weight.set(scratch.a);
+  };
+  buildWeight(steps.sigma);
+  let current = softMajority(labels, columns, rows, steps.sigma, scratch, weight);
   current = removeThin(current, columns, rows, steps.minWidth, steps.bandWidth);
   current = removeSmall(current, columns, rows, steps.minCells);
-  for (let round = 0; round < steps.flowRounds; round += 1) current = softMajority(current, columns, rows, steps.flowSigma);
+  if (weight && steps.flowSigma !== steps.sigma) buildWeight(steps.flowSigma);
+  for (let round = 0; round < steps.flowRounds; round += 1) current = softMajority(current, columns, rows, steps.flowSigma, scratch, weight);
   current = removeThin(current, columns, rows, steps.minWidth, steps.bandWidth);
   return removeSmall(current, columns, rows, steps.minCells, 2);
 }

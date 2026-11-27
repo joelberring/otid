@@ -1,7 +1,11 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { gunzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
-import type { GroundGrid } from "../../../scripts/geo-cliffs";
+import { mergeGroundGrids, readGroundGrid, type GroundGrid } from "../../../scripts/geo-cliffs";
+import { localRelief } from "../../../scripts/geo-ditches";
 import { moistureDxf } from "../../../scripts/geo-moisture";
-import { bareRock, boulders, knolls } from "../../../scripts/geo-rock";
+import { bareRock, boulders, knollCandidates, knolls, rockImage, roughnessGrid } from "../../../scripts/geo-rock";
 import { parseDxf } from "../src";
 
 /** 80 × 60 m lutande mark: en sten (1,4 m, 2 × 2 m), ett block (2,5 m), en kulle (1,5 m men 14 m bred) och en brantkant. */
@@ -97,5 +101,72 @@ describe("valet bland de möjliga kullarna är lika i geo-arbetaren och i webbl�
     for (const limits of [{ minRise: 1, lowerShare: 0.8, maxFootM2: 80, spacing: 10 }, { minRise: 0.6, lowerShare: 0.6, maxFootM2: 150, spacing: 25 }]) {
       expect(browser.chooseKnolls(candidates, limits)).toEqual(chooseKnolls(candidates, limits));
     }
+  });
+});
+
+describe("paritet för integraltabell i roughnessGrid, monoton kö i knollCandidates och förberäknade raster", () => {
+  it("roughnessGrid med 2D-integraltabell ger exakt paritet mot naiv 5×5-loop även med NaN-luckor", () => {
+    const width = 45, height = 40, z = new Float32Array(width * height), fine = new Float32Array(width * height);
+    for (let x = 0; x < width; x += 1) for (let y = 0; y < height; y += 1) {
+      const i = x * height + y;
+      z[i] = 10 + Math.sin(x * 0.7) * Math.cos(y * 0.5);
+      fine[i] = (x + y) % 11 === 0 ? Number.NaN : 0.4 * Math.sin(x * 1.3 + y * 0.9);
+    }
+    const grid: GroundGrid = { minX: 0, minY: 0, cell: 1, width, height, z };
+    const fast = roughnessGrid(grid, fine);
+    for (let x = 0; x < width; x += 1) for (let y = 0; y < height; y += 1) {
+      const i = x * height + y;
+      if (x < 2 || y < 2 || x >= width - 2 || y >= height - 2) { expect(Number.isNaN(fast[i]!)).toBe(true); continue; }
+      let sum = 0, count = 0;
+      for (let dx = -2; dx <= 2; dx += 1) for (let dy = -2; dy <= 2; dy += 1) {
+        const v = fine[(x + dx) * height + y + dy]!;
+        if (Number.isFinite(v)) { sum += Math.abs(v); count += 1; }
+      }
+      if (count < 13) expect(Number.isNaN(fast[i]!)).toBe(true);
+      else expect(fast[i]).toBeCloseTo(sum / count, 5);
+    }
+  });
+
+  it("knollCandidates med separerbar 1D monoton kö ger exakt samma kandidater (inkl. plana platåer med lika höjd och verklig terräng)", () => {
+    // Plan platå med dubbla toppceller (testar exakt dx+dy-lika-brytning) samt NaN-luckor.
+    const width = 50, height = 50, z = new Float32Array(width * height).fill(10);
+    for (let x = 22; x <= 26; x += 1) for (let y = 22; y <= 26; y += 1) {
+      const d = Math.hypot(x - 24, y - 24);
+      z[x * height + y] = d <= 1.5 ? 12 : 10 + Math.max(0, 2 - d * 0.5);
+    }
+    z[20 * height + 20] = Number.NaN;
+    const plateau: GroundGrid = { minX: 0, minY: 0, cell: 1, width, height, z };
+    const foundPlateau = knollCandidates(plateau, []);
+    // Högsta (x+y)-cellen på platån vinner exakt en gång: (25, 25).
+    expect(foundPlateau).toHaveLength(1);
+    expect(foundPlateau[0]!.at).toEqual([25.5, 25.5]);
+
+    // Paritet mot naiv 49-cellers-loop på verklig terräng (kungshatt-300m).
+    const mark = readFileSync(join(import.meta.dirname, "../../../fixtures/laser/kungshatt-300m/mark.bin.gz"));
+    const real = mergeGroundGrids([readGroundGrid(new Uint8Array(gunzipSync(mark)))]);
+    const fast = knollCandidates(real, []);
+    const { width: rw, height: rh, cell: rc, z: rz } = real;
+    const naiveTops = new Set<string>();
+    for (let x = 8; x < rw - 8; x += 1) for (let y = 8; y < rh - 8; y += 1) {
+      const here = rz[x * rh + y]!;
+      if (!Number.isFinite(here)) continue;
+      let highest = true;
+      for (let dx = -3; dx <= 3 && highest; dx += 1) for (let dy = -3; dy <= 3; dy += 1) {
+        const v = rz[(x + dx) * rh + y + dy]!;
+        if ((dx || dy) && (v > here || (v === here && dx + dy > 0))) { highest = false; break; }
+      }
+      if (highest) naiveTops.add(`${real.minX + (x + 0.5) * rc},${real.minY + (y + 0.5) * rc}`);
+    }
+    expect(fast.length).toBeGreaterThan(0);
+    for (const c of fast) expect(naiveTops.has(`${c.at[0]},${c.at[1]}`)).toBe(true);
+  });
+
+  it("bareRock och rockImage accepterar förberäknade { rough, broad } med bit-identisk utdata", () => {
+    const mark = readFileSync(join(import.meta.dirname, "../../../fixtures/laser/kungshatt-300m/mark.bin.gz"));
+    const real = mergeGroundGrids([readGroundGrid(new Uint8Array(gunzipSync(mark)))]);
+    const pre = { rough: roughnessGrid(real), broad: localRelief(real, 8) };
+    expect(bareRock(real, () => true, undefined, undefined, undefined, pre)).toEqual(bareRock(real, () => true));
+    const open = new Uint8Array(real.width * real.height).fill(1);
+    expect(rockImage(real, open, undefined, pre).png).toEqual(rockImage(real, open, undefined).png);
   });
 });

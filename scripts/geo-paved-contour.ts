@@ -53,24 +53,34 @@ export function contourRings(field: Float32Array, grid: { readonly minX: number;
     px[key] = grid.minX + (i - 1 + (upward ? 0 : t)) * cell; py[key] = grid.minY + (j - 1 + (upward ? t : 0)) * cell;
     return key;
   };
+  const edgeKey = (edge: number, i: number, j: number): number =>
+    edge === 0 ? cross(i, j, false) : edge === 1 ? cross(i + 1, j, true) : edge === 2 ? cross(i, j + 1, false) : cross(i, j, true);
+  // 4-bitars marching squares utan per-cell-allokeringar: hörn moturs från (i, j), kanter 0=nedre, 1=högra, 2=övre, 3=vänstra.
   for (let i = 0; i + 1 < columns; i += 1) for (let j = 0; j + 1 < rows; j += 1) {
-    // Rutans hörn moturs från nere till vänster, och kanterna i samma ordning: nedre, högra, övre, vänstra.
-    const inside = [value(i, j) >= level, value(i + 1, j) >= level, value(i + 1, j + 1) >= level, value(i, j + 1) >= level];
-    const count = inside.filter(Boolean).length;
-    if (count === 0 || count === 4) continue;
-    const keys = [() => cross(i, j, false), () => cross(i + 1, j, true), () => cross(i, j + 1, false), () => cross(i, j, true)];
-    // Runt rutan moturs: där kanten går från inne till ute börjar en sträcka, där den går från ute till inne slutar en.
-    const starts: number[] = [], ends: number[] = [];
-    for (let k = 0; k < 4; k += 1) {
-      if (inside[k] && !inside[(k + 1) % 4]) starts.push(k);
-      else if (!inside[k] && inside[(k + 1) % 4]) ends.push(k);
-    }
-    // Sadelfallet: hänger ytan ihop genom rutans mitt går sträckan till nästa slut moturs, annars till det föregående.
-    const joined = starts.length === 2 && (value(i, j) + value(i + 1, j) + value(i + 1, j + 1) + value(i, j + 1)) / 4 >= level;
-    for (const start of starts) {
-      let end = ends[0]!;
-      if (starts.length === 2) for (let step = 1; step < 4; step += 1) { const k = (start + (joined ? step : 4 - step)) % 4; if (ends.includes(k)) { end = k; break; } }
-      next[keys[start]!()] = keys[end]!();
+    const v0 = value(i, j), v1 = value(i + 1, j), v2 = value(i + 1, j + 1), v3 = value(i, j + 1);
+    const code = (v0 >= level ? 1 : 0) | (v1 >= level ? 2 : 0) | (v2 >= level ? 4 : 0) | (v3 >= level ? 8 : 0);
+    if (code === 0 || code === 15) continue;
+    switch (code) {
+      case 1: next[edgeKey(0, i, j)] = edgeKey(3, i, j); break;
+      case 2: next[edgeKey(1, i, j)] = edgeKey(0, i, j); break;
+      case 3: next[edgeKey(1, i, j)] = edgeKey(3, i, j); break;
+      case 4: next[edgeKey(2, i, j)] = edgeKey(1, i, j); break;
+      case 5:
+        if ((v0 + v1 + v2 + v3) * 0.25 >= level) { next[edgeKey(0, i, j)] = edgeKey(1, i, j); next[edgeKey(2, i, j)] = edgeKey(3, i, j); }
+        else { next[edgeKey(0, i, j)] = edgeKey(3, i, j); next[edgeKey(2, i, j)] = edgeKey(1, i, j); }
+        break;
+      case 6: next[edgeKey(2, i, j)] = edgeKey(0, i, j); break;
+      case 7: next[edgeKey(2, i, j)] = edgeKey(3, i, j); break;
+      case 8: next[edgeKey(3, i, j)] = edgeKey(2, i, j); break;
+      case 9: next[edgeKey(0, i, j)] = edgeKey(2, i, j); break;
+      case 10:
+        if ((v0 + v1 + v2 + v3) * 0.25 >= level) { next[edgeKey(1, i, j)] = edgeKey(2, i, j); next[edgeKey(3, i, j)] = edgeKey(0, i, j); }
+        else { next[edgeKey(1, i, j)] = edgeKey(0, i, j); next[edgeKey(3, i, j)] = edgeKey(2, i, j); }
+        break;
+      case 11: next[edgeKey(1, i, j)] = edgeKey(2, i, j); break;
+      case 12: next[edgeKey(3, i, j)] = edgeKey(1, i, j); break;
+      case 13: next[edgeKey(0, i, j)] = edgeKey(1, i, j); break;
+      case 14: next[edgeKey(3, i, j)] = edgeKey(0, i, j); break;
     }
   }
   const rings: [number, number][][] = [];

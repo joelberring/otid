@@ -9,7 +9,9 @@ import { Buffer } from "node:buffer";
 import process from "node:process";
 
 const command = process.argv[2] ?? "";
-const box = JSON.parse(readFileSync(`in/${readdirSync("in").find(name => name.endsWith(".laz"))}`, "utf8"));
+const laserFile = readdirSync("in").find(name => /\.(laz|las)$/i.test(name));
+if (!laserFile) process.exit(1);
+const box = JSON.parse(readFileSync(`in/${laserFile}`, "utf8"));
 const width = 200, height = 200;
 const chunk = (type, data) => {
   const head = Buffer.alloc(8); head.writeUInt32BE(data.length, 0); head.write(type, 4, "ascii");
@@ -45,8 +47,9 @@ if (command === "") {
         bytes.writeDoubleLE(20 + Math.abs(x - width / 2) * 0.3 + y * 0.05 - pit, 40 + (x * height + y) * 8);
       }
     }
-    mkdirSync("temp_ruta00.laz_dir", { recursive: true });
-    writeFileSync("temp_ruta00.laz_dir/xyz2.hmap", bytes);
+    const tempDir = `temp_${laserFile}_dir`;
+    mkdirSync(tempDir, { recursive: true });
+    writeFileSync(`${tempDir}/xyz2.hmap`, bytes);
   }
   process.exit(0);
 }

@@ -16,16 +16,30 @@ type Group = [string, string];
 const cm = (value: string) => { const number = Number(value); return Number.isFinite(number) ? String(Math.round(number * 100) / 100) : value; };
 const XY = new Set(["10", "20", "11", "21"]);
 
-/** DXF-texten med förenklade linjer och koordinater i centimeter. */
+/** DXF-texten med förenklade linjer och koordinater i centimeter. Skannar rader med `indexOf("\n")` utan full-fil-split. */
 export function slimDxf(text: string, tolerance = SLIM_TOLERANCE_M): string {
-  const lines = text.split(/\r?\n/), out: string[] = [];
+  const out: string[] = [], len = text.length;
   const put = (groups: readonly Group[]) => { for (const [code, value] of groups) out.push(code, value); };
-  let i = 0;
+  let pos = 0, done = false;
+  const readLine = (): string | undefined => {
+    if (done) return undefined;
+    const nl = text.indexOf("\n", pos);
+    if (nl < 0) {
+      done = true;
+      const end = len > pos && text.charCodeAt(len - 1) === 13 ? len - 1 : len;
+      return text.slice(pos, end).trim();
+    }
+    const end = nl > pos && text.charCodeAt(nl - 1) === 13 ? nl - 1 : nl;
+    const line = text.slice(pos, end).trim();
+    pos = nl + 1;
+    return line;
+  };
   const next = (): Group | undefined => {
-    if (i + 1 >= lines.length) return undefined;
-    const group: Group = [lines[i]!.trim(), lines[i + 1]!.trim()];
-    i += 2;
-    return group;
+    const code = readLine();
+    if (code === undefined) return undefined;
+    const value = readLine();
+    if (value === undefined) return undefined;
+    return [code, value];
   };
   /** Ett objekt: gruppen «0 TYP» och allt fram till nästa «0». */
   let pending = next();

@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, readFile, utimes, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, stat, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -44,5 +44,18 @@ describe("laserrutornas förråd på geo-servern", () => {
     const ids = Array.from({ length: 12 }, (_, index) => `ruta-${index}`);
     await Promise.all(ids.map(id => toCache(cache, id, join(dir, "src.laz"))));
     expect((await readdir(cache)).sort()).toEqual(ids.map(cacheName).sort());
+  });
+  it("använder hårdlänk på samma filsystem utan att skada förrådet när målet tas bort", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "otid-cache-")), cache = join(dir, "cache");
+    const src = join(dir, "in.laz"), out = join(dir, "ut.laz");
+    await writeFile(src, "laserdata-hårdlänk");
+    await toCache(cache, "ruta-hl", src);
+    await rm(src);
+    expect(await fromCache(cache, "ruta-hl", out)).toBe(true);
+    expect((await stat(join(cache, cacheName("ruta-hl")))).ino).toBe((await stat(out)).ino);
+    // Överskrivning av befintligt mål fungerar också, och borttagning av målet lämnar förrådsfilen kvar.
+    expect(await fromCache(cache, "ruta-hl", out)).toBe(true);
+    await rm(out);
+    expect(await readFile(join(cache, cacheName("ruta-hl")), "utf8")).toBe("laserdata-hårdlänk");
   });
 });

@@ -5,12 +5,13 @@
 //      jobbet blir klart, och sammanfattningen säger vilket steg som saknas (skippedSteps).
 //   2. Huvudtråden är ledig under tiden, så livstecknen går fram och «Avbryt» fungerar mitt i ett steg.
 //   3. Antalet punkter per km² har ett tak (de tydligaste behålls): tiotusentals stenar är bebyggelse eller brus.
-// Stegen får bara data (raster och masker), aldrig funktioner, eftersom de skickas mellan trådar.
+// Stegen får bara data (raster och masker, gärna i SharedArrayBuffer så parallella trådar slipper klona dem), aldrig funktioner.
+import { cpus } from "node:os";
 import { isMainThread, parentPort, Worker, workerData } from "node:worker_threads";
 import type { GroundGrid } from "./geo-cliffs.ts";
 import { DEFAULT_DITCHES, ditchLines, localRelief, reliefImage } from "./geo-ditches.ts";
 import { trackLines } from "./geo-tracks.ts";
-import { bareRock, boulders, chooseKnolls, KNOLL_LOWER_SHARE, KNOLL_MIN_RISE, KNOLL_SPACING, knollCandidates, rockImage } from "./geo-rock.ts";
+import { bareRock, boulders, chooseKnolls, KNOLL_LOWER_SHARE, KNOLL_MIN_RISE, KNOLL_SPACING, knollCandidates, rockImage, roughnessGrid } from "./geo-rock.ts";
 import { waterAt, type WaterGrid } from "./geo-water.ts";
 
 /** Tidsgränsen per steg. En ruta på 2 × 2 km tar sekunder; tio minuter är långt över det rimliga även för 5 × 5 km. */
@@ -28,11 +29,34 @@ export interface StepInput {
   readonly stones?: readonly { readonly at: readonly [number, number] }[] | undefined;
   /** Andelen av ringen som ska ligga lägre än en liten kulle (förval i geo-rock.ts). */
   readonly knollShare?: number | undefined;
+  /** För `rockAndMap`: om även berg-i-dagen-ytor (`bareRock`) ska räknas utöver `berg.png` (förval true). */
+  readonly includeRock?: boolean | undefined;
 }
 
-/** En funktion (x, y) → sant/falskt som mask på markrastret, provad i cellernas mitt. */
+/** Hur många oberoende arbetartrådssteg som körs parallellt (begränsat till 1–3 så minnet räcker). */
+export function stepPoolConcurrency(cores = cpus().length): number {
+  return Math.max(1, Math.min(cores, 3));
+}
+
+/** Lägger markrastrets höjder i en `SharedArrayBuffer` så parallella arbetartrådar delar dem utan kloning. */
+export function shareGround(ground: GroundGrid): GroundGrid {
+  if (ground.z.buffer instanceof SharedArrayBuffer) return ground;
+  const z = new Float32Array(new SharedArrayBuffer(ground.z.byteLength));
+  z.set(ground.z);
+  return { ...ground, z };
+}
+
+/** Lägger en byte-mask i en `SharedArrayBuffer` så parallella arbetartrådar delar den utan kloning. */
+export function shareBytes(bytes: Uint8Array): Uint8Array {
+  if (bytes.buffer instanceof SharedArrayBuffer) return bytes;
+  const shared = new Uint8Array(new SharedArrayBuffer(bytes.byteLength));
+  shared.set(bytes);
+  return shared;
+}
+
+/** En funktion (x, y) → sant/falskt som delad mask (`SharedArrayBuffer`) på markrastret, provad i cellernas mitt. */
 export function maskOf(ground: GroundGrid, at: (x: number, y: number) => boolean): Uint8Array {
-  const mask = new Uint8Array(ground.width * ground.height);
+  const mask = new Uint8Array(new SharedArrayBuffer(ground.width * ground.height));
   for (let x = 0; x < ground.width; x += 1) for (let y = 0; y < ground.height; y += 1) {
     if (at(ground.minX + (x + 0.5) * ground.cell, ground.minY + (y + 0.5) * ground.cell)) mask[x * ground.height + y] = 1;
   }
@@ -62,6 +86,18 @@ export const STEPS = {
     const { ground } = input, water = input.water ? waterAt(input.water.grid, input.water.mask) : undefined;
     return { lines: trackLines(ground, localRelief(ground, DEFAULT_DITCHES.radius), undefined, lookup(ground, input.wet), water) };
   },
+  /** Diken + släpstigar i samma steg: delar en enda `localRelief(ground, 4)`-beräkning. */
+  ditchesAndTracks(input: StepInput) {
+    const { ground } = input, water = input.water ? waterAt(input.water.grid, input.water.mask) : undefined;
+    const wet = lookup(ground, input.wet);
+    const relief = localRelief(ground, DEFAULT_DITCHES.radius), image = reliefImage(ground, relief);
+    return {
+      png: image.png,
+      world: image.world,
+      lines: ditchLines(ground, relief, DEFAULT_DITCHES, wet, water),
+      tracks: trackLines(ground, relief, undefined, wet, water),
+    };
+  },
   stones(input: StepInput) {
     const water = input.water ? waterAt(input.water.grid, input.water.mask) : undefined;
     const all = boulders(input.ground, undefined, water), cap = pointCap(input.ground);
@@ -76,6 +112,15 @@ export const STEPS = {
   rockmap(input: StepInput) {
     const { ground } = input, water = input.water ? waterAt(input.water.grid, input.water.mask) : undefined;
     return rockImage(ground, input.open, water ? maskOf(ground, water) : undefined);
+  },
+  /** Berg i dagen + bergbilden i samma arbetartråd: delar en enda `roughnessGrid` + `localRelief(8)`. */
+  rockAndMap(input: StepInput) {
+    const { ground } = input, water = input.water ? waterAt(input.water.grid, input.water.mask) : undefined;
+    const open = lookup(ground, input.open);
+    const precomputed = { rough: roughnessGrid(ground), broad: localRelief(ground, 8) };
+    const rock = input.includeRock !== false && open ? bareRock(ground, open, undefined, water, lookup(ground, input.forest), precomputed) : [];
+    const map = rockImage(ground, input.open, water ? maskOf(ground, water) : undefined, precomputed);
+    return { rock, png: map.png, world: map.world };
   },
   knolls(input: StepInput) {
     const water = input.water ? waterAt(input.water.grid, input.water.mask) : undefined;

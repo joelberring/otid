@@ -15,42 +15,107 @@ import { encodePng } from "./geo-moisture.ts";
 export interface PointStats { readonly minX: number; readonly minY: number; readonly cell: number; readonly width: number; readonly height: number;
   /** Åtta värden per cell (x * höjd + y): högst, antal, mark, 0,3–1 m, 1–3 m, över 3 m, intensitet, spridning. */
   readonly values: Float32Array }
+export interface PointStatsBounds { readonly minX: number; readonly minY: number; readonly cell: number; readonly width: number; readonly height: number }
+export interface PointStatsAccumulator { add(tile: PointStats): void; finish(): PointStats }
 export const POINT_BANDS = 8;
+const LITTLE_ENDIAN = new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
 
 export function readPointStats(bytes: Uint8Array): PointStats {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   if (bytes.byteLength < 40) throw new Error("Punktstatistiken är för kort");
   const minX = view.getFloat64(0, true), minY = view.getFloat64(8, true), cell = view.getFloat64(16, true);
   const width = Number(view.getBigUint64(24, true)), height = Number(view.getBigUint64(32, true));
-  if (!(cell > 0) || bytes.byteLength !== 40 + width * height * POINT_BANDS * 4) throw new Error("Punktstatistiken har fel storlek");
-  const values = new Float32Array(width * height * POINT_BANDS);
-  for (let i = 0; i < values.length; i += 1) values[i] = view.getFloat32(40 + i * 4, true);
+  const count = width * height * POINT_BANDS;
+  if (!(cell > 0) || bytes.byteLength !== 40 + count * 4) throw new Error("Punktstatistiken har fel storlek");
+  let values: Float32Array;
+  if (LITTLE_ENDIAN) {
+    const dataOffset = bytes.byteOffset + 40;
+    if ((dataOffset & 3) === 0) {
+      values = new Float32Array(bytes.buffer, dataOffset, count).slice();
+    } else {
+      const copy = new Uint8Array(count * 4);
+      copy.set(bytes.subarray(40));
+      values = new Float32Array(copy.buffer);
+    }
+  } else {
+    values = new Float32Array(count);
+    for (let i = 0; i < count; i += 1) values[i] = view.getFloat32(40 + i * 4, true);
+  }
   return { minX, minY, cell, width, height, values };
 }
 
-/** Rutorna har samma klippruta och därmed samma rutnät: antalen läggs ihop, höjden tar den högsta, medelvärdena vägs. */
+/** Strömmande ackumulator för beskurna eller helrutade `punkter*.bin`-filer över samma globala rutnät. */
+export function createPointStatsAccumulator(bounds: PointStatsBounds): PointStatsAccumulator {
+  const { minX, minY, cell, width, height } = bounds, size = width * height;
+  const values = new Float32Array(size * POINT_BANDS);
+  for (let i = 0; i < size; i += 1) {
+    const o = i * POINT_BANDS;
+    values[o] = Number.NaN; values[o + 6] = Number.NaN; values[o + 7] = Number.NaN;
+  }
+  const intensitySum = new Float64Array(size), spreadSqSum = new Float64Array(size);
+  return {
+    add(tile: PointStats) {
+      if (Math.abs(tile.cell - cell) > 1e-9) throw new Error("Punktstatistikens rutor har olika rutnät");
+      const dx = Math.round((tile.minX - minX) / cell), dy = Math.round((tile.minY - minY) / cell);
+      if (Math.abs(tile.minX - (minX + dx * cell)) > 1e-4 * cell || Math.abs(tile.minY - (minY + dy * cell)) > 1e-4 * cell) {
+        throw new Error("Punktstatistikens rutor har olika rutnät");
+      }
+      const v = tile.values;
+      const x0 = Math.max(0, -dx), x1 = Math.min(tile.width, width - dx);
+      const y0 = Math.max(0, -dy), y1 = Math.min(tile.height, height - dy);
+      for (let x = x0; x < x1; x += 1) {
+        const srcCol = x * tile.height, dstCol = (x + dx) * height + dy;
+        for (let y = y0; y < y1; y += 1) {
+          const so = (srcCol + y) * POINT_BANDS;
+          const top = v[so]!, total = v[so + 1]!;
+          if (total === 0 && !Number.isFinite(top)) continue;
+          const dstCell = dstCol + y, doff = dstCell * POINT_BANDS;
+          if (Number.isFinite(top) && !(values[doff]! >= top)) values[doff] = top;
+          values[doff + 1] = values[doff + 1]! + total;
+          const n = v[so + 2]!;
+          values[doff + 2] = values[doff + 2]! + n;
+          values[doff + 3] = values[doff + 3]! + v[so + 3]!;
+          values[doff + 4] = values[doff + 4]! + v[so + 4]!;
+          values[doff + 5] = values[doff + 5]! + v[so + 5]!;
+          if (n > 0) {
+            intensitySum[dstCell] = intensitySum[dstCell]! + n * v[so + 6]!;
+            const sp = v[so + 7]!;
+            spreadSqSum[dstCell] = spreadSqSum[dstCell]! + n * sp * sp;
+          }
+        }
+      }
+    },
+    finish(): PointStats {
+      for (let c = 0; c < size; c += 1) {
+        const o = c * POINT_BANDS, ground = values[o + 2]!;
+        values[o + 6] = ground > 0 ? intensitySum[c]! / ground : Number.NaN;
+        values[o + 7] = ground > 0 ? Math.sqrt(spreadSqSum[c]! / ground) : Number.NaN;
+      }
+      return { minX, minY, cell, width, height, values };
+    }
+  };
+}
+
+/** Rutorna slås ihop på samma cellrutnät (stödjer både identiska och beskurna delrutor): antal summeras, höjd tar max, medel vägs. */
 export function mergePointStats(tiles: readonly PointStats[]): PointStats {
   const first = tiles[0];
   if (!first) throw new Error("Ingen punktstatistik");
-  const same = tiles.every(tile => tile.width === first.width && tile.height === first.height && tile.minX === first.minX && tile.minY === first.minY && tile.cell === first.cell);
-  if (!same) throw new Error("Punktstatistikens rutor har olika rutnät");
   if (tiles.length === 1) return first;
-  const values = new Float32Array(first.values.length);
-  for (let cell = 0; cell < first.width * first.height; cell += 1) {
-    const o = cell * POINT_BANDS;
-    let top = Number.NaN, ground = 0, intensity = 0, spread = 0;
-    for (const tile of tiles) {
-      const v = tile.values;
-      if (Number.isFinite(v[o]!) && !(top >= v[o]!)) top = v[o]!;
-      for (const band of [1, 2, 3, 4, 5]) values[o + band] = values[o + band]! + v[o + band]!;
-      const n = v[o + 2]!;
-      if (n > 0) { ground += n; intensity += n * v[o + 6]!; spread += n * v[o + 7]! * v[o + 7]!; }
-    }
-    values[o] = top;
-    values[o + 6] = ground > 0 ? intensity / ground : Number.NaN;
-    values[o + 7] = ground > 0 ? Math.sqrt(spread / ground) : Number.NaN;
+  const cell = first.cell;
+  let minX = first.minX, minY = first.minY, maxX = first.minX + first.width * cell, maxY = first.minY + first.height * cell;
+  for (let k = 1; k < tiles.length; k += 1) {
+    const t = tiles[k]!;
+    if (Math.abs(t.cell - cell) > 1e-9) throw new Error("Punktstatistikens rutor har olika rutnät");
+    if (t.minX < minX) minX = t.minX;
+    if (t.minY < minY) minY = t.minY;
+    const tx1 = t.minX + t.width * cell, ty1 = t.minY + t.height * cell;
+    if (tx1 > maxX) maxX = tx1;
+    if (ty1 > maxY) maxY = ty1;
   }
-  return { ...first, values };
+  const width = Math.round((maxX - minX) / cell), height = Math.round((maxY - minY) / cell);
+  const acc = createPointStatsAccumulator({ minX, minY, cell, width, height });
+  for (const tile of tiles) acc.add(tile);
+  return acc.finish();
 }
 
 /**
@@ -151,16 +216,27 @@ const byte = (value: number) => Math.max(0, Math.min(255, Math.round(value)));
 
 export function pointImages(stats: PointStats): { veg: Buffer; ground: Buffer; canopy: Buffer; world: string } {
   const { width, height, cell, values } = stats;
-  const at = (column: number, line: number) => (column * height + (height - 1 - line)) * POINT_BANDS;
-  const image = (pixel: (o: number, n: number) => readonly [number, number, number]) => encodePng(width, height, (column, line) => {
-    const o = at(column, line), n = values[o + 1]!;
-    return n > 0 ? [...pixel(o, n), 255] as [number, number, number, number] : [0, 0, 0, 0];
+  const image = (write: (o: number, n: number, out: Uint8Array, p: number) => void) => encodePng(width, height, (column, line, out, p) => {
+    const o = (column * height + (height - 1 - line)) * POINT_BANDS, n = values[o + 1]!;
+    if (n > 0) { write(o, n, out, p); out[p + 3] = 255; }
+    else { out[p] = 0; out[p + 1] = 0; out[p + 2] = 0; out[p + 3] = 0; }
   });
   return {
-    veg: image((o, n) => [Math.min(254, byte((Number.isFinite(values[o]!) ? values[o]! : 0) / 0.2)), byte(255 * values[o + 2]! / n), byte(255 * values[o + 4]! / n)]),
-    ground: image((o, n) => [byte(255 * values[o + 3]! / n), Number.isFinite(values[o + 6]!) ? byte(values[o + 6]! / 64) : 0,
-      Number.isFinite(values[o + 7]!) ? Math.min(254, byte(values[o + 7]! * 100)) : 255]),
-    canopy: image((o, n) => [byte(255 * values[o + 5]! / n), byte(n), 0]),
+    veg: image((o, n, out, p) => {
+      out[p] = Math.min(254, byte((Number.isFinite(values[o]!) ? values[o]! : 0) / 0.2));
+      out[p + 1] = byte(255 * values[o + 2]! / n);
+      out[p + 2] = byte(255 * values[o + 4]! / n);
+    }),
+    ground: image((o, n, out, p) => {
+      out[p] = byte(255 * values[o + 3]! / n);
+      out[p + 1] = Number.isFinite(values[o + 6]!) ? byte(values[o + 6]! / 64) : 0;
+      out[p + 2] = Number.isFinite(values[o + 7]!) ? Math.min(254, byte(values[o + 7]! * 100)) : 255;
+    }),
+    canopy: image((o, n, out, p) => {
+      out[p] = byte(255 * values[o + 5]! / n);
+      out[p + 1] = byte(n);
+      out[p + 2] = 0;
+    }),
     world: `${cell}\n0\n0\n${-cell}\n${stats.minX + cell / 2}\n${stats.minY + (height - 0.5) * cell}\n`
   };
 }

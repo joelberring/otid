@@ -1,20 +1,14 @@
-import { deflateSync, inflateSync } from "node:zlib";
+import { deflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { suggestSymbol } from "../src";
 import { parseDxf } from "../src/vector-parse";
+import { decodePng } from "../../../scripts/geo-merge";
 import { decodeGrayPng, readWorldFile, SEMI_ALPHA, vegetationFromTiles, vegetationMosaic, type ClassImage } from "../../../scripts/geo-vegetation";
 
-/** Arbetarens egna PNG (8 bitar RGBA, filter 0 på varje rad) som bildpunkter. */
+/** Arbetarens egna PNG (8 bitar RGBA, inkl. Sub/Up-filter) som bildpunkter. */
 function decodeRgbaPng(bytes: Uint8Array): { width: number; data: Uint8Array } {
-  const buffer = Buffer.from(bytes), width = buffer.readUInt32BE(16), parts: Buffer[] = [];
-  for (let at = 8; at < buffer.length;) {
-    const length = buffer.readUInt32BE(at);
-    if (buffer.toString("ascii", at + 4, at + 8) === "IDAT") parts.push(buffer.subarray(at + 8, at + 8 + length));
-    at += 12 + length;
-  }
-  const raw = inflateSync(Buffer.concat(parts)), stride = 1 + width * 4, data = new Uint8Array(raw.length / stride * width * 4);
-  for (let row = 0; row * stride < raw.length; row += 1) data.set(raw.subarray(row * stride + 1, (row + 1) * stride), row * width * 4);
-  return { width, data };
+  const png = decodePng(bytes);
+  return { width: png.width, data: png.data };
 }
 
 /** ADR-0219 K5c del 3: vegetationen ur Karttapullautins klassbilder i geo-arbetaren (scripts/geo-vegetation.ts). */
@@ -135,5 +129,31 @@ describe("vegetationen ur klassbilderna", () => {
     const tinyRow = Math.floor((6_581_000 - 6_580_862) / 2), tinyCol = Math.floor((675_162 - 675_000) / 2);
     expect(tinyRow).toBeLessThan(height);
     expect(png.data[(tinyRow * png.width + tinyCol) * 4 + 3]).toBe(255);
+  });
+
+  it("undervegetationens 5×5-integraltabell i vegetationMosaic ger exakt paritet mot 25-cellers-loop", () => {
+    const w = 32, h = 28;
+    const vege = image(w, h, () => 2);
+    const undergrowth = image(w, h, (c, r) => (c % 2 === 0 && r % 2 === 0 && ((c * 3 + r * 5) % 11 === 0 ? 2 : (c * 7 + r) % 9 === 0 ? 1 : 0)) || 0);
+    const { grid, classes } = vegetationMosaic([{ vege, undergrowth, world: world(100, 200) }]);
+    // Bygg naiva 2 m-marks och kontrollera 5×5-fönstret exakt per cell.
+    const marks = new Uint8Array(grid.width * grid.height);
+    for (let r = 0; r < h; r += 1) for (let c = 0; c < w; c += 1) {
+      const y = Math.floor((199.5 - r - (grid.minY - 1)) / 2), x = Math.floor((100.5 + c - (grid.minX - 1)) / 2);
+      if (x >= 0 && y >= 0 && x < grid.width && y < grid.height) {
+        const g = undergrowth.data[r * w + c]!;
+        marks[x * grid.height + y] = Math.max(marks[x * grid.height + y]!, g & 2 ? 2 : g & 1 ? 1 : 0);
+      }
+    }
+    for (let x = 0; x < grid.width; x += 1) for (let y = 0; y < grid.height; y += 1) {
+      let count = 0, strongest = 0;
+      for (let dx = -2; dx <= 2; dx += 1) for (let dy = -2; dy <= 2; dy += 1) {
+        const nx = x + dx, ny = y + dy;
+        if (nx >= 0 && ny >= 0 && nx < grid.width && ny < grid.height && marks[nx * grid.height + ny]) {
+          count += 1; strongest = Math.max(strongest, marks[nx * grid.height + ny]!);
+        }
+      }
+      expect(classes[x * grid.height + y]! >> 4).toBe(count >= 3 ? strongest : 0);
+    }
   });
 });

@@ -1,3 +1,4 @@
+import { crc32, deflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { clipDxfEntities, coarserPng, clipLine, clipRing, decodePng, dxfFrame, encodeRawPng, mergeGeoJson, mosaicPng, ownsPoint, readWorld, toRgba, writeWorld, type RawPng } from "../../../scripts/geo-merge.ts";
 import { parseDxf } from "../src/vector-parse";
@@ -116,5 +117,48 @@ describe("bilderna ur etapperna som en bild", () => {
   });
   it("säger nej till vridna världsfiler", () => {
     expect(() => readWorld("1\n0.1\n0\n-1\n0\n0\n")).toThrow();
+  });
+  it("skriver giltiga zlib.crc32-kontrollsummor och avkodar alla fem PNG-filter (0–4) exakt", () => {
+    const width = 17, height = 13, data = Uint8Array.from({ length: width * height * 4 }, (_, i) => (i * 37 + (i >> 2) * 13) & 255);
+    const png = encodeRawPng({ width, height, bitDepth: 8, colorType: 6, bpp: 4, data });
+    // Verifiera varje chunks CRC32 mot zlib.crc32.
+    const view = new DataView(png.buffer, png.byteOffset, png.byteLength);
+    let off = 8, chunks = 0;
+    while (off + 12 <= png.byteLength) {
+      const len = view.getUint32(off);
+      const expected = crc32(png.subarray(off + 4, off + 8 + len)) >>> 0;
+      expect(view.getUint32(off + 8 + len)).toBe(expected);
+      chunks += 1;
+      off += 12 + len;
+    }
+    expect(chunks).toBe(3);
+
+    // Bygg PNG-filer med samtliga filter 0–4 (inkl. blandade per rad) och kontrollera rundresan i decodePng.
+    const makeFiltered = (filters: readonly number[]) => {
+      const bpp = 4, stride = width * bpp, raw = Buffer.alloc(height * (stride + 1));
+      for (let row = 0; row < height; row += 1) {
+        const f = filters[row % filters.length]!;
+        raw[row * (stride + 1)] = f;
+        for (let i = 0; i < stride; i += 1) {
+          const val = data[row * stride + i]!, left = i >= bpp ? data[row * stride + i - bpp]! : 0, up = row > 0 ? data[(row - 1) * stride + i]! : 0;
+          const corner = row > 0 && i >= bpp ? data[(row - 1) * stride + i - bpp]! : 0;
+          const p = left + up - corner, pa = Math.abs(p - left), pb = Math.abs(p - up), pc = Math.abs(p - corner);
+          const pred = f === 1 ? left : f === 2 ? up : f === 3 ? (left + up) >> 1 : f === 4 ? (pa <= pb && pa <= pc ? left : pb <= pc ? up : corner) : 0;
+          raw[row * (stride + 1) + 1 + i] = (val - pred) & 255;
+        }
+      }
+      const mk = (type: string, body: Uint8Array) => {
+        const out = Buffer.alloc(12 + body.byteLength);
+        out.writeUInt32BE(body.byteLength, 0); out.write(type, 4, "latin1"); out.set(body, 8);
+        out.writeUInt32BE(crc32(out.subarray(4, 8 + body.byteLength)) >>> 0, 8 + body.byteLength);
+        return out;
+      };
+      const hdr = Buffer.alloc(13); hdr.writeUInt32BE(width, 0); hdr.writeUInt32BE(height, 4); hdr[8] = 8; hdr[9] = 6;
+      return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), mk("IHDR", hdr), mk("IDAT", deflateSync(raw)), mk("IEND", new Uint8Array(0))]);
+    };
+    for (const filters of [[0], [1], [2], [3], [4], [0, 1, 2, 3, 4]]) {
+      const back = decodePng(makeFiltered(filters));
+      expect(back.data).toEqual(data);
+    }
   });
 });

@@ -130,18 +130,27 @@ export function vegetationMosaic(tiles: readonly VegetationTile[], smallest = VE
     for (let value = 1; value < 16; value += 1) if (votes[i * 16 + value]! > bestVotes) { best = value; bestVotes = votes[i * 16 + value]!; }
     classes[i] = bestVotes * 2 >= votes[i * 16]! ? best : 0;
   }
+  // O(1) 2D-integraltabeller för 5 × 5-fönstret över undervegetationsstrecken (`marks` är 0, 1 eller 2).
+  const stride = height + 1, tableLen = (width + 1) * stride;
+  const anyMark = new Int32Array(tableLen), strongMark = new Int32Array(tableLen);
   for (let x = 0; x < width; x += 1) {
+    const srcBase = x * height, dstBase = (x + 1) * stride, leftBase = x * stride;
     for (let y = 0; y < height; y += 1) {
-      let count = 0, strongest = 0;
-      for (let dx = -2; dx <= 2; dx += 1) {
-        for (let dy = -2; dy <= 2; dy += 1) {
-          const nx = x + dx, ny = y + dy;
-          if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
-          const mark = marks[nx * height + ny]!;
-          if (mark) { count += 1; strongest = Math.max(strongest, mark); }
-        }
+      const mark = marks[srcBase + y]!;
+      const idx = dstBase + y + 1, left = leftBase + y + 1, below = dstBase + y, corner = leftBase + y;
+      anyMark[idx] = (mark > 0 ? 1 : 0) + anyMark[left]! + anyMark[below]! - anyMark[corner]!;
+      strongMark[idx] = (mark === 2 ? 1 : 0) + strongMark[left]! + strongMark[below]! - strongMark[corner]!;
+    }
+  }
+  for (let x = 0; x < width; x += 1) {
+    const x0 = Math.max(0, x - 2) * stride, x1 = Math.min(width, x + 3) * stride, outBase = x * height;
+    for (let y = 0; y < height; y += 1) {
+      const y0 = Math.max(0, y - 2), y1 = Math.min(height, y + 3);
+      const count = anyMark[x1 + y1]! - anyMark[x0 + y1]! - anyMark[x1 + y0]! + anyMark[x0 + y0]!;
+      if (count >= 3) {
+        const strongest = strongMark[x1 + y1]! - strongMark[x0 + y1]! - strongMark[x1 + y0]! + strongMark[x0 + y0]! > 0 ? 2 : 1;
+        classes[outBase + y] = classes[outBase + y]! | (strongest << 4);
       }
-      if (count >= 3) classes[x * height + y] = classes[x * height + y]! | (strongest << 4);
     }
   }
   // Rutnätet med cellernas mitt i (minX + cell·x, minY + cell·y), som i fuktigheten.
@@ -253,14 +262,15 @@ export function vegetationFromTiles(tiles: readonly VegetationTile[], settings: 
   };
   // Ägaren 2026-11-11 («dra i» lagren): klasserna som bild, så att grönsstegen kan dras i webbläsaren utan en ny körning.
   // Röd kanal = klassen (låga fyra bitar Karttapullautins klass, höga undervegetationen); utan data eller i vatten genomskinligt.
-  const classPng = encodePng(grid.width, grid.height, (column, line) => {
+  const classPng = encodePng(grid.width, grid.height, (column, line, out, o) => {
     const i = column * grid.height + (grid.height - 1 - line), value = classes[i]!;
+    if (value === 0 || blocked?.[i]) { out[o] = 0; out[o + 1] = 0; out[o + 2] = 0; out[o + 3] = 0; return; }
     // Ägaren 2026-11-13 («finare gröna nyanser»): med punktmolnets signaler är grön kanal buskskiktets andel i tusendelar och
     // blå klassen före tillägget för tätt buskskikt, så att webbläsaren kan dra gränsen själv. Utan signaler: 160 och klassen.
     // Ägaren 2026-11-16: halvöppna celler har alfa 200 (äldre webbläsarkod ser bara «känd cell»), så att reglagen ser dem.
     // Skriv generaliserad `VEG_SEMI` (inte rå `semi`) när generaliseringen körts så webbreglaget stämmer med vegetation.dxf.
     const alpha = (shaped ? shaped[i] === VEG_SEMI : semi[i] === 1) ? SEMI_ALPHA : 255;
-    return value === 0 || blocked?.[i] ? [0, 0, 0, 0] : before && shares ? [value, shares[i]!, before[i]!, alpha] : [value, 160, value, alpha];
+    out[o] = value; out[o + 1] = before && shares ? shares[i]! : 160; out[o + 2] = before && shares ? before[i]! : value; out[o + 3] = alpha;
   });
   return { dxf: moistureDxf(parts), summary, openAt, forestAt, classPng, world: worldFile(full) };
 }

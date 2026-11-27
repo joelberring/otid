@@ -1,5 +1,18 @@
-import { copyFile, mkdir, readdir, rename, rm, stat, utimes } from "node:fs/promises";
+import { copyFile, link, mkdir, readdir, rename, rm, stat, utimes } from "node:fs/promises";
 import { join } from "node:path";
+
+/** Hårdlänkar när samma filsystem används (0 s disk-I/O på 200 MB .laz), faller annars tillbaka på copyFile (t.ex. EXDEV). */
+async function linkOrCopy(source: string, target: string): Promise<void> {
+  try {
+    await link(source, target);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+      await rm(target, { force: true });
+      try { await link(source, target); return; } catch { /* faller tillbaka nedan */ }
+    }
+    await copyFile(source, target);
+  }
+}
 
 /**
  * Ägaren 2026-11-12 («om typ de senaste 20 laserkörningarna kan sparas på geoservern … så att man kan göra ändringar
@@ -12,12 +25,12 @@ export const CACHE_MAX_BYTES = 20 * 2 ** 30;
 /** Filnamnet för en ruta: bara tecken som är ofarliga i ett filnamn (rutans id kommer från Lantmäteriets katalog). */
 export const cacheName = (tileId: string) => `${tileId.replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 150) || "ruta"}.laz`;
 
-/** Kopierar rutan ur förrådet till `target` och märker den som nyss använd. Ger false om den inte finns. */
+/** Länkar eller kopierar rutan ur förrådet till `target` och märker den som nyss använd. Ger false om den inte finns. */
 export async function fromCache(cacheDir: string, tileId: string, target: string): Promise<boolean> {
   const file = join(cacheDir, cacheName(tileId));
   try {
     if ((await stat(file)).size === 0) return false;
-    await copyFile(file, target);
+    await linkOrCopy(file, target);
     const now = new Date();
     await utimes(file, now, now);
     return true;
@@ -29,7 +42,7 @@ export async function toCache(cacheDir: string, tileId: string, source: string, 
   try {
     await mkdir(cacheDir, { recursive: true });
     const file = join(cacheDir, cacheName(tileId)), part = `${file}.del`;
-    await copyFile(source, part);
+    await linkOrCopy(source, part);
     await rename(part, file);
     await prune(cacheDir, maxBytes);
   } catch { /* Förrådet är en bekvämlighet: ett fullt eller trasigt förråd får inte fälla jobbet. */ }

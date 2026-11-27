@@ -291,12 +291,12 @@ describe("ADR-0219 K5: geo-arbetaren", () => {
   });
 
   it("ett område som är större än servern klarar delas i etapper som körs efter varandra", async () => {
-    // Hela Järflotta 2026-11-13: 4,5 × 6,8 km (30 km²) dog två gånger; gränsen 16 km² ger två remsor tvärs över den längre sidan.
+    // Hela Järflotta 2026-11-13: 4,5 × 6,8 km (30 km²) delas i två remsor tvärs över den längre sidan (Etapp G5: förval 25 km²).
     const island = { minX: 665753, minY: 6521287, maxX: 670237, maxY: 6528073 };
-    expect(splitClip(island, 16)).toEqual([{ ...island, maxY: 6524680 }, { ...island, minY: 6524680 }]);
+    expect(splitClip(island, 25)).toEqual([{ ...island, maxY: 6524680 }, { ...island, minY: 6524680 }]);
     expect(splitClip(island, 0)).toEqual([island]);
     expect(splitClip({ minX: 0, minY: 0, maxX: 9000, maxY: 3000 }, 10).map(part => [part.minX, part.maxX])).toEqual([[0, 3000], [3000, 6000], [6000, 9000]]);
-    expect(splitClip({ minX: 0, minY: 0, maxX: 4000, maxY: 4000 }, 16)).toHaveLength(1);
+    expect(splitClip({ minX: 0, minY: 0, maxX: 5000, maxY: 5000 }, 25)).toHaveLength(1);
     // Ägaren 2026-11-17 (skarvar i reliefen): etappen räknas med 50 m marginal mot grannen, inte utanför hela rutan.
     expect(stageReach({ ...island, maxY: 6524680 }, island)).toEqual({ ...island, maxY: 6524730 });
     expect(stageReach({ ...island, minY: 6524680 }, island)).toEqual({ ...island, minY: 6524630 });
@@ -348,7 +348,8 @@ describe("ADR-0219 K5: geo-arbetaren", () => {
 
   it("lägger ihop etapperna på geo-servern: sista etappen köar sammanläggningen, som ersätter etapperna", async () => {
     // Ägaren 2026-11-14: «det verkade som den andra tråden inte gjorde ihopläsningen på servern. jag skulle vilja att det var så».
-    const island = { minX: 664000, minY: 6522000, maxX: 668000, maxY: 6527360 };
+    // 5,0 × 5,36 km = 26,8 km² > 25 km² (DEFAULT_SPLIT_KM2): delas i två remsor vid y = 6524680.
+    const island = { minX: 664000, minY: 6522000, maxX: 669000, maxY: 6527360 };
     // Kön är gemensam för alla projekt: det som de tidigare testerna lämnat kvar ska inte hämtas här.
     await db.update(schema.mapProjectGeoJobs).set({ status: "CANCELLED" }).where(sql`status in ('QUEUED', 'RUNNING')`);
     const { owner, reader, projectId } = await project();
@@ -574,7 +575,8 @@ describe("ADR-0219 K5: geo-arbetaren", () => {
 
     // 4. Delad körning med bildmotorfri pullautin (ingen karta.png): etapper + sammanläggning bevarar engine och går rent med layerId: null.
     await db.update(schema.userAccounts).set({ geoTilesPerMonth: 50 }).where(eq(schema.userAccounts.id, owner.accountId));
-    const island = { minX: 664000, minY: 6522000, maxX: 668000, maxY: 6527360 };
+    // 5,0 × 5,36 km = 26,8 km² > 25 km² (DEFAULT_SPLIT_KM2): delas i två remsor vid y = 6524680.
+    const island = { minX: 664000, minY: 6522000, maxX: 669000, maxY: 6527360 };
     const south = { id: "s1", href: LAZ, bbox: [17.86, 58.79, 17.95, 58.82] as [number, number, number, number], epsg: 3006 };
     const north = { id: "n1", href: LAZ.replace(".laz", "-n.laz"), bbox: [17.86, 58.84, 17.95, 58.87] as [number, number, number, number], epsg: 3006 };
     const splitPullautin = await createGeoJob(db, { ...owner.proof, projectId, request: {

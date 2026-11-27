@@ -1,6 +1,7 @@
 import type { SourceData } from "../src";
 import { describe, expect, it } from "vitest";
 import { baseMapOutputs, clipWgs84, mergeBaseMap } from "../src/base-map/merge";
+import { joinStages } from "../src/base-map/stages";
 
 const data = (...layers: string[]): SourceData => ({ skipped: 0, features: layers.map(layer => ({ layer, geometry: { kind: "point" as const, at: [664900, 6576600] as [number, number] } })) });
 
@@ -96,5 +97,95 @@ describe("strandlinjen", () => {
     expect(lines).toHaveLength(1);
     const geometry = lines[0]!.geometry;
     expect(geometry.kind === "line" && !geometry.closed && geometry.points).toEqual([[0, 0], [100, 0], [120, 50], [100, 100], [0, 100]]);
+  });
+});
+
+describe("skarvfri sammanslagning av terränglinjer i mergeBaseMap", () => {
+  it("fogar brantlinjer över skarv före längdkravet med bevarad riktning och vänder inte motriktade branter", () => {
+    // Två 7 m halvor av en 14 m opasserbar brant över skarv vid x = 100 (1:15 000 kräver 9 m minCliff och 11,25 m för två taggar).
+    const merged = mergeBaseMap([{
+      name: "brantlinjer.dxf",
+      data: {
+        skipped: 0,
+        features: [
+          { layer: "brant_opasserbar", geometry: { kind: "line", closed: false, points: [[93, 0], [100, 0]] } },
+          { layer: "brant_opasserbar", geometry: { kind: "line", closed: false, points: [[100, 0], [107, 0]] } },
+          // Motriktade 10 m passerbara branter (huvud-mot-huvud vid x = 100) får INTE vändas ihop.
+          { layer: "brant_passerbar", geometry: { kind: "line", closed: false, points: [[90, 20], [100, 20]] } },
+          { layer: "brant_passerbar", geometry: { kind: "line", closed: false, points: [[110, 20], [100, 20]] } }
+        ]
+      }
+    }], undefined, 15_000);
+    const impassable = merged.features.filter(feature => feature.layer === "brant_opasserbar");
+    expect(impassable).toHaveLength(1);
+    expect(impassable[0]!.geometry).toEqual({ kind: "line", closed: false, points: [[93, 0], [100, 0], [107, 0]] });
+    const passable = merged.features.filter(feature => feature.layer === "brant_passerbar");
+    expect(passable).toHaveLength(2);
+    expect(passable.map(feature => feature.geometry.kind === "line" ? feature.geometry.points : [])).toEqual([[[90, 20], [100, 20]], [[110, 20], [100, 20]]]);
+  });
+
+  it("fogar diken, fuktstråk och spår över skarv (så 20 + 20 m spår överlever minRun = 30 m)", () => {
+    const merged = mergeBaseMap([
+      { name: "diken.dxf", data: { skipped: 0, features: [
+        { layer: "dike", geometry: { kind: "line", closed: false, points: [[80, 10], [100, 10]] } },
+        { layer: "dike", geometry: { kind: "line", closed: false, points: [[120, 10], [100, 10]] } },
+        { layer: "fuktstrak_terrang", geometry: { kind: "line", closed: false, points: [[80, 30], [100, 30]] } },
+        { layer: "fuktstrak_terrang", geometry: { kind: "line", closed: false, points: [[100, 30], [120, 30]] } }
+      ] } },
+      { name: "fukt.dxf", data: { skipped: 0, features: [
+        { layer: "fuktstrak", geometry: { kind: "line", closed: false, points: [[80, 50], [100, 50]] } },
+        { layer: "fuktstrak", geometry: { kind: "line", closed: false, points: [[100, 50], [120, 50]] } }
+      ] } },
+      { name: "spar.dxf", data: { skipped: 0, features: [
+        { layer: "spar_laser", geometry: { kind: "line", closed: false, points: [[80, 70], [100, 70]] } },
+        { layer: "spar_laser", geometry: { kind: "line", closed: false, points: [[100, 70], [120, 70]] } }
+      ] } }
+    ]);
+    expect(merged.features.filter(feature => feature.layer === "dike")).toHaveLength(1);
+    expect(merged.features.filter(feature => feature.layer === "fuktstrak_terrang")).toHaveLength(1);
+    expect(merged.features.filter(feature => feature.layer === "fuktstrak")).toHaveLength(1);
+    const tracks = merged.features.filter(feature => feature.layer === "spar_laser");
+    expect(tracks).toHaveLength(1);
+    expect(tracks[0]!.geometry.kind === "line" && tracks[0]!.geometry.points[0]![0]).toBeCloseTo(80, 1);
+    expect(tracks[0]!.geometry.kind === "line" && tracks[0]!.geometry.points.at(-1)![0]).toBeCloseTo(120, 1);
+  });
+
+  it("joinStages + mergeBaseMap levererar skarvfritt resultat för branter, diken, spår, vegetation, fukt, berg och belagt", () => {
+    const rect = (x0: number, y0: number, x1: number, y1: number): [number, number][] => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+    const parts = [
+      { name: "brantlinjer.dxf", data: { skipped: 0, features: [{ layer: "brant_opasserbar", geometry: { kind: "line" as const, closed: false, points: [[93, 10], [107, 10]] as [number, number][] } }] } },
+      { name: "diken.dxf", data: { skipped: 0, features: [{ layer: "dike", geometry: { kind: "line" as const, closed: false, points: [[80, 20], [120, 20]] as [number, number][] } }] } },
+      { name: "spar.dxf", data: { skipped: 0, features: [{ layer: "spar_laser", geometry: { kind: "line" as const, closed: false, points: [[75, 30], [125, 30]] as [number, number][] } }] } },
+      { name: "vegetation.dxf", data: { skipped: 0, features: [
+        { layer: "gron_lattlopt", geometry: { kind: "line" as const, closed: true, points: rect(60, 40, 140, 80) } },
+        { layer: "gron_lattlopt", geometry: { kind: "line" as const, closed: true, points: rect(90, 50, 110, 70) } }
+      ] } },
+      { name: "fukt.dxf", data: { skipped: 0, features: [
+        { layer: "blott", geometry: { kind: "line" as const, closed: true, points: rect(60, 85, 140, 98) } },
+        { layer: "fuktstrak", geometry: { kind: "line" as const, closed: false, points: [[60, 91], [140, 91]] as [number, number][] } }
+      ] } },
+      { name: "berg.dxf", data: { skipped: 0, features: [{ layer: "berg_i_dagen", geometry: { kind: "line" as const, closed: true, points: rect(70, 5, 130, 15) } }] } },
+      { name: "belagt.dxf", data: { skipped: 0, features: [
+        { layer: "belagd_yta_laser", geometry: { kind: "line" as const, closed: true, points: rect(60, 110, 140, 150) } },
+        { layer: "belagd_yta_laser", geometry: { kind: "line" as const, closed: true, points: [[85, 120], [85, 140], [115, 140], [115, 120]] as [number, number][] } }
+      ] } }
+    ];
+    const staged = joinStages([
+      { box: { minX: 0, minY: 0, maxX: 100, maxY: 200 }, parts },
+      { box: { minX: 100, minY: 0, maxX: 200, maxY: 200 }, parts }
+    ]);
+    const merged = mergeBaseMap(staged, undefined, 15_000, undefined, "ISSPROM");
+    expect(merged.features.filter(feature => feature.layer === "brant_opasserbar")).toHaveLength(1);
+    expect(merged.features.filter(feature => feature.layer === "dike")).toHaveLength(1);
+    expect(merged.features.filter(feature => feature.layer === "spar_laser")).toHaveLength(1);
+    expect(merged.features.filter(feature => feature.layer === "fuktstrak")).toHaveLength(1);
+    expect(merged.features.filter(feature => feature.layer === "blott")).toHaveLength(1);
+    expect(merged.features.filter(feature => feature.layer === "berg_i_dagen")).toHaveLength(1);
+    const veg = merged.features.filter(feature => feature.layer === "gron_lattlopt");
+    expect(veg).toHaveLength(1);
+    expect(veg[0]!.geometry.kind === "area" && veg[0]!.geometry.rings).toHaveLength(2);
+    const paved = merged.features.filter(feature => feature.layer === "belagd_yta_laser");
+    expect(paved).toHaveLength(1);
+    expect(paved[0]!.geometry.kind === "area" && paved[0]!.geometry.rings).toHaveLength(2);
   });
 });

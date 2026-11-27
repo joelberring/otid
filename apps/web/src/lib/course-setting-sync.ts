@@ -5,7 +5,10 @@ import {
   documentChanges, editTouches, remapEdit, replayEdits, type CourseSettingDocument, type CourseSettingEdit, type IdMap
 } from "@o-tid/course-setting";
 import { stillThere, wireCreated, type EditorState, type HistoryStep, type LoggedEdit, type Selection } from "./course-setting-editor";
+import { HttpStatusError } from "./http-status-error";
 import { inLanguage } from "./in-language";
+
+export { HttpStatusError };
 
 /**
  * Steg 66 (ADR-0181 beslut 4): samtidigt arbete i editorn. Editorns läge finns i en `EditorStore` (React läser den med
@@ -150,10 +153,6 @@ export function acknowledge(state: EditorState, upTo: number): EditorState {
 export function changesIds(map: IdMap): boolean {
   const records: readonly (Readonly<Record<string, string>> | undefined)[] = [map.controls, map.courseControls, map.courses, map.specialObjects];
   return records.some(record => Object.entries(record ?? {}).some(([from, to]) => from !== to));
-}
-
-export class HttpStatusError extends Error {
-  constructor(readonly status: number) { super(String(status)); }
 }
 
 export interface SyncTransport {

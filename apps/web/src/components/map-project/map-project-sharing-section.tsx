@@ -4,7 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import type { MapProjectView, SourceDownloadPolicy } from "@o-tid/contracts";
 import { mapBankEn } from "../../i18n/map-bank-en";
 import { mapBankSv } from "../../i18n/map-bank-sv";
-import { clubRequest } from "../../lib/club-archive-client";
+import { clubRequest } from "../../lib/club-request";
 import { useTexts } from "../language-provider";
 import { MapSharingPanel, type CatalogStatusResponse } from "../map-bank/map-sharing-panel";
 import sharingStyles from "../map-bank/map-sharing-panel.module.css";

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { ClubDeviceRecord, ClubSummary } from "@o-tid/contracts";
 import type { StationSystemData } from "@o-tid/sportident";
-import { clubRequest } from "../lib/club-archive-client";
+import { clubRequest } from "../lib/club-request";
 
 const KEY = "otid.stations.club.v1";
 

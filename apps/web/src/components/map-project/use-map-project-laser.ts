@@ -10,7 +10,7 @@ import { mapClearContoursSv, mapFlatContoursSv, mapHillsSv, mapPitsSv } from "..
 import { mapSourcesEn } from "../../i18n/map-sources-en";
 import { mapSourcesSv } from "../../i18n/map-sources-sv";
 import { accountRequest } from "../../lib/account-client";
-import { clubRequest } from "../../lib/club-archive-client";
+import { clubRequest } from "../../lib/club-request";
 import type { Bounds } from "../../lib/course-setting-viewport";
 import { areaBox, type BoxArea } from "../../lib/map-project-area-box";
 import { baseMapOutputs, clearCutFeatures, clipWgs84, landCoverCodesFromBase64, landCoverFeatures, soilForMarsh } from "@o-tid/map-revision/base-map";

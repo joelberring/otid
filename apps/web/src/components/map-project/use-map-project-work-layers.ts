@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MapProjectSketchView, MapProjectView, MapProjectWorkLayerList, MapProjectWorkLayerView } from "@o-tid/contracts";
 import type { Point } from "@o-tid/map-file";
-import { clubRequest } from "../../lib/club-archive-client";
+import { clubRequest } from "../../lib/club-request";
 import { mapProjectBase } from "../../lib/map-project-client";
 import { simplifyStroke } from "../../lib/map-project-sketch";
 

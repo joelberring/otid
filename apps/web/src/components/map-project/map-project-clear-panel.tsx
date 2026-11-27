@@ -5,7 +5,7 @@ import { DEFAULT_CLEAR, formlineLimitsAt, heightFieldFrom, ringLimitAt, smoothLi
 import { useEffect, useRef, useState } from "react";
 import { mapClearContoursEn, mapSavedChoiceEn } from "../../i18n/map-knolls-en";
 import { mapClearContoursSv, mapSavedChoiceSv } from "../../i18n/map-knolls-sv";
-import { clubRequest } from "../../lib/club-archive-client";
+import { clubRequest } from "../../lib/club-request";
 import { mapProjectBase } from "../../lib/map-project-client";
 import { HEIGHT_IMAGE, HEIGHT_WORLD, jobHeights } from "../../lib/map-project-clear-contours";
 import { stageChoices } from "../../lib/map-project-stages";

@@ -5,7 +5,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { accountMenuSv } from "../i18n/account-menu-sv";
 import { accountMenuEn } from "../i18n/account-en";
 import { useTexts } from "./language-provider";
-import { logOut, pendingOfflineChanges, type PendingOfflineChanges } from "../lib/account-logout";
+import type { PendingOfflineChanges } from "../lib/account-logout";
 import { Button } from "./ui";
 import styles from "./account-menu.module.css";
 
@@ -74,6 +74,7 @@ export function AccountMenu({ who: known, mayLeave, superadmin = false }: { who?
   async function leave() {
     setStage("leaving"); setProblem("");
     try {
+      const { logOut } = await import("../lib/account-logout");
       const result = await logOut();
       if (!result.ok) { setStage("idle"); setProblem(text.failed(result.status)); }
     } catch { setStage("idle"); setProblem(text.network); }
@@ -85,9 +86,12 @@ export function AccountMenu({ who: known, mayLeave, superadmin = false }: { who?
   async function start() {
     if (mayLeave && !mayLeave()) { close(); return; }
     setStage("checking"); setProblem("");
-    const counted = await pendingOfflineChanges();
-    setPending(counted);
-    if (counted.total > 0) { setStage("confirm"); return; }
+    try {
+      const { pendingOfflineChanges } = await import("../lib/account-logout");
+      const counted = await pendingOfflineChanges();
+      setPending(counted);
+      if (counted.total > 0) { setStage("confirm"); return; }
+    } catch { setStage("idle"); setProblem(text.network); return; }
     await leave();
   }
 

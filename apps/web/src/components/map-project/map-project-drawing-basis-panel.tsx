@@ -5,7 +5,7 @@ import type { GridPart } from "@o-tid/map-revision/base-map";
 import { useRef, useState } from "react";
 import { mapDrawingBasisEn } from "../../i18n/map-drawing-basis-en";
 import { mapDrawingBasisSv } from "../../i18n/map-drawing-basis-sv";
-import { clubRequest } from "../../lib/club-archive-client";
+import { clubRequest } from "../../lib/club-request";
 import {
   BASIS_INTERVALS, basisDxf, filesOf, geoTiff, hasHeights, hasVegetation, imageOf, loadGround, loadVegetation,
   type BasisFile, type BasisImage, type BasisJob

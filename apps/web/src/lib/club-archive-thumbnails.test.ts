@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { ClubArchiveList, ClubArchiveListItem, ClubMapCheckView, ClubMapVersionView } from "@o-tid/contracts";
 import { MAP_READER_VERSION } from "@o-tid/map-file";
-import { checkExplanation, checkLabel, checkStatusOf, planChecks, renderFailureReason } from "./club-archive-thumbnails";
+import { checkExplanation, checkLabel } from "./club-archive-check-view";
+import { checkStatusOf, planChecks, renderFailureReason } from "./club-archive-thumbnails";
 
 const check = (patch: Partial<ClubMapCheckView> = {}): ClubMapCheckView => ({ status: "OK", detail: null, fileVersion: "OCAD 11.2",
   readerVersion: MAP_READER_VERSION, checkedAt: "2026-11-03T10:00:00.000Z", thumbnail: true, fingerprint: true, ...patch });

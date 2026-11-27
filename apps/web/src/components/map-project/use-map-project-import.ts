@@ -14,7 +14,7 @@ import {
   autoBuildingEdgeOf, fitClassOf, SPRINT_BUILT_METRES, guessCrs, importLayers, isSprintNorm, isStockholmLayer, mapNorm, newKey, splitLargeAreas, objectBox, samplePath, sourcePointToMap, suggestSymbol, VectorParseError, WGS84_EPSG,
   type FitPoint, type ImportLayer, type SourceData, type SourceFeature, type VectorFit
 } from "@o-tid/map-revision";
-import { clubRequest, csrf } from "../../lib/club-archive-client";
+import { clubRequest, csrf } from "../../lib/club-request";
 import type { Bounds } from "../../lib/course-setting-viewport";
 import { areaBox, type BoxArea } from "../../lib/map-project-area-box";
 import { mapProjectBase } from "../../lib/map-project-client";

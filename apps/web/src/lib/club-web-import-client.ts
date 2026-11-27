@@ -3,7 +3,7 @@ import { sourceBlob } from "@o-tid/club-archive/browser";
 import type { ClubImportCheckResponse } from "@o-tid/contracts";
 import { clubWebImportSv } from "../i18n/club-import-web-sv";
 import type { Texts } from "./language";
-import { clubBase, csrf } from "./club-archive-client";
+import { clubBase, csrf } from "./club-request";
 
 /**
  * ADR-0204: importens anrop från webbläsaren med inloggningen (kakan och CSRF, samma Origin), till

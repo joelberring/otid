@@ -6,7 +6,7 @@ import { useTexts } from "../language-provider";
 import type { Texts } from "../../lib/language";
 import type { CourseSettingNoteReplyItem } from "@o-tid/contracts";
 import { mapLinkSv } from "../../i18n/map-link-sv";
-import { HttpStatusError } from "../../lib/course-setting-sync";
+import { HttpStatusError } from "../../lib/http-status-error";
 import { Button } from "../ui";
 import styles from "./note-text.module.css";
 

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { regenerableMissingSchema, type MapProjectView, type RegenerableMissing } from "@o-tid/contracts";
 import { mapProjectRegenerableEn } from "../../i18n/map-project-regenerable-en";
 import { mapProjectRegenerableSv } from "../../i18n/map-project-regenerable-sv";
-import { clubRequest } from "../../lib/club-archive-client";
+import { clubRequest } from "../../lib/club-request";
 import { mapProjectBase } from "../../lib/map-project-client";
 import { useTexts } from "../language-provider";
 import { Button, Notice } from "../ui";

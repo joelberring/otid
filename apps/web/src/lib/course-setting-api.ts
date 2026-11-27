@@ -11,7 +11,7 @@ import {
   type CourseSettingInspections, courseSettingForkLettersSchema, type CourseSettingForkLetters
 } from "@o-tid/contracts";
 import type { CourseSettingDocument } from "@o-tid/course-setting";
-import { HttpStatusError } from "./course-setting-sync";
+import { HttpStatusError } from "./http-status-error";
 import { adminFetch, fetchUntilReached, fetchWithRetry } from "./retrying-fetch";
 export type SaveOutcome<C> = { readonly kind: "saved"; readonly version: number } | { readonly kind: "conflict"; readonly conflict: C }
   | { readonly kind: "too-large" };

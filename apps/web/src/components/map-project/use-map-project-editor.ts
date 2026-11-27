@@ -9,7 +9,7 @@ import {
   type EditKind, type EditResult, type KeyedState, type ObjectKey, type ObjectRef, type ObjectState, type RevisionEdit, type RevisionHistory, type ServerObject
 } from "@o-tid/map-revision";
 import { areaBounds } from "@o-tid/map-revision/base-map";
-import { clubRequest } from "../../lib/club-archive-client";
+import { clubRequest } from "../../lib/club-request";
 import type { Bounds } from "../../lib/course-setting-viewport";
 import { controlledWorker } from "../../lib/course-setting-worker";
 import { cachedMapFile, mapFileCache } from "../../lib/map-file-cache";

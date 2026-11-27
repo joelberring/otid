@@ -1,6 +1,6 @@
 import type { Texts } from "./language";
 import type { clubPlanningSv } from "../i18n/club-planning-sv";
-import { clubRequest } from "./club-archive-client";
+import { clubRequest } from "./club-request";
 
 /** ADR-0221: anropen från fliken Planering och Mina uppgifter. */
 type PlanningTexts = Texts<typeof clubPlanningSv>;

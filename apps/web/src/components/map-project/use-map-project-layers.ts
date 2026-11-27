@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LayerRecipe, MapProjectLayerList, MapProjectLayerView, MapProjectView } from "@o-tid/contracts";
 import type { MapGeoreference } from "@o-tid/map-file";
-import { clubRequest, csrf } from "../../lib/club-archive-client";
+import { clubRequest, csrf } from "../../lib/club-request";
 import { cachedMapFile, layerImageCache } from "../../lib/map-file-cache";
 import { mapProjectBase } from "../../lib/map-project-client";
 import { savedMapProjectLayers, saveMapProjectLayers } from "../../lib/map-project-offline";

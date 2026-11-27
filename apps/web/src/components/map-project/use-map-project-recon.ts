@@ -6,7 +6,7 @@ import type { MapGeoreference } from "@o-tid/map-file";
 import {
   areaProgress, checkStillValid, DEFAULT_RECON, type AreaProgress, type ObjectKey, type ReconSettings, type RevisionClientState, type TrackPoint
 } from "@o-tid/map-revision";
-import { clubRequest } from "../../lib/club-archive-client";
+import { clubRequest } from "../../lib/club-request";
 import { mapProjectBase } from "../../lib/map-project-client";
 import type { MapProjectSession, ReconResult } from "../../lib/map-project-protocol";
 import {

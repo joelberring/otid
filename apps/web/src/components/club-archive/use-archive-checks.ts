@@ -7,7 +7,8 @@ import type { ClubArchiveEntryView, ClubArchiveList, ClubArchiveListItem } from 
 import { courseSummaries, layoutOverprint, readPpen, type CourseSettingDocument, type OverprintPrimitive } from "@o-tid/course-setting";
 import { MAP_READER_VERSION } from "@o-tid/map-file";
 import { clubArchiveChecksSv } from "../../i18n/club-archive-checks-sv";
-import { clubBase, clubRequest, fetchCourseFileText, renderMapVersion } from "../../lib/club-archive-client";
+import { fetchCourseFileText, renderMapVersion } from "../../lib/club-archive-client";
+import { clubBase, clubRequest } from "../../lib/club-request";
 import {
   checkStatusOf, encodeThumbnail, planChecks, refreshSummaries, renderFailureReason, saveEntryThumbnail, saveMapCheck, type CheckJob as Job,
   type EncodedPng

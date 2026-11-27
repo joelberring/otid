@@ -5,7 +5,7 @@ import type { MapProjectAreaView, MapProjectView } from "@o-tid/contracts";
 import type { Point } from "@o-tid/map-file";
 import { mapProjectSplitEn } from "../../i18n/map-project-split-en";
 import { mapProjectSplitSv } from "../../i18n/map-project-split-sv";
-import { clubRequest } from "../../lib/club-archive-client";
+import { clubRequest } from "../../lib/club-request";
 import type { Bounds } from "../../lib/course-setting-viewport";
 import { nextPartNumber, planAreaSplit } from "../../lib/map-project-area-split";
 import { mapProjectBase, mapProjectFailure } from "../../lib/map-project-client";

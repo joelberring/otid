@@ -83,6 +83,9 @@ const nextConfig: NextConfig = {
       { source: "/organizer/map-projects/:projectId/map", headers: [{ key: "Permissions-Policy", value: "camera=(), geolocation=(self), microphone=()" }] }
     ];
   },
+  experimental: {
+    optimizePackageImports: ["@o-tid/contracts", "@o-tid/domain"]
+  },
   transpilePackages: [
     "@o-tid/application",
     "@o-tid/club-archive",

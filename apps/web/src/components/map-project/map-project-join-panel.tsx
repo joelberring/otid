@@ -5,7 +5,7 @@ import { mapProjectEn } from "../../i18n/map-project-en";
 import { mapProjectJoinEn } from "../../i18n/map-project-join-en";
 import { mapProjectJoinSv } from "../../i18n/map-project-join-sv";
 import { mapProjectSv } from "../../i18n/map-project-sv";
-import { clubRequest } from "../../lib/club-archive-client";
+import { clubRequest } from "../../lib/club-request";
 import { mapProjectJoinLinkRoles, mapProjectJoinUrl, parseClubMembers, parseJoinLinkCreated } from "../../lib/map-project-invite-link";
 import { useLocale, useTexts } from "../language-provider";
 import { Button, Field, Select, copyText } from "../ui";

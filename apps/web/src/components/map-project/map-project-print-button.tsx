@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { mapProjectPrintEn } from "../../i18n/map-project-print-en";
 import { mapProjectPrintSv } from "../../i18n/map-project-print-sv";
-import { clubRequest } from "../../lib/club-archive-client";
+import { clubRequest } from "../../lib/club-request";
 import { mapProjectBase } from "../../lib/map-project-client";
 import { useTexts } from "../language-provider";
 import styles from "./map-project-editor.module.css";

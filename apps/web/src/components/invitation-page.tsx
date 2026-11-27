@@ -19,6 +19,37 @@ import styles from "./account-pages.module.css";
 
 type Valid = Extract<InvitationLinkView, { status: "valid" }>;
 
+export type InvitationMountResult = {
+  state: { kind: "failed" } | { kind: "invalid" } | { kind: "valid"; view: Valid };
+  sessionEmail?: string | undefined;
+  sessionVerified: boolean;
+};
+
+/** Kör inbjudningsuppslag och sessionskoll parallellt i `Promise.all` (sparar 1 RTT). */
+export async function loadInvitationMount(
+  token: string,
+  options: { request?: typeof accountRequest; fetchImpl?: typeof fetch } = {}
+): Promise<InvitationMountResult> {
+  const request = options.request ?? accountRequest;
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const [inviteResult, sessionResult] = await Promise.all([
+    request("/api/invitation", { method: "POST", body: { formatVersion: 1, token } }).catch(() => undefined),
+    fetchImpl("/api/organizer/session", { credentials: "same-origin", cache: "no-store" })
+      .then(async response => response.ok ? parseOrganizerSessionStatus(await response.json() as unknown) : undefined)
+      .catch(() => undefined)
+  ]);
+  const sessionEmail = sessionResult?.email;
+  const sessionVerified = sessionResult?.emailVerified !== false;
+  if (!inviteResult) return { state: { kind: "failed" }, sessionEmail, sessionVerified };
+  const parsed = invitationLinkViewSchema.safeParse(inviteResult.json);
+  if (inviteResult.status !== 200 || !parsed.success) return { state: { kind: "failed" }, sessionEmail, sessionVerified };
+  return {
+    state: parsed.data.status === "valid" ? { kind: "valid", view: parsed.data } : { kind: "invalid" },
+    sessionEmail,
+    sessionVerified
+  };
+}
+
 /** Nyckeln ur adressens #token=… och bort ur adressfältet och historiken (som bekräftelselänken). */
 function takeTokenFromLocation(): string | undefined {
   const token = new URLSearchParams(window.location.hash.slice(1)).get("token") ?? undefined;
@@ -48,20 +79,11 @@ export function InvitationPage() {
       setState(current => current.kind === "checking" ? { kind: "no-token" } : current);
       return;
     }
-    void (async () => {
-      try {
-        const response = await accountRequest("/api/invitation", { method: "POST", body: { formatVersion: 1, token } });
-        const parsed = invitationLinkViewSchema.safeParse(response.json);
-        if (response.status !== 200 || !parsed.success) { setState({ kind: "failed" }); return; }
-        setState(parsed.data.status === "valid" ? { kind: "valid", view: parsed.data } : { kind: "invalid" });
-      } catch { setState({ kind: "failed" }); }
-      try {
-        const session = await fetch("/api/organizer/session", { credentials: "same-origin", cache: "no-store" });
-        const current = session.ok ? parseOrganizerSessionStatus(await session.json() as unknown) : undefined;
-        setSessionEmail(current?.email);
-        setSessionVerified(current?.emailVerified !== false);
-      } catch { /* utan session visas knapparna */ }
-    })();
+    void loadInvitationMount(token).then(result => {
+      setState(result.state);
+      setSessionEmail(result.sessionEmail);
+      setSessionVerified(result.sessionVerified);
+    });
   }, []);
 
   function go(view: Valid, mode: "register" | "login") {

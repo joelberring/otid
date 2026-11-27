@@ -6,7 +6,7 @@ import type { PublicMapListingDetail } from "@o-tid/contracts";
 import { municipalityByCode } from "@o-tid/domain";
 import { mapBankEn } from "../../i18n/map-bank-en";
 import { mapBankSv } from "../../i18n/map-bank-sv";
-import { clubRequest } from "../../lib/club-archive-client";
+import { clubRequest } from "../../lib/club-request";
 import { useTexts } from "../language-provider";
 import { Button, Notice } from "../ui";
 import styles from "./public-map-bank.module.css";

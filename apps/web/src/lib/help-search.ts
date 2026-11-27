@@ -1,5 +1,22 @@
 import { foldForSearch } from "@o-tid/domain";
-import { helpSynonyms, type HelpArticle, type HelpBlock, type HelpView } from "../i18n/help-sv";
+import type { HelpArticle, HelpBlock, HelpView } from "../i18n/help-sv";
+
+/**
+ * Förvalda svenska synonymer när `options.synonyms` utelämnas (samma lista som `helpSynonyms` i `help-sv.ts`, utan
+ * statisk import så att engelska hjälppanelen inte drar in hela `help-sv.ts` i bunten).
+ */
+const DEFAULT_HELP_SYNONYMS: readonly (readonly string[])[] = [
+  ["kartdef", "kontrollbeskrivning", "beskrivningen på kartan"],
+  ["ppen", "purple pen", "purplepen"],
+  ["gaffl", "variant", "grenar", "slinga"],
+  ["bortvald", "bortval", "färre varianter", "begränsa varianter", "längst"],
+  ["hänga", "hänger", "utsättning", "sätta ut", "fältläge", "fältet"],
+  ["tryck", "utskrift", "skriv ut", "pdf"],
+  ["offline", "utan nät"],
+  ["vägval", "rutt", "kalibrer"],
+  ["arkiv", "klubbarkiv"],
+  ["klubbyta", "klubbarkiv", "klubbtillhörighet", "mina klubbar"]
+];
 
 /** En länk till en annan artikel i texten: `[text](#artikel-id)`. */
 export const HELP_LINK = /\[([^\]]+)\]\(#([a-z0-9-]+)\)/g;
@@ -86,7 +103,7 @@ export function listHelpArticles(articles: readonly HelpArticle[], view: HelpVie
     const text = searchable(helpArticleText(article));
     let score = 0;
     for (const word of words) {
-      const alternatives = alternativesFor(word, options.synonyms ?? helpSynonyms);
+      const alternatives = alternativesFor(word, options.synonyms ?? DEFAULT_HELP_SYNONYMS);
       if (title.includes(word)) score += 4;
       else if (alternatives.some(stem => title.includes(stem))) score += 3;
       else if (text.includes(word)) score += 2;

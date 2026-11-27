@@ -11,7 +11,7 @@ import { invitationMailOutcomeSchema, type MapConversionReportView, type MapProj
 import { mapProjectSv } from "../../i18n/map-project-sv";
 import { mapProjectEditorSv } from "../../i18n/map-project-editor-sv";
 import { invitationMailNote } from "../../i18n/invitation-sv";
-import { clubRequest } from "../../lib/club-archive-client";
+import { clubRequest } from "../../lib/club-request";
 import { mapProjectBase } from "../../lib/map-project-client";
 import { AccountMenu } from "../account-menu";
 import { ClubMemberPicker, JoinLinks } from "./map-project-join-panel";

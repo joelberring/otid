@@ -6,7 +6,7 @@ import { mapProjectEn } from "../../i18n/map-project-en";
 import { useLanguage, useTexts, useLocale } from "../language-provider";
 import { MAP_PROJECT_NEW_SCALES, type MapProjectNewFormat } from "@o-tid/contracts";
 import { mapProjectSv } from "../../i18n/map-project-sv";
-import { clubRequest } from "../../lib/club-archive-client";
+import { clubRequest } from "../../lib/club-request";
 import { areaCenterWgs84, areaFromCenter, areaFromGeoJson, parseLatLon, type AreaInput } from "../../lib/map-project-area-input";
 import { declinationAt } from "@o-tid/map-file";
 import { mapProjectsBase } from "../../lib/map-project-client";

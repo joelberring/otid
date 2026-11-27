@@ -6,7 +6,7 @@ import type { MapTextSymbolChange, Point } from "@o-tid/map-file";
 import { newKey, type EditKind, type ObjectKey, type ObjectRef } from "@o-tid/map-revision";
 import { mapProjectTextEn } from "../../i18n/map-project-text-en";
 import { mapProjectTextSv } from "../../i18n/map-project-text-sv";
-import { clubRequest } from "../../lib/club-archive-client";
+import { clubRequest } from "../../lib/club-request";
 import { mapProjectBase } from "../../lib/map-project-client";
 import type { CatalogSymbol } from "../../lib/map-project-protocol";
 import {

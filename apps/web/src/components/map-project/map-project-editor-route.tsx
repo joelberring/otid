@@ -11,7 +11,7 @@ import { mapProjectSv } from "../../i18n/map-project-sv";
 import { mapProjectEditorSv } from "../../i18n/map-project-editor-sv";
 import { mapBankEn } from "../../i18n/map-bank-en";
 import { mapBankSv } from "../../i18n/map-bank-sv";
-import { clubRequest } from "../../lib/club-archive-client";
+import { clubRequest } from "../../lib/club-request";
 import { mapProjectBase } from "../../lib/map-project-client";
 import { forgetMapProjectCopy, saveMapProjectView, savedMapProjectView } from "../../lib/map-project-offline";
 import { Notice } from "../ui";

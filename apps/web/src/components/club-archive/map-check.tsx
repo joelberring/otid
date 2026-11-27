@@ -4,7 +4,7 @@ import type { ClubArchiveListItem, ClubMapCheckView, ClubMapVersionView } from "
 import { clubArchiveChecksEn } from "../../i18n/club-archive-more-en";
 import { useTexts } from "../language-provider";
 import { clubArchiveChecksSv } from "../../i18n/club-archive-checks-sv";
-import { checkExplanation, checkLabel, entryThumbnailUrl, mapThumbnailUrl } from "../../lib/club-archive-thumbnails";
+import { checkExplanation, checkLabel, entryThumbnailUrl, mapThumbnailUrl } from "../../lib/club-archive-check-view";
 import { Explain } from "../ui";
 import styles from "./archive-checks.module.css";
 

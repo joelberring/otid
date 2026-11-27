@@ -48,6 +48,7 @@ export type SplitTable = { columns: SplitTableColumn[]; rows: SplitTableRow[];
   idealMs: number | null };
 
 type ControlRef = { controlCode: number; occurrence: number };
+const svCollator = new Intl.Collator("sv");
 
 /**
  * Kontrollernas ordning: först den godkända löparen med flest sträcktider, sedan läggs kontroller som bara
@@ -57,14 +58,16 @@ function controlOrder(runners: readonly SplitTableRunner[]): ControlRef[] {
   const byLength = [...runners].sort((a, b) => Number(b.ok) - Number(a.ok) || b.splits.length - a.splits.length);
   const order: ControlRef[] = [];
   const keys: string[] = [];
+  const seen = new Set<string>();
   for (const runner of byLength) {
     let previous: string | undefined;
     for (const split of runner.splits) {
       const key = controlPointKey(split.controlCode, split.occurrence);
-      if (!keys.includes(key)) {
+      if (!seen.has(key)) {
         const at = previous === undefined ? 0 : keys.indexOf(previous) + 1;
         keys.splice(at, 0, key);
         order.splice(at, 0, { controlCode: split.controlCode, occurrence: split.occurrence });
+        seen.add(key);
       }
       previous = key;
     }
@@ -106,11 +109,15 @@ export function buildSplitTable(runners: readonly SplitTableRunner[]): SplitTabl
   columns.forEach((column, index) => {
     const legs: { index: number; ms: number }[] = [];
     const totals: { index: number; ms: number }[] = [];
+    let bestLegMs: number | null = null;
     rows.forEach((row, rowIndex) => {
       const cell = row.cells[index];
       if (!row.ok || !cell) return;
       totals.push({ index: rowIndex, ms: cell.elapsedMs });
-      if (cell.legMs !== null) legs.push({ index: rowIndex, ms: cell.legMs });
+      if (cell.legMs !== null) {
+        legs.push({ index: rowIndex, ms: cell.legMs });
+        if (bestLegMs === null || cell.legMs < bestLegMs) bestLegMs = cell.legMs;
+      }
     });
     for (const [rowIndex, place] of places(legs)) {
       const cell = rows[rowIndex]!.cells[index]!;
@@ -118,7 +125,7 @@ export function buildSplitTable(runners: readonly SplitTableRunner[]): SplitTabl
       cell.best = place === 1;
     }
     for (const [rowIndex, place] of places(totals)) rows[rowIndex]!.cells[index]!.elapsedPlace = place;
-    column.bestLegMs = legs.length === 0 ? null : Math.min(...legs.map(leg => leg.ms));
+    column.bestLegMs = bestLegMs;
     for (const row of rows) {
       const cell = row.cells[index];
       if (cell && cell.legMs !== null && column.bestLegMs !== null) cell.lossMs = cell.legMs - column.bestLegMs;
@@ -169,9 +176,11 @@ export function splitTablesByVariant(runners: readonly VariantSplitRunner[]): Va
   const groups = new Map<string, VariantSplitRunner[]>();
   for (const runner of runners) {
     const key = runner.variant ?? "";
-    groups.set(key, [...(groups.get(key) ?? []), runner]);
+    let list = groups.get(key);
+    if (!list) { list = []; groups.set(key, list); }
+    list.push(runner);
   }
-  return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b, "sv")).map(([variant, group]) => ({
+  return [...groups.entries()].sort(([a], [b]) => svCollator.compare(a, b)).map(([variant, group]) => ({
     variant: variant || null, keys: group.map(runner => runner.key), table: buildSplitTable(group)
   }));
 }
@@ -202,13 +211,13 @@ export function buildLegSplitTable(runners: readonly VariantSplitRunner[]): Spli
   };
   const perRunner = runners.map(legsOf);
   const ordered = runners.map((runner, index) => ({ runner, index })).sort((a, b) => Number(b.runner.ok) - Number(a.runner.ok) ||
-    (a.runner.variant ?? "").localeCompare(b.runner.variant ?? "", "sv") || b.runner.splits.length - a.runner.splits.length);
+    svCollator.compare(a.runner.variant ?? "", b.runner.variant ?? "") || b.runner.splits.length - a.runner.splits.length);
   const keys: string[] = [];
   const meta = new Map<string, Leg>();
   for (const { index } of ordered) {
     let previous: string | undefined;
     for (const leg of perRunner[index]!) {
-      if (!keys.includes(leg.key)) {
+      if (!meta.has(leg.key)) {
         keys.splice(previous === undefined ? 0 : keys.indexOf(previous) + 1, 0, leg.key);
         meta.set(leg.key, leg);
       }
@@ -233,13 +242,21 @@ export function buildLegSplitTable(runners: readonly VariantSplitRunner[]): Spli
     }) };
   });
   columns.forEach((column, index) => {
-    const legs = rows.flatMap((row, rowIndex) => row.ok && row.cells[index]?.legMs != null ? [{ index: rowIndex, ms: row.cells[index].legMs }] : []);
+    const legs: { index: number; ms: number }[] = [];
+    let bestLegMs: number | null = null;
+    for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+      const row = rows[rowIndex]!;
+      const legMs = row.ok ? row.cells[index]?.legMs : null;
+      if (legMs == null) continue;
+      legs.push({ index: rowIndex, ms: legMs });
+      if (bestLegMs === null || legMs < bestLegMs) bestLegMs = legMs;
+    }
     for (const [rowIndex, place] of places(legs)) {
       const cell = rows[rowIndex]!.cells[index]!;
       cell.place = place;
       cell.best = place === 1;
     }
-    column.bestLegMs = legs.length === 0 ? null : Math.min(...legs.map(leg => leg.ms));
+    column.bestLegMs = bestLegMs;
     for (const row of rows) {
       const cell = row.cells[index];
       if (cell && cell.legMs !== null && column.bestLegMs !== null) cell.lossMs = cell.legMs - column.bestLegMs;

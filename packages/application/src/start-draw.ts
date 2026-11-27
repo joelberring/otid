@@ -29,6 +29,77 @@ type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 type Authentication = RaceSessionProof;
 const MAX_VERSION = 2_147_483_647;
 const DEFAULT_INTERVAL_MINUTES = 2;
+const svCollator = new Intl.Collator("sv-SE");
+
+function pgUuidArray(values: readonly string[]): string {
+  for (const id of values) if (!uuid.test(id)) throw new Error("Ogiltigt id i urvalet");
+  return `{${values.join(",")}}`;
+}
+
+function pgIntArray(values: readonly number[]): string {
+  for (const n of values) if (!Number.isSafeInteger(n)) throw new Error("Ogiltigt heltal i urvalet");
+  return `{${values.join(",")}}`;
+}
+
+function pgNullableIntArray(values: readonly (number | null)[]): string {
+  return `{${values.map(v => {
+    if (v === null) return "NULL";
+    if (!Number.isSafeInteger(v)) throw new Error("Ogiltigt heltal i urvalet");
+    return String(v);
+  }).join(",")}}`;
+}
+
+function pgNullableTimestamptzArray(values: readonly (string | null)[]): string {
+  return `{${values.map(v => {
+    if (v === null) return "NULL";
+    const ms = Date.parse(v);
+    if (!Number.isFinite(ms)) throw new Error("Ogiltig tidpunkt i urvalet");
+    return `"${new Date(ms).toISOString()}"`;
+  }).join(",")}}`;
+}
+
+function groupEntriesByClass(entries: readonly DrawBasisEntry[]): Map<string, DrawBasisEntry[]> {
+  const byClass = new Map<string, DrawBasisEntry[]>();
+  for (const entry of entries) {
+    let list = byClass.get(entry.classId);
+    if (!list) { list = []; byClass.set(entry.classId, list); }
+    list.push(entry);
+  }
+  return byClass;
+}
+
+export class StartDrawVersionConflictError extends Error {
+  constructor() { super("Deltagarens version ändrades under lottningen"); }
+}
+
+/**
+ * Batchuppdaterar starttider med strikt optimistisk versionskontroll (`expected_version`).
+ * Kastar `StartDrawVersionConflictError` om någon rad inte längre har förväntad version.
+ */
+export async function updateDrawnEntryStartTimes(
+  tx: Transaction,
+  raceId: string,
+  updates: readonly { readonly id: string; readonly fixedStartTime: string | null; readonly expectedVersion: number }[]
+): Promise<void> {
+  if (updates.length === 0) return;
+  if (!uuid.test(raceId)) throw new Error("Ogiltigt tävlings-id");
+  if (updates.some(row => row.expectedVersion >= MAX_VERSION)) throw new Error("Deltagarens version är slut");
+  for (let offset = 0; offset < updates.length; offset += 1_000) {
+    const chunk = updates.slice(offset, offset + 1_000);
+    const updated = await tx.execute<{ id: string }>(sql`
+      update ${schema.entries} as e
+      set fixed_start_time = v.fixed_start_time, version = v.expected_version + 1
+      from unnest(
+        ${pgUuidArray(chunk.map(row => row.id))}::uuid[],
+        ${pgNullableTimestamptzArray(chunk.map(row => row.fixedStartTime))}::timestamptz[],
+        ${pgIntArray(chunk.map(row => row.expectedVersion))}::integer[]
+      ) as v(id, fixed_start_time, expected_version)
+      where e.id = v.id and e.race_id = ${raceId}::uuid and e.version = v.expected_version
+      returning e.id
+    `);
+    if (updated.rows.length !== chunk.length) throw new StartDrawVersionConflictError();
+  }
+}
 
 type Settings = Omit<StartDrawPreviewRequest, "formatVersion">;
 
@@ -56,8 +127,8 @@ async function activeCards(tx: Transaction, raceId: string): Promise<Map<string,
 }
 
 const iso = (ms: number) => new Date(ms).toISOString();
-const hasStartTimes = (raceClass: DrawBasisClass, entries: readonly DrawBasisEntry[]) =>
-  raceClass.startDrawId !== null || entries.some(entry => entry.classId === raceClass.id && entry.fixedStartTime !== null);
+const hasStartTimes = (raceClass: DrawBasisClass, classEntries: readonly DrawBasisEntry[]) =>
+  raceClass.startDrawId !== null || classEntries.some(entry => entry.fixedStartTime !== null);
 
 type Computed = {
   draw: StartDrawResult; classes: DrawBasisClass[]; entries: DrawBasisEntry[]; plans: Map<string, DrawPlan>; seeds: Map<string, number>;
@@ -72,6 +143,7 @@ async function compute(tx: Transaction, raceId: string, snapshotVersion: number,
   const loaded = await loadDrawEntries(tx, raceId, lock);
   if (loaded === "too-large") return "too-large";
   const entries = loaded;
+  const entriesByClass = groupEntriesByClass(entries);
   const byId = new Map(classes.map(row => [row.id, row]));
   if (settings.classes.some(row => !byId.has(row.classId))) return "not-found";
   const selected = new Map(settings.classes.map(row => [row.classId, row]));
@@ -80,7 +152,7 @@ async function compute(tx: Transaction, raceId: string, snapshotVersion: number,
   // Klasser som inte lottas nu behåller sina tider (löpare och vakanta tider); de nya tiderna läggs runt dem.
   const existing: StartDrawExistingClass[] = classes.filter(row => !selected.has(row.id) && row.startRule === "FIXED").map(row => ({
     classId: row.id, startControls: row.startControls, startTimesMs: [...new Set([
-      ...entries.filter(entry => entry.classId === row.id && entry.fixedStartTime !== null).map(entry => entry.fixedStartTime!.getTime()),
+      ...(entriesByClass.get(row.id) ?? []).flatMap(entry => entry.fixedStartTime !== null ? [entry.fixedStartTime.getTime()] : []),
       ...(plans.get(row.id)?.slots.map(slot => slot.startTime.getTime()) ?? [])])] })).filter(row => row.startTimesMs.length > 0);
   // Seedningen i begäran gäller för de lottade klasserna; utan den gäller den sparade.
   const requested = settings.seeds ? new Map(settings.seeds.map(row => [row.entryId, row.rank])) : null;
@@ -97,7 +169,7 @@ async function compute(tx: Transaction, raceId: string, snapshotVersion: number,
         startControls: byId.get(row.classId)!.startControls, method: row.method, intervalMinutes: row.intervalMinutes,
         vacancies: row.vacancies, laterStart: !row.laterStart ? null : row.laterStart.kind === "CLOCK"
           ? { kind: "CLOCK" as const, startMs: Date.parse(row.laterStart.startTime) } : row.laterStart,
-        runners: entries.filter(entry => entry.classId === row.classId)
+        runners: (entriesByClass.get(row.classId) ?? [])
           .map(entry => ({ entryId: entry.id, club: entry.organisationName, seedRank: seeds.get(entry.id) ?? null })) }]) });
   } catch (error) {
     if (error instanceof StartDrawError) return error.code === "TOO_LARGE" ? "too-large" : "invalid-request";
@@ -107,8 +179,9 @@ async function compute(tx: Transaction, raceId: string, snapshotVersion: number,
   const nameOf = (classId: string) => byId.get(classId)!.name;
   const entryTimes = new Map<string, string | null>();
   for (const result of draw.classes) for (const slot of result.slots) if (slot.entryId !== null) entryTimes.set(slot.entryId, iso(slot.startMs));
-  for (const row of settings.classes.filter(item => item.method === "FREE")) {
-    for (const entry of entries.filter(item => item.classId === row.classId)) entryTimes.set(entry.id, null);
+  for (const row of settings.classes) {
+    if (row.method !== "FREE") continue;
+    for (const entry of entriesByClass.get(row.classId) ?? []) entryTimes.set(entry.id, null);
   }
   const startRuleOf = (classId: string) => selected.get(classId)!.method === "FREE" ? "PUNCH" as const : "FIXED" as const;
   const changedEntryIds = new Set(entries.filter(entry => entryTimes.has(entry.id) &&
@@ -130,15 +203,16 @@ async function compute(tx: Transaction, raceId: string, snapshotVersion: number,
     return entry ? { id: entry.id, name: `${entry.givenName} ${entry.familyName}`, club: entry.organisationName,
       card: cards.get(entry.id) ?? null, variantCode: variants.get(entry.id) ?? entry.courseVariantCode, seedRank: seeds.get(entry.id) ?? null } : null;
   };
-  const sortedSettings = [...settings.classes].sort((a, b) => byId.get(a.classId)!.name.localeCompare(byId.get(b.classId)!.name, "sv-SE"));
+  const sortedSettings = [...settings.classes].sort((a, b) => svCollator.compare(byId.get(a.classId)!.name, byId.get(b.classId)!.name));
   const previewClasses = sortedSettings.map(row => {
     const raceClass = byId.get(row.classId)!;
+    const classEntries = entriesByClass.get(row.classId) ?? [];
     const result = drawnByClass.get(row.classId);
     const slots = !result ? [] : result.slots.map(slot => ({ startTime: iso(slot.startMs), entry: slotEntry(slot.entryId) }));
-    if (row.method === "MASS") slots.sort((a, b) => (a.entry?.name ?? "").localeCompare(b.entry?.name ?? "", "sv-SE"));
+    if (row.method === "MASS") slots.sort((a, b) => svCollator.compare(a.entry?.name ?? "", b.entry?.name ?? ""));
     const replaces = row.method === "FREE"
-      ? entries.some(entry => entry.classId === row.classId && entry.fixedStartTime !== null)
-      : hasStartTimes(raceClass, entries);
+      ? classEntries.some(entry => entry.fixedStartTime !== null)
+      : hasStartTimes(raceClass, classEntries);
     return { classId: row.classId, className: raceClass.name, method: row.method, firstStartTime: result ? iso(result.firstStartMs) : null,
       intervalMinutes: row.intervalMinutes, vacancyCount: result?.vacancyCount ?? 0, replacesStartTimes: replaces, slots };
   });
@@ -192,6 +266,7 @@ export async function loadStartDrawSetupAsAdmin(db: Database, input: Authenticat
     const classes = await loadDrawClasses(tx, raceId);
     const entries = await loadDrawEntries(tx, raceId, false);
     if (entries === "too-large") return { status: "too-large" };
+    const entriesByClass = groupEntriesByClass(entries);
     const plans = await loadDrawPlans(tx, classes);
     const firstStarts = [...plans.values()].map(plan => plan.firstStartTime.getTime());
     const cards = await activeCards(tx, raceId);
@@ -202,11 +277,12 @@ export async function loadStartDrawSetupAsAdmin(db: Database, input: Authenticat
       firstStartTime: firstStarts.length === 0 ? null : iso(Math.min(...firstStarts)),
       classes: classes.map(row => {
         const plan = plans.get(row.id);
+        const classEntries = entriesByClass.get(row.id) ?? [];
         return { id: row.id, name: row.name, courseName: row.courseName, firstControlCode: row.firstControlCode,
-          entryCount: entries.filter(entry => entry.classId === row.id).length,
+          entryCount: classEntries.length,
           method: row.startRule === "PUNCH" ? "FREE" : plan?.method ?? "MINUTE",
           intervalMinutes: plan ? plan.intervalSeconds / 60 : DEFAULT_INTERVAL_MINUTES,
-          vacancies: { kind: "COUNT", value: plan?.vacancyCount ?? 0 }, hasStartTimes: hasStartTimes(row, entries) };
+          vacancies: { kind: "COUNT", value: plan?.vacancyCount ?? 0 }, hasStartTimes: hasStartTimes(row, classEntries) };
       }),
       settings: saved && { rules: { ...saved.rules, classOrder: saved.rules.classOrder?.filter(id => classIds.has(id)) ?? null },
         laterStarts: saved.laterStarts.filter(row => classIds.has(row.classId)) },
@@ -248,32 +324,45 @@ async function writeDraw(tx: Transaction, input: { raceId: string; requestId: st
     actorAccountId: input.actorAccountId, seed: input.seed, request: input.response.request, response: input.response,
     snapshotVersionBefore: input.snapshotVersionBefore, snapshotVersionAfter: input.snapshotVersionBefore + 1, drawnAt: input.now }).returning();
   if (!saved) throw new Error("Lottningen kunde inte sparas");
-  for (const result of computed.draw.classes) {
-    await tx.insert(schema.startDrawClasses).values({ drawId: saved.id, raceId, classId: result.classId, method: result.method,
-      firstStartTime: new Date(result.firstStartMs), intervalSeconds: result.intervalMinutes * 60, vacancyCount: result.vacancyCount });
-    const slots = result.slots.map((slot, position) => ({ drawId: saved.id, classId: result.classId, position,
-      startTime: new Date(slot.startMs), entryId: slot.entryId }));
-    for (let offset = 0; offset < slots.length; offset += 1_000) await tx.insert(schema.startDrawSlots).values(slots.slice(offset, offset + 1_000));
+  if (computed.draw.classes.length > 0) {
+    await tx.insert(schema.startDrawClasses).values(computed.draw.classes.map(result => ({
+      drawId: saved.id, raceId, classId: result.classId, method: result.method,
+      firstStartTime: new Date(result.firstStartMs), intervalSeconds: result.intervalMinutes * 60, vacancyCount: result.vacancyCount
+    })));
+    const allSlots = computed.draw.classes.flatMap(result => result.slots.map((slot, position) => ({
+      drawId: saved.id, classId: result.classId, position, startTime: new Date(slot.startMs), entryId: slot.entryId
+    })));
+    for (let offset = 0; offset < allSlots.length; offset += 1_000) {
+      await tx.insert(schema.startDrawSlots).values(allSlots.slice(offset, offset + 1_000));
+    }
   }
   for (const row of input.settings.classes) {
     const drawn = row.method !== "FREE";
     await tx.update(schema.classes).set({ startRule: drawn ? "FIXED" : "PUNCH", startDrawId: drawn ? saved.id : null })
       .where(and(eq(schema.classes.id, row.classId), eq(schema.classes.raceId, raceId)));
   }
-  const entries = computed.entries.filter(entry => computed.changedEntryIds.has(entry.id));
-  if (entries.some(entry => entry.version >= MAX_VERSION)) throw new Error("Deltagarens version är slut");
-  for (const entry of entries) {
-    const time = computed.entryTimes.get(entry.id)!;
-    await tx.update(schema.entries).set({ fixedStartTime: time === null ? null : new Date(time), version: entry.version + 1 })
-      .where(and(eq(schema.entries.id, entry.id), eq(schema.entries.raceId, raceId), eq(schema.entries.version, entry.version)));
-  }
+  const startTimeUpdates = computed.entries
+    .filter(entry => computed.changedEntryIds.has(entry.id))
+    .map(entry => ({ id: entry.id, fixedStartTime: computed.entryTimes.get(entry.id)!, expectedVersion: entry.version }));
+  await updateDrawnEntryStartTimes(tx, raceId, startTimeUpdates);
   await writeEntryVariants(tx, raceId, computed.variants);
   // Seedningen för de lottade klassernas löpare, när begäran har den (PLAN.md steg 26). Den påverkar inga resultat.
   if (input.settings.seeds) {
     const drawn = new Set(input.settings.classes.map(row => row.classId));
-    for (const entry of computed.entries.filter(row => drawn.has(row.classId) && (computed.seeds.get(row.id) ?? null) !== row.seedRank)) {
-      await tx.update(schema.entries).set({ seedRank: computed.seeds.get(entry.id) ?? null })
-        .where(and(eq(schema.entries.id, entry.id), eq(schema.entries.raceId, raceId)));
+    const seedUpdates = computed.entries
+      .filter(row => drawn.has(row.classId) && (computed.seeds.get(row.id) ?? null) !== row.seedRank)
+      .map(entry => ({ id: entry.id, seedRank: computed.seeds.get(entry.id) ?? null }));
+    for (let offset = 0; offset < seedUpdates.length; offset += 1_000) {
+      const chunk = seedUpdates.slice(offset, offset + 1_000);
+      await tx.execute(sql`
+        update ${schema.entries} as e
+        set seed_rank = v.seed_rank
+        from unnest(
+          ${pgUuidArray(chunk.map(row => row.id))}::uuid[],
+          ${pgNullableIntArray(chunk.map(row => row.seedRank))}::integer[]
+        ) as v(id, seed_rank)
+        where e.id = v.id and e.race_id = ${raceId}::uuid
+      `);
     }
   }
   if (input.settings.rules) await writeSettings(tx, raceId, input.settings, input.settings.rules);
@@ -295,51 +384,56 @@ export async function commitStartDrawAsAdmin(db: Database, input: Authentication
   const authentication = { ...input, role: "ADMIN" as const, requireCsrf: true };
   const initial = await requireRaceRole(db, authentication, now);
   if (initial.status !== "authenticated") return initial;
-  return db.transaction(async tx => {
-    const auth = await requireRaceRole(tx, authentication, now, "update");
-    if (auth.status !== "authenticated") return auth;
-    const raceId = auth.principal.raceId;
-    const race = await lockRaceForMutation(tx, raceId);
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${"start-draw:" + intent.requestId}, 0))`);
-    const [prior] = await tx.select().from(schema.startDrawRequests).where(eq(schema.startDrawRequests.requestId, intent.requestId));
-    if (prior) {
-      const response = startDrawResponseSchema.parse(prior.response);
-      if (prior.raceId !== raceId || prior.actorAccountId !== auth.principal.accountId ||
-          JSON.stringify(response.request) !== JSON.stringify(intent)) return { status: "conflict" };
-      return { status: "drawn", response: { ...response, replayed: true } };
-    }
-    if (race.snapshotVersion >= MAX_VERSION) return { status: "conflict" };
-    const computed = await compute(tx, raceId, race.snapshotVersion, intent, intent.seed, true);
-    if (typeof computed === "string") return { status: computed };
-    if (computed.preview.requiresConfirmation && !intent.confirmChanges) return { status: "confirmation-required", preview: computed.preview };
-    const snapshotVersionAfter = race.snapshotVersion + 1;
-    const response = startDrawResponseSchema.parse({ formatVersion: 1, replayed: false, requestId: intent.requestId, raceId, request: intent,
-      classCount: intent.classes.length, entryCount: computed.draw.classes.reduce((sum, row) => sum + row.slots.filter(slot => slot.entryId !== null).length, 0),
-      vacancyCount: computed.draw.classes.reduce((sum, row) => sum + row.vacancyCount, 0),
-      recalculatedCount: computed.assessed.filter(row => row.recalculate).length,
-      snapshotVersionBefore: race.snapshotVersion, snapshotVersionAfter, drawnAt: now.toISOString() });
-    const saved = await writeDraw(tx, { raceId, requestId: intent.requestId, computed, settings: intent, seed: intent.seed,
-      actorAccountId: auth.principal.accountId, snapshotVersionBefore: race.snapshotVersion, response, now });
-    // ADR-0188 beslut 2: lottningens första start är tävlingens första start (samma värde som Inställningar visar).
-    const { timeZone } = await raceMetadata(tx, raceId);
-    const firstStartClock = formatHourMinute(intent.firstStartTime, timeZone);
-    await tx.update(schema.races).set({ firstStartTime: firstStartClock }).where(eq(schema.races.id, raceId));
-    await bumpReadoutPackageVersion(tx, raceId);
-    // Omräkning mot det sparade läget; databasen sätter varje ny revisions underlagshash.
-    const courseVersions = new Map(computed.classes.map(row => [row.id, row.courseVersionId]));
-    const recalculated = await recalculateAssessedEntries(tx, { raceId, assessed: computed.assessed,
-      snapshot: await loadRaceSnapshot(tx, raceId), snapshotVersion: snapshotVersionAfter, courseVersionId: courseVersions });
-    await tx.insert(schema.auditEvents).values({ raceId, entityType: "start_draw", entityId: saved.id, requestId: intent.requestId,
-      actorKind: "USER_ACCOUNT", actorId: auth.principal.accountId, action: "START_DRAW_COMMITTED",
-      before: { snapshotVersion: race.snapshotVersion },
-      after: { snapshotVersion: snapshotVersionAfter, firstStartTime: firstStartClock, classIds: intent.classes.map(row => row.classId),
-        changedEntryCount: computed.changedEntryIds.size, recalculatedCount: recalculated.length }, createdAt: now });
-    if (recalculated.length > 0) {
-      await tx.insert(schema.auditEvents).values(recalculated.map(item => ({ raceId, entityType: "result_revision",
-        entityId: item.resultRevisionId, action: "RESULT_RECALCULATED_AFTER_START_DRAW", actorKind: "USER_ACCOUNT" as const,
-        actorId: auth.principal.accountId, requestId: intent.requestId,
-        after: { entryId: item.entryId, revision: item.revision, cause: "EXPLICIT_RECALCULATION" }, createdAt: now })));
-    }
-    return { status: "drawn", response };
-  });
+  try {
+    return await db.transaction(async tx => {
+      const auth = await requireRaceRole(tx, authentication, now, "update");
+      if (auth.status !== "authenticated") return auth;
+      const raceId = auth.principal.raceId;
+      const race = await lockRaceForMutation(tx, raceId);
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${"start-draw:" + intent.requestId}, 0))`);
+      const [prior] = await tx.select().from(schema.startDrawRequests).where(eq(schema.startDrawRequests.requestId, intent.requestId));
+      if (prior) {
+        const response = startDrawResponseSchema.parse(prior.response);
+        if (prior.raceId !== raceId || prior.actorAccountId !== auth.principal.accountId ||
+            JSON.stringify(response.request) !== JSON.stringify(intent)) return { status: "conflict" };
+        return { status: "drawn", response: { ...response, replayed: true } };
+      }
+      if (race.snapshotVersion >= MAX_VERSION) return { status: "conflict" };
+      const computed = await compute(tx, raceId, race.snapshotVersion, intent, intent.seed, true);
+      if (typeof computed === "string") return { status: computed };
+      if (computed.preview.requiresConfirmation && !intent.confirmChanges) return { status: "confirmation-required", preview: computed.preview };
+      const snapshotVersionAfter = race.snapshotVersion + 1;
+      const response = startDrawResponseSchema.parse({ formatVersion: 1, replayed: false, requestId: intent.requestId, raceId, request: intent,
+        classCount: intent.classes.length, entryCount: computed.draw.classes.reduce((sum, row) => sum + row.slots.filter(slot => slot.entryId !== null).length, 0),
+        vacancyCount: computed.draw.classes.reduce((sum, row) => sum + row.vacancyCount, 0),
+        recalculatedCount: computed.assessed.filter(row => row.recalculate).length,
+        snapshotVersionBefore: race.snapshotVersion, snapshotVersionAfter, drawnAt: now.toISOString() });
+      const saved = await writeDraw(tx, { raceId, requestId: intent.requestId, computed, settings: intent, seed: intent.seed,
+        actorAccountId: auth.principal.accountId, snapshotVersionBefore: race.snapshotVersion, response, now });
+      // ADR-0188 beslut 2: lottningens första start är tävlingens första start (samma värde som Inställningar visar).
+      const { timeZone } = await raceMetadata(tx, raceId);
+      const firstStartClock = formatHourMinute(intent.firstStartTime, timeZone);
+      await tx.update(schema.races).set({ firstStartTime: firstStartClock }).where(eq(schema.races.id, raceId));
+      await bumpReadoutPackageVersion(tx, raceId);
+      // Omräkning mot det sparade läget; databasen sätter varje ny revisions underlagshash.
+      const courseVersions = new Map(computed.classes.map(row => [row.id, row.courseVersionId]));
+      const recalculated = await recalculateAssessedEntries(tx, { raceId, assessed: computed.assessed,
+        snapshot: await loadRaceSnapshot(tx, raceId), snapshotVersion: snapshotVersionAfter, courseVersionId: courseVersions });
+      await tx.insert(schema.auditEvents).values({ raceId, entityType: "start_draw", entityId: saved.id, requestId: intent.requestId,
+        actorKind: "USER_ACCOUNT", actorId: auth.principal.accountId, action: "START_DRAW_COMMITTED",
+        before: { snapshotVersion: race.snapshotVersion },
+        after: { snapshotVersion: snapshotVersionAfter, firstStartTime: firstStartClock, classIds: intent.classes.map(row => row.classId),
+          changedEntryCount: computed.changedEntryIds.size, recalculatedCount: recalculated.length }, createdAt: now });
+      if (recalculated.length > 0) {
+        await tx.insert(schema.auditEvents).values(recalculated.map(item => ({ raceId, entityType: "result_revision",
+          entityId: item.resultRevisionId, action: "RESULT_RECALCULATED_AFTER_START_DRAW", actorKind: "USER_ACCOUNT" as const,
+          actorId: auth.principal.accountId, requestId: intent.requestId,
+          after: { entryId: item.entryId, revision: item.revision, cause: "EXPLICIT_RECALCULATION" }, createdAt: now })));
+      }
+      return { status: "drawn", response };
+    });
+  } catch (error) {
+    if (error instanceof StartDrawVersionConflictError) return { status: "conflict" };
+    throw error;
+  }
 }

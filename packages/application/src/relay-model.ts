@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, getTableColumns, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, isNotNull, isNull, sql } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
 import type { RelayApprovalRule, RelayChangeoverRule, RelayForkingMode, RelayLegRule, RelayRestartRanking, RelayStartMethod,
   StoredResultStatus } from "@o-tid/domain";
@@ -39,28 +39,50 @@ export interface RelayClassConfig {
 
 /** Stafettklasserna i loppet med sträckor i ordning. En klass utan sträckor är individuell. */
 export async function loadRelayClassConfigs(tx: Executor, raceId: string): Promise<Map<string, RelayClassConfig>> {
-  const rows = await tx.select().from(schema.relayLegs).where(eq(schema.relayLegs.raceId, raceId))
+  const rows = await tx.select({
+    classId: schema.relayLegs.classId,
+    leg: schema.relayLegs.leg,
+    startMethod: schema.relayLegs.startMethod,
+    courseVariantCode: schema.relayLegs.courseVariantCode,
+    courseVersionId: schema.relayLegs.courseVersionId,
+    runners: schema.relayLegs.runners,
+    changeoverRule: schema.relayLegs.changeoverRule,
+    approvalRule: schema.relayLegs.approvalRule,
+    startTime: schema.relayLegs.startTime,
+    restartAfterMinutes: schema.relayLegs.restartAfterMinutes,
+    classCourseVersionId: schema.classes.courseVersionId,
+    restartRanking: schema.classes.relayRestartRanking,
+    forking: schema.classes.relayForking,
+    changeoverCode: schema.classes.relayChangeoverCode,
+    readoutMode: schema.classes.relayReadoutMode
+  }).from(schema.relayLegs)
+    .innerJoin(schema.classes, and(eq(schema.classes.id, schema.relayLegs.classId), eq(schema.classes.raceId, schema.relayLegs.raceId)))
+    .where(eq(schema.relayLegs.raceId, raceId))
     .orderBy(asc(schema.relayLegs.classId), asc(schema.relayLegs.leg));
   if (rows.length === 0) return new Map();
-  const classRows = await tx.select({ id: schema.classes.id, courseVersionId: schema.classes.courseVersionId,
-    restartRanking: schema.classes.relayRestartRanking, forking: schema.classes.relayForking,
-    changeoverCode: schema.classes.relayChangeoverCode, readoutMode: schema.classes.relayReadoutMode }).from(schema.classes)
-    .where(and(eq(schema.classes.raceId, raceId), inArray(schema.classes.id, [...new Set(rows.map(row => row.classId))])));
-  const settings = new Map(classRows.map(row => [row.id, row]));
-  const configs = new Map<string, RelayLegConfig[]>();
+  const result = new Map<string, RelayClassConfig>();
+  const legsByClass = new Map<string, RelayLegConfig[]>();
   for (const row of rows) {
-    const legs = configs.get(row.classId) ?? [];
+    let legs = legsByClass.get(row.classId);
+    if (!legs) {
+      legs = [];
+      legsByClass.set(row.classId, legs);
+      result.set(row.classId, {
+        classId: row.classId,
+        legs,
+        restartRanking: row.restartRanking ?? "AFTER_NORMAL",
+        forking: row.forking ?? "EVEN",
+        classCourseVersionId: row.classCourseVersionId,
+        changeoverCode: row.changeoverCode,
+        readoutMode: row.readoutMode
+      });
+    }
     legs.push({ leg: row.leg, startMethod: row.startMethod as RelayStartMethod, variantCode: row.courseVariantCode,
       courseVersionId: row.courseVersionId, runners: row.runners, changeoverRule: row.changeoverRule, approvalRule: row.approvalRule,
       ...(row.startTime ? { startTime: row.startTime.toISOString() } : {}),
       ...(row.restartAfterMinutes !== null ? { restartAfterMinutes: row.restartAfterMinutes } : {}) });
-    configs.set(row.classId, legs);
   }
-  return new Map([...configs].map(([classId, legs]) => {
-    const setting = settings.get(classId)!;
-    return [classId, { classId, legs, restartRanking: setting.restartRanking ?? "AFTER_NORMAL", forking: setting.forking ?? "EVEN",
-      classCourseVersionId: setting.courseVersionId, changeoverCode: setting.changeoverCode, readoutMode: setting.readoutMode }];
-  }));
+  return result;
 }
 
 /** Banversionen som sträckan springer. */
@@ -72,7 +94,7 @@ export async function loadRelayTeams(tx: Executor, raceId: string, teamIds?: rea
   if (teamIds && teamIds.length === 0) return [];
   return tx.select({ id: schema.teams.id, classId: schema.teams.classId, number: schema.teams.number, name: schema.teams.name,
     organisationName: schema.teams.organisationName }).from(schema.teams)
-    .where(and(eq(schema.teams.raceId, raceId), isNull(schema.teams.struckAt), ...(teamIds ? [inArray(schema.teams.id, [...teamIds])] : [])))
+    .where(and(eq(schema.teams.raceId, raceId), isNull(schema.teams.struckAt), ...(teamIds ? [inUuids(schema.teams.id, teamIds)] : [])))
     .orderBy(asc(schema.teams.number));
 }
 export type RelayTeamRow = Awaited<ReturnType<typeof loadRelayTeams>>[number];
@@ -86,7 +108,7 @@ export async function loadRelayLegEntries(tx: Executor, raceId: string, teamIds?
     courseVariantCode: schema.entries.courseVariantCode, publicResultId: schema.entries.publicResultId,
     legOrder: schema.entries.relayLegOrder, cardEntryId: schema.entries.relayCardEntryId }).from(schema.entries)
     .where(and(eq(schema.entries.raceId, raceId), isNotNull(schema.entries.teamId), isNull(schema.entries.struckAt),
-      ...(teamIds ? [inArray(schema.entries.teamId, [...teamIds])] : [])))
+      ...(teamIds ? [inUuids(schema.entries.teamId, teamIds)] : [])))
     .orderBy(asc(schema.entries.teamId), asc(schema.entries.relayLeg), asc(sql`coalesce(${schema.entries.relayLegOrder}, 1)`));
   return rows.map(row => ({ ...row, teamId: row.teamId!, leg: row.leg!, legOrder: row.legOrder ?? 1 }));
 }
@@ -105,16 +127,18 @@ export async function relayTeamOfEntry(tx: Executor, entryId: string): Promise<s
  */
 export async function loadRelayLegFinishTimes(tx: Executor, raceId: string, entryIds: readonly string[]): Promise<Map<string, string>> {
   if (entryIds.length === 0) return new Map();
-  const rows = await tx.select({ entryId: schema.resultRevisions.entryId, revision: schema.resultRevisions.revision,
-    evaluation: schema.resultRevisions.evaluation, readoutFinish: schema.cardReadouts.finishPunchedAt })
+  const rows = await tx.select({
+    entryId: schema.resultRevisions.entryId,
+    evaluatedFinish: sql<string | null>`case when jsonb_typeof(${schema.resultRevisions.evaluation} -> 'finishTime') = 'string' then ${schema.resultRevisions.evaluation} ->> 'finishTime' else null end`,
+    readoutFinish: schema.cardReadouts.finishPunchedAt
+  })
     .from(schema.resultRevisions).leftJoin(schema.cardReadouts, eq(schema.cardReadouts.id, schema.resultRevisions.readoutId))
     .where(and(eq(schema.resultRevisions.raceId, raceId), inUuids(schema.resultRevisions.entryId, entryIds)))
     .orderBy(asc(schema.resultRevisions.entryId), desc(schema.resultRevisions.revision));
   const finishes = new Map<string, string>();
   for (const row of rows) {
     if (finishes.has(row.entryId)) continue;
-    const evaluated = "finishTime" in row.evaluation && typeof row.evaluation.finishTime === "string" ? row.evaluation.finishTime : undefined;
-    const finish = evaluated ?? row.readoutFinish?.toISOString();
+    const finish = row.evaluatedFinish ?? row.readoutFinish?.toISOString();
     if (finish) finishes.set(row.entryId, new Date(finish).toISOString());
   }
   return finishes;

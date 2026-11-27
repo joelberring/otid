@@ -35,7 +35,17 @@ export type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 export type Failure = { status: "unauthorized" | "forbidden" | "invalid-request" | "not-found" | "too-large" };
 export type Conflict = { status: "version-conflict"; conflict: CourseSettingConflict };
 export type ReadProof = Omit<RaceSessionProof, "csrfCookie" | "csrfHeader">;
-export type Row = typeof schema.courseSettings.$inferSelect;
+const settingColumns = {
+  raceId: schema.courseSettings.raceId,
+  document: schema.courseSettings.document,
+  version: schema.courseSettings.version,
+  updatedAt: schema.courseSettings.updatedAt,
+  updatedBy: schema.courseSettings.updatedBy,
+  originalFileName: schema.courseSettings.originalFileName,
+  originalImportedAt: schema.courseSettings.originalImportedAt,
+  mode: schema.courseSettings.mode
+};
+export type Row = Omit<typeof schema.courseSettings.$inferSelect, "originalPpen">;
 type Kind = "SAVE" | "IMPORT" | "RESTORE";
 /** Versioner vars ändringar (`course_setting_change`) behålls för att se konflikter. */
 const CHANGES_KEPT = 500;
@@ -71,7 +81,7 @@ const adminRead = <T>(db: Database, input: ReadProof, now: Date, read: (tx: Tran
   courseSettingRead(db, input, now, read, "ADMIN");
 
 export async function loadRow(tx: Transaction, raceId: string): Promise<Row | undefined> {
-  const [row] = await tx.select().from(schema.courseSettings).where(eq(schema.courseSettings.raceId, raceId));
+  const [row] = await tx.select(settingColumns).from(schema.courseSettings).where(eq(schema.courseSettings.raceId, raceId));
   return row;
 }
 
@@ -231,9 +241,10 @@ export async function listCourseSettingRevisionsAsAdmin(db: Database, input: Rea
     const columns = { version: table.version, kind: table.kind, createdAt: table.createdAt, createdBy: table.createdBy, label: table.label,
       courses: sql<number>`jsonb_array_length(${table.document}->'courses')`,
       controls: sql<number>`(select count(*) from jsonb_object_keys(${table.document}->'controls'))::int` };
-    const [unnamed, named] = await Promise.all([
-      tx.select(columns).from(table).where(and(eq(table.raceId, raceId), isNull(table.label))).orderBy(desc(table.version)).limit(COURSE_SETTING_REVISIONS_KEPT),
-      tx.select(columns).from(table).where(and(eq(table.raceId, raceId), isNotNull(table.label))).orderBy(desc(table.version)).limit(COURSE_SETTING_NAMED_REVISIONS_MAX)]);
+    const unnamed = await tx.select(columns).from(table).where(and(eq(table.raceId, raceId), isNull(table.label)))
+      .orderBy(desc(table.version)).limit(COURSE_SETTING_REVISIONS_KEPT);
+    const named = await tx.select(columns).from(table).where(and(eq(table.raceId, raceId), isNotNull(table.label)))
+      .orderBy(desc(table.version)).limit(COURSE_SETTING_NAMED_REVISIONS_MAX);
     const rows = [...unnamed, ...named].sort((a, b) => b.version - a.version);
     const names = await actors(tx, rows.map(row => row.createdBy));
     return { status: "ok" as const, response: courseSettingRevisionsSchema.parse({ formatVersion: 1, raceId,

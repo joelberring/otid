@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import {
   accountClubAddRequestSchema, accountClubRemoveRequestSchema, accountClubStepRequestSchema, clubAffiliationDecisionRequestSchema,
   type AccountClubMembershipView, type AccountClubsResponse, type ClubAffiliationPerson,
@@ -7,8 +7,7 @@ import {
 } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
 import { clubSearchText, normalizeClubSearch } from "@o-tid/domain";
-import { clubLinkFacts } from "./club-affiliation-access";
-import { applyEventorMemberships } from "./club-affiliation-access";
+import { applyEventorMemberships, clubLinkFacts, clubLinkFactsMany } from "./club-affiliation-access";
 import { clubEventorStatus } from "./club-eventor";
 import { clubJournal, requireClubRole, type ClubFailure, type ClubProof } from "./club-access";
 import { organisationById, organisationSummary } from "./organisations";
@@ -187,9 +186,52 @@ async function affiliationView(tx: DbExecutor, clubId: string): Promise<ClubAffi
     confirmed: confirmed.filter(row => row.organisationId === null || row.organisationId === link.organisationId).map(person) };
 }
 
-/** Mina tävlingar (ADR-0205 tillägg, ägaren 2026-11-04): hur många som väntar på bekräftelse i klubbytan ("3 väntar på bekräftelse"). */
-export async function pendingClubAffiliations(tx: DbExecutor, clubId: string): Promise<number> {
-  return (await affiliationView(tx, clubId))?.pending.length ?? 0;
+/** Mina tävlingar (ADR-0205 tillägg, ägaren 2026-11-04): hur många som väntar på bekräftelse per klubbyta, i batch utan N+1. */
+export async function pendingClubAffiliationsMany(tx: DbExecutor, clubIds: readonly string[]): Promise<Map<string, number>> {
+  const uniqueClubIds = [...new Set(clubIds)];
+  const result = new Map<string, number>();
+  if (uniqueClubIds.length === 0) return result;
+  const links = await clubLinkFactsMany(tx, uniqueClubIds);
+  const orgIds = [...new Set([...links.values()].flatMap(link => link.organisationId ? [link.organisationId] : []))];
+  if (orgIds.length === 0) {
+    for (const clubId of uniqueClubIds) result.set(clubId, 0);
+    return result;
+  }
+  const dirRows = await tx.select({ organisationId: memberships.organisationId, value: count() }).from(memberships)
+    .innerJoin(schema.userAccounts, eq(schema.userAccounts.id, memberships.accountId))
+    .where(and(inArray(memberships.organisationId, orgIds), eq(memberships.status, "PENDING"), isNull(schema.userAccounts.blockedAt)))
+    .groupBy(memberships.organisationId);
+  const dirCounts = new Map(dirRows.map(row => [row.organisationId!, Math.min(Number(row.value), 500)]));
+  const orgs = await tx.select({ id: schema.organisations.id, name: schema.organisations.name, shortName: schema.organisations.shortName })
+    .from(schema.organisations).where(inArray(schema.organisations.id, orgIds));
+  const keysByOrg = new Map<string, string[]>();
+  let anyKeys = false;
+  for (const org of orgs) {
+    const keys = freeTextCandidates(org);
+    keysByOrg.set(org.id, keys);
+    if (keys.length > 0) anyKeys = true;
+  }
+  const freeCounts = new Map<string, number>();
+  if (anyKeys) {
+    const freeRows = await tx.select({ freeText: memberships.freeText }).from(memberships)
+      .innerJoin(schema.userAccounts, eq(schema.userAccounts.id, memberships.accountId))
+      .where(and(isNotNull(memberships.freeText), eq(memberships.status, "PENDING"), isNull(schema.userAccounts.blockedAt)))
+      .orderBy(asc(memberships.createdAt)).limit(2000);
+    for (const row of freeRows) {
+      const key = normalizeClubSearch(row.freeText ?? "");
+      freeCounts.set(key, (freeCounts.get(key) ?? 0) + 1);
+    }
+  }
+  for (const clubId of uniqueClubIds) {
+    const orgId = links.get(clubId)?.organisationId ?? null;
+    if (!orgId) { result.set(clubId, 0); continue; }
+    const dir = dirCounts.get(orgId) ?? 0;
+    const keys = keysByOrg.get(orgId) ?? [];
+    let free = 0;
+    for (const key of keys) free += freeCounts.get(key) ?? 0;
+    result.set(clubId, dir + Math.min(free, 200));
+  }
+  return result;
 }
 
 /** Klubben i Eventor och bekräftelserna: bara ägare och administratörer (medlemmar och ledare får 403, andra 404). */

@@ -26,6 +26,7 @@ import { loadRelayLegCourses, loadRelayTeamVariantPlans } from "./relay-variants
 import { loadResultBasisHashes } from "./result-basis";
 import { assessReadOutEntries, recalculateAssessedEntries, type AssessedEntry } from "./result-reassessment";
 import { loadRaceSnapshot } from "./snapshot";
+import { inUuids } from "./sql-ids";
 import { UUID_PATTERN as uuid } from "./serialization";
 
 /**
@@ -82,6 +83,20 @@ async function recalculateChanged(tx: Transaction, input: { raceId: string; clas
   return { preview, recalculated: rows.length };
 }
 
+function pgUuidArray(values: readonly string[]): string {
+  for (const id of values) if (!uuid.test(id)) throw new Error("Ogiltigt id i urvalet");
+  return `{${values.join(",")}}`;
+}
+
+function pgNullableTextArray(values: readonly (string | null)[]): string {
+  return `{${values.map(v => v === null ? "NULL" : `"${v.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`).join(",")}}`;
+}
+
+function pgIntArray(values: readonly number[]): string {
+  for (const n of values) if (!Number.isSafeInteger(n)) throw new Error("Ogiltigt heltal i urvalet");
+  return `{${values.join(",")}}`;
+}
+
 /**
  * Varianterna för sträckorna `legs` för varje lag i nummerordning (rättvis fördelning, övriga sträckor oförändrade; en
  * sträcka med fast variant ger den). Sträcklöpare vars variant byts får ny version, som "Fördela gafflingar". Ger de bytta.
@@ -93,23 +108,53 @@ async function replanLegVariants(tx: Transaction, config: RelayClassConfig, legs
   const plans = await loadRelayTeamVariantPlans(tx, config.classId);
   const teams = await tx.select({ id: schema.teams.id }).from(schema.teams)
     .where(and(eq(schema.teams.classId, config.classId), isNull(schema.teams.struckAt))).orderBy(asc(schema.teams.number));
+  if (teams.length === 0) return [];
+  const allRows = await tx.select({
+    id: schema.entries.id,
+    teamId: schema.entries.teamId,
+    leg: schema.entries.relayLeg,
+    code: schema.entries.courseVariantCode,
+    version: schema.entries.version
+  }).from(schema.entries)
+    .where(and(inUuids(schema.entries.teamId, teams.map(team => team.id)), inArray(schema.entries.relayLeg, [...legs])));
+  const rowsByTeamLeg = new Map<string, typeof allRows>();
+  for (const row of allRows) {
+    const key = `${row.teamId}:${row.leg}`;
+    let list = rowsByTeamLeg.get(key);
+    if (!list) { list = []; rowsByTeamLeg.set(key, list); }
+    list.push(row);
+  }
   const done: Map<number, string>[] = [];
   const changed: { entryId: string; leg: number; from: string | null; to: string | null }[] = [];
+  const updates: { id: string; code: string | null; nextVersion: number }[] = [];
   for (const team of teams) {
     const current = new Map([...(plans.get(team.id) ?? new Map<number, string>())].filter(([leg]) => !legs.has(leg)));
     const planned = planRelayTeamVariants({ seed: relaySeedOf(config.classId), legs: courses, existing: done, mode: config.forking });
     for (const leg of legs) {
       const code = planned.get(leg) ?? null;
       if (code !== null) current.set(leg, code);
-      const rows = await tx.select({ id: schema.entries.id, code: schema.entries.courseVariantCode, version: schema.entries.version })
-        .from(schema.entries).where(and(eq(schema.entries.teamId, team.id), eq(schema.entries.relayLeg, leg)));
-      for (const row of rows.filter(entry => entry.code !== code)) {
+      const rows = rowsByTeamLeg.get(`${team.id}:${leg}`) ?? [];
+      for (const row of rows) {
+        if (row.code === code) continue;
         if (row.version >= MAX_VERSION) throw new Error("Deltagarens version är slut");
-        await tx.update(schema.entries).set({ courseVariantCode: code, version: row.version + 1 }).where(eq(schema.entries.id, row.id));
+        updates.push({ id: row.id, code, nextVersion: row.version + 1 });
         changed.push({ entryId: row.id, leg, from: row.code, to: code });
       }
     }
     done.push(current);
+  }
+  for (let offset = 0; offset < updates.length; offset += 1_000) {
+    const chunk = updates.slice(offset, offset + 1_000);
+    await tx.execute(sql`
+      update ${schema.entries} as e
+      set course_variant_code = v.code, version = v.next_version
+      from unnest(
+        ${pgUuidArray(chunk.map(row => row.id))}::uuid[],
+        ${pgNullableTextArray(chunk.map(row => row.code))}::text[],
+        ${pgIntArray(chunk.map(row => row.nextVersion))}::integer[]
+      ) as v(id, code, next_version)
+      where e.id = v.id
+    `);
   }
   return changed;
 }
@@ -137,8 +182,9 @@ export async function editRelayClassAsAdmin(db: Database, input: Input, now = ne
         const classEntries = await tx.select({ id: schema.entries.id, leg: schema.entries.relayLeg, legOrder: schema.entries.relayLegOrder,
           teamId: schema.entries.teamId, cardEntryId: schema.entries.relayCardEntryId, organisationName: schema.entries.organisationName })
           .from(schema.entries).where(and(eq(schema.entries.classId, raceClass.id), isNull(schema.entries.struckAt)));
+        const legByEntryId = new Map(classEntries.map(entry => [entry.id, entry.leg]));
         const sprintLegs = new Set(classEntries.flatMap(entry => entry.cardEntryId === null ? [] : [entry.leg,
-          classEntries.find(owner => owner.id === entry.cardEntryId)?.leg]).filter((leg): leg is number => leg !== null && leg !== undefined));
+          legByEntryId.get(entry.cardEntryId)]).filter((leg): leg is number => leg !== null && leg !== undefined));
         if (intent.legs.some(leg => leg.runners > 1 && sprintLegs.has(leg.leg))) return { status: "invalid-request" };
         if (sprintLegs.size > 0 && (readoutMode === null || (readoutMode === "LAST_LEG" && intent.changeoverCode === null))) {
           return { status: "invalid-request" };
@@ -165,31 +211,34 @@ export async function editRelayClassAsAdmin(db: Database, input: Input, now = ne
           .where(and(eq(schema.entries.classId, raceClass.id), inArray(schema.entries.relayLeg, removedLegs)))),
           ...droppedRunners.map(entry => ({ id: entry.id }))];
         if (removed.length > 0) {
+          const removedIds = removed.map(row => row.id);
           const [withResult] = await tx.select({ value: count() }).from(schema.resultRevisions)
-            .where(inArray(schema.resultRevisions.entryId, removed.map(row => row.id)));
+            .where(inUuids(schema.resultRevisions.entryId, removedIds));
           if ((withResult?.value ?? 0) > 0) return { status: "leg-has-result" };
           try {
-            await purgeRows(tx, "entry", removed.map(row => row.id), { protect: ["result_revision", "card_readout", "raw_device_message",
+            await purgeRows(tx, "entry", removedIds, { protect: ["result_revision", "card_readout", "raw_device_message",
               "result_finalization", "radio_punch", "unknown_readout_resolution", "device_ingest_outcome", "team"] });
           } catch (error) {
             if (error instanceof PurgeProtectedError) return { status: "leg-has-result" };
             throw error;
           }
-          await tx.delete(schema.relayLegs).where(and(eq(schema.relayLegs.classId, raceClass.id), inArray(schema.relayLegs.leg, removedLegs)));
-          if (removedLegs.length > 0) {
-            await tx.delete(schema.relayLegs).where(and(eq(schema.relayLegs.classId, raceClass.id), inArray(schema.relayLegs.leg, removedLegs)));
-          }
-        } else if (removedLegs.length > 0) {
+        }
+        if (removedLegs.length > 0) {
           await tx.delete(schema.relayLegs).where(and(eq(schema.relayLegs.classId, raceClass.id), inArray(schema.relayLegs.leg, removedLegs)));
         }
         // Fler löpare på en sträcka: varje lag får vakanta platser.
         const teamRows = await tx.select({ id: schema.teams.id, organisationName: schema.teams.organisationName }).from(schema.teams)
           .where(and(eq(schema.teams.classId, raceClass.id), isNull(schema.teams.struckAt)));
+        const addedRunnerEntries: Array<{ raceId: string; classId: string; teamId: string; relayLeg: number; relayLegOrder?: number;
+          givenName: string; familyName: string; organisationName: string | null; version: number }> = [];
         for (const change of runnerChanges.filter(row => row.to > row.from)) {
           for (const team of teamRows) for (let order = change.from + 1; order <= change.to; order += 1) {
-            await tx.insert(schema.entries).values({ raceId, classId: raceClass.id, teamId: team.id, relayLeg: change.leg, relayLegOrder: order,
+            addedRunnerEntries.push({ raceId, classId: raceClass.id, teamId: team.id, relayLeg: change.leg, relayLegOrder: order,
               givenName: "Vakant", familyName: `sträcka ${change.leg}`, organisationName: team.organisationName, version: 1 });
           }
+        }
+        for (let offset = 0; offset < addedRunnerEntries.length; offset += 1_000) {
+          await tx.insert(schema.entries).values(addedRunnerEntries.slice(offset, offset + 1_000));
         }
         const replan = new Set<number>(addedLegs);
         for (const leg of intent.legs) {
@@ -208,12 +257,13 @@ export async function editRelayClassAsAdmin(db: Database, input: Input, now = ne
           relayChangeoverCode: intent.changeoverCode, relayReadoutMode: readoutMode })
           .where(eq(schema.classes.id, raceClass.id));
         // Nya sträckor får en vakant löpare per lag, som på en sträcka utan löpare från Eventor.
-        if (addedLegs.length > 0) {
-          const teams = await tx.select({ id: schema.teams.id, organisationName: schema.teams.organisationName }).from(schema.teams)
-            .where(and(eq(schema.teams.classId, raceClass.id), isNull(schema.teams.struckAt)));
-          for (const team of teams) for (const leg of addedLegs) {
-            await tx.insert(schema.entries).values({ raceId, classId: raceClass.id, teamId: team.id, relayLeg: leg, givenName: "Vakant",
-              familyName: `sträcka ${leg}`, organisationName: team.organisationName, version: 1 });
+        if (addedLegs.length > 0 && teamRows.length > 0) {
+          const newLegEntries = teamRows.flatMap(team => addedLegs.map(leg => ({
+            raceId, classId: raceClass.id, teamId: team.id, relayLeg: leg, givenName: "Vakant",
+            familyName: `sträcka ${leg}`, organisationName: team.organisationName, version: 1
+          })));
+          for (let offset = 0; offset < newLegEntries.length; offset += 1_000) {
+            await tx.insert(schema.entries).values(newLegEntries.slice(offset, offset + 1_000));
           }
         }
         const updated = (await loadRelayClassConfigs(tx, raceId)).get(raceClass.id)!;
@@ -275,8 +325,8 @@ export async function setRelayTeamDidNotStartAsAdmin(db: Database, input: Input,
       if (!team) return { status: "not-found" };
       const legs = await tx.select({ id: schema.entries.id }).from(schema.entries)
         .where(and(eq(schema.entries.teamId, team.id), isNull(schema.entries.struckAt))).orderBy(asc(schema.entries.relayLeg));
-      const results = new Set((await tx.selectDistinct({ entryId: schema.resultRevisions.entryId }).from(schema.resultRevisions)
-        .where(inArray(schema.resultRevisions.entryId, legs.map(row => row.id)))).map(row => row.entryId));
+      const results = new Set(legs.length === 0 ? [] : (await tx.selectDistinct({ entryId: schema.resultRevisions.entryId }).from(schema.resultRevisions)
+        .where(inUuids(schema.resultRevisions.entryId, legs.map(row => row.id)))).map(row => row.entryId));
       let didNotStart = 0;
       for (const leg of legs) {
         if (results.has(leg.id)) continue;
@@ -358,8 +408,9 @@ export async function removeRelayTeamAsAdmin(db: Database, input: Input, now = n
       .where(and(eq(schema.teams.id, intent.teamId), eq(schema.teams.raceId, raceId), isNull(schema.teams.struckAt))).for("update");
     if (!team) return { status: "not-found" as const };
     const entries = await tx.select({ id: schema.entries.id }).from(schema.entries).where(eq(schema.entries.teamId, team.id));
-    const [withResult] = entries.length === 0 ? [{ value: 0 }] : await tx.select({ value: count() }).from(schema.resultRevisions)
-      .where(inArray(schema.resultRevisions.entryId, entries.map(row => row.id)));
+    const entryIds = entries.map(row => row.id);
+    const [withResult] = entryIds.length === 0 ? [{ value: 0 }] : await tx.select({ value: count() }).from(schema.resultRevisions)
+      .where(inUuids(schema.resultRevisions.entryId, entryIds));
     const hasResult = (withResult?.value ?? 0) > 0;
     if (intent.mode === "DELETE" && hasResult) return respond(raceId, "HAS_RESULT", false);
     const before = { number: team.number, name: team.name, classId: team.classId, runners: entries.length };
@@ -373,10 +424,10 @@ export async function removeRelayTeamAsAdmin(db: Database, input: Input, now = n
       }
     } else {
       await tx.update(schema.teams).set({ struckAt: now }).where(eq(schema.teams.id, team.id));
-      if (entries.length > 0) {
-        await tx.update(schema.entries).set({ struckAt: now }).where(inArray(schema.entries.id, entries.map(row => row.id)));
+      if (entryIds.length > 0) {
+        await tx.update(schema.entries).set({ struckAt: now }).where(inUuids(schema.entries.id, entryIds));
         await tx.update(schema.cardAssignments).set({ active: false })
-          .where(and(inArray(schema.cardAssignments.entryId, entries.map(row => row.id)), eq(schema.cardAssignments.active, true)));
+          .where(and(inUuids(schema.cardAssignments.entryId, entryIds), eq(schema.cardAssignments.active, true)));
       }
     }
     const outcome = intent.mode === "DELETE" ? "DELETED" as const : "STRUCK" as const;

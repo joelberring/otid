@@ -1,10 +1,98 @@
-import { and, asc, desc, eq, getTableColumns, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, isNull, sql } from "drizzle-orm";
 import { speakerBoardResponseSchema, speakerBoardRowSchema, type SpeakerBoardResponse, type SpeakerBoardRow } from "@o-tid/contracts";
 import { schema, type Database } from "@o-tid/database";
+import { relayClassLegStarts } from "@o-tid/domain";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { resolveStoredResultHeadStates } from "./result-revision-state";
 import { parseStrictStoredResultRevision } from "./stored-result-revision";
-import { loadRelayView } from "./relay-results";
+import { loadRelayClassConfigs, loadRelayLegEntries, loadRelayLegFinishTimes, loadRelayLegResults, loadRelayTeams,
+  type RelayLegEntry } from "./relay-model";
+import { relayChangeovers } from "./relay-sync";
+import { inUuids } from "./sql-ids";
+
+type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+type SpeakerRelayInfo = { teamNumber: number; teamName: string; leg: number; variantCode: string | null; restarted: boolean };
+
+/**
+ * Hämtar laguppgifter och omstartsflagga bara för de högst 25 stafettsträckorna på speakersidan, utan att köra hela
+ * 7 500-sträckors `loadRelayView`. Klasser utan omstart behöver inga resultatsökningar alls; klasser med fast omstart
+ * läser bara de visade lagen, och klasser med flygande omstart räknar bara omstarterna för klassen.
+ */
+async function loadSpeakerRelayInfo(
+  tx: Transaction,
+  raceId: string,
+  relayEntries: readonly { id: string; teamId: string | null; relayLeg: number | null; courseVariantCode: string | null }[]
+): Promise<Map<string, SpeakerRelayInfo>> {
+  const relayOf = new Map<string, SpeakerRelayInfo>();
+  const valid = relayEntries.filter(
+    (entry): entry is { id: string; teamId: string; relayLeg: number; courseVariantCode: string | null } =>
+      entry.teamId !== null && entry.relayLeg !== null
+  );
+  if (valid.length === 0) return relayOf;
+  const teamIds = [...new Set(valid.map(entry => entry.teamId))];
+  const teams = await loadRelayTeams(tx, raceId, teamIds);
+  if (teams.length === 0) return relayOf;
+  const teamById = new Map(teams.map(team => [team.id, team]));
+  const configs = await loadRelayClassConfigs(tx, raceId);
+
+  const entriesByClass = new Map<string, typeof valid>();
+  for (const entry of valid) {
+    const team = teamById.get(entry.teamId);
+    if (!team || !configs.has(team.classId)) continue;
+    let list = entriesByClass.get(team.classId);
+    if (!list) { list = []; entriesByClass.set(team.classId, list); }
+    list.push(entry);
+  }
+
+  for (const [classId, classEntries] of entriesByClass) {
+    const config = configs.get(classId)!;
+    const ruleByLeg = new Map(config.legs.map(rule => [rule.leg, rule]));
+    const needsRestartCheck = classEntries.some(entry => {
+      const method = ruleByLeg.get(entry.relayLeg)?.startMethod;
+      return method === "RESTART" || method === "FLYING_RESTART";
+    });
+    const restartedByEntry = new Map<string, boolean>();
+    if (needsRestartCheck) {
+      const needsFlying = classEntries.some(entry => ruleByLeg.get(entry.relayLeg)?.startMethod === "FLYING_RESTART");
+      const scopeTeamIds = needsFlying
+        ? (await tx.select({ id: schema.teams.id }).from(schema.teams)
+            .where(and(eq(schema.teams.raceId, raceId), eq(schema.teams.classId, classId), isNull(schema.teams.struckAt)))
+            .orderBy(asc(schema.teams.number))).map(row => row.id)
+        : [...new Set(classEntries.map(entry => entry.teamId))];
+      const legEntries = await loadRelayLegEntries(tx, raceId, scopeTeamIds);
+      const legEntryIds = legEntries.map(entry => entry.id);
+      const finishes = await loadRelayLegFinishTimes(tx, raceId, legEntryIds);
+      const needsStatuses = config.legs.some(leg => leg.runners > 1 && leg.changeoverRule === "LAST");
+      const statuses = needsStatuses
+        ? new Map([...await loadRelayLegResults(tx, raceId, legEntryIds)].map(([id, result]) => [id, result.status]))
+        : undefined;
+      const byTeam = new Map<string, RelayLegEntry[]>();
+      for (const legEntry of legEntries) {
+        let list = byTeam.get(legEntry.teamId);
+        if (!list) { list = []; byTeam.set(legEntry.teamId, list); }
+        list.push(legEntry);
+      }
+      const starts = relayClassLegStarts(config.legs, scopeTeamIds.map(teamId => ({
+        key: teamId,
+        changeovers: relayChangeovers(byTeam.get(teamId) ?? [], finishes, config, statuses)
+      })));
+      for (const entry of classEntries) {
+        restartedByEntry.set(entry.id, starts.teams.get(entry.teamId)?.get(entry.relayLeg)?.restarted ?? false);
+      }
+    }
+    for (const entry of classEntries) {
+      const team = teamById.get(entry.teamId)!;
+      relayOf.set(entry.id, {
+        teamNumber: team.number,
+        teamName: team.name,
+        leg: entry.relayLeg,
+        variantCode: entry.courseVariantCode,
+        restarted: restartedByEntry.get(entry.id) ?? false
+      });
+    }
+  }
+  return relayOf;
+}
 
 export type SpeakerBoardResult =
   | { status: "unauthorized" | "forbidden" | "not-found" }
@@ -64,28 +152,23 @@ export async function listSpeakerBoardAsAdmin(
     const classIds = [...new Set(parsed.map(({ outcome }) => outcome.classId))];
     const courseVersionIds = [...new Set(heads.map((head) => head.courseVersionId)
       .concat(states.map((state) => state.head.courseVersionId)))];
-    const [entries, classes, courses] = await Promise.all([
-      entryIds.length === 0 ? Promise.resolve([]) : tx.select({ id: schema.entries.id,
-        givenName: schema.entries.givenName, familyName: schema.entries.familyName,
-        organisationName: schema.entries.organisationName, teamId: schema.entries.teamId, relayLeg: schema.entries.relayLeg,
-        courseVariantCode: schema.entries.courseVariantCode }).from(schema.entries)
-        .where(and(eq(schema.entries.raceId, race.id), inArray(schema.entries.id, entryIds), isNull(schema.entries.struckAt))),
-      classIds.length === 0 ? Promise.resolve([]) : tx.select({ id: schema.classes.id, name: schema.classes.name })
-        .from(schema.classes).where(and(eq(schema.classes.raceId, race.id), inArray(schema.classes.id, classIds))),
-      courseVersionIds.length === 0 ? Promise.resolve([]) : tx.select({ id: schema.courseVersions.id })
-        .from(schema.courseVersions).innerJoin(schema.courses, eq(schema.courseVersions.courseId, schema.courses.id))
-        .where(and(eq(schema.courses.raceId, race.id), inArray(schema.courseVersions.id, courseVersionIds)))
-    ]);
+    const entries = entryIds.length === 0 ? [] : await tx.select({ id: schema.entries.id,
+      givenName: schema.entries.givenName, familyName: schema.entries.familyName,
+      organisationName: schema.entries.organisationName, teamId: schema.entries.teamId, relayLeg: schema.entries.relayLeg,
+      courseVariantCode: schema.entries.courseVariantCode }).from(schema.entries)
+      .where(and(eq(schema.entries.raceId, race.id), inUuids(schema.entries.id, entryIds), isNull(schema.entries.struckAt)));
+    const classes = classIds.length === 0 ? [] : await tx.select({ id: schema.classes.id, name: schema.classes.name })
+      .from(schema.classes).where(and(eq(schema.classes.raceId, race.id), inUuids(schema.classes.id, classIds)));
+    const courses = courseVersionIds.length === 0 ? [] : await tx.select({ id: schema.courseVersions.id })
+      .from(schema.courseVersions).innerJoin(schema.courses, eq(schema.courseVersions.courseId, schema.courses.id))
+      .where(and(eq(schema.courses.raceId, race.id), inUuids(schema.courseVersions.id, courseVersionIds)));
     if (entries.length !== entryIds.length || classes.length !== classIds.length || courses.length !== courseVersionIds.length) {
       throw new Error("Speakerunderlaget saknar giltig lopprelation");
     }
     const entryById = new Map(entries.map((entry) => [entry.id, entry]));
-    // Steg 47: stafettsträckornas lag och omstart (samma vy som lagvyn).
+    // Steg 47: stafettsträckornas lag och omstart (lättviktigt urval för de visade raderna).
     const relayEntries = entries.filter((entry) => entry.teamId !== null);
-    const relayView = relayEntries.length === 0 ? undefined : await loadRelayView(tx, race.id);
-    const relayOf = new Map((relayView?.classes ?? []).flatMap((raceClass) => raceClass.teams.flatMap((view) => view.legs.map((leg) =>
-      [leg.entry.id, { teamNumber: view.team.number, teamName: view.team.name, leg: leg.entry.leg,
-        variantCode: leg.entry.courseVariantCode, restarted: leg.restarted }] as const))));
+    const relayOf = await loadSpeakerRelayInfo(tx, race.id, relayEntries);
     const classById = new Map(classes.map((raceClass) => [raceClass.id, raceClass.name]));
     const arrivedAtOf = (entryId: string) => {
       const at = arrivedAt.get(entryId);

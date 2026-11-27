@@ -13,6 +13,7 @@ import { publicResultTimings } from "./results";
  */
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 const LATEST = 30;
+const svCollator = new Intl.Collator("sv");
 
 type Entry = { id: string; publicResultId: string; classId: string; givenName: string; familyName: string;
   organisationName: string | null; fixedStartTime: Date | null; teamId: string | null; relayLeg: number | null };
@@ -43,7 +44,11 @@ async function classControlOrder(tx: Transaction, raceId: string, codes: readonl
     where ctl.code in (${sql.join(codes.map(code => sql`${code}`), sql`, `)})
     group by runs.class_id, ctl.code
     order by runs.class_id, min(used.sequence), ctl.code`);
-  for (const row of rows.rows) result.set(row.class_id, [...(result.get(row.class_id) ?? []), Number(row.code)]);
+  for (const row of rows.rows) {
+    let list = result.get(row.class_id);
+    if (!list) { list = []; result.set(row.class_id, list); }
+    list.push(Number(row.code));
+  }
   return result;
 }
 
@@ -61,30 +66,35 @@ async function read(tx: Transaction, raceId: string): Promise<PublicRadioRespons
   const codes = controls.map(control => control.code);
   const labels = new Map(controls.map(control => [control.code, control.label]));
 
-  const [entries, cards, punches, classes, order, finished] = await Promise.all([
-    tx.select({ id: schema.entries.id, publicResultId: schema.entries.publicResultId, classId: schema.entries.classId,
-      givenName: schema.entries.givenName, familyName: schema.entries.familyName, organisationName: schema.entries.organisationName,
-      fixedStartTime: schema.entries.fixedStartTime, teamId: schema.entries.teamId, relayLeg: schema.entries.relayLeg }).from(schema.entries)
-      .where(and(eq(schema.entries.raceId, raceId), isNull(schema.entries.struckAt))) as Promise<Entry[]>,
-    tx.select({ entryId: schema.cardAssignments.entryId, cardNumber: schema.cardAssignments.cardNumber }).from(schema.cardAssignments)
-      .where(and(eq(schema.cardAssignments.raceId, raceId), eq(schema.cardAssignments.active, true))),
-    tx.select({ cardNumber: schema.radioPunches.cardNumber, controlCode: schema.radioPunches.controlCode, punchedAt: schema.radioPunches.punchedAt })
-      .from(schema.radioPunches).where(and(eq(schema.radioPunches.raceId, raceId), inArray(schema.radioPunches.controlCode, codes)))
-      .orderBy(asc(schema.radioPunches.punchedAt)).limit(200_000),
-    tx.select({ id: schema.classes.id, name: schema.classes.name }).from(schema.classes).where(eq(schema.classes.raceId, raceId)),
-    classControlOrder(tx, raceId, codes),
-    publicResultTimings(tx, raceId, { includeRelay: true })
-  ]);
+  const entries: Entry[] = await tx.select({ id: schema.entries.id, publicResultId: schema.entries.publicResultId, classId: schema.entries.classId,
+    givenName: schema.entries.givenName, familyName: schema.entries.familyName, organisationName: schema.entries.organisationName,
+    fixedStartTime: schema.entries.fixedStartTime, teamId: schema.entries.teamId, relayLeg: schema.entries.relayLeg }).from(schema.entries)
+    .where(and(eq(schema.entries.raceId, raceId), isNull(schema.entries.struckAt)));
+  const cards = await tx.select({ entryId: schema.cardAssignments.entryId, cardNumber: schema.cardAssignments.cardNumber }).from(schema.cardAssignments)
+    .where(and(eq(schema.cardAssignments.raceId, raceId), eq(schema.cardAssignments.active, true)));
+  const punches = await tx.select({ cardNumber: schema.radioPunches.cardNumber, controlCode: schema.radioPunches.controlCode, punchedAt: schema.radioPunches.punchedAt })
+    .from(schema.radioPunches).where(and(eq(schema.radioPunches.raceId, raceId), inArray(schema.radioPunches.controlCode, codes)))
+    .orderBy(asc(schema.radioPunches.punchedAt)).limit(200_000);
+  const classes = await tx.select({ id: schema.classes.id, name: schema.classes.name }).from(schema.classes).where(eq(schema.classes.raceId, raceId));
+  const order = await classControlOrder(tx, raceId, codes);
+  const finished = await publicResultTimings(tx, raceId, { includeRelay: true });
   const teams = new Map((await tx.select({ id: schema.teams.id, number: schema.teams.number, name: schema.teams.name }).from(schema.teams)
     .where(and(eq(schema.teams.raceId, raceId), isNull(schema.teams.struckAt)))).map(team => [team.id, team]));
 
   // Brickan som löparen har nu. En bricka är aktiv hos högst en löpare i loppet.
   const entryByCard = new Map(cards.map(card => [card.cardNumber.replace(/^0+/, ""), card.entryId]));
   const punchesByEntry = new Map<string, { controlCode: number; punchedAtMs: number }[]>();
+  const earliestPunchByEntryControl = new Map<string, number>();
   for (const punch of punches) {
     const entryId = entryByCard.get(punch.cardNumber);
     if (!entryId) continue;
-    punchesByEntry.set(entryId, [...(punchesByEntry.get(entryId) ?? []), { controlCode: punch.controlCode, punchedAtMs: punch.punchedAt.getTime() }]);
+    const punchedAtMs = punch.punchedAt.getTime();
+    let list = punchesByEntry.get(entryId);
+    if (!list) { list = []; punchesByEntry.set(entryId, list); }
+    list.push({ controlCode: punch.controlCode, punchedAtMs });
+    const key = `${entryId}:${punch.controlCode}`;
+    const existing = earliestPunchByEntryControl.get(key);
+    if (existing === undefined || punchedAtMs < existing) earliestPunchByEntryControl.set(key, punchedAtMs);
   }
   const finishedByEntry = new Map(finished.map(row => [row.entryId, row]));
   const entryById = new Map(entries.map(entry => [entry.id, entry]));
@@ -102,7 +112,9 @@ async function read(tx: Transaction, raceId: string): Promise<PublicRadioRespons
     const runner: RadioRunner = { key: entry.id, punches: ownPunches,
       startMs: result?.startMs ?? entry.fixedStartTime?.getTime() ?? null,
       ...(result ? { finished: { status: result.status, splits: result.splits } } : {}) };
-    runnersByClass.set(classId, [...(runnersByClass.get(classId) ?? []), runner]);
+    let list = runnersByClass.get(classId);
+    if (!list) { list = []; runnersByClass.set(classId, list); }
+    list.push(runner);
   }
 
   const displayClass = (key: string) => {
@@ -135,14 +147,13 @@ async function read(tx: Transaction, raceId: string): Promise<PublicRadioRespons
       onTheWay: standings.onTheWay.map(row => passage(row, classId)) });
     for (const control of standings.controls) {
       for (const row of control.passages) {
-        const radio = punchesByEntry.get(row.key)?.filter(punch => punch.controlCode === row.controlCode) ?? [];
-        if (radio.length === 0) continue;
-        feed.push({ passage: passage(row, classId), at: row.source === "RADIO" && row.passedAtMs !== null ? row.passedAtMs
-          : Math.min(...radio.map(punch => punch.punchedAtMs)) });
+        const earliest = earliestPunchByEntryControl.get(`${row.key}:${row.controlCode}`);
+        if (earliest === undefined) continue;
+        feed.push({ passage: passage(row, classId), at: row.source === "RADIO" && row.passedAtMs !== null ? row.passedAtMs : earliest });
       }
     }
   }
-  resultClasses.sort((a, b) => a.className.localeCompare(b.className, "sv"));
+  resultClasses.sort((a, b) => svCollator.compare(a.className, b.className));
   const latest = feed.sort((a, b) => b.at - a.at).slice(0, LATEST).map(row => ({ ...row.passage, passedAt: new Date(row.at).toISOString() }));
   return { formatVersion: 1, raceId, enabled: true, timeZone: race.timeZone, classes: resultClasses, latest };
 }

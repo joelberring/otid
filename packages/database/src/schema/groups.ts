@@ -1,4 +1,4 @@
-import { boolean, date, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, date, index, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { userAccounts } from "./accounts";
 import { races } from "./core";
 
@@ -72,7 +72,9 @@ export const trainingGroupSeries = pgTable("training_group_series", {
   requestId: uuid("request_id").notNull(),
   undoneAt: timestamp("undone_at", { withTimezone: true }),
   undoneBy: uuid("undone_by")
-});
+}, (table) => [
+  index("training_group_series_group_idx").on(table.groupId, table.createdAt.desc())
+]);
 
 /** Avtalsfälten, lika i biblioteket och på tävlingen. */
 const agreementColumns = () => ({

@@ -21,6 +21,7 @@ import { authenticateUserAccountSessionForMutation, authenticateUserAccountSessi
 export type MapProjectTransaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 export type MapProjectRow = typeof schema.mapProjects.$inferSelect;
 export type MapProjectNeed = "view" | "propose" | "edit" | "manage";
+export type MapProjectLock = "none" | "share" | "update";
 
 const RANK: Record<MapProjectRole, number> = { READ: 0, SUGGEST: 1, EDIT: 2, OWNER: 3 };
 export const mapProjectRoleAtLeast = (role: MapProjectRole, minimum: MapProjectRole) => RANK[role] >= RANK[minimum];
@@ -65,10 +66,13 @@ export async function acceptMapProjectInvitations(tx: DbExecutor, accountId: str
   return accepted;
 }
 
-/** Kontots roll i projektet: medlemskapet, eller ägare för administratörer och ägare i projektets klubb. Undefined = ingen. */
-export async function mapProjectRoleOf(tx: DbExecutor, accountId: string, project: Pick<MapProjectRow, "id" | "clubId">)
-  : Promise<MapProjectRole | undefined> {
-  const [row] = await tx.select({ role: schema.mapProjectMembers.role, addedBy: schema.mapProjectMembers.addedBy }).from(schema.mapProjectMembers)
+async function mapProjectMembershipOf(tx: DbExecutor, accountId: string, project: Pick<MapProjectRow, "id" | "clubId">)
+  : Promise<{ role: MapProjectRole; memberLastSeenAt: Date | null | undefined } | undefined> {
+  const [row] = await tx.select({
+    role: schema.mapProjectMembers.role,
+    addedBy: schema.mapProjectMembers.addedBy,
+    lastSeenAt: schema.mapProjectMembers.lastSeenAt
+  }).from(schema.mapProjectMembers)
     .where(and(eq(schema.mapProjectMembers.projectId, project.id), eq(schema.mapProjectMembers.accountId, accountId)));
   // ADR-0186, granskningen 3.7: en roll som någon annan gett kontot gäller först med bekräftad e-postadress (som i klubbar,
   // grupper och banläggningen). Den som skapat projektet själv behåller sin roll.
@@ -78,7 +82,14 @@ export async function mapProjectRoleOf(tx: DbExecutor, accountId: string, projec
     if (!account?.verifiedAt) member = undefined;
   }
   const club = project.clubId ? await clubMembership(tx, { accountId, clubId: project.clubId }, "none") : undefined;
-  return higher(member?.role, club && clubRoleAtLeast(club.role, "ADMIN") ? "OWNER" : undefined);
+  const role = higher(member?.role, club && clubRoleAtLeast(club.role, "ADMIN") ? "OWNER" : undefined);
+  return role ? { role, memberLastSeenAt: row ? row.lastSeenAt : undefined } : undefined;
+}
+
+/** Kontots roll i projektet: medlemskapet, eller ägare för administratörer och ägare i projektets klubb. Undefined = ingen. */
+export async function mapProjectRoleOf(tx: DbExecutor, accountId: string, project: Pick<MapProjectRow, "id" | "clubId">)
+  : Promise<MapProjectRole | undefined> {
+  return (await mapProjectMembershipOf(tx, accountId, project))?.role;
 }
 
 /** Får kontot lägga projektets resultat i klubbarkivet (projektet hör till en klubb och kontot är administratör där)? */
@@ -146,32 +157,36 @@ export function mapProjectCanWriteVersion(
   return mapProjectAllows(role, project, "manage") && (project.baseFormat === "OMAP" || ocadWrite);
 }
 
-/** Inloggad medlem med projektet (låst för uppdatering när `write`), eller felet. */
+/** Inloggad medlem med projektet (låst enligt `lock`, förval FOR UPDATE när `write`), eller felet. */
 export async function requireMapProject(tx: MapProjectTransaction, proof: ClubProof & { projectId: string }, now: Date, need: MapProjectNeed,
-  write: boolean): Promise<ClubFailure | { status: "ok"; accountId: string; role: MapProjectRole; project: MapProjectRow }> {
+  write: boolean, lock: MapProjectLock = write ? "update" : "none")
+  : Promise<ClubFailure | { status: "ok"; accountId: string; role: MapProjectRole; project: MapProjectRow; memberLastSeenAt: Date | null | undefined }> {
   if (!UUID_PATTERN.test(proof.projectId)) return { status: "not-found" };
   const auth = write ? await authenticateUserAccountSessionForMutation(tx, { ...proof, requireCsrf: true }, now)
     : await authenticateUserAccountSessionForProtectedRead(tx, proof, now);
   if (auth.status !== "authenticated") return auth;
-  return requireMapProjectForAccount(tx, auth.principal.accountId, proof.projectId, now, need, write);
+  return requireMapProjectForAccount(tx, auth.principal.accountId, proof.projectId, now, need, write, lock);
 }
 
 /**
- * Samma prövning för ett konto som redan är känt (K2: AI-kopplingens nyckel i stället för sessionen). Projektet låses för
- * uppdatering när `write`.
+ * Samma prövning för ett konto som redan är känt (K2: AI-kopplingens nyckel i stället för sessionen). Projektet låses enligt
+ * `lock` (förval FOR UPDATE när `write`).
  */
 export async function requireMapProjectForAccount(tx: MapProjectTransaction, accountId: string, projectId: string, now: Date, need: MapProjectNeed,
-  write: boolean): Promise<ClubFailure | { status: "ok"; accountId: string; role: MapProjectRole; project: MapProjectRow }> {
+  write: boolean, lock: MapProjectLock = write ? "update" : "none")
+  : Promise<ClubFailure | { status: "ok"; accountId: string; role: MapProjectRole; project: MapProjectRow; memberLastSeenAt: Date | null | undefined }> {
   if (!UUID_PATTERN.test(projectId)) return { status: "not-found" };
   const query = tx.select().from(schema.mapProjects).where(eq(schema.mapProjects.id, projectId));
-  const [project] = write ? await query.for("update") : await query;
+  const [project] = lock === "update" ? await query.for("update") : lock === "share" ? await query.for("share") : await query;
   if (!project) return { status: "not-found" };
-  let role = await mapProjectRoleOf(tx, accountId, project);
-  if (!role && await acceptMapProjectInvitations(tx, accountId, now, project.id) > 0) role = await mapProjectRoleOf(tx, accountId, project);
-  if (!role) return { status: "not-found" };
-  if (!mapProjectAllows(role, project, need)) return { status: "forbidden" };
-  await touchMapProject(tx, project.id, now);
-  return { status: "ok", accountId, role, project };
+  let membership = await mapProjectMembershipOf(tx, accountId, project);
+  if (!membership && await acceptMapProjectInvitations(tx, accountId, now, project.id) > 0) {
+    membership = await mapProjectMembershipOf(tx, accountId, project);
+  }
+  if (!membership) return { status: "not-found" };
+  if (!mapProjectAllows(membership.role, project, need)) return { status: "forbidden" };
+  await touchMapProject(tx, project, now);
+  return { status: "ok", accountId, role: membership.role, project, memberLastSeenAt: membership.memberLastSeenAt };
 }
 
 /** Hur ofta `last_opened_at` skrivs som tätast. */
@@ -180,12 +195,15 @@ const TOUCH_INTERVAL_MS = 60 * 60_000;
 /**
  * PLAN.md steg L4 (ADR-0224 beslut 5): noterar att projektet används. All åtkomst med behörighet går genom
  * `requireMapProjectForAccount` (webben, AI-kopplingen, export), så tidpunkten sätts här. Den skrivs högst en gång i timmen
- * och bara om raden inte är låst av någon annan (`skip locked`), så att en läsning aldrig väntar på en pågående ändring.
+ * (med snabb JS-förkoll på `project.lastOpenedAt` innan UPDATE) och bara om raden inte är låst av någon annan (`skip locked`),
+ * så att en läsning aldrig väntar på en pågående ändring.
  */
-async function touchMapProject(tx: MapProjectTransaction, projectId: string, now: Date): Promise<void> {
-  const stale = new Date(now.getTime() - TOUCH_INTERVAL_MS);
+async function touchMapProject(tx: MapProjectTransaction, project: Pick<MapProjectRow, "id" | "lastOpenedAt">, now: Date): Promise<void> {
+  const staleMs = now.getTime() - TOUCH_INTERVAL_MS;
+  if (project.lastOpenedAt !== null && project.lastOpenedAt.getTime() >= staleMs) return;
+  const stale = new Date(staleMs);
   await tx.execute(sql`update map_project set last_opened_at = ${now.toISOString()}::timestamptz where id in (
-    select id from map_project where id = ${projectId}::uuid and (last_opened_at is null or last_opened_at < ${stale.toISOString()}::timestamptz)
+    select id from map_project where id = ${project.id}::uuid and (last_opened_at is null or last_opened_at < ${stale.toISOString()}::timestamptz)
     for update skip locked)`);
 }
 

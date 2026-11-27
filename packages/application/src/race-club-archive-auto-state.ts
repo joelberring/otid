@@ -14,6 +14,29 @@ type RaceType = typeof schema.races.$inferSelect.raceType;
 
 export const autoArchiveDefault = (raceType: RaceType) => raceType === "TRAINING";
 
+/** Kortlivad negativ cache över tävlingar där automatisk arkivering inte är aktiv (sparar SAVEPOINT + SELECT vid stämpling). */
+const INACTIVE_CACHE_TTL_MS = 15_000;
+const MAX_INACTIVE_CACHE = 500;
+const inactiveUntil = new Map<string, number>();
+
+export function isAutoArchiveCachedInactive(raceId: string, nowMs = Date.now()): boolean {
+  const expiresAt = inactiveUntil.get(raceId);
+  if (expiresAt === undefined) return false;
+  if (nowMs < expiresAt) return true;
+  inactiveUntil.delete(raceId);
+  return false;
+}
+
+export function cacheAutoArchiveInactive(raceId: string, nowMs = Date.now()): void {
+  inactiveUntil.delete(raceId);
+  inactiveUntil.set(raceId, nowMs + INACTIVE_CACHE_TTL_MS);
+  while (inactiveUntil.size > MAX_INACTIVE_CACHE) inactiveUntil.delete(inactiveUntil.keys().next().value!);
+}
+
+export function clearAutoArchiveInactive(raceId: string): void {
+  inactiveUntil.delete(raceId);
+}
+
 export async function autoArchiveRow(tx: DbExecutor, raceId: string) {
   const [row] = await tx.select().from(auto).where(eq(auto.raceId, raceId));
   return row;
@@ -26,6 +49,7 @@ export function autoArchiveView(row: typeof auto.$inferSelect | undefined, raceT
 
 /** Rutan i eller ur (av tävlingens och klubbytans administratör). */
 export async function setAutoArchive(tx: DbExecutor, input: { raceId: string; enabled: boolean; actorId: string; now: Date }): Promise<void> {
+  clearAutoArchiveInactive(input.raceId);
   await tx.insert(auto).values({ raceId: input.raceId, enabled: input.enabled, setBy: input.actorId, setAt: input.now, updatedAt: input.now })
     .onConflictDoUpdate({ target: auto.raceId, set: { enabled: input.enabled, setBy: input.actorId, setAt: input.now, updatedAt: input.now } });
 }

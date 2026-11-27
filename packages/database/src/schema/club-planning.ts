@@ -1,4 +1,5 @@
-import { date, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { date, index, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { clubs } from "./clubs";
 
 /** ADR-0221 (migration 0109): klubbens terminsplanering, de planerade träningarna och uppgifterna. */
@@ -35,7 +36,11 @@ export const clubPlanSessions = pgTable("club_plan_session", {
   createdBy: uuid("created_by").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   requestId: uuid("request_id").notNull()
-});
+}, (table) => [
+  index("club_plan_session_map_idx").on(table.clubMapId).where(sql`${table.clubMapId} IS NOT NULL`),
+  index("club_plan_session_group_idx").on(table.trainingGroupId).where(sql`${table.trainingGroupId} IS NOT NULL`),
+  index("club_plan_session_responsible_idx").on(table.responsibleAccountId).where(sql`${table.responsibleAccountId} IS NOT NULL`)
+]);
 
 export const clubPlanTasks = pgTable("club_plan_task", {
   id: uuid("id").primaryKey(),

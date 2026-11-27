@@ -1,16 +1,93 @@
-import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { schema, type Database } from "@o-tid/database";
 import { StartCheckinOperationSchema, StartCheckinRosterResponseSchema, administratorForestWatchResponseSchema } from "@o-tid/contracts";
 import { buildForestWatchList, reportedStartAt, type AppliedStartObservation } from "@o-tid/domain";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { resolveStoredResultHeadStates } from "./result-revision-state";
-import { parseStrictStoredResultRevision } from "./stored-result-revision";
+import { UUID_PATTERN } from "./serialization";
+import { parseStrictStoredResultRevision, StoredResultRevisionConflict, type StoredPublishedResultOutcome, type StoredResultRevisionInput } from "./stored-result-revision";
+import { validateStoredStartCheckinDns } from "./start-checkin-dns-source";
 import { validateStoredStartCheckinReceipt } from "./start-checkin-sync";
 import { reviewedCheckinRequests } from "./checkin-conflict-review-journal";
 import { allowsStartCheckinSourceAction } from "./start-checkin-source-action";
 
 const compare = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
 const validDate = (value: Date) => { if (!Number.isFinite(value.getTime())) throw new Error("Lästiden är ogiltig"); return value; };
+
+type ResultCause = typeof schema.resultRevisions.$inferSelect["cause"];
+const TIMED_STATUSES = ["OK", "OVERTIME", "MP"] as const;
+const ROSTER_STATUS_BY_CAUSE: Record<ResultCause, { readonly statuses: readonly string[]; readonly readout: boolean; readonly reason?: string }> = {
+  CARD_READOUT: { statuses: TIMED_STATUSES, readout: true },
+  CLASS_CHANGE_RECALCULATION: { statuses: TIMED_STATUSES, readout: true },
+  EXPLICIT_RECALCULATION: { statuses: TIMED_STATUSES, readout: true },
+  UNKNOWN_READOUT_RESOLUTION: { statuses: TIMED_STATUSES, readout: true },
+  SHORTENED_COURSE_CLASS_TRANSFER: { statuses: TIMED_STATUSES, readout: true },
+  MANUAL_DID_NOT_START: { statuses: ["DNS"], readout: false },
+  START_CHECKIN_DID_NOT_START: { statuses: ["DNS"], readout: false },
+  MANUAL_DID_NOT_START_WITHDRAWAL: { statuses: ["DNS"], readout: false },
+  MANUAL_DISQUALIFICATION: { statuses: ["DSQ"], readout: false },
+  MANUAL_RESULT_APPROVAL: { statuses: ["OK"], readout: false, reason: "MANUAL_APPROVAL" },
+  MANUAL_DID_NOT_FINISH: { statuses: ["DNF"], readout: false },
+  MANUAL_OUT_OF_COMPETITION: { statuses: ["OOC"], readout: false },
+  MANUAL_WITHOUT_TIMING: { statuses: ["NT"], readout: false },
+  MANUAL_DISQUALIFICATION_WITHDRAWAL: { statuses: TIMED_STATUSES, readout: false },
+  MANUAL_RESULT_APPROVAL_WITHDRAWAL: { statuses: TIMED_STATUSES, readout: false },
+  MANUAL_DID_NOT_FINISH_WITHDRAWAL: { statuses: TIMED_STATUSES, readout: false },
+  MANUAL_OUT_OF_COMPETITION_WITHDRAWAL: { statuses: TIMED_STATUSES, readout: false },
+  MANUAL_WITHOUT_TIMING_WITHDRAWAL: { statuses: TIMED_STATUSES, readout: false },
+  MANUAL_FINISH_TIME_CORRECTION: { statuses: TIMED_STATUSES, readout: false },
+  MANUAL_FINISH_TIME_CORRECTION_WITHDRAWAL: { statuses: TIMED_STATUSES, readout: false },
+  MANUAL_PUNCH_START_TIME_CORRECTION: { statuses: TIMED_STATUSES, readout: false },
+  MANUAL_PUNCH_START_TIME_CORRECTION_WITHDRAWAL: { statuses: TIMED_STATUSES, readout: false },
+  MANUAL_TIME: { statuses: TIMED_STATUSES, readout: false },
+  MANUAL_TIME_WITHDRAWAL: { statuses: TIMED_STATUSES, readout: false },
+  MANUAL_CONTROL_APPROVAL: { statuses: ["OK", "MP"], readout: false },
+  MANUAL_CONTROL_APPROVAL_WITHDRAWAL: { statuses: TIMED_STATUSES, readout: false },
+  MANUAL_RESULT_REMOVED: { statuses: ["MP"], readout: false, reason: "MISSING_START" },
+  READOUT_REREAD: { statuses: TIMED_STATUSES, readout: true },
+  MANUAL_MISPUNCH_CONFIRMATION: { statuses: ["MP"], readout: false },
+  MANUAL_MISPUNCH_CONFIRMATION_WITHDRAWAL: { statuses: TIMED_STATUSES, readout: false }
+};
+
+/**
+ * Lättviktskontroll av status/DNS för startavprickning och Kvar i skogen utan full Zod-parsning av
+ * `evaluation`-JSONB (undviker validering av tiotusentals sträcktider per läsning). Avpricknings-DNS
+ * behåller full källvalidering.
+ */
+export function storedRosterResultStatus(
+  row: StoredResultRevisionInput,
+  checkinSource?: Parameters<typeof validateStoredStartCheckinDns>[0]
+): StoredPublishedResultOutcome["status"] {
+  if (row.startCheckinDnsDecisionId !== null) {
+    return parseStrictStoredResultRevision(row, checkinSource).status;
+  }
+  const rule = ROSTER_STATUS_BY_CAUSE[row.cause];
+  const evaluation = row.evaluation;
+  if (!rule || evaluation === null || typeof evaluation !== "object" || Array.isArray(evaluation)) {
+    throw new StoredResultRevisionConflict("Resultatrevisionen motsäger sitt lagrade utfall");
+  }
+  const fields = evaluation as unknown as Record<string, unknown>;
+  const status = fields.status;
+  const reason = fields.reason;
+  const entryId = fields.entryId;
+  const classId = fields.classId;
+  const courseVersionId = fields.courseVersionId;
+  if (typeof status !== "string" || status === "UNKNOWN_CARD" || typeof reason !== "string" ||
+      !Number.isSafeInteger(row.revision) || row.revision < 1 ||
+      !Number.isSafeInteger(row.snapshotVersion) || row.snapshotVersion < 1 ||
+      entryId !== row.entryId || typeof classId !== "string" || !UUID_PATTERN.test(classId) ||
+      courseVersionId !== row.courseVersionId || status !== row.status || reason !== row.reason) {
+    throw new StoredResultRevisionConflict("Resultatrevisionen motsäger sitt lagrade utfall");
+  }
+  if (!rule.statuses.includes(status) || (row.readoutId !== null) !== rule.readout ||
+      (rule.reason !== undefined && reason !== rule.reason) ||
+      (rule.reason === undefined && rule.statuses === TIMED_STATUSES && reason === "MANUAL_APPROVAL") ||
+      (row.shortenedCourseClassTransferId !== undefined &&
+        (row.cause === "SHORTENED_COURSE_CLASS_TRANSFER") !== (row.shortenedCourseClassTransferId !== null))) {
+    throw new StoredResultRevisionConflict("Resultatrevisionens orsak och utfall motsäger varandra");
+  }
+  return status as StoredPublishedResultOutcome["status"];
+}
 
 /** Kvar i skogen (ADR-0172 beslut 3): administratören och funktionären läser samma lista. */
 /**
@@ -62,17 +139,40 @@ export async function readAuthorizedStartCheckinRoster(tx: Tx, raceId: string, n
     if (!race) return { status: "not-found" as const };
     const [event] = await tx.select({ timeZone: schema.events.timeZone }).from(schema.events).where(eq(schema.events.id, race.eventId));
     if (!event) throw new Error("Loppets tävling saknas");
-    const [entries, classes, assignments, operations, devices, revisions, heads] = await Promise.all([
-      tx.select().from(schema.entries).where(and(eq(schema.entries.raceId, race.id), isNull(schema.entries.struckAt))).limit(10_001),
-      tx.select().from(schema.classes).where(eq(schema.classes.raceId, race.id)).limit(1_001),
-      tx.select().from(schema.cardAssignments).where(and(eq(schema.cardAssignments.raceId, race.id), eq(schema.cardAssignments.active, true))).limit(20_001),
-      tx.select().from(schema.startCheckinOperations).where(eq(schema.startCheckinOperations.raceId, race.id)).limit(100_001),
-      tx.select().from(schema.startCheckinDevices).where(eq(schema.startCheckinDevices.raceId, race.id)).limit(1_001),
-      tx.selectDistinctOn([schema.startCheckinRevisions.entryId]).from(schema.startCheckinRevisions)
-        .where(eq(schema.startCheckinRevisions.raceId, race.id)).orderBy(asc(schema.startCheckinRevisions.entryId), desc(schema.startCheckinRevisions.revision)).limit(10_001),
-      tx.selectDistinctOn([schema.resultRevisions.entryId]).from(schema.resultRevisions)
-        .where(eq(schema.resultRevisions.raceId, race.id)).orderBy(asc(schema.resultRevisions.entryId), desc(schema.resultRevisions.revision)).limit(10_001)
-    ]);
+    const entries = await tx.select().from(schema.entries)
+      .where(and(eq(schema.entries.raceId, race.id), isNull(schema.entries.struckAt))).limit(10_001);
+    const classes = await tx.select().from(schema.classes)
+      .where(eq(schema.classes.raceId, race.id)).limit(1_001);
+    const assignments = await tx.select().from(schema.cardAssignments)
+      .where(and(eq(schema.cardAssignments.raceId, race.id), eq(schema.cardAssignments.active, true))).limit(20_001);
+    const operations = await tx.select().from(schema.startCheckinOperations)
+      .where(eq(schema.startCheckinOperations.raceId, race.id)).limit(100_001);
+    const devices = await tx.select().from(schema.startCheckinDevices)
+      .where(eq(schema.startCheckinDevices.raceId, race.id)).limit(1_001);
+    const revisions = await tx.selectDistinctOn([schema.startCheckinRevisions.entryId]).from(schema.startCheckinRevisions)
+      .where(eq(schema.startCheckinRevisions.raceId, race.id))
+      .orderBy(asc(schema.startCheckinRevisions.entryId), desc(schema.startCheckinRevisions.revision)).limit(10_001);
+    const heads = await tx.selectDistinctOn([schema.resultRevisions.entryId], {
+      id: schema.resultRevisions.id,
+      raceId: schema.resultRevisions.raceId,
+      entryId: schema.resultRevisions.entryId,
+      revision: schema.resultRevisions.revision,
+      status: schema.resultRevisions.status,
+      reason: schema.resultRevisions.reason,
+      cause: schema.resultRevisions.cause,
+      readoutId: schema.resultRevisions.readoutId,
+      startCheckinDnsDecisionId: schema.resultRevisions.startCheckinDnsDecisionId,
+      shortenedCourseClassTransferId: schema.resultRevisions.shortenedCourseClassTransferId,
+      // Undvik att skicka stora split-arrayer i evaluation för icke-avpricknings-DNS; behåll full evaluation för avpricknings-DNS.
+      evaluation: sql<typeof schema.resultRevisions.$inferSelect["evaluation"]>`case when ${schema.resultRevisions.startCheckinDnsDecisionId} is not null or jsonb_typeof(${schema.resultRevisions.evaluation}) <> 'object' then ${schema.resultRevisions.evaluation} else jsonb_build_object('status', ${schema.resultRevisions.evaluation}->'status', 'reason', ${schema.resultRevisions.evaluation}->'reason', 'entryId', ${schema.resultRevisions.evaluation}->'entryId', 'classId', ${schema.resultRevisions.evaluation}->'classId', 'courseVersionId', ${schema.resultRevisions.evaluation}->'courseVersionId') end`,
+      engineVersion: schema.resultRevisions.engineVersion,
+      snapshotVersion: schema.resultRevisions.snapshotVersion,
+      courseVersionId: schema.resultRevisions.courseVersionId,
+      published: schema.resultRevisions.published,
+      createdAt: schema.resultRevisions.createdAt
+    }).from(schema.resultRevisions)
+      .where(eq(schema.resultRevisions.raceId, race.id))
+      .orderBy(asc(schema.resultRevisions.entryId), desc(schema.resultRevisions.revision)).limit(10_001);
     if (entries.length > 10_000 || classes.length > 1_000 || assignments.length > 20_000 || operations.length > 100_000 ||
         devices.length > 1_000 || revisions.length > 10_000 || heads.length > 10_000) return { status: "too-large" as const };
     const entryIds = new Set(entries.map(e => e.id)), classById = new Map(classes.map(c => [c.id, c]));
@@ -122,7 +222,7 @@ export async function readAuthorizedStartCheckinRoster(tx: Tx, raceId: string, n
       if (state.state !== "ACTIVE_RESULT") continue;
       // Steg 35: ett gällande beslut utan avläsning (deltog utan tid, utom tävlan, brutit, disk, manuell tid) betyder att
       // arrangören vet var löparen är: löparen räknas som i mål, inte kvar i skogen.
-      if (parseStrictStoredResultRevision(state.head, state.startCheckinDns?.source).status === "DNS") activeDns.add(state.head.entryId);
+      if (storedRosterResultStatus(state.head, state.startCheckinDns?.source) === "DNS") activeDns.add(state.head.entryId);
       else decided.add(state.head.entryId);
     }
     const cards = new Map<string, string[]>();

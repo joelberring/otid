@@ -14,13 +14,15 @@ export const dynamic = "force-dynamic";
 
 export default async function PublicFrozenRaceResultsPage({ params }: { params: Promise<{ raceId: string; finalizationId: string }> }) {
   const { raceId, finalizationId } = await params;
-  const language = await currentLanguage();
-  const access = await requirePublicRace(raceId);
-  const result = await readPublicFrozenRaceResults(db, raceId, finalizationId);
+  const [language, access] = await Promise.all([currentLanguage(), requirePublicRace(raceId)]);
+  const [result, nameDisplay] = await Promise.all([
+    readPublicFrozenRaceResults(db, raceId, finalizationId),
+    raceGroupNameDisplay(db, raceId)
+  ]);
   if (result.status !== "ok") notFound();
   return <main className="stack">
     <nav className="nav"><Link href={`/results/${raceId}`}>{pickTexts(language, frozenResultsSv, frozenResultsEn).back}</Link></nav>
     <PreviewBanner access={access} />
-    <section className="panel"><PublicFrozenRaceResults result={maskPublicNames(result.response, await raceGroupNameDisplay(db, raceId))} language={language} /></section>
+    <section className="panel"><PublicFrozenRaceResults result={maskPublicNames(result.response, nameDisplay)} language={language} /></section>
   </main>;
 }

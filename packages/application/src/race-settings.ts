@@ -5,6 +5,7 @@ import { schema, type Database } from "@o-tid/database";
 import { requireRaceRole, type RaceSessionProof } from "./race-session";
 import { lockRaceForMutation } from "./concurrency";
 import { applyRaceDateMove, hasStartTimes, planRaceDateMove, type RaceDateMovePlan } from "./race-date-move";
+import { clearAutoArchiveInactive } from "./race-club-archive-auto-state";
 import { bumpReadoutPackageVersion } from "./snapshot";
 import { UUID_PATTERN as uuid } from "./serialization";
 
@@ -68,8 +69,10 @@ export async function saveRaceSettingsAsAdmin(db: Database, input: Authenticatio
       startListLive: intent.startListLive ?? race.startListLive,
       // Steg 41: självregistrering finns inte för stafett (en deltagare per lag och sträcka).
       selfRegistration: intent.raceType === "RELAY" ? false : intent.selfRegistration ?? race.selfRegistration };
-    await tx.update(schema.races).set({ name: intent.raceName, raceDate: intent.raceDate, raceType: normalizeRaceType(intent.raceType), ...info,
+    const nextRaceType = normalizeRaceType(intent.raceType);
+    await tx.update(schema.races).set({ name: intent.raceName, raceDate: intent.raceDate, raceType: nextRaceType, ...info,
       snapshotVersion: snapshotVersionAfter }).where(eq(schema.races.id, raceId));
+    if (nextRaceType !== race.raceType) clearAutoArchiveInactive(raceId);
     if (datePlan && hasStartTimes(datePlan)) {
       await applyRaceDateMove(tx, { raceId, plan: datePlan, requestId: intent.requestId, actorAccountId: auth.principal.accountId,
         snapshotVersionBefore: locked.snapshotVersion, now });

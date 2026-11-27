@@ -6,6 +6,8 @@ import {
   contentHash, ingestDeviceBatch, exportIofResultListAsAdmin, exportFrozenIofResultListAsAdmin,
   finalizeResultsAsAdmin, listFrozenRaceFinalizationsAsAdmin, listResultFinalizationCandidatesAsAdmin
 } from "../../src";
+import { loadFinalizationSources } from "../../src/result-finalization-load";
+import { finalizationMetadata, StoredFinalizationConflict } from "../../src/result-finalization-projection";
 import { db, importedRace, batch, okPayload, useRaceDatabase } from "./race-fixtures";
 import { raceLogin } from "./accounts";
 
@@ -346,5 +348,62 @@ describe("TASK 006D immutable individuell resultatfinalisering PostgreSQL", () =
     expect(after.response.race.blockerCodes).toContain("UNKNOWN_CARD_UNRESOLVED");
     const [raceAfter] = await db.select().from(schema.races).where(eq(schema.races.id, fixture.raceId));
     expect(raceAfter?.snapshotVersion).toBe(raceBefore?.snapshotVersion);
+  });
+
+  it("loadFinalizationSources hoppar över överspelade historiska revisioner med DISTINCT ON och behåller aktiv XML-hashverifiering", async () => {
+    const fixture = await fullyReadRace();
+    const admin = await finalizationAdmin(fixture.raceId);
+    const auth = {
+      sessionToken: admin.login.sessionToken,
+      raceId: fixture.raceId,
+      csrfCookie: admin.login.csrfToken,
+      csrfHeader: admin.login.csrfToken
+    };
+    const c1 = await listResultFinalizationCandidatesAsAdmin(db, auth, usedAt);
+    if (c1.status !== "ok") throw new Error("Kandidat 1 saknas");
+    const readyClass = c1.response.classes.find((candidate) => candidate.entryCount > 0)!;
+    // Klass rev 1 + Lopp rev 1
+    expect((await finalizeResultsAsAdmin(db, {
+      ...auth, idempotencyKey: `result-finalization:${crypto.randomUUID()}`,
+      request: { formatVersion: 1, scope: "CLASS", classId: readyClass.classId, expectedBasisHash: readyClass.basisHash, expectedLatestScopeRevision: null }
+    }, { now: usedAt })).status).toBe("finalized");
+    const r1Cand = await listResultFinalizationCandidatesAsAdmin(db, auth, usedAt);
+    if (r1Cand.status !== "ok") throw new Error("Loppkandidat 1 saknas");
+    expect((await finalizeResultsAsAdmin(db, {
+      ...auth, idempotencyKey: `result-finalization:${crypto.randomUUID()}`,
+      request: { formatVersion: 1, scope: "RACE", classId: null, expectedBasisHash: r1Cand.response.race.basisHash, expectedLatestScopeRevision: null }
+    }, { now: usedAt })).status).toBe("finalized");
+
+    // Klass rev 2 + Lopp rev 2 (överspelar rev 1 i båda scopen)
+    const t2 = new Date(usedAt.getTime() + 10_000);
+    expect((await finalizeResultsAsAdmin(db, {
+      ...auth, idempotencyKey: `result-finalization:${crypto.randomUUID()}`,
+      request: { formatVersion: 1, scope: "CLASS", classId: readyClass.classId, expectedBasisHash: readyClass.basisHash, expectedLatestScopeRevision: 1 }
+    }, { now: t2 })).status).toBe("finalized");
+    const r2Cand = await listResultFinalizationCandidatesAsAdmin(db, auth, t2);
+    if (r2Cand.status !== "ok") throw new Error("Loppkandidat 2 saknas");
+    const r2 = await finalizeResultsAsAdmin(db, {
+      ...auth, idempotencyKey: `result-finalization:${crypto.randomUUID()}`,
+      request: { formatVersion: 1, scope: "RACE", classId: null, expectedBasisHash: r2Cand.response.race.basisHash, expectedLatestScopeRevision: 1 }
+    }, { now: t2 });
+    if (r2.status !== "finalized") throw new Error("Lopp rev 2 misslyckades");
+
+    // Bekräfta att 4 rader ligger i DB (2 CLASS + 2 RACE), men loadFinalizationSources returnerar exakt de aktiva rev 2-raderna med intakt completeXml.
+    const allRows = await db.select().from(schema.resultFinalizations).where(eq(schema.resultFinalizations.raceId, fixture.raceId));
+    expect(allRows).toHaveLength(4);
+    const [raceRow] = await db.select({ id: schema.races.id, eventId: schema.races.eventId, snapshotVersion: schema.races.snapshotVersion })
+      .from(schema.races).where(eq(schema.races.id, fixture.raceId));
+    const loaded = await db.transaction(tx => loadFinalizationSources(tx, raceRow!));
+    expect(loaded.latestClassFinalizationByClass.get(readyClass.classId)?.scopeRevision).toBe(2);
+    expect(loaded.latestRaceFinalization?.scopeRevision).toBe(2);
+    expect(loaded.latestRaceFinalization?.id).toBe(r2.response.finalization.id);
+    expect(loaded.latestRaceFinalization?.completeXml).toContain('status="Complete"');
+    const verifiedMeta = finalizationMetadata(loaded.latestRaceFinalization!);
+    expect(verifiedMeta.completeXmlSha256).toBe(loaded.latestRaceFinalization!.completeXmlHash);
+    // Manipulerad XML på aktiv rad ska fortsatt fällas av hashverifieringen.
+    expect(() => finalizationMetadata({
+      ...loaded.latestRaceFinalization!,
+      completeXml: `${loaded.latestRaceFinalization!.completeXml}<!-- tampered -->`
+    })).toThrow(StoredFinalizationConflict);
   });
 });

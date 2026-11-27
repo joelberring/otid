@@ -118,9 +118,22 @@ export function relayReadoutStanding(input: { readonly teams: readonly RelayStan
   const runner = team?.legs.find((row) => row.key === input.runnerKey && row.leg === input.leg);
   if (!team || !runner) return undefined;
   const rules = new Map(input.rules.map((rule) => [rule.leg, rule]));
+  const legRows: StandingRow[] = [];
   const results = input.teams.map((row) => {
+    const byLeg = new Map<number, RelayStandingLeg[]>();
+    for (const other of row.legs) {
+      if (other.leg <= input.leg) {
+        let group = byLeg.get(other.leg);
+        if (!group) { group = []; byLeg.set(other.leg, group); }
+        group.push(other);
+      }
+      if (other.leg === input.leg && other.status) {
+        legRows.push({ key: other.key, name: row.name, status: other.status,
+          ...(other.elapsedMs === undefined ? {} : { elapsedMs: other.elapsedMs }) });
+      }
+    }
     const outcomes: RelayLegOutcome[] = [];
-    for (let leg = 1; leg <= input.leg; leg += 1) outcomes.push(legOutcome(row.legs.filter((other) => other.leg === leg), leg, rules.get(leg)));
+    for (let leg = 1; leg <= input.leg; leg += 1) outcomes.push(legOutcome(byLeg.get(leg) ?? [], leg, rules.get(leg)));
     return { key: row.key, result: relayTeamResult(input.leg, outcomes) };
   });
   const ranking = rankRelayTeams(results, { restartRanking: input.restartRanking });
@@ -143,8 +156,6 @@ export function relayReadoutStanding(input: { readonly teams: readonly RelayStan
     const behindMs = elapsed(input.teamKey) - elapsed(leader.key);
     return { ...base, leader: { name: nameOf.get(leader.key)!, ...(behindMs >= 0 ? { behindMs } : {}) } };
   })();
-  const legRows: StandingRow[] = input.teams.flatMap((row) => row.legs.filter((other) => other.leg === input.leg && other.status)
-    .map((other) => ({ key: other.key, name: row.name, status: other.status!, ...(other.elapsedMs === undefined ? {} : { elapsedMs: other.elapsedMs }) })));
   const legStanding = runner.status === "OK" && runner.elapsedMs !== undefined ? readoutStanding(legRows, input.runnerKey) : undefined;
   return { leg: input.leg, ...(teamStanding ? { team: teamStanding } : {}),
     ...(legStanding ? { legTime: { ...legStanding, elapsedMs: runner.elapsedMs! } } : {}) };

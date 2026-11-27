@@ -60,10 +60,13 @@ export function radioPassage(runner: RadioRunner, controlCode: number): Unranked
     return { key: runner.key, controlCode, source: "READOUT", finished, elapsedMs: split.elapsedMs,
       passedAtMs: runner.startMs === null ? null : runner.startMs + split.elapsedMs };
   }
-  const punches = runner.punches.filter(punch => punch.controlCode === controlCode && Number.isFinite(punch.punchedAtMs) &&
-    (runner.startMs === null || punch.punchedAtMs >= runner.startMs));
-  if (punches.length === 0) return undefined;
-  const first = Math.min(...punches.map(punch => punch.punchedAtMs));
+  let first = Number.POSITIVE_INFINITY;
+  for (const punch of runner.punches) {
+    if (punch.controlCode !== controlCode || !Number.isFinite(punch.punchedAtMs)) continue;
+    if (runner.startMs !== null && punch.punchedAtMs < runner.startMs) continue;
+    if (punch.punchedAtMs < first) first = punch.punchedAtMs;
+  }
+  if (!Number.isFinite(first)) return undefined;
   return { key: runner.key, controlCode, source: "RADIO", finished, passedAtMs: first,
     elapsedMs: runner.startMs === null ? null : first - runner.startMs };
 }
@@ -74,20 +77,36 @@ function rankable(passage: Unranked, runner: RadioRunner | undefined): boolean {
   return passage.elapsedMs !== null && (runner?.finished === undefined || runner.finished.status === "OK");
 }
 
+function compareUnranked(a: Unranked, b: Unranked): number {
+  if ((a.elapsedMs === null) !== (b.elapsedMs === null)) return a.elapsedMs === null ? 1 : -1;
+  if (a.elapsedMs !== null && b.elapsedMs !== null && a.elapsedMs !== b.elapsedMs) return a.elapsedMs - b.elapsedMs;
+  return (a.passedAtMs ?? Infinity) - (b.passedAtMs ?? Infinity) || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
+}
+
 /** Placerar passagerna vid en kontroll: delad placering vid lika hela sekunder. */
 export function rankRadioPassages(passages: readonly Unranked[], runners: ReadonlyMap<string, RadioRunner>): RadioPassage[] {
-  const ranked = passages.filter(passage => rankable(passage, runners.get(passage.key)));
-  const times = ranked.map(passage => seconds(passage.elapsedMs!));
-  const placeOf = (elapsedMs: number) => 1 + times.filter(time => time < seconds(elapsedMs)).length;
-  const withPlace = passages.map(passage => ({ ...passage,
-    place: rankable(passage, runners.get(passage.key)) ? placeOf(passage.elapsedMs!) : null }));
-  return withPlace.sort((a, b) => {
-    if ((a.place === null) !== (b.place === null)) return a.place === null ? 1 : -1;
-    if (a.place !== null && b.place !== null && a.place !== b.place) return a.place - b.place;
-    if ((a.elapsedMs === null) !== (b.elapsedMs === null)) return a.elapsedMs === null ? 1 : -1;
-    if (a.elapsedMs !== null && b.elapsedMs !== null && a.elapsedMs !== b.elapsedMs) return a.elapsedMs - b.elapsedMs;
-    return (a.passedAtMs ?? Infinity) - (b.passedAtMs ?? Infinity) || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
-  });
+  const rankableItems: Unranked[] = [];
+  const unrankableItems: Unranked[] = [];
+  for (const passage of passages) {
+    if (rankable(passage, runners.get(passage.key))) rankableItems.push(passage);
+    else unrankableItems.push(passage);
+  }
+  rankableItems.sort(compareUnranked);
+  unrankableItems.sort(compareUnranked);
+  const result: RadioPassage[] = [];
+  let place = 0;
+  let prevSeconds: number | undefined;
+  for (let index = 0; index < rankableItems.length; index += 1) {
+    const passage = rankableItems[index]!;
+    const sec = seconds(passage.elapsedMs!);
+    if (sec !== prevSeconds) {
+      place = index + 1;
+      prevSeconds = sec;
+    }
+    result.push({ ...passage, place });
+  }
+  for (const passage of unrankableItems) result.push({ ...passage, place: null });
+  return result;
 }
 
 /** Klassens mellantider vid radiokontrollerna (koderna i banans ordning). */

@@ -239,9 +239,16 @@ export interface RelayLegRanking {
 
 /** Sträckresultat: varje sträcka rankas för sig efter sträcktid, med samma regler som en individuell klass. */
 export function rankRelayLegs(candidates: readonly RelayLegRankingCandidate[]): RelayLegRanking[] {
-  const legs = [...new Set(candidates.map((candidate) => candidate.leg))].sort((left, right) => left - right);
-  return legs.flatMap((leg) => rankClassResults(candidates.filter((candidate) => candidate.leg === leg)
-    .map(({ key, status, elapsedMs, courseVersionId }) => ({ key, status, courseVersionId,
-      ...(elapsedMs === undefined ? {} : { elapsedMs }) })))
-    .map((ranking) => ({ ...ranking, leg })));
+  const byLeg = new Map<number, { key: string; status: StoredResultStatus; courseVersionId: string; elapsedMs?: number }[]>();
+  for (const { key, leg, status, elapsedMs, courseVersionId } of candidates) {
+    let group = byLeg.get(leg);
+    if (!group) { group = []; byLeg.set(leg, group); }
+    group.push({ key, status, courseVersionId, ...(elapsedMs === undefined ? {} : { elapsedMs }) });
+  }
+  const legs = [...byLeg.keys()].sort((left, right) => left - right);
+  const ranked: RelayLegRanking[] = [];
+  for (const leg of legs) {
+    for (const ranking of rankClassResults(byLeg.get(leg)!)) ranked.push({ ...ranking, leg });
+  }
+  return ranked;
 }

@@ -21,85 +21,86 @@ export interface LockedRace {
 
 /** Loppets klasser, anmälningar, senaste resultat, banor, brickor och tidigare fastställanden. */
 export async function loadFinalizationSources(tx: DatabaseTransaction, race: LockedRace) {
-  const [eventRows, siblingRaces, classRows, entryRows, latestRows, unresolvedRows, finalizationRows] = await Promise.all([
-    tx.select({ name: schema.events.name }).from(schema.events)
-      .where(eq(schema.events.id, race.eventId)).limit(1),
-    tx.select({ id: schema.races.id }).from(schema.races)
-      .where(eq(schema.races.eventId, race.eventId)).orderBy(asc(schema.races.id)).limit(2),
-    tx.select({
-      id: schema.classes.id,
-      name: schema.classes.name,
-      courseVersionId: schema.classes.courseVersionId,
-      externalSource: schema.classes.externalSource,
-      externalId: schema.classes.externalId,
-      courseName: schema.courses.name,
-      lengthMeters: schema.courses.lengthMeters,
-      climbMeters: schema.courses.climbMeters
-    }).from(schema.classes)
-      .innerJoin(schema.courseVersions, eq(schema.courseVersions.id, schema.classes.courseVersionId))
-      .innerJoin(schema.courses, eq(schema.courses.id, schema.courseVersions.courseId))
-      .where(eq(schema.classes.raceId, race.id))
-      .orderBy(asc(schema.classes.name), asc(schema.classes.id)).limit(MAX_CLASSES + 1),
-    tx.select({
-      id: schema.entries.id,
-      classId: schema.entries.classId,
-      givenName: schema.entries.givenName,
-      familyName: schema.entries.familyName,
-      organisationName: schema.entries.organisationName,
-      externalSource: schema.entries.externalSource,
-      externalId: schema.entries.externalId,
-      eventorPersonId: schema.entries.eventorPersonId,
-      eventorOrganisationId: schema.entries.eventorOrganisationId,
-      courseVariantCode: schema.entries.courseVariantCode,
-      // Steg 47: stafettsträckans egen bana (null = klassens).
-      legCourseVersionId: schema.relayLegs.courseVersionId
-    }).from(schema.entries)
-      .leftJoin(schema.relayLegs, and(eq(schema.relayLegs.classId, schema.entries.classId), eq(schema.relayLegs.leg, schema.entries.relayLeg)))
-      .where(and(eq(schema.entries.raceId, race.id), isNull(schema.entries.struckAt)))
-      .orderBy(asc(schema.entries.classId), asc(schema.entries.familyName), asc(schema.entries.givenName), asc(schema.entries.id))
-      .limit(MAX_RESULTS + 1),
-    tx.selectDistinctOn([schema.resultRevisions.entryId], {
-      id: schema.resultRevisions.id,
-      raceId: schema.resultRevisions.raceId,
-      entryId: schema.resultRevisions.entryId,
-      revision: schema.resultRevisions.revision,
-      status: schema.resultRevisions.status,
-      reason: schema.resultRevisions.reason,
-      cause: schema.resultRevisions.cause,
-      readoutId: schema.resultRevisions.readoutId,
-      startCheckinDnsDecisionId: schema.resultRevisions.startCheckinDnsDecisionId,
-      shortenedCourseClassTransferId: schema.resultRevisions.shortenedCourseClassTransferId,
-      evaluation: schema.resultRevisions.evaluation,
-      engineVersion: schema.resultRevisions.engineVersion,
-      snapshotVersion: schema.resultRevisions.snapshotVersion,
-      basisHash: schema.resultRevisions.basisHash,
-      courseVersionId: schema.resultRevisions.courseVersionId,
-      published: schema.resultRevisions.published,
-      createdAt: schema.resultRevisions.createdAt
-    }).from(schema.resultRevisions)
-      .innerJoin(schema.entries, and(
-        eq(schema.resultRevisions.entryId, schema.entries.id),
-        eq(schema.entries.raceId, race.id),
-        isNull(schema.entries.struckAt)
-      ))
-      .where(eq(schema.resultRevisions.raceId, race.id))
-      .orderBy(asc(schema.resultRevisions.entryId), desc(schema.resultRevisions.revision), desc(schema.resultRevisions.id))
-      .limit(MAX_RESULTS + 1),
-    tx.select({ value: count(schema.cardReadouts.id) }).from(schema.cardReadouts)
-      .innerJoin(schema.deviceIngestOutcomes, eq(schema.cardReadouts.rawMessageId, schema.deviceIngestOutcomes.rawMessageId))
-      .leftJoin(schema.resultRevisions, eq(schema.cardReadouts.id, schema.resultRevisions.readoutId))
-      .leftJoin(schema.unknownReadoutResolutions,
-        eq(schema.cardReadouts.id, schema.unknownReadoutResolutions.readoutId))
-      .where(and(
-        eq(schema.cardReadouts.raceId, race.id),
-        sql`${schema.deviceIngestOutcomes.serverResult}->>'status' = 'UNKNOWN_CARD'`,
-        isNull(schema.resultRevisions.id),
-        isNull(schema.unknownReadoutResolutions.requestId)
-      )),
-    tx.select().from(schema.resultFinalizations)
-      .where(eq(schema.resultFinalizations.raceId, race.id))
-      .orderBy(asc(schema.resultFinalizations.scope), asc(schema.resultFinalizations.classId), desc(schema.resultFinalizations.scopeRevision))
-  ]);
+  const eventRows = await tx.select({ name: schema.events.name }).from(schema.events)
+    .where(eq(schema.events.id, race.eventId)).limit(1);
+  const siblingRaces = await tx.select({ id: schema.races.id }).from(schema.races)
+    .where(eq(schema.races.eventId, race.eventId)).orderBy(asc(schema.races.id)).limit(2);
+  const classRows = await tx.select({
+    id: schema.classes.id,
+    name: schema.classes.name,
+    courseVersionId: schema.classes.courseVersionId,
+    externalSource: schema.classes.externalSource,
+    externalId: schema.classes.externalId,
+    courseName: schema.courses.name,
+    lengthMeters: schema.courses.lengthMeters,
+    climbMeters: schema.courses.climbMeters
+  }).from(schema.classes)
+    .innerJoin(schema.courseVersions, eq(schema.courseVersions.id, schema.classes.courseVersionId))
+    .innerJoin(schema.courses, eq(schema.courses.id, schema.courseVersions.courseId))
+    .where(eq(schema.classes.raceId, race.id))
+    .orderBy(asc(schema.classes.name), asc(schema.classes.id)).limit(MAX_CLASSES + 1);
+  const entryRows = await tx.select({
+    id: schema.entries.id,
+    classId: schema.entries.classId,
+    givenName: schema.entries.givenName,
+    familyName: schema.entries.familyName,
+    organisationName: schema.entries.organisationName,
+    externalSource: schema.entries.externalSource,
+    externalId: schema.entries.externalId,
+    eventorPersonId: schema.entries.eventorPersonId,
+    eventorOrganisationId: schema.entries.eventorOrganisationId,
+    courseVariantCode: schema.entries.courseVariantCode,
+    // Steg 47: stafettsträckans egen bana (null = klassens).
+    legCourseVersionId: schema.relayLegs.courseVersionId
+  }).from(schema.entries)
+    .leftJoin(schema.relayLegs, and(eq(schema.relayLegs.classId, schema.entries.classId), eq(schema.relayLegs.leg, schema.entries.relayLeg)))
+    .where(and(eq(schema.entries.raceId, race.id), isNull(schema.entries.struckAt)))
+    .orderBy(asc(schema.entries.classId), asc(schema.entries.familyName), asc(schema.entries.givenName), asc(schema.entries.id))
+    .limit(MAX_RESULTS + 1);
+  const latestRows = await tx.selectDistinctOn([schema.resultRevisions.entryId], {
+    id: schema.resultRevisions.id,
+    raceId: schema.resultRevisions.raceId,
+    entryId: schema.resultRevisions.entryId,
+    revision: schema.resultRevisions.revision,
+    status: schema.resultRevisions.status,
+    reason: schema.resultRevisions.reason,
+    cause: schema.resultRevisions.cause,
+    readoutId: schema.resultRevisions.readoutId,
+    startCheckinDnsDecisionId: schema.resultRevisions.startCheckinDnsDecisionId,
+    shortenedCourseClassTransferId: schema.resultRevisions.shortenedCourseClassTransferId,
+    evaluation: schema.resultRevisions.evaluation,
+    engineVersion: schema.resultRevisions.engineVersion,
+    snapshotVersion: schema.resultRevisions.snapshotVersion,
+    basisHash: schema.resultRevisions.basisHash,
+    courseVersionId: schema.resultRevisions.courseVersionId,
+    published: schema.resultRevisions.published,
+    createdAt: schema.resultRevisions.createdAt
+  }).from(schema.resultRevisions)
+    .innerJoin(schema.entries, and(
+      eq(schema.resultRevisions.entryId, schema.entries.id),
+      eq(schema.entries.raceId, race.id),
+      isNull(schema.entries.struckAt)
+    ))
+    .where(eq(schema.resultRevisions.raceId, race.id))
+    .orderBy(asc(schema.resultRevisions.entryId), desc(schema.resultRevisions.revision), desc(schema.resultRevisions.id))
+    .limit(MAX_RESULTS + 1);
+  const unresolvedRows = await tx.select({ value: count(schema.cardReadouts.id) }).from(schema.cardReadouts)
+    .innerJoin(schema.deviceIngestOutcomes, eq(schema.cardReadouts.rawMessageId, schema.deviceIngestOutcomes.rawMessageId))
+    .leftJoin(schema.resultRevisions, eq(schema.cardReadouts.id, schema.resultRevisions.readoutId))
+    .leftJoin(schema.unknownReadoutResolutions,
+      eq(schema.cardReadouts.id, schema.unknownReadoutResolutions.readoutId))
+    .where(and(
+      eq(schema.cardReadouts.raceId, race.id),
+      sql`${schema.deviceIngestOutcomes.serverResult}->>'status' = 'UNKNOWN_CARD'`,
+      isNull(schema.resultRevisions.id),
+      isNull(schema.unknownReadoutResolutions.requestId)
+    ));
+  // Hoppa över överspelade historiska revisioner i SQL, men behåll completeXml på de aktiva senaste raderna för hashverifiering.
+  const finalizationRows = await tx.selectDistinctOn(
+    [schema.resultFinalizations.scope, schema.resultFinalizations.classId]
+  ).from(schema.resultFinalizations)
+    .where(eq(schema.resultFinalizations.raceId, race.id))
+    .orderBy(asc(schema.resultFinalizations.scope), asc(schema.resultFinalizations.classId), desc(schema.resultFinalizations.scopeRevision));
 
   if (!eventRows[0]) throw new StoredFinalizationConflict("Eventet saknas");
   if (classRows.length > MAX_CLASSES || entryRows.length > MAX_RESULTS || latestRows.length > MAX_RESULTS) {

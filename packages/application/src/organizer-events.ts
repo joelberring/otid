@@ -1,7 +1,7 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { acceptAllInvitations } from "./account-arrival";
+import { accountEmailVerified } from "./email-verification";
 import { organisationById } from "./organisations";
-import { sql } from "drizzle-orm";
 import {
   organizerEventCreateIdempotencyKeySchema,
   organizerEventCreateRequestSchema,
@@ -16,8 +16,9 @@ import {
   authenticateUserAccountSessionForProtectedRead,
   type UserAccountSessionProof
 } from "./user-account";
-import { activeEventAdministrationGrant, type EventGrantRole } from "./race-session";
+import type { EventGrantRole } from "./race-session";
 import type { DbExecutor } from "./snapshot";
+import { inUuids } from "./sql-ids";
 
 
 export type OrganizerEventCreateResult =
@@ -147,34 +148,65 @@ export async function listMyEvents(
       .from(schema.eventAdministrationGrants)
       .where(and(eq(schema.eventAdministrationGrants.accountId, auth.principal.accountId),
         inArray(schema.eventAdministrationGrants.role, ["OWNER", "ADMIN", "FUNCTIONARY"])))
-      .orderBy(asc(schema.eventAdministrationGrants.grantedAt)).limit(10_001);
+      .orderBy(asc(schema.eventAdministrationGrants.grantedAt), asc(schema.eventAdministrationGrants.id))
+      .limit(10_001).for("share");
     if (grants.length > 10_000) throw new Error("För många administrerade event för detta kontrakt");
+    const verified = grants.every(grant => grant.role === "OWNER")
+      ? true : await accountEmailVerified(tx, auth.principal.accountId);
+    const eligibleGrants = verified ? grants : grants.filter(grant => grant.role === "OWNER");
     const events: OrganizerMyEventsResponse["events"] = [];
     const eventIndexes = new Map<string, number>();
-    for (const grant of grants) {
-      if (!await activeEventAdministrationGrant(tx, {
-        accountId: auth.principal.accountId, eventId: grant.eventId, grantId: grant.id, roles: [grant.role]
-      }, "share")) continue;
-      const existingIndex = eventIndexes.get(grant.eventId);
-      if (existingIndex !== undefined) {
-        const existing = events[existingIndex];
-        if (existing && ROLE_ORDER[grant.role] < ROLE_ORDER[existing.role]) existing.role = grant.role;
-        continue;
+    if (eligibleGrants.length > 0) {
+      const grantIds = eligibleGrants.map(grant => grant.id);
+      // Lås guard-raderna med FOR SHARE innan återkallelser läses (samma MVCC-skydd som activeEventAdministrationGrant).
+      const guardRows = await tx.select({ grantId: schema.eventAdministrationGrantGuards.grantId })
+        .from(schema.eventAdministrationGrantGuards)
+        .where(inUuids(schema.eventAdministrationGrantGuards.grantId, grantIds))
+        .orderBy(asc(schema.eventAdministrationGrantGuards.grantId))
+        .for("share");
+      const guardedIds = new Set(guardRows.map(row => row.grantId));
+      const revokedRows = guardedIds.size === 0 ? [] : await tx.select({ grantId: schema.eventAdministrationGrantRevocations.grantId })
+        .from(schema.eventAdministrationGrantRevocations)
+        .where(inUuids(schema.eventAdministrationGrantRevocations.grantId, [...guardedIds]));
+      const revokedIds = new Set(revokedRows.map(row => row.grantId));
+      const activeByEvent: { eventId: string; role: EventGrantRole }[] = [];
+      const activeIndex = new Map<string, number>();
+      for (const grant of eligibleGrants) {
+        if (!guardedIds.has(grant.id) || revokedIds.has(grant.id)) continue;
+        const existingIndex = activeIndex.get(grant.eventId);
+        if (existingIndex !== undefined) {
+          const existing = activeByEvent[existingIndex]!;
+          if (ROLE_ORDER[grant.role] < ROLE_ORDER[existing.role]) existing.role = grant.role;
+          continue;
+        }
+        activeIndex.set(grant.eventId, activeByEvent.length);
+        activeByEvent.push({ eventId: grant.eventId, role: grant.role });
       }
-      const [event] = await tx.select({ id: schema.events.id, name: schema.events.name,
-        startsOn: schema.events.startsOn, timeZone: schema.events.timeZone })
-        .from(schema.events).where(eq(schema.events.id, grant.eventId));
-      if (!event) throw new Error("Eventgrant utan event");
-      const races = await tx.select({ id: schema.races.id, name: schema.races.name,
-        raceDate: schema.races.raceDate, raceType: schema.races.raceType })
-        .from(schema.races).where(eq(schema.races.eventId, event.id))
-        .orderBy(asc(schema.races.raceDate), asc(schema.races.id)).limit(10_001);
-      if (races.length > 10_000) throw new Error("För många lopp för detta kontrakt");
-      eventIndexes.set(event.id, events.length);
-      events.push({ eventId: event.id, eventName: event.name, startsOn: event.startsOn,
-        timeZone: event.timeZone, role: grant.role,
-        races: races.map(race => ({ raceId: race.id, raceName: race.name, raceDate: race.raceDate,
-          raceType: race.raceType })) });
+      if (activeByEvent.length > 0) {
+        const eventIds = activeByEvent.map(entry => entry.eventId);
+        const eventRows = await tx.select({ id: schema.events.id, name: schema.events.name,
+          startsOn: schema.events.startsOn, timeZone: schema.events.timeZone })
+          .from(schema.events).where(inUuids(schema.events.id, eventIds));
+        const eventById = new Map(eventRows.map(row => [row.id, row]));
+        const raceRows = await tx.select({ id: schema.races.id, eventId: schema.races.eventId,
+          name: schema.races.name, raceDate: schema.races.raceDate, raceType: schema.races.raceType })
+          .from(schema.races).where(inUuids(schema.races.eventId, eventIds))
+          .orderBy(asc(schema.races.raceDate), asc(schema.races.id));
+        const racesByEvent = new Map<string, { raceId: string; raceName: string; raceDate: string; raceType: (typeof raceRows)[number]["raceType"] }[]>();
+        for (const race of raceRows) {
+          let list = racesByEvent.get(race.eventId);
+          if (!list) { list = []; racesByEvent.set(race.eventId, list); }
+          list.push({ raceId: race.id, raceName: race.name, raceDate: race.raceDate, raceType: race.raceType });
+          if (list.length > 10_000) throw new Error("För många lopp för detta kontrakt");
+        }
+        for (const { eventId, role } of activeByEvent) {
+          const event = eventById.get(eventId);
+          if (!event) throw new Error("Eventgrant utan event");
+          eventIndexes.set(event.id, events.length);
+          events.push({ eventId: event.id, eventName: event.name, startsOn: event.startsOn,
+            timeZone: event.timeZone, role, races: racesByEvent.get(event.id) ?? [] });
+        }
+      }
     }
     // Steg 66: banläggningens behörighet per lopp; utan roll på eventet syns bara de loppen.
     const courseGrants = await tx.select({ raceId: schema.courseSettingGrants.raceId, level: schema.courseSettingGrants.level,

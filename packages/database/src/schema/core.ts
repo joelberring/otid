@@ -152,7 +152,8 @@ export const races = pgTable("race", {
   check("race_short_code_check", sql`${table.shortCode} ~ '^[2-9a-hjkmnp-z]{6}$'`),
   uniqueIndex("race_short_code_uidx").on(table.shortCode),
   index("race_event_idx").on(table.eventId),
-  uniqueIndex("race_id_event_uidx").on(table.id, table.eventId)
+  uniqueIndex("race_id_event_uidx").on(table.id, table.eventId),
+  index("race_public_date_idx").on(table.raceDate.desc()).where(sql`${table.publishedAt} IS NOT NULL AND NOT ${table.hiddenBySuperadmin}`)
 ]);
 
 export const courses = pgTable("course", {
@@ -315,7 +316,8 @@ export const entries = pgTable("entry", {
   uniqueIndex("entry_external_uidx").on(table.raceId, table.externalSource, table.externalId),
   uniqueIndex("entry_race_public_result_uidx").on(table.raceId, table.publicResultId),
   uniqueIndex("entry_id_race_uidx").on(table.id, table.raceId),
-  index("entry_class_idx").on(table.classId)
+  index("entry_class_idx").on(table.classId),
+  index("entry_relay_card_entry_idx").on(table.relayCardEntryId).where(sql`${table.relayCardEntryId} IS NOT NULL`)
 ]);
 
 export const cardAssignments = pgTable("card_assignment", {

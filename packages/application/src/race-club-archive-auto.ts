@@ -4,7 +4,9 @@ import { localRaceDate, raceFinishedForArchive, swedishToday } from "@o-tid/doma
 import { clubMembership, clubRoleAtLeast } from "./club-access";
 import { coursesArePublic } from "./course-secrecy";
 import { liftInTransaction, liftOf, lockRaceClubArchive } from "./race-club-archive";
-import { autoArchiveDefault, recordAutoArchiveProblem } from "./race-club-archive-auto-state";
+import {
+  autoArchiveDefault, cacheAutoArchiveInactive, isAutoArchiveCachedInactive, recordAutoArchiveProblem
+} from "./race-club-archive-auto-state";
 import { activeEventAdministrationGrant } from "./race-session";
 import type { DbExecutor } from "./snapshot";
 
@@ -88,14 +90,30 @@ export async function maybeAutoArchive(tx: DbExecutor, raceId: string, now: Date
   return lifted.status === "lifted" ? "archived" : "none";
 }
 
+/** Billig förkontroll (utan sparpunkt): är automatisk arkivering avstängd eller redan gjord på tävlingen? */
+async function autoArchiveInactive(tx: DbExecutor, raceId: string): Promise<boolean> {
+  const [row] = await tx.select({ raceType: schema.races.raceType, enabled: auto.enabled, archivedAt: auto.archivedAt })
+    .from(schema.races)
+    .leftJoin(auto, eq(auto.raceId, schema.races.id))
+    .where(eq(schema.races.id, raceId))
+    .limit(1);
+  return !row || row.archivedAt !== null || !(row.enabled ?? autoArchiveDefault(row.raceType));
+}
+
 /**
- * Efter en sparad avläsning eller ett beslut, sist i samma transaktion. Allt (också det billiga villkoret) körs i en sparpunkt:
- * ett fel där får aldrig stoppa avläsningen. Det loggas (utan namn), sparas som `FAILED` när det går och görs om av
- * underhållsvarvet.
+ * Efter en sparad avläsning eller ett beslut, sist i samma transaktion. Tävlingar där auto-arkiv inte är aktivt hoppas över
+ * utan Postgres-sparpunkt och cachas kortlivat; själva arkiveringen körs i en sparpunkt så att ett fel aldrig stoppar
+ * avläsningen.
  */
 export async function autoArchiveAfterResult(tx: Transaction, raceId: string, now: Date): Promise<void> {
+  if (isAutoArchiveCachedInactive(raceId)) return;
+  if (await autoArchiveInactive(tx, raceId)) {
+    cacheAutoArchiveInactive(raceId);
+    return;
+  }
   try {
-    await tx.transaction(savepoint => maybeAutoArchive(savepoint, raceId, now));
+    const outcome = await tx.transaction(savepoint => maybeAutoArchive(savepoint, raceId, now));
+    if (outcome === "archived") cacheAutoArchiveInactive(raceId);
   } catch (error) {
     console.error(`Automatisk arkivering av tävlingen ${raceId} misslyckades: ${error instanceof Error ? error.message : String(error)}`);
     // Också problemet i en sparpunkt (tabellen kan saknas i en databas som inte är migrerad än).

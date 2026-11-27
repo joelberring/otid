@@ -15,6 +15,8 @@ import {
   setMapProjectMemberRole, updateMapProject
 } from "../../src/map-projects";
 import { syncMapProject } from "../../src/map-project-sync";
+import { applyMapProjectEdits } from "../../src/map-project-apply";
+import type { RevisionEdit } from "@o-tid/map-revision";
 import { exportMapProjectChanges, readMapProjectOutput, revisionNote, writeMapProjectVersion } from "../../src/map-project-output";
 import { deleteAccountWithOwnedEvents, soleOwnerships } from "../../src/account-self-service";
 import { registerTestAccount } from "./accounts";
@@ -542,5 +544,91 @@ describe("ADR-0219 kartprojekt", () => {
       expect([...reread.symbols.values()].some(symbol => symbol.kind === "TEXT" && symbol.code.text === "999.1")).toBe(true);
       expect([...reread.symbols.values()].some(symbol => symbol.code.main === 545)).toBe(true);
     } finally { delete process.env.OTID_OCAD_WRITE; }
+  });
+
+  it("syncMapProject: tom poll tar FOR SHARE, ändring tar FOR UPDATE, last_seen_at throttlas 30 s och bulk-apply hanterar >500 rader", async () => {
+    const s = await setup();
+    const t0 = new Date("2026-11-08T10:00:00.000Z");
+    const pollAt = (at: Date, edits: unknown[] = [], since = 0) =>
+      syncMapProject(db, { ...s.owner.proof, projectId: s.projectId, request: { formatVersion: 1, clientId: "poll-1", since, edits } }, at);
+
+    // 1) Första synken sätter last_seen_at och last_opened_at.
+    expect((await pollAt(t0)).status).toBe("ok");
+    const readLastSeen = async () => (await pool.query<{ last_seen_at: Date | null }>(
+      "select last_seen_at from map_project_member where project_id = $1 and account_id = $2",
+      [s.projectId, s.owner.accountId]
+    )).rows[0]?.last_seen_at ?? null;
+    const readLastOpened = async () => (await pool.query<{ last_opened_at: Date | null }>(
+      "select last_opened_at from map_project where id = $1", [s.projectId]
+    )).rows[0]?.last_opened_at ?? null;
+    expect((await readLastSeen())?.toISOString()).toBe(t0.toISOString());
+    expect((await readLastOpened())?.toISOString()).toBe(t0.toISOString());
+
+    // 2) Efter 10 s och 29 s skrivs inte last_seen_at om (throttlad 30 s); efter 30 s uppdateras den.
+    expect((await pollAt(new Date(t0.getTime() + 10_000))).status).toBe("ok");
+    expect((await readLastSeen())?.toISOString()).toBe(t0.toISOString());
+    expect((await pollAt(new Date(t0.getTime() + 29_999))).status).toBe("ok");
+    expect((await readLastSeen())?.toISOString()).toBe(t0.toISOString());
+    const t30 = new Date(t0.getTime() + 30_000);
+    expect((await pollAt(t30)).status).toBe("ok");
+    expect((await readLastSeen())?.toISOString()).toBe(t30.toISOString());
+    // last_opened_at hålls orörd inom 60 min (JS-förkoll skippar UPDATE).
+    expect((await readLastOpened())?.toISOString()).toBe(t0.toISOString());
+
+    // 3) FOR SHARE vid edits: [] (blockeras ej av annat FOR SHARE) vs FOR UPDATE vid edits.length > 0 (blockeras av FOR SHARE).
+    const holder = await pool.connect();
+    try {
+      await holder.query("BEGIN");
+      await holder.query("SELECT id FROM map_project WHERE id = $1 FOR SHARE", [s.projectId]);
+      const emptyPoll = await Promise.race([
+        pollAt(new Date(t30.getTime() + 5_000), []).then((res) => res.status),
+        new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), 1_500))
+      ]);
+      expect(emptyPoll).toBe("ok");
+
+      const writePoll = pollAt(new Date(t30.getTime() + 6_000), [edit(newKey(randomUUID()), added(1), null, "ADD")]);
+      const blocked = await Promise.race([
+        writePoll.then(() => "klart" as const),
+        new Promise<"väntar">((resolve) => setTimeout(() => resolve("väntar"), 250))
+      ]);
+      expect(blocked).toBe("väntar");
+      await holder.query("COMMIT");
+      const finished = await writePoll;
+      expect(finished.status).toBe("ok");
+      if (finished.status !== "ok") throw new Error("Skrivsynk misslyckades");
+      expect(finished.response.seq).toBe(1);
+    } finally {
+      await holder.query("ROLLBACK").catch(() => undefined);
+      holder.release();
+    }
+
+    // 4) Chunkad bulk-upsert (>500 rader) i applyMapProjectEdits inkl. två kedjade ändringar på samma objectKey + en krock i samma batch.
+    const bulkEdits: RevisionEdit[] = [];
+    for (let i = 0; i < 520; i += 1) {
+      bulkEdits.push(edit(newKey(randomUUID()), added(100 + i), null, "ADD") as RevisionEdit);
+    }
+    const chainedKey = newKey(randomUUID());
+    const firstChained = edit(chainedKey, added(900), null, "ADD") as RevisionEdit;
+    const secondChained = edit(chainedKey, added(901), firstChained.editId, "MOVE") as RevisionEdit;
+    const conflicting = edit(chainedKey, added(902), randomUUID(), "MOVE") as RevisionEdit;
+    bulkEdits.push(firstChained, secondChained, conflicting);
+
+    const bulk = await db.transaction(async tx =>
+      applyMapProjectEdits(tx, {
+        project: { id: s.projectId, seq: 1 },
+        authorId: s.owner.accountId,
+        clientId: "bulk-1",
+        edits: bulkEdits,
+        now: new Date(t30.getTime() + 10_000)
+      })
+    );
+    expect(bulk.seq).toBe(1 + 522);
+    expect(bulk.results.filter(r => r.status === "APPLIED")).toHaveLength(522);
+    expect(bulk.results.filter(r => r.status === "CONFLICT")).toHaveLength(1);
+    const chainedRow = (await pool.query<{ version: number; last_edit_id: string }>(
+      "select version, last_edit_id from map_project_object where project_id = $1 and object_key = $2",
+      [s.projectId, chainedKey]
+    )).rows[0];
+    expect(chainedRow).toEqual({ version: 2, last_edit_id: secondChained.editId });
   });
 });

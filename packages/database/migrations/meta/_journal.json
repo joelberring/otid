@@ -123,6 +123,7 @@
     { "idx": 118, "version": "7", "when": 1809792000000, "tag": "0144_kartprojekt_normsymboler", "breakpoints": true },
     { "idx": 119, "version": "7", "when": 1809878400000, "tag": "0145_kartbank_och_sparr", "breakpoints": true },
     { "idx": 120, "version": "7", "when": 1809964800000, "tag": "0146_kartbank_index", "breakpoints": true },
-    { "idx": 121, "version": "7", "when": 1810051200000, "tag": "0147_kartprojekt_sparr", "breakpoints": true }
+    { "idx": 121, "version": "7", "when": 1810051200000, "tag": "0147_kartprojekt_sparr", "breakpoints": true },
+    { "idx": 122, "version": "7", "when": 1810137600000, "tag": "0148_prestandaindex", "breakpoints": true }
   ]
 }

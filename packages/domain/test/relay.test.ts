@@ -134,6 +134,28 @@ describe("lagresultat", () => {
       { key: "b2", leg: 2, rankingState: "NOT_RANKABLE_STATUS" }
     ]);
   });
+
+  it("rankRelayLegs grupperar 25 sträckor × 20 lag i sträckordning med delade placeringar", () => {
+    const candidates = Array.from({ length: 25 }, (_, legIndex) =>
+      Array.from({ length: 20 }, (_, teamIndex) => ({
+        key: `t${teamIndex}-l${legIndex + 1}`,
+        leg: 25 - legIndex,
+        status: teamIndex === 19 ? ("MP" as const) : ("OK" as const),
+        elapsedMs: minutes(20 + (teamIndex % 10)),
+        courseVersionId: `cv-${25 - legIndex}`
+      }))
+    ).flat();
+    const ranked = rankRelayLegs(candidates);
+    expect(ranked).toHaveLength(500);
+    for (let leg = 1; leg <= 25; leg += 1) {
+      const slice = ranked.slice((leg - 1) * 20, leg * 20);
+      expect(slice.every(row => row.leg === leg)).toBe(true);
+      expect(slice[0]!.position).toBe(1);
+      expect(slice[1]!.position).toBe(1);
+      expect(slice[2]!.position).toBe(3);
+      expect(slice[19]!.rankingState).toBe("NOT_RANKABLE_STATUS");
+    }
+  });
 });
 
 describe("sträckan bedöms som en individuell avläsning", () => {

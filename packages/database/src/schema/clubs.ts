@@ -190,7 +190,9 @@ export const clubArchiveCourseFiles = pgTable("club_archive_course_file", {
   mapReference: text("map_reference"),
   mapResolution: text("map_resolution").$type<ClubMapResolution>().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull()
-});
+}, (table) => [
+  index("club_archive_course_file_club_idx").on(table.clubId)
+]);
 
 /** ADR-0196 (migration 0062): kontrollen av en kartversion, ritad i webbläsaren. */
 export type ClubMapCheckStatus = "OK" | "UNSUPPORTED_VERSION" | "NOT_A_MAP_FILE" | "TRUNCATED" | "INVALID" | "EMPTY" | "TOO_LARGE" | "FAILED";

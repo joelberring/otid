@@ -34,7 +34,10 @@ const cache = globalCache.oTidPublicRaceCache ??= createPublicRaceCache({
   ...(competition ? { serveStaleMs: 3_000 } : {}) });
 
 /** `fresh`: vänta på den aktuella versionen (väckningen). `exact`: läs versionen nu (sidorna, efter en sparad ändring). */
-type Read = { fresh?: boolean; exact?: boolean };
+type Read = { fresh?: boolean; exact?: boolean; knownVersion?: Promise<string | null> | string | null };
+
+/** Beräknar färsk `publicRaceContentVersion` en gång för att delas mellan parallella `{ exact: true }`-anrop vid SSR. */
+export const exactPublicRaceVersion = (raceId: string) => cache.exactVersion(raceId);
 
 /** Instansen som visar en lista lyssnar på resultatströmmen (se `ensurePublicResultListener`); inläst först vid behov. */
 let streamModule: Promise<typeof import("./public-result-event-stream")> | undefined;
@@ -89,8 +92,9 @@ export const cachedPublicRadio = (raceId: string, options: Read = {}) =>
 
 /** Live ur de cachade listorna; "Ny ledare" och tiden följer klockan, så Live räknas om minst var femte sekund. */
 export const cachedPublicLive = (raceId: string, read: Read = {}) => cache.read(raceId, "live", async () => {
-  const [results, relay, radio] = await Promise.all([cachedPublicResults(raceId, read), cachedPublicRelayResults(raceId, read),
-    cachedPublicRadio(raceId, read)]);
+  const shared = read.exact && read.knownVersion === undefined ? { ...read, knownVersion: cache.exactVersion(raceId) } : read;
+  const [results, relay, radio] = await Promise.all([cachedPublicResults(raceId, shared), cachedPublicRelayResults(raceId, shared),
+    cachedPublicRadio(raceId, shared)]);
   return publicNames(raceId, await readPublicLiveFrom(db, raceId, { results: results.value, relay: relay.value, radio: radio.value }));
 }, { maxAgeMs: 5_000, ...read });
 
@@ -136,7 +140,8 @@ export async function cachedPublicResultDetail(raceId: string, publicResultId: s
     const results = await cachedStaffResults(raceId, read);
     return { ...publicResultDetailFrom(results.value, publicResultId, true), stale: results.stale === true, retryMs: results.retryMs };
   }
-  const [results, coursesPublic] = await Promise.all([cachedPublicResults(raceId, read), cachedCoursesArePublic(raceId, read)]);
+  const shared = read.exact && read.knownVersion === undefined ? { ...read, knownVersion: cache.exactVersion(raceId) } : read;
+  const [results, coursesPublic] = await Promise.all([cachedPublicResults(raceId, shared), cachedCoursesArePublic(raceId, shared)]);
   return { ...publicResultDetailFrom(results.value, publicResultId, coursesPublic.value),
     stale: results.stale === true || coursesPublic.stale === true, retryMs: results.retryMs };
 }

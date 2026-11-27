@@ -143,15 +143,18 @@ export async function listPublicMapListings(db: Database, rawQuery: unknown)
   }
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-  const rows = await db.select().from(table).where(whereClause)
-    .orderBy(desc(table.updatedAt), desc(table.publishedAt))
-    .limit(q.limit)
-    .offset(q.offset);
-
-  const [countRow] = await db.select({ total: sql<number>`count(*)::int` }).from(table).where(whereClause);
-  const muniRows = (await db.execute<{ code: string; cnt: number }>(
-    sql`select code, count(*)::int as cnt from public_map_listing, unnest(municipality_codes) as code group by code`
-  )).rows;
+  const [rows, countRows, muniResult] = await Promise.all([
+    db.select().from(table).where(whereClause)
+      .orderBy(desc(table.updatedAt), desc(table.publishedAt))
+      .limit(q.limit)
+      .offset(q.offset),
+    db.select({ total: sql<number>`count(*)::int` }).from(table).where(whereClause),
+    db.execute<{ code: string; cnt: number }>(
+      sql`select code, count(*)::int as cnt from public_map_listing, unnest(municipality_codes) as code group by code`
+    )
+  ]);
+  const [countRow] = countRows;
+  const muniRows = muniResult.rows;
   const municipalityCounts: Record<string, number> = {};
   for (const row of muniRows) municipalityCounts[row.code] = Number(row.cnt);
 

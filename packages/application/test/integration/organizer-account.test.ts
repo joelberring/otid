@@ -174,4 +174,82 @@ describe("TASK150 kontobunden tävlingsadministration", () => {
       password: installation.password }, { now: new Date(now.getTime() + 16 * 60 * 1000) })).status)
       .toBe("authenticated");
   });
+
+  it("listMyEvents batchar flera event/roller, hedrar e-postbekräftelse och väntar ut samtidig återkallelse (FOR SHARE / MVCC)", async () => {
+    const owner = await account(`batch-owner.${randomUUID().slice(0, 8)}`);
+    const helper = await account(`batch-helper.${randomUUID().slice(0, 8)}`);
+    const ev1 = await createOrganizerEvent(db, createInput(owner.proof, randomUUID(), "Batch-event 1"), now);
+    const ev2 = await createOrganizerEvent(db, createInput(owner.proof, randomUUID(), "Batch-event 2"), now);
+    const ev3 = await createOrganizerEvent(db, createInput(owner.proof, randomUUID(), "Batch-event 3"), now);
+    if (ev1.status !== "created" || ev2.status !== "created" || ev3.status !== "created") throw new Error("Skapande misslyckades");
+
+    // Ge helper både FUNCTIONARY och ADMIN på ev1 (ADMIN vinner), ADMIN på ev2 (återkallas), FUNCTIONARY på ev3.
+    const [g1Func] = await db.insert(schema.eventAdministrationGrants).values({
+      eventId: ev1.response.eventId, accountId: helper.installation.accountId, role: "FUNCTIONARY",
+      grantedAt: new Date(now.getTime() + 1_000)
+    }).returning({ id: schema.eventAdministrationGrants.id });
+    await db.insert(schema.eventAdministrationGrants).values({
+      eventId: ev1.response.eventId, accountId: helper.installation.accountId, role: "ADMIN",
+      grantedAt: new Date(now.getTime() + 2_000)
+    });
+    const [g2Admin] = await db.insert(schema.eventAdministrationGrants).values({
+      eventId: ev2.response.eventId, accountId: helper.installation.accountId, role: "ADMIN",
+      grantedAt: new Date(now.getTime() + 3_000)
+    }).returning({ id: schema.eventAdministrationGrants.id });
+    const [g3Func] = await db.insert(schema.eventAdministrationGrants).values({
+      eventId: ev3.response.eventId, accountId: helper.installation.accountId, role: "FUNCTIONARY",
+      grantedAt: new Date(now.getTime() + 4_000)
+    }).returning({ id: schema.eventAdministrationGrants.id });
+    expect(g1Func && g2Admin && g3Func).toBeTruthy();
+
+    // Återkalla ev2 direkt och verifiera exakt ordning & uppgraderad roll för ev1 + ev3.
+    await db.insert(schema.eventAdministrationGrantRevocations).values({
+      grantId: g2Admin!.id, revokedAt: new Date(now.getTime() + 5_000), reason: "TEST_BATCH_REVOKE"
+    });
+    const beforeMvcc = await listMyEvents(db, helper.proof, new Date(now.getTime() + 6_000));
+    expect(beforeMvcc.status).toBe("ok");
+    if (beforeMvcc.status !== "ok") throw new Error("listMyEvents misslyckades");
+    expect(beforeMvcc.response.events.map(e => ({ eventId: e.eventId, role: e.role }))).toEqual([
+      { eventId: ev1.response.eventId, role: "ADMIN" },
+      { eventId: ev3.response.eventId, role: "FUNCTIONARY" }
+    ]);
+
+    // Pågående ocommittad återkallelse av ev3 håller radlås på event_administration_grant_guard via trigger:
+    // listMyEvents (FOR SHARE) måste vänta tills återkallelsen committar och sedan utesluta ev3.
+    const revoker = await pool.connect();
+    try {
+      await revoker.query("BEGIN");
+      await revoker.query(
+        "INSERT INTO event_administration_grant_revocation (grant_id, revoked_at, reason) VALUES ($1, $2, $3)",
+        [g3Func!.id, new Date(now.getTime() + 7_000).toISOString(), "CONCURRENT_MVCC_REVOKE"]
+      );
+      const pending = listMyEvents(db, helper.proof, new Date(now.getTime() + 8_000));
+      const race = await Promise.race([
+        pending.then(() => "klart" as const),
+        new Promise<"väntar">((resolve) => setTimeout(() => resolve("väntar"), 250))
+      ]);
+      expect(race).toBe("väntar");
+      await revoker.query("COMMIT");
+      const afterMvcc = await pending;
+      expect(afterMvcc.status).toBe("ok");
+      if (afterMvcc.status !== "ok") throw new Error("listMyEvents efter commit misslyckades");
+      expect(afterMvcc.response.events.map(e => ({ eventId: e.eventId, role: e.role }))).toEqual([
+        { eventId: ev1.response.eventId, role: "ADMIN" }
+      ]);
+    } finally {
+      await revoker.query("ROLLBACK").catch(() => undefined);
+      revoker.release();
+    }
+
+    // Obekräftad e-post: behåller bara OWNER-event, inte ADMIN/FUNCTIONARY.
+    const helperOwn = await createOrganizerEvent(db, createInput(helper.proof, randomUUID(), "Helpers eget"), new Date(now.getTime() + 9_000));
+    if (helperOwn.status !== "created") throw new Error("Eget event misslyckades");
+    await db.update(schema.userAccounts).set({ emailVerifiedAt: null }).where(eq(schema.userAccounts.id, helper.installation.accountId));
+    const unverified = await listMyEvents(db, helper.proof, new Date(now.getTime() + 10_000));
+    expect(unverified.status).toBe("ok");
+    if (unverified.status !== "ok") throw new Error("listMyEvents för obekräftat konto misslyckades");
+    expect(unverified.response.events.map(e => ({ eventId: e.eventId, role: e.role }))).toEqual([
+      { eventId: helperOwn.response.eventId, role: "OWNER" }
+    ]);
+  });
 });

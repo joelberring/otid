@@ -58,4 +58,29 @@ describe("mellantider vid radiokontroll (ADR-0172 beslut 5)", () => {
     // Samma kod två gånger i listan räknas en gång.
     expect(radioClassStandings([runner("a", [[31, 450]])], [31, 31]).controls).toHaveLength(1);
   });
+
+  it("linjär rankRadioPassages ger exakt samma placering och ordning som naiv beräkning för 500 löpare", () => {
+    const runners: RadioRunner[] = Array.from({ length: 500 }, (_, i) => {
+      const sec = 300 + ((i * 37) % 120);
+      const subMs = (i * 193) % 1000;
+      if (i % 25 === 0) return runner(`mp-${i}`, [], { finished: { status: "MP", splits: [{ controlCode: 31, elapsedMs: sec * 1_000 + subMs }] } });
+      if (i % 33 === 0) return runner(`nostart-${i}`, [[31, sec]], { startMs: null });
+      return { key: `r-${String(i).padStart(3, "0")}`, startMs: START, punches: [{ controlCode: 31, punchedAtMs: START + sec * 1_000 + subMs }] };
+    });
+    const standings = radioClassStandings(runners, [31]);
+    const passages = standings.controls[0]!.passages;
+    const rankableSeconds = passages.filter(p => p.place !== null).map(p => Math.floor(p.elapsedMs! / 1_000));
+    for (const p of passages) {
+      if (p.place === null) continue;
+      const expectedPlace = 1 + rankableSeconds.filter(sec => sec < Math.floor(p.elapsedMs! / 1_000)).length;
+      expect(p.place).toBe(expectedPlace);
+    }
+    // Alla placerade kommer före oplacerade och i stigande tid.
+    const firstUnplaced = passages.findIndex(p => p.place === null);
+    expect(firstUnplaced).toBeGreaterThan(0);
+    expect(passages.slice(firstUnplaced).every(p => p.place === null)).toBe(true);
+    for (let i = 1; i < firstUnplaced; i += 1) {
+      expect(passages[i]!.elapsedMs!).toBeGreaterThanOrEqual(passages[i - 1]!.elapsedMs!);
+    }
+  });
 });

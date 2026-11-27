@@ -71,4 +71,5 @@ export const mapProjectJobs = pgTable("map_project_job", {
   result: jsonb("result").$type<unknown>(),
   image: bytea("image")
 }, table => [index("map_project_job_queue_idx").on(table.status, table.createdAt),
-  index("map_project_job_account_idx").on(table.accountId, table.createdAt.desc()), index("map_project_job_project_idx").on(table.projectId)]);
+  index("map_project_job_account_idx").on(table.accountId, table.createdAt.desc()), index("map_project_job_project_idx").on(table.projectId),
+  index("map_project_job_race_idx").on(table.raceId).where(sql`${table.raceId} IS NOT NULL`)]);

@@ -521,7 +521,7 @@ export async function runJsRastersFallback(input: JsRastersFallbackInput): Promi
       const veg = vegetationFromClassPng(
         new Uint8Array(await readFile(join(dir, "vegetationsklasser.png"))),
         await readFile(join(dir, "vegetationsklasser.pgw"), "utf8"),
-        { vegSmooth: job.settings.veg_smooth }, water?.at
+        { vegSmooth: job.settings.veg_smooth, scale: (job.settings.contour_interval ?? 5) <= 3 || job.settings.paved === 1 ? 4_000 : 15_000 }, water?.at
       );
       await writeFile(join(dir, "vegetation.dxf"), veg.dxf);
       vegetationSummary = veg.summary; openAt = veg.openAt; forestAt = veg.forestAt;

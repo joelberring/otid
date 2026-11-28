@@ -431,6 +431,8 @@ export interface CliffRules {
   readonly minSlope?: number | undefined;
   readonly impassableSlope?: number | undefined;
   readonly minSharpness?: number | undefined;
+  readonly maxWallSharpness?: number | undefined;
+  readonly wallMaxDrop?: number | undefined;
 }
 /**
  * Minsta fallet är Kungshatt-kedjans (`s3c_brantkontroll.py`). Gränsen för opasserbar är lärd av Högdalenkartan 2026-11-12:
@@ -699,6 +701,12 @@ export function classifyCliff(
   if (rules.minSlope !== undefined && cliff.slope !== undefined && Number.isFinite(cliff.slope) && cliff.slope < rules.minSlope) return undefined;
   if (rules.minSharpness !== undefined && cliff.sharpness !== undefined && Number.isFinite(cliff.sharpness) && cliff.sharpness < rules.minSharpness) {
     if (!(cliff.slope !== undefined && Number.isFinite(cliff.slope) && cliff.slope >= 46)) return undefined;
+  }
+  if (rules.maxWallSharpness !== undefined && rules.wallMaxDrop !== undefined
+    && cliff.sharpness !== undefined && Number.isFinite(cliff.sharpness)
+    && cliff.slope !== undefined && Number.isFinite(cliff.slope)
+    && cliff.sharpness > rules.maxWallSharpness && cliff.drop3 < rules.wallMaxDrop && (cliff.slope < 44 || cliff.length < 12)) {
+    return undefined;
   }
   const steepEnough = rules.impassableSlope === undefined || cliff.slope === undefined || !Number.isFinite(cliff.slope) || cliff.slope >= rules.impassableSlope;
   return cliff.drop3 >= rules.impassableDrop3 && Number.isFinite(cliff.drop6) && cliff.drop6 >= rules.impassableDrop6

@@ -207,8 +207,8 @@ export function suggestSymbol(layer: ImportLayer, symbols: readonly { readonly i
 }
 
 export interface ImportOptions {
-  /** Lager → symbol (id och form); lager som saknas hoppas över. */
-  readonly mapping: ReadonlyMap<string, { readonly symbol: string; readonly kind: TargetKind }>;
+  /** Lager → symbol (id, form och valfritt symbolnummer); lager som saknas hoppas över. */
+  readonly mapping: ReadonlyMap<string, { readonly symbol: string; readonly kind: TargetKind; readonly code?: string | undefined }>;
   readonly toMap: (x: number, y: number) => Point;
   /** Kartans utbredning i mm: objekten klipps mot den, och det som ligger helt utanför hoppas över. */
   readonly bounds?: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number } | undefined;
@@ -251,8 +251,27 @@ const closeEnds = (a: Point, b: Point) => {
 };
 const NEIGHBOR_OFFSETS = [0, -1, 1] as const;
 
-/** Öppna linjer med samma symbol som möts i ändarna slås ihop (baskartornas linjer i många bitar). Ger linjerna och antal hopslagningar. */
-export function joinLines(lines: readonly Point[][]): { lines: Point[][]; joined: number } {
+/**
+ * Riktningskänsliga linjesymboler vars taggar/halvcirklar pekar åt höger (nedför) i ritriktningen och aldrig får vändas:
+ * ISOM/ISSprOM 104 jordbrant, 105 jordvall, 201 opasserbar brant, 202 brant (inkl. 202.1) samt 513.2 passerbar stödmur.
+ * Synkad med `seam-join.ts` och `generalize-topology.ts`.
+ */
+const DIRECTIONAL_MAIN_CODES = new Set([104, 105, 201, 202]);
+const DIRECTIONAL_LAYER_NAME =
+  /brant|stup|cliff|slope_line|jordbrant|jordvall|st[oö]dmur|(?:^|\D)(?:104|105|201|202|513\.2)(?:\.\d+)?(?=$|\D)/i;
+function isDirectionalCode(code: string): boolean {
+  const [mainPart, subPart] = code.split(".");
+  const main = Number.parseInt(mainPart ?? "", 10);
+  if (DIRECTIONAL_MAIN_CODES.has(main)) return true;
+  const sub = subPart !== undefined ? Number.parseInt(subPart, 10) : 0;
+  return main === 513 && sub === 2;
+}
+
+/**
+ * Öppna linjer med samma symbol som möts i ändarna slås ihop (baskartornas linjer i många bitar). Ger linjerna och antal
+ * hopslagningar. Med `directional = true` vänds aldrig någon linje: bara huvud-mot-svans (`slut_A ≈ start_B`) fogas ihop.
+ */
+export function joinLines(lines: readonly Point[][], directional = false): { lines: Point[][]; joined: number } {
   const pending = lines.map(line => line.slice());
   const alive = pending.map(() => true);
   const byEnd = new Map<string, number[]>();
@@ -268,7 +287,7 @@ export function joinLines(lines: readonly Point[][]): { lines: Point[][]; joined
     addEnd(line[0]!, at);
     if (line.length > 1) addEnd(line[line.length - 1]!, at);
   }
-  const findNeighbor = (at: number, end: Point): { index: number; forward: boolean } | undefined => {
+  const findNeighbor = (at: number, end: Point, requiredForward?: boolean): { index: number; forward: boolean } | undefined => {
     // Kontrollera 3×3 angränsande celler runt Math.round(x / 0.01) så ändpunkter över cellgräns inte missas.
     // Ägaren 2026-11-15 («stigar sluts och får raka streck över kartan»): bara en linje vars nuvarande ände ligger här får fogas på.
     const gx = cellCoord(end.x), gy = cellCoord(end.y);
@@ -282,15 +301,19 @@ export function joinLines(lines: readonly Point[][]): { lines: Point[][]; joined
           if (candidate === at || !alive[candidate]) continue;
           const next = pending[candidate]!;
           const first = next[0]!, last = next[next.length - 1]!;
-          const d0x = first.x - end.x, d0y = first.y - end.y, d0 = d0x * d0x + d0y * d0y;
-          if (d0 <= JOIN_MM_SQ && d0 < bestDistSq) {
-            bestDistSq = d0; bestIndex = candidate; bestForward = true;
-            if (d0 === 0) return { index: bestIndex, forward: true };
+          if (requiredForward !== false) {
+            const d0x = first.x - end.x, d0y = first.y - end.y, d0 = d0x * d0x + d0y * d0y;
+            if (d0 <= JOIN_MM_SQ && d0 < bestDistSq) {
+              bestDistSq = d0; bestIndex = candidate; bestForward = true;
+              if (d0 === 0) return { index: bestIndex, forward: true };
+            }
           }
-          const d1x = last.x - end.x, d1y = last.y - end.y, d1 = d1x * d1x + d1y * d1y;
-          if (d1 <= JOIN_MM_SQ && d1 < bestDistSq) {
-            bestDistSq = d1; bestIndex = candidate; bestForward = false;
-            if (d1 === 0) return { index: bestIndex, forward: false };
+          if (requiredForward !== true) {
+            const d1x = last.x - end.x, d1y = last.y - end.y, d1 = d1x * d1x + d1y * d1y;
+            if (d1 <= JOIN_MM_SQ && d1 < bestDistSq) {
+              bestDistSq = d1; bestIndex = candidate; bestForward = false;
+              if (d1 === 0) return { index: bestIndex, forward: false };
+            }
           }
         }
       }
@@ -309,9 +332,9 @@ export function joinLines(lines: readonly Point[][]): { lines: Point[][]; joined
     if (!alive[at]) continue;
     const line = pending[at]!;
     if (line.length === 0) continue;
-    // Förläng först från slutet med .push() i O(1) per punkt; vänd sedan en gång för att förlänga från början.
+    // Förläng först från slutet med .push() i O(1) per punkt; för riktade linjer krävs `forward: true` (slut → start).
     for (;;) {
-      const hit = findNeighbor(at, line[line.length - 1]!);
+      const hit = findNeighbor(at, line[line.length - 1]!, directional ? true : undefined);
       if (!hit) break;
       const next = pending[hit.index]!;
       if (!closeEnds(hit.forward ? next[0]! : next[next.length - 1]!, line[line.length - 1]!)) break;
@@ -319,13 +342,16 @@ export function joinLines(lines: readonly Point[][]): { lines: Point[][]; joined
       alive[hit.index] = false;
       joined += 1;
     }
+    // Förläng bakåt från början (vänd en gång och återställ sist); för riktade linjer krävs grannens slut mot vår start (`forward: false`, bevarar riktningen efter återställning).
     let reversed = false;
     for (;;) {
       const tip = reversed ? line[line.length - 1]! : line[0]!;
-      const hit = findNeighbor(at, tip);
+      const hit = findNeighbor(at, tip, directional ? false : undefined);
       if (!hit) break;
+      const next = pending[hit.index]!;
+      if (!closeEnds(hit.forward ? next[0]! : next[next.length - 1]!, tip)) break;
       if (!reversed) { line.reverse(); reversed = true; }
-      appendNext(line, pending[hit.index]!, hit.forward);
+      appendNext(line, next, hit.forward);
       alive[hit.index] = false;
       joined += 1;
     }
@@ -392,6 +418,7 @@ export function importObjects(features: readonly SourceFeature[], options: Impor
   let outside = 0, mismatched = 0, short = 0, clipped = 0;
   const objects: MapObject[] = [];
   const openLines = new Map<string, Point[][]>();
+  const directionalSymbols = new Set<string>();
   const openAreas = new Map<string, Point[][]>();
   const closedRings = new Map<string, Point[][]>();
   const stairSymbols = new Set(options.stairs?.symbols.map(symbol => symbol.id));
@@ -410,6 +437,12 @@ export function importObjects(features: readonly SourceFeature[], options: Impor
     if (!target) continue;
     const converted = convert(geometry, target.kind, map);
     if (!converted) { mismatched += 1; continue; }
+    if (target.kind === "line") {
+      const directed = target.code !== undefined
+        ? isDirectionalCode(target.code)
+        : (isDirectionalCode(target.symbol) || DIRECTIONAL_LAYER_NAME.test(layer) || DIRECTIONAL_LAYER_NAME.test(target.symbol));
+      if (directed) directionalSymbols.add(target.symbol);
+    }
     if (converted.kind === "line" && target.kind === "line" && stairSymbols.has(target.symbol)) {
       stairInputs.push({ points: converted.points, closed: converted.closed, layer });
       stairLayerSymbol.set(layer, target.symbol);
@@ -476,7 +509,7 @@ export function importObjects(features: readonly SourceFeature[], options: Impor
     }
   }
   for (const [symbol, lines] of openLines) {
-    const result = joinLines(lines);
+    const result = joinLines(lines, directionalSymbols.has(symbol));
     joined += result.joined;
     for (const line of result.lines) {
       if (length(line) < minLength) { short += 1; continue; }

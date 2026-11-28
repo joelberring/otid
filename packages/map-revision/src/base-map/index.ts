@@ -27,6 +27,7 @@ export * from "./water-clip";
 export * from "./built-mask";
 export * from "./knoll-choice";
 export * from "./cliff-choice";
+export * from "./cliff-contour-fit";
 export * from "./rock-choice";
 export * from "./candidate-merge";
 export * from "./photo-interpret";

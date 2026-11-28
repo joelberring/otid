@@ -21,6 +21,10 @@ pub const LAB_GREEN_410: u8 = 6;
 
 /// O-Tid `vegetationsklasser.png` alpha convention for semi-open land (402/404).
 pub const SEMI_ALPHA: u8 = 200;
+/// Bit 7 of the blue channel in `vegetationsklasser.png` marks tall closed-canopy timber
+/// (`vegh >= 16 m && ground_share <= 0.26`) for drained spruce-plantation suppression in `moisture.rs`.
+/// Leaves `R` (class + undergrowth), `G` (`160`), and `A` (`0 | 200 | 255`) 100% unchanged.
+pub const TALL_DENSE_CANOPY_BIT: u8 = 0x80;
 
 /// Classified 2 m vegetation & undergrowth rasters plus hectare summary.
 pub struct VegResult {
@@ -31,6 +35,8 @@ pub struct VegResult {
     pub land: Vec<u8>,
     /// Undergrowth overlay (`0 = none`, `1 = 407`, `2 = 409`).
     pub undergrowth: Vec<u8>,
+    /// 1 where 5x5 local canopy is tall closed-canopy timber (`vegh >= 16 m && ground_share <= 0.26`).
+    pub tall_dense: Vec<u8>,
     pub ha_white: f64,
     pub ha_open: f64,
     pub ha_semi: f64,
@@ -211,6 +217,424 @@ fn soft_majority(labels: &[u8], w: usize, h: usize, sigma: f32, dense_sigma: f32
         out[i] = lab;
     }
     out
+}
+
+/// Chamfer distance (3 orthogonal, 4 diagonal, in 1/3-cell units) to the nearest `target[i] != 0` cell.
+fn chamfer_dist(target: &[u8], w: usize, h: usize) -> Vec<u16> {
+    const FAR: u16 = u16::MAX / 2;
+    let n = w * h;
+    let mut out = vec![FAR; n];
+    for i in 0..n {
+        if target[i] != 0 {
+            out[i] = 0;
+        }
+    }
+    for r in 0..h {
+        let base = r * w;
+        for c in 0..w {
+            let i = base + c;
+            let mut best = out[i];
+            if best == 0 {
+                continue;
+            }
+            if c > 0 {
+                best = best.min(out[i - 1].saturating_add(3));
+            }
+            if r > 0 {
+                best = best.min(out[i - w].saturating_add(3));
+                if c > 0 {
+                    best = best.min(out[i - w - 1].saturating_add(4));
+                }
+                if c + 1 < w {
+                    best = best.min(out[i - w + 1].saturating_add(4));
+                }
+            }
+            out[i] = best.min(FAR);
+        }
+    }
+    for r in (0..h).rev() {
+        let base = r * w;
+        for c in (0..w).rev() {
+            let i = base + c;
+            let mut best = out[i];
+            if best == 0 {
+                continue;
+            }
+            if c + 1 < w {
+                best = best.min(out[i + 1].saturating_add(3));
+            }
+            if r + 1 < h {
+                best = best.min(out[i + w].saturating_add(3));
+                if c + 1 < w {
+                    best = best.min(out[i + w + 1].saturating_add(4));
+                }
+                if c > 0 {
+                    best = best.min(out[i + w - 1].saturating_add(4));
+                }
+            }
+            out[i] = best.min(FAR);
+        }
+    }
+    out
+}
+
+/// Cells removed by a morphological disk opening of `radius_cells` across all labels simultaneously.
+fn thin_cells(labels: &[u8], inside: &[u16], w: usize, h: usize, radius_cells: f32) -> Vec<u8> {
+    let limit = (radius_cells * 3.0).round().max(1.0) as u16;
+    let n = w * h;
+    let mut core = vec![0u8; n];
+    for i in 0..n {
+        if labels[i] != LAB_NONE && inside[i].saturating_add(3) > limit {
+            core[i] = 1;
+        }
+    }
+    let back = chamfer_dist(&core, w, h);
+    let mut out = vec![0u8; n];
+    for i in 0..n {
+        if labels[i] != LAB_NONE && back[i] > limit {
+            out[i] = 1;
+        }
+    }
+    out
+}
+
+/// Maximum and minimum non-zero label within `(2 * radius + 1)` square around each cell (O(W*H) separable).
+fn label_range(labels: &[u8], w: usize, h: usize, radius: usize) -> (Vec<u8>, Vec<u8>) {
+    let n = w * h;
+    let pass_rows = |src: &[u8], want_high: bool| -> Vec<u8> {
+        let mut out = vec![0u8; n];
+        let mut counts = [0i32; 8];
+        for r in 0..h {
+            counts.fill(0);
+            let base = r * w;
+            let init_end = radius.min(w.saturating_sub(1));
+            for c in 0..=init_end {
+                counts[src[base + c] as usize] += 1;
+            }
+            for c in 0..w {
+                let mut val = 0u8;
+                if want_high {
+                    for v in (1..=7).rev() {
+                        if counts[v] > 0 {
+                            val = v as u8;
+                            break;
+                        }
+                    }
+                } else {
+                    for v in 1..=7 {
+                        if counts[v] > 0 {
+                            val = v as u8;
+                            break;
+                        }
+                    }
+                }
+                out[base + c] = val;
+                if c + radius + 1 < w {
+                    counts[src[base + c + radius + 1] as usize] += 1;
+                }
+                if c >= radius {
+                    counts[src[base + c - radius] as usize] -= 1;
+                }
+            }
+        }
+        out
+    };
+    let pass_cols = |src: &[u8], want_high: bool| -> Vec<u8> {
+        let mut out = vec![0u8; n];
+        let mut counts = [0i32; 8];
+        for c in 0..w {
+            counts.fill(0);
+            let init_end = radius.min(h.saturating_sub(1));
+            for r in 0..=init_end {
+                counts[src[r * w + c] as usize] += 1;
+            }
+            for r in 0..h {
+                let mut val = 0u8;
+                if want_high {
+                    for v in (1..=7).rev() {
+                        if counts[v] > 0 {
+                            val = v as u8;
+                            break;
+                        }
+                    }
+                } else {
+                    for v in 1..=7 {
+                        if counts[v] > 0 {
+                            val = v as u8;
+                            break;
+                        }
+                    }
+                }
+                out[r * w + c] = val;
+                if r + radius + 1 < h {
+                    counts[src[(r + radius + 1) * w + c] as usize] += 1;
+                }
+                if r >= radius {
+                    counts[src[(r - radius) * w + c] as usize] -= 1;
+                }
+            }
+        }
+        out
+    };
+    let high = pass_cols(&pass_rows(labels, true), true);
+    let low = pass_cols(&pass_rows(labels, false), false);
+    (high, low)
+}
+
+/// Reassigns `candidate` cells to the nearest non-candidate neighbor of a different label via BFS.
+fn reassign_candidates(labels: &[u8], candidate: &[u8], w: usize, h: usize) -> Vec<u8> {
+    let n = labels.len();
+    let mut out = labels.to_vec();
+    let mut owner = vec![0u8; n];
+    let mut queue = Vec::<usize>::new();
+    let cand_indices: Vec<usize> = (0..n).filter(|&i| candidate[i] != 0).collect();
+
+    for lab in [LAB_OPEN, LAB_SEMI, LAB_FOREST, LAB_GREEN_406, LAB_GREEN_408, LAB_GREEN_410] {
+        queue.clear();
+        let mut any = false;
+        for &i in &cand_indices {
+            if labels[i] != lab {
+                continue;
+            }
+            any = true;
+            let r = i / w;
+            let c = i - r * w;
+            let mut counts = [0u8; 8];
+            let mut best = 0u8;
+            let mut best_cnt = 0u8;
+            let nbrs = [
+                (c > 0).then(|| i - 1),
+                (c + 1 < w).then(|| i + 1),
+                (r > 0).then(|| i - w),
+                (r + 1 < h).then(|| i + w),
+            ];
+            for nb in nbrs.into_iter().flatten() {
+                let nl = labels[nb];
+                if candidate[nb] == 0 && nl != LAB_NONE && nl != lab {
+                    counts[nl as usize] += 1;
+                    let cnt = counts[nl as usize];
+                    if cnt > best_cnt || (cnt == best_cnt && lab != LAB_GREEN_406 && nl > best) {
+                        best_cnt = cnt;
+                        best = nl;
+                    }
+                }
+            }
+            if best != 0 {
+                owner[i] = best;
+                queue.push(i);
+            }
+        }
+        if !any {
+            continue;
+        }
+        let mut head = 0usize;
+        while head < queue.len() {
+            let i = queue[head];
+            head += 1;
+            out[i] = owner[i];
+            let r = i / w;
+            let c = i - r * w;
+            let nbrs = [
+                (c > 0).then(|| i - 1),
+                (c + 1 < w).then(|| i + 1),
+                (r > 0).then(|| i - w),
+                (r + 1 < h).then(|| i + w),
+            ];
+            for nb in nbrs.into_iter().flatten() {
+                if candidate[nb] != 0 && labels[nb] == lab && owner[nb] == 0 {
+                    owner[nb] = owner[i];
+                    queue.push(nb);
+                }
+            }
+        }
+        for &i in &queue {
+            owner[i] = 0;
+        }
+    }
+    out
+}
+
+/// Morphological opening (`thin_radius_cells`) + narrow intermediate `406` onion-ring halo stripping.
+fn remove_thin_and_halos(
+    labels: &[u8],
+    w: usize,
+    h: usize,
+    thin_radius_cells: f32,
+    halo_radius_cells: f32,
+    halo_check_radius: usize,
+) -> Vec<u8> {
+    if w < 3 || h < 3 {
+        return labels.to_vec();
+    }
+    let n = w * h;
+    let mut edge = vec![0u8; n];
+    for r in 0..h {
+        let base = r * w;
+        for c in 0..w {
+            let i = base + c;
+            let lab = labels[i];
+            if lab == LAB_NONE {
+                edge[i] = 1;
+                continue;
+            }
+            if (c > 0 && labels[i - 1] != lab)
+                || (c + 1 < w && labels[i + 1] != lab)
+                || (r > 0 && labels[i - w] != lab)
+                || (r + 1 < h && labels[i + w] != lab)
+            {
+                edge[i] = 1;
+            }
+        }
+    }
+    let inside = chamfer_dist(&edge, w, h);
+    let thin = thin_cells(labels, &inside, w, h, thin_radius_cells);
+    let band = thin_cells(labels, &inside, w, h, halo_radius_cells);
+    let (high, low) = label_range(labels, w, h, halo_check_radius);
+
+    let mut candidate = vec![0u8; n];
+    for i in 0..n {
+        let lab = labels[i];
+        if thin[i] != 0 {
+            candidate[i] = 1;
+        } else if band[i] != 0
+            && lab == LAB_GREEN_406
+            && high[i] >= LAB_GREEN_408
+            && low[i] != LAB_NONE
+            && low[i] < LAB_GREEN_406
+        {
+            candidate[i] = 1;
+        }
+    }
+    reassign_candidates(labels, &candidate, w, h)
+}
+
+/// Lightweight 1-pass sprint generalization (2x2 / ~0.8-cell morphological opening + 1-cell `406` sliver
+/// stripping next to `408|410`): removes 1-cell (`2 m`) spikes and crust slivers while preserving narrow
+/// `>= 4 m` sprint hedges and standalone `406` patches.
+fn remove_thin_and_halos_sprint(labels: &[u8], w: usize, h: usize) -> Vec<u8> {
+    if w < 3 || h < 3 {
+        return labels.to_vec();
+    }
+    let n = w * h;
+    let mut in_2x2 = vec![0u8; n];
+    for r in 0..(h - 1) {
+        let row0 = r * w;
+        let row1 = row0 + w;
+        for c in 0..(w - 1) {
+            let lab = labels[row0 + c];
+            if lab != LAB_NONE
+                && labels[row0 + c + 1] == lab
+                && labels[row1 + c] == lab
+                && labels[row1 + c + 1] == lab
+            {
+                in_2x2[row0 + c] = 1;
+                in_2x2[row0 + c + 1] = 1;
+                in_2x2[row1 + c] = 1;
+                in_2x2[row1 + c + 1] = 1;
+            }
+        }
+    }
+    let mut candidate = vec![0u8; n];
+    for r in 0..h {
+        let base = r * w;
+        for c in 0..w {
+            let i = base + c;
+            let lab = labels[i];
+            if lab == LAB_NONE {
+                continue;
+            }
+            if in_2x2[i] == 0 {
+                candidate[i] = 1;
+                continue;
+            }
+            // Strip 1-cell (`2 m`) `406` slivers directly touching BOTH non-green (`< 406`) and dense (`>= 408`).
+            if lab == LAB_GREEN_406 {
+                let mut touches_low = false;
+                let mut touches_high = false;
+                let nbrs = [
+                    (c > 0).then(|| i - 1),
+                    (c + 1 < w).then(|| i + 1),
+                    (r > 0).then(|| i - w),
+                    (r + 1 < h).then(|| i + w),
+                ];
+                for nb in nbrs.into_iter().flatten() {
+                    let nl = labels[nb];
+                    if nl != LAB_NONE && nl < LAB_GREEN_406 {
+                        touches_low = true;
+                    } else if nl >= LAB_GREEN_408 {
+                        touches_high = true;
+                    }
+                }
+                if touches_low && touches_high {
+                    candidate[i] = 1;
+                }
+            }
+        }
+    }
+    reassign_candidates(labels, &candidate, w, h)
+}
+
+/// Fills tiny interior non-green holes (`< max_hole_cells`) completely enclosed by green (`406`/`408`/`410`).
+fn fill_small_green_holes(labels: &mut [u8], water: &[u8], w: usize, h: usize, max_hole_cells: usize) {
+    if max_hole_cells <= 1 || w < 3 || h < 3 {
+        return;
+    }
+    let n = w * h;
+    let mut seen = vec![0u8; n];
+    let mut queue = Vec::<usize>::with_capacity(max_hole_cells * 2);
+    for start in 0..n {
+        let lab = labels[start];
+        if seen[start] != 0 || lab == LAB_NONE || lab >= LAB_GREEN_406 || water[start] != 0 {
+            continue;
+        }
+        seen[start] = 1;
+        queue.clear();
+        queue.push(start);
+        let mut head = 0usize;
+        let mut touches_outside = false;
+        let mut green_votes = [0u32; 8];
+        while head < queue.len() {
+            let i = queue[head];
+            head += 1;
+            let r = i / w;
+            let c = i - r * w;
+            if r == 0 || r + 1 == h || c == 0 || c + 1 == w {
+                touches_outside = true;
+            }
+            let nbrs = [
+                (c > 0).then(|| i - 1),
+                (c + 1 < w).then(|| i + 1),
+                (r > 0).then(|| i - w),
+                (r + 1 < h).then(|| i + w),
+            ];
+            for nb in nbrs.into_iter().flatten() {
+                let nl = labels[nb];
+                if nl == LAB_NONE || water[nb] != 0 {
+                    touches_outside = true;
+                } else if nl >= LAB_GREEN_406 {
+                    green_votes[nl as usize] += 1;
+                } else if seen[nb] == 0 {
+                    seen[nb] = 1;
+                    queue.push(nb);
+                }
+            }
+        }
+        if !touches_outside && queue.len() < max_hole_cells {
+            let mut best_lab = 0u8;
+            let mut best_cnt = 0u32;
+            for l in LAB_GREEN_406..=LAB_GREEN_410 {
+                if green_votes[l as usize] > best_cnt {
+                    best_cnt = green_votes[l as usize];
+                    best_lab = l;
+                }
+            }
+            if best_lab != 0 {
+                for &i in &queue {
+                    labels[i] = best_lab;
+                }
+            }
+        }
+    }
 }
 
 /// Removes connected islands smaller than `min_cells` by reassigning them to their dominant neighbor label.
@@ -395,6 +819,7 @@ pub fn classify_vegetation(feat: &VegFeatures, config: &EngineConfig) -> VegResu
 
     let mut raw_land = vec![LAB_NONE; n];
     let mut raw_und = vec![0u8; n];
+    let mut tall_dense = vec![0u8; n];
 
     let sprint = config.interval <= 3.0 || config.scale <= 5_000;
     let steep_cut = config.steep_cutoff_deg as f32;
@@ -429,6 +854,12 @@ pub fn classify_vegetation(feat: &VegFeatures, config: &EngineConfig) -> VegResu
             let low_m5 = it_low.box_sum(c, r, 2) / c5;
             let mid_m5 = it_mid.box_sum(c, r, 2) / c5;
             let high_m5 = it_high.box_sum(c, r, 2) / c5;
+
+            // Tall closed-canopy timber (`vegh_m5 >= 16.0 m && gnd_m5 <= 0.26` over 5x5 = 10 m window):
+            // suppresses drained spruce plantations (Lida E5 18.4 m / 0.20) while sparing E2 (16.6 m / 0.40) wooded bogs.
+            if vegh_m5 >= 16.0 && gnd_m5 <= 0.26 {
+                tall_dense[i] = 1;
+            }
 
             let low_m11 = it_low.box_sum(c, r, 5) / c11;
             let mid_m11 = it_mid.box_sum(c, r, 5) / c11;
@@ -526,10 +957,26 @@ pub fn classify_vegetation(feat: &VegFeatures, config: &EngineConfig) -> VegResu
                     let lai_excess = (-g_mix.ln() - 0.74).max(0.0) * 0.22;
                     let high_excess = (0.60 * eh5 + 0.40 * eh11 - 0.42).max(0.0);
                     let canopy_calm = 0.55 * lai_excess + 0.45 * high_excess;
-                    // Gate tall-canopy contribution by real 0.3-3 m understory presence so mature
-                    // clear-trunk white spruce/pine stands stay white (405) without suppressing 406 young forest.
-                    let understory_gate = ((em5 + 0.35 * low_m5 - 0.015) / 0.055).clamp(0.55, 1.0);
-                    let base_score = (shrub_calm + c_wt * understory_gate * canopy_calm) * g_scale;
+                    // Closed canopy (`eh5 >= 0.46 && eg5 <= 0.40`) occludes mid-level LiDAR returns,
+                    // so skip downward understory gating and apply Beer-Lambert canopy-occlusion compensation.
+                    let understory_gate = if eh5 >= 0.46 && eg5 <= 0.40 {
+                        let h_occ = ((eh5 - 0.46) / 0.20).clamp(0.0, 1.0);
+                        let g_occ = ((0.40 - eg5) / 0.20).clamp(0.0, 1.0);
+                        1.0 + 0.48 * h_occ * g_occ
+                    } else {
+                        ((em5 + 0.35 * low_m5 - 0.015) / 0.055).clamp(0.90, 1.0)
+                    };
+                    // Mild open-floor brush penalty (`eg5 > 0.46 && eh5 < 0.36`) trims sparse heather/clear-cut
+                    // slash FP without suppressing closed-canopy or young mixed green.
+                    let open_floor_pen = if eg5 > 0.46 && eh5 < 0.36 {
+                        let g_fac = ((eg5 - 0.46) / 0.18).clamp(0.0, 1.0);
+                        let h_fac = ((0.36 - eh5) / 0.22).clamp(0.0, 1.0);
+                        1.0 - 0.12 * g_fac * h_fac
+                    } else {
+                        1.0
+                    };
+                    let base_score =
+                        (shrub_calm + c_wt * understory_gate * canopy_calm) * open_floor_pen * g_scale;
 
                     // Eye-level foliage ratio mid/(mid+high) separates dense 408/410 thickets (even leaf-off
                     // deciduous shrubs) from tall clear-trunk 405/406 spruce/oak stands without over-greening white forest.
@@ -599,7 +1046,29 @@ pub fn classify_vegetation(feat: &VegFeatures, config: &EngineConfig) -> VegResu
         (raw_sigma * 1.08).clamp(0.40, 2.2)
     };
     let smoothed = soft_majority(&raw_land, w, h, veg_sigma, dense_sigma);
-    let land = remove_small_islands(&smoothed, w, h, min_cells);
+    let mut land = if veg_sigma > 0.25 {
+        if sprint {
+            // Sprint (2 m): single light pass (2x2 / ~0.8-cell opening + 1-cell 406 sliver strip next to 408|410)
+            // so narrow sprint thickets & standalone 406 survive while 2 m spikes/slivers are cleaned.
+            let opened = remove_thin_and_halos_sprint(&smoothed, w, h);
+            remove_small_islands(&opened, w, h, min_cells)
+        } else {
+            let thin_rad = 1.5f32;
+            let halo_rad = 2.4f32;
+            let halo_check_rad = (8.0 / feat.world.cell).round().max(2.0) as usize;
+            let opened = remove_thin_and_halos(&smoothed, w, h, thin_rad, halo_rad, halo_check_rad);
+            let deislanded = remove_small_islands(&opened, w, h, min_cells);
+            let cleaned = remove_thin_and_halos(&deislanded, w, h, thin_rad, halo_rad, halo_check_rad);
+            remove_small_islands(&cleaned, w, h, min_cells)
+        }
+    } else {
+        remove_small_islands(&smoothed, w, h, min_cells)
+    };
+    if veg_sigma > 0.25 {
+        let hole_m2 = if sprint { 100.0 } else { 300.0 };
+        let hole_cells = (hole_m2 / cell_area).round().max(2.0) as usize;
+        fill_small_green_holes(&mut land, &feat.water, w, h, hole_cells);
+    }
 
     let und_valid: Vec<u8> = (0..n)
         .map(|i| {
@@ -633,6 +1102,7 @@ pub fn classify_vegetation(feat: &VegFeatures, config: &EngineConfig) -> VegResu
         world: feat.world,
         land,
         undergrowth,
+        tall_dense,
         ha_white: to_ha(cnt[LAB_FOREST as usize]),
         ha_open: to_ha(cnt[LAB_OPEN as usize]),
         ha_semi: to_ha(cnt[LAB_SEMI as usize]),
@@ -648,7 +1118,7 @@ pub fn classify_vegetation(feat: &VegFeatures, config: &EngineConfig) -> VegResu
 /// - `A = 0` for water / nodata
 /// - `R = low | (undergrowth << 4)` where `low`: `1 = open/semi`, `2 = white forest`,
 ///   `4 = green 406`, `5 = green 408`, `6 = green 410`; `undergrowth`: `1 = 407`, `2 = 409`
-/// - `G = 160`, `B = R`, `A = 200` (`SEMI_ALPHA`) for semi-open, `A = 255` for all other land.
+/// - `G = 160`, `B = R | (tall_dense ? 0x80 : 0)`, `A = 200` (`SEMI_ALPHA`) for semi-open, `A = 255` for all other land.
 pub fn write_vegetation_png(out_dir: &Path, veg: &VegResult) -> Result<(), String> {
     let n = veg.width * veg.height;
     let mut rgba = vec![0u8; n * 4];
@@ -667,11 +1137,16 @@ pub fn write_vegetation_png(out_dir: &Path, veg: &VegResult) -> Result<(), Strin
         };
         let und = veg.undergrowth[i].min(2);
         let r_val = low | (und << 4);
+        let tall_bit = if veg.tall_dense.get(i).copied().unwrap_or(0) != 0 {
+            TALL_DENSE_CANOPY_BIT
+        } else {
+            0
+        };
         let alpha = if lab == LAB_SEMI { SEMI_ALPHA } else { 255 };
         let o = i * 4;
         rgba[o] = r_val;
         rgba[o + 1] = 160;
-        rgba[o + 2] = r_val;
+        rgba[o + 2] = r_val | tall_bit;
         rgba[o + 3] = alpha;
     }
     write_rgba_png(&out_dir.join("vegetationsklasser.png"), veg.width, veg.height, &rgba)?;
@@ -774,16 +1249,18 @@ mod tests {
     }
 
     #[test]
-    fn mature_dense_canopy_over_empty_understory_stays_white_and_leaf_off_thicket_hits_408() {
+    fn closed_canopy_green_retained_open_floor_trimmed_and_leaf_off_thicket_hits_408() {
         let (w, h) = (50, 50);
         let mut feat = blank_features(w, h);
-        // Whole forest: tall mature spruce canopy (gnd=0.14, high=0.83) over empty understory (mid=0.02, low=0.01).
+        // Whole forest: closed-canopy dark spruce/young forest (`eh5 >= 0.50 && eg5 <= 0.40`)
+        // whose dense canopy occludes mid-level LiDAR returns (`mid = 0.04`, `gnd = 0.22`, `high = 0.65`, `vegh = 18 m`).
+        // Must retain green (>= 406) AND set `tall_dense` flag (`vegh >= 16 && gnd <= 0.26`).
         for i in 0..(w * h) {
             feat.vegh[i] = 18.0;
-            feat.ground_share[i] = 0.14;
+            feat.ground_share[i] = 0.22;
             feat.low_share[i] = 0.01;
-            feat.mid_share[i] = 0.02;
-            feat.high_share[i] = 0.83;
+            feat.mid_share[i] = 0.04;
+            feat.high_share[i] = 0.65;
         }
         // Compact 20x20 m (10x10 cells = 400 m², above min_veg_area_m2 = 300 m²) leaf-off deciduous thicket
         // (vegh=3.5m, gnd=0.44, low=0.12, mid=0.12, high=0.18).
@@ -799,16 +1276,51 @@ mod tests {
         }
         let cfg = EngineConfig::defaults_for_interval(5.0);
         let res = classify_vegetation(&feat, &cfg);
-        assert_eq!(
-            res.land[5 * w + 5],
-            LAB_FOREST,
-            "Tall mature dense spruce canopy over empty understory must stay white (405), got {}",
+        assert!(
+            res.land[5 * w + 5] >= LAB_GREEN_406,
+            "Closed-canopy forest occluding mid returns must retain green (>= 406), got {}",
             res.land[5 * w + 5]
         );
+        assert_eq!(res.tall_dense[5 * w + 5], 1, "Tall dense canopy (vegh=18, gnd=0.22) must set tall_dense");
+        assert_eq!(res.tall_dense[25 * w + 25], 0, "Low 3.5 m thicket must NOT set tall_dense");
         assert!(
             res.land[25 * w + 25] >= LAB_GREEN_408,
             "Leaf-off deciduous thicket with strong low+mid ratio must reach 408/410, got {}",
             res.land[25 * w + 25]
+        );
+
+        // Verify `write_vegetation_png` encodes `TALL_DENSE_CANOPY_BIT` in B while keeping R, G=160, A intact.
+        let dir = std::env::temp_dir().join(format!("otidgeo-veg-tall-bit-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        write_vegetation_png(&dir, &res).unwrap();
+        let img = crate::bench_io::read_rgba_png(&dir.join("vegetationsklasser.png")).unwrap();
+        let o_tall = (5 * w + 5) * 4;
+        assert_eq!(img.data[o_tall] & 15, 4);
+        assert_eq!(img.data[o_tall + 1], 160);
+        assert_ne!(img.data[o_tall + 2] & TALL_DENSE_CANOPY_BIT, 0);
+        assert_eq!(img.data[o_tall + 2] & 15, 4);
+        assert_eq!(img.data[o_tall + 3], 255);
+        let o_low = (25 * w + 25) * 4;
+        assert_eq!(img.data[o_low + 1], 160);
+        assert_eq!(img.data[o_low + 2] & TALL_DENSE_CANOPY_BIT, 0);
+        let _ = std::fs::remove_dir_all(&dir);
+
+        // Open-floor sparse brush (`eg5 = 0.56 > 0.42 && eh5 = 0.20 < 0.40`, borderline mid=0.095)
+        // must be trimmed to white forest by the open-floor brush penalty.
+        let mut brush = blank_features(40, 40);
+        for i in 0..(40 * 40) {
+            brush.vegh[i] = 8.0;
+            brush.ground_share[i] = 0.56;
+            brush.low_share[i] = 0.03;
+            brush.mid_share[i] = 0.095;
+            brush.high_share[i] = 0.20;
+        }
+        let bres = classify_vegetation(&brush, &cfg);
+        assert_eq!(
+            bres.land[20 * 40 + 20],
+            LAB_FOREST,
+            "Open-floor sparse brush (gnd=0.56, high=0.20, mid=0.095) must stay white (405), got {}",
+            bres.land[20 * 40 + 20]
         );
 
         // Sprint: grassy/fern understory patch under sparse park trees must stay white (not 406),
@@ -844,5 +1356,104 @@ mod tests {
             "Sprint compact park hedge must classify as 408/410, got {}",
             sres.land[19 * 40 + 19]
         );
+    }
+
+    #[test]
+    fn strips_narrow_406_onion_ring_halos_and_fills_small_green_holes() {
+        let (w, h) = (70, 70);
+        let mut labels = vec![LAB_FOREST; w * h];
+        let mut water = vec![0u8; w * h];
+
+        // 1. Dense 408 block at r=10..30, c=10..30 wrapped in a narrow 3-cell (6 m) 406 halo (r=7..33, c=7..33).
+        for r in 7..33 {
+            for c in 7..33 {
+                labels[r * w + c] = LAB_GREEN_406;
+            }
+        }
+        for r in 10..30 {
+            for c in 10..30 {
+                labels[r * w + c] = LAB_GREEN_408;
+            }
+        }
+        // Small interior 5x5 cell (100 m² < 300 m²) white forest hole inside the 408 block.
+        for r in 17..22 {
+            for c in 17..22 {
+                labels[r * w + c] = LAB_FOREST;
+            }
+        }
+
+        // 2. Wide genuine 16x16 cell (32x32 m) 406 stand at r=42..58, c=10..26 (must SURVIVE halo stripping!).
+        for r in 42..58 {
+            for c in 10..26 {
+                labels[r * w + c] = LAB_GREEN_406;
+            }
+        }
+
+        // 3. Large 408 block at r=40..64, c=40..64 with a small 4x4 water pond inside (must NOT be filled!).
+        for r in 40..64 {
+            for c in 40..64 {
+                labels[r * w + c] = LAB_GREEN_408;
+            }
+        }
+        for r in 50..54 {
+            for c in 50..54 {
+                labels[r * w + c] = LAB_NONE;
+                water[r * w + c] = 1;
+            }
+        }
+
+        let mut cleaned = remove_thin_and_halos(&labels, w, h, 1.5, 2.0, 4);
+        fill_small_green_holes(&mut cleaned, &water, w, h, 75);
+
+        // Narrow 6 m 406 onion ring around the 408 block must be completely collapsed into 405 or 408.
+        let mut halo_left = 0usize;
+        for r in 7..33 {
+            for c in 7..33 {
+                if cleaned[r * w + c] == LAB_GREEN_406 {
+                    halo_left += 1;
+                }
+            }
+        }
+        assert_eq!(halo_left, 0, "Narrow 6 m 406 halo between 405 and 408 must be stripped, left {halo_left} cells");
+        assert_eq!(cleaned[12 * w + 12], LAB_GREEN_408, "Dense 408 core must survive");
+        assert_eq!(cleaned[19 * w + 19], LAB_GREEN_408, "Small 100 m² interior hole must be filled with 408");
+        assert_eq!(cleaned[50 * w + 18], LAB_GREEN_406, "Wide 32x32 m 406 stand must survive");
+        assert_eq!(cleaned[52 * w + 52], LAB_NONE, "Interior water pond must never be filled");
+
+        // 4. Sprint 1-pass light cleaner: preserves standalone 4 m (2-cell) wide 406 patch & narrow 4 m 408 hedge,
+        //    while stripping 1-cell (2 m) spikes and 1-cell 406 slivers sandwiched between 405 and 408.
+        let (sw, sh) = (40, 40);
+        let mut slabels = vec![LAB_FOREST; sw * sh];
+        // Standalone 3x6 cell (6x12 m) 406 patch (must survive!).
+        for r in 5..11 {
+            for c in 5..8 {
+                slabels[r * sw + c] = LAB_GREEN_406;
+            }
+        }
+        // Narrow 2x8 cell (4x16 m) 408 hedge (must survive!).
+        for r in 20..28 {
+            for c in 5..7 {
+                slabels[r * sw + c] = LAB_GREEN_408;
+            }
+        }
+        // 1-cell spike jutting out of the 408 hedge (must be stripped!).
+        slabels[24 * sw + 7] = LAB_GREEN_408;
+        slabels[24 * sw + 8] = LAB_GREEN_408;
+        // 8x8 cell 408 block wrapped in a 1-cell (2 m) 406 sliver (1-cell sliver must be stripped!).
+        for r in 15..25 {
+            for c in 20..30 {
+                slabels[r * sw + c] = LAB_GREEN_406;
+            }
+        }
+        for r in 16..24 {
+            for c in 21..29 {
+                slabels[r * sw + c] = LAB_GREEN_408;
+            }
+        }
+        let scleaned = remove_thin_and_halos_sprint(&slabels, sw, sh);
+        assert_eq!(scleaned[7 * sw + 6], LAB_GREEN_406, "Sprint standalone 406 patch must survive");
+        assert_eq!(scleaned[23 * sw + 5], LAB_GREEN_408, "Sprint narrow 4 m 408 hedge must survive");
+        assert_eq!(scleaned[24 * sw + 8], LAB_FOREST, "Sprint 1-cell spike must be stripped");
+        assert_ne!(scleaned[15 * sw + 25], LAB_GREEN_406, "Sprint 1-cell 406 sliver next to 408 must be stripped");
     }
 }

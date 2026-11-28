@@ -14,6 +14,7 @@ import type { SoilArea } from "./soil";
 import { landCoverFeatures, type LandCoverGrid } from "./land-cover";
 import { calmFlatContours, flatLimitsAt, flatSlopeFrom, type PixelAffine, type SlopeGrid } from "./flat-contours";
 import { cliffFeatures, cliffLimitsAt, defaultCliffLimits, readCliffCandidates } from "./cliff-choice";
+import { alignCliffsToContours } from "./cliff-contour-fit";
 import { chooseKnollCandidates, deduplicateKnollFeatures, KNOLL_DEDUP_METERS, knollFeatures, knollLimitsAt, readKnollCandidates } from "./knoll-choice";
 import { mergeBaseMap } from "./merge";
 import { maxSummitRingArea } from "./small-rings";
@@ -241,7 +242,7 @@ export function assembleBaseMap(input: BaseMapAssemblyInput): { objects: MapObje
     data = { ...data, features: cleared.features };
     clearedContours = { settings: clearSettings, smoothedMeters: cleared.smoothedMeters, formlineMeters: cleared.formlineMeters, rings: cleared.rings };
     // Kärren följer kurvbilden: laserns kärr klipps där marken ligger över kärrets botten (`marsh-floor.ts`).
-    const floored = marshOnFloor(data.features, [input.height]);
+    const floored = marshOnFloor(data.features, [input.height], { scale });
     data = { ...data, features: floored.features };
     marshFloor = { changed: floored.changed, removedHa: Math.round(floored.removedM2 / 1000) / 10 };
     // Ett enda utjämnat höjdraster delas mellan `findHills` och `findPits`.
@@ -254,6 +255,9 @@ export function assembleBaseMap(input: BaseMapAssemblyInput): { objects: MapObje
     const choice = choosePits(candidates, pitLimitsAt(level, scale), scale, data.features);
     if (choice.points.length + choice.rings.length > 0) data = mergeCandidates(data, { features: pitFeatures(choice), skipped: 0, crs: SWEREF99TM }, PIT_LAYERS);
     pits = { level, points: choice.points.length, rings: choice.rings.length, candidates: candidates.length };
+    // Koppla 201/202-branter till slutliga flyttade kurvor, klipp 103 på 201 och säkra nedförstaggar mot höjdrastret.
+    const fittedCliffs = alignCliffsToContours(data.features, field, { scale });
+    data = { ...data, features: fittedCliffs.features };
     const ticked = tickDepressions(data.features, field);
     data = { ...data, features: ticked.features };
     slopeTicks = { ticks: ticked.ticks, byHeight: ticked.byHeight };

@@ -1,6 +1,6 @@
 /** Grundkartan hela vägen till kartans objekt (AI-kopplingens apply_base_map): samma förval som importen i webben. */
 import { describe, expect, it } from "vitest";
-import { newMapFile, readMapFile, projectedToMapPoint } from "@o-tid/map-file";
+import { newMapFile, readMapFile, mapPointToProjected, projectedToMapPoint } from "@o-tid/map-file";
 import { encodeRockCell } from "../../../scripts/geo-rock";
 import { areaBounds, assembleBaseMap, candidateSymbols, editorBounds } from "../src/base-map";
 
@@ -299,5 +299,39 @@ describe("grundkartan till kartans objekt", () => {
     if ("problem" in manual) throw new Error(manual.problem);
     expect(manual.summary.clearContours).toMatchObject({ settings: { smooth: 5, formlines: 4, rings: 5 }, rings: 1 });
     expect(manual.summary.symbols.find(row => row.symbol === "103")).toBeUndefined();
+  });
+
+  it("kopplar branter till kurvor, klipper 103 på 201 och vänder inverterade branter i assembleBaseMap", () => {
+    const columns = 200, rows = 200, meters = new Float32Array(columns * rows);
+    // Mark som stiger norrut (+y = avtagande radindex i norr-till-söder-rutnät).
+    for (let row = 0; row < rows; row += 1) for (let column = 0; column < columns; column += 1) {
+      const y = 99.5 - row;
+      meters[row * columns + column] = 50 + y * 0.8;
+    }
+    const height = { grid: { columns, rows, meters }, affine: [1, 0, E - 99.5, 0, -1, N + 99.5] as const };
+    const contourOtidgeo = `0\nSECTION\n2\nHEADER\n999\notidgeo\n0\nENDSEC\n${dxf("contour", [[-60, 0], [60, 0]])}`;
+    // Inverterad 201-brant (öst -> väst på nordstigande sluttning) som korsar kurvan y=0, samt 103-hjälpkurva rakt ovanpå.
+    const cliffBody = dxf("brant_opasserbar", [[30, -0.5], [10, 0.5], [-10, -0.5], [-30, 0.5]]);
+    const formBody = dxf("formline", [[-50, 0.4], [50, 0.4]]);
+    const res = assembleBaseMap({
+      ...input,
+      parts: [
+        { name: "kurvor.dxf", body: contourOtidgeo },
+        { name: "formlinjer.dxf", body: formBody },
+        { name: "brantlinjer.dxf", body: cliffBody }
+      ],
+      height
+    });
+    if ("problem" in res) throw new Error(res.problem);
+    const codeOf = new Map(candidateSymbols(map).map(([id, code]) => [id, code.replace(/\.0$/, "")]));
+    const cliffs201 = res.objects.filter(o => o.kind === "line" && codeOf.get(o.symbol) === "201");
+    expect(cliffs201).toHaveLength(1);
+    const path = cliffs201[0]!.kind === "line" ? cliffs201[0]!.path : [];
+    // Vänd rätt: går väst -> öst (ökande x) så nedförstaggar pekar söderut, och knuffad upp på uppförssidan av y=0 (northing > N + 0,9 m).
+    expect(path[path.length - 1]!.x).toBeGreaterThan(path[0]!.x);
+    for (const cmd of path) expect(mapPointToProjected(georeference, cmd).northing - N).toBeGreaterThan(0.9);
+    // Hjälpkurvan klipptes runt 201-branten i två sidobitar (vänster < -32 m och höger > +32 m).
+    const formlines = res.objects.filter(o => o.kind === "line" && codeOf.get(o.symbol) === "103");
+    expect(formlines).toHaveLength(2);
   });
 });

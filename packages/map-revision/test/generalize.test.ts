@@ -111,6 +111,14 @@ describe("kandidaterna generaliseras före Lägg in", () => {
     expect(outLine.kind === "line" && outLine.path.some(c => Math.abs(c.y - 0.10) < 1e-6)).toBe(true);
     const outArea = kept.objects.find(o => o.kind === "area")!;
     expect(outArea.kind === "area" && outArea.rings[0]!.every(c => Math.abs(c.y - 0.10) > 1e-6)).toBe(true);
+    // Kärr (308 och 310) ingår i SOFT_CODES och blir mjuka Bézier-ytor i generalizeCandidates.
+    const wetMarsh = area("m308", "308", [[0, 0], [5, 0], [5, 5], [0, 5], [0, 0]]).object;
+    const moistMarsh = area("m310", "310", [[10, 0], [15, 0], [15, 5], [10, 5], [10, 0]]).object;
+    const smoothMarshes = generalizeCandidates([wetMarsh, moistMarsh], symbol => symbol, 15000);
+    expect(smoothMarshes.objects).toHaveLength(2);
+    for (const marsh of smoothMarshes.objects) {
+      expect(marsh.kind === "area" && marsh.rings[0]!.slice(1).some(c => c.type === "C")).toBe(true);
+    }
   });
 
   it("golv i terrängmeter (0,35 m) för sprintkurvor och noll självkorsningar efter generalizeCandidates", () => {

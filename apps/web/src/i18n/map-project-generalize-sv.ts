@@ -10,7 +10,7 @@ export const mapProjectGeneralizeSv = {
   removeSmall: "Ta bort små ytor, korta linjer och små knollar",
   joinLines: "Foga ihop linjer med samma symbol vars ändar möts (t.ex. kurvor delade vid laserrutornas kanter)",
   removeInside: "Ta bort ytor som helt ligger inne i en likadan yta",
-  smooth: "Gör höjdkurvor, branter och gröna ytor mjuka (förenklas först: 0,045 mm för kurvor/branter, 0,15 mm för gröna ytor)",
+  smooth: "Gör höjdkurvor, branter, kärr och gröna ytor mjuka (förenklas först: 0,045 mm för kurvor/branter, 0,15 mm för kärr och gröna ytor)",
   smoothed: (count: number) => count === 0 ? "Inget att göra mjukt." : `${count} objekt görs mjuka.`,
   joined: (lines: number, absorbed: number) => lines === 0 ? "Inga linjer att foga ihop."
     : `${lines} ${lines === 1 ? "linje fogas" : "linjer fogas"} ihop av ${lines + absorbed} delar.`,

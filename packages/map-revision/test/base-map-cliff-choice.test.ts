@@ -5,19 +5,19 @@ const DEFAULT_CLIFF_LIMITS = { ...defaultCliffLimits(10_000), minLength: 0 };
 
 const feature = (drop3: number, drop6: number, length: number) => ({ type: "Feature", geometry: { type: "LineString", coordinates: [[0, 0], [length, 0]] },
   properties: { drop3, drop6, length } });
-const candidates = readCliffCandidates({ features: [feature(1, 1.2, 15), feature(2, 2.5, 12), feature(5, 6, 25), feature(5, 6, 12), feature(1.5, 2, 5),
+const candidates = readCliffCandidates({ features: [feature(1, 1.2, 15), feature(2.0, 2.5, 12), feature(2.4, 2.8, 12), feature(5, 6, 25), feature(5, 6, 12), feature(1.5, 2, 5),
   { type: "Feature", geometry: { type: "Point", coordinates: [0, 0] }, properties: {} }] });
 
 describe("branter med reglage", () => {
-  it("läser linjerna med sina mått", () => { expect(candidates).toHaveLength(5); });
-  it("delar med förvalen: under 2,0 m ingen brant, högt och långt opasserbart, resten passerbart", () => {
+  it("läser linjerna med sina mått", () => { expect(candidates).toHaveLength(6); });
+  it("delar med förvalen: under 2,3 m ingen brant i skog, högt och långt opasserbart, resten passerbart", () => {
     const result = cliffFeatures(candidates, DEFAULT_CLIFF_LIMITS);
     expect([result.impassable, result.passable]).toEqual([1, 2]);
     expect(result.features.map(row => row.layer)).toEqual(["brant_passerbar", "brant_opasserbar", "brant_passerbar"]);
   });
   it("tar bort de för korta och ger taggar när det är valt", () => {
     const result = cliffFeatures(candidates, { ...DEFAULT_CLIFF_LIMITS, minDrop: 0.8, impassableLength: 10, tags: true, minLength: 9 });
-    expect([result.impassable, result.passable]).toEqual([2, 2]);
+    expect([result.impassable, result.passable]).toEqual([2, 3]);
     expect(new Set(result.features.map(row => row.layer))).toEqual(new Set(["brant_opasserbar", "brant_passerbar_taggar"]));
   });
 });
@@ -25,11 +25,11 @@ describe("branter med reglage", () => {
 describe("mängden branter på skalan 1–10", () => {
   it("går över både fallet och längden, med skalanpassade förval på 5 (skog vs sprint)", () => {
     const usual = defaultCliffLimits(15_000);
-    expect(usual).toEqual({ minDrop: 2.0, minSlope: 39, impassableDrop: 4.1, impassableLength: 16, impassableSlope: 41, minSharpness: 0.56, tags: false, minLength: 9 });
+    expect(usual).toEqual({ minDrop: 2.3, minSlope: 39, impassableDrop: 4.1, impassableLength: 16, impassableSlope: 41, minSharpness: 0.56, maxWallSharpness: 0.92, wallMaxDrop: 3.2, tags: false, minLength: 9 });
     expect(cliffLimitsAt(5, usual, 15_000)).toEqual(usual);
     expect(cliffLimitsAt(1, usual, 15_000)).toMatchObject({ minDrop: 5.5, minLength: 30, impassableDrop: 4.1, impassableSlope: 41 });
     expect(cliffLimitsAt(10, { ...usual, tags: true }, 15_000)).toMatchObject({ minDrop: 0.8, minLength: 0, tags: true });
-    expect(cliffLimitsAt(3, usual, 15_000)).toMatchObject({ minDrop: 3.75, minLength: 19.5 });
+    expect(cliffLimitsAt(3, usual, 15_000)).toMatchObject({ minDrop: 3.9, minLength: 19.5 });
 
     // Sprint (<= 1:5 000): kalibrerad 201/202-uppdelning (minDrop 1,2 m, 201 från 3,4 m / 10 m / 40°).
     const sprint = defaultCliffLimits(4_000);
@@ -70,5 +70,23 @@ describe("mängden branter på skalan 1–10", () => {
     });
     const forestRes = cliffFeatures(forestCandidates, defaultCliffLimits(15_000));
     expect([forestRes.impassable, forestRes.passable]).toEqual([0, 1]);
+
+    // Konstgjorda stödmurar / parkterrasser (sharpness > 0,92 && drop3 < 3,2 && (slope < 44 || length < 12)) rensas bort,
+    // medan en lång brant bergvägg (slope >= 44 && length >= 12) eller hög klippa (drop3 >= 3,2) eller äldre data utan sharpness/slope behålls.
+    const wallCandidates = readCliffCandidates({
+      features: [
+        { type: "Feature", geometry: { type: "LineString", coordinates: [[0, 0], [18, 0]] }, properties: { drop3: 2.6, drop6: 2.7, length: 18, slope: 41, sharpness: 0.96 } },
+        { type: "Feature", geometry: { type: "LineString", coordinates: [[0, 5], [10, 5]] }, properties: { drop3: 2.8, drop6: 2.9, length: 10, slope: 48, sharpness: 0.96 } },
+        { type: "Feature", geometry: { type: "LineString", coordinates: [[0, 10], [15, 10]] }, properties: { drop3: 2.8, drop6: 2.9, length: 15, slope: 46, sharpness: 0.95 } },
+        { type: "Feature", geometry: { type: "LineString", coordinates: [[0, 15], [10, 15]] }, properties: { drop3: 3.3, drop6: 3.4, length: 10, slope: 41, sharpness: 0.97 } },
+        { type: "Feature", geometry: { type: "LineString", coordinates: [[0, 20], [15, 20]] }, properties: { drop3: 2.6, drop6: 2.7, length: 15 } }
+      ]
+    });
+    const wallRes = cliffFeatures(wallCandidates, defaultCliffLimits(15_000));
+    expect([wallRes.impassable, wallRes.passable]).toEqual([0, 3]);
+
+    // I sprint (<= 1:5 000) är skogens stödmursfilter avstängt så skarpa korta sprintklippor (E7/E8) bevaras.
+    const sprintWallRes = cliffFeatures(wallCandidates, defaultCliffLimits(4_000));
+    expect([sprintWallRes.impassable, sprintWallRes.passable]).toEqual([0, 5]);
   });
 });

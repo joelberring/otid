@@ -31,6 +31,9 @@ export interface CliffLimits {
   readonly impassableSlope?: number | undefined;
   /** Minsta brantkantsskärpa (`drop3/drop6`) för att skilja klippor från jämna slänter när kandidaten bär `sharpness` (kringgås vid `slope >= 46°`). */
   readonly minSharpness?: number | undefined;
+  /** Högsta skärpa och högsta fall (m) för skogsfiltret mot konstgjorda stödmurar/vägkanter (`sharpness > maxWallSharpness && drop3 < wallMaxDrop && (slope < 44 || length < 12)`); utelämnat i sprint. */
+  readonly maxWallSharpness?: number | undefined;
+  readonly wallMaxDrop?: number | undefined;
 }
 /** Normens kortaste brant (0,6 mm på kartan) i meter för kartans skala. */
 export const normCliffLength = (scale: number) => 0.6 * scale / 1000;
@@ -39,7 +42,7 @@ export const isSprintCliffScale = (scale: number) => scale <= 5000;
 /** Lutning (grader) över vilken en riktig bergvägg alltid godtas oavsett brantkantsskärpa. */
 const SHARPNESS_BYPASS_SLOPE = 46;
 /** Skalanpassade förval kalibrerade mot 6 autentiska OCAD-kartor (4 skog + 2 sprint). */
-export const FOREST_CLIFF_DEFAULTS = { minDrop: 2.0, minSlope: 39, impassableDrop: 4.1, impassableLength: 16, impassableSlope: 41, minSharpness: 0.56 } as const;
+export const FOREST_CLIFF_DEFAULTS = { minDrop: 2.3, minSlope: 39, impassableDrop: 4.1, impassableLength: 16, impassableSlope: 41, minSharpness: 0.56, maxWallSharpness: 0.92, wallMaxDrop: 3.2 } as const;
 export const SPRINT_CLIFF_DEFAULTS = { minDrop: 1.2, impassableDrop: 3.4, impassableLength: 10, impassableSlope: 40, minSharpness: 0.58 } as const;
 /** Geo-arbetarens skalanpassade förval, med normens kortaste brant för skalan. */
 export const defaultCliffLimits = (scale: number): CliffLimits => {
@@ -92,6 +95,13 @@ export function classifyCliff(
   if (limits.minSharpness !== undefined && cliff.sharpness !== undefined && Number.isFinite(cliff.sharpness) && cliff.sharpness < limits.minSharpness) {
     const steepWall = cliff.slope !== undefined && Number.isFinite(cliff.slope) && cliff.slope >= SHARPNESS_BYPASS_SLOPE;
     if (!steepWall) return undefined;
+  }
+  // Skogsfilter mot konstgjorda stödmurar / vägkanter / parkterrasser (utelämnat i sprint så skarpa korta sprintkanter bevaras).
+  if (limits.maxWallSharpness !== undefined && limits.wallMaxDrop !== undefined
+    && cliff.sharpness !== undefined && Number.isFinite(cliff.sharpness)
+    && cliff.slope !== undefined && Number.isFinite(cliff.slope)
+    && cliff.sharpness > limits.maxWallSharpness && cliff.drop3 < limits.wallMaxDrop && (cliff.slope < 44 || cliff.length < 12)) {
+    return undefined;
   }
   const steepEnough = limits.impassableSlope === undefined || cliff.slope === undefined || !Number.isFinite(cliff.slope) || cliff.slope >= limits.impassableSlope;
   return cliff.drop3 >= limits.impassableDrop

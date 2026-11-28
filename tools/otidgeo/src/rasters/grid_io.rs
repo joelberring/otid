@@ -404,7 +404,7 @@ pub fn load_water_data(paths: &[impl AsRef<Path>], geojson_path: Option<&Path>) 
     Ok(WaterData { min_x: union.min_x, min_y: union.min_y, cell: union.cell, width: w, height: h, mask, water_ha, water_areas })
 }
 
-/// Merged 2 m point statistics (`punkter*.bin`) + O(1) integral table for `ground_share_at`.
+/// Merged 2 m point statistics (`punkter*.bin`) + O(1) integral tables for `ground_share_at` & `vegh_at`.
 pub struct PointStats {
     pub min_x: f64,
     pub min_y: f64,
@@ -414,6 +414,8 @@ pub struct PointStats {
     pub values: Vec<f32>,
     all_sum: Vec<f64>,
     gnd_sum: Vec<f64>,
+    vegh_sum: Vec<f64>,
+    vegh_cnt: Vec<u32>,
 }
 
 impl PointStats {
@@ -432,6 +434,29 @@ impl PointStats {
         if n > 0.0 {
             let g = self.gnd_sum[x1 * s + y1] - self.gnd_sum[x0 * s + y1] - self.gnd_sum[x1 * s + y0] + self.gnd_sum[x0 * s + y0];
             Some(g / n)
+        } else {
+            None
+        }
+    }
+
+    /// Mean canopy top height (m) over the 5x5 (10 m) window around `(px, py)`, matching `ground_share_at`.
+    #[inline]
+    pub fn vegh_at(&self, px: f64, py: f64) -> Option<f64> {
+        let x = ((px - self.min_x) / self.cell).floor() as isize;
+        let y = ((py - self.min_y) / self.cell).floor() as isize;
+        if x < 0 || y < 0 || (x as usize) >= self.width || (y as usize) >= self.height {
+            return None;
+        }
+        let (x, y) = (x as usize, y as usize);
+        let (x0, x1) = (x.saturating_sub(2), (x + 3).min(self.width));
+        let (y0, y1) = (y.saturating_sub(2), (y + 3).min(self.height));
+        let s = self.height + 1;
+        let cnt = (self.vegh_cnt[x1 * s + y1] + self.vegh_cnt[x0 * s + y0])
+            - self.vegh_cnt[x0 * s + y1]
+            - self.vegh_cnt[x1 * s + y0];
+        if cnt > 0 {
+            let hsum = self.vegh_sum[x1 * s + y1] - self.vegh_sum[x0 * s + y1] - self.vegh_sum[x1 * s + y0] + self.vegh_sum[x0 * s + y0];
+            Some(hsum / f64::from(cnt))
         } else {
             None
         }
@@ -575,6 +600,8 @@ pub fn load_point_stats(paths: &[impl AsRef<Path>]) -> Result<PointStats, String
     let stride = h + 1;
     let mut all_sum = vec![0.0f64; (w + 1) * stride];
     let mut gnd_sum = vec![0.0f64; (w + 1) * stride];
+    let mut vegh_sum = vec![0.0f64; (w + 1) * stride];
+    let mut vegh_cnt = vec![0u32; (w + 1) * stride];
     for x in 0..w {
         let (src_col, dst_col, left_col) = (x * h, (x + 1) * stride, x * stride);
         for y in 0..h {
@@ -582,10 +609,25 @@ pub fn load_point_stats(paths: &[impl AsRef<Path>]) -> Result<PointStats, String
             let i = dst_col + y + 1;
             all_sum[i] = f64::from(values[o + 1]) + all_sum[left_col + y + 1] + all_sum[dst_col + y] - all_sum[left_col + y];
             gnd_sum[i] = f64::from(values[o + 2]) + gnd_sum[left_col + y + 1] + gnd_sum[dst_col + y] - gnd_sum[left_col + y];
+            let has_vh = values[o + 1] > 0.0 && values[o].is_finite();
+            let vh = if has_vh { f64::from(values[o]).max(0.0) } else { 0.0 };
+            vegh_sum[i] = vh + vegh_sum[left_col + y + 1] + vegh_sum[dst_col + y] - vegh_sum[left_col + y];
+            vegh_cnt[i] = u32::from(has_vh) + vegh_cnt[left_col + y + 1] + vegh_cnt[dst_col + y] - vegh_cnt[left_col + y];
         }
     }
 
-    Ok(PointStats { min_x: union.min_x, min_y: union.min_y, cell: union.cell, width: w, height: h, values, all_sum, gnd_sum })
+    Ok(PointStats {
+        min_x: union.min_x,
+        min_y: union.min_y,
+        cell: union.cell,
+        width: w,
+        height: h,
+        values,
+        all_sum,
+        gnd_sum,
+        vegh_sum,
+        vegh_cnt,
+    })
 }
 
 /// Decodes `vegetationsklasser.png` + `.pgw` into `(open_mask, forest_mask)` aligned to `ground`.

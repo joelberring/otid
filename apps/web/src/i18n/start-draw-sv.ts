@@ -24,6 +24,36 @@ export const startDrawSv = {
   },
   selectAll: "Lotta alla klasser",
   laterStartShort: (time: string) => `Första start ${time}`,
+  massStartClock: "Masstart kl.",
+  massStartSavedShort: (time: string) => `Masstart ${time}`,
+  massStartInvalid: "Skriv en hel minut, till exempel 19:10.",
+  waves: {
+    title: "Masstartstider",
+    help: "Skjuts en masstart upp på tävlingsdagen? Flytta hela starten på en gång. Alla i klasserna, efteranmälda och eventuella avlästa resultat uppdateras automatiskt.",
+    entries: (count: number) => `${count} anmälda`,
+    shift: "Flytta masstart",
+    shiftLabel: (clock: string) => `Flytta masstart ${clock}`,
+    newTime: "Ny masstart kl.",
+    nudge: (delta: number) => `${delta > 0 ? `+${delta}` : `−${Math.abs(delta)}`} min`,
+    nudgeLabel: (delta: number, clock: string) => `${delta > 0 ? "Senarelägg" : "Tidigarelägg"} ${clock} med ${Math.abs(delta)} min`,
+    delta: (from: string, to: string, delta: number) => `${from} → ${to} (${delta > 0 ? `+${delta}` : `−${Math.abs(delta)}`} min)`,
+    apply: "Flytta masstart",
+    applyAt: (clock: string) => `Flytta till ${clock}`,
+    cancel: "Avbryt",
+    invalid: "Skriv en hel minut, till exempel 19:14.",
+    unchanged: "Välj en annan tid än den nuvarande.",
+    error: "Masstarten kunde inte flyttas. Försök igen.",
+    confirmTitle: "Flytta masstart",
+    confirmMove: (classNames: readonly string[], from: string, to: string, delta: number) =>
+      `Flytta ${names(classNames)} från ${from} till ${to} (${delta > 0 ? `+${delta}` : `−${Math.abs(delta)}`} min)?`,
+    confirmEntries: (count: number, clock: string) =>
+      count === 0 ? `Klassen har inga anmälda än. Efteranmälda får starttid ${clock}.`
+        : `${count === 1 ? "1 anmäld" : `${count} anmälda`} får starttid ${clock} (även efteranmälda).`,
+    confirmAction: "Flytta och spara",
+    shifted: (classNames: readonly string[], from: string, to: string, recalculated: number) =>
+      `Masstarten flyttad från ${from} till ${to} för ${names(classNames)}.` +
+      (recalculated > 0 ? ` ${recalculated} resultat räknades om.` : "")
+  },
   clubSeparation: "Klubbseparering: två från samma klubb startar inte efter varandra",
   className: "Klass", method: rule.label, interval: "Intervall (min)", vacancies: "Vakanser", draw: "Lotta", entries: "Anmälda",
   methods: rule.methods,

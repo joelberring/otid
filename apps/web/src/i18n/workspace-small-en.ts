@@ -362,7 +362,7 @@ export const startDrawAdvancedEn: Texts<typeof startDrawAdvancedSv> = {
     limit: "Write a whole number 1–1000 or leave empty.",
     lastStart: "Write the last start as a clock time, for example 12:00, or leave empty.",
     lastStartBefore: "The last start cannot be before the first start.",
-    clock: "Write a clock time, for example 10:30, after the first start.",
+    clock: "Write a clock time, for example 10:30, at or after the first start.",
     offset: "Write minutes after the first start, 1–1440.",
     seed: "Write a whole number 1–10000 or leave empty.",
     summary: "Correct the fields under Advanced."
@@ -374,6 +374,8 @@ export const startDrawAdvancedEn: Texts<typeof startDrawAdvancedSv> = {
   existingOverLimit: (scope, limit, first, count) =>
     `Existing times already have more than ${limit} ${scope === "TOTAL" ? "starts per minute" : "starts per minute in a start pen"} (${minutesEn(count)}, first ${first}).`,
   existingClash: (classNames, first, count) => `${and(classNames)} already have times in the same start group the same minute (${minutesEn(count)}, first ${first}).`,
+  massStartClash: (className, conflictClassNames, time) =>
+    `${className} has a mass start at ${time}, at the same time as ${and(conflictClassNames)} in the same start group start.`,
   existingTitle: "Keep their times",
   existingClass: (className, count, first, last) => `${className} (${plural(count, "start", "starts")} ${first === last ? first : `${first}–${last}`})`,
   timelineTitle: "Minute by minute",

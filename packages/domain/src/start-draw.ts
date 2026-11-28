@@ -16,14 +16,16 @@ export * from "./start-draw-order";
  * - Klubbseparering: två löpare från samma klubb startar inte efter varandra
  *   när det går att undvika.
  * - Startgrupper: klasser vars banor börjar med samma `groupControls` (1–3) kontroller
- *   startar aldrig samma minut. En gafflad bana har en följd per variant; två klasser
+ *   startar aldrig samma minut för minutstart. En gafflad bana har en följd per variant; två klasser
  *   hör till samma startgrupp om någon variant delar början (den säkra regeln), och
  *   grupperna slås ihop i kedja (A delar med B, B med C ⇒ A, B och C).
+ *   Två eller flera masstartsklasser får alltid starta samma minut, även på samma bana eller
+ *   i samma startgrupp/startfålla; minutstartsklasser undviker däremot alltid både varandra och masstarter.
  * - Startfålla: klasser vars banor (någon variant) har samma första kontroll. Med fler
  *   än en kontroll som avgör startgruppen kan flera grupper i samma fålla starta samma
  *   minut; taket per fålla begränsar hur många.
  * - Tak per minut, totalt och per fålla. Varje minutstart och varje vakant tid räknas;
- *   en masstart räknas som en start.
+ *   en masstart (en eller flera klasser som startar samtidigt) räknas som en start.
  * - Klasser med senare start (klockslag eller förskjutning) placeras först, på sin tid
  *   eller första tillåtna minut efter; övriga fyller runt dem. Utan egen ordning packas
  *   klasserna masstart först, sedan största klassen först; med egen ordning i den ordningen.
@@ -57,6 +59,8 @@ export interface StartDrawExistingClass {
   readonly classId: string;
   readonly startControls: readonly (readonly number[])[];
   readonly startTimesMs: readonly number[];
+  /** Startsätt för den befintliga klassen; utelämnat tolkas som minutstart. */
+  readonly method?: StartDrawMethod;
 }
 
 export interface StartDrawRules {
@@ -112,7 +116,9 @@ export type StartDrawWarning =
   /** Befintliga tider har redan fler starter per minut än taket. */
   | { readonly code: "EXISTING_OVER_LIMIT"; readonly scope: "TOTAL" | "PEN"; readonly limit: number; readonly firstMs: number; readonly minuteCount: number }
   /** Befintliga tider i samma startgrupp startar samma minut. */
-  | { readonly code: "EXISTING_GROUP_CLASH"; readonly classIds: readonly string[]; readonly firstMs: number; readonly minuteCount: number };
+  | { readonly code: "EXISTING_GROUP_CLASH"; readonly classIds: readonly string[]; readonly firstMs: number; readonly minuteCount: number }
+  /** En masstart lagd på ett visst klockslag ligger på samma minut som minutstartsklasser i samma startgrupp. */
+  | { readonly code: "MASS_START_GROUP_CLASH"; readonly classId: string; readonly conflictClassIds: readonly string[]; readonly startMs: number };
 
 export interface StartDrawResult {
   readonly classes: readonly StartDrawClassResult[];
@@ -235,23 +241,53 @@ const add = (counts: Map<number, number>, minute: number) => counts.set(minute, 
 
 /** Var startgruppernas och fållornas minuter och antal per minut hålls under lottningen. */
 class Occupancy {
-  readonly busy = new Map<string, Map<number, Set<string>>>();
+  /** Minutstartsklasser per startgrupp och minut. */
+  readonly minuteBusy = new Map<string, Map<number, Set<string>>>();
+  /** Masstartsklasser per startgrupp och minut. Flera masstarter får dela minut. */
+  readonly massBusy = new Map<string, Map<number, Set<string>>>();
   readonly pens = new Map<string, Map<number, number>>();
   readonly total = new Map<number, number>();
+  private readonly massTotalMinutes = new Set<number>();
+  private readonly massPenMinutes = new Map<string, Set<number>>();
   constructor(private readonly penLimit: number | null, private readonly totalLimit: number | null) {}
-  fits(minutes: readonly number[], group: string, pens: readonly string[]): boolean {
-    const busy = this.busy.get(group);
-    return minutes.every(minute => !busy?.has(minute) &&
-      (this.totalLimit === null || (this.total.get(minute) ?? 0) < this.totalLimit) &&
-      (this.penLimit === null || pens.every(pen => (this.pens.get(pen)?.get(minute) ?? 0) < this.penLimit!)));
+  fits(minutes: readonly number[], group: string, pens: readonly string[], method: StartDrawMethod): boolean {
+    const minuteGroup = this.minuteBusy.get(group);
+    const massGroup = this.massBusy.get(group);
+    return minutes.every(minute => {
+      if (minuteGroup?.has(minute)) return false;
+      if (method === "MINUTE" && massGroup?.has(minute)) return false;
+      const totalAllowed = this.totalLimit === null ||
+        (method === "MASS" && this.massTotalMinutes.has(minute)) ||
+        (this.total.get(minute) ?? 0) < this.totalLimit;
+      if (!totalAllowed) return false;
+      return this.penLimit === null || pens.every(pen =>
+        (method === "MASS" && (this.massPenMinutes.get(pen)?.has(minute) ?? false)) ||
+        (this.pens.get(pen)?.get(minute) ?? 0) < this.penLimit!);
+    });
   }
-  occupy(minutes: readonly number[], classId: string, group: string, pens: readonly string[]) {
-    const busy = this.busy.get(group) ?? new Map<number, Set<string>>();
-    this.busy.set(group, busy);
+  occupy(minutes: readonly number[], classId: string, method: StartDrawMethod, group: string, pens: readonly string[]) {
+    const target = method === "MASS" ? this.massBusy : this.minuteBusy;
+    const busy = target.get(group) ?? new Map<number, Set<string>>();
+    target.set(group, busy);
     for (const minute of minutes) {
       busy.set(minute, (busy.get(minute) ?? new Set()).add(classId));
-      add(this.total, minute);
-      for (const pen of pens) { const counts = this.pens.get(pen) ?? new Map<number, number>(); this.pens.set(pen, counts); add(counts, minute); }
+      if (method === "MINUTE" || !this.massTotalMinutes.has(minute)) {
+        if (method === "MASS") this.massTotalMinutes.add(minute);
+        add(this.total, minute);
+      }
+      for (const pen of pens) {
+        const penMass = this.massPenMinutes.get(pen);
+        if (method === "MINUTE" || !(penMass?.has(minute) ?? false)) {
+          if (method === "MASS") {
+            const set = penMass ?? new Set<number>();
+            set.add(minute);
+            this.massPenMinutes.set(pen, set);
+          }
+          const counts = this.pens.get(pen) ?? new Map<number, number>();
+          this.pens.set(pen, counts);
+          add(counts, minute);
+        }
+      }
     }
   }
 }
@@ -285,13 +321,20 @@ export function drawStartTimes(input: StartDrawInput): StartDrawResult {
   const warnings: StartDrawWarning[] = [];
   for (const row of existing) {
     const minutes = [...new Set(row.startTimesMs.map(time => Math.floor((time - input.firstStartMs) / MINUTE_MS)))];
-    occupancy.occupy(minutes, row.classId, groupOf(row.classId), pensOf(row));
+    occupancy.occupy(minutes, row.classId, row.method ?? "MINUTE", groupOf(row.classId), pensOf(row));
   }
   // Befintliga tider som redan bryter mot reglerna (t.ex. efter att fler kontroller börjat avgöra startgruppen).
-  for (const busy of occupancy.busy.values()) {
-    const clashes = [...busy].filter(([, classIds]) => classIds.size > 1);
+  // Två eller flera masstarter i samma startgrupp på samma minut är avsiktliga och ger ingen krockvarning.
+  for (const [group, minuteMap] of occupancy.minuteBusy) {
+    const massMap = occupancy.massBusy.get(group);
+    const clashes: [number, string[]][] = [];
+    for (const [minute, minuteIds] of minuteMap) {
+      const massIds = massMap?.get(minute);
+      const totalCount = minuteIds.size + (massIds?.size ?? 0);
+      if (totalCount > 1) clashes.push([minute, [...minuteIds, ...(massIds ?? [])]]);
+    }
     if (clashes.length === 0) continue;
-    warnings.push({ code: "EXISTING_GROUP_CLASH", classIds: [...new Set(clashes.flatMap(([, ids]) => [...ids]))].sort(compareIds),
+    warnings.push({ code: "EXISTING_GROUP_CLASH", classIds: [...new Set(clashes.flatMap(([, ids]) => ids))].sort(compareIds),
       ...summarize(clashes.map(([minute]) => minute), input.firstStartMs) });
   }
   if (rules.maxPerMinute != null) {
@@ -328,16 +371,27 @@ export function drawStartTimes(input: StartDrawInput): StartDrawResult {
 
   const offsets = new Map<string, number>();
   for (const item of ordered) {
-    const { classId } = item.raceClass;
+    const { classId, method } = item.raceClass;
     const want = wanted.get(classId) ?? null;
-    let offset = Math.max(want ?? 0, 0);
     const group = groupOf(classId), itemPens = pensOf(item.raceClass);
-    while (!occupancy.fits(minutesAt(item, offset), group, itemPens)) {
-      offset += 1;
-      if (offset > MAX_OFFSET_MINUTES) throw new StartDrawError("TOO_LARGE", "Startgruppen får inte plats");
+    let offset: number;
+    if (method === "MASS" && want !== null) {
+      // Vald masstartstid flyttas aldrig i smyg; ligger en minutstartsklass på samma minut i gruppen varnar vi i stället.
+      offset = want;
+      const minuteConflicts = occupancy.minuteBusy.get(group)?.get(offset);
+      if (minuteConflicts && minuteConflicts.size > 0) {
+        warnings.push({ code: "MASS_START_GROUP_CLASH", classId, conflictClassIds: [...minuteConflicts].sort(compareIds),
+          startMs: input.firstStartMs + offset * MINUTE_MS });
+      }
+    } else {
+      offset = Math.max(want ?? 0, 0);
+      while (!occupancy.fits(minutesAt(item, offset), group, itemPens, method)) {
+        offset += 1;
+        if (offset > MAX_OFFSET_MINUTES) throw new StartDrawError("TOO_LARGE", "Startgruppen får inte plats");
+      }
     }
     // En tom klass utan vakanser upptar ingen minut men får ändå en första start.
-    if (item.order.length > 0) occupancy.occupy(minutesAt(item, offset), classId, group, itemPens);
+    if (item.order.length > 0) occupancy.occupy(minutesAt(item, offset), classId, method, group, itemPens);
     offsets.set(classId, offset);
     if (want !== null && want !== offset) {
       warnings.push({ code: "LATER_START_MOVED", classId, wantedMs: input.firstStartMs + want * MINUTE_MS,
@@ -367,21 +421,22 @@ export function drawStartTimes(input: StartDrawInput): StartDrawResult {
   return { classes, groups: startGroups(planned, existing, groupControls, groupOf), warnings };
 }
 
-/** Startgrupper med minst två klasser, i den ordning de lottade klasserna kommer, med de delade kontrollerna. */
+/** Startgrupper med minst två klasser (och minst en minutstartsklass), i den ordning de lottade klasserna kommer. */
 function startGroups(planned: readonly Planned[], existing: readonly StartDrawExistingClass[], count: number,
   groupOf: (classId: string) => string): StartDrawGroup[] {
-  const members = new Map<string, { drawn: string[]; others: string[]; keys: Map<string, number> }>();
-  const note = (classId: string, controls: readonly (readonly number[])[], drawn: boolean) => {
+  const members = new Map<string, { drawn: string[]; others: string[]; hasMinute: boolean; keys: Map<string, number> }>();
+  const note = (classId: string, controls: readonly (readonly number[])[], drawn: boolean, method: StartDrawMethod) => {
     const keys = groupKeys(controls, count);
     if (keys.length === 0) return;
-    const group = members.get(groupOf(classId)) ?? { drawn: [], others: [], keys: new Map<string, number>() };
+    const group = members.get(groupOf(classId)) ?? { drawn: [], others: [], hasMinute: false, keys: new Map<string, number>() };
     members.set(groupOf(classId), group);
     (drawn ? group.drawn : group.others).push(classId);
+    if (method === "MINUTE") group.hasMinute = true;
     for (const key of keys) group.keys.set(key, (group.keys.get(key) ?? 0) + 1);
   };
-  for (const { raceClass } of planned) note(raceClass.classId, raceClass.startControls, true);
-  for (const row of existing) note(row.classId, row.startControls, false);
-  return [...members.values()].filter(group => group.drawn.length > 0 && group.drawn.length + group.others.length > 1).map(group => {
+  for (const { raceClass } of planned) note(raceClass.classId, raceClass.startControls, true, raceClass.method);
+  for (const row of existing) note(row.classId, row.startControls, false, row.method ?? "MINUTE");
+  return [...members.values()].filter(group => group.hasMinute && group.drawn.length > 0 && group.drawn.length + group.others.length > 1).map(group => {
     const [key] = [...group.keys].sort((a, b) => b[1] - a[1] || compareIds(a[0], b[0]))[0]!;
     return { controlCodes: key.split(",").map(Number), classIds: [...group.drawn, ...group.others.sort(compareIds)] };
   });

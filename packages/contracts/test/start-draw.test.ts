@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { startDrawIdempotencyKeySchema, startDrawPreviewRequestSchema, startDrawPreviewResponseSchema, startDrawRequestSchema } from "../src";
+import {
+  startDrawIdempotencyKeySchema, startDrawPreviewRequestSchema, startDrawPreviewResponseSchema, startDrawRequestSchema,
+  startDrawSetupResponseSchema
+} from "../src";
 
 const id = "10000000-0000-4000-8000-000000000001";
 const other = "10000000-0000-4000-8000-000000000002";
@@ -52,5 +55,29 @@ describe("lottningens kontrakt (PLAN.md steg 9)", () => {
       { classes: [{ ...settings.classes[0], laterStart: { kind: "OFFSET", minutes: 0 } }] }]) {
       expect(startDrawPreviewRequestSchema.safeParse({ ...advanced, ...change }).success).toBe(false);
     }
+  });
+
+  it("stöder klassens första start i uppsättningen och masstartskrock-varning i förhandsvisningen", () => {
+    const setup = {
+      formatVersion: 1, raceId: id, snapshotVersion: 1, raceDate: "2026-10-08", timeZone: "Europe/Stockholm",
+      firstStartTime: "2026-10-08T17:00:00.000Z",
+      classes: [{
+        id: other, name: "Hyperion herr", courseName: "Bana B", firstControlCode: 31, entryCount: 4,
+        method: "MASS", intervalMinutes: 1, vacancies: { kind: "COUNT", value: 0 }, hasStartTimes: true,
+        firstStartTime: "2026-10-08T17:10:00.000Z"
+      }],
+      settings: null, entries: []
+    };
+    expect(startDrawSetupResponseSchema.safeParse(setup).success).toBe(true);
+    const preview = {
+      formatVersion: 1, raceId: id, snapshotVersion: 3, timeZone: "Europe/Stockholm", seed: 42,
+      classes: [{ classId: id, className: "Hyperion herr", method: "MASS", firstStartTime: "2026-10-08T17:10:00.000Z",
+        intervalMinutes: 1, vacancyCount: 0, replacesStartTimes: false, slots: [] }],
+      startGroups: [],
+      warnings: [{ code: "MASS_START_GROUP_CLASH", className: "Hyperion herr", conflictClassNames: ["H21"], startTime: "2026-10-08T17:10:00.000Z" }],
+      existingClasses: [], timeline: [], replacesStartTimes: false, readOutCount: 0, becomesOkCount: 0, becomesMispunchedCount: 0, unchangedCount: 0,
+      notRecalculatedCount: 0, changes: [], requiresConfirmation: false
+    };
+    expect(startDrawPreviewResponseSchema.safeParse(preview).success).toBe(true);
   });
 });

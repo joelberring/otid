@@ -32,6 +32,9 @@ export function previewWarnings(warnings: readonly StartDrawWarning[], nameOf: (
         return { code: warning.code, scope: warning.scope, limit: warning.limit, firstTime: iso(warning.firstMs), minuteCount: warning.minuteCount };
       case "EXISTING_GROUP_CLASH":
         return { code: warning.code, classNames: warning.classIds.map(nameOf), firstTime: iso(warning.firstMs), minuteCount: warning.minuteCount };
+      case "MASS_START_GROUP_CLASH":
+        return { code: warning.code, className: nameOf(warning.classId), conflictClassNames: warning.conflictClassIds.map(nameOf),
+          startTime: iso(warning.startMs) };
     }
   });
 }

@@ -37,6 +37,36 @@ export const startDrawEn: Texts<typeof startDrawSv> = {
   },
   selectAll: "Draw all classes",
   laterStartShort: time => `First start ${time}`,
+  massStartClock: "Mass start at",
+  massStartSavedShort: time => `Mass start ${time}`,
+  massStartInvalid: "Write a whole minute, for example 19:10.",
+  waves: {
+    title: "Mass start times",
+    help: "Mass start delayed on race day? Shift the whole wave in one go. Everyone in the classes, late entries and any read-out results update automatically.",
+    entries: count => `${count} ${count === 1 ? "entry" : "entries"}`,
+    shift: "Shift mass start",
+    shiftLabel: clock => `Shift mass start ${clock}`,
+    newTime: "New mass start at",
+    nudge: delta => `${delta > 0 ? `+${delta}` : `−${Math.abs(delta)}`} min`,
+    nudgeLabel: (delta, clock) => `${delta > 0 ? "Delay" : "Move earlier"} ${clock} by ${Math.abs(delta)} min`,
+    delta: (from, to, delta) => `${from} → ${to} (${delta > 0 ? `+${delta}` : `−${Math.abs(delta)}`} min)`,
+    apply: "Shift mass start",
+    applyAt: clock => `Shift to ${clock}`,
+    cancel: "Cancel",
+    invalid: "Write a whole minute, for example 19:14.",
+    unchanged: "Choose a different time than the current one.",
+    error: "The mass start could not be shifted. Try again.",
+    confirmTitle: "Shift mass start",
+    confirmMove: (classNames, from, to, delta) =>
+      `Move ${names(classNames)} from ${from} to ${to} (${delta > 0 ? `+${delta}` : `−${Math.abs(delta)}`} min)?`,
+    confirmEntries: (count, clock) =>
+      count === 0 ? `No entries yet. Late entries will get start time ${clock}.`
+        : `${count === 1 ? "1 entry gets" : `${count} entries get`} start time ${clock} (including late entries).`,
+    confirmAction: "Shift and save",
+    shifted: (classNames, from, to, recalculated) =>
+      `Mass start shifted from ${from} to ${to} for ${names(classNames)}.` +
+      (recalculated > 0 ? ` ${plural(recalculated, "result was", "results were")} recalculated.` : "")
+  },
   clubSeparation: "Club separation: two from the same club do not start after each other",
   className: "Class", method: rule.label, interval: "Interval (min)", vacancies: "Vacancies", draw: "Draw", entries: "Entries",
   methods: rule.methods,

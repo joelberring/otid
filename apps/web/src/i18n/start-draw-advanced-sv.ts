@@ -53,7 +53,7 @@ export const startDrawAdvancedSv = {
     limit: "Skriv ett heltal 1–1000 eller lämna tomt.",
     lastStart: "Skriv sista start som klockslag, till exempel 12:00, eller lämna tomt.",
     lastStartBefore: "Sista start kan inte vara före första start.",
-    clock: "Skriv klockslag, till exempel 10:30, efter första start.",
+    clock: "Skriv klockslag, till exempel 10:30, tidigast vid första start.",
     offset: "Skriv minuter efter första start, 1–1440.",
     seed: "Skriv ett heltal 1–10000 eller lämna tomt.",
     summary: "Rätta fälten under Avancerat."
@@ -68,6 +68,8 @@ export const startDrawAdvancedSv = {
     `Befintliga tider har redan fler än ${limit} ${scope === "TOTAL" ? "starter per minut" : "starter per minut i en startfålla"} (${minutes(count)}, första ${first}).`,
   existingClash: (classNames: readonly string[], first: string, count: number) =>
     `${names(classNames)} har redan tider i samma startgrupp samma minut (${minutes(count)}, första ${first}).`,
+  massStartClash: (className: string, conflictClassNames: readonly string[], time: string) =>
+    `${className} har masstart ${time}, samtidigt som ${names(conflictClassNames)} i samma startgrupp har start då.`,
   existingTitle: "Behåller sina tider",
   existingClass: (className: string, count: number, first: string, last: string) =>
     `${className} (${plural(count, "start", "starter")} ${first === last ? first : `${first}–${last}`})`,

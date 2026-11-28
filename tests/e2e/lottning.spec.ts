@@ -140,3 +140,92 @@ test("masstart direkt på klassen", async ({ browser }) => {
   await openStep(owner, "Anmälda");
   for (const name of ["Ada Natt", "Bo Natt", "Cia Natt"]) await expect(owner.getByRole("row", { name: new RegExp(name) }).first()).toContainText("19:00");
 });
+
+/**
+ * Samtidiga masstarter på samma bana, vågtabell i Start → Lottning och snabb flytt av masstart på tävlingsdagen.
+ */
+test("samtidiga masstarter på samma bana, masstartsvågor i lottningen och snabb flytt på tävlingsdagen", async ({ browser }) => {
+  test.setTimeout(300_000);
+  const suffix = unique();
+  const owner = await registerAccount(browser, `vagor.${suffix}@exempel.se`, "Vera Våg");
+  await createRace(owner, `Nattcup vågor ${suffix}`, raceDate);
+  // Två banor med två klasser vardera (samma kontroller på delad bana!).
+  await addCourseAndClass(owner, "Bana A", "Superion dam", "31 32 33");
+  await addCourseAndClass(owner, "Bana B", "Hyperion dam", "41 42 43");
+  // Lägg till en andra klass på varje befintlig bana via Klasser → Ny klass.
+  await openStep(owner, "Klasser");
+  for (const [courseName, className] of [["Bana A", "Superion herr"], ["Bana B", "Hyperion herr"]] as const) {
+    await owner.getByRole("button", { name: "Ny klass" }).click();
+    const form = owner.locator("form").filter({ has: owner.getByRole("button", { name: "Spara klass" }) });
+    await form.getByLabel("Nytt klassnamn").fill(className);
+    await form.getByLabel("Bana").selectOption({ label: courseName });
+    await form.getByRole("button", { name: "Spara klass" }).click();
+    await expect(owner.getByRole("row", { name: new RegExp(`^${className}`) })).toBeVisible();
+  }
+  let card = 8_400_000;
+  for (const className of ["Superion dam", "Superion herr", "Hyperion dam", "Hyperion herr"]) {
+    await addEntry(owner, { className, givenName: "L1", familyName: className.replace(" ", ""), club: "OK Ek", card: String(card++) });
+    await addEntry(owner, { className, givenName: "L2", familyName: className.replace(" ", ""), club: "IFK", card: String(card++) });
+  }
+
+  // 1. Sätt Hyperion dam och Hyperion herr (samma Bana B!) till 19:10 via Klasser → Redigera (även med 19.10).
+  await openStep(owner, "Klasser");
+  for (const [className, inputClock] of [["Hyperion dam", "19:10"], ["Hyperion herr", "19.10"]] as const) {
+    await owner.getByRole("row", { name: new RegExp(`^${className}`) }).getByRole("button", { name: `Redigera ${className}` }).click();
+    const editor = owner.getByRole("form", { name: `Redigera ${className}` });
+    await editor.getByLabel("Startsätt").selectOption({ label: "Masstart" });
+    await editor.getByTestId("class-mass-start-time").fill(inputClock);
+    await editor.getByRole("button", { name: "Spara ändringen" }).click();
+    await expect(editor.getByTestId("class-mass-start-saved")).toContainText("Masstart kl. 19:10 är satt för klassen.", { timeout: 20_000 });
+    await editor.getByRole("button", { name: "Avbryt" }).click();
+    await expect(owner.getByRole("row", { name: new RegExp(`^${className}`) })).toContainText("Masstart 19:10");
+  }
+
+  // 2. Sätt Superion dam och Superion herr till 19:00 direkt i Start → Lottning utan att röra 19:10-vågen!
+  await openStep(owner, "Start");
+  const draw = owner.getByRole("region", { name: "Lottning" });
+  await expect(draw.getByRole("row", { name: /Superion dam/ })).toBeVisible();
+  await expect(draw.getByLabel("Masstart kl. Hyperion dam")).toHaveValue("19:10");
+  await expect(draw.getByLabel("Masstart kl. Hyperion herr")).toHaveValue("19:10");
+  for (const [className, clock] of [["Superion dam", "19:00"], ["Superion herr", "1900"]] as const) {
+    await draw.getByLabel(`Startsätt ${className}`).selectOption({ label: "Masstart" });
+    await draw.getByLabel(`Masstart kl. ${className}`).fill(clock);
+  }
+  await draw.getByRole("button", { name: "Visa lottning" }).click();
+  const preview = owner.getByRole("region", { name: "Så blir startlistan" });
+  await expect(preview).toBeVisible();
+  await expect(preview.locator("summary", { hasText: /^Superion dam/ })).toContainText("19:00");
+  await expect(preview.locator("summary", { hasText: /^Superion herr/ })).toContainText("19:00");
+  await preview.getByRole("button", { name: "Spara lottningen" }).click();
+  await expect(draw.getByText("Lottningen är sparad.", { exact: false })).toBeVisible();
+
+  // 3. Två vågor visas i Masstartstider: 19:00 och 19:10. Skjut upp 19:10-vågen till 19:14 i ett svep!
+  const waves = draw.getByTestId("mass-start-waves");
+  await expect(waves.getByTestId("mass-wave-row")).toHaveCount(2);
+  await expect(waves).toContainText("19:00");
+  await expect(waves).toContainText("Superion dam, Superion herr");
+  await expect(waves).toContainText("19:10");
+  await expect(waves).toContainText("Hyperion dam, Hyperion herr");
+
+  await waves.getByRole("button", { name: "Flytta masstart 19:10" }).click();
+  const shiftEditor = waves.getByTestId("mass-wave-editor");
+  await shiftEditor.getByTestId("mass-wave-clock").fill("1914");
+  await shiftEditor.getByRole("button", { name: "Flytta till 19:14" }).click();
+  const confirm = owner.getByTestId("mass-wave-confirm");
+  await expect(confirm).toContainText("Hyperion dam och Hyperion herr");
+  await expect(confirm).toContainText("19:10 till 19:14 (+4 min)");
+  await confirm.getByRole("button", { name: "Flytta och spara" }).click();
+  await expect(draw.getByText("Masstarten flyttad från 19:10 till 19:14 för Hyperion dam och Hyperion herr.")).toBeVisible();
+  await expect(waves).toContainText("19:14");
+  await expect(draw.getByLabel("Masstart kl. Hyperion dam")).toHaveValue("19:14");
+  await expect(draw.getByLabel("Masstart kl. Hyperion herr")).toHaveValue("19:14");
+  await expect(draw.getByLabel("Masstart kl. Superion dam")).toHaveValue("19:00");
+
+  // Efteranmäld i Hyperion herr får automatiskt 19:14, och Inställningar visar fortfarande 19:00 som första start.
+  await addEntry(owner, { className: "Hyperion herr", givenName: "Sen", familyName: "Hyperion", club: "OK Ek", card: String(card++) });
+  await openStep(owner, "Anmälda");
+  await expect(owner.getByRole("row", { name: /Sen Hyperion/ }).first()).toContainText("19:14");
+  await expect(owner.getByRole("row", { name: /L1 Superiondam/ }).first()).toContainText("19:00");
+  await openStep(owner, "Inställningar");
+  await expect(owner.getByRole("group", { name: "Information till löparna" }).getByText("19:00", { exact: true })).toBeVisible();
+});

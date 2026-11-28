@@ -70,8 +70,11 @@ function ClassOrder({ ws, locked }: { ws: Workspace; locked: boolean }) {
       <thead><tr><th scope="col">{text.position}</th><th scope="col">{text.className}</th><th scope="col">{text.firstStart}</th></tr></thead>
       <tbody>{order.map((classId, index) => {
         const raceClass = byId.get(classId)!, row = drawRows[classId];
-        const later = drawAdvanced.laterStarts[classId] ?? { kind: "NONE" as const, value: "" };
-        const error = errors[`later:${classId}`];
+        const massClock = row?.method === "MASS" && row.massStart.trim() !== "" ? row.massStart : null;
+        const later = massClock !== null
+          ? { kind: "CLOCK" as const, value: massClock }
+          : (drawAdvanced.laterStarts[classId] ?? { kind: "NONE" as const, value: "" });
+        const error = errors[`later:${classId}`] ?? ws.drawMassErrors[classId];
         const timed = row?.method !== "FREE";
         return <tr key={classId}>
           <td className={own.orderCell}><span className={own.orderNumber}>{index + 1}.</span>

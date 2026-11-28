@@ -176,6 +176,23 @@ describe("delvis lottning och startfönster", () => {
       .toEqual([{ code: "EXISTING_GROUP_CLASH", classIds: ["X", "Y"], firstMs: first, minuteCount: 2 }]);
   });
 
+  it("varnar inte för befintliga masstarter på samma minut i samma startgrupp eller fålla, men varnar vid krock med minutstart", () => {
+    const existingMass = [
+      { classId: "Dam", startControls: [[31, 32]], method: "MASS" as const, startTimesMs: [first] },
+      { classId: "Herr", startControls: [[31, 32]], method: "MASS" as const, startTimesMs: [first] }
+    ];
+    expect(drawStartTimes(input([raceClass("Ny", [[45]])], {
+      existing: existingMass, rules: { maxPerMinute: 1, maxPerMinutePerPen: 1 }
+    })).warnings).toEqual([]);
+    // En befintlig masstart och en befintlig minutstart på samma minut i samma grupp är fortfarande en krock.
+    const mixed = [
+      { classId: "Mass", startControls: [[31]], method: "MASS" as const, startTimesMs: [first] },
+      { classId: "Minut", startControls: [[31]], method: "MINUTE" as const, startTimesMs: [first, first + 2 * MINUTE] }
+    ];
+    expect(drawStartTimes(input([raceClass("Ny", [[45]])], { existing: mixed })).warnings)
+      .toEqual([{ code: "EXISTING_GROUP_CLASH", classIds: ["Mass", "Minut"], firstMs: first, minuteCount: 1 }]);
+  });
+
   it("ger samma lottning för samma underlag och frö, även med regler, seedning och befintliga tider", () => {
     const build = () => input([raceClass("H21", [[31]], { runners: runners("H21", 30, { 3: 1, 9: 2 }) }),
       raceClass("D21", [[31, 34]], { laterStart: { kind: "OFFSET", minutes: 15 } }), raceClass("H16", [[45]], { method: "MASS" })],

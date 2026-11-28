@@ -3,7 +3,7 @@ import { applyDrawCommon, drawClassSummary, drawSelection, DRAW_COMMON_DEFAULT }
 import type { DrawAdvanced } from "./start-draw-advanced";
 import type { DrawRow } from "./start-draw";
 
-const row = (selected: boolean): DrawRow => ({ method: "FREE", interval: "2", vacancies: "0", vacancyKind: "COUNT", selected });
+const row = (selected: boolean): DrawRow => ({ method: "FREE", interval: "2", vacancies: "0", vacancyKind: "COUNT", massStart: "", selected });
 const advanced: DrawAdvanced = { groupControls: "1", maxPerMinute: "", maxPerMinutePerPen: "", lastStart: "", seeding: "LAST",
   classOrder: null, laterStarts: { b: { kind: "OFFSET", value: "30" } }, seeds: {} };
 
@@ -12,18 +12,19 @@ describe("lottningens gemensamma inställningar (ADR-0188 beslut 1)", () => {
     const result = applyDrawCommon({ a: row(false), b: row(true) }, advanced,
       { ...DRAW_COMMON_DEFAULT, interval: " 3 ", vacancies: "2" }, "ALL");
     expect(result.count).toBe(2);
-    expect(result.rows.a).toEqual({ method: "MINUTE", interval: "3", vacancies: "2", vacancyKind: "COUNT", selected: true });
+    expect(result.rows.a).toEqual({ method: "MINUTE", interval: "3", vacancies: "2", vacancyKind: "COUNT", massStart: "", selected: true });
     expect(result.rows.b!.selected).toBe(true);
     // Tom första start lämnar klassernas senare start orörd.
     expect(result.advanced).toBe(advanced);
   });
 
-  it("lägger värdena bara på de ikryssade och sätter deras första start", () => {
+  it("lägger värdena bara på de ikryssade och sätter deras första start och masstartsklockslag", () => {
     const result = applyDrawCommon({ a: row(false), b: row(true) }, advanced,
       { ...DRAW_COMMON_DEFAULT, method: "MASS", laterStart: "11:00" }, "SELECTED");
     expect(result.count).toBe(1);
     expect(result.rows.a).toEqual(row(false));
     expect(result.rows.b!.method).toBe("MASS");
+    expect(result.rows.b!.massStart).toBe("11:00");
     expect(result.advanced.laterStarts).toEqual({ b: { kind: "CLOCK", value: "11:00" } });
   });
 

@@ -8,14 +8,15 @@ import { useTexts } from "../language-provider";
 import type { StartDrawPreviewResponse } from "@o-tid/contracts";
 import styles from "../race-administrator-workspace.module.css";
 import { startDrawSv } from "../../i18n/start-draw-sv";
-import { formatClockTime } from "../../lib/clock-time";
-import { Button, Field, Notice, Section, Table } from "../ui";
+import { formatClockTime, normalizeClock } from "../../lib/clock-time";
+import { Button, ConfirmDialog, Field, Notice, Section, Table } from "../ui";
 import type { Workspace } from "./workspace-state";
 import { courseVariantsSv } from "../../i18n/course-variants-sv";
 import { startDrawAdvancedSv } from "../../i18n/start-draw-advanced-sv";
 import { StartDrawAdvanced } from "./start-draw-advanced-panel";
 import own from "./start-draw-advanced.module.css";
 import { drawClassSummary, drawSelection } from "./start-draw-common";
+import { groupMassStartWaves, parseWholeMinuteClock, shiftClockByMinutes, waveDeltaMinutes, type MassStartWave } from "./start-draw-waves";
 
 /** Gafflad klass (ADR-0169 beslut 2): lottningen visar löparnas varianter. */
 const forked = (raceClass: { slots: readonly { entry: { variantCode: string | null } | null }[] }) =>
@@ -30,20 +31,32 @@ const forked = (raceClass: { slots: readonly { entry: { variantCode: string | nu
  */
 export function StartDrawPanel({ ws, visible, number }: { ws: Workspace; visible: boolean; number: number }) {
   const text = useTexts(startDrawSv, startDrawEn);
-  const { authenticated, busy, data, disabled, drawAttempt, drawClubSeparation, drawError, drawFirst, drawFirstError, drawPreview, drawRows,
-    drawSaved, drawSetup, changeDrawRow, changeDrawSettings, loadDrawSetup, operation, pending, previewDraw, raceId, unknown } = ws;
+  const { authenticated, busy, data, disabled, drawAttempt, drawClubSeparation, drawError, drawFirst, drawFirstError, drawMassErrors, drawPreview,
+    drawRows, drawSaved, drawSetup, changeDrawRow, changeDrawSettings, loadDrawSetup, operation, pending, previewDraw, raceId, unknown } = ws;
   const stale = !drawSetup || (data !== undefined && drawSetup.snapshotVersion < data.snapshotVersion);
   useEffect(() => {
     if (visible && authenticated && data && !busy && !operation.current && !pending.current && stale && !drawError) void loadDrawSetup();
   }, [visible, authenticated, data, busy, stale, drawError]);
   const locked = disabled || !!drawPreview;
-  /** Klasser där startsättet i tabellen skiljer sig från det sparade: valen gäller inte förrän lottningen sparas. */
-  const unsaved = drawSetup ? drawSetup.classes.filter(raceClass => drawRows[raceClass.id] && drawRows[raceClass.id]!.method !== raceClass.method).length : 0;
+  /** Klasser där startsättet eller masstartstiden i tabellen skiljer sig från det sparade. */
+  const unsaved = drawSetup ? drawSetup.classes.filter(raceClass => {
+    const row = drawRows[raceClass.id];
+    if (!row) return false;
+    if (row.method !== raceClass.method) return true;
+    if (row.method === "MASS" && raceClass.firstStartTime) {
+      const savedClock = formatClockTime(raceClass.firstStartTime, drawSetup.timeZone).slice(0, 5);
+      const editedClock = normalizeClock(row.massStart);
+      return editedClock !== null && editedClock !== savedClock;
+    }
+    return false;
+  }).length : 0;
+  const massWaves = drawSetup ? groupMassStartWaves(drawSetup) : [];
   return <Section id={`start-draw-${raceId}`} title={text.title} number={number} help={text.help}>
     {drawSaved && <Notice tone="ok" role="status">{drawSaved}</Notice>}
     {drawError && <Notice tone="error" role="alert"><p>{drawError}</p>
       {!drawSetup && <div><Button variant="secondary" disabled={busy} onClick={() => void loadDrawSetup()}>{text.load}</Button></div>}</Notice>}
     {!drawSetup && !drawError && <p role="status" className={styles.workflowHelp}>{text.loading}</p>}
+    {drawSetup && massWaves.length > 0 && <MassStartWaves ws={ws} waves={massWaves} locked={locked} />}
     {drawSetup && <form className={styles.drawForm} noValidate onSubmit={event => { event.preventDefault(); void previewDraw(); }}>
       <div className={styles.drawSettings}>
         <Field label={text.first} error={drawFirstError} help={text.firstHelp}><input id={`draw-first-${raceId}`} value={drawFirst} inputMode="numeric"
@@ -61,27 +74,45 @@ export function StartDrawPanel({ ws, visible, number }: { ws: Workspace; visible
           const row = drawRows[raceClass.id];
           if (!row) return null;
           const timed = row.method === "MINUTE";
+          const mass = row.method === "MASS";
+          const massError = drawMassErrors[raceClass.id];
           const later = ws.drawAdvanced.laterStarts[raceClass.id];
+          const savedMassClock = raceClass.method === "MASS" && raceClass.firstStartTime
+            ? formatClockTime(raceClass.firstStartTime, drawSetup.timeZone).slice(0, 5) : null;
           return <tr key={raceClass.id} data-selected={row.selected ? "true" : undefined}>
             <td className={styles.drawSelectCell}><label className="tap-check"><input type="checkbox" aria-label={text.drawClass(raceClass.name)} checked={row.selected}
               disabled={locked} onChange={event => changeDrawRow(raceClass.id, { selected: event.target.checked })} /></label></td>
             <th scope="row" className={styles.drawClassCell}>{raceClass.name}
-              <span className={styles.drawClassFacts}>{text.entries}: {raceClass.entryCount}{raceClass.hasStartTimes ? ` · ${text.hasTimes}` : ""}
-                {later?.kind === "CLOCK" && later.value.trim() !== "" ? ` · ${text.laterStartShort(later.value.trim())}` : ""}</span></th>
+              <span className={styles.drawClassFacts}>{text.entries}: {raceClass.entryCount}
+                {savedMassClock ? ` · ${text.massStartSavedShort(savedMassClock)}` : raceClass.hasStartTimes ? ` · ${text.hasTimes}` : ""}
+                {!mass && later?.kind === "CLOCK" && later.value.trim() !== "" ? ` · ${text.laterStartShort(later.value.trim())}` : ""}</span></th>
             <td data-label={text.method}><select aria-label={`${text.method} ${raceClass.name}`} value={row.method} disabled={locked}
               onChange={event => changeDrawRow(raceClass.id, { method: event.target.value as typeof row.method })}>
               {(["FREE", "MINUTE", "MASS"] as const).map(method => <option key={method} value={method}>{text.methods[method]}</option>)}
             </select></td>
-            <td data-label={text.interval}><input aria-label={`${text.interval} ${raceClass.name}`} value={timed ? row.interval : ""}
-              inputMode="numeric" disabled={locked || !timed} onChange={event => changeDrawRow(raceClass.id, { interval: event.target.value })} /></td>
-            <td data-label={text.vacancies}><div className={styles.drawVacancies}>
-              <input aria-label={`${text.vacancies} ${raceClass.name}`} value={timed ? row.vacancies : ""} inputMode="numeric"
-                disabled={locked || !timed} onChange={event => changeDrawRow(raceClass.id, { vacancies: event.target.value })} />
-              <select aria-label={`${text.vacancyKind} ${raceClass.name}`} value={row.vacancyKind} disabled={locked || !timed}
-                onChange={event => changeDrawRow(raceClass.id, { vacancyKind: event.target.value as typeof row.vacancyKind })}>
-                <option value="COUNT">{text.vacancyKinds.COUNT}</option><option value="PERCENT">{text.vacancyKinds.PERCENT}</option>
-              </select>
-            </div></td>
+            {mass ? <td colSpan={2} data-label={text.massStartClock} className={styles.drawMassCell}>
+              <div className={styles.drawMassInput}>
+                <label className={styles.drawMassLabel}>
+                  <span>{text.massStartClock}</span>
+                  <input id={`draw-mass-${raceClass.id}`} aria-label={`${text.massStartClock} ${raceClass.name}`} value={row.massStart}
+                    inputMode="numeric" autoComplete="off" maxLength={8} placeholder={drawFirst.trim() || text.firstExample} disabled={locked}
+                    aria-invalid={massError ? true : undefined}
+                    onChange={event => changeDrawRow(raceClass.id, { massStart: event.target.value })} />
+                </label>
+                {massError && <span className={styles.drawRowError} role="alert">{massError}</span>}
+              </div>
+            </td> : <>
+              <td data-label={text.interval}><input aria-label={`${text.interval} ${raceClass.name}`} value={timed ? row.interval : ""}
+                inputMode="numeric" disabled={locked || !timed} onChange={event => changeDrawRow(raceClass.id, { interval: event.target.value })} /></td>
+              <td data-label={text.vacancies}><div className={styles.drawVacancies}>
+                <input aria-label={`${text.vacancies} ${raceClass.name}`} value={timed ? row.vacancies : ""} inputMode="numeric"
+                  disabled={locked || !timed} onChange={event => changeDrawRow(raceClass.id, { vacancies: event.target.value })} />
+                <select aria-label={`${text.vacancyKind} ${raceClass.name}`} value={row.vacancyKind} disabled={locked || !timed}
+                  onChange={event => changeDrawRow(raceClass.id, { vacancyKind: event.target.value as typeof row.vacancyKind })}>
+                  <option value="COUNT">{text.vacancyKinds.COUNT}</option><option value="PERCENT">{text.vacancyKinds.PERCENT}</option>
+                </select>
+              </div></td>
+            </>}
           </tr>;
         })}</tbody>
       </Table>
@@ -93,6 +124,109 @@ export function StartDrawPanel({ ws, visible, number }: { ws: Workspace; visible
     {drawPreview && <DrawPreview ws={ws} preview={drawPreview} />}
     {drawAttempt && unknown && <Notice tone="attention" role="status">{text.unknown}</Notice>}
   </Section>;
+}
+
+/** Tävlingsdagens snabbkontroll: masstartsklasser grupperade per startvåg, med ett klick för att flytta hela vågen. */
+function MassStartWaves({ ws, waves, locked }: { ws: Workspace; waves: readonly MassStartWave[]; locked: boolean }) {
+  const text = useTexts(startDrawSv, startDrawEn);
+  const advancedText = useTexts(startDrawAdvancedSv, startDrawAdvancedEn);
+  const setup = ws.drawSetup!;
+  const [editingStart, setEditingStart] = useState<string | null>(null);
+  const [draftClock, setDraftClock] = useState("");
+  const [shiftError, setShiftError] = useState("");
+  const [waveBusy, setWaveBusy] = useState(false);
+  const [pendingConfirm, setPendingConfirm] = useState<{
+    wave: MassStartWave; preview: StartDrawPreviewResponse; targetClock: string; deltaMinutes: number; resolve: (ok: boolean) => void;
+  }>();
+  const titleId = `draw-waves-${ws.raceId}`;
+
+  function openWave(wave: MassStartWave) {
+    setEditingStart(wave.startTime);
+    setDraftClock(wave.clock);
+    setShiftError("");
+  }
+  function closeWave() {
+    setEditingStart(null);
+    setDraftClock("");
+    setShiftError("");
+  }
+  function nudgeWave(wave: MassStartWave, delta: number) {
+    const base = normalizeClock(draftClock)?.length === 5 ? draftClock : wave.clock;
+    const next = shiftClockByMinutes(base, delta, setup.raceDate, setup.timeZone, wave.startTime);
+    if (next) { setDraftClock(next); setShiftError(""); }
+  }
+  async function submitWave(wave: MassStartWave) {
+    setShiftError("");
+    setWaveBusy(true);
+    const outcome = await ws.shiftMassStartWave(wave, draftClock, (preview, targetClock, deltaMinutes) =>
+      new Promise<boolean>(resolve => setPendingConfirm({ wave, preview, targetClock, deltaMinutes, resolve })));
+    setWaveBusy(false);
+    if (outcome.kind === "SHIFTED") closeWave();
+    else if (outcome.kind === "INVALID") setShiftError(text.waves.invalid);
+    else if (outcome.kind === "UNCHANGED") setShiftError(text.waves.unchanged);
+    else if (outcome.kind === "ERROR") setShiftError(text.waves.error);
+  }
+  const time = (instant: string) => formatClockTime(instant, setup.timeZone);
+  return <section className={styles.drawWaves} aria-labelledby={titleId} data-testid="mass-start-waves">
+    <h3 id={titleId}>{text.waves.title}</h3>
+    <p className={styles.workflowHelp}>{text.waves.help}</p>
+    <ul className={styles.drawWaveList}>
+      {waves.map(wave => {
+        const editing = editingStart === wave.startTime;
+        const parsedDraft = editing ? parseWholeMinuteClock(setup.raceDate, draftClock, setup.timeZone, wave.startTime) : null;
+        const draftDelta = parsedDraft ? waveDeltaMinutes(wave.startTime, parsedDraft) : 0;
+        const draftFormatted = parsedDraft ? formatClockTime(parsedDraft, setup.timeZone).slice(0, 5) : null;
+        return <li key={wave.startTime} className={styles.drawWaveItem} data-testid="mass-wave-row">
+          <div className={styles.drawWaveRow}>
+            <div className={styles.drawWaveInfo}>
+              <strong className={styles.drawWaveTime}>{wave.clock}</strong>
+              <span className={styles.drawWaveClasses}>{wave.classes.map(item => item.name).join(", ")}</span>
+              <span className={styles.drawWaveCount}>{text.waves.entries(wave.entryCount)}</span>
+            </div>
+            {!editing && <Button variant="secondary" disabled={locked || waveBusy} aria-label={text.waves.shiftLabel(wave.clock)}
+              onClick={() => openWave(wave)}>{text.waves.shift}</Button>}
+          </div>
+          {editing && <form className={styles.drawWaveShift} noValidate data-testid="mass-wave-editor"
+            onSubmit={event => { event.preventDefault(); void submitWave(wave); }}>
+            <div className={styles.drawWaveControls}>
+              <Field label={text.waves.newTime} error={shiftError || undefined} className={styles.drawWaveClockField}>
+                <input value={draftClock} inputMode="numeric" autoComplete="off" maxLength={8} placeholder={wave.clock}
+                  disabled={locked || waveBusy} data-testid="mass-wave-clock"
+                  onChange={event => { setDraftClock(event.target.value); setShiftError(""); }} />
+              </Field>
+              <div className={styles.drawWaveNudges} role="group" aria-label={text.waves.newTime}>
+                {([-5, -1, 1, 5] as const).map(delta => <Button key={delta} variant="secondary" disabled={locked || waveBusy}
+                  aria-label={text.waves.nudgeLabel(delta, draftFormatted ?? wave.clock)} onClick={() => nudgeWave(wave, delta)}>
+                  {text.waves.nudge(delta)}</Button>)}
+              </div>
+            </div>
+            {draftFormatted && draftDelta !== 0 && <span className={styles.drawWaveDelta}>
+              {text.waves.delta(wave.clock, draftFormatted, draftDelta)}</span>}
+            <div className={styles.actions}>
+              <Button type="submit" disabled={locked || waveBusy}>
+                {draftFormatted && draftDelta !== 0 ? text.waves.applyAt(draftFormatted) : text.waves.apply}</Button>
+              <Button variant="quiet" disabled={waveBusy} onClick={closeWave}>{text.waves.cancel}</Button>
+            </div>
+          </form>}
+        </li>;
+      })}
+    </ul>
+    {pendingConfirm && <ConfirmDialog title={text.waves.confirmTitle} confirmLabel={text.waves.confirmAction} testId="mass-wave-confirm"
+      message={<>
+        <p>{text.waves.confirmMove(pendingConfirm.wave.classes.map(item => item.name), pendingConfirm.wave.clock,
+          pendingConfirm.targetClock, pendingConfirm.deltaMinutes)}</p>
+        <p>{text.waves.confirmEntries(pendingConfirm.wave.entryCount, pendingConfirm.targetClock)}</p>
+        {pendingConfirm.preview.readOutCount - pendingConfirm.preview.notRecalculatedCount > 0 &&
+          <p>{text.readOut(pendingConfirm.preview.readOutCount - pendingConfirm.preview.notRecalculatedCount)}</p>}
+        {pendingConfirm.preview.becomesOkCount + pendingConfirm.preview.becomesMispunchedCount > 0 &&
+          <p>{text.statusChanges(pendingConfirm.preview.becomesOkCount + pendingConfirm.preview.becomesMispunchedCount)}</p>}
+        {pendingConfirm.preview.warnings.length > 0 && <ul>
+          {pendingConfirm.preview.warnings.map((warning, index) => <li key={index}>{warningText(warning, time, advancedText)}</li>)}
+        </ul>}
+      </>}
+      onConfirm={() => { pendingConfirm.resolve(true); setPendingConfirm(undefined); }}
+      onCancel={() => { pendingConfirm.resolve(false); setPendingConfirm(undefined); }} />}
+  </section>;
 }
 
 /** Kryssrutan i Lotta-kolumnens rubrik: alla eller inga klasser (blandat läge när bara några är ikryssade). */
@@ -229,6 +363,7 @@ function warningText(warning: StartDrawPreviewResponse["warnings"][number], time
     case "LATER_START_MOVED": return advancedText.laterMoved(warning.className, short(warning.wantedTime), short(warning.actualTime));
     case "EXISTING_OVER_LIMIT": return advancedText.existingOverLimit(warning.scope, warning.limit, short(warning.firstTime), warning.minuteCount);
     case "EXISTING_GROUP_CLASH": return advancedText.existingClash(warning.classNames, short(warning.firstTime), warning.minuteCount);
+    case "MASS_START_GROUP_CLASH": return advancedText.massStartClash(warning.className, warning.conflictClassNames, short(warning.startTime));
   }
 }
 

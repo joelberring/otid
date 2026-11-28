@@ -88,11 +88,13 @@ function withBuildingEdges(objects: readonly MapObject[], edge: string | undefin
 export function computeCandidates(features: readonly SourceFeature[], input: CandidateInput): CandidateResult | undefined {
   const symbols = new Map(input.symbols.map(([id, code, kind]) => [id, { code, kind }] as const));
   const skipped = new Set(input.skipped);
-  const targets = new Map<string, { symbol: string; kind: TargetKind }>();
+  const targets = new Map<string, { symbol: string; kind: TargetKind; code: string }>();
   for (const [layer, id] of input.mapping) {
     if (skipped.has(layer)) continue;
-    const kind = symbols.get(id)?.kind;
-    if (kind === "point" || kind === "line" || kind === "area") targets.set(layer, { symbol: id, kind });
+    const sym = symbols.get(id);
+    if (sym && (sym.kind === "point" || sym.kind === "line" || sym.kind === "area")) {
+      targets.set(layer, { symbol: id, kind: sym.kind, code: sym.code });
+    }
   }
   const { georeference, crs, fit, clip, stage } = input;
   try {

@@ -28,10 +28,10 @@ export const KNOLL_ELONGATED_MIN_FOOT_M2 = 18;
 export const KNOLL_DEDUP_METERS = 6;
 export interface KnollLimits { readonly minRise: number; readonly lowerShare: number; readonly maxFootM2: number; readonly spacing: number }
 /**
- * Skogskartans förval kalibrerat mot 6 autentiska OCAD-kartor (4 skog + 2 sprint): 0,90 m stigning, 85 % lägre ring,
- * kompakt fot 8–68 m² och 12 m avstånd.
+ * Skogskartans förval kalibrerat mot 6 autentiska OCAD-kartor (4 skog + 2 sprint): 0,82 m stigning, 80 % lägre ring,
+ * kompakt fot 8–78 m² och 12 m avstånd.
  */
-export const DEFAULT_KNOLL_LIMITS: KnollLimits = { minRise: 0.9, lowerShare: 0.85, maxFootM2: 68, spacing: 12 };
+export const DEFAULT_KNOLL_LIMITS: KnollLimits = { minRise: 0.82, lowerShare: 0.80, maxFootM2: 78, spacing: 12 };
 const SPRINT_KNOLL_LIMITS: KnollLimits = { minRise: 0.65, lowerShare: 0.72, maxFootM2: 72, spacing: 8 };
 /** Skalanpassade förval för små kullar: skog (> 1:5 000) eller sprint (≤ 1:5 000). */
 export const defaultKnollLimits = (scale?: number): KnollLimits =>

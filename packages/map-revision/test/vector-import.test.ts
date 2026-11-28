@@ -277,4 +277,58 @@ describe("joinLines vid korsningar (ägaren 2026-11-15: raka streck ur OpenStree
     expect(() => parseDxf("inte-tal\nSECTION\n")).toThrow(VectorParseError);
     expect(() => parseDxf("0\nSECTION\n2\nHEADER\n0\nENDSEC\n0\nEOF\n")).toThrow(VectorParseError);
   });
+
+  it("vänder aldrig riktningskänsliga symboler (201, 202, 104, 105, 513.2) vid joinLines eller importObjects", () => {
+    const p = (x: number, y = 0) => ({ x, y });
+    // Huvud-mot-svans (A slutar där B börjar, och C slutar där A börjar): fogas i rätt riktning utan vändning.
+    const aligned = joinLines([[p(10), p(20)], [p(20), p(30)], [p(0), p(10)]], true);
+    expect(aligned.joined).toBe(2);
+    expect(aligned.lines).toEqual([[p(0), p(10), p(20), p(30)]]);
+
+    // Svans-mot-svans (motriktade branter som möts vid x=10) och huvud-mot-huvud (möts vid x=50) får INTE vändas ihop.
+    const opposed = joinLines([[p(0), p(10)], [p(20), p(10)], [p(50), p(40)], [p(50), p(60)]], true);
+    expect(opposed.joined).toBe(0);
+    expect(opposed.lines).toEqual([[p(0), p(10)], [p(20), p(10)], [p(50), p(40)], [p(50), p(60)]]);
+
+    // importObjects skyddar branter (201/202), jordbranter (104/105) och passerbar stödmur (513.2) via både kod och lagernamn,
+    // medan vanliga kurvor (101) fortfarande fogas oberoende av ritriktning.
+    for (const [layer, symbol, code] of [
+      ["brant_opasserbar", "sym_a", "201"],
+      ["brant_passerbar", "sym_b", "202.1"],
+      ["slope_line", "sym_c", "104"],
+      ["jordvall", "sym_d", "105.2"],
+      ["stodmur", "sym_e", "513.2"],
+      ["brant_opasserbar", "sym_no_code", undefined]
+    ] as const) {
+      const features = [
+        { layer, geometry: { kind: "line" as const, closed: false, points: [[675000, 6580000], [675020, 6580000]] as [number, number][] } },
+        { layer, geometry: { kind: "line" as const, closed: false, points: [[675040, 6580000], [675020, 6580000]] as [number, number][] } }
+      ];
+      const imported = importObjects(features, {
+        toMap,
+        mapping: new Map([[layer, { symbol, kind: "line" as const, ...(code ? { code } : {}) }]])
+      });
+      expect(imported.joined, `${layer}/${code ?? "no-code"}`).toBe(0);
+      expect(imported.objects, `${layer}/${code ?? "no-code"}`).toHaveLength(2);
+      const dirs = imported.objects.map(obj => obj.kind === "line" ? Math.sign(obj.path[1]!.x - obj.path[0]!.x) : 0);
+      expect(dirs).toEqual([1, -1]);
+    }
+
+    // Huvud-mot-svans branter med samma taggriktning fogas fortfarande ihop i importObjects.
+    const sameDirCliff = importObjects([
+      { layer: "brant_passerbar", geometry: { kind: "line", closed: false, points: [[675020, 6580000], [675040, 6580000]] } },
+      { layer: "brant_passerbar", geometry: { kind: "line", closed: false, points: [[675000, 6580000], [675020, 6580000]] } }
+    ], { toMap, mapping: new Map([["brant_passerbar", { symbol: "sym202", kind: "line", code: "202" }]]) });
+    expect(sameDirCliff.joined).toBe(1);
+    expect(sameDirCliff.objects).toHaveLength(1);
+    expect(sameDirCliff.objects[0]!.kind === "line" && sameDirCliff.objects[0]!.path.map(c => Math.round(c.x * 10) / 10)).toEqual([0, 2, 4]);
+
+    // O-riktad kurva (101) vänds och fogas fortfarande som vanligt.
+    const contour = importObjects([
+      { layer: "contour", geometry: { kind: "line", closed: false, points: [[675000, 6580000], [675020, 6580000]] } },
+      { layer: "contour", geometry: { kind: "line", closed: false, points: [[675040, 6580000], [675020, 6580000]] } }
+    ], { toMap, mapping: new Map([["contour", { symbol: "sym101", kind: "line", code: "101" }]]) });
+    expect(contour.joined).toBe(1);
+    expect(contour.objects).toHaveLength(1);
+  });
 });

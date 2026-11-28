@@ -34,22 +34,23 @@ describe("mängden på skalan 1–10", () => {
     expect(knollLimitsAt(5)).toEqual(DEFAULT_KNOLL_LIMITS);
     expect(knollLimitsAt(1)).toEqual({ minRise: 2, lowerShare: 0.95, maxFootM2: 70, spacing: 40 });
     expect(knollLimitsAt(10)).toEqual({ minRise: 0.5, lowerShare: 0.5, maxFootM2: 160, spacing: 10 });
-    expect(knollLimitsAt(3).minRise).toBe(1.45);
-    expect(DEFAULT_KNOLL_LIMITS).toEqual({ minRise: 0.9, lowerShare: 0.85, maxFootM2: 68, spacing: 12 });
+    expect(knollLimitsAt(3).minRise).toBe(1.41);
+    expect(DEFAULT_KNOLL_LIMITS).toEqual({ minRise: 0.82, lowerShare: 0.80, maxFootM2: 78, spacing: 12 });
     expect(defaultKnollLimits(15_000)).toEqual(DEFAULT_KNOLL_LIMITS);
     expect(defaultKnollLimits(4_000)).toEqual({ minRise: 0.65, lowerShare: 0.72, maxFootM2: 72, spacing: 8 });
     expect(knollLimitsAt(5, 4_000)).toEqual({ minRise: 0.65, lowerShare: 0.72, maxFootM2: 72, spacing: 8 });
     expect(knollLimitsAt(10, 4_000)).toEqual({ minRise: 0.5, lowerShare: 0.5, maxFootM2: 160, spacing: 6 });
   });
-  it("rensar mikroskopiska laserbrus-toppar (< 8 m² fot) och breda svall (> 68 m² i skog) men behåller skarpa kullar", () => {
+  it("rensar mikroskopiska laserbrus-toppar (< 8 m² fot) och breda svall (> 78 m² i skog, > 72 m² i sprint) men behåller skarpa kullar", () => {
     const items = [
       { at: [0, 0] as [number, number], rise: 1.5, share: 0.95, footM2: 4 },
-      { at: [50, 0] as [number, number], rise: 0.95, share: 0.88, footM2: 14 },
-      { at: [100, 0] as [number, number], rise: 1.1, share: 0.9, footM2: 70 }
+      { at: [50, 0] as [number, number], rise: 0.85, share: 0.82, footM2: 14 },
+      { at: [100, 0] as [number, number], rise: 1.1, share: 0.9, footM2: 75 },
+      { at: [150, 0] as [number, number], rise: 1.1, share: 0.9, footM2: 82 }
     ];
-    expect(chooseKnolls(items, DEFAULT_KNOLL_LIMITS)).toEqual([[50, 0]]);
-    // I sprint (maxFootM2 = 72) behålls 70 m²-kullen.
-    expect(chooseKnolls(items, defaultKnollLimits(4_000), 4_000)).toEqual([[100, 0], [50, 0]]);
+    expect(chooseKnolls(items, DEFAULT_KNOLL_LIMITS)).toEqual([[100, 0], [50, 0]]);
+    // I sprint (maxFootM2 = 72) filtreras 75 m²-svallen bort medan 14 m²-kullen behålls.
+    expect(chooseKnolls(items, defaultKnollLimits(4_000), 4_000)).toEqual([[50, 0]]);
   });
   it("läser och använder kompakt share4 i sprint (≤ 1:5 000) men faller tillbaka på share i skog och i äldre kullar.geojson", () => {
     const parsed = readKnollCandidates({

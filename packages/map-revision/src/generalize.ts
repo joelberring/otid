@@ -258,10 +258,10 @@ export function proposalBase(state: RevisionClientState, key: ObjectKey): { base
 }
 
 /**
- * Symbolerna som görs mjuka (jämför Högdalenkartan, ägaren 2026-11-11): kurvorna (101–103), branterna (201, 202) och de
- * gröna ytorna (406–410).
+ * Symbolerna som görs mjuka (jämför Högdalenkartan, ägaren 2026-11-11): kurvorna (101–103), branterna (201, 202),
+ * kärren (308, 310) och de gröna ytorna (406–410).
  */
-export const SOFT_CODES: readonly string[] = ["101", "102", "103", "201", "202", "406", "407", "408", "409", "410"];
+export const SOFT_CODES: readonly string[] = ["101", "102", "103", "201", "202", "308", "310", "406", "407", "408", "409", "410"];
 /** Förenklingstolerans (kartans mm) för kurvor (101–103) och branter (201–202) före Bézier-mjukning (~0,68 m i 1:15 000, ~0,45 m i 1:10 000). */
 export const CONTOUR_LINE_SIMPLIFY_MM = 0.045;
 /** Minsta förförenkling i terrängmeter före Bézier-mjukning i sprint (skala ≤ 1:5 000), så sub-grid-trappsteg inte ger ryckningar. */

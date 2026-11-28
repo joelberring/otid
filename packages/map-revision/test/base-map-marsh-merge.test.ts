@@ -36,6 +36,26 @@ describe("grundkartans sankmark utan överlapp", () => {
     const features = [square("fuktigt", 0, 0, 100), square("fuktigt", 50, 50, 100)];
     expect(singleMarsh(features).features).toEqual(features);
   });
+  it("rensar tunna 310-kantskorpor (2·A/P < 3,0 m skog / < 2,5 m sprint) och små 310-skärvor (< 120 m² / < 80 m²) efter 310 − 308", () => {
+    const rect = (layer: string, x0: number, y0: number, x1: number, y1: number): SourceFeature => ({
+      layer, geometry: { kind: "area", rings: [[[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]]] }
+    });
+    // 1. Rak tunn kantskorpa: 310 (100 × 22,8 m) minus 308 (100 × 20 m) ger 100 × 2,8 m = 280 m² (2A/P = 2,72 m): bort i skog (<3,0 m), kvar i sprint (>=2,5 m).
+    const crust = [rect("blott", 0, 0, 100, 20), rect("fuktigt", 0, 0, 100, 22.8)];
+    expect(singleMarsh(crust, 15_000).features.filter(f => f.layer === "fuktigt")).toHaveLength(0);
+    expect(singleMarsh(crust, 4_000).features.filter(f => f.layer === "fuktigt")).toHaveLength(1);
+    // 1b. Naturlig 3,8 m skogskärrsremsa (100 × 3,8 m = 380 m², 2A/P = 3,66 m >= 3,0 m): behålls i skog!
+    const corridor = [rect("blott", 0, 0, 100, 20), rect("fuktigt", 0, 0, 100, 23.8)];
+    expect(singleMarsh(corridor, 15_000).features.filter(f => f.layer === "fuktigt")).toHaveLength(1);
+    // 2. Ringformad tunn kantskorpa runt 308 (2 m bred runtom): 54 × 54 minus 50 × 50 = 416 m², total omkrets 416 m -> 2A/P = 2,0 m -> bort i både skog och sprint!
+    const halo = [rect("blott", 2, 2, 52, 52), rect("fuktigt", 0, 0, 54, 54)];
+    expect(singleMarsh(halo, 15_000).features.filter(f => f.layer === "fuktigt")).toHaveLength(0);
+    expect(singleMarsh(halo, 4_000).features.filter(f => f.layer === "fuktigt")).toHaveLength(0);
+    // 3. Liten fyrkantig 310-skärva (10 × 10 = 100 m², 2A/P = 5 m): < 120 m² -> bort i skog, >= 80 m² -> kvar i sprint.
+    const smallChunk = [rect("blott", 0, 0, 20, 10), rect("fuktigt", 0, 0, 30, 10)];
+    expect(singleMarsh(smallChunk, 15_000).features.filter(f => f.layer === "fuktigt")).toHaveLength(0);
+    expect(singleMarsh(smallChunk, 4_000).features.filter(f => f.layer === "fuktigt")).toHaveLength(1);
+  });
 });
 
 describe("inga kärr på skött mark", () => {
@@ -50,13 +70,15 @@ describe("inga kärr på skött mark", () => {
 });
 
 describe("undervegetationen mot det gröna", () => {
-  it("klipper rastret mot grönt och 407 mot 409, och lämnar det gröna", () => {
+  it("klipper rastret mot exklusivt grönt (406, 408 och 410) samt 407 mot 409, och lämnar det gröna", () => {
     const green = square("gron_lattlopt", 0, 0, 50);
-    const result = undergrowthOutsideGreen([green, square("undervegetation_lattlopt", 0, 0, 100), square("undervegetation_svarlopt", 50, 50, 50)]);
+    const darkGreen = square("gron_svarlopt", 50, 0, 50);
+    const result = undergrowthOutsideGreen([green, darkGreen, square("undervegetation_lattlopt", 0, 0, 100), square("undervegetation_svarlopt", 50, 50, 50)]);
     const by = (layer: string) => result.features.filter(feature => feature.layer === layer);
     expect(by("gron_lattlopt")).toEqual([green]);
+    expect(by("gron_svarlopt")).toEqual([darkGreen]);
     expect(areaOf(by("undervegetation_svarlopt")[0]!)).toBe(2500);
-    expect(by("undervegetation_lattlopt").reduce((sum, feature) => sum + areaOf(feature), 0)).toBeCloseTo(5000);
+    expect(by("undervegetation_lattlopt").reduce((sum, feature) => sum + areaOf(feature), 0)).toBeCloseTo(2500);
   });
   it("spatialt index i withoutOverlap klipper hundratals sankmarker snabbt och exakt", () => {
     const features: SourceFeature[] = [];

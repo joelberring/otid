@@ -233,7 +233,7 @@ export function mergeBaseMap(parts: readonly { readonly name: string; readonly d
     osm ? osmManaged(osm).filter(feature => /farmland|orchard|allotments|farmyard/.test(feature.layer)) : [])).features;
   // Ägaren 2026-11-12: en sankmark per plats (blött, fuktigt och marktäckets låg på varandra).
   // Ägaren 2026-11-13: ingen sankmark på sand och grus enligt SGU:s jordartskartan (strandkärr inom 30 m från vatten blir kvar).
-  const marsh = singleMarsh(marshOutsideManaged(all, osm ? osmManaged(osm) : [])).features;
+  const marsh = singleMarsh(marshOutsideManaged(all, osm ? osmManaged(osm) : []), scale).features;
   const dryless = soil ? marshOffDrySoil(marsh, soil.areas, { water: marsh }) : undefined;
   if (soil && dryless) soil.report?.({ removedHa: dryless.removedHa });
   // Ägaren 2026-11-15: inga gropar mitt i sankmark (`marsh-pits.ts`).

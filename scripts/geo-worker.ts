@@ -115,7 +115,7 @@ export function keepsRawTicks(job: { readonly cliffs?: { readonly rawTicks?: boo
   return job.cliffs?.rawTicks === true || !hasCliffLines;
 }
 /** Skalanpassade förval för brantklassning i geo-arbetaren (synkade med `cliff-choice.ts`). */
-export const FOREST_CLIFF_RULES = { ...DEFAULT_CLIFF_RULES, minDrop: 2.0, minSlope: 39, impassableDrop3: 4.1, impassableDrop6: 4.1, impassableLength: 16, impassableSlope: 41, minSharpness: 0.56 } as const;
+export const FOREST_CLIFF_RULES = { ...DEFAULT_CLIFF_RULES, minDrop: 2.3, minSlope: 39, impassableDrop3: 4.1, impassableDrop6: 4.1, impassableLength: 16, impassableSlope: 41, minSharpness: 0.56, maxWallSharpness: 0.92, wallMaxDrop: 3.2 } as const;
 export const SPRINT_CLIFF_RULES = { ...DEFAULT_CLIFF_RULES, minDrop: 1.2, impassableDrop3: 3.4, impassableDrop6: 3.4, impassableLength: 10, impassableSlope: 40, minSharpness: 0.58 } as const;
 export function isSprintJob(job: { readonly settings: Readonly<Record<string, number>> }): boolean {
   return (job.settings.contour_interval ?? 5) <= 3 || job.settings.paved === 1;
@@ -132,7 +132,7 @@ export function cliffRulesForJob(job: { readonly settings: Readonly<Record<strin
   };
 }
 /** Arbetarens version (samma som `GEO_WORKER_VERSION` i contracts; servern ger inga jobb till en äldre). */
-export const WORKER_VERSION = 46;
+export const WORKER_VERSION = 47;
 
 async function sendFailure(name: string, response: Response): Promise<string> {
   const error = (await response.json().catch(() => undefined) as { error?: string } | undefined)?.error;

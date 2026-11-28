@@ -7,8 +7,7 @@
 import { constants as fsConstants } from "node:fs";
 import { access, copyFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
-import { VEG_DIFFICULT, VEG_FIGHT, VEG_FOREST, VEG_NONE, VEG_OPEN, VEG_SEMI, VEG_SLOW, vegetationLayerMask, vegetationRing,
-  vegetationShapeSteps } from "../packages/map-revision/src/base-map/vegetation-shapes.ts";
+import { VEG_DIFFICULT, VEG_FIGHT, VEG_FOREST, VEG_NONE, VEG_OPEN, VEG_SEMI, VEG_SLOW, vegetationLayerMask, vegetationRing } from "../packages/map-revision/src/base-map/vegetation-shapes.ts";
 import { decodePng, toRgba, type Box } from "./geo-merge.ts";
 import { type Grid, maskRings, moistureDxf, simplify } from "./geo-moisture.ts";
 import { GREEN_STEPS, readWorldFile, SEMI_ALPHA } from "./geo-vegetation.ts";
@@ -293,6 +292,42 @@ export async function copyPresent(fromDir: string, toDir: string, names: readonl
 }
 
 /**
+ * Komponentgrindad grönmask: för `406` (`VEG_SLOW`) och `408` (`VEG_DIFFICULT`) ritas `>= lab` enbart för
+ * 4-sammanhängande komponenter som innehåller minst en egen `=== lab`-cell. Fristående 408/410-öar får alltså ingen
+ * dubbelstaplad 406/408 under sig, medan 406 som omger 408/410 täcker rent under utan vita sömglipor. För `410`
+ * (`VEG_FIGHT`) gäller exakt `=== VEG_FIGHT`.
+ */
+function componentGatedGreenMask(labels: Uint8Array, width: number, height: number, lab: number): Uint8Array {
+  const size = labels.length;
+  const mask = new Uint8Array(size);
+  if (lab >= VEG_FIGHT) {
+    for (let i = 0; i < size; i += 1) if (labels[i] === lab) mask[i] = 1;
+    return mask;
+  }
+  const seen = new Uint8Array(size);
+  const queue = new Int32Array(size);
+  for (let start = 0; start < size; start += 1) {
+    if (seen[start] || labels[start]! < lab) continue;
+    let head = 0, tail = 0, hasOwn = false;
+    seen[start] = 1;
+    queue[tail++] = start;
+    while (head < tail) {
+      const i = queue[head++]!;
+      if (labels[i] === lab) hasOwn = true;
+      const x = Math.floor(i / height), y = i - x * height;
+      if (x > 0) { const n = i - height; if (!seen[n] && labels[n]! >= lab) { seen[n] = 1; queue[tail++] = n; } }
+      if (x + 1 < width) { const n = i + height; if (!seen[n] && labels[n]! >= lab) { seen[n] = 1; queue[tail++] = n; } }
+      if (y > 0) { const n = i - 1; if (!seen[n] && labels[n]! >= lab) { seen[n] = 1; queue[tail++] = n; } }
+      if (y + 1 < height) { const n = i + 1; if (!seen[n] && labels[n]! >= lab) { seen[n] = 1; queue[tail++] = n; } }
+    }
+    if (hasOwn) {
+      for (let k = 0; k < tail; k += 1) mask[queue[k]!] = 1;
+    }
+  }
+  return mask;
+}
+
+/**
  * Bygger `vegetation.dxf`, hektarsummering samt `openAt`/`forestAt` direkt ur `otidgeo`:s färdigklassade RGBA-bild
  * `vegetationsklasser.png` + `.pgw` (utan att köra om `generalizeVegetation`, så `veg_smooth` och `minAreaM2` bevaras exakt).
  */
@@ -325,9 +360,14 @@ export function vegetationFromClassPng(
   }
   const area = cell * cell;
   const full: Grid = { minX, minY, cell, width, height, z: new Float64Array(0) };
+  const scale = options?.scale ?? 15_000;
+  const sprint = scale <= 5000;
   const vegSmooth = options?.vegSmooth;
   const smoothLevel = vegSmooth === undefined ? 3 : vegSmooth <= 0.1 ? 0 : Math.max(1, Math.min(8, Math.round(vegSmooth * 3)));
-  const steps = smoothLevel > 0 ? vegetationShapeSteps({ cellMeters: cell, scale: options?.scale ?? 15_000, level: smoothLevel }) : undefined;
+  // Matcha förenklingstoleransen mot `generalize.ts` (0,15 mm) och över 2 m pixeltrappsteg (`cell * 0,8 ≈ 1,6 m`), så vi varken
+  // dubbelförenklar i skog eller lämnar 2 m pixelhack i sprint. Gröna band (406/408/410) komponentgrindas så fristående öar inte
+  // dubbelstaplas men intilliggande band täcker rent utan vita sömglipor.
+  const ringTolerance = smoothLevel > 0 ? Math.max(cell * 0.8, (0.07 + 0.02 * smoothLevel) * scale / 1000) : 0;
   const summary: Record<string, number> = {};
   const landLayers: readonly (readonly [string, string, number])[] = [
     ["oppen_mark", "401", VEG_OPEN],
@@ -337,12 +377,17 @@ export function vegetationFromClassPng(
     ["gron_mycket_svarlopt", "410", VEG_FIGHT]
   ];
   const parts = landLayers.map(([name, code, lab]) => {
-    const mask = vegetationLayerMask(labels, width, height, lab);
+    const mask = lab >= VEG_SLOW ? componentGatedGreenMask(labels, width, height, lab) : vegetationLayerMask(labels, width, height, lab);
+    const rounds = lab >= VEG_SLOW ? (sprint ? 2 : 1) : 2;
     const rings = maskRings(mask, full)
-      .map(ring => steps ? vegetationRing(ring, steps.tolerance * cell, steps.rounds) : simplify(ring, cell * 0.5))
+      .map(ring => smoothLevel > 0 ? vegetationRing(ring, ringTolerance, rounds) : simplify(ring, cell * 0.5))
       .filter(ring => ring.length >= 4);
     let cells = 0;
-    for (let i = 0; i < mask.length; i += 1) if (mask[i]) cells += 1;
+    if (lab >= VEG_SLOW) {
+      for (let i = 0; i < labels.length; i += 1) if (labels[i] === lab) cells += 1;
+    } else {
+      for (let i = 0; i < mask.length; i += 1) if (mask[i]) cells += 1;
+    }
     summary[`ha${code}`] = Math.round(cells * area / 100) / 100;
     return { name, closed: true, parts: rings };
   });

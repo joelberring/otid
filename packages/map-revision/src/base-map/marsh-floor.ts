@@ -69,6 +69,12 @@ function fillRings(mask: Uint8Array, columns: number, rows: number, rings: reado
 
 const signedArea = (ring: readonly (readonly [number, number])[]) =>
   ring.reduce((sum, [x, y], i) => { const [nx, ny] = ring[(i + 1) % ring.length]!; return sum + x * ny - nx * y; }, 0) / 2;
+const ringPerimeter = (ring: readonly (readonly [number, number])[]) =>
+  ring.reduce((sum, [x, y], i) => { const [nx, ny] = ring[(i + 1) % ring.length]!; return sum + Math.hypot(nx - x, ny - y); }, 0);
+const openRing = (ring: readonly (readonly [number, number])[]): [number, number][] => {
+  const closed = ring.length > 3 && ring[0]![0] === ring[ring.length - 1]![0] && ring[0]![1] === ring[ring.length - 1]![1];
+  return (closed ? ring.slice(0, -1) : ring).map(([x, y]) => [x, y]);
+};
 function insideRing(ring: readonly (readonly [number, number])[], x: number, y: number) {
   let inside = false;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i, i += 1) {
@@ -83,17 +89,26 @@ const ringsOf = (feature: SourceFeature) => feature.geometry.kind === "area" ? f
 export interface MarshFloorResult { readonly features: SourceFeature[]; readonly removedM2: number; readonly changed: number }
 
 /**
- * Grundkartans objekt med laserns kärr klippta till det som ligger nära kärrets botten. Utan höjd i ett område (eller med ett
- * vridet rutnät) lämnas kärren där som de är.
+ * Grundkartans objekt med laserns kärr klippta till det som ligger nära kärrets botten och mjukade med Chaikin (2 pass)
+ * så inga 2 m-trappsteg blir kvar, samt rensade på små inre hål (< 250 m² i skog, < 100 m² i sprint). Utan höjd i ett
+ * område (eller med ett vridet rutnät) lämnas kärren där som de är.
  */
-export function marshOnFloor(features: readonly SourceFeature[], parts: readonly Part[], options: { rise?: number; reach?: number; minM2?: number } = {})
-  : MarshFloorResult {
-  const rise = options.rise ?? MARSH_FLOOR_RISE_M, reachM = options.reach ?? MARSH_FLOOR_REACH_M, minM2 = options.minM2 ?? MARSH_FLOOR_MIN_M2;
+export function marshOnFloor(
+  features: readonly SourceFeature[],
+  parts: readonly Part[],
+  options: { rise?: number; reach?: number; minM2?: number; minHoleM2?: number; scale?: number } = {}
+): MarshFloorResult {
+  const sprint = options.scale !== undefined && options.scale <= 5000;
+  const rise = options.rise ?? MARSH_FLOOR_RISE_M, reachM = options.reach ?? MARSH_FLOOR_REACH_M;
+  const minM2 = options.minM2 ?? (sprint ? 80 : MARSH_FLOOR_MIN_M2);
+  const minHoleM2 = options.minHoleM2 ?? (sprint ? 100 : 250);
+  const min310M2 = options.minM2 ?? (sprint ? 80 : 120);
+  const min310WidthM = sprint ? 2.5 : 3.0;
   const marsh = features.filter(feature => ALL_MARSH.has(feature.layer) && ringsOf(feature).length > 0);
   const laser = new Set(marsh.filter(feature => MARSH_FLOOR_LAYERS.has(feature.layer)));
   if (laser.size === 0) return { features: [...features], removedM2: 0, changed: 0 };
   const replaced = new Map<SourceFeature, SourceFeature[]>();
-  let removedM2 = 0;
+  let removedM2 = 0, clippedCount = 0;
   for (const { grid, affine } of parts) {
     const [a, b, c, d, e, f] = affine;
     if (b !== 0 || d !== 0 || a <= 0 || e >= 0) continue;
@@ -128,6 +143,7 @@ export function marshOnFloor(features: readonly SourceFeature[], parts: readonly
     for (let column = 0; column < columns; column += 1) minLine(floor, temp, rows, column * rows, 1, reach, block, back);
     for (let row = 0; row < rows; row += 1) minLine(temp, floor, columns, row, rows, reach, block, back);
     const toSource = (column: number, row: number): [number, number] => [a * (column + c0) + c, e * (row + r0) + f];
+    const holeFloor = Math.max(cellM2 * 4, minHoleM2);
     for (const feature of mine) {
       // Kärrets egen ruta (med en cells marginal), så att arbetet följer kärrets storlek och inte hela området.
       let fc0 = Infinity, fr0 = Infinity, fc1 = -Infinity, fr1 = -Infinity;
@@ -147,7 +163,24 @@ export function marshOnFloor(features: readonly SourceFeature[], parts: readonly
         const column = Math.floor(i / tall) + bc0, row = (i % tall) + br0, z = grid.meters[(row + r0) * grid.columns + column + c0]!;
         if (z === z && z - floor[column * rows + row]! > rise) own[i] = 0; else after += 1;
       }
-      if (after === before) continue;
+      if (before === 0) continue;
+      if (after === before) {
+        // Även plana kärr som inte klipps mot höjden får mjuk Chaikin-kant (2 pass) och rensning av små hål, så råa 2 m-trappsteg försvinner.
+        const origRings = ringsOf(feature);
+        const outer = simplifyRing(chaikin(openRing(origRings[0]!), 2), 0.4);
+        if (outer.length >= 3) {
+          const holes: Ring[] = [];
+          for (let h = 1; h < origRings.length; h += 1) {
+            const hole = origRings[h]!;
+            if (Math.abs(signedArea(hole)) < holeFloor) continue;
+            const smoothedHole = simplifyRing(chaikin(openRing(hole), 2), 0.4);
+            if (smoothedHole.length >= 3 && Math.abs(signedArea(smoothedHole)) >= holeFloor) holes.push(smoothedHole);
+          }
+          replaced.set(feature, [{ ...feature, geometry: { kind: "area", rings: [outer, ...holes] } }]);
+        }
+        continue;
+      }
+      clippedCount += 1;
       removedM2 += (before - after) * cellM2;
       // Ny kant: mjuk och förenklad. De yttre ringarna går åt samma håll som den största; de andra är hål och hör till den
       // yttre ring de ligger i.
@@ -156,14 +189,22 @@ export function marshOnFloor(features: readonly SourceFeature[], parts: readonly
       const byArea = traced.map(ring => ({ ring, area: signedArea(ring) })).sort((p, q) => Math.abs(q.area) - Math.abs(p.area));
       const outerSign = Math.sign(byArea[0]?.area ?? 1);
       const polygons: Ring[][] = [];
+      const pieceMinM2 = feature.layer === "fuktigt" ? min310M2 : minM2;
       for (const { ring, area } of byArea) {
-        if (Math.sign(area) === outerSign) { if (Math.abs(area) >= minM2) polygons.push([ring]); continue; }
+        if (Math.sign(area) === outerSign) { if (Math.abs(area) >= pieceMinM2) polygons.push([ring]); continue; }
         const [x, y] = ring[0]!, owner = polygons.find(polygon => insideRing(polygon[0]!, x, y));
-        if (owner && Math.abs(area) >= cellM2 * 4) owner.push(ring);
+        if (owner && Math.abs(area) >= holeFloor) owner.push(ring);
       }
-      replaced.set(feature, polygons.map(rings => ({ ...feature, geometry: { kind: "area", rings } })));
+      const keptPolygons = feature.layer === "fuktigt"
+        ? polygons.filter(rings => {
+          const netArea = rings.reduce((sum, ring, idx) => sum + (idx === 0 ? 1 : -1) * Math.abs(signedArea(ring)), 0);
+          const perim = rings.reduce((sum, ring) => sum + ringPerimeter(ring), 0);
+          return netArea >= min310M2 && perim > 0 && (2 * netArea / perim) >= min310WidthM;
+        })
+        : polygons;
+      replaced.set(feature, keptPolygons.map(rings => ({ ...feature, geometry: { kind: "area", rings } })));
     }
   }
   if (replaced.size === 0) return { features: [...features], removedM2: 0, changed: 0 };
-  return { features: features.flatMap(feature => replaced.get(feature) ?? [feature]), removedM2: Math.round(removedM2), changed: replaced.size };
+  return { features: features.flatMap(feature => replaced.get(feature) ?? [feature]), removedM2: Math.round(removedM2), changed: clippedCount };
 }

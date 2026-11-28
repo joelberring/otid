@@ -149,15 +149,15 @@ export function bareRock(ground: GroundGrid, openAt: (x: number, y: number) => b
 }
 
 /**
- * Andelen av ringen som måste ligga lägre än kullen (85 % håller bort sluttningsskuldor).
+ * Andelen av ringen som måste ligga lägre än kullen (80 % håller bort sluttningsskuldor).
  */
-export const KNOLL_LOWER_SHARE = 0.85;
+export const KNOLL_LOWER_SHARE = 0.80;
 /**
- * Förvalet kalibrerat mot fem svenska skogskartor (Högdalen, Tyresta, Gömmaren, Lida, Djurgården) + Bandhagen: 0,9 m över
- * omgivningen, 85 % lägre ring, kompakt fot 10–70 m² och 12 m emellan. Samma som webbläsarens förval (`DEFAULT_KNOLL_LIMITS`);
- * alla möjliga kullar sparas med de lösa gränserna (`KNOLL_LOOSE`), så reglaget når övriga värden utan ny körning.
+ * Förvalet kalibrerat mot sex autentiska svenska kartor: 0,82 m över omgivningen, 80 % lägre ring, kompakt fot
+ * 8–78 m² och 12 m emellan. Samma som webbläsarens förval (`DEFAULT_KNOLL_LIMITS`); alla möjliga kullar sparas med de lösa
+ * gränserna (`KNOLL_LOOSE`), så reglaget når övriga värden utan ny körning.
  */
-export const KNOLL_MIN_RISE = 0.9, KNOLL_MAX_FOOT_M2 = 70, KNOLL_SPACING = 12, KNOLL_MIN_FOOT_M2 = 8;
+export const KNOLL_MIN_RISE = 0.82, KNOLL_MAX_FOOT_M2 = 78, KNOLL_SPACING = 12, KNOLL_MIN_FOOT_M2 = 8;
 
 /**
  * Små kullar (109) ur markrastret (ägaren 2026-11-11: «punkthöjder i likvärdig terräng» som Högdalenkartan): den högsta

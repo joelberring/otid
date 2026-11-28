@@ -1,6 +1,6 @@
 import { parseDxf, parseGeoJson, VectorParseError, type MapNorm, type SourceData, type SourceFeature } from "@o-tid/map-revision";
 import {
-  calmFlatContours, choosePits, clearContours, computeCandidates, detectBaseMapEngine, suggestedClear, DEFAULT_HILL_LEVEL, DEFAULT_HILL_LIMITS, DEFAULT_PIT_LEVEL, DEFAULT_ROCK_LEVEL, findHills, findPits, flatLimitsAt, marshOnFloor, flatSlopeFrom, heightFieldFrom, joinStages, mergeBaseMap,
+  alignCliffsToContours, calmFlatContours, choosePits, clearContours, computeCandidates, detectBaseMapEngine, suggestedClear, DEFAULT_HILL_LEVEL, DEFAULT_HILL_LIMITS, DEFAULT_PIT_LEVEL, DEFAULT_ROCK_LEVEL, findHills, findPits, flatLimitsAt, marshOnFloor, flatSlopeFrom, heightFieldFrom, joinStages, mergeBaseMap,
   pitFeatures, pitLimitsAt, settleHills, tickDepressions, unionWater, rockAreasOfJob, withRockAreas, type BaseMapEngine, type HillCandidate, type HillLimits, type PitCandidate, type PitLimits, type PrimaryForMerge, type PrimaryOutcome,
   type CandidateInput, type CandidateResult, type clearCutFeatures, type ClearResult, type ClearSettings, type FlatContourResult, type HeightGrid, type PhotoPixels, type PixelAffine, type SlopeGrid, type SoilArea, type SoilOutcome, type StageBox
 } from "@o-tid/map-revision/base-map";
@@ -161,7 +161,7 @@ export function handleCandidateRequest(store: CandidateStore, request: Candidate
     let pits: PitOutcome | undefined, hills: HillOutcome | undefined, data = clearData;
     if (clear && clearField && request.scale) {
       // Kärren följer kurvbilden (ägaren 2026-11-15): laserns kärr klipps där marken ligger över kärrets botten.
-      const floored = marshOnFloor(clearData.features, clear.parts);
+      const floored = marshOnFloor(clearData.features, clear.parts, { scale: request.scale });
       let hillCandidates: HillCandidate[] = [];
       try { hillCandidates = clear.parts.flatMap(part => findHills(part.grid, part.affine)); } catch (error) { console.error("Höjderna kunde inte sökas ur markens höjd", error); }
       const settled = settleHills(floored.features, hillCandidates, DEFAULT_HILL_LIMITS, request.scale);
@@ -171,7 +171,9 @@ export function handleCandidateRequest(store: CandidateStore, request: Candidate
       let candidates: PitCandidate[] = [];
       try { candidates = clear.parts.flatMap(part => findPits(part.grid, part.affine)); } catch (error) { console.error("Sänkorna kunde inte sökas ur markens höjd", error); }
       const choice = choosePits(candidates, limits, request.scale, settled.features);
-      const ticked = tickDepressions([...settled.features, ...pitFeatures(choice)], clearField);
+      // Koppla 201/202-branter till slutliga flyttade kurvor, klipp 103 på 201 och säkra nedförstaggar mot höjdrastret.
+      const fittedCliffs = alignCliffsToContours([...settled.features, ...pitFeatures(choice)], clearField, { scale: request.scale });
+      const ticked = tickDepressions(fittedCliffs.features, clearField);
       data = { ...clearData, features: ticked.features };
       pits = { candidates, limits, level: DEFAULT_PIT_LEVEL, scale: request.scale, points: choice.points.length, rings: choice.rings.length, ticks: ticked.ticks, byHeight: ticked.byHeight };
     }

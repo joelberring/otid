@@ -223,6 +223,36 @@ describe("otidgeo CLI-mappning och dubbelmotorplan (Etapp G4B)", () => {
     expect(res.openAt(664_005, 6_576_040)).toBe(true);
     expect(res.forestAt(664_044, 6_576_040)).toBe(true);
     expect(res.openAt(664_065, 6_576_040)).toBe(false);
+
+    // Komponentgrindade gröna band:
+    // - Vänster (12, 20): 408-kärna inuti en 406-ring -> 406 täcker helt under 408 som 1 solid ring (0 vita sömglipor/hål!).
+    // - Höger (30, 12): fristående 408-ö med 410-kärna (ingen 406 runt) -> 0 406 under, men 408 täcker helt under 410 som 1 solid ring.
+    // - Höger (30, 30): fristående 410-ö -> 0 406 och 0 408 under!
+    const gatedPng = encodePng(w, h, (x, y) => {
+      if (Math.hypot(x - 12, y - 20) < 4) return [5, 160, 5, 255];  // 408 inne i 406
+      if (Math.hypot(x - 12, y - 20) < 10) return [4, 160, 4, 255]; // 406 runt 408
+      if (Math.hypot(x - 30, y - 10) < 3) return [6, 160, 6, 255];  // 410 inne i 408
+      if (Math.hypot(x - 30, y - 10) < 7) return [5, 160, 5, 255];  // 408 runt 410 (ingen 406!)
+      if (Math.hypot(x - 30, y - 30) < 5) return [6, 160, 6, 255];  // fristående 410 (ingen 406/408!)
+      return [2, 160, 2, 255];
+    });
+    const gated = vegetationFromClassPng(new Uint8Array(gatedPng), pgw, { vegSmooth: 0.65, scale: 15_000 });
+    const parsed = parseDxf(gated.dxf);
+    // Exakt 1 solid 406-ring (vänstra klustret, inget hål -> noll vita sömglipor), 2 solida 408-ringar (vänster + övre höger), 2 410-ringar (övre + nedre höger).
+    expect(parsed.features.filter(f => f.layer === "gron_lattlopt")).toHaveLength(1);
+    expect(parsed.features.filter(f => f.layer === "gron_svarlopt")).toHaveLength(2);
+    expect(parsed.features.filter(f => f.layer === "gron_mycket_svarlopt")).toHaveLength(2);
+    // Hektarsummeringen räknar fortfarande exklusiva celler per band (utan dubbelräkning).
+    expect(gated.summary.ha406).toBeGreaterThan(0.08);
+    expect(gated.summary.ha406).toBeLessThan(0.13);
+    expect(gated.summary.ha408).toBeGreaterThan(0.05);
+    expect(gated.summary.ha410).toBeGreaterThan(0.03);
+
+    // Sprint (1:4 000): samma rena komponentgrindning utan sömhål och med lugna kanter över cell*0,8 (= 1,6 m).
+    const sprintVeg = vegetationFromClassPng(new Uint8Array(gatedPng), pgw, { vegSmooth: 0.65, scale: 4_000 });
+    expect(parseDxf(sprintVeg.dxf).features.filter(f => f.layer === "gron_lattlopt")).toHaveLength(1);
+    expect(parseDxf(sprintVeg.dxf).features.filter(f => f.layer === "gron_svarlopt")).toHaveLength(2);
+    expect(parseDxf(sprintVeg.dxf).features.filter(f => f.layer === "gron_mycket_svarlopt")).toHaveLength(2);
   });
 });
 

@@ -9,12 +9,18 @@ import polygonClipping, { type Polygon } from "polygon-clipping";
  */
 // Ägaren 2026-11-17: NMD:s öppna våtmark (`land-cover.ts`) efter laserns blöta mark och marktäckets våta, före fuktigt.
 const MARSH = ["blott", "sankmark_vat", "sankmark_oppen_nmd", "fuktigt", "sankmark_fast"] as const;
+const MARSH_310: ReadonlySet<string> = new Set(["fuktigt", "sankmark_fast"]);
 /**
  * Undervegetationens raster (407, 409) läggs ovanpå vit skog och gult, men får enligt normen inte kombineras med grönt
- * (406, 408): de klipps mot det gröna, och 407 mot 409 så att rastren inte ligger dubbelt. Det gröna självt rörs inte.
+ * (406, 408, 410): de klipps mot det gröna, och 407 mot 409 så att rastren inte ligger dubbelt. Det gröna självt rörs inte.
  */
-const UNDERGROWTH = ["gron_lattlopt", "hygge_ungskog", "undervegetation_svarlopt", "undervegetation_lattlopt", "hygge_sly"] as const;
+const UNDERGROWTH = ["gron_lattlopt", "gron_svarlopt", "gron_mycket_svarlopt", "hygge_ungskog", "undervegetation_svarlopt", "undervegetation_lattlopt", "hygge_sly"] as const;
 const MIN_PIECE_M2 = 40;
+/** Skalanpassade trösklar för kvarvarande 310-skärvor efter `310 - 308`: yta och tunn skorp-bredd (`2·A/P`). */
+const MIN_310_PIECE_FOREST_M2 = 120;
+const MIN_310_PIECE_SPRINT_M2 = 80;
+const MIN_310_WIDTH_FOREST_M = 3.0;
+const MIN_310_WIDTH_SPRINT_M = 2.5;
 
 type Ring = [number, number][];
 const closedRing = (points: readonly (readonly [number, number])[]): Ring => {
@@ -30,6 +36,12 @@ const polygonOf = (feature: SourceFeature): Polygon | undefined => {
   return valid.length ? valid : undefined;
 };
 const ringArea = (ring: Ring) => Math.abs(ring.reduce((sum, [x, y], i) => { const [nx, ny] = ring[(i + 1) % ring.length]!; return sum + x * ny - nx * y; }, 0)) / 2;
+const ringPerimeter = (ring: readonly (readonly number[])[]) =>
+  ring.reduce((sum, point, i) => { const next = ring[(i + 1) % ring.length]!; return sum + Math.hypot(next[0]! - point[0]!, next[1]! - point[1]!); }, 0);
+const netAreaOf = (rings: readonly (readonly (readonly number[])[])[]) =>
+  rings.reduce((sum, ring, i) => sum + (i === 0 ? 1 : -1) * ringArea(ring as Ring), 0);
+const totalPerimeterOf = (rings: readonly (readonly (readonly number[])[])[]) =>
+  rings.reduce((sum, ring) => sum + ringPerimeter(ring), 0);
 const boxOf = (polygon: Polygon) => {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const [x, y] of polygon[0] ?? []) { minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y); }
@@ -41,8 +53,24 @@ const touches = (a: Box, b: Box) => a.minX <= b.maxX && b.minX <= a.maxX && a.mi
 /** Ytornas hjälpfunktioner för `soil-marsh.ts` (samlade i ett objekt så att de inte krockar med andra filers namn i `index.ts`). */
 export const marshGeometry = { polygonOf, ringArea, boxOf, touches };
 
-/** Grundkartans objekt med sankmarken utan överlapp. Annat än sankmarkens ytor lämnas orört och behåller sin ordning först. */
-export const singleMarsh = (features: readonly SourceFeature[]) => withoutOverlap(features, MARSH);
+/**
+ * Grundkartans objekt med sankmarken utan överlapp. Annat än sankmarkens ytor lämnas orört och behåller sin ordning först.
+ * Skalan (`scale`) avgör skärvtröskeln för 310 (`fuktigt`/`sankmark_fast`) efter klipp mot 308: < 120 m² eller
+ * `2·area/omkrets < 3,0 m` i skog (< 80 m² och < 2,5 m i sprint ≤ 1:5 000) rensas bort.
+ */
+export function singleMarsh(features: readonly SourceFeature[], scale?: number) {
+  const sprint = scale !== undefined && scale <= 5000;
+  const min310M2 = sprint ? MIN_310_PIECE_SPRINT_M2 : MIN_310_PIECE_FOREST_M2;
+  const min310WidthM = sprint ? MIN_310_WIDTH_SPRINT_M : MIN_310_WIDTH_FOREST_M;
+  return withoutOverlap(features, MARSH, 0, (piece, layer) => {
+    const area = netAreaOf(piece);
+    if (area < MIN_PIECE_M2) return false;
+    if (!MARSH_310.has(layer)) return true;
+    if (area < min310M2) return false;
+    const perim = totalPerimeterOf(piece);
+    return perim > 0 && (2 * area / perim) >= min310WidthM;
+  });
+}
 /**
  * Skött mark har inga kärr: laserns blöta och fuktiga mark klipps mot åker, fruktodling och tomtmark (marktäcket) och mot
  * `managed` (OpenStreetMaps gräsytor, parker, idrottsplatser och odlingar). Mätt mot tio rutor ur fem kartor 2026-11-13 med
@@ -62,7 +90,7 @@ export function marshOutsideManaged(features: readonly SourceFeature[], managed:
 const OFF_YARDS = ["tomtmark_marktacke", "tomtmark_osm", "tomtmark_fastighet", "tomtmark_hus", "oppen_mark_spridda_trad"] as const;
 export const semiOpenOutsideYards = (features: readonly SourceFeature[]) => withoutOverlap(features, OFF_YARDS, 4).features;
 /** Grundkartans objekt med undervegetationen utanför det gröna och utan dubbla raster. */
-export const undergrowthOutsideGreen = (features: readonly SourceFeature[]) => withoutOverlap(features, UNDERGROWTH, 2);
+export const undergrowthOutsideGreen = (features: readonly SourceFeature[]) => withoutOverlap(features, UNDERGROWTH, 4);
 
 /** Dynamiskt spatialt rutnätsindex över redan lagda ytor så varje ny yta bara klipps mot närliggande hinder. */
 class KeptGrid {
@@ -126,7 +154,12 @@ class KeptGrid {
 }
 
 /** Lagren i `order` utan överlapp: ett senare lager klipps mot de tidigare. Lagren före `from` är bara hinder och klipps inte. */
-function withoutOverlap(features: readonly SourceFeature[], order: readonly string[], from = 0): { features: SourceFeature[]; clipped: number; removed: number } {
+function withoutOverlap(
+  features: readonly SourceFeature[],
+  order: readonly string[],
+  from = 0,
+  keepPiece: (piece: Polygon, layer: string) => boolean = piece => netAreaOf(piece) >= MIN_PIECE_M2
+): { features: SourceFeature[]; clipped: number; removed: number } {
   const ORDER = order;
   const rank = (feature: SourceFeature) => ORDER.indexOf(feature.layer.toLowerCase());
   const marsh = features.map(feature => ({ feature, rank: rank(feature), polygon: rank(feature) >= 0 ? polygonOf(feature) : undefined }))
@@ -152,12 +185,12 @@ function withoutOverlap(features: readonly SourceFeature[], order: readonly stri
       if (level < from) { out.push(row.feature); added.push({ polygon, box }); continue; }
       const over = kept.touching(box);
       if (over.length === 0) { out.push(row.feature); added.push({ polygon, box }); continue; }
+      const lowerLayer = row.feature.layer.toLowerCase();
       let pieces: Polygon[];
-      try { pieces = polygonClipping.difference(polygon, ...over).filter(piece => ringArea(piece[0] as Ring) >= MIN_PIECE_M2); }
+      try { pieces = polygonClipping.difference(polygon, ...over).filter(piece => keepPiece(piece, lowerLayer)); }
       catch { out.push(row.feature); added.push({ polygon, box }); continue; }
       // Oförändrad bara om hela ytan (ytterkant minus hål) är kvar: ett blött kärr mitt i ett fuktigt ger ett hål, inte en ny kant.
-      const net = (rings: readonly (readonly (readonly number[])[])[]) => rings.reduce((sum, ring, i) => sum + (i === 0 ? 1 : -1) * ringArea(ring as Ring), 0);
-      const same = pieces.length === 1 && Math.abs(net(pieces[0]!) - net(polygon)) < 1;
+      const same = pieces.length === 1 && Math.abs(netAreaOf(pieces[0]!) - netAreaOf(polygon)) < 1;
       if (same) { out.push(row.feature); added.push({ polygon, box }); continue; }
       if (pieces.length === 0) { removed += 1; continue; }
       clipped += 1;

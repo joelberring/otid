@@ -41,6 +41,19 @@ finns kvar i en gemensam kärna – typen är en vy, inte en egen kodväg.
   Träning), Personer (personer med behörighet, egen del i stället för ett avsnitt i Inställningar, `?del=personer`) och
   Inställningar. Mobilens remsa visar med toning och pil att den fortsätter, och Meny har alla delar med status och raderna
   under banan. Behörigheterna på servern är oförändrade.
+- Ändrat 2026-11-28 (översynen av layout och form, projektdokumenten `claude/oversyn-layout-och-form-2026-11-28.md` och
+  `claude/oversyn-layout-del2-risker-2026-11-28.md`; ägaren: «ser bra ut i stort», «bygga allt nu», «hela sidan ska ha samma
+  känsla»): formspråket «Kartbladet» ersätter «vitt, gråskala och svart». Innehållet står på vitt och den grå tonen hör till
+  menyn. Huvudknappen är banlila, högst en per vy, och en knapp utan angiven sort är en linjeknapp. Två färger tillkommer med
+  var sin uppgift: gult för «i dag» och «pågår» (alltid en fylld rad med orden, aldrig textfärg) och blått för live. Grönt,
+  rött och orange betyder som förut godkänd, fel och åtgärd, och status bärs aldrig av färg ensam. Tre skal: publikt,
+  inloggat (datorn: vänstermeny med Hem, Kartor, Banor, Träningar, Klubb, som ikonremsa i mellanbredd; telefonen: samma fem
+  i flikraden och ett sidhuvud med bakåtplats) och arbetsläge (kartredigeraren, banläggningen, speakern och avläsningen fyller
+  fönstret utan meny). Inne i ett arrangemang ersätter banan med stegen vänstermenyn. Listor har en gemensam tät rad (datum
+  eller bild, namn, en rad uppgifter) där hela raden är länken. Bilden på klubbsidor, arrangemang och kartprojekt är valfri
+  och kan vara ett kartutsnitt, en logga eller ett eget foto; egna bilder får visas publikt, och en bild över hela kartan
+  visas först efter tävlingen (banhemligheten, ADR-0176). Tävlingsdagens skärmar får samma form, men avläsningens stora
+  besked och kravet att de läses i stress, regn och mörker gäller som förut. Byggs som PLAN.md steg F.
 
 ### 3. Listor
 Start och resultat får en verktygsrad med vy (startlista per klass, per

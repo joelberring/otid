@@ -1589,6 +1589,36 @@ arkivet) blir förrådet för allt kartinnehåll och serverns disk ett mellanlag
 - [ ] M8 (senare, efter mätning) Direktuppladdning från webbläsaren till förrådet och raster som COG som läses direkt ur
   förrådet med intervallanrop. Underlag: projektets dokument `claude/plan-tungt-direkt-till-arkivet-2026-11-22.md`.
 
+## [ ] Steg F – Form och layout: Kartbladet (ägaren 2026-11-28)
+
+Översyn och skisser: projektets dokument `claude/oversyn-layout-och-form-2026-11-28.md` och
+`claude/oversyn-layout-del2-risker-2026-11-28.md` (designduken «O-Tid – form och layout, skisser 2026-11-28»). Tillägg i
+ADR-0170 beslut 2 (2026-11-28). Ägarens beslut 2026-11-28: riktningen gäller; bilden behöver inte vara en karta och egna
+bilder får synas för alla; en bild över hela kartan visas först efter tävlingen; telefonen ska vara tät och förbereda appen
+(steg A); allt byggs nu, också tävlingsdagens delar, så att hela sidan har samma känsla. Kart- och banläget ändras inte i
+uppbyggnad.
+
+- [x] F0 Klubbytans flikar i telefonen: orden hamnade på varandra på pekskärm (flikarna krympte till 44 px).
+- [ ] F1 Skalen som egna layouter: publikt, inloggat och arbetsläge. Datorn: vänstermeny med ikoner (Hem, Kartor, Banor,
+  Träningar, Klubb), ikonremsa i mellanbredd, hjälp, språk och konto nederst. Telefonen: sidhuvud med bakåtplats, «+» och
+  kontobild, samma flikrad, hänsyn till skärmens kanter i skalet. Inne i ett arrangemang ersätter stegen menyn.
+- [ ] F2 Den täta raden, datumbrickan och bildrutan: Mitt O-Tid, Mina kartprojekt och klubbarkivet. Inga knappar per rad.
+  Datum som «ons 9 dec». Långa namn bryts och kapas till två rader.
+- [ ] F3 Färger och knappar, sidtyp för sidtyp: vitt innehåll, linjeknapp som förval, en lila huvudknapp per vy, gult för
+  «i dag» och blått för live. Nya variabler läggs till; gamla byter inte namn (avläsningens och Masterminds skal läser samma
+  fil och sparas i webbläsaren).
+- [ ] F4 Mitt O-Tid enligt skissen: i dag, Fortsätt där du var, Kommande, senaste kartorna, klubbarna. Egna sidor för
+  Kartor och Träningar; att skapa är en handling (egen sida i telefonen). Tomt konto: Kom igång tar blickpunkten.
+- [ ] F5 Bilder: uppladdad bild med vald beskärning på klubb, arrangemang och kartprojekt (samma gränser som nyhetsbilderna,
+  ADR-0230), kartutsnitt som bild, publika tävlingssidan med definitionsruta och rutnät för Startlista, Resultat, Live och
+  Sträcktider.
+- [ ] F6 Långa sidor: avsnittsmeny på Mitt konto, kartprojektet och inställningarna; sök först och filter på begäran i
+  klubbarkivet.
+- [ ] F7 Tävlingsdagens skärmar i samma form: avläsning, sekretariat, start, speaker och live. De stora beskeden och
+  läsbarheten i mörker behålls.
+
+Prov i varje delsteg: 390 × 844 och 360 × 640 px, 700, 900, 1100 och 1280 px, 130 % textstorlek och engelska.
+
 ## Efter målet (inte nu)
 
 Ordningen bestäms av ägaren efter piloten. Kandidater: inloggning med Google

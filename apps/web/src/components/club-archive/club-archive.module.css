@@ -27,7 +27,9 @@
 .tabsWrap { margin: 12px 0 16px; --scroll-row-fade: var(--canvas); }
 .tabs { display: flex; gap: 0; overflow-x: auto; border-bottom: 1px solid var(--line); scrollbar-width: none; scroll-padding-inline: 48px; }
 .tabs::-webkit-scrollbar { display: none; }
-.tabs button { min-height: 44px; padding: 0 14px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none;
+/* `flex: none`: på pekskärm sätter globals.css `min-width: 44px !important` på knappar, och då krymper flikarna annars till
+   44 px så att orden hamnar på varandra (översynen 2026-11-28, L7). */
+.tabs button { flex: none; min-height: 44px; padding: 0 14px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none;
   color: var(--muted); font-weight: 600; white-space: nowrap; cursor: pointer; }
 .tabs button[aria-selected="true"] { border-bottom-color: var(--ink); color: var(--ink); }
 /* Globala `button:hover:not(:disabled)` (svart bakgrund) vinner annars över `.tabs button`: fliken blev svart med svart text. */

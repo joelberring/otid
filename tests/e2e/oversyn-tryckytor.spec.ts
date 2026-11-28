@@ -132,6 +132,9 @@ test("översynen: tryckytor på minst 44 px i telefonen", async ({ browser }) =>
   await check(organiser, "Träningsgruppen (ledaren)");
   await organiser.goto(clubPath);
   await check(organiser, "Klubbytan");
+  // Översynen 2026-11-28 (L7): flikarnas ord får plats i sina flikar (de krympte till 44 px och hamnade på varandra).
+  expect(await organiser.getByRole("tablist").first().getByRole("tab").evaluateAll(tabs =>
+    tabs.filter(tab => tab.scrollWidth > tab.clientWidth + 1).map(tab => tab.textContent))).toEqual([]);
   await organiser.goto(`/admin/${raceId}/manage`);
   const steps: SectionName[] = ["Banor", "Klasser", "Anmälda", "Start", "Publicera", "Avläsning", "Resultat", "Personer", "Inställningar"];
   for (const step of steps) {

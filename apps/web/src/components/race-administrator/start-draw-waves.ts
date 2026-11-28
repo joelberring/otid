@@ -1,4 +1,6 @@
-import type { StartDrawSetupResponse } from "@o-tid/contracts";
+import type { StartDrawPreviewResponse, StartDrawSetupResponse } from "@o-tid/contracts";
+import type { Texts } from "../../lib/language";
+import type { startDrawAdvancedSv } from "../../i18n/start-draw-advanced-sv";
 import { formatClockTime, normalizeClock, parseRaceClock, parseRaceClockNear } from "../../lib/clock-time";
 
 const MINUTE_MS = 60_000;
@@ -71,6 +73,32 @@ export function shiftClockByMinutes(clock: string, deltaMinutes: number, raceDat
 /** Skillnad i hela minuter mellan två ISO-tidpunkter (positivt = senare, negativt = tidigare). */
 export function waveDeltaMinutes(fromStartTime: string, toStartTime: string): number {
   return Math.round((Date.parse(toStartTime) - Date.parse(fromStartTime)) / MINUTE_MS);
+}
+
+/** Översätter en lottningsvarning till lokaliserad text på användarens språk (alla fem varningstyper). */
+export function formatDrawWarning(
+  warning: StartDrawPreviewResponse["warnings"][number],
+  timeZone: string,
+  advancedText: Pick<Texts<typeof startDrawAdvancedSv>, "afterLastStart" | "laterMoved" | "existingOverLimit" | "existingClash" | "massStartClash">
+): string {
+  const short = (instant: string) => formatClockTime(instant, timeZone).slice(0, 5);
+  switch (warning.code) {
+    case "AFTER_LAST_START":
+      return advancedText.afterLastStart(warning.classNames, short(warning.lastStartTime), short(warning.firstAfterTime), short(warning.neededLastStartTime));
+    case "LATER_START_MOVED":
+      return advancedText.laterMoved(warning.className, short(warning.wantedTime), short(warning.actualTime));
+    case "EXISTING_OVER_LIMIT":
+      return advancedText.existingOverLimit(warning.scope, warning.limit, short(warning.firstTime), warning.minuteCount);
+    case "EXISTING_GROUP_CLASH":
+      return advancedText.existingClash(warning.classNames, short(warning.firstTime), warning.minuteCount);
+    case "MASS_START_GROUP_CLASH":
+      return advancedText.massStartClash(warning.className, warning.conflictClassNames, short(warning.startTime));
+  }
+}
+
+/** Varningar som rör klassen som sparas i Klasser → Redigera (inte orelaterade befintliga krockar i andra klasser). */
+export function isClassRelevantDrawWarning(warning: StartDrawPreviewResponse["warnings"][number]): boolean {
+  return warning.code === "MASS_START_GROUP_CLASH" || warning.code === "LATER_START_MOVED" || warning.code === "AFTER_LAST_START";
 }
 
 /** Bygger lottningsbegäran för att flytta alla klasser i en masstartsvåg till ett nytt klockslag. */

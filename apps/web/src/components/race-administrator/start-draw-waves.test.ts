@@ -3,7 +3,7 @@ import type { StartDrawSetupResponse } from "@o-tid/contracts";
 import { startDrawAdvancedSv } from "../../i18n/start-draw-advanced-sv";
 import { advancedFromSetup, advancedRequest, type DrawAdvanced } from "./start-draw-advanced";
 import { buildDrawSettings, type DrawRow } from "./start-draw";
-import { buildWaveShiftRequest, groupMassStartWaves, shiftClockByMinutes } from "./start-draw-waves";
+import { buildWaveShiftRequest, formatDrawWarning, groupMassStartWaves, shiftClockByMinutes } from "./start-draw-waves";
 
 const RACE_ID = "10000000-0000-4000-8000-000000000000";
 const c1 = "10000000-0000-4000-8000-000000000001";
@@ -134,5 +134,11 @@ describe("masstart i tabellen och klockslag lika med första start", () => {
       }
     });
     expect(loaded.laterStarts).toEqual({});
+
+    // Alla fem varningstyper översätts till läsbar text (aldrig rå enum-kod).
+    expect(formatDrawWarning({ code: "MASS_START_GROUP_CLASH", className: "Hyperion herr", conflictClassNames: ["H21"], startTime: T1910 },
+      "Europe/Stockholm", startDrawAdvancedSv)).toContain("Hyperion herr har masstart 19:10");
+    expect(formatDrawWarning({ code: "EXISTING_GROUP_CLASH", classNames: ["H21", "D21"], firstTime: T1910, minuteCount: 1 },
+      "Europe/Stockholm", startDrawAdvancedSv)).toContain("H21 och D21");
   });
 });

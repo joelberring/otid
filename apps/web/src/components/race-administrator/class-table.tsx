@@ -20,6 +20,7 @@ import { RemovalReview } from "./removal-review";
 import { removalSv } from "../../i18n/removal-sv";
 import type { Workspace } from "./workspace-state";
 import { saveClassMassStart } from "./class-mass-start";
+import { formatDrawWarning, isClassRelevantDrawWarning } from "./start-draw-waves";
 
 type ClassRow = CourseEditListResponse["classes"][number];
 
@@ -214,17 +215,9 @@ function ClassEditor({ ws, row }: { ws: Workspace; row: ClassRow }) {
         {massConfirm.preview.requiresConfirmation && <p>{massConfirm.preview.readOutCount - massConfirm.preview.notRecalculatedCount > 0
           ? text.massStartConfirmRecalculate(massConfirm.clock, massConfirm.preview.readOutCount - massConfirm.preview.notRecalculatedCount)
           : text.massStartConfirm}</p>}
-        {massConfirm.preview.warnings.length > 0 && <ul>
-          {massConfirm.preview.warnings.map((warning, index) => <li key={index}>
-            {warning.code === "MASS_START_GROUP_CLASH"
-              ? ws.drawAdvancedText.massStartClash(warning.className, warning.conflictClassNames,
-                formatClockTime(warning.startTime, massConfirm.preview.timeZone).slice(0, 5))
-              : warning.code === "LATER_START_MOVED"
-                ? ws.drawAdvancedText.laterMoved(warning.className,
-                  formatClockTime(warning.wantedTime, massConfirm.preview.timeZone).slice(0, 5),
-                  formatClockTime(warning.actualTime, massConfirm.preview.timeZone).slice(0, 5))
-                : warning.code}
-          </li>)}
+        {massConfirm.preview.warnings.some(isClassRelevantDrawWarning) && <ul>
+          {massConfirm.preview.warnings.filter(isClassRelevantDrawWarning).map((warning, index) =>
+            <li key={index}>{formatDrawWarning(warning, massConfirm.preview.timeZone, ws.drawAdvancedText)}</li>)}
         </ul>}
       </>}
       onConfirm={() => { massConfirm.resolve(true); setMassConfirm(undefined); }}

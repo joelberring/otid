@@ -16,7 +16,8 @@ import { startDrawAdvancedSv } from "../../i18n/start-draw-advanced-sv";
 import { StartDrawAdvanced } from "./start-draw-advanced-panel";
 import own from "./start-draw-advanced.module.css";
 import { drawClassSummary, drawSelection } from "./start-draw-common";
-import { groupMassStartWaves, parseWholeMinuteClock, shiftClockByMinutes, waveDeltaMinutes, type MassStartWave } from "./start-draw-waves";
+import { formatDrawWarning, groupMassStartWaves, parseWholeMinuteClock, shiftClockByMinutes, waveDeltaMinutes,
+  type MassStartWave } from "./start-draw-waves";
 
 /** Gafflad klass (ADR-0169 beslut 2): lottningen visar löparnas varianter. */
 const forked = (raceClass: { slots: readonly { entry: { variantCode: string | null } | null }[] }) =>
@@ -166,7 +167,6 @@ function MassStartWaves({ ws, waves, locked }: { ws: Workspace; waves: readonly 
     else if (outcome.kind === "UNCHANGED") setShiftError(text.waves.unchanged);
     else if (outcome.kind === "ERROR") setShiftError(text.waves.error);
   }
-  const time = (instant: string) => formatClockTime(instant, setup.timeZone);
   return <section className={styles.drawWaves} aria-labelledby={titleId} data-testid="mass-start-waves">
     <h3 id={titleId}>{text.waves.title}</h3>
     <p className={styles.workflowHelp}>{text.waves.help}</p>
@@ -221,7 +221,7 @@ function MassStartWaves({ ws, waves, locked }: { ws: Workspace; waves: readonly 
         {pendingConfirm.preview.becomesOkCount + pendingConfirm.preview.becomesMispunchedCount > 0 &&
           <p>{text.statusChanges(pendingConfirm.preview.becomesOkCount + pendingConfirm.preview.becomesMispunchedCount)}</p>}
         {pendingConfirm.preview.warnings.length > 0 && <ul>
-          {pendingConfirm.preview.warnings.map((warning, index) => <li key={index}>{warningText(warning, time, advancedText)}</li>)}
+          {pendingConfirm.preview.warnings.map((warning, index) => <li key={index}>{formatDrawWarning(warning, pendingConfirm.preview.timeZone, advancedText)}</li>)}
         </ul>}
       </>}
       onConfirm={() => { pendingConfirm.resolve(true); setPendingConfirm(undefined); }}
@@ -294,7 +294,7 @@ function DrawPreview({ ws, preview }: { ws: Workspace; preview: StartDrawPreview
         : group.alternating ? text.alternating(group.classNames) : text.sameFirstControl(group.classNames, group.controlCodes[0]!)}</p>)}
     {preview.warnings.length > 0 && <Notice tone="attention" role="alert"><div className={own.warnings}>
       <strong>{advancedText.warningsTitle}</strong>
-      <ul>{preview.warnings.map((warning, index) => <li key={index}>{warningText(warning, time, advancedText)}</li>)}</ul>
+      <ul>{preview.warnings.map((warning, index) => <li key={index}>{formatDrawWarning(warning, preview.timeZone, advancedText)}</li>)}</ul>
     </div></Notice>}
     {preview.existingClasses.length > 0 && <p className={styles.drawNote}>{advancedText.existingTitle}: {preview.existingClasses.map(row =>
       advancedText.existingClass(row.className, row.startCount, short(row.firstStartTime), short(row.lastStartTime))).join("; ")}.</p>}
@@ -352,19 +352,6 @@ function DrawPreview({ ws, preview }: { ws: Workspace; preview: StartDrawPreview
       {!drawAttempt && <Button variant="secondary" disabled={busy} onClick={cancelDrawPreview}>{text.cancel}</Button>}
     </div>
   </section>;
-}
-
-function warningText(warning: StartDrawPreviewResponse["warnings"][number], time: (instant: string) => string,
-  advancedText: typeof startDrawAdvancedEn) {
-  const short = (instant: string) => time(instant).slice(0, 5);
-  switch (warning.code) {
-    case "AFTER_LAST_START":
-      return advancedText.afterLastStart(warning.classNames, short(warning.lastStartTime), short(warning.firstAfterTime), short(warning.neededLastStartTime));
-    case "LATER_START_MOVED": return advancedText.laterMoved(warning.className, short(warning.wantedTime), short(warning.actualTime));
-    case "EXISTING_OVER_LIMIT": return advancedText.existingOverLimit(warning.scope, warning.limit, short(warning.firstTime), warning.minuteCount);
-    case "EXISTING_GROUP_CLASH": return advancedText.existingClash(warning.classNames, short(warning.firstTime), warning.minuteCount);
-    case "MASS_START_GROUP_CLASH": return advancedText.massStartClash(warning.className, warning.conflictClassNames, short(warning.startTime));
-  }
 }
 
 /** Minut för minut (PLAN.md steg 26): var de nya tiderna hamnar bland klasserna som behåller sina tider. */

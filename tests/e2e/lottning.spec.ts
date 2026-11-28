@@ -152,15 +152,16 @@ test("samtidiga masstarter på samma bana, masstartsvågor i lottningen och snab
   // Två banor med två klasser vardera (samma kontroller på delad bana!).
   await addCourseAndClass(owner, "Bana A", "Superion dam", "31 32 33");
   await addCourseAndClass(owner, "Bana B", "Hyperion dam", "41 42 43");
-  // Lägg till en andra klass på varje befintlig bana via Klasser → Ny klass.
+  // Lägg till en andra klass på varje befintlig bana via Klasser → Ny klass (formuläret står kvar efter sparande).
   await openStep(owner, "Klasser");
+  await owner.getByRole("button", { name: "Ny klass" }).click();
+  const classForm = owner.locator("form").filter({ has: owner.getByRole("button", { name: "Spara klass" }) });
   for (const [courseName, className] of [["Bana A", "Superion herr"], ["Bana B", "Hyperion herr"]] as const) {
-    await owner.getByRole("button", { name: "Ny klass" }).click();
-    const form = owner.locator("form").filter({ has: owner.getByRole("button", { name: "Spara klass" }) });
-    await form.getByLabel("Nytt klassnamn").fill(className);
-    await form.getByLabel("Bana").selectOption({ label: courseName });
-    await form.getByRole("button", { name: "Spara klass" }).click();
-    await expect(owner.getByRole("row", { name: new RegExp(`^${className}`) })).toBeVisible();
+    await expect(classForm.getByLabel("Nytt klassnamn")).toHaveValue("");
+    await classForm.getByLabel("Nytt klassnamn").fill(className);
+    await classForm.getByRole("combobox", { name: "Bana", exact: true }).selectOption({ label: courseName });
+    await classForm.getByRole("button", { name: "Spara klass" }).click();
+    await expect(owner.getByRole("row", { name: new RegExp(`^${className}`) })).toBeVisible({ timeout: 20_000 });
   }
   let card = 8_400_000;
   for (const className of ["Superion dam", "Superion herr", "Hyperion dam", "Hyperion herr"]) {

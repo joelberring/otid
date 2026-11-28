@@ -1,6 +1,7 @@
 import { startDrawPreviewResponseSchema, startDrawResponseSchema, startDrawSetupResponseSchema, type StartDrawPreviewResponse,
   type StartDrawRequest } from "@o-tid/contracts";
-import { formatClockTime, normalizeClock, parseRaceClock } from "@o-tid/domain";
+import { formatClockTime, normalizeClock, parseRaceClockNear } from "@o-tid/domain";
+import { isClassRelevantDrawWarning } from "./start-draw-waves";
 import type { Workspace } from "./workspace-state";
 
 export type ClassMassStartOutcome =
@@ -26,7 +27,8 @@ export async function saveClassMassStart(
     const setupResponse = await ws.request("/draw", op);
     if (!setupResponse.ok) throw new Error("Draw setup unavailable");
     const setup = startDrawSetupResponseSchema.parse(await ws.json(setupResponse, op));
-    const firstStartTime = parseRaceClock(setup.raceDate, normalized, setup.timeZone);
+    const currentClass = setup.classes.find(row => row.id === classId);
+    const firstStartTime = parseRaceClockNear(setup.raceDate, normalized, setup.timeZone, currentClass?.firstStartTime ?? setup.firstStartTime);
     if (!firstStartTime || Date.parse(firstStartTime) % 60_000 !== 0) return { kind: "INVALID" };
     const settings = {
       firstStartTime,
@@ -45,7 +47,8 @@ export async function saveClassMassStart(
     const preview = startDrawPreviewResponseSchema.parse(await ws.json(previewResponse, op));
     const actualStartTime = preview.classes.find(row => row.classId === classId)?.firstStartTime ?? firstStartTime;
     const actualClock = formatClockTime(actualStartTime, preview.timeZone).slice(0, 5);
-    if ((preview.requiresConfirmation || preview.warnings.length > 0) && !(await confirm(preview, actualClock))) {
+    const hasRelevantWarning = preview.warnings.some(isClassRelevantDrawWarning);
+    if ((preview.requiresConfirmation || hasRelevantWarning) && !(await confirm(preview, actualClock))) {
       return { kind: "CANCELLED" };
     }
     const request: StartDrawRequest = { formatVersion: 1, requestId: crypto.randomUUID(), seed: preview.seed, ...settings,

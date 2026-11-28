@@ -164,19 +164,19 @@ export function createStartDrawAdvancedActions(ws: AdvancedState & {
   }
   function changeLaterStart(classId: string, change: Partial<{ kind: LaterStartKind; value: string }>) {
     changed(`later:${classId}`);
-    setDrawAdvanced(previous => {
-      const next = { ...(previous.laterStarts[classId] ?? { kind: "NONE" as const, value: "" }), ...change };
-      return { ...previous, laterStarts: { ...previous.laterStarts, [classId]: next } };
-    });
     const currentRow = drawRows[classId];
     if (currentRow?.method === "MASS") {
-      const currentKind = drawAdvanced.laterStarts[classId]?.kind ?? (currentRow.massStart.trim() ? "CLOCK" : "NONE");
+      const currentKind = currentRow.massStart.trim() ? "CLOCK" : (drawAdvanced.laterStarts[classId]?.kind ?? "NONE");
       const nextKind = change.kind ?? currentKind;
+      setDrawAdvanced(previous => {
+        const base = previous.laterStarts[classId] ?? { kind: currentKind, value: currentKind === "CLOCK" ? currentRow.massStart : "" };
+        return { ...previous, laterStarts: { ...previous.laterStarts, [classId]: { ...base, ...change, kind: nextKind } } };
+      });
       if (nextKind === "CLOCK" && change.value !== undefined) {
         const nextValue = change.value;
         setDrawRows(previous => {
           const row = previous[classId];
-          return row ? { ...previous, [classId]: { ...row, massStart: nextValue } } : previous;
+          return row ? { ...previous, [classId]: { ...row, massStart: nextValue, selected: true } } : previous;
         });
       } else if (change.kind && change.kind !== "CLOCK") {
         setDrawRows(previous => {
@@ -184,7 +184,12 @@ export function createStartDrawAdvancedActions(ws: AdvancedState & {
           return row ? { ...previous, [classId]: { ...row, massStart: "" } } : previous;
         });
       }
+      return;
     }
+    setDrawAdvanced(previous => {
+      const next = { ...(previous.laterStarts[classId] ?? { kind: "NONE" as const, value: "" }), ...change };
+      return { ...previous, laterStarts: { ...previous.laterStarts, [classId]: next } };
+    });
   }
   function changeSeed(entryId: string, value: string) {
     changed(`seed:${entryId}`);

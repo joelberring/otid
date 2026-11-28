@@ -30,7 +30,7 @@ export const startDrawSv = {
   waves: {
     title: "Masstartstider",
     help: "Skjuts en masstart upp på tävlingsdagen? Flytta hela starten på en gång. Alla i klasserna, efteranmälda och eventuella avlästa resultat uppdateras automatiskt.",
-    entries: (count: number) => `${count} anmälda`,
+    entries: (count: number) => count === 1 ? "1 anmäld" : `${count} anmälda`,
     shift: "Flytta masstart",
     shiftLabel: (clock: string) => `Flytta masstart ${clock}`,
     newTime: "Ny masstart kl.",

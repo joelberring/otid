@@ -139,7 +139,7 @@ export function createStartDrawActions(ws: Base & RaceDataActions) {
   const settingsNow = (setup: StartDrawSetupResponse) =>
     buildDrawSettings(setup, drawRows, drawFirst, drawClubSeparation, drawAdvanced, advancedText, text.massStartInvalid);
 
-  async function readSetup(op: Operation, options: { syncAll?: boolean; syncClassIds?: ReadonlySet<string> } = {}) {
+  async function readSetup(op: Operation, options: { syncAll?: boolean; syncClassIds?: ReadonlySet<string>; syncFirst?: boolean } = {}) {
     const response = await request("/draw", op);
     if (!response.ok) throw new Error("Draw setup unavailable");
     const value = startDrawSetupResponseSchema.parse(await json(response, op));
@@ -159,7 +159,7 @@ export function createStartDrawActions(ws: Base & RaceDataActions) {
     })));
     // ADR-0188 beslut 2: tävlingens första start (samma som under Inställningar), annars den lottade.
     const serverFirst = value.firstStartTime ? formatClockTime(value.firstStartTime, value.timeZone).slice(0, 5) : "";
-    setDrawFirst(previous => (options.syncAll && serverFirst) ? serverFirst : previous || ws.data?.firstStartTime || serverFirst);
+    setDrawFirst(previous => ((options.syncAll || options.syncFirst) && serverFirst) ? serverFirst : previous || ws.data?.firstStartTime || serverFirst);
     // Avancerat läses in en gång: det som sparades med senaste lottningen (PLAN.md steg 26).
     if (!drawAdvancedLoaded || options.syncAll) {
       const advanced = advancedFromSetup(value);
@@ -181,6 +181,15 @@ export function createStartDrawActions(ws: Base & RaceDataActions) {
       if (!(classId in previous)) return previous;
       const next = { ...previous }; delete next[classId]; return next;
     });
+    // När masstartsklockslaget ändras eller rensas i huvudtabellen får inte ett gammalt klockslag under Avancerat ligga kvar som reserv.
+    if (change.massStart !== undefined) {
+      setDrawAdvanced(previous => {
+        if (previous.laterStarts[classId]?.kind !== "CLOCK") return previous;
+        const laterStarts = { ...previous.laterStarts };
+        delete laterStarts[classId];
+        return { ...previous, laterStarts };
+      });
+    }
     setDrawRows(previous => {
       const row = previous[classId];
       if (!row) return previous;
@@ -295,7 +304,7 @@ export function createStartDrawActions(ws: Base & RaceDataActions) {
     const savedClassIds = new Set(attempt.request.classes.map(row => row.classId));
     setDrawRows(previous => Object.fromEntries(Object.entries(previous).map(([id, row]) => [id, { ...row, selected: false }])));
     setPublicationPreview(undefined); setDrawSaved(text.saved);
-    try { await readSetup(op, { syncClassIds: savedClassIds }); await load(op); }
+    try { await readSetup(op, { syncClassIds: savedClassIds, syncFirst: true }); await load(op); }
     catch { if (current(op)) setDrawError(text.error); }
   }
   /** Sparar lottningen som förhandsvisningen visar (samma underlag och samma lottning). */
@@ -353,8 +362,8 @@ export function createStartDrawActions(ws: Base & RaceDataActions) {
       const classNames = wave.classes.map(item => item.name);
       setDrawPreview(undefined); setDrawError(""); setPublicationPreview(undefined);
       setDrawSaved(text.waves.shifted(classNames, wave.clock, savedClock, receipt.recalculatedCount));
-      await readSetup(op, { syncAll: true });
-      await load(op);
+      try { await readSetup(op, { syncAll: true }); await load(op); }
+      catch { if (current(op)) setDrawError(text.error); }
       return { kind: "SHIFTED", fromClock: wave.clock, toClock: savedClock, classNames, recalculatedCount: receipt.recalculatedCount };
     } catch { return current(op) ? { kind: "ERROR" } : { kind: "BUSY" }; }
     finally { finish(op); }

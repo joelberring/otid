@@ -18,7 +18,7 @@
 .header { margin-bottom: 20px; padding: 0 0 14px; border-bottom: 1px solid var(--line); background: transparent; color: var(--ink); }
 .header h1 { margin: 0; font-size: var(--text-xl); font-weight: 600; }
 .createJump { display: none; }
-/* Förslag B: loggan och språket står i överraden bara i telefonbredd (på datorn finns sidhuvudet). */
+/* Förslag B: på inloggningssidan står loggan och språket i överraden bara i telefonbredd (på datorn finns sidhuvudet). */
 .phoneLogo, .phoneLanguage { display: none; }
 .kicker { margin: 0 0 2px; color: var(--muted); font-size: var(--text-xs); }
 .account { flex-wrap: wrap; justify-content: flex-end; font-weight: 550; }
@@ -132,9 +132,10 @@
 }
 
 /*
- * Förslag B (ägaren 2026-11-18): Mitt O-Tid tätare i telefonbredd. Låg topprad (loggan, sidnamnet, språket, hjälpen och
- * kontot) i stället för sidhuvudet (globals.css döljer det), sektionerna i en kolumn med jämna mellanrum. Superadmin står i
- * kontomenyn, och "Till Skapa träning eller tävling" behövs inte (valet Skapa träning eller tävling leder dit).
+ * Förslag B (ägaren 2026-11-18): Mitt O-Tid tätare i telefonbredd, sektionerna i en kolumn med jämna mellanrum. "Till Skapa
+ * träning eller tävling" behövs inte (valet Skapa träning eller tävling leder dit). Inloggningssidan har en låg topprad
+ * (loggan, sidnamnet, språket och hjälpen) i stället för sidhuvudet (globals.css döljer det). Inloggad (steg F1) står namnet i
+ * skalets sidhuvud, så sidans rubrik finns bara för skärmläsare.
  */
 @media (max-width: 640px) {
   .main { display: flex; flex-direction: column; gap: 16px; padding: 0 12px 24px; }
@@ -143,7 +144,7 @@
   .title { display: flex; align-items: center; gap: 10px; min-width: 0; }
   .phoneLogo { display: inline-flex; align-items: center; justify-content: center; flex: none; min-width: 44px; min-height: 44px;
     margin-left: -7px; color: var(--logo); }
-  .kicker, .createJump, .superadmin { display: none; }
+  .kicker, .createJump { display: none; }
   .header h1 { font-size: 20px; font-weight: 700; letter-spacing: -.01em; overflow-wrap: anywhere; }
   .account { flex-wrap: nowrap; justify-content: flex-end; gap: 0; flex: none; }
   .phoneLanguage { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 0 6px;
@@ -154,6 +155,9 @@
     white-space: nowrap; }
   .main > .panel, .columns, .message { margin: 0; }
   .message { min-height: 0; }
+  .signedIn { padding-top: 16px; }
+  .signedIn > .header { position: absolute; width: 1px; height: 1px; min-height: 0; margin: 0; padding: 0; overflow: hidden;
+    clip-path: inset(50%); white-space: nowrap; border: 0; }
 }
 
 /* ADR-0205: "Logga in med Google" under formuläret, avskild med "eller". */

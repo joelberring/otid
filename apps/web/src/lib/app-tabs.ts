@@ -61,6 +61,31 @@ export function activeAppTab(pathname: string, hash = ""): AppTab | null {
   return null;
 }
 
+/**
+ * Steg F1 (ADR-0170 tillägg 2026-11-28): telefonens sidhuvud i det inloggade skalet. Huvudsidorna (Mitt O-Tid med sina ankare
+ * och Mina kartprojekt) har loggan till vänster och ger null; alla andra sidor får en bakåtlänk till sin förälder.
+ */
+export function appTabParent(pathname: string): string | null {
+  const path = trim(pathname);
+  if (path === "/organizer" || path === "/organizer/map-projects") return null;
+  if (path.startsWith("/organizer/map-projects/")) return "/organizer/map-projects";
+  const club = /^\/organizer\/clubs\/([^/]+)\/.+$/.exec(path);
+  if (club) return `/organizer/clubs/${club[1]}`;
+  if (/^\/konto\/.+$/.test(path)) return "/konto";
+  return "/organizer";
+}
+
+/** Rubriken mitt i telefonens sidhuvud: «Mitt O-Tid» i navet, annars flikens namn, Mitt konto eller Superadmin. */
+export type AppTopTitle = AppTab | "hub" | "account" | "superadmin";
+
+export function appTopTitle(pathname: string): AppTopTitle {
+  const path = trim(pathname);
+  if (path === "/organizer") return "hub";
+  if (path === "/konto" || path.startsWith("/konto/")) return "account";
+  if (path === "/superadmin" || path.startsWith("/superadmin/")) return "superadmin";
+  return activeAppTab(path) ?? "hub";
+}
+
 /** Utan avslutande snedstreck (utom för roten) och utan fråga eller ankare. */
 function trim(pathname: string): string {
   const path = pathname.split(/[?#]/)[0] ?? "";

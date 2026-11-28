@@ -18,6 +18,7 @@ export const dynamic = "force-dynamic";
 
 export default async function OrganizerPage() {
   // Besöksstatistiken (ägaren 2026-11-22): Skapa konto/logga in visad för en besökare utan sessionskaka.
-  if (!await accountSessionToken()) countVisit("SIGN_IN", await headers());
-  return <OrganizerWorkspace googleEnabled={googleLoginEnabled()} />;
+  const signedIn = Boolean(await accountSessionToken());
+  if (!signedIn) countVisit("SIGN_IN", await headers());
+  return <OrganizerWorkspace googleEnabled={googleLoginEnabled()} signedIn={signedIn} />;
 }

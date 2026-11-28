@@ -5,7 +5,6 @@ import { trainingGroupEn } from "../../i18n/training-group-en";
 import { raceTypeEn } from "../../i18n/workspace-en";
 import { useTexts } from "../language-provider";
 import Link from "next/link";
-import { AccountMenu } from "../account-menu";
 import type { GroupLeaderView as View, GroupSession } from "@o-tid/contracts";
 import { trainingGroupSv } from "../../i18n/training-group-sv";
 import { raceTypeSv } from "../../i18n/race-type-sv";
@@ -100,7 +99,6 @@ export function GroupLeaderView({ groupId }: { groupId: string }) {
         <AppCode code={view.settings.code} />
         <Link href={`/g/${view.settings.code}/qr`}>{text.qr}</Link>
         <PublicLinkShare path={`/g/${view.settings.code}`} title={view.settings.name} />
-        <AccountMenu />
       </div>
     </header>
     {(message || problem) && <Notice tone={problem ? "error" : "ok"} role="status">{problem || message}</Notice>}

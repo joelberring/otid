@@ -1,0 +1,15 @@
+/*
+ * Steg F1: vänstermenyn (216 px, 60 px i mellanbredd) och innehållskolumnen. Sidans `main` ligger i kolumnen inom högst
+ * 1200 px, centrerad (sidornas egna, smalare mått gäller inuti). Sidfoten står längst ned i kolumnen. I telefonen och på
+ * papper bara kolumnen.
+ */
+.shell { display: grid; grid-template-columns: auto minmax(0, 1fr); min-height: 100vh; min-height: 100dvh; }
+.column { display: flex; flex-direction: column; min-width: 0; }
+.content { flex: 1 0 auto; width: 100%; max-width: 1200px; margin-inline: auto; }
+.footer > :global(.site-footer) { padding: 16px max(16px, calc((100% - 1120px) / 2 + 16px)) 24px; border-top: 1px solid var(--line);
+  font-size: var(--text-xs); }
+@media (max-width: 640px) { .shell { display: block; } }
+@media print {
+  .shell { display: block; min-height: 0; }
+  .footer { display: none; }
+}

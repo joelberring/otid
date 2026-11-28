@@ -34,10 +34,7 @@
 .confirm p { margin: 0; }
 .confirm div { display: flex; flex-wrap: wrap; gap: .5rem; }
 .error { margin: 0; padding: .4rem .6rem; color: var(--mp); font-size: var(--text-sm); }
-/* Förslag B: superadminlänken bara i telefonbredd. */
-.phoneOnly { display: none; }
 @media (max-width: 640px) {
-  .phoneOnly { display: flex; }
   .name, .caret { display: none; }
   .trigger { padding: 0 .3rem; }
 }
@@ -47,3 +44,24 @@
   order: -1; align-self: center; margin-right: .4rem; padding: .1rem .5rem; border: 1px dashed var(--line-strong);
   border-radius: 999px; color: var(--muted); font-size: var(--text-xs); font-weight: 600; white-space: nowrap;
 }
+/*
+ * Steg F1, det inloggade skalet. Vänstermenyn: knappen över hela bredden och panelen uppåt från knappens vänstra kant; i
+ * ikonremsan (641–1100 px) bara initialerna, och språkbytet står i panelen. Telefonens sidhuvud: initialerna på 44 × 44 px.
+ */
+.rail { display: flex; flex-direction: column; align-items: stretch; gap: 4px; }
+.rail .trigger { width: 100%; min-height: 44px; }
+.rail .name { flex: 1; text-align: left; }
+/* Vänstermenyn rullar själv (och klipper då det som sticker ut), så panelen står fast i fönstret: ovanför knappen, i ikonremsan
+   till höger om remsan. */
+.rail .panel { position: fixed; top: auto; right: auto; left: calc(12px + env(safe-area-inset-left, 0px));
+  bottom: calc(max(12px, env(safe-area-inset-bottom, 0px)) + 50px); }
+.rail .guest { order: -1; align-self: flex-start; margin: 0; }
+@media (min-width: 1101px) { .rail .language { display: none; } }
+@media (max-width: 1100px) {
+  .rail .trigger { justify-content: center; padding: 0; border-color: transparent; background: transparent; }
+  .rail .name, .rail .caret, .rail .guest { display: none; }
+  .rail .panel { left: calc(66px + env(safe-area-inset-left, 0px)); bottom: max(12px, env(safe-area-inset-bottom, 0px)); }
+}
+.top .trigger { justify-content: center; width: 44px; min-height: 44px; padding: 0; border-color: transparent; background: transparent; }
+.top .guest { display: none; }
+.top .trigger[aria-expanded="true"], .rail .trigger[aria-expanded="true"] { border-color: var(--ink); background: var(--subtle); }

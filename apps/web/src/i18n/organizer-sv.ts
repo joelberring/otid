@@ -61,7 +61,6 @@ export const organizerSv = {
   forgotPassword: "Glömt lösenordet?",
   logout: "Logga ut",
   myAccount: "Mitt konto",
-  superadmin: "Superadmin",
   yourEvents: "Mitt O-Tid",
   kicker: "O-Tid",
   eventsSection: "Dina tävlingar",

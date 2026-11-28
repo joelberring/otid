@@ -9,7 +9,6 @@ import type { MapProjectList } from "@o-tid/contracts";
 import { mapProjectSv } from "../../i18n/map-project-sv";
 import { clubRequest, csrf } from "../../lib/club-request";
 import { mapProjectsBase } from "../../lib/map-project-client";
-import { AccountMenu } from "../account-menu";
 import { Button, Field, Notice } from "../ui";
 import { MyMapStatsSection } from "./map-stats-sections";
 import { NewMapProject } from "./new-map-project";
@@ -55,7 +54,6 @@ export function MyMapProjects() {
   return <main className={styles.page}>
     <header className={styles.header}>
       <div><p className={styles.kicker}><Link href="/organizer">{text.back}</Link></p><h1>{text.title}</h1></div>
-      <AccountMenu />
     </header>
     <p className={styles.muted}>{text.hint}</p>
     {/* Översynen 2026-11-17: «Nytt kartprojekt» syns direkt, också när listan är lång (formulären står längst ned). */}

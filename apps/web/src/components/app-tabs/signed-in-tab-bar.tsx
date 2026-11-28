@@ -4,9 +4,8 @@ import { accountSessionToken } from "../../lib/public-race-gate";
 import { AppTabBar } from "./app-tab-bar";
 
 /**
- * Förslag B (ADR-0227 tillägg): flikraden i de inloggade delarnas layouter (Mitt O-Tid med kartprojekt, klubbar och grupper,
- * arbetsytan, Mitt konto och superadmin). Bara när kontot är inloggat; inloggningssidan och publika sidor får ingen rad.
- * Inloggningen i Mitt O-Tid sker i klienten, som därefter ritar om layouten (`router.refresh`).
+ * Förslag B (ADR-0227 tillägg): flikraden i arrangemangets layout för den som saknar roll där (t.ex. bara banläggningen).
+ * Inne i ett arrangemang finns ingen vänstermeny (steg F1); de övriga inloggade sidorna har hela skalet (`SignedInShell`).
  */
 export async function SignedInTabBar() {
   const token = await accountSessionToken();

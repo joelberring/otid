@@ -22,8 +22,7 @@ import { ClubSpacePanel, type ClubSpaceFocus } from "../club-affiliation/club-sp
 import { ClubStartCard, type ClubStartTarget } from "./club-start-card";
 import { ClubStorageSection } from "./club-storage";
 import { clubAffiliationSv } from "../../i18n/club-affiliation-sv";
-import { HelpButton } from "../help/help-panel";
-import { AccountMenu } from "../account-menu";
+import { useShellHelp } from "../app-tabs/shell-help";
 import { NewsEditor } from "../news/news-editor";
 import styles from "./club-archive.module.css";
 
@@ -51,6 +50,8 @@ export function ClubArchivePage({ clubId }: { clubId: string }) {
   const [tab, setTab] = useState<Tab>("trainings");
   const [focus, setFocus] = useState<ClubSpaceFocus>();
   const tabs = useRef<HTMLDivElement>(null);
+  // Skalets Hjälp (steg F1): flikens artiklar först.
+  useShellHelp([TAB_HELP[tab], "ARCHIVE_TRAININGS"]);
   useEffect(() => {
     setTab(initialTab());
     // Länkar till en annan flik på samma sida (#members, #planning …) byter flik utan att sidan laddas om.
@@ -105,9 +106,6 @@ export function ClubArchivePage({ clubId }: { clubId: string }) {
       </div>
       <div className={styles.headSide}>
         <p className={styles.usage} data-testid="club-usage">{usage}</p>
-        {/* Hjälp (grenen hjalp-banlaggning): flikens artiklar först. */}
-        <HelpButton view={[TAB_HELP[tab], "ARCHIVE_TRAININGS"]} />
-        <AccountMenu />
       </div>
     </header>
     <ClubStartCard club={club} clubName={list.clubName} onGo={go} />

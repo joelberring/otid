@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
 import { sv } from "../i18n/sv";
@@ -13,6 +13,9 @@ import "./globals.css";
 
 /** Ikonerna ligger bredvid (`favicon.ico`, `icon.svg`, `apple-icon.png`) och manifestet i `manifest.ts`. */
 export const metadata: Metadata = { title: sv.appName, applicationName: sv.appName, description: `${sv.appName} – ${sv.tagline}` };
+
+/** Steg F1: sidan ritas ut till skärmens kanter; skalen och globals.css håller innehållet innanför (`env(safe-area-inset-*)`). */
+export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover" };
 
 /**
  * PLAN.md steg 46: sidornas CSP har en nonce per förfrågan (`src/proxy.ts`), som Next sätter på sina skript när sidan

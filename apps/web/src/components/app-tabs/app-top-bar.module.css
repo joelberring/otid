@@ -1,0 +1,21 @@
+/*
+ * Steg F1 (ADR-0170 tillägg 2026-11-28): telefonens sidhuvud i det inloggade skalet, 48 px plus skärmens överkant, vit yta med
+ * linje under. Står kvar överst när sidan rullar. Syns bara i telefonbredd (640 px, samma brytpunkt som flikraden).
+ */
+.bar { display: none; }
+@media screen and (max-width: 640px) {
+  .bar { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 4px;
+    min-height: calc(48px + env(safe-area-inset-top, 0px)); padding: env(safe-area-inset-top, 0px) 4px 0;
+    border-bottom: 1px solid var(--line); background: var(--surface); }
+  .side { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 44px; height: 44px; color: var(--ink);
+    border-radius: var(--radius); text-decoration: none; }
+  .side:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .logo { color: var(--logo); }
+  .back { width: 26px; height: 26px; }
+  .title { flex: 1; min-width: 0; margin: 0; overflow: hidden; color: var(--ink); font-size: var(--text-md); font-weight: 700;
+    text-overflow: ellipsis; white-space: nowrap; }
+  .tools { display: flex; align-items: center; flex: none; gap: 0; }
+  /* Hjälpen som ett «?» på 44 × 44 px utan ram (HelpButton `compact` döljer ordet). */
+  .tools > button { justify-content: center; width: 44px; min-height: 44px; padding: 0; border-color: transparent; background: transparent; }
+  .tools > button > span:first-child { width: 22px; height: 22px; font-size: 13px; }
+}

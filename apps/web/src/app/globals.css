@@ -266,16 +266,29 @@ td { font-variant-numeric: tabular-nums; }
 }
 
 /*
- * Förslag B (ägaren 2026-11-18, ADR-0227 tillägg): flikraden nertill för inloggade i telefonbredd (`AppTabBar`, 56 px plus
- * skärmens nedre kant). Sidan får lika mycket luft nertill så att inget hamnar bakom raden.
+ * Förslag B (ägaren 2026-11-18, ADR-0227 tillägg): flikraden nertill för inloggade i telefonbredd (`AppTabBar`, 60 px plus
+ * skärmens nedre kant sedan steg F1; tävlingsraden 56 px). Sidan får lika mycket luft nertill så att inget hamnar bakom raden.
  */
 @media screen and (max-width: 640px) {
-  body:has(> [data-app-tabs]), body:has(> [data-race-tabs]) {
+  body:has(> [data-app-tabs]) {
+    padding-bottom: calc(60px + max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px))); }
+  body:has(> [data-race-tabs]) {
     padding-bottom: calc(56px + max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px))); }
   /* Tävlingsraden (ADR-0227 tillägg 2026-11-18): arrangemangets egna sidor har överraden «‹ Mitt O-Tid» i stället för sidhuvudet. */
   body:has(> [data-race-top]) > .site-header { display: none; }
 }
-/* Förslag B: Mitt O-Tid har en egen låg topprad i telefonbredd; layoutens sidhuvud döljs där. */
+/* Förslag B: inloggningssidan (Mitt O-Tid utan inloggning) har en egen låg topprad i telefonbredd; layoutens sidhuvud döljs där. */
 @media (max-width: 640px) {
   body:has(> main[data-compact-hub]) > .site-header { display: none; }
 }
+/*
+ * Steg F1 (ADR-0170 tillägg 2026-11-28): det inloggade skalet (`AppShell`) har loggan i vänstermenyn och telefonens sidhuvud
+ * och sidfoten i innehållskolumnen, så layoutens sidhuvud och sidfot visas inte där.
+ */
+body:has(> [data-app-shell]) > :is(.site-header, .site-footer) { display: none; }
+/*
+ * Steg F1: `viewport-fit=cover` gäller alla sidor (rotlayoutens viewport). Innehållet hålls innanför skärmens kanter (urtag och
+ * rundade hörn) i sidled och överst; skalets sidhuvud, flikraden och vänstermenyn tar hand om sina egna kanter.
+ */
+body { padding-inline: env(safe-area-inset-left, 0px) env(safe-area-inset-right, 0px); }
+body:not(:has(> [data-app-shell])) { padding-top: env(safe-area-inset-top, 0px); }

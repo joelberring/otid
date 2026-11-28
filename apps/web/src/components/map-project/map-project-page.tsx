@@ -13,7 +13,6 @@ import { mapProjectEditorSv } from "../../i18n/map-project-editor-sv";
 import { invitationMailNote } from "../../i18n/invitation-sv";
 import { clubRequest } from "../../lib/club-request";
 import { mapProjectBase } from "../../lib/map-project-client";
-import { AccountMenu } from "../account-menu";
 import { ClubMemberPicker, JoinLinks } from "./map-project-join-panel";
 import { ProjectStatsSection } from "./map-stats-sections";
 import { MapProjectNextSteps } from "./map-project-next-steps";
@@ -112,7 +111,6 @@ export function MapProjectPage({
         <h1>{project.name}</h1>
         <MapProjectPolicyBadges project={project} publishedInCatalog={catalogPublished} />
       </div>
-      <AccountMenu />
     </header>
     {project.status === "CLOSED" && <Notice tone="attention">{text.page.closed}</Notice>}
     {message && <Notice tone={message.tone} role={message.tone === "ok" ? "status" : "alert"}>{message.text}

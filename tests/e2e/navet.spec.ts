@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
 import { registerAccount, reviewScreenshots, today, unique, warmRoute } from "./helpers";
 
@@ -100,11 +102,27 @@ test("Mitt O-Tid: fyra val, Lägg banor direkt, klubbfrågan på en rad, knappar
 });
 
 /**
- * Förslag B (ägaren 2026-11-18): flikraden nertill för inloggade i telefonbredd. Syns i Mitt O-Tid på 390 px men inte på 1280 px,
- * markerar sidans flik (aria-current), Banor öppnar Lägg banor, och raden finns inte i kartredigeraren eller banläggningen.
+ * Förslag B (ägaren 2026-11-18) och steg F1 (ADR-0170 tillägg 2026-11-28): det inloggade skalet. Datorn: vänstermenyn med
+ * samma fem som flikraden, sidans flik markerad (aria-current och en ring runt ikonen), Hjälp och kontot nederst; i
+ * mellanbredd en ikonremsa utan sidledsrullning. Telefonen: flikraden nertill och ett sidhuvud med loggan på huvudsidorna och
+ * «‹» till sidans förälder annars. Inget skal i arrangemanget, kartredigeraren, banläggningen eller på inloggningssidan.
  */
-test("Flikraden: i telefonbredd på de inloggade sidorna, inte på datorn och inte i helskärmslägen", async ({ browser }) => {
-  test.setTimeout(240_000);
+const mapBytes = new Uint8Array(readFileSync(new URL("../../fixtures/maps/kartfil.omap", import.meta.url)));
+
+async function post(page: Page, path: string, data: unknown) {
+  const csrf = (await page.context().cookies()).find(cookie => /otid[-_]organizer[-_]csrf$/.test(cookie.name))?.value ?? "";
+  const response = await page.request.post(path, { headers: { origin: new URL(page.url()).origin, "x-otid-csrf": csrf,
+    "idempotency-key": `organizer-event-create:${randomUUID()}` }, data });
+  expect(response.status(), path).toBeLessThan(300);
+  return response.json() as Promise<Record<string, unknown>>;
+}
+
+async function noSidewaysScroll(page: Page) {
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(await page.evaluate(() => window.innerWidth));
+}
+
+test("Skalet: vänstermenyn på datorn, ikonremsan, telefonens sidhuvud och flikrad, inte i helskärmslägen", async ({ browser }) => {
+  test.setTimeout(600_000);
   const suffix = unique();
   const page = await registerAccount(browser, `flikar.${suffix}@exempel.se`, "Fia Flik");
   // Utvecklingsserverns egen knapp (nere till vänster) ligger över fliken Kartor; den finns inte i drift.
@@ -113,16 +131,88 @@ test("Flikraden: i telefonbredd på de inloggade sidorna, inte på datorn och in
   }));
   await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
   const none = "00000000-0000-4000-8000-000000000000";
-  for (const path of ["/organizer/map-projects", `/organizer/map-projects/${none}/map`, `/admin/${none}/course-setting`, "/konto"]) {
-    await warmRoute(page, path);
-  }
-  const tabs = page.getByRole("navigation", { name: "Huvudmeny" });
+  for (const path of ["/organizer/map-projects", `/organizer/map-projects/${none}`, `/organizer/map-projects/${none}/map`,
+    `/admin/${none}/course-setting`, `/admin/${none}/manage`, "/konto", `/organizer/clubs/${none}`]) await warmRoute(page, path);
+  await warmRoute(page, "/api/organizer/map-projects/upload", "POST");
+  const club = (await post(page, "/api/organizer/clubs", { formatVersion: 1, requestId: randomUUID(), name: `OK Skalet ${suffix}` })).club as
+    { clubId: string };
+  const raceId = (await post(page, "/api/organizer/events", { formatVersion: 1, eventName: `Skalträning ${suffix}`, raceName: "",
+    raceDate: today(), timeZone: "Europe/Stockholm", raceType: "TRAINING" })).raceId as string;
+  await page.goto("/organizer/map-projects");
+  const form = page.getByRole("form", { name: "Nytt kartprojekt från en kartfil" });
+  await form.getByLabel("Kartfil (.omap, .xmap eller .ocd)").setInputFiles({ name: "Skalet.omap", mimeType: "application/octet-stream",
+    buffer: Buffer.from(mapBytes) });
+  await form.getByRole("button", { name: "Starta projektet" }).click();
+  await page.waitForURL(/\/organizer\/map-projects\/[0-9a-f-]+$/);
+  const projectPath = new URL(page.url()).pathname;
 
-  // Datorn: ingen rad. Telefonen: raden med fem flikar och Hem markerad.
-  await page.setViewportSize({ width: 1280, height: 900 });
-  await expect(page.getByRole("heading", { name: "Mitt O-Tid", level: 1 })).toBeVisible();
-  await expect(tabs).toBeHidden();
+  const rail = page.getByTestId("app-rail");
+  const railLinks = rail.getByRole("navigation", { name: "Huvudmeny" }).getByRole("link");
+  const tabs = page.getByTestId("app-tabs");
+  const top = page.getByTestId("app-top");
+
+  // Datorn: vänstermenyn med fem länkar och sidans flik markerad; inget globalt sidhuvud, flikraden och telefonens sidhuvud syns inte.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  for (const [path, current] of [["/organizer", "Hem"], ["/organizer/map-projects", "Kartor"], [projectPath, "Kartor"],
+    [`/organizer/clubs/${club.clubId}`, "Klubb"], ["/konto", null]] as const) {
+    await page.goto(path);
+    await expect(rail, path).toBeVisible();
+    await expect(railLinks).toHaveText(["Hem", "Kartor", "Banor", "Träningar", "Klubb"]);
+    if (current) await expect(rail.locator('[aria-current="page"]'), path).toHaveText(current);
+    else await expect(rail.locator("[aria-current]"), path).toHaveCount(0);
+    await expect(page.locator(".site-header"), path).toBeHidden();
+    await expect(tabs).toBeHidden();
+    await expect(top).toBeHidden();
+    // Hjälp, språket och kontot nederst i menyn, en gång; sidans rubrik står kvar.
+    await expect(rail.getByRole("button", { name: "Hjälp", exact: true })).toBeVisible();
+    await expect(rail.getByTestId("language-switch")).toHaveText("English");
+    await expect(page.getByRole("button", { name: /^Konto: / })).toHaveCount(1);
+    await expect(page.getByRole("button", { name: "Hjälp", exact: true })).toHaveCount(1);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    // Innehållet till höger om menyn.
+    const menu = (await rail.boundingBox())!;
+    expect(menu.width).toBe(216);
+    expect((await page.locator("main").first().boundingBox())!.x).toBeGreaterThanOrEqual(menu.x + menu.width);
+    await noSidewaysScroll(page);
+  }
+  // Ringen runt den aktiva ikonen (accentfärgen) och fetare text.
+  await page.goto("/organizer");
+  const active = rail.locator('[aria-current="page"]');
+  expect(await active.evaluate(element => getComputedStyle(element.firstElementChild!).borderTopColor)).toBe("rgb(142, 42, 128)");
+  expect(await rail.getByRole("link", { name: "Kartor" }).evaluate(element => getComputedStyle(element.firstElementChild!).borderTopColor))
+    .toBe("rgba(0, 0, 0, 0)");
+  expect(await rail.getByRole("link", { name: "Hem" }).evaluate(element => getComputedStyle(element).fontWeight)).toBe("700");
+  // Menyn står kvar när sidan rullar.
+  await page.setViewportSize({ width: 1440, height: 500 });
+  await expect(page.getByRole("heading", { name: "Dina tävlingar" })).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, 600));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  expect((await rail.boundingBox())!.y).toBe(0);
+  expect((await rail.boundingBox())!.height).toBe(500);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  // Banor öppnar Lägg banor i navet.
+  await rail.getByRole("link", { name: "Banor" }).click();
+  await expect(page.getByTestId("quick-course")).toBeVisible();
+  await expect(rail.locator('[aria-current="page"]')).toHaveText("Banor");
+  await reviewScreenshots(page, "skal-mitt-o-tid", [1440, 900, 390]);
+
+  // Mellanbredd: ikonremsan, namnen för skärmläsare och som title, och ingen sidledsrullning.
+  await page.setViewportSize({ width: 900, height: 900 });
+  await page.goto(`/organizer/clubs/${club.clubId}`);
+  await expect(rail).toBeVisible();
+  expect((await rail.boundingBox())!.width).toBe(60);
+  await expect(rail.getByRole("link", { name: "Kartor" })).toHaveAttribute("title", "Kartor");
+  await expect(rail.locator('[aria-current="page"]')).toHaveAccessibleName("Klubb");
+  await expect(rail.getByRole("button", { name: "Hjälp", exact: true })).toBeVisible();
+  await expect(rail.getByRole("button", { name: /^Konto: / })).toBeVisible();
+  await noSidewaysScroll(page);
+  await page.goto(projectPath);
+  await noSidewaysScroll(page);
+
+  // Telefonen: flikraden med ringen och sidhuvudet; loggan på Mitt O-Tid.
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/organizer");
+  await expect(rail).toBeHidden();
   await expect(tabs).toBeVisible();
   await expect(tabs.getByRole("link")).toHaveText(["Hem", "Kartor", "Banor", "Träningar", "Klubb"]);
   await expect(tabs.getByRole("link", { name: "Hem" })).toHaveAttribute("aria-current", "page");
@@ -131,40 +221,67 @@ test("Flikraden: i telefonbredd på de inloggade sidorna, inte på datorn och in
     expect(box.height).toBeGreaterThanOrEqual(44);
     expect(box.width).toBeGreaterThanOrEqual(44);
   }
-  // Inget hamnar bakom raden: sidan har lika mycket luft nertill som raden är hög.
+  // Inget hamnar bakom raden: högst 60 px, och sidan har lika mycket luft nertill.
   const bar = (await tabs.boundingBox())!;
+  expect(bar.height).toBeLessThanOrEqual(61);
   expect(bar.y + bar.height).toBeLessThanOrEqual(844 + 1);
   expect(await page.evaluate(() => parseFloat(getComputedStyle(document.body).paddingBottom))).toBeGreaterThanOrEqual(bar.height - 1);
-  await reviewScreenshots(page, "flikrad-mitt-o-tid", [390]);
-  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(top).toBeVisible();
+  expect((await top.boundingBox())!.height).toBeLessThanOrEqual(49);
+  await expect(top).toContainText("Mitt O-Tid");
+  await expect(top.getByRole("link", { name: "O-Tid, till startsidan" })).toHaveAttribute("href", "/");
+  await expect(top.getByTestId("app-top-back")).toHaveCount(0);
+  await expect(page.locator(".site-header")).toBeHidden();
+  for (const control of [top.getByRole("button", { name: "Hjälp" }), top.getByRole("button", { name: /^Konto: / })]) {
+    const box = (await control.boundingBox())!;
+    expect(box.width).toBeGreaterThanOrEqual(44);
+    expect(box.height).toBeGreaterThanOrEqual(44);
+  }
+  // Språket står i kontomenyn.
+  await top.getByRole("button", { name: /^Konto: / }).click();
+  await expect(top.getByTestId("account-menu").getByTestId("language-switch")).toHaveText("English");
+  await page.keyboard.press("Escape");
+  await noSidewaysScroll(page);
 
-  // Banor öppnar Lägg banor i navet.
-  await tabs.getByRole("link", { name: "Banor" }).click();
-  await expect(page.getByTestId("quick-course")).toBeVisible();
-
-  // Kartor: listan över kartprojekt med fliken markerad.
+  // Bakåtlänken till sidans förälder: kartprojektet → Mina kartprojekt, klubben → Mitt O-Tid, Mitt konto → Mitt O-Tid.
+  for (const [path, parent, title] of [[projectPath, "/organizer/map-projects", "Kartor"], [`/organizer/clubs/${club.clubId}`, "/organizer", "Klubb"],
+    ["/konto", "/organizer", "Mitt konto"]] as const) {
+    await page.goto(path);
+    await expect(top.getByRole("link", { name: "Tillbaka" }), path).toHaveAttribute("href", parent);
+    await expect(top).toContainText(title);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await noSidewaysScroll(page);
+  }
+  await top.getByRole("link", { name: "Tillbaka" }).click();
+  await page.waitForURL(/\/organizer$/);
   await tabs.getByRole("link", { name: "Kartor" }).click();
   await page.waitForURL(/\/organizer\/map-projects$/);
   await expect(tabs.getByRole("link", { name: "Kartor" })).toHaveAttribute("aria-current", "page");
-  await expect(tabs.getByRole("link", { name: "Hem" })).not.toHaveAttribute("aria-current", "page");
-  await reviewScreenshots(page, "flikrad-kartprojekt", [390]);
-  await page.setViewportSize({ width: 390, height: 844 });
-
-  // Mitt konto har raden utan markerad flik.
+  await expect(top).toContainText("Kartor");
+  await expect(top.getByTestId("app-top-back")).toHaveCount(0);
   await page.goto("/konto");
-  await expect(tabs).toBeVisible();
   await expect(tabs.locator("[aria-current]")).toHaveCount(0);
 
-  // Helskärmslägen: kartredigeraren och banläggningens rityta.
-  for (const path of [`/organizer/map-projects/${none}/map`, `/admin/${none}/course-setting`]) {
-    await page.goto(path);
-    await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => undefined);
-    await expect(page.getByTestId("app-tabs"), path).toHaveCount(0);
+  // Arrangemanget, kartredigeraren och banläggningen: ingen vänstermeny och inget nytt sidhuvud.
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const path of [`/admin/${raceId}/manage`, `${projectPath}/map`, `/admin/${raceId}/course-setting`]) {
+      await page.goto(path);
+      await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => undefined);
+      await expect(page.getByTestId("app-rail"), `${path} ${width}`).toHaveCount(0);
+      await expect(page.getByTestId("app-top"), `${path} ${width}`).toHaveCount(0);
+      if (!path.endsWith("/manage")) await expect(page.getByTestId("app-tabs"), path).toHaveCount(0);
+    }
   }
 
-  // Utloggad: ingen rad på inloggningssidan.
-  const visitor = await (await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "sv-SE" })).newPage();
+  // Utloggad: inget skal på inloggningssidan.
+  const visitor = await (await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: "sv-SE" })).newPage();
   await visitor.goto("/organizer");
   await expect(visitor.getByRole("heading", { name: "Logga in" })).toBeVisible();
-  await expect(visitor.getByTestId("app-tabs")).toHaveCount(0);
+  for (const width of [1440, 390]) {
+    await visitor.setViewportSize({ width, height: 844 });
+    await expect(visitor.getByTestId("app-rail")).toHaveCount(0);
+    await expect(visitor.getByTestId("app-top")).toHaveCount(0);
+    await expect(visitor.getByTestId("app-tabs")).toHaveCount(0);
+  }
 });

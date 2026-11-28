@@ -50,7 +50,6 @@ import { splitMyEvents } from "../lib/my-events-order";
 import { raceListName } from "../lib/race-list-name";
 import { MyPlacesStrip } from "./my-places-strip";
 import { MyPlanTasks } from "./club-planning/my-plan-tasks";
-import { AccountMenu } from "./account-menu";
 import { AccountBenefits } from "./account-benefits";
 import { applyClubMap, ClubMapChoiceField, type ClubMapChoice } from "./club-archive/club-map-picker";
 import { OrganiserChoiceField } from "./club-affiliation/organiser-choice-field";
@@ -148,7 +147,9 @@ function GoogleLogin({ remember, copy }: { remember: boolean; copy: Copy }) {
   </div>;
 }
 
-export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: boolean }) {
+export function OrganizerWorkspace({ googleEnabled = false, signedIn = false }: { googleEnabled?: boolean;
+  /** Sessionskakan finns (servern): sidan ritas som inloggad tills sessionen är kontrollerad, så att toppraden inte blinkar. */
+  signedIn?: boolean }) {
   const clubMapDuplicatesText = useTexts(clubMapDuplicatesSv, clubMapDuplicatesEn), raceMapText = useTexts(raceMapSv, raceMapEn);
   const backupText = useTexts(raceBackupSv, raceBackupEn);
   const raceCopyText = useTexts(raceCopySv, raceCopyEn);
@@ -534,19 +535,15 @@ export function OrganizerWorkspace({ googleEnabled = false }: { googleEnabled?: 
             })}</ul>
           </li>;
 
-  // Förslag B: i telefonbredd en låg topprad (loggan, sidnamnet, språket, hjälpen och kontot) i stället för sidhuvudet.
-  return <main className={styles.main} data-compact-hub>
+  // Steg F1: inloggad har sidan skalets vänstermeny och sidhuvud (hjälpen, språket och kontot står där). Inloggningssidan har
+  // kvar sin låga topprad i telefonbredd (förslag B): loggan, sidnamnet, språket och hjälpen i stället för sidhuvudet.
+  const loginView = sessionChecked ? !session : !signedIn;
+  return <main className={`${styles.main}${loginView ? "" : ` ${styles.signedIn}`}`} data-compact-hub={loginView ? "" : undefined}>
     <header className={styles.header}>
       <div className={styles.title}><Link className={styles.phoneLogo} href="/" aria-label={sv.appName}><Logo size={30} /></Link>
         <div><p className={styles.kicker}>{copy.kicker}</p><h1>{copy.yourEvents}</h1>
         {session && events.length > 0 && <a className={styles.createJump} href="#organizer-create-event">{copy.createJump}</a>}</div></div>
-      {session && <div className={styles.account}>
-        {session.superadmin && <Link className={styles.superadmin} href="/superadmin">{copy.superadmin}</Link>}
-        <LanguageSwitch language={language} className={styles.phoneLanguage} />
-        <HelpButton view="EVENTS" />
-        <AccountMenu who={{ displayName: session.displayName, email: session.email }} superadmin={session.superadmin} />
-      </div>}
-      {!session && <div className={styles.account}><LanguageSwitch language={language} className={styles.phoneLanguage} />
+      {loginView && <div className={styles.account}><LanguageSwitch language={language} className={styles.phoneLanguage} />
         <HelpButton view="EVENTS" /></div>}
     </header>
 

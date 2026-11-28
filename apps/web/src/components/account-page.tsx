@@ -10,7 +10,6 @@ import { accountRequest } from "../lib/account-client";
 import { NewPasswordFields, PasswordInput, passwordsReady } from "./password-field";
 import { Button, Field, Notice, Section } from "./ui";
 import { AccountClubs } from "./club-affiliation/account-clubs";
-import { AccountMenu } from "./account-menu";
 import { AccountGoogle, LogoutEverywhere } from "./account-google";
 import { AccountAi } from "./account-ai";
 import { AccountMapSources } from "./account-map-sources";
@@ -128,8 +127,7 @@ export function AccountPage({ googleEnabled = false }: { googleEnabled?: boolean
   return <main className={`${styles.page} ${styles.narrow}`}>
     <header className={styles.header}>
       <div><p className={styles.kicker}>{text.kicker}</p><h1>{text.title}</h1></div>
-      {!deleted && <nav className={styles.headerNav} aria-label={text.title}><Link href="/organizer">{accountSv.backToEvents}</Link>
-        {profile && <AccountMenu who={{ displayName: profile.displayName, email: profile.email }} />}</nav>}
+      {!deleted && <nav className={styles.headerNav} aria-label={text.title}><Link href="/organizer">{accountSv.backToEvents}</Link></nav>}
     </header>
     {!profile && !loadError && <p role="status">{text.loading}</p>}
     {loadError && <Notice tone="error" role="alert">{loadError} <Link href="/organizer">{accountSv.logIn}</Link></Notice>}

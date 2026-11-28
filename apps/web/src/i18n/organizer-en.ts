@@ -59,7 +59,6 @@ export const organizerEn: Texts<typeof organizerSv> = {
   forgotPassword: "Forgot password?",
   logout: "Sign out",
   myAccount: "My account",
-  superadmin: "Superadmin",
   yourEvents: "My O-Tid",
   kicker: "O-Tid",
   eventsSection: "Your events",

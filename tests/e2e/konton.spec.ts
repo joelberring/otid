@@ -122,6 +122,8 @@ test("superadmin döljer och tar bort en skräptävling och spärrar kontot", as
   expect((await boss.request.get("/api/superadmin")).status()).toBe(403);
   grantSuperadmin(bossEmail);
   await boss.reload();
+  // Steg F1: länken står i kontomenyn (nederst i vänstermenyn).
+  await boss.getByRole("button", { name: /^Konto: / }).click();
   await boss.getByRole("link", { name: "Superadmin" }).click();
   await expect(boss.getByRole("heading", { name: "Superadmin" })).toBeVisible();
 

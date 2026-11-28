@@ -8,7 +8,6 @@ import { accountPageEn, googleMoveEn, type AccountPage as AccountPageSv } from "
 import { useTexts, useLocale } from "./language-provider";
 import { accountRequest } from "../lib/account-client";
 import { readOrganizerCsrf } from "../lib/organizer-client";
-import { AccountMenu } from "./account-menu";
 import { PasswordInput } from "./password-field";
 import { Button, Notice, Section } from "./ui";
 import styles from "./account-pages.module.css";
@@ -70,8 +69,7 @@ export function GoogleMovePage() {
   return <main className={`${styles.page} ${styles.narrow}`}>
     <header className={styles.header}>
       <div><p className={styles.kicker}>{text.kicker}</p><h1>{text.title}</h1></div>
-      <nav className={styles.headerNav} aria-label={accountText.me.title}><Link href="/konto">{accountText.me.title}</Link>
-        {who && <AccountMenu who={who} />}</nav>
+      <nav className={styles.headerNav} aria-label={accountText.me.title}><Link href="/konto">{accountText.me.title}</Link></nav>
     </header>
     {!details && !problem && <p role="status">{text.loading}</p>}
     {problem && <Notice tone="error" role="alert">{problem}</Notice>}

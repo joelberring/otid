@@ -1599,7 +1599,7 @@ bilder får synas för alla; en bild över hela kartan visas först efter tävli
 uppbyggnad.
 
 - [x] F0 Klubbytans flikar i telefonen: orden hamnade på varandra på pekskärm (flikarna krympte till 44 px).
-- [ ] F1 Skalen som egna layouter: publikt, inloggat och arbetsläge. Datorn: vänstermeny med ikoner (Hem, Kartor, Banor,
+- [x] F1 Skalen som egna layouter: publikt, inloggat och arbetsläge. Datorn: vänstermeny med ikoner (Hem, Kartor, Banor,
   Träningar, Klubb), ikonremsa i mellanbredd, hjälp, språk och konto nederst. Telefonen: sidhuvud med bakåtplats, «+» och
   kontobild, samma flikrad, hänsyn till skärmens kanter i skalet. Inne i ett arrangemang ersätter stegen menyn.
 - [ ] F2 Den täta raden, datumbrickan och bildrutan: Mitt O-Tid, Mina kartprojekt och klubbarkivet. Inga knappar per rad.

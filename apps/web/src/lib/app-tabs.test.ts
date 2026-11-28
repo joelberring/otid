@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activeAppTab, appTabsHidden, APP_TAB_LINKS } from "./app-tabs";
+import { activeAppTab, appTabParent, appTabsHidden, APP_TAB_LINKS, appTopTitle } from "./app-tabs";
 
 const RACE = "/admin/1b0c5e2a-0000-4000-8000-000000000000";
 
@@ -35,5 +35,32 @@ describe("flikraden (förslag B)", () => {
   it("har fem flikar i skissens ordning, alla till befintliga sidor", () => {
     expect(APP_TAB_LINKS.map(link => link.tab)).toEqual(["home", "maps", "courses", "events", "club"]);
     expect(APP_TAB_LINKS.every(link => link.href.startsWith("/organizer"))).toBe(true);
+  });
+
+  it("ger sidans förälder för bakåtlänken i telefonens sidhuvud (steg F1)", () => {
+    expect(appTabParent("/organizer")).toBeNull();
+    expect(appTabParent("/organizer/")).toBeNull();
+    expect(appTabParent("/organizer#mina-klubbar")).toBeNull();
+    expect(appTabParent("/organizer/map-projects")).toBeNull();
+    expect(appTabParent("/organizer/map-projects/abc")).toBe("/organizer/map-projects");
+    expect(appTabParent("/organizer/clubs/abc")).toBe("/organizer");
+    expect(appTabParent("/organizer/clubs/abc/arkiv/def")).toBe("/organizer/clubs/abc");
+    expect(appTabParent("/organizer/clubs/abc/arkiv/def?x=1")).toBe("/organizer/clubs/abc");
+    expect(appTabParent("/organizer/groups/abc")).toBe("/organizer");
+    expect(appTabParent("/konto")).toBe("/organizer");
+    expect(appTabParent("/konto/flytta-google")).toBe("/konto");
+    expect(appTabParent("/superadmin")).toBe("/organizer");
+  });
+
+  it("ger rubriken i telefonens sidhuvud", () => {
+    expect(appTopTitle("/organizer")).toBe("hub");
+    expect(appTopTitle("/organizer#mina-klubbar")).toBe("hub");
+    expect(appTopTitle("/organizer/map-projects")).toBe("maps");
+    expect(appTopTitle("/organizer/map-projects/abc")).toBe("maps");
+    expect(appTopTitle("/organizer/clubs/abc/arkiv/def")).toBe("club");
+    expect(appTopTitle("/organizer/groups/abc")).toBe("club");
+    expect(appTopTitle("/konto")).toBe("account");
+    expect(appTopTitle("/konto/flytta-google")).toBe("account");
+    expect(appTopTitle("/superadmin")).toBe("superadmin");
   });
 });

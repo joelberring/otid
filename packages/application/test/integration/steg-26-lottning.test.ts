@@ -154,4 +154,45 @@ describe("PLAN.md steg 26: avancerad lottning", () => {
       classes: [minuteClass(b, { intervalMinutes: 1 })] });
     expect(capped.classes[0]!.firstStartTime).toBe("2027-10-07T08:03:00.000Z");
   });
+
+  it("tillåter samtidiga masstarter på samma bana och bevarar tävlingens tidigaste första start vid dellottning och vågflytt", async () => {
+    const proof = await race();
+    const superDam = await addClass(proof, "Bana A", "Superion dam", [31, 32, 33]);
+    const hyperDam = await addClass(proof, "Bana B", "Hyperion dam", [41, 42, 43]);
+    const hyperHerr = await addClass(proof, "Bana B2", "Hyperion herr", [41, 42, 43]);
+    const testKlass = await addClass(proof, "Bana C", "Testklassen", [51, 52]);
+    for (const classId of [superDam, hyperDam, hyperHerr, testKlass]) await register(proof, classId, `L${classId.slice(0, 4)}`);
+
+    const t1900 = "2027-10-07T17:00:00.000Z"; // 19:00 i Stockholm (sommartid)
+    const t1905 = "2027-10-07T17:05:00.000Z"; // 19:05
+    const t1910 = "2027-10-07T17:10:00.000Z"; // 19:10
+    const t1930 = "2027-10-07T17:30:00.000Z"; // 19:30
+    const massClass = (classId: string, startTime: string) => ({
+      classId, method: "MASS" as const, intervalMinutes: 1, vacancies: { kind: "COUNT" as const, value: 0 },
+      laterStart: { kind: "CLOCK" as const, startTime }
+    });
+
+    // 1. Sätt Superion dam kl. 19:00 och Hyperion dam kl. 19:10.
+    await draw(proof, { firstStartTime: t1900, clubSeparation: false, classes: [massClass(superDam, t1900), massClass(hyperDam, t1910)] });
+    expect((await pool.query("select first_start_time from race where id = $1", [proof.raceId])).rows[0]).toEqual({ first_start_time: "19:00" });
+
+    // 2. Sätt Hyperion herr (samma första kontroller som Hyperion dam) till 19:10: ingen krock och exakt 19:10!
+    const herrShown = await draw(proof, { firstStartTime: t1910, clubSeparation: false, classes: [massClass(hyperHerr, t1910)] });
+    expect(herrShown.classes[0]!.firstStartTime).toBe(t1910);
+    expect(herrShown.warnings).toEqual([]);
+    expect((await pool.query("select first_start_time from race where id = $1", [proof.raceId])).rows[0]).toEqual({ first_start_time: "19:00" });
+
+    // 3. Sätt Testklassen kl. 19:30 separat: race.first_start_time ska INTE skrivas över till 19:30!
+    await draw(proof, { firstStartTime: t1930, clubSeparation: false, classes: [massClass(testKlass, t1930)] });
+    expect((await pool.query("select first_start_time from race where id = $1", [proof.raceId])).rows[0]).toEqual({ first_start_time: "19:00" });
+
+    // 4. Flytta tidigaste vågen (Superion dam) från 19:00 till 19:05: race.first_start_time uppdateras till 19:05 och setup exponerar klassernas tider!
+    await draw(proof, { firstStartTime: t1905, clubSeparation: false, classes: [massClass(superDam, t1905)] });
+    expect((await pool.query("select first_start_time from race where id = $1", [proof.raceId])).rows[0]).toEqual({ first_start_time: "19:05" });
+    const setup = await loadStartDrawSetupAsAdmin(db, proof, new Date());
+    if (setup.status !== "ok") throw new Error("Setup saknas");
+    expect(setup.response.classes.find(row => row.id === superDam)?.firstStartTime).toBe(t1905);
+    expect(setup.response.classes.find(row => row.id === hyperDam)?.firstStartTime).toBe(t1910);
+    expect(setup.response.classes.find(row => row.id === hyperHerr)?.firstStartTime).toBe(t1910);
+  });
 });

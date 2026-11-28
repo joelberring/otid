@@ -37,14 +37,18 @@ export function advancedFromSetup(setup: StartDrawSetupResponse): DrawAdvanced {
   const seeds = Object.fromEntries(setup.entries.flatMap(entry => entry.seedRank === null ? [] : [[entry.id, String(entry.seedRank)]]));
   if (!saved) return { ...EMPTY, seeds };
   const rules = saved.rules;
+  const massClasses = new Set(setup.classes.filter(row => row.method === "MASS").map(row => row.id));
   return { groupControls: String(rules.groupControls) as DrawAdvanced["groupControls"],
     maxPerMinute: rules.maxPerMinute === null ? "" : String(rules.maxPerMinute),
     maxPerMinutePerPen: rules.maxPerMinutePerPen === null ? "" : String(rules.maxPerMinutePerPen),
     lastStart: rules.lastStartTime === null ? "" : clockOf(rules.lastStartTime, setup.timeZone), seeding: rules.seeding,
     classOrder: rules.classOrder, seeds,
-    laterStarts: Object.fromEntries(saved.laterStarts.map(row => [row.classId, row.laterStart.kind === "CLOCK"
-      ? { kind: "CLOCK" as const, value: clockOf(row.laterStart.startTime, setup.timeZone) }
-      : { kind: "OFFSET" as const, value: String(row.laterStart.minutes) }])) };
+    // Masstartsklassers klockslag visas och redigeras direkt i huvudtabellen; öppna inte Avancerat bara för dem.
+    laterStarts: Object.fromEntries(saved.laterStarts
+      .filter(row => !(massClasses.has(row.classId) && row.laterStart.kind === "CLOCK"))
+      .map(row => [row.classId, row.laterStart.kind === "CLOCK"
+        ? { kind: "CLOCK" as const, value: clockOf(row.laterStart.startTime, setup.timeZone) }
+        : { kind: "OFFSET" as const, value: String(row.laterStart.minutes) }])) };
 }
 
 /** Avviker något från standard (det enkla läget)? Då visas Avancerat öppet. */
@@ -98,12 +102,18 @@ export function advancedRequest(setup: StartDrawSetupResponse, rows: Record<stri
   }
   const laterStarts = new Map<string, StartDrawLaterStart>();
   for (const classId of selected) {
+    const row = rows[classId];
+    // För masstart med klockslag direkt i huvudtabellen gäller det fältet i stället för Avancerat.
+    if (row?.method === "MASS" && row.massStart.trim() !== "") continue;
     const later = advanced.laterStarts[classId];
     if (!later || later.kind === "NONE") continue;
     if (later.kind === "CLOCK") {
       const startTime = clockInstant(setup, later.value, firstStartTime);
-      if (!startTime || Date.parse(startTime) <= Date.parse(firstStartTime)) errors[`later:${classId}`] = text.errors.clock;
-      else laterStarts.set(classId, { kind: "CLOCK", startTime });
+      if (!startTime || (row?.method !== "MASS" && Date.parse(startTime) < Date.parse(firstStartTime))) {
+        errors[`later:${classId}`] = text.errors.clock;
+      } else {
+        laterStarts.set(classId, { kind: "CLOCK", startTime });
+      }
     } else {
       const minutes = Number(later.value.trim());
       if (!/^\d+$/.test(later.value.trim()) || minutes < 1 || minutes > 1_440) errors[`later:${classId}`] = text.errors.offset;
@@ -154,8 +164,32 @@ export function createStartDrawAdvancedActions(ws: AdvancedState & {
   }
   function changeLaterStart(classId: string, change: Partial<{ kind: LaterStartKind; value: string }>) {
     changed(`later:${classId}`);
-    setDrawAdvanced(previous => ({ ...previous, laterStarts: { ...previous.laterStarts,
-      [classId]: { ...(previous.laterStarts[classId] ?? { kind: "NONE", value: "" }), ...change } } }));
+    const currentRow = drawRows[classId];
+    if (currentRow?.method === "MASS") {
+      const currentKind = currentRow.massStart.trim() ? "CLOCK" : (drawAdvanced.laterStarts[classId]?.kind ?? "NONE");
+      const nextKind = change.kind ?? currentKind;
+      setDrawAdvanced(previous => {
+        const base = previous.laterStarts[classId] ?? { kind: currentKind, value: currentKind === "CLOCK" ? currentRow.massStart : "" };
+        return { ...previous, laterStarts: { ...previous.laterStarts, [classId]: { ...base, ...change, kind: nextKind } } };
+      });
+      if (nextKind === "CLOCK" && change.value !== undefined) {
+        const nextValue = change.value;
+        setDrawRows(previous => {
+          const row = previous[classId];
+          return row ? { ...previous, [classId]: { ...row, massStart: nextValue, selected: true } } : previous;
+        });
+      } else if (change.kind && change.kind !== "CLOCK") {
+        setDrawRows(previous => {
+          const row = previous[classId];
+          return row ? { ...previous, [classId]: { ...row, massStart: "" } } : previous;
+        });
+      }
+      return;
+    }
+    setDrawAdvanced(previous => {
+      const next = { ...(previous.laterStarts[classId] ?? { kind: "NONE" as const, value: "" }), ...change };
+      return { ...previous, laterStarts: { ...previous.laterStarts, [classId]: next } };
+    });
   }
   function changeSeed(entryId: string, value: string) {
     changed(`seed:${entryId}`);

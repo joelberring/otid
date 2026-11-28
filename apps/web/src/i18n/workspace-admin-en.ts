@@ -620,7 +620,11 @@ export const classTableEn: Texts<typeof classTableSv> = {
   massStartAt: clock => `Mass start ${clock}`,
   massStartInvalid: "Write a whole minute, for example 19:00.",
   massStartConfirm: "The class already has start times or read-out runners. Replace them with the mass start?",
+  massStartConfirmRecalculate: (clock, recalculated) =>
+    `Change the mass start to ${clock}? ${plural(recalculated, "read-out runner gets", "read-out runners get")} the result recalculated with the new start time.`,
   massStartSaved: clock => `Mass start at ${clock} is set for the class. Everyone entered has the start time ${clock}; see Entries.`,
+  massStartSavedRecalculated: (clock, recalculated) =>
+    `Mass start at ${clock} is set for the class. ${plural(recalculated, "result was", "results were")} recalculated with the new start time.`,
   massStartError: "The mass start could not be saved. Try again.",
   preview: "Show what happens", save: "Save the change", cancel: "Cancel",
   invalidName: "Write a class name.",

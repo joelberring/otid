@@ -135,6 +135,47 @@ describe("lottning av starttider", () => {
     expect(byId.get("H21")!.slots.map(slot => (slot.startMs - first) / MINUTE)).toEqual([1, 3, 5, 7]);
   });
 
+  it("låter två eller flera masstartsklasser starta exakt samma minut även på samma bana eller startfålla", () => {
+    const start1910 = first + 10 * MINUTE;
+    const dam = raceClass("Hyperion dam", { startControls: [[31, 32], [31, 34]], method: "MASS",
+      laterStart: { kind: "CLOCK", startMs: start1910 } });
+    const herr = raceClass("Hyperion herr", { startControls: [[31, 32], [31, 34]], method: "MASS",
+      laterStart: { kind: "CLOCK", startMs: start1910 } });
+    const superDam = raceClass("Superion dam", { startControls: [[41, 42]], method: "MASS",
+      laterStart: { kind: "CLOCK", startMs: first } });
+    const superHerr = raceClass("Superion herr", { startControls: [[41, 42]], method: "MASS",
+      laterStart: { kind: "CLOCK", startMs: first } });
+    const together = drawStartTimes(input([dam, herr, superDam, superHerr]));
+    const byId = new Map(together.classes.map(row => [row.classId, row]));
+    expect(byId.get("Superion dam")!.firstStartMs).toBe(first);
+    expect(byId.get("Superion herr")!.firstStartMs).toBe(first);
+    expect(byId.get("Hyperion dam")!.firstStartMs).toBe(start1910);
+    expect(byId.get("Hyperion herr")!.firstStartMs).toBe(start1910);
+    expect(together.warnings).toEqual([]);
+    expect(together.groups).toEqual([]);
+
+    // När Hyperion dam redan har masstart 19:10 och Hyperion herr (samma gafflade Bana B) sätts till 19:10 efteråt.
+    const sequential = drawStartTimes(input([herr], {
+      existing: [{ classId: "Hyperion dam", startControls: [[31, 32], [31, 34]], method: "MASS", startTimesMs: [start1910] }]
+    }));
+    expect(sequential.classes[0]!.firstStartMs).toBe(start1910);
+    expect(sequential.warnings).toEqual([]);
+    expect(sequential.groups).toEqual([]);
+  });
+
+  it("behåller vald masstartstid och varnar i stället för att flytta i smyg när en befintlig minutstart upptar samma minut", () => {
+    const start1910 = first + 10 * MINUTE;
+    const result = drawStartTimes(input([
+      raceClass("Hyperion herr", { startControls: [[31]], method: "MASS", laterStart: { kind: "CLOCK", startMs: start1910 } })
+    ], {
+      existing: [{ classId: "H21", startControls: [[31]], method: "MINUTE", startTimesMs: [start1910, start1910 + 2 * MINUTE] }]
+    }));
+    expect(result.classes[0]!.firstStartMs).toBe(start1910);
+    expect(result.warnings).toEqual([
+      { code: "MASS_START_GROUP_CLASH", classId: "Hyperion herr", conflictClassIds: ["H21"], startMs: start1910 }
+    ]);
+  });
+
   it("hanterar en löpare och tomma klasser", () => {
     const one = drawStartTimes(input([raceClass("H21", { runners: runners("H21", ["OK Ek"]) })]));
     expect(one.classes[0]!.slots).toEqual([{ entryId: "H21-000", startMs: first }]);

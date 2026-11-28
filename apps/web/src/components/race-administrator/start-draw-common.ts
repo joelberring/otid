@@ -23,11 +23,11 @@ export function applyDrawCommon(rows: Readonly<Record<string, DrawRow>>, advance
   scope: DrawCommonScope): { rows: Record<string, DrawRow>; advanced: DrawAdvanced; count: number } {
   const targets = Object.entries(rows).filter(([, row]) => scope === "ALL" || row.selected).map(([id]) => id);
   const next: Record<string, DrawRow> = { ...rows };
+  const later = common.laterStart.trim();
   for (const id of targets) {
     next[id] = { ...rows[id]!, method: common.method, interval: common.interval.trim(), vacancies: common.vacancies.trim(),
-      vacancyKind: common.vacancyKind, selected: true };
+      vacancyKind: common.vacancyKind, massStart: common.method === "MASS" && later !== "" ? later : rows[id]!.massStart, selected: true };
   }
-  const later = common.laterStart.trim();
   const laterStarts = later === "" ? advanced.laterStarts
     : { ...advanced.laterStarts, ...Object.fromEntries(targets.map(id => [id, { kind: "CLOCK" as const, value: later }])) };
   return { rows: next, advanced: later === "" ? advanced : { ...advanced, laterStarts }, count: targets.length };

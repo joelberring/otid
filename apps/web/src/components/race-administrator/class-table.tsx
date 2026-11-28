@@ -7,8 +7,8 @@ import { courseVariantsEn } from "../../i18n/workspace-tools-en";
 import { classTableEn } from "../../i18n/workspace-admin-en";
 import { raceAdministratorEn } from "../../i18n/workspace-admin-en";
 import { useTexts } from "../language-provider";
-import type { CourseEditListResponse } from "@o-tid/contracts";
-import { formatClockTime } from "@o-tid/domain";
+import type { CourseEditListResponse, StartDrawPreviewResponse } from "@o-tid/contracts";
+import { formatClockTime, normalizeClock } from "@o-tid/domain";
 import styles from "../race-administrator-workspace.module.css";
 import { classTableSv } from "../../i18n/class-table-sv";
 import { raceAdministratorSv } from "../../i18n/race-administrator-sv";
@@ -20,6 +20,7 @@ import { RemovalReview } from "./removal-review";
 import { removalSv } from "../../i18n/removal-sv";
 import type { Workspace } from "./workspace-state";
 import { saveClassMassStart } from "./class-mass-start";
+import { formatDrawWarning, isClassRelevantDrawWarning } from "./start-draw-waves";
 
 type ClassRow = CourseEditListResponse["classes"][number];
 
@@ -138,15 +139,22 @@ function ClassEditor({ ws, row }: { ws: Workspace; row: ClassRow }) {
   const [clock, setClock] = useState(current);
   const [massBusy, setMassBusy] = useState(false);
   const [massMessage, setMassMessage] = useState<{ ok: boolean; text: string }>();
-  const [massConfirm, setMassConfirm] = useState<(ok: boolean) => void>();
+  const [massConfirm, setMassConfirm] = useState<{ preview: StartDrawPreviewResponse; clock: string; resolve: (ok: boolean) => void }>();
   async function save() {
     // Masstarten sparas när den är ny eller har en ny tid; annat i raden sparas som vanligt.
-    if (!mass || clock.trim() === current) { void saveClassEdit(); return; }
+    if (!mass) { void saveClassEdit(); return; }
+    const normalized = normalizeClock(clock);
+    if (current !== "" && normalized === current) { void saveClassEdit(); return; }
+    if (!normalized || normalized.length !== 5) { setMassMessage({ ok: false, text: text.massStartInvalid }); return; }
     setMassMessage(undefined); setMassBusy(true);
     const outcome = await saveClassMassStart(ws, row.classId, clock.trim(),
-      () => new Promise<boolean>(resolve => setMassConfirm(() => resolve)));
+      (preview, actualClock) => new Promise<boolean>(resolve => setMassConfirm({ preview, clock: actualClock, resolve })));
     setMassBusy(false);
-    if (outcome.kind === "SAVED") { setClock(outcome.clock); setMassMessage({ ok: true, text: text.massStartSaved(outcome.clock) }); }
+    if (outcome.kind === "SAVED") {
+      setClock(outcome.clock);
+      setMassMessage({ ok: true, text: outcome.recalculatedCount > 0
+        ? text.massStartSavedRecalculated(outcome.clock, outcome.recalculatedCount) : text.massStartSaved(outcome.clock) });
+    }
     else if (outcome.kind === "INVALID") setMassMessage({ ok: false, text: text.massStartInvalid });
     else if (outcome.kind === "ERROR") setMassMessage({ ok: false, text: text.massStartError });
   }
@@ -170,7 +178,7 @@ function ClassEditor({ ws, row }: { ws: Workspace; row: ClassRow }) {
       </select></label>}
       {startRuleChoice && mass && <Field label={text.massStart} help={text.massStartHelp} className={styles.narrowField}
         error={massMessage && !massMessage.ok ? massMessage.text : undefined}>
-        <input inputMode="numeric" autoComplete="off" placeholder={text.massStartPlaceholder} value={clock} maxLength={5} disabled={locked || massBusy}
+        <input inputMode="numeric" autoComplete="off" placeholder={text.massStartPlaceholder} value={clock} maxLength={8} disabled={locked || massBusy}
           data-testid="class-mass-start-time" onChange={event => { setClock(event.target.value); setMassMessage(undefined); }} /></Field>}
       {/* Maxtid (PLAN.md steg 25); rogainingklassen har egen tidsgräns. */}
       {!row.rogaining && <Field label={text.fieldMaxTime} help={text.maxTimeHelp} error={classEditMaxTimeError || undefined}
@@ -202,8 +210,17 @@ function ClassEditor({ ws, row }: { ws: Workspace; row: ClassRow }) {
       <Button type="submit" disabled={busy || massBusy}>{text.save}</Button>
       {!classEditAttempt && <Button variant="quiet" disabled={busy} onClick={cancelClassEdit}>{text.cancel}</Button>}
     </div>
-    {massConfirm && <ConfirmDialog title={text.massStart} message={text.massStartConfirm} confirmLabel={text.save}
-      onConfirm={() => { massConfirm(true); setMassConfirm(undefined); }}
-      onCancel={() => { massConfirm(false); setMassConfirm(undefined); }} />}
+    {massConfirm && <ConfirmDialog title={text.massStart} confirmLabel={text.save}
+      message={<>
+        {massConfirm.preview.requiresConfirmation && <p>{massConfirm.preview.readOutCount - massConfirm.preview.notRecalculatedCount > 0
+          ? text.massStartConfirmRecalculate(massConfirm.clock, massConfirm.preview.readOutCount - massConfirm.preview.notRecalculatedCount)
+          : text.massStartConfirm}</p>}
+        {massConfirm.preview.warnings.some(isClassRelevantDrawWarning) && <ul>
+          {massConfirm.preview.warnings.filter(isClassRelevantDrawWarning).map((warning, index) =>
+            <li key={index}>{formatDrawWarning(warning, massConfirm.preview.timeZone, ws.drawAdvancedText)}</li>)}
+        </ul>}
+      </>}
+      onConfirm={() => { massConfirm.resolve(true); setMassConfirm(undefined); }}
+      onCancel={() => { massConfirm.resolve(false); setMassConfirm(undefined); }} />}
   </form>;
 }

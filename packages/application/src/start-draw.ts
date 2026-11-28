@@ -133,7 +133,7 @@ const hasStartTimes = (raceClass: DrawBasisClass, classEntries: readonly DrawBas
 type Computed = {
   draw: StartDrawResult; classes: DrawBasisClass[]; entries: DrawBasisEntry[]; plans: Map<string, DrawPlan>; seeds: Map<string, number>;
   entryTimes: Map<string, string | null>; changedEntryIds: Set<string>; variants: Map<string, string>; assessed: AssessedEntry[];
-  preview: StartDrawPreviewResponse;
+  preview: StartDrawPreviewResponse; earliestStartMs: number | null;
 };
 
 /** Lottar enligt inställningarna mot tävlingens aktuella läge och prövar avlästa löpare. */
@@ -151,7 +151,7 @@ async function compute(tx: Transaction, raceId: string, snapshotVersion: number,
   const rules = settings.rules ?? DEFAULT_START_DRAW_RULES;
   // Klasser som inte lottas nu behåller sina tider (löpare och vakanta tider); de nya tiderna läggs runt dem.
   const existing: StartDrawExistingClass[] = classes.filter(row => !selected.has(row.id) && row.startRule === "FIXED").map(row => ({
-    classId: row.id, startControls: row.startControls, startTimesMs: [...new Set([
+    classId: row.id, startControls: row.startControls, method: plans.get(row.id)?.method ?? "MINUTE", startTimesMs: [...new Set([
       ...(entriesByClass.get(row.id) ?? []).flatMap(entry => entry.fixedStartTime !== null ? [entry.fixedStartTime.getTime()] : []),
       ...(plans.get(row.id)?.slots.map(slot => slot.startTime.getTime()) ?? [])])] })).filter(row => row.startTimesMs.length > 0);
   // Seedningen i begäran gäller för de lottade klasserna; utan den gäller den sparade.
@@ -229,7 +229,25 @@ async function compute(tx: Transaction, raceId: string, snapshotVersion: number,
     existingClasses: existingClassSummary(existing, nameOf),
     timeline: previewTimeline(draw.classes, existing, nameOf),
     replacesStartTimes, ...summary, requiresConfirmation: summary.requiresConfirmation || replacesStartTimes });
-  return { draw, classes, entries, plans, seeds, entryTimes, changedEntryIds, variants, assessed, preview };
+  // Tidigaste faktiska starttid över både de nu lottade klasserna och kvarvarande befintliga tidsatta klasser.
+  const timedStartCandidates: number[] = [];
+  for (const row of draw.classes) {
+    timedStartCandidates.push(row.firstStartMs);
+    for (const slot of row.slots) timedStartCandidates.push(slot.startMs);
+  }
+  for (const row of classes) {
+    if (selected.has(row.id) || row.startRule !== "FIXED") continue;
+    const plan = plans.get(row.id);
+    if (plan) {
+      timedStartCandidates.push(plan.firstStartTime.getTime());
+      for (const slot of plan.slots) timedStartCandidates.push(slot.startTime.getTime());
+    }
+    for (const entry of entriesByClass.get(row.id) ?? []) {
+      if (entry.fixedStartTime !== null) timedStartCandidates.push(entry.fixedStartTime.getTime());
+    }
+  }
+  const earliestStartMs = timedStartCandidates.length === 0 ? null : Math.min(...timedStartCandidates);
+  return { draw, classes, entries, plans, seeds, entryTimes, changedEntryIds, variants, assessed, preview, earliestStartMs };
 }
 
 async function savedSettings(tx: Transaction, raceId: string): Promise<StartDrawSavedSettings | null> {
@@ -268,7 +286,11 @@ export async function loadStartDrawSetupAsAdmin(db: Database, input: Authenticat
     if (entries === "too-large") return { status: "too-large" };
     const entriesByClass = groupEntriesByClass(entries);
     const plans = await loadDrawPlans(tx, classes);
-    const firstStarts = [...plans.values()].map(plan => plan.firstStartTime.getTime());
+    const firstStarts = classes.flatMap(row => {
+      if (row.startRule !== "FIXED") return [];
+      const plan = plans.get(row.id);
+      return plan ? [plan.firstStartTime.getTime()] : [];
+    });
     const cards = await activeCards(tx, raceId);
     const classIds = new Set(classes.map(row => row.id));
     const saved = await savedSettings(tx, raceId);
@@ -282,7 +304,8 @@ export async function loadStartDrawSetupAsAdmin(db: Database, input: Authenticat
           entryCount: classEntries.length,
           method: row.startRule === "PUNCH" ? "FREE" : plan?.method ?? "MINUTE",
           intervalMinutes: plan ? plan.intervalSeconds / 60 : DEFAULT_INTERVAL_MINUTES,
-          vacancies: { kind: "COUNT", value: plan?.vacancyCount ?? 0 }, hasStartTimes: hasStartTimes(row, classEntries) };
+          vacancies: { kind: "COUNT", value: plan?.vacancyCount ?? 0 }, hasStartTimes: hasStartTimes(row, classEntries),
+          firstStartTime: row.startRule === "FIXED" && plan ? plan.firstStartTime.toISOString() : null };
       }),
       settings: saved && { rules: { ...saved.rules, classOrder: saved.rules.classOrder?.filter(id => classIds.has(id)) ?? null },
         laterStarts: saved.laterStarts.filter(row => classIds.has(row.classId)) },
@@ -365,7 +388,12 @@ async function writeDraw(tx: Transaction, input: { raceId: string; requestId: st
       `);
     }
   }
-  if (input.settings.rules) await writeSettings(tx, raceId, input.settings, input.settings.rules);
+  if (input.settings.rules) {
+    await writeSettings(tx, raceId, input.settings, input.settings.rules);
+  } else {
+    const previous = await savedSettings(tx, raceId);
+    if (previous) await writeSettings(tx, raceId, input.settings, previous.rules);
+  }
   return saved;
 }
 
@@ -410,10 +438,14 @@ export async function commitStartDrawAsAdmin(db: Database, input: Authentication
         snapshotVersionBefore: race.snapshotVersion, snapshotVersionAfter, drawnAt: now.toISOString() });
       const saved = await writeDraw(tx, { raceId, requestId: intent.requestId, computed, settings: intent, seed: intent.seed,
         actorAccountId: auth.principal.accountId, snapshotVersionBefore: race.snapshotVersion, response, now });
-      // ADR-0188 beslut 2: lottningens första start är tävlingens första start (samma värde som Inställningar visar).
+      // ADR-0188 beslut 2: tävlingens första start är den tidigaste faktiska starten bland alla tidsatta klasser.
       const { timeZone } = await raceMetadata(tx, raceId);
-      const firstStartClock = formatHourMinute(intent.firstStartTime, timeZone);
-      await tx.update(schema.races).set({ firstStartTime: firstStartClock }).where(eq(schema.races.id, raceId));
+      const firstStartClock = computed.earliestStartMs !== null
+        ? formatHourMinute(new Date(computed.earliestStartMs).toISOString(), timeZone)
+        : null;
+      if (firstStartClock !== null) {
+        await tx.update(schema.races).set({ firstStartTime: firstStartClock }).where(eq(schema.races.id, raceId));
+      }
       await bumpReadoutPackageVersion(tx, raceId);
       // Omräkning mot det sparade läget; databasen sätter varje ny revisions underlagshash.
       const courseVersions = new Map(computed.classes.map(row => [row.id, row.courseVersionId]));

@@ -61,7 +61,9 @@ export const startDrawSetupResponseSchema = z.object({
     id: uuid, name, courseName: name, firstControlCode: z.number().int().nonnegative().nullable(), entryCount: count,
     method: startDrawMethodSchema, intervalMinutes: z.number().int().min(1).max(60), vacancies: startDrawVacanciesSchema,
     /** Klassen har redan starttider som en ny lottning ersätter. */
-    hasStartTimes: z.boolean()
+    hasStartTimes: z.boolean(),
+    /** Klassens nuvarande första start (eller masstartstid) i gällande lottning, annars null. */
+    firstStartTime: instant.nullable().optional()
   }).strict()).max(1_000),
   /** Inställningarna från senaste lottningen (PLAN.md steg 26), null om inga sparats. */
   settings: startDrawSavedSettingsSchema.nullable(),
@@ -104,7 +106,8 @@ export const startDrawWarningSchema = z.discriminatedUnion("code", [
     neededLastStartTime: instant }).strict(),
   z.object({ code: z.literal("LATER_START_MOVED"), className: name, wantedTime: instant, actualTime: instant }).strict(),
   z.object({ code: z.literal("EXISTING_OVER_LIMIT"), scope: z.enum(["TOTAL", "PEN"]), limit, firstTime: instant, minuteCount: count }).strict(),
-  z.object({ code: z.literal("EXISTING_GROUP_CLASH"), classNames: z.array(name).min(2), firstTime: instant, minuteCount: count }).strict()
+  z.object({ code: z.literal("EXISTING_GROUP_CLASH"), classNames: z.array(name).min(2), firstTime: instant, minuteCount: count }).strict(),
+  z.object({ code: z.literal("MASS_START_GROUP_CLASH"), className: name, conflictClassNames: z.array(name).min(1), startTime: instant }).strict()
 ]);
 
 export const startDrawPreviewResponseSchema = z.object({

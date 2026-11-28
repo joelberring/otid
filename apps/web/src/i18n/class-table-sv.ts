@@ -31,7 +31,11 @@ export const classTableSv = {
   massStartAt: (clock: string) => `Masstart ${clock}`,
   massStartInvalid: "Skriv en hel minut, till exempel 19:00.",
   massStartConfirm: "Klassen har redan starttider eller avlästa löpare. Ersätta dem med masstarten?",
+  massStartConfirmRecalculate: (clock: string, recalculated: number) =>
+    `Byta masstarten till kl. ${clock}? ${recalculated === 1 ? "1 avläst löpare" : `${recalculated} avlästa löpare`} får resultatet omräknat med den nya starttiden.`,
   massStartSaved: (clock: string) => `Masstart kl. ${clock} är satt för klassen. Alla anmälda har starttiden ${clock}; se Anmälda.`,
+  massStartSavedRecalculated: (clock: string, recalculated: number) =>
+    `Masstart kl. ${clock} är satt för klassen. ${recalculated} resultat räknades om med den nya starttiden.`,
   massStartError: "Masstarten kunde inte sparas. Försök igen.",
   preview: "Visa vad som händer", save: "Spara ändringen", cancel: "Avbryt",
   invalidName: "Skriv ett klassnamn.",

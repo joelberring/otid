@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { SourceFeature } from "../src";
-import { chooseKnollCandidates, chooseKnolls, deduplicateKnollFeatures, DEFAULT_KNOLL_LIMITS, knollFeatures, readKnollCandidates } from "../src/base-map/knoll-choice";
+import { chooseKnollCandidates, chooseKnolls, deduplicateKnollFeatures, DEFAULT_KNOLL_LIMITS, defaultKnollLimits, knollFeatures, knollLimitsAt, readKnollCandidates } from "../src/base-map/knoll-choice";
 import { elongatedKnoll } from "../src/base-map/elongated-knolls";
 
 const json = { type: "FeatureCollection", features: [
   { type: "Feature", geometry: { type: "Point", coordinates: [100, 100] }, properties: { rise: 1.4, share: 0.9, foot: 40 } },
-  { type: "Feature", geometry: { type: "Point", coordinates: [104, 100] }, properties: { rise: 2.0, share: 0.85, foot: 60 } },
+  { type: "Feature", geometry: { type: "Point", coordinates: [104, 100] }, properties: { rise: 2.0, share: 0.85, foot: 50 } },
   { type: "Feature", geometry: { type: "Point", coordinates: [200, 100] }, properties: { rise: 0.7, share: 0.95, foot: 30 } },
   { type: "Feature", geometry: { type: "Point", coordinates: [300, 100] }, properties: { rise: 1.6, share: 0.6, foot: 30 } },
   { type: "Feature", geometry: { type: "LineString", coordinates: [[0, 0], [1, 1]] }, properties: {} }
@@ -30,23 +30,42 @@ describe("punkthöjder med reglage", () => {
 });
 
 describe("mängden på skalan 1–10", () => {
-  it("ger förvalen på 5, bara de tydligaste på 1 och allt på 10", async () => {
-    const { knollLimitsAt } = await import("../src/base-map/knoll-choice");
+  it("ger skalanpassade förval på 5 (skog vs sprint), bara de tydligaste på 1 och allt på 10", () => {
     expect(knollLimitsAt(5)).toEqual(DEFAULT_KNOLL_LIMITS);
     expect(knollLimitsAt(1)).toEqual({ minRise: 2, lowerShare: 0.95, maxFootM2: 70, spacing: 40 });
     expect(knollLimitsAt(10)).toEqual({ minRise: 0.5, lowerShare: 0.5, maxFootM2: 160, spacing: 10 });
     expect(knollLimitsAt(3).minRise).toBe(1.45);
-    // Kalibrerat mot 5 skogskartor + Bandhagen (F1 0,279 → 0,371 på 4 oberoende facitkartor, recall +70 %):
-    // 0,9 m stigning, 85 % lägre ring, kompakt fot 8–70 m², 12 m avstånd.
-    expect(DEFAULT_KNOLL_LIMITS).toEqual({ minRise: 0.9, lowerShare: 0.85, maxFootM2: 70, spacing: 12 });
+    expect(DEFAULT_KNOLL_LIMITS).toEqual({ minRise: 0.9, lowerShare: 0.85, maxFootM2: 68, spacing: 12 });
+    expect(defaultKnollLimits(15_000)).toEqual(DEFAULT_KNOLL_LIMITS);
+    expect(defaultKnollLimits(4_000)).toEqual({ minRise: 0.65, lowerShare: 0.72, maxFootM2: 72, spacing: 8 });
+    expect(knollLimitsAt(5, 4_000)).toEqual({ minRise: 0.65, lowerShare: 0.72, maxFootM2: 72, spacing: 8 });
+    expect(knollLimitsAt(10, 4_000)).toEqual({ minRise: 0.5, lowerShare: 0.5, maxFootM2: 160, spacing: 6 });
   });
-  it("rensar mikroskopiska laserbrus-toppar (< 8 m² fot) men behåller skarpa riktiga kullar", () => {
+  it("rensar mikroskopiska laserbrus-toppar (< 8 m² fot) och breda svall (> 68 m² i skog) men behåller skarpa kullar", () => {
     const items = [
       { at: [0, 0] as [number, number], rise: 1.5, share: 0.95, footM2: 4 },
       { at: [50, 0] as [number, number], rise: 0.95, share: 0.88, footM2: 14 },
-      { at: [100, 0] as [number, number], rise: 1.1, share: 0.9, footM2: 78 }
+      { at: [100, 0] as [number, number], rise: 1.1, share: 0.9, footM2: 70 }
     ];
     expect(chooseKnolls(items, DEFAULT_KNOLL_LIMITS)).toEqual([[50, 0]]);
+    // I sprint (maxFootM2 = 72) behålls 70 m²-kullen.
+    expect(chooseKnolls(items, defaultKnollLimits(4_000), 4_000)).toEqual([[100, 0], [50, 0]]);
+  });
+  it("läser och använder kompakt share4 i sprint (≤ 1:5 000) men faller tillbaka på share i skog och i äldre kullar.geojson", () => {
+    const parsed = readKnollCandidates({
+      type: "FeatureCollection",
+      features: [
+        // Kompakt sprintkulle i sluttning: 6–8 m-ring (share 0,62) slår i uppförsbacken, men 4–5 m-ring (share4 0,88) är ren.
+        { type: "Feature", geometry: { type: "Point", coordinates: [10, 10] }, properties: { rise: 0.85, share: 0.62, share4: 0.88, foot: 45 } },
+        // Äldre format utan share4: faller tillbaka på share (0,80 >= 0,75 i sprint).
+        { type: "Feature", geometry: { type: "Point", coordinates: [30, 10] }, properties: { rise: 0.8, share: 0.8, foot: 40 } }
+      ]
+    });
+    expect(parsed[0]!.share4).toBe(0.88);
+    expect(parsed[1]!.share4).toBeUndefined();
+    expect(chooseKnolls(parsed, defaultKnollLimits(4_000), 4_000)).toEqual([[10, 10], [30, 10]]);
+    // I skog (1:15 000) används 6–8 m-ringen `share`, så den flacka sprintkullen väljs inte bortom skogsgränserna.
+    expect(chooseKnolls(parsed, defaultKnollLimits(15_000), 15_000)).toEqual([]);
   });
 });
 

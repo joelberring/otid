@@ -171,7 +171,7 @@ export interface SoilOutcome { readonly removedHa: number }
  */
 export function mergeBaseMap(parts: readonly { readonly name: string; readonly data: SourceData }[], rawOsm?: SourceData, scale?: number,
   cuts?: Pick<ReturnType<typeof clearCutFeatures>, "features" | "afterScan">, norm: MapNorm = "ISOM", soil?: BaseMapSoil,
-  nmd: readonly SourceFeature[] = [], primary: readonly PrimaryForMerge[] = []): SourceData & { readonly primary?: readonly PrimaryOutcome[] } {
+  nmd: readonly SourceFeature[] = [], primary: readonly PrimaryForMerge[] = [], ringGeneralize?: number): SourceData & { readonly primary?: readonly PrimaryOutcome[] } {
   const names = new Set(parts.map(part => part.name)), landCover = names.has("marktacke.geojson");
   const outside = rawOsm && primary.length > 0 ? osmOutsidePrimary(rawOsm, primary, isSprintNorm(norm)) : undefined;
   const kept = outside?.data ?? rawOsm;
@@ -229,7 +229,7 @@ export function mergeBaseMap(parts: readonly { readonly name: string; readonly d
   // Ägaren 2026-11-16: små fastigheter med hus blir tomter (`parcelYards`), före sankmarken som inte ska ligga på tomter.
   // Ägaren 2026-11-17: OpenStreetMaps stigar flyttas till laserns fåror (path-snap.ts); fårorna som blir kvar är nya spår.
   // Ägaren 2026-11-18: inga fåror som spår på åker (plogfåror och körspår ändras med säsongen).
-  const all = snapPathsToTracks(tracksOffFields(parcelYards([...ticks, ...withoutCutVegetation(scale ? smallRingsToPoints(knolls, scale) : knolls, cuts?.afterScan ?? []), ...(cuts?.features ?? []), ...nmd, ...(osm ? osmForBaseMap(osm, names.has("byggnader.geojson")) : [])]),
+  const all = snapPathsToTracks(tracksOffFields(parcelYards([...ticks, ...withoutCutVegetation(scale ? smallRingsToPoints(knolls, scale, ringGeneralize) : knolls, cuts?.afterScan ?? []), ...(cuts?.features ?? []), ...nmd, ...(osm ? osmForBaseMap(osm, names.has("byggnader.geojson")) : [])]),
     osm ? osmManaged(osm).filter(feature => /farmland|orchard|allotments|farmyard/.test(feature.layer)) : [])).features;
   // Ägaren 2026-11-12: en sankmark per plats (blött, fuktigt och marktäckets låg på varandra).
   // Ägaren 2026-11-13: ingen sankmark på sand och grus enligt SGU:s jordartskartan (strandkärr inom 30 m från vatten blir kvar).

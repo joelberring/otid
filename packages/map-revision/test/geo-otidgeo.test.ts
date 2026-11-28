@@ -20,26 +20,26 @@ describe("otidgeo CLI-mappning och dubbelmotorplan (Etapp G4B)", () => {
   it("mappar alla 5 kurvprofiler (skog 5 m och sprint 2,5 m) med --profile och rätt flaggor", () => {
     const profiles = [
       { name: "veryDetailed-5m", profile: "very-detailed",
-        settings: { contour_interval: 5, smooth_m: 0.72, taubin: 1, curviness: 0.26, min_loop_area: 18, min_clearance: 0.95, formline_gap: 3.2, formline_max_slope: 23 },
-        expect: ["--interval", "5", "--profile", "very-detailed", "--smooth-m", "0.72", "--taubin-passes", "1", "--curviness", "0.26", "--min-loop-area-m2", "18", "--min-clearance-m", "0.95", "--formline-min-gap-m", "3.2", "--formline-max-slope-deg", "23"] },
+        settings: { contour_interval: 5, smooth_m: 0.62, taubin: 1, curviness: 0.34, min_loop_area: 15, min_clearance: 0.85, formline_gap: 3, formline_max_slope: 20.5 },
+        expect: ["--interval", "5", "--profile", "very-detailed", "--smooth-m", "0.62", "--taubin-passes", "1", "--curviness", "0.34", "--min-loop-area-m2", "15", "--min-clearance-m", "0.85", "--formline-min-gap-m", "3", "--formline-max-slope-deg", "20.5"] },
       { name: "detailed-5m", profile: "detailed",
-        settings: { contour_interval: 5, smooth_m: 0.88, taubin: 2, curviness: 0.22, min_loop_area: 26, min_clearance: 1.25, formline_gap: 3.6, formline_max_slope: 21.5 },
-        expect: ["--interval", "5", "--profile", "detailed", "--smooth-m", "0.88", "--taubin-passes", "2", "--curviness", "0.22", "--min-loop-area-m2", "26", "--min-clearance-m", "1.25", "--formline-min-gap-m", "3.6", "--formline-max-slope-deg", "21.5"] },
+        settings: { contour_interval: 5, smooth_m: 0.76, taubin: 1, curviness: 0.29, min_loop_area: 22, min_clearance: 1.15, formline_gap: 3.5, formline_max_slope: 19 },
+        expect: ["--interval", "5", "--profile", "detailed", "--smooth-m", "0.76", "--taubin-passes", "1", "--curviness", "0.29", "--min-loop-area-m2", "22", "--min-clearance-m", "1.15", "--formline-min-gap-m", "3.5", "--formline-max-slope-deg", "19"] },
       { name: "normal-5m", profile: undefined,
         settings: { contour_interval: 5 },
         expect: ["--interval", "5"] },
       { name: "generalized-5m", profile: "generalized",
-        settings: { contour_interval: 5, smooth_m: 1.5, taubin: 3, curviness: 0.13, min_loop_area: 62, min_clearance: 2, formline_gap: 5.6, formline_max_slope: 17 },
-        expect: ["--interval", "5", "--profile", "generalized", "--smooth-m", "1.5", "--taubin-passes", "3", "--curviness", "0.13", "--min-loop-area-m2", "62", "--min-clearance-m", "2", "--formline-min-gap-m", "5.6", "--formline-max-slope-deg", "17"] },
+        settings: { contour_interval: 5, smooth_m: 1.42, taubin: 3, curviness: 0.14, min_loop_area: 58, min_clearance: 1.95, formline_gap: 5.5, formline_max_slope: 14.5 },
+        expect: ["--interval", "5", "--profile", "generalized", "--smooth-m", "1.42", "--taubin-passes", "3", "--curviness", "0.14", "--min-loop-area-m2", "58", "--min-clearance-m", "1.95", "--formline-min-gap-m", "5.5", "--formline-max-slope-deg", "14.5"] },
       { name: "veryGeneralized-5m", profile: "very-generalized",
-        settings: { contour_interval: 5, smooth_m: 2.15, taubin: 4, curviness: 0.08, min_loop_area: 105, min_clearance: 2.4, formline_gap: 7.6, formline_max_slope: 13.5 },
-        expect: ["--interval", "5", "--profile", "very-generalized", "--smooth-m", "2.15", "--taubin-passes", "4", "--curviness", "0.08", "--min-loop-area-m2", "105", "--min-clearance-m", "2.4", "--formline-min-gap-m", "7.6", "--formline-max-slope-deg", "13.5"] },
+        settings: { contour_interval: 5, smooth_m: 2.1, taubin: 4, curviness: 0.08, min_loop_area: 100, min_clearance: 2.4, formline_gap: 7.6, formline_max_slope: 11.5 },
+        expect: ["--interval", "5", "--profile", "very-generalized", "--smooth-m", "2.1", "--taubin-passes", "4", "--curviness", "0.08", "--min-loop-area-m2", "100", "--min-clearance-m", "2.4", "--formline-min-gap-m", "7.6", "--formline-max-slope-deg", "11.5"] },
       { name: "veryDetailed-sprint", profile: "very-detailed",
-        settings: { contour_interval: 2.5, smooth_m: 0.52, taubin: 1, curviness: 0.26, min_loop_area: 9, min_clearance: 0.55, formline_gap: 2.2, formline_max_slope: 22.5 },
-        expect: ["--interval", "2.5", "--profile", "very-detailed", "--smooth-m", "0.52", "--taubin-passes", "1", "--curviness", "0.26", "--min-loop-area-m2", "9", "--min-clearance-m", "0.55", "--formline-min-gap-m", "2.2", "--formline-max-slope-deg", "22.5"] },
+        settings: { contour_interval: 2.5, smooth_m: 0.45, taubin: 1, curviness: 0.34, min_loop_area: 8, min_clearance: 0.5, formline_gap: 2.1, formline_max_slope: 20 },
+        expect: ["--interval", "2.5", "--profile", "very-detailed", "--smooth-m", "0.45", "--taubin-passes", "1", "--curviness", "0.34", "--min-loop-area-m2", "8", "--min-clearance-m", "0.5", "--formline-min-gap-m", "2.1", "--formline-max-slope-deg", "20"] },
       { name: "veryGeneralized-sprint", profile: "very-generalized",
-        settings: { contour_interval: 2.5, smooth_m: 1.55, taubin: 4, curviness: 0.08, min_loop_area: 40, min_clearance: 1.5, formline_gap: 5.8, formline_max_slope: 13 },
-        expect: ["--interval", "2.5", "--profile", "very-generalized", "--smooth-m", "1.55", "--taubin-passes", "4", "--curviness", "0.08", "--min-loop-area-m2", "40", "--min-clearance-m", "1.5", "--formline-min-gap-m", "5.8", "--formline-max-slope-deg", "13"] }
+        settings: { contour_interval: 2.5, smooth_m: 1.55, taubin: 4, curviness: 0.08, min_loop_area: 40, min_clearance: 1.5, formline_gap: 5.8, formline_max_slope: 11 },
+        expect: ["--interval", "2.5", "--profile", "very-generalized", "--smooth-m", "1.55", "--taubin-passes", "4", "--curviness", "0.08", "--min-loop-area-m2", "40", "--min-clearance-m", "1.5", "--formline-min-gap-m", "5.8", "--formline-max-slope-deg", "11"] }
     ];
     for (const profile of profiles) {
       expect(inferOtidgeoProfile(profile.settings)).toBe(profile.profile);
@@ -62,7 +62,7 @@ describe("otidgeo CLI-mappning och dubbelmotorplan (Etapp G4B)", () => {
   it("låter --formline-mode sparse/dense skala profilens hjälpkurveförval, och skalanpassar sprint-veg och brantregler", () => {
     // Matchad profil + formline=1 (sparse): hoppa över profilens egna formline_gap/max_slope så Pass 3 skalar från --profile.
     const sparseDetailed = otidgeoRunArgs(["in/r.las"], "out", {
-      settings: { contour_interval: 5, formline: 1, smooth_m: 0.88, taubin: 2, curviness: 0.22, min_loop_area: 26, min_clearance: 1.25, formline_gap: 3.6, formline_max_slope: 21.5 }
+      settings: { contour_interval: 5, formline: 1, smooth_m: 0.76, taubin: 1, curviness: 0.29, min_loop_area: 22, min_clearance: 1.15, formline_gap: 3.5, formline_max_slope: 19 }
     });
     expect(sparseDetailed).toContain("--profile");
     expect(sparseDetailed[sparseDetailed.indexOf("--profile") + 1]).toBe("detailed");
@@ -73,7 +73,7 @@ describe("otidgeo CLI-mappning och dubbelmotorplan (Etapp G4B)", () => {
 
     // Handskrivet avvikande formline_gap skickas däremot vidare även ihop med dense.
     const customDense = otidgeoRunArgs(["in/r.las"], "out", {
-      settings: { contour_interval: 5, formline: 3, smooth_m: 0.88, taubin: 2, curviness: 0.22, min_loop_area: 26, min_clearance: 1.25, formline_gap: 6.5, formline_max_slope: 21.5 }
+      settings: { contour_interval: 5, formline: 3, smooth_m: 0.76, taubin: 1, curviness: 0.29, min_loop_area: 22, min_clearance: 1.15, formline_gap: 6.5, formline_max_slope: 19 }
     });
     expect(customDense[customDense.indexOf("--formline-min-gap-m") + 1]).toBe("6.5");
     expect(customDense).not.toContain("--formline-max-slope-deg");
@@ -88,14 +88,14 @@ describe("otidgeo CLI-mappning och dubbelmotorplan (Etapp G4B)", () => {
     expect(sprintVegDefault[sprintVegDefault.indexOf("--interval") + 1]).toBe("2.5");
     expect(sprintVegDefault).not.toContain("--min-veg-area-m2");
 
-    // Geo-arbetarens brantregler är skalanpassade (skog 4,0 m / 16 m vs sprint 3,0 m / 8 m).
+    // Geo-arbetarens brantregler är skalanpassade (skog 4,1 m / 16 m vs sprint 3,4 m / 10 m).
     expect(isSprintJob({ settings: { contour_interval: 5 } })).toBe(false);
     expect(isSprintJob({ settings: { contour_interval: 2.5 } })).toBe(true);
     expect(isSprintJob({ settings: { paved: 1 } })).toBe(true);
     expect(cliffRulesForJob({ settings: { contour_interval: 5 } })).toEqual(FOREST_CLIFF_RULES);
     expect(cliffRulesForJob({ settings: { contour_interval: 2.5 } })).toEqual(SPRINT_CLIFF_RULES);
     expect(cliffRulesForJob({ settings: { contour_interval: 2.5 }, cliffs: { minDrop: 1, impassableDrop: 2.5 } }))
-      .toMatchObject({ minDrop: 1, impassableDrop3: 2.5, impassableDrop6: 2.5, impassableLength: 8 });
+      .toMatchObject({ minDrop: 1, impassableDrop3: 2.5, impassableDrop6: 2.5, impassableLength: 10 });
   });
 
   it("mappar formline 0–3, overview 0/1, veg_smooth, knollshare, greenscale-inversion och vegetationsflaggor", () => {

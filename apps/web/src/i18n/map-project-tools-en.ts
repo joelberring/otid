@@ -22,7 +22,7 @@ export const mapProjectGeneralizeEn: Texts<typeof mapProjectGeneralizeSv> = {
   removeSmall: "Remove small areas, short lines and small knolls",
   joinLines: "Join lines with the same symbol whose ends meet (e.g. contours split at the laser tiles' edges)",
   removeInside: "Remove areas lying entirely inside an identical area",
-  smooth: "Make contours, cliffs and green areas smooth (simplified first with at least 0.15 mm)",
+  smooth: "Make contours, cliffs and green areas smooth (simplified first: 0.045 mm for contours/cliffs, 0.15 mm for green areas)",
   smoothed: (n: number) => n === 0 ? "Nothing to make smooth." : `${count(n, "object is", "objects are")} made smooth.`,
   joined: (lines: number, absorbed: number) => lines === 0 ? "No lines to join."
     : `${count(lines, "line is", "lines are")} joined from ${lines + absorbed} parts.`,

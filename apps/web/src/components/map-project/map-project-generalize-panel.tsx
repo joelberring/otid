@@ -5,7 +5,7 @@ import { mapProjectGeneralizeEn } from "../../i18n/map-project-tools-en";
 import { useTexts } from "../language-provider";
 import type { BoxArea } from "../../lib/map-project-area-box";
 import { mapProjectGeneralizeSv } from "../../i18n/map-project-generalize-sv";
-import { SOFT_CODES } from "@o-tid/map-revision";
+import { contourLineSimplifyMm, SOFT_CODES } from "@o-tid/map-revision";
 import { Button } from "../ui";
 import type { useMapProjectGeneralize } from "./use-map-project-generalize";
 import styles from "./map-project-editor.module.css";
@@ -14,7 +14,7 @@ const TOLERANCES = [0, 0.05, 0.1, 0.2] as const;
 type Area = BoxArea & { areaId: string };
 
 /** ADR-0219 K6 (del 1): generaliseringen i sidopanelen: välj område och steg, räkna fram och lämna som förslag. */
-export function MapProjectGeneralizePanel({ generalize, areas }: { generalize: ReturnType<typeof useMapProjectGeneralize>; areas: readonly Area[] }) {
+export function MapProjectGeneralizePanel({ generalize, areas, scale }: { generalize: ReturnType<typeof useMapProjectGeneralize>; areas: readonly Area[]; scale?: number | undefined }) {
   const text = useTexts(mapProjectGeneralizeSv, mapProjectGeneralizeEn);
   const [where, setWhere] = useState("");
   const [tolerance, setTolerance] = useState<number>(0.1);
@@ -48,7 +48,7 @@ export function MapProjectGeneralizePanel({ generalize, areas }: { generalize: R
     <span className={styles.actions}>
       <Button variant="secondary" disabled={!!generalize.busy || (tolerance === 0 && !removeSmall && !joinLines && !removeInside && !smooth)} data-testid="map-project-generalize-preview"
         onClick={() => generalize.preview({ simplifyMm: tolerance, removeSmall, joinLines, removeInside, within,
-          ...(smooth ? { smooth: SOFT_CODES, smoothSimplifyMm: 0.15 } : {}) })}>{text.preview}</Button>
+          ...(smooth ? { smooth: SOFT_CODES, smoothSimplifyMm: 0.15, smoothLineSimplifyMm: Math.max(tolerance > 0.1 ? tolerance : 0, contourLineSimplifyMm(scale ?? 15_000)) } : {}) })}>{text.preview}</Button>
     </span>
     {result && planned && <div role="status" data-testid="map-project-generalize-result">
       <p>{text.summary(result.simplified, result.pointsBefore, result.pointsAfter)}</p>

@@ -26,7 +26,7 @@ describe("panelen Gropar och sänkor med reglage", () => {
     expect(html).toMatch(/<input type="range" min="1" max="10" step="1"[^>]*value="5"/);
     expect(html).toContain("Mängd: 5 av 10 (förval)");
     expect(html).toContain("Gropsymbol från: 0,4 m djup");
-    expect(html).toContain("Ring av hjälpkurva från: 1,0 m djup");
+    expect(html).toContain("Ring av hjälpkurva från: 0,85 m djup");
     expect(html).toContain("Minsta avstånd mellan två gropsymboler: 15 m");
     expect(html).toContain("12 gropsymboler och 3 ringar av 40 möjliga sänkor.");
   });

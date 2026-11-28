@@ -25,16 +25,22 @@ export interface CliffLimits {
   readonly tags: boolean;
   /** Kortaste brant som tas med (m); normens 0,6 mm på kartan är förvalet (`normCliffLength`). */
   readonly minLength: number;
+  /** Minsta medianlutning (grader) för en brant alls när kandidaten bär `slope`; utelämnat = prövas inte. */
+  readonly minSlope?: number | undefined;
   /** Minsta medianlutning (grader) för opasserbar brant (201) när kandidaten bär `slope`; utelämnat = prövas inte. */
   readonly impassableSlope?: number | undefined;
+  /** Minsta brantkantsskärpa (`drop3/drop6`) för att skilja klippor från jämna slänter när kandidaten bär `sharpness` (kringgås vid `slope >= 46°`). */
+  readonly minSharpness?: number | undefined;
 }
 /** Normens kortaste brant (0,6 mm på kartan) i meter för kartans skala. */
 export const normCliffLength = (scale: number) => 0.6 * scale / 1000;
 /** Sprintskala (≤ 1:5 000, t.ex. 1:4 000 ISSprOM). */
 export const isSprintCliffScale = (scale: number) => scale <= 5000;
+/** Lutning (grader) över vilken en riktig bergvägg alltid godtas oavsett brantkantsskärpa. */
+const SHARPNESS_BYPASS_SLOPE = 46;
 /** Skalanpassade förval kalibrerade mot 6 autentiska OCAD-kartor (4 skog + 2 sprint). */
-export const FOREST_CLIFF_DEFAULTS = { minDrop: 1.3, impassableDrop: 4.0, impassableLength: 16, impassableSlope: 40 } as const;
-export const SPRINT_CLIFF_DEFAULTS = { minDrop: 1.3, impassableDrop: 3.0, impassableLength: 8, impassableSlope: 39 } as const;
+export const FOREST_CLIFF_DEFAULTS = { minDrop: 2.0, minSlope: 39, impassableDrop: 4.1, impassableLength: 16, impassableSlope: 41, minSharpness: 0.56 } as const;
+export const SPRINT_CLIFF_DEFAULTS = { minDrop: 1.2, impassableDrop: 3.4, impassableLength: 10, impassableSlope: 40, minSharpness: 0.58 } as const;
 /** Geo-arbetarens skalanpassade förval, med normens kortaste brant för skalan. */
 export const defaultCliffLimits = (scale: number): CliffLimits => {
   const base = isSprintCliffScale(scale) ? SPRINT_CLIFF_DEFAULTS : FOREST_CLIFF_DEFAULTS;
@@ -78,11 +84,16 @@ export function readCliffCandidates(json: unknown): CliffCandidate[] {
 }
 
 export function classifyCliff(
-  cliff: { readonly drop3: number; readonly drop6: number; readonly length: number; readonly slope?: number | undefined },
+  cliff: { readonly drop3: number; readonly drop6: number; readonly length: number; readonly slope?: number | undefined; readonly sharpness?: number | undefined },
   limits: CliffLimits
 ): "impassable" | "passable" | undefined {
   if (!Number.isFinite(cliff.drop3) || cliff.drop3 < limits.minDrop) return undefined;
-  const steepEnough = limits.impassableSlope === undefined || cliff.slope === undefined || cliff.slope >= limits.impassableSlope;
+  if (limits.minSlope !== undefined && cliff.slope !== undefined && Number.isFinite(cliff.slope) && cliff.slope < limits.minSlope) return undefined;
+  if (limits.minSharpness !== undefined && cliff.sharpness !== undefined && Number.isFinite(cliff.sharpness) && cliff.sharpness < limits.minSharpness) {
+    const steepWall = cliff.slope !== undefined && Number.isFinite(cliff.slope) && cliff.slope >= SHARPNESS_BYPASS_SLOPE;
+    if (!steepWall) return undefined;
+  }
+  const steepEnough = limits.impassableSlope === undefined || cliff.slope === undefined || !Number.isFinite(cliff.slope) || cliff.slope >= limits.impassableSlope;
   return cliff.drop3 >= limits.impassableDrop
     && Number.isFinite(cliff.drop6) && cliff.drop6 >= limits.impassableDrop
     && cliff.length >= limits.impassableLength

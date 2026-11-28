@@ -120,7 +120,7 @@ pub fn closed_loop_raw_prominence(pts: &[[f64; 2]], elev: f64, is_dep: bool, dem
     if let Some(zc) = dem.sample_raw(cx, cy) {
         best = best.max(if is_dep { elev - f64::from(zc) } else { f64::from(zc) - elev });
     }
-    let step = ((max_x - min_x).max(max_y - min_y) / 10.0).max(2.0);
+    let step = ((max_x - min_x).max(max_y - min_y) / 10.0).max(1.0);
     let mut y = min_y + 0.5 * step;
     while y < max_y {
         let mut x = min_x + 0.5 * step;
@@ -137,8 +137,10 @@ pub fn closed_loop_raw_prominence(pts: &[[f64; 2]], elev: f64, is_dep: bool, dem
     best
 }
 
-/// Slope-adaptive area-preserving Taubin smoothing (`lambda > 0`, `mu < 0`) with strict elevation clamping.
-/// Gentle on hilly noses/hilltops (`slope > 6°`) so small hills and spurs stay sharp, full strength on flat ground (`< 3.5°`).
+/// Slope- and curvature-adaptive area-preserving Taubin smoothing (`lambda > 0`, `mu < 0`) with
+/// strict elevation clamping. Smooths 1 m Marching Squares grid stair-steps and gentle-slope
+/// micro-wiggles cleanly while strongly preserving genuine rocky noses, sharp corners, incised
+/// re-entrants, and small hilltop silhouettes via multi-vertex span/chord prominence gating.
 pub fn taubin_smooth(
     pts: &[[f64; 2]],
     closed: bool,
@@ -151,24 +153,104 @@ pub fn taubin_smooth(
     if n < 4 {
         return pts.to_vec();
     }
-    let small_ring = closed && n <= 24;
-    let weights: Vec<f64> = pts
-        .iter()
-        .map(|&[x, y]| {
+    let small_ring = closed && n <= 40;
+    let min_span = 3usize.min(n / 3).max(1);
+    let max_span = 8usize.min(n / 3).max(min_span);
+    let target_chord = 3.2f64;
+
+    let weights: Vec<f64> = (0..n)
+        .map(|i| {
+            let [x, y] = pts[i];
             let slope = dem.sample_slope(x, y).unwrap_or(8.0);
             let conv16 = dem.sample_convex_16m(x, y).unwrap_or(0.0);
-            let t = ((7.0 - f64::from(slope)) / 3.5).clamp(0.0, 1.0);
-            let mut w = 0.42 + 0.58 * t;
-            if small_ring || conv16 > 0.45 {
-                w = w.min(0.45);
+            let t = ((8.5 - f64::from(slope)) / 5.0).clamp(0.0, 1.0);
+            let mut w = 0.72 + 0.28 * t;
+
+            // Multi-vertex chord/span prominence over ±3..±8 vertices (>= ~3.2 m legs):
+            // 1-cell grid zigzags and gentle-slope micro-wiggles have small chord sagitta (< 0.75 m)
+            // and smooth cleanly, while genuine rocky noses/re-entrants (>= 3-4 m) stay crisp.
+            let mut p_prev = if closed {
+                pts[(i + n - min_span) % n]
+            } else {
+                pts[i.saturating_sub(min_span)]
+            };
+            let mut l1 = (x - p_prev[0]).hypot(y - p_prev[1]);
+            for s in (min_span + 1)..=max_span {
+                if l1 >= target_chord {
+                    break;
+                }
+                let cand = if closed {
+                    pts[(i + n - s) % n]
+                } else if i >= s {
+                    pts[i - s]
+                } else {
+                    break;
+                };
+                p_prev = cand;
+                l1 = (x - p_prev[0]).hypot(y - p_prev[1]);
             }
-            w
+
+            let mut p_next = if closed {
+                pts[(i + min_span) % n]
+            } else {
+                pts[(i + min_span).min(n - 1)]
+            };
+            let mut l2 = (p_next[0] - x).hypot(p_next[1] - y);
+            for s in (min_span + 1)..=max_span {
+                if l2 >= target_chord {
+                    break;
+                }
+                let cand = if closed {
+                    pts[(i + s) % n]
+                } else if i + s < n {
+                    pts[i + s]
+                } else {
+                    break;
+                };
+                p_next = cand;
+                l2 = (p_next[0] - x).hypot(p_next[1] - y);
+            }
+
+            let l_min = l1.min(l2);
+            let corner_damp = if l_min > 1.8 {
+                let v1x = x - p_prev[0];
+                let v1y = y - p_prev[1];
+                let v2x = p_next[0] - x;
+                let v2y = p_next[1] - y;
+                let cos = ((v1x * v2x + v1y * v2y) / (l1 * l2)).clamp(-1.0, 1.0);
+                let ang_deg = cos.acos().to_degrees();
+                let chord_x = p_next[0] - p_prev[0];
+                let chord_y = p_next[1] - p_prev[1];
+                let chord_l2 = chord_x * chord_x + chord_y * chord_y;
+                let proj = if chord_l2 > 1e-12 {
+                    (((x - p_prev[0]) * chord_x + (y - p_prev[1]) * chord_y) / chord_l2).clamp(0.0, 1.0)
+                } else {
+                    0.5
+                };
+                let perp = (x - (p_prev[0] + proj * chord_x)).hypot(y - (p_prev[1] + proj * chord_y));
+                let ua = ((ang_deg - 24.0) / 34.0).clamp(0.0, 1.0);
+                let ang_gate = ua * ua * (3.0 - 2.0 * ua);
+                let up = ((perp - 0.75) / 0.90).clamp(0.0, 1.0);
+                let ul = ((l_min - 1.8) / 1.4).clamp(0.0, 1.0);
+                let prom_gate = (up * up * (3.0 - 2.0 * up)) * (ul * ul * (3.0 - 2.0 * ul));
+                1.0 - 0.85 * ang_gate * prom_gate
+            } else {
+                1.0
+            };
+
+            if small_ring {
+                w = w.min(0.65);
+            }
+            if conv16.abs() > 0.45 {
+                w = w.min(0.30);
+            }
+            w * corner_damp
         })
         .collect();
 
     let mut cur = pts.to_vec();
     let mut next = cur.clone();
-    let steps = [0.34f64, -0.35f64];
+    let steps = [0.46f64, -0.47f64];
 
     for _ in 0..rounds {
         for &factor in &steps {
@@ -182,14 +264,24 @@ pub fn taubin_smooth(
                 let mid_x = 0.5 * (prev[0] + succ[0]);
                 let mid_y = 0.5 * (prev[1] + succ[1]);
                 let f = factor * weights[i];
-                let cand = [
-                    cur[i][0] + f * (mid_x - cur[i][0]),
-                    cur[i][1] + f * (mid_y - cur[i][1]),
-                ];
+                let dx = f * (mid_x - cur[i][0]);
+                let dy = f * (mid_y - cur[i][1]);
+                let cand = [cur[i][0] + dx, cur[i][1] + dy];
                 let ok = dem
                     .sample_raw(cand[0], cand[1])
                     .is_some_and(|z| (f64::from(z) - level).abs() <= max_rise);
-                next[i] = if ok { cand } else { cur[i] };
+                if ok {
+                    next[i] = cand;
+                } else if factor < 0.0 {
+                    // Half-step fallback on inflate prevents asymmetric shrink-without-restore rounding on noses.
+                    let half = [cur[i][0] + 0.5 * dx, cur[i][1] + 0.5 * dy];
+                    let ok_half = dem
+                        .sample_raw(half[0], half[1])
+                        .is_some_and(|z| (f64::from(z) - level).abs() <= max_rise);
+                    next[i] = if ok_half { half } else { cur[i] };
+                } else {
+                    next[i] = cur[i];
+                }
             }
             std::mem::swap(&mut cur, &mut next);
         }
@@ -197,8 +289,9 @@ pub fn taubin_smooth(
     cur
 }
 
-/// Slope-adaptive Gaussian smoothing along the curve ONLY on flat ground (`< 4.5 deg`),
-/// clamped to `max_rise` so neighboring contours never merge. Leaves hilly noses/ridges untouched.
+/// Slope-adaptive Gaussian smoothing along the curve ONLY on flat ground (`< 3.6 deg`),
+/// clamped to `max_rise` so neighboring contours never merge. Leaves hilly noses, ridges, and
+/// incised re-entrants untouched.
 pub fn calm_flat_curve(
     pts: &[[f64; 2]],
     closed: bool,
@@ -218,15 +311,15 @@ pub fn calm_flat_curve(
         let p = pts[i];
         let local_slp = dem.sample_slope(p[0], p[1]).unwrap_or(15.0);
         let med_slp = dem.sample_mean_slope_16m(p[0], p[1]).unwrap_or(local_slp);
-        let eff_slp = local_slp.max(0.75 * med_slp);
-        if eff_slp >= 4.5 {
+        let eff_slp = local_slp.max(0.80 * med_slp);
+        if eff_slp >= 3.6 {
             continue;
         }
-        let mut alpha = ((4.5 - f64::from(eff_slp)) / 2.7).clamp(0.0, 1.0);
+        let mut alpha = ((3.6 - f64::from(eff_slp)) / 2.2).clamp(0.0, 1.0);
         if let Some(conv16) = dem.sample_convex_16m(p[0], p[1]) {
-            if conv16 > 0.40 {
-                let m = ((f64::from(conv16) - 0.40) / 0.55).clamp(0.0, 1.0);
-                alpha *= 1.0 - 0.80 * m;
+            if conv16.abs() > 0.30 {
+                let m = ((f64::from(conv16.abs()) - 0.30) / 0.45).clamp(0.0, 1.0);
+                alpha *= 1.0 - 0.88 * m;
             }
         }
         if alpha < 0.05 {

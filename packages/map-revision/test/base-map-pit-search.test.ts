@@ -3,7 +3,7 @@ import type { SourceFeature } from "../src";
 import { suggestSymbol } from "../src";
 import type { HeightGrid } from "../src/base-map/clear-contours";
 import { depressionRing } from "../src/base-map/depressions";
-import { choosePits, DEFAULT_PIT_LIMITS, findPits, PIT_LAYERS, pitFeatures, pitLimitsAt, type PitCandidate } from "../src/base-map/pit-search";
+import { choosePits, DEFAULT_PIT_LIMITS, defaultPitLimits, findPits, PIT_LAYERS, pitFeatures, pitLimitsAt, smoothedHeights, type PitCandidate } from "../src/base-map/pit-search";
 import { ringArea } from "../src/base-map/small-rings";
 
 /** Ett raster med 1 m celler: en sluttning (1 % österut) med gropar; `hole` = [kolumn, rad, radie, djup]. Rad 0 är norr. */
@@ -54,17 +54,35 @@ describe("sänkor ur höjdrastret", () => {
     const [only] = findPits(trench, affine);
     expect(only!.length).toBeGreaterThan(2 * only!.width);
   });
+  it("smal grop (radie 2,2 m, djup 0,65 m) bevarar djupet över 0,4 m med 1-pass-utjämning (plattades tidigare bort av 2-pass)", () => {
+    const narrow = terrain(60, 60, [[30, 30, 2.2, 0.65]]);
+    // Verifiera att 2-pass plattar ut botten under 0,4 m medan findPits (1-pass för djupet) hittar den över 0,4 m.
+    const twoPass = smoothedHeights(narrow, 2);
+    const rim = 100 + 28 * 0.01;
+    expect(rim - twoPass[30 * 60 + 30]!).toBeLessThan(0.4);
+    const found = findPits(narrow, affine);
+    expect(found).toHaveLength(1);
+    expect(found[0]!.depth).toBeGreaterThanOrEqual(0.4);
+  });
 });
 
 describe("valet bland sänkorna", () => {
-  it("förvalen: gropsymbol från 0,4 m, ring från 1 m när kanten rymmer normens minsta grop", () => {
+  it("förvalen: gropsymbol från 0,4 m, ring från 0,85 m (skog) / 0,65 m (sprint) när kanten rymmer normens minsta grop", () => {
     expect(pitLimitsAt(5)).toEqual(DEFAULT_PIT_LIMITS);
-    expect(DEFAULT_PIT_LIMITS).toEqual({ minDepth: 0.4, ringDepth: 1, spacing: 15 });
-    // 1:15 000: normens grop är 16,5 × 10,5 m, med marginalen 19,8 × 12,6 m.
+    expect(DEFAULT_PIT_LIMITS).toEqual({ minDepth: 0.4, ringDepth: 0.85, spacing: 15 });
+    expect(defaultPitLimits(4_000)).toEqual({ minDepth: 0.4, ringDepth: 0.65, spacing: 15 });
+    expect(pitLimitsAt(5, 4_000)).toEqual({ minDepth: 0.4, ringDepth: 0.65, spacing: 15 });
+    // 1:15 000: normens grop är 16,5 × 10,5 m.
     const big = pit(0, 0, 1.4, 500, circle(0, 0, 12)), small = pit(100, 0, 1.4, 90, circle(100, 0, 5)), shallow = pit(200, 0, 0.6, 120), faint = pit(300, 0, 0.35, 80);
     const choice = choosePits([faint, shallow, small, big], DEFAULT_PIT_LIMITS, 15_000);
     expect(choice.rings).toEqual([big.ring]);
     expect(choice.points).toEqual([[100, 0], [200, 0]]);
+    // En 18 m bred, 0,9 m djup sänka (E1/E2) blir nu ring i skog (1:15 000 & 1:10 000), och en 6 m bred, 0,75 m djup sänka (E7) blir ring i sprint (1:4 000).
+    const forestDep = pit(0, 0, 0.9, 240, circle(0, 0, 9));
+    expect(choosePits([forestDep], defaultPitLimits(15_000), 15_000).rings).toHaveLength(1);
+    const sprintDep = pit(0, 0, 0.75, 28, circle(0, 0, 3));
+    expect(choosePits([sprintDep], defaultPitLimits(4_000), 4_000).rings).toHaveLength(1);
+    expect(choosePits([sprintDep], defaultPitLimits(15_000), 15_000)).toEqual({ points: [[0, 0]], rings: [] });
   });
   it("1 ger få och 10 ger många", () => {
     const pits = [pit(0, 0, 2.2, 500, circle(0, 0, 12)), pit(100, 0, 1.3, 90), pit(120, 0, 0.9, 90), pit(200, 0, 0.35, 60)];

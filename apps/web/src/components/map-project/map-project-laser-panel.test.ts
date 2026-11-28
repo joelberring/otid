@@ -10,7 +10,7 @@ describe("Laserpanelens avancerade inställningar", () => {
 
   it("hoppar över tomma fält, annat än tal, tal utanför gränserna och okända namn", () => {
     expect(moreSettings({ cliff1: "", cliff2: "brant", knolls: "9", undergrowth: "-1", contour_interval: "2.5", okänd: "1" })).toEqual({});
-    expect(moreSettings({ smooth_m: "0,4", taubin: "7", min_loop_area: "301", min_clearance: "5", formline_gap: "1", formline_max_slope: "40", veg_smooth: "4" }, OTIDGEO_MORE_SETTINGS))
+    expect(moreSettings({ smooth_m: "0,2", taubin: "7", min_loop_area: "301", min_clearance: "5", formline_gap: "1", formline_max_slope: "40", veg_smooth: "4" }, OTIDGEO_MORE_SETTINGS))
       .toEqual({});
   });
 

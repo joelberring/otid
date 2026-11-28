@@ -5,7 +5,7 @@ import type { PixelAffine } from "./flat-contours";
 import { blend } from "./knoll-choice";
 import { maskOutlines, simplifyRing } from "./photo-interpret";
 import { MARSH_PIT_KEEP_DEPTH, marshTest } from "./marsh-pits";
-import { extentOf, GENERALIZE, ISOM_RINGS, ringArea } from "./small-rings";
+import { extentOf, ISOM_RINGS, ringArea } from "./small-rings";
 
 /**
  * Egen sökning efter sänkor (ägaren 2026-11-15, Grövelsjön). Geo-arbetaren letar små kullar men inga gropar, och Karttapullautin
@@ -30,10 +30,10 @@ export interface PitCandidate {
 /** Celler som ligger minst så djupt under tröskeln hör till sänkan; grundare kandidater än `PIT_MIN_DEPTH` sparas inte. */
 export const PIT_LABEL_DEPTH = 0.2, PIT_MIN_DEPTH = 0.3;
 /** En sänka får en kant sparad när den är minst så djup och ytan ligger mellan gränserna (m²). */
-const RING_FROM_DEPTH = 0.6, RING_MIN_M2 = 40, RING_MAX_M2 = 6000;
+const RING_FROM_DEPTH = 0.55, RING_MIN_M2 = 12, RING_MAX_M2 = 6000;
 
-/** Rastret lätt utjämnat (1–2–1 i båda led, två gånger); celler utan höjd står kvar utan höjd och väger inte in. */
-export function smoothedHeights(grid: HeightGrid): Float32Array {
+/** Rastret lätt utjämnat (1–2–1 i båda led, `passes` gånger, förval 2); celler utan höjd står kvar utan höjd och väger inte in. */
+export function smoothedHeights(grid: HeightGrid, passes = 2): Float32Array {
   const { columns, rows } = grid, first = new Float32Array(grid.meters.length), second = new Float32Array(grid.meters.length);
   /** En led: `count` celler per rad med `stride` emellan, `lines` rader med `lineStride` emellan. */
   const pass = (from: Float32Array, to: Float32Array, stride: number, count: number, lines: number, lineStride: number) => {
@@ -49,8 +49,13 @@ export function smoothedHeights(grid: HeightGrid): Float32Array {
       }
     }
   };
-  pass(grid.meters, first, 1, columns, rows, columns); pass(first, second, columns, rows, columns, 1);
-  pass(second, first, 1, columns, rows, columns); pass(first, second, columns, rows, columns, 1);
+  if (passes <= 0) return new Float32Array(grid.meters);
+  let src = grid.meters;
+  for (let p = 0; p < passes; p += 1) {
+    pass(src, first, 1, columns, rows, columns);
+    pass(first, second, columns, rows, columns, 1);
+    src = second;
+  }
   return second;
 }
 
@@ -137,7 +142,9 @@ export function chaikin(ring: readonly Position[], rounds: number): [number, num
 export function findPits(grid: HeightGrid, affine: PixelAffine, smoothed?: Float32Array): PitCandidate[] {
   const { columns, rows } = grid;
   if (columns < 3 || rows < 3) return [];
-  const z = smoothed ?? smoothedHeights(grid), filled = fillDepressions(z, columns, rows);
+  // Ett 1-2-1-pass för djupet så smala gropar inte plattas ut under tröskeln; två pass för ringens kontur.
+  const z = smoothedHeights(grid, 1), filled = fillDepressions(z, columns, rows);
+  let ringZ: Float32Array | undefined, ringFilled: Float32Array | undefined;
   const [a, b, c, d, e, f] = affine, cellM2 = Math.abs(a * e - b * d), cellM = Math.sqrt(cellM2);
   const toSource = (column: number, row: number): [number, number] => [a * column + b * row + c, d * column + e * row + f];
   const depthAt = (cell: number) => filled[cell]! - z[cell]!;
@@ -168,11 +175,25 @@ export function findPits(grid: HeightGrid, affine: PixelAffine, smoothed?: Float
     const deepRow = Math.floor(deepest / columns), deepColumn = deepest - deepRow * columns;
     let ring: [number, number][] | undefined;
     if (depth >= RING_FROM_DEPTH && areaM2 >= RING_MIN_M2 && areaM2 <= RING_MAX_M2) {
-      // Kanten: cellerna som ligger minst en fjärdedel av djupet (minst 0,25 m) under tröskeln och hänger ihop med botten.
-      const limit = Math.max(0.25, depth / 4), width_ = maxC - minC + 3, height_ = maxR - minR + 3;
+      if (!ringFilled) {
+        ringZ = smoothed ?? smoothedHeights(grid, 2);
+        ringFilled = fillDepressions(ringZ, columns, rows);
+      }
+      // Kanten: cellerna minst en fjärdedel av djupet (minst 0,25 m) under tröskeln på tvåpass-utjämnat raster (med 1-pass som reserv för riktigt smala sänkor).
+      let seedCell = deepest, ringDepth = 0;
+      for (const cell of cells) {
+        const d2 = ringFilled[cell]! - ringZ![cell]!;
+        if (d2 > ringDepth) { ringDepth = d2; seedCell = cell; }
+      }
+      const useSmooth = ringDepth >= Math.max(0.25, depth / 4);
+      const outlineDepth = useSmooth ? (cell: number) => ringFilled![cell]! - ringZ![cell]! : depthAt;
+      const limit = Math.max(0.25, (useSmooth ? ringDepth : depth) / 4);
+      const seed = useSmooth ? seedCell : deepest;
+      const seedRow = Math.floor(seed / columns), seedCol = seed - seedRow * columns;
+      const width_ = maxC - minC + 3, height_ = maxR - minR + 3;
       const local = new Uint8Array(width_ * height_), at = (column: number, row: number) => (column - minC + 1) * height_ + (row - minR + 1);
-      for (const cell of cells) if (depthAt(cell) >= limit) { const row = Math.floor(cell / columns); local[at(cell - row * columns, row)] = 1; }
-      const part = new Uint8Array(local.length), stack = [at(deepColumn, deepRow)];
+      for (const cell of cells) if (outlineDepth(cell) >= limit) { const row = Math.floor(cell / columns); local[at(cell - row * columns, row)] = 1; }
+      const part = new Uint8Array(local.length), stack = [at(seedCol, seedRow)];
       part[stack[0]!] = 1;
       while (stack.length) {
         const here = stack.pop()!;
@@ -196,15 +217,19 @@ export interface PitLimits {
   readonly minDepth: number; readonly ringDepth: number; readonly spacing: number;
 }
 /**
- * Förvalen, ställda mot kartan över Grövelsjön (2,1 km² dödisterräng, 2026-11-15): med 0,4 m blir det 133 gropsymboler per km²,
- * lika många som kartritarens (hittade i kartbilden), och var fjärde ligger inom 10 m från en av hennes (slumpen ger var
- * tjugofemte). Grundare än 0,4 m träffar sämre; djupare sänkor ritar hon oftare som ringar. 1 på skalan ger bara de djupaste med
- * gott om plats emellan, 10 allt som sökningen har sparat.
+ * Förvalen, ställda mot kartan över Grövelsjön (2,1 km² dödisterräng) och E1–E8: gropsymbol från 0,4 m, ring av hjälpkurva
+ * från 0,85 m i skog och 0,65 m i sprint (≤ 1:5 000). 1 på skalan ger bara de djupaste med gott om plats emellan, 10 allt
+ * som sökningen har sparat.
  */
-export const DEFAULT_PIT_LIMITS: PitLimits = { minDepth: 0.4, ringDepth: 1, spacing: 15 };
+export const DEFAULT_PIT_LIMITS: PitLimits = { minDepth: 0.4, ringDepth: 0.85, spacing: 15 };
+const SPRINT_PIT_LIMITS: PitLimits = { minDepth: 0.4, ringDepth: 0.65, spacing: 15 };
+/** Skalanpassade förval för gropar och sänkor: skog (> 1:5 000) eller sprint (≤ 1:5 000). */
+export const defaultPitLimits = (scale?: number): PitLimits =>
+  scale !== undefined && scale <= 5000 ? SPRINT_PIT_LIMITS : DEFAULT_PIT_LIMITS;
 const FEWEST_PITS: PitLimits = { minDepth: 1.2, ringDepth: 2, spacing: 40 }, MOST_PITS: PitLimits = { minDepth: PIT_MIN_DEPTH, ringDepth: RING_FROM_DEPTH, spacing: 10 };
 export const DEFAULT_PIT_LEVEL = 5;
-export const pitLimitsAt = (level: number): PitLimits => blend(DEFAULT_PIT_LIMITS, level < 5 ? FEWEST_PITS : MOST_PITS, level < 5 ? (5 - level) / 4 : (level - 5) / 5);
+export const pitLimitsAt = (level: number, scale?: number): PitLimits =>
+  blend(defaultPitLimits(scale), level < 5 ? FEWEST_PITS : MOST_PITS, level < 5 ? (5 - level) / 4 : (level - 5) / 5);
 
 /** En gropsymbol visar en liten sänka: större ytor än så (m²) blir en ring eller ingenting. En ring ritas upp till `PIT_RING_MAX_M2`. */
 export const PIT_POINT_MAX_M2 = 600, PIT_RING_MAX_M2 = 3000;
@@ -226,12 +251,14 @@ export interface PitChoice { readonly points: [number, number][]; readonly rings
 
 /**
  * Valet bland kandidaterna, djupast först. En sänka som är minst `ringDepth` djup och vars kant rymmer normens minsta grop
- * (1,1 × 0,7 mm på kartan, med generaliseringens marginal) blir en ring; annars en gropsymbol när den är minst `minDepth` djup,
- * högst `PIT_POINT_MAX_M2` stor och inte ligger närmare en annan än `spacing`. `shown` är grundkartan som den ser ut: en sänka
- * med botten i en liten sluten kurva eller hjälpkurva, eller vid Karttapullautins grop, visas redan och tas inte med.
+ * (1,1 × 0,7 mm på kartan i terrängskala: 16,5 × 10,5 m i skog, 4,4 × 2,8 m i 1:4 000 sprint) blir en ring; annars en
+ * gropsymbol när den är minst `minDepth` djup, högst `PIT_POINT_MAX_M2` stor och inte ligger närmare en annan än `spacing`.
+ * `shown` är grundkartan som den ser ut: en sänka med botten i en liten sluten kurva eller hjälpkurva, eller vid
+ * Karttapullautins grop, visas redan och tas inte med.
  */
 export function choosePits(candidates: readonly PitCandidate[], limits: PitLimits, scale: number, shown: readonly SourceFeature[] = []): PitChoice {
-  const mm = (value: number) => value * GENERALIZE * scale / 1000;
+  const terrainScale = scale <= 5000 ? scale : Math.max(scale, 15000);
+  const mm = (value: number) => value * terrainScale / 1000;
   const shownRings = shown.filter(feature => SHOWN_RING.test(feature.layer) && isRing(feature)).map(feature => {
     const points = (feature.geometry as { points: readonly Position[] }).points;
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;

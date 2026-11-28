@@ -9,7 +9,7 @@ import { clubRequest } from "../../lib/club-request";
 import { mapProjectBase } from "../../lib/map-project-client";
 import { inClip, stageChoices } from "../../lib/map-project-stages";
 import {
-  chooseKnollCandidates, cliffFeatures, cliffLimitsAt, DEFAULT_KNOLL_LIMITS, DEFAULT_PIT_LEVEL, DEFAULT_PIT_LIMITS, defaultCliffLimits, knollFeatures, knollLimitsAt, pitLimitsAt, readCliffCandidates,
+  chooseKnollCandidates, cliffFeatures, cliffLimitsAt, DEFAULT_PIT_LEVEL, defaultCliffLimits, defaultKnollLimits, defaultPitLimits, knollFeatures, knollLimitsAt, pitLimitsAt, readCliffCandidates,
   readKnollCandidates, type CliffLimits, type KnollCandidate, type KnollLimits, type PitLimits
 } from "@o-tid/map-revision/base-map";
 import { useTexts } from "../language-provider";
@@ -125,16 +125,16 @@ export function knollOwnPattern(candidates: readonly KnollCandidate[]): RegExp {
 }
 
 /** Punkthöjderna (109, samt 110 när `kullar.geojson` bär `aspect`/`angle`) bland laserjobbets möjliga små kullar. */
-export function MapProjectKnollPanel({ view, importer }: { view: MapProjectView; importer: Importer }) {
+export function MapProjectKnollPanel({ view, importer, scale }: { view: MapProjectView; importer: Importer; scale?: number | undefined }) {
   const text = useTexts(mapKnollsSv, mapKnollsEn).knolls;
   return <SavedChoicePanel<KnollCandidate, KnollLimits> view={view} importer={importer} file="kullar.geojson" own={knollOwnPattern}
-    initial={DEFAULT_KNOLL_LIMITS} atLevel={knollLimitsAt} position={candidate => candidate.at} read={readKnollCandidates} heading={text.heading} help={text.help} name={text.name} testId="map-project-knolls"
-    choose={(candidates, limits) => { const picked = chooseKnollCandidates(candidates, limits); return { features: knollFeatures(picked), message: text.done(picked.length, candidates.length) }; }}
+    initial={defaultKnollLimits(scale)} atLevel={level => knollLimitsAt(level, scale)} position={candidate => candidate.at} read={readKnollCandidates} heading={text.heading} help={text.help} name={text.name} testId="map-project-knolls"
+    choose={(candidates, limits) => { const picked = chooseKnollCandidates(candidates, limits, scale); return { features: knollFeatures(picked), message: text.done(picked.length, candidates.length) }; }}
     controls={(limits, slider) => <>
-      {slider("minRise", text.minRise(limits.minRise.toLocaleString("sv-SE", { minimumFractionDigits: 1 })), 0.5, 3, 0.1)}
+      {slider("minRise", text.minRise(limits.minRise.toLocaleString("sv-SE", { minimumFractionDigits: 1 })), 0.5, 3, 0.05)}
       {slider("lowerShare", text.lowerShare(Math.round(limits.lowerShare * 100)), 0.5, 1, 0.05)}
-      {slider("maxFootM2", text.maxFoot(limits.maxFootM2), 20, 160, 10)}
-      {slider("spacing", text.spacing(limits.spacing), 10, 60, 5)}
+      {slider("maxFootM2", text.maxFoot(limits.maxFootM2), 20, 160, 1)}
+      {slider("spacing", text.spacing(limits.spacing), 6, 60, 2)}
     </>} />;
 }
 
@@ -164,7 +164,7 @@ export function MapProjectPitPanel({ importer }: { importer: Importer }) {
   const text = useTexts(mapPitsSv, mapPitsEn);
   const shared = useTexts(mapSavedChoiceSv, mapSavedChoiceEn);
   const pits = importer.pits;
-  const [limits, setLimits] = useState<PitLimits>(pits?.limits ?? DEFAULT_PIT_LIMITS);
+  const [limits, setLimits] = useState<PitLimits>(pits?.limits ?? defaultPitLimits(pits?.scale));
   const [level, setLevel] = useState(pits?.level ?? DEFAULT_PIT_LEVEL);
   /** Gränserna som senast räknades, och sökningen de hör till (en ny grundkarta står på sina egna förval). */
   const ran = useRef(pits?.limits), loaded = useRef(pits?.candidates);
@@ -193,14 +193,14 @@ export function MapProjectPitPanel({ importer }: { importer: Importer }) {
     {!pits ? <p className={styles.muted}>{text.none}</p> : <>
       <label>{shared.amount(level)}
         <input type="range" min={1} max={10} step={1} value={level} data-testid="map-project-pits-amount"
-          onChange={event => { const next = Number(event.target.value); setLevel(next); setLimits(pitLimitsAt(next)); }} /></label>
+          onChange={event => { const next = Number(event.target.value); setLevel(next); setLimits(pitLimitsAt(next, pits.scale)); }} /></label>
       <p className={styles.muted}>{shared.amountHelp}</p>
       <details><summary>{shared.fine}</summary>
         {slider("minDepth", text.minDepth(meters(limits.minDepth)), 0.3, 2, 0.1)}
-        {slider("ringDepth", text.ringDepth(meters(limits.ringDepth)), 0.6, 3, 0.1)}
+        {slider("ringDepth", text.ringDepth(meters(limits.ringDepth)), 0.5, 3, 0.05)}
         {slider("spacing", text.spacing(limits.spacing), 10, 60, 5)}
       </details>
-      <span className={styles.actions}><Button variant="quiet" onClick={() => { setLevel(DEFAULT_PIT_LEVEL); setLimits(DEFAULT_PIT_LIMITS); }}>{shared.reset}</Button></span>
+      <span className={styles.actions}><Button variant="quiet" onClick={() => { setLevel(DEFAULT_PIT_LEVEL); setLimits(defaultPitLimits(pits.scale)); }}>{shared.reset}</Button></span>
       <p role="status" data-testid="map-project-pits-message">{text.done(pits.points, pits.rings, pits.candidates.length)}</p>
     </>}
   </details>;

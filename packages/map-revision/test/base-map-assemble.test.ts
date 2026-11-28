@@ -251,6 +251,48 @@ describe("grundkartan till kartans objekt", () => {
     expect(byHeader.summary.clearContours).toMatchObject({ settings: { smooth: 0, formlines: 0, rings: 0 }, rings: 0 });
     expect(byHeader.summary.symbols.find(row => row.symbol === "103")).toMatchObject({ objects: 1 });
 
+    // otidgeo använder exakt ISOM 1,0× för små toppringar (14,5 m diameter > 13,5 m behålls som 101-ring i 1:15 000 i stället för 1,2× = 16,2 m).
+    const hillRing = Array.from({ length: 24 }, (_, i) => [7.25 * Math.cos(i * Math.PI / 12), 7.25 * Math.sin(i * Math.PI / 12)] as [number, number]);
+    const outerRing = Array.from({ length: 24 }, (_, i) => [60 * Math.cos(i * Math.PI / 12), 60 * Math.sin(i * Math.PI / 12)] as [number, number]);
+    const contourRingsDxf = [
+      "0", "SECTION", "2", "HEADER", "999", "otidgeo", "0", "ENDSEC",
+      "0", "SECTION", "2", "ENTITIES",
+      "0", "LWPOLYLINE", "8", "contour", "38", "10", "70", "1", "90", String(outerRing.length),
+      ...outerRing.flatMap(([x, y]) => ["10", String(E + x), "20", String(N + y)]),
+      "0", "LWPOLYLINE", "8", "contour", "38", "15", "70", "1", "90", String(hillRing.length),
+      ...hillRing.flatMap(([x, y]) => ["10", String(E + x), "20", String(N + y)]),
+      "0", "ENDSEC", "0", "EOF", ""
+    ].join("\n");
+    const smallHillRes = assembleBaseMap({ ...input, parts: [{ name: "kurvor.dxf", body: contourRingsDxf }] });
+    if ("problem" in smallHillRes) throw new Error(smallHillRes.problem);
+    expect(smallHillRes.summary.symbols.find(row => row.symbol === "101")?.objects).toBe(2);
+    expect(smallHillRes.summary.symbols.find(row => row.symbol === "109")).toBeUndefined();
+
+    // I sprint (1:4 000) använder otidgeo ringGeneralize = 1,15 så att 3,9 m mikroringar (< 4,14 m) lyfts till 109-punkthöjd.
+    const sprintMap = readMapFile(newMapFile({ symbolSet: "ISSPROM2019-2", scale: 4000, refPoint: { easting: E, northing: N }, declinationDegrees: 0 }), "sprint.omap", { sources: true });
+    const sprintGeo = sprintMap.georeference!;
+    const sprintCorner = (x: number, y: number) => projectedToMapPoint(sprintGeo, { easting: E + x, northing: N + y });
+    const sprintArea = [[sprintCorner(-200, -200), sprintCorner(200, -200), sprintCorner(200, 200), sprintCorner(-200, 200)]];
+    const sprintMicroRing = Array.from({ length: 24 }, (_, i) => [1.95 * Math.cos(i * Math.PI / 12), 1.95 * Math.sin(i * Math.PI / 12)] as [number, number]);
+    const sprintOuterRing = Array.from({ length: 24 }, (_, i) => [30 * Math.cos(i * Math.PI / 12), 30 * Math.sin(i * Math.PI / 12)] as [number, number]);
+    const sprintDxf = [
+      "0", "SECTION", "2", "HEADER", "999", "otidgeo", "0", "ENDSEC",
+      "0", "SECTION", "2", "ENTITIES",
+      "0", "LWPOLYLINE", "8", "contour", "38", "10", "70", "1", "90", String(sprintOuterRing.length),
+      ...sprintOuterRing.flatMap(([x, y]) => ["10", String(E + x), "20", String(N + y)]),
+      "0", "LWPOLYLINE", "8", "contour", "38", "12.5", "70", "1", "90", String(sprintMicroRing.length),
+      ...sprintMicroRing.flatMap(([x, y]) => ["10", String(E + x), "20", String(N + y)]),
+      "0", "ENDSEC", "0", "EOF", ""
+    ].join("\n");
+    const sprintRes = assembleBaseMap({
+      georeference: sprintGeo, symbols: candidateSymbols(sprintMap), bounds: editorBounds(sprintMap, sprintArea),
+      area: sprintArea, built: [], today: "2026-11-13", scannedAt: null,
+      parts: [{ name: "kurvor.dxf", body: sprintDxf }]
+    });
+    if ("problem" in sprintRes) throw new Error(sprintRes.problem);
+    expect(sprintRes.summary.symbols.find(row => row.symbol === "101")?.objects).toBe(1);
+    expect(sprintRes.summary.symbols.find(row => row.symbol === "109")?.objects).toBe(1);
+
     // Explicit clear på otidgeo respekteras fortfarande (manuella reglage fungerar 100 %).
     const manual = assembleBaseMap({ ...input, engine: "otidgeo", parts: [{ name: "kurvor.dxf", body: contourOtidgeo }, formlines],
       height: { ...height, clear: { smooth: 5, formlines: 4, rings: 5 } } });

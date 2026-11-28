@@ -79,7 +79,7 @@ export function MapProjectBaseMapPanel({ view, georeference, bounds, areas, laye
       </>}
     </MapProjectStep>
     <MapProjectStep number={3} title={steps.adjust} help={steps.adjustHelp} label={steps.step(3)} testId="map-project-mapstep-review">
-      <MapProjectKnollPanel view={view} importer={importer} />
+      <MapProjectKnollPanel view={view} importer={importer} scale={georeference.scale} />
       <MapProjectHillPanel importer={importer} />
       <MapProjectPitPanel importer={importer} />
       <MapProjectCliffPanel view={view} importer={importer} scale={georeference.scale} />

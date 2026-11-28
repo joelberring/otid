@@ -133,7 +133,7 @@ export function createStartDrawActions(ws: Base & RaceDataActions) {
   const advancedText = ws.drawAdvancedText;
   const text = ws.drawText;
   const { raceId, drawSetup, drawRows, drawFirst, drawClubSeparation, drawPreview, setDrawClubSeparation, writingRef, pending, sent, requireSession,
-    begin, beginRequest, finish, current, request, json, csrf, load, setDrawSetup, setDrawRows, setDrawFirst, setDrawPreview, setDrawError,
+    beginRequest, finish, current, request, json, csrf, load, setDrawSetup, setDrawRows, setDrawFirst, setDrawPreview, setDrawError,
     setDrawSaved, setDrawAttempt, setPublicationPreview, setDrawFirstError, setDrawMassErrors, drawAdvanced, drawAdvancedLoaded, setDrawAdvanced,
     setDrawAdvancedLoaded, setDrawAdvancedOpen, setDrawAdvancedErrors, drawCommon, setDrawCommon, setDrawCommonApplied } = ws;
   const settingsNow = (setup: StartDrawSetupResponse) =>
@@ -334,39 +334,50 @@ export function createStartDrawActions(ws: Base & RaceDataActions) {
   async function shiftMassStartWave(wave: MassStartWave, targetClock: string,
     confirm: (preview: StartDrawPreviewResponse, targetClock: string, deltaMinutes: number) => Promise<boolean>): Promise<WaveShiftOutcome> {
     if (writingRef.current || pending.current || !requireSession()) return { kind: "BUSY" };
-    const op = begin(true);
+    // Fas 1: förhandsvisning i egen operation (beginRequest behåller drawSetup så dialogen inte avmonteras, och avslutar 15 s-timern före bekräftelsen).
+    let built: Exclude<ReturnType<typeof buildWaveShiftRequest>, "invalid" | "unchanged" | "empty">;
+    let preview: StartDrawPreviewResponse;
+    const previewOp = beginRequest(true);
     try {
-      const setupResponse = await request("/draw", op);
+      const setupResponse = await request("/draw", previewOp);
       if (!setupResponse.ok) throw new Error("Draw setup unavailable");
-      const setup = startDrawSetupResponseSchema.parse(await json(setupResponse, op));
-      const built = buildWaveShiftRequest(setup, wave, targetClock);
-      if (built === "invalid") return { kind: "INVALID" };
-      if (built === "unchanged") return { kind: "UNCHANGED" };
-      if (built === "empty") return { kind: "ERROR" };
-      const previewSettings = { firstStartTime: built.firstStartTime, clubSeparation: built.clubSeparation, classes: built.classes };
-      const previewResponse = await request("/draw-preview", op, { method: "POST",
+      const setup = startDrawSetupResponseSchema.parse(await json(setupResponse, previewOp));
+      const candidate = buildWaveShiftRequest(setup, wave, targetClock);
+      if (candidate === "invalid") return { kind: "INVALID" };
+      if (candidate === "unchanged") return { kind: "UNCHANGED" };
+      if (candidate === "empty") return { kind: "ERROR" };
+      built = candidate;
+      const previewResponse = await request("/draw-preview", previewOp, { method: "POST",
         headers: { "content-type": "application/json", "x-otid-csrf": csrf() },
-        body: JSON.stringify({ formatVersion: 1, ...previewSettings }) });
+        body: JSON.stringify({ formatVersion: 1, firstStartTime: built.firstStartTime, clubSeparation: built.clubSeparation, classes: built.classes }) });
       if (!previewResponse.ok) throw new Error("Draw preview unavailable");
-      const preview = startDrawPreviewResponseSchema.parse(await json(previewResponse, op));
-      if (!(await confirm(preview, built.targetClock, built.deltaMinutes))) return { kind: "CANCELLED" };
-      const requestBody: StartDrawRequest = { formatVersion: 1, requestId: crypto.randomUUID(), seed: preview.seed, ...previewSettings,
+      preview = startDrawPreviewResponseSchema.parse(await json(previewResponse, previewOp));
+    } catch { return current(previewOp) ? { kind: "ERROR" } : { kind: "BUSY" }; }
+    finally { finish(previewOp); }
+    // Fas 2: vänta på arrangörens bekräftelse utan aktiv avbrottstimer.
+    if (!(await confirm(preview, built.targetClock, built.deltaMinutes))) return { kind: "CANCELLED" };
+    // Fas 3: spara i egen operation och läs om uppsättning och tävlingsöversikt.
+    if (writingRef.current || pending.current || !requireSession()) return { kind: "BUSY" };
+    const saveOp = beginRequest(true);
+    try {
+      const requestBody: StartDrawRequest = { formatVersion: 1, requestId: crypto.randomUUID(), seed: preview.seed,
+        firstStartTime: built.firstStartTime, clubSeparation: built.clubSeparation, classes: built.classes,
         confirmChanges: preview.requiresConfirmation };
-      const saveResponse = await request("/draw", op, { method: "POST",
+      const saveResponse = await request("/draw", saveOp, { method: "POST",
         headers: { "content-type": "application/json", "x-otid-csrf": csrf(), "idempotency-key": `start-draw:${requestBody.requestId}` },
         body: JSON.stringify(requestBody) });
       if (!saveResponse.ok) throw new Error("Wave shift not saved");
-      const receipt = startDrawResponseSchema.parse(await json(saveResponse, op));
+      const receipt = startDrawResponseSchema.parse(await json(saveResponse, saveOp));
       const savedStart = preview.classes[0]?.firstStartTime ?? built.targetStartTime;
       const savedClock = formatClockTime(savedStart, preview.timeZone).slice(0, 5);
       const classNames = wave.classes.map(item => item.name);
       setDrawPreview(undefined); setDrawError(""); setPublicationPreview(undefined);
       setDrawSaved(text.waves.shifted(classNames, wave.clock, savedClock, receipt.recalculatedCount));
-      try { await readSetup(op, { syncAll: true }); await load(op); }
-      catch { if (current(op)) setDrawError(text.error); }
+      try { await readSetup(saveOp, { syncAll: true }); await load(saveOp); }
+      catch { if (current(saveOp)) setDrawError(text.error); }
       return { kind: "SHIFTED", fromClock: wave.clock, toClock: savedClock, classNames, recalculatedCount: receipt.recalculatedCount };
-    } catch { return current(op) ? { kind: "ERROR" } : { kind: "BUSY" }; }
-    finally { finish(op); }
+    } catch { return current(saveOp) ? { kind: "ERROR" } : { kind: "BUSY" }; }
+    finally { finish(saveOp); }
   }
   function cancelDrawPreview() {
     if (pending.current) return;

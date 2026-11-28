@@ -1,9 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { StartDrawSetupResponse } from "@o-tid/contracts";
 import { startDrawAdvancedSv } from "../../i18n/start-draw-advanced-sv";
+import { startDrawSv } from "../../i18n/start-draw-sv";
 import { advancedFromSetup, advancedRequest, type DrawAdvanced } from "./start-draw-advanced";
-import { buildDrawSettings, type DrawRow } from "./start-draw";
+import { buildDrawSettings, createStartDrawActions, type DrawRow } from "./start-draw";
 import { buildWaveShiftRequest, formatDrawWarning, groupMassStartWaves, shiftClockByMinutes } from "./start-draw-waves";
+import type { RaceDataActions } from "./race-data";
+import type { Base } from "./workspace-state";
 
 const RACE_ID = "10000000-0000-4000-8000-000000000000";
 const c1 = "10000000-0000-4000-8000-000000000001";
@@ -76,6 +79,81 @@ describe("masstartsvågor och tävlingsdagens vågflytt", () => {
     expect(buildWaveShiftRequest(setup, wave1910!, "19:10")).toBe("unchanged");
     expect(buildWaveShiftRequest(setup, wave1910!, "19:10:30")).toBe("invalid");
     expect(buildWaveShiftRequest(setup, wave1910!, "99:99")).toBe("invalid");
+  });
+
+  it("shiftMassStartWave använder beginRequest (aldrig begin som tömmer drawSetup) och avslutar förhandsvisningen före confirm", async () => {
+    const [, wave1910] = groupMassStartWaves(setup);
+    const begin = vi.fn();
+    let opId = 0;
+    const beginRequest = vi.fn(() => ({ generation: ++opId }));
+    const finish = vi.fn();
+    const setDrawSetup = vi.fn();
+    const setDrawSaved = vi.fn();
+    const setDrawError = vi.fn();
+    const setDrawPreview = vi.fn();
+    const setPublicationPreview = vi.fn();
+    const setDrawRows = vi.fn();
+    const setDrawFirst = vi.fn();
+    const setDrawAdvanced = vi.fn();
+    const setDrawAdvancedOpen = vi.fn();
+    const setDrawAdvancedLoaded = vi.fn();
+    const load = vi.fn(async () => undefined);
+    const request = vi.fn(async (path: string, _op: unknown, init?: RequestInit) => {
+      const body = typeof init?.body === "string" ? (JSON.parse(init.body) as Record<string, unknown>) : undefined;
+      if (path === "/draw" && !init?.method) return { ok: true, _payload: setup };
+      if (path === "/draw-preview") {
+        return {
+          ok: true,
+          _payload: {
+            formatVersion: 1, raceId: RACE_ID, snapshotVersion: 4, timeZone: "Europe/Stockholm", seed: 77,
+            classes: [
+              { classId: c2, className: "Hyperion dam", method: "MASS", firstStartTime: T1914, intervalMinutes: 1, vacancyCount: 0, replacesStartTimes: true, slots: [] },
+              { classId: c1, className: "Hyperion herr", method: "MASS", firstStartTime: T1914, intervalMinutes: 1, vacancyCount: 0, replacesStartTimes: true, slots: [] }
+            ],
+            startGroups: [], warnings: [], existingClasses: [], timeline: [],
+            replacesStartTimes: true, readOutCount: 2, becomesOkCount: 0, becomesMispunchedCount: 0, unchangedCount: 2,
+            notRecalculatedCount: 0, changes: [], requiresConfirmation: true
+          }
+        };
+      }
+      return {
+        ok: true,
+        _payload: {
+          formatVersion: 1, replayed: false, requestId: typeof body?.requestId === "string" ? body.requestId : RACE_ID,
+          raceId: RACE_ID, request: body, classCount: 2, entryCount: 18, vacancyCount: 0, recalculatedCount: 2,
+          snapshotVersionBefore: 4, snapshotVersionAfter: 5, drawnAt: "2026-11-28T17:00:00.000Z"
+        }
+      };
+    });
+    const ws = {
+      raceId: RACE_ID, drawSetup: setup, drawRows: {}, drawFirst: "19:00", drawClubSeparation: true, drawPreview: undefined,
+      drawAdvanced: emptyAdvanced, drawAdvancedLoaded: true, drawCommon: { method: "MINUTE", interval: "2", vacancies: "0", vacancyKind: "COUNT", laterStart: "" },
+      drawText: startDrawSv, drawAdvancedText: startDrawAdvancedSv,
+      writingRef: { current: false }, pending: { current: undefined }, sent: { current: false },
+      requireSession: () => true, begin, beginRequest, finish, current: () => true, request,
+      json: async (response: { _payload: unknown }) => response._payload, csrf: () => "csrf", load,
+      setDrawSetup, setDrawRows, setDrawFirst, setDrawPreview, setDrawError, setDrawSaved,
+      setDrawAttempt: vi.fn(), setPublicationPreview, setDrawFirstError: vi.fn(), setDrawMassErrors: vi.fn(),
+      setDrawClubSeparation: vi.fn(), setDrawAdvanced, setDrawAdvancedLoaded, setDrawAdvancedOpen,
+      setDrawAdvancedErrors: vi.fn(), setDrawCommon: vi.fn(), setDrawCommonApplied: vi.fn(), setDrawSeedImport: vi.fn()
+    } as unknown as Base & RaceDataActions;
+
+    const actions = createStartDrawActions(ws);
+    let finishedBeforeConfirm = 0;
+    const confirm = vi.fn(async () => { finishedBeforeConfirm = finish.mock.calls.length; return true; });
+    const outcome = await actions.shiftMassStartWave(wave1910!, "1914", confirm);
+    expect(outcome).toEqual({
+      kind: "SHIFTED", fromClock: "19:10", toClock: "19:14", classNames: ["Hyperion dam", "Hyperion herr"], recalculatedCount: 2
+    });
+    // begin() får aldrig anropas här (det nollställer drawSetup och avmonterar dialogen).
+    expect(begin).not.toHaveBeenCalled();
+    expect(beginRequest).toHaveBeenCalledTimes(2);
+    expect(beginRequest).toHaveBeenNthCalledWith(1, true);
+    expect(beginRequest).toHaveBeenNthCalledWith(2, true);
+    // Förhandsvisningens operation och 15 s-timer måste vara avslutade innan confirm visas.
+    expect(finishedBeforeConfirm).toBe(1);
+    expect(finish).toHaveBeenCalledTimes(2);
+    expect(setDrawSaved).toHaveBeenCalledWith("Masstarten flyttad från 19:10 till 19:14 för Hyperion dam och Hyperion herr. 2 resultat räknades om.");
   });
 });
 

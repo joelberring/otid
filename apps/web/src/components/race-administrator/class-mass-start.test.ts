@@ -23,13 +23,16 @@ function mockWorkspace(options: {
   const changeClassEdit = vi.fn();
   const readCourses = vi.fn(async () => undefined);
   const load = vi.fn(async () => undefined);
+  const begin = vi.fn(() => ({ id: 2 }));
+  const beginRequest = vi.fn(() => ({ id: 1 }));
   const finish = vi.fn();
 
   const ws = {
     writingRef: { current: false },
     pending: { current: undefined },
     requireSession: () => true,
-    begin: () => ({ id: 1 }),
+    begin,
+    beginRequest,
     current: () => true,
     finish,
     csrf: () => "csrf-token",
@@ -77,7 +80,7 @@ function mockWorkspace(options: {
     }),
     json: vi.fn(async (response: { _payload: unknown }) => response._payload)
   };
-  return { ws: ws as unknown as Workspace, requests, changeClassEdit, readCourses, load, finish };
+  return { ws: ws as unknown as Workspace, requests, changeClassEdit, readCourses, load, begin, beginRequest, finish };
 }
 
 describe("saveClassMassStart i Klasser → Redigera", () => {
@@ -101,10 +104,15 @@ describe("saveClassMassStart i Klasser → Redigera", () => {
   });
 
   it("ljuger aldrig om sparad tid: visar faktiskt returnerad tid från förhandsvisningen och omräknade resultat", async () => {
-    const { ws } = mockWorkspace({ previewFirstStart: T1911, requiresConfirmation: true, readOutCount: 3, recalculatedCount: 3 });
-    const confirm = vi.fn(async () => true);
+    const { ws, beginRequest, begin, finish } = mockWorkspace({ previewFirstStart: T1911, requiresConfirmation: true, readOutCount: 3, recalculatedCount: 3 });
+    let finishedBeforeConfirm = 0;
+    const confirm = vi.fn(async () => { finishedBeforeConfirm = finish.mock.calls.length; return true; });
     const outcome = await saveClassMassStart(ws, CLASS_ID, "19:10", confirm);
     expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ readOutCount: 3 }), "19:11");
+    expect(finishedBeforeConfirm).toBe(1);
+    expect(beginRequest).toHaveBeenCalledWith(true);
+    expect(begin).toHaveBeenCalledWith(true);
+    expect(finish).toHaveBeenCalledTimes(2);
     expect(outcome).toEqual({ kind: "SAVED", clock: "19:11", recalculatedCount: 3 });
   });
 

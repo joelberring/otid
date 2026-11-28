@@ -3,21 +3,23 @@
 import { useMapProjectFailure } from "./use-map-project-failure";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { mapProjectEn } from "../../i18n/map-project-en";
-import { useTexts } from "../language-provider";
+import { useLanguage, useTexts } from "../language-provider";
+import { listEn } from "../../i18n/list-en";
+import { listSv } from "../../i18n/list-sv";
+import { recentDay } from "../../lib/human-date";
 import Link from "next/link";
-import type { MapProjectList } from "@o-tid/contracts";
+import type { MapProjectList, MapProjectSummary } from "@o-tid/contracts";
+import { SWEDISH_TIME_ZONE } from "@o-tid/domain";
 import { mapProjectSv } from "../../i18n/map-project-sv";
 import { clubRequest, csrf } from "../../lib/club-request";
 import { mapProjectsBase } from "../../lib/map-project-client";
-import { Button, Field, Notice } from "../ui";
+import { Button, Field, ListRow, Notice, RowList } from "../ui";
 import { MyMapStatsSection } from "./map-stats-sections";
 import { NewMapProject } from "./new-map-project";
 import styles from "./map-project.module.css";
 
 
 const SHOW_CLOSED_KEY = "otid.mapProjects.showClosed";
-/** Sökrutan visas när listan har fler projekt än så här. */
-const SEARCH_FROM = 10;
 
 /** Valet «Visa avslutade» minns webbläsaren; ett fel i lagringen (privat läge, spärrad) ger bara förvalet. */
 function readShowClosed(): boolean {
@@ -27,11 +29,19 @@ function writeShowClosed(value: boolean): void {
   try { window.localStorage.setItem(SHOW_CLOSED_KEY, value ? "1" : "0"); } catch { /* valet gäller då bara tills sidan laddas om */ }
 }
 
-/** ADR-0219: kontots kartprojekt (som medlem, eller som administratör i projektets klubb), en ny karta och ett eget projekt från en fil. */
+/** Filnamnet utan ändelse, för att se om det säger något mer än projektets namn. */
+const stem = (fileName: string) => fileName.replace(/\.[A-Za-z0-9]{2,5}$/, "").trim().toLocaleLowerCase("sv");
+
+/**
+ * ADR-0219: kontots kartprojekt (som medlem, eller som administratör i projektets klubb), en ny karta och ett eget projekt från en fil.
+ * Steg F2: en tät rad per projekt där hela raden är länken (ingen knapp per rad); sökrutan och «Nytt kartprojekt» överst.
+ */
 export function MyMapProjects() {
   const failure = useMapProjectFailure();
   const mapProjectText = useTexts(mapProjectSv, mapProjectEn);
   const text = useTexts(mapProjectSv.list, mapProjectEn.list);
+  const words = useTexts(listSv, listEn);
+  const language = useLanguage();
   const [list, setList] = useState<MapProjectList>();
   const [problem, setProblem] = useState("");
   const [showClosed, setShowClosed] = useState(false);
@@ -51,34 +61,40 @@ export function MyMapProjects() {
       else setProblem(failure(result.status));
     });
   }, []);
+  const now = new Date();
+  const meta = (project: MapProjectSummary) => {
+    const used = recentDay(project.lastActiveAt, language, SWEDISH_TIME_ZONE, now);
+    return [project.club?.name ?? text.own,
+      used.kind === "date" ? used.text : used.kind === "today" ? words.today : words.yesterday,
+      project.changedObjects > 0 ? text.changed(project.changedObjects) : "",
+      project.role === "OWNER" ? "" : mapProjectText.roles[project.role],
+      project.status === "CLOSED" ? text.closed : "",
+      project.base.fileName && stem(project.base.fileName) !== project.name.trim().toLocaleLowerCase("sv") ? project.base.fileName : ""
+    ].filter(Boolean).join(" · ");
+  };
   return <main className={styles.page}>
     <header className={styles.header}>
       <div><p className={styles.kicker}><Link href="/organizer">{text.back}</Link></p><h1>{text.title}</h1></div>
     </header>
     <p className={styles.muted}>{text.hint}</p>
-    {/* Översynen 2026-11-17: «Nytt kartprojekt» syns direkt, också när listan är lång (formulären står längst ned). */}
-    <p><Link className={styles.buttonLink} href="#nytt-kartprojekt" data-testid="map-projects-new">{text.newProject}</Link></p>
+    <div className={styles.listBar}>
+      {list && list.projects.length > 0 && <input type="search" value={query} maxLength={120} aria-label={text.search}
+        placeholder={text.searchPlaceholder} onChange={event => setQuery(event.target.value)} data-testid="map-projects-search" />}
+      {/* Översynen 2026-11-17: «Nytt kartprojekt» syns direkt, också när listan är lång (formulären står längst ned). */}
+      <Link className={styles.buttonLink} href="#nytt-kartprojekt" data-testid="map-projects-new">{text.newProject}</Link>
+    </div>
     {problem && <Notice tone="error" role="alert">{problem}</Notice>}
     {list && list.projects.length === 0 && <p className={styles.muted}>{text.empty}</p>}
     {list && list.projects.length > 0 && <>
-      <div className={styles.actions}>
-        {list.projects.length > SEARCH_FROM && <Field label={text.search} help={text.searchHelp}>
-          <input type="search" value={query} maxLength={120} onChange={event => setQuery(event.target.value)} data-testid="map-projects-search" /></Field>}
-        {(closedCount > 0 || showClosed) && <Button variant="secondary" aria-pressed={showClosed} onClick={toggleClosed} data-testid="map-projects-toggle-closed">
-          {showClosed ? text.hideClosed : text.showClosed(closedCount)}</Button>}
-      </div>
-      {!showClosed && closedCount > 0 && <p className={styles.muted}>{text.onlyActive(closedCount)}</p>}
       {shown.length === 0 && <p className={styles.muted}>{query.trim() ? text.noMatch : text.noActive}</p>}
-      {shown.length > 0 && <ul className={styles.list} data-testid="map-projects">
-        {shown.map(project => <li key={project.projectId}>
-          <div><Link href={`/organizer/map-projects/${project.projectId}`}>{project.name}</Link>
-            <span>{[project.club?.name ?? text.own, project.base.fileName, mapProjectText.roles[project.role], text.changed(project.changedObjects),
-              text.lastUsed(project.lastActiveAt.slice(0, 10)), project.status === "CLOSED" ? text.closed : ""].filter(Boolean).join(" · ")}</span></div>
-          <Link className={styles.primaryLink} href={`/organizer/map-projects/${project.projectId}`} aria-label={text.openLabel(project.name)}>{text.open}</Link>
-        </li>)}
-      </ul>}
+      {shown.length > 0 && <RowList testId="map-projects" label={text.title}>
+        {shown.map(project => <ListRow key={project.projectId} href={`/organizer/map-projects/${project.projectId}`} title={project.name}
+          meta={meta(project)} testId="map-project-row" />)}
+      </RowList>}
+      {(closedCount > 0 || showClosed) && <p className={styles.closedToggle}><Button variant="quiet" aria-pressed={showClosed} onClick={toggleClosed}
+        data-testid="map-projects-toggle-closed">{showClosed ? text.hideClosed : text.showClosed(closedCount)}</Button></p>}
     </>}
-    {!problem && <div className={styles.sections}><NewMapProject /><UploadProject /><MyMapStatsSection /></div>}
+    {!problem && <div className={`${styles.sections} ${styles.afterList}`}><NewMapProject /><UploadProject /><MyMapStatsSection /></div>}
   </main>;
 }
 

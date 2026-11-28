@@ -12,21 +12,17 @@ export const mapProjectEn: Texts<typeof mapProjectSv> = {
   list: {
     title: "My map projects",
     back: "My O-Tid",
-    hint: "Map projects where several people draw on the same map. Start one of your own from a map file here, or from a map version in the club archive's Maps.",
+    hint: "Maps you draw on your own or with others – start from a map file here or from a map version in the club archive.",
     empty: "You are not in any map project yet.",
     own: "own",
     changed: (n: number) => count(n, "changed object", "changed objects"),
     closed: "closed",
     showClosed: (n: number) => `Show closed (${n})`,
     hideClosed: "Show active only",
-    onlyActive: (hidden: number) => `${count(hidden, "closed project is hidden", "closed projects are hidden")}.`,
     noActive: "No active map projects. Closed projects are shown with “Show closed”.",
     search: "Search the map projects",
-    searchHelp: "Name, club or file name",
+    searchPlaceholder: "Search map projects",
     noMatch: "No map project matches the search.",
-    lastUsed: (date: string) => `last used ${date}`,
-    open: "Open",
-    openLabel: (name: string) => `Open ${name}`,
     newProject: "New map project"
   },
   nextSteps: {

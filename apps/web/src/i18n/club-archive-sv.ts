@@ -39,9 +39,13 @@ export const clubArchiveSv = {
   loadFailed: "Arkivet kunde inte hämtas. Är du inloggad och med i klubben?",
   usage: (bytes: number, maps: number, versions: number, entries: number) =>
     `${mb(bytes)} · ${plural(maps, "karta", "kartor")} (${plural(versions, "version", "versioner")}) · ${plural(entries, "träning", "träningar")}`,
+  /** Steg F2: raden under klubbens namn, utan megabyte (lagringen står under Klubben). */
+  usageShort: (maps: number, entries: number) => `${plural(maps, "karta", "kartor")} · ${plural(entries, "träning", "träningar")}`,
   filters: {
     search: "Sök",
-    searchPlaceholder: "Plats, övning, bana …",
+    searchPlaceholder: (total: number) => `Sök bland ${plural(total, "träning", "träningar")}`,
+    more: (active: number) => active > 0 ? `Fler filter (${active})` : "Fler filter",
+    phone: (active: number) => active > 0 ? `Filter (${active})` : "Filter",
     year: "År",
     map: "Karta",
     tag: "Egna ord",
@@ -56,7 +60,6 @@ export const clubArchiveSv = {
   /** Ägaren 2026-11-17: vem som lade in träningen och hur. */
   added: {
     label: "Inlagd",
-    line: (added: ClubAddedBy) => `Inlagd av ${added.name || "borttaget konto"}`,
     full: (added: ClubAddedBy) => `${added.at.slice(0, 10)} av ${added.name || "borttaget konto"}${added.via === "RACE"
       ? ", från en tävling eller träning" : added.via === "IMPORT" ? ", genom import" : ""}`
   },

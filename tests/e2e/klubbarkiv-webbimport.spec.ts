@@ -72,7 +72,7 @@ test("klubbarkiv: importen i webbläsaren – välj mapp, förhandsgranska, impo
     await owner.getByRole("button", { name: "Importera", exact: true }).click();
     await expect(owner.getByText("Klart: 1 kartfiler uppladdade (0 fanns redan), 1 nya träningar (0 fanns redan), 2 nya banfiler.")).toBeVisible({ timeout: 60_000 });
     await expect(preview).toContainText("Det finns inget nytt att importera.");
-    await expect(owner.getByTestId("club-usage")).toContainText("1 karta (1 version) · 1 träning");
+    await expect(owner.getByTestId("club-usage")).toHaveText("1 karta · 1 träning");
 
     // Omkörningen (som efter ett avbrott eller en stängd flik) laddar inte upp något igen och gör inga dubbletter.
     await owner.getByRole("button", { name: "Importera igen" }).click();
@@ -91,7 +91,11 @@ test("klubbarkiv: importen i webbläsaren – välj mapp, förhandsgranska, impo
     const entries = owner.getByTestId("archive-entries").getByRole("listitem");
     await expect(entries).toHaveCount(1);
     await expect(entries.first()).toContainText("Skogen");
-    await expect(entries.first()).toContainText("Kim");
+    // Steg F2: ledaren står inte på raden utan på träningens sida.
+    await expect(entries.first()).not.toContainText("Kim");
+    await entries.first().getByRole("link").click();
+    await owner.waitForURL(/\/arkiv\/[0-9a-f-]+$/);
+    await expect(owner.getByRole("main")).toContainText("Kim");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

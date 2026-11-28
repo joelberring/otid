@@ -8,14 +8,20 @@ import { Notice, numeric, Table } from "../ui";
 import styles from "./club-archive.module.css";
 
 /**
- * PLAN.md steg M7: klubbens lagring på klubbsidan för ledare, administratörer och ägare. Beskedet vid 80 % och vid taket står
- * alltid synligt; kartorna, störst först, under «Klubbens lagring».
+ * PLAN.md steg M7: beskedet vid 80 % och vid taket, överst på klubbsidan för ledare, administratörer och ägare (inget när
+ * lagringen räcker).
  */
+export function ClubStorageNotice({ storage }: { storage: ClubStorage }) {
+  const text = useTexts(clubStorageSv, clubStorageEn);
+  return storage.full ? <Notice tone="error" role="alert" data-testid="club-storage-notice">{text.full(storage.usedBytes, storage.limitBytes)}</Notice>
+    : storage.warning ? <Notice tone="attention" role="status" data-testid="club-storage-notice">{text.warning(storage.usedBytes, storage.limitBytes)}</Notice>
+    : null;
+}
+
+/** PLAN.md steg M7, steg F2: «Klubbens lagring» med kartorna störst först, under fliken Klubben (för administratören). */
 export function ClubStorageSection({ storage }: { storage: ClubStorage }) {
   const text = useTexts(clubStorageSv, clubStorageEn);
   return <section aria-label={text.title} data-testid="club-storage">
-    {storage.full ? <Notice tone="error" role="alert">{text.full(storage.usedBytes, storage.limitBytes)}</Notice>
-      : storage.warning && <Notice tone="attention" role="status">{text.warning(storage.usedBytes, storage.limitBytes)}</Notice>}
     <details className={styles.card}>
       <summary><strong>{text.title}</strong> {text.summary(storage.usedBytes, storage.limitBytes)}</summary>
       <p className={styles.small}>{text.help}</p>

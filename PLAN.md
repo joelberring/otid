@@ -1602,8 +1602,8 @@ uppbyggnad.
 - [x] F1 Skalen som egna layouter: publikt, inloggat och arbetsläge. Datorn: vänstermeny med ikoner (Hem, Kartor, Banor,
   Träningar, Klubb), ikonremsa i mellanbredd, hjälp, språk och konto nederst. Telefonen: sidhuvud med bakåtplats, «+» och
   kontobild, samma flikrad, hänsyn till skärmens kanter i skalet. Inne i ett arrangemang ersätter stegen menyn.
-- [ ] F2 Den täta raden, datumbrickan och bildrutan: Mitt O-Tid, Mina kartprojekt och klubbarkivet. Inga knappar per rad.
-  Datum som «ons 9 dec». Långa namn bryts och kapas till två rader.
+- [x] F2 Den täta raden, datumbrickan och bildrutan: Mina kartprojekt och klubbarkivet (Mitt O-Tid tas i F4). Inga knappar
+  per rad. Datum som «ons 9 dec». Långa namn bryts och kapas till två rader.
 - [ ] F3 Färger och knappar, sidtyp för sidtyp: vitt innehåll, linjeknapp som förval, en lila huvudknapp per vy, gult för
   «i dag» och blått för live. Nya variabler läggs till; gamla byter inte namn (avläsningens och Masterminds skal läser samma
   fil och sparas i webbläsaren).

@@ -20,7 +20,7 @@ import { ScrollRow } from "../ui/scroll-row";
 import { useArchiveChecks } from "./use-archive-checks";
 import { ClubSpacePanel, type ClubSpaceFocus } from "../club-affiliation/club-space-panel";
 import { ClubStartCard, type ClubStartTarget } from "./club-start-card";
-import { ClubStorageSection } from "./club-storage";
+import { ClubStorageNotice, ClubStorageSection } from "./club-storage";
 import { clubAffiliationSv } from "../../i18n/club-affiliation-sv";
 import { useShellHelp } from "../app-tabs/shell-help";
 import { NewsEditor } from "../news/news-editor";
@@ -89,8 +89,7 @@ export function ClubArchivePage({ clubId }: { clubId: string }) {
   // ADR-0196: kartornas kontroll och bilderna ritas i bakgrunden när en medlem som får se arkivet och hämta kartfilerna
   // (kartbanken) har arkivet öppet (ändrat 2026-11-07; förut bara administratörer).
   const checks = useArchiveChecks(clubId, list, admin || Boolean(list?.viewer.access.archive && list.viewer.access.mapBank), load);
-  const usage = useMemo(() => club ? text.usage(club.usage.mapBytes + club.usage.courseFileBytes, club.usage.maps, club.usage.versions,
-    club.usage.entries) : "", [club]);
+  const usage = useMemo(() => club ? text.usageShort(club.usage.maps, club.usage.entries) : "", [club, text]);
 
   if (failed) return <main className={styles.page}><p className={styles.kicker}><Link href="/organizer">{text.back}</Link></p>
     <Notice tone="error" role="alert">{text.loadFailed}</Notice></main>;
@@ -109,8 +108,8 @@ export function ClubArchivePage({ clubId }: { clubId: string }) {
       </div>
     </header>
     <ClubStartCard club={club} clubName={list.clubName} onGo={go} />
-    {/* PLAN.md steg M7: klubbens lagring och beskedet vid 80 % för ledare och uppåt. */}
-    {club.storage && <ClubStorageSection storage={club.storage} />}
+    {/* PLAN.md steg M7: beskedet vid 80 % för ledare och uppåt; själva lagringen står under Klubben (steg F2). */}
+    {club.storage && <ClubStorageNotice storage={club.storage} />}
     {/* Översynen 2026-11-17: flikarna rullar i telefonen och visar med toning och pil att raden fortsätter (som arbetsytans steg). */}
     <div ref={tabs} className={styles.tabsWrap}>
       <ScrollRow rowClassName={styles.tabs} role="tablist" aria-label={text.title} active={tab}>
@@ -128,6 +127,7 @@ export function ClubArchivePage({ clubId }: { clubId: string }) {
         onChanged={load} checks={checks} /> : <Notice role="status">{clubAffiliationText.space.archiveClosed}</Notice>)}
       {tab === "members" && <ClubMembersPanel club={club} onChanged={load} />}
       {tab === "devices" && <ClubDevicesPanel clubId={clubId} />}
+      {tab === "club" && admin && club.storage && <ClubStorageSection storage={club.storage} />}
       {tab === "club" && admin && <ClubSpacePanel clubId={clubId} clubName={list.clubName} focus={focus} onInvite={() => choose("members")}
         onChanged={load} />}
       {tab === "import" && <ClubImportPanel club={club} onChanged={load} />}

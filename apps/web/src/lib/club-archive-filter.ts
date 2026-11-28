@@ -23,15 +23,59 @@ export interface ArchiveFilter {
 
 export const EMPTY_FILTER: ArchiveFilter = { text: "", year: "", mapId: "", moments: [], tags: [], levels: [], leader: "", addedBy: "", status: "" };
 
-/** Ett sparat filter (äldre versioner hade en enda tagg) med bara de kända fälten. */
-export function savedFilter(saved: Partial<ArchiveFilter> & { tag?: string } | null): ArchiveFilter {
-  if (!saved) return EMPTY_FILTER;
-  const list = <T,>(value: unknown, valid?: readonly T[]) => Array.isArray(value)
-    ? value.filter((item): item is T => typeof item === "string" && (!valid || valid.includes(item as T))) : [];
-  const text = (value: unknown) => typeof value === "string" ? value : "";
-  return { text: text(saved.text), year: text(saved.year), mapId: text(saved.mapId), leader: text(saved.leader), addedBy: text(saved.addedBy),
-    status: text(saved.status) as ArchiveFilter["status"], moments: list<TrainingMoment>(saved.moments, TRAINING_MOMENTS),
-    tags: [...list<string>(saved.tags), ...(saved.tag ? [saved.tag] : [])], levels: list<TrainingLevel>(saved.levels, TRAINING_LEVELS) };
+/**
+ * Steg F2: filtret i adressen (`?ar=2026&ord=natt`), så att Bakåt från en träning ger samma urval. Listor upprepar namnet
+ * (`ord=natt&ord=sprint`); okända moment och nivåer tas bort.
+ */
+const PARAMS = { text: "sok", year: "ar", mapId: "karta", leader: "ledare", addedBy: "inlagd", status: "visa", moments: "moment",
+  levels: "niva", tags: "ord" } as const;
+export const ARCHIVE_STATUSES: readonly ClubArchiveEntryStatus[] = ["COMPLETE", "COURSES_ONLY", "MAP_MISSING", "MAP_ONLY"];
+
+export function filterFromSearch(search: string): ArchiveFilter {
+  const params = new URLSearchParams(search);
+  const one = (key: string) => params.get(key) ?? "";
+  const status = one(PARAMS.status);
+  return { text: one(PARAMS.text), year: one(PARAMS.year), mapId: one(PARAMS.mapId), leader: one(PARAMS.leader), addedBy: one(PARAMS.addedBy),
+    status: (ARCHIVE_STATUSES as readonly string[]).includes(status) ? status as ClubArchiveEntryStatus : "",
+    moments: params.getAll(PARAMS.moments).filter((moment): moment is TrainingMoment => (TRAINING_MOMENTS as readonly string[]).includes(moment)),
+    levels: params.getAll(PARAMS.levels).filter((level): level is TrainingLevel => (TRAINING_LEVELS as readonly string[]).includes(level)),
+    tags: params.getAll(PARAMS.tags).filter(Boolean) };
+}
+
+/** Filtret som adressens fråga ("" när inget är valt); andra parametrar i `base` behålls. */
+export function filterToSearch(filter: ArchiveFilter, base = ""): string {
+  const params = new URLSearchParams(base);
+  for (const key of Object.values(PARAMS)) params.delete(key);
+  for (const field of ["text", "year", "mapId", "leader", "addedBy", "status"] as const) if (filter[field]) params.set(PARAMS[field], filter[field]);
+  for (const field of ["moments", "levels", "tags"] as const) for (const value of filter[field]) params.append(PARAMS[field], value);
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
+
+/** Antal valda filter utom sökningen (och utom egna ord med `withTags: false`). */
+export function activeFilters(filter: ArchiveFilter, { withTags = true }: { withTags?: boolean } = {}): number {
+  return [filter.year, filter.mapId, filter.leader, filter.addedBy, filter.status].filter(Boolean).length + filter.moments.length
+    + filter.levels.length + (withTags ? filter.tags.length : 0);
+}
+
+/**
+ * Steg F2: arkivets grupper. Innevarande och föregående år per månad («2026-11»), äldre per år («2024»), odaterade sist
+ * (nyckeln ""). Ordningen inom en grupp är listans (senast först).
+ */
+export function archiveGroups<T extends Pick<ClubArchiveListItem, "trainingDate">>(entries: readonly T[], today: string):
+  { key: string; kind: "month" | "year" | "undated"; entries: T[] }[] {
+  const recent = Number(today.slice(0, 4)) - 1;
+  const groups = new Map<string, { key: string; kind: "month" | "year" | "undated"; entries: T[] }>();
+  const dated = entries.filter(entry => entry.trainingDate).sort((a, b) => b.trainingDate!.localeCompare(a.trainingDate!));
+  for (const entry of [...dated, ...entries.filter(entry => !entry.trainingDate)]) {
+    const date = entry.trainingDate;
+    const kind = !date ? "undated" : Number(date.slice(0, 4)) >= recent ? "month" : "year";
+    const key = !date ? "" : kind === "month" ? date.slice(0, 7) : date.slice(0, 4);
+    const group = groups.get(key) ?? { key, kind, entries: [] };
+    group.entries.push(entry);
+    groups.set(key, group);
+  }
+  return [...groups.values()];
 }
 
 const yearOf = (entry: ClubArchiveListItem) => entry.trainingDate?.slice(0, 4) ?? (entry.year === null ? "" : String(entry.year));

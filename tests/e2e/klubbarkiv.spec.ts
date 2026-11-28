@@ -81,12 +81,19 @@ test("klubbarkiv: provkörning, import, bläddra, bjud in en läsare och Använd
     await owner.getByRole("tab", { name: "Träningar" }).click();
     const entries = owner.getByTestId("archive-entries").getByRole("listitem");
     await expect(entries).toHaveCount(4);
-    await expect(owner.getByTestId("club-usage")).toContainText("2 kartor (3 versioner) · 4 träningar");
-    // ADR-0222: egna ord, moment och nivåer väljs som knappar (flera samtidigt).
-    await owner.getByTestId("archive-moment-filters").getByRole("button", { name: "Keps" }).click();
+    // Steg F2: raden under namnet utan megabyte (lagringen står under Klubben), datumbrickan («tis 2 apr») med hela datumet
+    // i klartext för skärmläsare, grupper per år.
+    await expect(owner.getByTestId("club-usage")).toHaveText("2 kartor · 4 träningar");
+    await expect(owner.getByTestId("archive-entries").getByRole("heading", { name: "2019" })).toBeVisible();
+    await expect(entries.filter({ hasText: "tis 2 apr tisdag 2 april 2019" })).toHaveCount(1);
+    await expect(entries.first().getByRole("button")).toHaveCount(0);
+    // ADR-0222: egna ord väljs som knappar på en rad (flera samtidigt); moment och nivåer under «Fler filter».
+    await owner.getByTestId("archive-tags").getByRole("button", { name: "Keps" }).click();
     await expect(entries).toHaveCount(1);
     await expect(entries.first()).toContainText("Ängen");
-    await expect(entries.first()).toContainText("Banor, kartan från annan träning");
+    // Statusen visas bara när något saknas; «Banor, kartan från annan träning» står på träningens sida.
+    await expect(entries.first()).not.toContainText("Banor, kartan från annan träning");
+    await expect(owner).toHaveURL(/[?&]ord=Keps/);
     await owner.getByRole("button", { name: "Rensa" }).click();
     await owner.getByLabel("Sök").fill("parken");
     await expect(entries).toHaveCount(1);
@@ -125,6 +132,7 @@ test("klubbarkiv: provkörning, import, bläddra, bjud in en läsare och Använd
     await expect(owner.getByTestId("moment-badges")).toContainText("Kurvbild");
     await expect(owner.getByTestId("moment-badges")).toContainText("Gul");
     await owner.goto(`/organizer/clubs/${clubId}#trainings`);
+    await owner.getByRole("button", { name: "Fler filter" }).click();
     const momentFilters = owner.getByTestId("archive-moment-filters");
     await momentFilters.getByRole("button", { name: "Kompass" }).click();
     await momentFilters.getByRole("button", { name: "Kurvbild" }).click();
@@ -153,7 +161,7 @@ test("klubbarkiv: provkörning, import, bläddra, bjud in en läsare och Använd
     await expect(readerClubs).toContainText("Medlem · 4 träningar");
     await readerClubs.getByRole("link", { name: /Medlem · 4 träningar/ }).click();
     await reader.waitForURL(/\/organizer\/clubs\/[0-9a-f-]+$/);
-    await reader.getByTestId("archive-entries").getByRole("link").filter({ hasText: "2019-04-02" }).click();
+    await reader.getByTestId("archive-entries").getByRole("link").filter({ hasText: "tisdag 2 april 2019" }).click();
     await expect(reader.getByRole("heading", { name: "Skogen", level: 1 })).toBeVisible();
     await expect(reader.getByRole("button", { name: "Ändra" })).toHaveCount(0);
     // Arkivet visar bara: beskedet och Använd igen direkt under kartan.

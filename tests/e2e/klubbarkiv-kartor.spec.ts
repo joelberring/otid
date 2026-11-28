@@ -146,7 +146,9 @@ test("klubbarkivets kartor: OCAD 11 fungerar, OCAD 7 säger varför, bilder, ban
   await expect(entries.filter({ hasText: "Skogen gul" }).getByRole("img")).toHaveAttribute("alt", "Banan på kartan: Skogen gul (Gul)");
   await expect.poll(() => entries.filter({ hasText: "Skogen gul" }).getByTestId("entry-thumbnail")
     .evaluate(image => (image as HTMLImageElement).naturalWidth)).toBe(360);
-  await expect(entries.filter({ hasText: "Gamla skogen" }).getByTestId("entry-thumbnail-missing")).toHaveText("Kartan kunde inte ritas");
+  // Steg F2: ingen grå ruta – raden behåller bildens plats tom; skälet står på träningens sida (nedan) och under Kartor.
+  await expect(entries.filter({ hasText: "Gamla skogen" }).getByTestId("row-thumb-empty")).toBeAttached();
+  await expect(entries.filter({ hasText: "Gamla skogen" }).getByTestId("entry-thumbnail")).toHaveCount(0);
   await reviewScreenshots(owner, "kartarkiv-traningar");
 
   // Träningen med OCAD 7-kartan säger skälet.

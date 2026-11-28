@@ -7,21 +7,17 @@ export const mapProjectSv = {
   list: {
     title: "Mina kartprojekt",
     back: "Mitt O-Tid",
-    hint: "Kartprojekt där flera ritar på samma karta. Starta ett eget från en kartfil här, eller från en kartversion i klubbarkivets Kartor.",
+    hint: "Kartor som du ritar ensam eller med andra – starta från en kartfil här eller från en kartversion i klubbarkivet.",
     empty: "Du är inte med i något kartprojekt än.",
     own: "eget",
     changed: (count: number) => plural(count, "ändrat objekt", "ändrade objekt"),
     closed: "avslutat",
     showClosed: (count: number) => `Visa avslutade (${count})`,
     hideClosed: "Visa bara aktiva",
-    onlyActive: (hidden: number) => `${plural(hidden, "avslutat projekt är dolt", "avslutade projekt är dolda")}.`,
     noActive: "Inga aktiva kartprojekt. Avslutade projekt visas med «Visa avslutade».",
     search: "Sök bland kartprojekten",
-    searchHelp: "Namn, klubb eller filnamn",
+    searchPlaceholder: "Sök kartprojekt",
     noMatch: "Inget kartprojekt matchar sökningen.",
-    lastUsed: (date: string) => `senast använt ${date}`,
-    open: "Öppna",
-    openLabel: (name: string) => `Öppna ${name}`,
     newProject: "Nytt kartprojekt"
   },
   nextSteps: {

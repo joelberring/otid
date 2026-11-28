@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { RaceMapSourceMetadata } from "@o-tid/contracts";
 import { readPpen } from "@o-tid/course-setting";
 import { alignedDocument, checkAlignment, controlsOutside, type VersionFacts } from "./club-archive-align";
-import { archiveFacets, EMPTY_FILTER, filterArchive, levelsFromCourseNames, savedFilter } from "./club-archive-filter";
+import { activeFilters, archiveFacets, archiveGroups, EMPTY_FILTER, filterArchive, filterFromSearch, filterToSearch, levelsFromCourseNames } from "./club-archive-filter";
 
 /** ADR-0194 beslut 4: "Flytta banorna till senaste kartversionen" och arkivets filter. */
 const georeference = (easting: number, grivationDegrees = 0): NonNullable<RaceMapSourceMetadata["georeference"]> => ({
@@ -76,7 +76,7 @@ describe("arkivets sökning och filter", () => {
   it("ägaren 2026-11-17: vem som lade in träningen går att söka och filtrera på", () => {
     expect(filterArchive(entries, { ...EMPTY_FILTER, addedBy: "Joel Berring" }).map(entry => entry.entryId)).toEqual(["b"]);
     expect(filterArchive(entries, { ...EMPTY_FILTER, text: "berring" }).map(entry => entry.entryId)).toEqual(["b"]);
-    expect(savedFilter({ addedBy: "Ada" }).addedBy).toBe("Ada");
+    expect(filterFromSearch("?inlagd=Ada").addedBy).toBe("Ada");
   });
 
   it("ADR-0222: alla valda moment, någon av nivåerna, momentens namn i sökningen och ett äldre sparat filter", () => {
@@ -87,8 +87,26 @@ describe("arkivets sökning och filter", () => {
     expect(ids({ levels: ["GUL", "VIOLETT"] })).toEqual(["a", "b"]);
     expect(ids({ levels: ["SVART"] })).toEqual([]);
     expect(ids({ text: "vagval" })).toEqual(["a"]);
-    expect(savedFilter({ tag: "Sprint", year: "2020", moments: ["NATT", "OKAND"] as never })).toEqual({ ...EMPTY_FILTER, year: "2020", tags: ["Sprint"],
+    expect(filterFromSearch("?ord=Sprint&ar=2020&moment=NATT&moment=OKAND&visa=FEL")).toEqual({ ...EMPTY_FILTER, year: "2020", tags: ["Sprint"],
       moments: ["NATT"] });
+  });
+});
+
+describe("steg F2: filtret i adressen och grupperna", () => {
+  it("fram och tillbaka genom adressen, andra parametrar orörda", () => {
+    const filter = { ...EMPTY_FILTER, text: "natt sprint", year: "2026", tags: ["natt", "a,b"], levels: ["GUL" as const], status: "MAP_MISSING" as const };
+    const search = filterToSearch(filter, "?flik=1&ar=2019");
+    expect(search).toBe("?flik=1&sok=natt+sprint&ar=2026&visa=MAP_MISSING&niva=GUL&ord=natt&ord=a%2Cb");
+    expect(filterFromSearch(search)).toEqual(filter);
+    expect(filterToSearch(EMPTY_FILTER)).toBe("");
+    expect(activeFilters(filter)).toBe(5);
+    expect(activeFilters(filter, { withTags: false })).toBe(3);
+  });
+
+  it("per månad i år och i fjol, per år för äldre, odaterade sist", () => {
+    const rows = ["2026-11-20", "2026-11-03", null, "2025-01-09", "2024-10-15", "2019-04-02", "2024-03-01"].map(trainingDate => ({ trainingDate }));
+    expect(archiveGroups(rows, "2026-11-28").map(group => [group.key, group.kind, group.entries.length])).toEqual([
+      ["2026-11", "month", 2], ["2025-01", "month", 1], ["2024", "year", 2], ["2019", "year", 1], ["", "undated", 1]]);
   });
 });
 

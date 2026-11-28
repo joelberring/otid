@@ -44,9 +44,11 @@ test("översynen: kartprojektens nästa steg och banläggningens namn", async ({
   await expect(steps.getByTestId("map-project-step-courses")).toContainText("Lägg banor på kartan");
   await expect(steps.getByRole("link", { name: "Öppna kartan" })).toHaveAttribute("href", `${projectPath}/map`);
 
-  // Listan: «Öppna» per projekt.
+  // Listan (steg F2): hela raden är länken till projektet, ingen knapp «Öppna» per rad.
   await owner.goto("/organizer/map-projects");
-  await expect(owner.getByRole("link", { name: `Öppna Skogen ${suffix}` })).toHaveAttribute("href", projectPath);
+  const row = owner.getByTestId("map-project-row").filter({ hasText: `Skogen ${suffix}` });
+  await expect(row.getByRole("link")).toHaveAttribute("href", projectPath);
+  await expect(owner.getByTestId("map-projects").getByRole("link", { name: /^Öppna/ })).toHaveCount(0);
 
   // Kartredigeraren i telefonen: tillbaka till projektet med 44 px tryckyta.
   await owner.setViewportSize({ width: 390, height: 844 });

@@ -29,30 +29,59 @@
 .tabs::-webkit-scrollbar { display: none; }
 /* `flex: none`: på pekskärm sätter globals.css `min-width: 44px !important` på knappar, och då krymper flikarna annars till
    44 px så att orden hamnar på varandra (översynen 2026-11-28, L7). */
-.tabs button { flex: none; min-height: 44px; padding: 0 14px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none;
+.tabs button { flex: none; min-height: 44px; padding: 0 14px; border: 0; border-bottom: 3px solid transparent; border-radius: 0; background: none;
   color: var(--muted); font-weight: 600; white-space: nowrap; cursor: pointer; }
-.tabs button[aria-selected="true"] { border-bottom-color: var(--ink); color: var(--ink); }
+.tabs button[aria-selected="true"] { border-bottom-color: var(--accent); color: var(--ink); }
 /* Globala `button:hover:not(:disabled)` (svart bakgrund) vinner annars över `.tabs button`: fliken blev svart med svart text. */
 .tabs button:hover:not(:disabled), .tabs button:focus-visible { background: none; color: var(--ink); }
 
-.filters { display: grid; grid-template-columns: minmax(12rem, 2fr) repeat(4, minmax(0, 1fr)); gap: .5rem .65rem; align-items: end; margin-bottom: 10px; }
-.filters label { display: grid; gap: .15rem; min-width: 0; color: var(--muted); font-size: var(--text-sm); font-weight: 600; }
-.filters input, .filters select { width: 100%; min-width: 0; min-height: 44px; }
-.count { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .5rem; margin: 4px 0 8px;
-  color: var(--muted); font-size: var(--text-sm); }
-
-.entries { display: grid; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
-.entries > li { border-bottom: 1px solid var(--line); }
-.entries a { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr) auto; gap: .2rem 1rem; align-items: baseline; padding: 10px 4px;
-  color: inherit; text-decoration: none; }
-.entries a:hover, .entries a:focus-visible { background: var(--surface); }
-.date { font-variant-numeric: tabular-nums; color: var(--muted); }
-.entryTitle { min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
-.entryMeta { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: .25rem .6rem; color: var(--muted); font-size: var(--text-sm); }
-.tag { display: inline-block; padding: 0 .45rem; border: 1px solid var(--line-strong); border-radius: 999px; font-size: var(--text-xs);
-  font-weight: 600; color: var(--ink); }
-.status { font-size: var(--text-xs); font-weight: 600; color: var(--muted); white-space: nowrap; }
-.status[data-status="MAP_MISSING"] { color: var(--warn, #b45309); }
+/*
+ * Steg F2: sök först och filter på begäran. Datorn: sökrutan, År, Karta och «Fler filter» på en rad, resten fälls ut under.
+ * Telefonen: sökrutan och «Filter», som fäller ut alla val. Egna ord på en rad som rullar i sidled.
+ */
+.archive { display: grid; gap: 8px; min-width: 0; }
+.searchBar { display: grid; grid-template-columns: minmax(12rem, 1fr) minmax(7rem, 10rem) minmax(9rem, 16rem) auto; gap: 8px 10px;
+  align-items: end; min-width: 0; }
+.searchBar label { display: grid; gap: 2px; min-width: 0; color: var(--muted); font-size: var(--text-xs); font-weight: 600; }
+.searchBar input, .searchBar select { width: 100%; min-width: 0; min-height: 44px; }
+.searchBar > button { min-height: 44px; }
+.phoneButton { display: none; }
+.moreFilters { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 14rem)); gap: 8px 10px; padding: 8px 0 4px;
+  border-bottom: 1px solid var(--line); }
+.moreFilters[hidden] { display: none; }
+.momentFilters { grid-column: 1 / -1; display: grid; gap: .6rem; }
+.tagRowWrap { --scroll-row-fade: var(--canvas); }
+.tagRow { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; scroll-padding-inline: 48px; padding-block: 2px; }
+.tagRow::-webkit-scrollbar { display: none; }
+.tagRow > .tagChip { flex: none; min-height: 32px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 999px;
+  background: var(--surface); color: var(--ink); font-size: var(--text-sm); font-weight: 500; white-space: nowrap; }
+.tagRow > .tagChip:hover:not(:disabled) { border-color: var(--ink); background: var(--surface); }
+.tagRow > .tagChip[aria-pressed="true"], .tagRow > .tagChip[aria-pressed="true"]:hover:not(:disabled) { border-color: var(--ink);
+  background: var(--ink); color: var(--surface); }
+.count { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .5rem; color: var(--muted);
+  font-size: var(--text-sm); }
+.count[hidden] { display: none; }
+.group { min-width: 0; }
+.group:first-child > h2 { margin-top: 4px; }
+.rowMissing { color: var(--attention); font-size: var(--text-xs); font-weight: 600; white-space: nowrap; }
+.rowMissing > span { display: inline-grid; place-items: center; width: 1.3em; height: 1.3em; border: 1.5px solid currentcolor; border-radius: 50%;
+  font-size: .85em; line-height: 1; }
+.rowStatus { color: var(--muted); font-size: var(--text-xs); font-weight: 600; white-space: nowrap; }
+.phoneOnly { display: none; }
+.showMore { margin: 12px 0 0; }
+@media (max-width: 640px) {
+  .searchBar { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 8px; }
+  .searchInput { grid-column: 1 / 3; }
+  .moreButton { display: none; }
+  .phoneButton { display: inline-flex; grid-column: 3; grid-row: 1; }
+  .searchBar:not([data-open="true"]) > .firstFilter { display: none; }
+  .firstFilter + .firstFilter { grid-column: 2 / -1; }
+  .moreFilters { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .tagRow > .tagChip { min-height: 36px; }
+  .phoneOnly { display: inline; }
+  .desktopOnly { display: none; }
+}
+@media (pointer: coarse) { .tagRow > .tagChip { min-height: 44px; } }
 
 .usage { margin: 0; color: var(--muted); font-size: var(--text-sm); }
 
@@ -113,13 +142,6 @@
 
 @media (max-width: 900px) {
   .detail { grid-template-columns: minmax(0, 1fr); }
-  .filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .filters > label:first-child { grid-column: 1 / -1; }
-}
-@media (max-width: 520px) {
-  .entries a { grid-template-columns: minmax(0, 1fr) auto; }
-  .date { grid-column: 1 / -1; }
-  .entryMeta { grid-column: 1 / -1; }
 }
 
 /* Arkivet visar bara (ägaren 2026-11-03): beskedet och Använd igen direkt under kartan. */
@@ -162,4 +184,3 @@
 .deviceTable th, .deviceTable td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line, #ddd); vertical-align: middle; }
 .deviceTable input { width: 100%; min-width: 10ch; }
 .deviceWrap { overflow-x: auto; }
-.momentFilters { display: grid; gap: .6rem; margin: 0 0 10px; }

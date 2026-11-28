@@ -41,9 +41,12 @@ export const clubArchiveEn: Texts<typeof clubArchiveSv> = {
   loadFailed: "The archive could not be fetched. Are you signed in and a member of the club?",
   usage: (bytes: number, maps: number, versions: number, entries: number) =>
     `${mb(bytes)} · ${count(maps, "map", "maps")} (${count(versions, "version", "versions")}) · ${count(entries, "training", "trainings")}`,
+  usageShort: (maps: number, entries: number) => `${count(maps, "map", "maps")} · ${count(entries, "training", "trainings")}`,
   filters: {
     search: "Search",
-    searchPlaceholder: "Place, exercise, course …",
+    searchPlaceholder: (total: number) => `Search ${count(total, "training", "trainings")}`,
+    more: (active: number) => active > 0 ? `More filters (${active})` : "More filters",
+    phone: (active: number) => active > 0 ? `Filter (${active})` : "Filter",
     year: "Year",
     map: "Map",
     tag: "Own words",
@@ -57,7 +60,6 @@ export const clubArchiveEn: Texts<typeof clubArchiveSv> = {
   },
   added: {
     label: "Added",
-    line: (added: ClubAddedBy) => `Added by ${added.name || "deleted account"}`,
     full: (added: ClubAddedBy) => `${added.at.slice(0, 10)} by ${added.name || "deleted account"}${added.via === "RACE"
       ? ", from an event or training" : added.via === "IMPORT" ? ", by import" : ""}`
   },

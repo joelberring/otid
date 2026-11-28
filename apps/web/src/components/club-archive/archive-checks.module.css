@@ -32,12 +32,3 @@
 .buttons > button { min-height: 44px; }
 .block { display: block; }
 
-/* Träningslistan med bild: bilden i första kolumnen över två rader (klasserna dubblas för att gå före arkivets egna). */
-.withThumb.withThumb { grid-template-columns: 6rem 6.5rem minmax(0, 1fr) auto; align-items: start; }
-.metaShift.metaShift { grid-column: 2 / -1; }
-@media (max-width: 520px) {
-  .withThumb.withThumb { grid-template-columns: 5rem minmax(0, 1fr) auto; }
-  .withThumb .entryThumb, .withThumb .entryPlaceholder { grid-row: span 3; width: 5rem; height: 3.4rem; }
-  .dateCell.dateCell { grid-column: 2 / -1; }
-  .metaShift.metaShift { grid-column: 2 / -1; }
-}

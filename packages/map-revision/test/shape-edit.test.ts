@@ -1,6 +1,6 @@
 import type { MapObject, PathCommand } from "@o-tid/map-file";
 import { describe, expect, it } from "vitest";
-import { areaSelfCrosses, circleShape, SIMPLIFY_GROWTH, simplifyShape, simplifyStep, smoothShape, straightenShape, vertexCount } from "../src";
+import { areaSelfCrosses, circleShape, lineSelfCrosses, SIMPLIFY_GROWTH, simplifyShape, simplifyStep, smoothShape, straightenShape, vertexCount } from "../src";
 
 /** Ägaren 2026-11-09: förenkla, mjuk, rak och cirkel för ett markerat objekt. */
 const line = (points: readonly [number, number][], corner: number[] = []): MapObject => ({ kind: "line", symbol: "101",
@@ -77,6 +77,32 @@ describe("formen på ett objekt", () => {
       { type: "L", x: 10, y: 0.3 }, { type: "L", x: 0, y: 0.3 }, { type: "L", x: 0, y: 0 }
     ]] };
     expect(areaSelfCrosses(smoothShape(thinNose)!)).toBe(false);
+  });
+
+  it("skarpa sicksackkurvor och täta vändningar ger noll Bézier-självkorsningar efter smoothShape", () => {
+    // Självkorsande referenslinje (ett X) upptäcks av lineSelfCrosses.
+    expect(lineSelfCrosses(line([[0, 0], [4, 4], [4, 0], [0, 4]]))).toBe(true);
+    expect(lineSelfCrosses(line([[0, 0], [4, 0], [4, 4], [0, 4]]))).toBe(false);
+
+    // Tät akut sicksack (typisk sprintkurva med >120°-vändningar och ojämna kordor) som tidigare slog Bézier-öglor.
+    const acuteZigzag = line([
+      [0, 0], [3, 0], [3.12, 0.08], [0.2, 0.12], [0.15, 0.2], [3.2, 0.25], [3.25, 0.32], [0.1, 0.36]
+    ]);
+    const smoothOpen = smoothShape(acuteZigzag)!;
+    expect(lineSelfCrosses(smoothOpen)).toBe(false);
+
+    // Tät sågtandskurva i 45°–115° (prövar vinkeldämpning + självkorsningsskydd på både öppna och slutna kurvor).
+    const sawtooth = line([
+      [0, 0], [0.4, 0.35], [0.55, 0.04], [0.95, 0.38], [1.08, 0.06], [1.45, 0.36], [1.58, 0.05], [2.0, 0.35]
+    ]);
+    expect(lineSelfCrosses(smoothShape(sawtooth)!)).toBe(false);
+
+    // Sluten kurvring med snäv inbuktning (två vändningar tätt intill varandra).
+    const pinchedRing = line([
+      [0, 0], [5, 0], [5, 2], [2.6, 2], [2.5, 0.08], [2.4, 2], [0, 2], [0, 0]
+    ]);
+    const smoothRing = smoothShape(pinchedRing)!;
+    expect(lineSelfCrosses(smoothRing)).toBe(false);
   });
 });
 

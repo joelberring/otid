@@ -220,6 +220,7 @@ pub fn execute_rasters(cfg: &RastersConfig) -> Result<RastersSummary, String> {
                     cfg.moisture_settings,
                     water.as_ref(),
                     points.as_ref(),
+                    cfg.veg_png.as_deref().map(|p| (p, cfg.veg_pgw.as_deref())),
                     &cfg.out_dir,
                 )
                 .map(|m| Some((m, t0.elapsed().as_secs_f64() * 1000.0)));

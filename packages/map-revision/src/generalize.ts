@@ -35,6 +35,11 @@ export interface GeneralizeOptions {
    */
   readonly smooth?: readonly string[] | undefined;
   readonly smoothSimplifyMm?: number | undefined;
+  /**
+   * Separat förenklingstolerans (kartans mm) för mjuka linjer (kurvor 101–103 och branter 201–202) innan `smoothShape`:
+   * håller detaljerade höjdformer, näsor och smala sänkor skarpa utan att 0,15 mm (2,25 m i 1:15 000) rundar av dem.
+   */
+  readonly smoothLineSimplifyMm?: number | undefined;
   /** Bara objekt inom rutan (kartans mm), t.ex. en etapp. */
   readonly within?: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number } | undefined;
   /** Objekt som redan har en ändring (från en tidigare del, `generalizeParts`) och lämnas orörda. */
@@ -223,7 +228,11 @@ export function generalize(all: readonly NormObject[], scale: number, options: G
     for (const row of objects) {
       if (taken.has(row.key)) continue;
       const soft = smooth.has(row.code.split(".")[0]!) && (row.object.kind === "line" || row.object.kind === "area");
-      const tolerance = soft ? Math.max(options.simplifyMm, options.smoothSimplifyMm ?? 0) : options.simplifyMm;
+      const tolerance = soft
+        ? (row.object.kind === "line" && options.smoothLineSimplifyMm !== undefined
+            ? options.smoothLineSimplifyMm
+            : Math.max(options.simplifyMm, options.smoothSimplifyMm ?? 0))
+        : options.simplifyMm;
       const result = simplifyObject(row.object, tolerance);
       const curved = soft ? smoothShape(result?.object ?? row.object) : undefined;
       if (!result && !curved) continue;
@@ -253,16 +262,38 @@ export function proposalBase(state: RevisionClientState, key: ObjectKey): { base
  * gröna ytorna (406–410).
  */
 export const SOFT_CODES: readonly string[] = ["101", "102", "103", "201", "202", "406", "407", "408", "409", "410"];
+/** Förenklingstolerans (kartans mm) för kurvor (101–103) och branter (201–202) före Bézier-mjukning (~0,68 m i 1:15 000, ~0,45 m i 1:10 000). */
+export const CONTOUR_LINE_SIMPLIFY_MM = 0.045;
+/** Minsta förförenkling i terrängmeter före Bézier-mjukning i sprint (skala ≤ 1:5 000), så sub-grid-trappsteg inte ger ryckningar. */
+const SPRINT_CONTOUR_MIN_SIMPLIFY_M = 0.35;
+
+/** Förenklingstolerans (kartans mm) för kurvor/branter före Bézier-mjukning: 0,045 mm i skog, minst 0,35 m i terrängen i sprint (0,0875 mm i 1:4 000). */
+export function contourLineSimplifyMm(scale: number): number {
+  return scale > 0 && scale <= 5000
+    ? Math.max(CONTOUR_LINE_SIMPLIFY_MM, SPRINT_CONTOUR_MIN_SIMPLIFY_M * 1000 / scale)
+    : CONTOUR_LINE_SIMPLIFY_MM;
+}
 
 /**
  * Ägaren 2026-11-11 («orienteringskartor ska kunna läsas i fart … en del generalisering»): en inläsnings kandidater
- * generaliseras efter normen innan de läggs in, med samma steg som generaliseringen av kartan (förenkla 0,1 mm, ta bort det
- * som är mindre än normen, foga ihop linjer, ta bort ytor inuti en likadan yta). `codeOf` ger symbolens nummer.
+ * generaliseras efter normen innan de läggs in, med samma steg som generaliseringen av kartan (förenkla 0,1 mm för vanliga
+ * objekt, 0,15 mm för mjuka grönytor och `contourLineSimplifyMm(scale)` för kurvor/branter så att skarpa höjder inte rundas av
+ * i skog medan sprint slipper sub-grid-trappsteg; ta bort det som är mindre än normen, foga ihop linjer, ta bort ytor inuti en
+ * likadan yta). `codeOf` ger symbolens nummer.
  */
 export function generalizeCandidates(objects: readonly MapObject[], codeOf: (symbol: string) => string | undefined, scale: number,
   simplifyMm = 0.1, smooth: readonly string[] = SOFT_CODES): { objects: MapObject[]; removed: number; simplified: number } {
   const rows: NormObject[] = objects.map((object, index) => ({ key: `c:${index}`, code: codeOf(object.symbol) ?? "", object }));
-  const result = generalize(rows, scale, { simplifyMm, removeSmall: true, joinLines: true, removeInside: true, smooth, smoothSimplifyMm: 0.15 });
+  const lineSimplifyMm = contourLineSimplifyMm(scale);
+  const result = generalize(rows, scale, {
+    simplifyMm,
+    removeSmall: true,
+    joinLines: true,
+    removeInside: true,
+    smooth,
+    smoothSimplifyMm: 0.15,
+    smoothLineSimplifyMm: simplifyMm <= 0 ? 0 : scale > 0 && scale <= 5000 ? lineSimplifyMm : Math.min(simplifyMm, lineSimplifyMm)
+  });
   const replaced = new Map<ObjectKey, MapObject | undefined>(result.changes.map(change => [change.key, change.object]));
   const out: MapObject[] = [];
   rows.forEach(row => {

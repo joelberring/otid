@@ -4,7 +4,7 @@
 
 use crate::rasters::geom::{clean_mask, local_relief, mask_rings, simplify};
 use crate::rasters::grid_io::{js_round, write_moisture_dxf, write_sub_png, DxfLayer, GroundGrid};
-use crate::rasters::knolls::{choose_knolls, knoll_candidates, write_knolls_geojson};
+use crate::rasters::knolls::{choose_knolls, knoll_candidates_excluding_boulders, write_knolls_geojson};
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::path::Path;
@@ -337,20 +337,17 @@ pub fn run_rock_and_knolls(
     let cap = point_cap(ground);
     let (((stones, stones_capped), (knolls, knolls_capped, candidates)), rock_res) = rayon::join(
         || {
-            rayon::join(
-                || detect_boulders(ground, water_mask),
-                || {
-                    if !include_knolls {
-                        return (Vec::new(), 0usize, Vec::new());
-                    }
-                    let mut cands = knoll_candidates(ground, water_mask, wet_mask);
-                    let mut chosen = choose_knolls(&cands, knoll_share);
-                    let capped = chosen.len().saturating_sub(cap);
-                    chosen.truncate(cap);
-                    cands.truncate(cap * 6);
-                    (chosen, capped, cands)
-                },
-            )
+            let (stones, stones_capped) = detect_boulders(ground, water_mask);
+            if !include_knolls {
+                return ((stones, stones_capped), (Vec::new(), 0usize, Vec::new()));
+            }
+            let stone_pts: Vec<[f64; 2]> = stones.iter().map(|s| s.at).collect();
+            let mut cands = knoll_candidates_excluding_boulders(ground, &stone_pts, water_mask, wet_mask);
+            let mut chosen = choose_knolls(&cands, knoll_share);
+            let capped = chosen.len().saturating_sub(cap);
+            chosen.truncate(cap);
+            cands.truncate(cap * 6);
+            ((stones, stones_capped), (chosen, capped, cands))
         },
         || -> Result<Vec<Vec<[f64; 2]>>, String> {
             let Some((open_mask, forest_mask)) = veg_masks else {

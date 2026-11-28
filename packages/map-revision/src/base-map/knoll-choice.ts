@@ -8,7 +8,10 @@ import { ringArea } from "./small-rings";
  * (`kullar.geojson`), och valet bland dem görs här med reglage, utan ny körning. Samma regel som geo-arbetarens
  * `chooseKnolls` (scripts/geo-rock.ts): gränserna, och sedan de högsta först med ett minsta avstånd emellan.
  */
-export interface KnollCandidate { readonly at: readonly [number, number]; readonly rise: number; readonly share: number; readonly footM2: number;
+export interface KnollCandidate { readonly at: readonly [number, number]; readonly rise: number; readonly share: number;
+  /** Andel lägre mark i en kompakt 4–5 m-ring (valfri i nyare `kullar.geojson`, används i sprint ≤ 1:5 000). */
+  readonly share4?: number | undefined;
+  readonly footM2: number;
   /** Ligger i blöt eller fuktig mark: tas bara med om den är uppenbar (minst `KNOLL_OBVIOUS_RISE` m). */
   readonly wet?: boolean | undefined;
   /** Fotens längd/bredd-kvot (>= 1, från 2D-tröghetstensor i `kullar.geojson`). */
@@ -25,12 +28,14 @@ export const KNOLL_ELONGATED_MIN_FOOT_M2 = 18;
 export const KNOLL_DEDUP_METERS = 6;
 export interface KnollLimits { readonly minRise: number; readonly lowerShare: number; readonly maxFootM2: number; readonly spacing: number }
 /**
- * Geo-arbetarens förval (det som `knollar`-lagret i grundkartan är räknat med). Kalibrerat mot fem svenska skogskartor
- * (Högdalen, Tyresta, Gömmaren, Lida, Djurgården) + Bandhagen: lägre stigning (0,9 m) och tätare avstånd (12 m) hittar
- * betydligt fler verkliga små kullar utan att översvämma kartan eftersom kompaktare fot (högst 70 m²) och 85 % lägre ring
- * håller bort breda sluttningsskuldor (oberoende 4-kartors F1 0,279 → 0,371, recall +70 % med bibehållen precision).
+ * Skogskartans förval kalibrerat mot 6 autentiska OCAD-kartor (4 skog + 2 sprint): 0,90 m stigning, 85 % lägre ring,
+ * kompakt fot 8–68 m² och 12 m avstånd.
  */
-export const DEFAULT_KNOLL_LIMITS: KnollLimits = { minRise: 0.9, lowerShare: 0.85, maxFootM2: 70, spacing: 12 };
+export const DEFAULT_KNOLL_LIMITS: KnollLimits = { minRise: 0.9, lowerShare: 0.85, maxFootM2: 68, spacing: 12 };
+const SPRINT_KNOLL_LIMITS: KnollLimits = { minRise: 0.65, lowerShare: 0.72, maxFootM2: 72, spacing: 8 };
+/** Skalanpassade förval för små kullar: skog (> 1:5 000) eller sprint (≤ 1:5 000). */
+export const defaultKnollLimits = (scale?: number): KnollLimits =>
+  scale !== undefined && scale <= 5000 ? SPRINT_KNOLL_LIMITS : DEFAULT_KNOLL_LIMITS;
 
 /**
  * Ägaren 2026-11-12 («en skala 1–10 med 5 i mitten som är förinställt»): ett enda reglage för mängden. 5 är förvalen, 1 ger
@@ -38,7 +43,11 @@ export const DEFAULT_KNOLL_LIMITS: KnollLimits = { minRise: 0.9, lowerShare: 0.8
  */
 const FEWEST_KNOLLS: KnollLimits = { minRise: 2, lowerShare: 0.95, maxFootM2: 70, spacing: 40 };
 const MOST_KNOLLS: KnollLimits = { minRise: 0.5, lowerShare: 0.5, maxFootM2: 160, spacing: 10 };
-export const knollLimitsAt = (level: number): KnollLimits => blend(DEFAULT_KNOLL_LIMITS, level < 5 ? FEWEST_KNOLLS : MOST_KNOLLS, level < 5 ? (5 - level) / 4 : (level - 5) / 5);
+const MOST_SPRINT_KNOLLS: KnollLimits = { minRise: 0.5, lowerShare: 0.5, maxFootM2: 160, spacing: 6 };
+export const knollLimitsAt = (level: number, scale?: number): KnollLimits => {
+  const sprint = scale !== undefined && scale <= 5000;
+  return blend(defaultKnollLimits(scale), level < 5 ? FEWEST_KNOLLS : (sprint ? MOST_SPRINT_KNOLLS : MOST_KNOLLS), level < 5 ? (5 - level) / 4 : (level - 5) / 5);
+};
 
 /** Gränserna en andel `share` (0–1) av vägen från `from` till `to`, avrundade till två decimaler. Annat än tal tas från `from`. */
 export function blend<L extends object>(from: L, to: L, share: number): L {
@@ -49,7 +58,7 @@ export function blend<L extends object>(from: L, to: L, share: number): L {
   })) as L;
 }
 
-/** Kandidaterna ur `kullar.geojson` (punkter i SWEREF 99 TM med egenskaperna rise, share och foot, samt valfria aspect/angle). Annat hoppas över. */
+/** Kandidaterna ur `kullar.geojson` (punkter i SWEREF 99 TM med egenskaperna rise, share och foot, samt valfria share4/aspect/angle). Annat hoppas över. */
 export function readKnollCandidates(json: unknown): KnollCandidate[] {
   const features = (json as { features?: unknown } | null)?.features;
   if (!Array.isArray(features)) return [];
@@ -58,20 +67,25 @@ export function readKnollCandidates(json: unknown): KnollCandidate[] {
     const at: unknown[] = geometry?.type === "Point" && Array.isArray(geometry.coordinates) ? geometry.coordinates : [];
     const x = at[0], y = at[1], rise = properties?.rise, share = properties?.share, foot = properties?.foot;
     if (!(typeof x === "number" && typeof y === "number" && typeof rise === "number" && typeof share === "number" && typeof foot === "number")) return [];
+    const share4 = properties?.share4;
+    const compact = typeof share4 === "number" && Number.isFinite(share4) ? { share4 } : {};
     const aspect = properties?.aspect, angle = properties?.angle;
     const shape = typeof aspect === "number" && Number.isFinite(aspect) && aspect >= 1
       && typeof angle === "number" && Number.isFinite(angle)
       ? { aspect, angle } : {};
-    return [{ at: [x, y], rise, share, footM2: foot, ...(properties?.wet ? { wet: true } : {}), ...shape }];
+    return [{ at: [x, y], rise, share, ...compact, footM2: foot, ...(properties?.wet ? { wet: true } : {}), ...shape }];
   });
 }
 
-/** Valda kandidater med alla mått bevarade (inkl. ev. `aspect` och `angle` för avlånga punkthöjder). */
-export function chooseKnollCandidates(candidates: readonly KnollCandidate[], limits: KnollLimits): KnollCandidate[] {
-  const found = candidates.filter(knoll => knoll.rise >= limits.minRise && knoll.share >= limits.lowerShare
-    && knoll.footM2 >= KNOLL_MIN_FOOT_M2 && knoll.footM2 <= limits.maxFootM2
-    && (!knoll.wet || knoll.rise >= KNOLL_OBVIOUS_RISE))
-    .sort((a, b) => b.rise - a.rise);
+/** Valda kandidater med alla mått bevarade (inkl. ev. `aspect` och `angle` för avlånga punkthöjder). I sprint (≤ 1:5 000) används `share4` när den finns. */
+export function chooseKnollCandidates(candidates: readonly KnollCandidate[], limits: KnollLimits, scale?: number): KnollCandidate[] {
+  const useCompactShare = scale !== undefined && scale <= 5000;
+  const found = candidates.filter(knoll => {
+    const effectiveShare = useCompactShare && knoll.share4 !== undefined && Number.isFinite(knoll.share4) ? knoll.share4 : knoll.share;
+    return knoll.rise >= limits.minRise && effectiveShare >= limits.lowerShare
+      && knoll.footM2 >= KNOLL_MIN_FOOT_M2 && knoll.footM2 <= limits.maxFootM2
+      && (!knoll.wet || knoll.rise >= KNOLL_OBVIOUS_RISE);
+  }).sort((a, b) => b.rise - a.rise);
   const reach = limits.spacing, cells = new Map<string, [number, number][]>(), kept: KnollCandidate[] = [];
   for (const knoll of found) {
     const [x, y] = knoll.at;
@@ -88,8 +102,8 @@ export function chooseKnollCandidates(candidates: readonly KnollCandidate[], lim
   return kept;
 }
 
-export function chooseKnolls(candidates: readonly KnollCandidate[], limits: KnollLimits): [number, number][] {
-  return chooseKnollCandidates(candidates, limits).map(({ at: [x, y] }) => [x, y]);
+export function chooseKnolls(candidates: readonly KnollCandidate[], limits: KnollLimits, scale?: number): [number, number][] {
+  return chooseKnollCandidates(candidates, limits, scale).map(({ at: [x, y] }) => [x, y]);
 }
 
 /** Om en kandidat har formklassning och är tillräckligt avlång för symbol 110 (`dotknoll_avlang`). */

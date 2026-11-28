@@ -136,7 +136,8 @@ export function handleCandidateRequest(store: CandidateStore, request: Candidate
     if (request.merge) post({ type: "progress", id, step: "merge" });
     let soil: SoilOutcome | undefined;
     const merged: SourceData & { readonly primary?: readonly PrimaryOutcome[] } = request.merge ? mergeBaseMap(read, request.osm, request.scale, request.cuts, request.norm,
-      request.soil && { areas: request.soil, report: outcome => { soil = outcome; } }, request.landCover, request.primary) : { ...read[0]!.data };
+      request.soil && { areas: request.soil, report: outcome => { soil = outcome; } }, request.landCover, request.primary,
+      engine === "otidgeo" ? (request.scale && request.scale <= 5000 ? 1.15 : 1) : undefined) : { ...read[0]!.data };
     // Hjälpkurvor och små ringar på flack mark tas bort direkt (förvalet), när körningen har fuktdjupet med lutningen.
     // För `otidgeo` börjar reglaget på 0 (motorn lugnar redan flack mark terrängadaptivt); manuella reglage fungerar fullt ut.
     const calm = request.merge && request.calm ? request.calm : undefined;
@@ -165,7 +166,7 @@ export function handleCandidateRequest(store: CandidateStore, request: Candidate
       try { hillCandidates = clear.parts.flatMap(part => findHills(part.grid, part.affine)); } catch (error) { console.error("Höjderna kunde inte sökas ur markens höjd", error); }
       const settled = settleHills(floored.features, hillCandidates, DEFAULT_HILL_LIMITS, request.scale);
       hills = { candidates: hillCandidates, limits: DEFAULT_HILL_LIMITS, level: DEFAULT_HILL_LEVEL, scale: request.scale, rings: settled.rings, contours: settled.contours, hidden: settled.hidden };
-      const limits = pitLimitsAt(DEFAULT_PIT_LEVEL);
+      const limits = pitLimitsAt(DEFAULT_PIT_LEVEL, request.scale);
       // Sökningen håller flera raster i minnet; räcker det inte läses grundkartan in ändå, utan de egna sänkorna.
       let candidates: PitCandidate[] = [];
       try { candidates = clear.parts.flatMap(part => findPits(part.grid, part.affine)); } catch (error) { console.error("Sänkorna kunde inte sökas ur markens höjd", error); }

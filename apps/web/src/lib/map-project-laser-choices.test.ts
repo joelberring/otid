@@ -20,17 +20,17 @@ describe("enkla val och kurvprofiler för O-Tid-motorn och Karttapullautin", () 
     expect(CONTOUR_STYLES).toEqual(["veryDetailed", "detailed", "normal", "generalized", "veryGeneralized"]);
 
     // otidgeo 5 m (synkade med tools/otidgeo/src/types.rs)
-    expect(contourStyleSettings("veryDetailed", "otidgeo", false)).toEqual({ smooth_m: 0.72, taubin: 1, curviness: 0.26, min_loop_area: 18, min_clearance: 0.95, formline_gap: 3.2, formline_max_slope: 23 });
-    expect(contourStyleSettings("detailed", "otidgeo", false)).toEqual({ smooth_m: 0.88, taubin: 2, curviness: 0.22, min_loop_area: 26, min_clearance: 1.25, formline_gap: 3.6, formline_max_slope: 21.5 });
+    expect(contourStyleSettings("veryDetailed", "otidgeo", false)).toEqual({ smooth_m: 0.62, taubin: 1, curviness: 0.34, min_loop_area: 15, min_clearance: 0.85, formline_gap: 3, formline_max_slope: 20.5 });
+    expect(contourStyleSettings("detailed", "otidgeo", false)).toEqual({ smooth_m: 0.76, taubin: 1, curviness: 0.29, min_loop_area: 22, min_clearance: 1.15, formline_gap: 3.5, formline_max_slope: 19 });
     expect(contourStyleSettings("normal", "otidgeo", false)).toEqual({});
-    expect(contourStyleSettings("generalized", "otidgeo", false)).toEqual({ smooth_m: 1.5, taubin: 3, curviness: 0.13, min_loop_area: 62, min_clearance: 2, formline_gap: 5.6, formline_max_slope: 17 });
-    expect(contourStyleSettings("veryGeneralized", "otidgeo", false)).toEqual({ smooth_m: 2.15, taubin: 4, curviness: 0.08, min_loop_area: 105, min_clearance: 2.4, formline_gap: 7.6, formline_max_slope: 13.5 });
+    expect(contourStyleSettings("generalized", "otidgeo", false)).toEqual({ smooth_m: 1.42, taubin: 3, curviness: 0.14, min_loop_area: 58, min_clearance: 1.95, formline_gap: 5.5, formline_max_slope: 14.5 });
+    expect(contourStyleSettings("veryGeneralized", "otidgeo", false)).toEqual({ smooth_m: 2.1, taubin: 4, curviness: 0.08, min_loop_area: 100, min_clearance: 2.4, formline_gap: 7.6, formline_max_slope: 11.5 });
 
     // otidgeo sprint (<= 3 m)
-    expect(contourStyleSettings("veryDetailed", "otidgeo", true)).toEqual({ smooth_m: 0.52, taubin: 1, curviness: 0.26, min_loop_area: 9, min_clearance: 0.55, formline_gap: 2.2, formline_max_slope: 22.5 });
-    expect(contourStyleSettings("detailed", "otidgeo", true)).toEqual({ smooth_m: 0.65, taubin: 2, curviness: 0.22, min_loop_area: 12, min_clearance: 0.75, formline_gap: 2.7, formline_max_slope: 21 });
-    expect(contourStyleSettings("generalized", "otidgeo", true)).toEqual({ smooth_m: 1.1, taubin: 3, curviness: 0.13, min_loop_area: 25, min_clearance: 1.2, formline_gap: 4.4, formline_max_slope: 16.5 });
-    expect(contourStyleSettings("veryGeneralized", "otidgeo", true)).toEqual({ smooth_m: 1.55, taubin: 4, curviness: 0.08, min_loop_area: 40, min_clearance: 1.5, formline_gap: 5.8, formline_max_slope: 13 });
+    expect(contourStyleSettings("veryDetailed", "otidgeo", true)).toEqual({ smooth_m: 0.45, taubin: 1, curviness: 0.34, min_loop_area: 8, min_clearance: 0.5, formline_gap: 2.1, formline_max_slope: 20 });
+    expect(contourStyleSettings("detailed", "otidgeo", true)).toEqual({ smooth_m: 0.56, taubin: 1, curviness: 0.29, min_loop_area: 11, min_clearance: 0.68, formline_gap: 2.6, formline_max_slope: 18.5 });
+    expect(contourStyleSettings("generalized", "otidgeo", true)).toEqual({ smooth_m: 1.05, taubin: 3, curviness: 0.14, min_loop_area: 24, min_clearance: 1.2, formline_gap: 4.4, formline_max_slope: 14 });
+    expect(contourStyleSettings("veryGeneralized", "otidgeo", true)).toEqual({ smooth_m: 1.55, taubin: 4, curviness: 0.08, min_loop_area: 40, min_clearance: 1.5, formline_gap: 5.8, formline_max_slope: 11 });
 
     // pullautin
     expect(contourStyleSettings("veryDetailed", "pullautin")).toEqual({ smoothing: 0.3, curviness: 1.5 });
@@ -56,7 +56,7 @@ describe("enkla val och kurvprofiler för O-Tid-motorn och Karttapullautin", () 
     expect(vegSmoothOf({ veg_smooth: 0.4 })).toBe("normal");
 
     const otidNoOverview = choiceSettings(DEFAULT_CHOICES, {}, "few", false, false, { engine: "otidgeo", contours: "detailed", vegSmooth: "calm", overview: false });
-    expect(otidNoOverview.settings).toEqual({ smooth_m: 0.88, taubin: 2, curviness: 0.22, min_loop_area: 26, min_clearance: 1.25, formline_gap: 3.6, formline_max_slope: 21.5, veg_smooth: 1.6, overview: 0 });
+    expect(otidNoOverview.settings).toEqual({ smooth_m: 0.76, taubin: 1, curviness: 0.29, min_loop_area: 22, min_clearance: 1.15, formline_gap: 3.5, formline_max_slope: 19, veg_smooth: 1.6, overview: 0 });
     expect(typedOf(otidNoOverview.settings, DEFAULT_CHOICES, ["smooth_m", "taubin", "curviness", "min_loop_area", "min_clearance", "formline_gap", "formline_max_slope", "veg_smooth"],
       { engine: "otidgeo", contours: "detailed", vegSmooth: "calm", overview: false })).toEqual({});
 

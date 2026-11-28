@@ -176,7 +176,7 @@ export function assembleBaseMap(input: BaseMapAssemblyInput): { objects: MapObje
   }
   const engine: BaseMapEngine = input.engine ?? detectBaseMapEngine(input.parts) ?? "pullautin";
   const knollCandidates = input.knolls ? readKnollCandidates(knollJson) : undefined;
-  const knollSelection = input.knolls && knollCandidates ? chooseKnollCandidates(knollCandidates, knollLimitsAt(input.knolls.level)) : undefined;
+  const knollSelection = input.knolls && knollCandidates ? chooseKnollCandidates(knollCandidates, knollLimitsAt(input.knolls.level, scale), scale) : undefined;
   const knollsHaveShape = !!knollCandidates?.some(candidate => candidate.aspect !== undefined && candidate.angle !== undefined);
   // När `kullar.geojson` bär egen formklassning (`aspect`/`angle`) och ger minst en kulle ersätter den både `dotknoll` och
   // `dotknoll_avlang` från `knollar.dxf` (groparna behålls), så att 109 och 110 kommer ur en enda konfliktfri källa.
@@ -198,7 +198,7 @@ export function assembleBaseMap(input: BaseMapAssemblyInput): { objects: MapObje
   let soil: BaseMapSummary["soil"];
   let data = mergeBaseMap(read, input.osm, scale, cuts && { features: cuts.features, afterScan: cuts.afterScan }, norm,
     input.soil && { areas: input.soil, report: outcome => { soil = outcome; } }, input.landCover ? landCoverFeatures(input.landCover, scale) : [],
-    (input.primary ?? []).flatMap(source => primaryForMerge(source, input.georeference) ?? []));
+    (input.primary ?? []).flatMap(source => primaryForMerge(source, input.georeference) ?? []), engine === "otidgeo" ? (scale <= 5000 ? 1.15 : 1) : undefined);
   const primary = data.primary;
   read = [];
   // Hjälpkurvor och små ringar på flack mark tas bort, som när grundkartan läses in i webben (hoppas över för `otidgeo` om ej explicit).
@@ -251,7 +251,7 @@ export function assembleBaseMap(input: BaseMapAssemblyInput): { objects: MapObje
     data = { ...data, features: settled.features };
     hills = { level: hillLevel, rings: settled.rings, contours: settled.contours, dots: settled.hidden.length, candidates: hillCandidates.length };
     const level = input.height.pits ?? DEFAULT_PIT_LEVEL, candidates = findPits(input.height.grid, input.height.affine, smoothed);
-    const choice = choosePits(candidates, pitLimitsAt(level), scale, data.features);
+    const choice = choosePits(candidates, pitLimitsAt(level, scale), scale, data.features);
     if (choice.points.length + choice.rings.length > 0) data = mergeCandidates(data, { features: pitFeatures(choice), skipped: 0, crs: SWEREF99TM }, PIT_LAYERS);
     pits = { level, points: choice.points.length, rings: choice.rings.length, candidates: candidates.length };
     const ticked = tickDepressions(data.features, field);

@@ -72,11 +72,11 @@ describe("Etapp G1C: MCP laser- och rasterkontrakt", () => {
     expect(base.engine).toBeUndefined();
   });
 
-  it("Etapp G4B/G5/v45: dubbelmotor (otidgeo/pullautin), nya detaljreglage och GEO_WORKER_VERSION = 45", () => {
+  it("Etapp G4B/G5/v46: dubbelmotor (otidgeo/pullautin), nya detaljreglage och GEO_WORKER_VERSION = 46", () => {
     expect(GEO_JOB_ENGINES).toEqual(["otidgeo", "pullautin"]);
-    expect(GEO_WORKER_VERSION).toBe(45);
+    expect(GEO_WORKER_VERSION).toBe(46);
     expect(PULLAUTIN_SETTINGS.formline).toEqual([0, 3]);
-    expect(PULLAUTIN_SETTINGS.smooth_m).toEqual([0.5, 5]);
+    expect(PULLAUTIN_SETTINGS.smooth_m).toEqual([0.35, 5]);
     expect(PULLAUTIN_SETTINGS.taubin).toEqual([0, 6]);
     expect(PULLAUTIN_SETTINGS.min_loop_area).toEqual([5, 300]);
     expect(PULLAUTIN_SETTINGS.min_clearance).toEqual([0, 4]);
@@ -101,7 +101,7 @@ describe("Etapp G1C: MCP laser- och rasterkontrakt", () => {
     expect(geoJobCreateRequestSchema.safeParse(req({
       settings: { formline: 3, smooth_m: 1.65, taubin: 2, min_loop_area: 40, min_clearance: 1.7, formline_gap: 7.8, formline_max_slope: 16.5, veg_smooth: 0.65, overview: 0 }
     })).success).toBe(true);
-    for (const bad of [{ formline: 4 }, { smooth_m: 0.4 }, { smooth_m: 5.5 }, { taubin: 7 }, { min_loop_area: 4 }, { min_loop_area: 301 },
+    for (const bad of [{ formline: 4 }, { smooth_m: 0.3 }, { smooth_m: 5.5 }, { taubin: 7 }, { min_loop_area: 4 }, { min_loop_area: 301 },
       { min_clearance: 4.5 }, { formline_gap: 1.5 }, { formline_max_slope: 5 }, { formline_max_slope: 36 }, { veg_smooth: 3.1 }, { overview: 2 }]) {
       expect(geoJobCreateRequestSchema.safeParse(req({ settings: bad })).success, JSON.stringify(bad)).toBe(false);
     }

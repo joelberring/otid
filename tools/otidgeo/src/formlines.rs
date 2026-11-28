@@ -242,55 +242,55 @@ pub fn extract_formlines(
         FormlineMode::Dense => (config.formline_min_loop_area_m2 * 0.48).max(if sprint { 7.0 } else { 14.0 }),
     }
     .min(config.formline_min_loop_area_m2);
-    let boost_min_prominence = match config.formline_mode {
+    let boost_min_prominence: f64 = match config.formline_mode {
         FormlineMode::Sparse => if sprint { 0.55 } else { 0.85 },
         _ => if sprint { 0.35 } else { 0.50 },
     };
     let hard_clearance_floor = (config.min_clearance_m as f32 * 1.30).max(if sprint { 1.25 } else { 2.20 });
     let boost_open_gap = (min_gap * 0.80).max(hard_clearance_floor).min(min_gap);
 
-    // Profile- and mode-dependent terrain-form selectivity (convexity / shelf preference).
-    // Omits concave valley footslopes and featureless steep walls while keeping ridges,
-    // noses, spurs, hilltops, saddles, and distinct benches/terraces cleanly.
+    // Profile- and mode-dependent terrain-form selectivity (convexity / re-entrant / shelf preference).
+    // Omits concave valley footslopes and featureless planar slopes while keeping ridges,
+    // noses, spurs, hilltops, saddles/re-entrants, and distinct benches/terraces cleanly.
     let (min_convex, min_form, allow_steep_shelf, selective_slope, form_scale) = match config.formline_mode {
         FormlineMode::Off => return Vec::new(),
-        FormlineMode::Sparse => (0.25f32, 0.25f64, false, if sprint { 5.0f32 } else { 7.5f32 }, 1.45f32),
+        FormlineMode::Sparse => (0.25f32, 0.25f64, false, if sprint { 3.5f32 } else { 5.2f32 }, 1.55f32),
         FormlineMode::Dense => (-9.0f32, -1.0f64, true, 90.0f32, 0.0f32),
         FormlineMode::Normal => match config.profile {
             ContourProfile::VeryDetailed => (
                 -2.5f32,
                 -0.45f64,
                 true,
-                if sprint { 11.0f32 } else { 16.0f32 },
-                if sprint { 0.55f32 } else { 0.42f32 },
+                if sprint { 9.0f32 } else { 13.5f32 },
+                if sprint { 0.65f32 } else { 0.62f32 },
             ),
             ContourProfile::Detailed => (
                 -1.8f32,
-                -0.35f64,
+                -0.38f64,
                 true,
-                if sprint { 8.5f32 } else { 14.2f32 },
-                if sprint { 0.78f32 } else { 0.55f32 },
+                if sprint { 7.2f32 } else { 11.2f32 },
+                if sprint { 0.82f32 } else { 0.80f32 },
             ),
             ContourProfile::Normal => (
                 if sprint { -0.80f32 } else { -1.40f32 },
-                if sprint { -0.15f64 } else { -0.30f64 },
+                if sprint { -0.25f64 } else { -0.35f64 },
                 true,
-                if sprint { 6.8f32 } else { 13.0f32 },
-                if sprint { 0.95f32 } else { 0.68f32 },
+                if sprint { 5.5f32 } else { 9.0f32 },
+                1.00f32,
             ),
             ContourProfile::Generalized => (
                 0.05f32,
                 0.12f64,
                 true,
-                if sprint { 5.0f32 } else { 9.8f32 },
-                if sprint { 1.25f32 } else { 1.05f32 },
+                if sprint { 4.4f32 } else { 7.0f32 },
+                if sprint { 1.25f32 } else { 1.28f32 },
             ),
             ContourProfile::VeryGeneralized => (
                 0.25f32,
                 0.25f64,
                 false,
-                if sprint { 3.8f32 } else { 7.5f32 },
-                if sprint { 1.55f32 } else { 1.40f32 },
+                if sprint { 3.5f32 } else { 5.2f32 },
+                if sprint { 1.52f32 } else { 1.58f32 },
             ),
         },
     };
@@ -298,9 +298,14 @@ pub fn extract_formlines(
     let sample_step = if sprint { 2.5 } else { 3.5 };
     let max_intact_ring_area = if sprint { 600.0f64 } else { 2200.0f64 };
     let flat_mound_c16 = if sprint { 0.34f32 } else { 0.42f32 };
-    let nose_c16 = if sprint { 0.10f32 } else { 0.12f32 };
-    let nose_c60 = if sprint { 0.28f32 } else { 0.36f32 };
-    let steep_cap = max_slope + if config.formline_mode == FormlineMode::Dense { 7.0 } else { 4.5 };
+    let nose_c16 = if sprint { 0.15f32 } else { 0.17f32 };
+    let nose_c60 = if sprint { 0.38f32 } else { 0.48f32 };
+    let steep_cap = max_slope + if config.formline_mode == FormlineMode::Dense { 5.5 } else { 3.0 };
+    let dep_min_prom: f64 = match config.formline_mode {
+        FormlineMode::Sparse => if sprint { 0.55 } else { 0.85 },
+        _ => if sprint { 0.55 } else { 0.75 },
+    };
+    let flat_ring_thresh = min_slope.max(2.6);
 
     let per_level: Vec<Vec<ContourLine>> = levels
         .par_iter()
@@ -309,11 +314,12 @@ pub fn extract_formlines(
             let mut out = Vec::new();
 
             // Evaluates per-sample keep/drop flags along any resampled half-contour (open or cyclic).
-            let eval_samples = |pts: &[[f64; 2]]| -> (Vec<bool>, Vec<bool>, Vec<f32>, Vec<f32>) {
+            // Returns `(drop, hard_cut, is_flat, med_slopes)`.
+            let eval_samples = |pts: &[[f64; 2]]| -> (Vec<bool>, Vec<bool>, Vec<bool>, Vec<f32>) {
                 let mut drop = vec![false; pts.len()];
-                let mut hard_gap = vec![false; pts.len()];
+                let mut hard_cut = vec![false; pts.len()];
+                let mut is_flat = vec![false; pts.len()];
                 let mut med_slopes = vec![5.0f32; pts.len()];
-                let mut conv16s = vec![0.0f32; pts.len()];
 
                 for (i, &[x, y]) in pts.iter().enumerate() {
                     let d = dist_at(x, y);
@@ -323,15 +329,18 @@ pub fn extract_formlines(
                     let conv16 = dem.sample_convex_16m(x, y).unwrap_or(0.0);
                     let conv60 = dem.sample_convex(x, y).unwrap_or(0.0);
                     med_slopes[i] = med_slp;
-                    conv16s[i] = conv16;
 
                     // 1. Suppress wandering ghost formlines on flat ground (0-2.5°), including flat park lawns
-                    // immediately adjacent to steep hills (detected cleanly via `med_slp` and `local_slp`).
+                    // immediately adjacent to steep hills. Flat drops are ALWAYS hard cuts (never bridged).
                     let eff_flat = flat_slp.min(med_slp);
                     let flat_local_floor = if sprint { min_slope * 0.88 } else { min_slope * 0.84 };
+                    if eff_flat < min_slope || local_slp < min_slope {
+                        is_flat[i] = true;
+                    }
                     if eff_flat < min_slope || local_slp < flat_local_floor {
                         if !(conv16 >= flat_mound_c16 && local_slp >= 2.1) {
                             drop[i] = true;
+                            hard_cut[i] = true;
                             continue;
                         }
                     }
@@ -339,14 +348,14 @@ pub fn extract_formlines(
                     // 2. Ridge / nose / spur detection across readable hilly slopes.
                     let is_ridge_nose = config.formline_mode != FormlineMode::Sparse
                         && local_slp >= 2.2
-                        && local_slp <= max_slope + 3.5
-                        && (conv16 >= nose_c16 || conv60 >= nose_c60);
+                        && local_slp <= max_slope + 3.0
+                        && (conv16 >= nose_c16 || (conv16 >= nose_c16 * 0.7 && conv60 >= nose_c60));
                     let eff_gap = if is_ridge_nose { boost_open_gap } else { min_gap };
                     let hard_min = (eff_gap * 0.74).max(hard_clearance_floor);
 
                     if d < hard_min {
                         drop[i] = true;
-                        hard_gap[i] = true;
+                        hard_cut[i] = true;
                         continue;
                     }
 
@@ -354,9 +363,9 @@ pub fn extract_formlines(
                     if local_slp > max_slope || d < eff_gap {
                         if allow_steep_shelf && local_slp <= steep_cap && d >= hard_min {
                             let form = form_between_contours(dem, x, y, iv, config.level_offset);
-                            let req_steep_c16 = (if sprint { 0.18 } else { 0.24 }) * form_scale.max(0.6);
-                            let req_steep_form = (0.34 * f64::from(form_scale.max(0.6))).min(0.55);
-                            let strong_nose = is_ridge_nose && conv16 >= req_steep_c16 && form >= 0.08;
+                            let req_steep_c16 = (if sprint { 0.22 } else { 0.28 }) * form_scale.max(0.6);
+                            let req_steep_form = (0.38 * f64::from(form_scale.max(0.6))).min(0.60);
+                            let strong_nose = is_ridge_nose && conv16 >= req_steep_c16 && form >= 0.10;
                             if form < req_steep_form && !strong_nose {
                                 drop[i] = true;
                             }
@@ -366,18 +375,25 @@ pub fn extract_formlines(
                         continue;
                     }
 
-                    // 4. Slope-progressive form selectivity above `selective_slope` (10.5° forest, 6.2° sprint):
-                    // drop smooth uniform walls where 101 contours already define the slope,
-                    // while keeping ridges, noses, spurs, gullies/saddles, and distinct benches/shelves!
+                    // 4. Form-driven selectivity strictly above `selective_slope` (9.0° forest, 5.5° sprint):
+                    // drop featureless planar slopes where 101 contours already define the terrain,
+                    // while keeping gentle 3-9° forest hills continuous and preserving distinct noses,
+                    // incised re-entrants / saddles (on non-flat slopes), and measurable profile benches!
+                    let mut verified_reentrant = false;
                     if form_scale > 0.0 && local_slp > selective_slope {
-                        let t = ((local_slp - selective_slope) / (max_slope - selective_slope).max(3.0)).clamp(0.0, 1.0);
-                        let req_c16 = ((if sprint { 0.09 } else { 0.11 }) + (if sprint { 0.14 } else { 0.17 }) * t) * form_scale;
-                        let req_c60 = ((if sprint { 0.30 } else { 0.42 }) + (if sprint { 0.38 } else { 0.45 }) * t) * form_scale;
-                        let has_convex = conv16 >= req_c16 || conv60 >= req_c60;
-                        if !has_convex {
+                        let t = ((local_slp - selective_slope) / (max_slope - selective_slope).max(3.0))
+                            .clamp(0.0, 1.0);
+                        let req_c16 = ((if sprint { 0.12 } else { 0.10 })
+                            + (if sprint { 0.14 } else { 0.17 }) * t)
+                            * form_scale;
+                        let has_nose = conv16 >= req_c16;
+                        let has_reentrant = -conv16 >= 1.15 * req_c16;
+                        if has_reentrant {
+                            verified_reentrant = true;
+                        } else if !has_nose {
                             let form = form_between_contours(dem, x, y, iv, config.level_offset);
-                            let req_form = ((if sprint { 0.22 } else { 0.16 }) + (if sprint { 0.22 } else { 0.24 }) * f64::from(t))
-                                * f64::from(form_scale);
+                            let req_form =
+                                ((0.14 + 0.24 * f64::from(t)) * f64::from(form_scale)).min(0.62);
                             if form < req_form {
                                 drop[i] = true;
                                 continue;
@@ -385,8 +401,8 @@ pub fn extract_formlines(
                         }
                     }
 
-                    // 5. Gentle/moderate slope form selectivity for concave footslopes & generalized profiles.
-                    if config.formline_mode != FormlineMode::Dense && !is_ridge_nose {
+                    // 5. Broad concave valley / footslope filter for generalized profiles.
+                    if config.formline_mode != FormlineMode::Dense && !is_ridge_nose && !verified_reentrant {
                         if conv60 < min_convex {
                             let form = form_between_contours(dem, x, y, iv, config.level_offset);
                             if form < min_form {
@@ -395,7 +411,7 @@ pub fn extract_formlines(
                         }
                     }
                 }
-                (drop, hard_gap, med_slopes, conv16s)
+                (drop, hard_cut, is_flat, med_slopes)
             };
 
             for ch in chains {
@@ -408,11 +424,13 @@ pub fn extract_formlines(
                     let raw_prom = if area <= max_intact_ring_area {
                         closed_loop_raw_prominence(&ch.points, elev, is_dep, dem)
                     } else {
-                        boost_min_prominence + 1.0
+                        boost_min_prominence.max(dep_min_prom) + 1.0
                     };
-                    let verified_hill = raw_prom >= boost_min_prominence;
+                    let verified_dep = is_dep && raw_prom >= dep_min_prom;
+                    let verified_hill = !is_dep && raw_prom >= boost_min_prominence;
+                    let verified_form = verified_hill || verified_dep;
 
-                    if area < config.formline_min_loop_area_m2 && !verified_hill {
+                    if area < config.formline_min_loop_area_m2 && !verified_form {
                         continue;
                     }
 
@@ -448,38 +466,41 @@ pub fn extract_formlines(
                         dists.sort_by(|a, b| a.total_cmp(b));
                         let med_d = dists[dists.len() / 2];
 
-                        // Keep flat ground (< 2.6°) free of ghost 103 rings: only allow genuinely prominent hills/pits.
-                        if avg_med.min(cen_med) < 2.6 || avg_slp < 2.5 {
+                        // Keep flat ground free of ghost 103 rings: only allow genuinely prominent hills/pits.
+                        if avg_med.min(cen_med) < flat_ring_thresh || avg_slp < min_slope {
                             let flat_prom_req = if is_dep {
-                                if sprint { 0.65 } else { 0.85 }
+                                dep_min_prom
                             } else if sprint {
                                 0.82
                             } else {
                                 0.95
                             };
-                            if raw_prom < flat_prom_req || area < config.formline_min_loop_area_m2 {
+                            if raw_prom < flat_prom_req
+                                || (!verified_dep && area < config.formline_min_loop_area_m2)
+                            {
                                 continue;
                             }
                         } else {
-                            let loop_min_slope = if is_dep || verified_hill { 1.0 } else { min_slope * 0.70 };
+                            let loop_min_slope = if verified_form { 1.0 } else { min_slope * 0.70 };
                             if avg_slp.min(avg_med) < loop_min_slope {
                                 continue;
                             }
                         }
 
-                        let hard_loop_gap = if verified_hill {
+                        let hard_loop_gap = if verified_form {
                             (config.min_clearance_m as f32 * 0.80).max(if sprint { 0.78 } else { 1.45 })
                         } else {
                             (config.min_clearance_m as f32 * 0.90).max(if sprint { 0.95 } else { 1.75 })
                         };
                         let loop_med_gap = if config.formline_mode == FormlineMode::Dense {
                             hard_loop_gap
-                        } else if verified_hill {
+                        } else if verified_form {
                             (min_gap * 0.44).max(hard_loop_gap + 0.25)
                         } else {
                             (min_gap * 0.65).max(hard_loop_gap + 0.6)
                         };
-                        if avg_local <= max_slope + 6.0 && min_d >= hard_loop_gap && med_d >= loop_med_gap {
+                        let ring_max_slope = if verified_dep { max_slope + 9.0 } else { max_slope + 6.0 };
+                        if avg_local <= ring_max_slope && min_d >= hard_loop_gap && med_d >= loop_med_gap {
                             let smoothed = smooth_and_simplify_safe(
                                 &ch.points,
                                 true,
@@ -524,7 +545,7 @@ pub fn extract_formlines(
                     let ring_pts = &samples[..m];
                     let total_len = polyline_length(&samples, false);
                     let step = total_len / m as f64;
-                    let (drop, hard_gap, med_slopes, conv16s) = eval_samples(ring_pts);
+                    let (drop, hard_cut, is_flat, med_slopes) = eval_samples(ring_pts);
 
                     let Some(keep_anchor) = drop.iter().position(|&d| !d) else {
                         continue; // Entire ring dropped.
@@ -538,10 +559,10 @@ pub fn extract_formlines(
                             continue;
                         }
                         let run_start = off;
-                        let mut hard_viol = hard_gap[idx];
+                        let mut hard_viol = hard_cut[idx];
                         while off + 1 < m && drop[(keep_anchor + off + 1) % m] {
                             off += 1;
-                            if hard_gap[(keep_anchor + off) % m] {
+                            if hard_cut[(keep_anchor + off) % m] {
                                 hard_viol = true;
                             }
                         }
@@ -568,15 +589,18 @@ pub fn extract_formlines(
                             let piece_len = ((cnt - 1) as f64) * step;
                             if piece_len >= min_len && cnt >= 2 {
                                 let mut slp_sum = 0.0f32;
-                                let mut max_c16 = f32::NEG_INFINITY;
+                                let mut flat_cnt = 0usize;
                                 let mut raw_piece = Vec::with_capacity(cnt);
                                 for k in run_start..=pos {
                                     let idx = (cut_anchor + k) % m;
                                     slp_sum += med_slopes[idx];
-                                    max_c16 = max_c16.max(conv16s[idx]);
+                                    if is_flat[idx] {
+                                        flat_cnt += 1;
+                                    }
                                     raw_piece.push(ring_pts[idx]);
                                 }
-                                if (slp_sum / cnt as f32) >= min_slope * 0.92 || max_c16 >= flat_mound_c16 {
+                                let flat_share = flat_cnt as f32 / cnt as f32;
+                                if flat_share < 0.35 && (slp_sum / cnt as f32) >= min_slope * 0.95 {
                                     let piece = rdp_simplify(&raw_piece, false, config.simplify_m);
                                     if piece.len() >= 2 && !has_self_intersection(&piece, false) {
                                         out.push(ContourLine {
@@ -593,15 +617,15 @@ pub fn extract_formlines(
                     } else {
                         // Entire ring passed per-point filter cleanly -> verify not a flat ghost ring, then keep intact!
                         let avg_med_slp = med_slopes.iter().sum::<f32>() / m as f32;
-                        let max_c16 = conv16s.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+                        let flat_share = is_flat.iter().filter(|&&f| f).count() as f32 / m as f32;
                         let cx = ch.points.iter().map(|p| p[0]).sum::<f64>() / ch.points.len() as f64;
                         let cy = ch.points.iter().map(|p| p[1]).sum::<f64>() / ch.points.len() as f64;
                         let cen_med = dem.sample_mean_slope_16m(cx, cy).unwrap_or(avg_med_slp);
-                        let flat_ok = if avg_med_slp.min(cen_med) < 2.6 && area <= 5000.0 {
+                        let flat_ok = if avg_med_slp.min(cen_med) < flat_ring_thresh && area <= 5000.0 {
                             closed_loop_raw_prominence(&ch.points, elev, is_dep, dem)
-                                >= if sprint { 0.72 } else { 0.95 }
+                                >= if is_dep { dep_min_prom } else if sprint { 0.72 } else { 0.95 }
                         } else {
-                            avg_med_slp >= min_slope || max_c16 >= flat_mound_c16
+                            flat_share < 0.35 && avg_med_slp >= min_slope * 0.95
                         };
                         if flat_ok {
                             let simp = rdp_simplify(&smoothed, true, config.simplify_m);
@@ -637,9 +661,9 @@ pub fn extract_formlines(
                 }
                 let total_len = polyline_length(&samples, false);
                 let step = total_len / (samples.len() - 1) as f64;
-                let (drop, hard_gap, med_slopes, conv16s) = eval_samples(&samples);
+                let (drop, hard_cut, is_flat, med_slopes) = eval_samples(&samples);
 
-                // Cut runs of dropped samples >= min_cut_len (or always cut if violating hard clearance).
+                // Cut runs of dropped samples >= min_cut_len (or immediately on any hard flat/clearance cut).
                 let mut cut = vec![false; samples.len()];
                 let mut i = 0;
                 while i < samples.len() {
@@ -648,10 +672,10 @@ pub fn extract_formlines(
                         continue;
                     }
                     let mut j = i;
-                    let mut hard_viol = hard_gap[i];
+                    let mut hard_viol = hard_cut[i];
                     while j + 1 < samples.len() && drop[j + 1] {
                         j += 1;
-                        if hard_gap[j] {
+                        if hard_cut[j] {
                             hard_viol = true;
                         }
                     }
@@ -663,7 +687,7 @@ pub fn extract_formlines(
                     i = j + 1;
                 }
 
-                // Collect surviving pieces >= min_len, rejecting stray flat-ground slivers.
+                // Collect surviving pieces >= min_len, rejecting stray flat-ground slivers (`flat_share >= 0.35`).
                 let mut i = 0;
                 while i < samples.len() {
                     if cut[i] {
@@ -676,10 +700,11 @@ pub fn extract_formlines(
                     }
                     let piece_len = ((j - i) as f64) * step;
                     if piece_len >= min_len && j > i {
-                        let cnt = (j - i + 1) as f32;
-                        let avg_med_slp = med_slopes[i..=j].iter().sum::<f32>() / cnt;
-                        let max_c16 = conv16s[i..=j].iter().copied().fold(f32::NEG_INFINITY, f32::max);
-                        if avg_med_slp < min_slope * 0.92 && max_c16 < flat_mound_c16 {
+                        let cnt = j - i + 1;
+                        let avg_med_slp = med_slopes[i..=j].iter().sum::<f32>() / cnt as f32;
+                        let flat_cnt = is_flat[i..=j].iter().filter(|&&f| f).count();
+                        let flat_share = flat_cnt as f32 / cnt as f32;
+                        if flat_share >= 0.35 || avg_med_slp < min_slope * 0.95 {
                             i = j + 1;
                             continue;
                         }

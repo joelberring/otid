@@ -4,11 +4,14 @@
 //! slope & open-ground suppression with 30 m shore-marsh exemption, hole-preserving `clean_mask`,
 //! channel vectorization, Sub-filtered `fukt.png` + `fuktdjup.png` + `.pgw`, and `fukt.dxf`.
 
+use crate::bench_io::read_rgba_png;
 use crate::rasters::geom::{clean_mask, mask_rings, ring_area, simplify};
 use crate::rasters::grid_io::{
     js_round, world_file_center, write_moisture_dxf, write_sub_png, DxfLayer, GroundGrid,
     PointStats, WaterData,
 };
+use crate::types::WorldTransform;
+use crate::vegetation::{LAB_OPEN, SEMI_ALPHA};
 use rayon::prelude::*;
 use std::path::Path;
 
@@ -472,12 +475,59 @@ fn channel_lines(
     lines
 }
 
+/// Suppresses non-shore marsh (`classes[i] = 0`) on `LAB_OPEN` pixels from `vegetationsklasser.png`
+/// when `points` (`punkter.bin`) is absent (prevents open-field marsh flooding in `--veg-png`-only runs).
+fn suppress_open_veg_marsh(
+    grid: &Grid2m,
+    png_path: &Path,
+    pgw_override: Option<&Path>,
+    shore: Option<&[u8]>,
+    classes: &mut [u8],
+) -> Result<(), String> {
+    let pgw_path = pgw_override.map_or_else(|| png_path.with_extension("pgw"), Path::to_path_buf);
+    let img = read_rgba_png(png_path)?;
+    let pgw_text = std::fs::read_to_string(&pgw_path)
+        .map_err(|e| format!("Failed reading {}: {e}", pgw_path.display()))?;
+    let world = WorldTransform::from_pgw(&pgw_text)?;
+    let min_y_center = world.y0 - (img.height as f64 - 1.0) * world.cell;
+    let (w, h, cell) = (grid.width, grid.height, grid.cell);
+
+    for col in 0..w {
+        let wx = grid.min_x + col as f64 * cell;
+        let vcol = js_round((wx - world.x0) / world.cell) as isize;
+        if vcol < 0 || (vcol as usize) >= img.width {
+            continue;
+        }
+        let base = col * h;
+        for row in 0..h {
+            let i = base + row;
+            if classes[i] == 0 || shore.is_some_and(|s| s[i] != 0) {
+                continue;
+            }
+            let wy = grid.min_y + row as f64 * cell;
+            let row_south = js_round((wy - min_y_center) / world.cell) as isize;
+            if row_south < 0 || (row_south as usize) >= img.height {
+                continue;
+            }
+            let off = ((img.height - 1 - row_south as usize) * img.width + vcol as usize) * 4;
+            let (r, a) = (img.data[off], img.data[off + 3]);
+            // Pure open ground (`LAB_OPEN`: low nibble 1, alpha 255 > SEMI_ALPHA=200);
+            // semi-open pine bogs (`LAB_SEMI`, alpha = SEMI_ALPHA) are intentionally NOT suppressed.
+            if a > SEMI_ALPHA && (r & 15) == LAB_OPEN {
+                classes[i] = 0;
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Runs the complete moisture pipeline and writes `fukt.png`, `fukt.pgw`, `fuktdjup.png`, `fuktdjup.pgw`, `fukt.dxf`.
 pub fn run_moisture(
     ground: &GroundGrid,
     settings: MoistureSettings,
     water: Option<&WaterData>,
     points: Option<&PointStats>,
+    veg_png: Option<(&Path, Option<&Path>)>,
     out_dir: &Path,
 ) -> Result<MoistureResult, String> {
     let grid = downsample_ground_to_2m(ground);
@@ -539,6 +589,8 @@ pub fn run_moisture(
                 }
             }
         }
+    } else if let Some((png_path, pgw_override)) = veg_png {
+        suppress_open_veg_marsh(&grid, png_path, pgw_override, shore.as_deref(), &mut classes)?;
     }
 
     let min_cells = js_round(400.0 / (cell * cell)).max(4.0) as usize;
@@ -686,4 +738,96 @@ pub fn run_moisture(
         channels: channels.len(),
         wet_mask_1m,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn tmp_dir(tag: &str) -> std::path::PathBuf {
+        let nanos = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let dir = std::env::temp_dir().join(format!("otidgeo-moisture-{tag}-{}-{nanos}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn veg_png_open_ground_suppresses_non_shore_marsh_when_points_absent() {
+        // Flat 100x100 m basin draining gently southward (y = 0) so the flat floor accumulates flow -> HAND <= 0.25 m.
+        let (w, h) = (100, 100);
+        let mut z = vec![0.0f32; w * h];
+        for x in 0..w {
+            for y in 0..h {
+                let dx = (x as f64 - 50.0).abs();
+                // Very gentle valley floor (slope < 1 deg) across x=15..85 so wide marsh forms.
+                let cross = if dx <= 35.0 { 0.002 * dx } else { 0.07 + 0.08 * (dx - 35.0) };
+                z[x * h + y] = (10.0 + 0.002 * y as f64 + cross) as f32;
+            }
+        }
+        let ground = GroundGrid { min_x: 660_000.0, min_y: 6_570_000.0, cell: 1.0, width: w, height: h, z };
+        let settings = MoistureSettings { channel_ha: 0.1, wet_meters: 0.25, moist_meters: 0.4, channel_line_ha: 0.5 };
+
+        let dir = tmp_dir("veg-open-marsh");
+        let pgw_text = "2\n0\n0\n-2\n660001\n6570099\n";
+
+        // 1. Forest veg PNG (low=2, alpha=255): marsh MUST form.
+        let forest_png = dir.join("veg_forest.png");
+        write_sub_png(&forest_png, 50, 50, |_r, row| {
+            for px in row.chunks_exact_mut(4) {
+                px.copy_from_slice(&[2, 160, 2, 255]);
+            }
+        })
+        .unwrap();
+        std::fs::write(forest_png.with_extension("pgw"), pgw_text).unwrap();
+        let res_forest = run_moisture(&ground, settings, None, None, Some((&forest_png, None)), &dir).unwrap();
+        assert!(res_forest.moist_ha > 0.2, "Expected marsh in flat forest basin, got {}", res_forest.moist_ha);
+
+        // 2. Pure LAB_OPEN veg PNG (low=1, alpha=255) without water: non-shore marsh MUST be suppressed!
+        let open_png = dir.join("veg_open.png");
+        write_sub_png(&open_png, 50, 50, |_r, row| {
+            for px in row.chunks_exact_mut(4) {
+                px.copy_from_slice(&[LAB_OPEN, 160, LAB_OPEN, 255]);
+            }
+        })
+        .unwrap();
+        std::fs::write(open_png.with_extension("pgw"), pgw_text).unwrap();
+        let res_open = run_moisture(&ground, settings, None, None, Some((&open_png, None)), &dir).unwrap();
+        assert_eq!(res_open.wet_ha, 0.0, "Non-shore LAB_OPEN wet marsh must be suppressed");
+        assert_eq!(res_open.moist_ha, 0.0, "Non-shore LAB_OPEN moist marsh must be suppressed");
+
+        // 3. LAB_SEMI veg PNG (low=1, alpha=SEMI_ALPHA=200, e.g. sparse pine bog): marsh MUST remain!
+        let semi_png = dir.join("veg_semi.png");
+        write_sub_png(&semi_png, 50, 50, |_r, row| {
+            for px in row.chunks_exact_mut(4) {
+                px.copy_from_slice(&[LAB_OPEN, 160, LAB_OPEN, SEMI_ALPHA]);
+            }
+        })
+        .unwrap();
+        std::fs::write(semi_png.with_extension("pgw"), pgw_text).unwrap();
+        let res_semi = run_moisture(&ground, settings, None, None, Some((&semi_png, None)), &dir).unwrap();
+        assert!(res_semi.moist_ha > 0.2, "LAB_SEMI pine bog must not be suppressed, got {}", res_semi.moist_ha);
+
+        // 4. LAB_OPEN adjacent to water (within SHORE_MARSH_METERS = 30 m): shore marsh MUST remain!
+        let mut wmask = vec![0u8; 50 * 50];
+        for x in 0..50 {
+            for y in 0..5 {
+                wmask[x * 50 + y] = 1;
+            }
+        }
+        let water = WaterData {
+            min_x: 660_000.0,
+            min_y: 6_570_000.0,
+            cell: 2.0,
+            width: 50,
+            height: 50,
+            mask: wmask,
+            water_ha: 0.1,
+            water_areas: 1,
+        };
+        let res_shore = run_moisture(&ground, settings, Some(&water), None, Some((&open_png, None)), &dir).unwrap();
+        assert!(res_shore.moist_ha > 0.0, "Shore marsh within 30 m of water must remain even on LAB_OPEN");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

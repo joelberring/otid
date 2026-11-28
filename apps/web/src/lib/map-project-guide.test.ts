@@ -133,10 +133,10 @@ describe("guidens körning med förvalen", () => {
     const target = { tiles: [tile], clip, areaId: undefined, extras: [] };
     // O-Tids egen motor (förval): 5 profiler för skog (5 m) och sprint (2,5 m).
     expect(defaultLaserJob("K", target, false, "normal").settings).toEqual({ contour_interval: 5, formline: 2 });
-    expect(defaultLaserJob("K", target, false, "veryDetailed").settings).toMatchObject({ smooth_m: 0.72, taubin: 1, curviness: 0.26, min_loop_area: 18, min_clearance: 0.95, formline_gap: 3.2, formline_max_slope: 23 });
-    expect(defaultLaserJob("K", target, false, "detailed").settings).toMatchObject({ smooth_m: 0.88, taubin: 2, curviness: 0.22, min_loop_area: 26, min_clearance: 1.25, formline_gap: 3.6, formline_max_slope: 21.5 });
-    expect(defaultLaserJob("K", target, false, "generalized").settings).toMatchObject({ smooth_m: 1.5, taubin: 3, curviness: 0.13, min_loop_area: 62, min_clearance: 2, formline_gap: 5.6, formline_max_slope: 17 });
-    expect(defaultLaserJob("K", target, true, "veryGeneralized").settings).toEqual({ contour_interval: 2.5, formline: 2, paved: 1, smooth_m: 1.55, taubin: 4, curviness: 0.08, min_loop_area: 40, min_clearance: 1.5, formline_gap: 5.8, formline_max_slope: 13 });
+    expect(defaultLaserJob("K", target, false, "veryDetailed").settings).toMatchObject({ smooth_m: 0.62, taubin: 1, curviness: 0.34, min_loop_area: 15, min_clearance: 0.85, formline_gap: 3, formline_max_slope: 20.5 });
+    expect(defaultLaserJob("K", target, false, "detailed").settings).toMatchObject({ smooth_m: 0.76, taubin: 1, curviness: 0.29, min_loop_area: 22, min_clearance: 1.15, formline_gap: 3.5, formline_max_slope: 19 });
+    expect(defaultLaserJob("K", target, false, "generalized").settings).toMatchObject({ smooth_m: 1.42, taubin: 3, curviness: 0.14, min_loop_area: 58, min_clearance: 1.95, formline_gap: 5.5, formline_max_slope: 14.5 });
+    expect(defaultLaserJob("K", target, true, "veryGeneralized").settings).toEqual({ contour_interval: 2.5, formline: 2, paved: 1, smooth_m: 1.55, taubin: 4, curviness: 0.08, min_loop_area: 40, min_clearance: 1.5, formline_gap: 5.8, formline_max_slope: 11 });
     // Karttapullautin: klassiska kurvprofiler.
     expect(defaultLaserJob("K", target, false, "veryDetailed", "pullautin")).toMatchObject({ engine: "pullautin", settings: { smoothing: 0.3, curviness: 1.5 } });
     expect(defaultLaserJob("K", target, false, "detailed", "pullautin").settings).toMatchObject({ smoothing: 0.5, curviness: 1.3 });

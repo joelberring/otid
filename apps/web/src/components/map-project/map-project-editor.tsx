@@ -785,7 +785,7 @@ export function MapProjectEditor({ view, offlineSince }: { view: MapProjectView;
         </>}
         process={<>
           <MapProjectDashPanel dash={dash} />
-          <MapProjectGeneralizePanel generalize={generalizer} areas={collab.areas} />
+          <MapProjectGeneralizePanel generalize={generalizer} areas={collab.areas} scale={georeference?.scale} />
           {georeference && <MapProjectRectifyPanel rectify={rectify} areas={collab.areas} scale={georeference.scale} />}
         </>} />
     </div>

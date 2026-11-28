@@ -444,7 +444,7 @@ pub fn classify_vegetation(feat: &VegFeatures, config: &EngineConfig) -> VegResu
 
             // Detect compact dense low shrubs/bushes (0.8-2.0 m, low ground share, strong low+mid returns)
             // so park/edge thickets and sprint hedges classify as green instead of yellow open land.
-            let bush_sig = mid_m3 + (if sprint { 0.65 } else { 0.45 }) * low_m3;
+            let bush_sig = mid_m3 + (if sprint { 0.35 } else { 0.45 }) * low_m3;
             let is_low_bush = !is_steep
                 && vegh_m3 >= if sprint { 0.8 } else { 1.0 }
                 && gnd_m3 < 0.65
@@ -477,21 +477,23 @@ pub fn classify_vegetation(feat: &VegFeatures, config: &EngineConfig) -> VegResu
             } else if !is_steep && (if sprint { vegh_m3 >= 0.8 } else { vegh_m5 >= 1.8 || is_low_bush }) {
                 if sprint {
                     // Sprint (1:4000): compact 3x3/5x5 shrub + light canopy closure so narrow hedges/thickets
-                    // survive without over-greening tall open park trees.
+                    // survive without over-greening tall open park trees or grassy/fern patches.
                     let shrub = 0.60 * mid_m3
                         + 0.40 * mid_m5
-                        + 0.65 * (0.60 * low_m3 + 0.40 * low_m5);
+                        + 0.35 * (0.60 * low_m3 + 0.40 * low_m5);
                     let g_mix = (0.55 * gnd_m3 + 0.45 * gnd_m5).clamp(0.06, 1.0);
                     let lai_excess = (-g_mix.ln() - 0.74).max(0.0) * 0.22;
                     let high_excess = (0.55 * high_m3 + 0.45 * high_m5 - 0.42).max(0.0);
                     let canopy_closure = 0.55 * lai_excess + 0.45 * high_excess;
                     let score = (shrub + (c_wt * 0.25) * canopy_closure) * g_scale;
+                    let mid_frac = mid_m3 / (mid_m3 + high_m3 + 0.05);
+                    let score_408 = score + 1.8 * mid_m3 * (mid_frac - 0.16).max(0.0) * g_scale;
 
-                    raw_land[i] = if score >= g_hi * 0.72 {
+                    raw_land[i] = if score_408 >= g_hi * 0.72 {
                         LAB_GREEN_410
-                    } else if score >= g_med * 0.68 {
+                    } else if score_408 >= g_med * 0.68 {
                         LAB_GREEN_408
-                    } else if score >= g_lo * 0.62 {
+                    } else if score >= g_lo * 0.78 {
                         LAB_GREEN_406
                     } else {
                         LAB_FOREST
@@ -524,12 +526,22 @@ pub fn classify_vegetation(feat: &VegFeatures, config: &EngineConfig) -> VegResu
                     let lai_excess = (-g_mix.ln() - 0.74).max(0.0) * 0.22;
                     let high_excess = (0.60 * eh5 + 0.40 * eh11 - 0.42).max(0.0);
                     let canopy_calm = 0.55 * lai_excess + 0.45 * high_excess;
-                    let base_score = (shrub_calm + c_wt * canopy_calm) * g_scale;
+                    // Gate tall-canopy contribution by real 0.3-3 m understory presence so mature
+                    // clear-trunk white spruce/pine stands stay white (405) without suppressing 406 young forest.
+                    let understory_gate = ((em5 + 0.35 * low_m5 - 0.015) / 0.055).clamp(0.55, 1.0);
+                    let base_score = (shrub_calm + c_wt * understory_gate * canopy_calm) * g_scale;
 
                     // Eye-level foliage ratio mid/(mid+high) separates dense 408/410 thickets (even leaf-off
                     // deciduous shrubs) from tall clear-trunk 405/406 spruce/oak stands without over-greening white forest.
                     let mid_frac = em5 / (em5 + eh5 + 0.05);
-                    let score_408 = base_score + 1.8 * em5 * (mid_frac - 0.16).max(0.0) * g_scale;
+                    let mid_frac3 = mid_m3 / (mid_m3 + high_m3 + 0.05);
+                    let thicket_boost = if mid_frac.max(mid_frac3) >= 0.25 {
+                        0.25 * low_m5 + 0.35 * (mid_m3 - em5).max(0.0) + 0.15 * mid_m3
+                    } else {
+                        0.0
+                    };
+                    let score_408 = base_score
+                        + (1.8 * em5 * (mid_frac - 0.16).max(0.0) + thicket_boost) * g_scale;
 
                     raw_land[i] = if score_408 >= g_hi {
                         LAB_GREEN_410
@@ -759,5 +771,78 @@ mod tests {
             res.land[17 * w + 17]
         );
         assert_eq!(res.land[5 * w + 5], LAB_OPEN, "Surrounding sprint lawn must stay open");
+    }
+
+    #[test]
+    fn mature_dense_canopy_over_empty_understory_stays_white_and_leaf_off_thicket_hits_408() {
+        let (w, h) = (50, 50);
+        let mut feat = blank_features(w, h);
+        // Whole forest: tall mature spruce canopy (gnd=0.14, high=0.83) over empty understory (mid=0.02, low=0.01).
+        for i in 0..(w * h) {
+            feat.vegh[i] = 18.0;
+            feat.ground_share[i] = 0.14;
+            feat.low_share[i] = 0.01;
+            feat.mid_share[i] = 0.02;
+            feat.high_share[i] = 0.83;
+        }
+        // Compact 20x20 m (10x10 cells = 400 m², above min_veg_area_m2 = 300 m²) leaf-off deciduous thicket
+        // (vegh=3.5m, gnd=0.44, low=0.12, mid=0.12, high=0.18).
+        for r in 20..30 {
+            for c in 20..30 {
+                let i = r * w + c;
+                feat.vegh[i] = 3.5;
+                feat.ground_share[i] = 0.44;
+                feat.low_share[i] = 0.12;
+                feat.mid_share[i] = 0.12;
+                feat.high_share[i] = 0.18;
+            }
+        }
+        let cfg = EngineConfig::defaults_for_interval(5.0);
+        let res = classify_vegetation(&feat, &cfg);
+        assert_eq!(
+            res.land[5 * w + 5],
+            LAB_FOREST,
+            "Tall mature dense spruce canopy over empty understory must stay white (405), got {}",
+            res.land[5 * w + 5]
+        );
+        assert!(
+            res.land[25 * w + 25] >= LAB_GREEN_408,
+            "Leaf-off deciduous thicket with strong low+mid ratio must reach 408/410, got {}",
+            res.land[25 * w + 25]
+        );
+
+        // Sprint: grassy/fern understory patch under sparse park trees must stay white (not 406),
+        // while compact eye-level park hedge reaches 408/410.
+        let mut sfeat = blank_features(40, 40);
+        for i in 0..(40 * 40) {
+            sfeat.vegh[i] = 8.0;
+            sfeat.ground_share[i] = 0.50;
+            sfeat.low_share[i] = 0.08;
+            sfeat.mid_share[i] = 0.025;
+            sfeat.high_share[i] = 0.35;
+        }
+        for r in 16..22 {
+            for c in 16..22 {
+                let i = r * 40 + c;
+                sfeat.vegh[i] = 2.6;
+                sfeat.ground_share[i] = 0.42;
+                sfeat.low_share[i] = 0.08;
+                sfeat.mid_share[i] = 0.10;
+                sfeat.high_share[i] = 0.09;
+            }
+        }
+        let scfg = EngineConfig::defaults_for_interval(2.5);
+        let sres = classify_vegetation(&sfeat, &scfg);
+        assert_eq!(
+            sres.land[5 * 40 + 5],
+            LAB_FOREST,
+            "Sprint grassy/fern patch under sparse park trees must stay white, got {}",
+            sres.land[5 * 40 + 5]
+        );
+        assert!(
+            sres.land[19 * 40 + 19] >= LAB_GREEN_408,
+            "Sprint compact park hedge must classify as 408/410, got {}",
+            sres.land[19 * 40 + 19]
+        );
     }
 }

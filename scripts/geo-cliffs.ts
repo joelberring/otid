@@ -427,6 +427,10 @@ export interface CliffRules {
   readonly minDrop: number;
   /** Opasserbar: minst så stort fall över ±3 m och över ±6 m, och minst så lång (m). */
   readonly impassableDrop3: number; readonly impassableDrop6: number; readonly impassableLength: number;
+  /** Valfria skalanpassade lutnings- och skärpegränser synkade med `cliff-choice.ts`. */
+  readonly minSlope?: number | undefined;
+  readonly impassableSlope?: number | undefined;
+  readonly minSharpness?: number | undefined;
 }
 /**
  * Minsta fallet är Kungshatt-kedjans (`s3c_brantkontroll.py`). Gränsen för opasserbar är lärd av Högdalenkartan 2026-11-12:
@@ -687,9 +691,18 @@ export interface CliffCandidate { readonly line: [number, number][]; readonly dr
 /** Den lösa gränsen för `branter.geojson` (ägaren 2026-11-12: ändra utan ny körning): allt från 0,8 m fall sparas. */
 export const CLIFF_LOOSE_DROP = 0.8;
 /** Vad en brant blir med reglerna: opasserbar, passerbar eller ingen alls. Samma regel i webbläsaren. */
-export function classifyCliff(cliff: { drop3: number; drop6: number; length: number }, rules: CliffRules): "impassable" | "passable" | undefined {
-  if (cliff.drop3 < rules.minDrop) return undefined;
-  return cliff.drop3 >= rules.impassableDrop3 && cliff.drop6 >= rules.impassableDrop6 && cliff.length >= rules.impassableLength ? "impassable" : "passable";
+export function classifyCliff(
+  cliff: { drop3: number; drop6: number; length: number; slope?: number | undefined; sharpness?: number | undefined },
+  rules: CliffRules
+): "impassable" | "passable" | undefined {
+  if (!Number.isFinite(cliff.drop3) || cliff.drop3 < rules.minDrop) return undefined;
+  if (rules.minSlope !== undefined && cliff.slope !== undefined && Number.isFinite(cliff.slope) && cliff.slope < rules.minSlope) return undefined;
+  if (rules.minSharpness !== undefined && cliff.sharpness !== undefined && Number.isFinite(cliff.sharpness) && cliff.sharpness < rules.minSharpness) {
+    if (!(cliff.slope !== undefined && Number.isFinite(cliff.slope) && cliff.slope >= 46)) return undefined;
+  }
+  const steepEnough = rules.impassableSlope === undefined || cliff.slope === undefined || !Number.isFinite(cliff.slope) || cliff.slope >= rules.impassableSlope;
+  return cliff.drop3 >= rules.impassableDrop3 && Number.isFinite(cliff.drop6) && cliff.drop6 >= rules.impassableDrop6
+    && cliff.length >= rules.impassableLength && steepEnough ? "impassable" : "passable";
 }
 
 /** Kontrollerar fallriktningen i markrastret längs en brantlinje och delar/vänder den om nedför ligger till vänster. */
@@ -742,7 +755,7 @@ export function cliffsFromTicks(impassable: readonly Tick[], passable: readonly 
       const top = evenLine(toTopEdge(line, ground, fromGround ? 8.5 : 4.5));
       // Alla branter från den lösa gränsen sparas med sina mått, så att reglagen i webbläsaren väljer utan ny körning.
       candidates.push({ line: top, drop3, drop6, length, slope, sharpness });
-      const kind = classifyCliff({ drop3, drop6, length }, rules);
+      const kind = classifyCliff({ drop3, drop6, length, slope, sharpness }, rules);
       if (!kind) { dropped += 1; continue; }
       if (kind === "impassable") high.push(top); else low.push(top);
     }

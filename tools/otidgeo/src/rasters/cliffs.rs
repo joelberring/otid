@@ -1,7 +1,8 @@
 //! Clean-room MIT cliff detection & orientation engine (exact port of `scripts/geo-cliffs.ts`):
-//! 38 deg slope ridge extraction on 1-2-1 smoothed 1 m ground grid, optional raw tick augmentation,
-//! +/-3 m and +/-6 m median drop measurement, local gradient orientation with saddle splitting,
-//! 2 m dense top-edge snapping, 1-2-1 smoothing, `brantlinjer.dxf`, and `brantlinjer.geojson`.
+//! 38 deg smoothed / 48 deg raw 1 m + 1.25 m drop2 ridge extraction on 1 m ground grid,
+//! optional raw tick augmentation, +/-3 m and +/-6 m median drop measurement, local gradient
+//! orientation with saddle splitting, 2 m dense top-edge snapping, 1-2-1 smoothing,
+//! `brantlinjer.dxf`, and `brantlinjer.geojson`.
 
 use crate::rasters::geom::simplify;
 use crate::rasters::grid_io::{js_round, write_moisture_dxf, DxfLayer, GroundGrid};
@@ -13,7 +14,9 @@ use std::io::{BufWriter, Write};
 use std::path::Path;
 
 pub const CLIFF_LOOSE_DROP: f64 = 0.8;
-const SLOPE_CLIFF_MIN_DEG: f64 = 35.0;
+const SLOPE_CLIFF_MIN_DEG: f64 = 38.0;
+const RAW_CLIFF_MIN_DEG: f64 = 48.0;
+const RAW_CLIFF_MIN_DROP2_M: f64 = 1.25;
 const SLOPE_CLIFF_MIN_LEN_M: f64 = 4.5;
 const TICK_CELL: f64 = 1.0;
 
@@ -336,6 +339,7 @@ fn slope_lines_with_smooth(ground: &GroundGrid, smooth: &[f32]) -> Vec<Vec<[f64;
     }
 
     let limit = (SLOPE_CLIFF_MIN_DEG * std::f64::consts::PI / 180.0).tan();
+    let raw_limit = (RAW_CLIFF_MIN_DEG * std::f64::consts::PI / 180.0).tan();
     let mut mask = vec![0u8; w * h];
     let mut gx = vec![0.0f32; w * h];
     let mut gy = vec![0.0f32; w * h];
@@ -353,13 +357,62 @@ fn slope_lines_with_smooth(ground: &GroundGrid, smooth: &[f32]) -> Vec<Vec<[f64;
                 let i = base + y;
                 let dx = (f64::from(smooth[i + h]) - f64::from(smooth[i - h])) / (2.0 * cell);
                 let dy = (f64::from(smooth[i + 1]) - f64::from(smooth[i - 1])) / (2.0 * cell);
-                if !dx.is_finite() || !dy.is_finite() {
+                let smooth_ok = dx.is_finite() && dy.is_finite();
+                if smooth_ok {
+                    gx_col[y] = dx as f32;
+                    gy_col[y] = dy as f32;
+                    if dx.hypot(dy) >= limit {
+                        m_col[y] = 1;
+                        continue;
+                    }
+                }
+                // Recover crisp vertical sprint rock ledges that 1-2-1 smoothing smears below 38 deg,
+                // while gating on raw_1m_slope >= 48 deg && +/-2 m drop2 >= 1.25 m to reject soil/rock clutter & spikes.
+                let z0 = f64::from(ground.z[i]);
+                if !z0.is_finite() {
                     continue;
                 }
-                gx_col[y] = dx as f32;
-                gy_col[y] = dy as f32;
-                if dx.hypot(dy) >= limit {
-                    m_col[y] = 1;
+                let dxs = [
+                    (f64::from(ground.z[i + h]) - z0) / cell,
+                    (z0 - f64::from(ground.z[i - h])) / cell,
+                ];
+                let dys = [
+                    (f64::from(ground.z[i + 1]) - z0) / cell,
+                    (z0 - f64::from(ground.z[i - 1])) / cell,
+                ];
+                let mut raw_grad = 0.0f64;
+                let mut raw_gx = 0.0f64;
+                let mut raw_gy = 0.0f64;
+                for &qx in &dxs {
+                    let qx_f = if qx.is_finite() { qx } else { 0.0 };
+                    for &qy in &dys {
+                        let qy_f = if qy.is_finite() { qy } else { 0.0 };
+                        let g = qx_f.hypot(qy_f);
+                        if g > raw_grad {
+                            raw_grad = g;
+                            raw_gx = qx_f;
+                            raw_gy = qy_f;
+                        }
+                    }
+                }
+                if raw_grad >= raw_limit {
+                    let (nx, ny, nlen) = if smooth_ok && dx.hypot(dy) > 1e-4 {
+                        (dx, dy, dx.hypot(dy))
+                    } else {
+                        (raw_gx, raw_gy, raw_grad)
+                    };
+                    let ux = nx / nlen;
+                    let uy = ny / nlen;
+                    let [cx, cy] = ground.cell_center(x, y);
+                    let up2 = ground.height_at(cx + ux * 2.0, cy + uy * 2.0);
+                    let dn2 = ground.height_at(cx - ux * 2.0, cy - uy * 2.0);
+                    if up2.is_finite() && dn2.is_finite() && (up2 - dn2) >= RAW_CLIFF_MIN_DROP2_M {
+                        m_col[y] = 1;
+                        if !smooth_ok {
+                            gx_col[y] = raw_gx as f32;
+                            gy_col[y] = raw_gy as f32;
+                        }
+                    }
                 }
             }
         });
@@ -757,4 +810,76 @@ pub fn run_cliffs(
         cliff_meters_202: total_meters(&low),
         cliffs_dropped: dropped,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn tmp_dir(tag: &str) -> std::path::PathBuf {
+        let nanos = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let dir = std::env::temp_dir().join(format!("otidgeo-cliffs-{tag}-{}-{nanos}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn rejects_36deg_wooded_soil_slope_and_recovers_crisp_vertical_rock_ledge() {
+        // 1. Uniform 36 deg wooded soil slope: must NOT produce any cliff line (below 38 deg smoothed & 48 deg raw).
+        let (w, h) = (40, 40);
+        let tan36 = (36.0 * std::f64::consts::PI / 180.0).tan();
+        let mut z_soil = vec![0.0f32; w * h];
+        for x in 0..w {
+            for y in 0..h {
+                z_soil[x * h + y] = (10.0 + y as f64 * tan36) as f32;
+            }
+        }
+        let g_soil = GroundGrid { min_x: 660_000.0, min_y: 6_570_000.0, cell: 1.0, width: w, height: h, z: z_soil };
+        let soil_lines = slope_lines(&g_soil);
+        assert!(soil_lines.is_empty(), "36 deg wooded soil slope must not extract cliffs, got {}", soil_lines.len());
+
+        // 2. Crisp 1.35 m vertical rock ledge (smoothed slope ~27 deg < 38 deg, raw 1 m slope 53.5 deg >= 48 deg, drop2 = 1.35 m >= 1.25 m).
+        let mut z_ledge = vec![10.0f32; w * h];
+        for x in 0..w {
+            for y in 0..h {
+                z_ledge[x * h + y] = if y >= 20 { 11.35 } else { 10.0 };
+            }
+        }
+        let g_ledge = GroundGrid { min_x: 660_000.0, min_y: 6_570_000.0, cell: 1.0, width: w, height: h, z: z_ledge };
+        let ledge_lines = slope_lines(&g_ledge);
+        assert!(!ledge_lines.is_empty(), "Crisp 1.35 m sprint rock ledge must be recovered");
+        let (d3, d6, len) = measure_cliff(&ledge_lines[0], &g_ledge);
+        assert!((d3 - 1.35).abs() < 0.15 && (d6 - 1.35).abs() < 0.15 && len > 20.0, "Got d3={d3}, d6={d6}, len={len}");
+
+        let dir = tmp_dir("crisp-ledge");
+        let rules = CliffRules { min_drop: 1.0, ..CliffRules::default() };
+        let summary = run_cliffs(&g_ledge, rules, None, None, &dir).unwrap();
+        assert!(summary.cliffs_202 >= 1);
+        let geo = std::fs::read_to_string(dir.join("brantlinjer.geojson")).unwrap();
+        assert!(!geo.contains("NaN") && !geo.contains("Infinity"));
+        let val: serde_json::Value = serde_json::from_str(&geo).expect("brantlinjer.geojson must be valid JSON");
+        let props = &val["features"][0]["properties"];
+        assert!(props["drop3"].as_f64().is_some_and(|v| v >= 1.25));
+        assert!(props["sharpness"].as_f64().is_some_and(|v| v >= 0.9));
+        let _ = std::fs::remove_dir_all(&dir);
+
+        // 3. Shallow 1.05 m step (raw slope 46.4 deg < 48 deg, drop2 = 1.05 < 1.25 m) must NOT extract clutter.
+        let mut z_shallow = vec![10.0f32; w * h];
+        for x in 0..w {
+            for y in 0..h {
+                z_shallow[x * h + y] = if y >= 20 { 11.05 } else { 10.0 };
+            }
+        }
+        let g_shallow = GroundGrid { min_x: 660_000.0, min_y: 6_570_000.0, cell: 1.0, width: w, height: h, z: z_shallow };
+        assert!(slope_lines(&g_shallow).is_empty(), "Shallow 1.05 m step must not trigger 48 deg / 1.25 m fallback");
+
+        // 4. Narrow 1-cell ridge / spike (1.5 m high, 1 cell wide): raw slope >= 48 deg, but drop2 = 0 -> must NOT extract!
+        let mut z_spike = vec![10.0f32; w * h];
+        for x in 0..w {
+            z_spike[x * h + 20] = 11.5;
+        }
+        let g_spike = GroundGrid { min_x: 660_000.0, min_y: 6_570_000.0, cell: 1.0, width: w, height: h, z: z_spike };
+        assert!(slope_lines(&g_spike).is_empty(), "1-cell narrow spike (drop2 = 0) must not extract cliffs");
+    }
 }

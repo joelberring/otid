@@ -670,82 +670,113 @@ pub fn prepare_dem(dem: &DemGrid, config: &EngineConfig) -> PreparedDem {
     let z_detail = gaussian_blur_f32(&filled, w, h, detail_sigma);
     let use_two_scale = (flat_sigma - detail_sigma) > 0.12 && detail_sigma > 0.0;
 
-    let contour_z = if use_two_scale {
-        let z_flat = gaussian_blur_f32(&filled, w, h, flat_sigma);
-        let s_lo = if sprint { 1.8f32 } else { 2.0f32 };
-        let s_hi = if sprint { 4.8f32 } else { 5.5f32 };
-        let mound_lo = if sprint { 0.32f32 } else { 0.45f32 };
-        let mound_span = if sprint { 0.48f32 } else { 0.65f32 };
-        let pit_lo = if sprint { 0.50f32 } else { 0.70f32 };
-        let pit_span = if sprint { 0.50f32 } else { 0.70f32 };
+    // 1. Flat-ground weight w_flat(x, y): strictly targets genuinely flat ground (< 2.5°)
+    // without bleeding z_flat onto adjacent rocky hilltops, ridge crests, or incised re-entrants.
+    let w_flat: Vec<f32> = if use_two_scale {
+        let s_lo = if sprint { 1.4f32 } else { 1.6f32 };
+        let s_hi = if sprint { 3.4f32 } else { 3.8f32 };
+        let mound_lo = if sprint { 0.24f32 } else { 0.32f32 };
+        let mound_span = if sprint { 0.36f32 } else { 0.48f32 };
+        let pit_lo = if sprint { 0.30f32 } else { 0.40f32 };
+        let pit_span = if sprint { 0.40f32 } else { 0.52f32 };
 
         let w_raw: Vec<f32> = mean_slope_40m
             .par_iter()
             .zip(mean_slope_16m.par_iter())
             .zip(convex_16m.par_iter())
             .map(|((&s40, &s16), &c16)| {
-                let s = 0.55 * s40 + 0.45 * s16;
+                let s = 0.35 * s40 + 0.65 * s16;
                 let u = ((s_hi - s) / (s_hi - s_lo)).clamp(0.0, 1.0);
                 let w_slope = u * u * (3.0 - 2.0 * u);
                 let m = ((c16 - mound_lo) / mound_span).clamp(0.0, 1.0);
                 let p = ((-c16 - pit_lo) / pit_span).clamp(0.0, 1.0);
                 let k = m.max(p);
                 let keep_detail = k * k * (3.0 - 2.0 * k);
-                w_slope * (1.0 - 0.85 * keep_detail)
+                w_slope * (1.0 - 0.92 * keep_detail)
             })
             .collect();
-        let w_sigma = (5.0 / cell).max(1.5) as f32;
-        let w_flat = gaussian_blur_f32(&w_raw, w, h, w_sigma);
-
-        if config.curviness > 1e-4 && detail_sigma >= 0.35 {
-            // Asymmetric ridge-preserving DoG boost modulated by (1 - w_flat):
-            // sharpens noses/ridges/small hills in hilly terrain without amplifying flat-ground noise.
-            let fine_sigma = (detail_sigma * 0.62).max(0.35);
-            let fine_z = gaussian_blur_f32(&filled, w, h, fine_sigma);
-            drop(filled);
-            let curv = config.curviness.clamp(0.0, 0.8) as f32;
-            let max_boost = (0.20 * config.interval) as f32;
-            z_detail
-                .par_iter()
-                .zip(z_flat.par_iter())
-                .zip(fine_z.par_iter())
-                .zip(w_flat.par_iter())
-                .map(|(((&zd, &zf), &fnz), &wf)| {
-                    let b = zd + wf * (zf - zd);
-                    let detail = fnz - zd;
-                    let asym = if detail >= 0.0 { 1.0 } else { 0.55 };
-                    let hill_w = (1.0 - wf).clamp(0.0, 1.0);
-                    b + hill_w * curv * asym * max_boost * (detail / max_boost).tanh()
-                })
-                .collect()
-        } else {
-            drop(filled);
-            z_detail
-                .par_iter()
-                .zip(z_flat.par_iter())
-                .zip(w_flat.par_iter())
-                .map(|((&zd, &zf), &wf)| zd + wf * (zf - zd))
-                .collect()
-        }
-    } else if config.curviness > 1e-4 && detail_sigma >= 0.35 {
-        let fine_sigma = (detail_sigma * 0.62).max(0.35);
-        let fine_z = gaussian_blur_f32(&filled, w, h, fine_sigma);
-        drop(filled);
-        let curv = config.curviness.clamp(0.0, 0.8) as f32;
-        let max_boost = (0.20 * config.interval) as f32;
-        z_detail
-            .par_iter()
-            .zip(fine_z.par_iter())
-            .map(|(&b, &f)| {
-                let detail = f - b;
-                let weight = if detail >= 0.0 { 1.0 } else { 0.55 };
-                b + curv * weight * max_boost * (detail / max_boost).tanh()
-            })
-            .collect()
+        let w_sigma = (3.0 / cell).max(1.2) as f32;
+        gaussian_blur_f32(&w_raw, w, h, w_sigma)
     } else {
-        drop(filled);
-        z_detail
+        vec![0.0f32; w * h]
     };
+
+    // 2. Crisp hilly detail surface z_crisp: keeps detailed rocky hills, narrow noses,
+    // shoulders, and incised re-entrants sharp without adding flat-ground noise.
+    // In sprint, floor `crisp_sigma` & DoG `fine_sigma` >= 0.55 m so 1-cell grid
+    // stairsteps are never amplified into micro-wiggles on gentle/sprint flanks.
+    let curv = config.curviness.clamp(0.0, 0.8) as f32;
+    let crisp_mix = (curv / 0.24).clamp(0.0, 1.0);
+    let crisp_floor = (if sprint { 0.58 } else { 0.30 } / cell) as f32;
+    let crisp_sigma = (detail_sigma * 0.64).max(crisp_floor).min(detail_sigma);
+    let use_crisp = crisp_mix > 0.05 && (detail_sigma - crisp_sigma) > 0.05;
+
+    let z_flat_opt = use_two_scale.then(|| gaussian_blur_f32(&filled, w, h, flat_sigma));
+    let z_crisp_opt = use_crisp.then(|| gaussian_blur_f32(&filled, w, h, crisp_sigma));
+    let w_crisp: Vec<f32> = if use_crisp {
+        let cs_lo = if sprint { 3.2f32 } else { 4.0f32 };
+        let cs_hi = if sprint { 8.0f32 } else { 9.5f32 };
+        let rel_lo = if sprint { 0.22f32 } else { 0.30f32 };
+        let rel_span = if sprint { 0.38f32 } else { 0.55f32 };
+        let raw_c: Vec<f32> = slope_deg
+            .par_iter()
+            .zip(mean_slope_16m.par_iter())
+            .zip(convex_16m.par_iter())
+            .zip(w_flat.par_iter())
+            .map(|(((&slp, &s16), &c16), &wf)| {
+                let hill_gate = (1.0 - wf).clamp(0.0, 1.0);
+                let s_eff = s16.max(slp);
+                let us = ((s_eff - cs_lo) / (cs_hi - cs_lo)).clamp(0.0, 1.0);
+                let ws = us * us * (3.0 - 2.0 * us);
+                let ur = ((c16.abs() - rel_lo) / rel_span).clamp(0.0, 1.0);
+                let wr = ur * ur * (3.0 - 2.0 * ur);
+                crisp_mix * hill_gate * ws.max(wr)
+            })
+            .collect();
+        let wc_sigma = (2.4 / cell).max(1.0) as f32;
+        gaussian_blur_f32(&raw_c, w, h, wc_sigma)
+    } else {
+        Vec::new()
+    };
+
+    // 3. Balanced ridge- & re-entrant-preserving DoG boost modulated by (1 - w_flat):
+    // computed against the blended base surface `b` (never double-counting `z_crisp - z_detail`)
+    // so profiles stay strictly monotonic and noses/re-entrants sharpen without spiky overshoot.
+    let fine_floor = (if sprint { 0.55 } else { 0.22 } / cell) as f32;
+    let fine_sigma = (crisp_sigma * 0.65).max(fine_floor);
+    let base_min_sigma = if use_crisp { crisp_sigma } else { detail_sigma };
+    let use_dog = curv > 1e-4 && detail_sigma >= 0.35 && fine_sigma < base_min_sigma - 0.01;
+    let fine_z_opt = if use_dog {
+        Some(gaussian_blur_f32(&filled, w, h, fine_sigma))
+    } else {
+        None
+    };
+    drop(filled);
+
+    let max_boost = (0.22 * config.interval) as f32;
+    let dog_gain = curv * 1.15;
+    let contour_z: Vec<f32> = (0..(w * h))
+        .into_par_iter()
+        .map(|i| {
+            let zd = z_detail[i];
+            let wf = w_flat[i];
+            let mut b = if let Some(ref zf) = z_flat_opt {
+                zd + wf * (zf[i] - zd)
+            } else {
+                zd
+            };
+            if let Some(ref zc) = z_crisp_opt {
+                b += w_crisp[i] * (zc[i] - zd);
+            }
+            if let Some(ref fnz) = fine_z_opt {
+                let detail = fnz[i] - b;
+                let asym = if detail >= 0.0 { 1.0 } else { 0.82 };
+                let hill_w = (1.0 - wf).clamp(0.0, 1.0);
+                b += hill_w * dog_gain * asym * max_boost * (detail / max_boost).tanh();
+            }
+            b
+        })
+        .collect();
 
     let max_hole_cells = (22.0 / cell).round().max(4.0) as usize;
     let drawable = build_drawable_mask(&dem.valid, &dem.water, w, h, max_hole_cells);

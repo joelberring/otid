@@ -292,13 +292,13 @@ impl EngineConfig {
             index_every: 5,
             level_offset: 0.0,
             scale: if sprint { 4_000 } else { 15_000 },
-            smooth_m: if sprint { 0.78 } else { 1.08 },
+            smooth_m: if sprint { 0.68 } else { 0.92 },
             flat_smooth_m: None,
             taubin_passes: 2,
-            curviness: 0.18,
-            min_loop_area_m2: if sprint { 15.0 } else { 36.0 },
-            min_clearance_m: if sprint { 0.90 } else { 1.55 },
-            simplify_m: 0.20,
+            curviness: 0.24,
+            min_loop_area_m2: if sprint { 14.0 } else { 30.0 },
+            min_clearance_m: if sprint { 0.85 } else { 1.45 },
+            simplify_m: if sprint { 0.15 } else { 0.16 },
             include_intermed: false,
 
             knoll_min_rise_m: if sprint { 0.75 } else { 0.95 },
@@ -307,11 +307,11 @@ impl EngineConfig {
             knoll_max_foot_m2: if sprint { 80.0 } else { 135.0 },
 
             formline_mode: FormlineMode::Normal,
-            formline_min_gap_m: if sprint { 3.2 } else { 4.1 },
+            formline_min_gap_m: if sprint { 3.1 } else { 4.0 },
             formline_min_slope_deg: if sprint { 2.85 } else { 2.55 },
-            formline_max_slope_deg: if sprint { 20.0 } else { 20.5 },
+            formline_max_slope_deg: if sprint { 17.0 } else { 17.5 },
             formline_min_length_m: if sprint { 8.5 } else { 9.5 },
-            formline_min_loop_area_m2: if sprint { 18.0 } else { 30.0 },
+            formline_min_loop_area_m2: if sprint { 16.0 } else { 28.0 },
 
             veg_smooth: 1.05,
             open_max_height_m: 1.5,
@@ -340,7 +340,7 @@ impl EngineConfig {
             return f.max(self.smooth_m);
         }
         let sprint = self.interval <= 3.0;
-        let ratio = if sprint { 2.45 } else { 2.65 };
+        let ratio = if sprint { 2.75 } else { 2.95 };
         let cap = if sprint { 3.4 } else { 4.8 };
         (self.smooth_m * ratio).min(cap).max(self.smooth_m)
     }
@@ -352,46 +352,46 @@ impl EngineConfig {
         self.profile = profile;
         match profile {
             ContourProfile::VeryDetailed => {
-                self.smooth_m = if sprint { 0.52 } else { 0.72 };
+                self.smooth_m = if sprint { 0.45 } else { 0.62 };
                 self.taubin_passes = 1;
-                self.curviness = 0.26;
-                self.min_loop_area_m2 = if sprint { 9.0 } else { 18.0 };
-                self.min_clearance_m = if sprint { 0.55 } else { 0.95 };
-                self.simplify_m = 0.14;
+                self.curviness = 0.34;
+                self.min_loop_area_m2 = if sprint { 8.0 } else { 15.0 };
+                self.min_clearance_m = if sprint { 0.50 } else { 0.85 };
+                self.simplify_m = if sprint { 0.10 } else { 0.11 };
                 self.veg_smooth = 0.65;
             }
             ContourProfile::Detailed => {
-                self.smooth_m = if sprint { 0.65 } else { 0.88 };
-                self.taubin_passes = 2;
-                self.curviness = 0.22;
-                self.min_loop_area_m2 = if sprint { 12.0 } else { 26.0 };
-                self.min_clearance_m = if sprint { 0.75 } else { 1.25 };
-                self.simplify_m = 0.17;
+                self.smooth_m = if sprint { 0.56 } else { 0.76 };
+                self.taubin_passes = 1;
+                self.curviness = 0.29;
+                self.min_loop_area_m2 = if sprint { 11.0 } else { 22.0 };
+                self.min_clearance_m = if sprint { 0.68 } else { 1.15 };
+                self.simplify_m = if sprint { 0.12 } else { 0.14 };
                 self.veg_smooth = 0.65;
             }
             ContourProfile::Normal => {
-                self.smooth_m = if sprint { 0.78 } else { 1.08 };
+                self.smooth_m = if sprint { 0.68 } else { 0.92 };
                 self.taubin_passes = 2;
-                self.curviness = 0.18;
-                self.min_loop_area_m2 = if sprint { 15.0 } else { 36.0 };
-                self.min_clearance_m = if sprint { 0.90 } else { 1.55 };
-                self.simplify_m = 0.20;
+                self.curviness = 0.24;
+                self.min_loop_area_m2 = if sprint { 14.0 } else { 30.0 };
+                self.min_clearance_m = if sprint { 0.85 } else { 1.45 };
+                self.simplify_m = if sprint { 0.15 } else { 0.16 };
                 self.veg_smooth = 1.05;
             }
             ContourProfile::Generalized => {
-                self.smooth_m = if sprint { 1.10 } else { 1.50 };
+                self.smooth_m = if sprint { 1.05 } else { 1.42 };
                 self.taubin_passes = 3;
-                self.curviness = 0.13;
-                self.min_loop_area_m2 = if sprint { 25.0 } else { 62.0 };
-                self.min_clearance_m = if sprint { 1.20 } else { 2.00 };
-                self.simplify_m = 0.25;
+                self.curviness = 0.14;
+                self.min_loop_area_m2 = if sprint { 24.0 } else { 58.0 };
+                self.min_clearance_m = if sprint { 1.20 } else { 1.95 };
+                self.simplify_m = 0.24;
                 self.veg_smooth = 1.35;
             }
             ContourProfile::VeryGeneralized => {
-                self.smooth_m = if sprint { 1.55 } else { 2.15 };
+                self.smooth_m = if sprint { 1.55 } else { 2.10 };
                 self.taubin_passes = 4;
                 self.curviness = 0.08;
-                self.min_loop_area_m2 = if sprint { 40.0 } else { 105.0 };
+                self.min_loop_area_m2 = if sprint { 40.0 } else { 100.0 };
                 self.min_clearance_m = if sprint { 1.50 } else { 2.40 };
                 self.simplify_m = 0.32;
                 self.veg_smooth = 1.60;
@@ -410,37 +410,37 @@ impl EngineConfig {
         let (base_gap, base_min_slp, base_max_slp, base_min_len, base_min_area): (f64, f64, f64, f64, f64) =
             match self.profile {
             ContourProfile::VeryDetailed => (
-                if sprint { 2.2 } else { 3.2 },
+                if sprint { 2.1 } else { 3.0 },
                 if sprint { 2.1 } else { 1.9 },
-                if sprint { 22.5 } else { 23.0 },
+                if sprint { 20.0 } else { 20.5 },
                 if sprint { 5.5 } else { 7.5 },
-                if sprint { 9.0 } else { 18.0 },
+                if sprint { 8.0 } else { 16.0 },
             ),
             ContourProfile::Detailed => (
-                if sprint { 2.7 } else { 3.6 },
+                if sprint { 2.6 } else { 3.5 },
                 if sprint { 2.45 } else { 2.2 },
-                if sprint { 21.0 } else { 21.5 },
+                if sprint { 18.5 } else { 19.0 },
                 if sprint { 7.0 } else { 8.5 },
-                if sprint { 13.0 } else { 24.0 },
+                if sprint { 12.0 } else { 22.0 },
             ),
             ContourProfile::Normal => (
-                if sprint { 3.2 } else { 4.1 },
+                if sprint { 3.1 } else { 4.0 },
                 if sprint { 2.85 } else { 2.55 },
-                if sprint { 20.0 } else { 20.5 },
+                if sprint { 17.0 } else { 17.5 },
                 if sprint { 8.5 } else { 9.5 },
-                if sprint { 18.0 } else { 30.0 },
+                if sprint { 16.0 } else { 28.0 },
             ),
             ContourProfile::Generalized => (
-                if sprint { 4.4 } else { 5.6 },
+                if sprint { 4.4 } else { 5.5 },
                 if sprint { 3.2 } else { 2.9 },
-                if sprint { 16.5 } else { 17.0 },
+                if sprint { 14.0 } else { 14.5 },
                 if sprint { 11.5 } else { 14.0 },
-                if sprint { 34.0 } else { 60.0 },
+                if sprint { 34.0 } else { 58.0 },
             ),
             ContourProfile::VeryGeneralized => (
                 if sprint { 5.8 } else { 7.6 },
                 if sprint { 3.7 } else { 3.3 },
-                if sprint { 13.0 } else { 13.5 },
+                if sprint { 11.0 } else { 11.5 },
                 if sprint { 16.0 } else { 20.0 },
                 if sprint { 58.0 } else { 110.0 },
             ),

@@ -335,11 +335,11 @@ mod tests {
     #[test]
     fn profiles_and_flag_override_precedence_work() {
         let cases = [
-            ("very-detailed", ContourProfile::VeryDetailed, 0.72, 1, 0.26, 18.0, 0.95, 0.14, 0.65, 3.2, 23.0),
-            ("detailed", ContourProfile::Detailed, 0.88, 2, 0.22, 26.0, 1.25, 0.17, 0.65, 3.6, 21.5),
-            ("normal", ContourProfile::Normal, 1.08, 2, 0.18, 36.0, 1.55, 0.20, 1.05, 4.1, 20.5),
-            ("generalized", ContourProfile::Generalized, 1.50, 3, 0.13, 62.0, 2.00, 0.25, 1.35, 5.6, 17.0),
-            ("very-generalized", ContourProfile::VeryGeneralized, 2.15, 4, 0.08, 105.0, 2.40, 0.32, 1.60, 7.6, 13.5),
+            ("very-detailed", ContourProfile::VeryDetailed, 0.62, 1, 0.34, 15.0, 0.85, 0.11, 0.65, 3.0, 20.5),
+            ("detailed", ContourProfile::Detailed, 0.76, 1, 0.29, 22.0, 1.15, 0.14, 0.65, 3.5, 19.0),
+            ("normal", ContourProfile::Normal, 0.92, 2, 0.24, 30.0, 1.45, 0.16, 1.05, 4.0, 17.5),
+            ("generalized", ContourProfile::Generalized, 1.42, 3, 0.14, 58.0, 1.95, 0.24, 1.35, 5.5, 14.5),
+            ("very-generalized", ContourProfile::VeryGeneralized, 2.10, 4, 0.08, 100.0, 2.40, 0.32, 1.60, 7.6, 11.5),
         ];
         for (name, prof, sm, tb, cv, area, clr, simp, vs, fgap, fmax) in cases {
             let args: Vec<String> = vec![
@@ -359,6 +359,31 @@ mod tests {
             assert!((c.veg_smooth - vs).abs() < 1e-9, "{name} veg_smooth");
             assert!((c.formline_min_gap_m - fgap).abs() < 1e-9, "{name} formline_min_gap_m");
             assert!((c.formline_max_slope_deg - fmax).abs() < 1e-9, "{name} formline_max_slope_deg");
+        }
+        // Verify strict 5-profile sprint formline_max_slope_deg table too.
+        let sprint_fmax = [
+            ("very-detailed", 20.0),
+            ("detailed", 18.5),
+            ("normal", 17.0),
+            ("generalized", 14.0),
+            ("very-generalized", 11.0),
+        ];
+        let mut prev_smax = f64::INFINITY;
+        for (name, expected_fmax) in sprint_fmax {
+            let args: Vec<String> = vec![
+                "run", "--input", "a.laz", "--out", "/tmp/o", "--interval", "2.5", "--profile", name,
+            ]
+            .into_iter()
+            .map(String::from)
+            .collect();
+            let c = parse_args(&args).unwrap().config;
+            assert!(
+                (c.formline_max_slope_deg - expected_fmax).abs() < 1e-9,
+                "sprint {name} formline_max_slope_deg: got {}",
+                c.formline_max_slope_deg
+            );
+            assert!(c.formline_max_slope_deg < prev_smax, "sprint formline_max_slope_deg not strictly monotonic");
+            prev_smax = c.formline_max_slope_deg;
         }
         // Individual flags specified BEFORE `--profile` must still override the profile!
         let args: Vec<String> = vec![
@@ -544,7 +569,54 @@ mod tests {
         let peak_unif = prepared_uniform.contour_z[60 * w + 115];
         assert!(
             peak_z > 67.5 && (peak_z - peak_unif).abs() < 0.10,
-            "Hilly peak must remain crisp via z_detail + DoG: adaptive={peak_z:.2} vs uniform={peak_unif:.2}"
+            "Hilly peak must remain crisp via z_crisp + DoG: adaptive={peak_z:.2} vs uniform={peak_unif:.2}"
+        );
+    }
+
+    #[test]
+    fn taubin_preserves_sharp_rocky_nose_while_smoothing_straight_stairsteps() {
+        let (w, h) = (100, 100);
+        let mut z = vec![0.0f32; w * h];
+        for r in 0..h {
+            for c in 0..w {
+                // Uniform 12° hill slope so hilly corner preservation applies.
+                z[r * w + c] = (50.0 + (r as f64 - 50.0) * 0.21) as f32;
+            }
+        }
+        let dem = DemGrid {
+            width: w,
+            height: h,
+            world: WorldTransform { cell: 1.0, x0: 500_000.5, y0: 6_500_099.5 },
+            z,
+            valid: vec![1u8; w * h],
+            water: vec![0u8; w * h],
+            wet: vec![0u8; w * h],
+        };
+        let cfg = EngineConfig::defaults_for_interval(5.0);
+        let prepared = prepare_dem(&dem, &cfg);
+        // Synthetic polyline with a 90° rocky nose at index 10 and 1 m stair-step jitter on the straight leg.
+        let mut pts: Vec<[f64; 2]> = Vec::new();
+        for i in 0..10 {
+            let jitter = if i % 2 == 0 { 0.25 } else { -0.25 };
+            pts.push([500_020.0 + i as f64 * 1.5, 6_500_050.0 + jitter]);
+        }
+        let nose_idx = pts.len();
+        pts.push([500_035.0, 6_500_050.0]);
+        for i in 1..=10 {
+            pts.push([500_035.0, 6_500_050.0 - i as f64 * 1.5]);
+        }
+        let smoothed = crate::geometry::taubin_smooth(&pts, false, &prepared, 50.0, 1.25, 2);
+        let nose_shift = (smoothed[nose_idx][0] - pts[nose_idx][0]).hypot(smoothed[nose_idx][1] - pts[nose_idx][1]);
+        assert!(
+            nose_shift < 0.18,
+            "Sharp rocky corner/nose must not round strongly under Taubin, shifted {nose_shift:.3} m"
+        );
+        // 1-cell stairstep jitter on the straight leg must smooth meaningfully.
+        let raw_jitter: f64 = pts[2..8].iter().map(|p| (p[1] - 6_500_050.0).abs()).sum::<f64>() / 6.0;
+        let sm_jitter: f64 = smoothed[2..8].iter().map(|p| (p[1] - 6_500_050.0).abs()).sum::<f64>() / 6.0;
+        assert!(
+            sm_jitter < raw_jitter * 0.65,
+            "Straight-leg stairstep jitter must smooth cleanly: raw={raw_jitter:.3}, smoothed={sm_jitter:.3}"
         );
     }
 
@@ -558,25 +630,205 @@ mod tests {
             ContourProfile::Generalized,
             ContourProfile::VeryGeneralized,
         ];
-        let mut prev_c = f64::INFINITY;
-        let mut prev_f = f64::INFINITY;
-        for prof in profiles {
-            let mut cfg = EngineConfig::defaults_for_interval(5.0);
-            cfg.apply_profile(prof);
+        for interval in [5.0, 2.5] {
+            let mut prev_c = f64::INFINITY;
+            let mut prev_f = f64::INFINITY;
+            for prof in profiles {
+                let mut cfg = EngineConfig::defaults_for_interval(interval);
+                cfg.apply_profile(prof);
+                let prepared = prepare_dem(&dem, &cfg);
+                let (contours, _) = extract_contours(&prepared, &cfg);
+                let formlines = extract_formlines(&prepared, &contours, &cfg);
+                assert_eq!(count_crossings(&contours), 0, "Crossings on iv={interval} {prof:?}");
+                for l in contours.iter().chain(formlines.iter()) {
+                    assert!(!has_self_intersection(&l.points, l.closed), "SelfX on iv={interval} {prof:?}");
+                }
+                let c_len: f64 = contours.iter().map(|l| crate::geometry::polyline_length(&l.points, l.closed)).sum();
+                let f_len: f64 = formlines.iter().map(|l| crate::geometry::polyline_length(&l.points, l.closed)).sum();
+                assert!(
+                    c_len <= prev_c + 1.0,
+                    "101 length not monotonic at iv={interval} {prof:?}: {c_len:.1} > {prev_c:.1}"
+                );
+                assert!(
+                    f_len <= prev_f + 1.0,
+                    "103 length not monotonic at iv={interval} {prof:?}: {f_len:.1} > {prev_f:.1}"
+                );
+                prev_c = c_len;
+                prev_f = f_len;
+            }
+        }
+    }
+
+    #[test]
+    fn smooth_planar_slope_suppresses_103_while_local_form_survives() {
+        let (w, h) = (160, 140);
+        // 1. Pure featureless 9° forest planar slope -> 0 formlines.
+        let make_plane = |deg: f64| -> DemGrid {
+            let slope = deg.to_radians().tan();
+            let mut z = vec![0.0f32; w * h];
+            for r in 0..h {
+                for c in 0..w {
+                    z[r * w + c] = (45.0 + (r as f64) * slope) as f32;
+                }
+            }
+            DemGrid {
+                width: w,
+                height: h,
+                world: WorldTransform { cell: 1.0, x0: 500_000.5, y0: 6_500_000.0 + h as f64 - 0.5 },
+                z,
+                valid: vec![1u8; w * h],
+                water: vec![0u8; w * h],
+                wet: vec![0u8; w * h],
+            }
+        };
+        for (deg, interval) in [(10.5, 5.0), (6.5, 2.5)] {
+            let dem = make_plane(deg);
+            let cfg = EngineConfig::defaults_for_interval(interval);
             let prepared = prepare_dem(&dem, &cfg);
             let (contours, _) = extract_contours(&prepared, &cfg);
             let formlines = extract_formlines(&prepared, &contours, &cfg);
-            assert_eq!(count_crossings(&contours), 0, "Crossings on {prof:?}");
-            for l in contours.iter().chain(formlines.iter()) {
-                assert!(!has_self_intersection(&l.points, l.closed), "SelfX on {prof:?}");
-            }
-            let c_len: f64 = contours.iter().map(|l| crate::geometry::polyline_length(&l.points, l.closed)).sum();
-            let f_len: f64 = formlines.iter().map(|l| crate::geometry::polyline_length(&l.points, l.closed)).sum();
-            assert!(c_len <= prev_c + 1.0, "101 length not monotonic at {prof:?}: {c_len:.1} > {prev_c:.1}");
-            assert!(f_len <= prev_f + 1.0, "103 length not monotonic at {prof:?}: {f_len:.1} > {prev_f:.1}");
-            prev_c = c_len;
-            prev_f = f_len;
+            assert!(
+                formlines.is_empty(),
+                "Featureless {deg}° planar slope (iv={interval}) above selective_slope must emit 0 formlines, got {}",
+                formlines.len()
+            );
         }
+
+        // Gentle 6° forest slope (< selective_slope 9.0°) stays permissive so gentle forest hills aren't over-pruned.
+        {
+            let dem = make_plane(6.0);
+            let cfg = EngineConfig::defaults_for_interval(5.0);
+            let prepared = prepare_dem(&dem, &cfg);
+            let (contours, _) = extract_contours(&prepared, &cfg);
+            let formlines = extract_formlines(&prepared, &contours, &cfg);
+            assert!(
+                !formlines.is_empty(),
+                "Gentle 6° forest slope (< selective_slope 9.0°) should remain permissive"
+            );
+        }
+
+        // 2. Same 10.5° forest slope WITH a distinct spur/nose (x=48) and incised re-entrant (x=112) -> both kept!
+        let slope = 10.5_f64.to_radians().tan();
+        let mut z = vec![0.0f32; w * h];
+        for r in 0..h {
+            for c in 0..w {
+                let x = c as f64;
+                let y = r as f64;
+                let nose = 2.5 * (-((x - 48.0).powi(2) / (2.0 * 8.0 * 8.0))).exp();
+                let reent = -2.8 * (-((x - 112.0).powi(2) / (2.0 * 8.0 * 8.0))).exp();
+                z[r * w + c] = (45.0 + y * slope + nose + reent) as f32;
+            }
+        }
+        let dem_form = DemGrid {
+            width: w,
+            height: h,
+            world: WorldTransform { cell: 1.0, x0: 500_000.5, y0: 6_500_000.0 + h as f64 - 0.5 },
+            z,
+            valid: vec![1u8; w * h],
+            water: vec![0u8; w * h],
+            wet: vec![0u8; w * h],
+        };
+        let cfg = EngineConfig::defaults_for_interval(5.0);
+        let prepared = prepare_dem(&dem_form, &cfg);
+        let (contours, _) = extract_contours(&prepared, &cfg);
+        let formlines = extract_formlines(&prepared, &contours, &cfg);
+        let has_nose = formlines
+            .iter()
+            .any(|l| l.points.iter().any(|p| (p[0] - 500_048.5).abs() < 14.0));
+        let has_reentrant = formlines
+            .iter()
+            .any(|l| l.points.iter().any(|p| (p[0] - 500_112.5).abs() < 14.0));
+        assert!(has_nose, "Distinct nose on 10.5° slope must retain a 103 formline");
+        assert!(has_reentrant, "Distinct re-entrant on 10.5° slope must retain a 103 formline");
+    }
+
+    #[test]
+    fn formlines_hard_cut_narrow_flat_strip_without_bridging() {
+        let (w, h) = (180, 140);
+        let mut z = vec![0.0f32; w * h];
+        for r in 0..h {
+            let dy = r as f64 - 70.0;
+            // Convex shoulder right along dy = 0 (gentle upper bench, steeper downhill drop) so
+            // 52.5 m formline has strong form on both sides of the narrow flat strip.
+            let profile = if dy >= 0.0 { 0.06 * dy } else { 0.22 * dy };
+            for c in 0..w {
+                let x = c as f64;
+                // Narrow ~7 m flat strip (< min_cut_len = 12 m) centered at x = 90.
+                let strip = 1.0 - 0.94 * (-((x - 90.0) / 4.2).powi(4)).exp();
+                z[r * w + c] = (52.5 + profile * strip) as f32;
+            }
+        }
+        let dem = DemGrid {
+            width: w,
+            height: h,
+            world: WorldTransform { cell: 1.0, x0: 500_000.5, y0: 6_500_000.0 + h as f64 - 0.5 },
+            z,
+            valid: vec![1u8; w * h],
+            water: vec![0u8; w * h],
+            wet: vec![0u8; w * h],
+        };
+        let cfg = EngineConfig::defaults_for_interval(5.0);
+        let prepared = prepare_dem(&dem, &cfg);
+        let (contours, _) = extract_contours(&prepared, &cfg);
+        let formlines = extract_formlines(&prepared, &contours, &cfg);
+
+        let mid_x = 500_090.5;
+        let has_left = formlines.iter().any(|l| l.points.iter().all(|p| p[0] < mid_x - 1.5));
+        let has_right = formlines.iter().any(|l| l.points.iter().all(|p| p[0] > mid_x + 1.5));
+        let bridges_flat = formlines.iter().any(|l| {
+            let min_x = l.points.iter().map(|p| p[0]).fold(f64::INFINITY, f64::min);
+            let max_x = l.points.iter().map(|p| p[0]).fold(f64::NEG_INFINITY, f64::max);
+            min_x < mid_x - 1.0 && max_x > mid_x + 1.0
+        });
+        assert!(has_left && has_right, "Expected 103 pieces on both sloped shoulders");
+        assert!(!bridges_flat, "Narrow flat strip (< min_cut_len) must be hard-cut, never bridged");
+    }
+
+    #[test]
+    fn verified_closed_depression_retains_intact_103_ring() {
+        // Forest (5 m interval): verified depression (raw_prom ~1.3 m >= 0.75 m) on gentle terrain.
+        let make_dep_dem = |w: usize, h: usize, base: f64, depth: f64, sigma: f64| -> DemGrid {
+            let cx = (w / 2) as f64;
+            let cy = (h / 2) as f64;
+            let mut z = vec![0.0f32; w * h];
+            for r in 0..h {
+                for c in 0..w {
+                    let dx = c as f64 - cx;
+                    let dy = r as f64 - cy;
+                    let pit = -depth * (-((dx * dx + dy * dy) / (2.0 * sigma * sigma))).exp();
+                    z[r * w + c] = (base + 0.015 * dx + pit) as f32;
+                }
+            }
+            DemGrid {
+                width: w,
+                height: h,
+                world: WorldTransform { cell: 1.0, x0: 500_000.5, y0: 6_500_000.0 + h as f64 - 0.5 },
+                z,
+                valid: vec![1u8; w * h],
+                water: vec![0u8; w * h],
+                wet: vec![0u8; w * h],
+            }
+        };
+
+        let forest_dem = make_dep_dem(120, 120, 53.6, 2.4, 6.0);
+        let cfg_f = EngineConfig::defaults_for_interval(5.0);
+        let prep_f = prepare_dem(&forest_dem, &cfg_f);
+        let (c_f, _) = extract_contours(&prep_f, &cfg_f);
+        let fl_f = extract_formlines(&prep_f, &c_f, &cfg_f);
+        assert!(
+            fl_f.iter().any(|l| l.closed && (l.elevation - 52.5).abs() < 1e-6),
+            "Verified forest depression (>= 0.75 m depth) must retain intact closed 103 ring, got {fl_f:?}"
+        );
+
+        let sprint_dem = make_dep_dem(100, 100, 51.9, 1.45, 3.5);
+        let cfg_s = EngineConfig::defaults_for_interval(2.5);
+        let prep_s = prepare_dem(&sprint_dem, &cfg_s);
+        let (c_s, _) = extract_contours(&prep_s, &cfg_s);
+        let fl_s = extract_formlines(&prep_s, &c_s, &cfg_s);
+        assert!(
+            fl_s.iter().any(|l| l.closed && (l.elevation - 51.25).abs() < 1e-6),
+            "Verified sprint depression (>= 0.55 m depth) must retain intact closed 103 ring, got {fl_s:?}"
+        );
     }
 
     #[test]

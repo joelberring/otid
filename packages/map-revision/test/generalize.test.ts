@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MapObject, PathCommand } from "@o-tid/map-file";
-import { generalize, generalizeCandidates, proposalBase, simplifyObject, simplifyPoints, type NormObject, type RevisionClientState } from "../src";
+import { contourLineSimplifyMm, generalize, generalizeCandidates, lineSelfCrosses, proposalBase, simplifyObject, simplifyPoints, type NormObject, type RevisionClientState } from "../src";
 
 /** ADR-0219 K6 del 1: generaliseringen som förslag (förenkla, ta bort det normen inte tillåter). */
 const path = (points: [number, number][]): PathCommand[] => points.map(([x, y], index) => ({ type: index === 0 ? "M" : "L", x, y }));
@@ -101,8 +101,45 @@ describe("kandidaterna generaliseras före Lägg in", () => {
     expect(result.changes.map(change => [change.key, change.reason]).sort()).toEqual([["n:g", "SMOOTH"], ["n:k", "SMOOTH"]]);
     const soft = result.changes.find(change => change.key === "n:k")!.object;
     expect(soft?.kind === "line" && soft.path.slice(1).every(command => command.type === "C")).toBe(true);
-    // Kandidaterna: kurvorna görs mjuka som förval.
+    // Kandidaterna: kurvorna görs mjuka som förval, men med skarp kurvtolerans (0,045 mm) så att en 0,10 mm näsa bevaras medan 406-grönytor rundas med 0,15 mm.
     const candidates = generalizeCandidates([contour.object], () => "101", 10000);
     expect(candidates.objects[0]!.kind === "line" && candidates.objects[0]!.path.some(command => command.type === "C")).toBe(true);
+    const rockyNose = line("n", "101", [[0, 0], [0.5, 0], [1.0, 0.10], [1.5, 0], [2.0, 0]]).object;
+    const greenBump = area("gb", "406", [[0, 0], [2, 0.10], [4, 0], [4, 4], [0, 4], [0, 0]]).object;
+    const kept = generalizeCandidates([rockyNose, greenBump], symbol => symbol, 15000);
+    const outLine = kept.objects.find(o => o.kind === "line")!;
+    expect(outLine.kind === "line" && outLine.path.some(c => Math.abs(c.y - 0.10) < 1e-6)).toBe(true);
+    const outArea = kept.objects.find(o => o.kind === "area")!;
+    expect(outArea.kind === "area" && outArea.rings[0]!.every(c => Math.abs(c.y - 0.10) > 1e-6)).toBe(true);
+  });
+
+  it("golv i terrängmeter (0,35 m) för sprintkurvor och noll självkorsningar efter generalizeCandidates", () => {
+    // Skog (1:15 000 och 1:10 000) behåller skarpa 0,045 mm; sprint (≤ 1:5 000) golvas till minst 0,35 m i terrängen.
+    expect(contourLineSimplifyMm(15_000)).toBe(0.045);
+    expect(contourLineSimplifyMm(10_000)).toBe(0.045);
+    expect(contourLineSimplifyMm(5_000)).toBeCloseTo(0.07, 6);
+    expect(contourLineSimplifyMm(4_000)).toBeCloseTo(0.0875, 6);
+
+    // 0,06 mm (0,24 m i 1:4 000) sub-grid-trappsteg förenklas bort i sprint, men behålls i 1:15 000 skog (0,90 m > 0,675 m).
+    const microStep = line("m", "101", [[0, 0], [1, 0], [2, 0.06], [3, 0], [4, 0]]).object;
+    const sprintRes = generalizeCandidates([microStep], () => "101", 4_000);
+    const forestRes = generalizeCandidates([microStep], () => "101", 15_000);
+    const sprintLine = sprintRes.objects[0]!;
+    const forestLine = forestRes.objects[0]!;
+    expect(sprintLine.kind === "line" && sprintLine.path.every(c => Math.abs(c.y - 0.06) > 1e-6)).toBe(true);
+    expect(forestLine.kind === "line" && forestLine.path.some(c => Math.abs(c.y - 0.06) < 1e-6)).toBe(true);
+
+    // Akuta sicksackkurvor ger noll självkorsningar efter generalizeCandidates i både sprint och skog.
+    const acute = line("z", "101", [
+      [0, 0], [2.5, 0], [2.62, 0.10], [0.2, 0.16], [0.14, 0.28], [2.7, 0.35], [2.76, 0.46], [0.1, 0.54]
+    ]).object;
+    const closedPinch = line("p", "101", [
+      [10, 0], [16, 0], [16, 3], [13.15, 3], [13.0, 0.12], [12.85, 3], [10, 3], [10, 0]
+    ]).object;
+    for (const scale of [4_000, 15_000]) {
+      const out = generalizeCandidates([acute, closedPinch], () => "101", scale);
+      expect(out.objects.length).toBeGreaterThan(0);
+      for (const obj of out.objects) expect(lineSelfCrosses(obj)).toBe(false);
+    }
   });
 });

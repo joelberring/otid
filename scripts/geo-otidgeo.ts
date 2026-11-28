@@ -60,16 +60,16 @@ interface OtidgeoProfileSpec {
  */
 const OTIDGEO_PROFILE_SPECS: Readonly<Record<"forest" | "sprint", Readonly<Record<Exclude<OtidgeoProfileName, "normal">, OtidgeoProfileSpec>>>> = {
   forest: {
-    "very-detailed": { smooth_m: 0.72, taubin: 1, curviness: 0.26, min_loop_area: 18, min_clearance: 0.95, formline_gap: 3.2, formline_max_slope: 23 },
-    "detailed": { smooth_m: 0.88, taubin: 2, curviness: 0.22, min_loop_area: 26, min_clearance: 1.25, formline_gap: 3.6, formline_max_slope: 21.5 },
-    "generalized": { smooth_m: 1.5, taubin: 3, curviness: 0.13, min_loop_area: 62, min_clearance: 2, formline_gap: 5.6, formline_max_slope: 17 },
-    "very-generalized": { smooth_m: 2.15, taubin: 4, curviness: 0.08, min_loop_area: 105, min_clearance: 2.4, formline_gap: 7.6, formline_max_slope: 13.5 }
+    "very-detailed": { smooth_m: 0.62, taubin: 1, curviness: 0.34, min_loop_area: 15, min_clearance: 0.85, formline_gap: 3, formline_max_slope: 20.5 },
+    "detailed": { smooth_m: 0.76, taubin: 1, curviness: 0.29, min_loop_area: 22, min_clearance: 1.15, formline_gap: 3.5, formline_max_slope: 19 },
+    "generalized": { smooth_m: 1.42, taubin: 3, curviness: 0.14, min_loop_area: 58, min_clearance: 1.95, formline_gap: 5.5, formline_max_slope: 14.5 },
+    "very-generalized": { smooth_m: 2.1, taubin: 4, curviness: 0.08, min_loop_area: 100, min_clearance: 2.4, formline_gap: 7.6, formline_max_slope: 11.5 }
   },
   sprint: {
-    "very-detailed": { smooth_m: 0.52, taubin: 1, curviness: 0.26, min_loop_area: 9, min_clearance: 0.55, formline_gap: 2.2, formline_max_slope: 22.5 },
-    "detailed": { smooth_m: 0.65, taubin: 2, curviness: 0.22, min_loop_area: 12, min_clearance: 0.75, formline_gap: 2.7, formline_max_slope: 21 },
-    "generalized": { smooth_m: 1.1, taubin: 3, curviness: 0.13, min_loop_area: 25, min_clearance: 1.2, formline_gap: 4.4, formline_max_slope: 16.5 },
-    "very-generalized": { smooth_m: 1.55, taubin: 4, curviness: 0.08, min_loop_area: 40, min_clearance: 1.5, formline_gap: 5.8, formline_max_slope: 13 }
+    "very-detailed": { smooth_m: 0.45, taubin: 1, curviness: 0.34, min_loop_area: 8, min_clearance: 0.5, formline_gap: 2.1, formline_max_slope: 20 },
+    "detailed": { smooth_m: 0.56, taubin: 1, curviness: 0.29, min_loop_area: 11, min_clearance: 0.68, formline_gap: 2.6, formline_max_slope: 18.5 },
+    "generalized": { smooth_m: 1.05, taubin: 3, curviness: 0.14, min_loop_area: 24, min_clearance: 1.2, formline_gap: 4.4, formline_max_slope: 14 },
+    "very-generalized": { smooth_m: 1.55, taubin: 4, curviness: 0.08, min_loop_area: 40, min_clearance: 1.5, formline_gap: 5.8, formline_max_slope: 11 }
   }
 };
 
